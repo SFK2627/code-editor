@@ -248,3 +248,8 @@ Important: the current Teacher/Admin PIN is client-side, so it is not secure for
 - Editor, output preview, activity selector, result panel, and teacher/admin rubric builder are responsive.
 - Teacher login and rubric table input are optimized for phones.
 - Editor uses internal scrolling on mobile so the page is easier to control while typing code.
+
+## Latest mobile fix
+- Fixed phone layout where the HTML/CSS/JavaScript tabs could cover the code editor.
+- Mobile tabs are now part of the normal editor flow, so the code starts below the tabs.
+- Top action buttons are now a responsive grid on phones instead of awkward horizontal overflow.
