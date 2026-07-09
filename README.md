@@ -279,25 +279,3 @@ The app now includes an **Rubric-Based Feedback** panel.
 - Do not place OpenAI, Gemini, or any other feedback provider API key directly in frontend files. Use a backend or Firebase Function.
 
 Included sample backend files are inside the `functions/` folder.
-
-
-## Firebase Login Reliability Fix
-
-This version loads Firebase using both compatibility CDN scripts in `index.html` and a module-import fallback in `script.js`. If Teacher/Admin shows "Firebase is not ready," confirm that these files are uploaded in the GitHub repo root: `index.html`, `style.css`, `script.js`, `firebase-config.js`, and `firestore.rules`. Also confirm Email/Password is enabled in Firebase Authentication and `sfk2627.github.io` is listed in Authorized domains.
-
-## Latest Feature: Rubric Image Import
-
-Teacher/Admin can now upload a clear screenshot/photo of a rubric inside the Admin Rubric Table Builder.
-
-- Upload image in Teacher/Admin.
-- Click **Read Image & Fill Table**.
-- The app sends the image to a secure Firebase Function endpoint.
-- The function converts the picture into an activity title, instructions, passing score, and table-based rubric rows.
-- Teacher must review the generated table before clicking **Save Activity**.
-
-This feature requires the Firebase Function `rubricImageImport`. Keep `window.MCS_RUBRIC_IMAGE_ENDPOINT` blank until the function is deployed. Do not put AI/API keys in frontend files.
-
-
-## Rubric picture upload visibility fix
-
-The Teacher/Admin panel now shows a clearly visible **Upload Rubric Picture / Screenshot** section at the top of the rubric builder, plus a header shortcut button.
