@@ -26,6 +26,8 @@ const editorInfo = document.getElementById('editorInfo');
 const structureAlert = document.getElementById('structureAlert');
 const tabButtons = document.querySelectorAll('.tab-btn');
 const resultContent = document.getElementById('resultContent');
+const errorCheckerContent = document.getElementById('errorCheckerContent');
+const refreshErrorCheckerBtn = document.getElementById('refreshErrorCheckerBtn');
 const activityTitle = document.getElementById('activityTitle');
 const activityDescription = document.getElementById('activityDescription');
 const activitySelect = document.getElementById('activitySelect');
@@ -1377,6 +1379,7 @@ function saveActiveEditor() {
   renderStructureAlert();
   fitEditorToContent();
   updateTagMatching();
+  renderErrorChecker();
 }
 
 function updateLineNumbers() {
@@ -1702,6 +1705,7 @@ function scrollToOutput() {
 function runCode(showMessage = true, options = {}) {
   saveActiveEditor();
   previewFrame.srcdoc = buildFullCode();
+  window.setTimeout(renderErrorChecker, 180);
 
   if (showMessage) {
     setStatus('Output updated');
@@ -1735,6 +1739,177 @@ function queryPreview(selector) {
   } catch (error) {
     return null;
   }
+}
+
+function getBodyInnerHTML(html) {
+  const match = String(html || '').match(/<body\b[^>]*>([\s\S]*?)<\/body\s*>/i);
+  return match ? match[1] : String(html || '');
+}
+
+function stripHTMLTags(value) {
+  return String(value || '')
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function getDetailedHTMLTagIssues(html) {
+  const tags = parseHtmlTags(html || '');
+  return tags
+    .filter(tag => !tag.selfClosing && tag.pairIndex === null)
+    .slice(0, 8)
+    .map(tag => ({
+      name: tag.name,
+      line: getLineNumberAt(html || '', tag.start),
+      closing: tag.closing
+    }));
+}
+
+function hasBalancedCurlyBraces(value) {
+  const text = String(value || '').replace(/(['"`])(?:\\.|(?!\1)[\s\S])*\1/g, '');
+  let count = 0;
+  for (const char of text) {
+    if (char === '{') count += 1;
+    if (char === '}') count -= 1;
+    if (count < 0) return false;
+  }
+  return count === 0;
+}
+
+function getJavaScriptSyntaxError(js) {
+  const code = String(js || '').trim();
+  if (!code) return '';
+  try {
+    new Function(code);
+    return '';
+  } catch (error) {
+    return error.message || String(error);
+  }
+}
+
+function getRuntimeErrorMessage() {
+  const doc = getPreviewDocument();
+  return doc?.body?.dataset?.runtimeError || '';
+}
+
+function createCheckerItem(type, title, detail, fix = '') {
+  return { type, title, detail, fix };
+}
+
+function getErrorCheckerItems() {
+  const html = codeStore.html || '';
+  const css = codeStore.css || '';
+  const js = codeStore.js || '';
+  const items = [];
+  const structureReport = getHTMLStructureReport();
+  const bodyInner = getBodyInnerHTML(html);
+  const bodyText = stripHTMLTags(bodyInner);
+  const tagIssues = getDetailedHTMLTagIssues(html);
+  const jsSyntaxError = getJavaScriptSyntaxError(js);
+  const runtimeError = getRuntimeErrorMessage();
+
+  if (structureReport.passed) {
+    items.push(createCheckerItem('pass', 'Complete HTML structure', 'DOCTYPE, html, head, title, and body are detected.'));
+  } else {
+    items.push(createCheckerItem(
+      'error',
+      'Missing HTML structure',
+      `Missing: ${structureReport.missing.map(item => item.label).join(', ') || 'required structure'}.`,
+      'Use the complete HTML starter structure before adding content.'
+    ));
+  }
+
+  if (/<title\b[^>]*>\s*<\/title\s*>/i.test(html)) {
+    items.push(createCheckerItem('warning', 'Empty title tag', 'Your <title> exists but has no title text.', 'Type a short page title inside <title>.'));
+  } else if (/<title\b[^>]*>[\s\S]+?<\/title\s*>/i.test(html)) {
+    items.push(createCheckerItem('pass', 'Title tag has content', 'The browser tab title is not empty.'));
+  }
+
+  if (bodyText.length >= 3) {
+    items.push(createCheckerItem('pass', 'Body has visible content', 'Your webpage has readable text/content inside the body.'));
+  } else {
+    items.push(createCheckerItem('warning', 'Body looks empty', 'The body section has little or no visible text.', 'Add a heading, paragraph, image, button, or other visible content inside <body>.'));
+  }
+
+  if (!tagIssues.length) {
+    items.push(createCheckerItem('pass', 'HTML tags look balanced', 'No missing opening/closing tag was detected.'));
+  } else {
+    const details = tagIssues.map(issue => {
+      return issue.closing
+        ? `</${issue.name}> on line ${issue.line} has no opening tag`
+        : `<${issue.name}> on line ${issue.line} needs </${issue.name}>`;
+    }).join('; ');
+    items.push(createCheckerItem('error', 'Tag closing problem', details, 'Click the underlined tag in the editor and add the missing matching tag.'));
+  }
+
+  if (css.trim()) {
+    if (hasBalancedCurlyBraces(css)) {
+      items.push(createCheckerItem('pass', 'CSS braces look okay', 'Opening and closing curly braces are balanced.'));
+    } else {
+      items.push(createCheckerItem('error', 'CSS brace problem', 'One or more CSS { } braces are missing or extra.', 'Check each selector and make sure every { has a matching }.'));
+    }
+
+    if (!/[a-z-]+\s*:\s*[^;{}]+;?/i.test(css)) {
+      items.push(createCheckerItem('warning', 'CSS may be incomplete', 'CSS has text but no clear property/value pair was detected.', 'Example: color: blue; or background: lightyellow;'));
+    }
+  } else {
+    items.push(createCheckerItem('tip', 'CSS is blank', 'This is okay if the activity does not require design.'));
+  }
+
+  if (js.trim()) {
+    if (jsSyntaxError) {
+      items.push(createCheckerItem('error', 'JavaScript syntax error', jsSyntaxError, 'Check missing parentheses, quotes, braces, or semicolons.'));
+    } else {
+      items.push(createCheckerItem('pass', 'JavaScript syntax looks okay', 'No basic JavaScript syntax error was detected.'));
+    }
+
+    if (runtimeError) {
+      items.push(createCheckerItem('error', 'JavaScript runtime error', runtimeError, 'Run again after checking element IDs, variable names, and event code.'));
+    }
+  } else {
+    items.push(createCheckerItem('tip', 'JavaScript is blank', 'This is okay if the activity does not require interactivity.'));
+  }
+
+  return items;
+}
+
+function renderErrorChecker() {
+  if (!errorCheckerContent) return;
+  const items = getErrorCheckerItems();
+  const errorCount = items.filter(item => item.type === 'error').length;
+  const warningCount = items.filter(item => item.type === 'warning').length;
+  const passCount = items.filter(item => item.type === 'pass').length;
+
+  const summaryClass = errorCount ? 'error' : warningCount ? 'warning' : 'pass';
+  const summaryText = errorCount
+    ? `${errorCount} error${errorCount > 1 ? 's' : ''} found`
+    : warningCount
+      ? `${warningCount} warning${warningCount > 1 ? 's' : ''} found`
+      : 'No major errors found';
+
+  errorCheckerContent.innerHTML = `
+    <div class="checker-summary ${summaryClass}">
+      <div>
+        <strong>${escapeHTML(summaryText)}</strong>
+        <span>${passCount} passed checks · ${warningCount} warning${warningCount === 1 ? '' : 's'} · ${errorCount} error${errorCount === 1 ? '' : 's'}</span>
+      </div>
+    </div>
+    <div class="checker-list">
+      ${items.map(item => `
+        <article class="checker-item ${escapeAttribute(item.type)}">
+          <span class="checker-icon">${item.type === 'pass' ? '✓' : item.type === 'error' ? '!' : item.type === 'warning' ? '⚠' : 'i'}</span>
+          <div>
+            <h3>${escapeHTML(item.title)}</h3>
+            <p>${escapeHTML(item.detail)}</p>
+            ${item.fix ? `<small>Fix: ${escapeHTML(item.fix)}</small>` : ''}
+          </div>
+        </article>
+      `).join('')}
+    </div>
+  `;
 }
 
 function checkCriterion(criterion) {
@@ -3156,6 +3331,13 @@ runBtn.addEventListener('click', () => runCode());
 resultBtn.addEventListener('click', showResult);
 if (saveBtn) saveBtn.addEventListener('click', downloadCodeAsZip);
 if (downloadZipBtn) downloadZipBtn.addEventListener('click', downloadCodeAsZip);
+if (refreshErrorCheckerBtn) refreshErrorCheckerBtn.addEventListener('click', () => {
+  saveActiveEditor();
+  runCode(false, { scroll: false });
+  window.setTimeout(renderErrorChecker, 220);
+  setStatus('Errors checked');
+});
+if (previewFrame) previewFrame.addEventListener('load', () => window.setTimeout(renderErrorChecker, 80));
 activitySelect.addEventListener('change', event => selectActivity(event.target.value));
 resetActivityCodeBtn.addEventListener('click', resetCurrentActivityCode);
 
@@ -3245,4 +3427,5 @@ resetResultPanel();
 setPreviewLayout(loadJSON(STORAGE_KEYS.layout, 'split'));
 loadActiveEditor();
 runCode(false);
+renderErrorChecker();
 startFirebaseMode();

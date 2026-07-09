@@ -100,6 +100,23 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
           <iframe id="previewFrame" title="Code output preview" sandbox="allow-scripts allow-same-origin"></iframe>
         </section>
 
+        <section id="errorCheckerPanel" class="panel error-checker-panel" aria-label="Error checker">
+          <div class="panel-header compact-header error-checker-header">
+            <div>
+              <p class="section-kicker">Code Helper</p>
+              <h2>Error Checker</h2>
+              <p>Quick hints for missing tags, empty body, CSS, and JavaScript errors.</p>
+            </div>
+            <button id="refreshErrorCheckerBtn" class="layout-btn strong" type="button">Check</button>
+          </div>
+          <div id="errorCheckerContent" class="error-checker-content">
+            <div class="checker-empty">
+              <strong>Ready to check.</strong>
+              <span>Start coding or click Run to check your output.</span>
+            </div>
+          </div>
+        </section>
+
         <section id="resultPanel" class="panel result-panel" aria-label="Score result">
           <div class="panel-header compact-header">
             <div>

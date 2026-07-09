@@ -261,3 +261,9 @@ Important: the current Teacher/Admin PIN is client-side, so it is not secure for
 - Mobile editor now uses horizontal scrolling instead of wrapping code awkwardly.
 - Full Editor mode on phones now uses CSS fullscreen instead of native browser fullscreen to avoid broken mobile rendering.
 - Exit Full is now a small floating button at the bottom-right on phones.
+
+## Latest Feature: Error Checker Panel
+
+- Added a student-friendly **Error Checker** beside the output/result area.
+- Checks for missing full HTML structure, empty body, empty title, unclosed HTML tags, CSS brace problems, JavaScript syntax errors, and JavaScript runtime errors after Run.
+- Shows clear fix hints separate from rubric scoring, so students can debug before checking their score.
