@@ -253,3 +253,11 @@ Important: the current Teacher/Admin PIN is client-side, so it is not secure for
 - Fixed phone layout where the HTML/CSS/JavaScript tabs could cover the code editor.
 - Mobile tabs are now part of the normal editor flow, so the code starts below the tabs.
 - Top action buttons are now a responsive grid on phones instead of awkward horizontal overflow.
+
+## Latest mobile repair
+
+- Fixed mobile editor tabs so HTML/CSS/JavaScript never overlap the code.
+- Reduced phone editor font size for better readability.
+- Mobile editor now uses horizontal scrolling instead of wrapping code awkwardly.
+- Full Editor mode on phones now uses CSS fullscreen instead of native browser fullscreen to avoid broken mobile rendering.
+- Exit Full is now a small floating button at the bottom-right on phones.

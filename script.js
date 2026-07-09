@@ -2159,7 +2159,8 @@ function enterFullEditor() {
   exitEditorStickyBtn?.classList.remove('hidden');
   hideSuggestions();
 
-  if (editorPanel?.requestFullscreen && !document.fullscreenElement) {
+  const isSmallScreen = window.matchMedia('(max-width: 820px)').matches;
+  if (!isSmallScreen && editorPanel?.requestFullscreen && !document.fullscreenElement) {
     editorPanel.requestFullscreen().catch(() => {
       // Browser may block fullscreen from some shortcuts; CSS fullscreen still works.
     });
