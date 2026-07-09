@@ -75,6 +75,18 @@ const STORAGE_KEYS = {
 
 const ADMIN_PIN = '1234';
 
+const firebaseSync = {
+  enabled: false,
+  initialized: false,
+  initializing: null,
+  db: null,
+  modules: null,
+  collectionName: window.MCS_FIREBASE_COLLECTION || 'webCodeEditor',
+  documentId: window.MCS_FIREBASE_DOCUMENT_ID || 'grade8-mcsian',
+  sdkVersion: window.MCS_FIREBASE_SDK_VERSION || '10.12.5'
+};
+
+
 const STARTER_CODE_VERSION_KEY = 'studentCodeStudio.starterCodeVersion';
 const CURRENT_STARTER_CODE_VERSION = 'clean-uploaded-base-2026-07-09-v2';
 
@@ -519,8 +531,11 @@ function getActivityById(activityId) {
   return activities.find(item => item.id === activityId) || null;
 }
 
-function saveActivities() {
+function saveActivities(options = {}) {
   saveJSON(STORAGE_KEYS.activities, activities);
+  if (options.cloud !== false) {
+    queueCloudActivitiesSave();
+  }
 }
 
 function saveCodeByActivity() {
@@ -536,6 +551,169 @@ function getCodeStoreForActivity(activityId) {
   return codeByActivity[activityId];
 }
 
+
+
+function hasFirebaseConfig() {
+  const config = window.MCS_FIREBASE_CONFIG || {};
+  return Boolean(
+    window.MCS_FIREBASE_ENABLED === true &&
+    config.apiKey &&
+    config.projectId &&
+    !String(config.apiKey).includes('PASTE_') &&
+    !String(config.projectId).includes('PASTE_')
+  );
+}
+
+async function initFirebaseSync() {
+  if (!hasFirebaseConfig()) {
+    firebaseSync.enabled = false;
+    return false;
+  }
+
+  if (firebaseSync.initialized) return true;
+  if (firebaseSync.initializing) return firebaseSync.initializing;
+
+  firebaseSync.initializing = (async () => {
+    try {
+      const version = firebaseSync.sdkVersion;
+      const appModule = await import(`https://www.gstatic.com/firebasejs/${version}/firebase-app.js`);
+      const firestoreModule = await import(`https://www.gstatic.com/firebasejs/${version}/firebase-firestore.js`);
+
+      const app = appModule.initializeApp(window.MCS_FIREBASE_CONFIG);
+      firebaseSync.db = firestoreModule.getFirestore(app);
+      firebaseSync.modules = firestoreModule;
+      firebaseSync.enabled = true;
+      firebaseSync.initialized = true;
+      setStatus('Firebase connected');
+      return true;
+    } catch (error) {
+      console.warn('Firebase connection failed. Local mode will continue.', error);
+      firebaseSync.enabled = false;
+      setStatus('Local mode');
+      return false;
+    }
+  })();
+
+  return firebaseSync.initializing;
+}
+
+function getCloudActivitiesDocRef() {
+  const { doc } = firebaseSync.modules;
+  return doc(firebaseSync.db, firebaseSync.collectionName, firebaseSync.documentId);
+}
+
+async function loadActivitiesFromCloud() {
+  const ready = await initFirebaseSync();
+  if (!ready) return false;
+
+  try {
+    const { getDoc } = firebaseSync.modules;
+    const snap = await getDoc(getCloudActivitiesDocRef());
+    if (!snap.exists()) {
+      await saveActivitiesToCloud();
+      return false;
+    }
+
+    const data = snap.data() || {};
+    if (!Array.isArray(data.activities) || !data.activities.length) return false;
+
+    activities = normalizeActivities(data.activities);
+    saveActivities({ cloud: false });
+
+    if (!activities.some(item => item.id === selectedActivityId)) {
+      selectedActivityId = activities[0]?.id || '';
+      saveJSON(STORAGE_KEYS.selectedActivityId, selectedActivityId);
+    }
+
+    activity = getActivityById(selectedActivityId);
+    codeStore = activity ? getCodeStoreForActivity(activity.id) : normalizeCodeStore(starterCode);
+    adminEditingActivityId = activity?.id || activities[0]?.id || '';
+
+    renderActivitySummary();
+    renderAdminActivitySelect();
+    loadActiveEditor();
+    resetResultPanel();
+    runCode(false, { scroll: false });
+    setStatus('Cloud activities loaded');
+    return true;
+  } catch (error) {
+    console.warn('Could not load cloud activities.', error);
+    setStatus('Cloud load failed');
+    return false;
+  }
+}
+
+async function saveActivitiesToCloud() {
+  const ready = await initFirebaseSync();
+  if (!ready) return false;
+
+  try {
+    const { setDoc, serverTimestamp } = firebaseSync.modules;
+    await setDoc(getCloudActivitiesDocRef(), {
+      title: 'Grade 8 MCSian Web Code Editor',
+      updatedAt: serverTimestamp(),
+      activities: activities.map(item => normalizeActivity(item))
+    }, { merge: true });
+    setStatus('Saved to Firebase');
+    return true;
+  } catch (error) {
+    console.warn('Could not save activities to Firebase.', error);
+    setStatus('Firebase save failed');
+    return false;
+  }
+}
+
+function queueCloudActivitiesSave() {
+  if (!hasFirebaseConfig()) return;
+  window.clearTimeout(queueCloudActivitiesSave.timer);
+  queueCloudActivitiesSave.timer = window.setTimeout(() => {
+    saveActivitiesToCloud();
+  }, 450);
+}
+
+async function saveSubmissionToCloud(result) {
+  const ready = await initFirebaseSync();
+  if (!ready || !activity || !result) return false;
+
+  try {
+    const { collection, addDoc, serverTimestamp } = firebaseSync.modules;
+    const submissionRef = collection(firebaseSync.db, firebaseSync.collectionName, firebaseSync.documentId, 'submissions');
+    await addDoc(submissionRef, {
+      activityId: activity.id,
+      activityTitle: activity.title,
+      submittedAt: serverTimestamp(),
+      score: result.score,
+      possible: result.possible,
+      percent: result.percent,
+      passed: result.passed,
+      feedback: result.feedback,
+      code: normalizeCodeStore(codeStore),
+      results: result.results.map(item => ({
+        title: item.title,
+        levelKey: item.levelKey,
+        levelLabel: item.levelLabel,
+        earned: item.earned,
+        points: item.points,
+        rule: item.rule,
+        target: item.target || ''
+      }))
+    });
+    setStatus('Result saved online');
+    return true;
+  } catch (error) {
+    console.warn('Could not save submission to Firebase.', error);
+    setStatus('Online save failed');
+    return false;
+  }
+}
+
+async function startFirebaseMode() {
+  if (!hasFirebaseConfig()) {
+    setStatus('Local mode');
+    return;
+  }
+  await loadActivitiesFromCloud();
+}
 
 const selfClosingTagNames = new Set([
   'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link',
@@ -1699,6 +1877,7 @@ function showResult() {
     const result = gradeActivity();
     if (!result) return;
     renderResult(result);
+    saveSubmissionToCloud(result);
     setStatus(`Score ${formatPoints(result.score)}/${formatPoints(result.possible)}`);
     resultPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, 350);
@@ -2833,7 +3012,7 @@ criteriaEditor.addEventListener('click', event => {
   renderCriteriaEditor(filtered);
 });
 
-saveActivities();
+saveActivities({ cloud: false });
 saveJSON(STORAGE_KEYS.selectedActivityId, selectedActivityId);
 saveCodeByActivity();
 applyTheme(loadJSON(STORAGE_KEYS.theme, 'light'));
@@ -2843,3 +3022,4 @@ resetResultPanel();
 setPreviewLayout(loadJSON(STORAGE_KEYS.layout, 'split'));
 loadActiveEditor();
 runCode(false);
+startFirebaseMode();

@@ -1,0 +1,17 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // DEMO RULES ONLY. Okay for classroom testing, not for public production.
+    // Because this app currently uses a client-side Teacher PIN, anyone who inspects
+    // the code can find it. For real deployment, use Firebase Authentication.
+    match /webCodeEditor/{classDoc} {
+      allow read: if true;
+      allow write: if true;
+
+      match /submissions/{submissionId} {
+        allow create: if true;
+        allow read, update, delete: if true;
+      }
+    }
+  }
+}

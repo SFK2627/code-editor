@@ -207,3 +207,16 @@ The app now opens directly to the editor after the compact header. Activity sele
 - CSS selectors, properties, values, numbers, and punctuation now use different colors.
 - JavaScript keywords, functions, strings, comments, and numbers now use different colors.
 - Syntax colors work in both light mode and dark mode.
+
+## GitHub + Firebase-ready update
+
+This ZIP is ready for GitHub Pages. It also includes optional Firebase files:
+
+- `firebase-config.js` - paste your Firebase Web App config here and set `MCS_FIREBASE_ENABLED` to `true`.
+- `firebase.json` - optional Firebase Hosting config.
+- `firestore.rules` - demo rules for testing only.
+- `FIREBASE_AND_GITHUB_SETUP.md` - quick setup guide.
+
+When Firebase is enabled, activities/rubrics can sync through Firestore and student results can be saved online. When Firebase is disabled, the app still works normally using browser localStorage.
+
+Important: the current Teacher/Admin PIN is client-side, so it is not secure for a public production system. For real class deployment, the next upgrade should be Firebase Authentication.
