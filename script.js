@@ -68,6 +68,12 @@ const deleteActivityBtn = document.getElementById('deleteActivityBtn');
 const criteriaEditor = document.getElementById('criteriaEditor');
 const addCriterionBtn = document.getElementById('addCriterionBtn');
 const resetRubricBtn = document.getElementById('resetRubricBtn');
+const rubricImageInput = document.getElementById('rubricImageInput');
+const importRubricImageBtn = document.getElementById('importRubricImageBtn');
+const clearRubricImageBtn = document.getElementById('clearRubricImageBtn');
+const rubricImageStatus = document.getElementById('rubricImageStatus');
+const rubricImagePreviewWrap = document.getElementById('rubricImagePreviewWrap');
+const rubricImagePreview = document.getElementById('rubricImagePreview');
 
 
 // Built-in Firebase fallback config.
@@ -96,6 +102,8 @@ function ensureFirebaseFrontendConfig() {
   if (!window.MCS_FIREBASE_DOCUMENT_ID) window.MCS_FIREBASE_DOCUMENT_ID = 'grade8-mcsian';
   if (!window.MCS_FIREBASE_SDK_VERSION) window.MCS_FIREBASE_SDK_VERSION = '10.12.5';
   if (!Array.isArray(window.MCS_TEACHER_EMAILS)) window.MCS_TEACHER_EMAILS = [];
+  if (typeof window.MCS_RUBRIC_IMAGE_IMPORT_ENABLED === 'undefined') window.MCS_RUBRIC_IMAGE_IMPORT_ENABLED = true;
+  if (typeof window.MCS_RUBRIC_IMAGE_ENDPOINT === 'undefined') window.MCS_RUBRIC_IMAGE_ENDPOINT = '';
 }
 
 ensureFirebaseFrontendConfig();
@@ -691,6 +699,55 @@ function setTeacherLoginLoading(isLoading) {
 }
 
 
+
+function initFirebaseWithCompatSDK() {
+  const firebase = window.firebase;
+  if (!firebase || typeof firebase.initializeApp !== 'function' || typeof firebase.auth !== 'function' || typeof firebase.firestore !== 'function') {
+    return false;
+  }
+
+  try {
+    const config = window.MCS_FIREBASE_CONFIG || MCS_DEFAULT_FIREBASE_CONFIG;
+    if (!firebase.apps || !firebase.apps.length) {
+      firebase.initializeApp(config);
+    }
+
+    const db = firebase.firestore();
+    const auth = firebase.auth();
+
+    firebaseSync.db = db;
+    firebaseSync.auth = auth;
+    firebaseSync.modules = {
+      doc: (database, collectionName, documentId) => database.collection(collectionName).doc(documentId),
+      getDoc: async ref => {
+        const snap = await ref.get();
+        return {
+          exists: () => snap.exists,
+          data: () => snap.data() || {}
+        };
+      },
+      setDoc: (ref, data, options = {}) => ref.set(data, options),
+      collection: (database, collectionName, documentId, subcollectionName) => database.collection(collectionName).doc(documentId).collection(subcollectionName),
+      addDoc: (collectionRef, data) => collectionRef.add(data),
+      serverTimestamp: () => firebase.firestore.FieldValue.serverTimestamp()
+    };
+    firebaseSync.authModule = {
+      onAuthStateChanged: (authInstance, callback) => authInstance.onAuthStateChanged(callback),
+      signInWithEmailAndPassword: (authInstance, email, password) => authInstance.signInWithEmailAndPassword(email, password),
+      signOut: authInstance => authInstance.signOut()
+    };
+    firebaseSync.enabled = true;
+    firebaseSync.initialized = true;
+    firebaseSync.lastError = '';
+    setStatus('Firebase connected');
+    return true;
+  } catch (error) {
+    console.warn('Firebase compat SDK initialization failed.', error);
+    firebaseSync.lastError = error?.message || String(error);
+    return false;
+  }
+}
+
 async function initFirebaseSync() {
   ensureFirebaseFrontendConfig();
   firebaseSync.lastError = '';
@@ -703,13 +760,22 @@ async function initFirebaseSync() {
   if (firebaseSync.initializing) return firebaseSync.initializing;
 
   firebaseSync.initializing = (async () => {
+    // First use the compat SDK loaded by index.html. This is the most reliable
+    // path on GitHub Pages because it does not depend on dynamic module imports.
+    if (initFirebaseWithCompatSDK()) {
+      return true;
+    }
+
+    // Fallback: try Firebase's ESM CDN if the compat SDK did not load.
     try {
       const version = firebaseSync.sdkVersion;
       const appModule = await import(`https://www.gstatic.com/firebasejs/${version}/firebase-app.js`);
       const firestoreModule = await import(`https://www.gstatic.com/firebasejs/${version}/firebase-firestore.js`);
       const authModule = await import(`https://www.gstatic.com/firebasejs/${version}/firebase-auth.js`);
 
-      const app = appModule.initializeApp(window.MCS_FIREBASE_CONFIG);
+      const app = appModule.getApps && appModule.getApps().length
+        ? appModule.getApp()
+        : appModule.initializeApp(window.MCS_FIREBASE_CONFIG);
       firebaseSync.db = firestoreModule.getFirestore(app);
       firebaseSync.auth = authModule.getAuth(app);
       firebaseSync.modules = firestoreModule;
@@ -2688,7 +2754,7 @@ async function openAdminPanel() {
   adminOverlay.classList.remove('hidden');
   const adminFirebaseReady = await initFirebaseSync();
   if (!adminFirebaseReady) {
-    showTeacherLoginError(`Firebase is not ready. ${firebaseSync.lastError || 'Please upload the latest files and check internet connection.'}`);
+    showTeacherLoginError(`Firebase is not ready. ${firebaseSync.lastError || 'Firebase SDK did not load. Check internet connection, CDN access, and make sure all updated files were uploaded.'}`);
   }
   updateTeacherLoginUI(firebaseSync.auth?.currentUser || firebaseSync.currentUser);
 
@@ -2738,7 +2804,7 @@ async function loginTeacher() {
   showTeacherLoginError('');
   const ready = await initFirebaseSync();
   if (!ready || !firebaseSync.auth || !firebaseSync.authModule) {
-    showTeacherLoginError(`Firebase is not ready. ${firebaseSync.lastError || 'Check internet connection, Firebase Authentication setup, and make sure firebase-config.js is uploaded.'}`);
+    showTeacherLoginError(`Firebase is not ready. ${firebaseSync.lastError || 'Firebase SDK did not load. Check internet connection, CDN access, and make sure all updated files were uploaded.'}`);
     return;
   }
 
@@ -3032,6 +3098,175 @@ function restoreDefaultRubric() {
   selectActivity(restored.id, { keepLanguage: true });
   showAdminForm(restored.id);
   setStatus('Default rubric restored');
+}
+
+function getRubricImageEndpoint() {
+  return String(window.MCS_RUBRIC_IMAGE_ENDPOINT || '').trim();
+}
+
+function isRubricImageImportEnabled() {
+  return window.MCS_RUBRIC_IMAGE_IMPORT_ENABLED !== false;
+}
+
+function setRubricImportStatus(message, type = '') {
+  if (!rubricImageStatus) return;
+  rubricImageStatus.textContent = message || '';
+  rubricImageStatus.className = `helper-note rubric-import-status ${type}`.trim();
+}
+
+function getSelectedRubricImageFile() {
+  return rubricImageInput?.files?.[0] || null;
+}
+
+function readFileAsDataURL(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ''));
+    reader.onerror = () => reject(reader.error || new Error('Could not read file.'));
+    reader.readAsDataURL(file);
+  });
+}
+
+function clearRubricImageImport() {
+  if (rubricImageInput) rubricImageInput.value = '';
+  if (rubricImagePreview) rubricImagePreview.removeAttribute('src');
+  rubricImagePreviewWrap?.classList.add('hidden');
+  setRubricImportStatus('No image selected yet.');
+}
+
+async function previewRubricImage() {
+  const file = getSelectedRubricImageFile();
+  if (!file) {
+    clearRubricImageImport();
+    return;
+  }
+
+  if (!/^image\/(png|jpe?g|webp)$/i.test(file.type)) {
+    setRubricImportStatus('Please select a PNG, JPG, or WEBP image.', 'error');
+    return;
+  }
+
+  if (file.size > 6 * 1024 * 1024) {
+    setRubricImportStatus('Image is too large. Please use an image below 6 MB.', 'error');
+    return;
+  }
+
+  const dataUrl = await readFileAsDataURL(file);
+  if (rubricImagePreview) rubricImagePreview.src = dataUrl;
+  rubricImagePreviewWrap?.classList.remove('hidden');
+  setRubricImportStatus(`Selected: ${file.name}. Click Read Image & Fill Table.`, 'ready');
+}
+
+function normalizeImportedActivity(rawActivity) {
+  const safe = rawActivity && typeof rawActivity === 'object' ? rawActivity : {};
+  const rawCriteria = Array.isArray(safe.criteria) ? safe.criteria : [];
+  const criteria = rawCriteria.map((criterion, index) => {
+    const points = getMaxPointsFromCriterion(criterion) || Number(criterion.points) || 4;
+    const levels = criterion.levels && typeof criterion.levels === 'object'
+      ? criterion.levels
+      : rubricLevels.reduce((acc, level) => {
+          const levelText = criterion[level.key] || criterion[level.label] || '';
+          acc[level.key] = {
+            label: level.label,
+            points: defaultLevelPoints(points)[level.key],
+            description: String(levelText || defaultLevelDescriptions[level.key] || '').trim()
+          };
+          return acc;
+        }, {});
+
+    return normalizeCriterion({
+      id: createId(),
+      title: criterion.title || criterion.criterion || criterion.name || `Criterion ${index + 1}`,
+      points,
+      rule: criterion.rule || 'minimum_effort',
+      target: criterion.target || '',
+      levels
+    });
+  });
+
+  return normalizeActivity({
+    id: adminEditingActivityId || createId(),
+    title: safe.title || safe.activityTitle || 'Imported Rubric Activity',
+    description: safe.description || safe.instructions || 'Complete the activity based on the imported rubric. Review the rubric table before saving.',
+    passingScore: Number(safe.passingScore) || 75,
+    criteria: criteria.length ? criteria : clone(defaultActivity.criteria).map(item => normalizeCriterion({ ...item, id: createId() }))
+  });
+}
+
+function applyImportedActivityToAdminForm(importedActivity) {
+  const normalized = normalizeImportedActivity(importedActivity);
+  adminActivityTitle.value = normalized.title;
+  adminActivityDescription.value = normalized.description;
+  adminPassingScore.value = normalized.passingScore;
+  renderCriteriaEditor(normalized.criteria);
+  setRubricImportStatus('Rubric imported. Please review the table, then click Save Activity.', 'success');
+  setStatus('Rubric imported');
+}
+
+function getFallbackRubricImportMessage() {
+  return 'Rubric image reader is not connected yet. Deploy the Firebase Function rubricImageImport, then paste its URL in firebase-config.js as MCS_RUBRIC_IMAGE_ENDPOINT.';
+}
+
+async function importRubricImage() {
+  if (!isRubricImageImportEnabled()) {
+    setRubricImportStatus('Rubric image import is disabled in firebase-config.js.', 'error');
+    return;
+  }
+
+  const file = getSelectedRubricImageFile();
+  if (!file) {
+    setRubricImportStatus('Choose a rubric image first.', 'error');
+    return;
+  }
+
+  const endpoint = getRubricImageEndpoint();
+  if (!endpoint) {
+    setRubricImportStatus(getFallbackRubricImportMessage(), 'error');
+    alert(getFallbackRubricImportMessage());
+    return;
+  }
+
+  try {
+    importRubricImageBtn.disabled = true;
+    importRubricImageBtn.textContent = 'Reading image...';
+    setRubricImportStatus('Reading rubric image. Please wait...', 'loading');
+    const imageDataUrl = await readFileAsDataURL(file);
+
+    const currentUser = firebaseSync.auth?.currentUser || firebaseSync.currentUser;
+    let idToken = '';
+    if (currentUser && typeof currentUser.getIdToken === 'function') {
+      idToken = await currentUser.getIdToken();
+    }
+
+    const headers = { 'Content-Type': 'application/json' };
+    if (idToken) headers.Authorization = `Bearer ${idToken}`;
+
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        imageDataUrl,
+        filename: file.name,
+        mimeType: file.type,
+        currentActivityTitle: adminActivityTitle?.value || '',
+        expectedLevels: rubricLevels.map(item => item.label)
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`Image import endpoint returned ${response.status}`);
+    }
+
+    const data = await response.json();
+    const importedActivity = data.activity || data.rubric || data;
+    applyImportedActivityToAdminForm(importedActivity);
+  } catch (error) {
+    console.warn('Rubric image import failed', error);
+    setRubricImportStatus('Could not read the rubric image. Check the function URL, API key, and image clarity.', 'error');
+  } finally {
+    importRubricImageBtn.disabled = false;
+    importRubricImageBtn.textContent = 'Read Image & Fill Table';
+  }
 }
 
 function updateCriterionHelp(event) {
@@ -3732,6 +3967,9 @@ duplicateActivityBtn.addEventListener('click', duplicateActivity);
 deleteActivityBtn.addEventListener('click', deleteActivity);
 addCriterionBtn.addEventListener('click', addCriterion);
 resetRubricBtn.addEventListener('click', restoreDefaultRubric);
+if (rubricImageInput) rubricImageInput.addEventListener('change', previewRubricImage);
+if (importRubricImageBtn) importRubricImageBtn.addEventListener('click', importRubricImage);
+if (clearRubricImageBtn) clearRubricImageBtn.addEventListener('click', clearRubricImageImport);
 criteriaEditor.addEventListener('change', updateCriterionHelp);
 criteriaEditor.addEventListener('click', event => {
   const removeButton = event.target.closest('.remove-criterion');
