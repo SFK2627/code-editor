@@ -10,7 +10,7 @@
 6. Enable **Email/Password**.
 7. Go to **Users**.
 8. Click **Add user**.
-9. Add the teacher email and password you want to use.
+9. Add the teacher/admin email accounts and passwords you want to use. Any account listed in Firebase Authentication can login because the app has no sign-up form.
 
 The app has no sign-up page, so only accounts you manually create in Firebase Authentication can log in.
 
@@ -57,7 +57,7 @@ https://sfk2627.github.io/code-editor/
 
 1. Open the GitHub Pages link.
 2. Click **Teacher/Admin**.
-3. Login using the teacher account created in Firebase Authentication.
+3. Login using any teacher/admin account you created in Firebase Authentication.
 4. Edit or create an activity.
 5. Click **Save Activity**.
 6. Check Firestore Database > Data. The document `webCodeEditor/grade8-mcsian` should update.

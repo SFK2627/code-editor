@@ -240,3 +240,11 @@ Important: the current Teacher/Admin PIN is client-side, so it is not secure for
   - Add `sfk2627.github.io` in Authentication > Settings > Authorized domains if needed
 - Firestore rules now allow rubric editing only to signed-in Firebase Authentication users.
 - The app does not include a sign-up form, so teacher/admin accounts must be manually created in Firebase Console.
+
+## Mobile Layout Update
+
+- Phone view is now editor-first and easier to use.
+- Main actions move to a bottom thumb-friendly toolbar on small screens.
+- Editor, output preview, activity selector, result panel, and teacher/admin rubric builder are responsive.
+- Teacher login and rubric table input are optimized for phones.
+- Editor uses internal scrolling on mobile so the page is easier to control while typing code.
