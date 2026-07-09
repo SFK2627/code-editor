@@ -1,27 +1,38 @@
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
+// Firebase setup for Grade 8 MCSian Web Code Editor
+// Firebase is enabled using the Firebase project provided by Sir JR.
+// Important: Firebase web config values are public identifiers.
+// Real security is handled by Firebase Authentication and Firestore Rules.
 
-    // No public sign-up is provided in the app.
-    // Any user manually added in Firebase Authentication can manage rubric/activity data.
-    function isTeacher() {
-      return request.auth != null;
-    }
+window.MCS_FIREBASE_ENABLED = true;
 
-    match /webCodeEditor/{classDoc} {
-      // Students can read activities/rubrics.
-      allow read: if true;
+window.MCS_FIREBASE_COLLECTION = 'webCodeEditor';
+window.MCS_FIREBASE_DOCUMENT_ID = 'grade8-mcsian';
+window.MCS_FIREBASE_SDK_VERSION = '10.12.5';
 
-      // Only signed-in Firebase teacher accounts can create/edit/delete activities/rubrics.
-      allow create, update, delete: if isTeacher();
+// Optional teacher email whitelist.
+// Leave this empty to allow any Firebase Authentication user that you manually create in Firebase Console.
+window.MCS_TEACHER_EMAILS = [];
 
-      match /submissions/{submissionId} {
-        // Students can submit results.
-        allow create: if true;
+window.MCS_FIREBASE_CONFIG = {
+  apiKey: 'AIzaSyDuqBnvcIGbbUexKASjrWdinOqAQjnEQV0',
+  authDomain: 'code-editor-f0f9d.firebaseapp.com',
+  projectId: 'code-editor-f0f9d',
+  storageBucket: 'code-editor-f0f9d.firebasestorage.app',
+  messagingSenderId: '119616488399',
+  appId: '1:119616488399:web:453b411fbf93a3b71e08ba'
+};
 
-        // Only signed-in teacher can view/manage submitted results.
-        allow read, update, delete: if isTeacher();
-      }
-    }
-  }
-}
+
+// Optional secure rubric-feedback endpoint.
+// Do NOT place provider API keys in this frontend file.
+// Deploy the sample Cloud Function in functions/index.js, then paste its URL here.
+window.MCS_AI_FEEDBACK_ENABLED = true;
+window.MCS_AI_FEEDBACK_ENDPOINT = '';
+window.MCS_AI_FEEDBACK_TIMEOUT_MS = 25000;
+
+
+// Optional secure endpoint for importing a rubric from an image.
+// Deploy functions/index.js rubricImageImport, then paste its URL here.
+// Students will not see this feature; it appears only inside Teacher/Admin.
+window.MCS_RUBRIC_IMAGE_IMPORT_ENABLED = true;
+window.MCS_RUBRIC_IMAGE_ENDPOINT = '';

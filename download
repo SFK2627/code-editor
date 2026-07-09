@@ -1,4 +1,13 @@
-# Copy this to .env locally for emulator testing only.
-# For deployed Firebase Functions, set params/secrets using Firebase CLI.
-OPENAI_API_KEY=your_openai_api_key_here
-OPENAI_MODEL=gpt-4o-mini
+{
+  "name": "mcsian-code-editor-functions",
+  "description": "Secure AI review endpoint for Grade 8 MCSian Web Code Editor",
+  "engines": {
+    "node": "20"
+  },
+  "main": "index.js",
+  "dependencies": {
+    "firebase-admin": "^13.0.0",
+    "firebase-functions": "^6.0.0"
+  },
+  "private": true
+}
