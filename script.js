@@ -69,6 +69,37 @@ const criteriaEditor = document.getElementById('criteriaEditor');
 const addCriterionBtn = document.getElementById('addCriterionBtn');
 const resetRubricBtn = document.getElementById('resetRubricBtn');
 
+
+// Built-in Firebase fallback config.
+// This prevents the Teacher/Admin login from failing with "Firebase is not ready"
+// when firebase-config.js is not uploaded, cached incorrectly, or loaded late.
+const MCS_DEFAULT_FIREBASE_CONFIG = {
+  apiKey: 'AIzaSyDuqBnvcIGbbUexKASjrWdinOqAQjnEQV0',
+  authDomain: 'code-editor-f0f9d.firebaseapp.com',
+  projectId: 'code-editor-f0f9d',
+  storageBucket: 'code-editor-f0f9d.firebasestorage.app',
+  messagingSenderId: '119616488399',
+  appId: '1:119616488399:web:453b411fbf93a3b71e08ba'
+};
+
+function ensureFirebaseFrontendConfig() {
+  const currentConfig = window.MCS_FIREBASE_CONFIG || {};
+  const needsDefaultConfig = !currentConfig.apiKey || !currentConfig.projectId ||
+    String(currentConfig.apiKey).includes('PASTE_') || String(currentConfig.projectId).includes('PASTE_');
+
+  if (needsDefaultConfig) {
+    window.MCS_FIREBASE_CONFIG = { ...MCS_DEFAULT_FIREBASE_CONFIG };
+  }
+
+  if (typeof window.MCS_FIREBASE_ENABLED === 'undefined') window.MCS_FIREBASE_ENABLED = true;
+  if (!window.MCS_FIREBASE_COLLECTION) window.MCS_FIREBASE_COLLECTION = 'webCodeEditor';
+  if (!window.MCS_FIREBASE_DOCUMENT_ID) window.MCS_FIREBASE_DOCUMENT_ID = 'grade8-mcsian';
+  if (!window.MCS_FIREBASE_SDK_VERSION) window.MCS_FIREBASE_SDK_VERSION = '10.12.5';
+  if (!Array.isArray(window.MCS_TEACHER_EMAILS)) window.MCS_TEACHER_EMAILS = [];
+}
+
+ensureFirebaseFrontendConfig();
+
 const STORAGE_KEYS = {
   codeByActivity: 'studentCodeStudio.codeByActivity.htmlOnlyDefault.v1',
   activities: 'studentCodeStudio.activities.v3',
@@ -90,6 +121,7 @@ const firebaseSync = {
   auth: null,
   authModule: null,
   currentUser: null,
+  lastError: '',
   collectionName: window.MCS_FIREBASE_COLLECTION || 'webCodeEditor',
   documentId: window.MCS_FIREBASE_DOCUMENT_ID || 'grade8-mcsian',
   sdkVersion: window.MCS_FIREBASE_SDK_VERSION || '10.12.5'
@@ -565,14 +597,21 @@ function getCodeStoreForActivity(activityId) {
 
 
 function hasFirebaseConfig() {
+  ensureFirebaseFrontendConfig();
   const config = window.MCS_FIREBASE_CONFIG || {};
-  return Boolean(
+  const hasConfig = Boolean(
     window.MCS_FIREBASE_ENABLED === true &&
     config.apiKey &&
     config.projectId &&
     !String(config.apiKey).includes('PASTE_') &&
     !String(config.projectId).includes('PASTE_')
   );
+
+  if (!hasConfig) {
+    firebaseSync.lastError = 'Firebase config is missing or disabled. Upload firebase-config.js, or use the updated script.js with built-in config.';
+  }
+
+  return hasConfig;
 }
 
 function getAllowedTeacherEmails() {
@@ -653,6 +692,8 @@ function setTeacherLoginLoading(isLoading) {
 
 
 async function initFirebaseSync() {
+  ensureFirebaseFrontendConfig();
+  firebaseSync.lastError = '';
   if (!hasFirebaseConfig()) {
     firebaseSync.enabled = false;
     return false;
@@ -675,10 +716,12 @@ async function initFirebaseSync() {
       firebaseSync.authModule = authModule;
       firebaseSync.enabled = true;
       firebaseSync.initialized = true;
+      firebaseSync.lastError = '';
       setStatus('Firebase connected');
       return true;
     } catch (error) {
       console.warn('Firebase connection failed. Local mode will continue.', error);
+      firebaseSync.lastError = error?.message || String(error);
       firebaseSync.enabled = false;
       setStatus('Local mode');
       return false;
@@ -2643,7 +2686,10 @@ function exitFullEditor(options = {}) {
 async function openAdminPanel() {
   document.body.classList.add('admin-open');
   adminOverlay.classList.remove('hidden');
-  await initFirebaseSync();
+  const adminFirebaseReady = await initFirebaseSync();
+  if (!adminFirebaseReady) {
+    showTeacherLoginError(`Firebase is not ready. ${firebaseSync.lastError || 'Please upload the latest files and check internet connection.'}`);
+  }
   updateTeacherLoginUI(firebaseSync.auth?.currentUser || firebaseSync.currentUser);
 
   if (isTeacherAuthenticated()) {
@@ -2692,7 +2738,7 @@ async function loginTeacher() {
   showTeacherLoginError('');
   const ready = await initFirebaseSync();
   if (!ready || !firebaseSync.auth || !firebaseSync.authModule) {
-    showTeacherLoginError('Firebase is not ready. Check firebase-config.js, internet connection, and your Firebase project setup.');
+    showTeacherLoginError(`Firebase is not ready. ${firebaseSync.lastError || 'Check internet connection, Firebase Authentication setup, and make sure firebase-config.js is uploaded.'}`);
     return;
   }
 

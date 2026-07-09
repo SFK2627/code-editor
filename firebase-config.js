@@ -131,3 +131,28 @@ window.MCS_AI_FEEDBACK_ENDPOINT = 'https://YOUR_FUNCTION_URL/aiReview';
 9. Upload the updated files to GitHub again.
 
 Important: Firebase Functions may require billing depending on your Firebase project setup and region. If you are not ready for billing, keep `MCS_AI_FEEDBACK_ENDPOINT` blank; the local smart review will still work.
+
+## Fix: "Firebase is not ready" during Teacher Login
+
+If Teacher/Admin login says **Firebase is not ready**, check these first:
+
+1. Make sure these files are uploaded to GitHub root:
+   - `index.html`
+   - `style.css`
+   - `script.js`
+   - `firebase-config.js`
+
+2. Open this in browser to confirm the config file exists:
+   `https://sfk2627.github.io/code-editor/firebase-config.js`
+
+3. In Firebase Console, enable:
+   Authentication > Sign-in method > Email/Password
+
+4. In Firebase Console, add your teacher accounts:
+   Authentication > Users > Add user
+
+5. In Firebase Console, add the authorized domain:
+   Authentication > Settings > Authorized domains > Add domain:
+   `sfk2627.github.io`
+
+This latest version also includes a built-in Firebase fallback config inside `script.js`, so login can still work even if `firebase-config.js` was cached or missing.
