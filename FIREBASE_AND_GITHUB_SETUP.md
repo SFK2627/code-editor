@@ -1,28 +1,66 @@
-# Firebase + GitHub Setup for Grade 8 MCSian Web Code Editor
+# Firebase Auth + GitHub Setup
 
-Firebase is already enabled in `firebase-config.js` using project ID `code-editor-f0f9d`.
+This version uses Firebase Authentication for the Teacher/Admin login.
+The old visible/client-side PIN system has been removed.
 
-## Firebase Console steps
+## 1. Enable Firebase Authentication
 
 1. Open Firebase Console.
-2. Open the project `code-editor-f0f9d`.
-3. Go to Build > Firestore Database.
-4. Click Create database.
-5. Choose Start in test mode for classroom testing only.
-6. Choose a nearby location, then create.
-7. Go to Rules and paste the contents of `firestore.rules`.
-8. Publish rules.
+2. Open project: `code-editor-f0f9d`.
+3. Go to **Build > Authentication**.
+4. Click **Get started** if needed.
+5. Open **Sign-in method**.
+6. Enable **Email/Password**.
+7. Save.
 
-## GitHub Pages steps
+## 2. Create the Teacher Account
 
-1. Create a GitHub repository.
-2. Upload all files in this folder to the repository root.
-3. Go to Settings > Pages.
-4. Source: Deploy from a branch.
-5. Branch: main, folder: /root.
-6. Save.
-7. Wait for the GitHub Pages link.
+Go to **Authentication > Users > Add user**.
 
-## Important security note
+Default teacher email used in this app and in `firestore.rules`:
 
-The Teacher/Admin PIN is still client-side and not secure for a public app. For real deployment, upgrade next to Firebase Authentication and private admin rules.
+```txt
+sirjr.mcsian@gmail.com
+```
+
+Create that account with your chosen password.
+
+If you want another email, change it in two files:
+
+1. `firebase-config.js`
+2. `firestore.rules`
+
+## 3. Publish Firestore Rules
+
+Go to **Firestore Database > Rules** and paste the content of `firestore.rules`.
+Then click **Publish**.
+
+## 4. Upload to GitHub
+
+Upload these files to your GitHub repository root:
+
+```txt
+index.html
+style.css
+script.js
+firebase-config.js
+firebase.json
+firestore.rules
+README.md
+FIREBASE_AND_GITHUB_SETUP.md
+```
+
+## 5. Test
+
+1. Open the GitHub Pages link.
+2. Click **Teacher/Admin**.
+3. Login using the teacher email/password from Firebase Authentication.
+4. Edit or create an activity.
+5. Save.
+6. Check Firebase Firestore if `webCodeEditor > grade8-mcsian` updates.
+7. Open the site in another browser/device and check if the activity appears.
+
+## Security
+
+Students can read activities and create submissions.
+Only the allowed teacher email can edit activities/rubrics and read/manage submissions.

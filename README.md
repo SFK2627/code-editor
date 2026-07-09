@@ -56,7 +56,7 @@ Developed by Sir JR.
 
 ## Admin Access
 
-Teacher PIN is set inside `script.js` as `ADMIN_PIN`. It is no longer displayed on the admin screen.
+Teacher/Admin now uses Firebase Authentication with Email/Password. The teacher email must be allowed in `firebase-config.js` and `firestore.rules`.
 
 The admin can:
 
@@ -75,9 +75,7 @@ The admin can:
 
 This version is ready for GitHub Pages because it uses plain HTML, CSS, and JavaScript.
 
-Activities, rubrics, code, theme, and layout are saved in the browser only through `localStorage`. This means the activities are device/browser-specific for now.
-
-For a real class deployment where the teacher controls activities for all students, the next recommended upgrade is Firebase or another backend.
+Activities and rubrics are synced through Firebase Firestore when Firebase is enabled. Student code, theme, and layout preferences are still saved locally in the browser.
 
 ## Suggested Next Improvements
 
@@ -220,3 +218,13 @@ This ZIP is ready for GitHub Pages. It also includes optional Firebase files:
 When Firebase is enabled, activities/rubrics can sync through Firestore and student results can be saved online. When Firebase is disabled, the app still works normally using browser localStorage.
 
 Important: the current Teacher/Admin PIN is client-side, so it is not secure for a public production system. For real class deployment, the next upgrade should be Firebase Authentication.
+
+
+## Firebase Auth Teacher Login Update
+
+- Teacher/Admin now uses Firebase Authentication with Email/Password.
+- The old visible/client-side PIN login has been removed.
+- Allowed teacher email is set in `firebase-config.js` and must match `firestore.rules`.
+- Default allowed teacher email: `sirjr.mcsian@gmail.com`.
+- Students can read activities/rubrics and create submissions.
+- Only the teacher account can create, edit, delete, and save activities/rubrics.

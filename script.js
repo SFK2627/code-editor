@@ -47,8 +47,10 @@ const fullPreviewBtn = document.getElementById('fullPreviewBtn');
 const exitPreviewBtn = document.getElementById('exitPreviewBtn');
 const adminOverlay = document.getElementById('adminOverlay');
 const closeAdminBtn = document.getElementById('closeAdminBtn');
-const adminPin = document.getElementById('adminPin');
+const adminEmail = document.getElementById('adminEmail');
+const adminPassword = document.getElementById('adminPassword');
 const unlockAdminBtn = document.getElementById('unlockAdminBtn');
+const logoutAdminBtn = document.getElementById('logoutAdminBtn');
 const pinScreen = document.getElementById('pinScreen');
 const adminForm = document.getElementById('adminForm');
 const adminActivityTitle = document.getElementById('adminActivityTitle');
@@ -73,7 +75,6 @@ const STORAGE_KEYS = {
   editorZoom: 'studentCodeStudio.editorZoom.v1'
 };
 
-const ADMIN_PIN = '1234';
 
 const firebaseSync = {
   enabled: false,
@@ -81,6 +82,9 @@ const firebaseSync = {
   initializing: null,
   db: null,
   modules: null,
+  auth: null,
+  authModule: null,
+  currentUser: null,
   collectionName: window.MCS_FIREBASE_COLLECTION || 'webCodeEditor',
   documentId: window.MCS_FIREBASE_DOCUMENT_ID || 'grade8-mcsian',
   sdkVersion: window.MCS_FIREBASE_SDK_VERSION || '10.12.5'
@@ -564,6 +568,29 @@ function hasFirebaseConfig() {
   );
 }
 
+function getAllowedTeacherEmails() {
+  const source = Array.isArray(window.MCS_TEACHER_EMAILS) ? window.MCS_TEACHER_EMAILS : [];
+  return source
+    .map(email => String(email || '').trim().toLowerCase())
+    .filter(Boolean);
+}
+
+function isAllowedTeacherEmail(email) {
+  const allowed = getAllowedTeacherEmails();
+  if (!allowed.length) return Boolean(email);
+  return allowed.includes(String(email || '').trim().toLowerCase());
+}
+
+function isTeacherAuthenticated() {
+  const user = firebaseSync.auth?.currentUser || firebaseSync.currentUser;
+  return Boolean(user && user.email && isAllowedTeacherEmail(user.email));
+}
+
+function getTeacherEmailText() {
+  const allowed = getAllowedTeacherEmails();
+  return allowed.length ? allowed.join(', ') : 'any authenticated Firebase user';
+}
+
 async function initFirebaseSync() {
   if (!hasFirebaseConfig()) {
     firebaseSync.enabled = false;
@@ -578,10 +605,13 @@ async function initFirebaseSync() {
       const version = firebaseSync.sdkVersion;
       const appModule = await import(`https://www.gstatic.com/firebasejs/${version}/firebase-app.js`);
       const firestoreModule = await import(`https://www.gstatic.com/firebasejs/${version}/firebase-firestore.js`);
+      const authModule = await import(`https://www.gstatic.com/firebasejs/${version}/firebase-auth.js`);
 
       const app = appModule.initializeApp(window.MCS_FIREBASE_CONFIG);
       firebaseSync.db = firestoreModule.getFirestore(app);
+      firebaseSync.auth = authModule.getAuth(app);
       firebaseSync.modules = firestoreModule;
+      firebaseSync.authModule = authModule;
       firebaseSync.enabled = true;
       firebaseSync.initialized = true;
       setStatus('Firebase connected');
@@ -610,7 +640,9 @@ async function loadActivitiesFromCloud() {
     const { getDoc } = firebaseSync.modules;
     const snap = await getDoc(getCloudActivitiesDocRef());
     if (!snap.exists()) {
-      await saveActivitiesToCloud();
+      if (isTeacherAuthenticated()) {
+        await saveActivitiesToCloud();
+      }
       return false;
     }
 
@@ -646,6 +678,11 @@ async function loadActivitiesFromCloud() {
 async function saveActivitiesToCloud() {
   const ready = await initFirebaseSync();
   if (!ready) return false;
+
+  if (!isTeacherAuthenticated()) {
+    setStatus('Teacher login required');
+    return false;
+  }
 
   try {
     const { setDoc, serverTimestamp } = firebaseSync.modules;
@@ -707,12 +744,56 @@ async function saveSubmissionToCloud(result) {
   }
 }
 
+function updateTeacherLoginUI(user = firebaseSync.currentUser) {
+  const isTeacher = Boolean(user && user.email && isAllowedTeacherEmail(user.email));
+  adminUnlocked = isTeacher;
+
+  if (logoutAdminBtn) {
+    logoutAdminBtn.classList.toggle('hidden', !user);
+  }
+
+  if (adminEmail && user?.email) {
+    adminEmail.value = user.email;
+  }
+
+  const note = document.getElementById('teacherLoginNote');
+  if (note) {
+    note.textContent = isTeacher
+      ? `Signed in as ${user.email}. You can manage activities and rubrics.`
+      : user
+        ? `Signed in as ${user.email}, but this email is not allowed as teacher. Allowed: ${getTeacherEmailText()}.`
+        : `Firebase Email/Password login is required. Allowed teacher: ${getTeacherEmailText()}.`;
+  }
+}
+
+async function watchTeacherAuth() {
+  const ready = await initFirebaseSync();
+  if (!ready || !firebaseSync.auth || !firebaseSync.authModule) return;
+
+  const { onAuthStateChanged } = firebaseSync.authModule;
+  onAuthStateChanged(firebaseSync.auth, user => {
+    firebaseSync.currentUser = user;
+    updateTeacherLoginUI(user);
+
+    if (!adminOverlay.classList.contains('hidden')) {
+      if (isTeacherAuthenticated()) {
+        showAdminForm();
+      } else {
+        pinScreen.classList.remove('hidden');
+        adminForm.classList.add('hidden');
+      }
+    }
+  });
+}
+
 async function startFirebaseMode() {
   if (!hasFirebaseConfig()) {
     setStatus('Local mode');
     return;
   }
+  await initFirebaseSync();
   await loadActivitiesFromCloud();
+  await watchTeacherAuth();
 }
 
 const selfClosingTagNames = new Set([
@@ -2047,16 +2128,19 @@ function exitFullEditor(options = {}) {
   window.setTimeout(() => editor.focus(), 80);
 }
 
-function openAdminPanel() {
+async function openAdminPanel() {
   document.body.classList.add('admin-open');
   adminOverlay.classList.remove('hidden');
-  if (adminUnlocked) {
+  await initFirebaseSync();
+  updateTeacherLoginUI(firebaseSync.auth?.currentUser || firebaseSync.currentUser);
+
+  if (isTeacherAuthenticated()) {
     showAdminForm();
   } else {
     pinScreen.classList.remove('hidden');
     adminForm.classList.add('hidden');
-    adminPin.value = '';
-    setTimeout(() => adminPin.focus(), 50);
+    if (adminPassword) adminPassword.value = '';
+    setTimeout(() => adminEmail?.focus(), 50);
   }
 }
 
@@ -2066,6 +2150,13 @@ function closeAdminPanel() {
 }
 
 function showAdminForm(activityId = adminEditingActivityId) {
+  if (!isTeacherAuthenticated()) {
+    adminUnlocked = false;
+    pinScreen.classList.remove('hidden');
+    adminForm.classList.add('hidden');
+    return;
+  }
+
   adminUnlocked = true;
   pinScreen.classList.add('hidden');
   adminForm.classList.remove('hidden');
@@ -2085,14 +2176,65 @@ function editAdminActivity(activityId) {
   showAdminForm(editActivity.id);
 }
 
-function unlockAdmin() {
-  if (adminPin.value.trim() === ADMIN_PIN) {
-    showAdminForm();
-    setStatus('Admin unlocked');
-  } else {
-    alert('Incorrect PIN. Please try again.');
-    adminPin.select();
+async function loginTeacher() {
+  const ready = await initFirebaseSync();
+  if (!ready || !firebaseSync.auth || !firebaseSync.authModule) {
+    alert('Firebase is not ready. Check firebase-config.js and internet connection.');
+    return;
   }
+
+  const email = adminEmail.value.trim();
+  const password = adminPassword.value;
+
+  if (!email || !password) {
+    alert('Please enter teacher email and password.');
+    return;
+  }
+
+  try {
+    const { signInWithEmailAndPassword, signOut } = firebaseSync.authModule;
+    const credential = await signInWithEmailAndPassword(firebaseSync.auth, email, password);
+    firebaseSync.currentUser = credential.user;
+
+    if (!isAllowedTeacherEmail(credential.user.email)) {
+      await signOut(firebaseSync.auth);
+      adminUnlocked = false;
+      alert(`This email is not allowed as teacher. Allowed teacher: ${getTeacherEmailText()}`);
+      return;
+    }
+
+    adminUnlocked = true;
+    updateTeacherLoginUI(credential.user);
+    showAdminForm();
+    setStatus('Teacher logged in');
+  } catch (error) {
+    console.error('Teacher login failed', error);
+    alert('Login failed. Check your teacher email and password.');
+  }
+}
+
+async function logoutTeacher() {
+  const ready = await initFirebaseSync();
+  if (!ready || !firebaseSync.auth || !firebaseSync.authModule) return;
+
+  try {
+    const { signOut } = firebaseSync.authModule;
+    await signOut(firebaseSync.auth);
+    firebaseSync.currentUser = null;
+    adminUnlocked = false;
+    adminForm.classList.add('hidden');
+    pinScreen.classList.remove('hidden');
+    if (adminPassword) adminPassword.value = '';
+    updateTeacherLoginUI(null);
+    setStatus('Teacher logged out');
+  } catch (error) {
+    console.error('Teacher logout failed', error);
+    alert('Logout failed. Please try again.');
+  }
+}
+
+function unlockAdmin() {
+  loginTeacher();
 }
 
 function renderScaleLevelCells(criterion) {
@@ -2981,11 +3123,14 @@ window.addEventListener('click', event => {
 adminBtn.addEventListener('click', openAdminPanel);
 closeAdminBtn.addEventListener('click', closeAdminPanel);
 unlockAdminBtn.addEventListener('click', unlockAdmin);
-adminPin.addEventListener('keydown', event => {
-  if (event.key === 'Enter') {
-    event.preventDefault();
-    unlockAdmin();
-  }
+if (logoutAdminBtn) logoutAdminBtn.addEventListener('click', logoutTeacher);
+[adminEmail, adminPassword].forEach(input => {
+  input?.addEventListener('keydown', event => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      unlockAdmin();
+    }
+  });
 });
 
 adminOverlay.addEventListener('click', event => {

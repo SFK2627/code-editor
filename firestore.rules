@@ -1,16 +1,28 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // DEMO RULES ONLY. Okay for classroom testing, not for public production.
-    // Because this app currently uses a client-side Teacher PIN, anyone who inspects
-    // the code can find it. For real deployment, use Firebase Authentication.
+
+    function isTeacher() {
+      return request.auth != null
+        && request.auth.token.email != null
+        && request.auth.token.email in [
+          'sirjr.mcsian@gmail.com'
+        ];
+    }
+
     match /webCodeEditor/{classDoc} {
+      // Students can read activities/rubrics.
       allow read: if true;
-      allow write: if true;
+
+      // Only teacher account can create/edit/delete activities/rubrics.
+      allow create, update, delete: if isTeacher();
 
       match /submissions/{submissionId} {
+        // Students can submit results.
         allow create: if true;
-        allow read, update, delete: if true;
+
+        // Only teacher can view/manage submitted results.
+        allow read, update, delete: if isTeacher();
       }
     }
   }
