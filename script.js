@@ -2,7 +2,6 @@ const editor = document.getElementById('codeEditor');
 const previewFrame = document.getElementById('previewFrame');
 const runBtn = document.getElementById('runBtn');
 const resultBtn = document.getElementById('resultBtn');
-const aiReviewTopBtn = document.getElementById('aiReviewTopBtn');
 const saveBtn = document.getElementById('saveBtn');
 const downloadZipBtn = document.getElementById('downloadZipBtn');
 const resetBtn = document.getElementById('resetBtn');
@@ -27,10 +26,6 @@ const editorInfo = document.getElementById('editorInfo');
 const structureAlert = document.getElementById('structureAlert');
 const tabButtons = document.querySelectorAll('.tab-btn');
 const resultContent = document.getElementById('resultContent');
-const errorCheckerContent = document.getElementById('errorCheckerContent');
-const refreshErrorCheckerBtn = document.getElementById('refreshErrorCheckerBtn');
-const aiReviewContent = document.getElementById('aiReviewContent');
-const runAiReviewBtn = document.getElementById('runAiReviewBtn');
 const activityTitle = document.getElementById('activityTitle');
 const activityDescription = document.getElementById('activityDescription');
 const activitySelect = document.getElementById('activitySelect');
@@ -54,8 +49,9 @@ const adminOverlay = document.getElementById('adminOverlay');
 const closeAdminBtn = document.getElementById('closeAdminBtn');
 const adminEmail = document.getElementById('adminEmail');
 const adminPassword = document.getElementById('adminPassword');
-const unlockAdminBtn = document.getElementById('unlockAdminBtn');
+const loginError = document.getElementById('loginError');
 const logoutAdminBtn = document.getElementById('logoutAdminBtn');
+const unlockAdminBtn = document.getElementById('unlockAdminBtn');
 const pinScreen = document.getElementById('pinScreen');
 const adminForm = document.getElementById('adminForm');
 const adminActivityTitle = document.getElementById('adminActivityTitle');
@@ -68,42 +64,17 @@ const deleteActivityBtn = document.getElementById('deleteActivityBtn');
 const criteriaEditor = document.getElementById('criteriaEditor');
 const addCriterionBtn = document.getElementById('addCriterionBtn');
 const resetRubricBtn = document.getElementById('resetRubricBtn');
-
-
-// Built-in Firebase fallback config.
-// This prevents the Teacher/Admin login from failing with "Firebase is not ready"
-// when firebase-config.js is not uploaded, cached incorrectly, or loaded late.
-const MCS_DEFAULT_FIREBASE_CONFIG = {
-  apiKey: 'AIzaSyDuqBnvcIGbbUexKASjrWdinOqAQjnEQV0',
-  authDomain: 'code-editor-f0f9d.firebaseapp.com',
-  projectId: 'code-editor-f0f9d',
-  storageBucket: 'code-editor-f0f9d.firebasestorage.app',
-  messagingSenderId: '119616488399',
-  appId: '1:119616488399:web:453b411fbf93a3b71e08ba'
-};
-
-function ensureFirebaseFrontendConfig() {
-  const currentConfig = window.MCS_FIREBASE_CONFIG || {};
-  const needsDefaultConfig = !currentConfig.apiKey || !currentConfig.projectId ||
-    String(currentConfig.apiKey).includes('PASTE_') || String(currentConfig.projectId).includes('PASTE_');
-
-  if (needsDefaultConfig) {
-    window.MCS_FIREBASE_CONFIG = { ...MCS_DEFAULT_FIREBASE_CONFIG };
-  }
-
-  if (typeof window.MCS_FIREBASE_ENABLED === 'undefined') window.MCS_FIREBASE_ENABLED = true;
-  if (!window.MCS_FIREBASE_COLLECTION) window.MCS_FIREBASE_COLLECTION = 'webCodeEditor';
-  if (!window.MCS_FIREBASE_DOCUMENT_ID) window.MCS_FIREBASE_DOCUMENT_ID = 'grade8-mcsian';
-  if (!window.MCS_FIREBASE_SDK_VERSION) window.MCS_FIREBASE_SDK_VERSION = '10.12.5';
-  if (!Array.isArray(window.MCS_TEACHER_EMAILS)) window.MCS_TEACHER_EMAILS = [];
-}
-
-ensureFirebaseFrontendConfig();
+const rubricImageInput = document.getElementById('rubricImageInput');
+const rubricImagePreview = document.getElementById('rubricImagePreview');
+const rubricImageEmpty = document.getElementById('rubricImageEmpty');
+const readRubricImageBtn = document.getElementById('readRubricImageBtn');
+const clearRubricImageBtn = document.getElementById('clearRubricImageBtn');
+const rubricImageStatus = document.getElementById('rubricImageStatus');
 
 const STORAGE_KEYS = {
-  codeByActivity: 'studentCodeStudio.codeByActivity.htmlOnlyDefault.v1',
+  codeByActivity: 'studentCodeStudio.codeByActivity.htmlOnlyDefault.v2',
   activities: 'studentCodeStudio.activities.v3',
-  selectedActivityId: 'studentCodeStudio.selectedActivityId.htmlOnlyDefault.v1',
+  selectedActivityId: 'studentCodeStudio.selectedActivityId.htmlOnlyDefault.v2',
   legacyCode: 'studentCodeStudio.codeStore.v2',
   legacyActivity: 'studentCodeStudio.activity.v2',
   theme: 'studentCodeStudio.theme',
@@ -112,24 +83,8 @@ const STORAGE_KEYS = {
 };
 
 
-const firebaseSync = {
-  enabled: false,
-  initialized: false,
-  initializing: null,
-  db: null,
-  modules: null,
-  auth: null,
-  authModule: null,
-  currentUser: null,
-  lastError: '',
-  collectionName: window.MCS_FIREBASE_COLLECTION || 'webCodeEditor',
-  documentId: window.MCS_FIREBASE_DOCUMENT_ID || 'grade8-mcsian',
-  sdkVersion: window.MCS_FIREBASE_SDK_VERSION || '10.12.5'
-};
-
-
 const STARTER_CODE_VERSION_KEY = 'studentCodeStudio.starterCodeVersion';
-const CURRENT_STARTER_CODE_VERSION = 'clean-uploaded-base-2026-07-09-v2';
+const CURRENT_STARTER_CODE_VERSION = 'html-only-default-2026-07-09-v2';
 
 function applyStarterCodeMigration() {
   try {
@@ -295,7 +250,9 @@ let currentSuggestionStart = 0;
 let suggestionHideTimer = null;
 let lastSuggestionInputAt = 0;
 let adminUnlocked = false;
+let firebaseState = { app: null, auth: null, db: null, ready: false, starting: null };
 let adminEditingActivityId = activity?.id || activities[0]?.id || '';
+let selectedRubricImageDataUrl = '';
 const BASE_EDITOR_FONT_SIZE = 15;
 const MIN_EDITOR_FONT_SIZE = 12;
 const MAX_EDITOR_FONT_SIZE = 26;
@@ -303,8 +260,6 @@ let editorFontSize = Number(loadJSON(STORAGE_KEYS.editorZoom, BASE_EDITOR_FONT_S
 let activeTagMatches = [];
 const EDITOR_HISTORY_LIMIT = 250;
 let editorHistoryByKey = {};
-let lastRubricResult = null;
-let aiReviewController = null;
 let isRestoringEditorHistory = false;
 
 const languageInfo = {
@@ -576,8 +531,8 @@ function getActivityById(activityId) {
 
 function saveActivities(options = {}) {
   saveJSON(STORAGE_KEYS.activities, activities);
-  if (options.cloud !== false) {
-    queueCloudActivitiesSave();
+  if (options.cloud === true) {
+    saveActivitiesToCloud();
   }
 }
 
@@ -594,159 +549,66 @@ function getCodeStoreForActivity(activityId) {
   return codeByActivity[activityId];
 }
 
-
-
 function hasFirebaseConfig() {
-  ensureFirebaseFrontendConfig();
   const config = window.MCS_FIREBASE_CONFIG || {};
-  const hasConfig = Boolean(
+  return Boolean(
     window.MCS_FIREBASE_ENABLED === true &&
+    window.firebase &&
     config.apiKey &&
     config.projectId &&
     !String(config.apiKey).includes('PASTE_') &&
     !String(config.projectId).includes('PASTE_')
   );
-
-  if (!hasConfig) {
-    firebaseSync.lastError = 'Firebase config is missing or disabled. Upload firebase-config.js, or use the updated script.js with built-in config.';
-  }
-
-  return hasConfig;
 }
 
-function getAllowedTeacherEmails() {
-  const source = Array.isArray(window.MCS_TEACHER_EMAILS) ? window.MCS_TEACHER_EMAILS : [];
-  return source
-    .map(email => String(email || '').trim().toLowerCase())
-    .filter(Boolean);
-}
-
-function isAllowedTeacherEmail(email) {
-  const allowed = getAllowedTeacherEmails();
-  if (!allowed.length) return Boolean(email);
-  return allowed.includes(String(email || '').trim().toLowerCase());
-}
-
-function isTeacherAuthenticated() {
-  const user = firebaseSync.auth?.currentUser || firebaseSync.currentUser;
-  return Boolean(user && user.email && isAllowedTeacherEmail(user.email));
-}
-
-function getTeacherEmailText() {
-  const allowed = getAllowedTeacherEmails();
-  return allowed.length ? allowed.join(', ') : 'any authenticated Firebase user';
-}
-
-function showTeacherLoginError(message) {
-  const errorBox = document.getElementById('teacherLoginError');
-  if (!errorBox) {
-    if (message) alert(message);
-    return;
-  }
-
-  if (!message) {
-    errorBox.textContent = '';
-    errorBox.classList.add('hidden');
-    return;
-  }
-
-  errorBox.textContent = message;
-  errorBox.classList.remove('hidden');
-}
-
-function getFirebaseLoginErrorMessage(error) {
-  const code = error?.code || '';
-
-  if (code === 'auth/operation-not-allowed') {
-    return 'Email/Password login is not enabled yet. Go to Firebase Console > Authentication > Sign-in method > Email/Password > Enable.';
-  }
-
-  if (code === 'auth/user-not-found' || code === 'auth/wrong-password' || code === 'auth/invalid-credential') {
-    return 'Login failed. Make sure you created this teacher account in Firebase Authentication > Users and entered the correct password.';
-  }
-
-  if (code === 'auth/unauthorized-domain') {
-    return 'This website domain is not authorized. In Firebase Console, go to Authentication > Settings > Authorized domains and add sfk2627.github.io.';
-  }
-
-  if (code === 'auth/invalid-email') {
-    return 'Please enter a valid teacher email address.';
-  }
-
-  if (code === 'auth/too-many-requests') {
-    return 'Too many login attempts. Wait a few minutes, then try again.';
-  }
-
-  if (code === 'auth/network-request-failed') {
-    return 'Network error. Check your internet connection and try again.';
-  }
-
-  return error?.message || 'Login failed. Check your Firebase Authentication setup.';
-}
-
-function setTeacherLoginLoading(isLoading) {
-  if (!unlockAdminBtn) return;
-  unlockAdminBtn.disabled = Boolean(isLoading);
-  unlockAdminBtn.textContent = isLoading ? 'Logging in...' : 'Login to Admin';
-}
-
-
-async function initFirebaseSync() {
-  ensureFirebaseFrontendConfig();
-  firebaseSync.lastError = '';
+async function initFirebase() {
   if (!hasFirebaseConfig()) {
-    firebaseSync.enabled = false;
+    setStatus('Local mode');
     return false;
   }
 
-  if (firebaseSync.initialized) return true;
-  if (firebaseSync.initializing) return firebaseSync.initializing;
+  if (firebaseState.ready) return true;
+  if (firebaseState.starting) return firebaseState.starting;
 
-  firebaseSync.initializing = (async () => {
+  firebaseState.starting = Promise.resolve().then(() => {
     try {
-      const version = firebaseSync.sdkVersion;
-      const appModule = await import(`https://www.gstatic.com/firebasejs/${version}/firebase-app.js`);
-      const firestoreModule = await import(`https://www.gstatic.com/firebasejs/${version}/firebase-firestore.js`);
-      const authModule = await import(`https://www.gstatic.com/firebasejs/${version}/firebase-auth.js`);
+      if (!firebase.apps.length) {
+        firebaseState.app = firebase.initializeApp(window.MCS_FIREBASE_CONFIG);
+      } else {
+        firebaseState.app = firebase.app();
+      }
 
-      const app = appModule.initializeApp(window.MCS_FIREBASE_CONFIG);
-      firebaseSync.db = firestoreModule.getFirestore(app);
-      firebaseSync.auth = authModule.getAuth(app);
-      firebaseSync.modules = firestoreModule;
-      firebaseSync.authModule = authModule;
-      firebaseSync.enabled = true;
-      firebaseSync.initialized = true;
-      firebaseSync.lastError = '';
+      firebaseState.auth = firebase.auth();
+      firebaseState.db = firebase.firestore();
+      firebaseState.ready = true;
+      watchTeacherAuth();
       setStatus('Firebase connected');
       return true;
     } catch (error) {
-      console.warn('Firebase connection failed. Local mode will continue.', error);
-      firebaseSync.lastError = error?.message || String(error);
-      firebaseSync.enabled = false;
-      setStatus('Local mode');
+      console.error('Firebase initialization failed:', error);
+      setLoginError('Firebase is not ready. Check firebase-config.js and internet connection.');
+      setStatus('Firebase error');
       return false;
     }
-  })();
+  });
 
-  return firebaseSync.initializing;
+  return firebaseState.starting;
 }
 
-function getCloudActivitiesDocRef() {
-  const { doc } = firebaseSync.modules;
-  return doc(firebaseSync.db, firebaseSync.collectionName, firebaseSync.documentId);
+function getCloudActivitiesRef() {
+  const collectionName = window.MCS_FIREBASE_COLLECTION || 'webCodeEditor';
+  const docId = window.MCS_FIREBASE_DOCUMENT_ID || 'grade8-mcsian';
+  return firebaseState.db.collection(collectionName).doc(docId);
 }
 
 async function loadActivitiesFromCloud() {
-  const ready = await initFirebaseSync();
+  const ready = await initFirebase();
   if (!ready) return false;
 
   try {
-    const { getDoc } = firebaseSync.modules;
-    const snap = await getDoc(getCloudActivitiesDocRef());
-    if (!snap.exists()) {
-      if (isTeacherAuthenticated()) {
-        await saveActivitiesToCloud();
-      }
+    const snap = await getCloudActivitiesRef().get();
+    if (!snap.exists) {
+      setStatus('Ready');
       return false;
     }
 
@@ -773,136 +635,292 @@ async function loadActivitiesFromCloud() {
     setStatus('Cloud activities loaded');
     return true;
   } catch (error) {
-    console.warn('Could not load cloud activities.', error);
+    console.error('Cloud load failed:', error);
     setStatus('Cloud load failed');
     return false;
   }
 }
 
 async function saveActivitiesToCloud() {
-  const ready = await initFirebaseSync();
-  if (!ready) return false;
+  const ready = await initFirebase();
+  if (!ready) {
+    setLoginError('Firebase is not ready. Check firebase-config.js, internet connection, and Firebase project setup.');
+    return false;
+  }
 
-  if (!isTeacherAuthenticated()) {
-    setStatus('Teacher login required');
+  if (!firebaseState.auth.currentUser) {
+    setLoginError('Please login as teacher before saving activities/rubrics.');
     return false;
   }
 
   try {
-    const { setDoc, serverTimestamp } = firebaseSync.modules;
-    await setDoc(getCloudActivitiesDocRef(), {
+    await getCloudActivitiesRef().set({
       title: 'Grade 8 MCSian Web Code Editor',
-      updatedAt: serverTimestamp(),
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      updatedBy: firebaseState.auth.currentUser.email || '',
       activities: activities.map(item => normalizeActivity(item))
     }, { merge: true });
     setStatus('Saved to Firebase');
     return true;
   } catch (error) {
-    console.warn('Could not save activities to Firebase.', error);
+    console.error('Cloud save failed:', error);
+    setLoginError(getFriendlyAuthError(error));
     setStatus('Firebase save failed');
     return false;
   }
 }
 
-function queueCloudActivitiesSave() {
-  if (!hasFirebaseConfig()) return;
-  window.clearTimeout(queueCloudActivitiesSave.timer);
-  queueCloudActivitiesSave.timer = window.setTimeout(() => {
-    saveActivitiesToCloud();
-  }, 450);
+function setLoginError(message = '') {
+  if (!loginError) return;
+  loginError.textContent = message;
+  loginError.classList.toggle('hidden', !message);
 }
 
-async function saveSubmissionToCloud(result) {
-  const ready = await initFirebaseSync();
-  if (!ready || !activity || !result) return false;
+function getFriendlyAuthError(error) {
+  const code = error?.code || '';
+  if (code.includes('auth/invalid-credential') || code.includes('auth/wrong-password')) return 'Login failed. Check the teacher email and password.';
+  if (code.includes('auth/user-not-found')) return 'No teacher account was found with that email. Add it in Firebase Authentication > Users.';
+  if (code.includes('auth/unauthorized-domain')) return 'This domain is not authorized. Add sfk2627.github.io in Firebase Authentication > Settings > Authorized domains.';
+  if (code.includes('auth/operation-not-allowed')) return 'Email/Password login is not enabled in Firebase Authentication.';
+  if (code.includes('permission-denied')) return 'Login is okay, but Firestore Rules blocked saving. Publish the updated firestore.rules.';
+  return error?.message || 'Something went wrong. Please try again.';
+}
+
+async function loginTeacher() {
+  setLoginError('');
+  const ready = await initFirebase();
+  if (!ready || !firebaseState.auth) {
+    setLoginError('Firebase is not ready. Check firebase-config.js, internet connection, and Firebase project setup.');
+    return;
+  }
+
+  const email = adminEmail?.value.trim() || '';
+  const password = adminPassword?.value || '';
+
+  if (!email || !password) {
+    setLoginError('Please enter teacher email and password.');
+    return;
+  }
+
+  unlockAdminBtn.disabled = true;
+  const oldText = unlockAdminBtn.textContent;
+  unlockAdminBtn.textContent = 'Logging in...';
 
   try {
-    const { collection, addDoc, serverTimestamp } = firebaseSync.modules;
-    const submissionRef = collection(firebaseSync.db, firebaseSync.collectionName, firebaseSync.documentId, 'submissions');
-    await addDoc(submissionRef, {
-      activityId: activity.id,
-      activityTitle: activity.title,
-      submittedAt: serverTimestamp(),
-      score: result.score,
-      possible: result.possible,
-      percent: result.percent,
-      passed: result.passed,
-      feedback: result.feedback,
-      code: normalizeCodeStore(codeStore),
-      results: result.results.map(item => ({
-        title: item.title,
-        levelKey: item.levelKey,
-        levelLabel: item.levelLabel,
-        earned: item.earned,
-        points: item.points,
-        rule: item.rule,
-        target: item.target || ''
-      }))
-    });
-    setStatus('Result saved online');
-    return true;
+    await firebaseState.auth.signInWithEmailAndPassword(email, password);
+    adminUnlocked = true;
+    showAdminForm();
+    setStatus('Teacher logged in');
   } catch (error) {
-    console.warn('Could not save submission to Firebase.', error);
-    setStatus('Online save failed');
-    return false;
+    console.error('Teacher login failed:', error);
+    setLoginError(getFriendlyAuthError(error));
+  } finally {
+    unlockAdminBtn.disabled = false;
+    unlockAdminBtn.textContent = oldText;
   }
 }
 
-function updateTeacherLoginUI(user = firebaseSync.currentUser) {
-  const isTeacher = Boolean(user && user.email && isAllowedTeacherEmail(user.email));
-  adminUnlocked = isTeacher;
-
-  if (logoutAdminBtn) {
-    logoutAdminBtn.classList.toggle('hidden', !user);
-  }
-
-  if (adminEmail && user?.email) {
-    adminEmail.value = user.email;
-  }
-
-  const note = document.getElementById('teacherLoginNote');
-  if (note) {
-    note.textContent = isTeacher
-      ? `Signed in as ${user.email}. You can manage activities and rubrics.`
-      : user
-        ? `Signed in as ${user.email}, but this account is not allowed to manage rubrics.`
-        : 'Login using the teacher account you created in Firebase Authentication > Users.';
-  }
-
-  if (isTeacher) {
-    showTeacherLoginError('');
-  }
+async function logoutTeacher() {
+  if (!firebaseState.auth) return;
+  await firebaseState.auth.signOut();
+  adminUnlocked = false;
+  adminForm.classList.add('hidden');
+  pinScreen.classList.remove('hidden');
+  logoutAdminBtn?.classList.add('hidden');
+  if (adminPassword) adminPassword.value = '';
+  setStatus('Teacher logged out');
 }
 
-async function watchTeacherAuth() {
-  const ready = await initFirebaseSync();
-  if (!ready || !firebaseSync.auth || !firebaseSync.authModule) return;
-
-  const { onAuthStateChanged } = firebaseSync.authModule;
-  onAuthStateChanged(firebaseSync.auth, user => {
-    firebaseSync.currentUser = user;
-    updateTeacherLoginUI(user);
-
-    if (!adminOverlay.classList.contains('hidden')) {
-      if (isTeacherAuthenticated()) {
-        showAdminForm();
-      } else {
-        pinScreen.classList.remove('hidden');
-        adminForm.classList.add('hidden');
-      }
+function watchTeacherAuth() {
+  if (!firebaseState.auth || watchTeacherAuth.started) return;
+  watchTeacherAuth.started = true;
+  firebaseState.auth.onAuthStateChanged(user => {
+    adminUnlocked = Boolean(user);
+    logoutAdminBtn?.classList.toggle('hidden', !user);
+    if (user) {
+      setLoginError('');
     }
   });
 }
 
-async function startFirebaseMode() {
-  if (!hasFirebaseConfig()) {
-    setStatus('Local mode');
+
+function setRubricImageStatus(message = '', type = '') {
+  if (!rubricImageStatus) return;
+  rubricImageStatus.textContent = message;
+  rubricImageStatus.className = `rubric-image-status ${type || ''}`.trim();
+  rubricImageStatus.classList.toggle('hidden', !message);
+}
+
+function clearRubricImageSelection() {
+  selectedRubricImageDataUrl = '';
+  if (rubricImageInput) rubricImageInput.value = '';
+  rubricImagePreview?.classList.add('hidden');
+  if (rubricImagePreview) rubricImagePreview.removeAttribute('src');
+  rubricImageEmpty?.classList.remove('hidden');
+  setRubricImageStatus('');
+}
+
+function handleRubricImageChange(event) {
+  const file = event.target.files?.[0];
+  if (!file) {
+    clearRubricImageSelection();
     return;
   }
-  await initFirebaseSync();
-  await loadActivitiesFromCloud();
-  await watchTeacherAuth();
+
+  if (!file.type.startsWith('image/')) {
+    clearRubricImageSelection();
+    setRubricImageStatus('Please choose a valid image file.', 'error');
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    selectedRubricImageDataUrl = String(reader.result || '');
+    if (rubricImagePreview) {
+      rubricImagePreview.src = selectedRubricImageDataUrl;
+      rubricImagePreview.classList.remove('hidden');
+    }
+    rubricImageEmpty?.classList.add('hidden');
+    setRubricImageStatus('Image ready. Click Read Image & Fill Table.', 'success');
+  };
+  reader.onerror = () => setRubricImageStatus('Could not read the image. Please try another file.', 'error');
+  reader.readAsDataURL(file);
 }
+
+function getRubricImageEndpoint() {
+  return String(window.MCS_RUBRIC_IMAGE_ENDPOINT || '').trim();
+}
+
+async function getTeacherIdTokenForImport() {
+  const ready = await initFirebase();
+  if (!ready || !firebaseState.auth?.currentUser) {
+    throw new Error('Please login as teacher before importing a rubric image.');
+  }
+  return firebaseState.auth.currentUser.getIdToken();
+}
+
+function inferAutoCheckRuleFromText(title = '', description = '') {
+  const text = `${title} ${description}`.toLowerCase();
+  if (text.includes('complete html') || text.includes('html structure') || text.includes('doctype')) return { rule: 'full_html_structure', target: '' };
+  if (text.includes('properly closed') || text.includes('closing tag') || text.includes('balanced tag')) return { rule: 'balanced_html_tags', target: '' };
+  if (text.includes('heading') || text.includes('h1') || text.includes('title heading')) return { rule: 'has_heading', target: '' };
+  if (text.includes('paragraph') || text.includes('content') || text.includes('description')) return { rule: 'has_paragraph', target: '' };
+  if (text.includes('button')) return { rule: 'has_button', target: '' };
+  if (text.includes('link') || text.includes('hyperlink')) return { rule: 'has_link', target: '' };
+  if (text.includes('image') || text.includes('picture') || text.includes('img')) return { rule: 'has_image', target: '' };
+  if (text.includes('list') || text.includes('bullet')) return { rule: 'has_list', target: '' };
+  if (text.includes('css') || text.includes('style') || text.includes('design') || text.includes('color') || text.includes('layout')) return { rule: 'uses_css_property', target: '' };
+  if (text.includes('javascript') || text.includes('script') || text.includes('click') || text.includes('interactive')) return { rule: 'uses_event_listener', target: '' };
+  if (text.includes('output') || text.includes('visible')) return { rule: 'output_has_visible_text', target: '' };
+  return { rule: 'minimum_effort', target: '' };
+}
+
+function getImportedLevel(importedCriterion, levelKey, maxPoints) {
+  const level = importedCriterion?.levels?.[levelKey] || {};
+  const defaults = normalizeLevels(null, maxPoints)[levelKey];
+  return {
+    label: rubricLevels.find(item => item.key === levelKey)?.label || levelKey,
+    points: Number.isFinite(Number(level.points)) ? Number(level.points) : defaults.points,
+    description: String(level.description || defaults.description || '').trim()
+  };
+}
+
+function normalizeImportedRubricPayload(payload) {
+  const source = payload?.activity || payload || {};
+  const rawCriteria = Array.isArray(source.criteria) ? source.criteria : [];
+  const criteria = rawCriteria.map((item, index) => {
+    const title = String(item.title || item.criterion || `Criterion ${index + 1}`).trim();
+    const descriptions = rubricLevels.map(level => item.levels?.[level.key]?.description || '').join(' ');
+    const inferred = inferAutoCheckRuleFromText(title, `${item.description || ''} ${descriptions}`);
+    const maxFromLevels = Math.max(
+      ...rubricLevels.map(level => Number(item.levels?.[level.key]?.points)).filter(Number.isFinite),
+      Number(item.points) || 0,
+      4
+    );
+    return normalizeCriterion({
+      id: createId(),
+      title,
+      points: maxFromLevels,
+      rule: item.rule || inferred.rule,
+      target: item.target || inferred.target,
+      levels: rubricLevels.reduce((levels, level) => {
+        levels[level.key] = getImportedLevel(item, level.key, maxFromLevels);
+        return levels;
+      }, {})
+    });
+  }).filter(item => item.title && item.points > 0);
+
+  if (!criteria.length) {
+    throw new Error('No rubric criteria were detected from the image. Try a clearer photo/screenshot.');
+  }
+
+  return {
+    title: String(source.title || source.activityTitle || adminActivityTitle?.value || 'Imported Rubric Activity').trim(),
+    description: String(source.description || source.instructions || adminActivityDescription?.value || 'Complete the activity based on the imported rubric.').trim(),
+    passingScore: Number(source.passingScore) || Number(adminPassingScore?.value) || 75,
+    criteria
+  };
+}
+
+function applyImportedRubricToForm(imported) {
+  const normalized = normalizeImportedRubricPayload(imported);
+  adminActivityTitle.value = normalized.title;
+  adminActivityDescription.value = normalized.description;
+  adminPassingScore.value = normalized.passingScore;
+  renderCriteriaEditor(normalized.criteria);
+  setRubricImageStatus('Rubric table filled. Review it, then click Save Activity.', 'success');
+  setStatus('Rubric imported');
+}
+
+async function readRubricImageAndFillTable() {
+  if (!selectedRubricImageDataUrl) {
+    setRubricImageStatus('Choose a rubric image first.', 'error');
+    return;
+  }
+
+  const endpoint = getRubricImageEndpoint();
+  if (!endpoint) {
+    setRubricImageStatus('Rubric image reading is not connected yet. Deploy the rubricImageImport Firebase Function, then paste its URL in firebase-config.js as MCS_RUBRIC_IMAGE_ENDPOINT.', 'error');
+    return;
+  }
+
+  readRubricImageBtn.disabled = true;
+  const oldText = readRubricImageBtn.textContent;
+  readRubricImageBtn.textContent = 'Reading image...';
+  setRubricImageStatus('Reading rubric image and preparing the table...', 'working');
+
+  try {
+    const idToken = await getTeacherIdTokenForImport();
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${idToken}`
+      },
+      body: JSON.stringify({
+        imageDataUrl: selectedRubricImageDataUrl,
+        currentTitle: adminActivityTitle.value,
+        currentInstructions: adminActivityDescription.value,
+        levels: rubricLevels.map(level => level.label),
+        ruleOptions: ruleOptions.map(option => ({ value: option.value, label: option.label }))
+      })
+    });
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data.error || `Rubric import failed (${response.status}).`);
+    }
+
+    applyImportedRubricToForm(data);
+  } catch (error) {
+    console.error('Rubric image import failed:', error);
+    setRubricImageStatus(error.message || 'Could not read the rubric image. Please try again.', 'error');
+  } finally {
+    readRubricImageBtn.disabled = false;
+    readRubricImageBtn.textContent = oldText;
+  }
+}
+
 
 const selfClosingTagNames = new Set([
   'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link',
@@ -1028,205 +1046,31 @@ function getTagAtCursor(tags, cursor) {
     || null;
 }
 
-function createSyntaxToken(start, end, className, priority = 1) {
-  return Number.isFinite(start) && Number.isFinite(end) && end > start
-    ? { start, end, className, priority }
-    : null;
-}
-
-function addSyntaxToken(tokens, start, end, className, priority = 1) {
-  const token = createSyntaxToken(start, end, className, priority);
-  if (token) tokens.push(token);
-}
-
-function getHTMLSyntaxTokens(text) {
-  const tokens = [];
-  const tagPattern = /<!--([\s\S]*?)-->|<!DOCTYPE\s+html\s*>|<\/?[A-Za-z][A-Za-z0-9:-]*(?:\s[^<>]*?)?>/gi;
-  let match;
-
-  while ((match = tagPattern.exec(text)) !== null) {
-    const full = match[0];
-    const offset = match.index;
-
-    if (full.startsWith('<!--')) {
-      addSyntaxToken(tokens, offset, offset + full.length, 'syn-comment', 8);
-      continue;
-    }
-
-    if (/^<!DOCTYPE/i.test(full)) {
-      addSyntaxToken(tokens, offset, offset + full.length, 'syn-doctype', 8);
-      continue;
-    }
-
-    addSyntaxToken(tokens, offset, offset + 1, 'syn-html-bracket', 7);
-    if (full.endsWith('>')) addSyntaxToken(tokens, offset + full.length - 1, offset + full.length, 'syn-html-bracket', 7);
-
-    const nameMatch = full.match(/^<\s*\/?\s*([A-Za-z][A-Za-z0-9:-]*)/);
-    if (!nameMatch) continue;
-
-    const name = nameMatch[1];
-    const nameStartLocal = full.indexOf(name);
-    const nameEndLocal = nameStartLocal + name.length;
-    addSyntaxToken(tokens, offset + nameStartLocal, offset + nameEndLocal, 'syn-html-tag', 9);
-
-    if (/^<\s*\//.test(full)) {
-      const slashLocal = full.indexOf('/');
-      if (slashLocal >= 0) addSyntaxToken(tokens, offset + slashLocal, offset + slashLocal + 1, 'syn-html-bracket', 7);
-      continue;
-    }
-
-    const attrPartStart = nameEndLocal;
-    const attrPartEnd = Math.max(attrPartStart, full.length - (full.endsWith('/>') ? 2 : 1));
-    const attrText = full.slice(attrPartStart, attrPartEnd);
-    const attrPattern = /([A-Za-z_:][A-Za-z0-9_:.-]*)(\s*=\s*)?("[^"]*"|'[^']*'|[^\s"'=<>`]+)?/g;
-    let attrMatch;
-
-    while ((attrMatch = attrPattern.exec(attrText)) !== null) {
-      const attrName = attrMatch[1];
-      if (!attrName || attrName === name) continue;
-      const attrNameStart = offset + attrPartStart + attrMatch.index;
-      addSyntaxToken(tokens, attrNameStart, attrNameStart + attrName.length, 'syn-html-attr', 9);
-
-      if (attrMatch[2]) {
-        const equalsStart = attrNameStart + attrName.length;
-        addSyntaxToken(tokens, equalsStart, equalsStart + attrMatch[2].length, 'syn-html-equals', 6);
-      }
-
-      if (attrMatch[3]) {
-        const valueStart = attrNameStart + attrName.length + (attrMatch[2]?.length || 0);
-        addSyntaxToken(tokens, valueStart, valueStart + attrMatch[3].length, 'syn-string', 10);
-      }
-    }
-  }
-
-  return tokens;
-}
-
-function getCSSSyntaxTokens(text) {
-  const tokens = [];
-
-  for (const match of text.matchAll(/\/\*[\s\S]*?\*\//g)) {
-    addSyntaxToken(tokens, match.index, match.index + match[0].length, 'syn-comment', 10);
-  }
-
-  for (const match of text.matchAll(/("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')/g)) {
-    addSyntaxToken(tokens, match.index, match.index + match[0].length, 'syn-string', 10);
-  }
-
-  for (const match of text.matchAll(/(^|[{};\n])\s*([^{};:\n][^{};\n]*?)\s*(?=\{)/g)) {
-    const selector = match[2];
-    const selectorStart = match.index + match[0].indexOf(selector);
-    addSyntaxToken(tokens, selectorStart, selectorStart + selector.length, 'syn-css-selector', 6);
-  }
-
-  for (const match of text.matchAll(/([a-zA-Z-]+)(\s*:)/g)) {
-    addSyntaxToken(tokens, match.index, match.index + match[1].length, 'syn-css-property', 8);
-    addSyntaxToken(tokens, match.index + match[1].length, match.index + match[0].length, 'syn-punctuation', 5);
-  }
-
-  for (const match of text.matchAll(/#[0-9a-fA-F]{3,8}\b|\b\d+(?:\.\d+)?(?:px|rem|em|%|vh|vw|s|ms)?\b/g)) {
-    addSyntaxToken(tokens, match.index, match.index + match[0].length, 'syn-number', 7);
-  }
-
-  for (const match of text.matchAll(/[{}();,]/g)) {
-    addSyntaxToken(tokens, match.index, match.index + match[0].length, 'syn-punctuation', 4);
-  }
-
-  return tokens;
-}
-
-function getJSSyntaxTokens(text) {
-  const tokens = [];
-  const keywordPattern = /\b(const|let|var|function|return|if|else|for|while|do|switch|case|break|continue|class|new|this|try|catch|finally|throw|true|false|null|undefined|document|window)\b/g;
-
-  for (const match of text.matchAll(/\/\/[^\r\n]*|\/\*[\s\S]*?\*\//g)) {
-    addSyntaxToken(tokens, match.index, match.index + match[0].length, 'syn-comment', 10);
-  }
-
-  for (const match of text.matchAll(/`(?:\\.|[^`\\])*`|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'/g)) {
-    addSyntaxToken(tokens, match.index, match.index + match[0].length, 'syn-string', 10);
-  }
-
-  for (const match of text.matchAll(keywordPattern)) {
-    addSyntaxToken(tokens, match.index, match.index + match[0].length, 'syn-js-keyword', 7);
-  }
-
-  for (const match of text.matchAll(/\b\d+(?:\.\d+)?\b/g)) {
-    addSyntaxToken(tokens, match.index, match.index + match[0].length, 'syn-number', 6);
-  }
-
-  for (const match of text.matchAll(/\b([A-Za-z_$][\w$]*)(\s*)(?=\()/g)) {
-    const name = match[1];
-    if (!['if', 'for', 'while', 'switch', 'catch', 'function'].includes(name)) {
-      addSyntaxToken(tokens, match.index, match.index + name.length, 'syn-js-function', 8);
-    }
-  }
-
-  for (const match of text.matchAll(/[{}()[\].,;:+\-*/%=<>!&|?]/g)) {
-    addSyntaxToken(tokens, match.index, match.index + match[0].length, 'syn-punctuation', 3);
-  }
-
-  return tokens;
-}
-
-function getSyntaxTokens(text) {
-  if (activeLanguage === 'html') return getHTMLSyntaxTokens(text);
-  if (activeLanguage === 'css') return getCSSSyntaxTokens(text);
-  if (activeLanguage === 'js') return getJSSyntaxTokens(text);
-  return [];
-}
-
-function getBestTokenForSegment(tokens, start, end) {
-  return tokens
-    .filter(token => start >= token.start && end <= token.end)
-    .sort((a, b) => b.priority - a.priority)[0] || null;
-}
-
-function getMatchClassForSegment(spans, start, end) {
-  const match = spans.find(span => start >= span.start && end <= span.end);
-  return match ? `tag-match ${match.className}` : '';
-}
-
 function renderCodeMatchLayer(spans = []) {
   if (!codeMatchLayer) return;
 
-  const text = editor.value || '';
-  const syntaxTokens = getSyntaxTokens(text);
-  const sortedMatches = spans
+  const text = editor.value;
+  if (activeLanguage !== 'html') {
+    codeMatchLayer.innerHTML = '';
+    return;
+  }
+
+  const sorted = spans
     .filter(span => Number.isFinite(span.start) && Number.isFinite(span.end) && span.end > span.start)
     .sort((a, b) => a.start - b.start);
 
-  const boundaries = new Set([0, text.length]);
-  syntaxTokens.forEach(token => {
-    boundaries.add(token.start);
-    boundaries.add(token.end);
-  });
-  sortedMatches.forEach(span => {
-    boundaries.add(span.start);
-    boundaries.add(span.end);
-  });
-
-  const points = [...boundaries]
-    .filter(value => value >= 0 && value <= text.length)
-    .sort((a, b) => a - b);
-
   let output = '';
-  for (let i = 0; i < points.length - 1; i += 1) {
-    const start = points[i];
-    const end = points[i + 1];
-    if (end <= start) continue;
+  let cursor = 0;
 
-    const chunk = text.slice(start, end);
-    const token = getBestTokenForSegment(syntaxTokens, start, end);
-    const matchClass = getMatchClassForSegment(sortedMatches, start, end);
-    const className = [token?.className || '', matchClass].filter(Boolean).join(' ');
+  sorted.forEach(span => {
+    if (span.start < cursor) return;
+    output += escapeHTML(text.slice(cursor, span.start));
+    output += `<span class="tag-match ${span.className}">${escapeHTML(text.slice(span.start, span.end))}</span>`;
+    cursor = span.end;
+  });
 
-    output += className
-      ? `<span class="${escapeAttribute(className)}">${escapeHTML(chunk)}</span>`
-      : escapeHTML(chunk);
-  }
-
-  codeMatchLayer.innerHTML = (output || '&nbsp;') + '\n';
+  output += escapeHTML(text.slice(cursor));
+  codeMatchLayer.innerHTML = output + '\n';
   syncEditorScroll();
 }
 
@@ -1427,7 +1271,6 @@ function saveActiveEditor() {
   renderStructureAlert();
   fitEditorToContent();
   updateTagMatching();
-  renderErrorChecker();
 }
 
 function updateLineNumbers() {
@@ -1753,7 +1596,6 @@ function scrollToOutput() {
 function runCode(showMessage = true, options = {}) {
   saveActiveEditor();
   previewFrame.srcdoc = buildFullCode();
-  window.setTimeout(renderErrorChecker, 180);
 
   if (showMessage) {
     setStatus('Output updated');
@@ -1787,177 +1629,6 @@ function queryPreview(selector) {
   } catch (error) {
     return null;
   }
-}
-
-function getBodyInnerHTML(html) {
-  const match = String(html || '').match(/<body\b[^>]*>([\s\S]*?)<\/body\s*>/i);
-  return match ? match[1] : String(html || '');
-}
-
-function stripHTMLTags(value) {
-  return String(value || '')
-    .replace(/<script[\s\S]*?<\/script>/gi, '')
-    .replace(/<style[\s\S]*?<\/style>/gi, '')
-    .replace(/<[^>]*>/g, ' ')
-    .replace(/&nbsp;/gi, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-function getDetailedHTMLTagIssues(html) {
-  const tags = parseHtmlTags(html || '');
-  return tags
-    .filter(tag => !tag.selfClosing && tag.pairIndex === null)
-    .slice(0, 8)
-    .map(tag => ({
-      name: tag.name,
-      line: getLineNumberAt(html || '', tag.start),
-      closing: tag.closing
-    }));
-}
-
-function hasBalancedCurlyBraces(value) {
-  const text = String(value || '').replace(/(['"`])(?:\\.|(?!\1)[\s\S])*\1/g, '');
-  let count = 0;
-  for (const char of text) {
-    if (char === '{') count += 1;
-    if (char === '}') count -= 1;
-    if (count < 0) return false;
-  }
-  return count === 0;
-}
-
-function getJavaScriptSyntaxError(js) {
-  const code = String(js || '').trim();
-  if (!code) return '';
-  try {
-    new Function(code);
-    return '';
-  } catch (error) {
-    return error.message || String(error);
-  }
-}
-
-function getRuntimeErrorMessage() {
-  const doc = getPreviewDocument();
-  return doc?.body?.dataset?.runtimeError || '';
-}
-
-function createCheckerItem(type, title, detail, fix = '') {
-  return { type, title, detail, fix };
-}
-
-function getErrorCheckerItems() {
-  const html = codeStore.html || '';
-  const css = codeStore.css || '';
-  const js = codeStore.js || '';
-  const items = [];
-  const structureReport = getHTMLStructureReport();
-  const bodyInner = getBodyInnerHTML(html);
-  const bodyText = stripHTMLTags(bodyInner);
-  const tagIssues = getDetailedHTMLTagIssues(html);
-  const jsSyntaxError = getJavaScriptSyntaxError(js);
-  const runtimeError = getRuntimeErrorMessage();
-
-  if (structureReport.passed) {
-    items.push(createCheckerItem('pass', 'Complete HTML structure', 'DOCTYPE, html, head, title, and body are detected.'));
-  } else {
-    items.push(createCheckerItem(
-      'error',
-      'Missing HTML structure',
-      `Missing: ${structureReport.missing.map(item => item.label).join(', ') || 'required structure'}.`,
-      'Use the complete HTML starter structure before adding content.'
-    ));
-  }
-
-  if (/<title\b[^>]*>\s*<\/title\s*>/i.test(html)) {
-    items.push(createCheckerItem('warning', 'Empty title tag', 'Your <title> exists but has no title text.', 'Type a short page title inside <title>.'));
-  } else if (/<title\b[^>]*>[\s\S]+?<\/title\s*>/i.test(html)) {
-    items.push(createCheckerItem('pass', 'Title tag has content', 'The browser tab title is not empty.'));
-  }
-
-  if (bodyText.length >= 3) {
-    items.push(createCheckerItem('pass', 'Body has visible content', 'Your webpage has readable text/content inside the body.'));
-  } else {
-    items.push(createCheckerItem('warning', 'Body looks empty', 'The body section has little or no visible text.', 'Add a heading, paragraph, image, button, or other visible content inside <body>.'));
-  }
-
-  if (!tagIssues.length) {
-    items.push(createCheckerItem('pass', 'HTML tags look balanced', 'No missing opening/closing tag was detected.'));
-  } else {
-    const details = tagIssues.map(issue => {
-      return issue.closing
-        ? `</${issue.name}> on line ${issue.line} has no opening tag`
-        : `<${issue.name}> on line ${issue.line} needs </${issue.name}>`;
-    }).join('; ');
-    items.push(createCheckerItem('error', 'Tag closing problem', details, 'Click the underlined tag in the editor and add the missing matching tag.'));
-  }
-
-  if (css.trim()) {
-    if (hasBalancedCurlyBraces(css)) {
-      items.push(createCheckerItem('pass', 'CSS braces look okay', 'Opening and closing curly braces are balanced.'));
-    } else {
-      items.push(createCheckerItem('error', 'CSS brace problem', 'One or more CSS { } braces are missing or extra.', 'Check each selector and make sure every { has a matching }.'));
-    }
-
-    if (!/[a-z-]+\s*:\s*[^;{}]+;?/i.test(css)) {
-      items.push(createCheckerItem('warning', 'CSS may be incomplete', 'CSS has text but no clear property/value pair was detected.', 'Example: color: blue; or background: lightyellow;'));
-    }
-  } else {
-    items.push(createCheckerItem('tip', 'CSS is blank', 'This is okay if the activity does not require design.'));
-  }
-
-  if (js.trim()) {
-    if (jsSyntaxError) {
-      items.push(createCheckerItem('error', 'JavaScript syntax error', jsSyntaxError, 'Check missing parentheses, quotes, braces, or semicolons.'));
-    } else {
-      items.push(createCheckerItem('pass', 'JavaScript syntax looks okay', 'No basic JavaScript syntax error was detected.'));
-    }
-
-    if (runtimeError) {
-      items.push(createCheckerItem('error', 'JavaScript runtime error', runtimeError, 'Run again after checking element IDs, variable names, and event code.'));
-    }
-  } else {
-    items.push(createCheckerItem('tip', 'JavaScript is blank', 'This is okay if the activity does not require interactivity.'));
-  }
-
-  return items;
-}
-
-function renderErrorChecker() {
-  if (!errorCheckerContent) return;
-  const items = getErrorCheckerItems();
-  const errorCount = items.filter(item => item.type === 'error').length;
-  const warningCount = items.filter(item => item.type === 'warning').length;
-  const passCount = items.filter(item => item.type === 'pass').length;
-
-  const summaryClass = errorCount ? 'error' : warningCount ? 'warning' : 'pass';
-  const summaryText = errorCount
-    ? `${errorCount} error${errorCount > 1 ? 's' : ''} found`
-    : warningCount
-      ? `${warningCount} warning${warningCount > 1 ? 's' : ''} found`
-      : 'No major errors found';
-
-  errorCheckerContent.innerHTML = `
-    <div class="checker-summary ${summaryClass}">
-      <div>
-        <strong>${escapeHTML(summaryText)}</strong>
-        <span>${passCount} passed checks · ${warningCount} warning${warningCount === 1 ? '' : 's'} · ${errorCount} error${errorCount === 1 ? '' : 's'}</span>
-      </div>
-    </div>
-    <div class="checker-list">
-      ${items.map(item => `
-        <article class="checker-item ${escapeAttribute(item.type)}">
-          <span class="checker-icon">${item.type === 'pass' ? '✓' : item.type === 'error' ? '!' : item.type === 'warning' ? '⚠' : 'i'}</span>
-          <div>
-            <h3>${escapeHTML(item.title)}</h3>
-            <p>${escapeHTML(item.detail)}</p>
-            ${item.fix ? `<small>Fix: ${escapeHTML(item.fix)}</small>` : ''}
-          </div>
-        </article>
-      `).join('')}
-    </div>
-  `;
 }
 
 function checkCriterion(criterion) {
@@ -2185,272 +1856,6 @@ function generateFeedback(score, possible, percent, results) {
   return `${opening} ${strengths} ${nextSteps} Score: ${formatPoints(score)}/${formatPoints(possible)}.`;
 }
 
-
-function getAIReviewEndpoint() {
-  return String(window.MCS_AI_FEEDBACK_ENDPOINT || '').trim();
-}
-
-function isAIReviewEnabled() {
-  return window.MCS_AI_FEEDBACK_ENABLED !== false;
-}
-
-function getAIReviewTimeoutMs() {
-  const value = Number(window.MCS_AI_FEEDBACK_TIMEOUT_MS);
-  return Number.isFinite(value) && value > 3000 ? value : 25000;
-}
-
-function getShortCodeSample(value, maxLength = 6000) {
-  const text = String(value || '');
-  return text.length > maxLength ? `${text.slice(0, maxLength)}\n/* ...code shortened for rubric review... */` : text;
-}
-
-function buildAIReviewPayload(result) {
-  const currentResult = result || lastRubricResult || gradeActivity();
-  const checkerItems = getErrorCheckerItems().map(item => ({
-    type: item.type,
-    title: item.title,
-    detail: item.detail,
-    fix: item.fix || ''
-  }));
-
-  return {
-    app: 'Grade 8 MCSian Web Code Editor',
-    activity: activity ? {
-      id: activity.id,
-      title: activity.title,
-      description: activity.description,
-      passingScore: activity.passingScore,
-      criteria: activity.criteria.map(item => ({
-        title: item.title,
-        points: getCriterionPossiblePoints(item),
-        rule: item.rule,
-        target: item.target || '',
-        levels: item.levels || {}
-      }))
-    } : null,
-    rubricResult: currentResult ? {
-      score: currentResult.score,
-      possible: currentResult.possible,
-      percent: currentResult.percent,
-      passed: currentResult.passed,
-      feedback: currentResult.feedback,
-      criteria: currentResult.results.map(item => ({
-        title: item.title,
-        levelKey: item.levelKey,
-        levelLabel: item.levelLabel,
-        earned: item.earned,
-        points: item.points,
-        rule: item.rule,
-        target: item.target || '',
-        progress: item.progress
-      }))
-    } : null,
-    checkerItems,
-    outputText: getOutputText().slice(0, 4000),
-    code: {
-      html: getShortCodeSample(codeStore.html),
-      css: getShortCodeSample(codeStore.css),
-      js: getShortCodeSample(codeStore.js)
-    },
-    instruction: 'Act as a Grade 8 ICT teacher. Use the teacher rubric as the main basis for scoring. Interpret the rubric level descriptions, inspect the code and output, then provide fair beginner-friendly scoring feedback. Do not mention AI. Do not give a complete replacement answer or full code. Return strengths, improvements, next steps, and an adjusted score only when the rubric result clearly mismatches the submitted work.'
-  };
-}
-
-function getCheckerProblemsForAI() {
-  return getErrorCheckerItems().filter(item => item.type === 'error' || item.type === 'warning');
-}
-
-function generateLocalAIReview(result) {
-  const safeResult = result || lastRubricResult || gradeActivity();
-  const problems = getCheckerProblemsForAI();
-  const missingCriteria = safeResult?.results?.filter(item => item.levelKey === 'needsImprovement' || item.levelKey === 'fair') || [];
-  const strongCriteria = safeResult?.results?.filter(item => item.levelKey === 'excellent' || item.levelKey === 'good') || [];
-  const html = codeStore.html || '';
-  const css = codeStore.css || '';
-  const js = codeStore.js || '';
-  const suggestions = [];
-
-  if (!isCompleteHTMLStructure()) suggestions.push('Complete the full HTML structure first: doctype, html, head, title, and body.');
-  if (!/<body[\s\S]*?>[\s\S]*?<\/body>/i.test(html)) suggestions.push('Put visible content inside the body section.');
-  if (css.trim() && !/(color|background|padding|margin|font-size|display|border|border-radius)\s*:/i.test(css)) suggestions.push('Use simple CSS properties such as color, background, padding, margin, or font-size to improve design.');
-  if (js.trim() && !/(addEventListener|onclick|textContent|innerHTML|classList|style\.)/i.test(js)) suggestions.push('For JavaScript activities, make sure your script changes something visible on the page.');
-
-  problems.slice(0, 3).forEach(item => suggestions.push(`${item.title}: ${item.fix || item.detail}`));
-  missingCriteria.slice(0, 3).forEach(item => suggestions.push(`Improve rubric item: ${item.title}. Current level: ${item.levelLabel}.`));
-
-  const strengths = strongCriteria.length
-    ? strongCriteria.slice(0, 3).map(item => item.title)
-    : ['You started the page and can improve it step by step.'];
-
-  const scoreLine = safeResult
-    ? `${formatPoints(safeResult.score)}/${formatPoints(safeResult.possible)} (${safeResult.percent}%)`
-    : 'No rubric result yet';
-
-  return {
-    mode: 'Rubric Review',
-    officialScore: scoreLine,
-    suggestedScore: safeResult ? safeResult.score : null,
-    summary: safeResult
-      ? safeResult.percent >= 90
-        ? 'Strong work. The project meets most requirements and is ready for polishing.'
-        : safeResult.percent >= 75
-          ? 'Good work. The page is working, but a few details can still be improved.'
-          : safeResult.percent >= 60
-            ? 'Almost there. Focus on the missing rubric items and the error checker hints.'
-            : 'Needs more improvement. Start with the basic HTML structure and visible page content.'
-      : 'Click Result first so the app can compare your work with the selected rubric.',
-    strengths,
-    improvements: suggestions.length ? suggestions.slice(0, 6) : ['No major issue was detected. Improve design, spacing, readability, and creativity.'],
-    nextSteps: [
-      'Run the code again after every fix.',
-      'Check the Error Checker before clicking Result.',
-      'Make small improvements instead of changing everything at once.'
-    ],
-    teacherNote: ''
-  };
-}
-
-function normalizeAIReviewResponse(data, fallbackResult) {
-  if (!data) return generateLocalAIReview(fallbackResult);
-  if (typeof data === 'string') {
-    return {
-      mode: 'Rubric Review',
-      officialScore: fallbackResult ? `${formatPoints(fallbackResult.score)}/${formatPoints(fallbackResult.possible)} (${fallbackResult.percent}%)` : 'No rubric result yet',
-      summary: data,
-      strengths: [],
-      improvements: [],
-      nextSteps: [],
-      teacherNote: ''
-    };
-  }
-
-  return {
-    mode: data.mode || data.source || 'Rubric Review',
-    officialScore: data.officialScore || (fallbackResult ? `${formatPoints(fallbackResult.score)}/${formatPoints(fallbackResult.possible)} (${fallbackResult.percent}%)` : 'No rubric result yet'),
-    suggestedScore: data.suggestedScore ?? data.score ?? null,
-    summary: data.summary || data.feedback || data.message || 'Review completed.',
-    strengths: Array.isArray(data.strengths) ? data.strengths : [],
-    improvements: Array.isArray(data.improvements) ? data.improvements : Array.isArray(data.nextFixes) ? data.nextFixes : [],
-    nextSteps: Array.isArray(data.nextSteps) ? data.nextSteps : [],
-    teacherNote: data.teacherNote || data.note || ''
-  };
-}
-
-function renderAIReview(review, options = {}) {
-  if (!aiReviewContent) return;
-  const safeReview = normalizeAIReviewResponse(review, lastRubricResult);
-  const isLoading = options.loading === true;
-
-  aiReviewContent.classList.remove('empty-ai-review');
-  aiReviewContent.innerHTML = isLoading ? `
-    <div class="ai-loading-box">
-      <div class="ai-spinner" aria-hidden="true"></div>
-      <div>
-        <h3>Reviewing your work...</h3>
-        <p>Please wait. The app is checking the rubric, code, output, and error checker hints.</p>
-      </div>
-    </div>
-  ` : `
-    <div class="ai-review-card">
-      <div class="ai-review-main">
-        <div>
-          <p class="section-kicker">${escapeHTML(safeReview.mode || 'Rubric Review')}</p>
-          <h3>${escapeHTML(safeReview.summary || 'Review completed.')}</h3>
-          <p class="muted-text">Rubric score: <strong>${escapeHTML(safeReview.officialScore || 'Not available')}</strong>${safeReview.suggestedScore !== null && safeReview.suggestedScore !== undefined ? ` · Suggested score: <strong>${escapeHTML(formatPoints(safeReview.suggestedScore))}</strong>` : ''}</p>
-        </div>
-        <span class="ai-badge">Rubric</span>
-      </div>
-
-      <div class="ai-review-grid">
-        <div class="ai-review-block good">
-          <h4>Strengths</h4>
-          <ul>${(safeReview.strengths?.length ? safeReview.strengths : ['Your work has been checked against the activity rubric.']).map(item => `<li>${escapeHTML(item)}</li>`).join('')}</ul>
-        </div>
-        <div class="ai-review-block improve">
-          <h4>Improve Next</h4>
-          <ul>${(safeReview.improvements?.length ? safeReview.improvements : ['Polish spacing, readability, color, and content clarity.']).map(item => `<li>${escapeHTML(item)}</li>`).join('')}</ul>
-        </div>
-        <div class="ai-review-block steps">
-          <h4>Next Steps</h4>
-          <ul>${(safeReview.nextSteps?.length ? safeReview.nextSteps : ['Fix one issue, run again, then check the result.']).map(item => `<li>${escapeHTML(item)}</li>`).join('')}</ul>
-        </div>
-      </div>
-
-      ${safeReview.teacherNote ? `<div class="ai-note"><strong>Note:</strong> ${escapeHTML(safeReview.teacherNote)}</div>` : ''}
-    </div>
-  `;
-}
-
-function resetAIReviewPanel() {
-  if (!aiReviewContent) return;
-  aiReviewContent.classList.add('empty-ai-review');
-  aiReviewContent.innerHTML = `
-    <div class="ai-empty-icon">✨</div>
-    <h3>No detailed feedback yet</h3>
-    <p>Click <strong>Result</strong> first, then use <strong>Review Feedback</strong> for clearer rubric notes.</p>
-    <p class="ai-small-note">This feedback follows the teacher rubric and checker results.</p>
-  `;
-}
-
-async function requestAIReview(options = {}) {
-  if (!isAIReviewEnabled()) {
-    alert('Detailed feedback is disabled in firebase-config.js.');
-    return;
-  }
-
-  if (!activity) {
-    showActivityRequiredWarning();
-    setStatus('Choose activity first');
-    return;
-  }
-
-  runCode(false, { scroll: false });
-  const result = lastRubricResult || gradeActivity();
-  lastRubricResult = result;
-  if (!result) return;
-
-  const endpoint = getAIReviewEndpoint();
-  renderAIReview(generateLocalAIReview(result), { loading: Boolean(endpoint) });
-  setStatus(endpoint ? 'Review running...' : 'Feedback ready');
-
-  if (!endpoint) {
-    renderAIReview(generateLocalAIReview(result));
-    if (options.scroll !== false) document.getElementById('aiReviewPanel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    return;
-  }
-
-  try {
-    if (aiReviewController) aiReviewController.abort();
-    aiReviewController = new AbortController();
-    const timeout = window.setTimeout(() => aiReviewController.abort(), getAIReviewTimeoutMs());
-
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(buildAIReviewPayload(result)),
-      signal: aiReviewController.signal
-    });
-    window.clearTimeout(timeout);
-
-    if (!response.ok) {
-      throw new Error(`Feedback endpoint returned ${response.status}`);
-    }
-
-    const data = await response.json();
-    const review = normalizeAIReviewResponse(data.review || data, result);
-    renderAIReview(review);
-    setStatus('Feedback ready');
-  } catch (error) {
-    console.warn('Feedback review failed; using local smart review.', error);
-    const fallback = generateLocalAIReview(result);
-    fallback.teacherNote = '';
-    renderAIReview(fallback);
-    setStatus('Feedback ready');
-  }
-
-  if (options.scroll !== false) document.getElementById('aiReviewPanel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-}
-
 function renderResult(result) {
   const pillClass = result.percent >= activity.passingScore
     ? ''
@@ -2504,13 +1909,7 @@ function showResult() {
   window.setTimeout(() => {
     const result = gradeActivity();
     if (!result) return;
-    lastRubricResult = result;
     renderResult(result);
-    renderAIReview(generateLocalAIReview(result));
-    if (getAIReviewEndpoint()) {
-      requestAIReview({ scroll: false });
-    }
-    saveSubmissionToCloud(result);
     setStatus(`Score ${formatPoints(result.score)}/${formatPoints(result.possible)}`);
     resultPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, 350);
@@ -2521,8 +1920,6 @@ function getRuleLabel(rule) {
 }
 
 function resetResultPanel() {
-  lastRubricResult = null;
-  resetAIReviewPanel();
   resultContent.classList.add('empty-state');
   resultContent.innerHTML = `
     <div class="empty-icon">✓</div>
@@ -2655,8 +2052,7 @@ function enterFullEditor() {
   exitEditorStickyBtn?.classList.remove('hidden');
   hideSuggestions();
 
-  const isSmallScreen = window.matchMedia('(max-width: 820px)').matches;
-  if (!isSmallScreen && editorPanel?.requestFullscreen && !document.fullscreenElement) {
+  if (editorPanel?.requestFullscreen && !document.fullscreenElement) {
     editorPanel.requestFullscreen().catch(() => {
       // Browser may block fullscreen from some shortcuts; CSS fullscreen still works.
     });
@@ -2683,16 +2079,11 @@ function exitFullEditor(options = {}) {
   window.setTimeout(() => editor.focus(), 80);
 }
 
-async function openAdminPanel() {
+function openAdminPanel() {
   document.body.classList.add('admin-open');
   adminOverlay.classList.remove('hidden');
-  const adminFirebaseReady = await initFirebaseSync();
-  if (!adminFirebaseReady) {
-    showTeacherLoginError(`Firebase is not ready. ${firebaseSync.lastError || 'Please upload the latest files and check internet connection.'}`);
-  }
-  updateTeacherLoginUI(firebaseSync.auth?.currentUser || firebaseSync.currentUser);
-
-  if (isTeacherAuthenticated()) {
+  setLoginError('');
+  if (adminUnlocked && firebaseState.auth?.currentUser) {
     showAdminForm();
   } else {
     pinScreen.classList.remove('hidden');
@@ -2708,13 +2099,6 @@ function closeAdminPanel() {
 }
 
 function showAdminForm(activityId = adminEditingActivityId) {
-  if (!isTeacherAuthenticated()) {
-    adminUnlocked = false;
-    pinScreen.classList.remove('hidden');
-    adminForm.classList.add('hidden');
-    return;
-  }
-
   adminUnlocked = true;
   pinScreen.classList.add('hidden');
   adminForm.classList.remove('hidden');
@@ -2732,67 +2116,6 @@ function editAdminActivity(activityId) {
   if (!editActivity) return;
   adminEditingActivityId = editActivity.id;
   showAdminForm(editActivity.id);
-}
-
-async function loginTeacher() {
-  showTeacherLoginError('');
-  const ready = await initFirebaseSync();
-  if (!ready || !firebaseSync.auth || !firebaseSync.authModule) {
-    showTeacherLoginError(`Firebase is not ready. ${firebaseSync.lastError || 'Check internet connection, Firebase Authentication setup, and make sure firebase-config.js is uploaded.'}`);
-    return;
-  }
-
-  const email = adminEmail.value.trim();
-  const password = adminPassword.value;
-
-  if (!email || !password) {
-    showTeacherLoginError('Please enter teacher email and password.');
-    return;
-  }
-
-  try {
-    setTeacherLoginLoading(true);
-    const { signInWithEmailAndPassword, signOut } = firebaseSync.authModule;
-    const credential = await signInWithEmailAndPassword(firebaseSync.auth, email, password);
-    firebaseSync.currentUser = credential.user;
-
-    if (!isAllowedTeacherEmail(credential.user.email)) {
-      await signOut(firebaseSync.auth);
-      adminUnlocked = false;
-      showTeacherLoginError(`This account is signed in but not allowed to manage rubrics. Allowed teacher: ${getTeacherEmailText()}.`);
-      return;
-    }
-
-    adminUnlocked = true;
-    updateTeacherLoginUI(credential.user);
-    showAdminForm();
-    setStatus('Teacher logged in');
-  } catch (error) {
-    console.error('Teacher login failed', error);
-    showTeacherLoginError(getFirebaseLoginErrorMessage(error));
-  } finally {
-    setTeacherLoginLoading(false);
-  }
-}
-
-async function logoutTeacher() {
-  const ready = await initFirebaseSync();
-  if (!ready || !firebaseSync.auth || !firebaseSync.authModule) return;
-
-  try {
-    const { signOut } = firebaseSync.authModule;
-    await signOut(firebaseSync.auth);
-    firebaseSync.currentUser = null;
-    adminUnlocked = false;
-    adminForm.classList.add('hidden');
-    pinScreen.classList.remove('hidden');
-    if (adminPassword) adminPassword.value = '';
-    updateTeacherLoginUI(null);
-    setStatus('Teacher logged out');
-  } catch (error) {
-    console.error('Teacher logout failed', error);
-    alert('Logout failed. Please try again.');
-  }
 }
 
 function unlockAdmin() {
@@ -2917,13 +2240,6 @@ function addCriterion() {
 
 async function saveRubric(event) {
   event.preventDefault();
-
-  if (!isTeacherAuthenticated()) {
-    showAdminForm();
-    showTeacherLoginError('Please login as teacher before saving rubric changes.');
-    return;
-  }
-
   const criteria = collectCriteriaFromEditor();
 
   if (!criteria.length) {
@@ -2947,16 +2263,12 @@ async function saveRubric(event) {
   }
 
   saveActivities({ cloud: false });
-  const cloudSaved = await saveActivitiesToCloud();
-
-  if (!cloudSaved && hasFirebaseConfig()) {
-    alert('Saved locally, but Firebase rejected the online save. Check if you are logged in and if Firestore Rules were published.');
-    return;
-  }
-
   selectActivity(savedActivity.id, { keepLanguage: true });
-  closeAdminPanel();
-  setStatus('Activity saved');
+  const savedOnline = await saveActivitiesToCloud();
+  if (savedOnline) {
+    closeAdminPanel();
+    setStatus('Activity saved');
+  }
 }
 
 function createNewActivity() {
@@ -2969,7 +2281,8 @@ function createNewActivity() {
   });
 
   activities.push(newActivity);
-  saveActivities();
+  saveActivities({ cloud: false });
+  saveActivitiesToCloud();
   codeByActivity[newActivity.id] = normalizeCodeStore(starterCode);
   saveCodeByActivity();
   selectActivity(newActivity.id, { skipSave: true });
@@ -2987,7 +2300,8 @@ function duplicateActivity() {
   });
 
   activities.push(copy);
-  saveActivities();
+  saveActivities({ cloud: false });
+  saveActivitiesToCloud();
   codeByActivity[copy.id] = normalizeCodeStore(codeByActivity[source.id] || starterCode);
   saveCodeByActivity();
   selectActivity(copy.id, { skipSave: true });
@@ -3008,7 +2322,8 @@ function deleteActivity() {
   const deletedIndex = activities.findIndex(item => item.id === activityToDelete.id);
   activities = activities.filter(item => item.id !== activityToDelete.id);
   delete codeByActivity[activityToDelete.id];
-  saveActivities();
+  saveActivities({ cloud: false });
+  saveActivitiesToCloud();
   saveCodeByActivity();
 
   const nextActivity = activities[Math.max(0, deletedIndex - 1)] || activities[0];
@@ -3028,7 +2343,8 @@ function restoreDefaultRubric() {
 
   const existingIndex = activities.findIndex(item => item.id === restored.id);
   activities[existingIndex] = restored;
-  saveActivities();
+  saveActivities({ cloud: false });
+  saveActivitiesToCloud();
   selectActivity(restored.id, { keepLanguage: true });
   showAdminForm(restored.id);
   setStatus('Default rubric restored');
@@ -3114,7 +2430,7 @@ function makeReadmeFile() {
   const title = activity?.title || 'No selected activity';
   const instructions = activity?.description || 'No selected activity instructions.';
   return [
-    'Grade 8 MCSian Web Code Editor - Saved Code',
+    'Student Code Studio - Saved Code',
     '================================',
     '',
     `Activity: ${title}`,
@@ -3347,77 +2663,6 @@ function switchLanguageByIndex(index) {
   setStatus(`${nextLanguage.toUpperCase()} tab`);
 }
 
-function getLineIndentBeforeCursor(text, cursor) {
-  const lineStart = text.lastIndexOf('\n', Math.max(0, cursor - 1)) + 1;
-  const currentLineBeforeCursor = text.slice(lineStart, cursor);
-  const indentMatch = currentLineBeforeCursor.match(/^\s*/);
-  return {
-    lineStart,
-    lineBeforeCursor: currentLineBeforeCursor,
-    indent: indentMatch ? indentMatch[0] : ''
-  };
-}
-
-function getHTMLIndentInsert(text, start, end, baseIndent) {
-  const beforeOnLine = text.slice(text.lastIndexOf('\n', Math.max(0, start - 1)) + 1, start);
-  const afterSelection = text.slice(end);
-  const openTagMatch = beforeOnLine.match(/<([A-Za-z][A-Za-z0-9:-]*)(?:\s[^<>]*?)?>\s*$/);
-  const closingTagMatch = afterSelection.match(/^\s*<\/([A-Za-z][A-Za-z0-9:-]*)\s*>/);
-
-  if (!openTagMatch) return `\n${baseIndent}`;
-
-  const tagName = openTagMatch[1].toLowerCase();
-  const fullOpenTag = openTagMatch[0];
-  const isSelfClosing = /\/\s*>\s*$/.test(fullOpenTag) || selfClosingTagNames.has(tagName);
-
-  if (isSelfClosing) return `\n${baseIndent}`;
-
-  const innerIndent = `${baseIndent}  `;
-
-  if (closingTagMatch && closingTagMatch[1].toLowerCase() === tagName) {
-    return `\n${innerIndent}\n${baseIndent}`;
-  }
-
-  return `\n${innerIndent}`;
-}
-
-function getCodeIndentInsert(text, start, end, baseIndent) {
-  const beforeOnLine = text.slice(text.lastIndexOf('\n', Math.max(0, start - 1)) + 1, start);
-  const afterSelection = text.slice(end);
-  const trimmedBefore = beforeOnLine.trimEnd();
-  const nextNonSpace = afterSelection.match(/^\s*([}\])])/);
-
-  if (/[{[(]$/.test(trimmedBefore)) {
-    const innerIndent = `${baseIndent}  `;
-    if (nextNonSpace) return `\n${innerIndent}\n${baseIndent}`;
-    return `\n${innerIndent}`;
-  }
-
-  return `\n${baseIndent}`;
-}
-
-function smartEnterIndent() {
-  const start = editor.selectionStart;
-  const end = editor.selectionEnd;
-  const text = editor.value;
-  const { indent } = getLineIndentBeforeCursor(text, start);
-  const insertText = activeLanguage === 'html'
-    ? getHTMLIndentInsert(text, start, end, indent)
-    : getCodeIndentInsert(text, start, end, indent);
-
-  const before = text.slice(0, start);
-  const after = text.slice(end);
-  const nextValue = before + insertText + after;
-
-  let cursorPosition = start + insertText.length;
-  const splitInsert = insertText.split('\n');
-  if (splitInsert.length >= 3) {
-    cursorPosition = start + splitInsert[0].length + 1 + splitInsert[1].length;
-  }
-
-  applyProgrammaticEditorChange(nextValue, cursorPosition, cursorPosition);
-}
-
 function isTypingInAdminForm() {
   return !adminOverlay.classList.contains('hidden') && adminOverlay.contains(document.activeElement);
 }
@@ -3493,6 +2738,41 @@ function handleGlobalShortcuts(event) {
   }
 }
 
+
+function getLineBeforeCursor() {
+  const before = editor.value.slice(0, editor.selectionStart);
+  const lines = before.split('\n');
+  return lines[lines.length - 1] || '';
+}
+
+function handleSmartEnter(event) {
+  if (event.key !== 'Enter' || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return false;
+  if (!suggestionBox.classList.contains('hidden')) return false;
+
+  event.preventDefault();
+  const start = editor.selectionStart;
+  const end = editor.selectionEnd;
+  const value = editor.value;
+  const currentLine = getLineBeforeCursor();
+  const baseIndent = (currentLine.match(/^\s*/) || [''])[0];
+  let extraIndent = '';
+
+  if (activeLanguage === 'html' && /<([a-zA-Z][\w:-]*)(?:\s[^<>]*)?>\s*$/.test(currentLine) && !/<\/(script|style)>\s*$/.test(currentLine)) {
+    extraIndent = '  ';
+  }
+
+  if ((activeLanguage === 'css' || activeLanguage === 'js') && /\{\s*$/.test(currentLine)) {
+    extraIndent = '  ';
+  }
+
+  const afterCursor = value.slice(end);
+  const nextText = '\n' + baseIndent + extraIndent;
+  const nextValue = value.slice(0, start) + nextText + afterCursor;
+  const nextCursor = start + nextText.length;
+  applyProgrammaticEditorChange(nextValue, nextCursor, nextCursor);
+  return true;
+}
+
 function escapeHTML(value) {
   return String(value)
     .replaceAll('&', '&amp;')
@@ -3523,6 +2803,8 @@ editor.addEventListener('keydown', event => {
   const isCtrlOrMeta = event.ctrlKey || event.metaKey;
   const key = event.key.toLowerCase();
 
+  if (handleSmartEnter(event)) return;
+
   if (isCtrlOrMeta && key === 'z') {
     event.preventDefault();
     if (event.shiftKey) customRedo();
@@ -3547,13 +2829,6 @@ editor.addEventListener('keydown', event => {
   if (event.ctrlKey && event.key === 'Enter') {
     event.preventDefault();
     runCode();
-    return;
-  }
-
-  if (event.key === 'Enter' && !isCtrlOrMeta && !event.shiftKey && !event.altKey && suggestionBox.classList.contains('hidden')) {
-    event.preventDefault();
-    smartEnterIndent();
-    return;
   }
 
   if (!suggestionBox.classList.contains('hidden')) {
@@ -3653,17 +2928,8 @@ document.addEventListener('fullscreenchange', () => {
 
 runBtn.addEventListener('click', () => runCode());
 resultBtn.addEventListener('click', showResult);
-if (aiReviewTopBtn) aiReviewTopBtn.addEventListener('click', requestAIReview);
-if (runAiReviewBtn) runAiReviewBtn.addEventListener('click', requestAIReview);
 if (saveBtn) saveBtn.addEventListener('click', downloadCodeAsZip);
 if (downloadZipBtn) downloadZipBtn.addEventListener('click', downloadCodeAsZip);
-if (refreshErrorCheckerBtn) refreshErrorCheckerBtn.addEventListener('click', () => {
-  saveActiveEditor();
-  runCode(false, { scroll: false });
-  window.setTimeout(renderErrorChecker, 220);
-  setStatus('Errors checked');
-});
-if (previewFrame) previewFrame.addEventListener('load', () => window.setTimeout(renderErrorChecker, 80));
 activitySelect.addEventListener('change', event => selectActivity(event.target.value));
 resetActivityCodeBtn.addEventListener('click', resetCurrentActivityCode);
 
@@ -3708,9 +2974,8 @@ window.addEventListener('click', event => {
 adminBtn.addEventListener('click', openAdminPanel);
 closeAdminBtn.addEventListener('click', closeAdminPanel);
 unlockAdminBtn.addEventListener('click', unlockAdmin);
-if (logoutAdminBtn) logoutAdminBtn.addEventListener('click', logoutTeacher);
+logoutAdminBtn?.addEventListener('click', logoutTeacher);
 [adminEmail, adminPassword].forEach(input => {
-  input?.addEventListener('input', () => showTeacherLoginError(''));
   input?.addEventListener('keydown', event => {
     if (event.key === 'Enter') {
       event.preventDefault();
@@ -3725,6 +2990,9 @@ adminOverlay.addEventListener('click', event => {
   }
 });
 
+rubricImageInput?.addEventListener('change', handleRubricImageChange);
+clearRubricImageBtn?.addEventListener('click', clearRubricImageSelection);
+readRubricImageBtn?.addEventListener('click', readRubricImageAndFillTable);
 adminForm.addEventListener('submit', saveRubric);
 adminActivitySelect.addEventListener('change', event => editAdminActivity(event.target.value));
 newActivityBtn.addEventListener('click', createNewActivity);
@@ -3743,7 +3011,7 @@ criteriaEditor.addEventListener('click', event => {
   renderCriteriaEditor(filtered);
 });
 
-saveActivities({ cloud: false });
+saveActivities();
 saveJSON(STORAGE_KEYS.selectedActivityId, selectedActivityId);
 saveCodeByActivity();
 applyTheme(loadJSON(STORAGE_KEYS.theme, 'light'));
@@ -3753,5 +3021,4 @@ resetResultPanel();
 setPreviewLayout(loadJSON(STORAGE_KEYS.layout, 'split'));
 loadActiveEditor();
 runCode(false);
-renderErrorChecker();
-startFirebaseMode();
+loadActivitiesFromCloud();

@@ -1,8 +1,6 @@
 # Grade 8 MCSian Web Code Editor
 
-A beginner-friendly HTML, CSS, and JavaScript code editor for Grade 8 MCSian students.
-
-Developed by Sir JR.
+A beginner-friendly HTML, CSS, and JavaScript code editor for students.
 
 ## Main Features
 
@@ -56,7 +54,7 @@ Developed by Sir JR.
 
 ## Admin Access
 
-Teacher/Admin now uses Firebase Authentication with Email/Password. Any account manually added in Firebase Authentication can manage activities/rubrics.
+Teacher PIN is set inside `script.js` as `ADMIN_PIN`. It is no longer displayed on the admin screen.
 
 The admin can:
 
@@ -75,7 +73,9 @@ The admin can:
 
 This version is ready for GitHub Pages because it uses plain HTML, CSS, and JavaScript.
 
-Activities and rubrics are synced through Firebase Firestore when Firebase is enabled. Student code, theme, and layout preferences are still saved locally in the browser.
+Activities, rubrics, code, theme, and layout are saved in the browser only through `localStorage`. This means the activities are device/browser-specific for now.
+
+For a real class deployment where the teacher controls activities for all students, the next recommended upgrade is Firebase or another backend.
 
 ## Suggested Next Improvements
 
@@ -173,109 +173,26 @@ The app now opens directly to the editor after the compact header. Activity sele
 - Teacher/Admin activities and rubrics are not cleared by this migration.
 
 
-## Clean Uploaded Base Fix
+## Latest admin layout update
 
-- This build uses the uploaded files as the base.
-- Starter code migration version was refreshed so old saved junk/test code from earlier browser storage will clear on first load.
-- Default starter remains HTML only; CSS and JavaScript start blank.
-
-## Latest Admin Modal Width Fix
-
-- Teacher/Admin rubric builder is now much wider.
-- The rubric table has more horizontal workspace for criteria and rating levels.
-- The PIN screen stays compact and centered so it does not become oversized.
-
-## Latest Admin View Fix
-
-- Opening Teacher/Admin now hides the sticky student top panel.
-- Admin Rubric Table Builder now uses almost the whole screen.
-- The close **X** button stays visible at the top of the admin panel.
-
-## Latest editor typing improvement
-
-- Pressing `Enter` now keeps the same indentation as the current line.
-- When the cursor is after an opening HTML tag such as `<body>` or `<div>`, the next line automatically indents by two spaces.
-- When the cursor is between an opening and closing tag, the editor creates a neat inside line and keeps the closing tag aligned.
-- CSS and JavaScript also indent automatically after `{`, `[`, or `(`.
-
-## Latest Syntax Highlighting Update
-
-- Added Notepad++-style syntax coloring inside the editor.
-- HTML tags, brackets, attributes, strings, comments, and doctype now use different colors.
-- CSS selectors, properties, values, numbers, and punctuation now use different colors.
-- JavaScript keywords, functions, strings, comments, and numbers now use different colors.
-- Syntax colors work in both light mode and dark mode.
-
-## GitHub + Firebase-ready update
-
-This ZIP is ready for GitHub Pages. It also includes optional Firebase files:
-
-- `firebase-config.js` - paste your Firebase Web App config here and set `MCS_FIREBASE_ENABLED` to `true`.
-- `firebase.json` - optional Firebase Hosting config.
-- `firestore.rules` - demo rules for testing only.
-- `FIREBASE_AND_GITHUB_SETUP.md` - quick setup guide.
-
-When Firebase is enabled, activities/rubrics can sync through Firestore and student results can be saved online. When Firebase is disabled, the app still works normally using browser localStorage.
-
-Important: the current Teacher/Admin PIN is client-side, so it is not secure for a public production system. For real class deployment, the next upgrade should be Firebase Authentication.
+- Teacher/Admin rubric builder now opens as a near full-screen workspace.
+- Admin modal appears above the top toolbar.
+- Rubric table has more room for criteria and rating descriptions.
+- Save actions stay reachable at the bottom while editing.
 
 
-## Firebase Auth Teacher Login Update
-
-- Teacher/Admin now uses Firebase Authentication with Email/Password.
-- The old visible/client-side PIN login has been removed.
-- Allowed teacher email is set in `firebase-config.js` and must match `firestore.rules`.
-- Default allowed teacher email: `sirjr.mcsian@gmail.com`.
-- Students can read activities/rubrics and create submissions.
-- Only the teacher account can create, edit, delete, and save activities/rubrics.
-
-## Latest Teacher Login Fix
-
-- Teacher/Admin no longer uses a visible or client-side PIN.
-- Firebase Email/Password login is used for the rubric builder.
-- Login screen has been redesigned into a cleaner card layout.
-- Login errors now show clear setup instructions, including:
-  - Enable Email/Password Authentication
-  - Add teacher/admin users in Firebase Authentication > Users
-  - Add `sfk2627.github.io` in Authentication > Settings > Authorized domains if needed
-- Firestore rules now allow rubric editing only to signed-in Firebase Authentication users.
-- The app does not include a sign-up form, so teacher/admin accounts must be manually created in Firebase Console.
-
-## Mobile Layout Update
-
-- Phone view is now editor-first and easier to use.
-- Main actions move to a bottom thumb-friendly toolbar on small screens.
-- Editor, output preview, activity selector, result panel, and teacher/admin rubric builder are responsive.
-- Teacher login and rubric table input are optimized for phones.
-- Editor uses internal scrolling on mobile so the page is easier to control while typing code.
-
-## Latest mobile fix
-- Fixed phone layout where the HTML/CSS/JavaScript tabs could cover the code editor.
-- Mobile tabs are now part of the normal editor flow, so the code starts below the tabs.
-- Top action buttons are now a responsive grid on phones instead of awkward horizontal overflow.
-
-## Latest mobile repair
-
-- Fixed mobile editor tabs so HTML/CSS/JavaScript never overlap the code.
-- Reduced phone editor font size for better readability.
-- Mobile editor now uses horizontal scrolling instead of wrapping code awkwardly.
-- Full Editor mode on phones now uses CSS fullscreen instead of native browser fullscreen to avoid broken mobile rendering.
-- Exit Full is now a small floating button at the bottom-right on phones.
-
-## Latest Feature: Error Checker Panel
-
-- Added a student-friendly **Error Checker** beside the output/result area.
-- Checks for missing full HTML structure, empty body, empty title, unclosed HTML tags, CSS brace problems, JavaScript syntax errors, and JavaScript runtime errors after Run.
-- Shows clear fix hints separate from rubric scoring, so students can debug before checking their score.
+## Latest fixes
+- Admin/Teacher panel stays wide, but the PIN screen is now compact and centered.
+- The Teacher PIN is no longer displayed on the admin screen.
+- Light mode now uses a light editor background; dark mode uses a dark editor background.
+- Default starter code is HTML only; CSS and JavaScript start blank.
 
 
-## Rubric-Based Feedback
+## Clean Restore Build
 
-The app now includes an **Rubric-Based Feedback** panel.
+This package was rebuilt from the uploaded stable files. It keeps the core editor, activity selector, rubric table builder, output preview, ZIP download, and mobile editor fixes. Teacher/Admin access uses Firebase Email/Password Authentication; any user manually added in Firebase Authentication can manage activities and rubrics.
 
-- It uses the existing rubric score as the official score.
-- It can generate a local smart review when no secure AI endpoint is connected.
-- It can call a secure AI endpoint if `window.MCS_AI_FEEDBACK_ENDPOINT` is set in `firebase-config.js`.
-- Do not place OpenAI, Gemini, or any other feedback provider API key directly in frontend files. Use a backend or Firebase Function.
 
-Included sample backend files are inside the `functions/` folder.
+## Rubric Picture Import
+
+Teacher/Admin now has an Upload Rubric Picture feature. It requires a deployed Firebase Function endpoint to read image screenshots and fill the rubric table automatically. See `RUBRIC_IMAGE_IMPORT_SETUP.md`.
