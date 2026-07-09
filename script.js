@@ -557,13 +557,14 @@ function getInitialActivities() {
 }
 
 function getInitialSelectedActivityId() {
-  const savedId = loadJSON(STORAGE_KEYS.selectedActivityId, '');
-  return activities.some(item => item.id === savedId) ? savedId : '';
+  // Always start with no selected activity.
+  // Students must choose an activity before seeing a score or rubric feedback.
+  return '';
 }
 
 function getInitialCodeByActivity() {
   const saved = loadJSON(STORAGE_KEYS.codeByActivity, null);
-  const fallbackActivityId = activity?.id || selectedActivityId || activities[0]?.id || 'scratch';
+  const fallbackActivityId = activity?.id || selectedActivityId || 'scratch';
 
   if (saved && typeof saved === 'object' && !Array.isArray(saved)) {
     if ('html' in saved || 'css' in saved || 'js' in saved) {
@@ -822,14 +823,14 @@ async function loadActivitiesFromCloud() {
     activities = normalizeActivities(data.activities);
     saveActivities({ cloud: false });
 
-    if (!activities.some(item => item.id === selectedActivityId)) {
-      selectedActivityId = activities[0]?.id || '';
-      saveJSON(STORAGE_KEYS.selectedActivityId, selectedActivityId);
-    }
+    // Keep student page unselected after cloud load.
+    // The activity list is loaded, but no activity is chosen by default.
+    selectedActivityId = '';
+    saveJSON(STORAGE_KEYS.selectedActivityId, '');
 
-    activity = getActivityById(selectedActivityId);
-    codeStore = activity ? getCodeStoreForActivity(activity.id) : normalizeCodeStore(starterCode);
-    adminEditingActivityId = activity?.id || activities[0]?.id || '';
+    activity = null;
+    codeStore = normalizeCodeStore(starterCode);
+    adminEditingActivityId = activities[0]?.id || '';
 
     renderActivitySummary();
     renderAdminActivitySelect();
@@ -2560,6 +2561,7 @@ function renderResult(result) {
 function showResult() {
   if (!activity) {
     showActivityRequiredWarning();
+    renderNoActivityResultMessage();
     setStatus('Choose activity first');
     return;
   }
@@ -2597,6 +2599,16 @@ function resetResultPanel() {
   `;
 }
 
+function renderNoActivityResultMessage() {
+  resultContent.classList.add('empty-state');
+  resultContent.innerHTML = `
+    <div class="empty-icon warning-icon">!</div>
+    <h3>No activity selected yet</h3>
+    <p>Please choose an activity first before checking your result. The rubric and feedback depend on the selected activity.</p>
+  `;
+  resultPanel?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
 function renderActivitySelector() {
   if (!activitySelect) return;
   const placeholder = `<option value="" ${activity ? '' : 'selected'}>Select an activity first...</option>`;
@@ -2616,7 +2628,7 @@ function renderAdminActivitySelect() {
 function renderActivitySummary() {
   if (!activity) {
     activityTitle.textContent = 'No activity selected yet';
-    activityDescription.textContent = 'Click Step 1 and choose an activity. Run Code still works, but score and feedback need a selected activity/rubric.';
+    activityDescription.textContent = 'Choose an activity first. Run Code still works, but score and feedback need a selected activity/rubric.';
     totalPoints.textContent = '0';
     criteriaCount.textContent = '0';
     renderActivitySelector();
@@ -3982,7 +3994,7 @@ criteriaEditor.addEventListener('click', event => {
 });
 
 saveActivities({ cloud: false });
-saveJSON(STORAGE_KEYS.selectedActivityId, selectedActivityId);
+saveJSON(STORAGE_KEYS.selectedActivityId, '');
 saveCodeByActivity();
 applyTheme(loadJSON(STORAGE_KEYS.theme, 'light'));
 applyEditorZoom(editorFontSize);

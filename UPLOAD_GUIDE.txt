@@ -1,0 +1,15 @@
+UPLOAD THESE FILES TO GITHUB REPO ROOT
+
+Upload/replace these files in https://github.com/sfk2627/code-editor:
+- index.html
+- style.css
+- script.js
+- firebase-config.js
+- firestore.rules
+- README.md
+- FIREBASE_AND_GITHUB_SETUP.md
+
+Important:
+- Do NOT paste firestore.rules into index.html.
+- firestore.rules is only for Firebase Console > Firestore Database > Rules > Publish.
+- After upload, open: https://sfk2627.github.io/code-editor/?v=cleanfix
