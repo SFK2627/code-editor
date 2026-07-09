@@ -2158,7 +2158,7 @@ function getAIReviewTimeoutMs() {
 
 function getShortCodeSample(value, maxLength = 6000) {
   const text = String(value || '');
-  return text.length > maxLength ? `${text.slice(0, maxLength)}\n/* ...code shortened for AI review... */` : text;
+  return text.length > maxLength ? `${text.slice(0, maxLength)}\n/* ...code shortened for rubric review... */` : text;
 }
 
 function buildAIReviewPayload(result) {
@@ -2209,7 +2209,7 @@ function buildAIReviewPayload(result) {
       css: getShortCodeSample(codeStore.css),
       js: getShortCodeSample(codeStore.js)
     },
-    instruction: 'Provide student-friendly feedback for a Grade 8 beginner web coding activity. Do not give a complete answer. Mention strengths, errors to fix, and next steps. Keep the official rubric score unless there is a clear mismatch, then give a suggested score separately.'
+    instruction: 'Act as a Grade 8 ICT teacher. Use the teacher rubric as the main basis for scoring. Interpret the rubric level descriptions, inspect the code and output, then provide fair beginner-friendly scoring feedback. Do not mention AI. Do not give a complete replacement answer or full code. Return strengths, improvements, next steps, and an adjusted score only when the rubric result clearly mismatches the submitted work.'
   };
 }
 
@@ -2244,7 +2244,7 @@ function generateLocalAIReview(result) {
     : 'No rubric result yet';
 
   return {
-    mode: 'Local Smart Review',
+    mode: 'Rubric Review',
     officialScore: scoreLine,
     suggestedScore: safeResult ? safeResult.score : null,
     summary: safeResult
@@ -2263,7 +2263,7 @@ function generateLocalAIReview(result) {
       'Check the Error Checker before clicking Result.',
       'Make small improvements instead of changing everything at once.'
     ],
-    teacherNote: 'This local smart review is not using a paid AI model yet. Connect a secure AI endpoint for deeper AI-generated feedback.'
+    teacherNote: ''
   };
 }
 
@@ -2271,7 +2271,7 @@ function normalizeAIReviewResponse(data, fallbackResult) {
   if (!data) return generateLocalAIReview(fallbackResult);
   if (typeof data === 'string') {
     return {
-      mode: 'AI Review',
+      mode: 'Rubric Review',
       officialScore: fallbackResult ? `${formatPoints(fallbackResult.score)}/${formatPoints(fallbackResult.possible)} (${fallbackResult.percent}%)` : 'No rubric result yet',
       summary: data,
       strengths: [],
@@ -2282,10 +2282,10 @@ function normalizeAIReviewResponse(data, fallbackResult) {
   }
 
   return {
-    mode: data.mode || data.source || 'AI Review',
+    mode: data.mode || data.source || 'Rubric Review',
     officialScore: data.officialScore || (fallbackResult ? `${formatPoints(fallbackResult.score)}/${formatPoints(fallbackResult.possible)} (${fallbackResult.percent}%)` : 'No rubric result yet'),
     suggestedScore: data.suggestedScore ?? data.score ?? null,
-    summary: data.summary || data.feedback || data.message || 'AI review completed.',
+    summary: data.summary || data.feedback || data.message || 'Review completed.',
     strengths: Array.isArray(data.strengths) ? data.strengths : [],
     improvements: Array.isArray(data.improvements) ? data.improvements : Array.isArray(data.nextFixes) ? data.nextFixes : [],
     nextSteps: Array.isArray(data.nextSteps) ? data.nextSteps : [],
@@ -2303,7 +2303,7 @@ function renderAIReview(review, options = {}) {
     <div class="ai-loading-box">
       <div class="ai-spinner" aria-hidden="true"></div>
       <div>
-        <h3>AI is reviewing your code...</h3>
+        <h3>Reviewing your work...</h3>
         <p>Please wait. The app is checking the rubric, code, output, and error checker hints.</p>
       </div>
     </div>
@@ -2311,11 +2311,11 @@ function renderAIReview(review, options = {}) {
     <div class="ai-review-card">
       <div class="ai-review-main">
         <div>
-          <p class="section-kicker">${escapeHTML(safeReview.mode || 'AI Review')}</p>
+          <p class="section-kicker">${escapeHTML(safeReview.mode || 'Rubric Review')}</p>
           <h3>${escapeHTML(safeReview.summary || 'Review completed.')}</h3>
-          <p class="muted-text">Official rubric score: <strong>${escapeHTML(safeReview.officialScore || 'Not available')}</strong>${safeReview.suggestedScore !== null && safeReview.suggestedScore !== undefined ? ` · AI suggested score: <strong>${escapeHTML(formatPoints(safeReview.suggestedScore))}</strong>` : ''}</p>
+          <p class="muted-text">Rubric score: <strong>${escapeHTML(safeReview.officialScore || 'Not available')}</strong>${safeReview.suggestedScore !== null && safeReview.suggestedScore !== undefined ? ` · Suggested score: <strong>${escapeHTML(formatPoints(safeReview.suggestedScore))}</strong>` : ''}</p>
         </div>
-        <span class="ai-badge">AI</span>
+        <span class="ai-badge">Rubric</span>
       </div>
 
       <div class="ai-review-grid">
@@ -2343,15 +2343,15 @@ function resetAIReviewPanel() {
   aiReviewContent.classList.add('empty-ai-review');
   aiReviewContent.innerHTML = `
     <div class="ai-empty-icon">✨</div>
-    <h3>No AI review yet</h3>
-    <p>Click <strong>Result</strong> first, then use <strong>AI Review</strong> for better scoring notes and feedback.</p>
-    <p class="ai-small-note">If no secure AI endpoint is connected yet, the app will use a local smart review as fallback.</p>
+    <h3>No detailed feedback yet</h3>
+    <p>Click <strong>Result</strong> first, then use <strong>Review Feedback</strong> for clearer rubric notes.</p>
+    <p class="ai-small-note">This feedback follows the teacher rubric and checker results.</p>
   `;
 }
 
-async function requestAIReview() {
+async function requestAIReview(options = {}) {
   if (!isAIReviewEnabled()) {
-    alert('AI Review is disabled in firebase-config.js.');
+    alert('Detailed feedback is disabled in firebase-config.js.');
     return;
   }
 
@@ -2368,11 +2368,11 @@ async function requestAIReview() {
 
   const endpoint = getAIReviewEndpoint();
   renderAIReview(generateLocalAIReview(result), { loading: Boolean(endpoint) });
-  setStatus(endpoint ? 'AI review running...' : 'Smart review ready');
+  setStatus(endpoint ? 'Review running...' : 'Feedback ready');
 
   if (!endpoint) {
     renderAIReview(generateLocalAIReview(result));
-    document.getElementById('aiReviewPanel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (options.scroll !== false) document.getElementById('aiReviewPanel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     return;
   }
 
@@ -2390,22 +2390,22 @@ async function requestAIReview() {
     window.clearTimeout(timeout);
 
     if (!response.ok) {
-      throw new Error(`AI endpoint returned ${response.status}`);
+      throw new Error(`Feedback endpoint returned ${response.status}`);
     }
 
     const data = await response.json();
     const review = normalizeAIReviewResponse(data.review || data, result);
     renderAIReview(review);
-    setStatus('AI review complete');
+    setStatus('Feedback ready');
   } catch (error) {
-    console.warn('AI review failed; using local smart review.', error);
+    console.warn('Feedback review failed; using local smart review.', error);
     const fallback = generateLocalAIReview(result);
-    fallback.teacherNote = 'Secure AI endpoint was not available, so this fallback review was generated locally.';
+    fallback.teacherNote = '';
     renderAIReview(fallback);
-    setStatus('AI fallback used');
+    setStatus('Feedback ready');
   }
 
-  document.getElementById('aiReviewPanel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  if (options.scroll !== false) document.getElementById('aiReviewPanel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 function renderResult(result) {
@@ -2464,6 +2464,9 @@ function showResult() {
     lastRubricResult = result;
     renderResult(result);
     renderAIReview(generateLocalAIReview(result));
+    if (getAIReviewEndpoint()) {
+      requestAIReview({ scroll: false });
+    }
     saveSubmissionToCloud(result);
     setStatus(`Score ${formatPoints(result.score)}/${formatPoints(result.possible)}`);
     resultPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });

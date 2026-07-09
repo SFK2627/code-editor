@@ -65,7 +65,7 @@ https://sfk2627.github.io/code-editor/
 
 # AI Feedback Setup
 
-The website can show AI-style feedback locally even without a paid AI endpoint. For real AI feedback, deploy a secure backend/Firebase Function and paste its HTTPS URL in `firebase-config.js`:
+The website can show rubric-based feedback locally even without a paid AI endpoint. For real rubric feedback, deploy a secure backend/Firebase Function and paste its HTTPS URL in `firebase-config.js`:
 
 ```js
 window.MCS_AI_FEEDBACK_ENDPOINT = 'https://YOUR_FUNCTION_URL/aiReview';
@@ -73,13 +73,13 @@ window.MCS_AI_FEEDBACK_ENDPOINT = 'https://YOUR_FUNCTION_URL/aiReview';
 
 Never put AI API keys in `index.html`, `script.js`, or `firebase-config.js` because GitHub Pages is public.
 
-A sample Firebase Function is included in the `functions/` folder. Set your AI provider key as a server environment variable, then deploy the function.
+A sample Firebase Function is included in the `functions/` folder. Set your feedback provider key as a server environment variable, then deploy the function.
 
-## Real AI Review with Firebase Functions
+## Real Rubric Review with Firebase Functions
 
-The app already has an AI Review panel. Without a deployed AI endpoint, it uses a local smart review based on the rubric and error checker.
+The app already has an Rubric Review panel. Without a deployed AI endpoint, it uses a local smart review based on the rubric and error checker.
 
-To enable real AI feedback:
+To enable real rubric feedback:
 
 1. Install Firebase CLI if you have not installed it yet.
 2. Login:

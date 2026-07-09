@@ -269,13 +269,13 @@ Important: the current Teacher/Admin PIN is client-side, so it is not secure for
 - Shows clear fix hints separate from rubric scoring, so students can debug before checking their score.
 
 
-## AI Score & Feedback
+## Rubric-Based Feedback
 
-The app now includes an **AI Score & Feedback** panel.
+The app now includes an **Rubric-Based Feedback** panel.
 
 - It uses the existing rubric score as the official score.
 - It can generate a local smart review when no secure AI endpoint is connected.
 - It can call a secure AI endpoint if `window.MCS_AI_FEEDBACK_ENDPOINT` is set in `firebase-config.js`.
-- Do not place OpenAI, Gemini, or any other AI provider API key directly in frontend files. Use a backend or Firebase Function.
+- Do not place OpenAI, Gemini, or any other feedback provider API key directly in frontend files. Use a backend or Firebase Function.
 
 Included sample backend files are inside the `functions/` folder.

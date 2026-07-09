@@ -25,7 +25,7 @@
         <button id="adminBtn" class="ghost-btn teacher-btn" type="button">Teacher/Admin</button>
         <button id="runBtn" class="primary-btn top-run-btn" type="button" title="Run: Ctrl + Enter">▶ Run</button>
         <button id="resultBtn" class="success-btn top-result-btn" type="button" title="Check result: Ctrl + Shift + Enter">✓ Result</button>
-        <button id="aiReviewTopBtn" class="ghost-btn ai-review-top-btn" type="button" title="AI Review after checking result">✨ AI</button>
+        <button id="aiReviewTopBtn" class="ghost-btn ai-review-top-btn" type="button" title="Get rubric-based feedback after checking result">💬 Feedback</button>
         <button id="downloadZipBtn" class="ghost-btn save-zip-btn" type="button" title="Download your code as ZIP">💾 ZIP</button>
         <button id="fullEditorBtn" class="ghost-btn full-editor-top" type="button" title="Full editor: Ctrl + Shift + F">⛶ Full Editor</button>
         <button id="exitEditorBtn" class="ghost-btn danger-tool hidden" type="button" title="Exit full editor: Esc">Exit Full</button>
@@ -118,20 +118,20 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
           </div>
         </section>
 
-        <section id="aiReviewPanel" class="panel ai-review-panel" aria-label="AI scoring and feedback">
+        <section id="aiReviewPanel" class="panel ai-review-panel" aria-label="Rubric-based feedback">
           <div class="panel-header compact-header ai-review-header">
             <div>
-              <p class="section-kicker">AI Assistant</p>
-              <h2>AI Score & Feedback</h2>
+              <p class="section-kicker">Teacher Feedback</p>
+              <h2>Rubric-Based Feedback</h2>
               <p>Get deeper comments based on the rubric, code, output, and error checker.</p>
             </div>
-            <button id="runAiReviewBtn" class="layout-btn strong ai-review-btn" type="button">✨ AI Review</button>
+            <button id="runAiReviewBtn" class="layout-btn strong ai-review-btn" type="button">💬 Review Feedback</button>
           </div>
           <div id="aiReviewContent" class="ai-review-content empty-ai-review">
             <div class="ai-empty-icon">✨</div>
-            <h3>No AI review yet</h3>
-            <p>Click <strong>Result</strong> first, then use <strong>AI Review</strong> for better scoring notes and feedback.</p>
-            <p class="ai-small-note">If no secure AI endpoint is connected yet, the app will use a local smart review as fallback.</p>
+            <h3>No detailed feedback yet</h3>
+            <p>Click <strong>Result</strong> first, then use <strong>Review Feedback</strong> for clearer rubric notes.</p>
+            <p class="ai-small-note">This feedback follows the teacher rubric and checker results.</p>
           </div>
         </section>
 
