@@ -1,335 +1,303 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Grade 8 MCSian Web Code Editor - Developed by Sir JR</title>
-  <link rel="stylesheet" href="style.css" />
-</head>
-<body>
-  <div class="app-shell">
-    <header class="topbar simplified-topbar">
-      <div class="brand-block">
-        <div class="logo-mark" aria-hidden="true">&lt;/&gt;</div>
-        <div>
-          <p class="eyebrow">Sir JR's</p>
-          <h1>Grade 8 MCSian Web Code Editor</h1>
-          <p class="subtitle">Developed by Sir JR</p>
-        </div>
-      </div>
+# Grade 8 MCSian Web Code Editor
 
-      <div class="top-actions" aria-label="Main actions">
-        <span id="statusBadge" class="status-badge compact-status">Ready</span>
-        <button id="themeToggle" class="ghost-btn" type="button" title="Switch light or dark mode">🌙 Dark</button>
-        <button id="stepActivityBtn" class="ghost-btn activity-launch-btn" type="button" aria-expanded="false" aria-controls="activityCard">📌 Activity</button>
-        <button id="adminBtn" class="ghost-btn teacher-btn" type="button">Teacher/Admin</button>
-        <button id="runBtn" class="primary-btn top-run-btn" type="button" title="Run: Ctrl + Enter">▶ Run</button>
-        <button id="resultBtn" class="success-btn top-result-btn" type="button" title="Check result: Ctrl + Shift + Enter">✓ Result</button>
-        <button id="aiReviewTopBtn" class="ghost-btn ai-review-top-btn" type="button" title="Get rubric-based feedback after checking result">💬 Feedback</button>
-        <button id="downloadZipBtn" class="ghost-btn save-zip-btn" type="button" title="Download your code as ZIP">💾 ZIP</button>
-        <button id="fullEditorBtn" class="ghost-btn full-editor-top" type="button" title="Full editor: Ctrl + Shift + F">⛶ Full Editor</button>
-        <button id="exitEditorBtn" class="ghost-btn danger-tool hidden" type="button" title="Exit full editor: Esc">Exit Full</button>
-        <button id="resetBtn" class="ghost-btn quiet-action" type="button">Reset</button>
-        <button id="clearBtn" class="ghost-btn danger quiet-action" type="button">Clear Tab</button>
-      </div>
-    </header>
+A beginner-friendly HTML, CSS, and JavaScript code editor for Grade 8 MCSian students.
 
+Developed by Sir JR.
 
+## Main Features
 
-    <main id="workspace" class="workspace" data-layout="split">
-      <section id="editorPanel" class="panel editor-panel" aria-label="Code editor">
-        <button id="exitEditorStickyBtn" class="fullscreen-exit-btn hidden" type="button" title="Exit full editor: Esc">Exit Full</button>
-        <div class="language-tabs" role="tablist" aria-label="Code language tabs">
-          <button class="tab-btn active" type="button" data-language="html">HTML</button>
-          <button class="tab-btn" type="button" data-language="css">CSS</button>
-          <button class="tab-btn" type="button" data-language="js">JavaScript</button>
-        </div>
+- Cleaner student flow: **Choose Activity → Write Code → Run Output → See Result**
+- HTML, CSS, and JavaScript tabs
+- Runs even if the student only writes HTML
+- HTML tab encourages a complete document structure:
+  - `<!DOCTYPE html>`
+  - `<html>`
+  - `<head>`
+  - `<title>`
+  - `<body>`
+- Live code suggestions while typing
+- HTML tag suggestions include closing-tag indicators:
+  - Red badge: the tag has a closing tag and clicking it inserts the pair
+  - Green badge: the tag is self-closing
+- Output preview options:
+  - Split view
+  - Stacked view
+  - Big preview
+  - Full screen preview
+- Light and dark mode
+- Student activity selector
+- Teacher/Admin activity manager
+- Multiple saved activities, each with its own instructions and rubric
+- Per-activity saved student code using browser `localStorage`
+- Automatic scoring based on the selected activity rubric
+- Automatic student feedback after clicking **See Result**
+- Keyboard-friendly editor controls
 
-        <div class="editor-info" id="editorInfo">
-HTML tab: type the complete structure. CSS and JavaScript are optional unless required by the activity.
-        </div>
+## Keyboard Shortcuts
 
-        <div id="structureAlert" class="structure-alert" aria-live="polite"></div>
-        <div id="tagMatchInfo" class="tag-match-info" aria-live="polite">
+- `Ctrl + Z` - Undo
+- `Ctrl + Y` - Redo
+- `Ctrl + S` - Save locally
+- `Ctrl + Enter` - Run Code
+- `Ctrl + Shift + Enter` - See Result
+- `Ctrl + 1` - HTML tab
+- `Ctrl + 2` - CSS tab
+- `Ctrl + 3` - JavaScript tab
+- `Tab` - Indent code
+- Arrow keys + Enter - choose an autocomplete suggestion
 
-        </div>
+## Student Flow
 
-        <div class="editor-wrap">
-          <div id="lineNumbers" class="line-numbers" aria-hidden="true">1</div>
-          <div class="editor-stack">
-            <div id="codeMatchLayer" class="code-match-layer" aria-hidden="true"></div>
-            <textarea
-              id="codeEditor"
-              spellcheck="false"
-              aria-label="Code editor textarea"
-              autocomplete="off"
-              autocapitalize="off"
-            ></textarea>
+1. Choose an activity from the **Choose Activity** dropdown.
+2. Read the selected activity instructions.
+3. Type code in HTML, CSS, and/or JavaScript.
+4. Click **Run Code** to view the output.
+5. Click **See Result** to view the score, rubric breakdown, and generated feedback.
 
-            <div id="suggestionBox" class="suggestion-box hidden" role="listbox" aria-label="Code suggestions"></div>
-          </div>
-        </div>
+## Admin Access
 
-        <div class="tips-row shortcut-strip">
-          <span><kbd>Ctrl</kbd> + <kbd>Z</kbd> Undo</span>
-          <span><kbd>Ctrl</kbd> + <kbd>Y</kbd>/<kbd>Shift</kbd>+<kbd>Z</kbd> Redo</span>
-          <span><kbd>Ctrl</kbd> + <kbd>S</kbd> Save progress</span>
-          <span><kbd>Ctrl</kbd> + <kbd>Enter</kbd> Run</span>
-          <span><kbd>Ctrl</kbd> + <kbd>1</kbd>/<kbd>2</kbd>/<kbd>3</kbd> Tabs</span>
-          <span><kbd>Ctrl</kbd> + <kbd>+</kbd>/<kbd>-</kbd> Zoom</span>
-          <span><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>F</kbd> Full Editor</span>
-        </div>
-      </section>
+Teacher/Admin now uses Firebase Authentication with Email/Password. Any account manually added in Firebase Authentication can manage activities/rubrics.
 
-      <aside class="right-column">
-        <section id="previewPanel" class="panel preview-panel" aria-label="Output preview">
-          <div class="panel-header compact-header preview-header">
-            <div>
-              <p class="section-kicker">Step 3</p>
-              <h2>Output Preview</h2>
-              <p>Your webpage appears here after clicking Run Code.</p>
-            </div>
-            <div class="preview-actions" aria-label="Preview layout controls">
-              <button class="layout-btn active" type="button" data-layout="split">Split</button>
-              <button class="layout-btn" type="button" data-layout="stacked">Stacked</button>
-              <button class="layout-btn" type="button" data-layout="preview-focus">Big Preview</button>
-              <button id="fullPreviewBtn" class="layout-btn strong" type="button">Full Screen</button>
-              <button id="exitPreviewBtn" class="layout-btn danger hidden" type="button">Exit</button>
-            </div>
-          </div>
+The admin can:
 
-          <iframe id="previewFrame" title="Code output preview" sandbox="allow-scripts allow-same-origin"></iframe>
-        </section>
+- Choose which saved activity to edit
+- Create a new activity
+- Duplicate an existing activity
+- Delete an activity
+- Edit activity title
+- Edit activity instructions
+- Edit passing score
+- Add/edit/remove rubric criteria
+- Set automatic checking rule per criterion
+- Set points per criterion
 
-        <section id="errorCheckerPanel" class="panel error-checker-panel" aria-label="Error checker">
-          <div class="panel-header compact-header error-checker-header">
-            <div>
-              <p class="section-kicker">Code Helper</p>
-              <h2>Error Checker</h2>
-              <p>Quick hints for missing tags, empty body, CSS, and JavaScript errors.</p>
-            </div>
-            <button id="refreshErrorCheckerBtn" class="layout-btn strong" type="button">Check</button>
-          </div>
-          <div id="errorCheckerContent" class="error-checker-content">
-            <div class="checker-empty">
-              <strong>Ready to check.</strong>
-              <span>Start coding or click Run to check your output.</span>
-            </div>
-          </div>
-        </section>
+## Important Note
 
-        <section id="aiReviewPanel" class="panel ai-review-panel" aria-label="Rubric-based feedback">
-          <div class="panel-header compact-header ai-review-header">
-            <div>
-              <p class="section-kicker">Teacher Feedback</p>
-              <h2>Rubric-Based Feedback</h2>
-              <p>Get deeper comments based on the rubric, code, output, and error checker.</p>
-            </div>
-            <button id="runAiReviewBtn" class="layout-btn strong ai-review-btn" type="button">💬 Review Feedback</button>
-          </div>
-          <div id="aiReviewContent" class="ai-review-content empty-ai-review">
-            <div class="ai-empty-icon">✨</div>
-            <h3>No detailed feedback yet</h3>
-            <p>Click <strong>Result</strong> first, then use <strong>Review Feedback</strong> for clearer rubric notes.</p>
-            <p class="ai-small-note">This feedback follows the teacher rubric and checker results.</p>
-          </div>
-        </section>
+This version is ready for GitHub Pages because it uses plain HTML, CSS, and JavaScript.
 
-        <section id="resultPanel" class="panel result-panel" aria-label="Score result">
-          <div class="panel-header compact-header">
-            <div>
-              <p class="section-kicker">Step 4</p>
-              <h2>Result & Feedback</h2>
-              <p>Run your code, then check your score based on the selected rubric.</p>
-            </div>
-          </div>
-          <div id="resultContent" class="result-content empty-state">
-            <div class="empty-icon">✓</div>
-            <h3>No result yet</h3>
-            <p>Click <strong>See Result</strong> when you are done with your activity.</p>
-          </div>
-        </section>
-      </aside>
-    </main>
+Activities and rubrics are synced through Firebase Firestore when Firebase is enabled. Student code, theme, and layout preferences are still saved locally in the browser.
+
+## Suggested Next Improvements
+
+- Firebase login for teacher and students
+- Shared activities and rubrics online
+- Student name/section input
+- Save student submissions
+- Export scores to CSV/Excel
+- Teacher dashboard for all submitted results
+- Code syntax highlighting
+- More advanced HTML/CSS/JS error checking
 
 
-    <section id="activityCard" class="activity-card collapsed-card" aria-label="Current activity and rubric">
-      <div class="activity-main">
-        <div class="activity-select-row">
-          <label for="activitySelect">Choose Activity</label>
-          <select id="activitySelect" aria-label="Choose coding activity"></select>
-          <button id="resetActivityCodeBtn" class="ghost-btn" type="button">Reset This Activity Code</button>
-        </div>
-        <div id="activityWarning" class="activity-warning hidden" role="alert">
-          Pumili muna ng activity sa Step 1. Without selected activity, Run Code works, pero hindi lalabas ang score at automatic feedback dahil walang rubric.
-        </div>
-        <p class="section-kicker">Selected Activity</p>
-        <h2 id="activityTitle">Activity</h2>
-        <p id="activityDescription" class="muted-text">Rubric details will appear here.</p>
-      </div>
-      <div class="activity-stats">
-        <div>
-          <span id="totalPoints" class="stat-number">0</span>
-          <span class="stat-label">Total Points</span>
-        </div>
-        <div>
-          <span id="criteriaCount" class="stat-number">0</span>
-          <span class="stat-label">Criteria</span>
-        </div>
-      </div>
-    </section>
-    <details class="help-card friendly-help compact-help">
-      <summary>Need help? View quick guide and shortcuts</summary>
-      <div class="help-header">
-        <div>
-          <h3>Beginner-friendly guide</h3>
-          <p class="muted-text">Simple reminders para hindi malito ang students habang nagco-code.</p>
-        </div>
-      </div>
-      <div class="help-grid">
-        <div><strong>HTML tab:</strong> Required ang full structure: <code>&lt;!DOCTYPE html&gt;</code>, <code>&lt;html&gt;</code>, <code>&lt;head&gt;</code>, <code>&lt;title&gt;</code>, and <code>&lt;body&gt;</code>.</div>
-        <div><strong>Suggestions:</strong> Red label means may closing tag. Green label means self-closing tag like <code>&lt;img&gt;</code>, <code>&lt;br&gt;</code>, or <code>&lt;input&gt;</code>.</div>
-        <div><strong>Keyboard:</strong> Gumagana ang normal editor keys like <code>Ctrl+Z</code>, <code>Ctrl+Y</code>, <code>Ctrl+S</code>, <code>Tab</code>, at <code>Ctrl+Enter</code>. Use <strong>Save ZIP</strong> para ma-download ang code files.</div>
-      </div>
-    </details>
-  </div>
+## Latest improvements
 
-  <div id="adminOverlay" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="adminTitle">
-    <div class="admin-modal">
-      <div class="modal-header">
-        <div>
-          <p class="section-kicker">Teacher Controls</p>
-          <h2 id="adminTitle">Admin Rubric Table Builder</h2>
-          <p class="muted-text">Create activities with table-based rubrics: criteria on the left, rating levels across the columns.</p>
-        </div>
-        <div class="modal-header-actions">
-          <button id="adminImportShortcutBtn" class="ghost-btn admin-import-shortcut" type="button">🖼️ Upload Rubric</button>
-          <button id="closeAdminBtn" class="icon-btn" type="button" aria-label="Close admin panel">×</button>
-        </div>
-      </div>
+- Matching HTML tag guide: click an opening or closing tag in the HTML editor to underline its matching pair.
+- Missing closing/opening tags are marked with a red wavy underline helper.
+- Self-closing HTML tags such as `img`, `br`, `input`, `meta`, and `link` are identified as tags that do not need closing tags.
+- Editor zoom controls are included in the editor toolbar.
+- Keyboard shortcuts for zoom: `Ctrl + +`, `Ctrl + -`, and `Ctrl + 0`.
 
-      <div id="pinScreen" class="pin-screen teacher-login-screen">
-        <div class="teacher-login-layout">
-          <div class="teacher-login-intro">
-            <div class="teacher-login-icon">🔐</div>
-            <p class="section-kicker">Teacher Login</p>
-            <h3>Manage Activities & Rubrics</h3>
-            <p>Login using the teacher account you created in Firebase Authentication. Students can still use the editor without logging in.</p>
-            <div class="login-checklist">
-              <span>✓ Firebase Authentication enabled</span>
-              <span>✓ Email/Password sign-in method enabled</span>
-              <span>✓ Teacher user added in Authentication &gt; Users</span>
-            </div>
-          </div>
+## Latest Version 6 Improvements
 
-          <div class="teacher-login-card">
-            <label for="adminEmail">
-              Teacher Email
-              <input id="adminEmail" type="email" autocomplete="username" placeholder="example: sirjr@email.com" />
-            </label>
+- **Run Code** and **See Result** are now inside the editor area.
+- Editor action bar is sticky, so the main buttons remain easy to access while scrolling.
+- Clicking **Run Code** automatically scrolls to the output preview.
+- The Step 1 activity card is hidden by default and opens/closes when Step 1 is clicked.
+- Clicking Step 2 without selecting an activity highlights Step 1 in red and explains that score/feedback require a selected activity.
+- Students can still run HTML-only code even without CSS or JavaScript.
+- Default starter code is now a simple full HTML **Hello World** structure.
+- CSS and JavaScript tabs start blank by default.
 
-            <label for="adminPassword">
-              Password
-              <input id="adminPassword" type="password" autocomplete="current-password" placeholder="Enter password" />
-            </label>
+## Latest Version 7 Improvements
 
-            <p id="teacherLoginError" class="login-error hidden" role="alert"></p>
+- Suggestions are now less intrusive and appear only while the student is actively typing.
+- Suggestion popup is smaller, has a close button, and automatically hides after a short pause.
+- Clicking inside the code editor hides suggestions so they do not stay stuck on screen.
+- Added **Full Editor** mode so only the editor is visible while coding.
+- Added **Exit Full** button and `Esc` support to return to the normal layout.
+- Added shortcut: `Ctrl + Shift + F` for Full Editor mode.
 
-            <div class="pin-row teacher-login-actions">
-              <button id="unlockAdminBtn" class="primary-btn" type="button">Login to Admin</button>
-              <button id="logoutAdminBtn" class="ghost-btn hidden" type="button">Logout</button>
-            </div>
+## Latest Version 9 Improvements
 
-            <p id="teacherLoginNote" class="helper-note">Only signed-in Firebase teacher accounts can save or delete rubrics.</p>
-          </div>
-        </div>
-      </div>
+- Rebuilt **Ctrl + Z** and **Ctrl + Y** with a custom editor history system.
+- Undo/redo now works for normal typing, deleting, clearing, indentation, and inserted suggestions.
+- Added support for `Ctrl + Shift + Z` as another redo shortcut.
+- **Full Editor** now uses a true full-screen style and requests browser fullscreen when available.
+- In Full Editor mode, the editor fills the whole screen/monitor area with no rounded floating box limit.
 
-      <form id="adminForm" class="admin-form hidden">
-        <section class="rubric-image-import-card" aria-label="Import rubric from image">
-          <div class="rubric-import-header">
-            <div>
-              <p class="section-kicker">New Teacher Tool</p>
-              <h3>Upload Rubric Picture / Screenshot</h3>
-              <p class="muted-text">Upload a clear picture or screenshot of your rubric. It will appear here and can auto-fill the activity title, instructions, and rubric table after the backend reader is connected. Review before saving.</p>
-            </div>
-            <span class="rubric-import-badge">Teacher Only</span>
-          </div>
+## Latest Version 10 Improvements
 
-          <div class="rubric-import-grid">
-            <label class="rubric-file-drop" for="rubricImageInput">
-              <span class="rubric-file-icon">🖼️</span>
-              <strong>Choose rubric image</strong>
-              <small>PNG, JPG, or screenshot. Use a clear, straight image for best results.</small>
-              <input id="rubricImageInput" type="file" accept="image/png,image/jpeg,image/webp" />
-            </label>
+- Added **Download ZIP / Save ZIP** button for students.
+- Clicking the ZIP button automatically downloads the current code as a ZIP file.
+- ZIP includes:
+  - `index.html`
+  - `style.css`
+  - `script.js`
+  - `README.txt`
+- The downloaded `index.html` automatically links to `style.css` and `script.js` when those tabs contain code.
+- `Ctrl + S` still saves progress locally in the browser.
 
-            <div class="rubric-import-actions">
-              <button id="importRubricImageBtn" class="primary-btn" type="button">Read Image & Fill Table</button>
-              <button id="clearRubricImageBtn" class="ghost-btn" type="button">Clear Image</button>
-              <p id="rubricImageStatus" class="helper-note rubric-import-status">No image selected yet.</p>
-            </div>
-          </div>
 
-          <div id="rubricImagePreviewWrap" class="rubric-image-preview-wrap hidden">
-            <img id="rubricImagePreview" alt="Selected rubric preview" />
-          </div>
-        </section>
+## Latest UI change
 
-        <div class="admin-activity-manager">
-          <label>
-            Saved Activities
-            <select id="adminActivitySelect" aria-label="Choose activity to edit"></select>
-          </label>
-          <div class="admin-activity-actions">
-            <button id="newActivityBtn" class="ghost-btn" type="button">+ New Activity</button>
-            <button id="duplicateActivityBtn" class="ghost-btn" type="button">Duplicate</button>
-            <button id="deleteActivityBtn" class="ghost-btn danger" type="button">Delete</button>
-          </div>
-          <p class="helper-note">Students will see these saved activities in the activity selector. Each activity has its own instructions, rubric, and saved code.</p>
-        </div>
+The app now opens directly to the editor after the compact header. Activity selection, guide, and extra instructions are hidden/collapsible so students can start coding immediately.
 
-        <div class="form-grid">
-          <label>
-            Activity Title
-            <input id="adminActivityTitle" type="text" placeholder="Example: Activity 1 - Personal Webpage" />
-          </label>
-          <label>
-            Passing Score (%)
-            <input id="adminPassingScore" type="number" min="0" max="100" step="1" />
-          </label>
-        </div>
+## Latest Admin Rubric Update
 
-        <label>
-          Activity Instructions
-          <textarea id="adminActivityDescription" rows="3" placeholder="Write the student instructions here."></textarea>
-        </label>
+- Teacher/Admin rubric is now **scale-based**.
+- Each criterion has four performance levels:
+  - Excellent
+  - Good
+  - Fair
+  - Needs Improvement
+- Teacher can set the score and description for every level.
+- The app still uses an auto-check basis to estimate the student's level when they click **Result**.
+- Student results now show the level earned per criterion, score, and automatic feedback.
 
-        <div class="rubric-toolbar">
-          <div>
-            <h3>Rubric Table</h3>
-            <p class="muted-text">Input your rubric like a real table. Each row is a criterion; each column is Excellent, Good, Fair, and Needs Improvement.</p>
-          </div>
-          <button id="addCriterionBtn" class="ghost-btn" type="button">+ Add Row</button>
-        </div>
 
-        <div id="criteriaEditor" class="criteria-editor"></div>
+## Latest fix
+- Default starter code is HTML only.
+- CSS and JavaScript tabs now start blank.
+- Code storage key was updated so old saved CSS/JS starter data will not reappear as the default.
 
-        <div class="admin-actions">
-          <button id="resetRubricBtn" class="ghost-btn danger" type="button">Restore Default Rubric</button>
-          <button class="success-btn" type="submit">Save Activity</button>
-        </div>
-      </form>
-    </div>
-  </div>
 
-  <!-- Firebase compat SDK fallback.
-       These scripts make Firebase login more reliable on GitHub Pages.
-       If these CDN files are blocked, script.js still tries the module import fallback. -->
-  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
-  <script src="firebase-config.js"></script>
-  <script src="script.js"></script>
-</body>
-</html>
+## Latest update
+- Latest update: Admin PIN is no longer displayed on the login screen or incorrect-PIN message.
+- Light mode now uses a light editor background; dark mode uses the dark editor background.
+
+## Latest default-code fix
+
+- The first load now clears old saved student code from earlier versions so the old CSS/JS starter or test text will not appear again.
+- Default HTML is only the required full structure.
+- CSS and JavaScript tabs start blank.
+- Teacher/Admin activities and rubrics are not cleared by this migration.
+
+
+## Clean Uploaded Base Fix
+
+- This build uses the uploaded files as the base.
+- Starter code migration version was refreshed so old saved junk/test code from earlier browser storage will clear on first load.
+- Default starter remains HTML only; CSS and JavaScript start blank.
+
+## Latest Admin Modal Width Fix
+
+- Teacher/Admin rubric builder is now much wider.
+- The rubric table has more horizontal workspace for criteria and rating levels.
+- The PIN screen stays compact and centered so it does not become oversized.
+
+## Latest Admin View Fix
+
+- Opening Teacher/Admin now hides the sticky student top panel.
+- Admin Rubric Table Builder now uses almost the whole screen.
+- The close **X** button stays visible at the top of the admin panel.
+
+## Latest editor typing improvement
+
+- Pressing `Enter` now keeps the same indentation as the current line.
+- When the cursor is after an opening HTML tag such as `<body>` or `<div>`, the next line automatically indents by two spaces.
+- When the cursor is between an opening and closing tag, the editor creates a neat inside line and keeps the closing tag aligned.
+- CSS and JavaScript also indent automatically after `{`, `[`, or `(`.
+
+## Latest Syntax Highlighting Update
+
+- Added Notepad++-style syntax coloring inside the editor.
+- HTML tags, brackets, attributes, strings, comments, and doctype now use different colors.
+- CSS selectors, properties, values, numbers, and punctuation now use different colors.
+- JavaScript keywords, functions, strings, comments, and numbers now use different colors.
+- Syntax colors work in both light mode and dark mode.
+
+## GitHub + Firebase-ready update
+
+This ZIP is ready for GitHub Pages. It also includes optional Firebase files:
+
+- `firebase-config.js` - paste your Firebase Web App config here and set `MCS_FIREBASE_ENABLED` to `true`.
+- `firebase.json` - optional Firebase Hosting config.
+- `firestore.rules` - demo rules for testing only.
+- `FIREBASE_AND_GITHUB_SETUP.md` - quick setup guide.
+
+When Firebase is enabled, activities/rubrics can sync through Firestore and student results can be saved online. When Firebase is disabled, the app still works normally using browser localStorage.
+
+Important: the current Teacher/Admin PIN is client-side, so it is not secure for a public production system. For real class deployment, the next upgrade should be Firebase Authentication.
+
+
+## Firebase Auth Teacher Login Update
+
+- Teacher/Admin now uses Firebase Authentication with Email/Password.
+- The old visible/client-side PIN login has been removed.
+- Allowed teacher email is set in `firebase-config.js` and must match `firestore.rules`.
+- Default allowed teacher email: `sirjr.mcsian@gmail.com`.
+- Students can read activities/rubrics and create submissions.
+- Only the teacher account can create, edit, delete, and save activities/rubrics.
+
+## Latest Teacher Login Fix
+
+- Teacher/Admin no longer uses a visible or client-side PIN.
+- Firebase Email/Password login is used for the rubric builder.
+- Login screen has been redesigned into a cleaner card layout.
+- Login errors now show clear setup instructions, including:
+  - Enable Email/Password Authentication
+  - Add teacher/admin users in Firebase Authentication > Users
+  - Add `sfk2627.github.io` in Authentication > Settings > Authorized domains if needed
+- Firestore rules now allow rubric editing only to signed-in Firebase Authentication users.
+- The app does not include a sign-up form, so teacher/admin accounts must be manually created in Firebase Console.
+
+## Mobile Layout Update
+
+- Phone view is now editor-first and easier to use.
+- Main actions move to a bottom thumb-friendly toolbar on small screens.
+- Editor, output preview, activity selector, result panel, and teacher/admin rubric builder are responsive.
+- Teacher login and rubric table input are optimized for phones.
+- Editor uses internal scrolling on mobile so the page is easier to control while typing code.
+
+## Latest mobile fix
+- Fixed phone layout where the HTML/CSS/JavaScript tabs could cover the code editor.
+- Mobile tabs are now part of the normal editor flow, so the code starts below the tabs.
+- Top action buttons are now a responsive grid on phones instead of awkward horizontal overflow.
+
+## Latest mobile repair
+
+- Fixed mobile editor tabs so HTML/CSS/JavaScript never overlap the code.
+- Reduced phone editor font size for better readability.
+- Mobile editor now uses horizontal scrolling instead of wrapping code awkwardly.
+- Full Editor mode on phones now uses CSS fullscreen instead of native browser fullscreen to avoid broken mobile rendering.
+- Exit Full is now a small floating button at the bottom-right on phones.
+
+## Latest Feature: Error Checker Panel
+
+- Added a student-friendly **Error Checker** beside the output/result area.
+- Checks for missing full HTML structure, empty body, empty title, unclosed HTML tags, CSS brace problems, JavaScript syntax errors, and JavaScript runtime errors after Run.
+- Shows clear fix hints separate from rubric scoring, so students can debug before checking their score.
+
+
+## Rubric-Based Feedback
+
+The app now includes an **Rubric-Based Feedback** panel.
+
+- It uses the existing rubric score as the official score.
+- It can generate a local smart review when no secure AI endpoint is connected.
+- It can call a secure AI endpoint if `window.MCS_AI_FEEDBACK_ENDPOINT` is set in `firebase-config.js`.
+- Do not place OpenAI, Gemini, or any other feedback provider API key directly in frontend files. Use a backend or Firebase Function.
+
+Included sample backend files are inside the `functions/` folder.
+
+
+## Firebase Login Reliability Fix
+
+This version loads Firebase using both compatibility CDN scripts in `index.html` and a module-import fallback in `script.js`. If Teacher/Admin shows "Firebase is not ready," confirm that these files are uploaded in the GitHub repo root: `index.html`, `style.css`, `script.js`, `firebase-config.js`, and `firestore.rules`. Also confirm Email/Password is enabled in Firebase Authentication and `sfk2627.github.io` is listed in Authorized domains.
+
+## Latest Feature: Rubric Image Import
+
+Teacher/Admin can now upload a clear screenshot/photo of a rubric inside the Admin Rubric Table Builder.
+
+- Upload image in Teacher/Admin.
+- Click **Read Image & Fill Table**.
+- The app sends the image to a secure Firebase Function endpoint.
+- The function converts the picture into an activity title, instructions, passing score, and table-based rubric rows.
+- Teacher must review the generated table before clicking **Save Activity**.
+
+This feature requires the Firebase Function `rubricImageImport`. Keep `window.MCS_RUBRIC_IMAGE_ENDPOINT` blank until the function is deployed. Do not put AI/API keys in frontend files.
+
+
+## Rubric picture upload visibility fix
+
+The Teacher/Admin panel now shows a clearly visible **Upload Rubric Picture / Screenshot** section at the top of the rubric builder, plus a header shortcut button.
