@@ -56,7 +56,7 @@ Developed by Sir JR.
 
 ## Admin Access
 
-Teacher/Admin now uses Firebase Authentication with Email/Password. The teacher email must be allowed in `firebase-config.js` and `firestore.rules`.
+Teacher/Admin now uses Firebase Authentication with Email/Password. Any account manually added in Firebase Authentication can manage activities/rubrics.
 
 The admin can:
 
@@ -236,7 +236,7 @@ Important: the current Teacher/Admin PIN is client-side, so it is not secure for
 - Login screen has been redesigned into a cleaner card layout.
 - Login errors now show clear setup instructions, including:
   - Enable Email/Password Authentication
-  - Add teacher user in Firebase Authentication > Users
+  - Add teacher/admin users in Firebase Authentication > Users
   - Add `sfk2627.github.io` in Authentication > Settings > Authorized domains if needed
 - Firestore rules now allow rubric editing only to signed-in Firebase Authentication users.
-- The app does not include a sign-up form, so teacher accounts must be manually created in Firebase Console.
+- The app does not include a sign-up form, so teacher/admin accounts must be manually created in Firebase Console.
