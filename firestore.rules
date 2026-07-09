@@ -3,25 +3,23 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     function isTeacher() {
-      return request.auth != null
-        && request.auth.token.email != null
-        && request.auth.token.email in [
-          'sirjr.mcsian@gmail.com'
-        ];
+      // The app has no sign-up form, so only users manually added in Firebase
+      // Authentication can sign in and edit activities/rubrics.
+      return request.auth != null;
     }
 
     match /webCodeEditor/{classDoc} {
       // Students can read activities/rubrics.
       allow read: if true;
 
-      // Only teacher account can create/edit/delete activities/rubrics.
+      // Only signed-in Firebase teacher account can create/edit/delete activities/rubrics.
       allow create, update, delete: if isTeacher();
 
       match /submissions/{submissionId} {
         // Students can submit results.
         allow create: if true;
 
-        // Only teacher can view/manage submitted results.
+        // Only signed-in teacher can view/manage submitted results.
         allow read, update, delete: if isTeacher();
       }
     }

@@ -228,3 +228,15 @@ Important: the current Teacher/Admin PIN is client-side, so it is not secure for
 - Default allowed teacher email: `sirjr.mcsian@gmail.com`.
 - Students can read activities/rubrics and create submissions.
 - Only the teacher account can create, edit, delete, and save activities/rubrics.
+
+## Latest Teacher Login Fix
+
+- Teacher/Admin no longer uses a visible or client-side PIN.
+- Firebase Email/Password login is used for the rubric builder.
+- Login screen has been redesigned into a cleaner card layout.
+- Login errors now show clear setup instructions, including:
+  - Enable Email/Password Authentication
+  - Add teacher user in Firebase Authentication > Users
+  - Add `sfk2627.github.io` in Authentication > Settings > Authorized domains if needed
+- Firestore rules now allow rubric editing only to signed-in Firebase Authentication users.
+- The app does not include a sign-up form, so teacher accounts must be manually created in Firebase Console.

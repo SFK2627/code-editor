@@ -591,6 +591,60 @@ function getTeacherEmailText() {
   return allowed.length ? allowed.join(', ') : 'any authenticated Firebase user';
 }
 
+function showTeacherLoginError(message) {
+  const errorBox = document.getElementById('teacherLoginError');
+  if (!errorBox) {
+    if (message) alert(message);
+    return;
+  }
+
+  if (!message) {
+    errorBox.textContent = '';
+    errorBox.classList.add('hidden');
+    return;
+  }
+
+  errorBox.textContent = message;
+  errorBox.classList.remove('hidden');
+}
+
+function getFirebaseLoginErrorMessage(error) {
+  const code = error?.code || '';
+
+  if (code === 'auth/operation-not-allowed') {
+    return 'Email/Password login is not enabled yet. Go to Firebase Console > Authentication > Sign-in method > Email/Password > Enable.';
+  }
+
+  if (code === 'auth/user-not-found' || code === 'auth/wrong-password' || code === 'auth/invalid-credential') {
+    return 'Login failed. Make sure you created this teacher account in Firebase Authentication > Users and entered the correct password.';
+  }
+
+  if (code === 'auth/unauthorized-domain') {
+    return 'This website domain is not authorized. In Firebase Console, go to Authentication > Settings > Authorized domains and add sfk2627.github.io.';
+  }
+
+  if (code === 'auth/invalid-email') {
+    return 'Please enter a valid teacher email address.';
+  }
+
+  if (code === 'auth/too-many-requests') {
+    return 'Too many login attempts. Wait a few minutes, then try again.';
+  }
+
+  if (code === 'auth/network-request-failed') {
+    return 'Network error. Check your internet connection and try again.';
+  }
+
+  return error?.message || 'Login failed. Check your Firebase Authentication setup.';
+}
+
+function setTeacherLoginLoading(isLoading) {
+  if (!unlockAdminBtn) return;
+  unlockAdminBtn.disabled = Boolean(isLoading);
+  unlockAdminBtn.textContent = isLoading ? 'Logging in...' : 'Login to Admin';
+}
+
+
 async function initFirebaseSync() {
   if (!hasFirebaseConfig()) {
     firebaseSync.enabled = false;
@@ -761,8 +815,12 @@ function updateTeacherLoginUI(user = firebaseSync.currentUser) {
     note.textContent = isTeacher
       ? `Signed in as ${user.email}. You can manage activities and rubrics.`
       : user
-        ? `Signed in as ${user.email}, but this email is not allowed as teacher. Allowed: ${getTeacherEmailText()}.`
-        : `Firebase Email/Password login is required. Allowed teacher: ${getTeacherEmailText()}.`;
+        ? `Signed in as ${user.email}, but this account is not allowed to manage rubrics.`
+        : 'Login using the teacher account you created in Firebase Authentication > Users.';
+  }
+
+  if (isTeacher) {
+    showTeacherLoginError('');
   }
 }
 
@@ -2177,9 +2235,10 @@ function editAdminActivity(activityId) {
 }
 
 async function loginTeacher() {
+  showTeacherLoginError('');
   const ready = await initFirebaseSync();
   if (!ready || !firebaseSync.auth || !firebaseSync.authModule) {
-    alert('Firebase is not ready. Check firebase-config.js and internet connection.');
+    showTeacherLoginError('Firebase is not ready. Check firebase-config.js, internet connection, and your Firebase project setup.');
     return;
   }
 
@@ -2187,11 +2246,12 @@ async function loginTeacher() {
   const password = adminPassword.value;
 
   if (!email || !password) {
-    alert('Please enter teacher email and password.');
+    showTeacherLoginError('Please enter teacher email and password.');
     return;
   }
 
   try {
+    setTeacherLoginLoading(true);
     const { signInWithEmailAndPassword, signOut } = firebaseSync.authModule;
     const credential = await signInWithEmailAndPassword(firebaseSync.auth, email, password);
     firebaseSync.currentUser = credential.user;
@@ -2199,7 +2259,7 @@ async function loginTeacher() {
     if (!isAllowedTeacherEmail(credential.user.email)) {
       await signOut(firebaseSync.auth);
       adminUnlocked = false;
-      alert(`This email is not allowed as teacher. Allowed teacher: ${getTeacherEmailText()}`);
+      showTeacherLoginError(`This account is signed in but not allowed to manage rubrics. Allowed teacher: ${getTeacherEmailText()}.`);
       return;
     }
 
@@ -2209,7 +2269,9 @@ async function loginTeacher() {
     setStatus('Teacher logged in');
   } catch (error) {
     console.error('Teacher login failed', error);
-    alert('Login failed. Check your teacher email and password.');
+    showTeacherLoginError(getFirebaseLoginErrorMessage(error));
+  } finally {
+    setTeacherLoginLoading(false);
   }
 }
 
@@ -2353,8 +2415,15 @@ function addCriterion() {
   renderCriteriaEditor(currentCriteria);
 }
 
-function saveRubric(event) {
+async function saveRubric(event) {
   event.preventDefault();
+
+  if (!isTeacherAuthenticated()) {
+    showAdminForm();
+    showTeacherLoginError('Please login as teacher before saving rubric changes.');
+    return;
+  }
+
   const criteria = collectCriteriaFromEditor();
 
   if (!criteria.length) {
@@ -2377,7 +2446,14 @@ function saveRubric(event) {
     activities.push(savedActivity);
   }
 
-  saveActivities();
+  saveActivities({ cloud: false });
+  const cloudSaved = await saveActivitiesToCloud();
+
+  if (!cloudSaved && hasFirebaseConfig()) {
+    alert('Saved locally, but Firebase rejected the online save. Check if you are logged in and if Firestore Rules were published.');
+    return;
+  }
+
   selectActivity(savedActivity.id, { keepLanguage: true });
   closeAdminPanel();
   setStatus('Activity saved');
@@ -3125,6 +3201,7 @@ closeAdminBtn.addEventListener('click', closeAdminPanel);
 unlockAdminBtn.addEventListener('click', unlockAdmin);
 if (logoutAdminBtn) logoutAdminBtn.addEventListener('click', logoutTeacher);
 [adminEmail, adminPassword].forEach(input => {
+  input?.addEventListener('input', () => showTeacherLoginError(''));
   input?.addEventListener('keydown', event => {
     if (event.key === 'Enter') {
       event.preventDefault();

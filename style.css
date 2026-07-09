@@ -2849,3 +2849,154 @@ body.admin-open #adminOverlay .admin-form {
 .admin-open .topbar {
   visibility: hidden;
 }
+
+/* Improved Firebase Auth login layout */
+body.admin-open #adminOverlay .pin-screen.teacher-login-screen {
+  width: 100% !important;
+  min-height: calc(100dvh - 150px) !important;
+  margin: 0 !important;
+  padding: 28px clamp(16px, 4vw, 56px) !important;
+  display: grid !important;
+  place-items: center !important;
+  background:
+    radial-gradient(circle at 18% 16%, rgba(37, 99, 235, 0.16), transparent 28rem),
+    radial-gradient(circle at 88% 80%, rgba(6, 182, 212, 0.12), transparent 26rem),
+    linear-gradient(135deg, color-mix(in srgb, var(--solid-card) 88%, var(--primary-soft)), var(--solid-card));
+}
+
+.teacher-login-layout {
+  width: min(1040px, 100%);
+  display: grid;
+  grid-template-columns: minmax(280px, 0.9fr) minmax(320px, 1.1fr);
+  align-items: stretch;
+  gap: 18px;
+}
+
+.teacher-login-intro,
+.teacher-login-card {
+  border: 1px solid var(--line);
+  border-radius: 26px;
+  padding: clamp(22px, 3vw, 34px);
+  background: color-mix(in srgb, var(--solid-card) 92%, var(--primary-soft));
+  box-shadow: 0 22px 60px rgba(15, 23, 42, 0.14);
+}
+
+.teacher-login-intro {
+  display: grid;
+  align-content: center;
+  gap: 12px;
+  color: var(--text);
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.12), rgba(6, 182, 212, 0.1)), var(--solid-card);
+}
+
+.teacher-login-icon {
+  display: grid;
+  place-items: center;
+  width: 70px;
+  height: 70px;
+  border-radius: 24px;
+  color: white;
+  background: linear-gradient(135deg, #2563eb, #06b6d4);
+  box-shadow: 0 18px 40px rgba(37, 99, 235, 0.25);
+  font-size: 2rem;
+}
+
+.teacher-login-intro h3 {
+  margin: 0;
+  font-size: clamp(1.8rem, 3vw, 2.65rem);
+  line-height: 1.03;
+}
+
+.teacher-login-intro p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.login-checklist {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.login-checklist span {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 9px 12px;
+  color: var(--text);
+  background: var(--solid-card);
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
+.teacher-login-card {
+  display: grid;
+  align-content: center;
+  gap: 14px;
+  width: 100% !important;
+  margin: 0 !important;
+}
+
+.teacher-login-card label {
+  font-size: 0.95rem;
+}
+
+.teacher-login-card input {
+  min-height: 56px;
+  border-radius: 18px;
+  padding-inline: 18px;
+  font-size: 1rem;
+  font-weight: 700;
+  background: var(--solid-card);
+}
+
+.teacher-login-actions {
+  display: grid !important;
+  grid-template-columns: 1fr auto;
+  gap: 10px !important;
+  margin-top: 4px;
+}
+
+.teacher-login-actions .primary-btn,
+.teacher-login-actions .ghost-btn {
+  min-height: 54px !important;
+  padding-inline: 22px !important;
+  border-radius: 18px !important;
+}
+
+.teacher-login-actions .primary-btn:disabled {
+  opacity: 0.65;
+  cursor: wait;
+  transform: none;
+}
+
+.login-error {
+  margin: 0;
+  border: 1px solid color-mix(in srgb, var(--danger) 48%, var(--line));
+  border-radius: 16px;
+  padding: 12px 14px;
+  color: #991b1b;
+  background: #fee2e2;
+  font-weight: 800;
+  line-height: 1.45;
+}
+
+[data-theme="dark"] .login-error {
+  color: #fecaca;
+  background: rgba(220, 38, 38, 0.18);
+}
+
+@media (max-width: 840px) {
+  .teacher-login-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .teacher-login-intro h3 {
+    font-size: 1.75rem;
+  }
+
+  .teacher-login-actions {
+    grid-template-columns: 1fr;
+  }
+}

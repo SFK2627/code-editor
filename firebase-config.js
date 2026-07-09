@@ -9,10 +9,9 @@ window.MCS_FIREBASE_COLLECTION = 'webCodeEditor';
 window.MCS_FIREBASE_DOCUMENT_ID = 'grade8-mcsian';
 window.MCS_FIREBASE_SDK_VERSION = '10.12.5';
 
-// Change this email if you will use a different teacher account in Firebase Authentication.
-window.MCS_TEACHER_EMAILS = [
-  'sirjr.mcsian@gmail.com'
-];
+// Optional teacher email whitelist.
+// Leave this empty to allow any Firebase Authentication user that you manually create in Firebase Console.
+window.MCS_TEACHER_EMAILS = [];
 
 window.MCS_FIREBASE_CONFIG = {
   apiKey: 'AIzaSyDuqBnvcIGbbUexKASjrWdinOqAQjnEQV0',

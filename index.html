@@ -171,29 +171,39 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
       </div>
 
       <div id="pinScreen" class="pin-screen teacher-login-screen">
-        <div class="teacher-login-card">
-          <div>
+        <div class="teacher-login-layout">
+          <div class="teacher-login-intro">
+            <div class="teacher-login-icon">🔐</div>
             <p class="section-kicker">Teacher Login</p>
-            <h3>Sign in to manage rubrics</h3>
-            <p class="helper-note">Only the teacher account allowed in Firebase can create, edit, or delete activities.</p>
+            <h3>Manage Activities & Rubrics</h3>
+            <p>Login using the teacher account you created in Firebase Authentication. Students can still use the editor without logging in.</p>
+            <div class="login-checklist">
+              <span>✓ Firebase Authentication enabled</span>
+              <span>✓ Email/Password sign-in method enabled</span>
+              <span>✓ Teacher user added in Authentication &gt; Users</span>
+            </div>
           </div>
 
-          <label for="adminEmail">
-            Teacher Email
-            <input id="adminEmail" type="email" autocomplete="username" placeholder="Enter teacher email" />
-          </label>
+          <div class="teacher-login-card">
+            <label for="adminEmail">
+              Teacher Email
+              <input id="adminEmail" type="email" autocomplete="username" placeholder="example: sirjr@email.com" />
+            </label>
 
-          <label for="adminPassword">
-            Password
-            <input id="adminPassword" type="password" autocomplete="current-password" placeholder="Enter password" />
-          </label>
+            <label for="adminPassword">
+              Password
+              <input id="adminPassword" type="password" autocomplete="current-password" placeholder="Enter password" />
+            </label>
 
-          <div class="pin-row teacher-login-actions">
-            <button id="unlockAdminBtn" class="primary-btn" type="button">Login</button>
-            <button id="logoutAdminBtn" class="ghost-btn hidden" type="button">Logout</button>
+            <p id="teacherLoginError" class="login-error hidden" role="alert"></p>
+
+            <div class="pin-row teacher-login-actions">
+              <button id="unlockAdminBtn" class="primary-btn" type="button">Login to Admin</button>
+              <button id="logoutAdminBtn" class="ghost-btn hidden" type="button">Logout</button>
+            </div>
+
+            <p id="teacherLoginNote" class="helper-note">Only signed-in Firebase teacher accounts can save or delete rubrics.</p>
           </div>
-
-          <p id="teacherLoginNote" class="helper-note">Firebase Email/Password login is required. Students can still read activities and use the editor.</p>
         </div>
       </div>
 
