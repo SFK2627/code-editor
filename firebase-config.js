@@ -21,3 +21,11 @@ window.MCS_FIREBASE_CONFIG = {
   messagingSenderId: '119616488399',
   appId: '1:119616488399:web:453b411fbf93a3b71e08ba'
 };
+
+
+// Optional secure rubric-feedback endpoint.
+// Do NOT place provider API keys in this frontend file.
+// Deploy the sample Cloud Function in functions/index.js, then paste its URL here.
+window.MCS_AI_FEEDBACK_ENABLED = true;
+window.MCS_AI_FEEDBACK_ENDPOINT = '';
+window.MCS_AI_FEEDBACK_TIMEOUT_MS = 25000;

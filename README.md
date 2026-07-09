@@ -267,3 +267,15 @@ Important: the current Teacher/Admin PIN is client-side, so it is not secure for
 - Added a student-friendly **Error Checker** beside the output/result area.
 - Checks for missing full HTML structure, empty body, empty title, unclosed HTML tags, CSS brace problems, JavaScript syntax errors, and JavaScript runtime errors after Run.
 - Shows clear fix hints separate from rubric scoring, so students can debug before checking their score.
+
+
+## Rubric-Based Feedback
+
+The app now includes an **Rubric-Based Feedback** panel.
+
+- It uses the existing rubric score as the official score.
+- It can generate a local smart review when no secure AI endpoint is connected.
+- It can call a secure AI endpoint if `window.MCS_AI_FEEDBACK_ENDPOINT` is set in `firebase-config.js`.
+- Do not place OpenAI, Gemini, or any other feedback provider API key directly in frontend files. Use a backend or Firebase Function.
+
+Included sample backend files are inside the `functions/` folder.

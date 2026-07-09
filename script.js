@@ -2,6 +2,7 @@ const editor = document.getElementById('codeEditor');
 const previewFrame = document.getElementById('previewFrame');
 const runBtn = document.getElementById('runBtn');
 const resultBtn = document.getElementById('resultBtn');
+const aiReviewTopBtn = document.getElementById('aiReviewTopBtn');
 const saveBtn = document.getElementById('saveBtn');
 const downloadZipBtn = document.getElementById('downloadZipBtn');
 const resetBtn = document.getElementById('resetBtn');
@@ -28,6 +29,8 @@ const tabButtons = document.querySelectorAll('.tab-btn');
 const resultContent = document.getElementById('resultContent');
 const errorCheckerContent = document.getElementById('errorCheckerContent');
 const refreshErrorCheckerBtn = document.getElementById('refreshErrorCheckerBtn');
+const aiReviewContent = document.getElementById('aiReviewContent');
+const runAiReviewBtn = document.getElementById('runAiReviewBtn');
 const activityTitle = document.getElementById('activityTitle');
 const activityDescription = document.getElementById('activityDescription');
 const activitySelect = document.getElementById('activitySelect');
@@ -66,6 +69,37 @@ const criteriaEditor = document.getElementById('criteriaEditor');
 const addCriterionBtn = document.getElementById('addCriterionBtn');
 const resetRubricBtn = document.getElementById('resetRubricBtn');
 
+
+// Built-in Firebase fallback config.
+// This prevents the Teacher/Admin login from failing with "Firebase is not ready"
+// when firebase-config.js is not uploaded, cached incorrectly, or loaded late.
+const MCS_DEFAULT_FIREBASE_CONFIG = {
+  apiKey: 'AIzaSyDuqBnvcIGbbUexKASjrWdinOqAQjnEQV0',
+  authDomain: 'code-editor-f0f9d.firebaseapp.com',
+  projectId: 'code-editor-f0f9d',
+  storageBucket: 'code-editor-f0f9d.firebasestorage.app',
+  messagingSenderId: '119616488399',
+  appId: '1:119616488399:web:453b411fbf93a3b71e08ba'
+};
+
+function ensureFirebaseFrontendConfig() {
+  const currentConfig = window.MCS_FIREBASE_CONFIG || {};
+  const needsDefaultConfig = !currentConfig.apiKey || !currentConfig.projectId ||
+    String(currentConfig.apiKey).includes('PASTE_') || String(currentConfig.projectId).includes('PASTE_');
+
+  if (needsDefaultConfig) {
+    window.MCS_FIREBASE_CONFIG = { ...MCS_DEFAULT_FIREBASE_CONFIG };
+  }
+
+  if (typeof window.MCS_FIREBASE_ENABLED === 'undefined') window.MCS_FIREBASE_ENABLED = true;
+  if (!window.MCS_FIREBASE_COLLECTION) window.MCS_FIREBASE_COLLECTION = 'webCodeEditor';
+  if (!window.MCS_FIREBASE_DOCUMENT_ID) window.MCS_FIREBASE_DOCUMENT_ID = 'grade8-mcsian';
+  if (!window.MCS_FIREBASE_SDK_VERSION) window.MCS_FIREBASE_SDK_VERSION = '10.12.5';
+  if (!Array.isArray(window.MCS_TEACHER_EMAILS)) window.MCS_TEACHER_EMAILS = [];
+}
+
+ensureFirebaseFrontendConfig();
+
 const STORAGE_KEYS = {
   codeByActivity: 'studentCodeStudio.codeByActivity.htmlOnlyDefault.v1',
   activities: 'studentCodeStudio.activities.v3',
@@ -87,6 +121,7 @@ const firebaseSync = {
   auth: null,
   authModule: null,
   currentUser: null,
+  lastError: '',
   collectionName: window.MCS_FIREBASE_COLLECTION || 'webCodeEditor',
   documentId: window.MCS_FIREBASE_DOCUMENT_ID || 'grade8-mcsian',
   sdkVersion: window.MCS_FIREBASE_SDK_VERSION || '10.12.5'
@@ -268,6 +303,8 @@ let editorFontSize = Number(loadJSON(STORAGE_KEYS.editorZoom, BASE_EDITOR_FONT_S
 let activeTagMatches = [];
 const EDITOR_HISTORY_LIMIT = 250;
 let editorHistoryByKey = {};
+let lastRubricResult = null;
+let aiReviewController = null;
 let isRestoringEditorHistory = false;
 
 const languageInfo = {
@@ -560,14 +597,21 @@ function getCodeStoreForActivity(activityId) {
 
 
 function hasFirebaseConfig() {
+  ensureFirebaseFrontendConfig();
   const config = window.MCS_FIREBASE_CONFIG || {};
-  return Boolean(
+  const hasConfig = Boolean(
     window.MCS_FIREBASE_ENABLED === true &&
     config.apiKey &&
     config.projectId &&
     !String(config.apiKey).includes('PASTE_') &&
     !String(config.projectId).includes('PASTE_')
   );
+
+  if (!hasConfig) {
+    firebaseSync.lastError = 'Firebase config is missing or disabled. Upload firebase-config.js, or use the updated script.js with built-in config.';
+  }
+
+  return hasConfig;
 }
 
 function getAllowedTeacherEmails() {
@@ -648,6 +692,8 @@ function setTeacherLoginLoading(isLoading) {
 
 
 async function initFirebaseSync() {
+  ensureFirebaseFrontendConfig();
+  firebaseSync.lastError = '';
   if (!hasFirebaseConfig()) {
     firebaseSync.enabled = false;
     return false;
@@ -670,10 +716,12 @@ async function initFirebaseSync() {
       firebaseSync.authModule = authModule;
       firebaseSync.enabled = true;
       firebaseSync.initialized = true;
+      firebaseSync.lastError = '';
       setStatus('Firebase connected');
       return true;
     } catch (error) {
       console.warn('Firebase connection failed. Local mode will continue.', error);
+      firebaseSync.lastError = error?.message || String(error);
       firebaseSync.enabled = false;
       setStatus('Local mode');
       return false;
@@ -2137,6 +2185,272 @@ function generateFeedback(score, possible, percent, results) {
   return `${opening} ${strengths} ${nextSteps} Score: ${formatPoints(score)}/${formatPoints(possible)}.`;
 }
 
+
+function getAIReviewEndpoint() {
+  return String(window.MCS_AI_FEEDBACK_ENDPOINT || '').trim();
+}
+
+function isAIReviewEnabled() {
+  return window.MCS_AI_FEEDBACK_ENABLED !== false;
+}
+
+function getAIReviewTimeoutMs() {
+  const value = Number(window.MCS_AI_FEEDBACK_TIMEOUT_MS);
+  return Number.isFinite(value) && value > 3000 ? value : 25000;
+}
+
+function getShortCodeSample(value, maxLength = 6000) {
+  const text = String(value || '');
+  return text.length > maxLength ? `${text.slice(0, maxLength)}\n/* ...code shortened for rubric review... */` : text;
+}
+
+function buildAIReviewPayload(result) {
+  const currentResult = result || lastRubricResult || gradeActivity();
+  const checkerItems = getErrorCheckerItems().map(item => ({
+    type: item.type,
+    title: item.title,
+    detail: item.detail,
+    fix: item.fix || ''
+  }));
+
+  return {
+    app: 'Grade 8 MCSian Web Code Editor',
+    activity: activity ? {
+      id: activity.id,
+      title: activity.title,
+      description: activity.description,
+      passingScore: activity.passingScore,
+      criteria: activity.criteria.map(item => ({
+        title: item.title,
+        points: getCriterionPossiblePoints(item),
+        rule: item.rule,
+        target: item.target || '',
+        levels: item.levels || {}
+      }))
+    } : null,
+    rubricResult: currentResult ? {
+      score: currentResult.score,
+      possible: currentResult.possible,
+      percent: currentResult.percent,
+      passed: currentResult.passed,
+      feedback: currentResult.feedback,
+      criteria: currentResult.results.map(item => ({
+        title: item.title,
+        levelKey: item.levelKey,
+        levelLabel: item.levelLabel,
+        earned: item.earned,
+        points: item.points,
+        rule: item.rule,
+        target: item.target || '',
+        progress: item.progress
+      }))
+    } : null,
+    checkerItems,
+    outputText: getOutputText().slice(0, 4000),
+    code: {
+      html: getShortCodeSample(codeStore.html),
+      css: getShortCodeSample(codeStore.css),
+      js: getShortCodeSample(codeStore.js)
+    },
+    instruction: 'Act as a Grade 8 ICT teacher. Use the teacher rubric as the main basis for scoring. Interpret the rubric level descriptions, inspect the code and output, then provide fair beginner-friendly scoring feedback. Do not mention AI. Do not give a complete replacement answer or full code. Return strengths, improvements, next steps, and an adjusted score only when the rubric result clearly mismatches the submitted work.'
+  };
+}
+
+function getCheckerProblemsForAI() {
+  return getErrorCheckerItems().filter(item => item.type === 'error' || item.type === 'warning');
+}
+
+function generateLocalAIReview(result) {
+  const safeResult = result || lastRubricResult || gradeActivity();
+  const problems = getCheckerProblemsForAI();
+  const missingCriteria = safeResult?.results?.filter(item => item.levelKey === 'needsImprovement' || item.levelKey === 'fair') || [];
+  const strongCriteria = safeResult?.results?.filter(item => item.levelKey === 'excellent' || item.levelKey === 'good') || [];
+  const html = codeStore.html || '';
+  const css = codeStore.css || '';
+  const js = codeStore.js || '';
+  const suggestions = [];
+
+  if (!isCompleteHTMLStructure()) suggestions.push('Complete the full HTML structure first: doctype, html, head, title, and body.');
+  if (!/<body[\s\S]*?>[\s\S]*?<\/body>/i.test(html)) suggestions.push('Put visible content inside the body section.');
+  if (css.trim() && !/(color|background|padding|margin|font-size|display|border|border-radius)\s*:/i.test(css)) suggestions.push('Use simple CSS properties such as color, background, padding, margin, or font-size to improve design.');
+  if (js.trim() && !/(addEventListener|onclick|textContent|innerHTML|classList|style\.)/i.test(js)) suggestions.push('For JavaScript activities, make sure your script changes something visible on the page.');
+
+  problems.slice(0, 3).forEach(item => suggestions.push(`${item.title}: ${item.fix || item.detail}`));
+  missingCriteria.slice(0, 3).forEach(item => suggestions.push(`Improve rubric item: ${item.title}. Current level: ${item.levelLabel}.`));
+
+  const strengths = strongCriteria.length
+    ? strongCriteria.slice(0, 3).map(item => item.title)
+    : ['You started the page and can improve it step by step.'];
+
+  const scoreLine = safeResult
+    ? `${formatPoints(safeResult.score)}/${formatPoints(safeResult.possible)} (${safeResult.percent}%)`
+    : 'No rubric result yet';
+
+  return {
+    mode: 'Rubric Review',
+    officialScore: scoreLine,
+    suggestedScore: safeResult ? safeResult.score : null,
+    summary: safeResult
+      ? safeResult.percent >= 90
+        ? 'Strong work. The project meets most requirements and is ready for polishing.'
+        : safeResult.percent >= 75
+          ? 'Good work. The page is working, but a few details can still be improved.'
+          : safeResult.percent >= 60
+            ? 'Almost there. Focus on the missing rubric items and the error checker hints.'
+            : 'Needs more improvement. Start with the basic HTML structure and visible page content.'
+      : 'Click Result first so the app can compare your work with the selected rubric.',
+    strengths,
+    improvements: suggestions.length ? suggestions.slice(0, 6) : ['No major issue was detected. Improve design, spacing, readability, and creativity.'],
+    nextSteps: [
+      'Run the code again after every fix.',
+      'Check the Error Checker before clicking Result.',
+      'Make small improvements instead of changing everything at once.'
+    ],
+    teacherNote: ''
+  };
+}
+
+function normalizeAIReviewResponse(data, fallbackResult) {
+  if (!data) return generateLocalAIReview(fallbackResult);
+  if (typeof data === 'string') {
+    return {
+      mode: 'Rubric Review',
+      officialScore: fallbackResult ? `${formatPoints(fallbackResult.score)}/${formatPoints(fallbackResult.possible)} (${fallbackResult.percent}%)` : 'No rubric result yet',
+      summary: data,
+      strengths: [],
+      improvements: [],
+      nextSteps: [],
+      teacherNote: ''
+    };
+  }
+
+  return {
+    mode: data.mode || data.source || 'Rubric Review',
+    officialScore: data.officialScore || (fallbackResult ? `${formatPoints(fallbackResult.score)}/${formatPoints(fallbackResult.possible)} (${fallbackResult.percent}%)` : 'No rubric result yet'),
+    suggestedScore: data.suggestedScore ?? data.score ?? null,
+    summary: data.summary || data.feedback || data.message || 'Review completed.',
+    strengths: Array.isArray(data.strengths) ? data.strengths : [],
+    improvements: Array.isArray(data.improvements) ? data.improvements : Array.isArray(data.nextFixes) ? data.nextFixes : [],
+    nextSteps: Array.isArray(data.nextSteps) ? data.nextSteps : [],
+    teacherNote: data.teacherNote || data.note || ''
+  };
+}
+
+function renderAIReview(review, options = {}) {
+  if (!aiReviewContent) return;
+  const safeReview = normalizeAIReviewResponse(review, lastRubricResult);
+  const isLoading = options.loading === true;
+
+  aiReviewContent.classList.remove('empty-ai-review');
+  aiReviewContent.innerHTML = isLoading ? `
+    <div class="ai-loading-box">
+      <div class="ai-spinner" aria-hidden="true"></div>
+      <div>
+        <h3>Reviewing your work...</h3>
+        <p>Please wait. The app is checking the rubric, code, output, and error checker hints.</p>
+      </div>
+    </div>
+  ` : `
+    <div class="ai-review-card">
+      <div class="ai-review-main">
+        <div>
+          <p class="section-kicker">${escapeHTML(safeReview.mode || 'Rubric Review')}</p>
+          <h3>${escapeHTML(safeReview.summary || 'Review completed.')}</h3>
+          <p class="muted-text">Rubric score: <strong>${escapeHTML(safeReview.officialScore || 'Not available')}</strong>${safeReview.suggestedScore !== null && safeReview.suggestedScore !== undefined ? ` · Suggested score: <strong>${escapeHTML(formatPoints(safeReview.suggestedScore))}</strong>` : ''}</p>
+        </div>
+        <span class="ai-badge">Rubric</span>
+      </div>
+
+      <div class="ai-review-grid">
+        <div class="ai-review-block good">
+          <h4>Strengths</h4>
+          <ul>${(safeReview.strengths?.length ? safeReview.strengths : ['Your work has been checked against the activity rubric.']).map(item => `<li>${escapeHTML(item)}</li>`).join('')}</ul>
+        </div>
+        <div class="ai-review-block improve">
+          <h4>Improve Next</h4>
+          <ul>${(safeReview.improvements?.length ? safeReview.improvements : ['Polish spacing, readability, color, and content clarity.']).map(item => `<li>${escapeHTML(item)}</li>`).join('')}</ul>
+        </div>
+        <div class="ai-review-block steps">
+          <h4>Next Steps</h4>
+          <ul>${(safeReview.nextSteps?.length ? safeReview.nextSteps : ['Fix one issue, run again, then check the result.']).map(item => `<li>${escapeHTML(item)}</li>`).join('')}</ul>
+        </div>
+      </div>
+
+      ${safeReview.teacherNote ? `<div class="ai-note"><strong>Note:</strong> ${escapeHTML(safeReview.teacherNote)}</div>` : ''}
+    </div>
+  `;
+}
+
+function resetAIReviewPanel() {
+  if (!aiReviewContent) return;
+  aiReviewContent.classList.add('empty-ai-review');
+  aiReviewContent.innerHTML = `
+    <div class="ai-empty-icon">✨</div>
+    <h3>No detailed feedback yet</h3>
+    <p>Click <strong>Result</strong> first, then use <strong>Review Feedback</strong> for clearer rubric notes.</p>
+    <p class="ai-small-note">This feedback follows the teacher rubric and checker results.</p>
+  `;
+}
+
+async function requestAIReview(options = {}) {
+  if (!isAIReviewEnabled()) {
+    alert('Detailed feedback is disabled in firebase-config.js.');
+    return;
+  }
+
+  if (!activity) {
+    showActivityRequiredWarning();
+    setStatus('Choose activity first');
+    return;
+  }
+
+  runCode(false, { scroll: false });
+  const result = lastRubricResult || gradeActivity();
+  lastRubricResult = result;
+  if (!result) return;
+
+  const endpoint = getAIReviewEndpoint();
+  renderAIReview(generateLocalAIReview(result), { loading: Boolean(endpoint) });
+  setStatus(endpoint ? 'Review running...' : 'Feedback ready');
+
+  if (!endpoint) {
+    renderAIReview(generateLocalAIReview(result));
+    if (options.scroll !== false) document.getElementById('aiReviewPanel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    return;
+  }
+
+  try {
+    if (aiReviewController) aiReviewController.abort();
+    aiReviewController = new AbortController();
+    const timeout = window.setTimeout(() => aiReviewController.abort(), getAIReviewTimeoutMs());
+
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(buildAIReviewPayload(result)),
+      signal: aiReviewController.signal
+    });
+    window.clearTimeout(timeout);
+
+    if (!response.ok) {
+      throw new Error(`Feedback endpoint returned ${response.status}`);
+    }
+
+    const data = await response.json();
+    const review = normalizeAIReviewResponse(data.review || data, result);
+    renderAIReview(review);
+    setStatus('Feedback ready');
+  } catch (error) {
+    console.warn('Feedback review failed; using local smart review.', error);
+    const fallback = generateLocalAIReview(result);
+    fallback.teacherNote = '';
+    renderAIReview(fallback);
+    setStatus('Feedback ready');
+  }
+
+  if (options.scroll !== false) document.getElementById('aiReviewPanel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
 function renderResult(result) {
   const pillClass = result.percent >= activity.passingScore
     ? ''
@@ -2190,7 +2504,12 @@ function showResult() {
   window.setTimeout(() => {
     const result = gradeActivity();
     if (!result) return;
+    lastRubricResult = result;
     renderResult(result);
+    renderAIReview(generateLocalAIReview(result));
+    if (getAIReviewEndpoint()) {
+      requestAIReview({ scroll: false });
+    }
     saveSubmissionToCloud(result);
     setStatus(`Score ${formatPoints(result.score)}/${formatPoints(result.possible)}`);
     resultPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -2202,6 +2521,8 @@ function getRuleLabel(rule) {
 }
 
 function resetResultPanel() {
+  lastRubricResult = null;
+  resetAIReviewPanel();
   resultContent.classList.add('empty-state');
   resultContent.innerHTML = `
     <div class="empty-icon">✓</div>
@@ -2365,7 +2686,10 @@ function exitFullEditor(options = {}) {
 async function openAdminPanel() {
   document.body.classList.add('admin-open');
   adminOverlay.classList.remove('hidden');
-  await initFirebaseSync();
+  const adminFirebaseReady = await initFirebaseSync();
+  if (!adminFirebaseReady) {
+    showTeacherLoginError(`Firebase is not ready. ${firebaseSync.lastError || 'Please upload the latest files and check internet connection.'}`);
+  }
   updateTeacherLoginUI(firebaseSync.auth?.currentUser || firebaseSync.currentUser);
 
   if (isTeacherAuthenticated()) {
@@ -2414,7 +2738,7 @@ async function loginTeacher() {
   showTeacherLoginError('');
   const ready = await initFirebaseSync();
   if (!ready || !firebaseSync.auth || !firebaseSync.authModule) {
-    showTeacherLoginError('Firebase is not ready. Check firebase-config.js, internet connection, and your Firebase project setup.');
+    showTeacherLoginError(`Firebase is not ready. ${firebaseSync.lastError || 'Check internet connection, Firebase Authentication setup, and make sure firebase-config.js is uploaded.'}`);
     return;
   }
 
@@ -3329,6 +3653,8 @@ document.addEventListener('fullscreenchange', () => {
 
 runBtn.addEventListener('click', () => runCode());
 resultBtn.addEventListener('click', showResult);
+if (aiReviewTopBtn) aiReviewTopBtn.addEventListener('click', requestAIReview);
+if (runAiReviewBtn) runAiReviewBtn.addEventListener('click', requestAIReview);
 if (saveBtn) saveBtn.addEventListener('click', downloadCodeAsZip);
 if (downloadZipBtn) downloadZipBtn.addEventListener('click', downloadCodeAsZip);
 if (refreshErrorCheckerBtn) refreshErrorCheckerBtn.addEventListener('click', () => {
