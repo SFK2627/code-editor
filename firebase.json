@@ -1,5 +1,13 @@
-node_modules/
-.firebase/
-.firebaserc
-*.log
-.DS_Store
+{
+  "hosting": {
+    "public": ".",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ]
+  },
+  "firestore": {
+    "rules": "firestore.rules"
+  }
+}

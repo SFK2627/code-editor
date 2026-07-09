@@ -1,8 +1,17 @@
-// Firebase config for Grade 8 MCSian Web Code Editor
-// Safe to publish in GitHub Pages. Security is controlled by Firestore Rules and Firebase Auth.
+// Firebase setup for Grade 8 MCSian Web Code Editor
+// Firebase is enabled using the Firebase project provided by Sir JR.
+// Important: Firebase web config values are public identifiers.
+// Real security is handled by Firebase Authentication and Firestore Rules.
+
 window.MCS_FIREBASE_ENABLED = true;
+
 window.MCS_FIREBASE_COLLECTION = 'webCodeEditor';
 window.MCS_FIREBASE_DOCUMENT_ID = 'grade8-mcsian';
+window.MCS_FIREBASE_SDK_VERSION = '10.12.5';
+
+// Optional teacher email whitelist.
+// Leave this empty to allow any Firebase Authentication user that you manually create in Firebase Console.
+window.MCS_TEACHER_EMAILS = [];
 
 window.MCS_FIREBASE_CONFIG = {
   apiKey: 'AIzaSyDuqBnvcIGbbUexKASjrWdinOqAQjnEQV0',
@@ -12,6 +21,3 @@ window.MCS_FIREBASE_CONFIG = {
   messagingSenderId: '119616488399',
   appId: '1:119616488399:web:453b411fbf93a3b71e08ba'
 };
-
-// Optional: paste the deployed Firebase Function URL here to enable Upload Rubric Picture.
-window.MCS_RUBRIC_IMAGE_ENDPOINT = '';
