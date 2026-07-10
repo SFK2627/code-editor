@@ -1,3 +1,13 @@
-Upload index.html to GitHub root. This index.html already contains the CSS, app script, and Firebase config, so the page will not become plain/un-styled if style.css or script.js fails to load. You may also upload the other files as backup/editable copies.
+UPLOAD THESE UPDATED FRONTEND FILES TO THE GITHUB REPOSITORY ROOT:
 
-For Firebase Rules, do NOT open/upload firestore.rules as the homepage. Copy its contents only into Firebase Console > Firestore Database > Rules > Publish.
+1. index.html
+2. style.css
+3. script.js
+4. firebase-config.js
+5. service-worker.js
+6. manifest.webmanifest
+7. icons folder
+
+Replace the older files, then refresh the deployed website. The updated service worker automatically removes the previous cached version.
+
+For Firebase Rules, copy the contents of firestore.rules into Firebase Console > Firestore Database > Rules, then publish.

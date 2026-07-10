@@ -125,6 +125,16 @@ const pageDialogNote = document.getElementById('pageDialogNote');
 const closePageDialogBtn = document.getElementById('closePageDialogBtn');
 const cancelPageDialogBtn = document.getElementById('cancelPageDialogBtn');
 const applyPageDialogBtn = document.getElementById('applyPageDialogBtn');
+const studentAssistanceSettingsCard = document.getElementById('studentAssistanceSettings');
+const assistanceMasterToggle = document.getElementById('assistanceMasterToggle');
+const codeSuggestionsToggle = document.getElementById('codeSuggestionsToggle');
+const codeHelperToggle = document.getElementById('codeHelperToggle');
+const teacherFeedbackToggle = document.getElementById('teacherFeedbackToggle');
+const applyAssistanceLocalBtn = document.getElementById('applyAssistanceLocalBtn');
+const publishAssistanceBtn = document.getElementById('publishAssistanceBtn');
+const assistanceSettingsStatus = document.getElementById('assistanceSettingsStatus');
+const assistanceModeBadge = document.getElementById('assistanceModeBadge');
+const aiReviewPanel = document.getElementById('aiReviewPanel');
 
 
 // Built-in Firebase fallback config.
@@ -170,7 +180,8 @@ const STORAGE_KEYS = {
   theme: 'studentCodeStudio.theme',
   layout: 'studentCodeStudio.previewLayout',
   editorZoom: 'studentCodeStudio.editorZoom.v1',
-  fileNames: 'studentCodeStudio.fileNames.v1'
+  fileNames: 'studentCodeStudio.fileNames.v1',
+  assistanceSettings: 'studentCodeStudio.assistanceSettings.v1'
 };
 
 
@@ -188,6 +199,18 @@ const firebaseSync = {
   documentId: window.MCS_FIREBASE_DOCUMENT_ID || 'grade8-mcsian',
   sdkVersion: window.MCS_FIREBASE_SDK_VERSION || '10.12.5'
 };
+
+const DEFAULT_ASSISTANCE_SETTINGS = Object.freeze({
+  enabled: true,
+  codeSuggestions: true,
+  codeHelper: true,
+  teacherFeedback: true
+});
+
+let studentAssistanceSettings = normalizeAssistanceSettings(
+  loadJSON(STORAGE_KEYS.assistanceSettings, DEFAULT_ASSISTANCE_SETTINGS)
+);
+let unsubscribeCloudAssistanceSettings = null;
 
 
 const STARTER_CODE_VERSION_KEY = 'studentCodeStudio.starterCodeVersion';
@@ -533,6 +556,109 @@ function loadJSON(key, fallback) {
 
 function saveJSON(key, value) {
   localStorage.setItem(key, JSON.stringify(value));
+}
+
+function normalizeAssistanceSettings(value = {}) {
+  const source = value && typeof value === 'object' ? value : {};
+  return {
+    enabled: source.enabled !== false,
+    codeSuggestions: source.codeSuggestions !== false,
+    codeHelper: source.codeHelper !== false,
+    teacherFeedback: source.teacherFeedback !== false
+  };
+}
+
+function isStudentAssistanceFeatureEnabled(feature) {
+  const settings = normalizeAssistanceSettings(studentAssistanceSettings);
+  if (!settings.enabled) return false;
+  return settings[feature] !== false;
+}
+
+function getAssistanceSettingsFromControls() {
+  return normalizeAssistanceSettings({
+    enabled: assistanceMasterToggle?.checked !== false,
+    codeSuggestions: codeSuggestionsToggle?.checked !== false,
+    codeHelper: codeHelperToggle?.checked !== false,
+    teacherFeedback: teacherFeedbackToggle?.checked !== false
+  });
+}
+
+function setAssistanceSettingsStatus(message, type = '') {
+  if (!assistanceSettingsStatus) return;
+  assistanceSettingsStatus.textContent = message;
+  assistanceSettingsStatus.classList.remove('success', 'warning', 'error');
+  if (type) assistanceSettingsStatus.classList.add(type);
+}
+
+function syncAssistanceSettingsControls() {
+  const settings = normalizeAssistanceSettings(studentAssistanceSettings);
+  if (assistanceMasterToggle) assistanceMasterToggle.checked = settings.enabled;
+  if (codeSuggestionsToggle) codeSuggestionsToggle.checked = settings.codeSuggestions;
+  if (codeHelperToggle) codeHelperToggle.checked = settings.codeHelper;
+  if (teacherFeedbackToggle) teacherFeedbackToggle.checked = settings.teacherFeedback;
+
+  studentAssistanceSettingsCard?.classList.toggle('master-disabled', !settings.enabled);
+  const effectiveOn = settings.enabled && (settings.codeSuggestions || settings.codeHelper || settings.teacherFeedback);
+  if (assistanceModeBadge) {
+    assistanceModeBadge.textContent = effectiveOn ? 'Assistance ON' : 'Assistance OFF';
+    assistanceModeBadge.classList.toggle('off', !effectiveOn);
+  }
+}
+
+function updateAssistancePublishUI() {
+  if (!publishAssistanceBtn) return;
+  const canPublish = isTeacherAuthenticated();
+  publishAssistanceBtn.textContent = canPublish ? 'Publish to All Students' : 'Login to Publish Globally';
+  publishAssistanceBtn.classList.toggle('requires-login', !canPublish);
+  publishAssistanceBtn.title = canPublish
+    ? 'Save these controls to Firebase so every student device receives them.'
+    : 'Local controls already work. Teacher login is required only for all student devices.';
+}
+
+function applyStudentAssistanceSettings(nextSettings, options = {}) {
+  studentAssistanceSettings = normalizeAssistanceSettings(nextSettings);
+  if (options.persist !== false) {
+    saveJSON(STORAGE_KEYS.assistanceSettings, studentAssistanceSettings);
+  }
+
+  const suggestionsEnabled = isStudentAssistanceFeatureEnabled('codeSuggestions');
+  const helperEnabled = isStudentAssistanceFeatureEnabled('codeHelper');
+  const feedbackEnabled = isStudentAssistanceFeatureEnabled('teacherFeedback');
+
+  document.body.classList.toggle('code-suggestions-disabled', !suggestionsEnabled);
+  document.body.classList.toggle('code-helper-disabled', !helperEnabled);
+  document.body.classList.toggle('teacher-feedback-disabled', !feedbackEnabled);
+
+  if (!suggestionsEnabled && typeof hideSuggestions === 'function') hideSuggestions();
+
+  if (codeHelperFloatingBtn) {
+    codeHelperFloatingBtn.classList.toggle('hidden', !helperEnabled);
+    codeHelperFloatingBtn.setAttribute('aria-hidden', helperEnabled ? 'false' : 'true');
+    codeHelperFloatingBtn.disabled = !helperEnabled;
+  }
+  if (!helperEnabled && errorCheckerPanel) {
+    errorCheckerPanel.classList.add('hidden');
+    errorCheckerPanel.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('code-helper-open');
+  }
+
+  aiReviewTopBtn?.classList.toggle('hidden', !feedbackEnabled);
+  if (runAiReviewBtn) runAiReviewBtn.disabled = !feedbackEnabled;
+  aiReviewPanel?.classList.toggle('assistance-feature-hidden', !feedbackEnabled);
+
+  syncAssistanceSettingsControls();
+  updateAssistancePublishUI();
+  return studentAssistanceSettings;
+}
+
+function applyAssistanceSettingsFromControls(options = {}) {
+  const settings = getAssistanceSettingsFromControls();
+  applyStudentAssistanceSettings(settings);
+  if (!options.silent) {
+    setAssistanceSettingsStatus('Applied on this browser. Students using other devices are unchanged until you publish globally.', 'success');
+    setStatus('Student assistance updated');
+  }
+  return settings;
 }
 
 
@@ -1489,6 +1615,10 @@ function initFirebaseWithCompatSDK() {
         };
       },
       setDoc: (ref, data, options = {}) => ref.set(data, options),
+      onSnapshot: (ref, callback, errorCallback) => ref.onSnapshot(snap => callback({
+        exists: () => snap.exists,
+        data: () => snap.data() || {}
+      }), errorCallback),
       collection: (database, collectionName, documentId, subcollectionName) => database.collection(collectionName).doc(documentId).collection(subcollectionName),
       addDoc: (collectionRef, data) => collectionRef.add(data),
       serverTimestamp: () => firebase.firestore.FieldValue.serverTimestamp()
@@ -1579,7 +1709,14 @@ async function loadActivitiesFromCloud() {
     }
 
     const data = snap.data() || {};
-    if (!Array.isArray(data.activities) || !data.activities.length) return false;
+    let loadedCloudSettings = false;
+    if (data.studentAssistanceSettings && typeof data.studentAssistanceSettings === 'object') {
+      applyStudentAssistanceSettings(data.studentAssistanceSettings);
+      setAssistanceSettingsStatus('Global student assistance settings loaded from Firebase.', 'success');
+      loadedCloudSettings = true;
+    }
+
+    if (!Array.isArray(data.activities) || !data.activities.length) return loadedCloudSettings;
 
     activities = normalizeActivities(data.activities);
     initManualRubricInputTable();
@@ -1622,13 +1759,92 @@ async function saveActivitiesToCloud() {
     await setDoc(getCloudActivitiesDocRef(), {
       title: 'Grade 8 MCSian Web Code Editor',
       updatedAt: serverTimestamp(),
-      activities: activities.map(item => normalizeActivity(item))
+      activities: activities.map(item => normalizeActivity(item)),
+      studentAssistanceSettings: normalizeAssistanceSettings(studentAssistanceSettings)
     }, { merge: true });
     setStatus('Saved to Firebase');
     return true;
   } catch (error) {
     console.warn('Could not save activities to Firebase.', error);
     setStatus('Firebase save failed');
+    return false;
+  }
+}
+
+async function saveStudentAssistanceSettingsToCloud(settings = studentAssistanceSettings) {
+  const ready = await initFirebaseSync();
+  if (!ready) {
+    setAssistanceSettingsStatus(`Firebase is not ready. ${firebaseSync.lastError || 'Check the connection and uploaded files.'}`, 'error');
+    return false;
+  }
+
+  if (!isTeacherAuthenticated()) {
+    setAssistanceSettingsStatus('Applied on this device. Login below to publish these controls to every student device.', 'warning');
+    updateAssistancePublishUI();
+    return false;
+  }
+
+  try {
+    const { setDoc, serverTimestamp } = firebaseSync.modules;
+    await setDoc(getCloudActivitiesDocRef(), {
+      studentAssistanceSettings: normalizeAssistanceSettings(settings),
+      studentAssistanceUpdatedAt: serverTimestamp()
+    }, { merge: true });
+    setAssistanceSettingsStatus('Published successfully. Open student pages will update automatically.', 'success');
+    setStatus('Student assistance published');
+    return true;
+  } catch (error) {
+    console.warn('Could not publish student assistance settings.', error);
+    setAssistanceSettingsStatus('Firebase rejected the settings update. Check teacher login and Firestore Rules.', 'error');
+    return false;
+  }
+}
+
+async function publishAssistanceSettings() {
+  const settings = applyAssistanceSettingsFromControls({ silent: true });
+  if (!isTeacherAuthenticated()) {
+    setAssistanceSettingsStatus('Applied here. Login below, then press Publish again to update all student devices.', 'warning');
+    pinScreen?.classList.remove('hidden');
+    window.setTimeout(() => adminEmail?.focus({ preventScroll: true }), 80);
+    return;
+  }
+  publishAssistanceBtn.disabled = true;
+  const previousText = publishAssistanceBtn.textContent;
+  publishAssistanceBtn.textContent = 'Publishing...';
+  try {
+    await saveStudentAssistanceSettingsToCloud(settings);
+  } finally {
+    publishAssistanceBtn.disabled = false;
+    publishAssistanceBtn.textContent = previousText;
+    updateAssistancePublishUI();
+  }
+}
+
+async function watchStudentAssistanceSettings() {
+  const ready = await initFirebaseSync();
+  if (!ready || !firebaseSync.modules?.onSnapshot) return false;
+
+  if (typeof unsubscribeCloudAssistanceSettings === 'function') {
+    unsubscribeCloudAssistanceSettings();
+  }
+
+  try {
+    unsubscribeCloudAssistanceSettings = firebaseSync.modules.onSnapshot(
+      getCloudActivitiesDocRef(),
+      snap => {
+        if (!snap.exists()) return;
+        const data = snap.data() || {};
+        if (!data.studentAssistanceSettings) return;
+        applyStudentAssistanceSettings(data.studentAssistanceSettings);
+        if (adminOverlay && !adminOverlay.classList.contains('hidden')) {
+          setAssistanceSettingsStatus('Live global settings synced from Firebase.', 'success');
+        }
+      },
+      error => console.warn('Student assistance live sync failed.', error)
+    );
+    return true;
+  } catch (error) {
+    console.warn('Could not start student assistance live sync.', error);
     return false;
   }
 }
@@ -1701,6 +1917,8 @@ function updateTeacherLoginUI(user = firebaseSync.currentUser) {
   if (isTeacher) {
     showTeacherLoginError('');
   }
+
+  updateAssistancePublishUI();
 }
 
 async function watchTeacherAuth() {
@@ -1730,6 +1948,7 @@ async function startFirebaseMode() {
   }
   await initFirebaseSync();
   await loadActivitiesFromCloud();
+  await watchStudentAssistanceSettings();
   await watchTeacherAuth();
 }
 
@@ -2580,6 +2799,11 @@ function scheduleSuggestionHide(delay = 4200) {
 }
 
 function showSuggestions(event) {
+  if (!isStudentAssistanceFeatureEnabled('codeSuggestions')) {
+    hideSuggestions();
+    return;
+  }
+
   const isRealTyping = !event || event.inputType?.startsWith('insert') || event.inputType === 'historyUndo' || event.inputType === 'historyRedo';
 
   if (!isRealTyping || editor.selectionStart !== editor.selectionEnd) {
@@ -3572,6 +3796,10 @@ function renderErrorChecker() {
 
 function openCodeHelperPanel() {
   if (!errorCheckerPanel) return;
+  if (!isStudentAssistanceFeatureEnabled('codeHelper')) {
+    setStatus('Code Helper is disabled by the teacher');
+    return;
+  }
   saveActiveEditor();
   renderErrorChecker();
   errorCheckerPanel.classList.remove('hidden');
@@ -3591,6 +3819,10 @@ function closeCodeHelperPanel() {
 
 function toggleCodeHelperPanel() {
   if (!errorCheckerPanel) return;
+  if (!isStudentAssistanceFeatureEnabled('codeHelper')) {
+    setStatus('Code Helper is disabled by the teacher');
+    return;
+  }
   if (errorCheckerPanel.classList.contains('hidden')) {
     openCodeHelperPanel();
   } else {
@@ -4341,6 +4573,11 @@ function resetAIReviewPanel() {
 }
 
 async function requestAIReview(options = {}) {
+  if (!isStudentAssistanceFeatureEnabled('teacherFeedback')) {
+    await appAlert('Detailed rubric feedback is currently disabled by the teacher.', { title: 'Feedback disabled' });
+    return;
+  }
+
   if (!isAIReviewEnabled()) {
     await appAlert('Detailed feedback is disabled in firebase-config.js.', { title: 'Feedback unavailable' });
     return;
@@ -5028,6 +5265,11 @@ function exitFullEditor(options = {}) {
 async function openAdminPanel() {
   document.body.classList.add('admin-open');
   adminOverlay.classList.remove('hidden');
+  syncAssistanceSettingsControls();
+  updateAssistancePublishUI();
+  setAssistanceSettingsStatus(isTeacherAuthenticated()
+    ? 'Change the switches, then publish to update every student device.'
+    : 'These switches can be used now on this browser. Login is only needed to publish globally.');
   const adminFirebaseReady = await initFirebaseSync();
   if (!adminFirebaseReady) {
     showTeacherLoginError(`Firebase is not ready. ${firebaseSync.lastError || 'Firebase SDK did not load. Check internet connection, CDN access, and make sure all updated files were uploaded.'}`);
@@ -7260,6 +7502,14 @@ window.addEventListener('keydown', event => {
   }
 });
 
+[assistanceMasterToggle, codeSuggestionsToggle, codeHelperToggle, teacherFeedbackToggle].forEach(toggle => {
+  toggle?.addEventListener('change', () => {
+    applyAssistanceSettingsFromControls();
+  });
+});
+applyAssistanceLocalBtn?.addEventListener('click', () => applyAssistanceSettingsFromControls());
+publishAssistanceBtn?.addEventListener('click', publishAssistanceSettings);
+
 adminBtn?.addEventListener('click', openAdminPanel);
 adminBtn?.addEventListener('keydown', event => {
   if (event.key === 'Enter' || event.key === ' ') {
@@ -7371,6 +7621,7 @@ criteriaEditor.addEventListener('click', event => {
 });
 
 initManualRubricInputTable();
+applyStudentAssistanceSettings(studentAssistanceSettings);
 setupPWAInstallPrompt();
 registerPWAServiceWorker();
 saveActivities({ cloud: false });

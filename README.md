@@ -313,3 +313,16 @@ This feature requires the Firebase Function `rubricImageImport`. Keep `window.MC
 - It works for HTML pages, CSS files, and JavaScript files.
 - Add/Rename/Delete dialogs work in normal view and Full Editor mode.
 - Mobile layout uses compact controls so the editor tabs do not break on phones.
+
+## Student Assistance Admin Controls
+
+The hidden Teacher/Admin panel now includes a **Student Assistance** section above the Firebase login.
+
+- Master Student Assistance ON/OFF
+- Code Suggestions ON/OFF
+- Code Helper and Error Hints ON/OFF
+- Rubric Feedback ON/OFF
+- **Apply on This Device** works without teacher login and saves in the current browser.
+- **Publish to All Students** requires the existing Firebase teacher login, saves the controls in the shared Firestore document, and live-syncs the change to open student pages.
+
+For secure class-wide control, keep Firestore writes restricted to authenticated teacher accounts. Hiding the admin trigger alone is not a security rule.

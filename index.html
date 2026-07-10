@@ -231,11 +231,77 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
       <div class="modal-header">
         <div>
           <p class="section-kicker">Teacher Controls</p>
-          <h2 id="adminTitle">Admin Rubric Table Builder</h2>
-          <p class="muted-text">Create activities with table-based rubrics: criteria on the left, rating levels across the columns.</p>
+          <h2 id="adminTitle">Admin Settings & Rubric Builder</h2>
+          <p class="muted-text">Control student assistance, then manage activities and table-based rubrics.</p>
         </div>
         <button id="closeAdminBtn" class="icon-btn" type="button" aria-label="Close admin panel">×</button>
       </div>
+
+      <section id="studentAssistanceSettings" class="admin-settings-card" aria-labelledby="assistanceSettingsTitle">
+        <div class="admin-settings-heading">
+          <div>
+            <p class="section-kicker">Student Assistance</p>
+            <h3 id="assistanceSettingsTitle">Suggestions & Helper Controls</h3>
+            <p class="muted-text">These controls work even before teacher login. Apply locally for this browser, or log in to publish the same settings to every student device.</p>
+          </div>
+          <span id="assistanceModeBadge" class="assistance-mode-badge">Assistance ON</span>
+        </div>
+
+        <div class="assistance-master-row">
+          <div>
+            <strong>Master Student Assistance</strong>
+            <small>Turn every suggestion and helper feature on or off at once.</small>
+          </div>
+          <label class="admin-switch" aria-label="Enable all student assistance">
+            <input id="assistanceMasterToggle" type="checkbox" checked />
+            <span class="admin-switch-track"><span class="admin-switch-thumb"></span></span>
+          </label>
+        </div>
+
+        <div class="assistance-settings-grid">
+          <label class="assistance-option" for="codeSuggestionsToggle">
+            <span class="assistance-option-icon">⌨️</span>
+            <span class="assistance-option-copy">
+              <strong>Code Suggestions</strong>
+              <small>Autocomplete popup while students type HTML, CSS, or JavaScript.</small>
+            </span>
+            <span class="admin-switch">
+              <input id="codeSuggestionsToggle" type="checkbox" checked />
+              <span class="admin-switch-track"><span class="admin-switch-thumb"></span></span>
+            </span>
+          </label>
+
+          <label class="assistance-option" for="codeHelperToggle">
+            <span class="assistance-option-icon">🧭</span>
+            <span class="assistance-option-copy">
+              <strong>Code Helper & Error Hints</strong>
+              <small>Show the floating helper and beginner-friendly error checker.</small>
+            </span>
+            <span class="admin-switch">
+              <input id="codeHelperToggle" type="checkbox" checked />
+              <span class="admin-switch-track"><span class="admin-switch-thumb"></span></span>
+            </span>
+          </label>
+
+          <label class="assistance-option" for="teacherFeedbackToggle">
+            <span class="assistance-option-icon">💬</span>
+            <span class="assistance-option-copy">
+              <strong>Rubric Feedback</strong>
+              <small>Show the detailed Teacher Feedback section and review buttons.</small>
+            </span>
+            <span class="admin-switch">
+              <input id="teacherFeedbackToggle" type="checkbox" checked />
+              <span class="admin-switch-track"><span class="admin-switch-thumb"></span></span>
+            </span>
+          </label>
+        </div>
+
+        <div class="assistance-settings-actions">
+          <button id="applyAssistanceLocalBtn" class="ghost-btn" type="button">Apply on This Device</button>
+          <button id="publishAssistanceBtn" class="primary-btn" type="button">Publish to All Students</button>
+        </div>
+        <p id="assistanceSettingsStatus" class="helper-note assistance-settings-status" role="status">Current settings are active on this device.</p>
+      </section>
 
       <div id="pinScreen" class="pin-screen teacher-login-screen">
         <div class="teacher-login-layout">
