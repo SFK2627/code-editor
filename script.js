@@ -27,8 +27,11 @@ const editorInfo = document.getElementById('editorInfo');
 const structureAlert = document.getElementById('structureAlert');
 const tabButtons = document.querySelectorAll('.tab-btn');
 const resultContent = document.getElementById('resultContent');
+const errorCheckerPanel = document.getElementById('errorCheckerPanel');
 const errorCheckerContent = document.getElementById('errorCheckerContent');
 const refreshErrorCheckerBtn = document.getElementById('refreshErrorCheckerBtn');
+const codeHelperFloatingBtn = document.getElementById('codeHelperFloatingBtn');
+const closeCodeHelperBtn = document.getElementById('closeCodeHelperBtn');
 const aiReviewContent = document.getElementById('aiReviewContent');
 const runAiReviewBtn = document.getElementById('runAiReviewBtn');
 const activityTitle = document.getElementById('activityTitle');
@@ -2090,6 +2093,35 @@ function renderErrorChecker() {
   `;
 }
 
+
+
+function openCodeHelperPanel() {
+  if (!errorCheckerPanel) return;
+  saveActiveEditor();
+  renderErrorChecker();
+  errorCheckerPanel.classList.remove('hidden');
+  errorCheckerPanel.setAttribute('aria-hidden', 'false');
+  document.body.classList.add('code-helper-open');
+  setStatus('Code Helper opened');
+  window.setTimeout(() => refreshErrorCheckerBtn?.focus({ preventScroll: true }), 0);
+}
+
+function closeCodeHelperPanel() {
+  if (!errorCheckerPanel) return;
+  errorCheckerPanel.classList.add('hidden');
+  errorCheckerPanel.setAttribute('aria-hidden', 'true');
+  document.body.classList.remove('code-helper-open');
+  codeHelperFloatingBtn?.focus({ preventScroll: true });
+}
+
+function toggleCodeHelperPanel() {
+  if (!errorCheckerPanel) return;
+  if (errorCheckerPanel.classList.contains('hidden')) {
+    openCodeHelperPanel();
+  } else {
+    closeCodeHelperPanel();
+  }
+}
 
 function countSemanticHTMLTags(html) {
   const matches = String(html || '').match(/<(header|nav|main|section|article|aside|footer)\b/gi) || [];
@@ -4423,12 +4455,29 @@ function updateCriterionHelp(event) {
   help.textContent = ruleHelp[select.value] || '';
 }
 
+function getCompactStatusLabel(text) {
+  const value = String(text || '').toLowerCase();
+  if (!value || value === 'ready') return 'Ready';
+  if (value.includes('fail') || value.includes('error') || value.includes('required') || value.includes('choose activity')) return 'Notice';
+  if (value.includes('save') || value.includes('saved') || value.includes('download')) return 'Saved';
+  if (value.includes('check') || value.includes('score') || value.includes('rubric') || value.includes('result')) return 'Checked';
+  if (value.includes('feedback') || value.includes('review')) return 'Feedback';
+  if (value.includes('run') || value.includes('output')) return 'Run';
+  if (value.includes('editor') || value.includes('tab') || value.includes('zoom')) return 'Editor';
+  if (value.includes('firebase') || value.includes('cloud') || value.includes('local')) return 'Ready';
+  if (value.includes('login') || value.includes('teacher')) return 'Admin';
+  return 'Ready';
+}
+
 function setStatus(text) {
-  statusBadge.textContent = text;
+  const fullText = String(text || 'Ready');
+  statusBadge.textContent = getCompactStatusLabel(fullText);
+  statusBadge.title = fullText;
   clearTimeout(setStatus.timer);
   setStatus.timer = setTimeout(() => {
     statusBadge.textContent = 'Ready';
-  }, 1800);
+    statusBadge.title = 'Ready';
+  }, 1400);
 }
 
 
@@ -5013,6 +5062,11 @@ if (exitEditorBtn) exitEditorBtn.addEventListener('click', exitFullEditor);
 if (exitEditorStickyBtn) exitEditorStickyBtn.addEventListener('click', exitFullEditor);
 
 document.addEventListener('keydown', event => {
+  if (event.key === 'Escape' && errorCheckerPanel && !errorCheckerPanel.classList.contains('hidden')) {
+    closeCodeHelperPanel();
+    return;
+  }
+
   handleGlobalShortcuts(event);
 
   if (event.key === 'Escape' && document.body.classList.contains('preview-fullscreen-active')) {
@@ -5036,6 +5090,8 @@ if (aiReviewTopBtn) aiReviewTopBtn.addEventListener('click', requestAIReview);
 if (runAiReviewBtn) runAiReviewBtn.addEventListener('click', requestAIReview);
 if (saveBtn) saveBtn.addEventListener('click', downloadCodeAsZip);
 if (downloadZipBtn) downloadZipBtn.addEventListener('click', downloadCodeAsZip);
+codeHelperFloatingBtn?.addEventListener('click', toggleCodeHelperPanel);
+closeCodeHelperBtn?.addEventListener('click', closeCodeHelperPanel);
 if (refreshErrorCheckerBtn) refreshErrorCheckerBtn.addEventListener('click', () => {
   saveActiveEditor();
   runCode(false, { scroll: false });

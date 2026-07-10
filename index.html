@@ -39,6 +39,7 @@
     <main id="workspace" class="workspace" data-layout="split">
       <section id="editorPanel" class="panel editor-panel" aria-label="Code editor">
         <button id="exitEditorStickyBtn" class="fullscreen-exit-btn hidden" type="button" title="Exit full editor: Esc">Exit Full</button>
+        <button id="codeHelperFloatingBtn" class="code-helper-float-btn" type="button" title="Open Code Helper">🧭 Code Helper</button>
         <div class="language-tabs" role="tablist" aria-label="Code language tabs">
           <button class="tab-btn active" type="button" data-language="html">HTML</button>
           <button class="tab-btn" type="button" data-language="css">CSS</button>
@@ -79,6 +80,27 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
           <span><kbd>Ctrl</kbd> + <kbd>+</kbd>/<kbd>-</kbd> Zoom</span>
           <span><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>F</kbd> Full Editor</span>
         </div>
+
+        <section id="errorCheckerPanel" class="panel error-checker-panel code-helper-modal hidden" aria-label="Error checker">
+          <div class="panel-header compact-header error-checker-header">
+            <div>
+              <p class="section-kicker">Code Helper</p>
+              <h2>Error Checker</h2>
+              <p>Quick hints for missing tags, empty body, CSS, and JavaScript errors.</p>
+            </div>
+            <div class="code-helper-header-actions">
+              <button id="refreshErrorCheckerBtn" class="layout-btn strong" type="button">Check</button>
+              <button id="closeCodeHelperBtn" class="icon-btn code-helper-close" type="button" aria-label="Close Code Helper">×</button>
+            </div>
+          </div>
+          <div id="errorCheckerContent" class="error-checker-content">
+            <div class="checker-empty">
+              <strong>Ready to check.</strong>
+              <span>Start coding or click Run to check your output.</span>
+            </div>
+          </div>
+        </section>
+
       </section>
 
       <aside class="right-column">
@@ -98,23 +120,6 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
           </div>
 
           <iframe id="previewFrame" title="Code output preview" sandbox="allow-scripts allow-same-origin"></iframe>
-        </section>
-
-        <section id="errorCheckerPanel" class="panel error-checker-panel" aria-label="Error checker">
-          <div class="panel-header compact-header error-checker-header">
-            <div>
-              <p class="section-kicker">Code Helper</p>
-              <h2>Error Checker</h2>
-              <p>Quick hints for missing tags, empty body, CSS, and JavaScript errors.</p>
-            </div>
-            <button id="refreshErrorCheckerBtn" class="layout-btn strong" type="button">Check</button>
-          </div>
-          <div id="errorCheckerContent" class="error-checker-content">
-            <div class="checker-empty">
-              <strong>Ready to check.</strong>
-              <span>Start coding or click Run to check your output.</span>
-            </div>
-          </div>
         </section>
 
         <section id="aiReviewPanel" class="panel ai-review-panel" aria-label="Rubric-based feedback">

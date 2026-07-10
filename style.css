@@ -4846,3 +4846,227 @@ body.admin-open #adminOverlay .pin-screen.teacher-login-screen {
     flex: 1 1 120px;
   }
 }
+
+
+/* Floating Code Helper modal */
+.code-helper-float-btn {
+  position: fixed;
+  right: 22px;
+  bottom: 24px;
+  z-index: 4100;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  min-height: 46px;
+  padding: 0 18px;
+  border: 1px solid color-mix(in srgb, var(--primary) 35%, var(--line));
+  border-radius: 999px;
+  color: var(--primary-strong);
+  background: color-mix(in srgb, var(--solid-card) 88%, var(--primary-soft));
+  box-shadow: 0 18px 36px rgba(37, 99, 235, 0.22);
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.code-helper-float-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 22px 44px rgba(37, 99, 235, 0.28);
+}
+
+.code-helper-modal.hidden {
+  display: none !important;
+}
+
+.error-checker-panel.code-helper-modal {
+  position: fixed;
+  top: 92px;
+  right: 18px;
+  bottom: 18px;
+  width: min(480px, calc(100vw - 32px));
+  z-index: 5600;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--primary) 26%, var(--line));
+  border-radius: 24px;
+  background: var(--solid-card);
+  box-shadow: 0 28px 70px rgba(15, 23, 42, 0.28);
+}
+
+.error-checker-panel.code-helper-modal::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: rgba(15, 23, 42, 0.14);
+  backdrop-filter: blur(2px);
+}
+
+.code-helper-header-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  flex-wrap: nowrap;
+}
+
+.code-helper-close {
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  color: var(--text);
+  background: var(--solid-card);
+  font-size: 1.45rem;
+  line-height: 1;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.code-helper-close:hover {
+  color: #dc2626;
+  border-color: rgba(220, 38, 38, 0.35);
+  background: rgba(254, 226, 226, 0.55);
+}
+
+.error-checker-panel.code-helper-modal .error-checker-content {
+  overflow: auto;
+  min-height: 0;
+  padding-bottom: 18px;
+}
+
+body.editor-fullscreen-active .code-helper-float-btn,
+#editorPanel:fullscreen .code-helper-float-btn {
+  top: 12px;
+  right: 118px;
+  bottom: auto;
+  z-index: 4310;
+  min-height: 38px;
+  height: 38px;
+  padding: 0 14px;
+  font-size: 0.82rem;
+  box-shadow: 0 12px 26px rgba(37, 99, 235, 0.24);
+}
+
+body.editor-fullscreen-active .error-checker-panel.code-helper-modal,
+#editorPanel:fullscreen .error-checker-panel.code-helper-modal {
+  top: 62px;
+  right: 14px;
+  bottom: 14px;
+  width: min(480px, calc(100vw - 28px));
+  z-index: 4320;
+}
+
+@media (max-width: 760px) {
+  .code-helper-float-btn {
+    right: 14px;
+    bottom: 16px;
+    min-height: 42px;
+    padding: 0 14px;
+    font-size: 0.86rem;
+  }
+
+  .error-checker-panel.code-helper-modal {
+    inset: auto 10px 10px 10px;
+    top: 72px;
+    width: auto;
+    border-radius: 20px;
+  }
+
+  body.editor-fullscreen-active .code-helper-float-btn,
+  #editorPanel:fullscreen .code-helper-float-btn {
+    right: 104px;
+    top: 12px;
+    max-width: calc(100vw - 210px);
+    overflow: hidden;
+    white-space: nowrap;
+  }
+}
+
+
+/* Stable top toolbar: prevents header height jumps when status text changes. */
+.topbar.simplified-topbar,
+.topbar {
+  align-items: center !important;
+  min-height: 66px !important;
+  overflow: visible !important;
+}
+
+.top-actions {
+  align-items: center !important;
+  flex-wrap: nowrap !important;
+  min-height: 42px !important;
+  max-width: 100% !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  scrollbar-width: none !important;
+}
+
+.top-actions::-webkit-scrollbar {
+  display: none !important;
+}
+
+.top-actions > *,
+.top-actions .ghost-btn,
+.top-actions .primary-btn,
+.top-actions .success-btn,
+#clearBtn {
+  flex: 0 0 auto !important;
+  align-self: center !important;
+  white-space: nowrap !important;
+}
+
+#statusBadge,
+.status-badge.compact-status {
+  flex: 0 0 96px !important;
+  width: 96px !important;
+  max-width: 96px !important;
+  min-width: 96px !important;
+  height: 34px !important;
+  min-height: 34px !important;
+  max-height: 34px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 10px !important;
+  overflow: hidden !important;
+  white-space: nowrap !important;
+  text-overflow: ellipsis !important;
+  line-height: 1 !important;
+  text-align: center !important;
+  box-sizing: border-box !important;
+}
+
+#statusBadge::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  flex: 0 0 7px;
+  margin-right: 6px;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0.6;
+}
+
+body.editor-fullscreen-active .topbar,
+#editorPanel:fullscreen ~ .topbar {
+  min-height: 56px !important;
+}
+
+@media (min-width: 761px) {
+  .top-actions {
+    justify-content: flex-end !important;
+  }
+}
+
+@media (max-width: 760px) {
+  .topbar.simplified-topbar,
+  .topbar {
+    min-height: 58px !important;
+  }
+
+  #statusBadge,
+  .status-badge.compact-status {
+    display: none !important;
+  }
+}
