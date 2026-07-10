@@ -10525,3 +10525,33 @@ html[data-device-mode="phone"] #previewPanel:-webkit-full-screen #exitPreviewBtn
     padding-bottom: calc(3px + env(safe-area-inset-bottom)) !important;
   }
 }
+
+/* Narrow-screen safety net: keep the phone preview controls correct even when
+   a mobile browser reports an unusual user agent or pointer type. */
+@media (max-width: 760px) {
+  .preview-panel .preview-actions .layout-btn[data-layout] {
+    display: none !important;
+  }
+
+  .preview-panel .desktop-preview-toggle,
+  .preview-panel .preview-actions #desktopPreviewBtn,
+  .preview-panel .preview-actions #fullPreviewBtn {
+    display: inline-flex !important;
+  }
+
+  .preview-panel .preview-actions {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+    gap: 8px !important;
+    width: 100% !important;
+    max-width: none !important;
+  }
+
+  .preview-panel .preview-actions #desktopPreviewBtn,
+  .preview-panel .preview-actions #fullPreviewBtn {
+    align-items: center !important;
+    justify-content: center !important;
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+}

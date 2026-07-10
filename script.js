@@ -7648,23 +7648,47 @@ startFirebaseMode();
 // The iframe always keeps a real 1366 x 768 CSS viewport, while only its visual
 // scale changes. This prevents the monitor from drifting outside its card and
 // keeps the whole desktop page visible in phone fullscreen/landscape.
+let phonePreviewModeLatched = window.__mcsianPhonePreviewMode === true;
+
 function isLikelyPhoneViewport() {
   const userAgent = navigator.userAgent || '';
   const userAgentDataMobile = navigator.userAgentData?.mobile === true;
-  const mobileUserAgent = /Android.*Mobile|iPhone|iPod|Windows Phone|IEMobile|Opera Mini/i.test(userAgent);
+  const mobileUserAgent = /Android|iPhone|iPod|Windows Phone|IEMobile|Opera Mini/i.test(userAgent);
   const coarsePointer = Boolean(window.matchMedia?.('(hover: none) and (pointer: coarse)')?.matches);
-  const screenWidth = Number(window.screen?.width) || window.innerWidth;
-  const screenHeight = Number(window.screen?.height) || window.innerHeight;
+  const touchCapable = Number(navigator.maxTouchPoints || 0) > 0;
+  const viewportWidth = Math.min(
+    Number(window.innerWidth) || 9999,
+    Number(window.visualViewport?.width) || 9999
+  );
+  const screenWidth = Number(window.screen?.width) || viewportWidth;
+  const screenHeight = Number(window.screen?.height) || Number(window.innerHeight) || 9999;
   const shortestScreenSide = Math.min(screenWidth, screenHeight);
+  const longestScreenSide = Math.max(screenWidth, screenHeight);
+  const phoneSizedScreen = shortestScreenSide <= 760 && longestScreenSide <= 1100;
+  const narrowResponsiveViewport = viewportWidth <= 760;
+  const strongPhoneSignal = userAgentDataMobile || mobileUserAgent ||
+    (phoneSizedScreen && (touchCapable || coarsePointer));
 
-  // Phone-only behavior. Resizing a desktop browser or using a touchscreen
-  // laptop must not activate the mobile monitor preview.
-  return userAgentDataMobile || mobileUserAgent || (coarsePointer && shortestScreenSide <= 760);
+  // Once a phone/narrow mobile layout has been detected, keep it while the
+  // device rotates to landscape. This prevents the phone UI from suddenly
+  // turning back into desktop controls after rotation.
+  if (strongPhoneSignal || narrowResponsiveViewport) {
+    phonePreviewModeLatched = true;
+    window.__mcsianPhonePreviewMode = true;
+  }
+
+  return strongPhoneSignal || phonePreviewModeLatched;
 }
 
 function applyPreviewDeviceMode() {
   const isPhone = isLikelyPhoneViewport();
   document.documentElement.dataset.deviceMode = isPhone ? 'phone' : 'desktop';
+
+  // The phone preview always uses the single stacked flow. Split, Stacked,
+  // and Big Preview remain desktop-only controls and are never needed here.
+  if (isPhone && workspace) {
+    workspace.dataset.layout = 'stacked';
+  }
 
   if (!isPhone && previewPanel && previewFrame) {
     const shell = previewPanel.querySelector('.preview-frame-shell');
