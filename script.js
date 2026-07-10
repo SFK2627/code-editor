@@ -23,6 +23,9 @@ const zoomLevel = document.getElementById('zoomLevel');
 const fullEditorBtn = document.getElementById('fullEditorBtn');
 const exitEditorBtn = document.getElementById('exitEditorBtn');
 const exitEditorStickyBtn = document.getElementById('exitEditorStickyBtn');
+const fullscreenEditorActions = document.getElementById('fullscreenEditorActions');
+const fullscreenRunBtn = document.getElementById('fullscreenRunBtn');
+const fullscreenResultBtn = document.getElementById('fullscreenResultBtn');
 const statusBadge = document.getElementById('statusBadge');
 const editorInfo = document.getElementById('editorInfo');
 const structureAlert = document.getElementById('structureAlert');
@@ -31,6 +34,7 @@ const resultContent = document.getElementById('resultContent');
 const errorCheckerPanel = document.getElementById('errorCheckerPanel');
 const errorCheckerContent = document.getElementById('errorCheckerContent');
 const refreshErrorCheckerBtn = document.getElementById('refreshErrorCheckerBtn');
+const advancedErrorCheckBtn = document.getElementById('advancedErrorCheckBtn');
 const codeHelperFloatingBtn = document.getElementById('codeHelperFloatingBtn');
 const closeCodeHelperBtn = document.getElementById('closeCodeHelperBtn');
 const aiReviewContent = document.getElementById('aiReviewContent');
@@ -97,6 +101,29 @@ const addManualRubricRowBtn = document.getElementById('addManualRubricRowBtn');
 const applyManualRubricBtn = document.getElementById('applyManualRubricBtn');
 const clearManualRubricBtn = document.getElementById('clearManualRubricBtn');
 const manualRubricStatus = document.getElementById('manualRubricStatus');
+const renameFilesBtn = document.getElementById('renameFilesBtn');
+const fileNameDialogOverlay = document.getElementById('fileNameDialogOverlay');
+const closeFileNameDialogBtn = document.getElementById('closeFileNameDialogBtn');
+const cancelFileNameDialogBtn = document.getElementById('cancelFileNameDialogBtn');
+const applyFileNamesBtn = document.getElementById('applyFileNamesBtn');
+const defaultFileNamesBtn = document.getElementById('defaultFileNamesBtn');
+const htmlFileNameInput = document.getElementById('htmlFileNameInput');
+const cssFileNameInput = document.getElementById('cssFileNameInput');
+const jsFileNameInput = document.getElementById('jsFileNameInput');
+const fileNameDialogNote = document.getElementById('fileNameDialogNote');
+const htmlPageManager = document.getElementById('htmlPageManager');
+const htmlPageSelect = document.getElementById('htmlPageSelect');
+const addHtmlPageBtn = document.getElementById('addHtmlPageBtn');
+const renameHtmlPageBtn = document.getElementById('renameHtmlPageBtn');
+const deleteHtmlPageBtn = document.getElementById('deleteHtmlPageBtn');
+const pageDialogOverlay = document.getElementById('pageDialogOverlay');
+const pageDialogTitle = document.getElementById('pageDialogTitle');
+const pageDialogText = document.getElementById('pageDialogText');
+const htmlPageNameInput = document.getElementById('htmlPageNameInput');
+const pageDialogNote = document.getElementById('pageDialogNote');
+const closePageDialogBtn = document.getElementById('closePageDialogBtn');
+const cancelPageDialogBtn = document.getElementById('cancelPageDialogBtn');
+const applyPageDialogBtn = document.getElementById('applyPageDialogBtn');
 
 
 // Built-in Firebase fallback config.
@@ -127,6 +154,8 @@ function ensureFirebaseFrontendConfig() {
   if (!Array.isArray(window.MCS_TEACHER_EMAILS)) window.MCS_TEACHER_EMAILS = [];
   if (typeof window.MCS_RUBRIC_IMAGE_IMPORT_ENABLED === 'undefined') window.MCS_RUBRIC_IMAGE_IMPORT_ENABLED = true;
   if (typeof window.MCS_RUBRIC_IMAGE_ENDPOINT === 'undefined') window.MCS_RUBRIC_IMAGE_ENDPOINT = '';
+  if (typeof window.MCS_AI_CHECKER_ENDPOINT === 'undefined') window.MCS_AI_CHECKER_ENDPOINT = '';
+  if (typeof window.MCS_AI_CHECKER_ENABLED === 'undefined') window.MCS_AI_CHECKER_ENABLED = true;
 }
 
 ensureFirebaseFrontendConfig();
@@ -139,7 +168,8 @@ const STORAGE_KEYS = {
   legacyActivity: 'studentCodeStudio.activity.v2',
   theme: 'studentCodeStudio.theme',
   layout: 'studentCodeStudio.previewLayout',
-  editorZoom: 'studentCodeStudio.editorZoom.v1'
+  editorZoom: 'studentCodeStudio.editorZoom.v1',
+  fileNames: 'studentCodeStudio.fileNames.v1'
 };
 
 
@@ -286,11 +316,18 @@ const ruleHelp = {
   minimum_effort: 'Checks if the combined code has enough content for a beginner activity.'
 };
 
+const DEFAULT_CODE_FILE_NAMES = {
+  html: 'index.html',
+  css: 'style.css',
+  js: 'script.js'
+};
+
 let activities = getInitialActivities();
 let selectedActivityId = getInitialSelectedActivityId();
 let activity = getActivityById(selectedActivityId);
 let codeByActivity = getInitialCodeByActivity();
 let codeStore = activity ? getCodeStoreForActivity(activity.id) : normalizeCodeStore(starterCode);
+let codeFileNames = normalizeCodeFileNames(loadJSON(STORAGE_KEYS.fileNames, DEFAULT_CODE_FILE_NAMES));
 let activeLanguage = 'html';
 let activeSuggestionIndex = 0;
 let currentMatches = [];
@@ -310,6 +347,14 @@ let editorHistoryByKey = {};
 let lastRubricResult = null;
 let aiReviewController = null;
 let isRestoringEditorHistory = false;
+let returnToFullEditorAfterPreview = false;
+let previewTransitionTimer = null;
+let bookTransitionTimer = null;
+let previewOriginalParent = null;
+let previewOriginalNextSibling = null;
+let previewMovedIntoEditor = false;
+let previewCloseToEditorTimer = null;
+const FULLSCREEN_PAGE_TRANSITION_MS = 720;
 
 const languageInfo = {
   html: 'HTML builds the webpage structure. For this app, students should type a complete document: doctype, html, head, title, and body.',
@@ -367,30 +412,75 @@ const htmlSuggestions = [
 const suggestionsByLanguage = {
   html: htmlSuggestions,
   css: [
+    codeSuggestion('body reset', '*, *::before, *::after {\n  box-sizing: border-box;\n}\n\nbody {\n  margin: 0;\n  font-family: Arial, sans-serif;\n  background: #f8fafc;\n  color: #0f172a;\n  line-height: 1.6;\n}', 'Clean starter style for the whole page.'),
     codeSuggestion('body', 'body {\n  font-family: Arial, sans-serif;\n  background: #f0f7ff;\n  color: #17324d;\n  padding: 40px;\n}', 'Style the whole page.'),
-    codeSuggestion('color', 'color: #2563eb;', 'Text color.'),
-    codeSuggestion('background', 'background: #f0f7ff;', 'Background color.'),
-    codeSuggestion('font-size', 'font-size: 24px;', 'Text size.'),
-    codeSuggestion('font-family', 'font-family: Arial, sans-serif;', 'Font style.'),
-    codeSuggestion('font-weight', 'font-weight: bold;', 'Text thickness.'),
-    codeSuggestion('text-align', 'text-align: center;', 'Text alignment.'),
+    codeSuggestion('container', '.container {\n  width: min(100% - 32px, 1000px);\n  margin: 0 auto;\n  padding: 24px;\n}', 'Centered responsive page container.'),
+    codeSuggestion('card', '.card {\n  background: #ffffff;\n  border: 1px solid #dbeafe;\n  border-radius: 20px;\n  padding: 24px;\n  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.12);\n}', 'Clean card style.'),
+    codeSuggestion('button style', 'button {\n  border: none;\n  border-radius: 999px;\n  padding: 12px 18px;\n  color: white;\n  background: #2563eb;\n  font-weight: bold;\n  cursor: pointer;\n  transition: transform 0.2s ease, background 0.2s ease;\n}\n\nbutton:hover {\n  background: #1d4ed8;\n  transform: translateY(-2px);\n}', 'Modern button with hover effect.'),
+    codeSuggestion('input style', 'input, textarea, select {\n  width: 100%;\n  border: 1px solid #cbd5e1;\n  border-radius: 12px;\n  padding: 12px 14px;\n  font: inherit;\n}\n\ninput:focus, textarea:focus, select:focus {\n  outline: 3px solid #bfdbfe;\n  border-color: #2563eb;\n}', 'Form input style with focus state.'),
+    codeSuggestion('navbar', '.navbar {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 16px;\n  padding: 16px 24px;\n  background: #ffffff;\n  border-bottom: 1px solid #e2e8f0;\n}', 'Simple navigation/header layout.'),
+    codeSuggestion('flex center', '.center {\n  display: flex;\n  align-items: center;\n  justify-content: center;\n}', 'Center content horizontally and vertically.'),
+    codeSuggestion('flex row', '.row {\n  display: flex;\n  align-items: center;\n  gap: 16px;\n}', 'Horizontal layout with spacing.'),
+    codeSuggestion('flex column', '.column {\n  display: flex;\n  flex-direction: column;\n  gap: 12px;\n}', 'Vertical layout with spacing.'),
+    codeSuggestion('grid cards', '.grid {\n  display: grid;\n  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));\n  gap: 20px;\n}', 'Responsive card grid.'),
+    codeSuggestion('hero section', '.hero {\n  min-height: 70vh;\n  display: grid;\n  place-items: center;\n  text-align: center;\n  padding: 48px 20px;\n  background: linear-gradient(135deg, #dbeafe, #f0fdf4);\n}', 'Large landing/header section.'),
+    codeSuggestion('image responsive', 'img {\n  max-width: 100%;\n  height: auto;\n  display: block;\n  border-radius: 16px;\n}', 'Responsive image style.'),
+    codeSuggestion('media query', '@media (max-width: 600px) {\n  body {\n    padding: 20px;\n  }\n\n  .container {\n    padding: 16px;\n  }\n}', 'Responsive design for phone screens.'),
+    codeSuggestion('dark section', '.dark-section {\n  background: #0f172a;\n  color: #f8fafc;\n  padding: 40px;\n  border-radius: 20px;\n}', 'Dark themed section.'),
+    codeSuggestion('color palette blue', ':root {\n  --primary: #2563eb;\n  --primary-dark: #1d4ed8;\n  --primary-soft: #dbeafe;\n  --text: #0f172a;\n  --muted: #64748b;\n}', 'Reusable blue color variables.'),
+    codeSuggestion('color palette green', ':root {\n  --primary: #16a34a;\n  --primary-dark: #15803d;\n  --primary-soft: #dcfce7;\n  --text: #14532d;\n  --muted: #64748b;\n}', 'Reusable green color variables.'),
+    codeSuggestion('color', 'color: #2563eb;', 'Text color. Common values: red, blue, black, white, #2563eb, rgb(...), var(--primary).'),
+    codeSuggestion('background-color', 'background-color: #dbeafe;', 'Solid background color.'),
+    codeSuggestion('background', 'background: linear-gradient(135deg, #2563eb, #06b6d4);', 'Background color, image, or gradient.'),
+    codeSuggestion('font-family', 'font-family: Arial, sans-serif;', 'Font style. Common: Arial, Georgia, Verdana, sans-serif.'),
+    codeSuggestion('font-size', 'font-size: 24px;', 'Text size. Common: 16px, 1rem, 1.5rem, clamp(...).'),
+    codeSuggestion('font-weight', 'font-weight: 700;', 'Text thickness. Common: normal, bold, 400, 600, 700, 900.'),
+    codeSuggestion('text-align', 'text-align: center;', 'Text alignment: left, center, right, justify.'),
+    codeSuggestion('line-height', 'line-height: 1.6;', 'Spacing between text lines.'),
+    codeSuggestion('letter-spacing', 'letter-spacing: 0.05em;', 'Space between letters.'),
+    codeSuggestion('text-decoration', 'text-decoration: none;', 'Underline or remove decoration.'),
     codeSuggestion('width', 'width: 100%;', 'Element width.'),
     codeSuggestion('max-width', 'max-width: 600px;', 'Maximum width.'),
+    codeSuggestion('min-height', 'min-height: 100vh;', 'Minimum height.'),
     codeSuggestion('height', 'height: 200px;', 'Element height.'),
-    codeSuggestion('border', 'border: 1px solid #d7e3f3;', 'Element border.'),
-    codeSuggestion('border-radius', 'border-radius: 16px;', 'Rounded corners.'),
-    codeSuggestion('padding', 'padding: 20px;', 'Inside spacing.'),
     codeSuggestion('margin', 'margin: 20px;', 'Outside spacing.'),
-    codeSuggestion('margin auto', 'margin: 0 auto;', 'Center a block.'),
+    codeSuggestion('margin auto', 'margin: 0 auto;', 'Center a block element.'),
+    codeSuggestion('padding', 'padding: 20px;', 'Inside spacing.'),
+    codeSuggestion('border', 'border: 1px solid #d7e3f3;', 'Border line.'),
+    codeSuggestion('border-radius', 'border-radius: 16px;', 'Rounded corners.'),
+    codeSuggestion('box-shadow', 'box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);', 'Shadow effect.'),
     codeSuggestion('display flex', 'display: flex;', 'Flexible layout.'),
     codeSuggestion('display grid', 'display: grid;', 'Grid layout.'),
-    codeSuggestion('justify-content', 'justify-content: center;', 'Horizontal alignment.'),
-    codeSuggestion('align-items', 'align-items: center;', 'Vertical alignment.'),
-    codeSuggestion('gap', 'gap: 12px;', 'Space between items.'),
-    codeSuggestion('box-shadow', 'box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);', 'Shadow effect.'),
-    codeSuggestion('hover', 'button:hover {\n  transform: scale(1.03);\n}', 'Hover effect.'),
+    codeSuggestion('display none', 'display: none;', 'Hide an element.'),
+    codeSuggestion('justify-content', 'justify-content: center;', 'Horizontal alignment in flex/grid.'),
+    codeSuggestion('align-items', 'align-items: center;', 'Vertical alignment in flex/grid.'),
+    codeSuggestion('place-items', 'place-items: center;', 'Center items in grid.'),
+    codeSuggestion('gap', 'gap: 12px;', 'Space between flex/grid items.'),
+    codeSuggestion('flex-direction', 'flex-direction: column;', 'Flex direction: row or column.'),
+    codeSuggestion('flex-wrap', 'flex-wrap: wrap;', 'Allow flex items to wrap.'),
     codeSuggestion('grid-template-columns', 'grid-template-columns: repeat(3, 1fr);', 'Grid columns.'),
-    codeSuggestion('media query', '@media (max-width: 600px) {\n  body {\n    padding: 20px;\n  }\n}', 'Responsive design.')
+    codeSuggestion('position relative', 'position: relative;', 'Position relative to itself.'),
+    codeSuggestion('position absolute', 'position: absolute;', 'Position inside nearest positioned parent.'),
+    codeSuggestion('position fixed', 'position: fixed;', 'Stay fixed on the screen.'),
+    codeSuggestion('top right', 'top: 16px;\nright: 16px;', 'Common position offsets.'),
+    codeSuggestion('z-index', 'z-index: 10;', 'Layer order for positioned elements.'),
+    codeSuggestion('overflow', 'overflow: hidden;', 'Control overflow: hidden, auto, scroll, visible.'),
+    codeSuggestion('object-fit', 'object-fit: cover;', 'Fit images/videos inside a box.'),
+    codeSuggestion('cursor', 'cursor: pointer;', 'Pointer cursor for clickable items.'),
+    codeSuggestion('transition', 'transition: all 0.2s ease;', 'Smooth change/animation.'),
+    codeSuggestion('transform', 'transform: scale(1.05);', 'Move, scale, rotate, or skew.'),
+    codeSuggestion('opacity', 'opacity: 0.8;', 'Transparency from 0 to 1.'),
+    codeSuggestion('hover', '.button:hover {\n  background: #1d4ed8;\n  transform: translateY(-2px);\n}', 'Hover state for interactive elements.'),
+    codeSuggestion('active state', '.button:active {\n  transform: scale(0.98);\n}', 'Click/press effect.'),
+    codeSuggestion('focus visible', '.button:focus-visible {\n  outline: 3px solid #bfdbfe;\n  outline-offset: 3px;\n}', 'Keyboard accessibility focus style.'),
+    codeSuggestion('list-style', 'list-style: none;', 'Remove bullet/number markers.'),
+    codeSuggestion('box-sizing', 'box-sizing: border-box;', 'Include padding and border in element size.'),
+    codeSuggestion('clamp font', 'font-size: clamp(1.5rem, 4vw, 3rem);', 'Responsive text size.'),
+    codeSuggestion('glass effect', '.glass {\n  background: rgba(255, 255, 255, 0.75);\n  backdrop-filter: blur(12px);\n  border: 1px solid rgba(255, 255, 255, 0.4);\n}', 'Frosted glass style.'),
+    codeSuggestion('badge', '.badge {\n  display: inline-block;\n  border-radius: 999px;\n  padding: 6px 12px;\n  background: #dbeafe;\n  color: #1d4ed8;\n  font-weight: bold;\n}', 'Small pill label.'),
+    codeSuggestion('animation fade in', '@keyframes fadeIn {\n  from {\n    opacity: 0;\n    transform: translateY(10px);\n  }\n  to {\n    opacity: 1;\n    transform: translateY(0);\n  }\n}\n\n.fade-in {\n  animation: fadeIn 0.4s ease both;\n}', 'Simple fade-in animation.'),
+    codeSuggestion('mobile responsive card', '@media (max-width: 600px) {\n  .card {\n    padding: 16px;\n    border-radius: 14px;\n  }\n\n  h1 {\n    font-size: 2rem;\n  }\n}', 'Phone-friendly card and heading.'),
+    codeSuggestion('print safe', '@media print {\n  button {\n    display: none;\n  }\n\n  body {\n    background: white;\n    color: black;\n  }\n}', 'Basic print-friendly CSS.')
   ],
   js: [
     codeSuggestion('function', 'function myFunction() {\n  |\n}', 'Reusable action.'),
@@ -442,15 +532,617 @@ function saveJSON(key, value) {
   localStorage.setItem(key, JSON.stringify(value));
 }
 
-function normalizeCodeStore(rawCode) {
-  const safeCode = rawCode && typeof rawCode === 'object' ? rawCode : {};
+
+function getFileExtension(language) {
+  if (language === 'html') return '.html';
+  if (language === 'css') return '.css';
+  return '.js';
+}
+
+function getDefaultFileBase(language) {
+  if (language === 'html') return 'index';
+  if (language === 'css') return 'style';
+  return 'script';
+}
+
+function cleanCodeFileName(value, language) {
+  const extension = getFileExtension(language);
+  const defaultBase = getDefaultFileBase(language);
+  const defaultName = `${defaultBase}${extension}`;
+  let raw = String(value || '').trim();
+  if (!raw) return defaultName;
+
+  raw = raw.replace(/[\\/]+/g, '-').replace(/[?#].*$/g, '').trim();
+  const extensionPattern = new RegExp(`${extension.replace('.', '\\.')}$`, 'i');
+  raw = raw.replace(extensionPattern, '');
+  raw = raw
+    .replace(/\s+/g, '-')
+    .replace(/[^a-zA-Z0-9_-]/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 42);
+
+  return raw ? `${raw}${extension}` : defaultName;
+}
+
+function normalizeCodeFileNames(raw = {}) {
   return {
-    html: typeof safeCode.html === 'string' ? safeCode.html : starterCode.html,
-    css: typeof safeCode.css === 'string' ? safeCode.css : starterCode.css,
-    js: typeof safeCode.js === 'string' ? safeCode.js : starterCode.js
+    html: cleanCodeFileName(raw.html, 'html'),
+    css: cleanCodeFileName(raw.css, 'css'),
+    js: cleanCodeFileName(raw.js, 'js')
   };
 }
 
+function saveCodeFileNames() {
+  codeFileNames = normalizeCodeFileNames(codeFileNames);
+  saveJSON(STORAGE_KEYS.fileNames, codeFileNames);
+}
+
+function getCodeFileNames() {
+  codeFileNames = normalizeCodeFileNames(codeFileNames);
+  return codeFileNames;
+}
+
+
+function getLanguageFileMeta(language = activeLanguage) {
+  const lang = ['html', 'css', 'js'].includes(language) ? language : 'html';
+  const defaults = DEFAULT_CODE_FILE_NAMES;
+  return {
+    html: {
+      language: 'html',
+      label: 'HTML page',
+      pluralLabel: 'HTML pages',
+      extension: 'html',
+      mapKey: 'pages',
+      activeKey: 'activeHtmlPage',
+      codeKey: 'html',
+      defaultName: defaults.html,
+      addTitle: 'Add HTML Page',
+      renameTitle: 'Rename HTML Page',
+      addText: 'Create another HTML page for a multi-page website.',
+      renameText: 'Rename this HTML page. Links must match the new file name.',
+      note: 'Use simple names like about.html, gallery.html, or contact.html.'
+    },
+    css: {
+      language: 'css',
+      label: 'CSS file',
+      pluralLabel: 'CSS files',
+      extension: 'css',
+      mapKey: 'cssFiles',
+      activeKey: 'activeCssFile',
+      codeKey: 'css',
+      defaultName: defaults.css,
+      addTitle: 'Add CSS File',
+      renameTitle: 'Rename CSS File',
+      addText: 'Create another CSS file for a larger website.',
+      renameText: 'Rename this CSS file. HTML <link> href values must match the new file name.',
+      note: 'Use simple names like style.css, layout.css, colors.css, or responsive.css.'
+    },
+    js: {
+      language: 'js',
+      label: 'JavaScript file',
+      pluralLabel: 'JavaScript files',
+      extension: 'js',
+      mapKey: 'jsFiles',
+      activeKey: 'activeJsFile',
+      codeKey: 'js',
+      defaultName: defaults.js,
+      addTitle: 'Add JavaScript File',
+      renameTitle: 'Rename JavaScript File',
+      addText: 'Create another JavaScript file for a larger website.',
+      renameText: 'Rename this JavaScript file. HTML <script src> values must match the new file name.',
+      note: 'Use simple names like script.js, app.js, menu.js, or gallery.js.'
+    }
+  }[lang];
+}
+
+function cleanLanguageFileName(value, language = activeLanguage) {
+  const meta = getLanguageFileMeta(language);
+  return cleanCodeFileName(value || meta.defaultName, meta.extension);
+}
+
+function createStarterForLanguageFile(language, fileName) {
+  const meta = getLanguageFileMeta(language);
+  const base = String(fileName || meta.defaultName).replace(new RegExp(`\\.${meta.extension}$`, 'i'), '');
+  if (language === 'html') {
+    return `<!DOCTYPE html>
+<html>
+  <head>
+    <title>${base}</title>
+  </head>
+  <body>
+
+    <h1>${base}</h1>
+    <p>This is ${fileName}.</p>
+
+  </body>
+</html>`;
+  }
+  if (language === 'css') {
+    return `/* ${fileName} */
+
+`;
+  }
+  return `// ${fileName}
+
+`;
+}
+
+function normalizeLanguageFileMap(rawMap, language, fallbackContent = '') {
+  const meta = getLanguageFileMeta(language);
+  const files = {};
+  if (rawMap && typeof rawMap === 'object' && !Array.isArray(rawMap)) {
+    Object.entries(rawMap).forEach(([name, content]) => {
+      const cleanName = cleanLanguageFileName(name, language);
+      if (!cleanName) return;
+      files[cleanName] = typeof content === 'string' ? content : '';
+    });
+  }
+
+  if (!Object.keys(files).length) {
+    files[meta.defaultName] = typeof fallbackContent === 'string' ? fallbackContent : '';
+  }
+
+  if (!files[meta.defaultName]) {
+    const firstKey = Object.keys(files)[0];
+    if (firstKey && firstKey !== meta.defaultName && !files[meta.defaultName]) {
+      files[meta.defaultName] = files[firstKey] || '';
+    }
+  }
+
+  return files;
+}
+
+function normalizeHTMLPagesFromCodeStore(rawCode = {}) {
+  const safeCode = rawCode && typeof rawCode === 'object' ? rawCode : {};
+  const sourcePages = safeCode.pages && typeof safeCode.pages === 'object' && !Array.isArray(safeCode.pages)
+    ? safeCode.pages
+    : null;
+  const pages = normalizeLanguageFileMap(sourcePages, 'html', typeof safeCode.html === 'string' ? safeCode.html : starterCode.html);
+  if (!pages['index.html']) {
+    const firstKey = Object.keys(pages)[0];
+    if (firstKey) pages['index.html'] = pages[firstKey] || starterCode.html;
+  }
+  return pages;
+}
+
+function getLanguageFileMap(language = activeLanguage, store = codeStore) {
+  const meta = getLanguageFileMeta(language);
+  if (language === 'html') {
+    if (!store.pages || typeof store.pages !== 'object' || Array.isArray(store.pages)) {
+      store.pages = normalizeHTMLPagesFromCodeStore(store);
+    }
+    return store.pages;
+  }
+
+  if (!store[meta.mapKey] || typeof store[meta.mapKey] !== 'object' || Array.isArray(store[meta.mapKey])) {
+    store[meta.mapKey] = normalizeLanguageFileMap(store[meta.mapKey], language, typeof store[meta.codeKey] === 'string' ? store[meta.codeKey] : starterCode[meta.codeKey]);
+  }
+  return store[meta.mapKey];
+}
+
+function getLanguageFileNames(language = activeLanguage, store = codeStore) {
+  const meta = getLanguageFileMeta(language);
+  const files = getLanguageFileMap(language, store);
+  const names = Object.keys(files).sort((a, b) => {
+    if (a === meta.defaultName) return -1;
+    if (b === meta.defaultName) return 1;
+    return a.localeCompare(b);
+  });
+  return names.length ? names : [meta.defaultName];
+}
+
+function getActiveLanguageFileName(language = activeLanguage, store = codeStore) {
+  const meta = getLanguageFileMeta(language);
+  const files = getLanguageFileMap(language, store);
+  let active = cleanLanguageFileName(store[meta.activeKey] || codeFileNames?.[language] || meta.defaultName, language);
+  if (!files[active]) active = files[meta.defaultName] ? meta.defaultName : Object.keys(files)[0] || meta.defaultName;
+  store[meta.activeKey] = active;
+  return active;
+}
+
+function getLanguageFileContent(language = activeLanguage, fileName = getActiveLanguageFileName(language)) {
+  const files = getLanguageFileMap(language);
+  const safeName = cleanLanguageFileName(fileName, language);
+  return typeof files[safeName] === 'string' ? files[safeName] : '';
+}
+
+function setLanguageFileContent(language = activeLanguage, fileName = getActiveLanguageFileName(language), content = '') {
+  const meta = getLanguageFileMeta(language);
+  const files = getLanguageFileMap(language);
+  const safeName = cleanLanguageFileName(fileName, language);
+  files[safeName] = String(content ?? '');
+  codeStore[meta.activeKey] = safeName;
+  codeStore[meta.codeKey] = files[safeName];
+  codeFileNames[language] = safeName;
+}
+
+function syncActiveLanguageFileFromStore(language = activeLanguage) {
+  const meta = getLanguageFileMeta(language);
+  const active = getActiveLanguageFileName(language);
+  const files = getLanguageFileMap(language);
+  codeStore[meta.codeKey] = typeof files[active] === 'string' ? files[active] : starterCode[meta.codeKey];
+  codeFileNames[language] = active;
+  return active;
+}
+
+// Backward-compatible HTML page helpers used by the existing app/checker.
+function getHTMLPages(store = codeStore) { return getLanguageFileMap('html', store); }
+function getHTMLPageNames(store = codeStore) { return getLanguageFileNames('html', store); }
+function getActiveHtmlPageName(store = codeStore) { return getActiveLanguageFileName('html', store); }
+function getHTMLPageContent(pageName = getActiveHtmlPageName()) { return getLanguageFileContent('html', pageName); }
+function setHTMLPageContent(pageName, content) { setLanguageFileContent('html', pageName, content); }
+function syncActiveHTMLPageFromStore() { return syncActiveLanguageFileFromStore('html'); }
+
+function isExternalHref(value = '') {
+  return /^(https?:|mailto:|tel:|javascript:|data:|blob:|#)/i.test(String(value || '').trim());
+}
+
+function normalizeInternalHtmlReference(value = '') {
+  const clean = String(value || '').trim().replace(/[?#].*$/, '');
+  if (!clean || isExternalHref(clean)) return '';
+  const base = clean.split('/').pop();
+  if (!/\.html?$/i.test(base)) return '';
+  return cleanLanguageFileName(base, 'html');
+}
+
+function getInternalHTMLPageReferences(html) {
+  const refs = [];
+  const pattern = /<a\b[^>]*\bhref\s*=\s*(["'])(.*?)\1/gi;
+  let match;
+  while ((match = pattern.exec(String(html || ''))) !== null) {
+    const clean = normalizeInternalHtmlReference(match[2]);
+    if (clean) refs.push(clean);
+  }
+  return refs;
+}
+
+function getMissingInternalPageReferences() {
+  const pages = getHTMLPages();
+  const existing = new Set(Object.keys(pages).map(name => name.toLowerCase()));
+  const missing = [];
+  Object.entries(pages).forEach(([pageName, html]) => {
+    getInternalHTMLPageReferences(html).forEach(ref => {
+      if (!existing.has(ref.toLowerCase())) {
+        missing.push({ from: pageName, to: ref });
+      }
+    });
+  });
+  return missing;
+}
+
+function getPageStructureProblems() {
+  const currentActive = getActiveHtmlPageName();
+  const pages = getHTMLPages();
+  const problems = [];
+  Object.entries(pages).forEach(([pageName, html]) => {
+    const previous = codeStore.html;
+    codeStore.html = html;
+    const report = getHTMLStructureReport();
+    codeStore.html = previous;
+    if (!report.passed) {
+      problems.push({ pageName, missing: report.missing.map(item => item.label) });
+    }
+  });
+  codeStore.activeHtmlPage = currentActive;
+  syncActiveHTMLPageFromStore();
+  return problems;
+}
+
+function updateCodeFileManagerLabels() {
+  const meta = getLanguageFileMeta(activeLanguage);
+  const activeName = getActiveLanguageFileName(activeLanguage);
+  const names = getLanguageFileNames(activeLanguage);
+  if (htmlPageManager) htmlPageManager.dataset.language = activeLanguage;
+  const label = htmlPageManager?.querySelector('.page-manager-label');
+  if (label) label.textContent = 'Tabs/Pages';
+  if (addHtmlPageBtn) addHtmlPageBtn.textContent = activeLanguage === 'html' ? '+ Page' : '+ File';
+  if (renameHtmlPageBtn) renameHtmlPageBtn.textContent = 'Rename';
+  if (deleteHtmlPageBtn) {
+    deleteHtmlPageBtn.textContent = 'Delete';
+    deleteHtmlPageBtn.disabled = names.length <= 1 || (activeLanguage === 'html' && activeName === 'index.html');
+    deleteHtmlPageBtn.title = deleteHtmlPageBtn.disabled
+      ? activeLanguage === 'html' && activeName === 'index.html'
+        ? 'index.html must stay as the homepage.'
+        : `Keep at least one ${meta.label}.`
+      : `Delete ${activeName}`;
+  }
+}
+
+function renderHTMLPageManager() {
+  if (!htmlPageManager || !htmlPageSelect) return;
+  if (!['html', 'css', 'js'].includes(activeLanguage)) {
+    htmlPageManager.classList.add('hidden');
+    htmlPageManager.setAttribute('aria-hidden', 'true');
+    return;
+  }
+
+  htmlPageManager.classList.remove('hidden');
+  htmlPageManager.setAttribute('aria-hidden', 'false');
+  const active = getActiveLanguageFileName(activeLanguage);
+  const names = getLanguageFileNames(activeLanguage);
+  htmlPageSelect.innerHTML = names.map(name => `<option value="${escapeAttribute(name)}" ${name === active ? 'selected' : ''}>${escapeHTML(name)}</option>`).join('');
+  htmlPageSelect.value = active;
+  htmlPageSelect.setAttribute('aria-label', activeLanguage === 'html' ? 'Choose HTML page' : activeLanguage === 'css' ? 'Choose CSS file' : 'Choose JavaScript file');
+  updateCodeFileManagerLabels();
+}
+
+function saveCodeStoreForCurrentActivity() {
+  if (activity) {
+    codeByActivity[activity.id] = normalizeCodeStore(codeStore);
+    saveCodeByActivity();
+  }
+}
+
+function switchHTMLPage(fileName) {
+  if (['html', 'css', 'js'].includes(activeLanguage)) saveActiveEditor();
+  const safeName = cleanLanguageFileName(fileName, activeLanguage);
+  const files = getLanguageFileMap(activeLanguage);
+  if (!files[safeName]) return;
+  codeStore[getLanguageFileMeta(activeLanguage).activeKey] = safeName;
+  syncActiveLanguageFileFromStore(activeLanguage);
+  saveCodeFileNames();
+  saveCodeStoreForCurrentActivity();
+  tabButtons.forEach(tab => tab.classList.toggle('active', tab.dataset.language === activeLanguage));
+  loadActiveEditor();
+  runCode(false, { scroll: false, pageName: getActiveHtmlPageName() });
+  setStatus(`${getLanguageFileMeta(activeLanguage).label}: ${safeName}`);
+}
+
+function shouldPlacePageDialogInsideEditor() {
+  return Boolean(
+    editorPanel &&
+    (
+      document.fullscreenElement === editorPanel ||
+      document.webkitFullscreenElement === editorPanel ||
+      document.body.classList.contains('editor-fullscreen-active')
+    )
+  );
+}
+
+function placePageDialogForCurrentMode() {
+  if (!pageDialogOverlay) return;
+  const target = shouldPlacePageDialogInsideEditor() ? editorPanel : document.body;
+  if (target && pageDialogOverlay.parentElement !== target) target.appendChild(pageDialogOverlay);
+  pageDialogOverlay.classList.toggle('inside-editor-fullscreen', target === editorPanel);
+}
+
+function restorePageDialogToBody() {
+  if (!pageDialogOverlay) return;
+  pageDialogOverlay.classList.remove('inside-editor-fullscreen');
+  if (pageDialogOverlay.parentElement !== document.body) document.body.appendChild(pageDialogOverlay);
+}
+
+let pageDialogMode = 'add';
+let pageDialogOriginalName = '';
+let pageDialogLanguage = 'html';
+
+function openPageDialog(mode = 'add') {
+  if (!pageDialogOverlay) return;
+  if (['html', 'css', 'js'].includes(activeLanguage)) saveActiveEditor();
+  pageDialogMode = mode;
+  pageDialogLanguage = activeLanguage;
+  const meta = getLanguageFileMeta(pageDialogLanguage);
+  pageDialogOriginalName = getActiveLanguageFileName(pageDialogLanguage);
+  const isRename = mode === 'rename';
+  if (pageDialogTitle) pageDialogTitle.textContent = isRename ? meta.renameTitle : meta.addTitle;
+  if (pageDialogText) pageDialogText.textContent = isRename ? meta.renameText : meta.addText;
+  if (htmlPageNameInput) htmlPageNameInput.value = isRename ? pageDialogOriginalName : '';
+  if (pageDialogNote) pageDialogNote.textContent = meta.note;
+  placePageDialogForCurrentMode();
+  pageDialogOverlay.classList.remove('hidden');
+  document.body.classList.add('dialog-open');
+  window.setTimeout(() => htmlPageNameInput?.focus({ preventScroll: true }), 0);
+}
+
+function closePageDialog() {
+  if (!pageDialogOverlay) return;
+  pageDialogOverlay.classList.add('hidden');
+  document.body.classList.remove('dialog-open');
+  restorePageDialogToBody();
+  addHtmlPageBtn?.focus({ preventScroll: true });
+}
+
+function replaceHtmlFileReferences(oldName, newName, language) {
+  const pages = getHTMLPages();
+  const escaped = escapeRegExp(oldName);
+  Object.keys(pages).forEach(page => {
+    if (language === 'html') {
+      pages[page] = String(pages[page]).replace(new RegExp(`(href\\s*=\\s*["'])${escaped}(["'])`, 'gi'), `$1${newName}$2`);
+    } else if (language === 'css') {
+      pages[page] = String(pages[page]).replace(new RegExp(`(href\\s*=\\s*["'])${escaped}(["'])`, 'gi'), `$1${newName}$2`);
+    } else if (language === 'js') {
+      pages[page] = String(pages[page]).replace(new RegExp(`(src\\s*=\\s*["'])${escaped}(["'])`, 'gi'), `$1${newName}$2`);
+    }
+  });
+}
+
+async function applyPageDialog() {
+  const meta = getLanguageFileMeta(pageDialogLanguage);
+  const newName = cleanLanguageFileName(htmlPageNameInput?.value || '', pageDialogLanguage);
+  if (!newName) {
+    if (pageDialogNote) pageDialogNote.textContent = `Please type a valid .${meta.extension} file name.`;
+    return;
+  }
+
+  const files = getLanguageFileMap(pageDialogLanguage);
+  const exists = Object.prototype.hasOwnProperty.call(files, newName);
+  if (pageDialogMode === 'add') {
+    if (exists) {
+      if (pageDialogNote) pageDialogNote.textContent = `${newName} already exists.`;
+      return;
+    }
+    files[newName] = createStarterForLanguageFile(pageDialogLanguage, newName);
+    codeStore[meta.activeKey] = newName;
+  } else {
+    if (pageDialogLanguage === 'html' && pageDialogOriginalName === 'index.html' && newName !== 'index.html') {
+      if (!await appConfirm('index.html is the homepage. Rename it anyway?', { title: 'Rename homepage' })) return;
+    }
+    if (newName !== pageDialogOriginalName && exists) {
+      if (pageDialogNote) pageDialogNote.textContent = `${newName} already exists.`;
+      return;
+    }
+    if (newName !== pageDialogOriginalName) {
+      files[newName] = files[pageDialogOriginalName] || '';
+      delete files[pageDialogOriginalName];
+      replaceHtmlFileReferences(pageDialogOriginalName, newName, pageDialogLanguage);
+      if (codeFileNames[pageDialogLanguage] === pageDialogOriginalName) {
+        codeFileNames[pageDialogLanguage] = newName;
+        saveCodeFileNames();
+      }
+    }
+    codeStore[meta.activeKey] = newName;
+  }
+
+  syncActiveLanguageFileFromStore(pageDialogLanguage);
+  if (pageDialogLanguage === 'html') syncActiveHTMLPageFromStore();
+  saveCodeFileNames();
+  saveCodeStoreForCurrentActivity();
+  renderHTMLPageManager();
+  if (activeLanguage === pageDialogLanguage) loadActiveEditor();
+  runCode(false, { scroll: false });
+  closePageDialog();
+  setStatus(pageDialogMode === 'add' ? 'File added' : 'File renamed');
+}
+
+async function deleteCurrentHTMLPage() {
+  if (['html', 'css', 'js'].includes(activeLanguage)) saveActiveEditor();
+  const meta = getLanguageFileMeta(activeLanguage);
+  const files = getLanguageFileMap(activeLanguage);
+  const active = getActiveLanguageFileName(activeLanguage);
+  const names = getLanguageFileNames(activeLanguage);
+  if (names.length <= 1 || (activeLanguage === 'html' && active === 'index.html')) {
+    await appAlert(activeLanguage === 'html' && active === 'index.html'
+      ? 'index.html must stay as the main homepage. Add another page first before deleting pages.'
+      : `Keep at least one ${meta.label}.`, { title: 'Cannot delete file' });
+    return;
+  }
+  if (!await appConfirm(`Delete ${active}?`, { title: 'Delete file', danger: true })) return;
+  delete files[active];
+  codeStore[meta.activeKey] = files[meta.defaultName] ? meta.defaultName : Object.keys(files)[0] || meta.defaultName;
+  syncActiveLanguageFileFromStore(activeLanguage);
+  saveCodeFileNames();
+  saveCodeStoreForCurrentActivity();
+  renderHTMLPageManager();
+  loadActiveEditor();
+  runCode(false, { scroll: false });
+  setStatus('File deleted');
+}
+
+function escapeRegExp(value) {
+  return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function getBaseFileNameFromReference(value) {
+  const clean = String(value || '').trim().replace(/[?#].*$/, '');
+  return clean.split('/').pop().toLowerCase();
+}
+
+function getExternalCSSReferences(html) {
+  const refs = [];
+  const pattern = /<link\b[^>]*>/gi;
+  const hrefPattern = /href\s*=\s*(["'])(.*?)\1/i;
+  let match;
+  while ((match = pattern.exec(String(html || ''))) !== null) {
+    const tag = match[0];
+    if (!/rel\s*=\s*(["'])[^"']*stylesheet[^"']*\1/i.test(tag)) continue;
+    const hrefMatch = tag.match(hrefPattern);
+    if (hrefMatch && hrefMatch[2]) refs.push(hrefMatch[2]);
+  }
+  return refs;
+}
+
+function getExternalJSReferences(html) {
+  const refs = [];
+  const pattern = /<script\b[^>]*\bsrc\s*=\s*(["'])(.*?)\1[^>]*>\s*<\/script>/gi;
+  let match;
+  while ((match = pattern.exec(String(html || ''))) !== null) {
+    if (match[2]) refs.push(match[2]);
+  }
+  return refs;
+}
+
+function hasMatchingExternalReference(references, filename) {
+  const expected = String(filename || '').toLowerCase();
+  return references.some(ref => getBaseFileNameFromReference(ref) === expected);
+}
+
+function shouldApplyCSSForPreview(html) {
+  const css = (codeStore.css || '').trim();
+  if (!css) return false;
+  const fileNames = getCodeFileNames();
+  const references = getExternalCSSReferences(html);
+  return !references.length || hasMatchingExternalReference(references, fileNames.css);
+}
+
+function shouldApplyJSForPreview(html) {
+  const js = (codeStore.js || '').trim();
+  if (!js) return false;
+  const fileNames = getCodeFileNames();
+  const references = getExternalJSReferences(html);
+  return !references.length || hasMatchingExternalReference(references, fileNames.js);
+}
+
+function normalizeHtmlPageName(value, fallback = 'index.html') {
+  const cleaned = cleanCodeFileName(value || fallback, 'html');
+  return cleaned || fallback;
+}
+
+function normalizeHTMLPagesFromCodeStore(rawCode = {}) {
+  const safeCode = rawCode && typeof rawCode === 'object' ? rawCode : {};
+  const sourcePages = safeCode.pages && typeof safeCode.pages === 'object' && !Array.isArray(safeCode.pages)
+    ? safeCode.pages
+    : null;
+  const pages = {};
+
+  if (sourcePages) {
+    Object.entries(sourcePages).forEach(([name, content]) => {
+      const cleanName = normalizeHtmlPageName(name);
+      if (!cleanName) return;
+      pages[cleanName] = typeof content === 'string' ? content : '';
+    });
+  }
+
+  if (!Object.keys(pages).length) {
+    const firstName = normalizeHtmlPageName(safeCode.activeHtmlPage || safeCode.htmlFileName || 'index.html');
+    pages[firstName] = typeof safeCode.html === 'string' ? safeCode.html : starterCode.html;
+  }
+
+  if (!pages['index.html']) {
+    const firstKey = Object.keys(pages)[0];
+    if (firstKey) pages['index.html'] = pages[firstKey];
+  }
+
+  return pages;
+}
+
+
+function normalizeCodeStore(rawCode) {
+  const safeCode = rawCode && typeof rawCode === 'object' ? rawCode : {};
+  const pages = normalizeHTMLPagesFromCodeStore(safeCode);
+  let activeHtmlPage = cleanLanguageFileName(safeCode.activeHtmlPage || safeCode.currentHtmlPage || safeCode.htmlFileName || DEFAULT_CODE_FILE_NAMES.html, 'html');
+  if (!pages[activeHtmlPage]) activeHtmlPage = pages['index.html'] ? 'index.html' : Object.keys(pages)[0] || 'index.html';
+
+  const cssFiles = normalizeLanguageFileMap(safeCode.cssFiles, 'css', typeof safeCode.css === 'string' ? safeCode.css : starterCode.css);
+  let activeCssFile = cleanLanguageFileName(safeCode.activeCssFile || safeCode.cssFileName || DEFAULT_CODE_FILE_NAMES.css, 'css');
+  if (!cssFiles[activeCssFile]) activeCssFile = cssFiles[DEFAULT_CODE_FILE_NAMES.css] ? DEFAULT_CODE_FILE_NAMES.css : Object.keys(cssFiles)[0] || DEFAULT_CODE_FILE_NAMES.css;
+
+  const jsFiles = normalizeLanguageFileMap(safeCode.jsFiles, 'js', typeof safeCode.js === 'string' ? safeCode.js : starterCode.js);
+  let activeJsFile = cleanLanguageFileName(safeCode.activeJsFile || safeCode.jsFileName || DEFAULT_CODE_FILE_NAMES.js, 'js');
+  if (!jsFiles[activeJsFile]) activeJsFile = jsFiles[DEFAULT_CODE_FILE_NAMES.js] ? DEFAULT_CODE_FILE_NAMES.js : Object.keys(jsFiles)[0] || DEFAULT_CODE_FILE_NAMES.js;
+
+  return {
+    html: typeof pages[activeHtmlPage] === 'string' ? pages[activeHtmlPage] : starterCode.html,
+    css: typeof cssFiles[activeCssFile] === 'string' ? cssFiles[activeCssFile] : starterCode.css,
+    js: typeof jsFiles[activeJsFile] === 'string' ? jsFiles[activeJsFile] : starterCode.js,
+    pages,
+    cssFiles,
+    jsFiles,
+    activeHtmlPage,
+    activeCssFile,
+    activeJsFile
+  };
+}
 
 function defaultLevelPoints(maxPoints) {
   const full = Math.max(0, Number(maxPoints) || 0);
@@ -1106,31 +1798,79 @@ function getLineNumberAt(text, index) {
   return text.slice(0, index).split('\n').length;
 }
 
+
+function preserveNewLinesAsSpaces(value) {
+  return String(value || '').replace(/[^\n\r]/g, ' ');
+}
+
+function maskIgnoredHTMLSections(text) {
+  let output = String(text || '');
+  output = output.replace(/<!--[\s\S]*?-->/g, match => preserveNewLinesAsSpaces(match));
+
+  const rawTextPattern = /<(script|style|textarea|template)\b[^>]*>[\s\S]*?<\/\1\s*>/gi;
+  output = output.replace(rawTextPattern, full => {
+    const open = full.match(/^<(script|style|textarea|template)\b[^>]*>/i)?.[0] || '';
+    const closeMatch = full.match(/<\/(script|style|textarea|template)\s*>\s*$/i);
+    const close = closeMatch ? closeMatch[0] : '';
+    const middleStart = open.length;
+    const middleEnd = full.length - close.length;
+    return open + preserveNewLinesAsSpaces(full.slice(middleStart, middleEnd)) + close;
+  });
+
+  return output;
+}
+
+function parseHTMLTagToken(text, start) {
+  let index = start + 1;
+  let quote = '';
+
+  while (index < text.length) {
+    const char = text[index];
+    if (quote) {
+      if (char === quote) quote = '';
+    } else if (char === '"' || char === "'") {
+      quote = char;
+    } else if (char === '>') {
+      const raw = text.slice(start, index + 1);
+      if (/^<!--/.test(raw) || /^<!DOCTYPE\s+html\s*>/i.test(raw)) {
+        return { raw, end: index + 1, skip: true };
+      }
+      const nameMatch = raw.match(/^<\s*\/?\s*([A-Za-z][A-Za-z0-9:-]*)\b/);
+      if (!nameMatch) return { raw, end: index + 1, skip: true };
+      const name = nameMatch[1].toLowerCase();
+      const closing = /^<\s*\//.test(raw);
+      const explicitSelfClosing = /\/\s*>$/.test(raw);
+      const selfClosing = explicitSelfClosing || selfClosingTagNames.has(name);
+      return { raw, end: index + 1, name, closing, selfClosing, skip: false };
+    }
+    index += 1;
+  }
+
+  return null;
+}
+
 function parseHtmlTags(text) {
+  const original = String(text || '');
+  const safeText = maskIgnoredHTMLSections(original);
   const tags = [];
-  const pattern = /<!--([\s\S]*?)-->|<\/?([A-Za-z][A-Za-z0-9:-]*)(?:\s[^<>]*?)?>|<!DOCTYPE\s+html\s*>/gi;
-  let match;
 
-  while ((match = pattern.exec(text)) !== null) {
-    const full = match[0];
-    if (full.startsWith('<!--') || /^<!DOCTYPE/i.test(full)) continue;
-
-    const name = (match[2] || '').toLowerCase();
-    if (!name) continue;
-
-    const closing = /^<\s*\//.test(full);
-    const explicitSelfClosing = /\/\s*>$/.test(full);
-    const selfClosing = explicitSelfClosing || selfClosingTagNames.has(name);
-
-    tags.push({
-      name,
-      raw: full,
-      start: match.index,
-      end: match.index + full.length,
-      closing,
-      selfClosing,
-      pairIndex: null
-    });
+  for (let index = 0; index < safeText.length; index += 1) {
+    if (safeText[index] !== '<') continue;
+    const token = parseHTMLTagToken(safeText, index);
+    if (!token) continue;
+    if (!token.skip && token.name) {
+      tags.push({
+        name: token.name,
+        raw: original.slice(index, token.end),
+        start: index,
+        end: token.end,
+        closing: token.closing,
+        selfClosing: token.selfClosing,
+        pairIndex: null,
+        unmatchedReason: ''
+      });
+    }
+    index = Math.max(index, token.end - 1);
   }
 
   const stack = [];
@@ -1142,15 +1882,32 @@ function parseHtmlTags(text) {
       return;
     }
 
-    for (let i = stack.length - 1; i >= 0; i--) {
-      const openingIndex = stack[i];
-      if (tags[openingIndex].name === tag.name) {
-        tags[openingIndex].pairIndex = index;
-        tag.pairIndex = openingIndex;
-        stack.splice(i, 1);
+    let matchedStackIndex = -1;
+    for (let i = stack.length - 1; i >= 0; i -= 1) {
+      if (tags[stack[i]].name === tag.name) {
+        matchedStackIndex = i;
         break;
       }
     }
+
+    if (matchedStackIndex === -1) {
+      tag.unmatchedReason = 'missing-opening';
+      return;
+    }
+
+    const openingIndex = stack[matchedStackIndex];
+    tags[openingIndex].pairIndex = index;
+    tag.pairIndex = openingIndex;
+
+    for (let i = stack.length - 1; i > matchedStackIndex; i -= 1) {
+      const interrupted = tags[stack[i]];
+      if (!interrupted.unmatchedReason) interrupted.unmatchedReason = 'possible-missing-closing';
+    }
+    stack.splice(matchedStackIndex, stack.length - matchedStackIndex);
+  });
+
+  stack.forEach(openingIndex => {
+    if (!tags[openingIndex].unmatchedReason) tags[openingIndex].unmatchedReason = 'missing-closing';
   });
 
   return tags;
@@ -1429,7 +2186,8 @@ function applyTheme(theme) {
 
 
 function getEditorHistoryKey(language = activeLanguage) {
-  return `${activity?.id || 'no-activity'}:${language}`;
+  const filePart = ['html', 'css', 'js'].includes(language) ? `:${getActiveLanguageFileName(language)}` : '';
+  return `${activity?.id || 'no-activity'}:${language}${filePart}`;
 }
 
 function createEditorState(value = editor.value, start = editor.selectionStart || 0, end = editor.selectionEnd || start) {
@@ -1539,10 +2297,17 @@ function applyProgrammaticEditorChange(nextValue, cursorStart = 0, cursorEnd = c
   if (statusText) setStatus(statusText);
 }
 
+
 function loadActiveEditor() {
-  editor.value = codeStore[activeLanguage] || '';
+  syncActiveLanguageFileFromStore(activeLanguage);
+  editor.value = getLanguageFileContent(activeLanguage, getActiveLanguageFileName(activeLanguage));
   ensureEditorHistory(activeLanguage, editor.value);
-  editorInfo.textContent = languageInfo[activeLanguage];
+  editorInfo.textContent = activeLanguage === 'html'
+    ? `HTML page: ${getActiveHtmlPageName()}. Add more pages for website activities, then connect them using links like <a href="about.html">.`
+    : activeLanguage === 'css'
+      ? `CSS file: ${getActiveLanguageFileName('css')}. You can add more CSS files if an activity needs a larger website.`
+      : `JavaScript file: ${getActiveLanguageFileName('js')}. You can add more JS files if an activity needs separate scripts.`;
+  renderHTMLPageManager();
   updateLineNumbers();
   hideSuggestions();
   renderStructureAlert();
@@ -1551,13 +2316,11 @@ function loadActiveEditor() {
 }
 
 function saveActiveEditor() {
-  codeStore[activeLanguage] = editor.value;
+  setLanguageFileContent(activeLanguage, getActiveLanguageFileName(activeLanguage), editor.value);
+  saveCodeFileNames();
+  saveCodeStoreForCurrentActivity();
 
-  if (activity) {
-    codeByActivity[activity.id] = normalizeCodeStore(codeStore);
-    saveCodeByActivity();
-  }
-
+  renderHTMLPageManager();
   renderStructureAlert();
   fitEditorToContent();
   updateTagMatching();
@@ -1568,6 +2331,199 @@ function updateLineNumbers() {
   const lines = editor.value.split('\n').length || 1;
   lineNumbers.textContent = Array.from({ length: lines }, (_, index) => index + 1).join('\n');
   fitEditorToContent();
+}
+
+
+function cssValueSuggestion(label, insert, desc) {
+  return { label, insert, desc, type: 'code' };
+}
+
+function getCSSValueSuggestionsForProperty(propertyName = '') {
+  const property = String(propertyName || '').trim().toLowerCase();
+  const commonColors = [
+    cssValueSuggestion('blue', '#2563eb;', 'Common blue color.'),
+    cssValueSuggestion('light blue', '#dbeafe;', 'Light blue background.'),
+    cssValueSuggestion('red', '#dc2626;', 'Common red color.'),
+    cssValueSuggestion('green', '#16a34a;', 'Common green color.'),
+    cssValueSuggestion('yellow', '#facc15;', 'Common yellow color.'),
+    cssValueSuggestion('orange', '#f97316;', 'Common orange color.'),
+    cssValueSuggestion('purple', '#7c3aed;', 'Common purple color.'),
+    cssValueSuggestion('black', '#000000;', 'Black.'),
+    cssValueSuggestion('white', '#ffffff;', 'White.'),
+    cssValueSuggestion('gray', '#64748b;', 'Slate gray.'),
+    cssValueSuggestion('transparent', 'transparent;', 'Transparent color.'),
+    cssValueSuggestion('primary variable', 'var(--primary);', 'Use a CSS variable color.'),
+    cssValueSuggestion('rgb color', 'rgb(37, 99, 235);', 'RGB color format.'),
+    cssValueSuggestion('rgba color', 'rgba(37, 99, 235, 0.25);', 'RGBA with opacity.'),
+    cssValueSuggestion('linear gradient', 'linear-gradient(135deg, #2563eb, #06b6d4);', 'Gradient background.')
+  ];
+
+  const valueMap = {
+    color: commonColors,
+    'background-color': commonColors,
+    background: commonColors,
+    border: [
+      cssValueSuggestion('thin gray border', '1px solid #d1d5db;', 'Thin gray border.'),
+      cssValueSuggestion('blue border', '2px solid #2563eb;', 'Blue border.'),
+      cssValueSuggestion('no border', 'none;', 'Remove border.')
+    ],
+    'border-color': commonColors,
+    'border-radius': [
+      cssValueSuggestion('small radius', '8px;', 'Slightly rounded.'),
+      cssValueSuggestion('medium radius', '16px;', 'Rounded corners.'),
+      cssValueSuggestion('large radius', '24px;', 'Very rounded corners.'),
+      cssValueSuggestion('circle pill', '999px;', 'Pill/circle corners.'),
+      cssValueSuggestion('none', '0;', 'No rounded corners.')
+    ],
+    display: [
+      cssValueSuggestion('block', 'block;', 'Start on a new line.'),
+      cssValueSuggestion('inline block', 'inline-block;', 'Inline but with width/height.'),
+      cssValueSuggestion('flex', 'flex;', 'Use flexbox layout.'),
+      cssValueSuggestion('grid', 'grid;', 'Use grid layout.'),
+      cssValueSuggestion('none', 'none;', 'Hide element.')
+    ],
+    position: [
+      cssValueSuggestion('relative', 'relative;', 'Position relative to itself.'),
+      cssValueSuggestion('absolute', 'absolute;', 'Position inside nearest positioned parent.'),
+      cssValueSuggestion('fixed', 'fixed;', 'Stay fixed on the screen.'),
+      cssValueSuggestion('sticky', 'sticky;', 'Stick while scrolling.'),
+      cssValueSuggestion('static', 'static;', 'Default position.')
+    ],
+    'justify-content': [
+      cssValueSuggestion('center', 'center;', 'Center horizontally.'),
+      cssValueSuggestion('space between', 'space-between;', 'Space items apart.'),
+      cssValueSuggestion('space around', 'space-around;', 'Space around each item.'),
+      cssValueSuggestion('flex start', 'flex-start;', 'Align at start.'),
+      cssValueSuggestion('flex end', 'flex-end;', 'Align at end.')
+    ],
+    'align-items': [
+      cssValueSuggestion('center', 'center;', 'Center vertically.'),
+      cssValueSuggestion('stretch', 'stretch;', 'Stretch items.'),
+      cssValueSuggestion('flex start', 'flex-start;', 'Align at start.'),
+      cssValueSuggestion('flex end', 'flex-end;', 'Align at end.'),
+      cssValueSuggestion('baseline', 'baseline;', 'Align text baselines.')
+    ],
+    'text-align': [
+      cssValueSuggestion('left', 'left;', 'Align text left.'),
+      cssValueSuggestion('center', 'center;', 'Center text.'),
+      cssValueSuggestion('right', 'right;', 'Align text right.'),
+      cssValueSuggestion('justify', 'justify;', 'Stretch text lines.')
+    ],
+    'font-weight': [
+      cssValueSuggestion('normal', '400;', 'Normal weight.'),
+      cssValueSuggestion('medium', '500;', 'Medium weight.'),
+      cssValueSuggestion('semibold', '600;', 'Semi-bold weight.'),
+      cssValueSuggestion('bold', '700;', 'Bold weight.'),
+      cssValueSuggestion('extra bold', '900;', 'Very thick text.')
+    ],
+    'font-family': [
+      cssValueSuggestion('Arial', 'Arial, sans-serif;', 'Simple clean font.'),
+      cssValueSuggestion('Verdana', 'Verdana, sans-serif;', 'Readable screen font.'),
+      cssValueSuggestion('Georgia', 'Georgia, serif;', 'Classic serif font.'),
+      cssValueSuggestion('system font', 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;', 'Modern system font stack.'),
+      cssValueSuggestion('monospace', 'Consolas, Monaco, monospace;', 'Code-like font.')
+    ],
+    'font-size': [
+      cssValueSuggestion('small', '14px;', 'Small text.'),
+      cssValueSuggestion('normal', '16px;', 'Normal text.'),
+      cssValueSuggestion('large', '24px;', 'Large text.'),
+      cssValueSuggestion('responsive', 'clamp(1.5rem, 4vw, 3rem);', 'Responsive heading size.'),
+      cssValueSuggestion('one rem', '1rem;', 'Relative font size.')
+    ],
+    margin: [
+      cssValueSuggestion('none', '0;', 'No outside spacing.'),
+      cssValueSuggestion('small', '8px;', 'Small margin.'),
+      cssValueSuggestion('medium', '16px;', 'Medium margin.'),
+      cssValueSuggestion('large', '32px;', 'Large margin.'),
+      cssValueSuggestion('center block', '0 auto;', 'Center block horizontally.')
+    ],
+    padding: [
+      cssValueSuggestion('none', '0;', 'No inside spacing.'),
+      cssValueSuggestion('small', '8px;', 'Small padding.'),
+      cssValueSuggestion('medium', '16px;', 'Medium padding.'),
+      cssValueSuggestion('large', '32px;', 'Large padding.'),
+      cssValueSuggestion('button padding', '12px 18px;', 'Good button spacing.')
+    ],
+    width: [
+      cssValueSuggestion('full width', '100%;', 'Fill parent width.'),
+      cssValueSuggestion('half width', '50%;', 'Half width.'),
+      cssValueSuggestion('auto', 'auto;', 'Automatic width.'),
+      cssValueSuggestion('responsive container', 'min(100% - 32px, 1000px);', 'Responsive max width.'),
+      cssValueSuggestion('fit content', 'fit-content;', 'Fit content width.')
+    ],
+    height: [
+      cssValueSuggestion('auto', 'auto;', 'Automatic height.'),
+      cssValueSuggestion('full viewport', '100vh;', 'Full screen height.'),
+      cssValueSuggestion('fixed 200px', '200px;', 'Fixed height.'),
+      cssValueSuggestion('full parent', '100%;', 'Fill parent height.')
+    ],
+    'min-height': [
+      cssValueSuggestion('full viewport', '100vh;', 'At least full screen height.'),
+      cssValueSuggestion('half viewport', '50vh;', 'At least half screen height.'),
+      cssValueSuggestion('300px', '300px;', 'At least 300px tall.')
+    ],
+    gap: [
+      cssValueSuggestion('small', '8px;', 'Small gap.'),
+      cssValueSuggestion('medium', '16px;', 'Medium gap.'),
+      cssValueSuggestion('large', '24px;', 'Large gap.'),
+      cssValueSuggestion('responsive', 'clamp(12px, 2vw, 24px);', 'Responsive gap.')
+    ],
+    'grid-template-columns': [
+      cssValueSuggestion('two equal columns', 'repeat(2, 1fr);', 'Two equal columns.'),
+      cssValueSuggestion('three equal columns', 'repeat(3, 1fr);', 'Three equal columns.'),
+      cssValueSuggestion('responsive cards', 'repeat(auto-fit, minmax(220px, 1fr));', 'Responsive card columns.'),
+      cssValueSuggestion('sidebar layout', '250px 1fr;', 'Sidebar plus content.')
+    ],
+    transition: [
+      cssValueSuggestion('quick smooth', 'all 0.2s ease;', 'Quick smooth transition.'),
+      cssValueSuggestion('transform only', 'transform 0.2s ease;', 'Animate transform only.'),
+      cssValueSuggestion('color background', 'color 0.2s ease, background 0.2s ease;', 'Animate colors.'),
+      cssValueSuggestion('slow smooth', 'all 0.4s ease;', 'Slower transition.')
+    ],
+    transform: [
+      cssValueSuggestion('move up', 'translateY(-2px);', 'Move upward.'),
+      cssValueSuggestion('scale up', 'scale(1.05);', 'Slightly bigger.'),
+      cssValueSuggestion('rotate', 'rotate(3deg);', 'Slight rotation.'),
+      cssValueSuggestion('none', 'none;', 'No transform.')
+    ],
+    cursor: [
+      cssValueSuggestion('pointer', 'pointer;', 'Clickable cursor.'),
+      cssValueSuggestion('default', 'default;', 'Normal cursor.'),
+      cssValueSuggestion('not allowed', 'not-allowed;', 'Disabled cursor.'),
+      cssValueSuggestion('text', 'text;', 'Text cursor.')
+    ],
+    overflow: [
+      cssValueSuggestion('hidden', 'hidden;', 'Hide overflow.'),
+      cssValueSuggestion('auto', 'auto;', 'Scroll only when needed.'),
+      cssValueSuggestion('scroll', 'scroll;', 'Always scroll.'),
+      cssValueSuggestion('visible', 'visible;', 'Show overflow.')
+    ],
+    'object-fit': [
+      cssValueSuggestion('cover', 'cover;', 'Fill box and crop.'),
+      cssValueSuggestion('contain', 'contain;', 'Fit whole image.'),
+      cssValueSuggestion('fill', 'fill;', 'Stretch to fill.'),
+      cssValueSuggestion('none', 'none;', 'No fitting.')
+    ],
+    opacity: [
+      cssValueSuggestion('fully visible', '1;', 'Full opacity.'),
+      cssValueSuggestion('semi transparent', '0.5;', 'Half visible.'),
+      cssValueSuggestion('hidden transparent', '0;', 'Invisible but still in layout.')
+    ],
+    'box-shadow': [
+      cssValueSuggestion('soft shadow', '0 10px 25px rgba(0, 0, 0, 0.15);', 'Soft modern shadow.'),
+      cssValueSuggestion('large shadow', '0 20px 50px rgba(15, 23, 42, 0.25);', 'Large shadow.'),
+      cssValueSuggestion('none', 'none;', 'Remove shadow.')
+    ]
+  };
+
+  return valueMap[property] || [
+    ...commonColors,
+    cssValueSuggestion('auto', 'auto;', 'Automatic value.'),
+    cssValueSuggestion('none', 'none;', 'No style/effect.'),
+    cssValueSuggestion('inherit', 'inherit;', 'Use parent value.'),
+    cssValueSuggestion('initial', 'initial;', 'Use default initial value.'),
+    cssValueSuggestion('unset', 'unset;', 'Unset inherited or initial value.')
+  ];
 }
 
 function getSuggestionContext() {
@@ -1581,6 +2537,22 @@ function getSuggestionContext() {
         word: tagMatch[1].trimStart(),
         start: cursor - tagMatch[0].length,
         mode: 'html-tag'
+      };
+    }
+  }
+
+  if (activeLanguage === 'css') {
+    const currentLine = textBeforeCursor.split(/\r?\n/).pop() || '';
+    const valueMatch = currentLine.match(/([a-z-]+)\s*:\s*([^;{}]*)$/i);
+    if (valueMatch) {
+      const rawValue = valueMatch[2] || '';
+      const typedValueMatch = rawValue.match(/[^\s]*$/);
+      const typedValue = typedValueMatch ? typedValueMatch[0] : '';
+      return {
+        word: typedValue,
+        start: cursor - typedValue.length,
+        mode: 'css-value',
+        property: valueMatch[1].toLowerCase()
       };
     }
   }
@@ -1632,18 +2604,22 @@ function showSuggestions(event) {
 
   lastSuggestionInputAt = Date.now();
 
-  const activeSuggestions = suggestionsByLanguage[activeLanguage].map(item => ({
+  const activeSuggestions = (context.mode === 'css-value'
+    ? getCSSValueSuggestionsForProperty(context.property)
+    : suggestionsByLanguage[activeLanguage]
+  ).map(item => ({
     ...item,
-    languageType: activeLanguage.toUpperCase()
+    languageType: context.mode === 'css-value' ? 'VALUE' : activeLanguage.toUpperCase()
   }));
 
   const query = currentWord.toLowerCase();
   currentMatches = activeSuggestions
     .filter(item => {
       const label = item.label.toLowerCase();
-      return label.startsWith(query) || label.includes(query);
+      const insertText = String(item.insert || '').toLowerCase();
+      return label.startsWith(query) || label.includes(query) || insertText.includes(query);
     })
-    .slice(0, 6);
+    .slice(0, context.mode === 'css-value' ? 8 : 6);
 
   if (!currentMatches.length) {
     hideSuggestions();
@@ -1671,6 +2647,7 @@ function showSuggestions(event) {
   `;
 
   suggestionBox.classList.remove('hidden');
+  document.body.classList.add('suggestions-open');
   scheduleSuggestionHide();
 }
 
@@ -1684,6 +2661,7 @@ function getSuggestionChip(item) {
 function hideSuggestions() {
   window.clearTimeout(suggestionHideTimer);
   suggestionBox.classList.add('hidden');
+  document.body.classList.remove('suggestions-open');
   suggestionBox.innerHTML = '';
   currentMatches = [];
 }
@@ -1774,36 +2752,22 @@ function isCompleteHTMLStructure() {
   return getHTMLStructureReport().passed;
 }
 
+
 function hasBalancedHTMLTags(html) {
-  const voidTags = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr', '!doctype']);
-  const stack = [];
-  const tagRegex = /<\/?\s*([a-zA-Z][a-zA-Z0-9-]*|!DOCTYPE)\b[^>]*>/g;
-  let match;
-
-  while ((match = tagRegex.exec(html)) !== null) {
-    const fullTag = match[0];
-    const tagName = match[1].toLowerCase();
-    if (voidTags.has(tagName) || fullTag.endsWith('/>') || fullTag.startsWith('<!--')) continue;
-
-    if (/^<\//.test(fullTag)) {
-      if (!stack.length || stack.pop() !== tagName) return false;
-    } else {
-      stack.push(tagName);
-    }
-  }
-
-  return stack.length === 0;
+  const issues = getDetailedHTMLTagIssues(html || '');
+  return !issues.some(issue => issue.severity === 'error');
 }
 
-function createStyleBlock() {
-  const css = (codeStore.css || '').trim();
+
+function createStyleBlock(cssText = '') {
+  const css = String(cssText || '').trim();
   if (!css) return '';
   const safeCSS = css.replace(/<\/style>/gi, '');
   return `<style>\n${safeCSS}\n</style>`;
 }
 
-function createScriptBlock() {
-  const js = (codeStore.js || '').trim();
+function createScriptBlock(jsText = '') {
+  const js = String(jsText || '').trim();
   if (!js) return '';
   const safeJS = JSON.stringify(js).replace(/<\//g, '<\\/');
 
@@ -1831,6 +2795,43 @@ function createScriptBlock() {
 <\/script>`;
 }
 
+function getReferencedCodeFiles(html, language) {
+  const refs = language === 'css' ? getExternalCSSReferences(html) : getExternalJSReferences(html);
+  const files = getLanguageFileMap(language);
+  const matches = [];
+  refs.forEach(ref => {
+    const base = cleanLanguageFileName(getBaseFileNameFromReference(ref), language);
+    if (base && Object.prototype.hasOwnProperty.call(files, base)) {
+      matches.push({ name: base, content: files[base] || '' });
+    }
+  });
+  return matches;
+}
+
+function getCSSBlocksForPreview(html) {
+  const refs = getExternalCSSReferences(html);
+  const matched = getReferencedCodeFiles(html, 'css').filter(item => String(item.content || '').trim());
+  if (refs.length) return matched.map(item => createStyleBlock(item.content)).join('\n');
+  const activeCss = getLanguageFileContent('css', getActiveLanguageFileName('css'));
+  return activeCss.trim() ? createStyleBlock(activeCss) : '';
+}
+
+function getJSBlocksForPreview(html) {
+  const refs = getExternalJSReferences(html);
+  const matched = getReferencedCodeFiles(html, 'js').filter(item => String(item.content || '').trim());
+  if (refs.length) return matched.map(item => createScriptBlock(item.content)).join('\n');
+  const activeJs = getLanguageFileContent('js', getActiveLanguageFileName('js'));
+  return activeJs.trim() ? createScriptBlock(activeJs) : '';
+}
+
+function shouldApplyCSSForPreview(html) {
+  return Boolean(getCSSBlocksForPreview(html));
+}
+
+function shouldApplyJSForPreview(html) {
+  return Boolean(getJSBlocksForPreview(html));
+}
+
 function injectAssetsIntoHTML(html, styleBlock, scriptBlock) {
   let output = html || '';
 
@@ -1853,14 +2854,39 @@ function injectAssetsIntoHTML(html, styleBlock, scriptBlock) {
   return output;
 }
 
-function buildFullCode() {
-  const html = codeStore.html || '';
-  const styleBlock = createStyleBlock();
-  const scriptBlock = createScriptBlock();
+function createPreviewNavigationBlock(currentPageName = getActiveHtmlPageName()) {
+  const safePage = JSON.stringify(currentPageName);
+  return `<script>
+(function () {
+  var currentPage = ${safePage};
+  function isInternalPage(href) {
+    if (!href || /^(https?:|mailto:|tel:|javascript:|data:|blob:|#)/i.test(href)) return false;
+    var clean = href.split('#')[0].split('?')[0];
+    var name = clean.split('/').pop();
+    return /\.html?$/i.test(name);
+  }
+  document.addEventListener('click', function (event) {
+    var link = event.target && event.target.closest ? event.target.closest('a[href]') : null;
+    if (!link) return;
+    var href = link.getAttribute('href') || '';
+    if (!isInternalPage(href)) return;
+    event.preventDefault();
+    parent.postMessage({ type: 'mcs-preview-navigate', href: href, from: currentPage }, '*');
+  }, true);
+})();
+<\/script>`;
+}
+
+function buildFullCode(pageName = getActiveHtmlPageName()) {
+  const safePageName = normalizeHtmlPageName(pageName);
+  const html = getHTMLPageContent(safePageName) || '';
+  const styleBlock = getCSSBlocksForPreview(html);
+  const scriptBlock = getJSBlocksForPreview(html);
+  const navigationBlock = createPreviewNavigationBlock(safePageName);
   const looksLikeFullDocument = /<!doctype/i.test(html) || /<html(\s|>)/i.test(html) || /<head(\s|>)/i.test(html) || /<body(\s|>)/i.test(html);
 
   if (looksLikeFullDocument) {
-    return injectAssetsIntoHTML(html, styleBlock, scriptBlock);
+    return injectAssetsIntoHTML(injectAssetsIntoHTML(html, styleBlock, scriptBlock), '', navigationBlock);
   }
 
   return `<!DOCTYPE html>
@@ -1873,6 +2899,7 @@ function buildFullCode() {
 <body>
 ${html}
 ${scriptBlock}
+${navigationBlock}
 </body>
 </html>`;
 }
@@ -1895,18 +2922,74 @@ function scrollToOutput() {
   scrollElementIntoSafeView(previewPanel, 80);
 }
 
+function playBookPageTransition(direction = 'to-preview') {
+  window.clearTimeout(bookTransitionTimer);
+  document.body.classList.remove('book-page-transitioning', 'book-to-preview', 'book-to-editor');
+  // Force a reflow so repeated Run / Back clicks replay the animation.
+  void document.body.offsetWidth;
+  document.body.classList.add(
+    'book-page-transitioning',
+    direction === 'to-editor' ? 'book-to-editor' : 'book-to-preview'
+  );
+  bookTransitionTimer = window.setTimeout(() => {
+    document.body.classList.remove('book-page-transitioning', 'book-to-preview', 'book-to-editor');
+  }, FULLSCREEN_PAGE_TRANSITION_MS + 160);
+}
+
+function movePreviewPanelIntoEditorFullscreen() {
+  if (!previewPanel || !editorPanel) return false;
+
+  if (!previewMovedIntoEditor) {
+    previewOriginalParent = previewPanel.parentElement;
+    previewOriginalNextSibling = previewPanel.nextSibling;
+    editorPanel.appendChild(previewPanel);
+    previewMovedIntoEditor = true;
+  }
+
+  document.body.classList.add('preview-inside-editor-fullscreen');
+  return true;
+}
+
+function restorePreviewPanelFromEditorFullscreen() {
+  if (previewMovedIntoEditor && previewOriginalParent) {
+    if (previewOriginalNextSibling && previewOriginalNextSibling.parentElement === previewOriginalParent) {
+      previewOriginalParent.insertBefore(previewPanel, previewOriginalNextSibling);
+    } else {
+      previewOriginalParent.appendChild(previewPanel);
+    }
+  }
+
+  previewMovedIntoEditor = false;
+  previewOriginalParent = null;
+  previewOriginalNextSibling = null;
+  document.body.classList.remove('preview-inside-editor-fullscreen', 'preview-closing-to-editor');
+}
+
+function openOutputPreviewAfterFullEditor() {
+  returnToFullEditorAfterPreview = true;
+  hideSuggestions();
+  movePreviewPanelIntoEditorFullscreen();
+  enterFullPreview({ fromFullEditor: true, nativeFullscreen: false, keepEditorFullscreen: true });
+  playBookPageTransition('to-preview');
+  window.setTimeout(() => ensureBackToEditorPreviewBtn()?.focus({ preventScroll: true }), FULLSCREEN_PAGE_TRANSITION_MS);
+}
+
 function runCode(showMessage = true, options = {}) {
+  const wasFullEditor = document.body.classList.contains('editor-fullscreen-active');
   saveActiveEditor();
-  previewFrame.srcdoc = buildFullCode();
+  const pageName = normalizeHtmlPageName(options.pageName || getActiveHtmlPageName());
+  previewFrame.srcdoc = buildFullCode(pageName);
+  previewFrame.dataset.currentPage = pageName;
   window.setTimeout(renderErrorChecker, 180);
 
   if (showMessage) {
-    setStatus('Output updated');
+    setStatus(wasFullEditor ? 'Output full preview' : `Output: ${pageName}`);
   }
 
   if (options.scroll !== false && showMessage) {
-    if (document.body.classList.contains('editor-fullscreen-active')) {
-      exitFullEditor();
+    if (wasFullEditor) {
+      openOutputPreviewAfterFullEditor();
+      return;
     }
     scrollToOutput();
   }
@@ -1934,6 +3017,28 @@ function queryPreview(selector) {
   }
 }
 
+function navigatePreviewToPage(rawHref) {
+  const target = normalizeInternalHtmlReference(rawHref);
+  if (!target) return false;
+  const pages = getHTMLPages();
+  if (!pages[target]) {
+    renderErrorChecker();
+    setStatus('Missing page');
+    appAlert(`${target} does not exist yet. Add this page in Pages, or change the link href.`, { title: 'Missing linked page' });
+    return false;
+  }
+  previewFrame.srcdoc = buildFullCode(target);
+  previewFrame.dataset.currentPage = target;
+  setStatus(`Preview: ${target}`);
+  return true;
+}
+
+window.addEventListener('message', event => {
+  const data = event.data || {};
+  if (!data || data.type !== 'mcs-preview-navigate') return;
+  navigatePreviewToPage(data.href);
+});
+
 function getBodyInnerHTML(html) {
   const match = String(html || '').match(/<body\b[^>]*>([\s\S]*?)<\/body\s*>/i);
   return match ? match[1] : String(html || '');
@@ -1949,16 +3054,31 @@ function stripHTMLTags(value) {
     .trim();
 }
 
+
 function getDetailedHTMLTagIssues(html) {
-  const tags = parseHtmlTags(html || '');
+  const source = String(html || '');
+  const tags = parseHtmlTags(source);
+  const structureReport = getHTMLStructureReport();
+  const structureIsComplete = structureReport.passed;
+  const protectedStructureTags = new Set(['html', 'head', 'body', 'title']);
+  const optionalEndTags = new Set(['li', 'p', 'dt', 'dd', 'option', 'optgroup', 'tr', 'td', 'th', 'thead', 'tbody', 'tfoot', 'colgroup']);
+
   return tags
     .filter(tag => !tag.selfClosing && tag.pairIndex === null)
+    .filter(tag => !(structureIsComplete && protectedStructureTags.has(tag.name)))
     .slice(0, 8)
-    .map(tag => ({
-      name: tag.name,
-      line: getLineNumberAt(html || '', tag.start),
-      closing: tag.closing
-    }));
+    .map(tag => {
+      const optional = optionalEndTags.has(tag.name);
+      const reason = tag.unmatchedReason || (tag.closing ? 'missing-opening' : 'missing-closing');
+      return {
+        name: tag.name,
+        line: getLineNumberAt(source, tag.start),
+        closing: tag.closing,
+        reason,
+        severity: optional ? 'warning' : 'warning',
+        confidence: optional ? 'low' : 'medium'
+      };
+    });
 }
 
 function hasBalancedCurlyBraces(value) {
@@ -1990,6 +3110,63 @@ function getRuntimeErrorMessage() {
 
 function createCheckerItem(type, title, detail, fix = '') {
   return { type, title, detail, fix };
+}
+
+
+
+function getFilenameReferenceCheckerItems() {
+  const html = codeStore.html || '';
+  const cssFiles = getLanguageFileMap('css');
+  const jsFiles = getLanguageFileMap('js');
+  const cssNames = Object.keys(cssFiles);
+  const jsNames = Object.keys(jsFiles);
+  const items = [];
+  const cssReferences = getExternalCSSReferences(html);
+  const jsReferences = getExternalJSReferences(html);
+  const cssMissing = cssReferences
+    .map(ref => cleanLanguageFileName(getBaseFileNameFromReference(ref), 'css'))
+    .filter(name => name && !Object.prototype.hasOwnProperty.call(cssFiles, name));
+  const jsMissing = jsReferences
+    .map(ref => cleanLanguageFileName(getBaseFileNameFromReference(ref), 'js'))
+    .filter(name => name && !Object.prototype.hasOwnProperty.call(jsFiles, name));
+  const cssMatched = cssReferences
+    .map(ref => cleanLanguageFileName(getBaseFileNameFromReference(ref), 'css'))
+    .filter(name => name && Object.prototype.hasOwnProperty.call(cssFiles, name));
+  const jsMatched = jsReferences
+    .map(ref => cleanLanguageFileName(getBaseFileNameFromReference(ref), 'js'))
+    .filter(name => name && Object.prototype.hasOwnProperty.call(jsFiles, name));
+
+  if (cssReferences.length && cssMissing.length) {
+    items.push(createCheckerItem(
+      'error',
+      'CSS file link mismatch',
+      `HTML links to missing CSS file${cssMissing.length === 1 ? '' : 's'}: ${cssMissing.join(', ')}. Existing CSS files: ${cssNames.join(', ') || 'none'}.`,
+      'Add that CSS file in Tabs/Pages, rename your CSS file, or change the HTML href.'
+    ));
+  } else if (cssMatched.length) {
+    items.push(createCheckerItem('pass', 'CSS file link matches', `HTML correctly links to ${[...new Set(cssMatched)].join(', ')}.`));
+  }
+
+  if (jsReferences.length && jsMissing.length) {
+    items.push(createCheckerItem(
+      'error',
+      'JavaScript file link mismatch',
+      `HTML links to missing JavaScript file${jsMissing.length === 1 ? '' : 's'}: ${jsMissing.join(', ')}. Existing JS files: ${jsNames.join(', ') || 'none'}.`,
+      'Add that JS file in Tabs/Pages, rename your JS file, or change the HTML src.'
+    ));
+  } else if (jsMatched.length) {
+    items.push(createCheckerItem('pass', 'JavaScript file link matches', `HTML correctly links to ${[...new Set(jsMatched)].join(', ')}.`));
+  }
+
+  if (cssReferences.length && cssMatched.some(name => !String(cssFiles[name] || '').trim())) {
+    items.push(createCheckerItem('warning', 'Linked CSS file is blank', 'One linked CSS file exists but has no CSS code yet.', 'Open that CSS file in Tabs/Pages and add CSS code.'));
+  }
+
+  if (jsReferences.length && jsMatched.some(name => !String(jsFiles[name] || '').trim())) {
+    items.push(createCheckerItem('warning', 'Linked JavaScript file is blank', 'One linked JavaScript file exists but has no JavaScript code yet.', 'Open that JS file in Tabs/Pages and add JavaScript code.'));
+  }
+
+  return items;
 }
 
 function getErrorCheckerItems() {
@@ -2028,14 +3205,19 @@ function getErrorCheckerItems() {
   }
 
   if (!tagIssues.length) {
-    items.push(createCheckerItem('pass', 'HTML tags look balanced', 'No missing opening/closing tag was detected.'));
+    items.push(createCheckerItem('pass', 'HTML tags look balanced', 'No confirmed missing opening/closing tag was detected.'));
   } else {
     const details = tagIssues.map(issue => {
       return issue.closing
-        ? `</${issue.name}> on line ${issue.line} has no opening tag`
-        : `<${issue.name}> on line ${issue.line} needs </${issue.name}>`;
+        ? `Possible issue: </${issue.name}> on line ${issue.line} may not have a matching opening tag`
+        : `Possible issue: <${issue.name}> on line ${issue.line} may need </${issue.name}>`;
     }).join('; ');
-    items.push(createCheckerItem('error', 'Tag closing problem', details, 'Click the underlined tag in the editor and add the missing matching tag.'));
+    items.push(createCheckerItem(
+      'warning',
+      'Possible tag closing issue',
+      details,
+      'Review the highlighted line, but do not worry if the page output is correct. This checker now treats uncertain tag matches as warnings, not automatic errors.'
+    ));
   }
 
   if (css.trim()) {
@@ -2066,7 +3248,168 @@ function getErrorCheckerItems() {
     items.push(createCheckerItem('tip', 'JavaScript is blank', 'This is okay if the activity does not require interactivity.'));
   }
 
+  items.push(...getFilenameReferenceCheckerItems());
+
+  const pageNames = getHTMLPageNames();
+  if (pageNames.length > 1) {
+    items.push(createCheckerItem('pass', 'Multi-page website mode', `${pageNames.length} HTML pages found: ${pageNames.join(', ')}.`));
+  }
+
+  const missingPageLinks = getMissingInternalPageReferences();
+  if (missingPageLinks.length) {
+    const details = missingPageLinks.slice(0, 6).map(item => `${item.from} links to missing ${item.to}`).join('; ');
+    items.push(createCheckerItem('error', 'Broken page links', details, 'Add the missing page in Pages or change the href to an existing .html file.'));
+  } else if (pageNames.length > 1) {
+    items.push(createCheckerItem('pass', 'Page links look valid', 'Internal .html links point to existing pages.'));
+  }
+
+  const pageStructureProblems = getPageStructureProblems();
+  if (pageStructureProblems.length) {
+    const details = pageStructureProblems.slice(0, 5).map(item => `${item.pageName} missing ${item.missing.join(', ')}`).join('; ');
+    items.push(createCheckerItem('warning', 'Some pages need complete HTML structure', details, 'Open each page from Pages and complete its HTML structure.'));
+  }
+
   return items;
+}
+
+
+function getAICodeCheckerEndpoint() {
+  return String(window.MCS_AI_CHECKER_ENDPOINT || window.MCS_AI_CODE_CHECK_ENDPOINT || '').trim();
+}
+
+function isAICodeCheckerEnabled() {
+  return window.MCS_AI_CHECKER_ENABLED !== false;
+}
+
+function buildAICodeCheckerPayload(items = getErrorCheckerItems()) {
+  return {
+    app: 'Grade 8 MCSian Web Code Editor',
+    task: 'code-error-check',
+    checkerItems: items.map(item => ({
+      type: item.type,
+      title: item.title,
+      detail: item.detail,
+      fix: item.fix || ''
+    })),
+    outputText: getOutputText().slice(0, 4000),
+    code: {
+      html: getShortCodeSample(codeStore.html, 6000),
+      css: getShortCodeSample(codeStore.css, 5000),
+      js: getShortCodeSample(codeStore.js, 5000)
+    },
+    instruction: 'Check if the local error checker is correct. Return JSON only with keys: summary, confirmedErrors, falsePositiveWarnings, suggestions. confirmedErrors and falsePositiveWarnings must be arrays of short beginner-friendly strings. Do not provide a full replacement code answer.'
+  };
+}
+
+function normalizeAICodeCheckResponse(data) {
+  const source = data?.check || data?.review || data || {};
+  return {
+    summary: String(source.summary || source.message || 'Advanced check completed.'),
+    confirmedErrors: Array.isArray(source.confirmedErrors) ? source.confirmedErrors : [],
+    falsePositiveWarnings: Array.isArray(source.falsePositiveWarnings) ? source.falsePositiveWarnings : [],
+    suggestions: Array.isArray(source.suggestions) ? source.suggestions : []
+  };
+}
+
+function getLocalSmartCheckerReview(items = getErrorCheckerItems()) {
+  const errors = items.filter(item => item.type === 'error');
+  const warnings = items.filter(item => item.type === 'warning');
+  const possibleTagWarnings = warnings.filter(item => /tag/i.test(item.title));
+
+  return {
+    summary: errors.length
+      ? `${errors.length} confirmed issue${errors.length === 1 ? '' : 's'} found. Possible tag issues are only warnings now.`
+      : warnings.length
+        ? `No confirmed errors found. ${warnings.length} warning${warnings.length === 1 ? '' : 's'} may still need review.`
+        : 'No confirmed errors found. The code looks okay based on the local checker.',
+    confirmedErrors: errors.map(item => `${item.title}: ${item.detail}`).slice(0, 5),
+    falsePositiveWarnings: possibleTagWarnings.map(item => `${item.title}: ${item.detail}`).slice(0, 4),
+    suggestions: warnings
+      .filter(item => !/tag/i.test(item.title))
+      .map(item => item.fix || item.detail)
+      .filter(Boolean)
+      .slice(0, 5)
+  };
+}
+
+function renderAdvancedCheckerReview(review, options = {}) {
+  if (!errorCheckerContent) return;
+  const safe = normalizeAICodeCheckResponse(review);
+  const existing = errorCheckerContent.querySelector('.advanced-checker-card');
+  if (existing) existing.remove();
+
+  const card = document.createElement('div');
+  card.className = `advanced-checker-card ${options.loading ? 'loading' : ''}`;
+  card.innerHTML = options.loading ? `
+    <div class="advanced-checker-head">
+      <strong>Smart verification is checking...</strong>
+      <span>Reviewing code, output, and local checker results.</span>
+    </div>
+  ` : `
+    <div class="advanced-checker-head">
+      <strong>${escapeHTML(options.remote ? 'Advanced verification' : 'Smart local verification')}</strong>
+      <span>${escapeHTML(safe.summary)}</span>
+    </div>
+    ${safe.confirmedErrors.length ? `
+      <div class="advanced-checker-block error">
+        <h4>Confirmed issues</h4>
+        <ul>${safe.confirmedErrors.map(item => `<li>${escapeHTML(item)}</li>`).join('')}</ul>
+      </div>
+    ` : ''}
+    ${safe.falsePositiveWarnings.length ? `
+      <div class="advanced-checker-block warning">
+        <h4>Possible false alarms / review only</h4>
+        <ul>${safe.falsePositiveWarnings.map(item => `<li>${escapeHTML(item)}</li>`).join('')}</ul>
+      </div>
+    ` : ''}
+    ${safe.suggestions.length ? `
+      <div class="advanced-checker-block tip">
+        <h4>Suggestions</h4>
+        <ul>${safe.suggestions.map(item => `<li>${escapeHTML(item)}</li>`).join('')}</ul>
+      </div>
+    ` : ''}
+  `;
+
+  errorCheckerContent.prepend(card);
+}
+
+async function requestAdvancedErrorCheck() {
+  saveActiveEditor();
+  runCode(false, { scroll: false });
+  const items = getErrorCheckerItems();
+  renderErrorChecker();
+
+  if (!isAICodeCheckerEnabled()) {
+    renderAdvancedCheckerReview(getLocalSmartCheckerReview(items));
+    setStatus('Smart checked');
+    return;
+  }
+
+  const endpoint = getAICodeCheckerEndpoint();
+  if (!endpoint) {
+    renderAdvancedCheckerReview(getLocalSmartCheckerReview(items));
+    setStatus('Smart checked');
+    return;
+  }
+
+  renderAdvancedCheckerReview(getLocalSmartCheckerReview(items), { loading: true, remote: true });
+  try {
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(buildAICodeCheckerPayload(items))
+    });
+    if (!response.ok) throw new Error(`Checker endpoint returned ${response.status}`);
+    const data = await response.json();
+    renderAdvancedCheckerReview(normalizeAICodeCheckResponse(data), { remote: true });
+    setStatus('Advanced checked');
+  } catch (error) {
+    console.warn('Advanced checker failed; using smart local review.', error);
+    const fallback = getLocalSmartCheckerReview(items);
+    fallback.summary = `${fallback.summary} Advanced verification was unavailable, so the smart local checker was used.`;
+    renderAdvancedCheckerReview(fallback);
+    setStatus('Smart checked');
+  }
 }
 
 function renderErrorChecker() {
@@ -2256,7 +3599,7 @@ function checkCriterion(criterion) {
       return /<(ul|ol)(\s|>|\/)/i.test(html) || Boolean(queryPreview('ul, ol'));
     case 'uses_css_property': {
       if (target) return cssLower.includes(target);
-      const usefulProperties = /(color|background|padding|margin|border|border-radius|font-size|display|box-shadow|text-align)\s*:/i;
+      const usefulProperties = /(color|background|background-color|padding|margin|border|border-radius|font-size|font-family|font-weight|line-height|display|box-shadow|text-align|width|max-width|min-height|height|gap|grid-template-columns|justify-content|align-items|position|transition|transform|opacity|object-fit|overflow)\s*:/i;
       return usefulProperties.test(css);
     }
     case 'uses_event_listener':
@@ -3135,19 +4478,311 @@ function setPreviewLayout(layout) {
   setStatus(safeLayout === 'preview-focus' ? 'Big preview layout' : `${safeLayout[0].toUpperCase()}${safeLayout.slice(1)} layout`);
 }
 
-function enterFullPreview() {
-  document.body.classList.add('preview-fullscreen-active');
-  fullPreviewBtn.classList.add('hidden');
-  exitPreviewBtn.classList.remove('hidden');
-  setStatus('Full preview');
+function ensureBackToEditorPreviewBtn() {
+  let button = document.getElementById('backToEditorPreviewBtn');
+  if (!button) {
+    button = document.createElement('button');
+    button.id = 'backToEditorPreviewBtn';
+    button.type = 'button';
+    button.className = 'layout-btn strong back-editor-preview-btn hidden';
+    button.textContent = '↩ Back to Editor';
+    button.title = 'Return to Full Editor';
+    const actions = previewPanel?.querySelector('.preview-actions');
+    if (actions && exitPreviewBtn) {
+      actions.insertBefore(button, exitPreviewBtn);
+    } else if (actions) {
+      actions.appendChild(button);
+    }
+    button.addEventListener('click', backToEditorFromPreview);
+  }
+  return button;
 }
 
-function exitFullPreview() {
-  document.body.classList.remove('preview-fullscreen-active');
-  fullPreviewBtn.classList.remove('hidden');
-  exitPreviewBtn.classList.add('hidden');
-  setStatus('Preview restored');
+function ensurePreviewResultBtn() {
+  let button = document.getElementById('resultFromPreviewBtn');
+  if (!button) {
+    button = document.createElement('button');
+    button.id = 'resultFromPreviewBtn';
+    button.type = 'button';
+    button.className = 'layout-btn strong preview-result-btn hidden';
+    button.textContent = '✓ Result';
+    button.title = 'Check result without going back to the editor';
+    const actions = previewPanel?.querySelector('.preview-actions');
+    const backButton = document.getElementById('backToEditorPreviewBtn');
+    if (actions && exitPreviewBtn) {
+      actions.insertBefore(button, exitPreviewBtn);
+    } else if (actions && backButton?.nextSibling) {
+      actions.insertBefore(button, backButton.nextSibling);
+    } else if (actions) {
+      actions.appendChild(button);
+    }
+    button.addEventListener('click', showResultFromPreview);
+  }
+  return button;
 }
+
+function showResultFromPreview() {
+  hideSuggestions();
+  const wasPreviewFullscreen = document.body.classList.contains('preview-fullscreen-active');
+  const wasInsideFullEditor = previewMovedIntoEditor ||
+    document.body.classList.contains('preview-inside-editor-fullscreen') ||
+    document.body.classList.contains('editor-fullscreen-active');
+
+  if (wasPreviewFullscreen) {
+    exitFullPreview({ keepReturnFlag: false, silent: true, keepNative: true });
+    if (wasInsideFullEditor || document.body.classList.contains('editor-fullscreen-active')) {
+      exitFullEditor({ silent: true, skipFocus: true });
+    }
+    window.setTimeout(() => {
+      showResult();
+    }, 180);
+    return;
+  }
+
+  showResult();
+}
+
+
+function setPreviewTransitionClass() {
+  window.clearTimeout(previewTransitionTimer);
+  document.body.classList.add('preview-transitioning');
+  previewTransitionTimer = window.setTimeout(() => {
+    document.body.classList.remove('preview-transitioning');
+  }, 360);
+}
+
+function enterFullPreview(options = {}) {
+  const fromFullEditor = Boolean(options.fromFullEditor || returnToFullEditorAfterPreview);
+  const insideEditorFullscreen = Boolean(
+    fromFullEditor &&
+    options.keepEditorFullscreen !== false &&
+    document.body.classList.contains('editor-fullscreen-active') &&
+    movePreviewPanelIntoEditorFullscreen()
+  );
+  const wantsNativeFullscreen = options.nativeFullscreen !== false && !insideEditorFullscreen;
+
+  returnToFullEditorAfterPreview = fromFullEditor;
+  const backButton = ensureBackToEditorPreviewBtn();
+  const previewResultButton = ensurePreviewResultBtn();
+  backButton?.classList.toggle('hidden', !fromFullEditor);
+  previewResultButton?.classList.toggle('hidden', !fromFullEditor);
+
+  document.body.classList.add('preview-fullscreen-active');
+  document.body.classList.toggle('preview-has-back-editor', fromFullEditor);
+  document.body.classList.toggle('preview-inside-editor-fullscreen', insideEditorFullscreen);
+  document.body.classList.remove('preview-closing-to-editor');
+
+  // When the preview is shown inside the full editor, hide editor-only floating controls.
+  // The preview must show only its own Back/Exit controls so it does not look like
+  // the editor buttons are part of the student's output.
+  if (insideEditorFullscreen) {
+    hideSuggestions();
+    closeCodeHelperPanel();
+    ensureFullscreenActionBar()?.classList.add('hidden');
+  }
+
+  if (!insideEditorFullscreen) {
+    setPreviewTransitionClass();
+  }
+
+  fullPreviewBtn?.classList.add('hidden');
+  exitPreviewBtn?.classList.remove('hidden');
+
+  if (wantsNativeFullscreen && previewPanel?.requestFullscreen && document.fullscreenElement !== previewPanel) {
+    previewPanel.requestFullscreen().catch(() => {
+      // If the browser blocks native fullscreen, the CSS fullscreen fallback remains active.
+    });
+  }
+
+  setStatus(fromFullEditor ? 'Output preview' : 'Full preview');
+}
+
+function exitFullPreview(options = {}) {
+  const isInsideEditorFullscreen = previewMovedIntoEditor || document.body.classList.contains('preview-inside-editor-fullscreen');
+  const shouldExitNativePreview = document.fullscreenElement === previewPanel &&
+    !options.keepNative &&
+    !options.fromNative &&
+    document.exitFullscreen;
+
+  document.body.classList.remove('preview-fullscreen-active', 'preview-has-back-editor', 'preview-closing-to-editor');
+  if (!isInsideEditorFullscreen) {
+    setPreviewTransitionClass();
+  }
+  fullPreviewBtn?.classList.remove('hidden');
+  exitPreviewBtn?.classList.add('hidden');
+  ensureBackToEditorPreviewBtn()?.classList.add('hidden');
+  ensurePreviewResultBtn()?.classList.add('hidden');
+
+  if (isInsideEditorFullscreen) {
+    restorePreviewPanelFromEditorFullscreen();
+  }
+
+  if (shouldExitNativePreview) {
+    document.exitFullscreen().catch(() => {});
+  }
+
+  if (!options.keepReturnFlag) {
+    returnToFullEditorAfterPreview = false;
+  }
+  if (!options.silent) {
+    setStatus('Preview restored');
+  }
+}
+
+function backToEditorFromPreview() {
+  const isInsideEditorFullscreen = previewMovedIntoEditor || document.body.classList.contains('preview-inside-editor-fullscreen');
+  playBookPageTransition('to-editor');
+
+  if (isInsideEditorFullscreen) {
+    window.clearTimeout(previewCloseToEditorTimer);
+    document.body.classList.add('preview-closing-to-editor');
+    previewCloseToEditorTimer = window.setTimeout(() => {
+      restoreEditorFullscreenAfterPreview();
+      scheduleFullEditorControlsRestore();
+      setStatus('Back to editor');
+      window.setTimeout(() => editor?.focus({ preventScroll: true }), 60);
+    }, FULLSCREEN_PAGE_TRANSITION_MS);
+    return;
+  }
+
+  // Normal native-preview fallback: switch it back to the editor while this click has user activation.
+  if (document.fullscreenElement === previewPanel && editorPanel?.requestFullscreen) {
+    editorPanel.requestFullscreen().catch(() => {});
+  }
+
+  exitFullPreview({ keepReturnFlag: true, silent: true, keepNative: true });
+  window.setTimeout(() => {
+    enterFullEditor();
+    restoreEditorFullscreenAfterPreview();
+    scheduleFullEditorControlsRestore();
+    returnToFullEditorAfterPreview = false;
+    setStatus('Back to editor');
+  }, 180);
+}
+
+
+function ensureFullscreenActionBar() {
+  if (!editorPanel) return null;
+  let actions = document.getElementById('fullscreenEditorActions');
+  if (!actions) {
+    actions = document.createElement('div');
+    actions.id = 'fullscreenEditorActions';
+    actions.className = 'fullscreen-editor-actions hidden';
+    actions.setAttribute('aria-label', 'Full editor actions');
+    editorPanel.insertBefore(actions, editorPanel.firstChild);
+  }
+
+  const buttonSpecs = [
+    {
+      id: 'fullscreenRunBtn',
+      className: 'primary-btn fullscreen-run-btn',
+      text: '▶ Run',
+      title: 'Run: Ctrl + Enter',
+      onClick: handleFullscreenRunClick
+    },
+    {
+      id: 'fullscreenResultBtn',
+      className: 'success-btn fullscreen-result-btn',
+      text: '✓ Result',
+      title: 'Check result: Ctrl + Shift + Enter',
+      onClick: handleFullscreenResultClick
+    },
+    {
+      id: 'exitEditorStickyBtn',
+      className: 'fullscreen-exit-btn',
+      text: 'Exit Full',
+      title: 'Exit full editor: Esc',
+      onClick: exitFullEditor
+    }
+  ];
+
+  buttonSpecs.forEach(spec => {
+    let button = document.getElementById(spec.id);
+    if (!button) {
+      button = document.createElement('button');
+      button.id = spec.id;
+      button.type = 'button';
+      actions.appendChild(button);
+    }
+    if (button.parentElement !== actions) actions.appendChild(button);
+    button.className = spec.className;
+    button.textContent = spec.text;
+    button.title = spec.title;
+    button.classList.remove('hidden');
+    if (!button.dataset.fullscreenActionBound) {
+      button.addEventListener('click', spec.onClick);
+      button.dataset.fullscreenActionBound = 'true';
+    }
+  });
+
+  return actions;
+}
+
+function forceFullEditorControlsVisible() {
+  const previewActive = document.body.classList.contains('preview-fullscreen-active') ||
+    document.body.classList.contains('preview-inside-editor-fullscreen') ||
+    previewMovedIntoEditor;
+
+  if (!document.body.classList.contains('editor-fullscreen-active') || previewActive) {
+    return;
+  }
+
+  const actions = ensureFullscreenActionBar();
+  if (actions) {
+    actions.classList.remove('hidden');
+    actions.removeAttribute('aria-hidden');
+  }
+
+  [
+    document.getElementById('fullscreenRunBtn'),
+    document.getElementById('fullscreenResultBtn'),
+    document.getElementById('exitEditorStickyBtn')
+  ].forEach(button => {
+    if (!button) return;
+    button.classList.remove('hidden');
+    button.removeAttribute('aria-hidden');
+    button.disabled = false;
+  });
+
+  if (codeHelperFloatingBtn) {
+    codeHelperFloatingBtn.classList.remove('hidden');
+    codeHelperFloatingBtn.removeAttribute('aria-hidden');
+    codeHelperFloatingBtn.disabled = false;
+  }
+
+  if (fullEditorBtn) fullEditorBtn.classList.add('hidden');
+  if (exitEditorBtn) exitEditorBtn.classList.add('hidden');
+}
+
+function restoreEditorFullscreenAfterPreview() {
+  window.clearTimeout(previewCloseToEditorTimer);
+  document.body.classList.remove(
+    'preview-fullscreen-active',
+    'preview-has-back-editor',
+    'preview-inside-editor-fullscreen',
+    'preview-closing-to-editor'
+  );
+
+  if (previewMovedIntoEditor) {
+    restorePreviewPanelFromEditorFullscreen();
+  }
+
+  document.body.classList.add('editor-fullscreen-active');
+  returnToFullEditorAfterPreview = false;
+  fullPreviewBtn?.classList.remove('hidden');
+  exitPreviewBtn?.classList.add('hidden');
+  ensureBackToEditorPreviewBtn()?.classList.add('hidden');
+  ensurePreviewResultBtn()?.classList.add('hidden');
+  forceFullEditorControlsVisible();
+  fitEditorToContent();
+}
+
+function scheduleFullEditorControlsRestore() {
+  [0, 60, 180, 420].forEach(delay => {
+    window.setTimeout(forceFullEditorControlsVisible, delay);
+  });
+}
+
 
 function enterFullEditor() {
   if (document.body.classList.contains('preview-fullscreen-active')) {
@@ -3157,7 +4792,11 @@ function enterFullEditor() {
   document.body.classList.add('editor-fullscreen-active');
   fullEditorBtn?.classList.add('hidden');
   exitEditorBtn?.classList.remove('hidden');
-  exitEditorStickyBtn?.classList.remove('hidden');
+  const fullscreenActions = ensureFullscreenActionBar();
+  fullscreenActions?.classList.remove('hidden');
+  document.getElementById('exitEditorStickyBtn')?.classList.remove('hidden');
+  document.getElementById('fullscreenRunBtn')?.classList.remove('hidden');
+  document.getElementById('fullscreenResultBtn')?.classList.remove('hidden');
   hideSuggestions();
 
   const isSmallScreen = window.matchMedia('(max-width: 820px)').matches;
@@ -3167,25 +4806,37 @@ function enterFullEditor() {
     });
   }
 
+  forceFullEditorControlsVisible();
+  scheduleFullEditorControlsRestore();
   setStatus('Full editor mode');
   fitEditorToContent();
   window.setTimeout(() => editor.focus(), 80);
 }
 
 function exitFullEditor(options = {}) {
+  if (previewMovedIntoEditor || document.body.classList.contains('preview-inside-editor-fullscreen')) {
+    exitFullPreview({ silent: true, keepNative: true });
+  }
   document.body.classList.remove('editor-fullscreen-active');
   fullEditorBtn?.classList.remove('hidden');
   exitEditorBtn?.classList.add('hidden');
-  exitEditorStickyBtn?.classList.add('hidden');
+  document.getElementById('fullscreenEditorActions')?.classList.add('hidden');
+  document.getElementById('exitEditorStickyBtn')?.classList.add('hidden');
+  document.getElementById('fullscreenRunBtn')?.classList.add('hidden');
+  document.getElementById('fullscreenResultBtn')?.classList.add('hidden');
   hideSuggestions();
 
   if (!options.fromNative && document.fullscreenElement && document.exitFullscreen) {
     document.exitFullscreen().catch(() => {});
   }
 
-  setStatus('Editor restored');
+  if (!options.silent) {
+    setStatus('Editor restored');
+  }
   fitEditorToContent();
-  window.setTimeout(() => editor.focus(), 80);
+  if (!options.skipFocus) {
+    window.setTimeout(() => editor.focus(), 80);
+  }
 }
 
 async function openAdminPanel() {
@@ -4536,6 +6187,127 @@ function updateCriterionHelp(event) {
   help.textContent = ruleHelp[select.value] || '';
 }
 
+
+function renderFileNameInputs() {
+  const names = getCodeFileNames();
+  if (htmlFileNameInput) htmlFileNameInput.value = getActiveHtmlPageName();
+  if (cssFileNameInput) cssFileNameInput.value = names.css;
+  if (jsFileNameInput) jsFileNameInput.value = names.js;
+  if (fileNameDialogNote) {
+    const pages = getHTMLPageNames();
+    const cssFiles = getLanguageFileNames('css');
+    const jsFiles = getLanguageFileNames('js');
+    fileNameDialogNote.textContent = `Current files: ${pages.join(', ')} | CSS: ${cssFiles.join(', ')} | JS: ${jsFiles.join(', ')}`;
+  }
+}
+
+function shouldPlaceFileNameDialogInsideEditor() {
+  return Boolean(
+    editorPanel &&
+    (
+      document.fullscreenElement === editorPanel ||
+      document.webkitFullscreenElement === editorPanel ||
+      document.body.classList.contains('editor-fullscreen-active')
+    )
+  );
+}
+
+function placeFileNameDialogForCurrentMode() {
+  if (!fileNameDialogOverlay) return;
+  const target = shouldPlaceFileNameDialogInsideEditor() ? editorPanel : document.body;
+  if (target && fileNameDialogOverlay.parentElement !== target) {
+    target.appendChild(fileNameDialogOverlay);
+  }
+  fileNameDialogOverlay.classList.toggle('inside-editor-fullscreen', target === editorPanel);
+}
+
+function restoreFileNameDialogToBody() {
+  if (!fileNameDialogOverlay) return;
+  fileNameDialogOverlay.classList.remove('inside-editor-fullscreen');
+  if (fileNameDialogOverlay.parentElement !== document.body) {
+    document.body.appendChild(fileNameDialogOverlay);
+  }
+}
+
+function openFileNameDialog() {
+  if (!fileNameDialogOverlay) return;
+  renderFileNameInputs();
+  placeFileNameDialogForCurrentMode();
+  fileNameDialogOverlay.classList.remove('hidden');
+  document.body.classList.add('dialog-open');
+  window.setTimeout(() => htmlFileNameInput?.focus({ preventScroll: true }), 0);
+}
+
+function closeFileNameDialog() {
+  if (!fileNameDialogOverlay) return;
+  fileNameDialogOverlay.classList.add('hidden');
+  document.body.classList.remove('dialog-open');
+  restoreFileNameDialogToBody();
+  renameFilesBtn?.focus({ preventScroll: true });
+}
+
+
+function applyFileNameDialogValues() {
+  const previousActivePage = getActiveHtmlPageName();
+  const previousCssFile = getActiveLanguageFileName('css');
+  const previousJsFile = getActiveLanguageFileName('js');
+  const nextNames = normalizeCodeFileNames({
+    html: htmlFileNameInput?.value || DEFAULT_CODE_FILE_NAMES.html,
+    css: cssFileNameInput?.value || DEFAULT_CODE_FILE_NAMES.css,
+    js: jsFileNameInput?.value || DEFAULT_CODE_FILE_NAMES.js
+  });
+
+  const pages = getHTMLPages();
+  if (nextNames.html !== previousActivePage) {
+    if (!pages[nextNames.html]) {
+      pages[nextNames.html] = pages[previousActivePage] || codeStore.html || '';
+      delete pages[previousActivePage];
+      replaceHtmlFileReferences(previousActivePage, nextNames.html, 'html');
+    }
+    codeStore.activeHtmlPage = nextNames.html;
+  }
+
+  const cssFiles = getLanguageFileMap('css');
+  if (nextNames.css !== previousCssFile) {
+    if (!cssFiles[nextNames.css]) {
+      cssFiles[nextNames.css] = cssFiles[previousCssFile] || codeStore.css || '';
+      delete cssFiles[previousCssFile];
+      replaceHtmlFileReferences(previousCssFile, nextNames.css, 'css');
+    }
+    codeStore.activeCssFile = nextNames.css;
+  }
+
+  const jsFiles = getLanguageFileMap('js');
+  if (nextNames.js !== previousJsFile) {
+    if (!jsFiles[nextNames.js]) {
+      jsFiles[nextNames.js] = jsFiles[previousJsFile] || codeStore.js || '';
+      delete jsFiles[previousJsFile];
+      replaceHtmlFileReferences(previousJsFile, nextNames.js, 'js');
+    }
+    codeStore.activeJsFile = nextNames.js;
+  }
+
+  codeFileNames = nextNames;
+  syncActiveLanguageFileFromStore('html');
+  syncActiveLanguageFileFromStore('css');
+  syncActiveLanguageFileFromStore('js');
+  saveCodeFileNames();
+  saveCodeStoreForCurrentActivity();
+  renderHTMLPageManager();
+  renderErrorChecker();
+  loadActiveEditor();
+  runCode(false, { scroll: false });
+  closeFileNameDialog();
+  setStatus('File names updated');
+}
+
+function resetFileNameDialogDefaults() {
+  if (htmlFileNameInput) htmlFileNameInput.value = DEFAULT_CODE_FILE_NAMES.html;
+  if (cssFileNameInput) cssFileNameInput.value = DEFAULT_CODE_FILE_NAMES.css;
+  if (jsFileNameInput) jsFileNameInput.value = DEFAULT_CODE_FILE_NAMES.js;
+  if (fileNameDialogNote) fileNameDialogNote.textContent = 'Defaults restored. Click Apply Names to save.';
+}
+
 function getCompactStatusLabel(text) {
   const value = String(text || '').toLowerCase();
   if (!value || value === 'ready') return 'Ready';
@@ -4579,11 +6351,14 @@ function getCurrentDateStamp() {
   return `${yyyy}-${mm}-${dd}`;
 }
 
-function ensureDownloadIndexHTML(html, hasCSS, hasJS) {
+function ensureDownloadIndexHTML(html, hasCSS, hasJS, fileNames = getCodeFileNames()) {
   let output = html || '';
-  const cssLink = '  <link rel="stylesheet" href="style.css">';
-  const jsScript = '  <script src="script.js"><\/script>';
+  const names = normalizeCodeFileNames(fileNames);
+  const cssLink = `  <link rel="stylesheet" href="${names.css}">`;
+  const jsScript = `  <script src="${names.js}"><\/script>`;
   const looksLikeFullDocument = /<!doctype/i.test(output) || /<html(\s|>)/i.test(output) || /<head(\s|>)/i.test(output) || /<body(\s|>)/i.test(output);
+  const cssReferences = getExternalCSSReferences(output);
+  const jsReferences = getExternalJSReferences(output);
 
   if (!looksLikeFullDocument) {
     return `<!DOCTYPE html>
@@ -4598,7 +6373,9 @@ ${hasJS ? `\n${jsScript}` : ''}
 </html>`;
   }
 
-  if (hasCSS && !/href=["']style\.css["']/i.test(output)) {
+  // If the student already added an external link/script, preserve it.
+  // This allows wrong filenames to behave like real web files: mismatched names will not work.
+  if (hasCSS && !cssReferences.length) {
     if (/<\/head\s*>/i.test(output)) {
       output = output.replace(/<\/head\s*>/i, `${cssLink}\n</head>`);
     } else if (/<body(\s|>)/i.test(output)) {
@@ -4608,7 +6385,7 @@ ${hasJS ? `\n${jsScript}` : ''}
     }
   }
 
-  if (hasJS && !/src=["']script\.js["']/i.test(output)) {
+  if (hasJS && !jsReferences.length) {
     if (/<\/body\s*>/i.test(output)) {
       output = output.replace(/<\/body\s*>/i, `${jsScript}\n</body>`);
     } else {
@@ -4619,9 +6396,13 @@ ${hasJS ? `\n${jsScript}` : ''}
   return output;
 }
 
+
 function makeReadmeFile() {
   const title = activity?.title || 'No selected activity';
   const instructions = activity?.description || 'No selected activity instructions.';
+  const pageNames = getHTMLPageNames();
+  const cssNames = getLanguageFileNames('css');
+  const jsNames = getLanguageFileNames('js');
   return [
     'Grade 8 MCSian Web Code Editor - Saved Code',
     '================================',
@@ -4629,20 +6410,26 @@ function makeReadmeFile() {
     `Activity: ${title}`,
     `Saved: ${new Date().toLocaleString()}`,
     '',
-    'Files included:',
-    '- index.html',
-    '- style.css',
-    '- script.js',
+    'HTML pages included:',
+    ...pageNames.map(name => `- ${name}`),
+    '',
+    'CSS files included:',
+    ...cssNames.map(name => `- ${name}`),
+    '',
+    'JavaScript files included:',
+    ...jsNames.map(name => `- ${name}`),
     '',
     'How to open:',
     '1. Extract this ZIP file.',
-    '2. Open index.html in a browser.',
+    `2. Open ${pageNames.includes('index.html') ? 'index.html' : pageNames[0]} in a browser.`,
+    '3. Use the page links to move between pages.',
     '',
     'Activity instructions:',
     instructions,
     '',
     'Note:',
-    'The downloaded index.html links to style.css and script.js when those tabs contain code.'
+    'If HTML uses external CSS/JS links, the href/src names must match included CSS and JS files.',
+    'For multi-page websites, links like href="about.html" must match an included page file.'
   ].join('\n');
 }
 
@@ -4780,21 +6567,33 @@ function downloadBlob(blob, filename) {
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+
 function downloadCodeAsZip() {
   saveActiveEditor();
-  const html = codeStore.html || '';
-  const css = codeStore.css || '';
-  const js = codeStore.js || '';
+  const pages = getHTMLPages();
+  const cssFiles = getLanguageFileMap('css');
+  const jsFiles = getLanguageFileMap('js');
+  const pageFiles = getHTMLPageNames().map(pageName => ({
+    name: pageName,
+    content: ensureDownloadIndexHTML(
+      pages[pageName] || '',
+      Object.values(cssFiles).some(value => String(value || '').trim()),
+      Object.values(jsFiles).some(value => String(value || '').trim()),
+      getCodeFileNames()
+    )
+  }));
+  const cssZipFiles = getLanguageFileNames('css').map(name => ({ name, content: cssFiles[name] || '' }));
+  const jsZipFiles = getLanguageFileNames('js').map(name => ({ name, content: jsFiles[name] || '' }));
   const files = [
-    { name: 'index.html', content: ensureDownloadIndexHTML(html, css.trim().length > 0, js.trim().length > 0) },
-    { name: 'style.css', content: css },
-    { name: 'script.js', content: js },
+    ...pageFiles,
+    ...cssZipFiles,
+    ...jsZipFiles,
     { name: 'README.txt', content: makeReadmeFile() }
   ];
   const filename = `${sanitizeFilename(activity?.title || 'student-code')}-${getCurrentDateStamp()}.zip`;
   const blob = createZipBlob(files);
   downloadBlob(blob, filename);
-  setStatus('ZIP downloaded');
+  setStatus(pageFiles.length > 1 ? 'Website ZIP downloaded' : 'ZIP downloaded');
 }
 
 function saveNow() {
@@ -5135,14 +6934,38 @@ layoutButtons.forEach(button => {
 
 fullPreviewBtn.addEventListener('click', enterFullPreview);
 exitPreviewBtn.addEventListener('click', exitFullPreview);
+ensureBackToEditorPreviewBtn();
+ensurePreviewResultBtn();
 if (zoomOutBtn) zoomOutBtn.addEventListener('click', () => changeEditorZoom(-1));
 if (zoomInBtn) zoomInBtn.addEventListener('click', () => changeEditorZoom(1));
 if (zoomResetBtn) zoomResetBtn.addEventListener('click', resetEditorZoom);
+function handleFullscreenRunClick() {
+  runCode(true);
+}
+
+function handleFullscreenResultClick() {
+  if (document.body.classList.contains('editor-fullscreen-active')) {
+    exitFullEditor();
+    window.setTimeout(showResult, 120);
+    return;
+  }
+  showResult();
+}
+
 if (fullEditorBtn) fullEditorBtn.addEventListener('click', enterFullEditor);
 if (exitEditorBtn) exitEditorBtn.addEventListener('click', exitFullEditor);
 if (exitEditorStickyBtn) exitEditorStickyBtn.addEventListener('click', exitFullEditor);
+if (fullscreenRunBtn) fullscreenRunBtn.addEventListener('click', handleFullscreenRunClick);
+if (fullscreenResultBtn) fullscreenResultBtn.addEventListener('click', handleFullscreenResultClick);
+ensureFullscreenActionBar();
 
 document.addEventListener('keydown', event => {
+  if (event.key === 'Escape' && fileNameDialogOverlay && !fileNameDialogOverlay.classList.contains('hidden')) {
+    event.preventDefault();
+    closeFileNameDialog();
+    return;
+  }
+
   if (event.key === 'Escape' && errorCheckerPanel && !errorCheckerPanel.classList.contains('hidden')) {
     closeCodeHelperPanel();
     return;
@@ -5161,9 +6984,26 @@ document.addEventListener('keydown', event => {
 
 document.addEventListener('fullscreenchange', () => {
   if (!document.fullscreenElement && document.body.classList.contains('editor-fullscreen-active')) {
+    if (document.body.classList.contains('preview-inside-editor-fullscreen') || document.body.classList.contains('preview-fullscreen-active')) {
+      return;
+    }
     exitFullEditor({ fromNative: true });
+    return;
+  }
+
+  if (document.fullscreenElement === editorPanel && document.body.classList.contains('editor-fullscreen-active')) {
+    scheduleFullEditorControlsRestore();
+  }
+
+  if (!document.fullscreenElement && document.body.classList.contains('preview-fullscreen-active')) {
+    exitFullPreview({ fromNative: true });
   }
 });
+
+
+window.addEventListener('resize', scheduleFullEditorControlsRestore);
+document.addEventListener('visibilitychange', scheduleFullEditorControlsRestore);
+window.addEventListener('pageshow', scheduleFullEditorControlsRestore);
 
 runBtn.addEventListener('click', () => runCode());
 resultBtn.addEventListener('click', showResult);
@@ -5179,6 +7019,7 @@ if (refreshErrorCheckerBtn) refreshErrorCheckerBtn.addEventListener('click', () 
   window.setTimeout(renderErrorChecker, 220);
   setStatus('Errors checked');
 });
+if (advancedErrorCheckBtn) advancedErrorCheckBtn.addEventListener('click', requestAdvancedErrorCheck);
 if (previewFrame) previewFrame.addEventListener('load', () => window.setTimeout(renderErrorChecker, 80));
 activitySelect.addEventListener('change', event => selectActivity(event.target.value));
 resetActivityCodeBtn.addEventListener('click', resetCurrentActivityCode);
@@ -5232,7 +7073,13 @@ window.addEventListener('keydown', event => {
   }
 });
 
-adminBtn.addEventListener('click', openAdminPanel);
+adminBtn?.addEventListener('click', openAdminPanel);
+adminBtn?.addEventListener('keydown', event => {
+  if (event.key === 'Enter' || event.key === ' ') {
+    event.preventDefault();
+    openAdminPanel();
+  }
+});
 closeAdminBtn.addEventListener('click', closeAdminPanel);
 unlockAdminBtn.addEventListener('click', unlockAdmin);
 if (logoutAdminBtn) logoutAdminBtn.addEventListener('click', logoutTeacher);
@@ -5263,6 +7110,56 @@ if (rubricImageInput) rubricImageInput.addEventListener('change', previewRubricI
 if (importRubricImageBtn) importRubricImageBtn.addEventListener('click', importRubricImage);
 if (clearRubricImageBtn) clearRubricImageBtn.addEventListener('click', clearRubricImageImport);
 if (fillRubricTextBtn) fillRubricTextBtn.addEventListener('click', fillRubricTableFromExtractedText);
+renameFilesBtn?.addEventListener('click', openFileNameDialog);
+closeFileNameDialogBtn?.addEventListener('click', closeFileNameDialog);
+cancelFileNameDialogBtn?.addEventListener('click', closeFileNameDialog);
+defaultFileNamesBtn?.addEventListener('click', resetFileNameDialogDefaults);
+applyFileNamesBtn?.addEventListener('click', applyFileNameDialogValues);
+fileNameDialogOverlay?.addEventListener('click', event => {
+  if (event.target === fileNameDialogOverlay) closeFileNameDialog();
+});
+htmlPageSelect?.addEventListener('change', event => switchHTMLPage(event.target.value));
+addHtmlPageBtn?.addEventListener('click', () => openPageDialog('add'));
+renameHtmlPageBtn?.addEventListener('click', () => openPageDialog('rename'));
+deleteHtmlPageBtn?.addEventListener('click', deleteCurrentHTMLPage);
+closePageDialogBtn?.addEventListener('click', closePageDialog);
+cancelPageDialogBtn?.addEventListener('click', closePageDialog);
+applyPageDialogBtn?.addEventListener('click', applyPageDialog);
+pageDialogOverlay?.addEventListener('click', event => {
+  if (event.target === pageDialogOverlay) closePageDialog();
+});
+htmlPageNameInput?.addEventListener('keydown', event => {
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    applyPageDialog();
+  }
+});
+
+document.addEventListener('fullscreenchange', () => {
+  if (fileNameDialogOverlay && !fileNameDialogOverlay.classList.contains('hidden')) {
+    placeFileNameDialogForCurrentMode();
+  }
+  if (pageDialogOverlay && !pageDialogOverlay.classList.contains('hidden')) {
+    placePageDialogForCurrentMode();
+  }
+});
+
+document.addEventListener('webkitfullscreenchange', () => {
+  if (fileNameDialogOverlay && !fileNameDialogOverlay.classList.contains('hidden')) {
+    placeFileNameDialogForCurrentMode();
+  }
+  if (pageDialogOverlay && !pageDialogOverlay.classList.contains('hidden')) {
+    placePageDialogForCurrentMode();
+  }
+});
+[htmlFileNameInput, cssFileNameInput, jsFileNameInput].forEach(input => {
+  input?.addEventListener('keydown', event => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      applyFileNameDialogValues();
+    }
+  });
+});
 if (addManualRubricRowBtn) addManualRubricRowBtn.addEventListener('click', () => addManualRubricInputRow());
 if (applyManualRubricBtn) applyManualRubricBtn.addEventListener('click', applyManualRubricTableToActualRubric);
 if (clearManualRubricBtn) clearManualRubricBtn.addEventListener('click', clearManualRubricInputTable);

@@ -296,3 +296,20 @@ Teacher/Admin can now upload a clear screenshot/photo of a rubric inside the Adm
 - Teacher must review the generated table before clicking **Save Activity**.
 
 This feature requires the Firebase Function `rubricImageImport`. Keep `window.MCS_RUBRIC_IMAGE_ENDPOINT` blank until the function is deployed. Do not put AI/API keys in frontend files.
+
+## Multi-Page Website Mode
+
+- The HTML tab now has a **Pages** manager.
+- Students can add pages such as `about.html`, `gallery.html`, or `contact.html`.
+- CSS and JavaScript remain shared files by default: `style.css` and `script.js`.
+- The preview can follow internal links such as `<a href="about.html">About</a>`.
+- The ZIP download includes all HTML pages plus the shared CSS/JS files.
+- Code Helper warns when a page links to a missing `.html` file.
+
+
+## Tabs/Pages Update
+
+- The former Pages manager is now labeled **Tabs/Pages**.
+- It works for HTML pages, CSS files, and JavaScript files.
+- Add/Rename/Delete dialogs work in normal view and Full Editor mode.
+- Mobile layout uses compact controls so the editor tabs do not break on phones.

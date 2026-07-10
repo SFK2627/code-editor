@@ -14,5 +14,8 @@ window.MCS_FIREBASE_SDK_VERSION = '10.12.5';
 
 // Leave blank if you do not have a deployed secure backend endpoint.
 window.MCS_AI_FEEDBACK_ENDPOINT = '';
+// Optional secure endpoint for AI-assisted error checking. Leave blank to use the improved local checker.
+window.MCS_AI_CHECKER_ENDPOINT = '';
+window.MCS_AI_CHECKER_ENABLED = true;
 window.MCS_RUBRIC_IMAGE_IMPORT_ENABLED = true;
 window.MCS_RUBRIC_IMAGE_ENDPOINT = '';

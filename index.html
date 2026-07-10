@@ -20,7 +20,7 @@
       <div class="brand-block">
         <div class="logo-mark" aria-hidden="true">&lt;/&gt;</div>
         <div>
-          <p class="eyebrow">Sir JR's</p>
+          <p id="adminBtn" class="eyebrow hidden-admin-trigger" role="button" tabindex="0" aria-label="Teacher admin access">Sir JR's</p>
           <h1>Grade 8 MCSian Web Code Editor</h1>
           <p class="subtitle">Developed by Sir JR</p>
         </div>
@@ -30,7 +30,6 @@
         <span id="statusBadge" class="status-badge compact-status">Ready</span>
         <button id="themeToggle" class="ghost-btn" type="button" title="Switch light or dark mode">🌙 Dark</button>
         <button id="stepActivityBtn" class="ghost-btn activity-launch-btn" type="button" aria-expanded="false" aria-controls="activityCard">📌 Activity</button>
-        <button id="adminBtn" class="ghost-btn teacher-btn" type="button">Teacher/Admin</button>
         <button id="runBtn" class="primary-btn top-run-btn" type="button" title="Run: Ctrl + Enter">▶ Run</button>
         <button id="resultBtn" class="success-btn top-result-btn" type="button" title="Check result: Ctrl + Shift + Enter">✓ Result</button>
         <button id="aiReviewTopBtn" class="ghost-btn ai-review-top-btn" type="button" title="Get rubric-based feedback after checking result">💬 Feedback</button>
@@ -46,12 +45,29 @@
 
     <main id="workspace" class="workspace" data-layout="split">
       <section id="editorPanel" class="panel editor-panel" aria-label="Code editor">
-        <button id="exitEditorStickyBtn" class="fullscreen-exit-btn hidden" type="button" title="Exit full editor: Esc">Exit Full</button>
+        <div id="fullscreenEditorActions" class="fullscreen-editor-actions hidden" aria-label="Full editor actions">
+          <button id="fullscreenRunBtn" class="primary-btn fullscreen-run-btn" type="button" title="Run: Ctrl + Enter">▶ Run</button>
+          <button id="fullscreenResultBtn" class="success-btn fullscreen-result-btn" type="button" title="Check result: Ctrl + Shift + Enter">✓ Result</button>
+          <button id="exitEditorStickyBtn" class="fullscreen-exit-btn" type="button" title="Exit full editor: Esc">Exit Full</button>
+        </div>
         <button id="codeHelperFloatingBtn" class="code-helper-float-btn" type="button" title="Open Code Helper">🧭 Code Helper</button>
         <div class="language-tabs" role="tablist" aria-label="Code language tabs">
           <button class="tab-btn active" type="button" data-language="html">HTML</button>
           <button class="tab-btn" type="button" data-language="css">CSS</button>
           <button class="tab-btn" type="button" data-language="js">JavaScript</button>
+          <button id="renameFilesBtn" class="rename-files-btn" type="button" title="Rename HTML, CSS, and JavaScript files">✏️ Rename Files</button>
+        </div>
+
+        <div id="htmlPageManager" class="html-page-manager" aria-label="Website pages manager">
+          <div class="page-manager-left">
+            <span class="page-manager-label">Tabs/Pages</span>
+            <select id="htmlPageSelect" aria-label="Choose file tab or page"></select>
+          </div>
+          <div class="page-manager-actions">
+            <button id="addHtmlPageBtn" class="page-manager-btn" type="button">+ File</button>
+            <button id="renameHtmlPageBtn" class="page-manager-btn" type="button">Rename</button>
+            <button id="deleteHtmlPageBtn" class="page-manager-btn danger" type="button">Delete</button>
+          </div>
         </div>
 
         <div class="editor-info" id="editorInfo">
@@ -97,6 +113,7 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
               <p>Quick hints for missing tags, empty body, CSS, and JavaScript errors.</p>
             </div>
             <div class="code-helper-header-actions">
+              <button id="advancedErrorCheckBtn" class="layout-btn smart-check-btn" type="button" title="Run a smarter verification check">Smart Verify</button>
               <button id="refreshErrorCheckerBtn" class="layout-btn strong" type="button">Check</button>
               <button id="closeCodeHelperBtn" class="icon-btn code-helper-close" type="button" aria-label="Close Code Helper">×</button>
             </div>
@@ -355,6 +372,68 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
     </div>
   </div>
 
+
+
+  <div id="pageDialogOverlay" class="file-name-dialog-overlay page-dialog-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="pageDialogTitle">
+    <div class="file-name-dialog-card page-dialog-card" role="document">
+      <div class="file-name-dialog-header">
+        <div>
+          <p class="section-kicker">Website Page</p>
+          <h3 id="pageDialogTitle">Add File</h3>
+          <p id="pageDialogText" class="muted-text">Use simple file names like about.html, main.css, or app.js.</p>
+        </div>
+        <button id="closePageDialogBtn" class="icon-btn" type="button" aria-label="Close page dialog">×</button>
+      </div>
+
+      <label class="page-dialog-label">
+        File name
+        <input id="htmlPageNameInput" type="text" inputmode="text" autocomplete="off" placeholder="about.html" />
+      </label>
+
+      <p id="pageDialogNote" class="helper-note">Tip: HTML links must match existing .html, .css, or .js files.</p>
+
+      <div class="file-name-dialog-actions">
+        <button id="cancelPageDialogBtn" class="ghost-btn" type="button">Cancel</button>
+        <button id="applyPageDialogBtn" class="primary-btn" type="button">Apply</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="fileNameDialogOverlay" class="file-name-dialog-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="fileNameDialogTitle">
+    <div class="file-name-dialog-card" role="document">
+      <div class="file-name-dialog-header">
+        <div>
+          <p class="section-kicker">File Names</p>
+          <h3 id="fileNameDialogTitle">Rename Code Files</h3>
+          <p class="muted-text">Default names are index.html, style.css, and script.js. If your HTML uses external links, the names must match.</p>
+        </div>
+        <button id="closeFileNameDialogBtn" class="icon-btn" type="button" aria-label="Close rename files dialog">×</button>
+      </div>
+
+      <div class="file-name-grid">
+        <label>
+          HTML file name
+          <input id="htmlFileNameInput" type="text" inputmode="text" autocomplete="off" placeholder="index.html" />
+        </label>
+        <label>
+          CSS file name
+          <input id="cssFileNameInput" type="text" inputmode="text" autocomplete="off" placeholder="style.css" />
+        </label>
+        <label>
+          JavaScript file name
+          <input id="jsFileNameInput" type="text" inputmode="text" autocomplete="off" placeholder="script.js" />
+        </label>
+      </div>
+
+      <p id="fileNameDialogNote" class="helper-note">Tip: If HTML has &lt;link href="style.css"&gt;, the CSS file name must be style.css.</p>
+
+      <div class="file-name-dialog-actions">
+        <button id="defaultFileNamesBtn" class="ghost-btn" type="button">Use Defaults</button>
+        <button id="cancelFileNameDialogBtn" class="ghost-btn" type="button">Cancel</button>
+        <button id="applyFileNamesBtn" class="primary-btn" type="button">Apply Names</button>
+      </div>
+    </div>
+  </div>
 
   <div id="appDialogOverlay" class="app-dialog-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="appDialogTitle">
     <div class="app-dialog-card" role="document">
