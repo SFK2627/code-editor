@@ -74,6 +74,8 @@ const clearRubricImageBtn = document.getElementById('clearRubricImageBtn');
 const rubricImageStatus = document.getElementById('rubricImageStatus');
 const rubricImagePreviewWrap = document.getElementById('rubricImagePreviewWrap');
 const rubricImagePreview = document.getElementById('rubricImagePreview');
+const rubricExtractedText = document.getElementById('rubricExtractedText');
+const fillRubricTextBtn = document.getElementById('fillRubricTextBtn');
 
 
 // Built-in Firebase fallback config.
@@ -557,14 +559,13 @@ function getInitialActivities() {
 }
 
 function getInitialSelectedActivityId() {
-  // Always start with no selected activity.
-  // Students must choose an activity before seeing a score or rubric feedback.
-  return '';
+  const savedId = loadJSON(STORAGE_KEYS.selectedActivityId, '');
+  return activities.some(item => item.id === savedId) ? savedId : '';
 }
 
 function getInitialCodeByActivity() {
   const saved = loadJSON(STORAGE_KEYS.codeByActivity, null);
-  const fallbackActivityId = activity?.id || selectedActivityId || 'scratch';
+  const fallbackActivityId = activity?.id || selectedActivityId || activities[0]?.id || 'scratch';
 
   if (saved && typeof saved === 'object' && !Array.isArray(saved)) {
     if ('html' in saved || 'css' in saved || 'js' in saved) {
@@ -823,14 +824,14 @@ async function loadActivitiesFromCloud() {
     activities = normalizeActivities(data.activities);
     saveActivities({ cloud: false });
 
-    // Keep student page unselected after cloud load.
-    // The activity list is loaded, but no activity is chosen by default.
-    selectedActivityId = '';
-    saveJSON(STORAGE_KEYS.selectedActivityId, '');
+    if (!activities.some(item => item.id === selectedActivityId)) {
+      selectedActivityId = activities[0]?.id || '';
+      saveJSON(STORAGE_KEYS.selectedActivityId, selectedActivityId);
+    }
 
-    activity = null;
-    codeStore = normalizeCodeStore(starterCode);
-    adminEditingActivityId = activities[0]?.id || '';
+    activity = getActivityById(selectedActivityId);
+    codeStore = activity ? getCodeStoreForActivity(activity.id) : normalizeCodeStore(starterCode);
+    adminEditingActivityId = activity?.id || activities[0]?.id || '';
 
     renderActivitySummary();
     renderAdminActivitySelect();
@@ -2561,7 +2562,6 @@ function renderResult(result) {
 function showResult() {
   if (!activity) {
     showActivityRequiredWarning();
-    renderNoActivityResultMessage();
     setStatus('Choose activity first');
     return;
   }
@@ -2599,16 +2599,6 @@ function resetResultPanel() {
   `;
 }
 
-function renderNoActivityResultMessage() {
-  resultContent.classList.add('empty-state');
-  resultContent.innerHTML = `
-    <div class="empty-icon warning-icon">!</div>
-    <h3>No activity selected yet</h3>
-    <p>Please choose an activity first before checking your result. The rubric and feedback depend on the selected activity.</p>
-  `;
-  resultPanel?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-}
-
 function renderActivitySelector() {
   if (!activitySelect) return;
   const placeholder = `<option value="" ${activity ? '' : 'selected'}>Select an activity first...</option>`;
@@ -2628,7 +2618,7 @@ function renderAdminActivitySelect() {
 function renderActivitySummary() {
   if (!activity) {
     activityTitle.textContent = 'No activity selected yet';
-    activityDescription.textContent = 'Choose an activity first. Run Code still works, but score and feedback need a selected activity/rubric.';
+    activityDescription.textContent = 'Click Step 1 and choose an activity. Run Code still works, but score and feedback need a selected activity/rubric.';
     totalPoints.textContent = '0';
     criteriaCount.textContent = '0';
     renderActivitySelector();
@@ -3142,6 +3132,7 @@ function readFileAsDataURL(file) {
 function clearRubricImageImport() {
   if (rubricImageInput) rubricImageInput.value = '';
   if (rubricImagePreview) rubricImagePreview.removeAttribute('src');
+  if (rubricExtractedText) rubricExtractedText.value = '';
   rubricImagePreviewWrap?.classList.add('hidden');
   setRubricImportStatus('No image selected yet.');
 }
@@ -3215,8 +3206,344 @@ function applyImportedActivityToAdminForm(importedActivity) {
   setStatus('Rubric imported');
 }
 
+
 function getFallbackRubricImportMessage() {
-  return 'Rubric image reader is not connected yet. Deploy the Firebase Function rubricImageImport, then paste its URL in firebase-config.js as MCS_RUBRIC_IMAGE_ENDPOINT.';
+  return 'No online rubric reader is connected, so the app will use its built-in smart image reader on this browser.';
+}
+
+function loadRubricOCRLibrary() {
+  if (window.Tesseract) return Promise.resolve(window.Tesseract);
+  if (window.__rubricOCRPromise) return window.__rubricOCRPromise;
+
+  window.__rubricOCRPromise = new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
+    script.onload = () => resolve(window.Tesseract);
+    script.onerror = () => reject(new Error('Could not load OCR library.'));
+    document.head.appendChild(script);
+  });
+
+  return window.__rubricOCRPromise;
+}
+
+function normalizeOCRText(text) {
+  return String(text || '')
+    .replace(/\r/g, '\n')
+    .replace(/[|¦]/g, ' | ')
+    .replace(/[•●▪■]/g, '\n- ')
+    .replace(/\t+/g, ' ')
+    .replace(/[ ]{2,}/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+function normalizeRubricLevelKey(label) {
+  const value = String(label || '').toLowerCase().replace(/\s+/g, ' ').trim();
+  if (value.includes('excellent')) return 'excellent';
+  if (value.includes('good')) return 'good';
+  if (value.includes('fair')) return 'fair';
+  if (value.includes('need') && value.includes('improvement')) return 'needsImprovement';
+  if (value.includes('poor') || value.includes('beginning')) return 'needsImprovement';
+  return '';
+}
+
+function countRubricLevelMarkers(text) {
+  return [...String(text || '').matchAll(/excellent|good|fair|needs\s*improvement/gi)].length;
+}
+
+function cleanCriterionTitle(rawTitle) {
+  return String(rawTitle || '')
+    .replace(/^\s*(criteria?|criterion)\s*[:\-]?\s*/i, '')
+    .replace(/^\s*[-•*]?\s*\d+[.)-]?\s*/, '')
+    .replace(/\(?\b\d+(?:\.\d+)?\s*(?:pts?|points?)\)?/gi, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
+function extractScoreValue(text, fallback = null) {
+  const source = String(text || '');
+  const rangeMatch = source.match(/(\d+(?:\.\d+)?)\s*[-–/]\s*(\d+(?:\.\d+)?)/);
+  if (rangeMatch) {
+    return Math.max(Number(rangeMatch[1]), Number(rangeMatch[2]));
+  }
+
+  const pointMatch = source.match(/(?:^|\b)(\d+(?:\.\d+)?)(?:\s*(?:pts?|points?|\/\s*\d+))?/i);
+  if (pointMatch) return Number(pointMatch[1]);
+  return fallback;
+}
+
+function stripLeadingScoreText(text) {
+  return String(text || '')
+    .replace(/^\s*[(:-]*\s*(?:\d+(?:\.\d+)?\s*[-–/]\s*)?\d+(?:\.\d+)?\s*(?:pts?|points?)?\s*[):.-]*\s*/i, '')
+    .replace(/^\s*[:\-–|]+\s*/, '')
+    .trim();
+}
+
+function extractGlobalLevelPoints(text) {
+  const defaults = {};
+  rubricLevels.forEach(level => {
+    const labelPattern = level.label.replace(/\s+/g, '\\s*');
+    const regex = new RegExp(labelPattern + '\\s*[:\-–]?\\s*(\\d+(?:\\.\\d+)?)(?:\\s*[-–/]\\s*(\\d+(?:\\.\\d+)?))?', 'i');
+    const match = String(text || '').match(regex);
+    if (match) {
+      const points = Math.max(Number(match[1] || 0), Number(match[2] || 0));
+      if (Number.isFinite(points) && points >= 0) defaults[level.key] = points;
+    }
+  });
+  return defaults;
+}
+
+function getGenericRubricDescription(levelKey, criterionTitle) {
+  const title = criterionTitle || 'this criterion';
+  if (levelKey === 'excellent') return `Excellent performance in ${title}.`;
+  if (levelKey === 'good') return `Good performance in ${title}.`;
+  if (levelKey === 'fair') return `Fair performance in ${title}.`;
+  return `Needs improvement in ${title}.`;
+}
+
+function splitLineByRubricLevels(text) {
+  const source = String(text || '');
+  const regex = /(Excellent|Good|Fair|Needs\s*Improvement)/gi;
+  const matches = [...source.matchAll(regex)];
+  if (matches.length < 2) return null;
+
+  const title = cleanCriterionTitle(source.slice(0, matches[0].index));
+  const sections = {};
+
+  matches.forEach((match, index) => {
+    const key = normalizeRubricLevelKey(match[0]);
+    if (!key) return;
+    const start = match.index + match[0].length;
+    const end = index < matches.length - 1 ? matches[index + 1].index : source.length;
+    sections[key] = source.slice(start, end).trim(' :-|');
+  });
+
+  return { title, sections };
+}
+
+function isLikelyHeaderLine(line) {
+  const text = String(line || '').toLowerCase();
+  if (!text) return true;
+  return text.includes('criteria') && countRubricLevelMarkers(text) >= 2
+    || /^activity\s*title/i.test(text)
+    || /^passing\s*score/i.test(text)
+    || /^teacher/i.test(text)
+    || /^upload\s+rubric/i.test(text);
+}
+
+function isPotentialCriterionTitle(line) {
+  const text = cleanCriterionTitle(line);
+  if (!text) return false;
+  if (isLikelyHeaderLine(text)) return false;
+  if (countRubricLevelMarkers(text) >= 2) return false;
+  if (/^(excellent|good|fair|needs\s*improvement)\b/i.test(text)) return false;
+  if (text.length < 4) return false;
+  return true;
+}
+
+function guessCriterionRule(criterionTitle, descriptionText = '') {
+  const source = `${criterionTitle} ${descriptionText}`.toLowerCase();
+  let target = '';
+  const quoted = source.match(/["“”']([^"“”']{2,40})["“”']/);
+  if (quoted) target = quoted[1].trim();
+  const tagTarget = (criterionTitle + ' ' + descriptionText).match(/<([a-z0-9-]+)>/i);
+  if (tagTarget) target = `<${tagTarget[1]}`;
+
+  if (/(complete|full).*(html|document)|doctype|<html|<head|<title|<body/.test(source)) return { rule: 'full_html_structure', target: '' };
+  if (/closing tag|closed tag|properly closed|balance[ds]? tag/.test(source)) return { rule: 'balanced_html_tags', target: '' };
+  if (/heading|header/.test(source)) return { rule: 'has_heading', target: target };
+  if (/paragraph/.test(source)) return { rule: 'has_paragraph', target: target };
+  if (/button or link/.test(source)) return { rule: 'has_button_or_link', target: '' };
+  if (/button/.test(source)) return { rule: 'has_button', target: target };
+  if (/link|anchor/.test(source)) return { rule: 'has_link', target: target };
+  if (/image|picture|photo|img/.test(source)) return { rule: 'has_image', target: target };
+  if (/list|ul|ol|li/.test(source)) return { rule: 'has_list', target: target };
+  if (/visible text|readable content|content shown|output text/.test(source)) return { rule: 'output_has_visible_text', target: '' };
+  if (/runtime error|no error|error-free/.test(source)) return { rule: 'no_runtime_error', target: '' };
+  if (/event listener|onclick|interaction|click event/.test(source)) return { rule: 'uses_event_listener', target: target };
+  if (/change(s|d)? .*page|dom|innerhtml|textcontent|classlist|style/.test(source)) return { rule: 'js_changes_page', target: target };
+  if (/css|style|color|background|padding|margin|font|border|layout/.test(source)) {
+    const propertyMatch = source.match(/\b(color|background|padding|margin|font-size|font-family|display|border(?:-radius)?|text-align|gap|width|height)\b/);
+    return { rule: 'uses_css_property', target: propertyMatch ? propertyMatch[1] : target };
+  }
+  if (/javascript|script|function|variable/.test(source)) return { rule: 'js_contains', target: target };
+  if (/output|preview|display/.test(source)) return { rule: 'output_contains', target: target };
+  if (/html|tag|element|class|id|structure/.test(source)) return { rule: 'html_contains', target: target };
+  return { rule: 'minimum_effort', target: '' };
+}
+
+function buildCriterionFromParsedParts(title, sections, globalPoints = {}) {
+  const cleanTitle = cleanCriterionTitle(title) || 'Untitled criterion';
+  const explicitMax = extractScoreValue(title, null);
+  const sectionScores = {};
+  const descriptions = {};
+
+  rubricLevels.forEach(level => {
+    const rawText = sections[level.key] || '';
+    const score = extractScoreValue(rawText, globalPoints[level.key] ?? null);
+    if (Number.isFinite(score)) sectionScores[level.key] = score;
+    descriptions[level.key] = stripLeadingScoreText(rawText) || getGenericRubricDescription(level.key, cleanTitle);
+  });
+
+  const maxPoints = explicitMax || Math.max(...Object.values(sectionScores).filter(Number.isFinite), 4);
+  const defaults = defaultLevelPoints(maxPoints);
+  const levels = rubricLevels.reduce((acc, level) => {
+    acc[level.key] = {
+      label: level.label,
+      points: Number.isFinite(sectionScores[level.key]) ? sectionScores[level.key] : (globalPoints[level.key] ?? defaults[level.key]),
+      description: descriptions[level.key]
+    };
+    return acc;
+  }, {});
+
+  const ruleInfo = guessCriterionRule(cleanTitle, Object.values(descriptions).join(' '));
+  return normalizeCriterion({
+    id: createId(),
+    title: cleanTitle,
+    points: maxPoints,
+    rule: ruleInfo.rule,
+    target: ruleInfo.target,
+    levels
+  });
+}
+
+function parseCriteriaFromRubricText(text) {
+  const normalizedText = normalizeOCRText(text);
+  const lines = normalizedText.split('\n').map(line => line.trim()).filter(Boolean);
+  const globalPoints = extractGlobalLevelPoints(normalizedText);
+  const criteria = [];
+
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i];
+    if (!line || isLikelyHeaderLine(line)) continue;
+
+    const inlineSplit = splitLineByRubricLevels(line);
+    if (inlineSplit && inlineSplit.title) {
+      criteria.push(buildCriterionFromParsedParts(inlineSplit.title, inlineSplit.sections, globalPoints));
+      continue;
+    }
+
+    if (isPotentialCriterionTitle(line)) {
+      const sectionLines = {};
+      let used = 0;
+      let j = i + 1;
+      while (j < lines.length && used < 8) {
+        const nextLine = lines[j];
+        if (!nextLine) break;
+        if (isPotentialCriterionTitle(nextLine) && !/^(excellent|good|fair|needs\s*improvement)\b/i.test(nextLine)) {
+          break;
+        }
+        const levelMatch = nextLine.match(/^(Excellent|Good|Fair|Needs\s*Improvement)\b\s*[:\-–|]?\s*(.*)$/i);
+        if (levelMatch) {
+          const key = normalizeRubricLevelKey(levelMatch[1]);
+          sectionLines[key] = levelMatch[2].trim();
+          used += 1;
+          j += 1;
+          continue;
+        }
+        if (countRubricLevelMarkers(nextLine) >= 2) {
+          const parsed = splitLineByRubricLevels(nextLine);
+          if (parsed) {
+            Object.assign(sectionLines, parsed.sections);
+            used += 1;
+            j += 1;
+            break;
+          }
+        }
+        if (Object.keys(sectionLines).length) {
+          const lastKey = Object.keys(sectionLines)[Object.keys(sectionLines).length - 1];
+          sectionLines[lastKey] = `${sectionLines[lastKey]} ${nextLine}`.trim();
+          used += 1;
+          j += 1;
+          continue;
+        }
+        break;
+      }
+
+      if (Object.keys(sectionLines).length >= 2) {
+        criteria.push(buildCriterionFromParsedParts(line, sectionLines, globalPoints));
+        i = j - 1;
+      }
+    }
+  }
+
+  if (criteria.length) return criteria;
+
+  const fallbackLines = lines.filter(line => isPotentialCriterionTitle(line)).slice(0, 8);
+  return fallbackLines.map((line, index) => {
+    const title = cleanCriterionTitle(line) || `Criterion ${index + 1}`;
+    const ruleInfo = guessCriterionRule(title, '');
+    return normalizeCriterion({
+      id: createId(),
+      title,
+      points: 4,
+      rule: ruleInfo.rule,
+      target: ruleInfo.target,
+      levels: normalizeLevels(null, 4)
+    });
+  });
+}
+
+function guessImportedActivityTitle(lines) {
+  const candidates = lines.filter(line => {
+    const lower = line.toLowerCase();
+    return line.length > 4
+      && line.length < 100
+      && !isLikelyHeaderLine(line)
+      && !/^(excellent|good|fair|needs\s*improvement)\b/i.test(lower)
+      && !/^\d+(?:\.\d+)?\s*(pts?|points?)?$/i.test(lower);
+  });
+
+  const explicit = candidates.find(line => /activity|performance task|project|rubric/i.test(line));
+  return explicit || candidates[0] || 'Imported Rubric Activity';
+}
+
+function guessImportedActivityDescription(lines, title) {
+  const titleIndex = lines.findIndex(line => line === title);
+  const descriptionLines = lines.slice(titleIndex + 1, Math.min(titleIndex + 4, lines.length))
+    .filter(line => !isLikelyHeaderLine(line) && countRubricLevelMarkers(line) < 2 && line.length > 12);
+  if (descriptionLines.length) return descriptionLines.join(' ');
+  return 'Complete the activity based on the uploaded rubric. Review the imported rows before saving.';
+}
+
+function parseImportedActivityFromText(text) {
+  const normalizedText = normalizeOCRText(text);
+  const lines = normalizedText.split('\n').map(line => line.trim()).filter(Boolean);
+  const title = guessImportedActivityTitle(lines);
+  const description = guessImportedActivityDescription(lines, title);
+  const passingMatch = normalizedText.match(/passing\s*score\s*[:\-]?\s*(\d+(?:\.\d+)?)/i);
+  const passingScore = passingMatch ? Number(passingMatch[1]) : 75;
+  const criteria = parseCriteriaFromRubricText(normalizedText);
+
+  return normalizeImportedActivity({
+    title,
+    description,
+    passingScore,
+    criteria
+  });
+}
+
+function fillRubricTableFromExtractedText() {
+  const text = rubricExtractedText?.value?.trim() || '';
+  if (!text) {
+    setRubricImportStatus('No extracted text yet. Upload an image first or paste rubric text into the box.', 'error');
+    return;
+  }
+
+  const imported = parseImportedActivityFromText(text);
+  applyImportedActivityToAdminForm(imported);
+}
+
+async function runLocalRubricOCR(file) {
+  const Tesseract = await loadRubricOCRLibrary();
+  const result = await Tesseract.recognize(file, 'eng', {
+    logger: message => {
+      if (message?.status === 'recognizing text' && Number.isFinite(message.progress)) {
+        setRubricImportStatus(`Reading image... ${Math.round(message.progress * 100)}%`, 'loading');
+      }
+    }
+  });
+  return normalizeOCRText(result?.data?.text || '');
 }
 
 async function importRubricImage() {
@@ -3232,49 +3559,54 @@ async function importRubricImage() {
   }
 
   const endpoint = getRubricImageEndpoint();
-  if (!endpoint) {
-    setRubricImportStatus(getFallbackRubricImportMessage(), 'error');
-    alert(getFallbackRubricImportMessage());
-    return;
-  }
 
   try {
     importRubricImageBtn.disabled = true;
     importRubricImageBtn.textContent = 'Reading image...';
-    setRubricImportStatus('Reading rubric image. Please wait...', 'loading');
-    const imageDataUrl = await readFileAsDataURL(file);
+    setRubricImportStatus(endpoint ? 'Reading rubric image. Please wait...' : 'No online reader detected. Using built-in smart image reader...', 'loading');
 
-    const currentUser = firebaseSync.auth?.currentUser || firebaseSync.currentUser;
-    let idToken = '';
-    if (currentUser && typeof currentUser.getIdToken === 'function') {
-      idToken = await currentUser.getIdToken();
+    let importedActivity = null;
+
+    if (endpoint) {
+      const imageDataUrl = await readFileAsDataURL(file);
+      const currentUser = firebaseSync.auth?.currentUser || firebaseSync.currentUser;
+      let idToken = '';
+      if (currentUser && typeof currentUser.getIdToken === 'function') {
+        idToken = await currentUser.getIdToken();
+      }
+
+      const headers = { 'Content-Type': 'application/json' };
+      if (idToken) headers.Authorization = `Bearer ${idToken}`;
+
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          imageDataUrl,
+          filename: file.name,
+          mimeType: file.type,
+          currentActivityTitle: adminActivityTitle?.value || '',
+          expectedLevels: rubricLevels.map(item => item.label)
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Image import endpoint returned ${response.status}`);
+      }
+
+      const data = await response.json();
+      importedActivity = data.activity || data.rubric || data;
+      if (rubricExtractedText && data.extractedText) rubricExtractedText.value = normalizeOCRText(data.extractedText);
+    } else {
+      const extractedText = await runLocalRubricOCR(file);
+      if (rubricExtractedText) rubricExtractedText.value = extractedText;
+      importedActivity = parseImportedActivityFromText(extractedText);
     }
 
-    const headers = { 'Content-Type': 'application/json' };
-    if (idToken) headers.Authorization = `Bearer ${idToken}`;
-
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        imageDataUrl,
-        filename: file.name,
-        mimeType: file.type,
-        currentActivityTitle: adminActivityTitle?.value || '',
-        expectedLevels: rubricLevels.map(item => item.label)
-      })
-    });
-
-    if (!response.ok) {
-      throw new Error(`Image import endpoint returned ${response.status}`);
-    }
-
-    const data = await response.json();
-    const importedActivity = data.activity || data.rubric || data;
     applyImportedActivityToAdminForm(importedActivity);
   } catch (error) {
     console.warn('Rubric image import failed', error);
-    setRubricImportStatus('Could not read the rubric image. Check the function URL, API key, and image clarity.', 'error');
+    setRubricImportStatus('Could not read the rubric image. Try a clearer screenshot, then review the extracted text.', 'error');
   } finally {
     importRubricImageBtn.disabled = false;
     importRubricImageBtn.textContent = 'Read Image & Fill Table';
@@ -3982,6 +4314,7 @@ resetRubricBtn.addEventListener('click', restoreDefaultRubric);
 if (rubricImageInput) rubricImageInput.addEventListener('change', previewRubricImage);
 if (importRubricImageBtn) importRubricImageBtn.addEventListener('click', importRubricImage);
 if (clearRubricImageBtn) clearRubricImageBtn.addEventListener('click', clearRubricImageImport);
+if (fillRubricTextBtn) fillRubricTextBtn.addEventListener('click', fillRubricTableFromExtractedText);
 criteriaEditor.addEventListener('change', updateCriterionHelp);
 criteriaEditor.addEventListener('click', event => {
   const removeButton = event.target.closest('.remove-criterion');
@@ -3994,7 +4327,7 @@ criteriaEditor.addEventListener('click', event => {
 });
 
 saveActivities({ cloud: false });
-saveJSON(STORAGE_KEYS.selectedActivityId, '');
+saveJSON(STORAGE_KEYS.selectedActivityId, selectedActivityId);
 saveCodeByActivity();
 applyTheme(loadJSON(STORAGE_KEYS.theme, 'light'));
 applyEditorZoom(editorFontSize);

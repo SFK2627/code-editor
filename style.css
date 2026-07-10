@@ -4573,3 +4573,123 @@ body.admin-open #adminOverlay .pin-screen.teacher-login-screen {
     flex-direction: column;
   }
 }
+
+
+/* Rubric image import */
+.rubric-import-card {
+  margin: 1rem 0 1.2rem;
+  padding: 1rem;
+  border: 1px solid var(--panel-border, #d7dfeb);
+  border-radius: 18px;
+  background: var(--panel-bg, #fff);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05);
+}
+
+.rubric-import-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.rubric-import-header h3 {
+  margin: 0 0 0.35rem;
+}
+
+.rubric-import-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  align-items: center;
+}
+
+.upload-file-label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  padding: 0.7rem 1rem;
+  border-radius: 12px;
+  border: 1px dashed var(--panel-border, #c7d3e4);
+  background: rgba(59, 130, 246, 0.06);
+  color: inherit;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.upload-file-label:hover {
+  background: rgba(59, 130, 246, 0.1);
+}
+
+.rubric-import-grid {
+  display: grid;
+  grid-template-columns: minmax(220px, 300px) minmax(0, 1fr);
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.rubric-import-preview,
+.rubric-import-text {
+  border: 1px solid var(--panel-border, #d7dfeb);
+  border-radius: 16px;
+  background: rgba(148, 163, 184, 0.06);
+  padding: 0.9rem;
+}
+
+.rubric-import-preview img {
+  width: 100%;
+  max-height: 320px;
+  object-fit: contain;
+  border-radius: 12px;
+  background: #fff;
+  display: block;
+}
+
+.rubric-import-label {
+  display: block;
+  font-size: 0.92rem;
+  font-weight: 700;
+  margin-bottom: 0.55rem;
+}
+
+.rubric-import-text textarea {
+  width: 100%;
+  min-height: 220px;
+  resize: vertical;
+  border-radius: 12px;
+}
+
+.rubric-import-status {
+  margin-top: 0.8rem;
+}
+
+.rubric-import-status.ready {
+  color: #2563eb;
+}
+
+.rubric-import-status.success {
+  color: #15803d;
+}
+
+.rubric-import-status.error {
+  color: #b91c1c;
+}
+
+.rubric-import-status.loading {
+  color: #7c3aed;
+}
+
+@media (max-width: 780px) {
+  .rubric-import-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .rubric-import-actions {
+    width: 100%;
+  }
+
+  .rubric-import-actions > * {
+    flex: 1 1 180px;
+  }
+}
