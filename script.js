@@ -1,6 +1,5 @@
 const editor = document.getElementById('codeEditor');
 const previewFrame = document.getElementById('previewFrame');
-const previewDeviceFrame = document.getElementById('previewDeviceFrame');
 const runBtn = document.getElementById('runBtn');
 const resultBtn = document.getElementById('resultBtn');
 const aiReviewTopBtn = document.getElementById('aiReviewTopBtn');
@@ -4599,40 +4598,18 @@ function setPreviewLayout(layout) {
   setStatus(safeLayout === 'preview-focus' ? 'Big preview layout' : `${safeLayout[0].toUpperCase()}${safeLayout.slice(1)} layout`);
 }
 
-function isMobilePreviewViewport() {
-  return window.matchMedia ? window.matchMedia('(max-width: 760px)').matches : window.innerWidth <= 760;
-}
-
-function updateDesktopPreviewScale() {
-  if (!previewPanel || !previewPanel.classList.contains('mobile-desktop-preview')) return;
-  const width = Math.max(260, previewDeviceFrame?.clientWidth || previewPanel.clientWidth || window.innerWidth || 360);
-  const height = Math.max(260, window.innerHeight || 640);
-  const monitorWidth = 1366;
-  const monitorHeight = 768;
-  const availableWidth = Math.max(240, width - 22);
-  const fullPreviewActive = document.body.classList.contains('preview-fullscreen-active') ||
-    Boolean(document.fullscreenElement === previewPanel) ||
-    Boolean(document.webkitFullscreenElement === previewPanel);
-  const availableHeight = fullPreviewActive ? Math.max(220, height - 114) : Math.max(220, height * 0.58);
-  const scale = Math.min(0.72, availableWidth / monitorWidth, availableHeight / monitorHeight);
-  const safeScale = Math.max(0.22, Number(scale) || 0.28);
-  previewPanel.style.setProperty('--desktop-preview-scale', safeScale.toFixed(4));
-  previewPanel.style.setProperty('--desktop-monitor-width', `${monitorWidth}px`);
-  previewPanel.style.setProperty('--desktop-monitor-height', `${monitorHeight}px`);
-}
-
 function setDesktopPreviewMode(enabled) {
   const isEnabled = Boolean(enabled);
   previewPanel?.classList.toggle('mobile-desktop-preview', isEnabled);
   if (desktopPreviewBtn) {
     desktopPreviewBtn.classList.toggle('active', isEnabled);
     desktopPreviewBtn.setAttribute('aria-pressed', String(isEnabled));
-    desktopPreviewBtn.textContent = isEnabled ? 'Phone View' : 'Monitor View';
+    desktopPreviewBtn.textContent = isEnabled ? 'Phone View' : 'Desktop Monitor';
     desktopPreviewBtn.title = isEnabled
       ? 'Return the preview to normal phone width'
-      : 'Show the output inside a desktop monitor screen';
+      : 'Show the output inside a scaled desktop monitor view';
   }
-  updateDesktopPreviewScale();
+  window.setTimeout(updateDesktopMonitorPreviewSizing, 0);
   setStatus(isEnabled ? 'Desktop monitor preview' : 'Phone preview');
 }
 
@@ -4749,6 +4726,7 @@ function enterFullPreview(options = {}) {
 
   fullPreviewBtn?.classList.add('hidden');
   exitPreviewBtn?.classList.remove('hidden');
+  window.setTimeout(updateDesktopMonitorPreviewSizing, 0);
 
   if (wantsNativeFullscreen && previewPanel?.requestFullscreen && document.fullscreenElement !== previewPanel) {
     previewPanel.requestFullscreen().catch(() => {
@@ -4757,7 +4735,6 @@ function enterFullPreview(options = {}) {
   }
 
   setStatus(fromFullEditor ? 'Output preview' : 'Full preview');
-  updateDesktopPreviewScale();
 }
 
 function exitFullPreview(options = {}) {
@@ -4822,6 +4799,7 @@ function exitFullPreview(options = {}) {
     setStatus(shouldCloseEditorFullscreen ? 'Fullscreen closed' : 'Preview restored');
   }
 
+  window.setTimeout(updateDesktopMonitorPreviewSizing, 0);
   fitEditorToContent();
 }
 
@@ -7141,8 +7119,6 @@ layoutButtons.forEach(button => {
 });
 
 desktopPreviewBtn?.addEventListener('click', toggleDesktopPreviewMode);
-window.addEventListener('resize', updateDesktopPreviewScale);
-window.addEventListener('orientationchange', () => window.setTimeout(updateDesktopPreviewScale, 260));
 fullPreviewBtn.addEventListener('click', enterFullPreview);
 exitPreviewBtn.addEventListener('click', () => exitFullPreview({ closeEditorFullscreen: true }));
 ensureBackToEditorPreviewBtn();
@@ -7407,6 +7383,87 @@ resetResultPanel();
 setPreviewLayout(loadJSON(STORAGE_KEYS.layout, 'split'));
 loadActiveEditor();
 runCode(false);
-updateDesktopPreviewScale();
 renderErrorChecker();
 startFirebaseMode();
+
+
+// Final mobile desktop monitor sizing. Keeps the desktop preview useful on phones,
+// especially when the phone is rotated to landscape/fullscreen.
+function isLikelyPhoneViewport() {
+  return window.matchMedia?.('(max-width: 760px)')?.matches ||
+    window.matchMedia?.('(hover: none) and (pointer: coarse)')?.matches;
+}
+
+function isLandscapePhonePreviewFullscreen() {
+  const isLandscape = window.innerWidth > window.innerHeight && window.innerHeight <= 560;
+  const isPreviewActive = document.body.classList.contains('preview-fullscreen-active') ||
+    document.body.classList.contains('preview-inside-editor-fullscreen') ||
+    document.fullscreenElement === previewPanel;
+  return Boolean(isLikelyPhoneViewport() && isLandscape && isPreviewActive);
+}
+
+function updateDesktopMonitorPreviewSizing() {
+  if (!previewPanel || !previewFrame) return;
+  const shell = previewPanel.querySelector('.preview-frame-shell');
+  if (!shell) return;
+
+  const forceLandscapeDesktop = isLandscapePhonePreviewFullscreen();
+  previewPanel.classList.toggle('mobile-landscape-desktop-preview', forceLandscapeDesktop);
+  const enabled = previewPanel.classList.contains('mobile-desktop-preview') || forceLandscapeDesktop;
+
+  if (!enabled) {
+    ['width', 'height', 'margin', 'position', 'overflow'].forEach(prop => shell.style.removeProperty(prop));
+    ['width', 'height', 'min-width', 'min-height', 'max-width', 'position', 'top', 'left', 'transform', 'transform-origin'].forEach(prop => previewFrame.style.removeProperty(prop));
+    return;
+  }
+
+  const isFullPreview = document.body.classList.contains('preview-fullscreen-active') ||
+    document.body.classList.contains('preview-inside-editor-fullscreen') ||
+    document.fullscreenElement === previewPanel;
+  const isLandscape = window.innerWidth > window.innerHeight;
+  const desktopW = 1366;
+  const desktopH = 768;
+  const panelWidth = previewPanel.getBoundingClientRect().width || window.innerWidth;
+
+  let availableW = Math.max(260, (isFullPreview ? window.innerWidth : panelWidth) - (isFullPreview ? 22 : 42));
+  let availableH = Math.max(160, window.innerHeight - (isFullPreview ? 34 : 0));
+  let scale = availableW / desktopW;
+
+  if (isFullPreview && isLandscape) {
+    scale = Math.min(availableW / desktopW, availableH / desktopH, 1);
+  } else {
+    scale = Math.min(scale, 1);
+  }
+
+  if (!Number.isFinite(scale) || scale <= 0) scale = 0.25;
+  const chromeX = isFullPreview && isLandscape ? 16 : 28;
+  const chromeY = isFullPreview && isLandscape ? 16 : 58;
+  const shellW = Math.ceil(desktopW * scale + chromeX);
+  const shellH = Math.ceil(desktopH * scale + chromeY);
+  const frameTop = isFullPreview && isLandscape ? 8 : 42;
+  const frameLeft = isFullPreview && isLandscape ? 8 : 14;
+
+  shell.style.position = 'relative';
+  shell.style.overflow = 'hidden';
+  shell.style.width = `${shellW}px`;
+  shell.style.height = `${shellH}px`;
+  shell.style.margin = isFullPreview
+    ? `${isLandscape ? 8 : 58}px auto 8px`
+    : '12px auto';
+
+  previewFrame.style.position = 'absolute';
+  previewFrame.style.top = `${frameTop}px`;
+  previewFrame.style.left = `${frameLeft}px`;
+  previewFrame.style.width = `${desktopW}px`;
+  previewFrame.style.height = `${desktopH}px`;
+  previewFrame.style.minWidth = `${desktopW}px`;
+  previewFrame.style.minHeight = `${desktopH}px`;
+  previewFrame.style.maxWidth = 'none';
+  previewFrame.style.transform = `scale(${scale})`;
+  previewFrame.style.transformOrigin = 'top left';
+}
+
+window.addEventListener('resize', () => window.setTimeout(updateDesktopMonitorPreviewSizing, 80));
+window.addEventListener('orientationchange', () => window.setTimeout(updateDesktopMonitorPreviewSizing, 180));
+window.addEventListener('load', () => window.setTimeout(updateDesktopMonitorPreviewSizing, 120));
+previewFrame?.addEventListener('load', () => window.setTimeout(updateDesktopMonitorPreviewSizing, 80));

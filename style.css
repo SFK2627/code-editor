@@ -9140,15 +9140,14 @@ body.editor-fullscreen-active.preview-inside-editor-fullscreen.preview-closing-t
   }
 }
 
-/* Mobile Monitor Preview v2: show phone users a real desktop-monitor simulation. */
-.preview-device-frame {
-  width: 100%;
-  background: white;
+/* Mobile Desktop Monitor Preview: phone view can inspect true desktop-style output. */
+.preview-frame-shell {
+  position: relative;
+  background: #ffffff;
 }
 
-.preview-device-frame #previewFrame {
-  display: block;
-  width: 100%;
+.desktop-monitor-label {
+  display: none;
 }
 
 @media (max-width: 760px) {
@@ -9157,117 +9156,361 @@ body.editor-fullscreen-active.preview-inside-editor-fullscreen.preview-closing-t
   }
 
   .preview-panel .preview-actions #desktopPreviewBtn::before {
-    content: '🖥️ Monitor View';
-    font-size: 0.86rem;
-  }
-
-  .preview-panel .preview-actions #desktopPreviewBtn.active::before {
-    content: '📱 Phone View';
+    content: 'Desktop Monitor';
+    font-size: 0.88rem;
   }
 
   .preview-panel.mobile-desktop-preview {
-    --desktop-preview-scale: 0.28;
-    --desktop-monitor-width: 1366px;
-    --desktop-monitor-height: 768px;
-    overflow: hidden !important;
-    background: linear-gradient(180deg, #0b1220, #111827) !important;
+    overflow: visible !important;
   }
 
-  .preview-panel.mobile-desktop-preview::after {
-    content: none !important;
-    display: none !important;
-  }
-
-  .preview-panel.mobile-desktop-preview .preview-device-frame {
-    position: relative;
-    min-height: calc((var(--desktop-monitor-height) * var(--desktop-preview-scale)) + 118px) !important;
-    padding: 42px 10px 58px !important;
-    overflow: hidden !important;
-    border-top: 1px solid rgba(148, 163, 184, 0.28);
+  .preview-panel.mobile-desktop-preview .preview-frame-shell {
+    margin: 12px;
+    padding: 14px 14px 38px;
+    overflow: hidden;
+    border: 7px solid #111827;
+    border-radius: 24px;
     background:
-      radial-gradient(circle at top, rgba(96, 165, 250, 0.24), transparent 36%),
-      linear-gradient(180deg, #0b1220 0%, #111827 58%, #050816 100%) !important;
+      linear-gradient(#0f172a, #0f172a) padding-box,
+      linear-gradient(135deg, #334155, #020617) border-box;
+    box-shadow:
+      inset 0 0 0 1px rgba(255,255,255,0.13),
+      0 18px 45px rgba(2, 6, 23, 0.32);
   }
 
-  .preview-panel.mobile-desktop-preview .preview-device-frame::before {
-    content: 'Desktop monitor preview • rotate phone for a wider view';
-    position: absolute;
-    left: 12px;
-    right: 12px;
-    top: 10px;
-    z-index: 3;
-    color: rgba(226, 232, 240, 0.88);
-    font-size: 0.72rem;
-    font-weight: 900;
-    letter-spacing: 0.04em;
-    text-align: center;
-    text-transform: uppercase;
-    pointer-events: none;
-  }
-
-  .preview-panel.mobile-desktop-preview .preview-device-frame::after {
+  .preview-panel.mobile-desktop-preview .preview-frame-shell::before {
     content: '';
     position: absolute;
     left: 50%;
-    bottom: 14px;
-    z-index: 1;
-    width: calc(var(--desktop-monitor-width) * var(--desktop-preview-scale) * 0.34);
-    height: 20px;
-    min-width: 88px;
-    max-width: 170px;
+    bottom: 12px;
+    width: 76px;
+    height: 8px;
+    border-radius: 999px;
     transform: translateX(-50%);
-    border-radius: 0 0 24px 24px;
-    background: linear-gradient(180deg, #64748b, #1e293b);
-    box-shadow: 0 14px 28px rgba(0, 0, 0, 0.38);
-    pointer-events: none;
+    background: linear-gradient(90deg, #64748b, #cbd5e1, #64748b);
+    opacity: 0.8;
+  }
+
+  .preview-panel.mobile-desktop-preview .preview-frame-shell::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    bottom: 0;
+    width: 138px;
+    height: 12px;
+    border-radius: 16px 16px 0 0;
+    transform: translateX(-50%);
+    background: linear-gradient(180deg, #334155, #111827);
+  }
+
+  .preview-panel.mobile-desktop-preview .desktop-monitor-label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin: -2px 0 9px;
+    color: #dbeafe;
+    font-size: 0.72rem;
+    font-weight: 900;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .preview-panel.mobile-desktop-preview .desktop-monitor-label::after {
+    content: '1366px view';
+    color: #93c5fd;
+    font-size: 0.66rem;
+    font-weight: 1000;
   }
 
   .preview-panel.mobile-desktop-preview #previewFrame {
-    position: relative !important;
-    z-index: 2 !important;
     display: block !important;
-    width: var(--desktop-monitor-width) !important;
-    min-width: var(--desktop-monitor-width) !important;
+    width: 1366px !important;
+    min-width: 1366px !important;
     max-width: none !important;
-    height: var(--desktop-monitor-height) !important;
-    min-height: var(--desktop-monitor-height) !important;
-    max-height: none !important;
-    margin-left: calc(50% - (var(--desktop-monitor-width) / 2)) !important;
-    border: 10px solid #0f172a !important;
-    border-bottom-width: 24px !important;
-    border-radius: 20px !important;
+    height: 768px !important;
+    min-height: 768px !important;
+    border: 0 !important;
+    border-radius: 10px !important;
     background: white !important;
-    box-shadow:
-      0 0 0 1px rgba(255, 255, 255, 0.16),
-      0 26px 60px rgba(0, 0, 0, 0.5),
-      inset 0 0 0 1px rgba(255,255,255,0.12) !important;
-    transform: scale(var(--desktop-preview-scale)) !important;
-    transform-origin: top center !important;
+    transform: scale(calc((100vw - 86px) / 1366));
+    transform-origin: top left;
   }
 
-  .preview-panel.mobile-desktop-preview .panel-header {
-    border-bottom-color: rgba(148, 163, 184, 0.28) !important;
-    background: #0f172a !important;
+  .preview-panel.mobile-desktop-preview .preview-frame-shell {
+    height: calc(((100vw - 86px) / 1366) * 768 + 74px);
   }
 
-  .preview-panel.mobile-desktop-preview .panel-header h2,
-  .preview-panel.mobile-desktop-preview .panel-header p {
-    color: #e5edf7 !important;
+  .preview-panel.mobile-desktop-preview::after {
+    content: 'Desktop Monitor: this is a scaled computer-screen view. Tap Full Screen, then rotate your phone sideways for a wider desktop preview.' !important;
+    display: block !important;
+    margin: 0 12px 12px;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    color: var(--muted);
+    background: var(--solid-card);
+    font-size: 0.78rem;
+    font-weight: 800;
+    line-height: 1.35;
   }
 
-  body.preview-fullscreen-active .preview-panel.mobile-desktop-preview .preview-device-frame,
-  body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel.mobile-desktop-preview .preview-device-frame,
-  #previewPanel:fullscreen.mobile-desktop-preview .preview-device-frame,
-  #previewPanel:-webkit-full-screen.mobile-desktop-preview .preview-device-frame {
-    min-height: 100dvh !important;
-    padding-top: 74px !important;
-    padding-bottom: 56px !important;
+  body.preview-fullscreen-active .preview-panel.mobile-desktop-preview,
+  body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel.mobile-desktop-preview,
+  #previewPanel:fullscreen.mobile-desktop-preview,
+  #previewPanel:-webkit-full-screen.mobile-desktop-preview {
+    background: #020617 !important;
+  }
+
+  body.preview-fullscreen-active .preview-panel.mobile-desktop-preview .preview-frame-shell,
+  body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel.mobile-desktop-preview .preview-frame-shell,
+  #previewPanel:fullscreen.mobile-desktop-preview .preview-frame-shell,
+  #previewPanel:-webkit-full-screen.mobile-desktop-preview .preview-frame-shell {
+    width: calc(100vw - 18px) !important;
+    max-width: 100vw !important;
+    margin: 74px auto 10px !important;
+    height: calc(((100vw - 82px) / 1366) * 768 + 74px) !important;
   }
 
   body.preview-fullscreen-active .preview-panel.mobile-desktop-preview #previewFrame,
   body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel.mobile-desktop-preview #previewFrame,
   #previewPanel:fullscreen.mobile-desktop-preview #previewFrame,
   #previewPanel:-webkit-full-screen.mobile-desktop-preview #previewFrame {
+    transform: scale(calc((100vw - 82px) / 1366)) !important;
+  }
+
+  @media (orientation: landscape) and (max-height: 520px) {
+    body.preview-fullscreen-active .preview-panel.mobile-desktop-preview .preview-frame-shell,
+    body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel.mobile-desktop-preview .preview-frame-shell,
+    #previewPanel:fullscreen.mobile-desktop-preview .preview-frame-shell,
+    #previewPanel:-webkit-full-screen.mobile-desktop-preview .preview-frame-shell {
+      width: calc(100vw - 24px) !important;
+      margin-top: 58px !important;
+      height: calc(100vh - 70px) !important;
+      overflow: auto !important;
+      -webkit-overflow-scrolling: touch !important;
+    }
+
+    body.preview-fullscreen-active .preview-panel.mobile-desktop-preview #previewFrame,
+    body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel.mobile-desktop-preview #previewFrame,
+    #previewPanel:fullscreen.mobile-desktop-preview #previewFrame,
+    #previewPanel:-webkit-full-screen.mobile-desktop-preview #previewFrame {
+      transform: scale(calc((100vw - 88px) / 1366)) !important;
+    }
+  }
+}
+
+/* Final mobile landscape / desktop monitor preview fix */
+@media (hover: none) and (pointer: coarse), (max-width: 760px), (orientation: landscape) and (max-height: 560px) {
+  .preview-panel .preview-actions .layout-btn[data-layout] {
+    display: none !important;
+  }
+
+  .preview-panel .preview-actions {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
+    width: 100% !important;
+  }
+
+  .preview-panel .preview-actions #desktopPreviewBtn,
+  .preview-panel .preview-actions #fullPreviewBtn {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    min-height: 42px !important;
+    width: 100% !important;
+    padding: 0 12px !important;
+    border-radius: 999px !important;
+    font-size: 0.9rem !important;
+    white-space: nowrap !important;
+  }
+
+  .preview-panel .preview-actions #desktopPreviewBtn::before {
+    content: 'Desktop Monitor' !important;
+    font-size: 0.9rem !important;
+  }
+
+  .preview-panel .preview-actions #desktopPreviewBtn {
+    font-size: 0 !important;
+  }
+
+  .preview-panel .preview-actions #desktopPreviewBtn.active::before {
+    content: 'Phone View' !important;
+  }
+}
+
+/* Keep fullscreen preview controls compact on phone landscape. */
+@media (orientation: landscape) and (max-height: 560px) {
+  body.preview-fullscreen-active .preview-panel .panel-header,
+  body.preview-fullscreen-active .preview-panel .preview-header,
+  body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel .panel-header,
+  body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel .preview-header,
+  #previewPanel:fullscreen .panel-header,
+  #previewPanel:fullscreen .preview-header,
+  #previewPanel:-webkit-full-screen .panel-header,
+  #previewPanel:-webkit-full-screen .preview-header {
+    top: 8px !important;
+    right: 8px !important;
+    bottom: auto !important;
+    left: auto !important;
+    width: auto !important;
+  }
+
+  body.preview-fullscreen-active .preview-actions,
+  body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel .preview-actions,
+  #previewPanel:fullscreen .preview-actions,
+  #previewPanel:-webkit-full-screen .preview-actions {
+    display: inline-flex !important;
+    grid-template-columns: none !important;
+    width: auto !important;
+    max-width: calc(100vw - 18px) !important;
+    gap: 6px !important;
+    padding: 5px !important;
+    border-radius: 999px !important;
+    background: rgba(15, 23, 42, 0.82) !important;
+    box-shadow: 0 12px 30px rgba(2, 6, 23, 0.24) !important;
+  }
+
+  body.preview-fullscreen-active #backToEditorPreviewBtn,
+  body.preview-fullscreen-active #resultFromPreviewBtn,
+  body.preview-fullscreen-active #exitPreviewBtn,
+  body.editor-fullscreen-active.preview-inside-editor-fullscreen #backToEditorPreviewBtn,
+  body.editor-fullscreen-active.preview-inside-editor-fullscreen #resultFromPreviewBtn,
+  body.editor-fullscreen-active.preview-inside-editor-fullscreen #exitPreviewBtn,
+  #previewPanel:fullscreen #backToEditorPreviewBtn,
+  #previewPanel:fullscreen #resultFromPreviewBtn,
+  #previewPanel:fullscreen #exitPreviewBtn,
+  #previewPanel:-webkit-full-screen #backToEditorPreviewBtn,
+  #previewPanel:-webkit-full-screen #resultFromPreviewBtn,
+  #previewPanel:-webkit-full-screen #exitPreviewBtn {
+    min-height: 32px !important;
+    width: auto !important;
+    padding: 0 11px !important;
+    font-size: 0.78rem !important;
+    border-radius: 999px !important;
+    white-space: nowrap !important;
+  }
+
+  body.preview-fullscreen-active .preview-actions #desktopPreviewBtn,
+  body.preview-fullscreen-active .preview-actions #fullPreviewBtn,
+  body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-actions #desktopPreviewBtn,
+  body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-actions #fullPreviewBtn,
+  #previewPanel:fullscreen .preview-actions #desktopPreviewBtn,
+  #previewPanel:fullscreen .preview-actions #fullPreviewBtn,
+  #previewPanel:-webkit-full-screen .preview-actions #desktopPreviewBtn,
+  #previewPanel:-webkit-full-screen .preview-actions #fullPreviewBtn {
+    display: none !important;
+  }
+}
+
+/* Desktop monitor preview should not create a huge blank/tall frame on phone. */
+@media (hover: none) and (pointer: coarse), (max-width: 760px), (orientation: landscape) and (max-height: 560px) {
+  .preview-panel.mobile-desktop-preview,
+  .preview-panel.mobile-landscape-desktop-preview {
+    overflow: visible !important;
+  }
+
+  .preview-panel.mobile-desktop-preview .preview-frame-shell,
+  .preview-panel.mobile-landscape-desktop-preview .preview-frame-shell {
+    position: relative !important;
+    overflow: hidden !important;
+    max-width: calc(100vw - 18px) !important;
+    min-height: 0 !important;
+    border: 5px solid #111827 !important;
     border-radius: 18px !important;
+    background: #0f172a !important;
+    box-shadow: 0 14px 35px rgba(2, 6, 23, 0.28) !important;
+  }
+
+  .preview-panel.mobile-desktop-preview #previewFrame,
+  .preview-panel.mobile-landscape-desktop-preview #previewFrame {
+    display: block !important;
+    flex: none !important;
+    border: 0 !important;
+    border-radius: 8px !important;
+    background: #ffffff !important;
+  }
+
+  .preview-panel.mobile-desktop-preview .desktop-monitor-label,
+  .preview-panel.mobile-landscape-desktop-preview .desktop-monitor-label {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    height: 28px !important;
+    margin: 0 !important;
+    padding: 0 4px 6px !important;
+    color: #dbeafe !important;
+    font-size: 0.66rem !important;
+    line-height: 1 !important;
+  }
+
+  .preview-panel.mobile-desktop-preview::after,
+  .preview-panel.mobile-landscape-desktop-preview::after {
+    display: none !important;
+    content: none !important;
+  }
+}
+
+/* In fullscreen/landscape, use the phone screen as the monitor. No tall stand, no wasted space. */
+@media (orientation: landscape) and (max-height: 560px) {
+  body.preview-fullscreen-active .preview-panel.mobile-desktop-preview,
+  body.preview-fullscreen-active .preview-panel.mobile-landscape-desktop-preview,
+  body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel.mobile-desktop-preview,
+  body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel.mobile-landscape-desktop-preview,
+  #previewPanel:fullscreen.mobile-desktop-preview,
+  #previewPanel:fullscreen.mobile-landscape-desktop-preview,
+  #previewPanel:-webkit-full-screen.mobile-desktop-preview,
+  #previewPanel:-webkit-full-screen.mobile-landscape-desktop-preview {
+    display: grid !important;
+    place-items: center !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    background: #020617 !important;
+  }
+
+  body.preview-fullscreen-active .preview-panel.mobile-desktop-preview .preview-frame-shell,
+  body.preview-fullscreen-active .preview-panel.mobile-landscape-desktop-preview .preview-frame-shell,
+  body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel.mobile-desktop-preview .preview-frame-shell,
+  body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel.mobile-landscape-desktop-preview .preview-frame-shell,
+  #previewPanel:fullscreen.mobile-desktop-preview .preview-frame-shell,
+  #previewPanel:fullscreen.mobile-landscape-desktop-preview .preview-frame-shell,
+  #previewPanel:-webkit-full-screen.mobile-desktop-preview .preview-frame-shell,
+  #previewPanel:-webkit-full-screen.mobile-landscape-desktop-preview .preview-frame-shell {
+    margin: 0 auto !important;
+    border-width: 4px !important;
+    border-radius: 10px !important;
+    box-shadow: 0 0 0 1px rgba(148, 163, 184, 0.32), 0 18px 45px rgba(2, 6, 23, 0.38) !important;
+  }
+
+  body.preview-fullscreen-active .preview-panel.mobile-desktop-preview .preview-frame-shell::before,
+  body.preview-fullscreen-active .preview-panel.mobile-desktop-preview .preview-frame-shell::after,
+  body.preview-fullscreen-active .preview-panel.mobile-landscape-desktop-preview .preview-frame-shell::before,
+  body.preview-fullscreen-active .preview-panel.mobile-landscape-desktop-preview .preview-frame-shell::after,
+  body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel.mobile-desktop-preview .preview-frame-shell::before,
+  body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel.mobile-desktop-preview .preview-frame-shell::after,
+  body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel.mobile-landscape-desktop-preview .preview-frame-shell::before,
+  body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel.mobile-landscape-desktop-preview .preview-frame-shell::after,
+  #previewPanel:fullscreen.mobile-desktop-preview .preview-frame-shell::before,
+  #previewPanel:fullscreen.mobile-desktop-preview .preview-frame-shell::after,
+  #previewPanel:fullscreen.mobile-landscape-desktop-preview .preview-frame-shell::before,
+  #previewPanel:fullscreen.mobile-landscape-desktop-preview .preview-frame-shell::after,
+  #previewPanel:-webkit-full-screen.mobile-desktop-preview .preview-frame-shell::before,
+  #previewPanel:-webkit-full-screen.mobile-desktop-preview .preview-frame-shell::after,
+  #previewPanel:-webkit-full-screen.mobile-landscape-desktop-preview .preview-frame-shell::before,
+  #previewPanel:-webkit-full-screen.mobile-landscape-desktop-preview .preview-frame-shell::after {
+    display: none !important;
+    content: none !important;
+  }
+
+  body.preview-fullscreen-active .preview-panel.mobile-desktop-preview .desktop-monitor-label,
+  body.preview-fullscreen-active .preview-panel.mobile-landscape-desktop-preview .desktop-monitor-label,
+  body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel.mobile-desktop-preview .desktop-monitor-label,
+  body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel.mobile-landscape-desktop-preview .desktop-monitor-label,
+  #previewPanel:fullscreen.mobile-desktop-preview .desktop-monitor-label,
+  #previewPanel:fullscreen.mobile-landscape-desktop-preview .desktop-monitor-label,
+  #previewPanel:-webkit-full-screen.mobile-desktop-preview .desktop-monitor-label,
+  #previewPanel:-webkit-full-screen.mobile-landscape-desktop-preview .desktop-monitor-label {
+    display: none !important;
   }
 }
