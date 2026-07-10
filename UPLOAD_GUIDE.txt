@@ -1,6 +1,8 @@
-UPLOAD / REPLACE IN THE GITHUB REPOSITORY ROOT
+SIR JR CODING APP — FREE STUDENT ACCOUNTS RELEASE
 
-Required frontend files:
+UPLOAD / REPLACE IN THE REPOSITORY ROOT
+
+Required website files:
 - index.html
 - style.css
 - script.js
@@ -10,18 +12,26 @@ Required frontend files:
 - icons/icon-192.png
 - icons/icon-512.png
 
-Optional setup/reference files:
-- README.md
-- FIREBASE_AND_GITHUB_SETUP.md
+Firebase files/instructions:
 - firestore.rules
 - firebase.json
-- functions/
+- FIREBASE_AND_GITHUB_SETUP.md
+- FREE_STUDENT_ACCOUNTS_SETUP.md
 
-NEW ADMIN FEATURE
-The hidden Teacher/Admin panel now contains Student Assistance controls:
-- Master assistance
-- Code Suggestions
-- Code Helper and Error Hints
-- Rubric Feedback
+Do not upload or deploy a functions folder. This release does not use Cloud Functions.
 
-Apply on This Device works without login. Publishing to all student devices uses the existing Firebase teacher login.
+NEW FEATURES
+- First screen: Student Login or Practice Without Login
+- Student ID login with default password 123456
+- Forced password change on first login
+- My Projects dashboard with create, continue, rename, delete, autosave, and score
+- Admin manual student registration
+- Excel/CSV class-list import
+- Section-based login/project/activity tracker
+- Teacher project viewer
+- Existing phone-only Desktop View preview remains active
+
+IMPORTANT
+- Enable Firebase Email/Password Authentication.
+- Publish the included firestore.rules.
+- Keep Firebase on Spark/no billing.

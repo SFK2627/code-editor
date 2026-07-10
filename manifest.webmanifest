@@ -1,7 +1,7 @@
 {
-  "name": "Grade 8 MCSian Web Code Editor",
-  "short_name": "MCSian Editor",
-  "description": "Sir JR's Grade 8 MCSian Web Code Editor",
+  "name": "Sir JR Coding App",
+  "short_name": "Sir JR Coding",
+  "description": "Grade 8 MCSian web code editor with student projects and teacher monitoring",
   "start_url": "./?source=pwa",
   "scope": "./",
   "display": "standalone",

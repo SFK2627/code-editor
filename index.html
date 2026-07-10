@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Grade 8 MCSian Web Code Editor - Developed by Sir JR</title>
+  <title>Sir JR Coding App - Grade 8 MCSian Web Code Editor</title>
 
   <meta name="theme-color" content="#2563eb" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-  <meta name="apple-mobile-web-app-title" content="MCSian Code Editor" />
+  <meta name="apple-mobile-web-app-title" content="Sir JR Coding" />
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="apple-touch-icon" href="icons/icon-192.png" />
   <script>
@@ -39,15 +39,142 @@
   </script>
   <link rel="stylesheet" href="style.css" />
 </head>
-<body>
+<body class="entry-gate-active">
+  <div id="entryGate" class="entry-gate" role="dialog" aria-modal="true" aria-labelledby="entryGateTitle">
+    <div class="entry-card">
+      <div class="entry-logo" aria-hidden="true">&lt;/&gt;</div>
+      <p class="section-kicker">Grade 8 MCSian Web Coding</p>
+      <h1 id="entryGateTitle">Welcome to Sir JR Coding App</h1>
+      <p class="entry-lead">Choose how you want to use the editor today.</p>
+
+      <button id="resumeStudentBtn" class="entry-choice resume-choice hidden" type="button">
+        <span class="entry-choice-icon">👋</span>
+        <span><strong id="resumeStudentText">Continue my account</strong><small>Open your saved projects and continue where you stopped.</small></span>
+      </button>
+
+      <div class="entry-choice-grid">
+        <button id="openStudentLoginBtn" class="entry-choice primary-choice" type="button">
+          <span class="entry-choice-icon">🎓</span>
+          <span><strong>Log In as Student</strong><small>Save projects, continue later, and keep your scores.</small></span>
+        </button>
+        <button id="continueGuestBtn" class="entry-choice guest-choice" type="button">
+          <span class="entry-choice-icon">🧪</span>
+          <span><strong>Practice Without Login</strong><small>You can code and run output, but your work will not be saved for later.</small></span>
+        </button>
+      </div>
+      <p class="entry-free-note">No payment, subscription, or billing is required to use this app.</p>
+    </div>
+  </div>
+
+  <div id="studentLoginOverlay" class="student-auth-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="studentLoginTitle">
+    <div class="student-auth-card">
+      <button id="closeStudentLoginBtn" class="icon-btn auth-close-btn" type="button" aria-label="Close student login">×</button>
+      <div class="student-auth-icon">🎓</div>
+      <p class="section-kicker">Student Account</p>
+      <h2 id="studentLoginTitle">Log In to Save Your Work</h2>
+      <p class="muted-text">Use the Student ID registered by your teacher. The default password for a new account is <strong>123456</strong>.</p>
+      <label>
+        Student ID
+        <input id="studentLoginId" type="text" inputmode="text" autocomplete="username" placeholder="Enter your Student ID" />
+      </label>
+      <label>
+        Password
+        <div class="password-input-row">
+          <input id="studentLoginPassword" type="password" autocomplete="current-password" placeholder="Enter your password" />
+          <button id="toggleStudentPasswordBtn" class="password-toggle-btn" type="button" aria-label="Show or hide password">Show</button>
+        </div>
+      </label>
+      <p id="studentLoginError" class="login-error hidden" role="alert"></p>
+      <button id="studentLoginBtn" class="primary-btn wide-btn" type="button">Log In</button>
+      <button id="studentLoginGuestBtn" class="ghost-btn wide-btn" type="button">Practice Without Login</button>
+    </div>
+  </div>
+
+  <div id="changePasswordOverlay" class="student-auth-overlay password-change-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="changePasswordTitle">
+    <div class="student-auth-card">
+      <div class="student-auth-icon">🔐</div>
+      <p class="section-kicker">First Login</p>
+      <h2 id="changePasswordTitle">Create Your New Password</h2>
+      <p class="muted-text">For your security, replace the default password before opening your projects.</p>
+      <label>
+        New Password
+        <input id="studentNewPassword" type="password" autocomplete="new-password" minlength="6" placeholder="At least 6 characters" />
+      </label>
+      <label>
+        Confirm New Password
+        <input id="studentConfirmPassword" type="password" autocomplete="new-password" minlength="6" placeholder="Type it again" />
+      </label>
+      <p id="changePasswordError" class="login-error hidden" role="alert"></p>
+      <button id="saveNewPasswordBtn" class="primary-btn wide-btn" type="button">Save New Password</button>
+      <button id="changePasswordLogoutBtn" class="ghost-btn wide-btn" type="button">Log Out</button>
+    </div>
+  </div>
+
+  <div id="studentDashboard" class="student-dashboard-screen hidden" aria-labelledby="studentDashboardTitle">
+    <header class="student-dashboard-header">
+      <div class="dashboard-brand">
+        <div class="logo-mark" aria-hidden="true">&lt;/&gt;</div>
+        <div>
+          <p class="section-kicker">Sir JR Coding App</p>
+          <h1 id="studentDashboardTitle">My Projects</h1>
+          <p id="dashboardGreeting" class="muted-text">Welcome back!</p>
+        </div>
+      </div>
+      <div class="dashboard-header-actions">
+        <button id="dashboardThemeBtn" class="ghost-btn" type="button">🌙 Theme</button>
+        <button id="dashboardLogoutBtn" class="ghost-btn danger" type="button">Log Out</button>
+      </div>
+    </header>
+    <main class="student-dashboard-main">
+      <section class="dashboard-hero-card">
+        <div>
+          <p class="section-kicker">Your Coding Workspace</p>
+          <h2>Continue a project or start something new.</h2>
+          <p>Every edit is saved automatically while you are logged in.</p>
+        </div>
+        <button id="newProjectBtn" class="primary-btn dashboard-new-btn" type="button">+ New Project</button>
+      </section>
+      <section class="project-toolbar" aria-label="Project filters">
+        <label class="project-search-box">
+          <span>🔎</span>
+          <input id="projectSearchInput" type="search" placeholder="Search project name" />
+        </label>
+        <select id="projectStatusFilter" aria-label="Filter projects by status">
+          <option value="all">All Projects</option>
+          <option value="in-progress">In Progress</option>
+          <option value="checked">Checked</option>
+          <option value="passed">Passed</option>
+        </select>
+      </section>
+      <div id="projectDashboardStatus" class="dashboard-status" role="status">Loading projects...</div>
+      <section id="studentProjectsGrid" class="student-projects-grid" aria-live="polite"></section>
+    </main>
+  </div>
+
+  <div id="projectNameOverlay" class="student-auth-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="projectNameTitle">
+    <div class="student-auth-card project-name-card">
+      <button id="closeProjectNameBtn" class="icon-btn auth-close-btn" type="button" aria-label="Close project dialog">×</button>
+      <div class="student-auth-icon">📁</div>
+      <p id="projectNameKicker" class="section-kicker">New Project</p>
+      <h2 id="projectNameTitle">Name Your Project</h2>
+      <label>
+        Project Name
+        <input id="projectNameInput" type="text" maxlength="80" autocomplete="off" placeholder="Example: My Personal Webpage" />
+      </label>
+      <p id="projectNameError" class="login-error hidden" role="alert"></p>
+      <button id="saveProjectNameBtn" class="primary-btn wide-btn" type="button">Create Project</button>
+      <button id="cancelProjectNameBtn" class="ghost-btn wide-btn" type="button">Cancel</button>
+    </div>
+  </div>
+
   <div class="app-shell">
     <header class="topbar simplified-topbar">
       <div class="brand-block">
         <div class="logo-mark" aria-hidden="true">&lt;/&gt;</div>
         <div>
           <p id="adminBtn" class="eyebrow hidden-admin-trigger" role="button" tabindex="0" aria-label="Teacher admin access">Sir JR's</p>
-          <h1>Grade 8 MCSian Web Code Editor</h1>
-          <p class="subtitle">Developed by Sir JR</p>
+          <h1 id="appTitleText">Sir Jr's Grade 8 MCSian Web Code Editor</h1>
+          <p id="appSubtitleText" class="subtitle">Developed by Sir JR</p>
         </div>
       </div>
 
@@ -63,6 +190,17 @@
         <button id="exitEditorBtn" class="ghost-btn danger-tool hidden" type="button" title="Exit full editor: Esc">Exit Full</button>
         <button id="resetBtn" class="ghost-btn quiet-action" type="button">Reset</button>
         <button id="clearBtn" class="ghost-btn danger quiet-action" type="button">Clear Tab</button>
+      </div>
+
+      <div id="studentAccountStrip" class="student-account-strip hidden" aria-label="Student account actions">
+        <span id="headerStudentGreeting" class="student-greeting">Hi, Student!</span>
+        <span id="studentSaveState" class="student-save-state">Saved</span>
+        <button id="myProjectsBtn" class="ghost-btn" type="button">📁 My Projects</button>
+        <button id="studentHeaderLogoutBtn" class="ghost-btn danger" type="button">Log Out</button>
+      </div>
+      <div id="guestAccountStrip" class="student-account-strip guest-account-strip hidden" aria-label="Guest actions">
+        <span>Practice Mode · Work is not saved</span>
+        <button id="guestLoginToSaveBtn" class="primary-btn" type="button">Log In to Save</button>
       </div>
     </header>
 
@@ -366,6 +504,62 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
       </div>
 
       <form id="adminForm" class="admin-form hidden">
+        <section id="studentAccountsAdmin" class="student-accounts-admin-card" aria-labelledby="studentAccountsTitle">
+          <div class="student-admin-heading">
+            <div>
+              <p class="section-kicker">Student Accounts & Tracker</p>
+              <h3 id="studentAccountsTitle">Register and Monitor Students</h3>
+              <p class="muted-text">Create free student accounts using Student ID, or import an Excel/CSV class list. New accounts use the default password <strong>123456</strong> and must change it on first login.</p>
+            </div>
+            <button id="refreshStudentsBtn" class="ghost-btn" type="button">↻ Refresh Tracker</button>
+          </div>
+
+          <div class="student-admin-summary" aria-label="Student tracker summary">
+            <div><strong id="adminStudentCount">0</strong><span>Students</span></div>
+            <div><strong id="adminLoggedInCount">0</strong><span>Logged In</span></div>
+            <div><strong id="adminProjectCount">0</strong><span>Projects</span></div>
+            <div><strong id="adminActiveTodayCount">0</strong><span>Active Today</span></div>
+          </div>
+
+          <div class="student-register-grid">
+            <label>Student ID<input id="adminStudentId" type="text" autocomplete="off" placeholder="Example: 2026-001" /></label>
+            <label>Full Name<input id="adminStudentName" type="text" autocomplete="off" placeholder="Juan Dela Cruz" /></label>
+            <label>Gender<select id="adminStudentGender"><option value="">Select</option><option>Male</option><option>Female</option><option>Prefer not to say</option></select></label>
+            <label>Section<input id="adminStudentSection" type="text" autocomplete="off" placeholder="Grade 8 - Rizal" /></label>
+          </div>
+          <div class="student-register-actions">
+            <button id="addStudentAccountBtn" class="primary-btn" type="button">+ Add Student Account</button>
+            <button id="downloadStudentTemplateBtn" class="ghost-btn" type="button">⬇ Download Excel Template</button>
+            <button id="chooseStudentImportBtn" class="ghost-btn" type="button">📥 Import Excel / CSV</button>
+            <input id="studentImportInput" class="hidden" type="file" accept=".xlsx,.xls,.csv" />
+          </div>
+          <p id="studentAccountAdminStatus" class="helper-note" role="status">Ready to register students.</p>
+
+          <div id="studentImportPreview" class="student-import-preview hidden">
+            <div class="student-import-preview-head">
+              <div><strong id="studentImportSummary">Import preview</strong><small>Review the records before creating accounts.</small></div>
+              <button id="cancelStudentImportBtn" class="ghost-btn" type="button">Cancel</button>
+            </div>
+            <div class="student-import-table-wrap">
+              <table class="student-import-table"><thead><tr><th>#</th><th>Student ID</th><th>Name</th><th>Gender</th><th>Section</th><th>Status</th></tr></thead><tbody id="studentImportPreviewBody"></tbody></table>
+            </div>
+            <button id="confirmStudentImportBtn" class="primary-btn" type="button">Create Valid Student Accounts</button>
+          </div>
+
+          <div class="student-tracker-toolbar">
+            <label><span>Search</span><input id="adminStudentSearch" type="search" placeholder="Name or Student ID" /></label>
+            <label><span>Section</span><select id="adminSectionFilter"><option value="all">All Sections</option></select></label>
+            <label><span>Activity</span><select id="adminActivityFilter"><option value="all">All Students</option><option value="logged-in">Logged In</option><option value="never-logged-in">Never Logged In</option><option value="with-projects">With Projects</option><option value="without-projects">Without Projects</option><option value="active-today">Active Today</option></select></label>
+          </div>
+          <div class="student-tracker-table-wrap">
+            <table class="student-tracker-table">
+              <thead><tr><th>Student</th><th>Section</th><th>Account</th><th>Projects</th><th>Last Activity</th><th>Action</th></tr></thead>
+              <tbody id="adminStudentsTableBody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <div class="admin-section-divider"><span>Activities & Rubrics</span></div>
         <div class="admin-activity-manager">
           <label>
             Saved Activities
@@ -468,6 +662,15 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
   </div>
 
 
+  <div id="adminStudentProjectsOverlay" class="student-auth-overlay admin-student-projects-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="adminStudentProjectsTitle">
+    <div class="admin-student-projects-card">
+      <div class="admin-student-projects-header">
+        <div><p class="section-kicker">Student Project Tracker</p><h2 id="adminStudentProjectsTitle">Student Projects</h2><p id="adminStudentProjectsSubtitle" class="muted-text"></p></div>
+        <button id="closeAdminStudentProjectsBtn" class="icon-btn" type="button" aria-label="Close student projects">×</button>
+      </div>
+      <div id="adminStudentProjectsList" class="admin-student-projects-list"></div>
+    </div>
+  </div>
 
   <div id="pageDialogOverlay" class="file-name-dialog-overlay page-dialog-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="pageDialogTitle">
     <div class="file-name-dialog-card page-dialog-card" role="document">
@@ -545,6 +748,7 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
     </div>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="firebase-config.js"></script>
   <script src="script.js"></script>
 </body>

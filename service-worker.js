@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mcsian-code-editor-v20260710-phone-preview-final-fix-v2';
+const CACHE_NAME = 'sir-jr-coding-app-v20260710-desktop-account-layout';
 const CORE_ASSETS = [
   './',
   './index.html',
@@ -6,6 +6,7 @@ const CORE_ASSETS = [
   './script.js',
   './firebase-config.js',
   './manifest.webmanifest',
+  './STUDENT_IMPORT_TEMPLATE.csv',
   './icons/icon-192.png',
   './icons/icon-512.png'
 ];

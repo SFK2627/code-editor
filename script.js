@@ -136,6 +136,81 @@ const assistanceSettingsStatus = document.getElementById('assistanceSettingsStat
 const assistanceModeBadge = document.getElementById('assistanceModeBadge');
 const aiReviewPanel = document.getElementById('aiReviewPanel');
 
+// Student entry, account, dashboard, project, and admin tracker elements.
+const entryGate = document.getElementById('entryGate');
+const resumeStudentBtn = document.getElementById('resumeStudentBtn');
+const resumeStudentText = document.getElementById('resumeStudentText');
+const openStudentLoginBtn = document.getElementById('openStudentLoginBtn');
+const continueGuestBtn = document.getElementById('continueGuestBtn');
+const studentLoginOverlay = document.getElementById('studentLoginOverlay');
+const closeStudentLoginBtn = document.getElementById('closeStudentLoginBtn');
+const studentLoginId = document.getElementById('studentLoginId');
+const studentLoginPassword = document.getElementById('studentLoginPassword');
+const toggleStudentPasswordBtn = document.getElementById('toggleStudentPasswordBtn');
+const studentLoginError = document.getElementById('studentLoginError');
+const studentLoginBtn = document.getElementById('studentLoginBtn');
+const studentLoginGuestBtn = document.getElementById('studentLoginGuestBtn');
+const changePasswordOverlay = document.getElementById('changePasswordOverlay');
+const studentNewPassword = document.getElementById('studentNewPassword');
+const studentConfirmPassword = document.getElementById('studentConfirmPassword');
+const changePasswordError = document.getElementById('changePasswordError');
+const saveNewPasswordBtn = document.getElementById('saveNewPasswordBtn');
+const changePasswordLogoutBtn = document.getElementById('changePasswordLogoutBtn');
+const studentDashboard = document.getElementById('studentDashboard');
+const dashboardGreeting = document.getElementById('dashboardGreeting');
+const dashboardThemeBtn = document.getElementById('dashboardThemeBtn');
+const dashboardLogoutBtn = document.getElementById('dashboardLogoutBtn');
+const newProjectBtn = document.getElementById('newProjectBtn');
+const projectSearchInput = document.getElementById('projectSearchInput');
+const projectStatusFilter = document.getElementById('projectStatusFilter');
+const projectDashboardStatus = document.getElementById('projectDashboardStatus');
+const studentProjectsGrid = document.getElementById('studentProjectsGrid');
+const projectNameOverlay = document.getElementById('projectNameOverlay');
+const closeProjectNameBtn = document.getElementById('closeProjectNameBtn');
+const projectNameKicker = document.getElementById('projectNameKicker');
+const projectNameTitle = document.getElementById('projectNameTitle');
+const projectNameInput = document.getElementById('projectNameInput');
+const projectNameError = document.getElementById('projectNameError');
+const saveProjectNameBtn = document.getElementById('saveProjectNameBtn');
+const cancelProjectNameBtn = document.getElementById('cancelProjectNameBtn');
+const appTitleText = document.getElementById('appTitleText');
+const appSubtitleText = document.getElementById('appSubtitleText');
+const studentAccountStrip = document.getElementById('studentAccountStrip');
+const headerStudentGreeting = document.getElementById('headerStudentGreeting');
+const studentSaveState = document.getElementById('studentSaveState');
+const myProjectsBtn = document.getElementById('myProjectsBtn');
+const studentHeaderLogoutBtn = document.getElementById('studentHeaderLogoutBtn');
+const guestAccountStrip = document.getElementById('guestAccountStrip');
+const guestLoginToSaveBtn = document.getElementById('guestLoginToSaveBtn');
+const adminStudentId = document.getElementById('adminStudentId');
+const adminStudentName = document.getElementById('adminStudentName');
+const adminStudentGender = document.getElementById('adminStudentGender');
+const adminStudentSection = document.getElementById('adminStudentSection');
+const addStudentAccountBtn = document.getElementById('addStudentAccountBtn');
+const downloadStudentTemplateBtn = document.getElementById('downloadStudentTemplateBtn');
+const chooseStudentImportBtn = document.getElementById('chooseStudentImportBtn');
+const studentImportInput = document.getElementById('studentImportInput');
+const studentAccountAdminStatus = document.getElementById('studentAccountAdminStatus');
+const studentImportPreview = document.getElementById('studentImportPreview');
+const studentImportSummary = document.getElementById('studentImportSummary');
+const studentImportPreviewBody = document.getElementById('studentImportPreviewBody');
+const confirmStudentImportBtn = document.getElementById('confirmStudentImportBtn');
+const cancelStudentImportBtn = document.getElementById('cancelStudentImportBtn');
+const refreshStudentsBtn = document.getElementById('refreshStudentsBtn');
+const adminStudentSearch = document.getElementById('adminStudentSearch');
+const adminSectionFilter = document.getElementById('adminSectionFilter');
+const adminActivityFilter = document.getElementById('adminActivityFilter');
+const adminStudentsTableBody = document.getElementById('adminStudentsTableBody');
+const adminStudentCount = document.getElementById('adminStudentCount');
+const adminLoggedInCount = document.getElementById('adminLoggedInCount');
+const adminProjectCount = document.getElementById('adminProjectCount');
+const adminActiveTodayCount = document.getElementById('adminActiveTodayCount');
+const adminStudentProjectsOverlay = document.getElementById('adminStudentProjectsOverlay');
+const adminStudentProjectsTitle = document.getElementById('adminStudentProjectsTitle');
+const adminStudentProjectsSubtitle = document.getElementById('adminStudentProjectsSubtitle');
+const adminStudentProjectsList = document.getElementById('adminStudentProjectsList');
+const closeAdminStudentProjectsBtn = document.getElementById('closeAdminStudentProjectsBtn');
+
 
 // Built-in Firebase fallback config.
 // This prevents the Teacher/Admin login from failing with "Firebase is not ready"
@@ -162,7 +237,7 @@ function ensureFirebaseFrontendConfig() {
   if (!window.MCS_FIREBASE_COLLECTION) window.MCS_FIREBASE_COLLECTION = 'webCodeEditor';
   if (!window.MCS_FIREBASE_DOCUMENT_ID) window.MCS_FIREBASE_DOCUMENT_ID = 'grade8-mcsian';
   if (!window.MCS_FIREBASE_SDK_VERSION) window.MCS_FIREBASE_SDK_VERSION = '10.12.5';
-  if (!Array.isArray(window.MCS_TEACHER_EMAILS)) window.MCS_TEACHER_EMAILS = [];
+  if (!Array.isArray(window.MCS_TEACHER_EMAILS) || !window.MCS_TEACHER_EMAILS.length) window.MCS_TEACHER_EMAILS = ['sirjr.mcsian@gmail.com'];
   if (typeof window.MCS_RUBRIC_IMAGE_IMPORT_ENABLED === 'undefined') window.MCS_RUBRIC_IMAGE_IMPORT_ENABLED = true;
   if (typeof window.MCS_RUBRIC_IMAGE_ENDPOINT === 'undefined') window.MCS_RUBRIC_IMAGE_ENDPOINT = '';
   if (typeof window.MCS_AI_CHECKER_ENDPOINT === 'undefined') window.MCS_AI_CHECKER_ENDPOINT = '';
@@ -183,6 +258,23 @@ const STORAGE_KEYS = {
   fileNames: 'studentCodeStudio.fileNames.v1',
   assistanceSettings: 'studentCodeStudio.assistanceSettings.v1'
 };
+
+
+// Code progress is intentionally kept out of permanent browser storage.
+// Guest work disappears after the browser session, while logged-in projects
+// are restored from Firestore. This prevents guest practice from looking like
+// an account save.
+const SESSION_ONLY_STORAGE_KEYS = new Set([
+  STORAGE_KEYS.codeByActivity,
+  STORAGE_KEYS.selectedActivityId,
+  STORAGE_KEYS.fileNames
+]);
+
+try {
+  SESSION_ONLY_STORAGE_KEYS.forEach(key => sessionStorage.removeItem(key));
+} catch (error) {
+  console.warn('Could not reset temporary editor session.', error);
+}
 
 
 const firebaseSync = {
@@ -211,6 +303,31 @@ let studentAssistanceSettings = normalizeAssistanceSettings(
   loadJSON(STORAGE_KEYS.assistanceSettings, DEFAULT_ASSISTANCE_SETTINGS)
 );
 let unsubscribeCloudAssistanceSettings = null;
+
+const DEFAULT_STUDENT_PASSWORD = '123456';
+const STUDENT_EMAIL_DOMAIN = 'students.mcsian.app';
+const STUDENT_AUTOSAVE_DELAY = 1400;
+const PROFILE_ACTIVITY_WRITE_INTERVAL = 5 * 60 * 1000;
+
+const appSession = {
+  mode: 'pending', // pending | guest | student
+  student: null,
+  currentProjectId: '',
+  currentProject: null,
+  projects: [],
+  projectDialogMode: 'create',
+  renameProjectId: '',
+  authReady: false,
+  existingStudentUser: null
+};
+
+let studentProjectSaveTimer = null;
+let studentProjectSaveInFlight = false;
+let studentProjectSaveQueued = false;
+let lastProfileActivityWriteAt = 0;
+let adminStudentsCache = [];
+let pendingStudentImportRows = [];
+let studentImportRunning = false;
 
 
 const STARTER_CODE_VERSION_KEY = 'studentCodeStudio.starterCodeVersion';
@@ -544,9 +661,13 @@ function codeSuggestion(label, insert, desc) {
   return { label, insert, desc, type: 'code' };
 }
 
+function getStorageForKey(key) {
+  return SESSION_ONLY_STORAGE_KEYS.has(key) ? sessionStorage : localStorage;
+}
+
 function loadJSON(key, fallback) {
   try {
-    const saved = localStorage.getItem(key);
+    const saved = getStorageForKey(key).getItem(key);
     return saved ? JSON.parse(saved) : clone(fallback);
   } catch (error) {
     console.warn(`Could not load ${key}`, error);
@@ -555,7 +676,11 @@ function loadJSON(key, fallback) {
 }
 
 function saveJSON(key, value) {
-  localStorage.setItem(key, JSON.stringify(value));
+  try {
+    getStorageForKey(key).setItem(key, JSON.stringify(value));
+  } catch (error) {
+    console.warn(`Could not save ${key}`, error);
+  }
 }
 
 function normalizeAssistanceSettings(value = {}) {
@@ -997,10 +1122,10 @@ function renderHTMLPageManager() {
 }
 
 function saveCodeStoreForCurrentActivity() {
-  if (activity) {
-    codeByActivity[activity.id] = normalizeCodeStore(codeStore);
-    saveCodeByActivity();
-  }
+  const codeKey = activity?.id || selectedActivityId || 'scratch';
+  codeByActivity[codeKey] = normalizeCodeStore(codeStore);
+  saveCodeByActivity();
+  queueStudentProjectSave('edit');
 }
 
 function switchHTMLPage(fileName) {
@@ -1603,29 +1728,59 @@ function initFirebaseWithCompatSDK() {
     const db = firebase.firestore();
     const auth = firebase.auth();
 
+    const compatDoc = (database, ...segments) => {
+      let ref = database.collection(segments[0]).doc(segments[1]);
+      for (let index = 2; index < segments.length; index += 2) {
+        ref = ref.collection(segments[index]).doc(segments[index + 1]);
+      }
+      return ref;
+    };
+    const compatCollection = (database, ...segments) => {
+      let ref = database.collection(segments[0]);
+      for (let index = 1; index < segments.length; index += 2) {
+        ref = ref.doc(segments[index]).collection(segments[index + 1]);
+      }
+      return ref;
+    };
+    const applyCompatQuery = (reference, ...constraints) => constraints.reduce((queryRef, constraint) => {
+      if (!constraint) return queryRef;
+      if (constraint.type === 'where') return queryRef.where(constraint.field, constraint.operator, constraint.value);
+      if (constraint.type === 'orderBy') return queryRef.orderBy(constraint.field, constraint.direction);
+      if (constraint.type === 'limit') return queryRef.limit(constraint.count);
+      return queryRef;
+    }, reference);
+
     firebaseSync.db = db;
     firebaseSync.auth = auth;
     firebaseSync.modules = {
-      doc: (database, collectionName, documentId) => database.collection(collectionName).doc(documentId),
+      doc: compatDoc,
+      collection: compatCollection,
       getDoc: async ref => {
         const snap = await ref.get();
-        return {
-          exists: () => snap.exists,
-          data: () => snap.data() || {}
-        };
+        return { id: snap.id, exists: () => snap.exists, data: () => snap.data() || {}, ref: snap.ref };
       },
+      getDocs: ref => ref.get(),
       setDoc: (ref, data, options = {}) => ref.set(data, options),
-      onSnapshot: (ref, callback, errorCallback) => ref.onSnapshot(snap => callback({
-        exists: () => snap.exists,
-        data: () => snap.data() || {}
-      }), errorCallback),
-      collection: (database, collectionName, documentId, subcollectionName) => database.collection(collectionName).doc(documentId).collection(subcollectionName),
+      updateDoc: (ref, data) => ref.update(data),
+      deleteDoc: ref => ref.delete(),
       addDoc: (collectionRef, data) => collectionRef.add(data),
-      serverTimestamp: () => firebase.firestore.FieldValue.serverTimestamp()
+      onSnapshot: (ref, callback, errorCallback) => ref.onSnapshot(snap => callback({
+        id: snap.id,
+        exists: () => snap.exists,
+        data: () => snap.data() || {},
+        ref: snap.ref
+      }), errorCallback),
+      query: applyCompatQuery,
+      where: (field, operator, value) => ({ type: 'where', field, operator, value }),
+      orderBy: (field, direction = 'asc') => ({ type: 'orderBy', field, direction }),
+      limit: count => ({ type: 'limit', count }),
+      serverTimestamp: () => firebase.firestore.FieldValue.serverTimestamp(),
+      increment: amount => firebase.firestore.FieldValue.increment(amount)
     };
     firebaseSync.authModule = {
       onAuthStateChanged: (authInstance, callback) => authInstance.onAuthStateChanged(callback),
       signInWithEmailAndPassword: (authInstance, email, password) => authInstance.signInWithEmailAndPassword(email, password),
+      updatePassword: (user, password) => user.updatePassword(password),
       signOut: authInstance => authInstance.signOut()
     };
     firebaseSync.enabled = true;
@@ -1858,6 +2013,9 @@ function queueCloudActivitiesSave() {
 }
 
 async function saveSubmissionToCloud(result) {
+  // Guest practice never creates a cloud record. Logged-in project results are
+  // saved both in the project and in the teacher submission history.
+  if (!isStudentProjectActive()) return false;
   const ready = await initFirebaseSync();
   if (!ready || !activity || !result) return false;
 
@@ -1865,6 +2023,12 @@ async function saveSubmissionToCloud(result) {
     const { collection, addDoc, serverTimestamp } = firebaseSync.modules;
     const submissionRef = collection(firebaseSync.db, firebaseSync.collectionName, firebaseSync.documentId, 'submissions');
     await addDoc(submissionRef, {
+      studentUid: appSession.student.uid,
+      studentId: appSession.student.studentId,
+      studentName: appSession.student.name,
+      section: appSession.student.section,
+      projectId: appSession.currentProjectId,
+      projectName: appSession.currentProject?.name || 'Untitled Project',
       activityId: activity.id,
       activityTitle: activity.title,
       submittedAt: serverTimestamp(),
@@ -1884,11 +2048,11 @@ async function saveSubmissionToCloud(result) {
         target: item.target || ''
       }))
     });
-    setStatus('Result saved online');
+    setStatus('Result saved to project');
     return true;
   } catch (error) {
     console.warn('Could not save submission to Firebase.', error);
-    setStatus('Online save failed');
+    setStatus('Project saved; submission history failed');
     return false;
   }
 }
@@ -1929,6 +2093,7 @@ async function watchTeacherAuth() {
   onAuthStateChanged(firebaseSync.auth, user => {
     firebaseSync.currentUser = user;
     updateTeacherLoginUI(user);
+    handleStudentAuthObserver(user).catch(error => console.warn('Student auth observer failed.', error));
 
     if (!adminOverlay.classList.contains('hidden')) {
       if (isTeacherAuthenticated()) {
@@ -1950,6 +2115,1276 @@ async function startFirebaseMode() {
   await loadActivitiesFromCloud();
   await watchStudentAssistanceSettings();
   await watchTeacherAuth();
+}
+
+/* =========================================================
+   FREE STUDENT ACCOUNTS + CLOUD PROJECTS
+   Uses only Firebase Authentication and Cloud Firestore.
+   No Cloud Functions, Storage, or paid backend is required.
+   ========================================================= */
+function normalizeStudentId(value) {
+  return String(value || '').trim().replace(/\s+/g, '').toUpperCase();
+}
+
+function studentIdToAuthEmail(value) {
+  const normalized = normalizeStudentId(value).toLowerCase();
+  const safe = normalized.replace(/[^a-z0-9]/g, '');
+  return safe ? `sid-${safe}@${STUDENT_EMAIL_DOMAIN}` : '';
+}
+
+function getStudentFirstName(name) {
+  const cleaned = String(name || 'Student').trim();
+  return cleaned.split(/\s+/)[0] || 'Student';
+}
+
+function timestampToDate(value) {
+  if (!value) return null;
+  if (value instanceof Date) return value;
+  if (typeof value.toDate === 'function') return value.toDate();
+  if (typeof value.seconds === 'number') return new Date(value.seconds * 1000);
+  if (typeof value === 'number' || typeof value === 'string') {
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+  return null;
+}
+
+function formatStudentDate(value, fallback = 'No activity yet') {
+  const date = timestampToDate(value);
+  if (!date) return fallback;
+  return new Intl.DateTimeFormat('en-PH', {
+    month: 'short',
+    day: 'numeric',
+    year: date.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined,
+    hour: 'numeric',
+    minute: '2-digit'
+  }).format(date);
+}
+
+function isTodayTimestamp(value) {
+  const date = timestampToDate(value);
+  if (!date) return false;
+  const today = new Date();
+  return date.getFullYear() === today.getFullYear()
+    && date.getMonth() === today.getMonth()
+    && date.getDate() === today.getDate();
+}
+
+function getStudentsCollectionRef() {
+  const { collection } = firebaseSync.modules;
+  return collection(firebaseSync.db, firebaseSync.collectionName, firebaseSync.documentId, 'students');
+}
+
+function getStudentDocRef(uid) {
+  const { doc } = firebaseSync.modules;
+  return doc(firebaseSync.db, firebaseSync.collectionName, firebaseSync.documentId, 'students', uid);
+}
+
+function getStudentProjectsCollectionRef(uid) {
+  const { collection } = firebaseSync.modules;
+  return collection(firebaseSync.db, firebaseSync.collectionName, firebaseSync.documentId, 'students', uid, 'projects');
+}
+
+function getStudentProjectDocRef(uid, projectId) {
+  const { doc } = firebaseSync.modules;
+  return doc(firebaseSync.db, firebaseSync.collectionName, firebaseSync.documentId, 'students', uid, 'projects', projectId);
+}
+
+function snapshotExists(snapshot) {
+  if (!snapshot) return false;
+  return typeof snapshot.exists === 'function' ? snapshot.exists() : Boolean(snapshot.exists);
+}
+
+function snapshotData(snapshot) {
+  return snapshot && typeof snapshot.data === 'function' ? (snapshot.data() || {}) : {};
+}
+
+async function loadStudentProfile(uid) {
+  const ready = await initFirebaseSync();
+  if (!ready || !uid) return null;
+  const { getDoc } = firebaseSync.modules;
+  const snapshot = await getDoc(getStudentDocRef(uid));
+  return snapshotExists(snapshot) ? { uid, ...snapshotData(snapshot) } : null;
+}
+
+function setStudentLoginError(message = '') {
+  if (!studentLoginError) return;
+  studentLoginError.textContent = message;
+  studentLoginError.classList.toggle('hidden', !message);
+}
+
+function setChangePasswordError(message = '') {
+  if (!changePasswordError) return;
+  changePasswordError.textContent = message;
+  changePasswordError.classList.toggle('hidden', !message);
+}
+
+function setProjectNameError(message = '') {
+  if (!projectNameError) return;
+  projectNameError.textContent = message;
+  projectNameError.classList.toggle('hidden', !message);
+}
+
+function setStudentSaveState(text, state = '') {
+  if (!studentSaveState) return;
+  studentSaveState.textContent = text;
+  studentSaveState.classList.remove('saving', 'error');
+  if (state) studentSaveState.classList.add(state);
+}
+
+function updateAppHeaderForSession() {
+  const isStudent = appSession.mode === 'student' && appSession.student;
+  const isGuest = appSession.mode === 'guest';
+
+  studentAccountStrip?.classList.toggle('hidden', !isStudent);
+  guestAccountStrip?.classList.toggle('hidden', !isGuest);
+
+  if (isStudent) {
+    const firstName = getStudentFirstName(appSession.student.name);
+    if (appTitleText) appTitleText.textContent = 'Sir JR Coding App';
+    if (appSubtitleText) appSubtitleText.textContent = `Hi, ${firstName}!`;
+    if (headerStudentGreeting) headerStudentGreeting.textContent = `Hi, ${firstName}!`;
+    setStudentSaveState(appSession.currentProjectId ? 'Saved' : 'Choose a project');
+  } else {
+    if (appTitleText) appTitleText.textContent = "Sir Jr's Grade 8 MCSian Web Code Editor";
+    if (appSubtitleText) appSubtitleText.textContent = 'Developed by Sir JR';
+  }
+}
+
+function hideAllStudentScreens() {
+  studentLoginOverlay?.classList.add('hidden');
+  changePasswordOverlay?.classList.add('hidden');
+  projectNameOverlay?.classList.add('hidden');
+  studentDashboard?.classList.add('hidden');
+  document.body.classList.remove('student-auth-open', 'student-dashboard-active');
+}
+
+function showEntryGate() {
+  hideAllStudentScreens();
+  entryGate?.classList.remove('hidden');
+  document.body.classList.add('entry-gate-active');
+  updateAppHeaderForSession();
+}
+
+function hideEntryGate() {
+  entryGate?.classList.add('hidden');
+  document.body.classList.remove('entry-gate-active');
+}
+
+function openStudentLogin() {
+  setStudentLoginError('');
+  studentLoginOverlay?.classList.remove('hidden');
+  document.body.classList.add('student-auth-open');
+  window.setTimeout(() => studentLoginId?.focus(), 40);
+}
+
+function closeStudentLogin() {
+  studentLoginOverlay?.classList.add('hidden');
+  document.body.classList.remove('student-auth-open');
+}
+
+function showPasswordChange() {
+  hideEntryGate();
+  studentLoginOverlay?.classList.add('hidden');
+  studentDashboard?.classList.add('hidden');
+  changePasswordOverlay?.classList.remove('hidden');
+  document.body.classList.add('student-auth-open');
+  setChangePasswordError('');
+  if (studentNewPassword) studentNewPassword.value = '';
+  if (studentConfirmPassword) studentConfirmPassword.value = '';
+  window.setTimeout(() => studentNewPassword?.focus(), 40);
+}
+
+function normalizeProjectCodeByActivity(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return { scratch: normalizeCodeStore(starterCode) };
+  }
+  if ('html' in raw || 'css' in raw || 'js' in raw || 'files' in raw) {
+    return { scratch: normalizeCodeStore(raw) };
+  }
+  const entries = Object.entries(raw)
+    .filter(([, value]) => value && typeof value === 'object')
+    .map(([key, value]) => [key || 'scratch', normalizeCodeStore(value)]);
+  return entries.length ? Object.fromEntries(entries) : { scratch: normalizeCodeStore(starterCode) };
+}
+
+function resetWorkspaceState({ blank = false } = {}) {
+  codeByActivity = {};
+  selectedActivityId = '';
+  activity = null;
+  const baseCode = blank ? { html: '', css: '', js: '' } : starterCode;
+  codeStore = normalizeCodeStore(baseCode);
+  codeByActivity.scratch = normalizeCodeStore(codeStore);
+  codeFileNames = normalizeCodeFileNames(DEFAULT_CODE_FILE_NAMES);
+  activeLanguage = 'html';
+  lastRubricResult = null;
+  saveJSON(STORAGE_KEYS.selectedActivityId, '');
+  saveCodeByActivity();
+  saveCodeFileNames();
+  renderActivitySummary();
+  renderActivitySelector();
+  resetResultPanel();
+  loadActiveEditor();
+  runCode(false, { scroll: false });
+}
+
+function continueAsGuest() {
+  appSession.mode = 'guest';
+  appSession.student = null;
+  appSession.currentProjectId = '';
+  appSession.currentProject = null;
+  appSession.projects = [];
+  resetWorkspaceState();
+  hideEntryGate();
+  hideAllStudentScreens();
+  updateAppHeaderForSession();
+  setStatus('Practice mode');
+}
+
+async function recordStudentLogin() {
+  const user = firebaseSync.auth?.currentUser || firebaseSync.currentUser;
+  const student = appSession.student;
+  if (!user || !student || user.uid !== student.uid) return;
+  const sessionKey = `mcsian.student.loginRecorded.${user.uid}`;
+  if (sessionStorage.getItem(sessionKey) === '1') return;
+  try {
+    const { setDoc, serverTimestamp, increment } = firebaseSync.modules;
+    await setDoc(getStudentDocRef(user.uid), {
+      lastLoginAt: serverTimestamp(),
+      lastActivityAt: serverTimestamp(),
+      loginCount: increment(1),
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+    sessionStorage.setItem(sessionKey, '1');
+    appSession.student.loginCount = Number(appSession.student.loginCount || 0) + 1;
+    appSession.student.lastLoginAt = new Date();
+    appSession.student.lastActivityAt = new Date();
+  } catch (error) {
+    console.warn('Could not update student login tracker.', error);
+  }
+}
+
+async function activateStudentSession(profile, { showDashboard = true } = {}) {
+  if (!profile) return;
+  appSession.mode = 'student';
+  appSession.student = profile;
+  appSession.existingStudentUser = firebaseSync.auth?.currentUser || firebaseSync.currentUser;
+  hideEntryGate();
+  closeStudentLogin();
+  updateAppHeaderForSession();
+  await recordStudentLogin();
+  if (profile.mustChangePassword !== false) {
+    showPasswordChange();
+    return;
+  }
+  if (showDashboard) await showStudentDashboard();
+}
+
+function getStudentAuthErrorMessage(error) {
+  const code = String(error?.code || '');
+  if (code.includes('invalid-credential') || code.includes('wrong-password') || code.includes('user-not-found')) {
+    return 'Student ID or password is incorrect. New accounts use 123456 as the default password.';
+  }
+  if (code.includes('too-many-requests')) return 'Too many login attempts. Wait a few minutes and try again.';
+  if (code.includes('network-request-failed')) return 'Internet connection problem. Please reconnect and try again.';
+  if (code.includes('operation-not-allowed')) return 'Student login is not enabled yet. The teacher must enable Email/Password in Firebase Authentication.';
+  if (code.includes('unauthorized-domain')) return 'This website domain must be added to Firebase Authentication authorized domains.';
+  return error?.message || 'Login failed. Check your Student ID and password.';
+}
+
+async function loginStudent() {
+  setStudentLoginError('');
+  const studentId = normalizeStudentId(studentLoginId?.value);
+  const password = String(studentLoginPassword?.value || '');
+  const authEmail = studentIdToAuthEmail(studentId);
+  if (!studentId || !password) {
+    setStudentLoginError('Enter your Student ID and password.');
+    return;
+  }
+  if (!authEmail) {
+    setStudentLoginError('Student ID is invalid.');
+    return;
+  }
+  const ready = await initFirebaseSync();
+  if (!ready || !firebaseSync.authModule) {
+    setStudentLoginError('Firebase is not ready. Check the internet connection and try again.');
+    return;
+  }
+  try {
+    if (studentLoginBtn) {
+      studentLoginBtn.disabled = true;
+      studentLoginBtn.textContent = 'Logging in...';
+    }
+    const credential = await firebaseSync.authModule.signInWithEmailAndPassword(firebaseSync.auth, authEmail, password);
+    firebaseSync.currentUser = credential.user;
+    const profile = await loadStudentProfile(credential.user.uid);
+    if (!profile || normalizeStudentId(profile.studentId) !== studentId) {
+      await firebaseSync.authModule.signOut(firebaseSync.auth);
+      throw new Error('This login has no registered student profile. Ask your teacher to register the Student ID again.');
+    }
+    if (profile.accountStatus === 'disabled') {
+      await firebaseSync.authModule.signOut(firebaseSync.auth);
+      throw new Error('This student account is disabled. Ask your teacher for help.');
+    }
+    if (studentLoginPassword) studentLoginPassword.value = '';
+    await activateStudentSession(profile);
+  } catch (error) {
+    console.error('Student login failed', error);
+    setStudentLoginError(getStudentAuthErrorMessage(error));
+  } finally {
+    if (studentLoginBtn) {
+      studentLoginBtn.disabled = false;
+      studentLoginBtn.textContent = 'Log In';
+    }
+  }
+}
+
+async function saveStudentNewPassword() {
+  setChangePasswordError('');
+  const newPassword = String(studentNewPassword?.value || '');
+  const confirmPassword = String(studentConfirmPassword?.value || '');
+  if (newPassword.length < 6) {
+    setChangePasswordError('Password must contain at least 6 characters.');
+    return;
+  }
+  if (newPassword === DEFAULT_STUDENT_PASSWORD) {
+    setChangePasswordError('Choose a password different from the default 123456.');
+    return;
+  }
+  if (newPassword !== confirmPassword) {
+    setChangePasswordError('The two passwords do not match.');
+    return;
+  }
+  const user = firebaseSync.auth?.currentUser || firebaseSync.currentUser;
+  if (!user || !appSession.student) {
+    setChangePasswordError('Your login session expired. Log in again.');
+    return;
+  }
+  try {
+    saveNewPasswordBtn.disabled = true;
+    saveNewPasswordBtn.textContent = 'Saving...';
+    await firebaseSync.authModule.updatePassword(user, newPassword);
+    const { setDoc, serverTimestamp } = firebaseSync.modules;
+    await setDoc(getStudentDocRef(user.uid), {
+      mustChangePassword: false,
+      passwordChangedAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+    appSession.student.mustChangePassword = false;
+    changePasswordOverlay?.classList.add('hidden');
+    document.body.classList.remove('student-auth-open');
+    await showStudentDashboard();
+  } catch (error) {
+    console.error('Could not update student password', error);
+    setChangePasswordError(error?.code === 'auth/requires-recent-login'
+      ? 'Please log out and log in again before changing the password.'
+      : (error?.message || 'Could not change the password. Try again.'));
+  } finally {
+    saveNewPasswordBtn.disabled = false;
+    saveNewPasswordBtn.textContent = 'Save New Password';
+  }
+}
+
+async function handleStudentAuthObserver(user) {
+  appSession.authReady = true;
+  if (!user || isAllowedTeacherEmail(user.email)) {
+    appSession.existingStudentUser = null;
+    resumeStudentBtn?.classList.add('hidden');
+    if (!user && appSession.mode === 'student') {
+      appSession.mode = 'pending';
+      appSession.student = null;
+      appSession.currentProjectId = '';
+      appSession.currentProject = null;
+      showEntryGate();
+    }
+    return;
+  }
+  try {
+    const profile = await loadStudentProfile(user.uid);
+    if (!profile) {
+      resumeStudentBtn?.classList.add('hidden');
+      return;
+    }
+    appSession.existingStudentUser = user;
+    if (appSession.mode !== 'student') appSession.student = profile;
+    if (resumeStudentText) resumeStudentText.textContent = `Continue as ${getStudentFirstName(profile.name)}`;
+    resumeStudentBtn?.classList.remove('hidden');
+  } catch (error) {
+    console.warn('Could not prepare saved student session.', error);
+  }
+}
+
+async function resumeExistingStudentSession() {
+  const user = firebaseSync.auth?.currentUser || firebaseSync.currentUser || appSession.existingStudentUser;
+  if (!user) {
+    openStudentLogin();
+    return;
+  }
+  const profile = await loadStudentProfile(user.uid);
+  if (!profile) {
+    openStudentLogin();
+    return;
+  }
+  await activateStudentSession(profile);
+}
+
+async function logoutStudent() {
+  try {
+    clearTimeout(studentProjectSaveTimer);
+    if (appSession.mode === 'student' && appSession.currentProjectId) {
+      await saveCurrentStudentProject({ immediate: true, reason: 'logout' });
+    }
+  } catch (error) {
+    console.warn('Final student save skipped.', error);
+  }
+  try {
+    if (firebaseSync.auth && firebaseSync.authModule) await firebaseSync.authModule.signOut(firebaseSync.auth);
+  } catch (error) {
+    console.warn('Student logout failed.', error);
+  }
+  appSession.mode = 'pending';
+  appSession.student = null;
+  appSession.existingStudentUser = null;
+  appSession.currentProjectId = '';
+  appSession.currentProject = null;
+  appSession.projects = [];
+  resumeStudentBtn?.classList.add('hidden');
+  updateAppHeaderForSession();
+  showEntryGate();
+}
+
+async function showStudentDashboard() {
+  if (!appSession.student) {
+    openStudentLogin();
+    return;
+  }
+  hideEntryGate();
+  studentLoginOverlay?.classList.add('hidden');
+  changePasswordOverlay?.classList.add('hidden');
+  projectNameOverlay?.classList.add('hidden');
+  document.body.classList.remove('student-auth-open');
+  studentDashboard?.classList.remove('hidden');
+  document.body.classList.add('student-dashboard-active');
+  const firstName = getStudentFirstName(appSession.student.name);
+  if (dashboardGreeting) dashboardGreeting.textContent = `Hi, ${firstName}! Your saved work is ready.`;
+  await loadStudentProjects();
+}
+
+function closeStudentDashboard() {
+  studentDashboard?.classList.add('hidden');
+  document.body.classList.remove('student-dashboard-active');
+}
+
+async function loadStudentProjects() {
+  const student = appSession.student;
+  if (!student) return [];
+  const ready = await initFirebaseSync();
+  if (!ready) {
+    if (projectDashboardStatus) projectDashboardStatus.textContent = 'Could not connect to saved projects.';
+    return [];
+  }
+  try {
+    if (projectDashboardStatus) projectDashboardStatus.textContent = 'Loading projects...';
+    const { getDocs } = firebaseSync.modules;
+    const snapshot = await getDocs(getStudentProjectsCollectionRef(student.uid));
+    appSession.projects = (snapshot.docs || []).map(docSnapshot => ({
+      id: docSnapshot.id,
+      ...snapshotData(docSnapshot)
+    })).sort((a, b) => {
+      const aTime = timestampToDate(a.updatedAt)?.getTime() || 0;
+      const bTime = timestampToDate(b.updatedAt)?.getTime() || 0;
+      return bTime - aTime;
+    });
+    renderStudentProjects();
+    return appSession.projects;
+  } catch (error) {
+    console.error('Could not load projects', error);
+    if (projectDashboardStatus) projectDashboardStatus.textContent = 'Could not load projects. Check the internet connection.';
+    studentProjectsGrid.innerHTML = '<div class="empty-projects-card"><h3>Projects unavailable</h3><p>Please reconnect and refresh.</p></div>';
+    return [];
+  }
+}
+
+function getProjectStatus(project) {
+  if (project?.lastResult?.passed === true || project?.status === 'passed') return 'passed';
+  if (project?.lastResult || project?.status === 'checked') return 'checked';
+  return 'in-progress';
+}
+
+function getProjectStatusLabel(status) {
+  if (status === 'passed') return 'Passed';
+  if (status === 'checked') return 'Checked';
+  return 'In Progress';
+}
+
+function renderStudentProjects() {
+  if (!studentProjectsGrid) return;
+  const search = String(projectSearchInput?.value || '').trim().toLowerCase();
+  const statusFilter = projectStatusFilter?.value || 'all';
+  const projects = appSession.projects.filter(project => {
+    const matchesSearch = !search || String(project.name || '').toLowerCase().includes(search);
+    const status = getProjectStatus(project);
+    return matchesSearch && (statusFilter === 'all' || statusFilter === status);
+  });
+
+  if (projectDashboardStatus) {
+    const total = appSession.projects.length;
+    projectDashboardStatus.textContent = total
+      ? `${projects.length} of ${total} project${total === 1 ? '' : 's'} shown`
+      : 'No saved projects yet.';
+  }
+
+  if (!projects.length) {
+    studentProjectsGrid.innerHTML = `
+      <div class="empty-projects-card">
+        <div class="student-auth-icon">💻</div>
+        <h3>${appSession.projects.length ? 'No matching project' : 'Create your first coding project'}</h3>
+        <p>${appSession.projects.length ? 'Try a different search or filter.' : 'Your HTML, CSS, JavaScript, activity, and score will be saved here.'}</p>
+        ${appSession.projects.length ? '' : '<button class="primary-btn" type="button" data-project-action="new">+ New Project</button>'}
+      </div>`;
+    return;
+  }
+
+  studentProjectsGrid.innerHTML = projects.map(project => {
+    const status = getProjectStatus(project);
+    const result = project.lastResult || null;
+    const scoreText = result
+      ? `${formatPoints(result.score || 0)}/${formatPoints(result.possible || 0)} (${Number(result.percent || 0)}%)`
+      : 'Not scored';
+    return `
+      <article class="student-project-card" data-project-id="${escapeAttribute(project.id)}">
+        <div class="project-card-top">
+          <span class="project-card-icon">&lt;/&gt;</span>
+          <span class="project-status-pill ${escapeAttribute(status)}">${getProjectStatusLabel(status)}</span>
+        </div>
+        <h3>${escapeHTML(project.name || 'Untitled Project')}</h3>
+        <p class="project-card-activity">${escapeHTML(project.activityTitle || 'Practice project')}</p>
+        <p class="project-card-meta">Last edited: ${escapeHTML(formatStudentDate(project.updatedAt, 'Not edited yet'))}</p>
+        <p class="project-card-meta">Run attempts: ${Number(project.runCount || 0)}</p>
+        <div class="project-score-row"><span>Score</span><span class="project-score-value">${escapeHTML(scoreText)}</span></div>
+        <div class="project-card-actions">
+          <button class="primary-btn" type="button" data-project-action="open">Open Project</button>
+          <button class="ghost-btn" type="button" data-project-action="rename" title="Rename project">✏️</button>
+          <button class="ghost-btn danger" type="button" data-project-action="delete" title="Delete project">🗑</button>
+        </div>
+      </article>`;
+  }).join('');
+}
+
+function openProjectNameDialog(mode = 'create', project = null) {
+  appSession.projectDialogMode = mode;
+  appSession.renameProjectId = project?.id || '';
+  if (projectNameKicker) projectNameKicker.textContent = mode === 'rename' ? 'Rename Project' : 'New Project';
+  if (projectNameTitle) projectNameTitle.textContent = mode === 'rename' ? 'Change Project Name' : 'Name Your Project';
+  if (saveProjectNameBtn) saveProjectNameBtn.textContent = mode === 'rename' ? 'Save Name' : 'Create Project';
+  if (projectNameInput) projectNameInput.value = mode === 'rename' ? String(project?.name || '') : '';
+  setProjectNameError('');
+  projectNameOverlay?.classList.remove('hidden');
+  document.body.classList.add('student-auth-open');
+  window.setTimeout(() => {
+    projectNameInput?.focus();
+    projectNameInput?.select();
+  }, 40);
+}
+
+function closeProjectNameDialog() {
+  projectNameOverlay?.classList.add('hidden');
+  document.body.classList.remove('student-auth-open');
+  setProjectNameError('');
+}
+
+function buildNewProjectData(name) {
+  return {
+    name,
+    nameLower: name.toLowerCase(),
+    status: 'in-progress',
+    codeByActivity: { scratch: normalizeCodeStore(starterCode) },
+    selectedActivityId: '',
+    activityTitle: '',
+    fileNames: normalizeCodeFileNames(DEFAULT_CODE_FILE_NAMES),
+    runCount: 0,
+    lastResult: null,
+    createdAt: new Date(),
+    updatedAt: new Date()
+  };
+}
+
+async function saveProjectNameDialog() {
+  const name = String(projectNameInput?.value || '').trim();
+  if (name.length < 2) {
+    setProjectNameError('Enter a project name with at least 2 characters.');
+    return;
+  }
+  if (!appSession.student) {
+    setProjectNameError('Log in first to save a project.');
+    return;
+  }
+  try {
+    saveProjectNameBtn.disabled = true;
+    if (appSession.projectDialogMode === 'rename') {
+      await renameStudentProject(appSession.renameProjectId, name);
+      closeProjectNameDialog();
+      return;
+    }
+    saveProjectNameBtn.textContent = 'Creating...';
+    const projectId = createId().replace(/[^a-zA-Z0-9_-]/g, '-');
+    const data = buildNewProjectData(name);
+    const { setDoc, serverTimestamp, increment } = firebaseSync.modules;
+    await setDoc(getStudentProjectDocRef(appSession.student.uid, projectId), {
+      ...data,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    });
+    await setDoc(getStudentDocRef(appSession.student.uid), {
+      projectCount: increment(1),
+      lastProjectId: projectId,
+      lastProjectName: name,
+      lastActivityAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+    appSession.projects.unshift({ id: projectId, ...data });
+    appSession.student.projectCount = Number(appSession.student.projectCount || 0) + 1;
+    closeProjectNameDialog();
+    await openStudentProject(projectId);
+  } catch (error) {
+    console.error('Could not create project', error);
+    setProjectNameError(error?.message || 'Could not create the project. Try again.');
+  } finally {
+    saveProjectNameBtn.disabled = false;
+    saveProjectNameBtn.textContent = appSession.projectDialogMode === 'rename' ? 'Save Name' : 'Create Project';
+  }
+}
+
+async function getStudentProject(projectId) {
+  const cached = appSession.projects.find(project => project.id === projectId);
+  if (cached?.codeByActivity) return cached;
+  const { getDoc } = firebaseSync.modules;
+  const snapshot = await getDoc(getStudentProjectDocRef(appSession.student.uid, projectId));
+  return snapshotExists(snapshot) ? { id: projectId, ...snapshotData(snapshot) } : null;
+}
+
+async function openStudentProject(projectId) {
+  if (!appSession.student || !projectId) return;
+  try {
+    if (projectDashboardStatus) projectDashboardStatus.textContent = 'Opening project...';
+    const project = await getStudentProject(projectId);
+    if (!project) throw new Error('Project not found.');
+    appSession.currentProjectId = projectId;
+    appSession.currentProject = project;
+    codeByActivity = normalizeProjectCodeByActivity(project.codeByActivity);
+    selectedActivityId = activities.some(item => item.id === project.selectedActivityId) ? project.selectedActivityId : '';
+    activity = selectedActivityId ? getActivityById(selectedActivityId) : null;
+    const codeKey = selectedActivityId || 'scratch';
+    codeStore = codeByActivity[codeKey]
+      ? normalizeCodeStore(codeByActivity[codeKey])
+      : normalizeCodeStore(starterCode);
+    codeByActivity[codeKey] = normalizeCodeStore(codeStore);
+    codeFileNames = normalizeCodeFileNames(project.fileNames || DEFAULT_CODE_FILE_NAMES);
+    activeLanguage = 'html';
+    lastRubricResult = project.lastResult || null;
+    saveJSON(STORAGE_KEYS.selectedActivityId, selectedActivityId);
+    saveCodeByActivity();
+    saveCodeFileNames();
+    renderActivitySummary();
+    renderActivitySelector();
+    loadActiveEditor();
+    if (project.lastResult && activity) renderResult(project.lastResult);
+    else resetResultPanel();
+    runCode(false, { scroll: false });
+    closeStudentDashboard();
+    updateAppHeaderForSession();
+    setStudentSaveState('Saved');
+    setStatus(`Project: ${project.name}`);
+  } catch (error) {
+    console.error('Could not open project', error);
+    await appAlert(error?.message || 'Could not open the project.', { title: 'Project unavailable', danger: true });
+    await loadStudentProjects();
+  }
+}
+
+async function renameStudentProject(projectId, name) {
+  if (!appSession.student || !projectId) return;
+  const { setDoc, serverTimestamp } = firebaseSync.modules;
+  await setDoc(getStudentProjectDocRef(appSession.student.uid, projectId), {
+    name,
+    nameLower: name.toLowerCase(),
+    updatedAt: serverTimestamp()
+  }, { merge: true });
+  const cached = appSession.projects.find(project => project.id === projectId);
+  if (cached) {
+    cached.name = name;
+    cached.nameLower = name.toLowerCase();
+    cached.updatedAt = new Date();
+  }
+  if (appSession.currentProjectId === projectId && appSession.currentProject) {
+    appSession.currentProject.name = name;
+  }
+  renderStudentProjects();
+  setStatus('Project renamed');
+}
+
+async function deleteStudentProject(projectId) {
+  if (!appSession.student || !projectId) return;
+  const project = appSession.projects.find(item => item.id === projectId);
+  const confirmed = await appConfirm(`Delete “${project?.name || 'this project'}”? This cannot be undone.`, {
+    title: 'Delete project',
+    confirmText: 'Delete',
+    danger: true,
+    icon: '🗑'
+  });
+  if (!confirmed) return;
+  try {
+    const { deleteDoc, setDoc, serverTimestamp, increment } = firebaseSync.modules;
+    await deleteDoc(getStudentProjectDocRef(appSession.student.uid, projectId));
+    await setDoc(getStudentDocRef(appSession.student.uid), {
+      projectCount: increment(-1),
+      lastActivityAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+    appSession.projects = appSession.projects.filter(item => item.id !== projectId);
+    if (appSession.currentProjectId === projectId) {
+      appSession.currentProjectId = '';
+      appSession.currentProject = null;
+    }
+    renderStudentProjects();
+    setStatus('Project deleted');
+  } catch (error) {
+    console.error('Could not delete project', error);
+    await appAlert('Could not delete the project. Try again.', { title: 'Delete failed', danger: true });
+  }
+}
+
+function isStudentProjectActive() {
+  const currentUser = firebaseSync.auth?.currentUser || firebaseSync.currentUser;
+  return Boolean(
+    appSession.mode === 'student'
+    && appSession.student
+    && appSession.currentProjectId
+    && currentUser
+    && currentUser.uid === appSession.student.uid
+  );
+}
+
+function buildProjectSavePayload(result = null) {
+  const currentResult = result || lastRubricResult || appSession.currentProject?.lastResult || null;
+  const currentActivity = activity || null;
+  return {
+    name: appSession.currentProject?.name || 'Untitled Project',
+    nameLower: String(appSession.currentProject?.name || 'Untitled Project').toLowerCase(),
+    status: currentResult?.passed ? 'passed' : currentResult ? 'checked' : 'in-progress',
+    codeByActivity: Object.fromEntries(Object.entries(codeByActivity).map(([key, value]) => [key, normalizeCodeStore(value)])),
+    selectedActivityId: selectedActivityId || '',
+    activityTitle: currentActivity?.title || '',
+    fileNames: normalizeCodeFileNames(codeFileNames),
+    runCount: Number(appSession.currentProject?.runCount || 0),
+    lastResult: currentResult ? {
+      score: Number(currentResult.score || 0),
+      possible: Number(currentResult.possible || 0),
+      percent: Number(currentResult.percent || 0),
+      passed: Boolean(currentResult.passed),
+      feedback: String(currentResult.feedback || ''),
+      results: Array.isArray(currentResult.results) ? currentResult.results.map(item => ({
+        title: item.title || '',
+        levelKey: item.levelKey || '',
+        levelLabel: item.levelLabel || '',
+        levelDescription: item.levelDescription || '',
+        earned: Number(item.earned || 0),
+        points: Number(item.points || 0),
+        passed: Boolean(item.passed),
+        rule: item.rule || '',
+        target: item.target || ''
+      })) : []
+    } : null
+  };
+}
+
+function queueStudentProjectSave(reason = 'edit') {
+  if (!isStudentProjectActive()) return;
+  setStudentSaveState('Saving...', 'saving');
+  clearTimeout(studentProjectSaveTimer);
+  studentProjectSaveTimer = window.setTimeout(() => {
+    saveCurrentStudentProject({ reason }).catch(error => console.warn('Autosave failed', error));
+  }, STUDENT_AUTOSAVE_DELAY);
+}
+
+async function saveCurrentStudentProject({ result = null, immediate = false, reason = 'edit' } = {}) {
+  if (!isStudentProjectActive()) return false;
+  if (immediate) clearTimeout(studentProjectSaveTimer);
+  if (studentProjectSaveInFlight) {
+    studentProjectSaveQueued = true;
+    return false;
+  }
+  studentProjectSaveInFlight = true;
+  setStudentSaveState('Saving...', 'saving');
+  try {
+    const { setDoc, serverTimestamp } = firebaseSync.modules;
+    const payload = buildProjectSavePayload(result);
+    await setDoc(getStudentProjectDocRef(appSession.student.uid, appSession.currentProjectId), {
+      ...payload,
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+    appSession.currentProject = {
+      ...(appSession.currentProject || {}),
+      ...payload,
+      id: appSession.currentProjectId,
+      updatedAt: new Date()
+    };
+    const index = appSession.projects.findIndex(project => project.id === appSession.currentProjectId);
+    if (index >= 0) appSession.projects[index] = { ...appSession.projects[index], ...appSession.currentProject };
+    else appSession.projects.unshift(appSession.currentProject);
+    setStudentSaveState('Saved');
+
+    const now = Date.now();
+    if (reason !== 'edit' || now - lastProfileActivityWriteAt >= PROFILE_ACTIVITY_WRITE_INTERVAL) {
+      lastProfileActivityWriteAt = now;
+      await setDoc(getStudentDocRef(appSession.student.uid), {
+        lastActivityAt: serverTimestamp(),
+        lastProjectId: appSession.currentProjectId,
+        lastProjectName: payload.name,
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+    }
+    return true;
+  } catch (error) {
+    console.error('Could not save current student project.', error);
+    setStudentSaveState('Save failed', 'error');
+    return false;
+  } finally {
+    studentProjectSaveInFlight = false;
+    if (studentProjectSaveQueued) {
+      studentProjectSaveQueued = false;
+      window.setTimeout(() => saveCurrentStudentProject({ reason: 'queued' }), 80);
+    }
+  }
+}
+
+function markStudentProjectRun() {
+  if (!isStudentProjectActive()) return;
+  appSession.currentProject = appSession.currentProject || {};
+  appSession.currentProject.runCount = Number(appSession.currentProject.runCount || 0) + 1;
+  saveCurrentStudentProject({ immediate: true, reason: 'run' });
+}
+
+/* ---------------- Teacher student registration and tracker ---------------- */
+function setStudentAdminStatus(message, state = '') {
+  if (!studentAccountAdminStatus) return;
+  studentAccountAdminStatus.textContent = message;
+  studentAccountAdminStatus.dataset.state = state;
+}
+
+function normalizeStudentRecord(record = {}) {
+  const studentId = normalizeStudentId(record.studentId || record.id || record.idNumber || record.lrn || '');
+  const name = String(record.name || record.fullName || '').trim().replace(/\s+/g, ' ');
+  const gender = String(record.gender || record.sex || '').trim();
+  const section = String(record.section || '').trim().replace(/\s+/g, ' ');
+  const errors = [];
+  if (!studentId) errors.push('Missing Student ID');
+  if (!name) errors.push('Missing name');
+  if (!section) errors.push('Missing section');
+  return {
+    studentId,
+    studentIdNormalized: studentId,
+    authEmail: studentIdToAuthEmail(studentId),
+    name,
+    nameLower: name.toLowerCase(),
+    gender,
+    section,
+    sectionLower: section.toLowerCase(),
+    errors
+  };
+}
+
+async function createFirebaseStudentAuthUser(authEmail, password = DEFAULT_STUDENT_PASSWORD) {
+  const apiKey = window.MCS_FIREBASE_CONFIG?.apiKey;
+  if (!apiKey) throw new Error('Firebase API key is missing.');
+  const response = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${encodeURIComponent(apiKey)}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: authEmail, password, returnSecureToken: true })
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || !data.localId) {
+    const code = data?.error?.message || 'ACCOUNT_CREATION_FAILED';
+    const error = new Error(code);
+    error.code = code;
+    throw error;
+  }
+  return {
+    uid: data.localId,
+    email: data.email || authEmail,
+    idToken: data.idToken || ''
+  };
+}
+
+async function deleteProvisionedAuthUser(idToken) {
+  const apiKey = window.MCS_FIREBASE_CONFIG?.apiKey;
+  if (!apiKey || !idToken) return false;
+  try {
+    const response = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:delete?key=${encodeURIComponent(apiKey)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ idToken })
+    });
+    return response.ok;
+  } catch (error) {
+    console.warn('Could not roll back the unfinished student Authentication account.', error);
+    return false;
+  }
+}
+
+function getProvisioningErrorMessage(error) {
+  const code = String(error?.code || error?.message || '');
+  if (code.includes('EMAIL_EXISTS')) return 'This Student ID already has an Authentication account.';
+  if (code.includes('OPERATION_NOT_ALLOWED')) return 'Enable Email/Password in Firebase Authentication first.';
+  if (code.includes('TOO_MANY_ATTEMPTS') || code.includes('TOO_MANY_REQUESTS')) return 'Firebase temporarily limited account creation. Wait a few minutes, then continue the import.';
+  if (code.includes('WEAK_PASSWORD')) return 'The default password was rejected by the Firebase password policy.';
+  if (code.includes('NETWORK')) return 'Network problem while creating the account.';
+  return error?.message || 'Could not create the student account.';
+}
+
+async function provisionStudentAccount(rawRecord) {
+  if (!isTeacherAuthenticated()) throw new Error('Teacher login is required.');
+  const record = normalizeStudentRecord(rawRecord);
+  if (record.errors.length) throw new Error(record.errors.join(', '));
+  const duplicate = adminStudentsCache.find(student =>
+    normalizeStudentId(student.studentId) === record.studentId
+    || String(student.authEmail || '').toLowerCase() === record.authEmail.toLowerCase()
+  );
+  if (duplicate) throw new Error('Student ID already exists in the tracker.');
+
+  const authUser = await createFirebaseStudentAuthUser(record.authEmail);
+  const { setDoc, serverTimestamp } = firebaseSync.modules;
+  const profile = {
+    studentId: record.studentId,
+    studentIdNormalized: record.studentId,
+    authEmail: record.authEmail,
+    name: record.name,
+    nameLower: record.nameLower,
+    gender: record.gender,
+    section: record.section,
+    sectionLower: record.sectionLower,
+    accountStatus: 'active',
+    mustChangePassword: true,
+    loginCount: 0,
+    projectCount: 0,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+    createdBy: firebaseSync.auth?.currentUser?.email || firebaseSync.currentUser?.email || 'teacher'
+  };
+  try {
+    await setDoc(getStudentDocRef(authUser.uid), profile);
+  } catch (error) {
+    // Avoid leaving an Authentication-only orphan when the Firestore profile
+    // could not be created (for example, because rules were not published).
+    await deleteProvisionedAuthUser(authUser.idToken);
+    throw error;
+  }
+  const localProfile = { uid: authUser.uid, ...profile, createdAt: new Date(), updatedAt: new Date() };
+  adminStudentsCache.push(localProfile);
+  return localProfile;
+}
+
+async function addStudentAccountFromForm() {
+  const record = {
+    studentId: adminStudentId?.value,
+    name: adminStudentName?.value,
+    gender: adminStudentGender?.value,
+    section: adminStudentSection?.value
+  };
+  try {
+    addStudentAccountBtn.disabled = true;
+    addStudentAccountBtn.textContent = 'Creating Account...';
+    setStudentAdminStatus('Creating Firebase Authentication account and student profile...');
+    const student = await provisionStudentAccount(record);
+    if (adminStudentId) adminStudentId.value = '';
+    if (adminStudentName) adminStudentName.value = '';
+    if (adminStudentGender) adminStudentGender.value = '';
+    setStudentAdminStatus(`${student.name} was added. Student ID: ${student.studentId} · Default password: 123456`, 'success');
+    renderAdminStudentTracker();
+  } catch (error) {
+    console.error('Student account creation failed', error);
+    setStudentAdminStatus(getProvisioningErrorMessage(error), 'error');
+  } finally {
+    addStudentAccountBtn.disabled = false;
+    addStudentAccountBtn.textContent = '+ Add Student Account';
+  }
+}
+
+async function loadAdminStudents() {
+  if (!isTeacherAuthenticated()) return [];
+  try {
+    setStudentAdminStatus('Loading student tracker...');
+    const { getDocs } = firebaseSync.modules;
+    const snapshot = await getDocs(getStudentsCollectionRef());
+    adminStudentsCache = (snapshot.docs || []).map(docSnapshot => ({ uid: docSnapshot.id, ...snapshotData(docSnapshot) }))
+      .sort((a, b) => String(a.section || '').localeCompare(String(b.section || '')) || String(a.name || '').localeCompare(String(b.name || '')));
+    populateAdminSectionFilter();
+    renderAdminStudentTracker();
+    setStudentAdminStatus(`${adminStudentsCache.length} student account${adminStudentsCache.length === 1 ? '' : 's'} loaded.`, 'success');
+    return adminStudentsCache;
+  } catch (error) {
+    console.error('Could not load student tracker', error);
+    setStudentAdminStatus(error?.message || 'Could not load student tracker.', 'error');
+    return [];
+  }
+}
+
+function populateAdminSectionFilter() {
+  if (!adminSectionFilter) return;
+  const current = adminSectionFilter.value || 'all';
+  const sections = [...new Set(adminStudentsCache.map(student => String(student.section || '').trim()).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b));
+  adminSectionFilter.innerHTML = '<option value="all">All Sections</option>' + sections
+    .map(section => `<option value="${escapeAttribute(section)}">${escapeHTML(section)}</option>`).join('');
+  adminSectionFilter.value = sections.includes(current) ? current : 'all';
+}
+
+function getFilteredAdminStudents() {
+  const search = String(adminStudentSearch?.value || '').trim().toLowerCase();
+  const section = adminSectionFilter?.value || 'all';
+  const activityFilter = adminActivityFilter?.value || 'all';
+  return adminStudentsCache.filter(student => {
+    const matchesSearch = !search
+      || String(student.name || '').toLowerCase().includes(search)
+      || String(student.studentId || '').toLowerCase().includes(search);
+    const matchesSection = section === 'all' || student.section === section;
+    const loggedIn = Boolean(student.lastLoginAt || Number(student.loginCount || 0) > 0);
+    const hasProjects = Number(student.projectCount || 0) > 0;
+    const activeToday = isTodayTimestamp(student.lastActivityAt);
+    let matchesActivity = true;
+    if (activityFilter === 'logged-in') matchesActivity = loggedIn;
+    else if (activityFilter === 'never-logged-in') matchesActivity = !loggedIn;
+    else if (activityFilter === 'with-projects') matchesActivity = hasProjects;
+    else if (activityFilter === 'without-projects') matchesActivity = !hasProjects;
+    else if (activityFilter === 'active-today') matchesActivity = activeToday;
+    return matchesSearch && matchesSection && matchesActivity;
+  });
+}
+
+function renderAdminStudentTracker() {
+  if (!adminStudentsTableBody) return;
+  const filtered = getFilteredAdminStudents();
+  const loggedInCount = adminStudentsCache.filter(student => student.lastLoginAt || Number(student.loginCount || 0) > 0).length;
+  const totalProjects = adminStudentsCache.reduce((sum, student) => sum + Math.max(0, Number(student.projectCount || 0)), 0);
+  const activeToday = adminStudentsCache.filter(student => isTodayTimestamp(student.lastActivityAt)).length;
+  if (adminStudentCount) adminStudentCount.textContent = String(adminStudentsCache.length);
+  if (adminLoggedInCount) adminLoggedInCount.textContent = String(loggedInCount);
+  if (adminProjectCount) adminProjectCount.textContent = String(totalProjects);
+  if (adminActiveTodayCount) adminActiveTodayCount.textContent = String(activeToday);
+
+  if (!filtered.length) {
+    adminStudentsTableBody.innerHTML = '<tr><td colspan="6"><div class="empty-projects-card"><strong>No matching students.</strong><p>Register a student or change the filters.</p></div></td></tr>';
+    return;
+  }
+
+  adminStudentsTableBody.innerHTML = filtered.map(student => {
+    const loggedIn = Boolean(student.lastLoginAt || Number(student.loginCount || 0) > 0);
+    const accountLabel = student.mustChangePassword === false ? 'Active' : 'New Account';
+    return `
+      <tr data-student-uid="${escapeAttribute(student.uid)}">
+        <td><span class="student-cell-name">${escapeHTML(student.name || 'Unnamed Student')}</span><span class="student-cell-id">ID: ${escapeHTML(student.studentId || '')} · ${escapeHTML(student.gender || 'Gender not set')}</span></td>
+        <td>${escapeHTML(student.section || 'No section')}</td>
+        <td><span class="student-account-pill ${student.mustChangePassword === false ? 'active' : ''}">${accountLabel}</span><span class="student-cell-sub">${loggedIn ? `${Number(student.loginCount || 0)} login${Number(student.loginCount || 0) === 1 ? '' : 's'}` : 'Never logged in'}</span></td>
+        <td><strong>${Math.max(0, Number(student.projectCount || 0))}</strong><span class="student-cell-sub">${escapeHTML(student.lastProjectName || 'No project yet')}</span></td>
+        <td>${escapeHTML(formatStudentDate(student.lastActivityAt))}</td>
+        <td><button class="ghost-btn view-student-projects-btn" type="button" data-student-uid="${escapeAttribute(student.uid)}">View Projects</button></td>
+      </tr>`;
+  }).join('');
+}
+
+function normalizeImportHeader(value) {
+  return String(value || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+function readImportValue(row, aliases) {
+  const normalized = Object.fromEntries(Object.entries(row || {}).map(([key, value]) => [normalizeImportHeader(key), value]));
+  for (const alias of aliases) {
+    const key = normalizeImportHeader(alias);
+    if (key in normalized && String(normalized[key] ?? '').trim() !== '') return normalized[key];
+  }
+  return '';
+}
+
+async function parseStudentImportFile(file) {
+  const extension = String(file?.name || '').split('.').pop().toLowerCase();
+  let rows = [];
+  if (extension === 'csv' && !window.XLSX) {
+    const text = await file.text();
+    const lines = text.split(/\r?\n/).filter(line => line.trim());
+    const headers = (lines.shift() || '').split(',').map(value => value.trim().replace(/^"|"$/g, ''));
+    rows = lines.map(line => {
+      const values = line.match(/("(?:[^"]|"")*"|[^,]*)(?:,|$)/g)?.map(value => value.replace(/,$/, '').replace(/^"|"$/g, '').replace(/""/g, '"')) || [];
+      return Object.fromEntries(headers.map((header, index) => [header, values[index] || '']));
+    });
+  } else {
+    if (!window.XLSX) throw new Error('Excel reader did not load. Check the internet connection, or upload a CSV file.');
+    const buffer = await file.arrayBuffer();
+    const workbook = window.XLSX.read(buffer, { type: 'array' });
+    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+    rows = window.XLSX.utils.sheet_to_json(firstSheet, { defval: '', raw: false });
+  }
+  return rows.map((row, index) => {
+    const record = normalizeStudentRecord({
+      studentId: readImportValue(row, ['Student ID', 'StudentID', 'ID Number', 'ID', 'Learner ID', 'LRN']),
+      name: readImportValue(row, ['Name', 'Full Name', 'Student Name', 'Learner Name']),
+      gender: readImportValue(row, ['Gender', 'Sex']),
+      section: readImportValue(row, ['Section', 'Class Section', 'Class'])
+    });
+    const duplicateInFile = rows.slice(0, index).some(previous => {
+      const previousId = normalizeStudentId(readImportValue(previous, ['Student ID', 'StudentID', 'ID Number', 'ID', 'Learner ID', 'LRN']));
+      return Boolean(record.studentId) && (
+        previousId === record.studentId
+        || studentIdToAuthEmail(previousId) === record.authEmail
+      );
+    });
+    const duplicateExisting = adminStudentsCache.some(student => Boolean(record.studentId) && (
+      normalizeStudentId(student.studentId) === record.studentId
+      || String(student.authEmail || studentIdToAuthEmail(student.studentId)).toLowerCase() === record.authEmail.toLowerCase()
+    ));
+    if (duplicateInFile) record.errors.push('Duplicate in file');
+    if (duplicateExisting) record.errors.push('Already registered');
+    return { rowNumber: index + 2, ...record };
+  });
+}
+
+function renderStudentImportPreview() {
+  if (!studentImportPreview || !studentImportPreviewBody) return;
+  const validCount = pendingStudentImportRows.filter(row => !row.errors.length).length;
+  const invalidCount = pendingStudentImportRows.length - validCount;
+  studentImportSummary.textContent = `${validCount} valid · ${invalidCount} needs attention · ${pendingStudentImportRows.length} total`;
+  studentImportPreviewBody.innerHTML = pendingStudentImportRows.slice(0, 150).map(row => `
+    <tr>
+      <td>${row.rowNumber}</td>
+      <td>${escapeHTML(row.studentId || '—')}</td>
+      <td>${escapeHTML(row.name || '—')}</td>
+      <td>${escapeHTML(row.gender || '—')}</td>
+      <td>${escapeHTML(row.section || '—')}</td>
+      <td class="${row.errors.length ? 'import-row-error' : 'import-row-valid'}">${row.errors.length ? escapeHTML(row.errors.join(', ')) : 'Ready'}</td>
+    </tr>`).join('');
+  studentImportPreview.classList.remove('hidden');
+  confirmStudentImportBtn.disabled = !validCount;
+  confirmStudentImportBtn.textContent = `Create ${validCount} Valid Account${validCount === 1 ? '' : 's'}`;
+}
+
+async function handleStudentImportFile(file) {
+  if (!file) return;
+  try {
+    setStudentAdminStatus(`Reading ${file.name}...`);
+    pendingStudentImportRows = await parseStudentImportFile(file);
+    if (!pendingStudentImportRows.length) throw new Error('No student rows were found in the file.');
+    renderStudentImportPreview();
+    setStudentAdminStatus('Import preview ready. Check the rows, then create valid accounts.', 'success');
+  } catch (error) {
+    console.error('Could not read student import', error);
+    setStudentAdminStatus(error?.message || 'Could not read the Excel file.', 'error');
+  } finally {
+    if (studentImportInput) studentImportInput.value = '';
+  }
+}
+
+function cancelStudentImport() {
+  pendingStudentImportRows = [];
+  studentImportPreview?.classList.add('hidden');
+  if (studentImportPreviewBody) studentImportPreviewBody.innerHTML = '';
+  setStudentAdminStatus('Import cancelled.');
+}
+
+function wait(milliseconds) {
+  return new Promise(resolve => window.setTimeout(resolve, milliseconds));
+}
+
+async function confirmStudentImport() {
+  if (studentImportRunning) return;
+  const validRows = pendingStudentImportRows.filter(row => !row.errors.length);
+  if (!validRows.length) return;
+  studentImportRunning = true;
+  confirmStudentImportBtn.disabled = true;
+  let created = 0;
+  const failures = [];
+  try {
+    for (let index = 0; index < validRows.length; index += 1) {
+      const row = validRows[index];
+      confirmStudentImportBtn.textContent = `Creating ${index + 1} of ${validRows.length}...`;
+      setStudentAdminStatus(`Creating account ${index + 1} of ${validRows.length}: ${row.name}`);
+      try {
+        await provisionStudentAccount(row);
+        created += 1;
+      } catch (error) {
+        failures.push(`${row.studentId}: ${getProvisioningErrorMessage(error)}`);
+        if (String(error?.code || error?.message || '').includes('TOO_MANY')) break;
+      }
+      await wait(350);
+    }
+    pendingStudentImportRows = [];
+    studentImportPreview.classList.add('hidden');
+    populateAdminSectionFilter();
+    renderAdminStudentTracker();
+    setStudentAdminStatus(`${created} account${created === 1 ? '' : 's'} created.${failures.length ? ` ${failures.length} failed: ${failures.slice(0, 3).join(' | ')}` : ''}`, failures.length ? 'error' : 'success');
+  } finally {
+    studentImportRunning = false;
+    confirmStudentImportBtn.disabled = false;
+    confirmStudentImportBtn.textContent = 'Create Valid Student Accounts';
+  }
+}
+
+function downloadStudentImportTemplate() {
+  const rows = [
+    { 'Student ID': '2026-001', 'Name': 'Juan Dela Cruz', 'Gender': 'Male', 'Section': 'Grade 8 - Rizal' },
+    { 'Student ID': '2026-002', 'Name': 'Maria Santos', 'Gender': 'Female', 'Section': 'Grade 8 - Rizal' }
+  ];
+  if (window.XLSX) {
+    const workbook = window.XLSX.utils.book_new();
+    const worksheet = window.XLSX.utils.json_to_sheet(rows);
+    worksheet['!cols'] = [{ wch: 18 }, { wch: 28 }, { wch: 14 }, { wch: 22 }];
+    window.XLSX.utils.book_append_sheet(workbook, worksheet, 'Students');
+    window.XLSX.writeFile(workbook, 'Sir-JR-Student-Import-Template.xlsx');
+    return;
+  }
+  const csv = 'Student ID,Name,Gender,Section\n2026-001,Juan Dela Cruz,Male,Grade 8 - Rizal\n2026-002,Maria Santos,Female,Grade 8 - Rizal\n';
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = 'Sir-JR-Student-Import-Template.csv';
+  link.click();
+  URL.revokeObjectURL(link.href);
+}
+
+async function showAdminStudentProjects(uid) {
+  const student = adminStudentsCache.find(item => item.uid === uid);
+  if (!student) return;
+  adminStudentProjectsTitle.textContent = `${student.name}'s Projects`;
+  adminStudentProjectsSubtitle.textContent = `${student.studentId} · ${student.section}`;
+  adminStudentProjectsList.innerHTML = '<div class="dashboard-status">Loading projects...</div>';
+  adminStudentProjectsOverlay.classList.remove('hidden');
+  document.body.classList.add('student-auth-open');
+  try {
+    const { getDocs } = firebaseSync.modules;
+    const snapshot = await getDocs(getStudentProjectsCollectionRef(uid));
+    const projects = (snapshot.docs || []).map(docSnapshot => ({ id: docSnapshot.id, ...snapshotData(docSnapshot) }))
+      .sort((a, b) => (timestampToDate(b.updatedAt)?.getTime() || 0) - (timestampToDate(a.updatedAt)?.getTime() || 0));
+    if (!projects.length) {
+      adminStudentProjectsList.innerHTML = '<div class="empty-projects-card"><h3>No projects yet</h3><p>This student has logged in but has not created a project.</p></div>';
+      return;
+    }
+    adminStudentProjectsList.innerHTML = projects.map(project => {
+      const result = project.lastResult;
+      return `
+        <article class="admin-project-row">
+          <div><strong>${escapeHTML(project.name || 'Untitled Project')}</strong><small>${escapeHTML(project.activityTitle || 'Practice project')} · Updated ${escapeHTML(formatStudentDate(project.updatedAt))}</small></div>
+          <span>${getProjectStatusLabel(getProjectStatus(project))}</span>
+          <span>${Number(project.runCount || 0)} run${Number(project.runCount || 0) === 1 ? '' : 's'}</span>
+          <strong>${result ? `${formatPoints(result.score || 0)}/${formatPoints(result.possible || 0)} · ${Number(result.percent || 0)}%` : 'Not scored'}</strong>
+        </article>`;
+    }).join('');
+  } catch (error) {
+    console.error('Could not load student projects for admin', error);
+    adminStudentProjectsList.innerHTML = '<div class="empty-projects-card"><h3>Could not load projects</h3><p>Check the internet connection and Firestore rules.</p></div>';
+  }
+}
+
+function closeAdminStudentProjects() {
+  adminStudentProjectsOverlay?.classList.add('hidden');
+  document.body.classList.remove('student-auth-open');
 }
 
 const selfClosingTagNames = new Set([
@@ -3328,6 +4763,7 @@ function runCode(showMessage = true, options = {}) {
 
   if (showMessage) {
     setStatus(wasFullEditor ? 'Output full preview' : `Output: ${pageName}`);
+    if (options.trackRun !== false) markStudentProjectRun();
   }
 
   if (options.scroll !== false && showMessage) {
@@ -4708,6 +6144,7 @@ function showResult() {
     if (getAIReviewEndpoint()) {
       requestAIReview({ scroll: false });
     }
+    saveCurrentStudentProject({ result, immediate: true, reason: 'result' });
     saveSubmissionToCloud(result);
     setStatus(`Score ${formatPoints(result.score)}/${formatPoints(result.possible)}`);
     scrollElementIntoSafeView(resultPanel);
@@ -5308,6 +6745,8 @@ function showAdminForm(activityId = adminEditingActivityId) {
   adminUnlocked = true;
   pinScreen.classList.add('hidden');
   adminForm.classList.remove('hidden');
+  if (adminStudentsCache.length) renderAdminStudentTracker();
+  else loadAdminStudents().catch(error => console.warn('Student tracker load failed.', error));
   const editActivity = getActivityById(activityId) || activity || activities[0] || null;
 
   if (!editActivity) {
@@ -7624,6 +9063,108 @@ criteriaEditor.addEventListener('click', event => {
   if (!card) return;
   const filtered = currentCriteria.filter(item => item.id !== card.dataset.id);
   renderCriteriaEditor(filtered);
+});
+
+// Welcome, student authentication, password, dashboard, and project actions.
+openStudentLoginBtn?.addEventListener('click', openStudentLogin);
+continueGuestBtn?.addEventListener('click', continueAsGuest);
+resumeStudentBtn?.addEventListener('click', resumeExistingStudentSession);
+closeStudentLoginBtn?.addEventListener('click', closeStudentLogin);
+studentLoginGuestBtn?.addEventListener('click', continueAsGuest);
+guestLoginToSaveBtn?.addEventListener('click', () => {
+  showEntryGate();
+  openStudentLogin();
+});
+studentLoginBtn?.addEventListener('click', loginStudent);
+toggleStudentPasswordBtn?.addEventListener('click', () => {
+  if (!studentLoginPassword) return;
+  const show = studentLoginPassword.type === 'password';
+  studentLoginPassword.type = show ? 'text' : 'password';
+  toggleStudentPasswordBtn.textContent = show ? 'Hide' : 'Show';
+});
+[studentLoginId, studentLoginPassword].forEach(input => input?.addEventListener('keydown', event => {
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    loginStudent();
+  }
+}));
+studentLoginOverlay?.addEventListener('click', event => {
+  if (event.target === studentLoginOverlay) closeStudentLogin();
+});
+saveNewPasswordBtn?.addEventListener('click', saveStudentNewPassword);
+changePasswordLogoutBtn?.addEventListener('click', logoutStudent);
+[studentNewPassword, studentConfirmPassword].forEach(input => input?.addEventListener('keydown', event => {
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    saveStudentNewPassword();
+  }
+}));
+myProjectsBtn?.addEventListener('click', showStudentDashboard);
+studentHeaderLogoutBtn?.addEventListener('click', logoutStudent);
+dashboardLogoutBtn?.addEventListener('click', logoutStudent);
+dashboardThemeBtn?.addEventListener('click', () => themeToggle?.click());
+newProjectBtn?.addEventListener('click', () => openProjectNameDialog('create'));
+projectSearchInput?.addEventListener('input', renderStudentProjects);
+projectStatusFilter?.addEventListener('change', renderStudentProjects);
+studentProjectsGrid?.addEventListener('click', event => {
+  const actionButton = event.target.closest('[data-project-action]');
+  if (!actionButton) return;
+  const action = actionButton.dataset.projectAction;
+  if (action === 'new') {
+    openProjectNameDialog('create');
+    return;
+  }
+  const projectCard = actionButton.closest('[data-project-id]');
+  const projectId = projectCard?.dataset.projectId;
+  const project = appSession.projects.find(item => item.id === projectId);
+  if (!projectId) return;
+  if (action === 'open') openStudentProject(projectId);
+  if (action === 'rename') openProjectNameDialog('rename', project);
+  if (action === 'delete') deleteStudentProject(projectId);
+});
+closeProjectNameBtn?.addEventListener('click', closeProjectNameDialog);
+cancelProjectNameBtn?.addEventListener('click', closeProjectNameDialog);
+saveProjectNameBtn?.addEventListener('click', saveProjectNameDialog);
+projectNameInput?.addEventListener('keydown', event => {
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    saveProjectNameDialog();
+  }
+});
+projectNameOverlay?.addEventListener('click', event => {
+  if (event.target === projectNameOverlay) closeProjectNameDialog();
+});
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden' && isStudentProjectActive()) {
+    saveCurrentStudentProject({ immediate: true, reason: 'visibility' });
+  }
+});
+
+// Teacher student account registration, Excel import, and section tracker.
+addStudentAccountBtn?.addEventListener('click', addStudentAccountFromForm);
+[adminStudentId, adminStudentName, adminStudentSection].forEach(input => input?.addEventListener('keydown', event => {
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    addStudentAccountFromForm();
+  }
+}));
+downloadStudentTemplateBtn?.addEventListener('click', downloadStudentImportTemplate);
+chooseStudentImportBtn?.addEventListener('click', () => studentImportInput?.click());
+studentImportInput?.addEventListener('change', event => handleStudentImportFile(event.target.files?.[0]));
+confirmStudentImportBtn?.addEventListener('click', confirmStudentImport);
+cancelStudentImportBtn?.addEventListener('click', cancelStudentImport);
+refreshStudentsBtn?.addEventListener('click', loadAdminStudents);
+adminStudentSearch?.addEventListener('input', renderAdminStudentTracker);
+adminSectionFilter?.addEventListener('change', renderAdminStudentTracker);
+adminActivityFilter?.addEventListener('change', renderAdminStudentTracker);
+adminStudentsTableBody?.addEventListener('click', event => {
+  const button = event.target.closest('.view-student-projects-btn');
+  if (!button) return;
+  showAdminStudentProjects(button.dataset.studentUid);
+});
+closeAdminStudentProjectsBtn?.addEventListener('click', closeAdminStudentProjects);
+adminStudentProjectsOverlay?.addEventListener('click', event => {
+  if (event.target === adminStudentProjectsOverlay) closeAdminStudentProjects();
 });
 
 initManualRubricInputTable();

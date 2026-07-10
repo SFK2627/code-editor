@@ -1,48 +1,90 @@
-# Firebase and GitHub Setup
+# Firebase + GitHub Setup — Free-Only Version
 
-## GitHub Pages
+This version is designed for Firebase's **Spark/no-billing** setup. Do not deploy Cloud Functions and do not attach a billing account.
 
-Upload these frontend files to the repository root:
+## 1. Confirm the Firebase Project
+
+The included `firebase-config.js` currently points to:
+
+- Project ID: `code-editor-f0f9d`
+- Teacher email: `sirjr.mcsian@gmail.com`
+
+If this is the correct project and teacher account, keep the file as-is.
+
+If the teacher email is different, replace it in both:
+
+1. `firebase-config.js`
+2. `firestore.rules`
+
+The two values must match exactly.
+
+## 2. Enable Student and Teacher Login
+
+In Firebase Console:
+
+1. Open **Authentication**.
+2. Open **Sign-in method**.
+3. Enable **Email/Password**.
+4. Under **Users**, make sure the teacher account exists.
+5. Add your GitHub Pages/custom website domain under Authentication authorized domains when Firebase asks for it.
+
+Do not enable phone/SMS login. Student IDs use normal Email/Password Authentication internally.
+
+## 3. Publish Firestore Rules
+
+1. Open **Firestore Database > Rules**.
+2. Replace the existing rules with the complete contents of `firestore.rules`.
+3. Click **Publish**.
+
+The included rules allow:
+
+- guests to read activities, rubrics, and assistance settings;
+- the teacher account to manage all student profiles and inspect projects;
+- each student to read their own profile and manage only their own projects;
+- no student to open another student's project folder.
+
+## 4. Upload the Website
+
+Replace the deployed copies of:
 
 - `index.html`
 - `style.css`
 - `script.js`
 - `firebase-config.js`
-- `manifest.webmanifest`
+- `firestore.rules`
 - `service-worker.js`
+- `manifest.webmanifest`
 - `icons/`
 
-After replacing the files, refresh the deployed site once. The new service-worker cache name removes the older cached version automatically.
+For GitHub Pages, commit and push the files to the published branch.
 
-## Firebase Authentication
+For Firebase Hosting, the included `firebase.json` contains Hosting and Firestore rules only. It has no Functions configuration.
 
-1. Open Firebase Console.
-2. Go to **Authentication > Sign-in method**.
-3. Enable **Email/Password**.
-4. Go to **Authentication > Users** and create the teacher account.
-5. Add the GitHub Pages domain under **Authentication > Settings > Authorized domains** when needed.
+## 5. Clear the Old Cached App
 
-## Firestore
+After deployment:
 
-1. Open **Firestore Database > Rules**.
-2. Copy the complete contents of `firestore.rules`.
-3. Publish the rules.
+1. Open the website.
+2. Hard refresh the page.
+3. On a phone, close and reopen the installed PWA/browser tab.
+4. If the old screen remains, clear the site's cached data once.
 
-Students can read activities and global assistance controls and can create submissions. Only a signed-in Firebase teacher can change activities, rubrics, or publish assistance controls to every student device.
+The service-worker cache name has already been changed for this release.
 
-## Student Assistance Controls
+## 6. Register Students
 
-The hidden Admin panel allows local changes without login through **Apply on This Device**. To update every student device, sign in with the teacher account and press **Publish to All Students**. Open student pages receive the global change through Firestore live sync.
+1. Open the hidden Admin area.
+2. Log in with the teacher Firebase account.
+3. Open **Student Accounts & Tracker**.
+4. Add one student manually, or use **Import Excel / CSV**.
+5. New accounts automatically use `123456`.
+6. Students must replace that password on first login.
 
-## Optional Firebase Functions
+## 7. Keep It Free
 
-The optional secure feedback and rubric-image endpoints are inside `functions/`.
+- Keep the Firebase project on **Spark**.
+- Do not link a billing account.
+- Do not deploy the removed `functions/` folder.
+- Do not add paid Google Cloud services.
 
-```bash
-cd functions
-npm install
-cd ..
-firebase deploy --only functions
-```
-
-Set provider secrets through Firebase CLI. Never place a private API key in frontend files.
+This app uses only Authentication and Firestore for account/project data. If the free Firestore quota is reached, saves or tracker loading may temporarily stop instead of this project silently enabling paid usage.

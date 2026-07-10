@@ -10,6 +10,8 @@ window.MCS_FIREBASE_CONFIG = {
 };
 window.MCS_FIREBASE_COLLECTION = 'webCodeEditor';
 window.MCS_FIREBASE_DOCUMENT_ID = 'grade8-mcsian-blank-v1';
+// Only these Firebase Authentication emails can open teacher/admin controls.
+window.MCS_TEACHER_EMAILS = ['sirjr.mcsian@gmail.com'];
 window.MCS_FIREBASE_SDK_VERSION = '10.12.5';
 
 // Leave blank if you do not have a deployed secure backend endpoint.
