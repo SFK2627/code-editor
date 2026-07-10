@@ -4836,6 +4836,12 @@ function setPreviewLayout(layout) {
 }
 
 function setDesktopPreviewMode(enabled) {
+  // The monitor simulation is intentionally available on phones only.
+  if (!isLikelyPhoneViewport()) {
+    applyPreviewDeviceMode();
+    return;
+  }
+
   const isEnabled = Boolean(enabled);
   previewPanel?.classList.toggle('mobile-desktop-preview', isEnabled);
   if (desktopPreviewBtn) {
@@ -7643,8 +7649,44 @@ startFirebaseMode();
 // scale changes. This prevents the monitor from drifting outside its card and
 // keeps the whole desktop page visible in phone fullscreen/landscape.
 function isLikelyPhoneViewport() {
-  return window.matchMedia?.('(max-width: 760px)')?.matches ||
-    window.matchMedia?.('(hover: none) and (pointer: coarse)')?.matches;
+  const userAgent = navigator.userAgent || '';
+  const userAgentDataMobile = navigator.userAgentData?.mobile === true;
+  const mobileUserAgent = /Android.*Mobile|iPhone|iPod|Windows Phone|IEMobile|Opera Mini/i.test(userAgent);
+  const coarsePointer = Boolean(window.matchMedia?.('(hover: none) and (pointer: coarse)')?.matches);
+  const screenWidth = Number(window.screen?.width) || window.innerWidth;
+  const screenHeight = Number(window.screen?.height) || window.innerHeight;
+  const shortestScreenSide = Math.min(screenWidth, screenHeight);
+
+  // Phone-only behavior. Resizing a desktop browser or using a touchscreen
+  // laptop must not activate the mobile monitor preview.
+  return userAgentDataMobile || mobileUserAgent || (coarsePointer && shortestScreenSide <= 760);
+}
+
+function applyPreviewDeviceMode() {
+  const isPhone = isLikelyPhoneViewport();
+  document.documentElement.dataset.deviceMode = isPhone ? 'phone' : 'desktop';
+
+  if (!isPhone && previewPanel && previewFrame) {
+    const shell = previewPanel.querySelector('.preview-frame-shell');
+    previewPanel.classList.remove('mobile-desktop-preview', 'mobile-landscape-desktop-preview');
+    desktopPreviewBtn?.classList.remove('active');
+    desktopPreviewBtn?.setAttribute('aria-pressed', 'false');
+    if (desktopPreviewBtn) {
+      desktopPreviewBtn.textContent = 'Desktop View';
+      desktopPreviewBtn.title = 'Phone-only desktop monitor preview';
+    }
+    if (shell) clearDesktopMonitorInlineSizing(shell);
+  } else if (isPhone && desktopPreviewBtn) {
+    const monitorEnabled = previewPanel?.classList.contains('mobile-desktop-preview');
+    desktopPreviewBtn.classList.toggle('active', Boolean(monitorEnabled));
+    desktopPreviewBtn.setAttribute('aria-pressed', String(Boolean(monitorEnabled)));
+    desktopPreviewBtn.textContent = monitorEnabled ? 'Phone View' : 'Desktop Monitor';
+    desktopPreviewBtn.title = monitorEnabled
+      ? 'Return the output to normal phone width'
+      : 'See the output as it appears on a desktop monitor';
+  }
+
+  return isPhone;
 }
 
 function isLandscapePhonePreviewFullscreen() {
@@ -7678,6 +7720,12 @@ function updateDesktopMonitorPreviewSizing() {
   if (!previewPanel || !previewFrame) return;
   const shell = previewPanel.querySelector('.preview-frame-shell');
   if (!shell) return;
+
+  // Never apply the phone monitor transform to a real desktop/computer view.
+  // This also clears any stale inline scale left after rotating or resizing.
+  if (!applyPreviewDeviceMode()) {
+    return;
+  }
 
   const forceLandscapeDesktop = isLandscapePhonePreviewFullscreen();
   previewPanel.classList.toggle('mobile-landscape-desktop-preview', forceLandscapeDesktop);
@@ -7769,10 +7817,19 @@ function scheduleDesktopMonitorPreviewSizing(delay = 0) {
   }, delay);
 }
 
+applyPreviewDeviceMode();
+if (isLikelyPhoneViewport() && workspace) {
+  // Split/Stacked/Big Preview are desktop controls. The phone uses one normal
+  // flow plus the dedicated Desktop Monitor button instead.
+  workspace.dataset.layout = 'stacked';
+}
 window.addEventListener('resize', () => scheduleDesktopMonitorPreviewSizing(60));
 window.visualViewport?.addEventListener('resize', () => scheduleDesktopMonitorPreviewSizing(60));
 window.addEventListener('orientationchange', () => scheduleDesktopMonitorPreviewSizing(180));
-window.addEventListener('load', () => scheduleDesktopMonitorPreviewSizing(100));
+window.addEventListener('load', () => {
+  applyPreviewDeviceMode();
+  scheduleDesktopMonitorPreviewSizing(100);
+});
 previewFrame?.addEventListener('load', () => scheduleDesktopMonitorPreviewSizing(60));
 document.addEventListener('fullscreenchange', () => scheduleDesktopMonitorPreviewSizing(80));
 document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitorPreviewSizing(80));

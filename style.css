@@ -10110,3 +10110,418 @@ body.admin-open #adminOverlay .admin-form.hidden {
     display: none !important;
   }
 }
+
+/* ========================================================================== 
+   DESKTOP PREVIEW ISOLATION - 2026-07-10
+   The monitor simulation and phone bottom toolbar must never affect computers.
+   ========================================================================== */
+
+html[data-device-mode="desktop"] .desktop-preview-toggle {
+  display: none !important;
+}
+
+
+html[data-device-mode="desktop"] .preview-panel .preview-actions {
+  display: flex !important;
+  grid-template-columns: none !important;
+  flex-wrap: wrap !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 8px !important;
+  width: auto !important;
+}
+
+html[data-device-mode="desktop"] .preview-panel .preview-actions .layout-btn[data-layout],
+html[data-device-mode="desktop"] .preview-panel .preview-actions #fullPreviewBtn {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: auto !important;
+  min-height: 38px !important;
+  padding: 0 14px !important;
+  font-size: 0.86rem !important;
+  white-space: nowrap !important;
+}
+
+html[data-device-mode="desktop"] .preview-panel .preview-actions #exitPreviewBtn.hidden,
+html[data-device-mode="desktop"] .preview-panel .preview-actions #backToEditorPreviewBtn.hidden,
+html[data-device-mode="desktop"] .preview-panel .preview-actions #resultFromPreviewBtn.hidden {
+  display: none !important;
+}
+
+html[data-device-mode="desktop"] .preview-panel.mobile-desktop-preview,
+html[data-device-mode="desktop"] .preview-panel.mobile-landscape-desktop-preview {
+  width: auto !important;
+  max-width: none !important;
+  overflow: hidden !important;
+}
+
+html[data-device-mode="desktop"] .preview-panel .preview-frame-shell {
+  position: relative !important;
+  display: block !important;
+  width: 100% !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  height: auto !important;
+  max-height: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: #ffffff !important;
+  box-shadow: none !important;
+  overflow: hidden !important;
+}
+
+html[data-device-mode="desktop"] .preview-panel .preview-frame-shell::before,
+html[data-device-mode="desktop"] .preview-panel .preview-frame-shell::after,
+html[data-device-mode="desktop"] .preview-panel .desktop-monitor-label {
+  display: none !important;
+  content: none !important;
+}
+
+html[data-device-mode="desktop"] .preview-panel #previewFrame {
+  position: static !important;
+  inset: auto !important;
+  display: block !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  height: auto !important;
+  max-height: none !important;
+  margin: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  transform: none !important;
+  transform-origin: center center !important;
+}
+
+/* Normal desktop fullscreen: full output canvas with compact controls on top. */
+html[data-device-mode="desktop"] body.preview-fullscreen-active .preview-panel,
+html[data-device-mode="desktop"] #previewPanel:fullscreen,
+html[data-device-mode="desktop"] #previewPanel:-webkit-full-screen,
+html[data-device-mode="desktop"] body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 50000 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  max-width: none !important;
+  max-height: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: #ffffff !important;
+  box-shadow: none !important;
+  overflow: hidden !important;
+}
+
+html[data-device-mode="desktop"] body.preview-fullscreen-active .preview-panel .preview-frame-shell,
+html[data-device-mode="desktop"] #previewPanel:fullscreen .preview-frame-shell,
+html[data-device-mode="desktop"] #previewPanel:-webkit-full-screen .preview-frame-shell,
+html[data-device-mode="desktop"] body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel .preview-frame-shell {
+  order: 1 !important;
+  flex: 1 1 auto !important;
+  align-self: stretch !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: #ffffff !important;
+  box-shadow: none !important;
+  overflow: hidden !important;
+}
+
+html[data-device-mode="desktop"] body.preview-fullscreen-active .preview-panel #previewFrame,
+html[data-device-mode="desktop"] #previewPanel:fullscreen #previewFrame,
+html[data-device-mode="desktop"] #previewPanel:-webkit-full-screen #previewFrame,
+html[data-device-mode="desktop"] body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel #previewFrame {
+  position: static !important;
+  inset: auto !important;
+  flex: 1 1 auto !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+  margin: 0 !important;
+  border: 0 !important;
+  transform: none !important;
+  transform-origin: center center !important;
+}
+
+html[data-device-mode="desktop"] body.preview-fullscreen-active .preview-panel .panel-header,
+html[data-device-mode="desktop"] body.preview-fullscreen-active .preview-panel .preview-header,
+html[data-device-mode="desktop"] #previewPanel:fullscreen .panel-header,
+html[data-device-mode="desktop"] #previewPanel:fullscreen .preview-header,
+html[data-device-mode="desktop"] #previewPanel:-webkit-full-screen .panel-header,
+html[data-device-mode="desktop"] #previewPanel:-webkit-full-screen .preview-header,
+html[data-device-mode="desktop"] body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel .panel-header,
+html[data-device-mode="desktop"] body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel .preview-header {
+  position: absolute !important;
+  top: 12px !important;
+  right: 12px !important;
+  bottom: auto !important;
+  left: auto !important;
+  order: initial !important;
+  z-index: 50010 !important;
+  display: flex !important;
+  justify-content: flex-end !important;
+  align-items: center !important;
+  width: auto !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 999px !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  pointer-events: none !important;
+}
+
+html[data-device-mode="desktop"] body.preview-fullscreen-active .preview-panel .preview-actions,
+html[data-device-mode="desktop"] #previewPanel:fullscreen .preview-actions,
+html[data-device-mode="desktop"] #previewPanel:-webkit-full-screen .preview-actions,
+html[data-device-mode="desktop"] body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel .preview-actions {
+  display: flex !important;
+  grid-template-columns: none !important;
+  flex-wrap: nowrap !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 8px !important;
+  width: auto !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 8px !important;
+  border: 1px solid rgba(191, 219, 254, 0.92) !important;
+  border-radius: 999px !important;
+  background: rgba(255, 255, 255, 0.92) !important;
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.16) !important;
+  backdrop-filter: blur(12px) !important;
+  pointer-events: auto !important;
+}
+
+html[data-device-mode="desktop"] body.preview-fullscreen-active #backToEditorPreviewBtn,
+html[data-device-mode="desktop"] body.preview-fullscreen-active #resultFromPreviewBtn,
+html[data-device-mode="desktop"] body.preview-fullscreen-active #exitPreviewBtn,
+html[data-device-mode="desktop"] #previewPanel:fullscreen #backToEditorPreviewBtn,
+html[data-device-mode="desktop"] #previewPanel:fullscreen #resultFromPreviewBtn,
+html[data-device-mode="desktop"] #previewPanel:fullscreen #exitPreviewBtn,
+html[data-device-mode="desktop"] #previewPanel:-webkit-full-screen #backToEditorPreviewBtn,
+html[data-device-mode="desktop"] #previewPanel:-webkit-full-screen #resultFromPreviewBtn,
+html[data-device-mode="desktop"] #previewPanel:-webkit-full-screen #exitPreviewBtn {
+  position: static !important;
+  width: auto !important;
+  min-width: 0 !important;
+  min-height: 38px !important;
+  height: 38px !important;
+  margin: 0 !important;
+  padding: 0 14px !important;
+  border-radius: 999px !important;
+  font-size: 0.84rem !important;
+  white-space: nowrap !important;
+}
+
+html[data-device-mode="desktop"] body.preview-fullscreen-active #backToEditorPreviewBtn.hidden,
+html[data-device-mode="desktop"] body.preview-fullscreen-active #resultFromPreviewBtn.hidden,
+html[data-device-mode="desktop"] body.preview-fullscreen-active #exitPreviewBtn.hidden,
+html[data-device-mode="desktop"] #previewPanel:fullscreen #backToEditorPreviewBtn.hidden,
+html[data-device-mode="desktop"] #previewPanel:fullscreen #resultFromPreviewBtn.hidden,
+html[data-device-mode="desktop"] #previewPanel:fullscreen #exitPreviewBtn.hidden,
+html[data-device-mode="desktop"] #previewPanel:-webkit-full-screen #backToEditorPreviewBtn.hidden,
+html[data-device-mode="desktop"] #previewPanel:-webkit-full-screen #resultFromPreviewBtn.hidden,
+html[data-device-mode="desktop"] #previewPanel:-webkit-full-screen #exitPreviewBtn.hidden {
+  display: none !important;
+}
+
+/* ========================================================================== 
+   FINAL PHONE-ONLY PREVIEW CONTROLS - 2026-07-10
+   Re-applies the mobile monitor experience without changing computer layout.
+   ========================================================================== */
+
+/* Phone: hide desktop layout choices and show only the dedicated monitor tools. */
+html[data-device-mode="phone"] .preview-panel .preview-actions .layout-btn[data-layout] {
+  display: none !important;
+}
+
+html[data-device-mode="phone"] .preview-panel .preview-actions {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+  gap: 8px !important;
+  width: 100% !important;
+  max-width: none !important;
+}
+
+html[data-device-mode="phone"] .preview-panel .preview-actions #desktopPreviewBtn,
+html[data-device-mode="phone"] .preview-panel .preview-actions #fullPreviewBtn {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  min-height: 42px !important;
+  padding: 0 10px !important;
+  border-radius: 999px !important;
+  font-size: 0.84rem !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+}
+
+html[data-device-mode="phone"] .preview-panel .preview-actions #desktopPreviewBtn {
+  font-size: 0 !important;
+}
+
+html[data-device-mode="phone"] .preview-panel .preview-actions #desktopPreviewBtn::before {
+  content: 'Desktop Monitor';
+  font-size: 0.84rem !important;
+}
+
+html[data-device-mode="phone"] .preview-panel .preview-actions #desktopPreviewBtn.active::before {
+  content: 'Phone View';
+}
+
+html[data-device-mode="phone"] .preview-panel .preview-actions #exitPreviewBtn.hidden,
+html[data-device-mode="phone"] .preview-panel .preview-actions #backToEditorPreviewBtn.hidden,
+html[data-device-mode="phone"] .preview-panel .preview-actions #resultFromPreviewBtn.hidden,
+html[data-device-mode="phone"] .preview-panel .preview-actions #fullPreviewBtn.hidden {
+  display: none !important;
+}
+
+html[data-device-mode="phone"] .preview-panel.mobile-desktop-preview,
+html[data-device-mode="phone"] .preview-panel.mobile-landscape-desktop-preview {
+  width: 100% !important;
+  max-width: 100% !important;
+  overflow: hidden !important;
+}
+
+html[data-device-mode="phone"] body:not(.preview-fullscreen-active):not(.preview-inside-editor-fullscreen)
+  .preview-panel.mobile-desktop-preview .preview-frame-shell {
+  margin-left: auto !important;
+  margin-right: auto !important;
+  max-width: calc(100% - 12px) !important;
+}
+
+/* Phone fullscreen: fitted output canvas with a small bottom control bar. */
+html[data-device-mode="phone"] body.preview-fullscreen-active .preview-panel,
+html[data-device-mode="phone"] #previewPanel:fullscreen,
+html[data-device-mode="phone"] #previewPanel:-webkit-full-screen,
+html[data-device-mode="phone"] body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel {
+  position: fixed !important;
+  inset: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  width: 100dvw !important;
+  height: 100dvh !important;
+  padding: 0 !important;
+  background: #020617 !important;
+  overflow: hidden !important;
+}
+
+html[data-device-mode="phone"] body.preview-fullscreen-active .preview-panel .preview-frame-shell,
+html[data-device-mode="phone"] #previewPanel:fullscreen .preview-frame-shell,
+html[data-device-mode="phone"] #previewPanel:-webkit-full-screen .preview-frame-shell,
+html[data-device-mode="phone"] body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel .preview-frame-shell {
+  order: 1 !important;
+  flex: 0 0 auto !important;
+  align-self: center !important;
+  margin: auto !important;
+  max-width: calc(100dvw - 10px) !important;
+  max-height: calc(100dvh - 72px) !important;
+  overflow: hidden !important;
+}
+
+html[data-device-mode="phone"] body.preview-fullscreen-active .preview-panel .preview-header,
+html[data-device-mode="phone"] #previewPanel:fullscreen .preview-header,
+html[data-device-mode="phone"] #previewPanel:-webkit-full-screen .preview-header,
+html[data-device-mode="phone"] body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel .preview-header {
+  position: relative !important;
+  inset: auto !important;
+  order: 2 !important;
+  flex: 0 0 auto !important;
+  width: 100% !important;
+  padding: 6px max(7px, env(safe-area-inset-right)) calc(6px + env(safe-area-inset-bottom)) max(7px, env(safe-area-inset-left)) !important;
+  border-top: 1px solid rgba(148, 163, 184, 0.22) !important;
+  background: rgba(2, 6, 23, 0.96) !important;
+}
+
+html[data-device-mode="phone"] body.preview-fullscreen-active .preview-panel .preview-actions,
+html[data-device-mode="phone"] #previewPanel:fullscreen .preview-actions,
+html[data-device-mode="phone"] #previewPanel:-webkit-full-screen .preview-actions,
+html[data-device-mode="phone"] body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel .preview-actions {
+  display: flex !important;
+  grid-template-columns: none !important;
+  flex-wrap: nowrap !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  width: auto !important;
+  max-width: 100% !important;
+  padding: 3px !important;
+}
+
+html[data-device-mode="phone"] body.preview-fullscreen-active .preview-actions .layout-btn[data-layout],
+html[data-device-mode="phone"] body.preview-fullscreen-active .preview-actions #desktopPreviewBtn,
+html[data-device-mode="phone"] body.preview-fullscreen-active .preview-actions #fullPreviewBtn,
+html[data-device-mode="phone"] #previewPanel:fullscreen .preview-actions .layout-btn[data-layout],
+html[data-device-mode="phone"] #previewPanel:fullscreen .preview-actions #desktopPreviewBtn,
+html[data-device-mode="phone"] #previewPanel:fullscreen .preview-actions #fullPreviewBtn,
+html[data-device-mode="phone"] #previewPanel:-webkit-full-screen .preview-actions .layout-btn[data-layout],
+html[data-device-mode="phone"] #previewPanel:-webkit-full-screen .preview-actions #desktopPreviewBtn,
+html[data-device-mode="phone"] #previewPanel:-webkit-full-screen .preview-actions #fullPreviewBtn {
+  display: none !important;
+}
+
+html[data-device-mode="phone"] body.preview-fullscreen-active #backToEditorPreviewBtn,
+html[data-device-mode="phone"] body.preview-fullscreen-active #resultFromPreviewBtn,
+html[data-device-mode="phone"] body.preview-fullscreen-active #exitPreviewBtn,
+html[data-device-mode="phone"] #previewPanel:fullscreen #backToEditorPreviewBtn,
+html[data-device-mode="phone"] #previewPanel:fullscreen #resultFromPreviewBtn,
+html[data-device-mode="phone"] #previewPanel:fullscreen #exitPreviewBtn,
+html[data-device-mode="phone"] #previewPanel:-webkit-full-screen #backToEditorPreviewBtn,
+html[data-device-mode="phone"] #previewPanel:-webkit-full-screen #resultFromPreviewBtn,
+html[data-device-mode="phone"] #previewPanel:-webkit-full-screen #exitPreviewBtn {
+  width: auto !important;
+  min-width: 0 !important;
+  min-height: 34px !important;
+  height: 34px !important;
+  padding: 0 12px !important;
+  border-radius: 999px !important;
+  font-size: 0.76rem !important;
+  white-space: nowrap !important;
+}
+
+/* Landscape phone fullscreen always uses the complete 1366 x 768 desktop view. */
+@media (orientation: landscape) and (max-height: 620px) {
+  html[data-device-mode="phone"] body.preview-fullscreen-active .preview-panel,
+  html[data-device-mode="phone"] #previewPanel:fullscreen,
+  html[data-device-mode="phone"] #previewPanel:-webkit-full-screen,
+  html[data-device-mode="phone"] body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel {
+    place-content: center !important;
+  }
+
+  html[data-device-mode="phone"] body.preview-fullscreen-active .preview-panel .preview-frame-shell,
+  html[data-device-mode="phone"] #previewPanel:fullscreen .preview-frame-shell,
+  html[data-device-mode="phone"] #previewPanel:-webkit-full-screen .preview-frame-shell,
+  html[data-device-mode="phone"] body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel .preview-frame-shell {
+    max-height: calc(100dvh - 58px) !important;
+    border-width: 3px !important;
+    border-radius: 8px !important;
+  }
+
+  html[data-device-mode="phone"] body.preview-fullscreen-active .preview-panel .preview-header,
+  html[data-device-mode="phone"] #previewPanel:fullscreen .preview-header,
+  html[data-device-mode="phone"] #previewPanel:-webkit-full-screen .preview-header,
+  html[data-device-mode="phone"] body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel .preview-header {
+    padding-top: 3px !important;
+    padding-bottom: calc(3px + env(safe-area-inset-bottom)) !important;
+  }
+}

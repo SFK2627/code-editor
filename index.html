@@ -12,6 +12,23 @@
   <meta name="apple-mobile-web-app-title" content="MCSian Code Editor" />
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <script>
+    // Set phone/desktop mode before CSS loads so mobile-only preview controls
+    // never flash on computers and desktop controls never flash on phones.
+    (() => {
+      const ua = navigator.userAgent || '';
+      const uaDataMobile = navigator.userAgentData && navigator.userAgentData.mobile === true;
+      const phoneUA = /Android.*Mobile|iPhone|iPod|Windows Phone|IEMobile|Opera Mini/i.test(ua);
+      const coarse = window.matchMedia && window.matchMedia('(hover: none) and (pointer: coarse)').matches;
+      const shortestSide = Math.min(
+        Number(window.screen && window.screen.width) || window.innerWidth || 9999,
+        Number(window.screen && window.screen.height) || window.innerHeight || 9999
+      );
+      document.documentElement.dataset.deviceMode = (uaDataMobile || phoneUA || (coarse && shortestSide <= 760))
+        ? 'phone'
+        : 'desktop';
+    })();
+  </script>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
