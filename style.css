@@ -4579,9 +4579,9 @@ body.admin-open #adminOverlay .pin-screen.teacher-login-screen {
 .rubric-import-card {
   margin: 1rem 0 1.2rem;
   padding: 1rem;
-  border: 1px solid var(--panel-border, #d7dfeb);
+  border: 1px solid var(--line, #d7dfeb);
   border-radius: 18px;
-  background: var(--panel-bg, #fff);
+  background: var(--solid-card, #fff);
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05);
 }
 
@@ -4611,11 +4611,11 @@ body.admin-open #adminOverlay .pin-screen.teacher-login-screen {
   min-height: 42px;
   padding: 0.7rem 1rem;
   border-radius: 12px;
-  border: 1px dashed var(--panel-border, #c7d3e4);
+  border: 1px dashed var(--line-strong, #c7d3e4);
   background: rgba(59, 130, 246, 0.06);
   color: inherit;
   cursor: pointer;
-  font-weight: 600;
+  font-weight: 800;
 }
 
 .upload-file-label:hover {
@@ -4631,7 +4631,7 @@ body.admin-open #adminOverlay .pin-screen.teacher-login-screen {
 
 .rubric-import-preview,
 .rubric-import-text {
-  border: 1px solid var(--panel-border, #d7dfeb);
+  border: 1px solid var(--line, #d7dfeb);
   border-radius: 16px;
   background: rgba(148, 163, 184, 0.06);
   padding: 0.9rem;
@@ -4649,7 +4649,7 @@ body.admin-open #adminOverlay .pin-screen.teacher-login-screen {
 .rubric-import-label {
   display: block;
   font-size: 0.92rem;
-  font-weight: 700;
+  font-weight: 800;
   margin-bottom: 0.55rem;
 }
 
@@ -4664,21 +4664,10 @@ body.admin-open #adminOverlay .pin-screen.teacher-login-screen {
   margin-top: 0.8rem;
 }
 
-.rubric-import-status.ready {
-  color: #2563eb;
-}
-
-.rubric-import-status.success {
-  color: #15803d;
-}
-
-.rubric-import-status.error {
-  color: #b91c1c;
-}
-
-.rubric-import-status.loading {
-  color: #7c3aed;
-}
+.rubric-import-status.ready { color: #2563eb; }
+.rubric-import-status.success { color: #15803d; }
+.rubric-import-status.error { color: #b91c1c; }
+.rubric-import-status.loading { color: #7c3aed; }
 
 @media (max-width: 780px) {
   .rubric-import-grid {

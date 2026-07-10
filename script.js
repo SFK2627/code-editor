@@ -559,8 +559,14 @@ function getInitialActivities() {
 }
 
 function getInitialSelectedActivityId() {
-  const savedId = loadJSON(STORAGE_KEYS.selectedActivityId, '');
-  return activities.some(item => item.id === savedId) ? savedId : '';
+  // Always start with no selected activity on every page load.
+  // Students must choose the activity first before viewing scores/feedback.
+  try {
+    localStorage.removeItem(STORAGE_KEYS.selectedActivityId);
+  } catch (error) {
+    console.warn('Could not clear saved selected activity', error);
+  }
+  return '';
 }
 
 function getInitialCodeByActivity() {
@@ -824,14 +830,14 @@ async function loadActivitiesFromCloud() {
     activities = normalizeActivities(data.activities);
     saveActivities({ cloud: false });
 
-    if (!activities.some(item => item.id === selectedActivityId)) {
-      selectedActivityId = activities[0]?.id || '';
-      saveJSON(STORAGE_KEYS.selectedActivityId, selectedActivityId);
-    }
+    // Do not auto-select the first cloud activity.
+    // Default page load must stay at no selected activity.
+    selectedActivityId = '';
+    saveJSON(STORAGE_KEYS.selectedActivityId, '');
 
-    activity = getActivityById(selectedActivityId);
-    codeStore = activity ? getCodeStoreForActivity(activity.id) : normalizeCodeStore(starterCode);
-    adminEditingActivityId = activity?.id || activities[0]?.id || '';
+    activity = null;
+    codeStore = normalizeCodeStore(starterCode);
+    adminEditingActivityId = activities[0]?.id || '';
 
     renderActivitySummary();
     renderAdminActivitySelect();
@@ -2468,6 +2474,7 @@ async function requestAIReview(options = {}) {
 
   if (!activity) {
     showActivityRequiredWarning();
+    renderNoActivitySelectedResult();
     setStatus('Choose activity first');
     return;
   }
@@ -2599,6 +2606,18 @@ function resetResultPanel() {
   `;
 }
 
+
+function renderNoActivitySelectedResult() {
+  lastRubricResult = null;
+  resetAIReviewPanel();
+  resultContent.classList.add('empty-state');
+  resultContent.innerHTML = `
+    <div class="empty-icon">!</div>
+    <h3>No activity selected yet</h3>
+    <p>Please choose an activity first before checking your score and feedback.</p>
+  `;
+}
+
 function renderActivitySelector() {
   if (!activitySelect) return;
   const placeholder = `<option value="" ${activity ? '' : 'selected'}>Select an activity first...</option>`;
@@ -2618,7 +2637,7 @@ function renderAdminActivitySelect() {
 function renderActivitySummary() {
   if (!activity) {
     activityTitle.textContent = 'No activity selected yet';
-    activityDescription.textContent = 'Click Step 1 and choose an activity. Run Code still works, but score and feedback need a selected activity/rubric.';
+    activityDescription.textContent = 'Choose an activity first. Run Code still works, but score and feedback need a selected activity/rubric.';
     totalPoints.textContent = '0';
     criteriaCount.textContent = '0';
     renderActivitySelector();
@@ -3206,7 +3225,6 @@ function applyImportedActivityToAdminForm(importedActivity) {
   setStatus('Rubric imported');
 }
 
-
 function getFallbackRubricImportMessage() {
   return 'No online rubric reader is connected, so the app will use its built-in smart image reader on this browser.';
 }
@@ -3263,10 +3281,7 @@ function cleanCriterionTitle(rawTitle) {
 function extractScoreValue(text, fallback = null) {
   const source = String(text || '');
   const rangeMatch = source.match(/(\d+(?:\.\d+)?)\s*[-–/]\s*(\d+(?:\.\d+)?)/);
-  if (rangeMatch) {
-    return Math.max(Number(rangeMatch[1]), Number(rangeMatch[2]));
-  }
-
+  if (rangeMatch) return Math.max(Number(rangeMatch[1]), Number(rangeMatch[2]));
   const pointMatch = source.match(/(?:^|\b)(\d+(?:\.\d+)?)(?:\s*(?:pts?|points?|\/\s*\d+))?/i);
   if (pointMatch) return Number(pointMatch[1]);
   return fallback;
@@ -3309,7 +3324,6 @@ function splitLineByRubricLevels(text) {
 
   const title = cleanCriterionTitle(source.slice(0, matches[0].index));
   const sections = {};
-
   matches.forEach((match, index) => {
     const key = normalizeRubricLevelKey(match[0]);
     if (!key) return;
@@ -3317,7 +3331,6 @@ function splitLineByRubricLevels(text) {
     const end = index < matches.length - 1 ? matches[index + 1].index : source.length;
     sections[key] = source.slice(start, end).trim(' :-|');
   });
-
   return { title, sections };
 }
 
@@ -3351,24 +3364,24 @@ function guessCriterionRule(criterionTitle, descriptionText = '') {
 
   if (/(complete|full).*(html|document)|doctype|<html|<head|<title|<body/.test(source)) return { rule: 'full_html_structure', target: '' };
   if (/closing tag|closed tag|properly closed|balance[ds]? tag/.test(source)) return { rule: 'balanced_html_tags', target: '' };
-  if (/heading|header/.test(source)) return { rule: 'has_heading', target: target };
-  if (/paragraph/.test(source)) return { rule: 'has_paragraph', target: target };
+  if (/heading|header/.test(source)) return { rule: 'has_heading', target };
+  if (/paragraph/.test(source)) return { rule: 'has_paragraph', target };
   if (/button or link/.test(source)) return { rule: 'has_button_or_link', target: '' };
-  if (/button/.test(source)) return { rule: 'has_button', target: target };
-  if (/link|anchor/.test(source)) return { rule: 'has_link', target: target };
-  if (/image|picture|photo|img/.test(source)) return { rule: 'has_image', target: target };
-  if (/list|ul|ol|li/.test(source)) return { rule: 'has_list', target: target };
+  if (/button/.test(source)) return { rule: 'has_button', target };
+  if (/link|anchor/.test(source)) return { rule: 'has_link', target };
+  if (/image|picture|photo|img/.test(source)) return { rule: 'has_image', target };
+  if (/list|ul|ol|li/.test(source)) return { rule: 'has_list', target };
   if (/visible text|readable content|content shown|output text/.test(source)) return { rule: 'output_has_visible_text', target: '' };
   if (/runtime error|no error|error-free/.test(source)) return { rule: 'no_runtime_error', target: '' };
-  if (/event listener|onclick|interaction|click event/.test(source)) return { rule: 'uses_event_listener', target: target };
-  if (/change(s|d)? .*page|dom|innerhtml|textcontent|classlist|style/.test(source)) return { rule: 'js_changes_page', target: target };
+  if (/event listener|onclick|interaction|click event/.test(source)) return { rule: 'uses_event_listener', target };
+  if (/change(s|d)? .*page|dom|innerhtml|textcontent|classlist|style/.test(source)) return { rule: 'js_changes_page', target };
   if (/css|style|color|background|padding|margin|font|border|layout/.test(source)) {
     const propertyMatch = source.match(/\b(color|background|padding|margin|font-size|font-family|display|border(?:-radius)?|text-align|gap|width|height)\b/);
     return { rule: 'uses_css_property', target: propertyMatch ? propertyMatch[1] : target };
   }
-  if (/javascript|script|function|variable/.test(source)) return { rule: 'js_contains', target: target };
-  if (/output|preview|display/.test(source)) return { rule: 'output_contains', target: target };
-  if (/html|tag|element|class|id|structure/.test(source)) return { rule: 'html_contains', target: target };
+  if (/javascript|script|function|variable/.test(source)) return { rule: 'js_contains', target };
+  if (/output|preview|display/.test(source)) return { rule: 'output_contains', target };
+  if (/html|tag|element|class|id|structure/.test(source)) return { rule: 'html_contains', target };
   return { rule: 'minimum_effort', target: '' };
 }
 
@@ -3430,9 +3443,7 @@ function parseCriteriaFromRubricText(text) {
       while (j < lines.length && used < 8) {
         const nextLine = lines[j];
         if (!nextLine) break;
-        if (isPotentialCriterionTitle(nextLine) && !/^(excellent|good|fair|needs\s*improvement)\b/i.test(nextLine)) {
-          break;
-        }
+        if (isPotentialCriterionTitle(nextLine) && !/^(excellent|good|fair|needs\s*improvement)\b/i.test(nextLine)) break;
         const levelMatch = nextLine.match(/^(Excellent|Good|Fair|Needs\s*Improvement)\b\s*[:\-–|]?\s*(.*)$/i);
         if (levelMatch) {
           const key = normalizeRubricLevelKey(levelMatch[1]);
@@ -3571,9 +3582,7 @@ async function importRubricImage() {
       const imageDataUrl = await readFileAsDataURL(file);
       const currentUser = firebaseSync.auth?.currentUser || firebaseSync.currentUser;
       let idToken = '';
-      if (currentUser && typeof currentUser.getIdToken === 'function') {
-        idToken = await currentUser.getIdToken();
-      }
+      if (currentUser && typeof currentUser.getIdToken === 'function') idToken = await currentUser.getIdToken();
 
       const headers = { 'Content-Type': 'application/json' };
       if (idToken) headers.Authorization = `Bearer ${idToken}`;
@@ -3590,9 +3599,7 @@ async function importRubricImage() {
         })
       });
 
-      if (!response.ok) {
-        throw new Error(`Image import endpoint returned ${response.status}`);
-      }
+      if (!response.ok) throw new Error(`Image import endpoint returned ${response.status}`);
 
       const data = await response.json();
       importedActivity = data.activity || data.rubric || data;
