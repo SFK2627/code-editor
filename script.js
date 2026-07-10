@@ -559,13 +559,6 @@ function getInitialActivities() {
 }
 
 function getInitialSelectedActivityId() {
-  // Always start with no selected activity on every page load.
-  // Students must choose the activity first before viewing scores/feedback.
-  try {
-    localStorage.removeItem(STORAGE_KEYS.selectedActivityId);
-  } catch (error) {
-    console.warn('Could not clear saved selected activity', error);
-  }
   return '';
 }
 
@@ -830,14 +823,14 @@ async function loadActivitiesFromCloud() {
     activities = normalizeActivities(data.activities);
     saveActivities({ cloud: false });
 
-    // Do not auto-select the first cloud activity.
-    // Default page load must stay at no selected activity.
-    selectedActivityId = '';
-    saveJSON(STORAGE_KEYS.selectedActivityId, '');
+    if (!activities.some(item => item.id === selectedActivityId)) {
+      selectedActivityId = '';
+      saveJSON(STORAGE_KEYS.selectedActivityId, '');
+    }
 
-    activity = null;
-    codeStore = normalizeCodeStore(starterCode);
-    adminEditingActivityId = activities[0]?.id || '';
+    activity = selectedActivityId ? getActivityById(selectedActivityId) : null;
+    codeStore = activity ? getCodeStoreForActivity(activity.id) : normalizeCodeStore(starterCode);
+    adminEditingActivityId = activity?.id || activities[0]?.id || '';
 
     renderActivitySummary();
     renderAdminActivitySelect();
@@ -2474,7 +2467,7 @@ async function requestAIReview(options = {}) {
 
   if (!activity) {
     showActivityRequiredWarning();
-    renderNoActivitySelectedResult();
+    renderNoActivityResult();
     setStatus('Choose activity first');
     return;
   }
@@ -2566,6 +2559,18 @@ function renderResult(result) {
   `;
 }
 
+function renderNoActivityResult() {
+  lastRubricResult = null;
+  resetAIReviewPanel();
+  resultContent.classList.add('empty-state');
+  resultContent.innerHTML = `
+    <div class="empty-icon">!</div>
+    <h3>No activity selected yet</h3>
+    <p>Please choose an activity first before checking the result. Run Code still works, but scoring needs a selected rubric.</p>
+  `;
+  resultPanel?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
 function showResult() {
   if (!activity) {
     showActivityRequiredWarning();
@@ -2603,18 +2608,6 @@ function resetResultPanel() {
     <div class="empty-icon">✓</div>
     <h3>No result yet</h3>
     <p>Click <strong>See Result</strong> when you are done with your selected activity.</p>
-  `;
-}
-
-
-function renderNoActivitySelectedResult() {
-  lastRubricResult = null;
-  resetAIReviewPanel();
-  resultContent.classList.add('empty-state');
-  resultContent.innerHTML = `
-    <div class="empty-icon">!</div>
-    <h3>No activity selected yet</h3>
-    <p>Please choose an activity first before checking your score and feedback.</p>
   `;
 }
 
@@ -3226,7 +3219,7 @@ function applyImportedActivityToAdminForm(importedActivity) {
 }
 
 function getFallbackRubricImportMessage() {
-  return 'No online rubric reader is connected, so the app will use its built-in smart image reader on this browser.';
+  return 'No online rubric reader is connected, so this app will use the built-in browser image reader. Clear screenshots work best.';
 }
 
 function loadRubricOCRLibrary() {
@@ -3321,7 +3314,6 @@ function splitLineByRubricLevels(text) {
   const regex = /(Excellent|Good|Fair|Needs\s*Improvement)/gi;
   const matches = [...source.matchAll(regex)];
   if (matches.length < 2) return null;
-
   const title = cleanCriterionTitle(source.slice(0, matches[0].index));
   const sections = {};
   matches.forEach((match, index) => {
@@ -3337,7 +3329,7 @@ function splitLineByRubricLevels(text) {
 function isLikelyHeaderLine(line) {
   const text = String(line || '').toLowerCase();
   if (!text) return true;
-  return text.includes('criteria') && countRubricLevelMarkers(text) >= 2
+  return (text.includes('criteria') && countRubricLevelMarkers(text) >= 2)
     || /^activity\s*title/i.test(text)
     || /^passing\s*score/i.test(text)
     || /^teacher/i.test(text)
@@ -3346,20 +3338,19 @@ function isLikelyHeaderLine(line) {
 
 function isPotentialCriterionTitle(line) {
   const text = cleanCriterionTitle(line);
-  if (!text) return false;
+  if (!text || text.length < 4) return false;
   if (isLikelyHeaderLine(text)) return false;
   if (countRubricLevelMarkers(text) >= 2) return false;
   if (/^(excellent|good|fair|needs\s*improvement)\b/i.test(text)) return false;
-  if (text.length < 4) return false;
   return true;
 }
 
 function guessCriterionRule(criterionTitle, descriptionText = '') {
   const source = `${criterionTitle} ${descriptionText}`.toLowerCase();
   let target = '';
-  const quoted = source.match(/["“”']([^"“”']{2,40})["“”']/);
+  const quoted = `${criterionTitle} ${descriptionText}`.match(/["“”']([^"“”']{2,40})["“”']/);
   if (quoted) target = quoted[1].trim();
-  const tagTarget = (criterionTitle + ' ' + descriptionText).match(/<([a-z0-9-]+)>/i);
+  const tagTarget = `${criterionTitle} ${descriptionText}`.match(/<([a-z0-9-]+)>/i);
   if (tagTarget) target = `<${tagTarget[1]}`;
 
   if (/(complete|full).*(html|document)|doctype|<html|<head|<title|<body/.test(source)) return { rule: 'full_html_structure', target: '' };
@@ -3504,14 +3495,14 @@ function guessImportedActivityTitle(lines) {
       && !/^(excellent|good|fair|needs\s*improvement)\b/i.test(lower)
       && !/^\d+(?:\.\d+)?\s*(pts?|points?)?$/i.test(lower);
   });
-
   const explicit = candidates.find(line => /activity|performance task|project|rubric/i.test(line));
   return explicit || candidates[0] || 'Imported Rubric Activity';
 }
 
 function guessImportedActivityDescription(lines, title) {
   const titleIndex = lines.findIndex(line => line === title);
-  const descriptionLines = lines.slice(titleIndex + 1, Math.min(titleIndex + 4, lines.length))
+  const from = titleIndex >= 0 ? titleIndex + 1 : 1;
+  const descriptionLines = lines.slice(from, Math.min(from + 4, lines.length))
     .filter(line => !isLikelyHeaderLine(line) && countRubricLevelMarkers(line) < 2 && line.length > 12);
   if (descriptionLines.length) return descriptionLines.join(' ');
   return 'Complete the activity based on the uploaded rubric. Review the imported rows before saving.';
@@ -3525,13 +3516,7 @@ function parseImportedActivityFromText(text) {
   const passingMatch = normalizedText.match(/passing\s*score\s*[:\-]?\s*(\d+(?:\.\d+)?)/i);
   const passingScore = passingMatch ? Number(passingMatch[1]) : 75;
   const criteria = parseCriteriaFromRubricText(normalizedText);
-
-  return normalizeImportedActivity({
-    title,
-    description,
-    passingScore,
-    criteria
-  });
+  return normalizeImportedActivity({ title, description, passingScore, criteria });
 }
 
 function fillRubricTableFromExtractedText() {
@@ -3540,7 +3525,6 @@ function fillRubricTableFromExtractedText() {
     setRubricImportStatus('No extracted text yet. Upload an image first or paste rubric text into the box.', 'error');
     return;
   }
-
   const imported = parseImportedActivityFromText(text);
   applyImportedActivityToAdminForm(imported);
 }
@@ -3574,7 +3558,7 @@ async function importRubricImage() {
   try {
     importRubricImageBtn.disabled = true;
     importRubricImageBtn.textContent = 'Reading image...';
-    setRubricImportStatus(endpoint ? 'Reading rubric image. Please wait...' : 'No online reader detected. Using built-in smart image reader...', 'loading');
+    setRubricImportStatus(endpoint ? 'Reading rubric image. Please wait...' : 'No online reader detected. Using built-in browser image reader...', 'loading');
 
     let importedActivity = null;
 
@@ -3582,7 +3566,9 @@ async function importRubricImage() {
       const imageDataUrl = await readFileAsDataURL(file);
       const currentUser = firebaseSync.auth?.currentUser || firebaseSync.currentUser;
       let idToken = '';
-      if (currentUser && typeof currentUser.getIdToken === 'function') idToken = await currentUser.getIdToken();
+      if (currentUser && typeof currentUser.getIdToken === 'function') {
+        idToken = await currentUser.getIdToken();
+      }
 
       const headers = { 'Content-Type': 'application/json' };
       if (idToken) headers.Authorization = `Bearer ${idToken}`;
@@ -3600,7 +3586,6 @@ async function importRubricImage() {
       });
 
       if (!response.ok) throw new Error(`Image import endpoint returned ${response.status}`);
-
       const data = await response.json();
       importedActivity = data.activity || data.rubric || data;
       if (rubricExtractedText && data.extractedText) rubricExtractedText.value = normalizeOCRText(data.extractedText);
@@ -3613,7 +3598,7 @@ async function importRubricImage() {
     applyImportedActivityToAdminForm(importedActivity);
   } catch (error) {
     console.warn('Rubric image import failed', error);
-    setRubricImportStatus('Could not read the rubric image. Try a clearer screenshot, then review the extracted text.', 'error');
+    setRubricImportStatus('Could not read the rubric image. Try a clearer screenshot, then review/edit the extracted text.', 'error');
   } finally {
     importRubricImageBtn.disabled = false;
     importRubricImageBtn.textContent = 'Read Image & Fill Table';
