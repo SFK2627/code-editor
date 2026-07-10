@@ -7387,19 +7387,40 @@ renderErrorChecker();
 startFirebaseMode();
 
 
-// Final mobile desktop monitor sizing. Keeps the desktop preview useful on phones,
-// especially when the phone is rotated to landscape/fullscreen.
+// Final mobile desktop monitor sizing.
+// The iframe always keeps a real 1366 x 768 CSS viewport, while only its visual
+// scale changes. This prevents the monitor from drifting outside its card and
+// keeps the whole desktop page visible in phone fullscreen/landscape.
 function isLikelyPhoneViewport() {
   return window.matchMedia?.('(max-width: 760px)')?.matches ||
     window.matchMedia?.('(hover: none) and (pointer: coarse)')?.matches;
 }
 
 function isLandscapePhonePreviewFullscreen() {
-  const isLandscape = window.innerWidth > window.innerHeight && window.innerHeight <= 560;
+  const viewportWidth = window.visualViewport?.width || window.innerWidth;
+  const viewportHeight = window.visualViewport?.height || window.innerHeight;
+  const isLandscape = viewportWidth > viewportHeight && viewportHeight <= 620;
   const isPreviewActive = document.body.classList.contains('preview-fullscreen-active') ||
     document.body.classList.contains('preview-inside-editor-fullscreen') ||
     document.fullscreenElement === previewPanel;
   return Boolean(isLikelyPhoneViewport() && isLandscape && isPreviewActive);
+}
+
+function clearDesktopMonitorInlineSizing(shell) {
+  [
+    'width', 'height', 'max-width', 'max-height', 'margin', 'position',
+    'overflow', 'box-sizing', 'flex', 'align-self'
+  ].forEach(prop => shell.style.removeProperty(prop));
+
+  [
+    'width', 'height', 'min-width', 'min-height', 'max-width', 'max-height',
+    'position', 'inset', 'top', 'right', 'bottom', 'left', 'margin',
+    'transform', 'transform-origin', 'flex'
+  ].forEach(prop => previewFrame.style.removeProperty(prop));
+}
+
+function setImportantStyle(element, property, value) {
+  element.style.setProperty(property, value, 'important');
 }
 
 function updateDesktopMonitorPreviewSizing() {
@@ -7412,58 +7433,96 @@ function updateDesktopMonitorPreviewSizing() {
   const enabled = previewPanel.classList.contains('mobile-desktop-preview') || forceLandscapeDesktop;
 
   if (!enabled) {
-    ['width', 'height', 'margin', 'position', 'overflow'].forEach(prop => shell.style.removeProperty(prop));
-    ['width', 'height', 'min-width', 'min-height', 'max-width', 'position', 'top', 'left', 'transform', 'transform-origin'].forEach(prop => previewFrame.style.removeProperty(prop));
+    clearDesktopMonitorInlineSizing(shell);
     return;
   }
 
   const isFullPreview = document.body.classList.contains('preview-fullscreen-active') ||
     document.body.classList.contains('preview-inside-editor-fullscreen') ||
     document.fullscreenElement === previewPanel;
-  const isLandscape = window.innerWidth > window.innerHeight;
-  const desktopW = 1366;
-  const desktopH = 768;
-  const panelWidth = previewPanel.getBoundingClientRect().width || window.innerWidth;
 
-  let availableW = Math.max(260, (isFullPreview ? window.innerWidth : panelWidth) - (isFullPreview ? 22 : 42));
-  let availableH = Math.max(160, window.innerHeight - (isFullPreview ? 34 : 0));
-  let scale = availableW / desktopW;
+  const viewportWidth = Math.max(240, window.visualViewport?.width || window.innerWidth);
+  const viewportHeight = Math.max(240, window.visualViewport?.height || window.innerHeight);
+  const isLandscape = viewportWidth > viewportHeight;
+  const desktopWidth = 1366;
+  const desktopHeight = 768;
 
-  if (isFullPreview && isLandscape) {
-    scale = Math.min(availableW / desktopW, availableH / desktopH, 1);
+  let availableWidth;
+  let availableHeight = Number.POSITIVE_INFINITY;
+
+  if (isFullPreview) {
+    // Reserve only a slim bottom toolbar. The remaining area is devoted to the
+    // complete desktop canvas, centered both horizontally and vertically.
+    const toolbarSpace = isLandscape ? 66 : 74;
+    availableWidth = Math.max(220, viewportWidth - (isLandscape ? 18 : 20));
+    availableHeight = Math.max(150, viewportHeight - toolbarSpace - 8);
   } else {
-    scale = Math.min(scale, 1);
+    const panelStyles = window.getComputedStyle(previewPanel);
+    const horizontalPadding =
+      (parseFloat(panelStyles.paddingLeft) || 0) +
+      (parseFloat(panelStyles.paddingRight) || 0);
+    const panelContentWidth = Math.max(220, previewPanel.clientWidth - horizontalPadding);
+    availableWidth = Math.max(220, Math.min(panelContentWidth - 32, viewportWidth - 36));
   }
 
+  let scale = isFullPreview
+    ? Math.min(availableWidth / desktopWidth, availableHeight / desktopHeight)
+    : Math.min(availableWidth / desktopWidth, 1);
+
   if (!Number.isFinite(scale) || scale <= 0) scale = 0.25;
-  const chromeX = isFullPreview && isLandscape ? 16 : 28;
-  const chromeY = isFullPreview && isLandscape ? 16 : 58;
-  const shellW = Math.ceil(desktopW * scale + chromeX);
-  const shellH = Math.ceil(desktopH * scale + chromeY);
-  const frameTop = isFullPreview && isLandscape ? 8 : 42;
-  const frameLeft = isFullPreview && isLandscape ? 8 : 14;
 
-  shell.style.position = 'relative';
-  shell.style.overflow = 'hidden';
-  shell.style.width = `${shellW}px`;
-  shell.style.height = `${shellH}px`;
-  shell.style.margin = isFullPreview
-    ? `${isLandscape ? 8 : 58}px auto 8px`
-    : '12px auto';
+  const outputWidth = Math.max(1, Math.floor(desktopWidth * scale));
+  const outputHeight = Math.max(1, Math.floor(desktopHeight * scale));
+  const shellSide = isFullPreview ? 8 : 18;
+  const shellTop = isFullPreview ? 8 : 42;
+  const shellBottom = isFullPreview ? 8 : 20;
+  const frameLeft = Math.floor(shellSide / 2);
+  const frameTop = isFullPreview ? 4 : 34;
+  const shellWidth = outputWidth + shellSide;
+  const shellHeight = outputHeight + shellTop + shellBottom;
 
-  previewFrame.style.position = 'absolute';
-  previewFrame.style.top = `${frameTop}px`;
-  previewFrame.style.left = `${frameLeft}px`;
-  previewFrame.style.width = `${desktopW}px`;
-  previewFrame.style.height = `${desktopH}px`;
-  previewFrame.style.minWidth = `${desktopW}px`;
-  previewFrame.style.minHeight = `${desktopH}px`;
-  previewFrame.style.maxWidth = 'none';
-  previewFrame.style.transform = `scale(${scale})`;
-  previewFrame.style.transformOrigin = 'top left';
+  setImportantStyle(shell, 'position', 'relative');
+  setImportantStyle(shell, 'box-sizing', 'border-box');
+  setImportantStyle(shell, 'overflow', 'hidden');
+  setImportantStyle(shell, 'width', `${shellWidth}px`);
+  setImportantStyle(shell, 'height', `${shellHeight}px`);
+  setImportantStyle(shell, 'max-width', isFullPreview ? 'calc(100dvw - 10px)' : 'calc(100% - 12px)');
+  setImportantStyle(shell, 'max-height', isFullPreview ? `calc(100dvh - ${isLandscape ? 66 : 74}px)` : 'none');
+  setImportantStyle(shell, 'margin', isFullPreview ? 'auto' : '12px auto');
+  setImportantStyle(shell, 'align-self', 'center');
+  setImportantStyle(shell, 'flex', '0 0 auto');
+
+  setImportantStyle(previewFrame, 'position', 'absolute');
+  setImportantStyle(previewFrame, 'inset', 'auto');
+  setImportantStyle(previewFrame, 'top', `${frameTop}px`);
+  setImportantStyle(previewFrame, 'left', `${frameLeft}px`);
+  setImportantStyle(previewFrame, 'right', 'auto');
+  setImportantStyle(previewFrame, 'bottom', 'auto');
+  setImportantStyle(previewFrame, 'width', `${desktopWidth}px`);
+  setImportantStyle(previewFrame, 'height', `${desktopHeight}px`);
+  setImportantStyle(previewFrame, 'min-width', `${desktopWidth}px`);
+  setImportantStyle(previewFrame, 'min-height', `${desktopHeight}px`);
+  setImportantStyle(previewFrame, 'max-width', 'none');
+  setImportantStyle(previewFrame, 'max-height', 'none');
+  setImportantStyle(previewFrame, 'margin', '0');
+  setImportantStyle(previewFrame, 'flex', 'none');
+  setImportantStyle(previewFrame, 'transform', `scale(${scale})`);
+  setImportantStyle(previewFrame, 'transform-origin', 'top left');
 }
 
-window.addEventListener('resize', () => window.setTimeout(updateDesktopMonitorPreviewSizing, 80));
-window.addEventListener('orientationchange', () => window.setTimeout(updateDesktopMonitorPreviewSizing, 180));
-window.addEventListener('load', () => window.setTimeout(updateDesktopMonitorPreviewSizing, 120));
-previewFrame?.addEventListener('load', () => window.setTimeout(updateDesktopMonitorPreviewSizing, 80));
+let desktopMonitorResizeFrame = 0;
+function scheduleDesktopMonitorPreviewSizing(delay = 0) {
+  window.clearTimeout(desktopMonitorResizeFrame);
+  desktopMonitorResizeFrame = window.setTimeout(() => {
+    window.requestAnimationFrame(updateDesktopMonitorPreviewSizing);
+  }, delay);
+}
+
+window.addEventListener('resize', () => scheduleDesktopMonitorPreviewSizing(60));
+window.visualViewport?.addEventListener('resize', () => scheduleDesktopMonitorPreviewSizing(60));
+window.addEventListener('orientationchange', () => scheduleDesktopMonitorPreviewSizing(180));
+window.addEventListener('load', () => scheduleDesktopMonitorPreviewSizing(100));
+previewFrame?.addEventListener('load', () => scheduleDesktopMonitorPreviewSizing(60));
+document.addEventListener('fullscreenchange', () => scheduleDesktopMonitorPreviewSizing(80));
+document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitorPreviewSizing(80));
+

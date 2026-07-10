@@ -9514,3 +9514,277 @@ body.editor-fullscreen-active.preview-inside-editor-fullscreen.preview-closing-t
     display: none !important;
   }
 }
+
+
+/* ==========================================================================
+   MOBILE DESKTOP PREVIEW LAYOUT REPAIR - 2026-07-10 v3
+   Centers the embedded monitor and gives fullscreen a clean, fitted canvas.
+   ========================================================================== */
+
+.right-column,
+.preview-panel,
+.preview-frame-shell {
+  min-width: 0;
+}
+
+@media (hover: none) and (pointer: coarse), (max-width: 760px) {
+  .preview-panel.mobile-desktop-preview,
+  .preview-panel.mobile-landscape-desktop-preview {
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow: hidden !important;
+  }
+
+  .preview-panel.mobile-desktop-preview .preview-frame-shell,
+  .preview-panel.mobile-landscape-desktop-preview .preview-frame-shell {
+    box-sizing: border-box !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+    padding: 0 !important;
+    max-width: calc(100% - 12px) !important;
+  }
+
+  .preview-panel.mobile-desktop-preview #previewFrame,
+  .preview-panel.mobile-landscape-desktop-preview #previewFrame {
+    box-sizing: border-box !important;
+    margin: 0 !important;
+  }
+
+  /* Keep the normal in-page monitor centered inside the preview card. */
+  body:not(.preview-fullscreen-active):not(.preview-inside-editor-fullscreen)
+    .preview-panel.mobile-desktop-preview .preview-frame-shell {
+    border: 5px solid #111827 !important;
+    border-radius: 18px !important;
+  }
+
+  body:not(.preview-fullscreen-active):not(.preview-inside-editor-fullscreen)
+    .preview-panel.mobile-desktop-preview .desktop-monitor-label {
+    position: absolute !important;
+    top: 0 !important;
+    left: 8px !important;
+    right: 8px !important;
+    z-index: 2 !important;
+    height: 30px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  body:not(.preview-fullscreen-active):not(.preview-inside-editor-fullscreen)
+    .preview-panel.mobile-desktop-preview .preview-frame-shell::before {
+    bottom: 8px !important;
+  }
+
+  body:not(.preview-fullscreen-active):not(.preview-inside-editor-fullscreen)
+    .preview-panel.mobile-desktop-preview .preview-frame-shell::after {
+    bottom: 0 !important;
+  }
+}
+
+/* Fullscreen preview: output first, compact controls at the bottom. */
+body.preview-fullscreen-active .preview-panel,
+#previewPanel:fullscreen,
+#previewPanel:-webkit-full-screen,
+body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 50000 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  width: 100dvw !important;
+  height: 100dvh !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  max-width: none !important;
+  max-height: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: #020617 !important;
+  box-shadow: none !important;
+  overflow: hidden !important;
+}
+
+body.preview-fullscreen-active .preview-panel .preview-frame-shell,
+#previewPanel:fullscreen .preview-frame-shell,
+#previewPanel:-webkit-full-screen .preview-frame-shell,
+body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel .preview-frame-shell {
+  order: 1 !important;
+  flex: 0 0 auto !important;
+  align-self: center !important;
+  box-sizing: border-box !important;
+  margin: auto !important;
+  padding: 0 !important;
+  border: 4px solid #1e293b !important;
+  border-radius: 10px !important;
+  background: #0f172a !important;
+  box-shadow: 0 0 0 1px rgba(148, 163, 184, 0.22), 0 16px 44px rgba(0, 0, 0, 0.35) !important;
+  overflow: hidden !important;
+}
+
+body.preview-fullscreen-active .preview-panel .preview-frame-shell::before,
+body.preview-fullscreen-active .preview-panel .preview-frame-shell::after,
+#previewPanel:fullscreen .preview-frame-shell::before,
+#previewPanel:fullscreen .preview-frame-shell::after,
+#previewPanel:-webkit-full-screen .preview-frame-shell::before,
+#previewPanel:-webkit-full-screen .preview-frame-shell::after,
+body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel .preview-frame-shell::before,
+body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel .preview-frame-shell::after {
+  display: none !important;
+  content: none !important;
+}
+
+body.preview-fullscreen-active .preview-panel .desktop-monitor-label,
+#previewPanel:fullscreen .desktop-monitor-label,
+#previewPanel:-webkit-full-screen .desktop-monitor-label,
+body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel .desktop-monitor-label {
+  display: none !important;
+}
+
+body.preview-fullscreen-active .preview-panel .panel-header,
+body.preview-fullscreen-active .preview-panel .preview-header,
+#previewPanel:fullscreen .panel-header,
+#previewPanel:fullscreen .preview-header,
+#previewPanel:-webkit-full-screen .panel-header,
+#previewPanel:-webkit-full-screen .preview-header,
+body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel .panel-header,
+body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel .preview-header {
+  position: relative !important;
+  inset: auto !important;
+  order: 2 !important;
+  z-index: 50010 !important;
+  flex: 0 0 auto !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 100% !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 7px max(8px, env(safe-area-inset-right)) calc(7px + env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left)) !important;
+  border: 0 !important;
+  border-top: 1px solid rgba(148, 163, 184, 0.22) !important;
+  border-radius: 0 !important;
+  background: rgba(2, 6, 23, 0.94) !important;
+  box-shadow: 0 -10px 28px rgba(2, 6, 23, 0.3) !important;
+  pointer-events: auto !important;
+}
+
+body.preview-fullscreen-active .preview-panel .preview-header > div:first-child,
+#previewPanel:fullscreen .preview-header > div:first-child,
+#previewPanel:-webkit-full-screen .preview-header > div:first-child,
+body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel .preview-header > div:first-child {
+  display: none !important;
+}
+
+body.preview-fullscreen-active .preview-panel .preview-actions,
+#previewPanel:fullscreen .preview-actions,
+#previewPanel:-webkit-full-screen .preview-actions,
+body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel .preview-actions {
+  display: flex !important;
+  grid-template-columns: none !important;
+  flex-wrap: nowrap !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 7px !important;
+  width: auto !important;
+  max-width: 100% !important;
+  margin: 0 !important;
+  padding: 4px !important;
+  border: 1px solid rgba(148, 163, 184, 0.3) !important;
+  border-radius: 999px !important;
+  background: rgba(15, 23, 42, 0.96) !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28) !important;
+  pointer-events: auto !important;
+}
+
+body.preview-fullscreen-active .preview-actions .layout-btn[data-layout],
+body.preview-fullscreen-active .preview-actions #desktopPreviewBtn,
+body.preview-fullscreen-active .preview-actions #fullPreviewBtn,
+#previewPanel:fullscreen .preview-actions .layout-btn[data-layout],
+#previewPanel:fullscreen .preview-actions #desktopPreviewBtn,
+#previewPanel:fullscreen .preview-actions #fullPreviewBtn,
+#previewPanel:-webkit-full-screen .preview-actions .layout-btn[data-layout],
+#previewPanel:-webkit-full-screen .preview-actions #desktopPreviewBtn,
+#previewPanel:-webkit-full-screen .preview-actions #fullPreviewBtn,
+body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-actions .layout-btn[data-layout],
+body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-actions #desktopPreviewBtn,
+body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-actions #fullPreviewBtn {
+  display: none !important;
+}
+
+body.preview-fullscreen-active #backToEditorPreviewBtn,
+body.preview-fullscreen-active #resultFromPreviewBtn,
+body.preview-fullscreen-active #exitPreviewBtn,
+#previewPanel:fullscreen #backToEditorPreviewBtn,
+#previewPanel:fullscreen #resultFromPreviewBtn,
+#previewPanel:fullscreen #exitPreviewBtn,
+#previewPanel:-webkit-full-screen #backToEditorPreviewBtn,
+#previewPanel:-webkit-full-screen #resultFromPreviewBtn,
+#previewPanel:-webkit-full-screen #exitPreviewBtn,
+body.editor-fullscreen-active.preview-inside-editor-fullscreen #backToEditorPreviewBtn,
+body.editor-fullscreen-active.preview-inside-editor-fullscreen #resultFromPreviewBtn,
+body.editor-fullscreen-active.preview-inside-editor-fullscreen #exitPreviewBtn {
+  position: static !important;
+  display: inline-flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: auto !important;
+  min-width: 0 !important;
+  min-height: 38px !important;
+  height: 38px !important;
+  margin: 0 !important;
+  padding: 0 16px !important;
+  border-radius: 999px !important;
+  font-size: 0.84rem !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+}
+
+body.preview-fullscreen-active #backToEditorPreviewBtn.hidden,
+body.preview-fullscreen-active #resultFromPreviewBtn.hidden,
+body.preview-fullscreen-active #exitPreviewBtn.hidden,
+#previewPanel:fullscreen #backToEditorPreviewBtn.hidden,
+#previewPanel:fullscreen #resultFromPreviewBtn.hidden,
+#previewPanel:fullscreen #exitPreviewBtn.hidden,
+#previewPanel:-webkit-full-screen #backToEditorPreviewBtn.hidden,
+#previewPanel:-webkit-full-screen #resultFromPreviewBtn.hidden,
+#previewPanel:-webkit-full-screen #exitPreviewBtn.hidden,
+body.editor-fullscreen-active.preview-inside-editor-fullscreen #backToEditorPreviewBtn.hidden,
+body.editor-fullscreen-active.preview-inside-editor-fullscreen #resultFromPreviewBtn.hidden,
+body.editor-fullscreen-active.preview-inside-editor-fullscreen #exitPreviewBtn.hidden {
+  display: none !important;
+}
+
+@media (orientation: landscape) and (max-height: 620px) {
+  body.preview-fullscreen-active .preview-panel .panel-header,
+  body.preview-fullscreen-active .preview-panel .preview-header,
+  #previewPanel:fullscreen .panel-header,
+  #previewPanel:fullscreen .preview-header,
+  #previewPanel:-webkit-full-screen .panel-header,
+  #previewPanel:-webkit-full-screen .preview-header,
+  body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel .panel-header,
+  body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel .preview-header {
+    padding-top: 4px !important;
+    padding-bottom: calc(4px + env(safe-area-inset-bottom)) !important;
+  }
+
+  body.preview-fullscreen-active #backToEditorPreviewBtn,
+  body.preview-fullscreen-active #resultFromPreviewBtn,
+  body.preview-fullscreen-active #exitPreviewBtn,
+  #previewPanel:fullscreen #backToEditorPreviewBtn,
+  #previewPanel:fullscreen #resultFromPreviewBtn,
+  #previewPanel:fullscreen #exitPreviewBtn,
+  #previewPanel:-webkit-full-screen #backToEditorPreviewBtn,
+  #previewPanel:-webkit-full-screen #resultFromPreviewBtn,
+  #previewPanel:-webkit-full-screen #exitPreviewBtn,
+  body.editor-fullscreen-active.preview-inside-editor-fullscreen #backToEditorPreviewBtn,
+  body.editor-fullscreen-active.preview-inside-editor-fullscreen #resultFromPreviewBtn,
+  body.editor-fullscreen-active.preview-inside-editor-fullscreen #exitPreviewBtn {
+    min-height: 34px !important;
+    height: 34px !important;
+    padding: 0 13px !important;
+    font-size: 0.78rem !important;
+  }
+}
