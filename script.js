@@ -8,6 +8,7 @@ const downloadZipBtn = document.getElementById('downloadZipBtn');
 const resetBtn = document.getElementById('resetBtn');
 const clearBtn = document.getElementById('clearBtn');
 const themeToggle = document.getElementById('themeToggle');
+const installAppBtn = document.getElementById('installAppBtn');
 const adminBtn = document.getElementById('adminBtn');
 const lineNumbers = document.getElementById('lineNumbers');
 const suggestionBox = document.getElementById('suggestionBox');
@@ -1876,11 +1877,22 @@ ${scriptBlock}
 </html>`;
 }
 
-function scrollToOutput() {
-  if (!previewPanel) return;
+function getTopbarSafeOffset() {
+  const topbar = document.querySelector('.topbar');
+  const topbarHeight = topbar ? topbar.getBoundingClientRect().height : 0;
+  return Math.ceil(topbarHeight + 14);
+}
+
+function scrollElementIntoSafeView(element, delay = 80) {
+  if (!element) return;
   window.setTimeout(() => {
-    previewPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }, 80);
+    const top = element.getBoundingClientRect().top + window.scrollY - getTopbarSafeOffset();
+    window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+  }, delay);
+}
+
+function scrollToOutput() {
+  scrollElementIntoSafeView(previewPanel, 80);
 }
 
 function runCode(showMessage = true, options = {}) {
@@ -2121,6 +2133,66 @@ function toggleCodeHelperPanel() {
   } else {
     closeCodeHelperPanel();
   }
+}
+
+
+let deferredInstallPrompt = null;
+
+function isAppInstalledMode() {
+  return window.matchMedia?.('(display-mode: standalone)')?.matches || window.navigator.standalone === true;
+}
+
+function updateInstallButtonVisibility() {
+  if (!installAppBtn) return;
+  const shouldShow = !isAppInstalledMode();
+  installAppBtn.classList.toggle('hidden', !shouldShow);
+}
+
+function registerPWAServiceWorker() {
+  if (!('serviceWorker' in navigator)) return;
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./service-worker.js').catch(error => {
+      console.warn('Service worker registration failed', error);
+    });
+  });
+}
+
+async function handleInstallAppClick() {
+  if (deferredInstallPrompt) {
+    deferredInstallPrompt.prompt();
+    try {
+      await deferredInstallPrompt.userChoice;
+    } catch (error) {
+      console.warn('Install prompt closed', error);
+    }
+    deferredInstallPrompt = null;
+    updateInstallButtonVisibility();
+    return;
+  }
+
+  const isiOS = /iphone|ipad|ipod/i.test(window.navigator.userAgent || '');
+  const message = isiOS
+    ? 'To install on iPhone/iPad: tap Share, then choose Add to Home Screen.'
+    : 'To install on Android/Chrome: open the browser menu, then choose Install app or Add to Home screen.';
+  appAlert(message, { title: 'Install on phone' });
+}
+
+function setupPWAInstallPrompt() {
+  updateInstallButtonVisibility();
+
+  window.addEventListener('beforeinstallprompt', event => {
+    event.preventDefault();
+    deferredInstallPrompt = event;
+    updateInstallButtonVisibility();
+  });
+
+  window.addEventListener('appinstalled', () => {
+    deferredInstallPrompt = null;
+    updateInstallButtonVisibility();
+    setStatus('Installed');
+  });
+
+  installAppBtn?.addEventListener('click', handleInstallAppClick);
 }
 
 function countSemanticHTMLTags(html) {
@@ -2829,7 +2901,7 @@ async function requestAIReview(options = {}) {
 
   if (!endpoint) {
     renderAIReview(generateLocalAIReview(result));
-    if (options.scroll !== false) document.getElementById('aiReviewPanel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (options.scroll !== false) scrollElementIntoSafeView(document.getElementById('aiReviewPanel'));
     return;
   }
 
@@ -2862,7 +2934,7 @@ async function requestAIReview(options = {}) {
     setStatus('Feedback ready');
   }
 
-  if (options.scroll !== false) document.getElementById('aiReviewPanel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  if (options.scroll !== false) scrollElementIntoSafeView(document.getElementById('aiReviewPanel'));
 }
 
 function renderResult(result) {
@@ -2914,7 +2986,7 @@ function renderNoActivityResult() {
     <h3>No activity selected yet</h3>
     <p>Please choose an activity first before checking the result. Run Code still works, but scoring needs a selected rubric.</p>
   `;
-  resultPanel?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  scrollElementIntoSafeView(resultPanel);
 }
 
 function showResult() {
@@ -2938,7 +3010,7 @@ function showResult() {
     }
     saveSubmissionToCloud(result);
     setStatus(`Score ${formatPoints(result.score)}/${formatPoints(result.possible)}`);
-    resultPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    scrollElementIntoSafeView(resultPanel);
   }, 350);
 }
 
@@ -4363,14 +4435,23 @@ function addManualRubricInputRow(data = {}) {
     { key: 'needsImprovement', className: 'manual-level-input', placeholder: 'Few requirements met; needs improvement' }
   ];
 
+  const cellLabels = {
+    criteria: 'Criteria',
+    excellent: 'Excellent',
+    good: 'Good',
+    fair: 'Satisfactory / Fair',
+    needsImprovement: 'Needs Improvement'
+  };
+
   cells.forEach(cellInfo => {
     const cell = document.createElement('td');
-    cell.dataset.label = cellInfo.key;
+    cell.dataset.label = cellLabels[cellInfo.key] || cellInfo.key;
     cell.appendChild(createManualRubricTextarea(cellInfo.className, cellInfo.placeholder, data[cellInfo.key] || ''));
     row.appendChild(cell);
   });
 
   const actionCell = document.createElement('td');
+  actionCell.dataset.label = 'Action';
   actionCell.className = 'manual-rubric-row-action';
   const removeButton = document.createElement('button');
   removeButton.type = 'button';
@@ -4731,7 +4812,7 @@ function toggleActivityCard() {
   const isHidden = activityCard?.classList.contains('collapsed-card');
   setActivityCardOpen(Boolean(isHidden));
   if (isHidden) {
-    activityCard?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    scrollElementIntoSafeView(activityCard);
   }
 }
 
@@ -4746,7 +4827,7 @@ function showActivityRequiredWarning() {
   stepActivityBtn?.classList.add('needs-attention');
   activityCard?.classList.add('needs-attention');
   activityWarning?.classList.remove('hidden');
-  activityCard?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  scrollElementIntoSafeView(activityCard);
 }
 
 function focusEditorStep() {
@@ -4756,7 +4837,7 @@ function focusEditorStep() {
     clearActivityRequiredWarning();
   }
 
-  editorPanel?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  scrollElementIntoSafeView(editorPanel);
   window.setTimeout(() => editor.focus(), 250);
 }
 
@@ -5206,6 +5287,8 @@ criteriaEditor.addEventListener('click', event => {
 });
 
 initManualRubricInputTable();
+setupPWAInstallPrompt();
+registerPWAServiceWorker();
 saveActivities({ cloud: false });
 saveJSON(STORAGE_KEYS.selectedActivityId, selectedActivityId);
 saveCodeByActivity();

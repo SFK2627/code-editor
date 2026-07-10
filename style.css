@@ -5070,3 +5070,635 @@ body.editor-fullscreen-active .topbar,
     display: none !important;
   }
 }
+
+/* Mobile polish + installable app adjustments */
+.install-app-btn {
+  color: var(--primary-strong);
+  border-color: color-mix(in srgb, var(--primary) 30%, var(--line));
+  background: color-mix(in srgb, var(--primary-soft) 72%, var(--solid-card));
+}
+
+@media (max-width: 820px) {
+  html,
+  body {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  .app-shell {
+    padding: 0 0 14px !important;
+  }
+
+  .topbar.simplified-topbar,
+  .topbar {
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 3500 !important;
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+    min-height: auto !important;
+    padding: calc(8px + env(safe-area-inset-top)) 8px 8px !important;
+    border-radius: 0 0 18px 18px !important;
+    border-left: 0 !important;
+    border-right: 0 !important;
+    background: color-mix(in srgb, var(--solid-card) 96%, var(--primary-soft)) !important;
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.10) !important;
+  }
+
+  .brand-block {
+    min-width: 0 !important;
+    width: 100% !important;
+    gap: 8px !important;
+  }
+
+  .brand-block .logo-mark {
+    width: 34px !important;
+    height: 34px !important;
+    min-width: 34px !important;
+    border-radius: 12px !important;
+    font-size: 0.86rem !important;
+  }
+
+  .brand-block h1 {
+    max-width: calc(100vw - 72px) !important;
+    overflow: hidden !important;
+    white-space: nowrap !important;
+    text-overflow: ellipsis !important;
+    font-size: 1rem !important;
+    line-height: 1.12 !important;
+  }
+
+  .brand-block .eyebrow,
+  .brand-block .subtitle {
+    font-size: 0.68rem !important;
+    line-height: 1 !important;
+  }
+
+  .top-actions {
+    width: 100% !important;
+    display: grid !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 6px !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    padding: 0 !important;
+  }
+
+  .top-actions .primary-btn,
+  .top-actions .success-btn,
+  .top-actions .ghost-btn,
+  .top-actions > button {
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 38px !important;
+    height: 38px !important;
+    padding: 0 6px !important;
+    border-radius: 12px !important;
+    font-size: 0.70rem !important;
+    line-height: 1.05 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    justify-content: center !important;
+  }
+
+  #themeToggle,
+  #downloadZipBtn,
+  #resetBtn,
+  #clearBtn {
+    font-size: 0.68rem !important;
+  }
+
+  .workspace {
+    padding: 8px !important;
+  }
+
+  .editor-panel,
+  .preview-panel,
+  .ai-review-panel,
+  .activity-card,
+  .result-card {
+    border-radius: 18px !important;
+  }
+}
+
+@media (max-width: 440px) {
+  .top-actions {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+
+  .top-actions .primary-btn,
+  .top-actions .success-btn,
+  .top-actions .ghost-btn,
+  .top-actions > button {
+    font-size: 0.66rem !important;
+    height: 36px !important;
+    min-height: 36px !important;
+    border-radius: 11px !important;
+  }
+}
+
+/* Phone-friendly admin builder */
+@media (max-width: 820px) {
+  body.admin-open {
+    overflow: hidden !important;
+  }
+
+  #adminOverlay {
+    z-index: 7000 !important;
+    padding: 0 !important;
+    align-items: stretch !important;
+    justify-items: stretch !important;
+    background: rgba(2, 6, 23, 0.72) !important;
+  }
+
+  #adminOverlay .admin-modal,
+  .admin-modal {
+    width: 100vw !important;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+  }
+
+  #adminOverlay .modal-header,
+  .modal-header {
+    flex: 0 0 auto !important;
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 20 !important;
+    padding: calc(10px + env(safe-area-inset-top)) 12px 10px !important;
+    background: color-mix(in srgb, var(--solid-card) 97%, var(--primary-soft)) !important;
+  }
+
+  #adminOverlay .modal-header h2 {
+    font-size: 1.05rem !important;
+  }
+
+  #adminOverlay .modal-header .section-kicker,
+  #adminOverlay .modal-header .muted-text {
+    display: none !important;
+  }
+
+  #adminOverlay .pin-screen,
+  #adminOverlay .admin-form {
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    padding: 12px 12px calc(96px + env(safe-area-inset-bottom)) !important;
+  }
+
+  .admin-activity-manager,
+  .manual-rubric-card,
+  .rubric-table-note,
+  .rubric-table-scroll,
+  .teacher-login-card,
+  .teacher-login-intro {
+    border-radius: 18px !important;
+  }
+
+  .manual-rubric-card {
+    padding: 12px !important;
+  }
+
+  .manual-rubric-header {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+  }
+
+  .manual-rubric-header .muted-text {
+    font-size: 0.84rem !important;
+    line-height: 1.35 !important;
+  }
+
+  .manual-score-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+  }
+
+  .manual-rubric-scroll {
+    overflow: visible !important;
+    border: 0 !important;
+    background: transparent !important;
+  }
+
+  .manual-rubric-input-table,
+  .manual-rubric-input-table thead,
+  .manual-rubric-input-table tbody,
+  .manual-rubric-input-table tr,
+  .manual-rubric-input-table th,
+  .manual-rubric-input-table td {
+    display: block !important;
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .manual-rubric-input-table thead {
+    display: none !important;
+  }
+
+  .manual-rubric-input-row {
+    margin: 0 0 12px !important;
+    padding: 10px !important;
+    border: 1px solid var(--line) !important;
+    border-radius: 18px !important;
+    background: var(--solid-card) !important;
+    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06) !important;
+  }
+
+  .manual-rubric-input-table td {
+    border: 0 !important;
+    padding: 8px 0 !important;
+    text-align: left !important;
+  }
+
+  .manual-rubric-input-table td::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 6px;
+    color: var(--primary);
+    font-size: 0.72rem;
+    font-weight: 1000;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .manual-rubric-input-table textarea {
+    min-height: 88px !important;
+    border: 1px solid var(--line) !important;
+    background: color-mix(in srgb, var(--solid-card) 90%, var(--primary-soft)) !important;
+  }
+
+  .manual-rubric-actions {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+  }
+
+  .manual-rubric-actions button,
+  .admin-activity-actions button,
+  .admin-actions button,
+  .remove-manual-rubric-row {
+    width: 100% !important;
+    min-height: 46px !important;
+    border-radius: 14px !important;
+  }
+
+  .rubric-toolbar h3,
+  .manual-rubric-header h3 {
+    font-size: 1.05rem !important;
+  }
+
+  .rubric-toolbar .muted-text {
+    font-size: 0.84rem !important;
+  }
+}
+
+@media (max-width: 420px) {
+  .manual-score-row {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* Phone-friendly Code Helper */
+@media (max-width: 820px) {
+  body.code-helper-open {
+    overflow: hidden !important;
+  }
+
+  .code-helper-float-btn {
+    right: 12px !important;
+    bottom: calc(14px + env(safe-area-inset-bottom)) !important;
+    z-index: 5300 !important;
+    min-height: 44px !important;
+    max-width: calc(100vw - 24px) !important;
+    padding: 0 15px !important;
+    border-radius: 999px !important;
+    font-size: 0.82rem !important;
+    background: linear-gradient(135deg, var(--primary), #7c3aed) !important;
+    color: #fff !important;
+    box-shadow: 0 18px 40px rgba(37, 99, 235, 0.32) !important;
+  }
+
+  .error-checker-panel.code-helper-modal {
+    position: fixed !important;
+    inset: auto 8px 8px 8px !important;
+    top: calc(78px + env(safe-area-inset-top)) !important;
+    width: auto !important;
+    max-width: none !important;
+    height: auto !important;
+    max-height: calc(100dvh - 94px - env(safe-area-inset-top) - env(safe-area-inset-bottom)) !important;
+    z-index: 7600 !important;
+    border-radius: 22px !important;
+    overflow: hidden !important;
+    background: var(--solid-card) !important;
+    box-shadow: 0 24px 70px rgba(15, 23, 42, 0.34) !important;
+  }
+
+  .error-checker-panel.code-helper-modal .error-checker-header {
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 2 !important;
+    display: grid !important;
+    grid-template-columns: 1fr auto !important;
+    gap: 10px !important;
+    padding: 12px !important;
+    background: color-mix(in srgb, var(--solid-card) 96%, var(--primary-soft)) !important;
+  }
+
+  .error-checker-panel.code-helper-modal .error-checker-header h2 {
+    font-size: 1.05rem !important;
+  }
+
+  .error-checker-panel.code-helper-modal .error-checker-header p:not(.section-kicker) {
+    display: none !important;
+  }
+
+  .code-helper-header-actions {
+    gap: 6px !important;
+  }
+
+  .code-helper-header-actions .layout-btn,
+  .code-helper-close {
+    min-height: 40px !important;
+    height: 40px !important;
+    border-radius: 999px !important;
+  }
+
+  .error-checker-panel.code-helper-modal .error-checker-content {
+    max-height: calc(100dvh - 170px - env(safe-area-inset-top) - env(safe-area-inset-bottom)) !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    padding: 10px 12px calc(14px + env(safe-area-inset-bottom)) !important;
+  }
+
+  body.editor-fullscreen-active .code-helper-float-btn,
+  #editorPanel:fullscreen .code-helper-float-btn {
+    top: auto !important;
+    left: 12px !important;
+    right: auto !important;
+    bottom: calc(12px + env(safe-area-inset-bottom)) !important;
+    height: 38px !important;
+    min-height: 38px !important;
+    max-width: calc(100vw - 132px) !important;
+    padding: 0 12px !important;
+    font-size: 0.74rem !important;
+  }
+
+  body.editor-fullscreen-active .error-checker-panel.code-helper-modal,
+  #editorPanel:fullscreen .error-checker-panel.code-helper-modal {
+    top: 10px !important;
+    bottom: calc(58px + env(safe-area-inset-bottom)) !important;
+    left: 8px !important;
+    right: 8px !important;
+    max-height: none !important;
+    width: auto !important;
+  }
+}
+
+/* Desktop header repair: keep the title and action buttons from colliding. */
+@media (min-width: 821px) {
+  .app-shell {
+    width: min(1560px, calc(100% - 28px)) !important;
+  }
+
+  .topbar.simplified-topbar,
+  .topbar {
+    display: grid !important;
+    grid-template-columns: minmax(300px, 460px) minmax(0, 1fr) !important;
+    align-items: center !important;
+    gap: 18px !important;
+    padding: 16px 18px !important;
+    min-height: 86px !important;
+    overflow: visible !important;
+  }
+
+  .brand-block {
+    min-width: 0 !important;
+    width: 100% !important;
+  }
+
+  .brand-block .logo-mark {
+    flex: 0 0 48px !important;
+    width: 48px !important;
+    height: 48px !important;
+    border-radius: 16px !important;
+  }
+
+  .brand-block h1 {
+    max-width: 100% !important;
+    margin: 0 !important;
+    font-size: clamp(1.35rem, 1.55vw, 1.85rem) !important;
+    line-height: 1.02 !important;
+  }
+
+  .brand-block .eyebrow {
+    margin-bottom: 2px !important;
+    font-size: 0.68rem !important;
+    line-height: 1 !important;
+  }
+
+  .brand-block .subtitle {
+    display: none !important;
+  }
+
+  .top-actions {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    justify-content: flex-end !important;
+    align-items: center !important;
+    align-content: center !important;
+    gap: 8px !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    min-height: 44px !important;
+    overflow: visible !important;
+    padding: 0 !important;
+  }
+
+  .top-actions > *,
+  .top-actions .ghost-btn,
+  .top-actions .primary-btn,
+  .top-actions .success-btn,
+  #clearBtn {
+    flex: 0 0 auto !important;
+    min-height: 40px !important;
+    height: 40px !important;
+    padding: 0 14px !important;
+    font-size: 0.92rem !important;
+    line-height: 1 !important;
+    white-space: nowrap !important;
+  }
+
+  #statusBadge,
+  .status-badge.compact-status {
+    flex: 0 0 90px !important;
+    width: 90px !important;
+    min-width: 90px !important;
+    max-width: 90px !important;
+    height: 34px !important;
+    min-height: 34px !important;
+    padding: 0 8px !important;
+  }
+}
+
+@media (min-width: 821px) and (max-width: 1180px) {
+  .topbar.simplified-topbar,
+  .topbar {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+
+  .brand-block h1 {
+    font-size: 1.35rem !important;
+  }
+
+  .top-actions {
+    justify-content: flex-start !important;
+  }
+}
+
+
+/* FINAL FIX: slim desktop header + safe output scroll offset.
+   Keeps mobile rules below 820px, but prevents the desktop toolbar from becoming a tall block. */
+@media (min-width: 821px) {
+  :root {
+    --desktop-topbar-safe-height: 70px;
+  }
+
+  .app-shell {
+    width: min(1680px, calc(100% - 16px)) !important;
+    padding-top: 6px !important;
+  }
+
+  .topbar.simplified-topbar,
+  .topbar {
+    position: sticky !important;
+    top: 4px !important;
+    z-index: 1200 !important;
+    display: grid !important;
+    grid-template-columns: minmax(260px, 420px) minmax(0, 1fr) !important;
+    align-items: center !important;
+    gap: 10px !important;
+    min-height: 58px !important;
+    max-height: 74px !important;
+    padding: 7px 10px !important;
+    margin-bottom: 8px !important;
+    border-radius: 16px !important;
+    overflow: visible !important;
+  }
+
+  .brand-block {
+    min-width: 0 !important;
+    width: 100% !important;
+    gap: 8px !important;
+  }
+
+  .brand-block .logo-mark,
+  .logo-mark {
+    flex: 0 0 40px !important;
+    width: 40px !important;
+    height: 40px !important;
+    border-radius: 13px !important;
+    font-size: 0.8rem !important;
+  }
+
+  .brand-block h1 {
+    max-width: 100% !important;
+    margin: 0 !important;
+    font-size: clamp(1.05rem, 1.22vw, 1.42rem) !important;
+    line-height: 1.04 !important;
+    letter-spacing: -0.035em !important;
+    white-space: normal !important;
+  }
+
+  .brand-block .eyebrow {
+    margin: 0 0 1px !important;
+    font-size: 0.58rem !important;
+    line-height: 1 !important;
+    letter-spacing: 0.13em !important;
+  }
+
+  .brand-block .subtitle {
+    display: none !important;
+  }
+
+  .top-actions {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    justify-content: flex-end !important;
+    align-items: center !important;
+    gap: 6px !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    min-height: 38px !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    padding: 0 2px !important;
+    scrollbar-width: thin !important;
+  }
+
+  .top-actions > *,
+  .top-actions .ghost-btn,
+  .top-actions .primary-btn,
+  .top-actions .success-btn,
+  #clearBtn {
+    flex: 0 0 auto !important;
+    min-height: 36px !important;
+    height: 36px !important;
+    padding: 0 10px !important;
+    border-radius: 999px !important;
+    font-size: 0.82rem !important;
+    line-height: 1 !important;
+    white-space: nowrap !important;
+  }
+
+  #statusBadge,
+  .status-badge.compact-status {
+    flex: 0 0 78px !important;
+    width: 78px !important;
+    min-width: 78px !important;
+    max-width: 78px !important;
+    height: 32px !important;
+    min-height: 32px !important;
+    padding: 0 7px !important;
+    font-size: 0.78rem !important;
+  }
+
+  #previewPanel,
+  #resultPanel,
+  #aiReviewPanel,
+  #activityCard,
+  #editorPanel {
+    scroll-margin-top: calc(var(--desktop-topbar-safe-height) + 14px) !important;
+  }
+}
+
+@media (min-width: 821px) and (max-width: 1180px) {
+  .topbar.simplified-topbar,
+  .topbar {
+    grid-template-columns: minmax(220px, 330px) minmax(0, 1fr) !important;
+  }
+
+  .brand-block h1 {
+    font-size: 1rem !important;
+  }
+
+  .top-actions > *,
+  .top-actions .ghost-btn,
+  .top-actions .primary-btn,
+  .top-actions .success-btn,
+  #clearBtn {
+    font-size: 0.76rem !important;
+    padding: 0 8px !important;
+  }
+}

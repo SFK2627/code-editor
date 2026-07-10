@@ -4,6 +4,14 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Grade 8 MCSian Web Code Editor - Developed by Sir JR</title>
+
+  <meta name="theme-color" content="#2563eb" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="MCSian Code Editor" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -21,6 +29,7 @@
       <div class="top-actions" aria-label="Main actions">
         <span id="statusBadge" class="status-badge compact-status">Ready</span>
         <button id="themeToggle" class="ghost-btn" type="button" title="Switch light or dark mode">🌙 Dark</button>
+        <button id="installAppBtn" class="ghost-btn install-app-btn hidden" type="button" title="Install this app on your phone">⬇ Install</button>
         <button id="stepActivityBtn" class="ghost-btn activity-launch-btn" type="button" aria-expanded="false" aria-controls="activityCard">📌 Activity</button>
         <button id="adminBtn" class="ghost-btn teacher-btn" type="button">Teacher/Admin</button>
         <button id="runBtn" class="primary-btn top-run-btn" type="button" title="Run: Ctrl + Enter">▶ Run</button>
