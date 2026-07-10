@@ -354,7 +354,9 @@ let previewOriginalParent = null;
 let previewOriginalNextSibling = null;
 let previewMovedIntoEditor = false;
 let previewCloseToEditorTimer = null;
-const FULLSCREEN_PAGE_TRANSITION_MS = 720;
+const FULLSCREEN_PAGE_TRANSITION_MS = 1040;
+const FULLSCREEN_PAGE_SWAP_MS = 450;
+let fullscreenPageTransitionBusy = false;
 
 const languageInfo = {
   html: 'HTML builds the webpage structure. For this app, students should type a complete document: doctype, html, head, title, and body.',
@@ -2924,16 +2926,120 @@ function scrollToOutput() {
 
 function playBookPageTransition(direction = 'to-preview') {
   window.clearTimeout(bookTransitionTimer);
-  document.body.classList.remove('book-page-transitioning', 'book-to-preview', 'book-to-editor');
-  // Force a reflow so repeated Run / Back clicks replay the animation.
+  document.body.classList.remove(
+    'book-page-transitioning',
+    'book-to-preview',
+    'book-to-editor',
+    'book-preview-revealing',
+    'book-preview-leaving',
+    'book-editor-revealing'
+  );
+
+  // Force a reflow so the animation always restarts, even after repeated Run/Back clicks.
   void document.body.offsetWidth;
   document.body.classList.add(
     'book-page-transitioning',
     direction === 'to-editor' ? 'book-to-editor' : 'book-to-preview'
   );
+
   bookTransitionTimer = window.setTimeout(() => {
-    document.body.classList.remove('book-page-transitioning', 'book-to-preview', 'book-to-editor');
-  }, FULLSCREEN_PAGE_TRANSITION_MS + 160);
+    document.body.classList.remove(
+      'book-page-transitioning',
+      'book-to-preview',
+      'book-to-editor',
+      'book-preview-revealing',
+      'book-preview-leaving',
+      'book-editor-revealing'
+    );
+    fullscreenPageTransitionBusy = false;
+  }, FULLSCREEN_PAGE_TRANSITION_MS + 180);
+}
+
+
+function removeFullscreenBookTransitionLayer() {
+  const layer = document.getElementById('fullscreenBookTransitionLayer');
+  if (layer) layer.remove();
+}
+
+function ensureFullscreenBookTransitionLayer(direction = 'to-preview', label = '') {
+  if (!editorPanel) return null;
+  removeFullscreenBookTransitionLayer();
+  const layer = document.createElement('div');
+  layer.id = 'fullscreenBookTransitionLayer';
+  layer.className = `fullscreen-book-transition-layer ${direction === 'to-editor' ? 'to-editor' : 'to-preview'}`;
+  layer.setAttribute('aria-hidden', 'true');
+  layer.innerHTML = `
+    <div class="fullscreen-book-vignette"></div>
+    <div class="fullscreen-book-stage">
+      <div class="fullscreen-book-fixed-page"></div>
+      <div class="fullscreen-book-turn-page">
+        <span class="fullscreen-book-spine"></span>
+        <span class="fullscreen-book-highlight"></span>
+      </div>
+      <div class="fullscreen-book-edge"></div>
+    </div>
+    <div class="fullscreen-book-caption">${escapeHTML(label)}</div>
+  `;
+  editorPanel.appendChild(layer);
+  return layer;
+}
+
+function clearFullscreenBookStateClasses() {
+  document.body.classList.remove(
+    'book-page-transitioning',
+    'book-to-preview',
+    'book-to-editor',
+    'book-preview-revealing',
+    'book-preview-leaving',
+    'book-editor-revealing'
+  );
+}
+
+function runSmoothFullscreenBookTransition({ direction = 'to-preview', label = '', onSwap = null, onDone = null } = {}) {
+  window.clearTimeout(bookTransitionTimer);
+  window.clearTimeout(previewCloseToEditorTimer);
+  clearFullscreenBookStateClasses();
+
+  const layer = ensureFullscreenBookTransitionLayer(direction, label);
+  if (!layer) {
+    if (typeof onSwap === 'function') onSwap();
+    if (typeof onDone === 'function') onDone();
+    fullscreenPageTransitionBusy = false;
+    return;
+  }
+
+  // Force layout once so the animation starts cleanly every time.
+  void layer.offsetWidth;
+  document.body.classList.add('fullscreen-book-transition-active');
+  layer.classList.add('is-running');
+
+  const swapDelay = direction === 'to-editor' ? 470 : 450;
+  const doneDelay = 1040;
+
+  const swapTimer = window.setTimeout(() => {
+    layer.classList.add('has-swapped');
+    try {
+      if (typeof onSwap === 'function') onSwap();
+    } catch (error) {
+      console.error('Book transition swap failed', error);
+    }
+  }, swapDelay);
+
+  bookTransitionTimer = window.setTimeout(() => {
+    window.clearTimeout(swapTimer);
+    layer.classList.add('is-done');
+    window.setTimeout(() => {
+      removeFullscreenBookTransitionLayer();
+      document.body.classList.remove('fullscreen-book-transition-active');
+      clearFullscreenBookStateClasses();
+      try {
+        if (typeof onDone === 'function') onDone();
+      } catch (error) {
+        console.error('Book transition completion failed', error);
+      }
+      fullscreenPageTransitionBusy = false;
+    }, 90);
+  }, doneDelay);
 }
 
 function movePreviewPanelIntoEditorFullscreen() {
@@ -2966,12 +3072,25 @@ function restorePreviewPanelFromEditorFullscreen() {
 }
 
 function openOutputPreviewAfterFullEditor() {
+  if (fullscreenPageTransitionBusy) return;
+  fullscreenPageTransitionBusy = true;
   returnToFullEditorAfterPreview = true;
   hideSuggestions();
-  movePreviewPanelIntoEditorFullscreen();
-  enterFullPreview({ fromFullEditor: true, nativeFullscreen: false, keepEditorFullscreen: true });
-  playBookPageTransition('to-preview');
-  window.setTimeout(() => ensureBackToEditorPreviewBtn()?.focus({ preventScroll: true }), FULLSCREEN_PAGE_TRANSITION_MS);
+  closeCodeHelperPanel();
+
+  runSmoothFullscreenBookTransition({
+    direction: 'to-preview',
+    label: 'Opening Output Preview',
+    onSwap: () => {
+      movePreviewPanelIntoEditorFullscreen();
+      enterFullPreview({ fromFullEditor: true, nativeFullscreen: false, keepEditorFullscreen: true });
+      document.body.classList.add('book-preview-revealing');
+    },
+    onDone: () => {
+      document.body.classList.remove('book-preview-revealing');
+      ensureBackToEditorPreviewBtn()?.focus({ preventScroll: true });
+    }
+  });
 }
 
 function runCode(showMessage = true, options = {}) {
@@ -4598,16 +4717,35 @@ function enterFullPreview(options = {}) {
 }
 
 function exitFullPreview(options = {}) {
+  // The Exit button in a preview that came from Full Editor must close the whole
+  // fullscreen flow, not return to the editor fullscreen. Back to Editor already
+  // handles that separate behavior.
+  const safeOptions = options && typeof options === 'object' && !('target' in options) ? options : {};
   const isInsideEditorFullscreen = previewMovedIntoEditor || document.body.classList.contains('preview-inside-editor-fullscreen');
+  const shouldCloseEditorFullscreen = Boolean(safeOptions.closeEditorFullscreen && isInsideEditorFullscreen);
   const shouldExitNativePreview = document.fullscreenElement === previewPanel &&
-    !options.keepNative &&
-    !options.fromNative &&
+    !safeOptions.keepNative &&
+    !safeOptions.fromNative &&
+    document.exitFullscreen;
+  const shouldExitNativeEditor = shouldCloseEditorFullscreen &&
+    document.fullscreenElement === editorPanel &&
+    !safeOptions.keepNative &&
+    !safeOptions.fromNative &&
     document.exitFullscreen;
 
-  document.body.classList.remove('preview-fullscreen-active', 'preview-has-back-editor', 'preview-closing-to-editor');
+  document.body.classList.remove(
+    'preview-fullscreen-active',
+    'preview-has-back-editor',
+    'preview-closing-to-editor',
+    'preview-inside-editor-fullscreen',
+    'book-preview-revealing',
+    'book-preview-leaving'
+  );
+
   if (!isInsideEditorFullscreen) {
     setPreviewTransitionClass();
   }
+
   fullPreviewBtn?.classList.remove('hidden');
   exitPreviewBtn?.classList.add('hidden');
   ensureBackToEditorPreviewBtn()?.classList.add('hidden');
@@ -4617,31 +4755,56 @@ function exitFullPreview(options = {}) {
     restorePreviewPanelFromEditorFullscreen();
   }
 
-  if (shouldExitNativePreview) {
+  if (shouldCloseEditorFullscreen) {
+    document.body.classList.remove('editor-fullscreen-active');
+    document.getElementById('fullscreenEditorActions')?.classList.add('hidden');
+    document.getElementById('exitEditorStickyBtn')?.classList.add('hidden');
+    document.getElementById('fullscreenRunBtn')?.classList.add('hidden');
+    document.getElementById('fullscreenResultBtn')?.classList.add('hidden');
+    fullEditorBtn?.classList.remove('hidden');
+    exitEditorBtn?.classList.add('hidden');
+    hideSuggestions();
+    closeCodeHelperPanel();
+  }
+
+  if (shouldExitNativePreview || shouldExitNativeEditor) {
     document.exitFullscreen().catch(() => {});
   }
 
-  if (!options.keepReturnFlag) {
+  if (!safeOptions.keepReturnFlag) {
     returnToFullEditorAfterPreview = false;
   }
-  if (!options.silent) {
-    setStatus('Preview restored');
+  if (!safeOptions.silent) {
+    setStatus(shouldCloseEditorFullscreen ? 'Fullscreen closed' : 'Preview restored');
   }
+
+  fitEditorToContent();
 }
 
 function backToEditorFromPreview() {
+  if (fullscreenPageTransitionBusy) return;
   const isInsideEditorFullscreen = previewMovedIntoEditor || document.body.classList.contains('preview-inside-editor-fullscreen');
-  playBookPageTransition('to-editor');
 
   if (isInsideEditorFullscreen) {
-    window.clearTimeout(previewCloseToEditorTimer);
+    fullscreenPageTransitionBusy = true;
+    hideSuggestions();
+    closeCodeHelperPanel();
     document.body.classList.add('preview-closing-to-editor');
-    previewCloseToEditorTimer = window.setTimeout(() => {
-      restoreEditorFullscreenAfterPreview();
-      scheduleFullEditorControlsRestore();
-      setStatus('Back to editor');
-      window.setTimeout(() => editor?.focus({ preventScroll: true }), 60);
-    }, FULLSCREEN_PAGE_TRANSITION_MS);
+
+    runSmoothFullscreenBookTransition({
+      direction: 'to-editor',
+      label: 'Back to Editor',
+      onSwap: () => {
+        restoreEditorFullscreenAfterPreview();
+        document.body.classList.add('book-editor-revealing');
+        scheduleFullEditorControlsRestore();
+        setStatus('Back to editor');
+      },
+      onDone: () => {
+        document.body.classList.remove('book-editor-revealing', 'preview-closing-to-editor');
+        editor?.focus({ preventScroll: true });
+      }
+    });
     return;
   }
 
@@ -4656,6 +4819,7 @@ function backToEditorFromPreview() {
     restoreEditorFullscreenAfterPreview();
     scheduleFullEditorControlsRestore();
     returnToFullEditorAfterPreview = false;
+    fullscreenPageTransitionBusy = false;
     setStatus('Back to editor');
   }, 180);
 }
@@ -6933,7 +7097,7 @@ layoutButtons.forEach(button => {
 });
 
 fullPreviewBtn.addEventListener('click', enterFullPreview);
-exitPreviewBtn.addEventListener('click', exitFullPreview);
+exitPreviewBtn.addEventListener('click', () => exitFullPreview({ closeEditorFullscreen: true }));
 ensureBackToEditorPreviewBtn();
 ensurePreviewResultBtn();
 if (zoomOutBtn) zoomOutBtn.addEventListener('click', () => changeEditorZoom(-1));
@@ -6974,7 +7138,7 @@ document.addEventListener('keydown', event => {
   handleGlobalShortcuts(event);
 
   if (event.key === 'Escape' && document.body.classList.contains('preview-fullscreen-active')) {
-    exitFullPreview();
+    exitFullPreview({ closeEditorFullscreen: true });
   }
 
   if (event.key === 'Escape' && document.body.classList.contains('editor-fullscreen-active')) {

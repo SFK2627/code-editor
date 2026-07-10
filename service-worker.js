@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mcsian-code-editor-v20260710-tabs-pages-all-files';
+const CACHE_NAME = 'mcsian-code-editor-mobile-no-overlap-20260710';
 const CORE_ASSETS = [
   './',
   './index.html',
