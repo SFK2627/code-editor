@@ -1,11 +1,11 @@
-const CACHE_NAME = 'sir-jr-coding-app-brand-tagline-fix-v1';
+const CACHE_NAME = 'sir-jr-coding-app-admin-students-real-phone-fix-v1';
 const CORE_ASSETS = [
   './',
   './index.html',
   './style.css',
-  './style.css?v=20260711-brand-tagline-fix',
+  './style.css?v=20260711-admin-students-real-phone-fix',
   './script.js',
-  './script.js?v=20260711-brand-tagline-fix',
+  './script.js?v=20260711-admin-students-real-phone-fix',
   './firebase-config.js',
   './manifest.webmanifest',
   './STUDENT_IMPORT_TEMPLATE.csv',
