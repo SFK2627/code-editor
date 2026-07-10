@@ -57,7 +57,6 @@ const criteriaCount = document.getElementById('criteriaCount');
 const workspace = document.getElementById('workspace');
 const layoutButtons = document.querySelectorAll('.layout-btn[data-layout]');
 const fullPreviewBtn = document.getElementById('fullPreviewBtn');
-const desktopPreviewBtn = document.getElementById('desktopPreviewBtn');
 const exitPreviewBtn = document.getElementById('exitPreviewBtn');
 const adminOverlay = document.getElementById('adminOverlay');
 const closeAdminBtn = document.getElementById('closeAdminBtn');
@@ -4598,24 +4597,6 @@ function setPreviewLayout(layout) {
   setStatus(safeLayout === 'preview-focus' ? 'Big preview layout' : `${safeLayout[0].toUpperCase()}${safeLayout.slice(1)} layout`);
 }
 
-function setDesktopPreviewMode(enabled) {
-  const isEnabled = Boolean(enabled);
-  previewPanel?.classList.toggle('mobile-desktop-preview', isEnabled);
-  if (desktopPreviewBtn) {
-    desktopPreviewBtn.classList.toggle('active', isEnabled);
-    desktopPreviewBtn.setAttribute('aria-pressed', String(isEnabled));
-    desktopPreviewBtn.textContent = isEnabled ? 'Phone View' : 'Desktop View';
-    desktopPreviewBtn.title = isEnabled
-      ? 'Return the preview to phone width'
-      : 'Show how the output may look on a desktop screen';
-  }
-  setStatus(isEnabled ? 'Desktop preview' : 'Phone preview');
-}
-
-function toggleDesktopPreviewMode() {
-  setDesktopPreviewMode(!previewPanel?.classList.contains('mobile-desktop-preview'));
-}
-
 function ensureBackToEditorPreviewBtn() {
   let button = document.getElementById('backToEditorPreviewBtn');
   if (!button) {
@@ -7115,7 +7096,6 @@ layoutButtons.forEach(button => {
   button.addEventListener('click', () => setPreviewLayout(button.dataset.layout));
 });
 
-desktopPreviewBtn?.addEventListener('click', toggleDesktopPreviewMode);
 fullPreviewBtn.addEventListener('click', enterFullPreview);
 exitPreviewBtn.addEventListener('click', () => exitFullPreview({ closeEditorFullscreen: true }));
 ensureBackToEditorPreviewBtn();

@@ -139,7 +139,6 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
               <button class="layout-btn active" type="button" data-layout="split">Split</button>
               <button class="layout-btn" type="button" data-layout="stacked">Stacked</button>
               <button class="layout-btn" type="button" data-layout="preview-focus">Big Preview</button>
-              <button id="desktopPreviewBtn" class="layout-btn desktop-preview-toggle" type="button" aria-pressed="false">Desktop View</button>
               <button id="fullPreviewBtn" class="layout-btn strong" type="button">Full Screen</button>
               <button id="exitPreviewBtn" class="layout-btn danger hidden" type="button">Exit</button>
             </div>
