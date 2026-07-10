@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sir-jr-coding-app-v20260710-phone-account-menu-clean';
+const CACHE_NAME = 'sir-jr-coding-app-phone-gate-firstname-fix-v1';
 const CORE_ASSETS = [
   './',
   './index.html',

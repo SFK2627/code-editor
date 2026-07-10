@@ -11866,3 +11866,33 @@ html[data-device-mode="phone"] body.student-session-active .topbar .brand-block 
 html[data-device-mode="phone"] body.student-session-active .topbar h1 {
   max-width: calc(100vw - 150px) !important;
 }
+
+
+/* =========================================================
+   PHONE GATE VISIBILITY HOTFIX
+   The phone welcome styles use !important display rules, so hidden
+   overlays need an equally specific final override. This prevents the
+   welcome screen from staying stuck after Login, Continue, or Guest.
+   ========================================================= */
+html[data-device-mode="phone"] .entry-gate.hidden,
+html[data-device-mode="phone"] .student-auth-overlay.hidden,
+html[data-device-mode="phone"] .student-dashboard-screen.hidden,
+html[data-device-mode="phone"] .project-name-overlay.hidden {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+html[data-device-mode="phone"] body:not(.entry-gate-active) > .entry-gate {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+html[data-device-mode="phone"] body:not(.student-auth-open) > .student-auth-overlay.hidden {
+  display: none !important;
+}
+
+html[data-device-mode="phone"] body:not(.student-dashboard-active) > .student-dashboard-screen.hidden {
+  display: none !important;
+}

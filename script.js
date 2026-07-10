@@ -2140,7 +2140,17 @@ function studentIdToAuthEmail(value) {
 
 function getStudentFirstName(name) {
   const cleaned = String(name || 'Student').trim();
-  return cleaned.split(/\s+/)[0] || 'Student';
+  if (!cleaned) return 'Student';
+
+  // Student names are often encoded as: SURNAME, First Second.
+  // Show only the first given name after the comma, e.g. "Tubello, Juan Mark" -> "Juan".
+  if (cleaned.includes(',')) {
+    const afterComma = cleaned.split(',').slice(1).join(',').trim();
+    const givenName = afterComma.split(/\s+/).filter(Boolean)[0];
+    if (givenName) return givenName.replace(/[,.]+$/g, '');
+  }
+
+  return (cleaned.split(/\s+/).filter(Boolean)[0] || 'Student').replace(/[,.]+$/g, '') || 'Student';
 }
 
 function timestampToDate(value) {
