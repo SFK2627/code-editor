@@ -1,9 +1,11 @@
-const CACHE_NAME = 'sir-jr-coding-app-v20260710-desktop-account-layout';
+const CACHE_NAME = 'sir-jr-coding-app-v20260710-phone-account-menu-clean';
 const CORE_ASSETS = [
   './',
   './index.html',
   './style.css',
+  './style.css?v=20260710-phone-account-menu-clean',
   './script.js',
+  './script.js?v=20260710-phone-account-menu-clean',
   './firebase-config.js',
   './manifest.webmanifest',
   './STUDENT_IMPORT_TEMPLATE.csv',

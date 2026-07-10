@@ -37,7 +37,7 @@
       document.documentElement.dataset.deviceMode = isPhone ? 'phone' : 'desktop';
     })();
   </script>
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="style.css?v=20260710-phone-account-menu-clean" />
 </head>
 <body class="entry-gate-active">
   <div id="entryGate" class="entry-gate" role="dialog" aria-modal="true" aria-labelledby="entryGateTitle">
@@ -190,6 +190,19 @@
         <button id="exitEditorBtn" class="ghost-btn danger-tool hidden" type="button" title="Exit full editor: Esc">Exit Full</button>
         <button id="resetBtn" class="ghost-btn quiet-action" type="button">Reset</button>
         <button id="clearBtn" class="ghost-btn danger quiet-action" type="button">Clear Tab</button>
+      </div>
+
+      <button id="studentMenuBtn" class="student-menu-btn hidden" type="button" aria-label="Open student menu" aria-expanded="false" aria-controls="studentAccountMenu">
+        <span aria-hidden="true"></span>
+        <span aria-hidden="true"></span>
+      </button>
+      <div id="studentAccountMenu" class="student-account-menu hidden" role="menu" aria-label="Student account menu">
+        <div class="student-account-menu-head">
+          <strong id="menuStudentGreeting">Hi, Student!</strong>
+          <span id="menuStudentSaveState" class="student-save-state">Saved</span>
+        </div>
+        <button id="menuMyProjectsBtn" class="ghost-btn" type="button" role="menuitem">📁 My Projects</button>
+        <button id="menuStudentLogoutBtn" class="ghost-btn danger" type="button" role="menuitem">Log Out</button>
       </div>
 
       <div id="studentAccountStrip" class="student-account-strip hidden" aria-label="Student account actions">
@@ -750,6 +763,6 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="firebase-config.js"></script>
-  <script src="script.js"></script>
+  <script src="script.js?v=20260710-phone-account-menu-clean"></script>
 </body>
 </html>

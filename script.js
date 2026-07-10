@@ -178,6 +178,12 @@ const appSubtitleText = document.getElementById('appSubtitleText');
 const studentAccountStrip = document.getElementById('studentAccountStrip');
 const headerStudentGreeting = document.getElementById('headerStudentGreeting');
 const studentSaveState = document.getElementById('studentSaveState');
+const studentMenuBtn = document.getElementById('studentMenuBtn');
+const studentAccountMenu = document.getElementById('studentAccountMenu');
+const menuStudentGreeting = document.getElementById('menuStudentGreeting');
+const menuStudentSaveState = document.getElementById('menuStudentSaveState');
+const menuMyProjectsBtn = document.getElementById('menuMyProjectsBtn');
+const menuStudentLogoutBtn = document.getElementById('menuStudentLogoutBtn');
 const myProjectsBtn = document.getElementById('myProjectsBtn');
 const studentHeaderLogoutBtn = document.getElementById('studentHeaderLogoutBtn');
 const guestAccountStrip = document.getElementById('guestAccountStrip');
@@ -2226,24 +2232,43 @@ function setProjectNameError(message = '') {
 }
 
 function setStudentSaveState(text, state = '') {
-  if (!studentSaveState) return;
-  studentSaveState.textContent = text;
-  studentSaveState.classList.remove('saving', 'error');
-  if (state) studentSaveState.classList.add(state);
+  [studentSaveState, menuStudentSaveState].forEach(saveEl => {
+    if (!saveEl) return;
+    saveEl.textContent = text;
+    saveEl.classList.remove('saving', 'error');
+    if (state) saveEl.classList.add(state);
+  });
+}
+
+function closeStudentAccountMenu() {
+  studentAccountMenu?.classList.add('hidden');
+  studentMenuBtn?.setAttribute('aria-expanded', 'false');
+}
+
+function toggleStudentAccountMenu() {
+  if (!studentAccountMenu || !studentMenuBtn) return;
+  const willOpen = studentAccountMenu.classList.contains('hidden');
+  studentAccountMenu.classList.toggle('hidden', !willOpen);
+  studentMenuBtn.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
 }
 
 function updateAppHeaderForSession() {
   const isStudent = appSession.mode === 'student' && appSession.student;
   const isGuest = appSession.mode === 'guest';
 
+  document.body.classList.toggle('student-session-active', isStudent);
+  document.body.classList.toggle('guest-session-active', isGuest);
   studentAccountStrip?.classList.toggle('hidden', !isStudent);
   guestAccountStrip?.classList.toggle('hidden', !isGuest);
+  studentMenuBtn?.classList.toggle('hidden', !isStudent);
+  if (!isStudent) closeStudentAccountMenu();
 
   if (isStudent) {
     const firstName = getStudentFirstName(appSession.student.name);
     if (appTitleText) appTitleText.textContent = 'Sir JR Coding App';
     if (appSubtitleText) appSubtitleText.textContent = `Hi, ${firstName}!`;
     if (headerStudentGreeting) headerStudentGreeting.textContent = `Hi, ${firstName}!`;
+    if (menuStudentGreeting) menuStudentGreeting.textContent = `Hi, ${firstName}!`;
     setStudentSaveState(appSession.currentProjectId ? 'Saved' : 'Choose a project');
   } else {
     if (appTitleText) appTitleText.textContent = "Sir Jr's Grade 8 MCSian Web Code Editor";
@@ -9101,6 +9126,28 @@ changePasswordLogoutBtn?.addEventListener('click', logoutStudent);
 }));
 myProjectsBtn?.addEventListener('click', showStudentDashboard);
 studentHeaderLogoutBtn?.addEventListener('click', logoutStudent);
+studentMenuBtn?.addEventListener('click', event => {
+  event.stopPropagation();
+  toggleStudentAccountMenu();
+});
+menuMyProjectsBtn?.addEventListener('click', () => {
+  closeStudentAccountMenu();
+  showStudentDashboard();
+});
+menuStudentLogoutBtn?.addEventListener('click', () => {
+  closeStudentAccountMenu();
+  logoutStudent();
+});
+document.addEventListener('click', event => {
+  if (!studentAccountMenu || studentAccountMenu.classList.contains('hidden')) return;
+  if (studentAccountMenu.contains(event.target) || studentMenuBtn?.contains(event.target)) return;
+  closeStudentAccountMenu();
+});
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape') closeStudentAccountMenu();
+});
+window.addEventListener('orientationchange', closeStudentAccountMenu);
+window.addEventListener('resize', closeStudentAccountMenu);
 dashboardLogoutBtn?.addEventListener('click', logoutStudent);
 dashboardThemeBtn?.addEventListener('click', () => themeToggle?.click());
 newProjectBtn?.addEventListener('click', () => openProjectNameDialog('create'));
