@@ -9,7 +9,7 @@ window.MCS_FIREBASE_CONFIG = {
   appId: '1:119616488399:web:453b411fbf93a3b71e08ba'
 };
 window.MCS_FIREBASE_COLLECTION = 'webCodeEditor';
-window.MCS_FIREBASE_DOCUMENT_ID = 'grade8-mcsian';
+window.MCS_FIREBASE_DOCUMENT_ID = 'grade8-mcsian-blank-v1';
 window.MCS_FIREBASE_SDK_VERSION = '10.12.5';
 
 // Leave blank if you do not have a deployed secure backend endpoint.

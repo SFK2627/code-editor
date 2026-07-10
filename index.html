@@ -85,7 +85,6 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
         <section id="previewPanel" class="panel preview-panel" aria-label="Output preview">
           <div class="panel-header compact-header preview-header">
             <div>
-              <p class="section-kicker">Step 3</p>
               <h2>Output Preview</h2>
               <p>Your webpage appears here after clicking Run Code.</p>
             </div>
@@ -138,7 +137,6 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
         <section id="resultPanel" class="panel result-panel" aria-label="Score result">
           <div class="panel-header compact-header">
             <div>
-              <p class="section-kicker">Step 4</p>
               <h2>Result & Feedback</h2>
               <p>Run your code, then check your score based on the selected rubric.</p>
             </div>
@@ -161,7 +159,7 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
           <button id="resetActivityCodeBtn" class="ghost-btn" type="button">Reset This Activity Code</button>
         </div>
         <div id="activityWarning" class="activity-warning hidden" role="alert">
-          Pumili muna ng activity sa Step 1. Without selected activity, Run Code works, pero hindi lalabas ang score at automatic feedback dahil walang rubric.
+          Pumili muna ng activity. Without selected activity, Run Code works, pero hindi lalabas ang score at automatic feedback dahil walang rubric.
         </div>
         <p class="section-kicker">Selected Activity</p>
         <h2 id="activityTitle">Activity</h2>
@@ -272,6 +270,60 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
           <textarea id="adminActivityDescription" rows="3" placeholder="Write the student instructions here."></textarea>
         </label>
 
+        <section class="manual-rubric-card" aria-label="Manual rubric table input">
+          <div class="manual-rubric-header">
+            <div>
+              <p class="section-kicker">Rubric Table Input</p>
+              <h3>Type Rubric Like a Table</h3>
+              <p class="muted-text">Use this for your usual 5-column format. Type the criteria on the left, then type the descriptions for each score level. Click Apply + Smart Rubric Checker. The app will create the actual rubric rows and use the rubric text itself for smarter checking, not just the Auto Check dropdown.</p>
+            </div>
+            <span class="rubric-import-badge">No image upload</span>
+          </div>
+
+          <div class="manual-score-row" aria-label="Rubric score settings">
+            <label>
+              Excellent Score
+              <input id="manualExcellentScore" type="number" min="0" step="0.5" value="10" />
+            </label>
+            <label>
+              Good Score
+              <input id="manualGoodScore" type="number" min="0" step="0.5" value="8" />
+            </label>
+            <label>
+              Satisfactory / Fair Score
+              <input id="manualFairScore" type="number" min="0" step="0.5" value="6" />
+            </label>
+            <label>
+              Needs Improvement Score
+              <input id="manualNeedsScore" type="number" min="0" step="0.5" value="4" />
+            </label>
+          </div>
+
+          <div class="manual-rubric-scroll">
+            <table class="manual-rubric-input-table" aria-label="Editable rubric input table">
+              <thead>
+                <tr>
+                  <th>Criteria</th>
+                  <th>Excellent</th>
+                  <th>Good</th>
+                  <th>Satisfactory / Fair</th>
+                  <th>Needs Improvement</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="manualRubricInputBody"></tbody>
+            </table>
+          </div>
+
+          <div class="manual-rubric-actions">
+            <button id="addManualRubricRowBtn" class="ghost-btn" type="button">+ Add Input Row</button>
+            <button id="applyManualRubricBtn" class="primary-btn" type="button">Apply + Smart Rubric Checker</button>
+            <button id="clearManualRubricBtn" class="ghost-btn danger" type="button">Clear Input Table</button>
+          </div>
+
+          <p id="manualRubricStatus" class="helper-note manual-rubric-status">Type your rubric here, then click Apply + Smart Rubric Checker.</p>
+        </section>
+
         <div class="rubric-toolbar">
           <div>
             <h3>Rubric Table</h3>
@@ -287,6 +339,22 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
           <button class="success-btn" type="submit">Save Activity</button>
         </div>
       </form>
+    </div>
+  </div>
+
+
+  <div id="appDialogOverlay" class="app-dialog-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="appDialogTitle">
+    <div class="app-dialog-card" role="document">
+      <div class="app-dialog-icon" id="appDialogIcon">!</div>
+      <div class="app-dialog-content">
+        <p class="app-dialog-kicker" id="appDialogKicker">Notice</p>
+        <h3 id="appDialogTitle">Message</h3>
+        <p id="appDialogMessage">Please continue.</p>
+      </div>
+      <div class="app-dialog-actions">
+        <button id="appDialogCancelBtn" class="ghost-btn app-dialog-cancel" type="button">Cancel</button>
+        <button id="appDialogOkBtn" class="primary-btn app-dialog-ok" type="button">OK</button>
+      </div>
     </div>
   </div>
 

@@ -4586,3 +4586,263 @@ body.admin-open #adminOverlay .pin-screen.teacher-login-screen {
   min-height: 130px;
   resize: vertical;
 }
+
+/* Rubric parser expects fixed 5-column rubric format: Criteria, Excellent, Good, Fair, Needs Improvement. */
+
+
+/* Manual 5-column rubric input */
+.manual-rubric-card {
+  margin: 1rem 0 1.2rem;
+  padding: 1rem;
+  border: 1px solid var(--border, #cfe0f7);
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(239, 246, 255, 0.9), rgba(255, 255, 255, 0.95));
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06);
+}
+
+.manual-rubric-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.manual-rubric-header h3 {
+  margin: 0 0 0.35rem;
+}
+
+.manual-score-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(150px, 1fr));
+  gap: 0.75rem;
+  margin: 1rem 0;
+}
+
+.manual-score-row label {
+  font-weight: 700;
+}
+
+.manual-score-row input {
+  margin-top: 0.35rem;
+  width: 100%;
+}
+
+.manual-rubric-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--border, #cfe0f7);
+  border-radius: 16px;
+  background: #ffffff;
+}
+
+.manual-rubric-input-table {
+  width: 100%;
+  min-width: 980px;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.manual-rubric-input-table th,
+.manual-rubric-input-table td {
+  border: 1px solid var(--border, #cfe0f7);
+  vertical-align: top;
+  padding: 0.65rem;
+}
+
+.manual-rubric-input-table th {
+  text-align: center;
+  font-weight: 800;
+  background: rgba(37, 99, 235, 0.08);
+}
+
+.manual-rubric-input-table th:first-child,
+.manual-rubric-input-table td:first-child {
+  width: 18%;
+}
+
+.manual-rubric-input-table th:last-child,
+.manual-rubric-input-table td:last-child {
+  width: 95px;
+  text-align: center;
+}
+
+.manual-rubric-input-table textarea {
+  width: 100%;
+  min-height: 92px;
+  resize: vertical;
+  border: 1px solid transparent;
+  background: rgba(248, 250, 252, 0.92);
+  border-radius: 10px;
+  padding: 0.65rem;
+  font: inherit;
+  line-height: 1.35;
+}
+
+.manual-rubric-input-table textarea:focus {
+  border-color: #60a5fa;
+  outline: none;
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.18);
+}
+
+.manual-rubric-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+  margin-top: 0.9rem;
+}
+
+.manual-rubric-status {
+  margin-top: 0.8rem;
+}
+
+.manual-rubric-status.success {
+  color: #15803d;
+}
+
+.manual-rubric-status.error {
+  color: #b91c1c;
+}
+
+@media (max-width: 900px) {
+  .manual-score-row {
+    grid-template-columns: repeat(2, minmax(140px, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .manual-score-row {
+    grid-template-columns: 1fr;
+  }
+
+  .manual-rubric-actions > * {
+    flex: 1 1 100%;
+  }
+}
+
+
+/* App-styled dialog boxes: replaces browser alert/confirm so it feels part of the app. */
+.app-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(15, 23, 42, 0.46);
+  backdrop-filter: blur(8px);
+}
+
+.app-dialog-overlay.hidden {
+  display: none !important;
+}
+
+.app-dialog-card {
+  width: min(520px, 94vw);
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 1rem;
+  padding: 1.2rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 24px;
+  color: var(--text);
+  background: linear-gradient(145deg, var(--solid-card), var(--bg-2));
+  box-shadow: var(--shadow-strong);
+  transform: translateY(0);
+  animation: appDialogPop 0.18s ease-out;
+}
+
+@keyframes appDialogPop {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.app-dialog-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  font-weight: 900;
+  color: #ffffff;
+  background: var(--primary);
+  box-shadow: 0 10px 24px rgba(37, 99, 235, 0.25);
+}
+
+.app-dialog-card.danger .app-dialog-icon {
+  background: var(--danger);
+  box-shadow: 0 10px 24px rgba(220, 38, 38, 0.24);
+}
+
+.app-dialog-content {
+  min-width: 0;
+}
+
+.app-dialog-kicker {
+  margin: 0 0 0.2rem;
+  color: var(--primary);
+  font-size: 0.75rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.app-dialog-card.danger .app-dialog-kicker {
+  color: var(--danger);
+}
+
+.app-dialog-content h3 {
+  margin: 0;
+  font-size: clamp(1.1rem, 2.8vw, 1.35rem);
+}
+
+.app-dialog-content p:last-child {
+  margin: 0.5rem 0 0;
+  color: var(--muted);
+  line-height: 1.55;
+  white-space: pre-line;
+}
+
+.app-dialog-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.7rem;
+  flex-wrap: wrap;
+  padding-top: 0.25rem;
+}
+
+.app-dialog-actions button {
+  min-width: 98px;
+}
+
+.app-dialog-card.alert .app-dialog-cancel {
+  display: none;
+}
+
+.app-dialog-card.danger .app-dialog-ok {
+  background: var(--danger);
+  border-color: var(--danger);
+}
+
+@media (max-width: 560px) {
+  .app-dialog-card {
+    grid-template-columns: 1fr;
+    text-align: left;
+  }
+
+  .app-dialog-actions {
+    justify-content: stretch;
+  }
+
+  .app-dialog-actions button {
+    flex: 1 1 120px;
+  }
+}

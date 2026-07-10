@@ -1,0 +1,13 @@
+Manual Rubric Table Input
+
+In Teacher/Admin, use the new 'Type Rubric Like a Table' section.
+
+Format:
+Column 1 = Criteria
+Column 2 = Excellent
+Column 3 = Good
+Column 4 = Satisfactory / Fair
+Column 5 = Needs Improvement
+
+Click 'Apply to Rubric Table' to copy the typed table into the actual app rubric table.
+Then review Auto Check and Target/Keyword, then click Save Activity.
