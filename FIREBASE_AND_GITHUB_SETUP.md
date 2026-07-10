@@ -1,16 +1,5 @@
-{
-  "hosting": {
-    "public": ".",
-    "ignore": [
-      "firebase.json",
-      "**/.*",
-      "**/node_modules/**"
-    ]
-  },
-  "firestore": {
-    "rules": "firestore.rules"
-  },
-  "functions": {
-    "source": "functions"
-  }
-}
+node_modules/
+.firebase/
+.firebaserc
+*.log
+.DS_Store

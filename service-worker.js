@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mcsian-code-editor-v20260710-thin-header-1';
+const CACHE_NAME = 'mcsian-code-editor-v20260710-thin-header-1-statusfix2';
 const CORE_ASSETS = [
   './',
   './index.html',

@@ -5702,3 +5702,46 @@ body.editor-fullscreen-active .topbar,
     padding: 0 8px !important;
   }
 }
+
+/* Status badge anti-cutoff fix */
+#status,
+.status,
+.status-pill,
+.header-status,
+.top-status,
+#statusText {
+  box-sizing: border-box;
+  min-width: 96px !important;
+  width: auto !important;
+  max-width: 140px !important;
+  flex: 0 0 auto !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  white-space: nowrap !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  padding-left: 14px !important;
+  padding-right: 14px !important;
+}
+
+.app-header,
+.top-header,
+header {
+  overflow: visible !important;
+}
+
+@media (max-width: 768px) {
+  #status,
+  .status,
+  .status-pill,
+  .header-status,
+  .top-status,
+  #statusText {
+    min-width: 84px !important;
+    max-width: 118px !important;
+    padding-left: 10px !important;
+    padding-right: 10px !important;
+    font-size: 0.86rem !important;
+  }
+}
