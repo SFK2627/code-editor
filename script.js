@@ -67,6 +67,9 @@ const unlockAdminBtn = document.getElementById('unlockAdminBtn');
 const logoutAdminBtn = document.getElementById('logoutAdminBtn');
 const pinScreen = document.getElementById('pinScreen');
 const adminForm = document.getElementById('adminForm');
+const adminTabButtons = Array.from(document.querySelectorAll('[data-admin-tab]'));
+const adminTabPanels = Array.from(document.querySelectorAll('[data-admin-panel]'));
+const ADMIN_TAB_STORAGE_KEY = 'mcsian.admin.activeTab';
 const adminActivityTitle = document.getElementById('adminActivityTitle');
 const adminActivityDescription = document.getElementById('adminActivityDescription');
 const adminPassingScore = document.getElementById('adminPassingScore');
@@ -2109,6 +2112,7 @@ async function watchTeacherAuth() {
       } else {
         pinScreen.classList.remove('hidden');
         adminForm.classList.add('hidden');
+    adminForm.classList.remove('visible');
       }
     }
   });
@@ -6838,9 +6842,40 @@ function exitFullEditor(options = {}) {
   }
 }
 
+function getStoredAdminTab() {
+  return localStorage.getItem(ADMIN_TAB_STORAGE_KEY) || 'students';
+}
+
+function setAdminTab(tabName = 'students') {
+  const allowed = new Set(['students', 'assistance', 'activities']);
+  const nextTab = allowed.has(tabName) ? tabName : 'students';
+  localStorage.setItem(ADMIN_TAB_STORAGE_KEY, nextTab);
+
+  adminTabButtons.forEach(button => {
+    const isActive = button.dataset.adminTab === nextTab;
+    button.classList.toggle('active', isActive);
+    button.setAttribute('aria-selected', isActive ? 'true' : 'false');
+  });
+
+  adminTabPanels.forEach(panel => {
+    const isActive = panel.dataset.adminPanel === nextTab;
+    panel.classList.toggle('active', isActive);
+  });
+}
+
+function initAdminTabs() {
+  adminTabButtons.forEach(button => {
+    if (button.dataset.adminTabBound === '1') return;
+    button.dataset.adminTabBound = '1';
+    button.addEventListener('click', () => setAdminTab(button.dataset.adminTab || 'students'));
+  });
+  setAdminTab(getStoredAdminTab());
+}
+
 async function openAdminPanel() {
   document.body.classList.add('admin-open');
   adminOverlay.classList.remove('hidden');
+  initAdminTabs();
   syncAssistanceSettingsControls();
   updateAssistancePublishUI();
   setAssistanceSettingsStatus(isTeacherAuthenticated()
@@ -6857,6 +6892,7 @@ async function openAdminPanel() {
   } else {
     pinScreen.classList.remove('hidden');
     adminForm.classList.add('hidden');
+    adminForm.classList.remove('visible');
     if (adminPassword) adminPassword.value = '';
     setTimeout(() => adminEmail?.focus(), 50);
   }
@@ -6864,6 +6900,7 @@ async function openAdminPanel() {
 
 function closeAdminPanel() {
   adminOverlay.classList.add('hidden');
+  setAdminTab(getStoredAdminTab());
   document.body.classList.remove('admin-open');
 }
 
@@ -6872,12 +6909,15 @@ function showAdminForm(activityId = adminEditingActivityId) {
     adminUnlocked = false;
     pinScreen.classList.remove('hidden');
     adminForm.classList.add('hidden');
+    adminForm.classList.remove('visible');
     return;
   }
 
   adminUnlocked = true;
   pinScreen.classList.add('hidden');
   adminForm.classList.remove('hidden');
+  adminForm.classList.add('visible');
+  initAdminTabs();
   if (adminStudentsCache.length) renderAdminStudentTracker();
   else loadAdminStudents().catch(error => console.warn('Student tracker load failed.', error));
   const editActivity = getActivityById(activityId) || activity || activities[0] || null;
@@ -6960,6 +7000,7 @@ async function logoutTeacher() {
     firebaseSync.currentUser = null;
     adminUnlocked = false;
     adminForm.classList.add('hidden');
+    adminForm.classList.remove('visible');
     pinScreen.classList.remove('hidden');
     if (adminPassword) adminPassword.value = '';
     updateTeacherLoginUI(null);
@@ -9088,6 +9129,7 @@ window.addEventListener('keydown', event => {
 applyAssistanceLocalBtn?.addEventListener('click', () => applyAssistanceSettingsFromControls());
 publishAssistanceBtn?.addEventListener('click', publishAssistanceSettings);
 
+initAdminTabs();
 adminBtn?.addEventListener('click', openAdminPanel);
 adminBtn?.addEventListener('keydown', event => {
   if (event.key === 'Enter' || event.key === ' ') {

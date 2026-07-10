@@ -413,7 +413,15 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
         <button id="closeAdminBtn" class="icon-btn" type="button" aria-label="Close admin panel">×</button>
       </div>
 
-      <section id="studentAssistanceSettings" class="admin-settings-card" aria-labelledby="assistanceSettingsTitle">
+      <div class="admin-tabs-wrap" aria-label="Admin sections">
+        <div class="admin-tabs" role="tablist" aria-label="Admin sections">
+          <button id="adminTabStudents" class="admin-tab-btn active" type="button" role="tab" aria-selected="true" aria-controls="studentAccountsAdmin" data-admin-tab="students">Students</button>
+          <button id="adminTabAssistance" class="admin-tab-btn" type="button" role="tab" aria-selected="false" aria-controls="studentAssistanceSettings" data-admin-tab="assistance">Assistance</button>
+          <button id="adminTabActivities" class="admin-tab-btn" type="button" role="tab" aria-selected="false" aria-controls="activitiesRubricsAdmin" data-admin-tab="activities">Activities &amp; Rubric</button>
+        </div>
+      </div>
+
+      <section id="studentAssistanceSettings" class="admin-settings-card admin-tab-panel" data-admin-panel="assistance" aria-labelledby="assistanceSettingsTitle">
         <div class="admin-settings-heading">
           <div>
             <p class="section-kicker">Student Assistance</p>
@@ -517,7 +525,7 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
       </div>
 
       <form id="adminForm" class="admin-form hidden">
-        <section id="studentAccountsAdmin" class="student-accounts-admin-card" aria-labelledby="studentAccountsTitle">
+        <section id="studentAccountsAdmin" class="student-accounts-admin-card admin-tab-panel" data-admin-panel="students" aria-labelledby="studentAccountsTitle">
           <div class="student-admin-heading">
             <div>
               <p class="section-kicker">Student Records & Tracker</p>
@@ -572,6 +580,7 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
           </div>
         </section>
 
+        <section id="activitiesRubricsAdmin" class="admin-tab-panel" data-admin-panel="activities" aria-labelledby="activitiesRubricsTitle">
         <div class="admin-section-divider"><span>Activities & Rubrics</span></div>
         <div class="admin-activity-manager">
           <label>
@@ -670,6 +679,7 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
           <button id="resetRubricBtn" class="ghost-btn danger" type="button">Restore Default Rubric</button>
           <button class="success-btn" type="submit">Save Activity</button>
         </div>
+        </section>
       </form>
     </div>
   </div>
