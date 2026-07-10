@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mcsian-code-editor-v20260710-mobile-desktop-preview';
+const CACHE_NAME = 'mcsian-code-editor-v20260710-monitor-preview-v2';
 const CORE_ASSETS = [
   './',
   './index.html',

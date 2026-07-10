@@ -1,5 +1,6 @@
 const editor = document.getElementById('codeEditor');
 const previewFrame = document.getElementById('previewFrame');
+const previewDeviceFrame = document.getElementById('previewDeviceFrame');
 const runBtn = document.getElementById('runBtn');
 const resultBtn = document.getElementById('resultBtn');
 const aiReviewTopBtn = document.getElementById('aiReviewTopBtn');
@@ -4598,18 +4599,41 @@ function setPreviewLayout(layout) {
   setStatus(safeLayout === 'preview-focus' ? 'Big preview layout' : `${safeLayout[0].toUpperCase()}${safeLayout.slice(1)} layout`);
 }
 
+function isMobilePreviewViewport() {
+  return window.matchMedia ? window.matchMedia('(max-width: 760px)').matches : window.innerWidth <= 760;
+}
+
+function updateDesktopPreviewScale() {
+  if (!previewPanel || !previewPanel.classList.contains('mobile-desktop-preview')) return;
+  const width = Math.max(260, previewDeviceFrame?.clientWidth || previewPanel.clientWidth || window.innerWidth || 360);
+  const height = Math.max(260, window.innerHeight || 640);
+  const monitorWidth = 1366;
+  const monitorHeight = 768;
+  const availableWidth = Math.max(240, width - 22);
+  const fullPreviewActive = document.body.classList.contains('preview-fullscreen-active') ||
+    Boolean(document.fullscreenElement === previewPanel) ||
+    Boolean(document.webkitFullscreenElement === previewPanel);
+  const availableHeight = fullPreviewActive ? Math.max(220, height - 114) : Math.max(220, height * 0.58);
+  const scale = Math.min(0.72, availableWidth / monitorWidth, availableHeight / monitorHeight);
+  const safeScale = Math.max(0.22, Number(scale) || 0.28);
+  previewPanel.style.setProperty('--desktop-preview-scale', safeScale.toFixed(4));
+  previewPanel.style.setProperty('--desktop-monitor-width', `${monitorWidth}px`);
+  previewPanel.style.setProperty('--desktop-monitor-height', `${monitorHeight}px`);
+}
+
 function setDesktopPreviewMode(enabled) {
   const isEnabled = Boolean(enabled);
   previewPanel?.classList.toggle('mobile-desktop-preview', isEnabled);
   if (desktopPreviewBtn) {
     desktopPreviewBtn.classList.toggle('active', isEnabled);
     desktopPreviewBtn.setAttribute('aria-pressed', String(isEnabled));
-    desktopPreviewBtn.textContent = isEnabled ? 'Phone View' : 'Desktop View';
+    desktopPreviewBtn.textContent = isEnabled ? 'Phone View' : 'Monitor View';
     desktopPreviewBtn.title = isEnabled
-      ? 'Return the preview to phone width'
-      : 'Show how the output may look on a desktop screen';
+      ? 'Return the preview to normal phone width'
+      : 'Show the output inside a desktop monitor screen';
   }
-  setStatus(isEnabled ? 'Desktop preview' : 'Phone preview');
+  updateDesktopPreviewScale();
+  setStatus(isEnabled ? 'Desktop monitor preview' : 'Phone preview');
 }
 
 function toggleDesktopPreviewMode() {
@@ -4733,6 +4757,7 @@ function enterFullPreview(options = {}) {
   }
 
   setStatus(fromFullEditor ? 'Output preview' : 'Full preview');
+  updateDesktopPreviewScale();
 }
 
 function exitFullPreview(options = {}) {
@@ -7116,6 +7141,8 @@ layoutButtons.forEach(button => {
 });
 
 desktopPreviewBtn?.addEventListener('click', toggleDesktopPreviewMode);
+window.addEventListener('resize', updateDesktopPreviewScale);
+window.addEventListener('orientationchange', () => window.setTimeout(updateDesktopPreviewScale, 260));
 fullPreviewBtn.addEventListener('click', enterFullPreview);
 exitPreviewBtn.addEventListener('click', () => exitFullPreview({ closeEditorFullscreen: true }));
 ensureBackToEditorPreviewBtn();
@@ -7380,5 +7407,6 @@ resetResultPanel();
 setPreviewLayout(loadJSON(STORAGE_KEYS.layout, 'split'));
 loadActiveEditor();
 runCode(false);
+updateDesktopPreviewScale();
 renderErrorChecker();
 startFirebaseMode();

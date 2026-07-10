@@ -9139,3 +9139,135 @@ body.editor-fullscreen-active.preview-inside-editor-fullscreen.preview-closing-t
     display: none !important;
   }
 }
+
+/* Mobile Monitor Preview v2: show phone users a real desktop-monitor simulation. */
+.preview-device-frame {
+  width: 100%;
+  background: white;
+}
+
+.preview-device-frame #previewFrame {
+  display: block;
+  width: 100%;
+}
+
+@media (max-width: 760px) {
+  .preview-panel .preview-actions #desktopPreviewBtn {
+    font-size: 0 !important;
+  }
+
+  .preview-panel .preview-actions #desktopPreviewBtn::before {
+    content: '🖥️ Monitor View';
+    font-size: 0.86rem;
+  }
+
+  .preview-panel .preview-actions #desktopPreviewBtn.active::before {
+    content: '📱 Phone View';
+  }
+
+  .preview-panel.mobile-desktop-preview {
+    --desktop-preview-scale: 0.28;
+    --desktop-monitor-width: 1366px;
+    --desktop-monitor-height: 768px;
+    overflow: hidden !important;
+    background: linear-gradient(180deg, #0b1220, #111827) !important;
+  }
+
+  .preview-panel.mobile-desktop-preview::after {
+    content: none !important;
+    display: none !important;
+  }
+
+  .preview-panel.mobile-desktop-preview .preview-device-frame {
+    position: relative;
+    min-height: calc((var(--desktop-monitor-height) * var(--desktop-preview-scale)) + 118px) !important;
+    padding: 42px 10px 58px !important;
+    overflow: hidden !important;
+    border-top: 1px solid rgba(148, 163, 184, 0.28);
+    background:
+      radial-gradient(circle at top, rgba(96, 165, 250, 0.24), transparent 36%),
+      linear-gradient(180deg, #0b1220 0%, #111827 58%, #050816 100%) !important;
+  }
+
+  .preview-panel.mobile-desktop-preview .preview-device-frame::before {
+    content: 'Desktop monitor preview • rotate phone for a wider view';
+    position: absolute;
+    left: 12px;
+    right: 12px;
+    top: 10px;
+    z-index: 3;
+    color: rgba(226, 232, 240, 0.88);
+    font-size: 0.72rem;
+    font-weight: 900;
+    letter-spacing: 0.04em;
+    text-align: center;
+    text-transform: uppercase;
+    pointer-events: none;
+  }
+
+  .preview-panel.mobile-desktop-preview .preview-device-frame::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    bottom: 14px;
+    z-index: 1;
+    width: calc(var(--desktop-monitor-width) * var(--desktop-preview-scale) * 0.34);
+    height: 20px;
+    min-width: 88px;
+    max-width: 170px;
+    transform: translateX(-50%);
+    border-radius: 0 0 24px 24px;
+    background: linear-gradient(180deg, #64748b, #1e293b);
+    box-shadow: 0 14px 28px rgba(0, 0, 0, 0.38);
+    pointer-events: none;
+  }
+
+  .preview-panel.mobile-desktop-preview #previewFrame {
+    position: relative !important;
+    z-index: 2 !important;
+    display: block !important;
+    width: var(--desktop-monitor-width) !important;
+    min-width: var(--desktop-monitor-width) !important;
+    max-width: none !important;
+    height: var(--desktop-monitor-height) !important;
+    min-height: var(--desktop-monitor-height) !important;
+    max-height: none !important;
+    margin-left: calc(50% - (var(--desktop-monitor-width) / 2)) !important;
+    border: 10px solid #0f172a !important;
+    border-bottom-width: 24px !important;
+    border-radius: 20px !important;
+    background: white !important;
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.16),
+      0 26px 60px rgba(0, 0, 0, 0.5),
+      inset 0 0 0 1px rgba(255,255,255,0.12) !important;
+    transform: scale(var(--desktop-preview-scale)) !important;
+    transform-origin: top center !important;
+  }
+
+  .preview-panel.mobile-desktop-preview .panel-header {
+    border-bottom-color: rgba(148, 163, 184, 0.28) !important;
+    background: #0f172a !important;
+  }
+
+  .preview-panel.mobile-desktop-preview .panel-header h2,
+  .preview-panel.mobile-desktop-preview .panel-header p {
+    color: #e5edf7 !important;
+  }
+
+  body.preview-fullscreen-active .preview-panel.mobile-desktop-preview .preview-device-frame,
+  body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel.mobile-desktop-preview .preview-device-frame,
+  #previewPanel:fullscreen.mobile-desktop-preview .preview-device-frame,
+  #previewPanel:-webkit-full-screen.mobile-desktop-preview .preview-device-frame {
+    min-height: 100dvh !important;
+    padding-top: 74px !important;
+    padding-bottom: 56px !important;
+  }
+
+  body.preview-fullscreen-active .preview-panel.mobile-desktop-preview #previewFrame,
+  body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel.mobile-desktop-preview #previewFrame,
+  #previewPanel:fullscreen.mobile-desktop-preview #previewFrame,
+  #previewPanel:-webkit-full-screen.mobile-desktop-preview #previewFrame {
+    border-radius: 18px !important;
+  }
+}
