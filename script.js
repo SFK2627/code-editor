@@ -1786,7 +1786,9 @@ function initFirebaseWithCompatSDK() {
     firebaseSync.authModule = {
       onAuthStateChanged: (authInstance, callback) => authInstance.onAuthStateChanged(callback),
       signInWithEmailAndPassword: (authInstance, email, password) => authInstance.signInWithEmailAndPassword(email, password),
+      createUserWithEmailAndPassword: (authInstance, email, password) => authInstance.createUserWithEmailAndPassword(email, password),
       updatePassword: (user, password) => user.updatePassword(password),
+      deleteUser: user => (typeof user.delete === 'function' ? user.delete() : Promise.reject(new Error('Delete user is not available.'))),
       signOut: authInstance => authInstance.signOut()
     };
     firebaseSync.enabled = true;
@@ -2191,6 +2193,16 @@ function getStudentsCollectionRef() {
   return collection(firebaseSync.db, firebaseSync.collectionName, firebaseSync.documentId, 'students');
 }
 
+function getStudentRosterCollectionRef() {
+  const { collection } = firebaseSync.modules;
+  return collection(firebaseSync.db, firebaseSync.collectionName, firebaseSync.documentId, 'studentRoster');
+}
+
+function getStudentRosterDocRef(studentId) {
+  const { doc } = firebaseSync.modules;
+  return doc(firebaseSync.db, firebaseSync.collectionName, firebaseSync.documentId, 'studentRoster', normalizeStudentId(studentId));
+}
+
 function getStudentDocRef(uid) {
   const { doc } = firebaseSync.modules;
   return doc(firebaseSync.db, firebaseSync.collectionName, firebaseSync.documentId, 'students', uid);
@@ -2221,6 +2233,14 @@ async function loadStudentProfile(uid) {
   const { getDoc } = firebaseSync.modules;
   const snapshot = await getDoc(getStudentDocRef(uid));
   return snapshotExists(snapshot) ? { uid, ...snapshotData(snapshot) } : null;
+}
+
+async function loadStudentRosterRecord(studentId) {
+  const ready = await initFirebaseSync();
+  if (!ready || !studentId) return null;
+  const { getDoc } = firebaseSync.modules;
+  const snapshot = await getDoc(getStudentRosterDocRef(studentId));
+  return snapshotExists(snapshot) ? { id: snapshot.id, ...snapshotData(snapshot) } : null;
 }
 
 function setStudentLoginError(message = '') {
@@ -2275,13 +2295,13 @@ function updateAppHeaderForSession() {
 
   if (isStudent) {
     const firstName = getStudentFirstName(appSession.student.name);
-    if (appTitleText) appTitleText.textContent = 'Sir JR Coding App';
+    if (appTitleText) appTitleText.textContent = 'A tool for every Grade 8 MCSian.';
     if (appSubtitleText) appSubtitleText.textContent = `Hi, ${firstName}!`;
     if (headerStudentGreeting) headerStudentGreeting.textContent = `Hi, ${firstName}!`;
     if (menuStudentGreeting) menuStudentGreeting.textContent = `Hi, ${firstName}!`;
     setStudentSaveState(appSession.currentProjectId ? 'Saved' : 'Choose a project');
   } else {
-    if (appTitleText) appTitleText.textContent = "Sir Jr's Grade 8 MCSian Web Code Editor";
+    if (appTitleText) appTitleText.textContent = 'A tool for every Grade 8 MCSian.';
     if (appSubtitleText) appSubtitleText.textContent = 'Developed by Sir JR';
   }
 }
@@ -2415,8 +2435,85 @@ async function activateStudentSession(profile, { showDashboard = true } = {}) {
   if (showDashboard) await showStudentDashboard();
 }
 
+async function deleteCurrentAuthUserQuietly(user) {
+  if (!user) return;
+  try {
+    const deleteUser = firebaseSync.authModule?.deleteUser;
+    if (deleteUser) {
+      await deleteUser(user);
+      return;
+    }
+    if (typeof user.delete === 'function') await user.delete();
+  } catch (error) {
+    console.warn('Could not remove an unused student Authentication account.', error);
+  }
+}
+
+async function createStudentAccountFromRoster(studentId, password) {
+  const authEmail = studentIdToAuthEmail(studentId);
+  if (password !== DEFAULT_STUDENT_PASSWORD) {
+    throw new Error('This Student ID is registered, but the account is not activated yet. Use the default password 123456 first.');
+  }
+  if (!firebaseSync.authModule?.createUserWithEmailAndPassword) {
+    throw new Error('Student account activation is not available yet. Refresh the page and try again.');
+  }
+
+  const credential = await firebaseSync.authModule.createUserWithEmailAndPassword(firebaseSync.auth, authEmail, DEFAULT_STUDENT_PASSWORD);
+  firebaseSync.currentUser = credential.user;
+  let roster = null;
+  try {
+    roster = await loadStudentRosterRecord(studentId);
+    if (!roster || normalizeStudentId(roster.studentId || roster.studentIdNormalized || roster.id) !== studentId) {
+      await deleteCurrentAuthUserQuietly(credential.user);
+      throw new Error('This Student ID is not registered in the class list. Ask your teacher to import or add it first.');
+    }
+    if (roster.accountStatus === 'disabled') {
+      await deleteCurrentAuthUserQuietly(credential.user);
+      throw new Error('This student account is disabled. Ask your teacher for help.');
+    }
+
+    const { setDoc, serverTimestamp } = firebaseSync.modules;
+    const profile = {
+      studentId: studentId,
+      studentIdNormalized: studentId,
+      authEmail,
+      name: roster.name || 'Student',
+      nameLower: String(roster.name || 'Student').toLowerCase(),
+      gender: roster.gender || '',
+      section: roster.section || '',
+      sectionLower: String(roster.section || '').toLowerCase(),
+      accountStatus: roster.accountStatus || 'active',
+      mustChangePassword: true,
+      loginCount: 0,
+      projectCount: 0,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      rosterActivatedAt: serverTimestamp(),
+      createdBy: 'student-first-login'
+    };
+    await setDoc(getStudentDocRef(credential.user.uid), profile);
+    try {
+      await setDoc(getStudentRosterDocRef(studentId), {
+        authUid: credential.user.uid,
+        authCreatedAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+    } catch (rosterUpdateError) {
+      console.warn('Student roster activation marker was not updated.', rosterUpdateError);
+    }
+    return { uid: credential.user.uid, ...profile, createdAt: new Date(), updatedAt: new Date() };
+  } catch (error) {
+    if (firebaseSync.auth?.currentUser?.uid === credential.user?.uid) {
+      try { await firebaseSync.authModule.signOut(firebaseSync.auth); } catch (_) {}
+    }
+    throw error;
+  }
+}
+
 function getStudentAuthErrorMessage(error) {
   const code = String(error?.code || '');
+  if (code.includes('email-already-in-use')) return 'This Student ID already has an activated account. Log in using the new password you created.';
+  if (code.includes('weak-password')) return 'The password must contain at least 6 characters.';
   if (code.includes('invalid-credential') || code.includes('wrong-password') || code.includes('user-not-found')) {
     return 'Student ID or password is incorrect. New accounts use 123456 as the default password.';
   }
@@ -2450,9 +2547,20 @@ async function loginStudent() {
       studentLoginBtn.disabled = true;
       studentLoginBtn.textContent = 'Logging in...';
     }
-    const credential = await firebaseSync.authModule.signInWithEmailAndPassword(firebaseSync.auth, authEmail, password);
-    firebaseSync.currentUser = credential.user;
-    const profile = await loadStudentProfile(credential.user.uid);
+    let credential = null;
+    let profile = null;
+    try {
+      credential = await firebaseSync.authModule.signInWithEmailAndPassword(firebaseSync.auth, authEmail, password);
+      firebaseSync.currentUser = credential.user;
+      profile = await loadStudentProfile(credential.user.uid);
+    } catch (signInError) {
+      const signInCode = String(signInError?.code || signInError?.message || '').toLowerCase();
+      const shouldActivateFromRoster = signInCode.includes('user-not-found')
+        || signInCode.includes('invalid-credential')
+        || signInCode.includes('email_not_found');
+      if (!shouldActivateFromRoster) throw signInError;
+      profile = await createStudentAccountFromRoster(studentId, password);
+    }
     if (!profile || normalizeStudentId(profile.studentId) !== studentId) {
       await firebaseSync.authModule.signOut(firebaseSync.auth);
       throw new Error('This login has no registered student profile. Ask your teacher to register the Student ID again.');
@@ -3029,55 +3137,15 @@ function normalizeStudentRecord(record = {}) {
   };
 }
 
-async function createFirebaseStudentAuthUser(authEmail, password = DEFAULT_STUDENT_PASSWORD) {
-  const apiKey = window.MCS_FIREBASE_CONFIG?.apiKey;
-  if (!apiKey) throw new Error('Firebase API key is missing.');
-  const response = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${encodeURIComponent(apiKey)}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email: authEmail, password, returnSecureToken: true })
-  });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok || !data.localId) {
-    const code = data?.error?.message || 'ACCOUNT_CREATION_FAILED';
-    const error = new Error(code);
-    error.code = code;
-    throw error;
-  }
-  return {
-    uid: data.localId,
-    email: data.email || authEmail,
-    idToken: data.idToken || ''
-  };
-}
-
-async function deleteProvisionedAuthUser(idToken) {
-  const apiKey = window.MCS_FIREBASE_CONFIG?.apiKey;
-  if (!apiKey || !idToken) return false;
-  try {
-    const response = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:delete?key=${encodeURIComponent(apiKey)}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ idToken })
-    });
-    return response.ok;
-  } catch (error) {
-    console.warn('Could not roll back the unfinished student Authentication account.', error);
-    return false;
-  }
-}
-
-function getProvisioningErrorMessage(error) {
+function getRosterRegistrationErrorMessage(error) {
   const code = String(error?.code || error?.message || '');
-  if (code.includes('EMAIL_EXISTS')) return 'This Student ID already has an Authentication account.';
-  if (code.includes('OPERATION_NOT_ALLOWED')) return 'Enable Email/Password in Firebase Authentication first.';
-  if (code.includes('TOO_MANY_ATTEMPTS') || code.includes('TOO_MANY_REQUESTS')) return 'Firebase temporarily limited account creation. Wait a few minutes, then continue the import.';
-  if (code.includes('WEAK_PASSWORD')) return 'The default password was rejected by the Firebase password policy.';
-  if (code.includes('NETWORK')) return 'Network problem while creating the account.';
-  return error?.message || 'Could not create the student account.';
+  if (code.includes('permission-denied')) return 'Teacher login is required, or firestore.rules was not published yet.';
+  if (code.includes('unavailable')) return 'Firebase is temporarily unavailable. Try again in a moment.';
+  if (code.includes('network')) return 'Network problem while saving the student record.';
+  return error?.message || 'Could not save the student record.';
 }
 
-async function provisionStudentAccount(rawRecord) {
+async function registerStudentRosterRecord(rawRecord) {
   if (!isTeacherAuthenticated()) throw new Error('Teacher login is required.');
   const record = normalizeStudentRecord(rawRecord);
   if (record.errors.length) throw new Error(record.errors.join(', '));
@@ -3087,9 +3155,11 @@ async function provisionStudentAccount(rawRecord) {
   );
   if (duplicate) throw new Error('Student ID already exists in the tracker.');
 
-  const authUser = await createFirebaseStudentAuthUser(record.authEmail);
-  const { setDoc, serverTimestamp } = firebaseSync.modules;
-  const profile = {
+  const { getDoc, setDoc, serverTimestamp } = firebaseSync.modules;
+  const existingRoster = await getDoc(getStudentRosterDocRef(record.studentId));
+  if (snapshotExists(existingRoster)) throw new Error('Student ID already exists in the roster.');
+
+  const rosterRecord = {
     studentId: record.studentId,
     studentIdNormalized: record.studentId,
     authEmail: record.authEmail,
@@ -3099,25 +3169,27 @@ async function provisionStudentAccount(rawRecord) {
     section: record.section,
     sectionLower: record.sectionLower,
     accountStatus: 'active',
-    mustChangePassword: true,
-    loginCount: 0,
-    projectCount: 0,
+    authUid: '',
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
     createdBy: firebaseSync.auth?.currentUser?.email || firebaseSync.currentUser?.email || 'teacher'
   };
-  try {
-    await setDoc(getStudentDocRef(authUser.uid), profile);
-  } catch (error) {
-    // Avoid leaving an Authentication-only orphan when the Firestore profile
-    // could not be created (for example, because rules were not published).
-    await deleteProvisionedAuthUser(authUser.idToken);
-    throw error;
-  }
-  const localProfile = { uid: authUser.uid, ...profile, createdAt: new Date(), updatedAt: new Date() };
-  adminStudentsCache.push(localProfile);
-  return localProfile;
+  await setDoc(getStudentRosterDocRef(record.studentId), rosterRecord, { merge: false });
+  const localRecord = {
+    uid: '',
+    rosterId: record.studentId,
+    isRosterOnly: true,
+    mustChangePassword: true,
+    loginCount: 0,
+    projectCount: 0,
+    ...rosterRecord,
+    createdAt: new Date(),
+    updatedAt: new Date()
+  };
+  adminStudentsCache.push(localRecord);
+  return localRecord;
 }
+
 
 async function addStudentAccountFromForm() {
   const record = {
@@ -3128,20 +3200,20 @@ async function addStudentAccountFromForm() {
   };
   try {
     addStudentAccountBtn.disabled = true;
-    addStudentAccountBtn.textContent = 'Creating Account...';
-    setStudentAdminStatus('Creating Firebase Authentication account and student profile...');
-    const student = await provisionStudentAccount(record);
+    addStudentAccountBtn.textContent = 'Saving Student...';
+    setStudentAdminStatus('Saving student record. The Firebase Auth account will activate on first student login...');
+    const student = await registerStudentRosterRecord(record);
     if (adminStudentId) adminStudentId.value = '';
     if (adminStudentName) adminStudentName.value = '';
     if (adminStudentGender) adminStudentGender.value = '';
-    setStudentAdminStatus(`${student.name} was added. Student ID: ${student.studentId} · Default password: 123456`, 'success');
+    setStudentAdminStatus(`${student.name} was added. Student ID: ${student.studentId} · First login password: 123456`, 'success');
     renderAdminStudentTracker();
   } catch (error) {
-    console.error('Student account creation failed', error);
-    setStudentAdminStatus(getProvisioningErrorMessage(error), 'error');
+    console.error('Student record creation failed', error);
+    setStudentAdminStatus(getRosterRegistrationErrorMessage(error), 'error');
   } finally {
     addStudentAccountBtn.disabled = false;
-    addStudentAccountBtn.textContent = '+ Add Student Account';
+    addStudentAccountBtn.textContent = '+ Add Student Record';
   }
 }
 
@@ -3150,12 +3222,37 @@ async function loadAdminStudents() {
   try {
     setStudentAdminStatus('Loading student tracker...');
     const { getDocs } = firebaseSync.modules;
-    const snapshot = await getDocs(getStudentsCollectionRef());
-    adminStudentsCache = (snapshot.docs || []).map(docSnapshot => ({ uid: docSnapshot.id, ...snapshotData(docSnapshot) }))
+    const [studentSnapshot, rosterSnapshot] = await Promise.all([
+      getDocs(getStudentsCollectionRef()),
+      getDocs(getStudentRosterCollectionRef()).catch(() => ({ docs: [] }))
+    ]);
+    const activeProfiles = (studentSnapshot.docs || []).map(docSnapshot => ({
+      uid: docSnapshot.id,
+      isRosterOnly: false,
+      ...snapshotData(docSnapshot)
+    }));
+    const byStudentId = new Map(activeProfiles.map(student => [normalizeStudentId(student.studentId), student]));
+    const rosterProfiles = (rosterSnapshot.docs || []).map(docSnapshot => {
+      const data = snapshotData(docSnapshot);
+      const studentId = normalizeStudentId(data.studentId || docSnapshot.id);
+      const activeMatch = byStudentId.get(studentId);
+      if (activeMatch) return null;
+      return {
+        uid: data.authUid || '',
+        rosterId: studentId,
+        isRosterOnly: true,
+        mustChangePassword: true,
+        loginCount: 0,
+        projectCount: 0,
+        ...data,
+        studentId
+      };
+    }).filter(Boolean);
+    adminStudentsCache = [...activeProfiles, ...rosterProfiles]
       .sort((a, b) => String(a.section || '').localeCompare(String(b.section || '')) || String(a.name || '').localeCompare(String(b.name || '')));
     populateAdminSectionFilter();
     renderAdminStudentTracker();
-    setStudentAdminStatus(`${adminStudentsCache.length} student account${adminStudentsCache.length === 1 ? '' : 's'} loaded.`, 'success');
+    setStudentAdminStatus(`${adminStudentsCache.length} student record${adminStudentsCache.length === 1 ? '' : 's'} loaded.`, 'success');
     return adminStudentsCache;
   } catch (error) {
     console.error('Could not load student tracker', error);
@@ -3214,15 +3311,17 @@ function renderAdminStudentTracker() {
 
   adminStudentsTableBody.innerHTML = filtered.map(student => {
     const loggedIn = Boolean(student.lastLoginAt || Number(student.loginCount || 0) > 0);
-    const accountLabel = student.mustChangePassword === false ? 'Active' : 'New Account';
+    const rosterOnly = Boolean(student.isRosterOnly && !student.uid);
+    const accountLabel = rosterOnly ? 'Ready for First Login' : (student.mustChangePassword === false ? 'Active' : 'Password Change Needed');
+    const pillClass = rosterOnly ? '' : (student.mustChangePassword === false ? 'active' : '');
     return `
-      <tr data-student-uid="${escapeAttribute(student.uid)}">
+      <tr data-student-uid="${escapeAttribute(student.uid || '')}">
         <td><span class="student-cell-name">${escapeHTML(student.name || 'Unnamed Student')}</span><span class="student-cell-id">ID: ${escapeHTML(student.studentId || '')} · ${escapeHTML(student.gender || 'Gender not set')}</span></td>
         <td>${escapeHTML(student.section || 'No section')}</td>
-        <td><span class="student-account-pill ${student.mustChangePassword === false ? 'active' : ''}">${accountLabel}</span><span class="student-cell-sub">${loggedIn ? `${Number(student.loginCount || 0)} login${Number(student.loginCount || 0) === 1 ? '' : 's'}` : 'Never logged in'}</span></td>
+        <td><span class="student-account-pill ${pillClass}">${accountLabel}</span><span class="student-cell-sub">${loggedIn ? `${Number(student.loginCount || 0)} login${Number(student.loginCount || 0) === 1 ? '' : 's'}` : 'Never logged in'}</span></td>
         <td><strong>${Math.max(0, Number(student.projectCount || 0))}</strong><span class="student-cell-sub">${escapeHTML(student.lastProjectName || 'No project yet')}</span></td>
         <td>${escapeHTML(formatStudentDate(student.lastActivityAt))}</td>
-        <td><button class="ghost-btn view-student-projects-btn" type="button" data-student-uid="${escapeAttribute(student.uid)}">View Projects</button></td>
+        <td>${rosterOnly ? '<span class="student-cell-sub">No projects yet</span>' : `<button class="ghost-btn view-student-projects-btn" type="button" data-student-uid="${escapeAttribute(student.uid)}">View Projects</button>`}</td>
       </tr>`;
   }).join('');
 }
@@ -3298,7 +3397,7 @@ function renderStudentImportPreview() {
     </tr>`).join('');
   studentImportPreview.classList.remove('hidden');
   confirmStudentImportBtn.disabled = !validCount;
-  confirmStudentImportBtn.textContent = `Create ${validCount} Valid Account${validCount === 1 ? '' : 's'}`;
+  confirmStudentImportBtn.textContent = `Import ${validCount} Valid Student Record${validCount === 1 ? '' : 's'}`;
 }
 
 async function handleStudentImportFile(file) {
@@ -3308,7 +3407,7 @@ async function handleStudentImportFile(file) {
     pendingStudentImportRows = await parseStudentImportFile(file);
     if (!pendingStudentImportRows.length) throw new Error('No student rows were found in the file.');
     renderStudentImportPreview();
-    setStudentAdminStatus('Import preview ready. Check the rows, then create valid accounts.', 'success');
+    setStudentAdminStatus('Import preview ready. Check the rows, then import valid student records.', 'success');
   } catch (error) {
     console.error('Could not read student import', error);
     setStudentAdminStatus(error?.message || 'Could not read the Excel file.', 'error');
@@ -3339,26 +3438,25 @@ async function confirmStudentImport() {
   try {
     for (let index = 0; index < validRows.length; index += 1) {
       const row = validRows[index];
-      confirmStudentImportBtn.textContent = `Creating ${index + 1} of ${validRows.length}...`;
-      setStudentAdminStatus(`Creating account ${index + 1} of ${validRows.length}: ${row.name}`);
+      confirmStudentImportBtn.textContent = `Saving ${index + 1} of ${validRows.length}...`;
+      setStudentAdminStatus(`Saving student record ${index + 1} of ${validRows.length}: ${row.name}`);
       try {
-        await provisionStudentAccount(row);
+        await registerStudentRosterRecord(row);
         created += 1;
       } catch (error) {
-        failures.push(`${row.studentId}: ${getProvisioningErrorMessage(error)}`);
-        if (String(error?.code || error?.message || '').includes('TOO_MANY')) break;
+        failures.push(`${row.studentId}: ${getRosterRegistrationErrorMessage(error)}`);
       }
-      await wait(350);
+      await wait(40);
     }
     pendingStudentImportRows = [];
     studentImportPreview.classList.add('hidden');
     populateAdminSectionFilter();
     renderAdminStudentTracker();
-    setStudentAdminStatus(`${created} account${created === 1 ? '' : 's'} created.${failures.length ? ` ${failures.length} failed: ${failures.slice(0, 3).join(' | ')}` : ''}`, failures.length ? 'error' : 'success');
+    setStudentAdminStatus(`${created} student record${created === 1 ? '' : 's'} imported. Students will activate their Auth account on first login with 123456.${failures.length ? ` ${failures.length} failed: ${failures.slice(0, 3).join(' | ')}` : ''}`, failures.length ? 'error' : 'success');
   } finally {
     studentImportRunning = false;
     confirmStudentImportBtn.disabled = false;
-    confirmStudentImportBtn.textContent = 'Create Valid Student Accounts';
+    confirmStudentImportBtn.textContent = 'Import Valid Student Records';
   }
 }
 
@@ -9217,7 +9315,7 @@ adminActivityFilter?.addEventListener('change', renderAdminStudentTracker);
 adminStudentsTableBody?.addEventListener('click', event => {
   const button = event.target.closest('.view-student-projects-btn');
   if (!button) return;
-  showAdminStudentProjects(button.dataset.studentUid);
+  if (button.dataset.studentUid) showAdminStudentProjects(button.dataset.studentUid);
 });
 closeAdminStudentProjectsBtn?.addEventListener('click', closeAdminStudentProjects);
 adminStudentProjectsOverlay?.addEventListener('click', event => {

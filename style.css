@@ -11896,3 +11896,174 @@ html[data-device-mode="phone"] body:not(.student-auth-open) > .student-auth-over
 html[data-device-mode="phone"] body:not(.student-dashboard-active) > .student-dashboard-screen.hidden {
   display: none !important;
 }
+
+
+/* =========================================================
+   FINAL MOBILE MENU SIZE + DESKTOP SAFETY FIX
+   - keep phone menu compact
+   - never show the phone menu button on desktop
+   ========================================================= */
+@media (max-width: 820px) {
+  html[data-device-mode="phone"] body.student-session-active .topbar.simplified-topbar,
+  html[data-device-mode="phone"] body.student-session-active .topbar {
+    padding-right: 60px !important;
+  }
+
+  html[data-device-mode="phone"] body.student-session-active .student-menu-btn:not(.hidden) {
+    top: 12px !important;
+    right: 12px !important;
+    width: 40px !important;
+    height: 40px !important;
+    min-width: 40px !important;
+    min-height: 40px !important;
+    gap: 5px !important;
+    border-radius: 14px !important;
+    box-shadow: 0 10px 20px rgba(2, 6, 23, 0.22), inset 0 1px 0 rgba(255,255,255,0.08) !important;
+  }
+
+  html[data-device-mode="phone"] body.student-session-active .student-menu-btn span {
+    width: 18px !important;
+    height: 2.5px !important;
+  }
+
+  html[data-device-mode="phone"] body.student-session-active .student-account-menu:not(.hidden) {
+    top: 60px !important;
+    right: 10px !important;
+    width: min(260px, calc(100vw - 20px)) !important;
+  }
+}
+
+@media (min-width: 821px) {
+  .student-menu-btn,
+  .student-account-menu,
+  #studentMenuBtn,
+  #studentAccountMenu {
+    display: none !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+  }
+
+  body.student-session-active #studentAccountStrip.hidden {
+    display: flex !important;
+  }
+
+  html[data-device-mode="phone"] body.student-session-active .student-account-strip {
+    display: flex !important;
+  }
+}
+
+
+/* =========================================================
+   FINAL PHONE HEADER MENU PLACEMENT FIX
+   The account menu button must not float over the action buttons.
+   On phones it becomes part of the title row; the action row gets
+   its own full-width horizontal scroll underneath.
+   ========================================================= */
+@media (max-width: 820px) {
+  html[data-device-mode="phone"] body.student-session-active .topbar.simplified-topbar,
+  html[data-device-mode="phone"] body.student-session-active .topbar {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) 42px !important;
+    grid-template-rows: auto auto !important;
+    column-gap: 10px !important;
+    row-gap: 10px !important;
+    align-items: center !important;
+    padding: 14px 14px 12px !important;
+    padding-right: 14px !important;
+    overflow: visible !important;
+  }
+
+  html[data-device-mode="phone"] body.student-session-active .topbar .brand-block {
+    grid-column: 1 !important;
+    grid-row: 1 !important;
+    min-width: 0 !important;
+    width: 100% !important;
+    padding-right: 0 !important;
+  }
+
+  html[data-device-mode="phone"] body.student-session-active .topbar .brand-block h1,
+  html[data-device-mode="phone"] body.student-session-active .topbar h1 {
+    max-width: 100% !important;
+  }
+
+  html[data-device-mode="phone"] body.student-session-active .topbar .top-actions {
+    grid-column: 1 / -1 !important;
+    grid-row: 2 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    padding: 0 2px 4px !important;
+    padding-right: 2px !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    justify-content: flex-start !important;
+    -webkit-overflow-scrolling: touch !important;
+    scrollbar-width: none !important;
+  }
+
+  html[data-device-mode="phone"] body.student-session-active .topbar .top-actions::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  html[data-device-mode="phone"] body.student-session-active .student-menu-btn:not(.hidden) {
+    grid-column: 2 !important;
+    grid-row: 1 !important;
+    position: static !important;
+    top: auto !important;
+    right: auto !important;
+    justify-self: end !important;
+    align-self: center !important;
+    display: inline-flex !important;
+    width: 38px !important;
+    height: 38px !important;
+    min-width: 38px !important;
+    min-height: 38px !important;
+    flex: 0 0 38px !important;
+    gap: 5px !important;
+    border-radius: 13px !important;
+    z-index: 20 !important;
+  }
+
+  html[data-device-mode="phone"] body.student-session-active .student-menu-btn span {
+    width: 17px !important;
+    height: 2.4px !important;
+  }
+
+  html[data-device-mode="phone"] body.student-session-active .student-account-menu:not(.hidden) {
+    top: 66px !important;
+    right: 12px !important;
+    width: min(260px, calc(100vw - 24px)) !important;
+  }
+}
+
+
+/* =========================================================
+   FINAL HEADER BRAND TEXT FIX
+   - blue label: Sir JR Web Coding App
+   - main line: grammar-correct Grade 8 MCSian tagline
+   ========================================================= */
+.brand-block .eyebrow {
+  text-transform: none !important;
+  letter-spacing: 0.06em !important;
+}
+
+#appTitleText {
+  white-space: normal !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+}
+
+@media (max-width: 820px) {
+  html[data-device-mode="phone"] #appTitleText {
+    font-size: clamp(0.88rem, 4.3vw, 1.04rem) !important;
+    line-height: 1.12 !important;
+  }
+
+  html[data-device-mode="phone"] .brand-block .eyebrow {
+    font-size: 0.67rem !important;
+    letter-spacing: 0.05em !important;
+  }
+}

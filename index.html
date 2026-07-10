@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Sir JR Coding App - Grade 8 MCSian Web Code Editor</title>
+  <title>Sir JR Web Coding App</title>
 
   <meta name="theme-color" content="#2563eb" />
   <meta name="mobile-web-app-capable" content="yes" />
@@ -37,13 +37,13 @@
       document.documentElement.dataset.deviceMode = isPhone ? 'phone' : 'desktop';
     })();
   </script>
-  <link rel="stylesheet" href="style.css?v=20260710-phone-gate-firstname-fix" />
+  <link rel="stylesheet" href="style.css?v=20260711-brand-tagline-fix" />
 </head>
 <body class="entry-gate-active">
   <div id="entryGate" class="entry-gate" role="dialog" aria-modal="true" aria-labelledby="entryGateTitle">
     <div class="entry-card">
       <div class="entry-logo" aria-hidden="true">&lt;/&gt;</div>
-      <p class="section-kicker">Grade 8 MCSian Web Coding</p>
+      <p class="section-kicker">Sir JR Web Coding App</p>
       <h1 id="entryGateTitle">Welcome to Sir JR Coding App</h1>
       <p class="entry-lead">Choose how you want to use the editor today.</p>
 
@@ -70,7 +70,7 @@
     <div class="student-auth-card">
       <button id="closeStudentLoginBtn" class="icon-btn auth-close-btn" type="button" aria-label="Close student login">×</button>
       <div class="student-auth-icon">🎓</div>
-      <p class="section-kicker">Student Account</p>
+      <p class="section-kicker">Student Records</p>
       <h2 id="studentLoginTitle">Log In to Save Your Work</h2>
       <p class="muted-text">Use the Student ID registered by your teacher. The default password for a new account is <strong>123456</strong>.</p>
       <label>
@@ -115,7 +115,7 @@
       <div class="dashboard-brand">
         <div class="logo-mark" aria-hidden="true">&lt;/&gt;</div>
         <div>
-          <p class="section-kicker">Sir JR Coding App</p>
+          <p class="section-kicker">Sir JR Web Coding App</p>
           <h1 id="studentDashboardTitle">My Projects</h1>
           <p id="dashboardGreeting" class="muted-text">Welcome back!</p>
         </div>
@@ -172,8 +172,8 @@
       <div class="brand-block">
         <div class="logo-mark" aria-hidden="true">&lt;/&gt;</div>
         <div>
-          <p id="adminBtn" class="eyebrow hidden-admin-trigger" role="button" tabindex="0" aria-label="Teacher admin access">Sir JR's</p>
-          <h1 id="appTitleText">Sir Jr's Grade 8 MCSian Web Code Editor</h1>
+          <p id="adminBtn" class="eyebrow hidden-admin-trigger" role="button" tabindex="0" aria-label="Teacher admin access">Sir JR Web Coding App</p>
+          <h1 id="appTitleText">A tool for every Grade 8 MCSian.</h1>
           <p id="appSubtitleText" class="subtitle">Developed by Sir JR</p>
         </div>
       </div>
@@ -520,7 +520,7 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
         <section id="studentAccountsAdmin" class="student-accounts-admin-card" aria-labelledby="studentAccountsTitle">
           <div class="student-admin-heading">
             <div>
-              <p class="section-kicker">Student Accounts & Tracker</p>
+              <p class="section-kicker">Student Records & Tracker</p>
               <h3 id="studentAccountsTitle">Register and Monitor Students</h3>
               <p class="muted-text">Create free student accounts using Student ID, or import an Excel/CSV class list. New accounts use the default password <strong>123456</strong> and must change it on first login.</p>
             </div>
@@ -541,7 +541,7 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
             <label>Section<input id="adminStudentSection" type="text" autocomplete="off" placeholder="Grade 8 - Rizal" /></label>
           </div>
           <div class="student-register-actions">
-            <button id="addStudentAccountBtn" class="primary-btn" type="button">+ Add Student Account</button>
+            <button id="addStudentAccountBtn" class="primary-btn" type="button">+ Add Student Record</button>
             <button id="downloadStudentTemplateBtn" class="ghost-btn" type="button">⬇ Download Excel Template</button>
             <button id="chooseStudentImportBtn" class="ghost-btn" type="button">📥 Import Excel / CSV</button>
             <input id="studentImportInput" class="hidden" type="file" accept=".xlsx,.xls,.csv" />
@@ -550,13 +550,13 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
 
           <div id="studentImportPreview" class="student-import-preview hidden">
             <div class="student-import-preview-head">
-              <div><strong id="studentImportSummary">Import preview</strong><small>Review the records before creating accounts.</small></div>
+              <div><strong id="studentImportSummary">Import preview</strong><small>Review the records before importing them. Auth accounts activate on first student login.</small></div>
               <button id="cancelStudentImportBtn" class="ghost-btn" type="button">Cancel</button>
             </div>
             <div class="student-import-table-wrap">
               <table class="student-import-table"><thead><tr><th>#</th><th>Student ID</th><th>Name</th><th>Gender</th><th>Section</th><th>Status</th></tr></thead><tbody id="studentImportPreviewBody"></tbody></table>
             </div>
-            <button id="confirmStudentImportBtn" class="primary-btn" type="button">Create Valid Student Accounts</button>
+            <button id="confirmStudentImportBtn" class="primary-btn" type="button">Import Valid Student Records</button>
           </div>
 
           <div class="student-tracker-toolbar">
@@ -763,6 +763,6 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="firebase-config.js"></script>
-  <script src="script.js?v=20260710-phone-gate-firstname-fix"></script>
+  <script src="script.js?v=20260711-brand-tagline-fix"></script>
 </body>
 </html>
