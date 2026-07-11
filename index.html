@@ -37,7 +37,7 @@
       document.documentElement.dataset.deviceMode = isPhone ? 'phone' : 'desktop';
     })();
   </script>
-  <link rel="stylesheet" href="style.css?v=20260711-codepen-polish" />
+  <link rel="stylesheet" href="style.css?v=20260711-studio-compact-overflow" />
 </head>
 <body class="entry-gate-active">
   <div id="entryGate" class="entry-gate" role="dialog" aria-modal="true" aria-labelledby="entryGateTitle">
@@ -480,6 +480,18 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
               <span class="admin-switch-track"><span class="admin-switch-thumb"></span></span>
             </span>
           </label>
+
+          <label class="assistance-option" for="superStudioToggle">
+            <span class="assistance-option-icon">🚀</span>
+            <span class="assistance-option-copy">
+              <strong>Super Studio Tools</strong>
+              <small>Optional advanced tools: Format, Snapshot, Restore, Commands, and Live Coach. When enabled, students see only a small Studio button first.</small>
+            </span>
+            <span class="admin-switch">
+              <input id="superStudioToggle" type="checkbox" />
+              <span class="admin-switch-track"><span class="admin-switch-thumb"></span></span>
+            </span>
+          </label>
         </div>
 
         <div class="assistance-settings-actions">
@@ -775,6 +787,6 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="firebase-config.js"></script>
-  <script src="script.js?v=20260711-codepen-polish"></script>
+  <script src="script.js?v=20260711-studio-compact-overflow"></script>
 </body>
 </html>

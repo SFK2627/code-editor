@@ -12965,3 +12965,559 @@ body.code-helper-disabled .smart-inline-hint {
     right: 140px;
   }
 }
+
+
+/* SUPER STUDIO UPGRADE */
+
+.studio-hidden {
+  display: none !important;
+}
+
+.studio-launcher {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  width: fit-content;
+  min-height: 36px;
+  margin: 8px 0 6px;
+  padding: 8px 13px;
+  border-radius: 999px;
+  font-size: 0.84rem;
+  font-weight: 900;
+}
+
+.studio-launcher span {
+  line-height: 1;
+}
+
+body.super-studio-disabled #superStudioLauncher,
+body.super-studio-disabled #superStudioToolbar,
+body.super-studio-disabled #superStudioPanel,
+body.super-studio-disabled .super-studio-only {
+  display: none !important;
+}
+
+.super-studio-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 10px;
+  margin: 8px 0 10px;
+  border: 1px solid rgba(37, 99, 235, 0.16);
+  border-radius: 18px;
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.08), rgba(6, 182, 212, 0.08));
+}
+
+.studio-toolbar-left,
+.studio-toolbar-actions,
+.studio-device-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.studio-badge,
+.studio-quality-chip,
+.studio-mini-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 7px 10px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 999px;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.72);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.studio-badge-hot {
+  color: #0f172a;
+  border-color: rgba(37, 99, 235, 0.2);
+  background: linear-gradient(135deg, #dbeafe, #cffafe);
+}
+
+.studio-quality-chip {
+  color: #14532d;
+  border-color: rgba(22, 163, 74, 0.24);
+  background: #dcfce7;
+}
+
+.studio-btn {
+  min-height: 34px;
+  padding: 8px 11px;
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
+.studio-btn.strong {
+  color: #1e3a8a;
+  border-color: rgba(37, 99, 235, 0.22);
+  background: #dbeafe;
+}
+
+.super-studio-panel {
+  display: grid;
+  gap: 10px;
+  margin: 8px 0 12px;
+  padding: 14px;
+  border: 1px solid rgba(37, 99, 235, 0.16);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+}
+
+.super-studio-panel.collapsed {
+  display: none;
+}
+
+.studio-score-card {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 14px;
+}
+
+.studio-score-ring {
+  display: grid;
+  place-items: center;
+  width: 72px;
+  height: 72px;
+  border: 7px solid rgba(37, 99, 235, 0.18);
+  border-radius: 50%;
+  color: #1e3a8a;
+  background: linear-gradient(135deg, #eff6ff, #ecfeff);
+  font-weight: 950;
+  line-height: 1;
+}
+
+.studio-score-ring span {
+  font-size: 1.35rem;
+}
+
+.studio-score-ring small {
+  font-size: 0.66rem;
+  color: var(--muted);
+}
+
+.super-studio-panel h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.super-studio-panel p {
+  margin: 4px 0 0;
+  color: var(--muted);
+}
+
+.studio-progress-track {
+  height: 9px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.22);
+}
+
+.studio-progress-track span {
+  display: block;
+  width: 5%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--primary), #06b6d4, #22c55e);
+  transition: width 0.25s ease;
+}
+
+.studio-coach-issues {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 8px;
+}
+
+.studio-issue-item {
+  display: grid;
+  gap: 3px;
+  padding: 10px;
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  background: rgba(255, 255, 255, 0.8);
+}
+
+.studio-issue-item strong {
+  font-size: 0.86rem;
+}
+
+.studio-issue-item span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+.studio-issue-item.error {
+  border-color: rgba(239, 68, 68, 0.25);
+  background: #fef2f2;
+}
+
+.studio-issue-item.warning {
+  border-color: rgba(245, 158, 11, 0.28);
+  background: #fffbeb;
+}
+
+.studio-issue-item.pass {
+  border-color: rgba(34, 197, 94, 0.26);
+  background: #f0fdf4;
+}
+
+.studio-device-controls {
+  padding: 4px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.66);
+}
+
+.studio-device-controls button {
+  border: 0;
+  border-radius: 999px;
+  padding: 7px 10px;
+  color: var(--muted);
+  background: transparent;
+  font-size: 0.76rem;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.studio-device-controls button.active {
+  color: white;
+  background: linear-gradient(135deg, var(--primary), #06b6d4);
+}
+
+.preview-panel.studio-device-phone:not(.mobile-desktop-preview) .preview-frame-shell,
+.preview-panel.studio-device-tablet:not(.mobile-desktop-preview) .preview-frame-shell,
+.preview-panel.studio-device-laptop:not(.mobile-desktop-preview) .preview-frame-shell {
+  display: flex;
+  justify-content: center;
+  padding: 16px;
+  border-radius: 20px;
+  background: radial-gradient(circle at top, rgba(37, 99, 235, 0.12), rgba(15, 23, 42, 0.06));
+}
+
+.preview-panel.studio-device-phone:not(.mobile-desktop-preview) #previewFrame,
+.preview-panel.studio-device-tablet:not(.mobile-desktop-preview) #previewFrame,
+.preview-panel.studio-device-laptop:not(.mobile-desktop-preview) #previewFrame {
+  border: 10px solid #111827;
+  border-radius: 24px;
+  box-shadow: 0 18px 44px rgba(15, 23, 42, 0.22);
+}
+
+.preview-panel.studio-device-phone:not(.mobile-desktop-preview) #previewFrame {
+  width: min(390px, 100%);
+  min-height: 720px;
+}
+
+.preview-panel.studio-device-tablet:not(.mobile-desktop-preview) #previewFrame {
+  width: min(820px, 100%);
+  min-height: 760px;
+}
+
+.preview-panel.studio-device-laptop:not(.mobile-desktop-preview) #previewFrame {
+  width: min(1280px, 100%);
+  min-height: 720px;
+  border-radius: 18px;
+}
+
+.studio-command-overlay {
+  position: fixed;
+  z-index: 50000;
+  inset: 0;
+  display: grid;
+  place-items: start center;
+  padding: min(8vh, 72px) 16px 16px;
+  background: rgba(15, 23, 42, 0.48);
+  backdrop-filter: blur(8px);
+}
+
+.studio-command-overlay.hidden {
+  display: none;
+}
+
+.studio-command-card {
+  width: min(720px, 100%);
+  max-height: min(760px, 88dvh);
+  overflow: auto;
+  padding: 18px;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 24px;
+  background: var(--solid-card);
+  box-shadow: var(--shadow-strong);
+}
+
+.studio-command-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.studio-command-head h2 {
+  margin: 0;
+}
+
+.studio-command-input {
+  width: 100%;
+  min-height: 48px;
+  padding: 12px 14px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.86);
+  color: var(--text);
+  font: inherit;
+  font-weight: 750;
+  outline: none;
+}
+
+.studio-command-input:focus {
+  border-color: rgba(37, 99, 235, 0.45);
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12);
+}
+
+.studio-command-list,
+.studio-snapshots-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.studio-command-item,
+.studio-snapshot-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 16px;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.72);
+  text-align: left;
+}
+
+.studio-command-item {
+  cursor: pointer;
+}
+
+.studio-command-item.active,
+.studio-command-item:hover {
+  border-color: rgba(37, 99, 235, 0.35);
+  background: #eff6ff;
+}
+
+.studio-command-item span,
+.studio-snapshot-item strong {
+  font-weight: 900;
+}
+
+.studio-command-item small,
+.studio-snapshot-item small,
+.studio-command-note {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.studio-snapshot-item > div:first-child {
+  display: grid;
+  gap: 3px;
+}
+
+.studio-snapshot-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.studio-empty-box {
+  padding: 18px;
+  border: 1px dashed rgba(148, 163, 184, 0.36);
+  border-radius: 18px;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.62);
+  text-align: center;
+}
+
+[data-theme="dark"] .studio-badge,
+[data-theme="dark"] .studio-quality-chip,
+[data-theme="dark"] .studio-mini-chip,
+[data-theme="dark"] .super-studio-panel,
+[data-theme="dark"] .studio-command-input,
+[data-theme="dark"] .studio-command-item,
+[data-theme="dark"] .studio-snapshot-item,
+[data-theme="dark"] .studio-empty-box,
+[data-theme="dark"] .studio-device-controls {
+  background: rgba(15, 23, 42, 0.76);
+}
+
+[data-theme="dark"] .studio-badge-hot,
+[data-theme="dark"] .studio-quality-chip,
+[data-theme="dark"] .studio-command-item.active,
+[data-theme="dark"] .studio-command-item:hover {
+  color: #e0f2fe;
+  background: rgba(37, 99, 235, 0.24);
+}
+
+@media (max-width: 760px) {
+  .studio-launcher {
+    width: 100%;
+    margin: 6px 0;
+  }
+
+  .super-studio-toolbar,
+  .studio-score-card,
+  .studio-command-item,
+  .studio-snapshot-item {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .super-studio-toolbar,
+  .studio-toolbar-left,
+  .studio-toolbar-actions {
+    justify-content: stretch;
+  }
+
+  .studio-toolbar-actions .studio-btn,
+  .studio-toolbar-left > span {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+
+  .studio-score-card {
+    display: grid;
+  }
+
+  .studio-score-ring {
+    justify-self: center;
+  }
+
+  .studio-device-controls {
+    width: 100%;
+    justify-content: center;
+    border-radius: 18px;
+  }
+
+  .preview-panel.studio-device-phone:not(.mobile-desktop-preview) #previewFrame,
+  .preview-panel.studio-device-tablet:not(.mobile-desktop-preview) #previewFrame,
+  .preview-panel.studio-device-laptop:not(.mobile-desktop-preview) #previewFrame {
+    width: 100%;
+    min-height: 620px;
+  }
+}
+
+
+/* FINAL DESKTOP OVERFLOW + COMPACT STUDIO FIX */
+html,
+body {
+  max-width: 100%;
+  overflow-x: hidden !important;
+}
+
+.app-shell,
+.topbar,
+.workspace,
+.panel,
+.editor-panel,
+.preview-panel,
+.result-panel,
+.right-column {
+  max-width: 100%;
+}
+
+.workspace,
+.editor-panel,
+.preview-panel,
+.result-panel,
+.editor-wrap,
+.editor-stack {
+  min-width: 0 !important;
+}
+
+/* Super Studio should appear only as a small optional button beside Rename Files. */
+.language-tabs #superStudioLauncher.studio-launcher {
+  flex: 0 0 auto !important;
+  align-self: flex-end !important;
+  width: auto !important;
+  min-width: 0 !important;
+  min-height: 32px !important;
+  height: 32px !important;
+  margin: 0 0 0 6px !important;
+  padding: 0 12px !important;
+  border-radius: 999px !important;
+  font-size: 0.82rem !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+}
+
+.language-tabs #superStudioLauncher.studio-launcher strong {
+  line-height: 1 !important;
+}
+
+/* The opened tools can wrap locally, but they must never make the whole page scroll sideways. */
+#superStudioToolbar,
+#superStudioPanel {
+  max-width: 100% !important;
+  overflow-x: hidden !important;
+}
+
+.studio-toolbar-left,
+.studio-toolbar-actions {
+  min-width: 0 !important;
+}
+
+/* Prevent the desktop page/browser from getting a left-right scrollbar.
+   Long student code stays inside the editor instead of stretching the app. */
+#codeEditor,
+.code-match-layer {
+  max-width: 100% !important;
+}
+
+@media (min-width: 821px) {
+  .editor-panel #codeEditor {
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+  }
+
+  .editor-panel #codeEditor,
+  .editor-panel .code-match-layer {
+    white-space: pre-wrap !important;
+    overflow-wrap: anywhere !important;
+    word-break: break-word !important;
+  }
+}
+
+/* On phone, keep Studio in the existing scrollable tab row instead of creating vertical space. */
+@media (max-width: 820px) {
+  .language-tabs #superStudioLauncher.studio-launcher {
+    display: inline-flex !important;
+    flex: 0 0 auto !important;
+    width: auto !important;
+    min-width: 82px !important;
+    height: 36px !important;
+    min-height: 36px !important;
+    margin: 0 0 0 4px !important;
+    padding: 0 10px !important;
+    font-size: 0.78rem !important;
+  }
+
+  .language-tabs #superStudioLauncher.studio-hidden,
+  .language-tabs #superStudioLauncher.hidden,
+  body.super-studio-disabled .language-tabs #superStudioLauncher {
+    display: none !important;
+  }
+
+  .super-studio-toolbar {
+    margin: 6px 8px 8px !important;
+  }
+}

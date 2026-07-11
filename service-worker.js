@@ -1,11 +1,11 @@
-const CACHE_NAME = 'sir-jr-coding-app-codepen-polish-v2';
+const CACHE_NAME = 'sir-jr-coding-app-studio-compact-overflow-v1';
 const CORE_ASSETS = [
   './',
   './index.html',
   './style.css',
-  './style.css?v=20260711-codepen-polish',
+  './style.css?v=20260711-studio-compact-overflow',
   './script.js',
-  './script.js?v=20260711-codepen-polish',
+  './script.js?v=20260711-studio-compact-overflow',
   './firebase-config.js',
   './manifest.webmanifest',
   './STUDENT_IMPORT_TEMPLATE.csv',
