@@ -16559,3 +16559,324 @@ body.student-session-active > .app-shell {
     color: #dbeafe !important;
   }
 }
+
+
+/* FINAL APP ICON + RESPONSIVE HOME/HEADER STABILITY PASS */
+.entry-logo.app-coded-eight,
+.logo-mark.app-coded-eight {
+  position: relative !important;
+  display: grid !important;
+  place-items: center !important;
+  overflow: visible !important;
+  isolation: isolate !important;
+  color: #ffffff !important;
+  background: linear-gradient(135deg, #2563eb 0%, #06b6d4 58%, #22c55e 100%) !important;
+}
+
+.entry-logo.app-coded-eight .logo-code,
+.logo-mark.app-coded-eight .logo-code {
+  position: relative !important;
+  z-index: 2 !important;
+  font-weight: 1000 !important;
+  letter-spacing: -0.08em !important;
+  line-height: 1 !important;
+  transform: translateX(-3px) !important;
+}
+
+.entry-logo.app-coded-eight .logo-eight,
+.logo-mark.app-coded-eight .logo-eight {
+  position: absolute !important;
+  right: -6px !important;
+  bottom: -6px !important;
+  z-index: 3 !important;
+  display: grid !important;
+  place-items: center !important;
+  width: 24px !important;
+  height: 24px !important;
+  border: 2px solid rgba(255,255,255,0.92) !important;
+  border-radius: 999px !important;
+  color: #0f172a !important;
+  background: radial-gradient(circle at 35% 32%, #ffffff 0 32%, #111827 34% 100%) !important;
+  box-shadow: 0 6px 14px rgba(2, 6, 23, 0.32) !important;
+  font-size: 0.68rem !important;
+  font-weight: 1000 !important;
+  line-height: 1 !important;
+}
+
+.logo-mark.app-coded-eight .logo-eight {
+  right: -5px !important;
+  bottom: -5px !important;
+  width: 18px !important;
+  height: 18px !important;
+  border-width: 1.5px !important;
+  font-size: 0.54rem !important;
+}
+
+/* Home page: controlled size across browsers. No oversized welcome card. */
+.entry-gate {
+  min-height: 100dvh !important;
+  min-height: 100vh !important;
+  padding: clamp(10px, 2.2vh, 20px) clamp(12px, 2vw, 24px) !important;
+  align-items: center !important;
+  justify-items: center !important;
+}
+
+.entry-card {
+  width: min(620px, calc(100vw - 28px)) !important;
+  max-height: calc(100dvh - 24px) !important;
+  max-height: calc(100vh - 24px) !important;
+  overflow: auto !important;
+  padding: clamp(20px, 3vh, 30px) clamp(18px, 3vw, 32px) !important;
+  border-radius: clamp(22px, 3vw, 30px) !important;
+  scrollbar-width: thin !important;
+}
+
+.entry-logo {
+  width: clamp(54px, 7vh, 64px) !important;
+  height: clamp(54px, 7vh, 64px) !important;
+  margin-bottom: clamp(10px, 1.8vh, 16px) !important;
+  border-radius: 20px !important;
+}
+
+.entry-card .section-kicker {
+  margin-bottom: 8px !important;
+  font-size: clamp(0.68rem, 1.4vw, 0.82rem) !important;
+}
+
+.entry-card h1 {
+  max-width: 100% !important;
+  margin-bottom: clamp(8px, 1.4vh, 12px) !important;
+  font-size: clamp(1.85rem, 4.8vw, 2.75rem) !important;
+  line-height: 1.05 !important;
+  letter-spacing: -0.045em !important;
+}
+
+.entry-lead {
+  max-width: 560px !important;
+  margin-bottom: clamp(14px, 2.2vh, 20px) !important;
+  font-size: clamp(0.92rem, 1.5vw, 1.04rem) !important;
+  line-height: 1.42 !important;
+}
+
+.entry-choice-grid {
+  gap: clamp(9px, 1.5vh, 12px) !important;
+}
+
+.entry-choice,
+button.entry-choice {
+  min-height: clamp(70px, 10vh, 88px) !important;
+  padding: clamp(12px, 1.8vh, 16px) !important;
+  border-radius: 20px !important;
+}
+
+.entry-choice-icon {
+  width: clamp(42px, 6vh, 50px) !important;
+  height: clamp(42px, 6vh, 50px) !important;
+  border-radius: 15px !important;
+  font-size: 1.25rem !important;
+}
+
+.entry-choice strong {
+  font-size: clamp(0.95rem, 1.7vw, 1.05rem) !important;
+}
+
+.entry-choice small {
+  font-size: clamp(0.76rem, 1.5vw, 0.88rem) !important;
+  line-height: 1.32 !important;
+}
+
+.entry-free-note {
+  margin-top: clamp(10px, 1.6vh, 14px) !important;
+  padding: 10px 12px !important;
+  font-size: clamp(0.72rem, 1.4vw, 0.82rem) !important;
+  line-height: 1.25 !important;
+}
+
+.entry-theme-toggle {
+  min-height: 34px !important;
+  padding: 5px 12px 5px 7px !important;
+  font-size: 0.78rem !important;
+}
+
+.entry-theme-switch {
+  width: 40px !important;
+  height: 23px !important;
+}
+
+.entry-theme-thumb {
+  width: 17px !important;
+  height: 17px !important;
+}
+
+.entry-theme-toggle.is-dark .entry-theme-thumb {
+  transform: translateX(17px) !important;
+}
+
+@media (min-width: 761px) {
+  .entry-card {
+    width: min(600px, calc(100vw - 40px)) !important;
+  }
+
+  .entry-choice-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .entry-theme-toggle {
+    top: 16px !important;
+    right: 16px !important;
+  }
+}
+
+@media (max-width: 760px) {
+  html[data-device-mode="phone"] .entry-gate {
+    padding: max(10px, env(safe-area-inset-top)) 10px max(10px, env(safe-area-inset-bottom)) !important;
+  }
+
+  html[data-device-mode="phone"] .entry-card {
+    width: min(430px, calc(100vw - 20px)) !important;
+    max-height: calc(100dvh - 20px) !important;
+    max-height: calc(100vh - 20px) !important;
+    padding: 18px 16px 16px !important;
+    border-radius: 24px !important;
+  }
+
+  html[data-device-mode="phone"] .entry-card h1 {
+    font-size: clamp(1.72rem, 7.8vw, 2.35rem) !important;
+    line-height: 1.08 !important;
+  }
+
+  html[data-device-mode="phone"] .entry-lead {
+    font-size: 0.9rem !important;
+    margin-bottom: 14px !important;
+  }
+
+  html[data-device-mode="phone"] .entry-choice,
+  html[data-device-mode="phone"] button.entry-choice {
+    min-height: 74px !important;
+    padding: 12px !important;
+    gap: 10px !important;
+  }
+
+  html[data-device-mode="phone"] .entry-choice::after {
+    display: none !important;
+  }
+
+  html[data-device-mode="phone"] .entry-choice-icon {
+    width: 42px !important;
+    height: 42px !important;
+  }
+
+  html[data-device-mode="phone"] .entry-free-note {
+    font-size: 0.72rem !important;
+  }
+}
+
+/* Desktop/tablet header: never let controls get covered on different browsers/screen sizes. */
+@media (min-width: 821px) {
+  .app-shell {
+    width: min(1480px, calc(100% - 18px)) !important;
+    padding-top: 12px !important;
+  }
+
+  .topbar.simplified-topbar,
+  .topbar {
+    display: grid !important;
+    grid-template-columns: minmax(230px, 360px) minmax(0, 1fr) !important;
+    grid-auto-rows: auto !important;
+    gap: 8px 12px !important;
+    padding: 12px 14px !important;
+    border-radius: 18px !important;
+    overflow: visible !important;
+    max-height: none !important;
+  }
+
+  .topbar .brand-block {
+    min-width: 0 !important;
+    gap: 10px !important;
+  }
+
+  .topbar .logo-mark {
+    flex: 0 0 42px !important;
+    width: 42px !important;
+    height: 42px !important;
+    border-radius: 14px !important;
+    font-size: 0.78rem !important;
+  }
+
+  .topbar h1,
+  #appTitleText {
+    max-width: 100% !important;
+    margin-bottom: 2px !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+    font-size: clamp(1rem, 1.35vw, 1.28rem) !important;
+    line-height: 1.08 !important;
+  }
+
+  .topbar .eyebrow,
+  .topbar .subtitle {
+    font-size: 0.64rem !important;
+    line-height: 1 !important;
+    margin-bottom: 2px !important;
+  }
+
+  .topbar .top-actions {
+    min-width: 0 !important;
+    display: flex !important;
+    flex-wrap: wrap !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    gap: 6px !important;
+    overflow: visible !important;
+    max-width: 100% !important;
+  }
+
+  .top-actions .primary-btn,
+  .top-actions .success-btn,
+  .top-actions .ghost-btn,
+  .top-actions > button,
+  .top-actions .status-badge {
+    flex: 0 1 auto !important;
+    min-width: 0 !important;
+    min-height: 34px !important;
+    height: 34px !important;
+    max-height: 34px !important;
+    padding: 0 10px !important;
+    border-radius: 999px !important;
+    font-size: clamp(0.68rem, 0.82vw, 0.78rem) !important;
+    line-height: 1 !important;
+    white-space: nowrap !important;
+  }
+
+  #statusBadge,
+  .status-badge.compact-status {
+    flex-basis: auto !important;
+    width: auto !important;
+    min-width: 76px !important;
+    max-width: 104px !important;
+  }
+}
+
+@media (min-width: 821px) and (max-width: 1180px) {
+  .topbar.simplified-topbar,
+  .topbar {
+    grid-template-columns: 1fr !important;
+  }
+
+  .topbar .top-actions {
+    grid-column: 1 / -1 !important;
+    justify-content: flex-start !important;
+  }
+
+  .top-actions .primary-btn,
+  .top-actions .success-btn,
+  .top-actions .ghost-btn,
+  .top-actions > button,
+  .top-actions .status-badge {
+    height: 32px !important;
+    min-height: 32px !important;
+    padding: 0 9px !important;
+    font-size: 0.68rem !important;
+  }
+}

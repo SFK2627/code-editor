@@ -1,11 +1,11 @@
-const CACHE_NAME = 'sir-jr-coding-app-desktop-home-toggle-v1';
+const CACHE_NAME = 'sir-jr-coding-app-icon-responsive-home-v1';
 const CORE_ASSETS = [
   './',
   './index.html',
   './style.css',
-  './style.css?v=20260711-desktop-home-toggle',
+  './style.css?v=20260711-icon-responsive-home',
   './script.js',
-  './script.js?v=20260711-desktop-home-toggle',
+  './script.js?v=20260711-icon-responsive-home',
   './firebase-config.js',
   './manifest.webmanifest',
   './STUDENT_IMPORT_TEMPLATE.csv',

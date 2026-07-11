@@ -12,6 +12,7 @@
   <meta name="apple-mobile-web-app-title" content="Sir JR Coding" />
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <link rel="icon" type="image/png" href="icons/icon-192.png" />
   <script>
     // Decide the responsive preview mode before CSS loads. A real phone is
     // detected from its browser/screen, while a narrow viewport is also treated
@@ -37,12 +38,12 @@
       document.documentElement.dataset.deviceMode = isPhone ? 'phone' : 'desktop';
     })();
   </script>
-  <link rel="stylesheet" href="style.css?v=20260711-desktop-home-toggle" />
+  <link rel="stylesheet" href="style.css?v=20260711-icon-responsive-home" />
 </head>
 <body class="entry-gate-active">
   <div id="entryGate" class="entry-gate" role="dialog" aria-modal="true" aria-labelledby="entryGateTitle">
     <div class="entry-card">
-      <div class="entry-logo" aria-hidden="true">&lt;/&gt;</div>
+      <div class="entry-logo app-coded-eight" aria-hidden="true"><span class="logo-code">&lt;/&gt;</span><span class="logo-eight">8</span></div>
       <p class="section-kicker">Sir JR Web Coding App</p>
       <h1 id="entryGateTitle">Welcome Grade 8 MCSian Students!</h1>
       <p class="entry-lead">Build, preview, and save your web projects in one student-friendly workspace.</p>
@@ -117,7 +118,7 @@
   <div id="studentDashboard" class="student-dashboard-screen hidden" aria-labelledby="studentDashboardTitle">
     <header class="student-dashboard-header">
       <div class="dashboard-brand">
-        <div class="logo-mark" aria-hidden="true">&lt;/&gt;</div>
+        <div class="logo-mark app-coded-eight" aria-hidden="true"><span class="logo-code">&lt;/&gt;</span><span class="logo-eight">8</span></div>
         <div>
           <p class="section-kicker">Sir JR Web Coding App</p>
           <h1 id="studentDashboardTitle">My Projects</h1>
@@ -174,7 +175,7 @@
   <div class="app-shell">
     <header class="topbar simplified-topbar">
       <div class="brand-block">
-        <div class="logo-mark" aria-hidden="true">&lt;/&gt;</div>
+        <div class="logo-mark app-coded-eight" aria-hidden="true"><span class="logo-code">&lt;/&gt;</span><span class="logo-eight">8</span></div>
         <div>
           <p id="adminBtn" class="eyebrow hidden-admin-trigger" role="button" tabindex="0" aria-label="Teacher admin access">Sir JR Web Coding App</p>
           <h1 id="appTitleText">A tool for every Grade 8 MCSian.</h1>
@@ -845,6 +846,6 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="firebase-config.js"></script>
-  <script src="script.js?v=20260711-desktop-home-toggle"></script>
+  <script src="script.js?v=20260711-icon-responsive-home"></script>
 </body>
 </html>
