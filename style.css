@@ -4725,7 +4725,7 @@ body.admin-open #adminOverlay .pin-screen.teacher-login-screen {
 .app-dialog-overlay {
   position: fixed;
   inset: 0;
-  z-index: 9999;
+  z-index: 950000;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -6427,9 +6427,11 @@ body.editor-fullscreen-active .fullscreen-editor-actions.hidden,
 }
 
 body.editor-fullscreen-active .fullscreen-editor-actions .fullscreen-run-btn,
+body.editor-fullscreen-active .fullscreen-editor-actions .fullscreen-auto-run-btn,
 body.editor-fullscreen-active .fullscreen-editor-actions .fullscreen-result-btn,
 body.editor-fullscreen-active .fullscreen-editor-actions .fullscreen-exit-btn,
 #editorPanel:fullscreen .fullscreen-editor-actions .fullscreen-run-btn,
+#editorPanel:fullscreen .fullscreen-editor-actions .fullscreen-auto-run-btn,
 #editorPanel:fullscreen .fullscreen-editor-actions .fullscreen-result-btn,
 #editorPanel:fullscreen .fullscreen-editor-actions .fullscreen-exit-btn {
   position: static !important;
@@ -12811,6 +12813,12 @@ html[data-device-mode="phone"] body:not(.student-dashboard-active) > .student-da
   cursor: pointer;
 }
 
+
+body.editor-fullscreen-active #editorPanel .smart-inline-hint,
+#editorPanel:fullscreen .smart-inline-hint {
+  z-index: 100120;
+}
+
 [data-theme="dark"] .smart-inline-hint {
   background: rgba(15, 23, 42, 0.98);
   border-color: rgba(96, 165, 250, 0.35);
@@ -12838,5 +12846,122 @@ body.code-helper-disabled .smart-inline-hint {
     width: auto;
     max-width: none !important;
     font-size: 0.88rem;
+  }
+}
+
+
+/* =========================================================
+   PROJECT DELETE CONFIRMATION LAYER FIX
+   Keep custom alert/confirm dialogs above student dashboard,
+   project naming, admin, fullscreen, and mobile overlays.
+   ========================================================= */
+.app-dialog-overlay {
+  z-index: 950000 !important;
+}
+
+
+/* CODEPEN POLISH PASS: Auto Run, preview loading, and clearer project action states */
+.auto-run-btn,
+.fullscreen-auto-run-btn {
+  border-color: #bae6fd !important;
+  color: #075985 !important;
+  background: #e0f2fe !important;
+}
+
+.auto-run-btn.active,
+.fullscreen-auto-run-btn.active {
+  color: #ffffff !important;
+  border-color: transparent !important;
+  background: linear-gradient(135deg, #2563eb, #06b6d4) !important;
+  box-shadow: 0 10px 24px rgba(37, 99, 235, 0.18) !important;
+}
+
+.preview-panel.preview-loading .preview-frame-shell::before,
+.preview-panel.preview-waiting .preview-frame-shell::before,
+.preview-panel.preview-runtime-warning .preview-frame-shell::before {
+  position: absolute;
+  z-index: 8;
+  top: 12px;
+  right: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 11px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 1000;
+  line-height: 1;
+  pointer-events: none;
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.16);
+}
+
+.preview-panel.preview-loading .preview-frame-shell::before {
+  content: 'Rendering preview...';
+  color: #075985;
+  background: rgba(224, 242, 254, 0.96);
+  border: 1px solid #bae6fd;
+}
+
+.preview-panel.preview-waiting .preview-frame-shell::before {
+  content: 'Still loading... check JS';
+  color: #92400e;
+  background: rgba(254, 243, 199, 0.96);
+  border: 1px solid #fde68a;
+}
+
+.preview-panel.preview-runtime-warning .preview-frame-shell::before {
+  content: 'JavaScript issue detected';
+  color: #991b1b;
+  background: rgba(254, 226, 226, 0.96);
+  border: 1px solid #fecaca;
+}
+
+.preview-panel.preview-loading .preview-frame-shell::after {
+  content: '';
+  position: absolute;
+  z-index: 7;
+  top: 17px;
+  right: 152px;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  border: 2px solid rgba(2, 132, 199, 0.24);
+  border-top-color: #0284c7;
+  animation: previewSpin 0.85s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes previewSpin {
+  to { transform: rotate(360deg); }
+}
+
+.student-project-card.project-action-busy {
+  opacity: 0.78;
+  pointer-events: none;
+}
+
+.student-project-card [data-project-action]:disabled,
+.top-actions button:disabled,
+.fullscreen-editor-actions button:disabled {
+  opacity: 0.58 !important;
+  cursor: wait !important;
+}
+
+@media (max-width: 760px) {
+  .auto-run-btn {
+    min-width: 86px !important;
+  }
+
+  .preview-panel.preview-loading .preview-frame-shell::before,
+  .preview-panel.preview-waiting .preview-frame-shell::before,
+  .preview-panel.preview-runtime-warning .preview-frame-shell::before {
+    top: 8px;
+    right: 8px;
+    font-size: 0.72rem;
+  }
+
+  .preview-panel.preview-loading .preview-frame-shell::after {
+    top: 13px;
+    right: 140px;
   }
 }

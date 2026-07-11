@@ -37,7 +37,7 @@
       document.documentElement.dataset.deviceMode = isPhone ? 'phone' : 'desktop';
     })();
   </script>
-  <link rel="stylesheet" href="style.css?v=20260711-smart-inline-hints" />
+  <link rel="stylesheet" href="style.css?v=20260711-codepen-polish" />
 </head>
 <body class="entry-gate-active">
   <div id="entryGate" class="entry-gate" role="dialog" aria-modal="true" aria-labelledby="entryGateTitle">
@@ -183,6 +183,7 @@
         <button id="themeToggle" class="ghost-btn" type="button" title="Switch light or dark mode">🌙 Dark</button>
         <button id="stepActivityBtn" class="ghost-btn activity-launch-btn" type="button" aria-expanded="false" aria-controls="activityCard">📌 Activity</button>
         <button id="runBtn" class="primary-btn top-run-btn" type="button" title="Run: Ctrl + Enter">▶ Run</button>
+        <button id="autoRunBtn" class="ghost-btn auto-run-btn" type="button" aria-pressed="true" title="Auto update preview after typing">⚡ Auto</button>
         <button id="resultBtn" class="success-btn top-result-btn" type="button" title="Check result: Ctrl + Shift + Enter">✓ Result</button>
         <button id="aiReviewTopBtn" class="ghost-btn ai-review-top-btn" type="button" title="Get rubric-based feedback after checking result">💬 Feedback</button>
         <button id="downloadZipBtn" class="ghost-btn save-zip-btn" type="button" title="Download your code as ZIP">💾 ZIP</button>
@@ -223,6 +224,7 @@
       <section id="editorPanel" class="panel editor-panel" aria-label="Code editor">
         <div id="fullscreenEditorActions" class="fullscreen-editor-actions hidden" aria-label="Full editor actions">
           <button id="fullscreenRunBtn" class="primary-btn fullscreen-run-btn" type="button" title="Run: Ctrl + Enter">▶ Run</button>
+          <button id="fullscreenAutoRunBtn" class="ghost-btn fullscreen-auto-run-btn" type="button" aria-pressed="true" title="Auto update preview after typing">⚡ Auto</button>
           <button id="fullscreenResultBtn" class="success-btn fullscreen-result-btn" type="button" title="Check result: Ctrl + Shift + Enter">✓ Result</button>
           <button id="exitEditorStickyBtn" class="fullscreen-exit-btn" type="button" title="Exit full editor: Esc">Exit Full</button>
         </div>
@@ -773,6 +775,6 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="firebase-config.js"></script>
-  <script src="script.js?v=20260711-smart-inline-hints"></script>
+  <script src="script.js?v=20260711-codepen-polish"></script>
 </body>
 </html>

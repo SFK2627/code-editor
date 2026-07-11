@@ -1,6 +1,7 @@
 const editor = document.getElementById('codeEditor');
 const previewFrame = document.getElementById('previewFrame');
 const runBtn = document.getElementById('runBtn');
+const autoRunBtn = document.getElementById('autoRunBtn');
 const resultBtn = document.getElementById('resultBtn');
 const aiReviewTopBtn = document.getElementById('aiReviewTopBtn');
 const saveBtn = document.getElementById('saveBtn');
@@ -25,6 +26,7 @@ const exitEditorBtn = document.getElementById('exitEditorBtn');
 const exitEditorStickyBtn = document.getElementById('exitEditorStickyBtn');
 const fullscreenEditorActions = document.getElementById('fullscreenEditorActions');
 const fullscreenRunBtn = document.getElementById('fullscreenRunBtn');
+const fullscreenAutoRunBtn = document.getElementById('fullscreenAutoRunBtn');
 const fullscreenResultBtn = document.getElementById('fullscreenResultBtn');
 const statusBadge = document.getElementById('statusBadge');
 const editorInfo = document.getElementById('editorInfo');
@@ -263,6 +265,7 @@ const STORAGE_KEYS = {
   legacyActivity: 'studentCodeStudio.activity.v2',
   theme: 'studentCodeStudio.theme',
   layout: 'studentCodeStudio.previewLayout',
+  autoRun: 'studentCodeStudio.autoRun.v1',
   editorZoom: 'studentCodeStudio.editorZoom.v1',
   fileNames: 'studentCodeStudio.fileNames.v1',
   assistanceSettings: 'studentCodeStudio.assistanceSettings.v1'
@@ -317,6 +320,9 @@ const DEFAULT_STUDENT_PASSWORD = '123456';
 const STUDENT_EMAIL_DOMAIN = 'students.mcsian.app';
 const STUDENT_AUTOSAVE_DELAY = 1400;
 const PROFILE_ACTIVITY_WRITE_INTERVAL = 5 * 60 * 1000;
+const AUTO_RUN_DELAY = 850;
+const PREVIEW_LOAD_TIMEOUT = 3200;
+const APP_NETWORK_TIMEOUT_MS = 12000;
 
 const appSession = {
   mode: 'pending', // pending | guest | student
@@ -337,10 +343,92 @@ let lastProfileActivityWriteAt = 0;
 let adminStudentsCache = [];
 let pendingStudentImportRows = [];
 let studentImportRunning = false;
+let autoRunEnabled = loadJSON(STORAGE_KEYS.autoRun, true) !== false;
+let autoRunTimer = null;
+let previewLoadingTimer = null;
+let previewRenderToken = 0;
+let latestPreviewRuntimeError = '';
+let latestPreviewConsoleMessage = '';
 
 
 const STARTER_CODE_VERSION_KEY = 'studentCodeStudio.starterCodeVersion';
 const CURRENT_STARTER_CODE_VERSION = 'clean-uploaded-base-2026-07-09-v2';
+
+function withTimeout(promise, timeoutMs = APP_NETWORK_TIMEOUT_MS, message = 'This is taking too long. Please check the connection and try again.') {
+  let timeoutId = null;
+  const timeout = new Promise((_, reject) => {
+    timeoutId = window.setTimeout(() => reject(new Error(message)), timeoutMs);
+  });
+  return Promise.race([promise, timeout]).finally(() => window.clearTimeout(timeoutId));
+}
+
+function updateAutoRunButtons() {
+  const buttons = [autoRunBtn, document.getElementById('fullscreenAutoRunBtn')].filter(Boolean);
+  buttons.forEach(button => {
+    button.classList.toggle('active', autoRunEnabled);
+    button.setAttribute('aria-pressed', String(autoRunEnabled));
+    button.textContent = autoRunEnabled ? '⚡ Auto On' : '⚡ Auto Off';
+    button.title = autoRunEnabled
+      ? 'Auto Run is on. Preview updates after you stop typing.'
+      : 'Auto Run is off. Click Run to update the preview.';
+  });
+}
+
+function setAutoRunEnabled(enabled, showMessage = true) {
+  autoRunEnabled = Boolean(enabled);
+  saveJSON(STORAGE_KEYS.autoRun, autoRunEnabled);
+  if (!autoRunEnabled) window.clearTimeout(autoRunTimer);
+  updateAutoRunButtons();
+  if (showMessage) setStatus(autoRunEnabled ? 'Auto Run on' : 'Auto Run off');
+  if (autoRunEnabled) scheduleAutoRun({ delay: 120, reason: 'toggle' });
+}
+
+function toggleAutoRun() {
+  setAutoRunEnabled(!autoRunEnabled);
+}
+
+function scheduleAutoRun(options = {}) {
+  if (!autoRunEnabled || !previewFrame) return;
+  const delay = Number.isFinite(options.delay) ? options.delay : AUTO_RUN_DELAY;
+  window.clearTimeout(autoRunTimer);
+  autoRunTimer = window.setTimeout(() => {
+    runCode(false, { scroll: false, trackRun: false, source: 'auto' });
+  }, Math.max(80, delay));
+}
+
+function setPreviewLoading(isLoading, options = {}) {
+  if (!previewPanel) return;
+  window.clearTimeout(previewLoadingTimer);
+  previewPanel.classList.toggle('preview-loading', Boolean(isLoading));
+  previewPanel.classList.remove('preview-waiting', 'preview-runtime-warning');
+  if (!isLoading) return;
+  const token = options.token || previewRenderToken;
+  previewPanel.dataset.previewPage = options.pageName || getActiveHtmlPageName();
+  previewLoadingTimer = window.setTimeout(() => {
+    if (token !== previewRenderToken) return;
+    previewPanel.classList.add('preview-waiting');
+    setStatus('Preview still loading');
+  }, PREVIEW_LOAD_TIMEOUT);
+}
+
+function markPreviewReady() {
+  window.clearTimeout(previewLoadingTimer);
+  previewPanel?.classList.remove('preview-loading', 'preview-waiting');
+}
+
+function handlePreviewRuntimeIssue(data = {}) {
+  const rawMessage = String(data.message || data.reason || 'Runtime issue detected.').replace(/\s+/g, ' ').trim();
+  const message = rawMessage.slice(0, 220);
+  if (!message) return;
+  if (data.level === 'error' || data.level === 'unhandledrejection') {
+    latestPreviewRuntimeError = message;
+    previewPanel?.classList.add('preview-runtime-warning');
+    setStatus('Preview error');
+  } else {
+    latestPreviewConsoleMessage = message;
+  }
+  window.setTimeout(renderErrorChecker, 80);
+}
 
 function applyStarterCodeMigration() {
   try {
@@ -2734,7 +2822,11 @@ async function loadStudentProjects() {
   try {
     if (projectDashboardStatus) projectDashboardStatus.textContent = 'Loading projects...';
     const { getDocs } = firebaseSync.modules;
-    const snapshot = await getDocs(getStudentProjectsCollectionRef(student.uid));
+    const snapshot = await withTimeout(
+      getDocs(getStudentProjectsCollectionRef(student.uid)),
+      APP_NETWORK_TIMEOUT_MS,
+      'Loading projects is taking too long. Please check the internet connection, then try again.'
+    );
     appSession.projects = (snapshot.docs || []).map(docSnapshot => ({
       id: docSnapshot.id,
       ...snapshotData(docSnapshot)
@@ -2747,8 +2839,8 @@ async function loadStudentProjects() {
     return appSession.projects;
   } catch (error) {
     console.error('Could not load projects', error);
-    if (projectDashboardStatus) projectDashboardStatus.textContent = 'Could not load projects. Check the internet connection.';
-    studentProjectsGrid.innerHTML = '<div class="empty-projects-card"><h3>Projects unavailable</h3><p>Please reconnect and refresh.</p></div>';
+    if (projectDashboardStatus) projectDashboardStatus.textContent = error?.message || 'Could not load projects. Check the internet connection.';
+    studentProjectsGrid.innerHTML = `<div class="empty-projects-card"><h3>Projects unavailable</h3><p>${escapeHTML(error?.message || 'Please reconnect and refresh.')}</p><button class="primary-btn" type="button" data-project-action="retry-load">Try Again</button></div>`;
     return [];
   }
 }
@@ -2907,7 +2999,11 @@ async function getStudentProject(projectId) {
   const cached = appSession.projects.find(project => project.id === projectId);
   if (cached?.codeByActivity) return cached;
   const { getDoc } = firebaseSync.modules;
-  const snapshot = await getDoc(getStudentProjectDocRef(appSession.student.uid, projectId));
+  const snapshot = await withTimeout(
+    getDoc(getStudentProjectDocRef(appSession.student.uid, projectId)),
+    APP_NETWORK_TIMEOUT_MS,
+    'Opening project is taking too long. Please check the internet connection, then try again.'
+  );
   return snapshotExists(snapshot) ? { id: projectId, ...snapshotData(snapshot) } : null;
 }
 
@@ -2983,7 +3079,11 @@ async function deleteStudentProject(projectId) {
   if (!confirmed) return;
   try {
     const { deleteDoc, setDoc, serverTimestamp, increment } = firebaseSync.modules;
-    await deleteDoc(getStudentProjectDocRef(appSession.student.uid, projectId));
+    await withTimeout(
+      deleteDoc(getStudentProjectDocRef(appSession.student.uid, projectId)),
+      APP_NETWORK_TIMEOUT_MS,
+      'Deleting project is taking too long. Please check the internet connection, then try again.'
+    );
     await setDoc(getStudentDocRef(appSession.student.uid), {
       projectCount: increment(-1),
       lastActivityAt: serverTimestamp(),
@@ -4584,6 +4684,9 @@ function createScriptBlock(jsText = '') {
     pre.style.whiteSpace = 'pre-wrap';
     pre.style.fontFamily = 'Consolas, Monaco, monospace';
     document.body.appendChild(pre);
+    try {
+      parent.postMessage({ type: 'mcs-preview-runtime', level: 'error', message: error.message || String(error) }, '*');
+    } catch (postError) {}
   }
 
   try {
@@ -4677,16 +4780,71 @@ function createPreviewNavigationBlock(currentPageName = getActiveHtmlPageName())
 <\/script>`;
 }
 
+
+function createPreviewRuntimeReporterBlock() {
+  return `<script>
+(function () {
+  function send(level, message) {
+    try {
+      var clean = String(message || '').replace(/\s+/g, ' ').slice(0, 500);
+      if (!clean) return;
+      if (document.body && level !== 'log') document.body.dataset.runtimeError = clean;
+      parent.postMessage({ type: 'mcs-preview-runtime', level: level, message: clean }, '*');
+    } catch (error) {}
+  }
+  window.addEventListener('error', function (event) {
+    send('error', event.message || (event.error && event.error.message) || 'JavaScript error');
+  });
+  window.addEventListener('unhandledrejection', function (event) {
+    var reason = event.reason;
+    send('unhandledrejection', reason && reason.message ? reason.message : reason);
+  });
+  ['error', 'warn'].forEach(function (method) {
+    var original = console[method];
+    console[method] = function () {
+      var message = Array.prototype.slice.call(arguments).map(function (item) {
+        if (item && item.message) return item.message;
+        if (typeof item === 'object') {
+          try { return JSON.stringify(item); } catch (error) { return String(item); }
+        }
+        return String(item);
+      }).join(' ');
+      send(method === 'error' ? 'error' : 'warning', message);
+      if (original) original.apply(console, arguments);
+    };
+  });
+})();
+<\/script>`;
+}
+
+
+function injectRuntimeReporterEarly(html, reporterBlock) {
+  let output = html || '';
+  if (!reporterBlock) return output;
+  if (/<head\b[^>]*>/i.test(output)) {
+    return output.replace(/<head\b[^>]*>/i, match => `${match}\n${reporterBlock}`);
+  }
+  if (/<html\b[^>]*>/i.test(output)) {
+    return output.replace(/<html\b[^>]*>/i, match => `${match}\n${reporterBlock}`);
+  }
+  if (/<!doctype\s+html\s*>/i.test(output)) {
+    return output.replace(/<!doctype\s+html\s*>/i, match => `${match}\n${reporterBlock}`);
+  }
+  return `${reporterBlock}\n${output}`;
+}
+
 function buildFullCode(pageName = getActiveHtmlPageName()) {
   const safePageName = normalizeHtmlPageName(pageName);
   const html = getHTMLPageContent(safePageName) || '';
   const styleBlock = getCSSBlocksForPreview(html);
   const scriptBlock = getJSBlocksForPreview(html);
   const navigationBlock = createPreviewNavigationBlock(safePageName);
+  const runtimeReporterBlock = createPreviewRuntimeReporterBlock();
+  const bodyScriptBlock = [scriptBlock, navigationBlock].filter(Boolean).join('\n');
   const looksLikeFullDocument = /<!doctype/i.test(html) || /<html(\s|>)/i.test(html) || /<head(\s|>)/i.test(html) || /<body(\s|>)/i.test(html);
 
   if (looksLikeFullDocument) {
-    return injectAssetsIntoHTML(injectAssetsIntoHTML(html, styleBlock, scriptBlock), '', navigationBlock);
+    return injectAssetsIntoHTML(injectRuntimeReporterEarly(html, runtimeReporterBlock), styleBlock, bodyScriptBlock);
   }
 
   return `<!DOCTYPE html>
@@ -4694,12 +4852,12 @@ function buildFullCode(pageName = getActiveHtmlPageName()) {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  ${runtimeReporterBlock}
   ${styleBlock}
 </head>
 <body>
 ${html}
-${scriptBlock}
-${navigationBlock}
+${bodyScriptBlock}
 </body>
 </html>`;
 }
@@ -4895,6 +5053,10 @@ function runCode(showMessage = true, options = {}) {
   const wasFullEditor = document.body.classList.contains('editor-fullscreen-active');
   saveActiveEditor();
   const pageName = normalizeHtmlPageName(options.pageName || getActiveHtmlPageName());
+  latestPreviewRuntimeError = '';
+  latestPreviewConsoleMessage = '';
+  previewRenderToken += 1;
+  setPreviewLoading(true, { token: previewRenderToken, pageName });
   previewFrame.srcdoc = buildFullCode(pageName);
   previewFrame.dataset.currentPage = pageName;
   window.setTimeout(renderErrorChecker, 180);
@@ -4945,6 +5107,10 @@ function navigatePreviewToPage(rawHref) {
     appAlert(`${target} does not exist yet. Add this page in Pages, or change the link href.`, { title: 'Missing linked page' });
     return false;
   }
+  latestPreviewRuntimeError = '';
+  latestPreviewConsoleMessage = '';
+  previewRenderToken += 1;
+  setPreviewLoading(true, { token: previewRenderToken, pageName: target });
   previewFrame.srcdoc = buildFullCode(target);
   previewFrame.dataset.currentPage = target;
   setStatus(`Preview: ${target}`);
@@ -4953,8 +5119,14 @@ function navigatePreviewToPage(rawHref) {
 
 window.addEventListener('message', event => {
   const data = event.data || {};
-  if (!data || data.type !== 'mcs-preview-navigate') return;
-  navigatePreviewToPage(data.href);
+  if (!data) return;
+  if (data.type === 'mcs-preview-navigate') {
+    navigatePreviewToPage(data.href);
+    return;
+  }
+  if (data.type === 'mcs-preview-runtime') {
+    handlePreviewRuntimeIssue(data);
+  }
 });
 
 function getBodyInnerHTML(html) {
@@ -5023,7 +5195,7 @@ function getJavaScriptSyntaxError(js) {
 
 function getRuntimeErrorMessage() {
   const doc = getPreviewDocument();
-  return doc?.body?.dataset?.runtimeError || '';
+  return latestPreviewRuntimeError || doc?.body?.dataset?.runtimeError || '';
 }
 
 function createCheckerItem(type, title, detail, fix = '') {
@@ -6685,6 +6857,13 @@ function ensureFullscreenActionBar() {
       onClick: handleFullscreenRunClick
     },
     {
+      id: 'fullscreenAutoRunBtn',
+      className: 'ghost-btn fullscreen-auto-run-btn',
+      text: autoRunEnabled ? '⚡ Auto On' : '⚡ Auto Off',
+      title: 'Auto update preview after typing',
+      onClick: toggleAutoRun
+    },
+    {
       id: 'fullscreenResultBtn',
       className: 'success-btn fullscreen-result-btn',
       text: '✓ Result',
@@ -6719,6 +6898,7 @@ function ensureFullscreenActionBar() {
     }
   });
 
+  updateAutoRunButtons();
   return actions;
 }
 
@@ -6794,6 +6974,7 @@ function enterFullEditor() {
   }
 
   document.body.classList.add('editor-fullscreen-active');
+  syncSmartInlineHintHost();
   fullEditorBtn?.classList.add('hidden');
   exitEditorBtn?.classList.remove('hidden');
   const fullscreenActions = ensureFullscreenActionBar();
@@ -6822,6 +7003,7 @@ function exitFullEditor(options = {}) {
     exitFullPreview({ silent: true, keepNative: true });
   }
   document.body.classList.remove('editor-fullscreen-active');
+  syncSmartInlineHintHost();
   fullEditorBtn?.classList.remove('hidden');
   exitEditorBtn?.classList.add('hidden');
   document.getElementById('fullscreenEditorActions')?.classList.add('hidden');
@@ -8900,14 +9082,37 @@ function isSmartInlineHintsEnabled() {
   return Boolean(editor) && isStudentAssistanceFeatureEnabled('codeHelper') && !document.body.classList.contains('entry-gate-active');
 }
 
+function getSmartInlineHintHost() {
+  const editorIsFullscreen = Boolean(
+    editorPanel && (
+      document.body.classList.contains('editor-fullscreen-active') ||
+      document.fullscreenElement === editorPanel ||
+      document.webkitFullscreenElement === editorPanel
+    )
+  );
+  return editorIsFullscreen ? editorPanel : document.body;
+}
+
+function syncSmartInlineHintHost() {
+  const host = getSmartInlineHintHost();
+  const element = smartInlineHintState.element;
+  if (element && host && element.parentElement !== host) {
+    host.appendChild(element);
+  }
+  return host;
+}
+
 function createSmartInlineHintElement() {
-  if (smartInlineHintState.element) return smartInlineHintState.element;
+  if (smartInlineHintState.element) {
+    syncSmartInlineHintHost();
+    return smartInlineHintState.element;
+  }
   const hint = document.createElement('div');
   hint.id = 'smartInlineHint';
   hint.className = 'smart-inline-hint hidden';
   hint.setAttribute('role', 'dialog');
   hint.setAttribute('aria-live', 'polite');
-  document.body.appendChild(hint);
+  (getSmartInlineHintHost() || document.body).appendChild(hint);
   smartInlineHintState.element = hint;
   return hint;
 }
@@ -9154,6 +9359,7 @@ function applySmartInlineFix() {
 function renderSmartInlineHint(hint, event) {
   if (!hint || !event) return;
   const element = createSmartInlineHintElement();
+  syncSmartInlineHintHost();
   smartInlineHintState.hint = hint;
   element.innerHTML = `
     <button class="smart-inline-close" type="button" aria-label="Close smart hint">×</button>
@@ -9207,6 +9413,7 @@ editor.addEventListener('input', event => {
   commitEditorHistory();
   showSuggestions(event);
   updateTagMatching();
+  scheduleAutoRun({ reason: 'edit' });
 });
 
 editor.addEventListener('input', () => hideSmartInlineHint());
@@ -9417,6 +9624,12 @@ document.addEventListener('visibilitychange', scheduleFullEditorControlsRestore)
 window.addEventListener('pageshow', scheduleFullEditorControlsRestore);
 
 runBtn.addEventListener('click', () => runCode());
+autoRunBtn?.addEventListener('click', toggleAutoRun);
+if (fullscreenAutoRunBtn && !fullscreenAutoRunBtn.dataset.fullscreenActionBound) {
+  fullscreenAutoRunBtn.addEventListener('click', toggleAutoRun);
+  fullscreenAutoRunBtn.dataset.fullscreenActionBound = 'true';
+}
+updateAutoRunButtons();
 resultBtn.addEventListener('click', showResult);
 if (aiReviewTopBtn) aiReviewTopBtn.addEventListener('click', requestAIReview);
 if (runAiReviewBtn) runAiReviewBtn.addEventListener('click', requestAIReview);
@@ -9431,7 +9644,10 @@ if (refreshErrorCheckerBtn) refreshErrorCheckerBtn.addEventListener('click', () 
   setStatus('Errors checked');
 });
 if (advancedErrorCheckBtn) advancedErrorCheckBtn.addEventListener('click', requestAdvancedErrorCheck);
-if (previewFrame) previewFrame.addEventListener('load', () => window.setTimeout(renderErrorChecker, 80));
+if (previewFrame) previewFrame.addEventListener('load', () => {
+  markPreviewReady();
+  window.setTimeout(renderErrorChecker, 80);
+});
 activitySelect.addEventListener('change', event => selectActivity(event.target.value));
 resetActivityCodeBtn.addEventListener('click', resetCurrentActivityCode);
 
@@ -9666,21 +9882,52 @@ dashboardThemeBtn?.addEventListener('click', () => themeToggle?.click());
 newProjectBtn?.addEventListener('click', () => openProjectNameDialog('create'));
 projectSearchInput?.addEventListener('input', renderStudentProjects);
 projectStatusFilter?.addEventListener('change', renderStudentProjects);
-studentProjectsGrid?.addEventListener('click', event => {
+studentProjectsGrid?.addEventListener('click', async event => {
   const actionButton = event.target.closest('[data-project-action]');
-  if (!actionButton) return;
+  if (!actionButton || actionButton.disabled) return;
+
+  event.preventDefault();
+  event.stopPropagation();
+
   const action = actionButton.dataset.projectAction;
   if (action === 'new') {
     openProjectNameDialog('create');
+    return;
+  }
+  if (action === 'retry-load') {
+    await loadStudentProjects();
     return;
   }
   const projectCard = actionButton.closest('[data-project-id]');
   const projectId = projectCard?.dataset.projectId;
   const project = appSession.projects.find(item => item.id === projectId);
   if (!projectId) return;
-  if (action === 'open') openStudentProject(projectId);
+  if (action === 'open') {
+    const oldText = actionButton.textContent;
+    actionButton.disabled = true;
+    actionButton.textContent = 'Opening...';
+    projectCard?.classList.add('project-action-busy');
+    try {
+      await openStudentProject(projectId);
+    } finally {
+      actionButton.disabled = false;
+      actionButton.textContent = oldText;
+      projectCard?.classList.remove('project-action-busy');
+    }
+    return;
+  }
   if (action === 'rename') openProjectNameDialog('rename', project);
-  if (action === 'delete') deleteStudentProject(projectId);
+  if (action === 'delete') {
+    const oldTitle = actionButton.title;
+    actionButton.disabled = true;
+    actionButton.title = 'Delete in progress';
+    try {
+      await deleteStudentProject(projectId);
+    } finally {
+      actionButton.disabled = false;
+      actionButton.title = oldTitle;
+    }
+  }
 });
 closeProjectNameBtn?.addEventListener('click', closeProjectNameDialog);
 cancelProjectNameBtn?.addEventListener('click', closeProjectNameDialog);
@@ -9741,6 +9988,7 @@ resetResultPanel();
 setPreviewLayout(loadJSON(STORAGE_KEYS.layout, 'split'));
 loadActiveEditor();
 runCode(false);
+setAutoRunEnabled(autoRunEnabled, false);
 renderErrorChecker();
 startFirebaseMode();
 
