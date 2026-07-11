@@ -4947,6 +4947,13 @@ function getTopbarSafeOffset(options = {}) {
   const topbar = document.querySelector('.topbar');
   if (!topbar) return options.tight ? 8 : 14;
 
+  const isPhone = document.documentElement.dataset.deviceMode === 'phone' || window.innerWidth <= 760;
+  if (isPhone) {
+    const rect = topbar.getBoundingClientRect();
+    const visible = rect.bottom > 0 && rect.top < window.innerHeight;
+    return Math.ceil((visible ? Math.max(0, rect.bottom) : 0) + (options.tight ? 6 : 10));
+  }
+
   let topbarHeight = topbar.getBoundingClientRect().height || 0;
   const isDesktop = window.matchMedia?.('(min-width: 821px)').matches ?? window.innerWidth >= 821;
   const accountStripCanSlide = isDesktop && (
@@ -4954,25 +4961,28 @@ function getTopbarSafeOffset(options = {}) {
     document.body.classList.contains('guest-session-active')
   );
 
-  // Desktop account strip slides down only on hover. It should not make Run stop
-  // too low. Use the collapsed header height as the safe offset while aligning
-  // Output Preview or Result panels.
+  // The account strip is hidden until hover on desktop. Do not include its
+  // expanded height while aligning Output Preview; otherwise Run stops too low.
   if (options.preferCollapsedHeader && accountStripCanSlide) {
     const collapsedHeight = getCollapsedTopbarHeight(topbar);
     if (collapsedHeight > 0) topbarHeight = Math.min(topbarHeight, collapsedHeight);
   }
 
-  return Math.ceil(topbarHeight + (options.tight ? 4 : 12));
+  return Math.ceil(topbarHeight + (options.tight ? 6 : 12));
 }
 
 function getViewportSafeTop(options = {}) {
+  if (options.outputTopLock) return 0;
   const topbar = document.querySelector('.topbar');
-  const margin = options.tight ? 4 : 10;
+  const margin = options.tight ? 6 : 10;
   if (!topbar) return margin;
 
+  const isPhone = document.documentElement.dataset.deviceMode === 'phone' || window.innerWidth <= 760;
   const rect = topbar.getBoundingClientRect();
   const isVisible = rect.bottom > 0 && rect.top < window.innerHeight;
   if (!isVisible) return margin;
+
+  if (isPhone) return Math.ceil(Math.max(0, rect.bottom) + margin);
 
   const isDesktop = window.matchMedia?.('(min-width: 821px)').matches ?? window.innerWidth >= 821;
   const accountStripCanSlide = isDesktop && (
@@ -4987,38 +4997,69 @@ function getViewportSafeTop(options = {}) {
   return Math.ceil(Math.max(0, rect.bottom) + margin);
 }
 
-function alignElementToViewportTop(element, options = {}) {
-  if (!element) return;
-  const desiredTop = getViewportSafeTop(options);
-  const currentTop = element.getBoundingClientRect().top;
-  const delta = currentTop - desiredTop;
-  if (Math.abs(delta) < 2) return;
-  window.scrollBy({ top: delta, behavior: options.instant ? 'auto' : 'smooth' });
+let outputPreviewScrollTimer = 0;
+let outputPreviewScrollRaf = 0;
+let outputPreviewLastTarget = -1;
+
+function getElementDocumentTop(element) {
+  const rect = element.getBoundingClientRect();
+  return Math.max(0, window.scrollY + rect.top);
 }
 
-function scrollElementIntoSafeView(element, delay = 80, options = {}) {
+function getOutputPreviewTargetScrollTop(element, options = {}) {
+  const safeTop = getViewportSafeTop(options);
+  return Math.max(0, Math.round(getElementDocumentTop(element) - safeTop));
+}
+
+function alignElementToViewportTop(element, options = {}) {
   if (!element) return;
+  const targetTop = getOutputPreviewTargetScrollTop(element, options);
+  const currentTop = Math.round(window.scrollY || document.documentElement.scrollTop || 0);
+  if (Math.abs(targetTop - currentTop) < 3) return;
+  outputPreviewLastTarget = targetTop;
+  window.scrollTo({ top: targetTop, behavior: options.instant ? 'auto' : 'smooth' });
+}
 
-  window.setTimeout(() => {
-    alignElementToViewportTop(element, { ...options, instant: options.instant });
+function cancelOutputPreviewScroll() {
+  window.clearTimeout(outputPreviewScrollTimer);
+  if (outputPreviewScrollRaf) window.cancelAnimationFrame(outputPreviewScrollRaf);
+  outputPreviewScrollTimer = 0;
+  outputPreviewScrollRaf = 0;
+}
 
-    const correctionDelays = Array.isArray(options.correctionDelays)
-      ? options.correctionDelays
-      : (options.secondPass ? [Number.isFinite(options.secondPassDelay) ? options.secondPassDelay : 260] : []);
+function scrollElementIntoSafeView(element, delay = 0, options = {}) {
+  if (!element) return;
+  cancelOutputPreviewScroll();
 
-    correctionDelays.forEach(passDelay => {
-      window.setTimeout(() => {
-        alignElementToViewportTop(element, { ...options, instant: true });
-      }, passDelay);
+  const runScroll = () => {
+    if (options.fast) {
+      outputPreviewScrollRaf = window.requestAnimationFrame(() => {
+        outputPreviewScrollRaf = 0;
+        alignElementToViewportTop(element, { ...options, instant: options.instant });
+      });
+      return;
+    }
+    outputPreviewScrollRaf = window.requestAnimationFrame(() => {
+      outputPreviewScrollRaf = window.requestAnimationFrame(() => {
+        outputPreviewScrollRaf = 0;
+        alignElementToViewportTop(element, { ...options, instant: options.instant });
+      });
     });
-  }, delay);
+  };
+
+  if (delay > 0) outputPreviewScrollTimer = window.setTimeout(runScroll, delay);
+  else runScroll();
 }
 
 function scrollToOutput() {
-  scrollElementIntoSafeView(previewPanel, 40, {
+  // One smooth targeted scroll only. The old repeated correction passes made
+  // desktop and phone feel laggy/jumpy after Run.
+  scrollElementIntoSafeView(previewPanel, 0, {
     tight: true,
     preferCollapsedHeader: true,
-    correctionDelays: [180, 380, 700]
+    outputTopLock: true,
+    fast: true,
+    instant: false
   });
 }
 
