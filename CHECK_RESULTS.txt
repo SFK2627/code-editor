@@ -1,0 +1,152 @@
+
+> sir-jr-coding-app@2026.7.11-maintainability.95.mobile.100.overall.100 check
+> npm run build:check && npm run check:source && node tools/quality-audit.js && npm run check:overall
+
+
+> sir-jr-coding-app@2026.7.11-maintainability.95.mobile.100.overall.100 build:check
+> node tools/build-app.js --check
+
+PASS script.js matches source modules
+PASS style.css matches source modules
+Build check passed.
+
+> sir-jr-coding-app@2026.7.11-maintainability.95.mobile.100.overall.100 check:source
+> node tools/source-integrity-check.js
+
+PASS module manifest present
+PASS JavaScript source directory present
+PASS CSS source directory present
+PASS build script present
+PASS JavaScript split into focused modules - 17 modules
+PASS CSS split into focused modules - 23 modules
+PASS JS module size guard
+PASS CSS module size guard
+PASS all JS source modules pass syntax check
+PASS script.js generated from src/js
+PASS style.css generated from styles
+PASS package build script available
+PASS package build check script available
+PASS package source check script available
+PASS package version marks maintainability release - 2026.7.11-maintainability.95.mobile.100.overall.100
+PASS architecture guide present
+PASS maintainability report present
+PASS architecture guide maps source folders
+PASS maintainability report records target
+PASS mobile experience report present
+PASS mobile experience JS controller present
+PASS mobile experience CSS layer present
+PASS overall readiness JS module present
+PASS overall readiness CSS layer present
+PASS overall 100-readiness report present
+
+Source integrity passed: 25 checks.
+PASS script.js syntax
+PASS service-worker.js syntax
+PASS firebase.json valid JSON
+PASS manifest.webmanifest valid JSON
+PASS package.json valid JSON
+PASS required file present: index.html
+PASS required file present: style.css
+PASS required file present: script.js
+PASS required file present: service-worker.js
+PASS required file present: firebase-config.js
+PASS required file present: firebase.json
+PASS required file present: firestore.rules
+PASS required file present: manifest.webmanifest
+PASS required file present: favicon.png
+PASS required file present: icons/icon-192.png
+PASS required file present: icons/icon-512.png
+PASS required file present: icons/icon-192-maskable.png
+PASS required file present: icons/icon-512-maskable.png
+PASS required file present: README.md
+PASS required file present: FIREBASE_AND_GITHUB_SETUP.md
+PASS required file present: FREE_STUDENT_ACCOUNTS_SETUP.md
+PASS required file present: UPLOAD_THIS_FIRST.txt
+PASS required file present: OVERALL_100_READINESS_REPORT.md
+PASS required file present: FINAL_DEPLOYMENT_README.md
+PASS HTML duplicate IDs
+PASS HTML local asset references exist
+PASS CSS brace balance - balance=0
+PASS mobile responsive rules present
+PASS mobile dynamic viewport and keyboard CSS present
+PASS safe-area viewport fit present
+PASS dynamic viewport CSS support present
+PASS reduced-motion CSS present
+PASS forced-colors CSS present
+PASS no duplicate function declarations
+PASS quality gate diagnostics installed
+PASS manual health check hook available
+PASS storage pressure check installed
+PASS student save flush function present
+PASS local recovery snapshots present
+PASS PWA update detection present
+PASS mobile experience controller installed
+PASS mobile health check hook available
+PASS mobile visual viewport keyboard handling present
+PASS overall readiness health check hook available
+PASS service worker cached assets exist
+PASS service worker release label matches
+PASS service worker optional-cache hardening present
+PASS service worker caching strategies present
+PASS firebase hosting and firestore configured
+PASS firebase.json stays free-only without functions
+PASS Firebase hosting security headers present
+PASS teacher email rule present
+PASS collaboration rules present
+PASS collaboration member update restriction present
+PASS student roster rule present
+PASS no open Firestore write rule
+PASS firebase config has no placeholder tokens
+PASS firebase config project id present
+PASS manifest icon files exist
+PASS manifest has maskable icon
+PASS icon size matches: icons/icon-192.png - 192x192
+PASS icon size matches: icons/icon-512.png - 512x512
+PASS icon size matches: icons/icon-192-maskable.png - 192x192
+PASS icon size matches: icons/icon-512-maskable.png - 512x512
+PASS release label consistent across core files
+
+Quality audit passed: 65 checks.
+
+> sir-jr-coding-app@2026.7.11-maintainability.95.mobile.100.overall.100 check:overall
+> node tools/overall-readiness-audit.js
+
+PASS report present: QUALITY_GATE_100_REPORT.md
+PASS report present: MOBILE_EXPERIENCE_100_REPORT.md
+PASS report present: MAINTAINABILITY_95_REPORT.md
+PASS report present: OVERALL_100_READINESS_REPORT.md
+PASS report present: CLASSROOM_ACCEPTANCE_CHECKLIST.md
+PASS report present: APP_ARCHITECTURE.md
+PASS overall audit included in npm run check
+PASS package records overall 100-readiness target
+PASS package version marks overall 100-readiness - 2026.7.11-maintainability.95.mobile.100.overall.100
+PASS stability runtime health check present
+PASS mobile runtime health check present
+PASS overall runtime readiness check present
+PASS student project recovery protection present
+PASS save flush protection present
+PASS accessibility reduced-motion support present
+PASS accessibility forced-colors support present
+PASS mobile safe-area support present
+PASS mobile viewport and keyboard support present
+PASS print-safe final CSS present
+PASS service worker production caching strategies present
+PASS service worker resilient optional cache handling present
+PASS collaboration Firestore hardening present
+PASS Firestore has no open write rule
+PASS overall readiness JS source module present
+PASS overall readiness CSS source layer present
+PASS overall readiness JS source syntax
+PASS classroom checklist covers mobile device testing
+PASS classroom checklist covers Firebase/student load testing
+PASS overall report scores category: Features
+PASS overall report scores category: Classroom usefulness
+PASS overall report scores category: Stability
+PASS overall report scores category: Professional polish
+PASS overall report scores category: Mobile experience
+PASS overall report scores category: Firebase/security
+PASS overall report scores category: PWA/deployment
+PASS overall report scores category: Maintainability
+PASS overall report scores category: Testing/QA
+
+Overall readiness audit passed: 37 checks.

@@ -96,4 +96,59 @@ Read `FIREBASE_AND_GITHUB_SETUP.md` and `FREE_STUDENT_ACCOUNTS_SETUP.md` before 
 
 See `STABILITY_AND_TEST_REPORT.md` for the automated checks completed for this release.
 
-Release: 20260711-quality-gate-v100
+Release: 20260711-overall-100-readiness
+
+## Maintainability 95 Source Workflow
+
+This release adds a maintainable source layer while keeping static deployment simple.
+
+For future edits, work from:
+
+- `src/js/` for JavaScript modules
+- `styles/` for CSS modules
+
+Then run:
+
+```bash
+npm run build
+npm run check
+```
+
+The browser still loads `script.js` and `style.css`, so GitHub Pages and Firebase Hosting remain simple and free-only.
+
+Read `APP_ARCHITECTURE.md` and `MAINTAINABILITY_95_REPORT.md` before making major revisions.
+
+
+## Mobile Experience 100 Readiness
+
+This release adds a final mobile hardening layer for phone and installed-PWA use. It includes `viewport-fit=cover`, dynamic visual viewport CSS variables, keyboard-open handling, safe-area spacing, portrait/landscape classes, and a runtime mobile diagnostic function.
+
+Run this on a phone browser console when available:
+
+```js
+window.MCS_RUN_MOBILE_HEALTH_CHECK()
+```
+
+See `MOBILE_EXPERIENCE_100_REPORT.md` for the full mobile readiness checklist.
+
+## Overall 100-Readiness Release
+
+Release: 20260711-overall-100-readiness
+
+This build adds an all-category readiness gate for features, classroom usefulness, stability, professional polish, mobile experience, Firebase/security, PWA deployment, recovery, QA, and maintainability.
+
+Before deployment, run:
+
+```bash
+npm run check
+```
+
+After deployment, the following runtime checks are available in the browser console:
+
+```js
+window.MCS_RUN_HEALTH_CHECK()
+window.MCS_RUN_MOBILE_HEALTH_CHECK()
+window.MCS_RUN_OVERALL_READINESS_CHECK()
+```
+
+The package is prepared for 100-readiness, but the final real-world score should be confirmed through actual classroom testing.

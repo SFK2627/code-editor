@@ -1,0 +1,452 @@
+/* Version 7: less intrusive suggestions + full editor mode */
+.strong-tool {
+  color: #14532d;
+  background: #dcfce7;
+}
+
+.danger-tool {
+  color: #991b1b;
+  background: #fee2e2;
+}
+
+[data-theme="dark"] .strong-tool {
+  color: #bbf7d0;
+  background: rgba(22, 163, 74, 0.28);
+}
+
+[data-theme="dark"] .danger-tool {
+  color: #fecaca;
+  background: rgba(220, 38, 38, 0.28);
+}
+
+.suggestion-box {
+  left: auto;
+  right: 16px;
+  top: auto;
+  bottom: 16px;
+  width: min(320px, calc(100% - 32px));
+  max-height: 220px;
+  border-radius: 14px;
+  box-shadow: 0 14px 28px rgba(15, 23, 42, 0.18);
+  overflow-y: auto;
+}
+
+.suggestion-mini-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border-bottom: 1px solid #e2e8f0;
+  color: #475569;
+  background: #f8fafc;
+  font-size: 0.78rem;
+  font-weight: 1000;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.suggestion-close {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 999px;
+  color: #64748b;
+  background: #e2e8f0;
+  font-size: 1rem;
+  font-weight: 1000;
+  cursor: pointer;
+}
+
+.suggestion-close:hover {
+  color: #991b1b;
+  background: #fee2e2;
+}
+
+.suggestion-item {
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  padding: 9px 10px;
+}
+
+.suggestion-label {
+  font-size: 0.95rem;
+}
+
+.suggestion-desc {
+  display: -webkit-box;
+  margin-top: 2px;
+  overflow: hidden;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  font-size: 0.78rem;
+}
+
+.suggestion-type {
+  padding: 3px 7px;
+  font-size: 0.68rem;
+}
+
+[data-theme="dark"] .suggestion-mini-header {
+  color: #cbd5e1;
+  border-bottom-color: #243247;
+  background: #111827;
+}
+
+[data-theme="dark"] .suggestion-close {
+  color: #cbd5e1;
+  background: #1e293b;
+}
+
+.editor-fullscreen-active {
+  overflow: hidden;
+}
+
+.editor-fullscreen-active .editor-panel,
+#editorPanel:fullscreen {
+  position: fixed;
+  z-index: 4200;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  max-width: none;
+  max-height: none;
+  overflow: hidden;
+  border-radius: 0;
+  background: var(--solid-card);
+  box-shadow: none;
+}
+
+.editor-fullscreen-active .editor-sticky-actions,
+.editor-fullscreen-active .language-tabs {
+  flex: none;
+}
+
+.editor-fullscreen-active .editor-panel .panel-header,
+.editor-fullscreen-active .editor-info,
+.editor-fullscreen-active .structure-alert,
+.editor-fullscreen-active .tag-match-info,
+.editor-fullscreen-active .tips-row {
+  display: none;
+}
+
+.editor-fullscreen-active .editor-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+}
+
+.editor-fullscreen-active .line-numbers,
+.editor-fullscreen-active .editor-stack,
+.editor-fullscreen-active #codeEditor,
+.editor-fullscreen-active .code-match-layer {
+  min-height: 0;
+  height: 100%;
+}
+
+.editor-fullscreen-active .line-numbers {
+  overflow: hidden;
+}
+
+.editor-fullscreen-active .code-match-layer {
+  overflow: hidden;
+}
+
+.editor-fullscreen-active #codeEditor {
+  resize: none;
+  overflow: auto;
+}
+
+.editor-fullscreen-active .language-tabs {
+  top: 0;
+}
+
+.editor-fullscreen-active .editor-sticky-actions {
+  top: 0;
+  box-shadow: none;
+  padding-block: 10px;
+}
+
+.editor-fullscreen-active .suggestion-box {
+  bottom: 76px;
+}
+
+@media (max-width: 700px) {
+  .suggestion-box {
+    right: 10px;
+    bottom: 10px;
+    width: calc(100% - 20px);
+  }
+
+  .editor-fullscreen-active .editor-panel,
+  #editorPanel:fullscreen {
+    inset: 0;
+    border-radius: 0;
+  }
+
+  .editor-fullscreen-active .tag-match-info,
+  .editor-fullscreen-active .structure-alert,
+  .editor-fullscreen-active .editor-info {
+    display: none;
+  }
+}
+
+
+/* Version 8: cleaner editor surface and no native resize limiter */
+#codeEditor::-webkit-resizer {
+  display: none;
+}
+
+.editor-wrap,
+.editor-stack,
+#codeEditor {
+  max-width: 100%;
+}
+
+.editor-fullscreen-active .editor-wrap {
+  height: 100%;
+  min-height: 0 !important;
+}
+
+.editor-fullscreen-active .editor-stack {
+  min-height: 0 !important;
+}
+
+.editor-fullscreen-active .suggestion-box {
+  right: 20px;
+  bottom: 20px;
+}
+
+
+/* Version 9: true full-screen editor and stronger undo/redo support */
+.editor-fullscreen-active .editor-panel {
+  border: 0;
+}
+
+.editor-fullscreen-active .editor-wrap,
+#editorPanel:fullscreen .editor-wrap {
+  flex: 1 1 auto;
+  height: auto !important;
+  min-height: 0 !important;
+}
+
+.editor-fullscreen-active .editor-stack,
+.editor-fullscreen-active #codeEditor,
+.editor-fullscreen-active .line-numbers,
+.editor-fullscreen-active .code-match-layer,
+#editorPanel:fullscreen .editor-stack,
+#editorPanel:fullscreen #codeEditor,
+#editorPanel:fullscreen .line-numbers,
+#editorPanel:fullscreen .code-match-layer {
+  height: 100% !important;
+  min-height: 0 !important;
+}
+
+.editor-fullscreen-active #codeEditor,
+#editorPanel:fullscreen #codeEditor {
+  overflow: auto;
+}
+
+.save-zip-btn {
+  font-weight: 800;
+  border-color: rgba(14, 165, 233, 0.35) !important;
+}
+
+.editor-sticky-buttons .save-zip-btn {
+  background: linear-gradient(135deg, rgba(14, 165, 233, 0.12), rgba(34, 197, 94, 0.12));
+}
+
+
+/* Version 9: editor-first layout; less reading before coding */
+.app-shell {
+  width: min(1560px, calc(100% - 20px));
+  padding: 12px 0 24px;
+}
+
+.topbar {
+  padding: 12px 16px;
+  gap: 14px;
+  margin-bottom: 12px;
+}
+
+.logo-mark {
+  flex-basis: 44px;
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  font-size: 0.95rem;
+}
+
+.eyebrow,
+.section-kicker {
+  margin-bottom: 3px;
+}
+
+h1 {
+  margin-bottom: 2px;
+  font-size: clamp(1.25rem, 2vw, 1.8rem);
+}
+
+.subtitle {
+  font-size: 0.88rem;
+}
+
+.top-actions {
+  gap: 8px;
+}
+
+.top-actions .ghost-btn {
+  min-height: 38px;
+  padding-inline: 13px;
+}
+
+.workspace {
+  margin-top: 0;
+}
+
+.panel-header {
+  padding: 12px 16px;
+}
+
+.panel-header h2 {
+  margin-bottom: 0;
+}
+
+.editor-heading {
+  gap: 10px;
+}
+
+.editor-info {
+  display: none;
+}
+
+.structure-alert:empty,
+.tag-match-info {
+  display: none;
+}
+
+.tag-match-info.good,
+.tag-match-info.error {
+  display: block;
+  margin: 10px 16px 0;
+}
+
+.editor-sticky-actions {
+  padding: 10px 14px;
+}
+
+.editor-sticky-actions span {
+  font-size: 0.82rem;
+}
+
+.language-tabs {
+  padding: 10px 14px 0;
+}
+
+.editor-wrap,
+.line-numbers,
+.editor-stack,
+#codeEditor,
+.code-match-layer {
+  min-height: max(620px, 76vh);
+}
+
+.quick-after-editor {
+  margin-top: 12px;
+}
+
+.compact-section-title {
+  border: 1px dashed var(--line-strong);
+  border-radius: 16px;
+  padding: 11px 14px;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--solid-card) 84%, var(--primary-soft));
+  font-size: 0.92rem;
+}
+
+.activity-card {
+  margin-top: 12px;
+}
+
+.activity-launch-btn.needs-attention,
+.ghost-btn.needs-attention {
+  color: var(--danger);
+  border-color: var(--danger);
+  background: var(--danger-soft);
+  box-shadow: 0 14px 30px rgba(220, 38, 38, 0.16);
+}
+
+.compact-help {
+  margin-top: 12px;
+  padding: 0;
+}
+
+.compact-help > summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 14px 18px;
+  color: var(--primary-dark);
+  font-weight: 1000;
+}
+
+.compact-help > summary::-webkit-details-marker {
+  display: none;
+}
+
+.compact-help > summary::after {
+  content: ' +';
+}
+
+.compact-help[open] > summary::after {
+  content: ' −';
+}
+
+.compact-help .help-header,
+.compact-help .help-grid {
+  padding-inline: 18px;
+}
+
+.compact-help .help-grid {
+  padding-bottom: 18px;
+}
+
+.step-card.needs-attention .step-number {
+  background: linear-gradient(135deg, var(--danger), #f97316);
+}
+
+@media (max-width: 980px) {
+  .topbar {
+    align-items: flex-start;
+  }
+  .brand-block {
+    align-items: flex-start;
+  }
+  .workspace {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .app-shell {
+    width: min(100% - 12px, 1560px);
+    padding-top: 8px;
+  }
+  .topbar {
+    padding: 10px;
+  }
+  .subtitle {
+    display: none;
+  }
+  .top-actions .ghost-btn {
+    flex: 1 1 130px;
+  }
+}
+

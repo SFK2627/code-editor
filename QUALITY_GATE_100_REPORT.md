@@ -1,6 +1,6 @@
 # Quality Gate 100 Report
 
-Release label: `20260711-quality-gate-v100`
+Release label: `20260711-overall-100-readiness`
 
 This build is the maximum hardening pass for the current single-page app architecture. It is not a mathematical guarantee of perfect behavior on every device/network, but it is packaged with the strongest checks and protections currently practical without rewriting the app into modules.
 
@@ -18,7 +18,7 @@ This build is the maximum hardening pass for the current single-page app archite
 - Added app release metadata in `index.html`.
 - Added `package.json` scripts for repeatable QA.
 - Added this report plus a real classroom acceptance checklist.
-- Updated release labels to `20260711-quality-gate-v100`.
+- Updated release labels to `20260711-overall-100-readiness`.
 
 ## Automated quality checks
 

@@ -1,0 +1,710 @@
+/* FINAL PATCH: Fullscreen Run + Result beside Exit Full */
+.fullscreen-editor-actions {
+  display: none !important;
+}
+
+body.editor-fullscreen-active .fullscreen-editor-actions,
+#editorPanel:fullscreen .fullscreen-editor-actions {
+  position: fixed !important;
+  top: 7px !important;
+  right: 12px !important;
+  z-index: 10050 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 8px !important;
+  width: auto !important;
+  max-width: calc(100vw - 24px) !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  pointer-events: auto !important;
+}
+
+body.editor-fullscreen-active .fullscreen-editor-actions.hidden,
+#editorPanel:fullscreen .fullscreen-editor-actions.hidden {
+  display: none !important;
+}
+
+body.editor-fullscreen-active .fullscreen-editor-actions .fullscreen-run-btn,
+body.editor-fullscreen-active .fullscreen-editor-actions .fullscreen-auto-run-btn,
+body.editor-fullscreen-active .fullscreen-editor-actions .fullscreen-result-btn,
+body.editor-fullscreen-active .fullscreen-editor-actions .fullscreen-exit-btn,
+#editorPanel:fullscreen .fullscreen-editor-actions .fullscreen-run-btn,
+#editorPanel:fullscreen .fullscreen-editor-actions .fullscreen-auto-run-btn,
+#editorPanel:fullscreen .fullscreen-editor-actions .fullscreen-result-btn,
+#editorPanel:fullscreen .fullscreen-editor-actions .fullscreen-exit-btn {
+  position: static !important;
+  inset: auto !important;
+  transform: none !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex: 0 0 auto !important;
+  width: auto !important;
+  min-width: 74px !important;
+  height: 34px !important;
+  min-height: 34px !important;
+  max-height: 34px !important;
+  padding: 0 13px !important;
+  border-radius: 999px !important;
+  font-size: 0.84rem !important;
+  font-weight: 1000 !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.18) !important;
+}
+
+body.editor-fullscreen-active .fullscreen-editor-actions .fullscreen-exit-btn,
+#editorPanel:fullscreen .fullscreen-editor-actions .fullscreen-exit-btn {
+  min-width: 96px !important;
+  border: 0 !important;
+  color: #fff !important;
+  background: linear-gradient(135deg, #dc2626, #fb7185) !important;
+  box-shadow: 0 14px 30px rgba(220, 38, 38, 0.26) !important;
+}
+
+body.editor-fullscreen-active .editor-panel .language-tabs,
+#editorPanel:fullscreen .language-tabs {
+  padding-right: 330px !important;
+}
+
+body.editor-fullscreen-active .code-helper-float-btn,
+#editorPanel:fullscreen .code-helper-float-btn {
+  z-index: 9300 !important;
+}
+
+@media (max-width: 900px) {
+  body.editor-fullscreen-active .fullscreen-editor-actions,
+  #editorPanel:fullscreen .fullscreen-editor-actions {
+    top: auto !important;
+    right: 10px !important;
+    bottom: calc(58px + env(safe-area-inset-bottom)) !important;
+    gap: 6px !important;
+  }
+
+  body.editor-fullscreen-active .editor-panel .language-tabs,
+  #editorPanel:fullscreen .language-tabs {
+    padding-right: 8px !important;
+  }
+
+  body.editor-fullscreen-active .fullscreen-editor-actions .fullscreen-run-btn,
+  body.editor-fullscreen-active .fullscreen-editor-actions .fullscreen-result-btn,
+  body.editor-fullscreen-active .fullscreen-editor-actions .fullscreen-exit-btn,
+  #editorPanel:fullscreen .fullscreen-editor-actions .fullscreen-run-btn,
+  #editorPanel:fullscreen .fullscreen-editor-actions .fullscreen-result-btn,
+  #editorPanel:fullscreen .fullscreen-editor-actions .fullscreen-exit-btn {
+    height: 38px !important;
+    min-height: 38px !important;
+    min-width: 68px !important;
+    padding: 0 10px !important;
+    font-size: 0.78rem !important;
+  }
+
+  body.editor-fullscreen-active .fullscreen-editor-actions .fullscreen-exit-btn,
+  #editorPanel:fullscreen .fullscreen-editor-actions .fullscreen-exit-btn {
+    min-width: 82px !important;
+  }
+
+  body.editor-fullscreen-active .code-helper-float-btn,
+  #editorPanel:fullscreen .code-helper-float-btn {
+    bottom: calc(12px + env(safe-area-inset-bottom)) !important;
+  }
+}
+
+@media (max-width: 430px) {
+  body.editor-fullscreen-active .fullscreen-editor-actions,
+  #editorPanel:fullscreen .fullscreen-editor-actions {
+    left: 8px !important;
+    right: 8px !important;
+    justify-content: center !important;
+  }
+
+  body.editor-fullscreen-active .fullscreen-editor-actions .fullscreen-run-btn,
+  body.editor-fullscreen-active .fullscreen-editor-actions .fullscreen-result-btn,
+  body.editor-fullscreen-active .fullscreen-editor-actions .fullscreen-exit-btn,
+  #editorPanel:fullscreen .fullscreen-editor-actions .fullscreen-run-btn,
+  #editorPanel:fullscreen .fullscreen-editor-actions .fullscreen-result-btn,
+  #editorPanel:fullscreen .fullscreen-editor-actions .fullscreen-exit-btn {
+    flex: 1 1 0 !important;
+    min-width: 0 !important;
+    padding: 0 6px !important;
+  }
+}
+
+/* FINAL FIX: clean Full Editor toolbar with visible Run, Result, Exit Full */
+body.editor-fullscreen-active #editorPanel,
+#editorPanel:fullscreen {
+  overflow: hidden !important;
+}
+
+body.editor-fullscreen-active #editorPanel .language-tabs,
+#editorPanel:fullscreen .language-tabs {
+  position: relative !important;
+  top: 0 !important;
+  z-index: 120 !important;
+  display: flex !important;
+  align-items: end !important;
+  justify-content: flex-start !important;
+  flex-wrap: nowrap !important;
+  gap: 5px !important;
+  height: 48px !important;
+  min-height: 48px !important;
+  max-height: 48px !important;
+  padding: 5px 360px 0 0 !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  background: color-mix(in srgb, var(--solid-card) 96%, var(--primary-soft)) !important;
+  border-bottom: 1px solid var(--line) !important;
+  box-shadow: 0 1px 0 rgba(148, 163, 184, 0.28) !important;
+  scrollbar-width: none !important;
+}
+
+body.editor-fullscreen-active #editorPanel .language-tabs::-webkit-scrollbar,
+#editorPanel:fullscreen .language-tabs::-webkit-scrollbar {
+  display: none !important;
+}
+
+body.editor-fullscreen-active #editorPanel .tab-btn,
+body.editor-fullscreen-active #editorPanel .rename-files-btn,
+#editorPanel:fullscreen .tab-btn,
+#editorPanel:fullscreen .rename-files-btn {
+  flex: 0 0 auto !important;
+  width: auto !important;
+  min-width: 130px !important;
+  max-width: none !important;
+  height: 43px !important;
+  min-height: 43px !important;
+  max-height: 43px !important;
+  padding: 0 22px !important;
+  border-radius: 14px 14px 0 0 !important;
+  font-size: 0.92rem !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+}
+
+body.editor-fullscreen-active #editorPanel .tab-btn::after,
+#editorPanel:fullscreen .tab-btn::after {
+  display: inline-block !important;
+}
+
+body.editor-fullscreen-active #fullscreenEditorActions,
+#editorPanel:fullscreen #fullscreenEditorActions,
+body.editor-fullscreen-active .fullscreen-editor-actions,
+#editorPanel:fullscreen .fullscreen-editor-actions {
+  position: fixed !important;
+  top: 7px !important;
+  right: 10px !important;
+  z-index: 30000 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 6px !important;
+  width: auto !important;
+  max-width: 355px !important;
+  height: 38px !important;
+  padding: 3px !important;
+  margin: 0 !important;
+  border: 1px solid rgba(147, 197, 253, 0.52) !important;
+  border-radius: 999px !important;
+  background: rgba(255, 255, 255, 0.86) !important;
+  backdrop-filter: blur(8px) !important;
+  box-shadow: 0 14px 32px rgba(15, 23, 42, 0.16) !important;
+  pointer-events: auto !important;
+  overflow: visible !important;
+}
+
+[data-theme="dark"] body.editor-fullscreen-active #fullscreenEditorActions,
+[data-theme="dark"] #editorPanel:fullscreen #fullscreenEditorActions,
+[data-theme="dark"] body.editor-fullscreen-active .fullscreen-editor-actions,
+[data-theme="dark"] #editorPanel:fullscreen .fullscreen-editor-actions {
+  background: rgba(15, 23, 42, 0.88) !important;
+  border-color: rgba(96, 165, 250, 0.42) !important;
+}
+
+body.editor-fullscreen-active #fullscreenEditorActions.hidden,
+#editorPanel:fullscreen #fullscreenEditorActions.hidden,
+body.editor-fullscreen-active .fullscreen-editor-actions.hidden,
+#editorPanel:fullscreen .fullscreen-editor-actions.hidden {
+  display: none !important;
+}
+
+body.editor-fullscreen-active #fullscreenRunBtn,
+body.editor-fullscreen-active #fullscreenResultBtn,
+body.editor-fullscreen-active #exitEditorStickyBtn,
+#editorPanel:fullscreen #fullscreenRunBtn,
+#editorPanel:fullscreen #fullscreenResultBtn,
+#editorPanel:fullscreen #exitEditorStickyBtn {
+  position: static !important;
+  inset: auto !important;
+  display: inline-flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex: 0 0 auto !important;
+  width: auto !important;
+  min-width: 76px !important;
+  height: 32px !important;
+  min-height: 32px !important;
+  max-height: 32px !important;
+  padding: 0 12px !important;
+  margin: 0 !important;
+  border-radius: 999px !important;
+  border: 0 !important;
+  font-size: 0.82rem !important;
+  font-weight: 1000 !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+body.editor-fullscreen-active #fullscreenResultBtn,
+#editorPanel:fullscreen #fullscreenResultBtn {
+  min-width: 86px !important;
+  color: #fff !important;
+  background: linear-gradient(135deg, #16a34a, #22c55e) !important;
+}
+
+body.editor-fullscreen-active #exitEditorStickyBtn,
+#editorPanel:fullscreen #exitEditorStickyBtn {
+  min-width: 88px !important;
+  color: #fff !important;
+  background: linear-gradient(135deg, #dc2626, #fb7185) !important;
+}
+
+body.editor-fullscreen-active #exitEditorBtn,
+#editorPanel:fullscreen #exitEditorBtn {
+  display: none !important;
+}
+
+body.editor-fullscreen-active #editorPanel .editor-wrap,
+#editorPanel:fullscreen .editor-wrap {
+  height: calc(100vh - 48px) !important;
+  height: calc(100dvh - 48px) !important;
+  min-height: 0 !important;
+  border-radius: 0 !important;
+}
+
+body.editor-fullscreen-active .code-helper-float-btn,
+#editorPanel:fullscreen .code-helper-float-btn {
+  position: fixed !important;
+  right: 16px !important;
+  bottom: calc(16px + env(safe-area-inset-bottom)) !important;
+  z-index: 29000 !important;
+  display: inline-flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+body.editor-fullscreen-active #editorPanel .error-checker-panel.code-helper-modal,
+#editorPanel:fullscreen .error-checker-panel.code-helper-modal {
+  z-index: 29500 !important;
+}
+
+body.editor-fullscreen-active #editorPanel .error-checker-panel.code-helper-modal .panel-header,
+body.editor-fullscreen-active #editorPanel .error-checker-panel.code-helper-modal .error-checker-header,
+#editorPanel:fullscreen .error-checker-panel.code-helper-modal .panel-header,
+#editorPanel:fullscreen .error-checker-panel.code-helper-modal .error-checker-header {
+  display: flex !important;
+}
+
+@media (max-width: 760px) {
+  body.editor-fullscreen-active #editorPanel .language-tabs,
+  #editorPanel:fullscreen .language-tabs {
+    height: 50px !important;
+    min-height: 50px !important;
+    max-height: 50px !important;
+    padding: 5px 8px 0 0 !important;
+  }
+
+  body.editor-fullscreen-active #editorPanel .tab-btn,
+  body.editor-fullscreen-active #editorPanel .rename-files-btn,
+  #editorPanel:fullscreen .tab-btn,
+  #editorPanel:fullscreen .rename-files-btn {
+    min-width: 94px !important;
+    height: 45px !important;
+    min-height: 45px !important;
+    max-height: 45px !important;
+    padding: 0 12px !important;
+    font-size: 0.8rem !important;
+  }
+
+  body.editor-fullscreen-active #fullscreenEditorActions,
+  #editorPanel:fullscreen #fullscreenEditorActions,
+  body.editor-fullscreen-active .fullscreen-editor-actions,
+  #editorPanel:fullscreen .fullscreen-editor-actions {
+    top: auto !important;
+    left: 10px !important;
+    right: 10px !important;
+    bottom: calc(62px + env(safe-area-inset-bottom)) !important;
+    justify-content: center !important;
+    max-width: none !important;
+    width: auto !important;
+    height: 44px !important;
+  }
+
+  body.editor-fullscreen-active #fullscreenRunBtn,
+  body.editor-fullscreen-active #fullscreenResultBtn,
+  body.editor-fullscreen-active #exitEditorStickyBtn,
+  #editorPanel:fullscreen #fullscreenRunBtn,
+  #editorPanel:fullscreen #fullscreenResultBtn,
+  #editorPanel:fullscreen #exitEditorStickyBtn {
+    flex: 1 1 0 !important;
+    min-width: 0 !important;
+    height: 36px !important;
+    min-height: 36px !important;
+    max-height: 36px !important;
+    padding: 0 8px !important;
+    font-size: 0.76rem !important;
+  }
+
+  body.editor-fullscreen-active .code-helper-float-btn,
+  #editorPanel:fullscreen .code-helper-float-btn {
+    right: 10px !important;
+    bottom: calc(12px + env(safe-area-inset-bottom)) !important;
+  }
+
+  body.editor-fullscreen-active #editorPanel .editor-wrap,
+  #editorPanel:fullscreen .editor-wrap {
+    height: calc(100dvh - 50px) !important;
+  }
+}
+
+/* FINAL FIX: keep Suggestions and Code Helper from covering each other */
+#suggestionBox {
+  z-index: 28000 !important;
+}
+
+/* Suggestions appear above the Code Helper button instead of under it. */
+body.suggestions-open #suggestionBox:not(.hidden) {
+  bottom: calc(92px + env(safe-area-inset-bottom)) !important;
+  right: 16px !important;
+  max-height: min(260px, calc(100dvh - 150px)) !important;
+}
+
+/* In Full Editor, keep Code Helper at the bottom and place Suggestions above it. */
+body.editor-fullscreen-active.suggestions-open #editorPanel #suggestionBox:not(.hidden),
+#editorPanel:fullscreen #suggestionBox:not(.hidden) {
+  position: absolute !important;
+  right: 16px !important;
+  bottom: calc(94px + env(safe-area-inset-bottom)) !important;
+  width: min(390px, calc(100vw - 32px)) !important;
+  max-height: min(270px, calc(100dvh - 160px)) !important;
+  z-index: 28000 !important;
+}
+
+body.editor-fullscreen-active .code-helper-float-btn,
+#editorPanel:fullscreen .code-helper-float-btn {
+  right: 16px !important;
+  bottom: calc(16px + env(safe-area-inset-bottom)) !important;
+  z-index: 29000 !important;
+}
+
+/* When Code Helper panel is open, hide suggestions so the panel is not cluttered. */
+body.code-helper-open #suggestionBox {
+  display: none !important;
+}
+
+@media (max-width: 760px) {
+  body.suggestions-open #suggestionBox:not(.hidden),
+  body.editor-fullscreen-active.suggestions-open #editorPanel #suggestionBox:not(.hidden),
+  #editorPanel:fullscreen #suggestionBox:not(.hidden) {
+    left: 10px !important;
+    right: 10px !important;
+    bottom: calc(118px + env(safe-area-inset-bottom)) !important;
+    width: auto !important;
+    max-height: min(230px, calc(100dvh - 180px)) !important;
+  }
+}
+
+/* Full Editor Run behavior: Output Preview takes over cleanly after Run. */
+body.preview-fullscreen-active .preview-panel {
+  z-index: 50000 !important;
+  inset: 8px !important;
+  border-radius: 18px !important;
+}
+
+body.preview-fullscreen-active .preview-panel .panel-header,
+body.preview-fullscreen-active .preview-panel .preview-header {
+  display: flex !important;
+  position: relative !important;
+  z-index: 50001 !important;
+  background: var(--solid-card) !important;
+}
+
+body.preview-fullscreen-active #exitPreviewBtn {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+body.preview-fullscreen-active #previewFrame {
+  width: 100% !important;
+  min-height: 0 !important;
+  height: 100% !important;
+}
+
+@media (max-width: 760px) {
+  body.preview-fullscreen-active .preview-panel {
+    inset: 4px !important;
+    border-radius: 14px !important;
+  }
+
+  body.preview-fullscreen-active .preview-panel .panel-header,
+  body.preview-fullscreen-active .preview-panel .preview-header {
+    padding: 10px !important;
+  }
+}
+
+
+/* Smooth fullscreen output preview after running from Full Editor */
+body.preview-fullscreen-active.preview-has-back-editor #backToEditorPreviewBtn {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+}
+
+.back-editor-preview-btn {
+  color: #0f3b1d !important;
+  border-color: #86efac !important;
+  background: #dcfce7 !important;
+  box-shadow: 0 10px 24px rgba(22, 163, 74, 0.16);
+}
+
+body.preview-fullscreen-active .preview-panel {
+  animation: previewFadeIn 0.24s ease both;
+}
+
+body.fullscreen-run-transition::before {
+  content: "Opening Output Preview...";
+  position: fixed;
+  inset: 0;
+  z-index: 99998;
+  display: grid;
+  place-items: center;
+  color: #0f3b64;
+  background: rgba(248, 251, 255, 0.78);
+  backdrop-filter: blur(4px);
+  font-weight: 1000;
+  letter-spacing: 0.02em;
+  pointer-events: none;
+}
+
+[data-theme="dark"] body.fullscreen-run-transition::before {
+  color: #e5edf7;
+  background: rgba(2, 6, 23, 0.78);
+}
+
+@keyframes previewFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@media (max-width: 760px) {
+  body.preview-fullscreen-active .preview-actions {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr;
+    width: 100%;
+  }
+
+  body.preview-fullscreen-active #backToEditorPreviewBtn,
+  body.preview-fullscreen-active #exitPreviewBtn {
+    min-height: 42px;
+  }
+}
+
+
+/* Book / slide page transition between Full Editor and Full Output Preview */
+body.fullscreen-run-transition::before {
+  content: none !important;
+}
+
+body.book-page-transitioning {
+  overflow: hidden !important;
+}
+
+body.book-page-transitioning::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 120000;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, rgba(37, 99, 235, 0.18), rgba(255, 255, 255, 0.96) 36%, rgba(219, 234, 254, 0.98) 66%, rgba(14, 165, 233, 0.2)),
+    radial-gradient(circle at 18% 50%, rgba(37, 99, 235, 0.18), transparent 34rem),
+    var(--solid-card);
+  box-shadow:
+    -32px 0 80px rgba(15, 23, 42, 0.22),
+    32px 0 80px rgba(37, 99, 235, 0.2),
+    inset 18px 0 34px rgba(255, 255, 255, 0.7),
+    inset -16px 0 34px rgba(37, 99, 235, 0.15);
+  transform-style: preserve-3d;
+  backface-visibility: hidden;
+}
+
+body.book-page-transitioning::after {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  z-index: 120001;
+  transform: translate(-50%, -50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: min(360px, calc(100vw - 48px));
+  border: 1px solid rgba(147, 197, 253, 0.9);
+  border-radius: 999px;
+  padding: 16px 24px;
+  color: #0f2f5f;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 24px 70px rgba(37, 99, 235, 0.22);
+  font-weight: 1000;
+  letter-spacing: 0.02em;
+  pointer-events: none;
+}
+
+body.book-to-preview::after {
+  content: "Opening Output Preview";
+  animation: bookCaptionForward 0.78s ease both;
+}
+
+body.book-to-editor::after {
+  content: "Back to Editor";
+  animation: bookCaptionBack 0.78s ease both;
+}
+
+body.book-to-preview::before {
+  transform-origin: left center;
+  animation: bookPageForward 0.78s cubic-bezier(0.2, 0.76, 0.22, 1) both;
+}
+
+body.book-to-editor::before {
+  transform-origin: right center;
+  animation: bookPageBack 0.78s cubic-bezier(0.2, 0.76, 0.22, 1) both;
+}
+
+body.book-to-preview .editor-panel,
+body.book-to-editor .preview-panel {
+  animation: pageSlideAway 0.45s ease both;
+}
+
+body.preview-fullscreen-active.preview-has-back-editor .preview-panel {
+  animation: outputBookArrive 0.5s cubic-bezier(0.2, 0.76, 0.22, 1) both !important;
+}
+
+body.editor-fullscreen-active .editor-panel {
+  animation: editorBookArrive 0.42s cubic-bezier(0.2, 0.76, 0.22, 1) both;
+}
+
+@keyframes bookPageForward {
+  0% {
+    opacity: 0;
+    transform: translateX(100%) skewX(-4deg) scaleX(0.94);
+  }
+  16% {
+    opacity: 1;
+  }
+  48% {
+    opacity: 1;
+    transform: translateX(0) skewX(-1deg) scaleX(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-105%) skewX(5deg) scaleX(0.92);
+  }
+}
+
+@keyframes bookPageBack {
+  0% {
+    opacity: 0;
+    transform: translateX(-100%) skewX(4deg) scaleX(0.94);
+  }
+  16% {
+    opacity: 1;
+  }
+  48% {
+    opacity: 1;
+    transform: translateX(0) skewX(1deg) scaleX(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(105%) skewX(-5deg) scaleX(0.92);
+  }
+}
+
+@keyframes bookCaptionForward {
+  0%, 100% { opacity: 0; transform: translate(-50%, -50%) scale(0.96); }
+  28%, 70% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+@keyframes bookCaptionBack {
+  0%, 100% { opacity: 0; transform: translate(-50%, -50%) scale(0.96); }
+  28%, 70% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+@keyframes pageSlideAway {
+  from { filter: blur(0); transform: scale(1); opacity: 1; }
+  to { filter: blur(1px); transform: scale(0.992); opacity: 0.88; }
+}
+
+@keyframes outputBookArrive {
+  from { opacity: 0; transform: translateX(36px) scale(0.985); }
+  to { opacity: 1; transform: translateX(0) scale(1); }
+}
+
+@keyframes editorBookArrive {
+  from { opacity: 0.04; transform: translateX(-28px) scale(0.99); }
+  to { opacity: 1; transform: translateX(0) scale(1); }
+}
+
+[data-theme="dark"] body.book-page-transitioning::before {
+  background:
+    linear-gradient(90deg, rgba(96, 165, 250, 0.2), rgba(15, 23, 42, 0.96) 36%, rgba(30, 41, 59, 0.98) 66%, rgba(14, 165, 233, 0.18)),
+    radial-gradient(circle at 18% 50%, rgba(96, 165, 250, 0.18), transparent 34rem),
+    #0f172a;
+  box-shadow:
+    -32px 0 80px rgba(0, 0, 0, 0.42),
+    32px 0 80px rgba(96, 165, 250, 0.18),
+    inset 18px 0 34px rgba(255, 255, 255, 0.06),
+    inset -16px 0 34px rgba(96, 165, 250, 0.12);
+}
+
+[data-theme="dark"] body.book-page-transitioning::after {
+  color: #e5edf7;
+  border-color: rgba(96, 165, 250, 0.55);
+  background: rgba(15, 23, 42, 0.92);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body.book-page-transitioning::before,
+  body.book-page-transitioning::after,
+  body.book-to-preview .editor-panel,
+  body.book-to-editor .preview-panel,
+  body.preview-fullscreen-active.preview-has-back-editor .preview-panel,
+  body.editor-fullscreen-active .editor-panel {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+
+@media (max-width: 760px) {
+  body.book-page-transitioning::after {
+    min-width: min(300px, calc(100vw - 32px));
+    padding: 13px 18px;
+    font-size: 0.9rem;
+  }
+
+  body.book-to-preview::before,
+  body.book-to-editor::before {
+    animation-duration: 0.62s;
+  }
+}
+
+

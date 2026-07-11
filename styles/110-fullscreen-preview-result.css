@@ -1,0 +1,839 @@
+/* True browser fullscreen Output Preview: same feel as Full Editor */
+#previewPanel:fullscreen,
+#previewPanel:-webkit-full-screen {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  height: 100dvh !important;
+  max-width: none !important;
+  max-height: none !important;
+  display: flex !important;
+  flex-direction: column !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--solid-card) !important;
+  box-shadow: none !important;
+  overflow: hidden !important;
+}
+
+#previewPanel:fullscreen .panel-header,
+#previewPanel:fullscreen .preview-header,
+#previewPanel:-webkit-full-screen .panel-header,
+#previewPanel:-webkit-full-screen .preview-header {
+  flex: 0 0 auto !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 12px !important;
+  min-height: 58px !important;
+  padding: 10px 14px !important;
+  border-bottom: 1px solid var(--line) !important;
+  border-radius: 0 !important;
+  background: color-mix(in srgb, var(--solid-card) 94%, var(--primary-soft)) !important;
+  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.08) !important;
+}
+
+#previewPanel:fullscreen .preview-header h2,
+#previewPanel:-webkit-full-screen .preview-header h2 {
+  margin: 0 !important;
+  font-size: 1rem !important;
+}
+
+#previewPanel:fullscreen .preview-header p,
+#previewPanel:-webkit-full-screen .preview-header p {
+  display: none !important;
+}
+
+#previewPanel:fullscreen .preview-actions,
+#previewPanel:-webkit-full-screen .preview-actions {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  justify-content: flex-end !important;
+  align-items: center !important;
+  gap: 8px !important;
+}
+
+#previewPanel:fullscreen #previewFrame,
+#previewPanel:-webkit-full-screen #previewFrame {
+  flex: 1 1 auto !important;
+  width: 100% !important;
+  height: auto !important;
+  min-height: 0 !important;
+  border: 0 !important;
+  background: #ffffff !important;
+}
+
+#previewPanel:fullscreen #backToEditorPreviewBtn,
+#previewPanel:fullscreen #exitPreviewBtn,
+#previewPanel:-webkit-full-screen #backToEditorPreviewBtn,
+#previewPanel:-webkit-full-screen #exitPreviewBtn {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-height: 40px !important;
+  padding: 0 14px !important;
+  white-space: nowrap !important;
+}
+
+#previewPanel:fullscreen #fullPreviewBtn,
+#previewPanel:-webkit-full-screen #fullPreviewBtn {
+  display: none !important;
+}
+
+body.preview-fullscreen-active .preview-panel {
+  /* CSS fallback when browser native fullscreen is blocked */
+  width: auto;
+  height: auto;
+}
+
+@media (max-width: 760px) {
+  #previewPanel:fullscreen .panel-header,
+  #previewPanel:fullscreen .preview-header,
+  #previewPanel:-webkit-full-screen .panel-header,
+  #previewPanel:-webkit-full-screen .preview-header {
+    align-items: stretch !important;
+    flex-direction: column !important;
+    min-height: 0 !important;
+    padding: 9px !important;
+  }
+
+  #previewPanel:fullscreen .preview-actions,
+  #previewPanel:-webkit-full-screen .preview-actions {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    width: 100% !important;
+  }
+}
+
+/* Smooth no-blink book transition: keep one fullscreen container and swap pages inside it. */
+body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel {
+  perspective: 1400px !important;
+  transform-style: preserve-3d !important;
+  overflow: hidden !important;
+}
+
+body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel {
+  position: absolute !important;
+  inset: 0 !important;
+  z-index: 7600 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  max-height: none !important;
+  margin: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--solid-card) !important;
+  box-shadow: none !important;
+  overflow: hidden !important;
+  transform-origin: left center !important;
+  backface-visibility: hidden !important;
+  animation: previewBookPageIn 720ms cubic-bezier(0.18, 0.86, 0.25, 1) both !important;
+}
+
+body.editor-fullscreen-active.preview-inside-editor-fullscreen.preview-closing-to-editor #editorPanel .preview-panel {
+  transform-origin: right center !important;
+  animation: previewBookPageOut 720ms cubic-bezier(0.18, 0.86, 0.25, 1) both !important;
+}
+
+body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel .panel-header,
+body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel .preview-header {
+  flex: 0 0 auto !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 12px !important;
+  min-height: 58px !important;
+  padding: 10px 14px !important;
+  border-bottom: 1px solid var(--line) !important;
+  border-radius: 0 !important;
+  background: color-mix(in srgb, var(--solid-card) 94%, var(--primary-soft)) !important;
+  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.08) !important;
+}
+
+body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel .preview-header h2 {
+  margin: 0 !important;
+  font-size: 1rem !important;
+}
+
+body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel .preview-header p {
+  display: none !important;
+}
+
+body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel .preview-actions {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  justify-content: flex-end !important;
+  align-items: center !important;
+  gap: 8px !important;
+}
+
+body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel #previewFrame {
+  flex: 1 1 auto !important;
+  display: block !important;
+  width: 100% !important;
+  height: auto !important;
+  min-height: 0 !important;
+  border: 0 !important;
+  background: #ffffff !important;
+}
+
+body.editor-fullscreen-active.preview-inside-editor-fullscreen #backToEditorPreviewBtn,
+body.editor-fullscreen-active.preview-inside-editor-fullscreen #exitPreviewBtn {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-height: 40px !important;
+  padding: 0 14px !important;
+  white-space: nowrap !important;
+}
+
+body.editor-fullscreen-active.preview-inside-editor-fullscreen #fullPreviewBtn {
+  display: none !important;
+}
+
+body.editor-fullscreen-active.preview-inside-editor-fullscreen #codeHelperFloatingBtn,
+body.editor-fullscreen-active.preview-inside-editor-fullscreen #fullscreenEditorActions,
+body.editor-fullscreen-active.preview-inside-editor-fullscreen .language-tabs,
+body.editor-fullscreen-active.preview-inside-editor-fullscreen .editor-wrap {
+  pointer-events: none !important;
+}
+
+body.editor-fullscreen-active.book-page-transitioning #editorPanel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 8800;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, rgba(37, 99, 235, 0.18), rgba(255, 255, 255, 0.97) 35%, rgba(219, 234, 254, 0.98) 67%, rgba(14, 165, 233, 0.2)),
+    radial-gradient(circle at 18% 50%, rgba(37, 99, 235, 0.2), transparent 34rem),
+    var(--solid-card);
+  box-shadow:
+    -32px 0 80px rgba(15, 23, 42, 0.22),
+    32px 0 80px rgba(37, 99, 235, 0.2),
+    inset 18px 0 34px rgba(255, 255, 255, 0.7),
+    inset -16px 0 34px rgba(37, 99, 235, 0.15);
+  transform-style: preserve-3d;
+  backface-visibility: hidden;
+}
+
+body.editor-fullscreen-active.book-page-transitioning #editorPanel::after {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 8801;
+  transform: translate(-50%, -50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: min(360px, calc(100vw - 48px));
+  border: 1px solid rgba(147, 197, 253, 0.9);
+  border-radius: 999px;
+  padding: 16px 24px;
+  color: #0f2f5f;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 24px 70px rgba(37, 99, 235, 0.22);
+  font-weight: 1000;
+  letter-spacing: 0.02em;
+  pointer-events: none;
+}
+
+body.editor-fullscreen-active.book-to-preview #editorPanel::after {
+  content: "Opening Output Preview";
+  animation: bookCaptionForward 720ms ease both;
+}
+
+body.editor-fullscreen-active.book-to-editor #editorPanel::after {
+  content: "Back to Editor";
+  animation: bookCaptionBack 720ms ease both;
+}
+
+body.editor-fullscreen-active.book-to-preview #editorPanel::before {
+  transform-origin: left center;
+  animation: editorBookPageForward 720ms cubic-bezier(0.18, 0.86, 0.25, 1) both;
+}
+
+body.editor-fullscreen-active.book-to-editor #editorPanel::before {
+  transform-origin: right center;
+  animation: editorBookPageBack 720ms cubic-bezier(0.18, 0.86, 0.25, 1) both;
+}
+
+@keyframes previewBookPageIn {
+  0% {
+    opacity: 0;
+    transform: translateX(70px) rotateY(-16deg) scale(0.985);
+    filter: blur(2px);
+  }
+  42% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0) rotateY(0deg) scale(1);
+    filter: blur(0);
+  }
+}
+
+@keyframes previewBookPageOut {
+  0% {
+    opacity: 1;
+    transform: translateX(0) rotateY(0deg) scale(1);
+    filter: blur(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(78px) rotateY(14deg) scale(0.985);
+    filter: blur(2px);
+  }
+}
+
+@keyframes editorBookPageForward {
+  0% {
+    opacity: 0;
+    transform: translateX(100%) skewX(-4deg) scaleX(0.94);
+  }
+  16% { opacity: 1; }
+  48% {
+    opacity: 1;
+    transform: translateX(0) skewX(-1deg) scaleX(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-105%) skewX(5deg) scaleX(0.92);
+  }
+}
+
+@keyframes editorBookPageBack {
+  0% {
+    opacity: 0;
+    transform: translateX(-100%) skewX(4deg) scaleX(0.94);
+  }
+  16% { opacity: 1; }
+  48% {
+    opacity: 1;
+    transform: translateX(0) skewX(1deg) scaleX(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(105%) skewX(-5deg) scaleX(0.92);
+  }
+}
+
+[data-theme="dark"] body.editor-fullscreen-active.book-page-transitioning #editorPanel::before {
+  background:
+    linear-gradient(90deg, rgba(96, 165, 250, 0.2), rgba(15, 23, 42, 0.96) 36%, rgba(30, 41, 59, 0.98) 66%, rgba(14, 165, 233, 0.18)),
+    radial-gradient(circle at 18% 50%, rgba(96, 165, 250, 0.18), transparent 34rem),
+    #0f172a;
+  box-shadow:
+    -32px 0 80px rgba(0, 0, 0, 0.42),
+    32px 0 80px rgba(96, 165, 250, 0.18),
+    inset 18px 0 34px rgba(255, 255, 255, 0.06),
+    inset -16px 0 34px rgba(96, 165, 250, 0.12);
+}
+
+[data-theme="dark"] body.editor-fullscreen-active.book-page-transitioning #editorPanel::after {
+  color: #e5edf7;
+  border-color: rgba(96, 165, 250, 0.55);
+  background: rgba(15, 23, 42, 0.92);
+}
+
+@media (max-width: 760px) {
+  body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel .panel-header,
+  body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel .preview-header {
+    align-items: stretch !important;
+    flex-direction: column !important;
+    min-height: 0 !important;
+    padding: 9px !important;
+  }
+
+  body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel .preview-actions {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    width: 100% !important;
+  }
+
+  body.editor-fullscreen-active.book-page-transitioning #editorPanel::after {
+    min-width: min(300px, calc(100vw - 32px));
+    padding: 13px 18px;
+    font-size: 0.9rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel,
+  body.editor-fullscreen-active.book-page-transitioning #editorPanel::before,
+  body.editor-fullscreen-active.book-page-transitioning #editorPanel::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+
+
+/* Clean fullscreen preview UI: output should look like true output, not another editor panel. */
+body.preview-fullscreen-active .preview-panel .panel-header,
+body.preview-fullscreen-active .preview-panel .preview-header,
+#previewPanel:fullscreen .panel-header,
+#previewPanel:fullscreen .preview-header,
+#previewPanel:-webkit-full-screen .panel-header,
+#previewPanel:-webkit-full-screen .preview-header,
+body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel .panel-header,
+body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel .preview-header {
+  position: absolute !important;
+  top: 12px !important;
+  right: 12px !important;
+  left: auto !important;
+  z-index: 90020 !important;
+  display: flex !important;
+  justify-content: flex-end !important;
+  align-items: center !important;
+  width: auto !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 999px !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  pointer-events: none !important;
+}
+
+body.preview-fullscreen-active .preview-panel .preview-header > div:first-child,
+#previewPanel:fullscreen .preview-header > div:first-child,
+#previewPanel:-webkit-full-screen .preview-header > div:first-child,
+body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel .preview-header > div:first-child {
+  display: none !important;
+}
+
+body.preview-fullscreen-active .preview-actions,
+#previewPanel:fullscreen .preview-actions,
+#previewPanel:-webkit-full-screen .preview-actions,
+body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel .preview-actions {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 8px !important;
+  width: auto !important;
+  padding: 8px !important;
+  border: 1px solid rgba(191, 219, 254, 0.92) !important;
+  border-radius: 999px !important;
+  background: rgba(255, 255, 255, 0.9) !important;
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.16) !important;
+  backdrop-filter: blur(12px) !important;
+  pointer-events: auto !important;
+}
+
+[data-theme="dark"] body.preview-fullscreen-active .preview-actions,
+[data-theme="dark"] #previewPanel:fullscreen .preview-actions,
+[data-theme="dark"] #previewPanel:-webkit-full-screen .preview-actions,
+[data-theme="dark"] body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel .preview-actions {
+  border-color: rgba(51, 65, 85, 0.92) !important;
+  background: rgba(15, 23, 42, 0.9) !important;
+}
+
+body.preview-fullscreen-active .preview-actions .layout-btn[data-layout],
+body.preview-fullscreen-active .preview-actions #fullPreviewBtn,
+#previewPanel:fullscreen .preview-actions .layout-btn[data-layout],
+#previewPanel:fullscreen .preview-actions #fullPreviewBtn,
+#previewPanel:-webkit-full-screen .preview-actions .layout-btn[data-layout],
+#previewPanel:-webkit-full-screen .preview-actions #fullPreviewBtn,
+body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel .preview-actions .layout-btn[data-layout],
+body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel .preview-actions #fullPreviewBtn {
+  display: none !important;
+}
+
+body.preview-fullscreen-active #backToEditorPreviewBtn,
+body.preview-fullscreen-active #exitPreviewBtn,
+#previewPanel:fullscreen #backToEditorPreviewBtn,
+#previewPanel:fullscreen #exitPreviewBtn,
+#previewPanel:-webkit-full-screen #backToEditorPreviewBtn,
+#previewPanel:-webkit-full-screen #exitPreviewBtn,
+body.editor-fullscreen-active.preview-inside-editor-fullscreen #backToEditorPreviewBtn,
+body.editor-fullscreen-active.preview-inside-editor-fullscreen #exitPreviewBtn {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-height: 38px !important;
+  padding: 0 14px !important;
+  border-radius: 999px !important;
+  white-space: nowrap !important;
+}
+
+body.preview-fullscreen-active .preview-panel,
+#previewPanel:fullscreen,
+#previewPanel:-webkit-full-screen,
+body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel {
+  padding: 0 !important;
+  background: #ffffff !important;
+}
+
+body.preview-fullscreen-active #previewFrame,
+#previewPanel:fullscreen #previewFrame,
+#previewPanel:-webkit-full-screen #previewFrame,
+body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel #previewFrame {
+  flex: 1 1 auto !important;
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 100% !important;
+  border: 0 !important;
+  background: #ffffff !important;
+}
+
+@media (max-width: 760px) {
+  body.preview-fullscreen-active .preview-panel .panel-header,
+  body.preview-fullscreen-active .preview-panel .preview-header,
+  #previewPanel:fullscreen .panel-header,
+  #previewPanel:fullscreen .preview-header,
+  #previewPanel:-webkit-full-screen .panel-header,
+  #previewPanel:-webkit-full-screen .preview-header,
+  body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel .panel-header,
+  body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel .preview-header {
+    top: auto !important;
+    right: 10px !important;
+    bottom: calc(10px + env(safe-area-inset-bottom)) !important;
+  }
+
+  body.preview-fullscreen-active .preview-actions,
+  #previewPanel:fullscreen .preview-actions,
+  #previewPanel:-webkit-full-screen .preview-actions,
+  body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel .preview-actions {
+    display: grid !important;
+    grid-template-columns: 1fr auto !important;
+    width: min(440px, calc(100vw - 20px)) !important;
+  }
+}
+
+/* Final clean output preview mode: hide editor-only controls while preview is active inside Full Editor. */
+body.editor-fullscreen-active.preview-inside-editor-fullscreen #fullscreenEditorActions,
+body.editor-fullscreen-active.preview-inside-editor-fullscreen .fullscreen-editor-actions,
+body.editor-fullscreen-active.preview-inside-editor-fullscreen #fullscreenRunBtn,
+body.editor-fullscreen-active.preview-inside-editor-fullscreen #fullscreenResultBtn,
+body.editor-fullscreen-active.preview-inside-editor-fullscreen #exitEditorStickyBtn,
+body.editor-fullscreen-active.preview-inside-editor-fullscreen #exitEditorBtn,
+body.editor-fullscreen-active.preview-inside-editor-fullscreen #codeHelperFloatingBtn,
+body.editor-fullscreen-active.preview-inside-editor-fullscreen .code-helper-float-btn,
+body.editor-fullscreen-active.preview-inside-editor-fullscreen #errorCheckerPanel,
+body.editor-fullscreen-active.preview-inside-editor-fullscreen .language-tabs,
+body.editor-fullscreen-active.preview-inside-editor-fullscreen .editor-wrap,
+body.editor-fullscreen-active.preview-inside-editor-fullscreen .suggestion-box {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel {
+  z-index: 9900 !important;
+  isolation: isolate !important;
+}
+
+body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel .panel-header,
+body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel .preview-header {
+  position: absolute !important;
+  top: 12px !important;
+  right: 12px !important;
+  left: auto !important;
+  z-index: 9950 !important;
+  display: block !important;
+  width: auto !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  pointer-events: none !important;
+}
+
+body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel .preview-header > div,
+body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel .preview-header h2,
+body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel .preview-header p {
+  display: none !important;
+}
+
+body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel .preview-actions {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 8px !important;
+  width: auto !important;
+  max-width: calc(100vw - 24px) !important;
+  padding: 6px !important;
+  border: 1px solid rgba(147, 197, 253, 0.55) !important;
+  border-radius: 999px !important;
+  background: rgba(255, 255, 255, 0.72) !important;
+  backdrop-filter: blur(12px) !important;
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.14) !important;
+  pointer-events: auto !important;
+}
+
+body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-actions .layout-btn[data-layout],
+body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-actions #fullPreviewBtn {
+  display: none !important;
+}
+
+body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-actions #backToEditorPreviewBtn,
+body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-actions #exitPreviewBtn {
+  display: inline-flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-height: 40px !important;
+  padding: 0 16px !important;
+  border-radius: 999px !important;
+  white-space: nowrap !important;
+}
+
+body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel #previewFrame {
+  position: absolute !important;
+  inset: 0 !important;
+  z-index: 1 !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 100% !important;
+}
+
+[data-theme="dark"] body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel .preview-actions {
+  background: rgba(15, 23, 42, 0.76) !important;
+  border-color: rgba(96, 165, 250, 0.42) !important;
+}
+
+@media (max-width: 620px) {
+  body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel .panel-header,
+  body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel .preview-header {
+    top: 8px !important;
+    right: 8px !important;
+  }
+
+  body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel .preview-actions {
+    gap: 6px !important;
+    padding: 5px !important;
+  }
+
+  body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-actions #backToEditorPreviewBtn,
+  body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-actions #exitPreviewBtn {
+    min-height: 36px !important;
+    padding: 0 11px !important;
+    font-size: 0.82rem !important;
+  }
+}
+
+/* Fix: keep only Back to Editor and Exit visible in fullscreen output launched from Full Editor. */
+body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel .preview-header > div:first-child,
+body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel .preview-header h2,
+body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel .preview-header p {
+  display: none !important;
+}
+
+body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel .preview-header,
+body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel .panel-header {
+  position: absolute !important;
+  top: 12px !important;
+  right: 12px !important;
+  left: auto !important;
+  z-index: 99999 !important;
+  display: block !important;
+  width: auto !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  pointer-events: none !important;
+}
+
+body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel .preview-header > .preview-actions,
+body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel .preview-actions {
+  display: inline-flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 8px !important;
+  width: auto !important;
+  max-width: calc(100vw - 24px) !important;
+  padding: 6px !important;
+  border: 1px solid rgba(147, 197, 253, 0.55) !important;
+  border-radius: 999px !important;
+  background: rgba(255, 255, 255, 0.78) !important;
+  backdrop-filter: blur(12px) !important;
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.14) !important;
+  pointer-events: auto !important;
+}
+
+body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-actions .layout-btn[data-layout],
+body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-actions #fullPreviewBtn {
+  display: none !important;
+}
+
+body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-actions #backToEditorPreviewBtn,
+body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-actions #exitPreviewBtn {
+  display: inline-flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-height: 40px !important;
+  padding: 0 16px !important;
+  border-radius: 999px !important;
+  white-space: nowrap !important;
+  pointer-events: auto !important;
+}
+
+@media (max-width: 760px) {
+  body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel .preview-header,
+  body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel .panel-header {
+    top: auto !important;
+    right: 10px !important;
+    bottom: calc(10px + env(safe-area-inset-bottom)) !important;
+  }
+
+  body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel .preview-actions {
+    width: min(440px, calc(100vw - 20px)) !important;
+    display: grid !important;
+    grid-template-columns: 1fr auto !important;
+  }
+}
+
+/* Fullscreen Output Preview: add Result button beside Back to Editor and Exit. */
+body.preview-fullscreen-active.preview-has-back-editor #resultFromPreviewBtn,
+body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-actions #resultFromPreviewBtn {
+  display: inline-flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-height: 40px !important;
+  padding: 0 16px !important;
+  border-radius: 999px !important;
+  white-space: nowrap !important;
+  color: #ffffff !important;
+  border-color: transparent !important;
+  background: linear-gradient(135deg, #16a34a, #22c55e) !important;
+  box-shadow: 0 10px 22px rgba(22, 163, 74, 0.18) !important;
+}
+
+body.preview-fullscreen-active:not(.preview-has-back-editor) #resultFromPreviewBtn,
+body:not(.preview-fullscreen-active) #resultFromPreviewBtn {
+  display: none !important;
+}
+
+@media (max-width: 620px) {
+  body.preview-fullscreen-active.preview-has-back-editor #resultFromPreviewBtn,
+  body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-actions #resultFromPreviewBtn {
+    min-height: 36px !important;
+    padding: 0 11px !important;
+    font-size: 0.82rem !important;
+  }
+}
+
+
+/* Smarter Code Helper verification */
+.smart-check-btn {
+  color: #075985 !important;
+  border-color: #bae6fd !important;
+  background: #e0f2fe !important;
+}
+
+.advanced-checker-card {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 14px;
+  border: 1px solid color-mix(in srgb, var(--primary) 35%, var(--line));
+  border-radius: 18px;
+  padding: 14px;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--primary-soft) 64%, var(--solid-card)), var(--solid-card));
+  box-shadow: 0 14px 32px rgba(37, 99, 235, 0.10);
+}
+
+.advanced-checker-head { display: grid; gap: 4px; }
+.advanced-checker-head strong { color: var(--text); font-size: 1rem; }
+.advanced-checker-head span { color: var(--muted); line-height: 1.4; }
+
+.advanced-checker-block {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 10px 12px;
+  background: var(--solid-card);
+}
+
+.advanced-checker-block h4 { margin: 0 0 6px; font-size: 0.92rem; }
+.advanced-checker-block ul { margin: 0; padding-left: 18px; color: var(--muted); }
+.advanced-checker-block.error { border-color: #fecaca; background: #fff7f7; }
+.advanced-checker-block.warning { border-color: #fde68a; background: #fffbeb; }
+.advanced-checker-block.tip { border-color: #bfdbfe; background: #eff6ff; }
+
+[data-theme="dark"] .smart-check-btn {
+  color: #bae6fd !important;
+  border-color: #164e63 !important;
+  background: rgba(14, 165, 233, 0.18) !important;
+}
+
+[data-theme="dark"] .advanced-checker-block.error,
+[data-theme="dark"] .advanced-checker-block.warning,
+[data-theme="dark"] .advanced-checker-block.tip { background: rgba(15, 23, 42, 0.72); }
+
+
+/* Hidden teacher/admin access: Sir JR's text opens admin, no visible header button. */
+.hidden-admin-trigger {
+  display: inline-block;
+  cursor: default;
+  user-select: none;
+}
+
+.hidden-admin-trigger:focus-visible {
+  outline: 3px solid var(--primary-soft);
+  outline-offset: 3px;
+  border-radius: 8px;
+}
+
+/* FINAL STATE FIX: Full Editor controls must always return after Output Preview. */
+body.editor-fullscreen-active:not(.preview-fullscreen-active):not(.preview-inside-editor-fullscreen) #fullscreenEditorActions,
+body.editor-fullscreen-active:not(.preview-fullscreen-active):not(.preview-inside-editor-fullscreen) .fullscreen-editor-actions {
+  display: flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+
+body.editor-fullscreen-active:not(.preview-fullscreen-active):not(.preview-inside-editor-fullscreen) #fullscreenEditorActions.hidden,
+body.editor-fullscreen-active:not(.preview-fullscreen-active):not(.preview-inside-editor-fullscreen) .fullscreen-editor-actions.hidden {
+  display: flex !important;
+}
+
+body.editor-fullscreen-active:not(.preview-fullscreen-active):not(.preview-inside-editor-fullscreen) #fullscreenRunBtn,
+body.editor-fullscreen-active:not(.preview-fullscreen-active):not(.preview-inside-editor-fullscreen) #fullscreenResultBtn,
+body.editor-fullscreen-active:not(.preview-fullscreen-active):not(.preview-inside-editor-fullscreen) #exitEditorStickyBtn {
+  display: inline-flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+
+body.editor-fullscreen-active:not(.preview-fullscreen-active):not(.preview-inside-editor-fullscreen) #codeHelperFloatingBtn,
+body.editor-fullscreen-active:not(.preview-fullscreen-active):not(.preview-inside-editor-fullscreen) .code-helper-float-btn {
+  display: inline-flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+
+body.editor-fullscreen-active:not(.preview-fullscreen-active):not(.preview-inside-editor-fullscreen) #editorPanel .language-tabs,
+body.editor-fullscreen-active:not(.preview-fullscreen-active):not(.preview-inside-editor-fullscreen) #editorPanel .editor-wrap {
+  visibility: visible !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+
+body.editor-fullscreen-active:not(.preview-fullscreen-active):not(.preview-inside-editor-fullscreen) #editorPanel .language-tabs {
+  display: flex !important;
+}
+
+body.editor-fullscreen-active:not(.preview-fullscreen-active):not(.preview-inside-editor-fullscreen) #editorPanel .editor-wrap {
+  display: grid !important;
+}
+
+/* Multi-page Website Mode */

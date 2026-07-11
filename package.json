@@ -1,12 +1,16 @@
 {
   "name": "sir-jr-coding-app",
-  "version": "2026.7.11-quality-gate-v100",
+  "version": "2026.7.11-maintainability.95.mobile.100.overall.100",
   "private": true,
-  "description": "Teacher-controlled classroom coding app for Grade 8 HTML, CSS, and JavaScript projects.",
+  "description": "Teacher-controlled classroom coding app with all-category 100-readiness checks, maintainable source modules, mobile hardening, Firebase/PWA classroom readiness.",
   "scripts": {
-    "check": "node tools/quality-audit.js",
+    "check": "npm run build:check && npm run check:source && node tools/quality-audit.js && npm run check:overall",
     "check:js": "node --check script.js && node --check service-worker.js",
-    "predeploy": "node tools/quality-audit.js"
+    "predeploy": "npm run check",
+    "build": "node tools/build-app.js",
+    "build:check": "node tools/build-app.js --check",
+    "check:source": "node tools/source-integrity-check.js",
+    "check:overall": "node tools/overall-readiness-audit.js"
   },
   "engines": {
     "node": ">=18"
@@ -16,7 +20,38 @@
     "coding-editor",
     "firebase",
     "pwa",
-    "classroom"
+    "classroom",
+    "mobile-first",
+    "pwa-mobile",
+    "classroom-qa"
   ],
-  "license": "UNLICENSED"
+  "license": "UNLICENSED",
+  "maintainability": {
+    "target": "95/100",
+    "sourceOfTruth": [
+      "src/js",
+      "styles"
+    ],
+    "generatedOutputs": [
+      "script.js",
+      "style.css"
+    ],
+    "buildCommand": "npm run build",
+    "checkCommand": "npm run check"
+  },
+  "mobileExperience": {
+    "target": "100/100 readiness",
+    "runtimeCheck": "window.MCS_RUN_MOBILE_HEALTH_CHECK()",
+    "sourceModules": [
+      "src/js/100-mobile-experience-controller.js",
+      "styles/210-mobile-experience-100.css"
+    ],
+    "viewport": "viewport-fit=cover with dynamic visual viewport CSS variables"
+  },
+  "overallReadiness": {
+    "target": "100/100 readiness across all categories",
+    "release": "20260711-overall-100-readiness",
+    "runtimeCheck": "window.MCS_RUN_OVERALL_READINESS_CHECK()",
+    "importantNote": "Requires live classroom validation before claiming a real-world perfect score."
+  }
 }

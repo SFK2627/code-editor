@@ -1,0 +1,1194 @@
+.html-page-manager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--solid-card) 92%, var(--primary-soft));
+}
+
+.html-page-manager.hidden {
+  display: none !important;
+}
+
+.page-manager-left,
+.page-manager-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.page-manager-label {
+  flex: 0 0 auto;
+  color: var(--primary-dark);
+  font-size: 0.78rem;
+  font-weight: 1000;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+#htmlPageSelect {
+  min-width: 180px;
+  min-height: 34px;
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 0.86rem;
+  font-weight: 900;
+}
+
+.page-manager-btn {
+  min-height: 32px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0 11px;
+  color: var(--text);
+  background: var(--solid-card);
+  font-size: 0.82rem;
+  font-weight: 1000;
+  cursor: pointer;
+}
+
+.page-manager-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 18px rgba(15, 23, 42, 0.1);
+}
+
+.page-manager-btn.danger {
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 30%, var(--line));
+}
+
+.page-manager-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.page-dialog-card {
+  width: min(520px, calc(100vw - 24px));
+}
+
+.page-dialog-label {
+  padding: 16px 18px 0;
+}
+
+.editor-fullscreen-active .html-page-manager,
+#editorPanel:fullscreen .html-page-manager {
+  flex: 0 0 auto;
+  padding-right: 290px;
+}
+
+.preview-inside-editor-fullscreen .html-page-manager {
+  display: none !important;
+}
+
+@media (max-width: 760px) {
+  .html-page-manager {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .page-manager-left,
+  .page-manager-actions {
+    width: 100%;
+  }
+  #htmlPageSelect {
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+  .page-manager-actions .page-manager-btn {
+    flex: 1 1 auto;
+  }
+  .editor-fullscreen-active .html-page-manager,
+  #editorPanel:fullscreen .html-page-manager {
+    padding-right: 10px;
+  }
+}
+
+
+/* Tabs/Pages manager: cleaner multi-file controls for HTML, CSS, and JavaScript */
+.html-page-manager {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 8px !important;
+  flex-wrap: nowrap !important;
+}
+
+.html-page-manager[data-language="css"] .page-manager-label::after,
+.html-page-manager[data-language="js"] .page-manager-label::after,
+.html-page-manager[data-language="html"] .page-manager-label::after {
+  content: '';
+}
+
+.page-manager-left {
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+}
+
+#htmlPageSelect {
+  flex: 1 1 auto !important;
+  min-width: 130px !important;
+  max-width: 360px !important;
+}
+
+.page-manager-actions {
+  flex: 0 0 auto !important;
+  white-space: nowrap !important;
+}
+
+.page-dialog-overlay.inside-editor-fullscreen {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 900000 !important;
+  display: grid !important;
+  place-items: center !important;
+  padding: 18px !important;
+  background: rgba(2, 6, 23, 0.64) !important;
+}
+
+.page-dialog-overlay.inside-editor-fullscreen.hidden {
+  display: none !important;
+}
+
+.editor-fullscreen-active .html-page-manager,
+#editorPanel:fullscreen .html-page-manager {
+  padding-right: 300px !important;
+}
+
+@media (max-width: 760px) {
+  .language-tabs {
+    overflow-x: auto !important;
+    flex-wrap: nowrap !important;
+    scrollbar-width: none !important;
+  }
+  .language-tabs::-webkit-scrollbar { display: none !important; }
+  .language-tabs .tab-btn,
+  .language-tabs .rename-files-btn {
+    flex: 0 0 auto !important;
+    white-space: nowrap !important;
+  }
+
+  .html-page-manager {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    align-items: stretch !important;
+    gap: 7px !important;
+    padding: 7px !important;
+  }
+  .page-manager-left,
+  .page-manager-actions {
+    width: 100% !important;
+  }
+  .page-manager-label {
+    font-size: 0.68rem !important;
+  }
+  #htmlPageSelect {
+    width: 100% !important;
+    max-width: none !important;
+    min-width: 0 !important;
+  }
+  .page-manager-actions {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 6px !important;
+  }
+  .page-manager-btn {
+    min-width: 0 !important;
+    padding: 0 8px !important;
+    font-size: 0.76rem !important;
+  }
+  .editor-fullscreen-active .html-page-manager,
+  #editorPanel:fullscreen .html-page-manager {
+    padding-right: 8px !important;
+  }
+}
+
+@media (max-width: 420px) {
+  .page-manager-actions {
+    grid-template-columns: 1fr 1fr !important;
+  }
+  .page-manager-actions .danger {
+    grid-column: 1 / -1 !important;
+  }
+}
+
+/* Enhanced cinematic book transition between Full Editor and Fullscreen Preview. */
+body.editor-fullscreen-active.book-page-transitioning #editorPanel {
+  perspective: 2200px !important;
+  transform-style: preserve-3d !important;
+  isolation: isolate !important;
+  background: var(--solid-card) !important;
+}
+
+/* The turning sheet. It stays inside one fullscreen container, so there is no browser blink. */
+body.editor-fullscreen-active.book-page-transitioning #editorPanel::before {
+  content: "" !important;
+  position: absolute !important;
+  inset: 0 !important;
+  z-index: 12000 !important;
+  pointer-events: none !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  transform-style: preserve-3d !important;
+  backface-visibility: hidden !important;
+  will-change: transform, opacity, filter !important;
+  background:
+    linear-gradient(90deg,
+      rgba(15, 23, 42, 0.10) 0%,
+      rgba(255, 255, 255, 0.96) 5%,
+      rgba(255, 255, 255, 1) 46%,
+      rgba(219, 234, 254, 0.98) 73%,
+      rgba(37, 99, 235, 0.20) 100%),
+    repeating-linear-gradient(0deg,
+      rgba(37, 99, 235, 0.018) 0,
+      rgba(37, 99, 235, 0.018) 1px,
+      transparent 1px,
+      transparent 5px),
+    var(--solid-card) !important;
+  box-shadow:
+    -18px 0 44px rgba(15, 23, 42, 0.22),
+    38px 0 86px rgba(37, 99, 235, 0.24),
+    inset 22px 0 38px rgba(255, 255, 255, 0.72),
+    inset -28px 0 46px rgba(37, 99, 235, 0.18) !important;
+}
+
+/* A subtle page-edge caption, not a blocking overlay. */
+body.editor-fullscreen-active.book-page-transitioning #editorPanel::after {
+  position: absolute !important;
+  left: 50% !important;
+  top: auto !important;
+  bottom: calc(22px + env(safe-area-inset-bottom)) !important;
+  z-index: 12010 !important;
+  transform: translateX(-50%) !important;
+  min-width: 0 !important;
+  padding: 9px 16px !important;
+  border: 1px solid rgba(147, 197, 253, 0.68) !important;
+  border-radius: 999px !important;
+  color: #17324d !important;
+  background: rgba(255, 255, 255, 0.82) !important;
+  backdrop-filter: blur(12px) !important;
+  box-shadow: 0 12px 34px rgba(15, 23, 42, 0.16) !important;
+  font-size: 0.86rem !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.02em !important;
+  pointer-events: none !important;
+  will-change: opacity, transform !important;
+}
+
+body.editor-fullscreen-active.book-to-preview #editorPanel::before {
+  transform-origin: left center !important;
+  animation: cinematicPageTurnForward 980ms cubic-bezier(0.16, 0.84, 0.22, 1) both !important;
+}
+
+body.editor-fullscreen-active.book-to-editor #editorPanel::before {
+  transform-origin: right center !important;
+  animation: cinematicPageTurnBack 980ms cubic-bezier(0.16, 0.84, 0.22, 1) both !important;
+}
+
+body.editor-fullscreen-active.book-to-preview #editorPanel::after {
+  content: "Opening preview" !important;
+  animation: cinematicCaption 980ms ease both !important;
+}
+
+body.editor-fullscreen-active.book-to-editor #editorPanel::after {
+  content: "Returning to editor" !important;
+  animation: cinematicCaption 980ms ease both !important;
+}
+
+/* Preview arrives only after the page reaches its edge. */
+body.editor-fullscreen-active.preview-inside-editor-fullscreen.book-preview-revealing #editorPanel .preview-panel {
+  animation: cinematicPreviewReveal 550ms cubic-bezier(0.16, 0.84, 0.22, 1) both !important;
+  transform-origin: right center !important;
+  will-change: transform, opacity, filter !important;
+}
+
+body.editor-fullscreen-active.preview-inside-editor-fullscreen.book-preview-leaving #editorPanel .preview-panel {
+  animation: cinematicPreviewLeave 470ms cubic-bezier(0.55, 0.02, 0.78, 0.28) both !important;
+  transform-origin: left center !important;
+  will-change: transform, opacity, filter !important;
+}
+
+body.editor-fullscreen-active.book-editor-revealing #editorPanel .language-tabs,
+body.editor-fullscreen-active.book-editor-revealing #editorPanel .html-page-manager,
+body.editor-fullscreen-active.book-editor-revealing #editorPanel .editor-wrap,
+body.editor-fullscreen-active.book-editor-revealing #fullscreenEditorActions,
+body.editor-fullscreen-active.book-editor-revealing #codeHelperFloatingBtn {
+  animation: cinematicEditorReveal 560ms cubic-bezier(0.16, 0.84, 0.22, 1) both !important;
+  will-change: transform, opacity, filter !important;
+}
+
+@keyframes cinematicPageTurnForward {
+  0% {
+    opacity: 0;
+    transform: translateX(0) rotateY(0deg) scale(1);
+    filter: brightness(1);
+  }
+  7% { opacity: 1; }
+  42% {
+    opacity: 1;
+    transform: translateX(-1.5%) rotateY(-76deg) scale(0.995);
+    filter: brightness(0.97);
+  }
+  55% {
+    opacity: 0.98;
+    transform: translateX(-3%) rotateY(-102deg) scale(0.992);
+    filter: brightness(0.92);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-10%) rotateY(-178deg) scale(0.985);
+    filter: brightness(0.88);
+  }
+}
+
+@keyframes cinematicPageTurnBack {
+  0% {
+    opacity: 0;
+    transform: translateX(0) rotateY(0deg) scale(1);
+    filter: brightness(1);
+  }
+  7% { opacity: 1; }
+  42% {
+    opacity: 1;
+    transform: translateX(1.5%) rotateY(76deg) scale(0.995);
+    filter: brightness(0.97);
+  }
+  55% {
+    opacity: 0.98;
+    transform: translateX(3%) rotateY(102deg) scale(0.992);
+    filter: brightness(0.92);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(10%) rotateY(178deg) scale(0.985);
+    filter: brightness(0.88);
+  }
+}
+
+@keyframes cinematicPreviewReveal {
+  0% {
+    opacity: 0;
+    transform: translateX(7%) rotateY(-12deg) scale(0.985);
+    filter: blur(5px) brightness(0.92);
+  }
+  45% { opacity: 1; }
+  100% {
+    opacity: 1;
+    transform: translateX(0) rotateY(0deg) scale(1);
+    filter: blur(0) brightness(1);
+  }
+}
+
+@keyframes cinematicPreviewLeave {
+  0% {
+    opacity: 1;
+    transform: translateX(0) rotateY(0deg) scale(1);
+    filter: blur(0) brightness(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-6%) rotateY(11deg) scale(0.986);
+    filter: blur(4px) brightness(0.93);
+  }
+}
+
+@keyframes cinematicEditorReveal {
+  0% {
+    opacity: 0;
+    transform: translateX(-3%) scale(0.99);
+    filter: blur(4px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+@keyframes cinematicCaption {
+  0%, 10% { opacity: 0; transform: translate(-50%, 10px) scale(0.97); }
+  24%, 72% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -8px) scale(0.98); }
+}
+
+[data-theme="dark"] body.editor-fullscreen-active.book-page-transitioning #editorPanel::before {
+  background:
+    linear-gradient(90deg,
+      rgba(0, 0, 0, 0.32) 0%,
+      rgba(15, 23, 42, 0.98) 7%,
+      rgba(17, 24, 39, 1) 46%,
+      rgba(30, 41, 59, 0.98) 73%,
+      rgba(96, 165, 250, 0.22) 100%),
+    repeating-linear-gradient(0deg,
+      rgba(96, 165, 250, 0.025) 0,
+      rgba(96, 165, 250, 0.025) 1px,
+      transparent 1px,
+      transparent 5px),
+    #0f172a !important;
+  box-shadow:
+    -18px 0 50px rgba(0, 0, 0, 0.50),
+    38px 0 90px rgba(96, 165, 250, 0.20),
+    inset 22px 0 38px rgba(255, 255, 255, 0.045),
+    inset -28px 0 46px rgba(96, 165, 250, 0.14) !important;
+}
+
+[data-theme="dark"] body.editor-fullscreen-active.book-page-transitioning #editorPanel::after {
+  color: #e5edf7 !important;
+  border-color: rgba(96, 165, 250, 0.45) !important;
+  background: rgba(15, 23, 42, 0.82) !important;
+}
+
+@media (max-width: 760px) {
+  body.editor-fullscreen-active.book-page-transitioning #editorPanel::after {
+    bottom: calc(14px + env(safe-area-inset-bottom)) !important;
+    padding: 8px 13px !important;
+    font-size: 0.78rem !important;
+  }
+
+  body.editor-fullscreen-active.book-to-preview #editorPanel::before,
+  body.editor-fullscreen-active.book-to-editor #editorPanel::before {
+    animation-duration: 820ms !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body.editor-fullscreen-active.book-page-transitioning #editorPanel::before,
+  body.editor-fullscreen-active.book-page-transitioning #editorPanel::after,
+  body.editor-fullscreen-active.preview-inside-editor-fullscreen.book-preview-revealing #editorPanel .preview-panel,
+  body.editor-fullscreen-active.preview-inside-editor-fullscreen.book-preview-leaving #editorPanel .preview-panel,
+  body.editor-fullscreen-active.book-editor-revealing #editorPanel .language-tabs,
+  body.editor-fullscreen-active.book-editor-revealing #editorPanel .html-page-manager,
+  body.editor-fullscreen-active.book-editor-revealing #editorPanel .editor-wrap,
+  body.editor-fullscreen-active.book-editor-revealing #fullscreenEditorActions,
+  body.editor-fullscreen-active.book-editor-revealing #codeHelperFloatingBtn {
+    animation-duration: 1ms !important;
+  }
+}
+
+
+/* Final smooth book transition fix: one overlay handles the movement, so no blink/repeat. */
+body.editor-fullscreen-active.book-page-transitioning #editorPanel::before,
+body.editor-fullscreen-active.book-page-transitioning #editorPanel::after {
+  content: none !important;
+  display: none !important;
+  animation: none !important;
+}
+
+body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel,
+body.editor-fullscreen-active.preview-inside-editor-fullscreen.preview-closing-to-editor #editorPanel .preview-panel {
+  animation: none !important;
+  transform: none !important;
+  opacity: 1 !important;
+  filter: none !important;
+}
+
+.fullscreen-book-transition-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 120000;
+  overflow: hidden;
+  pointer-events: none;
+  perspective: 1800px;
+  transform-style: preserve-3d;
+  background: rgba(2, 6, 23, 0.08);
+  opacity: 1;
+}
+
+.fullscreen-book-vignette {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 50% 48%, rgba(255, 255, 255, 0.10), transparent 38%),
+    radial-gradient(circle at 18% 50%, rgba(37, 99, 235, 0.18), transparent 34rem),
+    linear-gradient(90deg, rgba(15, 23, 42, 0.10), transparent 26%, transparent 74%, rgba(15, 23, 42, 0.14));
+  animation: bookVignettePulse 1040ms cubic-bezier(0.2, 0.78, 0.24, 1) both;
+}
+
+.fullscreen-book-stage {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+  perspective: 1800px;
+}
+
+.fullscreen-book-fixed-page,
+.fullscreen-book-turn-page {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 58%;
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.98), rgba(239, 246, 255, 0.98) 52%, rgba(219, 234, 254, 0.96)),
+    var(--solid-card);
+  box-shadow:
+    0 34px 90px rgba(15, 23, 42, 0.24),
+    inset 18px 0 28px rgba(255, 255, 255, 0.56),
+    inset -22px 0 36px rgba(37, 99, 235, 0.13);
+  backface-visibility: hidden;
+  will-change: transform, opacity, filter;
+}
+
+.fullscreen-book-fixed-page {
+  right: 0;
+  opacity: 0.48;
+  transform: translateX(8%) scaleX(0.985);
+  filter: blur(0.4px);
+}
+
+.fullscreen-book-turn-page {
+  left: 50%;
+  transform-origin: left center;
+  border-left: 1px solid rgba(147, 197, 253, 0.8);
+}
+
+.fullscreen-book-spine {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 18px;
+  background: linear-gradient(90deg, rgba(15, 23, 42, 0.25), rgba(255, 255, 255, 0.35), transparent);
+  opacity: 0.8;
+}
+
+.fullscreen-book-highlight {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(105deg, transparent 0%, rgba(255, 255, 255, 0.72) 43%, rgba(255, 255, 255, 0.12) 50%, transparent 63%),
+    repeating-linear-gradient(0deg, rgba(37, 99, 235, 0.025) 0 2px, transparent 2px 14px);
+  mix-blend-mode: screen;
+  opacity: 0.72;
+}
+
+.fullscreen-book-edge {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 30px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: linear-gradient(90deg, transparent, rgba(15, 23, 42, 0.2), transparent);
+  opacity: 0;
+  animation: bookEdgePass 1040ms cubic-bezier(0.2, 0.78, 0.24, 1) both;
+}
+
+.fullscreen-book-caption {
+  position: absolute;
+  left: 50%;
+  bottom: calc(28px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  border: 1px solid rgba(147, 197, 253, 0.55);
+  border-radius: 999px;
+  padding: 10px 16px;
+  color: #12305f;
+  background: rgba(255, 255, 255, 0.76);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 18px 52px rgba(15, 23, 42, 0.14);
+  font-size: 0.86rem;
+  font-weight: 1000;
+  letter-spacing: 0.02em;
+  opacity: 0;
+  animation: bookCaptionSmooth 1040ms ease both;
+}
+
+.fullscreen-book-transition-layer.to-preview .fullscreen-book-turn-page {
+  animation: bookTurnToPreview 1040ms cubic-bezier(0.18, 0.88, 0.2, 1) both;
+}
+
+.fullscreen-book-transition-layer.to-preview .fullscreen-book-fixed-page {
+  animation: bookFixedToPreview 1040ms cubic-bezier(0.18, 0.88, 0.2, 1) both;
+}
+
+.fullscreen-book-transition-layer.to-editor .fullscreen-book-turn-page {
+  left: auto;
+  right: 50%;
+  transform-origin: right center;
+  border-left: 0;
+  border-right: 1px solid rgba(147, 197, 253, 0.8);
+  animation: bookTurnToEditor 1040ms cubic-bezier(0.18, 0.88, 0.2, 1) both;
+}
+
+.fullscreen-book-transition-layer.to-editor .fullscreen-book-fixed-page {
+  left: 0;
+  right: auto;
+  animation: bookFixedToEditor 1040ms cubic-bezier(0.18, 0.88, 0.2, 1) both;
+}
+
+.fullscreen-book-transition-layer.is-done {
+  opacity: 0;
+  transition: opacity 90ms ease;
+}
+
+@keyframes bookTurnToPreview {
+  0% { opacity: 0; transform: translateX(58%) rotateY(-68deg) scaleX(0.96); filter: blur(1.8px); }
+  12% { opacity: 1; }
+  45% { opacity: 1; transform: translateX(-2%) rotateY(-8deg) scaleX(1); filter: blur(0); }
+  56% { opacity: 1; transform: translateX(-18%) rotateY(11deg) scaleX(1.02); filter: blur(0); }
+  100% { opacity: 0; transform: translateX(-112%) rotateY(58deg) scaleX(0.96); filter: blur(1.4px); }
+}
+
+@keyframes bookTurnToEditor {
+  0% { opacity: 0; transform: translateX(-58%) rotateY(68deg) scaleX(0.96); filter: blur(1.8px); }
+  12% { opacity: 1; }
+  45% { opacity: 1; transform: translateX(2%) rotateY(8deg) scaleX(1); filter: blur(0); }
+  56% { opacity: 1; transform: translateX(18%) rotateY(-11deg) scaleX(1.02); filter: blur(0); }
+  100% { opacity: 0; transform: translateX(112%) rotateY(-58deg) scaleX(0.96); filter: blur(1.4px); }
+}
+
+@keyframes bookFixedToPreview {
+  0% { opacity: 0.22; transform: translateX(10%) scale(0.985); }
+  44% { opacity: 0.42; transform: translateX(2%) scale(0.995); }
+  55% { opacity: 0.58; transform: translateX(0) scale(1); }
+  100% { opacity: 0; transform: translateX(-4%) scale(1.01); }
+}
+
+@keyframes bookFixedToEditor {
+  0% { opacity: 0.22; transform: translateX(-10%) scale(0.985); }
+  44% { opacity: 0.42; transform: translateX(-2%) scale(0.995); }
+  55% { opacity: 0.58; transform: translateX(0) scale(1); }
+  100% { opacity: 0; transform: translateX(4%) scale(1.01); }
+}
+
+@keyframes bookEdgePass {
+  0%, 100% { opacity: 0; transform: translateX(-50%) scaleX(0.6); }
+  42%, 58% { opacity: 0.58; transform: translateX(-50%) scaleX(1.8); }
+}
+
+@keyframes bookVignettePulse {
+  0% { opacity: 0; }
+  18%, 72% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@keyframes bookCaptionSmooth {
+  0%, 100% { opacity: 0; transform: translate(-50%, 8px); }
+  18%, 76% { opacity: 1; transform: translate(-50%, 0); }
+}
+
+[data-theme="dark"] .fullscreen-book-vignette {
+  background:
+    radial-gradient(circle at 50% 48%, rgba(96, 165, 250, 0.12), transparent 38%),
+    radial-gradient(circle at 18% 50%, rgba(96, 165, 250, 0.20), transparent 34rem),
+    linear-gradient(90deg, rgba(0, 0, 0, 0.42), transparent 26%, transparent 74%, rgba(0, 0, 0, 0.46));
+}
+
+[data-theme="dark"] .fullscreen-book-fixed-page,
+[data-theme="dark"] .fullscreen-book-turn-page {
+  background:
+    linear-gradient(90deg, rgba(15, 23, 42, 0.98), rgba(30, 41, 59, 0.98) 52%, rgba(37, 99, 235, 0.40)),
+    #0f172a;
+  box-shadow:
+    0 34px 90px rgba(0, 0, 0, 0.5),
+    inset 18px 0 28px rgba(255, 255, 255, 0.06),
+    inset -22px 0 36px rgba(96, 165, 250, 0.16);
+}
+
+[data-theme="dark"] .fullscreen-book-caption {
+  color: #e5edf7;
+  border-color: rgba(96, 165, 250, 0.45);
+  background: rgba(15, 23, 42, 0.78);
+}
+
+@media (max-width: 720px) {
+  .fullscreen-book-fixed-page,
+  .fullscreen-book-turn-page {
+    width: 68%;
+  }
+
+  .fullscreen-book-caption {
+    bottom: calc(18px + env(safe-area-inset-bottom));
+    max-width: calc(100vw - 28px);
+    padding: 9px 13px;
+    font-size: 0.78rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fullscreen-book-transition-layer,
+  .fullscreen-book-vignette,
+  .fullscreen-book-fixed-page,
+  .fullscreen-book-turn-page,
+  .fullscreen-book-edge,
+  .fullscreen-book-caption {
+    animation-duration: 1ms !important;
+    transition-duration: 1ms !important;
+  }
+}
+
+/* FINAL MOBILE POLISH: compact header + non-overlapping Tabs/Pages controls */
+@media (max-width: 760px) {
+  html, body {
+    max-width: 100% !important;
+    overflow-x: hidden !important;
+  }
+
+  .app-shell {
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 6px 6px 14px !important;
+    margin: 0 !important;
+  }
+
+  .topbar.simplified-topbar,
+  .topbar {
+    position: sticky !important;
+    top: 4px !important;
+    z-index: 500 !important;
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 7px !important;
+    min-height: 0 !important;
+    padding: 10px 10px 9px !important;
+    margin: 0 0 8px !important;
+    border-radius: 18px !important;
+    overflow: hidden !important;
+  }
+
+  .topbar.simplified-topbar::after,
+  .topbar::after {
+    opacity: 0.45 !important;
+    width: 160px !important;
+    height: 160px !important;
+    right: -70px !important;
+    top: -80px !important;
+  }
+
+  .brand-block {
+    display: grid !important;
+    grid-template-columns: 42px minmax(0, 1fr) !important;
+    align-items: center !important;
+    gap: 9px !important;
+    min-width: 0 !important;
+    width: 100% !important;
+  }
+
+  .logo-mark {
+    display: grid !important;
+    width: 42px !important;
+    height: 42px !important;
+    flex: 0 0 42px !important;
+    border-radius: 14px !important;
+    font-size: 0.88rem !important;
+  }
+
+  .brand-block > div {
+    min-width: 0 !important;
+  }
+
+  .eyebrow,
+  .section-kicker {
+    margin: 0 0 1px !important;
+    font-size: 0.67rem !important;
+    line-height: 1 !important;
+    letter-spacing: 0.11em !important;
+  }
+
+  .topbar h1,
+  h1 {
+    margin: 0 !important;
+    font-size: clamp(1.05rem, 4.4vw, 1.28rem) !important;
+    line-height: 1.05 !important;
+    white-space: normal !important;
+  }
+
+  .topbar .subtitle,
+  .subtitle {
+    display: block !important;
+    margin: 2px 0 0 !important;
+    font-size: 0.78rem !important;
+    line-height: 1 !important;
+    color: var(--muted) !important;
+  }
+
+  .top-actions {
+    width: 100% !important;
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    gap: 7px !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    padding: 1px 1px 3px !important;
+    margin: 0 !important;
+    scrollbar-width: none !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  .top-actions::-webkit-scrollbar { display: none !important; }
+
+  .top-actions > *,
+  .top-actions > button,
+  .top-actions .ghost-btn,
+  .top-actions .primary-btn,
+  .top-actions .success-btn,
+  #clearBtn,
+  #resetBtn {
+    flex: 0 0 auto !important;
+    width: auto !important;
+    min-width: max-content !important;
+    max-width: none !important;
+    min-height: 34px !important;
+    height: 34px !important;
+    padding: 0 12px !important;
+    border-radius: 999px !important;
+    font-size: 0.82rem !important;
+    line-height: 1 !important;
+    white-space: nowrap !important;
+  }
+
+  #statusBadge,
+  .status-badge.compact-status {
+    display: none !important;
+  }
+
+  .workspace {
+    margin-top: 0 !important;
+    gap: 10px !important;
+  }
+
+  .editor-panel,
+  .panel {
+    border-radius: 18px !important;
+  }
+
+  .language-tabs {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    gap: 4px !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    padding: 6px 6px 0 !important;
+    min-height: 38px !important;
+    scrollbar-width: none !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  .language-tabs::-webkit-scrollbar { display: none !important; }
+
+  .language-tabs .tab-btn,
+  .language-tabs .rename-files-btn {
+    flex: 0 0 auto !important;
+    min-height: 34px !important;
+    padding: 7px 14px !important;
+    border-radius: 13px 13px 0 0 !important;
+    font-size: 0.86rem !important;
+    white-space: nowrap !important;
+  }
+
+  .tab-btn::after {
+    display: none !important;
+    content: '' !important;
+  }
+
+  .html-page-manager {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+    align-items: stretch !important;
+    padding: 8px !important;
+    border-bottom: 1px solid var(--line) !important;
+    background: color-mix(in srgb, var(--solid-card) 94%, var(--primary-soft)) !important;
+  }
+
+  .page-manager-left {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 6px !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    align-items: stretch !important;
+  }
+
+  .page-manager-label {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    padding: 0 2px !important;
+    color: var(--primary-dark) !important;
+    font-size: 0.72rem !important;
+    line-height: 1.1 !important;
+    letter-spacing: 0.08em !important;
+    text-transform: uppercase !important;
+    white-space: nowrap !important;
+  }
+
+  #htmlPageSelect {
+    display: block !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    min-height: 40px !important;
+    padding: 8px 14px !important;
+    border-radius: 16px !important;
+    font-size: 0.93rem !important;
+    line-height: 1.15 !important;
+    font-weight: 900 !important;
+  }
+
+  .page-manager-actions {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 7px !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    align-items: stretch !important;
+  }
+
+  .page-manager-actions .page-manager-btn {
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 38px !important;
+    padding: 0 8px !important;
+    border-radius: 16px !important;
+    font-size: 0.84rem !important;
+    white-space: nowrap !important;
+  }
+
+  .page-manager-actions .page-manager-btn.danger,
+  .page-manager-actions .danger {
+    grid-column: 1 / -1 !important;
+  }
+
+  .editor-wrap {
+    grid-template-columns: 42px minmax(0, 1fr) !important;
+    min-height: calc(100dvh - 250px) !important;
+    max-width: 100% !important;
+    overflow: hidden !important;
+  }
+
+  .line-numbers,
+  .editor-stack,
+  #codeEditor,
+  .code-match-layer {
+    min-height: calc(100dvh - 250px) !important;
+  }
+
+  .line-numbers {
+    padding: 12px 6px !important;
+    font-size: 13px !important;
+  }
+
+  #codeEditor,
+  .code-match-layer {
+    padding: 12px !important;
+    font-size: 13px !important;
+    line-height: 1.6 !important;
+  }
+
+  .code-helper-float-btn {
+    right: 10px !important;
+    bottom: calc(10px + env(safe-area-inset-bottom)) !important;
+    min-height: 40px !important;
+    padding: 0 14px !important;
+    font-size: 0.86rem !important;
+    border-radius: 999px !important;
+  }
+
+  .suggestion-box {
+    right: 8px !important;
+    bottom: calc(62px + env(safe-area-inset-bottom)) !important;
+    width: min(360px, calc(100vw - 16px)) !important;
+    max-height: 220px !important;
+  }
+}
+
+@media (max-width: 420px) {
+  .top-actions > button,
+  .top-actions .ghost-btn,
+  .top-actions .primary-btn,
+  .top-actions .success-btn {
+    min-height: 33px !important;
+    height: 33px !important;
+    padding: 0 11px !important;
+    font-size: 0.78rem !important;
+  }
+
+  .topbar h1,
+  h1 {
+    font-size: clamp(1rem, 4.8vw, 1.18rem) !important;
+  }
+
+  .topbar .subtitle,
+  .subtitle {
+    font-size: 0.72rem !important;
+  }
+
+  .page-manager-actions {
+    grid-template-columns: 1fr 1fr !important;
+  }
+
+  .page-manager-actions .page-manager-btn {
+    font-size: 0.8rem !important;
+  }
+}
+
+/* FINAL MOBILE OVERLAP FIX: keep tabs clean and move renaming to Tabs/Pages controls */
+@media (max-width: 760px) {
+  .language-tabs {
+    position: relative !important;
+    z-index: 2 !important;
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    align-items: flex-end !important;
+    gap: 4px !important;
+    min-height: 42px !important;
+    height: 42px !important;
+    max-height: 42px !important;
+    padding: 6px 6px 0 !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+  }
+
+  .language-tabs .tab-btn {
+    flex: 1 0 31% !important;
+    min-width: 108px !important;
+    height: 36px !important;
+    min-height: 36px !important;
+    max-height: 36px !important;
+    margin: 0 !important;
+    transform: none !important;
+  }
+
+  /* The current file can already be renamed using the Tabs/Pages Rename button.
+     Hide this extra button on phones so it cannot overlap the file dropdown. */
+  .language-tabs #renameFilesBtn,
+  .language-tabs .rename-files-btn {
+    display: none !important;
+  }
+
+  .html-page-manager {
+    position: relative !important;
+    z-index: 1 !important;
+    margin-top: 0 !important;
+    padding: 9px 8px 10px !important;
+    clear: both !important;
+  }
+
+  .page-manager-left {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 6px !important;
+  }
+
+  .page-manager-label {
+    position: static !important;
+    display: block !important;
+    width: 100% !important;
+    padding: 0 2px !important;
+    margin: 0 !important;
+    transform: none !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  #htmlPageSelect {
+    position: static !important;
+    display: block !important;
+    width: 100% !important;
+    min-height: 42px !important;
+    height: 42px !important;
+    margin: 0 !important;
+    padding: 8px 42px 8px 14px !important;
+    border-radius: 18px !important;
+    line-height: 1.1 !important;
+  }
+
+  .page-manager-actions {
+    margin-top: 2px !important;
+  }
+
+  .page-manager-actions .page-manager-btn {
+    min-height: 40px !important;
+    height: 40px !important;
+  }
+}
+
+@media (max-width: 420px) {
+  .language-tabs .tab-btn {
+    min-width: 98px !important;
+    padding-left: 10px !important;
+    padding-right: 10px !important;
+    font-size: 0.82rem !important;
+  }
+}
+
+/* Mobile preview controls: replace Split/Stacked/Big Preview with Desktop View. */
+.desktop-preview-toggle {
+  display: none;
+}
+
+@media (max-width: 760px) {
+  .preview-panel .preview-actions .layout-btn[data-layout] {
+    display: none !important;
+  }
+
+  .preview-panel .preview-actions {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 10px !important;
+    width: 100% !important;
+  }
+
+  .preview-panel .preview-actions #desktopPreviewBtn,
+  .preview-panel .preview-actions #fullPreviewBtn,
+  .preview-panel .preview-actions #exitPreviewBtn,
+  .preview-panel .preview-actions #backToEditorPreviewBtn,
+  .preview-panel .preview-actions #resultFromPreviewBtn {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    min-height: 44px !important;
+    width: 100% !important;
+    white-space: nowrap !important;
+  }
+
+  .preview-panel .preview-actions #exitPreviewBtn.hidden,
+  .preview-panel .preview-actions #backToEditorPreviewBtn.hidden,
+  .preview-panel .preview-actions #resultFromPreviewBtn.hidden {
+    display: none !important;
+  }
+
+  .preview-panel .preview-actions #desktopPreviewBtn.active {
+    color: white !important;
+    border-color: transparent !important;
+    background: linear-gradient(135deg, #2563eb, #06b6d4) !important;
+    box-shadow: 0 12px 26px rgba(37, 99, 235, 0.22) !important;
+  }
+
+  .preview-panel.mobile-desktop-preview {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  .preview-panel.mobile-desktop-preview #previewFrame {
+    width: 1024px !important;
+    max-width: none !important;
+    min-width: 1024px !important;
+    min-height: 620px !important;
+  }
+
+  .preview-panel.mobile-desktop-preview::after {
+    content: 'Desktop preview: swipe sideways to inspect the full page.';
+    display: block;
+    padding: 8px 12px 12px;
+    color: var(--muted);
+    background: var(--solid-card);
+    font-size: 0.78rem;
+    font-weight: 800;
+  }
+
+  body.preview-fullscreen-active .preview-panel .preview-actions #desktopPreviewBtn,
+  body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel .preview-actions #desktopPreviewBtn,
+  #previewPanel:fullscreen .preview-actions #desktopPreviewBtn,
+  #previewPanel:-webkit-full-screen .preview-actions #desktopPreviewBtn {
+    display: none !important;
+  }
+}
+

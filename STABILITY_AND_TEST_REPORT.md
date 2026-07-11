@@ -1,6 +1,6 @@
 # Stability and Test Report
 
-Release label: `20260711-quality-gate-v100`
+Release label: `20260711-overall-100-readiness`
 
 ## Automated checks completed
 

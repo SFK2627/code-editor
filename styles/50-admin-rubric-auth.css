@@ -1,0 +1,612 @@
+/* Version 12: teacher rubric table input */
+.rubric-table-note {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 12px 14px;
+  background: color-mix(in srgb, var(--solid-card) 82%, var(--primary-soft));
+  color: var(--text);
+  font-size: 0.95rem;
+}
+
+.rubric-table-scroll {
+  width: 100%;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: var(--solid-card);
+  box-shadow: var(--shadow-soft);
+}
+
+.teacher-rubric-table {
+  width: 100%;
+  min-width: 1120px;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.teacher-rubric-table th,
+.teacher-rubric-table td {
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+
+.teacher-rubric-table th:last-child,
+.teacher-rubric-table td:last-child {
+  border-right: 0;
+}
+
+.teacher-rubric-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.teacher-rubric-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 14px 12px;
+  text-align: left;
+  font-size: 0.84rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--solid-card) 78%, var(--primary-soft));
+}
+
+.teacher-rubric-table thead th:first-child {
+  z-index: 3;
+}
+
+.rubric-criterion-cell {
+  width: 320px;
+  min-width: 320px;
+  padding: 14px;
+  background: color-mix(in srgb, var(--solid-card) 92%, var(--primary-soft));
+}
+
+.rubric-level-cell {
+  min-width: 190px;
+  padding: 12px;
+}
+
+.criterion-title-row {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.criterion-number {
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  background: var(--primary-soft);
+  color: var(--primary-strong);
+  font-weight: 900;
+}
+
+.criterion-mini-grid {
+  display: grid;
+  grid-template-columns: 0.55fr 1fr;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.criterion-mini-grid label:last-child {
+  grid-column: 1 / -1;
+}
+
+.criterion-mini-grid input,
+.criterion-mini-grid select,
+.rubric-level-cell input,
+.rubric-level-cell textarea {
+  font-size: 0.9rem;
+}
+
+.rubric-score-label {
+  display: grid;
+  grid-template-columns: auto 86px;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-weight: 900;
+  color: var(--muted);
+}
+
+.rubric-level-cell textarea {
+  min-height: 104px;
+  resize: vertical;
+}
+
+.rubric-criterion-cell .remove-criterion {
+  width: auto;
+  height: auto;
+  min-height: 0;
+  margin-top: 10px;
+  padding: 8px 12px;
+}
+
+@media (max-width: 820px) {
+  .teacher-rubric-table,
+  .teacher-rubric-table thead,
+  .teacher-rubric-table tbody,
+  .teacher-rubric-table th,
+  .teacher-rubric-table td,
+  .teacher-rubric-table tr {
+    display: block;
+    min-width: 0;
+    width: 100%;
+  }
+
+  .teacher-rubric-table thead {
+    display: none;
+  }
+
+  .rubric-table-row {
+    border-bottom: 2px solid var(--line);
+  }
+
+  .teacher-rubric-table td {
+    border-right: 0;
+  }
+
+  .teacher-rubric-table td::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 8px;
+    font-size: 0.76rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+  }
+
+  .rubric-criterion-cell,
+  .rubric-level-cell {
+    width: 100%;
+    min-width: 0;
+  }
+}
+
+/* Admin modal width fix: make Teacher/Admin workspace wider without stretching the PIN form */
+#adminOverlay {
+  padding: 8px;
+}
+
+#adminOverlay .admin-modal {
+  width: min(1560px, calc(100vw - 16px));
+  max-height: calc(100dvh - 16px);
+  border-radius: 22px;
+}
+
+#adminOverlay .modal-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: var(--solid-card);
+}
+
+#adminOverlay .admin-form {
+  padding: 22px 28px 26px;
+}
+
+#adminOverlay .pin-screen {
+  width: min(560px, 100%);
+  min-height: 0;
+  margin: 0 auto;
+  padding: 34px 20px;
+}
+
+#adminOverlay .pin-row {
+  align-items: center;
+}
+
+#adminOverlay .pin-row input {
+  min-height: 52px;
+}
+
+#adminOverlay .pin-row .primary-btn {
+  min-height: 52px;
+  padding-inline: 24px;
+}
+
+#adminOverlay .rubric-table-scroll {
+  max-height: 58vh;
+}
+
+@media (max-width: 760px) {
+  #adminOverlay {
+    padding: 6px;
+  }
+
+  #adminOverlay .admin-modal {
+    width: calc(100vw - 12px);
+    max-height: calc(100dvh - 12px);
+    border-radius: 16px;
+  }
+
+  #adminOverlay .admin-form {
+    padding: 16px 12px 18px;
+  }
+
+  #adminOverlay .pin-screen {
+    padding: 22px 12px;
+  }
+}
+
+/* Latest admin panel fix: admin view covers the screen and hides the sticky student topbar */
+body.admin-open {
+  overflow: hidden;
+}
+
+body.admin-open .topbar {
+  display: none !important;
+}
+
+body.admin-open #adminOverlay {
+  z-index: 9000 !important;
+  padding: 6px !important;
+  place-items: stretch !important;
+}
+
+body.admin-open #adminOverlay .admin-modal {
+  width: 100% !important;
+  height: calc(100dvh - 12px) !important;
+  max-height: none !important;
+  border-radius: 18px !important;
+}
+
+body.admin-open #adminOverlay .modal-header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: var(--solid-card);
+}
+
+body.admin-open #closeAdminBtn {
+  position: sticky;
+  top: 14px;
+  z-index: 70;
+  flex: 0 0 auto;
+}
+
+body.admin-open #adminOverlay .admin-form {
+  padding: 22px 30px 28px !important;
+}
+
+@media (max-width: 760px) {
+  body.admin-open #adminOverlay {
+    padding: 4px !important;
+  }
+
+  body.admin-open #adminOverlay .admin-modal {
+    height: calc(100dvh - 8px) !important;
+    border-radius: 14px !important;
+  }
+
+  body.admin-open #adminOverlay .admin-form {
+    padding: 16px 12px 18px !important;
+  }
+}
+
+/* Latest update: Notepad++-style syntax colors for HTML, CSS, and JavaScript */
+.editor-stack {
+  isolation: isolate;
+}
+
+.code-match-layer {
+  color: var(--editor-text) !important;
+  background: transparent;
+  user-select: none;
+}
+
+#codeEditor {
+  color: transparent !important;
+  -webkit-text-fill-color: transparent;
+  caret-color: var(--editor-text);
+}
+
+#codeEditor::selection {
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  background: rgba(96, 165, 250, 0.35);
+}
+
+.code-match-layer .tag-match {
+  color: inherit !important;
+  border-radius: 4px;
+  text-decoration-line: underline;
+  text-decoration-thickness: 3px;
+  text-underline-offset: 4px;
+}
+
+.code-match-layer .syn-doctype {
+  color: #334155;
+  font-weight: 900;
+}
+
+.code-match-layer .syn-html-tag,
+.code-match-layer .syn-html-bracket {
+  color: #0000cc;
+  font-weight: 900;
+}
+
+.code-match-layer .syn-html-attr {
+  color: #7952b3;
+}
+
+.code-match-layer .syn-html-equals,
+.code-match-layer .syn-punctuation {
+  color: #64748b;
+}
+
+.code-match-layer .syn-string {
+  color: #b91c1c;
+}
+
+.code-match-layer .syn-comment {
+  color: #64748b;
+  font-style: italic;
+}
+
+.code-match-layer .syn-css-selector {
+  color: #7c3aed;
+  font-weight: 900;
+}
+
+.code-match-layer .syn-css-property {
+  color: #0369a1;
+  font-weight: 800;
+}
+
+.code-match-layer .syn-number {
+  color: #c2410c;
+}
+
+.code-match-layer .syn-js-keyword {
+  color: #9333ea;
+  font-weight: 900;
+}
+
+.code-match-layer .syn-js-function {
+  color: #0f766e;
+  font-weight: 800;
+}
+
+[data-theme="dark"] .code-match-layer .syn-doctype {
+  color: #cbd5e1;
+}
+
+[data-theme="dark"] .code-match-layer .syn-html-tag,
+[data-theme="dark"] .code-match-layer .syn-html-bracket {
+  color: #60a5fa;
+}
+
+[data-theme="dark"] .code-match-layer .syn-html-attr {
+  color: #c084fc;
+}
+
+[data-theme="dark"] .code-match-layer .syn-html-equals,
+[data-theme="dark"] .code-match-layer .syn-punctuation {
+  color: #94a3b8;
+}
+
+[data-theme="dark"] .code-match-layer .syn-string {
+  color: #fca5a5;
+}
+
+[data-theme="dark"] .code-match-layer .syn-comment {
+  color: #94a3b8;
+}
+
+[data-theme="dark"] .code-match-layer .syn-css-selector {
+  color: #c084fc;
+}
+
+[data-theme="dark"] .code-match-layer .syn-css-property {
+  color: #38bdf8;
+}
+
+[data-theme="dark"] .code-match-layer .syn-number {
+  color: #fdba74;
+}
+
+[data-theme="dark"] .code-match-layer .syn-js-keyword {
+  color: #c084fc;
+}
+
+[data-theme="dark"] .code-match-layer .syn-js-function {
+  color: #5eead4;
+}
+
+/* Firebase Auth teacher login update */
+.teacher-login-screen {
+  justify-content: center;
+  align-items: center;
+  min-height: min(520px, 70vh);
+}
+
+.teacher-login-card {
+  display: grid;
+  gap: 14px;
+  width: min(520px, 100%);
+  margin: 0 auto;
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  padding: 24px;
+  background: color-mix(in srgb, var(--solid-card) 88%, var(--primary-soft));
+  box-shadow: var(--shadow);
+}
+
+.teacher-login-card h3 {
+  margin-bottom: 4px;
+  font-size: 1.35rem;
+}
+
+.teacher-login-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.teacher-login-actions button {
+  flex: 1;
+}
+
+.admin-open .topbar {
+  visibility: hidden;
+}
+
+/* Improved Firebase Auth login layout */
+body.admin-open #adminOverlay .pin-screen.teacher-login-screen {
+  width: 100% !important;
+  min-height: calc(100dvh - 150px) !important;
+  margin: 0 !important;
+  padding: 28px clamp(16px, 4vw, 56px) !important;
+  display: grid !important;
+  place-items: center !important;
+  background:
+    radial-gradient(circle at 18% 16%, rgba(37, 99, 235, 0.16), transparent 28rem),
+    radial-gradient(circle at 88% 80%, rgba(6, 182, 212, 0.12), transparent 26rem),
+    linear-gradient(135deg, color-mix(in srgb, var(--solid-card) 88%, var(--primary-soft)), var(--solid-card));
+}
+
+.teacher-login-layout {
+  width: min(1040px, 100%);
+  display: grid;
+  grid-template-columns: minmax(280px, 0.9fr) minmax(320px, 1.1fr);
+  align-items: stretch;
+  gap: 18px;
+}
+
+.teacher-login-intro,
+.teacher-login-card {
+  border: 1px solid var(--line);
+  border-radius: 26px;
+  padding: clamp(22px, 3vw, 34px);
+  background: color-mix(in srgb, var(--solid-card) 92%, var(--primary-soft));
+  box-shadow: 0 22px 60px rgba(15, 23, 42, 0.14);
+}
+
+.teacher-login-intro {
+  display: grid;
+  align-content: center;
+  gap: 12px;
+  color: var(--text);
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.12), rgba(6, 182, 212, 0.1)), var(--solid-card);
+}
+
+.teacher-login-icon {
+  display: grid;
+  place-items: center;
+  width: 70px;
+  height: 70px;
+  border-radius: 24px;
+  color: white;
+  background: linear-gradient(135deg, #2563eb, #06b6d4);
+  box-shadow: 0 18px 40px rgba(37, 99, 235, 0.25);
+  font-size: 2rem;
+}
+
+.teacher-login-intro h3 {
+  margin: 0;
+  font-size: clamp(1.8rem, 3vw, 2.65rem);
+  line-height: 1.03;
+}
+
+.teacher-login-intro p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.login-checklist {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.login-checklist span {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 9px 12px;
+  color: var(--text);
+  background: var(--solid-card);
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
+.teacher-login-card {
+  display: grid;
+  align-content: center;
+  gap: 14px;
+  width: 100% !important;
+  margin: 0 !important;
+}
+
+.teacher-login-card label {
+  font-size: 0.95rem;
+}
+
+.teacher-login-card input {
+  min-height: 56px;
+  border-radius: 18px;
+  padding-inline: 18px;
+  font-size: 1rem;
+  font-weight: 700;
+  background: var(--solid-card);
+}
+
+.teacher-login-actions {
+  display: grid !important;
+  grid-template-columns: 1fr auto;
+  gap: 10px !important;
+  margin-top: 4px;
+}
+
+.teacher-login-actions .primary-btn,
+.teacher-login-actions .ghost-btn {
+  min-height: 54px !important;
+  padding-inline: 22px !important;
+  border-radius: 18px !important;
+}
+
+.teacher-login-actions .primary-btn:disabled {
+  opacity: 0.65;
+  cursor: wait;
+  transform: none;
+}
+
+.login-error {
+  margin: 0;
+  border: 1px solid color-mix(in srgb, var(--danger) 48%, var(--line));
+  border-radius: 16px;
+  padding: 12px 14px;
+  color: #991b1b;
+  background: #fee2e2;
+  font-weight: 800;
+  line-height: 1.45;
+}
+
+[data-theme="dark"] .login-error {
+  color: #fecaca;
+  background: rgba(220, 38, 38, 0.18);
+}
+
+@media (max-width: 840px) {
+  .teacher-login-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .teacher-login-intro h3 {
+    font-size: 1.75rem;
+  }
+
+  .teacher-login-actions {
+    grid-template-columns: 1fr;
+  }
+}
+

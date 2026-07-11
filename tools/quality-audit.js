@@ -4,7 +4,7 @@ const path = require('path');
 const childProcess = require('child_process');
 
 const root = path.resolve(__dirname, '..');
-const RELEASE = '20260711-quality-gate-v100';
+const RELEASE = '20260711-overall-100-readiness';
 const results = [];
 
 function file(name) { return path.join(root, name); }
@@ -44,7 +44,7 @@ for (const required of [
   'index.html', 'style.css', 'script.js', 'service-worker.js', 'firebase-config.js',
   'firebase.json', 'firestore.rules', 'manifest.webmanifest', 'favicon.png',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-192-maskable.png', 'icons/icon-512-maskable.png',
-  'README.md', 'FIREBASE_AND_GITHUB_SETUP.md', 'FREE_STUDENT_ACCOUNTS_SETUP.md', 'UPLOAD_THIS_FIRST.txt'
+  'README.md', 'FIREBASE_AND_GITHUB_SETUP.md', 'FREE_STUDENT_ACCOUNTS_SETUP.md', 'UPLOAD_THIS_FIRST.txt', 'OVERALL_100_READINESS_REPORT.md', 'FINAL_DEPLOYMENT_README.md'
 ]) {
   assertCheck(exists(required), `required file present: ${required}`);
 }
@@ -74,6 +74,9 @@ for (const ch of css) {
 }
 assertCheck(braceBalance === 0 && cssMinBalance >= 0, 'CSS brace balance', `balance=${braceBalance}`);
 assertCheck(/@media\s*\(max-width:\s*820px\)/.test(css), 'mobile responsive rules present');
+assertCheck(css.includes('--mcs-vvh') && css.includes('mobile-keyboard-open'), 'mobile dynamic viewport and keyboard CSS present');
+assertCheck(css.includes('viewport-fit') || html.includes('viewport-fit=cover'), 'safe-area viewport fit present');
+assertCheck(/@supports\s*\(height:\s*100dvh\)/.test(css), 'dynamic viewport CSS support present');
 assertCheck(/prefers-reduced-motion/.test(css), 'reduced-motion CSS present');
 assertCheck(/forced-colors/.test(css), 'forced-colors CSS present');
 
@@ -87,6 +90,10 @@ assertCheck(script.includes('checkStoragePressure'), 'storage pressure check ins
 assertCheck(script.includes('flushStudentProjectSave'), 'student save flush function present');
 assertCheck(script.includes('persistStudentProjectRecoverySnapshot'), 'local recovery snapshots present');
 assertCheck(script.includes('registerPWAServiceWorker') && script.includes('updatefound'), 'PWA update detection present');
+assertCheck(script.includes('installMobileExperienceController'), 'mobile experience controller installed');
+assertCheck(script.includes('MCS_RUN_MOBILE_HEALTH_CHECK'), 'mobile health check hook available');
+assertCheck(script.includes('visualViewport') && script.includes('mobile-keyboard-open'), 'mobile visual viewport keyboard handling present');
+assertCheck(script.includes('MCS_RUN_OVERALL_READINESS_CHECK'), 'overall readiness health check hook available');
 
 const sw = exists('service-worker.js') ? read('service-worker.js') : '';
 const swAssets = Array.from(sw.matchAll(/'\.\/([^']+)'/g)).map(m => m[1]).filter(Boolean);

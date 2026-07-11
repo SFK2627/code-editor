@@ -1,0 +1,779 @@
+/* =========================================================
+   ADMIN TABBED LAYOUT (desktop + mobile)
+   ========================================================= */
+.admin-tabs-wrap {
+  margin: 10px 0 16px;
+}
+
+.admin-tabs {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding: 4px;
+  border: 1px solid var(--line-strong);
+  border-radius: 18px;
+  background: var(--bg-2);
+  scrollbar-width: thin;
+}
+
+.admin-tab-btn {
+  appearance: none;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  border-radius: 14px;
+  padding: 11px 16px;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.admin-tab-btn:hover {
+  color: var(--text);
+  background: rgba(255,255,255,0.55);
+}
+
+.admin-tab-btn.active,
+.admin-tab-btn[aria-selected="true"] {
+  color: #0f172a;
+  background: linear-gradient(135deg, #dbeafe, #bfdbfe);
+  border-color: rgba(59, 130, 246, 0.35);
+  box-shadow: 0 8px 18px rgba(59,130,246,0.16);
+}
+
+.admin-tab-panel {
+  display: none;
+}
+
+.admin-tab-panel.active {
+  display: block;
+}
+
+#adminForm.admin-form {
+  display: none;
+}
+
+#adminForm.admin-form.visible {
+  display: block;
+}
+
+#adminForm.admin-form.visible.hidden {
+  display: none;
+}
+
+#activitiesRubricsAdmin {
+  display: none;
+}
+
+#activitiesRubricsAdmin.active {
+  display: block;
+}
+
+@media (max-width: 820px) {
+  .admin-modal {
+    width: min(100vw - 14px, 1000px) !important;
+    max-height: calc(100vh - 10px) !important;
+    padding: 16px !important;
+    border-radius: 18px !important;
+  }
+
+  .modal-header {
+    gap: 10px;
+    align-items: flex-start;
+  }
+
+  .modal-header h2 {
+    font-size: 1.08rem;
+    line-height: 1.2;
+  }
+
+  .admin-tabs-wrap {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(255,255,255,0.92));
+    padding-bottom: 8px;
+  }
+
+  .admin-tabs {
+    gap: 8px;
+    padding: 4px;
+    border-radius: 16px;
+  }
+
+  .admin-tab-btn {
+    padding: 10px 14px;
+    font-size: 0.92rem;
+  }
+
+  .student-admin-heading,
+  .admin-settings-heading,
+  .manual-rubric-header,
+  .admin-activity-manager,
+  .rubric-toolbar {
+    gap: 12px;
+  }
+
+  .student-admin-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .student-register-actions,
+  .assistance-settings-actions,
+  .admin-activity-actions,
+  .manual-rubric-actions,
+  .admin-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .student-register-actions > *,
+  .assistance-settings-actions > *,
+  .admin-activity-actions > *,
+  .manual-rubric-actions > *,
+  .admin-actions > * {
+    flex: 1 1 100%;
+  }
+
+  .student-tracker-toolbar,
+  .form-grid,
+  .manual-score-row {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* =========================================================
+   FINAL ADMIN STUDENTS PHONE LAYOUT
+   - makes the Students tab truly phone-friendly
+   - desktop/tablet layouts stay unchanged
+   ========================================================= */
+@media (max-width: 820px) {
+  #adminOverlay.modal-overlay {
+    padding: 4px !important;
+    align-items: stretch !important;
+  }
+
+  #adminOverlay .admin-modal {
+    width: 100% !important;
+    max-width: none !important;
+    height: calc(100dvh - 8px) !important;
+    max-height: calc(100dvh - 8px) !important;
+    margin: 0 !important;
+    padding: 12px !important;
+    border-radius: 16px !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  #adminOverlay .modal-header {
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 20 !important;
+    display: grid !important;
+    grid-template-columns: 1fr auto !important;
+    gap: 8px !important;
+    padding: 10px 4px 10px !important;
+    background: linear-gradient(180deg, rgba(248,250,252,0.99), rgba(248,250,252,0.94)) !important;
+    backdrop-filter: blur(10px) !important;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.18) !important;
+  }
+
+  #adminOverlay .modal-header .section-kicker {
+    font-size: 0.66rem !important;
+  }
+
+  #adminOverlay .modal-header h2 {
+    margin: 2px 0 !important;
+    font-size: 1rem !important;
+    line-height: 1.15 !important;
+  }
+
+  #adminOverlay .modal-header .muted-text {
+    display: none !important;
+  }
+
+  #adminOverlay #closeAdminBtn {
+    width: 38px !important;
+    height: 38px !important;
+    min-width: 38px !important;
+  }
+
+  #adminOverlay .admin-tabs-wrap {
+    position: sticky !important;
+    top: 60px !important;
+    z-index: 19 !important;
+    margin: 0 -4px 12px !important;
+    padding: 8px 4px 10px !important;
+    background: linear-gradient(180deg, rgba(248,250,252,0.98), rgba(248,250,252,0.92)) !important;
+    backdrop-filter: blur(10px) !important;
+  }
+
+  #adminOverlay .admin-tabs {
+    display: flex !important;
+    gap: 7px !important;
+    padding: 4px !important;
+    overflow-x: auto !important;
+    border-radius: 15px !important;
+    scroll-snap-type: x proximity !important;
+  }
+
+  #adminOverlay .admin-tab-btn {
+    flex: 0 0 auto !important;
+    min-height: 40px !important;
+    padding: 9px 12px !important;
+    border-radius: 12px !important;
+    font-size: 0.84rem !important;
+    scroll-snap-align: start !important;
+  }
+
+  #studentAccountsAdmin.student-accounts-admin-card {
+    padding: 12px !important;
+    border-radius: 18px !important;
+  }
+
+  #studentAccountsAdmin .student-admin-heading {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+    margin-bottom: 12px !important;
+  }
+
+  #studentAccountsAdmin .student-admin-heading h3 {
+    margin: 2px 0 5px !important;
+    font-size: 1.02rem !important;
+    line-height: 1.18 !important;
+  }
+
+  #studentAccountsAdmin .student-admin-heading .muted-text {
+    font-size: 0.78rem !important;
+    line-height: 1.35 !important;
+  }
+
+  #studentAccountsAdmin #refreshStudentsBtn {
+    width: 100% !important;
+    min-height: 40px !important;
+    justify-content: center !important;
+  }
+
+  #studentAccountsAdmin .student-admin-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+    margin: 12px 0 !important;
+  }
+
+  #studentAccountsAdmin .student-admin-summary > div {
+    min-height: 72px !important;
+    padding: 10px !important;
+    border-radius: 14px !important;
+    text-align: center !important;
+    align-content: center !important;
+  }
+
+  #studentAccountsAdmin .student-admin-summary strong {
+    font-size: 1.2rem !important;
+    line-height: 1 !important;
+  }
+
+  #studentAccountsAdmin .student-admin-summary span {
+    font-size: 0.7rem !important;
+  }
+
+  #studentAccountsAdmin .student-register-grid {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+
+  #studentAccountsAdmin .student-register-grid label,
+  #studentAccountsAdmin .student-tracker-toolbar label {
+    gap: 5px !important;
+    font-size: 0.75rem !important;
+  }
+
+  #studentAccountsAdmin .student-register-grid input,
+  #studentAccountsAdmin .student-register-grid select,
+  #studentAccountsAdmin .student-tracker-toolbar input,
+  #studentAccountsAdmin .student-tracker-toolbar select {
+    min-height: 42px !important;
+    border-radius: 12px !important;
+    font-size: 0.9rem !important;
+    padding: 9px 11px !important;
+  }
+
+  #studentAccountsAdmin .student-register-actions {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+    margin-top: 12px !important;
+  }
+
+  #studentAccountsAdmin .student-register-actions button,
+  #studentAccountsAdmin #confirmStudentImportBtn,
+  #studentAccountsAdmin #cancelStudentImportBtn {
+    width: 100% !important;
+    min-height: 42px !important;
+    justify-content: center !important;
+    border-radius: 13px !important;
+    font-size: 0.9rem !important;
+  }
+
+  #studentAccountsAdmin .student-import-preview {
+    padding: 10px !important;
+    border-radius: 16px !important;
+  }
+
+  #studentAccountsAdmin .student-import-preview-head {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+  }
+
+  #studentAccountsAdmin .student-import-table-wrap {
+    overflow-x: auto !important;
+    border-radius: 12px !important;
+  }
+
+  #studentAccountsAdmin .student-import-table {
+    min-width: 680px !important;
+  }
+
+  #studentAccountsAdmin .student-import-table th,
+  #studentAccountsAdmin .student-import-table td {
+    padding: 8px 9px !important;
+    font-size: 0.74rem !important;
+  }
+
+  #studentAccountsAdmin .student-tracker-toolbar {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 9px !important;
+    margin-top: 14px !important;
+    padding: 10px !important;
+    border: 1px solid var(--line) !important;
+    border-radius: 16px !important;
+    background: var(--solid-card) !important;
+  }
+
+  #studentAccountsAdmin .student-tracker-table-wrap {
+    margin-top: 12px !important;
+    overflow: visible !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+  }
+
+  #studentAccountsAdmin .student-tracker-table {
+    display: block !important;
+    min-width: 0 !important;
+    width: 100% !important;
+    border-collapse: separate !important;
+    background: transparent !important;
+  }
+
+  #studentAccountsAdmin .student-tracker-table thead {
+    display: none !important;
+  }
+
+  #studentAccountsAdmin .student-tracker-table tbody {
+    display: grid !important;
+    gap: 10px !important;
+    width: 100% !important;
+  }
+
+  #studentAccountsAdmin .student-tracker-table tr {
+    display: block !important;
+    padding: 12px !important;
+    border: 1px solid var(--line-strong) !important;
+    border-radius: 18px !important;
+    background: linear-gradient(145deg, var(--solid-card), var(--bg-2)) !important;
+    box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08) !important;
+  }
+
+  #studentAccountsAdmin .student-tracker-table td {
+    display: flex !important;
+    align-items: flex-start !important;
+    justify-content: space-between !important;
+    gap: 12px !important;
+    width: 100% !important;
+    padding: 9px 0 !important;
+    border: 0 !important;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.18) !important;
+    font-size: 0.84rem !important;
+    text-align: right !important;
+  }
+
+  #studentAccountsAdmin .student-tracker-table td:last-child {
+    display: block !important;
+    border-bottom: 0 !important;
+    padding-bottom: 0 !important;
+  }
+
+  #studentAccountsAdmin .student-tracker-table td::before {
+    flex: 0 0 88px !important;
+    color: var(--muted) !important;
+    font-size: 0.72rem !important;
+    font-weight: 900 !important;
+    text-align: left !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.04em !important;
+  }
+
+  #studentAccountsAdmin .student-tracker-table td:nth-of-type(1)::before { content: "Student"; }
+  #studentAccountsAdmin .student-tracker-table td:nth-of-type(2)::before { content: "Section"; }
+  #studentAccountsAdmin .student-tracker-table td:nth-of-type(3)::before { content: "Account"; }
+  #studentAccountsAdmin .student-tracker-table td:nth-of-type(4)::before { content: "Projects"; }
+  #studentAccountsAdmin .student-tracker-table td:nth-of-type(5)::before { content: "Last Activity"; }
+  #studentAccountsAdmin .student-tracker-table td:nth-of-type(6)::before { content: "Action"; }
+
+  #studentAccountsAdmin .student-tracker-table td:nth-of-type(1) {
+    display: block !important;
+    text-align: left !important;
+    padding-top: 0 !important;
+  }
+
+  #studentAccountsAdmin .student-tracker-table td:nth-of-type(1)::before {
+    display: block !important;
+    margin-bottom: 6px !important;
+  }
+
+  #studentAccountsAdmin .student-cell-name {
+    font-size: 0.96rem !important;
+    line-height: 1.2 !important;
+  }
+
+  #studentAccountsAdmin .student-cell-id,
+  #studentAccountsAdmin .student-cell-sub {
+    font-size: 0.72rem !important;
+  }
+
+  #studentAccountsAdmin .student-tracker-table td:last-child button,
+  #studentAccountsAdmin .student-tracker-table td:last-child .ghost-btn,
+  #studentAccountsAdmin .student-tracker-table td:last-child .primary-btn {
+    width: 100% !important;
+    min-height: 40px !important;
+    justify-content: center !important;
+    border-radius: 12px !important;
+    margin-top: 6px !important;
+  }
+}
+
+
+/* =========================================================
+   TRUE PHONE ADMIN STUDENTS FIX
+   - prevents any horizontal clipping in Admin > Students
+   - keeps desktop unchanged
+   ========================================================= */
+@media (max-width: 820px) {
+  body.admin-open,
+  body.admin-open html {
+    overflow-x: hidden !important;
+  }
+
+  body.admin-open #adminOverlay.modal-overlay,
+  #adminOverlay.modal-overlay {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+  }
+
+  body.admin-open #adminOverlay .admin-modal,
+  #adminOverlay .admin-modal {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    padding: 0 !important;
+  }
+
+  #adminOverlay .modal-header {
+    padding: 12px 12px 10px !important;
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  #adminOverlay .modal-header > div,
+  #adminOverlay .modal-header h2 {
+    min-width: 0 !important;
+    max-width: 100% !important;
+    overflow-wrap: anywhere !important;
+  }
+
+  #adminOverlay .admin-tabs-wrap {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 8px 10px 10px !important;
+    top: 58px !important;
+    overflow: hidden !important;
+  }
+
+  #adminOverlay .admin-tabs {
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  #adminOverlay .admin-form.visible,
+  #adminOverlay .admin-form,
+  #adminOverlay form#adminForm {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    padding: 10px 10px 18px !important;
+    margin: 0 !important;
+    overflow-x: hidden !important;
+  }
+
+  #adminOverlay .admin-tab-panel.active,
+  #studentAccountsAdmin.student-accounts-admin-card {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    overflow-x: hidden !important;
+  }
+
+  #studentAccountsAdmin.student-accounts-admin-card {
+    padding: 14px !important;
+    border-radius: 18px !important;
+  }
+
+  #studentAccountsAdmin,
+  #studentAccountsAdmin * {
+    min-width: 0 !important;
+  }
+
+  #studentAccountsAdmin .student-admin-heading {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  #studentAccountsAdmin .student-admin-heading .muted-text {
+    display: none !important;
+  }
+
+  #studentAccountsAdmin .student-admin-heading h3 {
+    font-size: 1.08rem !important;
+    line-height: 1.2 !important;
+    overflow-wrap: anywhere !important;
+  }
+
+  #studentAccountsAdmin #refreshStudentsBtn {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-height: 42px !important;
+    padding: 0 12px !important;
+    white-space: normal !important;
+    overflow: hidden !important;
+    text-overflow: clip !important;
+    justify-content: center !important;
+  }
+
+  #studentAccountsAdmin .student-admin-summary {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 12px 0 !important;
+    overflow: hidden !important;
+  }
+
+  #studentAccountsAdmin .student-admin-summary > div {
+    width: 100% !important;
+    min-width: 0 !important;
+    padding: 12px 10px !important;
+    border-radius: 15px !important;
+  }
+
+  #studentAccountsAdmin .student-admin-summary strong,
+  #studentAccountsAdmin .student-admin-summary span {
+    max-width: 100% !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  #studentAccountsAdmin .student-register-grid,
+  #studentAccountsAdmin .student-tracker-toolbar,
+  #studentAccountsAdmin .student-register-actions {
+    width: 100% !important;
+    max-width: 100% !important;
+    grid-template-columns: 1fr !important;
+  }
+
+  #studentAccountsAdmin label,
+  #studentAccountsAdmin input,
+  #studentAccountsAdmin select,
+  #studentAccountsAdmin textarea,
+  #studentAccountsAdmin button {
+    max-width: 100% !important;
+  }
+
+  #studentAccountsAdmin input,
+  #studentAccountsAdmin select {
+    width: 100% !important;
+  }
+
+  #studentAccountsAdmin .student-import-table-wrap {
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-x: auto !important;
+  }
+
+  #studentAccountsAdmin .student-tracker-table-wrap,
+  #studentAccountsAdmin .student-tracker-table,
+  #studentAccountsAdmin .student-tracker-table tbody,
+  #studentAccountsAdmin .student-tracker-table tr,
+  #studentAccountsAdmin .student-tracker-table td {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  #studentAccountsAdmin .student-tracker-table td {
+    flex-wrap: wrap !important;
+    text-align: left !important;
+    overflow-wrap: anywhere !important;
+  }
+
+  #studentAccountsAdmin .student-tracker-table td::before {
+    flex: 0 0 100% !important;
+    margin-bottom: 3px !important;
+  }
+
+  #studentAccountsAdmin .student-tracker-table td > * {
+    max-width: 100% !important;
+    overflow-wrap: anywhere !important;
+  }
+}
+
+@media (max-width: 430px) {
+  #studentAccountsAdmin .student-admin-summary {
+    grid-template-columns: 1fr !important;
+  }
+
+  #adminOverlay .admin-tab-btn {
+    font-size: 0.8rem !important;
+    padding: 9px 11px !important;
+  }
+}
+
+/* =========================================================
+   SMART INLINE HINTS
+   ========================================================= */
+.smart-inline-hint {
+  position: fixed;
+  z-index: 9999;
+  width: min(320px, calc(100vw - 20px));
+  padding: 14px 14px 12px;
+  border: 1px solid rgba(37, 99, 235, 0.25);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 22px 48px rgba(15, 23, 42, 0.24), 0 0 0 1px rgba(255,255,255,0.7) inset;
+  color: #0f172a;
+  font-size: 0.9rem;
+  line-height: 1.35;
+  backdrop-filter: blur(16px);
+}
+
+.smart-inline-hint.hidden {
+  display: none !important;
+}
+
+.smart-inline-kicker {
+  margin: 0 28px 6px 0;
+  color: #2563eb;
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.smart-inline-hint strong {
+  display: block;
+  margin: 0 24px 6px 0;
+  font-size: 0.98rem;
+  line-height: 1.25;
+}
+
+.smart-inline-hint span {
+  display: block;
+  color: #475569;
+}
+
+.smart-inline-close {
+  position: absolute;
+  top: 9px;
+  right: 9px;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #1e293b;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.smart-inline-fix {
+  margin-top: 12px;
+  width: 100%;
+  min-height: 38px;
+  border: 0;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #2563eb, #06b6d4);
+  color: white;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+
+body.editor-fullscreen-active #editorPanel .smart-inline-hint,
+#editorPanel:fullscreen .smart-inline-hint {
+  z-index: 100120;
+}
+
+[data-theme="dark"] .smart-inline-hint {
+  background: rgba(15, 23, 42, 0.98);
+  border-color: rgba(96, 165, 250, 0.35);
+  box-shadow: 0 22px 48px rgba(0, 0, 0, 0.42), 0 0 0 1px rgba(255,255,255,0.06) inset;
+  color: #f8fbff;
+}
+
+[data-theme="dark"] .smart-inline-hint span {
+  color: #cbd5e1;
+}
+
+[data-theme="dark"] .smart-inline-close {
+  background: rgba(96, 165, 250, 0.14);
+  color: #e5efff;
+}
+
+body.code-helper-disabled .smart-inline-hint {
+  display: none !important;
+}
+
+@media (max-width: 820px) {
+  .smart-inline-hint {
+    left: 10px !important;
+    right: 10px !important;
+    width: auto;
+    max-width: none !important;
+    font-size: 0.88rem;
+  }
+}
+
+

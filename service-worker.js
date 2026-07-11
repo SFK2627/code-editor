@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mcs-coding-app-20260711-quality-gate-v100';
+const CACHE_NAME = 'mcs-coding-app-20260711-overall-100-readiness';
 const CRITICAL_ASSETS = new Set(['./index.html', './style.css', './script.js']);
 const APP_SHELL = [
   './',
