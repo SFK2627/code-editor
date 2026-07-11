@@ -11518,3 +11518,172 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
   document.addEventListener('click', () => window.setTimeout(syncScrollLocks, 60), true);
   document.addEventListener('touchend', () => window.setTimeout(syncScrollLocks, 60), true);
 })();
+
+
+/* HARD FINAL PHONE SCROLL RECOVERY
+   If the normal editor workspace is visible on phone, remove stale scroll locks. */
+(function installHardPhoneEditorScrollFix() {
+  function isPhone() {
+    return document.documentElement?.dataset?.deviceMode === 'phone' || window.matchMedia('(max-width: 820px)').matches;
+  }
+
+  function isVisible(el) {
+    if (!el || el.classList.contains('hidden')) return false;
+    const rect = el.getBoundingClientRect();
+    const style = window.getComputedStyle(el);
+    return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0';
+  }
+
+  function unlockEditorScrollWhenSafe() {
+    if (!isPhone()) return;
+    const body = document.body;
+    const editorVisible = isVisible(document.getElementById('editorPanel')) && isVisible(document.querySelector('.app-shell'));
+    const realFullscreen = Boolean(document.fullscreenElement || document.webkitFullscreenElement);
+    const blockingOverlayVisible = isVisible(document.getElementById('entryGate')) ||
+      isVisible(document.getElementById('studentLoginOverlay')) ||
+      isVisible(document.getElementById('changePasswordOverlay')) ||
+      isVisible(document.getElementById('projectNameOverlay')) ||
+      isVisible(document.getElementById('adminOverlay')) ||
+      isVisible(document.getElementById('studentDashboardScreen'));
+
+    if (editorVisible && !realFullscreen && !blockingOverlayVisible) {
+      body.classList.add('editor-scroll-unlocked');
+      body.classList.remove(
+        'entry-gate-active',
+        'student-dashboard-active',
+        'student-auth-open',
+        'student-route-lock',
+        'admin-open',
+        'activity-popup-open',
+        'preview-fullscreen-active',
+        'editor-fullscreen-active',
+        'preview-inside-editor-fullscreen'
+      );
+      body.style.overflow = 'auto';
+      body.style.overflowY = 'auto';
+      body.style.position = 'static';
+      body.style.height = 'auto';
+      document.documentElement.style.overflowY = 'auto';
+    } else {
+      body.classList.remove('editor-scroll-unlocked');
+    }
+
+    const fullBtn = document.getElementById('fullPreviewBtn');
+    if (fullBtn && isPhone() && document.documentElement.dataset.theme === 'dark') {
+      fullBtn.style.color = '#07111f';
+      fullBtn.style.webkitTextFillColor = '#07111f';
+    }
+  }
+
+  ['load', 'resize', 'orientationchange', 'fullscreenchange', 'webkitfullscreenchange'].forEach(name => {
+    window.addEventListener(name, () => setTimeout(unlockEditorScrollWhenSafe, 60), true);
+  });
+  ['click', 'touchstart', 'touchend', 'pointerup', 'scroll'].forEach(name => {
+    document.addEventListener(name, () => setTimeout(unlockEditorScrollWhenSafe, 30), true);
+  });
+  setInterval(unlockEditorScrollWhenSafe, 700);
+  unlockEditorScrollWhenSafe();
+})();
+
+
+/* Emergency final mobile fix: prevent duplicated Full text and restore normal page scroll. */
+(function installEmergencyPhonePreviewAndScrollFix() {
+  function isPhone() {
+    return document.documentElement?.dataset?.deviceMode === 'phone' || window.matchMedia('(max-width: 820px)').matches;
+  }
+
+  function isVisible(el) {
+    if (!el || el.classList.contains('hidden')) return false;
+    const style = window.getComputedStyle(el);
+    const rect = el.getBoundingClientRect();
+    return style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0' && rect.width > 0 && rect.height > 0;
+  }
+
+  function normalizePreviewButtonLabels() {
+    if (!isPhone()) return;
+    const monitorBtn = document.getElementById('desktopPreviewBtn');
+    const fullBtn = document.getElementById('fullPreviewBtn');
+    const resultBtn = document.getElementById('resultFromPreviewBtn');
+    if (monitorBtn) monitorBtn.textContent = monitorBtn.classList.contains('active') ? '📱 Phone' : '🖥️ Monitor';
+    if (fullBtn) {
+      fullBtn.textContent = '⛶ Full';
+      fullBtn.style.color = '#07111f';
+      fullBtn.style.webkitTextFillColor = '#07111f';
+    }
+    if (resultBtn) resultBtn.textContent = '✓ Result';
+  }
+
+  function restoreNormalEditorScroll() {
+    if (!isPhone()) return;
+    const body = document.body;
+    const editorVisible = isVisible(document.getElementById('editorPanel')) && isVisible(document.querySelector('.app-shell'));
+    const realFullscreen = Boolean(document.fullscreenElement || document.webkitFullscreenElement);
+    const blockingOverlayVisible = isVisible(document.getElementById('entryGate')) ||
+      isVisible(document.getElementById('studentLoginOverlay')) ||
+      isVisible(document.getElementById('changePasswordOverlay')) ||
+      isVisible(document.getElementById('projectNameOverlay')) ||
+      isVisible(document.getElementById('studentDashboardScreen')) ||
+      isVisible(document.getElementById('adminOverlay'));
+
+    normalizePreviewButtonLabels();
+
+    if (editorVisible && !realFullscreen && !blockingOverlayVisible) {
+      body.classList.add('mobile-editor-normal', 'editor-scroll-unlocked');
+      body.classList.remove(
+        'entry-gate-active',
+        'student-dashboard-active',
+        'student-auth-open',
+        'student-route-lock',
+        'admin-open',
+        'activity-popup-open',
+        'preview-fullscreen-active',
+        'preview-has-back-editor',
+        'editor-fullscreen-active',
+        'preview-inside-editor-fullscreen'
+      );
+      document.documentElement.style.overflow = 'auto';
+      document.documentElement.style.overflowY = 'auto';
+      document.documentElement.style.height = 'auto';
+      body.style.overflow = 'auto';
+      body.style.overflowY = 'auto';
+      body.style.position = 'static';
+      body.style.height = 'auto';
+      body.style.maxHeight = 'none';
+      body.style.touchAction = 'pan-y';
+    } else {
+      body.classList.remove('mobile-editor-normal');
+    }
+  }
+
+  ['load', 'resize', 'orientationchange', 'fullscreenchange', 'webkitfullscreenchange'].forEach(eventName => {
+    window.addEventListener(eventName, () => window.setTimeout(restoreNormalEditorScroll, 50), true);
+  });
+  ['click', 'touchstart', 'touchend', 'pointerup', 'input', 'change'].forEach(eventName => {
+    document.addEventListener(eventName, () => window.setTimeout(restoreNormalEditorScroll, 20), true);
+  });
+  window.setInterval(restoreNormalEditorScroll, 500);
+  restoreNormalEditorScroll();
+})();
+
+
+/* Final guard: phone preview Result button must always have readable text. */
+(function keepPhonePreviewResultButtonReadable() {
+  function isPhoneMode() {
+    return document.documentElement?.dataset?.deviceMode === 'phone' || window.matchMedia('(max-width: 820px)').matches;
+  }
+  function fix() {
+    if (!isPhoneMode()) return;
+    const btn = document.getElementById('resultFromPreviewBtn');
+    if (!btn) return;
+    btn.textContent = '✓ Result';
+    btn.style.color = '#ffffff';
+    btn.style.webkitTextFillColor = '#ffffff';
+    btn.style.fontSize = '0.76rem';
+    btn.style.fontWeight = '1000';
+    btn.style.opacity = '1';
+  }
+  ['load', 'resize', 'orientationchange'].forEach(name => window.addEventListener(name, () => setTimeout(fix, 30), true));
+  ['click', 'touchend', 'pointerup'].forEach(name => document.addEventListener(name, () => setTimeout(fix, 30), true));
+  setInterval(fix, 800);
+  fix();
+})();

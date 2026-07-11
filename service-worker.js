@@ -1,11 +1,11 @@
-const CACHE_NAME = 'sir-jr-coding-app-mobile-scroll-dark-full-fix-v1';
+const CACHE_NAME = 'sir-jr-coding-app-result-button-final-v1';
 const CORE_ASSETS = [
   './',
   './index.html',
   './style.css',
-  './style.css?v=20260711-mobile-scroll-dark-full-fix',
+  './style.css?v=20260711-result-button-final',
   './script.js',
-  './script.js?v=20260711-mobile-scroll-dark-full-fix',
+  './script.js?v=20260711-result-button-final',
   './firebase-config.js',
   './manifest.webmanifest',
   './STUDENT_IMPORT_TEMPLATE.csv',
