@@ -38,7 +38,7 @@
       document.documentElement.dataset.deviceMode = isPhone ? 'phone' : 'desktop';
     })();
   </script>
-  <link rel="stylesheet" href="style.css?v=20260711-admin-autosave-control" />
+  <link rel="stylesheet" href="style.css?v=20260711-name-highlight-v1" />
 </head>
 <body class="entry-gate-active">
   <div id="entryGate" class="entry-gate" role="dialog" aria-modal="true" aria-labelledby="entryGateTitle">
@@ -127,6 +127,7 @@
       </div>
       <div class="dashboard-header-actions">
         <button id="dashboardThemeBtn" class="ghost-btn" type="button">🌙 Theme</button>
+        <button id="dashboardJoinProjectBtn" class="ghost-btn dashboard-join-project-btn hidden" type="button">🤝 Join a Project</button>
         <button id="dashboardLogoutBtn" class="ghost-btn danger" type="button">Log Out</button>
       </div>
     </header>
@@ -562,6 +563,43 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
               <span class="admin-switch-track"><span class="admin-switch-thumb"></span></span>
             </span>
           </label>
+
+
+          <label class="assistance-option" for="collaborationToggle">
+            <span class="assistance-option-icon">🤝</span>
+            <span class="assistance-option-copy">
+              <strong>Share & Join Projects</strong>
+              <small>Show the student Share button so a host can create a live project code and classmates can join.</small>
+            </span>
+            <span class="admin-switch">
+              <input id="collaborationToggle" type="checkbox" />
+              <span class="admin-switch-track"><span class="admin-switch-thumb"></span></span>
+            </span>
+          </label>
+
+          <label class="assistance-option" for="collaborationEditToggle">
+            <span class="assistance-option-icon">✍️</span>
+            <span class="assistance-option-copy">
+              <strong>Allow Joined Students to Edit</strong>
+              <small>When disabled, shared projects become view-only for everyone except the host.</small>
+            </span>
+            <span class="admin-switch">
+              <input id="collaborationEditToggle" type="checkbox" checked />
+              <span class="admin-switch-track"><span class="admin-switch-thumb"></span></span>
+            </span>
+          </label>
+
+          <label class="assistance-option" for="collaborationMembersToggle">
+            <span class="assistance-option-icon">👥</span>
+            <span class="assistance-option-copy">
+              <strong>Show Online Members</strong>
+              <small>Show the small online count and member list while a shared project session is active.</small>
+            </span>
+            <span class="admin-switch">
+              <input id="collaborationMembersToggle" type="checkbox" checked />
+              <span class="admin-switch-track"><span class="admin-switch-thumb"></span></span>
+            </span>
+          </label>
         </div>
 
         <div class="assistance-settings-actions">
@@ -872,6 +910,6 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="firebase-config.js"></script>
-  <script src="script.js?v=20260711-admin-autosave-control"></script>
+  <script src="script.js?v=20260711-name-highlight-v1"></script>
 </body>
 </html>
