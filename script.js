@@ -596,9 +596,10 @@ let suggestionHideTimer = null;
 let lastSuggestionInputAt = 0;
 let adminUnlocked = false;
 const ADMIN_QUICK_UNLOCK_KEY = 'mcsian.admin.quickUnlocked.session';
+// Legacy quick-local unlock is disabled. Code login now signs in to Firebase with the teacher account password.
 let adminQuickUnlocked = false;
 try {
-  adminQuickUnlocked = sessionStorage.getItem(ADMIN_QUICK_UNLOCK_KEY) === '1';
+  sessionStorage.removeItem(ADMIN_QUICK_UNLOCK_KEY);
 } catch (error) {
   adminQuickUnlocked = false;
 }
@@ -1714,24 +1715,24 @@ function getTeacherEmailText() {
   return allowed.length ? allowed.join(', ') : 'any authenticated Firebase user';
 }
 
-function getAdminQuickCode() {
-  return String(window.MCS_ADMIN_QUICK_CODE || '1234').trim();
+function getDefaultTeacherEmail() {
+  return getAllowedTeacherEmails()[0] || '';
 }
 
 function setAdminQuickUnlocked(value) {
-  adminQuickUnlocked = Boolean(value);
+  // Kept for older event paths, but quick local unlock is intentionally disabled.
+  adminQuickUnlocked = false;
   try {
-    if (adminQuickUnlocked) sessionStorage.setItem(ADMIN_QUICK_UNLOCK_KEY, '1');
-    else sessionStorage.removeItem(ADMIN_QUICK_UNLOCK_KEY);
+    sessionStorage.removeItem(ADMIN_QUICK_UNLOCK_KEY);
   } catch (error) {
-    // Session storage can be blocked in some browsers; the in-memory flag still works.
+    // Session storage can be blocked in some browsers; Firebase auth remains the source of truth.
   }
-  adminUnlocked = isTeacherAuthenticated() || adminQuickUnlocked;
+  adminUnlocked = isTeacherAuthenticated();
   updateAssistancePublishUI?.();
 }
 
 function isAdminPanelUnlocked() {
-  return isTeacherAuthenticated() || adminQuickUnlocked;
+  return isTeacherAuthenticated();
 }
 
 function setAdminLoginMode(mode = 'code') {
@@ -1871,10 +1872,18 @@ function getFirebaseLoginErrorMessage(error) {
   return error?.message || 'Login failed. Check your Firebase Authentication setup.';
 }
 
-function setTeacherLoginLoading(isLoading) {
-  if (!unlockAdminBtn) return;
-  unlockAdminBtn.disabled = Boolean(isLoading);
-  unlockAdminBtn.textContent = isLoading ? 'Logging in...' : 'Login with Password';
+function setTeacherLoginLoading(isLoading, mode = 'password') {
+  if (unlockAdminBtn) {
+    unlockAdminBtn.disabled = Boolean(isLoading);
+    unlockAdminBtn.textContent = isLoading && mode === 'password' ? 'Logging in...' : 'Login with Password';
+  }
+  if (unlockAdminCodeBtn) {
+    unlockAdminCodeBtn.disabled = Boolean(isLoading);
+    unlockAdminCodeBtn.textContent = isLoading && mode === 'code' ? 'Checking code...' : 'Unlock with Code';
+  }
+  if (adminQuickCode) adminQuickCode.disabled = Boolean(isLoading);
+  if (adminEmail) adminEmail.disabled = Boolean(isLoading);
+  if (adminPassword) adminPassword.disabled = Boolean(isLoading);
 }
 
 
@@ -2227,10 +2236,11 @@ async function saveSubmissionToCloud(result) {
 
 function updateTeacherLoginUI(user = firebaseSync.currentUser) {
   const isTeacher = Boolean(user && user.email && isAllowedTeacherEmail(user.email));
-  adminUnlocked = isTeacher || adminQuickUnlocked;
+  adminQuickUnlocked = false;
+  adminUnlocked = isTeacher;
 
   if (logoutAdminBtn) {
-    logoutAdminBtn.classList.toggle('hidden', !user && !adminQuickUnlocked);
+    logoutAdminBtn.classList.toggle('hidden', !user);
   }
 
   if (adminEmail && user?.email) {
@@ -2240,15 +2250,13 @@ function updateTeacherLoginUI(user = firebaseSync.currentUser) {
   const note = document.getElementById('teacherLoginNote');
   if (note) {
     note.textContent = isTeacher
-      ? `Signed in as ${user.email}. You can manage activities, rubrics, students, and global settings.`
+      ? `Signed in as ${user.email}. You have full admin access.`
       : user
         ? `Signed in as ${user.email}, but this account is not allowed to manage rubrics.`
-        : adminQuickUnlocked
-          ? 'Admin Code is active on this device. Local editing is unlocked; use Password login for Firebase/global saving and student records.'
-          : 'Use Admin Code for quick local access, or Password for Firebase/global admin actions.';
+        : `Code uses the saved teacher email (${getDefaultTeacherEmail() || 'not set'}) with the teacher account password. Password mode lets you type the email manually.`;
   }
 
-  if (isTeacher || adminQuickUnlocked) {
+  if (isTeacher) {
     showTeacherLoginError('');
   }
 
@@ -7538,7 +7546,7 @@ async function loginTeacher() {
     return;
   }
 
-  const fallbackTeacherEmail = getAllowedTeacherEmails()[0] || '';
+  const fallbackTeacherEmail = getDefaultTeacherEmail();
   const email = (adminEmail.value.trim() || fallbackTeacherEmail).trim();
   const password = adminPassword.value;
   if (adminEmail && !adminEmail.value.trim() && fallbackTeacherEmail) adminEmail.value = fallbackTeacherEmail;
@@ -7598,22 +7606,49 @@ async function logoutTeacher() {
   }
 }
 
-function unlockAdminWithCode() {
+async function unlockAdminWithCode() {
   showTeacherLoginError('');
-  const expectedCode = getAdminQuickCode();
-  const typedCode = String(adminQuickCode?.value || '').trim();
-  if (!typedCode) {
-    showTeacherLoginError('Enter the Admin Code, or switch to Password login.');
+  const ready = await initFirebaseSync();
+  if (!ready || !firebaseSync.auth || !firebaseSync.authModule) {
+    showTeacherLoginError(`Firebase is not ready. ${firebaseSync.lastError || 'Firebase SDK did not load. Check internet connection, CDN access, and make sure all updated files were uploaded.'}`);
     return;
   }
-  if (!expectedCode || typedCode !== expectedCode) {
-    showTeacherLoginError('Incorrect Admin Code. Check firebase-config.js or use Password login.');
+
+  const email = getDefaultTeacherEmail();
+  const passwordCode = String(adminQuickCode?.value || '').trim();
+  if (!email) {
+    showTeacherLoginError('No teacher email is set in firebase-config.js. Add your teacher email to MCS_TEACHER_EMAILS or use Password mode.');
     return;
   }
-  setAdminQuickUnlocked(true);
-  updateTeacherLoginUI(firebaseSync.auth?.currentUser || firebaseSync.currentUser || null);
-  showAdminForm();
-  setStatus('Admin Code unlocked');
+  if (!passwordCode) {
+    showTeacherLoginError('Enter the teacher account password as your Admin Code, or switch to Password mode.');
+    return;
+  }
+
+  try {
+    setTeacherLoginLoading(true, 'code');
+    const { signInWithEmailAndPassword, signOut } = firebaseSync.authModule;
+    const credential = await signInWithEmailAndPassword(firebaseSync.auth, email, passwordCode);
+    firebaseSync.currentUser = credential.user;
+
+    if (!isAllowedTeacherEmail(credential.user.email)) {
+      await signOut(firebaseSync.auth);
+      adminUnlocked = false;
+      showTeacherLoginError(`This account is signed in but not allowed to manage rubrics. Allowed teacher: ${getTeacherEmailText()}.`);
+      return;
+    }
+
+    adminUnlocked = true;
+    if (adminEmail) adminEmail.value = credential.user.email || email;
+    updateTeacherLoginUI(credential.user);
+    showAdminForm();
+    setStatus('Teacher logged in');
+  } catch (error) {
+    console.error('Teacher code login failed', error);
+    showTeacherLoginError(getFirebaseLoginErrorMessage(error));
+  } finally {
+    setTeacherLoginLoading(false, 'code');
+  }
 }
 
 function unlockAdmin() {

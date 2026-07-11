@@ -1,11 +1,11 @@
-const CACHE_NAME = 'sir-jr-coding-app-admin-code-choice-v1';
+const CACHE_NAME = 'sir-jr-coding-app-admin-code-full-login-v1';
 const CORE_ASSETS = [
   './',
   './index.html',
   './style.css',
-  './style.css?v=20260711-admin-code-choice',
+  './style.css?v=20260711-admin-code-full-login',
   './script.js',
-  './script.js?v=20260711-admin-code-choice',
+  './script.js?v=20260711-admin-code-full-login',
   './firebase-config.js',
   './manifest.webmanifest',
   './STUDENT_IMPORT_TEMPLATE.csv',

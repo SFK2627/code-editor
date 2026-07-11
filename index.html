@@ -37,7 +37,7 @@
       document.documentElement.dataset.deviceMode = isPhone ? 'phone' : 'desktop';
     })();
   </script>
-  <link rel="stylesheet" href="style.css?v=20260711-admin-code-choice" />
+  <link rel="stylesheet" href="style.css?v=20260711-admin-code-full-login" />
 </head>
 <body class="entry-gate-active">
   <div id="entryGate" class="entry-gate" role="dialog" aria-modal="true" aria-labelledby="entryGateTitle">
@@ -550,11 +550,11 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
 
             <div id="adminCodeLoginPanel" class="admin-login-panel active" role="tabpanel" aria-labelledby="adminCodeModeBtn">
               <label for="adminQuickCode">
-                Admin Code
-                <input id="adminQuickCode" type="password" inputmode="numeric" autocomplete="off" placeholder="Enter quick code" />
+                Admin Code / Password
+                <input id="adminQuickCode" type="password" autocomplete="current-password" placeholder="Enter teacher password" />
               </label>
               <button id="unlockAdminCodeBtn" class="primary-btn wide-btn" type="button">Unlock with Code</button>
-              <p class="helper-note">Fast local unlock for editing on this device. Use Password login when you need Firebase/global saving.</p>
+              <p class="helper-note">Uses the saved teacher email with the teacher account password. This gives full admin access.</p>
             </div>
 
             <div id="teacherPasswordLoginPanel" class="admin-login-panel hidden" role="tabpanel" aria-labelledby="adminPasswordModeBtn">
@@ -575,7 +575,7 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
             </div>
 
             <p id="teacherLoginError" class="login-error hidden" role="alert"></p>
-            <p id="teacherLoginNote" class="helper-note">Use Admin Code for quick access, or Password for Firebase/global admin actions.</p>
+            <p id="teacherLoginNote" class="helper-note">Code uses your teacher account password for full admin access. Password mode lets you type the teacher email manually.</p>
           </div>
         </div>
       </div>
@@ -829,6 +829,6 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="firebase-config.js"></script>
-  <script src="script.js?v=20260711-admin-code-choice"></script>
+  <script src="script.js?v=20260711-admin-code-full-login"></script>
 </body>
 </html>
