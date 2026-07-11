@@ -13521,3 +13521,81 @@ body {
     margin: 6px 8px 8px !important;
   }
 }
+
+/* FINAL FIX: Studio launcher placement must not break mobile tabs or overlap the file selector. */
+.language-tabs.has-studio-launcher #superStudioLauncher.studio-launcher,
+.language-tabs #superStudioLauncher.studio-launcher-desktop {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+}
+
+.page-manager-actions.has-studio-launcher {
+  min-width: 0 !important;
+}
+
+.page-manager-actions #superStudioLauncher.studio-launcher {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 5px !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  min-height: 38px !important;
+  height: 38px !important;
+  margin: 0 !important;
+  padding: 0 8px !important;
+  border-radius: 16px !important;
+  font-size: 0.82rem !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+}
+
+@media (max-width: 760px) {
+  /* Hide the desktop slot on phones; JS moves the same button into the page manager action row. */
+  .language-tabs #superStudioLauncher.studio-launcher {
+    display: none !important;
+  }
+
+  .page-manager-actions.has-studio-launcher {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 7px !important;
+    width: 100% !important;
+    align-items: stretch !important;
+  }
+
+  .page-manager-actions.has-studio-launcher #superStudioLauncher.studio-launcher {
+    display: inline-flex !important;
+    grid-column: auto !important;
+  }
+
+  .page-manager-actions.has-studio-launcher #superStudioLauncher.studio-hidden,
+  .page-manager-actions.has-studio-launcher #superStudioLauncher.hidden,
+  body.super-studio-disabled .page-manager-actions #superStudioLauncher {
+    display: none !important;
+  }
+
+  .page-manager-actions.has-studio-launcher .page-manager-btn,
+  .page-manager-actions.has-studio-launcher #superStudioLauncher.studio-launcher {
+    min-height: 40px !important;
+    height: 40px !important;
+    font-size: 0.8rem !important;
+  }
+
+  .page-manager-actions.has-studio-launcher .danger {
+    grid-column: 1 / -1 !important;
+  }
+}
+
+@media (max-width: 420px) {
+  .page-manager-actions.has-studio-launcher {
+    grid-template-columns: 1fr 1fr !important;
+  }
+
+  .page-manager-actions.has-studio-launcher .danger,
+  .page-manager-actions.has-studio-launcher #deleteHtmlPageBtn {
+    grid-column: auto !important;
+  }
+}

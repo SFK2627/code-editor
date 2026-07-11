@@ -10275,6 +10275,39 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
       : false;
   }
 
+  function placeStudioLauncher() {
+    const launcher = document.getElementById('superStudioLauncher');
+    const languageTabs = editorPanel.querySelector('.language-tabs');
+    const pageActions = document.querySelector('.page-manager-actions');
+    if (!launcher || !languageTabs) return;
+
+    const mobile = window.matchMedia('(max-width: 760px)').matches;
+    languageTabs.classList.toggle('has-studio-launcher', !mobile);
+    pageActions?.classList.toggle('has-studio-launcher', mobile);
+
+    if (mobile && pageActions) {
+      launcher.classList.add('studio-launcher-mobile');
+      launcher.classList.remove('studio-launcher-desktop');
+      const renamePageButton = document.getElementById('renameHtmlPageBtn');
+      if (renamePageButton && renamePageButton.parentElement === pageActions) {
+        renamePageButton.insertAdjacentElement('afterend', launcher);
+      } else if (launcher.parentElement !== pageActions) {
+        pageActions.appendChild(launcher);
+      }
+      return;
+    }
+
+    launcher.classList.add('studio-launcher-desktop');
+    launcher.classList.remove('studio-launcher-mobile');
+    pageActions?.classList.remove('has-studio-launcher');
+    const renameFilesButton = document.getElementById('renameFilesBtn');
+    if (renameFilesButton && renameFilesButton.parentElement === languageTabs) {
+      renameFilesButton.insertAdjacentElement('afterend', launcher);
+    } else if (launcher.parentElement !== languageTabs) {
+      languageTabs.appendChild(launcher);
+    }
+  }
+
   function ensureStudioToolbar() {
     if (document.getElementById('superStudioToolbar')) return;
     const languageTabs = editorPanel.querySelector('.language-tabs');
@@ -10283,18 +10316,11 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     const launcher = document.createElement('button');
     launcher.id = 'superStudioLauncher';
     launcher.type = 'button';
-    launcher.className = 'ghost-btn studio-launcher';
+    launcher.className = 'ghost-btn studio-launcher studio-launcher-desktop';
     launcher.innerHTML = '<span>🚀</span><strong>Studio</strong>';
     launcher.title = 'Open optional Super Studio tools';
-
-    // Keep the launcher inside the small tab/action row beside Rename Files.
-    // This prevents Super Studio from taking a separate row above the editor.
-    const renameButton = document.getElementById('renameFilesBtn');
-    if (renameButton && renameButton.parentElement === languageTabs) {
-      renameButton.insertAdjacentElement('afterend', launcher);
-    } else {
-      languageTabs.appendChild(launcher);
-    }
+    languageTabs.appendChild(launcher);
+    placeStudioLauncher();
 
     const toolbar = document.createElement('div');
     toolbar.id = 'superStudioToolbar';
@@ -10347,6 +10373,7 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     const toolbar = document.getElementById('superStudioToolbar');
     const coach = document.getElementById('superStudioPanel');
 
+    placeStudioLauncher();
     launcher?.classList.toggle('studio-hidden', !enabled || studioDrawerOpen);
     launcher?.classList.toggle('hidden', !enabled || studioDrawerOpen);
     toolbar?.classList.toggle('studio-hidden', !enabled || !studioDrawerOpen);
@@ -10807,7 +10834,14 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
   function wireStudioEvents() {
     document.getElementById('superStudioLauncher')?.addEventListener('click', () => setStudioDrawerOpen(true));
     document.getElementById('studioHideBtn')?.addEventListener('click', () => setStudioDrawerOpen(false));
-    document.addEventListener('studentAssistanceSettingsChanged', () => setStudioDrawerOpen(false, { silent: true }));
+    window.addEventListener('resize', () => {
+      placeStudioLauncher();
+      setStudioDrawerOpen(studioDrawerOpen, { silent: true });
+    });
+    document.addEventListener('studentAssistanceSettingsChanged', () => {
+      placeStudioLauncher();
+      setStudioDrawerOpen(false, { silent: true });
+    });
     document.getElementById('studioToggleCoachBtn')?.addEventListener('click', toggleStudioCoach);
     document.getElementById('studioFormatBtn')?.addEventListener('click', formatActiveCode);
     document.getElementById('studioSnapshotBtn')?.addEventListener('click', () => saveStudioSnapshot(true));
