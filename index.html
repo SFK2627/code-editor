@@ -37,15 +37,19 @@
       document.documentElement.dataset.deviceMode = isPhone ? 'phone' : 'desktop';
     })();
   </script>
-  <link rel="stylesheet" href="style.css?v=20260711-result-button-final" />
+  <link rel="stylesheet" href="style.css?v=20260711-home-light-readable" />
 </head>
 <body class="entry-gate-active">
   <div id="entryGate" class="entry-gate" role="dialog" aria-modal="true" aria-labelledby="entryGateTitle">
     <div class="entry-card">
       <div class="entry-logo" aria-hidden="true">&lt;/&gt;</div>
       <p class="section-kicker">Sir JR Web Coding App</p>
-      <h1 id="entryGateTitle">Welcome to Sir JR Coding App</h1>
-      <p class="entry-lead">Choose how you want to use the editor today.</p>
+      <h1 id="entryGateTitle">Welcome Grade 8 MCSian Students!</h1>
+      <p class="entry-lead">Build, preview, and save your web projects in one student-friendly workspace.</p>
+      <button id="entryThemeToggle" class="entry-theme-toggle" type="button" aria-label="Switch light or dark mode">
+        <span class="entry-theme-switch" aria-hidden="true"><span class="entry-theme-thumb"></span></span>
+        <span id="entryThemeLabel">Dark Mode</span>
+      </button>
 
       <button id="resumeStudentBtn" class="entry-choice resume-choice hidden" type="button">
         <span class="entry-choice-icon">👋</span>
@@ -325,7 +329,7 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
 
           <div class="preview-frame-shell" aria-label="Output display area">
             <div class="desktop-monitor-label" aria-hidden="true">Desktop monitor preview</div>
-            <iframe id="previewFrame" title="Code output preview" sandbox="allow-scripts allow-same-origin"></iframe>
+            <iframe id="previewFrame" title="Code output preview" sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-top-navigation-by-user-activation"></iframe>
           </div>
         </section>
 
@@ -516,6 +520,18 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
             </span>
             <span class="admin-switch">
               <input id="superStudioToggle" type="checkbox" />
+              <span class="admin-switch-track"><span class="admin-switch-thumb"></span></span>
+            </span>
+          </label>
+
+          <label class="assistance-option" for="externalLinksSamePreviewToggle">
+            <span class="assistance-option-icon">🔗</span>
+            <span class="assistance-option-copy">
+              <strong>External Links in Same Preview</strong>
+              <small>When enabled, https:// links open inside the Output Preview instead of a new tab. Some sites may still block iframe loading.</small>
+            </span>
+            <span class="admin-switch">
+              <input id="externalLinksSamePreviewToggle" type="checkbox" checked />
               <span class="admin-switch-track"><span class="admin-switch-thumb"></span></span>
             </span>
           </label>
@@ -829,6 +845,6 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="firebase-config.js"></script>
-  <script src="script.js?v=20260711-result-button-final"></script>
+  <script src="script.js?v=20260711-home-light-readable"></script>
 </body>
 </html>

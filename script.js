@@ -9,6 +9,8 @@ const downloadZipBtn = document.getElementById('downloadZipBtn');
 const resetBtn = document.getElementById('resetBtn');
 const clearBtn = document.getElementById('clearBtn');
 const themeToggle = document.getElementById('themeToggle');
+const entryThemeToggle = document.getElementById('entryThemeToggle');
+const entryThemeLabel = document.getElementById('entryThemeLabel');
 const installAppBtn = document.getElementById('installAppBtn');
 const adminBtn = document.getElementById('adminBtn');
 const lineNumbers = document.getElementById('lineNumbers');
@@ -155,6 +157,7 @@ const codeSuggestionsToggle = document.getElementById('codeSuggestionsToggle');
 const codeHelperToggle = document.getElementById('codeHelperToggle');
 const teacherFeedbackToggle = document.getElementById('teacherFeedbackToggle');
 const superStudioToggle = document.getElementById('superStudioToggle');
+const externalLinksSamePreviewToggle = document.getElementById('externalLinksSamePreviewToggle');
 const applyAssistanceLocalBtn = document.getElementById('applyAssistanceLocalBtn');
 const publishAssistanceBtn = document.getElementById('publishAssistanceBtn');
 const assistanceSettingsStatus = document.getElementById('assistanceSettingsStatus');
@@ -816,7 +819,8 @@ function normalizeAssistanceSettings(value = {}) {
     codeSuggestions: source.codeSuggestions !== false,
     codeHelper: source.codeHelper !== false,
     teacherFeedback: source.teacherFeedback !== false,
-    superStudio: source.superStudio === true
+    superStudio: source.superStudio === true,
+    externalLinksSamePreview: source.externalLinksSamePreview !== false
   };
 }
 
@@ -832,7 +836,8 @@ function getAssistanceSettingsFromControls() {
     codeSuggestions: codeSuggestionsToggle?.checked !== false,
     codeHelper: codeHelperToggle?.checked !== false,
     teacherFeedback: teacherFeedbackToggle?.checked !== false,
-    superStudio: superStudioToggle?.checked === true
+    superStudio: superStudioToggle?.checked === true,
+    externalLinksSamePreview: externalLinksSamePreviewToggle?.checked !== false
   });
 }
 
@@ -850,6 +855,7 @@ function syncAssistanceSettingsControls() {
   if (codeHelperToggle) codeHelperToggle.checked = settings.codeHelper;
   if (teacherFeedbackToggle) teacherFeedbackToggle.checked = settings.teacherFeedback;
   if (superStudioToggle) superStudioToggle.checked = settings.superStudio;
+  if (externalLinksSamePreviewToggle) externalLinksSamePreviewToggle.checked = settings.externalLinksSamePreview;
 
   studentAssistanceSettingsCard?.classList.toggle('master-disabled', !settings.enabled);
   const effectiveOn = settings.enabled && (settings.codeSuggestions || settings.codeHelper || settings.teacherFeedback || settings.superStudio);
@@ -906,6 +912,10 @@ function applyStudentAssistanceSettings(nextSettings, options = {}) {
   syncAssistanceSettingsControls();
   updateAssistancePublishUI();
   document.dispatchEvent(new CustomEvent('studentAssistanceSettingsChanged', { detail: { settings: studentAssistanceSettings } }));
+  if (previewFrame && previewFrame.srcdoc && typeof runCode === 'function') {
+    window.clearTimeout(applyStudentAssistanceSettings.previewRefreshTimer);
+    applyStudentAssistanceSettings.previewRefreshTimer = window.setTimeout(() => runCode(false, { scroll: false, trackRun: false }), 120);
+  }
   return studentAssistanceSettings;
 }
 
@@ -4211,7 +4221,12 @@ function updateTagMatching() {
 function applyTheme(theme) {
   const safeTheme = theme === 'dark' ? 'dark' : 'light';
   document.documentElement.dataset.theme = safeTheme;
-  themeToggle.textContent = safeTheme === 'dark' ? '☀️ Light' : '🌙 Dark';
+  if (themeToggle) themeToggle.textContent = safeTheme === 'dark' ? '☀️ Light' : '🌙 Dark';
+  if (entryThemeToggle) {
+    entryThemeToggle.classList.toggle('is-dark', safeTheme === 'dark');
+    entryThemeToggle.setAttribute('aria-pressed', String(safeTheme === 'dark'));
+  }
+  if (entryThemeLabel) entryThemeLabel.textContent = safeTheme === 'dark' ? 'Dark Mode' : 'Light Mode';
   saveJSON(STORAGE_KEYS.theme, safeTheme);
 }
 
@@ -4893,21 +4908,73 @@ function injectAssetsIntoHTML(html, styleBlock, scriptBlock) {
   return output;
 }
 
+
+function shouldOpenExternalLinksInsidePreview() {
+  const settings = normalizeAssistanceSettings(studentAssistanceSettings);
+  return settings.externalLinksSamePreview !== false;
+}
+
 function createPreviewNavigationBlock(currentPageName = getActiveHtmlPageName()) {
   const safePage = JSON.stringify(currentPageName);
+  const externalLinksInsidePreview = shouldOpenExternalLinksInsidePreview();
+  const safeExternalLinksInsidePreview = JSON.stringify(externalLinksInsidePreview);
   return `<script>
 (function () {
   var currentPage = ${safePage};
+  var externalLinksInsidePreview = ${safeExternalLinksInsidePreview};
+
+  function isExternalWebLink(href) {
+    return /^https?:\/\//i.test(String(href || '').trim());
+  }
+
   function isInternalPage(href) {
     if (!href || /^(https?:|mailto:|tel:|javascript:|data:|blob:|#)/i.test(href)) return false;
     var clean = href.split('#')[0].split('?')[0];
     var name = clean.split('/').pop();
     return /\.html?$/i.test(name);
   }
+
+  function prepareExternalLinks(root) {
+    var links = (root || document).querySelectorAll ? (root || document).querySelectorAll('a[href]') : [];
+    Array.prototype.forEach.call(links, function (link) {
+      var href = link.getAttribute('href') || '';
+      if (!isExternalWebLink(href)) return;
+      if (externalLinksInsidePreview) {
+        link.setAttribute('target', '_self');
+        link.removeAttribute('rel');
+        return;
+      }
+      link.setAttribute('target', '_blank');
+      var rel = (link.getAttribute('rel') || '').toLowerCase();
+      if (rel.indexOf('noopener') === -1 || rel.indexOf('noreferrer') === -1) {
+        link.setAttribute('rel', 'noopener noreferrer');
+      }
+    });
+  }
+
+  prepareExternalLinks(document);
+
+  try {
+    var observer = new MutationObserver(function () { prepareExternalLinks(document); });
+    observer.observe(document.documentElement || document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['href'] });
+  } catch (error) {}
+
   document.addEventListener('click', function (event) {
     var link = event.target && event.target.closest ? event.target.closest('a[href]') : null;
     if (!link) return;
     var href = link.getAttribute('href') || '';
+
+    if (isExternalWebLink(href)) {
+      if (externalLinksInsidePreview) {
+        event.preventDefault();
+        try { window.location.href = href; } catch (error) { link.setAttribute('target', '_self'); }
+        return;
+      }
+      link.setAttribute('target', '_blank');
+      link.setAttribute('rel', 'noopener noreferrer');
+      return;
+    }
+
     if (!isInternalPage(href)) return;
     event.preventDefault();
     parent.postMessage({ type: 'mcs-preview-navigate', href: href, from: currentPage }, '*');
@@ -10135,7 +10202,12 @@ if (previewFrame) previewFrame.addEventListener('load', () => {
 activitySelect.addEventListener('change', event => selectActivity(event.target.value));
 resetActivityCodeBtn.addEventListener('click', resetCurrentActivityCode);
 
-themeToggle.addEventListener('click', () => {
+themeToggle?.addEventListener('click', () => {
+  const currentTheme = document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light';
+  applyTheme(currentTheme === 'dark' ? 'light' : 'dark');
+});
+
+entryThemeToggle?.addEventListener('click', () => {
   const currentTheme = document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light';
   applyTheme(currentTheme === 'dark' ? 'light' : 'dark');
 });
@@ -10184,7 +10256,7 @@ window.addEventListener('keydown', event => {
   }
 });
 
-[assistanceMasterToggle, codeSuggestionsToggle, codeHelperToggle, teacherFeedbackToggle, superStudioToggle].forEach(toggle => {
+[assistanceMasterToggle, codeSuggestionsToggle, codeHelperToggle, teacherFeedbackToggle, superStudioToggle, externalLinksSamePreviewToggle].forEach(toggle => {
   toggle?.addEventListener('change', () => {
     applyAssistanceSettingsFromControls();
   });

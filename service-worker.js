@@ -1,11 +1,11 @@
-const CACHE_NAME = 'sir-jr-coding-app-result-button-final-v1';
+const CACHE_NAME = 'sir-jr-coding-app-home-light-readable-v1';
 const CORE_ASSETS = [
   './',
   './index.html',
   './style.css',
-  './style.css?v=20260711-result-button-final',
+  './style.css?v=20260711-home-light-readable',
   './script.js',
-  './script.js?v=20260711-result-button-final',
+  './script.js?v=20260711-home-light-readable',
   './firebase-config.js',
   './manifest.webmanifest',
   './STUDENT_IMPORT_TEMPLATE.csv',
