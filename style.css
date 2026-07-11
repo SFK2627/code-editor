@@ -14886,3 +14886,22 @@ html[data-device-mode="desktop"] .preview-panel .preview-actions #resultFromPrev
 .preview-panel .preview-actions #resultFromPreviewBtn.hidden {
   display: none !important;
 }
+
+
+/* PHONE STUDIO CLOSE FIX: Studio button stays visible and becomes Hide Studio when open. */
+#superStudioLauncher.studio-launcher.is-active {
+  color: #1e3a8a;
+  border-color: rgba(37, 99, 235, 0.3);
+  background: linear-gradient(135deg, #dbeafe, #e0f2fe) !important;
+  box-shadow: 0 8px 18px rgba(37, 99, 235, 0.12);
+}
+
+@media (max-width: 760px) {
+  body.super-studio-open .page-manager-actions.has-studio-launcher #superStudioLauncher.studio-launcher {
+    display: inline-flex !important;
+  }
+
+  body.super-studio-open .page-manager-actions.has-studio-launcher {
+    align-items: stretch !important;
+  }
+}

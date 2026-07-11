@@ -10668,14 +10668,17 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     const coach = document.getElementById('superStudioPanel');
 
     placeStudioLauncher();
-    launcher?.classList.toggle('studio-hidden', !enabled || studioDrawerOpen);
-    launcher?.classList.toggle('hidden', !enabled || studioDrawerOpen);
+    // Keep the launcher visible even while Studio is open, especially on phones.
+    // The same button becomes "Hide Studio" so students always have a way to close it.
+    launcher?.classList.toggle('studio-hidden', !enabled);
+    launcher?.classList.toggle('hidden', !enabled);
     toolbar?.classList.toggle('studio-hidden', !enabled || !studioDrawerOpen);
     coach?.classList.toggle('studio-hidden', !enabled || !studioDrawerOpen);
 
     document.querySelectorAll('.super-studio-only').forEach(item => item.classList.toggle('hidden', !enabled || !studioDrawerOpen));
     document.body.classList.toggle('super-studio-open', enabled && studioDrawerOpen);
-    if (!enabled) {
+    renderStudioLauncherState();
+    if (!enabled || !studioDrawerOpen) {
       coach?.classList.add('collapsed');
       document.getElementById('studioToggleCoachBtn')?.setAttribute('aria-pressed', 'false');
     }

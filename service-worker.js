@@ -1,11 +1,11 @@
-const CACHE_NAME = 'sir-jr-coding-app-preview-result-button-v1';
+const CACHE_NAME = 'sir-jr-coding-app-phone-studio-close-v1';
 const CORE_ASSETS = [
   './',
   './index.html',
   './style.css',
-  './style.css?v=20260711-preview-result-button',
+  './style.css?v=20260711-phone-studio-close',
   './script.js',
-  './script.js?v=20260711-preview-result-button',
+  './script.js?v=20260711-phone-studio-close',
   './firebase-config.js',
   './manifest.webmanifest',
   './STUDENT_IMPORT_TEMPLATE.csv',
