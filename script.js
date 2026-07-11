@@ -12215,6 +12215,30 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     return dock;
   }
 
+  function ensureMobileCollabToolsBar() {
+    let bar = document.getElementById('mobileCollabTools');
+    if (bar) return bar;
+    bar = document.createElement('div');
+    bar.id = 'mobileCollabTools';
+    bar.className = 'mobile-collab-tools hidden';
+    bar.setAttribute('aria-label', 'Mobile live project tools');
+    const pageManager = document.getElementById('htmlPageManager');
+    if (pageManager?.parentElement) {
+      pageManager.insertAdjacentElement('afterend', bar);
+    } else {
+      editorPanel.appendChild(bar);
+    }
+    return bar;
+  }
+
+  function syncMobileCollabToolsBar() {
+    const bar = document.getElementById('mobileCollabTools');
+    if (!bar) return;
+    const mobile = window.matchMedia('(max-width: 760px)').matches;
+    const hasVisibleTool = Boolean(bar.querySelector('.collab-share-btn:not(.hidden), .collab-members-pill:not(.hidden)'));
+    bar.classList.toggle('hidden', !mobile || !hasVisibleTool || !isCollaborationEnabled());
+  }
+
   function ensureCollabControls() {
     let button = document.getElementById('collabShareBtn');
     if (!button) {
@@ -12258,7 +12282,11 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     const mobile = window.matchMedia('(max-width: 760px)').matches;
     const inFullEditor = document.body.classList.contains('editor-fullscreen-active') || document.fullscreenElement === editorPanel;
 
-    if (inFullEditor && !mobile) {
+    if (mobile) {
+      const mobileBar = ensureMobileCollabToolsBar();
+      if (button.parentElement !== mobileBar) mobileBar.appendChild(button);
+      if (pill.parentElement !== mobileBar) mobileBar.appendChild(pill);
+    } else if (inFullEditor) {
       const dock = ensureCollabDock();
       const studio = document.getElementById('superStudioLauncher');
       const helper = document.getElementById('codeHelperFloatingBtn');
@@ -12270,22 +12298,25 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
       } else if (button.parentElement !== dock) {
         dock.appendChild(button);
       }
+      if (languageTabs && pill.parentElement !== languageTabs) languageTabs.appendChild(pill);
     } else if (renameFilesButton?.parentElement === languageTabs) {
       if (button.parentElement !== languageTabs) renameFilesButton.insertAdjacentElement('afterend', button);
-    } else if (languageTabs && button.parentElement !== languageTabs) {
-      languageTabs.appendChild(button);
+      if (languageTabs && pill.parentElement !== languageTabs) languageTabs.appendChild(pill);
+    } else if (languageTabs) {
+      if (button.parentElement !== languageTabs) languageTabs.appendChild(button);
+      if (pill.parentElement !== languageTabs) languageTabs.appendChild(pill);
     }
 
-    if (languageTabs) {
-      // Keep only one compact online-project pill in the tab row.
-      // The large live indicator card remains hidden and is no longer placed in the editor body.
+    if (languageTabs || mobile) {
+      // Keep only one compact online-project pill. On phones it lives in a
+      // dedicated mobile bar below Tabs/Pages so it cannot cover the dropdown.
       if (indicator.parentElement !== editorPanel) editorPanel.appendChild(indicator);
-      if (pill.parentElement !== languageTabs) languageTabs.appendChild(pill);
       indicator.classList.add('hidden');
       indicator.classList.remove('inside-editor-fullscreen');
       pill.classList.remove('inside-editor-fullscreen');
     }
     renderCollabLiveIndicator(collabState.latestSession);
+    syncMobileCollabToolsBar();
   }
 
   function getCollabProjectName(data = collabState.latestSession) {
@@ -12956,6 +12987,7 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     pill.title = `${count} online in ${projectName}. Click to show live project members.`;
     renderCollabLiveIndicator(data);
     renderCollabCursors(data);
+    syncMobileCollabToolsBar();
   }
 
   function showCollabMembersList() {
@@ -13031,6 +13063,7 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     if (!enabled && collabState.active) leaveCollaborationSession({ message: 'Project sharing was disabled by the teacher.' });
     renderCollabMembers(collabState.latestSession);
     renderCollabLiveIndicator(collabState.latestSession);
+    syncMobileCollabToolsBar();
   }
 
   window.updateCollaborationFeatureVisibility = updateCollaborationFeatureVisibility;

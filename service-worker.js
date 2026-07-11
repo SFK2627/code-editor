@@ -1,11 +1,11 @@
-const CACHE_NAME = 'mcs-coding-app-20260711-name-highlight-v1';
+const CACHE_NAME = 'mcs-coding-app-20260711-mobile-collab-compat-v1';
 const CORE_ASSETS = [
   './',
   './index.html',
   './style.css',
-  './style.css?v=20260711-name-highlight-v1',
+  './style.css?v=20260711-mobile-collab-compat-v1',
   './script.js',
-  './script.js?v=20260711-name-highlight-v1',
+  './script.js?v=20260711-mobile-collab-compat-v1',
   './firebase-config.js',
   './manifest.webmanifest',
   './favicon.png',

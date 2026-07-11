@@ -18819,3 +18819,126 @@ body.editor-fullscreen-active .language-tabs > .collab-members-pill:not(.hidden)
     padding-right: 0.16em !important;
   }
 }
+
+
+/* MOBILE COLLAB COMPATIBILITY FIX: keep Share/Join, Hosting/Joined Live, and members away from the Tabs/Pages dropdown */
+.mobile-collab-tools {
+  display: none;
+}
+
+.mobile-collab-tools.hidden {
+  display: none !important;
+}
+
+@media (max-width: 760px) {
+  .language-tabs > #collabShareBtn,
+  .language-tabs > #collabMembersPill,
+  .page-manager-actions > #collabShareBtn,
+  .page-manager-actions > #collabMembersPill {
+    display: none !important;
+  }
+
+  .mobile-collab-tools:not(.hidden) {
+    position: relative !important;
+    z-index: 2 !important;
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 7px !important;
+    width: 100% !important;
+    padding: 8px !important;
+    border-bottom: 1px solid var(--line, rgba(148, 163, 184, 0.28)) !important;
+    background: color-mix(in srgb, var(--solid-card) 94%, var(--primary-soft)) !important;
+  }
+
+  .mobile-collab-tools #collabShareBtn.collab-share-btn,
+  .mobile-collab-tools #collabMembersPill.collab-members-pill {
+    position: static !important;
+    display: inline-flex !important;
+    width: 100% !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    transform: none !important;
+    z-index: 1 !important;
+  }
+
+  .mobile-collab-tools #collabShareBtn.collab-share-btn.hidden,
+  .mobile-collab-tools #collabMembersPill.collab-members-pill.hidden,
+  .student-collaboration-disabled .mobile-collab-tools #collabShareBtn,
+  .student-collaboration-disabled .mobile-collab-tools #collabMembersPill {
+    display: none !important;
+  }
+
+  .mobile-collab-tools #collabShareBtn.collab-share-btn {
+    justify-content: center !important;
+    min-height: 42px !important;
+    height: 42px !important;
+    padding: 0 14px !important;
+    border-radius: 18px !important;
+    font-size: 0.88rem !important;
+    white-space: nowrap !important;
+  }
+
+  .mobile-collab-tools #collabShareBtn.collab-share-btn strong {
+    max-width: calc(100vw - 150px) !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  .mobile-collab-tools #collabShareBtn.collab-share-btn em {
+    flex: 0 0 auto !important;
+    min-width: 54px !important;
+    height: 24px !important;
+    font-size: 0.72rem !important;
+  }
+
+  .mobile-collab-tools #collabMembersPill.collab-members-pill {
+    justify-content: center !important;
+    min-height: 38px !important;
+    height: 38px !important;
+    padding: 0 12px !important;
+    border-radius: 16px !important;
+    font-size: 0.8rem !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  body.editor-fullscreen-active #fullscreenBottomTools #collabShareBtn,
+  #editorPanel:fullscreen #fullscreenBottomTools #collabShareBtn,
+  body.editor-fullscreen-active .language-tabs > #collabMembersPill,
+  #editorPanel:fullscreen .language-tabs > #collabMembersPill {
+    display: none !important;
+  }
+
+  .collab-members-overlay,
+  .collab-overlay,
+  .collab-members-overlay.inside-editor-fullscreen,
+  .collab-overlay.inside-editor-fullscreen {
+    padding: 10px !important;
+  }
+
+  .collab-card,
+  .collab-members-card {
+    width: min(100%, calc(100vw - 20px)) !important;
+    max-height: calc(100dvh - 20px) !important;
+    padding: 16px !important;
+    border-radius: 22px !important;
+  }
+}
+
+@media (max-width: 420px) {
+  .mobile-collab-tools #collabShareBtn.collab-share-btn {
+    font-size: 0.82rem !important;
+    gap: 6px !important;
+    padding: 0 10px !important;
+  }
+
+  .mobile-collab-tools #collabShareBtn.collab-share-btn strong {
+    max-width: calc(100vw - 132px) !important;
+  }
+
+  .mobile-collab-tools #collabMembersPill.collab-members-pill {
+    font-size: 0.76rem !important;
+  }
+}
