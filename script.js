@@ -34,6 +34,24 @@ const statusBadge = document.getElementById('statusBadge');
 const editorInfo = document.getElementById('editorInfo');
 const structureAlert = document.getElementById('structureAlert');
 const tabButtons = document.querySelectorAll('.tab-btn');
+
+function syncLanguageToolbarAccessibility() {
+  tabButtons.forEach(tab => {
+    const active = tab.classList.contains('active');
+    tab.setAttribute('aria-pressed', String(active));
+    if (!tab.getAttribute('aria-label')) {
+      tab.setAttribute('aria-label', `${tab.textContent.trim()} code editor`);
+    }
+  });
+}
+
+tabButtons.forEach(tab => {
+  new MutationObserver(syncLanguageToolbarAccessibility).observe(tab, {
+    attributes: true,
+    attributeFilter: ['class']
+  });
+});
+syncLanguageToolbarAccessibility();
 const resultContent = document.getElementById('resultContent');
 const errorCheckerPanel = document.getElementById('errorCheckerPanel');
 const errorCheckerContent = document.getElementById('errorCheckerContent');
@@ -377,6 +395,12 @@ let studentProjectSaveTimer = null;
 let studentProjectSaveInFlight = false;
 let studentProjectSaveQueued = false;
 let studentProjectDirty = false;
+let studentProjectRevision = 0;
+let studentProjectLastSavedRevision = 0;
+let studentProjectSavePromise = Promise.resolve(false);
+let studentProjectRetryCount = 0;
+let studentProjectRetryTimer = null;
+let studentProjectRecoveryTimer = null;
 let lastProfileActivityWriteAt = 0;
 let adminStudentsCache = [];
 let pendingStudentImportRows = [];
@@ -1180,19 +1204,6 @@ function normalizeLanguageFileMap(rawMap, language, fallbackContent = '') {
   return files;
 }
 
-function normalizeHTMLPagesFromCodeStore(rawCode = {}) {
-  const safeCode = rawCode && typeof rawCode === 'object' ? rawCode : {};
-  const sourcePages = safeCode.pages && typeof safeCode.pages === 'object' && !Array.isArray(safeCode.pages)
-    ? safeCode.pages
-    : null;
-  const pages = normalizeLanguageFileMap(sourcePages, 'html', typeof safeCode.html === 'string' ? safeCode.html : starterCode.html);
-  if (!pages['index.html']) {
-    const firstKey = Object.keys(pages)[0];
-    if (firstKey) pages['index.html'] = pages[firstKey] || starterCode.html;
-  }
-  return pages;
-}
-
 function getLanguageFileMap(language = activeLanguage, store = codeStore) {
   const meta = getLanguageFileMeta(language);
   if (language === 'html') {
@@ -1552,22 +1563,6 @@ function getExternalJSReferences(html) {
 function hasMatchingExternalReference(references, filename) {
   const expected = String(filename || '').toLowerCase();
   return references.some(ref => getBaseFileNameFromReference(ref) === expected);
-}
-
-function shouldApplyCSSForPreview(html) {
-  const css = (codeStore.css || '').trim();
-  if (!css) return false;
-  const fileNames = getCodeFileNames();
-  const references = getExternalCSSReferences(html);
-  return !references.length || hasMatchingExternalReference(references, fileNames.css);
-}
-
-function shouldApplyJSForPreview(html) {
-  const js = (codeStore.js || '').trim();
-  if (!js) return false;
-  const fileNames = getCodeFileNames();
-  const references = getExternalJSReferences(html);
-  return !references.length || hasMatchingExternalReference(references, fileNames.js);
 }
 
 function normalizeHtmlPageName(value, fallback = 'index.html') {
@@ -2096,25 +2091,37 @@ async function initFirebaseSync() {
   firebaseSync.lastError = '';
   if (!hasFirebaseConfig()) {
     firebaseSync.enabled = false;
+    firebaseSync.initialized = false;
     return false;
   }
 
   if (firebaseSync.initialized) return true;
   if (firebaseSync.initializing) return firebaseSync.initializing;
+  if (navigator.onLine === false) {
+    firebaseSync.enabled = false;
+    firebaseSync.initialized = false;
+    firebaseSync.lastError = 'You are offline. Reconnect, then try again.';
+    return false;
+  }
 
   firebaseSync.initializing = (async () => {
-    // First use the compat SDK loaded by index.html. This is the most reliable
-    // path on GitHub Pages because it does not depend on dynamic module imports.
-    if (initFirebaseWithCompatSDK()) {
-      return true;
-    }
+    // Use an already-loaded compat SDK when a deployment provides one.
+    if (initFirebaseWithCompatSDK()) return true;
 
-    // Fallback: try Firebase's ESM CDN if the compat SDK did not load.
+    // Standard free-only build: load Firebase ESM modules directly from the
+    // official CDN. Parallel loading plus a timeout avoids an endless login
+    // spinner on weak or interrupted school Wi-Fi.
     try {
       const version = firebaseSync.sdkVersion;
-      const appModule = await import(`https://www.gstatic.com/firebasejs/${version}/firebase-app.js`);
-      const firestoreModule = await import(`https://www.gstatic.com/firebasejs/${version}/firebase-firestore.js`);
-      const authModule = await import(`https://www.gstatic.com/firebasejs/${version}/firebase-auth.js`);
+      const [appModule, firestoreModule, authModule] = await withTimeout(
+        Promise.all([
+          import(`https://www.gstatic.com/firebasejs/${version}/firebase-app.js`),
+          import(`https://www.gstatic.com/firebasejs/${version}/firebase-firestore.js`),
+          import(`https://www.gstatic.com/firebasejs/${version}/firebase-auth.js`)
+        ]),
+        15000,
+        'Firebase took too long to load. Check the connection and try again.'
+      );
 
       const app = appModule.getApps && appModule.getApps().length
         ? appModule.getApp()
@@ -2129,15 +2136,23 @@ async function initFirebaseSync() {
       setStatus('Firebase connected');
       return true;
     } catch (error) {
-      console.warn('Firebase connection failed. Local mode will continue.', error);
+      console.warn('Firebase connection failed. Guest/local mode will continue.', error);
       firebaseSync.lastError = error?.message || String(error);
       firebaseSync.enabled = false;
-      setStatus('Local mode');
+      firebaseSync.initialized = false;
+      setStatus(navigator.onLine === false ? 'Offline mode' : 'Local mode');
       return false;
     }
   })();
 
-  return firebaseSync.initializing;
+  try {
+    return await firebaseSync.initializing;
+  } finally {
+    // A failed first attempt must not permanently block a later retry after the
+    // connection returns. Successful calls are still short-circuited by
+    // firebaseSync.initialized above.
+    firebaseSync.initializing = null;
+  }
 }
 
 function getCloudActivitiesDocRef() {
@@ -2586,8 +2601,167 @@ function setStudentSaveState(text, state = '') {
     saveEl.textContent = text;
     saveEl.classList.remove('saving', 'error', 'unsaved');
     if (state) saveEl.classList.add(state);
+    saveEl.setAttribute('aria-busy', state === 'saving' ? 'true' : 'false');
   });
   updateManualSaveControls();
+}
+
+
+const PROJECT_RECOVERY_VERSION = 1;
+const PROJECT_CACHE_VERSION = 1;
+const MAX_PROJECT_CACHE_BYTES = 4_000_000;
+
+function getStudentProjectCacheKey(uid = appSession.student?.uid) {
+  return uid ? `studentCodeStudio.projectCache.v${PROJECT_CACHE_VERSION}.${uid}` : '';
+}
+
+function getStudentProjectRecoveryKey(projectId = appSession.currentProjectId, uid = appSession.student?.uid) {
+  return uid && projectId ? `studentCodeStudio.projectRecovery.v${PROJECT_RECOVERY_VERSION}.${uid}.${projectId}` : '';
+}
+
+function persistStudentProjectsCache() {
+  const key = getStudentProjectCacheKey();
+  if (!key) return;
+  try {
+    const payload = JSON.stringify({ savedAt: Date.now(), projects: appSession.projects || [] });
+    if (payload.length <= MAX_PROJECT_CACHE_BYTES) localStorage.setItem(key, payload);
+  } catch (error) {
+    console.warn('Could not cache the project list locally.', error);
+  }
+}
+
+function loadStudentProjectsCache() {
+  const key = getStudentProjectCacheKey();
+  if (!key) return [];
+  try {
+    const cached = JSON.parse(localStorage.getItem(key) || 'null');
+    return Array.isArray(cached?.projects) ? cached.projects : [];
+  } catch (error) {
+    console.warn('Could not read the local project cache.', error);
+    return [];
+  }
+}
+
+function clearStudentProjectRecovery(projectId = appSession.currentProjectId) {
+  const key = getStudentProjectRecoveryKey(projectId);
+  if (!key) return;
+  try { localStorage.removeItem(key); } catch (error) { console.warn('Could not clear the recovery copy.', error); }
+}
+
+function persistStudentProjectRecoverySnapshot(reason = 'edit') {
+  if (!isStudentProjectActive()) return;
+  window.clearTimeout(studentProjectRecoveryTimer);
+
+  const writeRecovery = () => {
+    const key = getStudentProjectRecoveryKey();
+    if (!key) return;
+    try {
+      const payload = buildProjectSavePayload();
+      localStorage.setItem(key, JSON.stringify({
+        version: PROJECT_RECOVERY_VERSION,
+        savedAt: Date.now(),
+        reason,
+        revision: studentProjectRevision,
+        projectId: appSession.currentProjectId,
+        payload
+      }));
+    } catch (error) {
+      console.warn('Could not create a local recovery copy.', error);
+    }
+  };
+
+  const urgent = /^(offline|visibility|pagehide|beforeunload|save-failed)$/i.test(reason);
+  if (urgent) writeRecovery();
+  else studentProjectRecoveryTimer = window.setTimeout(writeRecovery, 220);
+}
+
+function getStudentProjectRecovery(projectId = appSession.currentProjectId) {
+  const key = getStudentProjectRecoveryKey(projectId);
+  if (!key) return null;
+  try {
+    const recovery = JSON.parse(localStorage.getItem(key) || 'null');
+    return recovery?.payload ? recovery : null;
+  } catch (error) {
+    console.warn('Could not read the recovery copy.', error);
+    return null;
+  }
+}
+
+function getProjectUpdatedAtMs(project) {
+  const date = timestampToDate(project?.updatedAt);
+  return date?.getTime?.() || 0;
+}
+
+async function offerStudentProjectRecovery(project) {
+  const recovery = getStudentProjectRecovery(project?.id);
+  if (!recovery?.payload) return false;
+  const cloudTime = getProjectUpdatedAtMs(project);
+  if (Number(recovery.savedAt || 0) <= cloudTime + 1000) {
+    clearStudentProjectRecovery(project.id);
+    return false;
+  }
+  const restore = await appConfirm(
+    'A newer recovery copy was found on this device. Restore the unsaved work?',
+    { title: 'Recover unsaved work', confirmText: 'Restore Work', icon: '↻' }
+  );
+  if (!restore) {
+    clearStudentProjectRecovery(project.id);
+    return false;
+  }
+  const payload = recovery.payload;
+  appSession.currentProject = { ...(appSession.currentProject || project), ...payload, id: project.id };
+  codeByActivity = normalizeProjectCodeByActivity(payload.codeByActivity);
+  selectedActivityId = activities.some(item => item.id === payload.selectedActivityId) ? payload.selectedActivityId : '';
+  activity = selectedActivityId ? getActivityById(selectedActivityId) : null;
+  const codeKey = selectedActivityId || 'scratch';
+  codeStore = codeByActivity[codeKey] ? normalizeCodeStore(codeByActivity[codeKey]) : normalizeCodeStore(starterCode);
+  codeByActivity[codeKey] = normalizeCodeStore(codeStore);
+  codeFileNames = normalizeCodeFileNames(payload.fileNames || DEFAULT_CODE_FILE_NAMES);
+  lastRubricResult = payload.lastResult || null;
+  studentProjectRevision = Math.max(studentProjectRevision + 1, Number(recovery.revision || 0));
+  studentProjectDirty = true;
+  return true;
+}
+
+function ensureConnectionStatusBanner() {
+  let banner = document.getElementById('connectionStatusBanner');
+  if (banner) return banner;
+  banner = document.createElement('div');
+  banner.id = 'connectionStatusBanner';
+  banner.className = 'connection-status-banner hidden';
+  banner.setAttribute('role', 'status');
+  banner.setAttribute('aria-live', 'polite');
+  document.body.appendChild(banner);
+  return banner;
+}
+
+function updateConnectionStatusUI() {
+  const online = navigator.onLine !== false;
+  const banner = ensureConnectionStatusBanner();
+  document.body.classList.toggle('app-offline', !online);
+  banner.classList.toggle('hidden', online);
+  banner.textContent = online ? '' : 'Offline — your latest edits are protected on this device and will sync after reconnecting.';
+  if (!online && isStudentProjectActive() && studentProjectDirty) setStudentSaveState('Offline · pending', 'unsaved');
+  return online;
+}
+
+async function flushStudentProjectSave(reason = 'manual') {
+  window.clearTimeout(studentProjectSaveTimer);
+  window.clearTimeout(studentProjectRetryTimer);
+  if (!isStudentProjectActive() || !studentProjectDirty) return true;
+  if (navigator.onLine === false) {
+    persistStudentProjectRecoverySnapshot('offline');
+    setStudentSaveState('Offline · pending', 'unsaved');
+    return false;
+  }
+  let attempts = 0;
+  while (studentProjectDirty && attempts < 3) {
+    attempts += 1;
+    await saveCurrentStudentProject({ immediate: true, reason });
+    if (studentProjectSaveInFlight) await studentProjectSavePromise;
+    if (studentProjectDirty && attempts < 3) await new Promise(resolve => window.setTimeout(resolve, 120 * attempts));
+  }
+  return !studentProjectDirty;
 }
 
 function updateManualSaveControls() {
@@ -2611,8 +2785,8 @@ async function saveStudentProjectManually() {
   }
   saveActiveEditor();
   clearTimeout(studentProjectSaveTimer);
-  const saved = await saveCurrentStudentProject({ immediate: true, reason: 'manual' });
-  setStatus(saved ? 'Project saved' : 'Save failed');
+  const saved = await flushStudentProjectSave('manual');
+  setStatus(saved ? 'Project saved' : (navigator.onLine === false ? 'Offline · saved on this device' : 'Save failed'));
   return saved;
 }
 
@@ -3080,7 +3254,15 @@ async function logoutStudent() {
   try {
     clearTimeout(studentProjectSaveTimer);
     if (appSession.mode === 'student' && appSession.currentProjectId) {
-      await saveCurrentStudentProject({ immediate: true, reason: 'logout' });
+      const saved = await flushStudentProjectSave('logout');
+      if (!saved && navigator.onLine !== false) {
+        const leaveAnyway = await appConfirm('The cloud save did not finish. A recovery copy is safe on this device. Log out anyway?', {
+          title: 'Cloud save incomplete',
+          confirmText: 'Log Out Anyway',
+          danger: true
+        });
+        if (!leaveAnyway) return;
+      }
     }
   } catch (error) {
     console.warn('Final student save skipped.', error);
@@ -3147,10 +3329,19 @@ async function loadStudentProjects() {
       const bTime = timestampToDate(b.updatedAt)?.getTime() || 0;
       return bTime - aTime;
     });
+    persistStudentProjectsCache();
     renderStudentProjects();
     return appSession.projects;
   } catch (error) {
     console.error('Could not load projects', error);
+    const cachedProjects = loadStudentProjectsCache();
+    if (cachedProjects.length) {
+      appSession.projects = cachedProjects;
+      renderStudentProjects();
+      if (projectDashboardStatus) projectDashboardStatus.textContent = `Offline copy · ${cachedProjects.length} project${cachedProjects.length === 1 ? '' : 's'}`;
+      setStatus('Showing saved offline copy');
+      return cachedProjects;
+    }
     if (projectDashboardStatus) projectDashboardStatus.textContent = error?.message || 'Could not load projects. Check the internet connection.';
     studentProjectsGrid.innerHTML = `<div class="empty-projects-card"><h3>Projects unavailable</h3><p>${escapeHTML(error?.message || 'Please reconnect and refresh.')}</p><button class="primary-btn" type="button" data-project-action="retry-load">Try Again</button></div>`;
     return [];
@@ -3296,6 +3487,7 @@ async function saveProjectNameDialog() {
     }, { merge: true });
     appSession.projects.unshift({ id: projectId, ...data });
     appSession.student.projectCount = Number(appSession.student.projectCount || 0) + 1;
+    persistStudentProjectsCache();
     closeProjectNameDialog();
     await openStudentProject(projectId);
   } catch (error) {
@@ -3327,31 +3519,41 @@ async function openStudentProject(projectId) {
     if (!project) throw new Error('Project not found.');
     appSession.currentProjectId = projectId;
     appSession.currentProject = project;
-    codeByActivity = normalizeProjectCodeByActivity(project.codeByActivity);
-    selectedActivityId = activities.some(item => item.id === project.selectedActivityId) ? project.selectedActivityId : '';
+    studentProjectRevision = 0;
+    studentProjectLastSavedRevision = 0;
+    const recovered = await offerStudentProjectRecovery(project);
+    const projectToOpen = recovered ? appSession.currentProject : project;
+    codeByActivity = normalizeProjectCodeByActivity(projectToOpen.codeByActivity);
+    selectedActivityId = activities.some(item => item.id === projectToOpen.selectedActivityId) ? projectToOpen.selectedActivityId : '';
     activity = selectedActivityId ? getActivityById(selectedActivityId) : null;
     const codeKey = selectedActivityId || 'scratch';
     codeStore = codeByActivity[codeKey]
       ? normalizeCodeStore(codeByActivity[codeKey])
       : normalizeCodeStore(starterCode);
     codeByActivity[codeKey] = normalizeCodeStore(codeStore);
-    codeFileNames = normalizeCodeFileNames(project.fileNames || DEFAULT_CODE_FILE_NAMES);
+    codeFileNames = normalizeCodeFileNames(projectToOpen.fileNames || DEFAULT_CODE_FILE_NAMES);
     activeLanguage = 'html';
-    lastRubricResult = project.lastResult || null;
+    lastRubricResult = projectToOpen.lastResult || null;
     saveJSON(STORAGE_KEYS.selectedActivityId, selectedActivityId);
     saveCodeByActivity();
     saveCodeFileNames();
     renderActivitySummary();
     renderActivitySelector();
     loadActiveEditor();
-    if (project.lastResult && activity) renderResult(project.lastResult);
+    if (projectToOpen.lastResult && activity) renderResult(projectToOpen.lastResult);
     else resetResultPanel();
     runCode(false, { scroll: false });
     closeStudentDashboard();
     updateAppHeaderForSession();
-    studentProjectDirty = false;
-    setStudentSaveState('Saved');
-    setStatus(`Project: ${project.name}`);
+    studentProjectDirty = recovered;
+    if (recovered) {
+      setStudentSaveState('Recovered · unsaved', 'unsaved');
+      queueStudentProjectSave('recovery');
+      setStatus(`Recovered unsaved work: ${project.name}`);
+    } else {
+      setStudentSaveState('Saved');
+      setStatus(`Project: ${project.name}`);
+    }
   } catch (error) {
     console.error('Could not open project', error);
     await appAlert(error?.message || 'Could not open the project.', { title: 'Project unavailable', danger: true });
@@ -3376,6 +3578,7 @@ async function renameStudentProject(projectId, name) {
   if (appSession.currentProjectId === projectId && appSession.currentProject) {
     appSession.currentProject.name = name;
   }
+  persistStudentProjectsCache();
   renderStudentProjects();
   setStatus('Project renamed');
 }
@@ -3403,6 +3606,8 @@ async function deleteStudentProject(projectId) {
       updatedAt: serverTimestamp()
     }, { merge: true });
     appSession.projects = appSession.projects.filter(item => item.id !== projectId);
+    clearStudentProjectRecovery(projectId);
+    persistStudentProjectsCache();
     if (appSession.currentProjectId === projectId) {
       appSession.currentProjectId = '';
       appSession.currentProject = null;
@@ -3461,11 +3666,19 @@ function buildProjectSavePayload(result = null) {
 
 function queueStudentProjectSave(reason = 'edit') {
   if (!isStudentProjectActive()) return;
+  studentProjectRevision += 1;
   studentProjectDirty = true;
+  persistStudentProjectRecoverySnapshot(reason);
   updateManualSaveControls();
-  clearTimeout(studentProjectSaveTimer);
+  window.clearTimeout(studentProjectSaveTimer);
+  window.clearTimeout(studentProjectRetryTimer);
   if (!isStudentAutoSaveAllowed()) {
     setStudentSaveState('Unsaved', 'unsaved');
+    return;
+  }
+  if (navigator.onLine === false) {
+    setStudentSaveState('Offline · pending', 'unsaved');
+    updateConnectionStatusUI();
     return;
   }
   setStudentSaveState('Saving...', 'saving');
@@ -3476,63 +3689,108 @@ function queueStudentProjectSave(reason = 'edit') {
 
 async function saveCurrentStudentProject({ result = null, immediate = false, reason = 'edit' } = {}) {
   if (!isStudentProjectActive()) return false;
-  const manualReason = reason === 'manual' || reason === 'logout';
+  const manualReason = reason === 'manual' || reason === 'logout' || reason === 'reconnect' || reason === 'visibility';
   if (!isStudentAutoSaveAllowed() && !manualReason) {
     studentProjectDirty = true;
-    clearTimeout(studentProjectSaveTimer);
+    window.clearTimeout(studentProjectSaveTimer);
+    persistStudentProjectRecoverySnapshot(reason);
     setStudentSaveState('Unsaved', 'unsaved');
     return false;
   }
-  if (immediate) clearTimeout(studentProjectSaveTimer);
+  if (navigator.onLine === false) {
+    studentProjectDirty = true;
+    persistStudentProjectRecoverySnapshot('offline');
+    setStudentSaveState('Offline · pending', 'unsaved');
+    updateConnectionStatusUI();
+    return false;
+  }
+  if (immediate) window.clearTimeout(studentProjectSaveTimer);
   if (studentProjectSaveInFlight) {
     studentProjectSaveQueued = true;
-    return false;
+    return studentProjectSavePromise;
   }
+
+  const revisionBeingSaved = studentProjectRevision;
+  const projectIdBeingSaved = appSession.currentProjectId;
+  const studentUidBeingSaved = appSession.student?.uid || '';
   studentProjectSaveInFlight = true;
   setStudentSaveState('Saving...', 'saving');
-  try {
-    const { setDoc, serverTimestamp } = firebaseSync.modules;
-    const payload = buildProjectSavePayload(result);
-    await setDoc(getStudentProjectDocRef(appSession.student.uid, appSession.currentProjectId), {
-      ...payload,
-      updatedAt: serverTimestamp()
-    }, { merge: true });
-    appSession.currentProject = {
-      ...(appSession.currentProject || {}),
-      ...payload,
-      id: appSession.currentProjectId,
-      updatedAt: new Date()
-    };
-    const index = appSession.projects.findIndex(project => project.id === appSession.currentProjectId);
-    if (index >= 0) appSession.projects[index] = { ...appSession.projects[index], ...appSession.currentProject };
-    else appSession.projects.unshift(appSession.currentProject);
-    studentProjectDirty = false;
-    setStudentSaveState('Saved');
 
-    const now = Date.now();
-    if (reason !== 'edit' || now - lastProfileActivityWriteAt >= PROFILE_ACTIVITY_WRITE_INTERVAL) {
-      lastProfileActivityWriteAt = now;
-      await setDoc(getStudentDocRef(appSession.student.uid), {
-        lastActivityAt: serverTimestamp(),
-        lastProjectId: appSession.currentProjectId,
-        lastProjectName: payload.name,
-        updatedAt: serverTimestamp()
-      }, { merge: true });
+  studentProjectSavePromise = (async () => {
+    try {
+      const { setDoc, serverTimestamp } = firebaseSync.modules;
+      const payload = buildProjectSavePayload(result);
+      await withTimeout(
+        setDoc(getStudentProjectDocRef(studentUidBeingSaved, projectIdBeingSaved), {
+          ...payload,
+          updatedAt: serverTimestamp()
+        }, { merge: true }),
+        APP_NETWORK_TIMEOUT_MS,
+        'Saving is taking too long. Your recovery copy is safe on this device.'
+      );
+
+      // Do not overwrite state if the student switched projects while this request was running.
+      if (appSession.currentProjectId === projectIdBeingSaved && appSession.student?.uid === studentUidBeingSaved) {
+        appSession.currentProject = {
+          ...(appSession.currentProject || {}),
+          ...payload,
+          id: projectIdBeingSaved,
+          updatedAt: new Date()
+        };
+        const index = appSession.projects.findIndex(project => project.id === projectIdBeingSaved);
+        if (index >= 0) appSession.projects[index] = { ...appSession.projects[index], ...appSession.currentProject };
+        else appSession.projects.unshift(appSession.currentProject);
+        studentProjectLastSavedRevision = Math.max(studentProjectLastSavedRevision, revisionBeingSaved);
+        studentProjectDirty = studentProjectRevision > revisionBeingSaved;
+        studentProjectRetryCount = 0;
+        persistStudentProjectsCache();
+        if (!studentProjectDirty) {
+          clearStudentProjectRecovery(projectIdBeingSaved);
+          setStudentSaveState('Saved');
+        } else {
+          setStudentSaveState('Saving...', 'saving');
+          studentProjectSaveQueued = true;
+        }
+      }
+
+      const now = Date.now();
+      if (reason !== 'edit' || now - lastProfileActivityWriteAt >= PROFILE_ACTIVITY_WRITE_INTERVAL) {
+        lastProfileActivityWriteAt = now;
+        await withTimeout(
+          setDoc(getStudentDocRef(studentUidBeingSaved), {
+            lastActivityAt: serverTimestamp(),
+            lastProjectId: projectIdBeingSaved,
+            lastProjectName: payload.name,
+            updatedAt: serverTimestamp()
+          }, { merge: true }),
+          APP_NETWORK_TIMEOUT_MS,
+          'Project saved, but activity tracking is taking longer than expected.'
+        ).catch(error => console.warn('Project saved; profile activity update skipped.', error));
+      }
+      return true;
+    } catch (error) {
+      console.error('Could not save current student project.', error);
+      studentProjectDirty = true;
+      persistStudentProjectRecoverySnapshot('save-failed');
+      setStudentSaveState(navigator.onLine === false ? 'Offline · pending' : 'Save failed · retrying', 'error');
+      if (isStudentAutoSaveAllowed() && navigator.onLine !== false && studentProjectRetryCount < 3) {
+        studentProjectRetryCount += 1;
+        const retryDelay = [1800, 5000, 12000][studentProjectRetryCount - 1] || 12000;
+        window.clearTimeout(studentProjectRetryTimer);
+        studentProjectRetryTimer = window.setTimeout(() => saveCurrentStudentProject({ reason: 'retry' }), retryDelay);
+      }
+      return false;
+    } finally {
+      studentProjectSaveInFlight = false;
+      updateManualSaveControls();
+      if (studentProjectSaveQueued && isStudentProjectActive()) {
+        studentProjectSaveQueued = false;
+        window.setTimeout(() => saveCurrentStudentProject({ reason: 'queued' }), 80);
+      }
     }
-    return true;
-  } catch (error) {
-    console.error('Could not save current student project.', error);
-    studentProjectDirty = true;
-    setStudentSaveState('Save failed', 'error');
-    return false;
-  } finally {
-    studentProjectSaveInFlight = false;
-    updateManualSaveControls();
-    if (studentProjectSaveQueued) {
-      studentProjectSaveQueued = false;
-      window.setTimeout(() => saveCurrentStudentProject({ reason: 'queued' }), 80);
-    }
-  }
+  })();
+
+  return studentProjectSavePromise;
 }
 
 function markStudentProjectRun() {
@@ -5594,6 +5852,14 @@ function runCode(showMessage = true, options = {}) {
     if (options.trackRun !== false) markStudentProjectRun();
   }
 
+  if (typeof window.__MCS_SUPER_STUDIO_AFTER_RUN__ === 'function') {
+    try {
+      window.__MCS_SUPER_STUDIO_AFTER_RUN__({ pageName, showMessage, options });
+    } catch (error) {
+      console.warn('Super Studio run hook skipped.', error);
+    }
+  }
+
   if (options.scroll !== false && showMessage) {
     if (wasFullEditor) {
       openOutputPreviewAfterFullEditor();
@@ -6119,10 +6385,44 @@ function updateInstallButtonVisibility() {
 
 function registerPWAServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./service-worker.js').catch(error => {
+  window.addEventListener('load', async () => {
+    try {
+      const registration = await navigator.serviceWorker.register('./service-worker.js');
+      if (typeof registration.update === 'function') {
+        window.setTimeout(() => registration.update().catch(() => null), 1200);
+      }
+
+      let updateNoticeShown = false;
+      const showUpdateNotice = () => {
+        if (updateNoticeShown) return;
+        updateNoticeShown = true;
+        const message = studentProjectDirty
+          ? 'App update ready. Save your project, then refresh.'
+          : 'App update ready. Refresh when convenient.';
+        if (typeof setStatus === 'function') setStatus(message);
+      };
+
+      registration.addEventListener('updatefound', () => {
+        const worker = registration.installing;
+        if (!worker) return;
+        worker.addEventListener('statechange', () => {
+          if (worker.state === 'installed' && navigator.serviceWorker.controller) {
+            showUpdateNotice();
+          }
+        });
+      });
+
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (studentProjectDirty || studentProjectSaveInFlight) {
+          showUpdateNotice();
+          return;
+        }
+        // Keep control with the fresh worker without forcing a disruptive reload.
+        window.MCS_SERVICE_WORKER_UPDATED = true;
+      });
+    } catch (error) {
       console.warn('Service worker registration failed', error);
-    });
+    }
   });
 }
 
@@ -8259,11 +8559,34 @@ function loadRubricOCRLibrary() {
   if (window.__rubricOCRPromise) return window.__rubricOCRPromise;
 
   window.__rubricOCRPromise = new Promise((resolve, reject) => {
-    const script = document.createElement('script');
-    script.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
-    script.onload = () => resolve(window.Tesseract);
-    script.onerror = () => reject(new Error('Could not load OCR library.'));
-    document.head.appendChild(script);
+    const existing = document.querySelector('script[data-mcs-rubric-ocr]');
+    const script = existing || document.createElement('script');
+    const timeoutId = window.setTimeout(() => {
+      reject(new Error('The rubric image reader took too long to load. Check the connection and try again.'));
+    }, 15000);
+
+    const finish = (error = null) => {
+      window.clearTimeout(timeoutId);
+      if (error) reject(error);
+      else if (window.Tesseract) resolve(window.Tesseract);
+      else reject(new Error('The rubric image reader loaded incorrectly. Please try again.'));
+    };
+
+    script.addEventListener('load', () => finish(), { once: true });
+    script.addEventListener('error', () => finish(new Error('Could not load the rubric image reader. Check the internet connection.')), { once: true });
+
+    if (!existing) {
+      script.dataset.mcsRubricOcr = 'true';
+      script.async = true;
+      script.crossOrigin = 'anonymous';
+      script.referrerPolicy = 'no-referrer';
+      script.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
+      document.head.appendChild(script);
+    }
+  }).catch(error => {
+    window.__rubricOCRPromise = null;
+    document.querySelector('script[data-mcs-rubric-ocr]')?.remove();
+    throw error;
   });
 
   return window.__rubricOCRPromise;
@@ -8475,7 +8798,7 @@ function buildCriterionFromParsedParts(title, sections, globalPoints = {}) {
   });
 }
 
-function parseCriteriaFromRubricText(text) {
+function parseCriteriaFromRubricTextGeneral(text) {
   const normalizedText = normalizeOCRText(text);
   const lines = normalizedText.split('\n').map(line => line.trim()).filter(Boolean);
   const globalPoints = extractGlobalLevelPoints(normalizedText);
@@ -8592,19 +8915,6 @@ function fillRubricTableFromExtractedText() {
   const imported = parseImportedActivityFromText(text);
   applyImportedActivityToAdminForm(imported);
 }
-
-async function runLocalRubricOCR(file) {
-  const Tesseract = await loadRubricOCRLibrary();
-  const result = await Tesseract.recognize(file, 'eng', {
-    logger: message => {
-      if (message?.status === 'recognizing text' && Number.isFinite(message.progress)) {
-        setRubricImportStatus(`Reading image... ${Math.round(message.progress * 100)}%`, 'loading');
-      }
-    }
-  });
-  return normalizeOCRText(result?.data?.text || '');
-}
-
 
 
 /* Fixed 5-column rubric reader for Sir JR's rubric image format.
@@ -8886,7 +9196,6 @@ function parseFiveColumnRubricFromText(text) {
 }
 
 // Override the earlier general parser: try the expected 5-column table first.
-const parseCriteriaFromRubricTextGeneral = parseCriteriaFromRubricText;
 function parseCriteriaFromRubricText(text) {
   const fixedTableCriteria = parseFiveColumnRubricFromText(text);
   if (fixedTableCriteria.length) return fixedTableCriteria;
@@ -11080,6 +11389,7 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     dock = document.createElement('div');
     dock.id = 'fullscreenBottomTools';
     dock.className = 'fullscreen-bottom-tools hidden';
+    dock.setAttribute('role', 'toolbar');
     dock.setAttribute('aria-label', 'Fullscreen quick tools');
     editorPanel.appendChild(dock);
     return dock;
@@ -11192,7 +11502,7 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
         <div class="studio-score-ring" title="Code Health is a quick coach check, not the final grade."><span id="studioQualityValue">--</span><small>%</small></div>
         <div>
           <p class="section-kicker">Live Coach</p>
-          <h3 id="studioCoachTitle">Ready to guide the student</h3>
+          <h2 id="studioCoachTitle">Ready to guide the student</h2>
           <p id="studioCoachMessage">Start typing, then the coach will show the next best fix.</p>
         </div>
       </div>
@@ -11249,7 +11559,7 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
             <button id="studioCloseCommandBtn" class="icon-btn" type="button" aria-label="Close command palette">x</button>
           </div>
           <input id="studioCommandInput" class="studio-command-input" type="search" placeholder="Search action... Example: format, run, snapshot" autocomplete="off" />
-          <div id="studioCommandList" class="studio-command-list" role="listbox"></div>
+          <div id="studioCommandList" class="studio-command-list" role="listbox" aria-label="Available Super Studio commands"></div>
           <p class="studio-command-note">Tip: Press Ctrl+K anytime. Use Enter to run the selected action.</p>
         </div>
       `;
@@ -11781,14 +12091,10 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
   function wrapStudioRunCode() {
     if (window.__MCS_SUPER_STUDIO_RUN_WRAPPED__) return;
     window.__MCS_SUPER_STUDIO_RUN_WRAPPED__ = true;
-    if (typeof runCode !== 'function') return;
-    const originalRunCode = runCode;
-    runCode = function superStudioRunCodeWrapper(showMessage = true, options = {}) {
-      const result = originalRunCode.apply(this, arguments);
+    window.__MCS_SUPER_STUDIO_AFTER_RUN__ = () => {
       const now = new Date();
       studioLastRunAt = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       scheduleStudioCoachUpdate(220);
-      return result;
     };
   }
 
@@ -12146,10 +12452,10 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
           </div>
         </div>
         <div class="collab-tabs" role="tablist" aria-label="Share or join project">
-          <button id="collabShareTab" class="collab-tab active" type="button">Share</button>
-          <button id="collabJoinTab" class="collab-tab" type="button">Join</button>
+          <button id="collabShareTab" class="collab-tab active" type="button" role="tab" aria-selected="true" aria-controls="collabSharePanel" tabindex="0">Share</button>
+          <button id="collabJoinTab" class="collab-tab" type="button" role="tab" aria-selected="false" aria-controls="collabJoinPanel" tabindex="-1">Join</button>
         </div>
-        <section id="collabSharePanel" class="collab-panel active">
+        <section id="collabSharePanel" class="collab-panel active" role="tabpanel" aria-labelledby="collabShareTab">
           <div class="collab-info-box">
             <strong>You are the host.</strong>
             <span>Start a live session, then give the code to classmates.</span>
@@ -12172,7 +12478,7 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
             <button id="collabStopBtn" class="ghost-btn danger hidden" type="button">Stop Sharing</button>
           </div>
         </section>
-        <section id="collabJoinPanel" class="collab-panel">
+        <section id="collabJoinPanel" class="collab-panel" role="tabpanel" aria-labelledby="collabJoinTab" hidden>
           <div class="collab-info-box">
             <strong>Join a classmate's project.</strong>
             <span>Enter the code from the host. Editing depends on teacher/host permission.</span>
@@ -12192,6 +12498,13 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     overlay.addEventListener('click', event => { if (event.target === overlay) closeCollabOverlay(); });
     overlay.querySelector('#collabShareTab')?.addEventListener('click', () => setCollabTab('share'));
     overlay.querySelector('#collabJoinTab')?.addEventListener('click', () => setCollabTab('join'));
+    overlay.querySelector('.collab-tabs')?.addEventListener('keydown', event => {
+      if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+      event.preventDefault();
+      const targetTab = event.key === 'ArrowLeft' || event.key === 'Home' ? 'share' : 'join';
+      setCollabTab(targetTab);
+      overlay.querySelector(targetTab === 'share' ? '#collabShareTab' : '#collabJoinTab')?.focus();
+    });
     overlay.querySelector('#collabStartBtn')?.addEventListener('click', startCollaborationHostSession);
     overlay.querySelector('#collabCopyBtn')?.addEventListener('click', copyCollabCode);
     overlay.querySelector('#collabLeaveBtn')?.addEventListener('click', leaveCurrentCollaborationFromButton);
@@ -12210,6 +12523,7 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     dock = document.createElement('div');
     dock.id = 'fullscreenBottomTools';
     dock.className = 'fullscreen-bottom-tools hidden';
+    dock.setAttribute('role', 'toolbar');
     dock.setAttribute('aria-label', 'Fullscreen quick tools');
     editorPanel.appendChild(dock);
     return dock;
@@ -12221,6 +12535,7 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     bar = document.createElement('div');
     bar.id = 'mobileCollabTools';
     bar.className = 'mobile-collab-tools hidden';
+    bar.setAttribute('role', 'toolbar');
     bar.setAttribute('aria-label', 'Mobile live project tools');
     const pageManager = document.getElementById('htmlPageManager');
     if (pageManager?.parentElement) {
@@ -12256,6 +12571,7 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
       indicator.id = 'collabLiveIndicator';
       indicator.type = 'button';
       indicator.className = 'collab-live-indicator hidden';
+      indicator.setAttribute('aria-label', 'Open live project members');
       indicator.addEventListener('click', showCollabMembersList);
     }
 
@@ -12367,10 +12683,22 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
   function setCollabTab(tab = 'share') {
     const overlay = ensureCollabOverlay();
     const share = tab !== 'join';
-    overlay.querySelector('#collabShareTab')?.classList.toggle('active', share);
-    overlay.querySelector('#collabJoinTab')?.classList.toggle('active', !share);
-    overlay.querySelector('#collabSharePanel')?.classList.toggle('active', share);
-    overlay.querySelector('#collabJoinPanel')?.classList.toggle('active', !share);
+    const shareTab = overlay.querySelector('#collabShareTab');
+    const joinTab = overlay.querySelector('#collabJoinTab');
+    const sharePanel = overlay.querySelector('#collabSharePanel');
+    const joinPanel = overlay.querySelector('#collabJoinPanel');
+
+    shareTab?.classList.toggle('active', share);
+    joinTab?.classList.toggle('active', !share);
+    shareTab?.setAttribute('aria-selected', String(share));
+    joinTab?.setAttribute('aria-selected', String(!share));
+    shareTab?.setAttribute('tabindex', share ? '0' : '-1');
+    joinTab?.setAttribute('tabindex', share ? '-1' : '0');
+
+    sharePanel?.classList.toggle('active', share);
+    joinPanel?.classList.toggle('active', !share);
+    if (sharePanel) sharePanel.hidden = !share;
+    if (joinPanel) joinPanel.hidden = share;
   }
 
   function openCollabOverlay(options = {}) {
@@ -12925,6 +13253,7 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     overlay.className = 'collab-members-overlay hidden';
     overlay.setAttribute('role', 'dialog');
     overlay.setAttribute('aria-modal', 'true');
+    overlay.setAttribute('aria-labelledby', 'collabMembersTitle');
     overlay.innerHTML = `
       <div class="collab-members-card">
         <button id="collabMembersCloseBtn" class="icon-btn collab-close-btn" type="button" aria-label="Close members list">×</button>
@@ -13115,229 +13444,142 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
 })();
 
 
-/* Final mobile scroll guard: remove stale scroll-lock classes when their overlay is already closed. */
-(function installMobileScrollRecovery() {
+/* Stability pass: one event-driven phone layout reconciler replaces several polling loops. */
+(function installPhoneLayoutReconciler() {
+  let scheduled = false;
+
   function isPhoneMode() {
-    return document.documentElement?.dataset?.deviceMode === 'phone' || window.matchMedia('(max-width: 760px)').matches;
+    return document.documentElement?.dataset?.deviceMode === 'phone' || window.matchMedia('(max-width: 820px)').matches;
   }
 
-  function isVisibleOverlay(element) {
-    if (!element) return false;
-    if (element.classList.contains('hidden') || element.classList.contains('collapsed-card')) return false;
+  function isVisible(element) {
+    if (!element || element.classList.contains('hidden') || element.classList.contains('collapsed-card')) return false;
     const style = window.getComputedStyle(element);
-    return style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0';
-  }
-
-  function syncScrollLocks() {
-    if (!isPhoneMode()) return;
-    const body = document.body;
-    const activityOpen = isVisibleOverlay(document.getElementById('activityCard'));
-    const studentLoginOpen = isVisibleOverlay(document.getElementById('studentLoginOverlay')) || isVisibleOverlay(document.getElementById('changePasswordOverlay')) || isVisibleOverlay(document.getElementById('projectNameOverlay'));
-    const dashboardOpen = isVisibleOverlay(document.getElementById('studentDashboardScreen'));
-    const entryOpen = isVisibleOverlay(document.getElementById('entryGate'));
-    const adminOpen = isVisibleOverlay(document.getElementById('adminOverlay'));
-    const realPreviewFullscreen = Boolean(document.fullscreenElement === document.getElementById('previewPanel') || document.webkitFullscreenElement === document.getElementById('previewPanel'));
-    const realEditorFullscreen = Boolean(document.fullscreenElement === document.getElementById('editorPanel') || document.webkitFullscreenElement === document.getElementById('editorPanel'));
-
-    if (!activityOpen) body.classList.remove('activity-popup-open');
-    if (!studentLoginOpen) body.classList.remove('student-auth-open');
-    if (!dashboardOpen) body.classList.remove('student-dashboard-active');
-    if (!entryOpen) body.classList.remove('entry-gate-active');
-    if (!adminOpen) body.classList.remove('admin-open');
-    if (!realPreviewFullscreen && body.classList.contains('preview-fullscreen-active') && !body.classList.contains('preview-inside-editor-fullscreen')) {
-      body.classList.remove('preview-fullscreen-active', 'preview-has-back-editor');
-    }
-    if (!realEditorFullscreen && body.classList.contains('editor-fullscreen-active')) {
-      body.classList.remove('editor-fullscreen-active', 'preview-inside-editor-fullscreen');
-    }
-
-    const hasLock = body.classList.contains('entry-gate-active') || body.classList.contains('student-dashboard-active') || body.classList.contains('student-auth-open') || body.classList.contains('student-route-lock') || body.classList.contains('admin-open') || body.classList.contains('activity-popup-open') || body.classList.contains('preview-fullscreen-active') || body.classList.contains('editor-fullscreen-active');
-    if (!hasLock) {
-      body.style.overflow = '';
-      body.style.overflowY = '';
-      body.style.position = '';
-      body.style.height = '';
-      document.documentElement.style.overflowY = '';
-    }
-  }
-
-  window.addEventListener('load', () => window.setTimeout(syncScrollLocks, 80));
-  window.addEventListener('resize', () => window.setTimeout(syncScrollLocks, 80));
-  document.addEventListener('fullscreenchange', () => window.setTimeout(syncScrollLocks, 120));
-  document.addEventListener('webkitfullscreenchange', () => window.setTimeout(syncScrollLocks, 120));
-  document.addEventListener('click', () => window.setTimeout(syncScrollLocks, 60), true);
-  document.addEventListener('touchend', () => window.setTimeout(syncScrollLocks, 60), true);
-})();
-
-
-/* HARD FINAL PHONE SCROLL RECOVERY
-   If the normal editor workspace is visible on phone, remove stale scroll locks. */
-(function installHardPhoneEditorScrollFix() {
-  function isPhone() {
-    return document.documentElement?.dataset?.deviceMode === 'phone' || window.matchMedia('(max-width: 820px)').matches;
-  }
-
-  function isVisible(el) {
-    if (!el || el.classList.contains('hidden')) return false;
-    const rect = el.getBoundingClientRect();
-    const style = window.getComputedStyle(el);
-    return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0';
-  }
-
-  function unlockEditorScrollWhenSafe() {
-    if (!isPhone()) return;
-    const body = document.body;
-    const editorVisible = isVisible(document.getElementById('editorPanel')) && isVisible(document.querySelector('.app-shell'));
-    const realFullscreen = Boolean(document.fullscreenElement || document.webkitFullscreenElement);
-    const blockingOverlayVisible = isVisible(document.getElementById('entryGate')) ||
-      isVisible(document.getElementById('studentLoginOverlay')) ||
-      isVisible(document.getElementById('changePasswordOverlay')) ||
-      isVisible(document.getElementById('projectNameOverlay')) ||
-      isVisible(document.getElementById('adminOverlay')) ||
-      isVisible(document.getElementById('studentDashboardScreen'));
-
-    if (editorVisible && !realFullscreen && !blockingOverlayVisible) {
-      body.classList.add('editor-scroll-unlocked');
-      body.classList.remove(
-        'entry-gate-active',
-        'student-dashboard-active',
-        'student-auth-open',
-        'student-route-lock',
-        'admin-open',
-        'activity-popup-open',
-        'preview-fullscreen-active',
-        'editor-fullscreen-active',
-        'preview-inside-editor-fullscreen'
-      );
-      body.style.overflow = 'auto';
-      body.style.overflowY = 'auto';
-      body.style.position = 'static';
-      body.style.height = 'auto';
-      document.documentElement.style.overflowY = 'auto';
-    } else {
-      body.classList.remove('editor-scroll-unlocked');
-    }
-
-    const fullBtn = document.getElementById('fullPreviewBtn');
-    if (fullBtn && isPhone() && document.documentElement.dataset.theme === 'dark') {
-      fullBtn.style.color = '#07111f';
-      fullBtn.style.webkitTextFillColor = '#07111f';
-    }
-  }
-
-  ['load', 'resize', 'orientationchange', 'fullscreenchange', 'webkitfullscreenchange'].forEach(name => {
-    window.addEventListener(name, () => setTimeout(unlockEditorScrollWhenSafe, 60), true);
-  });
-  ['click', 'touchstart', 'touchend', 'pointerup', 'scroll'].forEach(name => {
-    document.addEventListener(name, () => setTimeout(unlockEditorScrollWhenSafe, 30), true);
-  });
-  setInterval(unlockEditorScrollWhenSafe, 700);
-  unlockEditorScrollWhenSafe();
-})();
-
-
-/* Emergency final mobile fix: prevent duplicated Full text and restore normal page scroll. */
-(function installEmergencyPhonePreviewAndScrollFix() {
-  function isPhone() {
-    return document.documentElement?.dataset?.deviceMode === 'phone' || window.matchMedia('(max-width: 820px)').matches;
-  }
-
-  function isVisible(el) {
-    if (!el || el.classList.contains('hidden')) return false;
-    const style = window.getComputedStyle(el);
-    const rect = el.getBoundingClientRect();
+    const rect = element.getBoundingClientRect();
     return style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0' && rect.width > 0 && rect.height > 0;
   }
 
-  function normalizePreviewButtonLabels() {
-    if (!isPhone()) return;
+  function normalizePhoneLabels() {
+    if (!isPhoneMode()) return;
     const monitorBtn = document.getElementById('desktopPreviewBtn');
     const fullBtn = document.getElementById('fullPreviewBtn');
-    const resultBtn = document.getElementById('resultFromPreviewBtn');
+    const previewResultBtn = document.getElementById('resultFromPreviewBtn');
     if (monitorBtn) monitorBtn.textContent = monitorBtn.classList.contains('active') ? '📱 Phone' : '🖥️ Monitor';
     if (fullBtn) {
       fullBtn.textContent = '⛶ Full';
       fullBtn.style.color = '#07111f';
       fullBtn.style.webkitTextFillColor = '#07111f';
     }
-    if (resultBtn) resultBtn.textContent = '✓ Result';
-  }
-
-  function restoreNormalEditorScroll() {
-    if (!isPhone()) return;
-    const body = document.body;
-    const editorVisible = isVisible(document.getElementById('editorPanel')) && isVisible(document.querySelector('.app-shell'));
-    const realFullscreen = Boolean(document.fullscreenElement || document.webkitFullscreenElement);
-    const blockingOverlayVisible = isVisible(document.getElementById('entryGate')) ||
-      isVisible(document.getElementById('studentLoginOverlay')) ||
-      isVisible(document.getElementById('changePasswordOverlay')) ||
-      isVisible(document.getElementById('projectNameOverlay')) ||
-      isVisible(document.getElementById('studentDashboardScreen')) ||
-      isVisible(document.getElementById('adminOverlay'));
-
-    normalizePreviewButtonLabels();
-
-    if (editorVisible && !realFullscreen && !blockingOverlayVisible) {
-      body.classList.add('mobile-editor-normal', 'editor-scroll-unlocked');
-      body.classList.remove(
-        'entry-gate-active',
-        'student-dashboard-active',
-        'student-auth-open',
-        'student-route-lock',
-        'admin-open',
-        'activity-popup-open',
-        'preview-fullscreen-active',
-        'preview-has-back-editor',
-        'editor-fullscreen-active',
-        'preview-inside-editor-fullscreen'
-      );
-      document.documentElement.style.overflow = 'auto';
-      document.documentElement.style.overflowY = 'auto';
-      document.documentElement.style.height = 'auto';
-      body.style.overflow = 'auto';
-      body.style.overflowY = 'auto';
-      body.style.position = 'static';
-      body.style.height = 'auto';
-      body.style.maxHeight = 'none';
-      body.style.touchAction = 'pan-y';
-    } else {
-      body.classList.remove('mobile-editor-normal');
+    if (previewResultBtn) {
+      previewResultBtn.textContent = '✓ Result';
+      previewResultBtn.style.color = '#ffffff';
+      previewResultBtn.style.webkitTextFillColor = '#ffffff';
+      previewResultBtn.style.opacity = '1';
     }
   }
 
-  ['load', 'resize', 'orientationchange', 'fullscreenchange', 'webkitfullscreenchange'].forEach(eventName => {
-    window.addEventListener(eventName, () => window.setTimeout(restoreNormalEditorScroll, 50), true);
-  });
-  ['click', 'touchstart', 'touchend', 'pointerup', 'input', 'change'].forEach(eventName => {
-    document.addEventListener(eventName, () => window.setTimeout(restoreNormalEditorScroll, 20), true);
-  });
-  window.setInterval(restoreNormalEditorScroll, 500);
-  restoreNormalEditorScroll();
-})();
-
-
-/* Final guard: phone preview Result button must always have readable text. */
-(function keepPhonePreviewResultButtonReadable() {
-  function isPhoneMode() {
-    return document.documentElement?.dataset?.deviceMode === 'phone' || window.matchMedia('(max-width: 820px)').matches;
-  }
-  function fix() {
+  function reconcile() {
+    scheduled = false;
     if (!isPhoneMode()) return;
-    const btn = document.getElementById('resultFromPreviewBtn');
-    if (!btn) return;
-    btn.textContent = '✓ Result';
-    btn.style.color = '#ffffff';
-    btn.style.webkitTextFillColor = '#ffffff';
-    btn.style.fontSize = '0.76rem';
-    btn.style.fontWeight = '1000';
-    btn.style.opacity = '1';
+    normalizePhoneLabels();
+
+    const body = document.body;
+    const editorVisible = isVisible(document.getElementById('editorPanel')) && isVisible(document.querySelector('.app-shell'));
+    const realFullscreen = Boolean(document.fullscreenElement || document.webkitFullscreenElement);
+    const activityOpen = isVisible(document.getElementById('activityCard'));
+    const entryOpen = isVisible(document.getElementById('entryGate'));
+    const studentAuthOpen = isVisible(document.getElementById('studentLoginOverlay')) || isVisible(document.getElementById('changePasswordOverlay')) || isVisible(document.getElementById('projectNameOverlay'));
+    const dashboardOpen = isVisible(document.getElementById('studentDashboard')) || isVisible(document.getElementById('studentDashboardScreen'));
+    const adminOpen = isVisible(document.getElementById('adminOverlay'));
+    const blockingOverlayOpen = entryOpen || studentAuthOpen || dashboardOpen || adminOpen || activityOpen;
+
+    body.classList.toggle('entry-gate-active', entryOpen);
+    body.classList.toggle('student-auth-open', studentAuthOpen);
+    body.classList.toggle('student-dashboard-active', dashboardOpen);
+    body.classList.toggle('admin-open', adminOpen);
+    body.classList.toggle('activity-popup-open', activityOpen);
+
+    const normalEditor = editorVisible && !realFullscreen && !blockingOverlayOpen;
+    body.classList.toggle('mobile-editor-normal', normalEditor);
+    body.classList.toggle('editor-scroll-unlocked', normalEditor);
+
+    if (normalEditor) {
+      body.classList.remove('student-route-lock', 'preview-fullscreen-active', 'preview-has-back-editor', 'editor-fullscreen-active', 'preview-inside-editor-fullscreen');
+      document.documentElement.style.overflow = '';
+      document.documentElement.style.overflowY = '';
+      document.documentElement.style.height = '';
+      body.style.overflow = '';
+      body.style.overflowY = '';
+      body.style.position = '';
+      body.style.height = '';
+      body.style.maxHeight = '';
+      body.style.touchAction = 'pan-y';
+    }
   }
-  ['load', 'resize', 'orientationchange'].forEach(name => window.addEventListener(name, () => setTimeout(fix, 30), true));
-  ['click', 'touchend', 'pointerup'].forEach(name => document.addEventListener(name, () => setTimeout(fix, 30), true));
-  setInterval(fix, 800);
-  fix();
+
+  function schedule() {
+    if (scheduled) return;
+    scheduled = true;
+    window.requestAnimationFrame(reconcile);
+  }
+
+  ['load', 'resize', 'orientationchange', 'fullscreenchange', 'webkitfullscreenchange', 'online', 'offline'].forEach(name => {
+    window.addEventListener(name, schedule, true);
+  });
+  ['click', 'touchend', 'pointerup', 'input', 'change'].forEach(name => {
+    document.addEventListener(name, schedule, true);
+  });
+  new MutationObserver(schedule).observe(document.body, {
+    subtree: true,
+    childList: true,
+    attributes: true,
+    attributeFilter: ['class', 'hidden', 'aria-hidden']
+  });
+  schedule();
 })();
 
+/* Network, recovery, and page-lifecycle reliability. */
+(function installAppReliabilityLifecycle() {
+  const onReconnect = () => {
+    updateConnectionStatusUI();
+    if (studentProjectDirty && isStudentProjectActive()) {
+      window.clearTimeout(studentProjectRetryTimer);
+      window.setTimeout(() => flushStudentProjectSave('reconnect'), 500);
+    }
+    if (appSession.mode === 'student' && !document.body.classList.contains('student-dashboard-active')) setStatus('Back online');
+  };
+
+  window.addEventListener('online', onReconnect);
+  window.addEventListener('offline', () => {
+    updateConnectionStatusUI();
+    if (studentProjectDirty) persistStudentProjectRecoverySnapshot('offline');
+    setStatus('Offline · edits protected locally');
+  });
+  window.addEventListener('load', updateConnectionStatusUI);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden' && studentProjectDirty && isStudentProjectActive()) {
+      persistStudentProjectRecoverySnapshot('visibility');
+      if (navigator.onLine !== false) saveCurrentStudentProject({ immediate: true, reason: 'visibility' });
+    }
+  });
+  window.addEventListener('pagehide', () => {
+    if (studentProjectDirty && isStudentProjectActive()) persistStudentProjectRecoverySnapshot('pagehide');
+  });
+  window.addEventListener('beforeunload', event => {
+    if (!studentProjectDirty && !studentProjectSaveInFlight) return;
+    persistStudentProjectRecoverySnapshot('beforeunload');
+    event.preventDefault();
+    event.returnValue = '';
+  });
+  window.addEventListener('error', event => {
+    if (!event?.message) return;
+    console.error('App runtime error:', event.message, event.error || '');
+  });
+  window.addEventListener('unhandledrejection', event => {
+    console.error('Unhandled app promise:', event.reason || event);
+  });
+  updateConnectionStatusUI();
+})();
 
 /* Desktop/mobile safety: Practice Without Login must always open the editor. */
 (function installPracticeWithoutLoginHardClickFix() {
@@ -13350,4 +13592,87 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     continueAsGuest();
   }
   document.addEventListener('click', handlePracticeClick, true);
+})();
+
+/* Quality gate v100: runtime health, storage pressure, and recoverability diagnostics. */
+(function installQualityGateDiagnostics() {
+  const RELEASE_ID = '20260711-quality-gate-v100';
+  const REQUIRED_IDS = [
+    'entryGate', 'openStudentLoginBtn', 'continueGuestBtn', 'studentLoginOverlay',
+    'studentDashboard', 'newProjectBtn', 'projectNameOverlay', 'runBtn',
+    'resultBtn', 'codeEditor', 'previewFrame', 'workspace', 'adminOverlay',
+    'activitySelect', 'activityCard', 'statusBadge'
+  ];
+
+  function safeCall(fn, fallback) {
+    try { return fn(); } catch (error) { return fallback; }
+  }
+
+  function setHealthDataset(status) {
+    const root = document.documentElement;
+    if (!root) return;
+    root.dataset.appRelease = RELEASE_ID;
+    root.dataset.appHealth = status;
+  }
+
+  function runHealthCheck() {
+    const missingIds = REQUIRED_IDS.filter(id => !document.getElementById(id));
+    const duplicateIds = safeCall(() => {
+      const seen = new Set();
+      const duplicates = new Set();
+      document.querySelectorAll('[id]').forEach(el => {
+        if (seen.has(el.id)) duplicates.add(el.id);
+        seen.add(el.id);
+      });
+      return Array.from(duplicates);
+    }, []);
+    const health = {
+      release: RELEASE_ID,
+      checkedAt: new Date().toISOString(),
+      ok: missingIds.length === 0 && duplicateIds.length === 0,
+      missingIds,
+      duplicateIds,
+      firebaseConfigured: Boolean(window.MCS_FIREBASE_CONFIG && window.MCS_FIREBASE_CONFIG.projectId),
+      serviceWorkerSupported: 'serviceWorker' in navigator,
+      installedMode: typeof isAppInstalledMode === 'function' ? isAppInstalledMode() : false,
+      online: navigator.onLine !== false,
+      deviceMode: document.documentElement?.dataset?.deviceMode || ''
+    };
+    window.MCS_APP_RELEASE = RELEASE_ID;
+    window.MCS_APP_HEALTH = health;
+    setHealthDataset(health.ok ? 'ok' : 'warning');
+    if (!health.ok) console.warn('Sir JR Coding App health warning:', health);
+    return health;
+  }
+
+  async function checkStoragePressure() {
+    if (!navigator.storage || typeof navigator.storage.estimate !== 'function') return null;
+    try {
+      const estimate = await navigator.storage.estimate();
+      const quota = Number(estimate.quota || 0);
+      const usage = Number(estimate.usage || 0);
+      if (!quota) return estimate;
+      const ratio = usage / quota;
+      window.MCS_STORAGE_HEALTH = { usage, quota, ratio };
+      if (ratio >= 0.9 && typeof setStatus === 'function') {
+        setStatus('Device storage almost full. Save or export your project soon.');
+      }
+      return estimate;
+    } catch (error) {
+      console.warn('Storage health check skipped.', error);
+      return null;
+    }
+  }
+
+  window.MCS_RUN_HEALTH_CHECK = runHealthCheck;
+  window.addEventListener('load', () => {
+    window.setTimeout(runHealthCheck, 600);
+    window.setTimeout(checkStoragePressure, 1600);
+  }, { once: true });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      window.setTimeout(runHealthCheck, 250);
+      window.setTimeout(checkStoragePressure, 800);
+    }
+  });
 })();

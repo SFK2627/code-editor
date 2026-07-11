@@ -1,54 +1,33 @@
-# Rubric Picture Import Setup
+# Rubric Picture Import — Free-Only Setup
 
-This app includes a Teacher/Admin feature: **Upload Rubric Picture / Screenshot**.
-
-The button is visible inside **Teacher/Admin > Admin Rubric Table Builder** after the teacher logs in.
+The app can read a rubric screenshot directly in the teacher's browser. This release does not require Cloud Functions, Cloud Storage, billing, or an OpenAI API key.
 
 ## How it works
 
-1. Teacher uploads a rubric picture.
-2. The web app sends the image to a secure Firebase Function.
-3. The function reads the image and returns structured rubric data:
-   - Activity title
-   - Instructions
-   - Passing score
-   - Criteria rows
-   - Excellent / Good / Fair / Needs Improvement points and descriptions
-   - Auto-check rules
-4. The app fills the table.
-5. Teacher reviews and clicks **Save Activity**.
+1. Open **Teacher/Admin > Admin Rubric Table Builder**.
+2. Choose a clear rubric image or screenshot.
+3. Click **Read Image & Fill Table**.
+4. The app loads Tesseract.js from a CDN and reads the image inside the browser.
+5. It first tries the expected five-column format:
+   - Criteria
+   - Excellent
+   - Good
+   - Fair
+   - Needs Improvement
+6. Review every imported row, score, and description.
+7. Click **Save Activity** only after checking the result.
 
-## Why a Firebase Function is needed
+## Requirements
 
-Do not put AI/API keys in GitHub Pages. The browser frontend is public. Put the key in Firebase Functions secrets.
+- Internet access is needed the first time the OCR library loads.
+- Use a straight, high-resolution screenshot with readable text.
+- Crop unnecessary borders or surrounding content.
+- English text works best.
 
-## Deploy steps
+## Manual fallback
 
-Install Firebase CLI, then inside this project folder:
+When the image is unclear, paste or type the rubric into **Type Rubric Like a Table**. This is more reliable than forcing a poor OCR result.
 
-```bash
-firebase login
-firebase init functions
-```
+## Optional secure endpoint
 
-When asked, use JavaScript and Node.js. You can keep/replace the generated functions folder with the included `functions` folder.
-
-Set the secret:
-
-```bash
-firebase functions:secrets:set OPENAI_API_KEY
-```
-
-Deploy:
-
-```bash
-firebase deploy --only functions
-```
-
-After deployment, copy the HTTPS URL for `rubricImageImport` and paste it into `firebase-config.js`:
-
-```js
-window.MCS_RUBRIC_IMAGE_ENDPOINT = 'https://YOUR_FUNCTION_URL/rubricImageImport';
-```
-
-Then upload updated files to GitHub Pages.
+`window.MCS_RUBRIC_IMAGE_ENDPOINT` remains available in `firebase-config.js` for a future secure backend. Leave it blank for this free-only release. Never put private AI/API keys in `firebase-config.js`, `script.js`, GitHub Pages, or any browser-visible file.

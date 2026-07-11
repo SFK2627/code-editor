@@ -1,0 +1,4 @@
+Sir JR Coding App
+Release: 20260711-quality-gate-v100
+Target rating: 100-readiness package, 95+ realistic classroom potential after live testing
+Architecture: Free-only Firebase Spark, static hosting, Authentication, Firestore, PWA

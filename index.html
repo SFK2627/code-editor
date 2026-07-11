@@ -5,6 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Sir JR Web Coding App</title>
 
+  <meta name="description" content="A teacher-controlled classroom coding app for Grade 8 HTML, CSS, and JavaScript projects." />
+  <meta name="application-name" content="Sir JR Coding App" />
+  <meta name="app-release" content="20260711-quality-gate-v100" />
+  <meta name="color-scheme" content="light dark" />
+  <meta name="format-detection" content="telephone=no" />
   <meta name="theme-color" content="#2563eb" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -12,7 +17,8 @@
   <meta name="apple-mobile-web-app-title" content="Sir JR Coding" />
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="apple-touch-icon" href="icons/icon-192.png" />
-  <link rel="icon" type="image/png" href="icons/icon-192.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon.png" />
   <script>
     // Decide the responsive preview mode before CSS loads. A real phone is
     // detected from its browser/screen, while a narrow viewport is also treated
@@ -38,9 +44,12 @@
       document.documentElement.dataset.deviceMode = isPhone ? 'phone' : 'desktop';
     })();
   </script>
-  <link rel="stylesheet" href="style.css?v=20260711-mobile-collab-compat-v1" />
+  <link rel="stylesheet" href="style.css?v=20260711-quality-gate-v100" />
 </head>
 <body class="entry-gate-active">
+  <noscript>
+    <div class="noscript-notice">JavaScript is required to use the Sir JR Coding App.</div>
+  </noscript>
   <div id="entryGate" class="entry-gate" role="dialog" aria-modal="true" aria-labelledby="entryGateTitle">
     <div class="entry-card">
       <div class="entry-logo app-coded-eight" aria-hidden="true"><span class="logo-code">&lt;/&gt;</span><span class="logo-eight">8</span></div>
@@ -115,8 +124,8 @@
     </div>
   </div>
 
-  <div id="studentDashboard" class="student-dashboard-screen hidden" aria-labelledby="studentDashboardTitle">
-    <header class="student-dashboard-header">
+  <div id="studentDashboard" class="student-dashboard-screen hidden" role="main" aria-labelledby="studentDashboardTitle">
+    <div class="student-dashboard-header">
       <div class="dashboard-brand">
         <div class="logo-mark app-coded-eight" aria-hidden="true"><span class="logo-code">&lt;/&gt;</span><span class="logo-eight">8</span></div>
         <div>
@@ -130,8 +139,8 @@
         <button id="dashboardJoinProjectBtn" class="ghost-btn dashboard-join-project-btn hidden" type="button">🤝 Join a Project</button>
         <button id="dashboardLogoutBtn" class="ghost-btn danger" type="button">Log Out</button>
       </div>
-    </header>
-    <main class="student-dashboard-main">
+    </div>
+    <div class="student-dashboard-main">
       <section class="dashboard-hero-card">
         <div>
           <p class="section-kicker">Your Coding Workspace</p>
@@ -154,7 +163,7 @@
       </section>
       <div id="projectDashboardStatus" class="dashboard-status" role="status">Loading projects...</div>
       <section id="studentProjectsGrid" class="student-projects-grid" aria-live="polite"></section>
-    </main>
+    </div>
   </div>
 
   <div id="projectNameOverlay" class="student-auth-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="projectNameTitle">
@@ -185,7 +194,7 @@
       </div>
 
       <div class="top-actions" aria-label="Main actions">
-        <span id="statusBadge" class="status-badge compact-status">Ready</span>
+        <span id="statusBadge" class="status-badge compact-status" role="status" aria-live="polite">Ready</span>
         <button id="themeToggle" class="ghost-btn" type="button" title="Switch light or dark mode">🌙 Dark</button>
         <button id="stepActivityBtn" class="ghost-btn activity-launch-btn" type="button" aria-expanded="false" aria-controls="activityCard">📌 Activity</button>
         <button id="runBtn" class="primary-btn top-run-btn" type="button" title="Run: Ctrl + Enter">▶ Run</button>
@@ -203,19 +212,19 @@
         <span aria-hidden="true"></span>
         <span aria-hidden="true"></span>
       </button>
-      <div id="studentAccountMenu" class="student-account-menu hidden" role="menu" aria-label="Student account menu">
-        <div class="student-account-menu-head">
+      <div id="studentAccountMenu" class="student-account-menu hidden" role="group" aria-label="Student account menu">
+        <div class="student-account-menu-head" role="none">
           <strong id="menuStudentGreeting">Hi, Student!</strong>
-          <span id="menuStudentSaveState" class="student-save-state">Saved</span>
+          <span id="menuStudentSaveState" class="student-save-state" role="status" aria-live="polite">Saved</span>
         </div>
-        <button id="menuSaveProjectBtn" class="ghost-btn student-manual-save-btn hidden" type="button" role="menuitem">💾 Save</button>
-        <button id="menuMyProjectsBtn" class="ghost-btn" type="button" role="menuitem">📁 My Projects</button>
-        <button id="menuStudentLogoutBtn" class="ghost-btn danger" type="button" role="menuitem">Log Out</button>
+        <button id="menuSaveProjectBtn" class="ghost-btn student-manual-save-btn hidden" type="button">💾 Save</button>
+        <button id="menuMyProjectsBtn" class="ghost-btn" type="button">📁 My Projects</button>
+        <button id="menuStudentLogoutBtn" class="ghost-btn danger" type="button">Log Out</button>
       </div>
 
       <div id="studentAccountStrip" class="student-account-strip hidden" aria-label="Student account actions">
         <span id="headerStudentGreeting" class="student-greeting">Hi, Student!</span>
-        <span id="studentSaveState" class="student-save-state">Saved</span>
+        <span id="studentSaveState" class="student-save-state" role="status" aria-live="polite">Saved</span>
         <button id="saveStudentProjectBtn" class="ghost-btn student-manual-save-btn hidden" type="button" title="Save current project: Ctrl + S">💾 Save</button>
         <button id="myProjectsBtn" class="ghost-btn" type="button">📁 My Projects</button>
         <button id="studentHeaderLogoutBtn" class="ghost-btn danger" type="button">Log Out</button>
@@ -237,7 +246,7 @@
           <button id="exitEditorStickyBtn" class="fullscreen-exit-btn" type="button" title="Exit full editor: Esc">Exit Full</button>
         </div>
         <button id="codeHelperFloatingBtn" class="code-helper-float-btn" type="button" title="Open Code Helper">🧭 Code Helper</button>
-        <div class="language-tabs" role="tablist" aria-label="Code language tabs">
+        <div class="language-tabs" role="toolbar" aria-label="Code language and file tools">
           <button class="tab-btn active" type="button" data-language="html">HTML</button>
           <button class="tab-btn" type="button" data-language="css">CSS</button>
           <button class="tab-btn" type="button" data-language="js">JavaScript</button>
@@ -689,7 +698,7 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
             <button id="addStudentAccountBtn" class="primary-btn" type="button">+ Add Student Record</button>
             <button id="downloadStudentTemplateBtn" class="ghost-btn" type="button">⬇ Download Excel Template</button>
             <button id="chooseStudentImportBtn" class="ghost-btn" type="button">📥 Import Excel / CSV</button>
-            <input id="studentImportInput" class="hidden" type="file" accept=".xlsx,.xls,.csv" />
+            <input id="studentImportInput" class="hidden" type="file" accept=".xlsx,.xls,.csv" aria-label="Choose student Excel or CSV file" />
           </div>
           <p id="studentAccountAdminStatus" class="helper-note" role="status">Ready to register students.</p>
 
@@ -908,8 +917,8 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
     </div>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
   <script src="firebase-config.js"></script>
-  <script src="script.js?v=20260711-mobile-collab-compat-v1"></script>
+  <script src="script.js?v=20260711-quality-gate-v100"></script>
 </body>
 </html>

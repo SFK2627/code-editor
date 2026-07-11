@@ -18942,3 +18942,237 @@ body.editor-fullscreen-active .language-tabs > .collab-members-pill:not(.hidden)
     font-size: 0.76rem !important;
   }
 }
+
+/* =========================================================
+   Stability + professional polish pass (2026-07-11)
+   Final non-destructive layer for accessibility, state clarity,
+   responsive safety, and reduced-motion support.
+   ========================================================= */
+
+html {
+  scrollbar-gutter: stable;
+  text-size-adjust: 100%;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  min-width: 320px;
+  overscroll-behavior-y: none;
+}
+
+.noscript-notice {
+  position: fixed;
+  inset: 16px 16px auto;
+  z-index: 20000;
+  border: 1px solid #f59e0b;
+  border-radius: 16px;
+  padding: 14px 16px;
+  color: #78350f;
+  background: #fef3c7;
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.18);
+  font-weight: 800;
+  text-align: center;
+}
+
+button,
+[role="button"],
+a,
+input,
+textarea,
+select,
+summary {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:focus-visible,
+[role="button"]:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+summary:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--primary) 72%, white);
+  outline-offset: 3px;
+}
+
+button:disabled,
+input:disabled,
+textarea:disabled,
+select:disabled,
+[aria-disabled="true"] {
+  cursor: not-allowed !important;
+  opacity: 0.56;
+  filter: saturate(0.72);
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+button[aria-busy="true"] {
+  pointer-events: none;
+  cursor: progress;
+}
+
+.primary-btn:active:not(:disabled),
+.success-btn:active:not(:disabled),
+.ghost-btn:active:not(:disabled),
+.icon-btn:active:not(:disabled),
+.layout-btn:active:not(:disabled) {
+  transform: translateY(0) scale(0.98);
+}
+
+.connection-status-banner {
+  position: fixed;
+  left: 50%;
+  bottom: max(14px, env(safe-area-inset-bottom));
+  z-index: 15000;
+  width: min(680px, calc(100% - 24px));
+  transform: translateX(-50%);
+  border: 1px solid color-mix(in srgb, var(--warning) 55%, var(--line));
+  border-radius: 999px;
+  padding: 10px 16px;
+  color: #78350f;
+  background: color-mix(in srgb, #fef3c7 94%, white);
+  box-shadow: 0 18px 44px rgba(15, 23, 42, 0.2);
+  font-size: 0.88rem;
+  font-weight: 850;
+  line-height: 1.35;
+  text-align: center;
+}
+
+[data-theme="dark"] .connection-status-banner {
+  color: #fde68a;
+  background: rgba(120, 53, 15, 0.94);
+  border-color: rgba(251, 191, 36, 0.55);
+}
+
+body.app-offline .student-save-state,
+body.app-offline .compact-status {
+  border-color: color-mix(in srgb, var(--warning) 46%, var(--line));
+}
+
+.student-save-state.saving,
+.student-save-state.unsaved,
+.student-save-state.error {
+  min-width: 72px;
+  text-align: center;
+}
+
+.student-save-state.saving::before {
+  content: "";
+  display: inline-block;
+  width: 0.72em;
+  height: 0.72em;
+  margin-right: 6px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 999px;
+  vertical-align: -0.08em;
+  animation: mcs-spin 0.8s linear infinite;
+}
+
+@keyframes mcs-spin {
+  to { transform: rotate(360deg); }
+}
+
+.modal-overlay,
+.student-auth-overlay,
+.file-name-dialog-overlay,
+.app-dialog-overlay,
+.collab-members-overlay {
+  overscroll-behavior: contain;
+}
+
+.admin-modal,
+.student-auth-card,
+.file-name-dialog-card,
+.app-dialog-card,
+.entry-card,
+.collab-members-card {
+  max-width: calc(100vw - 20px);
+}
+
+input,
+textarea,
+select {
+  accent-color: var(--primary);
+}
+
+textarea,
+#codeEditor {
+  caret-color: var(--editor-text);
+}
+
+
+.student-project-card {
+  transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
+}
+
+.student-project-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 18px 42px rgba(15, 23, 42, 0.14);
+}
+
+.dashboard-status,
+#studentAccountAdminStatus,
+#rubricImageStatus,
+#manualRubricStatus,
+#assistanceSettingsStatus {
+  overflow-wrap: anywhere;
+}
+
+/* Keep all fixed controls clear of phone notches and browser bars. */
+@media (max-width: 820px) {
+  .connection-status-banner {
+    bottom: max(10px, env(safe-area-inset-bottom));
+    border-radius: 16px;
+    padding: 10px 12px;
+    font-size: 0.8rem;
+  }
+
+  .student-auth-overlay,
+  .file-name-dialog-overlay,
+  .app-dialog-overlay {
+    padding-top: max(10px, env(safe-area-inset-top));
+    padding-right: max(10px, env(safe-area-inset-right));
+    padding-bottom: max(10px, env(safe-area-inset-bottom));
+    padding-left: max(10px, env(safe-area-inset-left));
+  }
+
+  .student-project-card:hover {
+    transform: none;
+  }
+
+  button,
+  [role="button"],
+  input,
+  select {
+    min-height: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto !important;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+@media (forced-colors: active) {
+  button,
+  input,
+  textarea,
+  select,
+  .panel,
+  .entry-card,
+  .student-auth-card {
+    border: 1px solid CanvasText;
+  }
+}

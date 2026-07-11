@@ -1,14 +1,13 @@
 INSTALL ON PHONE
 
-Android / Chrome:
-1. Open the website.
+Android / Chrome
+1. Open the deployed website.
 2. Tap the browser menu.
 3. Choose Install app or Add to Home screen.
 
-iPhone / iPad:
-1. Open the website in Safari.
+IPhone / iPad
+1. Open the deployed website in Safari.
 2. Tap Share.
 3. Choose Add to Home Screen.
 
-Important:
-Upload these files to GitHub root: index.html, style.css, script.js, firebase-config.js, manifest.webmanifest, service-worker.js, and the icons folder.
+After uploading a new version, fully close and reopen the installed app. Clear the site's stored cache only when the old version still appears after reopening.
