@@ -37,7 +37,7 @@
       document.documentElement.dataset.deviceMode = isPhone ? 'phone' : 'desktop';
     })();
   </script>
-  <link rel="stylesheet" href="style.css?v=20260711-phone-preview-topalign-final" />
+  <link rel="stylesheet" href="style.css?v=20260711-admin-code-choice" />
 </head>
 <body class="entry-gate-active">
   <div id="entryGate" class="entry-gate" role="dialog" aria-modal="true" aria-labelledby="entryGateTitle">
@@ -543,24 +543,39 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
           </div>
 
           <div class="teacher-login-card">
-            <label for="adminEmail">
-              Teacher Email
-              <input id="adminEmail" type="email" autocomplete="username" placeholder="example: sirjr@email.com" />
-            </label>
-
-            <label for="adminPassword">
-              Password
-              <input id="adminPassword" type="password" autocomplete="current-password" placeholder="Enter password" />
-            </label>
-
-            <p id="teacherLoginError" class="login-error hidden" role="alert"></p>
-
-            <div class="pin-row teacher-login-actions">
-              <button id="unlockAdminBtn" class="primary-btn" type="button">Login to Admin</button>
-              <button id="logoutAdminBtn" class="ghost-btn hidden" type="button">Logout</button>
+            <div class="admin-login-switch" role="tablist" aria-label="Choose admin login method">
+              <button id="adminCodeModeBtn" class="admin-login-mode-btn active" type="button" role="tab" aria-selected="true" aria-controls="adminCodeLoginPanel">Code</button>
+              <button id="adminPasswordModeBtn" class="admin-login-mode-btn" type="button" role="tab" aria-selected="false" aria-controls="teacherPasswordLoginPanel">Password</button>
             </div>
 
-            <p id="teacherLoginNote" class="helper-note">Only signed-in Firebase teacher accounts can save or delete rubrics.</p>
+            <div id="adminCodeLoginPanel" class="admin-login-panel active" role="tabpanel" aria-labelledby="adminCodeModeBtn">
+              <label for="adminQuickCode">
+                Admin Code
+                <input id="adminQuickCode" type="password" inputmode="numeric" autocomplete="off" placeholder="Enter quick code" />
+              </label>
+              <button id="unlockAdminCodeBtn" class="primary-btn wide-btn" type="button">Unlock with Code</button>
+              <p class="helper-note">Fast local unlock for editing on this device. Use Password login when you need Firebase/global saving.</p>
+            </div>
+
+            <div id="teacherPasswordLoginPanel" class="admin-login-panel hidden" role="tabpanel" aria-labelledby="adminPasswordModeBtn">
+              <label for="adminEmail">
+                Teacher Email
+                <input id="adminEmail" type="email" autocomplete="username" placeholder="example: sirjr@email.com" />
+              </label>
+
+              <label for="adminPassword">
+                Password
+                <input id="adminPassword" type="password" autocomplete="current-password" placeholder="Enter password" />
+              </label>
+
+              <div class="pin-row teacher-login-actions">
+                <button id="unlockAdminBtn" class="primary-btn" type="button">Login with Password</button>
+                <button id="logoutAdminBtn" class="ghost-btn hidden" type="button">Logout</button>
+              </div>
+            </div>
+
+            <p id="teacherLoginError" class="login-error hidden" role="alert"></p>
+            <p id="teacherLoginNote" class="helper-note">Use Admin Code for quick access, or Password for Firebase/global admin actions.</p>
           </div>
         </div>
       </div>
@@ -814,6 +829,6 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="firebase-config.js"></script>
-  <script src="script.js?v=20260711-phone-preview-topalign-final"></script>
+  <script src="script.js?v=20260711-admin-code-choice"></script>
 </body>
 </html>

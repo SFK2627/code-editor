@@ -1,11 +1,11 @@
-const CACHE_NAME = 'sir-jr-coding-app-phone-preview-topalign-final-v1';
+const CACHE_NAME = 'sir-jr-coding-app-admin-code-choice-v1';
 const CORE_ASSETS = [
   './',
   './index.html',
   './style.css',
-  './style.css?v=20260711-phone-preview-topalign-final',
+  './style.css?v=20260711-admin-code-choice',
   './script.js',
-  './script.js?v=20260711-phone-preview-topalign-final',
+  './script.js?v=20260711-admin-code-choice',
   './firebase-config.js',
   './manifest.webmanifest',
   './STUDENT_IMPORT_TEMPLATE.csv',

@@ -78,6 +78,12 @@ const adminOverlay = document.getElementById('adminOverlay');
 const closeAdminBtn = document.getElementById('closeAdminBtn');
 const adminEmail = document.getElementById('adminEmail');
 const adminPassword = document.getElementById('adminPassword');
+const adminQuickCode = document.getElementById('adminQuickCode');
+const adminCodeModeBtn = document.getElementById('adminCodeModeBtn');
+const adminPasswordModeBtn = document.getElementById('adminPasswordModeBtn');
+const adminCodeLoginPanel = document.getElementById('adminCodeLoginPanel');
+const teacherPasswordLoginPanel = document.getElementById('teacherPasswordLoginPanel');
+const unlockAdminCodeBtn = document.getElementById('unlockAdminCodeBtn');
 const unlockAdminBtn = document.getElementById('unlockAdminBtn');
 const logoutAdminBtn = document.getElementById('logoutAdminBtn');
 const pinScreen = document.getElementById('pinScreen');
@@ -589,6 +595,13 @@ let currentSuggestionStart = 0;
 let suggestionHideTimer = null;
 let lastSuggestionInputAt = 0;
 let adminUnlocked = false;
+const ADMIN_QUICK_UNLOCK_KEY = 'mcsian.admin.quickUnlocked.session';
+let adminQuickUnlocked = false;
+try {
+  adminQuickUnlocked = sessionStorage.getItem(ADMIN_QUICK_UNLOCK_KEY) === '1';
+} catch (error) {
+  adminQuickUnlocked = false;
+}
 let adminEditingActivityId = activity?.id || activities[0]?.id || '';
 const BASE_EDITOR_FONT_SIZE = 15;
 const MIN_EDITOR_FONT_SIZE = 12;
@@ -1701,6 +1714,40 @@ function getTeacherEmailText() {
   return allowed.length ? allowed.join(', ') : 'any authenticated Firebase user';
 }
 
+function getAdminQuickCode() {
+  return String(window.MCS_ADMIN_QUICK_CODE || '1234').trim();
+}
+
+function setAdminQuickUnlocked(value) {
+  adminQuickUnlocked = Boolean(value);
+  try {
+    if (adminQuickUnlocked) sessionStorage.setItem(ADMIN_QUICK_UNLOCK_KEY, '1');
+    else sessionStorage.removeItem(ADMIN_QUICK_UNLOCK_KEY);
+  } catch (error) {
+    // Session storage can be blocked in some browsers; the in-memory flag still works.
+  }
+  adminUnlocked = isTeacherAuthenticated() || adminQuickUnlocked;
+  updateAssistancePublishUI?.();
+}
+
+function isAdminPanelUnlocked() {
+  return isTeacherAuthenticated() || adminQuickUnlocked;
+}
+
+function setAdminLoginMode(mode = 'code') {
+  const usePassword = mode === 'password';
+  adminCodeModeBtn?.classList.toggle('active', !usePassword);
+  adminPasswordModeBtn?.classList.toggle('active', usePassword);
+  adminCodeModeBtn?.setAttribute('aria-selected', String(!usePassword));
+  adminPasswordModeBtn?.setAttribute('aria-selected', String(usePassword));
+  adminCodeLoginPanel?.classList.toggle('hidden', usePassword);
+  adminCodeLoginPanel?.classList.toggle('active', !usePassword);
+  teacherPasswordLoginPanel?.classList.toggle('hidden', !usePassword);
+  teacherPasswordLoginPanel?.classList.toggle('active', usePassword);
+  showTeacherLoginError('');
+  window.setTimeout(() => (usePassword ? adminPassword : adminQuickCode)?.focus({ preventScroll: true }), 60);
+}
+
 
 let appDialogResolve = null;
 let lastDialogFocus = null;
@@ -1827,7 +1874,7 @@ function getFirebaseLoginErrorMessage(error) {
 function setTeacherLoginLoading(isLoading) {
   if (!unlockAdminBtn) return;
   unlockAdminBtn.disabled = Boolean(isLoading);
-  unlockAdminBtn.textContent = isLoading ? 'Logging in...' : 'Login to Admin';
+  unlockAdminBtn.textContent = isLoading ? 'Logging in...' : 'Login with Password';
 }
 
 
@@ -2180,10 +2227,10 @@ async function saveSubmissionToCloud(result) {
 
 function updateTeacherLoginUI(user = firebaseSync.currentUser) {
   const isTeacher = Boolean(user && user.email && isAllowedTeacherEmail(user.email));
-  adminUnlocked = isTeacher;
+  adminUnlocked = isTeacher || adminQuickUnlocked;
 
   if (logoutAdminBtn) {
-    logoutAdminBtn.classList.toggle('hidden', !user);
+    logoutAdminBtn.classList.toggle('hidden', !user && !adminQuickUnlocked);
   }
 
   if (adminEmail && user?.email) {
@@ -2193,13 +2240,15 @@ function updateTeacherLoginUI(user = firebaseSync.currentUser) {
   const note = document.getElementById('teacherLoginNote');
   if (note) {
     note.textContent = isTeacher
-      ? `Signed in as ${user.email}. You can manage activities and rubrics.`
+      ? `Signed in as ${user.email}. You can manage activities, rubrics, students, and global settings.`
       : user
         ? `Signed in as ${user.email}, but this account is not allowed to manage rubrics.`
-        : 'Login using the teacher account you created in Firebase Authentication > Users.';
+        : adminQuickUnlocked
+          ? 'Admin Code is active on this device. Local editing is unlocked; use Password login for Firebase/global saving and student records.'
+          : 'Use Admin Code for quick local access, or Password for Firebase/global admin actions.';
   }
 
-  if (isTeacher) {
+  if (isTeacher || adminQuickUnlocked) {
     showTeacherLoginError('');
   }
 
@@ -2217,12 +2266,12 @@ async function watchTeacherAuth() {
     handleStudentAuthObserver(user).catch(error => console.warn('Student auth observer failed.', error));
 
     if (!adminOverlay.classList.contains('hidden')) {
-      if (isTeacherAuthenticated()) {
+      if (isAdminPanelUnlocked()) {
         showAdminForm();
       } else {
         pinScreen.classList.remove('hidden');
         adminForm.classList.add('hidden');
-    adminForm.classList.remove('visible');
+        adminForm.classList.remove('visible');
       }
     }
   });
@@ -2836,6 +2885,14 @@ async function resumeExistingStudentSession() {
 }
 
 async function logoutStudent() {
+  const hasPendingSave = Boolean(studentProjectSaveTimer || studentProjectSaveInFlight || studentProjectSaveQueued);
+  if (hasPendingSave && appSession.mode === 'student' && appSession.currentProjectId) {
+    const shouldContinue = await appConfirm('Some recent changes may still be saving. Save now and log out?', {
+      title: 'Log out safely',
+      confirmText: 'Save & Log Out'
+    });
+    if (!shouldContinue) return;
+  }
   try {
     clearTimeout(studentProjectSaveTimer);
     if (appSession.mode === 'student' && appSession.currentProjectId) {
@@ -4999,6 +5056,7 @@ function getViewportSafeTop(options = {}) {
 
 let outputPreviewScrollTimer = 0;
 let outputPreviewScrollRaf = 0;
+let outputPreviewAnimationFrame = 0;
 let outputPreviewLastTarget = -1;
 
 function getElementDocumentTop(element) {
@@ -5006,9 +5064,55 @@ function getElementDocumentTop(element) {
   return Math.max(0, window.scrollY + rect.top);
 }
 
+function getMaxWindowScrollTop() {
+  const doc = document.documentElement;
+  const body = document.body;
+  return Math.max(0, Math.max(
+    doc?.scrollHeight || 0,
+    body?.scrollHeight || 0
+  ) - window.innerHeight);
+}
+
 function getOutputPreviewTargetScrollTop(element, options = {}) {
   const safeTop = getViewportSafeTop(options);
-  return Math.max(0, Math.round(getElementDocumentTop(element) - safeTop));
+  const rawTarget = Math.round(getElementDocumentTop(element) - safeTop);
+  return Math.max(0, Math.min(getMaxWindowScrollTop(), rawTarget));
+}
+
+function cancelOutputPreviewScroll() {
+  window.clearTimeout(outputPreviewScrollTimer);
+  if (outputPreviewScrollRaf) window.cancelAnimationFrame(outputPreviewScrollRaf);
+  if (outputPreviewAnimationFrame) window.cancelAnimationFrame(outputPreviewAnimationFrame);
+  outputPreviewScrollTimer = 0;
+  outputPreviewScrollRaf = 0;
+  outputPreviewAnimationFrame = 0;
+}
+
+function animateWindowScrollTo(targetTop, options = {}) {
+  const startTop = Math.round(window.scrollY || document.documentElement.scrollTop || 0);
+  const distance = targetTop - startTop;
+  const prefersReducedMotion = Boolean(window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches);
+  const duration = prefersReducedMotion || options.instant ? 0 : Number(options.duration || 220);
+
+  if (Math.abs(distance) < 3 || duration <= 0) {
+    window.scrollTo(0, targetTop);
+    return;
+  }
+
+  const start = performance.now();
+  const easeOutCubic = t => 1 - Math.pow(1 - t, 3);
+  const step = now => {
+    const progress = Math.min(1, (now - start) / duration);
+    const nextTop = Math.round(startTop + (distance * easeOutCubic(progress)));
+    window.scrollTo(0, nextTop);
+    if (progress < 1) {
+      outputPreviewAnimationFrame = window.requestAnimationFrame(step);
+    } else {
+      outputPreviewAnimationFrame = 0;
+      window.scrollTo(0, targetTop);
+    }
+  };
+  outputPreviewAnimationFrame = window.requestAnimationFrame(step);
 }
 
 function alignElementToViewportTop(element, options = {}) {
@@ -5017,14 +5121,7 @@ function alignElementToViewportTop(element, options = {}) {
   const currentTop = Math.round(window.scrollY || document.documentElement.scrollTop || 0);
   if (Math.abs(targetTop - currentTop) < 3) return;
   outputPreviewLastTarget = targetTop;
-  window.scrollTo({ top: targetTop, behavior: options.instant ? 'auto' : 'smooth' });
-}
-
-function cancelOutputPreviewScroll() {
-  window.clearTimeout(outputPreviewScrollTimer);
-  if (outputPreviewScrollRaf) window.cancelAnimationFrame(outputPreviewScrollRaf);
-  outputPreviewScrollTimer = 0;
-  outputPreviewScrollRaf = 0;
+  animateWindowScrollTo(targetTop, options);
 }
 
 function scrollElementIntoSafeView(element, delay = 0, options = {}) {
@@ -5032,18 +5129,9 @@ function scrollElementIntoSafeView(element, delay = 0, options = {}) {
   cancelOutputPreviewScroll();
 
   const runScroll = () => {
-    if (options.fast) {
-      outputPreviewScrollRaf = window.requestAnimationFrame(() => {
-        outputPreviewScrollRaf = 0;
-        alignElementToViewportTop(element, { ...options, instant: options.instant });
-      });
-      return;
-    }
     outputPreviewScrollRaf = window.requestAnimationFrame(() => {
-      outputPreviewScrollRaf = window.requestAnimationFrame(() => {
-        outputPreviewScrollRaf = 0;
-        alignElementToViewportTop(element, { ...options, instant: options.instant });
-      });
+      outputPreviewScrollRaf = 0;
+      alignElementToViewportTop(element, options);
     });
   };
 
@@ -5052,14 +5140,13 @@ function scrollElementIntoSafeView(element, delay = 0, options = {}) {
 }
 
 function scrollToOutput() {
-  // One smooth targeted scroll only. The old repeated correction passes made
-  // desktop and phone feel laggy/jumpy after Run.
+  // Fast premium-feel scroll: one short custom animation, exact top alignment,
+  // no repeated correction timers that make phones feel laggy.
   scrollElementIntoSafeView(previewPanel, 0, {
     tight: true,
     preferCollapsedHeader: true,
     outputTopLock: true,
-    fast: true,
-    instant: false
+    duration: 220
   });
 }
 
@@ -6852,7 +6939,10 @@ function setDesktopPreviewMode(enabled) {
   if (desktopPreviewBtn) {
     desktopPreviewBtn.classList.toggle('active', isEnabled);
     desktopPreviewBtn.setAttribute('aria-pressed', String(isEnabled));
-    desktopPreviewBtn.textContent = isEnabled ? 'Phone View' : 'Desktop Monitor';
+    const isPhoneView = document.documentElement.dataset.deviceMode === 'phone' || window.innerWidth <= 760;
+    desktopPreviewBtn.textContent = isPhoneView ? (isEnabled ? 'Phone' : 'Monitor') : (isEnabled ? 'Phone View' : 'Desktop Monitor');
+    desktopPreviewBtn.dataset.mobileLabel = isEnabled ? '📱 Phone' : '🖥️ Monitor';
+    desktopPreviewBtn.setAttribute('aria-label', isEnabled ? 'Return to phone preview' : 'Open desktop monitor preview');
     desktopPreviewBtn.title = isEnabled
       ? 'Return the preview to normal phone width'
       : 'Show the output inside a scaled desktop monitor view';
@@ -7377,14 +7467,15 @@ async function openAdminPanel() {
   }
   updateTeacherLoginUI(firebaseSync.auth?.currentUser || firebaseSync.currentUser);
 
-  if (isTeacherAuthenticated()) {
+  if (isAdminPanelUnlocked()) {
     showAdminForm();
   } else {
     pinScreen.classList.remove('hidden');
     adminForm.classList.add('hidden');
     adminForm.classList.remove('visible');
     if (adminPassword) adminPassword.value = '';
-    setTimeout(() => adminEmail?.focus(), 50);
+    setAdminLoginMode('code');
+    setTimeout(() => adminQuickCode?.focus(), 50);
   }
 }
 
@@ -7395,7 +7486,7 @@ function closeAdminPanel() {
 }
 
 function showAdminForm(activityId = adminEditingActivityId) {
-  if (!isTeacherAuthenticated()) {
+  if (!isAdminPanelUnlocked()) {
     adminUnlocked = false;
     pinScreen.classList.remove('hidden');
     adminForm.classList.add('hidden');
@@ -7447,8 +7538,10 @@ async function loginTeacher() {
     return;
   }
 
-  const email = adminEmail.value.trim();
+  const fallbackTeacherEmail = getAllowedTeacherEmails()[0] || '';
+  const email = (adminEmail.value.trim() || fallbackTeacherEmail).trim();
   const password = adminPassword.value;
+  if (adminEmail && !adminEmail.value.trim() && fallbackTeacherEmail) adminEmail.value = fallbackTeacherEmail;
 
   if (!email || !password) {
     showTeacherLoginError('Please enter teacher email and password.');
@@ -7481,24 +7574,46 @@ async function loginTeacher() {
 }
 
 async function logoutTeacher() {
+  setAdminQuickUnlocked(false);
   const ready = await initFirebaseSync();
-  if (!ready || !firebaseSync.auth || !firebaseSync.authModule) return;
 
   try {
-    const { signOut } = firebaseSync.authModule;
-    await signOut(firebaseSync.auth);
+    if (ready && firebaseSync.auth && firebaseSync.authModule && (firebaseSync.auth.currentUser || firebaseSync.currentUser)) {
+      const { signOut } = firebaseSync.authModule;
+      await signOut(firebaseSync.auth);
+    }
     firebaseSync.currentUser = null;
     adminUnlocked = false;
     adminForm.classList.add('hidden');
     adminForm.classList.remove('visible');
     pinScreen.classList.remove('hidden');
     if (adminPassword) adminPassword.value = '';
+    if (adminQuickCode) adminQuickCode.value = '';
     updateTeacherLoginUI(null);
-    setStatus('Teacher logged out');
+    setAdminLoginMode('code');
+    setStatus('Admin locked');
   } catch (error) {
     console.error('Teacher logout failed', error);
     await appAlert('Logout failed. Please try again.', { title: 'Logout failed', danger: true });
   }
+}
+
+function unlockAdminWithCode() {
+  showTeacherLoginError('');
+  const expectedCode = getAdminQuickCode();
+  const typedCode = String(adminQuickCode?.value || '').trim();
+  if (!typedCode) {
+    showTeacherLoginError('Enter the Admin Code, or switch to Password login.');
+    return;
+  }
+  if (!expectedCode || typedCode !== expectedCode) {
+    showTeacherLoginError('Incorrect Admin Code. Check firebase-config.js or use Password login.');
+    return;
+  }
+  setAdminQuickUnlocked(true);
+  updateTeacherLoginUI(firebaseSync.auth?.currentUser || firebaseSync.currentUser || null);
+  showAdminForm();
+  setStatus('Admin Code unlocked');
 }
 
 function unlockAdmin() {
@@ -7624,9 +7739,9 @@ function addCriterion() {
 async function saveRubric(event) {
   event.preventDefault();
 
-  if (!isTeacherAuthenticated()) {
+  if (!isAdminPanelUnlocked()) {
     showAdminForm();
-    showTeacherLoginError('Please login as teacher before saving rubric changes.');
+    showTeacherLoginError('Please unlock Admin using Code or Password before saving rubric changes.');
     return;
   }
 
@@ -7653,17 +7768,21 @@ async function saveRubric(event) {
   }
 
   initManualRubricInputTable();
-saveActivities({ cloud: false });
-  const cloudSaved = await saveActivitiesToCloud();
+  saveActivities({ cloud: false });
 
-  if (!cloudSaved && hasFirebaseConfig()) {
-    await appAlert('Saved locally, but Firebase rejected the online save. Check if you are logged in and if Firestore Rules were published.', { title: 'Firebase save issue', danger: true });
-    return;
+  if (isTeacherAuthenticated()) {
+    const cloudSaved = await saveActivitiesToCloud();
+    if (!cloudSaved && hasFirebaseConfig()) {
+      await appAlert('Saved locally, but Firebase rejected the online save. Check if you are logged in and if Firestore Rules were published.', { title: 'Firebase save issue', danger: true });
+      return;
+    }
+  } else if (adminQuickUnlocked) {
+    setStatus('Activity saved locally');
   }
 
   selectActivity(savedActivity.id, { keepLanguage: true });
   closeAdminPanel();
-  setStatus('Activity saved');
+  setStatus(isTeacherAuthenticated() ? 'Activity saved' : 'Activity saved locally');
 }
 
 function createNewActivity() {
@@ -9988,7 +10107,7 @@ themeToggle.addEventListener('click', () => {
 
 resetBtn.addEventListener('click', async () => {
   const resetLabel = activity ? `"${activity.title}"` : 'the editor';
-  if (!await appConfirm(`Reset all tabs for ${resetLabel} to the sample code?`, { title: 'Reset editor', danger: true })) return;
+  if (!await appConfirm(`Reset all tabs for ${resetLabel} to the sample code? Your current code in this activity will be replaced.`, { title: 'Reset editor', danger: true, confirmText: 'Reset' })) return;
   codeStore = normalizeCodeStore(starterCode);
   if (activity) {
     codeByActivity[activity.id] = codeStore;
@@ -10002,7 +10121,7 @@ resetBtn.addEventListener('click', async () => {
 });
 
 clearBtn.addEventListener('click', async () => {
-  if (!await appConfirm(`Clear the ${activeLanguage.toUpperCase()} tab?`, { title: 'Clear current tab', danger: true, confirmText: 'Clear' })) return;
+  if (!await appConfirm(`Clear the ${activeLanguage.toUpperCase()} tab? This removes the code in the current tab only.`, { title: 'Clear current tab', danger: true, confirmText: 'Clear' })) return;
   applyProgrammaticEditorChange('', 0, 0);
   hideSuggestions();
   runCode();
@@ -10047,7 +10166,10 @@ adminBtn?.addEventListener('keydown', event => {
   }
 });
 closeAdminBtn.addEventListener('click', closeAdminPanel);
-unlockAdminBtn.addEventListener('click', unlockAdmin);
+unlockAdminBtn?.addEventListener('click', unlockAdmin);
+unlockAdminCodeBtn?.addEventListener('click', unlockAdminWithCode);
+adminCodeModeBtn?.addEventListener('click', () => setAdminLoginMode('code'));
+adminPasswordModeBtn?.addEventListener('click', () => setAdminLoginMode('password'));
 if (logoutAdminBtn) logoutAdminBtn.addEventListener('click', logoutTeacher);
 [adminEmail, adminPassword].forEach(input => {
   input?.addEventListener('input', () => showTeacherLoginError(''));
@@ -10057,6 +10179,13 @@ if (logoutAdminBtn) logoutAdminBtn.addEventListener('click', logoutTeacher);
       unlockAdmin();
     }
   });
+});
+adminQuickCode?.addEventListener('input', () => showTeacherLoginError(''));
+adminQuickCode?.addEventListener('keydown', event => {
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    unlockAdminWithCode();
+  }
 });
 
 adminOverlay.addEventListener('click', event => {
@@ -10139,12 +10268,21 @@ if (manualRubricInputBody) {
   });
 }
 criteriaEditor.addEventListener('change', updateCriterionHelp);
-criteriaEditor.addEventListener('click', event => {
+criteriaEditor.addEventListener('click', async event => {
   const removeButton = event.target.closest('.remove-criterion');
   if (!removeButton) return;
+  event.preventDefault();
+  event.stopPropagation();
   const currentCriteria = collectCriteriaFromEditor();
   const card = removeButton.closest('.rubric-table-row') || removeButton.closest('.criterion-card');
   if (!card) return;
+  const target = currentCriteria.find(item => item.id === card.dataset.id);
+  const name = target?.title || 'this criterion';
+  if (!await appConfirm(`Remove “${name}” from the rubric table?`, {
+    title: 'Remove criterion',
+    danger: true,
+    confirmText: 'Remove'
+  })) return;
   const filtered = currentCriteria.filter(item => item.id !== card.dataset.id);
   renderCriteriaEditor(filtered);
 });
@@ -10381,9 +10519,12 @@ function applyPreviewDeviceMode() {
     if (shell) clearDesktopMonitorInlineSizing(shell);
   } else if (isPhone && desktopPreviewBtn) {
     const monitorEnabled = previewPanel?.classList.contains('mobile-desktop-preview');
+    const label = monitorEnabled ? 'Phone' : 'Monitor';
     desktopPreviewBtn.classList.toggle('active', Boolean(monitorEnabled));
     desktopPreviewBtn.setAttribute('aria-pressed', String(Boolean(monitorEnabled)));
-    desktopPreviewBtn.textContent = monitorEnabled ? 'Phone View' : 'Desktop Monitor';
+    desktopPreviewBtn.setAttribute('aria-label', monitorEnabled ? 'Return to phone preview' : 'Open desktop monitor preview');
+    desktopPreviewBtn.dataset.mobileLabel = monitorEnabled ? '📱 Phone' : '🖥️ Monitor';
+    desktopPreviewBtn.textContent = label;
     desktopPreviewBtn.title = monitorEnabled
       ? 'Return the output to normal phone width'
       : 'See the output as it appears on a desktop monitor';
@@ -10811,12 +10952,17 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     return snapshot;
   }
 
-  function restoreStudioSnapshot(snapshotId) {
+  async function restoreStudioSnapshot(snapshotId) {
     const snapshot = getStudioSnapshots().find(item => item.id === snapshotId);
     if (!snapshot) {
       setStatus('Snapshot not found');
       return;
     }
+    if (!await appConfirm(`Restore “${snapshot.title || 'this snapshot'}”? Your current editor content will be replaced.`, {
+      title: 'Restore snapshot',
+      confirmText: 'Restore',
+      danger: true
+    })) return;
     saveActiveEditor();
     codeStore = normalizeCodeStore(snapshot.codeStore || {});
     codeFileNames = normalizeCodeFileNames(snapshot.fileNames || codeFileNames || DEFAULT_CODE_FILE_NAMES);
@@ -10834,7 +10980,14 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     scheduleStudioCoachUpdate(80);
   }
 
-  function deleteStudioSnapshot(snapshotId) {
+  async function deleteStudioSnapshot(snapshotId) {
+    const snapshot = getStudioSnapshots().find(item => item.id === snapshotId);
+    if (!snapshot) return;
+    if (!await appConfirm(`Delete “${snapshot.title || 'this snapshot'}”? This checkpoint cannot be recovered.`, {
+      title: 'Delete snapshot',
+      confirmText: 'Delete',
+      danger: true
+    })) return;
     saveStudioSnapshots(getStudioSnapshots().filter(item => item.id !== snapshotId));
     renderStudioSnapshots();
     renderStudioSnapshotsButtonState();

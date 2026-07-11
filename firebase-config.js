@@ -21,3 +21,6 @@ window.MCS_AI_CHECKER_ENDPOINT = '';
 window.MCS_AI_CHECKER_ENABLED = true;
 window.MCS_RUBRIC_IMAGE_IMPORT_ENABLED = true;
 window.MCS_RUBRIC_IMAGE_ENDPOINT = '';
+
+// Quick local admin code for fast access on the same device. Change this before deployment.
+window.MCS_ADMIN_QUICK_CODE = '1234';
