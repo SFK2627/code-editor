@@ -10879,11 +10879,74 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
       : '<span>🚀</span><strong>Studio</strong>';
   }
 
+  function getStudioOverlayHost() {
+    const inEditorFullscreen = document.fullscreenElement === editorPanel || document.body.classList.contains('editor-fullscreen-active');
+    return inEditorFullscreen ? editorPanel : document.body;
+  }
+
+  function placeStudioOverlay(overlay) {
+    if (!overlay) return;
+    const host = getStudioOverlayHost();
+    if (overlay.parentElement !== host) host.appendChild(overlay);
+    overlay.classList.toggle('inside-editor-fullscreen', host === editorPanel);
+  }
+
+  function placeAllStudioOverlays() {
+    placeStudioOverlay(document.getElementById('studioCommandOverlay'));
+    placeStudioOverlay(document.getElementById('studioSnapshotsOverlay'));
+  }
+
+  function isDesktopEditorFullscreen() {
+    const inEditorFullscreen = document.fullscreenElement === editorPanel || document.body.classList.contains('editor-fullscreen-active');
+    const mobile = window.matchMedia('(max-width: 760px)').matches;
+    return inEditorFullscreen && !mobile;
+  }
+
+  function ensureFullscreenBottomToolDock() {
+    let dock = document.getElementById('fullscreenBottomTools');
+    if (dock) return dock;
+    dock = document.createElement('div');
+    dock.id = 'fullscreenBottomTools';
+    dock.className = 'fullscreen-bottom-tools hidden';
+    dock.setAttribute('aria-label', 'Fullscreen quick tools');
+    editorPanel.appendChild(dock);
+    return dock;
+  }
+
+  function syncFullscreenBottomToolDock() {
+    const dock = ensureFullscreenBottomToolDock();
+    const launcher = document.getElementById('superStudioLauncher');
+    const helperBtn = codeHelperFloatingBtn;
+    if (!dock || !launcher || !helperBtn) return;
+
+    const useDock = isDesktopEditorFullscreen();
+    dock.classList.toggle('hidden', !useDock);
+    launcher.classList.toggle('studio-launcher-docked', useDock);
+    helperBtn.classList.toggle('code-helper-docked', useDock);
+
+    if (useDock) {
+      if (launcher.parentElement !== dock) dock.appendChild(launcher);
+      if (helperBtn.parentElement !== dock) dock.appendChild(helperBtn);
+      return;
+    }
+
+    if (helperBtn.parentElement === dock) editorPanel.appendChild(helperBtn);
+  }
+
   function placeStudioLauncher() {
     const launcher = document.getElementById('superStudioLauncher');
     const languageTabs = editorPanel.querySelector('.language-tabs');
     const pageActions = document.querySelector('.page-manager-actions');
     if (!launcher || !languageTabs) return;
+
+    if (isDesktopEditorFullscreen()) {
+      languageTabs.classList.remove('has-studio-launcher');
+      pageActions?.classList.remove('has-studio-launcher');
+      launcher.classList.add('studio-launcher-desktop');
+      launcher.classList.remove('studio-launcher-mobile');
+      syncFullscreenBottomToolDock();
+      return;
+    }
 
     const mobile = window.matchMedia('(max-width: 760px)').matches;
     languageTabs.classList.toggle('has-studio-launcher', !mobile);
@@ -10898,6 +10961,7 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
       } else if (launcher.parentElement !== pageActions) {
         pageActions.appendChild(launcher);
       }
+      syncFullscreenBottomToolDock();
       return;
     }
 
@@ -10910,6 +10974,7 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     } else if (launcher.parentElement !== languageTabs) {
       languageTabs.appendChild(launcher);
     }
+    syncFullscreenBottomToolDock();
   }
 
   function ensureStudioToolbar() {
@@ -11157,8 +11222,9 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
 
   function openStudioSnapshots() {
     ensureStudioModals();
-    renderStudioSnapshots();
     const overlay = document.getElementById('studioSnapshotsOverlay');
+    placeStudioOverlay(overlay);
+    renderStudioSnapshots();
     overlay?.classList.remove('hidden');
     window.setTimeout(() => overlay?.querySelector('button')?.focus(), 20);
   }
@@ -11438,6 +11504,7 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     ensureStudioModals();
     const overlay = document.getElementById('studioCommandOverlay');
     const input = document.getElementById('studioCommandInput');
+    placeStudioOverlay(overlay);
     studioCommandIndex = 0;
     if (input) input.value = '';
     renderStudioCommandList();
@@ -11456,6 +11523,12 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     });
     window.addEventListener('resize', () => {
       placeStudioLauncher();
+      placeAllStudioOverlays();
+      setStudioDrawerOpen(studioDrawerOpen, { silent: true });
+    });
+    document.addEventListener('fullscreenchange', () => {
+      placeStudioLauncher();
+      placeAllStudioOverlays();
       setStudioDrawerOpen(studioDrawerOpen, { silent: true });
     });
     document.addEventListener('studentAssistanceSettingsChanged', () => {
@@ -11553,6 +11626,21 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
   wrapStudioRunCode();
   renderStudioSnapshotsButtonState();
   setStudioDrawerOpen(false, { silent: true });
+  placeStudioLauncher();
+  syncFullscreenBottomToolDock();
+  window.addEventListener('resize', () => {
+    placeStudioLauncher();
+    syncFullscreenBottomToolDock();
+  });
+  document.addEventListener('fullscreenchange', () => {
+    placeAllStudioOverlays();
+    placeStudioLauncher();
+    syncFullscreenBottomToolDock();
+  });
+  new MutationObserver(() => {
+    placeStudioLauncher();
+    syncFullscreenBottomToolDock();
+  }).observe(document.body, { attributes: true, attributeFilter: ['class'] });
   if (isSuperStudioEnabled()) scheduleStudioCoachUpdate(120);
 })();
 

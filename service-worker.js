@@ -1,13 +1,14 @@
-const CACHE_NAME = 'sir-jr-coding-app-icon-responsive-home-v1';
+const CACHE_NAME = 'sir-jr-coding-app-safe-homepage-layout-v1';
 const CORE_ASSETS = [
   './',
   './index.html',
   './style.css',
-  './style.css?v=20260711-icon-responsive-home',
+  './style.css?v=20260711-safe-homepage-layout',
   './script.js',
-  './script.js?v=20260711-icon-responsive-home',
+  './script.js?v=20260711-safe-homepage-layout',
   './firebase-config.js',
   './manifest.webmanifest',
+  './favicon.png',
   './STUDENT_IMPORT_TEMPLATE.csv',
   './icons/icon-192.png',
   './icons/icon-512.png'
