@@ -15396,3 +15396,55 @@ body {
 [data-theme="dark"] .admin-login-mode-btn[aria-selected="true"] {
   color: #fff;
 }
+
+
+/* CRITICAL MOBILE SCROLL REGRESSION FIX
+   Normal editor pages must always be vertically scrollable on phones.
+   Only real overlays/fullscreen states are allowed to lock the page. */
+@media (max-width: 760px) {
+  html[data-device-mode="phone"],
+  html[data-device-mode="phone"] body {
+    max-width: 100% !important;
+    overflow-x: hidden !important;
+    touch-action: pan-y !important;
+  }
+
+  html[data-device-mode="phone"] body:not(.entry-gate-active):not(.student-dashboard-active):not(.student-auth-open):not(.student-route-lock):not(.admin-open):not(.activity-popup-open):not(.preview-fullscreen-active):not(.editor-fullscreen-active) {
+    position: static !important;
+    height: auto !important;
+    min-height: 100dvh !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    overscroll-behavior-y: auto !important;
+  }
+
+  html[data-device-mode="phone"] body:not(.entry-gate-active):not(.student-dashboard-active):not(.student-auth-open):not(.student-route-lock):not(.admin-open):not(.activity-popup-open):not(.preview-fullscreen-active):not(.editor-fullscreen-active) .app-shell,
+  html[data-device-mode="phone"] body:not(.entry-gate-active):not(.student-dashboard-active):not(.student-auth-open):not(.student-route-lock):not(.admin-open):not(.activity-popup-open):not(.preview-fullscreen-active):not(.editor-fullscreen-active) #workspace {
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  html[data-device-mode="phone"] body:not(.entry-gate-active):not(.student-dashboard-active):not(.student-auth-open):not(.student-route-lock):not(.admin-open):not(.activity-popup-open):not(.preview-fullscreen-active):not(.editor-fullscreen-active) .editor-panel,
+  html[data-device-mode="phone"] body:not(.entry-gate-active):not(.student-dashboard-active):not(.student-auth-open):not(.student-route-lock):not(.admin-open):not(.activity-popup-open):not(.preview-fullscreen-active):not(.editor-fullscreen-active) .preview-panel,
+  html[data-device-mode="phone"] body:not(.entry-gate-active):not(.student-dashboard-active):not(.student-auth-open):not(.student-route-lock):not(.admin-open):not(.activity-popup-open):not(.preview-fullscreen-active):not(.editor-fullscreen-active) .right-column {
+    overflow: visible !important;
+  }
+
+  /* Dark-mode readability for the normal phone Output Preview buttons. */
+  [data-theme="dark"] html[data-device-mode="phone"] .preview-panel .preview-actions #desktopPreviewBtn,
+  [data-theme="dark"] html[data-device-mode="phone"] .preview-panel .preview-actions #fullPreviewBtn {
+    color: transparent !important;
+    border-color: rgba(96, 165, 250, 0.34) !important;
+    background: rgba(15, 23, 42, 0.9) !important;
+  }
+
+  [data-theme="dark"] html[data-device-mode="phone"] .preview-panel .preview-actions #desktopPreviewBtn::before,
+  [data-theme="dark"] html[data-device-mode="phone"] .preview-panel .preview-actions #fullPreviewBtn::before {
+    color: #e5edf7 !important;
+  }
+
+  [data-theme="dark"] html[data-device-mode="phone"] .preview-panel .preview-actions #resultFromPreviewBtn.preview-result-btn::before {
+    color: #ffffff !important;
+  }
+}

@@ -11463,3 +11463,58 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
   setStudioDrawerOpen(false, { silent: true });
   if (isSuperStudioEnabled()) scheduleStudioCoachUpdate(120);
 })();
+
+
+/* Final mobile scroll guard: remove stale scroll-lock classes when their overlay is already closed. */
+(function installMobileScrollRecovery() {
+  function isPhoneMode() {
+    return document.documentElement?.dataset?.deviceMode === 'phone' || window.matchMedia('(max-width: 760px)').matches;
+  }
+
+  function isVisibleOverlay(element) {
+    if (!element) return false;
+    if (element.classList.contains('hidden') || element.classList.contains('collapsed-card')) return false;
+    const style = window.getComputedStyle(element);
+    return style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0';
+  }
+
+  function syncScrollLocks() {
+    if (!isPhoneMode()) return;
+    const body = document.body;
+    const activityOpen = isVisibleOverlay(document.getElementById('activityCard'));
+    const studentLoginOpen = isVisibleOverlay(document.getElementById('studentLoginOverlay')) || isVisibleOverlay(document.getElementById('changePasswordOverlay')) || isVisibleOverlay(document.getElementById('projectNameOverlay'));
+    const dashboardOpen = isVisibleOverlay(document.getElementById('studentDashboardScreen'));
+    const entryOpen = isVisibleOverlay(document.getElementById('entryGate'));
+    const adminOpen = isVisibleOverlay(document.getElementById('adminOverlay'));
+    const realPreviewFullscreen = Boolean(document.fullscreenElement === document.getElementById('previewPanel') || document.webkitFullscreenElement === document.getElementById('previewPanel'));
+    const realEditorFullscreen = Boolean(document.fullscreenElement === document.getElementById('editorPanel') || document.webkitFullscreenElement === document.getElementById('editorPanel'));
+
+    if (!activityOpen) body.classList.remove('activity-popup-open');
+    if (!studentLoginOpen) body.classList.remove('student-auth-open');
+    if (!dashboardOpen) body.classList.remove('student-dashboard-active');
+    if (!entryOpen) body.classList.remove('entry-gate-active');
+    if (!adminOpen) body.classList.remove('admin-open');
+    if (!realPreviewFullscreen && body.classList.contains('preview-fullscreen-active') && !body.classList.contains('preview-inside-editor-fullscreen')) {
+      body.classList.remove('preview-fullscreen-active', 'preview-has-back-editor');
+    }
+    if (!realEditorFullscreen && body.classList.contains('editor-fullscreen-active')) {
+      body.classList.remove('editor-fullscreen-active', 'preview-inside-editor-fullscreen');
+    }
+
+    const hasLock = body.classList.contains('entry-gate-active') || body.classList.contains('student-dashboard-active') || body.classList.contains('student-auth-open') || body.classList.contains('student-route-lock') || body.classList.contains('admin-open') || body.classList.contains('activity-popup-open') || body.classList.contains('preview-fullscreen-active') || body.classList.contains('editor-fullscreen-active');
+    if (!hasLock) {
+      body.style.overflow = '';
+      body.style.overflowY = '';
+      body.style.position = '';
+      body.style.height = '';
+      document.documentElement.style.overflowY = '';
+    }
+  }
+
+  window.addEventListener('load', () => window.setTimeout(syncScrollLocks, 80));
+  window.addEventListener('resize', () => window.setTimeout(syncScrollLocks, 80));
+  document.addEventListener('fullscreenchange', () => window.setTimeout(syncScrollLocks, 120));
+  document.addEventListener('webkitfullscreenchange', () => window.setTimeout(syncScrollLocks, 120));
+  document.addEventListener('click', () => window.setTimeout(syncScrollLocks, 60), true);
+  document.addEventListener('touchend', () => window.setTimeout(syncScrollLocks, 60), true);
+})();
