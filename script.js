@@ -764,6 +764,7 @@ function applyStudentAssistanceSettings(nextSettings, options = {}) {
   document.body.classList.toggle('teacher-feedback-disabled', !feedbackEnabled);
 
   if (!suggestionsEnabled && typeof hideSuggestions === 'function') hideSuggestions();
+  if (!helperEnabled && typeof hideSmartInlineHint === 'function') hideSmartInlineHint();
 
   if (codeHelperFloatingBtn) {
     codeHelperFloatingBtn.classList.toggle('hidden', !helperEnabled);
@@ -8861,12 +8862,374 @@ function escapeAttribute(value) {
   return escapeHTML(value).replaceAll('`', '&#096;');
 }
 
+
+/* =========================================================
+   SMART INLINE HINTS
+   Shows beginner-friendly help directly from the editor.
+   Desktop: hover a suspicious line. Phone/tablet: tap the line.
+   This follows Admin > Assistance > Code Helper & Error Hints.
+   ========================================================= */
+const SMART_INLINE_HTML_TAG_FIXES = {
+  hmtl: 'html', htm: 'html', hmt: 'html', haed: 'head', hed: 'head', titel: 'title', tittle: 'title',
+  boddy: 'body', bdy: 'body', paragrap: 'p', paragraph: 'p', pragraph: 'p', divv: 'div', spn: 'span',
+  sytle: 'style', stlye: 'style', scipt: 'script', scrpt: 'script', imge: 'img', iamge: 'img', imgg: 'img',
+  buton: 'button', botton: 'button', lable: 'label', tabel: 'table', teh: 'thead', tboddy: 'tbody'
+};
+
+const SMART_INLINE_COMMON_HTML_TAGS = new Set([
+  'html', 'head', 'title', 'body', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'div', 'span', 'section', 'article',
+  'main', 'header', 'footer', 'nav', 'ul', 'ol', 'li', 'a', 'img', 'button', 'label', 'input', 'form', 'table',
+  'tr', 'td', 'th', 'thead', 'tbody', 'style', 'script', 'strong', 'em', 'br', 'hr'
+]);
+
+const SMART_INLINE_VOID_HTML_TAGS = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'source', 'track', 'wbr']);
+const SMART_INLINE_CSS_PROPERTIES = new Set([
+  'color', 'background', 'background-color', 'font-size', 'font-family', 'font-weight', 'text-align', 'margin', 'padding',
+  'width', 'height', 'border', 'border-radius', 'display', 'justify-content', 'align-items', 'gap', 'flex-direction',
+  'grid-template-columns', 'position', 'top', 'right', 'bottom', 'left', 'opacity', 'box-shadow', 'line-height'
+]);
+
+const smartInlineHintState = {
+  element: null,
+  hint: null,
+  hoverTimer: null,
+  lastLineIndex: -1
+};
+
+function isSmartInlineHintsEnabled() {
+  return Boolean(editor) && isStudentAssistanceFeatureEnabled('codeHelper') && !document.body.classList.contains('entry-gate-active');
+}
+
+function createSmartInlineHintElement() {
+  if (smartInlineHintState.element) return smartInlineHintState.element;
+  const hint = document.createElement('div');
+  hint.id = 'smartInlineHint';
+  hint.className = 'smart-inline-hint hidden';
+  hint.setAttribute('role', 'dialog');
+  hint.setAttribute('aria-live', 'polite');
+  document.body.appendChild(hint);
+  smartInlineHintState.element = hint;
+  return hint;
+}
+
+function getLineContextByIndex(lineIndex) {
+  const value = editor.value || '';
+  const lines = value.split('\n');
+  const safeIndex = Math.max(0, Math.min(lineIndex, lines.length - 1));
+  let start = 0;
+  for (let index = 0; index < safeIndex; index += 1) start += lines[index].length + 1;
+  const text = lines[safeIndex] || '';
+  return {
+    value,
+    lines,
+    lineIndex: safeIndex,
+    lineNumber: safeIndex + 1,
+    lineText: text,
+    lineStart: start,
+    lineEnd: start + text.length
+  };
+}
+
+function getEditorLineIndexFromPointer(event) {
+  if (!editor) return 0;
+  const rect = editor.getBoundingClientRect();
+  const style = window.getComputedStyle(editor);
+  const fontSize = parseFloat(style.fontSize) || 16;
+  const lineHeight = parseFloat(style.lineHeight) || fontSize * 1.55;
+  const paddingTop = parseFloat(style.paddingTop) || 0;
+  const y = event.clientY - rect.top + editor.scrollTop - paddingTop;
+  const rawLine = Math.floor(Math.max(0, y) / lineHeight);
+  const totalLines = Math.max(1, editor.value.split('\n').length);
+  return Math.max(0, Math.min(rawLine, totalLines - 1));
+}
+
+function getEditorLineIndexFromCursor() {
+  const position = typeof editor.selectionStart === 'number' ? editor.selectionStart : 0;
+  return editor.value.slice(0, position).split('\n').length - 1;
+}
+
+function makeSmartHint(context, data) {
+  return {
+    language: activeLanguage,
+    lineNumber: context.lineNumber,
+    lineIndex: context.lineIndex,
+    issue: data.issue,
+    suggestion: data.suggestion,
+    start: context.lineStart + (data.localStart || 0),
+    end: context.lineStart + (data.localEnd ?? context.lineText.length),
+    replacement: data.replacement || '',
+    fixLabel: data.fixLabel || 'Fix it',
+    canFix: Boolean(data.canFix && typeof data.replacement === 'string')
+  };
+}
+
+function detectSmartInlineHtmlHint(context) {
+  const line = context.lineText;
+  if (!line.trim()) return null;
+
+  const wrongClose = line.match(/(<\s*(h[1-6]|p|div|span|section|article|main|header|footer|nav|ul|ol|li|button|label|strong|em|title)\b[^>]*>)([\s\S]*?)(<\s*\2\s*>)/i);
+  if (wrongClose) {
+    const wrongStart = wrongClose.index + wrongClose[1].length + wrongClose[3].length;
+    const wrongEnd = wrongStart + wrongClose[4].length;
+    const fixedClose = `</${wrongClose[2].toLowerCase()}>`;
+    return makeSmartHint(context, {
+      issue: `The second <${wrongClose[2]}> looks like a closing tag but it is missing a slash.`,
+      suggestion: `Use ${fixedClose} to close the ${wrongClose[2].toLowerCase()} element.`,
+      localStart: wrongStart,
+      localEnd: wrongEnd,
+      replacement: fixedClose,
+      canFix: true
+    });
+  }
+
+  const attrMatch = line.match(/\s(src|href|class|id|alt|title|rel|type|name|value|placeholder)=([^"'\s<>][^\s<>]*)/i);
+  if (attrMatch) {
+    const attrStart = attrMatch.index;
+    const attrEnd = attrStart + attrMatch[0].length;
+    const before = attrMatch[0].slice(0, attrMatch[0].indexOf('=') + 1);
+    const fixed = `${before}"${attrMatch[2]}"`;
+    return makeSmartHint(context, {
+      issue: `The ${attrMatch[1]} value should be inside quotation marks.`,
+      suggestion: `Write it as ${attrMatch[1]}="${attrMatch[2]}".`,
+      localStart: attrStart,
+      localEnd: attrEnd,
+      replacement: fixed,
+      canFix: true
+    });
+  }
+
+  const tagMatch = line.match(/<\/?\s*([a-zA-Z][\w:-]*)/);
+  if (tagMatch) {
+    const typedTag = tagMatch[1].toLowerCase();
+    const fixedTag = SMART_INLINE_HTML_TAG_FIXES[typedTag];
+    if (fixedTag) {
+      const localStart = tagMatch.index + tagMatch[0].lastIndexOf(tagMatch[1]);
+      return makeSmartHint(context, {
+        issue: `<${typedTag}> does not look like a valid/common HTML tag.`,
+        suggestion: `Did you mean <${fixedTag}>?`,
+        localStart,
+        localEnd: localStart + tagMatch[1].length,
+        replacement: fixedTag,
+        canFix: true
+      });
+    }
+    if (!SMART_INLINE_COMMON_HTML_TAGS.has(typedTag) && !typedTag.includes('-')) {
+      return makeSmartHint(context, {
+        issue: `<${typedTag}> is not a common beginner HTML tag.`,
+        suggestion: 'Check the spelling of the tag. Common tags include h1, p, div, img, a, ul, li, and button.',
+        canFix: false
+      });
+    }
+  }
+
+  const unclosed = line.match(/<\s*(h[1-6]|p|li|span|strong|em|button|label|title)\b[^>]*>(?!.*<\/\s*\1\s*>)([^<]+)$/i);
+  if (unclosed && !SMART_INLINE_VOID_HTML_TAGS.has(unclosed[1].toLowerCase())) {
+    const tag = unclosed[1].toLowerCase();
+    return makeSmartHint(context, {
+      issue: `This <${tag}> tag does not appear to be closed on this line.`,
+      suggestion: `Add </${tag}> after the text.`,
+      localStart: line.length,
+      localEnd: line.length,
+      replacement: `</${tag}>`,
+      canFix: true
+    });
+  }
+
+  return null;
+}
+
+function detectSmartInlineCssHint(context) {
+  const line = context.lineText;
+  const trimmed = line.trim();
+  if (!trimmed || trimmed.startsWith('/*')) return null;
+
+  const missingColon = line.match(/^(\s*)([a-z-]+)\s+([^:;{}]+;\s*)$/i);
+  if (missingColon && SMART_INLINE_CSS_PROPERTIES.has(missingColon[2].toLowerCase())) {
+    const fixedLine = `${missingColon[1]}${missingColon[2]}: ${missingColon[3]}`;
+    return makeSmartHint(context, {
+      issue: `CSS property "${missingColon[2]}" needs a colon before its value.`,
+      suggestion: `Use ${missingColon[2]}: value;`,
+      localStart: 0,
+      localEnd: line.length,
+      replacement: fixedLine,
+      canFix: true
+    });
+  }
+
+  const missingSemicolon = line.match(/^(\s*)([a-z-]+)\s*:\s*([^;{}]+)$/i);
+  if (missingSemicolon && SMART_INLINE_CSS_PROPERTIES.has(missingSemicolon[2].toLowerCase())) {
+    return makeSmartHint(context, {
+      issue: `This CSS declaration is missing a semicolon.`,
+      suggestion: `Add ; after the value so the next style is read correctly.`,
+      localStart: line.length,
+      localEnd: line.length,
+      replacement: ';',
+      canFix: true
+    });
+  }
+
+  const openBraces = (line.match(/\{/g) || []).length;
+  const closeBraces = (line.match(/\}/g) || []).length;
+  if (openBraces > closeBraces && !line.includes('}')) {
+    return makeSmartHint(context, {
+      issue: 'This CSS block has an opening brace {.',
+      suggestion: 'Make sure you add a matching } after all styles for this selector.',
+      canFix: false
+    });
+  }
+
+  return null;
+}
+
+function detectSmartInlineJsHint(context) {
+  const line = context.lineText;
+  const trimmed = line.trim();
+  if (!trimmed || trimmed.startsWith('//')) return null;
+
+  const openParen = (line.match(/\(/g) || []).length;
+  const closeParen = (line.match(/\)/g) || []).length;
+  if (openParen > closeParen) {
+    const semi = line.lastIndexOf(';');
+    const insertAt = semi >= 0 ? semi : line.length;
+    return makeSmartHint(context, {
+      issue: 'This JavaScript line has an opening parenthesis without a matching closing parenthesis.',
+      suggestion: 'Add ) before the end of the statement.',
+      localStart: insertAt,
+      localEnd: insertAt,
+      replacement: ')',
+      canFix: true
+    });
+  }
+
+  const doubleQuotes = (line.match(/"/g) || []).length;
+  const singleQuotes = (line.match(/'/g) || []).length;
+  if (doubleQuotes % 2 === 1 || singleQuotes % 2 === 1) {
+    return makeSmartHint(context, {
+      issue: 'This line may have an unclosed string quotation mark.',
+      suggestion: 'Check if every opening quote has a matching closing quote.',
+      canFix: false
+    });
+  }
+
+  const openBrace = (line.match(/\{/g) || []).length;
+  const closeBrace = (line.match(/\}/g) || []).length;
+  if (openBrace > closeBrace) {
+    return makeSmartHint(context, {
+      issue: 'This line opens a code block with {.',
+      suggestion: 'Make sure the block is closed later with }.',
+      canFix: false
+    });
+  }
+
+  return null;
+}
+
+function detectSmartInlineHint(context) {
+  if (!context || !context.lineText) return null;
+  if (activeLanguage === 'html') return detectSmartInlineHtmlHint(context);
+  if (activeLanguage === 'css') return detectSmartInlineCssHint(context);
+  if (activeLanguage === 'js') return detectSmartInlineJsHint(context);
+  return null;
+}
+
+function hideSmartInlineHint() {
+  window.clearTimeout(smartInlineHintState.hoverTimer);
+  smartInlineHintState.hint = null;
+  smartInlineHintState.lastLineIndex = -1;
+  smartInlineHintState.element?.classList.add('hidden');
+}
+
+function applySmartInlineFix() {
+  const hint = smartInlineHintState.hint;
+  if (!hint || !hint.canFix) return;
+  const value = editor.value || '';
+  const start = Math.max(0, Math.min(hint.start, value.length));
+  const end = Math.max(start, Math.min(hint.end, value.length));
+  const nextValue = `${value.slice(0, start)}${hint.replacement}${value.slice(end)}`;
+  const nextCursor = start + hint.replacement.length;
+  applyProgrammaticEditorChange(nextValue, nextCursor, nextCursor, 'Smart hint applied');
+  hideSmartInlineHint();
+}
+
+function renderSmartInlineHint(hint, event) {
+  if (!hint || !event) return;
+  const element = createSmartInlineHintElement();
+  smartInlineHintState.hint = hint;
+  element.innerHTML = `
+    <button class="smart-inline-close" type="button" aria-label="Close smart hint">×</button>
+    <p class="smart-inline-kicker">Smart Hint · Line ${hint.lineNumber}</p>
+    <strong>${escapeHTML(hint.issue)}</strong>
+    <span>${escapeHTML(hint.suggestion)}</span>
+    ${hint.canFix ? `<button class="smart-inline-fix" type="button">${escapeHTML(hint.fixLabel)}</button>` : ''}
+  `;
+  element.querySelector('.smart-inline-close')?.addEventListener('click', hideSmartInlineHint);
+  element.querySelector('.smart-inline-fix')?.addEventListener('click', applySmartInlineFix);
+  element.classList.remove('hidden');
+
+  const margin = 10;
+  const width = Math.min(320, window.innerWidth - margin * 2);
+  element.style.maxWidth = `${width}px`;
+  element.style.left = '0px';
+  element.style.top = '0px';
+  const rect = element.getBoundingClientRect();
+  const left = Math.max(margin, Math.min(event.clientX + 14, window.innerWidth - rect.width - margin));
+  const top = Math.max(margin, Math.min(event.clientY + 16, window.innerHeight - rect.height - margin));
+  element.style.left = `${left}px`;
+  element.style.top = `${top}px`;
+}
+
+function showSmartInlineHintForLine(lineIndex, event) {
+  if (!isSmartInlineHintsEnabled()) {
+    hideSmartInlineHint();
+    return;
+  }
+  const context = getLineContextByIndex(lineIndex);
+  const hint = detectSmartInlineHint(context);
+  if (!hint) {
+    hideSmartInlineHint();
+    return;
+  }
+  smartInlineHintState.lastLineIndex = context.lineIndex;
+  renderSmartInlineHint(hint, event);
+}
+
+function handleSmartInlinePointer(event, options = {}) {
+  if (!isSmartInlineHintsEnabled()) return;
+  const lineIndex = options.fromCursor ? getEditorLineIndexFromCursor() : getEditorLineIndexFromPointer(event);
+  if (!options.force && smartInlineHintState.lastLineIndex === lineIndex && !smartInlineHintState.element?.classList.contains('hidden')) return;
+  window.clearTimeout(smartInlineHintState.hoverTimer);
+  smartInlineHintState.hoverTimer = window.setTimeout(() => showSmartInlineHintForLine(lineIndex, event), options.delay ?? 90);
+}
+
 editor.addEventListener('input', event => {
   saveActiveEditor();
   updateLineNumbers();
   commitEditorHistory();
   showSuggestions(event);
   updateTagMatching();
+});
+
+editor.addEventListener('input', () => hideSmartInlineHint());
+
+editor.addEventListener('mousemove', event => handleSmartInlinePointer(event));
+
+editor.addEventListener('click', event => handleSmartInlinePointer(event, { fromCursor: true, force: true, delay: 0 }));
+
+editor.addEventListener('touchend', event => {
+  const touch = event.changedTouches?.[0];
+  if (!touch) return;
+  handleSmartInlinePointer(touch, { fromCursor: true, force: true, delay: 0 });
+}, { passive: true });
+
+editor.addEventListener('mouseleave', () => {
+  window.clearTimeout(smartInlineHintState.hoverTimer);
+});
+
+document.addEventListener('click', event => {
+  const hintEl = smartInlineHintState.element;
+  if (!hintEl || hintEl.classList.contains('hidden')) return;
+  if (hintEl.contains(event.target) || editor.contains(event.target)) return;
+  hideSmartInlineHint();
 });
 
 editor.addEventListener('scroll', () => {
