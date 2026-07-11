@@ -41,9 +41,7 @@ The included rules allow:
 - guests to read activities, rubrics, and assistance settings;
 - the teacher account to manage all student profiles and inspect projects;
 - each student to read their own profile and manage only their own projects;
-- no student to open another student's project folder;
-- only the live-session host can manage the whole collaboration session;
-- other signed-in members can update their own presence and can edit shared code only when the host enables editing.
+- no student to open another student's project folder.
 
 ## 4. Upload the Website
 
@@ -56,19 +54,11 @@ Replace the deployed copies of:
 - `firestore.rules`
 - `service-worker.js`
 - `manifest.webmanifest`
-- `favicon.png`
-- `STUDENT_IMPORT_TEMPLATE.csv`
-- the complete `icons/` folder
+- `icons/`
 
 For GitHub Pages, commit and push the files to the published branch.
 
-For Firebase Hosting, the included `firebase.json` contains Hosting, cache/security headers, and Firestore rules only. It has no Functions configuration.
-
-Recommended command:
-
-```bash
-firebase deploy --only hosting,firestore:rules
-```
+For Firebase Hosting, the included `firebase.json` contains Hosting and Firestore rules only. It has no Functions configuration.
 
 ## 5. Clear the Old Cached App
 

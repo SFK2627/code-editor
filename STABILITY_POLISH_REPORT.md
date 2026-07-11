@@ -1,6 +1,6 @@
 # Sir JR Coding App - Stability and Professional Polish Pass
 
-Target release: `20260711-overall-100-readiness`
+Target release: `20260711-stability-polish-v95`
 
 ## What was improved
 

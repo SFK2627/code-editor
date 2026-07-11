@@ -1,23 +1,37 @@
-UPLOAD GUIDE — SIR JR CODING APP
+SIR JR CODING APP — FREE STUDENT ACCOUNTS RELEASE
 
-GITHUB PAGES
-1. Replace the repository-root copies of index.html, style.css, script.js, firebase-config.js, service-worker.js, manifest.webmanifest, favicon.png, and STUDENT_IMPORT_TEMPLATE.csv.
-2. Replace the complete icons folder.
-3. Commit and push to the branch used by GitHub Pages.
-4. Publish firestore.rules separately in Firebase Console.
+UPLOAD / REPLACE IN THE REPOSITORY ROOT
 
-FIREBASE HOSTING
-1. Keep firebase.json in the project root.
-2. Run firebase login.
-3. Run firebase deploy --only hosting,firestore:rules.
-4. Do not initialize or deploy Cloud Functions for this release.
+Required website files:
+- index.html
+- style.css
+- script.js
+- firebase-config.js
+- service-worker.js
+- manifest.webmanifest
+- icons/icon-192.png
+- icons/icon-512.png
 
-FIRST-USE CHECK
-1. Open the deployed URL in a private/incognito window.
-2. Confirm Practice Without Login opens the editor.
-3. Confirm teacher login works.
-4. Create or use one test student.
-5. Create a project, edit it, wait for Saved, refresh, and reopen it.
-6. Turn Wi-Fi off briefly and confirm Offline/pending appears.
-7. Reconnect and confirm the project returns to Saved.
-8. Test phone portrait, phone landscape, desktop, and installed PWA.
+Firebase files/instructions:
+- firestore.rules
+- firebase.json
+- FIREBASE_AND_GITHUB_SETUP.md
+- FREE_STUDENT_ACCOUNTS_SETUP.md
+
+Do not upload or deploy a functions folder. This release does not use Cloud Functions.
+
+NEW FEATURES
+- First screen: Student Login or Practice Without Login
+- Student ID login with default password 123456
+- Forced password change on first login
+- My Projects dashboard with create, continue, rename, delete, autosave, and score
+- Admin manual student registration
+- Excel/CSV class-list import
+- Section-based login/project/activity tracker
+- Teacher project viewer
+- Existing phone-only Desktop View preview remains active
+
+IMPORTANT
+- Enable Firebase Email/Password Authentication.
+- Publish the included firestore.rules.
+- Keep Firebase on Spark/no billing.

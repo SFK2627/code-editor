@@ -1,6 +1,4 @@
-SIR JR CODING APP — STABILITY + PROFESSIONAL POLISH RELEASE
-
-UPLOAD / REPLACE IN THE WEBSITE REPOSITORY ROOT
+UPLOAD / REPLACE THESE FILES IN THE WEBSITE REPOSITORY ROOT:
 
 1. index.html
 2. style.css
@@ -8,25 +6,13 @@ UPLOAD / REPLACE IN THE WEBSITE REPOSITORY ROOT
 4. firebase-config.js
 5. service-worker.js
 6. manifest.webmanifest
-7. favicon.png
-8. STUDENT_IMPORT_TEMPLATE.csv
-9. icons/ folder, including all four icon files
+7. icons/ folder
 
-FIREBASE FILES
-
-10. firestore.rules — publish in Firestore Database > Rules
-11. firebase.json — use when deploying with Firebase Hosting
-
-REQUIRED FIREBASE STEPS
+FIREBASE REQUIRED STEPS:
 
 1. Enable Authentication > Email/Password.
 2. Confirm the teacher account exists.
-3. Publish the included firestore.rules.
-4. Keep the project on Spark and do not connect billing.
+3. Copy firestore.rules into Firestore Database > Rules and publish.
+4. Keep the Firebase project on Spark and do not connect billing.
 
-AFTER DEPLOYMENT
-
-1. Hard refresh the website.
-2. Close and reopen installed phone PWAs.
-3. Clear old site cache once only when the previous version still appears.
-4. Test one teacher account, one student account, project save, and live collaboration before the class session.
+After deployment, hard refresh the website. On an installed phone app, close and reopen it. Clear the old site cache once if the previous layout still appears.

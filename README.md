@@ -1,154 +1,125 @@
 # Sir JR Coding App
 
-A classroom-ready HTML, CSS, and JavaScript workspace for Grade 8 MCSian students. It supports student accounts, cloud-saved projects, rubric scoring, teacher monitoring, live collaboration, responsive mobile use, and installable PWA behavior.
+A Grade 8 HTML, CSS, and JavaScript editor with optional student accounts, cloud-saved projects, rubric scoring, and teacher monitoring.
 
-## Stability + Professional Polish Release
+## Student Entry Screen
 
-This build focuses on reliability and finish rather than adding another large feature set.
+Every visit begins with two choices:
 
-### Reliability improvements
+1. **Log In as Student** – opens the student's saved projects.
+2. **Practice Without Login** – opens the full editor without permanent project saving.
 
-- Revision-safe project saving prevents an older cloud save from marking newer edits as saved.
-- Failed or offline edits receive a local recovery copy on the same device.
-- Project lists are cached locally and can still be opened as an offline copy.
-- Autosave retries use controlled delays instead of repeatedly spamming Firestore.
-- Logout waits for pending saves and warns before leaving when cloud sync did not finish.
-- Firebase loading now runs in parallel, has a timeout, and can retry after a failed first connection.
-- Service-worker installation no longer fails because of one missing optional asset.
-- Navigation requests and static assets now use safer offline caching strategies.
-- Three competing mobile scroll-repair loops were replaced by one event-driven layout reconciler.
-- Hidden duplicate JavaScript declarations were removed.
-- Fixed a rubric-text parser recursion bug that could freeze import for non-table rubric text.
-- Super Studio no longer replaces the core `runCode` function at runtime; it uses a safe hook.
+Guest header:
 
-### Professional polish improvements
+> Sir Jr's Grade 8 MCSian Web Code Editor
 
-- Complete 192 px and 512 px standard and maskable PWA icons.
-- Clear online/offline status and pending-save messaging.
-- Consistent focus-visible, disabled, loading, and pressed states.
-- Better reduced-motion, forced-colors, safe-area, and touch-target support.
-- Improved Firebase Hosting cache and security headers.
-- Hardened collaboration rules so non-host students cannot manage the whole live-session document.
-- Updated setup documentation to match the actual free-only architecture.
+Logged-in header:
 
-## Main student features
+> Sir JR Coding App · Hi, Name!
 
-- Student ID login with default first password `123456`.
-- Forced password change during first activation.
-- My Projects dashboard with create, open, rename, delete, search, filter, score, and run count.
-- Guest practice mode without permanent cloud saving.
-- HTML, CSS, and JavaScript editor with syntax coloring, suggestions, indentation, undo/redo, zoom, and multiple files/pages.
-- Run, Auto Run, Result, rubric-based feedback, Error Checker, Full Editor, and output fullscreen.
-- ZIP export of the current website.
-- Optional Super Studio and teacher-controlled assistance features.
-- Optional live Share/Join collaboration.
-- Responsive phone, tablet, desktop, and PWA layouts.
+## Student Accounts
 
-## Teacher/Admin features
+- Students log in with their registered **Student ID**.
+- New accounts use the default password **123456**.
+- The first login requires a new password before the dashboard opens.
+- Student IDs are converted internally to private app-only Firebase Authentication email addresses. Students never need to know those email addresses.
+- Each student can access only their own profile and project folder through Firestore rules.
 
-- Firebase Email/Password teacher login.
-- Activity and scale-based rubric builder.
-- Manual 5-column rubric table entry.
-- Rubric image reading with browser-side OCR when no secure endpoint is configured.
-- Manual student registration and Excel/CSV roster import.
-- Student, section, activity, login, project, and score tracking.
-- Global assistance, autosave, autorun, collaboration, and Super Studio controls.
+## My Projects
 
-## Required deployment steps
+Logged-in students can:
 
-1. Enable **Authentication > Email/Password** in Firebase.
-2. Confirm the teacher account exists.
+- create a named project;
+- open and continue unfinished work;
+- rename or delete projects;
+- save HTML, CSS, JavaScript, pages, file names, selected activity, run count, and rubric result;
+- see project status, last-edited time, run attempts, and score;
+- return to **My Projects** from the editor.
+
+Changes are automatically queued for cloud saving while a student project is open. Guest practice uses temporary browser-session storage and is not shown in the teacher tracker.
+
+## Teacher/Admin Student Accounts & Tracker
+
+The existing hidden Admin area now includes **Student Accounts & Tracker**.
+
+The teacher can:
+
+- add one student using Student ID, full name, gender, and section;
+- import an `.xlsx`, `.xls`, or `.csv` class list;
+- download an import template from the Admin page;
+- preview valid and invalid rows before importing;
+- filter students by section and login/activity status;
+- see total students, students who logged in, total projects, and students active today;
+- view each student's projects, run attempts, last activity, and saved score.
+
+Accepted import headings include common versions of:
+
+- Student ID
+- Name
+- Gender or Sex
+- Section
+
+A ready CSV example is included as `STUDENT_IMPORT_TEMPLATE.csv`.
+
+## Student Assistance Controls
+
+The Admin page still includes switches for:
+
+- master student assistance;
+- code suggestions;
+- Code Helper and error hints;
+- rubric feedback.
+
+Local changes can be applied on the current browser. A signed-in teacher can publish the settings to all devices.
+
+## Mobile Preview Behavior
+
+Phone behavior remains separate from desktop behavior:
+
+- Split, Stacked, and Big Preview are hidden on phones.
+- Phones use **Desktop View / Phone View** and **Full Screen**.
+- Landscape phone fullscreen fits the 1366 × 768 desktop output with the Exit button below.
+- Desktop computers retain Split, Stacked, Big Preview, and normal desktop fullscreen.
+
+## Free-Only Architecture
+
+This project uses only:
+
+- static GitHub Pages or Firebase Hosting files;
+- Firebase Email/Password Authentication;
+- Cloud Firestore within the project's no-cost quota.
+
+It does **not** include Cloud Functions, Cloud Storage uploads, a paid server, or a Blaze-only backend. Keep the Firebase project on the **Spark** plan and do not attach a billing account.
+
+When the no-cost Firestore quota is exhausted, cloud reads/writes can pause until the quota resets; this build does not automatically upgrade the project or create a charge.
+
+## Required Setup
+
+Read `FIREBASE_AND_GITHUB_SETUP.md` and `FREE_STUDENT_ACCOUNTS_SETUP.md` before uploading.
+
+The most important steps are:
+
+1. Enable Firebase **Email/Password** sign-in.
+2. Confirm the teacher account is `sirjr.mcsian@gmail.com`, or change it in both `firebase-config.js` and `firestore.rules`.
 3. Publish the included `firestore.rules`.
-4. Upload the website files and `icons/` folder.
-5. Keep the Firebase project on Spark/no billing.
-6. Hard refresh after deployment; close and reopen an installed PWA.
+4. Upload the updated frontend files.
+5. Keep the project on Spark/no billing.
 
-Read `FIREBASE_AND_GITHUB_SETUP.md` and `FREE_STUDENT_ACCOUNTS_SETUP.md` before the first class use.
+## Main Files
 
-## Main files
+- `index.html` – entry screen, student login/dashboard, editor, and Admin UI
+- `style.css` – responsive desktop/mobile/account/dashboard styles
+- `script.js` – editor logic, student accounts, projects, autosave, Excel/CSV import, and tracker
+- `firebase-config.js` – Firebase frontend project settings and allowed teacher email
+- `firestore.rules` – teacher/student data access rules
+- `service-worker.js` – updated offline cache
+- `manifest.webmanifest` – installable app information
 
-- `index.html` — app structure, entry screen, dashboards, editor, and Admin UI
-- `style.css` — full desktop/mobile design and final accessibility layer
-- `script.js` — editor, projects, saving, rubrics, tracker, collaboration, and PWA logic
-- `firebase-config.js` — Firebase project and allowed teacher account
-- `firestore.rules` — teacher, student, project, submission, and collaboration permissions
-- `firebase.json` — Firebase Hosting and Firestore deployment configuration
-- `service-worker.js` — install/offline cache behavior
-- `manifest.webmanifest` — PWA metadata and icons
-- `icons/` — standard and maskable app icons
-- `STUDENT_IMPORT_TEMPLATE.csv` — roster import sample
+## Keyboard Shortcuts
 
-## Keyboard shortcuts
-
-- `Ctrl + S` — save/queue the current student project
-- `Ctrl + Enter` — run code
-- `Ctrl + Shift + Enter` — check result
-- `Ctrl + 1`, `Ctrl + 2`, `Ctrl + 3` — HTML/CSS/JavaScript tabs
-- `Ctrl + Shift + F` — full editor
-- `Esc` — close fullscreen or the active overlay
-
-## Important limitations
-
-- Firebase Spark quotas still apply. When quota is exhausted, cloud reads/writes can pause until reset.
-- Firebase modules, the Excel reader, and rubric OCR are loaded from trusted CDNs, so those online features require internet access.
-- Local recovery protects edits on the same browser/device; it is not a substitute for a completed cloud save.
-- Live collaboration should still be trialed with the actual classroom Wi-Fi and expected number of simultaneous students before a graded activity.
-
-See `STABILITY_AND_TEST_REPORT.md` for the automated checks completed for this release.
-
-Release: 20260711-overall-100-readiness
-
-## Maintainability 95 Source Workflow
-
-This release adds a maintainable source layer while keeping static deployment simple.
-
-For future edits, work from:
-
-- `src/js/` for JavaScript modules
-- `styles/` for CSS modules
-
-Then run:
-
-```bash
-npm run build
-npm run check
-```
-
-The browser still loads `script.js` and `style.css`, so GitHub Pages and Firebase Hosting remain simple and free-only.
-
-Read `APP_ARCHITECTURE.md` and `MAINTAINABILITY_95_REPORT.md` before making major revisions.
-
-
-## Mobile Experience 100 Readiness
-
-This release adds a final mobile hardening layer for phone and installed-PWA use. It includes `viewport-fit=cover`, dynamic visual viewport CSS variables, keyboard-open handling, safe-area spacing, portrait/landscape classes, and a runtime mobile diagnostic function.
-
-Run this on a phone browser console when available:
-
-```js
-window.MCS_RUN_MOBILE_HEALTH_CHECK()
-```
-
-See `MOBILE_EXPERIENCE_100_REPORT.md` for the full mobile readiness checklist.
-
-## Overall 100-Readiness Release
-
-Release: 20260711-overall-100-readiness
-
-This build adds an all-category readiness gate for features, classroom usefulness, stability, professional polish, mobile experience, Firebase/security, PWA deployment, recovery, QA, and maintainability.
-
-Before deployment, run:
-
-```bash
-npm run check
-```
-
-After deployment, the following runtime checks are available in the browser console:
-
-```js
-window.MCS_RUN_HEALTH_CHECK()
-window.MCS_RUN_MOBILE_HEALTH_CHECK()
-window.MCS_RUN_OVERALL_READINESS_CHECK()
-```
-
-The package is prepared for 100-readiness, but the final real-world score should be confirmed through actual classroom testing.
+- `Ctrl + S` – save locally / queue project save
+- `Ctrl + Enter` – run code
+- `Ctrl + Shift + Enter` – check result
+- `Ctrl + 1`, `Ctrl + 2`, `Ctrl + 3` – switch HTML/CSS/JavaScript
+- `Ctrl + Shift + F` – full editor
+- `Esc` – exit fullscreen/editor overlays
