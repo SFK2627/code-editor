@@ -17830,3 +17830,65 @@ body.editor-fullscreen-active #editorPanel .language-tabs + #htmlPageManager,
 #editorPanel:fullscreen .language-tabs + #htmlPageManager {
   border-top: 0 !important;
 }
+
+
+/* ADMIN-CONTROLLED AUTO RUN: hide the student Auto On/Off control when teacher disables it. */
+body.auto-run-control-disabled #autoRunBtn,
+body.auto-run-control-disabled #fullscreenAutoRunBtn,
+body.auto-run-control-disabled .auto-run-btn,
+body.auto-run-control-disabled .fullscreen-auto-run-btn {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+
+/* ADMIN AUTO SAVE CONTROL + MANUAL SAVE BUTTON */
+.student-manual-save-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 38px;
+  padding-inline: 14px;
+  font-weight: 900;
+}
+
+.student-manual-save-btn.hidden {
+  display: none !important;
+}
+
+.student-save-state.unsaved {
+  color: #92400e;
+  background: rgba(251, 191, 36, 0.18);
+  border: 1px solid rgba(251, 191, 36, 0.28);
+}
+
+[data-theme="dark"] .student-save-state.unsaved {
+  color: #fde68a !important;
+  background: rgba(245, 158, 11, 0.16) !important;
+  border-color: rgba(245, 158, 11, 0.24) !important;
+}
+
+body.student-manual-save-mode #studentAccountStrip .student-manual-save-btn:not(.hidden) {
+  color: #075985;
+  border-color: rgba(14, 165, 233, 0.35);
+  background: linear-gradient(135deg, #e0f2fe, #dbeafe);
+}
+
+body.student-manual-save-mode #studentAccountStrip .student-manual-save-btn:not(.hidden):not(:disabled):hover,
+body.student-manual-save-mode #studentAccountMenu .student-manual-save-btn:not(.hidden):not(:disabled):hover {
+  transform: translateY(-1px);
+}
+
+body.student-manual-save-mode .student-manual-save-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+@media (max-width: 820px) {
+  .student-account-menu .student-manual-save-btn {
+    width: 100%;
+    justify-content: flex-start;
+  }
+}

@@ -157,6 +157,8 @@ const codeSuggestionsToggle = document.getElementById('codeSuggestionsToggle');
 const codeHelperToggle = document.getElementById('codeHelperToggle');
 const teacherFeedbackToggle = document.getElementById('teacherFeedbackToggle');
 const superStudioToggle = document.getElementById('superStudioToggle');
+const autoRunControlToggle = document.getElementById('autoRunControlToggle');
+const autoSaveControlToggle = document.getElementById('autoSaveControlToggle');
 const externalLinksSamePreviewToggle = document.getElementById('externalLinksSamePreviewToggle');
 const applyAssistanceLocalBtn = document.getElementById('applyAssistanceLocalBtn');
 const publishAssistanceBtn = document.getElementById('publishAssistanceBtn');
@@ -206,10 +208,12 @@ const appSubtitleText = document.getElementById('appSubtitleText');
 const studentAccountStrip = document.getElementById('studentAccountStrip');
 const headerStudentGreeting = document.getElementById('headerStudentGreeting');
 const studentSaveState = document.getElementById('studentSaveState');
+const saveStudentProjectBtn = document.getElementById('saveStudentProjectBtn');
 const studentMenuBtn = document.getElementById('studentMenuBtn');
 const studentAccountMenu = document.getElementById('studentAccountMenu');
 const menuStudentGreeting = document.getElementById('menuStudentGreeting');
 const menuStudentSaveState = document.getElementById('menuStudentSaveState');
+const menuSaveProjectBtn = document.getElementById('menuSaveProjectBtn');
 const menuMyProjectsBtn = document.getElementById('menuMyProjectsBtn');
 const menuStudentLogoutBtn = document.getElementById('menuStudentLogoutBtn');
 const myProjectsBtn = document.getElementById('myProjectsBtn');
@@ -332,7 +336,10 @@ const DEFAULT_ASSISTANCE_SETTINGS = Object.freeze({
   codeSuggestions: true,
   codeHelper: true,
   teacherFeedback: true,
-  superStudio: false
+  superStudio: false,
+  autoSave: true,
+  autoRunControl: true,
+  externalLinksSamePreview: true
 });
 
 let studentAssistanceSettings = normalizeAssistanceSettings(
@@ -363,6 +370,7 @@ const appSession = {
 let studentProjectSaveTimer = null;
 let studentProjectSaveInFlight = false;
 let studentProjectSaveQueued = false;
+let studentProjectDirty = false;
 let lastProfileActivityWriteAt = 0;
 let adminStudentsCache = [];
 let pendingStudentImportRows = [];
@@ -386,20 +394,36 @@ function withTimeout(promise, timeoutMs = APP_NETWORK_TIMEOUT_MS, message = 'Thi
   return Promise.race([promise, timeout]).finally(() => window.clearTimeout(timeoutId));
 }
 
+function isAutoRunControlAllowed() {
+  return isStudentAssistanceFeatureEnabled('autoRunControl');
+}
+
+function isStudentAutoSaveAllowed() {
+  return isStudentAssistanceFeatureEnabled('autoSave');
+}
+
 function updateAutoRunButtons() {
+  const allowed = isAutoRunControlAllowed();
+  document.body.classList.toggle('auto-run-control-disabled', !allowed);
   const buttons = [autoRunBtn, document.getElementById('fullscreenAutoRunBtn')].filter(Boolean);
   buttons.forEach(button => {
-    button.classList.toggle('active', autoRunEnabled);
-    button.setAttribute('aria-pressed', String(autoRunEnabled));
+    button.classList.toggle('hidden', !allowed);
+    button.setAttribute('aria-hidden', allowed ? 'false' : 'true');
+    button.disabled = !allowed;
+    button.classList.toggle('active', allowed && autoRunEnabled);
+    button.setAttribute('aria-pressed', String(allowed && autoRunEnabled));
     button.textContent = autoRunEnabled ? '⚡ Auto On' : '⚡ Auto Off';
-    button.title = autoRunEnabled
-      ? 'Auto Run is on. Preview updates after you stop typing.'
-      : 'Auto Run is off. Click Run to update the preview.';
+    button.title = allowed
+      ? (autoRunEnabled
+        ? 'Auto Run is on. Preview updates after you stop typing.'
+        : 'Auto Run is off. Click Run to update the preview.')
+      : 'Auto Run is disabled by the teacher.';
   });
 }
 
 function setAutoRunEnabled(enabled, showMessage = true) {
-  autoRunEnabled = Boolean(enabled);
+  const allowed = isAutoRunControlAllowed();
+  autoRunEnabled = allowed && Boolean(enabled);
   saveJSON(STORAGE_KEYS.autoRun, autoRunEnabled);
   if (!autoRunEnabled) window.clearTimeout(autoRunTimer);
   updateAutoRunButtons();
@@ -408,10 +432,19 @@ function setAutoRunEnabled(enabled, showMessage = true) {
 }
 
 function toggleAutoRun() {
+  if (!isAutoRunControlAllowed()) {
+    setAutoRunEnabled(false, false);
+    setStatus('Auto Run is disabled by the teacher');
+    return;
+  }
   setAutoRunEnabled(!autoRunEnabled);
 }
 
 function scheduleAutoRun(options = {}) {
+  if (!isAutoRunControlAllowed()) {
+    window.clearTimeout(autoRunTimer);
+    return;
+  }
   if (!autoRunEnabled || !previewFrame) return;
   const delay = Number.isFinite(options.delay) ? options.delay : AUTO_RUN_DELAY;
   window.clearTimeout(autoRunTimer);
@@ -820,6 +853,8 @@ function normalizeAssistanceSettings(value = {}) {
     codeHelper: source.codeHelper !== false,
     teacherFeedback: source.teacherFeedback !== false,
     superStudio: source.superStudio === true,
+    autoSave: source.autoSave !== false,
+    autoRunControl: source.autoRunControl !== false,
     externalLinksSamePreview: source.externalLinksSamePreview !== false
   };
 }
@@ -837,6 +872,8 @@ function getAssistanceSettingsFromControls() {
     codeHelper: codeHelperToggle?.checked !== false,
     teacherFeedback: teacherFeedbackToggle?.checked !== false,
     superStudio: superStudioToggle?.checked === true,
+    autoSave: autoSaveControlToggle?.checked !== false,
+    autoRunControl: autoRunControlToggle?.checked !== false,
     externalLinksSamePreview: externalLinksSamePreviewToggle?.checked !== false
   });
 }
@@ -855,10 +892,12 @@ function syncAssistanceSettingsControls() {
   if (codeHelperToggle) codeHelperToggle.checked = settings.codeHelper;
   if (teacherFeedbackToggle) teacherFeedbackToggle.checked = settings.teacherFeedback;
   if (superStudioToggle) superStudioToggle.checked = settings.superStudio;
+  if (autoSaveControlToggle) autoSaveControlToggle.checked = settings.autoSave;
+  if (autoRunControlToggle) autoRunControlToggle.checked = settings.autoRunControl;
   if (externalLinksSamePreviewToggle) externalLinksSamePreviewToggle.checked = settings.externalLinksSamePreview;
 
   studentAssistanceSettingsCard?.classList.toggle('master-disabled', !settings.enabled);
-  const effectiveOn = settings.enabled && (settings.codeSuggestions || settings.codeHelper || settings.teacherFeedback || settings.superStudio);
+  const effectiveOn = settings.enabled && (settings.codeSuggestions || settings.codeHelper || settings.teacherFeedback || settings.superStudio || settings.autoSave || settings.autoRunControl);
   if (assistanceModeBadge) {
     assistanceModeBadge.textContent = effectiveOn ? 'Assistance ON' : 'Assistance OFF';
     assistanceModeBadge.classList.toggle('off', !effectiveOn);
@@ -885,11 +924,25 @@ function applyStudentAssistanceSettings(nextSettings, options = {}) {
   const helperEnabled = isStudentAssistanceFeatureEnabled('codeHelper');
   const feedbackEnabled = isStudentAssistanceFeatureEnabled('teacherFeedback');
   const superStudioEnabled = isStudentAssistanceFeatureEnabled('superStudio');
+  const autoRunControlEnabled = isStudentAssistanceFeatureEnabled('autoRunControl');
+  const autoSaveEnabled = isStudentAssistanceFeatureEnabled('autoSave');
 
   document.body.classList.toggle('code-suggestions-disabled', !suggestionsEnabled);
   document.body.classList.toggle('code-helper-disabled', !helperEnabled);
   document.body.classList.toggle('teacher-feedback-disabled', !feedbackEnabled);
   document.body.classList.toggle('super-studio-disabled', !superStudioEnabled);
+  document.body.classList.toggle('auto-run-control-disabled', !autoRunControlEnabled);
+  document.body.classList.toggle('student-autosave-disabled', !autoSaveEnabled);
+  if (!autoRunControlEnabled) {
+    window.clearTimeout(autoRunTimer);
+    autoRunEnabled = false;
+    saveJSON(STORAGE_KEYS.autoRun, false);
+  }
+  updateAutoRunButtons();
+  updateManualSaveControls();
+  if (autoSaveEnabled && studentProjectDirty && isStudentProjectActive()) {
+    queueStudentProjectSave('autosave-enabled');
+  }
 
   if (!suggestionsEnabled && typeof hideSuggestions === 'function') hideSuggestions();
   if (!helperEnabled && typeof hideSmartInlineHint === 'function') hideSmartInlineHint();
@@ -2475,9 +2528,36 @@ function setStudentSaveState(text, state = '') {
   [studentSaveState, menuStudentSaveState].forEach(saveEl => {
     if (!saveEl) return;
     saveEl.textContent = text;
-    saveEl.classList.remove('saving', 'error');
+    saveEl.classList.remove('saving', 'error', 'unsaved');
     if (state) saveEl.classList.add(state);
   });
+  updateManualSaveControls();
+}
+
+function updateManualSaveControls() {
+  const showManualSave = Boolean(appSession.mode === 'student' && appSession.currentProjectId && !isStudentAutoSaveAllowed());
+  document.body.classList.toggle('student-manual-save-mode', showManualSave);
+  [saveStudentProjectBtn, menuSaveProjectBtn].forEach(button => {
+    if (!button) return;
+    button.classList.toggle('hidden', !showManualSave);
+    button.setAttribute('aria-hidden', showManualSave ? 'false' : 'true');
+    button.disabled = !showManualSave || !studentProjectDirty || studentProjectSaveInFlight;
+    button.textContent = studentProjectSaveInFlight ? 'Saving...' : '💾 Save';
+    button.title = studentProjectDirty ? 'Save current project: Ctrl + S' : 'No unsaved changes';
+  });
+}
+
+async function saveStudentProjectManually() {
+  if (!isStudentProjectActive()) {
+    saveActiveEditor();
+    setStatus('Saved locally');
+    return false;
+  }
+  saveActiveEditor();
+  clearTimeout(studentProjectSaveTimer);
+  const saved = await saveCurrentStudentProject({ immediate: true, reason: 'manual' });
+  setStatus(saved ? 'Project saved' : 'Save failed');
+  return saved;
 }
 
 function closeStudentAccountMenu() {
@@ -2509,7 +2589,8 @@ function updateAppHeaderForSession() {
     if (appSubtitleText) appSubtitleText.textContent = 'Developed by Sir JR';
     if (headerStudentGreeting) headerStudentGreeting.textContent = `Hi, ${firstName}!`;
     if (menuStudentGreeting) menuStudentGreeting.textContent = `Hi, ${firstName}!`;
-    setStudentSaveState(appSession.currentProjectId ? 'Saved' : 'Choose a project');
+    if (!appSession.currentProjectId) studentProjectDirty = false;
+    setStudentSaveState(appSession.currentProjectId ? (studentProjectDirty ? 'Unsaved' : 'Saved') : 'Choose a project', studentProjectDirty ? 'unsaved' : '');
   } else {
     if (appTitleText) appTitleText.textContent = 'A tool for every Grade 8 MCSian.';
     if (appSubtitleText) appSubtitleText.textContent = 'Developed by Sir JR';
@@ -2923,7 +3004,7 @@ async function resumeExistingStudentSession() {
 }
 
 async function logoutStudent() {
-  const hasPendingSave = Boolean(studentProjectSaveTimer || studentProjectSaveInFlight || studentProjectSaveQueued);
+  const hasPendingSave = Boolean(studentProjectDirty || studentProjectSaveTimer || studentProjectSaveInFlight || studentProjectSaveQueued);
   if (hasPendingSave && appSession.mode === 'student' && appSession.currentProjectId) {
     const shouldContinue = await appConfirm('Some recent changes may still be saving. Save now and log out?', {
       title: 'Log out safely',
@@ -3203,6 +3284,7 @@ async function openStudentProject(projectId) {
     runCode(false, { scroll: false });
     closeStudentDashboard();
     updateAppHeaderForSession();
+    studentProjectDirty = false;
     setStudentSaveState('Saved');
     setStatus(`Project: ${project.name}`);
   } catch (error) {
@@ -3314,8 +3396,14 @@ function buildProjectSavePayload(result = null) {
 
 function queueStudentProjectSave(reason = 'edit') {
   if (!isStudentProjectActive()) return;
-  setStudentSaveState('Saving...', 'saving');
+  studentProjectDirty = true;
+  updateManualSaveControls();
   clearTimeout(studentProjectSaveTimer);
+  if (!isStudentAutoSaveAllowed()) {
+    setStudentSaveState('Unsaved', 'unsaved');
+    return;
+  }
+  setStudentSaveState('Saving...', 'saving');
   studentProjectSaveTimer = window.setTimeout(() => {
     saveCurrentStudentProject({ reason }).catch(error => console.warn('Autosave failed', error));
   }, STUDENT_AUTOSAVE_DELAY);
@@ -3323,6 +3411,13 @@ function queueStudentProjectSave(reason = 'edit') {
 
 async function saveCurrentStudentProject({ result = null, immediate = false, reason = 'edit' } = {}) {
   if (!isStudentProjectActive()) return false;
+  const manualReason = reason === 'manual' || reason === 'logout';
+  if (!isStudentAutoSaveAllowed() && !manualReason) {
+    studentProjectDirty = true;
+    clearTimeout(studentProjectSaveTimer);
+    setStudentSaveState('Unsaved', 'unsaved');
+    return false;
+  }
   if (immediate) clearTimeout(studentProjectSaveTimer);
   if (studentProjectSaveInFlight) {
     studentProjectSaveQueued = true;
@@ -3346,6 +3441,7 @@ async function saveCurrentStudentProject({ result = null, immediate = false, rea
     const index = appSession.projects.findIndex(project => project.id === appSession.currentProjectId);
     if (index >= 0) appSession.projects[index] = { ...appSession.projects[index], ...appSession.currentProject };
     else appSession.projects.unshift(appSession.currentProject);
+    studentProjectDirty = false;
     setStudentSaveState('Saved');
 
     const now = Date.now();
@@ -3361,10 +3457,12 @@ async function saveCurrentStudentProject({ result = null, immediate = false, rea
     return true;
   } catch (error) {
     console.error('Could not save current student project.', error);
+    studentProjectDirty = true;
     setStudentSaveState('Save failed', 'error');
     return false;
   } finally {
     studentProjectSaveInFlight = false;
+    updateManualSaveControls();
     if (studentProjectSaveQueued) {
       studentProjectSaveQueued = false;
       window.setTimeout(() => saveCurrentStudentProject({ reason: 'queued' }), 80);
@@ -9375,6 +9473,10 @@ function downloadCodeAsZip() {
 }
 
 function saveNow() {
+  if (isStudentProjectActive()) {
+    saveStudentProjectManually();
+    return;
+  }
   saveActiveEditor();
   setStatus('Saved locally');
 }
@@ -10276,7 +10378,7 @@ window.addEventListener('keydown', event => {
   }
 });
 
-[assistanceMasterToggle, codeSuggestionsToggle, codeHelperToggle, teacherFeedbackToggle, superStudioToggle, externalLinksSamePreviewToggle].forEach(toggle => {
+[assistanceMasterToggle, codeSuggestionsToggle, codeHelperToggle, teacherFeedbackToggle, superStudioToggle, autoSaveControlToggle, autoRunControlToggle, externalLinksSamePreviewToggle].forEach(toggle => {
   toggle?.addEventListener('change', () => {
     applyAssistanceSettingsFromControls();
   });
@@ -10450,9 +10552,14 @@ changePasswordLogoutBtn?.addEventListener('click', logoutStudent);
 }));
 myProjectsBtn?.addEventListener('click', showStudentDashboard);
 studentHeaderLogoutBtn?.addEventListener('click', logoutStudent);
+saveStudentProjectBtn?.addEventListener('click', saveStudentProjectManually);
 studentMenuBtn?.addEventListener('click', event => {
   event.stopPropagation();
   toggleStudentAccountMenu();
+});
+menuSaveProjectBtn?.addEventListener('click', () => {
+  closeStudentAccountMenu();
+  saveStudentProjectManually();
 });
 menuMyProjectsBtn?.addEventListener('click', () => {
   closeStudentAccountMenu();
@@ -10537,7 +10644,7 @@ projectNameOverlay?.addEventListener('click', event => {
   if (event.target === projectNameOverlay) closeProjectNameDialog();
 });
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'hidden' && isStudentProjectActive()) {
+  if (document.visibilityState === 'hidden' && isStudentProjectActive() && isStudentAutoSaveAllowed()) {
     saveCurrentStudentProject({ immediate: true, reason: 'visibility' });
   }
 });
@@ -11455,7 +11562,7 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
       { label: 'Format current tab', keywords: 'format beautify clean code', hint: 'Format', run: formatActiveCode },
       { label: 'Save snapshot', keywords: 'snapshot checkpoint backup save restore', hint: 'Rollback point', run: () => saveStudioSnapshot(true) },
       { label: 'Open snapshots', keywords: 'restore rollback checkpoints snapshots', hint: 'Restore', run: openStudioSnapshots },
-      { label: 'Toggle Auto Run', keywords: 'auto run live preview toggle', hint: autoRunEnabled ? 'Currently on' : 'Currently off', run: toggleAutoRun },
+      ...(isAutoRunControlAllowed() ? [{ label: 'Toggle Auto Run', keywords: 'auto run live preview toggle', hint: autoRunEnabled ? 'Currently on' : 'Currently off', run: toggleAutoRun }] : []),
       { label: 'Open Full Editor', keywords: 'full editor focus fullscreen zen', hint: 'Ctrl+Shift+F', run: () => fullEditorBtn?.click() },
       { label: 'Open Full Preview', keywords: 'fullscreen output preview result', hint: 'Preview', run: () => fullPreviewBtn?.click() },
       { label: 'Check Result', keywords: 'rubric score result feedback', hint: 'Rubric', run: () => showResult?.() },

@@ -1,11 +1,11 @@
-const CACHE_NAME = 'sir-jr-coding-app-safe-homepage-layout-v1';
+const CACHE_NAME = 'sir-jr-coding-app-admin-autosave-control-v1';
 const CORE_ASSETS = [
   './',
   './index.html',
   './style.css',
-  './style.css?v=20260711-safe-homepage-layout',
+  './style.css?v=20260711-admin-autosave-control',
   './script.js',
-  './script.js?v=20260711-safe-homepage-layout',
+  './script.js?v=20260711-admin-autosave-control',
   './firebase-config.js',
   './manifest.webmanifest',
   './favicon.png',

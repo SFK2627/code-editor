@@ -38,7 +38,7 @@
       document.documentElement.dataset.deviceMode = isPhone ? 'phone' : 'desktop';
     })();
   </script>
-  <link rel="stylesheet" href="style.css?v=20260711-safe-homepage-layout" />
+  <link rel="stylesheet" href="style.css?v=20260711-admin-autosave-control" />
 </head>
 <body class="entry-gate-active">
   <div id="entryGate" class="entry-gate" role="dialog" aria-modal="true" aria-labelledby="entryGateTitle">
@@ -207,6 +207,7 @@
           <strong id="menuStudentGreeting">Hi, Student!</strong>
           <span id="menuStudentSaveState" class="student-save-state">Saved</span>
         </div>
+        <button id="menuSaveProjectBtn" class="ghost-btn student-manual-save-btn hidden" type="button" role="menuitem">💾 Save</button>
         <button id="menuMyProjectsBtn" class="ghost-btn" type="button" role="menuitem">📁 My Projects</button>
         <button id="menuStudentLogoutBtn" class="ghost-btn danger" type="button" role="menuitem">Log Out</button>
       </div>
@@ -214,6 +215,7 @@
       <div id="studentAccountStrip" class="student-account-strip hidden" aria-label="Student account actions">
         <span id="headerStudentGreeting" class="student-greeting">Hi, Student!</span>
         <span id="studentSaveState" class="student-save-state">Saved</span>
+        <button id="saveStudentProjectBtn" class="ghost-btn student-manual-save-btn hidden" type="button" title="Save current project: Ctrl + S">💾 Save</button>
         <button id="myProjectsBtn" class="ghost-btn" type="button">📁 My Projects</button>
         <button id="studentHeaderLogoutBtn" class="ghost-btn danger" type="button">Log Out</button>
       </div>
@@ -521,6 +523,30 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
             </span>
             <span class="admin-switch">
               <input id="superStudioToggle" type="checkbox" />
+              <span class="admin-switch-track"><span class="admin-switch-thumb"></span></span>
+            </span>
+          </label>
+
+          <label class="assistance-option" for="autoSaveControlToggle">
+            <span class="assistance-option-icon">💾</span>
+            <span class="assistance-option-copy">
+              <strong>Auto Save Student Work</strong>
+              <small>When enabled, logged-in student projects save automatically while typing. When disabled, students must press Save or Ctrl+S.</small>
+            </span>
+            <span class="admin-switch">
+              <input id="autoSaveControlToggle" type="checkbox" checked />
+              <span class="admin-switch-track"><span class="admin-switch-thumb"></span></span>
+            </span>
+          </label>
+
+          <label class="assistance-option" for="autoRunControlToggle">
+            <span class="assistance-option-icon">⚡</span>
+            <span class="assistance-option-copy">
+              <strong>Auto Preview / Auto Run</strong>
+              <small>Show the student Auto On/Off button. When disabled, Auto Run is forced off and hidden from students.</small>
+            </span>
+            <span class="admin-switch">
+              <input id="autoRunControlToggle" type="checkbox" checked />
               <span class="admin-switch-track"><span class="admin-switch-thumb"></span></span>
             </span>
           </label>
@@ -846,6 +872,6 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="firebase-config.js"></script>
-  <script src="script.js?v=20260711-safe-homepage-layout"></script>
+  <script src="script.js?v=20260711-admin-autosave-control"></script>
 </body>
 </html>
