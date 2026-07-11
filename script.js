@@ -2599,11 +2599,31 @@ function continueAsGuest() {
   appSession.currentProjectId = '';
   appSession.currentProject = null;
   appSession.projects = [];
-  resetWorkspaceState();
+
+  // Important: hide the welcome gate before any editor reset work.
+  // If reset/render code ever throws, Practice Without Login must still open the editor.
   hideEntryGate();
   hideAllStudentScreens();
+  document.body.classList.remove('entry-gate-active', 'student-auth-open', 'student-dashboard-active', 'student-route-lock');
   updateAppHeaderForSession();
   setStatus('Practice mode');
+
+  try {
+    resetWorkspaceState();
+  } catch (error) {
+    console.error('Could not fully reset guest workspace, but practice mode was opened.', error);
+    try {
+      loadActiveEditor();
+      runCode(false, { scroll: false });
+    } catch (fallbackError) {
+      console.error('Guest fallback render failed.', fallbackError);
+    }
+  }
+
+  requestAnimationFrame(() => {
+    entryGate?.classList.add('hidden');
+    document.body.classList.remove('entry-gate-active', 'student-auth-open', 'student-dashboard-active', 'student-route-lock');
+  });
 }
 
 async function recordStudentLogin() {
@@ -11758,4 +11778,18 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
   ['click', 'touchend', 'pointerup'].forEach(name => document.addEventListener(name, () => setTimeout(fix, 30), true));
   setInterval(fix, 800);
   fix();
+})();
+
+
+/* Desktop/mobile safety: Practice Without Login must always open the editor. */
+(function installPracticeWithoutLoginHardClickFix() {
+  function handlePracticeClick(event) {
+    const button = event.target && event.target.closest && event.target.closest('#continueGuestBtn, #studentLoginGuestBtn');
+    if (!button) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (typeof event.stopImmediatePropagation === 'function') event.stopImmediatePropagation();
+    continueAsGuest();
+  }
+  document.addEventListener('click', handlePracticeClick, true);
 })();
