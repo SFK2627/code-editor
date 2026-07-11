@@ -11519,6 +11519,18 @@ body.entry-gate-active > .hidden-admin-trigger {
   display: none !important;
 }
 
+/* Strict student routing: after login, never reveal the editor before Projects. */
+body.student-route-lock > .app-shell,
+body.student-route-lock > .hidden-admin-trigger,
+body.student-dashboard-active > .app-shell,
+body.student-dashboard-active > .hidden-admin-trigger {
+  display: none !important;
+}
+
+body.student-route-lock {
+  overflow: hidden !important;
+}
+
 body.entry-gate-active .entry-gate.hidden,
 body.student-auth-open .student-auth-overlay.hidden,
 body.student-dashboard-active .student-dashboard-screen.hidden {
@@ -13598,4 +13610,1279 @@ body {
   .page-manager-actions.has-studio-launcher #deleteHtmlPageBtn {
     grid-column: auto !important;
   }
+}
+
+
+/* FINAL READABILITY FIXES: light-mode dashboard hero + dark-mode account strip */
+.dashboard-hero-card .section-kicker {
+  color: rgba(255, 255, 255, 0.96) !important;
+  text-shadow: 0 1px 2px rgba(8, 15, 35, 0.24);
+}
+
+.dashboard-hero-card h2 {
+  color: #ffffff !important;
+  text-shadow: 0 2px 10px rgba(8, 15, 35, 0.24);
+}
+
+.dashboard-hero-card p {
+  color: rgba(255, 255, 255, 0.96) !important;
+  opacity: 1 !important;
+  line-height: 1.55;
+}
+
+.dashboard-new-btn {
+  color: #0f2852 !important;
+  border: 1px solid rgba(255, 255, 255, 0.72) !important;
+  box-shadow: 0 10px 24px rgba(8, 15, 35, 0.16);
+}
+
+.dashboard-new-btn:hover,
+.dashboard-new-btn:focus-visible {
+  color: #0b1f40 !important;
+  background: #f8fbff !important;
+}
+
+@media (min-width: 821px) {
+  [data-theme="dark"] .student-account-strip,
+  [data-theme="dark"] .guest-account-strip {
+    border-color: rgba(96, 165, 250, 0.3) !important;
+    background: linear-gradient(135deg, rgba(15, 23, 42, 0.96), rgba(30, 41, 59, 0.94)) !important;
+    color: #e5edf7 !important;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.04),
+      0 10px 22px rgba(2, 6, 23, 0.2) !important;
+  }
+
+  [data-theme="dark"] .student-greeting,
+  [data-theme="dark"] .guest-account-strip span {
+    color: #f8fafc !important;
+  }
+
+  [data-theme="dark"] .student-save-state {
+    color: #dbeafe !important;
+    background: rgba(96, 165, 250, 0.16) !important;
+    border: 1px solid rgba(96, 165, 250, 0.28);
+  }
+
+  [data-theme="dark"] .student-save-state.saving {
+    color: #fde68a !important;
+    background: rgba(245, 158, 11, 0.16) !important;
+    border-color: rgba(245, 158, 11, 0.22) !important;
+  }
+
+  [data-theme="dark"] .student-save-state.error {
+    color: #fecdd3 !important;
+    background: rgba(251, 113, 133, 0.16) !important;
+    border-color: rgba(251, 113, 133, 0.2) !important;
+  }
+
+  [data-theme="dark"] #myProjectsBtn,
+  [data-theme="dark"] #studentHeaderLogoutBtn,
+  [data-theme="dark"] #guestLoginToSaveBtn {
+    color: #e5edf7 !important;
+    border-color: rgba(71, 85, 105, 0.95) !important;
+    background: rgba(2, 6, 23, 0.5) !important;
+    box-shadow: none !important;
+  }
+
+  [data-theme="dark"] #myProjectsBtn:hover,
+  [data-theme="dark"] #studentHeaderLogoutBtn:hover,
+  [data-theme="dark"] #guestLoginToSaveBtn:hover,
+  [data-theme="dark"] #myProjectsBtn:focus-visible,
+  [data-theme="dark"] #studentHeaderLogoutBtn:focus-visible,
+  [data-theme="dark"] #guestLoginToSaveBtn:focus-visible {
+    background: rgba(15, 23, 42, 0.9) !important;
+    border-color: rgba(96, 165, 250, 0.34) !important;
+  }
+
+  [data-theme="dark"] #studentHeaderLogoutBtn,
+  [data-theme="dark"] #guestLoginToSaveBtn.ghost-btn.danger {
+    color: #fecdd3 !important;
+  }
+}
+
+/* FINAL ADMIN/RUBRIC READABILITY + TABLE OVERFLOW FIX */
+#adminOverlay,
+#adminOverlay * {
+  min-width: 0;
+}
+
+#adminOverlay .admin-modal {
+  color: var(--text);
+}
+
+#adminOverlay .admin-form,
+#adminOverlay .admin-tab-panel,
+#adminOverlay .manual-rubric-card,
+#adminOverlay .rubric-table-scroll,
+#adminOverlay .manual-rubric-scroll {
+  max-width: 100%;
+}
+
+/* Keep Remove inside its Action column instead of overflowing sideways. */
+.manual-rubric-input-table th:last-child,
+.manual-rubric-input-table td:last-child,
+.manual-rubric-row-action {
+  width: 130px !important;
+  min-width: 130px !important;
+  max-width: 130px !important;
+  text-align: center !important;
+}
+
+.remove-manual-rubric-row,
+.rubric-criterion-cell .remove-criterion {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  min-height: 40px !important;
+  height: auto !important;
+  padding: 8px 10px !important;
+  border-radius: 999px !important;
+  font-size: 0.86rem !important;
+  line-height: 1.1 !important;
+  white-space: nowrap !important;
+}
+
+.manual-rubric-scroll,
+.rubric-table-scroll {
+  overflow-x: auto !important;
+  overflow-y: visible !important;
+  scrollbar-width: thin;
+}
+
+.manual-rubric-input-table,
+.teacher-rubric-table {
+  max-width: none;
+}
+
+.manual-rubric-input-table textarea,
+.teacher-rubric-table textarea,
+.rubric-level-cell textarea {
+  color: var(--text);
+}
+
+.manual-rubric-input-table textarea::placeholder,
+.teacher-rubric-table textarea::placeholder,
+.rubric-level-cell textarea::placeholder {
+  color: color-mix(in srgb, var(--muted) 82%, transparent);
+}
+
+/* Dark mode: admin rubric areas must use dark cards instead of pale cards with white text. */
+[data-theme="dark"] #adminOverlay .admin-modal,
+[data-theme="dark"] #adminOverlay .admin-form,
+[data-theme="dark"] #activitiesRubricsAdmin {
+  color: #e5edf7 !important;
+}
+
+[data-theme="dark"] .admin-tabs-wrap {
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.98), rgba(15, 23, 42, 0.92)) !important;
+}
+
+[data-theme="dark"] .admin-tabs {
+  border-color: rgba(96, 165, 250, 0.28) !important;
+  background: rgba(2, 6, 23, 0.36) !important;
+}
+
+[data-theme="dark"] .admin-tab-btn {
+  color: #cbd5e1 !important;
+}
+
+[data-theme="dark"] .admin-tab-btn:hover,
+[data-theme="dark"] .admin-tab-btn:focus-visible {
+  color: #ffffff !important;
+  background: rgba(30, 41, 59, 0.95) !important;
+}
+
+[data-theme="dark"] .admin-tab-btn.active,
+[data-theme="dark"] .admin-tab-btn[aria-selected="true"] {
+  color: #ffffff !important;
+  border-color: rgba(56, 189, 248, 0.45) !important;
+  background: linear-gradient(135deg, #6d28d9, #0284c7) !important;
+  box-shadow: 0 10px 24px rgba(14, 165, 233, 0.18) !important;
+}
+
+[data-theme="dark"] .admin-section-divider {
+  color: #cbd5e1 !important;
+}
+
+[data-theme="dark"] .admin-section-divider::before,
+[data-theme="dark"] .admin-section-divider::after {
+  background: rgba(148, 163, 184, 0.28) !important;
+}
+
+[data-theme="dark"] .manual-rubric-card,
+[data-theme="dark"] .rubric-table-note,
+[data-theme="dark"] .rubric-table-scroll,
+[data-theme="dark"] .manual-rubric-scroll,
+[data-theme="dark"] .scale-rubric-table {
+  color: #e5edf7 !important;
+  border-color: rgba(96, 165, 250, 0.24) !important;
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.96), rgba(17, 24, 39, 0.98)) !important;
+  box-shadow: 0 12px 30px rgba(2, 6, 23, 0.26) !important;
+}
+
+[data-theme="dark"] .manual-rubric-header h3,
+[data-theme="dark"] .rubric-toolbar h3,
+[data-theme="dark"] .manual-score-row label,
+[data-theme="dark"] .teacher-rubric-table th,
+[data-theme="dark"] .manual-rubric-input-table th {
+  color: #f8fafc !important;
+}
+
+[data-theme="dark"] .manual-rubric-header .section-kicker,
+[data-theme="dark"] .rubric-toolbar .section-kicker,
+[data-theme="dark"] #activitiesRubricsAdmin .section-kicker {
+  color: #93c5fd !important;
+}
+
+[data-theme="dark"] .manual-rubric-header .muted-text,
+[data-theme="dark"] .rubric-toolbar .muted-text,
+[data-theme="dark"] .rubric-table-note,
+[data-theme="dark"] .helper-note,
+[data-theme="dark"] .manual-rubric-status {
+  color: #cbd5e1 !important;
+}
+
+[data-theme="dark"] .rubric-import-badge {
+  color: #dbeafe !important;
+  border-color: rgba(96, 165, 250, 0.32) !important;
+  background: rgba(96, 165, 250, 0.14) !important;
+}
+
+[data-theme="dark"] .manual-score-row input,
+[data-theme="dark"] .manual-rubric-input-table textarea,
+[data-theme="dark"] .teacher-rubric-table input,
+[data-theme="dark"] .teacher-rubric-table select,
+[data-theme="dark"] .teacher-rubric-table textarea,
+[data-theme="dark"] .rubric-level-cell input,
+[data-theme="dark"] .rubric-level-cell textarea,
+[data-theme="dark"] .criterion-mini-grid input,
+[data-theme="dark"] .criterion-mini-grid select {
+  color: #f8fafc !important;
+  border-color: rgba(96, 165, 250, 0.24) !important;
+  background: rgba(2, 6, 23, 0.72) !important;
+}
+
+[data-theme="dark"] .manual-score-row input:focus,
+[data-theme="dark"] .manual-rubric-input-table textarea:focus,
+[data-theme="dark"] .teacher-rubric-table input:focus,
+[data-theme="dark"] .teacher-rubric-table select:focus,
+[data-theme="dark"] .teacher-rubric-table textarea:focus {
+  color: #ffffff !important;
+  border-color: #60a5fa !important;
+  background: rgba(2, 6, 23, 0.92) !important;
+  box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.18) !important;
+}
+
+[data-theme="dark"] .manual-rubric-input-table textarea::placeholder,
+[data-theme="dark"] .teacher-rubric-table textarea::placeholder,
+[data-theme="dark"] .rubric-level-cell textarea::placeholder {
+  color: #94a3b8 !important;
+}
+
+[data-theme="dark"] .manual-rubric-input-table th,
+[data-theme="dark"] .teacher-rubric-table thead th,
+[data-theme="dark"] .scale-rubric-head {
+  color: #f8fafc !important;
+  border-color: rgba(96, 165, 250, 0.22) !important;
+  background: rgba(30, 41, 59, 0.95) !important;
+}
+
+[data-theme="dark"] .manual-rubric-input-table td,
+[data-theme="dark"] .teacher-rubric-table td,
+[data-theme="dark"] .scale-level-row {
+  color: #e5edf7 !important;
+  border-color: rgba(96, 165, 250, 0.18) !important;
+  background: rgba(15, 23, 42, 0.88) !important;
+}
+
+[data-theme="dark"] .rubric-criterion-cell,
+[data-theme="dark"] .criterion-card,
+[data-theme="dark"] .manual-rubric-input-row {
+  color: #e5edf7 !important;
+  border-color: rgba(96, 165, 250, 0.2) !important;
+  background: rgba(15, 23, 42, 0.92) !important;
+}
+
+[data-theme="dark"] .criterion-number {
+  color: #dbeafe !important;
+  background: rgba(37, 99, 235, 0.28) !important;
+}
+
+[data-theme="dark"] .rubric-score-label,
+[data-theme="dark"] .teacher-rubric-table td::before,
+[data-theme="dark"] .manual-rubric-input-table td::before {
+  color: #93c5fd !important;
+}
+
+[data-theme="dark"] .remove-manual-rubric-row,
+[data-theme="dark"] .remove-criterion {
+  color: #fecdd3 !important;
+  border-color: rgba(251, 113, 133, 0.28) !important;
+  background: rgba(2, 6, 23, 0.72) !important;
+}
+
+[data-theme="dark"] .manual-rubric-status.success {
+  color: #86efac !important;
+}
+
+[data-theme="dark"] .manual-rubric-status.error {
+  color: #fecdd3 !important;
+}
+
+@media (max-width: 820px) {
+  .manual-rubric-input-table th:last-child,
+  .manual-rubric-input-table td:last-child,
+  .manual-rubric-row-action {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+
+  .remove-manual-rubric-row {
+    width: 100% !important;
+  }
+
+  [data-theme="dark"] #adminOverlay .modal-header {
+    color: #e5edf7 !important;
+    background: linear-gradient(180deg, rgba(15, 23, 42, 0.98), rgba(15, 23, 42, 0.94)) !important;
+  }
+
+  [data-theme="dark"] #adminOverlay .admin-tabs-wrap {
+    background: linear-gradient(180deg, rgba(15, 23, 42, 1), rgba(15, 23, 42, 0.92)) !important;
+  }
+}
+
+/* FINAL OUTPUT CONTROL MENU + RUBRIC BADGE FIT FIX */
+.ai-badge {
+  width: auto !important;
+  min-width: 64px !important;
+  height: 44px !important;
+  padding: 0 10px !important;
+  border-radius: 999px !important;
+  font-size: 0.82rem !important;
+  line-height: 1 !important;
+  text-align: center !important;
+  white-space: nowrap !important;
+  overflow: visible !important;
+}
+
+#previewControlsToggle.preview-controls-toggle {
+  width: 42px !important;
+  min-width: 42px !important;
+  height: 42px !important;
+  min-height: 42px !important;
+  padding: 0 !important;
+  border-radius: 50% !important;
+  font-size: 1.05rem !important;
+  line-height: 1 !important;
+  color: #0f2852 !important;
+  border: 1px solid rgba(147, 197, 253, 0.7) !important;
+  background: rgba(255, 255, 255, 0.92) !important;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.14) !important;
+}
+
+#previewControlsToggle.preview-controls-toggle:hover,
+#previewControlsToggle.preview-controls-toggle:focus-visible,
+.preview-actions.output-menu-open #previewControlsToggle.preview-controls-toggle {
+  color: #ffffff !important;
+  border-color: transparent !important;
+  background: linear-gradient(135deg, #2563eb, #06b6d4) !important;
+  outline: none !important;
+}
+
+[data-theme="dark"] #previewControlsToggle.preview-controls-toggle {
+  color: #e5edf7 !important;
+  border-color: rgba(96, 165, 250, 0.36) !important;
+  background: rgba(15, 23, 42, 0.9) !important;
+}
+
+@media (min-width: 761px) {
+  body.preview-fullscreen-active.preview-has-back-editor .preview-panel .preview-actions,
+  body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel .preview-actions,
+  #previewPanel:fullscreen .preview-actions,
+  #previewPanel:-webkit-full-screen .preview-actions {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    gap: 8px !important;
+    width: auto !important;
+    max-width: calc(100vw - 24px) !important;
+    padding: 6px !important;
+    border-radius: 999px !important;
+    transition: max-width 0.18s ease, background 0.18s ease, box-shadow 0.18s ease !important;
+  }
+
+  body.preview-fullscreen-active.preview-has-back-editor .preview-panel .preview-actions:not(.output-menu-open),
+  body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel .preview-actions:not(.output-menu-open) {
+    gap: 0 !important;
+    padding: 4px !important;
+    background: rgba(255, 255, 255, 0.62) !important;
+    border: 1px solid rgba(147, 197, 253, 0.48) !important;
+    box-shadow: 0 14px 34px rgba(15, 23, 42, 0.12) !important;
+    backdrop-filter: blur(12px) !important;
+  }
+
+  [data-theme="dark"] body.preview-fullscreen-active.preview-has-back-editor .preview-panel .preview-actions:not(.output-menu-open),
+  [data-theme="dark"] body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel .preview-actions:not(.output-menu-open) {
+    background: rgba(15, 23, 42, 0.62) !important;
+    border-color: rgba(96, 165, 250, 0.3) !important;
+  }
+
+  body.preview-fullscreen-active.preview-has-back-editor .preview-actions #previewControlsToggle:not(.hidden),
+  body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-actions #previewControlsToggle:not(.hidden),
+  #previewPanel:fullscreen .preview-actions #previewControlsToggle:not(.hidden),
+  #previewPanel:-webkit-full-screen .preview-actions #previewControlsToggle:not(.hidden) {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    pointer-events: auto !important;
+  }
+
+  body.preview-fullscreen-active.preview-has-back-editor .preview-actions:not(.output-menu-open) #backToEditorPreviewBtn,
+  body.preview-fullscreen-active.preview-has-back-editor .preview-actions:not(.output-menu-open) #resultFromPreviewBtn,
+  body.preview-fullscreen-active.preview-has-back-editor .preview-actions:not(.output-menu-open) #exitPreviewBtn,
+  body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-actions:not(.output-menu-open) #backToEditorPreviewBtn,
+  body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-actions:not(.output-menu-open) #resultFromPreviewBtn,
+  body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-actions:not(.output-menu-open) #exitPreviewBtn {
+    display: none !important;
+  }
+
+  body.preview-fullscreen-active.preview-has-back-editor .preview-actions.output-menu-open #backToEditorPreviewBtn,
+  body.preview-fullscreen-active.preview-has-back-editor .preview-actions.output-menu-open #resultFromPreviewBtn,
+  body.preview-fullscreen-active.preview-has-back-editor .preview-actions.output-menu-open #exitPreviewBtn,
+  body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-actions.output-menu-open #backToEditorPreviewBtn,
+  body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-actions.output-menu-open #resultFromPreviewBtn,
+  body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-actions.output-menu-open #exitPreviewBtn {
+    display: inline-flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+  }
+}
+
+@media (max-width: 760px) {
+  #previewControlsToggle.preview-controls-toggle {
+    display: none !important;
+  }
+}
+
+
+/* FINAL DESKTOP HEADER HOVER ACCOUNT STRIP
+   Desktop only: keep account actions hidden until the header is hovered/focused,
+   then slide them down smoothly. Phone/mobile menu rules remain unchanged. */
+@media (min-width: 821px) {
+  body.student-session-active .topbar.simplified-topbar,
+  body.student-session-active .topbar,
+  body.guest-session-active .topbar.simplified-topbar,
+  body.guest-session-active .topbar {
+    grid-template-rows: auto 0fr !important;
+    row-gap: 0 !important;
+    transition: grid-template-rows 0.24s ease, row-gap 0.24s ease, box-shadow 0.2s ease !important;
+  }
+
+  body.student-session-active .topbar:hover,
+  body.student-session-active .topbar:focus-within,
+  body.guest-session-active .topbar:hover,
+  body.guest-session-active .topbar:focus-within {
+    grid-template-rows: auto auto !important;
+    row-gap: 8px !important;
+  }
+
+  body.student-session-active .student-account-strip:not(.hidden),
+  body.guest-session-active .guest-account-strip:not(.hidden) {
+    max-height: 0 !important;
+    min-height: 0 !important;
+    height: auto !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    opacity: 0 !important;
+    overflow: hidden !important;
+    pointer-events: none !important;
+    transform: translateY(-12px) scaleY(0.96) !important;
+    transform-origin: top center !important;
+    border-color: transparent !important;
+    box-shadow: none !important;
+    transition:
+      max-height 0.26s ease,
+      min-height 0.26s ease,
+      padding 0.26s ease,
+      opacity 0.18s ease,
+      transform 0.26s ease,
+      border-color 0.2s ease,
+      box-shadow 0.2s ease !important;
+  }
+
+  body.student-session-active .topbar:hover .student-account-strip:not(.hidden),
+  body.student-session-active .topbar:focus-within .student-account-strip:not(.hidden),
+  body.guest-session-active .topbar:hover .guest-account-strip:not(.hidden),
+  body.guest-session-active .topbar:focus-within .guest-account-strip:not(.hidden) {
+    max-height: 58px !important;
+    min-height: 42px !important;
+    padding-top: 8px !important;
+    padding-bottom: 8px !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+    transform: translateY(0) scaleY(1) !important;
+  }
+
+  body.student-session-active .topbar:hover .student-account-strip:not(.hidden),
+  body.student-session-active .topbar:focus-within .student-account-strip:not(.hidden) {
+    border-color: rgba(147, 197, 253, 0.58) !important;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.75) !important;
+  }
+
+  [data-theme="dark"] body.student-session-active .topbar:hover .student-account-strip:not(.hidden),
+  [data-theme="dark"] body.student-session-active .topbar:focus-within .student-account-strip:not(.hidden) {
+    border-color: rgba(96, 165, 250, 0.3) !important;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.04),
+      0 10px 22px rgba(2, 6, 23, 0.2) !important;
+  }
+
+  /* Keep desktop title readable even when the student name is long. */
+  body.student-session-active #appTitleText {
+    font-size: clamp(1rem, 1.55vw, 1.48rem) !important;
+    line-height: 1.08 !important;
+    max-width: 100% !important;
+  }
+}
+
+
+/* FINAL FULL EDITOR STUDIO DEDUPE FIX: Format/Snapshot live only inside the Studio drawer. */
+#fullscreenFormatBtn,
+#fullscreenSnapshotBtn {
+  display: none !important;
+}
+
+
+/* PREMIUM FULLSCREEN EDITOR <-> OUTPUT TRANSITION */
+.fullscreen-book-transition-layer {
+  background:
+    radial-gradient(circle at 50% 46%, rgba(37, 99, 235, 0.22), transparent 30rem),
+    radial-gradient(circle at 50% 55%, rgba(34, 197, 94, 0.12), transparent 24rem),
+    linear-gradient(135deg, rgba(2, 6, 23, 0.14), rgba(15, 23, 42, 0.28)) !important;
+  backdrop-filter: blur(7px) saturate(1.25) !important;
+  animation: premiumTransitionLayerIn 1240ms cubic-bezier(0.16, 0.84, 0.22, 1) both !important;
+}
+
+.fullscreen-book-stage {
+  filter: drop-shadow(0 38px 82px rgba(15, 23, 42, 0.28));
+  animation: premiumStageFloat 1240ms cubic-bezier(0.16, 0.84, 0.22, 1) both !important;
+}
+
+.fullscreen-book-fixed-page,
+.fullscreen-book-turn-page {
+  background:
+    linear-gradient(120deg, rgba(255, 255, 255, 0.99), rgba(239, 246, 255, 0.98) 48%, rgba(191, 219, 254, 0.96)),
+    linear-gradient(180deg, transparent, rgba(37, 99, 235, 0.08)) !important;
+  box-shadow:
+    0 40px 120px rgba(15, 23, 42, 0.30),
+    inset 24px 0 34px rgba(255, 255, 255, 0.58),
+    inset -34px 0 46px rgba(37, 99, 235, 0.17) !important;
+}
+
+.fullscreen-book-highlight {
+  opacity: 0.86 !important;
+  background:
+    linear-gradient(108deg, transparent 0%, rgba(255, 255, 255, 0.86) 40%, rgba(255, 255, 255, 0.18) 50%, transparent 64%),
+    repeating-linear-gradient(0deg, rgba(37, 99, 235, 0.032) 0 2px, transparent 2px 15px) !important;
+  animation: premiumLightSweep 1240ms cubic-bezier(0.16, 0.84, 0.22, 1) both !important;
+}
+
+.fullscreen-book-edge {
+  width: 42px !important;
+  background: linear-gradient(90deg, transparent, rgba(96, 165, 250, 0.58), rgba(255, 255, 255, 0.72), rgba(96, 165, 250, 0.42), transparent) !important;
+  filter: blur(0.3px);
+  animation: premiumEdgePass 1240ms cubic-bezier(0.16, 0.84, 0.22, 1) both !important;
+}
+
+.fullscreen-book-caption {
+  left: 50% !important;
+  top: 50% !important;
+  bottom: auto !important;
+  transform: translate(-50%, -50%) scale(0.96) !important;
+  display: grid !important;
+  place-items: center !important;
+  min-width: min(520px, calc(100vw - 44px)) !important;
+  max-width: calc(100vw - 44px) !important;
+  min-height: 118px !important;
+  border: 1px solid rgba(147, 197, 253, 0.72) !important;
+  border-radius: 32px !important;
+  padding: 28px 34px !important;
+  color: #0f2852 !important;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.92), rgba(239, 246, 255, 0.80)),
+    radial-gradient(circle at top left, rgba(96, 165, 250, 0.24), transparent 18rem) !important;
+  backdrop-filter: blur(20px) saturate(1.35) !important;
+  box-shadow:
+    0 36px 110px rgba(15, 23, 42, 0.30),
+    inset 0 1px 0 rgba(255, 255, 255, 0.82) !important;
+  font-size: clamp(1.18rem, 2.35vw, 2rem) !important;
+  line-height: 1.08 !important;
+  text-align: center !important;
+  letter-spacing: -0.02em !important;
+  animation: premiumCenterCaption 1240ms cubic-bezier(0.16, 0.84, 0.22, 1) both !important;
+}
+
+.fullscreen-book-caption::before {
+  content: '🖥️';
+  display: grid;
+  place-items: center;
+  width: 54px;
+  height: 54px;
+  margin: 0 0 12px;
+  border-radius: 18px;
+  color: #ffffff;
+  background: linear-gradient(135deg, #2563eb, #06b6d4 58%, #22c55e);
+  box-shadow: 0 16px 42px rgba(37, 99, 235, 0.34);
+  font-size: 1.25rem;
+}
+
+.fullscreen-book-transition-layer.to-editor .fullscreen-book-caption::before {
+  content: '⌨️';
+}
+
+.fullscreen-book-caption::after {
+  content: 'Please wait...';
+  display: block;
+  margin-top: 11px;
+  color: #42627e;
+  font-size: clamp(0.74rem, 1.2vw, 0.88rem);
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.88;
+}
+
+.fullscreen-book-transition-layer.to-preview .fullscreen-book-turn-page {
+  animation: premiumBookTurnToPreview 1240ms cubic-bezier(0.16, 0.84, 0.22, 1) both !important;
+}
+
+.fullscreen-book-transition-layer.to-editor .fullscreen-book-turn-page {
+  animation: premiumBookTurnToEditor 1240ms cubic-bezier(0.16, 0.84, 0.22, 1) both !important;
+}
+
+.fullscreen-book-transition-layer.to-preview .fullscreen-book-fixed-page {
+  animation: premiumBookFixedToPreview 1240ms cubic-bezier(0.16, 0.84, 0.22, 1) both !important;
+}
+
+.fullscreen-book-transition-layer.to-editor .fullscreen-book-fixed-page {
+  animation: premiumBookFixedToEditor 1240ms cubic-bezier(0.16, 0.84, 0.22, 1) both !important;
+}
+
+body.editor-fullscreen-active.preview-inside-editor-fullscreen.book-preview-revealing #editorPanel .preview-panel {
+  animation: premiumPreviewReveal 560ms cubic-bezier(0.16, 0.84, 0.22, 1) both !important;
+  transform-origin: center center !important;
+  will-change: transform, opacity, filter !important;
+}
+
+body.editor-fullscreen-active.book-editor-revealing #editorPanel .language-tabs,
+body.editor-fullscreen-active.book-editor-revealing #editorPanel .html-page-manager,
+body.editor-fullscreen-active.book-editor-revealing #editorPanel .editor-wrap,
+body.editor-fullscreen-active.book-editor-revealing #fullscreenEditorActions,
+body.editor-fullscreen-active.book-editor-revealing #superStudioToolbar,
+body.editor-fullscreen-active.book-editor-revealing #codeHelperFloatingBtn {
+  animation: premiumEditorReveal 620ms cubic-bezier(0.16, 0.84, 0.22, 1) both !important;
+  transform-origin: center top !important;
+  will-change: transform, opacity, filter !important;
+}
+
+[data-theme="dark"] .fullscreen-book-transition-layer {
+  background:
+    radial-gradient(circle at 50% 46%, rgba(96, 165, 250, 0.18), transparent 30rem),
+    radial-gradient(circle at 50% 55%, rgba(34, 197, 94, 0.10), transparent 24rem),
+    linear-gradient(135deg, rgba(0, 0, 0, 0.40), rgba(2, 6, 23, 0.68)) !important;
+}
+
+[data-theme="dark"] .fullscreen-book-fixed-page,
+[data-theme="dark"] .fullscreen-book-turn-page {
+  background:
+    linear-gradient(120deg, rgba(15, 23, 42, 0.99), rgba(30, 41, 59, 0.98) 48%, rgba(37, 99, 235, 0.34)),
+    #0f172a !important;
+  box-shadow:
+    0 42px 120px rgba(0, 0, 0, 0.58),
+    inset 24px 0 34px rgba(255, 255, 255, 0.055),
+    inset -34px 0 46px rgba(96, 165, 250, 0.18) !important;
+}
+
+[data-theme="dark"] .fullscreen-book-caption {
+  color: #f8fafc !important;
+  border-color: rgba(96, 165, 250, 0.45) !important;
+  background:
+    linear-gradient(135deg, rgba(15, 23, 42, 0.92), rgba(30, 41, 59, 0.76)),
+    radial-gradient(circle at top left, rgba(96, 165, 250, 0.16), transparent 18rem) !important;
+  box-shadow:
+    0 36px 110px rgba(0, 0, 0, 0.60),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08) !important;
+}
+
+[data-theme="dark"] .fullscreen-book-caption::after {
+  color: #bfdbfe;
+}
+
+@keyframes premiumTransitionLayerIn {
+  0% { opacity: 0; }
+  12%, 86% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@keyframes premiumStageFloat {
+  0% { opacity: 0; transform: translateY(24px) scale(0.985); filter: blur(1.4px); }
+  12% { opacity: 1; }
+  50% { transform: translateY(0) scale(1); filter: blur(0); }
+  100% { opacity: 0; transform: translateY(-18px) scale(1.01); filter: blur(1px); }
+}
+
+@keyframes premiumCenterCaption {
+  0% { opacity: 0; transform: translate(-50%, -42%) scale(0.90); filter: blur(10px); }
+  14% { opacity: 1; transform: translate(-50%, -50%) scale(1); filter: blur(0); }
+  72% { opacity: 1; transform: translate(-50%, -50%) scale(1); filter: blur(0); }
+  100% { opacity: 0; transform: translate(-50%, -58%) scale(0.96); filter: blur(8px); }
+}
+
+@keyframes premiumBookTurnToPreview {
+  0% { opacity: 0; transform: translateX(62%) rotateY(-72deg) scaleX(0.94); filter: blur(2.2px) brightness(1.04); }
+  12% { opacity: 1; }
+  40% { opacity: 1; transform: translateX(-3%) rotateY(-7deg) scaleX(1); filter: blur(0) brightness(1); }
+  55% { opacity: 1; transform: translateX(-18%) rotateY(13deg) scaleX(1.018); filter: blur(0); }
+  100% { opacity: 0; transform: translateX(-118%) rotateY(64deg) scaleX(0.94); filter: blur(2px) brightness(1.08); }
+}
+
+@keyframes premiumBookTurnToEditor {
+  0% { opacity: 0; transform: translateX(-62%) rotateY(72deg) scaleX(0.94); filter: blur(2.2px) brightness(1.04); }
+  12% { opacity: 1; }
+  40% { opacity: 1; transform: translateX(3%) rotateY(7deg) scaleX(1); filter: blur(0) brightness(1); }
+  55% { opacity: 1; transform: translateX(18%) rotateY(-13deg) scaleX(1.018); filter: blur(0); }
+  100% { opacity: 0; transform: translateX(118%) rotateY(-64deg) scaleX(0.94); filter: blur(2px) brightness(1.08); }
+}
+
+@keyframes premiumBookFixedToPreview {
+  0% { opacity: 0.16; transform: translateX(12%) scale(0.982); filter: blur(1.2px); }
+  42% { opacity: 0.48; transform: translateX(1.5%) scale(0.996); filter: blur(0); }
+  58% { opacity: 0.68; transform: translateX(0) scale(1); filter: blur(0); }
+  100% { opacity: 0; transform: translateX(-5%) scale(1.014); filter: blur(1px); }
+}
+
+@keyframes premiumBookFixedToEditor {
+  0% { opacity: 0.16; transform: translateX(-12%) scale(0.982); filter: blur(1.2px); }
+  42% { opacity: 0.48; transform: translateX(-1.5%) scale(0.996); filter: blur(0); }
+  58% { opacity: 0.68; transform: translateX(0) scale(1); filter: blur(0); }
+  100% { opacity: 0; transform: translateX(5%) scale(1.014); filter: blur(1px); }
+}
+
+@keyframes premiumEdgePass {
+  0%, 100% { opacity: 0; transform: translateX(-50%) scaleX(0.55); }
+  40%, 58% { opacity: 0.78; transform: translateX(-50%) scaleX(2.25); }
+}
+
+@keyframes premiumLightSweep {
+  0% { opacity: 0; transform: translateX(28%); }
+  22%, 66% { opacity: 0.86; }
+  100% { opacity: 0; transform: translateX(-20%); }
+}
+
+@keyframes premiumPreviewReveal {
+  0% { opacity: 0; transform: translateY(18px) scale(0.972); filter: blur(10px) saturate(0.85); }
+  62% { opacity: 1; transform: translateY(-2px) scale(1.006); filter: blur(0) saturate(1.04); }
+  100% { opacity: 1; transform: translateY(0) scale(1); filter: none; }
+}
+
+@keyframes premiumEditorReveal {
+  0% { opacity: 0; transform: translateY(-18px) scale(0.985); filter: blur(8px) saturate(0.9); }
+  62% { opacity: 1; transform: translateY(2px) scale(1.004); filter: blur(0) saturate(1.03); }
+  100% { opacity: 1; transform: translateY(0) scale(1); filter: none; }
+}
+
+@media (max-width: 720px) {
+  .fullscreen-book-caption {
+    min-width: min(360px, calc(100vw - 28px)) !important;
+    min-height: 96px !important;
+    border-radius: 24px !important;
+    padding: 20px 22px !important;
+    font-size: 1.08rem !important;
+  }
+
+  .fullscreen-book-caption::before {
+    width: 44px;
+    height: 44px;
+    margin-bottom: 9px;
+    border-radius: 15px;
+    font-size: 1rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fullscreen-book-transition-layer,
+  .fullscreen-book-stage,
+  .fullscreen-book-highlight,
+  .fullscreen-book-edge,
+  .fullscreen-book-caption,
+  body.editor-fullscreen-active.preview-inside-editor-fullscreen.book-preview-revealing #editorPanel .preview-panel,
+  body.editor-fullscreen-active.book-editor-revealing #editorPanel .language-tabs,
+  body.editor-fullscreen-active.book-editor-revealing #editorPanel .html-page-manager,
+  body.editor-fullscreen-active.book-editor-revealing #editorPanel .editor-wrap,
+  body.editor-fullscreen-active.book-editor-revealing #fullscreenEditorActions,
+  body.editor-fullscreen-active.book-editor-revealing #superStudioToolbar,
+  body.editor-fullscreen-active.book-editor-revealing #codeHelperFloatingBtn {
+    animation-duration: 1ms !important;
+    transition-duration: 1ms !important;
+  }
+}
+
+
+/* FINAL STUDIO TOGGLE UX FIX */
+.studio-launcher.is-active {
+  color: #1e3a8a;
+  border-color: rgba(37, 99, 235, 0.3);
+  background: linear-gradient(135deg, #dbeafe, #e0f2fe) !important;
+  box-shadow: 0 8px 18px rgba(37, 99, 235, 0.12);
+}
+
+.studio-launcher.is-active strong {
+  color: #1e3a8a;
+}
+
+
+/* FINAL ACTIVITY POPUP + STUDENT RUBRIC VIEW */
+.activity-launch-btn.activity-empty {
+  color: #1d4ed8;
+  border-color: rgba(37, 99, 235, 0.25);
+  background: linear-gradient(135deg, #eff6ff, #f8fbff);
+}
+
+.activity-launch-btn.activity-selected {
+  color: #14532d;
+  border-color: rgba(34, 197, 94, 0.35);
+  background: linear-gradient(135deg, #dcfce7, #f0fdf4);
+}
+
+.activity-launch-btn.needs-attention {
+  color: #991b1b !important;
+  border-color: rgba(220, 38, 38, 0.35) !important;
+  background: linear-gradient(135deg, #fee2e2, #fff7ed) !important;
+}
+
+#activityCard.activity-popup:not(.collapsed-card) {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 12400 !important;
+  display: grid !important;
+  place-items: center !important;
+  width: 100% !important;
+  height: 100dvh !important;
+  margin: 0 !important;
+  padding: clamp(14px, 3vw, 28px) !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: rgba(2, 6, 23, 0.64) !important;
+  box-shadow: none !important;
+  backdrop-filter: blur(12px);
+  overflow: auto !important;
+  animation: activityBackdropIn 0.18s ease both;
+}
+
+.activity-popup-panel {
+  width: min(900px, 100%);
+  max-height: min(760px, calc(100dvh - 32px));
+  overflow: auto;
+  border: 1px solid var(--line-strong);
+  border-radius: 28px;
+  padding: clamp(18px, 3vw, 26px);
+  color: var(--text);
+  background: linear-gradient(145deg, var(--solid-card), var(--bg-2));
+  box-shadow: 0 26px 90px rgba(2, 6, 23, 0.38);
+  animation: activityPanelIn 0.24s cubic-bezier(.2,.9,.2,1) both;
+}
+
+.activity-popup-head,
+.activity-rubric-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.activity-popup-head h2,
+.activity-rubric-head h2 {
+  margin: 4px 0 6px;
+}
+
+.activity-close-btn,
+.activity-rubric-head .icon-btn {
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  min-height: 44px;
+  padding: 0;
+  font-size: 1.2rem;
+}
+
+.activity-popup-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 220px;
+  gap: 18px;
+  align-items: stretch;
+}
+
+.activity-popup .activity-main {
+  display: grid;
+  gap: 14px;
+}
+
+.activity-popup .activity-select-row {
+  display: grid;
+  grid-template-columns: 140px minmax(220px, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.activity-popup .activity-stats {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+}
+
+.activity-stat-card,
+.activity-stats > .activity-stat-card {
+  width: 100%;
+  min-width: 0;
+  min-height: 118px;
+  border: 1px solid var(--line-strong);
+  border-radius: 20px;
+  padding: 18px 14px;
+  color: var(--text);
+  background: var(--solid-card);
+  text-align: center;
+  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.08);
+}
+
+button.activity-stat-card {
+  cursor: pointer;
+}
+
+.criteria-stat-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.criteria-stat-card:not(.disabled)::after {
+  content: '';
+  position: absolute;
+  inset: auto 16px 12px;
+  height: 3px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--primary), #06b6d4);
+}
+
+.criteria-stat-card:hover,
+.criteria-stat-card:focus-visible {
+  border-color: var(--primary);
+  outline: none;
+  transform: translateY(-1px);
+  box-shadow: var(--shadow);
+}
+
+.criteria-stat-card.disabled {
+  cursor: not-allowed;
+  opacity: 0.78;
+}
+
+.stat-hint {
+  display: block;
+  margin-top: 7px;
+  color: var(--primary);
+  font-size: 0.76rem;
+  font-weight: 900;
+}
+
+.activity-rubric-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 12500;
+  display: grid;
+  place-items: center;
+  padding: clamp(12px, 3vw, 28px);
+  background: rgba(2, 6, 23, 0.68);
+  backdrop-filter: blur(12px);
+  overflow: auto;
+  animation: activityBackdropIn 0.18s ease both;
+}
+
+.activity-rubric-card {
+  width: min(1180px, 100%);
+  max-height: min(820px, calc(100dvh - 28px));
+  overflow: auto;
+  border: 1px solid var(--line-strong);
+  border-radius: 28px;
+  padding: clamp(18px, 3vw, 26px);
+  color: var(--text);
+  background: linear-gradient(145deg, var(--solid-card), var(--bg-2));
+  box-shadow: 0 26px 90px rgba(2, 6, 23, 0.4);
+  animation: activityPanelIn 0.24s cubic-bezier(.2,.9,.2,1) both;
+}
+
+.activity-rubric-table-wrap {
+  overflow: auto;
+  border: 1px solid var(--line-strong);
+  border-radius: 20px;
+  background: var(--solid-card);
+}
+
+.student-rubric-table {
+  width: 100%;
+  min-width: 860px;
+  border-collapse: collapse;
+}
+
+.student-rubric-table th,
+.student-rubric-table td {
+  border-bottom: 1px solid var(--line);
+  border-right: 1px solid var(--line);
+  padding: 14px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.student-rubric-table th:last-child,
+.student-rubric-table td:last-child {
+  border-right: 0;
+}
+
+.student-rubric-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  color: var(--text);
+  background: color-mix(in srgb, var(--primary-soft) 55%, var(--solid-card));
+  font-weight: 1000;
+}
+
+.student-rubric-table tbody th {
+  width: 220px;
+  color: var(--text);
+  background: color-mix(in srgb, var(--bg-2) 72%, var(--solid-card));
+  font-weight: 900;
+}
+
+.student-rubric-table tbody th span {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  margin-right: 8px;
+  border-radius: 999px;
+  color: #fff;
+  background: var(--primary);
+  font-size: 0.78rem;
+}
+
+.student-rubric-table td strong {
+  display: inline-flex;
+  margin-bottom: 7px;
+  border-radius: 999px;
+  padding: 4px 8px;
+  color: #1e3a8a;
+  background: var(--primary-soft);
+  font-size: 0.78rem;
+}
+
+.student-rubric-table td span {
+  display: block;
+  color: var(--muted);
+  line-height: 1.42;
+}
+
+[data-theme="dark"] .activity-launch-btn.activity-empty {
+  color: #dbeafe;
+  background: rgba(96, 165, 250, 0.14);
+}
+
+[data-theme="dark"] .activity-launch-btn.activity-selected {
+  color: #dcfce7;
+  background: rgba(34, 197, 94, 0.14);
+}
+
+[data-theme="dark"] .activity-popup-panel,
+[data-theme="dark"] .activity-rubric-card {
+  background: linear-gradient(145deg, #0f172a, #111827);
+}
+
+[data-theme="dark"] .student-rubric-table thead th {
+  background: #1e293b;
+}
+
+[data-theme="dark"] .student-rubric-table tbody th {
+  background: #111827;
+}
+
+[data-theme="dark"] .student-rubric-table td strong {
+  color: #dbeafe;
+  background: rgba(96, 165, 250, 0.18);
+}
+
+@keyframes activityBackdropIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes activityPanelIn {
+  from { opacity: 0; transform: translateY(18px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@media (max-width: 820px) {
+  .activity-popup-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .activity-popup .activity-select-row {
+    grid-template-columns: 1fr;
+  }
+
+  .activity-popup .activity-stats {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .activity-stat-card,
+  .activity-stats > .activity-stat-card {
+    min-height: 100px;
+  }
+}
+
+@media (max-width: 520px) {
+  .activity-popup .activity-stats {
+    grid-template-columns: 1fr;
+  }
+
+  .activity-popup-head,
+  .activity-rubric-head {
+    align-items: stretch;
+  }
+}
+
+/* Coach percentage is now labeled as a quick code health check, not a grade. */
+.studio-quality-chip::after {
+  content: 'not grade';
+  margin-left: 6px;
+  border-radius: 999px;
+  padding: 2px 6px;
+  color: var(--muted);
+  background: rgba(148, 163, 184, 0.16);
+  font-size: 0.64rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+
+/* FINAL ACTIVITY POPUP CENTERING + PREMIUM SPACING */
+body.activity-popup-open {
+  overflow: hidden !important;
+}
+
+#activityCard.activity-popup:not(.collapsed-card) {
+  left: 0 !important;
+  right: 0 !important;
+  top: 0 !important;
+  bottom: 0 !important;
+  width: 100vw !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  height: 100dvh !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: clamp(18px, 4vw, 44px) !important;
+}
+
+#activityCard.activity-popup:not(.collapsed-card) .activity-popup-panel {
+  width: min(980px, calc(100vw - clamp(36px, 8vw, 88px))) !important;
+  max-width: 980px !important;
+  margin: auto !important;
+  border-radius: 32px !important;
+  padding: clamp(22px, 3vw, 34px) !important;
+  transform-origin: center center !important;
+}
+
+#activityCard.activity-popup:not(.collapsed-card) .activity-popup-grid {
+  grid-template-columns: minmax(0, 1fr) minmax(210px, 250px) !important;
+  gap: clamp(18px, 3vw, 28px) !important;
+}
+
+#activityCard.activity-popup:not(.collapsed-card) .activity-popup-head {
+  margin-bottom: 22px !important;
+}
+
+#activityCard.activity-popup:not(.collapsed-card) .activity-select-row {
+  border-radius: 22px !important;
+  padding: 14px !important;
+  background: color-mix(in srgb, var(--bg-2) 74%, var(--solid-card)) !important;
+}
+
+#activityCard.activity-popup:not(.collapsed-card) .activity-stats {
+  gap: 14px !important;
+}
+
+#activityCard.activity-popup:not(.collapsed-card) .activity-stat-card {
+  min-height: 132px !important;
+  display: grid !important;
+  place-items: center !important;
+  align-content: center !important;
+}
+
+@media (min-width: 821px) {
+  #activityCard.activity-popup:not(.collapsed-card) .activity-popup-panel {
+    translate: 0 0 !important;
+  }
+}
+
+@media (max-width: 820px) {
+  #activityCard.activity-popup:not(.collapsed-card) {
+    align-items: flex-start !important;
+    padding: 14px !important;
+  }
+
+  #activityCard.activity-popup:not(.collapsed-card) .activity-popup-panel {
+    width: 100% !important;
+    max-height: calc(100dvh - 28px) !important;
+    border-radius: 24px !important;
+  }
+
+  #activityCard.activity-popup:not(.collapsed-card) .activity-popup-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+
+/* FINAL OUTPUT PREVIEW RESULT BUTTON */
+.preview-panel .preview-actions #resultFromPreviewBtn.preview-result-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  border-color: transparent;
+  background: linear-gradient(135deg, #16a34a, #22c55e);
+  box-shadow: 0 8px 18px rgba(22, 163, 74, 0.18);
+}
+
+.preview-panel .preview-actions #resultFromPreviewBtn.preview-result-btn:hover,
+.preview-panel .preview-actions #resultFromPreviewBtn.preview-result-btn:focus-visible {
+  color: #ffffff;
+  background: linear-gradient(135deg, #15803d, #16a34a);
+}
+
+html[data-device-mode="desktop"] .preview-panel .preview-actions #resultFromPreviewBtn {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: auto !important;
+  min-height: 38px !important;
+  padding: 0 14px !important;
+  font-size: 0.86rem !important;
+  white-space: nowrap !important;
+}
+
+html[data-device-mode="desktop"] .preview-panel .preview-actions #resultFromPreviewBtn.hidden,
+.preview-panel .preview-actions #resultFromPreviewBtn.hidden {
+  display: none !important;
 }

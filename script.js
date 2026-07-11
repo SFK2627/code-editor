@@ -46,7 +46,20 @@ const activityDescription = document.getElementById('activityDescription');
 const activitySelect = document.getElementById('activitySelect');
 const resetActivityCodeBtn = document.getElementById('resetActivityCodeBtn');
 const activityCard = document.getElementById('activityCard');
+const closeActivityCardBtn = document.getElementById('closeActivityCardBtn');
 const activityWarning = document.getElementById('activityWarning');
+const activityCriteriaStat = document.getElementById('activityCriteriaStat');
+const activityRubricOverlay = document.getElementById('activityRubricOverlay');
+const activityRubricTitle = document.getElementById('activityRubricTitle');
+const activityRubricMeta = document.getElementById('activityRubricMeta');
+const activityRubricTable = document.getElementById('activityRubricTable');
+const closeActivityRubricBtn = document.getElementById('closeActivityRubricBtn');
+
+// Keep activity dialogs attached to <body> so fixed overlays center to the real viewport,
+// not to the app shell/header layout.
+[activityCard, activityRubricOverlay].forEach(dialog => {
+  if (dialog && dialog.parentElement !== document.body) document.body.appendChild(dialog);
+});
 const stepActivityBtn = document.getElementById('stepActivityBtn');
 const stepCodeBtn = document.getElementById('stepCodeBtn');
 const stepRunBtn = document.getElementById('stepRunBtn');
@@ -594,7 +607,7 @@ let previewOriginalParent = null;
 let previewOriginalNextSibling = null;
 let previewMovedIntoEditor = false;
 let previewCloseToEditorTimer = null;
-const FULLSCREEN_PAGE_TRANSITION_MS = 1040;
+const FULLSCREEN_PAGE_TRANSITION_MS = 1240;
 const FULLSCREEN_PAGE_SWAP_MS = 450;
 let fullscreenPageTransitionBusy = false;
 
@@ -2242,18 +2255,47 @@ function studentIdToAuthEmail(value) {
 }
 
 function getStudentFirstName(name) {
-  const cleaned = String(name || 'Student').trim();
+  const cleaned = String(name || 'Student').trim().replace(/\s+/g, ' ');
   if (!cleaned) return 'Student';
 
-  // Student names are often encoded as: SURNAME, First Second.
-  // Show only the first given name after the comma, e.g. "Tubello, Juan Mark" -> "Juan".
-  if (cleaned.includes(',')) {
-    const afterComma = cleaned.split(',').slice(1).join(',').trim();
-    const givenName = afterComma.split(/\s+/).filter(Boolean)[0];
-    if (givenName) return givenName.replace(/[,.]+$/g, '');
-  }
+  const suffixes = new Set(['JR', 'JR.', 'SR', 'SR.', 'II', 'III', 'IV', 'V']);
+  const safeSecondGivenNames = new Set([
+    'AIRA', 'AIRAH', 'AIZA', 'ALEX', 'ALEXA', 'ALEXANDRA', 'ALIYAH', 'ALLYSA', 'ALYSSA', 'ANGEL', 'ANGELA', 'ANGELICA', 'ANGELIKA', 'ANGELINE', 'ANNE', 'ANN', 'ARA', 'ARIEL',
+    'BEA', 'BELLE', 'BIANCA', 'CAMILLE', 'CARL', 'CARLA', 'CARLO', 'CHRISTIAN', 'CHRISTINE', 'CLAIRE', 'CRIS', 'DANIEL', 'DANIELLE', 'DENISE', 'ELLA', 'ELLE', 'FAITH',
+    'GABRIEL', 'GABRIELLE', 'GRACE', 'GWEN', 'HANNAH', 'JAMES', 'JANE', 'JANELLE', 'JASMINE', 'JAY', 'JAYR', 'JEAN', 'JEN', 'JENNY', 'JOHN', 'JOSE', 'JOSEPH',
+    'JOY', 'JOYCE', 'JULIA', 'JUSTINE', 'KATE', 'KAYE', 'KAYLA', 'KAYE', 'KIM', 'KYLE', 'KYLA', 'LEA', 'LEAH', 'LOUIE', 'LOUISE', 'LYN', 'LYNN', 'MAE', 'MAI',
+    'MARIA', 'MARIE', 'MARK', 'MARY', 'MAY', 'MICA', 'MICAH', 'MICHELLE', 'MIKA', 'NICOLE', 'PAUL', 'PAULA', 'PRINCESS', 'QUEEN', 'REI', 'REY', 'ROSE', 'SAM',
+    'SAMANTHA', 'SHAINE', 'SHANE', 'SOFIA', 'SOPHIA', 'TRISHA', 'VAN', 'VANESSA', 'VIA', 'VINCENT', 'YNA'
+  ]);
+  const familyConnectors = new Set(['DE', 'DEL', 'DELA', 'DELOS', 'LAS', 'LOS', 'SAN', 'SANTA', 'SANTO']);
 
-  return (cleaned.split(/\s+/).filter(Boolean)[0] || 'Student').replace(/[,.]+$/g, '') || 'Student';
+  const cleanToken = token => String(token || '')
+    .replace(/^[^A-Za-zÀ-ž0-9]+|[^A-Za-zÀ-ž0-9.\-']+$/g, '')
+    .trim();
+  const normalizeToken = token => cleanToken(token).replace(/\.+$/g, '').toUpperCase();
+  const isInitial = token => /^[A-Za-zÀ-ž]\.?$/.test(cleanToken(token));
+  const isSuffix = token => suffixes.has(cleanToken(token).toUpperCase());
+  const isSafeSecondName = token => {
+    const raw = cleanToken(token);
+    const normalized = normalizeToken(raw);
+    return Boolean(raw)
+      && !isInitial(raw)
+      && !isSuffix(raw)
+      && !familyConnectors.has(normalized)
+      && (raw.includes('-') || safeSecondGivenNames.has(normalized));
+  };
+
+  // Student names are often encoded as: SURNAME, First Second Middle.
+  // Show the first given name and only one safe second given name.
+  // This avoids middle initials like "M." and family-name connectors like "Dela".
+  const usablePart = cleaned.includes(',')
+    ? cleaned.split(',').slice(1).join(',').trim()
+    : cleaned;
+  const tokens = usablePart.split(/\s+/).map(cleanToken).filter(Boolean).filter(token => !isSuffix(token));
+  const first = tokens[0] || 'Student';
+  const second = tokens[1] || '';
+  const displayName = isSafeSecondName(second) ? `${first} ${second}` : first;
+  return displayName.replace(/[,.]+$/g, '') || 'Student';
 }
 
 function timestampToDate(value) {
@@ -2396,8 +2438,8 @@ function updateAppHeaderForSession() {
 
   if (isStudent) {
     const firstName = getStudentFirstName(appSession.student.name);
-    if (appTitleText) appTitleText.textContent = 'A tool for every Grade 8 MCSian.';
-    if (appSubtitleText) appSubtitleText.textContent = `Hi, ${firstName}!`;
+    if (appTitleText) appTitleText.textContent = `A tool for ${firstName}, Let's Code!`;
+    if (appSubtitleText) appSubtitleText.textContent = 'Developed by Sir JR';
     if (headerStudentGreeting) headerStudentGreeting.textContent = `Hi, ${firstName}!`;
     if (menuStudentGreeting) menuStudentGreeting.textContent = `Hi, ${firstName}!`;
     setStudentSaveState(appSession.currentProjectId ? 'Saved' : 'Choose a project');
@@ -2522,18 +2564,39 @@ async function recordStudentLogin() {
 
 async function activateStudentSession(profile, { showDashboard = true } = {}) {
   if (!profile) return;
+
+  // Keep the editor hidden while login is being promoted to the correct
+  // student route. Previously, the app removed the login/gate first and
+  // then waited for Firebase login tracking, so the editor could flash for
+  // a moment before the Projects page appeared.
+  document.body.classList.add('student-route-lock');
+
   appSession.mode = 'student';
   appSession.student = profile;
   appSession.existingStudentUser = firebaseSync.auth?.currentUser || firebaseSync.currentUser;
-  hideEntryGate();
-  closeStudentLogin();
   updateAppHeaderForSession();
-  await recordStudentLogin();
-  if (profile.mustChangePassword !== false) {
-    showPasswordChange();
-    return;
+
+  const loginTracker = recordStudentLogin().catch(error => {
+    console.warn('Could not record student login before showing the dashboard.', error);
+  });
+
+  try {
+    if (profile.mustChangePassword !== false) {
+      showPasswordChange();
+      await loginTracker;
+      return;
+    }
+
+    if (showDashboard) {
+      await showStudentDashboard();
+    } else {
+      hideEntryGate();
+      closeStudentLogin();
+    }
+    await loginTracker;
+  } finally {
+    document.body.classList.remove('student-route-lock');
   }
-  if (showDashboard) await showStudentDashboard();
 }
 
 async function deleteCurrentAuthUserQuietly(user) {
@@ -4870,22 +4933,93 @@ ${bodyScriptBlock}
 </html>`;
 }
 
-function getTopbarSafeOffset() {
-  const topbar = document.querySelector('.topbar');
-  const topbarHeight = topbar ? topbar.getBoundingClientRect().height : 0;
-  return Math.ceil(topbarHeight + 14);
+function getCollapsedTopbarHeight(topbar) {
+  if (!topbar) return 0;
+  const brandHeight = topbar.querySelector('.brand-block')?.getBoundingClientRect().height || 0;
+  const actionsHeight = topbar.querySelector('.top-actions')?.getBoundingClientRect().height || 0;
+  const styles = window.getComputedStyle(topbar);
+  const paddingY = (parseFloat(styles.paddingTop) || 0) + (parseFloat(styles.paddingBottom) || 0);
+  const borderY = (parseFloat(styles.borderTopWidth) || 0) + (parseFloat(styles.borderBottomWidth) || 0);
+  return Math.ceil(Math.max(brandHeight, actionsHeight, 42) + paddingY + borderY);
 }
 
-function scrollElementIntoSafeView(element, delay = 80) {
+function getTopbarSafeOffset(options = {}) {
+  const topbar = document.querySelector('.topbar');
+  if (!topbar) return options.tight ? 8 : 14;
+
+  let topbarHeight = topbar.getBoundingClientRect().height || 0;
+  const isDesktop = window.matchMedia?.('(min-width: 821px)').matches ?? window.innerWidth >= 821;
+  const accountStripCanSlide = isDesktop && (
+    document.body.classList.contains('student-session-active') ||
+    document.body.classList.contains('guest-session-active')
+  );
+
+  // Desktop account strip slides down only on hover. It should not make Run stop
+  // too low. Use the collapsed header height as the safe offset while aligning
+  // Output Preview or Result panels.
+  if (options.preferCollapsedHeader && accountStripCanSlide) {
+    const collapsedHeight = getCollapsedTopbarHeight(topbar);
+    if (collapsedHeight > 0) topbarHeight = Math.min(topbarHeight, collapsedHeight);
+  }
+
+  return Math.ceil(topbarHeight + (options.tight ? 4 : 12));
+}
+
+function getViewportSafeTop(options = {}) {
+  const topbar = document.querySelector('.topbar');
+  const margin = options.tight ? 4 : 10;
+  if (!topbar) return margin;
+
+  const rect = topbar.getBoundingClientRect();
+  const isVisible = rect.bottom > 0 && rect.top < window.innerHeight;
+  if (!isVisible) return margin;
+
+  const isDesktop = window.matchMedia?.('(min-width: 821px)').matches ?? window.innerWidth >= 821;
+  const accountStripCanSlide = isDesktop && (
+    document.body.classList.contains('student-session-active') ||
+    document.body.classList.contains('guest-session-active')
+  );
+
+  if (options.preferCollapsedHeader && accountStripCanSlide) {
+    return Math.ceil(Math.max(0, rect.top) + getCollapsedTopbarHeight(topbar) + margin);
+  }
+
+  return Math.ceil(Math.max(0, rect.bottom) + margin);
+}
+
+function alignElementToViewportTop(element, options = {}) {
   if (!element) return;
+  const desiredTop = getViewportSafeTop(options);
+  const currentTop = element.getBoundingClientRect().top;
+  const delta = currentTop - desiredTop;
+  if (Math.abs(delta) < 2) return;
+  window.scrollBy({ top: delta, behavior: options.instant ? 'auto' : 'smooth' });
+}
+
+function scrollElementIntoSafeView(element, delay = 80, options = {}) {
+  if (!element) return;
+
   window.setTimeout(() => {
-    const top = element.getBoundingClientRect().top + window.scrollY - getTopbarSafeOffset();
-    window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+    alignElementToViewportTop(element, { ...options, instant: options.instant });
+
+    const correctionDelays = Array.isArray(options.correctionDelays)
+      ? options.correctionDelays
+      : (options.secondPass ? [Number.isFinite(options.secondPassDelay) ? options.secondPassDelay : 260] : []);
+
+    correctionDelays.forEach(passDelay => {
+      window.setTimeout(() => {
+        alignElementToViewportTop(element, { ...options, instant: true });
+      }, passDelay);
+    });
   }, delay);
 }
 
 function scrollToOutput() {
-  scrollElementIntoSafeView(previewPanel, 80);
+  scrollElementIntoSafeView(previewPanel, 40, {
+    tight: true,
+    preferCollapsedHeader: true,
+    correctionDelays: [180, 380, 700]
+  });
 }
 
 function playBookPageTransition(direction = 'to-preview') {
@@ -4977,8 +5111,8 @@ function runSmoothFullscreenBookTransition({ direction = 'to-preview', label = '
   document.body.classList.add('fullscreen-book-transition-active');
   layer.classList.add('is-running');
 
-  const swapDelay = direction === 'to-editor' ? 470 : 450;
-  const doneDelay = 1040;
+  const swapDelay = direction === 'to-editor' ? 560 : 540;
+  const doneDelay = 1240;
 
   const swapTimer = window.setTimeout(() => {
     layer.classList.add('has-swapped');
@@ -6484,6 +6618,77 @@ function resetResultPanel() {
   `;
 }
 
+
+function updateActivityButtonState() {
+  if (!stepActivityBtn) return;
+  const hasActivity = Boolean(activity);
+  stepActivityBtn.classList.toggle('activity-selected', hasActivity);
+  stepActivityBtn.classList.toggle('activity-empty', !hasActivity);
+  if (!stepActivityBtn.classList.contains('needs-attention')) {
+    stepActivityBtn.classList.toggle('needs-attention', !hasActivity && activityWarning && !activityWarning.classList.contains('hidden'));
+  }
+  stepActivityBtn.innerHTML = hasActivity ? '✅ Activity Set' : '📌 Choose Activity';
+  stepActivityBtn.title = hasActivity ? `Selected activity: ${activity.title}` : 'Choose an activity before checking Result';
+  stepActivityBtn.setAttribute('aria-label', hasActivity ? `Activity selected: ${activity.title}` : 'Choose activity');
+}
+
+function getActivityRubricHTML(sourceActivity) {
+  if (!sourceActivity || !Array.isArray(sourceActivity.criteria) || !sourceActivity.criteria.length) {
+    return '<div class="empty-projects-card"><h3>No rubric yet</h3><p>Your teacher has not added rubric criteria for this activity.</p></div>';
+  }
+  const rows = sourceActivity.criteria.map((criterion, index) => {
+    const normalized = normalizeCriterion(criterion);
+    const levelCells = rubricLevels.map(level => {
+      const levelData = getCriterionLevel(normalized, level.key);
+      const description = levelData.description || defaultLevelDescriptions[level.key] || 'No description set.';
+      const points = Number(levelData.points);
+      return `
+        <td>
+          <strong>${Number.isFinite(points) ? `${formatPoints(points)} pts` : '—'}</strong>
+          <span>${escapeHTML(description)}</span>
+        </td>
+      `;
+    }).join('');
+    return `
+      <tr>
+        <th scope="row"><span>${index + 1}</span>${escapeHTML(normalized.title)}</th>
+        ${levelCells}
+      </tr>
+    `;
+  }).join('');
+  return `
+    <table class="student-rubric-table">
+      <thead>
+        <tr>
+          <th>Criteria</th>
+          ${rubricLevels.map(level => `<th>${escapeHTML(level.label)}</th>`).join('')}
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
+}
+
+function openActivityRubricModal() {
+  if (!activity) {
+    showActivityRequiredWarning();
+    return;
+  }
+  if (!activityRubricOverlay || !activityRubricTable) return;
+  const possible = activity.criteria.reduce((sum, criterion) => sum + getCriterionPossiblePoints(criterion), 0);
+  if (activityRubricTitle) activityRubricTitle.textContent = activity.title || 'Activity Rubric';
+  if (activityRubricMeta) activityRubricMeta.textContent = `${formatPoints(possible)} total points • ${activity.criteria.length} rubric item${activity.criteria.length === 1 ? '' : 's'} • This is the full teacher rubric.`;
+  activityRubricTable.innerHTML = getActivityRubricHTML(activity);
+  activityRubricOverlay.classList.remove('hidden');
+  document.body.classList.add('activity-rubric-open');
+  window.setTimeout(() => closeActivityRubricBtn?.focus(), 30);
+}
+
+function closeActivityRubricModal() {
+  activityRubricOverlay?.classList.add('hidden');
+  document.body.classList.remove('activity-rubric-open');
+}
+
 function renderActivitySelector() {
   if (!activitySelect) return;
   const placeholder = `<option value="" ${activity ? '' : 'selected'}>Select an activity first...</option>`;
@@ -6513,7 +6718,9 @@ function renderActivitySummary() {
     activityDescription.textContent = 'Choose an activity first. Run Code still works, but score and feedback need a selected activity/rubric.';
     totalPoints.textContent = '0';
     criteriaCount.textContent = '0';
+    activityCriteriaStat?.classList.add('disabled');
     renderActivitySelector();
+    updateActivityButtonState();
     return;
   }
 
@@ -6522,7 +6729,9 @@ function renderActivitySummary() {
   activityDescription.textContent = activity.description;
   totalPoints.textContent = formatPoints(possible);
   criteriaCount.textContent = activity.criteria.length;
+  activityCriteriaStat?.classList.remove('disabled');
   renderActivitySelector();
+  updateActivityButtonState();
   clearActivityRequiredWarning();
 }
 
@@ -6641,9 +6850,9 @@ function ensurePreviewResultBtn() {
     button = document.createElement('button');
     button.id = 'resultFromPreviewBtn';
     button.type = 'button';
-    button.className = 'layout-btn strong preview-result-btn hidden';
+    button.className = 'layout-btn strong preview-result-btn';
     button.textContent = '✓ Result';
-    button.title = 'Check result without going back to the editor';
+    button.title = 'Check result from Output Preview';
     const actions = previewPanel?.querySelector('.preview-actions');
     const backButton = document.getElementById('backToEditorPreviewBtn');
     if (actions && exitPreviewBtn) {
@@ -6656,6 +6865,45 @@ function ensurePreviewResultBtn() {
     button.addEventListener('click', showResultFromPreview);
   }
   return button;
+}
+
+function ensurePreviewControlsToggle() {
+  let button = document.getElementById('previewControlsToggle');
+  const actions = previewPanel?.querySelector('.preview-actions');
+  if (!button) {
+    button = document.createElement('button');
+    button.id = 'previewControlsToggle';
+    button.type = 'button';
+    button.className = 'layout-btn preview-controls-toggle hidden';
+    button.textContent = '🖥️';
+    button.title = 'Show output controls';
+    button.setAttribute('aria-label', 'Show output controls');
+    button.setAttribute('aria-expanded', 'false');
+    button.addEventListener('click', event => {
+      event.preventDefault();
+      event.stopPropagation();
+      const controls = previewPanel?.querySelector('.preview-actions');
+      const isOpen = controls?.classList.toggle('output-menu-open');
+      button.setAttribute('aria-expanded', String(Boolean(isOpen)));
+      button.title = isOpen ? 'Hide output controls' : 'Show output controls';
+      button.setAttribute('aria-label', isOpen ? 'Hide output controls' : 'Show output controls');
+    });
+  }
+  if (actions && button.parentElement !== actions) {
+    actions.insertBefore(button, actions.firstChild);
+  }
+  return button;
+}
+
+function setPreviewControlsMenu(open) {
+  const actions = previewPanel?.querySelector('.preview-actions');
+  const toggle = document.getElementById('previewControlsToggle');
+  actions?.classList.toggle('output-menu-open', Boolean(open));
+  if (toggle) {
+    toggle.setAttribute('aria-expanded', String(Boolean(open)));
+    toggle.title = open ? 'Hide output controls' : 'Show output controls';
+    toggle.setAttribute('aria-label', open ? 'Hide output controls' : 'Show output controls');
+  }
 }
 
 function showResultFromPreview() {
@@ -6701,8 +6949,11 @@ function enterFullPreview(options = {}) {
   returnToFullEditorAfterPreview = fromFullEditor;
   const backButton = ensureBackToEditorPreviewBtn();
   const previewResultButton = ensurePreviewResultBtn();
+  const previewControlsToggle = ensurePreviewControlsToggle();
   backButton?.classList.toggle('hidden', !fromFullEditor);
   previewResultButton?.classList.toggle('hidden', !fromFullEditor);
+  previewControlsToggle?.classList.toggle('hidden', !fromFullEditor);
+  setPreviewControlsMenu(false);
 
   document.body.classList.add('preview-fullscreen-active');
   document.body.classList.toggle('preview-has-back-editor', fromFullEditor);
@@ -6768,7 +7019,10 @@ function exitFullPreview(options = {}) {
   fullPreviewBtn?.classList.remove('hidden');
   exitPreviewBtn?.classList.add('hidden');
   ensureBackToEditorPreviewBtn()?.classList.add('hidden');
-  ensurePreviewResultBtn()?.classList.add('hidden');
+  if (isInsideEditorFullscreen) ensurePreviewResultBtn()?.classList.add('hidden');
+  else ensurePreviewResultBtn()?.classList.remove('hidden');
+  ensurePreviewControlsToggle()?.classList.add('hidden');
+  setPreviewControlsMenu(false);
 
   if (isInsideEditorFullscreen) {
     restorePreviewPanelFromEditorFullscreen();
@@ -6965,6 +7219,8 @@ function restoreEditorFullscreenAfterPreview() {
   exitPreviewBtn?.classList.add('hidden');
   ensureBackToEditorPreviewBtn()?.classList.add('hidden');
   ensurePreviewResultBtn()?.classList.add('hidden');
+  ensurePreviewControlsToggle()?.classList.add('hidden');
+  setPreviewControlsMenu(false);
   forceFullEditorControlsVisible();
   fitEditorToContent();
 }
@@ -6990,6 +7246,7 @@ function enterFullEditor() {
   document.getElementById('exitEditorStickyBtn')?.classList.remove('hidden');
   document.getElementById('fullscreenRunBtn')?.classList.remove('hidden');
   document.getElementById('fullscreenResultBtn')?.classList.remove('hidden');
+  ensurePreviewResultBtn()?.classList.add('hidden');
   hideSuggestions();
 
   const isSmallScreen = window.matchMedia('(max-width: 820px)').matches;
@@ -7018,6 +7275,7 @@ function exitFullEditor(options = {}) {
   document.getElementById('exitEditorStickyBtn')?.classList.add('hidden');
   document.getElementById('fullscreenRunBtn')?.classList.add('hidden');
   document.getElementById('fullscreenResultBtn')?.classList.add('hidden');
+  if (!document.body.classList.contains('preview-fullscreen-active')) ensurePreviewResultBtn()?.classList.remove('hidden');
   hideSuggestions();
 
   if (!options.fromNative && document.fullscreenElement && document.exitFullscreen) {
@@ -8842,21 +9100,27 @@ function saveNow() {
 function setActivityCardOpen(isOpen) {
   if (!activityCard || !stepActivityBtn) return;
   activityCard.classList.toggle('collapsed-card', !isOpen);
+  document.body.classList.toggle('activity-popup-open', Boolean(isOpen));
   stepActivityBtn.setAttribute('aria-expanded', String(isOpen));
+  if (isOpen) {
+    window.setTimeout(() => activitySelect?.focus(), 40);
+  }
 }
 
 function toggleActivityCard() {
   const isHidden = activityCard?.classList.contains('collapsed-card');
   setActivityCardOpen(Boolean(isHidden));
-  if (isHidden) {
-    scrollElementIntoSafeView(activityCard);
-  }
+}
+
+function closeActivityCard() {
+  setActivityCardOpen(false);
 }
 
 function clearActivityRequiredWarning() {
   stepActivityBtn?.classList.remove('needs-attention');
   activityCard?.classList.remove('needs-attention');
   activityWarning?.classList.add('hidden');
+  updateActivityButtonState();
 }
 
 function showActivityRequiredWarning() {
@@ -8864,7 +9128,7 @@ function showActivityRequiredWarning() {
   stepActivityBtn?.classList.add('needs-attention');
   activityCard?.classList.add('needs-attention');
   activityWarning?.classList.remove('hidden');
-  scrollElementIntoSafeView(activityCard);
+  updateActivityButtonState();
 }
 
 function focusEditorStep() {
@@ -9549,6 +9813,23 @@ tabButtons.forEach(button => {
 });
 
 if (stepActivityBtn) stepActivityBtn.addEventListener('click', toggleActivityCard);
+closeActivityCardBtn?.addEventListener('click', closeActivityCard);
+activityCard?.addEventListener('click', event => {
+  if (event.target === activityCard) closeActivityCard();
+});
+activityCriteriaStat?.addEventListener('click', openActivityRubricModal);
+activityRubricOverlay?.addEventListener('click', event => {
+  if (event.target === activityRubricOverlay) closeActivityRubricModal();
+});
+closeActivityRubricBtn?.addEventListener('click', closeActivityRubricModal);
+document.addEventListener('keydown', event => {
+  if (event.key !== 'Escape') return;
+  if (activityRubricOverlay && !activityRubricOverlay.classList.contains('hidden')) {
+    closeActivityRubricModal();
+    return;
+  }
+  if (activityCard && !activityCard.classList.contains('collapsed-card')) closeActivityCard();
+});
 if (stepCodeBtn) stepCodeBtn.addEventListener('click', focusEditorStep);
 if (stepRunBtn) stepRunBtn.addEventListener('click', () => runCode());
 if (stepResultBtn) stepResultBtn.addEventListener('click', showResult);
@@ -9561,7 +9842,7 @@ desktopPreviewBtn?.addEventListener('click', toggleDesktopPreviewMode);
 fullPreviewBtn.addEventListener('click', enterFullPreview);
 exitPreviewBtn.addEventListener('click', () => exitFullPreview({ closeEditorFullscreen: true }));
 ensureBackToEditorPreviewBtn();
-ensurePreviewResultBtn();
+ensurePreviewResultBtn()?.classList.remove('hidden');
 if (zoomOutBtn) zoomOutBtn.addEventListener('click', () => changeEditorZoom(-1));
 if (zoomInBtn) zoomInBtn.addEventListener('click', () => changeEditorZoom(1));
 if (zoomResetBtn) zoomResetBtn.addEventListener('click', resetEditorZoom);
@@ -10275,6 +10556,20 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
       : false;
   }
 
+
+  function renderStudioLauncherState() {
+    const launcher = document.getElementById('superStudioLauncher');
+    if (!launcher) return;
+    const enabled = isSuperStudioEnabled();
+    const isOpen = enabled && studioDrawerOpen;
+    launcher.classList.toggle('is-active', isOpen);
+    launcher.setAttribute('aria-pressed', isOpen ? 'true' : 'false');
+    launcher.title = isOpen ? 'Hide Super Studio tools' : 'Open optional Super Studio tools';
+    launcher.innerHTML = isOpen
+      ? '<span>✖</span><strong>Hide Studio</strong>'
+      : '<span>🚀</span><strong>Studio</strong>';
+  }
+
   function placeStudioLauncher() {
     const launcher = document.getElementById('superStudioLauncher');
     const languageTabs = editorPanel.querySelector('.language-tabs');
@@ -10317,9 +10612,9 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     launcher.id = 'superStudioLauncher';
     launcher.type = 'button';
     launcher.className = 'ghost-btn studio-launcher studio-launcher-desktop';
-    launcher.innerHTML = '<span>🚀</span><strong>Studio</strong>';
-    launcher.title = 'Open optional Super Studio tools';
+    launcher.setAttribute('aria-pressed', 'false');
     languageTabs.appendChild(launcher);
+    renderStudioLauncherState();
     placeStudioLauncher();
 
     const toolbar = document.createElement('div');
@@ -10328,7 +10623,7 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     toolbar.innerHTML = `
       <div class="studio-toolbar-left">
         <span class="studio-badge studio-badge-hot">Super Studio</span>
-        <span id="studioQualityChip" class="studio-quality-chip">Quality --</span>
+        <span id="studioQualityChip" class="studio-quality-chip">Code Health --</span>
         <span id="studioLinesChip" class="studio-mini-chip">0 lines</span>
         <span id="studioRunChip" class="studio-mini-chip">Not run yet</span>
       </div>
@@ -10338,7 +10633,6 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
         <button id="studioSnapshotBtn" class="ghost-btn studio-btn" type="button" title="Save a restorable code checkpoint">Snapshot</button>
         <button id="studioRestoreBtn" class="ghost-btn studio-btn" type="button" title="Restore or delete snapshots">Restore</button>
         <button id="studioCommandBtn" class="ghost-btn studio-btn strong" type="button" title="Open command palette: Ctrl+K">Commands</button>
-        <button id="studioHideBtn" class="ghost-btn studio-btn" type="button" title="Hide Super Studio tools">Hide</button>
       </div>
     `;
     languageTabs.insertAdjacentElement('afterend', toolbar);
@@ -10349,7 +10643,7 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     coach.setAttribute('aria-label', 'Super Studio live coach');
     coach.innerHTML = `
       <div class="studio-score-card">
-        <div class="studio-score-ring"><span id="studioQualityValue">--</span><small>%</small></div>
+        <div class="studio-score-ring" title="Code Health is a quick coach check, not the final grade."><span id="studioQualityValue">--</span><small>%</small></div>
         <div>
           <p class="section-kicker">Live Coach</p>
           <h3 id="studioCoachTitle">Ready to guide the student</h3>
@@ -10728,15 +11022,15 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     const blockers = quality.items.filter(item => item.type === 'error' || item.type === 'warning');
     const first = blockers[0];
     qualityValue.textContent = scoreText;
-    if (qualityChip) qualityChip.textContent = `Quality ${scoreText}%`;
+    if (qualityChip) qualityChip.textContent = `Code Health ${scoreText}%`;
     if (linesChip) linesChip.textContent = `${quality.lineCount} code line${quality.lineCount === 1 ? '' : 's'}`;
     if (runChip) runChip.textContent = studioLastRunAt ? `Last run ${studioLastRunAt}` : 'Not run yet';
     if (progressFill) progressFill.style.width = `${Math.max(5, quality.score)}%`;
 
     if (!blockers.length) {
       if (coachTitle) coachTitle.textContent = 'Looks ready for checking';
-      if (coachMessage) coachMessage.textContent = 'No major local issues found. Run the output, then click Result for the teacher rubric.';
-      issuesBox.innerHTML = '<div class="studio-issue-item pass"><strong>Ready</strong><span>The page structure and local checker look clean.</span></div>';
+      if (coachMessage) coachMessage.textContent = 'This is only a quick code health check, not your grade. Click Result for the official rubric score.';
+      issuesBox.innerHTML = '<div class="studio-issue-item pass"><strong>Code health looks good</strong><span>No major local issues found. The real score still comes from Result/Rubric.</span></div>'; 
       return;
     }
 
@@ -10832,8 +11126,10 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
   }
 
   function wireStudioEvents() {
-    document.getElementById('superStudioLauncher')?.addEventListener('click', () => setStudioDrawerOpen(true));
-    document.getElementById('studioHideBtn')?.addEventListener('click', () => setStudioDrawerOpen(false));
+    document.getElementById('superStudioLauncher')?.addEventListener('click', () => {
+      if (!isSuperStudioEnabled()) return;
+      setStudioDrawerOpen(!studioDrawerOpen);
+    });
     window.addEventListener('resize', () => {
       placeStudioLauncher();
       setStudioDrawerOpen(studioDrawerOpen, { silent: true });
@@ -10848,13 +11144,11 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     document.getElementById('studioRestoreBtn')?.addEventListener('click', openStudioSnapshots);
     document.getElementById('studioCommandBtn')?.addEventListener('click', () => { if (isSuperStudioEnabled()) openStudioCommandPalette(); });
 
-    const fullActionBar = document.getElementById('fullscreenEditorActions');
-    if (fullActionBar && !document.getElementById('fullscreenFormatBtn')) {
-      fullActionBar.insertBefore(studioButton('fullscreenFormatBtn', 'Format', 'Format current tab', 'ghost-btn studio-btn super-studio-only hidden'), fullActionBar.firstChild?.nextSibling || null);
-      fullActionBar.insertBefore(studioButton('fullscreenSnapshotBtn', 'Snapshot', 'Save a code checkpoint', 'ghost-btn studio-btn super-studio-only hidden'), document.getElementById('exitEditorStickyBtn'));
-      document.getElementById('fullscreenFormatBtn')?.addEventListener('click', formatActiveCode);
-      document.getElementById('fullscreenSnapshotBtn')?.addEventListener('click', () => saveStudioSnapshot(true));
-    }
+    // Full Editor already has Format and Snapshot inside the Super Studio drawer.
+    // Keep the top full-editor bar focused on Run, Auto, Result, and Exit only
+    // so buttons do not repeat when Studio is opened.
+    document.getElementById('fullscreenFormatBtn')?.remove();
+    document.getElementById('fullscreenSnapshotBtn')?.remove();
 
     document.getElementById('studioCloseCommandBtn')?.addEventListener('click', closeStudioCommandPalette);
     document.getElementById('studioCommandOverlay')?.addEventListener('click', event => {

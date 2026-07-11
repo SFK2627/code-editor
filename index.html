@@ -37,7 +37,7 @@
       document.documentElement.dataset.deviceMode = isPhone ? 'phone' : 'desktop';
     })();
   </script>
-  <link rel="stylesheet" href="style.css?v=20260711-studio-mobile-safe" />
+  <link rel="stylesheet" href="style.css?v=20260711-activity-centered" />
 </head>
 <body class="entry-gate-active">
   <div id="entryGate" class="entry-gate" role="dialog" aria-modal="true" aria-labelledby="entryGateTitle">
@@ -363,31 +363,58 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
     </main>
 
 
-    <section id="activityCard" class="activity-card collapsed-card" aria-label="Current activity and rubric">
-      <div class="activity-main">
-        <div class="activity-select-row">
-          <label for="activitySelect">Choose Activity</label>
-          <select id="activitySelect" aria-label="Choose coding activity"></select>
-          <button id="resetActivityCodeBtn" class="ghost-btn" type="button">Reset This Activity Code</button>
+    <section id="activityCard" class="activity-card activity-popup collapsed-card" aria-label="Current activity and rubric" role="dialog" aria-modal="true" aria-labelledby="activityPopupTitle">
+      <div class="activity-popup-panel">
+        <div class="activity-popup-head">
+          <div>
+            <p class="section-kicker">Activity Setup</p>
+            <h2 id="activityPopupTitle">Choose Your Activity</h2>
+            <p class="muted-text">Pick an activity first so Result and Feedback can follow the correct rubric.</p>
+          </div>
+          <button id="closeActivityCardBtn" class="icon-btn activity-close-btn" type="button" aria-label="Close activity popup">×</button>
         </div>
-        <div id="activityWarning" class="activity-warning hidden" role="alert">
-          Pumili muna ng activity. Without selected activity, Run Code works, pero hindi lalabas ang score at automatic feedback dahil walang rubric.
-        </div>
-        <p class="section-kicker">Selected Activity</p>
-        <h2 id="activityTitle">Activity</h2>
-        <p id="activityDescription" class="muted-text">Rubric details will appear here.</p>
-      </div>
-      <div class="activity-stats">
-        <div>
-          <span id="totalPoints" class="stat-number">0</span>
-          <span class="stat-label">Total Points</span>
-        </div>
-        <div>
-          <span id="criteriaCount" class="stat-number">0</span>
-          <span class="stat-label">Criteria</span>
+        <div class="activity-popup-grid">
+          <div class="activity-main">
+            <div class="activity-select-row">
+              <label for="activitySelect">Choose Activity</label>
+              <select id="activitySelect" aria-label="Choose coding activity"></select>
+              <button id="resetActivityCodeBtn" class="ghost-btn" type="button">Reset This Activity Code</button>
+            </div>
+            <div id="activityWarning" class="activity-warning hidden" role="alert">
+              Pumili muna ng activity. Without selected activity, Run Code works, pero hindi lalabas ang score at automatic feedback dahil walang rubric.
+            </div>
+            <p class="section-kicker">Selected Activity</p>
+            <h2 id="activityTitle">Activity</h2>
+            <p id="activityDescription" class="muted-text">Rubric details will appear here.</p>
+          </div>
+          <div class="activity-stats">
+            <div class="activity-stat-card">
+              <span id="totalPoints" class="stat-number">0</span>
+              <span class="stat-label">Total Points</span>
+            </div>
+            <button id="activityCriteriaStat" class="activity-stat-card criteria-stat-card" type="button" title="View full rubric table">
+              <span id="criteriaCount" class="stat-number">0</span>
+              <span class="stat-label">Criteria</span>
+              <span class="stat-hint">View full rubric</span>
+            </button>
+          </div>
         </div>
       </div>
     </section>
+
+    <div id="activityRubricOverlay" class="activity-rubric-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="activityRubricTitle">
+      <div class="activity-rubric-card">
+        <div class="activity-rubric-head">
+          <div>
+            <p class="section-kicker">Student Rubric</p>
+            <h2 id="activityRubricTitle">Activity Rubric</h2>
+            <p id="activityRubricMeta" class="muted-text">Choose an activity to view its rubric.</p>
+          </div>
+          <button id="closeActivityRubricBtn" class="icon-btn" type="button" aria-label="Close rubric popup">×</button>
+        </div>
+        <div id="activityRubricTable" class="activity-rubric-table-wrap"></div>
+      </div>
+    </div>
     <details class="help-card friendly-help compact-help">
       <summary>Need help? View quick guide and shortcuts</summary>
       <div class="help-header">
@@ -787,6 +814,6 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="firebase-config.js"></script>
-  <script src="script.js?v=20260711-studio-mobile-safe"></script>
+  <script src="script.js?v=20260711-activity-centered"></script>
 </body>
 </html>
