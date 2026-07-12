@@ -1,15 +1,15 @@
-const CACHE_NAME = 'mcs-coding-app-20260712-user-step98-nohang-phone-full-editor-finish';
+const CACHE_NAME = 'mcs-coding-app-20260712-step99-nohang-safe-full-editor';
 const APP_SHELL = [
   './',
   './index.html',
-  './index.html?v=20260712-step98-nohang-phone-full-editor-finish',
-  './index.html?fresh=step98',
+  './index.html?v=20260712-step99-nohang-safe-full-editor',
+  './index.html?fresh=step99',
   './style.css',
-  './style.css?v=20260712-step98-nohang-phone-full-editor-finish',
-  './style.css?v=20260712-step98-nohang-phone-full-editor-finish',
+  './style.css?v=20260712-step99-nohang-safe-full-editor',
+  './style.css?v=20260712-step99-nohang-safe-full-editor',
   './script.js',
-  './script.js?v=20260712-step98-nohang-phone-full-editor-finish',
-  './script.js?v=20260712-step98-nohang-phone-full-editor-finish',
+  './script.js?v=20260712-step99-nohang-safe-full-editor',
+  './script.js?v=20260712-step99-nohang-safe-full-editor',
   './firebase-config.js',
   './manifest.webmanifest',
   './favicon.png',

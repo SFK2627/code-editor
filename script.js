@@ -5868,11 +5868,6 @@ function buildFullCode(pageName = getActiveHtmlPageName()) {
   }
 
   if (looksLikeFullDocument && !hasCompleteDocumentShell) {
-    // If a beginner types a partial document (for example, <html> without a
-    // complete <body>...</body> shell), do not inject helper scripts into that
-    // malformed document. Otherwise the app's own preview helper JavaScript can
-    // appear as visible text in Output Preview. Show the student's HTML cleanly
-    // and apply CSS only when it is safe.
     return injectAssetsIntoHTML(html, styleBlock, '');
   }
 
@@ -16938,23 +16933,23 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   });
 })();
 
-/* USER-DIRECTED FIX STEP 82
+/* STEP 99 SAFE PHONE FULL EDITOR ENGINE
    Scope: phone/mobile only.
-   Makes Full Editor a true phone typing overlay: fills the visual viewport,
-   uses a clean X exit button, keeps Code Helper and the font slider available,
-   and leaves desktop fullscreen behavior untouched. */
+   Important change: NO native requestFullscreen on phone. The phone full editor uses
+   the existing CSS fullscreen class only, preventing Android Chrome "Aw Snap" crashes.
+   Keeps Code Helper and font-size slider available without heavy viewport loops. */
 (() => {
   const root = document.documentElement;
   const body = document.body;
   const editorPanel = document.getElementById('editorPanel');
   const editor = document.getElementById('codeEditor');
-  const fullEditorBtn = document.getElementById('fullEditorBtn');
   const MOBILE_QUERY = '(max-width: 820px), (hover: none) and (pointer: coarse)';
   const MOBILE_FONT_STORAGE_KEY = 'studentCodeStudio.mobileEditorFontSize.v1';
   const FONT_MIN = 11;
   const FONT_MAX = 22;
   const FONT_STEP = 0.5;
   const FONT_DEFAULT = 12.5;
+  let rafId = 0;
 
   if (!root || !body || !editorPanel || !editor) return;
 
@@ -16971,21 +16966,29 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       && !body.classList.contains('preview-inside-editor-fullscreen');
   }
 
-  function currentViewportHeight() {
-    const vvHeight = Number(window.visualViewport?.height) || 0;
+  function viewportHeight() {
+    const vv = Number(window.visualViewport?.height) || 0;
     const inner = Number(window.innerHeight) || 0;
-    return Math.max(320, Math.round(vvHeight || inner || 640));
+    return Math.max(320, Math.round(vv || inner || 640));
   }
 
-  function syncPhoneFullEditorHeight() {
-    root.style.setProperty('--mcs-phone-full-editor-height', `${currentViewportHeight()}px`);
-    const keyboardOffset = Math.max(0, Math.round((window.innerHeight || currentViewportHeight()) - currentViewportHeight()));
-    root.style.setProperty('--mcs-phone-full-editor-keyboard-offset', `${keyboardOffset}px`);
+  function clampValue(value, min, max) {
+    const number = Number(value);
+    if (!Number.isFinite(number)) return min;
+    return Math.min(max, Math.max(min, number));
   }
 
-  function readMobileFontSize() {
-    const stored = Number(loadJSON(MOBILE_FONT_STORAGE_KEY, FONT_DEFAULT));
-    return clamp(Number.isFinite(stored) ? stored : FONT_DEFAULT, FONT_MIN, FONT_MAX);
+  function readFontSize() {
+    try {
+      const stored = Number(localStorage.getItem(MOBILE_FONT_STORAGE_KEY));
+      return clampValue(Number.isFinite(stored) ? stored : FONT_DEFAULT, FONT_MIN, FONT_MAX);
+    } catch (_) {
+      return FONT_DEFAULT;
+    }
+  }
+
+  function saveFontSize(value) {
+    try { localStorage.setItem(MOBILE_FONT_STORAGE_KEY, String(value)); } catch (_) {}
   }
 
   function formatFontSize(value) {
@@ -16993,28 +16996,24 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     return `${Number.isInteger(number) ? number.toFixed(0) : number.toFixed(1)}px`;
   }
 
-  function applyMobileFullscreenFontSize(value) {
-    const next = clamp(Number(value) || FONT_DEFAULT, FONT_MIN, FONT_MAX);
+  function applyFontSize(value) {
+    const next = clampValue(value || FONT_DEFAULT, FONT_MIN, FONT_MAX);
     root.style.setProperty('--mobile-editor-font-size', `${next}px`);
-    saveJSON(MOBILE_FONT_STORAGE_KEY, next);
+    saveFontSize(next);
     const range = document.getElementById('mobileEditorFontSizeRange');
     const output = document.getElementById('mobileEditorFontSizeValue');
     if (range && Number(range.value) !== next) range.value = String(next);
     if (output) output.textContent = formatFontSize(next);
-    window.requestAnimationFrame(() => {
-      if (typeof fitEditorToContent === 'function') fitEditorToContent();
-      if (typeof syncEditorScroll === 'function') syncEditorScroll();
-    });
   }
 
-  function ensurePhoneFullscreenFontControl() {
+  function ensureFontControl() {
     let control = document.getElementById('mobileEditorFontControl');
     if (!control) {
       control = document.createElement('div');
       control.id = 'mobileEditorFontControl';
       control.className = 'mobile-editor-font-control';
       control.setAttribute('aria-label', 'Adjust editor font size');
-      const value = readMobileFontSize();
+      const value = readFontSize();
       control.innerHTML = `
         <label class="mobile-editor-font-label" for="mobileEditorFontSizeRange">Aa</label>
         <input id="mobileEditorFontSizeRange" class="mobile-editor-font-range" type="range" min="${FONT_MIN}" max="${FONT_MAX}" step="${FONT_STEP}" value="${value}" aria-label="Editor font size" />
@@ -17024,17 +17023,16 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       if (helper?.parentElement) helper.insertAdjacentElement('afterend', control);
       else editorPanel.appendChild(control);
     }
-
     const range = control.querySelector('#mobileEditorFontSizeRange');
-    if (range && !range.dataset.step82Bound) {
-      range.addEventListener('input', () => applyMobileFullscreenFontSize(Number(range.value)), { passive: true });
-      range.dataset.step82Bound = 'true';
+    if (range && !range.dataset.step99Bound) {
+      range.addEventListener('input', () => applyFontSize(Number(range.value)), { passive: true });
+      range.dataset.step99Bound = 'true';
     }
-    applyMobileFullscreenFontSize(readMobileFontSize());
+    applyFontSize(readFontSize());
     return control;
   }
 
-  function syncExitButtonLabel(active) {
+  function syncExitText(active) {
     const exitButton = document.getElementById('exitEditorStickyBtn');
     if (!exitButton) return;
     if (!exitButton.dataset.defaultText) {
@@ -17042,9 +17040,9 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       exitButton.dataset.defaultTitle = exitButton.title || 'Exit full editor';
     }
     if (active) {
-      exitButton.textContent = '×';
-      exitButton.title = 'Exit full editor';
-      exitButton.setAttribute('aria-label', 'Exit full editor');
+      exitButton.textContent = 'Exit Full Screen';
+      exitButton.title = 'Exit full screen';
+      exitButton.setAttribute('aria-label', 'Exit full screen');
     } else {
       exitButton.textContent = exitButton.dataset.defaultText || 'Exit Full';
       exitButton.title = exitButton.dataset.defaultTitle || 'Exit full editor';
@@ -17052,110 +17050,31 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     }
   }
 
-  function syncPhoneFullEditorMode() {
+  function syncNow() {
+    rafId = 0;
     const active = isPhoneFullEditorActive();
-    syncPhoneFullEditorHeight();
+    root.style.setProperty('--mcs-phone-full-editor-height', `${viewportHeight()}px`);
     root.classList.toggle('phone-true-full-editor-enabled', active);
     body.classList.toggle('phone-true-full-editor-active', active);
     if (active) {
-      ensurePhoneFullscreenFontControl();
+      ensureFontControl();
       editor.setAttribute('wrap', 'soft');
       editor.style.scrollBehavior = 'auto';
-      syncExitButtonLabel(true);
-      window.setTimeout(() => {
-        if (isPhoneFullEditorActive()) {
-          editor.focus({ preventScroll: true });
-          if (typeof fitEditorToContent === 'function') fitEditorToContent();
-          if (typeof syncEditorScroll === 'function') syncEditorScroll();
-        }
-      }, 60);
+      syncExitText(true);
     } else {
-      syncExitButtonLabel(false);
+      syncExitText(false);
     }
   }
 
-  // On Android/Chrome this can use real browser fullscreen. On iPhone/Safari,
-  // CSS visual-viewport fullscreen remains the safe fallback.
-  fullEditorBtn?.addEventListener('click', () => {
-    // This listener is registered after the app's normal Full Editor click
-    // handler, so the body class is already active. Keep requestFullscreen
-    // synchronous so Android browsers still treat it as a user gesture.
-    syncPhoneFullEditorMode();
-    if (!isPhoneFullEditorActive()) return;
-    if (editorPanel.requestFullscreen && !document.fullscreenElement) {
-      editorPanel.requestFullscreen().catch(() => {});
-    }
-  });
+  function scheduleSync() {
+    if (rafId) return;
+    rafId = window.requestAnimationFrame(syncNow);
+  }
 
-  const observer = new MutationObserver(syncPhoneFullEditorMode);
+  const observer = new MutationObserver(scheduleSync);
   observer.observe(body, { attributes: true, attributeFilter: ['class'] });
-
-  ['load', 'resize', 'orientationchange', 'fullscreenchange', 'webkitfullscreenchange'].forEach(type => {
-    window.addEventListener(type, syncPhoneFullEditorMode, { passive: true });
-  });
-  window.visualViewport?.addEventListener('resize', syncPhoneFullEditorMode, { passive: true });
-  window.visualViewport?.addEventListener('scroll', syncPhoneFullEditorMode, { passive: true });
-  document.addEventListener('visibilitychange', syncPhoneFullEditorMode, { passive: true });
-  document.addEventListener('DOMContentLoaded', syncPhoneFullEditorMode, { once: true });
-  syncPhoneFullEditorMode();
-})();
-
-/* STEP 96 SAFE PATCH
-   Phone full editor only: reliable Show/Hide toggle and layout refresh.
-   Does not touch login/homepage initialization. */
-(() => {
-  try {
-    const PHONE_QUERY = '(max-width: 820px), (hover: none) and (pointer: coarse)';
-    const isPhoneUi = () => Boolean(
-      document.documentElement?.dataset?.deviceMode === 'phone' ||
-      window.__mcsianPhonePreviewMode === true ||
-      window.matchMedia?.(PHONE_QUERY)?.matches
-    );
-    const isPhoneFullEditor = () => Boolean(
-      isPhoneUi() &&
-      document.body?.classList?.contains('editor-fullscreen-active') &&
-      !document.body?.classList?.contains('preview-fullscreen-active') &&
-      !document.body?.classList?.contains('preview-inside-editor-fullscreen')
-    );
-    function setToggleLabel(button, open) {
-      if (!button) return;
-      button.setAttribute('aria-expanded', open ? 'true' : 'false');
-      button.setAttribute('aria-label', open ? 'Hide page tools' : 'Show page tools');
-      button.innerHTML = open ? '<span></span><strong>Hide</strong>' : '<span></span><strong>Show</strong>';
-    }
-    function setToolsOpen(open) {
-      document.body.classList.toggle('mobile-editor-tools-open', Boolean(open));
-      setToggleLabel(document.getElementById('mobileEditorToolsToggle'), Boolean(open));
-      window.requestAnimationFrame(() => {
-        try {
-          if (typeof fitEditorToContent === 'function') fitEditorToContent();
-          if (typeof syncEditorScroll === 'function') syncEditorScroll();
-        } catch (_) {}
-      });
-    }
-    function handleToggle(event) {
-      const button = event.target?.closest?.('#mobileEditorToolsToggle');
-      if (!button || !isPhoneFullEditor()) return;
-      event.preventDefault();
-      event.stopPropagation();
-      event.stopImmediatePropagation?.();
-      setToolsOpen(!document.body.classList.contains('mobile-editor-tools-open'));
-    }
-    document.addEventListener('click', handleToggle, true);
-    document.addEventListener('touchend', handleToggle, { capture: true, passive: false });
-    const sync = () => {
-      if (!isPhoneFullEditor()) return;
-      setToggleLabel(document.getElementById('mobileEditorToolsToggle'), document.body.classList.contains('mobile-editor-tools-open'));
-      const editor = document.getElementById('codeEditor');
-      if (editor) editor.setAttribute('wrap', 'soft');
-    };
-    const observer = new MutationObserver(sync);
-    if (document.body) observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
-    window.addEventListener('resize', sync, { passive: true });
-    window.addEventListener('orientationchange', () => setTimeout(sync, 80), { passive: true });
-    document.addEventListener('DOMContentLoaded', sync, { once: true });
-    sync();
-  } catch (error) {
-    console.warn('[Step96 phone full editor patch skipped]', error);
-  }
+  window.addEventListener('resize', scheduleSync, { passive: true });
+  window.addEventListener('orientationchange', () => window.setTimeout(scheduleSync, 120), { passive: true });
+  document.addEventListener('DOMContentLoaded', scheduleSync, { once: true });
+  scheduleSync();
 })();
