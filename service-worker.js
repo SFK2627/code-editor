@@ -1,12 +1,12 @@
-const CACHE_NAME = 'mcs-coding-app-20260712-user-step86-safe-full-editor-tools';
+const CACHE_NAME = 'mcs-coding-app-20260712-user-step85-emergency-stable';
 const APP_SHELL = [
   './',
   './index.html',
   './index.html?fresh=1',
   './style.css',
-  './style.css?v=20260712-step86-safe-full-editor-tools',
+  './style.css?v=20260712-step85-emergency-stable',
   './script.js',
-  './script.js?v=20260712-step86-safe-full-editor-tools',
+  './script.js?v=20260712-step85-emergency-stable',
   './firebase-config.js',
   './manifest.webmanifest',
   './favicon.png',
