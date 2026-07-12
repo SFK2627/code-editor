@@ -17078,3 +17078,204 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   document.addEventListener('DOMContentLoaded', scheduleSync, { once: true });
   scheduleSync();
 })();
+
+/* STEP 100: SAFE PHONE CSS FULL EDITOR BUTTON
+   Purpose: restore the phone Full Editor button without using native requestFullscreen().
+   Scope: phone/mobile only. Desktop keeps the original fullscreen behavior.
+   This patch does not touch homepage/login initialization. */
+(() => {
+  const root = document.documentElement;
+  const body = document.body;
+  const PHONE_QUERY = '(max-width: 820px), (hover: none) and (pointer: coarse)';
+
+  function isPhoneUi() {
+    return root?.dataset?.deviceMode === 'phone'
+      || Boolean(window.matchMedia?.(PHONE_QUERY)?.matches)
+      || Boolean(window.matchMedia?.('(hover: none) and (pointer: coarse)')?.matches);
+  }
+
+  function getParts() {
+    return {
+      editorPanel: document.getElementById('editorPanel'),
+      editor: document.getElementById('codeEditor'),
+      fullButton: document.getElementById('fullEditorBtn'),
+      exitTopButton: document.getElementById('exitEditorBtn'),
+      actions: document.getElementById('fullscreenEditorActions'),
+      run: document.getElementById('fullscreenRunBtn'),
+      auto: document.getElementById('fullscreenAutoRunBtn'),
+      result: document.getElementById('fullscreenResultBtn'),
+      exit: document.getElementById('exitEditorStickyBtn'),
+      show: document.getElementById('mobileEditorToolsToggle'),
+      tabs: document.querySelector('#editorPanel .language-tabs')
+    };
+  }
+
+  function setViewportVars() {
+    const h = Math.max(320, Math.round(Number(window.visualViewport?.height) || Number(window.innerHeight) || 640));
+    root.style.setProperty('--mcs-phone-full-editor-height', `${h}px`);
+  }
+
+  function ensureShowButton() {
+    const { editorPanel, tabs } = getParts();
+    if (!editorPanel || !tabs) return null;
+    let button = document.getElementById('mobileEditorToolsToggle');
+    if (!button) {
+      button = document.createElement('button');
+      button.id = 'mobileEditorToolsToggle';
+      button.type = 'button';
+      button.className = 'mobile-collapse-toggle mobile-editor-tools-toggle';
+      button.innerHTML = '<span></span><strong>Show</strong>';
+      button.setAttribute('aria-label', 'Show page tools and code suggestion tools');
+      button.setAttribute('aria-expanded', 'false');
+      tabs.insertAdjacentElement('afterend', button);
+    }
+    if (button.parentElement !== editorPanel) {
+      tabs.insertAdjacentElement('afterend', button);
+    }
+    button.classList.remove('hidden');
+    button.style.pointerEvents = 'auto';
+    button.style.touchAction = 'manipulation';
+    return button;
+  }
+
+  function setShowOpen(open) {
+    const show = ensureShowButton();
+    const shouldOpen = Boolean(open);
+    body.classList.toggle('mobile-editor-tools-open', shouldOpen);
+    if (show) {
+      show.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+      show.setAttribute('aria-label', shouldOpen ? 'Hide page tools and code suggestion tools' : 'Show page tools and code suggestion tools');
+      show.innerHTML = shouldOpen ? '<span></span><strong>Hide</strong>' : '<span></span><strong>Show</strong>';
+    }
+    // Ensure the generated mobile suggestion toggle exists after opening the tools panel.
+    window.setTimeout(() => {
+      document.getElementById('mobileSuggestionToggle')?.classList.remove('hidden');
+    }, 40);
+  }
+
+  function showPhoneFullEditor() {
+    if (!isPhoneUi()) return false;
+    const parts = getParts();
+    if (!parts.editorPanel || !parts.editor) return false;
+
+    setViewportVars();
+    body.classList.add('editor-fullscreen-active', 'phone-css-full-editor-active', 'phone-true-full-editor-active');
+    root.classList.add('phone-true-full-editor-enabled');
+
+    try {
+      if (typeof ensureFullscreenActionBar === 'function') ensureFullscreenActionBar();
+    } catch (_) {}
+
+    const next = getParts();
+    next.actions?.classList.remove('hidden');
+    next.actions?.removeAttribute('aria-hidden');
+
+    [next.run, next.auto, next.result].forEach(button => {
+      if (!button) return;
+      button.classList.add('hidden');
+      button.setAttribute('aria-hidden', 'true');
+      button.tabIndex = -1;
+    });
+
+    if (next.exit) {
+      next.exit.classList.remove('hidden');
+      next.exit.removeAttribute('aria-hidden');
+      next.exit.disabled = false;
+      next.exit.tabIndex = 0;
+      next.exit.textContent = 'Exit Full Screen';
+      next.exit.title = 'Exit full screen';
+      next.exit.setAttribute('aria-label', 'Exit full screen');
+    }
+
+    next.fullButton?.classList.add('hidden');
+    next.exitTopButton?.classList.add('hidden');
+    ensureShowButton();
+    setShowOpen(false);
+
+    parts.editor.setAttribute('wrap', 'soft');
+    parts.editor.style.overflowX = 'hidden';
+    parts.editor.style.whiteSpace = 'pre-wrap';
+    parts.editor.style.wordBreak = 'break-word';
+    parts.editor.style.overflowWrap = 'anywhere';
+
+    window.setTimeout(() => {
+      try { parts.editor.focus({ preventScroll: true }); } catch (_) { parts.editor.focus(); }
+    }, 80);
+    return true;
+  }
+
+  function hidePhoneFullEditor() {
+    if (!body.classList.contains('phone-css-full-editor-active') && !body.classList.contains('phone-true-full-editor-active')) return false;
+    const parts = getParts();
+    body.classList.remove('editor-fullscreen-active', 'phone-css-full-editor-active', 'phone-true-full-editor-active', 'mobile-editor-tools-open');
+    root.classList.remove('phone-true-full-editor-enabled');
+    parts.actions?.classList.add('hidden');
+    parts.fullButton?.classList.remove('hidden');
+    parts.exitTopButton?.classList.add('hidden');
+    if (parts.exit) {
+      parts.exit.textContent = 'Exit Full';
+      parts.exit.title = 'Exit full editor: Esc';
+      parts.exit.setAttribute('aria-label', 'Exit full editor');
+    }
+    try {
+      if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
+    } catch (_) {}
+    window.setTimeout(() => {
+      try { parts.editor?.focus({ preventScroll: true }); } catch (_) { parts.editor?.focus?.(); }
+    }, 60);
+    return true;
+  }
+
+  function handleClick(event) {
+    const target = event.target?.closest?.('#fullEditorBtn, #exitEditorStickyBtn, #exitEditorBtn, #mobileEditorToolsToggle');
+    if (!target || !isPhoneUi()) return;
+
+    if (target.id === 'fullEditorBtn') {
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation?.();
+      showPhoneFullEditor();
+      return;
+    }
+
+    if ((target.id === 'exitEditorStickyBtn' || target.id === 'exitEditorBtn') && body.classList.contains('phone-css-full-editor-active')) {
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation?.();
+      hidePhoneFullEditor();
+      return;
+    }
+
+    if (target.id === 'mobileEditorToolsToggle' && body.classList.contains('phone-css-full-editor-active')) {
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation?.();
+      setShowOpen(!body.classList.contains('mobile-editor-tools-open'));
+    }
+  }
+
+  document.addEventListener('click', handleClick, true);
+  document.addEventListener('touchend', handleClick, { capture: true, passive: false });
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && isPhoneUi() && body.classList.contains('phone-css-full-editor-active')) {
+      event.preventDefault();
+      hidePhoneFullEditor();
+    }
+  }, true);
+
+  window.addEventListener('resize', () => {
+    if (body.classList.contains('phone-css-full-editor-active')) setViewportVars();
+  }, { passive: true });
+  window.addEventListener('orientationchange', () => window.setTimeout(() => {
+    if (body.classList.contains('phone-css-full-editor-active')) setViewportVars();
+  }, 160), { passive: true });
+
+  window.MCS_STEP100_PHONE_FULL_EDITOR_STATUS = () => ({
+    phoneUi: isPhoneUi(),
+    active: body.classList.contains('phone-css-full-editor-active'),
+    editorFullscreenActive: body.classList.contains('editor-fullscreen-active'),
+    toolsOpen: body.classList.contains('mobile-editor-tools-open'),
+    fullButtonExists: Boolean(getParts().fullButton),
+    showButtonExists: Boolean(document.getElementById('mobileEditorToolsToggle'))
+  });
+})();
