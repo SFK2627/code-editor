@@ -6253,6 +6253,67 @@ function createCheckerItem(type, title, detail, fix = '') {
 
 
 
+function getSmartHTMLQualityIssues(html = '') {
+  const issues = [];
+  const lines = String(html || '').split('\n');
+  const pushIssue = (index, issue, fix) => {
+    issues.push({ line: index + 1, issue, fix });
+  };
+
+  lines.forEach((line, index) => {
+    if (!line.trim() || /^\s*<!--/.test(line)) return;
+
+    const spacedTag = line.match(/<\s+(\/?)\s*([a-zA-Z][\w:-]*)([^<>]*?)>/);
+    if (spacedTag) {
+      const tag = spacedTag[2].toLowerCase();
+      const fixedTag = getClosestSmartHtmlTagName(tag) || tag;
+      pushIssue(index, `Extra space inside <${tag}> tag`, `Change ${spacedTag[0]} to ${createFixedHtmlTagText(spacedTag[1], fixedTag, spacedTag[3])}.`);
+      return;
+    }
+
+    const spacedClose = line.match(/<\s*\/\s+([a-zA-Z][\w:-]*)([^<>]*?)>/);
+    if (spacedClose) {
+      const tag = spacedClose[1].toLowerCase();
+      const fixedTag = getClosestSmartHtmlTagName(tag) || tag;
+      pushIssue(index, `Extra space inside closing tag </${tag}>`, `Change ${spacedClose[0]} to ${createFixedHtmlTagText('/', fixedTag, spacedClose[2])}.`);
+      return;
+    }
+
+    const mismatch = line.match(/<\s*([a-zA-Z][\w:-]*)\b[^>]*>[\s\S]*?<\s*\/\s*([a-zA-Z][\w:-]*)\s*>/);
+    if (mismatch) {
+      const openTag = mismatch[1].toLowerCase();
+      const closeTag = mismatch[2].toLowerCase();
+      if (openTag !== closeTag && !SMART_INLINE_VOID_HTML_TAGS.has(openTag)) {
+        pushIssue(index, `Opening <${openTag}> does not match closing </${closeTag}>`, `Change the closing tag to </${openTag}>.`);
+        return;
+      }
+    }
+
+    const tagPattern = /<\/?\s*([a-zA-Z][\w:-]*)/g;
+    let match;
+    while ((match = tagPattern.exec(line)) !== null) {
+      const typed = match[1].toLowerCase();
+      if (typed.includes('-') || SMART_INLINE_COMMON_HTML_TAGS.has(typed)) continue;
+      const fixed = getClosestSmartHtmlTagName(typed);
+      if (fixed && fixed !== typed) {
+        pushIssue(index, `Possible misspelled HTML tag <${typed}>`, `Change <${typed}> to <${fixed}>.`);
+        return;
+      }
+    }
+
+    const unfinished = line.match(/<\s*(\/?)\s*([a-zA-Z][\w:-]*)(\s[^<>]*)?$/);
+    if (unfinished && !line.includes('>', unfinished.index)) {
+      const tag = unfinished[2].toLowerCase();
+      const fixedTag = getClosestSmartHtmlTagName(tag) || tag;
+      pushIssue(index, `Unfinished <${unfinished[1] || ''}${tag}> tag`, `Complete it as ${createFixedHtmlTagText(unfinished[1], fixedTag, unfinished[3] || '')}.`);
+    }
+  });
+
+  return issues.slice(0, 6);
+}
+
+
+
 function getFilenameReferenceCheckerItems() {
   const html = codeStore.html || '';
   const cssFiles = getLanguageFileMap('css');
@@ -6317,6 +6378,7 @@ function getErrorCheckerItems() {
   const bodyInner = getBodyInnerHTML(html);
   const bodyText = stripHTMLTags(bodyInner);
   const tagIssues = getDetailedHTMLTagIssues(html);
+  const smartHtmlIssues = getSmartHTMLQualityIssues(html);
   const jsSyntaxError = getJavaScriptSyntaxError(js);
   const runtimeError = getRuntimeErrorMessage();
 
@@ -6343,9 +6405,20 @@ function getErrorCheckerItems() {
     items.push(createCheckerItem('warning', 'Body looks empty', 'The body section has little or no visible text.', 'Add a heading, paragraph, image, button, or other visible content inside <body>.'));
   }
 
-  if (!tagIssues.length) {
+  if (smartHtmlIssues.length) {
+    const details = smartHtmlIssues.map(item => `Line ${item.line}: ${item.issue}`).join('; ');
+    const fixes = smartHtmlIssues.map(item => `Line ${item.line}: ${item.fix}`).join(' ');
+    items.push(createCheckerItem(
+      'error',
+      'Smart HTML correction needed',
+      details,
+      fixes || 'Use Smart Hint on the red/problem line to apply the correction.'
+    ));
+  }
+
+  if (!tagIssues.length && !smartHtmlIssues.length) {
     items.push(createCheckerItem('pass', 'HTML tags look balanced', 'No confirmed missing opening/closing tag was detected.'));
-  } else {
+  } else if (tagIssues.length) {
     const details = tagIssues.map(issue => {
       return issue.closing
         ? `Possible issue: </${issue.name}> on line ${issue.line} may not have a matching opening tag`
@@ -6421,9 +6494,11 @@ function isAICodeCheckerEnabled() {
 }
 
 function buildAICodeCheckerPayload(items = getErrorCheckerItems()) {
+  const snapshot = getSmartProjectCodeSnapshot();
   return {
     app: 'Grade 8 MCSian Web Code Editor',
-    task: 'code-error-check',
+    task: 'teacher-code-helper-check',
+    level: 'Grade 8 beginner web development',
     checkerItems: items.map(item => ({
       type: item.type,
       title: item.title,
@@ -6431,44 +6506,467 @@ function buildAICodeCheckerPayload(items = getErrorCheckerItems()) {
       fix: item.fix || ''
     })),
     outputText: getOutputText().slice(0, 4000),
-    code: {
-      html: getShortCodeSample(codeStore.html, 6000),
-      css: getShortCodeSample(codeStore.css, 5000),
-      js: getShortCodeSample(codeStore.js, 5000)
+    activeFile: {
+      language: activeLanguage,
+      name: getActiveLanguageFileName(activeLanguage)
     },
-    instruction: 'Check if the local error checker is correct. Return JSON only with keys: summary, confirmedErrors, falsePositiveWarnings, suggestions. confirmedErrors and falsePositiveWarnings must be arrays of short beginner-friendly strings. Do not provide a full replacement code answer.'
+    files: {
+      html: snapshot.htmlFiles,
+      css: snapshot.cssFiles,
+      js: snapshot.jsFiles
+    },
+    code: {
+      html: getShortCodeSample(codeStore.html, 9000),
+      css: getShortCodeSample(codeStore.css, 7000),
+      js: getShortCodeSample(codeStore.js, 7000)
+    },
+    instruction: [
+      'Act like a helpful Grade 8 ICT teacher and code debugging assistant.',
+      'Analyze the full HTML, CSS, and JavaScript together, not only the current line.',
+      'Find exact beginner mistakes: misspelled tags/attributes/properties/functions, wrong closing tags, missing dots, wrong id/class selectors, onclick function mismatches, broken links, missing linked files, and runtime causes.',
+      'For every confirmed issue, explain why it is wrong and give the exact corrected code snippet, but do not rewrite the whole project.',
+      'Be careful with false positives. If the output can still work, mark it as a warning or improvement, not an error.',
+      'Return JSON only with keys: summary, confirmedErrors, falsePositiveWarnings, suggestions, exactFixes, crossFileFindings, improvements, nextSteps.',
+      'exactFixes should be an array of objects: {file,line,issue,why,before,after}. Keep snippets short and beginner-friendly.'
+    ].join(' ')
   };
+}
+
+function smartArrayFromAny(value) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map(item => {
+      if (typeof item === 'string') return item.trim();
+      if (item && typeof item === 'object') {
+        return [item.file, item.line ? `Line ${item.line}` : '', item.issue || item.title || item.detail || item.message || item.suggestion]
+          .filter(Boolean)
+          .join(' - ')
+          .trim();
+      }
+      return '';
+    })
+    .filter(Boolean)
+    .slice(0, 8);
+}
+
+function normalizeSmartExactFixes(value) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map(item => {
+      if (typeof item === 'string') {
+        return { file: '', line: '', issue: item, why: '', before: '', after: '' };
+      }
+      if (!item || typeof item !== 'object') return null;
+      return {
+        file: String(item.file || item.filename || '').trim(),
+        line: item.line || item.lineNumber || '',
+        issue: String(item.issue || item.title || item.detail || '').trim(),
+        why: String(item.why || item.explanation || item.reason || '').trim(),
+        before: String(item.before || item.oldCode || item.current || '').trim(),
+        after: String(item.after || item.fixedCode || item.corrected || item.replacement || '').trim()
+      };
+    })
+    .filter(item => item && (item.issue || item.after || item.why))
+    .slice(0, 6);
 }
 
 function normalizeAICodeCheckResponse(data) {
   const source = data?.check || data?.review || data || {};
   return {
     summary: String(source.summary || source.message || 'Advanced check completed.'),
-    confirmedErrors: Array.isArray(source.confirmedErrors) ? source.confirmedErrors : [],
-    falsePositiveWarnings: Array.isArray(source.falsePositiveWarnings) ? source.falsePositiveWarnings : [],
-    suggestions: Array.isArray(source.suggestions) ? source.suggestions : []
+    confirmedErrors: smartArrayFromAny(source.confirmedErrors),
+    falsePositiveWarnings: smartArrayFromAny(source.falsePositiveWarnings),
+    suggestions: smartArrayFromAny(source.suggestions),
+    exactFixes: normalizeSmartExactFixes(source.exactFixes || source.fixes || source.corrections),
+    crossFileFindings: smartArrayFromAny(source.crossFileFindings || source.crossFileIssues || source.connections),
+    improvements: smartArrayFromAny(source.improvements || source.recommendations),
+    nextSteps: smartArrayFromAny(source.nextSteps || source.actions)
   };
 }
 
-function getLocalSmartCheckerReview(items = getErrorCheckerItems()) {
+function getSmartProjectCodeSnapshot() {
+  const mapToArray = (language, limit) => {
+    const files = getLanguageFileMap(language);
+    return Object.entries(files || {}).map(([name, content]) => ({
+      name,
+      content: getShortCodeSample(String(content || ''), limit)
+    }));
+  };
+  return {
+    htmlFiles: mapToArray('html', 9000),
+    cssFiles: mapToArray('css', 7000),
+    jsFiles: mapToArray('js', 7000)
+  };
+}
+
+function getSmartLineText(text = '', lineNumber = 1) {
+  return String(text || '').split('\n')[Math.max(0, Number(lineNumber || 1) - 1)] || '';
+}
+
+function addSmartExactFix(list, data = {}) {
+  if (!data.issue && !data.after) return;
+  if (list.length >= 8) return;
+  list.push({
+    file: String(data.file || '').trim(),
+    line: data.line || '',
+    issue: String(data.issue || '').trim(),
+    why: String(data.why || '').trim(),
+    before: String(data.before || '').trim(),
+    after: String(data.after || '').trim()
+  });
+}
+
+function addSmartUniqueString(list, value, limit = 8) {
+  const text = String(value || '').trim();
+  if (!text || list.includes(text) || list.length >= limit) return;
+  list.push(text);
+}
+
+const SMART_PROJECT_HTML_ATTR_FIXES = {
+  clss: 'class', clas: 'class', calss: 'class', cls: 'class', classs: 'class',
+  ids: 'id', iid: 'id', idd: 'id',
+  herf: 'href', hre: 'href', hreff: 'href', ref: 'href',
+  scr: 'src', sr: 'src', source: 'src',
+  onclik: 'onclick', onlick: 'onclick', oncilck: 'onclick', click: 'onclick',
+  stlye: 'style', sytle: 'style', styl: 'style',
+  atl: 'alt', lat: 'alt', altt: 'alt',
+  palceholder: 'placeholder', placehoder: 'placeholder',
+  typ: 'type', tipe: 'type', valu: 'value', valeu: 'value',
+  targt: 'target', traget: 'target', rels: 'rel', namee: 'name', form: 'for'
+};
+
+const SMART_PROJECT_COMMON_HTML_ATTRS = new Set([
+  'class', 'id', 'href', 'src', 'alt', 'style', 'onclick', 'type', 'value', 'placeholder', 'target', 'rel', 'title', 'name', 'for',
+  'lang', 'charset', 'content', 'width', 'height', 'disabled', 'checked', 'selected', 'aria-label', 'role'
+]);
+
+function getClosestSmartHtmlAttributeName(name = '') {
+  return getClosestSmartInlineValue(name, SMART_PROJECT_COMMON_HTML_ATTRS, SMART_PROJECT_HTML_ATTR_FIXES, { maxDistance: String(name || '').length <= 4 ? 1 : 2 });
+}
+
+function getSmartProjectHtmlFacts(snapshot) {
+  const ids = new Set();
+  const classes = new Set();
+  const tags = new Set();
+  const onclickCalls = [];
+  const links = [];
+  (snapshot.htmlFiles || []).forEach(file => {
+    const html = String(file.content || '');
+    const tagPattern = /<\s*([a-zA-Z][\w:-]*)([^<>]*)>/g;
+    let tagMatch;
+    while ((tagMatch = tagPattern.exec(html)) !== null) {
+      const tagName = tagMatch[1].toLowerCase();
+      const attrsText = tagMatch[2] || '';
+      tags.add(tagName);
+      const line = getLineNumberAt(html, tagMatch.index);
+      const idMatch = attrsText.match(/\bid\s*=\s*(["'])(.*?)\1/i);
+      if (idMatch?.[2]) ids.add(idMatch[2].trim());
+      const classMatch = attrsText.match(/\bclass\s*=\s*(["'])(.*?)\1/i);
+      if (classMatch?.[2]) classMatch[2].split(/\s+/).filter(Boolean).forEach(cls => classes.add(cls));
+      const hrefMatch = attrsText.match(/\bhref\s*=\s*(["'])(.*?)\1/i);
+      if (hrefMatch?.[2]) links.push({ file: file.name, line, value: hrefMatch[2].trim() });
+      const eventPattern = /\bon\w+\s*=\s*(["'])\s*([A-Za-z_$][\w$]*)\s*\(/gi;
+      let eventMatch;
+      while ((eventMatch = eventPattern.exec(attrsText)) !== null) {
+        onclickCalls.push({ file: file.name, line, name: eventMatch[2], before: eventMatch[0] });
+      }
+    }
+  });
+  return { ids, classes, tags, onclickCalls, links };
+}
+
+function getSmartProjectJsFacts(snapshot) {
+  const functions = new Set();
+  const idRefs = [];
+  const classRefs = [];
+  (snapshot.jsFiles || []).forEach(file => {
+    const js = String(file.content || '');
+    const functionPattern = /\bfunction\s+([A-Za-z_$][\w$]*)\s*\(|\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:function\s*\(|(?:\([^)]*\)|[A-Za-z_$][\w$]*)\s*=>)/g;
+    let fnMatch;
+    while ((fnMatch = functionPattern.exec(js)) !== null) functions.add(fnMatch[1] || fnMatch[2]);
+
+    const getIdPattern = /\bgetElementById\s*\(\s*(["'])(.*?)\1\s*\)/g;
+    let idMatch;
+    while ((idMatch = getIdPattern.exec(js)) !== null) {
+      idRefs.push({ file: file.name, line: getLineNumberAt(js, idMatch.index), value: idMatch[2], before: idMatch[0], kind: 'getElementById' });
+    }
+
+    const selectorPattern = /\bquerySelector(?:All)?\s*\(\s*(["'])([.#])([^"']+)\1\s*\)/g;
+    let selectorMatch;
+    while ((selectorMatch = selectorPattern.exec(js)) !== null) {
+      const list = selectorMatch[2] === '#' ? idRefs : classRefs;
+      list.push({
+        file: file.name,
+        line: getLineNumberAt(js, selectorMatch.index),
+        value: selectorMatch[3].trim(),
+        before: selectorMatch[0],
+        kind: selectorMatch[2] === '#' ? 'querySelector id' : 'querySelector class'
+      });
+    }
+  });
+  return { functions, idRefs, classRefs };
+}
+
+function findClosestSmartName(value = '', choices = []) {
+  const clean = String(value || '').trim();
+  if (!clean) return '';
+  let best = '';
+  let bestDistance = Infinity;
+  for (const choice of choices || []) {
+    const distance = getSmartInlineEditDistance(clean, String(choice || ''));
+    if (distance < bestDistance) {
+      best = String(choice || '');
+      bestDistance = distance;
+    }
+  }
+  const maxDistance = clean.length <= 4 ? 1 : 2;
+  return best && bestDistance <= maxDistance ? best : '';
+}
+
+function analyzeSmartHtmlFiles(snapshot, review) {
+  (snapshot.htmlFiles || []).forEach(file => {
+    const html = String(file.content || '');
+    const lines = html.split('\n');
+    lines.forEach((lineText, index) => {
+      const line = index + 1;
+      const spacedTag = lineText.match(/<\s+(\/?)\s*([a-zA-Z][\w:-]*)([^<>]*?)>/);
+      if (spacedTag) {
+        const fixedTag = getClosestSmartHtmlTagName(spacedTag[2]) || spacedTag[2].toLowerCase();
+        addSmartExactFix(review.exactFixes, {
+          file: file.name,
+          line,
+          issue: 'May extra space after < in an HTML tag.',
+          why: 'Browsers may not read a tag correctly when the tag name is separated from the < symbol.',
+          before: spacedTag[0],
+          after: createFixedHtmlTagText(spacedTag[1], fixedTag, spacedTag[3])
+        });
+      }
+
+      const spacedClose = lineText.match(/<\s*\/\s+([a-zA-Z][\w:-]*)([^<>]*?)>/);
+      if (spacedClose) {
+        const fixedTag = getClosestSmartHtmlTagName(spacedClose[1]) || spacedClose[1].toLowerCase();
+        addSmartExactFix(review.exactFixes, {
+          file: file.name,
+          line,
+          issue: 'May extra space inside a closing tag.',
+          why: 'A closing tag should be written like </tag>, without a space after /.',
+          before: spacedClose[0],
+          after: createFixedHtmlTagText('/', fixedTag, spacedClose[2])
+        });
+      }
+
+      const tagPattern = /<\/?\s*([a-zA-Z][\w:-]*)\b/g;
+      let tagMatch;
+      while ((tagMatch = tagPattern.exec(lineText)) !== null) {
+        const typed = tagMatch[1].toLowerCase();
+        if (typed.includes('-') || SMART_INLINE_COMMON_HTML_TAGS.has(typed)) continue;
+        const fixed = getClosestSmartHtmlTagName(typed);
+        if (fixed && fixed !== typed) {
+          addSmartExactFix(review.exactFixes, {
+            file: file.name,
+            line,
+            issue: `Possible misspelled HTML tag <${typed}>.`,
+            why: `HTML has a <${fixed}> tag, but <${typed}> is not a common beginner tag.`,
+            before: `<${typed}>`,
+            after: `<${fixed}>`
+          });
+        }
+      }
+
+      const tagWithAttrs = lineText.match(/<\s*([a-zA-Z][\w:-]*)([^<>]*)>/);
+      if (tagWithAttrs?.[2]) {
+        const attrs = tagWithAttrs[2];
+        const attrPattern = /\s([^\s=\/<>]+)(\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+))?/g;
+        let attrMatch;
+        while ((attrMatch = attrPattern.exec(attrs)) !== null) {
+          const attrName = attrMatch[1].toLowerCase();
+          if (!attrName || attrName.startsWith('data-') || attrName.startsWith('aria-') || attrName.startsWith('on')) continue;
+          if (SMART_PROJECT_COMMON_HTML_ATTRS.has(attrName)) continue;
+          const fixedAttr = getClosestSmartHtmlAttributeName(attrName);
+          if (fixedAttr && fixedAttr !== attrName) {
+            addSmartExactFix(review.exactFixes, {
+              file: file.name,
+              line,
+              issue: `Possible misspelled HTML attribute ${attrName}.`,
+              why: `The browser needs the correct attribute name ${fixedAttr} to connect styling, links, images, or actions.`,
+              before: attrMatch[0].trim(),
+              after: `${fixedAttr}${attrMatch[2] || ''}`.trim()
+            });
+          }
+        }
+      }
+
+      if (/<\s*img\b/i.test(lineText) && !/\balt\s*=/i.test(lineText)) {
+        addSmartUniqueString(review.improvements, `${file.name} line ${line}: Add alt="..." to the image so the page is more accessible.`);
+      }
+    });
+  });
+}
+
+function analyzeSmartCssFiles(snapshot, htmlFacts, review) {
+  (snapshot.cssFiles || []).forEach(file => {
+    const css = String(file.content || '');
+    const lines = css.split('\n');
+    lines.forEach((lineText, index) => {
+      const line = index + 1;
+      const propertyMatch = lineText.match(/^\s*([a-zA-Z][\w\s-]*)\s*:\s*([^;{}]+);?/);
+      if (propertyMatch) {
+        const typed = propertyMatch[1].trim().toLowerCase();
+        const fixed = getClosestSmartCssPropertyName(typed);
+        if (fixed && fixed !== typed) {
+          const before = propertyMatch[0].trim();
+          const after = before.replace(propertyMatch[1], fixed);
+          addSmartExactFix(review.exactFixes, {
+            file: file.name,
+            line,
+            issue: `Possible misspelled CSS property ${typed}.`,
+            why: `CSS will ignore properties it does not understand. Use ${fixed}.`,
+            before,
+            after
+          });
+        }
+        if (!/;\s*$/.test(lineText.trim()) && !/[{}]/.test(lineText)) {
+          addSmartUniqueString(review.suggestions, `${file.name} line ${line}: Add ; at the end of the CSS declaration for cleaner code.`);
+        }
+      } else if (/^\s*[a-zA-Z][\w\s-]+\s+[^:{};]+;?\s*$/.test(lineText) && !/[{}]/.test(lineText)) {
+        addSmartExactFix(review.exactFixes, {
+          file: file.name,
+          line,
+          issue: 'This CSS line may be missing a colon.',
+          why: 'CSS properties use property: value; format.',
+          before: lineText.trim(),
+          after: lineText.trim().replace(/^(\s*[a-zA-Z][\w\s-]+)\s+(.+)$/, '$1: $2')
+        });
+      }
+    });
+
+    const selectorPattern = /(^|[}\n,])\s*([#.])([A-Za-z_][\w-]*)\s*(?=[,{])/g;
+    let selectorMatch;
+    while ((selectorMatch = selectorPattern.exec(css)) !== null) {
+      const symbol = selectorMatch[2];
+      const name = selectorMatch[3];
+      const line = getLineNumberAt(css, selectorMatch.index);
+      if (symbol === '.' && !htmlFacts.classes.has(name)) {
+        const closest = findClosestSmartName(name, [...htmlFacts.classes]);
+        addSmartUniqueString(review.crossFileFindings, closest
+          ? `${file.name} line ${line}: CSS uses .${name}, but HTML has class="${closest}". Change the selector to .${closest} or change the HTML class.`
+          : `${file.name} line ${line}: CSS selector .${name} does not match any class currently found in the HTML.`);
+      }
+      if (symbol === '#' && !htmlFacts.ids.has(name)) {
+        const closest = findClosestSmartName(name, [...htmlFacts.ids]);
+        addSmartUniqueString(review.crossFileFindings, closest
+          ? `${file.name} line ${line}: CSS uses #${name}, but HTML has id="${closest}". Change the selector to #${closest} or change the HTML id.`
+          : `${file.name} line ${line}: CSS selector #${name} does not match any id currently found in the HTML.`);
+      }
+    }
+  });
+}
+
+function analyzeSmartJsConnections(snapshot, htmlFacts, review) {
+  const jsFacts = getSmartProjectJsFacts(snapshot);
+  htmlFacts.onclickCalls.forEach(call => {
+    if (jsFacts.functions.has(call.name)) return;
+    const closest = findClosestSmartName(call.name, [...jsFacts.functions]);
+    if (closest) {
+      addSmartExactFix(review.exactFixes, {
+        file: call.file,
+        line: call.line,
+        issue: `HTML calls ${call.name}(), but JavaScript has ${closest}().`,
+        why: 'The onclick function name must match the JavaScript function name exactly.',
+        before: `${call.name}()`,
+        after: `${closest}()`
+      });
+    } else {
+      addSmartUniqueString(review.confirmedErrors, `${call.file} line ${call.line}: HTML calls ${call.name}(), but no JavaScript function with that name was found.`);
+      addSmartUniqueString(review.nextSteps, `Create function ${call.name}() in JavaScript or correct the onclick name in the HTML.`);
+    }
+  });
+
+  jsFacts.idRefs.forEach(ref => {
+    if (htmlFacts.ids.has(ref.value)) return;
+    const closest = findClosestSmartName(ref.value, [...htmlFacts.ids]);
+    if (closest) {
+      addSmartExactFix(review.exactFixes, {
+        file: ref.file,
+        line: ref.line,
+        issue: `JavaScript looks for id "${ref.value}", but HTML has id "${closest}".`,
+        why: 'getElementById and # selectors must match the exact id in HTML.',
+        before: ref.value,
+        after: closest
+      });
+    } else {
+      addSmartUniqueString(review.crossFileFindings, `${ref.file} line ${ref.line}: JavaScript references id "${ref.value}", but that id is not found in the HTML.`);
+    }
+  });
+
+  jsFacts.classRefs.forEach(ref => {
+    if (htmlFacts.classes.has(ref.value)) return;
+    const closest = findClosestSmartName(ref.value, [...htmlFacts.classes]);
+    addSmartUniqueString(review.crossFileFindings, closest
+      ? `${ref.file} line ${ref.line}: JavaScript uses .${ref.value}, but HTML has class="${closest}".`
+      : `${ref.file} line ${ref.line}: JavaScript references class "${ref.value}", but that class is not found in the HTML.`);
+  });
+}
+
+function getLocalSmartTeacherReview(items = getErrorCheckerItems()) {
+  const snapshot = getSmartProjectCodeSnapshot();
+  const htmlFacts = getSmartProjectHtmlFacts(snapshot);
   const errors = items.filter(item => item.type === 'error');
   const warnings = items.filter(item => item.type === 'warning');
   const possibleTagWarnings = warnings.filter(item => /tag/i.test(item.title));
-
-  return {
-    summary: errors.length
-      ? `${errors.length} confirmed issue${errors.length === 1 ? '' : 's'} found. Possible tag issues are only warnings now.`
-      : warnings.length
-        ? `No confirmed errors found. ${warnings.length} warning${warnings.length === 1 ? '' : 's'} may still need review.`
-        : 'No confirmed errors found. The code looks okay based on the local checker.',
-    confirmedErrors: errors.map(item => `${item.title}: ${item.detail}`).slice(0, 5),
+  const review = {
+    summary: '',
+    confirmedErrors: errors.map(item => `${item.title}: ${item.detail}`).slice(0, 6),
     falsePositiveWarnings: possibleTagWarnings.map(item => `${item.title}: ${item.detail}`).slice(0, 4),
     suggestions: warnings
       .filter(item => !/tag/i.test(item.title))
       .map(item => item.fix || item.detail)
       .filter(Boolean)
-      .slice(0, 5)
+      .slice(0, 6),
+    exactFixes: [],
+    crossFileFindings: [],
+    improvements: [],
+    nextSteps: []
   };
+
+  analyzeSmartHtmlFiles(snapshot, review);
+  analyzeSmartCssFiles(snapshot, htmlFacts, review);
+  analyzeSmartJsConnections(snapshot, htmlFacts, review);
+
+  if (!review.nextSteps.length) {
+    if (review.exactFixes.length) addSmartUniqueString(review.nextSteps, 'Apply the exact fixes one at a time, then click Run Code again.');
+    else if (review.crossFileFindings.length) addSmartUniqueString(review.nextSteps, 'Check if the HTML names, CSS selectors, and JavaScript references match exactly.');
+    else addSmartUniqueString(review.nextSteps, 'Run the code and compare the output with the activity instructions.');
+  }
+
+  const totalIssues = errors.length + review.exactFixes.length + review.crossFileFindings.length;
+  review.summary = totalIssues
+    ? `${totalIssues} issue${totalIssues === 1 ? '' : 's'} found. Smart Helper checked HTML, CSS, JavaScript, and connections between files.`
+    : warnings.length
+      ? `No confirmed coding errors found. ${warnings.length} warning${warnings.length === 1 ? '' : 's'} may still need review.`
+      : 'No confirmed errors found. The project looks okay based on the smart local teacher check.';
+
+  return review;
+}
+
+function getLocalSmartCheckerReview(items = getErrorCheckerItems()) {
+  return getLocalSmartTeacherReview(items);
+}
+
+function renderSmartExactFixList(fixes = []) {
+  return fixes.map(fix => `
+    <li class="advanced-checker-fix-item">
+      <strong>${escapeHTML([fix.file, fix.line ? `Line ${fix.line}` : ''].filter(Boolean).join(' · ') || 'Suggested fix')}</strong>
+      <span>${escapeHTML(fix.issue || 'Use this correction.')}</span>
+      ${fix.why ? `<small>${escapeHTML(fix.why)}</small>` : ''}
+      ${fix.before || fix.after ? `
+        <div class="advanced-checker-code-pair">
+          ${fix.before ? `<code><b>Now:</b> ${escapeHTML(fix.before)}</code>` : ''}
+          ${fix.after ? `<code><b>Use:</b> ${escapeHTML(fix.after)}</code>` : ''}
+        </div>
+      ` : ''}
+    </li>
+  `).join('');
 }
 
 function renderAdvancedCheckerReview(review, options = {}) {
@@ -6481,23 +6979,35 @@ function renderAdvancedCheckerReview(review, options = {}) {
   card.className = `advanced-checker-card ${options.loading ? 'loading' : ''}`;
   card.innerHTML = options.loading ? `
     <div class="advanced-checker-head">
-      <strong>Smart verification is checking...</strong>
-      <span>Reviewing code, output, and local checker results.</span>
+      <strong>Smart teacher helper is checking...</strong>
+      <span>Reading the HTML, CSS, JavaScript, output, and file connections.</span>
     </div>
   ` : `
     <div class="advanced-checker-head">
-      <strong>${escapeHTML(options.remote ? 'Advanced verification' : 'Smart local verification')}</strong>
+      <strong>${escapeHTML(options.remote ? 'AI teacher helper' : 'Smart teacher helper')}</strong>
       <span>${escapeHTML(safe.summary)}</span>
     </div>
+    ${safe.exactFixes.length ? `
+      <div class="advanced-checker-block fix">
+        <h4>Exact code fixes</h4>
+        <ul class="advanced-checker-fix-list">${renderSmartExactFixList(safe.exactFixes)}</ul>
+      </div>
+    ` : ''}
     ${safe.confirmedErrors.length ? `
       <div class="advanced-checker-block error">
         <h4>Confirmed issues</h4>
         <ul>${safe.confirmedErrors.map(item => `<li>${escapeHTML(item)}</li>`).join('')}</ul>
       </div>
     ` : ''}
+    ${safe.crossFileFindings.length ? `
+      <div class="advanced-checker-block warning">
+        <h4>HTML/CSS/JavaScript connections</h4>
+        <ul>${safe.crossFileFindings.map(item => `<li>${escapeHTML(item)}</li>`).join('')}</ul>
+      </div>
+    ` : ''}
     ${safe.falsePositiveWarnings.length ? `
       <div class="advanced-checker-block warning">
-        <h4>Possible false alarms / review only</h4>
+        <h4>Review only / possible false alarm</h4>
         <ul>${safe.falsePositiveWarnings.map(item => `<li>${escapeHTML(item)}</li>`).join('')}</ul>
       </div>
     ` : ''}
@@ -6505,6 +7015,18 @@ function renderAdvancedCheckerReview(review, options = {}) {
       <div class="advanced-checker-block tip">
         <h4>Suggestions</h4>
         <ul>${safe.suggestions.map(item => `<li>${escapeHTML(item)}</li>`).join('')}</ul>
+      </div>
+    ` : ''}
+    ${safe.improvements.length ? `
+      <div class="advanced-checker-block tip">
+        <h4>Improve your code</h4>
+        <ul>${safe.improvements.map(item => `<li>${escapeHTML(item)}</li>`).join('')}</ul>
+      </div>
+    ` : ''}
+    ${safe.nextSteps.length ? `
+      <div class="advanced-checker-block tip">
+        <h4>Next steps</h4>
+        <ul>${safe.nextSteps.map(item => `<li>${escapeHTML(item)}</li>`).join('')}</ul>
       </div>
     ` : ''}
   `;
@@ -10438,10 +10960,21 @@ function escapeAttribute(value) {
    This follows Admin > Assistance > Code Helper & Error Hints.
    ========================================================= */
 const SMART_INLINE_HTML_TAG_FIXES = {
-  hmtl: 'html', htm: 'html', hmt: 'html', haed: 'head', hed: 'head', titel: 'title', tittle: 'title',
-  boddy: 'body', bdy: 'body', paragrap: 'p', paragraph: 'p', pragraph: 'p', divv: 'div', spn: 'span',
-  sytle: 'style', stlye: 'style', scipt: 'script', scrpt: 'script', imge: 'img', iamge: 'img', imgg: 'img',
-  buton: 'button', botton: 'button', lable: 'label', tabel: 'table', teh: 'thead', tboddy: 'tbody'
+  hmtl: 'html', htm: 'html', hmt: 'html', htmll: 'html', htmlt: 'html',
+  haed: 'head', hed: 'head', heda: 'head', hade: 'head',
+  titel: 'title', tittle: 'title', tilte: 'title', titile: 'title',
+  boddy: 'body', bdy: 'body', bdoy: 'body', boday: 'body',
+  paragrap: 'p', paragraph: 'p', pragraph: 'p', pargraph: 'p',
+  divv: 'div', dvi: 'div', dv: 'div', spn: 'span', sapn: 'span',
+  sytle: 'style', stlye: 'style', styl: 'style',
+  scipt: 'script', scrpt: 'script', scritp: 'script', scrip: 'script',
+  imge: 'img', iamge: 'img', imgg: 'img', image: 'img',
+  buton: 'button', botton: 'button', buuton: 'button',
+  lable: 'label', lebel: 'label', tabel: 'table', talbe: 'table',
+  teh: 'thead', thed: 'thead', tboddy: 'tbody', tboody: 'tbody',
+  fotter: 'footer', footr: 'footer', heder: 'header', navv: 'nav',
+  secton: 'section', seciton: 'section', artcle: 'article',
+  stong: 'strong', stron: 'strong', empp: 'em'
 };
 
 const SMART_INLINE_COMMON_HTML_TAGS = new Set([
@@ -10454,13 +10987,36 @@ const SMART_INLINE_VOID_HTML_TAGS = new Set(['area', 'base', 'br', 'col', 'embed
 const SMART_INLINE_CSS_PROPERTIES = new Set([
   'color', 'background', 'background-color', 'font-size', 'font-family', 'font-weight', 'text-align', 'margin', 'padding',
   'width', 'height', 'border', 'border-radius', 'display', 'justify-content', 'align-items', 'gap', 'flex-direction',
-  'grid-template-columns', 'position', 'top', 'right', 'bottom', 'left', 'opacity', 'box-shadow', 'line-height'
+  'grid-template-columns', 'position', 'top', 'right', 'bottom', 'left', 'opacity', 'box-shadow', 'line-height',
+  'font-style', 'letter-spacing', 'max-width', 'min-width', 'max-height', 'min-height', 'overflow', 'z-index',
+  'object-fit', 'object-position', 'text-decoration', 'list-style', 'list-style-type', 'place-items'
 ]);
+
+const SMART_INLINE_CSS_PROPERTY_FIXES = {
+  colour: 'color', colr: 'color', backround: 'background', bakground: 'background',
+  'bg-color': 'background-color', backgroundcolor: 'background-color', 'background color': 'background-color',
+  fontsize: 'font-size', 'font size': 'font-size', fontfamily: 'font-family', 'font family': 'font-family',
+  fontweight: 'font-weight', 'font weight': 'font-weight', textalign: 'text-align', 'text align': 'text-align',
+  borderradius: 'border-radius', 'border radius': 'border-radius', justifycontent: 'justify-content', 'justify content': 'justify-content',
+  alignitems: 'align-items', 'align items': 'align-items', flexdirection: 'flex-direction', 'flex direction': 'flex-direction',
+  gridtemplatecolumns: 'grid-template-columns', 'grid template columns': 'grid-template-columns',
+  boxshadow: 'box-shadow', 'box shadow': 'box-shadow', lineheight: 'line-height', 'line height': 'line-height',
+  textdecoration: 'text-decoration', 'text decoration': 'text-decoration'
+};
+
+const SMART_INLINE_JS_FIXES = {
+  docment: 'document', ducument: 'document', doucment: 'document', windw: 'window', winodw: 'window',
+  alret: 'alert', aletr: 'alert', consoel: 'console', cosnole: 'console',
+  querryselector: 'querySelector', queryselector: 'querySelector', queryselectorall: 'querySelectorAll',
+  getelementbyid: 'getElementById', getelementsbyclassname: 'getElementsByClassName',
+  addeventlistener: 'addEventListener', innerhtml: 'innerHTML', textcontent: 'textContent', classname: 'className'
+};
 
 const smartInlineHintState = {
   element: null,
   hint: null,
   hoverTimer: null,
+  autoTimer: null,
   lastLineIndex: -1
 };
 
@@ -10554,9 +11110,165 @@ function makeSmartHint(context, data) {
   };
 }
 
+
+function getSmartInlineEditDistance(a = '', b = '') {
+  const first = String(a || '').toLowerCase();
+  const second = String(b || '').toLowerCase();
+  if (first === second) return 0;
+  if (!first) return second.length;
+  if (!second) return first.length;
+  const previous = Array.from({ length: second.length + 1 }, (_, index) => index);
+  for (let i = 1; i <= first.length; i += 1) {
+    const current = [i];
+    for (let j = 1; j <= second.length; j += 1) {
+      const cost = first[i - 1] === second[j - 1] ? 0 : 1;
+      current[j] = Math.min(
+        current[j - 1] + 1,
+        previous[j] + 1,
+        previous[j - 1] + cost
+      );
+    }
+    previous.splice(0, previous.length, ...current);
+  }
+  return previous[second.length];
+}
+
+function getClosestSmartInlineValue(value, choices, explicitFixes = {}, options = {}) {
+  const clean = String(value || '').trim().toLowerCase();
+  if (!clean) return '';
+  if (explicitFixes[clean]) return explicitFixes[clean];
+  if (choices?.has?.(clean)) return clean;
+
+  let best = '';
+  let bestDistance = Infinity;
+  for (const choice of choices || []) {
+    const candidate = String(choice || '').toLowerCase();
+    if (!candidate) continue;
+    const distance = getSmartInlineEditDistance(clean.replace(/[-\s]/g, ''), candidate.replace(/[-\s]/g, ''));
+    if (distance < bestDistance) {
+      best = candidate;
+      bestDistance = distance;
+    }
+  }
+
+  const maxDistance = options.maxDistance ?? (clean.length <= 3 ? 1 : 2);
+  return bestDistance <= maxDistance ? best : '';
+}
+
+function getClosestSmartHtmlTagName(tagName = '') {
+  return getClosestSmartInlineValue(tagName, SMART_INLINE_COMMON_HTML_TAGS, SMART_INLINE_HTML_TAG_FIXES, { maxDistance: String(tagName || '').length <= 3 ? 1 : 2 });
+}
+
+function getClosestSmartCssPropertyName(propertyName = '') {
+  return getClosestSmartInlineValue(propertyName, SMART_INLINE_CSS_PROPERTIES, SMART_INLINE_CSS_PROPERTY_FIXES, { maxDistance: String(propertyName || '').length <= 5 ? 1 : 2 });
+}
+
+function createFixedHtmlTagText(slash = '', tagName = '', attrs = '') {
+  const cleanSlash = slash ? '/' : '';
+  const cleanAttrs = String(attrs || '').trim();
+  return `<${cleanSlash}${tagName}${cleanAttrs ? ` ${cleanAttrs}` : ''}>`;
+}
+
+function getSmartHintLineNearCursor() {
+  const cursorLine = getEditorLineIndexFromCursor();
+  const lines = (editor.value || '').split('\n');
+  const candidates = [cursorLine, cursorLine - 1, cursorLine + 1]
+    .filter(index => index >= 0 && index < lines.length);
+  return [...new Set(candidates)];
+}
+
 function detectSmartInlineHtmlHint(context) {
   const line = context.lineText;
-  if (!line.trim()) return null;
+  const trimmed = line.trim();
+  if (!trimmed) return null;
+
+  const spacedFullTag = line.match(/<\s+(\/?)\s*([a-zA-Z][\w:-]*)([^<>]*?)>/);
+  if (spacedFullTag) {
+    const typedTag = spacedFullTag[2].toLowerCase();
+    const fixedTag = getClosestSmartHtmlTagName(typedTag) || typedTag;
+    const fixed = createFixedHtmlTagText(spacedFullTag[1], fixedTag, spacedFullTag[3]);
+    return makeSmartHint(context, {
+      issue: `May extra space after < in <${typedTag}>.`,
+      suggestion: `Remove the space. Correct form: ${fixed}`,
+      localStart: spacedFullTag.index,
+      localEnd: spacedFullTag.index + spacedFullTag[0].length,
+      replacement: fixed,
+      fixLabel: 'Fix tag spacing',
+      canFix: true
+    });
+  }
+
+  const spacedClosingTag = line.match(/<\s*\/\s+([a-zA-Z][\w:-]*)([^<>]*?)>/);
+  if (spacedClosingTag) {
+    const typedTag = spacedClosingTag[1].toLowerCase();
+    const fixedTag = getClosestSmartHtmlTagName(typedTag) || typedTag;
+    const fixed = createFixedHtmlTagText('/', fixedTag, spacedClosingTag[2]);
+    return makeSmartHint(context, {
+      issue: `May extra space sa closing tag </ ${typedTag}>.`,
+      suggestion: `Dapat dikit ang slash at tag name: ${fixed}`,
+      localStart: spacedClosingTag.index,
+      localEnd: spacedClosingTag.index + spacedClosingTag[0].length,
+      replacement: fixed,
+      fixLabel: 'Fix closing tag',
+      canFix: true
+    });
+  }
+
+  const tagWithoutOpeningBracket = line.match(/(^|\s)(\/?)([a-zA-Z][\w:-]*)\s*>/);
+  if (tagWithoutOpeningBracket && !line.slice(0, tagWithoutOpeningBracket.index + tagWithoutOpeningBracket[0].length).includes('<')) {
+    const prefix = tagWithoutOpeningBracket[1] || '';
+    const slash = tagWithoutOpeningBracket[2] || '';
+    const typedTag = tagWithoutOpeningBracket[3].toLowerCase();
+    const fixedTag = getClosestSmartHtmlTagName(typedTag) || typedTag;
+    const fixed = `${prefix}<${slash}${fixedTag}>`;
+    return makeSmartHint(context, {
+      issue: `Mukhang kulang ang < sa ${slash}${typedTag}> tag.`,
+      suggestion: `Use ${fixed.trim()} instead.`,
+      localStart: tagWithoutOpeningBracket.index,
+      localEnd: tagWithoutOpeningBracket.index + tagWithoutOpeningBracket[0].length,
+      replacement: fixed,
+      fixLabel: 'Add <',
+      canFix: true
+    });
+  }
+
+  const unfinishedTag = line.match(/<\s*(\/?)\s*([a-zA-Z][\w:-]*)(\s[^<>]*)?$/);
+  if (unfinishedTag && !line.includes('>', unfinishedTag.index)) {
+    const slash = unfinishedTag[1] || '';
+    const typedTag = unfinishedTag[2].toLowerCase();
+    const fixedTag = getClosestSmartHtmlTagName(typedTag) || typedTag;
+    const attrs = unfinishedTag[3] || '';
+    const fixed = createFixedHtmlTagText(slash, fixedTag, attrs);
+    return makeSmartHint(context, {
+      issue: `The <${slash}${typedTag}> tag looks unfinished.`,
+      suggestion: `Close it with >. Correct form: ${fixed}`,
+      localStart: unfinishedTag.index,
+      localEnd: line.length,
+      replacement: fixed,
+      fixLabel: 'Complete tag',
+      canFix: true
+    });
+  }
+
+  const mismatch = line.match(/<\s*([a-zA-Z][\w:-]*)\b[^>]*>([\s\S]*?)<\s*\/\s*([a-zA-Z][\w:-]*)\s*>/);
+  if (mismatch) {
+    const openTag = mismatch[1].toLowerCase();
+    const closeTag = mismatch[3].toLowerCase();
+    if (openTag !== closeTag && !SMART_INLINE_VOID_HTML_TAGS.has(openTag)) {
+      const closingStart = mismatch.index + mismatch[0].lastIndexOf('</');
+      const closingEnd = mismatch.index + mismatch[0].length;
+      const fixedClose = `</${openTag}>`;
+      return makeSmartHint(context, {
+        issue: `Opening tag is <${openTag}> but closing tag is </${closeTag}>.`,
+        suggestion: `Use ${fixedClose} so the pair matches.`,
+        localStart: closingStart,
+        localEnd: closingEnd,
+        replacement: fixedClose,
+        fixLabel: 'Match closing tag',
+        canFix: true
+      });
+    }
+  }
 
   const wrongClose = line.match(/(<\s*(h[1-6]|p|div|span|section|article|main|header|footer|nav|ul|ol|li|button|label|strong|em|title)\b[^>]*>)([\s\S]*?)(<\s*\2\s*>)/i);
   if (wrongClose) {
@@ -10569,6 +11281,7 @@ function detectSmartInlineHtmlHint(context) {
       localStart: wrongStart,
       localEnd: wrongEnd,
       replacement: fixedClose,
+      fixLabel: 'Add /',
       canFix: true
     });
   }
@@ -10585,6 +11298,7 @@ function detectSmartInlineHtmlHint(context) {
       localStart: attrStart,
       localEnd: attrEnd,
       replacement: fixed,
+      fixLabel: 'Add quotes',
       canFix: true
     });
   }
@@ -10592,8 +11306,8 @@ function detectSmartInlineHtmlHint(context) {
   const tagMatch = line.match(/<\/?\s*([a-zA-Z][\w:-]*)/);
   if (tagMatch) {
     const typedTag = tagMatch[1].toLowerCase();
-    const fixedTag = SMART_INLINE_HTML_TAG_FIXES[typedTag];
-    if (fixedTag) {
+    const fixedTag = getClosestSmartHtmlTagName(typedTag);
+    if (fixedTag && fixedTag !== typedTag) {
       const localStart = tagMatch.index + tagMatch[0].lastIndexOf(tagMatch[1]);
       return makeSmartHint(context, {
         issue: `<${typedTag}> does not look like a valid/common HTML tag.`,
@@ -10601,13 +11315,14 @@ function detectSmartInlineHtmlHint(context) {
         localStart,
         localEnd: localStart + tagMatch[1].length,
         replacement: fixedTag,
+        fixLabel: `Change to ${fixedTag}`,
         canFix: true
       });
     }
     if (!SMART_INLINE_COMMON_HTML_TAGS.has(typedTag) && !typedTag.includes('-')) {
       return makeSmartHint(context, {
         issue: `<${typedTag}> is not a common beginner HTML tag.`,
-        suggestion: 'Check the spelling of the tag. Common tags include h1, p, div, img, a, ul, li, and button.',
+        suggestion: 'Check the spelling. Smart Hint can fix close misspellings like <hmtl>, <haed>, <titel>, <boddy>, or <buton>.',
         canFix: false
       });
     }
@@ -10622,6 +11337,7 @@ function detectSmartInlineHtmlHint(context) {
       localStart: line.length,
       localEnd: line.length,
       replacement: `</${tag}>`,
+      fixLabel: `Add </${tag}>`,
       canFix: true
     });
   }
@@ -10634,29 +11350,69 @@ function detectSmartInlineCssHint(context) {
   const trimmed = line.trim();
   if (!trimmed || trimmed.startsWith('/*')) return null;
 
-  const missingColon = line.match(/^(\s*)([a-z-]+)\s+([^:;{}]+;\s*)$/i);
-  if (missingColon && SMART_INLINE_CSS_PROPERTIES.has(missingColon[2].toLowerCase())) {
-    const fixedLine = `${missingColon[1]}${missingColon[2]}: ${missingColon[3]}`;
-    return makeSmartHint(context, {
-      issue: `CSS property "${missingColon[2]}" needs a colon before its value.`,
-      suggestion: `Use ${missingColon[2]}: value;`,
-      localStart: 0,
-      localEnd: line.length,
-      replacement: fixedLine,
-      canFix: true
-    });
+  const propertyTypo = line.match(/^(\s*)([a-zA-Z][a-zA-Z\s-]*?)\s*:\s*([^{};]+;?)\s*$/);
+  if (propertyTypo) {
+    const rawProperty = propertyTypo[2].trim().toLowerCase().replace(/\s+/g, ' ');
+    const fixedProperty = getClosestSmartCssPropertyName(rawProperty);
+    if (fixedProperty && fixedProperty !== rawProperty) {
+      const fixedLine = `${propertyTypo[1]}${fixedProperty}: ${propertyTypo[3].trim()}`;
+      return makeSmartHint(context, {
+        issue: `CSS property "${rawProperty}" looks misspelled.`,
+        suggestion: `Use ${fixedProperty}: value;`,
+        localStart: 0,
+        localEnd: line.length,
+        replacement: fixedLine,
+        fixLabel: `Use ${fixedProperty}`,
+        canFix: true
+      });
+    }
   }
 
-  const missingSemicolon = line.match(/^(\s*)([a-z-]+)\s*:\s*([^;{}]+)$/i);
-  if (missingSemicolon && SMART_INLINE_CSS_PROPERTIES.has(missingSemicolon[2].toLowerCase())) {
-    return makeSmartHint(context, {
-      issue: `This CSS declaration is missing a semicolon.`,
-      suggestion: `Add ; after the value so the next style is read correctly.`,
-      localStart: line.length,
-      localEnd: line.length,
-      replacement: ';',
-      canFix: true
-    });
+  const missingColon = line.match(/^(\s*)([a-zA-Z][a-zA-Z\s-]*?)\s+([^:;{}]+;\s*)$/i);
+  if (missingColon) {
+    const rawProperty = missingColon[2].trim().toLowerCase().replace(/\s+/g, ' ');
+    const fixedProperty = getClosestSmartCssPropertyName(rawProperty);
+    if (fixedProperty) {
+      const fixedLine = `${missingColon[1]}${fixedProperty}: ${missingColon[3].trim()}`;
+      return makeSmartHint(context, {
+        issue: `CSS property "${rawProperty}" needs a colon before its value.`,
+        suggestion: `Use ${fixedProperty}: value;`,
+        localStart: 0,
+        localEnd: line.length,
+        replacement: fixedLine,
+        fixLabel: 'Fix CSS line',
+        canFix: true
+      });
+    }
+  }
+
+  const missingSemicolon = line.match(/^(\s*)([a-zA-Z][a-zA-Z\s-]*?)\s*:\s*([^;{}]+)$/i);
+  if (missingSemicolon) {
+    const rawProperty = missingSemicolon[2].trim().toLowerCase().replace(/\s+/g, ' ');
+    const fixedProperty = getClosestSmartCssPropertyName(rawProperty);
+    if (fixedProperty) {
+      if (fixedProperty !== rawProperty) {
+        const fixedLine = `${missingSemicolon[1]}${fixedProperty}: ${missingSemicolon[3].trim()};`;
+        return makeSmartHint(context, {
+          issue: `CSS property "${rawProperty}" looks misspelled and the line needs ;.`,
+          suggestion: `Use ${fixedProperty}: ${missingSemicolon[3].trim()};`,
+          localStart: 0,
+          localEnd: line.length,
+          replacement: fixedLine,
+          fixLabel: 'Fix property + ;',
+          canFix: true
+        });
+      }
+      return makeSmartHint(context, {
+        issue: `This CSS declaration is missing a semicolon.`,
+        suggestion: `Add ; after the value so the next style is read correctly.`,
+        localStart: line.length,
+        localEnd: line.length,
+        replacement: ';',
+        fixLabel: 'Add ;',
+        canFix: true
+      });
+    }
   }
 
   const openBraces = (line.match(/\{/g) || []).length;
@@ -10677,6 +11433,53 @@ function detectSmartInlineJsHint(context) {
   const trimmed = line.trim();
   if (!trimmed || trimmed.startsWith('//')) return null;
 
+  const typo = line.match(/\b(docment|ducument|doucment|windw|winodw|alret|aletr|consoel|cosnole|querryselector|queryselector|queryselectorall|getelementbyid|getelementsbyclassname|addeventlistener|innerhtml|textcontent|classname)\b/i);
+  if (typo) {
+    const typed = typo[1];
+    const fixed = SMART_INLINE_JS_FIXES[typed.toLowerCase()];
+    if (fixed) {
+      return makeSmartHint(context, {
+        issue: `JavaScript word "${typed}" looks misspelled.`,
+        suggestion: `Use ${fixed} instead.`,
+        localStart: typo.index,
+        localEnd: typo.index + typed.length,
+        replacement: fixed,
+        fixLabel: `Use ${fixed}`,
+        canFix: true
+      });
+    }
+  }
+
+  const missingDocumentDot = line.match(/\bdocument\s+(getElementById|querySelector|querySelectorAll|getElementsByClassName)\s*\(/);
+  if (missingDocumentDot) {
+    const localStart = missingDocumentDot.index;
+    const fixed = missingDocumentDot[0].replace(/document\s+/, 'document.');
+    return makeSmartHint(context, {
+      issue: 'JavaScript needs a dot after document.',
+      suggestion: `Use ${fixed}`,
+      localStart,
+      localEnd: localStart + missingDocumentDot[0].length,
+      replacement: fixed,
+      fixLabel: 'Add dot',
+      canFix: true
+    });
+  }
+
+  const assignmentInsteadOfComparison = line.match(/\bif\s*\(([^()]+?)\s=\s([^=][^()]*)\)/);
+  if (assignmentInsteadOfComparison) {
+    const localStart = assignmentInsteadOfComparison.index;
+    const fixed = assignmentInsteadOfComparison[0].replace(/\s=\s/, ' === ');
+    return makeSmartHint(context, {
+      issue: 'Inside if (...), a single = usually means assignment, not comparison.',
+      suggestion: 'Use === when checking if two values are equal.',
+      localStart,
+      localEnd: localStart + assignmentInsteadOfComparison[0].length,
+      replacement: fixed,
+      fixLabel: 'Use ===',
+      canFix: true
+    });
+  }
+
   const openParen = (line.match(/\(/g) || []).length;
   const closeParen = (line.match(/\)/g) || []).length;
   if (openParen > closeParen) {
@@ -10688,6 +11491,7 @@ function detectSmartInlineJsHint(context) {
       localStart: insertAt,
       localEnd: insertAt,
       replacement: ')',
+      fixLabel: 'Add )',
       canFix: true
     });
   }
@@ -10725,6 +11529,7 @@ function detectSmartInlineHint(context) {
 
 function hideSmartInlineHint() {
   window.clearTimeout(smartInlineHintState.hoverTimer);
+  window.clearTimeout(smartInlineHintState.autoTimer);
   smartInlineHintState.hint = null;
   smartInlineHintState.lastLineIndex = -1;
   smartInlineHintState.element?.classList.add('hidden');
@@ -10770,6 +11575,46 @@ function renderSmartInlineHint(hint, event) {
   element.style.top = `${top}px`;
 }
 
+function getSmartInlineHintAnchorForLine(lineIndex) {
+  const rect = editor.getBoundingClientRect();
+  const style = window.getComputedStyle(editor);
+  const fontSize = parseFloat(style.fontSize) || 16;
+  const lineHeight = parseFloat(style.lineHeight) || fontSize * 1.55;
+  const paddingTop = parseFloat(style.paddingTop) || 0;
+  const paddingLeft = parseFloat(style.paddingLeft) || 0;
+  const lineY = rect.top + paddingTop + (Math.max(0, lineIndex) * lineHeight) - editor.scrollTop;
+  return {
+    clientX: Math.min(window.innerWidth - 24, Math.max(16, rect.left + paddingLeft + 24)),
+    clientY: Math.min(window.innerHeight - 90, Math.max(20, lineY + lineHeight * 0.5))
+  };
+}
+
+function showSmartInlineHintForCursor(options = {}) {
+  if (!isSmartInlineHintsEnabled()) {
+    hideSmartInlineHint();
+    return;
+  }
+
+  const candidateLines = getSmartHintLineNearCursor();
+  for (const lineIndex of candidateLines) {
+    const context = getLineContextByIndex(lineIndex);
+    const hint = detectSmartInlineHint(context);
+    if (hint) {
+      smartInlineHintState.lastLineIndex = context.lineIndex;
+      renderSmartInlineHint(hint, options.anchor || getSmartInlineHintAnchorForLine(context.lineIndex));
+      return;
+    }
+  }
+
+  hideSmartInlineHint();
+}
+
+function scheduleSmartInlineHintForCursor(delay = 260) {
+  if (!isSmartInlineHintsEnabled()) return;
+  window.clearTimeout(smartInlineHintState.autoTimer);
+  smartInlineHintState.autoTimer = window.setTimeout(() => showSmartInlineHintForCursor(), delay);
+}
+
 function showSmartInlineHintForLine(lineIndex, event) {
   if (!isSmartInlineHintsEnabled()) {
     hideSmartInlineHint();
@@ -10803,7 +11648,10 @@ editor.addEventListener('input', event => {
   scheduleAutoRun({ reason: 'edit' });
 });
 
-editor.addEventListener('input', () => hideSmartInlineHint());
+editor.addEventListener('input', () => {
+  hideSmartInlineHint();
+  scheduleSmartInlineHintForCursor(220);
+});
 
 editor.addEventListener('mousemove', event => handleSmartInlinePointer(event));
 
@@ -15958,4 +16806,166 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     buttonFound: Boolean(parts().button),
     stripFound: Boolean(parts().strip)
   });
+})();
+
+/* USER-DIRECTED FIX STEP 82
+   Scope: phone/mobile only.
+   Makes Full Editor a true phone typing overlay: fills the visual viewport,
+   uses a clean X exit button, keeps Code Helper and the font slider available,
+   and leaves desktop fullscreen behavior untouched. */
+(() => {
+  const root = document.documentElement;
+  const body = document.body;
+  const editorPanel = document.getElementById('editorPanel');
+  const editor = document.getElementById('codeEditor');
+  const fullEditorBtn = document.getElementById('fullEditorBtn');
+  const MOBILE_QUERY = '(max-width: 820px), (hover: none) and (pointer: coarse)';
+  const MOBILE_FONT_STORAGE_KEY = 'studentCodeStudio.mobileEditorFontSize.v1';
+  const FONT_MIN = 11;
+  const FONT_MAX = 22;
+  const FONT_STEP = 0.5;
+  const FONT_DEFAULT = 12.5;
+
+  if (!root || !body || !editorPanel || !editor) return;
+
+  function isPhoneUi() {
+    return root.dataset.deviceMode === 'phone'
+      || Boolean(window.matchMedia?.(MOBILE_QUERY)?.matches)
+      || Boolean(window.matchMedia?.('(hover: none) and (pointer: coarse)')?.matches);
+  }
+
+  function isPhoneFullEditorActive() {
+    return isPhoneUi()
+      && body.classList.contains('editor-fullscreen-active')
+      && !body.classList.contains('preview-fullscreen-active')
+      && !body.classList.contains('preview-inside-editor-fullscreen');
+  }
+
+  function currentViewportHeight() {
+    const vvHeight = Number(window.visualViewport?.height) || 0;
+    const inner = Number(window.innerHeight) || 0;
+    return Math.max(320, Math.round(vvHeight || inner || 640));
+  }
+
+  function syncPhoneFullEditorHeight() {
+    root.style.setProperty('--mcs-phone-full-editor-height', `${currentViewportHeight()}px`);
+    const keyboardOffset = Math.max(0, Math.round((window.innerHeight || currentViewportHeight()) - currentViewportHeight()));
+    root.style.setProperty('--mcs-phone-full-editor-keyboard-offset', `${keyboardOffset}px`);
+  }
+
+  function readMobileFontSize() {
+    const stored = Number(loadJSON(MOBILE_FONT_STORAGE_KEY, FONT_DEFAULT));
+    return clamp(Number.isFinite(stored) ? stored : FONT_DEFAULT, FONT_MIN, FONT_MAX);
+  }
+
+  function formatFontSize(value) {
+    const number = Number(value) || FONT_DEFAULT;
+    return `${Number.isInteger(number) ? number.toFixed(0) : number.toFixed(1)}px`;
+  }
+
+  function applyMobileFullscreenFontSize(value) {
+    const next = clamp(Number(value) || FONT_DEFAULT, FONT_MIN, FONT_MAX);
+    root.style.setProperty('--mobile-editor-font-size', `${next}px`);
+    saveJSON(MOBILE_FONT_STORAGE_KEY, next);
+    const range = document.getElementById('mobileEditorFontSizeRange');
+    const output = document.getElementById('mobileEditorFontSizeValue');
+    if (range && Number(range.value) !== next) range.value = String(next);
+    if (output) output.textContent = formatFontSize(next);
+    window.requestAnimationFrame(() => {
+      if (typeof fitEditorToContent === 'function') fitEditorToContent();
+      if (typeof syncEditorScroll === 'function') syncEditorScroll();
+    });
+  }
+
+  function ensurePhoneFullscreenFontControl() {
+    let control = document.getElementById('mobileEditorFontControl');
+    if (!control) {
+      control = document.createElement('div');
+      control.id = 'mobileEditorFontControl';
+      control.className = 'mobile-editor-font-control';
+      control.setAttribute('aria-label', 'Adjust editor font size');
+      const value = readMobileFontSize();
+      control.innerHTML = `
+        <label class="mobile-editor-font-label" for="mobileEditorFontSizeRange">Aa</label>
+        <input id="mobileEditorFontSizeRange" class="mobile-editor-font-range" type="range" min="${FONT_MIN}" max="${FONT_MAX}" step="${FONT_STEP}" value="${value}" aria-label="Editor font size" />
+        <output id="mobileEditorFontSizeValue" class="mobile-editor-font-value" for="mobileEditorFontSizeRange">${formatFontSize(value)}</output>
+      `;
+      const helper = document.getElementById('codeHelperFloatingBtn');
+      if (helper?.parentElement) helper.insertAdjacentElement('afterend', control);
+      else editorPanel.appendChild(control);
+    }
+
+    const range = control.querySelector('#mobileEditorFontSizeRange');
+    if (range && !range.dataset.step82Bound) {
+      range.addEventListener('input', () => applyMobileFullscreenFontSize(Number(range.value)), { passive: true });
+      range.dataset.step82Bound = 'true';
+    }
+    applyMobileFullscreenFontSize(readMobileFontSize());
+    return control;
+  }
+
+  function syncExitButtonLabel(active) {
+    const exitButton = document.getElementById('exitEditorStickyBtn');
+    if (!exitButton) return;
+    if (!exitButton.dataset.defaultText) {
+      exitButton.dataset.defaultText = exitButton.textContent || 'Exit Full';
+      exitButton.dataset.defaultTitle = exitButton.title || 'Exit full editor';
+    }
+    if (active) {
+      exitButton.textContent = '×';
+      exitButton.title = 'Exit full editor';
+      exitButton.setAttribute('aria-label', 'Exit full editor');
+    } else {
+      exitButton.textContent = exitButton.dataset.defaultText || 'Exit Full';
+      exitButton.title = exitButton.dataset.defaultTitle || 'Exit full editor';
+      exitButton.setAttribute('aria-label', exitButton.dataset.defaultTitle || 'Exit full editor');
+    }
+  }
+
+  function syncPhoneFullEditorMode() {
+    const active = isPhoneFullEditorActive();
+    syncPhoneFullEditorHeight();
+    root.classList.toggle('phone-true-full-editor-enabled', active);
+    body.classList.toggle('phone-true-full-editor-active', active);
+    if (active) {
+      ensurePhoneFullscreenFontControl();
+      editor.setAttribute('wrap', 'soft');
+      editor.style.scrollBehavior = 'auto';
+      syncExitButtonLabel(true);
+      window.setTimeout(() => {
+        if (isPhoneFullEditorActive()) {
+          editor.focus({ preventScroll: true });
+          if (typeof fitEditorToContent === 'function') fitEditorToContent();
+          if (typeof syncEditorScroll === 'function') syncEditorScroll();
+        }
+      }, 60);
+    } else {
+      syncExitButtonLabel(false);
+    }
+  }
+
+  // On Android/Chrome this can use real browser fullscreen. On iPhone/Safari,
+  // CSS visual-viewport fullscreen remains the safe fallback.
+  fullEditorBtn?.addEventListener('click', () => {
+    // This listener is registered after the app's normal Full Editor click
+    // handler, so the body class is already active. Keep requestFullscreen
+    // synchronous so Android browsers still treat it as a user gesture.
+    syncPhoneFullEditorMode();
+    if (!isPhoneFullEditorActive()) return;
+    if (editorPanel.requestFullscreen && !document.fullscreenElement) {
+      editorPanel.requestFullscreen().catch(() => {});
+    }
+  });
+
+  const observer = new MutationObserver(syncPhoneFullEditorMode);
+  observer.observe(body, { attributes: true, attributeFilter: ['class'] });
+
+  ['load', 'resize', 'orientationchange', 'fullscreenchange', 'webkitfullscreenchange'].forEach(type => {
+    window.addEventListener(type, syncPhoneFullEditorMode, { passive: true });
+  });
+  window.visualViewport?.addEventListener('resize', syncPhoneFullEditorMode, { passive: true });
+  window.visualViewport?.addEventListener('scroll', syncPhoneFullEditorMode, { passive: true });
+  document.addEventListener('visibilitychange', syncPhoneFullEditorMode, { passive: true });
+  document.addEventListener('DOMContentLoaded', syncPhoneFullEditorMode, { once: true });
+  syncPhoneFullEditorMode();
 })();

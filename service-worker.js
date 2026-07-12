@@ -1,12 +1,12 @@
-const CACHE_NAME = 'mcs-coding-app-20260712-user-step79-centered-font-slider';
+const CACHE_NAME = 'mcs-coding-app-20260712-user-step82-mobile-true-full-editor';
 const APP_SHELL = [
   './',
   './index.html',
   './index.html?fresh=1',
   './style.css',
-  './style.css?v=20260712-step79-centered-font-slider',
+  './style.css?v=20260712-step82-mobile-true-full-editor',
   './script.js',
-  './script.js?v=20260712-step79-centered-font-slider',
+  './script.js?v=20260712-step82-mobile-true-full-editor',
   './firebase-config.js',
   './manifest.webmanifest',
   './favicon.png',
