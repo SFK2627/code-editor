@@ -1,12 +1,12 @@
-const CACHE_NAME = 'mcs-coding-app-20260712-user-step74-mobile-wrap-chain-scroll';
+const CACHE_NAME = 'mcs-coding-app-20260712-user-step75-smooth-edge-scroll';
 const APP_SHELL = [
   './',
   './index.html',
   './index.html?fresh=1',
   './style.css',
-  './style.css?v=20260712-step74-mobile-wrap-chain-scroll',
+  './style.css?v=20260712-step75-smooth-edge-scroll',
   './script.js',
-  './script.js?v=20260712-step74-mobile-wrap-chain-scroll',
+  './script.js?v=20260712-step75-smooth-edge-scroll',
   './firebase-config.js',
   './manifest.webmanifest',
   './favicon.png',

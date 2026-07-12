@@ -14185,15 +14185,10 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
   let movedPage = false;
 
   function isPhoneEditorChainScrollActive() {
-    const root = document.documentElement;
-    const body = document.body;
-    const phoneUi = root?.dataset?.deviceMode === 'phone'
-      || Boolean(window.matchMedia?.('(max-width: 820px)')?.matches)
-      || Boolean(window.matchMedia?.('(hover: none) and (pointer: coarse)')?.matches);
-    return phoneUi
-      && body?.classList?.contains('mobile-editor-normal')
-      && !body?.classList?.contains('editor-fullscreen-active')
-      && !body?.classList?.contains('preview-fullscreen-active');
+    // Step 75 replaces the Step 74 full manual drag scroller with an
+    // edge-only smooth bridge. Keep this block installed but inactive so it
+    // cannot fight native mobile textarea momentum.
+    return false;
   }
 
   function syncPhoneEditorWrapMode() {
@@ -14312,6 +14307,181 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
       movedPage = false;
     }, { passive: true });
   });
+})();
+
+
+/* USER-DIRECTED FIX STEP 75
+   Scope: phone/mobile normal editor only.
+   Problem from Step 74: logic was correct, but every touchmove manually moved
+   the textarea/page, making scroll feel heavy, choppy, and delayed at edges.
+   Fix: let the textarea use native phone momentum while it can still scroll.
+   Only when the editor is already at the top/bottom do we bridge that swipe to
+   the page, using instant scrollTop updates plus a small momentum tail. */
+(() => {
+  const editor = document.getElementById('codeEditor');
+  if (!editor) return;
+
+  let startX = 0;
+  let startY = 0;
+  let lastY = 0;
+  let lastTime = 0;
+  let velocityY = 0;
+  let edgePaging = false;
+  let momentumFrame = 0;
+
+  function isStep75PhoneEditorActive() {
+    const root = document.documentElement;
+    const body = document.body;
+    const phoneUi = root?.dataset?.deviceMode === 'phone'
+      || Boolean(window.matchMedia?.('(max-width: 820px)')?.matches)
+      || Boolean(window.matchMedia?.('(hover: none) and (pointer: coarse)')?.matches);
+    return phoneUi
+      && body?.classList?.contains('mobile-editor-normal')
+      && !body?.classList?.contains('editor-fullscreen-active')
+      && !body?.classList?.contains('preview-fullscreen-active');
+  }
+
+  function syncStep75Mode() {
+    const active = isStep75PhoneEditorActive();
+    document.documentElement?.classList?.toggle('phone-editor-smooth-scroll-fix', active);
+    if (active) editor.setAttribute('wrap', 'soft');
+  }
+
+  function maxEditorScrollTop() {
+    return Math.max(0, editor.scrollHeight - editor.clientHeight);
+  }
+
+  function getPageScroller() {
+    return document.scrollingElement || document.documentElement || document.body;
+  }
+
+  function scrollPageInstant(deltaY) {
+    if (Math.abs(deltaY) < 0.35) return false;
+    const scroller = getPageScroller();
+    if (!scroller) return false;
+    const maxTop = Math.max(0, scroller.scrollHeight - window.innerHeight);
+    const before = scroller.scrollTop || window.scrollY || 0;
+    const next = Math.max(0, Math.min(maxTop, before + deltaY));
+    if (Math.abs(next - before) < 0.35) return false;
+    scroller.scrollTop = next;
+    if (document.body && document.body !== scroller && document.body.scrollTop) {
+      document.body.scrollTop = next;
+    }
+    return true;
+  }
+
+  function stopMomentum() {
+    if (momentumFrame) window.cancelAnimationFrame(momentumFrame);
+    momentumFrame = 0;
+  }
+
+  function startPageMomentum(initialVelocity) {
+    stopMomentum();
+    if (!edgePaging || Math.abs(initialVelocity) < 0.22) return;
+    let velocity = Math.max(-2.2, Math.min(2.2, initialVelocity));
+    let previous = performance.now();
+    const prefersReducedMotion = Boolean(window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches);
+    const friction = prefersReducedMotion ? 0.72 : 0.91;
+    const minVelocity = prefersReducedMotion ? 0.08 : 0.035;
+
+    const step = now => {
+      const dt = Math.min(32, Math.max(8, now - previous));
+      previous = now;
+      const moved = scrollPageInstant(velocity * dt);
+      velocity *= Math.pow(friction, dt / 16.67);
+      if (moved && Math.abs(velocity) > minVelocity) {
+        momentumFrame = window.requestAnimationFrame(step);
+      } else {
+        momentumFrame = 0;
+      }
+    };
+    momentumFrame = window.requestAnimationFrame(step);
+  }
+
+  function shouldBridgeToPage(deltaY) {
+    const maxTop = maxEditorScrollTop();
+    if (maxTop <= 1) return true;
+    const top = editor.scrollTop;
+    const atTop = top <= 1;
+    const atBottom = top >= maxTop - 1;
+    return (deltaY < 0 && atTop) || (deltaY > 0 && atBottom);
+  }
+
+  function onTouchStart(event) {
+    if (!isStep75PhoneEditorActive()) return;
+    syncStep75Mode();
+    stopMomentum();
+    const touch = event.touches?.[0];
+    if (!touch) return;
+    startX = touch.clientX;
+    startY = touch.clientY;
+    lastY = touch.clientY;
+    lastTime = event.timeStamp || performance.now();
+    velocityY = 0;
+    edgePaging = false;
+  }
+
+  function onTouchMove(event) {
+    if (!isStep75PhoneEditorActive()) return;
+    const touch = event.touches?.[0];
+    if (!touch) return;
+
+    const now = event.timeStamp || performance.now();
+    const currentY = touch.clientY;
+    const deltaY = lastY - currentY;
+    const dt = Math.max(8, now - lastTime);
+    lastY = currentY;
+    lastTime = now;
+
+    const totalX = Math.abs(touch.clientX - startX);
+    const totalY = Math.abs(currentY - startY);
+    if (totalX > totalY + 18) return;
+    if (Math.abs(deltaY) < 0.4) return;
+
+    velocityY = (velocityY * 0.65) + ((deltaY / dt) * 0.35);
+
+    // Native textarea scrolling is smoother than JS. Do not preventDefault
+    // while the editor still has scroll room in this direction.
+    if (!edgePaging && !shouldBridgeToPage(deltaY)) return;
+
+    edgePaging = true;
+    event.preventDefault();
+    event.stopPropagation();
+    scrollPageInstant(deltaY);
+  }
+
+  function onTouchEnd() {
+    if (isStep75PhoneEditorActive()) startPageMomentum(velocityY);
+    startX = 0;
+    startY = 0;
+    lastY = 0;
+    lastTime = 0;
+    velocityY = 0;
+    edgePaging = false;
+  }
+
+  editor.addEventListener('touchstart', onTouchStart, { passive: true });
+  editor.addEventListener('touchmove', onTouchMove, { passive: false });
+  editor.addEventListener('touchend', onTouchEnd, { passive: true });
+  editor.addEventListener('touchcancel', () => {
+    stopMomentum();
+    startX = 0;
+    startY = 0;
+    lastY = 0;
+    lastTime = 0;
+    velocityY = 0;
+    edgePaging = false;
+  }, { passive: true });
+  editor.addEventListener('focus', syncStep75Mode, { passive: true });
+  editor.addEventListener('input', syncStep75Mode, { passive: true });
+  editor.addEventListener('scroll', () => {
+    if (isStep75PhoneEditorActive()) syncEditorScroll();
+  }, { passive: true });
+  ['load', 'resize', 'orientationchange', 'fullscreenchange', 'webkitfullscreenchange'].forEach(type => {
+    window.addEventListener(type, syncStep75Mode, { passive: true });
+  });
+  document.addEventListener('visibilitychange', syncStep75Mode, { passive: true });
+  syncStep75Mode();
 })();
 
 /* User-directed phone polish v1: compact mobile header/tools/dashboard only. */
