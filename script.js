@@ -2826,21 +2826,63 @@ function getHeaderEditorModeForTypewriter() {
   return blocked ? '' : activeMode;
 }
 
+/* USER-DIRECTED FIX STEP 84
+   Keep the animated header safe when the first + second given names are long.
+   The app still uses the first name plus one safe second name; this only makes
+   the visible header label shorter when needed so the header buttons/layout do
+   not move or wrap. */
+function shortenHeaderStudentNameForDisplay(name = '') {
+  const clean = String(name || '').replace(/\s+/g, ' ').trim() || 'Student';
+  const phoneLimit = 14;
+  const desktopLimit = 24;
+  const limit = isPhoneHeaderTypewriterUi() ? phoneLimit : desktopLimit;
+  if (clean.length <= limit) return clean;
+
+  const [first = clean, second = ''] = clean.split(/\s+/, 2);
+  const ellipsis = '...';
+
+  if (isPhoneHeaderTypewriterUi()) {
+    const safeFirstLimit = Math.max(6, limit - ellipsis.length);
+    return `${first.slice(0, safeFirstLimit)}${ellipsis}`;
+  }
+
+  if (second) {
+    const availableSecond = Math.max(1, limit - first.length - 1 - ellipsis.length);
+    if (first.length + 1 + availableSecond + ellipsis.length <= limit) {
+      return `${first} ${second.slice(0, availableSecond)}${ellipsis}`;
+    }
+  }
+
+  return `${clean.slice(0, Math.max(6, limit - ellipsis.length))}${ellipsis}`;
+}
+
+function makeStudentHeaderTitleParts(rawName = '') {
+  const fullStudentDisplayName = getStudentFirstName(rawName);
+  const visibleStudentDisplayName = shortenHeaderStudentNameForDisplay(fullStudentDisplayName);
+  return {
+    fullName: fullStudentDisplayName,
+    visibleName: visibleStudentDisplayName,
+    text: `A tool for ${visibleStudentDisplayName}, Let's Code!`,
+    ariaText: `A tool for ${fullStudentDisplayName}, Let's Code!`
+  };
+}
+
 function makeHeaderTypewriterPayload() {
   const activeMode = getHeaderEditorModeForTypewriter();
   if (!activeMode) return null;
 
   if (activeMode === 'student' && appSession?.student) {
-    const firstName = getStudentFirstName(appSession.student.name);
-    const fullText = `A tool for ${firstName}, Let's Code!`;
+    const titleParts = makeStudentHeaderTitleParts(appSession.student.name);
     return {
       mode: activeMode,
-      text: fullText,
-      key: `${activeMode}|${fullText}`,
+      text: titleParts.text,
+      ariaText: titleParts.ariaText,
+      key: `${activeMode}|${titleParts.text}|${titleParts.fullName}`,
       makeFinalNodes() {
         const nameHighlight = document.createElement('span');
         nameHighlight.className = 'header-student-name-highlight';
-        nameHighlight.textContent = firstName;
+        nameHighlight.textContent = titleParts.visibleName;
+        nameHighlight.title = titleParts.fullName;
         return [
           document.createTextNode('A tool for '),
           nameHighlight,
@@ -2864,7 +2906,7 @@ function makeHeaderTypewriterPayload() {
 function setHeaderTypewriterFinalTitle(payload) {
   if (!appTitleText || !payload) return;
   appTitleText.replaceChildren(...payload.makeFinalNodes());
-  appTitleText.setAttribute('aria-label', payload.text);
+  appTitleText.setAttribute('aria-label', payload.ariaText || payload.text);
 }
 
 function stopPhoneHeaderTypewriter(clearKey = false) {
@@ -2908,7 +2950,7 @@ function schedulePhoneHeaderTypewriter(force = false) {
   appTitleText.dataset.mcsPhoneTypewriterKey = runKey;
   appTitleText.classList.remove('mcs-phone-typewriter-done');
   appTitleText.classList.add('mcs-phone-typewriter-active');
-  appTitleText.setAttribute('aria-label', fullText);
+  appTitleText.setAttribute('aria-label', payload.ariaText || fullText);
   appTitleText.textContent = '';
 
   const typeNextCharacter = () => {
@@ -3027,7 +3069,7 @@ function scheduleDesktopHeaderTypewriter(force = false) {
 
   appTitleText.dataset.mcsDesktopTypewriterKey = runKey;
   appTitleText.classList.add('mcs-desktop-typewriter-looping');
-  appTitleText.setAttribute('aria-label', fullText);
+  appTitleText.setAttribute('aria-label', payload.ariaText || fullText);
 
   const startCycle = () => {
     if (runId !== desktopHeaderTypewriterRunId) return;
@@ -3087,15 +3129,18 @@ function updateAppHeaderForSession({ forceTypewriter = false } = {}) {
 
   if (isStudent) {
     const firstName = getStudentFirstName(appSession.student.name);
+    const titleParts = makeStudentHeaderTitleParts(appSession.student.name);
     if (appTitleText) {
       const nameHighlight = document.createElement('span');
       nameHighlight.className = 'header-student-name-highlight';
-      nameHighlight.textContent = firstName;
+      nameHighlight.textContent = titleParts.visibleName;
+      nameHighlight.title = titleParts.fullName;
       appTitleText.replaceChildren(
         document.createTextNode('A tool for '),
         nameHighlight,
         document.createTextNode(", Let's Code!")
       );
+      appTitleText.setAttribute('aria-label', titleParts.ariaText);
     }
     if (appSubtitleText) appSubtitleText.textContent = 'Developed by Sir JR';
     if (headerStudentGreeting) headerStudentGreeting.textContent = `Hi, ${firstName}!`;
@@ -17029,4 +17074,94 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   document.addEventListener('visibilitychange', syncPhoneFullEditorMode, { passive: true });
   document.addEventListener('DOMContentLoaded', syncPhoneFullEditorMode, { once: true });
   syncPhoneFullEditorMode();
+})();
+
+/* USER-DIRECTED FIX STEP 84
+   Phone Full Editor tools cleanup and ordering. Keeps the normal desktop and
+   normal phone layout unchanged. */
+(() => {
+  const root = document.documentElement;
+  const body = document.body;
+  const editorPanel = document.getElementById('editorPanel');
+  const PHONE_QUERY = '(max-width: 820px), (hover: none) and (pointer: coarse)';
+  let wasPhoneFullEditorActive = false;
+
+  if (!root || !body || !editorPanel) return;
+
+  function isPhoneUi() {
+    return root.dataset.deviceMode === 'phone'
+      || window.__mcsianPhonePreviewMode === true
+      || Boolean(window.matchMedia?.(PHONE_QUERY)?.matches)
+      || Boolean(window.matchMedia?.('(hover: none) and (pointer: coarse)')?.matches);
+  }
+
+  function isPhoneFullEditorActiveStep84() {
+    return isPhoneUi()
+      && body.classList.contains('editor-fullscreen-active')
+      && !body.classList.contains('preview-fullscreen-active')
+      && !body.classList.contains('preview-inside-editor-fullscreen');
+  }
+
+  function syncMobileToolsToggleLabel() {
+    const toggle = document.getElementById('mobileEditorToolsToggle');
+    if (!toggle) return;
+    const open = body.classList.contains('mobile-editor-tools-open');
+    toggle.innerHTML = open ? '<span></span><strong>Hide</strong>' : '<span></span><strong>Show</strong>';
+    toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    toggle.setAttribute('aria-label', open ? 'Hide full editor page tools' : 'Show full editor page tools');
+  }
+
+  function syncFullEditorButtonText(active) {
+    const addButton = document.getElementById('addHtmlPageBtn');
+    if (addButton) {
+      if (!addButton.dataset.step84DefaultText) addButton.dataset.step84DefaultText = addButton.textContent || '+ File';
+      addButton.textContent = active ? '+ Page' : addButton.dataset.step84DefaultText;
+    }
+  }
+
+  function moveSuggestionToggleForFullEditor(active) {
+    const manager = document.getElementById('htmlPageManager');
+    const button = document.getElementById('mobileSuggestionToggle');
+    if (!manager || !button) return;
+
+    if (active) {
+      if (button.parentElement !== manager) manager.appendChild(button);
+      button.classList.remove('hidden');
+      return;
+    }
+
+    if (button.parentElement === manager) manager.insertAdjacentElement('afterend', button);
+  }
+
+  function syncPhoneFullEditorTools() {
+    const active = isPhoneFullEditorActiveStep84();
+    body.classList.toggle('phone-full-editor-tools-clean', active);
+
+    if (active && !wasPhoneFullEditorActive) {
+      body.classList.remove('mobile-editor-tools-open');
+    }
+
+    moveSuggestionToggleForFullEditor(active);
+    syncFullEditorButtonText(active);
+    syncMobileToolsToggleLabel();
+    wasPhoneFullEditorActive = active;
+  }
+
+  const observer = new MutationObserver(syncPhoneFullEditorTools);
+  observer.observe(body, { attributes: true, attributeFilter: ['class'] });
+  observer.observe(editorPanel, { childList: true, subtree: true });
+
+  ['load', 'resize', 'orientationchange', 'fullscreenchange', 'webkitfullscreenchange'].forEach(type => {
+    window.addEventListener(type, () => window.setTimeout(syncPhoneFullEditorTools, 60), { passive: true });
+  });
+
+  document.addEventListener('click', event => {
+    if (event.target?.closest?.('#mobileEditorToolsToggle, #mobileSuggestionToggle, #fullEditorBtn, #exitEditorStickyBtn')) {
+      window.setTimeout(syncPhoneFullEditorTools, 90);
+      window.setTimeout(syncPhoneFullEditorTools, 180);
+    }
+  }, true);
+
+  document.addEventListener('DOMContentLoaded', syncPhoneFullEditorTools, { once: true });
+  syncPhoneFullEditorTools();
 })();
