@@ -1,12 +1,12 @@
-const CACHE_NAME = 'mcs-coding-app-20260712-user-step75-smooth-edge-scroll';
+const CACHE_NAME = 'mcs-coding-app-20260712-user-step76-faster-editor-page-scroll';
 const APP_SHELL = [
   './',
   './index.html',
   './index.html?fresh=1',
   './style.css',
-  './style.css?v=20260712-step75-smooth-edge-scroll',
+  './style.css?v=20260712-step76-faster-editor-page-scroll',
   './script.js',
-  './script.js?v=20260712-step75-smooth-edge-scroll',
+  './script.js?v=20260712-step76-faster-editor-page-scroll',
   './firebase-config.js',
   './manifest.webmanifest',
   './favicon.png',

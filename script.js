@@ -14310,16 +14310,20 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
 })();
 
 
-/* USER-DIRECTED FIX STEP 75
+/* USER-DIRECTED FIX STEP 76
    Scope: phone/mobile normal editor only.
-   Problem from Step 74: logic was correct, but every touchmove manually moved
-   the textarea/page, making scroll feel heavy, choppy, and delayed at edges.
-   Fix: let the textarea use native phone momentum while it can still scroll.
-   Only when the editor is already at the top/bottom do we bridge that swipe to
-   the page, using instant scrollTop updates plus a small momentum tail. */
+   Step 75 already fixed the logic, but fast flicks inside the editor still felt
+   weaker than fast flicks outside it. This version keeps native textarea
+   scrolling while the editor has room, then transfers edge swipes to the page
+   earlier and with stronger momentum so the whole page can continue moving. */
 (() => {
   const editor = document.getElementById('codeEditor');
   if (!editor) return;
+
+  const EDGE_PULL_PX = 28;
+  const PAGE_DRAG_BOOST = 1.45;
+  const PAGE_FLING_BOOST = 2.85;
+  const MAX_PAGE_VELOCITY = 7.5;
 
   let startX = 0;
   let startY = 0;
@@ -14329,7 +14333,7 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
   let edgePaging = false;
   let momentumFrame = 0;
 
-  function isStep75PhoneEditorActive() {
+  function isStep76PhoneEditorActive() {
     const root = document.documentElement;
     const body = document.body;
     const phoneUi = root?.dataset?.deviceMode === 'phone'
@@ -14341,9 +14345,10 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
       && !body?.classList?.contains('preview-fullscreen-active');
   }
 
-  function syncStep75Mode() {
-    const active = isStep75PhoneEditorActive();
+  function syncStep76Mode() {
+    const active = isStep76PhoneEditorActive();
     document.documentElement?.classList?.toggle('phone-editor-smooth-scroll-fix', active);
+    document.documentElement?.classList?.toggle('phone-editor-fast-scroll-fix', active);
     if (active) editor.setAttribute('wrap', 'soft');
   }
 
@@ -14355,18 +14360,28 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     return document.scrollingElement || document.documentElement || document.body;
   }
 
+  function getPageTop() {
+    const scroller = getPageScroller();
+    return scroller?.scrollTop || window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0;
+  }
+
+  function getPageMaxTop() {
+    const scroller = getPageScroller();
+    if (!scroller) return 0;
+    return Math.max(0, scroller.scrollHeight - window.innerHeight);
+  }
+
   function scrollPageInstant(deltaY) {
-    if (Math.abs(deltaY) < 0.35) return false;
+    if (Math.abs(deltaY) < 0.25) return false;
     const scroller = getPageScroller();
     if (!scroller) return false;
-    const maxTop = Math.max(0, scroller.scrollHeight - window.innerHeight);
-    const before = scroller.scrollTop || window.scrollY || 0;
+    const maxTop = getPageMaxTop();
+    const before = getPageTop();
     const next = Math.max(0, Math.min(maxTop, before + deltaY));
-    if (Math.abs(next - before) < 0.35) return false;
+    if (Math.abs(next - before) < 0.25) return false;
     scroller.scrollTop = next;
-    if (document.body && document.body !== scroller && document.body.scrollTop) {
-      document.body.scrollTop = next;
-    }
+    if (document.body && document.body !== scroller) document.body.scrollTop = next;
+    if (document.documentElement && document.documentElement !== scroller) document.documentElement.scrollTop = next;
     return true;
   }
 
@@ -14377,15 +14392,16 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
 
   function startPageMomentum(initialVelocity) {
     stopMomentum();
-    if (!edgePaging || Math.abs(initialVelocity) < 0.22) return;
-    let velocity = Math.max(-2.2, Math.min(2.2, initialVelocity));
+    if (Math.abs(initialVelocity) < 0.08) return;
+
+    let velocity = Math.max(-MAX_PAGE_VELOCITY, Math.min(MAX_PAGE_VELOCITY, initialVelocity * PAGE_FLING_BOOST));
     let previous = performance.now();
     const prefersReducedMotion = Boolean(window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches);
-    const friction = prefersReducedMotion ? 0.72 : 0.91;
-    const minVelocity = prefersReducedMotion ? 0.08 : 0.035;
+    const friction = prefersReducedMotion ? 0.76 : 0.955;
+    const minVelocity = prefersReducedMotion ? 0.08 : 0.018;
 
     const step = now => {
-      const dt = Math.min(32, Math.max(8, now - previous));
+      const dt = Math.min(36, Math.max(8, now - previous));
       previous = now;
       const moved = scrollPageInstant(velocity * dt);
       velocity *= Math.pow(friction, dt / 16.67);
@@ -14395,21 +14411,81 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
         momentumFrame = 0;
       }
     };
+
     momentumFrame = window.requestAnimationFrame(step);
   }
 
-  function shouldBridgeToPage(deltaY) {
+  function editorEdgeInfo(deltaY) {
+    const maxTop = maxEditorScrollTop();
+    const top = editor.scrollTop;
+    const wantsDown = deltaY > 0;
+    const wantsUp = deltaY < 0;
+    const remainingDown = Math.max(0, maxTop - top);
+    const remainingUp = Math.max(0, top);
+    const atTop = top <= 1;
+    const atBottom = top >= maxTop - 1;
+    const cannotScrollEditor = maxTop <= 1;
+    const nearBottom = wantsDown && remainingDown <= EDGE_PULL_PX;
+    const nearTop = wantsUp && remainingUp <= EDGE_PULL_PX;
+    const willOvershootBottom = wantsDown && remainingDown <= Math.abs(deltaY) * 1.35;
+    const willOvershootTop = wantsUp && remainingUp <= Math.abs(deltaY) * 1.35;
+
+    return {
+      maxTop,
+      top,
+      wantsDown,
+      wantsUp,
+      remainingDown,
+      remainingUp,
+      atTop,
+      atBottom,
+      cannotScrollEditor,
+      shouldBridge: cannotScrollEditor || atBottom && wantsDown || atTop && wantsUp || willOvershootBottom || willOvershootTop
+    };
+  }
+
+  function bridgeSwipeToPage(deltaY, event) {
+    const info = editorEdgeInfo(deltaY);
+    if (!info.shouldBridge) return false;
+
+    let pageDelta = deltaY;
+
+    // If the swipe starts just before the editor edge, finish the tiny remaining
+    // editor movement first and immediately pass the leftover movement to page.
+    if (!info.cannotScrollEditor) {
+      if (info.wantsDown && !info.atBottom) {
+        const usedByEditor = Math.min(info.remainingDown, Math.abs(deltaY));
+        editor.scrollTop = Math.min(info.maxTop, info.top + usedByEditor);
+        pageDelta = Math.max(0, Math.abs(deltaY) - usedByEditor);
+      } else if (info.wantsUp && !info.atTop) {
+        const usedByEditor = Math.min(info.remainingUp, Math.abs(deltaY));
+        editor.scrollTop = Math.max(0, info.top - usedByEditor);
+        pageDelta = -Math.max(0, Math.abs(deltaY) - usedByEditor);
+      }
+    }
+
+    // When the finger is already at the editor edge, use the whole drag. When
+    // the swipe merely crossed into the edge, use the leftover. Boost both so a
+    // fast flick inside the editor feels close to a flick outside the editor.
+    if (Math.abs(pageDelta) < 0.5) pageDelta = deltaY > 0 ? 0.8 : -0.8;
+    event.preventDefault();
+    event.stopPropagation();
+    edgePaging = true;
+    scrollPageInstant(pageDelta * PAGE_DRAG_BOOST);
+    syncEditorScroll();
+    return true;
+  }
+
+  function shouldStartPageMomentumFromEdge() {
     const maxTop = maxEditorScrollTop();
     if (maxTop <= 1) return true;
     const top = editor.scrollTop;
-    const atTop = top <= 1;
-    const atBottom = top >= maxTop - 1;
-    return (deltaY < 0 && atTop) || (deltaY > 0 && atBottom);
+    return (velocityY > 0.08 && top >= maxTop - 2) || (velocityY < -0.08 && top <= 2);
   }
 
   function onTouchStart(event) {
-    if (!isStep75PhoneEditorActive()) return;
-    syncStep75Mode();
+    if (!isStep76PhoneEditorActive()) return;
+    syncStep76Mode();
     stopMomentum();
     const touch = event.touches?.[0];
     if (!touch) return;
@@ -14422,7 +14498,7 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
   }
 
   function onTouchMove(event) {
-    if (!isStep75PhoneEditorActive()) return;
+    if (!isStep76PhoneEditorActive()) return;
     const touch = event.touches?.[0];
     if (!touch) return;
 
@@ -14436,28 +14512,35 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     const totalX = Math.abs(touch.clientX - startX);
     const totalY = Math.abs(currentY - startY);
     if (totalX > totalY + 18) return;
-    if (Math.abs(deltaY) < 0.4) return;
+    if (Math.abs(deltaY) < 0.35) return;
 
-    velocityY = (velocityY * 0.65) + ((deltaY / dt) * 0.35);
+    const sampleVelocity = deltaY / dt;
+    velocityY = (velocityY * 0.52) + (sampleVelocity * 0.48);
 
-    // Native textarea scrolling is smoother than JS. Do not preventDefault
-    // while the editor still has scroll room in this direction.
-    if (!edgePaging && !shouldBridgeToPage(deltaY)) return;
+    // Keep native textarea momentum for normal inside-editor scrolling. The JS
+    // only takes over near/at the top-bottom edge so the page handoff is fast.
+    if (!edgePaging) {
+      const info = editorEdgeInfo(deltaY);
+      if (!info.shouldBridge) return;
+    }
 
-    edgePaging = true;
-    event.preventDefault();
-    event.stopPropagation();
-    scrollPageInstant(deltaY);
+    bridgeSwipeToPage(deltaY, event);
   }
 
-  function onTouchEnd() {
-    if (isStep75PhoneEditorActive()) startPageMomentum(velocityY);
+  function resetTouchState() {
     startX = 0;
     startY = 0;
     lastY = 0;
     lastTime = 0;
     velocityY = 0;
     edgePaging = false;
+  }
+
+  function onTouchEnd() {
+    if (isStep76PhoneEditorActive() && (edgePaging || shouldStartPageMomentumFromEdge())) {
+      startPageMomentum(velocityY);
+    }
+    resetTouchState();
   }
 
   editor.addEventListener('touchstart', onTouchStart, { passive: true });
@@ -14465,23 +14548,18 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
   editor.addEventListener('touchend', onTouchEnd, { passive: true });
   editor.addEventListener('touchcancel', () => {
     stopMomentum();
-    startX = 0;
-    startY = 0;
-    lastY = 0;
-    lastTime = 0;
-    velocityY = 0;
-    edgePaging = false;
+    resetTouchState();
   }, { passive: true });
-  editor.addEventListener('focus', syncStep75Mode, { passive: true });
-  editor.addEventListener('input', syncStep75Mode, { passive: true });
+  editor.addEventListener('focus', syncStep76Mode, { passive: true });
+  editor.addEventListener('input', syncStep76Mode, { passive: true });
   editor.addEventListener('scroll', () => {
-    if (isStep75PhoneEditorActive()) syncEditorScroll();
+    if (isStep76PhoneEditorActive()) syncEditorScroll();
   }, { passive: true });
   ['load', 'resize', 'orientationchange', 'fullscreenchange', 'webkitfullscreenchange'].forEach(type => {
-    window.addEventListener(type, syncStep75Mode, { passive: true });
+    window.addEventListener(type, syncStep76Mode, { passive: true });
   });
-  document.addEventListener('visibilitychange', syncStep75Mode, { passive: true });
-  syncStep75Mode();
+  document.addEventListener('visibilitychange', syncStep76Mode, { passive: true });
+  syncStep76Mode();
 })();
 
 /* User-directed phone polish v1: compact mobile header/tools/dashboard only. */
