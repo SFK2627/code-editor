@@ -17042,7 +17042,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       exitButton.dataset.defaultTitle = exitButton.title || 'Exit full editor';
     }
     if (active) {
-      exitButton.textContent = '×';
+      exitButton.textContent = 'Exit Full Screen';
       exitButton.title = 'Exit full editor';
       exitButton.setAttribute('aria-label', 'Exit full editor');
     } else {
@@ -17157,5 +17157,94 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     sync();
   } catch (error) {
     console.warn('[Step96 phone full editor patch skipped]', error);
+  }
+})();
+
+/* STEP 97 SAFE PATCH
+   Phone full editor only: keep Exit label readable and make SHOW reveal tools in the visible area.
+   Uses V88/Step96 app logic as base; no homepage/login initialization is touched. */
+(() => {
+  try {
+    const PHONE_QUERY = '(max-width: 820px), (hover: none) and (pointer: coarse)';
+    const isPhoneUi = () => Boolean(
+      document.documentElement?.dataset?.deviceMode === 'phone' ||
+      window.__mcsianPhonePreviewMode === true ||
+      window.matchMedia?.(PHONE_QUERY)?.matches
+    );
+    const editorPanel = () => document.getElementById('editorPanel');
+    const isPhoneFullEditor = () => {
+      const panel = editorPanel();
+      return Boolean(
+        isPhoneUi() &&
+        panel &&
+        !document.body?.classList?.contains('preview-fullscreen-active') &&
+        !document.body?.classList?.contains('preview-inside-editor-fullscreen') &&
+        (
+          document.body?.classList?.contains('editor-fullscreen-active') ||
+          document.body?.classList?.contains('phone-true-full-editor-active') ||
+          document.fullscreenElement === panel ||
+          document.webkitFullscreenElement === panel ||
+          panel.matches?.(':fullscreen')
+        )
+      );
+    };
+
+    function setExitLabel() {
+      const exitBtn = document.getElementById('exitEditorStickyBtn');
+      if (!exitBtn || !isPhoneFullEditor()) return;
+      exitBtn.textContent = 'Exit Full Screen';
+      exitBtn.title = 'Exit full editor';
+      exitBtn.setAttribute('aria-label', 'Exit full editor');
+      exitBtn.classList.remove('hidden');
+    }
+
+    function setShowLabel(open) {
+      const button = document.getElementById('mobileEditorToolsToggle');
+      if (!button) return;
+      button.setAttribute('aria-expanded', open ? 'true' : 'false');
+      button.setAttribute('aria-label', open ? 'Hide page tools' : 'Show page tools');
+      button.innerHTML = open ? '<span></span><strong>Hide</strong>' : '<span></span><strong>Show</strong>';
+      button.classList.remove('hidden');
+    }
+
+    function refreshPhoneFullEditorLayout() {
+      if (!isPhoneFullEditor()) return;
+      document.body.classList.add('phone-true-full-editor-active');
+      setExitLabel();
+      setShowLabel(document.body.classList.contains('mobile-editor-tools-open'));
+      const editor = document.getElementById('codeEditor');
+      if (editor) editor.setAttribute('wrap', 'soft');
+      window.requestAnimationFrame(() => {
+        try {
+          if (typeof fitEditorToContent === 'function') fitEditorToContent();
+          if (typeof syncEditorScroll === 'function') syncEditorScroll();
+        } catch (_) {}
+      });
+    }
+
+    function toggleShow(event) {
+      const button = event.target?.closest?.('#mobileEditorToolsToggle');
+      if (!button || !isPhoneFullEditor()) return;
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation?.();
+      const open = !document.body.classList.contains('mobile-editor-tools-open');
+      document.body.classList.toggle('mobile-editor-tools-open', open);
+      setShowLabel(open);
+      refreshPhoneFullEditorLayout();
+    }
+
+    document.addEventListener('click', toggleShow, true);
+    document.addEventListener('touchend', toggleShow, { capture: true, passive: false });
+
+    const observer = new MutationObserver(refreshPhoneFullEditorLayout);
+    if (document.body) observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+    ['load', 'resize', 'orientationchange', 'fullscreenchange', 'webkitfullscreenchange'].forEach(type => {
+      window.addEventListener(type, () => window.setTimeout(refreshPhoneFullEditorLayout, 30), { passive: true });
+    });
+    document.addEventListener('DOMContentLoaded', refreshPhoneFullEditorLayout, { once: true });
+    refreshPhoneFullEditorLayout();
+  } catch (error) {
+    console.warn('[Step97 phone full editor patch skipped]', error);
   }
 })();
