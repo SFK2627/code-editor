@@ -2784,12 +2784,18 @@ function toggleStudentAccountMenu() {
   studentMenuBtn.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
 }
 
-/* PHONE-ONLY HEADER TYPEWRITER (v41)
-   Runs once whenever Practice Mode or a logged-in Editor session is entered.
-   It preserves the final logged-in name highlight and does nothing on desktop. */
+/* STABLE HEADER TYPEWRITER (Step 83)
+   Works on both phone and desktop Practice Mode / logged-in Editor.
+   Important fix: the animation now uses a canonical session title instead of
+   reading the live DOM text while it is typing. This prevents partial text
+   like "A" or a single stuck letter from becoming the next animation source. */
 let phoneHeaderTypewriterRunId = 0;
 let phoneHeaderTypewriterTimer = null;
 let phoneHeaderTypewriterLastKey = '';
+let desktopHeaderTypewriterRunId = 0;
+let desktopHeaderTypewriterTimer = null;
+let desktopHeaderTypewriterLastKey = '';
+let desktopHeaderLogoSaveSpinTimer = null;
 
 function isPhoneHeaderTypewriterUi() {
   return Boolean(
@@ -2799,40 +2805,107 @@ function isPhoneHeaderTypewriterUi() {
   );
 }
 
-function schedulePhoneHeaderTypewriter(force = false) {
-  if (!appTitleText) return;
+function isDesktopHeaderTypewriterUi() {
+  const explicitPhone = document.documentElement?.dataset?.deviceMode === 'phone';
+  const phonePreview = window.__mcsianPhonePreviewMode === true;
+  const desktopWidth = !window.matchMedia || window.matchMedia('(min-width: 821px)').matches;
+  return Boolean(!explicitPhone && !phonePreview && desktopWidth);
+}
 
+function getHeaderEditorModeForTypewriter() {
   const activeMode = document.body.classList.contains('student-session-active')
     ? 'student'
     : (document.body.classList.contains('guest-session-active') ? 'guest' : '');
-  const studentEditorBlocked = activeMode === 'student' && (
+
+  const blocked = activeMode === 'student' && (
     document.body.classList.contains('student-dashboard-active') ||
     document.body.classList.contains('student-auth-open') ||
     document.body.classList.contains('student-route-lock')
   );
 
-  if (!isPhoneHeaderTypewriterUi() || !activeMode || studentEditorBlocked) {
-    phoneHeaderTypewriterLastKey = '';
-    window.clearTimeout(phoneHeaderTypewriterTimer);
+  return blocked ? '' : activeMode;
+}
+
+function makeHeaderTypewriterPayload() {
+  const activeMode = getHeaderEditorModeForTypewriter();
+  if (!activeMode) return null;
+
+  if (activeMode === 'student' && appSession?.student) {
+    const firstName = getStudentFirstName(appSession.student.name);
+    const fullText = `A tool for ${firstName}, Let's Code!`;
+    return {
+      mode: activeMode,
+      text: fullText,
+      key: `${activeMode}|${fullText}`,
+      makeFinalNodes() {
+        const nameHighlight = document.createElement('span');
+        nameHighlight.className = 'header-student-name-highlight';
+        nameHighlight.textContent = firstName;
+        return [
+          document.createTextNode('A tool for '),
+          nameHighlight,
+          document.createTextNode(", Let's Code!")
+        ];
+      }
+    };
+  }
+
+  const fullText = 'A tool for every Grade 8 MCSian.';
+  return {
+    mode: activeMode,
+    text: fullText,
+    key: `${activeMode}|${fullText}`,
+    makeFinalNodes() {
+      return [document.createTextNode(fullText)];
+    }
+  };
+}
+
+function setHeaderTypewriterFinalTitle(payload) {
+  if (!appTitleText || !payload) return;
+  appTitleText.replaceChildren(...payload.makeFinalNodes());
+  appTitleText.setAttribute('aria-label', payload.text);
+}
+
+function stopPhoneHeaderTypewriter(clearKey = false) {
+  phoneHeaderTypewriterRunId += 1;
+  window.clearTimeout(phoneHeaderTypewriterTimer);
+  phoneHeaderTypewriterTimer = null;
+  if (clearKey) phoneHeaderTypewriterLastKey = '';
+  if (appTitleText) {
+    appTitleText.classList.remove('mcs-phone-typewriter-active', 'mcs-phone-typewriter-done');
+    delete appTitleText.dataset.mcsPhoneTypewriterKey;
+  }
+}
+
+function schedulePhoneHeaderTypewriter(force = false) {
+  if (!appTitleText) return;
+
+  const payload = makeHeaderTypewriterPayload();
+  if (!isPhoneHeaderTypewriterUi() || !payload) {
+    stopPhoneHeaderTypewriter(true);
     return;
   }
 
+  const runKey = `phone|${payload.key}`;
   if (force) phoneHeaderTypewriterLastKey = '';
 
-  const fullText = String(appTitleText.textContent || '').trim();
-  if (!fullText) return;
+  // If the same phone animation is already running or already finished, do not
+  // restart from whatever partial text is currently visible.
+  if (!force && runKey === phoneHeaderTypewriterLastKey) {
+    return;
+  }
 
-  const runKey = `${activeMode}|${fullText}`;
-  if (runKey === phoneHeaderTypewriterLastKey) return;
   phoneHeaderTypewriterLastKey = runKey;
-
   const runId = ++phoneHeaderTypewriterRunId;
   window.clearTimeout(phoneHeaderTypewriterTimer);
+  phoneHeaderTypewriterTimer = null;
 
-  const finalNodes = Array.from(appTitleText.childNodes, node => node.cloneNode(true));
+  const fullText = payload.text;
   const typeDelay = fullText.length > 38 ? 24 : 30;
   let index = 0;
 
+  appTitleText.dataset.mcsPhoneTypewriterKey = runKey;
   appTitleText.classList.remove('mcs-phone-typewriter-done');
   appTitleText.classList.add('mcs-phone-typewriter-active');
   appTitleText.setAttribute('aria-label', fullText);
@@ -2840,42 +2913,32 @@ function schedulePhoneHeaderTypewriter(force = false) {
 
   const typeNextCharacter = () => {
     if (runId !== phoneHeaderTypewriterRunId) return;
-    index += 1;
+    if (!isPhoneHeaderTypewriterUi() || !makeHeaderTypewriterPayload()) {
+      stopPhoneHeaderTypewriter(true);
+      return;
+    }
+
+    index = Math.min(index + 1, fullText.length);
     appTitleText.textContent = fullText.slice(0, index);
 
     if (index < fullText.length) {
       const typedChar = fullText.charAt(index - 1);
-      const pause = /[,.!]/.test(typedChar) ? 115 : typeDelay;
+      const pause = /[,.!]/.test(typedChar) ? 90 : typeDelay;
       phoneHeaderTypewriterTimer = window.setTimeout(typeNextCharacter, pause);
       return;
     }
 
-    appTitleText.replaceChildren(...finalNodes);
+    setHeaderTypewriterFinalTitle(payload);
     appTitleText.classList.add('mcs-phone-typewriter-done');
     phoneHeaderTypewriterTimer = window.setTimeout(() => {
       if (runId !== phoneHeaderTypewriterRunId) return;
       appTitleText.classList.remove('mcs-phone-typewriter-active', 'mcs-phone-typewriter-done');
-    }, 650);
+      delete appTitleText.dataset.mcsPhoneTypewriterKey;
+      phoneHeaderTypewriterTimer = null;
+    }, 520);
   };
 
-  phoneHeaderTypewriterTimer = window.setTimeout(typeNextCharacter, 180);
-}
-
-
-/* DESKTOP-ONLY HEADER TYPEWRITER LOOP (Step 62)
-   Matches the phone header typing effect on desktop Practice Mode and logged-in
-   Editor pages only. It pauses briefly, then repeats continuously. Phone is
-   explicitly excluded so the existing phone behavior stays untouched. */
-let desktopHeaderTypewriterRunId = 0;
-let desktopHeaderTypewriterTimer = null;
-let desktopHeaderTypewriterLastKey = '';
-let desktopHeaderLogoSaveSpinTimer = null;
-
-function isDesktopHeaderTypewriterUi() {
-  const explicitPhone = document.documentElement?.dataset?.deviceMode === 'phone';
-  const phonePreview = window.__mcsianPhonePreviewMode === true;
-  const desktopWidth = !window.matchMedia || window.matchMedia('(min-width: 821px)').matches;
-  return Boolean(!explicitPhone && !phonePreview && desktopWidth);
+  phoneHeaderTypewriterTimer = window.setTimeout(typeNextCharacter, force ? 80 : 140);
 }
 
 function getDesktopHeaderLogoTargets() {
@@ -2920,23 +2983,10 @@ function triggerDesktopHeaderLogoSaveSpin(options = {}) {
   }, 1450);
 }
 
-function getHeaderEditorModeForTypewriter() {
-  const activeMode = document.body.classList.contains('student-session-active')
-    ? 'student'
-    : (document.body.classList.contains('guest-session-active') ? 'guest' : '');
-
-  const blocked = activeMode === 'student' && (
-    document.body.classList.contains('student-dashboard-active') ||
-    document.body.classList.contains('student-auth-open') ||
-    document.body.classList.contains('student-route-lock')
-  );
-
-  return blocked ? '' : activeMode;
-}
-
 function stopDesktopHeaderTypewriter(clearKey = false) {
   desktopHeaderTypewriterRunId += 1;
   window.clearTimeout(desktopHeaderTypewriterTimer);
+  desktopHeaderTypewriterTimer = null;
   if (clearKey) desktopHeaderTypewriterLastKey = '';
   if (appTitleText) {
     appTitleText.classList.remove(
@@ -2944,6 +2994,7 @@ function stopDesktopHeaderTypewriter(clearKey = false) {
       'mcs-desktop-typewriter-active',
       'mcs-desktop-typewriter-done'
     );
+    delete appTitleText.dataset.mcsDesktopTypewriterKey;
     getDesktopHeaderLogoTargets().forEach(logo => logo.classList.remove('mcs-desktop-logo-save-spin'));
   }
 }
@@ -2951,36 +3002,39 @@ function stopDesktopHeaderTypewriter(clearKey = false) {
 function scheduleDesktopHeaderTypewriter(force = false) {
   if (!appTitleText) return;
 
-  const activeMode = getHeaderEditorModeForTypewriter();
-  if (!isDesktopHeaderTypewriterUi() || !activeMode) {
+  const payload = makeHeaderTypewriterPayload();
+  if (!isDesktopHeaderTypewriterUi() || !payload) {
     stopDesktopHeaderTypewriter(true);
     return;
   }
 
+  const runKey = `desktop|${payload.key}|loop`;
   if (force) desktopHeaderTypewriterLastKey = '';
 
-  const fullText = String(appTitleText.textContent || '').trim();
-  if (!fullText) return;
+  // Prevent resize/update events from restarting the loop using partial text.
+  if (!force && runKey === desktopHeaderTypewriterLastKey && appTitleText.classList.contains('mcs-desktop-typewriter-looping')) {
+    return;
+  }
 
-  const runKey = `${activeMode}|${fullText}|desktop-loop`;
-  if (runKey === desktopHeaderTypewriterLastKey && appTitleText.classList.contains('mcs-desktop-typewriter-looping')) return;
   desktopHeaderTypewriterLastKey = runKey;
-
   const runId = ++desktopHeaderTypewriterRunId;
   window.clearTimeout(desktopHeaderTypewriterTimer);
+  desktopHeaderTypewriterTimer = null;
 
-  const snapshotNodes = Array.from(appTitleText.childNodes, node => node.cloneNode(true));
-  const makeFinalNodes = () => snapshotNodes.map(node => node.cloneNode(true));
+  const fullText = payload.text;
   const typeDelay = fullText.length > 38 ? 28 : 34;
-  const restartDelay = 10000; // user-directed desktop pause: wait about 10 seconds before typing again
+  const restartDelay = 10000;
 
+  appTitleText.dataset.mcsDesktopTypewriterKey = runKey;
   appTitleText.classList.add('mcs-desktop-typewriter-looping');
   appTitleText.setAttribute('aria-label', fullText);
 
   const startCycle = () => {
     if (runId !== desktopHeaderTypewriterRunId) return;
-    if (!isDesktopHeaderTypewriterUi() || !getHeaderEditorModeForTypewriter()) {
+    const freshPayload = makeHeaderTypewriterPayload();
+    if (!isDesktopHeaderTypewriterUi() || !freshPayload || freshPayload.key !== payload.key) {
       stopDesktopHeaderTypewriter(true);
+      if (freshPayload) setHeaderTypewriterFinalTitle(freshPayload);
       return;
     }
 
@@ -2991,26 +3045,33 @@ function scheduleDesktopHeaderTypewriter(force = false) {
 
     const typeNextCharacter = () => {
       if (runId !== desktopHeaderTypewriterRunId) return;
-      index += 1;
+      const latestPayload = makeHeaderTypewriterPayload();
+      if (!isDesktopHeaderTypewriterUi() || !latestPayload || latestPayload.key !== payload.key) {
+        stopDesktopHeaderTypewriter(true);
+        if (latestPayload) setHeaderTypewriterFinalTitle(latestPayload);
+        return;
+      }
+
+      index = Math.min(index + 1, fullText.length);
       appTitleText.textContent = fullText.slice(0, index);
 
       if (index < fullText.length) {
         const typedChar = fullText.charAt(index - 1);
-        const pause = /[,.!]/.test(typedChar) ? 145 : typeDelay;
+        const pause = /[,.!]/.test(typedChar) ? 110 : typeDelay;
         desktopHeaderTypewriterTimer = window.setTimeout(typeNextCharacter, pause);
         return;
       }
 
-      appTitleText.replaceChildren(...makeFinalNodes());
+      setHeaderTypewriterFinalTitle(payload);
       appTitleText.classList.remove('mcs-desktop-typewriter-active');
       appTitleText.classList.add('mcs-desktop-typewriter-done');
       desktopHeaderTypewriterTimer = window.setTimeout(startCycle, restartDelay);
     };
 
-    desktopHeaderTypewriterTimer = window.setTimeout(typeNextCharacter, 160);
+    desktopHeaderTypewriterTimer = window.setTimeout(typeNextCharacter, 80);
   };
 
-  desktopHeaderTypewriterTimer = window.setTimeout(startCycle, force ? 180 : 740);
+  desktopHeaderTypewriterTimer = window.setTimeout(startCycle, force ? 90 : 420);
 }
 
 function updateAppHeaderForSession({ forceTypewriter = false } = {}) {
