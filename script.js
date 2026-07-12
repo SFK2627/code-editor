@@ -2826,21 +2826,63 @@ function getHeaderEditorModeForTypewriter() {
   return blocked ? '' : activeMode;
 }
 
+/* USER-DIRECTED FIX STEP 84
+   Keep the animated header safe when the first + second given names are long.
+   The app still uses the first name plus one safe second name; this only makes
+   the visible header label shorter when needed so the header buttons/layout do
+   not move or wrap. */
+function shortenHeaderStudentNameForDisplay(name = '') {
+  const clean = String(name || '').replace(/\s+/g, ' ').trim() || 'Student';
+  const phoneLimit = 14;
+  const desktopLimit = 24;
+  const limit = isPhoneHeaderTypewriterUi() ? phoneLimit : desktopLimit;
+  if (clean.length <= limit) return clean;
+
+  const [first = clean, second = ''] = clean.split(/\s+/, 2);
+  const ellipsis = '...';
+
+  if (isPhoneHeaderTypewriterUi()) {
+    const safeFirstLimit = Math.max(6, limit - ellipsis.length);
+    return `${first.slice(0, safeFirstLimit)}${ellipsis}`;
+  }
+
+  if (second) {
+    const availableSecond = Math.max(1, limit - first.length - 1 - ellipsis.length);
+    if (first.length + 1 + availableSecond + ellipsis.length <= limit) {
+      return `${first} ${second.slice(0, availableSecond)}${ellipsis}`;
+    }
+  }
+
+  return `${clean.slice(0, Math.max(6, limit - ellipsis.length))}${ellipsis}`;
+}
+
+function makeStudentHeaderTitleParts(rawName = '') {
+  const fullStudentDisplayName = getStudentFirstName(rawName);
+  const visibleStudentDisplayName = shortenHeaderStudentNameForDisplay(fullStudentDisplayName);
+  return {
+    fullName: fullStudentDisplayName,
+    visibleName: visibleStudentDisplayName,
+    text: `A tool for ${visibleStudentDisplayName}, Let's Code!`,
+    ariaText: `A tool for ${fullStudentDisplayName}, Let's Code!`
+  };
+}
+
 function makeHeaderTypewriterPayload() {
   const activeMode = getHeaderEditorModeForTypewriter();
   if (!activeMode) return null;
 
   if (activeMode === 'student' && appSession?.student) {
-    const firstName = getStudentFirstName(appSession.student.name);
-    const fullText = `A tool for ${firstName}, Let's Code!`;
+    const titleParts = makeStudentHeaderTitleParts(appSession.student.name);
     return {
       mode: activeMode,
-      text: fullText,
-      key: `${activeMode}|${fullText}`,
+      text: titleParts.text,
+      ariaText: titleParts.ariaText,
+      key: `${activeMode}|${titleParts.text}|${titleParts.fullName}`,
       makeFinalNodes() {
         const nameHighlight = document.createElement('span');
         nameHighlight.className = 'header-student-name-highlight';
-        nameHighlight.textContent = firstName;
+        nameHighlight.textContent = titleParts.visibleName;
+        nameHighlight.title = titleParts.fullName;
         return [
           document.createTextNode('A tool for '),
           nameHighlight,
@@ -2864,7 +2906,7 @@ function makeHeaderTypewriterPayload() {
 function setHeaderTypewriterFinalTitle(payload) {
   if (!appTitleText || !payload) return;
   appTitleText.replaceChildren(...payload.makeFinalNodes());
-  appTitleText.setAttribute('aria-label', payload.text);
+  appTitleText.setAttribute('aria-label', payload.ariaText || payload.text);
 }
 
 function stopPhoneHeaderTypewriter(clearKey = false) {
@@ -2908,7 +2950,7 @@ function schedulePhoneHeaderTypewriter(force = false) {
   appTitleText.dataset.mcsPhoneTypewriterKey = runKey;
   appTitleText.classList.remove('mcs-phone-typewriter-done');
   appTitleText.classList.add('mcs-phone-typewriter-active');
-  appTitleText.setAttribute('aria-label', fullText);
+  appTitleText.setAttribute('aria-label', payload.ariaText || fullText);
   appTitleText.textContent = '';
 
   const typeNextCharacter = () => {
@@ -3027,7 +3069,7 @@ function scheduleDesktopHeaderTypewriter(force = false) {
 
   appTitleText.dataset.mcsDesktopTypewriterKey = runKey;
   appTitleText.classList.add('mcs-desktop-typewriter-looping');
-  appTitleText.setAttribute('aria-label', fullText);
+  appTitleText.setAttribute('aria-label', payload.ariaText || fullText);
 
   const startCycle = () => {
     if (runId !== desktopHeaderTypewriterRunId) return;
@@ -3087,15 +3129,18 @@ function updateAppHeaderForSession({ forceTypewriter = false } = {}) {
 
   if (isStudent) {
     const firstName = getStudentFirstName(appSession.student.name);
+    const titleParts = makeStudentHeaderTitleParts(appSession.student.name);
     if (appTitleText) {
       const nameHighlight = document.createElement('span');
       nameHighlight.className = 'header-student-name-highlight';
-      nameHighlight.textContent = firstName;
+      nameHighlight.textContent = titleParts.visibleName;
+      nameHighlight.title = titleParts.fullName;
       appTitleText.replaceChildren(
         document.createTextNode('A tool for '),
         nameHighlight,
         document.createTextNode(", Let's Code!")
       );
+      appTitleText.setAttribute('aria-label', titleParts.ariaText);
     }
     if (appSubtitleText) appSubtitleText.textContent = 'Developed by Sir JR';
     if (headerStudentGreeting) headerStudentGreeting.textContent = `Hi, ${firstName}!`;
