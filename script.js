@@ -14165,11 +14165,15 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
   });
 })();
 
-/* USER-DIRECTED FIX STEP 73
-   Phone-only textarea scroll rescue. Some mobile browsers still hand the swipe
-   to the page even when #codeEditor has overflow:auto. When the swipe starts
-   inside the editor, move the textarea's own scrollTop directly, then sync line
-   numbers and the highlight layer. Desktop is untouched. */
+/* USER-DIRECTED FIX STEP 74
+   Scope: phone/mobile normal editor only.
+   Required behavior:
+   1) Long code lines wrap on phone, so there is no horizontal scrolling.
+   2) A vertical swipe inside the editor scrolls the editor while it still has
+      hidden code above/below.
+   3) When the editor reaches its top or bottom, the next/extra swipe scrolls
+      the whole page instead of trapping the student inside the textarea.
+   Desktop and full-screen editor behavior are untouched. */
 (() => {
   const editor = document.getElementById('codeEditor');
   if (!editor) return;
@@ -14177,9 +14181,10 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
   let startX = 0;
   let startY = 0;
   let lastY = 0;
-  let moved = false;
+  let movedEditor = false;
+  let movedPage = false;
 
-  function isStep73PhoneEditorScrollActive() {
+  function isPhoneEditorChainScrollActive() {
     const root = document.documentElement;
     const body = document.body;
     const phoneUi = root?.dataset?.deviceMode === 'phone'
@@ -14191,38 +14196,90 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
       && !body?.classList?.contains('preview-fullscreen-active');
   }
 
+  function syncPhoneEditorWrapMode() {
+    if (!isPhoneEditorChainScrollActive()) return;
+    // Make sure the textarea follows phone-friendly soft wrapping even if an
+    // older cached HTML/CSS file previously left it in no-wrap code-editor mode.
+    editor.setAttribute('wrap', 'soft');
+  }
+
   function maxEditorScrollTop() {
-    return Math.max(0, Math.round(editor.scrollHeight - editor.clientHeight));
+    return Math.max(0, editor.scrollHeight - editor.clientHeight);
   }
 
-  function applyEditorScroll(deltaY, event) {
+  function scrollPageBy(deltaY) {
+    if (Math.abs(deltaY) < 0.5) return false;
+    const before = window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0;
+    window.scrollBy(0, deltaY);
+    const after = window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0;
+    return Math.abs(after - before) > 0.5;
+  }
+
+  function applyChainedScroll(deltaY, event) {
     const maxTop = maxEditorScrollTop();
-    if (maxTop <= 1) return false;
+    const currentTop = editor.scrollTop;
+    const canScrollEditor = maxTop > 1;
+    const wantsDown = deltaY > 0;
+    const wantsUp = deltaY < 0;
+    const atTop = currentTop <= 0;
+    const atBottom = currentTop >= maxTop - 1;
+    const canEditorMove = canScrollEditor
+      && ((wantsDown && !atBottom) || (wantsUp && !atTop));
 
-    const previousTop = editor.scrollTop;
-    const nextTop = clamp(previousTop + deltaY, 0, maxTop);
-    if (Math.abs(nextTop - previousTop) < 0.5) return false;
+    if (canEditorMove) {
+      const nextTop = clamp(currentTop + deltaY, 0, maxTop);
+      const usedDelta = nextTop - currentTop;
+      const leftoverDelta = deltaY - usedDelta;
 
-    editor.scrollTop = nextTop;
-    syncEditorScroll();
-    moved = true;
-    event.preventDefault();
-    event.stopPropagation();
-    return true;
+      editor.scrollTop = nextTop;
+      syncEditorScroll();
+      movedEditor = true;
+
+      // If the same swipe pushes beyond the last/top line, pass that remaining
+      // movement to the page immediately so it feels continuous on phones.
+      if (Math.abs(leftoverDelta) > 0.5) {
+        movedPage = scrollPageBy(leftoverDelta) || movedPage;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+      return true;
+    }
+
+    // No editor room left in this direction, so the editor must not trap the
+    // swipe. Manually scroll the page because mobile textarea touch handling can
+    // otherwise swallow the gesture.
+    if (!canScrollEditor || (wantsDown && atBottom) || (wantsUp && atTop)) {
+      movedPage = scrollPageBy(deltaY) || movedPage;
+      syncEditorScroll();
+      event.preventDefault();
+      event.stopPropagation();
+      return true;
+    }
+
+    return false;
   }
+
+  editor.addEventListener('focus', syncPhoneEditorWrapMode, { passive: true });
+  editor.addEventListener('input', syncPhoneEditorWrapMode, { passive: true });
+  window.addEventListener('resize', syncPhoneEditorWrapMode, { passive: true });
+  document.addEventListener('DOMContentLoaded', syncPhoneEditorWrapMode, { once: true });
+  syncPhoneEditorWrapMode();
 
   editor.addEventListener('touchstart', event => {
-    if (!isStep73PhoneEditorScrollActive()) return;
+    if (!isPhoneEditorChainScrollActive()) return;
+    syncPhoneEditorWrapMode();
     const touch = event.touches?.[0];
     if (!touch) return;
     startX = touch.clientX;
     startY = touch.clientY;
     lastY = touch.clientY;
-    moved = false;
+    movedEditor = false;
+    movedPage = false;
   }, { passive: true });
 
   editor.addEventListener('touchmove', event => {
-    if (!isStep73PhoneEditorScrollActive()) return;
+    if (!isPhoneEditorChainScrollActive()) return;
     const touch = event.touches?.[0];
     if (!touch) return;
 
@@ -14231,23 +14288,28 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     const deltaY = lastY - touch.clientY;
     lastY = touch.clientY;
 
-    // Leave mostly-horizontal drags alone so long code lines can still move left/right.
-    if (totalX > totalY + 8) return;
+    // With mobile word-wrap there should be no horizontal editor scroll. Still,
+    // do not hijack a clear sideways caret-selection gesture.
+    if (totalX > totalY + 18) return;
     if (totalY < 3 && Math.abs(deltaY) < 2) return;
 
-    applyEditorScroll(deltaY, event);
+    applyChainedScroll(deltaY, event);
   }, { passive: false });
+
+  editor.addEventListener('scroll', () => {
+    if (isPhoneEditorChainScrollActive()) syncEditorScroll();
+  }, { passive: true });
 
   ['touchend', 'touchcancel'].forEach(type => {
     editor.addEventListener(type, event => {
-      // Prevent the old smart-cursor touchend from stealing a completed scroll.
-      if (moved && isStep73PhoneEditorScrollActive()) {
+      if ((movedEditor || movedPage) && isPhoneEditorChainScrollActive()) {
         event.stopPropagation();
       }
       startX = 0;
       startY = 0;
       lastY = 0;
-      moved = false;
+      movedEditor = false;
+      movedPage = false;
     }, { passive: true });
   });
 })();
