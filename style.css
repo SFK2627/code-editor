@@ -27962,3 +27962,388 @@ body.student-session-active #appTitleText .header-student-name-highlight {
     padding: 9px 10px !important;
   }
 }
+
+/* USER-DIRECTED FIX STEP 86
+   Safe completion of phone Full Editor tools panel.
+   This is class-gated to phone full editor only, so homepage, normal phone view,
+   and desktop layout remain protected. */
+body.guest-session-active .topbar,
+body.student-session-active .topbar {
+  min-width: 0 !important;
+}
+
+body.guest-session-active .brand-block,
+body.student-session-active .brand-block {
+  min-width: 0 !important;
+  max-width: 100% !important;
+  overflow: hidden !important;
+}
+
+body.guest-session-active .top-actions,
+body.student-session-active .top-actions {
+  flex: 0 0 auto !important;
+}
+
+body.guest-session-active #appTitleText,
+body.student-session-active #appTitleText {
+  min-width: 0 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+body.guest-session-active #appTitleText .header-student-name-highlight,
+body.student-session-active #appTitleText .header-student-name-highlight {
+  display: inline-block !important;
+  max-width: min(34vw, 360px) !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  vertical-align: bottom !important;
+}
+
+@media (max-width: 820px) {
+  body.guest-session-active #appTitleText .header-student-name-highlight,
+  body.student-session-active #appTitleText .header-student-name-highlight {
+    max-width: 38vw !important;
+  }
+}
+
+@media (max-width: 390px) {
+  body.guest-session-active #appTitleText .header-student-name-highlight,
+  body.student-session-active #appTitleText .header-student-name-highlight {
+    max-width: 32vw !important;
+  }
+}
+
+@media (max-width: 820px), (hover: none) and (pointer: coarse) {
+  /* Main phone full editor must show only Show, X, font slider, and Code Helper. */
+  body.phone-true-full-editor-active #fullscreenRunBtn,
+  body.phone-true-full-editor-active #fullscreenAutoRunBtn,
+  body.phone-true-full-editor-active #fullscreenResultBtn,
+  html.phone-true-full-editor-enabled #editorPanel:fullscreen #fullscreenRunBtn,
+  html.phone-true-full-editor-enabled #editorPanel:fullscreen #fullscreenAutoRunBtn,
+  html.phone-true-full-editor-enabled #editorPanel:fullscreen #fullscreenResultBtn,
+  body.phone-true-full-editor-active #superStudioLauncher,
+  body.phone-true-full-editor-active #superStudioToolbar,
+  body.phone-true-full-editor-active #superStudioPanel,
+  html.phone-true-full-editor-enabled #editorPanel:fullscreen #superStudioLauncher,
+  html.phone-true-full-editor-enabled #editorPanel:fullscreen #superStudioToolbar,
+  html.phone-true-full-editor-enabled #editorPanel:fullscreen #superStudioPanel {
+    display: none !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+  }
+
+  /* Hide page/language tools by default in phone full editor. */
+  body.phone-true-full-editor-active #editorPanel .language-tabs,
+  body.phone-true-full-editor-active #editorPanel #htmlPageManager,
+  body.phone-true-full-editor-active #mobileSuggestionToggle,
+  html.phone-true-full-editor-enabled #editorPanel:fullscreen .language-tabs,
+  html.phone-true-full-editor-enabled #editorPanel:fullscreen #htmlPageManager,
+  html.phone-true-full-editor-enabled #editorPanel:fullscreen ~ #mobileSuggestionToggle {
+    display: none !important;
+  }
+
+  /* Show button in phone full editor. */
+  body.phone-true-full-editor-active #mobileEditorToolsToggle,
+  html.phone-true-full-editor-enabled #editorPanel:fullscreen #mobileEditorToolsToggle {
+    position: fixed !important;
+    top: calc(7px + env(safe-area-inset-top)) !important;
+    left: 8px !important;
+    right: auto !important;
+    bottom: auto !important;
+    z-index: 60078 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 64px !important;
+    min-width: 64px !important;
+    max-width: 64px !important;
+    height: 32px !important;
+    min-height: 32px !important;
+    max-height: 32px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 1px solid rgba(96, 165, 250, 0.54) !important;
+    border-radius: 999px !important;
+    color: #0b4ea2 !important;
+    background: color-mix(in srgb, var(--solid-card) 94%, var(--primary-soft)) !important;
+    box-shadow: 0 10px 26px rgba(15, 23, 42, 0.14) !important;
+    overflow: hidden !important;
+  }
+
+  body.phone-true-full-editor-active #mobileEditorToolsToggle span,
+  html.phone-true-full-editor-enabled #editorPanel:fullscreen #mobileEditorToolsToggle span {
+    display: none !important;
+  }
+
+  body.phone-true-full-editor-active #mobileEditorToolsToggle strong,
+  html.phone-true-full-editor-enabled #editorPanel:fullscreen #mobileEditorToolsToggle strong {
+    position: static !important;
+    display: block !important;
+    width: 100% !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    color: inherit !important;
+    background: transparent !important;
+    font-size: 0.74rem !important;
+    font-weight: 1000 !important;
+    line-height: 1 !important;
+    text-align: center !important;
+    text-transform: none !important;
+  }
+
+  body.phone-true-full-editor-active.mobile-editor-tools-open #mobileEditorToolsToggle,
+  html.phone-true-full-editor-enabled body.mobile-editor-tools-open #editorPanel:fullscreen #mobileEditorToolsToggle {
+    background: color-mix(in srgb, var(--solid-card) 88%, var(--primary-soft)) !important;
+    border-color: rgba(37, 99, 235, 0.62) !important;
+  }
+
+  /* Show panel: first language tabs, then Tabs/Pages, then + Page/Rename, Delete, Suggestions. */
+  body.phone-true-full-editor-active.mobile-editor-tools-open #editorPanel .language-tabs,
+  html.phone-true-full-editor-enabled body.mobile-editor-tools-open #editorPanel:fullscreen .language-tabs {
+    position: fixed !important;
+    top: calc(45px + env(safe-area-inset-top)) !important;
+    left: 8px !important;
+    right: 8px !important;
+    z-index: 60072 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    gap: 6px !important;
+    width: auto !important;
+    height: 42px !important;
+    min-height: 42px !important;
+    max-height: 42px !important;
+    padding: 5px !important;
+    border: 1px solid rgba(96, 165, 250, 0.50) !important;
+    border-bottom: 0 !important;
+    border-radius: 16px 16px 0 0 !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    scrollbar-width: none !important;
+    background: color-mix(in srgb, var(--solid-card) 95%, var(--primary-soft)) !important;
+    box-shadow: 0 16px 42px rgba(15, 23, 42, 0.18) !important;
+  }
+
+  body.phone-true-full-editor-active.mobile-editor-tools-open #editorPanel .language-tabs::-webkit-scrollbar,
+  html.phone-true-full-editor-enabled body.mobile-editor-tools-open #editorPanel:fullscreen .language-tabs::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  body.phone-true-full-editor-active.mobile-editor-tools-open #editorPanel .language-tabs #renameFilesBtn,
+  html.phone-true-full-editor-enabled body.mobile-editor-tools-open #editorPanel:fullscreen .language-tabs #renameFilesBtn {
+    display: none !important;
+  }
+
+  body.phone-true-full-editor-active.mobile-editor-tools-open #editorPanel .language-tabs .tab-btn,
+  html.phone-true-full-editor-enabled body.mobile-editor-tools-open #editorPanel:fullscreen .language-tabs .tab-btn {
+    flex: 1 0 auto !important;
+    min-width: 76px !important;
+    height: 32px !important;
+    min-height: 32px !important;
+    max-height: 32px !important;
+    padding: 0 10px !important;
+    border-radius: 11px !important;
+    font-size: 0.72rem !important;
+  }
+
+  body.phone-true-full-editor-active.mobile-editor-tools-open #editorPanel #htmlPageManager,
+  html.phone-true-full-editor-enabled body.mobile-editor-tools-open #editorPanel:fullscreen #htmlPageManager {
+    position: fixed !important;
+    top: calc(87px + env(safe-area-inset-top)) !important;
+    left: 8px !important;
+    right: 8px !important;
+    z-index: 60071 !important;
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+    width: auto !important;
+    max-height: min(43dvh, 314px) !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    padding: 8px !important;
+    border: 1px solid rgba(96, 165, 250, 0.50) !important;
+    border-top: 0 !important;
+    border-radius: 0 0 16px 16px !important;
+    background: color-mix(in srgb, var(--solid-card) 96%, var(--primary-soft)) !important;
+    box-shadow: 0 18px 42px rgba(15, 23, 42, 0.18) !important;
+  }
+
+  body.phone-true-full-editor-active.mobile-editor-tools-open #htmlPageManager .page-manager-left,
+  html.phone-true-full-editor-enabled body.mobile-editor-tools-open #editorPanel:fullscreen #htmlPageManager .page-manager-left {
+    order: 1 !important;
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 5px !important;
+    width: 100% !important;
+  }
+
+  body.phone-true-full-editor-active.mobile-editor-tools-open #htmlPageManager .page-manager-actions,
+  html.phone-true-full-editor-enabled body.mobile-editor-tools-open #editorPanel:fullscreen #htmlPageManager .page-manager-actions {
+    order: 2 !important;
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 7px !important;
+    width: 100% !important;
+  }
+
+  body.phone-true-full-editor-active.mobile-editor-tools-open #htmlPageManager #addHtmlPageBtn,
+  html.phone-true-full-editor-enabled body.mobile-editor-tools-open #editorPanel:fullscreen #htmlPageManager #addHtmlPageBtn {
+    order: 1 !important;
+  }
+
+  body.phone-true-full-editor-active.mobile-editor-tools-open #htmlPageManager #renameHtmlPageBtn,
+  html.phone-true-full-editor-enabled body.mobile-editor-tools-open #editorPanel:fullscreen #htmlPageManager #renameHtmlPageBtn {
+    order: 2 !important;
+  }
+
+  body.phone-true-full-editor-active.mobile-editor-tools-open #htmlPageManager #deleteHtmlPageBtn,
+  html.phone-true-full-editor-enabled body.mobile-editor-tools-open #editorPanel:fullscreen #htmlPageManager #deleteHtmlPageBtn {
+    order: 3 !important;
+    grid-column: 1 / -1 !important;
+  }
+
+  body.phone-true-full-editor-active.mobile-editor-tools-open #htmlPageManager select,
+  body.phone-true-full-editor-active.mobile-editor-tools-open #htmlPageManager button,
+  html.phone-true-full-editor-enabled body.mobile-editor-tools-open #editorPanel:fullscreen #htmlPageManager select,
+  html.phone-true-full-editor-enabled body.mobile-editor-tools-open #editorPanel:fullscreen #htmlPageManager button {
+    min-height: 36px !important;
+    border-radius: 12px !important;
+    font-size: 0.80rem !important;
+  }
+
+  body.phone-true-full-editor-active.mobile-editor-tools-open #mobileSuggestionToggle,
+  html.phone-true-full-editor-enabled body.mobile-editor-tools-open #mobileSuggestionToggle {
+    position: fixed !important;
+    top: calc(214px + env(safe-area-inset-top)) !important;
+    left: 16px !important;
+    right: 16px !important;
+    z-index: 60070 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 8px !important;
+    width: auto !important;
+    min-height: 38px !important;
+    max-height: 38px !important;
+    margin: 0 !important;
+    padding: 0 12px !important;
+    border: 1px solid rgba(147, 197, 253, 0.64) !important;
+    border-radius: 12px !important;
+    color: #052a55 !important;
+    background: var(--solid-card) !important;
+    font-size: 0.80rem !important;
+    font-weight: 900 !important;
+    box-shadow: 0 10px 26px rgba(15, 23, 42, 0.12) !important;
+  }
+
+  body.phone-true-full-editor-active.mobile-editor-tools-open #mobileSuggestionToggle .suggestion-toggle-state,
+  html.phone-true-full-editor-enabled body.mobile-editor-tools-open #mobileSuggestionToggle .suggestion-toggle-state {
+    min-width: 48px !important;
+    min-height: 26px !important;
+    font-size: 0.70rem !important;
+  }
+
+  /* Keep the editor usable while the Show panel is open. */
+  body.phone-true-full-editor-active.mobile-editor-tools-open #editorPanel .editor-wrap,
+  html.phone-true-full-editor-enabled body.mobile-editor-tools-open #editorPanel:fullscreen .editor-wrap {
+    padding-top: min(258px, 42dvh) !important;
+  }
+
+  /* Compact Code Helper modal in normal phone and full editor. */
+  html[data-device-mode="phone"] .error-checker-panel.code-helper-modal,
+  body.phone-true-full-editor-active #editorPanel .error-checker-panel.code-helper-modal,
+  html.phone-true-full-editor-enabled #editorPanel:fullscreen .error-checker-panel.code-helper-modal {
+    position: fixed !important;
+    top: auto !important;
+    left: 50% !important;
+    right: auto !important;
+    bottom: calc(70px + env(safe-area-inset-bottom)) !important;
+    transform: translateX(-50%) !important;
+    width: min(92vw, 380px) !important;
+    max-width: min(92vw, 380px) !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: min(58dvh, 400px) !important;
+    border-radius: 18px !important;
+    z-index: 60090 !important;
+  }
+
+  body.phone-true-full-editor-active #editorPanel .error-checker-panel.code-helper-modal,
+  html.phone-true-full-editor-enabled #editorPanel:fullscreen .error-checker-panel.code-helper-modal {
+    max-height: min(52dvh, 350px) !important;
+  }
+
+  html[data-device-mode="phone"] .error-checker-panel.code-helper-modal .error-checker-content,
+  body.phone-true-full-editor-active #editorPanel .error-checker-panel.code-helper-modal .error-checker-content,
+  html.phone-true-full-editor-enabled #editorPanel:fullscreen .error-checker-panel.code-helper-modal .error-checker-content {
+    max-height: calc(min(58dvh, 400px) - 56px) !important;
+    padding: 9px 10px calc(11px + env(safe-area-inset-bottom)) !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  body.phone-true-full-editor-active #editorPanel .error-checker-panel.code-helper-modal .error-checker-content,
+  html.phone-true-full-editor-enabled #editorPanel:fullscreen .error-checker-panel.code-helper-modal .error-checker-content {
+    max-height: calc(min(52dvh, 350px) - 56px) !important;
+  }
+
+  html[data-device-mode="phone"] .error-checker-panel.code-helper-modal .error-checker-header,
+  body.phone-true-full-editor-active #editorPanel .error-checker-panel.code-helper-modal .error-checker-header,
+  html.phone-true-full-editor-enabled #editorPanel:fullscreen .error-checker-panel.code-helper-modal .error-checker-header {
+    min-height: 52px !important;
+    padding: 9px 10px !important;
+    gap: 8px !important;
+  }
+
+  html[data-device-mode="phone"] .error-checker-panel.code-helper-modal .error-checker-header h2,
+  body.phone-true-full-editor-active #editorPanel .error-checker-panel.code-helper-modal .error-checker-header h2,
+  html.phone-true-full-editor-enabled #editorPanel:fullscreen .error-checker-panel.code-helper-modal .error-checker-header h2 {
+    font-size: 0.92rem !important;
+    line-height: 1.1 !important;
+  }
+
+  html[data-device-mode="phone"] .error-checker-panel.code-helper-modal .section-kicker,
+  body.phone-true-full-editor-active #editorPanel .error-checker-panel.code-helper-modal .section-kicker,
+  html.phone-true-full-editor-enabled #editorPanel:fullscreen .error-checker-panel.code-helper-modal .section-kicker {
+    font-size: 0.58rem !important;
+    margin-bottom: 1px !important;
+  }
+
+  html[data-device-mode="phone"] .code-helper-header-actions .layout-btn,
+  html[data-device-mode="phone"] .code-helper-close,
+  body.phone-true-full-editor-active .code-helper-header-actions .layout-btn,
+  body.phone-true-full-editor-active .code-helper-close {
+    min-height: 34px !important;
+    height: 34px !important;
+    width: 34px !important;
+    min-width: 34px !important;
+    padding: 0 !important;
+    font-size: 1.12rem !important;
+  }
+}
+
+@media (max-width: 390px) {
+  body.phone-true-full-editor-active #mobileEditorToolsToggle,
+  html.phone-true-full-editor-enabled #editorPanel:fullscreen #mobileEditorToolsToggle {
+    width: 58px !important;
+    min-width: 58px !important;
+    max-width: 58px !important;
+  }
+
+  body.phone-true-full-editor-active.mobile-editor-tools-open #mobileSuggestionToggle,
+  html.phone-true-full-editor-enabled body.mobile-editor-tools-open #mobileSuggestionToggle {
+    left: 14px !important;
+    right: 14px !important;
+  }
+
+  body.phone-true-full-editor-active #editorPanel .error-checker-panel.code-helper-modal,
+  html.phone-true-full-editor-enabled #editorPanel:fullscreen .error-checker-panel.code-helper-modal,
+  html[data-device-mode="phone"] .error-checker-panel.code-helper-modal {
+    width: min(94vw, 350px) !important;
+    max-width: min(94vw, 350px) !important;
+  }
+}
