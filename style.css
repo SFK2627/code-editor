@@ -27962,3 +27962,371 @@ body.student-session-active #appTitleText .header-student-name-highlight {
     padding: 9px 10px !important;
   }
 }
+
+/* USER-DIRECTED FIX STEP 89 - SAFE CSS-ONLY FULL EDITOR TOOLS
+   Base: Step 88 stable. No JavaScript changes here.
+   Purpose: phone full editor only. Hide Run/Auto/Result/Studio, keep Show/X/font slider/Code Helper,
+   and let the existing Show button reveal a simple tools panel without touching homepage load logic. */
+@media (max-width: 820px), (hover: none) and (pointer: coarse) {
+  /* Extra-safe header containment for long first + second names. */
+  body.guest-session-active .topbar,
+  body.student-session-active .topbar {
+    min-width: 0 !important;
+  }
+
+  body.guest-session-active .brand-block,
+  body.student-session-active .brand-block {
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+
+  body.guest-session-active #appTitleText,
+  body.student-session-active #appTitleText {
+    max-width: 100% !important;
+    min-width: 0 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  body.guest-session-active #appTitleText .header-student-name-highlight,
+  body.student-session-active #appTitleText .header-student-name-highlight {
+    max-width: 36vw !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  /* PHONE FULL EDITOR: only Show, X, font slider, and Code Helper remain visible. */
+  body.phone-true-full-editor-active #runBtn,
+  body.phone-true-full-editor-active #autoRunBtn,
+  body.phone-true-full-editor-active #resultBtn,
+  body.phone-true-full-editor-active #aiReviewTopBtn,
+  body.phone-true-full-editor-active #fullscreenRunBtn,
+  body.phone-true-full-editor-active #fullscreenAutoRunBtn,
+  body.phone-true-full-editor-active #fullscreenResultBtn,
+  body.phone-true-full-editor-active #superStudioLauncher,
+  body.phone-true-full-editor-active #superStudioToolbar,
+  body.phone-true-full-editor-active #superStudioPanel,
+  body.phone-true-full-editor-active .super-studio-launcher,
+  body.phone-true-full-editor-active .super-studio-toolbar,
+  body.phone-true-full-editor-active .super-studio-panel,
+  body.phone-true-full-editor-active .top-run-btn,
+  body.phone-true-full-editor-active .auto-run-btn,
+  body.phone-true-full-editor-active .top-result-btn,
+  body.phone-true-full-editor-active .fullscreen-run-btn,
+  body.phone-true-full-editor-active .fullscreen-auto-run-btn,
+  body.phone-true-full-editor-active .fullscreen-result-btn,
+  html.phone-true-full-editor-enabled #editorPanel:fullscreen #runBtn,
+  html.phone-true-full-editor-enabled #editorPanel:fullscreen #autoRunBtn,
+  html.phone-true-full-editor-enabled #editorPanel:fullscreen #resultBtn,
+  html.phone-true-full-editor-enabled #editorPanel:fullscreen #aiReviewTopBtn,
+  html.phone-true-full-editor-enabled #editorPanel:fullscreen #fullscreenRunBtn,
+  html.phone-true-full-editor-enabled #editorPanel:fullscreen #fullscreenAutoRunBtn,
+  html.phone-true-full-editor-enabled #editorPanel:fullscreen #fullscreenResultBtn,
+  html.phone-true-full-editor-enabled #editorPanel:fullscreen #superStudioLauncher,
+  html.phone-true-full-editor-enabled #editorPanel:fullscreen #superStudioToolbar,
+  html.phone-true-full-editor-enabled #editorPanel:fullscreen #superStudioPanel,
+  html.phone-true-full-editor-enabled #editorPanel:fullscreen .super-studio-launcher,
+  html.phone-true-full-editor-enabled #editorPanel:fullscreen .super-studio-toolbar,
+  html.phone-true-full-editor-enabled #editorPanel:fullscreen .super-studio-panel {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+  }
+
+  /* Show button stays available in phone full editor. Existing Step 88 JS already toggles
+     body.mobile-editor-tools-open, so this CSS does not add risky load logic. */
+  body.phone-true-full-editor-active #mobileEditorToolsToggle,
+  html.phone-true-full-editor-enabled #editorPanel:fullscreen #mobileEditorToolsToggle {
+    position: fixed !important;
+    top: calc(7px + env(safe-area-inset-top)) !important;
+    left: 8px !important;
+    right: auto !important;
+    bottom: auto !important;
+    z-index: 60082 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 62px !important;
+    min-width: 62px !important;
+    max-width: 62px !important;
+    height: 32px !important;
+    min-height: 32px !important;
+    max-height: 32px !important;
+    margin: 0 !important;
+    padding: 0 10px !important;
+    border-radius: 999px !important;
+    border: 1px solid rgba(96, 165, 250, 0.62) !important;
+    background: linear-gradient(135deg, #eff6ff, #dbeafe) !important;
+    color: #0f3f86 !important;
+    box-shadow: 0 10px 22px rgba(37, 99, 235, 0.18) !important;
+    pointer-events: auto !important;
+  }
+
+  body.phone-true-full-editor-active #mobileEditorToolsToggle span,
+  html.phone-true-full-editor-enabled #editorPanel:fullscreen #mobileEditorToolsToggle span,
+  body.phone-true-full-editor-active #mobileEditorToolsToggle::before,
+  body.phone-true-full-editor-active #mobileEditorToolsToggle::after,
+  html.phone-true-full-editor-enabled #editorPanel:fullscreen #mobileEditorToolsToggle::before,
+  html.phone-true-full-editor-enabled #editorPanel:fullscreen #mobileEditorToolsToggle::after {
+    display: none !important;
+    content: none !important;
+  }
+
+  body.phone-true-full-editor-active #mobileEditorToolsToggle strong,
+  html.phone-true-full-editor-enabled #editorPanel:fullscreen #mobileEditorToolsToggle strong {
+    position: static !important;
+    display: inline !important;
+    width: auto !important;
+    height: auto !important;
+    color: inherit !important;
+    font-size: 0.74rem !important;
+    font-weight: 900 !important;
+    line-height: 1 !important;
+    text-indent: 0 !important;
+  }
+
+  body.phone-true-full-editor-active #mobileEditorToolsToggle strong::before,
+  html.phone-true-full-editor-enabled #editorPanel:fullscreen #mobileEditorToolsToggle strong::before {
+    content: none !important;
+    display: none !important;
+  }
+
+  body.phone-true-full-editor-active.mobile-editor-tools-open #mobileEditorToolsToggle,
+  html.phone-true-full-editor-enabled body.mobile-editor-tools-open #editorPanel:fullscreen #mobileEditorToolsToggle {
+    background: linear-gradient(135deg, #dbeafe, #bfdbfe) !important;
+    color: #082f6f !important;
+  }
+
+  /* Closed state in phone full editor: hide tool surfaces. */
+  body.phone-true-full-editor-active #editorPanel .language-tabs,
+  body.phone-true-full-editor-active #editorPanel #htmlPageManager,
+  body.phone-true-full-editor-active #editorPanel #mobileSuggestionToggle,
+  html.phone-true-full-editor-enabled #editorPanel:fullscreen .language-tabs,
+  html.phone-true-full-editor-enabled #editorPanel:fullscreen #htmlPageManager,
+  html.phone-true-full-editor-enabled #editorPanel:fullscreen #mobileSuggestionToggle {
+    display: none !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+  }
+
+  /* Open state after clicking Show: simple stacked panel. */
+  body.phone-true-full-editor-active.mobile-editor-tools-open #editorPanel .language-tabs,
+  html.phone-true-full-editor-enabled body.mobile-editor-tools-open #editorPanel:fullscreen .language-tabs {
+    position: fixed !important;
+    top: calc(46px + env(safe-area-inset-top)) !important;
+    left: 8px !important;
+    right: 8px !important;
+    z-index: 60076 !important;
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 6px !important;
+    width: auto !important;
+    min-height: 44px !important;
+    height: auto !important;
+    max-height: none !important;
+    padding: 8px !important;
+    border: 1px solid rgba(147, 197, 253, 0.62) !important;
+    border-radius: 16px 16px 10px 10px !important;
+    background: rgba(248, 251, 255, 0.98) !important;
+    box-shadow: 0 18px 40px rgba(15, 23, 42, 0.16) !important;
+    visibility: visible !important;
+    pointer-events: auto !important;
+    overflow: visible !important;
+  }
+
+  body.phone-true-full-editor-active.mobile-editor-tools-open #editorPanel .language-tabs .tab-btn,
+  html.phone-true-full-editor-enabled body.mobile-editor-tools-open #editorPanel:fullscreen .language-tabs .tab-btn {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    height: 36px !important;
+    min-height: 36px !important;
+    max-height: 36px !important;
+    padding: 0 6px !important;
+    border-radius: 11px !important;
+    font-size: 0.76rem !important;
+    white-space: nowrap !important;
+  }
+
+  body.phone-true-full-editor-active.mobile-editor-tools-open #editorPanel #renameFilesBtn,
+  html.phone-true-full-editor-enabled body.mobile-editor-tools-open #editorPanel:fullscreen #renameFilesBtn {
+    display: none !important;
+  }
+
+  body.phone-true-full-editor-active.mobile-editor-tools-open #editorPanel #htmlPageManager,
+  html.phone-true-full-editor-enabled body.mobile-editor-tools-open #editorPanel:fullscreen #htmlPageManager {
+    position: fixed !important;
+    top: calc(106px + env(safe-area-inset-top)) !important;
+    left: 8px !important;
+    right: 8px !important;
+    z-index: 60075 !important;
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 7px !important;
+    width: auto !important;
+    min-height: 0 !important;
+    height: auto !important;
+    max-height: calc(var(--mcs-phone-full-editor-height, 100dvh) - 196px) !important;
+    padding: 8px !important;
+    border: 1px solid rgba(147, 197, 253, 0.62) !important;
+    border-radius: 12px !important;
+    background: rgba(248, 251, 255, 0.98) !important;
+    box-shadow: 0 18px 40px rgba(15, 23, 42, 0.14) !important;
+    visibility: visible !important;
+    pointer-events: auto !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  body.phone-true-full-editor-active.mobile-editor-tools-open #editorPanel #htmlPageManager .page-manager-left,
+  body.phone-true-full-editor-active.mobile-editor-tools-open #editorPanel #htmlPageManager .page-manager-actions,
+  html.phone-true-full-editor-enabled body.mobile-editor-tools-open #editorPanel:fullscreen #htmlPageManager .page-manager-left,
+  html.phone-true-full-editor-enabled body.mobile-editor-tools-open #editorPanel:fullscreen #htmlPageManager .page-manager-actions {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 7px !important;
+    width: 100% !important;
+  }
+
+  body.phone-true-full-editor-active.mobile-editor-tools-open #editorPanel #htmlPageManager .page-manager-label,
+  html.phone-true-full-editor-enabled body.mobile-editor-tools-open #editorPanel:fullscreen #htmlPageManager .page-manager-label {
+    display: block !important;
+    margin: 0 !important;
+    font-size: 0.68rem !important;
+    font-weight: 900 !important;
+    letter-spacing: 0.09em !important;
+    text-transform: uppercase !important;
+    color: #475569 !important;
+  }
+
+  body.phone-true-full-editor-active.mobile-editor-tools-open #editorPanel #htmlPageSelect,
+  html.phone-true-full-editor-enabled body.mobile-editor-tools-open #editorPanel:fullscreen #htmlPageSelect {
+    width: 100% !important;
+    min-height: 36px !important;
+    height: 36px !important;
+    border-radius: 10px !important;
+    font-size: 0.78rem !important;
+  }
+
+  body.phone-true-full-editor-active.mobile-editor-tools-open #editorPanel #addHtmlPageBtn,
+  body.phone-true-full-editor-active.mobile-editor-tools-open #editorPanel #renameHtmlPageBtn,
+  body.phone-true-full-editor-active.mobile-editor-tools-open #editorPanel #deleteHtmlPageBtn,
+  html.phone-true-full-editor-enabled body.mobile-editor-tools-open #editorPanel:fullscreen #addHtmlPageBtn,
+  html.phone-true-full-editor-enabled body.mobile-editor-tools-open #editorPanel:fullscreen #renameHtmlPageBtn,
+  html.phone-true-full-editor-enabled body.mobile-editor-tools-open #editorPanel:fullscreen #deleteHtmlPageBtn {
+    width: 100% !important;
+    min-height: 36px !important;
+    height: 36px !important;
+    border-radius: 10px !important;
+    font-size: 0.78rem !important;
+  }
+
+  /* + Page and Rename beside each other; Delete is below them. */
+  body.phone-true-full-editor-active.mobile-editor-tools-open #editorPanel #htmlPageManager .page-manager-actions,
+  html.phone-true-full-editor-enabled body.mobile-editor-tools-open #editorPanel:fullscreen #htmlPageManager .page-manager-actions {
+    grid-template-columns: 1fr 1fr !important;
+  }
+
+  body.phone-true-full-editor-active.mobile-editor-tools-open #editorPanel #deleteHtmlPageBtn,
+  html.phone-true-full-editor-enabled body.mobile-editor-tools-open #editorPanel:fullscreen #deleteHtmlPageBtn {
+    grid-column: 1 / -1 !important;
+  }
+
+  body.phone-true-full-editor-active.mobile-editor-tools-open #editorPanel #mobileSuggestionToggle,
+  html.phone-true-full-editor-enabled body.mobile-editor-tools-open #editorPanel:fullscreen #mobileSuggestionToggle {
+    position: fixed !important;
+    top: calc(252px + env(safe-area-inset-top)) !important;
+    left: 8px !important;
+    right: 8px !important;
+    z-index: 60074 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 10px !important;
+    width: auto !important;
+    min-height: 36px !important;
+    height: 36px !important;
+    padding: 0 12px !important;
+    border-radius: 12px !important;
+    border: 1px solid rgba(147, 197, 253, 0.62) !important;
+    background: rgba(248, 251, 255, 0.98) !important;
+    color: #0f3f86 !important;
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.12) !important;
+    visibility: visible !important;
+    pointer-events: auto !important;
+    font-size: 0.78rem !important;
+  }
+
+  body.phone-true-full-editor-active #editorPanel .editor-wrap,
+  html.phone-true-full-editor-enabled #editorPanel:fullscreen .editor-wrap {
+    margin-top: 42px !important;
+    height: calc(var(--mcs-phone-full-editor-height, 100dvh) - 42px) !important;
+  }
+
+  body.phone-true-full-editor-active.mobile-editor-tools-open #editorPanel .editor-wrap,
+  html.phone-true-full-editor-enabled body.mobile-editor-tools-open #editorPanel:fullscreen .editor-wrap {
+    margin-top: 294px !important;
+    height: calc(var(--mcs-phone-full-editor-height, 100dvh) - 294px) !important;
+  }
+
+  body.phone-true-full-editor-active.mobile-editor-tools-open #editorPanel #codeEditor,
+  html.phone-true-full-editor-enabled body.mobile-editor-tools-open #editorPanel:fullscreen #codeEditor {
+    padding-bottom: calc(110px + env(safe-area-inset-bottom)) !important;
+  }
+
+  /* Keep Code Helper compact in normal phone and full editor. */
+  html[data-device-mode="phone"] .error-checker-panel.code-helper-modal,
+  body.phone-true-full-editor-active #editorPanel .error-checker-panel.code-helper-modal,
+  html.phone-true-full-editor-enabled #editorPanel:fullscreen .error-checker-panel.code-helper-modal {
+    width: min(90vw, 360px) !important;
+    max-width: min(90vw, 360px) !important;
+    max-height: min(56dvh, 390px) !important;
+  }
+
+  html[data-device-mode="phone"] .error-checker-panel.code-helper-modal .error-checker-content,
+  body.phone-true-full-editor-active #editorPanel .error-checker-panel.code-helper-modal .error-checker-content,
+  html.phone-true-full-editor-enabled #editorPanel:fullscreen .error-checker-panel.code-helper-modal .error-checker-content {
+    max-height: calc(min(56dvh, 390px) - 56px) !important;
+  }
+
+  html[data-device-mode="phone"][data-theme="dark"] body.phone-true-full-editor-active.mobile-editor-tools-open #editorPanel .language-tabs,
+  html[data-device-mode="phone"][data-theme="dark"] body.phone-true-full-editor-active.mobile-editor-tools-open #editorPanel #htmlPageManager,
+  html[data-device-mode="phone"][data-theme="dark"] body.phone-true-full-editor-active.mobile-editor-tools-open #editorPanel #mobileSuggestionToggle,
+  html.phone-true-full-editor-enabled[data-theme="dark"] body.mobile-editor-tools-open #editorPanel:fullscreen .language-tabs,
+  html.phone-true-full-editor-enabled[data-theme="dark"] body.mobile-editor-tools-open #editorPanel:fullscreen #htmlPageManager,
+  html.phone-true-full-editor-enabled[data-theme="dark"] body.mobile-editor-tools-open #editorPanel:fullscreen #mobileSuggestionToggle {
+    background: rgba(15, 23, 42, 0.98) !important;
+    border-color: rgba(96, 165, 250, 0.38) !important;
+    color: #dbeafe !important;
+  }
+
+  html[data-device-mode="phone"][data-theme="dark"] body.phone-true-full-editor-active.mobile-editor-tools-open #editorPanel #htmlPageManager .page-manager-label,
+  html.phone-true-full-editor-enabled[data-theme="dark"] body.mobile-editor-tools-open #editorPanel:fullscreen #htmlPageManager .page-manager-label {
+    color: #bfdbfe !important;
+  }
+}
+
+@media (max-width: 390px) {
+  body.phone-true-full-editor-active #appTitleText .header-student-name-highlight,
+  body.student-session-active #appTitleText .header-student-name-highlight,
+  body.guest-session-active #appTitleText .header-student-name-highlight {
+    max-width: 31vw !important;
+  }
+
+  body.phone-true-full-editor-active.mobile-editor-tools-open #editorPanel #mobileSuggestionToggle,
+  html.phone-true-full-editor-enabled body.mobile-editor-tools-open #editorPanel:fullscreen #mobileSuggestionToggle {
+    top: calc(248px + env(safe-area-inset-top)) !important;
+  }
+
+  body.phone-true-full-editor-active.mobile-editor-tools-open #editorPanel .editor-wrap,
+  html.phone-true-full-editor-enabled body.mobile-editor-tools-open #editorPanel:fullscreen .editor-wrap {
+    margin-top: 288px !important;
+    height: calc(var(--mcs-phone-full-editor-height, 100dvh) - 288px) !important;
+  }
+}
