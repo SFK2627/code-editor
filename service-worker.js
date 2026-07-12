@@ -1,12 +1,12 @@
-const CACHE_NAME = 'mcs-coding-app-20260712-user-step77-native-scroll-font-slider';
+const CACHE_NAME = 'mcs-coding-app-20260712-user-step78-thin-font-slider';
 const APP_SHELL = [
   './',
   './index.html',
   './index.html?fresh=1',
   './style.css',
-  './style.css?v=20260712-step77-native-scroll-font-slider',
+  './style.css?v=20260712-step78-thin-font-slider',
   './script.js',
-  './script.js?v=20260712-step77-native-scroll-font-slider',
+  './script.js?v=20260712-step78-thin-font-slider',
   './firebase-config.js',
   './manifest.webmanifest',
   './favicon.png',
