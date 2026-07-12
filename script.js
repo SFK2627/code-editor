@@ -17099,3 +17099,63 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   document.addEventListener('DOMContentLoaded', syncPhoneFullEditorMode, { once: true });
   syncPhoneFullEditorMode();
 })();
+
+/* STEP 96 SAFE PATCH
+   Phone full editor only: reliable Show/Hide toggle and layout refresh.
+   Does not touch login/homepage initialization. */
+(() => {
+  try {
+    const PHONE_QUERY = '(max-width: 820px), (hover: none) and (pointer: coarse)';
+    const isPhoneUi = () => Boolean(
+      document.documentElement?.dataset?.deviceMode === 'phone' ||
+      window.__mcsianPhonePreviewMode === true ||
+      window.matchMedia?.(PHONE_QUERY)?.matches
+    );
+    const isPhoneFullEditor = () => Boolean(
+      isPhoneUi() &&
+      document.body?.classList?.contains('editor-fullscreen-active') &&
+      !document.body?.classList?.contains('preview-fullscreen-active') &&
+      !document.body?.classList?.contains('preview-inside-editor-fullscreen')
+    );
+    function setToggleLabel(button, open) {
+      if (!button) return;
+      button.setAttribute('aria-expanded', open ? 'true' : 'false');
+      button.setAttribute('aria-label', open ? 'Hide page tools' : 'Show page tools');
+      button.innerHTML = open ? '<span></span><strong>Hide</strong>' : '<span></span><strong>Show</strong>';
+    }
+    function setToolsOpen(open) {
+      document.body.classList.toggle('mobile-editor-tools-open', Boolean(open));
+      setToggleLabel(document.getElementById('mobileEditorToolsToggle'), Boolean(open));
+      window.requestAnimationFrame(() => {
+        try {
+          if (typeof fitEditorToContent === 'function') fitEditorToContent();
+          if (typeof syncEditorScroll === 'function') syncEditorScroll();
+        } catch (_) {}
+      });
+    }
+    function handleToggle(event) {
+      const button = event.target?.closest?.('#mobileEditorToolsToggle');
+      if (!button || !isPhoneFullEditor()) return;
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation?.();
+      setToolsOpen(!document.body.classList.contains('mobile-editor-tools-open'));
+    }
+    document.addEventListener('click', handleToggle, true);
+    document.addEventListener('touchend', handleToggle, { capture: true, passive: false });
+    const sync = () => {
+      if (!isPhoneFullEditor()) return;
+      setToggleLabel(document.getElementById('mobileEditorToolsToggle'), document.body.classList.contains('mobile-editor-tools-open'));
+      const editor = document.getElementById('codeEditor');
+      if (editor) editor.setAttribute('wrap', 'soft');
+    };
+    const observer = new MutationObserver(sync);
+    if (document.body) observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+    window.addEventListener('resize', sync, { passive: true });
+    window.addEventListener('orientationchange', () => setTimeout(sync, 80), { passive: true });
+    document.addEventListener('DOMContentLoaded', sync, { once: true });
+    sync();
+  } catch (error) {
+    console.warn('[Step96 phone full editor patch skipped]', error);
+  }
+})();

@@ -30119,3 +30119,255 @@ body.student-session-active #appTitleText .header-student-name-highlight {
     overflow-x: hidden !important;
   }
 }
+
+/* STEP 96 - phone full editor final grid polish
+   Scope: phone/mobile full editor only. Desktop and normal editor stay untouched.
+   Fixes: visible top tabs, Exit + Show same row, Show panel reveal layout,
+   cursor/text layer alignment, bottom helper/slider stacking, no horizontal code scroll. */
+@media (max-width: 820px), (hover: none) and (pointer: coarse) {
+  html[data-device-mode="phone"] body.editor-fullscreen-active #editorPanel,
+  html[data-device-mode="phone"] #editorPanel:fullscreen,
+  body.phone-true-full-editor-active #editorPanel,
+  #editorPanel:fullscreen {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+    grid-template-rows: auto auto auto auto minmax(0, 1fr) !important;
+    align-content: stretch !important;
+    align-items: stretch !important;
+    column-gap: 10px !important;
+    row-gap: 8px !important;
+    padding: max(2px, env(safe-area-inset-top)) 10px calc(92px + env(safe-area-inset-bottom)) !important;
+    height: var(--mcs-phone-full-editor-height, 100dvh) !important;
+    min-height: var(--mcs-phone-full-editor-height, 100dvh) !important;
+    max-height: var(--mcs-phone-full-editor-height, 100dvh) !important;
+    overflow: hidden !important;
+  }
+
+  html[data-device-mode="phone"] body.editor-fullscreen-active #editorPanel > .language-tabs,
+  html[data-device-mode="phone"] #editorPanel:fullscreen > .language-tabs,
+  body.phone-true-full-editor-active #editorPanel > .language-tabs,
+  #editorPanel:fullscreen > .language-tabs {
+    grid-column: 1 / -1 !important;
+    grid-row: 1 !important;
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 7px !important;
+    width: 100% !important;
+    height: 40px !important;
+    min-height: 40px !important;
+    max-height: 40px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    align-self: start !important;
+  }
+
+  html[data-device-mode="phone"] body.editor-fullscreen-active #editorPanel > .language-tabs .tab-btn,
+  html[data-device-mode="phone"] #editorPanel:fullscreen > .language-tabs .tab-btn,
+  body.phone-true-full-editor-active #editorPanel > .language-tabs .tab-btn,
+  #editorPanel:fullscreen > .language-tabs .tab-btn {
+    height: 40px !important;
+    min-height: 40px !important;
+    max-height: 40px !important;
+    border-radius: 13px !important;
+    padding: 0 5px !important;
+    font-size: clamp(0.72rem, 3vw, 0.88rem) !important;
+    line-height: 1 !important;
+  }
+
+  html[data-device-mode="phone"] body.editor-fullscreen-active #fullscreenEditorActions,
+  html[data-device-mode="phone"] #editorPanel:fullscreen #fullscreenEditorActions,
+  body.phone-true-full-editor-active #fullscreenEditorActions,
+  #editorPanel:fullscreen #fullscreenEditorActions {
+    grid-column: 1 !important;
+    grid-row: 2 !important;
+    position: static !important;
+    display: flex !important;
+    align-self: stretch !important;
+    width: 100% !important;
+    max-width: none !important;
+    height: 36px !important;
+    min-height: 36px !important;
+    max-height: 36px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    transform: none !important;
+  }
+
+  html[data-device-mode="phone"] body.editor-fullscreen-active #exitEditorStickyBtn,
+  html[data-device-mode="phone"] #editorPanel:fullscreen #exitEditorStickyBtn,
+  body.phone-true-full-editor-active #exitEditorStickyBtn,
+  #editorPanel:fullscreen #exitEditorStickyBtn {
+    display: flex !important;
+    width: 100% !important;
+    height: 36px !important;
+    min-height: 36px !important;
+    max-height: 36px !important;
+    margin: 0 !important;
+    padding: 0 8px !important;
+    border-radius: 13px !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  html[data-device-mode="phone"] body.editor-fullscreen-active #mobileEditorToolsToggle,
+  html[data-device-mode="phone"] #editorPanel:fullscreen #mobileEditorToolsToggle,
+  body.phone-true-full-editor-active #mobileEditorToolsToggle,
+  #editorPanel:fullscreen #mobileEditorToolsToggle {
+    grid-column: 2 !important;
+    grid-row: 2 !important;
+    position: static !important;
+    display: flex !important;
+    align-self: stretch !important;
+    justify-self: stretch !important;
+    width: 100% !important;
+    max-width: none !important;
+    height: 36px !important;
+    min-height: 36px !important;
+    max-height: 36px !important;
+    margin: 0 !important;
+    padding: 0 8px !important;
+    border-radius: 13px !important;
+    align-items: center !important;
+    justify-content: center !important;
+    transform: none !important;
+    pointer-events: auto !important;
+    touch-action: manipulation !important;
+  }
+
+  html[data-device-mode="phone"] body.editor-fullscreen-active:not(.mobile-editor-tools-open) #htmlPageManager,
+  html[data-device-mode="phone"] body.editor-fullscreen-active:not(.mobile-editor-tools-open) #mobileSuggestionToggle,
+  body.phone-true-full-editor-active:not(.mobile-editor-tools-open) #htmlPageManager,
+  body.phone-true-full-editor-active:not(.mobile-editor-tools-open) #mobileSuggestionToggle {
+    display: none !important;
+  }
+
+  html[data-device-mode="phone"] body.editor-fullscreen-active.mobile-editor-tools-open #htmlPageManager,
+  body.phone-true-full-editor-active.mobile-editor-tools-open #htmlPageManager,
+  html[data-device-mode="phone"] #editorPanel:fullscreen #htmlPageManager {
+    grid-column: 1 / -1 !important;
+    grid-row: 3 !important;
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 7px !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 8px !important;
+    align-self: start !important;
+  }
+
+  html[data-device-mode="phone"] body.editor-fullscreen-active.mobile-editor-tools-open #mobileSuggestionToggle,
+  body.phone-true-full-editor-active.mobile-editor-tools-open #mobileSuggestionToggle,
+  html[data-device-mode="phone"] #editorPanel:fullscreen #mobileSuggestionToggle {
+    grid-column: 1 / -1 !important;
+    grid-row: 4 !important;
+    display: flex !important;
+    width: 100% !important;
+    height: 34px !important;
+    min-height: 34px !important;
+    max-height: 34px !important;
+    margin: 0 !important;
+    align-self: start !important;
+  }
+
+  html[data-device-mode="phone"] body.editor-fullscreen-active #editorPanel .editor-wrap,
+  html[data-device-mode="phone"] #editorPanel:fullscreen .editor-wrap,
+  body.phone-true-full-editor-active #editorPanel .editor-wrap,
+  #editorPanel:fullscreen .editor-wrap {
+    grid-column: 1 / -1 !important;
+    grid-row: 5 !important;
+    min-height: 0 !important;
+    height: 100% !important;
+    max-height: none !important;
+    width: 100% !important;
+    overflow: hidden !important;
+    margin: 0 !important;
+    border-radius: 12px !important;
+  }
+
+  html[data-device-mode="phone"] body.editor-fullscreen-active #editorPanel .line-numbers,
+  html[data-device-mode="phone"] body.editor-fullscreen-active #editorPanel .editor-stack,
+  html[data-device-mode="phone"] body.editor-fullscreen-active #editorPanel #codeEditor,
+  html[data-device-mode="phone"] body.editor-fullscreen-active #editorPanel .code-match-layer,
+  body.phone-true-full-editor-active #editorPanel .line-numbers,
+  body.phone-true-full-editor-active #editorPanel .editor-stack,
+  body.phone-true-full-editor-active #editorPanel #codeEditor,
+  body.phone-true-full-editor-active #editorPanel .code-match-layer,
+  #editorPanel:fullscreen .line-numbers,
+  #editorPanel:fullscreen .editor-stack,
+  #editorPanel:fullscreen #codeEditor,
+  #editorPanel:fullscreen .code-match-layer {
+    height: 100% !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    box-sizing: border-box !important;
+    font-size: var(--mobile-editor-font-size, 12.5px) !important;
+    line-height: 1.58 !important;
+  }
+
+  html[data-device-mode="phone"] body.editor-fullscreen-active #editorPanel #codeEditor,
+  html[data-device-mode="phone"] body.editor-fullscreen-active #editorPanel .code-match-layer,
+  body.phone-true-full-editor-active #editorPanel #codeEditor,
+  body.phone-true-full-editor-active #editorPanel .code-match-layer,
+  #editorPanel:fullscreen #codeEditor,
+  #editorPanel:fullscreen .code-match-layer {
+    padding: 12px !important;
+    font-family: Consolas, Monaco, "Courier New", monospace !important;
+    tab-size: 2 !important;
+    white-space: pre-wrap !important;
+    overflow-wrap: anywhere !important;
+    word-break: break-word !important;
+    overflow-x: hidden !important;
+  }
+
+  html[data-device-mode="phone"] body.editor-fullscreen-active #editorPanel #codeEditor,
+  body.phone-true-full-editor-active #editorPanel #codeEditor,
+  #editorPanel:fullscreen #codeEditor {
+    overflow-y: auto !important;
+    resize: none !important;
+    -webkit-overflow-scrolling: touch !important;
+    caret-color: var(--editor-text, #e5f0ff) !important;
+  }
+
+  html[data-device-mode="phone"] body.editor-fullscreen-active #editorPanel .code-match-layer,
+  body.phone-true-full-editor-active #editorPanel .code-match-layer,
+  #editorPanel:fullscreen .code-match-layer {
+    overflow: hidden !important;
+    pointer-events: none !important;
+  }
+
+  html[data-device-mode="phone"] body.editor-fullscreen-active #codeHelperFloatingBtn,
+  html[data-device-mode="phone"] #editorPanel:fullscreen #codeHelperFloatingBtn,
+  body.phone-true-full-editor-active #codeHelperFloatingBtn,
+  #editorPanel:fullscreen #codeHelperFloatingBtn {
+    position: fixed !important;
+    left: 50% !important;
+    bottom: calc(42px + env(safe-area-inset-bottom)) !important;
+    transform: translateX(-50%) !important;
+    width: min(290px, calc(100vw - 54px)) !important;
+    max-width: min(290px, calc(100vw - 54px)) !important;
+    height: 38px !important;
+    min-height: 38px !important;
+    max-height: 38px !important;
+    z-index: 27000 !important;
+  }
+
+  html[data-device-mode="phone"] body.editor-fullscreen-active #mobileEditorFontControl,
+  html[data-device-mode="phone"] #editorPanel:fullscreen #mobileEditorFontControl,
+  body.phone-true-full-editor-active #mobileEditorFontControl,
+  #editorPanel:fullscreen #mobileEditorFontControl {
+    position: fixed !important;
+    left: 50% !important;
+    bottom: calc(6px + env(safe-area-inset-bottom)) !important;
+    transform: translateX(-50%) !important;
+    display: grid !important;
+    grid-template-columns: auto minmax(110px, 180px) !important;
+    width: min(240px, calc(100vw - 80px)) !important;
+    max-width: min(240px, calc(100vw - 80px)) !important;
+    height: 28px !important;
+    z-index: 27001 !important;
+  }
+}
