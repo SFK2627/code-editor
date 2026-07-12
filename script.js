@@ -4469,7 +4469,10 @@ function syncEditorScroll() {
 function isPhoneNativeEditorScrollMode() {
   const root = document.documentElement;
   const body = document.body;
-  return root?.dataset?.deviceMode === 'phone'
+  const narrowPhoneLayout = Boolean(window.matchMedia?.('(max-width: 820px)')?.matches);
+  const coarsePhoneTouch = Boolean(window.matchMedia?.('(hover: none) and (pointer: coarse)')?.matches);
+  const phoneLikeEditor = root?.dataset?.deviceMode === 'phone' || narrowPhoneLayout || coarsePhoneTouch;
+  return phoneLikeEditor
     && body?.classList?.contains('mobile-editor-normal')
     && !body?.classList?.contains('editor-fullscreen-active')
     && !body?.classList?.contains('preview-fullscreen-active');
@@ -14162,6 +14165,92 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
   });
 })();
 
+/* USER-DIRECTED FIX STEP 73
+   Phone-only textarea scroll rescue. Some mobile browsers still hand the swipe
+   to the page even when #codeEditor has overflow:auto. When the swipe starts
+   inside the editor, move the textarea's own scrollTop directly, then sync line
+   numbers and the highlight layer. Desktop is untouched. */
+(() => {
+  const editor = document.getElementById('codeEditor');
+  if (!editor) return;
+
+  let startX = 0;
+  let startY = 0;
+  let lastY = 0;
+  let moved = false;
+
+  function isStep73PhoneEditorScrollActive() {
+    const root = document.documentElement;
+    const body = document.body;
+    const phoneUi = root?.dataset?.deviceMode === 'phone'
+      || Boolean(window.matchMedia?.('(max-width: 820px)')?.matches)
+      || Boolean(window.matchMedia?.('(hover: none) and (pointer: coarse)')?.matches);
+    return phoneUi
+      && body?.classList?.contains('mobile-editor-normal')
+      && !body?.classList?.contains('editor-fullscreen-active')
+      && !body?.classList?.contains('preview-fullscreen-active');
+  }
+
+  function maxEditorScrollTop() {
+    return Math.max(0, Math.round(editor.scrollHeight - editor.clientHeight));
+  }
+
+  function applyEditorScroll(deltaY, event) {
+    const maxTop = maxEditorScrollTop();
+    if (maxTop <= 1) return false;
+
+    const previousTop = editor.scrollTop;
+    const nextTop = clamp(previousTop + deltaY, 0, maxTop);
+    if (Math.abs(nextTop - previousTop) < 0.5) return false;
+
+    editor.scrollTop = nextTop;
+    syncEditorScroll();
+    moved = true;
+    event.preventDefault();
+    event.stopPropagation();
+    return true;
+  }
+
+  editor.addEventListener('touchstart', event => {
+    if (!isStep73PhoneEditorScrollActive()) return;
+    const touch = event.touches?.[0];
+    if (!touch) return;
+    startX = touch.clientX;
+    startY = touch.clientY;
+    lastY = touch.clientY;
+    moved = false;
+  }, { passive: true });
+
+  editor.addEventListener('touchmove', event => {
+    if (!isStep73PhoneEditorScrollActive()) return;
+    const touch = event.touches?.[0];
+    if (!touch) return;
+
+    const totalX = Math.abs(touch.clientX - startX);
+    const totalY = Math.abs(touch.clientY - startY);
+    const deltaY = lastY - touch.clientY;
+    lastY = touch.clientY;
+
+    // Leave mostly-horizontal drags alone so long code lines can still move left/right.
+    if (totalX > totalY + 8) return;
+    if (totalY < 3 && Math.abs(deltaY) < 2) return;
+
+    applyEditorScroll(deltaY, event);
+  }, { passive: false });
+
+  ['touchend', 'touchcancel'].forEach(type => {
+    editor.addEventListener(type, event => {
+      // Prevent the old smart-cursor touchend from stealing a completed scroll.
+      if (moved && isStep73PhoneEditorScrollActive()) {
+        event.stopPropagation();
+      }
+      startX = 0;
+      startY = 0;
+      lastY = 0;
+      moved = false;
+    }, { passive: true });
+  });
+})();
 
 /* User-directed phone polish v1: compact mobile header/tools/dashboard only. */
 (() => {

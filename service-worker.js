@@ -1,12 +1,12 @@
-const CACHE_NAME = 'mcs-coding-app-20260712-user-step72-mobile-editor-scroll';
+const CACHE_NAME = 'mcs-coding-app-20260712-user-step73-textarea-scroll';
 const APP_SHELL = [
   './',
   './index.html',
   './index.html?fresh=1',
   './style.css',
-  './style.css?v=20260712-step72-mobile-editor-scroll',
+  './style.css?v=20260712-step73-textarea-scroll',
   './script.js',
-  './script.js?v=20260712-step72-mobile-editor-scroll',
+  './script.js?v=20260712-step73-textarea-scroll',
   './firebase-config.js',
   './manifest.webmanifest',
   './favicon.png',
