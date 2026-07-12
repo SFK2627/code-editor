@@ -1,6 +1,1 @@
-Sir JR Coding App
-Release: 20260711-overall-100-readiness
-Target rating: all-category 100-readiness package with mobile 100-readiness, maintainability 95+ source structure, and 95+ stability/polish readiness after live classroom testing
-Architecture: Free-only Firebase Spark, static hosting, Authentication, Firestore, PWA
-Source workflow: edit src/js and styles, then run npm run build && npm run check
-Runtime checks: MCS_RUN_HEALTH_CHECK, MCS_RUN_MOBILE_HEALTH_CHECK, MCS_RUN_OVERALL_READINESS_CHECK
+Step 68 - dashboard join modal cleaned (no top Join tab, title renamed to Join a Project)

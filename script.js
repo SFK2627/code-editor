@@ -2759,6 +2759,7 @@ function updateManualSaveControls() {
 }
 
 async function saveStudentProjectManually() {
+  triggerDesktopHeaderLogoSaveSpin({ force: true });
   if (!isStudentProjectActive()) {
     saveActiveEditor();
     setStatus('Saved locally');
@@ -2783,7 +2784,236 @@ function toggleStudentAccountMenu() {
   studentMenuBtn.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
 }
 
-function updateAppHeaderForSession() {
+/* PHONE-ONLY HEADER TYPEWRITER (v41)
+   Runs once whenever Practice Mode or a logged-in Editor session is entered.
+   It preserves the final logged-in name highlight and does nothing on desktop. */
+let phoneHeaderTypewriterRunId = 0;
+let phoneHeaderTypewriterTimer = null;
+let phoneHeaderTypewriterLastKey = '';
+
+function isPhoneHeaderTypewriterUi() {
+  return Boolean(
+    document.documentElement.dataset.deviceMode === 'phone' ||
+    window.__mcsianPhonePreviewMode === true ||
+    window.matchMedia?.('(max-width: 820px)')?.matches
+  );
+}
+
+function schedulePhoneHeaderTypewriter(force = false) {
+  if (!appTitleText) return;
+
+  const activeMode = document.body.classList.contains('student-session-active')
+    ? 'student'
+    : (document.body.classList.contains('guest-session-active') ? 'guest' : '');
+  const studentEditorBlocked = activeMode === 'student' && (
+    document.body.classList.contains('student-dashboard-active') ||
+    document.body.classList.contains('student-auth-open') ||
+    document.body.classList.contains('student-route-lock')
+  );
+
+  if (!isPhoneHeaderTypewriterUi() || !activeMode || studentEditorBlocked) {
+    phoneHeaderTypewriterLastKey = '';
+    window.clearTimeout(phoneHeaderTypewriterTimer);
+    return;
+  }
+
+  if (force) phoneHeaderTypewriterLastKey = '';
+
+  const fullText = String(appTitleText.textContent || '').trim();
+  if (!fullText) return;
+
+  const runKey = `${activeMode}|${fullText}`;
+  if (runKey === phoneHeaderTypewriterLastKey) return;
+  phoneHeaderTypewriterLastKey = runKey;
+
+  const runId = ++phoneHeaderTypewriterRunId;
+  window.clearTimeout(phoneHeaderTypewriterTimer);
+
+  const finalNodes = Array.from(appTitleText.childNodes, node => node.cloneNode(true));
+  const typeDelay = fullText.length > 38 ? 24 : 30;
+  let index = 0;
+
+  appTitleText.classList.remove('mcs-phone-typewriter-done');
+  appTitleText.classList.add('mcs-phone-typewriter-active');
+  appTitleText.setAttribute('aria-label', fullText);
+  appTitleText.textContent = '';
+
+  const typeNextCharacter = () => {
+    if (runId !== phoneHeaderTypewriterRunId) return;
+    index += 1;
+    appTitleText.textContent = fullText.slice(0, index);
+
+    if (index < fullText.length) {
+      const typedChar = fullText.charAt(index - 1);
+      const pause = /[,.!]/.test(typedChar) ? 115 : typeDelay;
+      phoneHeaderTypewriterTimer = window.setTimeout(typeNextCharacter, pause);
+      return;
+    }
+
+    appTitleText.replaceChildren(...finalNodes);
+    appTitleText.classList.add('mcs-phone-typewriter-done');
+    phoneHeaderTypewriterTimer = window.setTimeout(() => {
+      if (runId !== phoneHeaderTypewriterRunId) return;
+      appTitleText.classList.remove('mcs-phone-typewriter-active', 'mcs-phone-typewriter-done');
+    }, 650);
+  };
+
+  phoneHeaderTypewriterTimer = window.setTimeout(typeNextCharacter, 180);
+}
+
+
+/* DESKTOP-ONLY HEADER TYPEWRITER LOOP (Step 62)
+   Matches the phone header typing effect on desktop Practice Mode and logged-in
+   Editor pages only. It pauses briefly, then repeats continuously. Phone is
+   explicitly excluded so the existing phone behavior stays untouched. */
+let desktopHeaderTypewriterRunId = 0;
+let desktopHeaderTypewriterTimer = null;
+let desktopHeaderTypewriterLastKey = '';
+let desktopHeaderLogoSaveSpinTimer = null;
+
+function isDesktopHeaderTypewriterUi() {
+  const explicitPhone = document.documentElement?.dataset?.deviceMode === 'phone';
+  const phonePreview = window.__mcsianPhonePreviewMode === true;
+  const desktopWidth = !window.matchMedia || window.matchMedia('(min-width: 821px)').matches;
+  return Boolean(!explicitPhone && !phonePreview && desktopWidth);
+}
+
+function getDesktopHeaderLogoTargets() {
+  if (!isDesktopHeaderTypewriterUi()) return [];
+  return Array.from(document.querySelectorAll('.topbar .logo-mark.app-coded-eight'))
+    .filter(logo => logo && logo.offsetParent !== null);
+}
+
+function isDesktopEditorHeaderActive() {
+  if (!isDesktopHeaderTypewriterUi()) return false;
+  const guestEditor = document.body.classList.contains('guest-session-active');
+  const studentEditor = document.body.classList.contains('student-session-active')
+    && !document.body.classList.contains('student-dashboard-active')
+    && !document.body.classList.contains('student-auth-open')
+    && !document.body.classList.contains('student-route-lock');
+  return Boolean(guestEditor || studentEditor);
+}
+
+function shouldSpinDesktopLogoForEditorEdit() {
+  if (!isDesktopEditorHeaderActive()) return false;
+  if (document.body.classList.contains('guest-session-active')) return true;
+  return Boolean(isStudentProjectActive() && isStudentAutoSaveAllowed());
+}
+
+function triggerDesktopHeaderLogoSaveSpin(options = {}) {
+  if (!isDesktopEditorHeaderActive()) return;
+  const force = options === true || options?.force === true;
+  const now = Date.now();
+  if (!force && triggerDesktopHeaderLogoSaveSpin.lastAt && now - triggerDesktopHeaderLogoSaveSpin.lastAt < 140) return;
+  triggerDesktopHeaderLogoSaveSpin.lastAt = now;
+
+  const logos = getDesktopHeaderLogoTargets();
+  if (!logos.length) return;
+  logos.forEach(logo => {
+    logo.classList.remove('mcs-desktop-logo-save-spin');
+    void logo.offsetWidth;
+    logo.classList.add('mcs-desktop-logo-save-spin');
+  });
+  window.clearTimeout(desktopHeaderLogoSaveSpinTimer);
+  desktopHeaderLogoSaveSpinTimer = window.setTimeout(() => {
+    getDesktopHeaderLogoTargets().forEach(logo => logo.classList.remove('mcs-desktop-logo-save-spin'));
+  }, 1450);
+}
+
+function getHeaderEditorModeForTypewriter() {
+  const activeMode = document.body.classList.contains('student-session-active')
+    ? 'student'
+    : (document.body.classList.contains('guest-session-active') ? 'guest' : '');
+
+  const blocked = activeMode === 'student' && (
+    document.body.classList.contains('student-dashboard-active') ||
+    document.body.classList.contains('student-auth-open') ||
+    document.body.classList.contains('student-route-lock')
+  );
+
+  return blocked ? '' : activeMode;
+}
+
+function stopDesktopHeaderTypewriter(clearKey = false) {
+  desktopHeaderTypewriterRunId += 1;
+  window.clearTimeout(desktopHeaderTypewriterTimer);
+  if (clearKey) desktopHeaderTypewriterLastKey = '';
+  if (appTitleText) {
+    appTitleText.classList.remove(
+      'mcs-desktop-typewriter-looping',
+      'mcs-desktop-typewriter-active',
+      'mcs-desktop-typewriter-done'
+    );
+    getDesktopHeaderLogoTargets().forEach(logo => logo.classList.remove('mcs-desktop-logo-save-spin'));
+  }
+}
+
+function scheduleDesktopHeaderTypewriter(force = false) {
+  if (!appTitleText) return;
+
+  const activeMode = getHeaderEditorModeForTypewriter();
+  if (!isDesktopHeaderTypewriterUi() || !activeMode) {
+    stopDesktopHeaderTypewriter(true);
+    return;
+  }
+
+  if (force) desktopHeaderTypewriterLastKey = '';
+
+  const fullText = String(appTitleText.textContent || '').trim();
+  if (!fullText) return;
+
+  const runKey = `${activeMode}|${fullText}|desktop-loop`;
+  if (runKey === desktopHeaderTypewriterLastKey && appTitleText.classList.contains('mcs-desktop-typewriter-looping')) return;
+  desktopHeaderTypewriterLastKey = runKey;
+
+  const runId = ++desktopHeaderTypewriterRunId;
+  window.clearTimeout(desktopHeaderTypewriterTimer);
+
+  const snapshotNodes = Array.from(appTitleText.childNodes, node => node.cloneNode(true));
+  const makeFinalNodes = () => snapshotNodes.map(node => node.cloneNode(true));
+  const typeDelay = fullText.length > 38 ? 28 : 34;
+  const restartDelay = 10000; // user-directed desktop pause: wait about 10 seconds before typing again
+
+  appTitleText.classList.add('mcs-desktop-typewriter-looping');
+  appTitleText.setAttribute('aria-label', fullText);
+
+  const startCycle = () => {
+    if (runId !== desktopHeaderTypewriterRunId) return;
+    if (!isDesktopHeaderTypewriterUi() || !getHeaderEditorModeForTypewriter()) {
+      stopDesktopHeaderTypewriter(true);
+      return;
+    }
+
+    let index = 0;
+    appTitleText.classList.remove('mcs-desktop-typewriter-done');
+    appTitleText.classList.add('mcs-desktop-typewriter-active');
+    appTitleText.textContent = '';
+
+    const typeNextCharacter = () => {
+      if (runId !== desktopHeaderTypewriterRunId) return;
+      index += 1;
+      appTitleText.textContent = fullText.slice(0, index);
+
+      if (index < fullText.length) {
+        const typedChar = fullText.charAt(index - 1);
+        const pause = /[,.!]/.test(typedChar) ? 145 : typeDelay;
+        desktopHeaderTypewriterTimer = window.setTimeout(typeNextCharacter, pause);
+        return;
+      }
+
+      appTitleText.replaceChildren(...makeFinalNodes());
+      appTitleText.classList.remove('mcs-desktop-typewriter-active');
+      appTitleText.classList.add('mcs-desktop-typewriter-done');
+      desktopHeaderTypewriterTimer = window.setTimeout(startCycle, restartDelay);
+    };
+
+    desktopHeaderTypewriterTimer = window.setTimeout(typeNextCharacter, 160);
+  };
+
+  desktopHeaderTypewriterTimer = window.setTimeout(startCycle, force ? 180 : 740);
+}
+
+function updateAppHeaderForSession({ forceTypewriter = false } = {}) {
   const isStudent = appSession.mode === 'student' && appSession.student;
   const isGuest = appSession.mode === 'guest';
 
@@ -2815,7 +3045,11 @@ function updateAppHeaderForSession() {
     if (appTitleText) appTitleText.textContent = 'A tool for every Grade 8 MCSian.';
     if (appSubtitleText) appSubtitleText.textContent = 'Developed by Sir JR';
   }
+
+  schedulePhoneHeaderTypewriter(forceTypewriter);
+  scheduleDesktopHeaderTypewriter(forceTypewriter);
 }
+
 
 function hideAllStudentScreens() {
   studentLoginOverlay?.classList.add('hidden');
@@ -3525,7 +3759,7 @@ async function openStudentProject(projectId) {
     else resetResultPanel();
     runCode(false, { scroll: false });
     closeStudentDashboard();
-    updateAppHeaderForSession();
+    updateAppHeaderForSession({ forceTypewriter: true });
     studentProjectDirty = recovered;
     if (recovered) {
       setStudentSaveState('Recovered · unsaved', 'unsaved');
@@ -3646,6 +3880,7 @@ function buildProjectSavePayload(result = null) {
 }
 
 function queueStudentProjectSave(reason = 'edit') {
+  if (reason === 'edit' && shouldSpinDesktopLogoForEditorEdit()) triggerDesktopHeaderLogoSaveSpin();
   if (!isStudentProjectActive()) return;
   studentProjectRevision += 1;
   studentProjectDirty = true;
@@ -5044,7 +5279,17 @@ function scheduleSuggestionHide(delay = 4200) {
   }, delay);
 }
 
+function isPhoneUiViewportForSuggestions() {
+  const phoneMode = document.documentElement?.dataset?.deviceMode === 'phone';
+  const narrowViewport = Boolean(window.matchMedia && window.matchMedia('(max-width: 820px)').matches);
+  return phoneMode || narrowViewport;
+}
+
 function showSuggestions(event) {
+  if (isPhoneUiViewportForSuggestions() && document.body.classList.contains('mobile-suggestions-off')) {
+    hideSuggestions();
+    return;
+  }
   if (!isStudentAssistanceFeatureEnabled('codeSuggestions')) {
     hideSuggestions();
     return;
@@ -7080,6 +7325,7 @@ function renderAIReview(review, options = {}) {
       ${safeReview.teacherNote ? `<div class="ai-note"><strong>Note:</strong> ${escapeHTML(safeReview.teacherNote)}</div>` : ''}
     </div>
   `;
+  updatePhoneResultFeedbackPopup('feedback');
 }
 
 function resetAIReviewPanel() {
@@ -7093,7 +7339,125 @@ function resetAIReviewPanel() {
   `;
 }
 
+
+const phoneResultFeedbackPopupState = {
+  overlay: null,
+  body: null,
+  title: null,
+  closeBtn: null,
+  activeType: null
+};
+
+function normalizeButtonActionOptions(options = {}) {
+  if (!options || typeof options !== 'object') return {};
+  if (typeof options.preventDefault === 'function' || options.currentTarget || options.target) return {};
+  return options;
+}
+
+function isPhoneResultFeedbackView() {
+  return document.documentElement?.dataset?.deviceMode === 'phone' ||
+    Boolean(window.matchMedia && window.matchMedia('(max-width: 820px)').matches);
+}
+
+function shouldUsePhoneResultFeedbackPopup(options = {}) {
+  const safeOptions = normalizeButtonActionOptions(options);
+  if (!isPhoneResultFeedbackView()) return false;
+  if (safeOptions.fromPreview) return false;
+  if (safeOptions.suppressPhonePopup) return false;
+  if (document.body.classList.contains('preview-fullscreen-active')) return false;
+  if (document.body.classList.contains('preview-inside-editor-fullscreen')) return false;
+  return true;
+}
+
+function ensurePhoneResultFeedbackPopup() {
+  if (phoneResultFeedbackPopupState.overlay) return phoneResultFeedbackPopupState.overlay;
+
+  const overlay = document.createElement('div');
+  overlay.id = 'phoneResultFeedbackPopup';
+  overlay.className = 'phone-result-feedback-popup hidden';
+  overlay.setAttribute('role', 'dialog');
+  overlay.setAttribute('aria-modal', 'true');
+  overlay.setAttribute('aria-labelledby', 'phoneResultFeedbackTitle');
+  overlay.innerHTML = `
+    <div class="phone-result-feedback-card" role="document">
+      <div class="phone-result-feedback-head">
+        <div>
+          <p class="section-kicker">Activity Check</p>
+          <h2 id="phoneResultFeedbackTitle">Result</h2>
+        </div>
+        <button id="phoneResultFeedbackClose" class="icon-btn phone-result-feedback-close" type="button" aria-label="Close popup">×</button>
+      </div>
+      <div id="phoneResultFeedbackBody" class="phone-result-feedback-body"></div>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+  phoneResultFeedbackPopupState.overlay = overlay;
+  phoneResultFeedbackPopupState.title = overlay.querySelector('#phoneResultFeedbackTitle');
+  phoneResultFeedbackPopupState.body = overlay.querySelector('#phoneResultFeedbackBody');
+  phoneResultFeedbackPopupState.closeBtn = overlay.querySelector('#phoneResultFeedbackClose');
+
+  phoneResultFeedbackPopupState.closeBtn?.addEventListener('click', closePhoneResultFeedbackPopup);
+  overlay.addEventListener('click', event => {
+    if (event.target === overlay) closePhoneResultFeedbackPopup();
+  });
+
+  if (!document.body.dataset.phoneResultFeedbackEscapeBound) {
+    document.body.dataset.phoneResultFeedbackEscapeBound = 'true';
+    document.addEventListener('keydown', event => {
+      if (event.key === 'Escape' && phoneResultFeedbackPopupState.overlay && !phoneResultFeedbackPopupState.overlay.classList.contains('hidden')) {
+        closePhoneResultFeedbackPopup();
+      }
+    });
+  }
+
+  return overlay;
+}
+
+function getPhoneResultFeedbackSource(type) {
+  return type === 'feedback' ? aiReviewContent : resultContent;
+}
+
+function refreshPhoneResultFeedbackPopup(type = phoneResultFeedbackPopupState.activeType) {
+  const overlay = phoneResultFeedbackPopupState.overlay;
+  const body = phoneResultFeedbackPopupState.body;
+  if (!overlay || !body || !type) return;
+
+  const source = getPhoneResultFeedbackSource(type);
+  const title = type === 'feedback' ? 'Feedback' : 'Result';
+  phoneResultFeedbackPopupState.activeType = type;
+  if (phoneResultFeedbackPopupState.title) phoneResultFeedbackPopupState.title.textContent = title;
+  overlay.dataset.popupType = type;
+  body.className = `phone-result-feedback-body ${type === 'feedback' ? 'phone-feedback-body' : 'phone-result-body'}`;
+  body.innerHTML = source?.innerHTML || '<div class="empty-projects-card"><h3>Nothing to show yet</h3><p>Run the check first.</p></div>';
+}
+
+function openPhoneResultFeedbackPopup(type) {
+  const overlay = ensurePhoneResultFeedbackPopup();
+  phoneResultFeedbackPopupState.activeType = type;
+  refreshPhoneResultFeedbackPopup(type);
+  overlay.classList.remove('hidden');
+  document.body.classList.add('phone-result-feedback-open');
+  window.setTimeout(() => phoneResultFeedbackPopupState.closeBtn?.focus(), 30);
+}
+
+function updatePhoneResultFeedbackPopup(type) {
+  const overlay = phoneResultFeedbackPopupState.overlay;
+  if (!overlay || overlay.classList.contains('hidden')) return;
+  if (phoneResultFeedbackPopupState.activeType !== type) return;
+  refreshPhoneResultFeedbackPopup(type);
+}
+
+function closePhoneResultFeedbackPopup() {
+  const overlay = phoneResultFeedbackPopupState.overlay;
+  if (!overlay) return;
+  overlay.classList.add('hidden');
+  document.body.classList.remove('phone-result-feedback-open');
+  phoneResultFeedbackPopupState.activeType = null;
+}
+
 async function requestAIReview(options = {}) {
+  const safeOptions = normalizeButtonActionOptions(options);
   if (!isStudentAssistanceFeatureEnabled('teacherFeedback')) {
     await appAlert('Detailed rubric feedback is currently disabled by the teacher.', { title: 'Feedback disabled' });
     return;
@@ -7118,11 +7482,16 @@ async function requestAIReview(options = {}) {
 
   const endpoint = getAIReviewEndpoint();
   renderAIReview(generateLocalAIReview(result), { loading: Boolean(endpoint) });
+  if (shouldUsePhoneResultFeedbackPopup(safeOptions)) openPhoneResultFeedbackPopup('feedback');
   setStatus(endpoint ? 'Review running...' : 'Feedback ready');
 
   if (!endpoint) {
     renderAIReview(generateLocalAIReview(result));
-    if (options.scroll !== false) scrollElementIntoSafeView(document.getElementById('aiReviewPanel'));
+    if (shouldUsePhoneResultFeedbackPopup(safeOptions)) {
+      openPhoneResultFeedbackPopup('feedback');
+    } else if (safeOptions.scroll !== false) {
+      scrollElementIntoSafeView(document.getElementById('aiReviewPanel'));
+    }
     return;
   }
 
@@ -7155,7 +7524,11 @@ async function requestAIReview(options = {}) {
     setStatus('Feedback ready');
   }
 
-  if (options.scroll !== false) scrollElementIntoSafeView(document.getElementById('aiReviewPanel'));
+  if (shouldUsePhoneResultFeedbackPopup(safeOptions)) {
+    openPhoneResultFeedbackPopup('feedback');
+  } else if (safeOptions.scroll !== false) {
+    scrollElementIntoSafeView(document.getElementById('aiReviewPanel'));
+  }
 }
 
 function renderResult(result) {
@@ -7196,6 +7569,7 @@ function renderResult(result) {
       </ul>
     </div>
   `;
+  updatePhoneResultFeedbackPopup('result');
 }
 
 function renderNoActivityResult() {
@@ -7207,10 +7581,11 @@ function renderNoActivityResult() {
     <h3>No activity selected yet</h3>
     <p>Please choose an activity first before checking the result. Run Code still works, but scoring needs a selected rubric.</p>
   `;
-  scrollElementIntoSafeView(resultPanel);
+  if (!isPhoneResultFeedbackView()) scrollElementIntoSafeView(resultPanel);
 }
 
-function showResult() {
+function showResult(options = {}) {
+  const safeOptions = normalizeButtonActionOptions(options);
   if (!activity) {
     showActivityRequiredWarning();
     setStatus('Choose activity first');
@@ -7227,12 +7602,16 @@ function showResult() {
     renderResult(result);
     renderAIReview(generateLocalAIReview(result));
     if (getAIReviewEndpoint()) {
-      requestAIReview({ scroll: false });
+      requestAIReview({ scroll: false, suppressPhonePopup: true });
     }
     saveCurrentStudentProject({ result, immediate: true, reason: 'result' });
     saveSubmissionToCloud(result);
     setStatus(`Score ${formatPoints(result.score)}/${formatPoints(result.possible)}`);
-    scrollElementIntoSafeView(resultPanel);
+    if (shouldUsePhoneResultFeedbackPopup(safeOptions)) {
+      openPhoneResultFeedbackPopup('result');
+    } else {
+      scrollElementIntoSafeView(resultPanel);
+    }
   }, 350);
 }
 
@@ -7555,12 +7934,12 @@ function showResultFromPreview() {
       exitFullEditor({ silent: true, skipFocus: true });
     }
     window.setTimeout(() => {
-      showResult();
+      showResult({ fromPreview: true });
     }, 180);
     return;
   }
 
-  showResult();
+  showResult({ fromPreview: true });
 }
 
 
@@ -9798,6 +10177,7 @@ function saveNow() {
     saveStudentProjectManually();
     return;
   }
+  triggerDesktopHeaderLogoSaveSpin({ force: true });
   saveActiveEditor();
   setStatus('Saved locally');
 }
@@ -10385,6 +10765,7 @@ function handleSmartInlinePointer(event, options = {}) {
 }
 
 editor.addEventListener('input', event => {
+  if (shouldSpinDesktopLogoForEditorEdit()) triggerDesktopHeaderLogoSaveSpin();
   saveActiveEditor();
   updateLineNumbers();
   commitEditorHistory();
@@ -11085,6 +11466,9 @@ function applyPreviewDeviceMode() {
       : 'See the output as it appears on a desktop monitor';
   }
 
+  schedulePhoneHeaderTypewriter(false);
+  scheduleDesktopHeaderTypewriter(false);
+
   return isPhone;
 }
 
@@ -11169,14 +11553,23 @@ function updateDesktopMonitorPreviewSizing() {
 
   if (!Number.isFinite(scale) || scale <= 0) scale = 0.25;
 
-  const outputWidth = Math.max(1, Math.floor(desktopWidth * scale));
-  const outputHeight = Math.max(1, Math.floor(desktopHeight * scale));
-  const shellSide = isFullPreview ? 8 : 18;
+  // Use precise fractional sizing instead of flooring the scaled output.
+  // Flooring caused the iframe's rendered width to lose a fraction of a pixel
+  // on the right side, which made the monitor border look thicker on the left
+  // than on the right in phone/mobile monitor preview.
+  const outputWidth = Math.max(1, desktopWidth * scale);
+  const outputHeight = Math.max(1, desktopHeight * scale);
+  // Step 70: keep the monitor bezel physically equal on the left and right.
+  // The visible issue was not the iframe scale; the monitor shell reserved more
+  // horizontal space on one side in normal phone monitor view. Use explicit
+  // left/right bezel values and compute the shell from those same values.
+  const monitorBezelLeft = isFullPreview ? 4 : 5;
+  const monitorBezelRight = isFullPreview ? 4 : 5;
   const shellTop = isFullPreview ? 8 : 42;
   const shellBottom = isFullPreview ? 8 : 20;
-  const frameLeft = Math.floor(shellSide / 2);
+  const frameLeft = monitorBezelLeft;
   const frameTop = isFullPreview ? 4 : 34;
-  const shellWidth = outputWidth + shellSide;
+  const shellWidth = outputWidth + monitorBezelLeft + monitorBezelRight;
   const shellHeight = outputHeight + shellTop + shellBottom;
 
   setImportantStyle(shell, 'position', 'relative');
@@ -12353,10 +12746,28 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     }
   }
 
+  function isCollabPhoneUi() {
+    return Boolean(
+      document.documentElement?.dataset?.deviceMode === 'phone' ||
+      window.__mcsianPhonePreviewMode === true ||
+      window.matchMedia?.('(max-width: 820px)')?.matches
+    );
+  }
+
   function isCollabInFullEditor() {
-    return Boolean(editorPanel && (
+    const realFullscreen = Boolean(editorPanel && (
       document.fullscreenElement === editorPanel ||
-      document.webkitFullscreenElement === editorPanel ||
+      document.webkitFullscreenElement === editorPanel
+    ));
+
+    // On phones, keep collaboration dialogs attached to <body> unless the
+    // browser is in real fullscreen. The phone editor also uses the
+    // editor-fullscreen-active class for layout, which can otherwise trap or
+    // clip the Share/Join dialog inside the editor panel.
+    if (isCollabPhoneUi()) return realFullscreen;
+
+    return Boolean(editorPanel && (
+      realFullscreen ||
       document.body.classList.contains('editor-fullscreen-active')
     ));
   }
@@ -12499,6 +12910,8 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
       button.type = 'button';
       button.className = 'ghost-btn collab-share-btn hidden';
       button.title = 'Share or join this project';
+      button.style.touchAction = 'manipulation';
+      button.style.pointerEvents = 'auto';
       button.addEventListener('click', openCollabOverlay);
     }
 
@@ -12640,6 +13053,36 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     const dashboardJoinMode = options.source === 'dashboard' && !collabState.active;
     overlay.classList.toggle('collab-dashboard-join-mode', dashboardJoinMode);
     overlay.dataset.collabSource = dashboardJoinMode ? 'dashboard' : '';
+
+    const titleEl = overlay.querySelector('#collabTitle');
+    const subtitleEl = overlay.querySelector('.collab-card-head .muted-text');
+    const tabsEl = overlay.querySelector('.collab-tabs');
+    const sharePanelEl = overlay.querySelector('#collabSharePanel');
+    const joinPanelEl = overlay.querySelector('#collabJoinPanel');
+    const closeBtnEl = overlay.querySelector('#collabCloseBtn');
+
+    if (titleEl) titleEl.textContent = dashboardJoinMode ? 'Join a Project' : 'Share or Join';
+    if (subtitleEl) subtitleEl.textContent = 'Use a short code so students can view or edit one project together.';
+    if (closeBtnEl) closeBtnEl.setAttribute('aria-label', dashboardJoinMode ? 'Close Join a Project' : 'Close Share Project');
+
+    if (tabsEl) {
+      tabsEl.hidden = dashboardJoinMode;
+      tabsEl.style.display = dashboardJoinMode ? 'none' : '';
+      tabsEl.setAttribute('aria-hidden', dashboardJoinMode ? 'true' : 'false');
+    }
+    if (sharePanelEl && dashboardJoinMode) {
+      sharePanelEl.classList.remove('active');
+      sharePanelEl.style.display = 'none';
+      sharePanelEl.setAttribute('aria-hidden', 'true');
+    } else if (sharePanelEl) {
+      sharePanelEl.style.display = '';
+      sharePanelEl.removeAttribute('aria-hidden');
+    }
+    if (joinPanelEl) {
+      joinPanelEl.style.display = '';
+      joinPanelEl.removeAttribute('aria-hidden');
+    }
+
     overlay.classList.remove('hidden');
     document.body.classList.add('collab-overlay-open');
     if (collabState.active) {
@@ -13290,27 +13733,29 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
   function updateCollaborationFeatureVisibility() {
     ensureCollabControls();
     const enabled = isCollaborationEnabled();
+    const hasStudentSession = Boolean(getCollabStudent());
+    const visible = enabled && hasStudentSession;
     const button = document.getElementById('collabShareBtn');
     const dashboardJoinButton = document.getElementById('dashboardJoinProjectBtn');
-    button?.classList.toggle('hidden', !enabled);
+    button?.classList.toggle('hidden', !visible);
     if (button) {
-      button.disabled = !enabled;
-      button.setAttribute('aria-hidden', enabled ? 'false' : 'true');
-      button.title = enabled
-        ? 'Share or join a live project'
-        : 'Share & Join is disabled by the teacher';
+      button.disabled = !visible;
+      button.setAttribute('aria-hidden', visible ? 'false' : 'true');
+      button.title = !enabled
+        ? 'Share & Join is disabled by the teacher'
+        : (hasStudentSession ? 'Share or join a live project' : 'Log in as student to use Share or Join');
     }
     if (dashboardJoinButton) {
-      dashboardJoinButton.classList.toggle('hidden', !enabled);
-      dashboardJoinButton.disabled = !enabled;
-      dashboardJoinButton.setAttribute('aria-hidden', enabled ? 'false' : 'true');
-      dashboardJoinButton.title = enabled
-        ? 'Join a live project using a share code'
-        : 'Share & Join is disabled by the teacher';
+      dashboardJoinButton.classList.toggle('hidden', !visible);
+      dashboardJoinButton.disabled = !visible;
+      dashboardJoinButton.setAttribute('aria-hidden', visible ? 'false' : 'true');
+      dashboardJoinButton.title = !enabled
+        ? 'Share & Join is disabled by the teacher'
+        : (hasStudentSession ? 'Join a live project using a share code' : 'Log in as student to join a live project');
     }
-    document.body.classList.toggle('student-collaboration-disabled', !enabled);
-    document.body.classList.toggle('collab-hosting-active', enabled && collabState.active && collabState.role === 'host');
-    document.body.classList.toggle('collab-joined-active', enabled && collabState.active && collabState.role !== 'host');
+    document.body.classList.toggle('student-collaboration-disabled', !visible);
+    document.body.classList.toggle('collab-hosting-active', visible && collabState.active && collabState.role === 'host');
+    document.body.classList.toggle('collab-joined-active', visible && collabState.active && collabState.role !== 'host');
     renderCollabShareButton();
     if (!enabled && collabState.active) leaveCollaborationSession({ message: 'Project sharing was disabled by the teacher.' });
     renderCollabMembers(collabState.latestSession);
@@ -13319,6 +13764,28 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
   }
 
   window.updateCollaborationFeatureVisibility = updateCollaborationFeatureVisibility;
+
+  // Phone-only hardening for the Share/Join button. Some phone layouts move
+  // the button into the expandable editor-tools bar. Handle its click from the
+  // capture phase so nested text/icon taps always open the collaboration dialog.
+  let lastPhoneCollabOpenAt = 0;
+  function openPhoneCollabFromButton(event) {
+    const button = event.target?.closest?.('#collabShareBtn');
+    if (!button || !isCollabPhoneUi()) return;
+    if (button.disabled || button.classList.contains('hidden') || !isCollaborationEnabled() || !getCollabStudent()) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation?.();
+
+    const now = Date.now();
+    if (now - lastPhoneCollabOpenAt < 280) return;
+    lastPhoneCollabOpenAt = now;
+
+    openCollabOverlay();
+  }
+
+  document.addEventListener('click', openPhoneCollabFromButton, true);
 
   editor.addEventListener('beforeinput', event => {
     if (!collabState.active || collabState.applyingRemote) return;
@@ -13515,4 +13982,1337 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     continueAsGuest();
   }
   document.addEventListener('click', handlePracticeClick, true);
+})();
+
+// Mobile Revamp Step 1: viewport and keyboard-safe phone classes.
+(() => {
+  const root = document.documentElement;
+  const body = () => document.body;
+
+  function getViewport() {
+    const vv = window.visualViewport;
+    return {
+      width: Math.round(vv?.width || window.innerWidth || root.clientWidth || 0),
+      height: Math.round(vv?.height || window.innerHeight || root.clientHeight || 0),
+      offsetTop: Math.round(vv?.offsetTop || 0)
+    };
+  }
+
+  function updateMobileViewState() {
+    const viewport = getViewport();
+    const screenWidth = Math.min(window.screen?.width || viewport.width, window.screen?.height || viewport.height);
+    const isTouch = (navigator.maxTouchPoints || 0) > 0 || matchMedia('(pointer: coarse)').matches;
+    const isPhoneUi = viewport.width <= 820 || (isTouch && screenWidth <= 820);
+    const keyboardLikelyOpen = isPhoneUi && window.innerHeight && viewport.height < window.innerHeight - 130;
+    const keyboardOffset = keyboardLikelyOpen ? Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop) : 0;
+
+    root.style.setProperty('--mcs-mobile-vh', `${Math.max(1, viewport.height) * 0.01}px`);
+    root.style.setProperty('--mcs-mobile-vw', `${Math.max(1, viewport.width) * 0.01}px`);
+    root.style.setProperty('--mcs-mobile-keyboard-offset', `${Math.round(keyboardOffset)}px`);
+    root.classList.toggle('mobile-view-revamp', isPhoneUi);
+    root.classList.toggle('mobile-portrait', isPhoneUi && viewport.height >= viewport.width);
+    root.classList.toggle('mobile-landscape', isPhoneUi && viewport.width > viewport.height);
+    body()?.classList.toggle('mobile-view-revamp', isPhoneUi);
+    body()?.classList.toggle('mobile-keyboard-open', keyboardLikelyOpen);
+  }
+
+  let mobileViewTimer = null;
+  function scheduleMobileViewState() {
+    window.clearTimeout(mobileViewTimer);
+    mobileViewTimer = window.setTimeout(updateMobileViewState, 40);
+  }
+
+  window.MCS_REFRESH_MOBILE_VIEW = updateMobileViewState;
+  window.addEventListener('resize', scheduleMobileViewState, { passive: true });
+  window.addEventListener('orientationchange', () => window.setTimeout(updateMobileViewState, 180), { passive: true });
+  window.visualViewport?.addEventListener('resize', scheduleMobileViewState, { passive: true });
+  window.visualViewport?.addEventListener('scroll', scheduleMobileViewState, { passive: true });
+  document.addEventListener('focusin', event => {
+    if (event.target?.matches?.('input, textarea, select')) window.setTimeout(updateMobileViewState, 120);
+  });
+  document.addEventListener('focusout', () => window.setTimeout(updateMobileViewState, 180));
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', updateMobileViewState, { once: true });
+  } else {
+    updateMobileViewState();
+  }
+})();
+
+/* User-directed phone polish v1: compact mobile header/tools/dashboard only. */
+(() => {
+  const MOBILE_QUERY = '(max-width: 820px)';
+  const isMobile = () => window.matchMedia && window.matchMedia(MOBILE_QUERY).matches;
+
+  function makeButton(id, className, label, ariaLabel) {
+    let button = document.getElementById(id);
+    if (button) return button;
+    button = document.createElement('button');
+    button.id = id;
+    button.type = 'button';
+    button.className = className;
+    button.setAttribute('aria-expanded', 'false');
+    button.setAttribute('aria-label', ariaLabel || label);
+    button.innerHTML = label;
+    return button;
+  }
+
+  function syncButton(button, open, openLabel, closeLabel) {
+    if (!button) return;
+    button.setAttribute('aria-expanded', open ? 'true' : 'false');
+    button.innerHTML = open ? closeLabel : openLabel;
+  }
+
+  function installGuestStripToggle() {
+    const topbar = document.querySelector('.topbar');
+    const guestStrip = document.getElementById('guestAccountStrip');
+    if (!topbar || !guestStrip) return;
+    const button = makeButton(
+      'mobileGuestStripToggle',
+      'mobile-collapse-toggle mobile-guest-strip-toggle',
+      '<span></span><strong></strong>',
+      'Open practice mode and login save options'
+    );
+    const brand = topbar.querySelector('.brand-block');
+    if (brand && button.parentElement !== topbar) {
+      brand.insertAdjacentElement('afterend', button);
+    } else if (button.parentElement !== topbar) {
+      topbar.insertBefore(button, guestStrip);
+    }
+    function setGuestMenu(open) {
+      document.body.classList.toggle('mobile-guest-strip-open', Boolean(open));
+      button.setAttribute('aria-expanded', open ? 'true' : 'false');
+      button.setAttribute('aria-label', open ? 'Hide practice mode and login save options' : 'Open practice mode and login save options');
+      // In practice mode this strip is sometimes still carrying .hidden from session transitions.
+      // Remove it only for guest/practice mode so the menu can actually reveal its content.
+      if (open && document.body.classList.contains('guest-session-active')) {
+        guestStrip.classList.remove('hidden');
+      }
+      syncButton(button, open, '<span></span><strong></strong>', '<span></span><strong></strong>');
+    }
+    button.onclick = event => {
+      event.preventDefault();
+      event.stopPropagation();
+      setGuestMenu(!document.body.classList.contains('mobile-guest-strip-open'));
+    };
+    button.addEventListener('touchend', event => {
+      event.preventDefault();
+      event.stopPropagation();
+      button.click();
+    }, { passive: false });
+    setGuestMenu(document.body.classList.contains('mobile-guest-strip-open'));
+  }
+
+  function installEditorToolsToggle() {
+    const tabs = document.querySelector('#editorPanel .language-tabs');
+    if (!tabs) return;
+    const button = makeButton(
+      'mobileEditorToolsToggle',
+      'mobile-collapse-toggle mobile-editor-tools-toggle',
+      '<span></span><strong>Show</strong>',
+      'Show page tools and share project tools'
+    );
+    if (button.parentElement !== tabs.parentElement) tabs.insertAdjacentElement('afterend', button);
+    button.onclick = () => {
+      const open = !document.body.classList.contains('mobile-editor-tools-open');
+      document.body.classList.toggle('mobile-editor-tools-open', open);
+      syncButton(button, open, '<span></span><strong>Show</strong>', '<span></span><strong>Hide</strong>');
+      button.setAttribute('aria-label', open ? 'Hide page tools and share project tools' : 'Show page tools and share project tools');
+      window.setTimeout(() => {
+        if (typeof window.MCS_REFRESH_MOBILE_VIEW === 'function') window.MCS_REFRESH_MOBILE_VIEW();
+      }, 30);
+    };
+    syncButton(button, document.body.classList.contains('mobile-editor-tools-open'), '<span></span><strong>Show</strong>', '<span></span><strong>Hide</strong>');
+    button.setAttribute('aria-label', document.body.classList.contains('mobile-editor-tools-open') ? 'Hide page tools and share project tools' : 'Show page tools and share project tools');
+  }
+
+  function installDashboardMenuToggle() {
+    const header = document.querySelector('.student-dashboard-header');
+    const brand = document.querySelector('.student-dashboard-header .dashboard-brand');
+    const actions = document.querySelector('.student-dashboard-header .dashboard-header-actions');
+    if (!header || !brand || !actions) return;
+    const button = makeButton(
+      'dashboardMobileMenuBtn',
+      'dashboard-mobile-menu-btn',
+      '<span></span><span></span><span></span>',
+      'Open dashboard menu'
+    );
+    if (button.parentElement !== header) brand.insertAdjacentElement('afterend', button);
+    button.onclick = () => {
+      const open = !header.classList.contains('dashboard-mobile-menu-open');
+      header.classList.toggle('dashboard-mobile-menu-open', open);
+      button.setAttribute('aria-expanded', open ? 'true' : 'false');
+      button.setAttribute('aria-label', open ? 'Close dashboard menu' : 'Open dashboard menu');
+    };
+  }
+
+  function collapsePhonePanelsWhenNotMobile() {
+    if (isMobile()) return;
+    document.body.classList.remove('mobile-guest-strip-open', 'mobile-editor-tools-open');
+    document.querySelector('.student-dashboard-header')?.classList.remove('dashboard-mobile-menu-open');
+  }
+
+  function install() {
+    installGuestStripToggle();
+    installEditorToolsToggle();
+    installDashboardMenuToggle();
+    collapsePhonePanelsWhenNotMobile();
+    window.addEventListener('resize', collapsePhonePanelsWhenNotMobile, { passive: true });
+    window.addEventListener('orientationchange', () => window.setTimeout(collapsePhonePanelsWhenNotMobile, 180), { passive: true });
+    window.MCS_USER_PHONE_POLISH_STATUS = () => ({
+      mobile: isMobile(),
+      guestStripOpen: document.body.classList.contains('mobile-guest-strip-open'),
+      editorToolsOpen: document.body.classList.contains('mobile-editor-tools-open'),
+      dashboardMenuOpen: document.querySelector('.student-dashboard-header')?.classList.contains('dashboard-mobile-menu-open') || false
+    });
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', install, { once: true });
+  else install();
+})();
+
+
+/* User-directed phone polish v2: suggestion toggle in mobile tools. */
+(() => {
+  const STORAGE_KEY = 'mcs.mobile.suggestionsOff.v1';
+  const MOBILE_QUERY = '(max-width: 820px)';
+  const isMobile = () => Boolean(window.matchMedia && window.matchMedia(MOBILE_QUERY).matches);
+
+  function readOff() {
+    try { return localStorage.getItem(STORAGE_KEY) === '1'; }
+    catch (error) { return false; }
+  }
+
+  function writeOff(value) {
+    try { localStorage.setItem(STORAGE_KEY, value ? '1' : '0'); }
+    catch (error) {}
+  }
+
+  function applyState() {
+    const off = readOff();
+    const activeOnThisDevice = off && isMobile();
+    document.body.classList.toggle('mobile-suggestions-off', activeOnThisDevice);
+    const button = document.getElementById('mobileSuggestionToggle');
+    if (button) {
+      button.setAttribute('aria-pressed', off ? 'true' : 'false');
+      button.innerHTML = `<span>Code Suggestions</span><span class="suggestion-toggle-state">${off ? 'OFF' : 'ON'}</span>`;
+      button.title = off ? 'Tap to allow code suggestions again.' : 'Tap to hide code suggestions on this phone.';
+      button.classList.toggle('hidden', !isMobile());
+    }
+    if (activeOnThisDevice && typeof hideSuggestions === 'function') hideSuggestions();
+  }
+
+  function ensureToggle() {
+    if (!isMobile()) {
+      const existing = document.getElementById('mobileSuggestionToggle');
+      if (existing) existing.classList.add('hidden');
+      applyState();
+      return;
+    }
+    let button = document.getElementById('mobileSuggestionToggle');
+    if (!button) {
+      button = document.createElement('button');
+      button.id = 'mobileSuggestionToggle';
+      button.type = 'button';
+      button.className = 'mobile-suggestion-toggle';
+      button.setAttribute('aria-label', 'Turn code suggestions on or off on this phone');
+      button.addEventListener('click', () => {
+        writeOff(!readOff());
+        applyState();
+        if (typeof setStatus === 'function') setStatus(readOff() ? 'Suggestions off on this phone' : 'Suggestions on');
+      });
+    }
+    const manager = document.getElementById('htmlPageManager');
+    const collab = document.getElementById('mobileCollabTools');
+    if (manager && button.parentElement !== manager.parentElement) {
+      if (collab && collab.parentElement === manager.parentElement) {
+        manager.parentElement.insertBefore(button, collab);
+      } else {
+        manager.insertAdjacentElement('afterend', button);
+      }
+    }
+    applyState();
+  }
+
+  function installSuggestionToggle() {
+    ensureToggle();
+    window.addEventListener('resize', () => window.setTimeout(ensureToggle, 80), { passive: true });
+    window.addEventListener('orientationchange', () => window.setTimeout(ensureToggle, 180), { passive: true });
+    document.addEventListener('click', event => {
+      if (event.target && (event.target.id === 'mobileEditorToolsToggle' || event.target.closest?.('#mobileEditorToolsToggle'))) {
+        window.setTimeout(ensureToggle, 40);
+      }
+    }, true);
+    window.MCS_PHONE_SUGGESTION_TOGGLE_STATUS = () => ({
+      mobile: isMobile(),
+      suggestionsOff: readOff(),
+      toggleExists: Boolean(document.getElementById('mobileSuggestionToggle'))
+    });
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', installSuggestionToggle, { once: true });
+  else installSuggestionToggle();
+})();
+
+
+/* User-directed phone fix v14: menu status helper. */
+window.MCS_PHONE_MENU_STATUS = () => ({
+  guestMenuButton: Boolean(document.getElementById('mobileGuestStripToggle')),
+  guestMenuOpen: document.body.classList.contains('mobile-guest-strip-open'),
+  guestStripHidden: document.getElementById('guestAccountStrip')?.classList.contains('hidden') || false,
+  studentMenuButton: Boolean(document.getElementById('studentMenuBtn')),
+  dashboardMenuButton: Boolean(document.getElementById('dashboardMobileMenuBtn')),
+  deviceMode: document.documentElement.dataset.deviceMode || ''
+});
+
+/* User-directed phone fix v15: harden Practice Mode menu click/tap. */
+(() => {
+  const PHONE_QUERY = '(max-width: 820px)';
+  const isPhoneWidth = () => Boolean(window.matchMedia && window.matchMedia(PHONE_QUERY).matches);
+
+  function getParts() {
+    return {
+      button: document.getElementById('mobileGuestStripToggle'),
+      strip: document.getElementById('guestAccountStrip'),
+      topbar: document.querySelector('.topbar')
+    };
+  }
+
+  function setPracticeMenu(open) {
+    const { button, strip } = getParts();
+    if (!button || !strip) return false;
+    const shouldOpen = Boolean(open);
+    document.body.classList.toggle('mobile-guest-strip-open', shouldOpen);
+    button.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+    button.setAttribute('aria-label', shouldOpen ? 'Hide practice mode and login save options' : 'Open practice mode and login save options');
+
+    if (isPhoneWidth() && document.body.classList.contains('guest-session-active')) {
+      strip.classList.remove('hidden');
+      strip.removeAttribute('aria-hidden');
+      strip.style.display = shouldOpen ? 'grid' : 'none';
+      strip.style.visibility = shouldOpen ? 'visible' : '';
+      strip.style.opacity = shouldOpen ? '1' : '';
+    } else {
+      strip.style.display = '';
+      strip.style.visibility = '';
+      strip.style.opacity = '';
+    }
+    return true;
+  }
+
+  function togglePracticeMenu(event) {
+    const target = event.target && event.target.closest && event.target.closest('#mobileGuestStripToggle');
+    if (!target) return;
+    if (!isPhoneWidth()) return;
+    if (!document.body.classList.contains('guest-session-active')) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation?.();
+    setPracticeMenu(!document.body.classList.contains('mobile-guest-strip-open'));
+  }
+
+  function install() {
+    const { button } = getParts();
+    if (button) {
+      button.style.pointerEvents = 'auto';
+      button.style.touchAction = 'manipulation';
+    }
+    setPracticeMenu(document.body.classList.contains('mobile-guest-strip-open'));
+  }
+
+  ['click', 'pointerup', 'touchend'].forEach(type => {
+    document.addEventListener(type, togglePracticeMenu, true);
+  });
+
+  document.addEventListener('DOMContentLoaded', install, { once: true });
+  window.addEventListener('resize', () => window.setTimeout(install, 80), { passive: true });
+  window.addEventListener('orientationchange', () => window.setTimeout(install, 180), { passive: true });
+  window.MCS_FORCE_PRACTICE_MENU = setPracticeMenu;
+})();
+
+
+/* User-directed phone fix v17: reliable Practice Mode menu toggle.
+   Scope: phone width only. Does not affect desktop. */
+(() => {
+  const PHONE_QUERY = '(max-width: 820px)';
+
+  function isPhoneUi() {
+    return Boolean(
+      window.matchMedia?.(PHONE_QUERY)?.matches ||
+      document.documentElement.dataset.deviceMode === 'phone' ||
+      window.__mcsianPhonePreviewMode === true
+    );
+  }
+
+  function getParts() {
+    return {
+      button: document.getElementById('mobileGuestStripToggle'),
+      strip: document.getElementById('guestAccountStrip')
+    };
+  }
+
+  function setPracticeMenu(open) {
+    const { button, strip } = getParts();
+    if (!button || !strip || !isPhoneUi()) return;
+
+    document.body.classList.toggle('mobile-guest-strip-open', Boolean(open));
+    button.setAttribute('aria-expanded', open ? 'true' : 'false');
+    button.setAttribute('aria-label', open ? 'Close practice menu' : 'Open practice menu');
+
+    if (open) {
+      strip.classList.remove('hidden');
+      strip.style.display = 'flex';
+      strip.style.visibility = 'visible';
+      strip.style.opacity = '1';
+      strip.style.pointerEvents = 'auto';
+    } else {
+      strip.classList.add('hidden');
+      strip.style.display = '';
+      strip.style.visibility = '';
+      strip.style.opacity = '';
+      strip.style.pointerEvents = '';
+    }
+  }
+
+  function togglePracticeMenu(event) {
+    const { button } = getParts();
+    if (!button || !isPhoneUi()) return;
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+    setPracticeMenu(!document.body.classList.contains('mobile-guest-strip-open'));
+  }
+
+  function installPracticeMenuFix() {
+    const { button } = getParts();
+    if (!button || button.dataset.mcsPracticeMenuFixed === '1') return;
+    button.dataset.mcsPracticeMenuFixed = '1';
+
+    ['click', 'pointerup', 'touchend'].forEach(type => {
+      button.addEventListener(type, togglePracticeMenu, { capture: true });
+    });
+
+    // Start closed on phone, but do not touch desktop.
+    if (isPhoneUi() && document.body.classList.contains('guest-session-active')) {
+      setPracticeMenu(document.body.classList.contains('mobile-guest-strip-open'));
+    }
+  }
+
+  function installSoon() {
+    installPracticeMenuFix();
+    window.setTimeout(installPracticeMenuFix, 50);
+    window.setTimeout(installPracticeMenuFix, 250);
+    window.setTimeout(installPracticeMenuFix, 700);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', installSoon, { once: true });
+  } else {
+    installSoon();
+  }
+
+  window.addEventListener('resize', installPracticeMenuFix, { passive: true });
+  window.addEventListener('orientationchange', () => window.setTimeout(installPracticeMenuFix, 120), { passive: true });
+
+  window.MCS_TEST_PRACTICE_MENU = () => {
+    installPracticeMenuFix();
+    togglePracticeMenu();
+    const { button, strip } = getParts();
+    return {
+      phoneUi: isPhoneUi(),
+      buttonFound: Boolean(button),
+      stripFound: Boolean(strip),
+      open: document.body.classList.contains('mobile-guest-strip-open'),
+      stripHidden: strip?.classList.contains('hidden') || false,
+      stripDisplay: strip ? getComputedStyle(strip).display : null
+    };
+  };
+})();
+
+
+/* User-directed phone fix v18: one reliable Practice Mode menu controller.
+   Replaces older click handlers by cloning the button, so a tap cannot toggle twice. */
+(() => {
+  const PHONE_QUERY = '(max-width: 820px)';
+  let installedButton = null;
+  let lastToggleAt = 0;
+
+  function isPhoneUi() {
+    return Boolean(
+      window.matchMedia?.(PHONE_QUERY)?.matches ||
+      document.documentElement.dataset.deviceMode === 'phone' ||
+      window.__mcsianPhonePreviewMode === true
+    );
+  }
+
+  function ensureButton() {
+    const topbar = document.querySelector('.topbar');
+    const brand = topbar?.querySelector('.brand-block');
+    const strip = document.getElementById('guestAccountStrip');
+    if (!topbar || !brand || !strip) return null;
+
+    let oldButton = document.getElementById('mobileGuestStripToggle');
+    if (!oldButton) {
+      oldButton = document.createElement('button');
+      oldButton.id = 'mobileGuestStripToggle';
+      oldButton.type = 'button';
+      oldButton.className = 'mobile-collapse-toggle mobile-guest-strip-toggle';
+      oldButton.innerHTML = '<span></span><strong></strong>';
+      oldButton.setAttribute('aria-controls', 'guestAccountStrip');
+      oldButton.setAttribute('aria-expanded', 'false');
+      brand.insertAdjacentElement('afterend', oldButton);
+    }
+
+    if (oldButton.dataset.mcsPracticeMenuV18 !== '1') {
+      const cleanButton = oldButton.cloneNode(true);
+      cleanButton.dataset.mcsPracticeMenuV18 = '1';
+      cleanButton.id = 'mobileGuestStripToggle';
+      cleanButton.type = 'button';
+      cleanButton.className = 'mobile-collapse-toggle mobile-guest-strip-toggle';
+      cleanButton.innerHTML = '<span></span><strong></strong>';
+      cleanButton.setAttribute('aria-controls', 'guestAccountStrip');
+      oldButton.replaceWith(cleanButton);
+      oldButton = cleanButton;
+    }
+
+    if (oldButton.parentElement !== topbar) {
+      brand.insertAdjacentElement('afterend', oldButton);
+    }
+    installedButton = oldButton;
+    return oldButton;
+  }
+
+  function setOpen(open) {
+    const button = ensureButton();
+    const strip = document.getElementById('guestAccountStrip');
+    if (!button || !strip) return;
+
+    const allowed = isPhoneUi() && document.body.classList.contains('guest-session-active');
+    if (!allowed) {
+      document.body.classList.remove('mobile-guest-strip-open');
+      button.setAttribute('aria-expanded', 'false');
+      strip.classList.add('hidden');
+      strip.style.removeProperty('display');
+      strip.style.removeProperty('visibility');
+      strip.style.removeProperty('opacity');
+      strip.style.removeProperty('pointer-events');
+      return;
+    }
+
+    document.body.classList.toggle('mobile-guest-strip-open', Boolean(open));
+    button.setAttribute('aria-expanded', open ? 'true' : 'false');
+    button.setAttribute('aria-label', open ? 'Close practice menu' : 'Open practice menu');
+
+    if (open) {
+      strip.classList.remove('hidden');
+      strip.style.setProperty('display', 'grid', 'important');
+      strip.style.setProperty('visibility', 'visible', 'important');
+      strip.style.setProperty('opacity', '1', 'important');
+      strip.style.setProperty('pointer-events', 'auto', 'important');
+    } else {
+      strip.classList.add('hidden');
+      strip.style.removeProperty('display');
+      strip.style.removeProperty('visibility');
+      strip.style.removeProperty('opacity');
+      strip.style.removeProperty('pointer-events');
+    }
+  }
+
+  function toggle(event) {
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation?.();
+    }
+    const now = Date.now();
+    if (now - lastToggleAt < 280) return;
+    lastToggleAt = now;
+    setOpen(!document.body.classList.contains('mobile-guest-strip-open'));
+  }
+
+  function install() {
+    const button = ensureButton();
+    if (!button || button.dataset.mcsPracticeMenuListenerV18 === '1') return;
+    button.dataset.mcsPracticeMenuListenerV18 = '1';
+    ['click', 'pointerup', 'touchend'].forEach(type => {
+      button.addEventListener(type, toggle, { capture: true, passive: false });
+    });
+    setOpen(document.body.classList.contains('mobile-guest-strip-open'));
+  }
+
+  function installRepeated() {
+    install();
+    [60, 240, 600, 1200].forEach(delay => window.setTimeout(install, delay));
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', installRepeated, { once: true });
+  } else {
+    installRepeated();
+  }
+
+  window.addEventListener('resize', () => window.setTimeout(install, 80), { passive: true });
+  window.addEventListener('orientationchange', () => window.setTimeout(install, 150), { passive: true });
+
+  const observer = new MutationObserver(() => {
+    if (installedButton && document.body.classList.contains('mobile-guest-strip-open')) {
+      const strip = document.getElementById('guestAccountStrip');
+      strip?.classList.remove('hidden');
+    }
+  });
+  observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+
+  window.MCS_TEST_PRACTICE_MENU = () => {
+    install();
+    toggle();
+    const strip = document.getElementById('guestAccountStrip');
+    return {
+      phoneUi: isPhoneUi(),
+      guestSession: document.body.classList.contains('guest-session-active'),
+      open: document.body.classList.contains('mobile-guest-strip-open'),
+      buttonFound: Boolean(document.getElementById('mobileGuestStripToggle')),
+      stripFound: Boolean(strip),
+      stripHidden: strip?.classList.contains('hidden') || false,
+      stripDisplay: strip ? getComputedStyle(strip).display : null
+    };
+  };
+})();
+
+/* User-directed phone fix v19: independent Practice Mode menu panel.
+   This uses event delegation and a separate panel so older guest strip handlers cannot cancel it. */
+(() => {
+  const PHONE_QUERY = '(max-width: 820px)';
+
+  function isPhoneUi() {
+    return Boolean(
+      window.matchMedia?.(PHONE_QUERY)?.matches ||
+      document.documentElement.dataset.deviceMode === 'phone' ||
+      window.__mcsianPhonePreviewMode === true
+    );
+  }
+
+  function ensurePanel() {
+    let panel = document.getElementById('phonePracticeMenuPanel');
+    if (panel) return panel;
+    const topbar = document.querySelector('.topbar');
+    if (!topbar) return null;
+    panel = document.createElement('div');
+    panel.id = 'phonePracticeMenuPanel';
+    panel.setAttribute('role', 'menu');
+    panel.setAttribute('aria-label', 'Practice mode menu');
+    panel.innerHTML = `
+      <span class="phone-practice-text">Practice Mode · Work is not saved</span>
+      <button class="phone-practice-save-btn" type="button">Log In to Save</button>
+    `;
+    const button = document.getElementById('mobileGuestStripToggle');
+    if (button && button.parentElement === topbar) {
+      button.insertAdjacentElement('afterend', panel);
+    } else {
+      topbar.appendChild(panel);
+    }
+    panel.querySelector('.phone-practice-save-btn')?.addEventListener('click', event => {
+      event.preventDefault();
+      event.stopPropagation();
+      document.body.classList.remove('mobile-practice-panel-open');
+      const original = document.getElementById('guestLoginToSaveBtn');
+      const entryLogin = document.getElementById('openStudentLoginBtn');
+      if (original) original.click();
+      else if (entryLogin) entryLogin.click();
+    });
+    return panel;
+  }
+
+  function setOpen(open) {
+    if (!isPhoneUi()) return;
+    const button = document.getElementById('mobileGuestStripToggle');
+    const panel = ensurePanel();
+    if (!button || !panel) return;
+    document.body.classList.toggle('mobile-practice-panel-open', Boolean(open));
+    document.body.classList.toggle('mobile-guest-strip-open', Boolean(open));
+    button.setAttribute('aria-expanded', open ? 'true' : 'false');
+    button.setAttribute('aria-controls', 'phonePracticeMenuPanel');
+    button.setAttribute('aria-label', open ? 'Close practice menu' : 'Open practice menu');
+  }
+
+  function toggleFromEvent(event) {
+    const target = event.target?.closest?.('#mobileGuestStripToggle');
+    if (!target || !isPhoneUi()) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation?.();
+    setOpen(!document.body.classList.contains('mobile-practice-panel-open'));
+  }
+
+  function install() {
+    ensurePanel();
+    document.addEventListener('click', toggleFromEvent, true);
+    document.addEventListener('pointerup', toggleFromEvent, true);
+    document.addEventListener('touchend', toggleFromEvent, true);
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', install, { once: true });
+  else install();
+
+  window.MCS_FORCE_PRACTICE_PANEL = () => {
+    ensurePanel();
+    setOpen(!document.body.classList.contains('mobile-practice-panel-open'));
+    const panel = document.getElementById('phonePracticeMenuPanel');
+    return {
+      phoneUi: isPhoneUi(),
+      open: document.body.classList.contains('mobile-practice-panel-open'),
+      panelFound: Boolean(panel),
+      panelDisplay: panel ? getComputedStyle(panel).display : null,
+      buttonFound: Boolean(document.getElementById('mobileGuestStripToggle'))
+    };
+  };
+})();
+
+/* Desktop safety lock v20: phone practice menu must not leak into desktop. */
+(() => {
+  function isDesktopViewport() {
+    const width = Math.min(window.innerWidth || 9999, window.visualViewport?.width || 9999);
+    return width > 820;
+  }
+
+  function lockDesktopPhoneControls() {
+    if (!isDesktopViewport()) return;
+    document.body.classList.remove('mobile-practice-panel-open', 'mobile-guest-strip-open');
+    const guestStrip = document.getElementById('guestAccountStrip');
+    if (guestStrip) {
+      guestStrip.classList.add('hidden');
+      guestStrip.style.display = 'none';
+      guestStrip.style.visibility = 'hidden';
+      guestStrip.style.opacity = '0';
+      guestStrip.style.pointerEvents = 'none';
+    }
+    const panel = document.getElementById('phonePracticeMenuPanel');
+    if (panel) {
+      panel.style.display = 'none';
+      panel.style.visibility = 'hidden';
+      panel.style.opacity = '0';
+      panel.style.pointerEvents = 'none';
+    }
+    ['mobileGuestStripToggle', 'mobileEditorToolsToggle', 'mobileSuggestionToggle', 'dashboardMobileMenuBtn'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.setAttribute('aria-hidden', 'true');
+    });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', lockDesktopPhoneControls, { once: true });
+  } else {
+    lockDesktopPhoneControls();
+  }
+  window.addEventListener('resize', lockDesktopPhoneControls, { passive: true });
+  window.addEventListener('orientationchange', () => window.setTimeout(lockDesktopPhoneControls, 120), { passive: true });
+})();
+
+/* Desktop restore v21: undo the accidental desktop hiding of the real
+   Practice Mode account strip while keeping phone-only controls hidden. */
+(() => {
+  function isDesktopViewport() {
+    const width = Math.min(window.innerWidth || 9999, window.visualViewport?.width || 9999);
+    return width > 820;
+  }
+
+  function restoreDesktopPracticeHover() {
+    if (!isDesktopViewport()) return;
+
+    const guestStrip = document.getElementById('guestAccountStrip');
+    if (document.body.classList.contains('guest-session-active') && guestStrip) {
+      guestStrip.classList.remove('hidden');
+      guestStrip.removeAttribute('aria-hidden');
+      guestStrip.style.display = '';
+      guestStrip.style.visibility = '';
+      guestStrip.style.opacity = '';
+      guestStrip.style.pointerEvents = '';
+      guestStrip.style.maxHeight = '';
+      guestStrip.style.height = '';
+      guestStrip.style.minHeight = '';
+      guestStrip.style.margin = '';
+      guestStrip.style.padding = '';
+      guestStrip.style.border = '';
+      guestStrip.style.overflow = '';
+      guestStrip.style.transform = '';
+    }
+
+    ['mobileGuestStripToggle', 'mobileEditorToolsToggle', 'mobileSuggestionToggle', 'dashboardMobileMenuBtn', 'phonePracticeMenuPanel'].forEach(id => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.setAttribute('aria-hidden', 'true');
+      if (id === 'phonePracticeMenuPanel') {
+        el.style.display = 'none';
+        el.style.visibility = 'hidden';
+        el.style.opacity = '0';
+        el.style.pointerEvents = 'none';
+      }
+    });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', restoreDesktopPracticeHover, { once: true });
+  } else {
+    restoreDesktopPracticeHover();
+  }
+  window.addEventListener('resize', () => window.setTimeout(restoreDesktopPracticeHover, 60), { passive: true });
+  window.addEventListener('orientationchange', () => window.setTimeout(restoreDesktopPracticeHover, 140), { passive: true });
+  window.MCS_RESTORE_DESKTOP_PRACTICE_HOVER = restoreDesktopPracticeHover;
+})();
+
+
+/* User-directed phone fix v22: reliable Practice Mode menu.
+   Strict phone-only. It uses #phonePracticeMenuButton, not the older #mobileGuestStripToggle,
+   so existing desktop and old mobile handlers cannot cancel the tap. */
+(() => {
+  const PHONE_QUERY = '(max-width: 820px)';
+
+  function isPhoneUi() {
+    return Boolean(
+      document.documentElement.dataset.deviceMode === 'phone' ||
+      window.__mcsianPhonePreviewMode === true ||
+      window.matchMedia?.(PHONE_QUERY)?.matches
+    );
+  }
+
+  function isGuestPractice() {
+    return document.body.classList.contains('guest-session-active');
+  }
+
+  function ensurePracticeMenu() {
+    const topbar = document.querySelector('.topbar');
+    const brand = topbar?.querySelector('.brand-block');
+    if (!topbar || !brand) return null;
+
+    // Keep old phone toggle hidden on phone; do not remove it, so desktop code is untouched.
+    const oldButton = document.getElementById('mobileGuestStripToggle');
+    if (oldButton && isPhoneUi()) {
+      oldButton.setAttribute('aria-hidden', 'true');
+      oldButton.tabIndex = -1;
+    }
+
+    let button = document.getElementById('phonePracticeMenuButton');
+    if (!button) {
+      button = document.createElement('button');
+      button.id = 'phonePracticeMenuButton';
+      button.type = 'button';
+      button.setAttribute('aria-label', 'Open practice menu');
+      button.setAttribute('aria-expanded', 'false');
+      brand.insertAdjacentElement('afterend', button);
+    }
+
+    let panel = document.getElementById('phonePracticeMenuRealPanel');
+    if (!panel) {
+      panel = document.createElement('div');
+      panel.id = 'phonePracticeMenuRealPanel';
+      panel.setAttribute('role', 'menu');
+      panel.setAttribute('aria-label', 'Practice mode menu');
+      panel.innerHTML = '<span class="phone-practice-menu-copy">Practice Mode · Work is not saved</span><button class="phone-practice-menu-login" type="button">Log In to Save</button>';
+      button.insertAdjacentElement('afterend', panel);
+      panel.querySelector('.phone-practice-menu-login')?.addEventListener('click', event => {
+        event.preventDefault();
+        event.stopPropagation();
+        setOpen(false);
+        const loginButton = document.getElementById('guestLoginToSaveBtn') || document.getElementById('openStudentLoginBtn');
+        loginButton?.click();
+      });
+    }
+
+    return { button, panel };
+  }
+
+  function setOpen(open) {
+    const parts = ensurePracticeMenu();
+    if (!parts) return false;
+    const allowed = isPhoneUi() && isGuestPractice();
+    const finalOpen = Boolean(open && allowed);
+    document.body.classList.toggle('phone-practice-menu-open', finalOpen);
+    parts.button.setAttribute('aria-expanded', finalOpen ? 'true' : 'false');
+    parts.button.setAttribute('aria-label', finalOpen ? 'Close practice menu' : 'Open practice menu');
+    return finalOpen;
+  }
+
+  function onButtonTap(event) {
+    const target = event.target?.closest?.('#phonePracticeMenuButton');
+    if (!target) return;
+    if (!isPhoneUi() || !isGuestPractice()) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation?.();
+    setOpen(!document.body.classList.contains('phone-practice-menu-open'));
+  }
+
+  function sync() {
+    ensurePracticeMenu();
+    if (!isPhoneUi() || !isGuestPractice()) setOpen(false);
+  }
+
+  function install() {
+    sync();
+    document.addEventListener('click', onButtonTap, true);
+    document.addEventListener('pointerup', onButtonTap, true);
+    document.addEventListener('touchend', onButtonTap, true);
+    [80, 300, 800, 1500].forEach(delay => window.setTimeout(sync, delay));
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', install, { once: true });
+  else install();
+
+  window.addEventListener('resize', () => window.setTimeout(sync, 120), { passive: true });
+  window.addEventListener('orientationchange', () => window.setTimeout(sync, 180), { passive: true });
+
+  window.MCS_PHONE_PRACTICE_MENU_STATUS = () => {
+    const parts = ensurePracticeMenu();
+    const panel = document.getElementById('phonePracticeMenuRealPanel');
+    return {
+      phoneUi: isPhoneUi(),
+      guestPractice: isGuestPractice(),
+      buttonFound: Boolean(parts?.button),
+      panelFound: Boolean(panel),
+      open: document.body.classList.contains('phone-practice-menu-open'),
+      panelDisplay: panel ? getComputedStyle(panel).display : null
+    };
+  };
+})();
+
+/* User-directed phone fix v23: Practice Mode uses the SAME menu button/menu container
+   as the logged-in editor. Phone only. Desktop behavior is not touched. */
+(() => {
+  const PHONE_QUERY = '(max-width: 820px)';
+
+  function isPhoneUi() {
+    return Boolean(
+      document.documentElement.dataset.deviceMode === 'phone' ||
+      window.__mcsianPhonePreviewMode === true ||
+      window.matchMedia?.(PHONE_QUERY)?.matches
+    );
+  }
+
+  function isGuestPractice() {
+    return document.body.classList.contains('guest-session-active') && !document.body.classList.contains('student-session-active');
+  }
+
+  function ensureGuestMenuContent() {
+    const menu = document.getElementById('studentAccountMenu');
+    if (!menu) return null;
+    let content = document.getElementById('guestPracticeMenuContent');
+    if (!content) {
+      content = document.createElement('div');
+      content.id = 'guestPracticeMenuContent';
+      content.className = 'guest-practice-menu-content';
+      content.innerHTML = `
+        <div class="guest-practice-menu-head">
+          <strong>Practice Mode</strong>
+          <span>Not Saved</span>
+        </div>
+        <button id="guestPracticeLoginMenuBtn" class="guest-practice-login-btn" type="button">Log In to Save</button>
+      `;
+      menu.appendChild(content);
+      content.querySelector('#guestPracticeLoginMenuBtn')?.addEventListener('click', event => {
+        event.preventDefault();
+        event.stopPropagation();
+        closeGuestMenu();
+        const loginButton = document.getElementById('guestLoginToSaveBtn') || document.getElementById('openStudentLoginBtn');
+        loginButton?.click();
+      });
+    }
+    return content;
+  }
+
+  function hideOldPracticeControls() {
+    if (!isPhoneUi()) return;
+    ['mobileGuestStripToggle', 'phonePracticeMenuButton', 'phonePracticeMenuPanel', 'phonePracticeMenuRealPanel'].forEach(id => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.setAttribute('aria-hidden', 'true');
+      el.tabIndex = -1;
+    });
+  }
+
+  function openGuestMenu() {
+    if (!isPhoneUi() || !isGuestPractice()) return;
+    const button = document.getElementById('studentMenuBtn');
+    const menu = document.getElementById('studentAccountMenu');
+    if (!button || !menu) return;
+    ensureGuestMenuContent();
+    hideOldPracticeControls();
+    button.classList.remove('hidden');
+    button.setAttribute('aria-expanded', 'true');
+    button.setAttribute('aria-label', 'Close practice menu');
+    menu.classList.remove('hidden');
+    menu.setAttribute('aria-label', 'Practice mode menu');
+  }
+
+  function closeGuestMenu() {
+    if (!isPhoneUi()) return;
+    const button = document.getElementById('studentMenuBtn');
+    const menu = document.getElementById('studentAccountMenu');
+    if (!button || !menu) return;
+    button.setAttribute('aria-expanded', 'false');
+    button.setAttribute('aria-label', isGuestPractice() ? 'Open practice menu' : 'Open student menu');
+    if (isGuestPractice()) menu.classList.add('hidden');
+  }
+
+  function syncGuestPracticeMenuButton() {
+    if (!isPhoneUi()) return;
+    ensureGuestMenuContent();
+    hideOldPracticeControls();
+    const button = document.getElementById('studentMenuBtn');
+    const menu = document.getElementById('studentAccountMenu');
+    if (!button || !menu) return;
+    if (isGuestPractice()) {
+      button.classList.remove('hidden');
+      button.setAttribute('aria-label', menu.classList.contains('hidden') ? 'Open practice menu' : 'Close practice menu');
+      hideOldPracticeControls();
+    }
+  }
+
+  let lastTap = 0;
+  function onGuestMenuTap(event) {
+    const button = event.target?.closest?.('#studentMenuBtn');
+    if (!button || !isPhoneUi() || !isGuestPractice()) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation?.();
+    const now = Date.now();
+    if (now - lastTap < 220) return;
+    lastTap = now;
+    const menu = document.getElementById('studentAccountMenu');
+    if (!menu || menu.classList.contains('hidden')) openGuestMenu();
+    else closeGuestMenu();
+  }
+
+  function onOutsideTap(event) {
+    if (!isPhoneUi() || !isGuestPractice()) return;
+    const menu = document.getElementById('studentAccountMenu');
+    const button = document.getElementById('studentMenuBtn');
+    if (!menu || menu.classList.contains('hidden')) return;
+    if (menu.contains(event.target) || button?.contains(event.target)) return;
+    closeGuestMenu();
+  }
+
+  function install() {
+    syncGuestPracticeMenuButton();
+    document.addEventListener('pointerup', onGuestMenuTap, true);
+    document.addEventListener('click', onGuestMenuTap, true);
+    document.addEventListener('click', onOutsideTap, true);
+    [100, 350, 900, 1800].forEach(delay => window.setTimeout(syncGuestPracticeMenuButton, delay));
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', install, { once: true });
+  else install();
+
+  window.addEventListener('resize', () => window.setTimeout(syncGuestPracticeMenuButton, 120), { passive: true });
+  window.addEventListener('orientationchange', () => window.setTimeout(syncGuestPracticeMenuButton, 180), { passive: true });
+
+  window.MCS_PHONE_PRACTICE_MENU_V23 = () => {
+    syncGuestPracticeMenuButton();
+    const menu = document.getElementById('studentAccountMenu');
+    const button = document.getElementById('studentMenuBtn');
+    return {
+      phoneUi: isPhoneUi(),
+      guestPractice: isGuestPractice(),
+      usingStudentMenuButton: Boolean(button),
+      guestContent: Boolean(document.getElementById('guestPracticeMenuContent')),
+      menuOpen: Boolean(menu && !menu.classList.contains('hidden')),
+      buttonHidden: button?.classList.contains('hidden') || false
+    };
+  };
+})();
+
+
+/* User-directed phone fix v33: reliable Super Studio launcher tap on phone.
+   This is scoped to phone UI only and does not change desktop behavior. */
+(() => {
+  const PHONE_QUERY = '(max-width: 820px)';
+
+  function isPhoneUi() {
+    return Boolean(
+      document.documentElement.dataset.deviceMode === 'phone' ||
+      window.__mcsianPhonePreviewMode === true ||
+      window.matchMedia?.(PHONE_QUERY)?.matches
+    );
+  }
+
+  function isStudioAllowed() {
+    if (typeof isStudentAssistanceFeatureEnabled === 'function') {
+      return isStudentAssistanceFeatureEnabled('superStudio') === true;
+    }
+    return !document.body.classList.contains('super-studio-disabled');
+  }
+
+  function getStudioParts() {
+    return {
+      launcher: document.getElementById('superStudioLauncher'),
+      toolbar: document.getElementById('superStudioToolbar'),
+      panel: document.getElementById('superStudioPanel')
+    };
+  }
+
+  function isVisible(el) {
+    if (!el) return false;
+    return !el.classList.contains('hidden') &&
+      !el.classList.contains('studio-hidden') &&
+      window.getComputedStyle(el).display !== 'none';
+  }
+
+  function setPhoneStudioOpen(open) {
+    if (!isPhoneUi()) return;
+    const { launcher, toolbar, panel } = getStudioParts();
+    if (!launcher || !toolbar || !panel) return;
+
+    const allowed = isStudioAllowed();
+    document.body.classList.toggle('mcs-phone-studio-open', Boolean(open && allowed));
+    document.body.classList.toggle('super-studio-open', Boolean(open && allowed));
+
+    launcher.setAttribute('aria-pressed', open && allowed ? 'true' : 'false');
+    launcher.classList.toggle('is-active', Boolean(open && allowed));
+    launcher.innerHTML = open && allowed
+      ? '<span>✖</span><strong>Hide Studio</strong>'
+      : '<span>🚀</span><strong>Studio</strong>';
+
+    if (!allowed) {
+      toolbar.classList.add('studio-hidden');
+      panel.classList.add('studio-hidden');
+      if (typeof setStatus === 'function') setStatus('Super Studio is disabled');
+      return;
+    }
+
+    toolbar.classList.toggle('studio-hidden', !open);
+    toolbar.classList.toggle('hidden', !open);
+    panel.classList.toggle('studio-hidden', !open);
+    panel.classList.toggle('hidden', !open);
+
+    if (open) {
+      // Open only the Super Studio tool drawer first. Do not auto-open Live Coach.
+      panel.classList.add('collapsed');
+      document.getElementById('studioToggleCoachBtn')?.setAttribute('aria-pressed', 'false');
+      window.setTimeout(() => {
+        try { toolbar.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } catch {}
+      }, 40);
+      if (typeof setStatus === 'function') setStatus('Super Studio opened');
+    } else {
+      panel.classList.add('collapsed');
+      document.getElementById('studioToggleCoachBtn')?.setAttribute('aria-pressed', 'false');
+      if (typeof setStatus === 'function') setStatus('Super Studio hidden');
+    }
+  }
+
+  function togglePhoneStudio(event) {
+    const launcher = event.target?.closest?.('#superStudioLauncher');
+    if (!launcher || !isPhoneUi()) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation?.();
+
+    const { toolbar, panel } = getStudioParts();
+    const open = !(document.body.classList.contains('mcs-phone-studio-open') || isVisible(toolbar) || isVisible(panel));
+    setPhoneStudioOpen(open);
+  }
+
+  function installPhoneStudioFix() {
+    document.addEventListener('pointerup', togglePhoneStudio, true);
+    document.addEventListener('touchend', togglePhoneStudio, true);
+    document.addEventListener('click', togglePhoneStudio, true);
+
+    document.addEventListener('studentAssistanceSettingsChanged', () => {
+      if (!isPhoneUi()) return;
+      window.setTimeout(() => {
+        if (!isStudioAllowed()) setPhoneStudioOpen(false);
+      }, 60);
+    });
+
+    window.MCS_PHONE_SUPER_STUDIO_STATUS = () => {
+      const { launcher, toolbar, panel } = getStudioParts();
+      return {
+        phoneUi: isPhoneUi(),
+        allowed: isStudioAllowed(),
+        launcherFound: Boolean(launcher),
+        toolbarFound: Boolean(toolbar),
+        panelFound: Boolean(panel),
+        openClass: document.body.classList.contains('mcs-phone-studio-open'),
+        toolbarHidden: toolbar ? toolbar.className : null,
+        panelHidden: panel ? panel.className : null,
+        toolbarDisplay: toolbar ? window.getComputedStyle(toolbar).display : null,
+        panelDisplay: panel ? window.getComputedStyle(panel).display : null
+      };
+    };
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', installPhoneStudioFix, { once: true });
+  } else {
+    installPhoneStudioFix();
+  }
+})();
+
+
+/* User-directed phone fix v34: Super Studio opens tools only, not Coach.
+   Phone-only; desktop behavior is untouched. */
+(() => {
+  const PHONE_QUERY = '(max-width: 820px)';
+  function isPhoneUi() {
+    return Boolean(
+      document.documentElement.dataset.deviceMode === 'phone' ||
+      window.__mcsianPhonePreviewMode === true ||
+      window.matchMedia?.(PHONE_QUERY)?.matches
+    );
+  }
+  function keepCoachClosedAfterStudioLaunch(event) {
+    const launcher = event.target?.closest?.('#superStudioLauncher');
+    if (!launcher || !isPhoneUi()) return;
+    window.setTimeout(() => {
+      const panel = document.getElementById('superStudioPanel');
+      const button = document.getElementById('studioToggleCoachBtn');
+      if (document.body.classList.contains('mcs-phone-studio-open')) {
+        panel?.classList.add('collapsed');
+        button?.setAttribute('aria-pressed', 'false');
+      }
+    }, 80);
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+      document.addEventListener('click', keepCoachClosedAfterStudioLaunch, true);
+      document.addEventListener('pointerup', keepCoachClosedAfterStudioLaunch, true);
+    }, { once: true });
+  } else {
+    document.addEventListener('click', keepCoachClosedAfterStudioLaunch, true);
+    document.addEventListener('pointerup', keepCoachClosedAfterStudioLaunch, true);
+  }
+})();
+
+
+/* User-directed phone fix v35:
+   1) Closing/opening the phone editor tools arrow always closes Super Studio.
+   2) Phone-only behavior; desktop is untouched. */
+(() => {
+  const PHONE_QUERY = '(max-width: 820px)';
+
+  function isPhoneUi() {
+    return Boolean(
+      document.documentElement.dataset.deviceMode === 'phone' ||
+      window.__mcsianPhonePreviewMode === true ||
+      window.matchMedia?.(PHONE_QUERY)?.matches
+    );
+  }
+
+  function closePhoneSuperStudio() {
+    if (!isPhoneUi()) return;
+
+    const launcher = document.getElementById('superStudioLauncher');
+    const toolbar = document.getElementById('superStudioToolbar');
+    const panel = document.getElementById('superStudioPanel');
+    const coachButton = document.getElementById('studioToggleCoachBtn');
+
+    document.body.classList.remove('mcs-phone-studio-open', 'super-studio-open');
+
+    launcher?.setAttribute('aria-pressed', 'false');
+    launcher?.classList.remove('is-active');
+    if (launcher) launcher.innerHTML = '<span>🚀</span><strong>Studio</strong>';
+
+    toolbar?.classList.add('studio-hidden', 'hidden');
+    panel?.classList.add('collapsed', 'studio-hidden', 'hidden');
+    coachButton?.setAttribute('aria-pressed', 'false');
+  }
+
+  function closeStudioFromEditorToolsArrow(event) {
+    if (!isPhoneUi()) return;
+    if (!event.target?.closest?.('#mobileEditorToolsToggle')) return;
+    closePhoneSuperStudio();
+  }
+
+  function install() {
+    document.addEventListener('click', closeStudioFromEditorToolsArrow, true);
+    window.MCS_CLOSE_PHONE_SUPER_STUDIO = closePhoneSuperStudio;
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', install, { once: true });
+  } else {
+    install();
+  }
+})();
+
+
+/* USER-DIRECTED PHONE FIX v51
+   Phone-only: make the logged-in editor account menu open as a below-header strip,
+   matching the Practice Mode menu behavior. */
+(function installPhoneStudentStripMenuFix() {
+  const PHONE_QUERY = '(max-width: 820px)';
+
+  function isPhoneUi() {
+    return Boolean(
+      document.documentElement.dataset.deviceMode === 'phone' ||
+      window.__mcsianPhonePreviewMode === true ||
+      window.matchMedia?.(PHONE_QUERY)?.matches
+    );
+  }
+
+  function parts() {
+    return {
+      button: document.getElementById('studentMenuBtn'),
+      strip: document.getElementById('studentAccountStrip'),
+      floatingMenu: document.getElementById('studentAccountMenu')
+    };
+  }
+
+  function setStudentStrip(open) {
+    if (!isPhoneUi()) return;
+    const { button, strip, floatingMenu } = parts();
+    const shouldOpen = Boolean(open && document.body.classList.contains('student-session-active'));
+    document.body.classList.toggle('mobile-student-strip-open', shouldOpen);
+
+    if (button) {
+      button.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+      button.setAttribute('aria-label', shouldOpen ? 'Hide student menu' : 'Open student menu');
+    }
+
+    if (strip && shouldOpen) {
+      strip.classList.remove('hidden');
+      strip.setAttribute('aria-hidden', 'false');
+    }
+
+    if (floatingMenu) {
+      floatingMenu.classList.add('hidden');
+      floatingMenu.setAttribute('aria-hidden', 'true');
+    }
+  }
+
+  function handleStudentMenuClick(event) {
+    const button = event.target?.closest?.('#studentMenuBtn');
+    if (!button || !isPhoneUi() || !document.body.classList.contains('student-session-active')) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation?.();
+    setStudentStrip(!document.body.classList.contains('mobile-student-strip-open'));
+  }
+
+  document.addEventListener('click', handleStudentMenuClick, true);
+
+  document.addEventListener('click', event => {
+    if (!isPhoneUi() || !document.body.classList.contains('mobile-student-strip-open')) return;
+    if (event.target?.closest?.('#studentMenuBtn, #studentAccountStrip')) return;
+    setStudentStrip(false);
+  }, true);
+
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape') setStudentStrip(false);
+  });
+
+  window.addEventListener('resize', () => {
+    if (!isPhoneUi()) document.body.classList.remove('mobile-student-strip-open');
+  }, { passive: true });
+
+  window.addEventListener('orientationchange', () => {
+    window.setTimeout(() => {
+      if (!isPhoneUi()) document.body.classList.remove('mobile-student-strip-open');
+    }, 160);
+  }, { passive: true });
+
+  window.MCS_PHONE_STUDENT_STRIP_MENU_FIX_STATUS = () => ({
+    phoneUi: isPhoneUi(),
+    studentSession: document.body.classList.contains('student-session-active'),
+    open: document.body.classList.contains('mobile-student-strip-open'),
+    buttonFound: Boolean(parts().button),
+    stripFound: Boolean(parts().strip)
+  });
 })();

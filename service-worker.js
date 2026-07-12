@@ -1,9 +1,12 @@
-const CACHE_NAME = 'mcs-coding-app-20260711-stability-polish-v95';
+const CACHE_NAME = 'mcs-coding-app-20260712-user-mobile-a8step51';
 const APP_SHELL = [
   './',
   './index.html',
+  './index.html?fresh=1',
   './style.css',
+  './style.css?v=20260712-phone-v50',
   './script.js',
+  './script.js?v=20260712-phone-v50',
   './firebase-config.js',
   './manifest.webmanifest',
   './favicon.png',
