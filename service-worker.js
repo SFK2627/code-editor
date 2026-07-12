@@ -1,12 +1,12 @@
-const CACHE_NAME = 'mcs-coding-app-20260712-user-step93-phone-full-editor-layout-final';
+const CACHE_NAME = 'mcs-coding-app-20260712-user-step94-cache-full-editor-preview-fix';
 const APP_SHELL = [
   './',
   './index.html',
   './index.html?fresh=1',
   './style.css',
-  './style.css?v=20260712-step93-phone-full-editor-layout-final',
+  './style.css?v=20260712-step94-cache-full-editor-preview-fix',
   './script.js',
-  './script.js?v=20260712-step93-phone-full-editor-layout-final',
+  './script.js?v=20260712-step94-cache-full-editor-preview-fix',
   './firebase-config.js',
   './manifest.webmanifest',
   './favicon.png',

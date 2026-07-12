@@ -5838,18 +5838,42 @@ function injectRuntimeReporterEarly(html, reporterBlock) {
   return `${reporterBlock}\n${output}`;
 }
 
+function hasCompletePreviewDocumentShell(html = '') {
+  const source = String(html || '');
+  return /<html\b[^>]*>/i.test(source)
+    && /<\/html\s*>/i.test(source)
+    && /<head\b[^>]*>/i.test(source)
+    && /<\/head\s*>/i.test(source)
+    && /<body\b[^>]*>/i.test(source)
+    && /<\/body\s*>/i.test(source);
+}
+
+function shouldIncludePreviewNavigationBlock(html = '') {
+  return /<a\b[^>]*\bhref\s*=/i.test(String(html || ''));
+}
+
 function buildFullCode(pageName = getActiveHtmlPageName()) {
   const safePageName = normalizeHtmlPageName(pageName);
   const html = getHTMLPageContent(safePageName) || '';
   const styleBlock = getCSSBlocksForPreview(html);
   const scriptBlock = getJSBlocksForPreview(html);
-  const navigationBlock = createPreviewNavigationBlock(safePageName);
+  const navigationBlock = shouldIncludePreviewNavigationBlock(html) ? createPreviewNavigationBlock(safePageName) : '';
   const runtimeReporterBlock = createPreviewRuntimeReporterBlock();
   const bodyScriptBlock = [scriptBlock, navigationBlock].filter(Boolean).join('\n');
   const looksLikeFullDocument = /<!doctype/i.test(html) || /<html(\s|>)/i.test(html) || /<head(\s|>)/i.test(html) || /<body(\s|>)/i.test(html);
+  const hasCompleteDocumentShell = hasCompletePreviewDocumentShell(html);
 
-  if (looksLikeFullDocument) {
+  if (looksLikeFullDocument && hasCompleteDocumentShell) {
     return injectAssetsIntoHTML(injectRuntimeReporterEarly(html, runtimeReporterBlock), styleBlock, bodyScriptBlock);
+  }
+
+  if (looksLikeFullDocument && !hasCompleteDocumentShell) {
+    // If a beginner types a partial document (for example, <html> without a
+    // complete <body>...</body> shell), do not inject helper scripts into that
+    // malformed document. Otherwise the app's own preview helper JavaScript can
+    // appear as visible text in Output Preview. Show the student's HTML cleanly
+    // and apply CSS only when it is safe.
+    return injectAssetsIntoHTML(html, styleBlock, '');
   }
 
   return `<!DOCTYPE html>
