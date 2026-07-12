@@ -13988,14 +13988,43 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
 (() => {
   const root = document.documentElement;
   const body = () => document.body;
+  const stableViewport = {
+    width: 0,
+    height: 0,
+    orientation: ''
+  };
 
   function getViewport() {
     const vv = window.visualViewport;
     return {
       width: Math.round(vv?.width || window.innerWidth || root.clientWidth || 0),
       height: Math.round(vv?.height || window.innerHeight || root.clientHeight || 0),
-      offsetTop: Math.round(vv?.offsetTop || 0)
+      offsetTop: Math.round(vv?.offsetTop || 0),
+      layoutWidth: Math.round(window.innerWidth || root.clientWidth || vv?.width || 0),
+      layoutHeight: Math.round(window.innerHeight || root.clientHeight || vv?.height || 0)
     };
+  }
+
+  function updateStableViewport(viewport, isPhoneUi, keyboardLikelyOpen) {
+    const orientation = viewport.width > viewport.height ? 'landscape' : 'portrait';
+    const layoutWidth = Math.max(viewport.layoutWidth || 0, viewport.width || 0, root.clientWidth || 0);
+    const layoutHeight = Math.max(viewport.layoutHeight || 0, viewport.height || 0, root.clientHeight || 0);
+    const orientationChanged = stableViewport.orientation && stableViewport.orientation !== orientation;
+
+    if (!isPhoneUi) {
+      stableViewport.width = layoutWidth;
+      stableViewport.height = layoutHeight;
+      stableViewport.orientation = orientation;
+      return;
+    }
+
+    if (!stableViewport.width || orientationChanged || layoutWidth > stableViewport.width + 20) {
+      stableViewport.width = layoutWidth;
+    }
+    if (!stableViewport.height || orientationChanged || !keyboardLikelyOpen || layoutHeight >= stableViewport.height - 4) {
+      stableViewport.height = Math.max(stableViewport.height || 0, layoutHeight);
+    }
+    stableViewport.orientation = orientation;
   }
 
   function updateMobileViewState() {
@@ -14003,15 +14032,20 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     const screenWidth = Math.min(window.screen?.width || viewport.width, window.screen?.height || viewport.height);
     const isTouch = (navigator.maxTouchPoints || 0) > 0 || matchMedia('(pointer: coarse)').matches;
     const isPhoneUi = viewport.width <= 820 || (isTouch && screenWidth <= 820);
-    const keyboardLikelyOpen = isPhoneUi && window.innerHeight && viewport.height < window.innerHeight - 130;
-    const keyboardOffset = keyboardLikelyOpen ? Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop) : 0;
+    const layoutHeight = Math.max(viewport.layoutHeight || 0, viewport.height || 0, root.clientHeight || 0);
+    const keyboardLikelyOpen = isPhoneUi && layoutHeight && viewport.height < layoutHeight - 130;
+    const keyboardOffset = keyboardLikelyOpen ? Math.max(0, layoutHeight - viewport.height - viewport.offsetTop) : 0;
 
-    root.style.setProperty('--mcs-mobile-vh', `${Math.max(1, viewport.height) * 0.01}px`);
-    root.style.setProperty('--mcs-mobile-vw', `${Math.max(1, viewport.width) * 0.01}px`);
+    updateStableViewport(viewport, isPhoneUi, keyboardLikelyOpen);
+    const stableWidth = Math.max(1, stableViewport.width || viewport.layoutWidth || viewport.width);
+    const stableHeight = Math.max(1, stableViewport.height || layoutHeight || viewport.height);
+
+    root.style.setProperty('--mcs-mobile-vh', `${stableHeight * 0.01}px`);
+    root.style.setProperty('--mcs-mobile-vw', `${stableWidth * 0.01}px`);
     root.style.setProperty('--mcs-mobile-keyboard-offset', `${Math.round(keyboardOffset)}px`);
     root.classList.toggle('mobile-view-revamp', isPhoneUi);
-    root.classList.toggle('mobile-portrait', isPhoneUi && viewport.height >= viewport.width);
-    root.classList.toggle('mobile-landscape', isPhoneUi && viewport.width > viewport.height);
+    root.classList.toggle('mobile-portrait', isPhoneUi && stableHeight >= stableWidth);
+    root.classList.toggle('mobile-landscape', isPhoneUi && stableWidth > stableHeight);
     body()?.classList.toggle('mobile-view-revamp', isPhoneUi);
     body()?.classList.toggle('mobile-keyboard-open', keyboardLikelyOpen);
   }
@@ -14037,6 +14071,59 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     updateMobileViewState();
   }
 })();
+
+/* Phone touch-scroll bridge:
+   when a student swipes inside the textarea and the editor is already at the
+   top or bottom (or has no more vertical room), let the page continue moving.
+   This keeps the screen scrollable on touch devices without breaking normal
+   editor scrolling. */
+(() => {
+  const editor = document.getElementById('codeEditor');
+  if (!editor) return;
+  let lastTouchY = null;
+
+  function isPhoneEditorScrollBridgeActive() {
+    return document.documentElement?.dataset?.deviceMode === 'phone'
+      && document.body?.classList.contains('mobile-editor-normal')
+      && !document.body?.classList.contains('editor-fullscreen-active')
+      && !document.body?.classList.contains('preview-fullscreen-active');
+  }
+
+  editor.addEventListener('touchstart', event => {
+    if (!isPhoneEditorScrollBridgeActive()) return;
+    const touch = event.touches?.[0];
+    lastTouchY = touch ? touch.clientY : null;
+  }, { passive: true });
+
+  editor.addEventListener('touchmove', event => {
+    if (!isPhoneEditorScrollBridgeActive()) return;
+    const touch = event.touches?.[0];
+    if (!touch || lastTouchY == null) return;
+
+    const currentY = touch.clientY;
+    const deltaY = lastTouchY - currentY;
+    lastTouchY = currentY;
+
+    const maxScrollTop = Math.max(0, editor.scrollHeight - editor.clientHeight);
+    const atTop = editor.scrollTop <= 0;
+    const atBottom = editor.scrollTop >= maxScrollTop - 1;
+    const cannotScrollEditor = maxScrollTop <= 1;
+    const leavingTop = atTop && deltaY < 0;
+    const leavingBottom = atBottom && deltaY > 0;
+
+    if (cannotScrollEditor || leavingTop || leavingBottom) {
+      window.scrollBy(0, deltaY);
+      event.preventDefault();
+    }
+  }, { passive: false });
+
+  ['touchend', 'touchcancel'].forEach(type => {
+    editor.addEventListener(type, () => {
+      lastTouchY = null;
+    }, { passive: true });
+  });
+})();
+
 
 /* User-directed phone polish v1: compact mobile header/tools/dashboard only. */
 (() => {
