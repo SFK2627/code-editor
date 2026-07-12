@@ -27963,368 +27963,466 @@ body.student-session-active #appTitleText .header-student-name-highlight {
   }
 }
 
-/* USER-DIRECTED FIX STEP 90
-   Stable phone full-editor cleanup.
-   Uses body.step90-phone-full-editor-tools only, so desktop/homepage cannot be affected. */
+/* USER-DIRECTED FIX STEP 91
+   Stable base: script.js is the confirmed-loading V88 script.
+   Scope: phone full editor only. No app initialization or DOM movement.
+   Goals:
+   - hide Run / Auto / Result / Studio in phone full editor
+   - keep only Show / Exit X / font slider / Code Helper visible
+   - make Show reveal a simple vertical tools panel
+   - keep Code Helper compact and centered in normal phone and phone full editor
+*/
 @media (max-width: 820px), (hover: none) and (pointer: coarse) {
-  body.step90-phone-full-editor-tools #fullscreenRunBtn,
-  body.step90-phone-full-editor-tools #fullscreenAutoRunBtn,
-  body.step90-phone-full-editor-tools #fullscreenResultBtn,
-  body.step90-phone-full-editor-tools #superStudioLauncher,
-  body.step90-phone-full-editor-tools #superStudioToolbar,
-  body.step90-phone-full-editor-tools .studio-launcher-mobile,
-  body.step90-phone-full-editor-tools .studio-launcher-desktop,
-  body.step90-phone-full-editor-tools .studio-toolbar,
-  body.step90-phone-full-editor-tools .super-studio-only,
-  body.step90-phone-full-editor-tools .step90-phone-full-hidden {
-    display: none !important;
-    visibility: hidden !important;
-    pointer-events: none !important;
+  /* Full editor: never let the action bar consume vertical space on phones. */
+  body.editor-fullscreen-active #fullscreenEditorActions,
+  body.editor-fullscreen-active .fullscreen-editor-actions,
+  #editorPanel:fullscreen #fullscreenEditorActions,
+  #editorPanel:fullscreen .fullscreen-editor-actions {
+    position: static !important;
+    display: block !important;
+    flex: 0 0 0 !important;
+    width: 0 !important;
+    height: 0 !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    overflow: visible !important;
+    background: transparent !important;
+    box-shadow: none !important;
   }
 
-  body.step90-phone-full-editor-tools #fullscreenEditorActions,
-  body.step90-phone-full-editor-tools .fullscreen-editor-actions {
-    position: fixed !important;
-    top: calc(7px + env(safe-area-inset-top)) !important;
-    right: 8px !important;
-    left: auto !important;
-    bottom: auto !important;
-    z-index: 60120 !important;
-    display: inline-flex !important;
-    width: 36px !important;
-    min-width: 36px !important;
-    max-width: 36px !important;
-    height: 36px !important;
-    min-height: 36px !important;
-    max-height: 36px !important;
-    padding: 0 !important;
+  /* Hide the buttons the user does not want in phone full editor. */
+  body.editor-fullscreen-active #fullscreenRunBtn,
+  body.editor-fullscreen-active #fullscreenAutoRunBtn,
+  body.editor-fullscreen-active #fullscreenResultBtn,
+  body.editor-fullscreen-active #runBtn,
+  body.editor-fullscreen-active #autoRunBtn,
+  body.editor-fullscreen-active #resultBtn,
+  body.editor-fullscreen-active #superStudioLauncher,
+  body.editor-fullscreen-active #superStudioToolbar,
+  body.editor-fullscreen-active #superStudioPanel,
+  body.editor-fullscreen-active .studio-launcher,
+  body.editor-fullscreen-active .studio-launcher-mobile,
+  body.editor-fullscreen-active .studio-launcher-desktop,
+  body.editor-fullscreen-active .studio-toolbar,
+  body.editor-fullscreen-active .super-studio-toolbar,
+  body.editor-fullscreen-active .super-studio-panel,
+  body.editor-fullscreen-active .super-studio-only,
+  body.editor-fullscreen-active .studio-command-overlay,
+  body.editor-fullscreen-active .studio-snapshots-overlay,
+  #editorPanel:fullscreen #fullscreenRunBtn,
+  #editorPanel:fullscreen #fullscreenAutoRunBtn,
+  #editorPanel:fullscreen #fullscreenResultBtn,
+  #editorPanel:fullscreen #superStudioLauncher,
+  #editorPanel:fullscreen #superStudioToolbar,
+  #editorPanel:fullscreen #superStudioPanel,
+  #editorPanel:fullscreen .studio-launcher,
+  #editorPanel:fullscreen .super-studio-toolbar,
+  #editorPanel:fullscreen .super-studio-panel,
+  #editorPanel:fullscreen .super-studio-only {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    width: 0 !important;
+    height: 0 !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
     margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+  }
+
+  /* Show button must remain visible and clickable in phone full editor. */
+  body.editor-fullscreen-active #mobileEditorToolsToggle,
+  #editorPanel:fullscreen #mobileEditorToolsToggle {
+    display: inline-flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+    position: fixed !important;
+    left: 10px !important;
+    bottom: calc(12px + env(safe-area-inset-bottom)) !important;
+    top: auto !important;
+    right: auto !important;
+    z-index: 61010 !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 62px !important;
+    min-width: 62px !important;
+    height: 38px !important;
+    min-height: 38px !important;
+    padding: 0 10px !important;
+    border-radius: 999px !important;
+    font-size: 0.76rem !important;
+    line-height: 1 !important;
+    white-space: nowrap !important;
+    touch-action: manipulation !important;
+  }
+
+  body.editor-fullscreen-active #mobileEditorToolsToggle span,
+  #editorPanel:fullscreen #mobileEditorToolsToggle span {
+    display: none !important;
+  }
+
+  body.editor-fullscreen-active #mobileEditorToolsToggle strong,
+  #editorPanel:fullscreen #mobileEditorToolsToggle strong {
+    display: inline-block !important;
+    font-size: 0.76rem !important;
+    line-height: 1 !important;
+  }
+
+  /* Exit X remains the only fullscreen exit control. */
+  body.editor-fullscreen-active #exitEditorStickyBtn,
+  #editorPanel:fullscreen #exitEditorStickyBtn {
+    display: inline-flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+    position: fixed !important;
+    right: 10px !important;
+    bottom: calc(12px + env(safe-area-inset-bottom)) !important;
+    left: auto !important;
+    top: auto !important;
+    z-index: 61012 !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 40px !important;
+    min-width: 40px !important;
+    height: 38px !important;
+    min-height: 38px !important;
+    padding: 0 !important;
+    border-radius: 999px !important;
+    font-size: 1.2rem !important;
+    line-height: 1 !important;
+  }
+
+  /* Code Helper and font slider stay available in full editor. */
+  body.editor-fullscreen-active #codeHelperFloatingBtn,
+  #editorPanel:fullscreen #codeHelperFloatingBtn {
+    display: inline-flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+    position: fixed !important;
+    left: 82px !important;
+    right: auto !important;
+    bottom: calc(12px + env(safe-area-inset-bottom)) !important;
+    top: auto !important;
+    z-index: 61011 !important;
+    width: auto !important;
+    max-width: calc(100vw - 190px) !important;
+    height: 38px !important;
+    min-height: 38px !important;
+    padding: 0 12px !important;
+    border-radius: 999px !important;
+    font-size: 0.72rem !important;
+    line-height: 1 !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  body.editor-fullscreen-active #mobileEditorFontControl,
+  #editorPanel:fullscreen #mobileEditorFontControl {
+    display: inline-flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+    position: fixed !important;
+    right: 58px !important;
+    bottom: calc(13px + env(safe-area-inset-bottom)) !important;
+    left: auto !important;
+    top: auto !important;
+    z-index: 61011 !important;
+    width: min(30vw, 112px) !important;
+    max-width: 112px !important;
+    height: 34px !important;
+    min-height: 34px !important;
+    padding: 0 !important;
+    gap: 5px !important;
     background: transparent !important;
     border: 0 !important;
     box-shadow: none !important;
-    overflow: visible !important;
   }
 
-  body.step90-phone-full-editor-tools #exitEditorStickyBtn {
-    display: inline-flex !important;
-    visibility: visible !important;
-    pointer-events: auto !important;
-    align-items: center !important;
-    justify-content: center !important;
-    width: 36px !important;
-    min-width: 36px !important;
-    max-width: 36px !important;
-    height: 36px !important;
-    min-height: 36px !important;
-    max-height: 36px !important;
-    padding: 0 !important;
-    margin: 0 !important;
-    border-radius: 999px !important;
-    font-size: 1.35rem !important;
-    line-height: 1 !important;
-    z-index: 60125 !important;
-  }
-
-  body.step90-phone-full-editor-tools #mobileEditorToolsToggle {
-    position: fixed !important;
-    top: calc(8px + env(safe-area-inset-top)) !important;
-    left: 8px !important;
-    right: auto !important;
-    bottom: auto !important;
-    z-index: 60120 !important;
-    display: inline-flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    width: 64px !important;
-    min-width: 64px !important;
-    max-width: 64px !important;
-    height: 32px !important;
-    min-height: 32px !important;
-    max-height: 32px !important;
-    padding: 0 8px !important;
-    margin: 0 !important;
-    border: 1px solid color-mix(in srgb, var(--primary) 35%, var(--line)) !important;
-    border-radius: 999px !important;
-    background: color-mix(in srgb, var(--solid-card) 92%, var(--primary-soft)) !important;
-    color: var(--primary-dark) !important;
-    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.14) !important;
-    font-size: 0.74rem !important;
-    font-weight: 1000 !important;
+  body.editor-fullscreen-active #mobileEditorFontControl .mobile-editor-font-label,
+  #editorPanel:fullscreen #mobileEditorFontControl .mobile-editor-font-label {
+    font-size: 0.66rem !important;
+    font-weight: 900 !important;
     line-height: 1 !important;
   }
 
-  body.step90-phone-full-editor-tools #mobileEditorToolsToggle span {
+  body.editor-fullscreen-active #mobileEditorFontControl .mobile-editor-font-range,
+  #editorPanel:fullscreen #mobileEditorFontControl .mobile-editor-font-range {
+    width: 76px !important;
+    max-width: 76px !important;
+  }
+
+  body.editor-fullscreen-active #mobileEditorFontControl .mobile-editor-font-value,
+  #editorPanel:fullscreen #mobileEditorFontControl .mobile-editor-font-value {
     display: none !important;
   }
 
-  body.step90-phone-full-editor-tools #mobileEditorToolsToggle strong {
-    display: inline !important;
-    font-size: 0.74rem !important;
-    line-height: 1 !important;
-    color: inherit !important;
-  }
-
-  /* Main full editor view: hide the tools until Show is tapped. */
-  body.step90-phone-full-editor-tools:not(.mobile-editor-tools-open) #editorPanel > .language-tabs,
-  body.step90-phone-full-editor-tools:not(.mobile-editor-tools-open) #htmlPageManager,
-  body.step90-phone-full-editor-tools:not(.mobile-editor-tools-open) #mobileSuggestionToggle {
+  /* In phone full editor, the tools are hidden until Show is tapped. */
+  body.editor-fullscreen-active:not(.mobile-editor-tools-open) #editorPanel > .language-tabs,
+  body.editor-fullscreen-active:not(.mobile-editor-tools-open) #htmlPageManager,
+  body.editor-fullscreen-active:not(.mobile-editor-tools-open) #mobileSuggestionToggle,
+  #editorPanel:fullscreen:not(.mcs-unused) > .language-tabs {
     display: none !important;
-    visibility: hidden !important;
-    pointer-events: none !important;
   }
 
-  /* Show panel: appears only inside phone full editor. */
-  body.step90-phone-full-editor-tools.mobile-editor-tools-open #editorPanel > .language-tabs {
-    position: fixed !important;
-    top: calc(48px + env(safe-area-inset-top)) !important;
-    left: 8px !important;
-    right: 8px !important;
-    z-index: 60110 !important;
+  /* Native fullscreen fallback: if the body class is active, hide these children too. */
+  body.editor-fullscreen-active:not(.mobile-editor-tools-open) #editorPanel:fullscreen > .language-tabs,
+  body.editor-fullscreen-active:not(.mobile-editor-tools-open) #editorPanel:fullscreen #htmlPageManager,
+  body.editor-fullscreen-active:not(.mobile-editor-tools-open) #editorPanel:fullscreen #mobileSuggestionToggle {
+    display: none !important;
+  }
+
+  /* Show panel: simple vertical stack, no DOM moving needed. */
+  body.editor-fullscreen-active.mobile-editor-tools-open #editorPanel > .language-tabs,
+  body.editor-fullscreen-active.mobile-editor-tools-open #editorPanel:fullscreen > .language-tabs {
     display: grid !important;
+    position: relative !important;
+    flex: 0 0 auto !important;
     grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
     gap: 5px !important;
-    width: auto !important;
+    width: 100% !important;
     height: auto !important;
-    min-height: 38px !important;
+    min-height: 42px !important;
     max-height: none !important;
-    padding: 8px !important;
+    padding: calc(8px + env(safe-area-inset-top)) 8px 4px !important;
     margin: 0 !important;
-    border: 1px solid color-mix(in srgb, var(--primary) 24%, var(--line)) !important;
-    border-radius: 16px 16px 0 0 !important;
+    border-radius: 0 !important;
     background: color-mix(in srgb, var(--solid-card) 96%, var(--primary-soft)) !important;
-    box-shadow: 0 12px 26px rgba(15, 23, 42, 0.16) !important;
+    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.10) !important;
+    z-index: 5008 !important;
     overflow: visible !important;
   }
 
-  body.step90-phone-full-editor-tools.mobile-editor-tools-open #editorPanel > .language-tabs .rename-files-btn {
-    display: none !important;
-  }
-
-  body.step90-phone-full-editor-tools.mobile-editor-tools-open #editorPanel > .language-tabs .tab-btn {
+  body.editor-fullscreen-active.mobile-editor-tools-open #editorPanel > .language-tabs .tab-btn,
+  body.editor-fullscreen-active.mobile-editor-tools-open #editorPanel:fullscreen > .language-tabs .tab-btn {
     display: inline-flex !important;
     align-items: center !important;
     justify-content: center !important;
-    width: 100% !important;
     min-width: 0 !important;
-    height: 34px !important;
-    min-height: 34px !important;
+    width: 100% !important;
+    height: 32px !important;
+    min-height: 32px !important;
     padding: 0 6px !important;
-    border-radius: 11px !important;
+    border-radius: 10px !important;
     font-size: 0.72rem !important;
     line-height: 1 !important;
     white-space: nowrap !important;
   }
 
-  body.step90-phone-full-editor-tools.mobile-editor-tools-open #editorPanel > .language-tabs .tab-btn[data-language="js"] {
-    font-size: 0 !important;
-  }
-
-  body.step90-phone-full-editor-tools.mobile-editor-tools-open #editorPanel > .language-tabs .tab-btn[data-language="js"]::before {
-    content: 'JavaScript';
-    font-size: 0.72rem !important;
-    font-weight: 1000 !important;
-  }
-
-  body.step90-phone-full-editor-tools.mobile-editor-tools-open #htmlPageManager {
-    position: fixed !important;
-    top: calc(107px + env(safe-area-inset-top)) !important;
-    left: 8px !important;
-    right: 8px !important;
-    z-index: 60109 !important;
-    display: grid !important;
-    grid-template-columns: 1fr !important;
-    gap: 7px !important;
-    width: auto !important;
-    max-width: none !important;
-    height: auto !important;
-    min-height: 0 !important;
-    max-height: calc(100dvh - 190px - env(safe-area-inset-top) - env(safe-area-inset-bottom)) !important;
-    padding: 9px !important;
-    margin: 0 !important;
-    border: 1px solid color-mix(in srgb, var(--primary) 24%, var(--line)) !important;
-    border-top: 0 !important;
-    border-radius: 0 0 16px 16px !important;
-    background: color-mix(in srgb, var(--solid-card) 96%, var(--primary-soft)) !important;
-    box-shadow: 0 16px 30px rgba(15, 23, 42, 0.18) !important;
-    overflow-y: auto !important;
-    -webkit-overflow-scrolling: touch !important;
-    visibility: visible !important;
-    pointer-events: auto !important;
-  }
-
-  body.step90-phone-full-editor-tools.mobile-editor-tools-open #htmlPageManager .page-manager-left,
-  body.step90-phone-full-editor-tools.mobile-editor-tools-open #htmlPageManager .page-manager-actions {
-    display: grid !important;
-    grid-template-columns: 1fr !important;
-    gap: 6px !important;
-    width: 100% !important;
-  }
-
-  body.step90-phone-full-editor-tools.mobile-editor-tools-open #htmlPageManager .page-manager-label {
-    font-size: 0.68rem !important;
-    line-height: 1 !important;
-    letter-spacing: 0.08em !important;
-    text-transform: uppercase !important;
-  }
-
-  body.step90-phone-full-editor-tools.mobile-editor-tools-open #htmlPageManager select {
-    width: 100% !important;
-    min-height: 34px !important;
-    height: 34px !important;
-    border-radius: 10px !important;
-    font-size: 0.82rem !important;
-  }
-
-  body.step90-phone-full-editor-tools.mobile-editor-tools-open #htmlPageManager .page-manager-actions {
-    grid-template-columns: 1fr 1fr !important;
-  }
-
-  body.step90-phone-full-editor-tools.mobile-editor-tools-open #addHtmlPageBtn,
-  body.step90-phone-full-editor-tools.mobile-editor-tools-open #renameHtmlPageBtn,
-  body.step90-phone-full-editor-tools.mobile-editor-tools-open #deleteHtmlPageBtn {
-    width: 100% !important;
-    min-height: 34px !important;
-    height: 34px !important;
-    border-radius: 10px !important;
-    font-size: 0.76rem !important;
-  }
-
-  body.step90-phone-full-editor-tools.mobile-editor-tools-open #deleteHtmlPageBtn {
-    grid-column: 1 / -1 !important;
-  }
-
-  body.step90-phone-full-editor-tools.mobile-editor-tools-open #mobileSuggestionToggle {
-    position: fixed !important;
-    top: calc(252px + env(safe-area-inset-top)) !important;
-    left: 8px !important;
-    right: 8px !important;
-    z-index: 60108 !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: space-between !important;
-    width: auto !important;
-    min-height: 34px !important;
-    height: 34px !important;
-    padding: 0 12px !important;
-    border: 1px solid color-mix(in srgb, var(--primary) 24%, var(--line)) !important;
-    border-radius: 12px !important;
-    background: var(--solid-card) !important;
-    color: var(--text) !important;
-    box-shadow: 0 10px 22px rgba(15, 23, 42, 0.13) !important;
-    font-size: 0.78rem !important;
-    font-weight: 900 !important;
-    visibility: visible !important;
-    pointer-events: auto !important;
-  }
-
-  body.step90-phone-full-editor-tools.mobile-editor-tools-open #mobileSuggestionToggle .suggestion-toggle-state {
-    color: var(--primary) !important;
-    font-weight: 1000 !important;
-  }
-
-  /* Keep editor usable behind/under the small top tools panel. */
-  body.step90-phone-full-editor-tools #editorPanel .editor-wrap,
-  html.phone-true-full-editor-enabled body.step90-phone-full-editor-tools #editorPanel:fullscreen .editor-wrap {
-    flex: 1 1 auto !important;
-    height: calc(var(--mcs-phone-full-editor-height, 100dvh) - 42px) !important;
-    min-height: 0 !important;
-  }
-
-  /* Final compact Code Helper modal for normal phone and phone full editor. */
-  html[data-device-mode="phone"] body .error-checker-panel.code-helper-modal:not(.hidden),
-  body.step90-phone-full-editor-tools #editorPanel .error-checker-panel.code-helper-modal:not(.hidden),
-  html.phone-true-full-editor-enabled body.step90-phone-full-editor-tools #editorPanel:fullscreen .error-checker-panel.code-helper-modal:not(.hidden) {
-    position: fixed !important;
-    left: 50% !important;
-    right: auto !important;
-    top: auto !important;
-    bottom: calc(68px + env(safe-area-inset-bottom)) !important;
-    transform: translateX(-50%) !important;
-    width: min(92vw, 360px) !important;
-    min-width: 0 !important;
-    max-width: min(92vw, 360px) !important;
-    height: auto !important;
-    min-height: 0 !important;
-    max-height: min(58dvh, 390px) !important;
-    border-radius: 18px !important;
-    z-index: 60200 !important;
-    overflow: hidden !important;
-  }
-
-  body.step90-phone-full-editor-tools.mobile-editor-tools-open #editorPanel .error-checker-panel.code-helper-modal:not(.hidden) {
-    bottom: calc(56px + env(safe-area-inset-bottom)) !important;
-    max-height: min(44dvh, 320px) !important;
-  }
-
-  html[data-device-mode="phone"] body .error-checker-panel.code-helper-modal .error-checker-header,
-  body.step90-phone-full-editor-tools #editorPanel .error-checker-panel.code-helper-modal .error-checker-header,
-  html.phone-true-full-editor-enabled body.step90-phone-full-editor-tools #editorPanel:fullscreen .error-checker-panel.code-helper-modal .error-checker-header {
-    display: grid !important;
-    grid-template-columns: minmax(0, 1fr) auto !important;
-    gap: 7px !important;
-    min-height: 46px !important;
-    padding: 8px 9px !important;
-  }
-
-  html[data-device-mode="phone"] body .error-checker-panel.code-helper-modal .error-checker-header h2,
-  body.step90-phone-full-editor-tools #editorPanel .error-checker-panel.code-helper-modal .error-checker-header h2 {
-    font-size: 0.98rem !important;
-    line-height: 1.05 !important;
-  }
-
-  html[data-device-mode="phone"] body .error-checker-panel.code-helper-modal .error-checker-header p:not(.section-kicker),
-  body.step90-phone-full-editor-tools #editorPanel .error-checker-panel.code-helper-modal .error-checker-header p:not(.section-kicker) {
+  body.editor-fullscreen-active.mobile-editor-tools-open #editorPanel > .language-tabs #renameFilesBtn,
+  body.editor-fullscreen-active.mobile-editor-tools-open #editorPanel:fullscreen > .language-tabs #renameFilesBtn {
     display: none !important;
   }
 
-  html[data-device-mode="phone"] body .code-helper-header-actions,
-  body.step90-phone-full-editor-tools #editorPanel .code-helper-header-actions {
+  body.editor-fullscreen-active.mobile-editor-tools-open #htmlPageManager,
+  body.editor-fullscreen-active.mobile-editor-tools-open #editorPanel:fullscreen #htmlPageManager {
+    display: grid !important;
+    position: relative !important;
+    flex: 0 0 auto !important;
+    grid-template-columns: 1fr !important;
+    gap: 6px !important;
+    width: 100% !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 6px 8px !important;
+    border-radius: 0 !important;
+    border: 0 !important;
+    background: color-mix(in srgb, var(--solid-card) 96%, var(--primary-soft)) !important;
+    box-shadow: 0 8px 16px rgba(15, 23, 42, 0.08) !important;
+    z-index: 5007 !important;
+  }
+
+  body.editor-fullscreen-active.mobile-editor-tools-open #htmlPageManager .page-manager-left,
+  body.editor-fullscreen-active.mobile-editor-tools-open #htmlPageManager .page-manager-actions,
+  body.editor-fullscreen-active.mobile-editor-tools-open #editorPanel:fullscreen #htmlPageManager .page-manager-left,
+  body.editor-fullscreen-active.mobile-editor-tools-open #editorPanel:fullscreen #htmlPageManager .page-manager-actions {
+    display: grid !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    gap: 6px !important;
+  }
+
+  body.editor-fullscreen-active.mobile-editor-tools-open #htmlPageManager .page-manager-left,
+  body.editor-fullscreen-active.mobile-editor-tools-open #editorPanel:fullscreen #htmlPageManager .page-manager-left {
+    grid-template-columns: minmax(74px, auto) minmax(0, 1fr) !important;
+    align-items: center !important;
+  }
+
+  body.editor-fullscreen-active.mobile-editor-tools-open #htmlPageManager .page-manager-label,
+  body.editor-fullscreen-active.mobile-editor-tools-open #editorPanel:fullscreen #htmlPageManager .page-manager-label {
+    font-size: 0.68rem !important;
+    font-weight: 900 !important;
+    white-space: nowrap !important;
+  }
+
+  body.editor-fullscreen-active.mobile-editor-tools-open #htmlPageManager select,
+  body.editor-fullscreen-active.mobile-editor-tools-open #editorPanel:fullscreen #htmlPageManager select {
+    width: 100% !important;
+    min-width: 0 !important;
+    height: 32px !important;
+    min-height: 32px !important;
+    font-size: 0.72rem !important;
+  }
+
+  body.editor-fullscreen-active.mobile-editor-tools-open #htmlPageManager .page-manager-actions,
+  body.editor-fullscreen-active.mobile-editor-tools-open #editorPanel:fullscreen #htmlPageManager .page-manager-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  body.editor-fullscreen-active.mobile-editor-tools-open #addHtmlPageBtn,
+  body.editor-fullscreen-active.mobile-editor-tools-open #renameHtmlPageBtn,
+  body.editor-fullscreen-active.mobile-editor-tools-open #deleteHtmlPageBtn,
+  body.editor-fullscreen-active.mobile-editor-tools-open #editorPanel:fullscreen #addHtmlPageBtn,
+  body.editor-fullscreen-active.mobile-editor-tools-open #editorPanel:fullscreen #renameHtmlPageBtn,
+  body.editor-fullscreen-active.mobile-editor-tools-open #editorPanel:fullscreen #deleteHtmlPageBtn {
     display: inline-flex !important;
     align-items: center !important;
-    gap: 4px !important;
-    flex-wrap: nowrap !important;
-  }
-
-  html[data-device-mode="phone"] body .code-helper-header-actions .layout-btn,
-  html[data-device-mode="phone"] body .code-helper-close,
-  body.step90-phone-full-editor-tools #editorPanel .code-helper-header-actions .layout-btn,
-  body.step90-phone-full-editor-tools #editorPanel .code-helper-close {
-    min-width: 32px !important;
-    min-height: 32px !important;
+    justify-content: center !important;
+    width: 100% !important;
     height: 32px !important;
-    padding: 0 7px !important;
+    min-height: 32px !important;
+    padding: 0 8px !important;
+    border-radius: 10px !important;
+    font-size: 0.72rem !important;
+    white-space: nowrap !important;
+  }
+
+  body.editor-fullscreen-active.mobile-editor-tools-open #deleteHtmlPageBtn,
+  body.editor-fullscreen-active.mobile-editor-tools-open #editorPanel:fullscreen #deleteHtmlPageBtn {
+    grid-column: 1 / -1 !important;
+  }
+
+  body.editor-fullscreen-active.mobile-editor-tools-open #mobileSuggestionToggle,
+  body.editor-fullscreen-active.mobile-editor-tools-open #editorPanel:fullscreen #mobileSuggestionToggle {
+    display: flex !important;
+    position: relative !important;
+    flex: 0 0 auto !important;
+    width: calc(100% - 16px) !important;
+    min-height: 34px !important;
+    margin: 0 8px 6px !important;
+    padding: 0 10px !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    border-radius: 12px !important;
+    font-size: 0.72rem !important;
+    z-index: 5007 !important;
+  }
+
+  /* The editor fills the remaining full-screen space after the optional Show panel. */
+  body.editor-fullscreen-active #editorPanel .editor-wrap,
+  body.editor-fullscreen-active #editorPanel:fullscreen .editor-wrap {
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    height: auto !important;
+    max-height: none !important;
+  }
+
+  body.editor-fullscreen-active.mobile-editor-tools-open #editorPanel .editor-wrap,
+  body.editor-fullscreen-active.mobile-editor-tools-open #editorPanel:fullscreen .editor-wrap {
+    margin-top: 0 !important;
+  }
+
+  /* Compact centered Code Helper modal. Applies in normal phone and full editor. */
+  html[data-device-mode="phone"] .error-checker-panel.code-helper-modal:not(.hidden),
+  body.phone-true-full-editor-active .error-checker-panel.code-helper-modal:not(.hidden),
+  body.editor-fullscreen-active .error-checker-panel.code-helper-modal:not(.hidden),
+  #editorPanel:fullscreen .error-checker-panel.code-helper-modal:not(.hidden) {
+    position: fixed !important;
+    left: 50% !important;
+    right: auto !important;
+    top: 50% !important;
+    bottom: auto !important;
+    transform: translate(-50%, -50%) !important;
+    width: min(92vw, 360px) !important;
+    max-width: min(92vw, 360px) !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: min(68dvh, 460px) !important;
+    margin: 0 !important;
+    border-radius: 18px !important;
+    overflow: hidden !important;
+    z-index: 62000 !important;
+  }
+
+  html[data-device-mode="phone"] .error-checker-panel.code-helper-modal:not(.hidden)::before,
+  body.editor-fullscreen-active .error-checker-panel.code-helper-modal:not(.hidden)::before,
+  #editorPanel:fullscreen .error-checker-panel.code-helper-modal:not(.hidden)::before {
+    background: rgba(15, 23, 42, 0.18) !important;
+    backdrop-filter: blur(1.5px) !important;
+  }
+
+  html[data-device-mode="phone"] .error-checker-panel.code-helper-modal .error-checker-header,
+  body.editor-fullscreen-active .error-checker-panel.code-helper-modal .error-checker-header,
+  #editorPanel:fullscreen .error-checker-panel.code-helper-modal .error-checker-header {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    align-items: center !important;
+    gap: 8px !important;
+    min-height: 50px !important;
+    padding: 9px 10px !important;
+  }
+
+  html[data-device-mode="phone"] .error-checker-panel.code-helper-modal .error-checker-header h2,
+  body.editor-fullscreen-active .error-checker-panel.code-helper-modal .error-checker-header h2,
+  #editorPanel:fullscreen .error-checker-panel.code-helper-modal .error-checker-header h2 {
+    font-size: 0.98rem !important;
+    line-height: 1.05 !important;
+    margin: 0 !important;
+  }
+
+  html[data-device-mode="phone"] .error-checker-panel.code-helper-modal .error-checker-header p:not(.section-kicker),
+  body.editor-fullscreen-active .error-checker-panel.code-helper-modal .error-checker-header p:not(.section-kicker),
+  #editorPanel:fullscreen .error-checker-panel.code-helper-modal .error-checker-header p:not(.section-kicker) {
+    display: none !important;
+  }
+
+  html[data-device-mode="phone"] .error-checker-panel.code-helper-modal .code-helper-header-actions,
+  body.editor-fullscreen-active .error-checker-panel.code-helper-modal .code-helper-header-actions,
+  #editorPanel:fullscreen .error-checker-panel.code-helper-modal .code-helper-header-actions {
+    display: inline-flex !important;
+    gap: 6px !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+  }
+
+  html[data-device-mode="phone"] .error-checker-panel.code-helper-modal .code-helper-header-actions .layout-btn,
+  html[data-device-mode="phone"] .error-checker-panel.code-helper-modal .code-helper-close,
+  body.editor-fullscreen-active .error-checker-panel.code-helper-modal .code-helper-header-actions .layout-btn,
+  body.editor-fullscreen-active .error-checker-panel.code-helper-modal .code-helper-close,
+  #editorPanel:fullscreen .error-checker-panel.code-helper-modal .code-helper-header-actions .layout-btn,
+  #editorPanel:fullscreen .error-checker-panel.code-helper-modal .code-helper-close {
+    min-width: 38px !important;
+    width: auto !important;
+    height: 36px !important;
+    min-height: 36px !important;
+    padding: 0 10px !important;
     border-radius: 999px !important;
-    font-size: 0.70rem !important;
+    font-size: 0.72rem !important;
   }
 
-  html[data-device-mode="phone"] body .code-helper-close,
-  body.step90-phone-full-editor-tools #editorPanel .code-helper-close {
-    width: 32px !important;
+  html[data-device-mode="phone"] .error-checker-panel.code-helper-modal .code-helper-close,
+  body.editor-fullscreen-active .error-checker-panel.code-helper-modal .code-helper-close,
+  #editorPanel:fullscreen .error-checker-panel.code-helper-modal .code-helper-close {
+    width: 36px !important;
+    min-width: 36px !important;
     padding: 0 !important;
-    font-size: 1.05rem !important;
+    font-size: 1.15rem !important;
   }
 
-  html[data-device-mode="phone"] body .error-checker-panel.code-helper-modal .error-checker-content,
-  body.step90-phone-full-editor-tools #editorPanel .error-checker-panel.code-helper-modal .error-checker-content,
-  html.phone-true-full-editor-enabled body.step90-phone-full-editor-tools #editorPanel:fullscreen .error-checker-panel.code-helper-modal .error-checker-content {
-    max-height: calc(min(58dvh, 390px) - 52px) !important;
+  html[data-device-mode="phone"] .error-checker-panel.code-helper-modal .error-checker-content,
+  body.editor-fullscreen-active .error-checker-panel.code-helper-modal .error-checker-content,
+  #editorPanel:fullscreen .error-checker-panel.code-helper-modal .error-checker-content {
+    max-height: calc(min(68dvh, 460px) - 56px) !important;
     overflow-y: auto !important;
     -webkit-overflow-scrolling: touch !important;
-    padding: 8px 9px 10px !important;
-  }
-}
-
-@media (max-width: 390px) {
-  body.step90-phone-full-editor-tools #mobileEditorToolsToggle {
-    width: 58px !important;
-    min-width: 58px !important;
-    max-width: 58px !important;
-    font-size: 0.68rem !important;
-  }
-
-  html[data-device-mode="phone"] body .error-checker-panel.code-helper-modal:not(.hidden),
-  body.step90-phone-full-editor-tools #editorPanel .error-checker-panel.code-helper-modal:not(.hidden) {
-    width: min(94vw, 340px) !important;
-    max-width: min(94vw, 340px) !important;
+    padding: 9px 10px 12px !important;
   }
 }
