@@ -1,12 +1,12 @@
-const CACHE_NAME = 'mcs-coding-app-20260712-user-step84-header-full-editor-helper';
+const CACHE_NAME = 'mcs-coding-app-20260712-user-step83-stable-text-animation';
 const APP_SHELL = [
   './',
   './index.html',
   './index.html?fresh=1',
   './style.css',
-  './style.css?v=20260712-step84-header-full-editor-helper',
+  './style.css?v=20260712-step83-stable-text-animation',
   './script.js',
-  './script.js?v=20260712-step84-header-full-editor-helper',
+  './script.js?v=20260712-step83-stable-text-animation',
   './firebase-config.js',
   './manifest.webmanifest',
   './favicon.png',
