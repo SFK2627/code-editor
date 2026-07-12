@@ -27049,3 +27049,60 @@ body:not(.student-session-active) .mobile-collab-tools {
     max-height: calc((var(--mcs-mobile-vh, 1vh) * 100) - 26px) !important;
   }
 }
+
+/* USER-DIRECTED FIX STEP 72
+   Scope: phone normal editor only. Keep desktop untouched.
+   The editor itself now owns vertical scrolling on phones, using native
+   momentum/inertial scroll instead of the page-scroll bridge. */
+@media (max-width: 820px), (hover: none) and (pointer: coarse) {
+  html[data-device-mode="phone"] body.mobile-editor-normal:not(.editor-fullscreen-active):not(.preview-fullscreen-active) #editorPanel .editor-wrap {
+    height: clamp(430px, calc((var(--mcs-mobile-vh, 1vh) * 100) - 232px), 720px) !important;
+    min-height: 430px !important;
+    max-height: 720px !important;
+    overflow: hidden !important;
+    overscroll-behavior-y: contain !important;
+  }
+
+  html[data-device-mode="phone"] body.mobile-editor-normal.mobile-editor-tools-open:not(.editor-fullscreen-active):not(.preview-fullscreen-active) #editorPanel .editor-wrap,
+  html[data-device-mode="phone"] body.mobile-editor-normal.mobile-guest-strip-open:not(.editor-fullscreen-active):not(.preview-fullscreen-active) #editorPanel .editor-wrap {
+    height: clamp(500px, calc((var(--mcs-mobile-vh, 1vh) * 100) - 210px), 760px) !important;
+    min-height: 500px !important;
+    max-height: 760px !important;
+  }
+
+  html[data-device-mode="phone"] body.mobile-editor-normal.mobile-keyboard-open:not(.editor-fullscreen-active):not(.preview-fullscreen-active) #editorPanel .editor-wrap {
+    height: clamp(520px, calc((var(--mcs-mobile-vh, 1vh) * 100) - 142px), 820px) !important;
+    min-height: 520px !important;
+    max-height: 820px !important;
+  }
+
+  html[data-device-mode="phone"] body.mobile-editor-normal:not(.editor-fullscreen-active):not(.preview-fullscreen-active) #editorPanel .line-numbers,
+  html[data-device-mode="phone"] body.mobile-editor-normal:not(.editor-fullscreen-active):not(.preview-fullscreen-active) #editorPanel .editor-stack,
+  html[data-device-mode="phone"] body.mobile-editor-normal:not(.editor-fullscreen-active):not(.preview-fullscreen-active) #editorPanel #codeEditor,
+  html[data-device-mode="phone"] body.mobile-editor-normal:not(.editor-fullscreen-active):not(.preview-fullscreen-active) #editorPanel .code-match-layer {
+    height: 100% !important;
+    min-height: 0 !important;
+    max-height: none !important;
+  }
+
+  html[data-device-mode="phone"] body.mobile-editor-normal:not(.editor-fullscreen-active):not(.preview-fullscreen-active) #editorPanel #codeEditor {
+    display: block !important;
+    overflow-x: auto !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    overscroll-behavior-y: auto !important;
+    touch-action: pan-y pinch-zoom !important;
+    scroll-behavior: auto !important;
+    will-change: scroll-position !important;
+  }
+
+  html[data-device-mode="phone"] body.mobile-editor-normal:not(.editor-fullscreen-active):not(.preview-fullscreen-active) #editorPanel .line-numbers,
+  html[data-device-mode="phone"] body.mobile-editor-normal:not(.editor-fullscreen-active):not(.preview-fullscreen-active) #editorPanel .code-match-layer {
+    overflow: hidden !important;
+    pointer-events: none !important;
+  }
+
+  html[data-device-mode="phone"] body.mobile-editor-normal:not(.editor-fullscreen-active):not(.preview-fullscreen-active) #editorPanel .editor-stack {
+    overflow: hidden !important;
+  }
+}

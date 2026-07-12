@@ -4466,15 +4466,41 @@ function syncEditorScroll() {
   }
 }
 
+function isPhoneNativeEditorScrollMode() {
+  const root = document.documentElement;
+  const body = document.body;
+  return root?.dataset?.deviceMode === 'phone'
+    && body?.classList?.contains('mobile-editor-normal')
+    && !body?.classList?.contains('editor-fullscreen-active')
+    && !body?.classList?.contains('preview-fullscreen-active');
+}
+
+function clearEditorAutoHeightStyles() {
+  editor.style.height = '';
+  lineNumbers.style.height = '';
+  if (codeMatchLayer) codeMatchLayer.style.height = '';
+  if (editorStack) editorStack.style.height = '';
+  if (editorWrap) {
+    editorWrap.style.height = '';
+    editorWrap.style.minHeight = '';
+  }
+}
+
 function fitEditorToContent() {
   if (!editor || !lineNumbers) return;
 
+  // Phone normal editor uses the textarea's native inertial scrolling.
+  // Do not keep growing the textarea height, because that makes touch scrolling
+  // inside the editor feel stuck/laggy and forces students to scroll outside it.
+  if (isPhoneNativeEditorScrollMode()) {
+    clearEditorAutoHeightStyles();
+    syncEditorScroll();
+    return;
+  }
+
   // In full editor mode, CSS controls the editor height so the full screen stays stable.
   if (document.body.classList.contains('editor-fullscreen-active')) {
-    editor.style.height = '';
-    lineNumbers.style.height = '';
-    if (codeMatchLayer) codeMatchLayer.style.height = '';
-    if (editorStack) editorStack.style.height = '';
+    clearEditorAutoHeightStyles();
     return;
   }
 
@@ -13904,6 +13930,14 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
       body.style.height = '';
       body.style.maxHeight = '';
       body.style.touchAction = 'pan-y';
+      window.requestAnimationFrame(() => {
+        try {
+          fitEditorToContent();
+          syncEditorScroll();
+        } catch (error) {
+          console.warn('Phone editor scroll refresh skipped', error);
+        }
+      });
     }
   }
 
@@ -14083,6 +14117,10 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
   let lastTouchY = null;
 
   function isPhoneEditorScrollBridgeActive() {
+    // Step 72: normal phone editor now uses native textarea momentum scrolling.
+    // Keeping the old manual window.scrollBy bridge active makes swipes feel heavy
+    // at the top/bottom edges, so leave page scrolling to the browser.
+    if (isPhoneNativeEditorScrollMode()) return false;
     return document.documentElement?.dataset?.deviceMode === 'phone'
       && document.body?.classList.contains('mobile-editor-normal')
       && !document.body?.classList.contains('editor-fullscreen-active')

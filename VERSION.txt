@@ -1,1 +1,1 @@
-Step 68 - dashboard join modal cleaned (no top Join tab, title renamed to Join a Project)
+step72-mobile-native-editor-scroll
