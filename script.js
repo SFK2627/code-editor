@@ -14339,7 +14339,10 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     const phoneUi = root?.dataset?.deviceMode === 'phone'
       || Boolean(window.matchMedia?.('(max-width: 820px)')?.matches)
       || Boolean(window.matchMedia?.('(hover: none) and (pointer: coarse)')?.matches);
-    return phoneUi
+    // Step 77 uses native phone scrolling instead of this custom momentum bridge.
+    // Keep the function false so the old touchmove/preventDefault path cannot
+    // add friction or make the editor feel like it has a brake.
+    return false && phoneUi
       && body?.classList?.contains('mobile-editor-normal')
       && !body?.classList?.contains('editor-fullscreen-active')
       && !body?.classList?.contains('preview-fullscreen-active');
@@ -14561,6 +14564,122 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
   document.addEventListener('visibilitychange', syncStep76Mode, { passive: true });
   syncStep76Mode();
 })();
+
+/* USER-DIRECTED FIX STEP 77
+   Scope: phone/mobile normal editor only.
+   Fixes the remaining brake/friction feel by removing custom touchmove page
+   momentum and letting the phone/browser handle native textarea scrolling and
+   native page scroll chaining. Also adds a mobile-only editor font-size slider
+   beside the Code Helper area; when Code Helper is disabled, the slider takes
+   that bottom-right position. */
+(() => {
+  const editor = document.getElementById('codeEditor');
+  const panel = document.getElementById('editorPanel');
+  if (!editor || !panel) return;
+
+  const MOBILE_QUERY = '(max-width: 820px), (hover: none) and (pointer: coarse)';
+  const MOBILE_FONT_STORAGE_KEY = 'studentCodeStudio.mobileEditorFontSize.v1';
+  const MOBILE_FONT_DEFAULT = 12.5;
+  const FONT_MIN = 11;
+  const FONT_MAX = 22;
+  const FONT_STEP = 0.5;
+  let mobileEditorFontSize = clamp(Number(loadJSON(MOBILE_FONT_STORAGE_KEY, MOBILE_FONT_DEFAULT)) || MOBILE_FONT_DEFAULT, FONT_MIN, FONT_MAX);
+
+  function isPhoneEditorFontScrollMode() {
+    const root = document.documentElement;
+    const body = document.body;
+    const phoneUi = root?.dataset?.deviceMode === 'phone'
+      || Boolean(window.matchMedia?.(MOBILE_QUERY)?.matches)
+      || Boolean(window.matchMedia?.('(hover: none) and (pointer: coarse)')?.matches);
+    return phoneUi
+      && body?.classList?.contains('mobile-editor-normal')
+      && !body?.classList?.contains('editor-fullscreen-active')
+      && !body?.classList?.contains('preview-fullscreen-active');
+  }
+
+  function formatMobileEditorFontSize(value) {
+    const number = Number(value) || MOBILE_FONT_DEFAULT;
+    return `${Number.isInteger(number) ? number.toFixed(0) : number.toFixed(1)}px`;
+  }
+
+  function applyMobileEditorFontSize(value) {
+    mobileEditorFontSize = clamp(Number(value) || MOBILE_FONT_DEFAULT, FONT_MIN, FONT_MAX);
+    document.documentElement.style.setProperty('--mobile-editor-font-size', `${mobileEditorFontSize}px`);
+    const range = document.getElementById('mobileEditorFontSizeRange');
+    const output = document.getElementById('mobileEditorFontSizeValue');
+    if (range && Number(range.value) !== mobileEditorFontSize) range.value = String(mobileEditorFontSize);
+    if (output) output.textContent = formatMobileEditorFontSize(mobileEditorFontSize);
+    saveJSON(MOBILE_FONT_STORAGE_KEY, mobileEditorFontSize);
+    window.requestAnimationFrame(() => {
+      fitEditorToContent();
+      syncEditorScroll();
+    });
+  }
+
+  function ensureMobileFontControl() {
+    let control = document.getElementById('mobileEditorFontControl');
+    if (control) return control;
+
+    control = document.createElement('div');
+    control.id = 'mobileEditorFontControl';
+    control.className = 'mobile-editor-font-control';
+    control.setAttribute('aria-label', 'Adjust editor font size');
+    control.innerHTML = `
+      <label class="mobile-editor-font-label" for="mobileEditorFontSizeRange">Aa</label>
+      <input id="mobileEditorFontSizeRange" class="mobile-editor-font-range" type="range" min="${FONT_MIN}" max="${FONT_MAX}" step="${FONT_STEP}" value="${mobileEditorFontSize}" aria-label="Editor font size" />
+      <output id="mobileEditorFontSizeValue" class="mobile-editor-font-value" for="mobileEditorFontSizeRange">${formatMobileEditorFontSize(mobileEditorFontSize)}</output>
+    `;
+
+    const helper = document.getElementById('codeHelperFloatingBtn');
+    if (helper?.parentElement) {
+      helper.insertAdjacentElement('afterend', control);
+    } else {
+      panel.appendChild(control);
+    }
+
+    const range = control.querySelector('#mobileEditorFontSizeRange');
+    range?.addEventListener('input', () => {
+      applyMobileEditorFontSize(Number(range.value));
+    }, { passive: true });
+
+    return control;
+  }
+
+  function syncMobileFontControl() {
+    const active = isPhoneEditorFontScrollMode();
+    const root = document.documentElement;
+    root?.classList?.toggle('phone-editor-native-scroll-v2', active);
+    root?.classList?.toggle('phone-editor-font-slider-enabled', active);
+
+    if (active) {
+      editor.setAttribute('wrap', 'soft');
+      editor.style.scrollBehavior = 'auto';
+      const control = ensureMobileFontControl();
+      const range = control.querySelector('#mobileEditorFontSizeRange');
+      const value = control.querySelector('#mobileEditorFontSizeValue');
+      if (range && Number(range.value) !== mobileEditorFontSize) {
+        range.value = String(mobileEditorFontSize);
+      }
+      if (value) value.textContent = formatMobileEditorFontSize(mobileEditorFontSize);
+      document.documentElement.style.setProperty('--mobile-editor-font-size', `${mobileEditorFontSize}px`);
+    }
+  }
+
+  // Keep native scrolling responsive. No touchmove preventDefault here.
+  editor.addEventListener('scroll', () => {
+    if (isPhoneEditorFontScrollMode()) syncEditorScroll();
+  }, { passive: true });
+  editor.addEventListener('focus', syncMobileFontControl, { passive: true });
+  editor.addEventListener('input', syncMobileFontControl, { passive: true });
+
+  ['load', 'resize', 'orientationchange', 'fullscreenchange', 'webkitfullscreenchange'].forEach(type => {
+    window.addEventListener(type, syncMobileFontControl, { passive: true });
+  });
+  document.addEventListener('visibilitychange', syncMobileFontControl, { passive: true });
+  document.addEventListener('DOMContentLoaded', syncMobileFontControl, { once: true });
+  syncMobileFontControl();
+})();
+
 
 /* User-directed phone polish v1: compact mobile header/tools/dashboard only. */
 (() => {
