@@ -1,15 +1,15 @@
-const CACHE_NAME = 'mcs-coding-app-20260713-step103-editor-typing-stability';
+const CACHE_NAME = 'mcs-coding-app-20260713-step104-cursor-rollback-safe';
 const APP_SHELL = [
   './',
   './index.html',
-  './index.html?v=20260713-step103-editor-typing-stability',
+  './index.html?v=20260713-step104-cursor-rollback-safe',
   './index.html?fresh=step99',
   './style.css',
-  './style.css?v=20260713-step103-editor-typing-stability',
-  './style.css?v=20260713-step103-editor-typing-stability',
+  './style.css?v=20260713-step104-cursor-rollback-safe',
+  './style.css?v=20260713-step104-cursor-rollback-safe',
   './script.js',
-  './script.js?v=20260713-step103-editor-typing-stability',
-  './script.js?v=20260713-step103-editor-typing-stability',
+  './script.js?v=20260713-step104-cursor-rollback-safe',
+  './script.js?v=20260713-step104-cursor-rollback-safe',
   './firebase-config.js',
   './manifest.webmanifest',
   './favicon.png',

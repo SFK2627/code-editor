@@ -640,8 +640,6 @@ let activeSuggestionIndex = 0;
 let currentMatches = [];
 let currentWord = '';
 let currentSuggestionStart = 0;
-let currentSuggestionLanguage = '';
-let currentSuggestionMode = '';
 let suggestionHideTimer = null;
 let lastSuggestionInputAt = 0;
 let adminUnlocked = false;
@@ -5127,8 +5125,8 @@ function customRedo() {
 function applyProgrammaticEditorChange(nextValue, cursorStart = 0, cursorEnd = cursorStart, statusText = '') {
   editor.value = nextValue;
   editor.focus();
-  const safeStart = clamp(Number(cursorStart || 0), 0, nextValue.length);
-  const safeEnd = clamp(Number(cursorEnd || safeStart), 0, nextValue.length);
+  const safeStart = Math.min(cursorStart, nextValue.length);
+  const safeEnd = Math.min(cursorEnd, nextValue.length);
   editor.setSelectionRange(safeStart, safeEnd);
   saveActiveEditor();
   updateLineNumbers();
@@ -5432,11 +5430,9 @@ function showSuggestions(event) {
     return;
   }
 
-  const inputType = event?.inputType || '';
-  const isPasteOrBulkEdit = inputType === 'insertFromPaste' || inputType === 'insertFromDrop' || inputType === 'insertFromYank' || inputType.startsWith('delete') || inputType === 'insertTranspose';
-  const isRealTyping = !event || inputType === 'insertText' || inputType === 'insertCompositionText' || inputType === 'insertReplacementText' || inputType === 'historyUndo' || inputType === 'historyRedo';
+  const isRealTyping = !event || event.inputType?.startsWith('insert') || event.inputType === 'historyUndo' || event.inputType === 'historyRedo';
 
-  if (isPasteOrBulkEdit || !isRealTyping || editor.selectionStart !== editor.selectionEnd) {
+  if (!isRealTyping || editor.selectionStart !== editor.selectionEnd) {
     hideSuggestions();
     return;
   }
@@ -5444,8 +5440,6 @@ function showSuggestions(event) {
   const context = getSuggestionContext();
   currentWord = context.word.trim();
   currentSuggestionStart = context.start;
-  currentSuggestionLanguage = activeLanguage;
-  currentSuggestionMode = context.mode;
 
   // Do not open the menu just because the cursor is inside the editor.
   // The student must type at least one useful character first.
@@ -5523,10 +5517,6 @@ function hideSuggestions() {
   document.body.classList.remove('suggestions-open');
   suggestionBox.innerHTML = '';
   currentMatches = [];
-  currentWord = '';
-  currentSuggestionStart = editor?.selectionStart || 0;
-  currentSuggestionLanguage = '';
-  currentSuggestionMode = '';
 }
 
 function moveActiveSuggestion(direction) {
@@ -5537,46 +5527,14 @@ function moveActiveSuggestion(direction) {
   });
 }
 
-
-function getLiveSuggestionContextFor(selected) {
-  if (!selected || !editor) return null;
-  if (editor.selectionStart !== editor.selectionEnd) return null;
-  if (currentSuggestionLanguage && currentSuggestionLanguage !== activeLanguage) return null;
-
-  const context = getSuggestionContext();
-  const cursor = Number(editor.selectionStart || 0);
-  const start = clamp(Number(context.start || 0), 0, cursor);
-  const typed = String(editor.value.slice(start, cursor) || '').trim();
-  const query = String(context.word || typed || '').trim().toLowerCase();
-  if (!query) return null;
-
-  const label = String(selected.label || '').toLowerCase();
-  const insertText = String(selected.insert || '').replace('|', '').toLowerCase();
-  const matchesCurrentText = label.startsWith(query) || label.includes(query) || insertText.includes(query);
-  if (!matchesCurrentText) return null;
-
-  // HTML tag suggestions must still be inside the tag currently being typed.
-  if (context.mode === 'html-tag') {
-    const currentFragment = editor.value.slice(start, cursor);
-    if (!/^<[^<>]*$/i.test(currentFragment)) return null;
-  }
-
-  return { ...context, start, cursor };
-}
-
 function applySuggestion(index = activeSuggestionIndex) {
   const selected = currentMatches[index];
-  const liveContext = getLiveSuggestionContextFor(selected);
-  if (!selected || !liveContext) {
-    hideSuggestions();
-    return;
-  }
+  if (!selected) return;
 
-  const cursor = liveContext.cursor;
-  const safeStart = liveContext.start;
-  const before = editor.value.slice(0, safeStart);
+  const cursor = editor.selectionStart;
+  const before = editor.value.slice(0, currentSuggestionStart);
   const after = editor.value.slice(cursor);
-  const rawInsert = String(selected.insert || '');
+  const rawInsert = selected.insert;
   const markerIndex = rawInsert.indexOf('|');
   const insertText = rawInsert.replace('|', '');
 
@@ -11900,7 +11858,6 @@ editor.addEventListener('input', event => {
   showSuggestions(event);
   updateTagMatching();
   scheduleAutoRun({ reason: 'edit' });
-  scheduleEditorVisualSync(0);
 });
 
 editor.addEventListener('input', () => {
@@ -11933,30 +11890,6 @@ editor.addEventListener('scroll', () => {
   syncEditorScroll();
   hideSuggestions();
 });
-
-let editorVisualSyncTimer = null;
-function scheduleEditorVisualSync(delay = 0) {
-  window.clearTimeout(editorVisualSyncTimer);
-  editorVisualSyncTimer = window.setTimeout(() => {
-    syncEditorScroll();
-    updateTagMatching();
-  }, delay);
-}
-
-['paste', 'cut', 'drop', 'compositionstart'].forEach(type => {
-  editor.addEventListener(type, () => {
-    hideSuggestions();
-    scheduleEditorVisualSync(40);
-  });
-});
-
-editor.addEventListener('compositionend', () => scheduleEditorVisualSync(0));
-editor.addEventListener('selectionchange', () => {
-  if (suggestionBox.classList.contains('hidden')) return;
-  const liveContext = getLiveSuggestionContextFor(currentMatches[activeSuggestionIndex]);
-  if (!liveContext) hideSuggestions();
-});
-
 
 editor.addEventListener('keydown', event => {
   const isCtrlOrMeta = event.ctrlKey || event.metaKey;
