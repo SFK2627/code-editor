@@ -1,12 +1,12 @@
-const CACHE_NAME = 'mcs-coding-app-20260712-step100-safe-phone-css-fullscreen';
+const CACHE_NAME = 'mcs-coding-app-20260713-step101-center-exit-phone';
 const APP_SHELL = [
   './',
   './index.html',
-  './index.html?v=20260712-step100-safe-phone-css-fullscreen',
+  './index.html?v=20260713-step101-center-exit-phone-full-editor',
   './index.html?fresh=step99',
   './style.css',
-  './style.css?v=20260712-step100-safe-phone-css-fullscreen',
-  './style.css?v=20260712-step100-safe-phone-css-fullscreen',
+  './style.css?v=20260713-step101-center-exit-phone-full-editor',
+  './style.css?v=20260713-step101-center-exit-phone-full-editor',
   './script.js',
   './script.js?v=20260712-step100-safe-phone-css-fullscreen',
   './script.js?v=20260712-step100-safe-phone-css-fullscreen',

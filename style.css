@@ -31764,3 +31764,28 @@ body.student-session-active #appTitleText .header-student-name-highlight {
     display: none !important;
   }
 }
+
+/* STEP 101: phone full editor - center Exit Full button only.
+   Uses the latest working uploaded build as base. No JS/fullscreen logic touched. */
+@media (max-width: 820px), (hover: none) and (pointer: coarse) {
+  body.phone-css-full-editor-active #fullscreenEditorActions,
+  body.phone-true-full-editor-active #fullscreenEditorActions,
+  body.editor-fullscreen-active #fullscreenEditorActions,
+  body.phone-css-full-editor-active .fullscreen-editor-actions,
+  body.phone-true-full-editor-active .fullscreen-editor-actions,
+  body.editor-fullscreen-active .fullscreen-editor-actions {
+    justify-content: center !important;
+    text-align: center !important;
+  }
+
+  body.phone-css-full-editor-active #exitEditorStickyBtn,
+  body.phone-true-full-editor-active #exitEditorStickyBtn,
+  body.editor-fullscreen-active #exitEditorStickyBtn,
+  body.phone-css-full-editor-active .fullscreen-exit-btn,
+  body.phone-true-full-editor-active .fullscreen-exit-btn,
+  body.editor-fullscreen-active .fullscreen-exit-btn {
+    margin-left: auto !important;
+    margin-right: auto !important;
+    align-self: center !important;
+  }
+}
