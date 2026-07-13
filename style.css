@@ -31934,3 +31934,281 @@ body.student-session-active #appTitleText .header-student-name-highlight {
     font-size: 0.66rem;
   }
 }
+
+/* Step 107: resilient desktop/projector responsiveness
+   Scope: desktop and large tablet widths only. Phone full editor rules stay untouched. */
+@media (min-width: 821px) {
+  .app-shell {
+    width: min(1480px, calc(100% - clamp(20px, 3vw, 48px)));
+  }
+
+  .topbar {
+    display: grid;
+    grid-template-columns: minmax(260px, 1fr) minmax(420px, auto);
+    align-items: center;
+    gap: clamp(12px, 1.8vw, 24px);
+    padding: clamp(16px, 1.8vw, 24px);
+  }
+
+  .brand-block,
+  .brand-block > div:last-child,
+  .panel-header,
+  .compact-header,
+  .preview-header,
+  .editor-sticky-actions,
+  .activity-card,
+  .html-page-manager,
+  .right-column,
+  .workspace > * {
+    min-width: 0;
+  }
+
+  #appTitleText {
+    max-width: min(100%, 58vw);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .top-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: clamp(6px, 0.75vw, 10px);
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .top-actions > * {
+    flex: 0 1 auto;
+  }
+
+  .top-actions .primary-btn,
+  .top-actions .success-btn,
+  .top-actions .ghost-btn {
+    min-width: 0;
+    max-width: 158px;
+    min-height: clamp(36px, 3vw, 42px);
+    padding-inline: clamp(10px, 1vw, 18px);
+    font-size: clamp(0.76rem, 0.46vw + 0.56rem, 0.92rem);
+    line-height: 1.08;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .top-actions .status-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 36px;
+    max-width: 120px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .workspace {
+    grid-template-columns: minmax(0, 1.08fr) minmax(min(100%, 360px), 0.92fr);
+    gap: clamp(12px, 1.5vw, 20px);
+  }
+
+  .preview-header,
+  .panel-header.compact-header {
+    gap: clamp(8px, 1vw, 14px);
+  }
+
+  .preview-actions,
+  .editor-sticky-buttons,
+  .page-manager-actions,
+  .admin-actions,
+  .admin-activity-actions,
+  .rubric-toolbar {
+    gap: clamp(6px, 0.75vw, 10px);
+  }
+
+  .preview-actions .layout-btn,
+  .editor-sticky-buttons .primary-btn,
+  .editor-sticky-buttons .success-btn,
+  .editor-sticky-buttons .ghost-btn,
+  .page-manager-actions .page-manager-btn {
+    min-width: 0;
+    white-space: nowrap;
+  }
+
+  .language-tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+  }
+
+  .language-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .tab-btn {
+    flex: 0 0 auto;
+    padding-inline: clamp(12px, 1.15vw, 18px);
+    font-size: clamp(0.82rem, 0.38vw + 0.68rem, 0.95rem);
+  }
+
+  .editor-sticky-actions {
+    flex-wrap: wrap;
+  }
+
+  .editor-sticky-actions > div:first-child {
+    min-width: 210px;
+    flex: 1 1 260px;
+  }
+
+  .editor-sticky-buttons {
+    flex: 1 1 420px;
+  }
+
+  .html-page-manager,
+  .page-manager-left,
+  .page-manager-actions {
+    min-width: 0;
+  }
+
+  .page-manager-actions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+}
+
+/* Medium desktop, projector, and 125%-150% display scale: keep rows intentional. */
+@media (min-width: 821px) and (max-width: 1280px) {
+  .topbar {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  #appTitleText {
+    max-width: 100%;
+  }
+
+  .top-actions {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(94px, 1fr));
+    justify-content: stretch;
+    width: 100%;
+  }
+
+  .top-actions .status-badge,
+  .top-actions .primary-btn,
+  .top-actions .success-btn,
+  .top-actions .ghost-btn {
+    width: 100%;
+    max-width: none;
+    justify-content: center;
+    text-align: center;
+  }
+
+  .workspace,
+  .workspace[data-layout="split"] {
+    grid-template-columns: 1fr;
+  }
+
+  .preview-header,
+  .panel-header.compact-header {
+    align-items: stretch;
+  }
+
+  .preview-actions {
+    justify-content: flex-start;
+  }
+}
+
+/* Narrow desktop or high scaling: use compact button grids instead of random wrapping. */
+@media (min-width: 821px) and (max-width: 1040px) {
+  .app-shell {
+    width: min(100%, calc(100% - 20px));
+  }
+
+  .top-actions {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .top-actions .status-badge,
+  .top-actions .primary-btn,
+  .top-actions .success-btn,
+  .top-actions .ghost-btn {
+    min-height: 38px;
+    padding-inline: 8px;
+    border-radius: 14px;
+    font-size: clamp(0.7rem, 0.9vw, 0.82rem);
+  }
+
+  .preview-header,
+  .panel-header.compact-header {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .preview-actions {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(86px, 1fr));
+    width: 100%;
+  }
+
+  .preview-actions .layout-btn {
+    width: 100%;
+    min-height: 34px;
+    padding-inline: 8px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .editor-sticky-buttons {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(108px, 1fr));
+    width: 100%;
+  }
+
+  .editor-sticky-buttons > button {
+    width: 100%;
+    padding-inline: 8px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .html-page-manager {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .page-manager-actions {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(92px, 1fr));
+    width: 100%;
+  }
+
+  .page-manager-actions .page-manager-btn {
+    width: 100%;
+  }
+}
+
+/* Extreme desktop scaling around 175%-300%: keep controls usable and aligned. */
+@media (min-width: 821px) and (max-width: 900px) {
+  .top-actions {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .brand-block {
+    gap: 10px;
+  }
+
+  .logo-mark {
+    flex-basis: 48px;
+    width: 48px;
+    height: 48px;
+    border-radius: 16px;
+  }
+
+  .topbar {
+    padding: 14px;
+  }
+}

@@ -1,15 +1,15 @@
-const CACHE_NAME = 'mcs-coding-app-20260713-step106-larger-editor-font';
+const CACHE_NAME = 'mcs-coding-app-20260713-step107-responsive-scale';
 const APP_SHELL = [
   './',
   './index.html',
-  './index.html?v=20260713-step106-larger-editor-font',
-  './index.html?fresh=step106',
+  './index.html?v=20260713-step107-responsive-scale',
+  './index.html?fresh=step107',
   './style.css',
-  './style.css?v=20260713-step106-larger-editor-font',
-  './style.css?v=20260713-step106-larger-editor-font',
+  './style.css?v=20260713-step107-responsive-scale',
+  './style.css?v=20260713-step107-responsive-scale',
   './script.js',
-  './script.js?v=20260713-step106-larger-editor-font',
-  './script.js?v=20260713-step106-larger-editor-font',
+  './script.js?v=20260713-step107-responsive-scale',
+  './script.js?v=20260713-step107-responsive-scale',
   './firebase-config.js',
   './manifest.webmanifest',
   './favicon.png',
