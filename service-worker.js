@@ -1,15 +1,15 @@
-const CACHE_NAME = 'mcs-coding-app-20260713-step101-center-exit-phone';
+const CACHE_NAME = 'mcs-coding-app-20260713-step103-editor-typing-stability';
 const APP_SHELL = [
   './',
   './index.html',
-  './index.html?v=20260713-step101-center-exit-phone-full-editor',
+  './index.html?v=20260713-step103-editor-typing-stability',
   './index.html?fresh=step99',
   './style.css',
-  './style.css?v=20260713-step101-center-exit-phone-full-editor',
-  './style.css?v=20260713-step101-center-exit-phone-full-editor',
+  './style.css?v=20260713-step103-editor-typing-stability',
+  './style.css?v=20260713-step103-editor-typing-stability',
   './script.js',
-  './script.js?v=20260712-step100-safe-phone-css-fullscreen',
-  './script.js?v=20260712-step100-safe-phone-css-fullscreen',
+  './script.js?v=20260713-step103-editor-typing-stability',
+  './script.js?v=20260713-step103-editor-typing-stability',
   './firebase-config.js',
   './manifest.webmanifest',
   './favicon.png',

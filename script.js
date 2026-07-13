@@ -640,6 +640,8 @@ let activeSuggestionIndex = 0;
 let currentMatches = [];
 let currentWord = '';
 let currentSuggestionStart = 0;
+let currentSuggestionLanguage = '';
+let currentSuggestionMode = '';
 let suggestionHideTimer = null;
 let lastSuggestionInputAt = 0;
 let adminUnlocked = false;
@@ -5125,8 +5127,8 @@ function customRedo() {
 function applyProgrammaticEditorChange(nextValue, cursorStart = 0, cursorEnd = cursorStart, statusText = '') {
   editor.value = nextValue;
   editor.focus();
-  const safeStart = Math.min(cursorStart, nextValue.length);
-  const safeEnd = Math.min(cursorEnd, nextValue.length);
+  const safeStart = clamp(Number(cursorStart || 0), 0, nextValue.length);
+  const safeEnd = clamp(Number(cursorEnd || safeStart), 0, nextValue.length);
   editor.setSelectionRange(safeStart, safeEnd);
   saveActiveEditor();
   updateLineNumbers();
@@ -5430,9 +5432,11 @@ function showSuggestions(event) {
     return;
   }
 
-  const isRealTyping = !event || event.inputType?.startsWith('insert') || event.inputType === 'historyUndo' || event.inputType === 'historyRedo';
+  const inputType = event?.inputType || '';
+  const isPasteOrBulkEdit = inputType === 'insertFromPaste' || inputType === 'insertFromDrop' || inputType === 'insertFromYank' || inputType.startsWith('delete') || inputType === 'insertTranspose';
+  const isRealTyping = !event || inputType === 'insertText' || inputType === 'insertCompositionText' || inputType === 'insertReplacementText' || inputType === 'historyUndo' || inputType === 'historyRedo';
 
-  if (!isRealTyping || editor.selectionStart !== editor.selectionEnd) {
+  if (isPasteOrBulkEdit || !isRealTyping || editor.selectionStart !== editor.selectionEnd) {
     hideSuggestions();
     return;
   }
@@ -5440,6 +5444,8 @@ function showSuggestions(event) {
   const context = getSuggestionContext();
   currentWord = context.word.trim();
   currentSuggestionStart = context.start;
+  currentSuggestionLanguage = activeLanguage;
+  currentSuggestionMode = context.mode;
 
   // Do not open the menu just because the cursor is inside the editor.
   // The student must type at least one useful character first.
@@ -5517,6 +5523,10 @@ function hideSuggestions() {
   document.body.classList.remove('suggestions-open');
   suggestionBox.innerHTML = '';
   currentMatches = [];
+  currentWord = '';
+  currentSuggestionStart = editor?.selectionStart || 0;
+  currentSuggestionLanguage = '';
+  currentSuggestionMode = '';
 }
 
 function moveActiveSuggestion(direction) {
@@ -5527,14 +5537,46 @@ function moveActiveSuggestion(direction) {
   });
 }
 
+
+function getLiveSuggestionContextFor(selected) {
+  if (!selected || !editor) return null;
+  if (editor.selectionStart !== editor.selectionEnd) return null;
+  if (currentSuggestionLanguage && currentSuggestionLanguage !== activeLanguage) return null;
+
+  const context = getSuggestionContext();
+  const cursor = Number(editor.selectionStart || 0);
+  const start = clamp(Number(context.start || 0), 0, cursor);
+  const typed = String(editor.value.slice(start, cursor) || '').trim();
+  const query = String(context.word || typed || '').trim().toLowerCase();
+  if (!query) return null;
+
+  const label = String(selected.label || '').toLowerCase();
+  const insertText = String(selected.insert || '').replace('|', '').toLowerCase();
+  const matchesCurrentText = label.startsWith(query) || label.includes(query) || insertText.includes(query);
+  if (!matchesCurrentText) return null;
+
+  // HTML tag suggestions must still be inside the tag currently being typed.
+  if (context.mode === 'html-tag') {
+    const currentFragment = editor.value.slice(start, cursor);
+    if (!/^<[^<>]*$/i.test(currentFragment)) return null;
+  }
+
+  return { ...context, start, cursor };
+}
+
 function applySuggestion(index = activeSuggestionIndex) {
   const selected = currentMatches[index];
-  if (!selected) return;
+  const liveContext = getLiveSuggestionContextFor(selected);
+  if (!selected || !liveContext) {
+    hideSuggestions();
+    return;
+  }
 
-  const cursor = editor.selectionStart;
-  const before = editor.value.slice(0, currentSuggestionStart);
+  const cursor = liveContext.cursor;
+  const safeStart = liveContext.start;
+  const before = editor.value.slice(0, safeStart);
   const after = editor.value.slice(cursor);
-  const rawInsert = selected.insert;
+  const rawInsert = String(selected.insert || '');
   const markerIndex = rawInsert.indexOf('|');
   const insertText = rawInsert.replace('|', '');
 
@@ -5852,12 +5894,99 @@ function shouldIncludePreviewNavigationBlock(html = '') {
   return /<a\b[^>]*\bhref\s*=/i.test(String(html || ''));
 }
 
+
+function stripAppPreviewHelperLeak(html = '') {
+  let output = String(html || '');
+
+  // Some older preview builds injected app helper code into the iframe. If a
+  // malformed document or cached preview turns that helper into plain text, it
+  // can appear in Output Preview even though the student never typed it. Remove
+  // only our known helper snippets; do not touch normal student code.
+  const knownHelperMarkers = [
+    'mcs-preview-navigate',
+    'mcs-preview-runtime',
+    'externalLinksInsidePreview',
+    'isExternalWebLink(href)',
+    'prepareExternalLinks(document)',
+    'MutationObserver(function () { prepareExternalLinks(document); })'
+  ];
+
+  if (!knownHelperMarkers.some(marker => output.includes(marker))) return output;
+
+  // Remove complete script blocks that contain only our preview helper code.
+  output = output.replace(/<script\b[^>]*>[\s\S]*?(?:mcs-preview-navigate|externalLinksInsidePreview|mcs-preview-runtime)[\s\S]*?<\/script\s*>/gi, '');
+
+  // Remove raw helper text if it leaked without visible <script> tags.
+  output = output.replace(/\(function\s*\(\)\s*\{[\s\S]{0,9000}?(?:mcs-preview-navigate|externalLinksInsidePreview)[\s\S]{0,4000}?\}\)\s*\(\)\s*;?/gi, '');
+  output = output.replace(/\(function\s*\(\)\s*\{[\s\S]{0,9000}?(?:mcs-preview-runtime)[\s\S]{0,4000}?\}\)\s*\(\)\s*;?/gi, '');
+
+  return output;
+}
+
+function attachPreviewLinkHandlers() {
+  if (!previewFrame) return;
+  let doc = null;
+  try {
+    doc = previewFrame.contentDocument || previewFrame.contentWindow?.document || null;
+  } catch (error) {
+    doc = null;
+  }
+  if (!doc || doc.__mcsParentPreviewLinksReady) return;
+  doc.__mcsParentPreviewLinksReady = true;
+
+  const updateExternalLinks = () => {
+    const openInside = shouldOpenExternalLinksInsidePreview();
+    const links = doc.querySelectorAll ? doc.querySelectorAll('a[href]') : [];
+    Array.prototype.forEach.call(links, link => {
+      const href = link.getAttribute('href') || '';
+      if (!/^https?:\/\//i.test(String(href || '').trim())) return;
+      if (openInside) {
+        link.setAttribute('target', '_self');
+        link.removeAttribute('rel');
+      } else {
+        link.setAttribute('target', '_blank');
+        link.setAttribute('rel', 'noopener noreferrer');
+      }
+    });
+  };
+
+  updateExternalLinks();
+  try {
+    const observer = new MutationObserver(updateExternalLinks);
+    observer.observe(doc.documentElement || doc.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['href'] });
+  } catch (error) {}
+
+  doc.addEventListener('click', event => {
+    const link = event.target && event.target.closest ? event.target.closest('a[href]') : null;
+    if (!link) return;
+    const href = link.getAttribute('href') || '';
+    const trimmed = String(href || '').trim();
+    if (!trimmed || /^(mailto:|tel:|javascript:|data:|blob:|#)/i.test(trimmed)) return;
+    if (/^https?:\/\//i.test(trimmed)) {
+      if (shouldOpenExternalLinksInsidePreview()) {
+        event.preventDefault();
+        try { previewFrame.contentWindow.location.href = trimmed; } catch (error) {}
+      }
+      return;
+    }
+    const clean = trimmed.split('#')[0].split('?')[0];
+    const fileName = clean.split('/').pop();
+    if (!/\.html?$/i.test(fileName)) return;
+    event.preventDefault();
+    navigatePreviewToPage(trimmed);
+  }, true);
+}
+
 function buildFullCode(pageName = getActiveHtmlPageName()) {
   const safePageName = normalizeHtmlPageName(pageName);
-  const html = getHTMLPageContent(safePageName) || '';
+  const rawHtml = getHTMLPageContent(safePageName) || '';
+  const html = stripAppPreviewHelperLeak(rawHtml);
   const styleBlock = getCSSBlocksForPreview(html);
   const scriptBlock = getJSBlocksForPreview(html);
-  const navigationBlock = shouldIncludePreviewNavigationBlock(html) ? createPreviewNavigationBlock(safePageName) : '';
+  // App navigation helpers are attached from the parent iframe load handler.
+  // Keeping them out of srcdoc prevents helper JS from ever becoming visible
+  // text in Output Preview when a student's HTML is incomplete or cached.
+  const navigationBlock = '';
   const runtimeReporterBlock = createPreviewRuntimeReporterBlock();
   const bodyScriptBlock = [scriptBlock, navigationBlock].filter(Boolean).join('\n');
   const looksLikeFullDocument = /<!doctype/i.test(html) || /<html(\s|>)/i.test(html) || /<head(\s|>)/i.test(html) || /<body(\s|>)/i.test(html);
@@ -11771,6 +11900,7 @@ editor.addEventListener('input', event => {
   showSuggestions(event);
   updateTagMatching();
   scheduleAutoRun({ reason: 'edit' });
+  scheduleEditorVisualSync(0);
 });
 
 editor.addEventListener('input', () => {
@@ -11803,6 +11933,30 @@ editor.addEventListener('scroll', () => {
   syncEditorScroll();
   hideSuggestions();
 });
+
+let editorVisualSyncTimer = null;
+function scheduleEditorVisualSync(delay = 0) {
+  window.clearTimeout(editorVisualSyncTimer);
+  editorVisualSyncTimer = window.setTimeout(() => {
+    syncEditorScroll();
+    updateTagMatching();
+  }, delay);
+}
+
+['paste', 'cut', 'drop', 'compositionstart'].forEach(type => {
+  editor.addEventListener(type, () => {
+    hideSuggestions();
+    scheduleEditorVisualSync(40);
+  });
+});
+
+editor.addEventListener('compositionend', () => scheduleEditorVisualSync(0));
+editor.addEventListener('selectionchange', () => {
+  if (suggestionBox.classList.contains('hidden')) return;
+  const liveContext = getLiveSuggestionContextFor(currentMatches[activeSuggestionIndex]);
+  if (!liveContext) hideSuggestions();
+});
+
 
 editor.addEventListener('keydown', event => {
   const isCtrlOrMeta = event.ctrlKey || event.metaKey;
@@ -12023,6 +12177,7 @@ if (refreshErrorCheckerBtn) refreshErrorCheckerBtn.addEventListener('click', () 
 if (advancedErrorCheckBtn) advancedErrorCheckBtn.addEventListener('click', requestAdvancedErrorCheck);
 if (previewFrame) previewFrame.addEventListener('load', () => {
   markPreviewReady();
+  attachPreviewLinkHandlers();
   window.setTimeout(renderErrorChecker, 80);
 });
 activitySelect.addEventListener('change', event => selectActivity(event.target.value));

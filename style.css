@@ -31789,3 +31789,123 @@ body.student-session-active #appTitleText .header-student-name-highlight {
     align-self: center !important;
   }
 }
+
+
+/* USER-DIRECTED FIX STEP 103
+   Editor typing stability for BOTH desktop and phone.
+   Root cause: the visible syntax layer used bold/italic token styles while the
+   real textarea caret used normal text metrics. On long/wrapped lines this made
+   the cursor look like it was typing in the wrong place. Keep colors, but force
+   identical font metrics for the textarea, syntax layer, and line numbers. */
+#editorPanel .editor-stack {
+  position: relative !important;
+  min-width: 0 !important;
+  isolation: isolate !important;
+  overflow: hidden !important;
+}
+
+#editorPanel #codeEditor,
+#editorPanel .code-match-layer,
+#editorPanel .line-numbers {
+  box-sizing: border-box !important;
+  font-family: Consolas, Monaco, "Courier New", monospace !important;
+  font-variant-ligatures: none !important;
+  font-feature-settings: "liga" 0, "calt" 0 !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+  text-rendering: auto !important;
+  tab-size: 2 !important;
+}
+
+#editorPanel #codeEditor,
+#editorPanel .code-match-layer {
+  font-size: var(--editor-font-size, 15px) !important;
+  line-height: 1.65 !important;
+  font-weight: 400 !important;
+  font-style: normal !important;
+  white-space: pre-wrap !important;
+  overflow-wrap: anywhere !important;
+  word-break: break-word !important;
+  word-wrap: break-word !important;
+  max-width: 100% !important;
+}
+
+#editorPanel #codeEditor {
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  caret-color: var(--editor-text) !important;
+  background: transparent !important;
+}
+
+#editorPanel .code-match-layer,
+#editorPanel .code-match-layer * {
+  font-family: inherit !important;
+  font-size: inherit !important;
+  line-height: inherit !important;
+  font-weight: inherit !important;
+  font-style: normal !important;
+  letter-spacing: inherit !important;
+  font-variant-ligatures: inherit !important;
+  font-feature-settings: inherit !important;
+  text-transform: none !important;
+  tab-size: inherit !important;
+}
+
+#editorPanel .code-match-layer .syn-doctype,
+#editorPanel .code-match-layer .syn-html-tag,
+#editorPanel .code-match-layer .syn-html-bracket,
+#editorPanel .code-match-layer .syn-css-selector,
+#editorPanel .code-match-layer .syn-css-property,
+#editorPanel .code-match-layer .syn-js-keyword,
+#editorPanel .code-match-layer .syn-js-function,
+#editorPanel .code-match-layer .syn-comment {
+  font-weight: 400 !important;
+  font-style: normal !important;
+}
+
+@media (min-width: 821px) {
+  #editorPanel #codeEditor,
+  #editorPanel .code-match-layer {
+    padding: 18px !important;
+    white-space: pre-wrap !important;
+    overflow-wrap: anywhere !important;
+    word-break: break-word !important;
+  }
+}
+
+@media (max-width: 820px), (hover: none) and (pointer: coarse) {
+  #editorPanel #codeEditor,
+  #editorPanel .code-match-layer,
+  #editorPanel .line-numbers {
+    font-size: var(--mobile-editor-font-size, var(--editor-font-size, 15px)) !important;
+    line-height: var(--mobile-editor-line-height, 1.48) !important;
+  }
+
+  #editorPanel #codeEditor,
+  #editorPanel .code-match-layer {
+    white-space: pre-wrap !important;
+    overflow-wrap: anywhere !important;
+    word-break: break-word !important;
+    word-wrap: break-word !important;
+  }
+
+  body:not(.editor-fullscreen-active):not(.phone-true-full-editor-active):not(.phone-css-full-editor-active) #editorPanel #codeEditor,
+  body:not(.editor-fullscreen-active):not(.phone-true-full-editor-active):not(.phone-css-full-editor-active) #editorPanel .code-match-layer {
+    padding: 10px 10px 16px !important;
+  }
+
+  body.editor-fullscreen-active #editorPanel #codeEditor,
+  body.editor-fullscreen-active #editorPanel .code-match-layer,
+  body.phone-true-full-editor-active #editorPanel #codeEditor,
+  body.phone-true-full-editor-active #editorPanel .code-match-layer,
+  body.phone-css-full-editor-active #editorPanel #codeEditor,
+  body.phone-css-full-editor-active #editorPanel .code-match-layer,
+  #editorPanel:fullscreen #codeEditor,
+  #editorPanel:fullscreen .code-match-layer {
+    padding: 8px 8px calc(96px + env(safe-area-inset-bottom)) 8px !important;
+    white-space: pre-wrap !important;
+    overflow-wrap: anywhere !important;
+    word-break: break-word !important;
+    overflow-x: hidden !important;
+  }
+}
