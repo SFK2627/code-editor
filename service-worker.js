@@ -1,15 +1,15 @@
-const CACHE_NAME = 'mcs-coding-app-20260713-step104-cursor-rollback-safe';
+const CACHE_NAME = 'mcs-coding-app-20260713-step105-preview-header-separate';
 const APP_SHELL = [
   './',
   './index.html',
-  './index.html?v=20260713-step104-cursor-rollback-safe',
-  './index.html?fresh=step99',
+  './index.html?v=20260713-step105-preview-header-separate',
+  './index.html?fresh=step105',
   './style.css',
-  './style.css?v=20260713-step104-cursor-rollback-safe',
-  './style.css?v=20260713-step104-cursor-rollback-safe',
+  './style.css?v=20260713-step105-preview-header-separate',
+  './style.css?v=20260713-step105-preview-header-separate',
   './script.js',
-  './script.js?v=20260713-step104-cursor-rollback-safe',
-  './script.js?v=20260713-step104-cursor-rollback-safe',
+  './script.js?v=20260713-step105-preview-header-separate',
+  './script.js?v=20260713-step105-preview-header-separate',
   './firebase-config.js',
   './manifest.webmanifest',
   './favicon.png',
