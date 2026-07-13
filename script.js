@@ -654,7 +654,7 @@ try {
 let adminEditingActivityId = activity?.id || activities[0]?.id || '';
 const BASE_EDITOR_FONT_SIZE = 15;
 const MIN_EDITOR_FONT_SIZE = 12;
-const MAX_EDITOR_FONT_SIZE = 26;
+const MAX_EDITOR_FONT_SIZE = 40;
 let editorFontSize = Number(loadJSON(STORAGE_KEYS.editorZoom, BASE_EDITOR_FONT_SIZE)) || BASE_EDITOR_FONT_SIZE;
 let activeTagMatches = [];
 const EDITOR_HISTORY_LIMIT = 250;
