@@ -1,15 +1,15 @@
-const CACHE_NAME = 'mcs-coding-app-20260713-step107-responsive-scale';
+const CACHE_NAME = 'mcs-coding-app-20260723-step115-admin-starter-code';
 const APP_SHELL = [
   './',
   './index.html',
-  './index.html?v=20260713-step107-responsive-scale',
-  './index.html?fresh=step107',
+  './index.html?v=20260723-step115-admin-starter-code',
+  './index.html?fresh=step115',
   './style.css',
-  './style.css?v=20260713-step107-responsive-scale',
-  './style.css?v=20260713-step107-responsive-scale',
+  './style.css?v=20260723-step115-admin-starter-code',
+  './style.css?v=20260723-step115-admin-starter-code',
   './script.js',
-  './script.js?v=20260713-step107-responsive-scale',
-  './script.js?v=20260713-step107-responsive-scale',
+  './script.js?v=20260723-step115-admin-starter-code',
+  './script.js?v=20260723-step115-admin-starter-code',
   './firebase-config.js',
   './manifest.webmanifest',
   './favicon.png',

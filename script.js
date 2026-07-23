@@ -160,6 +160,7 @@ const superStudioToggle = document.getElementById('superStudioToggle');
 const autoRunControlToggle = document.getElementById('autoRunControlToggle');
 const autoSaveControlToggle = document.getElementById('autoSaveControlToggle');
 const externalLinksSamePreviewToggle = document.getElementById('externalLinksSamePreviewToggle');
+const starterCodeToggle = document.getElementById('starterCodeToggle');
 const collaborationToggle = document.getElementById('collaborationToggle');
 const collaborationEditToggle = document.getElementById('collaborationEditToggle');
 const collaborationMembersToggle = document.getElementById('collaborationMembersToggle');
@@ -343,6 +344,7 @@ const DEFAULT_ASSISTANCE_SETTINGS = Object.freeze({
   autoSave: true,
   autoRunControl: true,
   externalLinksSamePreview: true,
+  starterCodeEnabled: true,
   collaboration: false,
   collaborationEdit: true,
   collaborationMembers: true
@@ -524,8 +526,7 @@ function applyStarterCodeMigration() {
 applyStarterCodeMigration();
 
 // Default starter: HTML only. CSS and JavaScript tabs must start blank.
-const starterCode = {
-  html: `<!DOCTYPE html>
+const DEFAULT_STARTER_HTML = `<!DOCTYPE html>
 <html>
   <head>
     <title>Page Title</title>
@@ -536,10 +537,18 @@ const starterCode = {
     <p>My first paragraph.</p>
 
   </body>
-</html>`,
-  css: '',
-  js: ''
-};
+</html>`;
+
+function buildStarterCode(settings = studentAssistanceSettings) {
+  const useStarter = normalizeAssistanceSettings(settings).starterCodeEnabled !== false;
+  return {
+    html: useStarter ? DEFAULT_STARTER_HTML : '',
+    css: '',
+    js: ''
+  };
+}
+
+let starterCode = buildStarterCode();
 
 
 const rubricLevels = [
@@ -868,6 +877,7 @@ function normalizeAssistanceSettings(value = {}) {
     autoSave: source.autoSave !== false,
     autoRunControl: source.autoRunControl !== false,
     externalLinksSamePreview: source.externalLinksSamePreview !== false,
+    starterCodeEnabled: source.starterCodeEnabled !== false,
     collaboration: source.collaboration === true,
     collaborationEdit: source.collaborationEdit !== false,
     collaborationMembers: source.collaborationMembers !== false
@@ -890,6 +900,7 @@ function getAssistanceSettingsFromControls() {
     autoSave: autoSaveControlToggle?.checked !== false,
     autoRunControl: autoRunControlToggle?.checked !== false,
     externalLinksSamePreview: externalLinksSamePreviewToggle?.checked !== false,
+    starterCodeEnabled: starterCodeToggle?.checked !== false,
     collaboration: collaborationToggle?.checked === true,
     collaborationEdit: collaborationEditToggle?.checked !== false,
     collaborationMembers: collaborationMembersToggle?.checked !== false
@@ -919,6 +930,7 @@ function syncAssistanceSettingsControls() {
   if (autoSaveControlToggle) autoSaveControlToggle.checked = settings.autoSave;
   if (autoRunControlToggle) autoRunControlToggle.checked = settings.autoRunControl;
   if (externalLinksSamePreviewToggle) externalLinksSamePreviewToggle.checked = settings.externalLinksSamePreview;
+  if (starterCodeToggle) starterCodeToggle.checked = settings.starterCodeEnabled !== false;
   if (collaborationToggle) collaborationToggle.checked = settings.collaboration;
   if (collaborationEditToggle) collaborationEditToggle.checked = settings.collaborationEdit;
   if (collaborationMembersToggle) collaborationMembersToggle.checked = settings.collaborationMembers;
@@ -948,6 +960,7 @@ function updateAssistancePublishUI() {
 
 function applyStudentAssistanceSettings(nextSettings, options = {}) {
   studentAssistanceSettings = normalizeAssistanceSettings(nextSettings);
+  starterCode = buildStarterCode(studentAssistanceSettings);
   if (options.persist !== false) {
     saveJSON(STORAGE_KEYS.assistanceSettings, studentAssistanceSettings);
   }
@@ -1010,7 +1023,8 @@ function applyAssistanceSettingsFromControls(options = {}) {
   applyStudentAssistanceSettings(settings);
   if (!options.silent) {
     const collabText = settings.collaboration ? 'Share button is now visible to students.' : 'Share button is now hidden from students.';
-    setAssistanceSettingsStatus(`Applied on this browser. ${collabText}`, 'success');
+    const starterText = settings.starterCodeEnabled === false ? 'New projects will start blank.' : 'New projects will use starter HTML.';
+    setAssistanceSettingsStatus(`Applied on this browser. ${starterText} ${collabText}`, 'success');
     setStatus('Student assistance updated');
     if (applyAssistanceLocalBtn) {
       const oldText = applyAssistanceLocalBtn.textContent;
@@ -1135,6 +1149,8 @@ function cleanLanguageFileName(value, language = activeLanguage) {
 }
 
 function createStarterForLanguageFile(language, fileName) {
+  const useStarter = normalizeAssistanceSettings(studentAssistanceSettings).starterCodeEnabled !== false;
+  if (!useStarter) return '';
   const meta = getLanguageFileMeta(language);
   const base = String(fileName || meta.defaultName).replace(new RegExp(`\\.${meta.extension}$`, 'i'), '');
   if (language === 'html') {
@@ -12170,7 +12186,7 @@ window.addEventListener('keydown', event => {
   }
 });
 
-[assistanceMasterToggle, codeSuggestionsToggle, codeHelperToggle, teacherFeedbackToggle, superStudioToggle, autoSaveControlToggle, autoRunControlToggle, externalLinksSamePreviewToggle, collaborationToggle, collaborationEditToggle, collaborationMembersToggle].forEach(toggle => {
+[assistanceMasterToggle, codeSuggestionsToggle, codeHelperToggle, teacherFeedbackToggle, superStudioToggle, autoSaveControlToggle, autoRunControlToggle, externalLinksSamePreviewToggle, starterCodeToggle, collaborationToggle, collaborationEditToggle, collaborationMembersToggle].forEach(toggle => {
   toggle?.addEventListener('change', () => {
     applyAssistanceSettingsFromControls();
   });
