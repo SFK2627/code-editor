@@ -43,7 +43,7 @@
       document.documentElement.dataset.deviceMode = isPhone ? 'phone' : 'desktop';
     })();
   </script>
-  <link rel="stylesheet" href="style.css?v=20260723-step115-admin-starter-code" />
+  <link rel="stylesheet" href="style.css?v=20260723-step117-admin-viewer-fullscreen" />
 </head>
 <body class="entry-gate-active">
   <noscript>
@@ -853,6 +853,83 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
     </div>
   </div>
 
+
+  <div id="adminProjectViewerOverlay" class="student-auth-overlay admin-project-viewer-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="adminProjectViewerTitle">
+    <div class="admin-project-viewer-card" role="document">
+      <div class="admin-project-viewer-header">
+        <div>
+          <p class="section-kicker">Project Viewer</p>
+          <h2 id="adminProjectViewerTitle">Student Project</h2>
+          <p id="adminProjectViewerSubtitle" class="muted-text"></p>
+        </div>
+        <button id="closeAdminProjectViewerBtn" class="icon-btn" type="button" aria-label="Close project viewer">×</button>
+      </div>
+
+      <div class="admin-project-viewer-toolbar" aria-label="Project viewer controls">
+        <label class="admin-project-viewer-select-wrap">
+          Activity / project part
+          <select id="adminProjectViewerActivitySelect"></select>
+        </label>
+        <label class="admin-project-viewer-select-wrap">
+          File
+          <select id="adminProjectViewerFileSelect"></select>
+        </label>
+        <div class="admin-project-viewer-lang-tabs" role="tablist" aria-label="Project file type">
+          <button class="ghost-btn active" type="button" data-admin-viewer-lang="html">HTML</button>
+          <button class="ghost-btn" type="button" data-admin-viewer-lang="css">CSS</button>
+          <button class="ghost-btn" type="button" data-admin-viewer-lang="js">JavaScript</button>
+        </div>
+        <button id="adminProjectViewerRunBtn" class="primary-btn" type="button">▶ Run Preview</button>
+        <button id="adminProjectViewerFullCodeBtn" class="ghost-btn" type="button">⛶ Full Code</button>
+        <button id="adminProjectViewerFullPreviewBtn" class="ghost-btn" type="button">⛶ Full Preview</button>
+      </div>
+
+      <div class="admin-project-viewer-body">
+        <section class="admin-project-code-card" aria-label="Read-only student code">
+          <div class="admin-project-code-title-row">
+            <strong id="adminProjectViewerFileTitle">index.html</strong>
+            <span class="admin-project-readonly-pill">Read-only</span>
+          </div>
+          <pre id="adminProjectViewerCode" class="admin-project-code-output" tabindex="0"></pre>
+        </section>
+        <section class="admin-project-preview-card" aria-label="Student output preview">
+          <div class="admin-project-preview-title-row">
+            <strong>Output Preview</strong>
+            <small id="adminProjectViewerPreviewNote">Runs inside this viewer only.</small>
+          </div>
+          <iframe id="adminProjectViewerFrame" class="admin-project-viewer-frame" title="Student project output preview" sandbox="allow-scripts allow-forms allow-modals allow-popups allow-same-origin"></iframe>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <div id="adminProjectFullscreenOverlay" class="student-auth-overlay admin-project-fullscreen-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="adminProjectFullscreenTitle">
+    <div class="admin-project-fullscreen-card" role="document">
+      <div class="admin-project-fullscreen-header">
+        <div>
+          <p id="adminProjectFullscreenKicker" class="section-kicker">Project Full View</p>
+          <h2 id="adminProjectFullscreenTitle">Student Project</h2>
+          <p id="adminProjectFullscreenSubtitle" class="muted-text"></p>
+        </div>
+        <button id="closeAdminProjectFullscreenBtn" class="icon-btn" type="button" aria-label="Close full project view">×</button>
+      </div>
+      <div id="adminProjectFullscreenCodePanel" class="admin-project-fullscreen-code-panel">
+        <div class="admin-project-code-title-row">
+          <strong id="adminProjectFullscreenCodeTitle">index.html</strong>
+          <span class="admin-project-readonly-pill">Read-only</span>
+        </div>
+        <pre id="adminProjectFullscreenCode" class="admin-project-code-output admin-project-fullscreen-code" tabindex="0"></pre>
+      </div>
+      <div id="adminProjectFullscreenPreviewPanel" class="admin-project-fullscreen-preview-panel hidden">
+        <div class="admin-project-preview-title-row">
+          <strong>Output Preview</strong>
+          <small id="adminProjectFullscreenPreviewNote">Full preview runs inside this viewer only.</small>
+        </div>
+        <iframe id="adminProjectFullscreenFrame" class="admin-project-fullscreen-frame" title="Student project full output preview" sandbox="allow-scripts allow-forms allow-modals allow-popups allow-same-origin"></iframe>
+      </div>
+    </div>
+  </div>
+
   <div id="pageDialogOverlay" class="file-name-dialog-overlay page-dialog-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="pageDialogTitle">
     <div class="file-name-dialog-card page-dialog-card" role="document">
       <div class="file-name-dialog-header">
@@ -931,6 +1008,6 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
   <script src="firebase-config.js"></script>
-  <script src="script.js?v=20260723-step115-admin-starter-code"></script>
+  <script src="script.js?v=20260723-step117-admin-viewer-fullscreen"></script>
 </body>
 </html>
