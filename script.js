@@ -253,6 +253,31 @@ const adminStudentProjectsTitle = document.getElementById('adminStudentProjectsT
 const adminStudentProjectsSubtitle = document.getElementById('adminStudentProjectsSubtitle');
 const adminStudentProjectsList = document.getElementById('adminStudentProjectsList');
 const closeAdminStudentProjectsBtn = document.getElementById('closeAdminStudentProjectsBtn');
+const adminProjectViewerOverlay = document.getElementById('adminProjectViewerOverlay');
+const adminProjectViewerTitle = document.getElementById('adminProjectViewerTitle');
+const adminProjectViewerSubtitle = document.getElementById('adminProjectViewerSubtitle');
+const closeAdminProjectViewerBtn = document.getElementById('closeAdminProjectViewerBtn');
+const adminProjectViewerActivitySelect = document.getElementById('adminProjectViewerActivitySelect');
+const adminProjectViewerFileSelect = document.getElementById('adminProjectViewerFileSelect');
+const adminProjectViewerLangTabs = document.querySelector('.admin-project-viewer-lang-tabs');
+const adminProjectViewerRunBtn = document.getElementById('adminProjectViewerRunBtn');
+const adminProjectViewerFileTitle = document.getElementById('adminProjectViewerFileTitle');
+const adminProjectViewerCode = document.getElementById('adminProjectViewerCode');
+const adminProjectViewerFrame = document.getElementById('adminProjectViewerFrame');
+const adminProjectViewerPreviewNote = document.getElementById('adminProjectViewerPreviewNote');
+const adminProjectViewerFullCodeBtn = document.getElementById('adminProjectViewerFullCodeBtn');
+const adminProjectViewerFullPreviewBtn = document.getElementById('adminProjectViewerFullPreviewBtn');
+const adminProjectFullscreenOverlay = document.getElementById('adminProjectFullscreenOverlay');
+const adminProjectFullscreenKicker = document.getElementById('adminProjectFullscreenKicker');
+const adminProjectFullscreenTitle = document.getElementById('adminProjectFullscreenTitle');
+const adminProjectFullscreenSubtitle = document.getElementById('adminProjectFullscreenSubtitle');
+const closeAdminProjectFullscreenBtn = document.getElementById('closeAdminProjectFullscreenBtn');
+const adminProjectFullscreenCodePanel = document.getElementById('adminProjectFullscreenCodePanel');
+const adminProjectFullscreenPreviewPanel = document.getElementById('adminProjectFullscreenPreviewPanel');
+const adminProjectFullscreenCodeTitle = document.getElementById('adminProjectFullscreenCodeTitle');
+const adminProjectFullscreenCode = document.getElementById('adminProjectFullscreenCode');
+const adminProjectFullscreenFrame = document.getElementById('adminProjectFullscreenFrame');
+const adminProjectFullscreenPreviewNote = document.getElementById('adminProjectFullscreenPreviewNote');
 
 
 // Built-in Firebase fallback config.
@@ -4659,6 +4684,289 @@ function downloadStudentImportTemplate() {
   URL.revokeObjectURL(link.href);
 }
 
+let adminProjectViewerState = {
+  student: null,
+  projects: [],
+  project: null,
+  codeByActivity: {},
+  activityKey: 'scratch',
+  language: 'html'
+};
+
+function getAdminProjectActivityLabel(key, project = adminProjectViewerState.project) {
+  if (!key) return 'Practice project';
+  const activityTitle = project?.activityTitle || '';
+  if (key === project?.selectedActivityId && activityTitle) return activityTitle;
+  if (key === 'scratch') return 'Practice project';
+  const knownActivity = activities.find(item => item.id === key);
+  return knownActivity?.title || key;
+}
+
+function getAdminProjectActiveStore() {
+  const stores = adminProjectViewerState.codeByActivity || {};
+  const key = stores[adminProjectViewerState.activityKey] ? adminProjectViewerState.activityKey : Object.keys(stores)[0] || 'scratch';
+  adminProjectViewerState.activityKey = key;
+  return stores[key] || normalizeCodeStore(starterCode);
+}
+
+function getAdminProjectFileMap(language, store = getAdminProjectActiveStore()) {
+  if (language === 'css') return store.cssFiles && typeof store.cssFiles === 'object' ? store.cssFiles : { [DEFAULT_CODE_FILE_NAMES.css]: store.css || '' };
+  if (language === 'js') return store.jsFiles && typeof store.jsFiles === 'object' ? store.jsFiles : { [DEFAULT_CODE_FILE_NAMES.js]: store.js || '' };
+  return store.pages && typeof store.pages === 'object' ? store.pages : { [DEFAULT_CODE_FILE_NAMES.html]: store.html || '' };
+}
+
+function getAdminProjectFileNames(language, store = getAdminProjectActiveStore()) {
+  const meta = getLanguageFileMeta(language);
+  const files = getAdminProjectFileMap(language, store);
+  const names = Object.keys(files || {}).sort((a, b) => {
+    if (a === meta.defaultName) return -1;
+    if (b === meta.defaultName) return 1;
+    return a.localeCompare(b);
+  });
+  return names.length ? names : [meta.defaultName];
+}
+
+function getAdminProjectActiveFileName(language = adminProjectViewerState.language) {
+  const store = getAdminProjectActiveStore();
+  if (language === 'css') return store.activeCssFile && getAdminProjectFileMap('css', store)[store.activeCssFile] !== undefined ? store.activeCssFile : getAdminProjectFileNames('css', store)[0];
+  if (language === 'js') return store.activeJsFile && getAdminProjectFileMap('js', store)[store.activeJsFile] !== undefined ? store.activeJsFile : getAdminProjectFileNames('js', store)[0];
+  return store.activeHtmlPage && getAdminProjectFileMap('html', store)[store.activeHtmlPage] !== undefined ? store.activeHtmlPage : getAdminProjectFileNames('html', store)[0];
+}
+
+function setAdminProjectActiveFileName(language, name) {
+  const store = getAdminProjectActiveStore();
+  if (language === 'css') store.activeCssFile = name;
+  else if (language === 'js') store.activeJsFile = name;
+  else store.activeHtmlPage = name;
+}
+
+function createAdminProjectStyleBlock(store) {
+  const cssFiles = getAdminProjectFileMap('css', store);
+  return Object.entries(cssFiles || {})
+    .filter(([, css]) => typeof css === 'string' && css.trim())
+    .map(([name, css]) => `<style data-admin-file="${escapeAttribute(name)}">\n${css}\n</style>`)
+    .join('\n');
+}
+
+function createAdminProjectScriptBlock(store) {
+  const jsFiles = getAdminProjectFileMap('js', store);
+  return Object.entries(jsFiles || {})
+    .filter(([, js]) => typeof js === 'string' && js.trim())
+    .map(([name, js]) => `<script data-admin-file="${escapeAttribute(name)}">\n${String(js).replace(/<\/script/gi, '<\\/script')}\n<\/script>`)
+    .join('\n');
+}
+
+function buildAdminProjectPreviewCode(pageName = '') {
+  const store = getAdminProjectActiveStore();
+  const pages = getAdminProjectFileMap('html', store);
+  const safePageName = pageName && pages[pageName] !== undefined ? pageName : getAdminProjectActiveFileName('html');
+  const rawHtml = stripAppPreviewHelperLeak(String(pages[safePageName] || ''));
+  const styleBlock = createAdminProjectStyleBlock(store);
+  const scriptBlock = createAdminProjectScriptBlock(store);
+  const looksLikeFullDocument = /<!doctype/i.test(rawHtml) || /<html(\s|>)/i.test(rawHtml) || /<head(\s|>)/i.test(rawHtml) || /<body(\s|>)/i.test(rawHtml);
+  const hasCompleteDocumentShell = hasCompletePreviewDocumentShell(rawHtml);
+
+  if (looksLikeFullDocument && hasCompleteDocumentShell) {
+    return injectAssetsIntoHTML(injectRuntimeReporterEarly(rawHtml, ''), styleBlock, scriptBlock);
+  }
+
+  if (looksLikeFullDocument && !hasCompleteDocumentShell) {
+    return injectAssetsIntoHTML(rawHtml, styleBlock, scriptBlock);
+  }
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  ${styleBlock}
+</head>
+<body>
+${rawHtml}
+${scriptBlock}
+</body>
+</html>`;
+}
+
+function runAdminProjectViewerPreview(pageName = '') {
+  if (!adminProjectViewerFrame) return;
+  const store = getAdminProjectActiveStore();
+  const page = pageName || getAdminProjectActiveFileName('html');
+  adminProjectViewerFrame.srcdoc = buildAdminProjectPreviewCode(page);
+  adminProjectViewerFrame.dataset.currentPage = page;
+  if (adminProjectViewerPreviewNote) adminProjectViewerPreviewNote.textContent = `Previewing ${page}`;
+}
+
+function getAdminProjectViewerCurrentCodeDetails() {
+  const language = adminProjectViewerState.language || 'html';
+  const fileName = getAdminProjectActiveFileName(language);
+  const files = getAdminProjectFileMap(language);
+  const content = typeof files[fileName] === 'string' ? files[fileName] : '';
+  return { language, fileName, content };
+}
+
+function openAdminProjectFullscreen(mode = 'code') {
+  if (!adminProjectFullscreenOverlay) return;
+  const project = adminProjectViewerState.project || {};
+  const student = adminProjectViewerState.student || {};
+  const isPreview = mode === 'preview';
+  const codeDetails = getAdminProjectViewerCurrentCodeDetails();
+  const activePage = getAdminProjectActiveFileName('html');
+
+  if (adminProjectFullscreenKicker) adminProjectFullscreenKicker.textContent = isPreview ? 'Full Output Preview' : 'Full Code View';
+  if (adminProjectFullscreenTitle) adminProjectFullscreenTitle.textContent = project.name || 'Student Project';
+  if (adminProjectFullscreenSubtitle) {
+    const owner = student.name || 'Student';
+    const subject = isPreview ? `Previewing ${activePage}` : `${codeDetails.language.toUpperCase()} · ${codeDetails.fileName}`;
+    adminProjectFullscreenSubtitle.textContent = `${owner} · ${subject}`;
+  }
+
+  adminProjectFullscreenCodePanel?.classList.toggle('hidden', isPreview);
+  adminProjectFullscreenPreviewPanel?.classList.toggle('hidden', !isPreview);
+
+  if (isPreview) {
+    if (adminProjectFullscreenFrame) {
+      adminProjectFullscreenFrame.srcdoc = buildAdminProjectPreviewCode(activePage);
+      adminProjectFullscreenFrame.dataset.currentPage = activePage;
+    }
+    if (adminProjectFullscreenPreviewNote) adminProjectFullscreenPreviewNote.textContent = `Previewing ${activePage}`;
+  } else {
+    if (adminProjectFullscreenFrame) adminProjectFullscreenFrame.srcdoc = '';
+    if (adminProjectFullscreenCodeTitle) adminProjectFullscreenCodeTitle.textContent = codeDetails.fileName || 'Code';
+    if (adminProjectFullscreenCode) adminProjectFullscreenCode.textContent = codeDetails.content || '/* Blank file */';
+  }
+
+  adminProjectFullscreenOverlay.classList.remove('hidden');
+  document.body.classList.add('student-auth-open', 'admin-project-fullscreen-open');
+}
+
+function closeAdminProjectFullscreen() {
+  adminProjectFullscreenOverlay?.classList.add('hidden');
+  if (adminProjectFullscreenFrame) adminProjectFullscreenFrame.srcdoc = '';
+  document.body.classList.remove('admin-project-fullscreen-open');
+  const viewerOpen = Boolean(adminProjectViewerOverlay && !adminProjectViewerOverlay.classList.contains('hidden'));
+  const trackerOpen = Boolean(adminStudentProjectsOverlay && !adminStudentProjectsOverlay.classList.contains('hidden'));
+  document.body.classList.toggle('student-auth-open', viewerOpen || trackerOpen);
+}
+
+function attachAdminProjectViewerPreviewLinks() {
+  if (!adminProjectViewerFrame) return;
+  let doc = null;
+  try {
+    doc = adminProjectViewerFrame.contentDocument || adminProjectViewerFrame.contentWindow?.document || null;
+  } catch (error) {
+    doc = null;
+  }
+  if (!doc || doc.__adminProjectViewerLinksReady) return;
+  doc.__adminProjectViewerLinksReady = true;
+  doc.addEventListener('click', event => {
+    const link = event.target && event.target.closest ? event.target.closest('a[href]') : null;
+    if (!link) return;
+    const href = String(link.getAttribute('href') || '').trim();
+    if (!href || /^(https?:|mailto:|tel:|javascript:|data:|blob:|#)/i.test(href)) return;
+    const fileName = href.split('#')[0].split('?')[0].split('/').pop();
+    if (!/\.html?$/i.test(fileName)) return;
+    const page = cleanLanguageFileName(fileName, 'html');
+    const pages = getAdminProjectFileMap('html');
+    if (!pages[page]) return;
+    event.preventDefault();
+    setAdminProjectActiveFileName('html', page);
+    populateAdminProjectViewerFileSelect();
+    updateAdminProjectViewerCode();
+    runAdminProjectViewerPreview(page);
+  }, true);
+}
+
+function populateAdminProjectViewerActivitySelect() {
+  if (!adminProjectViewerActivitySelect) return;
+  const stores = adminProjectViewerState.codeByActivity || {};
+  const keys = Object.keys(stores).length ? Object.keys(stores) : ['scratch'];
+  adminProjectViewerActivitySelect.innerHTML = keys.map(key => `<option value="${escapeAttribute(key)}">${escapeHTML(getAdminProjectActivityLabel(key))}</option>`).join('');
+  adminProjectViewerActivitySelect.value = keys.includes(adminProjectViewerState.activityKey) ? adminProjectViewerState.activityKey : keys[0];
+  adminProjectViewerState.activityKey = adminProjectViewerActivitySelect.value;
+}
+
+function populateAdminProjectViewerFileSelect() {
+  if (!adminProjectViewerFileSelect) return;
+  const language = adminProjectViewerState.language;
+  const names = getAdminProjectFileNames(language);
+  const active = getAdminProjectActiveFileName(language);
+  adminProjectViewerFileSelect.innerHTML = names.map(name => `<option value="${escapeAttribute(name)}">${escapeHTML(name)}</option>`).join('');
+  adminProjectViewerFileSelect.value = names.includes(active) ? active : names[0];
+  setAdminProjectActiveFileName(language, adminProjectViewerFileSelect.value);
+}
+
+function updateAdminProjectViewerLanguageTabs() {
+  if (!adminProjectViewerLangTabs) return;
+  const language = adminProjectViewerState.language;
+  adminProjectViewerLangTabs.querySelectorAll('[data-admin-viewer-lang]').forEach(button => {
+    const active = button.dataset.adminViewerLang === language;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-selected', active ? 'true' : 'false');
+  });
+}
+
+function updateAdminProjectViewerCode() {
+  const language = adminProjectViewerState.language;
+  const fileName = getAdminProjectActiveFileName(language);
+  const files = getAdminProjectFileMap(language);
+  const content = typeof files[fileName] === 'string' ? files[fileName] : '';
+  if (adminProjectViewerFileTitle) adminProjectViewerFileTitle.textContent = fileName;
+  if (adminProjectViewerCode) adminProjectViewerCode.textContent = content || '/* Blank file */';
+  populateAdminProjectViewerFileSelect();
+  updateAdminProjectViewerLanguageTabs();
+}
+
+function renderAdminProjectViewer() {
+  const project = adminProjectViewerState.project;
+  const student = adminProjectViewerState.student;
+  if (!project) return;
+  if (adminProjectViewerTitle) adminProjectViewerTitle.textContent = project.name || 'Untitled Project';
+  if (adminProjectViewerSubtitle) {
+    const owner = student ? `${student.name || 'Student'} · ${student.studentId || ''}` : 'Student project';
+    adminProjectViewerSubtitle.textContent = `${owner} · ${project.activityTitle || 'Practice project'} · Updated ${formatStudentDate(project.updatedAt)}`;
+  }
+  populateAdminProjectViewerActivitySelect();
+  populateAdminProjectViewerFileSelect();
+  updateAdminProjectViewerCode();
+  runAdminProjectViewerPreview(getAdminProjectActiveFileName('html'));
+}
+
+async function openAdminProjectViewer(projectId) {
+  const student = adminProjectViewerState.student;
+  if (!student || !projectId) return;
+  let project = (adminProjectViewerState.projects || []).find(item => item.id === projectId) || null;
+  if (!project || !project.codeByActivity) {
+    try {
+      const { getDoc } = firebaseSync.modules;
+      const snapshot = await getDoc(getStudentProjectDocRef(student.uid, projectId));
+      if (snapshotExists(snapshot)) project = { id: projectId, ...snapshotData(snapshot) };
+    } catch (error) {
+      console.error('Could not fetch project for viewer', error);
+    }
+  }
+  if (!project) {
+    appAlert('This project could not be opened. Check the internet connection and try again.', { title: 'Project unavailable' });
+    return;
+  }
+  adminProjectViewerState.project = project;
+  adminProjectViewerState.codeByActivity = normalizeProjectCodeByActivity(project.codeByActivity || {});
+  adminProjectViewerState.activityKey = project.selectedActivityId && adminProjectViewerState.codeByActivity[project.selectedActivityId]
+    ? project.selectedActivityId
+    : Object.keys(adminProjectViewerState.codeByActivity)[0] || 'scratch';
+  adminProjectViewerState.language = 'html';
+  adminProjectViewerOverlay?.classList.remove('hidden');
+  document.body.classList.add('student-auth-open');
+  renderAdminProjectViewer();
+}
+
+function closeAdminProjectViewer() {
+  closeAdminProjectFullscreen();
+  adminProjectViewerOverlay?.classList.add('hidden');
+  if (adminProjectViewerFrame) adminProjectViewerFrame.srcdoc = '';
+  document.body.classList.toggle('student-auth-open', Boolean(adminStudentProjectsOverlay && !adminStudentProjectsOverlay.classList.contains('hidden')));
+}
+
 async function showAdminStudentProjects(uid) {
   const student = adminStudentsCache.find(item => item.uid === uid);
   if (!student) return;
@@ -4676,14 +4984,17 @@ async function showAdminStudentProjects(uid) {
       adminStudentProjectsList.innerHTML = '<div class="empty-projects-card"><h3>No projects yet</h3><p>This student has logged in but has not created a project.</p></div>';
       return;
     }
+    adminProjectViewerState.student = student;
+    adminProjectViewerState.projects = projects;
     adminStudentProjectsList.innerHTML = projects.map(project => {
       const result = project.lastResult;
       return `
-        <article class="admin-project-row">
+        <article class="admin-project-row" data-admin-project-id="${escapeAttribute(project.id)}">
           <div><strong>${escapeHTML(project.name || 'Untitled Project')}</strong><small>${escapeHTML(project.activityTitle || 'Practice project')} · Updated ${escapeHTML(formatStudentDate(project.updatedAt))}</small></div>
           <span>${getProjectStatusLabel(getProjectStatus(project))}</span>
           <span>${Number(project.runCount || 0)} run${Number(project.runCount || 0) === 1 ? '' : 's'}</span>
           <strong>${result ? `${formatPoints(result.score || 0)}/${formatPoints(result.possible || 0)} · ${Number(result.percent || 0)}%` : 'Not scored'}</strong>
+          <button class="primary-btn admin-project-view-btn" type="button" data-admin-project-action="view" data-admin-project-id="${escapeAttribute(project.id)}">View / Run</button>
         </article>`;
     }).join('');
   } catch (error) {
@@ -4694,6 +5005,8 @@ async function showAdminStudentProjects(uid) {
 
 function closeAdminStudentProjects() {
   adminStudentProjectsOverlay?.classList.add('hidden');
+  adminProjectViewerOverlay?.classList.add('hidden');
+  if (adminProjectViewerFrame) adminProjectViewerFrame.srcdoc = '';
   document.body.classList.remove('student-auth-open');
 }
 
@@ -12540,6 +12853,17 @@ document.addEventListener('keydown', event => {
 
   const isOpen = element => Boolean(element && !element.classList.contains('hidden'));
 
+
+  if (isOpen(adminProjectFullscreenOverlay)) {
+    event.preventDefault();
+    closeAdminProjectFullscreen?.();
+    return;
+  }
+  if (isOpen(adminProjectViewerOverlay)) {
+    event.preventDefault();
+    closeAdminProjectViewer?.();
+    return;
+  }
   if (isOpen(adminStudentProjectsOverlay)) {
     event.preventDefault();
     closeAdminStudentProjects?.();
@@ -12676,6 +13000,49 @@ closeAdminStudentProjectsBtn?.addEventListener('click', closeAdminStudentProject
 adminStudentProjectsOverlay?.addEventListener('click', event => {
   if (event.target === adminStudentProjectsOverlay) event.stopPropagation();
 });
+
+adminStudentProjectsList?.addEventListener('click', event => {
+  const viewButton = event.target.closest('[data-admin-project-action="view"]');
+  const row = event.target.closest('[data-admin-project-id]');
+  const projectId = viewButton?.dataset.adminProjectId || row?.dataset.adminProjectId || '';
+  if (!projectId) return;
+  event.preventDefault();
+  openAdminProjectViewer(projectId);
+});
+closeAdminProjectViewerBtn?.addEventListener('click', closeAdminProjectViewer);
+adminProjectViewerOverlay?.addEventListener('click', event => {
+  if (event.target === adminProjectViewerOverlay) event.stopPropagation();
+});
+adminProjectViewerActivitySelect?.addEventListener('change', event => {
+  adminProjectViewerState.activityKey = event.target.value || 'scratch';
+  populateAdminProjectViewerFileSelect();
+  updateAdminProjectViewerCode();
+  runAdminProjectViewerPreview(getAdminProjectActiveFileName('html'));
+});
+adminProjectViewerFileSelect?.addEventListener('change', event => {
+  setAdminProjectActiveFileName(adminProjectViewerState.language, event.target.value || '');
+  updateAdminProjectViewerCode();
+  if (adminProjectViewerState.language === 'html') runAdminProjectViewerPreview(event.target.value || '');
+});
+adminProjectViewerLangTabs?.addEventListener('click', event => {
+  const button = event.target.closest('[data-admin-viewer-lang]');
+  if (!button) return;
+  adminProjectViewerState.language = button.dataset.adminViewerLang || 'html';
+  populateAdminProjectViewerFileSelect();
+  updateAdminProjectViewerCode();
+});
+adminProjectViewerRunBtn?.addEventListener('click', () => runAdminProjectViewerPreview(getAdminProjectActiveFileName('html')));
+adminProjectViewerFullCodeBtn?.addEventListener('click', () => openAdminProjectFullscreen('code'));
+adminProjectViewerFullPreviewBtn?.addEventListener('click', () => {
+  runAdminProjectViewerPreview(getAdminProjectActiveFileName('html'));
+  openAdminProjectFullscreen('preview');
+});
+closeAdminProjectFullscreenBtn?.addEventListener('click', closeAdminProjectFullscreen);
+adminProjectFullscreenOverlay?.addEventListener('click', event => {
+  if (event.target === adminProjectFullscreenOverlay) event.stopPropagation();
+});
+adminProjectViewerFrame?.addEventListener('load', attachAdminProjectViewerPreviewLinks);
+
 
 initManualRubricInputTable();
 applyStudentAssistanceSettings(studentAssistanceSettings);

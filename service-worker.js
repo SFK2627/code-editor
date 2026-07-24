@@ -1,15 +1,15 @@
-const CACHE_NAME = 'mcs-coding-app-20260724-step120-restore-starter-assistance';
+const CACHE_NAME = 'code-editor-20260724-step121-restore-admin-project-viewer-fullscreen';
 const APP_SHELL = [
   './',
   './index.html',
-  './index.html?v=20260724-step120-restore-starter-assistance',
+  './index.html?v=20260724-step121-restore-admin-project-viewer-fullscreen',
   './index.html?fresh=step120',
   './style.css',
-  './style.css?v=20260724-step120-restore-starter-assistance',
-  './style.css?v=20260724-step120-restore-starter-assistance',
+  './style.css?v=20260724-step121-restore-admin-project-viewer-fullscreen',
+  './style.css?v=20260724-step121-restore-admin-project-viewer-fullscreen',
   './script.js',
-  './script.js?v=20260724-step120-restore-starter-assistance',
-  './script.js?v=20260724-step120-restore-starter-assistance',
+  './script.js?v=20260724-step121-restore-admin-project-viewer-fullscreen',
+  './script.js?v=20260724-step121-restore-admin-project-viewer-fullscreen',
   './firebase-config.js',
   './manifest.webmanifest',
   './favicon.png',
