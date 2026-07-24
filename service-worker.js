@@ -1,15 +1,15 @@
-const CACHE_NAME = 'code-editor-20260724-step129-recitation-more-list-space';
+const CACHE_NAME = 'code-editor-20260724-step130-logo-recitation-shortcut';
 const APP_SHELL = [
   './',
   './index.html',
   './index.html?v=20260724-step127-recitation-codes-modal',
   './index.html?fresh=step127',
   './style.css',
-  './style.css?v=20260724-step129-recitation-more-list-space',
-  './style.css?v=20260724-step129-recitation-more-list-space',
+  './style.css?v=20260724-step130-logo-recitation-shortcut',
+  './style.css?v=20260724-step130-logo-recitation-shortcut',
   './script.js',
-  './script.js?v=20260724-step129-recitation-more-list-space',
-  './script.js?v=20260724-step129-recitation-more-list-space',
+  './script.js?v=20260724-step130-logo-recitation-shortcut',
+  './script.js?v=20260724-step130-logo-recitation-shortcut',
   './firebase-config.js',
   './manifest.webmanifest',
   './favicon.png',

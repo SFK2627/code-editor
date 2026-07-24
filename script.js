@@ -18766,3 +18766,52 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     }
   };
 })();
+
+
+// Step 130: Home logo shortcut to protected Recitation Central Firebase view.
+(() => {
+  const shortcutLogo = document.querySelector('#entryGate .entry-logo.app-coded-eight');
+  if (!shortcutLogo) return;
+
+  const RECITATION_FIREBASE_VIEW_URL = 'https://sfk2627.github.io/recitation-central/view-firebase.html';
+  const RECITATION_FIREBASE_VIEW_CODE = '052400';
+
+  shortcutLogo.setAttribute('role', 'button');
+  shortcutLogo.setAttribute('tabindex', '0');
+  shortcutLogo.setAttribute('title', 'Teacher shortcut');
+  shortcutLogo.setAttribute('aria-label', 'Teacher shortcut to Recitation Central Firebase view');
+  shortcutLogo.classList.add('teacher-recitation-shortcut-logo');
+
+  function normalizeShortcutCode(value) {
+    return String(value || '').trim().replace(/\s+/g, '');
+  }
+
+  async function openProtectedRecitationFirebaseView() {
+    const enteredCode = window.prompt('Enter teacher shortcut code to open Recitation Central Firebase View:');
+    if (enteredCode === null) return;
+
+    if (normalizeShortcutCode(enteredCode) !== RECITATION_FIREBASE_VIEW_CODE) {
+      if (typeof appAlert === 'function') {
+        await appAlert('Invalid shortcut code.', {
+          title: 'Access Denied',
+          kicker: 'Recitation Central',
+          icon: '🔒',
+          danger: true
+        });
+      } else {
+        alert('Invalid shortcut code.');
+      }
+      return;
+    }
+
+    window.open(RECITATION_FIREBASE_VIEW_URL, '_blank', 'noopener,noreferrer');
+  }
+
+  shortcutLogo.addEventListener('click', openProtectedRecitationFirebaseView);
+  shortcutLogo.addEventListener('keydown', event => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      openProtectedRecitationFirebaseView();
+    }
+  });
+})();

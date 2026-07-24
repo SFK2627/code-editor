@@ -33566,3 +33566,13 @@ body.dark-mode .teacher-comment-pill {
     min-height: 50svh !important;
   }
 }
+
+
+/* Step 130: teacher recitation shortcut logo affordance */
+.teacher-recitation-shortcut-logo {
+  cursor: pointer;
+}
+.teacher-recitation-shortcut-logo:focus-visible {
+  outline: 3px solid rgba(37, 99, 235, 0.55);
+  outline-offset: 4px;
+}
