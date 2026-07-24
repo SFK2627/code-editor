@@ -4473,6 +4473,38 @@ function complianceStatusLabel(status) {
   return 'Missing';
 }
 
+function isComplianceTermAssessmentTask(task = {}) {
+  const id = String(task.id || task.key || '').toUpperCase();
+  const category = String(task.category || '').toLowerCase();
+  const title = String(task.title || task.name || '').toLowerCase();
+  return id.includes('_TA')
+    || /^TA\d+/.test(id)
+    || category.includes('term assessment')
+    || title.includes('term assessment');
+}
+
+function cleanComplianceScoreValue(value) {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+  return String(value).replace(/\s+/g, ' ').trim().slice(0, 40);
+}
+
+function formatTermAssessmentRawScore(task = {}) {
+  if (!isComplianceTermAssessmentTask(task)) return '';
+  const rawScore = cleanComplianceScoreValue(task.rawScore ?? task.score ?? task.rawScoreText);
+  const highestScore = cleanComplianceScoreValue(task.highestScore ?? task.maxScore ?? task.hps);
+  if (rawScore && highestScore) return `${rawScore}/${highestScore}`;
+  if (rawScore) return rawScore;
+  if (highestScore) return `No score yet / ${highestScore}`;
+  return 'No score yet';
+}
+
+function complianceTermAssessmentScoreMarkup(task = {}) {
+  if (!isComplianceTermAssessmentTask(task)) return '';
+  const formatted = formatTermAssessmentRawScore(task);
+  return `<span class="student-compliance-score">Raw Score: ${escapeHTML(formatted)}</span>`;
+}
+
 function normalizeComplianceStatus(status) {
   const value = String(status || '').trim().toLowerCase().replace(/[_\s]+/g, '-');
   if (['complete', 'completed', 'done', 'ok', 'green'].includes(value)) return 'complete';
@@ -4490,13 +4522,20 @@ function summarizeComplianceTasks(tasks = []) {
 }
 
 function sanitizeComplianceStudentRecord(record = {}, fallback = {}) {
-  const tasks = Array.isArray(record.tasks) ? record.tasks.map((task, index) => ({
-    id: String(task.id || task.key || `task-${index + 1}`).slice(0, 80),
-    category: String(task.category || 'Requirement').slice(0, 80),
-    title: String(task.title || task.name || `Requirement ${index + 1}`).slice(0, 140),
-    status: normalizeComplianceStatus(task.status),
-    number: Number(task.number || index + 1) || index + 1
-  })) : [];
+  const tasks = Array.isArray(record.tasks) ? record.tasks.map((task, index) => {
+    const safeTask = {
+      id: String(task.id || task.key || `task-${index + 1}`).slice(0, 80),
+      category: String(task.category || 'Requirement').slice(0, 80),
+      title: String(task.title || task.name || `Requirement ${index + 1}`).slice(0, 140),
+      status: normalizeComplianceStatus(task.status),
+      number: Number(task.number || index + 1) || index + 1
+    };
+    if (isComplianceTermAssessmentTask({ ...task, ...safeTask })) {
+      safeTask.rawScore = cleanComplianceScoreValue(task.rawScore ?? task.score ?? task.rawScoreText);
+      safeTask.highestScore = cleanComplianceScoreValue(task.highestScore ?? task.maxScore ?? task.hps);
+    }
+    return safeTask;
+  }) : [];
   const derivedSummary = summarizeComplianceTasks(tasks);
   const summary = tasks.length
     ? derivedSummary
@@ -4557,6 +4596,7 @@ function renderStudentComplianceRecord(record = null, options = {}) {
           <div>
             <strong>${escapeHTML(task.title || 'Requirement')}</strong>
             <small>${escapeHTML(task.category || 'Requirement')} · ${escapeHTML(complianceStatusLabel(status))}</small>
+            ${complianceTermAssessmentScoreMarkup(task)}
           </div>
         </div>`;
     }).join('') : '<div class="student-compliance-empty">No visible requirements were published yet.</div>';
@@ -4858,7 +4898,7 @@ async function previewComplianceSync() {
     });
     renderComplianceSyncPreview(payload);
     const errorNote = Array.isArray(payload.errors) && payload.errors.length ? ` ${payload.errors.length} sheet issue(s) found.` : '';
-    setComplianceSyncStatus(`Preview ready for ${payload.selectedSection || 'checked section(s)'}: ${payload.students.length} student status records found. Scores are not shown here.${errorNote}`, payload.students.length ? 'success' : 'warning');
+    setComplianceSyncStatus(`Preview ready for ${payload.selectedSection || 'checked section(s)'}: ${payload.students.length} student status records found. Only Term Assessment raw scores may appear for students; other scores remain hidden.${errorNote}`, payload.students.length ? 'success' : 'warning');
   } catch (error) {
     console.warn('Compliance preview failed.', error);
     setComplianceSyncStatus(error?.message || 'Could not preview Google Sheets.', 'error');
@@ -4896,7 +4936,7 @@ async function publishComplianceSync() {
       studentIdOriginal: student.studentId,
       studentId: student.studentIdNormalized,
       // Used by Firestore Rules so students can read only their own status.
-      // Scores are still not saved or shown to students.
+      // Only Term Assessment raw scores are saved/shown; WW/PT scores stay hidden.
       studentAuthEmail: studentIdToAuthEmail(student.studentIdNormalized),
       updatedAt: serverTimestamp(),
       updatedAtMs: syncedAtMs,
