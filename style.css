@@ -33576,3 +33576,235 @@ body.dark-mode .teacher-comment-pill {
   outline: 3px solid rgba(37, 99, 235, 0.55);
   outline-offset: 4px;
 }
+
+
+/* Step 131: Mobile Recitation Status - prioritize visible student list.
+   Mobile-only; functionality untouched. When a section is unlocked, the generic
+   intro header is collapsed so the roster can use the screen. */
+@media (max-width: 640px) {
+  .recitation-status-overlay {
+    align-items: stretch !important;
+    justify-content: stretch !important;
+    padding: 6px !important;
+    overflow: hidden !important;
+  }
+
+  .recitation-status-card {
+    width: calc(100vw - 12px) !important;
+    height: calc(100dvh - 12px) !important;
+    max-height: calc(100dvh - 12px) !important;
+    padding: 10px !important;
+    border-radius: 22px !important;
+    overflow: hidden !important;
+    display: flex !important;
+    flex-direction: column !important;
+  }
+
+  .recitation-status-card > .auth-close-btn,
+  .recitation-status-card > .modal-close,
+  .recitation-status-card > .close-btn {
+    top: 8px !important;
+    right: 8px !important;
+    width: 42px !important;
+    height: 42px !important;
+    min-height: 42px !important;
+    z-index: 3 !important;
+  }
+
+  /* Once the viewer is open, remove the large intro block on phones. */
+  .recitation-status-card:has(.recitation-viewer-panel:not(.hidden)) > .recitation-status-icon,
+  .recitation-status-card:has(.recitation-viewer-panel:not(.hidden)) > .section-kicker,
+  .recitation-status-card:has(.recitation-viewer-panel:not(.hidden)) > #recitationStatusTitle,
+  .recitation-status-card:has(.recitation-viewer-panel:not(.hidden)) > .recitation-status-lead {
+    display: none !important;
+  }
+
+  .recitation-viewer-panel {
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    height: 100% !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 6px !important;
+    overflow: hidden !important;
+    padding-top: 2px !important;
+  }
+
+  .recitation-viewer-panel.hidden {
+    display: none !important;
+  }
+
+  .recitation-viewer-header {
+    flex: 0 0 auto !important;
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    align-items: center !important;
+    gap: 8px !important;
+    padding: 8px 52px 8px 10px !important;
+    border-radius: 16px !important;
+  }
+
+  .recitation-viewer-header .section-kicker {
+    margin: 0 0 2px !important;
+    font-size: 0.62rem !important;
+    letter-spacing: 0.13em !important;
+  }
+
+  .recitation-viewer-header h3 {
+    font-size: clamp(1.02rem, 5.4vw, 1.34rem) !important;
+    line-height: 1.05 !important;
+    margin: 0 !important;
+  }
+
+  .recitation-viewer-header .muted-text,
+  #recitationUpdatedText {
+    margin-top: 2px !important;
+    font-size: 0.68rem !important;
+    line-height: 1.1 !important;
+  }
+
+  .recitation-viewer-header .ghost-btn,
+  #recitationChangeCodeBtn {
+    width: auto !important;
+    min-width: 92px !important;
+    min-height: 34px !important;
+    padding: 6px 10px !important;
+    font-size: 0.75rem !important;
+    justify-self: end !important;
+    white-space: nowrap !important;
+  }
+
+  .recitation-stats-grid {
+    flex: 0 0 auto !important;
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 5px !important;
+  }
+
+  .recitation-stats-grid > div {
+    min-height: 48px !important;
+    padding: 5px 4px !important;
+    border-radius: 12px !important;
+  }
+
+  .recitation-stats-grid strong {
+    font-size: clamp(1.18rem, 6vw, 1.52rem) !important;
+    line-height: 0.95 !important;
+  }
+
+  .recitation-stats-grid span {
+    margin-top: 2px !important;
+    font-size: 0.52rem !important;
+    letter-spacing: 0.04em !important;
+  }
+
+  .recitation-filter-grid {
+    flex: 0 0 auto !important;
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 5px !important;
+    align-items: end !important;
+  }
+
+  .recitation-filter-grid label {
+    gap: 2px !important;
+    font-size: 0.56rem !important;
+    letter-spacing: 0.045em !important;
+  }
+
+  .recitation-filter-grid label:nth-child(3) {
+    grid-column: 1 / 2 !important;
+  }
+
+  #recitationRefreshBtn {
+    grid-column: 2 / 3 !important;
+    align-self: end !important;
+  }
+
+  .recitation-filter-grid input,
+  .recitation-filter-grid select,
+  #recitationRefreshBtn {
+    min-height: 34px !important;
+    padding: 6px 8px !important;
+    border-radius: 12px !important;
+    font-size: 0.76rem !important;
+  }
+
+  .recitation-status-box {
+    flex: 0 0 auto !important;
+    padding: 5px 8px !important;
+    border-radius: 12px !important;
+    font-size: 0.72rem !important;
+    line-height: 1.18 !important;
+  }
+
+  .recitation-leaderboard {
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    display: grid !important;
+    align-content: start !important;
+    gap: 6px !important;
+    padding: 4px 4px 10px 1px !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  .recitation-student-row {
+    display: grid !important;
+    grid-template-columns: 34px minmax(0, 1fr) auto !important;
+    gap: 8px !important;
+    align-items: center !important;
+    padding: 8px 9px !important;
+    border-radius: 13px !important;
+  }
+
+  .recitation-rank {
+    width: 32px !important;
+    height: 32px !important;
+    border-radius: 11px !important;
+    font-size: 0.78rem !important;
+  }
+
+  .recitation-name {
+    font-size: 0.92rem !important;
+    line-height: 1.12 !important;
+  }
+
+  .recitation-meta {
+    margin-top: 2px !important;
+    font-size: 0.68rem !important;
+    line-height: 1.1 !important;
+  }
+
+  .recitation-points {
+    grid-column: auto !important;
+    min-width: 42px !important;
+    text-align: right !important;
+    font-size: 1.18rem !important;
+  }
+
+  .recitation-points small {
+    margin-top: 1px !important;
+    font-size: 0.46rem !important;
+  }
+}
+
+@media (max-width: 380px) {
+  .recitation-viewer-header {
+    grid-template-columns: 1fr !important;
+    padding-right: 48px !important;
+  }
+
+  .recitation-viewer-header .ghost-btn,
+  #recitationChangeCodeBtn {
+    justify-self: stretch !important;
+    min-height: 30px !important;
+  }
+
+  .recitation-student-row {
+    grid-template-columns: 30px minmax(0, 1fr) auto !important;
+  }
+}
