@@ -32724,3 +32724,845 @@ body.dark-mode .teacher-comment-pill {
   background: rgba(96, 165, 250, 0.16);
   color: #bfdbfe;
 }
+
+/* Step 125: Recitation Status home/dashboard viewer */
+.entry-choice.recitation-choice {
+  grid-column: 1 / -1;
+  min-height: 104px;
+  border-color: rgba(245, 158, 11, 0.42);
+  background: linear-gradient(135deg, rgba(255, 247, 205, 0.96), rgba(255, 255, 255, 0.95));
+}
+
+[data-theme="dark"] .entry-choice.recitation-choice {
+  background: linear-gradient(135deg, rgba(120, 53, 15, 0.36), rgba(15, 23, 42, 0.92));
+}
+
+.dashboard-hero-actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.dashboard-recitation-btn {
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.55);
+  background: rgba(255, 255, 255, 0.16);
+  backdrop-filter: blur(8px);
+}
+
+.dashboard-recitation-btn:hover,
+.dashboard-recitation-btn:focus-visible {
+  color: #17324d;
+  background: #fff;
+}
+
+.recitation-status-overlay {
+  z-index: 12250;
+}
+
+.recitation-status-card {
+  width: min(980px, calc(100vw - 28px));
+  max-height: min(88vh, 860px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.recitation-status-icon {
+  background: linear-gradient(135deg, #f59e0b, #facc15);
+}
+
+.recitation-status-lead {
+  margin-bottom: 12px;
+}
+
+.recitation-code-gate {
+  flex: 0 0 auto;
+}
+
+.recitation-viewer-panel {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow: hidden;
+}
+
+.recitation-viewer-panel.hidden {
+  display: none;
+}
+
+.recitation-viewer-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: 20px;
+  background: var(--bg-2);
+}
+
+.recitation-viewer-header h3 {
+  margin: 2px 0 4px;
+  font-size: clamp(1.25rem, 2vw, 2rem);
+}
+
+.recitation-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.recitation-stats-grid > div {
+  padding: 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: 18px;
+  background: var(--solid-card);
+  text-align: center;
+}
+
+.recitation-stats-grid strong {
+  display: block;
+  color: #d97706;
+  font-size: clamp(1.7rem, 3vw, 3rem);
+  line-height: 1;
+  font-weight: 950;
+}
+
+.recitation-stats-grid span {
+  display: block;
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.recitation-filter-grid {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.85fr) minmax(140px, 0.9fr) minmax(180px, 1.25fr) auto;
+  gap: 10px;
+  align-items: end;
+}
+
+.recitation-filter-grid label {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 900;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.recitation-filter-grid input,
+.recitation-filter-grid select {
+  min-height: 42px;
+  border: 1px solid var(--line-strong);
+  border-radius: 14px;
+  padding: 9px 11px;
+  color: var(--text);
+  background: var(--solid-card);
+}
+
+.recitation-status-box {
+  min-height: 38px;
+  padding: 10px 12px;
+  border: 1px solid rgba(245, 158, 11, 0.24);
+  border-radius: 14px;
+  color: #92400e;
+  background: rgba(254, 243, 199, 0.82);
+  font-weight: 800;
+}
+
+[data-theme="dark"] .recitation-status-box {
+  color: #fde68a;
+  background: rgba(120, 53, 15, 0.35);
+}
+
+.recitation-status-box.success {
+  border-color: rgba(22, 163, 74, 0.3);
+  color: #166534;
+  background: rgba(220, 252, 231, 0.86);
+}
+
+.recitation-status-box.error {
+  border-color: rgba(220, 38, 38, 0.32);
+  color: #991b1b;
+  background: rgba(254, 226, 226, 0.9);
+}
+
+[data-theme="dark"] .recitation-status-box.success {
+  color: #bbf7d0;
+  background: rgba(20, 83, 45, 0.38);
+}
+
+[data-theme="dark"] .recitation-status-box.error {
+  color: #fecaca;
+  background: rgba(127, 29, 29, 0.4);
+}
+
+.recitation-leaderboard {
+  flex: 1 1 auto;
+  min-height: 220px;
+  overflow: auto;
+  display: grid;
+  gap: 10px;
+  padding: 4px 2px 2px;
+}
+
+.recitation-student-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 13px;
+  border: 1px solid var(--line-strong);
+  border-radius: 18px;
+  background: var(--solid-card);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
+}
+
+.recitation-rank {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  color: #111827;
+  background: #facc15;
+  font-weight: 950;
+}
+
+.recitation-name {
+  min-width: 0;
+  font-weight: 950;
+  overflow-wrap: anywhere;
+}
+
+.recitation-meta {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.recitation-points {
+  min-width: 72px;
+  color: #d97706;
+  font-size: 1.8rem;
+  line-height: 1;
+  font-weight: 950;
+  text-align: right;
+}
+
+.recitation-points small {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.recitation-empty {
+  padding: 18px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 18px;
+  color: var(--muted);
+  background: var(--bg-2);
+  text-align: center;
+  font-weight: 800;
+}
+
+@media (max-width: 760px) {
+  .dashboard-hero-card {
+    align-items: stretch;
+  }
+
+  .dashboard-hero-actions {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .dashboard-hero-actions > button {
+    flex: 1 1 180px;
+  }
+
+  .recitation-status-card {
+    width: min(100%, calc(100vw - 18px));
+    max-height: 92vh;
+    padding: 22px;
+  }
+
+  .recitation-viewer-header,
+  .recitation-filter-grid,
+  .recitation-student-row {
+    grid-template-columns: 1fr;
+  }
+
+  .recitation-viewer-header {
+    display: grid;
+  }
+
+  .recitation-filter-grid {
+    display: grid;
+  }
+
+  .recitation-stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .recitation-points {
+    text-align: left;
+  }
+}
+
+/* Step 127: Recitation Status modal polish + cleaner roster list. */
+.recitation-status-overlay {
+  align-items: center;
+  justify-content: center;
+  padding: clamp(10px, 2.5vh, 22px) clamp(8px, 2vw, 20px);
+  overflow: auto;
+}
+
+.recitation-status-card {
+  width: min(1040px, calc(100vw - 24px));
+  max-height: min(94svh, 900px);
+  padding: clamp(18px, 2vw, 28px);
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.recitation-status-card::-webkit-scrollbar,
+.recitation-leaderboard::-webkit-scrollbar {
+  width: 10px;
+}
+
+.recitation-status-card::-webkit-scrollbar-track,
+.recitation-leaderboard::-webkit-scrollbar-track {
+  background: rgba(148, 163, 184, 0.14);
+  border-radius: 999px;
+}
+
+.recitation-status-card::-webkit-scrollbar-thumb,
+.recitation-leaderboard::-webkit-scrollbar-thumb {
+  background: rgba(37, 99, 235, 0.34);
+  border-radius: 999px;
+  border: 2px solid rgba(255, 255, 255, 0.65);
+}
+
+.recitation-status-card {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(37, 99, 235, 0.42) rgba(148, 163, 184, 0.14);
+}
+
+.recitation-viewer-panel {
+  overflow: visible;
+  gap: 10px;
+}
+
+.recitation-viewer-header {
+  padding: 12px 14px;
+  border-radius: 18px;
+}
+
+.recitation-viewer-header h3 {
+  font-size: clamp(1.25rem, 2.4vw, 1.85rem);
+  line-height: 1.12;
+}
+
+.recitation-stats-grid {
+  gap: 9px;
+}
+
+.recitation-stats-grid > div {
+  padding: 12px;
+  border-radius: 16px;
+}
+
+.recitation-stats-grid strong {
+  font-size: clamp(1.75rem, 3vw, 2.55rem);
+}
+
+.recitation-filter-grid {
+  grid-template-columns: minmax(135px, 0.85fr) minmax(150px, 0.95fr) minmax(210px, 1.3fr) minmax(120px, auto);
+  gap: 9px;
+}
+
+.recitation-status-box {
+  min-height: 0;
+  padding: 9px 12px;
+}
+
+.recitation-leaderboard {
+  flex: 0 0 auto;
+  min-height: clamp(250px, 34vh, 360px);
+  max-height: clamp(300px, 42vh, 430px);
+  overflow: auto;
+  padding: 4px 6px 8px 2px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(37, 99, 235, 0.42) rgba(148, 163, 184, 0.14);
+}
+
+.recitation-student-row {
+  padding: 12px;
+  border-radius: 16px;
+}
+
+[data-theme="dark"] .recitation-status-card::-webkit-scrollbar-thumb,
+[data-theme="dark"] .recitation-leaderboard::-webkit-scrollbar-thumb {
+  background: rgba(96, 165, 250, 0.45);
+  border-color: rgba(15, 23, 42, 0.7);
+}
+
+@media (max-width: 820px) {
+  .recitation-status-overlay {
+    align-items: stretch;
+    padding: 8px;
+  }
+
+  .recitation-status-card {
+    width: 100%;
+    max-height: calc(100svh - 16px);
+    padding: 18px;
+    border-radius: 24px;
+  }
+
+  .recitation-viewer-header {
+    display: grid;
+    gap: 12px;
+  }
+
+  .recitation-viewer-header .ghost-btn,
+  #recitationChangeCodeBtn {
+    justify-self: stretch;
+  }
+
+  .recitation-stats-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .recitation-filter-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  #recitationRefreshBtn {
+    min-height: 44px;
+  }
+
+  .recitation-leaderboard {
+    min-height: clamp(260px, 42vh, 420px);
+    max-height: 48vh;
+  }
+}
+
+@media (max-width: 560px) {
+  .recitation-stats-grid,
+  .recitation-filter-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .recitation-student-row {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .recitation-points {
+    grid-column: 2;
+    text-align: left;
+  }
+}
+
+
+/* Step 128: Recitation modal compact header + bigger student roster area. */
+.recitation-status-card {
+  display: flex;
+  flex-direction: column;
+  max-height: min(94svh, 920px);
+  overflow: hidden;
+}
+
+.recitation-status-card > .modal-close,
+.recitation-status-card > .close-btn {
+  flex: 0 0 auto;
+}
+
+.recitation-status-icon {
+  width: 58px;
+  height: 42px;
+  min-height: 42px;
+  margin-bottom: 8px;
+}
+
+.recitation-status-card .section-kicker,
+.recitation-status-card h2,
+.recitation-status-lead,
+.recitation-code-gate {
+  flex: 0 0 auto;
+}
+
+.recitation-status-card h2 {
+  margin-top: 4px;
+  margin-bottom: 8px;
+}
+
+.recitation-status-lead {
+  margin-bottom: 10px;
+}
+
+.recitation-viewer-panel {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  gap: 8px;
+}
+
+.recitation-viewer-header {
+  flex: 0 0 auto;
+  padding: 10px 12px;
+  border-radius: 16px;
+}
+
+.recitation-viewer-header h3 {
+  font-size: clamp(1.15rem, 1.8vw, 1.6rem);
+  line-height: 1.08;
+  margin: 0 0 3px;
+}
+
+.recitation-viewer-header .muted-text,
+#recitationUpdatedText {
+  font-size: 0.9rem;
+}
+
+.recitation-stats-grid {
+  flex: 0 0 auto;
+  gap: 8px;
+}
+
+.recitation-stats-grid > div {
+  padding: 9px 10px;
+  border-radius: 14px;
+}
+
+.recitation-stats-grid strong {
+  font-size: clamp(1.55rem, 2.35vw, 2.15rem);
+}
+
+.recitation-stats-grid span {
+  margin-top: 3px;
+  font-size: 0.7rem;
+}
+
+.recitation-filter-grid {
+  flex: 0 0 auto;
+  gap: 8px;
+}
+
+.recitation-filter-grid label {
+  gap: 4px;
+  font-size: 0.7rem;
+}
+
+.recitation-filter-grid input,
+.recitation-filter-grid select,
+#recitationRefreshBtn {
+  min-height: 38px;
+  padding-top: 7px;
+  padding-bottom: 7px;
+}
+
+.recitation-status-box {
+  flex: 0 0 auto;
+  min-height: 0;
+  padding: 7px 10px;
+  font-size: 0.88rem;
+}
+
+.recitation-leaderboard {
+  flex: 1 1 auto;
+  min-height: 360px;
+  max-height: none;
+  overflow: auto;
+  gap: 8px;
+  padding: 4px 6px 8px 2px;
+}
+
+.recitation-student-row {
+  padding: 10px 12px;
+  border-radius: 15px;
+}
+
+.recitation-rank {
+  width: 38px;
+  height: 38px;
+  border-radius: 13px;
+}
+
+.recitation-points {
+  font-size: 1.55rem;
+}
+
+@media (max-width: 820px) {
+  .recitation-status-card {
+    max-height: calc(100svh - 16px);
+    overflow: hidden;
+  }
+
+  .recitation-status-icon {
+    width: 54px;
+    height: 38px;
+    min-height: 38px;
+  }
+
+  .recitation-viewer-panel {
+    min-height: 0;
+  }
+
+  .recitation-stats-grid > div {
+    padding: 8px 7px;
+  }
+
+  .recitation-leaderboard {
+    min-height: 42vh;
+    max-height: none;
+  }
+}
+
+@media (max-width: 560px) {
+  .recitation-status-card {
+    padding: 14px;
+  }
+
+  .recitation-viewer-header h3 {
+    font-size: 1.2rem;
+  }
+
+  .recitation-leaderboard {
+    min-height: 46vh;
+  }
+}
+
+/* Step 129: Give Recitation Status much more usable roster space.
+   Scoped to recitation modal only. Functionality untouched. */
+.recitation-status-card {
+  width: min(1180px, calc(100vw - 16px)) !important;
+  height: min(96svh, 940px) !important;
+  max-height: min(96svh, 940px) !important;
+  padding: clamp(12px, 1.25vw, 18px) !important;
+  overflow: hidden !important;
+}
+
+.recitation-status-card > .modal-close,
+.recitation-status-card > .close-btn {
+  top: 12px !important;
+  right: 12px !important;
+}
+
+.recitation-status-icon {
+  width: 48px !important;
+  height: 34px !important;
+  min-height: 34px !important;
+  margin: 0 auto 4px !important;
+  border-radius: 16px !important;
+}
+
+.recitation-status-card .section-kicker {
+  margin: 0 0 4px !important;
+  font-size: 0.72rem !important;
+}
+
+.recitation-status-card h2 {
+  margin: 0 0 5px !important;
+  font-size: clamp(1.2rem, 2vw, 1.75rem) !important;
+  line-height: 1.05 !important;
+}
+
+.recitation-status-lead {
+  margin: 0 0 8px !important;
+  font-size: 0.92rem !important;
+}
+
+.recitation-viewer-panel {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  gap: 6px !important;
+}
+
+.recitation-viewer-header {
+  padding: 8px 10px !important;
+  border-radius: 14px !important;
+  gap: 8px !important;
+}
+
+.recitation-viewer-header h3 {
+  font-size: clamp(1.05rem, 1.55vw, 1.35rem) !important;
+  line-height: 1.05 !important;
+  margin: 0 0 2px !important;
+}
+
+.recitation-viewer-header .muted-text,
+#recitationUpdatedText {
+  font-size: 0.78rem !important;
+  line-height: 1.15 !important;
+}
+
+.recitation-viewer-header .ghost-btn,
+#recitationChangeCodeBtn {
+  min-height: 34px !important;
+  padding: 7px 12px !important;
+  border-radius: 999px !important;
+  font-size: 0.86rem !important;
+}
+
+.recitation-stats-grid {
+  gap: 6px !important;
+}
+
+.recitation-stats-grid > div {
+  padding: 6px 8px !important;
+  border-radius: 12px !important;
+}
+
+.recitation-stats-grid strong {
+  font-size: clamp(1.25rem, 2vw, 1.75rem) !important;
+}
+
+.recitation-stats-grid span {
+  margin-top: 2px !important;
+  font-size: 0.62rem !important;
+  letter-spacing: 0.045em !important;
+}
+
+.recitation-filter-grid {
+  gap: 6px !important;
+  align-items: end !important;
+}
+
+.recitation-filter-grid label {
+  gap: 3px !important;
+  font-size: 0.62rem !important;
+  letter-spacing: 0.04em !important;
+}
+
+.recitation-filter-grid input,
+.recitation-filter-grid select,
+#recitationRefreshBtn {
+  min-height: 34px !important;
+  padding: 6px 10px !important;
+  border-radius: 12px !important;
+  font-size: 0.86rem !important;
+}
+
+.recitation-status-box {
+  padding: 5px 9px !important;
+  min-height: 0 !important;
+  border-radius: 12px !important;
+  font-size: 0.78rem !important;
+  line-height: 1.2 !important;
+}
+
+.recitation-leaderboard {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow: auto !important;
+  gap: 7px !important;
+  padding: 5px 7px 10px 2px !important;
+}
+
+.recitation-student-row {
+  padding: 9px 11px !important;
+  border-radius: 14px !important;
+  gap: 10px !important;
+}
+
+.recitation-rank {
+  width: 34px !important;
+  height: 34px !important;
+  border-radius: 12px !important;
+  font-size: 0.85rem !important;
+}
+
+.recitation-name {
+  font-size: 0.98rem !important;
+}
+
+.recitation-meta {
+  margin-top: 2px !important;
+  font-size: 0.78rem !important;
+}
+
+.recitation-points {
+  min-width: 58px !important;
+  font-size: 1.35rem !important;
+}
+
+.recitation-points small {
+  margin-top: 2px !important;
+  font-size: 0.56rem !important;
+}
+
+@media (min-height: 780px) {
+  .recitation-leaderboard {
+    min-height: 52svh !important;
+  }
+}
+
+@media (min-width: 900px) and (min-height: 760px) {
+  .recitation-leaderboard {
+    min-height: 56svh !important;
+  }
+}
+
+@media (max-width: 820px) {
+  .recitation-status-card {
+    height: calc(100svh - 12px) !important;
+    max-height: calc(100svh - 12px) !important;
+    padding: 12px !important;
+  }
+
+  .recitation-viewer-header {
+    padding: 8px !important;
+  }
+
+  .recitation-stats-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+
+  .recitation-filter-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .recitation-leaderboard {
+    min-height: 48svh !important;
+  }
+}
+
+@media (max-width: 560px) {
+  .recitation-status-card h2 {
+    font-size: 1.12rem !important;
+  }
+
+  .recitation-status-lead,
+  .recitation-viewer-header .muted-text,
+  #recitationUpdatedText {
+    font-size: 0.75rem !important;
+  }
+
+  .recitation-stats-grid,
+  .recitation-filter-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .recitation-leaderboard {
+    min-height: 50svh !important;
+  }
+}

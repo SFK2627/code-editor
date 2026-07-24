@@ -43,7 +43,7 @@
       document.documentElement.dataset.deviceMode = isPhone ? 'phone' : 'desktop';
     })();
   </script>
-  <link rel="stylesheet" href="style.css?v=20260724-step124-student-teacher-feedback" />
+  <link rel="stylesheet" href="style.css?v=20260724-step129-recitation-more-list-space" />
 </head>
 <body class="entry-gate-active">
   <noscript>
@@ -73,6 +73,10 @@
         <button id="continueGuestBtn" class="entry-choice guest-choice" type="button">
           <span class="entry-choice-icon">🧪</span>
           <span><strong>Practice Without Login</strong><small>You can code and run output, but your work will not be saved for later.</small></span>
+        </button>
+        <button id="entryRecitationStatusBtn" class="entry-choice recitation-choice" type="button">
+          <span class="entry-choice-icon">📋</span>
+          <span><strong>View Recitation Status</strong><small>Enter your section code and see only your section's recitation standing.</small></span>
         </button>
       </div>
       <p class="entry-free-note">No payment, subscription, or billing is required to use this app.</p>
@@ -135,6 +139,7 @@
       </div>
       <div class="dashboard-header-actions">
         <button id="dashboardThemeBtn" class="ghost-btn" type="button">🌙 Theme</button>
+        <button id="dashboardRecitationStatusBtn" class="ghost-btn recitation-status-open-btn" type="button">📋 Recitation Status</button>
         <button id="dashboardJoinProjectBtn" class="ghost-btn dashboard-join-project-btn hidden" type="button">🤝 Join a Project</button>
         <button id="dashboardLogoutBtn" class="ghost-btn danger" type="button">Log Out</button>
       </div>
@@ -146,7 +151,10 @@
           <h2>Continue a project or start something new.</h2>
           <p>Every edit is saved automatically while you are logged in.</p>
         </div>
-        <button id="newProjectBtn" class="primary-btn dashboard-new-btn" type="button">+ New Project</button>
+        <div class="dashboard-hero-actions">
+          <button id="newProjectBtn" class="primary-btn dashboard-new-btn" type="button">+ New Project</button>
+          <button id="heroRecitationStatusBtn" class="ghost-btn dashboard-recitation-btn" type="button">📋 Recitation Status</button>
+        </div>
       </section>
       <section class="project-toolbar" aria-label="Project filters">
         <label class="project-search-box">
@@ -163,6 +171,73 @@
       <div id="projectDashboardStatus" class="dashboard-status" role="status">Loading projects...</div>
       <section id="studentProjectsGrid" class="student-projects-grid" aria-live="polite"></section>
     </main>
+  </div>
+
+  <div id="recitationStatusOverlay" class="student-auth-overlay recitation-status-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="recitationStatusTitle">
+    <div class="student-auth-card recitation-status-card">
+      <button id="closeRecitationStatusBtn" class="icon-btn auth-close-btn" type="button" aria-label="Close recitation status">×</button>
+      <div class="student-auth-icon recitation-status-icon">📋</div>
+      <p class="section-kicker">Recitation Central</p>
+      <h2 id="recitationStatusTitle">View Your Section Status</h2>
+      <p class="muted-text recitation-status-lead">Enter your section code. Only the matching section will appear here.</p>
+
+      <div id="recitationCodeGate" class="recitation-code-gate">
+        <label>
+          Section Code
+          <input id="recitationSectionCodeInput" type="text" inputmode="text" autocomplete="off" placeholder="Example: FAUSTINA2026" />
+        </label>
+        <button id="recitationUnlockBtn" class="primary-btn wide-btn" type="button">View Section Status</button>
+        <p id="recitationStatusMessage" class="login-error hidden" role="alert"></p>
+        <p class="helper-note">Ask your teacher for the code. The section list is hidden from this student view.</p>
+      </div>
+
+      <section id="recitationViewerPanel" class="recitation-viewer-panel hidden" aria-label="Section recitation status">
+        <div class="recitation-viewer-header">
+          <div>
+            <p class="section-kicker">Unlocked Section</p>
+            <h3 id="recitationSectionName">Section</h3>
+            <p id="recitationUpdatedText" class="muted-text">Ready.</p>
+          </div>
+          <button id="recitationChangeCodeBtn" class="ghost-btn" type="button">Change Code</button>
+        </div>
+
+        <div class="recitation-stats-grid" aria-label="Recitation summary">
+          <div><strong id="recitationStudentCount">0</strong><span>Students</span></div>
+          <div><strong id="recitationTotalPoints">0</strong><span>Total Points</span></div>
+          <div><strong id="recitationTopScore">0</strong><span>Top Score</span></div>
+        </div>
+
+        <div class="recitation-filter-grid">
+          <label>
+            Term
+            <select id="recitationTermSelect">
+              <option value="current">Current Term</option>
+              <option value="allTime">All Time</option>
+              <option value="term1">Term 1</option>
+              <option value="term2">Term 2</option>
+              <option value="term3">Term 3</option>
+            </select>
+          </label>
+          <label>
+            Sort
+            <select id="recitationSortSelect">
+              <option value="pointsDesc">Highest Points</option>
+              <option value="latest">Latest Recitation</option>
+              <option value="az">Name A-Z</option>
+              <option value="pointsAsc">Lowest Points</option>
+            </select>
+          </label>
+          <label>
+            Search
+            <input id="recitationSearchInput" type="search" placeholder="Search name" />
+          </label>
+          <button id="recitationRefreshBtn" class="ghost-btn" type="button">↻ Refresh</button>
+        </div>
+
+        <div id="recitationStatusBox" class="recitation-status-box" role="status">Enter a section code to begin.</div>
+        <div id="recitationLeaderboard" class="recitation-leaderboard" aria-live="polite"></div>
+      </section>
+    </div>
   </div>
 
   <div id="projectNameOverlay" class="student-auth-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="projectNameTitle">
@@ -1042,6 +1117,6 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
   <script src="firebase-config.js"></script>
-  <script src="script.js?v=20260724-step124-student-teacher-feedback"></script>
+  <script src="script.js?v=20260724-step129-recitation-more-list-space"></script>
 </body>
 </html>

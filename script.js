@@ -18286,3 +18286,483 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     showButtonExists: Boolean(document.getElementById('mobileEditorToolsToggle'))
   });
 })();
+
+// Step 125: Read-only Recitation Status viewer by section code.
+(() => {
+  const RECITATION_FIREBASE_CONFIG = {
+    apiKey: 'AIzaSyBbY8IScU02QfS9Xda175wIJ2dUjrJTIo4',
+    projectId: 'recitation-central'
+  };
+
+  const openButtons = [
+    document.getElementById('entryRecitationStatusBtn'),
+    document.getElementById('dashboardRecitationStatusBtn'),
+    document.getElementById('heroRecitationStatusBtn')
+  ].filter(Boolean);
+  const overlay = document.getElementById('recitationStatusOverlay');
+  const closeBtn = document.getElementById('closeRecitationStatusBtn');
+  const codeGate = document.getElementById('recitationCodeGate');
+  const codeInput = document.getElementById('recitationSectionCodeInput');
+  const unlockBtn = document.getElementById('recitationUnlockBtn');
+  const message = document.getElementById('recitationStatusMessage');
+  const viewer = document.getElementById('recitationViewerPanel');
+  const sectionNameEl = document.getElementById('recitationSectionName');
+  const updatedText = document.getElementById('recitationUpdatedText');
+  const changeCodeBtn = document.getElementById('recitationChangeCodeBtn');
+  const termSelect = document.getElementById('recitationTermSelect');
+  const sortSelect = document.getElementById('recitationSortSelect');
+  const searchInput = document.getElementById('recitationSearchInput');
+  const refreshBtn = document.getElementById('recitationRefreshBtn');
+  const statusBox = document.getElementById('recitationStatusBox');
+  const leaderboard = document.getElementById('recitationLeaderboard');
+  const studentCount = document.getElementById('recitationStudentCount');
+  const totalPoints = document.getElementById('recitationTotalPoints');
+  const topScore = document.getElementById('recitationTopScore');
+
+  if (!overlay || !unlockBtn || !codeInput || !viewer || !leaderboard) return;
+
+  const state = {
+    sections: null,
+    activeSection: null,
+    students: [],
+    loading: false
+  };
+
+  function normalizeRecitationCode(value) {
+    return String(value || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  }
+
+  function recitationValueFromFirestore(value) {
+    if (!value || typeof value !== 'object') return null;
+    if ('stringValue' in value) return value.stringValue;
+    if ('integerValue' in value) return Number(value.integerValue) || 0;
+    if ('doubleValue' in value) return Number(value.doubleValue) || 0;
+    if ('booleanValue' in value) return Boolean(value.booleanValue);
+    if ('timestampValue' in value) return value.timestampValue;
+    if ('nullValue' in value) return null;
+    if ('arrayValue' in value) {
+      const values = value.arrayValue.values || [];
+      return values.map(recitationValueFromFirestore);
+    }
+    if ('mapValue' in value) {
+      const output = {};
+      const fields = value.mapValue.fields || {};
+      Object.keys(fields).forEach(key => {
+        output[key] = recitationValueFromFirestore(fields[key]);
+      });
+      return output;
+    }
+    return null;
+  }
+
+  function recitationDocFromFirestore(doc) {
+    const fields = doc?.fields || {};
+    const data = {};
+    Object.keys(fields).forEach(key => {
+      data[key] = recitationValueFromFirestore(fields[key]);
+    });
+    const id = String(doc?.name || '').split('/').pop() || data.id || '';
+    return { id, data };
+  }
+
+  function recitationEndpoint(path) {
+    const base = `https://firestore.googleapis.com/v1/projects/${RECITATION_FIREBASE_CONFIG.projectId}/databases/(default)/documents`;
+    const sep = path.includes('?') ? '&' : '?';
+    return `${base}${path}${sep}key=${encodeURIComponent(RECITATION_FIREBASE_CONFIG.apiKey)}`;
+  }
+
+  async function fetchRecitationSections() {
+    if (Array.isArray(state.sections)) return state.sections;
+    const response = await fetch(recitationEndpoint('/sections?pageSize=500'), { cache: 'no-store' });
+    if (!response.ok) throw new Error(`Could not load recitation sections (${response.status}).`);
+    const data = await response.json();
+    const sections = (data.documents || [])
+      .map(recitationDocFromFirestore)
+      .map(section => ({
+        id: section.id,
+        name: String(section.data.name || section.id || '').trim(),
+        data: section.data
+      }))
+      .filter(section => section.name);
+    state.sections = sections;
+    return sections;
+  }
+
+  // Step 128: One unique student-facing recitation code per section.
+  // Codes are case-insensitive and hyphen-insensitive when students type them.
+  const RECITATION_SECTION_CODE_RULES = [
+    { code: 'FATIMA-10FT26', match: ['GRADE10FATIMA', 'FATIMA'] },
+    { code: 'IMMACULATE-10IM26', match: ['GRADE10IMMACULATE', 'IMMACULATE'] },
+    { code: 'LOURDES-10LD26', match: ['GRADE10LOURDES', 'LOURDES'] },
+    { code: 'MMOG-10MG26', match: ['GRADE10MMOG', 'MMOG'] },
+    { code: 'ANDREW-8AKT26', match: ['GRADE8STANDREWKIMTAEGON', 'ANDREWKIMTAEGON', 'ANDREW'] },
+    { code: 'CAMILLUS-8CDL26', match: ['GRADE8STCAMILLUSDELELLIS', 'CAMILLUSDELELLIS', 'CAMILLUS'] },
+    { code: 'CLARE-8CA26', match: ['GRADE8STCLAREOFASSISI', 'CLAREOFASSISI', 'CLARE'] },
+    { code: 'FAUSTINA-8FK26', match: ['GRADE8STFAUSTINAKOWALSKA', 'FAUSTINAKOWALSKA', 'FAUSTINA'] },
+    { code: 'KOLBE-8MK26', match: ['GRADE8STMAXIMILIANKOLBE', 'MAXIMILIANKOLBE', 'KOLBE'] },
+    { code: 'PAULMIKI-8PM26', match: ['GRADE8STPAULMIKI', 'PAULMIKI'] },
+    { code: 'PEDRO-8PC26', match: ['GRADE8STPEDROCALUNGSOD', 'PEDROCALUNGSOD', 'PEDRO'] },
+    { code: 'PIO-8PP26', match: ['GRADE8STPIOOFPIETRELCINA', 'PIOOFPIETRELCINA', 'PIOPIETRELCINA', 'PIO'] },
+    { code: 'BENEDICTA-8TB26', match: ['GRADE8STTERESABENEDICTA', 'TERESABENEDICTA', 'BENEDICTA'] },
+    { code: 'CALCUTTA-8TC26', match: ['GRADE8STTERESAOFCALCUTTA', 'TERESAOFCALCUTTA', 'CALCUTTA'] }
+  ];
+
+  const RECITATION_EXPLICIT_CODE_FIELDS = [
+    'viewCode',
+    'sectionCode',
+    'accessCode',
+    'code',
+    'pin',
+    'publicCode',
+    'studentCode',
+    'statusCode'
+  ];
+
+  function compactSectionNameForCode(value) {
+    const words = String(value || '')
+      .toUpperCase()
+      .replace(/&/g, ' AND ')
+      .replace(/[^A-Z0-9]+/g, ' ')
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .filter(word => ![
+        'GRADE', 'GR', 'SECTION', 'SEC', 'CLASS', 'GROUP', 'ROOM', 'SY', 'SCHOOL', 'YEAR',
+        'ST', 'SAINT', 'STA', 'SANTA', 'OF', 'THE', 'AND'
+      ].includes(word));
+    return normalizeRecitationCode(words.join(''));
+  }
+
+  function explicitRecitationSectionCode(section) {
+    const data = section?.data || {};
+    for (const field of RECITATION_EXPLICIT_CODE_FIELDS) {
+      const code = normalizeRecitationCode(data[field]);
+      if (code) return code;
+    }
+    return '';
+  }
+
+  function officialRecitationCodeForSection(section) {
+    const explicit = explicitRecitationSectionCode(section);
+    if (explicit) return explicit;
+
+    const haystack = normalizeRecitationCode(`${section?.name || ''} ${section?.id || ''}`);
+    for (const rule of RECITATION_SECTION_CODE_RULES) {
+      if (rule.match.some(token => haystack.includes(normalizeRecitationCode(token)))) return normalizeRecitationCode(rule.code);
+    }
+
+    const compactName = compactSectionNameForCode(section?.name || section?.id || '');
+    return compactName || normalizeRecitationCode(section?.id || section?.name || '');
+  }
+
+  function sectionCandidateCodes(section) {
+    const official = officialRecitationCodeForSection(section);
+    return official ? [official] : [];
+  }
+
+  function sectionCodeMatchScore(section, normalizedCode) {
+    const official = officialRecitationCodeForSection(section);
+    if (official && normalizedCode === official) return 1000;
+    return 0;
+  }
+
+  async function findSectionByCode(code) {
+    const normalizedCode = normalizeRecitationCode(code);
+    if (!normalizedCode) return null;
+    const sections = await fetchRecitationSections();
+
+    const matches = sections
+      .map(section => ({ section, code: officialRecitationCodeForSection(section) }))
+      .filter(item => item.code && item.code === normalizedCode);
+
+    if (!matches.length) return null;
+    if (matches.length > 1) {
+      throw new Error('Section code is assigned to more than one section. Ask your teacher for the updated code.');
+    }
+    return matches[0].section || null;
+  }
+
+  async function fetchRecitationStudentsForSection(sectionName) {
+    const body = {
+      structuredQuery: {
+        from: [{ collectionId: 'students' }],
+        where: {
+          fieldFilter: {
+            field: { fieldPath: 'section' },
+            op: 'EQUAL',
+            value: { stringValue: sectionName }
+          }
+        }
+      }
+    };
+
+    const response = await fetch(recitationEndpoint(':runQuery'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      cache: 'no-store'
+    });
+
+    if (!response.ok) throw new Error(`Could not load recitation records (${response.status}).`);
+    const rows = await response.json();
+    return (Array.isArray(rows) ? rows : [])
+      .map(row => row.document)
+      .filter(Boolean)
+      .map(doc => normalizeRecitationStudent(recitationDocFromFirestore(doc)))
+      .filter(student => student.fullName || student.studentId);
+  }
+
+  function getSchoolYear(date) {
+    const year = date.getFullYear();
+    const month = date.getMonth() + 1;
+    if (month >= 1 && month <= 4) return `${year - 1}-${year}`;
+    return `${year}-${year + 1}`;
+  }
+
+  function getTermInfo(date = new Date()) {
+    const monthDay = (date.getMonth() + 1) * 100 + date.getDate();
+    const schoolYear = getSchoolYear(date);
+    if (monthDay >= 601 && monthDay <= 909) return { id: 'term1', name: 'Term 1', schoolYear };
+    if (monthDay >= 910 && monthDay <= 1215) return { id: 'term2', name: 'Term 2', schoolYear };
+    if (monthDay >= 104 && monthDay <= 403) return { id: 'term3', name: 'Term 3', schoolYear };
+    return { id: 'outOfTerm', name: 'Outside Term', schoolYear };
+  }
+
+  function selectedRecitationTermId() {
+    const value = termSelect?.value || 'current';
+    if (value === 'current') return getTermInfo().id;
+    return value;
+  }
+
+  function selectedRecitationTermLabel() {
+    const value = termSelect?.value || 'current';
+    if (value === 'current') return getTermInfo().name;
+    if (value === 'term1') return 'Term 1';
+    if (value === 'term2') return 'Term 2';
+    if (value === 'term3') return 'Term 3';
+    return 'All Time';
+  }
+
+  function normalizeRecitationStudent(doc) {
+    const data = doc.data || {};
+    const latestValue = data.latestAt || data.latestRecitationAt || data.updatedAt || '';
+    const latestMillis = typeof latestValue === 'string' ? Date.parse(latestValue) || 0 : Number(latestValue) || 0;
+    return {
+      studentId: String(data.studentId || doc.id || '').trim(),
+      fullName: String(data.fullName || data.name || '').trim(),
+      section: String(data.section || '').trim(),
+      totalPoints: Number(data.totalPoints) || 0,
+      termTotals: data.termTotals && typeof data.termTotals === 'object' ? data.termTotals : {},
+      latestRecitationMillis: latestMillis,
+      latestRecitationText: latestMillis ? new Date(latestMillis).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '',
+      latestRecitationRow: latestMillis
+    };
+  }
+
+  function pointsFor(student) {
+    const termId = selectedRecitationTermId();
+    if (termId === 'allTime') return Number(student.totalPoints) || 0;
+    const termTotals = student.termTotals || {};
+    const explicitTermPoints = Number(termTotals[termId]) || 0;
+    const assignedTermPoints = ['term1', 'term2', 'term3', 'outOfTerm'].reduce((total, key) => total + (Number(termTotals[key]) || 0), 0);
+    const legacyUnassignedPoints = Math.max(0, (Number(student.totalPoints) || 0) - assignedTermPoints);
+    if (termId === 'term1') return explicitTermPoints + legacyUnassignedPoints;
+    return explicitTermPoints;
+  }
+
+  function showRecitationMessage(text, type = '') {
+    if (!statusBox) return;
+    statusBox.textContent = text;
+    statusBox.className = `recitation-status-box ${type}`.trim();
+  }
+
+  function showGateError(text) {
+    if (!message) return;
+    message.textContent = text;
+    message.classList.remove('hidden');
+  }
+
+  function clearGateError() {
+    if (!message) return;
+    message.textContent = '';
+    message.classList.add('hidden');
+  }
+
+  function getVisibleRecitationStudents() {
+    const searchText = String(searchInput?.value || '').trim().toLowerCase();
+    const sortValue = sortSelect?.value || 'pointsDesc';
+    const students = state.students.filter(student => !searchText || student.fullName.toLowerCase().includes(searchText));
+
+    students.sort((a, b) => {
+      if (sortValue === 'latest') {
+        if ((Number(b.latestRecitationMillis) || 0) !== (Number(a.latestRecitationMillis) || 0)) return (Number(b.latestRecitationMillis) || 0) - (Number(a.latestRecitationMillis) || 0);
+        return pointsFor(b) - pointsFor(a) || a.fullName.localeCompare(b.fullName);
+      }
+      if (sortValue === 'pointsAsc') return pointsFor(a) - pointsFor(b) || a.fullName.localeCompare(b.fullName);
+      if (sortValue === 'az') return a.fullName.localeCompare(b.fullName);
+      return pointsFor(b) - pointsFor(a) || a.fullName.localeCompare(b.fullName);
+    });
+
+    return students;
+  }
+
+  function renderRecitationLeaderboard() {
+    const visible = getVisibleRecitationStudents();
+    const all = state.students || [];
+    const total = all.reduce((sum, student) => sum + pointsFor(student), 0);
+    const top = all.reduce((max, student) => Math.max(max, pointsFor(student)), 0);
+
+    if (studentCount) studentCount.textContent = String(all.length);
+    if (totalPoints) totalPoints.textContent = String(total);
+    if (topScore) topScore.textContent = String(top);
+    if (updatedText) updatedText.textContent = `${selectedRecitationTermLabel()} | Updated: ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`;
+
+    leaderboard.innerHTML = '';
+    if (!visible.length) {
+      const empty = document.createElement('div');
+      empty.className = 'recitation-empty';
+      empty.textContent = all.length ? 'No matching student found.' : 'No recitation records found for this section.';
+      leaderboard.appendChild(empty);
+      return;
+    }
+
+    visible.forEach((student, index) => {
+      const row = document.createElement('div');
+      row.className = 'recitation-student-row';
+
+      const rank = document.createElement('div');
+      rank.className = 'recitation-rank';
+      rank.textContent = index < 3 ? ['🥇', '🥈', '🥉'][index] : `#${index + 1}`;
+
+      const details = document.createElement('div');
+      const name = document.createElement('div');
+      name.className = 'recitation-name';
+      name.textContent = student.fullName || student.studentId || 'Unnamed Student';
+      const meta = document.createElement('div');
+      meta.className = 'recitation-meta';
+      meta.textContent = student.latestRecitationText ? `Latest recitation: ${student.latestRecitationText}` : student.section || state.activeSection?.name || 'No latest recitation yet';
+      details.appendChild(name);
+      details.appendChild(meta);
+
+      const points = document.createElement('div');
+      points.className = 'recitation-points';
+      points.textContent = String(pointsFor(student));
+      const label = document.createElement('small');
+      label.textContent = 'points';
+      points.appendChild(label);
+
+      row.appendChild(rank);
+      row.appendChild(details);
+      row.appendChild(points);
+      leaderboard.appendChild(row);
+    });
+  }
+
+  async function unlockRecitationSection() {
+    if (state.loading) return;
+    const typedCode = codeInput?.value || '';
+    clearGateError();
+
+    if (!normalizeRecitationCode(typedCode)) {
+      showGateError('Please enter your section code.');
+      codeInput?.focus();
+      return;
+    }
+
+    state.loading = true;
+    unlockBtn.disabled = true;
+    unlockBtn.textContent = 'Checking code...';
+
+    try {
+      const section = await findSectionByCode(typedCode);
+      if (!section) {
+        showGateError('Invalid section code. Ask your teacher for the correct code.');
+        return;
+      }
+
+      state.activeSection = section;
+      codeGate?.classList.add('hidden');
+      viewer?.classList.remove('hidden');
+      if (sectionNameEl) sectionNameEl.textContent = section.name;
+      showRecitationMessage(`Loading ${section.name} recitation status...`);
+      await loadRecitationStudents();
+    } catch (error) {
+      showGateError(error?.message || 'Could not open recitation status. Please check your internet connection.');
+    } finally {
+      state.loading = false;
+      unlockBtn.disabled = false;
+      unlockBtn.textContent = 'View Section Status';
+    }
+  }
+
+  async function loadRecitationStudents() {
+    if (!state.activeSection) return;
+    try {
+      showRecitationMessage(`Loading ${state.activeSection.name}...`);
+      state.students = await fetchRecitationStudentsForSection(state.activeSection.name);
+      renderRecitationLeaderboard();
+      showRecitationMessage(`${state.activeSection.name} loaded. Only this section is shown.`, 'success');
+    } catch (error) {
+      console.warn('Recitation status load failed.', error);
+      showRecitationMessage(error?.message || 'Could not load recitation records.', 'error');
+    }
+  }
+
+  function openRecitationOverlay() {
+    overlay.classList.remove('hidden');
+    document.body.classList.add('student-auth-open');
+    window.setTimeout(() => codeInput?.focus(), 80);
+  }
+
+  function closeRecitationOverlay() {
+    overlay.classList.add('hidden');
+    if (!document.querySelector('.student-auth-overlay:not(.hidden), .modal-overlay:not(.hidden), .app-dialog-overlay:not(.hidden)')) {
+      document.body.classList.remove('student-auth-open');
+    }
+  }
+
+  function resetRecitationGate() {
+    state.activeSection = null;
+    state.students = [];
+    codeGate?.classList.remove('hidden');
+    viewer?.classList.add('hidden');
+    leaderboard.innerHTML = '';
+    clearGateError();
+    showRecitationMessage('Enter a section code to begin.');
+    if (studentCount) studentCount.textContent = '0';
+    if (totalPoints) totalPoints.textContent = '0';
+    if (topScore) topScore.textContent = '0';
+    window.setTimeout(() => codeInput?.focus(), 60);
+  }
+
+  overlay.addEventListener('click', event => {
+    if (event.target === overlay) event.stopPropagation();
+  });
+  openButtons.forEach(button => button.addEventListener('click', () => openRecitationOverlay()));
+  closeBtn?.addEventListener('click', closeRecitationOverlay);
+  unlockBtn.addEventListener('click', unlockRecitationSection);
+  codeInput?.addEventListener('keydown', event => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      unlockRecitationSection();
+    }
+  });
+  changeCodeBtn?.addEventListener('click', resetRecitationGate);
+  refreshBtn?.addEventListener('click', loadRecitationStudents);
+  termSelect?.addEventListener('change', renderRecitationLeaderboard);
+  sortSelect?.addEventListener('change', renderRecitationLeaderboard);
+  searchInput?.addEventListener('input', renderRecitationLeaderboard);
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && !overlay.classList.contains('hidden')) closeRecitationOverlay();
+  });
+
+  window.MCS_RECITATION_STATUS_VIEWER = {
+    open: openRecitationOverlay,
+    reset: resetRecitationGate,
+    normalizeCode: normalizeRecitationCode,
+    getSectionCodes: async () => {
+      const sections = await fetchRecitationSections();
+      return sections.map(section => ({ section: section.name, code: officialRecitationCodeForSection(section) }));
+    }
+  };
+})();

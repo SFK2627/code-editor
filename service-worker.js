@@ -1,15 +1,15 @@
-const CACHE_NAME = 'code-editor-20260724-step124-student-teacher-feedback';
+const CACHE_NAME = 'code-editor-20260724-step129-recitation-more-list-space';
 const APP_SHELL = [
   './',
   './index.html',
-  './index.html?v=20260724-step124-student-teacher-feedback',
-  './index.html?fresh=step124',
+  './index.html?v=20260724-step127-recitation-codes-modal',
+  './index.html?fresh=step127',
   './style.css',
-  './style.css?v=20260724-step124-student-teacher-feedback',
-  './style.css?v=20260724-step124-student-teacher-feedback',
+  './style.css?v=20260724-step129-recitation-more-list-space',
+  './style.css?v=20260724-step129-recitation-more-list-space',
   './script.js',
-  './script.js?v=20260724-step124-student-teacher-feedback',
-  './script.js?v=20260724-step124-student-teacher-feedback',
+  './script.js?v=20260724-step129-recitation-more-list-space',
+  './script.js?v=20260724-step129-recitation-more-list-space',
   './firebase-config.js',
   './manifest.webmanifest',
   './favicon.png',
