@@ -1,15 +1,15 @@
-const CACHE_NAME = 'code-editor-20260724-step143-ta-raw-score';
+const CACHE_NAME = 'code-editor-20260724-step144-ta-score-fallback';
 const APP_SHELL = [
   './',
   './index.html',
-  './index.html?v=20260724-step143-ta-raw-score',
-  './index.html?fresh=step143',
+  './index.html?v=20260724-step144-ta-score-fallback',
+  './index.html?fresh=step144',
   './style.css',
-  './style.css?v=20260724-step143-ta-raw-score',
-  './style.css?v=20260724-step143-ta-raw-score',
+  './style.css?v=20260724-step144-ta-score-fallback',
+  './style.css?v=20260724-step144-ta-score-fallback',
   './script.js',
-  './script.js?v=20260724-step143-ta-raw-score',
-  './script.js?v=20260724-step143-ta-raw-score',
+  './script.js?v=20260724-step144-ta-score-fallback',
+  './script.js?v=20260724-step144-ta-score-fallback',
   './firebase-config.js',
   './manifest.webmanifest',
   './favicon.png',

@@ -4491,8 +4491,8 @@ function cleanComplianceScoreValue(value) {
 
 function formatTermAssessmentRawScore(task = {}) {
   if (!isComplianceTermAssessmentTask(task)) return '';
-  const rawScore = cleanComplianceScoreValue(task.rawScore ?? task.score ?? task.rawScoreText);
-  const highestScore = cleanComplianceScoreValue(task.highestScore ?? task.maxScore ?? task.hps);
+  const rawScore = cleanComplianceScoreValue(task.rawScore ?? task.score ?? task.rawScoreText ?? task.displayScore ?? task.rawScoreDisplay ?? task.totalRawScore);
+  const highestScore = cleanComplianceScoreValue(task.highestScore ?? task.maxScore ?? task.hps ?? task.highestScoreDisplay ?? task.totalHighestScore);
   if (rawScore && highestScore) return `${rawScore}/${highestScore}`;
   if (rawScore) return rawScore;
   if (highestScore) return `No score yet / ${highestScore}`;
@@ -4531,8 +4531,8 @@ function sanitizeComplianceStudentRecord(record = {}, fallback = {}) {
       number: Number(task.number || index + 1) || index + 1
     };
     if (isComplianceTermAssessmentTask({ ...task, ...safeTask })) {
-      safeTask.rawScore = cleanComplianceScoreValue(task.rawScore ?? task.score ?? task.rawScoreText);
-      safeTask.highestScore = cleanComplianceScoreValue(task.highestScore ?? task.maxScore ?? task.hps);
+      safeTask.rawScore = cleanComplianceScoreValue(task.rawScore ?? task.score ?? task.rawScoreText ?? task.displayScore ?? task.rawScoreDisplay ?? task.totalRawScore);
+      safeTask.highestScore = cleanComplianceScoreValue(task.highestScore ?? task.maxScore ?? task.hps ?? task.highestScoreDisplay ?? task.totalHighestScore);
     }
     return safeTask;
   }) : [];
