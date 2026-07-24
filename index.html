@@ -43,7 +43,7 @@
       document.documentElement.dataset.deviceMode = isPhone ? 'phone' : 'desktop';
     })();
   </script>
-  <link rel="stylesheet" href="style.css?v=20260724-step122-student-admin-session-save" />
+  <link rel="stylesheet" href="style.css?v=20260724-step123-teacher-comment" />
 </head>
 <body class="entry-gate-active">
   <noscript>
@@ -901,6 +901,21 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
           <iframe id="adminProjectViewerFrame" class="admin-project-viewer-frame" title="Student project output preview" sandbox="allow-scripts allow-forms allow-modals allow-popups allow-same-origin"></iframe>
         </section>
       </div>
+
+      <section class="admin-project-comment-card" aria-label="Teacher project comment">
+        <div class="admin-project-comment-header">
+          <div>
+            <strong>Teacher Comment</strong>
+            <small>Saved with this student project. Code remains read-only.</small>
+          </div>
+          <span id="adminProjectCommentStatus" class="admin-project-comment-status">Not saved</span>
+        </div>
+        <textarea id="adminProjectTeacherComment" class="admin-project-comment-textarea" rows="4" placeholder="Write feedback for this student project..."></textarea>
+        <div class="admin-project-comment-actions">
+          <button id="adminProjectSaveCommentBtn" class="primary-btn" type="button">Save Comment</button>
+          <button id="adminProjectClearCommentBtn" class="ghost-btn" type="button">Clear</button>
+        </div>
+      </section>
     </div>
   </div>
 
@@ -1010,6 +1025,6 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
   <script src="firebase-config.js"></script>
-  <script src="script.js?v=20260724-step122-student-admin-session-save"></script>
+  <script src="script.js?v=20260724-step123-teacher-comment"></script>
 </body>
 </html>

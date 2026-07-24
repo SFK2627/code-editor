@@ -1,15 +1,15 @@
-const CACHE_NAME = 'code-editor-20260724-step122-student-admin-session-save';
+const CACHE_NAME = 'code-editor-20260724-step123-teacher-comment';
 const APP_SHELL = [
   './',
   './index.html',
-  './index.html?v=20260724-step122-student-admin-session-save',
-  './index.html?fresh=step122',
+  './index.html?v=20260724-step123-teacher-comment',
+  './index.html?fresh=step123',
   './style.css',
-  './style.css?v=20260724-step122-student-admin-session-save',
-  './style.css?v=20260724-step122-student-admin-session-save',
+  './style.css?v=20260724-step123-teacher-comment',
+  './style.css?v=20260724-step123-teacher-comment',
   './script.js',
-  './script.js?v=20260724-step122-student-admin-session-save',
-  './script.js?v=20260724-step122-student-admin-session-save',
+  './script.js?v=20260724-step123-teacher-comment',
+  './script.js?v=20260724-step123-teacher-comment',
   './firebase-config.js',
   './manifest.webmanifest',
   './favicon.png',

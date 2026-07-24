@@ -267,6 +267,10 @@ const adminProjectViewerFrame = document.getElementById('adminProjectViewerFrame
 const adminProjectViewerPreviewNote = document.getElementById('adminProjectViewerPreviewNote');
 const adminProjectViewerFullCodeBtn = document.getElementById('adminProjectViewerFullCodeBtn');
 const adminProjectViewerFullPreviewBtn = document.getElementById('adminProjectViewerFullPreviewBtn');
+const adminProjectTeacherComment = document.getElementById('adminProjectTeacherComment');
+const adminProjectSaveCommentBtn = document.getElementById('adminProjectSaveCommentBtn');
+const adminProjectClearCommentBtn = document.getElementById('adminProjectClearCommentBtn');
+const adminProjectCommentStatus = document.getElementById('adminProjectCommentStatus');
 const adminProjectFullscreenOverlay = document.getElementById('adminProjectFullscreenOverlay');
 const adminProjectFullscreenKicker = document.getElementById('adminProjectFullscreenKicker');
 const adminProjectFullscreenTitle = document.getElementById('adminProjectFullscreenTitle');
@@ -5016,6 +5020,92 @@ function updateAdminProjectViewerCode() {
   updateAdminProjectViewerLanguageTabs();
 }
 
+
+function getAdminProjectCommentKey() {
+  return adminProjectViewerState.activityKey || 'scratch';
+}
+
+function getAdminProjectCommentRecord(key = getAdminProjectCommentKey()) {
+  const project = adminProjectViewerState.project || {};
+  const comments = project.teacherComments && typeof project.teacherComments === 'object' ? project.teacherComments : {};
+  const record = comments[key] || comments.scratch || null;
+  if (record && typeof record === 'object') return record;
+  if (typeof record === 'string') return { text: record };
+  if (typeof project.teacherComment === 'string' && project.teacherComment.trim()) return { text: project.teacherComment };
+  return { text: '' };
+}
+
+function getAdminProjectCommentUpdatedText(record) {
+  const updatedAt = timestampToDate(record?.updatedAt);
+  if (!record?.text) return 'No comment yet';
+  return updatedAt ? `Saved ${formatStudentDate(updatedAt)}` : 'Saved';
+}
+
+function setAdminProjectCommentStatus(message, tone = '') {
+  if (!adminProjectCommentStatus) return;
+  adminProjectCommentStatus.textContent = message || '';
+  adminProjectCommentStatus.classList.toggle('saving', tone === 'saving');
+  adminProjectCommentStatus.classList.toggle('saved', tone === 'saved');
+  adminProjectCommentStatus.classList.toggle('error', tone === 'error');
+}
+
+function renderAdminProjectTeacherComment() {
+  const record = getAdminProjectCommentRecord();
+  if (adminProjectTeacherComment) adminProjectTeacherComment.value = record?.text || '';
+  setAdminProjectCommentStatus(getAdminProjectCommentUpdatedText(record), record?.text ? 'saved' : '');
+}
+
+async function saveAdminProjectTeacherComment({ clear = false } = {}) {
+  const project = adminProjectViewerState.project;
+  const student = adminProjectViewerState.student;
+  if (!project?.id || !student?.uid) {
+    appAlert('Open a student project first before saving a comment.', { title: 'Teacher Comment' });
+    return;
+  }
+  const key = getAdminProjectCommentKey();
+  const text = clear ? '' : String(adminProjectTeacherComment?.value || '').trim();
+  try {
+    if (adminProjectSaveCommentBtn) adminProjectSaveCommentBtn.disabled = true;
+    if (adminProjectClearCommentBtn) adminProjectClearCommentBtn.disabled = true;
+    setAdminProjectCommentStatus(clear ? 'Clearing...' : 'Saving...', 'saving');
+    const { setDoc, serverTimestamp } = firebaseSync.modules;
+    const teacherEmail = firebaseSync.auth?.currentUser?.email || firebaseSync.currentUser?.email || 'teacher';
+    const commentRecord = {
+      text,
+      activityKey: key,
+      activityTitle: getAdminProjectActivityLabel(key),
+      updatedBy: teacherEmail,
+      updatedAt: serverTimestamp()
+    };
+    await setDoc(getStudentProjectDocRef(student.uid, project.id), {
+      teacherComments: { [key]: commentRecord },
+      teacherCommentUpdatedAt: serverTimestamp(),
+      teacherCommentUpdatedBy: teacherEmail
+    }, { merge: true });
+
+    const localRecord = {
+      ...commentRecord,
+      updatedAt: new Date()
+    };
+    project.teacherComments = {
+      ...(project.teacherComments && typeof project.teacherComments === 'object' ? project.teacherComments : {}),
+      [key]: localRecord
+    };
+    project.teacherCommentUpdatedAt = localRecord.updatedAt;
+    project.teacherCommentUpdatedBy = teacherEmail;
+    if (adminProjectTeacherComment) adminProjectTeacherComment.value = text;
+    setAdminProjectCommentStatus(text ? 'Comment saved' : 'Comment cleared', 'saved');
+    setStatus(text ? 'Teacher comment saved' : 'Teacher comment cleared');
+  } catch (error) {
+    console.error('Could not save teacher comment', error);
+    setAdminProjectCommentStatus('Save failed', 'error');
+    appAlert(error?.message || 'Could not save the teacher comment. Check the internet connection and try again.', { title: 'Teacher Comment' });
+  } finally {
+    if (adminProjectSaveCommentBtn) adminProjectSaveCommentBtn.disabled = false;
+    if (adminProjectClearCommentBtn) adminProjectClearCommentBtn.disabled = false;
+  }
+}
+
 function renderAdminProjectViewer() {
   const project = adminProjectViewerState.project;
   const student = adminProjectViewerState.student;
@@ -5028,6 +5118,7 @@ function renderAdminProjectViewer() {
   populateAdminProjectViewerActivitySelect();
   populateAdminProjectViewerFileSelect();
   updateAdminProjectViewerCode();
+  renderAdminProjectTeacherComment();
   runAdminProjectViewerPreview(getAdminProjectActiveFileName('html'));
 }
 
@@ -13143,6 +13234,7 @@ adminProjectViewerActivitySelect?.addEventListener('change', event => {
   adminProjectViewerState.activityKey = event.target.value || 'scratch';
   populateAdminProjectViewerFileSelect();
   updateAdminProjectViewerCode();
+  renderAdminProjectTeacherComment();
   runAdminProjectViewerPreview(getAdminProjectActiveFileName('html'));
 });
 adminProjectViewerFileSelect?.addEventListener('change', event => {
@@ -13162,6 +13254,24 @@ adminProjectViewerFullCodeBtn?.addEventListener('click', () => openAdminProjectF
 adminProjectViewerFullPreviewBtn?.addEventListener('click', () => {
   runAdminProjectViewerPreview(getAdminProjectActiveFileName('html'));
   openAdminProjectFullscreen('preview');
+});
+adminProjectSaveCommentBtn?.addEventListener('click', () => saveAdminProjectTeacherComment());
+adminProjectClearCommentBtn?.addEventListener('click', () => {
+  const hasText = String(adminProjectTeacherComment?.value || '').trim();
+  if (!hasText) {
+    if (adminProjectTeacherComment) adminProjectTeacherComment.value = '';
+    setAdminProjectCommentStatus('No comment yet');
+    return;
+  }
+  appConfirm('Clear this teacher comment?', { title: 'Teacher Comment' }).then(confirmed => {
+    if (confirmed) saveAdminProjectTeacherComment({ clear: true });
+  });
+});
+adminProjectTeacherComment?.addEventListener('input', () => {
+  const savedText = getAdminProjectCommentRecord()?.text || '';
+  const currentText = String(adminProjectTeacherComment.value || '').trim();
+  if (currentText !== String(savedText || '').trim()) setAdminProjectCommentStatus('Unsaved comment', 'saving');
+  else setAdminProjectCommentStatus(getAdminProjectCommentUpdatedText(getAdminProjectCommentRecord()), currentText ? 'saved' : '');
 });
 closeAdminProjectFullscreenBtn?.addEventListener('click', closeAdminProjectFullscreen);
 adminProjectFullscreenOverlay?.addEventListener('click', event => {
