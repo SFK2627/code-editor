@@ -1,15 +1,15 @@
-const CACHE_NAME = 'code-editor-20260724-step123-teacher-comment';
+const CACHE_NAME = 'code-editor-20260724-step124-student-teacher-feedback';
 const APP_SHELL = [
   './',
   './index.html',
-  './index.html?v=20260724-step123-teacher-comment',
-  './index.html?fresh=step123',
+  './index.html?v=20260724-step124-student-teacher-feedback',
+  './index.html?fresh=step124',
   './style.css',
-  './style.css?v=20260724-step123-teacher-comment',
-  './style.css?v=20260724-step123-teacher-comment',
+  './style.css?v=20260724-step124-student-teacher-feedback',
+  './style.css?v=20260724-step124-student-teacher-feedback',
   './script.js',
-  './script.js?v=20260724-step123-teacher-comment',
-  './script.js?v=20260724-step123-teacher-comment',
+  './script.js?v=20260724-step124-student-teacher-feedback',
+  './script.js?v=20260724-step124-student-teacher-feedback',
   './firebase-config.js',
   './manifest.webmanifest',
   './favicon.png',

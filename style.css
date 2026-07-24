@@ -32630,3 +32630,97 @@ body.dark-theme .admin-project-comment-textarea {
     flex: 1 1 140px;
   }
 }
+
+
+/* Step 124: Student-facing teacher project feedback */
+.student-teacher-comment-panel {
+  border: 1px solid rgba(59, 130, 246, 0.22);
+  background: linear-gradient(180deg, rgba(219, 234, 254, 0.82), rgba(255, 255, 255, 0.96));
+}
+
+[data-theme="dark"] .student-teacher-comment-panel,
+body.dark-mode .student-teacher-comment-panel {
+  background: linear-gradient(180deg, rgba(30, 41, 59, 0.92), rgba(15, 23, 42, 0.96));
+  border-color: rgba(96, 165, 250, 0.24);
+}
+
+.student-teacher-comment-header h2 {
+  margin-bottom: 0.2rem;
+}
+
+#studentTeacherCommentStatus {
+  margin: 0;
+  color: var(--muted-text, #64748b);
+  font-size: 0.86rem;
+}
+
+.student-teacher-comment-content {
+  border-radius: 16px;
+  border: 1px dashed rgba(37, 99, 235, 0.24);
+  background: rgba(255, 255, 255, 0.78);
+  padding: 1rem;
+  color: var(--text, #0f172a);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: normal;
+  line-height: 1.58;
+  max-height: 260px;
+  overflow: auto;
+}
+
+[data-theme="dark"] .student-teacher-comment-content,
+body.dark-mode .student-teacher-comment-content {
+  background: rgba(15, 23, 42, 0.68);
+  border-color: rgba(96, 165, 250, 0.28);
+}
+
+.student-teacher-comment-content.empty-teacher-comment {
+  text-align: center;
+  color: var(--muted-text, #64748b);
+}
+
+.student-teacher-comment-content.empty-teacher-comment h3 {
+  color: var(--text, #0f172a);
+  margin: 0.25rem 0;
+}
+
+[data-theme="dark"] .student-teacher-comment-content.empty-teacher-comment h3,
+body.dark-mode .student-teacher-comment-content.empty-teacher-comment h3 {
+  color: #e5e7eb;
+}
+
+.teacher-comment-empty-icon {
+  font-size: 1.55rem;
+  margin-bottom: 0.15rem;
+}
+
+.teacher-comment-text {
+  margin: 0;
+  font: inherit;
+}
+
+.teacher-comment-meta {
+  display: block;
+  margin-top: 0.7rem;
+  font-size: 0.78rem;
+  color: var(--muted-text, #64748b);
+}
+
+.teacher-comment-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-bottom: 0.55rem;
+  padding: 0.3rem 0.58rem;
+  border-radius: 999px;
+  background: rgba(37, 99, 235, 0.1);
+  color: #1d4ed8;
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+[data-theme="dark"] .teacher-comment-pill,
+body.dark-mode .teacher-comment-pill {
+  background: rgba(96, 165, 250, 0.16);
+  color: #bfdbfe;
+}

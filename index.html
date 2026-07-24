@@ -43,7 +43,7 @@
       document.documentElement.dataset.deviceMode = isPhone ? 'phone' : 'desktop';
     })();
   </script>
-  <link rel="stylesheet" href="style.css?v=20260724-step123-teacher-comment" />
+  <link rel="stylesheet" href="style.css?v=20260724-step124-student-teacher-feedback" />
 </head>
 <body class="entry-gate-active">
   <noscript>
@@ -359,6 +359,23 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
             <h3>No detailed feedback yet</h3>
             <p>Click <strong>Result</strong> first, then use <strong>Review Feedback</strong> for clearer rubric notes.</p>
             <p class="ai-small-note">This feedback follows the teacher rubric and checker results.</p>
+          </div>
+        </section>
+
+
+        <section id="studentTeacherCommentPanel" class="panel student-teacher-comment-panel" aria-label="Teacher project feedback">
+          <div class="panel-header compact-header student-teacher-comment-header">
+            <div>
+              <p class="section-kicker">Teacher Feedback</p>
+              <h2>Project Comment</h2>
+              <p id="studentTeacherCommentStatus">No teacher comment yet.</p>
+            </div>
+            <button id="refreshStudentTeacherCommentBtn" class="layout-btn" type="button">↻ Refresh</button>
+          </div>
+          <div id="studentTeacherCommentContent" class="student-teacher-comment-content empty-teacher-comment">
+            <div class="teacher-comment-empty-icon">💬</div>
+            <h3>No teacher feedback yet</h3>
+            <p>Your teacher’s saved project comment will appear here. You can view it, but you cannot edit it.</p>
           </div>
         </section>
 
@@ -1025,6 +1042,6 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
   <script src="firebase-config.js"></script>
-  <script src="script.js?v=20260724-step123-teacher-comment"></script>
+  <script src="script.js?v=20260724-step124-student-teacher-feedback"></script>
 </body>
 </html>

@@ -169,6 +169,10 @@ const publishAssistanceBtn = document.getElementById('publishAssistanceBtn');
 const assistanceSettingsStatus = document.getElementById('assistanceSettingsStatus');
 const assistanceModeBadge = document.getElementById('assistanceModeBadge');
 const aiReviewPanel = document.getElementById('aiReviewPanel');
+const studentTeacherCommentPanel = document.getElementById('studentTeacherCommentPanel');
+const studentTeacherCommentStatus = document.getElementById('studentTeacherCommentStatus');
+const studentTeacherCommentContent = document.getElementById('studentTeacherCommentContent');
+const refreshStudentTeacherCommentBtn = document.getElementById('refreshStudentTeacherCommentBtn');
 
 // Student entry, account, dashboard, project, and admin tracker elements.
 const entryGate = document.getElementById('entryGate');
@@ -4098,6 +4102,8 @@ async function openStudentProject(projectId) {
     saveCodeFileNames();
     renderActivitySummary();
     renderActivitySelector();
+    renderStudentTeacherComment(projectToOpen);
+    refreshStudentTeacherComment({ silent: true });
     loadActiveEditor();
     if (projectToOpen.lastResult && activity) renderResult(projectToOpen.lastResult);
     else resetResultPanel();
@@ -5053,6 +5059,103 @@ function renderAdminProjectTeacherComment() {
   const record = getAdminProjectCommentRecord();
   if (adminProjectTeacherComment) adminProjectTeacherComment.value = record?.text || '';
   setAdminProjectCommentStatus(getAdminProjectCommentUpdatedText(record), record?.text ? 'saved' : '');
+}
+
+
+function getStudentProjectCommentKey(project = appSession.currentProject || {}) {
+  return selectedActivityId || project.selectedActivityId || 'scratch';
+}
+
+function getProjectCommentRecordForStudent(project = appSession.currentProject || {}, key = getStudentProjectCommentKey(project)) {
+  const comments = project?.teacherComments && typeof project.teacherComments === 'object' ? project.teacherComments : {};
+  const record = comments[key] || comments.scratch || null;
+  if (record && typeof record === 'object') return record;
+  if (typeof record === 'string') return { text: record };
+  if (typeof project?.teacherComment === 'string' && project.teacherComment.trim()) return { text: project.teacherComment };
+
+  // If the teacher commented on another activity/file, show the newest available
+  // comment rather than hiding all feedback from the student.
+  const records = Object.values(comments)
+    .map(item => (typeof item === 'string' ? { text: item } : item))
+    .filter(item => item && typeof item === 'object' && String(item.text || '').trim());
+  if (!records.length) return { text: '' };
+  records.sort((a, b) => {
+    const aTime = timestampToDate(a.updatedAt)?.getTime() || 0;
+    const bTime = timestampToDate(b.updatedAt)?.getTime() || 0;
+    return bTime - aTime;
+  });
+  return records[0] || { text: '' };
+}
+
+function renderStudentTeacherComment(project = appSession.currentProject || {}) {
+  if (!studentTeacherCommentPanel || !studentTeacherCommentContent) return;
+  const isStudentProject = Boolean(appSession.mode === 'student' && appSession.currentProjectId && project);
+  studentTeacherCommentPanel.classList.toggle('hidden', !isStudentProject);
+  if (!isStudentProject) return;
+
+  const key = getStudentProjectCommentKey(project);
+  const record = getProjectCommentRecordForStudent(project, key);
+  const text = String(record?.text || '').trim();
+  const updatedAt = timestampToDate(record?.updatedAt);
+  const activityLabel = record?.activityTitle || (key === 'scratch' ? 'Practice project' : getActivityById(key)?.title || 'Project activity');
+  const savedText = updatedAt ? `Saved ${formatStudentDate(updatedAt)}` : (text ? 'Teacher comment saved' : 'No teacher comment yet.');
+
+  if (studentTeacherCommentStatus) {
+    studentTeacherCommentStatus.textContent = text
+      ? `${activityLabel} · ${savedText}`
+      : 'No teacher comment yet.';
+  }
+
+  if (!text) {
+    studentTeacherCommentContent.classList.add('empty-teacher-comment');
+    studentTeacherCommentContent.innerHTML = `
+      <div class="teacher-comment-empty-icon">💬</div>
+      <h3>No teacher feedback yet</h3>
+      <p>Your teacher’s saved project comment will appear here. You can view it, but you cannot edit it.</p>`;
+    return;
+  }
+
+  studentTeacherCommentContent.classList.remove('empty-teacher-comment');
+  studentTeacherCommentContent.innerHTML = `
+    <span class="teacher-comment-pill">💬 Teacher comment</span>
+    <p class="teacher-comment-text">${escapeHTML(text)}</p>
+    <small class="teacher-comment-meta">${escapeHTML(activityLabel)}${updatedAt ? ` · ${escapeHTML(formatStudentDate(updatedAt))}` : ''}${record?.updatedBy ? ` · From ${escapeHTML(record.updatedBy)}` : ''}</small>`;
+}
+
+async function refreshStudentTeacherComment({ silent = false } = {}) {
+  if (!appSession.student?.uid || !appSession.currentProjectId) {
+    renderStudentTeacherComment();
+    return null;
+  }
+  try {
+    if (refreshStudentTeacherCommentBtn) refreshStudentTeacherCommentBtn.disabled = true;
+    if (studentTeacherCommentStatus && !silent) studentTeacherCommentStatus.textContent = 'Checking teacher feedback...';
+    const { getDoc } = firebaseSync.modules;
+    const snapshot = await withTimeout(
+      getDoc(getStudentProjectDocRef(appSession.student.uid, appSession.currentProjectId)),
+      APP_NETWORK_TIMEOUT_MS,
+      'Loading teacher feedback is taking too long. Please check the internet connection, then try again.'
+    );
+    if (!snapshotExists(snapshot)) return null;
+    const updatedProject = { id: appSession.currentProjectId, ...snapshotData(snapshot) };
+    appSession.currentProject = {
+      ...(appSession.currentProject || {}),
+      ...updatedProject,
+      id: appSession.currentProjectId
+    };
+    const index = appSession.projects.findIndex(project => project.id === appSession.currentProjectId);
+    if (index >= 0) appSession.projects[index] = { ...appSession.projects[index], ...appSession.currentProject };
+    renderStudentTeacherComment(appSession.currentProject);
+    if (!silent) setStatus('Teacher feedback refreshed');
+    return appSession.currentProject;
+  } catch (error) {
+    console.warn('Could not refresh teacher feedback', error);
+    renderStudentTeacherComment(appSession.currentProject);
+    if (!silent) appAlert(error?.message || 'Could not refresh teacher feedback. Try again.', { title: 'Teacher Feedback' });
+    return null;
+  } finally {
+    if (refreshStudentTeacherCommentBtn) refreshStudentTeacherCommentBtn.disabled = false;
+  }
 }
 
 async function saveAdminProjectTeacherComment({ clear = false } = {}) {
@@ -9162,6 +9265,7 @@ function renderActivitySummary() {
     activityCriteriaStat?.classList.add('disabled');
     renderActivitySelector();
     updateActivityButtonState();
+    renderStudentTeacherComment();
     return;
   }
 
@@ -9174,6 +9278,7 @@ function renderActivitySummary() {
   renderActivitySelector();
   updateActivityButtonState();
   clearActivityRequiredWarning();
+  renderStudentTeacherComment();
 }
 
 function selectActivity(activityId, options = {}) {
@@ -13273,6 +13378,8 @@ adminProjectTeacherComment?.addEventListener('input', () => {
   if (currentText !== String(savedText || '').trim()) setAdminProjectCommentStatus('Unsaved comment', 'saving');
   else setAdminProjectCommentStatus(getAdminProjectCommentUpdatedText(getAdminProjectCommentRecord()), currentText ? 'saved' : '');
 });
+
+refreshStudentTeacherCommentBtn?.addEventListener('click', () => refreshStudentTeacherComment());
 closeAdminProjectFullscreenBtn?.addEventListener('click', closeAdminProjectFullscreen);
 adminProjectFullscreenOverlay?.addEventListener('click', event => {
   if (event.target === adminProjectFullscreenOverlay) event.stopPropagation();
