@@ -1,15 +1,15 @@
-const CACHE_NAME = 'code-editor-20260724-step144-ta-score-fallback';
+const CACHE_NAME = 'code-editor-20260724-step146-hide-compliance-connection';
 const APP_SHELL = [
   './',
   './index.html',
-  './index.html?v=20260724-step144-ta-score-fallback',
-  './index.html?fresh=step144',
+  './index.html?v=20260724-step146-hide-compliance-connection',
+  './index.html?fresh=step145',
   './style.css',
-  './style.css?v=20260724-step144-ta-score-fallback',
-  './style.css?v=20260724-step144-ta-score-fallback',
+  './style.css?v=20260724-step146-hide-compliance-connection',
+  './style.css?v=20260724-step146-hide-compliance-connection',
   './script.js',
-  './script.js?v=20260724-step144-ta-score-fallback',
-  './script.js?v=20260724-step144-ta-score-fallback',
+  './script.js?v=20260724-step146-hide-compliance-connection',
+  './script.js?v=20260724-step146-hide-compliance-connection',
   './firebase-config.js',
   './manifest.webmanifest',
   './favicon.png',

@@ -34207,6 +34207,113 @@ body.dark-mode .teacher-comment-pill {
   gap: 14px;
 }
 
+
+.compliance-collapsible-setup {
+  padding: 0;
+  overflow: hidden;
+}
+
+.compliance-collapsible-setup > .compliance-setup-summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  border-radius: 20px;
+  user-select: none;
+}
+
+.compliance-collapsible-setup > .compliance-setup-summary::-webkit-details-marker {
+  display: none;
+}
+
+.compliance-setup-summary strong {
+  display: block;
+  color: var(--text, #0f172a);
+  font-size: 1rem;
+}
+
+.compliance-setup-summary small {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted, #64748b);
+  font-size: 0.84rem;
+  line-height: 1.35;
+}
+
+.compliance-summary-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  padding: 8px 12px;
+  background: rgba(37, 99, 235, 0.12);
+  color: #1d4ed8;
+  font-weight: 900;
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.compliance-collapsible-setup[open] > .compliance-setup-summary {
+  border-bottom: 1px solid rgba(148, 163, 184, 0.20);
+  border-radius: 20px 20px 0 0;
+}
+
+.compliance-collapsible-setup[open] .compliance-summary-action {
+  background: rgba(239, 68, 68, 0.10);
+  color: #b91c1c;
+}
+
+.compliance-collapsible-setup[open] .compliance-summary-action::before {
+  content: 'Hide';
+  font-size: 0;
+}
+
+.compliance-collapsible-setup[open] .compliance-summary-action {
+  font-size: 0;
+}
+
+.compliance-collapsible-setup[open] .compliance-summary-action::after {
+  content: 'Hide setup';
+  font-size: 0.8rem;
+}
+
+.compliance-collapsible-setup > .compliance-setup-head,
+.compliance-collapsible-setup > .compliance-section-list,
+.compliance-collapsible-setup > .compliance-task-label-tabs,
+.compliance-collapsible-setup > .compliance-task-label-list,
+.compliance-collapsible-setup > .helper-note {
+  margin-left: 16px;
+  margin-right: 16px;
+}
+
+.compliance-collapsible-setup > .compliance-setup-head {
+  margin-top: 14px;
+}
+
+.compliance-collapsible-setup > .helper-note,
+.compliance-collapsible-setup > .compliance-section-list,
+.compliance-collapsible-setup > .compliance-task-label-list {
+  margin-bottom: 16px;
+}
+
+[data-theme="dark"] .compliance-setup-summary strong {
+  color: #e2e8f0;
+}
+
+[data-theme="dark"] .compliance-summary-action {
+  background: rgba(96, 165, 250, 0.18);
+  color: #bfdbfe;
+}
+
+[data-theme="dark"] .compliance-collapsible-setup[open] .compliance-summary-action {
+  background: rgba(248, 113, 113, 0.14);
+  color: #fecaca;
+}
+
 .compliance-setup-head {
   display: flex;
   justify-content: space-between;
