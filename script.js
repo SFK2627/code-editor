@@ -8309,7 +8309,7 @@ function ensurePhoneResultFeedbackPopup() {
 
   phoneResultFeedbackPopupState.closeBtn?.addEventListener('click', closePhoneResultFeedbackPopup);
   overlay.addEventListener('click', event => {
-    if (event.target === overlay) closePhoneResultFeedbackPopup();
+    if (event.target === overlay) event.stopPropagation();
   });
 
   if (!document.body.dataset.phoneResultFeedbackEscapeBound) {
@@ -12137,11 +12137,11 @@ tabButtons.forEach(button => {
 if (stepActivityBtn) stepActivityBtn.addEventListener('click', toggleActivityCard);
 closeActivityCardBtn?.addEventListener('click', closeActivityCard);
 activityCard?.addEventListener('click', event => {
-  if (event.target === activityCard) closeActivityCard();
+  if (event.target === activityCard) event.stopPropagation();
 });
 activityCriteriaStat?.addEventListener('click', openActivityRubricModal);
 activityRubricOverlay?.addEventListener('click', event => {
-  if (event.target === activityRubricOverlay) closeActivityRubricModal();
+  if (event.target === activityRubricOverlay) event.stopPropagation();
 });
 closeActivityRubricBtn?.addEventListener('click', closeActivityRubricModal);
 document.addEventListener('keydown', event => {
@@ -12307,7 +12307,7 @@ window.addEventListener('click', event => {
 appDialogOkBtn?.addEventListener('click', () => closeAppDialog(true));
 appDialogCancelBtn?.addEventListener('click', () => closeAppDialog(false));
 appDialogOverlay?.addEventListener('click', event => {
-  if (event.target === appDialogOverlay) closeAppDialog(false);
+  if (event.target === appDialogOverlay) event.stopPropagation();
 });
 window.addEventListener('keydown', event => {
   if (!appDialogOverlay || appDialogOverlay.classList.contains('hidden')) return;
@@ -12357,9 +12357,7 @@ adminQuickCode?.addEventListener('keydown', event => {
 });
 
 adminOverlay.addEventListener('click', event => {
-  if (event.target === adminOverlay) {
-    closeAdminPanel();
-  }
+  if (event.target === adminOverlay) event.stopPropagation();
 });
 
 adminForm.addEventListener('submit', saveRubric);
@@ -12379,7 +12377,7 @@ cancelFileNameDialogBtn?.addEventListener('click', closeFileNameDialog);
 defaultFileNamesBtn?.addEventListener('click', resetFileNameDialogDefaults);
 applyFileNamesBtn?.addEventListener('click', applyFileNameDialogValues);
 fileNameDialogOverlay?.addEventListener('click', event => {
-  if (event.target === fileNameDialogOverlay) closeFileNameDialog();
+  if (event.target === fileNameDialogOverlay) event.stopPropagation();
 });
 htmlPageSelect?.addEventListener('change', event => switchHTMLPage(event.target.value));
 addHtmlPageBtn?.addEventListener('click', () => openPageDialog('add'));
@@ -12389,7 +12387,7 @@ closePageDialogBtn?.addEventListener('click', closePageDialog);
 cancelPageDialogBtn?.addEventListener('click', closePageDialog);
 applyPageDialogBtn?.addEventListener('click', applyPageDialog);
 pageDialogOverlay?.addEventListener('click', event => {
-  if (event.target === pageDialogOverlay) closePageDialog();
+  if (event.target === pageDialogOverlay) event.stopPropagation();
 });
 htmlPageNameInput?.addEventListener('keydown', event => {
   if (event.key === 'Enter') {
@@ -12479,7 +12477,7 @@ toggleStudentPasswordBtn?.addEventListener('click', () => {
   }
 }));
 studentLoginOverlay?.addEventListener('click', event => {
-  if (event.target === studentLoginOverlay) closeStudentLogin();
+  if (event.target === studentLoginOverlay) event.stopPropagation();
 });
 saveNewPasswordBtn?.addEventListener('click', saveStudentNewPassword);
 changePasswordLogoutBtn?.addEventListener('click', logoutStudent);
@@ -12518,6 +12516,49 @@ document.addEventListener('keydown', event => {
 });
 window.addEventListener('orientationchange', closeStudentAccountMenu);
 window.addEventListener('resize', closeStudentAccountMenu);
+
+// Modal safety rule: accidental clicks on the backdrop must not close dialogs.
+// Only explicit close buttons and the Escape key should close open modal panels.
+document.addEventListener('keydown', event => {
+  if (event.key !== 'Escape') return;
+
+  const isOpen = element => Boolean(element && !element.classList.contains('hidden'));
+
+  if (isOpen(adminStudentProjectsOverlay)) {
+    event.preventDefault();
+    closeAdminStudentProjects?.();
+    return;
+  }
+  if (isOpen(projectNameOverlay)) {
+    event.preventDefault();
+    closeProjectNameDialog?.();
+    return;
+  }
+  if (isOpen(studentLoginOverlay)) {
+    event.preventDefault();
+    closeStudentLogin?.();
+    return;
+  }
+  if (isOpen(adminOverlay)) {
+    event.preventDefault();
+    closeAdminPanel?.();
+    return;
+  }
+
+  const collabMembersOverlay = document.getElementById('collabMembersOverlay');
+  if (isOpen(collabMembersOverlay)) {
+    event.preventDefault();
+    closeCollabMembersOverlay?.();
+    return;
+  }
+  const collabOverlay = document.getElementById('collabOverlay');
+  if (isOpen(collabOverlay)) {
+    event.preventDefault();
+    closeCollabOverlay?.();
+    return;
+  }
+});
+
 dashboardLogoutBtn?.addEventListener('click', logoutStudent);
 dashboardThemeBtn?.addEventListener('click', () => themeToggle?.click());
 newProjectBtn?.addEventListener('click', () => openProjectNameDialog('create'));
@@ -12580,7 +12621,7 @@ projectNameInput?.addEventListener('keydown', event => {
   }
 });
 projectNameOverlay?.addEventListener('click', event => {
-  if (event.target === projectNameOverlay) closeProjectNameDialog();
+  if (event.target === projectNameOverlay) event.stopPropagation();
 });
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden' && isStudentProjectActive() && isStudentAutoSaveAllowed()) {
@@ -12617,7 +12658,7 @@ adminStudentsTableBody?.addEventListener('click', event => {
 });
 closeAdminStudentProjectsBtn?.addEventListener('click', closeAdminStudentProjects);
 adminStudentProjectsOverlay?.addEventListener('click', event => {
-  if (event.target === adminStudentProjectsOverlay) closeAdminStudentProjects();
+  if (event.target === adminStudentProjectsOverlay) event.stopPropagation();
 });
 
 initManualRubricInputTable();
@@ -14094,7 +14135,7 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     document.body.appendChild(overlay);
     placeCollabOverlay(overlay);
     overlay.querySelector('#collabCloseBtn')?.addEventListener('click', closeCollabOverlay);
-    overlay.addEventListener('click', event => { if (event.target === overlay) closeCollabOverlay(); });
+    overlay.addEventListener('click', event => { if (event.target === overlay) event.stopPropagation(); });
     overlay.querySelector('#collabShareTab')?.addEventListener('click', () => setCollabTab('share'));
     overlay.querySelector('#collabJoinTab')?.addEventListener('click', () => setCollabTab('join'));
     overlay.querySelector('#collabStartBtn')?.addEventListener('click', startCollaborationHostSession);
@@ -14880,7 +14921,7 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     document.body.appendChild(overlay);
     placeCollabOverlay(overlay);
     overlay.querySelector('#collabMembersCloseBtn')?.addEventListener('click', closeCollabMembersOverlay);
-    overlay.addEventListener('click', event => { if (event.target === overlay) closeCollabMembersOverlay(); });
+    overlay.addEventListener('click', event => { if (event.target === overlay) event.stopPropagation(); });
     overlay.querySelector('#collabMembersLeaveBtn')?.addEventListener('click', leaveCurrentCollaborationFromButton);
     overlay.querySelector('#collabMembersStopBtn')?.addEventListener('click', stopCollaborationSession);
     placeCollabOverlay(overlay);

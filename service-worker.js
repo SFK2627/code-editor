@@ -1,15 +1,15 @@
-const CACHE_NAME = 'mcs-coding-app-20260724-step118-student-account-fix';
+const CACHE_NAME = 'mcs-coding-app-20260724-step119-modal-close-controls';
 const APP_SHELL = [
   './',
   './index.html',
-  './index.html?v=20260724-step118-student-account-fix',
+  './index.html?v=20260724-step119-modal-close-controls',
   './index.html?fresh=step118',
   './style.css',
-  './style.css?v=20260724-step118-student-account-fix',
-  './style.css?v=20260724-step118-student-account-fix',
+  './style.css?v=20260724-step119-modal-close-controls',
+  './style.css?v=20260724-step119-modal-close-controls',
   './script.js',
-  './script.js?v=20260724-step118-student-account-fix',
-  './script.js?v=20260724-step118-student-account-fix',
+  './script.js?v=20260724-step119-modal-close-controls',
+  './script.js?v=20260724-step119-modal-close-controls',
   './firebase-config.js',
   './manifest.webmanifest',
   './favicon.png',
