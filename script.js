@@ -383,6 +383,7 @@ let unsubscribeCloudAssistanceSettings = null;
 
 const DEFAULT_STUDENT_PASSWORD = '123456';
 const STUDENT_EMAIL_DOMAIN = 'students.mcsian.app';
+const LAST_STUDENT_SESSION_KEY = 'studentCodeStudio.lastStudentSession.v1';
 const STUDENT_AUTOSAVE_DELAY = 1400;
 const PROFILE_ACTIVITY_WRITE_INTERVAL = 5 * 60 * 1000;
 const AUTO_RUN_DELAY = 850;
@@ -398,7 +399,8 @@ const appSession = {
   projectDialogMode: 'create',
   renameProjectId: '',
   authReady: false,
-  existingStudentUser: null
+  existingStudentUser: null,
+  lastStudentProfile: null
 };
 
 let studentProjectSaveTimer = null;
@@ -681,6 +683,7 @@ let adminUnlocked = false;
 const ADMIN_QUICK_UNLOCK_KEY = 'mcsian.admin.quickUnlocked.session';
 // Legacy quick-local unlock is disabled. Code login now signs in to Firebase with the teacher account password.
 let adminQuickUnlocked = false;
+let adminSessionLocked = false;
 try {
   sessionStorage.removeItem(ADMIN_QUICK_UNLOCK_KEY);
 } catch (error) {
@@ -1825,8 +1828,8 @@ function isAllowedTeacherEmail(email) {
 }
 
 function isTeacherAuthenticated() {
-  const user = firebaseSync.auth?.currentUser || firebaseSync.currentUser;
-  return Boolean(user && user.email && isAllowedTeacherEmail(user.email));
+  const user = getFirebaseActiveUser();
+  return isTeacherUser(user);
 }
 
 function getTeacherEmailText() {
@@ -1851,7 +1854,7 @@ function setAdminQuickUnlocked(value) {
 }
 
 function isAdminPanelUnlocked() {
-  return isTeacherAuthenticated();
+  return isTeacherAuthenticated() && !adminSessionLocked;
 }
 
 function setAdminLoginMode(mode = 'code') {
@@ -2471,6 +2474,73 @@ function areStudentIdsEquivalent(left, right) {
   const leftKey = getStudentIdAuthKey(left);
   const rightKey = getStudentIdAuthKey(right);
   return Boolean(leftKey && rightKey && leftKey === rightKey);
+}
+
+function getFirebaseActiveUser() {
+  return firebaseSync.auth?.currentUser || firebaseSync.currentUser || null;
+}
+
+function isTeacherUser(user) {
+  return Boolean(user?.email && isAllowedTeacherEmail(user.email));
+}
+
+function isStudentUserForActiveSession(user) {
+  return Boolean(user && appSession.student?.uid && user.uid === appSession.student.uid);
+}
+
+function canCurrentUserSaveActiveStudentProject(user = getFirebaseActiveUser()) {
+  return Boolean(appSession.mode === 'student'
+    && appSession.student
+    && appSession.currentProjectId
+    && user
+    && (isStudentUserForActiveSession(user) || isTeacherUser(user)));
+}
+
+function persistLastStudentSession(reason = 'session') {
+  const student = appSession.student || appSession.lastStudentProfile;
+  if (!student?.uid) return;
+  appSession.lastStudentProfile = { ...student };
+  try {
+    localStorage.setItem(LAST_STUDENT_SESSION_KEY, JSON.stringify({
+      version: 1,
+      savedAt: Date.now(),
+      reason,
+      profile: appSession.lastStudentProfile,
+      currentProjectId: appSession.currentProjectId || '',
+      currentProjectName: appSession.currentProject?.name || ''
+    }));
+  } catch (error) {
+    console.warn('Could not preserve the last student session.', error);
+  }
+}
+
+function readLastStudentSession() {
+  try {
+    const cached = JSON.parse(localStorage.getItem(LAST_STUDENT_SESSION_KEY) || 'null');
+    return cached?.profile?.uid ? cached : null;
+  } catch (error) {
+    console.warn('Could not read the last student session.', error);
+    return null;
+  }
+}
+
+function getLastStudentProfile() {
+  return appSession.student || appSession.lastStudentProfile || readLastStudentSession()?.profile || null;
+}
+
+async function protectActiveStudentWorkBeforeAuthSwitch(reason = 'auth-switch') {
+  if (appSession.mode !== 'student' || !appSession.student) return;
+  persistLastStudentSession(reason);
+  if (!appSession.currentProjectId) return;
+  try {
+    saveActiveEditor?.();
+    if (studentProjectDirty || studentProjectSaveTimer || studentProjectSaveInFlight || studentProjectSaveQueued) {
+      await flushStudentProjectSave(reason);
+    }
+  } catch (error) {
+    console.warn('Student work was preserved locally before account switch, but cloud save did not finish.', error);
+    try { persistStudentProjectRecoverySnapshot('auth-switch'); } catch (_) {}
+  }
 }
 
 function studentIdToAuthEmail(value) {
@@ -3375,7 +3445,9 @@ async function activateStudentSession(profile, { showDashboard = true } = {}) {
 
   appSession.mode = 'student';
   appSession.student = profile;
-  appSession.existingStudentUser = firebaseSync.auth?.currentUser || firebaseSync.currentUser;
+  appSession.lastStudentProfile = { ...profile };
+  appSession.existingStudentUser = getFirebaseActiveUser();
+  persistLastStudentSession('student-activated');
   updateAppHeaderForSession();
 
   const loginTracker = recordStudentLogin().catch(error => {
@@ -3651,15 +3723,34 @@ async function saveStudentNewPassword() {
 
 async function handleStudentAuthObserver(user) {
   appSession.authReady = true;
-  if (!user || isAllowedTeacherEmail(user.email)) {
-    appSession.existingStudentUser = null;
-    resumeStudentBtn?.classList.add('hidden');
-    if (!user && appSession.mode === 'student') {
+  if (!user) {
+    if (appSession.mode === 'student') {
+      persistLastStudentSession('firebase-signed-out');
       appSession.mode = 'pending';
       appSession.student = null;
       appSession.currentProjectId = '';
       appSession.currentProject = null;
       showEntryGate();
+    }
+    const cachedProfile = getLastStudentProfile();
+    if (cachedProfile) {
+      if (resumeStudentText) resumeStudentText.textContent = `Continue as ${getStudentFirstName(cachedProfile.name)}`;
+      resumeStudentBtn?.classList.remove('hidden');
+    } else {
+      appSession.existingStudentUser = null;
+      resumeStudentBtn?.classList.add('hidden');
+    }
+    return;
+  }
+
+  if (isAllowedTeacherEmail(user.email)) {
+    const cachedProfile = getLastStudentProfile();
+    if (cachedProfile) {
+      appSession.lastStudentProfile = { ...cachedProfile };
+      if (resumeStudentText) resumeStudentText.textContent = `Continue as ${getStudentFirstName(cachedProfile.name)}`;
+      resumeStudentBtn?.classList.remove('hidden');
+    } else {
+      resumeStudentBtn?.classList.add('hidden');
     }
     return;
   }
@@ -3679,8 +3770,19 @@ async function handleStudentAuthObserver(user) {
 }
 
 async function resumeExistingStudentSession() {
-  const user = firebaseSync.auth?.currentUser || firebaseSync.currentUser || appSession.existingStudentUser;
+  const user = getFirebaseActiveUser() || appSession.existingStudentUser;
+  if (user && isTeacherUser(user)) {
+    const cachedProfile = getLastStudentProfile();
+    if (cachedProfile?.uid) {
+      await activateStudentSession(cachedProfile);
+      return;
+    }
+    openStudentLogin();
+    return;
+  }
   if (!user) {
+    const cachedProfile = getLastStudentProfile();
+    if (cachedProfile?.studentId && studentLoginId) studentLoginId.value = cachedProfile.studentId;
     openStudentLogin();
     return;
   }
@@ -3725,6 +3827,8 @@ async function logoutStudent() {
   appSession.mode = 'pending';
   appSession.student = null;
   appSession.existingStudentUser = null;
+  appSession.lastStudentProfile = null;
+  try { localStorage.removeItem(LAST_STUDENT_SESSION_KEY); } catch (_) {}
   appSession.currentProjectId = '';
   appSession.currentProject = null;
   appSession.projects = [];
@@ -3969,6 +4073,7 @@ async function openStudentProject(projectId) {
     if (!project) throw new Error('Project not found.');
     appSession.currentProjectId = projectId;
     appSession.currentProject = project;
+    persistLastStudentSession('student-project-opened');
     studentProjectRevision = 0;
     studentProjectLastSavedRevision = 0;
     const recovered = await offerStudentProjectRecovery(project);
@@ -4071,14 +4176,7 @@ async function deleteStudentProject(projectId) {
 }
 
 function isStudentProjectActive() {
-  const currentUser = firebaseSync.auth?.currentUser || firebaseSync.currentUser;
-  return Boolean(
-    appSession.mode === 'student'
-    && appSession.student
-    && appSession.currentProjectId
-    && currentUser
-    && currentUser.uid === appSession.student.uid
-  );
+  return canCurrentUserSaveActiveStudentProject();
 }
 
 function buildProjectSavePayload(result = null) {
@@ -4195,6 +4293,7 @@ async function saveCurrentStudentProject({ result = null, immediate = false, rea
         studentProjectDirty = studentProjectRevision > revisionBeingSaved;
         studentProjectRetryCount = 0;
         persistStudentProjectsCache();
+        persistLastStudentSession('student-project-saved');
         if (!studentProjectDirty) {
           clearStudentProjectRecovery(projectIdBeingSaved);
           setStudentSaveState('Saved');
@@ -9673,6 +9772,7 @@ async function loginTeacher() {
 
   try {
     setTeacherLoginLoading(true);
+    await protectActiveStudentWorkBeforeAuthSwitch('teacher-login');
     const { signInWithEmailAndPassword, signOut } = firebaseSync.authModule;
     const credential = await signInWithEmailAndPassword(firebaseSync.auth, email, password);
     firebaseSync.currentUser = credential.user;
@@ -9684,6 +9784,7 @@ async function loginTeacher() {
       return;
     }
 
+    adminSessionLocked = false;
     adminUnlocked = true;
     updateTeacherLoginUI(credential.user);
     showAdminForm();
@@ -9701,11 +9802,34 @@ async function logoutTeacher() {
   const ready = await initFirebaseSync();
 
   try {
+    if (appSession.mode === 'student' && appSession.student && isTeacherAuthenticated()) {
+      // A single browser Firebase Auth session cannot be both teacher and student at
+      // the same time. When the teacher locks the Admin panel while a student
+      // workspace is still open, keep the teacher Firebase session in the
+      // background so the student project can continue saving to the same student
+      // document. The Admin UI is still locked and requires the code/password again.
+      persistLastStudentSession('admin-lock-with-student-session');
+      adminSessionLocked = true;
+      adminUnlocked = false;
+      adminForm.classList.add('hidden');
+      adminForm.classList.remove('visible');
+      pinScreen.classList.remove('hidden');
+      if (adminPassword) adminPassword.value = '';
+      if (adminQuickCode) adminQuickCode.value = '';
+      updateTeacherLoginUI(getFirebaseActiveUser());
+      setAdminLoginMode('code');
+      setStatus('Admin locked · student save session kept');
+      closeAdminPanel();
+      updateManualSaveControls();
+      return;
+    }
+
     if (ready && firebaseSync.auth && firebaseSync.authModule && (firebaseSync.auth.currentUser || firebaseSync.currentUser)) {
       const { signOut } = firebaseSync.authModule;
       await signOut(firebaseSync.auth);
     }
     firebaseSync.currentUser = null;
+    adminSessionLocked = false;
     adminUnlocked = false;
     adminForm.classList.add('hidden');
     adminForm.classList.remove('visible');
@@ -9742,6 +9866,7 @@ async function unlockAdminWithCode() {
 
   try {
     setTeacherLoginLoading(true, 'code');
+    await protectActiveStudentWorkBeforeAuthSwitch('teacher-code-login');
     const { signInWithEmailAndPassword, signOut } = firebaseSync.authModule;
     const credential = await signInWithEmailAndPassword(firebaseSync.auth, email, passwordCode);
     firebaseSync.currentUser = credential.user;
@@ -9753,6 +9878,7 @@ async function unlockAdminWithCode() {
       return;
     }
 
+    adminSessionLocked = false;
     adminUnlocked = true;
     if (adminEmail) adminEmail.value = credential.user.email || email;
     updateTeacherLoginUI(credential.user);

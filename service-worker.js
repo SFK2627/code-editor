@@ -1,15 +1,15 @@
-const CACHE_NAME = 'code-editor-20260724-step121-restore-admin-project-viewer-fullscreen';
+const CACHE_NAME = 'code-editor-20260724-step122-student-admin-session-save';
 const APP_SHELL = [
   './',
   './index.html',
-  './index.html?v=20260724-step121-restore-admin-project-viewer-fullscreen',
-  './index.html?fresh=step120',
+  './index.html?v=20260724-step122-student-admin-session-save',
+  './index.html?fresh=step122',
   './style.css',
-  './style.css?v=20260724-step121-restore-admin-project-viewer-fullscreen',
-  './style.css?v=20260724-step121-restore-admin-project-viewer-fullscreen',
+  './style.css?v=20260724-step122-student-admin-session-save',
+  './style.css?v=20260724-step122-student-admin-session-save',
   './script.js',
-  './script.js?v=20260724-step121-restore-admin-project-viewer-fullscreen',
-  './script.js?v=20260724-step121-restore-admin-project-viewer-fullscreen',
+  './script.js?v=20260724-step122-student-admin-session-save',
+  './script.js?v=20260724-step122-student-admin-session-save',
   './firebase-config.js',
   './manifest.webmanifest',
   './favicon.png',
