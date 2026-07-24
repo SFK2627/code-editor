@@ -1,15 +1,15 @@
-const CACHE_NAME = 'code-editor-20260724-step131-recitation-mobile-list-space';
+const CACHE_NAME = 'code-editor-20260724-step135-easy-compliance-setup';
 const APP_SHELL = [
   './',
   './index.html',
-  './index.html?v=20260724-step131-recitation-mobile-list-space',
-  './index.html?fresh=step131',
+  './index.html?v=20260724-step135-easy-compliance-setup',
+  './index.html?fresh=step135',
   './style.css',
-  './style.css?v=20260724-step131-recitation-mobile-list-space',
-  './style.css?v=20260724-step131-recitation-mobile-list-space',
+  './style.css?v=20260724-step135-easy-compliance-setup',
+  './style.css?v=20260724-step135-easy-compliance-setup',
   './script.js',
-  './script.js?v=20260724-step131-recitation-mobile-list-space',
-  './script.js?v=20260724-step131-recitation-mobile-list-space',
+  './script.js?v=20260724-step135-easy-compliance-setup',
+  './script.js?v=20260724-step135-easy-compliance-setup',
   './firebase-config.js',
   './manifest.webmanifest',
   './favicon.png',

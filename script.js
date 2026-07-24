@@ -93,6 +93,19 @@ const adminForm = document.getElementById('adminForm');
 const adminTabButtons = Array.from(document.querySelectorAll('[data-admin-tab]'));
 const adminTabPanels = Array.from(document.querySelectorAll('[data-admin-panel]'));
 const ADMIN_TAB_STORAGE_KEY = 'mcsian.admin.activeTab';
+const complianceScriptUrlInput = document.getElementById('complianceScriptUrlInput');
+const complianceSyncKeyInput = document.getElementById('complianceSyncKeyInput');
+const complianceTermSelect = document.getElementById('complianceTermSelect');
+const complianceSubjectInput = document.getElementById('complianceSubjectInput');
+const complianceSectionSheetsList = document.getElementById('complianceSectionSheetsList');
+const complianceTaskLabelsList = document.getElementById('complianceTaskLabelsList');
+const resetComplianceTaskLabelsBtn = document.getElementById('resetComplianceTaskLabelsBtn');
+const complianceTaskGroupButtons = Array.from(document.querySelectorAll('[data-compliance-task-group]'));
+const saveComplianceSettingsBtn = document.getElementById('saveComplianceSettingsBtn');
+const previewComplianceSyncBtn = document.getElementById('previewComplianceSyncBtn');
+const publishComplianceSyncBtn = document.getElementById('publishComplianceSyncBtn');
+const complianceSyncStatus = document.getElementById('complianceSyncStatus');
+const complianceSyncPreview = document.getElementById('complianceSyncPreview');
 const adminActivityTitle = document.getElementById('adminActivityTitle');
 const adminActivityDescription = document.getElementById('adminActivityDescription');
 const adminPassingScore = document.getElementById('adminPassingScore');
@@ -202,6 +215,16 @@ const newProjectBtn = document.getElementById('newProjectBtn');
 const projectSearchInput = document.getElementById('projectSearchInput');
 const projectStatusFilter = document.getElementById('projectStatusFilter');
 const projectDashboardStatus = document.getElementById('projectDashboardStatus');
+const dashboardSaveFeedbackPanel = document.getElementById('dashboardSaveFeedbackPanel');
+const dashboardSaveStatusTitle = document.getElementById('dashboardSaveStatusTitle');
+const dashboardSaveStatusText = document.getElementById('dashboardSaveStatusText');
+const dashboardFeedbackTitle = document.getElementById('dashboardFeedbackTitle');
+const dashboardFeedbackText = document.getElementById('dashboardFeedbackText');
+const studentCompliancePanel = document.getElementById('studentCompliancePanel');
+const studentComplianceMeta = document.getElementById('studentComplianceMeta');
+const studentComplianceSummary = document.getElementById('studentComplianceSummary');
+const studentComplianceList = document.getElementById('studentComplianceList');
+const studentComplianceRefreshBtn = document.getElementById('studentComplianceRefreshBtn');
 const studentProjectsGrid = document.getElementById('studentProjectsGrid');
 const projectNameOverlay = document.getElementById('projectNameOverlay');
 const closeProjectNameBtn = document.getElementById('closeProjectNameBtn');
@@ -333,7 +356,8 @@ const STORAGE_KEYS = {
   autoRun: 'studentCodeStudio.autoRun.v1',
   editorZoom: 'studentCodeStudio.editorZoom.v1',
   fileNames: 'studentCodeStudio.fileNames.v1',
-  assistanceSettings: 'studentCodeStudio.assistanceSettings.v1'
+  assistanceSettings: 'studentCodeStudio.assistanceSettings.v1',
+  complianceSettings: 'studentCodeStudio.complianceSettings.v1'
 };
 
 
@@ -1045,6 +1069,7 @@ function applyStudentAssistanceSettings(nextSettings, options = {}) {
   aiReviewPanel?.classList.toggle('assistance-feature-hidden', !feedbackEnabled);
 
   syncAssistanceSettingsControls();
+  syncComplianceSettingsControls();
   updateAssistancePublishUI();
   document.dispatchEvent(new CustomEvent('studentAssistanceSettingsChanged', { detail: { settings: studentAssistanceSettings } }));
   if (typeof window.updateCollaborationFeatureVisibility === 'function') window.updateCollaborationFeatureVisibility();
@@ -2663,6 +2688,11 @@ function getStudentProjectDocRef(uid, projectId) {
   return doc(firebaseSync.db, firebaseSync.collectionName, firebaseSync.documentId, 'students', uid, 'projects', projectId);
 }
 
+function getStudentComplianceDocRef(studentId) {
+  const { doc } = firebaseSync.modules;
+  return doc(firebaseSync.db, firebaseSync.collectionName, firebaseSync.documentId, 'subjectCompliance', normalizeStudentId(studentId));
+}
+
 function snapshotExists(snapshot) {
   if (!snapshot) return false;
   return typeof snapshot.exists === 'function' ? snapshot.exists() : Boolean(snapshot.exists);
@@ -2737,6 +2767,7 @@ function setStudentSaveState(text, state = '') {
     if (state) saveEl.classList.add(state);
   });
   updateManualSaveControls();
+  updateStudentDashboardSaveFeedbackPanel?.();
 }
 
 
@@ -3859,7 +3890,10 @@ async function showStudentDashboard() {
   document.body.classList.add('student-dashboard-active');
   const firstName = getStudentFirstName(appSession.student.name);
   if (dashboardGreeting) dashboardGreeting.textContent = `Hi, ${firstName}! Your saved work is ready.`;
-  await loadStudentProjects();
+  await Promise.allSettled([
+    loadStudentProjects(),
+    loadStudentComplianceStatus()
+  ]);
 }
 
 function closeStudentDashboard() {
@@ -3922,7 +3956,642 @@ function getProjectStatusLabel(status) {
   return 'In Progress';
 }
 
+
+function getLatestTeacherCommentRecord(project = {}) {
+  const records = [];
+  if (typeof project.teacherComment === 'string' && project.teacherComment.trim()) {
+    records.push({ text: project.teacherComment, updatedAt: project.teacherCommentUpdatedAt || project.updatedAt, activityTitle: 'Project comment' });
+  }
+  const comments = project.teacherComments && typeof project.teacherComments === 'object' ? project.teacherComments : {};
+  Object.entries(comments).forEach(([key, value]) => {
+    const record = typeof value === 'string' ? { text: value } : value;
+    if (!record || typeof record !== 'object' || !String(record.text || '').trim()) return;
+    records.push({
+      ...record,
+      activityKey: key,
+      activityTitle: record.activityTitle || (key === 'scratch' ? 'Practice project' : getActivityById(key)?.title || 'Project activity')
+    });
+  });
+  if (!records.length) return null;
+  records.sort((a, b) => {
+    const aTime = timestampToDate(a.updatedAt)?.getTime() || 0;
+    const bTime = timestampToDate(b.updatedAt)?.getTime() || 0;
+    return bTime - aTime;
+  });
+  return records[0] || null;
+}
+
+function getProjectRecoveryInfo(project = {}) {
+  if (!project?.id) return null;
+  const recovery = getStudentProjectRecovery(project.id);
+  if (!recovery?.payload) return null;
+  const cloudTime = getProjectUpdatedAtMs(project);
+  const recoveryTime = Number(recovery.savedAt || 0);
+  if (recoveryTime <= cloudTime + 1000) return null;
+  return {
+    ...recovery,
+    savedText: formatStudentDate(recoveryTime, 'local backup')
+  };
+}
+
+function updateStudentDashboardSaveFeedbackPanel() {
+  if (!dashboardSaveFeedbackPanel) return;
+  const hasProjects = Array.isArray(appSession.projects) && appSession.projects.length > 0;
+  dashboardSaveFeedbackPanel.classList.toggle('hidden', !appSession.student);
+  if (!appSession.student) return;
+
+  const recoveryProjects = (appSession.projects || []).filter(project => getProjectRecoveryInfo(project));
+  const feedbackProjects = (appSession.projects || []).filter(project => getLatestTeacherCommentRecord(project));
+  const activeProjectName = appSession.currentProject?.name || appSession.projects?.find?.(project => project.id === appSession.currentProjectId)?.name || '';
+  const saveText = String(studentSaveState?.textContent || '').trim() || (appSession.currentProjectId ? (studentProjectDirty ? 'Unsaved' : 'Saved') : 'No project open');
+
+  if (dashboardSaveStatusTitle) {
+    dashboardSaveStatusTitle.textContent = recoveryProjects.length ? 'Recovery Backup Available' : 'Save Status';
+  }
+  if (dashboardSaveStatusText) {
+    if (recoveryProjects.length) {
+      const names = recoveryProjects.slice(0, 2).map(project => project.name || 'Untitled Project').join(', ');
+      dashboardSaveStatusText.textContent = `${recoveryProjects.length} project${recoveryProjects.length === 1 ? '' : 's'} have a newer local backup${names ? `: ${names}` : ''}. Open the project to restore it.`;
+    } else if (appSession.currentProjectId) {
+      dashboardSaveStatusText.textContent = `${activeProjectName ? `${activeProjectName}: ` : ''}${saveText}. Local recovery is active while you work.`;
+    } else if (hasProjects) {
+      dashboardSaveStatusText.textContent = 'Your project list is loaded. Open a project to see live save status.';
+    } else {
+      dashboardSaveStatusText.textContent = 'Create a project and your work will be protected with auto-save and local recovery.';
+    }
+  }
+
+  if (dashboardFeedbackTitle) {
+    dashboardFeedbackTitle.textContent = feedbackProjects.length ? 'Teacher Feedback Available' : 'Teacher Feedback';
+  }
+  if (dashboardFeedbackText) {
+    if (feedbackProjects.length) {
+      const latest = feedbackProjects
+        .map(project => ({ project, record: getLatestTeacherCommentRecord(project) }))
+        .sort((a, b) => (timestampToDate(b.record?.updatedAt)?.getTime() || 0) - (timestampToDate(a.record?.updatedAt)?.getTime() || 0))[0];
+      const latestName = latest?.project?.name || 'a project';
+      const latestTime = timestampToDate(latest?.record?.updatedAt);
+      dashboardFeedbackText.textContent = `${feedbackProjects.length} project${feedbackProjects.length === 1 ? '' : 's'} with teacher feedback. Latest: ${latestName}${latestTime ? ` · ${formatStudentDate(latestTime)}` : ''}.`;
+    } else {
+      dashboardFeedbackText.textContent = 'No teacher project comments yet. New feedback will show here and on the project card.';
+    }
+  }
+}
+
+
+const DEFAULT_COMPLIANCE_SECTIONS = Object.freeze([
+  { section: 'Grade 10 - Fatima', code: 'FATIMA-10FT26', sheetUrl: '' },
+  { section: 'Grade 10 - Immaculate', code: 'IMMACULATE-10IM26', sheetUrl: '' },
+  { section: 'Grade 10 - Lourdes', code: 'LOURDES-10LD26', sheetUrl: '' },
+  { section: 'Grade 10 - MMOG', code: 'MMOG-10MG26', sheetUrl: '' },
+  { section: 'Grade 8 - St. Andrew Kim Taegon', code: 'ANDREW-8AKT26', sheetUrl: '' },
+  { section: 'Grade 8 - St. Camillus de Lellis', code: 'CAMILLUS-8CDL26', sheetUrl: '' },
+  { section: 'Grade 8 - St. Clare of Assisi', code: 'CLARE-8CA26', sheetUrl: '' },
+  { section: 'Grade 8 - St. Faustina Kowalska', code: 'FAUSTINA-8FK26', sheetUrl: '' },
+  { section: 'Grade 8 - St. Maximilian Kolbe', code: 'KOLBE-8MK26', sheetUrl: '' },
+  { section: 'Grade 8 - St. Paul Miki', code: 'PAULMIKI-8PM26', sheetUrl: '' },
+  { section: 'Grade 8 - St. Pedro Calungsod', code: 'PEDRO-8PC26', sheetUrl: '' },
+  { section: 'Grade 8 - St. Pio of Pietrelcina', code: 'PIO-8PP26', sheetUrl: '' },
+  { section: 'Grade 8 - St. Teresa Benedicta', code: 'BENEDICTA-8TB26', sheetUrl: '' },
+  { section: 'Grade 8 - St. Teresa of Calcutta', code: 'CALCUTTA-8TC26', sheetUrl: '' }
+]);
+
+const COMPLIANCE_TASK_GROUPS = Object.freeze([
+  { prefix: 'WW', label: 'Written Works', count: 10 },
+  { prefix: 'PT', label: 'Performance Tasks', count: 10 },
+  { prefix: 'TA', label: 'Term Assessment', count: 10 }
+]);
+
+const COMPLIANCE_TERMS = Object.freeze(['TERM_1', 'TERM_2', 'TERM_3']);
+
+const DEFAULT_COMPLIANCE_SETTINGS = Object.freeze({
+  scriptUrl: '',
+  syncKey: '052400',
+  term: 'TERM_1',
+  subject: 'ICT',
+  sections: DEFAULT_COMPLIANCE_SECTIONS,
+  taskLabels: { TERM_1: {}, TERM_2: {}, TERM_3: {} },
+  hiddenTasks: { TERM_1: [], TERM_2: [], TERM_3: [] }
+});
+
+let studentComplianceRecord = null;
+let activeComplianceTaskGroup = 'WW';
+
+function normalizeComplianceSection(section = {}, fallback = {}) {
+  return {
+    section: String(section.section || fallback.section || '').trim(),
+    code: String(section.code || fallback.code || '').trim(),
+    sheetUrl: String(section.sheetUrl || section.url || section.spreadsheetId || '').trim()
+  };
+}
+
+function normalizeComplianceSections(sections = []) {
+  const input = Array.isArray(sections) ? sections : [];
+  const byKey = new Map();
+  input.forEach(item => {
+    const normalized = normalizeComplianceSection(item);
+    const key = (normalized.code || normalized.section).toLowerCase();
+    if (key) byKey.set(key, normalized);
+  });
+
+  const merged = DEFAULT_COMPLIANCE_SECTIONS.map(defaultSection => {
+    const key = (defaultSection.code || defaultSection.section).toLowerCase();
+    return normalizeComplianceSection(byKey.get(key) || {}, defaultSection);
+  });
+
+  input.forEach(item => {
+    const normalized = normalizeComplianceSection(item);
+    const key = (normalized.code || normalized.section).toLowerCase();
+    const existsInDefaults = DEFAULT_COMPLIANCE_SECTIONS.some(defaultSection => (defaultSection.code || defaultSection.section).toLowerCase() === key);
+    if (key && !existsInDefaults) merged.push(normalized);
+  });
+
+  return merged;
+}
+
+function normalizeComplianceTermMap(source = {}, arrayFallback = false) {
+  return COMPLIANCE_TERMS.reduce((map, term) => {
+    const value = source && typeof source === 'object' ? source[term] : null;
+    if (arrayFallback) {
+      map[term] = Array.isArray(value) ? value.map(item => String(item || '').trim()).filter(Boolean) : [];
+    } else {
+      const labels = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+      map[term] = Object.entries(labels).reduce((clean, [key, label]) => {
+        const normalizedKey = String(key || '').trim().toUpperCase();
+        const normalizedLabel = String(label || '').trim();
+        if (normalizedKey && normalizedLabel) clean[normalizedKey] = normalizedLabel;
+        return clean;
+      }, {});
+    }
+    return map;
+  }, {});
+}
+
+function normalizeComplianceSettings(source = {}) {
+  return {
+    scriptUrl: String(source.scriptUrl || '').trim(),
+    syncKey: String(source.syncKey || '052400').trim() || '052400',
+    term: COMPLIANCE_TERMS.includes(String(source.term || '').trim()) ? String(source.term || '').trim() : 'TERM_1',
+    subject: String(source.subject || 'ICT').trim() || 'ICT',
+    sections: normalizeComplianceSections(source.sections || DEFAULT_COMPLIANCE_SECTIONS),
+    taskLabels: normalizeComplianceTermMap(source.taskLabels || {}),
+    hiddenTasks: normalizeComplianceTermMap(source.hiddenTasks || {}, true)
+  };
+}
+
+function loadComplianceSettings() {
+  return normalizeComplianceSettings(loadJSON(STORAGE_KEYS.complianceSettings, DEFAULT_COMPLIANCE_SETTINGS));
+}
+
+function saveComplianceSettings(settings = {}) {
+  const normalized = normalizeComplianceSettings(settings);
+  saveJSON(STORAGE_KEYS.complianceSettings, normalized);
+  return normalized;
+}
+
+function complianceTaskDefaultTitle(prefix, number) {
+  if (prefix === 'WW') return `Written Work ${number}`;
+  if (prefix === 'PT') return `Performance Task ${number}`;
+  if (prefix === 'TA') return `Term Assessment ${number}`;
+  return `Requirement ${number}`;
+}
+
+function getComplianceTaskGroup(prefix = activeComplianceTaskGroup) {
+  return COMPLIANCE_TASK_GROUPS.find(group => group.prefix === prefix) || COMPLIANCE_TASK_GROUPS[0];
+}
+
+function renderComplianceSectionSettings(settings = loadComplianceSettings()) {
+  if (!complianceSectionSheetsList) return;
+  complianceSectionSheetsList.innerHTML = settings.sections.map((item, index) => `
+    <div class="compliance-section-row" data-compliance-section-row="${index}">
+      <div class="compliance-section-name">
+        <strong>${escapeHTML(item.section || `Section ${index + 1}`)}</strong>
+        <small>${escapeHTML(item.code || 'Section')}</small>
+      </div>
+      <input data-compliance-section-url="${index}" type="url" value="${escapeAttribute(item.sheetUrl || '')}" placeholder="Paste this section Google Sheet link" autocomplete="off" />
+    </div>`).join('');
+}
+
+function renderComplianceTaskGroupTabs() {
+  complianceTaskGroupButtons.forEach(button => {
+    const isActive = button.dataset.complianceTaskGroup === activeComplianceTaskGroup;
+    button.classList.toggle('active', isActive);
+    button.setAttribute('aria-selected', isActive ? 'true' : 'false');
+  });
+}
+
+function renderComplianceTaskLabels(settings = loadComplianceSettings()) {
+  if (!complianceTaskLabelsList) return;
+  const term = complianceTermSelect?.value || settings.term || 'TERM_1';
+  const group = getComplianceTaskGroup();
+  const labels = settings.taskLabels?.[term] || {};
+  const hidden = new Set(settings.hiddenTasks?.[term] || []);
+  complianceTaskLabelsList.dataset.term = term;
+  complianceTaskLabelsList.dataset.group = group.prefix;
+  const rows = [];
+  for (let number = 1; number <= group.count; number += 1) {
+    const key = `${group.prefix}${number}`;
+    const label = labels[key] || '';
+    rows.push(`
+      <label class="compliance-task-label-row" data-compliance-task-key="${escapeAttribute(key)}">
+        <span class="compliance-task-key">${escapeHTML(key)}</span>
+        <input data-compliance-task-title="${escapeAttribute(key)}" type="text" value="${escapeAttribute(label)}" placeholder="${escapeAttribute(complianceTaskDefaultTitle(group.prefix, number))}" autocomplete="off" />
+        <span class="compliance-task-show"><input data-compliance-task-visible="${escapeAttribute(key)}" type="checkbox" ${hidden.has(key) ? '' : 'checked'} /> Show</span>
+      </label>`);
+  }
+  complianceTaskLabelsList.innerHTML = rows.join('');
+  renderComplianceTaskGroupTabs();
+}
+
+function syncComplianceSettingsControls() {
+  const settings = loadComplianceSettings();
+  if (complianceScriptUrlInput) complianceScriptUrlInput.value = settings.scriptUrl;
+  if (complianceSyncKeyInput) complianceSyncKeyInput.value = settings.syncKey;
+  if (complianceTermSelect) complianceTermSelect.value = settings.term;
+  if (complianceSubjectInput) complianceSubjectInput.value = settings.subject;
+  renderComplianceSectionSettings(settings);
+  renderComplianceTaskLabels(settings);
+  return settings;
+}
+
+function getComplianceSectionsFromControls(fallbackSettings) {
+  const settings = fallbackSettings || loadComplianceSettings();
+  return settings.sections.map((item, index) => {
+    const input = complianceSectionSheetsList?.querySelector(`[data-compliance-section-url="${index}"]`);
+    return normalizeComplianceSection({ ...item, sheetUrl: input ? input.value : item.sheetUrl });
+  });
+}
+
+function mergeVisibleComplianceTaskControls(settings) {
+  const normalized = normalizeComplianceSettings(settings);
+  const renderedTerm = complianceTaskLabelsList?.dataset.term || normalized.term || 'TERM_1';
+  const selectedTerm = complianceTermSelect?.value || normalized.term || 'TERM_1';
+  const term = COMPLIANCE_TERMS.includes(renderedTerm) ? renderedTerm : selectedTerm;
+  const labels = { ...(normalized.taskLabels[term] || {}) };
+  const hidden = new Set(normalized.hiddenTasks[term] || []);
+
+  complianceTaskLabelsList?.querySelectorAll('[data-compliance-task-title]').forEach(input => {
+    const key = String(input.dataset.complianceTaskTitle || '').trim().toUpperCase();
+    const value = String(input.value || '').trim();
+    if (!key) return;
+    if (value) labels[key] = value;
+    else delete labels[key];
+  });
+
+  complianceTaskLabelsList?.querySelectorAll('[data-compliance-task-visible]').forEach(input => {
+    const key = String(input.dataset.complianceTaskVisible || '').trim().toUpperCase();
+    if (!key) return;
+    if (input.checked) hidden.delete(key);
+    else hidden.add(key);
+  });
+
+  normalized.taskLabels[term] = labels;
+  normalized.hiddenTasks[term] = Array.from(hidden);
+  normalized.term = COMPLIANCE_TERMS.includes(selectedTerm) ? selectedTerm : term;
+  return normalized;
+}
+
+function getComplianceSettingsFromControls() {
+  const current = mergeVisibleComplianceTaskControls(loadComplianceSettings());
+  return normalizeComplianceSettings({
+    ...current,
+    scriptUrl: complianceScriptUrlInput?.value,
+    syncKey: complianceSyncKeyInput?.value,
+    term: complianceTermSelect?.value,
+    subject: complianceSubjectInput?.value,
+    sections: getComplianceSectionsFromControls(current)
+  });
+}
+
+function getConfiguredComplianceSections(settings = loadComplianceSettings()) {
+  return settings.sections
+    .map(item => normalizeComplianceSection(item))
+    .filter(item => item.sheetUrl && item.section)
+    .map(item => ({ section: item.section, code: item.code, spreadsheetId: item.sheetUrl }));
+}
+
+function getCurrentComplianceTaskPayload(settings = loadComplianceSettings()) {
+  const term = settings.term || 'TERM_1';
+  const labels = settings.taskLabels?.[term] || {};
+  const hidden = settings.hiddenTasks?.[term] || [];
+  return {
+    taskLabels: Object.entries(labels).reduce((clean, [key, value]) => {
+      const label = String(value || '').trim();
+      if (label) clean[key] = label;
+      return clean;
+    }, {}),
+    hiddenTasks: hidden.map(key => String(key || '').trim().toUpperCase()).filter(Boolean)
+  };
+}
+
+function setComplianceSyncStatus(message, tone = '') {
+  if (!complianceSyncStatus) return;
+  complianceSyncStatus.textContent = message || '';
+  complianceSyncStatus.dataset.tone = tone || '';
+}
+
+function complianceStatusLabel(status) {
+  const value = String(status || '').toLowerCase();
+  if (value === 'complete' || value === 'completed') return 'Complete';
+  if (value === 'needs-checking' || value === 'needsChecking' || value === 'checking') return 'Needs checking';
+  return 'Missing';
+}
+
+function normalizeComplianceStatus(status) {
+  const value = String(status || '').trim().toLowerCase().replace(/[_\s]+/g, '-');
+  if (['complete', 'completed', 'done', 'ok', 'green'].includes(value)) return 'complete';
+  if (['needs-checking', 'needs-check', 'checking', 'review', 'yellow'].includes(value)) return 'needs-checking';
+  return 'missing';
+}
+
+function summarizeComplianceTasks(tasks = []) {
+  return tasks.reduce((summary, task) => {
+    const status = normalizeComplianceStatus(task.status);
+    if (status === 'complete') summary.complete += 1;
+    else if (status === 'needs-checking') summary.needsChecking += 1;
+    else summary.missing += 1;
+    return summary;
+  }, { complete: 0, missing: 0, needsChecking: 0, total: tasks.length });
+}
+
+function sanitizeComplianceStudentRecord(record = {}, fallback = {}) {
+  const tasks = Array.isArray(record.tasks) ? record.tasks.map((task, index) => ({
+    id: String(task.id || task.key || `task-${index + 1}`).slice(0, 80),
+    category: String(task.category || 'Requirement').slice(0, 80),
+    title: String(task.title || task.name || `Requirement ${index + 1}`).slice(0, 140),
+    status: normalizeComplianceStatus(task.status),
+    number: Number(task.number || index + 1) || index + 1
+  })) : [];
+  const summary = record.summary && typeof record.summary === 'object'
+    ? {
+        complete: Number(record.summary.complete || 0),
+        missing: Number(record.summary.missing || 0),
+        needsChecking: Number(record.summary.needsChecking || record.summary.needs_checking || 0),
+        total: Number(record.summary.total || tasks.length)
+      }
+    : summarizeComplianceTasks(tasks);
+  summary.total = summary.total || tasks.length;
+  return {
+    studentId: String(record.studentId || record.id || '').trim(),
+    studentIdNormalized: normalizeStudentId(record.studentId || record.id || ''),
+    studentName: String(record.studentName || record.name || '').trim(),
+    section: String(record.section || fallback.section || '').trim(),
+    subject: String(record.subject || fallback.subject || 'ICT').trim() || 'ICT',
+    term: String(record.term || fallback.term || '').trim(),
+    source: String(record.source || fallback.source || 'Google Sheets').trim(),
+    updatedAtText: String(record.updatedAtText || fallback.updatedAtText || '').trim(),
+    updatedAtMs: Number(record.updatedAtMs || Date.now()),
+    summary,
+    tasks
+  };
+}
+
+function renderStudentComplianceRecord(record = null, options = {}) {
+  if (!studentCompliancePanel) return;
+  studentCompliancePanel.classList.toggle('hidden', false);
+
+  if (!record) {
+    if (studentComplianceMeta) studentComplianceMeta.textContent = options.message || 'No published subject status yet.';
+    if (studentComplianceSummary) studentComplianceSummary.innerHTML = '<span class="compliance-empty-pill">Waiting for teacher update</span>';
+    if (studentComplianceList) studentComplianceList.innerHTML = '<div class="student-compliance-empty">Your Google Sheets status will appear here after your teacher publishes it.</div>';
+    return;
+  }
+
+  const sanitized = sanitizeComplianceStudentRecord(record);
+  const summary = sanitized.summary || summarizeComplianceTasks(sanitized.tasks);
+  const updatedText = sanitized.updatedAtText || formatStudentDate(sanitized.updatedAtMs, 'recently');
+  if (studentComplianceMeta) {
+    const subjectPart = sanitized.subject ? `${sanitized.subject} · ` : '';
+    const termPart = sanitized.term ? `${sanitized.term} · ` : '';
+    studentComplianceMeta.textContent = `${subjectPart}${termPart}Updated ${updatedText}`;
+  }
+  if (studentComplianceSummary) {
+    studentComplianceSummary.innerHTML = `
+      <span class="compliance-summary-pill complete">🟩 ${Number(summary.complete || 0)} Complete</span>
+      <span class="compliance-summary-pill missing">🟥 ${Number(summary.missing || 0)} Missing</span>
+      <span class="compliance-summary-pill checking">🟨 ${Number(summary.needsChecking || 0)} Needs checking</span>`;
+  }
+  if (studentComplianceList) {
+    const visibleTasks = sanitized.tasks || [];
+    studentComplianceList.innerHTML = visibleTasks.length ? visibleTasks.map(task => {
+      const status = normalizeComplianceStatus(task.status);
+      return `
+        <div class="student-compliance-row ${escapeAttribute(status)}">
+          <span class="student-compliance-dot" aria-hidden="true"></span>
+          <div>
+            <strong>${escapeHTML(task.title || 'Requirement')}</strong>
+            <small>${escapeHTML(task.category || 'Requirement')} · ${escapeHTML(complianceStatusLabel(status))}</small>
+          </div>
+        </div>`;
+    }).join('') : '<div class="student-compliance-empty">No visible requirements were published yet.</div>';
+  }
+}
+
+async function loadStudentComplianceStatus(options = {}) {
+  if (!studentCompliancePanel || !appSession.student) return null;
+  const studentId = appSession.student.studentId || appSession.student.studentIdNormalized || appSession.student.id;
+  if (!studentId) {
+    renderStudentComplianceRecord(null, { message: 'No student ID found for this account.' });
+    return null;
+  }
+  if (!options.silent) renderStudentComplianceRecord(null, { message: 'Checking your Google Sheets status...' });
+  const ready = await initFirebaseSync();
+  if (!ready) {
+    renderStudentComplianceRecord(null, { message: 'Could not connect to subject status. Please reconnect and refresh.' });
+    return null;
+  }
+  try {
+    const { getDoc } = firebaseSync.modules;
+    const snapshot = await withTimeout(
+      getDoc(getStudentComplianceDocRef(studentId)),
+      APP_NETWORK_TIMEOUT_MS,
+      'Loading subject status is taking too long. Please check the internet connection.'
+    );
+    if (!snapshotExists(snapshot)) {
+      studentComplianceRecord = null;
+      renderStudentComplianceRecord(null, { message: 'No published subject status yet.' });
+      return null;
+    }
+    studentComplianceRecord = { id: snapshot.id, ...snapshotData(snapshot) };
+    renderStudentComplianceRecord(studentComplianceRecord);
+    return studentComplianceRecord;
+  } catch (error) {
+    console.warn('Could not load subject compliance status.', error);
+    renderStudentComplianceRecord(null, { message: error?.message || 'Could not load subject status.' });
+    return null;
+  }
+}
+
+function requestComplianceJsonp(baseUrl, params = {}, timeoutMs = 25000) {
+  return new Promise((resolve, reject) => {
+    const urlText = String(baseUrl || '').trim();
+    if (!urlText) {
+      reject(new Error('Paste the Apps Script Web App URL first.'));
+      return;
+    }
+    let url;
+    try {
+      url = new URL(urlText);
+    } catch (error) {
+      reject(new Error('Invalid Apps Script URL. Use the deployed /exec URL.'));
+      return;
+    }
+    const callbackName = `mcsComplianceCallback_${Date.now()}_${Math.floor(Math.random() * 100000)}`;
+    url.searchParams.set('callback', callbackName);
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') url.searchParams.set(key, String(value));
+    });
+
+    if (url.toString().length > 12000) {
+      reject(new Error('Too much Google Sheets setup data for one sync. Hide unused tasks or shorten task names.'));
+      return;
+    }
+
+    const script = document.createElement('script');
+    let settled = false;
+    const timer = window.setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      reject(new Error('Google Sheets sync timed out. Check the Apps Script deployment and internet connection.'));
+    }, timeoutMs);
+
+    function cleanup() {
+      window.clearTimeout(timer);
+      try { delete window[callbackName]; } catch (_) { window[callbackName] = undefined; }
+      script.remove();
+    }
+
+    window[callbackName] = payload => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      resolve(payload);
+    };
+
+    script.onerror = () => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      reject(new Error('Could not load the Apps Script endpoint. Make sure it is deployed as a Web App.'));
+    };
+    script.async = true;
+    script.src = url.toString();
+    document.head.appendChild(script);
+  });
+}
+
+function renderComplianceSyncPreview(payload = {}) {
+  if (!complianceSyncPreview) return;
+  const students = Array.isArray(payload.students) ? payload.students : [];
+  const sectionCount = new Set(students.map(student => String(student.section || '').trim()).filter(Boolean)).size;
+  const taskCount = students.reduce((max, student) => Math.max(max, Array.isArray(student.tasks) ? student.tasks.length : 0), 0);
+  const samples = students.slice(0, 5).map(student => sanitizeComplianceStudentRecord(student));
+  const errors = Array.isArray(payload.errors) ? payload.errors.filter(Boolean) : [];
+  complianceSyncPreview.innerHTML = `
+    <div class="compliance-preview-stats">
+      <span><strong>${students.length}</strong><small>students</small></span>
+      <span><strong>${sectionCount}</strong><small>sections</small></span>
+      <span><strong>${taskCount}</strong><small>visible tasks max</small></span>
+    </div>
+    ${errors.length ? `<div class="compliance-preview-errors"><strong>Sheets needing attention:</strong>${errors.slice(0, 6).map(error => `<small>${escapeHTML(error)}</small>`).join('')}</div>` : ''}
+    ${samples.length ? `<div class="compliance-preview-list">${samples.map(student => `
+      <div class="compliance-preview-row">
+        <strong>${escapeHTML(student.studentName || student.studentId || 'Student')}</strong>
+        <small>${escapeHTML(student.section || 'No section')} · 🟩 ${Number(student.summary.complete || 0)} · 🟥 ${Number(student.summary.missing || 0)} · 🟨 ${Number(student.summary.needsChecking || 0)}</small>
+      </div>`).join('')}</div>` : '<div class="student-compliance-empty">No student records returned.</div>'}`;
+}
+
+async function pullComplianceFromGoogleSheets() {
+  const settings = getComplianceSettingsFromControls();
+  saveComplianceSettings(settings);
+  if (!settings.scriptUrl) throw new Error('Paste the Apps Script Web App URL first.');
+  if (!settings.syncKey) throw new Error('Enter the Sync Key used in Apps Script.');
+  const configuredSections = getConfiguredComplianceSections(settings);
+  if (!configuredSections.length) throw new Error('Paste at least one section Google Sheet link.');
+  const taskPayload = getCurrentComplianceTaskPayload(settings);
+  const payload = await requestComplianceJsonp(settings.scriptUrl, {
+    key: settings.syncKey,
+    term: settings.term,
+    subject: settings.subject,
+    mode: 'statusOnly',
+    sections: JSON.stringify(configuredSections),
+    taskLabels: JSON.stringify(taskPayload.taskLabels),
+    hiddenTasks: JSON.stringify(taskPayload.hiddenTasks)
+  });
+  if (!payload || payload.ok === false) {
+    throw new Error(payload?.error || 'Apps Script did not return a valid response.');
+  }
+  const students = Array.isArray(payload.students) ? payload.students : [];
+  return {
+    ...payload,
+    students: students.map(student => sanitizeComplianceStudentRecord(student, {
+      subject: settings.subject,
+      term: settings.term,
+      source: 'Google Sheets',
+      updatedAtText: payload.generatedAt || ''
+    })).filter(student => student.studentIdNormalized)
+  };
+}
+
+async function previewComplianceSync() {
+  setComplianceSyncStatus('Reading all linked section Google Sheets...', '');
+  if (previewComplianceSyncBtn) previewComplianceSyncBtn.disabled = true;
+  try {
+    const payload = await pullComplianceFromGoogleSheets();
+    renderComplianceSyncPreview(payload);
+    const errorNote = Array.isArray(payload.errors) && payload.errors.length ? ` ${payload.errors.length} sheet issue(s) found.` : '';
+    setComplianceSyncStatus(`Preview ready: ${payload.students.length} student status records found. Scores are not shown here.${errorNote}`, payload.students.length ? 'success' : 'warning');
+  } catch (error) {
+    console.warn('Compliance preview failed.', error);
+    setComplianceSyncStatus(error?.message || 'Could not preview Google Sheets.', 'error');
+  } finally {
+    if (previewComplianceSyncBtn) previewComplianceSyncBtn.disabled = false;
+  }
+}
+
+async function publishComplianceSync() {
+  if (!isTeacherAuthenticated()) {
+    setComplianceSyncStatus('Login as teacher first, then publish Google Sheets status.', 'warning');
+    pinScreen?.classList.remove('hidden');
+    return;
+  }
+  if (publishComplianceSyncBtn) publishComplianceSyncBtn.disabled = true;
+  setComplianceSyncStatus('Reading all section Google Sheets...', '');
+  try {
+    const payload = await pullComplianceFromGoogleSheets();
+    renderComplianceSyncPreview(payload);
+    if (!payload.students.length) throw new Error('No student records found. Check section sheet links, student IDs, and term sheet name.');
+    const ready = await initFirebaseSync();
+    if (!ready) throw new Error(firebaseSync.lastError || 'Firebase is not ready.');
+    const { setDoc, serverTimestamp } = firebaseSync.modules;
+    const syncedAtMs = Date.now();
+    let saved = 0;
+    for (const student of payload.students) {
+      await setDoc(getStudentComplianceDocRef(student.studentIdNormalized), {
+        ...student,
+        studentIdOriginal: student.studentId,
+        studentId: student.studentIdNormalized,
+        updatedAt: serverTimestamp(),
+        updatedAtMs: syncedAtMs,
+        publishedBy: firebaseSync.auth?.currentUser?.email || firebaseSync.currentUser?.email || 'teacher'
+      }, { merge: true });
+      saved += 1;
+      if (saved % 10 === 0) setComplianceSyncStatus(`Publishing status... ${saved}/${payload.students.length}`, '');
+    }
+    const issueText = Array.isArray(payload.errors) && payload.errors.length ? ` ${payload.errors.length} sheet issue(s) were skipped; check preview.` : '';
+    setComplianceSyncStatus(`Published ${saved} student status records from Google Sheets. Students can refresh My Projects to see updates.${issueText}`, 'success');
+    if (appSession.student) loadStudentComplianceStatus({ silent: true });
+  } catch (error) {
+    console.warn('Compliance publish failed.', error);
+    setComplianceSyncStatus(error?.message || 'Could not publish Google Sheets status.', 'error');
+  } finally {
+    if (publishComplianceSyncBtn) publishComplianceSyncBtn.disabled = false;
+  }
+}
+
 function renderStudentProjects() {
+  updateStudentDashboardSaveFeedbackPanel();
   if (!studentProjectsGrid) return;
   const search = String(projectSearchInput?.value || '').trim().toLowerCase();
   const statusFilter = projectStatusFilter?.value || 'all';
@@ -3956,6 +4625,12 @@ function renderStudentProjects() {
     const scoreText = result
       ? `${formatPoints(result.score || 0)}/${formatPoints(result.possible || 0)} (${Number(result.percent || 0)}%)`
       : 'Not scored';
+    const recovery = getProjectRecoveryInfo(project);
+    const teacherComment = getLatestTeacherCommentRecord(project);
+    const projectAlerts = [
+      recovery ? `<span class="project-alert-pill recovery">↻ Recovery backup</span>` : '',
+      teacherComment ? `<span class="project-alert-pill feedback">💬 Teacher feedback</span>` : ''
+    ].filter(Boolean).join('');
     return `
       <article class="student-project-card" data-project-id="${escapeAttribute(project.id)}">
         <div class="project-card-top">
@@ -3964,11 +4639,13 @@ function renderStudentProjects() {
         </div>
         <h3>${escapeHTML(project.name || 'Untitled Project')}</h3>
         <p class="project-card-activity">${escapeHTML(project.activityTitle || 'Practice project')}</p>
+        ${projectAlerts ? `<div class="project-alert-row">${projectAlerts}</div>` : ''}
         <p class="project-card-meta">Last edited: ${escapeHTML(formatStudentDate(project.updatedAt, 'Not edited yet'))}</p>
         <p class="project-card-meta">Run attempts: ${Number(project.runCount || 0)}</p>
         <div class="project-score-row"><span>Score</span><span class="project-score-value">${escapeHTML(scoreText)}</span></div>
         <div class="project-card-actions">
           <button class="primary-btn" type="button" data-project-action="open">Open Project</button>
+          ${recovery ? '<button class="ghost-btn recovery-action-btn" type="button" data-project-action="open" title="Open and restore local backup">↻</button>' : ''}
           <button class="ghost-btn" type="button" data-project-action="rename" title="Rename project">✏️</button>
           <button class="ghost-btn danger" type="button" data-project-action="delete" title="Delete project">🗑</button>
         </div>
@@ -9845,7 +10522,7 @@ function getStoredAdminTab() {
 }
 
 function setAdminTab(tabName = 'students') {
-  const allowed = new Set(['students', 'assistance', 'activities']);
+  const allowed = new Set(['students', 'assistance', 'compliance', 'activities']);
   const nextTab = allowed.has(tabName) ? tabName : 'students';
   localStorage.setItem(ADMIN_TAB_STORAGE_KEY, nextTab);
 
@@ -12975,6 +13652,42 @@ window.addEventListener('keydown', event => {
 });
 applyAssistanceLocalBtn?.addEventListener('click', () => applyAssistanceSettingsFromControls());
 publishAssistanceBtn?.addEventListener('click', publishAssistanceSettings);
+complianceTermSelect?.addEventListener('change', () => {
+  const settings = saveComplianceSettings(getComplianceSettingsFromControls());
+  renderComplianceTaskLabels(settings);
+  setComplianceSyncStatus(`Editing task names for ${settings.term}.`, '');
+});
+complianceTaskGroupButtons.forEach(button => {
+  button.addEventListener('click', () => {
+    saveComplianceSettings(getComplianceSettingsFromControls());
+    activeComplianceTaskGroup = button.dataset.complianceTaskGroup || 'WW';
+    renderComplianceTaskLabels(loadComplianceSettings());
+  });
+});
+resetComplianceTaskLabelsBtn?.addEventListener('click', () => {
+  const settings = getComplianceSettingsFromControls();
+  const term = settings.term || 'TERM_1';
+  const group = getComplianceTaskGroup();
+  const labels = { ...(settings.taskLabels[term] || {}) };
+  const hidden = new Set(settings.hiddenTasks[term] || []);
+  for (let number = 1; number <= group.count; number += 1) {
+    const key = `${group.prefix}${number}`;
+    delete labels[key];
+    hidden.delete(key);
+  }
+  settings.taskLabels[term] = labels;
+  settings.hiddenTasks[term] = Array.from(hidden);
+  saveComplianceSettings(settings);
+  renderComplianceTaskLabels(settings);
+  setComplianceSyncStatus(`${group.label} task names reset for ${term}.`, 'success');
+});
+saveComplianceSettingsBtn?.addEventListener('click', () => {
+  saveComplianceSettings(getComplianceSettingsFromControls());
+  setComplianceSyncStatus('Google Sheets links and task names saved on this device.', 'success');
+});
+previewComplianceSyncBtn?.addEventListener('click', previewComplianceSync);
+publishComplianceSyncBtn?.addEventListener('click', publishComplianceSync);
+studentComplianceRefreshBtn?.addEventListener('click', () => loadStudentComplianceStatus());
 
 initAdminTabs();
 adminBtn?.addEventListener('click', openAdminPanel);

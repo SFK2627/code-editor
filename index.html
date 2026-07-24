@@ -43,7 +43,7 @@
       document.documentElement.dataset.deviceMode = isPhone ? 'phone' : 'desktop';
     })();
   </script>
-  <link rel="stylesheet" href="style.css?v=20260724-step131-recitation-mobile-list-space" />
+  <link rel="stylesheet" href="style.css?v=20260724-step135-easy-compliance-setup" />
 </head>
 <body class="entry-gate-active">
   <noscript>
@@ -153,9 +153,39 @@
         </div>
         <div class="dashboard-hero-actions">
           <button id="newProjectBtn" class="primary-btn dashboard-new-btn" type="button">+ New Project</button>
-          <button id="heroRecitationStatusBtn" class="ghost-btn dashboard-recitation-btn" type="button">📋 Recitation Status</button>
         </div>
       </section>
+
+      <section id="dashboardSaveFeedbackPanel" class="dashboard-save-feedback-panel" aria-label="Save, recovery, and teacher feedback notifications">
+        <article class="dashboard-notice-card dashboard-save-card">
+          <span class="dashboard-notice-icon" aria-hidden="true">💾</span>
+          <div>
+            <strong id="dashboardSaveStatusTitle">Save Status</strong>
+            <p id="dashboardSaveStatusText">Open a project to see save status and recovery backups.</p>
+          </div>
+        </article>
+        <article class="dashboard-notice-card dashboard-feedback-card">
+          <span class="dashboard-notice-icon" aria-hidden="true">💬</span>
+          <div>
+            <strong id="dashboardFeedbackTitle">Teacher Feedback</strong>
+            <p id="dashboardFeedbackText">Feedback notifications will appear here when your teacher comments on a project.</p>
+          </div>
+        </article>
+      </section>
+
+      <section id="studentCompliancePanel" class="student-compliance-panel hidden" aria-label="Subject compliance status">
+        <div class="student-compliance-header">
+          <div>
+            <p class="section-kicker">Subject Requirements</p>
+            <h2>My Subject Status</h2>
+            <p id="studentComplianceMeta">Your teacher will publish Google Sheets updates here.</p>
+          </div>
+          <button id="studentComplianceRefreshBtn" class="ghost-btn" type="button">Refresh</button>
+        </div>
+        <div id="studentComplianceSummary" class="student-compliance-summary" aria-live="polite"></div>
+        <div id="studentComplianceList" class="student-compliance-list"></div>
+      </section>
+
       <section class="project-toolbar" aria-label="Project filters">
         <label class="project-search-box">
           <span>🔎</span>
@@ -554,6 +584,7 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
         <div class="admin-tabs" role="tablist" aria-label="Admin sections">
           <button id="adminTabStudents" class="admin-tab-btn active" type="button" role="tab" aria-selected="true" aria-controls="studentAccountsAdmin" data-admin-tab="students">Students</button>
           <button id="adminTabAssistance" class="admin-tab-btn" type="button" role="tab" aria-selected="false" aria-controls="studentAssistanceSettings" data-admin-tab="assistance">Assistance</button>
+          <button id="adminTabCompliance" class="admin-tab-btn" type="button" role="tab" aria-selected="false" aria-controls="complianceTrackerAdmin" data-admin-tab="compliance">Compliance</button>
           <button id="adminTabActivities" class="admin-tab-btn" type="button" role="tab" aria-selected="false" aria-controls="activitiesRubricsAdmin" data-admin-tab="activities">Activities &amp; Rubric</button>
         </div>
       </div>
@@ -830,6 +861,76 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
               <tbody id="adminStudentsTableBody"></tbody>
             </table>
           </div>
+        </section>
+
+        <section id="complianceTrackerAdmin" class="admin-tab-panel compliance-admin-card" data-admin-panel="compliance" aria-labelledby="complianceTrackerTitle">
+          <div class="compliance-admin-header">
+            <div>
+              <p class="section-kicker">Google Sheets Sync</p>
+              <h3 id="complianceTrackerTitle">Student Compliance Tracker</h3>
+              <p class="muted-text">Encode scores in Google Sheets. The app will publish only color/status to students, not the scores.</p>
+            </div>
+            <span class="compliance-safety-pill">Scores hidden from students</span>
+          </div>
+
+          <div class="compliance-admin-grid">
+            <label>
+              Apps Script Web App URL
+              <input id="complianceScriptUrlInput" type="url" placeholder="Paste the deployed Apps Script /exec URL" autocomplete="off" />
+            </label>
+            <label>
+              Sync Key
+              <input id="complianceSyncKeyInput" type="password" placeholder="Default: 052400" autocomplete="off" />
+            </label>
+            <label>
+              Term Sheet
+              <select id="complianceTermSelect">
+                <option value="TERM_1">TERM_1</option>
+                <option value="TERM_2">TERM_2</option>
+                <option value="TERM_3">TERM_3</option>
+              </select>
+            </label>
+            <label>
+              Subject Label
+              <input id="complianceSubjectInput" type="text" placeholder="Example: ICT" autocomplete="off" />
+            </label>
+          </div>
+
+          <div class="compliance-setup-block">
+            <div class="compliance-setup-head">
+              <div>
+                <strong>Section Google Sheet Links</strong>
+                <p>Paste each section's Google Sheet link here. One Sync reads all filled sections.</p>
+              </div>
+              <span class="compliance-mini-pill">10+ sections supported</span>
+            </div>
+            <div id="complianceSectionSheetsList" class="compliance-section-list" aria-label="Section Google Sheet links"></div>
+          </div>
+
+          <div class="compliance-setup-block">
+            <div class="compliance-setup-head">
+              <div>
+                <strong>Task Names Students Will See</strong>
+                <p>Your Google Sheet can stay score-only. Edit display names here, or keep the default WW/PT/TA names.</p>
+              </div>
+              <button id="resetComplianceTaskLabelsBtn" class="ghost-btn mini" type="button">Reset Current Group</button>
+            </div>
+            <div class="compliance-task-label-tabs" role="tablist" aria-label="Requirement groups">
+              <button class="ghost-btn mini active" type="button" data-compliance-task-group="WW">Written Works</button>
+              <button class="ghost-btn mini" type="button" data-compliance-task-group="PT">Performance Tasks</button>
+              <button class="ghost-btn mini" type="button" data-compliance-task-group="TA">Term Assessment</button>
+            </div>
+            <div id="complianceTaskLabelsList" class="compliance-task-label-list" aria-label="Task display names"></div>
+            <p class="helper-note">Unchecked tasks will be hidden from students. Scores remain hidden; only color/status is published.</p>
+          </div>
+
+          <div class="compliance-admin-actions">
+            <button id="saveComplianceSettingsBtn" class="ghost-btn" type="button">Save Settings</button>
+            <button id="previewComplianceSyncBtn" class="ghost-btn" type="button">Preview Google Sheets</button>
+            <button id="publishComplianceSyncBtn" class="primary-btn" type="button">Sync All Sections &amp; Publish</button>
+          </div>
+          <p id="complianceSyncStatus" class="helper-note compliance-sync-status" role="status">Paste the Apps Script URL and section sheet links, then preview before publishing.</p>
+          <div id="complianceSyncPreview" class="compliance-sync-preview" aria-live="polite"></div>
         </section>
 
         <section id="activitiesRubricsAdmin" class="admin-tab-panel" data-admin-panel="activities" aria-labelledby="activitiesRubricsTitle">
@@ -1117,6 +1218,6 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
   <script src="firebase-config.js"></script>
-  <script src="script.js?v=20260724-step131-recitation-mobile-list-space"></script>
+  <script src="script.js?v=20260724-step135-easy-compliance-setup"></script>
 </body>
 </html>
