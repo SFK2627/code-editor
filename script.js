@@ -2128,7 +2128,8 @@ function initFirebaseWithCompatSDK() {
       orderBy: (field, direction = 'asc') => ({ type: 'orderBy', field, direction }),
       limit: count => ({ type: 'limit', count }),
       serverTimestamp: () => firebase.firestore.FieldValue.serverTimestamp(),
-      increment: amount => firebase.firestore.FieldValue.increment(amount)
+      increment: amount => firebase.firestore.FieldValue.increment(amount),
+      writeBatch: database => database.batch()
     };
     firebaseSync.authModule = {
       onAuthStateChanged: (authInstance, callback) => authInstance.onAuthStateChanged(callback),
@@ -4449,7 +4450,7 @@ async function loadStudentComplianceStatus(options = {}) {
   }
 }
 
-function requestComplianceJsonp(baseUrl, params = {}, timeoutMs = 25000) {
+function requestComplianceJsonp(baseUrl, params = {}, timeoutMs = 75000) {
   return new Promise((resolve, reject) => {
     const urlText = String(baseUrl || '').trim();
     if (!urlText) {
@@ -4480,7 +4481,7 @@ function requestComplianceJsonp(baseUrl, params = {}, timeoutMs = 25000) {
       if (settled) return;
       settled = true;
       cleanup();
-      reject(new Error('Google Sheets sync timed out. Check the Apps Script deployment and internet connection.'));
+      reject(new Error('This section took too long to read from Google Sheets. Check that the sheet link is correct and the Apps Script account has access.'));
     }, timeoutMs);
 
     function cleanup() {
@@ -4529,7 +4530,7 @@ function renderComplianceSyncPreview(payload = {}) {
       </div>`).join('')}</div>` : '<div class="student-compliance-empty">No student records returned.</div>'}`;
 }
 
-async function pullComplianceFromGoogleSheets() {
+async function pullComplianceFromGoogleSheets(options = {}) {
   const settings = getComplianceSettingsFromControls();
   saveComplianceSettings(settings);
   if (!settings.scriptUrl) throw new Error('Paste the Apps Script Web App URL first.');
@@ -4537,35 +4538,85 @@ async function pullComplianceFromGoogleSheets() {
   const configuredSections = getConfiguredComplianceSections(settings);
   if (!configuredSections.length) throw new Error('Paste at least one section Google Sheet link.');
   const taskPayload = getCurrentComplianceTaskPayload(settings);
-  const payload = await requestComplianceJsonp(settings.scriptUrl, {
-    key: settings.syncKey,
+  const aggregate = {
+    ok: true,
+    generatedAt: '',
     term: settings.term,
     subject: settings.subject,
-    mode: 'statusOnly',
-    sections: JSON.stringify(configuredSections),
-    taskLabels: JSON.stringify(taskPayload.taskLabels),
-    hiddenTasks: JSON.stringify(taskPayload.hiddenTasks)
-  });
-  if (!payload || payload.ok === false) {
-    throw new Error(payload?.error || 'Apps Script did not return a valid response.');
-  }
-  const students = Array.isArray(payload.students) ? payload.students : [];
-  return {
-    ...payload,
-    students: students.map(student => sanitizeComplianceStudentRecord(student, {
-      subject: settings.subject,
-      term: settings.term,
-      source: 'Google Sheets',
-      updatedAtText: payload.generatedAt || ''
-    })).filter(student => student.studentIdNormalized)
+    sourceCount: configuredSections.length,
+    students: [],
+    errors: []
   };
+
+  // Read section sheets one by one instead of one heavy request.
+  // This avoids admin sync timing out when many section Google Sheets are linked.
+  for (let index = 0; index < configuredSections.length; index += 1) {
+    const sectionConfig = configuredSections[index];
+    const sectionName = sectionConfig.section || `Section ${index + 1}`;
+    if (typeof options.onProgress === 'function') {
+      options.onProgress({
+        phase: 'reading',
+        section: sectionName,
+        completed: index,
+        total: configuredSections.length
+      });
+    }
+
+    try {
+      const payload = await requestComplianceJsonp(settings.scriptUrl, {
+        key: settings.syncKey,
+        term: settings.term,
+        subject: settings.subject,
+        mode: 'statusOnly',
+        sections: JSON.stringify([sectionConfig]),
+        taskLabels: JSON.stringify(taskPayload.taskLabels),
+        hiddenTasks: JSON.stringify(taskPayload.hiddenTasks)
+      }, 90000);
+
+      if (!payload || payload.ok === false) {
+        throw new Error(payload?.error || 'Apps Script did not return a valid response.');
+      }
+
+      const students = Array.isArray(payload.students) ? payload.students : [];
+      aggregate.students.push(...students.map(student => sanitizeComplianceStudentRecord(student, {
+        subject: settings.subject,
+        term: settings.term,
+        source: 'Google Sheets',
+        updatedAtText: payload.generatedAt || ''
+      })).filter(student => student.studentIdNormalized));
+
+      if (Array.isArray(payload.errors) && payload.errors.length) {
+        aggregate.errors.push(...payload.errors.map(error => String(error || '').trim()).filter(Boolean));
+      }
+      if (payload.generatedAt) aggregate.generatedAt = payload.generatedAt;
+    } catch (error) {
+      aggregate.errors.push(`${sectionName}: ${error?.message || error || 'Could not read this sheet.'}`);
+    }
+
+    if (typeof options.onProgress === 'function') {
+      options.onProgress({
+        phase: 'read',
+        section: sectionName,
+        completed: index + 1,
+        total: configuredSections.length
+      });
+    }
+  }
+
+  if (!aggregate.students.length && aggregate.errors.length) {
+    throw new Error(`Could not read any section sheet. First issue: ${aggregate.errors[0]}`);
+  }
+
+  return aggregate;
 }
 
 async function previewComplianceSync() {
-  setComplianceSyncStatus('Reading all linked section Google Sheets...', '');
+  setComplianceSyncStatus('Reading linked Google Sheets one section at a time...', '');
   if (previewComplianceSyncBtn) previewComplianceSyncBtn.disabled = true;
   try {
-    const payload = await pullComplianceFromGoogleSheets();
+    const payload = await pullComplianceFromGoogleSheets({
+      onProgress: progress => setComplianceSyncStatus(`Reading ${progress.section}... ${progress.completed}/${progress.total}`, '')
+    });
     renderComplianceSyncPreview(payload);
     const errorNote = Array.isArray(payload.errors) && payload.errors.length ? ` ${payload.errors.length} sheet issue(s) found.` : '';
     setComplianceSyncStatus(`Preview ready: ${payload.students.length} student status records found. Scores are not shown here.${errorNote}`, payload.students.length ? 'success' : 'warning');
@@ -4584,30 +4635,48 @@ async function publishComplianceSync() {
     return;
   }
   if (publishComplianceSyncBtn) publishComplianceSyncBtn.disabled = true;
-  setComplianceSyncStatus('Reading all section Google Sheets...', '');
+  setComplianceSyncStatus('Reading section Google Sheets one by one...', '');
   try {
-    const payload = await pullComplianceFromGoogleSheets();
+    const payload = await pullComplianceFromGoogleSheets({
+      onProgress: progress => setComplianceSyncStatus(`Reading ${progress.section}... ${progress.completed}/${progress.total}`, '')
+    });
     renderComplianceSyncPreview(payload);
     if (!payload.students.length) throw new Error('No student records found. Check section sheet links, student IDs, and term sheet name.');
     const ready = await initFirebaseSync();
     if (!ready) throw new Error(firebaseSync.lastError || 'Firebase is not ready.');
-    const { setDoc, serverTimestamp } = firebaseSync.modules;
+    const { setDoc, serverTimestamp, writeBatch } = firebaseSync.modules;
     const syncedAtMs = Date.now();
     let saved = 0;
-    for (const student of payload.students) {
-      await setDoc(getStudentComplianceDocRef(student.studentIdNormalized), {
-        ...student,
-        studentIdOriginal: student.studentId,
-        studentId: student.studentIdNormalized,
-        // Used by Firestore Rules so students can read only their own status.
-        // Scores are still not saved or shown to students.
-        studentAuthEmail: studentIdToAuthEmail(student.studentIdNormalized),
-        updatedAt: serverTimestamp(),
-        updatedAtMs: syncedAtMs,
-        publishedBy: firebaseSync.auth?.currentUser?.email || firebaseSync.currentUser?.email || 'teacher'
-      }, { merge: true });
-      saved += 1;
-      if (saved % 10 === 0) setComplianceSyncStatus(`Publishing status... ${saved}/${payload.students.length}`, '');
+    const buildComplianceSaveData = student => ({
+      ...student,
+      studentIdOriginal: student.studentId,
+      studentId: student.studentIdNormalized,
+      // Used by Firestore Rules so students can read only their own status.
+      // Scores are still not saved or shown to students.
+      studentAuthEmail: studentIdToAuthEmail(student.studentIdNormalized),
+      updatedAt: serverTimestamp(),
+      updatedAtMs: syncedAtMs,
+      publishedBy: firebaseSync.auth?.currentUser?.email || firebaseSync.currentUser?.email || 'teacher'
+    });
+
+    if (typeof writeBatch === 'function') {
+      const batchSize = 400;
+      for (let start = 0; start < payload.students.length; start += batchSize) {
+        const batch = writeBatch(firebaseSync.db);
+        const chunk = payload.students.slice(start, start + batchSize);
+        chunk.forEach(student => {
+          batch.set(getStudentComplianceDocRef(student.studentIdNormalized), buildComplianceSaveData(student), { merge: true });
+        });
+        await batch.commit();
+        saved += chunk.length;
+        setComplianceSyncStatus(`Publishing status... ${saved}/${payload.students.length}`, '');
+      }
+    } else {
+      for (const student of payload.students) {
+        await setDoc(getStudentComplianceDocRef(student.studentIdNormalized), buildComplianceSaveData(student), { merge: true });
+        saved += 1;
+        if (saved % 10 === 0) setComplianceSyncStatus(`Publishing status... ${saved}/${payload.students.length}`, '');
+      }
     }
     const issueText = Array.isArray(payload.errors) && payload.errors.length ? ` ${payload.errors.length} sheet issue(s) were skipped; check preview.` : '';
     setComplianceSyncStatus(`Published ${saved} student status records from Google Sheets. Students can refresh My Projects to see updates.${issueText}`, 'success');

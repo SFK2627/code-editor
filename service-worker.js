@@ -1,15 +1,15 @@
-const CACHE_NAME = 'code-editor-20260724-step137-subject-status-modal';
+const CACHE_NAME = 'code-editor-20260724-step138-compliance-sync-stability';
 const APP_SHELL = [
   './',
   './index.html',
-  './index.html?v=20260724-step137-subject-status-modal',
-  './index.html?fresh=step137',
+  './index.html?v=20260724-step138-compliance-sync-stability',
+  './index.html?fresh=step138',
   './style.css',
-  './style.css?v=20260724-step137-subject-status-modal',
-  './style.css?v=20260724-step137-subject-status-modal',
+  './style.css?v=20260724-step138-compliance-sync-stability',
+  './style.css?v=20260724-step138-compliance-sync-stability',
   './script.js',
-  './script.js?v=20260724-step137-subject-status-modal',
-  './script.js?v=20260724-step137-subject-status-modal',
+  './script.js?v=20260724-step138-compliance-sync-stability',
+  './script.js?v=20260724-step138-compliance-sync-stability',
   './firebase-config.js',
   './manifest.webmanifest',
   './favicon.png',
