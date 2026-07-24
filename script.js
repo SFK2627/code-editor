@@ -210,6 +210,7 @@ const changePasswordLogoutBtn = document.getElementById('changePasswordLogoutBtn
 const studentDashboard = document.getElementById('studentDashboard');
 const dashboardGreeting = document.getElementById('dashboardGreeting');
 const dashboardThemeBtn = document.getElementById('dashboardThemeBtn');
+const dashboardSubjectStatusBtn = document.getElementById('dashboardSubjectStatusBtn');
 const dashboardLogoutBtn = document.getElementById('dashboardLogoutBtn');
 const newProjectBtn = document.getElementById('newProjectBtn');
 const projectSearchInput = document.getElementById('projectSearchInput');
@@ -220,10 +221,13 @@ const dashboardSaveStatusTitle = document.getElementById('dashboardSaveStatusTit
 const dashboardSaveStatusText = document.getElementById('dashboardSaveStatusText');
 const dashboardFeedbackTitle = document.getElementById('dashboardFeedbackTitle');
 const dashboardFeedbackText = document.getElementById('dashboardFeedbackText');
+const studentComplianceOverlay = document.getElementById('studentComplianceOverlay');
+const closeStudentComplianceBtn = document.getElementById('closeStudentComplianceBtn');
 const studentCompliancePanel = document.getElementById('studentCompliancePanel');
 const studentComplianceMeta = document.getElementById('studentComplianceMeta');
 const studentComplianceSummary = document.getElementById('studentComplianceSummary');
 const studentComplianceList = document.getElementById('studentComplianceList');
+const studentComplianceLackingList = document.getElementById('studentComplianceLackingList');
 const studentComplianceRefreshBtn = document.getElementById('studentComplianceRefreshBtn');
 const studentProjectsGrid = document.getElementById('studentProjectsGrid');
 const projectNameOverlay = document.getElementById('projectNameOverlay');
@@ -4293,14 +4297,13 @@ function setComplianceSyncStatus(message, tone = '') {
 function complianceStatusLabel(status) {
   const value = String(status || '').toLowerCase();
   if (value === 'complete' || value === 'completed') return 'Complete';
-  if (value === 'needs-checking' || value === 'needsChecking' || value === 'checking') return 'Needs checking';
   return 'Missing';
 }
 
 function normalizeComplianceStatus(status) {
   const value = String(status || '').trim().toLowerCase().replace(/[_\s]+/g, '-');
   if (['complete', 'completed', 'done', 'ok', 'green'].includes(value)) return 'complete';
-  if (['needs-checking', 'needs-check', 'checking', 'review', 'yellow'].includes(value)) return 'needs-checking';
+  // Student view now uses only two states. Any yellow/review/blank/zero status becomes Missing.
   return 'missing';
 }
 
@@ -4308,10 +4311,9 @@ function summarizeComplianceTasks(tasks = []) {
   return tasks.reduce((summary, task) => {
     const status = normalizeComplianceStatus(task.status);
     if (status === 'complete') summary.complete += 1;
-    else if (status === 'needs-checking') summary.needsChecking += 1;
     else summary.missing += 1;
     return summary;
-  }, { complete: 0, missing: 0, needsChecking: 0, total: tasks.length });
+  }, { complete: 0, missing: 0, total: tasks.length });
 }
 
 function sanitizeComplianceStudentRecord(record = {}, fallback = {}) {
@@ -4322,14 +4324,16 @@ function sanitizeComplianceStudentRecord(record = {}, fallback = {}) {
     status: normalizeComplianceStatus(task.status),
     number: Number(task.number || index + 1) || index + 1
   })) : [];
-  const summary = record.summary && typeof record.summary === 'object'
-    ? {
-        complete: Number(record.summary.complete || 0),
-        missing: Number(record.summary.missing || 0),
-        needsChecking: Number(record.summary.needsChecking || record.summary.needs_checking || 0),
-        total: Number(record.summary.total || tasks.length)
-      }
-    : summarizeComplianceTasks(tasks);
+  const derivedSummary = summarizeComplianceTasks(tasks);
+  const summary = tasks.length
+    ? derivedSummary
+    : (record.summary && typeof record.summary === 'object'
+      ? {
+          complete: Number(record.summary.complete || 0),
+          missing: Number(record.summary.missing || 0) + Number(record.summary.needsChecking || record.summary.needs_checking || 0),
+          total: Number(record.summary.total || 0)
+        }
+      : derivedSummary);
   summary.total = summary.total || tasks.length;
   return {
     studentId: String(record.studentId || record.id || '').trim(),
@@ -4348,12 +4352,12 @@ function sanitizeComplianceStudentRecord(record = {}, fallback = {}) {
 
 function renderStudentComplianceRecord(record = null, options = {}) {
   if (!studentCompliancePanel) return;
-  studentCompliancePanel.classList.toggle('hidden', false);
 
   if (!record) {
     if (studentComplianceMeta) studentComplianceMeta.textContent = options.message || 'No published subject status yet.';
     if (studentComplianceSummary) studentComplianceSummary.innerHTML = '<span class="compliance-empty-pill">Waiting for teacher update</span>';
     if (studentComplianceList) studentComplianceList.innerHTML = '<div class="student-compliance-empty">Your Google Sheets status will appear here after your teacher publishes it.</div>';
+    if (studentComplianceLackingList) studentComplianceLackingList.innerHTML = '<div class="student-compliance-lacking-card"><strong>Lacking List</strong><p>No status published yet.</p></div>';
     return;
   }
 
@@ -4368,11 +4372,10 @@ function renderStudentComplianceRecord(record = null, options = {}) {
   if (studentComplianceSummary) {
     studentComplianceSummary.innerHTML = `
       <span class="compliance-summary-pill complete">🟩 ${Number(summary.complete || 0)} Complete</span>
-      <span class="compliance-summary-pill missing">🟥 ${Number(summary.missing || 0)} Missing</span>
-      <span class="compliance-summary-pill checking">🟨 ${Number(summary.needsChecking || 0)} Needs checking</span>`;
+      <span class="compliance-summary-pill missing">🟥 ${Number(summary.missing || 0)} Missing</span>`;
   }
+  const visibleTasks = sanitized.tasks || [];
   if (studentComplianceList) {
-    const visibleTasks = sanitized.tasks || [];
     studentComplianceList.innerHTML = visibleTasks.length ? visibleTasks.map(task => {
       const status = normalizeComplianceStatus(task.status);
       return `
@@ -4385,6 +4388,30 @@ function renderStudentComplianceRecord(record = null, options = {}) {
         </div>`;
     }).join('') : '<div class="student-compliance-empty">No visible requirements were published yet.</div>';
   }
+  if (studentComplianceLackingList) {
+    const lackingTasks = visibleTasks.filter(task => normalizeComplianceStatus(task.status) !== 'complete');
+    studentComplianceLackingList.innerHTML = `
+      <div class="student-compliance-lacking-card">
+        <strong>Lacking List</strong>
+        ${lackingTasks.length
+          ? `<ul>${lackingTasks.map(task => `<li>${escapeHTML(task.title || 'Requirement')}</li>`).join('')}</ul>`
+          : '<p class="student-compliance-no-lacking">✅ No lacking</p>'}
+      </div>`;
+  }
+}
+
+function openStudentComplianceModal() {
+  if (!studentComplianceOverlay) return;
+  studentComplianceOverlay.classList.remove('hidden');
+  document.body.classList.add('student-auth-open');
+  if (!studentComplianceRecord) {
+    loadStudentComplianceStatus().catch(error => console.warn('Could not refresh subject status.', error));
+  }
+}
+
+function closeStudentComplianceModal() {
+  studentComplianceOverlay?.classList.add('hidden');
+  document.body.classList.remove('student-auth-open');
 }
 
 async function loadStudentComplianceStatus(options = {}) {
@@ -4498,7 +4525,7 @@ function renderComplianceSyncPreview(payload = {}) {
     ${samples.length ? `<div class="compliance-preview-list">${samples.map(student => `
       <div class="compliance-preview-row">
         <strong>${escapeHTML(student.studentName || student.studentId || 'Student')}</strong>
-        <small>${escapeHTML(student.section || 'No section')} · 🟩 ${Number(student.summary.complete || 0)} · 🟥 ${Number(student.summary.missing || 0)} · 🟨 ${Number(student.summary.needsChecking || 0)}</small>
+        <small>${escapeHTML(student.section || 'No section')} · 🟩 ${Number(student.summary.complete || 0)} · 🟥 ${Number(student.summary.missing || 0)}</small>
       </div>`).join('')}</div>` : '<div class="student-compliance-empty">No student records returned.</div>'}`;
 }
 
@@ -13694,6 +13721,17 @@ saveComplianceSettingsBtn?.addEventListener('click', () => {
 });
 previewComplianceSyncBtn?.addEventListener('click', previewComplianceSync);
 publishComplianceSyncBtn?.addEventListener('click', publishComplianceSync);
+dashboardSubjectStatusBtn?.addEventListener('click', openStudentComplianceModal);
+closeStudentComplianceBtn?.addEventListener('click', closeStudentComplianceModal);
+studentComplianceOverlay?.addEventListener('click', event => {
+  if (event.target === studentComplianceOverlay) event.stopPropagation();
+});
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape' && studentComplianceOverlay && !studentComplianceOverlay.classList.contains('hidden')) {
+    event.preventDefault();
+    closeStudentComplianceModal();
+  }
+});
 studentComplianceRefreshBtn?.addEventListener('click', () => loadStudentComplianceStatus());
 
 initAdminTabs();

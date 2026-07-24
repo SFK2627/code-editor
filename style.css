@@ -34373,3 +34373,102 @@ body.dark-mode .teacher-comment-pill {
     white-space: normal;
   }
 }
+
+/* Step 137: Subject Status moved from inline My Projects page to a modal.
+   Students see only Complete/Missing, plus a clear Lacking List. */
+.student-compliance-overlay {
+  padding: clamp(14px, 3vw, 30px);
+  align-items: center;
+  justify-content: center;
+}
+
+.student-compliance-overlay .student-compliance-panel {
+  position: relative;
+  width: min(920px, 94vw);
+  max-height: min(86vh, 780px);
+  overflow: auto;
+  padding: clamp(18px, 3vw, 28px);
+}
+
+.student-compliance-icon {
+  margin: 0 auto 10px;
+}
+
+.dashboard-subject-status-btn {
+  white-space: nowrap;
+}
+
+.student-compliance-lacking-list {
+  display: block;
+}
+
+.student-compliance-lacking-card {
+  border: 1px solid rgba(239, 68, 68, 0.22);
+  border-radius: 18px;
+  padding: 14px 16px;
+  background: rgba(254, 242, 242, 0.78);
+  color: #991b1b;
+}
+
+.student-compliance-lacking-card strong {
+  display: block;
+  margin-bottom: 8px;
+  color: #7f1d1d;
+}
+
+.student-compliance-lacking-card ul {
+  margin: 0;
+  padding-left: 22px;
+  display: grid;
+  gap: 6px;
+}
+
+.student-compliance-lacking-card li {
+  line-height: 1.35;
+  font-weight: 700;
+}
+
+.student-compliance-lacking-card p {
+  margin: 0;
+  color: #166534;
+  font-weight: 800;
+}
+
+.student-compliance-no-lacking {
+  border: 1px solid rgba(34, 197, 94, 0.22);
+  border-radius: 14px;
+  padding: 10px 12px;
+  background: rgba(220, 252, 231, 0.72);
+}
+
+[data-theme="dark"] .student-compliance-lacking-card {
+  background: rgba(127, 29, 29, 0.25);
+  border-color: rgba(248, 113, 113, 0.25);
+  color: #fecaca;
+}
+
+[data-theme="dark"] .student-compliance-lacking-card strong {
+  color: #fee2e2;
+}
+
+[data-theme="dark"] .student-compliance-no-lacking {
+  background: rgba(20, 83, 45, 0.28);
+  border-color: rgba(74, 222, 128, 0.25);
+  color: #bbf7d0;
+}
+
+@media (max-width: 760px) {
+  .student-compliance-overlay {
+    padding: 10px;
+  }
+
+  .student-compliance-overlay .student-compliance-panel {
+    width: min(96vw, 520px);
+    max-height: 88vh;
+    border-radius: 22px;
+  }
+
+  .student-compliance-overlay .student-compliance-header .ghost-btn {
+    width: 100%;
+  }
+}

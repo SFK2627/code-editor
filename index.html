@@ -43,7 +43,7 @@
       document.documentElement.dataset.deviceMode = isPhone ? 'phone' : 'desktop';
     })();
   </script>
-  <link rel="stylesheet" href="style.css?v=20260724-step136-compliance-rules" />
+  <link rel="stylesheet" href="style.css?v=20260724-step137-subject-status-modal" />
 </head>
 <body class="entry-gate-active">
   <noscript>
@@ -140,6 +140,7 @@
       <div class="dashboard-header-actions">
         <button id="dashboardThemeBtn" class="ghost-btn" type="button">🌙 Theme</button>
         <button id="dashboardRecitationStatusBtn" class="ghost-btn recitation-status-open-btn" type="button">📋 Recitation Status</button>
+        <button id="dashboardSubjectStatusBtn" class="ghost-btn dashboard-subject-status-btn" type="button">📌 Subject Status</button>
         <button id="dashboardJoinProjectBtn" class="ghost-btn dashboard-join-project-btn hidden" type="button">🤝 Join a Project</button>
         <button id="dashboardLogoutBtn" class="ghost-btn danger" type="button">Log Out</button>
       </div>
@@ -173,18 +174,6 @@
         </article>
       </section>
 
-      <section id="studentCompliancePanel" class="student-compliance-panel hidden" aria-label="Subject compliance status">
-        <div class="student-compliance-header">
-          <div>
-            <p class="section-kicker">Subject Requirements</p>
-            <h2>My Subject Status</h2>
-            <p id="studentComplianceMeta">Your teacher will publish Google Sheets updates here.</p>
-          </div>
-          <button id="studentComplianceRefreshBtn" class="ghost-btn" type="button">Refresh</button>
-        </div>
-        <div id="studentComplianceSummary" class="student-compliance-summary" aria-live="polite"></div>
-        <div id="studentComplianceList" class="student-compliance-list"></div>
-      </section>
 
       <section class="project-toolbar" aria-label="Project filters">
         <label class="project-search-box">
@@ -201,6 +190,24 @@
       <div id="projectDashboardStatus" class="dashboard-status" role="status">Loading projects...</div>
       <section id="studentProjectsGrid" class="student-projects-grid" aria-live="polite"></section>
     </main>
+  </div>
+
+  <div id="studentComplianceOverlay" class="student-auth-overlay student-compliance-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="studentComplianceTitle">
+    <section id="studentCompliancePanel" class="student-compliance-panel" aria-label="Subject compliance status">
+      <button id="closeStudentComplianceBtn" class="icon-btn auth-close-btn" type="button" aria-label="Close subject status">×</button>
+      <div class="student-auth-icon student-compliance-icon" aria-hidden="true">📌</div>
+      <div class="student-compliance-header">
+        <div>
+          <p class="section-kicker">Subject Requirements</p>
+          <h2 id="studentComplianceTitle">My Subject Status</h2>
+          <p id="studentComplianceMeta">Your teacher will publish Google Sheets updates here.</p>
+        </div>
+        <button id="studentComplianceRefreshBtn" class="ghost-btn" type="button">Refresh</button>
+      </div>
+      <div id="studentComplianceSummary" class="student-compliance-summary" aria-live="polite"></div>
+      <div id="studentComplianceList" class="student-compliance-list"></div>
+      <div id="studentComplianceLackingList" class="student-compliance-lacking-list" aria-live="polite"></div>
+    </section>
   </div>
 
   <div id="recitationStatusOverlay" class="student-auth-overlay recitation-status-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="recitationStatusTitle">
@@ -1218,6 +1225,6 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
   <script src="firebase-config.js"></script>
-  <script src="script.js?v=20260724-step136-compliance-rules"></script>
+  <script src="script.js?v=20260724-step137-subject-status-modal"></script>
 </body>
 </html>
