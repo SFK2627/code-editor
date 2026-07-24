@@ -2472,6 +2472,9 @@ async function watchTeacherAuth() {
     firebaseSync.currentUser = user;
     updateTeacherLoginUI(user);
     handleStudentAuthObserver(user).catch(error => console.warn('Student auth observer failed.', error));
+    if (isTeacherAuthenticated()) {
+      loadComplianceSettingsFromCloud({ silent: true }).catch(error => console.warn('Cloud Compliance settings load failed.', error));
+    }
 
     if (!adminOverlay.classList.contains('hidden')) {
       if (isAdminPanelUnlocked()) {
@@ -2697,6 +2700,11 @@ function getStudentProjectDocRef(uid, projectId) {
 function getStudentComplianceDocRef(studentId) {
   const { doc } = firebaseSync.modules;
   return doc(firebaseSync.db, firebaseSync.collectionName, firebaseSync.documentId, 'subjectCompliance', normalizeStudentId(studentId));
+}
+
+function getComplianceSettingsDocRef() {
+  const { doc } = firebaseSync.modules;
+  return doc(firebaseSync.db, firebaseSync.collectionName, firebaseSync.documentId, 'adminSettings', 'compliance');
 }
 
 function snapshotExists(snapshot) {
@@ -4154,6 +4162,50 @@ function loadComplianceSettings() {
 function saveComplianceSettings(settings = {}) {
   const normalized = normalizeComplianceSettings(settings);
   saveJSON(STORAGE_KEYS.complianceSettings, normalized);
+  return normalized;
+}
+
+function getComplianceCloudSettingsSource(data = {}) {
+  if (data && typeof data === 'object' && data.settings && typeof data.settings === 'object') return data.settings;
+  return data;
+}
+
+async function loadComplianceSettingsFromCloud(options = {}) {
+  if (!isTeacherAuthenticated()) {
+    if (!options.silent) setComplianceSyncStatus('Login as teacher to load saved Compliance settings from Firebase.', 'warning');
+    return null;
+  }
+  const ready = await initFirebaseSync();
+  if (!ready) throw new Error(firebaseSync.lastError || 'Firebase is not ready.');
+  const { getDoc } = firebaseSync.modules;
+  const snapshot = await getDoc(getComplianceSettingsDocRef());
+  if (!snapshotExists(snapshot)) {
+    if (!options.silent) setComplianceSyncStatus('No cloud Compliance settings found yet. Save Settings once to use them on all teacher devices.', 'warning');
+    return null;
+  }
+  const data = snapshotData(snapshot);
+  const settings = saveComplianceSettings(getComplianceCloudSettingsSource(data));
+  syncComplianceSettingsControls();
+  if (!options.silent) setComplianceSyncStatus('Compliance settings loaded from Firebase. These links and task names are now available on this device.', 'success');
+  return settings;
+}
+
+async function saveComplianceSettingsToCloud(settings = {}) {
+  const normalized = saveComplianceSettings(settings);
+  if (!isTeacherAuthenticated()) {
+    throw new Error('Login as teacher first so Compliance settings can be saved to Firebase and reused on other devices.');
+  }
+  const ready = await initFirebaseSync();
+  if (!ready) throw new Error(firebaseSync.lastError || 'Firebase is not ready.');
+  const { setDoc, serverTimestamp } = firebaseSync.modules;
+  const cleanSettings = JSON.parse(JSON.stringify(normalized));
+  await setDoc(getComplianceSettingsDocRef(), {
+    ...cleanSettings,
+    settings: cleanSettings,
+    updatedAt: serverTimestamp(),
+    updatedAtMs: Date.now(),
+    updatedBy: firebaseSync.auth?.currentUser?.email || firebaseSync.currentUser?.email || 'teacher'
+  }, { merge: true });
   return normalized;
 }
 
@@ -10761,6 +10813,7 @@ async function openAdminPanel() {
   adminOverlay.classList.remove('hidden');
   initAdminTabs();
   syncAssistanceSettingsControls();
+  syncComplianceSettingsControls();
   updateAssistancePublishUI();
   setAssistanceSettingsStatus(isTeacherAuthenticated()
     ? 'Change the switches, then publish to update every student device.'
@@ -10770,6 +10823,14 @@ async function openAdminPanel() {
     showTeacherLoginError(`Firebase is not ready. ${firebaseSync.lastError || 'Firebase SDK did not load. Check internet connection, CDN access, and make sure all updated files were uploaded.'}`);
   }
   updateTeacherLoginUI(firebaseSync.auth?.currentUser || firebaseSync.currentUser);
+  if (isTeacherAuthenticated()) {
+    loadComplianceSettingsFromCloud({ silent: true }).catch(error => {
+      console.warn('Could not load cloud Compliance settings.', error);
+      setComplianceSyncStatus(error?.message || 'Could not load cloud Compliance settings.', 'warning');
+    });
+  } else {
+    setComplianceSyncStatus('Login as teacher to load/save Compliance settings across devices. Local browser settings may be incomplete.', 'warning');
+  }
 
   if (isAdminPanelUnlocked()) {
     showAdminForm();
@@ -13895,10 +13956,23 @@ complianceSectionSelect?.addEventListener('change', () => {
   const section = (settings.sections || []).find(item => String(item.code || item.section || '').trim() === settings.selectedSectionCode);
   setComplianceSyncStatus(`Selected section: ${section?.section || 'section'}. Only this section will sync.`, 'success');
 });
-saveComplianceSettingsBtn?.addEventListener('click', () => {
+saveComplianceSettingsBtn?.addEventListener('click', async () => {
   const settings = saveComplianceSettings(getComplianceSettingsFromControls());
   renderComplianceSectionSyncSelect(settings);
-  setComplianceSyncStatus('Google Sheets links, selected section, and task names saved on this device.', 'success');
+  if (saveComplianceSettingsBtn) saveComplianceSettingsBtn.disabled = true;
+  setComplianceSyncStatus('Saving Compliance settings to Firebase...', '');
+  try {
+    await saveComplianceSettingsToCloud(settings);
+    setComplianceSyncStatus('Google Sheets links, selected section, and task names saved to Firebase. You can use another device after logging in as teacher.', 'success');
+  } catch (error) {
+    console.warn('Could not save Compliance settings to Firebase.', error);
+    const message = /permission|insufficient/i.test(error?.message || '')
+      ? 'Firebase Rules still block Compliance settings. Add the Step 141 adminSettings rule, publish the rules, then save again.'
+      : (error?.message || 'Settings were saved only on this browser.');
+    setComplianceSyncStatus(message, 'error');
+  } finally {
+    if (saveComplianceSettingsBtn) saveComplianceSettingsBtn.disabled = false;
+  }
 });
 previewComplianceSyncBtn?.addEventListener('click', previewComplianceSync);
 publishComplianceSyncBtn?.addEventListener('click', publishComplianceSync);

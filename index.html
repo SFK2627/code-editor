@@ -43,7 +43,7 @@
       document.documentElement.dataset.deviceMode = isPhone ? 'phone' : 'desktop';
     })();
   </script>
-  <link rel="stylesheet" href="style.css?v=20260724-step140-selected-section-sync" />
+  <link rel="stylesheet" href="style.css?v=20260724-step141-cloud-compliance-settings" />
 </head>
 <body class="entry-gate-active">
   <noscript>
@@ -912,7 +912,7 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
             <div class="compliance-setup-head">
               <div>
                 <strong>Section Google Sheet Links</strong>
-                <p>Paste each section's Google Sheet link here once. Then choose only the section you want to sync above.</p>
+                <p>Paste each section's Google Sheet link here once. Click Save Settings to store them in Firebase for your teacher account, so another device can load them automatically.</p>
               </div>
               <span class="compliance-mini-pill">Selected section only</span>
             </div>
@@ -937,11 +937,11 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
           </div>
 
           <div class="compliance-admin-actions">
-            <button id="saveComplianceSettingsBtn" class="ghost-btn" type="button">Save Settings</button>
+            <button id="saveComplianceSettingsBtn" class="ghost-btn" type="button">Save Settings to Firebase</button>
             <button id="previewComplianceSyncBtn" class="ghost-btn" type="button">Preview Selected Section</button>
             <button id="publishComplianceSyncBtn" class="primary-btn" type="button">Sync Selected Section &amp; Publish</button>
           </div>
-          <p id="complianceSyncStatus" class="helper-note compliance-sync-status" role="status">Paste the Apps Script URL and sheet links, choose one section, then preview before publishing.</p>
+          <p id="complianceSyncStatus" class="helper-note compliance-sync-status" role="status">Login as teacher to load/save Compliance settings. Then choose one section, preview, and publish.</p>
           <div id="complianceSyncPreview" class="compliance-sync-preview" aria-live="polite"></div>
         </section>
 
@@ -1230,6 +1230,6 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
   <script src="firebase-config.js"></script>
-  <script src="script.js?v=20260724-step140-selected-section-sync"></script>
+  <script src="script.js?v=20260724-step141-cloud-compliance-settings"></script>
 </body>
 </html>
