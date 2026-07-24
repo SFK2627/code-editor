@@ -98,6 +98,9 @@ const complianceSyncKeyInput = document.getElementById('complianceSyncKeyInput')
 const complianceTermSelect = document.getElementById('complianceTermSelect');
 const complianceSubjectInput = document.getElementById('complianceSubjectInput');
 const complianceSectionSelect = document.getElementById('complianceSectionSelect');
+const complianceSectionChecklist = document.getElementById('complianceSectionChecklist');
+const complianceSelectAllSectionsBtn = document.getElementById('complianceSelectAllSectionsBtn');
+const complianceClearSelectedSectionsBtn = document.getElementById('complianceClearSelectedSectionsBtn');
 const complianceSectionSheetsList = document.getElementById('complianceSectionSheetsList');
 const complianceTaskLabelsList = document.getElementById('complianceTaskLabelsList');
 const resetComplianceTaskLabelsBtn = document.getElementById('resetComplianceTaskLabelsBtn');
@@ -4053,11 +4056,21 @@ function updateStudentDashboardSaveFeedbackPanel() {
 }
 
 
+const REMOVED_COMPLIANCE_SECTION_CODES = Object.freeze(new Set([
+  'FATIMA-10FT26',
+  'IMMACULATE-10IM26',
+  'LOURDES-10LD26',
+  'MMOG-10MG26'
+]));
+
+const REMOVED_COMPLIANCE_SECTION_NAMES = Object.freeze(new Set([
+  'grade 10 - fatima',
+  'grade 10 - immaculate',
+  'grade 10 - lourdes',
+  'grade 10 - mmog'
+]));
+
 const DEFAULT_COMPLIANCE_SECTIONS = Object.freeze([
-  { section: 'Grade 10 - Fatima', code: 'FATIMA-10FT26', sheetUrl: '' },
-  { section: 'Grade 10 - Immaculate', code: 'IMMACULATE-10IM26', sheetUrl: '' },
-  { section: 'Grade 10 - Lourdes', code: 'LOURDES-10LD26', sheetUrl: '' },
-  { section: 'Grade 10 - MMOG', code: 'MMOG-10MG26', sheetUrl: '' },
   { section: 'Grade 8 - St. Andrew Kim Taegon', code: 'ANDREW-8AKT26', sheetUrl: '' },
   { section: 'Grade 8 - St. Camillus de Lellis', code: 'CAMILLUS-8CDL26', sheetUrl: '' },
   { section: 'Grade 8 - St. Clare of Assisi', code: 'CLARE-8CA26', sheetUrl: '' },
@@ -4084,6 +4097,7 @@ const DEFAULT_COMPLIANCE_SETTINGS = Object.freeze({
   term: 'TERM_1',
   subject: 'ICT',
   selectedSectionCode: 'FAUSTINA-8FK26',
+  selectedSectionCodes: ['FAUSTINA-8FK26'],
   sections: DEFAULT_COMPLIANCE_SECTIONS,
   taskLabels: { TERM_1: {}, TERM_2: {}, TERM_3: {} },
   hiddenTasks: { TERM_1: [], TERM_2: [], TERM_3: [] }
@@ -4100,11 +4114,24 @@ function normalizeComplianceSection(section = {}, fallback = {}) {
   };
 }
 
+function isRemovedComplianceSection(section = {}) {
+  const normalized = normalizeComplianceSection(section);
+  const code = String(normalized.code || '').trim().toUpperCase();
+  const name = String(normalized.section || '').trim().toLowerCase();
+  return REMOVED_COMPLIANCE_SECTION_CODES.has(code) || REMOVED_COMPLIANCE_SECTION_NAMES.has(name);
+}
+
+function complianceSectionKey(section = {}, fallbackIndex = 0) {
+  const normalized = normalizeComplianceSection(section);
+  return String(normalized.code || normalized.section || `section-${fallbackIndex + 1}`).trim();
+}
+
 function normalizeComplianceSections(sections = []) {
   const input = Array.isArray(sections) ? sections : [];
   const byKey = new Map();
   input.forEach(item => {
     const normalized = normalizeComplianceSection(item);
+    if (isRemovedComplianceSection(normalized)) return;
     const key = (normalized.code || normalized.section).toLowerCase();
     if (key) byKey.set(key, normalized);
   });
@@ -4116,12 +4143,34 @@ function normalizeComplianceSections(sections = []) {
 
   input.forEach(item => {
     const normalized = normalizeComplianceSection(item);
+    if (isRemovedComplianceSection(normalized)) return;
     const key = (normalized.code || normalized.section).toLowerCase();
     const existsInDefaults = DEFAULT_COMPLIANCE_SECTIONS.some(defaultSection => (defaultSection.code || defaultSection.section).toLowerCase() === key);
     if (key && !existsInDefaults) merged.push(normalized);
   });
 
   return merged;
+}
+
+function normalizeComplianceSelectedCodes(source = {}, sections = []) {
+  const validKeys = new Set((sections || []).map((item, index) => complianceSectionKey(item, index)).filter(Boolean));
+  const hasExplicitList = Array.isArray(source.selectedSectionCodes);
+  const rawList = hasExplicitList
+    ? source.selectedSectionCodes
+    : (String(source.selectedSectionCode || source.sectionCode || '').trim() ? [source.selectedSectionCode || source.sectionCode] : []);
+  const cleaned = [];
+  rawList.forEach(value => {
+    const key = String(value || '').trim();
+    if (!key || !validKeys.has(key) || cleaned.includes(key)) return;
+    cleaned.push(key);
+  });
+  if (cleaned.length) return cleaned;
+  if (hasExplicitList && !rawList.length) return [];
+
+  const firstConfigured = (sections || []).find(item => String(item.sheetUrl || '').trim());
+  const fallback = firstConfigured || (sections || [])[0] || {};
+  const fallbackKey = complianceSectionKey(fallback, 0);
+  return fallbackKey ? [fallbackKey] : [];
 }
 
 function normalizeComplianceTermMap(source = {}, arrayFallback = false) {
@@ -4143,13 +4192,16 @@ function normalizeComplianceTermMap(source = {}, arrayFallback = false) {
 }
 
 function normalizeComplianceSettings(source = {}) {
+  const sections = normalizeComplianceSections(source.sections || DEFAULT_COMPLIANCE_SECTIONS);
+  const selectedSectionCodes = normalizeComplianceSelectedCodes(source, sections);
   return {
     scriptUrl: String(source.scriptUrl || '').trim(),
     syncKey: String(source.syncKey || '052400').trim() || '052400',
     term: COMPLIANCE_TERMS.includes(String(source.term || '').trim()) ? String(source.term || '').trim() : 'TERM_1',
     subject: String(source.subject || 'ICT').trim() || 'ICT',
-    selectedSectionCode: String(source.selectedSectionCode || source.sectionCode || '').trim(),
-    sections: normalizeComplianceSections(source.sections || DEFAULT_COMPLIANCE_SECTIONS),
+    selectedSectionCode: selectedSectionCodes[0] || '',
+    selectedSectionCodes,
+    sections,
     taskLabels: normalizeComplianceTermMap(source.taskLabels || {}),
     hiddenTasks: normalizeComplianceTermMap(source.hiddenTasks || {}, true)
   };
@@ -4232,25 +4284,39 @@ function renderComplianceSectionSettings(settings = loadComplianceSettings()) {
     </div>`).join('');
 }
 
-function resolveComplianceSelectedSectionCode(settings = loadComplianceSettings()) {
-  const sections = Array.isArray(settings.sections) ? settings.sections : [];
-  const selected = String(settings.selectedSectionCode || '').trim();
-  if (selected && sections.some(item => String(item.code || item.section || '').trim() === selected)) return selected;
-  const firstConfigured = sections.find(item => String(item.sheetUrl || '').trim());
-  const fallback = firstConfigured || sections[0] || {};
-  return String(fallback.code || fallback.section || '').trim();
+function resolveComplianceSelectedSectionCodes(settings = loadComplianceSettings()) {
+  return normalizeComplianceSelectedCodes(settings, settings.sections || []);
 }
 
 function renderComplianceSectionSyncSelect(settings = loadComplianceSettings()) {
-  if (!complianceSectionSelect) return;
-  const selectedCode = resolveComplianceSelectedSectionCode(settings);
-  complianceSectionSelect.innerHTML = (settings.sections || []).map((item, index) => {
-    const code = String(item.code || item.section || `section-${index + 1}`).trim();
-    const hasLink = String(item.sheetUrl || '').trim() ? 'ready' : 'no link';
-    return `<option value="${escapeAttribute(code)}" ${code === selectedCode ? 'selected' : ''}>${escapeHTML(item.section || `Section ${index + 1}`)} (${hasLink})</option>`;
+  const selectedCodes = new Set(resolveComplianceSelectedSectionCodes(settings));
+  const sections = settings.sections || [];
+
+  if (complianceSectionSelect) {
+    const firstSelected = Array.from(selectedCodes)[0] || '';
+    complianceSectionSelect.innerHTML = sections.map((item, index) => {
+      const code = complianceSectionKey(item, index);
+      const hasLink = String(item.sheetUrl || '').trim() ? 'ready' : 'no link';
+      return `<option value="${escapeAttribute(code)}" ${code === firstSelected ? 'selected' : ''}>${escapeHTML(item.section || `Section ${index + 1}`)} (${hasLink})</option>`;
+    }).join('');
+    complianceSectionSelect.value = firstSelected;
+  }
+
+  if (!complianceSectionChecklist) return;
+  complianceSectionChecklist.innerHTML = sections.map((item, index) => {
+    const code = complianceSectionKey(item, index);
+    const hasLink = String(item.sheetUrl || '').trim();
+    return `
+      <label class="compliance-section-check-row ${hasLink ? 'ready' : 'missing'}">
+        <input type="checkbox" data-compliance-section-check="${escapeAttribute(code)}" ${selectedCodes.has(code) ? 'checked' : ''} />
+        <span>
+          <strong>${escapeHTML(item.section || `Section ${index + 1}`)}</strong>
+          <small>${escapeHTML(item.code || 'Section')} · ${hasLink ? 'sheet link ready' : 'no sheet link yet'}</small>
+        </span>
+      </label>`;
   }).join('');
-  complianceSectionSelect.value = selectedCode;
 }
+
 
 function renderComplianceTaskGroupTabs() {
   complianceTaskGroupButtons.forEach(button => {
@@ -4332,15 +4398,28 @@ function mergeVisibleComplianceTaskControls(settings) {
   return normalized;
 }
 
+function getSelectedComplianceSectionCodesFromControls(currentSettings = loadComplianceSettings()) {
+  const checklistItems = Array.from(complianceSectionChecklist?.querySelectorAll('[data-compliance-section-check]') || []);
+  const checked = checklistItems
+    .filter(input => input.checked)
+    .map(input => String(input.dataset.complianceSectionCheck || '').trim())
+    .filter(Boolean);
+  if (checklistItems.length) return checked;
+  const legacy = String(complianceSectionSelect?.value || currentSettings.selectedSectionCode || '').trim();
+  return legacy ? [legacy] : currentSettings.selectedSectionCodes || [];
+}
+
 function getComplianceSettingsFromControls() {
   const current = mergeVisibleComplianceTaskControls(loadComplianceSettings());
+  const selectedSectionCodes = getSelectedComplianceSectionCodesFromControls(current);
   return normalizeComplianceSettings({
     ...current,
     scriptUrl: complianceScriptUrlInput?.value,
     syncKey: complianceSyncKeyInput?.value,
     term: complianceTermSelect?.value,
     subject: complianceSubjectInput?.value,
-    selectedSectionCode: complianceSectionSelect?.value || current.selectedSectionCode,
+    selectedSectionCode: selectedSectionCodes[0] || current.selectedSectionCode,
+    selectedSectionCodes,
     sections: getComplianceSectionsFromControls(current)
   });
 }
@@ -4352,15 +4431,21 @@ function getConfiguredComplianceSections(settings = loadComplianceSettings()) {
     .map(item => ({ section: item.section, code: item.code, spreadsheetId: item.sheetUrl }));
 }
 
-function getSelectedComplianceSectionForSync(settings = loadComplianceSettings()) {
-  const selectedCode = resolveComplianceSelectedSectionCode(settings);
+function getSelectedComplianceSectionsForSync(settings = loadComplianceSettings()) {
+  const selectedCodes = resolveComplianceSelectedSectionCodes(settings);
+  if (!selectedCodes.length) throw new Error('Check at least one section to sync first.');
+  const selectedSet = new Set(selectedCodes);
   const selected = (settings.sections || [])
-    .map(item => normalizeComplianceSection(item))
-    .find(item => String(item.code || item.section || '').trim() === selectedCode);
-  if (!selected) throw new Error('Choose a section to sync first.');
-  if (!selected.sheetUrl) throw new Error(`Paste the Google Sheet link for ${selected.section || 'the selected section'} first.`);
-  return { section: selected.section, code: selected.code, spreadsheetId: selected.sheetUrl };
+    .map((item, index) => ({ ...normalizeComplianceSection(item), _key: complianceSectionKey(item, index) }))
+    .filter(item => selectedSet.has(item._key));
+  if (!selected.length) throw new Error('Check at least one section to sync first.');
+  const missingLinks = selected.filter(item => !item.sheetUrl);
+  if (missingLinks.length) {
+    throw new Error(`Paste Google Sheet link first for: ${missingLinks.map(item => item.section || item.code || 'section').join(', ')}.`);
+  }
+  return selected.map(item => ({ section: item.section, code: item.code, spreadsheetId: item.sheetUrl }));
 }
+
 
 function getCurrentComplianceTaskPayload(settings = loadComplianceSettings()) {
   const term = settings.term || 'TERM_1';
@@ -4663,22 +4748,23 @@ async function pullComplianceFromGoogleSheets(options = {}) {
   saveComplianceSettings(settings);
   if (!settings.scriptUrl) throw new Error('Paste the Apps Script Web App URL first.');
   if (!settings.syncKey) throw new Error('Enter the Sync Key used in Apps Script.');
-  const selectedSection = getSelectedComplianceSectionForSync(settings);
-  const configuredSections = [selectedSection];
+  const configuredSections = getSelectedComplianceSectionsForSync(settings);
   const taskPayload = getCurrentComplianceTaskPayload(settings);
+  const selectedSectionNames = configuredSections.map(item => item.section || item.code || 'Section');
   const aggregate = {
     ok: true,
     generatedAt: '',
     term: settings.term,
     subject: settings.subject,
     sourceCount: configuredSections.length,
-    selectedSection: selectedSection.section,
+    selectedSection: selectedSectionNames.length === 1 ? selectedSectionNames[0] : `${selectedSectionNames.length} checked sections`,
+    selectedSections: selectedSectionNames,
     students: [],
     errors: []
   };
 
-  // Step 140: read only the selected section.
-  // This avoids the slow and unstable all-sections sync.
+  // Step 142: read only the checked sections.
+  // This keeps syncing flexible without forcing all sections every time.
   for (let index = 0; index < configuredSections.length; index += 1) {
     const sectionConfig = configuredSections[index];
     const sectionName = sectionConfig.section || `Section ${index + 1}`;
@@ -4759,7 +4845,7 @@ async function pullComplianceFromGoogleSheets(options = {}) {
 }
 
 async function previewComplianceSync() {
-  setComplianceSyncStatus('Reading selected section from Google Sheets...', '');
+  setComplianceSyncStatus('Reading checked section(s) from Google Sheets...', '');
   if (previewComplianceSyncBtn) previewComplianceSyncBtn.disabled = true;
   try {
     const payload = await pullComplianceFromGoogleSheets({
@@ -4772,7 +4858,7 @@ async function previewComplianceSync() {
     });
     renderComplianceSyncPreview(payload);
     const errorNote = Array.isArray(payload.errors) && payload.errors.length ? ` ${payload.errors.length} sheet issue(s) found.` : '';
-    setComplianceSyncStatus(`Preview ready for ${payload.selectedSection || 'selected section'}: ${payload.students.length} student status records found. Scores are not shown here.${errorNote}`, payload.students.length ? 'success' : 'warning');
+    setComplianceSyncStatus(`Preview ready for ${payload.selectedSection || 'checked section(s)'}: ${payload.students.length} student status records found. Scores are not shown here.${errorNote}`, payload.students.length ? 'success' : 'warning');
   } catch (error) {
     console.warn('Compliance preview failed.', error);
     setComplianceSyncStatus(error?.message || 'Could not preview Google Sheets.', 'error');
@@ -4788,7 +4874,7 @@ async function publishComplianceSync() {
     return;
   }
   if (publishComplianceSyncBtn) publishComplianceSyncBtn.disabled = true;
-  setComplianceSyncStatus('Reading selected section from Google Sheets...', '');
+  setComplianceSyncStatus('Reading checked section(s) from Google Sheets...', '');
   try {
     const payload = await pullComplianceFromGoogleSheets({
       onProgress: progress => setComplianceSyncStatus(
@@ -4799,7 +4885,7 @@ async function publishComplianceSync() {
       )
     });
     renderComplianceSyncPreview(payload);
-    if (!payload.students.length) throw new Error('No student records found for the selected section. Check its Google Sheet link, student IDs, and term sheet name.');
+    if (!payload.students.length) throw new Error('No student records found for the checked section(s). Check the Google Sheet link, student IDs, and term sheet name.');
     const ready = await initFirebaseSync();
     if (!ready) throw new Error(firebaseSync.lastError || 'Firebase is not ready.');
     const { setDoc, serverTimestamp, writeBatch } = firebaseSync.modules;
@@ -4837,7 +4923,7 @@ async function publishComplianceSync() {
       }
     }
     const issueText = Array.isArray(payload.errors) && payload.errors.length ? ` ${payload.errors.length} sheet issue(s) were skipped; check preview.` : '';
-    setComplianceSyncStatus(`Published ${saved} student status records for ${payload.selectedSection || 'selected section'}. Students can refresh My Projects to see updates.${issueText}`, 'success');
+    setComplianceSyncStatus(`Published ${saved} student status records for ${payload.selectedSection || 'checked section(s)'}. Students can refresh My Projects to see updates.${issueText}`, 'success');
     if (appSession.student) loadStudentComplianceStatus({ silent: true });
   } catch (error) {
     console.warn('Compliance publish failed.', error);
@@ -13951,10 +14037,28 @@ resetComplianceTaskLabelsBtn?.addEventListener('click', () => {
   renderComplianceTaskLabels(settings);
   setComplianceSyncStatus(`${group.label} task names reset for ${term}.`, 'success');
 });
-complianceSectionSelect?.addEventListener('change', () => {
+function updateComplianceSectionSelectionStatus() {
   const settings = saveComplianceSettings(getComplianceSettingsFromControls());
-  const section = (settings.sections || []).find(item => String(item.code || item.section || '').trim() === settings.selectedSectionCode);
-  setComplianceSyncStatus(`Selected section: ${section?.section || 'section'}. Only this section will sync.`, 'success');
+  const selected = new Set(settings.selectedSectionCodes || []);
+  const count = selected.size;
+  const names = (settings.sections || [])
+    .filter((item, index) => selected.has(complianceSectionKey(item, index)))
+    .map(item => item.section || item.code || 'section');
+  const label = count === 1 ? names[0] : `${count} sections`;
+  setComplianceSyncStatus(count ? `Checked: ${label}. Only checked sections will sync.` : 'No section checked. Check one or more sections before preview/sync.', count ? 'success' : 'warning');
+}
+
+complianceSectionSelect?.addEventListener('change', updateComplianceSectionSelectionStatus);
+complianceSectionChecklist?.addEventListener('change', event => {
+  if (event.target?.matches?.('[data-compliance-section-check]')) updateComplianceSectionSelectionStatus();
+});
+complianceSelectAllSectionsBtn?.addEventListener('click', () => {
+  complianceSectionChecklist?.querySelectorAll('[data-compliance-section-check]').forEach(input => { input.checked = true; });
+  updateComplianceSectionSelectionStatus();
+});
+complianceClearSelectedSectionsBtn?.addEventListener('click', () => {
+  complianceSectionChecklist?.querySelectorAll('[data-compliance-section-check]').forEach(input => { input.checked = false; });
+  updateComplianceSectionSelectionStatus();
 });
 saveComplianceSettingsBtn?.addEventListener('click', async () => {
   const settings = saveComplianceSettings(getComplianceSettingsFromControls());
@@ -13963,7 +14067,7 @@ saveComplianceSettingsBtn?.addEventListener('click', async () => {
   setComplianceSyncStatus('Saving Compliance settings to Firebase...', '');
   try {
     await saveComplianceSettingsToCloud(settings);
-    setComplianceSyncStatus('Google Sheets links, selected section, and task names saved to Firebase. You can use another device after logging in as teacher.', 'success');
+    setComplianceSyncStatus('Google Sheets links, checked section(s), and task names saved to Firebase. You can use another device after logging in as teacher.', 'success');
   } catch (error) {
     console.warn('Could not save Compliance settings to Firebase.', error);
     const message = /permission|insufficient/i.test(error?.message || '')

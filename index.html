@@ -43,7 +43,7 @@
       document.documentElement.dataset.deviceMode = isPhone ? 'phone' : 'desktop';
     })();
   </script>
-  <link rel="stylesheet" href="style.css?v=20260724-step141-cloud-compliance-settings" />
+  <link rel="stylesheet" href="style.css?v=20260724-step142-multi-section-compliance" />
 </head>
 <body class="entry-gate-active">
   <noscript>
@@ -901,11 +901,16 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
               Subject Label
               <input id="complianceSubjectInput" type="text" placeholder="Example: ICT" autocomplete="off" />
             </label>
-            <label class="compliance-selected-section-field">
-              Section to Sync
-              <select id="complianceSectionSelect" aria-label="Choose one section to preview or publish"></select>
-              <small>Only this selected section will be read and published, so syncing is faster and more stable.</small>
-            </label>
+            <div class="compliance-selected-section-field">
+              <div class="compliance-field-title">Sections to Sync</div>
+              <div class="compliance-section-picker-actions" aria-label="Section selection actions">
+                <button id="complianceSelectAllSectionsBtn" class="ghost-btn mini" type="button">Select All</button>
+                <button id="complianceClearSelectedSectionsBtn" class="ghost-btn mini" type="button">Clear</button>
+              </div>
+              <div id="complianceSectionChecklist" class="compliance-section-checklist" aria-label="Choose one or more sections to preview or publish"></div>
+              <select id="complianceSectionSelect" class="hidden" aria-hidden="true" tabindex="-1"></select>
+              <small>You may check one section, many sections, or Select All. Only checked sections will sync.</small>
+            </div>
           </div>
 
           <div class="compliance-setup-block">
@@ -914,7 +919,7 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
                 <strong>Section Google Sheet Links</strong>
                 <p>Paste each section's Google Sheet link here once. Click Save Settings to store them in Firebase for your teacher account, so another device can load them automatically.</p>
               </div>
-              <span class="compliance-mini-pill">Selected section only</span>
+              <span class="compliance-mini-pill">Checked sections only</span>
             </div>
             <div id="complianceSectionSheetsList" class="compliance-section-list" aria-label="Section Google Sheet links"></div>
           </div>
@@ -938,10 +943,10 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
 
           <div class="compliance-admin-actions">
             <button id="saveComplianceSettingsBtn" class="ghost-btn" type="button">Save Settings to Firebase</button>
-            <button id="previewComplianceSyncBtn" class="ghost-btn" type="button">Preview Selected Section</button>
-            <button id="publishComplianceSyncBtn" class="primary-btn" type="button">Sync Selected Section &amp; Publish</button>
+            <button id="previewComplianceSyncBtn" class="ghost-btn" type="button">Preview Checked Sections</button>
+            <button id="publishComplianceSyncBtn" class="primary-btn" type="button">Sync Checked Sections &amp; Publish</button>
           </div>
-          <p id="complianceSyncStatus" class="helper-note compliance-sync-status" role="status">Login as teacher to load/save Compliance settings. Then choose one section, preview, and publish.</p>
+          <p id="complianceSyncStatus" class="helper-note compliance-sync-status" role="status">Login as teacher to load/save Compliance settings. Then check one or more sections, preview, and publish.</p>
           <div id="complianceSyncPreview" class="compliance-sync-preview" aria-live="polite"></div>
         </section>
 
@@ -1230,6 +1235,6 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
   <script src="firebase-config.js"></script>
-  <script src="script.js?v=20260724-step141-cloud-compliance-settings"></script>
+  <script src="script.js?v=20260724-step142-multi-section-compliance"></script>
 </body>
 </html>

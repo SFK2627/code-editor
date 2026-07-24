@@ -1,15 +1,15 @@
-const CACHE_NAME = 'code-editor-20260724-step141-cloud-compliance-settings';
+const CACHE_NAME = 'code-editor-20260724-step142-multi-section-compliance';
 const APP_SHELL = [
   './',
   './index.html',
-  './index.html?v=20260724-step141-cloud-compliance-settings',
-  './index.html?fresh=step141',
+  './index.html?v=20260724-step142-multi-section-compliance',
+  './index.html?fresh=step142',
   './style.css',
-  './style.css?v=20260724-step141-cloud-compliance-settings',
-  './style.css?v=20260724-step141-cloud-compliance-settings',
+  './style.css?v=20260724-step142-multi-section-compliance',
+  './style.css?v=20260724-step142-multi-section-compliance',
   './script.js',
-  './script.js?v=20260724-step141-cloud-compliance-settings',
-  './script.js?v=20260724-step141-cloud-compliance-settings',
+  './script.js?v=20260724-step142-multi-section-compliance',
+  './script.js?v=20260724-step142-multi-section-compliance',
   './firebase-config.js',
   './manifest.webmanifest',
   './favicon.png',

@@ -34482,3 +34482,84 @@ body.dark-mode .teacher-comment-pill {
     width: 100%;
   }
 }
+
+/* Step 142: Compliance multi-section checklist */
+.compliance-field-title {
+  display: block;
+  font-weight: 800;
+  color: var(--text-strong, #172033);
+  margin-bottom: 0.45rem;
+}
+
+.compliance-section-picker-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-bottom: 0.55rem;
+}
+
+.compliance-section-checklist {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 0.55rem;
+  max-height: min(42vh, 360px);
+  overflow: auto;
+  padding: 0.25rem;
+  border: 1px solid rgba(148, 163, 184, 0.32);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.compliance-section-check-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  padding: 0.7rem 0.75rem;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.9);
+  cursor: pointer;
+  transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.compliance-section-check-row:hover {
+  transform: translateY(-1px);
+  border-color: rgba(37, 99, 235, 0.35);
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.08);
+}
+
+.compliance-section-check-row input {
+  margin-top: 0.2rem;
+  width: 1.05rem;
+  height: 1.05rem;
+  accent-color: #2563eb;
+}
+
+.compliance-section-check-row span {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.compliance-section-check-row strong {
+  font-size: 0.9rem;
+  line-height: 1.2;
+  color: var(--text-strong, #111827);
+}
+
+.compliance-section-check-row small {
+  font-size: 0.74rem;
+  color: var(--muted-text, #64748b);
+}
+
+.compliance-section-check-row.missing {
+  background: rgba(248, 250, 252, 0.92);
+}
+
+@media (max-width: 700px) {
+  .compliance-section-checklist {
+    grid-template-columns: 1fr;
+    max-height: 330px;
+  }
+}
