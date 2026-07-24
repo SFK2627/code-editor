@@ -34117,6 +34117,16 @@ body.dark-mode .teacher-comment-pill {
   color: var(--text, #0f172a);
 }
 
+.compliance-selected-section-field {
+  grid-column: 1 / -1;
+}
+
+.compliance-selected-section-field small {
+  color: var(--muted, #64748b);
+  font-weight: 700;
+  line-height: 1.35;
+}
+
 .compliance-admin-actions {
   display: flex;
   flex-wrap: wrap;

@@ -43,7 +43,7 @@
       document.documentElement.dataset.deviceMode = isPhone ? 'phone' : 'desktop';
     })();
   </script>
-  <link rel="stylesheet" href="style.css?v=20260724-step139-compliance-sync-retry" />
+  <link rel="stylesheet" href="style.css?v=20260724-step140-selected-section-sync" />
 </head>
 <body class="entry-gate-active">
   <noscript>
@@ -901,15 +901,20 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
               Subject Label
               <input id="complianceSubjectInput" type="text" placeholder="Example: ICT" autocomplete="off" />
             </label>
+            <label class="compliance-selected-section-field">
+              Section to Sync
+              <select id="complianceSectionSelect" aria-label="Choose one section to preview or publish"></select>
+              <small>Only this selected section will be read and published, so syncing is faster and more stable.</small>
+            </label>
           </div>
 
           <div class="compliance-setup-block">
             <div class="compliance-setup-head">
               <div>
                 <strong>Section Google Sheet Links</strong>
-                <p>Paste each section's Google Sheet link here. One Sync reads all filled sections.</p>
+                <p>Paste each section's Google Sheet link here once. Then choose only the section you want to sync above.</p>
               </div>
-              <span class="compliance-mini-pill">10+ sections supported</span>
+              <span class="compliance-mini-pill">Selected section only</span>
             </div>
             <div id="complianceSectionSheetsList" class="compliance-section-list" aria-label="Section Google Sheet links"></div>
           </div>
@@ -933,10 +938,10 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
 
           <div class="compliance-admin-actions">
             <button id="saveComplianceSettingsBtn" class="ghost-btn" type="button">Save Settings</button>
-            <button id="previewComplianceSyncBtn" class="ghost-btn" type="button">Preview Google Sheets</button>
-            <button id="publishComplianceSyncBtn" class="primary-btn" type="button">Sync All Sections &amp; Publish</button>
+            <button id="previewComplianceSyncBtn" class="ghost-btn" type="button">Preview Selected Section</button>
+            <button id="publishComplianceSyncBtn" class="primary-btn" type="button">Sync Selected Section &amp; Publish</button>
           </div>
-          <p id="complianceSyncStatus" class="helper-note compliance-sync-status" role="status">Paste the Apps Script URL and section sheet links, then preview before publishing.</p>
+          <p id="complianceSyncStatus" class="helper-note compliance-sync-status" role="status">Paste the Apps Script URL and sheet links, choose one section, then preview before publishing.</p>
           <div id="complianceSyncPreview" class="compliance-sync-preview" aria-live="polite"></div>
         </section>
 
@@ -1225,6 +1230,6 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
   <script src="firebase-config.js"></script>
-  <script src="script.js?v=20260724-step139-compliance-sync-retry"></script>
+  <script src="script.js?v=20260724-step140-selected-section-sync"></script>
 </body>
 </html>
