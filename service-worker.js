@@ -1,15 +1,15 @@
-const CACHE_NAME = 'mcs-coding-app-20260723-step117-admin-viewer-fullscreen';
+const CACHE_NAME = 'mcs-coding-app-20260724-step118-student-account-fix';
 const APP_SHELL = [
   './',
   './index.html',
-  './index.html?v=20260723-step117-admin-viewer-fullscreen',
-  './index.html?fresh=step116',
+  './index.html?v=20260724-step118-student-account-fix',
+  './index.html?fresh=step118',
   './style.css',
-  './style.css?v=20260723-step117-admin-viewer-fullscreen',
-  './style.css?v=20260723-step117-admin-viewer-fullscreen',
+  './style.css?v=20260724-step118-student-account-fix',
+  './style.css?v=20260724-step118-student-account-fix',
   './script.js',
-  './script.js?v=20260723-step117-admin-viewer-fullscreen',
-  './script.js?v=20260723-step117-admin-viewer-fullscreen',
+  './script.js?v=20260724-step118-student-account-fix',
+  './script.js?v=20260724-step118-student-account-fix',
   './firebase-config.js',
   './manifest.webmanifest',
   './favicon.png',

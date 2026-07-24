@@ -160,7 +160,6 @@ const superStudioToggle = document.getElementById('superStudioToggle');
 const autoRunControlToggle = document.getElementById('autoRunControlToggle');
 const autoSaveControlToggle = document.getElementById('autoSaveControlToggle');
 const externalLinksSamePreviewToggle = document.getElementById('externalLinksSamePreviewToggle');
-const starterCodeToggle = document.getElementById('starterCodeToggle');
 const collaborationToggle = document.getElementById('collaborationToggle');
 const collaborationEditToggle = document.getElementById('collaborationEditToggle');
 const collaborationMembersToggle = document.getElementById('collaborationMembersToggle');
@@ -228,6 +227,7 @@ const adminStudentId = document.getElementById('adminStudentId');
 const adminStudentName = document.getElementById('adminStudentName');
 const adminStudentGender = document.getElementById('adminStudentGender');
 const adminStudentSection = document.getElementById('adminStudentSection');
+const adminStudentSectionOptions = document.getElementById('adminStudentSectionOptions');
 const addStudentAccountBtn = document.getElementById('addStudentAccountBtn');
 const downloadStudentTemplateBtn = document.getElementById('downloadStudentTemplateBtn');
 const chooseStudentImportBtn = document.getElementById('chooseStudentImportBtn');
@@ -252,31 +252,6 @@ const adminStudentProjectsTitle = document.getElementById('adminStudentProjectsT
 const adminStudentProjectsSubtitle = document.getElementById('adminStudentProjectsSubtitle');
 const adminStudentProjectsList = document.getElementById('adminStudentProjectsList');
 const closeAdminStudentProjectsBtn = document.getElementById('closeAdminStudentProjectsBtn');
-const adminProjectViewerOverlay = document.getElementById('adminProjectViewerOverlay');
-const adminProjectViewerTitle = document.getElementById('adminProjectViewerTitle');
-const adminProjectViewerSubtitle = document.getElementById('adminProjectViewerSubtitle');
-const closeAdminProjectViewerBtn = document.getElementById('closeAdminProjectViewerBtn');
-const adminProjectViewerActivitySelect = document.getElementById('adminProjectViewerActivitySelect');
-const adminProjectViewerFileSelect = document.getElementById('adminProjectViewerFileSelect');
-const adminProjectViewerLangTabs = document.querySelector('.admin-project-viewer-lang-tabs');
-const adminProjectViewerRunBtn = document.getElementById('adminProjectViewerRunBtn');
-const adminProjectViewerFileTitle = document.getElementById('adminProjectViewerFileTitle');
-const adminProjectViewerCode = document.getElementById('adminProjectViewerCode');
-const adminProjectViewerFrame = document.getElementById('adminProjectViewerFrame');
-const adminProjectViewerPreviewNote = document.getElementById('adminProjectViewerPreviewNote');
-const adminProjectViewerFullCodeBtn = document.getElementById('adminProjectViewerFullCodeBtn');
-const adminProjectViewerFullPreviewBtn = document.getElementById('adminProjectViewerFullPreviewBtn');
-const adminProjectFullscreenOverlay = document.getElementById('adminProjectFullscreenOverlay');
-const adminProjectFullscreenKicker = document.getElementById('adminProjectFullscreenKicker');
-const adminProjectFullscreenTitle = document.getElementById('adminProjectFullscreenTitle');
-const adminProjectFullscreenSubtitle = document.getElementById('adminProjectFullscreenSubtitle');
-const closeAdminProjectFullscreenBtn = document.getElementById('closeAdminProjectFullscreenBtn');
-const adminProjectFullscreenCodePanel = document.getElementById('adminProjectFullscreenCodePanel');
-const adminProjectFullscreenPreviewPanel = document.getElementById('adminProjectFullscreenPreviewPanel');
-const adminProjectFullscreenCodeTitle = document.getElementById('adminProjectFullscreenCodeTitle');
-const adminProjectFullscreenCode = document.getElementById('adminProjectFullscreenCode');
-const adminProjectFullscreenFrame = document.getElementById('adminProjectFullscreenFrame');
-const adminProjectFullscreenPreviewNote = document.getElementById('adminProjectFullscreenPreviewNote');
 
 
 // Built-in Firebase fallback config.
@@ -369,7 +344,6 @@ const DEFAULT_ASSISTANCE_SETTINGS = Object.freeze({
   autoSave: true,
   autoRunControl: true,
   externalLinksSamePreview: true,
-  starterCodeEnabled: true,
   collaboration: false,
   collaborationEdit: true,
   collaborationMembers: true
@@ -551,7 +525,8 @@ function applyStarterCodeMigration() {
 applyStarterCodeMigration();
 
 // Default starter: HTML only. CSS and JavaScript tabs must start blank.
-const DEFAULT_STARTER_HTML = `<!DOCTYPE html>
+const starterCode = {
+  html: `<!DOCTYPE html>
 <html>
   <head>
     <title>Page Title</title>
@@ -562,18 +537,10 @@ const DEFAULT_STARTER_HTML = `<!DOCTYPE html>
     <p>My first paragraph.</p>
 
   </body>
-</html>`;
-
-function buildStarterCode(settings = studentAssistanceSettings) {
-  const useStarter = normalizeAssistanceSettings(settings).starterCodeEnabled !== false;
-  return {
-    html: useStarter ? DEFAULT_STARTER_HTML : '',
-    css: '',
-    js: ''
-  };
-}
-
-let starterCode = buildStarterCode();
+</html>`,
+  css: '',
+  js: ''
+};
 
 
 const rubricLevels = [
@@ -902,7 +869,6 @@ function normalizeAssistanceSettings(value = {}) {
     autoSave: source.autoSave !== false,
     autoRunControl: source.autoRunControl !== false,
     externalLinksSamePreview: source.externalLinksSamePreview !== false,
-    starterCodeEnabled: source.starterCodeEnabled !== false,
     collaboration: source.collaboration === true,
     collaborationEdit: source.collaborationEdit !== false,
     collaborationMembers: source.collaborationMembers !== false
@@ -925,7 +891,6 @@ function getAssistanceSettingsFromControls() {
     autoSave: autoSaveControlToggle?.checked !== false,
     autoRunControl: autoRunControlToggle?.checked !== false,
     externalLinksSamePreview: externalLinksSamePreviewToggle?.checked !== false,
-    starterCodeEnabled: starterCodeToggle?.checked !== false,
     collaboration: collaborationToggle?.checked === true,
     collaborationEdit: collaborationEditToggle?.checked !== false,
     collaborationMembers: collaborationMembersToggle?.checked !== false
@@ -955,7 +920,6 @@ function syncAssistanceSettingsControls() {
   if (autoSaveControlToggle) autoSaveControlToggle.checked = settings.autoSave;
   if (autoRunControlToggle) autoRunControlToggle.checked = settings.autoRunControl;
   if (externalLinksSamePreviewToggle) externalLinksSamePreviewToggle.checked = settings.externalLinksSamePreview;
-  if (starterCodeToggle) starterCodeToggle.checked = settings.starterCodeEnabled !== false;
   if (collaborationToggle) collaborationToggle.checked = settings.collaboration;
   if (collaborationEditToggle) collaborationEditToggle.checked = settings.collaborationEdit;
   if (collaborationMembersToggle) collaborationMembersToggle.checked = settings.collaborationMembers;
@@ -985,7 +949,6 @@ function updateAssistancePublishUI() {
 
 function applyStudentAssistanceSettings(nextSettings, options = {}) {
   studentAssistanceSettings = normalizeAssistanceSettings(nextSettings);
-  starterCode = buildStarterCode(studentAssistanceSettings);
   if (options.persist !== false) {
     saveJSON(STORAGE_KEYS.assistanceSettings, studentAssistanceSettings);
   }
@@ -1048,8 +1011,7 @@ function applyAssistanceSettingsFromControls(options = {}) {
   applyStudentAssistanceSettings(settings);
   if (!options.silent) {
     const collabText = settings.collaboration ? 'Share button is now visible to students.' : 'Share button is now hidden from students.';
-    const starterText = settings.starterCodeEnabled === false ? 'New projects will start blank.' : 'New projects will use starter HTML.';
-    setAssistanceSettingsStatus(`Applied on this browser. ${starterText} ${collabText}`, 'success');
+    setAssistanceSettingsStatus(`Applied on this browser. ${collabText}`, 'success');
     setStatus('Student assistance updated');
     if (applyAssistanceLocalBtn) {
       const oldText = applyAssistanceLocalBtn.textContent;
@@ -1174,8 +1136,6 @@ function cleanLanguageFileName(value, language = activeLanguage) {
 }
 
 function createStarterForLanguageFile(language, fileName) {
-  const useStarter = normalizeAssistanceSettings(studentAssistanceSettings).starterCodeEnabled !== false;
-  if (!useStarter) return '';
   const meta = getLanguageFileMeta(language);
   const base = String(fileName || meta.defaultName).replace(new RegExp(`\\.${meta.extension}$`, 'i'), '');
   if (language === 'html') {
@@ -2462,9 +2422,18 @@ function normalizeStudentId(value) {
   return String(value || '').trim().replace(/\s+/g, '').toUpperCase();
 }
 
+function getStudentIdAuthKey(value) {
+  return normalizeStudentId(value).replace(/[^A-Z0-9]/g, '');
+}
+
+function areStudentIdsEquivalent(left, right) {
+  const leftKey = getStudentIdAuthKey(left);
+  const rightKey = getStudentIdAuthKey(right);
+  return Boolean(leftKey && rightKey && leftKey === rightKey);
+}
+
 function studentIdToAuthEmail(value) {
-  const normalized = normalizeStudentId(value).toLowerCase();
-  const safe = normalized.replace(/[^a-z0-9]/g, '');
+  const safe = getStudentIdAuthKey(value).toLowerCase();
   return safe ? `sid-${safe}@${STUDENT_EMAIL_DOMAIN}` : '';
 }
 
@@ -2598,6 +2567,29 @@ async function loadStudentRosterRecord(studentId) {
   const { getDoc } = firebaseSync.modules;
   const snapshot = await getDoc(getStudentRosterDocRef(studentId));
   return snapshotExists(snapshot) ? { id: snapshot.id, ...snapshotData(snapshot) } : null;
+}
+
+async function findStudentRosterRecordById(studentId) {
+  const normalized = normalizeStudentId(studentId);
+  if (!normalized) return null;
+  const exact = await loadStudentRosterRecord(normalized);
+  if (exact && areStudentIdsEquivalent(exact.studentId || exact.studentIdNormalized || exact.id, normalized)) return exact;
+
+  // Some old accounts were created from Student IDs with/without dashes.
+  // Firebase Auth email removes symbols, so 19-00431 and 1900431 can point to
+  // the same Auth account. Search the roster by comparable key before failing.
+  try {
+    const { getDocs } = firebaseSync.modules;
+    const snapshot = await getDocs(getStudentRosterCollectionRef());
+    const match = (snapshot.docs || []).map(docSnapshot => ({
+      id: docSnapshot.id,
+      ...snapshotData(docSnapshot)
+    })).find(record => areStudentIdsEquivalent(record.studentId || record.studentIdNormalized || record.id, normalized));
+    return match || null;
+  } catch (error) {
+    console.warn('Could not search roster by Student ID key.', error);
+    return exact || null;
+  }
 }
 
 function setStudentLoginError(message = '') {
@@ -3382,6 +3374,53 @@ async function deleteCurrentAuthUserQuietly(user) {
   }
 }
 
+async function createOrRepairStudentProfileFromRoster(user, studentId, existingProfile = null) {
+  if (!user) throw new Error('Student account is not available. Try logging in again.');
+  const roster = await findStudentRosterRecordById(studentId);
+  if (!roster || !areStudentIdsEquivalent(roster.studentId || roster.studentIdNormalized || roster.id, studentId)) {
+    throw new Error('This Student ID is not registered in the class list. Ask your teacher to import or add it first.');
+  }
+  if (roster.accountStatus === 'disabled') {
+    throw new Error('This student account is disabled. Ask your teacher for help.');
+  }
+
+  const { setDoc, serverTimestamp } = firebaseSync.modules;
+  const rosterStudentId = normalizeStudentId(roster.studentId || roster.studentIdNormalized || roster.id || studentId);
+  const profile = {
+    ...(existingProfile || {}),
+    studentId: rosterStudentId,
+    studentIdNormalized: rosterStudentId,
+    authEmail: studentIdToAuthEmail(rosterStudentId),
+    name: roster.name || existingProfile?.name || 'Student',
+    nameLower: String(roster.name || existingProfile?.name || 'Student').toLowerCase(),
+    gender: roster.gender || existingProfile?.gender || '',
+    section: roster.section || existingProfile?.section || '',
+    sectionLower: String(roster.section || existingProfile?.section || '').toLowerCase(),
+    accountStatus: roster.accountStatus || existingProfile?.accountStatus || 'active',
+    mustChangePassword: existingProfile && existingProfile.mustChangePassword === false ? false : true,
+    loginCount: Number(existingProfile?.loginCount || 0),
+    projectCount: Number(existingProfile?.projectCount || 0),
+    createdAt: existingProfile?.createdAt || serverTimestamp(),
+    updatedAt: serverTimestamp(),
+    rosterActivatedAt: existingProfile?.rosterActivatedAt || serverTimestamp(),
+    repairedFromRosterAt: serverTimestamp(),
+    createdBy: existingProfile?.createdBy || 'student-login-repair'
+  };
+
+  await setDoc(getStudentDocRef(user.uid), profile, { merge: true });
+  try {
+    await setDoc(getStudentRosterDocRef(rosterStudentId), {
+      authUid: user.uid,
+      authEmail: profile.authEmail,
+      updatedAt: serverTimestamp(),
+      profileRepairedAt: serverTimestamp()
+    }, { merge: true });
+  } catch (rosterUpdateError) {
+    console.warn('Student roster repair marker was not updated.', rosterUpdateError);
+  }
+  return { uid: user.uid, ...profile, updatedAt: new Date() };
+}
+
 async function createStudentAccountFromRoster(studentId, password) {
   const authEmail = studentIdToAuthEmail(studentId);
   if (password !== DEFAULT_STUDENT_PASSWORD) {
@@ -3395,8 +3434,8 @@ async function createStudentAccountFromRoster(studentId, password) {
   firebaseSync.currentUser = credential.user;
   let roster = null;
   try {
-    roster = await loadStudentRosterRecord(studentId);
-    if (!roster || normalizeStudentId(roster.studentId || roster.studentIdNormalized || roster.id) !== studentId) {
+    roster = await findStudentRosterRecordById(studentId);
+    if (!roster || !areStudentIdsEquivalent(roster.studentId || roster.studentIdNormalized || roster.id, studentId)) {
       await deleteCurrentAuthUserQuietly(credential.user);
       throw new Error('This Student ID is not registered in the class list. Ask your teacher to import or add it first.');
     }
@@ -3486,6 +3525,14 @@ async function loginStudent() {
       credential = await firebaseSync.authModule.signInWithEmailAndPassword(firebaseSync.auth, authEmail, password);
       firebaseSync.currentUser = credential.user;
       profile = await loadStudentProfile(credential.user.uid);
+      if (!profile) {
+        profile = await createOrRepairStudentProfileFromRoster(credential.user, studentId, null);
+      } else if (!areStudentIdsEquivalent(profile.studentId || profile.studentIdNormalized, studentId)) {
+        const sameAuthEmail = String(profile.authEmail || '').toLowerCase() === authEmail.toLowerCase();
+        if (sameAuthEmail || areStudentIdsEquivalent(profile.studentIdNormalized, studentId)) {
+          profile = await createOrRepairStudentProfileFromRoster(credential.user, studentId, profile);
+        }
+      }
     } catch (signInError) {
       const signInCode = String(signInError?.code || signInError?.message || '').toLowerCase();
       const shouldActivateFromRoster = signInCode.includes('user-not-found')
@@ -3494,7 +3541,7 @@ async function loginStudent() {
       if (!shouldActivateFromRoster) throw signInError;
       profile = await createStudentAccountFromRoster(studentId, password);
     }
-    if (!profile || normalizeStudentId(profile.studentId) !== studentId) {
+    if (!profile || !areStudentIdsEquivalent(profile.studentId || profile.studentIdNormalized, studentId)) {
       await firebaseSync.authModule.signOut(firebaseSync.auth);
       throw new Error('This login has no registered student profile. Ask your teacher to register the Student ID again.');
     }
@@ -4205,7 +4252,7 @@ async function registerStudentRosterRecord(rawRecord) {
   const record = normalizeStudentRecord(rawRecord);
   if (record.errors.length) throw new Error(record.errors.join(', '));
   const duplicate = adminStudentsCache.find(student =>
-    normalizeStudentId(student.studentId) === record.studentId
+    areStudentIdsEquivalent(student.studentId || student.studentIdNormalized, record.studentId)
     || String(student.authEmail || '').toLowerCase() === record.authEmail.toLowerCase()
   );
   if (duplicate) throw new Error('Student ID already exists in the tracker.');
@@ -4317,13 +4364,18 @@ async function loadAdminStudents() {
 }
 
 function populateAdminSectionFilter() {
-  if (!adminSectionFilter) return;
-  const current = adminSectionFilter.value || 'all';
   const sections = [...new Set(adminStudentsCache.map(student => String(student.section || '').trim()).filter(Boolean))]
     .sort((a, b) => a.localeCompare(b));
-  adminSectionFilter.innerHTML = '<option value="all">All Sections</option>' + sections
-    .map(section => `<option value="${escapeAttribute(section)}">${escapeHTML(section)}</option>`).join('');
-  adminSectionFilter.value = sections.includes(current) ? current : 'all';
+  if (adminSectionFilter) {
+    const current = adminSectionFilter.value || 'all';
+    adminSectionFilter.innerHTML = '<option value="all">All Sections</option>' + sections
+      .map(section => `<option value="${escapeAttribute(section)}">${escapeHTML(section)}</option>`).join('');
+    adminSectionFilter.value = sections.includes(current) ? current : 'all';
+  }
+  if (adminStudentSectionOptions) {
+    adminStudentSectionOptions.innerHTML = sections
+      .map(section => `<option value="${escapeAttribute(section)}"></option>`).join('');
+  }
 }
 
 function getFilteredAdminStudents() {
@@ -4376,9 +4428,63 @@ function renderAdminStudentTracker() {
         <td><span class="student-account-pill ${pillClass}">${accountLabel}</span><span class="student-cell-sub">${loggedIn ? `${Number(student.loginCount || 0)} login${Number(student.loginCount || 0) === 1 ? '' : 's'}` : 'Never logged in'}</span></td>
         <td><strong>${Math.max(0, Number(student.projectCount || 0))}</strong><span class="student-cell-sub">${escapeHTML(student.lastProjectName || 'No project yet')}</span></td>
         <td>${escapeHTML(formatStudentDate(student.lastActivityAt))}</td>
-        <td>${rosterOnly ? '<span class="student-cell-sub">No projects yet</span>' : `<button class="ghost-btn view-student-projects-btn" type="button" data-student-uid="${escapeAttribute(student.uid)}">View Projects</button>`}</td>
+        <td><div class="student-action-stack">${rosterOnly ? '<span class="student-cell-sub">No projects yet</span>' : `<button class="ghost-btn view-student-projects-btn" type="button" data-student-uid="${escapeAttribute(student.uid)}">View Projects</button>`}<button class="ghost-btn danger-btn delete-student-account-btn" type="button" data-student-id="${escapeAttribute(student.studentId || '')}" data-student-uid="${escapeAttribute(student.uid || '')}">Delete</button></div></td>
       </tr>`;
   }).join('');
+}
+
+async function deleteAdminStudentRecord(studentId, uid = '') {
+  if (!isTeacherAuthenticated()) {
+    setStudentAdminStatus('Teacher login is required to delete student accounts.', 'error');
+    return;
+  }
+  const normalizedId = normalizeStudentId(studentId);
+  const student = adminStudentsCache.find(item =>
+    areStudentIdsEquivalent(item.studentId || item.studentIdNormalized || item.rosterId, normalizedId)
+    || (uid && item.uid === uid)
+  );
+  const displayName = student?.name || normalizedId || 'this student';
+  const confirmed = await appConfirm(`Delete ${displayName}? This removes the student record, login profile, and saved project records from this app.`, {
+    title: 'Delete student account',
+    danger: true,
+    confirmText: 'Delete'
+  });
+  if (!confirmed) return;
+
+  try {
+    setStudentAdminStatus(`Deleting ${displayName}...`);
+    const { getDocs, deleteDoc } = firebaseSync.modules;
+    const activeUid = uid || student?.uid || '';
+    if (activeUid) {
+      try {
+        const projectSnapshot = await getDocs(getStudentProjectsCollectionRef(activeUid));
+        for (const docSnapshot of (projectSnapshot.docs || [])) {
+          await deleteDoc(docSnapshot.ref || getStudentProjectDocRef(activeUid, docSnapshot.id));
+        }
+      } catch (projectError) {
+        console.warn('Could not delete one or more student projects.', projectError);
+      }
+      await deleteDoc(getStudentDocRef(activeUid)).catch(error => {
+        console.warn('Could not delete student profile document.', error);
+      });
+    }
+    if (normalizedId) {
+      await deleteDoc(getStudentRosterDocRef(normalizedId)).catch(error => {
+        console.warn('Could not delete student roster document.', error);
+      });
+    }
+
+    adminStudentsCache = adminStudentsCache.filter(item =>
+      !areStudentIdsEquivalent(item.studentId || item.studentIdNormalized || item.rosterId, normalizedId)
+      && !(activeUid && item.uid === activeUid)
+    );
+    populateAdminSectionFilter();
+    renderAdminStudentTracker();
+    setStudentAdminStatus(`${displayName} was deleted from this app. If the student already had a Firebase Auth login, the Auth user may still exist but cannot open projects without a registered profile.`, 'success');
+  } catch (error) {
+    console.error('Student account deletion failed', error);
+    setStudentAdminStatus(error?.message || 'Could not delete the student account.', 'error');
+  }
 }
 
 function normalizeImportHeader(value) {
@@ -4537,290 +4643,6 @@ function downloadStudentImportTemplate() {
   URL.revokeObjectURL(link.href);
 }
 
-
-let adminProjectViewerState = {
-  student: null,
-  projects: [],
-  project: null,
-  codeByActivity: {},
-  activityKey: 'scratch',
-  language: 'html'
-};
-
-function getAdminProjectActivityLabel(key, project = adminProjectViewerState.project) {
-  if (!key) return 'Practice project';
-  const activityTitle = project?.activityTitle || '';
-  if (key === project?.selectedActivityId && activityTitle) return activityTitle;
-  if (key === 'scratch') return 'Practice project';
-  const knownActivity = activities.find(item => item.id === key);
-  return knownActivity?.title || key;
-}
-
-function getAdminProjectActiveStore() {
-  const stores = adminProjectViewerState.codeByActivity || {};
-  const key = stores[adminProjectViewerState.activityKey] ? adminProjectViewerState.activityKey : Object.keys(stores)[0] || 'scratch';
-  adminProjectViewerState.activityKey = key;
-  return stores[key] || normalizeCodeStore(starterCode);
-}
-
-function getAdminProjectFileMap(language, store = getAdminProjectActiveStore()) {
-  if (language === 'css') return store.cssFiles && typeof store.cssFiles === 'object' ? store.cssFiles : { [DEFAULT_CODE_FILE_NAMES.css]: store.css || '' };
-  if (language === 'js') return store.jsFiles && typeof store.jsFiles === 'object' ? store.jsFiles : { [DEFAULT_CODE_FILE_NAMES.js]: store.js || '' };
-  return store.pages && typeof store.pages === 'object' ? store.pages : { [DEFAULT_CODE_FILE_NAMES.html]: store.html || '' };
-}
-
-function getAdminProjectFileNames(language, store = getAdminProjectActiveStore()) {
-  const meta = getLanguageFileMeta(language);
-  const files = getAdminProjectFileMap(language, store);
-  const names = Object.keys(files || {}).sort((a, b) => {
-    if (a === meta.defaultName) return -1;
-    if (b === meta.defaultName) return 1;
-    return a.localeCompare(b);
-  });
-  return names.length ? names : [meta.defaultName];
-}
-
-function getAdminProjectActiveFileName(language = adminProjectViewerState.language) {
-  const store = getAdminProjectActiveStore();
-  if (language === 'css') return store.activeCssFile && getAdminProjectFileMap('css', store)[store.activeCssFile] !== undefined ? store.activeCssFile : getAdminProjectFileNames('css', store)[0];
-  if (language === 'js') return store.activeJsFile && getAdminProjectFileMap('js', store)[store.activeJsFile] !== undefined ? store.activeJsFile : getAdminProjectFileNames('js', store)[0];
-  return store.activeHtmlPage && getAdminProjectFileMap('html', store)[store.activeHtmlPage] !== undefined ? store.activeHtmlPage : getAdminProjectFileNames('html', store)[0];
-}
-
-function setAdminProjectActiveFileName(language, name) {
-  const store = getAdminProjectActiveStore();
-  if (language === 'css') store.activeCssFile = name;
-  else if (language === 'js') store.activeJsFile = name;
-  else store.activeHtmlPage = name;
-}
-
-function createAdminProjectStyleBlock(store) {
-  const cssFiles = getAdminProjectFileMap('css', store);
-  return Object.entries(cssFiles || {})
-    .filter(([, css]) => typeof css === 'string' && css.trim())
-    .map(([name, css]) => `<style data-admin-file="${escapeAttribute(name)}">\n${css}\n</style>`)
-    .join('\n');
-}
-
-function createAdminProjectScriptBlock(store) {
-  const jsFiles = getAdminProjectFileMap('js', store);
-  return Object.entries(jsFiles || {})
-    .filter(([, js]) => typeof js === 'string' && js.trim())
-    .map(([name, js]) => `<script data-admin-file="${escapeAttribute(name)}">\n${String(js).replace(/<\/script/gi, '<\\/script')}\n<\/script>`)
-    .join('\n');
-}
-
-function buildAdminProjectPreviewCode(pageName = '') {
-  const store = getAdminProjectActiveStore();
-  const pages = getAdminProjectFileMap('html', store);
-  const safePageName = pageName && pages[pageName] !== undefined ? pageName : getAdminProjectActiveFileName('html');
-  const rawHtml = stripAppPreviewHelperLeak(String(pages[safePageName] || ''));
-  const styleBlock = createAdminProjectStyleBlock(store);
-  const scriptBlock = createAdminProjectScriptBlock(store);
-  const looksLikeFullDocument = /<!doctype/i.test(rawHtml) || /<html(\s|>)/i.test(rawHtml) || /<head(\s|>)/i.test(rawHtml) || /<body(\s|>)/i.test(rawHtml);
-  const hasCompleteDocumentShell = hasCompletePreviewDocumentShell(rawHtml);
-
-  if (looksLikeFullDocument && hasCompleteDocumentShell) {
-    return injectAssetsIntoHTML(injectRuntimeReporterEarly(rawHtml, ''), styleBlock, scriptBlock);
-  }
-
-  if (looksLikeFullDocument && !hasCompleteDocumentShell) {
-    return injectAssetsIntoHTML(rawHtml, styleBlock, scriptBlock);
-  }
-
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  ${styleBlock}
-</head>
-<body>
-${rawHtml}
-${scriptBlock}
-</body>
-</html>`;
-}
-
-function runAdminProjectViewerPreview(pageName = '') {
-  if (!adminProjectViewerFrame) return;
-  const store = getAdminProjectActiveStore();
-  const page = pageName || getAdminProjectActiveFileName('html');
-  adminProjectViewerFrame.srcdoc = buildAdminProjectPreviewCode(page);
-  adminProjectViewerFrame.dataset.currentPage = page;
-  if (adminProjectViewerPreviewNote) adminProjectViewerPreviewNote.textContent = `Previewing ${page}`;
-}
-
-function getAdminProjectViewerCurrentCodeDetails() {
-  const language = adminProjectViewerState.language || 'html';
-  const fileName = getAdminProjectActiveFileName(language);
-  const files = getAdminProjectFileMap(language);
-  const content = typeof files[fileName] === 'string' ? files[fileName] : '';
-  return { language, fileName, content };
-}
-
-function openAdminProjectFullscreen(mode = 'code') {
-  if (!adminProjectFullscreenOverlay) return;
-  const project = adminProjectViewerState.project || {};
-  const student = adminProjectViewerState.student || {};
-  const isPreview = mode === 'preview';
-  const codeDetails = getAdminProjectViewerCurrentCodeDetails();
-  const activePage = getAdminProjectActiveFileName('html');
-
-  if (adminProjectFullscreenKicker) adminProjectFullscreenKicker.textContent = isPreview ? 'Full Output Preview' : 'Full Code View';
-  if (adminProjectFullscreenTitle) adminProjectFullscreenTitle.textContent = project.name || 'Student Project';
-  if (adminProjectFullscreenSubtitle) {
-    const owner = student.name || 'Student';
-    const subject = isPreview ? `Previewing ${activePage}` : `${codeDetails.language.toUpperCase()} · ${codeDetails.fileName}`;
-    adminProjectFullscreenSubtitle.textContent = `${owner} · ${subject}`;
-  }
-
-  adminProjectFullscreenCodePanel?.classList.toggle('hidden', isPreview);
-  adminProjectFullscreenPreviewPanel?.classList.toggle('hidden', !isPreview);
-
-  if (isPreview) {
-    if (adminProjectFullscreenFrame) {
-      adminProjectFullscreenFrame.srcdoc = buildAdminProjectPreviewCode(activePage);
-      adminProjectFullscreenFrame.dataset.currentPage = activePage;
-    }
-    if (adminProjectFullscreenPreviewNote) adminProjectFullscreenPreviewNote.textContent = `Previewing ${activePage}`;
-  } else {
-    if (adminProjectFullscreenFrame) adminProjectFullscreenFrame.srcdoc = '';
-    if (adminProjectFullscreenCodeTitle) adminProjectFullscreenCodeTitle.textContent = codeDetails.fileName || 'Code';
-    if (adminProjectFullscreenCode) adminProjectFullscreenCode.textContent = codeDetails.content || '/* Blank file */';
-  }
-
-  adminProjectFullscreenOverlay.classList.remove('hidden');
-  document.body.classList.add('student-auth-open', 'admin-project-fullscreen-open');
-}
-
-function closeAdminProjectFullscreen() {
-  adminProjectFullscreenOverlay?.classList.add('hidden');
-  if (adminProjectFullscreenFrame) adminProjectFullscreenFrame.srcdoc = '';
-  document.body.classList.remove('admin-project-fullscreen-open');
-  const viewerOpen = Boolean(adminProjectViewerOverlay && !adminProjectViewerOverlay.classList.contains('hidden'));
-  const trackerOpen = Boolean(adminStudentProjectsOverlay && !adminStudentProjectsOverlay.classList.contains('hidden'));
-  document.body.classList.toggle('student-auth-open', viewerOpen || trackerOpen);
-}
-
-function attachAdminProjectViewerPreviewLinks() {
-  if (!adminProjectViewerFrame) return;
-  let doc = null;
-  try {
-    doc = adminProjectViewerFrame.contentDocument || adminProjectViewerFrame.contentWindow?.document || null;
-  } catch (error) {
-    doc = null;
-  }
-  if (!doc || doc.__adminProjectViewerLinksReady) return;
-  doc.__adminProjectViewerLinksReady = true;
-  doc.addEventListener('click', event => {
-    const link = event.target && event.target.closest ? event.target.closest('a[href]') : null;
-    if (!link) return;
-    const href = String(link.getAttribute('href') || '').trim();
-    if (!href || /^(https?:|mailto:|tel:|javascript:|data:|blob:|#)/i.test(href)) return;
-    const fileName = href.split('#')[0].split('?')[0].split('/').pop();
-    if (!/\.html?$/i.test(fileName)) return;
-    const page = cleanLanguageFileName(fileName, 'html');
-    const pages = getAdminProjectFileMap('html');
-    if (!pages[page]) return;
-    event.preventDefault();
-    setAdminProjectActiveFileName('html', page);
-    populateAdminProjectViewerFileSelect();
-    updateAdminProjectViewerCode();
-    runAdminProjectViewerPreview(page);
-  }, true);
-}
-
-function populateAdminProjectViewerActivitySelect() {
-  if (!adminProjectViewerActivitySelect) return;
-  const stores = adminProjectViewerState.codeByActivity || {};
-  const keys = Object.keys(stores).length ? Object.keys(stores) : ['scratch'];
-  adminProjectViewerActivitySelect.innerHTML = keys.map(key => `<option value="${escapeAttribute(key)}">${escapeHTML(getAdminProjectActivityLabel(key))}</option>`).join('');
-  adminProjectViewerActivitySelect.value = keys.includes(adminProjectViewerState.activityKey) ? adminProjectViewerState.activityKey : keys[0];
-  adminProjectViewerState.activityKey = adminProjectViewerActivitySelect.value;
-}
-
-function populateAdminProjectViewerFileSelect() {
-  if (!adminProjectViewerFileSelect) return;
-  const language = adminProjectViewerState.language;
-  const names = getAdminProjectFileNames(language);
-  const active = getAdminProjectActiveFileName(language);
-  adminProjectViewerFileSelect.innerHTML = names.map(name => `<option value="${escapeAttribute(name)}">${escapeHTML(name)}</option>`).join('');
-  adminProjectViewerFileSelect.value = names.includes(active) ? active : names[0];
-  setAdminProjectActiveFileName(language, adminProjectViewerFileSelect.value);
-}
-
-function updateAdminProjectViewerLanguageTabs() {
-  if (!adminProjectViewerLangTabs) return;
-  const language = adminProjectViewerState.language;
-  adminProjectViewerLangTabs.querySelectorAll('[data-admin-viewer-lang]').forEach(button => {
-    const active = button.dataset.adminViewerLang === language;
-    button.classList.toggle('active', active);
-    button.setAttribute('aria-selected', active ? 'true' : 'false');
-  });
-}
-
-function updateAdminProjectViewerCode() {
-  const language = adminProjectViewerState.language;
-  const fileName = getAdminProjectActiveFileName(language);
-  const files = getAdminProjectFileMap(language);
-  const content = typeof files[fileName] === 'string' ? files[fileName] : '';
-  if (adminProjectViewerFileTitle) adminProjectViewerFileTitle.textContent = fileName;
-  if (adminProjectViewerCode) adminProjectViewerCode.textContent = content || '/* Blank file */';
-  populateAdminProjectViewerFileSelect();
-  updateAdminProjectViewerLanguageTabs();
-}
-
-function renderAdminProjectViewer() {
-  const project = adminProjectViewerState.project;
-  const student = adminProjectViewerState.student;
-  if (!project) return;
-  if (adminProjectViewerTitle) adminProjectViewerTitle.textContent = project.name || 'Untitled Project';
-  if (adminProjectViewerSubtitle) {
-    const owner = student ? `${student.name || 'Student'} · ${student.studentId || ''}` : 'Student project';
-    adminProjectViewerSubtitle.textContent = `${owner} · ${project.activityTitle || 'Practice project'} · Updated ${formatStudentDate(project.updatedAt)}`;
-  }
-  populateAdminProjectViewerActivitySelect();
-  populateAdminProjectViewerFileSelect();
-  updateAdminProjectViewerCode();
-  runAdminProjectViewerPreview(getAdminProjectActiveFileName('html'));
-}
-
-async function openAdminProjectViewer(projectId) {
-  const student = adminProjectViewerState.student;
-  if (!student || !projectId) return;
-  let project = (adminProjectViewerState.projects || []).find(item => item.id === projectId) || null;
-  if (!project || !project.codeByActivity) {
-    try {
-      const { getDoc } = firebaseSync.modules;
-      const snapshot = await getDoc(getStudentProjectDocRef(student.uid, projectId));
-      if (snapshotExists(snapshot)) project = { id: projectId, ...snapshotData(snapshot) };
-    } catch (error) {
-      console.error('Could not fetch project for viewer', error);
-    }
-  }
-  if (!project) {
-    appAlert('This project could not be opened. Check the internet connection and try again.', { title: 'Project unavailable' });
-    return;
-  }
-  adminProjectViewerState.project = project;
-  adminProjectViewerState.codeByActivity = normalizeProjectCodeByActivity(project.codeByActivity || {});
-  adminProjectViewerState.activityKey = project.selectedActivityId && adminProjectViewerState.codeByActivity[project.selectedActivityId]
-    ? project.selectedActivityId
-    : Object.keys(adminProjectViewerState.codeByActivity)[0] || 'scratch';
-  adminProjectViewerState.language = 'html';
-  adminProjectViewerOverlay?.classList.remove('hidden');
-  document.body.classList.add('student-auth-open');
-  renderAdminProjectViewer();
-}
-
-function closeAdminProjectViewer() {
-  closeAdminProjectFullscreen();
-  adminProjectViewerOverlay?.classList.add('hidden');
-  if (adminProjectViewerFrame) adminProjectViewerFrame.srcdoc = '';
-  document.body.classList.toggle('student-auth-open', Boolean(adminStudentProjectsOverlay && !adminStudentProjectsOverlay.classList.contains('hidden')));
-}
-
 async function showAdminStudentProjects(uid) {
   const student = adminStudentsCache.find(item => item.uid === uid);
   if (!student) return;
@@ -4838,17 +4660,14 @@ async function showAdminStudentProjects(uid) {
       adminStudentProjectsList.innerHTML = '<div class="empty-projects-card"><h3>No projects yet</h3><p>This student has logged in but has not created a project.</p></div>';
       return;
     }
-    adminProjectViewerState.student = student;
-    adminProjectViewerState.projects = projects;
     adminStudentProjectsList.innerHTML = projects.map(project => {
       const result = project.lastResult;
       return `
-        <article class="admin-project-row" data-admin-project-id="${escapeAttribute(project.id)}">
+        <article class="admin-project-row">
           <div><strong>${escapeHTML(project.name || 'Untitled Project')}</strong><small>${escapeHTML(project.activityTitle || 'Practice project')} · Updated ${escapeHTML(formatStudentDate(project.updatedAt))}</small></div>
           <span>${getProjectStatusLabel(getProjectStatus(project))}</span>
           <span>${Number(project.runCount || 0)} run${Number(project.runCount || 0) === 1 ? '' : 's'}</span>
           <strong>${result ? `${formatPoints(result.score || 0)}/${formatPoints(result.possible || 0)} · ${Number(result.percent || 0)}%` : 'Not scored'}</strong>
-          <button class="primary-btn admin-project-view-btn" type="button" data-admin-project-action="view" data-admin-project-id="${escapeAttribute(project.id)}">View / Run</button>
         </article>`;
     }).join('');
   } catch (error) {
@@ -4859,8 +4678,6 @@ async function showAdminStudentProjects(uid) {
 
 function closeAdminStudentProjects() {
   adminStudentProjectsOverlay?.classList.add('hidden');
-  adminProjectViewerOverlay?.classList.add('hidden');
-  if (adminProjectViewerFrame) adminProjectViewerFrame.srcdoc = '';
   document.body.classList.remove('student-auth-open');
 }
 
@@ -12500,7 +12317,7 @@ window.addEventListener('keydown', event => {
   }
 });
 
-[assistanceMasterToggle, codeSuggestionsToggle, codeHelperToggle, teacherFeedbackToggle, superStudioToggle, autoSaveControlToggle, autoRunControlToggle, externalLinksSamePreviewToggle, starterCodeToggle, collaborationToggle, collaborationEditToggle, collaborationMembersToggle].forEach(toggle => {
+[assistanceMasterToggle, codeSuggestionsToggle, codeHelperToggle, teacherFeedbackToggle, superStudioToggle, autoSaveControlToggle, autoRunControlToggle, externalLinksSamePreviewToggle, collaborationToggle, collaborationEditToggle, collaborationMembersToggle].forEach(toggle => {
   toggle?.addEventListener('change', () => {
     applyAssistanceSettingsFromControls();
   });
@@ -12789,55 +12606,19 @@ adminStudentSearch?.addEventListener('input', renderAdminStudentTracker);
 adminSectionFilter?.addEventListener('change', renderAdminStudentTracker);
 adminActivityFilter?.addEventListener('change', renderAdminStudentTracker);
 adminStudentsTableBody?.addEventListener('click', event => {
+  const deleteButton = event.target.closest('.delete-student-account-btn');
+  if (deleteButton) {
+    deleteAdminStudentRecord(deleteButton.dataset.studentId || '', deleteButton.dataset.studentUid || '');
+    return;
+  }
   const button = event.target.closest('.view-student-projects-btn');
   if (!button) return;
   if (button.dataset.studentUid) showAdminStudentProjects(button.dataset.studentUid);
 });
 closeAdminStudentProjectsBtn?.addEventListener('click', closeAdminStudentProjects);
-adminStudentProjectsList?.addEventListener('click', event => {
-  const viewButton = event.target.closest('[data-admin-project-action="view"]');
-  const row = event.target.closest('[data-admin-project-id]');
-  const projectId = viewButton?.dataset.adminProjectId || row?.dataset.adminProjectId || '';
-  if (!projectId) return;
-  event.preventDefault();
-  openAdminProjectViewer(projectId);
-});
 adminStudentProjectsOverlay?.addEventListener('click', event => {
   if (event.target === adminStudentProjectsOverlay) closeAdminStudentProjects();
 });
-closeAdminProjectViewerBtn?.addEventListener('click', closeAdminProjectViewer);
-adminProjectViewerOverlay?.addEventListener('click', event => {
-  if (event.target === adminProjectViewerOverlay) closeAdminProjectViewer();
-});
-adminProjectViewerActivitySelect?.addEventListener('change', event => {
-  adminProjectViewerState.activityKey = event.target.value || 'scratch';
-  populateAdminProjectViewerFileSelect();
-  updateAdminProjectViewerCode();
-  runAdminProjectViewerPreview(getAdminProjectActiveFileName('html'));
-});
-adminProjectViewerFileSelect?.addEventListener('change', event => {
-  setAdminProjectActiveFileName(adminProjectViewerState.language, event.target.value || '');
-  updateAdminProjectViewerCode();
-  if (adminProjectViewerState.language === 'html') runAdminProjectViewerPreview(event.target.value || '');
-});
-adminProjectViewerLangTabs?.addEventListener('click', event => {
-  const button = event.target.closest('[data-admin-viewer-lang]');
-  if (!button) return;
-  adminProjectViewerState.language = button.dataset.adminViewerLang || 'html';
-  populateAdminProjectViewerFileSelect();
-  updateAdminProjectViewerCode();
-});
-adminProjectViewerRunBtn?.addEventListener('click', () => runAdminProjectViewerPreview(getAdminProjectActiveFileName('html')));
-adminProjectViewerFullCodeBtn?.addEventListener('click', () => openAdminProjectFullscreen('code'));
-adminProjectViewerFullPreviewBtn?.addEventListener('click', () => {
-  runAdminProjectViewerPreview(getAdminProjectActiveFileName('html'));
-  openAdminProjectFullscreen('preview');
-});
-closeAdminProjectFullscreenBtn?.addEventListener('click', closeAdminProjectFullscreen);
-adminProjectFullscreenOverlay?.addEventListener('click', event => {
-  if (event.target === adminProjectFullscreenOverlay) closeAdminProjectFullscreen();
-});
-adminProjectViewerFrame?.addEventListener('load', attachAdminProjectViewerPreviewLinks);
 
 initManualRubricInputTable();
 applyStudentAssistanceSettings(studentAssistanceSettings);
