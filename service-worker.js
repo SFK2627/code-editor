@@ -1,15 +1,15 @@
-const CACHE_NAME = 'code-editor-20260724-step138-compliance-sync-stability';
+const CACHE_NAME = 'code-editor-20260724-step139-compliance-sync-retry';
 const APP_SHELL = [
   './',
   './index.html',
-  './index.html?v=20260724-step138-compliance-sync-stability',
-  './index.html?fresh=step138',
+  './index.html?v=20260724-step139-compliance-sync-retry',
+  './index.html?fresh=step139',
   './style.css',
-  './style.css?v=20260724-step138-compliance-sync-stability',
-  './style.css?v=20260724-step138-compliance-sync-stability',
+  './style.css?v=20260724-step139-compliance-sync-retry',
+  './style.css?v=20260724-step139-compliance-sync-retry',
   './script.js',
-  './script.js?v=20260724-step138-compliance-sync-stability',
-  './script.js?v=20260724-step138-compliance-sync-stability',
+  './script.js?v=20260724-step139-compliance-sync-retry',
+  './script.js?v=20260724-step139-compliance-sync-retry',
   './firebase-config.js',
   './manifest.webmanifest',
   './favicon.png',

@@ -4509,6 +4509,47 @@ function requestComplianceJsonp(baseUrl, params = {}, timeoutMs = 75000) {
   });
 }
 
+
+function waitComplianceSync(ms = 800) {
+  return new Promise(resolve => window.setTimeout(resolve, Math.max(0, Number(ms) || 0)));
+}
+
+function isRetriableComplianceError(error) {
+  const message = String(error?.message || error || '').toLowerCase();
+  return message.includes('endpoint')
+    || message.includes('too long')
+    || message.includes('timeout')
+    || message.includes('temporarily')
+    || message.includes('network')
+    || message.includes('load');
+}
+
+async function requestComplianceJsonpWithRetry(baseUrl, params = {}, options = {}) {
+  const retries = Number.isFinite(options.retries) ? Math.max(0, options.retries) : 2;
+  const timeoutMs = Number.isFinite(options.timeoutMs) ? Math.max(30000, options.timeoutMs) : 120000;
+  const sectionName = options.sectionName || 'section';
+  let lastError = null;
+
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    if (typeof options.onAttempt === 'function') {
+      options.onAttempt({ attempt: attempt + 1, totalAttempts: retries + 1, section: sectionName });
+    }
+    try {
+      return await requestComplianceJsonp(baseUrl, {
+        ...params,
+        // Unique request marker so mobile browsers and Google do not reuse a stale script response.
+        requestId: `${Date.now()}_${Math.floor(Math.random() * 100000)}_${attempt}`
+      }, timeoutMs);
+    } catch (error) {
+      lastError = error;
+      if (attempt >= retries || !isRetriableComplianceError(error)) break;
+      await waitComplianceSync(1200 + attempt * 1800);
+    }
+  }
+
+  throw new Error(`Google Sheets did not respond for ${sectionName} after ${retries + 1} try/tries. Try syncing again, or check that this section sheet link is shared with the Apps Script account.`);
+}
+
 function renderComplianceSyncPreview(payload = {}) {
   if (!complianceSyncPreview) return;
   const students = Array.isArray(payload.students) ? payload.students : [];
@@ -4522,7 +4563,7 @@ function renderComplianceSyncPreview(payload = {}) {
       <span><strong>${sectionCount}</strong><small>sections</small></span>
       <span><strong>${taskCount}</strong><small>visible tasks max</small></span>
     </div>
-    ${errors.length ? `<div class="compliance-preview-errors"><strong>Sheets needing attention:</strong>${errors.slice(0, 6).map(error => `<small>${escapeHTML(error)}</small>`).join('')}</div>` : ''}
+    ${errors.length ? `<div class="compliance-preview-errors"><strong>Sheets that need retry/checking:</strong>${errors.slice(0, 6).map(error => `<small>${escapeHTML(error)}</small>`).join('')}</div>` : ''}
     ${samples.length ? `<div class="compliance-preview-list">${samples.map(student => `
       <div class="compliance-preview-row">
         <strong>${escapeHTML(student.studentName || student.studentId || 'Student')}</strong>
@@ -4563,7 +4604,7 @@ async function pullComplianceFromGoogleSheets(options = {}) {
     }
 
     try {
-      const payload = await requestComplianceJsonp(settings.scriptUrl, {
+      const payload = await requestComplianceJsonpWithRetry(settings.scriptUrl, {
         key: settings.syncKey,
         term: settings.term,
         subject: settings.subject,
@@ -4571,7 +4612,23 @@ async function pullComplianceFromGoogleSheets(options = {}) {
         sections: JSON.stringify([sectionConfig]),
         taskLabels: JSON.stringify(taskPayload.taskLabels),
         hiddenTasks: JSON.stringify(taskPayload.hiddenTasks)
-      }, 90000);
+      }, {
+        retries: 2,
+        timeoutMs: 120000,
+        sectionName,
+        onAttempt: attemptInfo => {
+          if (typeof options.onProgress === 'function') {
+            options.onProgress({
+              phase: 'retry',
+              section: sectionName,
+              completed: index,
+              total: configuredSections.length,
+              attempt: attemptInfo.attempt,
+              totalAttempts: attemptInfo.totalAttempts
+            });
+          }
+        }
+      });
 
       if (!payload || payload.ok === false) {
         throw new Error(payload?.error || 'Apps Script did not return a valid response.');
@@ -4601,6 +4658,9 @@ async function pullComplianceFromGoogleSheets(options = {}) {
         total: configuredSections.length
       });
     }
+
+    // Small pause keeps Google Apps Script from rejecting rapid repeated section reads.
+    if (index < configuredSections.length - 1) await waitComplianceSync(900);
   }
 
   if (!aggregate.students.length && aggregate.errors.length) {
@@ -4615,7 +4675,12 @@ async function previewComplianceSync() {
   if (previewComplianceSyncBtn) previewComplianceSyncBtn.disabled = true;
   try {
     const payload = await pullComplianceFromGoogleSheets({
-      onProgress: progress => setComplianceSyncStatus(`Reading ${progress.section}... ${progress.completed}/${progress.total}`, '')
+      onProgress: progress => setComplianceSyncStatus(
+        progress.phase === 'retry'
+          ? `Reading ${progress.section}... try ${progress.attempt}/${progress.totalAttempts} (${progress.completed}/${progress.total})`
+          : `Reading ${progress.section}... ${progress.completed}/${progress.total}`,
+        ''
+      )
     });
     renderComplianceSyncPreview(payload);
     const errorNote = Array.isArray(payload.errors) && payload.errors.length ? ` ${payload.errors.length} sheet issue(s) found.` : '';
@@ -4638,7 +4703,12 @@ async function publishComplianceSync() {
   setComplianceSyncStatus('Reading section Google Sheets one by one...', '');
   try {
     const payload = await pullComplianceFromGoogleSheets({
-      onProgress: progress => setComplianceSyncStatus(`Reading ${progress.section}... ${progress.completed}/${progress.total}`, '')
+      onProgress: progress => setComplianceSyncStatus(
+        progress.phase === 'retry'
+          ? `Reading ${progress.section}... try ${progress.attempt}/${progress.totalAttempts} (${progress.completed}/${progress.total})`
+          : `Reading ${progress.section}... ${progress.completed}/${progress.total}`,
+        ''
+      )
     });
     renderComplianceSyncPreview(payload);
     if (!payload.students.length) throw new Error('No student records found. Check section sheet links, student IDs, and term sheet name.');
