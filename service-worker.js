@@ -1,15 +1,15 @@
-const CACHE_NAME = 'mcs-coding-app-20260724-step119-modal-close-controls';
+const CACHE_NAME = 'mcs-coding-app-20260724-step120-restore-starter-assistance';
 const APP_SHELL = [
   './',
   './index.html',
-  './index.html?v=20260724-step119-modal-close-controls',
-  './index.html?fresh=step118',
+  './index.html?v=20260724-step120-restore-starter-assistance',
+  './index.html?fresh=step120',
   './style.css',
-  './style.css?v=20260724-step119-modal-close-controls',
-  './style.css?v=20260724-step119-modal-close-controls',
+  './style.css?v=20260724-step120-restore-starter-assistance',
+  './style.css?v=20260724-step120-restore-starter-assistance',
   './script.js',
-  './script.js?v=20260724-step119-modal-close-controls',
-  './script.js?v=20260724-step119-modal-close-controls',
+  './script.js?v=20260724-step120-restore-starter-assistance',
+  './script.js?v=20260724-step120-restore-starter-assistance',
   './firebase-config.js',
   './manifest.webmanifest',
   './favicon.png',
