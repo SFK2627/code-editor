@@ -1,4 +1,4 @@
-const CACHE_NAME = 'code-editor-20260724-step135-easy-compliance-setup';
+const CACHE_NAME = 'code-editor-20260724-step136-compliance-rules';
 const APP_SHELL = [
   './',
   './index.html',

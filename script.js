@@ -4572,6 +4572,9 @@ async function publishComplianceSync() {
         ...student,
         studentIdOriginal: student.studentId,
         studentId: student.studentIdNormalized,
+        // Used by Firestore Rules so students can read only their own status.
+        // Scores are still not saved or shown to students.
+        studentAuthEmail: studentIdToAuthEmail(student.studentIdNormalized),
         updatedAt: serverTimestamp(),
         updatedAtMs: syncedAtMs,
         publishedBy: firebaseSync.auth?.currentUser?.email || firebaseSync.currentUser?.email || 'teacher'
@@ -4584,7 +4587,11 @@ async function publishComplianceSync() {
     if (appSession.student) loadStudentComplianceStatus({ silent: true });
   } catch (error) {
     console.warn('Compliance publish failed.', error);
-    setComplianceSyncStatus(error?.message || 'Could not publish Google Sheets status.', 'error');
+    const rawMessage = error?.message || 'Could not publish Google Sheets status.';
+    const friendlyMessage = /permission|insufficient/i.test(rawMessage)
+      ? 'Firebase Rules still block Compliance publishing. Paste the Step 136 subjectCompliance rule in Firebase > Firestore Database > Rules, then publish and try again.'
+      : rawMessage;
+    setComplianceSyncStatus(friendlyMessage, 'error');
   } finally {
     if (publishComplianceSyncBtn) publishComplianceSyncBtn.disabled = false;
   }
