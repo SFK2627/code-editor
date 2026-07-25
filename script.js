@@ -551,7 +551,7 @@ function normalizeAiRubricSettings(source = {}) {
 let aiRubricSettings = normalizeAiRubricSettings(loadJSON(STORAGE_KEYS.aiRubricSettings, DEFAULT_AI_RUBRIC_SETTINGS));
 let adminLatestAiReview = null;
 let adminAiRubricController = null;
-let aiRubricConnectionState = { status: 'unknown', statusCode: '', message: '' };
+let aiRubricConnectionState = { status: 'untested', code: '', message: '' };
 
 const DEFAULT_STUDENT_PASSWORD = '123456';
 const STUDENT_EMAIL_DOMAIN = 'students.mcsian.app';
@@ -2548,19 +2548,6 @@ function setAiRubricSettingsStatus(message, tone = '') {
   setAiRubricSettingsStatus.timer = window.setTimeout(() => aiRubricSettingsStatus?.classList.remove('attention'), 1800);
 }
 
-function setAiRubricConnectionState(status = 'unknown', details = {}) {
-  aiRubricConnectionState = {
-    status,
-    statusCode: details.statusCode ? String(details.statusCode) : '',
-    message: details.message ? String(details.message) : ''
-  };
-  syncAiRubricSettingsControls(aiRubricSettings);
-}
-
-function resetAiRubricConnectionState() {
-  aiRubricConnectionState = { status: 'unknown', statusCode: '', message: '' };
-}
-
 function syncAiRubricSettingsControls(settings = aiRubricSettings) {
   const normalized = normalizeAiRubricSettings(settings);
   if (aiRubricEnabledToggle) aiRubricEnabledToggle.checked = normalized.enabled;
@@ -2569,22 +2556,25 @@ function syncAiRubricSettingsControls(settings = aiRubricSettings) {
   if (aiRubricReviewStyleSelect) aiRubricReviewStyleSelect.value = normalized.reviewStyle;
   const configured = Boolean(normalized.enabled && normalized.apiKey && normalized.model);
   if (aiRubricStatusPill) {
-    aiRubricStatusPill.classList.remove('ready', 'warning', 'error', 'connected', 'configured');
-    if (!normalized.enabled) {
-      aiRubricStatusPill.textContent = 'AI OFF';
-    } else if (!normalized.apiKey) {
-      aiRubricStatusPill.textContent = 'NEEDS KEY';
-      aiRubricStatusPill.classList.add('warning');
-    } else if (aiRubricConnectionState.status === 'connected') {
-      aiRubricStatusPill.textContent = 'AI CONNECTED';
-      aiRubricStatusPill.classList.add('connected', 'ready');
-    } else if (aiRubricConnectionState.status === 'error') {
-      aiRubricStatusPill.textContent = `AI ERROR${aiRubricConnectionState.statusCode ? ` ${aiRubricConnectionState.statusCode}` : ''}`;
-      aiRubricStatusPill.classList.add('error');
-    } else {
-      aiRubricStatusPill.textContent = 'AI CONFIGURED';
-      aiRubricStatusPill.classList.add('configured', 'warning');
+    let label = 'AI OFF';
+    let ready = false;
+    let warning = false;
+    if (normalized.enabled && !normalized.apiKey) {
+      label = 'NEEDS KEY';
+      warning = true;
+    } else if (configured && aiRubricConnectionState.status === 'connected') {
+      label = 'AI CONNECTED';
+      ready = true;
+    } else if (configured && aiRubricConnectionState.status === 'error') {
+      label = aiRubricConnectionState.code ? `AI ERROR ${aiRubricConnectionState.code}` : 'AI ERROR';
+      warning = true;
+    } else if (configured) {
+      label = 'AI CONFIGURED';
+      warning = true;
     }
+    aiRubricStatusPill.textContent = label;
+    aiRubricStatusPill.classList.toggle('ready', ready);
+    aiRubricStatusPill.classList.toggle('warning', warning);
   }
   if (adminRunAiRubricReviewBtn) adminRunAiRubricReviewBtn.disabled = !configured;
 }
@@ -2657,66 +2647,54 @@ function getGeminiModelName(model = aiRubricSettings.model) {
   return String(model || DEFAULT_AI_RUBRIC_SETTINGS.model).trim().replace(/^models\//i, '') || DEFAULT_AI_RUBRIC_SETTINGS.model;
 }
 
-function getGeminiGenerateContentUrl(model = aiRubricSettings.model) {
+function getGeminiEndpoint(model = aiRubricSettings.model) {
   return `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(getGeminiModelName(model))}:generateContent`;
 }
 
-function extractGeminiText(data) {
-  return data?.candidates?.[0]?.content?.parts?.map(part => part?.text || '').join('\n') || '';
+async function readGeminiResponseDetail(response) {
+  let raw = '';
+  let message = '';
+  let status = response?.status || 0;
+  try {
+    raw = await response.clone().text();
+  } catch (error) {
+    raw = '';
+  }
+  if (raw) {
+    try {
+      const data = JSON.parse(raw);
+      message = data?.error?.message || data?.error?.status || data?.message || raw;
+    } catch (error) {
+      message = raw;
+    }
+  }
+  message = String(message || response?.statusText || 'Unknown Gemini error').replace(/\s+/g, ' ').trim();
+  let hint = '';
+  if (status === 400) hint = 'Check the request/model name and try gemini-2.5-flash.';
+  if (status === 401) hint = 'The API key was rejected. Create a new Gemini API key and paste it again.';
+  if (status === 403) hint = 'Permission issue: enable Gemini API/Generative Language API for the same project, check key restrictions, and make sure this key is allowed for Gemini API.';
+  if (status === 404) hint = 'Model not found or unavailable. Try gemini-2.5-flash.';
+  if (status === 429) hint = 'Quota/rate limit reached. Wait and try again, or reduce AI reviews.';
+  if (status >= 500) hint = 'Gemini service error. Wait a moment and try again.';
+  return { status, message, hint, raw };
 }
 
-function parseMaybeJson(text) {
-  try { return JSON.parse(text); } catch (error) { return null; }
-}
-
-function getGeminiTroubleshootingAdvice(status, message = '') {
-  const lower = String(message || '').toLowerCase();
-  if (status === 400) {
-    return 'Check the model name and request format. Use gemini-2.5-flash first.';
-  }
-  if (status === 401 || lower.includes('api key not valid')) {
-    return 'The API key looks invalid. Copy the newest key again and make sure there are no spaces before or after it.';
-  }
-  if (status === 403) {
-    return 'Permission denied. Check that this exact key is for a project with Gemini API enabled, the key restriction allows Gemini API, and the selected service account is allowed to use the key. Wait 2-5 minutes after creating/enabling the key, then test again.';
-  }
-  if (status === 404) {
-    return 'The model was not found or is unavailable for this project. Try gemini-2.5-flash.';
-  }
-  if (status === 429) {
-    return 'Quota or rate limit reached. Wait a few minutes or try again later.';
-  }
-  if (status >= 500) {
-    return 'Gemini service error. Try again after a short wait.';
-  }
-  return 'Check the API key, model, project, Gemini API access, and internet connection.';
-}
-
-async function readGeminiResponse(response) {
-  const text = await response.text();
-  const json = parseMaybeJson(text);
-  return { text, json };
-}
-
-function buildGeminiError(response, body, methodLabel = 'Gemini') {
-  const status = response?.status || 0;
-  const apiMessage = body?.json?.error?.message || body?.json?.error?.status || body?.text || '';
-  const cleanMessage = String(apiMessage || '').replace(/AIza[0-9A-Za-z_-]{20,}/g, '[hidden-api-key]').slice(0, 900);
-  const advice = getGeminiTroubleshootingAdvice(status, cleanMessage);
-  const message = `${methodLabel} returned ${status}${cleanMessage ? `: ${cleanMessage}` : ''}\n\nFix: ${advice}`;
-  const error = new Error(message);
+function buildGeminiError(detail) {
+  const status = detail?.status || '';
+  const parts = [`Gemini returned ${status || 'an error'}`];
+  if (detail?.message) parts.push(detail.message);
+  if (detail?.hint) parts.push(detail.hint);
+  const error = new Error(parts.join(': '));
   error.status = status;
-  error.body = body;
-  error.advice = advice;
+  error.geminiDetail = detail;
   return error;
 }
 
-async function fetchGeminiGenerateContent(settings, body, { signal, purpose = 'Gemini' } = {}) {
-  const model = getGeminiModelName(settings.model);
+async function fetchGeminiGenerateContent(settings, body, { signal } = {}) {
+  const endpoint = getGeminiEndpoint(settings.model);
   const apiKey = String(settings.apiKey || '').trim();
-  const url = getGeminiGenerateContentUrl(model);
   const requestBody = JSON.stringify(body);
-  const headerRequest = {
+  const headerResponse = await fetch(endpoint, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -2724,70 +2702,56 @@ async function fetchGeminiGenerateContent(settings, body, { signal, purpose = 'G
     },
     body: requestBody,
     signal
-  };
+  });
+  if (headerResponse.ok) return headerResponse;
 
-  try {
-    const response = await fetch(url, headerRequest);
-    const parsed = await readGeminiResponse(response);
-    if (response.ok) return { response, data: parsed.json || {}, rawText: parsed.text, method: 'header' };
-    const headerError = buildGeminiError(response, parsed, purpose);
-
-    // Some browser/project combinations still work better with the legacy query-key style.
-    // Try it once only as a compatibility fallback before showing the detailed error.
-    if ([401, 403, 404].includes(response.status)) {
-      const fallbackResponse = await fetch(`${url}?key=${encodeURIComponent(apiKey)}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: requestBody,
-        signal
-      });
-      const fallbackParsed = await readGeminiResponse(fallbackResponse);
-      if (fallbackResponse.ok) return { response: fallbackResponse, data: fallbackParsed.json || {}, rawText: fallbackParsed.text, method: 'query' };
-      throw buildGeminiError(fallbackResponse, fallbackParsed, `${purpose} fallback`);
-    }
-    throw headerError;
-  } catch (error) {
-    if (error?.name === 'AbortError') throw error;
-    if (error?.status) throw error;
-    // If a custom header is blocked by the browser/CORS, retry using the query-key style.
+  const headerDetail = await readGeminiResponseDetail(headerResponse);
+  // Some older keys/projects still work better with the key query parameter. Try it once
+  // unless the first request was rate-limited or server-side failed.
+  if (![429].includes(headerResponse.status) && headerResponse.status < 500) {
     try {
-      const fallbackResponse = await fetch(`${url}?key=${encodeURIComponent(apiKey)}`, {
+      const queryResponse = await fetch(`${endpoint}?key=${encodeURIComponent(apiKey)}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: requestBody,
         signal
       });
-      const fallbackParsed = await readGeminiResponse(fallbackResponse);
-      if (fallbackResponse.ok) return { response: fallbackResponse, data: fallbackParsed.json || {}, rawText: fallbackParsed.text, method: 'query' };
-      throw buildGeminiError(fallbackResponse, fallbackParsed, `${purpose} fallback`);
-    } catch (fallbackError) {
-      if (fallbackError?.status) throw fallbackError;
-      throw error;
+      if (queryResponse.ok) return queryResponse;
+      const queryDetail = await readGeminiResponseDetail(queryResponse);
+      if (queryDetail?.message && queryDetail.message !== headerDetail.message) {
+        queryDetail.message = `${queryDetail.message} | Header attempt: ${headerDetail.message}`;
+      }
+      throw buildGeminiError(queryDetail);
+    } catch (error) {
+      if (error?.geminiDetail) throw error;
+      throw buildGeminiError(headerDetail);
     }
   }
+  throw buildGeminiError(headerDetail);
 }
 
 async function testAiRubricConnection() {
   const settings = saveAiRubricSettingsLocal(getAiRubricSettingsFromControls());
   if (!settings.enabled || !settings.apiKey) {
-    setAiRubricConnectionState(settings.enabled ? 'unknown' : 'off');
     setAiRubricSettingsStatus('Turn ON AI Review and paste a Gemini API key first.', 'warning');
     return;
   }
   try {
     if (testAiRubricSettingsBtn) testAiRubricSettingsBtn.disabled = true;
-    setAiRubricConnectionState('unknown');
-    setAiRubricSettingsStatus(`Testing ${getGeminiModelName(settings.model)}...`, 'warning');
-    const result = await fetchGeminiGenerateContent(settings, {
+    setAiRubricSettingsStatus('Testing AI connection...', 'warning');
+    const response = await fetchGeminiGenerateContent(settings, {
       contents: [{ role: 'user', parts: [{ text: 'Reply with exactly: OK' }] }],
       generationConfig: { temperature: 0, maxOutputTokens: 20 }
-    }, { purpose: 'Gemini test' });
-    const text = extractGeminiText(result.data).trim();
-    setAiRubricConnectionState('connected', { message: text || 'OK' });
-    setAiRubricSettingsStatus(`AI connection works (${result.method} key method).`, 'success');
+    });
+    const data = await response.json();
+    const text = data?.candidates?.[0]?.content?.parts?.map(part => part.text || '').join('').trim() || '';
+    aiRubricConnectionState = { status: 'connected', code: '', message: text || 'OK' };
+    syncAiRubricSettingsControls(settings);
+    setAiRubricSettingsStatus(`AI connection works${text ? `: ${text.slice(0, 60)}` : '.'}`, 'success');
   } catch (error) {
     console.error('AI connection test failed.', error);
-    setAiRubricConnectionState('error', { statusCode: error?.status || '', message: error?.message || '' });
+    aiRubricConnectionState = { status: 'error', code: String(error?.status || ''), message: error?.message || 'AI connection failed.' };
+    syncAiRubricSettingsControls(settings);
     setAiRubricSettingsStatus(error?.message || 'AI connection failed. Check the API key/model.', 'error');
   } finally {
     if (testAiRubricSettingsBtn) testAiRubricSettingsBtn.disabled = false;
@@ -7371,21 +7335,18 @@ async function callGeminiAdminAiRubricReview(context) {
   adminAiRubricController = new AbortController();
   const timeout = window.setTimeout(() => adminAiRubricController.abort(), 45000);
   try {
-    const result = await fetchGeminiGenerateContent(settings, {
+    const response = await fetchGeminiGenerateContent(settings, {
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
       generationConfig: {
         temperature: 0,
         responseMimeType: 'application/json',
         maxOutputTokens: 4096
       }
-    }, { signal: adminAiRubricController.signal, purpose: 'Gemini AI review' });
+    }, { signal: adminAiRubricController.signal });
     window.clearTimeout(timeout);
-    setAiRubricConnectionState('connected', { message: 'AI review completed.' });
-    const text = extractGeminiText(result.data);
+    const data = await response.json();
+    const text = data?.candidates?.[0]?.content?.parts?.map(part => part.text || '').join('\n') || '';
     return normalizeAdminAiRubricReview(extractJsonObjectFromText(text), context);
-  } catch (error) {
-    if (error?.status) setAiRubricConnectionState('error', { statusCode: error.status, message: error.message || '' });
-    throw error;
   } finally {
     window.clearTimeout(timeout);
   }
@@ -17657,12 +17618,8 @@ publishAssistanceBtn?.addEventListener('click', publishAssistanceSettings);
 saveAiRubricSettingsBtn?.addEventListener('click', saveAiRubricSettingsToCloud);
 testAiRubricSettingsBtn?.addEventListener('click', testAiRubricConnection);
 [aiRubricEnabledToggle, aiRubricApiKeyInput, aiRubricModelInput, aiRubricReviewStyleSelect].forEach(control => {
-  const updateAiRubricDraft = () => {
-    resetAiRubricConnectionState();
-    saveAiRubricSettingsLocal(getAiRubricSettingsFromControls());
-  };
-  control?.addEventListener('change', updateAiRubricDraft);
-  control?.addEventListener('input', updateAiRubricDraft);
+  control?.addEventListener('change', () => saveAiRubricSettingsLocal(getAiRubricSettingsFromControls()));
+  control?.addEventListener('input', () => saveAiRubricSettingsLocal(getAiRubricSettingsFromControls()));
 });
 complianceTermSelect?.addEventListener('change', () => {
   const settings = saveComplianceSettings(getComplianceSettingsFromControls());
