@@ -1,13 +1,13 @@
-const CACHE_NAME = 'code-editor-20260725-step189-fast-smart-result';
+const CACHE_NAME = 'code-editor-20260725-step190-fast-smart-result-step190';
 const APP_SHELL = [
   './',
   './index.html',
-  './index.html?v=20260725-step189-fast-smart-result',
-  './index.html?fresh=step189',
+  './index.html?v=20260725-step190-fast-smart-result',
+  './index.html?fresh=step190',
   './style.css',
-  './style.css?v=20260725-step189-fast-smart-result',
+  './style.css?v=20260725-step190-fast-smart-result',
   './script.js',
-  './script.js?v=20260725-step189-fast-smart-result',
+  './script.js?v=20260725-step190-fast-smart-result',
   './firebase-config.js',
   './manifest.webmanifest',
   './favicon.png',
