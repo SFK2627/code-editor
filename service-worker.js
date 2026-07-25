@@ -1,15 +1,15 @@
-const CACHE_NAME = 'code-editor-20260725-step160-mobile-run-attempt-line';
+const CACHE_NAME = 'code-editor-20260725-step161-admin-compliance-viewer';
 const APP_SHELL = [
   './',
   './index.html',
-  './index.html?v=20260725-step160-mobile-run-attempt-line',
-  './index.html?fresh=step160',
+  './index.html?v=20260725-step161-admin-compliance-viewer',
+  './index.html?fresh=step161',
   './style.css',
-  './style.css?v=20260725-step160-mobile-run-attempt-line',
-  './style.css?v=20260725-step160-mobile-run-attempt-line',
+  './style.css?v=20260725-step161-admin-compliance-viewer',
+  './style.css?v=20260725-step161-admin-compliance-viewer',
   './script.js',
-  './script.js?v=20260725-step160-mobile-run-attempt-line',
-  './script.js?v=20260725-step160-mobile-run-attempt-line',
+  './script.js?v=20260725-step161-admin-compliance-viewer',
+  './script.js?v=20260725-step161-admin-compliance-viewer',
   './firebase-config.js',
   './manifest.webmanifest',
   './favicon.png',

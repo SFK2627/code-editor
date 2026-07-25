@@ -43,7 +43,7 @@
       document.documentElement.dataset.deviceMode = isPhone ? 'phone' : 'desktop';
     })();
   </script>
-  <link rel="stylesheet" href="style.css?v=20260725-step160-mobile-run-attempt-line" />
+  <link rel="stylesheet" href="style.css?v=20260725-step161-admin-compliance-viewer" />
 </head>
 <body class="entry-gate-active">
   <noscript>
@@ -987,6 +987,45 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
           </div>
           <p id="complianceSyncStatus" class="helper-note compliance-sync-status" role="status">Login as teacher to load/save Compliance settings. Then check one or more sections, preview, and publish.</p>
           <div id="complianceSyncPreview" class="compliance-sync-preview" aria-live="polite"></div>
+
+          <div class="compliance-viewer-card" aria-labelledby="adminComplianceViewerTitle">
+            <div class="compliance-viewer-header">
+              <div>
+                <p class="section-kicker">Published Status Viewer</p>
+                <h3 id="adminComplianceViewerTitle">Student Compliance Viewer</h3>
+                <p class="muted-text">View each student's lacking list from the latest published Firebase records. This does not sync Google Sheets again.</p>
+              </div>
+              <button id="refreshAdminComplianceViewerBtn" class="ghost-btn" type="button">Refresh Viewer</button>
+            </div>
+
+            <div class="compliance-viewer-toolbar">
+              <label>
+                Section
+                <select id="adminComplianceViewerSectionSelect">
+                  <option value="all">All Published Sections</option>
+                </select>
+              </label>
+              <label>
+                Search Student
+                <input id="adminComplianceViewerSearch" type="search" placeholder="Name or Student ID" autocomplete="off" />
+              </label>
+              <label>
+                Filter
+                <select id="adminComplianceViewerFilter">
+                  <option value="all">All Students</option>
+                  <option value="lacking">With lacking only</option>
+                  <option value="complete">No lacking only</option>
+                </select>
+              </label>
+            </div>
+            <p id="adminComplianceViewerStatus" class="helper-note compliance-viewer-status" role="status">Click Refresh Viewer after publishing to see student lacking lists.</p>
+            <div class="compliance-viewer-layout">
+              <div id="adminComplianceStudentList" class="compliance-viewer-list" aria-label="Student compliance list"></div>
+              <div id="adminComplianceStudentDetail" class="compliance-viewer-detail" aria-label="Selected student lacking details">
+                <div class="student-compliance-empty">Select a student to view specific lacking requirements.</div>
+              </div>
+            </div>
+          </div>
         </section>
 
         <section id="activitiesRubricsAdmin" class="admin-tab-panel" data-admin-panel="activities" aria-labelledby="activitiesRubricsTitle">
@@ -1274,6 +1313,6 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
   <script src="firebase-config.js"></script>
-  <script src="script.js?v=20260725-step160-mobile-run-attempt-line"></script>
+  <script src="script.js?v=20260725-step161-admin-compliance-viewer"></script>
 </body>
 </html>

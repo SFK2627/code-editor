@@ -110,6 +110,13 @@ const previewComplianceSyncBtn = document.getElementById('previewComplianceSyncB
 const publishComplianceSyncBtn = document.getElementById('publishComplianceSyncBtn');
 const complianceSyncStatus = document.getElementById('complianceSyncStatus');
 const complianceSyncPreview = document.getElementById('complianceSyncPreview');
+const adminComplianceViewerSectionSelect = document.getElementById('adminComplianceViewerSectionSelect');
+const adminComplianceViewerSearch = document.getElementById('adminComplianceViewerSearch');
+const adminComplianceViewerFilter = document.getElementById('adminComplianceViewerFilter');
+const refreshAdminComplianceViewerBtn = document.getElementById('refreshAdminComplianceViewerBtn');
+const adminComplianceViewerStatus = document.getElementById('adminComplianceViewerStatus');
+const adminComplianceStudentList = document.getElementById('adminComplianceStudentList');
+const adminComplianceStudentDetail = document.getElementById('adminComplianceStudentDetail');
 const adminActivityTitle = document.getElementById('adminActivityTitle');
 const adminActivityDescription = document.getElementById('adminActivityDescription');
 const adminPassingScore = document.getElementById('adminPassingScore');
@@ -2730,6 +2737,11 @@ function getStudentComplianceDocRef(studentId) {
   return doc(firebaseSync.db, firebaseSync.collectionName, firebaseSync.documentId, 'subjectCompliance', normalizeStudentId(studentId));
 }
 
+function getComplianceCollectionRef() {
+  const { collection } = firebaseSync.modules;
+  return collection(firebaseSync.db, firebaseSync.collectionName, firebaseSync.documentId, 'subjectCompliance');
+}
+
 function getComplianceSettingsDocRef() {
   const { doc } = firebaseSync.modules;
   return doc(firebaseSync.db, firebaseSync.collectionName, firebaseSync.documentId, 'adminSettings', 'compliance');
@@ -4130,6 +4142,8 @@ const DEFAULT_COMPLIANCE_SETTINGS = Object.freeze({
 
 let studentComplianceRecord = null;
 let activeComplianceTaskGroup = 'WW';
+let adminComplianceViewerRecords = [];
+let selectedAdminComplianceStudentId = '';
 
 function normalizeComplianceSection(section = {}, fallback = {}) {
   return {
@@ -4383,6 +4397,7 @@ function syncComplianceSettingsControls() {
   renderComplianceSectionSettings(settings);
   renderComplianceSectionSyncSelect(settings);
   renderComplianceTaskLabels(settings);
+  renderAdminComplianceViewerSectionOptions(settings);
   return settings;
 }
 
@@ -4635,6 +4650,173 @@ function renderStudentComplianceRecord(record = null, options = {}) {
           ? `<ul>${lackingTasks.map(task => `<li>${escapeHTML(task.title || 'Requirement')}</li>`).join('')}</ul>`
           : '<p class="student-compliance-no-lacking">✅ No lacking</p>'}
       </div>`;
+  }
+}
+
+
+function getAdminComplianceViewerSectionChoices(settings = loadComplianceSettings(), records = adminComplianceViewerRecords) {
+  const choices = new Map();
+  (settings.sections || []).forEach(section => {
+    const name = String(section.section || '').trim();
+    if (name) choices.set(name.toLowerCase(), name);
+  });
+  (records || []).forEach(record => {
+    const name = String(record.section || '').trim();
+    if (name) choices.set(name.toLowerCase(), name);
+  });
+  return Array.from(choices.values()).sort((a, b) => a.localeCompare(b));
+}
+
+function renderAdminComplianceViewerSectionOptions(settings = loadComplianceSettings()) {
+  if (!adminComplianceViewerSectionSelect) return;
+  const currentValue = adminComplianceViewerSectionSelect.value || 'all';
+  const sections = getAdminComplianceViewerSectionChoices(settings, adminComplianceViewerRecords);
+  adminComplianceViewerSectionSelect.innerHTML = '<option value="all">All Published Sections</option>'
+    + sections.map(section => `<option value="${escapeAttribute(section)}">${escapeHTML(section)}</option>`).join('');
+  adminComplianceViewerSectionSelect.value = sections.includes(currentValue) ? currentValue : 'all';
+}
+
+function setAdminComplianceViewerStatus(message = '', tone = '') {
+  if (!adminComplianceViewerStatus) return;
+  adminComplianceViewerStatus.textContent = message || '';
+  adminComplianceViewerStatus.dataset.tone = tone || '';
+}
+
+function getAdminComplianceViewerFilteredRecords() {
+  const section = adminComplianceViewerSectionSelect?.value || 'all';
+  const query = String(adminComplianceViewerSearch?.value || '').trim().toLowerCase();
+  const filter = adminComplianceViewerFilter?.value || 'all';
+  return adminComplianceViewerRecords.filter(record => {
+    const summary = record.summary || summarizeComplianceTasks(record.tasks || []);
+    const missingCount = Number(summary.missing || 0);
+    const matchesSection = section === 'all' || String(record.section || '') === section;
+    const haystack = `${record.studentName || ''} ${record.studentId || ''} ${record.studentIdNormalized || ''}`.toLowerCase();
+    const matchesSearch = !query || haystack.includes(query);
+    const matchesFilter = filter === 'all'
+      || (filter === 'lacking' && missingCount > 0)
+      || (filter === 'complete' && missingCount <= 0);
+    return matchesSection && matchesSearch && matchesFilter;
+  }).sort((a, b) => String(a.studentName || a.studentId || '').localeCompare(String(b.studentName || b.studentId || '')));
+}
+
+function renderAdminComplianceStudentDetail(record = null) {
+  if (!adminComplianceStudentDetail) return;
+  if (!record) {
+    adminComplianceStudentDetail.innerHTML = '<div class="student-compliance-empty">Select a student to view specific lacking requirements.</div>';
+    return;
+  }
+  const sanitized = sanitizeComplianceStudentRecord(record);
+  const summary = sanitized.summary || summarizeComplianceTasks(sanitized.tasks || []);
+  const tasks = sanitized.tasks || [];
+  const lackingTasks = tasks.filter(task => normalizeComplianceStatus(task.status) !== 'complete');
+  const termTasks = tasks.filter(task => isComplianceTermAssessmentTask(task));
+  const updatedText = sanitized.updatedAtText || formatStudentDate(sanitized.updatedAt || sanitized.updatedAtMs, 'recently');
+  adminComplianceStudentDetail.innerHTML = `
+    <div class="compliance-detail-card">
+      <div class="compliance-detail-head">
+        <div>
+          <p class="section-kicker">Student Details</p>
+          <h4>${escapeHTML(sanitized.studentName || 'Student')}</h4>
+          <small>${escapeHTML(sanitized.studentId || sanitized.studentIdNormalized || 'No ID')} · ${escapeHTML(sanitized.section || 'No section')}</small>
+        </div>
+        <span class="compliance-summary-pill ${Number(summary.missing || 0) ? 'missing' : 'complete'}">${Number(summary.missing || 0) ? `🟥 ${Number(summary.missing || 0)} lacking` : '✅ No lacking'}</span>
+      </div>
+      <div class="compliance-detail-summary">
+        <span><strong>${Number(summary.complete || 0)}</strong><small>Complete</small></span>
+        <span><strong>${Number(summary.missing || 0)}</strong><small>Missing</small></span>
+        <span><strong>${Number(summary.total || tasks.length || 0)}</strong><small>Total</small></span>
+      </div>
+      <div class="compliance-detail-section">
+        <strong>Lacking List</strong>
+        ${lackingTasks.length
+          ? `<ul>${lackingTasks.map(task => `<li><span>${escapeHTML(task.title || 'Requirement')}</span><small>${escapeHTML(task.category || 'Requirement')}</small></li>`).join('')}</ul>`
+          : '<p class="student-compliance-no-lacking">✅ No lacking</p>'}
+      </div>
+      ${termTasks.length ? `
+        <div class="compliance-detail-section">
+          <strong>Term Assessment</strong>
+          <div class="compliance-detail-task-list">
+            ${termTasks.map(task => `
+              <div class="compliance-detail-task-row ${escapeAttribute(normalizeComplianceStatus(task.status))}">
+                <span>${escapeHTML(task.title || 'Term Assessment')}</span>
+                <small>${escapeHTML(complianceStatusLabel(normalizeComplianceStatus(task.status)))}</small>
+                ${complianceTermAssessmentScoreMarkup(task)}
+              </div>`).join('')}
+          </div>
+        </div>` : ''}
+      <p class="helper-note">${escapeHTML(sanitized.subject || 'Subject')} · ${escapeHTML(sanitized.term || 'Term')} · Updated ${escapeHTML(updatedText)}</p>
+    </div>`;
+}
+
+function renderAdminComplianceViewer() {
+  if (!adminComplianceStudentList) return;
+  renderAdminComplianceViewerSectionOptions(loadComplianceSettings());
+  const records = getAdminComplianceViewerFilteredRecords();
+  const selectedExists = records.some(record => record.studentIdNormalized === selectedAdminComplianceStudentId);
+  if (!selectedExists) selectedAdminComplianceStudentId = records[0]?.studentIdNormalized || '';
+
+  if (!adminComplianceViewerRecords.length) {
+    adminComplianceStudentList.innerHTML = '<div class="student-compliance-empty">No published compliance records loaded yet. Click Refresh Viewer after syncing a section.</div>';
+    renderAdminComplianceStudentDetail(null);
+    return;
+  }
+
+  if (!records.length) {
+    adminComplianceStudentList.innerHTML = '<div class="student-compliance-empty">No students match the current section/search/filter.</div>';
+    renderAdminComplianceStudentDetail(null);
+    return;
+  }
+
+  adminComplianceStudentList.innerHTML = records.map(record => {
+    const summary = record.summary || summarizeComplianceTasks(record.tasks || []);
+    const missingCount = Number(summary.missing || 0);
+    const isActive = record.studentIdNormalized === selectedAdminComplianceStudentId;
+    return `
+      <button class="compliance-viewer-student-row ${isActive ? 'active' : ''}" type="button" data-admin-compliance-student="${escapeAttribute(record.studentIdNormalized)}">
+        <span>
+          <strong>${escapeHTML(record.studentName || 'Student')}</strong>
+          <small>${escapeHTML(record.studentId || record.studentIdNormalized || 'No ID')} · ${escapeHTML(record.section || 'No section')}</small>
+        </span>
+        <em class="${missingCount ? 'has-lacking' : 'no-lacking'}">${missingCount ? `${missingCount} lacking` : 'No lacking'}</em>
+      </button>`;
+  }).join('');
+
+  const selected = records.find(record => record.studentIdNormalized === selectedAdminComplianceStudentId) || records[0] || null;
+  renderAdminComplianceStudentDetail(selected);
+}
+
+async function loadAdminComplianceViewer(options = {}) {
+  if (!adminComplianceStudentList) return [];
+  if (!isTeacherAuthenticated()) {
+    setAdminComplianceViewerStatus('Login as teacher to view student compliance records.', 'warning');
+    return [];
+  }
+  setAdminComplianceViewerStatus('Loading published compliance records from Firebase...', '');
+  if (refreshAdminComplianceViewerBtn) refreshAdminComplianceViewerBtn.disabled = true;
+  try {
+    const ready = await initFirebaseSync();
+    if (!ready) throw new Error(firebaseSync.lastError || 'Firebase is not ready.');
+    const { getDocs } = firebaseSync.modules;
+    const snapshot = await withTimeout(
+      getDocs(getComplianceCollectionRef()),
+      APP_NETWORK_TIMEOUT_MS,
+      'Loading compliance viewer is taking too long. Check the connection and try again.'
+    );
+    const docs = Array.from(snapshot?.docs || []);
+    adminComplianceViewerRecords = docs
+      .map(docSnap => sanitizeComplianceStudentRecord({ id: docSnap.id, ...(typeof docSnap.data === 'function' ? docSnap.data() : {}) }))
+      .filter(record => record.studentIdNormalized)
+      .sort((a, b) => String(a.section || '').localeCompare(String(b.section || '')) || String(a.studentName || '').localeCompare(String(b.studentName || '')));
+    renderAdminComplianceViewer();
+    const lacking = adminComplianceViewerRecords.filter(record => Number((record.summary || {}).missing || 0) > 0).length;
+    if (!options.silent) setAdminComplianceViewerStatus(`Loaded ${adminComplianceViewerRecords.length} student record(s). ${lacking} student(s) currently have lacking requirements.`, 'success');
+    return adminComplianceViewerRecords;
+  } catch (error) {
+    console.warn('Could not load admin compliance viewer.', error);
+    setAdminComplianceViewerStatus(error?.message || 'Could not load student compliance records.', 'error');
+    return [];
+  } finally {
+    if (refreshAdminComplianceViewerBtn) refreshAdminComplianceViewerBtn.disabled = false;
   }
 }
 
@@ -4993,6 +5175,7 @@ async function publishComplianceSync() {
     }
     const issueText = Array.isArray(payload.errors) && payload.errors.length ? ` ${payload.errors.length} sheet issue(s) were skipped; check preview.` : '';
     setComplianceSyncStatus(`Published ${saved} student status records for ${payload.selectedSection || 'checked section(s)'}. Students can refresh My Projects to see updates.${issueText}`, 'success');
+    loadAdminComplianceViewer({ silent: true }).catch(error => console.warn('Compliance viewer refresh failed.', error));
     if (appSession.student) loadStudentComplianceStatus({ silent: true });
   } catch (error) {
     console.warn('Compliance publish failed.', error);
@@ -10953,6 +11136,10 @@ function setAdminTab(tabName = 'students') {
     const isActive = panel.dataset.adminPanel === nextTab;
     panel.classList.toggle('active', isActive);
   });
+
+  if (nextTab === 'compliance' && isTeacherAuthenticated() && adminComplianceViewerRecords.length === 0) {
+    loadAdminComplianceViewer({ silent: true }).catch(error => console.warn('Compliance viewer auto-load failed.', error));
+  }
 }
 
 function initAdminTabs() {
@@ -14150,6 +14337,17 @@ saveComplianceSettingsBtn?.addEventListener('click', async () => {
 });
 previewComplianceSyncBtn?.addEventListener('click', previewComplianceSync);
 publishComplianceSyncBtn?.addEventListener('click', publishComplianceSync);
+refreshAdminComplianceViewerBtn?.addEventListener('click', () => loadAdminComplianceViewer());
+[adminComplianceViewerSectionSelect, adminComplianceViewerSearch, adminComplianceViewerFilter].forEach(control => {
+  control?.addEventListener('input', renderAdminComplianceViewer);
+  control?.addEventListener('change', renderAdminComplianceViewer);
+});
+adminComplianceStudentList?.addEventListener('click', event => {
+  const row = event.target?.closest?.('[data-admin-compliance-student]');
+  if (!row) return;
+  selectedAdminComplianceStudentId = String(row.dataset.adminComplianceStudent || '').trim();
+  renderAdminComplianceViewer();
+});
 dashboardSubjectStatusBtn?.addEventListener('click', openStudentComplianceModal);
 closeStudentComplianceBtn?.addEventListener('click', closeStudentComplianceModal);
 studentComplianceOverlay?.addEventListener('click', event => {
