@@ -43,7 +43,7 @@
       document.documentElement.dataset.deviceMode = isPhone ? 'phone' : 'desktop';
     })();
   </script>
-  <link rel="stylesheet" href="style.css?v=20260725-step163-darkmode-compliance-readability" />
+  <link rel="stylesheet" href="style.css?v=20260725-step164-lesson-viewer" />
 </head>
 <body class="entry-gate-active">
   <noscript>
@@ -141,6 +141,7 @@
         <button id="dashboardThemeBtn" class="ghost-btn" type="button">🌙 Theme</button>
         <button id="dashboardRecitationStatusBtn" class="ghost-btn recitation-status-open-btn" type="button">📋 Recitation Status</button>
         <button id="dashboardSubjectStatusBtn" class="ghost-btn dashboard-subject-status-btn" type="button">📌 Subject Status</button>
+        <button id="dashboardLessonViewerBtn" class="ghost-btn dashboard-lesson-viewer-btn" type="button">📚 Lesson Viewer</button>
         <button id="dashboardJoinProjectBtn" class="ghost-btn dashboard-join-project-btn hidden" type="button">🤝 Join a Project</button>
         <button id="dashboardLogoutBtn" class="ghost-btn danger" type="button">Log Out</button>
       </div>
@@ -153,6 +154,7 @@
           <p>Every edit is saved automatically while you are logged in.</p>
         </div>
         <div class="dashboard-hero-actions">
+          <button id="dashboardOpenLessonsBtn" class="ghost-btn dashboard-lessons-hero-btn" type="button">📚 Open Lessons</button>
           <button id="newProjectBtn" class="primary-btn dashboard-new-btn" type="button">+ New Project</button>
         </div>
       </section>
@@ -190,6 +192,86 @@
       <div id="projectDashboardStatus" class="dashboard-status" role="status">Loading projects...</div>
       <section id="studentProjectsGrid" class="student-projects-grid" aria-live="polite"></section>
     </main>
+  </div>
+
+
+  <div id="lessonViewerScreen" class="lesson-viewer-screen hidden" aria-labelledby="lessonLibraryTitle">
+    <header class="lesson-library-header">
+      <div class="lesson-library-brand">
+        <button id="lessonLibraryBackBtn" class="ghost-btn lesson-library-back-btn" type="button" aria-label="Go back">← Back</button>
+        <div class="lesson-library-icon" aria-hidden="true">📚</div>
+        <div>
+          <p class="section-kicker">Digital Learning Library</p>
+          <h1 id="lessonLibraryTitle">Lesson Viewer</h1>
+          <p id="lessonLibrarySubtitle" class="muted-text">Choose a term, then open a PDF lesson.</p>
+        </div>
+      </div>
+      <div class="lesson-library-header-actions">
+        <button id="lessonLibraryRefreshBtn" class="ghost-btn" type="button">↻ Refresh</button>
+        <button id="lessonLibraryThemeBtn" class="ghost-btn" type="button">🌙 Theme</button>
+      </div>
+    </header>
+
+    <main class="lesson-library-main">
+      <section class="lesson-library-welcome-card">
+        <div>
+          <span class="lesson-library-eyebrow">Learn anytime, on any device</span>
+          <h2>Your lessons, organized and easy to read.</h2>
+          <p>PDF lessons are arranged by Term 1, Term 2, and Term 3. Use search and sorting to find a lesson quickly.</p>
+        </div>
+        <div class="lesson-library-stat" aria-label="Available lessons">
+          <strong id="lessonLibraryTotalCount">0</strong>
+          <span>Lessons</span>
+        </div>
+      </section>
+
+      <section class="lesson-library-controls" aria-label="Lesson filters">
+        <div id="lessonTermTabs" class="lesson-term-tabs" role="tablist" aria-label="Choose term">
+          <button class="lesson-term-tab active" type="button" role="tab" aria-selected="true" data-lesson-term="term1">Term 1 <span data-term-count="term1">0</span></button>
+          <button class="lesson-term-tab" type="button" role="tab" aria-selected="false" data-lesson-term="term2">Term 2 <span data-term-count="term2">0</span></button>
+          <button class="lesson-term-tab" type="button" role="tab" aria-selected="false" data-lesson-term="term3">Term 3 <span data-term-count="term3">0</span></button>
+        </div>
+        <div class="lesson-library-filter-row">
+          <label class="lesson-library-search">
+            <span aria-hidden="true">🔎</span>
+            <input id="lessonLibrarySearch" type="search" placeholder="Search lesson title or topic" autocomplete="off" />
+          </label>
+          <select id="lessonLibrarySort" aria-label="Sort lessons">
+            <option value="order-asc">Lesson order</option>
+            <option value="title-asc">Title A–Z</option>
+            <option value="newest">Newest uploaded</option>
+            <option value="oldest">Oldest uploaded</option>
+          </select>
+        </div>
+      </section>
+
+      <div id="lessonLibraryStatus" class="lesson-library-status" role="status">Loading lessons...</div>
+      <section id="lessonLibraryGrid" class="lesson-library-grid" aria-live="polite"></section>
+    </main>
+
+    <div id="lessonPdfOverlay" class="lesson-pdf-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="lessonPdfTitle">
+      <section id="lessonPdfCard" class="lesson-pdf-card" role="document">
+        <header class="lesson-pdf-header">
+          <div class="lesson-pdf-heading">
+            <span id="lessonPdfTerm" class="lesson-pdf-term">Term 1</span>
+            <div>
+              <h2 id="lessonPdfTitle">Lesson</h2>
+              <p id="lessonPdfDescription" class="muted-text"></p>
+            </div>
+          </div>
+          <div class="lesson-pdf-actions">
+            <button id="lessonPdfFullscreenBtn" class="ghost-btn" type="button">⛶ Fullscreen</button>
+            <a id="lessonPdfOpenBtn" class="ghost-btn lesson-link-btn" href="#" target="_blank" rel="noopener noreferrer">↗ Open</a>
+            <a id="lessonPdfDownloadBtn" class="ghost-btn lesson-link-btn" href="#" target="_blank" rel="noopener noreferrer">⬇ Download</a>
+            <button id="lessonPdfCloseBtn" class="icon-btn" type="button" aria-label="Close PDF lesson">×</button>
+          </div>
+        </header>
+        <div class="lesson-pdf-body">
+          <div id="lessonPdfLoading" class="lesson-pdf-loading"><span class="lesson-loading-spinner" aria-hidden="true"></span><strong>Opening PDF lesson...</strong><small>Large files may take a moment on slower connections.</small></div>
+          <iframe id="lessonPdfFrame" class="lesson-pdf-frame" title="PDF lesson viewer" allow="fullscreen" referrerpolicy="strict-origin-when-cross-origin"></iframe>
+        </div>
+      </section>
+    </div>
   </div>
 
   <div id="studentComplianceOverlay" class="student-auth-overlay student-compliance-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="studentComplianceTitle">
@@ -339,6 +421,7 @@
         </div>
         <button id="menuSaveProjectBtn" class="ghost-btn student-manual-save-btn hidden" type="button" role="menuitem">💾 Save</button>
         <button id="menuMyProjectsBtn" class="ghost-btn" type="button" role="menuitem">📁 My Projects</button>
+        <button id="menuLessonViewerBtn" class="ghost-btn" type="button" role="menuitem">📚 Lesson Viewer</button>
         <button id="menuStudentLogoutBtn" class="ghost-btn danger" type="button" role="menuitem">Log Out</button>
       </div>
 
@@ -347,6 +430,7 @@
         <span id="studentSaveState" class="student-save-state">Saved</span>
         <button id="saveStudentProjectBtn" class="ghost-btn student-manual-save-btn hidden" type="button" title="Save current project: Ctrl + S">💾 Save</button>
         <button id="myProjectsBtn" class="ghost-btn" type="button">📁 My Projects</button>
+        <button id="lessonViewerBtn" class="ghost-btn" type="button">📚 Lessons</button>
         <button id="studentHeaderLogoutBtn" class="ghost-btn danger" type="button">Log Out</button>
       </div>
       <div id="guestAccountStrip" class="student-account-strip guest-account-strip hidden" aria-label="Guest actions">
@@ -601,6 +685,7 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
           <button id="adminTabStudents" class="admin-tab-btn active" type="button" role="tab" aria-selected="true" aria-controls="studentAccountsAdmin" data-admin-tab="students">Students</button>
           <button id="adminTabAssistance" class="admin-tab-btn" type="button" role="tab" aria-selected="false" aria-controls="studentAssistanceSettings" data-admin-tab="assistance">Assistance</button>
           <button id="adminTabCompliance" class="admin-tab-btn" type="button" role="tab" aria-selected="false" aria-controls="complianceTrackerAdmin" data-admin-tab="compliance">Compliance</button>
+          <button id="adminTabLessons" class="admin-tab-btn" type="button" role="tab" aria-selected="false" aria-controls="lessonManagerAdmin" data-admin-tab="lessons">Lessons</button>
           <button id="adminTabActivities" class="admin-tab-btn" type="button" role="tab" aria-selected="false" aria-controls="activitiesRubricsAdmin" data-admin-tab="activities">Activities &amp; Rubric</button>
         </div>
       </div>
@@ -1037,6 +1122,111 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
           </div>
         </section>
 
+
+        <section id="lessonManagerAdmin" class="admin-tab-panel lesson-manager-admin" data-admin-panel="lessons" aria-labelledby="lessonManagerTitle">
+          <div class="lesson-manager-heading">
+            <div>
+              <p class="section-kicker">PDF Lesson Library</p>
+              <h3 id="lessonManagerTitle">Upload and Organize Lessons</h3>
+              <p class="muted-text">Store PDFs in your own Google Drive and publish only the lesson details in Firebase. No Firebase Storage, billing account, or card is required.</p>
+            </div>
+            <button id="lessonAdminRefreshBtn" class="ghost-btn" type="button">↻ Refresh Lessons</button>
+          </div>
+
+          <div id="lessonDriveSetupNotice" class="lesson-drive-setup-notice">
+            <div class="lesson-drive-notice-icon" aria-hidden="true">☁️</div>
+            <div>
+              <strong>Free Google Drive connection</strong>
+              <p id="lessonDriveSetupText">Add a free Google OAuth Client ID in firebase-config.js to enable direct PDF upload. You can already use Paste PDF/Drive Link below.</p>
+            </div>
+            <button id="lessonDriveConnectBtn" class="primary-btn" type="button">Connect Google Drive</button>
+          </div>
+          <p id="lessonDriveStatus" class="helper-note" role="status">Google Drive is not connected. Access tokens stay only in this browser tab.</p>
+
+          <div class="lesson-manager-layout">
+            <section class="lesson-editor-card" aria-label="Lesson details form">
+              <div class="lesson-editor-card-head">
+                <div>
+                  <span id="lessonEditorModeBadge" class="lesson-editor-mode-badge">New Lesson</span>
+                  <h4 id="lessonEditorHeading">Add a PDF Lesson</h4>
+                </div>
+                <button id="lessonAdminCancelEditBtn" class="ghost-btn hidden" type="button">Cancel Edit</button>
+              </div>
+
+              <div class="lesson-admin-form-grid">
+                <label>
+                  Lesson Title
+                  <input id="lessonAdminTitle" type="text" maxlength="120" placeholder="Example: Lesson 1 – Introduction to HTML" autocomplete="off" />
+                </label>
+                <label>
+                  Term
+                  <select id="lessonAdminTerm">
+                    <option value="term1">Term 1</option>
+                    <option value="term2">Term 2</option>
+                    <option value="term3">Term 3</option>
+                  </select>
+                </label>
+                <label>
+                  Lesson Number / Order
+                  <input id="lessonAdminOrder" type="number" min="1" max="999" step="1" value="1" inputmode="numeric" />
+                </label>
+              </div>
+
+              <label>
+                Short Description <span class="lesson-optional-label">Optional</span>
+                <textarea id="lessonAdminDescription" rows="3" maxlength="300" placeholder="What will students learn in this lesson?"></textarea>
+              </label>
+
+              <div class="lesson-file-source-tabs" role="tablist" aria-label="Choose PDF source">
+                <button class="lesson-file-source-tab active" type="button" role="tab" aria-selected="true" data-lesson-source="upload">Upload PDF</button>
+                <button class="lesson-file-source-tab" type="button" role="tab" aria-selected="false" data-lesson-source="link">Paste PDF / Drive Link</button>
+              </div>
+
+              <div id="lessonUploadSourcePanel" class="lesson-source-panel active">
+                <label class="lesson-file-dropzone" for="lessonAdminFile">
+                  <input id="lessonAdminFile" type="file" accept="application/pdf,.pdf" />
+                  <span class="lesson-file-drop-icon" aria-hidden="true">📄</span>
+                  <strong id="lessonAdminFileName">Choose a PDF file</strong>
+                  <small>PDF only. The file goes to your connected Google Drive.</small>
+                </label>
+              </div>
+
+              <div id="lessonLinkSourcePanel" class="lesson-source-panel hidden">
+                <label>
+                  Public Google Drive or PDF Link
+                  <input id="lessonAdminUrl" type="url" placeholder="https://drive.google.com/file/d/.../view" autocomplete="off" />
+                </label>
+                <p class="helper-note">For Google Drive, set the file to “Anyone with the link can view.” The app automatically converts common Drive links into viewer links.</p>
+              </div>
+
+              <div class="lesson-admin-publish-row">
+                <button id="lessonAdminPublishBtn" class="primary-btn" type="button">Publish Lesson</button>
+                <span id="lessonAdminStatus" class="helper-note" role="status">Ready to add a lesson.</span>
+              </div>
+            </section>
+
+            <section class="lesson-admin-library-card" aria-label="Published lessons">
+              <div class="lesson-admin-list-head">
+                <div>
+                  <h4>Published Lessons</h4>
+                  <p class="muted-text">Edit, delete, or move lessons within each term.</p>
+                </div>
+                <div class="lesson-admin-list-filters">
+                  <select id="lessonAdminTermFilter" aria-label="Filter lessons by term">
+                    <option value="all">All Terms</option>
+                    <option value="term1">Term 1</option>
+                    <option value="term2">Term 2</option>
+                    <option value="term3">Term 3</option>
+                  </select>
+                  <input id="lessonAdminSearch" type="search" placeholder="Search lessons" autocomplete="off" />
+                </div>
+              </div>
+              <div id="lessonAdminListStatus" class="helper-note" role="status">Loading lessons...</div>
+              <div id="lessonAdminList" class="lesson-admin-list"></div>
+            </section>
+          </div>
+        </section>
+
         <section id="activitiesRubricsAdmin" class="admin-tab-panel" data-admin-panel="activities" aria-labelledby="activitiesRubricsTitle">
         <div class="admin-section-divider"><span>Activities & Rubrics</span></div>
         <div class="admin-activity-manager">
@@ -1322,6 +1512,6 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
   <script src="firebase-config.js"></script>
-  <script src="script.js?v=20260725-step161-admin-compliance-viewer"></script>
+  <script src="script.js?v=20260725-step164-lesson-viewer"></script>
 </body>
 </html>

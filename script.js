@@ -226,6 +226,30 @@ const studentDashboard = document.getElementById('studentDashboard');
 const dashboardGreeting = document.getElementById('dashboardGreeting');
 const dashboardThemeBtn = document.getElementById('dashboardThemeBtn');
 const dashboardSubjectStatusBtn = document.getElementById('dashboardSubjectStatusBtn');
+const dashboardLessonViewerBtn = document.getElementById('dashboardLessonViewerBtn');
+const dashboardOpenLessonsBtn = document.getElementById('dashboardOpenLessonsBtn');
+const lessonViewerScreen = document.getElementById('lessonViewerScreen');
+const lessonLibraryBackBtn = document.getElementById('lessonLibraryBackBtn');
+const lessonLibraryRefreshBtn = document.getElementById('lessonLibraryRefreshBtn');
+const lessonLibraryThemeBtn = document.getElementById('lessonLibraryThemeBtn');
+const lessonLibraryTotalCount = document.getElementById('lessonLibraryTotalCount');
+const lessonLibrarySearch = document.getElementById('lessonLibrarySearch');
+const lessonLibrarySort = document.getElementById('lessonLibrarySort');
+const lessonTermTabs = document.getElementById('lessonTermTabs');
+const lessonLibraryStatus = document.getElementById('lessonLibraryStatus');
+const lessonLibraryGrid = document.getElementById('lessonLibraryGrid');
+const lessonPdfOverlay = document.getElementById('lessonPdfOverlay');
+const lessonPdfCard = document.getElementById('lessonPdfCard');
+const lessonPdfTerm = document.getElementById('lessonPdfTerm');
+const lessonPdfTitle = document.getElementById('lessonPdfTitle');
+const lessonPdfDescription = document.getElementById('lessonPdfDescription');
+const lessonPdfFullscreenBtn = document.getElementById('lessonPdfFullscreenBtn');
+const lessonPdfOpenBtn = document.getElementById('lessonPdfOpenBtn');
+const lessonPdfDownloadBtn = document.getElementById('lessonPdfDownloadBtn');
+const lessonPdfCloseBtn = document.getElementById('lessonPdfCloseBtn');
+const lessonPdfLoading = document.getElementById('lessonPdfLoading');
+const lessonPdfFrame = document.getElementById('lessonPdfFrame');
+
 const dashboardLogoutBtn = document.getElementById('dashboardLogoutBtn');
 const newProjectBtn = document.getElementById('newProjectBtn');
 const projectSearchInput = document.getElementById('projectSearchInput');
@@ -265,8 +289,10 @@ const menuStudentGreeting = document.getElementById('menuStudentGreeting');
 const menuStudentSaveState = document.getElementById('menuStudentSaveState');
 const menuSaveProjectBtn = document.getElementById('menuSaveProjectBtn');
 const menuMyProjectsBtn = document.getElementById('menuMyProjectsBtn');
+const menuLessonViewerBtn = document.getElementById('menuLessonViewerBtn');
 const menuStudentLogoutBtn = document.getElementById('menuStudentLogoutBtn');
 const myProjectsBtn = document.getElementById('myProjectsBtn');
+const lessonViewerBtn = document.getElementById('lessonViewerBtn');
 const studentHeaderLogoutBtn = document.getElementById('studentHeaderLogoutBtn');
 const guestAccountStrip = document.getElementById('guestAccountStrip');
 const guestLoginToSaveBtn = document.getElementById('guestLoginToSaveBtn');
@@ -329,6 +355,33 @@ const adminProjectFullscreenCode = document.getElementById('adminProjectFullscre
 const adminProjectFullscreenFrame = document.getElementById('adminProjectFullscreenFrame');
 const adminProjectFullscreenPreviewNote = document.getElementById('adminProjectFullscreenPreviewNote');
 
+// Lesson Viewer and teacher Lesson Manager elements.
+const lessonDriveConnectBtn = document.getElementById('lessonDriveConnectBtn');
+const lessonDriveSetupNotice = document.getElementById('lessonDriveSetupNotice');
+const lessonDriveSetupText = document.getElementById('lessonDriveSetupText');
+const lessonDriveStatus = document.getElementById('lessonDriveStatus');
+const lessonAdminRefreshBtn = document.getElementById('lessonAdminRefreshBtn');
+const lessonAdminCancelEditBtn = document.getElementById('lessonAdminCancelEditBtn');
+const lessonEditorModeBadge = document.getElementById('lessonEditorModeBadge');
+const lessonEditorHeading = document.getElementById('lessonEditorHeading');
+const lessonAdminTitle = document.getElementById('lessonAdminTitle');
+const lessonAdminTerm = document.getElementById('lessonAdminTerm');
+const lessonAdminOrder = document.getElementById('lessonAdminOrder');
+const lessonAdminDescription = document.getElementById('lessonAdminDescription');
+const lessonAdminFile = document.getElementById('lessonAdminFile');
+const lessonAdminFileName = document.getElementById('lessonAdminFileName');
+const lessonAdminUrl = document.getElementById('lessonAdminUrl');
+const lessonUploadSourcePanel = document.getElementById('lessonUploadSourcePanel');
+const lessonLinkSourcePanel = document.getElementById('lessonLinkSourcePanel');
+const lessonAdminPublishBtn = document.getElementById('lessonAdminPublishBtn');
+const lessonAdminStatus = document.getElementById('lessonAdminStatus');
+const lessonAdminTermFilter = document.getElementById('lessonAdminTermFilter');
+const lessonAdminSearch = document.getElementById('lessonAdminSearch');
+const lessonAdminListStatus = document.getElementById('lessonAdminListStatus');
+const lessonAdminList = document.getElementById('lessonAdminList');
+const lessonFileSourceTabs = Array.from(document.querySelectorAll('[data-lesson-source]'));
+
+
 
 // Built-in Firebase fallback config.
 // This prevents the Teacher/Admin login from failing with "Firebase is not ready"
@@ -360,6 +413,7 @@ function ensureFirebaseFrontendConfig() {
   if (typeof window.MCS_RUBRIC_IMAGE_ENDPOINT === 'undefined') window.MCS_RUBRIC_IMAGE_ENDPOINT = '';
   if (typeof window.MCS_AI_CHECKER_ENDPOINT === 'undefined') window.MCS_AI_CHECKER_ENDPOINT = '';
   if (typeof window.MCS_AI_CHECKER_ENABLED === 'undefined') window.MCS_AI_CHECKER_ENABLED = true;
+  if (typeof window.MCS_GOOGLE_DRIVE_CLIENT_ID === 'undefined') window.MCS_GOOGLE_DRIVE_CLIENT_ID = '';
 }
 
 ensureFirebaseFrontendConfig();
@@ -376,7 +430,8 @@ const STORAGE_KEYS = {
   editorZoom: 'studentCodeStudio.editorZoom.v1',
   fileNames: 'studentCodeStudio.fileNames.v1',
   assistanceSettings: 'studentCodeStudio.assistanceSettings.v1',
-  complianceSettings: 'studentCodeStudio.complianceSettings.v1'
+  complianceSettings: 'studentCodeStudio.complianceSettings.v1',
+  lessonLibrary: 'studentCodeStudio.lessonLibrary.v1'
 };
 
 
@@ -11148,12 +11203,761 @@ function exitFullEditor(options = {}) {
   }
 }
 
+
+
+/* =========================================================
+   Lesson Viewer + free Google Drive Lesson Manager
+   PDF files stay in the teacher's Google Drive. Firestore stores
+   only the small lesson list inside the existing root document.
+   ========================================================= */
+const LESSON_TERMS = Object.freeze({
+  term1: 'Term 1',
+  term2: 'Term 2',
+  term3: 'Term 3'
+});
+const LESSON_GOOGLE_DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
+const LESSON_GOOGLE_API_BASE = 'https://www.googleapis.com/drive/v3';
+const LESSON_GOOGLE_UPLOAD_BASE = 'https://www.googleapis.com/upload/drive/v3';
+const lessonLibraryState = {
+  lessons: [],
+  loaded: false,
+  loading: false,
+  activeTerm: 'term1',
+  sourceMode: 'upload',
+  editingId: '',
+  returnView: 'dashboard',
+  driveAccessToken: '',
+  driveTokenExpiresAt: 0,
+  driveTokenClient: null,
+  pdfLoadTimer: null
+};
+
+function lessonTermLabel(term = 'term1') {
+  return LESSON_TERMS[term] || LESSON_TERMS.term1;
+}
+
+function lessonTimestampMs(value) {
+  if (!value) return 0;
+  if (typeof value?.toDate === 'function') return value.toDate().getTime();
+  if (typeof value?.seconds === 'number') return value.seconds * 1000;
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isFinite(date.getTime()) ? date.getTime() : 0;
+}
+
+function lessonIsoDate(value = Date.now()) {
+  const ms = lessonTimestampMs(value) || Date.now();
+  return new Date(ms).toISOString();
+}
+
+function extractGoogleDriveFileId(value = '') {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  const patterns = [
+    /\/file\/d\/([a-zA-Z0-9_-]+)/i,
+    /[?&]id=([a-zA-Z0-9_-]+)/i,
+    /\/d\/([a-zA-Z0-9_-]+)/i
+  ];
+  for (const pattern of patterns) {
+    const match = raw.match(pattern);
+    if (match?.[1]) return match[1];
+  }
+  return '';
+}
+
+function buildGoogleDriveLessonUrls(fileId = '') {
+  const id = String(fileId || '').trim();
+  if (!id) return { previewUrl: '', openUrl: '', downloadUrl: '' };
+  return {
+    previewUrl: `https://drive.google.com/file/d/${encodeURIComponent(id)}/preview`,
+    openUrl: `https://drive.google.com/file/d/${encodeURIComponent(id)}/view`,
+    downloadUrl: `https://drive.google.com/uc?export=download&id=${encodeURIComponent(id)}`
+  };
+}
+
+function normalizeLessonSourceUrl(value = '') {
+  const raw = String(value || '').trim();
+  if (!raw) return { fileId: '', previewUrl: '', openUrl: '', downloadUrl: '', source: 'link' };
+  let parsed = null;
+  try {
+    parsed = new URL(raw, window.location.href);
+  } catch (_) {
+    throw new Error('Enter a complete public PDF or Google Drive link.');
+  }
+  if (!/^https?:$/i.test(parsed.protocol)) throw new Error('Only secure web links can be used for lessons.');
+  const fileId = extractGoogleDriveFileId(raw);
+  if (fileId) return { fileId, ...buildGoogleDriveLessonUrls(fileId), source: 'drive-link' };
+  return { fileId: '', previewUrl: parsed.href, openUrl: parsed.href, downloadUrl: parsed.href, source: 'external-link' };
+}
+
+function normalizeLesson(raw = {}, index = 0) {
+  const term = Object.prototype.hasOwnProperty.call(LESSON_TERMS, raw.term) ? raw.term : 'term1';
+  const fileId = String(raw.fileId || extractGoogleDriveFileId(raw.previewUrl || raw.openUrl || raw.url || '') || '').trim();
+  const driveUrls = buildGoogleDriveLessonUrls(fileId);
+  const previewUrl = String(raw.previewUrl || raw.url || driveUrls.previewUrl || '').trim();
+  const openUrl = String(raw.openUrl || driveUrls.openUrl || previewUrl).trim();
+  const downloadUrl = String(raw.downloadUrl || driveUrls.downloadUrl || openUrl).trim();
+  const order = Math.max(1, Math.min(999, Number.parseInt(raw.order, 10) || index + 1));
+  return {
+    id: String(raw.id || `lesson-${Date.now()}-${index}`).replace(/[^a-zA-Z0-9_-]/g, '-'),
+    title: String(raw.title || 'Untitled Lesson').trim().slice(0, 120),
+    description: String(raw.description || '').trim().slice(0, 300),
+    term,
+    order,
+    fileId,
+    fileName: String(raw.fileName || '').trim().slice(0, 180),
+    fileSize: Math.max(0, Number(raw.fileSize || 0)),
+    previewUrl,
+    openUrl,
+    downloadUrl,
+    source: String(raw.source || (fileId ? 'google-drive' : 'external-link')),
+    uploadedAt: lessonIsoDate(raw.uploadedAt || raw.createdAt || Date.now()),
+    updatedAt: lessonIsoDate(raw.updatedAt || raw.uploadedAt || raw.createdAt || Date.now())
+  };
+}
+
+function sortLessonsForDisplay(items = [], mode = 'order-asc') {
+  const lessons = [...items];
+  if (mode === 'title-asc') return lessons.sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }));
+  if (mode === 'newest') return lessons.sort((a, b) => lessonTimestampMs(b.updatedAt) - lessonTimestampMs(a.updatedAt));
+  if (mode === 'oldest') return lessons.sort((a, b) => lessonTimestampMs(a.updatedAt) - lessonTimestampMs(b.updatedAt));
+  return lessons.sort((a, b) => a.order - b.order || a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }));
+}
+
+function saveLessonLibraryCache() {
+  saveJSON(STORAGE_KEYS.lessonLibrary, {
+    savedAt: Date.now(),
+    lessons: lessonLibraryState.lessons.map((lesson, index) => normalizeLesson(lesson, index))
+  });
+}
+
+function loadLessonLibraryCache() {
+  const cached = loadJSON(STORAGE_KEYS.lessonLibrary, null);
+  const list = Array.isArray(cached?.lessons) ? cached.lessons : [];
+  return list.map((lesson, index) => normalizeLesson(lesson, index));
+}
+
+function formatLessonFileSize(bytes = 0) {
+  const size = Number(bytes || 0);
+  if (!size) return '';
+  if (size < 1024 * 1024) return `${Math.max(1, Math.round(size / 1024))} KB`;
+  return `${(size / (1024 * 1024)).toFixed(size >= 10 * 1024 * 1024 ? 0 : 1)} MB`;
+}
+
+function setLessonLibraryStatus(message = '', type = '') {
+  if (!lessonLibraryStatus) return;
+  lessonLibraryStatus.textContent = message;
+  lessonLibraryStatus.dataset.type = type;
+}
+
+function setLessonAdminStatus(message = '', type = '') {
+  if (!lessonAdminStatus) return;
+  lessonAdminStatus.textContent = message;
+  lessonAdminStatus.dataset.type = type;
+}
+
+function setLessonDriveStatus(message = '', type = '') {
+  if (!lessonDriveStatus) return;
+  lessonDriveStatus.textContent = message;
+  lessonDriveStatus.dataset.type = type;
+}
+
+function getLessonFilteredForStudent() {
+  const term = lessonLibraryState.activeTerm;
+  const search = String(lessonLibrarySearch?.value || '').trim().toLowerCase();
+  const mode = lessonLibrarySort?.value || 'order-asc';
+  const matches = lessonLibraryState.lessons.filter(lesson => {
+    if (lesson.term !== term) return false;
+    if (!search) return true;
+    return `${lesson.title} ${lesson.description} ${lesson.fileName}`.toLowerCase().includes(search);
+  });
+  return sortLessonsForDisplay(matches, mode);
+}
+
+function renderLessonTermCounts() {
+  Object.keys(LESSON_TERMS).forEach(term => {
+    const count = lessonLibraryState.lessons.filter(lesson => lesson.term === term).length;
+    document.querySelectorAll(`[data-term-count="${term}"]`).forEach(element => { element.textContent = String(count); });
+  });
+  if (lessonLibraryTotalCount) lessonLibraryTotalCount.textContent = String(lessonLibraryState.lessons.length);
+}
+
+function renderStudentLessonLibrary() {
+  if (!lessonLibraryGrid) return;
+  renderLessonTermCounts();
+  lessonTermTabs?.querySelectorAll('[data-lesson-term]').forEach(button => {
+    const active = button.dataset.lessonTerm === lessonLibraryState.activeTerm;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-selected', active ? 'true' : 'false');
+  });
+  const lessons = getLessonFilteredForStudent();
+  const search = String(lessonLibrarySearch?.value || '').trim();
+  if (!lessons.length) {
+    const hasTermLessons = lessonLibraryState.lessons.some(lesson => lesson.term === lessonLibraryState.activeTerm);
+    lessonLibraryGrid.innerHTML = `
+      <div class="lesson-library-empty">
+        <span aria-hidden="true">${search ? '🔎' : '📖'}</span>
+        <h3>${search ? 'No matching lesson' : `No ${escapeHTML(lessonTermLabel(lessonLibraryState.activeTerm))} lessons yet`}</h3>
+        <p>${search ? 'Try another title or topic.' : 'Your teacher can publish PDF lessons from the Admin Lesson Manager.'}</p>
+      </div>`;
+    setLessonLibraryStatus(hasTermLessons && search ? 'No lesson matches your search.' : 'Choose another term or check again later.', hasTermLessons ? '' : 'empty');
+    return;
+  }
+  lessonLibraryGrid.innerHTML = lessons.map(lesson => {
+    const size = formatLessonFileSize(lesson.fileSize);
+    const date = lessonTimestampMs(lesson.updatedAt) ? new Date(lesson.updatedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+    return `
+      <article class="lesson-library-card" data-lesson-id="${escapeAttribute(lesson.id)}">
+        <button class="lesson-card-open" type="button" data-lesson-open="${escapeAttribute(lesson.id)}" aria-label="Open ${escapeAttribute(lesson.title)}">
+          <div class="lesson-card-cover">
+            <span class="lesson-card-number">${escapeHTML(String(lesson.order).padStart(2, '0'))}</span>
+            <span class="lesson-card-pdf">PDF</span>
+            <span class="lesson-card-book" aria-hidden="true">📘</span>
+          </div>
+          <div class="lesson-card-content">
+            <span class="lesson-card-term">${escapeHTML(lessonTermLabel(lesson.term))} · Lesson ${escapeHTML(String(lesson.order))}</span>
+            <h3>${escapeHTML(lesson.title)}</h3>
+            <p>${escapeHTML(lesson.description || 'Open this PDF lesson to read and review the topic.')}</p>
+            <div class="lesson-card-meta">
+              <span>${size || 'PDF lesson'}</span>
+              <span>${date || 'Ready to view'}</span>
+            </div>
+            <span class="lesson-card-cta">Read lesson <b aria-hidden="true">→</b></span>
+          </div>
+        </button>
+      </article>`;
+  }).join('');
+  setLessonLibraryStatus(`${lessons.length} lesson${lessons.length === 1 ? '' : 's'} in ${lessonTermLabel(lessonLibraryState.activeTerm)}.`, 'success');
+}
+
+async function loadLessonLibrary(options = {}) {
+  if (lessonLibraryState.loading) return lessonLibraryState.lessons;
+  if (lessonLibraryState.loaded && !options.force) {
+    renderStudentLessonLibrary();
+    renderAdminLessonList();
+    return lessonLibraryState.lessons;
+  }
+  lessonLibraryState.loading = true;
+  setLessonLibraryStatus('Loading lessons...', 'loading');
+  if (lessonAdminListStatus) lessonAdminListStatus.textContent = 'Loading lessons...';
+  try {
+    const ready = await initFirebaseSync();
+    if (!ready) throw new Error(firebaseSync.lastError || 'Could not connect to Firebase.');
+    const { getDoc } = firebaseSync.modules;
+    const snapshot = await withTimeout(getDoc(getCloudActivitiesDocRef()), APP_NETWORK_TIMEOUT_MS, 'Lesson list took too long to load. Check the connection and try again.');
+    const data = snapshotExists(snapshot) ? snapshotData(snapshot) : {};
+    lessonLibraryState.lessons = (Array.isArray(data.lessons) ? data.lessons : []).map((lesson, index) => normalizeLesson(lesson, index));
+    lessonLibraryState.loaded = true;
+    saveLessonLibraryCache();
+    renderStudentLessonLibrary();
+    renderAdminLessonList();
+    return lessonLibraryState.lessons;
+  } catch (error) {
+    console.warn('Could not load lesson library.', error);
+    const cached = loadLessonLibraryCache();
+    if (cached.length) {
+      lessonLibraryState.lessons = cached;
+      lessonLibraryState.loaded = true;
+      renderStudentLessonLibrary();
+      renderAdminLessonList();
+      setLessonLibraryStatus(`Offline lesson list · ${cached.length} saved item${cached.length === 1 ? '' : 's'}. Reconnect to open PDFs.`, 'warning');
+      return cached;
+    }
+    lessonLibraryState.lessons = [];
+    renderStudentLessonLibrary();
+    renderAdminLessonList();
+    setLessonLibraryStatus(error?.message || 'Could not load lessons.', 'error');
+    return [];
+  } finally {
+    lessonLibraryState.loading = false;
+  }
+}
+
+async function saveLessonLibraryToCloud() {
+  if (!isTeacherAuthenticated()) throw new Error('Log in as teacher before publishing lessons.');
+  const ready = await initFirebaseSync();
+  if (!ready) throw new Error(firebaseSync.lastError || 'Firebase is not ready.');
+  const { setDoc, serverTimestamp } = firebaseSync.modules;
+  const lessons = lessonLibraryState.lessons.map((lesson, index) => normalizeLesson(lesson, index));
+  await withTimeout(setDoc(getCloudActivitiesDocRef(), {
+    lessons,
+    lessonLibraryUpdatedAt: serverTimestamp()
+  }, { merge: true }), APP_NETWORK_TIMEOUT_MS, 'Publishing lessons took too long. Check the connection and try again.');
+  lessonLibraryState.lessons = lessons;
+  lessonLibraryState.loaded = true;
+  saveLessonLibraryCache();
+  renderStudentLessonLibrary();
+  renderAdminLessonList();
+  return true;
+}
+
+async function openLessonLibrary(origin = 'dashboard') {
+  if (!appSession.student && appSession.mode !== 'guest') {
+    openStudentLogin();
+    return;
+  }
+  lessonLibraryState.returnView = origin === 'editor' ? 'editor' : 'dashboard';
+  closeStudentAccountMenu();
+  closeLessonPdfViewer();
+  studentDashboard?.classList.add('hidden');
+  document.body.classList.remove('student-dashboard-active');
+  document.body.classList.add('lesson-viewer-active');
+  lessonViewerScreen?.classList.remove('hidden');
+  await loadLessonLibrary({ force: !lessonLibraryState.loaded });
+  window.setTimeout(() => lessonLibrarySearch?.focus({ preventScroll: true }), 60);
+}
+
+function closeLessonLibrary() {
+  closeLessonPdfViewer();
+  lessonViewerScreen?.classList.add('hidden');
+  document.body.classList.remove('lesson-viewer-active');
+  if (lessonLibraryState.returnView === 'dashboard' && appSession.student) {
+    showStudentDashboard();
+  }
+}
+
+function openLessonPdfViewer(lessonId = '') {
+  const lesson = lessonLibraryState.lessons.find(item => item.id === lessonId);
+  if (!lesson || !lesson.previewUrl) {
+    appAlert('This lesson has no valid PDF link yet.', { title: 'Lesson unavailable', danger: true });
+    return;
+  }
+  if (lessonPdfTerm) lessonPdfTerm.textContent = `${lessonTermLabel(lesson.term)} · Lesson ${lesson.order}`;
+  if (lessonPdfTitle) lessonPdfTitle.textContent = lesson.title;
+  if (lessonPdfDescription) lessonPdfDescription.textContent = lesson.description || lesson.fileName || 'PDF lesson';
+  if (lessonPdfOpenBtn) lessonPdfOpenBtn.href = lesson.openUrl || lesson.previewUrl;
+  if (lessonPdfDownloadBtn) {
+    lessonPdfDownloadBtn.href = lesson.downloadUrl || lesson.openUrl || lesson.previewUrl;
+    lessonPdfDownloadBtn.classList.toggle('hidden', !(lesson.downloadUrl || lesson.openUrl));
+  }
+  lessonPdfLoading?.classList.remove('hidden', 'lesson-pdf-load-warning');
+  if (lessonPdfLoading) lessonPdfLoading.innerHTML = '<span class="lesson-loading-spinner" aria-hidden="true"></span><strong>Opening PDF lesson...</strong><small>Large files may take a moment on slower connections.</small>';
+  lessonPdfOverlay?.classList.remove('hidden');
+  document.body.classList.add('lesson-pdf-open');
+  window.clearTimeout(lessonLibraryState.pdfLoadTimer);
+  if (lessonPdfFrame) {
+    lessonPdfFrame.src = 'about:blank';
+    requestAnimationFrame(() => { lessonPdfFrame.src = lesson.previewUrl; });
+  }
+  lessonLibraryState.pdfLoadTimer = window.setTimeout(() => {
+    if (!lessonPdfLoading || lessonPdfLoading.classList.contains('hidden')) return;
+    lessonPdfLoading.classList.add('lesson-pdf-load-warning');
+    lessonPdfLoading.innerHTML = '<span aria-hidden="true">⏳</span><strong>The PDF is still loading.</strong><small>Check your connection or use the Open button above.</small>';
+  }, 12000);
+}
+
+function closeLessonPdfViewer() {
+  window.clearTimeout(lessonLibraryState.pdfLoadTimer);
+  lessonPdfOverlay?.classList.add('hidden');
+  document.body.classList.remove('lesson-pdf-open');
+  if (lessonPdfFrame) lessonPdfFrame.src = 'about:blank';
+  if (document.fullscreenElement === lessonPdfCard && document.exitFullscreen) document.exitFullscreen().catch(() => {});
+}
+
+async function toggleLessonPdfFullscreen() {
+  try {
+    if (document.fullscreenElement === lessonPdfCard) await document.exitFullscreen();
+    else if (lessonPdfCard?.requestFullscreen) await lessonPdfCard.requestFullscreen();
+  } catch (error) {
+    console.warn('Lesson fullscreen unavailable.', error);
+  }
+}
+
+function updateLessonDriveSetupUI() {
+  const clientId = String(window.MCS_GOOGLE_DRIVE_CLIENT_ID || '').trim();
+  const connected = Boolean(lessonLibraryState.driveAccessToken && lessonLibraryState.driveTokenExpiresAt > Date.now() + 30000);
+  lessonDriveSetupNotice?.classList.toggle('drive-ready', Boolean(clientId));
+  lessonDriveSetupNotice?.classList.toggle('drive-connected', connected);
+  if (lessonDriveSetupText) {
+    lessonDriveSetupText.textContent = clientId
+      ? 'Direct upload is configured. Connect your Google Drive when you are ready to upload or replace a PDF.'
+      : 'Add a free Google OAuth Client ID in firebase-config.js to enable direct PDF upload. You can already use Paste PDF/Drive Link below.';
+  }
+  if (lessonDriveConnectBtn) {
+    lessonDriveConnectBtn.disabled = !clientId;
+    lessonDriveConnectBtn.textContent = connected ? 'Drive Connected ✓' : (clientId ? 'Connect Google Drive' : 'Setup Required');
+  }
+  if (!clientId) setLessonDriveStatus('Direct upload needs the one-time free Google Drive setup. Paste-link publishing is ready now.', 'warning');
+  else if (connected) setLessonDriveStatus('Google Drive connected for this browser tab. PDF uploads are ready.', 'success');
+}
+
+function loadGoogleIdentityServices() {
+  if (window.google?.accounts?.oauth2) return Promise.resolve(true);
+  if (loadGoogleIdentityServices.promise) return loadGoogleIdentityServices.promise;
+  loadGoogleIdentityServices.promise = new Promise((resolve, reject) => {
+    const existing = document.querySelector('script[data-mcs-google-identity]');
+    if (existing) {
+      existing.addEventListener('load', () => resolve(true), { once: true });
+      existing.addEventListener('error', () => reject(new Error('Google login library could not load.')), { once: true });
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = 'https://accounts.google.com/gsi/client';
+    script.async = true;
+    script.defer = true;
+    script.dataset.mcsGoogleIdentity = '1';
+    script.onload = () => resolve(true);
+    script.onerror = () => reject(new Error('Google login library could not load. Check the connection.'));
+    document.head.appendChild(script);
+  });
+  return loadGoogleIdentityServices.promise;
+}
+
+async function connectLessonGoogleDrive(options = {}) {
+  const clientId = String(window.MCS_GOOGLE_DRIVE_CLIENT_ID || '').trim();
+  if (!clientId) throw new Error('Google Drive direct upload is not configured yet. Follow GOOGLE_DRIVE_LESSON_SETUP.md or use Paste PDF/Drive Link.');
+  if (!isTeacherAuthenticated()) throw new Error('Log in as teacher before connecting Google Drive.');
+  if (lessonLibraryState.driveAccessToken && lessonLibraryState.driveTokenExpiresAt > Date.now() + 30000 && !options.force) return lessonLibraryState.driveAccessToken;
+  await loadGoogleIdentityServices();
+  return new Promise((resolve, reject) => {
+    try {
+      if (!lessonLibraryState.driveTokenClient) {
+        lessonLibraryState.driveTokenClient = window.google.accounts.oauth2.initTokenClient({
+          client_id: clientId,
+          scope: LESSON_GOOGLE_DRIVE_SCOPE,
+          callback: () => {}
+        });
+      }
+      lessonLibraryState.driveTokenClient.callback = response => {
+        if (response?.error) {
+          reject(new Error(response.error_description || response.error));
+          return;
+        }
+        lessonLibraryState.driveAccessToken = response.access_token || '';
+        lessonLibraryState.driveTokenExpiresAt = Date.now() + Math.max(60, Number(response.expires_in || 3600)) * 1000;
+        updateLessonDriveSetupUI();
+        resolve(lessonLibraryState.driveAccessToken);
+      };
+      lessonLibraryState.driveTokenClient.requestAccessToken({ prompt: options.force ? 'consent' : '' });
+    } catch (error) {
+      reject(error);
+    }
+  });
+}
+
+async function googleDriveFetch(url, options = {}) {
+  let token = await connectLessonGoogleDrive();
+  const request = async accessToken => fetch(url, {
+    ...options,
+    headers: {
+      ...(options.headers || {}),
+      Authorization: `Bearer ${accessToken}`
+    }
+  });
+  let response = await request(token);
+  if (response.status === 401) {
+    lessonLibraryState.driveAccessToken = '';
+    lessonLibraryState.driveTokenExpiresAt = 0;
+    token = await connectLessonGoogleDrive({ force: true });
+    response = await request(token);
+  }
+  if (!response.ok) {
+    let detail = '';
+    try {
+      const payload = await response.json();
+      detail = payload?.error?.message || payload?.error_description || '';
+    } catch (_) {
+      detail = await response.text().catch(() => '');
+    }
+    throw new Error(detail || `Google Drive request failed (${response.status}).`);
+  }
+  if (response.status === 204) return null;
+  return response.json();
+}
+
+async function uploadLessonPdfToGoogleDrive(file) {
+  if (!(file instanceof File) || !file.name) throw new Error('Choose a PDF file first.');
+  const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
+  if (!isPdf) throw new Error('Only PDF files can be uploaded as lessons.');
+  const boundary = `mcsian_lesson_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+  const metadata = {
+    name: file.name,
+    mimeType: 'application/pdf',
+    description: 'Uploaded from Sir JR Web Coding App Lesson Manager',
+    appProperties: { mcsianLessonViewer: 'true' }
+  };
+  const body = new Blob([
+    `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n`,
+    JSON.stringify(metadata),
+    `\r\n--${boundary}\r\nContent-Type: application/pdf\r\n\r\n`,
+    file,
+    `\r\n--${boundary}--`
+  ], { type: `multipart/related; boundary=${boundary}` });
+  const uploaded = await googleDriveFetch(`${LESSON_GOOGLE_UPLOAD_BASE}/files?uploadType=multipart&fields=id,name,mimeType,size,webViewLink`, {
+    method: 'POST',
+    headers: { 'Content-Type': `multipart/related; boundary=${boundary}` },
+    body
+  });
+  if (!uploaded?.id) throw new Error('Google Drive did not return a file ID.');
+  try {
+    await googleDriveFetch(`${LESSON_GOOGLE_API_BASE}/files/${encodeURIComponent(uploaded.id)}/permissions?fields=id`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'anyone', role: 'reader' })
+    });
+  } catch (error) {
+    await googleDriveFetch(`${LESSON_GOOGLE_API_BASE}/files/${encodeURIComponent(uploaded.id)}`, { method: 'DELETE' }).catch(() => {});
+    throw new Error(`The PDF uploaded, but Google Drive could not make it public. ${error?.message || ''}`.trim());
+  }
+  return {
+    fileId: uploaded.id,
+    fileName: uploaded.name || file.name,
+    fileSize: Number(uploaded.size || file.size || 0),
+    ...buildGoogleDriveLessonUrls(uploaded.id),
+    source: 'google-drive-upload'
+  };
+}
+
+async function deleteLessonDriveFile(fileId = '') {
+  const id = String(fileId || '').trim();
+  if (!id) return false;
+  await googleDriveFetch(`${LESSON_GOOGLE_API_BASE}/files/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  return true;
+}
+
+function setLessonSourceMode(mode = 'upload') {
+  lessonLibraryState.sourceMode = mode === 'link' ? 'link' : 'upload';
+  lessonFileSourceTabs.forEach(button => {
+    const active = button.dataset.lessonSource === lessonLibraryState.sourceMode;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-selected', active ? 'true' : 'false');
+  });
+  lessonUploadSourcePanel?.classList.toggle('hidden', lessonLibraryState.sourceMode !== 'upload');
+  lessonUploadSourcePanel?.classList.toggle('active', lessonLibraryState.sourceMode === 'upload');
+  lessonLinkSourcePanel?.classList.toggle('hidden', lessonLibraryState.sourceMode !== 'link');
+  lessonLinkSourcePanel?.classList.toggle('active', lessonLibraryState.sourceMode === 'link');
+}
+
+function getNextLessonOrder(term = lessonAdminTerm?.value || 'term1') {
+  const orders = lessonLibraryState.lessons.filter(lesson => lesson.term === term).map(lesson => Number(lesson.order || 0));
+  return Math.max(0, ...orders) + 1;
+}
+
+function resetLessonAdminEditor(options = {}) {
+  lessonLibraryState.editingId = '';
+  if (lessonAdminTitle) lessonAdminTitle.value = '';
+  if (lessonAdminDescription) lessonAdminDescription.value = '';
+  if (lessonAdminTerm && !options.keepTerm) lessonAdminTerm.value = 'term1';
+  if (lessonAdminOrder) lessonAdminOrder.value = String(getNextLessonOrder(lessonAdminTerm?.value || 'term1'));
+  if (lessonAdminFile) lessonAdminFile.value = '';
+  if (lessonAdminFileName) lessonAdminFileName.textContent = 'Choose a PDF file';
+  if (lessonAdminUrl) lessonAdminUrl.value = '';
+  lessonAdminCancelEditBtn?.classList.add('hidden');
+  if (lessonEditorModeBadge) lessonEditorModeBadge.textContent = 'New Lesson';
+  if (lessonEditorHeading) lessonEditorHeading.textContent = 'Add a PDF Lesson';
+  if (lessonAdminPublishBtn) lessonAdminPublishBtn.textContent = 'Publish Lesson';
+  setLessonAdminStatus('Ready to add a lesson.');
+}
+
+function editLessonAdmin(lessonId = '') {
+  const lesson = lessonLibraryState.lessons.find(item => item.id === lessonId);
+  if (!lesson) return;
+  lessonLibraryState.editingId = lesson.id;
+  if (lessonAdminTitle) lessonAdminTitle.value = lesson.title;
+  if (lessonAdminTerm) lessonAdminTerm.value = lesson.term;
+  if (lessonAdminOrder) lessonAdminOrder.value = String(lesson.order);
+  if (lessonAdminDescription) lessonAdminDescription.value = lesson.description;
+  if (lessonAdminUrl) lessonAdminUrl.value = lesson.openUrl || lesson.previewUrl;
+  if (lessonAdminFile) lessonAdminFile.value = '';
+  if (lessonAdminFileName) lessonAdminFileName.textContent = lesson.fileName ? `Keep current: ${lesson.fileName}` : 'Choose a replacement PDF';
+  setLessonSourceMode('link');
+  lessonAdminCancelEditBtn?.classList.remove('hidden');
+  if (lessonEditorModeBadge) lessonEditorModeBadge.textContent = 'Editing Lesson';
+  if (lessonEditorHeading) lessonEditorHeading.textContent = lesson.title;
+  if (lessonAdminPublishBtn) lessonAdminPublishBtn.textContent = 'Save Changes';
+  setLessonAdminStatus('Edit the details. Paste the same link to keep the current PDF, or choose Upload PDF to replace it.', 'warning');
+  document.getElementById('lessonManagerAdmin')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  window.setTimeout(() => lessonAdminTitle?.focus({ preventScroll: true }), 300);
+}
+
+function getAdminFilteredLessons() {
+  const term = lessonAdminTermFilter?.value || 'all';
+  const search = String(lessonAdminSearch?.value || '').trim().toLowerCase();
+  return sortLessonsForDisplay(lessonLibraryState.lessons.filter(lesson => {
+    if (term !== 'all' && lesson.term !== term) return false;
+    if (!search) return true;
+    return `${lesson.title} ${lesson.description} ${lesson.fileName}`.toLowerCase().includes(search);
+  }), 'order-asc').sort((a, b) => Object.keys(LESSON_TERMS).indexOf(a.term) - Object.keys(LESSON_TERMS).indexOf(b.term) || a.order - b.order);
+}
+
+function renderAdminLessonList() {
+  updateLessonDriveSetupUI();
+  if (!lessonAdminList) return;
+  const lessons = getAdminFilteredLessons();
+  if (lessonAdminListStatus) lessonAdminListStatus.textContent = lessonLibraryState.loaded
+    ? `${lessons.length} of ${lessonLibraryState.lessons.length} lesson${lessonLibraryState.lessons.length === 1 ? '' : 's'} shown.`
+    : 'Lesson list is not loaded yet.';
+  if (!lessons.length) {
+    lessonAdminList.innerHTML = '<div class="lesson-admin-empty"><span aria-hidden="true">📚</span><strong>No lessons found</strong><p>Add the first PDF lesson using the form.</p></div>';
+    return;
+  }
+  lessonAdminList.innerHTML = lessons.map(lesson => `
+    <article class="lesson-admin-row" data-admin-lesson-id="${escapeAttribute(lesson.id)}">
+      <div class="lesson-admin-order">${escapeHTML(String(lesson.order))}</div>
+      <div class="lesson-admin-row-main">
+        <div class="lesson-admin-row-title">
+          <span>${escapeHTML(lessonTermLabel(lesson.term))}</span>
+          <strong>${escapeHTML(lesson.title)}</strong>
+        </div>
+        <p>${escapeHTML(lesson.description || lesson.fileName || 'PDF lesson')}</p>
+        <small>${escapeHTML(lesson.fileName || (lesson.fileId ? 'Google Drive PDF' : 'Linked PDF'))}${lesson.fileSize ? ` · ${escapeHTML(formatLessonFileSize(lesson.fileSize))}` : ''}</small>
+      </div>
+      <div class="lesson-admin-row-actions">
+        <button class="ghost-btn" type="button" data-lesson-admin-action="up" title="Move up">↑</button>
+        <button class="ghost-btn" type="button" data-lesson-admin-action="down" title="Move down">↓</button>
+        <button class="ghost-btn" type="button" data-lesson-admin-action="view">View</button>
+        <button class="ghost-btn" type="button" data-lesson-admin-action="edit">Edit</button>
+        <button class="ghost-btn danger" type="button" data-lesson-admin-action="delete">Delete</button>
+      </div>
+    </article>`).join('');
+}
+
+async function publishLessonFromAdmin() {
+  if (!isTeacherAuthenticated()) {
+    setLessonAdminStatus('Log in as teacher before publishing lessons.', 'error');
+    return;
+  }
+  const title = String(lessonAdminTitle?.value || '').trim();
+  const description = String(lessonAdminDescription?.value || '').trim();
+  const term = Object.prototype.hasOwnProperty.call(LESSON_TERMS, lessonAdminTerm?.value) ? lessonAdminTerm.value : 'term1';
+  const order = Math.max(1, Math.min(999, Number.parseInt(lessonAdminOrder?.value, 10) || getNextLessonOrder(term)));
+  if (!title) {
+    setLessonAdminStatus('Enter the lesson title first.', 'error');
+    lessonAdminTitle?.focus();
+    return;
+  }
+  const existing = lessonLibraryState.lessons.find(lesson => lesson.id === lessonLibraryState.editingId) || null;
+  let fileData = existing ? {
+    fileId: existing.fileId,
+    fileName: existing.fileName,
+    fileSize: existing.fileSize,
+    previewUrl: existing.previewUrl,
+    openUrl: existing.openUrl,
+    downloadUrl: existing.downloadUrl,
+    source: existing.source
+  } : null;
+  let newlyUploadedFileId = '';
+  lessonAdminPublishBtn.disabled = true;
+  const oldButtonText = lessonAdminPublishBtn.textContent;
+  try {
+    if (lessonLibraryState.sourceMode === 'upload') {
+      const file = lessonAdminFile?.files?.[0];
+      if (file) {
+        setLessonAdminStatus('Uploading PDF to your Google Drive...', 'loading');
+        fileData = await uploadLessonPdfToGoogleDrive(file);
+        newlyUploadedFileId = fileData.fileId;
+      } else if (!existing) {
+        throw new Error('Choose a PDF file, or use Paste PDF / Drive Link.');
+      }
+    } else {
+      const url = String(lessonAdminUrl?.value || '').trim();
+      if (url) fileData = { ...fileData, ...normalizeLessonSourceUrl(url), fileName: fileData?.fileName || '' };
+      else if (!existing) throw new Error('Paste a public PDF or Google Drive link first.');
+    }
+    if (!fileData?.previewUrl) throw new Error('The lesson needs a valid PDF file or link.');
+    const now = new Date().toISOString();
+    const record = normalizeLesson({
+      ...(existing || {}),
+      ...fileData,
+      id: existing?.id || `lesson-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      title,
+      description,
+      term,
+      order,
+      uploadedAt: existing?.uploadedAt || now,
+      updatedAt: now
+    });
+    if (existing) lessonLibraryState.lessons = lessonLibraryState.lessons.map(lesson => lesson.id === existing.id ? record : lesson);
+    else lessonLibraryState.lessons.push(record);
+    setLessonAdminStatus('Publishing lesson list to Firebase...', 'loading');
+    await saveLessonLibraryToCloud();
+    if (existing?.fileId && newlyUploadedFileId && existing.fileId !== newlyUploadedFileId) {
+      deleteLessonDriveFile(existing.fileId).catch(error => console.warn('Old Drive lesson file was not deleted.', error));
+    }
+    resetLessonAdminEditor({ keepTerm: true });
+    setLessonAdminStatus(existing ? 'Lesson updated successfully.' : 'Lesson published successfully.', 'success');
+    setStatus(existing ? 'Lesson updated' : 'Lesson published');
+  } catch (error) {
+    console.error('Could not publish lesson.', error);
+    if (newlyUploadedFileId) deleteLessonDriveFile(newlyUploadedFileId).catch(() => {});
+    setLessonAdminStatus(error?.message || 'Could not publish the lesson.', 'error');
+  } finally {
+    lessonAdminPublishBtn.disabled = false;
+    lessonAdminPublishBtn.textContent = lessonLibraryState.editingId ? 'Save Changes' : (oldButtonText || 'Publish Lesson');
+  }
+}
+
+async function moveLessonWithinTerm(lessonId, direction) {
+  const target = lessonLibraryState.lessons.find(lesson => lesson.id === lessonId);
+  if (!target) return;
+  const termLessons = sortLessonsForDisplay(lessonLibraryState.lessons.filter(lesson => lesson.term === target.term), 'order-asc');
+  const index = termLessons.findIndex(lesson => lesson.id === lessonId);
+  const swapIndex = direction === 'up' ? index - 1 : index + 1;
+  if (index < 0 || swapIndex < 0 || swapIndex >= termLessons.length) return;
+  const other = termLessons[swapIndex];
+  const currentOrder = target.order;
+  target.order = other.order;
+  other.order = currentOrder;
+  if (target.order === other.order) {
+    termLessons.forEach((lesson, itemIndex) => { lesson.order = itemIndex + 1; });
+  }
+  try {
+    setLessonAdminStatus('Saving lesson order...', 'loading');
+    await saveLessonLibraryToCloud();
+    setLessonAdminStatus('Lesson order updated.', 'success');
+  } catch (error) {
+    setLessonAdminStatus(error?.message || 'Could not save lesson order.', 'error');
+    await loadLessonLibrary({ force: true });
+  }
+}
+
+async function deleteLessonFromAdmin(lessonId = '') {
+  const lesson = lessonLibraryState.lessons.find(item => item.id === lessonId);
+  if (!lesson) return;
+  const confirmed = await appConfirm(`Delete “${lesson.title}” from the Lesson Viewer?`, {
+    title: 'Delete Lesson',
+    confirmText: 'Delete Lesson',
+    danger: true
+  });
+  if (!confirmed) return;
+  const previous = [...lessonLibraryState.lessons];
+  lessonLibraryState.lessons = previous.filter(item => item.id !== lessonId);
+  try {
+    setLessonAdminStatus('Deleting lesson...', 'loading');
+    await saveLessonLibraryToCloud();
+    let driveMessage = '';
+    if (lesson.fileId && lessonLibraryState.driveAccessToken) {
+      try {
+        await deleteLessonDriveFile(lesson.fileId);
+        driveMessage = ' The PDF was also removed from Google Drive.';
+      } catch (error) {
+        driveMessage = ' The library entry was removed, but the Drive file remains.';
+        console.warn('Could not delete Drive file.', error);
+      }
+    } else if (lesson.fileId) {
+      driveMessage = ' Reconnect Google Drive later if you also want to delete the original Drive file.';
+    }
+    if (lessonLibraryState.editingId === lessonId) resetLessonAdminEditor();
+    setLessonAdminStatus(`Lesson deleted.${driveMessage}`, 'success');
+  } catch (error) {
+    lessonLibraryState.lessons = previous;
+    renderAdminLessonList();
+    setLessonAdminStatus(error?.message || 'Could not delete the lesson.', 'error');
+  }
+}
+
+function initializeLessonManager() {
+  updateLessonDriveSetupUI();
+  if (lessonAdminOrder && !lessonAdminOrder.value) lessonAdminOrder.value = '1';
+  if (!lessonLibraryState.loaded) loadLessonLibrary().catch(error => console.warn('Lesson manager load failed.', error));
+  else renderAdminLessonList();
+}
+
 function getStoredAdminTab() {
   return localStorage.getItem(ADMIN_TAB_STORAGE_KEY) || 'students';
 }
 
 function setAdminTab(tabName = 'students') {
-  const allowed = new Set(['students', 'assistance', 'compliance', 'activities']);
+  const allowed = new Set(['students', 'assistance', 'compliance', 'lessons', 'activities']);
   const nextTab = allowed.has(tabName) ? tabName : 'students';
   localStorage.setItem(ADMIN_TAB_STORAGE_KEY, nextTab);
 
@@ -11171,6 +11975,7 @@ function setAdminTab(tabName = 'students') {
   if (nextTab === 'compliance' && isTeacherAuthenticated() && adminComplianceViewerRecords.length === 0) {
     loadAdminComplianceViewer({ silent: true }).catch(error => console.warn('Compliance viewer auto-load failed.', error));
   }
+  if (nextTab === 'lessons' && isTeacherAuthenticated()) initializeLessonManager();
 }
 
 function initAdminTabs() {
@@ -11240,6 +12045,7 @@ function showAdminForm(activityId = adminEditingActivityId) {
   initAdminTabs();
   if (adminStudentsCache.length) renderAdminStudentTracker();
   else loadAdminStudents().catch(error => console.warn('Student tracker load failed.', error));
+  initializeLessonManager();
   const editActivity = getActivityById(activityId) || activity || activities[0] || null;
 
   if (!editActivity) {
@@ -14406,6 +15212,45 @@ document.addEventListener('keydown', event => {
 });
 studentComplianceRefreshBtn?.addEventListener('click', () => loadStudentComplianceStatus());
 
+lessonDriveConnectBtn?.addEventListener('click', async () => {
+  lessonDriveConnectBtn.disabled = true;
+  setLessonDriveStatus('Connecting to Google Drive...', 'loading');
+  try {
+    await connectLessonGoogleDrive({ force: true });
+  } catch (error) {
+    setLessonDriveStatus(error?.message || 'Could not connect Google Drive.', 'error');
+  } finally {
+    updateLessonDriveSetupUI();
+  }
+});
+lessonAdminRefreshBtn?.addEventListener('click', () => loadLessonLibrary({ force: true }));
+lessonAdminCancelEditBtn?.addEventListener('click', () => resetLessonAdminEditor({ keepTerm: true }));
+lessonFileSourceTabs.forEach(button => button.addEventListener('click', () => setLessonSourceMode(button.dataset.lessonSource)));
+lessonAdminFile?.addEventListener('change', () => {
+  const file = lessonAdminFile.files?.[0];
+  if (lessonAdminFileName) lessonAdminFileName.textContent = file ? `${file.name}${file.size ? ` · ${formatLessonFileSize(file.size)}` : ''}` : 'Choose a PDF file';
+});
+lessonAdminTerm?.addEventListener('change', () => {
+  if (!lessonLibraryState.editingId && lessonAdminOrder) lessonAdminOrder.value = String(getNextLessonOrder(lessonAdminTerm.value));
+});
+lessonAdminPublishBtn?.addEventListener('click', publishLessonFromAdmin);
+lessonAdminTermFilter?.addEventListener('change', renderAdminLessonList);
+lessonAdminSearch?.addEventListener('input', renderAdminLessonList);
+lessonAdminList?.addEventListener('click', event => {
+  const button = event.target.closest('[data-lesson-admin-action]');
+  const row = event.target.closest('[data-admin-lesson-id]');
+  if (!button || !row) return;
+  const lessonId = row.dataset.adminLessonId || '';
+  const action = button.dataset.lessonAdminAction;
+  if (action === 'edit') editLessonAdmin(lessonId);
+  if (action === 'delete') deleteLessonFromAdmin(lessonId);
+  if (action === 'up' || action === 'down') moveLessonWithinTerm(lessonId, action);
+  if (action === 'view') {
+    const lesson = lessonLibraryState.lessons.find(item => item.id === lessonId);
+    if (lesson?.openUrl) window.open(lesson.openUrl, '_blank', 'noopener,noreferrer');
+  }
+});
+
 initAdminTabs();
 adminBtn?.addEventListener('click', openAdminPanel);
 adminBtn?.addEventListener('keydown', event => {
@@ -14583,6 +15428,8 @@ menuMyProjectsBtn?.addEventListener('click', () => {
   closeStudentAccountMenu();
   showStudentDashboard();
 });
+menuLessonViewerBtn?.addEventListener('click', () => openLessonLibrary('editor'));
+lessonViewerBtn?.addEventListener('click', () => openLessonLibrary('editor'));
 menuStudentLogoutBtn?.addEventListener('click', () => {
   closeStudentAccountMenu();
   logoutStudent();
@@ -14604,6 +15451,17 @@ document.addEventListener('keydown', event => {
   if (event.key !== 'Escape') return;
 
   const isOpen = element => Boolean(element && !element.classList.contains('hidden'));
+
+  if (isOpen(lessonPdfOverlay)) {
+    event.preventDefault();
+    closeLessonPdfViewer();
+    return;
+  }
+  if (isOpen(lessonViewerScreen)) {
+    event.preventDefault();
+    closeLessonLibrary();
+    return;
+  }
 
 
   if (isOpen(adminProjectFullscreenOverlay)) {
@@ -14653,6 +15511,32 @@ document.addEventListener('keydown', event => {
 
 dashboardLogoutBtn?.addEventListener('click', logoutStudent);
 dashboardThemeBtn?.addEventListener('click', () => themeToggle?.click());
+dashboardLessonViewerBtn?.addEventListener('click', () => openLessonLibrary('dashboard'));
+dashboardOpenLessonsBtn?.addEventListener('click', () => openLessonLibrary('dashboard'));
+lessonLibraryThemeBtn?.addEventListener('click', () => themeToggle?.click());
+lessonLibraryBackBtn?.addEventListener('click', closeLessonLibrary);
+lessonLibraryRefreshBtn?.addEventListener('click', () => loadLessonLibrary({ force: true }));
+lessonLibrarySearch?.addEventListener('input', renderStudentLessonLibrary);
+lessonLibrarySort?.addEventListener('change', renderStudentLessonLibrary);
+lessonTermTabs?.addEventListener('click', event => {
+  const button = event.target.closest('[data-lesson-term]');
+  if (!button) return;
+  lessonLibraryState.activeTerm = button.dataset.lessonTerm || 'term1';
+  renderStudentLessonLibrary();
+});
+lessonLibraryGrid?.addEventListener('click', event => {
+  const button = event.target.closest('[data-lesson-open]');
+  if (button) openLessonPdfViewer(button.dataset.lessonOpen || '');
+});
+lessonPdfCloseBtn?.addEventListener('click', closeLessonPdfViewer);
+lessonPdfFullscreenBtn?.addEventListener('click', toggleLessonPdfFullscreen);
+lessonPdfFrame?.addEventListener('load', () => {
+  window.clearTimeout(lessonLibraryState.pdfLoadTimer);
+  lessonPdfLoading?.classList.add('hidden');
+});
+lessonPdfOverlay?.addEventListener('click', event => {
+  if (event.target === lessonPdfOverlay) event.stopPropagation();
+});
 newProjectBtn?.addEventListener('click', () => openProjectNameDialog('create'));
 projectSearchInput?.addEventListener('input', renderStudentProjects);
 projectStatusFilter?.addEventListener('change', renderStudentProjects);

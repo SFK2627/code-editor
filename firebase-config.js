@@ -22,3 +22,8 @@ window.MCS_AI_CHECKER_ENABLED = true;
 window.MCS_RUBRIC_IMAGE_IMPORT_ENABLED = true;
 window.MCS_RUBRIC_IMAGE_ENDPOINT = '';
 
+
+// Optional, free Google Drive direct-upload setup for the Lesson Viewer.
+// Create a Web OAuth Client ID in Google Cloud Console, enable Google Drive API,
+// and paste the client ID below. No billing account or card is required.
+window.MCS_GOOGLE_DRIVE_CLIENT_ID = '485615856896-dt2spv7cp7ccop2347qktcb3l17ne8ml.apps.googleusercontent.com';

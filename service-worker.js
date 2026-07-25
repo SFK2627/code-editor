@@ -1,15 +1,15 @@
-const CACHE_NAME = 'code-editor-20260725-step163-darkmode-compliance-readability';
+const CACHE_NAME = 'code-editor-20260725-step164-lesson-viewer';
 const APP_SHELL = [
   './',
   './index.html',
-  './index.html?v=20260725-step163-darkmode-compliance-readability',
-  './index.html?fresh=step163',
+  './index.html?v=20260725-step164-lesson-viewer',
+  './index.html?fresh=step164',
   './style.css',
-  './style.css?v=20260725-step163-darkmode-compliance-readability',
-  './style.css?v=20260725-step163-darkmode-compliance-readability',
+  './style.css?v=20260725-step164-lesson-viewer',
+  './style.css?v=20260725-step164-lesson-viewer',
   './script.js',
-  './script.js?v=20260725-step163-darkmode-compliance-readability',
-  './script.js?v=20260725-step163-darkmode-compliance-readability',
+  './script.js?v=20260725-step164-lesson-viewer',
+  './script.js?v=20260725-step164-lesson-viewer',
   './firebase-config.js',
   './manifest.webmanifest',
   './favicon.png',
