@@ -9070,59 +9070,120 @@ function getStrictHTMLStructureProgress() {
   return getHTMLSourceQualityReport().progress;
 }
 
+function getCriterionIntent(criterion) {
+  const normalized = normalizeCriterion(criterion);
+  const title = String(normalized.title || '').toLowerCase();
+  const excellent = String(normalized.levels?.excellent?.description || '').toLowerCase();
+  const good = String(normalized.levels?.good?.description || '').toLowerCase();
+  const fair = String(normalized.levels?.fair?.description || '').toLowerCase();
+  const needs = String(normalized.levels?.needsImprovement?.description || '').toLowerCase();
+  const text = `${title} ${excellent} ${good} ${fair} ${needs}`.replace(/<[^>]+>/g, ' ');
+
+  const explicitCss = includesAnyText(text, [
+    /\bcss\b/, /stylesheet/, /\bstyl(e|ing|ed)\b/, /visual design/, /visual appeal/, /presentation/,
+    /layout/, /responsive/, /media quer/, /flexbox|\bflex\b/, /grid/, /color|background|font|border|margin|padding|gap|box-shadow|width|height|align|justify/
+  ]);
+
+  const explicitJs = includesAnyText(text, [
+    /javascript|\bjs\b|script/, /event listener/, /onclick/, /interactive|interaction/, /function/, /dom/, /button action/, /textcontent|innerhtml|classlist/
+  ]);
+
+  const structure = includesAnyText(text, [
+    /html structure/, /document structure/, /complete structure/, /required html tags/, /doctype/, /<html|&lt;html/, /<head|&lt;head/, /<body|&lt;body/, /<title|&lt;title/, /proper structure|correct structure/
+  ]);
+
+  const content = includesAnyText(text, [
+    /content/, /organization|organized/, /complete details?/, /required details?/, /visible text/, /readable/, /easy to read/, /paragraph/, /heading/, /webpage content/
+  ]);
+
+  const htmlElements = includesAnyText(text, [
+    /formatting elements?/, /html elements?/, /required elements?/, /heading/, /paragraph/, /image|picture|photo|img/, /link|anchor|hyperlink/, /list|bullet|numbered/, /button/, /table/, /form|input/
+  ]);
+
+  const semantic = includesAnyText(text, [/semantic/, /\bheader\b|\bfooter\b|\bnav\b|\bmain\b|\bsection\b|\barticle\b|\baside\b/]);
+
+  return { text, title, explicitCss, explicitJs, structure, content, htmlElements, semantic };
+}
+
 function getLocalCriterionEvidence(criterion, progress) {
-  const text = getCriterionRubricText(criterion).toLowerCase();
+  const intent = getCriterionIntent(criterion);
   const html = codeStore.html || '';
   const css = codeStore.css || '';
   const js = codeStore.js || '';
-  const basics = getCodeBasicsProgress();
   const sourceQuality = getHTMLSourceQualityReport();
-  const cssProperties = countMatches(css, /[a-z-]+\s*:/gi);
   const outputText = getOutputText().trim();
-  const title = String(criterion?.title || '').toLowerCase();
-  const combined = `${title} ${text}`;
+  const cssProperties = countMatches(css, /[a-z-]+\s*:/gi);
   const issues = [];
   const evidence = [];
 
-  if (sourceQuality.issues.length) issues.push(...sourceQuality.issues.slice(0, 2));
-
-  if (includesAnyText(combined, [/html structure|structure|doctype|head|body|title|semantic|formatting|elements?/])) {
+  // Only apply global HTML structure penalties to criteria that actually ask for HTML/source structure.
+  // Content and element criteria may mention a specific element without requiring full document structure.
+  if (intent.structure || intent.semantic) {
+    if (sourceQuality.issues.length) issues.push(...sourceQuality.issues.slice(0, 2));
     const report = getHTMLStructureReport();
     const missing = report.missing.map(item => item.label);
     if (!missing.length && sourceQuality.progress >= 0.9) evidence.push('The required document sections are present and in the correct order.');
     if (missing.length) issues.push(`Missing or misplaced required structure: ${missing.slice(0, 3).join(', ')}.`);
-    if (/<h[1-6]\b/i.test(html)) evidence.push('A heading element is present.');
-    if (/<p\b/i.test(html)) evidence.push('A paragraph element is present.');
   }
 
-  if (includesAnyText(combined, [/content|organization|visible text|readable|webpage|page/])) {
-    if (outputText.length >= 40) evidence.push('The output shows readable visible text.');
-    else if (outputText.length >= 5) evidence.push('The output has visible text, but it is still short.');
+  if (intent.content) {
+    if (outputText.length >= 60) evidence.push('The output has clear visible content.');
+    else if (outputText.length >= 15) evidence.push('The output has visible text, but it still needs more detail.');
+    else if (outputText.length >= 3) issues.push('The output has very little visible text.');
     else issues.push('The rendered output has little or no visible text.');
-    if (!sourceQuality.hasVisibleBodyContent) issues.push('Visible content is not properly placed inside the body section.');
+
+    if (intent.structure && !sourceQuality.hasVisibleBodyContent) {
+      issues.push('Visible content is not properly placed inside the body section.');
+    }
   }
 
-  if (includesAnyText(combined, [/css|style|design|presentation|formatting|spacing|color|layout/])) {
+  if (intent.htmlElements) {
+    const elementEvidence = [];
+    const missingElements = [];
+    const text = intent.text;
+    const hasElement = (name, regex, previewSelector) => Boolean(regex.test(html) || queryPreview(previewSelector));
+
+    if (/heading|\bh[1-6]\b/.test(text)) (hasElement('heading', /<h[1-6](\s|>|\/)/i, 'h1, h2, h3, h4, h5, h6') ? elementEvidence : missingElements).push('heading');
+    if (/paragraph|\bp\s*tag|\bp\b/.test(text)) (hasElement('paragraph', /<p(\s|>|\/)/i, 'p') ? elementEvidence : missingElements).push('paragraph');
+    if (/image|picture|photo|\bimg\b/.test(text)) (hasElement('image', /<img(\s|>|\/)/i, 'img') ? elementEvidence : missingElements).push('image');
+    if (/link|anchor|hyperlink|\ba\s*tag/.test(text)) (hasElement('link', /<a(\s|>|\/)/i, 'a') ? elementEvidence : missingElements).push('link');
+    if (/list|bullet|numbered|\bul\b|\bol\b|\bli\b/.test(text)) (hasElement('list', /<(ul|ol)(\s|>|\/)/i, 'ul, ol') ? elementEvidence : missingElements).push('list');
+    if (/button/.test(text)) (hasElement('button', /<button(\s|>|\/)/i, 'button') ? elementEvidence : missingElements).push('button');
+
+    if (elementEvidence.length) evidence.push(`Detected required element evidence: ${elementEvidence.slice(0, 4).join(', ')}.`);
+    if (missingElements.length && !/as required/.test(text)) issues.push(`Missing expected element evidence: ${missingElements.slice(0, 4).join(', ')}.`);
+    if (!elementEvidence.length && !missingElements.length && /formatting|elements?/.test(text)) {
+      evidence.push('Basic HTML elements are present in the page.');
+    }
+  }
+
+  if (intent.semantic) {
+    const count = countSemanticHTMLTags(html);
+    if (count >= 2) evidence.push(`Detected ${count} semantic HTML elements.`);
+    else issues.push('Add more semantic HTML elements required by this rubric item.');
+  }
+
+  if (intent.explicitCss) {
     if (css.trim()) evidence.push(`CSS is present with ${cssProperties} detected propert${cssProperties === 1 ? 'y' : 'ies'}.`);
-    else issues.push('No CSS styling was found.');
-    if (cssProperties > 0 && cssProperties < 3) issues.push('The styling is still limited; add more meaningful CSS properties.');
+    else issues.push('This rubric item asks for styling/design, but no CSS styling was found.');
+    if (css.trim() && cssProperties > 0 && cssProperties < 3) issues.push('The styling is still limited; add more meaningful CSS properties.');
   }
 
-  if (includesAnyText(combined, [/javascript|script|interactive|event|button|function/])) {
+  if (intent.explicitJs) {
     if (js.trim() || /onclick\s*=/i.test(html)) evidence.push('A script or inline event was detected.');
-    else issues.push('No JavaScript interaction was detected.');
+    else issues.push('This rubric item asks for interactivity or JavaScript, but no related script was detected.');
   }
 
   if (!evidence.length) {
-    if (progress >= 0.9) evidence.push('The work strongly matches this rubric item.');
-    else if (progress >= 0.65) evidence.push('The work partially matches this rubric item.');
+    if (progress >= 0.9) evidence.push('The work strongly matches the wording of this rubric item.');
+    else if (progress >= 0.65) evidence.push('The work partially matches the wording of this rubric item.');
     else evidence.push('Only limited evidence was found for this rubric item.');
   }
 
   let improvement = '';
   if (issues.length) improvement = issues[0];
-  else if (progress < 0.9) improvement = 'Add more complete details and polish this part to reach the Excellent level.';
-  else improvement = 'Continue polishing readability and consistency.';
+  else if (progress < 0.9) improvement = 'Add more evidence that directly matches this criterion description.';
+  else improvement = 'Continue polishing this criterion according to the rubric.';
 
   return {
     evidence: evidence.slice(0, 2).join(' '),
@@ -11311,7 +11372,7 @@ function getJavaScriptSmartProgress(text) {
 
 function getInstructionSmartProgress(text) {
   const basics = getCodeBasicsProgress();
-  const wantsCss = includesAnyText(text, [/css|style|design|presentation|layout|visual|aesthetic|readability/]);
+  const wantsCss = includesAnyText(text, [/\bcss\b|stylesheet|\bstyl(e|ing|ed)\b|visual design|visual appeal|presentation|layout|responsive|media quer|flexbox|\bflex\b|grid|color|background|font|border|margin|padding|gap|box-shadow|width|height|align|justify/]);
   const wantsJs = includesAnyText(text, [/javascript|script|event|interactive|button action|onclick/]);
   const wantsSemantic = includesAnyText(text, [/semantic|header|nav|main|section|article|aside|footer/]);
 
@@ -11336,17 +11397,18 @@ function getSmartCriterionProgress(criterion) {
   const text = rubricText.toLowerCase();
   if (!text.trim()) return null;
 
+  const intent = getCriterionIntent(criterion);
   const basics = getCodeBasicsProgress();
   const wantsFollowing = includesAnyText(text, [/following instructions|requirements?|completed accurately|met expectations|instructions not followed|exceeded expectations/]);
-  const wantsSemantic = includesAnyText(text, [/semantic\s+tags?|semantic\s+html|\bheader\b|\bfooter\b|\bnav\b|\bmain\b|\bsection\b|\barticle\b|\baside\b/]);
-  const wantsCompleteStructure = includesAnyText(text, [/(complete|full|proper|correct|basic).*html.*structure/, /doctype|<html|<head|<title|<body/, /well[-\s]?organized structure|correct structure/]);
+  const wantsSemantic = intent.semantic;
+  const wantsCompleteStructure = intent.structure;
   const wantsBalanced = includesAnyText(text, [/closing tag|closed tag|properly closed|balanced? tag|incomplete or inconsistent|missing many tags|disorganized/]);
-  const wantsCSS = includesAnyText(text, [/css|style|styling|technical application|visual appeal|design|presentation|layout|aesthetic|consistent design|readability|creative|polish|color|background|font|spacing|border|broken layout/]);
-  const wantsJS = includesAnyText(text, [/javascript|script|event listener|onclick|interaction|interactive|click event|button action|function|dom|textcontent|innerhtml|classlist/]);
-  const wantsOutput = includesAnyText(text, [/visible text|readable content|content shown|output text|informative page|difficult to read|easy to read|webpage|page/]);
-  const wantsFormattingElements = includesAnyText(text, [/formatting|elements?|heading|paragraph|image|picture|link|anchor|list|button|required tags?|uses.*tags?/]);
+  const wantsCSS = intent.explicitCss;
+  const wantsJS = intent.explicitJs;
+  const wantsOutput = intent.content;
+  const wantsFormattingElements = intent.htmlElements;
 
-  // Specific requirements first.
+  // Specific requirements first. Do not invent CSS/JS requirements unless the rubric explicitly asks for them.
   if (wantsSemantic && wantsCompleteStructure) {
     return weightedProgress([
       { value: basics.htmlStructure, weight: 2 },
@@ -11368,36 +11430,32 @@ function getSmartCriterionProgress(criterion) {
     return weightedProgress([
       { value: basics.htmlStructure, weight: 3 },
       { value: basics.balancedTags, weight: 1 },
-      { value: basics.visibleText, weight: 0.5 }
+      { value: basics.visibleText, weight: 0.35 }
     ]);
   }
 
   if (wantsBalanced) {
     return weightedProgress([
       { value: basics.balancedTags, weight: 2 },
-      { value: basics.htmlStructure, weight: 1 },
-      { value: basics.visibleText, weight: 0.5 }
+      { value: basics.htmlStructure, weight: 0.8 },
+      { value: basics.visibleText, weight: 0.4 }
     ]);
   }
 
   if (wantsJS) return getJavaScriptSmartProgress(text);
 
-  if (wantsFormattingElements && !wantsCSS) {
+  if (wantsCSS) {
+    return getCSSSmartProgress(text);
+  }
+
+  if (wantsFormattingElements) {
     return weightedProgress([
-      { value: getHTMLContentSmartProgress(text), weight: 2.2 },
-      { value: basics.htmlStructure, weight: 1.5 },
+      { value: getHTMLContentSmartProgress(text), weight: 2.4 },
       { value: basics.balancedTags, weight: 1 },
-      { value: basics.visibleText, weight: 0.8 }
+      { value: basics.visibleText, weight: 0.8 },
+      { value: wantsCompleteStructure ? basics.htmlStructure : 1, weight: wantsCompleteStructure ? 1.2 : 0.2 }
     ]);
   }
-
-  if (wantsCSS && includesAnyText(text, [/design|presentation|visual|aesthetic|creative|readability|layout|polish|sloppy|unfinished/])) {
-    return getDesignPresentationSmartProgress(text);
-  }
-
-  if (wantsCSS) return getCSSSmartProgress(text);
-
-  if (wantsFollowing) return getInstructionSmartProgress(text);
 
   if (wantsOutput) {
     return weightedProgress([
@@ -11407,11 +11465,22 @@ function getSmartCriterionProgress(criterion) {
     ]);
   }
 
-  // For broad/unrecognized rubric rows, judge the overall output instead of relying on a random dropdown.
-  if (criterion.rule === 'smart_rubric') return getInstructionSmartProgress(text);
+  if (wantsFollowing) return getInstructionSmartProgress(text);
+
+  // For broad/unrecognized rubric rows, judge only general completeness and visible output.
+  // Do not assume CSS, JavaScript, or specific requirements that the rubric did not mention.
+  if (criterion.rule === 'smart_rubric') {
+    return weightedProgress([
+      { value: basics.visibleText, weight: 2 },
+      { value: basics.balancedTags, weight: 1 },
+      { value: basics.effort, weight: 1 },
+      { value: basics.noRuntimeError, weight: 1 }
+    ]);
+  }
 
   return null;
 }
+
 
 function getCriterionProgress(criterion) {
   const smartProgress = getSmartCriterionProgress(criterion);
@@ -11529,16 +11598,17 @@ function generateFeedback(score, possible, percent, results) {
 
   let opening = '';
   if (percent >= 90) {
-    opening = 'Excellent work! Your webpage strongly matches the rubric.';
+    opening = 'Excellent work! Your work strongly matches the selected rubric.';
   } else if (percent >= 75) {
-    opening = 'Good work. The page shows progress, but the local checker found some areas to polish.';
+    opening = 'Good work. The local rubric judge found some areas to polish based on the selected criteria.';
   } else if (percent >= 60) {
-    opening = 'You are getting there. Some important rubric requirements still need improvement.';
+    opening = 'You are getting there. Some rubric requirements still need improvement.';
   } else {
-    opening = 'Keep practicing. Fix the main structure first, then improve the visible content and design.';
+    opening = 'Keep practicing. Focus on the criteria with the lowest scores first.';
   }
 
-  const structureWarning = sourceQuality.issues.length
+  const shouldMentionStructure = results.some(item => getCriterionIntent(item).structure || getCriterionIntent(item).semantic);
+  const structureWarning = shouldMentionStructure && sourceQuality.issues.length
     ? `Main issue: ${sourceQuality.issues[0]}`
     : '';
   const strengths = achievedItems.length
@@ -11546,10 +11616,11 @@ function generateFeedback(score, possible, percent, results) {
     : 'No strong rubric area was detected yet.';
   const nextSteps = missingItems.length
     ? `Next: ${missingItems.slice(0, 3).map(item => item.improvement || `${item.title} needs improvement`).join(' ')}`
-    : 'Next: polish spacing, readability, and consistency before submitting.';
+    : 'Next: review the rubric descriptions and make small improvements before submitting.';
 
   return [opening, structureWarning, strengths, nextSteps, `Score: ${formatPoints(score)}/${formatPoints(possible)}.`].filter(Boolean).join(' ');
 }
+
 
 
 function getAIReviewEndpoint() {

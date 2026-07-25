@@ -1,4 +1,4 @@
-const CACHE_NAME = 'code-editor-20260725-step192-smarter-local-rubric-judge';
+const CACHE_NAME = 'code-editor-20260725-step193-rubric-only-local-judge';
 const APP_SHELL = [
   './',
   './index.html',
