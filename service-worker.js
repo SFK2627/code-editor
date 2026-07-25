@@ -1,15 +1,15 @@
-const CACHE_NAME = 'code-editor-20260725-step161-admin-compliance-viewer';
+const CACHE_NAME = 'code-editor-20260725-step162-phone-compliance-modal';
 const APP_SHELL = [
   './',
   './index.html',
-  './index.html?v=20260725-step161-admin-compliance-viewer',
-  './index.html?fresh=step161',
+  './index.html?v=20260725-step162-phone-compliance-modal',
+  './index.html?fresh=step162',
   './style.css',
-  './style.css?v=20260725-step161-admin-compliance-viewer',
-  './style.css?v=20260725-step161-admin-compliance-viewer',
+  './style.css?v=20260725-step162-phone-compliance-modal',
+  './style.css?v=20260725-step162-phone-compliance-modal',
   './script.js',
-  './script.js?v=20260725-step161-admin-compliance-viewer',
-  './script.js?v=20260725-step161-admin-compliance-viewer',
+  './script.js?v=20260725-step162-phone-compliance-modal',
+  './script.js?v=20260725-step162-phone-compliance-modal',
   './firebase-config.js',
   './manifest.webmanifest',
   './favicon.png',

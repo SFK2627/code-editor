@@ -117,6 +117,9 @@ const refreshAdminComplianceViewerBtn = document.getElementById('refreshAdminCom
 const adminComplianceViewerStatus = document.getElementById('adminComplianceViewerStatus');
 const adminComplianceStudentList = document.getElementById('adminComplianceStudentList');
 const adminComplianceStudentDetail = document.getElementById('adminComplianceStudentDetail');
+const adminComplianceDetailOverlay = document.getElementById('adminComplianceDetailOverlay');
+const adminComplianceDetailModalContent = document.getElementById('adminComplianceDetailModalContent');
+const closeAdminComplianceDetailBtn = document.getElementById('closeAdminComplianceDetailBtn');
 const adminActivityTitle = document.getElementById('adminActivityTitle');
 const adminActivityDescription = document.getElementById('adminActivityDescription');
 const adminPassingScore = document.getElementById('adminPassingScore');
@@ -4699,11 +4702,13 @@ function getAdminComplianceViewerFilteredRecords() {
   }).sort((a, b) => String(a.studentName || a.studentId || '').localeCompare(String(b.studentName || b.studentId || '')));
 }
 
-function renderAdminComplianceStudentDetail(record = null) {
-  if (!adminComplianceStudentDetail) return;
+function isAdminCompliancePhoneLayout() {
+  return window.matchMedia?.('(max-width: 700px)')?.matches || document.documentElement?.dataset?.deviceMode === 'phone';
+}
+
+function buildAdminComplianceStudentDetailMarkup(record = null, options = {}) {
   if (!record) {
-    adminComplianceStudentDetail.innerHTML = '<div class="student-compliance-empty">Select a student to view specific lacking requirements.</div>';
-    return;
+    return '<div class="student-compliance-empty">Select a student to view specific lacking requirements.</div>';
   }
   const sanitized = sanitizeComplianceStudentRecord(record);
   const summary = sanitized.summary || summarizeComplianceTasks(sanitized.tasks || []);
@@ -4711,12 +4716,13 @@ function renderAdminComplianceStudentDetail(record = null) {
   const lackingTasks = tasks.filter(task => normalizeComplianceStatus(task.status) !== 'complete');
   const termTasks = tasks.filter(task => isComplianceTermAssessmentTask(task));
   const updatedText = sanitized.updatedAtText || formatStudentDate(sanitized.updatedAt || sanitized.updatedAtMs, 'recently');
-  adminComplianceStudentDetail.innerHTML = `
-    <div class="compliance-detail-card">
+  const titleId = options.titleId || '';
+  return `
+    <div class="compliance-detail-card ${options.modal ? 'modal-detail-card' : ''}">
       <div class="compliance-detail-head">
         <div>
           <p class="section-kicker">Student Details</p>
-          <h4>${escapeHTML(sanitized.studentName || 'Student')}</h4>
+          <h4 ${titleId ? `id="${escapeAttribute(titleId)}"` : ''}>${escapeHTML(sanitized.studentName || 'Student')}</h4>
           <small>${escapeHTML(sanitized.studentId || sanitized.studentIdNormalized || 'No ID')} · ${escapeHTML(sanitized.section || 'No section')}</small>
         </div>
         <span class="compliance-summary-pill ${Number(summary.missing || 0) ? 'missing' : 'complete'}">${Number(summary.missing || 0) ? `🟥 ${Number(summary.missing || 0)} lacking` : '✅ No lacking'}</span>
@@ -4748,12 +4754,33 @@ function renderAdminComplianceStudentDetail(record = null) {
     </div>`;
 }
 
+function renderAdminComplianceStudentDetail(record = null) {
+  if (!adminComplianceStudentDetail) return;
+  adminComplianceStudentDetail.innerHTML = buildAdminComplianceStudentDetailMarkup(record);
+}
+
+function closeAdminComplianceDetailModal() {
+  if (!adminComplianceDetailOverlay) return;
+  adminComplianceDetailOverlay.classList.add('hidden');
+  document.body.classList.remove('admin-compliance-modal-open');
+}
+
+function openAdminComplianceDetailModal(record = null) {
+  if (!adminComplianceDetailOverlay || !adminComplianceDetailModalContent || !record) return;
+  adminComplianceDetailModalContent.innerHTML = buildAdminComplianceStudentDetailMarkup(record, {
+    modal: true,
+    titleId: 'adminComplianceDetailModalTitle'
+  });
+  adminComplianceDetailOverlay.classList.remove('hidden');
+  document.body.classList.add('admin-compliance-modal-open');
+}
+
 function renderAdminComplianceViewer() {
   if (!adminComplianceStudentList) return;
   renderAdminComplianceViewerSectionOptions(loadComplianceSettings());
   const records = getAdminComplianceViewerFilteredRecords();
   const selectedExists = records.some(record => record.studentIdNormalized === selectedAdminComplianceStudentId);
-  if (!selectedExists) selectedAdminComplianceStudentId = records[0]?.studentIdNormalized || '';
+  if (!selectedExists) selectedAdminComplianceStudentId = isAdminCompliancePhoneLayout() ? '' : (records[0]?.studentIdNormalized || '');
 
   if (!adminComplianceViewerRecords.length) {
     adminComplianceStudentList.innerHTML = '<div class="student-compliance-empty">No published compliance records loaded yet. Click Refresh Viewer after syncing a section.</div>';
@@ -4781,6 +4808,10 @@ function renderAdminComplianceViewer() {
       </button>`;
   }).join('');
 
+  if (isAdminCompliancePhoneLayout()) {
+    renderAdminComplianceStudentDetail(null);
+    return;
+  }
   const selected = records.find(record => record.studentIdNormalized === selectedAdminComplianceStudentId) || records[0] || null;
   renderAdminComplianceStudentDetail(selected);
 }
@@ -14346,7 +14377,15 @@ adminComplianceStudentList?.addEventListener('click', event => {
   const row = event.target?.closest?.('[data-admin-compliance-student]');
   if (!row) return;
   selectedAdminComplianceStudentId = String(row.dataset.adminComplianceStudent || '').trim();
+  const selected = getAdminComplianceViewerFilteredRecords().find(record => record.studentIdNormalized === selectedAdminComplianceStudentId)
+    || adminComplianceViewerRecords.find(record => record.studentIdNormalized === selectedAdminComplianceStudentId)
+    || null;
   renderAdminComplianceViewer();
+  if (isAdminCompliancePhoneLayout()) openAdminComplianceDetailModal(selected);
+});
+closeAdminComplianceDetailBtn?.addEventListener('click', closeAdminComplianceDetailModal);
+adminComplianceDetailOverlay?.addEventListener('click', event => {
+  if (event.target === adminComplianceDetailOverlay) closeAdminComplianceDetailModal();
 });
 dashboardSubjectStatusBtn?.addEventListener('click', openStudentComplianceModal);
 closeStudentComplianceBtn?.addEventListener('click', closeStudentComplianceModal);
@@ -14354,7 +14393,13 @@ studentComplianceOverlay?.addEventListener('click', event => {
   if (event.target === studentComplianceOverlay) event.stopPropagation();
 });
 document.addEventListener('keydown', event => {
-  if (event.key === 'Escape' && studentComplianceOverlay && !studentComplianceOverlay.classList.contains('hidden')) {
+  if (event.key !== 'Escape') return;
+  if (adminComplianceDetailOverlay && !adminComplianceDetailOverlay.classList.contains('hidden')) {
+    event.preventDefault();
+    closeAdminComplianceDetailModal();
+    return;
+  }
+  if (studentComplianceOverlay && !studentComplianceOverlay.classList.contains('hidden')) {
     event.preventDefault();
     closeStudentComplianceModal();
   }

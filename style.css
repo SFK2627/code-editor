@@ -36957,3 +36957,126 @@ body.student-dashboard-active .student-project-card .project-run-icon {
     justify-self: start;
   }
 }
+
+
+/* Step 162: Phone Compliance Viewer details open as a popup modal. */
+.admin-compliance-detail-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9997;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  background: rgba(15, 23, 42, 0.56);
+  backdrop-filter: blur(10px);
+}
+
+.admin-compliance-detail-overlay.hidden {
+  display: none !important;
+}
+
+.admin-compliance-detail-panel {
+  position: relative;
+  width: min(720px, 100%);
+  max-height: min(86vh, 760px);
+  overflow: auto;
+  border: 1px solid rgba(148, 163, 184, 0.26);
+  border-radius: 24px;
+  padding: 18px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 28px 80px rgba(15, 23, 42, 0.30);
+}
+
+.admin-compliance-detail-content {
+  padding-top: 2px;
+}
+
+body.admin-compliance-modal-open {
+  overflow: hidden;
+}
+
+[data-theme="dark"] .admin-compliance-detail-panel {
+  color: #e2e8f0;
+  background: rgba(15, 23, 42, 0.96);
+  border-color: rgba(148, 163, 184, 0.24);
+}
+
+@media (max-width: 700px) {
+  .compliance-viewer-detail {
+    display: none !important;
+  }
+
+  .compliance-viewer-layout {
+    grid-template-columns: 1fr !important;
+  }
+
+  .admin-compliance-detail-overlay {
+    align-items: flex-end;
+    padding: 10px;
+  }
+
+  .admin-compliance-detail-panel {
+    width: 100%;
+    max-height: 88vh;
+    border-radius: 22px 22px 18px 18px;
+    padding: 14px;
+  }
+
+  .admin-compliance-detail-panel .auth-close-btn {
+    top: 10px;
+    right: 10px;
+  }
+
+  .admin-compliance-detail-panel .compliance-detail-card {
+    gap: 10px;
+  }
+
+  .admin-compliance-detail-panel .compliance-detail-head {
+    padding-right: 42px;
+    padding-bottom: 10px;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .admin-compliance-detail-panel .compliance-detail-head h4 {
+    font-size: 1.04rem;
+    line-height: 1.18;
+  }
+
+  .admin-compliance-detail-panel .compliance-detail-head .compliance-summary-pill {
+    align-self: flex-start;
+  }
+
+  .admin-compliance-detail-panel .compliance-detail-summary {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 6px;
+  }
+
+  .admin-compliance-detail-panel .compliance-detail-summary span {
+    min-width: 0;
+    padding: 8px 4px;
+    text-align: center;
+    border-radius: 13px;
+  }
+
+  .admin-compliance-detail-panel .compliance-detail-summary strong {
+    font-size: 1.08rem;
+    line-height: 1;
+  }
+
+  .admin-compliance-detail-panel .compliance-detail-summary small {
+    font-size: 0.68rem;
+    line-height: 1.1;
+  }
+
+  .admin-compliance-detail-panel .compliance-detail-section {
+    padding: 10px;
+    border-radius: 14px;
+  }
+
+  .admin-compliance-detail-panel .helper-note {
+    font-size: 0.76rem;
+    line-height: 1.25;
+  }
+}
