@@ -37645,6 +37645,7 @@ body.lesson-viewer-active > .student-dashboard-screen {
 }
 
 .lesson-pdf-card {
+  position: relative;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   width: min(1500px, 100%);
@@ -37738,6 +37739,100 @@ body.lesson-viewer-active > .student-dashboard-screen {
 
 .lesson-pdf-loading.lesson-pdf-load-warning {
   background: linear-gradient(145deg, #fff7ed, #ffedd5);
+}
+
+
+.lesson-pdf-wake-layer {
+  display: none;
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  background: transparent;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .lesson-pdf-card:fullscreen,
+  .lesson-pdf-card.lesson-native-fullscreen {
+    grid-template-rows: minmax(0, 1fr);
+    width: 100vw;
+    height: 100vh;
+    border: 0;
+    border-radius: 0;
+    background: #000;
+  }
+
+  .lesson-pdf-card:fullscreen .lesson-pdf-header,
+  .lesson-pdf-card.lesson-native-fullscreen .lesson-pdf-header {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 7;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.16);
+    color: #fff;
+    background: linear-gradient(180deg, rgba(2, 6, 23, 0.94), rgba(2, 6, 23, 0.76) 72%, rgba(2, 6, 23, 0));
+    box-shadow: 0 16px 34px rgba(2, 6, 23, 0.22);
+    transform: translateY(0);
+    opacity: 1;
+    pointer-events: auto;
+    transition: transform 180ms ease, opacity 180ms ease;
+  }
+
+  .lesson-pdf-card:fullscreen .lesson-pdf-heading .muted-text,
+  .lesson-pdf-card.lesson-native-fullscreen .lesson-pdf-heading .muted-text {
+    color: rgba(255, 255, 255, 0.72);
+  }
+
+  .lesson-pdf-card:fullscreen .lesson-pdf-term,
+  .lesson-pdf-card.lesson-native-fullscreen .lesson-pdf-term {
+    color: #dbeafe;
+    background: rgba(59, 130, 246, 0.28);
+  }
+
+  .lesson-pdf-card:fullscreen .lesson-pdf-actions .ghost-btn,
+  .lesson-pdf-card:fullscreen .lesson-pdf-actions .icon-btn,
+  .lesson-pdf-card.lesson-native-fullscreen .lesson-pdf-actions .ghost-btn,
+  .lesson-pdf-card.lesson-native-fullscreen .lesson-pdf-actions .icon-btn {
+    color: #fff;
+    border-color: rgba(255, 255, 255, 0.26);
+    background: rgba(15, 23, 42, 0.66);
+    backdrop-filter: blur(10px);
+  }
+
+  .lesson-pdf-card:fullscreen .lesson-pdf-actions .ghost-btn:hover,
+  .lesson-pdf-card:fullscreen .lesson-pdf-actions .icon-btn:hover,
+  .lesson-pdf-card.lesson-native-fullscreen .lesson-pdf-actions .ghost-btn:hover,
+  .lesson-pdf-card.lesson-native-fullscreen .lesson-pdf-actions .icon-btn:hover {
+    background: rgba(30, 41, 59, 0.92);
+  }
+
+  .lesson-pdf-card:fullscreen .lesson-pdf-body,
+  .lesson-pdf-card.lesson-native-fullscreen .lesson-pdf-body {
+    grid-row: 1;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    background: #000;
+  }
+
+  .lesson-pdf-card:fullscreen .lesson-pdf-frame,
+  .lesson-pdf-card.lesson-native-fullscreen .lesson-pdf-frame {
+    background: #000;
+  }
+
+  .lesson-pdf-card:fullscreen.lesson-controls-hidden .lesson-pdf-header,
+  .lesson-pdf-card.lesson-native-fullscreen.lesson-controls-hidden .lesson-pdf-header {
+    transform: translateY(-110%);
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .lesson-pdf-card:fullscreen.lesson-controls-hidden .lesson-pdf-wake-layer,
+  .lesson-pdf-card.lesson-native-fullscreen.lesson-controls-hidden .lesson-pdf-wake-layer {
+    display: block;
+    cursor: none;
+    pointer-events: auto;
+  }
 }
 
 .lesson-loading-spinner {

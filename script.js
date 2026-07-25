@@ -249,6 +249,8 @@ const lessonPdfDownloadBtn = document.getElementById('lessonPdfDownloadBtn');
 const lessonPdfCloseBtn = document.getElementById('lessonPdfCloseBtn');
 const lessonPdfLoading = document.getElementById('lessonPdfLoading');
 const lessonPdfFrame = document.getElementById('lessonPdfFrame');
+const lessonPdfWakeLayer = document.getElementById('lessonPdfWakeLayer');
+const lessonPdfHeader = lessonPdfCard?.querySelector('.lesson-pdf-header');
 
 const dashboardLogoutBtn = document.getElementById('dashboardLogoutBtn');
 const newProjectBtn = document.getElementById('newProjectBtn');
@@ -11230,7 +11232,8 @@ const lessonLibraryState = {
   driveAccessToken: '',
   driveTokenExpiresAt: 0,
   driveTokenClient: null,
-  pdfLoadTimer: null
+  pdfLoadTimer: null,
+  pdfControlsTimer: null
 };
 
 function lessonTermLabel(term = 'term1') {
@@ -11546,18 +11549,73 @@ function openLessonPdfViewer(lessonId = '') {
   }, 12000);
 }
 
+function getLessonPdfFullscreenElement() {
+  return document.fullscreenElement || document.webkitFullscreenElement || null;
+}
+
+function isLessonPdfFullscreen() {
+  return getLessonPdfFullscreenElement() === lessonPdfCard;
+}
+
+function isDesktopLessonPdfFullscreen() {
+  return isLessonPdfFullscreen() && Boolean(window.matchMedia?.('(hover: hover) and (pointer: fine)').matches);
+}
+
+function clearLessonPdfControlsTimer() {
+  window.clearTimeout(lessonLibraryState.pdfControlsTimer);
+  lessonLibraryState.pdfControlsTimer = null;
+}
+
+function hideLessonPdfFullscreenControls() {
+  clearLessonPdfControlsTimer();
+  if (!isDesktopLessonPdfFullscreen() || !lessonPdfCard) return;
+  if (lessonPdfHeader?.contains(document.activeElement)) {
+    lessonLibraryState.pdfControlsTimer = window.setTimeout(hideLessonPdfFullscreenControls, 1200);
+    return;
+  }
+  lessonPdfCard.classList.add('lesson-controls-hidden');
+}
+
+function showLessonPdfFullscreenControls(options = {}) {
+  clearLessonPdfControlsTimer();
+  lessonPdfCard?.classList.remove('lesson-controls-hidden');
+  if (!isDesktopLessonPdfFullscreen() || options.keepVisible) return;
+  lessonLibraryState.pdfControlsTimer = window.setTimeout(hideLessonPdfFullscreenControls, 3000);
+}
+
+function syncLessonPdfFullscreenUi() {
+  const active = isLessonPdfFullscreen();
+  lessonPdfCard?.classList.toggle('lesson-native-fullscreen', active);
+  if (lessonPdfFullscreenBtn) lessonPdfFullscreenBtn.textContent = active ? '⛶ Exit Fullscreen' : '⛶ Fullscreen';
+  if (active) showLessonPdfFullscreenControls();
+  else {
+    clearLessonPdfControlsTimer();
+    lessonPdfCard?.classList.remove('lesson-controls-hidden');
+  }
+}
+
 function closeLessonPdfViewer() {
   window.clearTimeout(lessonLibraryState.pdfLoadTimer);
+  clearLessonPdfControlsTimer();
   lessonPdfOverlay?.classList.add('hidden');
   document.body.classList.remove('lesson-pdf-open');
+  lessonPdfCard?.classList.remove('lesson-controls-hidden', 'lesson-native-fullscreen');
   if (lessonPdfFrame) lessonPdfFrame.src = 'about:blank';
-  if (document.fullscreenElement === lessonPdfCard && document.exitFullscreen) document.exitFullscreen().catch(() => {});
+  if (isLessonPdfFullscreen()) {
+    const exitFullscreen = document.exitFullscreen || document.webkitExitFullscreen;
+    if (exitFullscreen) Promise.resolve(exitFullscreen.call(document)).catch(() => {});
+  }
 }
 
 async function toggleLessonPdfFullscreen() {
   try {
-    if (document.fullscreenElement === lessonPdfCard) await document.exitFullscreen();
-    else if (lessonPdfCard?.requestFullscreen) await lessonPdfCard.requestFullscreen();
+    if (isLessonPdfFullscreen()) {
+      const exitFullscreen = document.exitFullscreen || document.webkitExitFullscreen;
+      if (exitFullscreen) await exitFullscreen.call(document);
+      return;
+    }
+    const requestFullscreen = lessonPdfCard?.requestFullscreen || lessonPdfCard?.webkitRequestFullscreen;
+    if (requestFullscreen) await requestFullscreen.call(lessonPdfCard);
   } catch (error) {
     console.warn('Lesson fullscreen unavailable.', error);
   }
@@ -15531,6 +15589,17 @@ lessonLibraryGrid?.addEventListener('click', event => {
 });
 lessonPdfCloseBtn?.addEventListener('click', closeLessonPdfViewer);
 lessonPdfFullscreenBtn?.addEventListener('click', toggleLessonPdfFullscreen);
+lessonPdfCard?.addEventListener('pointermove', () => showLessonPdfFullscreenControls());
+lessonPdfWakeLayer?.addEventListener('pointermove', () => showLessonPdfFullscreenControls());
+lessonPdfWakeLayer?.addEventListener('pointerdown', () => showLessonPdfFullscreenControls());
+lessonPdfWakeLayer?.addEventListener('wheel', () => showLessonPdfFullscreenControls(), { passive: true });
+lessonPdfHeader?.addEventListener('mouseenter', () => showLessonPdfFullscreenControls({ keepVisible: true }));
+lessonPdfHeader?.addEventListener('mouseleave', () => showLessonPdfFullscreenControls());
+document.addEventListener('fullscreenchange', syncLessonPdfFullscreenUi);
+document.addEventListener('webkitfullscreenchange', syncLessonPdfFullscreenUi);
+document.addEventListener('keydown', () => {
+  if (isLessonPdfFullscreen()) showLessonPdfFullscreenControls();
+});
 lessonPdfFrame?.addEventListener('load', () => {
   window.clearTimeout(lessonLibraryState.pdfLoadTimer);
   lessonPdfLoading?.classList.add('hidden');

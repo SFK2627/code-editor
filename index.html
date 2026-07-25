@@ -43,7 +43,7 @@
       document.documentElement.dataset.deviceMode = isPhone ? 'phone' : 'desktop';
     })();
   </script>
-  <link rel="stylesheet" href="style.css?v=20260725-step166-responsive-alerts" />
+  <link rel="stylesheet" href="style.css?v=20260725-step167-pdf-focus-fullscreen" />
 </head>
 <body class="entry-gate-active">
   <noscript>
@@ -270,6 +270,7 @@
           <div id="lessonPdfLoading" class="lesson-pdf-loading"><span class="lesson-loading-spinner" aria-hidden="true"></span><strong>Opening PDF lesson...</strong><small>Large files may take a moment on slower connections.</small></div>
           <iframe id="lessonPdfFrame" class="lesson-pdf-frame" title="PDF lesson viewer" allow="fullscreen" referrerpolicy="strict-origin-when-cross-origin"></iframe>
         </div>
+        <div id="lessonPdfWakeLayer" class="lesson-pdf-wake-layer" aria-hidden="true"></div>
       </section>
     </div>
   </div>
@@ -1512,6 +1513,6 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
   <script src="firebase-config.js"></script>
-  <script src="script.js?v=20260725-step166-responsive-alerts"></script>
+  <script src="script.js?v=20260725-step167-pdf-focus-fullscreen"></script>
 </body>
 </html>
