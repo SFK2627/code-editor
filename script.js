@@ -1052,6 +1052,14 @@ function applyStudentAssistanceSettings(nextSettings, options = {}) {
   document.body.classList.toggle('teacher-feedback-disabled', !feedbackEnabled);
   document.body.classList.toggle('subject-status-disabled', !subjectStatusEnabled);
   document.body.classList.toggle('super-studio-disabled', !superStudioEnabled);
+  if (!superStudioEnabled) {
+    document.body.classList.remove('super-studio-open', 'mcs-phone-studio-open');
+    document.querySelectorAll('#superStudioLauncher, #superStudioToolbar, #superStudioPanel, #studioCommandOverlay, #studioSnapshotsOverlay, .super-studio-only').forEach(element => {
+      element.classList.add('hidden', 'studio-hidden');
+      element.setAttribute('aria-hidden', 'true');
+      if ('disabled' in element) element.disabled = true;
+    });
+  }
   document.body.classList.toggle('auto-run-control-disabled', !autoRunControlEnabled);
   document.body.classList.toggle('student-autosave-disabled', !autoSaveEnabled);
   if (!autoRunControlEnabled) {
@@ -14879,9 +14887,13 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     if (!launcher) return;
     const enabled = isSuperStudioEnabled();
     const isOpen = enabled && studioDrawerOpen;
+    launcher.disabled = !enabled;
+    launcher.classList.toggle('hidden', !enabled);
+    launcher.classList.toggle('studio-hidden', !enabled);
+    launcher.setAttribute('aria-hidden', enabled ? 'false' : 'true');
     launcher.classList.toggle('is-active', isOpen);
     launcher.setAttribute('aria-pressed', isOpen ? 'true' : 'false');
-    launcher.title = isOpen ? 'Hide Super Studio tools' : 'Open optional Super Studio tools';
+    launcher.title = enabled ? (isOpen ? 'Hide Super Studio tools' : 'Open optional Super Studio tools') : 'Super Studio is disabled by the teacher';
     launcher.innerHTML = isOpen
       ? '<span>✖</span><strong>Hide Studio</strong>'
       : '<span>🚀</span><strong>Studio</strong>';
@@ -14946,6 +14958,15 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     const languageTabs = editorPanel.querySelector('.language-tabs');
     const pageActions = document.querySelector('.page-manager-actions');
     if (!launcher || !languageTabs) return;
+    if (!isSuperStudioEnabled()) {
+      launcher.classList.add('hidden', 'studio-hidden');
+      launcher.setAttribute('aria-hidden', 'true');
+      launcher.disabled = true;
+      languageTabs.classList.remove('has-studio-launcher');
+      pageActions?.classList.remove('has-studio-launcher');
+      syncFullscreenBottomToolDock();
+      return;
+    }
 
     if (isDesktopEditorFullscreen()) {
       languageTabs.classList.remove('has-studio-launcher');

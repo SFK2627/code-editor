@@ -1,15 +1,15 @@
-const CACHE_NAME = 'code-editor-20260725-step155-subject-status-assistance-toggle';
+const CACHE_NAME = 'code-editor-20260725-step158-badge-superstudio-visibility';
 const APP_SHELL = [
   './',
   './index.html',
-  './index.html?v=20260725-step155-subject-status-assistance-toggle',
-  './index.html?fresh=step155',
+  './index.html?v=20260725-step158-badge-superstudio-visibility',
+  './index.html?fresh=step158',
   './style.css',
-  './style.css?v=20260724-step154-project-recovery-card-fix',
-  './style.css?v=20260724-step154-project-recovery-card-fix',
+  './style.css?v=20260725-step158-badge-superstudio-visibility',
+  './style.css?v=20260725-step158-badge-superstudio-visibility',
   './script.js',
-  './script.js?v=20260725-step155-subject-status-assistance-toggle',
-  './script.js?v=20260725-step155-subject-status-assistance-toggle',
+  './script.js?v=20260725-step158-badge-superstudio-visibility',
+  './script.js?v=20260725-step158-badge-superstudio-visibility',
   './firebase-config.js',
   './manifest.webmanifest',
   './favicon.png',
