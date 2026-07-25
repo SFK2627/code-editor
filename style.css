@@ -38768,3 +38768,119 @@ body.student-dashboard-active .student-project-card .project-alert-text-short {
     white-space: normal !important;
   }
 }
+
+/* STEP 170: Lesson Viewer header button alignment polish
+   Keeps all Lesson Viewer action labels vertically centered and one-line only. */
+.lesson-pdf-actions {
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: nowrap;
+  gap: 10px;
+  min-width: 0;
+}
+
+.lesson-pdf-actions .ghost-btn,
+.lesson-pdf-actions .icon-btn,
+.lesson-pdf-actions .lesson-link-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  height: 46px;
+  min-height: 46px;
+  white-space: nowrap;
+  line-height: 1;
+  text-align: center;
+  vertical-align: middle;
+  flex: 0 0 auto;
+}
+
+.lesson-pdf-actions .ghost-btn,
+.lesson-pdf-actions .lesson-link-btn {
+  gap: 8px;
+  padding: 0 18px;
+}
+
+.lesson-pdf-actions .icon-btn {
+  width: 46px;
+  min-width: 46px;
+  padding: 0;
+  font-size: 26px;
+  line-height: 1;
+}
+
+.lesson-pdf-actions #lessonPdfMarkDoneBtn {
+  min-width: 136px;
+}
+
+.lesson-pdf-actions #lessonPdfFullscreenBtn {
+  min-width: 154px;
+}
+
+.lesson-pdf-actions #lessonPdfOpenBtn {
+  min-width: 102px;
+}
+
+.lesson-pdf-actions #lessonPdfDownloadBtn {
+  min-width: 142px;
+}
+
+@media (max-width: 1180px) {
+  .lesson-pdf-header {
+    gap: 12px;
+    padding-inline: 14px;
+  }
+
+  .lesson-pdf-actions {
+    gap: 7px;
+  }
+
+  .lesson-pdf-actions .ghost-btn,
+  .lesson-pdf-actions .lesson-link-btn {
+    height: 42px;
+    min-height: 42px;
+    padding-inline: 13px;
+    font-size: 13px;
+  }
+
+  .lesson-pdf-actions .icon-btn {
+    width: 42px;
+    min-width: 42px;
+    height: 42px;
+    min-height: 42px;
+    font-size: 24px;
+  }
+
+  .lesson-pdf-actions #lessonPdfMarkDoneBtn,
+  .lesson-pdf-actions #lessonPdfFullscreenBtn,
+  .lesson-pdf-actions #lessonPdfOpenBtn,
+  .lesson-pdf-actions #lessonPdfDownloadBtn {
+    min-width: 0;
+  }
+}
+
+@media (max-width: 720px) {
+  .lesson-pdf-actions {
+    align-items: center;
+    flex-wrap: nowrap;
+    gap: 5px;
+  }
+
+  .lesson-pdf-actions .ghost-btn,
+  .lesson-pdf-actions .lesson-link-btn {
+    height: 36px;
+    min-height: 36px;
+    padding: 0 10px;
+    font-size: 11px;
+    line-height: 1;
+    white-space: nowrap;
+  }
+
+  .lesson-pdf-actions .icon-btn {
+    width: 36px;
+    min-width: 36px;
+    height: 36px;
+    min-height: 36px;
+    font-size: 22px;
+  }
+}
