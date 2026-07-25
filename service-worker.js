@@ -1,13 +1,13 @@
-const CACHE_NAME = 'code-editor-20260725-step182-gemini-fix';
+const CACHE_NAME = 'code-editor-20260725-step181-ai-rubric-review';
 const APP_SHELL = [
   './',
   './index.html',
-  './index.html?v=20260725-step182-gemini-fix',
-  './index.html?fresh=step182',
+  './index.html?v=20260725-step181-ai-rubric-review',
+  './index.html?fresh=step181',
   './style.css',
-  './style.css?v=20260725-step182-gemini-fix',
+  './style.css?v=20260725-step181-ai-rubric-review',
   './script.js',
-  './script.js?v=20260725-step182-gemini-fix',
+  './script.js?v=20260725-step181-ai-rubric-review',
   './firebase-config.js',
   './manifest.webmanifest',
   './favicon.png',
