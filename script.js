@@ -529,7 +529,7 @@ const DEFAULT_AI_RUBRIC_SETTINGS = Object.freeze({
   enabled: false,
   provider: 'gemini',
   apiKey: '',
-  model: 'gemini-2.0-flash',
+  model: 'gemini-2.5-flash',
   reviewStyle: 'strict'
 });
 
@@ -551,6 +551,7 @@ function normalizeAiRubricSettings(source = {}) {
 let aiRubricSettings = normalizeAiRubricSettings(loadJSON(STORAGE_KEYS.aiRubricSettings, DEFAULT_AI_RUBRIC_SETTINGS));
 let adminLatestAiReview = null;
 let adminAiRubricController = null;
+let aiRubricConnectionState = { status: 'unknown', statusCode: '', message: '' };
 
 const DEFAULT_STUDENT_PASSWORD = '123456';
 const STUDENT_EMAIL_DOMAIN = 'students.mcsian.app';
@@ -2547,6 +2548,19 @@ function setAiRubricSettingsStatus(message, tone = '') {
   setAiRubricSettingsStatus.timer = window.setTimeout(() => aiRubricSettingsStatus?.classList.remove('attention'), 1800);
 }
 
+function setAiRubricConnectionState(status = 'unknown', details = {}) {
+  aiRubricConnectionState = {
+    status,
+    statusCode: details.statusCode ? String(details.statusCode) : '',
+    message: details.message ? String(details.message) : ''
+  };
+  syncAiRubricSettingsControls(aiRubricSettings);
+}
+
+function resetAiRubricConnectionState() {
+  aiRubricConnectionState = { status: 'unknown', statusCode: '', message: '' };
+}
+
 function syncAiRubricSettingsControls(settings = aiRubricSettings) {
   const normalized = normalizeAiRubricSettings(settings);
   if (aiRubricEnabledToggle) aiRubricEnabledToggle.checked = normalized.enabled;
@@ -2555,9 +2569,22 @@ function syncAiRubricSettingsControls(settings = aiRubricSettings) {
   if (aiRubricReviewStyleSelect) aiRubricReviewStyleSelect.value = normalized.reviewStyle;
   const configured = Boolean(normalized.enabled && normalized.apiKey && normalized.model);
   if (aiRubricStatusPill) {
-    aiRubricStatusPill.textContent = configured ? 'AI READY' : normalized.enabled ? 'NEEDS KEY' : 'AI OFF';
-    aiRubricStatusPill.classList.toggle('ready', configured);
-    aiRubricStatusPill.classList.toggle('warning', normalized.enabled && !configured);
+    aiRubricStatusPill.classList.remove('ready', 'warning', 'error', 'connected', 'configured');
+    if (!normalized.enabled) {
+      aiRubricStatusPill.textContent = 'AI OFF';
+    } else if (!normalized.apiKey) {
+      aiRubricStatusPill.textContent = 'NEEDS KEY';
+      aiRubricStatusPill.classList.add('warning');
+    } else if (aiRubricConnectionState.status === 'connected') {
+      aiRubricStatusPill.textContent = 'AI CONNECTED';
+      aiRubricStatusPill.classList.add('connected', 'ready');
+    } else if (aiRubricConnectionState.status === 'error') {
+      aiRubricStatusPill.textContent = `AI ERROR${aiRubricConnectionState.statusCode ? ` ${aiRubricConnectionState.statusCode}` : ''}`;
+      aiRubricStatusPill.classList.add('error');
+    } else {
+      aiRubricStatusPill.textContent = 'AI CONFIGURED';
+      aiRubricStatusPill.classList.add('configured', 'warning');
+    }
   }
   if (adminRunAiRubricReviewBtn) adminRunAiRubricReviewBtn.disabled = !configured;
 }
@@ -2630,27 +2657,137 @@ function getGeminiModelName(model = aiRubricSettings.model) {
   return String(model || DEFAULT_AI_RUBRIC_SETTINGS.model).trim().replace(/^models\//i, '') || DEFAULT_AI_RUBRIC_SETTINGS.model;
 }
 
+function getGeminiGenerateContentUrl(model = aiRubricSettings.model) {
+  return `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(getGeminiModelName(model))}:generateContent`;
+}
+
+function extractGeminiText(data) {
+  return data?.candidates?.[0]?.content?.parts?.map(part => part?.text || '').join('\n') || '';
+}
+
+function parseMaybeJson(text) {
+  try { return JSON.parse(text); } catch (error) { return null; }
+}
+
+function getGeminiTroubleshootingAdvice(status, message = '') {
+  const lower = String(message || '').toLowerCase();
+  if (status === 400) {
+    return 'Check the model name and request format. Use gemini-2.5-flash first.';
+  }
+  if (status === 401 || lower.includes('api key not valid')) {
+    return 'The API key looks invalid. Copy the newest key again and make sure there are no spaces before or after it.';
+  }
+  if (status === 403) {
+    return 'Permission denied. Check that this exact key is for a project with Gemini API enabled, the key restriction allows Gemini API, and the selected service account is allowed to use the key. Wait 2-5 minutes after creating/enabling the key, then test again.';
+  }
+  if (status === 404) {
+    return 'The model was not found or is unavailable for this project. Try gemini-2.5-flash.';
+  }
+  if (status === 429) {
+    return 'Quota or rate limit reached. Wait a few minutes or try again later.';
+  }
+  if (status >= 500) {
+    return 'Gemini service error. Try again after a short wait.';
+  }
+  return 'Check the API key, model, project, Gemini API access, and internet connection.';
+}
+
+async function readGeminiResponse(response) {
+  const text = await response.text();
+  const json = parseMaybeJson(text);
+  return { text, json };
+}
+
+function buildGeminiError(response, body, methodLabel = 'Gemini') {
+  const status = response?.status || 0;
+  const apiMessage = body?.json?.error?.message || body?.json?.error?.status || body?.text || '';
+  const cleanMessage = String(apiMessage || '').replace(/AIza[0-9A-Za-z_-]{20,}/g, '[hidden-api-key]').slice(0, 900);
+  const advice = getGeminiTroubleshootingAdvice(status, cleanMessage);
+  const message = `${methodLabel} returned ${status}${cleanMessage ? `: ${cleanMessage}` : ''}\n\nFix: ${advice}`;
+  const error = new Error(message);
+  error.status = status;
+  error.body = body;
+  error.advice = advice;
+  return error;
+}
+
+async function fetchGeminiGenerateContent(settings, body, { signal, purpose = 'Gemini' } = {}) {
+  const model = getGeminiModelName(settings.model);
+  const apiKey = String(settings.apiKey || '').trim();
+  const url = getGeminiGenerateContentUrl(model);
+  const requestBody = JSON.stringify(body);
+  const headerRequest = {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-goog-api-key': apiKey
+    },
+    body: requestBody,
+    signal
+  };
+
+  try {
+    const response = await fetch(url, headerRequest);
+    const parsed = await readGeminiResponse(response);
+    if (response.ok) return { response, data: parsed.json || {}, rawText: parsed.text, method: 'header' };
+    const headerError = buildGeminiError(response, parsed, purpose);
+
+    // Some browser/project combinations still work better with the legacy query-key style.
+    // Try it once only as a compatibility fallback before showing the detailed error.
+    if ([401, 403, 404].includes(response.status)) {
+      const fallbackResponse = await fetch(`${url}?key=${encodeURIComponent(apiKey)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: requestBody,
+        signal
+      });
+      const fallbackParsed = await readGeminiResponse(fallbackResponse);
+      if (fallbackResponse.ok) return { response: fallbackResponse, data: fallbackParsed.json || {}, rawText: fallbackParsed.text, method: 'query' };
+      throw buildGeminiError(fallbackResponse, fallbackParsed, `${purpose} fallback`);
+    }
+    throw headerError;
+  } catch (error) {
+    if (error?.name === 'AbortError') throw error;
+    if (error?.status) throw error;
+    // If a custom header is blocked by the browser/CORS, retry using the query-key style.
+    try {
+      const fallbackResponse = await fetch(`${url}?key=${encodeURIComponent(apiKey)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: requestBody,
+        signal
+      });
+      const fallbackParsed = await readGeminiResponse(fallbackResponse);
+      if (fallbackResponse.ok) return { response: fallbackResponse, data: fallbackParsed.json || {}, rawText: fallbackParsed.text, method: 'query' };
+      throw buildGeminiError(fallbackResponse, fallbackParsed, `${purpose} fallback`);
+    } catch (fallbackError) {
+      if (fallbackError?.status) throw fallbackError;
+      throw error;
+    }
+  }
+}
+
 async function testAiRubricConnection() {
   const settings = saveAiRubricSettingsLocal(getAiRubricSettingsFromControls());
   if (!settings.enabled || !settings.apiKey) {
+    setAiRubricConnectionState(settings.enabled ? 'unknown' : 'off');
     setAiRubricSettingsStatus('Turn ON AI Review and paste a Gemini API key first.', 'warning');
     return;
   }
   try {
     if (testAiRubricSettingsBtn) testAiRubricSettingsBtn.disabled = true;
-    setAiRubricSettingsStatus('Testing AI connection...', 'warning');
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(getGeminiModelName(settings.model))}:generateContent?key=${encodeURIComponent(settings.apiKey)}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ role: 'user', parts: [{ text: 'Reply with exactly: OK' }] }],
-        generationConfig: { temperature: 0, maxOutputTokens: 20 }
-      })
-    });
-    if (!response.ok) throw new Error(`Gemini returned ${response.status}`);
-    setAiRubricSettingsStatus('AI connection works.', 'success');
+    setAiRubricConnectionState('unknown');
+    setAiRubricSettingsStatus(`Testing ${getGeminiModelName(settings.model)}...`, 'warning');
+    const result = await fetchGeminiGenerateContent(settings, {
+      contents: [{ role: 'user', parts: [{ text: 'Reply with exactly: OK' }] }],
+      generationConfig: { temperature: 0, maxOutputTokens: 20 }
+    }, { purpose: 'Gemini test' });
+    const text = extractGeminiText(result.data).trim();
+    setAiRubricConnectionState('connected', { message: text || 'OK' });
+    setAiRubricSettingsStatus(`AI connection works (${result.method} key method).`, 'success');
   } catch (error) {
     console.error('AI connection test failed.', error);
+    setAiRubricConnectionState('error', { statusCode: error?.status || '', message: error?.message || '' });
     setAiRubricSettingsStatus(error?.message || 'AI connection failed. Check the API key/model.', 'error');
   } finally {
     if (testAiRubricSettingsBtn) testAiRubricSettingsBtn.disabled = false;
@@ -7234,28 +7371,21 @@ async function callGeminiAdminAiRubricReview(context) {
   adminAiRubricController = new AbortController();
   const timeout = window.setTimeout(() => adminAiRubricController.abort(), 45000);
   try {
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(getGeminiModelName(settings.model))}:generateContent?key=${encodeURIComponent(settings.apiKey)}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        generationConfig: {
-          temperature: 0,
-          responseMimeType: 'application/json',
-          maxOutputTokens: 4096
-        }
-      }),
-      signal: adminAiRubricController.signal
-    });
+    const result = await fetchGeminiGenerateContent(settings, {
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      generationConfig: {
+        temperature: 0,
+        responseMimeType: 'application/json',
+        maxOutputTokens: 4096
+      }
+    }, { signal: adminAiRubricController.signal, purpose: 'Gemini AI review' });
     window.clearTimeout(timeout);
-    if (!response.ok) {
-      let detail = '';
-      try { detail = (await response.json())?.error?.message || ''; } catch (error) {}
-      throw new Error(`Gemini returned ${response.status}${detail ? `: ${detail}` : ''}`);
-    }
-    const data = await response.json();
-    const text = data?.candidates?.[0]?.content?.parts?.map(part => part.text || '').join('\n') || '';
+    setAiRubricConnectionState('connected', { message: 'AI review completed.' });
+    const text = extractGeminiText(result.data);
     return normalizeAdminAiRubricReview(extractJsonObjectFromText(text), context);
+  } catch (error) {
+    if (error?.status) setAiRubricConnectionState('error', { statusCode: error.status, message: error.message || '' });
+    throw error;
   } finally {
     window.clearTimeout(timeout);
   }
@@ -17527,8 +17657,12 @@ publishAssistanceBtn?.addEventListener('click', publishAssistanceSettings);
 saveAiRubricSettingsBtn?.addEventListener('click', saveAiRubricSettingsToCloud);
 testAiRubricSettingsBtn?.addEventListener('click', testAiRubricConnection);
 [aiRubricEnabledToggle, aiRubricApiKeyInput, aiRubricModelInput, aiRubricReviewStyleSelect].forEach(control => {
-  control?.addEventListener('change', () => saveAiRubricSettingsLocal(getAiRubricSettingsFromControls()));
-  control?.addEventListener('input', () => saveAiRubricSettingsLocal(getAiRubricSettingsFromControls()));
+  const updateAiRubricDraft = () => {
+    resetAiRubricConnectionState();
+    saveAiRubricSettingsLocal(getAiRubricSettingsFromControls());
+  };
+  control?.addEventListener('change', updateAiRubricDraft);
+  control?.addEventListener('input', updateAiRubricDraft);
 });
 complianceTermSelect?.addEventListener('change', () => {
   const settings = saveComplianceSettings(getComplianceSettingsFromControls());

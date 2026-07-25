@@ -128,6 +128,23 @@
       white-space: nowrap;
     }
 
+    .ai-rubric-status-pill.configured,
+    .ai-rubric-status-pill.warning {
+      background: #fef3c7;
+      color: #92400e;
+    }
+
+    .ai-rubric-status-pill.connected,
+    .ai-rubric-status-pill.ready {
+      background: #dcfce7;
+      color: #166534;
+    }
+
+    .ai-rubric-status-pill.error {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
     .admin-ai-review-status.running { background: #fef3c7; color: #92400e; }
     .admin-ai-review-status.ready { background: #dcfce7; color: #166534; }
     .admin-ai-review-status.error { background: #fee2e2; color: #991b1b; }
@@ -1111,7 +1128,7 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
             </label>
             <label>
               Model
-              <input id="aiRubricModelInput" type="text" autocomplete="off" value="gemini-2.0-flash" placeholder="gemini-2.0-flash" />
+              <input id="aiRubricModelInput" type="text" autocomplete="off" value="gemini-2.5-flash" placeholder="gemini-2.5-flash" />
             </label>
             <label>
               Review Style
