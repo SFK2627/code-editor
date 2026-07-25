@@ -330,6 +330,17 @@ const adminStudentCount = document.getElementById('adminStudentCount');
 const adminLoggedInCount = document.getElementById('adminLoggedInCount');
 const adminProjectCount = document.getElementById('adminProjectCount');
 const adminActiveTodayCount = document.getElementById('adminActiveTodayCount');
+const refreshOnlinePresenceBtn = document.getElementById('refreshOnlinePresenceBtn');
+const onlinePresenceAutoBtn = document.getElementById('onlinePresenceAutoBtn');
+const onlinePresenceSearch = document.getElementById('onlinePresenceSearch');
+const onlinePresenceSectionFilter = document.getElementById('onlinePresenceSectionFilter');
+const onlinePresenceStatusFilter = document.getElementById('onlinePresenceStatusFilter');
+const onlinePresenceStatus = document.getElementById('onlinePresenceStatus');
+const onlinePresenceList = document.getElementById('onlinePresenceList');
+const onlineNowCount = document.getElementById('onlineNowCount');
+const onlineRecentCount = document.getElementById('onlineRecentCount');
+const onlineReadingCount = document.getElementById('onlineReadingCount');
+const onlineCodingCount = document.getElementById('onlineCodingCount');
 const adminStudentProjectsOverlay = document.getElementById('adminStudentProjectsOverlay');
 const adminStudentProjectsTitle = document.getElementById('adminStudentProjectsTitle');
 const adminStudentProjectsSubtitle = document.getElementById('adminStudentProjectsSubtitle');
@@ -507,6 +518,13 @@ const PROFILE_ACTIVITY_WRITE_INTERVAL = 5 * 60 * 1000;
 const AUTO_RUN_DELAY = 850;
 const PREVIEW_LOAD_TIMEOUT = 3200;
 const APP_NETWORK_TIMEOUT_MS = 12000;
+const PRESENCE_HEARTBEAT_MS = 90 * 1000;
+const PRESENCE_MIN_WRITE_INTERVAL = 45 * 1000;
+const PRESENCE_ONLINE_WINDOW_MS = 2.5 * 60 * 1000;
+const PRESENCE_RECENT_WINDOW_MS = 10 * 60 * 1000;
+const PRESENCE_ADMIN_WINDOW_MS = 20 * 60 * 1000;
+const PRESENCE_ADMIN_AUTO_REFRESH_MS = 60 * 1000;
+const PRESENCE_ADMIN_LIMIT = 200;
 
 const appSession = {
   mode: 'pending', // pending | guest | student
@@ -533,6 +551,15 @@ let studentProjectRetryTimer = null;
 let studentProjectRecoveryTimer = null;
 let lastProfileActivityWriteAt = 0;
 let adminStudentsCache = [];
+let studentPresenceTimer = null;
+let studentPresenceStarted = false;
+let studentPresenceLastWriteAt = 0;
+let studentPresenceLastSignature = '';
+let studentPresenceLastActivity = 'App open';
+let adminOnlinePresenceRecords = [];
+let adminOnlinePresenceTimer = null;
+let adminOnlinePresenceAutoRefresh = true;
+let adminOnlinePresenceLoading = false;
 let pendingStudentImportRows = [];
 let studentImportRunning = false;
 let autoRunEnabled = loadJSON(STORAGE_KEYS.autoRun, true) !== false;
@@ -2834,6 +2861,16 @@ function getComplianceSettingsDocRef() {
   return doc(firebaseSync.db, firebaseSync.collectionName, firebaseSync.documentId, 'adminSettings', 'compliance');
 }
 
+function getOnlinePresenceCollectionRef() {
+  const { collection } = firebaseSync.modules;
+  return collection(firebaseSync.db, firebaseSync.collectionName, firebaseSync.documentId, 'onlinePresence');
+}
+
+function getOnlinePresenceDocRef(uid) {
+  const { doc } = firebaseSync.modules;
+  return doc(firebaseSync.db, firebaseSync.collectionName, firebaseSync.documentId, 'onlinePresence', uid);
+}
+
 function snapshotExists(snapshot) {
   if (!snapshot) return false;
   return typeof snapshot.exists === 'function' ? snapshot.exists() : Boolean(snapshot.exists);
@@ -3629,6 +3666,7 @@ async function activateStudentSession(profile, { showDashboard = true } = {}) {
   appSession.existingStudentUser = getFirebaseActiveUser();
   persistLastStudentSession('student-activated');
   updateAppHeaderForSession();
+  startStudentPresenceHeartbeat();
 
   const loginTracker = recordStudentLogin().catch(error => {
     console.warn('Could not record student login before showing the dashboard.', error);
@@ -3906,6 +3944,7 @@ async function handleStudentAuthObserver(user) {
   if (!user) {
     if (appSession.mode === 'student') {
       persistLastStudentSession('firebase-signed-out');
+      stopStudentPresenceHeartbeat();
       appSession.mode = 'pending';
       appSession.student = null;
       appSession.currentProjectId = '';
@@ -4000,10 +4039,18 @@ async function logoutStudent() {
     console.warn('Final student save skipped.', error);
   }
   try {
+    if (appSession.mode === 'student' && appSession.student?.uid) {
+      await writeStudentPresence({ currentView: 'signed_out', activityGroup: 'Signed out', activityLabel: 'Signed out' }, { force: true });
+    }
+  } catch (error) {
+    console.warn('Student sign-out presence update skipped.', error);
+  }
+  try {
     if (firebaseSync.auth && firebaseSync.authModule) await firebaseSync.authModule.signOut(firebaseSync.auth);
   } catch (error) {
     console.warn('Student logout failed.', error);
   }
+  stopStudentPresenceHeartbeat();
   appSession.mode = 'pending';
   appSession.student = null;
   appSession.existingStudentUser = null;
@@ -4031,6 +4078,7 @@ async function showStudentDashboard() {
   document.body.classList.add('student-dashboard-active');
   const firstName = getStudentFirstName(appSession.student.name);
   if (dashboardGreeting) dashboardGreeting.textContent = `Hi, ${firstName}! Your saved work is ready.`;
+  queueStudentPresenceUpdate({ currentView: 'dashboard', activityGroup: 'My Projects', activityLabel: 'On My Projects' }, { force: true });
   await Promise.allSettled([
     loadStudentProjects(),
     loadStudentComplianceStatus()
@@ -4944,6 +4992,7 @@ function openStudentComplianceModal() {
   if (!studentComplianceOverlay) return;
   updateStudentComplianceTitle(studentComplianceRecord);
   studentComplianceOverlay.classList.remove('hidden');
+  queueStudentPresenceUpdate({ currentView: 'subject_status', activityGroup: 'Subject Status', activityLabel: 'Viewing subject status' }, { force: true });
   document.body.classList.add('student-auth-open');
   if (!studentComplianceRecord) {
     loadStudentComplianceStatus().catch(error => console.warn('Could not refresh subject status.', error));
@@ -4953,6 +5002,7 @@ function openStudentComplianceModal() {
 function closeStudentComplianceModal() {
   studentComplianceOverlay?.classList.add('hidden');
   document.body.classList.remove('student-auth-open');
+  queueStudentPresenceUpdate({}, { force: true });
 }
 
 async function loadStudentComplianceStatus(options = {}) {
@@ -5514,6 +5564,13 @@ async function openStudentProject(projectId) {
       setStudentSaveState('Saved');
       setStatus(`Project: ${project.name}`);
     }
+    queueStudentPresenceUpdate({
+      currentView: 'editor',
+      activityGroup: 'Coding',
+      activityLabel: `Coding: ${project.name || 'Project'}`,
+      projectId,
+      projectName: project.name || 'Project'
+    }, { force: true });
   } catch (error) {
     console.error('Could not open project', error);
     await appAlert(error?.message || 'Could not open the project.', { title: 'Project unavailable', danger: true });
@@ -5921,6 +5978,7 @@ function populateAdminSectionFilter() {
     adminStudentSectionOptions.innerHTML = sections
       .map(section => `<option value="${escapeAttribute(section)}"></option>`).join('');
   }
+  populateOnlinePresenceSectionFilter();
 }
 
 function getFilteredAdminStudents() {
@@ -5976,6 +6034,375 @@ function renderAdminStudentTracker() {
         <td><div class="student-action-stack">${rosterOnly ? '<span class="student-cell-sub">No projects yet</span>' : `<button class="ghost-btn view-student-projects-btn" type="button" data-student-uid="${escapeAttribute(student.uid)}">View Projects</button>`}<button class="ghost-btn danger-btn delete-student-account-btn" type="button" data-student-id="${escapeAttribute(student.studentId || '')}" data-student-uid="${escapeAttribute(student.uid || '')}">Delete</button></div></td>
       </tr>`;
   }).join('');
+}
+
+
+function getOnlinePresenceStatus(record = {}, now = Date.now()) {
+  const lastSeenMs = Number(record.lastSeenMs || 0);
+  if (!lastSeenMs) return 'recent';
+  if (record.pageVisible !== false && now - lastSeenMs <= PRESENCE_ONLINE_WINDOW_MS) return 'online';
+  return 'recent';
+}
+
+function isPresenceReading(record = {}) {
+  const view = String(record.currentView || '');
+  const group = String(record.activityGroup || '');
+  return view.includes('lesson') || /lesson|reading/i.test(group);
+}
+
+function isPresenceCoding(record = {}) {
+  return String(record.currentView || '') === 'editor' || /coding/i.test(String(record.activityGroup || ''));
+}
+
+function formatPresenceAgo(ms = 0) {
+  const time = Number(ms || 0);
+  if (!time) return 'No time yet';
+  const diff = Math.max(0, Date.now() - time);
+  if (diff < 30 * 1000) return 'just now';
+  if (diff < 60 * 1000) return `${Math.round(diff / 1000)}s ago`;
+  if (diff < 60 * 60 * 1000) return `${Math.round(diff / 60000)}m ago`;
+  return formatStudentDate(time, 'recently');
+}
+
+function getPresenceDeviceLabel() {
+  const isPhone = document.documentElement.dataset.deviceMode === 'phone'
+    || Boolean(window.__mcsianPhonePreviewMode)
+    || Boolean(window.matchMedia?.('(max-width: 760px)').matches);
+  return isPhone ? 'Phone' : 'Desktop';
+}
+
+function getStudentPresenceActivitySnapshot(override = {}) {
+  const isOpen = element => Boolean(element && !element.classList.contains('hidden'));
+  const student = appSession.student || appSession.lastStudentProfile || {};
+
+  if (override.currentView || override.activityLabel) return {
+    currentView: override.currentView || 'app',
+    activityGroup: override.activityGroup || override.activityLabel || 'App open',
+    activityLabel: override.activityLabel || override.activityGroup || 'App open',
+    projectId: override.projectId || '',
+    projectName: override.projectName || '',
+    lessonId: override.lessonId || '',
+    lessonTitle: override.lessonTitle || ''
+  };
+
+  if (isOpen(lessonPdfOverlay) && lessonLibraryState.currentLessonId) {
+    const lesson = lessonLibraryState.lessons.find(item => item.id === lessonLibraryState.currentLessonId) || null;
+    return {
+      currentView: 'lesson_pdf',
+      activityGroup: 'Reading Lesson',
+      activityLabel: lesson?.title ? `Reading: ${lesson.title}` : 'Reading a lesson',
+      lessonId: lesson?.id || lessonLibraryState.currentLessonId,
+      lessonTitle: lesson?.title || '',
+      projectId: '',
+      projectName: ''
+    };
+  }
+
+  if (isOpen(lessonViewerScreen)) {
+    return {
+      currentView: 'lesson_library',
+      activityGroup: 'Lesson Viewer',
+      activityLabel: 'Browsing lessons',
+      lessonId: '',
+      lessonTitle: '',
+      projectId: '',
+      projectName: ''
+    };
+  }
+
+  if (isOpen(studentComplianceOverlay)) {
+    return {
+      currentView: 'subject_status',
+      activityGroup: 'Subject Status',
+      activityLabel: 'Viewing subject status',
+      lessonId: '',
+      lessonTitle: '',
+      projectId: '',
+      projectName: ''
+    };
+  }
+
+  if (isOpen(recitationStatusOverlay)) {
+    return {
+      currentView: 'recitation_status',
+      activityGroup: 'Recitation Status',
+      activityLabel: 'Viewing recitation status',
+      lessonId: '',
+      lessonTitle: '',
+      projectId: '',
+      projectName: ''
+    };
+  }
+
+  if (isOpen(studentDashboard)) {
+    return {
+      currentView: 'dashboard',
+      activityGroup: 'My Projects',
+      activityLabel: 'On My Projects',
+      lessonId: '',
+      lessonTitle: '',
+      projectId: '',
+      projectName: ''
+    };
+  }
+
+  if (appSession.currentProjectId) {
+    const projectName = appSession.currentProject?.name || student.lastProjectName || 'Project';
+    return {
+      currentView: 'editor',
+      activityGroup: 'Coding',
+      activityLabel: `Coding: ${projectName}`,
+      projectId: appSession.currentProjectId,
+      projectName,
+      lessonId: '',
+      lessonTitle: ''
+    };
+  }
+
+  return {
+    currentView: 'app',
+    activityGroup: 'App open',
+    activityLabel: 'App open',
+    projectId: '',
+    projectName: '',
+    lessonId: '',
+    lessonTitle: ''
+  };
+}
+
+function buildStudentPresencePayload(activityOverride = {}) {
+  const student = appSession.student || appSession.lastStudentProfile;
+  if (!student?.uid) return null;
+  const activityInfo = getStudentPresenceActivitySnapshot(activityOverride);
+  const now = Date.now();
+  return {
+    uid: student.uid,
+    name: String(student.name || student.studentName || 'Student'),
+    displayName: getStudentStatusDisplayName(student),
+    studentId: String(student.studentId || student.studentIdNormalized || ''),
+    studentIdNormalized: normalizeStudentId(student.studentId || student.studentIdNormalized || ''),
+    section: String(student.section || ''),
+    gender: String(student.gender || ''),
+    currentView: activityInfo.currentView,
+    activityGroup: activityInfo.activityGroup,
+    activityLabel: activityInfo.activityLabel,
+    projectId: activityInfo.projectId || '',
+    projectName: activityInfo.projectName || '',
+    lessonId: activityInfo.lessonId || '',
+    lessonTitle: activityInfo.lessonTitle || '',
+    pageVisible: document.visibilityState !== 'hidden',
+    deviceType: getPresenceDeviceLabel(),
+    lastSeenMs: now,
+    updatedAtMs: now
+  };
+}
+
+async function writeStudentPresence(activityOverride = {}, options = {}) {
+  const payload = buildStudentPresencePayload(activityOverride);
+  if (!payload || appSession.mode !== 'student') return false;
+  if (!options.force && document.visibilityState === 'hidden') return false;
+  const signature = [payload.currentView, payload.activityLabel, payload.projectId, payload.lessonId, payload.pageVisible].join('|');
+  const now = Date.now();
+  if (!options.force && signature === studentPresenceLastSignature && now - studentPresenceLastWriteAt < PRESENCE_MIN_WRITE_INTERVAL) {
+    return false;
+  }
+  if (navigator.onLine === false) return false;
+  const ready = await initFirebaseSync();
+  if (!ready) return false;
+  try {
+    const { setDoc, serverTimestamp } = firebaseSync.modules;
+    await setDoc(getOnlinePresenceDocRef(payload.uid), {
+      ...payload,
+      lastSeenAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+    studentPresenceLastWriteAt = now;
+    studentPresenceLastSignature = signature;
+    studentPresenceLastActivity = payload.activityLabel;
+    return true;
+  } catch (error) {
+    console.warn('Student online presence update skipped.', error);
+    return false;
+  }
+}
+
+function scheduleStudentPresenceHeartbeat() {
+  window.clearTimeout(studentPresenceTimer);
+  studentPresenceTimer = null;
+  if (!studentPresenceStarted || appSession.mode !== 'student' || !appSession.student?.uid) return;
+  studentPresenceTimer = window.setTimeout(async () => {
+    if (document.visibilityState !== 'hidden') {
+      await writeStudentPresence({}, { force: true });
+    }
+    scheduleStudentPresenceHeartbeat();
+  }, PRESENCE_HEARTBEAT_MS);
+}
+
+function startStudentPresenceHeartbeat() {
+  if (!appSession.student?.uid) return;
+  studentPresenceStarted = true;
+  writeStudentPresence({}, { force: true }).catch(error => console.warn('Initial presence update failed.', error));
+  scheduleStudentPresenceHeartbeat();
+}
+
+function stopStudentPresenceHeartbeat() {
+  studentPresenceStarted = false;
+  window.clearTimeout(studentPresenceTimer);
+  studentPresenceTimer = null;
+  studentPresenceLastSignature = '';
+}
+
+function queueStudentPresenceUpdate(activityOverride = {}, options = {}) {
+  if (appSession.mode !== 'student' || !appSession.student?.uid) return;
+  writeStudentPresence(activityOverride, options).catch(error => console.warn('Presence update failed.', error));
+  scheduleStudentPresenceHeartbeat();
+}
+
+function setOnlinePresenceStatus(message = '', type = '') {
+  if (!onlinePresenceStatus) return;
+  onlinePresenceStatus.textContent = message;
+  onlinePresenceStatus.dataset.type = type;
+}
+
+function populateOnlinePresenceSectionFilter() {
+  if (!onlinePresenceSectionFilter) return;
+  const current = onlinePresenceSectionFilter.value || 'all';
+  const sections = [...new Set([
+    ...adminStudentsCache.map(student => String(student.section || '').trim()).filter(Boolean),
+    ...adminOnlinePresenceRecords.map(record => String(record.section || '').trim()).filter(Boolean)
+  ])].sort((a, b) => a.localeCompare(b));
+  onlinePresenceSectionFilter.innerHTML = '<option value="all">All Sections</option>' + sections
+    .map(section => `<option value="${escapeAttribute(section)}">${escapeHTML(section)}</option>`).join('');
+  onlinePresenceSectionFilter.value = sections.includes(current) ? current : 'all';
+}
+
+function getFilteredOnlinePresenceRecords() {
+  const search = String(onlinePresenceSearch?.value || '').trim().toLowerCase();
+  const section = onlinePresenceSectionFilter?.value || 'all';
+  const filter = onlinePresenceStatusFilter?.value || 'all';
+  const now = Date.now();
+  return adminOnlinePresenceRecords.filter(record => {
+    const status = getOnlinePresenceStatus(record, now);
+    const matchesSearch = !search
+      || String(record.name || '').toLowerCase().includes(search)
+      || String(record.displayName || '').toLowerCase().includes(search)
+      || String(record.studentId || '').toLowerCase().includes(search)
+      || String(record.activityLabel || '').toLowerCase().includes(search);
+    const matchesSection = section === 'all' || String(record.section || '') === section;
+    let matchesStatus = true;
+    if (filter === 'online') matchesStatus = status === 'online';
+    else if (filter === 'recent') matchesStatus = status === 'recent';
+    else if (filter === 'reading') matchesStatus = isPresenceReading(record);
+    else if (filter === 'coding') matchesStatus = isPresenceCoding(record);
+    return matchesSearch && matchesSection && matchesStatus;
+  });
+}
+
+function renderAdminOnlinePresence() {
+  if (!onlinePresenceList) return;
+  populateOnlinePresenceSectionFilter();
+  const now = Date.now();
+  const records = getFilteredOnlinePresenceRecords();
+  const online = adminOnlinePresenceRecords.filter(record => getOnlinePresenceStatus(record, now) === 'online').length;
+  const recent = Math.max(0, adminOnlinePresenceRecords.length - online);
+  const reading = adminOnlinePresenceRecords.filter(isPresenceReading).length;
+  const coding = adminOnlinePresenceRecords.filter(isPresenceCoding).length;
+  if (onlineNowCount) onlineNowCount.textContent = String(online);
+  if (onlineRecentCount) onlineRecentCount.textContent = String(recent);
+  if (onlineReadingCount) onlineReadingCount.textContent = String(reading);
+  if (onlineCodingCount) onlineCodingCount.textContent = String(coding);
+
+  if (!records.length) {
+    onlinePresenceList.innerHTML = `
+      <div class="online-presence-empty">
+        <span aria-hidden="true">👥</span>
+        <strong>No active students found.</strong>
+        <p>Students appear here after they log in and keep the app open. Try Refresh, or change the filters.</p>
+      </div>`;
+    return;
+  }
+
+  onlinePresenceList.innerHTML = records.map(record => {
+    const status = getOnlinePresenceStatus(record, now);
+    const statusLabel = status === 'online' ? 'Online now' : 'Recently active';
+    const activity = record.activityLabel || record.activityGroup || 'App open';
+    return `
+      <article class="online-presence-card" data-presence-status="${escapeAttribute(status)}">
+        <div class="online-presence-dot" aria-hidden="true"></div>
+        <div class="online-presence-main">
+          <div class="online-presence-name-row">
+            <strong>${escapeHTML(record.name || record.displayName || 'Student')}</strong>
+            <span class="online-presence-status-pill ${escapeAttribute(status)}">${escapeHTML(statusLabel)}</span>
+          </div>
+          <p>${escapeHTML(activity)}</p>
+          <small>${escapeHTML(record.studentId || 'No ID')} · ${escapeHTML(record.section || 'No section')} · ${escapeHTML(record.deviceType || 'Device')}</small>
+        </div>
+        <div class="online-presence-time">
+          <strong>${escapeHTML(formatPresenceAgo(record.lastSeenMs))}</strong>
+          <span>${escapeHTML(record.pageVisible === false ? 'tab inactive' : 'tab open')}</span>
+        </div>
+      </article>`;
+  }).join('');
+}
+
+function scheduleAdminOnlinePresenceRefresh() {
+  window.clearTimeout(adminOnlinePresenceTimer);
+  adminOnlinePresenceTimer = null;
+  const activeOnlineTab = document.querySelector('[data-admin-panel="online"]')?.classList.contains('active');
+  if (!adminOnlinePresenceAutoRefresh || !activeOnlineTab || !isTeacherAuthenticated() || !adminOverlay || adminOverlay.classList.contains('hidden')) return;
+  adminOnlinePresenceTimer = window.setTimeout(() => {
+    loadAdminOnlinePresence({ silent: true }).catch(error => console.warn('Auto online presence refresh failed.', error));
+  }, PRESENCE_ADMIN_AUTO_REFRESH_MS);
+}
+
+async function loadAdminOnlinePresence(options = {}) {
+  if (!isTeacherAuthenticated()) {
+    setOnlinePresenceStatus('Login as teacher to view online students.', 'warning');
+    return [];
+  }
+  if (adminOnlinePresenceLoading) return adminOnlinePresenceRecords;
+  adminOnlinePresenceLoading = true;
+  if (refreshOnlinePresenceBtn) refreshOnlinePresenceBtn.disabled = true;
+  if (!options.silent) setOnlinePresenceStatus('Checking who is online...', 'loading');
+  try {
+    const ready = await initFirebaseSync();
+    if (!ready) throw new Error(firebaseSync.lastError || 'Firebase is not ready.');
+    const { getDocs, query, where, orderBy, limit } = firebaseSync.modules;
+    const cutoff = Date.now() - PRESENCE_ADMIN_WINDOW_MS;
+    const presenceQuery = query(
+      getOnlinePresenceCollectionRef(),
+      where('lastSeenMs', '>=', cutoff),
+      orderBy('lastSeenMs', 'desc'),
+      limit(PRESENCE_ADMIN_LIMIT)
+    );
+    const snapshot = await withTimeout(
+      getDocs(presenceQuery),
+      APP_NETWORK_TIMEOUT_MS,
+      'Online list took too long to load. Try Refresh again.'
+    );
+    adminOnlinePresenceRecords = (snapshot.docs || []).map(docSnapshot => ({
+      id: docSnapshot.id,
+      ...snapshotData(docSnapshot)
+    })).sort((a, b) => Number(b.lastSeenMs || 0) - Number(a.lastSeenMs || 0));
+    renderAdminOnlinePresence();
+    const online = adminOnlinePresenceRecords.filter(record => getOnlinePresenceStatus(record) === 'online').length;
+    const message = adminOnlinePresenceRecords.length
+      ? `${online} online now · ${adminOnlinePresenceRecords.length} active in the last 20 minutes. Auto refresh is ${adminOnlinePresenceAutoRefresh ? 'on' : 'off'}.`
+      : 'No students reported active in the last 20 minutes.';
+    setOnlinePresenceStatus(message, adminOnlinePresenceRecords.length ? 'success' : 'warning');
+    return adminOnlinePresenceRecords;
+  } catch (error) {
+    console.warn('Could not load online presence.', error);
+    const message = /permission|insufficient/i.test(error?.message || '')
+      ? 'Firebase Rules may need to allow the onlinePresence collection. The feature is ready, but Firestore rejected the read.'
+      : (error?.message || 'Could not load online students.');
+    setOnlinePresenceStatus(message, 'error');
+    return [];
+  } finally {
+    adminOnlinePresenceLoading = false;
+    if (refreshOnlinePresenceBtn) refreshOnlinePresenceBtn.disabled = false;
+    scheduleAdminOnlinePresenceRefresh();
+  }
 }
 
 async function deleteAdminStudentRecord(studentId, uid = '') {
@@ -11785,6 +12212,7 @@ async function openLessonLibrary(origin = 'dashboard') {
   document.body.classList.remove('student-dashboard-active');
   document.body.classList.add('lesson-viewer-active');
   lessonViewerScreen?.classList.remove('hidden');
+  queueStudentPresenceUpdate({ currentView: 'lesson_library', activityGroup: 'Lesson Viewer', activityLabel: 'Browsing lessons' }, { force: true });
   await loadLessonLibrary({ force: !lessonLibraryState.loaded });
   window.setTimeout(() => lessonLibrarySearch?.focus({ preventScroll: true }), 60);
 }
@@ -11795,6 +12223,14 @@ function closeLessonLibrary() {
   document.body.classList.remove('lesson-viewer-active');
   if (lessonLibraryState.returnView === 'dashboard' && appSession.student) {
     showStudentDashboard();
+  } else if (appSession.currentProjectId) {
+    queueStudentPresenceUpdate({
+      currentView: 'editor',
+      activityGroup: 'Coding',
+      activityLabel: `Coding: ${appSession.currentProject?.name || 'Project'}`,
+      projectId: appSession.currentProjectId,
+      projectName: appSession.currentProject?.name || 'Project'
+    }, { force: true });
   }
 }
 
@@ -11813,6 +12249,13 @@ function openLessonPdfViewer(lessonId = '') {
   });
   lessonLibraryState.currentLessonId = lesson.id;
   lessonLibraryState.currentLessonOpenedAt = Date.now();
+  queueStudentPresenceUpdate({
+    currentView: 'lesson_pdf',
+    activityGroup: 'Reading Lesson',
+    activityLabel: `Reading: ${lesson.title}`,
+    lessonId: lesson.id,
+    lessonTitle: lesson.title
+  }, { force: true });
   renderStudentLessonLibrary();
   if (lessonPdfTerm) lessonPdfTerm.textContent = `${lessonTermLabel(lesson.term)} · Lesson ${lesson.order}`;
   if (lessonPdfTitle) lessonPdfTitle.textContent = lesson.title;
@@ -11890,6 +12333,9 @@ function closeLessonPdfViewer() {
   document.body.classList.remove('lesson-pdf-open');
   lessonPdfCard?.classList.remove('lesson-controls-hidden', 'lesson-native-fullscreen');
   resetLessonPdfFrame({ hard: true });
+  if (!lessonViewerScreen?.classList.contains('hidden')) {
+    queueStudentPresenceUpdate({ currentView: 'lesson_library', activityGroup: 'Lesson Viewer', activityLabel: 'Browsing lessons' }, { force: true });
+  }
   if (isLessonPdfFullscreen()) {
     const exitFullscreen = document.exitFullscreen || document.webkitExitFullscreen;
     if (exitFullscreen) Promise.resolve(exitFullscreen.call(document)).catch(() => {});
@@ -12305,7 +12751,7 @@ function getStoredAdminTab() {
 }
 
 function setAdminTab(tabName = 'students') {
-  const allowed = new Set(['students', 'assistance', 'compliance', 'lessons', 'activities']);
+  const allowed = new Set(['students', 'online', 'assistance', 'compliance', 'lessons', 'activities']);
   const nextTab = allowed.has(tabName) ? tabName : 'students';
   localStorage.setItem(ADMIN_TAB_STORAGE_KEY, nextTab);
 
@@ -12322,6 +12768,11 @@ function setAdminTab(tabName = 'students') {
 
   if (nextTab === 'compliance' && isTeacherAuthenticated() && adminComplianceViewerRecords.length === 0) {
     loadAdminComplianceViewer({ silent: true }).catch(error => console.warn('Compliance viewer auto-load failed.', error));
+  }
+  if (nextTab === 'online' && isTeacherAuthenticated()) {
+    loadAdminOnlinePresence({ silent: true }).catch(error => console.warn('Online presence auto-load failed.', error));
+  } else {
+    scheduleAdminOnlinePresenceRefresh();
   }
   if (nextTab === 'lessons' && isTeacherAuthenticated()) initializeLessonManager();
 }
@@ -12373,6 +12824,8 @@ async function openAdminPanel() {
 
 function closeAdminPanel() {
   adminOverlay.classList.add('hidden');
+  window.clearTimeout(adminOnlinePresenceTimer);
+  adminOnlinePresenceTimer = null;
   setAdminTab(getStoredAdminTab());
   document.body.classList.remove('admin-open');
 }
@@ -15983,7 +16436,23 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden' && isStudentProjectActive() && isStudentAutoSaveAllowed()) {
     saveCurrentStudentProject({ immediate: true, reason: 'visibility' });
   }
+  if (appSession.mode === 'student' && appSession.student?.uid) {
+    writeStudentPresence({}, { force: true }).catch(error => console.warn('Visibility presence update skipped.', error));
+    if (document.visibilityState !== 'hidden') scheduleStudentPresenceHeartbeat();
+  }
 });
+
+refreshOnlinePresenceBtn?.addEventListener('click', () => loadAdminOnlinePresence({ silent: false }));
+onlinePresenceAutoBtn?.addEventListener('click', () => {
+  adminOnlinePresenceAutoRefresh = !adminOnlinePresenceAutoRefresh;
+  onlinePresenceAutoBtn.setAttribute('aria-pressed', adminOnlinePresenceAutoRefresh ? 'true' : 'false');
+  onlinePresenceAutoBtn.textContent = adminOnlinePresenceAutoRefresh ? 'Auto: 60s' : 'Auto: Off';
+  setOnlinePresenceStatus(`Auto refresh is ${adminOnlinePresenceAutoRefresh ? 'on' : 'off'}.`, '');
+  scheduleAdminOnlinePresenceRefresh();
+});
+onlinePresenceSearch?.addEventListener('input', renderAdminOnlinePresence);
+onlinePresenceSectionFilter?.addEventListener('change', renderAdminOnlinePresence);
+onlinePresenceStatusFilter?.addEventListener('change', renderAdminOnlinePresence);
 
 // Teacher student account registration, Excel import, and section tracker.
 addStudentAccountBtn?.addEventListener('click', addStudentAccountFromForm);

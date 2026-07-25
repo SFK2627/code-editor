@@ -45,7 +45,7 @@
   </script>
   <link rel="preconnect" href="https://drive.google.com" crossorigin>
   <link rel="preconnect" href="https://lh3.googleusercontent.com" crossorigin>
-  <link rel="stylesheet" href="style.css?v=20260725-step171-compliance-status-polish" />
+  <link rel="stylesheet" href="style.css?v=20260725-step172-online-presence" />
 </head>
 <body class="entry-gate-active">
   <noscript>
@@ -698,6 +698,7 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
       <div class="admin-tabs-wrap" aria-label="Admin sections">
         <div class="admin-tabs" role="tablist" aria-label="Admin sections">
           <button id="adminTabStudents" class="admin-tab-btn active" type="button" role="tab" aria-selected="true" aria-controls="studentAccountsAdmin" data-admin-tab="students">Students</button>
+          <button id="adminTabOnline" class="admin-tab-btn" type="button" role="tab" aria-selected="false" aria-controls="onlinePresenceAdmin" data-admin-tab="online">Online Now</button>
           <button id="adminTabAssistance" class="admin-tab-btn" type="button" role="tab" aria-selected="false" aria-controls="studentAssistanceSettings" data-admin-tab="assistance">Assistance</button>
           <button id="adminTabCompliance" class="admin-tab-btn" type="button" role="tab" aria-selected="false" aria-controls="complianceTrackerAdmin" data-admin-tab="compliance">Compliance</button>
           <button id="adminTabLessons" class="admin-tab-btn" type="button" role="tab" aria-selected="false" aria-controls="lessonManagerAdmin" data-admin-tab="lessons">Lessons</button>
@@ -989,6 +990,37 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
               <tbody id="adminStudentsTableBody"></tbody>
             </table>
           </div>
+        </section>
+
+        <section id="onlinePresenceAdmin" class="admin-tab-panel online-presence-admin" data-admin-panel="online" aria-labelledby="onlinePresenceTitle">
+          <div class="online-presence-heading">
+            <div>
+              <p class="section-kicker">Lightweight Presence</p>
+              <h3 id="onlinePresenceTitle">Online Students</h3>
+              <p class="muted-text">Shows students who recently opened the app. Student devices update at a slow heartbeat only while active, so it stays light on Firebase.</p>
+            </div>
+            <div class="online-presence-actions">
+              <button id="refreshOnlinePresenceBtn" class="ghost-btn" type="button">↻ Refresh</button>
+              <button id="onlinePresenceAutoBtn" class="ghost-btn" type="button" aria-pressed="true">Auto: 60s</button>
+            </div>
+          </div>
+
+          <div class="online-presence-summary" aria-label="Online presence summary">
+            <div><strong id="onlineNowCount">0</strong><span>Online now</span></div>
+            <div><strong id="onlineRecentCount">0</strong><span>Recently active</span></div>
+            <div><strong id="onlineReadingCount">0</strong><span>Reading lessons</span></div>
+            <div><strong id="onlineCodingCount">0</strong><span>Coding</span></div>
+          </div>
+
+          <div class="online-presence-toolbar">
+            <label><span>Search</span><input id="onlinePresenceSearch" type="search" placeholder="Name or Student ID" autocomplete="off" /></label>
+            <label><span>Section</span><select id="onlinePresenceSectionFilter"><option value="all">All Sections</option></select></label>
+            <label><span>Status</span><select id="onlinePresenceStatusFilter"><option value="all">All Recent</option><option value="online">Online Now</option><option value="recent">Recently Active</option><option value="reading">Reading Lessons</option><option value="coding">Coding</option></select></label>
+          </div>
+
+          <p id="onlinePresenceStatus" class="helper-note online-presence-status" role="status">Open this tab and click Refresh to see active students.</p>
+          <div id="onlinePresenceList" class="online-presence-list" aria-live="polite"></div>
+          <p class="helper-note online-presence-privacy">Privacy-safe: this only shows page/activity status and last active time. It does not capture screens, keystrokes, exact locations, or private content.</p>
         </section>
 
         <section id="complianceTrackerAdmin" class="admin-tab-panel compliance-admin-card" data-admin-panel="compliance" aria-labelledby="complianceTrackerTitle">
@@ -1527,6 +1559,6 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
   <script src="firebase-config.js"></script>
-  <script src="script.js?v=20260725-step171-compliance-status-polish"></script>
+  <script src="script.js?v=20260725-step172-online-presence"></script>
 </body>
 </html>

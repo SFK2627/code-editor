@@ -1,13 +1,13 @@
-const CACHE_NAME = 'code-editor-20260725-step171-compliance-status-polish';
+const CACHE_NAME = 'code-editor-20260725-step172-online-presence';
 const APP_SHELL = [
   './',
   './index.html',
-  './index.html?v=20260725-step171-compliance-status-polish',
-  './index.html?fresh=step171',
+  './index.html?v=20260725-step172-online-presence',
+  './index.html?fresh=step172',
   './style.css',
-  './style.css?v=20260725-step171-compliance-status-polish',
+  './style.css?v=20260725-step172-online-presence',
   './script.js',
-  './script.js?v=20260725-step171-compliance-status-polish',
+  './script.js?v=20260725-step172-online-presence',
   './firebase-config.js',
   './manifest.webmanifest',
   './favicon.png',
