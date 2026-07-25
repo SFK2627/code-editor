@@ -200,6 +200,9 @@ const aiRubricEnabledToggle = document.getElementById('aiRubricEnabledToggle');
 const aiRubricApiKeyInput = document.getElementById('aiRubricApiKeyInput');
 const aiRubricModelInput = document.getElementById('aiRubricModelInput');
 const aiRubricReviewStyleSelect = document.getElementById('aiRubricReviewStyleSelect');
+const aiRubricStudentFeedbackToggle = document.getElementById('aiRubricStudentFeedbackToggle');
+const aiRubricRubricFeedbackToggle = document.getElementById('aiRubricRubricFeedbackToggle');
+const aiRubricGeneratorToggle = document.getElementById('aiRubricGeneratorToggle');
 const saveAiRubricSettingsBtn = document.getElementById('saveAiRubricSettingsBtn');
 const testAiRubricSettingsBtn = document.getElementById('testAiRubricSettingsBtn');
 const aiRubricSettingsStatus = document.getElementById('aiRubricSettingsStatus');
@@ -209,6 +212,9 @@ const studentTeacherCommentPanel = document.getElementById('studentTeacherCommen
 const studentTeacherCommentStatus = document.getElementById('studentTeacherCommentStatus');
 const studentTeacherCommentContent = document.getElementById('studentTeacherCommentContent');
 const refreshStudentTeacherCommentBtn = document.getElementById('refreshStudentTeacherCommentBtn');
+const aiGenerateRubricBtn = document.getElementById('aiGenerateRubricBtn');
+const aiImproveRubricBtn = document.getElementById('aiImproveRubricBtn');
+const aiRubricGeneratorStatus = document.getElementById('aiRubricGeneratorStatus');
 
 // Student entry, account, dashboard, project, and admin tracker elements.
 const entryGate = document.getElementById('entryGate');
@@ -529,8 +535,11 @@ const DEFAULT_AI_RUBRIC_SETTINGS = Object.freeze({
   enabled: false,
   provider: 'gemini',
   apiKey: '',
-  model: 'gemini-2.5-flash',
-  reviewStyle: 'strict'
+  model: 'gemini-3.6-flash',
+  reviewStyle: 'strict',
+  studentResultFeedback: true,
+  rubricBasedFeedback: true,
+  rubricGenerator: true
 });
 
 function normalizeAiRubricSettings(source = {}) {
@@ -544,7 +553,10 @@ function normalizeAiRubricSettings(source = {}) {
     provider: 'gemini',
     apiKey: String(safe.apiKey || '').trim(),
     model,
-    reviewStyle: style
+    reviewStyle: style,
+    studentResultFeedback: safe.studentResultFeedback !== false,
+    rubricBasedFeedback: safe.rubricBasedFeedback !== false,
+    rubricGenerator: safe.rubricGenerator !== false
   };
 }
 
@@ -2534,7 +2546,10 @@ function getAiRubricSettingsFromControls() {
     enabled: aiRubricEnabledToggle?.checked === true,
     apiKey: aiRubricApiKeyInput?.value || '',
     model: aiRubricModelInput?.value || DEFAULT_AI_RUBRIC_SETTINGS.model,
-    reviewStyle: aiRubricReviewStyleSelect?.value || DEFAULT_AI_RUBRIC_SETTINGS.reviewStyle
+    reviewStyle: aiRubricReviewStyleSelect?.value || DEFAULT_AI_RUBRIC_SETTINGS.reviewStyle,
+    studentResultFeedback: aiRubricStudentFeedbackToggle?.checked !== false,
+    rubricBasedFeedback: aiRubricRubricFeedbackToggle?.checked !== false,
+    rubricGenerator: aiRubricGeneratorToggle?.checked !== false
   });
 }
 
@@ -2554,6 +2569,9 @@ function syncAiRubricSettingsControls(settings = aiRubricSettings) {
   if (aiRubricApiKeyInput && aiRubricApiKeyInput.value !== normalized.apiKey) aiRubricApiKeyInput.value = normalized.apiKey;
   if (aiRubricModelInput) aiRubricModelInput.value = normalized.model;
   if (aiRubricReviewStyleSelect) aiRubricReviewStyleSelect.value = normalized.reviewStyle;
+  if (aiRubricStudentFeedbackToggle) aiRubricStudentFeedbackToggle.checked = normalized.studentResultFeedback !== false;
+  if (aiRubricRubricFeedbackToggle) aiRubricRubricFeedbackToggle.checked = normalized.rubricBasedFeedback !== false;
+  if (aiRubricGeneratorToggle) aiRubricGeneratorToggle.checked = normalized.rubricGenerator !== false;
   const configured = Boolean(normalized.enabled && normalized.apiKey && normalized.model);
   if (aiRubricStatusPill) {
     let label = 'AI OFF';
@@ -2670,10 +2688,10 @@ async function readGeminiResponseDetail(response) {
   }
   message = String(message || response?.statusText || 'Unknown Gemini error').replace(/\s+/g, ' ').trim();
   let hint = '';
-  if (status === 400) hint = 'Check the request/model name and try gemini-2.5-flash.';
+  if (status === 400) hint = 'Check the request/model name and try gemini-3.6-flash.';
   if (status === 401) hint = 'The API key was rejected. Create a new Gemini API key and paste it again.';
   if (status === 403) hint = 'Permission issue: enable Gemini API/Generative Language API for the same project, check key restrictions, and make sure this key is allowed for Gemini API.';
-  if (status === 404) hint = 'Model not found or unavailable. Try gemini-2.5-flash.';
+  if (status === 404) hint = 'Model not found or unavailable. Try gemini-3.6-flash, gemini-3.5-flash, or another model listed in your AI Studio account.';
   if (status === 429) hint = 'Quota/rate limit reached. Wait and try again, or reduce AI reviews.';
   if (status >= 500) hint = 'Gemini service error. Wait a moment and try again.';
   return { status, message, hint, raw };
@@ -2728,6 +2746,43 @@ async function fetchGeminiGenerateContent(settings, body, { signal } = {}) {
     }
   }
   throw buildGeminiError(headerDetail);
+}
+
+
+async function readGeminiTextResponse(response) {
+  const data = await response.json();
+  return data?.candidates?.[0]?.content?.parts?.map(part => part.text || '').join('\n') || '';
+}
+
+async function callGeminiJson(settings, prompt, { signal, maxOutputTokens = 4096, temperature = 0 } = {}) {
+  const response = await fetchGeminiGenerateContent(settings, {
+    contents: [{ role: 'user', parts: [{ text: prompt }] }],
+    generationConfig: {
+      temperature,
+      responseMimeType: 'application/json',
+      maxOutputTokens
+    }
+  }, { signal });
+  return extractJsonObjectFromText(await readGeminiTextResponse(response));
+}
+
+function getCurrentAiRubricSettings() {
+  return saveAiRubricSettingsLocal(getAiRubricSettingsFromControls());
+}
+
+function isGeminiAiConfigured(settings = aiRubricSettings) {
+  const normalized = normalizeAiRubricSettings(settings);
+  return Boolean(normalized.enabled && normalized.apiKey && normalized.model);
+}
+
+function shouldUseGeminiForResultFeedback(settings = aiRubricSettings) {
+  const normalized = normalizeAiRubricSettings(settings);
+  return isGeminiAiConfigured(normalized) && normalized.studentResultFeedback !== false && normalized.rubricBasedFeedback !== false;
+}
+
+function shouldUseGeminiRubricGenerator(settings = aiRubricSettings) {
+  const normalized = normalizeAiRubricSettings(settings);
+  return isGeminiAiConfigured(normalized) && normalized.rubricGenerator !== false;
 }
 
 async function testAiRubricConnection() {
@@ -11623,15 +11678,62 @@ function closePhoneResultFeedbackPopup() {
   phoneResultFeedbackPopupState.activeType = null;
 }
 
+
+function buildGeminiStudentRubricFeedbackPrompt(result) {
+  const payload = buildAIReviewPayload(result);
+  const style = aiRubricSettings.reviewStyle || 'balanced';
+  return `You are a careful Grade 8 ICT teacher reviewing a student's HTML/CSS/JavaScript project.
+
+Use the teacher rubric as the main scoring basis. Compare the rubric, code, checker warnings, and visible output text. Be fair and consistent. Do not invent output that is not shown. If a visual judgment is limited because you only have a text summary, mention that limitation briefly. Do not provide a complete replacement code solution.
+
+Return ONLY valid JSON. No markdown.
+
+Required JSON schema:
+{
+  "mode": "AI Rubric Feedback",
+  "officialScore": "rubric score text",
+  "suggestedScore": 0,
+  "summary": "one short teacher-like summary",
+  "strengths": ["specific strength"],
+  "improvements": ["specific improvement"],
+  "nextSteps": ["student-friendly next step"],
+  "teacherNote": "short note explaining score consistency or limitations"
+}
+
+Scoring rules:
+- Use the existing rubric score as a baseline.
+- Change suggestedScore only if code/output evidence clearly shows the local checker over-scored or under-scored the work.
+- Never exceed the possible score.
+- Focus on rubric evidence, not generic encouragement.
+- Review style: ${style}.
+
+CONTEXT JSON:
+${JSON.stringify(payload, null, 2)}`;
+}
+
+function normalizeGeminiStudentReview(raw, fallbackResult) {
+  const fallback = normalizeAIReviewResponse(raw, fallbackResult);
+  const maxScore = Number(fallbackResult?.possible || 0) || null;
+  if (maxScore !== null && fallback.suggestedScore !== null && fallback.suggestedScore !== undefined) {
+    fallback.suggestedScore = Math.round(clamp(Number(fallback.suggestedScore) || 0, 0, maxScore) * 10) / 10;
+  }
+  fallback.mode = fallback.mode || 'AI Rubric Feedback';
+  fallback.teacherNote = fallback.teacherNote || 'AI feedback is a suggested review only. Teacher rubric settings remain the official basis.';
+  return fallback;
+}
+
+async function callGeminiStudentRubricFeedback(result, { signal } = {}) {
+  const settings = getCurrentAiRubricSettings();
+  if (!shouldUseGeminiForResultFeedback(settings)) throw new Error('AI Result Feedback is not enabled or API key is missing.');
+  const prompt = buildGeminiStudentRubricFeedbackPrompt(result);
+  const raw = await callGeminiJson(settings, prompt, { signal, maxOutputTokens: 3072, temperature: 0 });
+  return normalizeGeminiStudentReview(raw, result);
+}
+
 async function requestAIReview(options = {}) {
   const safeOptions = normalizeButtonActionOptions(options);
   if (!isStudentAssistanceFeatureEnabled('teacherFeedback')) {
     await appAlert('Detailed rubric feedback is currently disabled by the teacher.', { title: 'Feedback disabled' });
-    return;
-  }
-
-  if (!isAIReviewEnabled()) {
-    await appAlert('Detailed feedback is disabled in firebase-config.js.', { title: 'Feedback unavailable' });
     return;
   }
 
@@ -11647,12 +11749,15 @@ async function requestAIReview(options = {}) {
   lastRubricResult = result;
   if (!result) return;
 
-  const endpoint = getAIReviewEndpoint();
-  renderAIReview(generateLocalAIReview(result), { loading: Boolean(endpoint) });
-  if (shouldUsePhoneResultFeedbackPopup(safeOptions)) openPhoneResultFeedbackPopup('feedback');
-  setStatus(endpoint ? 'Review running...' : 'Feedback ready');
+  const settings = getCurrentAiRubricSettings();
+  const useGemini = shouldUseGeminiForResultFeedback(settings);
+  const endpoint = !useGemini && isAIReviewEnabled() ? getAIReviewEndpoint() : '';
 
-  if (!endpoint) {
+  renderAIReview(generateLocalAIReview(result), { loading: Boolean(useGemini || endpoint) });
+  if (shouldUsePhoneResultFeedbackPopup(safeOptions)) openPhoneResultFeedbackPopup('feedback');
+  setStatus(useGemini ? 'AI feedback running...' : endpoint ? 'Review running...' : 'Feedback ready');
+
+  if (!useGemini && !endpoint) {
     renderAIReview(generateLocalAIReview(result));
     if (shouldUsePhoneResultFeedbackPopup(safeOptions)) {
       openPhoneResultFeedbackPopup('feedback');
@@ -11665,28 +11770,32 @@ async function requestAIReview(options = {}) {
   try {
     if (aiReviewController) aiReviewController.abort();
     aiReviewController = new AbortController();
-    const timeout = window.setTimeout(() => aiReviewController.abort(), getAIReviewTimeoutMs());
+    const timeout = window.setTimeout(() => aiReviewController.abort(), useGemini ? 45000 : getAIReviewTimeoutMs());
 
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(buildAIReviewPayload(result)),
-      signal: aiReviewController.signal
-    });
-    window.clearTimeout(timeout);
-
-    if (!response.ok) {
-      throw new Error(`Feedback endpoint returned ${response.status}`);
+    let review = null;
+    if (useGemini) {
+      review = await callGeminiStudentRubricFeedback(result, { signal: aiReviewController.signal });
+    } else {
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(buildAIReviewPayload(result)),
+        signal: aiReviewController.signal
+      });
+      if (!response.ok) throw new Error(`Feedback endpoint returned ${response.status}`);
+      const data = await response.json();
+      review = normalizeAIReviewResponse(data.review || data, result);
     }
 
-    const data = await response.json();
-    const review = normalizeAIReviewResponse(data.review || data, result);
+    window.clearTimeout(timeout);
     renderAIReview(review);
-    setStatus('Feedback ready');
+    setStatus(useGemini ? 'AI feedback ready' : 'Feedback ready');
   } catch (error) {
     console.warn('Feedback review failed; using local smart review.', error);
     const fallback = generateLocalAIReview(result);
-    fallback.teacherNote = '';
+    fallback.teacherNote = error?.message
+      ? `AI feedback was unavailable, so the app used the local smart rubric fallback. ${error.message}`
+      : 'AI feedback was unavailable, so the app used the local smart rubric fallback.';
     renderAIReview(fallback);
     setStatus('Feedback ready');
   }
@@ -11768,7 +11877,7 @@ function showResult(options = {}) {
     lastRubricResult = result;
     renderResult(result);
     renderAIReview(generateLocalAIReview(result));
-    if (getAIReviewEndpoint()) {
+    if (shouldUseGeminiForResultFeedback(getCurrentAiRubricSettings()) || getAIReviewEndpoint()) {
       requestAIReview({ scroll: false, suppressPhonePopup: true });
     }
     saveCurrentStudentProject({ result, immediate: true, reason: 'result' });
@@ -15053,6 +15162,164 @@ function applyManualRubricTableToActualRubric() {
   setManualRubricStatus(`Applied ${criteria.length} row${criteria.length === 1 ? '' : 's'} and generated smart rubric checks. Review them, then click Save Activity.`, 'success');
 }
 
+
+function setAiRubricGeneratorStatus(message, type = '') {
+  if (aiRubricGeneratorStatus) {
+    aiRubricGeneratorStatus.textContent = message || '';
+    aiRubricGeneratorStatus.className = `helper-note ai-rubric-generator-status ${type}`.trim();
+  }
+  if (message) setManualRubricStatus(message, type);
+}
+
+function getManualRubricDraftForAi() {
+  const scores = getManualRubricScoreMap();
+  const rows = [...(manualRubricInputBody?.querySelectorAll('.manual-rubric-input-row') || [])].map((row, index) => ({
+    index: index + 1,
+    criterion: row.querySelector('.manual-criteria-input')?.value.trim() || '',
+    excellent: row.querySelector('td[data-label="excellent"] textarea')?.value.trim() || '',
+    good: row.querySelector('td[data-label="good"] textarea')?.value.trim() || '',
+    fair: row.querySelector('td[data-label="fair"] textarea')?.value.trim() || '',
+    needsImprovement: row.querySelector('td[data-label="needsImprovement"] textarea')?.value.trim() || ''
+  })).filter(row => [row.criterion, row.excellent, row.good, row.fair, row.needsImprovement].some(Boolean));
+
+  return {
+    title: adminActivityTitle?.value?.trim() || '',
+    description: adminActivityDescription?.value?.trim() || '',
+    passingScore: Number(adminPassingScore?.value) || 75,
+    scores,
+    existingRows: rows,
+    currentCriteria: collectCriteriaFromEditor().map(item => ({
+      title: item.title,
+      rule: item.rule,
+      target: item.target || '',
+      points: getCriterionPossiblePoints(item),
+      levels: item.levels
+    }))
+  };
+}
+
+function buildAiRubricGeneratorPrompt({ mode = 'generate' } = {}) {
+  const draft = getManualRubricDraftForAi();
+  const taskTitle = draft.title || 'Web coding activity';
+  const taskDescription = draft.description || 'Create a web page using HTML, CSS, and JavaScript as required by the teacher.';
+  return `You are an expert Grade 8 ICT teacher and rubric designer. Create or improve a practical web-coding rubric for beginner students.
+
+The rubric must be consistent, specific, and easy for students to understand. It must be usable by an automatic checker, so every criterion should include a suggested rule from the allowed list.
+
+Allowed rule values:
+full_html_structure, has_semantic_tags, balanced_html_tags, output_has_visible_text, minimum_effort, uses_css_property, uses_event_listener, js_changes_page, html_contains, css_contains, js_contains, output_contains, no_runtime_error, smart_rubric.
+
+Return ONLY valid JSON. No markdown.
+
+Required JSON schema:
+{
+  "title": "activity title",
+  "description": "student instructions",
+  "passingScore": 75,
+  "criteria": [
+    {
+      "title": "criterion name",
+      "points": 10,
+      "rule": "smart_rubric",
+      "target": "optional target keyword/class/tag/property",
+      "levels": {
+        "excellent": {"points":10,"description":"specific excellent description"},
+        "good": {"points":8,"description":"specific good description"},
+        "fair": {"points":6,"description":"specific fair description"},
+        "needsImprovement": {"points":4,"description":"specific needs improvement description"}
+      }
+    }
+  ]
+}
+
+Rubric requirements:
+- Use 4 to 6 criteria unless the existing draft clearly needs fewer.
+- Use the teacher's score levels: Excellent=${draft.scores.excellent}, Good=${draft.scores.good}, Fair=${draft.scores.fair}, Needs Improvement=${draft.scores.needsImprovement}.
+- Make criterion titles short and clear.
+- Descriptions must explain observable evidence in code or output.
+- Prefer smart_rubric for broad judgment criteria, but use concrete rules when possible.
+- Do not create criteria that require private data or external accounts.
+- Mode: ${mode}.
+
+CONTEXT JSON:
+${JSON.stringify({ taskTitle, taskDescription, draft }, null, 2)}`;
+}
+
+function createLocalSmartRubricActivity() {
+  const title = adminActivityTitle?.value?.trim() || 'AI Starter Rubric Activity';
+  const description = adminActivityDescription?.value?.trim() || 'Complete the web coding activity based on the teacher rubric.';
+  const scores = getManualRubricScoreMap();
+  const lower = `${title} ${description}`.toLowerCase();
+  const candidates = [
+    { title: 'HTML Structure and Content', text: 'complete HTML structure, correct tags, and meaningful visible content', rule: lower.includes('semantic') ? 'has_semantic_tags' : 'full_html_structure', target: '' },
+    { title: 'CSS Styling and Layout', text: 'colors, spacing, fonts, and layout make the page readable and organized', rule: 'uses_css_property', target: '' },
+    { title: 'Output Matches the Instructions', text: 'the preview clearly shows the required content and follows the activity task', rule: 'smart_rubric', target: '' },
+    { title: 'Code Organization and Accuracy', text: 'code is readable, properly closed, and avoids obvious errors', rule: 'balanced_html_tags', target: '' }
+  ];
+  if (/javascript|button|click|interactive|event/.test(lower)) candidates.splice(2, 0, { title: 'JavaScript Interaction', text: 'JavaScript creates the required interaction or visible page change', rule: 'js_changes_page', target: '' });
+  if (/responsive|phone|mobile|screen/.test(lower)) candidates.push({ title: 'Responsive Design', text: 'layout remains readable on smaller screens using flexible CSS', rule: 'smart_rubric', target: '' });
+
+  const criteria = candidates.slice(0, 6).map(item => buildCriterionFromParsedParts(item.title, {
+    excellent: `Complete and accurate ${item.text}.`,
+    good: `Mostly complete ${item.text} with only minor issues.`,
+    fair: `Partially shows ${item.text}, but some requirements are missing or unclear.`,
+    needsImprovement: `Little evidence of ${item.text}; major revision is needed.`
+  }, scores)).map(criterion => normalizeCriterion({ ...criterion, rule: itemRuleFallback(criterion.rule), target: criterion.target || '' }));
+
+  return normalizeImportedActivity({
+    id: adminEditingActivityId || createId(),
+    title,
+    description,
+    passingScore: Number(adminPassingScore?.value) || 75,
+    criteria
+  });
+}
+
+function itemRuleFallback(rule) {
+  return ruleOptions.some(option => option.value === rule) ? rule : 'smart_rubric';
+}
+
+async function generateRubricWithAi(mode = 'generate') {
+  if (!shouldUseGeminiRubricGenerator(getCurrentAiRubricSettings())) {
+    const fallback = createLocalSmartRubricActivity();
+    applyImportedActivityToAdminForm(fallback);
+    setAiRubricGeneratorStatus('Gemini is not enabled for rubric generation, so a smart local starter rubric was created. Review it, then save.', 'warning');
+    return;
+  }
+
+  const button = mode === 'improve' ? aiImproveRubricBtn : aiGenerateRubricBtn;
+  const oldText = button?.textContent || '';
+  try {
+    if (button) {
+      button.disabled = true;
+      button.textContent = mode === 'improve' ? 'Improving...' : 'Generating...';
+    }
+    setAiRubricGeneratorStatus('Gemini is creating a smarter rubric. Please wait...', 'loading');
+    const settings = getCurrentAiRubricSettings();
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 45000);
+    const raw = await callGeminiJson(settings, buildAiRubricGeneratorPrompt({ mode }), {
+      signal: controller.signal,
+      maxOutputTokens: 4096,
+      temperature: 0.15
+    });
+    window.clearTimeout(timeout);
+    const imported = normalizeImportedActivity(raw);
+    applyImportedActivityToAdminForm(imported);
+    setAiRubricGeneratorStatus('AI rubric generated. Review the table carefully, then click Save Activity.', 'success');
+  } catch (error) {
+    console.warn('AI rubric generator failed; using local starter rubric.', error);
+    const fallback = createLocalSmartRubricActivity();
+    applyImportedActivityToAdminForm(fallback);
+    setAiRubricGeneratorStatus(`AI rubric generation failed, so a local smart rubric was created. ${error?.message || ''}`.trim(), 'warning');
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = oldText;
+    }
+  }
+}
+
 function initManualRubricInputTable() {
   ensureManualRubricRows();
   setManualRubricStatus('Type your rubric here, then click Apply + Smart Rubric Checker.');
@@ -17868,6 +18135,8 @@ document.addEventListener('webkitfullscreenchange', () => {
 });
 if (addManualRubricRowBtn) addManualRubricRowBtn.addEventListener('click', () => addManualRubricInputRow());
 if (applyManualRubricBtn) applyManualRubricBtn.addEventListener('click', applyManualRubricTableToActualRubric);
+if (aiGenerateRubricBtn) aiGenerateRubricBtn.addEventListener('click', () => generateRubricWithAi('generate'));
+if (aiImproveRubricBtn) aiImproveRubricBtn.addEventListener('click', () => generateRubricWithAi('improve'));
 if (clearManualRubricBtn) clearManualRubricBtn.addEventListener('click', clearManualRubricInputTable);
 if (manualRubricInputBody) {
   manualRubricInputBody.addEventListener('click', event => {

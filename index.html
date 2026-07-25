@@ -45,7 +45,7 @@
   </script>
   <link rel="preconnect" href="https://drive.google.com" crossorigin>
   <link rel="preconnect" href="https://lh3.googleusercontent.com" crossorigin>
-  <link rel="stylesheet" href="style.css?v=20260725-step181-ai-rubric-review" />
+  <link rel="stylesheet" href="style.css?v=20260725-step186-ai-everywhere" />
   <style>
     .ai-rubric-settings-card,
     .admin-project-ai-review-card {
@@ -103,6 +103,31 @@
       background: rgba(255,255,255,0.75);
       padding: 12px 14px;
     }
+
+    .ai-rubric-mini-toggle {
+      align-items: flex-start;
+    }
+
+    .ai-rubric-mini-toggle small {
+      display: block;
+      margin-top: 4px;
+      max-width: 58ch;
+      color: #51637a;
+      font-weight: 600;
+      line-height: 1.35;
+    }
+
+    .ai-rubric-generator-btn {
+      border-color: rgba(99, 102, 241, 0.32);
+      background: linear-gradient(135deg, rgba(238, 242, 255, 0.95), rgba(255, 255, 255, 0.95));
+      color: #3730a3;
+      font-weight: 900;
+    }
+
+    .ai-rubric-generator-status.success { color: #15803d; }
+    .ai-rubric-generator-status.warning { color: #b45309; }
+    .ai-rubric-generator-status.error { color: #b91c1c; }
+    .ai-rubric-generator-status.loading { color: #1d4ed8; }
 
     .ai-rubric-settings-actions,
     .admin-project-ai-review-actions {
@@ -1111,7 +1136,7 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
             </label>
             <label>
               Model
-              <input id="aiRubricModelInput" type="text" autocomplete="off" value="gemini-2.0-flash" placeholder="gemini-2.0-flash" />
+              <input id="aiRubricModelInput" type="text" autocomplete="off" value="gemini-3.6-flash" placeholder="gemini-3.6-flash" />
             </label>
             <label>
               Review Style
@@ -1120,6 +1145,36 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
                 <option value="balanced">Balanced teacher judgment</option>
                 <option value="encouraging">Encouraging but fair</option>
               </select>
+            </label>
+            <label class="ai-rubric-settings-toggle ai-rubric-mini-toggle" for="aiRubricStudentFeedbackToggle">
+              <span>
+                <strong>AI Result Feedback</strong>
+                <small>Use Gemini when Result / Review Feedback is clicked. If AI is unavailable, the local rubric checker is still used.</small>
+              </span>
+              <span class="admin-switch">
+                <input id="aiRubricStudentFeedbackToggle" type="checkbox" checked />
+                <span class="admin-switch-track"><span class="admin-switch-thumb"></span></span>
+              </span>
+            </label>
+            <label class="ai-rubric-settings-toggle ai-rubric-mini-toggle" for="aiRubricRubricFeedbackToggle">
+              <span>
+                <strong>AI for Rubric-Based Feedback</strong>
+                <small>When Rubric Feedback is enabled, Gemini can give smarter criterion notes and suggested scoring.</small>
+              </span>
+              <span class="admin-switch">
+                <input id="aiRubricRubricFeedbackToggle" type="checkbox" checked />
+                <span class="admin-switch-track"><span class="admin-switch-thumb"></span></span>
+              </span>
+            </label>
+            <label class="ai-rubric-settings-toggle ai-rubric-mini-toggle" for="aiRubricGeneratorToggle">
+              <span>
+                <strong>AI Rubric Generator</strong>
+                <small>Show AI buttons while creating activities so the fallback rubric starts smarter.</small>
+              </span>
+              <span class="admin-switch">
+                <input id="aiRubricGeneratorToggle" type="checkbox" checked />
+                <span class="admin-switch-track"><span class="admin-switch-thumb"></span></span>
+              </span>
             </label>
           </div>
           <div class="ai-rubric-settings-actions">
@@ -1605,10 +1660,13 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
           <div class="manual-rubric-actions">
             <button id="addManualRubricRowBtn" class="ghost-btn" type="button">+ Add Input Row</button>
             <button id="applyManualRubricBtn" class="primary-btn" type="button">Apply + Smart Rubric Checker</button>
+            <button id="aiGenerateRubricBtn" class="ghost-btn ai-rubric-generator-btn" type="button">🤖 Generate Rubric with AI</button>
+            <button id="aiImproveRubricBtn" class="ghost-btn ai-rubric-generator-btn" type="button">✨ Improve Current Rubric</button>
             <button id="clearManualRubricBtn" class="ghost-btn danger" type="button">Clear Input Table</button>
           </div>
 
           <p id="manualRubricStatus" class="helper-note manual-rubric-status">Type your rubric here, then click Apply + Smart Rubric Checker.</p>
+          <p id="aiRubricGeneratorStatus" class="helper-note ai-rubric-generator-status">AI rubric generation is teacher-triggered only. If Gemini is unavailable, a smart local starter rubric can still be created.</p>
         </section>
 
         <div class="rubric-toolbar">
@@ -1835,6 +1893,6 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
   <script src="firebase-config.js"></script>
-  <script src="script.js?v=20260725-step181-ai-rubric-review"></script>
+  <script src="script.js?v=20260725-step186-ai-everywhere"></script>
 </body>
 </html>

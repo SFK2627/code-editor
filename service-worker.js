@@ -1,13 +1,13 @@
-const CACHE_NAME = 'code-editor-20260725-step185-gemini-connection-clean';
+const CACHE_NAME = 'code-editor-20260725-step186-ai-everywhere';
 const APP_SHELL = [
   './',
   './index.html',
-  './index.html?v=20260725-step185-gemini-connection-clean',
-  './index.html?fresh=step185',
+  './index.html?v=20260725-step186-ai-everywhere',
+  './index.html?fresh=step186',
   './style.css',
-  './style.css?v=20260725-step185-gemini-connection-clean',
+  './style.css?v=20260725-step186-ai-everywhere',
   './script.js',
-  './script.js?v=20260725-step185-gemini-connection-clean',
+  './script.js?v=20260725-step186-ai-everywhere',
   './firebase-config.js',
   './manifest.webmanifest',
   './favicon.png',
