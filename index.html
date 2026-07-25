@@ -45,7 +45,213 @@
   </script>
   <link rel="preconnect" href="https://drive.google.com" crossorigin>
   <link rel="preconnect" href="https://lh3.googleusercontent.com" crossorigin>
-  <link rel="stylesheet" href="style.css?v=20260725-step172-online-presence" />
+  <link rel="stylesheet" href="style.css?v=20260725-step181-ai-rubric-review" />
+  <style>
+    .ai-rubric-settings-card,
+    .admin-project-ai-review-card {
+      margin-top: 18px;
+      border: 1px solid rgba(37, 99, 235, 0.18);
+      border-radius: 24px;
+      background: linear-gradient(135deg, rgba(239, 246, 255, 0.96), rgba(255, 255, 255, 0.98));
+      box-shadow: 0 18px 42px rgba(15, 23, 42, 0.08);
+      padding: 20px;
+    }
+
+    .ai-rubric-settings-header,
+    .admin-project-ai-review-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .ai-rubric-settings-grid {
+      display: grid;
+      grid-template-columns: minmax(220px, 1fr) minmax(220px, 1fr);
+      gap: 14px;
+      align-items: end;
+    }
+
+    .ai-rubric-settings-grid label,
+    .ai-rubric-settings-toggle {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      font-weight: 800;
+      color: #0f2a47;
+    }
+
+    .ai-rubric-settings-grid input,
+    .ai-rubric-settings-grid select {
+      width: 100%;
+      min-height: 44px;
+      border: 1px solid rgba(148, 163, 184, 0.45);
+      border-radius: 14px;
+      padding: 10px 12px;
+      font: inherit;
+      background: #fff;
+      color: #0f172a;
+    }
+
+    .ai-rubric-settings-toggle {
+      flex-direction: row;
+      align-items: center;
+      justify-content: space-between;
+      border: 1px solid rgba(148, 163, 184, 0.3);
+      border-radius: 16px;
+      background: rgba(255,255,255,0.75);
+      padding: 12px 14px;
+    }
+
+    .ai-rubric-settings-actions,
+    .admin-project-ai-review-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 14px;
+      align-items: center;
+    }
+
+    .ai-rubric-status-pill,
+    .admin-ai-review-status {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 34px;
+      padding: 7px 12px;
+      border-radius: 999px;
+      font-size: 0.84rem;
+      font-weight: 900;
+      background: #e0f2fe;
+      color: #075985;
+      white-space: nowrap;
+    }
+
+    .admin-ai-review-status.running { background: #fef3c7; color: #92400e; }
+    .admin-ai-review-status.ready { background: #dcfce7; color: #166534; }
+    .admin-ai-review-status.error { background: #fee2e2; color: #991b1b; }
+
+    .admin-ai-review-output {
+      margin-top: 16px;
+    }
+
+    .admin-ai-empty,
+    .admin-ai-loading,
+    .admin-ai-error {
+      border: 1px dashed rgba(148, 163, 184, 0.5);
+      border-radius: 18px;
+      padding: 16px;
+      background: rgba(255,255,255,0.72);
+      color: #334155;
+    }
+
+    .admin-ai-loading {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .admin-ai-spinner {
+      width: 26px;
+      height: 26px;
+      border: 3px solid rgba(37, 99, 235, 0.18);
+      border-top-color: #2563eb;
+      border-radius: 999px;
+      animation: aiSpin 0.85s linear infinite;
+      flex: 0 0 auto;
+    }
+
+    @keyframes aiSpin { to { transform: rotate(360deg); } }
+
+    .admin-ai-score-card {
+      border-radius: 22px;
+      border: 1px solid rgba(37, 99, 235, 0.18);
+      background: #fff;
+      overflow: hidden;
+      box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
+    }
+
+    .admin-ai-score-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 14px;
+      align-items: center;
+      padding: 16px 18px;
+      background: linear-gradient(135deg, rgba(37,99,235,0.1), rgba(20,184,166,0.1));
+    }
+
+    .admin-ai-score-number {
+      text-align: right;
+      font-weight: 1000;
+      color: #0f2a47;
+      font-size: 1.9rem;
+      white-space: nowrap;
+    }
+
+    .admin-ai-score-number small {
+      font-size: 0.9rem;
+      color: #64748b;
+    }
+
+    .admin-ai-feedback-block {
+      padding: 14px 18px;
+      border-top: 1px solid rgba(226, 232, 240, 0.9);
+    }
+
+    .admin-ai-feedback-block h4 {
+      margin: 0 0 8px;
+      color: #0f2a47;
+    }
+
+    .admin-ai-feedback-block p,
+    .admin-ai-feedback-block li {
+      color: #334155;
+      line-height: 1.5;
+    }
+
+    .admin-ai-criteria-list {
+      display: grid;
+      gap: 10px;
+      padding: 14px 18px 18px;
+      border-top: 1px solid rgba(226, 232, 240, 0.9);
+    }
+
+    .admin-ai-criterion {
+      border: 1px solid rgba(148, 163, 184, 0.28);
+      border-radius: 16px;
+      padding: 12px;
+      background: #f8fafc;
+    }
+
+    .admin-ai-criterion-top {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 6px;
+    }
+
+    .admin-ai-criterion-score {
+      font-weight: 1000;
+      color: #2563eb;
+      white-space: nowrap;
+    }
+
+    .admin-ai-warning-list {
+      margin: 0;
+      padding-left: 18px;
+    }
+
+    @media (max-width: 820px) {
+      .ai-rubric-settings-card,
+      .admin-project-ai-review-card { padding: 16px; border-radius: 20px; }
+      .ai-rubric-settings-header,
+      .admin-project-ai-review-header { flex-direction: column; align-items: stretch; }
+      .ai-rubric-settings-grid { grid-template-columns: 1fr; }
+      .admin-ai-score-head { align-items: flex-start; flex-direction: column; }
+      .admin-ai-score-number { text-align: left; }
+    }
+  </style>
 </head>
 <body class="entry-gate-active">
   <noscript>
@@ -878,6 +1084,51 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
           </label>
         </div>
 
+
+        <section class="ai-rubric-settings-card" aria-label="AI rubric review settings">
+          <div class="ai-rubric-settings-header">
+            <div>
+              <p class="section-kicker">Teacher-Controlled AI</p>
+              <h3>AI Rubric Review</h3>
+              <p class="muted-text">Optional Gemini-powered scoring for teacher review only. Students do not trigger this automatically.</p>
+            </div>
+            <span id="aiRubricStatusPill" class="ai-rubric-status-pill">AI OFF</span>
+          </div>
+          <div class="ai-rubric-settings-grid">
+            <label class="ai-rubric-settings-toggle" for="aiRubricEnabledToggle">
+              <span>
+                <strong>Enable AI Review</strong>
+                <small>Teacher must still click AI Review manually.</small>
+              </span>
+              <span class="admin-switch">
+                <input id="aiRubricEnabledToggle" type="checkbox" />
+                <span class="admin-switch-track"><span class="admin-switch-thumb"></span></span>
+              </span>
+            </label>
+            <label>
+              Gemini API Key
+              <input id="aiRubricApiKeyInput" type="password" autocomplete="off" placeholder="Paste API key here" />
+            </label>
+            <label>
+              Model
+              <input id="aiRubricModelInput" type="text" autocomplete="off" value="gemini-2.0-flash" placeholder="gemini-2.0-flash" />
+            </label>
+            <label>
+              Review Style
+              <select id="aiRubricReviewStyleSelect">
+                <option value="strict">Strict and consistent</option>
+                <option value="balanced">Balanced teacher judgment</option>
+                <option value="encouraging">Encouraging but fair</option>
+              </select>
+            </label>
+          </div>
+          <div class="ai-rubric-settings-actions">
+            <button id="saveAiRubricSettingsBtn" class="primary-btn" type="button">Save AI Settings</button>
+            <button id="testAiRubricSettingsBtn" class="ghost-btn" type="button">Test AI Connection</button>
+          </div>
+          <p id="aiRubricSettingsStatus" class="helper-note">AI Review is optional. Keep it OFF until you add your API key.</p>
+        </section>
+
         <div class="assistance-settings-actions">
           <button id="applyAssistanceLocalBtn" class="ghost-btn" type="button">Apply on This Device</button>
           <button id="publishAssistanceBtn" class="primary-btn" type="button">Publish to All Students</button>
@@ -1437,6 +1688,30 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
         </section>
       </div>
 
+
+      <section id="adminProjectAiReviewCard" class="admin-project-ai-review-card" aria-label="AI rubric review">
+        <div class="admin-project-ai-review-header">
+          <div>
+            <p class="section-kicker">AI Rubric Judge</p>
+            <h3>Score with Rubric + Output</h3>
+            <p class="muted-text">Teacher-triggered only. The AI reads the rubric, student code, and visible output summary, then gives criterion-based scoring.</p>
+          </div>
+          <span id="adminAiReviewStatus" class="admin-ai-review-status">Not reviewed</span>
+        </div>
+        <div class="admin-project-ai-review-actions">
+          <button id="adminRunAiRubricReviewBtn" class="primary-btn" type="button">🤖 AI Review with Rubric</button>
+          <button id="adminUseAiFeedbackBtn" class="ghost-btn" type="button" disabled>Use as Comment</button>
+          <button id="adminSaveAiReviewBtn" class="ghost-btn" type="button" disabled>Save AI Review</button>
+          <button id="adminApplyAiScoreBtn" class="ghost-btn" type="button" disabled>Apply as Score</button>
+        </div>
+        <div id="adminAiReviewOutput" class="admin-ai-review-output">
+          <div class="admin-ai-empty">
+            <strong>No AI review yet.</strong>
+            <p>Run the project preview first, then click AI Review. The result will stay teacher-controlled.</p>
+          </div>
+        </div>
+      </section>
+
       <section class="admin-project-comment-card" aria-label="Teacher project comment">
         <div class="admin-project-comment-header">
           <div>
@@ -1560,6 +1835,6 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
   <script src="firebase-config.js"></script>
-  <script src="script.js?v=20260725-step180-smart-code-helper"></script>
+  <script src="script.js?v=20260725-step181-ai-rubric-review"></script>
 </body>
 </html>

@@ -196,6 +196,14 @@ const applyAssistanceLocalBtn = document.getElementById('applyAssistanceLocalBtn
 const publishAssistanceBtn = document.getElementById('publishAssistanceBtn');
 const assistanceSettingsStatus = document.getElementById('assistanceSettingsStatus');
 const assistanceModeBadge = document.getElementById('assistanceModeBadge');
+const aiRubricEnabledToggle = document.getElementById('aiRubricEnabledToggle');
+const aiRubricApiKeyInput = document.getElementById('aiRubricApiKeyInput');
+const aiRubricModelInput = document.getElementById('aiRubricModelInput');
+const aiRubricReviewStyleSelect = document.getElementById('aiRubricReviewStyleSelect');
+const saveAiRubricSettingsBtn = document.getElementById('saveAiRubricSettingsBtn');
+const testAiRubricSettingsBtn = document.getElementById('testAiRubricSettingsBtn');
+const aiRubricSettingsStatus = document.getElementById('aiRubricSettingsStatus');
+const aiRubricStatusPill = document.getElementById('aiRubricStatusPill');
 const aiReviewPanel = document.getElementById('aiReviewPanel');
 const studentTeacherCommentPanel = document.getElementById('studentTeacherCommentPanel');
 const studentTeacherCommentStatus = document.getElementById('studentTeacherCommentStatus');
@@ -364,6 +372,12 @@ const adminProjectTeacherComment = document.getElementById('adminProjectTeacherC
 const adminProjectSaveCommentBtn = document.getElementById('adminProjectSaveCommentBtn');
 const adminProjectClearCommentBtn = document.getElementById('adminProjectClearCommentBtn');
 const adminProjectCommentStatus = document.getElementById('adminProjectCommentStatus');
+const adminRunAiRubricReviewBtn = document.getElementById('adminRunAiRubricReviewBtn');
+const adminUseAiFeedbackBtn = document.getElementById('adminUseAiFeedbackBtn');
+const adminSaveAiReviewBtn = document.getElementById('adminSaveAiReviewBtn');
+const adminApplyAiScoreBtn = document.getElementById('adminApplyAiScoreBtn');
+const adminAiReviewStatus = document.getElementById('adminAiReviewStatus');
+const adminAiReviewOutput = document.getElementById('adminAiReviewOutput');
 const adminProjectFullscreenOverlay = document.getElementById('adminProjectFullscreenOverlay');
 const adminProjectFullscreenKicker = document.getElementById('adminProjectFullscreenKicker');
 const adminProjectFullscreenTitle = document.getElementById('adminProjectFullscreenTitle');
@@ -453,7 +467,8 @@ const STORAGE_KEYS = {
   assistanceSettings: 'studentCodeStudio.assistanceSettings.v1',
   complianceSettings: 'studentCodeStudio.complianceSettings.v1',
   lessonLibrary: 'studentCodeStudio.lessonLibrary.v1',
-  lessonProgress: 'studentCodeStudio.lessonReadingProgress.v1'
+  lessonProgress: 'studentCodeStudio.lessonReadingProgress.v1',
+  aiRubricSettings: 'studentCodeStudio.aiRubricSettings.v1'
 };
 
 
@@ -509,6 +524,33 @@ let studentAssistanceSettings = normalizeAssistanceSettings(
   loadJSON(STORAGE_KEYS.assistanceSettings, DEFAULT_ASSISTANCE_SETTINGS)
 );
 let unsubscribeCloudAssistanceSettings = null;
+
+const DEFAULT_AI_RUBRIC_SETTINGS = Object.freeze({
+  enabled: false,
+  provider: 'gemini',
+  apiKey: '',
+  model: 'gemini-2.0-flash',
+  reviewStyle: 'strict'
+});
+
+function normalizeAiRubricSettings(source = {}) {
+  const safe = source && typeof source === 'object' ? source : {};
+  const model = String(safe.model || DEFAULT_AI_RUBRIC_SETTINGS.model).trim() || DEFAULT_AI_RUBRIC_SETTINGS.model;
+  const style = ['strict', 'balanced', 'encouraging'].includes(String(safe.reviewStyle || '').trim())
+    ? String(safe.reviewStyle).trim()
+    : DEFAULT_AI_RUBRIC_SETTINGS.reviewStyle;
+  return {
+    enabled: safe.enabled === true,
+    provider: 'gemini',
+    apiKey: String(safe.apiKey || '').trim(),
+    model,
+    reviewStyle: style
+  };
+}
+
+let aiRubricSettings = normalizeAiRubricSettings(loadJSON(STORAGE_KEYS.aiRubricSettings, DEFAULT_AI_RUBRIC_SETTINGS));
+let adminLatestAiReview = null;
+let adminAiRubricController = null;
 
 const DEFAULT_STUDENT_PASSWORD = '123456';
 const STUDENT_EMAIL_DOMAIN = 'students.mcsian.app';
@@ -2485,6 +2527,136 @@ async function publishAssistanceSettings() {
   }
 }
 
+
+function getAiRubricSettingsFromControls() {
+  return normalizeAiRubricSettings({
+    enabled: aiRubricEnabledToggle?.checked === true,
+    apiKey: aiRubricApiKeyInput?.value || '',
+    model: aiRubricModelInput?.value || DEFAULT_AI_RUBRIC_SETTINGS.model,
+    reviewStyle: aiRubricReviewStyleSelect?.value || DEFAULT_AI_RUBRIC_SETTINGS.reviewStyle
+  });
+}
+
+function setAiRubricSettingsStatus(message, tone = '') {
+  if (!aiRubricSettingsStatus) return;
+  aiRubricSettingsStatus.textContent = message || '';
+  aiRubricSettingsStatus.classList.remove('success', 'warning', 'error', 'attention');
+  if (tone) aiRubricSettingsStatus.classList.add(tone);
+  aiRubricSettingsStatus.classList.add('attention');
+  window.clearTimeout(setAiRubricSettingsStatus.timer);
+  setAiRubricSettingsStatus.timer = window.setTimeout(() => aiRubricSettingsStatus?.classList.remove('attention'), 1800);
+}
+
+function syncAiRubricSettingsControls(settings = aiRubricSettings) {
+  const normalized = normalizeAiRubricSettings(settings);
+  if (aiRubricEnabledToggle) aiRubricEnabledToggle.checked = normalized.enabled;
+  if (aiRubricApiKeyInput && aiRubricApiKeyInput.value !== normalized.apiKey) aiRubricApiKeyInput.value = normalized.apiKey;
+  if (aiRubricModelInput) aiRubricModelInput.value = normalized.model;
+  if (aiRubricReviewStyleSelect) aiRubricReviewStyleSelect.value = normalized.reviewStyle;
+  const configured = Boolean(normalized.enabled && normalized.apiKey && normalized.model);
+  if (aiRubricStatusPill) {
+    aiRubricStatusPill.textContent = configured ? 'AI READY' : normalized.enabled ? 'NEEDS KEY' : 'AI OFF';
+    aiRubricStatusPill.classList.toggle('ready', configured);
+    aiRubricStatusPill.classList.toggle('warning', normalized.enabled && !configured);
+  }
+  if (adminRunAiRubricReviewBtn) adminRunAiRubricReviewBtn.disabled = !configured;
+}
+
+function saveAiRubricSettingsLocal(settings = aiRubricSettings) {
+  aiRubricSettings = normalizeAiRubricSettings(settings);
+  saveJSON(STORAGE_KEYS.aiRubricSettings, aiRubricSettings);
+  syncAiRubricSettingsControls(aiRubricSettings);
+  return aiRubricSettings;
+}
+
+async function loadAiRubricSettingsFromCloud({ silent = false } = {}) {
+  const ready = await initFirebaseSync();
+  if (!ready || !isTeacherAuthenticated()) {
+    syncAiRubricSettingsControls(aiRubricSettings);
+    if (!silent) setAiRubricSettingsStatus('Login as teacher to load AI settings from Firebase.', 'warning');
+    return false;
+  }
+  try {
+    const { getDoc } = firebaseSync.modules;
+    const snapshot = await getDoc(getAiRubricSettingsDocRef());
+    if (!snapshotExists(snapshot)) {
+      syncAiRubricSettingsControls(aiRubricSettings);
+      if (!silent) setAiRubricSettingsStatus('No cloud AI settings yet. Paste a key, then save.', 'warning');
+      return false;
+    }
+    const data = snapshotData(snapshot) || {};
+    saveAiRubricSettingsLocal(data.settings || data);
+    if (!silent) setAiRubricSettingsStatus('AI settings loaded.', 'success');
+    return true;
+  } catch (error) {
+    console.warn('Could not load AI rubric settings.', error);
+    syncAiRubricSettingsControls(aiRubricSettings);
+    if (!silent) setAiRubricSettingsStatus('Could not load AI settings. Check rules and login.', 'error');
+    return false;
+  }
+}
+
+async function saveAiRubricSettingsToCloud() {
+  const settings = saveAiRubricSettingsLocal(getAiRubricSettingsFromControls());
+  if (!settings.enabled) {
+    setAiRubricSettingsStatus('AI Review is OFF. Settings saved on this device.', 'warning');
+  }
+  const ready = await initFirebaseSync();
+  if (!ready || !isTeacherAuthenticated()) {
+    setAiRubricSettingsStatus('Saved on this browser. Login as teacher to save globally.', 'warning');
+    return false;
+  }
+  try {
+    if (saveAiRubricSettingsBtn) saveAiRubricSettingsBtn.disabled = true;
+    const { setDoc, serverTimestamp } = firebaseSync.modules;
+    await setDoc(getAiRubricSettingsDocRef(), {
+      settings,
+      updatedAt: serverTimestamp(),
+      updatedBy: firebaseSync.auth?.currentUser?.email || firebaseSync.currentUser?.email || 'teacher'
+    }, { merge: true });
+    setAiRubricSettingsStatus(settings.enabled && settings.apiKey ? 'AI Rubric settings saved. Teacher can now run AI Review.' : 'AI settings saved. Add a key and turn ON before using.', settings.enabled && settings.apiKey ? 'success' : 'warning');
+    setStatus('AI settings saved');
+    return true;
+  } catch (error) {
+    console.error('Could not save AI rubric settings.', error);
+    setAiRubricSettingsStatus('Save failed. Check teacher login and Firestore Rules.', 'error');
+    return false;
+  } finally {
+    if (saveAiRubricSettingsBtn) saveAiRubricSettingsBtn.disabled = false;
+  }
+}
+
+function getGeminiModelName(model = aiRubricSettings.model) {
+  return String(model || DEFAULT_AI_RUBRIC_SETTINGS.model).trim().replace(/^models\//i, '') || DEFAULT_AI_RUBRIC_SETTINGS.model;
+}
+
+async function testAiRubricConnection() {
+  const settings = saveAiRubricSettingsLocal(getAiRubricSettingsFromControls());
+  if (!settings.enabled || !settings.apiKey) {
+    setAiRubricSettingsStatus('Turn ON AI Review and paste a Gemini API key first.', 'warning');
+    return;
+  }
+  try {
+    if (testAiRubricSettingsBtn) testAiRubricSettingsBtn.disabled = true;
+    setAiRubricSettingsStatus('Testing AI connection...', 'warning');
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(getGeminiModelName(settings.model))}:generateContent?key=${encodeURIComponent(settings.apiKey)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ role: 'user', parts: [{ text: 'Reply with exactly: OK' }] }],
+        generationConfig: { temperature: 0, maxOutputTokens: 20 }
+      })
+    });
+    if (!response.ok) throw new Error(`Gemini returned ${response.status}`);
+    setAiRubricSettingsStatus('AI connection works.', 'success');
+  } catch (error) {
+    console.error('AI connection test failed.', error);
+    setAiRubricSettingsStatus(error?.message || 'AI connection failed. Check the API key/model.', 'error');
+  } finally {
+    if (testAiRubricSettingsBtn) testAiRubricSettingsBtn.disabled = false;
+  }
+}
+
 async function watchStudentAssistanceSettings() {
   const ready = await initFirebaseSync();
   if (!ready || !firebaseSync.modules?.onSnapshot) return false;
@@ -2871,6 +3043,11 @@ function getOnlinePresenceCollectionRef() {
 function getOnlinePresenceDocRef(uid) {
   const { doc } = firebaseSync.modules;
   return doc(firebaseSync.db, firebaseSync.collectionName, firebaseSync.documentId, 'onlinePresence', uid);
+}
+
+function getAiRubricSettingsDocRef() {
+  const { doc } = firebaseSync.modules;
+  return doc(firebaseSync.db, firebaseSync.collectionName, firebaseSync.documentId, 'adminSettings', 'aiRubric');
 }
 
 function snapshotExists(snapshot) {
@@ -6885,6 +7062,429 @@ function renderAdminProjectTeacherComment() {
   setAdminProjectCommentStatus(getAdminProjectCommentUpdatedText(record), record?.text ? 'saved' : '');
 }
 
+function setAdminAiReviewStatus(message, tone = '') {
+  if (!adminAiReviewStatus) return;
+  adminAiReviewStatus.textContent = message || '';
+  adminAiReviewStatus.classList.remove('running', 'ready', 'error');
+  if (tone) adminAiReviewStatus.classList.add(tone);
+}
+
+function resetAdminAiReviewPanel() {
+  adminLatestAiReview = null;
+  if (adminSaveAiReviewBtn) adminSaveAiReviewBtn.disabled = true;
+  if (adminUseAiFeedbackBtn) adminUseAiFeedbackBtn.disabled = true;
+  if (adminApplyAiScoreBtn) adminApplyAiScoreBtn.disabled = true;
+  setAdminAiReviewStatus('Not reviewed');
+  if (adminAiReviewOutput) {
+    adminAiReviewOutput.innerHTML = `
+      <div class="admin-ai-empty">
+        <strong>No AI review yet.</strong>
+        <p>Run the project preview first, then click AI Review. The result will stay teacher-controlled.</p>
+      </div>`;
+  }
+}
+
+function renderSavedAdminAiReviewForCurrentProject() {
+  const project = adminProjectViewerState.project || {};
+  const key = getAdminProjectCommentKey();
+  const reviews = project.aiRubricReviews && typeof project.aiRubricReviews === 'object' ? project.aiRubricReviews : {};
+  const saved = reviews[key] || reviews.scratch || null;
+  if (saved && typeof saved === 'object') {
+    adminLatestAiReview = saved;
+    renderAdminAiRubricReview(saved);
+    setAdminAiReviewStatus('Saved review', 'ready');
+  } else {
+    resetAdminAiReviewPanel();
+  }
+}
+
+function getAdminProjectRubricForAi() {
+  const project = adminProjectViewerState.project || {};
+  const key = adminProjectViewerState.activityKey || project.selectedActivityId || 'scratch';
+  const known = activities.find(item => item.id === key) || activities.find(item => item.id === project.selectedActivityId) || null;
+  if (known) return normalizeActivity(known);
+  const resultCriteria = Array.isArray(project.lastResult?.results) ? project.lastResult.results : [];
+  return {
+    id: key,
+    title: project.activityTitle || getAdminProjectActivityLabel(key) || 'Practice project',
+    description: 'Rubric details were not found in the current activity list. Use available saved result data and evaluate carefully.',
+    passingScore: Number(project.lastResult?.percent || 75) || 75,
+    criteria: resultCriteria.length ? resultCriteria.map(item => ({
+      id: createId(),
+      title: item.title || 'Criterion',
+      points: Number(item.points || item.possible || item.max || 1) || 1,
+      rule: item.rule || 'smart_rubric',
+      target: item.target || '',
+      levels: item.levels || {}
+    })) : [
+      { id: createId(), title: 'Completeness based on teacher instruction', points: 10, rule: 'smart_rubric', target: '' },
+      { id: createId(), title: 'Correct HTML/CSS/JavaScript use', points: 10, rule: 'smart_rubric', target: '' },
+      { id: createId(), title: 'Output quality and readability', points: 10, rule: 'smart_rubric', target: '' }
+    ]
+  };
+}
+
+function getAdminProjectAllCodeForAi() {
+  const store = getAdminProjectActiveStore();
+  const htmlFiles = getAdminProjectFileMap('html', store);
+  const cssFiles = getAdminProjectFileMap('css', store);
+  const jsFiles = getAdminProjectFileMap('js', store);
+  return {
+    htmlFiles: Object.fromEntries(Object.entries(htmlFiles || {}).map(([name, code]) => [name, getShortCodeSample(code, 9000)])),
+    cssFiles: Object.fromEntries(Object.entries(cssFiles || {}).map(([name, code]) => [name, getShortCodeSample(code, 9000)])),
+    jsFiles: Object.fromEntries(Object.entries(jsFiles || {}).map(([name, code]) => [name, getShortCodeSample(code, 9000)])),
+    activeHtmlPage: getAdminProjectActiveFileName('html'),
+    activeCssFile: getAdminProjectActiveFileName('css'),
+    activeJsFile: getAdminProjectActiveFileName('js')
+  };
+}
+
+function collectAdminProjectOutputSummary() {
+  const summary = {
+    visibleText: '',
+    title: '',
+    headings: [],
+    links: [],
+    buttons: [],
+    images: [],
+    elementCounts: {},
+    note: 'Output summary is collected from the rendered preview iframe when available.'
+  };
+  try {
+    const doc = adminProjectViewerFrame?.contentDocument || adminProjectViewerFrame?.contentWindow?.document || null;
+    if (!doc) {
+      summary.note = 'Preview document was not available. Judge mainly from code.';
+      return summary;
+    }
+    summary.title = String(doc.title || '').trim().slice(0, 240);
+    summary.visibleText = String(doc.body?.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 5000);
+    summary.headings = Array.from(doc.querySelectorAll('h1,h2,h3,h4,h5,h6')).map(node => ({ tag: node.tagName.toLowerCase(), text: String(node.innerText || '').trim().slice(0, 180) })).filter(item => item.text).slice(0, 20);
+    summary.links = Array.from(doc.querySelectorAll('a[href]')).map(node => ({ text: String(node.innerText || '').trim().slice(0, 160), href: String(node.getAttribute('href') || '').trim().slice(0, 180) })).slice(0, 20);
+    summary.buttons = Array.from(doc.querySelectorAll('button,input[type="button"],input[type="submit"]')).map(node => String(node.innerText || node.value || '').trim().slice(0, 160)).filter(Boolean).slice(0, 20);
+    summary.images = Array.from(doc.querySelectorAll('img')).map(node => ({ src: String(node.getAttribute('src') || '').trim().slice(0, 160), alt: String(node.getAttribute('alt') || '').trim().slice(0, 160) })).slice(0, 20);
+    ['header','nav','main','section','article','aside','footer','ul','ol','li','table','form','input','img','a','button'].forEach(tag => {
+      summary.elementCounts[tag] = doc.querySelectorAll(tag).length;
+    });
+  } catch (error) {
+    summary.note = `Could not read preview output: ${error?.message || 'unknown iframe error'}. Judge mainly from code.`;
+  }
+  return summary;
+}
+
+function buildAdminAiRubricPrompt(context) {
+  const style = aiRubricSettings.reviewStyle || 'strict';
+  return `You are an experienced Grade 8 ICT/web coding teacher. Grade the student's project using ONLY the teacher rubric, the student code, and the rendered output summary below.\n\nIMPORTANT RULES:\n- Be consistent and evidence-based.\n- Do not reward code that is not present or output that cannot be verified.\n- If output summary is limited, use the code as evidence and mention the limitation.\n- Score each criterion from 0 up to its max points only.\n- Total score must equal the sum of criterion scores.\n- Use the rubric descriptions as the main basis.\n- Give constructive feedback that a beginner can understand.\n- Do not give a complete replacement code solution.\n- Return ONLY valid JSON. No markdown.\n- Use this review style: ${style}.\n\nRequired JSON schema:\n{\n  "summary": "one short teacher summary",\n  "totalScore": 0,\n  "possibleScore": 0,\n  "percent": 0,\n  "confidence": "high|medium|low",\n  "criteria": [\n    {"name":"criterion name", "max":0, "score":0, "level":"Excellent|Good|Fair|Needs Improvement", "evidence":"specific evidence from code/output", "improvement":"specific improvement"}\n  ],\n  "studentFeedback": "short feedback for the student",\n  "teacherNotes": ["short note for teacher"],\n  "warnings": ["limitations or uncertain items"]\n}\n\nPROJECT CONTEXT JSON:\n${JSON.stringify(context, null, 2)}`;
+}
+
+function extractJsonObjectFromText(text) {
+  const raw = String(text || '').trim();
+  if (!raw) throw new Error('Empty AI response.');
+  try { return JSON.parse(raw); } catch (error) {}
+  const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fenced) {
+    try { return JSON.parse(fenced[1]); } catch (error) {}
+  }
+  const start = raw.indexOf('{');
+  const end = raw.lastIndexOf('}');
+  if (start >= 0 && end > start) return JSON.parse(raw.slice(start, end + 1));
+  throw new Error('AI did not return valid JSON.');
+}
+
+function normalizeAdminAiRubricReview(raw, context) {
+  const rubricCriteria = Array.isArray(context?.activity?.criteria) ? context.activity.criteria : [];
+  const rawCriteria = Array.isArray(raw?.criteria) ? raw.criteria : [];
+  const criteria = rubricCriteria.map((criterion, index) => {
+    const max = Math.max(0, Number(getCriterionPossiblePoints(criterion) || criterion.points || 0));
+    const match = rawCriteria.find(item => String(item.name || '').trim().toLowerCase() === String(criterion.title || '').trim().toLowerCase()) || rawCriteria[index] || {};
+    const score = clamp(Number(match.score ?? match.earned ?? 0) || 0, 0, max);
+    return {
+      name: criterion.title || match.name || `Criterion ${index + 1}`,
+      max,
+      score: Math.round(score * 10) / 10,
+      level: match.level || progressToLevelKey(max ? score / max : 0),
+      evidence: String(match.evidence || 'Evidence was not clearly provided by the AI.').slice(0, 700),
+      improvement: String(match.improvement || 'Review the rubric and improve this part.').slice(0, 700)
+    };
+  });
+  const possibleScore = criteria.reduce((sum, item) => sum + item.max, 0);
+  const totalScore = Math.round(criteria.reduce((sum, item) => sum + item.score, 0) * 10) / 10;
+  const percent = possibleScore ? Math.round((totalScore / possibleScore) * 100) : 0;
+  return {
+    summary: String(raw?.summary || 'AI review completed.').slice(0, 700),
+    totalScore,
+    possibleScore,
+    percent,
+    confidence: ['high', 'medium', 'low'].includes(String(raw?.confidence || '').toLowerCase()) ? String(raw.confidence).toLowerCase() : 'medium',
+    criteria,
+    studentFeedback: String(raw?.studentFeedback || raw?.feedback || 'Good effort. Review the criterion notes and improve one item at a time.').slice(0, 1800),
+    teacherNotes: Array.isArray(raw?.teacherNotes) ? raw.teacherNotes.map(item => String(item).slice(0, 400)).slice(0, 8) : [],
+    warnings: Array.isArray(raw?.warnings) ? raw.warnings.map(item => String(item).slice(0, 400)).slice(0, 8) : [],
+    reviewedAt: new Date(),
+    activityId: context?.activity?.id || adminProjectViewerState.activityKey || 'scratch',
+    activityTitle: context?.activity?.title || getAdminProjectActivityLabel(adminProjectViewerState.activityKey),
+    model: getGeminiModelName(aiRubricSettings.model)
+  };
+}
+
+async function callGeminiAdminAiRubricReview(context) {
+  const settings = saveAiRubricSettingsLocal(getAiRubricSettingsFromControls());
+  if (!settings.enabled || !settings.apiKey) throw new Error('AI Review is not enabled or API key is missing.');
+  const prompt = buildAdminAiRubricPrompt(context);
+  if (adminAiRubricController) adminAiRubricController.abort();
+  adminAiRubricController = new AbortController();
+  const timeout = window.setTimeout(() => adminAiRubricController.abort(), 45000);
+  try {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(getGeminiModelName(settings.model))}:generateContent?key=${encodeURIComponent(settings.apiKey)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: 0,
+          responseMimeType: 'application/json',
+          maxOutputTokens: 4096
+        }
+      }),
+      signal: adminAiRubricController.signal
+    });
+    window.clearTimeout(timeout);
+    if (!response.ok) {
+      let detail = '';
+      try { detail = (await response.json())?.error?.message || ''; } catch (error) {}
+      throw new Error(`Gemini returned ${response.status}${detail ? `: ${detail}` : ''}`);
+    }
+    const data = await response.json();
+    const text = data?.candidates?.[0]?.content?.parts?.map(part => part.text || '').join('\n') || '';
+    return normalizeAdminAiRubricReview(extractJsonObjectFromText(text), context);
+  } finally {
+    window.clearTimeout(timeout);
+  }
+}
+
+function renderAdminAiRubricLoading() {
+  if (!adminAiReviewOutput) return;
+  adminAiReviewOutput.innerHTML = `
+    <div class="admin-ai-loading">
+      <span class="admin-ai-spinner" aria-hidden="true"></span>
+      <div><strong>AI is reviewing the rubric, code, and output...</strong><p class="muted-text">This is teacher-triggered only. Please wait.</p></div>
+    </div>`;
+}
+
+function renderAdminAiRubricReview(review) {
+  if (!adminAiReviewOutput) return;
+  const safe = review || adminLatestAiReview;
+  if (!safe) {
+    resetAdminAiReviewPanel();
+    return;
+  }
+  adminAiReviewOutput.innerHTML = `
+    <div class="admin-ai-score-card">
+      <div class="admin-ai-score-head">
+        <div>
+          <p class="section-kicker">${escapeHTML(safe.confidence || 'medium')} confidence · ${escapeHTML(safe.model || '')}</p>
+          <h3>${escapeHTML(safe.summary || 'AI review completed.')}</h3>
+          <p class="muted-text">${escapeHTML(safe.activityTitle || 'Activity rubric')}</p>
+        </div>
+        <div class="admin-ai-score-number">${escapeHTML(formatPoints(safe.totalScore))}<small> / ${escapeHTML(formatPoints(safe.possibleScore))}</small><div><small>${Number(safe.percent || 0)}%</small></div></div>
+      </div>
+      <div class="admin-ai-feedback-block">
+        <h4>Student Feedback</h4>
+        <p>${escapeHTML(safe.studentFeedback || '')}</p>
+      </div>
+      ${safe.teacherNotes?.length ? `<div class="admin-ai-feedback-block"><h4>Teacher Notes</h4><ul>${safe.teacherNotes.map(item => `<li>${escapeHTML(item)}</li>`).join('')}</ul></div>` : ''}
+      ${safe.warnings?.length ? `<div class="admin-ai-feedback-block"><h4>Warnings / Limits</h4><ul class="admin-ai-warning-list">${safe.warnings.map(item => `<li>${escapeHTML(item)}</li>`).join('')}</ul></div>` : ''}
+      <div class="admin-ai-criteria-list">
+        ${safe.criteria.map(item => `
+          <div class="admin-ai-criterion">
+            <div class="admin-ai-criterion-top"><strong>${escapeHTML(item.name)}</strong><span class="admin-ai-criterion-score">${escapeHTML(formatPoints(item.score))}/${escapeHTML(formatPoints(item.max))}</span></div>
+            <p><strong>Evidence:</strong> ${escapeHTML(item.evidence || '')}</p>
+            <p><strong>Improve:</strong> ${escapeHTML(item.improvement || '')}</p>
+          </div>`).join('')}
+      </div>
+    </div>`;
+  if (adminSaveAiReviewBtn) adminSaveAiReviewBtn.disabled = false;
+  if (adminUseAiFeedbackBtn) adminUseAiFeedbackBtn.disabled = false;
+  if (adminApplyAiScoreBtn) adminApplyAiScoreBtn.disabled = false;
+}
+
+function formatAdminAiReviewAsComment(review = adminLatestAiReview) {
+  if (!review) return '';
+  const lines = [
+    `AI Rubric Review: ${formatPoints(review.totalScore)}/${formatPoints(review.possibleScore)} (${review.percent}%)`,
+    '',
+    review.studentFeedback || '',
+    '',
+    'Criterion notes:'
+  ];
+  (review.criteria || []).forEach(item => {
+    lines.push(`- ${item.name}: ${formatPoints(item.score)}/${formatPoints(item.max)}. ${item.improvement || item.evidence || ''}`);
+  });
+  if (review.warnings?.length) {
+    lines.push('', 'Review notes:', ...review.warnings.map(item => `- ${item}`));
+  }
+  return lines.join('\n').trim();
+}
+
+async function runAdminAiRubricReview() {
+  const project = adminProjectViewerState.project;
+  const student = adminProjectViewerState.student;
+  if (!project?.id || !student?.uid) {
+    appAlert('Open a student project first.', { title: 'AI Rubric Review' });
+    return;
+  }
+  const settings = saveAiRubricSettingsLocal(getAiRubricSettingsFromControls());
+  if (!settings.enabled || !settings.apiKey) {
+    appAlert('Turn ON AI Review and save a Gemini API key in Admin → Assistance first.', { title: 'AI Rubric Review' });
+    return;
+  }
+  try {
+    if (adminRunAiRubricReviewBtn) adminRunAiRubricReviewBtn.disabled = true;
+    if (adminSaveAiReviewBtn) adminSaveAiReviewBtn.disabled = true;
+    if (adminUseAiFeedbackBtn) adminUseAiFeedbackBtn.disabled = true;
+    setAdminAiReviewStatus('Reviewing...', 'running');
+    renderAdminAiRubricLoading();
+    runAdminProjectViewerPreview(getAdminProjectActiveFileName('html'));
+    await new Promise(resolve => window.setTimeout(resolve, 650));
+    const activityForReview = getAdminProjectRubricForAi();
+    const context = {
+      app: 'Sir JR Web Coding App',
+      student: { name: student.name || '', studentId: student.studentId || '', section: student.section || '' },
+      project: { name: project.name || '', id: project.id || '', activityKey: adminProjectViewerState.activityKey || '', updatedAt: formatStudentDate(project.updatedAt) },
+      activity: {
+        id: activityForReview.id,
+        title: activityForReview.title,
+        description: activityForReview.description,
+        passingScore: activityForReview.passingScore,
+        criteria: activityForReview.criteria.map(item => ({
+          title: item.title,
+          points: getCriterionPossiblePoints(item),
+          rule: item.rule || 'smart_rubric',
+          target: item.target || '',
+          rubricText: getCriterionRubricText(item)
+        }))
+      },
+      code: getAdminProjectAllCodeForAi(),
+      output: collectAdminProjectOutputSummary()
+    };
+    const review = await callGeminiAdminAiRubricReview(context);
+    adminLatestAiReview = review;
+    renderAdminAiRubricReview(review);
+    setAdminAiReviewStatus('Review ready', 'ready');
+    setStatus('AI rubric review ready');
+  } catch (error) {
+    console.error('AI rubric review failed.', error);
+    setAdminAiReviewStatus('Review failed', 'error');
+    if (adminAiReviewOutput) {
+      adminAiReviewOutput.innerHTML = `<div class="admin-ai-error"><strong>AI review failed.</strong><p>${escapeHTML(error?.message || 'Check API key, model, internet connection, and quota.')}</p></div>`;
+    }
+  } finally {
+    syncAiRubricSettingsControls(aiRubricSettings);
+    if (adminRunAiRubricReviewBtn) adminRunAiRubricReviewBtn.disabled = !(aiRubricSettings.enabled && aiRubricSettings.apiKey);
+  }
+}
+
+function useAdminAiFeedbackAsComment() {
+  if (!adminLatestAiReview || !adminProjectTeacherComment) return;
+  adminProjectTeacherComment.value = formatAdminAiReviewAsComment(adminLatestAiReview);
+  setAdminProjectCommentStatus('AI feedback inserted · not saved yet', 'saving');
+  adminProjectTeacherComment.focus({ preventScroll: true });
+}
+
+
+function buildLastResultFromAdminAiReview(review = adminLatestAiReview) {
+  if (!review) return null;
+  const activityForReview = getAdminProjectRubricForAi();
+  return {
+    score: Number(review.totalScore || 0),
+    possible: Number(review.possibleScore || 0),
+    percent: Number(review.percent || 0),
+    passed: Number(review.percent || 0) >= Number(activityForReview.passingScore || 75),
+    feedback: review.studentFeedback || review.summary || 'AI rubric review completed.',
+    aiAssisted: true,
+    reviewedByAi: true,
+    activityTitle: review.activityTitle || activityForReview.title || getAdminProjectActivityLabel(adminProjectViewerState.activityKey),
+    results: (review.criteria || []).map(item => ({
+      title: item.name,
+      levelKey: Number(item.max || 0) ? progressToLevelKey(Number(item.score || 0) / Number(item.max || 1)) : 'needsImprovement',
+      levelLabel: item.level || '',
+      earned: Number(item.score || 0),
+      points: Number(item.max || 0),
+      evidence: item.evidence || '',
+      improvement: item.improvement || '',
+      rule: 'ai_rubric_review',
+      target: ''
+    }))
+  };
+}
+
+async function applyAdminAiReviewAsScore() {
+  const project = adminProjectViewerState.project;
+  const student = adminProjectViewerState.student;
+  const result = buildLastResultFromAdminAiReview(adminLatestAiReview);
+  if (!result || !project?.id || !student?.uid) return;
+  const confirmed = await appConfirm(`Apply AI score ${formatPoints(result.score)}/${formatPoints(result.possible)} as this project score? You can still edit/save teacher comments separately.`, {
+    title: 'Apply AI Score',
+    confirmText: 'Apply Score'
+  });
+  if (!confirmed) return;
+  try {
+    if (adminApplyAiScoreBtn) adminApplyAiScoreBtn.disabled = true;
+    setAdminAiReviewStatus('Applying score...', 'running');
+    const { setDoc, serverTimestamp } = firebaseSync.modules;
+    await setDoc(getStudentProjectDocRef(student.uid, project.id), {
+      lastResult: result,
+      aiScoreAppliedAt: serverTimestamp(),
+      aiScoreAppliedBy: firebaseSync.auth?.currentUser?.email || firebaseSync.currentUser?.email || 'teacher'
+    }, { merge: true });
+    project.lastResult = result;
+    setAdminAiReviewStatus('Score applied', 'ready');
+    setStatus('AI score applied');
+  } catch (error) {
+    console.error('Could not apply AI score.', error);
+    setAdminAiReviewStatus('Apply failed', 'error');
+    appAlert(error?.message || 'Could not apply AI score. Check teacher login and Firestore rules.', { title: 'Apply AI Score' });
+  } finally {
+    if (adminApplyAiScoreBtn) adminApplyAiScoreBtn.disabled = false;
+  }
+}
+
+async function saveAdminAiRubricReview() {
+  const project = adminProjectViewerState.project;
+  const student = adminProjectViewerState.student;
+  if (!adminLatestAiReview || !project?.id || !student?.uid) return;
+  try {
+    if (adminSaveAiReviewBtn) adminSaveAiReviewBtn.disabled = true;
+    setAdminAiReviewStatus('Saving...', 'running');
+    const { setDoc, serverTimestamp } = firebaseSync.modules;
+    const key = getAdminProjectCommentKey();
+    const teacherEmail = firebaseSync.auth?.currentUser?.email || firebaseSync.currentUser?.email || 'teacher';
+    const saveRecord = {
+      ...adminLatestAiReview,
+      reviewedAt: serverTimestamp(),
+      reviewedBy: teacherEmail,
+      activityKey: key
+    };
+    await setDoc(getStudentProjectDocRef(student.uid, project.id), {
+      aiRubricReviews: { [key]: saveRecord },
+      aiRubricReviewUpdatedAt: serverTimestamp(),
+      aiRubricReviewUpdatedBy: teacherEmail
+    }, { merge: true });
+    project.aiRubricReviews = {
+      ...(project.aiRubricReviews && typeof project.aiRubricReviews === 'object' ? project.aiRubricReviews : {}),
+      [key]: { ...adminLatestAiReview, reviewedAt: new Date(), reviewedBy: teacherEmail, activityKey: key }
+    };
+    setAdminAiReviewStatus('Saved', 'ready');
+    setStatus('AI review saved');
+  } catch (error) {
+    console.error('Could not save AI rubric review.', error);
+    setAdminAiReviewStatus('Save failed', 'error');
+    appAlert(error?.message || 'Could not save AI review. Check teacher login and Firestore rules.', { title: 'AI Review Save' });
+  } finally {
+    if (adminSaveAiReviewBtn) adminSaveAiReviewBtn.disabled = false;
+  }
+}
+
+
 
 function getStudentProjectCommentKey(project = appSession.currentProject || {}) {
   return selectedActivityId || project.selectedActivityId || 'scratch';
@@ -7046,6 +7646,7 @@ function renderAdminProjectViewer() {
   populateAdminProjectViewerFileSelect();
   updateAdminProjectViewerCode();
   renderAdminProjectTeacherComment();
+  renderSavedAdminAiReviewForCurrentProject();
   runAdminProjectViewerPreview(getAdminProjectActiveFileName('html'));
 }
 
@@ -12914,6 +13515,8 @@ async function openAdminPanel() {
   syncAssistanceSettingsControls();
   syncComplianceSettingsControls();
   updateAssistancePublishUI();
+  syncAiRubricSettingsControls(aiRubricSettings);
+  if (isTeacherAuthenticated()) loadAiRubricSettingsFromCloud({ silent: true }).catch(error => console.warn('AI settings load failed.', error));
   setAssistanceSettingsStatus(isTeacherAuthenticated()
     ? 'Change the switches, then publish to update every student device.'
     : 'These switches can be used now on this browser. Login is only needed to publish globally.');
@@ -12968,6 +13571,7 @@ function showAdminForm(activityId = adminEditingActivityId) {
   if (adminStudentsCache.length) renderAdminStudentTracker();
   else loadAdminStudents().catch(error => console.warn('Student tracker load failed.', error));
   initializeLessonManager();
+  if (isTeacherAuthenticated()) loadAiRubricSettingsFromCloud({ silent: true }).catch(error => console.warn('AI settings load failed.', error));
   const editActivity = getActivityById(activityId) || activity || activities[0] || null;
 
   if (!editActivity) {
@@ -16920,6 +17524,12 @@ window.addEventListener('keydown', event => {
 });
 applyAssistanceLocalBtn?.addEventListener('click', () => applyAssistanceSettingsFromControls());
 publishAssistanceBtn?.addEventListener('click', publishAssistanceSettings);
+saveAiRubricSettingsBtn?.addEventListener('click', saveAiRubricSettingsToCloud);
+testAiRubricSettingsBtn?.addEventListener('click', testAiRubricConnection);
+[aiRubricEnabledToggle, aiRubricApiKeyInput, aiRubricModelInput, aiRubricReviewStyleSelect].forEach(control => {
+  control?.addEventListener('change', () => saveAiRubricSettingsLocal(getAiRubricSettingsFromControls()));
+  control?.addEventListener('input', () => saveAiRubricSettingsLocal(getAiRubricSettingsFromControls()));
+});
 complianceTermSelect?.addEventListener('change', () => {
   const settings = saveComplianceSettings(getComplianceSettingsFromControls());
   renderComplianceTaskLabels(settings);
@@ -17520,6 +18130,7 @@ adminProjectViewerActivitySelect?.addEventListener('change', event => {
   populateAdminProjectViewerFileSelect();
   updateAdminProjectViewerCode();
   renderAdminProjectTeacherComment();
+  renderSavedAdminAiReviewForCurrentProject();
   runAdminProjectViewerPreview(getAdminProjectActiveFileName('html'));
 });
 adminProjectViewerFileSelect?.addEventListener('change', event => {
@@ -17540,6 +18151,10 @@ adminProjectViewerFullPreviewBtn?.addEventListener('click', () => {
   runAdminProjectViewerPreview(getAdminProjectActiveFileName('html'));
   openAdminProjectFullscreen('preview');
 });
+adminRunAiRubricReviewBtn?.addEventListener('click', runAdminAiRubricReview);
+adminUseAiFeedbackBtn?.addEventListener('click', useAdminAiFeedbackAsComment);
+adminSaveAiReviewBtn?.addEventListener('click', saveAdminAiRubricReview);
+adminApplyAiScoreBtn?.addEventListener('click', applyAdminAiReviewAsScore);
 adminProjectSaveCommentBtn?.addEventListener('click', () => saveAdminProjectTeacherComment());
 adminProjectClearCommentBtn?.addEventListener('click', () => {
   const hasText = String(adminProjectTeacherComment?.value || '').trim();
@@ -17569,6 +18184,7 @@ adminProjectViewerFrame?.addEventListener('load', attachAdminProjectViewerPrevie
 
 initManualRubricInputTable();
 applyStudentAssistanceSettings(studentAssistanceSettings);
+syncAiRubricSettingsControls(aiRubricSettings);
 setupPWAInstallPrompt();
 registerPWAServiceWorker();
 saveActivities({ cloud: false });
