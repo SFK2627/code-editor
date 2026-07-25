@@ -7315,11 +7315,11 @@ function collectAdminProjectOutputSummary() {
       return summary;
     }
     summary.title = String(doc.title || '').trim().slice(0, 240);
-    summary.visibleText = String(doc.body?.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 5000);
-    summary.headings = Array.from(doc.querySelectorAll('h1,h2,h3,h4,h5,h6')).map(node => ({ tag: node.tagName.toLowerCase(), text: String(node.innerText || '').trim().slice(0, 180) })).filter(item => item.text).slice(0, 20);
-    summary.links = Array.from(doc.querySelectorAll('a[href]')).map(node => ({ text: String(node.innerText || '').trim().slice(0, 160), href: String(node.getAttribute('href') || '').trim().slice(0, 180) })).slice(0, 20);
-    summary.buttons = Array.from(doc.querySelectorAll('button,input[type="button"],input[type="submit"]')).map(node => String(node.innerText || node.value || '').trim().slice(0, 160)).filter(Boolean).slice(0, 20);
-    summary.images = Array.from(doc.querySelectorAll('img')).map(node => ({ src: String(node.getAttribute('src') || '').trim().slice(0, 160), alt: String(node.getAttribute('alt') || '').trim().slice(0, 160) })).slice(0, 20);
+    summary.visibleText = String(doc.body?.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 2500);
+    summary.headings = Array.from(doc.querySelectorAll('h1,h2,h3,h4,h5,h6')).map(node => ({ tag: node.tagName.toLowerCase(), text: String(node.innerText || '').trim().slice(0, 180) })).filter(item => item.text).slice(0, 12);
+    summary.links = Array.from(doc.querySelectorAll('a[href]')).map(node => ({ text: String(node.innerText || '').trim().slice(0, 160), href: String(node.getAttribute('href') || '').trim().slice(0, 180) })).slice(0, 12);
+    summary.buttons = Array.from(doc.querySelectorAll('button,input[type="button"],input[type="submit"]')).map(node => String(node.innerText || node.value || '').trim().slice(0, 160)).filter(Boolean).slice(0, 12);
+    summary.images = Array.from(doc.querySelectorAll('img')).map(node => ({ src: String(node.getAttribute('src') || '').trim().slice(0, 160), alt: String(node.getAttribute('alt') || '').trim().slice(0, 160) })).slice(0, 12);
     ['header','nav','main','section','article','aside','footer','ul','ol','li','table','form','input','img','a','button'].forEach(tag => {
       summary.elementCounts[tag] = doc.querySelectorAll(tag).length;
     });
@@ -11683,7 +11683,7 @@ function closePhoneResultFeedbackPopup() {
 
 function collectStudentOutputSummaryForAi() {
   const summary = {
-    visibleText: getOutputText().slice(0, 5000),
+    visibleText: getOutputText().slice(0, 2500),
     title: '',
     headings: [],
     links: [],
@@ -11699,10 +11699,10 @@ function collectStudentOutputSummaryForAi() {
       return summary;
     }
     summary.title = String(doc.title || '').trim().slice(0, 240);
-    summary.visibleText = String(doc.body?.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 5000);
-    summary.headings = Array.from(doc.querySelectorAll('h1,h2,h3,h4,h5,h6')).map(node => ({ tag: node.tagName.toLowerCase(), text: String(node.innerText || '').trim().slice(0, 180) })).filter(item => item.text).slice(0, 20);
+    summary.visibleText = String(doc.body?.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 2500);
+    summary.headings = Array.from(doc.querySelectorAll('h1,h2,h3,h4,h5,h6')).map(node => ({ tag: node.tagName.toLowerCase(), text: String(node.innerText || '').trim().slice(0, 180) })).filter(item => item.text).slice(0, 12);
     summary.links = Array.from(doc.querySelectorAll('a[href]')).map(node => ({ text: String(node.innerText || '').trim().slice(0, 160), href: String(node.getAttribute('href') || '').trim().slice(0, 180) })).slice(0, 20);
-    summary.buttons = Array.from(doc.querySelectorAll('button,input[type="button"],input[type="submit"]')).map(node => String(node.innerText || node.value || '').trim().slice(0, 160)).filter(Boolean).slice(0, 20);
+    summary.buttons = Array.from(doc.querySelectorAll('button,input[type="button"],input[type="submit"]')).map(node => String(node.innerText || node.value || '').trim().slice(0, 160)).filter(Boolean).slice(0, 12);
     summary.images = Array.from(doc.querySelectorAll('img')).map(node => ({ src: String(node.getAttribute('src') || '').trim().slice(0, 160), alt: String(node.getAttribute('alt') || '').trim().slice(0, 160) })).slice(0, 20);
     ['header','nav','main','section','article','aside','footer','ul','ol','li','table','form','input','img','a','button'].forEach(tag => {
       summary.elementCounts[tag] = doc.querySelectorAll(tag).length;
@@ -11739,12 +11739,12 @@ function buildStudentAiRubricScoringPrompt(localResult = null) {
       title: item.title,
       detail: item.detail,
       fix: item.fix || ''
-    })).slice(0, 30),
+    })).slice(0, 15),
     outputSummary: collectStudentOutputSummaryForAi(),
     code: {
-      html: getShortCodeSample(codeStore.html, 9000),
-      css: getShortCodeSample(codeStore.css, 9000),
-      js: getShortCodeSample(codeStore.js, 9000)
+      html: getShortCodeSample(codeStore.html, 5000),
+      css: getShortCodeSample(codeStore.css, 5000),
+      js: getShortCodeSample(codeStore.js, 5000)
     }
   };
   const style = aiRubricSettings.reviewStyle || 'balanced';
@@ -11845,10 +11845,96 @@ async function callGeminiStudentRubricScoring(localResult = null, { signal } = {
   if (!shouldUseGeminiForResultFeedback(settings)) throw new Error('Smart Result Feedback is not enabled or API key is missing.');
   const raw = await callGeminiJson(settings, buildStudentAiRubricScoringPrompt(localResult), {
     signal,
-    maxOutputTokens: 4096,
+    maxOutputTokens: 3072,
     temperature: 0
   });
   return buildResultFromAiRubricReview(raw, localResult);
+}
+
+
+function quickHashText(value = '') {
+  const text = String(value || '');
+  let hash = 2166136261;
+  for (let index = 0; index < text.length; index += 1) {
+    hash ^= text.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36);
+}
+
+function buildSmartResultCacheKey() {
+  const rubricKey = activity ? {
+    id: activity.id,
+    title: activity.title,
+    criteria: (activity.criteria || []).map(item => ({
+      title: item.title,
+      points: getCriterionPossiblePoints(item),
+      levels: item.levels || {}
+    }))
+  } : null;
+  const settingsKey = {
+    model: getGeminiModelName(aiRubricSettings.model),
+    style: aiRubricSettings.reviewStyle || 'balanced'
+  };
+  return quickHashText(JSON.stringify({
+    rubricKey,
+    settingsKey,
+    html: codeStore.html || '',
+    css: codeStore.css || '',
+    js: codeStore.js || ''
+  }));
+}
+
+function makeFastLocalResult(localResult, status = 'pending', detail = '') {
+  const isPending = status === 'pending';
+  return {
+    ...localResult,
+    source: isPending ? 'local-pending' : 'local-fallback',
+    feedback: isPending
+      ? `${localResult.feedback} A deeper smart review is still checking the rubric, code, and visible output in the background.`
+      : `${localResult.feedback} The deeper smart review was unavailable, so this local rubric result was kept. ${detail || ''}`.trim()
+  };
+}
+
+async function runSmartResultInBackground(localResult, requestId, cacheKey) {
+  try {
+    if (smartResultMemoryCache.has(cacheKey)) {
+      const cached = smartResultMemoryCache.get(cacheKey);
+      if (requestId !== smartResultRequestId) return;
+      lastRubricResult = cached;
+      renderResult(cached);
+      saveCurrentStudentProject({ result: cached, immediate: true, reason: 'smart-result-cache' });
+      saveSubmissionToCloud(cached);
+      setStatus(`Smart score ${formatPoints(cached.score)}/${formatPoints(cached.possible)}`);
+      return;
+    }
+
+    if (aiReviewController) aiReviewController.abort();
+    aiReviewController = new AbortController();
+    const timeout = window.setTimeout(() => aiReviewController.abort(), 35000);
+    const smartResult = await callGeminiStudentRubricScoring(localResult, { signal: aiReviewController.signal });
+    window.clearTimeout(timeout);
+    if (requestId !== smartResultRequestId) return;
+    smartResultMemoryCache.set(cacheKey, smartResult);
+    if (smartResultMemoryCache.size > 12) {
+      const firstKey = smartResultMemoryCache.keys().next().value;
+      smartResultMemoryCache.delete(firstKey);
+    }
+    lastRubricResult = smartResult;
+    renderResult(smartResult);
+    saveCurrentStudentProject({ result: smartResult, immediate: true, reason: 'smart-result' });
+    saveSubmissionToCloud(smartResult);
+    setStatus(`Smart score ${formatPoints(smartResult.score)}/${formatPoints(smartResult.possible)}`);
+  } catch (error) {
+    console.warn('Smart result scoring failed; keeping fast local result.', error);
+    if (requestId !== smartResultRequestId) return;
+    const fallbackResult = makeFastLocalResult(localResult, 'fallback', error?.message || '');
+    lastRubricResult = fallbackResult;
+    renderResult(fallbackResult);
+    saveCurrentStudentProject({ result: fallbackResult, immediate: true, reason: 'result-fallback' });
+    saveSubmissionToCloud(fallbackResult);
+    setStatus(`Score ${formatPoints(fallbackResult.score)}/${formatPoints(fallbackResult.possible)}`);
+  }
 }
 
 function renderResultLoading(message = 'Smart Review is comparing your code and output with the rubric...') {
@@ -11930,6 +12016,8 @@ function renderResult(result) {
       : 'needs-work';
   const pillText = result.percent >= activity.passingScore ? 'Passed' : result.percent >= 60 ? 'Almost' : 'Needs Work';
   const isSmart = result.source === 'gemini';
+  const isPendingSmart = result.source === 'local-pending';
+  const isFallbackSmart = result.source === 'local-fallback';
   const strengths = isSmart
     ? result.results.filter(item => item.passed).slice(0, 4).map(item => `${item.title}: ${item.evidence || item.levelDescription || 'Meets the rubric level.'}`)
     : result.results.filter(item => item.passed).slice(0, 3).map(item => `${item.title}: ${item.levelDescription || 'Meets the rubric level.'}`);
@@ -11938,8 +12026,12 @@ function renderResult(result) {
     .slice(0, 4)
     .map(item => `${item.title}: ${item.improvement || item.levelDescription || 'Improve this criterion.'}`);
   const confidenceLine = isSmart
-    ? `<p class="muted-text smart-result-note">Gemini compared the rubric, code, checker hints, and visible output summary. Confidence: ${escapeHTML(result.aiConfidence || 'medium')}.</p>`
-    : `<p class="muted-text smart-result-note">Local rubric fallback was used. Turn on Smart Review for deeper criterion judgement.</p>`;
+    ? `<p class="muted-text smart-result-note">Smart Review compared the rubric, code, checker hints, and visible output summary. Confidence: ${escapeHTML(result.aiConfidence || 'medium')}.</p>`
+    : isPendingSmart
+      ? `<p class="muted-text smart-result-note smart-result-pending">Quick result is shown now. Smart Review is still checking in the background and will update this score automatically.</p>`
+      : isFallbackSmart
+        ? `<p class="muted-text smart-result-note">Local rubric fallback was kept because Smart Review was unavailable.</p>`
+        : `<p class="muted-text smart-result-note">Local rubric fallback was used. Turn on Smart Review for deeper criterion judgement.</p>`;
   const warnings = isSmart && Array.isArray(result.aiWarnings) && result.aiWarnings.length
     ? `<div class="result-warning-note"><strong>Review note:</strong> ${escapeHTML(result.aiWarnings.join(' '))}</div>`
     : '';
@@ -11949,7 +12041,7 @@ function renderResult(result) {
     <div class="score-card smart-result-card ${isSmart ? 'gemini-scored' : 'local-scored'}">
       <div class="score-main">
         <div>
-          <p class="section-kicker">${isSmart ? 'Smart Rubric Score' : 'Rubric Score'}</p>
+          <p class="section-kicker">${isSmart ? 'Smart Rubric Score' : isPendingSmart ? 'Quick Rubric Preview' : 'Rubric Score'}</p>
           <div class="score-number">${formatPoints(result.score)}<small> / ${formatPoints(result.possible)}</small></div>
           <p class="muted-text">${result.percent}% · Passing score: ${activity.passingScore}%</p>
           ${confidenceLine}
@@ -12013,40 +12105,43 @@ async function showResult(options = {}) {
 
   runCode(false, { scroll: false });
   const useGemini = shouldUseGeminiForResultFeedback(getCurrentAiRubricSettings());
-  setStatus(useGemini ? 'Smart Review is checking the rubric...' : 'Checking rubric...');
-  if (useGemini) renderResultLoading();
+  setStatus(useGemini ? 'Preparing quick result...' : 'Checking rubric...');
 
   try {
-    await new Promise(resolve => window.setTimeout(resolve, 350));
+    await new Promise(resolve => window.setTimeout(resolve, 120));
     const localResult = gradeActivity();
     if (!localResult) return;
 
-    let result = localResult;
+    const requestId = ++smartResultRequestId;
+
     if (useGemini) {
-      try {
-        if (aiReviewController) aiReviewController.abort();
-        aiReviewController = new AbortController();
-        const timeout = window.setTimeout(() => aiReviewController.abort(), 50000);
-        result = await callGeminiStudentRubricScoring(localResult, { signal: aiReviewController.signal });
-        window.clearTimeout(timeout);
-      } catch (error) {
-        console.warn('Smart result scoring failed; using local fallback.', error);
-        result = {
-          ...localResult,
-          source: 'local-fallback',
-          feedback: `${localResult.feedback} Smart scoring was unavailable, so the app used the local rubric fallback. ${error?.message || ''}`.trim()
-        };
+      const cacheKey = buildSmartResultCacheKey();
+      const cachedResult = smartResultMemoryCache.get(cacheKey);
+      const fastResult = cachedResult || makeFastLocalResult(localResult, 'pending');
+      lastRubricResult = fastResult;
+      renderResult(fastResult);
+      resetAIReviewPanel();
+      setStatus(cachedResult ? `Smart score ${formatPoints(cachedResult.score)}/${formatPoints(cachedResult.possible)}` : 'Quick result shown. Smart Review is still checking...');
+      if (shouldUsePhoneResultFeedbackPopup(safeOptions)) {
+        openPhoneResultFeedbackPopup('result');
+      } else {
+        scrollElementIntoSafeView(resultPanel);
       }
+      if (!cachedResult) {
+        window.setTimeout(() => runSmartResultInBackground(localResult, requestId, cacheKey), 30);
+      } else {
+        saveCurrentStudentProject({ result: cachedResult, immediate: true, reason: 'smart-result-cache' });
+        saveSubmissionToCloud(cachedResult);
+      }
+      return;
     }
 
-    lastRubricResult = result;
-    renderResult(result);
-    // Detailed scoring now lives directly in Result & Feedback.
+    lastRubricResult = localResult;
+    renderResult(localResult);
     resetAIReviewPanel();
-
-    saveCurrentStudentProject({ result, immediate: true, reason: 'result' });
-    saveSubmissionToCloud(result);
-    setStatus(`${result.source === 'gemini' ? 'Smart score' : 'Score'} ${formatPoints(result.score)}/${formatPoints(result.possible)}`);
+    saveCurrentStudentProject({ result: localResult, immediate: true, reason: 'result' });
+    saveSubmissionToCloud(localResult);
+    setStatus(`Score ${formatPoints(localResult.score)}/${formatPoints(localResult.possible)}`);
     if (shouldUsePhoneResultFeedbackPopup(safeOptions)) {
       openPhoneResultFeedbackPopup('result');
     } else {

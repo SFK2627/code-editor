@@ -1,13 +1,13 @@
-const CACHE_NAME = 'code-editor-20260725-step188-unified-smart-result';
+const CACHE_NAME = 'code-editor-20260725-step189-fast-smart-result';
 const APP_SHELL = [
   './',
   './index.html',
-  './index.html?v=20260725-step187-rubric-ai-judgement',
-  './index.html?fresh=step187',
+  './index.html?v=20260725-step189-fast-smart-result',
+  './index.html?fresh=step189',
   './style.css',
-  './style.css?v=20260725-step187-rubric-ai-judgement',
+  './style.css?v=20260725-step189-fast-smart-result',
   './script.js',
-  './script.js?v=20260725-step187-rubric-ai-judgement',
+  './script.js?v=20260725-step189-fast-smart-result',
   './firebase-config.js',
   './manifest.webmanifest',
   './favicon.png',
