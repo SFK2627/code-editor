@@ -1,12 +1,12 @@
-const CACHE_NAME = 'code-editor-20260724-step146-hide-compliance-connection';
+const CACHE_NAME = 'code-editor-20260725-step154-project-recovery-card-fix';
 const APP_SHELL = [
   './',
   './index.html',
-  './index.html?v=20260724-step146-hide-compliance-connection',
-  './index.html?fresh=step145',
+  './index.html?v=20260724-step154-project-recovery-card-fix',
+  './index.html?fresh=step154',
   './style.css',
-  './style.css?v=20260724-step146-hide-compliance-connection',
-  './style.css?v=20260724-step146-hide-compliance-connection',
+  './style.css?v=20260724-step154-project-recovery-card-fix',
+  './style.css?v=20260724-step154-project-recovery-card-fix',
   './script.js',
   './script.js?v=20260724-step146-hide-compliance-connection',
   './script.js?v=20260724-step146-hide-compliance-connection',
