@@ -1,15 +1,15 @@
-const CACHE_NAME = 'code-editor-20260725-step158-badge-superstudio-visibility';
+const CACHE_NAME = 'code-editor-20260725-step159-mobile-project-card-compact';
 const APP_SHELL = [
   './',
   './index.html',
-  './index.html?v=20260725-step158-badge-superstudio-visibility',
-  './index.html?fresh=step158',
+  './index.html?v=20260725-step159-mobile-project-card-compact',
+  './index.html?fresh=step159',
   './style.css',
-  './style.css?v=20260725-step158-badge-superstudio-visibility',
-  './style.css?v=20260725-step158-badge-superstudio-visibility',
+  './style.css?v=20260725-step159-mobile-project-card-compact',
+  './style.css?v=20260725-step159-mobile-project-card-compact',
   './script.js',
-  './script.js?v=20260725-step158-badge-superstudio-visibility',
-  './script.js?v=20260725-step158-badge-superstudio-visibility',
+  './script.js?v=20260725-step159-mobile-project-card-compact',
+  './script.js?v=20260725-step159-mobile-project-card-compact',
   './firebase-config.js',
   './manifest.webmanifest',
   './favicon.png',

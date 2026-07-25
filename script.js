@@ -5061,7 +5061,6 @@ function renderStudentProjects() {
         <div class="project-score-row"><span>Score</span><span class="project-score-value">${escapeHTML(scoreText)}</span></div>
         <div class="project-card-actions">
           <button class="primary-btn" type="button" data-project-action="open">Open Project</button>
-          ${recovery ? '<button class="ghost-btn recovery-action-btn" type="button" data-project-action="open" title="Open and restore local backup">↻</button>' : ''}
           <button class="ghost-btn" type="button" data-project-action="rename" title="Rename project">✏️</button>
           <button class="ghost-btn danger" type="button" data-project-action="delete" title="Delete project">🗑</button>
         </div>
