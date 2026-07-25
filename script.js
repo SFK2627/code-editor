@@ -272,6 +272,7 @@ const dashboardFeedbackText = document.getElementById('dashboardFeedbackText');
 const studentComplianceOverlay = document.getElementById('studentComplianceOverlay');
 const closeStudentComplianceBtn = document.getElementById('closeStudentComplianceBtn');
 const studentCompliancePanel = document.getElementById('studentCompliancePanel');
+const studentComplianceTitle = document.getElementById('studentComplianceTitle');
 const studentComplianceMeta = document.getElementById('studentComplianceMeta');
 const studentComplianceSummary = document.getElementById('studentComplianceSummary');
 const studentComplianceList = document.getElementById('studentComplianceList');
@@ -2737,6 +2738,24 @@ function getStudentFirstName(name) {
   return displayName.replace(/[,.]+$/g, '') || 'Student';
 }
 
+function getStudentStatusDisplayName(student = null, fallbackName = '') {
+  const name = String(
+    student?.name
+    || student?.studentName
+    || fallbackName
+    || appSession.student?.name
+    || appSession.lastStudentProfile?.name
+    || 'Student'
+  ).trim();
+  return getStudentFirstName(name);
+}
+
+function updateStudentComplianceTitle(record = null) {
+  if (!studentComplianceTitle) return;
+  const displayName = getStudentStatusDisplayName(appSession.student || appSession.lastStudentProfile, record?.studentName || record?.name || '');
+  studentComplianceTitle.textContent = `${displayName} Status`;
+}
+
 function timestampToDate(value) {
   if (!value) return null;
   if (value instanceof Date) return value;
@@ -4672,6 +4691,7 @@ function sanitizeComplianceStudentRecord(record = {}, fallback = {}) {
 
 function renderStudentComplianceRecord(record = null, options = {}) {
   if (!studentCompliancePanel) return;
+  updateStudentComplianceTitle(record);
 
   if (!record) {
     if (studentComplianceMeta) studentComplianceMeta.textContent = options.message || 'No published subject status yet.';
@@ -4922,6 +4942,7 @@ function openStudentComplianceModal() {
     return;
   }
   if (!studentComplianceOverlay) return;
+  updateStudentComplianceTitle(studentComplianceRecord);
   studentComplianceOverlay.classList.remove('hidden');
   document.body.classList.add('student-auth-open');
   if (!studentComplianceRecord) {

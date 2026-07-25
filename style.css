@@ -38884,3 +38884,104 @@ body.student-dashboard-active .student-project-card .project-alert-text-short {
     font-size: 22px;
   }
 }
+
+
+/* Step 171: Compact Student Subject Status modal on desktop and phone. */
+.student-compliance-overlay .student-compliance-panel {
+  padding: clamp(18px, 2.4vw, 24px);
+  gap: 14px;
+}
+
+.student-compliance-overlay .student-compliance-icon {
+  display: none !important;
+}
+
+.student-compliance-title-block {
+  min-width: 0;
+  padding-right: 54px;
+}
+
+.student-compliance-header {
+  align-items: center;
+  gap: 16px;
+}
+
+.student-compliance-header .section-kicker {
+  margin: 0 0 4px;
+  letter-spacing: 0.16em;
+}
+
+.student-compliance-header h2 {
+  margin: 0;
+  font-size: clamp(1.35rem, 2vw, 1.85rem);
+  line-height: 1.05;
+  letter-spacing: -0.035em;
+}
+
+.student-compliance-header p {
+  margin-top: 6px;
+  line-height: 1.35;
+}
+
+.student-compliance-header .ghost-btn {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  white-space: nowrap;
+}
+
+.student-compliance-summary {
+  gap: 10px;
+}
+
+.student-compliance-overlay .auth-close-btn {
+  top: 14px;
+  right: 14px;
+}
+
+@media (max-width: 760px) {
+  .student-compliance-overlay .student-compliance-panel {
+    width: min(96vw, 520px);
+    max-height: 90vh;
+    padding: 18px;
+    gap: 14px;
+  }
+
+  .student-compliance-header {
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .student-compliance-title-block {
+    padding-right: 46px;
+  }
+
+  .student-compliance-header h2 {
+    font-size: clamp(1.28rem, 6vw, 1.65rem);
+    line-height: 1.08;
+  }
+
+  .student-compliance-header p {
+    font-size: 0.92rem;
+  }
+
+  .student-compliance-header .ghost-btn {
+    width: 100%;
+    min-height: 40px;
+  }
+
+  .student-compliance-summary {
+    gap: 8px;
+  }
+
+  .student-compliance-row {
+    border-radius: 16px;
+    padding: 12px;
+  }
+
+  .student-compliance-lacking-card {
+    padding: 13px 14px;
+  }
+}
