@@ -1,15 +1,15 @@
-const CACHE_NAME = 'code-editor-20260725-step154-project-recovery-card-fix';
+const CACHE_NAME = 'code-editor-20260725-step155-subject-status-assistance-toggle';
 const APP_SHELL = [
   './',
   './index.html',
-  './index.html?v=20260724-step154-project-recovery-card-fix',
-  './index.html?fresh=step154',
+  './index.html?v=20260725-step155-subject-status-assistance-toggle',
+  './index.html?fresh=step155',
   './style.css',
   './style.css?v=20260724-step154-project-recovery-card-fix',
   './style.css?v=20260724-step154-project-recovery-card-fix',
   './script.js',
-  './script.js?v=20260724-step146-hide-compliance-connection',
-  './script.js?v=20260724-step146-hide-compliance-connection',
+  './script.js?v=20260725-step155-subject-status-assistance-toggle',
+  './script.js?v=20260725-step155-subject-status-assistance-toggle',
   './firebase-config.js',
   './manifest.webmanifest',
   './favicon.png',

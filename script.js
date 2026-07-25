@@ -173,6 +173,7 @@ const assistanceMasterToggle = document.getElementById('assistanceMasterToggle')
 const codeSuggestionsToggle = document.getElementById('codeSuggestionsToggle');
 const codeHelperToggle = document.getElementById('codeHelperToggle');
 const teacherFeedbackToggle = document.getElementById('teacherFeedbackToggle');
+const subjectStatusToggle = document.getElementById('subjectStatusToggle');
 const superStudioToggle = document.getElementById('superStudioToggle');
 const autoRunControlToggle = document.getElementById('autoRunControlToggle');
 const autoSaveControlToggle = document.getElementById('autoSaveControlToggle');
@@ -406,6 +407,7 @@ const DEFAULT_ASSISTANCE_SETTINGS = Object.freeze({
   codeSuggestions: true,
   codeHelper: true,
   teacherFeedback: true,
+  subjectStatus: true,
   superStudio: false,
   autoSave: true,
   autoRunControl: true,
@@ -942,6 +944,7 @@ function normalizeAssistanceSettings(value = {}) {
     codeSuggestions: source.codeSuggestions !== false,
     codeHelper: source.codeHelper !== false,
     teacherFeedback: source.teacherFeedback !== false,
+    subjectStatus: source.subjectStatus !== false,
     superStudio: source.superStudio === true,
     autoSave: source.autoSave !== false,
     autoRunControl: source.autoRunControl !== false,
@@ -965,6 +968,7 @@ function getAssistanceSettingsFromControls() {
     codeSuggestions: codeSuggestionsToggle?.checked !== false,
     codeHelper: codeHelperToggle?.checked !== false,
     teacherFeedback: teacherFeedbackToggle?.checked !== false,
+    subjectStatus: subjectStatusToggle?.checked !== false,
     superStudio: superStudioToggle?.checked === true,
     autoSave: autoSaveControlToggle?.checked !== false,
     autoRunControl: autoRunControlToggle?.checked !== false,
@@ -995,6 +999,7 @@ function syncAssistanceSettingsControls() {
   if (codeSuggestionsToggle) codeSuggestionsToggle.checked = settings.codeSuggestions;
   if (codeHelperToggle) codeHelperToggle.checked = settings.codeHelper;
   if (teacherFeedbackToggle) teacherFeedbackToggle.checked = settings.teacherFeedback;
+  if (subjectStatusToggle) subjectStatusToggle.checked = settings.subjectStatus !== false;
   if (superStudioToggle) superStudioToggle.checked = settings.superStudio;
   if (autoSaveControlToggle) autoSaveControlToggle.checked = settings.autoSave;
   if (autoRunControlToggle) autoRunControlToggle.checked = settings.autoRunControl;
@@ -1010,7 +1015,7 @@ function syncAssistanceSettingsControls() {
   });
 
   studentAssistanceSettingsCard?.classList.toggle('master-disabled', !settings.enabled);
-  const effectiveOn = settings.enabled && (settings.codeSuggestions || settings.codeHelper || settings.teacherFeedback || settings.superStudio || settings.autoSave || settings.autoRunControl || settings.collaboration || settings.collaborationEdit || settings.collaborationMembers);
+  const effectiveOn = settings.enabled && (settings.codeSuggestions || settings.codeHelper || settings.teacherFeedback || settings.subjectStatus || settings.superStudio || settings.autoSave || settings.autoRunControl || settings.collaboration || settings.collaborationEdit || settings.collaborationMembers);
   if (assistanceModeBadge) {
     assistanceModeBadge.textContent = effectiveOn ? 'Assistance ON' : 'Assistance OFF';
     assistanceModeBadge.classList.toggle('off', !effectiveOn);
@@ -1037,6 +1042,7 @@ function applyStudentAssistanceSettings(nextSettings, options = {}) {
   const suggestionsEnabled = isStudentAssistanceFeatureEnabled('codeSuggestions');
   const helperEnabled = isStudentAssistanceFeatureEnabled('codeHelper');
   const feedbackEnabled = isStudentAssistanceFeatureEnabled('teacherFeedback');
+  const subjectStatusEnabled = isStudentAssistanceFeatureEnabled('subjectStatus');
   const superStudioEnabled = isStudentAssistanceFeatureEnabled('superStudio');
   const autoRunControlEnabled = isStudentAssistanceFeatureEnabled('autoRunControl');
   const autoSaveEnabled = isStudentAssistanceFeatureEnabled('autoSave');
@@ -1044,6 +1050,7 @@ function applyStudentAssistanceSettings(nextSettings, options = {}) {
   document.body.classList.toggle('code-suggestions-disabled', !suggestionsEnabled);
   document.body.classList.toggle('code-helper-disabled', !helperEnabled);
   document.body.classList.toggle('teacher-feedback-disabled', !feedbackEnabled);
+  document.body.classList.toggle('subject-status-disabled', !subjectStatusEnabled);
   document.body.classList.toggle('super-studio-disabled', !superStudioEnabled);
   document.body.classList.toggle('auto-run-control-disabled', !autoRunControlEnabled);
   document.body.classList.toggle('student-autosave-disabled', !autoSaveEnabled);
@@ -1076,6 +1083,15 @@ function applyStudentAssistanceSettings(nextSettings, options = {}) {
   if (runAiReviewBtn) runAiReviewBtn.disabled = !feedbackEnabled;
   aiReviewPanel?.classList.toggle('assistance-feature-hidden', !feedbackEnabled);
 
+  if (dashboardSubjectStatusBtn) {
+    dashboardSubjectStatusBtn.classList.toggle('hidden', !subjectStatusEnabled);
+    dashboardSubjectStatusBtn.setAttribute('aria-hidden', subjectStatusEnabled ? 'false' : 'true');
+    dashboardSubjectStatusBtn.disabled = !subjectStatusEnabled;
+  }
+  if (!subjectStatusEnabled && studentComplianceOverlay && !studentComplianceOverlay.classList.contains('hidden')) {
+    closeStudentComplianceModal();
+  }
+
   syncAssistanceSettingsControls();
   syncComplianceSettingsControls();
   updateAssistancePublishUI();
@@ -1094,7 +1110,8 @@ function applyAssistanceSettingsFromControls(options = {}) {
   if (!options.silent) {
     const collabText = settings.collaboration ? 'Share button is now visible to students.' : 'Share button is now hidden from students.';
     const starterText = settings.starterCodeEnabled === false ? 'New projects will start blank.' : 'New projects will use starter HTML.';
-    setAssistanceSettingsStatus(`Applied on this browser. ${starterText} ${collabText}`, 'success');
+    const subjectStatusText = settings.subjectStatus === false ? 'Subject Status is hidden from students.' : 'Subject Status is visible to students.';
+    setAssistanceSettingsStatus(`Applied on this browser. ${starterText} ${collabText} ${subjectStatusText}`, 'success');
     setStatus('Student assistance updated');
     if (applyAssistanceLocalBtn) {
       const oldText = applyAssistanceLocalBtn.textContent;
@@ -4614,6 +4631,10 @@ function renderStudentComplianceRecord(record = null, options = {}) {
 }
 
 function openStudentComplianceModal() {
+  if (!isStudentAssistanceFeatureEnabled('subjectStatus')) {
+    setStatus('Subject Status is hidden by teacher');
+    return;
+  }
   if (!studentComplianceOverlay) return;
   studentComplianceOverlay.classList.remove('hidden');
   document.body.classList.add('student-auth-open');

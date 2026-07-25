@@ -43,7 +43,7 @@
       document.documentElement.dataset.deviceMode = isPhone ? 'phone' : 'desktop';
     })();
   </script>
-  <link rel="stylesheet" href="style.css?v=20260724-step151-force-mobile-2-project-grid" />
+  <link rel="stylesheet" href="style.css?v=20260725-step154-project-recovery-card-fix" />
 </head>
 <body class="entry-gate-active">
   <noscript>
@@ -650,6 +650,18 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
             </span>
             <span class="admin-switch">
               <input id="teacherFeedbackToggle" type="checkbox" checked />
+              <span class="admin-switch-track"><span class="admin-switch-thumb"></span></span>
+            </span>
+          </label>
+
+          <label class="assistance-option" for="subjectStatusToggle">
+            <span class="assistance-option-icon">📌</span>
+            <span class="assistance-option-copy">
+              <strong>Subject Status Button</strong>
+              <small>Show or hide the Complete/Missing compliance tracker button on the student My Projects page.</small>
+            </span>
+            <span class="admin-switch">
+              <input id="subjectStatusToggle" type="checkbox" checked />
               <span class="admin-switch-track"><span class="admin-switch-thumb"></span></span>
             </span>
           </label>
@@ -1262,6 +1274,6 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
   <script src="firebase-config.js"></script>
-  <script src="script.js?v=20260724-step146-hide-compliance-connection"></script>
+  <script src="script.js?v=20260725-step155-subject-status-assistance-toggle"></script>
 </body>
 </html>
