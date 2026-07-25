@@ -45,7 +45,7 @@
   </script>
   <link rel="preconnect" href="https://drive.google.com" crossorigin>
   <link rel="preconnect" href="https://lh3.googleusercontent.com" crossorigin>
-  <link rel="stylesheet" href="style.css?v=20260725-step186-ai-everywhere" />
+  <link rel="stylesheet" href="style.css?v=20260725-step187-rubric-ai-judgement" />
   <style>
     .ai-rubric-settings-card,
     .admin-project-ai-review-card {
@@ -648,7 +648,7 @@
         <button id="runBtn" class="primary-btn top-run-btn" type="button" title="Run: Ctrl + Enter">▶ Run</button>
         <button id="autoRunBtn" class="ghost-btn auto-run-btn" type="button" aria-pressed="true" title="Auto update preview after typing">⚡ Auto</button>
         <button id="resultBtn" class="success-btn top-result-btn" type="button" title="Check result: Ctrl + Shift + Enter">✓ Result</button>
-        <button id="aiReviewTopBtn" class="ghost-btn ai-review-top-btn" type="button" title="Get rubric-based feedback after checking result">💬 Feedback</button>
+        <button id="aiReviewTopBtn" class="ghost-btn ai-review-top-btn" type="button" title="Open the latest result feedback">💬 Feedback</button>
         <button id="downloadZipBtn" class="ghost-btn save-zip-btn" type="button" title="Download your code as ZIP">💾 ZIP</button>
         <button id="fullEditorBtn" class="ghost-btn full-editor-top" type="button" title="Full editor: Ctrl + Shift + F">⛶ Full Editor</button>
         <button id="exitEditorBtn" class="ghost-btn danger-tool hidden" type="button" title="Exit full editor: Esc">Exit Full</button>
@@ -797,14 +797,14 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
           </div>
         </section>
 
-        <section id="aiReviewPanel" class="panel ai-review-panel" aria-label="Rubric-based feedback">
+        <section id="aiReviewPanel" class="panel ai-review-panel hidden" aria-label="Detailed feedback">
           <div class="panel-header compact-header ai-review-header">
             <div>
               <p class="section-kicker">Teacher Feedback</p>
-              <h2>Rubric-Based Feedback</h2>
-              <p>Get deeper comments based on the rubric, code, output, and error checker.</p>
+              <h2>Detailed Feedback</h2>
+              <p>Detailed notes now appear directly inside Result & Feedback after checking.</p>
             </div>
-            <button id="runAiReviewBtn" class="layout-btn strong ai-review-btn" type="button">💬 Review Feedback</button>
+            <button id="runAiReviewBtn" class="layout-btn strong ai-review-btn" type="button">💬 Show Latest Feedback</button>
           </div>
           <div id="aiReviewContent" class="ai-review-content empty-ai-review">
             <div class="ai-empty-icon">✨</div>
@@ -1110,20 +1110,20 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
         </div>
 
 
-        <section class="ai-rubric-settings-card" aria-label="AI rubric review settings">
+        <section class="ai-rubric-settings-card" aria-label="Smart rubric review settings">
           <div class="ai-rubric-settings-header">
             <div>
-              <p class="section-kicker">Teacher-Controlled AI</p>
-              <h3>AI Rubric Review</h3>
-              <p class="muted-text">Optional Gemini-powered scoring for teacher review only. Students do not trigger this automatically.</p>
+              <p class="section-kicker">Teacher-Controlled Smart Review</p>
+              <h3>Smart Rubric Review</h3>
+              <p class="muted-text">Optional Gemini-powered rubric help. Smart Review is only used when Result or Generate Rubric is clicked.</p>
             </div>
-            <span id="aiRubricStatusPill" class="ai-rubric-status-pill">AI OFF</span>
+            <span id="aiRubricStatusPill" class="ai-rubric-status-pill">SMART REVIEW OFF</span>
           </div>
           <div class="ai-rubric-settings-grid">
             <label class="ai-rubric-settings-toggle" for="aiRubricEnabledToggle">
               <span>
-                <strong>Enable AI Review</strong>
-                <small>Teacher must still click AI Review manually.</small>
+                <strong>Enable Smart Review</strong>
+                <small>Runs only after a button click; never while typing.</small>
               </span>
               <span class="admin-switch">
                 <input id="aiRubricEnabledToggle" type="checkbox" />
@@ -1148,8 +1148,8 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
             </label>
             <label class="ai-rubric-settings-toggle ai-rubric-mini-toggle" for="aiRubricStudentFeedbackToggle">
               <span>
-                <strong>AI Result Feedback</strong>
-                <small>Use Gemini when Result / Review Feedback is clicked. If AI is unavailable, the local rubric checker is still used.</small>
+                <strong>Smart Result Feedback</strong>
+                <small>Use Gemini when Result is clicked. It compares code/output against the rubric and gives criterion scores.</small>
               </span>
               <span class="admin-switch">
                 <input id="aiRubricStudentFeedbackToggle" type="checkbox" checked />
@@ -1158,8 +1158,8 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
             </label>
             <label class="ai-rubric-settings-toggle ai-rubric-mini-toggle" for="aiRubricRubricFeedbackToggle">
               <span>
-                <strong>AI for Rubric-Based Feedback</strong>
-                <small>When Rubric Feedback is enabled, Gemini can give smarter criterion notes and suggested scoring.</small>
+                <strong>Use Smart Review in Result</strong>
+                <small>Result & Feedback uses Gemini as the main rubric judge when available; fallback stays local only if Gemini fails.</small>
               </span>
               <span class="admin-switch">
                 <input id="aiRubricRubricFeedbackToggle" type="checkbox" checked />
@@ -1168,8 +1168,8 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
             </label>
             <label class="ai-rubric-settings-toggle ai-rubric-mini-toggle" for="aiRubricGeneratorToggle">
               <span>
-                <strong>AI Rubric Generator</strong>
-                <small>Show AI buttons while creating activities so the fallback rubric starts smarter.</small>
+                <strong>Smart Rubric Generator</strong>
+                <small>Show Gemini buttons while creating activities so criteria and descriptions can be generated or improved.</small>
               </span>
               <span class="admin-switch">
                 <input id="aiRubricGeneratorToggle" type="checkbox" checked />
@@ -1178,10 +1178,10 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
             </label>
           </div>
           <div class="ai-rubric-settings-actions">
-            <button id="saveAiRubricSettingsBtn" class="primary-btn" type="button">Save AI Settings</button>
-            <button id="testAiRubricSettingsBtn" class="ghost-btn" type="button">Test AI Connection</button>
+            <button id="saveAiRubricSettingsBtn" class="primary-btn" type="button">Save Smart Settings</button>
+            <button id="testAiRubricSettingsBtn" class="ghost-btn" type="button">Test Smart Connection</button>
           </div>
-          <p id="aiRubricSettingsStatus" class="helper-note">AI Review is optional. Keep it OFF until you add your API key.</p>
+          <p id="aiRubricSettingsStatus" class="helper-note">Smart Review is optional. Keep it OFF until you add your API key.</p>
         </section>
 
         <div class="assistance-settings-actions">
@@ -1617,7 +1617,7 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
             <div>
               <p class="section-kicker">Rubric Table Input</p>
               <h3>Type Rubric Like a Table</h3>
-              <p class="muted-text">Use this for your usual 5-column format. Type the criteria on the left, then type the descriptions for each score level. Click Apply + Smart Rubric Checker. The app will create the actual rubric rows and use the rubric text itself for smarter checking, not just the Auto Check dropdown.</p>
+              <p class="muted-text">Use this for your usual 5-column format. Type the criteria on the left, then type the descriptions for each score level. The builder only creates the rubric; scoring happens later when Result/Feedback compares the student code and output against this rubric.</p>
             </div>
             <span class="rubric-import-badge">No image upload</span>
           </div>
@@ -1659,14 +1659,14 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
 
           <div class="manual-rubric-actions">
             <button id="addManualRubricRowBtn" class="ghost-btn" type="button">+ Add Input Row</button>
-            <button id="applyManualRubricBtn" class="primary-btn" type="button">Apply + Smart Rubric Checker</button>
-            <button id="aiGenerateRubricBtn" class="ghost-btn ai-rubric-generator-btn" type="button">🤖 Generate Rubric with AI</button>
+            <button id="applyManualRubricBtn" class="primary-btn" type="button">Apply Rubric Table</button>
+            <button id="aiGenerateRubricBtn" class="ghost-btn ai-rubric-generator-btn" type="button">✨ Generate Smart Rubric</button>
             <button id="aiImproveRubricBtn" class="ghost-btn ai-rubric-generator-btn" type="button">✨ Improve Current Rubric</button>
             <button id="clearManualRubricBtn" class="ghost-btn danger" type="button">Clear Input Table</button>
           </div>
 
-          <p id="manualRubricStatus" class="helper-note manual-rubric-status">Type your rubric here, then click Apply + Smart Rubric Checker.</p>
-          <p id="aiRubricGeneratorStatus" class="helper-note ai-rubric-generator-status">AI rubric generation is teacher-triggered only. If Gemini is unavailable, a smart local starter rubric can still be created.</p>
+          <p id="manualRubricStatus" class="helper-note manual-rubric-status">Type your rubric here, then click Apply Rubric Table.</p>
+          <p id="aiRubricGeneratorStatus" class="helper-note ai-rubric-generator-status">Smart rubric generation is teacher-triggered only. If Gemini is unavailable, the app can still create a clean editable starter rubric without auto-check dropdowns.</p>
         </section>
 
         <div class="rubric-toolbar">
@@ -1747,25 +1747,25 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
       </div>
 
 
-      <section id="adminProjectAiReviewCard" class="admin-project-ai-review-card" aria-label="AI rubric review">
+      <section id="adminProjectAiReviewCard" class="admin-project-ai-review-card" aria-label="Smart rubric review">
         <div class="admin-project-ai-review-header">
           <div>
-            <p class="section-kicker">AI Rubric Judge</p>
+            <p class="section-kicker">Smart Rubric Judge</p>
             <h3>Score with Rubric + Output</h3>
-            <p class="muted-text">Teacher-triggered only. The AI reads the rubric, student code, and visible output summary, then gives criterion-based scoring.</p>
+            <p class="muted-text">Teacher-triggered only. Gemini reads the rubric, student code, and visible output summary, then gives criterion-based scoring.</p>
           </div>
           <span id="adminAiReviewStatus" class="admin-ai-review-status">Not reviewed</span>
         </div>
         <div class="admin-project-ai-review-actions">
-          <button id="adminRunAiRubricReviewBtn" class="primary-btn" type="button">🤖 AI Review with Rubric</button>
+          <button id="adminRunAiRubricReviewBtn" class="primary-btn" type="button">✨ Smart Review with Rubric</button>
           <button id="adminUseAiFeedbackBtn" class="ghost-btn" type="button" disabled>Use as Comment</button>
-          <button id="adminSaveAiReviewBtn" class="ghost-btn" type="button" disabled>Save AI Review</button>
+          <button id="adminSaveAiReviewBtn" class="ghost-btn" type="button" disabled>Save Smart Review</button>
           <button id="adminApplyAiScoreBtn" class="ghost-btn" type="button" disabled>Apply as Score</button>
         </div>
         <div id="adminAiReviewOutput" class="admin-ai-review-output">
           <div class="admin-ai-empty">
-            <strong>No AI review yet.</strong>
-            <p>Run the project preview first, then click AI Review. The result will stay teacher-controlled.</p>
+            <strong>No smart review yet.</strong>
+            <p>Run the project preview first, then click Smart Review. The result will stay teacher-controlled.</p>
           </div>
         </div>
       </section>
@@ -1893,6 +1893,6 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
   <script src="firebase-config.js"></script>
-  <script src="script.js?v=20260725-step186-ai-everywhere"></script>
+  <script src="script.js?v=20260725-step187-rubric-ai-judgement"></script>
 </body>
 </html>

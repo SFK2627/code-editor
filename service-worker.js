@@ -1,13 +1,13 @@
-const CACHE_NAME = 'code-editor-20260725-step186-ai-everywhere';
+const CACHE_NAME = 'code-editor-20260725-step188-unified-smart-result';
 const APP_SHELL = [
   './',
   './index.html',
-  './index.html?v=20260725-step186-ai-everywhere',
-  './index.html?fresh=step186',
+  './index.html?v=20260725-step187-rubric-ai-judgement',
+  './index.html?fresh=step187',
   './style.css',
-  './style.css?v=20260725-step186-ai-everywhere',
+  './style.css?v=20260725-step187-rubric-ai-judgement',
   './script.js',
-  './script.js?v=20260725-step186-ai-everywhere',
+  './script.js?v=20260725-step187-rubric-ai-judgement',
   './firebase-config.js',
   './manifest.webmanifest',
   './favicon.png',

@@ -1247,9 +1247,11 @@ function applyStudentAssistanceSettings(nextSettings, options = {}) {
     document.body.classList.remove('code-helper-open');
   }
 
-  aiReviewTopBtn?.classList.toggle('hidden', !feedbackEnabled);
-  if (runAiReviewBtn) runAiReviewBtn.disabled = !feedbackEnabled;
-  aiReviewPanel?.classList.toggle('assistance-feature-hidden', !feedbackEnabled);
+  // Step 188: feedback is unified inside the Result & Feedback card.
+  // Keep the old detailed feedback panel/button hidden so students use one clear result flow.
+  aiReviewTopBtn?.classList.add('hidden');
+  if (runAiReviewBtn) runAiReviewBtn.disabled = true;
+  aiReviewPanel?.classList.add('hidden', 'assistance-feature-hidden');
 
   if (dashboardSubjectStatusBtn) {
     dashboardSubjectStatusBtn.classList.toggle('hidden', !subjectStatusEnabled);
@@ -2574,20 +2576,20 @@ function syncAiRubricSettingsControls(settings = aiRubricSettings) {
   if (aiRubricGeneratorToggle) aiRubricGeneratorToggle.checked = normalized.rubricGenerator !== false;
   const configured = Boolean(normalized.enabled && normalized.apiKey && normalized.model);
   if (aiRubricStatusPill) {
-    let label = 'AI OFF';
+    let label = 'SMART REVIEW OFF';
     let ready = false;
     let warning = false;
     if (normalized.enabled && !normalized.apiKey) {
       label = 'NEEDS KEY';
       warning = true;
     } else if (configured && aiRubricConnectionState.status === 'connected') {
-      label = 'AI CONNECTED';
+      label = 'SMART REVIEW CONNECTED';
       ready = true;
     } else if (configured && aiRubricConnectionState.status === 'error') {
-      label = aiRubricConnectionState.code ? `AI ERROR ${aiRubricConnectionState.code}` : 'AI ERROR';
+      label = aiRubricConnectionState.code ? `REVIEW ERROR ${aiRubricConnectionState.code}` : 'REVIEW ERROR';
       warning = true;
     } else if (configured) {
-      label = 'AI CONFIGURED';
+      label = 'SMART REVIEW CONFIGURED';
       warning = true;
     }
     aiRubricStatusPill.textContent = label;
@@ -2608,7 +2610,7 @@ async function loadAiRubricSettingsFromCloud({ silent = false } = {}) {
   const ready = await initFirebaseSync();
   if (!ready || !isTeacherAuthenticated()) {
     syncAiRubricSettingsControls(aiRubricSettings);
-    if (!silent) setAiRubricSettingsStatus('Login as teacher to load AI settings from Firebase.', 'warning');
+    if (!silent) setAiRubricSettingsStatus('Login as teacher to load Smart Review settings from Firebase.', 'warning');
     return false;
   }
   try {
@@ -2616,17 +2618,17 @@ async function loadAiRubricSettingsFromCloud({ silent = false } = {}) {
     const snapshot = await getDoc(getAiRubricSettingsDocRef());
     if (!snapshotExists(snapshot)) {
       syncAiRubricSettingsControls(aiRubricSettings);
-      if (!silent) setAiRubricSettingsStatus('No cloud AI settings yet. Paste a key, then save.', 'warning');
+      if (!silent) setAiRubricSettingsStatus('No cloud Smart Review settings yet. Paste a key, then save.', 'warning');
       return false;
     }
     const data = snapshotData(snapshot) || {};
     saveAiRubricSettingsLocal(data.settings || data);
-    if (!silent) setAiRubricSettingsStatus('AI settings loaded.', 'success');
+    if (!silent) setAiRubricSettingsStatus('Smart Review settings loaded.', 'success');
     return true;
   } catch (error) {
-    console.warn('Could not load AI rubric settings.', error);
+    console.warn('Could not load Smart Review settings.', error);
     syncAiRubricSettingsControls(aiRubricSettings);
-    if (!silent) setAiRubricSettingsStatus('Could not load AI settings. Check rules and login.', 'error');
+    if (!silent) setAiRubricSettingsStatus('Could not load Smart Review settings. Check rules and login.', 'error');
     return false;
   }
 }
@@ -2634,7 +2636,7 @@ async function loadAiRubricSettingsFromCloud({ silent = false } = {}) {
 async function saveAiRubricSettingsToCloud() {
   const settings = saveAiRubricSettingsLocal(getAiRubricSettingsFromControls());
   if (!settings.enabled) {
-    setAiRubricSettingsStatus('AI Review is OFF. Settings saved on this device.', 'warning');
+    setAiRubricSettingsStatus('Smart Review is OFF. Settings saved on this device.', 'warning');
   }
   const ready = await initFirebaseSync();
   if (!ready || !isTeacherAuthenticated()) {
@@ -2649,11 +2651,11 @@ async function saveAiRubricSettingsToCloud() {
       updatedAt: serverTimestamp(),
       updatedBy: firebaseSync.auth?.currentUser?.email || firebaseSync.currentUser?.email || 'teacher'
     }, { merge: true });
-    setAiRubricSettingsStatus(settings.enabled && settings.apiKey ? 'AI Rubric settings saved. Teacher can now run AI Review.' : 'AI settings saved. Add a key and turn ON before using.', settings.enabled && settings.apiKey ? 'success' : 'warning');
-    setStatus('AI settings saved');
+    setAiRubricSettingsStatus(settings.enabled && settings.apiKey ? 'Smart Review settings saved. Result & Feedback can now use Gemini.' : 'Smart Review settings saved. Add a key and turn ON before using.', settings.enabled && settings.apiKey ? 'success' : 'warning');
+    setStatus('Smart Review settings saved');
     return true;
   } catch (error) {
-    console.error('Could not save AI rubric settings.', error);
+    console.error('Could not save Smart Review settings.', error);
     setAiRubricSettingsStatus('Save failed. Check teacher login and Firestore Rules.', 'error');
     return false;
   } finally {
@@ -2692,7 +2694,7 @@ async function readGeminiResponseDetail(response) {
   if (status === 401) hint = 'The API key was rejected. Create a new Gemini API key and paste it again.';
   if (status === 403) hint = 'Permission issue: enable Gemini API/Generative Language API for the same project, check key restrictions, and make sure this key is allowed for Gemini API.';
   if (status === 404) hint = 'Model not found or unavailable. Try gemini-3.6-flash, gemini-3.5-flash, or another model listed in your AI Studio account.';
-  if (status === 429) hint = 'Quota/rate limit reached. Wait and try again, or reduce AI reviews.';
+  if (status === 429) hint = 'Quota/rate limit reached. Wait and try again, or reduce Smart Review requests.';
   if (status >= 500) hint = 'Gemini service error. Wait a moment and try again.';
   return { status, message, hint, raw };
 }
@@ -2788,12 +2790,12 @@ function shouldUseGeminiRubricGenerator(settings = aiRubricSettings) {
 async function testAiRubricConnection() {
   const settings = saveAiRubricSettingsLocal(getAiRubricSettingsFromControls());
   if (!settings.enabled || !settings.apiKey) {
-    setAiRubricSettingsStatus('Turn ON AI Review and paste a Gemini API key first.', 'warning');
+    setAiRubricSettingsStatus('Turn ON Smart Review and paste a Gemini API key first.', 'warning');
     return;
   }
   try {
     if (testAiRubricSettingsBtn) testAiRubricSettingsBtn.disabled = true;
-    setAiRubricSettingsStatus('Testing AI connection...', 'warning');
+    setAiRubricSettingsStatus('Testing Smart Review connection...', 'warning');
     const response = await fetchGeminiGenerateContent(settings, {
       contents: [{ role: 'user', parts: [{ text: 'Reply with exactly: OK' }] }],
       generationConfig: { temperature: 0, maxOutputTokens: 20 }
@@ -2802,12 +2804,12 @@ async function testAiRubricConnection() {
     const text = data?.candidates?.[0]?.content?.parts?.map(part => part.text || '').join('').trim() || '';
     aiRubricConnectionState = { status: 'connected', code: '', message: text || 'OK' };
     syncAiRubricSettingsControls(settings);
-    setAiRubricSettingsStatus(`AI connection works${text ? `: ${text.slice(0, 60)}` : '.'}`, 'success');
+    setAiRubricSettingsStatus(`Smart Review connection works${text ? `: ${text.slice(0, 60)}` : '.'}`, 'success');
   } catch (error) {
-    console.error('AI connection test failed.', error);
-    aiRubricConnectionState = { status: 'error', code: String(error?.status || ''), message: error?.message || 'AI connection failed.' };
+    console.error('Smart Review connection test failed.', error);
+    aiRubricConnectionState = { status: 'error', code: String(error?.status || ''), message: error?.message || 'Smart Review connection failed.' };
     syncAiRubricSettingsControls(settings);
-    setAiRubricSettingsStatus(error?.message || 'AI connection failed. Check the API key/model.', 'error');
+    setAiRubricSettingsStatus(error?.message || 'Smart Review connection failed. Check the API key/model.', 'error');
   } finally {
     if (testAiRubricSettingsBtn) testAiRubricSettingsBtn.disabled = false;
   }
@@ -7234,8 +7236,8 @@ function resetAdminAiReviewPanel() {
   if (adminAiReviewOutput) {
     adminAiReviewOutput.innerHTML = `
       <div class="admin-ai-empty">
-        <strong>No AI review yet.</strong>
-        <p>Run the project preview first, then click AI Review. The result will stay teacher-controlled.</p>
+        <strong>No smart review yet.</strong>
+        <p>Run the project preview first, then click Smart Review. The result will stay teacher-controlled.</p>
       </div>`;
   }
 }
@@ -7334,7 +7336,7 @@ function buildAdminAiRubricPrompt(context) {
 
 function extractJsonObjectFromText(text) {
   const raw = String(text || '').trim();
-  if (!raw) throw new Error('Empty AI response.');
+  if (!raw) throw new Error('Empty Gemini response.');
   try { return JSON.parse(raw); } catch (error) {}
   const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/i);
   if (fenced) {
@@ -7343,7 +7345,7 @@ function extractJsonObjectFromText(text) {
   const start = raw.indexOf('{');
   const end = raw.lastIndexOf('}');
   if (start >= 0 && end > start) return JSON.parse(raw.slice(start, end + 1));
-  throw new Error('AI did not return valid JSON.');
+  throw new Error('Gemini did not return valid JSON.');
 }
 
 function normalizeAdminAiRubricReview(raw, context) {
@@ -7358,7 +7360,7 @@ function normalizeAdminAiRubricReview(raw, context) {
       max,
       score: Math.round(score * 10) / 10,
       level: match.level || progressToLevelKey(max ? score / max : 0),
-      evidence: String(match.evidence || 'Evidence was not clearly provided by the AI.').slice(0, 700),
+      evidence: String(match.evidence || 'Evidence was not clearly provided by Gemini.').slice(0, 700),
       improvement: String(match.improvement || 'Review the rubric and improve this part.').slice(0, 700)
     };
   });
@@ -7366,7 +7368,7 @@ function normalizeAdminAiRubricReview(raw, context) {
   const totalScore = Math.round(criteria.reduce((sum, item) => sum + item.score, 0) * 10) / 10;
   const percent = possibleScore ? Math.round((totalScore / possibleScore) * 100) : 0;
   return {
-    summary: String(raw?.summary || 'AI review completed.').slice(0, 700),
+    summary: String(raw?.summary || 'Smart review completed.').slice(0, 700),
     totalScore,
     possibleScore,
     percent,
@@ -7384,7 +7386,7 @@ function normalizeAdminAiRubricReview(raw, context) {
 
 async function callGeminiAdminAiRubricReview(context) {
   const settings = saveAiRubricSettingsLocal(getAiRubricSettingsFromControls());
-  if (!settings.enabled || !settings.apiKey) throw new Error('AI Review is not enabled or API key is missing.');
+  if (!settings.enabled || !settings.apiKey) throw new Error('Smart Review is not enabled or API key is missing.');
   const prompt = buildAdminAiRubricPrompt(context);
   if (adminAiRubricController) adminAiRubricController.abort();
   adminAiRubricController = new AbortController();
@@ -7412,7 +7414,7 @@ function renderAdminAiRubricLoading() {
   adminAiReviewOutput.innerHTML = `
     <div class="admin-ai-loading">
       <span class="admin-ai-spinner" aria-hidden="true"></span>
-      <div><strong>AI is reviewing the rubric, code, and output...</strong><p class="muted-text">This is teacher-triggered only. Please wait.</p></div>
+      <div><strong>Reviewing the rubric, code, and output...</strong><p class="muted-text">This is teacher-triggered only. Please wait.</p></div>
     </div>`;
 }
 
@@ -7428,7 +7430,7 @@ function renderAdminAiRubricReview(review) {
       <div class="admin-ai-score-head">
         <div>
           <p class="section-kicker">${escapeHTML(safe.confidence || 'medium')} confidence · ${escapeHTML(safe.model || '')}</p>
-          <h3>${escapeHTML(safe.summary || 'AI review completed.')}</h3>
+          <h3>${escapeHTML(safe.summary || 'Smart review completed.')}</h3>
           <p class="muted-text">${escapeHTML(safe.activityTitle || 'Activity rubric')}</p>
         </div>
         <div class="admin-ai-score-number">${escapeHTML(formatPoints(safe.totalScore))}<small> / ${escapeHTML(formatPoints(safe.possibleScore))}</small><div><small>${Number(safe.percent || 0)}%</small></div></div>
@@ -7456,7 +7458,7 @@ function renderAdminAiRubricReview(review) {
 function formatAdminAiReviewAsComment(review = adminLatestAiReview) {
   if (!review) return '';
   const lines = [
-    `AI Rubric Review: ${formatPoints(review.totalScore)}/${formatPoints(review.possibleScore)} (${review.percent}%)`,
+    `Smart Rubric Review: ${formatPoints(review.totalScore)}/${formatPoints(review.possibleScore)} (${review.percent}%)`,
     '',
     review.studentFeedback || '',
     '',
@@ -7475,12 +7477,12 @@ async function runAdminAiRubricReview() {
   const project = adminProjectViewerState.project;
   const student = adminProjectViewerState.student;
   if (!project?.id || !student?.uid) {
-    appAlert('Open a student project first.', { title: 'AI Rubric Review' });
+    appAlert('Open a student project first.', { title: 'Smart Rubric Review' });
     return;
   }
   const settings = saveAiRubricSettingsLocal(getAiRubricSettingsFromControls());
   if (!settings.enabled || !settings.apiKey) {
-    appAlert('Turn ON AI Review and save a Gemini API key in Admin → Assistance first.', { title: 'AI Rubric Review' });
+    appAlert('Turn ON Smart Review and save a Gemini API key in Admin → Assistance first.', { title: 'Smart Rubric Review' });
     return;
   }
   try {
@@ -7516,12 +7518,12 @@ async function runAdminAiRubricReview() {
     adminLatestAiReview = review;
     renderAdminAiRubricReview(review);
     setAdminAiReviewStatus('Review ready', 'ready');
-    setStatus('AI rubric review ready');
+    setStatus('Smart rubric review ready');
   } catch (error) {
-    console.error('AI rubric review failed.', error);
+    console.error('Smart rubric review failed.', error);
     setAdminAiReviewStatus('Review failed', 'error');
     if (adminAiReviewOutput) {
-      adminAiReviewOutput.innerHTML = `<div class="admin-ai-error"><strong>AI review failed.</strong><p>${escapeHTML(error?.message || 'Check API key, model, internet connection, and quota.')}</p></div>`;
+      adminAiReviewOutput.innerHTML = `<div class="admin-ai-error"><strong>Smart review failed.</strong><p>${escapeHTML(error?.message || 'Check API key, model, internet connection, and quota.')}</p></div>`;
     }
   } finally {
     syncAiRubricSettingsControls(aiRubricSettings);
@@ -7532,7 +7534,7 @@ async function runAdminAiRubricReview() {
 function useAdminAiFeedbackAsComment() {
   if (!adminLatestAiReview || !adminProjectTeacherComment) return;
   adminProjectTeacherComment.value = formatAdminAiReviewAsComment(adminLatestAiReview);
-  setAdminProjectCommentStatus('AI feedback inserted · not saved yet', 'saving');
+  setAdminProjectCommentStatus('Smart feedback inserted · not saved yet', 'saving');
   adminProjectTeacherComment.focus({ preventScroll: true });
 }
 
@@ -7545,7 +7547,7 @@ function buildLastResultFromAdminAiReview(review = adminLatestAiReview) {
     possible: Number(review.possibleScore || 0),
     percent: Number(review.percent || 0),
     passed: Number(review.percent || 0) >= Number(activityForReview.passingScore || 75),
-    feedback: review.studentFeedback || review.summary || 'AI rubric review completed.',
+    feedback: review.studentFeedback || review.summary || 'Smart rubric review completed.',
     aiAssisted: true,
     reviewedByAi: true,
     activityTitle: review.activityTitle || activityForReview.title || getAdminProjectActivityLabel(adminProjectViewerState.activityKey),
@@ -7568,8 +7570,8 @@ async function applyAdminAiReviewAsScore() {
   const student = adminProjectViewerState.student;
   const result = buildLastResultFromAdminAiReview(adminLatestAiReview);
   if (!result || !project?.id || !student?.uid) return;
-  const confirmed = await appConfirm(`Apply AI score ${formatPoints(result.score)}/${formatPoints(result.possible)} as this project score? You can still edit/save teacher comments separately.`, {
-    title: 'Apply AI Score',
+  const confirmed = await appConfirm(`Apply smart score ${formatPoints(result.score)}/${formatPoints(result.possible)} as this project score? You can still edit/save teacher comments separately.`, {
+    title: 'Apply Smart Score',
     confirmText: 'Apply Score'
   });
   if (!confirmed) return;
@@ -7584,11 +7586,11 @@ async function applyAdminAiReviewAsScore() {
     }, { merge: true });
     project.lastResult = result;
     setAdminAiReviewStatus('Score applied', 'ready');
-    setStatus('AI score applied');
+    setStatus('Smart score applied');
   } catch (error) {
-    console.error('Could not apply AI score.', error);
+    console.error('Could not apply smart score.', error);
     setAdminAiReviewStatus('Apply failed', 'error');
-    appAlert(error?.message || 'Could not apply AI score. Check teacher login and Firestore rules.', { title: 'Apply AI Score' });
+    appAlert(error?.message || 'Could not apply smart score. Check teacher login and Firestore rules.', { title: 'Apply Smart Score' });
   } finally {
     if (adminApplyAiScoreBtn) adminApplyAiScoreBtn.disabled = false;
   }
@@ -7620,11 +7622,11 @@ async function saveAdminAiRubricReview() {
       [key]: { ...adminLatestAiReview, reviewedAt: new Date(), reviewedBy: teacherEmail, activityKey: key }
     };
     setAdminAiReviewStatus('Saved', 'ready');
-    setStatus('AI review saved');
+    setStatus('Smart review saved');
   } catch (error) {
-    console.error('Could not save AI rubric review.', error);
+    console.error('Could not save Smart Review.', error);
     setAdminAiReviewStatus('Save failed', 'error');
-    appAlert(error?.message || 'Could not save AI review. Check teacher login and Firestore rules.', { title: 'AI Review Save' });
+    appAlert(error?.message || 'Could not save smart review. Check teacher login and Firestore rules.', { title: 'Smart Review Save' });
   } finally {
     if (adminSaveAiReviewBtn) adminSaveAiReviewBtn.disabled = false;
   }
@@ -10654,7 +10656,7 @@ function renderAdvancedCheckerReview(review, options = {}) {
     </div>
   ` : `
     <div class="advanced-checker-head">
-      <strong>${escapeHTML(options.remote ? 'AI teacher helper' : 'Smart teacher helper')}</strong>
+      <strong>${escapeHTML(options.remote ? 'Smart teacher helper' : 'Smart teacher helper')}</strong>
       <span>${escapeHTML(safe.summary)}</span>
     </div>
     ${safe.exactFixes.length ? `
@@ -11679,6 +11681,190 @@ function closePhoneResultFeedbackPopup() {
 }
 
 
+function collectStudentOutputSummaryForAi() {
+  const summary = {
+    visibleText: getOutputText().slice(0, 5000),
+    title: '',
+    headings: [],
+    links: [],
+    buttons: [],
+    images: [],
+    elementCounts: {},
+    note: 'Output summary is collected from the live preview when available.'
+  };
+  try {
+    const doc = getPreviewDocument();
+    if (!doc) {
+      summary.note = 'Preview document was not available. Judge mainly from code and checker results.';
+      return summary;
+    }
+    summary.title = String(doc.title || '').trim().slice(0, 240);
+    summary.visibleText = String(doc.body?.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 5000);
+    summary.headings = Array.from(doc.querySelectorAll('h1,h2,h3,h4,h5,h6')).map(node => ({ tag: node.tagName.toLowerCase(), text: String(node.innerText || '').trim().slice(0, 180) })).filter(item => item.text).slice(0, 20);
+    summary.links = Array.from(doc.querySelectorAll('a[href]')).map(node => ({ text: String(node.innerText || '').trim().slice(0, 160), href: String(node.getAttribute('href') || '').trim().slice(0, 180) })).slice(0, 20);
+    summary.buttons = Array.from(doc.querySelectorAll('button,input[type="button"],input[type="submit"]')).map(node => String(node.innerText || node.value || '').trim().slice(0, 160)).filter(Boolean).slice(0, 20);
+    summary.images = Array.from(doc.querySelectorAll('img')).map(node => ({ src: String(node.getAttribute('src') || '').trim().slice(0, 160), alt: String(node.getAttribute('alt') || '').trim().slice(0, 160) })).slice(0, 20);
+    ['header','nav','main','section','article','aside','footer','ul','ol','li','table','form','input','img','a','button'].forEach(tag => {
+      summary.elementCounts[tag] = doc.querySelectorAll(tag).length;
+    });
+  } catch (error) {
+    summary.note = `Could not read preview output: ${error?.message || 'unknown iframe error'}. Judge mainly from code.`;
+  }
+  return summary;
+}
+
+function buildStudentAiRubricScoringPrompt(localResult = null) {
+  const rubricCriteria = activity?.criteria?.map(item => ({
+    title: item.title,
+    max: getCriterionPossiblePoints(item),
+    levels: item.levels || {}
+  })) || [];
+  const context = {
+    app: 'Grade 8 MCSian Web Code Editor',
+    mode: 'student_result_scoring',
+    activity: activity ? {
+      title: activity.title,
+      description: activity.description,
+      passingScore: activity.passingScore,
+      criteria: rubricCriteria
+    } : null,
+    localFallbackScore: localResult ? {
+      score: localResult.score,
+      possible: localResult.possible,
+      percent: localResult.percent,
+      feedback: localResult.feedback
+    } : null,
+    checkerItems: getErrorCheckerItems().map(item => ({
+      type: item.type,
+      title: item.title,
+      detail: item.detail,
+      fix: item.fix || ''
+    })).slice(0, 30),
+    outputSummary: collectStudentOutputSummaryForAi(),
+    code: {
+      html: getShortCodeSample(codeStore.html, 9000),
+      css: getShortCodeSample(codeStore.css, 9000),
+      js: getShortCodeSample(codeStore.js, 9000)
+    }
+  };
+  const style = aiRubricSettings.reviewStyle || 'balanced';
+  return `You are a consistent Grade 8 ICT/web coding teacher. Score this student's work using ONLY the teacher rubric, student code, rendered output summary, and checker items.
+
+IMPORTANT:
+- The rubric builder has no auto-check rules. You must interpret the criteria and level descriptions.
+- Compare the actual code/output to each criterion.
+- Give points based on evidence, not generic encouragement.
+- Do not reward missing code or output that cannot be verified.
+- If a visual judgment is limited by the text summary, mention it briefly.
+- Score each criterion from 0 up to its max points only.
+- Total score must equal the sum of criterion scores.
+- Do not give full replacement code.
+- Return ONLY valid JSON. No markdown.
+- Review style: ${style}.
+
+Required JSON schema:
+{
+  "summary": "one short teacher summary",
+  "totalScore": 0,
+  "possibleScore": 0,
+  "percent": 0,
+  "confidence": "high|medium|low",
+  "criteria": [
+    {"name":"criterion name", "max":0, "score":0, "level":"Excellent|Good|Fair|Needs Improvement", "evidence":"specific evidence from code/output", "improvement":"specific improvement"}
+  ],
+  "studentFeedback": "short student-friendly feedback",
+  "teacherNotes": ["short consistency note"],
+  "warnings": ["limitations or uncertain items"]
+}
+
+CONTEXT JSON:
+${JSON.stringify(context, null, 2)}`;
+}
+
+function normalizeLevelKeyFromAi(level, score, max) {
+  const text = String(level || '').toLowerCase();
+  if (text.includes('excellent')) return 'excellent';
+  if (text.includes('good')) return 'good';
+  if (text.includes('fair') || text.includes('satisfactory')) return 'fair';
+  if (text.includes('needs') || text.includes('improvement')) return 'needsImprovement';
+  return progressToLevelKey(max ? Number(score || 0) / max : 0);
+}
+
+function buildResultFromAiRubricReview(raw, localResult = null) {
+  const rubricCriteria = Array.isArray(activity?.criteria) ? activity.criteria : [];
+  const rawCriteria = Array.isArray(raw?.criteria) ? raw.criteria : [];
+  const results = rubricCriteria.map((criterion, index) => {
+    const normalized = normalizeCriterion({ ...criterion, rule: 'smart_rubric', target: '' });
+    const max = Math.max(0, Number(getCriterionPossiblePoints(normalized) || normalized.points || 0));
+    const ai = rawCriteria.find(item => String(item.name || '').trim().toLowerCase() === String(normalized.title || '').trim().toLowerCase()) || rawCriteria[index] || {};
+    const earned = Math.round(clamp(Number(ai.score ?? ai.earned ?? 0) || 0, 0, max) * 10) / 10;
+    const levelKey = normalizeLevelKeyFromAi(ai.level, earned, max);
+    const level = getCriterionLevel(normalized, levelKey);
+    const evidence = String(ai.evidence || '').trim();
+    const improvement = String(ai.improvement || '').trim();
+    const levelDescription = [evidence, improvement ? `Improve: ${improvement}` : ''].filter(Boolean).join(' ')
+      || level.description
+      || 'Gemini compared this criterion with the submitted code/output.';
+    return {
+      ...normalized,
+      progress: max ? clamp01(earned / max) : 0,
+      levelKey,
+      levelLabel: ai.level || level.label || rubricLevels.find(item => item.key === levelKey)?.label || levelKey,
+      levelDescription,
+      passed: levelKey === 'excellent' || levelKey === 'good',
+      earned,
+      points: max,
+      rule: 'smart_rubric',
+      target: '',
+      evidence,
+      improvement
+    };
+  });
+  const possible = results.reduce((sum, item) => sum + item.points, 0);
+  const score = Math.round(results.reduce((sum, item) => sum + item.earned, 0) * 10) / 10;
+  const percent = possible ? Math.round((score / possible) * 100) : 0;
+  const feedback = String(raw?.studentFeedback || raw?.summary || generateFeedback(score, possible, percent, results)).slice(0, 1800);
+  return {
+    source: 'gemini',
+    score,
+    possible,
+    percent,
+    passed: activity ? percent >= activity.passingScore : false,
+    results,
+    feedback,
+    aiSummary: String(raw?.summary || '').slice(0, 700),
+    aiConfidence: String(raw?.confidence || 'medium').toLowerCase(),
+    aiWarnings: Array.isArray(raw?.warnings) ? raw.warnings.map(item => String(item).slice(0, 400)).slice(0, 6) : [],
+    aiTeacherNotes: Array.isArray(raw?.teacherNotes) ? raw.teacherNotes.map(item => String(item).slice(0, 400)).slice(0, 6) : [],
+    localFallbackScore: localResult ? { score: localResult.score, possible: localResult.possible, percent: localResult.percent } : null
+  };
+}
+
+async function callGeminiStudentRubricScoring(localResult = null, { signal } = {}) {
+  const settings = getCurrentAiRubricSettings();
+  if (!shouldUseGeminiForResultFeedback(settings)) throw new Error('Smart Result Feedback is not enabled or API key is missing.');
+  const raw = await callGeminiJson(settings, buildStudentAiRubricScoringPrompt(localResult), {
+    signal,
+    maxOutputTokens: 4096,
+    temperature: 0
+  });
+  return buildResultFromAiRubricReview(raw, localResult);
+}
+
+function renderResultLoading(message = 'Smart Review is comparing your code and output with the rubric...') {
+  if (!resultContent) return;
+  resultContent.classList.remove('empty-state');
+  resultContent.innerHTML = `
+    <div class="ai-loading-box">
+      <div class="ai-spinner" aria-hidden="true"></div>
+      <div>
+        <h3>${escapeHTML(message)}</h3>
+        <p>Please wait. The score will be based on the rubric criteria, your code, and your visible output.</p>
+      </div>
+    </div>
+  `;
+}
+
 function buildGeminiStudentRubricFeedbackPrompt(result) {
   const payload = buildAIReviewPayload(result);
   const style = aiRubricSettings.reviewStyle || 'balanced';
@@ -11690,7 +11876,7 @@ Return ONLY valid JSON. No markdown.
 
 Required JSON schema:
 {
-  "mode": "AI Rubric Feedback",
+  "mode": "Smart Rubric Feedback",
   "officialScore": "rubric score text",
   "suggestedScore": 0,
   "summary": "one short teacher-like summary",
@@ -11717,94 +11903,23 @@ function normalizeGeminiStudentReview(raw, fallbackResult) {
   if (maxScore !== null && fallback.suggestedScore !== null && fallback.suggestedScore !== undefined) {
     fallback.suggestedScore = Math.round(clamp(Number(fallback.suggestedScore) || 0, 0, maxScore) * 10) / 10;
   }
-  fallback.mode = fallback.mode || 'AI Rubric Feedback';
-  fallback.teacherNote = fallback.teacherNote || 'AI feedback is a suggested review only. Teacher rubric settings remain the official basis.';
+  fallback.mode = fallback.mode || 'Smart Rubric Feedback';
+  fallback.teacherNote = fallback.teacherNote || 'Smart feedback is a suggested review only. Teacher rubric settings remain the official basis.';
   return fallback;
 }
 
 async function callGeminiStudentRubricFeedback(result, { signal } = {}) {
   const settings = getCurrentAiRubricSettings();
-  if (!shouldUseGeminiForResultFeedback(settings)) throw new Error('AI Result Feedback is not enabled or API key is missing.');
+  if (!shouldUseGeminiForResultFeedback(settings)) throw new Error('Smart Result Feedback is not enabled or API key is missing.');
   const prompt = buildGeminiStudentRubricFeedbackPrompt(result);
   const raw = await callGeminiJson(settings, prompt, { signal, maxOutputTokens: 3072, temperature: 0 });
   return normalizeGeminiStudentReview(raw, result);
 }
 
 async function requestAIReview(options = {}) {
-  const safeOptions = normalizeButtonActionOptions(options);
-  if (!isStudentAssistanceFeatureEnabled('teacherFeedback')) {
-    await appAlert('Detailed rubric feedback is currently disabled by the teacher.', { title: 'Feedback disabled' });
-    return;
-  }
-
-  if (!activity) {
-    showActivityRequiredWarning();
-    renderNoActivityResult();
-    setStatus('Choose activity first');
-    return;
-  }
-
-  runCode(false, { scroll: false });
-  const result = lastRubricResult || gradeActivity();
-  lastRubricResult = result;
-  if (!result) return;
-
-  const settings = getCurrentAiRubricSettings();
-  const useGemini = shouldUseGeminiForResultFeedback(settings);
-  const endpoint = !useGemini && isAIReviewEnabled() ? getAIReviewEndpoint() : '';
-
-  renderAIReview(generateLocalAIReview(result), { loading: Boolean(useGemini || endpoint) });
-  if (shouldUsePhoneResultFeedbackPopup(safeOptions)) openPhoneResultFeedbackPopup('feedback');
-  setStatus(useGemini ? 'AI feedback running...' : endpoint ? 'Review running...' : 'Feedback ready');
-
-  if (!useGemini && !endpoint) {
-    renderAIReview(generateLocalAIReview(result));
-    if (shouldUsePhoneResultFeedbackPopup(safeOptions)) {
-      openPhoneResultFeedbackPopup('feedback');
-    } else if (safeOptions.scroll !== false) {
-      scrollElementIntoSafeView(document.getElementById('aiReviewPanel'));
-    }
-    return;
-  }
-
-  try {
-    if (aiReviewController) aiReviewController.abort();
-    aiReviewController = new AbortController();
-    const timeout = window.setTimeout(() => aiReviewController.abort(), useGemini ? 45000 : getAIReviewTimeoutMs());
-
-    let review = null;
-    if (useGemini) {
-      review = await callGeminiStudentRubricFeedback(result, { signal: aiReviewController.signal });
-    } else {
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(buildAIReviewPayload(result)),
-        signal: aiReviewController.signal
-      });
-      if (!response.ok) throw new Error(`Feedback endpoint returned ${response.status}`);
-      const data = await response.json();
-      review = normalizeAIReviewResponse(data.review || data, result);
-    }
-
-    window.clearTimeout(timeout);
-    renderAIReview(review);
-    setStatus(useGemini ? 'AI feedback ready' : 'Feedback ready');
-  } catch (error) {
-    console.warn('Feedback review failed; using local smart review.', error);
-    const fallback = generateLocalAIReview(result);
-    fallback.teacherNote = error?.message
-      ? `AI feedback was unavailable, so the app used the local smart rubric fallback. ${error.message}`
-      : 'AI feedback was unavailable, so the app used the local smart rubric fallback.';
-    renderAIReview(fallback);
-    setStatus('Feedback ready');
-  }
-
-  if (shouldUsePhoneResultFeedbackPopup(safeOptions)) {
-    openPhoneResultFeedbackPopup('feedback');
-  } else if (safeOptions.scroll !== false) {
-    scrollElementIntoSafeView(document.getElementById('aiReviewPanel'));
-  }
+  // Unified feedback flow: the Result button is now the only student-facing scorer.
+  // Any old Feedback buttons simply run Result & Feedback again.
+  return showResult({ ...normalizeButtonActionOptions(options), scroll: true });
 }
 
 function renderResult(result) {
@@ -11814,21 +11929,48 @@ function renderResult(result) {
       ? 'almost'
       : 'needs-work';
   const pillText = result.percent >= activity.passingScore ? 'Passed' : result.percent >= 60 ? 'Almost' : 'Needs Work';
+  const isSmart = result.source === 'gemini';
+  const strengths = isSmart
+    ? result.results.filter(item => item.passed).slice(0, 4).map(item => `${item.title}: ${item.evidence || item.levelDescription || 'Meets the rubric level.'}`)
+    : result.results.filter(item => item.passed).slice(0, 3).map(item => `${item.title}: ${item.levelDescription || 'Meets the rubric level.'}`);
+  const improvements = result.results
+    .filter(item => !item.passed || item.improvement)
+    .slice(0, 4)
+    .map(item => `${item.title}: ${item.improvement || item.levelDescription || 'Improve this criterion.'}`);
+  const confidenceLine = isSmart
+    ? `<p class="muted-text smart-result-note">Gemini compared the rubric, code, checker hints, and visible output summary. Confidence: ${escapeHTML(result.aiConfidence || 'medium')}.</p>`
+    : `<p class="muted-text smart-result-note">Local rubric fallback was used. Turn on Smart Review for deeper criterion judgement.</p>`;
+  const warnings = isSmart && Array.isArray(result.aiWarnings) && result.aiWarnings.length
+    ? `<div class="result-warning-note"><strong>Review note:</strong> ${escapeHTML(result.aiWarnings.join(' '))}</div>`
+    : '';
 
   resultContent.classList.remove('empty-state');
   resultContent.innerHTML = `
-    <div class="score-card">
+    <div class="score-card smart-result-card ${isSmart ? 'gemini-scored' : 'local-scored'}">
       <div class="score-main">
         <div>
-          <p class="section-kicker">Automatic Score</p>
+          <p class="section-kicker">${isSmart ? 'Smart Rubric Score' : 'Rubric Score'}</p>
           <div class="score-number">${formatPoints(result.score)}<small> / ${formatPoints(result.possible)}</small></div>
           <p class="muted-text">${result.percent}% · Passing score: ${activity.passingScore}%</p>
+          ${confidenceLine}
         </div>
         <span class="score-pill ${pillClass}">${pillText}</span>
       </div>
 
-      <div class="feedback-box">
+      <div class="feedback-box smart-feedback-box">
         <strong>Feedback:</strong> ${escapeHTML(result.feedback)}
+      </div>
+      ${warnings}
+
+      <div class="result-insight-grid" aria-label="Result feedback highlights">
+        <div class="result-insight-card good">
+          <h4>Strengths</h4>
+          <ul>${(strengths.length ? strengths : ['Your work has been checked against the selected rubric.']).map(item => `<li>${escapeHTML(item)}</li>`).join('')}</ul>
+        </div>
+        <div class="result-insight-card improve">
+          <h4>Improve Next</h4>
+          <ul>${(improvements.length ? improvements : ['No major rubric issue was detected. Continue polishing readability and design.']).map(item => `<li>${escapeHTML(item)}</li>`).join('')}</ul>
+        </div>
       </div>
 
       <ul class="rubric-list" aria-label="Rubric breakdown">
@@ -11837,7 +11979,9 @@ function renderResult(result) {
             <span class="rubric-check ${item.passed ? '' : 'fail'}">${item.passed ? '✓' : '!'}</span>
             <div>
               <p class="rubric-title">${escapeHTML(item.title)}</p>
-              <div class="rubric-rule"><strong>${escapeHTML(item.levelLabel)}</strong> · ${escapeHTML(item.levelDescription || 'No level description set.')}<br><span>${escapeHTML(getRuleLabel(item.rule))}${item.target ? ` · Target: ${escapeHTML(item.target)}` : ''}</span></div>
+              <div class="rubric-rule"><strong>${escapeHTML(item.levelLabel)}</strong> · ${escapeHTML(item.levelDescription || 'No level description set.')}</div>
+              ${item.evidence ? `<div class="rubric-evidence"><strong>Evidence:</strong> ${escapeHTML(item.evidence)}</div>` : ''}
+              ${item.improvement ? `<div class="rubric-improvement"><strong>Improve:</strong> ${escapeHTML(item.improvement)}</div>` : ''}
             </div>
             <span class="rubric-points">${formatPoints(item.earned)}/${formatPoints(item.points)}</span>
           </li>
@@ -11847,7 +11991,6 @@ function renderResult(result) {
   `;
   updatePhoneResultFeedbackPopup('result');
 }
-
 function renderNoActivityResult() {
   lastRubricResult = null;
   resetAIReviewPanel();
@@ -11860,7 +12003,7 @@ function renderNoActivityResult() {
   if (!isPhoneResultFeedbackView()) scrollElementIntoSafeView(resultPanel);
 }
 
-function showResult(options = {}) {
+async function showResult(options = {}) {
   const safeOptions = normalizeButtonActionOptions(options);
   if (!activity) {
     showActivityRequiredWarning();
@@ -11869,26 +12012,51 @@ function showResult(options = {}) {
   }
 
   runCode(false, { scroll: false });
-  setStatus('Checking rubric...');
+  const useGemini = shouldUseGeminiForResultFeedback(getCurrentAiRubricSettings());
+  setStatus(useGemini ? 'Smart Review is checking the rubric...' : 'Checking rubric...');
+  if (useGemini) renderResultLoading();
 
-  window.setTimeout(() => {
-    const result = gradeActivity();
-    if (!result) return;
+  try {
+    await new Promise(resolve => window.setTimeout(resolve, 350));
+    const localResult = gradeActivity();
+    if (!localResult) return;
+
+    let result = localResult;
+    if (useGemini) {
+      try {
+        if (aiReviewController) aiReviewController.abort();
+        aiReviewController = new AbortController();
+        const timeout = window.setTimeout(() => aiReviewController.abort(), 50000);
+        result = await callGeminiStudentRubricScoring(localResult, { signal: aiReviewController.signal });
+        window.clearTimeout(timeout);
+      } catch (error) {
+        console.warn('Smart result scoring failed; using local fallback.', error);
+        result = {
+          ...localResult,
+          source: 'local-fallback',
+          feedback: `${localResult.feedback} Smart scoring was unavailable, so the app used the local rubric fallback. ${error?.message || ''}`.trim()
+        };
+      }
+    }
+
     lastRubricResult = result;
     renderResult(result);
-    renderAIReview(generateLocalAIReview(result));
-    if (shouldUseGeminiForResultFeedback(getCurrentAiRubricSettings()) || getAIReviewEndpoint()) {
-      requestAIReview({ scroll: false, suppressPhonePopup: true });
-    }
+    // Detailed scoring now lives directly in Result & Feedback.
+    resetAIReviewPanel();
+
     saveCurrentStudentProject({ result, immediate: true, reason: 'result' });
     saveSubmissionToCloud(result);
-    setStatus(`Score ${formatPoints(result.score)}/${formatPoints(result.possible)}`);
+    setStatus(`${result.source === 'gemini' ? 'Smart score' : 'Score'} ${formatPoints(result.score)}/${formatPoints(result.possible)}`);
     if (shouldUsePhoneResultFeedbackPopup(safeOptions)) {
       openPhoneResultFeedbackPopup('result');
     } else {
       scrollElementIntoSafeView(resultPanel);
     }
-  }, 350);
+  } catch (error) {
+    console.error('Result check failed', error);
+    await appAlert(error?.message || 'Could not check the result. Please try again.', { title: 'Result check failed', danger: true });
+    setStatus('Result failed');
+  }
 }
 
 function getRuleLabel(rule) {
@@ -13716,7 +13884,7 @@ async function openAdminPanel() {
   syncComplianceSettingsControls();
   updateAssistancePublishUI();
   syncAiRubricSettingsControls(aiRubricSettings);
-  if (isTeacherAuthenticated()) loadAiRubricSettingsFromCloud({ silent: true }).catch(error => console.warn('AI settings load failed.', error));
+  if (isTeacherAuthenticated()) loadAiRubricSettingsFromCloud({ silent: true }).catch(error => console.warn('Smart Review settings load failed.', error));
   setAssistanceSettingsStatus(isTeacherAuthenticated()
     ? 'Change the switches, then publish to update every student device.'
     : 'These switches can be used now on this browser. Login is only needed to publish globally.');
@@ -13771,7 +13939,7 @@ function showAdminForm(activityId = adminEditingActivityId) {
   if (adminStudentsCache.length) renderAdminStudentTracker();
   else loadAdminStudents().catch(error => console.warn('Student tracker load failed.', error));
   initializeLessonManager();
-  if (isTeacherAuthenticated()) loadAiRubricSettingsFromCloud({ silent: true }).catch(error => console.warn('AI settings load failed.', error));
+  if (isTeacherAuthenticated()) loadAiRubricSettingsFromCloud({ silent: true }).catch(error => console.warn('Smart Review settings load failed.', error));
   const editActivity = getActivityById(activityId) || activity || activities[0] || null;
 
   if (!editActivity) {
@@ -13963,7 +14131,7 @@ function renderScaleLevelCells(criterion) {
 
 function renderCriteriaEditor(criteria) {
   const rows = criteria.map((criterion, index) => {
-    const normalized = normalizeCriterion(criterion);
+    const normalized = normalizeCriterion({ ...criterion, rule: 'smart_rubric', target: '' });
     return `
       <tr class="rubric-table-row" data-id="${escapeHTML(normalized.id || createId())}">
         <td class="rubric-criterion-cell" data-label="Criterion">
@@ -13972,26 +14140,14 @@ function renderCriteriaEditor(criteria) {
             <input class="criterion-title criterion-title-big" type="text" value="${escapeAttribute(normalized.title)}" placeholder="Example: Content and HTML Structure" />
           </div>
 
-          <div class="criterion-mini-grid">
+          <div class="criterion-mini-grid rubric-builder-simple-grid">
             <label>
               Max
               <input class="criterion-points" type="number" min="0" step="0.5" value="${escapeAttribute(formatPoints(normalized.points))}" />
             </label>
-            <label>
-              Auto Check
-              <select class="criterion-rule">
-                ${ruleOptions.map(option => `
-                  <option value="${option.value}" ${option.value === normalized.rule ? 'selected' : ''}>${escapeHTML(option.label)}</option>
-                `).join('')}
-              </select>
-            </label>
-            <label>
-              Target / Keyword
-              <input class="criterion-target" type="text" value="${escapeAttribute(normalized.target || '')}" placeholder="Optional: class=\"card\"" />
-            </label>
+            <p class="helper-note criterion-help">No auto-check here. The rubric is judged later from the code, output, and level descriptions when Result/Feedback runs.</p>
           </div>
 
-          <p class="helper-note criterion-help">${escapeHTML(ruleHelp[normalized.rule] || '')}</p>
           <button class="ghost-btn danger remove-criterion" type="button" aria-label="Remove criterion ${index + 1}">Remove row</button>
         </td>
         ${renderScaleLevelCells(normalized)}
@@ -14001,7 +14157,7 @@ function renderCriteriaEditor(criteria) {
 
   criteriaEditor.innerHTML = `
     <div class="rubric-table-note">
-      <strong>Table input:</strong> Row = criterion. Columns = performance levels. Put the score and description for each level.
+      <strong>Rubric builder:</strong> Create criteria, points, and level descriptions only. No separate checker dropdown is used here.
     </div>
     <div class="rubric-table-scroll">
       <table class="teacher-rubric-table" aria-label="Teacher rubric table input">
@@ -14042,8 +14198,8 @@ function collectCriteriaFromEditor() {
       id: row.dataset.id || createId(),
       title: row.querySelector('.criterion-title').value.trim() || 'Untitled criterion',
       points: maxPoints,
-      rule: row.querySelector('.criterion-rule').value,
-      target: row.querySelector('.criterion-target').value.trim(),
+      rule: 'smart_rubric',
+      target: '',
       levels: collectLevelsFromCard(row, maxPoints)
     });
   }).filter(item => item.points > 0);
@@ -14055,7 +14211,7 @@ function addCriterion() {
     id: createId(),
     title: 'New criterion / row',
     points: 4,
-    rule: 'html_contains',
+    rule: 'smart_rubric',
     target: ''
   }));
   renderCriteriaEditor(currentCriteria);
@@ -14265,8 +14421,8 @@ function normalizeImportedActivity(rawActivity) {
       id: createId(),
       title: criterion.title || criterion.criterion || criterion.name || `Criterion ${index + 1}`,
       points,
-      rule: criterion.rule || 'smart_rubric',
-      target: criterion.target || '',
+      rule: 'smart_rubric',
+      target: '',
       levels
     });
   });
@@ -14527,13 +14683,12 @@ function buildCriterionFromParsedParts(title, sections, globalPoints = {}) {
     return acc;
   }, {});
 
-  const ruleInfo = guessCriterionRule(cleanTitle, Object.values(descriptions).join(' '));
   return normalizeCriterion({
     id: createId(),
     title: cleanTitle,
     points: maxPoints,
-    rule: ruleInfo.rule,
-    target: ruleInfo.target,
+    rule: 'smart_rubric',
+    target: '',
     levels
   });
 }
@@ -15116,7 +15271,7 @@ function clearManualRubricInputTable() {
   if (!manualRubricInputBody) return;
   manualRubricInputBody.innerHTML = '';
   ensureManualRubricRows();
-  setManualRubricStatus('Input table cleared. Type your rubric again, then click Apply + Smart Rubric Checker.');
+  setManualRubricStatus('Input table cleared. Type your rubric again, then click Apply Rubric Table.');
 }
 
 function collectManualRubricInputCriteria() {
@@ -15190,8 +15345,6 @@ function getManualRubricDraftForAi() {
     existingRows: rows,
     currentCriteria: collectCriteriaFromEditor().map(item => ({
       title: item.title,
-      rule: item.rule,
-      target: item.target || '',
       points: getCriterionPossiblePoints(item),
       levels: item.levels
     }))
@@ -15204,10 +15357,7 @@ function buildAiRubricGeneratorPrompt({ mode = 'generate' } = {}) {
   const taskDescription = draft.description || 'Create a web page using HTML, CSS, and JavaScript as required by the teacher.';
   return `You are an expert Grade 8 ICT teacher and rubric designer. Create or improve a practical web-coding rubric for beginner students.
 
-The rubric must be consistent, specific, and easy for students to understand. It must be usable by an automatic checker, so every criterion should include a suggested rule from the allowed list.
-
-Allowed rule values:
-full_html_structure, has_semantic_tags, balanced_html_tags, output_has_visible_text, minimum_effort, uses_css_property, uses_event_listener, js_changes_page, html_contains, css_contains, js_contains, output_contains, no_runtime_error, smart_rubric.
+The rubric must be consistent, specific, and easy for students to understand. Do not create auto-check rules or keyword targets. The rubric descriptions will later be judged against the student's code and rendered output by Gemini or the local fallback.
 
 Return ONLY valid JSON. No markdown.
 
@@ -15220,8 +15370,6 @@ Required JSON schema:
     {
       "title": "criterion name",
       "points": 10,
-      "rule": "smart_rubric",
-      "target": "optional target keyword/class/tag/property",
       "levels": {
         "excellent": {"points":10,"description":"specific excellent description"},
         "good": {"points":8,"description":"specific good description"},
@@ -15237,7 +15385,6 @@ Rubric requirements:
 - Use the teacher's score levels: Excellent=${draft.scores.excellent}, Good=${draft.scores.good}, Fair=${draft.scores.fair}, Needs Improvement=${draft.scores.needsImprovement}.
 - Make criterion titles short and clear.
 - Descriptions must explain observable evidence in code or output.
-- Prefer smart_rubric for broad judgment criteria, but use concrete rules when possible.
 - Do not create criteria that require private data or external accounts.
 - Mode: ${mode}.
 
@@ -15246,25 +15393,25 @@ ${JSON.stringify({ taskTitle, taskDescription, draft }, null, 2)}`;
 }
 
 function createLocalSmartRubricActivity() {
-  const title = adminActivityTitle?.value?.trim() || 'AI Starter Rubric Activity';
+  const title = adminActivityTitle?.value?.trim() || 'Smart Starter Rubric Activity';
   const description = adminActivityDescription?.value?.trim() || 'Complete the web coding activity based on the teacher rubric.';
   const scores = getManualRubricScoreMap();
   const lower = `${title} ${description}`.toLowerCase();
   const candidates = [
-    { title: 'HTML Structure and Content', text: 'complete HTML structure, correct tags, and meaningful visible content', rule: lower.includes('semantic') ? 'has_semantic_tags' : 'full_html_structure', target: '' },
-    { title: 'CSS Styling and Layout', text: 'colors, spacing, fonts, and layout make the page readable and organized', rule: 'uses_css_property', target: '' },
-    { title: 'Output Matches the Instructions', text: 'the preview clearly shows the required content and follows the activity task', rule: 'smart_rubric', target: '' },
-    { title: 'Code Organization and Accuracy', text: 'code is readable, properly closed, and avoids obvious errors', rule: 'balanced_html_tags', target: '' }
+    { title: 'HTML Structure and Content', text: 'complete HTML structure, correct tags, and meaningful visible content' },
+    { title: 'CSS Styling and Layout', text: 'colors, spacing, fonts, and layout make the page readable and organized' },
+    { title: 'Output Matches the Instructions', text: 'the preview clearly shows the required content and follows the activity task' },
+    { title: 'Code Organization and Accuracy', text: 'code is readable, properly closed, and avoids obvious errors' }
   ];
-  if (/javascript|button|click|interactive|event/.test(lower)) candidates.splice(2, 0, { title: 'JavaScript Interaction', text: 'JavaScript creates the required interaction or visible page change', rule: 'js_changes_page', target: '' });
-  if (/responsive|phone|mobile|screen/.test(lower)) candidates.push({ title: 'Responsive Design', text: 'layout remains readable on smaller screens using flexible CSS', rule: 'smart_rubric', target: '' });
+  if (/javascript|button|click|interactive|event/.test(lower)) candidates.splice(2, 0, { title: 'JavaScript Interaction', text: 'JavaScript creates the required interaction or visible page change' });
+  if (/responsive|phone|mobile|screen/.test(lower)) candidates.push({ title: 'Responsive Design', text: 'layout remains readable on smaller screens using flexible CSS' });
 
   const criteria = candidates.slice(0, 6).map(item => buildCriterionFromParsedParts(item.title, {
     excellent: `Complete and accurate ${item.text}.`,
     good: `Mostly complete ${item.text} with only minor issues.`,
     fair: `Partially shows ${item.text}, but some requirements are missing or unclear.`,
     needsImprovement: `Little evidence of ${item.text}; major revision is needed.`
-  }, scores)).map(criterion => normalizeCriterion({ ...criterion, rule: itemRuleFallback(criterion.rule), target: criterion.target || '' }));
+  }, scores)).map(criterion => normalizeCriterion({ ...criterion, rule: 'smart_rubric', target: '' }));
 
   return normalizeImportedActivity({
     id: adminEditingActivityId || createId(),
@@ -15306,12 +15453,12 @@ async function generateRubricWithAi(mode = 'generate') {
     window.clearTimeout(timeout);
     const imported = normalizeImportedActivity(raw);
     applyImportedActivityToAdminForm(imported);
-    setAiRubricGeneratorStatus('AI rubric generated. Review the table carefully, then click Save Activity.', 'success');
+    setAiRubricGeneratorStatus('Smart rubric generated. Review the table carefully, then click Save Activity.', 'success');
   } catch (error) {
-    console.warn('AI rubric generator failed; using local starter rubric.', error);
+    console.warn('Smart rubric generator failed; using local starter rubric.', error);
     const fallback = createLocalSmartRubricActivity();
     applyImportedActivityToAdminForm(fallback);
-    setAiRubricGeneratorStatus(`AI rubric generation failed, so a local smart rubric was created. ${error?.message || ''}`.trim(), 'warning');
+    setAiRubricGeneratorStatus(`Smart rubric generation failed, so a local rubric was created. ${error?.message || ''}`.trim(), 'warning');
   } finally {
     if (button) {
       button.disabled = false;
@@ -15322,7 +15469,7 @@ async function generateRubricWithAi(mode = 'generate') {
 
 function initManualRubricInputTable() {
   ensureManualRubricRows();
-  setManualRubricStatus('Type your rubric here, then click Apply + Smart Rubric Checker.');
+  setManualRubricStatus('Type your rubric here, then click Apply Rubric Table.');
 }
 
 function updateCriterionHelp(event) {
