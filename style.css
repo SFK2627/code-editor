@@ -37080,3 +37080,119 @@ body.admin-compliance-modal-open {
     line-height: 1.25;
   }
 }
+
+
+/* Step 163: Dark mode compliance readability fix
+   Keep the Compliance admin area readable in dark mode, especially inputs,
+   checklist cards, setup blocks, and helper text on phones and desktop. */
+[data-theme="dark"] #complianceTrackerAdmin .compliance-admin-header .muted-text,
+[data-theme="dark"] #complianceTrackerAdmin .compliance-setup-summary small,
+[data-theme="dark"] #complianceTrackerAdmin .compliance-setup-head p,
+[data-theme="dark"] #complianceTrackerAdmin .compliance-selected-section-field small,
+[data-theme="dark"] #complianceTrackerAdmin .compliance-task-show,
+[data-theme="dark"] #complianceTrackerAdmin .compliance-section-name small,
+[data-theme="dark"] #complianceTrackerAdmin .compliance-preview-stats small,
+[data-theme="dark"] #complianceTrackerAdmin .compliance-preview-row small,
+[data-theme="dark"] #complianceTrackerAdmin .compliance-viewer-toolbar label,
+[data-theme="dark"] #complianceTrackerAdmin .compliance-field-title {
+  color: #a7b4c7;
+}
+
+[data-theme="dark"] #complianceTrackerAdmin .compliance-admin-grid label,
+[data-theme="dark"] #complianceTrackerAdmin .compliance-setup-head strong,
+[data-theme="dark"] #complianceTrackerAdmin .compliance-field-title,
+[data-theme="dark"] #complianceTrackerAdmin .compliance-section-check-row strong,
+[data-theme="dark"] #complianceTrackerAdmin .compliance-preview-stats strong,
+[data-theme="dark"] #complianceTrackerAdmin .compliance-preview-row strong {
+  color: #e5edf7;
+}
+
+[data-theme="dark"] #complianceTrackerAdmin .compliance-collapsible-setup > .compliance-setup-summary {
+  background: rgba(8, 15, 30, 0.56);
+}
+
+[data-theme="dark"] #complianceTrackerAdmin .compliance-collapsible-setup[open] > .compliance-setup-summary {
+  border-bottom-color: rgba(148, 163, 184, 0.18);
+}
+
+[data-theme="dark"] #complianceTrackerAdmin .compliance-admin-grid input,
+[data-theme="dark"] #complianceTrackerAdmin .compliance-admin-grid select,
+[data-theme="dark"] #complianceTrackerAdmin .compliance-section-row input,
+[data-theme="dark"] #complianceTrackerAdmin .compliance-task-label-row input[type="text"],
+[data-theme="dark"] #complianceTrackerAdmin .compliance-viewer-toolbar input,
+[data-theme="dark"] #complianceTrackerAdmin .compliance-viewer-toolbar select {
+  background: #0b1220;
+  color: #e5edf7;
+  border-color: rgba(148, 163, 184, 0.28);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
+}
+
+[data-theme="dark"] #complianceTrackerAdmin .compliance-admin-grid input::placeholder,
+[data-theme="dark"] #complianceTrackerAdmin .compliance-task-label-row input[type="text"]::placeholder,
+[data-theme="dark"] #complianceTrackerAdmin .compliance-section-row input::placeholder,
+[data-theme="dark"] #complianceTrackerAdmin .compliance-viewer-toolbar input::placeholder {
+  color: #8ea3bd;
+  opacity: 1;
+}
+
+[data-theme="dark"] #complianceTrackerAdmin .compliance-admin-grid input:-webkit-autofill,
+[data-theme="dark"] #complianceTrackerAdmin .compliance-admin-grid select:-webkit-autofill,
+[data-theme="dark"] #complianceTrackerAdmin .compliance-section-row input:-webkit-autofill,
+[data-theme="dark"] #complianceTrackerAdmin .compliance-task-label-row input[type="text"]:-webkit-autofill,
+[data-theme="dark"] #complianceTrackerAdmin .compliance-viewer-toolbar input:-webkit-autofill {
+  -webkit-text-fill-color: #e5edf7;
+  -webkit-box-shadow: 0 0 0 1000px #0b1220 inset;
+}
+
+
+[data-theme="dark"] #complianceTrackerAdmin .compliance-admin-grid select option,
+[data-theme="dark"] #complianceTrackerAdmin .compliance-viewer-toolbar select option {
+  background: #0b1220;
+  color: #e5edf7;
+}
+
+[data-theme="dark"] #complianceTrackerAdmin .compliance-section-checklist {
+  background: rgba(2, 6, 23, 0.82);
+  border-color: rgba(148, 163, 184, 0.24);
+}
+
+[data-theme="dark"] #complianceTrackerAdmin .compliance-section-check-row {
+  background: rgba(15, 23, 42, 0.94);
+  border-color: rgba(148, 163, 184, 0.22);
+}
+
+[data-theme="dark"] #complianceTrackerAdmin .compliance-section-check-row small {
+  color: #a7b4c7;
+}
+
+[data-theme="dark"] #complianceTrackerAdmin .compliance-section-check-row.missing {
+  background: rgba(30, 41, 59, 0.94);
+}
+
+[data-theme="dark"] #complianceTrackerAdmin .compliance-section-check-row:hover {
+  border-color: rgba(96, 165, 250, 0.35);
+  box-shadow: 0 12px 24px rgba(2, 6, 23, 0.34);
+}
+
+[data-theme="dark"] #complianceTrackerAdmin .compliance-preview-errors {
+  background: rgba(120, 53, 15, 0.26);
+  border-color: rgba(251, 191, 36, 0.3);
+  color: #fde68a;
+}
+
+[data-theme="dark"] #complianceTrackerAdmin .compliance-mini-pill {
+  background: rgba(96, 165, 250, 0.16);
+  color: #bfdbfe;
+}
+
+[data-theme="dark"] #complianceTrackerAdmin .compliance-sync-status[data-tone="success"] {
+  color: #86efac;
+}
+
+[data-theme="dark"] #complianceTrackerAdmin .compliance-sync-status[data-tone="warning"] {
+  color: #fde68a;
+}
+
+[data-theme="dark"] #complianceTrackerAdmin .compliance-sync-status[data-tone="error"] {
+  color: #fda4af;
+}

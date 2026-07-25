@@ -1,15 +1,15 @@
-const CACHE_NAME = 'code-editor-20260725-step162-phone-compliance-modal';
+const CACHE_NAME = 'code-editor-20260725-step163-darkmode-compliance-readability';
 const APP_SHELL = [
   './',
   './index.html',
-  './index.html?v=20260725-step162-phone-compliance-modal',
-  './index.html?fresh=step162',
+  './index.html?v=20260725-step163-darkmode-compliance-readability',
+  './index.html?fresh=step163',
   './style.css',
-  './style.css?v=20260725-step162-phone-compliance-modal',
-  './style.css?v=20260725-step162-phone-compliance-modal',
+  './style.css?v=20260725-step163-darkmode-compliance-readability',
+  './style.css?v=20260725-step163-darkmode-compliance-readability',
   './script.js',
-  './script.js?v=20260725-step162-phone-compliance-modal',
-  './script.js?v=20260725-step162-phone-compliance-modal',
+  './script.js?v=20260725-step163-darkmode-compliance-readability',
+  './script.js?v=20260725-step163-darkmode-compliance-readability',
   './firebase-config.js',
   './manifest.webmanifest',
   './favicon.png',
