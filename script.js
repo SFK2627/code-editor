@@ -9115,7 +9115,7 @@ function getSmartHTMLQualityIssues(html = '') {
     let match;
     while ((match = tagPattern.exec(line)) !== null) {
       const typed = match[1].toLowerCase();
-      if (typed.includes('-') || SMART_INLINE_COMMON_HTML_TAGS.has(typed)) continue;
+      if (isSmartKnownHtmlTag(typed)) continue;
       const fixed = getClosestSmartHtmlTagName(typed);
       if (fixed && fixed !== typed) {
         pushIssue(index, `Possible misspelled HTML tag <${typed}>`, `Change <${typed}> to <${fixed}>.`);
@@ -9135,6 +9135,95 @@ function getSmartHTMLQualityIssues(html = '') {
 }
 
 
+
+
+function getSmartHtmlAttributeMap(attrsText = '') {
+  const attrs = {};
+  const pattern = /([A-Za-z_:][\w:.-]*)(?:\s*=\s*("[^"]*"|'[^']*'|[^\s"'=<>`]+))?/g;
+  let match;
+  while ((match = pattern.exec(String(attrsText || ''))) !== null) {
+    const name = String(match[1] || '').toLowerCase();
+    if (!name) continue;
+    let value = match[2] || '';
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+      value = value.slice(1, -1);
+    }
+    attrs[name] = String(value || '').trim();
+  }
+  return attrs;
+}
+
+function getSmartHtmlContextCheckerItems(html = '') {
+  const source = String(html || '');
+  const items = [];
+  const ids = new Map();
+  const bodyStart = source.search(/<\s*body\b/i);
+  const bodyEnd = source.search(/<\s*\/\s*body\s*>/i);
+  const insideBody = index => bodyStart >= 0 && index > bodyStart && (bodyEnd < 0 || index < bodyEnd);
+  let validStylesheetLinkCount = 0;
+  let linkGuidanceShown = false;
+
+  const tagPattern = /<\s*([a-zA-Z][\w:-]*)([^<>]*?)>/g;
+  let match;
+  while ((match = tagPattern.exec(source)) !== null) {
+    const tagName = match[1].toLowerCase();
+    const attrs = getSmartHtmlAttributeMap(match[2] || '');
+    const line = getLineNumberAt(source, match.index);
+
+    if (attrs.id) {
+      if (!ids.has(attrs.id)) ids.set(attrs.id, []);
+      ids.get(attrs.id).push(line);
+    }
+
+    if (tagName === 'link') {
+      const rel = String(attrs.rel || '').toLowerCase();
+      const href = attrs.href || '';
+      if (!href) {
+        items.push(createCheckerItem('warning', 'Link tag missing href', `Line ${line}: <link> is valid HTML, but it needs href="..." to point to a CSS file or resource.`, 'For CSS, use <link rel="stylesheet" href="style.css">. For clickable text, use <a href="...">Text</a>.'));
+      } else if (/stylesheet/i.test(rel)) {
+        validStylesheetLinkCount += 1;
+      } else if (!linkGuidanceShown) {
+        items.push(createCheckerItem('tip', '<link> is valid HTML', `Line ${line}: <link> is not an error. It connects external resources. If the goal is a clickable page link, use <a href="${href}">Text</a> instead.`, 'Keep <link> for CSS/resources. Use <a> for clickable links in the webpage body.'));
+        linkGuidanceShown = true;
+      }
+      if (insideBody(match.index) && /stylesheet/i.test(rel)) {
+        items.push(createCheckerItem('tip', 'Stylesheet link works best in head', `Line ${line}: Your stylesheet <link> is valid, but beginners should usually place it inside <head>.`, 'Move <link rel="stylesheet" href="style.css"> above </head> when possible.'));
+      }
+    }
+
+    if (tagName === 'a' && !attrs.href) {
+      items.push(createCheckerItem('warning', 'Clickable link missing href', `Line ${line}: <a> creates a clickable link, but it needs href="...".`, 'Example: <a href="https://example.com">Visit site</a>'));
+    }
+
+    if (tagName === 'img') {
+      if (!attrs.src) {
+        items.push(createCheckerItem('error', 'Image tag missing src', `Line ${line}: <img> is valid, but it needs src="..." so the browser knows which image to show.`, 'Example: <img src="photo.jpg" alt="Description">'));
+      } else if (!attrs.alt) {
+        items.push(createCheckerItem('tip', 'Image can be more accessible', `Line ${line}: Add alt="..." so readers know what the image means.`, 'Example: <img src="photo.jpg" alt="My school project">'));
+      }
+    }
+  }
+
+  ids.forEach((lines, id) => {
+    if (lines.length > 1) {
+      items.push(createCheckerItem('warning', 'Duplicate id found', `id="${id}" appears on lines ${lines.slice(0, 4).join(', ')}. IDs should be unique on a page.`, `Use class="${id}" for repeated styling, or give each element a different id.`));
+    }
+  });
+
+  const listPattern = /<\s*(ul|ol)\b[^>]*>([\s\S]*?)<\s*\/\s*\1\s*>/gi;
+  let listMatch;
+  while ((listMatch = listPattern.exec(source)) !== null) {
+    if (!/<\s*li\b/i.test(listMatch[2])) {
+      items.push(createCheckerItem('warning', 'List has no list items', `Line ${getLineNumberAt(source, listMatch.index)}: <${listMatch[1].toLowerCase()}> should usually contain <li> items.`, `Add <li>Item</li> inside the <${listMatch[1].toLowerCase()}> list.`));
+    }
+  }
+
+  if (validStylesheetLinkCount) {
+    items.push(createCheckerItem('pass', 'Stylesheet link tag is valid', `<link rel="stylesheet" href="..."> is recognized correctly. It will not be treated as a <li> mistake.`));
+  }
+
+  return items.slice(0, 8);
+}
 
 function getFilenameReferenceCheckerItems() {
   const html = codeStore.html || '';
@@ -9226,6 +9315,8 @@ function getErrorCheckerItems() {
   } else {
     items.push(createCheckerItem('warning', 'Body looks empty', 'The body section has little or no visible text.', 'Add a heading, paragraph, image, button, or other visible content inside <body>.'));
   }
+
+  items.push(...getSmartHtmlContextCheckerItems(html));
 
   if (smartHtmlIssues.length) {
     const details = smartHtmlIssues.map(item => `Line ${item.line}: ${item.issue}`).join('; ');
@@ -9458,8 +9549,18 @@ const SMART_PROJECT_HTML_ATTR_FIXES = {
 };
 
 const SMART_PROJECT_COMMON_HTML_ATTRS = new Set([
-  'class', 'id', 'href', 'src', 'alt', 'style', 'onclick', 'type', 'value', 'placeholder', 'target', 'rel', 'title', 'name', 'for',
-  'lang', 'charset', 'content', 'width', 'height', 'disabled', 'checked', 'selected', 'aria-label', 'role'
+  'accept', 'accept-charset', 'accesskey', 'action', 'allow', 'alt', 'async', 'autocomplete', 'autofocus',
+  'autoplay', 'charset', 'checked', 'cite', 'class', 'cols', 'colspan', 'content', 'contenteditable',
+  'controls', 'coords', 'data', 'datetime', 'defer', 'dir', 'disabled', 'download', 'draggable', 'enctype',
+  'for', 'form', 'height', 'hidden', 'href', 'hreflang', 'id', 'lang', 'list', 'loop', 'max', 'maxlength',
+  'media', 'method', 'min', 'multiple', 'muted', 'name', 'pattern', 'placeholder', 'poster', 'preload',
+  'readonly', 'rel', 'required', 'reversed', 'role', 'rows', 'rowspan', 'selected', 'shape', 'size', 'span',
+  'spellcheck', 'src', 'srcset', 'start', 'step', 'style', 'tabindex', 'target', 'title', 'type', 'value',
+  'width', 'wrap',
+  // Event attributes supported for beginner projects. Other on* attributes are accepted separately.
+  'onclick', 'onchange', 'oninput', 'onsubmit', 'onmouseover', 'onmouseout', 'onkeydown', 'onkeyup',
+  // Common ARIA labels are accepted, while any aria-* and data-* are accepted by prefix checks.
+  'aria-label', 'aria-hidden', 'aria-expanded', 'aria-controls'
 ]);
 
 function getClosestSmartHtmlAttributeName(name = '') {
@@ -9581,7 +9682,7 @@ function analyzeSmartHtmlFiles(snapshot, review) {
       let tagMatch;
       while ((tagMatch = tagPattern.exec(lineText)) !== null) {
         const typed = tagMatch[1].toLowerCase();
-        if (typed.includes('-') || SMART_INLINE_COMMON_HTML_TAGS.has(typed)) continue;
+        if (isSmartKnownHtmlTag(typed)) continue;
         const fixed = getClosestSmartHtmlTagName(typed);
         if (fixed && fixed !== typed) {
           addSmartExactFix(review.exactFixes, {
@@ -14936,12 +15037,23 @@ const SMART_INLINE_HTML_TAG_FIXES = {
 };
 
 const SMART_INLINE_COMMON_HTML_TAGS = new Set([
-  'html', 'head', 'title', 'body', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'div', 'span', 'section', 'article',
-  'main', 'header', 'footer', 'nav', 'ul', 'ol', 'li', 'a', 'img', 'button', 'label', 'input', 'form', 'table',
-  'tr', 'td', 'th', 'thead', 'tbody', 'style', 'script', 'strong', 'em', 'br', 'hr'
+  // Full beginner-safe HTML tag list. Keep this broad to avoid false positives like
+  // treating the valid <link> tag as a typo of <li>. Unknown custom elements with
+  // a dash, such as <my-card>, are also accepted by isSmartKnownHtmlTag().
+  'a', 'abbr', 'address', 'article', 'aside', 'audio', 'b', 'bdi', 'bdo', 'blockquote', 'body', 'button',
+  'canvas', 'caption', 'cite', 'code', 'colgroup', 'data', 'datalist', 'dd', 'del', 'details', 'dfn',
+  'dialog', 'div', 'dl', 'dt', 'em', 'fieldset', 'figcaption', 'figure', 'footer', 'form', 'h1', 'h2',
+  'h3', 'h4', 'h5', 'h6', 'head', 'header', 'hgroup', 'html', 'i', 'iframe', 'ins', 'kbd', 'label',
+  'legend', 'li', 'main', 'map', 'mark', 'menu', 'meter', 'nav', 'noscript', 'object', 'ol', 'optgroup',
+  'option', 'output', 'p', 'picture', 'pre', 'progress', 'q', 'rp', 'rt', 'ruby', 's', 'samp', 'script',
+  'search', 'section', 'select', 'slot', 'small', 'span', 'strong', 'style', 'sub', 'summary', 'sup',
+  'svg', 'table', 'tbody', 'td', 'template', 'textarea', 'tfoot', 'th', 'thead', 'time', 'title', 'tr',
+  'u', 'ul', 'var', 'video',
+  // Valid void / metadata tags are included here too so general tag checks treat them as valid.
+  'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr'
 ]);
 
-const SMART_INLINE_VOID_HTML_TAGS = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'source', 'track', 'wbr']);
+const SMART_INLINE_VOID_HTML_TAGS = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr']);
 const SMART_INLINE_CSS_PROPERTIES = new Set([
   'color', 'background', 'background-color', 'font-size', 'font-family', 'font-weight', 'text-align', 'margin', 'padding',
   'width', 'height', 'border', 'border-radius', 'display', 'justify-content', 'align-items', 'gap', 'flex-direction',
@@ -15113,8 +15225,30 @@ function getClosestSmartInlineValue(value, choices, explicitFixes = {}, options 
   return bestDistance <= maxDistance ? best : '';
 }
 
+function isSmartKnownHtmlTag(tagName = '') {
+  const clean = String(tagName || '').trim().toLowerCase();
+  if (!clean) return false;
+  if (SMART_INLINE_COMMON_HTML_TAGS.has(clean) || SMART_INLINE_VOID_HTML_TAGS.has(clean)) return true;
+  // Web Components/custom elements are valid when they contain a dash.
+  return /^[a-z][a-z0-9]*-[a-z0-9-]+$/.test(clean);
+}
+
 function getClosestSmartHtmlTagName(tagName = '') {
-  return getClosestSmartInlineValue(tagName, SMART_INLINE_COMMON_HTML_TAGS, SMART_INLINE_HTML_TAG_FIXES, { maxDistance: String(tagName || '').length <= 3 ? 1 : 2 });
+  const clean = String(tagName || '').trim().toLowerCase();
+  if (!clean) return '';
+  if (isSmartKnownHtmlTag(clean)) return clean;
+  if (SMART_INLINE_HTML_TAG_FIXES[clean]) return SMART_INLINE_HTML_TAG_FIXES[clean];
+
+  const fixed = getClosestSmartInlineValue(clean, SMART_INLINE_COMMON_HTML_TAGS, {}, { maxDistance: clean.length <= 3 ? 1 : 2 });
+  if (!fixed || fixed === clean) return fixed || '';
+
+  // Guard against dangerous over-corrections. Example: <link> must never become <li>.
+  // Very short tags are only suggested when the typed value is also very short or the
+  // typo is an explicit entry in SMART_INLINE_HTML_TAG_FIXES.
+  const distance = getSmartInlineEditDistance(clean.replace(/[-\s]/g, ''), fixed.replace(/[-\s]/g, ''));
+  if (fixed.length <= 2 && clean.length >= 4 && distance > 1) return '';
+  if (Math.abs(clean.length - fixed.length) >= 2 && fixed.length <= 2) return '';
+  return fixed;
 }
 
 function getClosestSmartCssPropertyName(propertyName = '') {
@@ -15277,7 +15411,7 @@ function detectSmartInlineHtmlHint(context) {
         canFix: true
       });
     }
-    if (!SMART_INLINE_COMMON_HTML_TAGS.has(typedTag) && !typedTag.includes('-')) {
+    if (!isSmartKnownHtmlTag(typedTag)) {
       return makeSmartHint(context, {
         issue: `<${typedTag}> is not a common beginner HTML tag.`,
         suggestion: 'Check the spelling. Smart Hint can fix close misspellings like <hmtl>, <haed>, <titel>, <boddy>, or <buton>.',

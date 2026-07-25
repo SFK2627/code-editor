@@ -1,13 +1,13 @@
-const CACHE_NAME = 'code-editor-20260725-step179-css-jump-popup';
+const CACHE_NAME = 'code-editor-20260725-step180-smart-code-helper';
 const APP_SHELL = [
   './',
   './index.html',
-  './index.html?v=20260725-step179-css-jump-popup',
-  './index.html?fresh=step179',
+  './index.html?v=20260725-step180-smart-code-helper',
+  './index.html?fresh=step180',
   './style.css',
-  './style.css?v=20260725-step179-css-jump-popup',
+  './style.css?v=20260725-step180-smart-code-helper',
   './script.js',
-  './script.js?v=20260725-step179-css-jump-popup',
+  './script.js?v=20260725-step180-smart-code-helper',
   './firebase-config.js',
   './manifest.webmanifest',
   './favicon.png',
