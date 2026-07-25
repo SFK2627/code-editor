@@ -238,11 +238,18 @@ const lessonLibrarySort = document.getElementById('lessonLibrarySort');
 const lessonTermTabs = document.getElementById('lessonTermTabs');
 const lessonLibraryStatus = document.getElementById('lessonLibraryStatus');
 const lessonLibraryGrid = document.getElementById('lessonLibraryGrid');
+const lessonContinueCard = document.getElementById('lessonContinueCard');
+const lessonContinueTitle = document.getElementById('lessonContinueTitle');
+const lessonContinueMeta = document.getElementById('lessonContinueMeta');
+const lessonContinueProgressBar = document.getElementById('lessonContinueProgressBar');
+const lessonContinueBtn = document.getElementById('lessonContinueBtn');
 const lessonPdfOverlay = document.getElementById('lessonPdfOverlay');
 const lessonPdfCard = document.getElementById('lessonPdfCard');
 const lessonPdfTerm = document.getElementById('lessonPdfTerm');
 const lessonPdfTitle = document.getElementById('lessonPdfTitle');
 const lessonPdfDescription = document.getElementById('lessonPdfDescription');
+const lessonPdfProgressText = document.getElementById('lessonPdfProgressText');
+const lessonPdfMarkDoneBtn = document.getElementById('lessonPdfMarkDoneBtn');
 const lessonPdfFullscreenBtn = document.getElementById('lessonPdfFullscreenBtn');
 const lessonPdfOpenBtn = document.getElementById('lessonPdfOpenBtn');
 const lessonPdfDownloadBtn = document.getElementById('lessonPdfDownloadBtn');
@@ -433,7 +440,8 @@ const STORAGE_KEYS = {
   fileNames: 'studentCodeStudio.fileNames.v1',
   assistanceSettings: 'studentCodeStudio.assistanceSettings.v1',
   complianceSettings: 'studentCodeStudio.complianceSettings.v1',
-  lessonLibrary: 'studentCodeStudio.lessonLibrary.v1'
+  lessonLibrary: 'studentCodeStudio.lessonLibrary.v1',
+  lessonProgress: 'studentCodeStudio.lessonReadingProgress.v1'
 };
 
 
@@ -11233,7 +11241,9 @@ const lessonLibraryState = {
   driveTokenExpiresAt: 0,
   driveTokenClient: null,
   pdfLoadTimer: null,
-  pdfControlsTimer: null
+  pdfControlsTimer: null,
+  currentLessonId: '',
+  currentLessonOpenedAt: 0
 };
 
 function lessonTermLabel(term = 'term1') {
@@ -11365,6 +11375,165 @@ function setLessonDriveStatus(message = '', type = '') {
   lessonDriveStatus.dataset.type = type;
 }
 
+
+function getLessonReaderKey() {
+  const student = appSession.student || appSession.lastStudentProfile || null;
+  const raw = student?.uid || student?.studentIdNormalized || student?.studentId || student?.id || (appSession.mode === 'guest' ? 'guest' : 'local');
+  return String(raw || 'local').replace(/[^a-zA-Z0-9_-]/g, '-').slice(0, 80) || 'local';
+}
+
+function loadLessonProgressRoot() {
+  const value = loadJSON(STORAGE_KEYS.lessonProgress, {});
+  return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+}
+
+function loadLessonProgressMap() {
+  const root = loadLessonProgressRoot();
+  const readerKey = getLessonReaderKey();
+  const map = root[readerKey];
+  return map && typeof map === 'object' && !Array.isArray(map) ? map : {};
+}
+
+function saveLessonProgressMap(progressMap = {}) {
+  const root = loadLessonProgressRoot();
+  root[getLessonReaderKey()] = progressMap;
+  saveJSON(STORAGE_KEYS.lessonProgress, root);
+}
+
+function normalizeLessonProgress(record = {}) {
+  const progress = record && typeof record === 'object' ? record : {};
+  const startedAt = lessonTimestampMs(progress.startedAt) || 0;
+  const lastOpenedAt = lessonTimestampMs(progress.lastOpenedAt) || 0;
+  const completedAt = lessonTimestampMs(progress.completedAt) || 0;
+  const totalSeconds = Math.max(0, Number(progress.totalSeconds || 0));
+  const openCount = Math.max(0, Number.parseInt(progress.openCount || 0, 10));
+  const percent = completedAt ? 100 : (lastOpenedAt ? Math.max(15, Math.min(60, 15 + Math.min(45, openCount * 10))) : 0);
+  return {
+    startedAt,
+    lastOpenedAt,
+    completedAt,
+    totalSeconds,
+    openCount,
+    percent,
+    status: completedAt ? 'completed' : (lastOpenedAt ? 'in-progress' : 'not-started')
+  };
+}
+
+function getLessonProgress(lessonId = '') {
+  const map = loadLessonProgressMap();
+  return normalizeLessonProgress(map[String(lessonId || '')] || {});
+}
+
+function updateLessonProgress(lessonId = '', patch = {}) {
+  const id = String(lessonId || '').trim();
+  if (!id) return normalizeLessonProgress({});
+  const map = loadLessonProgressMap();
+  const current = normalizeLessonProgress(map[id] || {});
+  const next = {
+    ...current,
+    ...patch,
+    startedAt: patch.startedAt || current.startedAt || Date.now(),
+    lastOpenedAt: patch.lastOpenedAt || current.lastOpenedAt || Date.now()
+  };
+  if (patch.completedAt) next.percent = 100;
+  map[id] = next;
+  saveLessonProgressMap(map);
+  return normalizeLessonProgress(next);
+}
+
+function formatLessonRelativeTime(value = 0) {
+  const ms = lessonTimestampMs(value);
+  if (!ms) return '';
+  const diff = Math.max(0, Date.now() - ms);
+  const minute = 60 * 1000;
+  const hour = 60 * minute;
+  const day = 24 * hour;
+  if (diff < minute) return 'just now';
+  if (diff < hour) return `${Math.max(1, Math.round(diff / minute))} min ago`;
+  if (diff < day) return `${Math.max(1, Math.round(diff / hour))} hr ago`;
+  if (diff < 7 * day) return `${Math.max(1, Math.round(diff / day))} day${Math.round(diff / day) === 1 ? '' : 's'} ago`;
+  return new Date(ms).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+function getLessonProgressLabel(lessonId = '') {
+  const progress = getLessonProgress(lessonId);
+  if (progress.completedAt) return { status: 'completed', label: 'Completed', detail: '100% read', percent: 100 };
+  if (progress.lastOpenedAt) return {
+    status: 'in-progress',
+    label: 'Continue',
+    detail: `Opened ${formatLessonRelativeTime(progress.lastOpenedAt) || 'recently'}`,
+    percent: progress.percent
+  };
+  return { status: 'not-started', label: 'Not started', detail: 'Ready to read', percent: 0 };
+}
+
+function getLatestLessonProgressItem() {
+  const map = loadLessonProgressMap();
+  const ids = new Set(lessonLibraryState.lessons.map(lesson => lesson.id));
+  const records = Object.entries(map)
+    .filter(([lessonId]) => ids.has(lessonId))
+    .map(([lessonId, record]) => ({ lessonId, progress: normalizeLessonProgress(record) }))
+    .filter(item => item.progress.lastOpenedAt || item.progress.completedAt)
+    .sort((a, b) => Math.max(b.progress.lastOpenedAt, b.progress.completedAt) - Math.max(a.progress.lastOpenedAt, a.progress.completedAt));
+  const active = records.find(item => !item.progress.completedAt) || records[0] || null;
+  if (!active) return null;
+  const lesson = lessonLibraryState.lessons.find(item => item.id === active.lessonId);
+  return lesson ? { lesson, progress: active.progress } : null;
+}
+
+function renderLessonContinueReading() {
+  if (!lessonContinueCard) return;
+  const latest = getLatestLessonProgressItem();
+  if (!latest) {
+    lessonContinueCard.classList.add('hidden');
+    if (lessonContinueBtn) lessonContinueBtn.dataset.lessonContinue = '';
+    return;
+  }
+  const { lesson, progress } = latest;
+  const completed = Boolean(progress.completedAt);
+  lessonContinueCard.classList.remove('hidden');
+  if (lessonContinueTitle) lessonContinueTitle.textContent = lesson.title;
+  if (lessonContinueMeta) {
+    const when = formatLessonRelativeTime(progress.lastOpenedAt || progress.completedAt) || 'recently';
+    lessonContinueMeta.textContent = `${lessonTermLabel(lesson.term)} · Lesson ${lesson.order} · ${completed ? 'Completed' : 'Last opened'} ${when}`;
+  }
+  if (lessonContinueProgressBar) lessonContinueProgressBar.style.width = `${completed ? 100 : progress.percent}%`;
+  if (lessonContinueBtn) {
+    lessonContinueBtn.dataset.lessonContinue = lesson.id;
+    lessonContinueBtn.textContent = completed ? 'Review Again' : 'Continue';
+  }
+}
+
+function syncLessonPdfProgressUi(lessonId = lessonLibraryState.currentLessonId) {
+  const id = String(lessonId || '').trim();
+  const progress = getLessonProgress(id);
+  const label = getLessonProgressLabel(id);
+  if (lessonPdfProgressText) {
+    lessonPdfProgressText.textContent = progress.completedAt
+      ? `Completed · ${formatLessonRelativeTime(progress.completedAt) || 'saved locally'}`
+      : (progress.lastOpenedAt ? `In progress · Last opened ${formatLessonRelativeTime(progress.lastOpenedAt) || 'recently'}` : 'Not started yet');
+    lessonPdfProgressText.dataset.status = label.status;
+  }
+  if (lessonPdfMarkDoneBtn) {
+    lessonPdfMarkDoneBtn.textContent = progress.completedAt ? '✓ Done' : '✓ Mark Done';
+    lessonPdfMarkDoneBtn.disabled = Boolean(progress.completedAt);
+  }
+}
+
+function finishCurrentLessonReadingSession() {
+  const id = lessonLibraryState.currentLessonId;
+  if (!id || !lessonLibraryState.currentLessonOpenedAt) return;
+  const elapsed = Math.max(0, Math.round((Date.now() - lessonLibraryState.currentLessonOpenedAt) / 1000));
+  const current = getLessonProgress(id);
+  updateLessonProgress(id, {
+    totalSeconds: Math.max(0, Number(current.totalSeconds || 0)) + elapsed,
+    lastOpenedAt: Date.now()
+  });
+  lessonLibraryState.currentLessonOpenedAt = 0;
+  renderStudentLessonLibrary();
+  renderLessonContinueReading();
+}
+
 function getLessonFilteredForStudent() {
   const term = lessonLibraryState.activeTerm;
   const search = String(lessonLibrarySearch?.value || '').trim().toLowerCase();
@@ -11388,6 +11557,7 @@ function renderLessonTermCounts() {
 function renderStudentLessonLibrary() {
   if (!lessonLibraryGrid) return;
   renderLessonTermCounts();
+  renderLessonContinueReading();
   lessonTermTabs?.querySelectorAll('[data-lesson-term]').forEach(button => {
     const active = button.dataset.lessonTerm === lessonLibraryState.activeTerm;
     button.classList.toggle('active', active);
@@ -11409,8 +11579,9 @@ function renderStudentLessonLibrary() {
   lessonLibraryGrid.innerHTML = lessons.map(lesson => {
     const size = formatLessonFileSize(lesson.fileSize);
     const date = lessonTimestampMs(lesson.updatedAt) ? new Date(lesson.updatedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+    const progress = getLessonProgressLabel(lesson.id);
     return `
-      <article class="lesson-library-card" data-lesson-id="${escapeAttribute(lesson.id)}">
+      <article class="lesson-library-card" data-lesson-id="${escapeAttribute(lesson.id)}" data-progress-status="${escapeAttribute(progress.status)}">
         <button class="lesson-card-open" type="button" data-lesson-open="${escapeAttribute(lesson.id)}" aria-label="Open ${escapeAttribute(lesson.title)}">
           <div class="lesson-card-cover">
             <span class="lesson-card-number">${escapeHTML(String(lesson.order).padStart(2, '0'))}</span>
@@ -11425,7 +11596,11 @@ function renderStudentLessonLibrary() {
               <span>${size || 'PDF lesson'}</span>
               <span>${date || 'Ready to view'}</span>
             </div>
-            <span class="lesson-card-cta">Read lesson <b aria-hidden="true">→</b></span>
+            <div class="lesson-card-progress" data-status="${escapeAttribute(progress.status)}">
+              <div class="lesson-progress-track" aria-hidden="true"><span style="width:${Math.max(0, Math.min(100, progress.percent))}%"></span></div>
+              <span>${escapeHTML(progress.label)} · ${escapeHTML(progress.detail)}</span>
+            </div>
+            <span class="lesson-card-cta">${progress.status === 'in-progress' ? 'Continue lesson' : (progress.status === 'completed' ? 'Review lesson' : 'Read lesson')} <b aria-hidden="true">→</b></span>
           </div>
         </button>
       </article>`;
@@ -11520,11 +11695,21 @@ function closeLessonLibrary() {
 }
 
 function openLessonPdfViewer(lessonId = '') {
+  finishCurrentLessonReadingSession();
   const lesson = lessonLibraryState.lessons.find(item => item.id === lessonId);
   if (!lesson || !lesson.previewUrl) {
     appAlert('This lesson has no valid PDF link yet.', { title: 'Lesson unavailable', danger: true });
     return;
   }
+  const currentProgress = getLessonProgress(lesson.id);
+  updateLessonProgress(lesson.id, {
+    startedAt: currentProgress.startedAt || Date.now(),
+    lastOpenedAt: Date.now(),
+    openCount: Math.max(0, Number(currentProgress.openCount || 0)) + 1
+  });
+  lessonLibraryState.currentLessonId = lesson.id;
+  lessonLibraryState.currentLessonOpenedAt = Date.now();
+  renderStudentLessonLibrary();
   if (lessonPdfTerm) lessonPdfTerm.textContent = `${lessonTermLabel(lesson.term)} · Lesson ${lesson.order}`;
   if (lessonPdfTitle) lessonPdfTitle.textContent = lesson.title;
   if (lessonPdfDescription) lessonPdfDescription.textContent = lesson.description || lesson.fileName || 'PDF lesson';
@@ -11533,6 +11718,7 @@ function openLessonPdfViewer(lessonId = '') {
     lessonPdfDownloadBtn.href = lesson.downloadUrl || lesson.openUrl || lesson.previewUrl;
     lessonPdfDownloadBtn.classList.toggle('hidden', !(lesson.downloadUrl || lesson.openUrl));
   }
+  syncLessonPdfProgressUi(lesson.id);
   lessonPdfLoading?.classList.remove('hidden', 'lesson-pdf-load-warning');
   if (lessonPdfLoading) lessonPdfLoading.innerHTML = '<span class="lesson-loading-spinner" aria-hidden="true"></span><strong>Opening PDF lesson...</strong><small>Large files may take a moment on slower connections.</small>';
   lessonPdfOverlay?.classList.remove('hidden');
@@ -11580,7 +11766,7 @@ function showLessonPdfFullscreenControls(options = {}) {
   clearLessonPdfControlsTimer();
   lessonPdfCard?.classList.remove('lesson-controls-hidden');
   if (!isDesktopLessonPdfFullscreen() || options.keepVisible) return;
-  lessonLibraryState.pdfControlsTimer = window.setTimeout(hideLessonPdfFullscreenControls, 3000);
+  lessonLibraryState.pdfControlsTimer = window.setTimeout(hideLessonPdfFullscreenControls, 2500);
 }
 
 function syncLessonPdfFullscreenUi() {
@@ -11595,6 +11781,8 @@ function syncLessonPdfFullscreenUi() {
 }
 
 function closeLessonPdfViewer() {
+  finishCurrentLessonReadingSession();
+  lessonLibraryState.currentLessonId = '';
   window.clearTimeout(lessonLibraryState.pdfLoadTimer);
   clearLessonPdfControlsTimer();
   lessonPdfOverlay?.classList.add('hidden');
@@ -15587,18 +15775,41 @@ lessonLibraryGrid?.addEventListener('click', event => {
   const button = event.target.closest('[data-lesson-open]');
   if (button) openLessonPdfViewer(button.dataset.lessonOpen || '');
 });
+lessonContinueBtn?.addEventListener('click', () => {
+  const lessonId = lessonContinueBtn.dataset.lessonContinue || '';
+  if (lessonId) openLessonPdfViewer(lessonId);
+});
 lessonPdfCloseBtn?.addEventListener('click', closeLessonPdfViewer);
+lessonPdfMarkDoneBtn?.addEventListener('click', () => {
+  const lessonId = lessonLibraryState.currentLessonId;
+  if (!lessonId) return;
+  updateLessonProgress(lessonId, { completedAt: Date.now(), lastOpenedAt: Date.now(), percent: 100 });
+  syncLessonPdfProgressUi(lessonId);
+  renderStudentLessonLibrary();
+  renderLessonContinueReading();
+});
 lessonPdfFullscreenBtn?.addEventListener('click', toggleLessonPdfFullscreen);
 lessonPdfCard?.addEventListener('pointermove', () => showLessonPdfFullscreenControls());
-lessonPdfWakeLayer?.addEventListener('pointermove', () => showLessonPdfFullscreenControls());
-lessonPdfWakeLayer?.addEventListener('pointerdown', () => showLessonPdfFullscreenControls());
+lessonPdfWakeLayer?.addEventListener('pointermove', () => {
+  showLessonPdfFullscreenControls();
+});
+lessonPdfWakeLayer?.addEventListener('pointerdown', event => {
+  event.preventDefault();
+  showLessonPdfFullscreenControls({ keepVisible: true });
+  window.setTimeout(() => showLessonPdfFullscreenControls(), 500);
+});
 lessonPdfWakeLayer?.addEventListener('wheel', () => showLessonPdfFullscreenControls(), { passive: true });
 lessonPdfHeader?.addEventListener('mouseenter', () => showLessonPdfFullscreenControls({ keepVisible: true }));
 lessonPdfHeader?.addEventListener('mouseleave', () => showLessonPdfFullscreenControls());
 document.addEventListener('fullscreenchange', syncLessonPdfFullscreenUi);
 document.addEventListener('webkitfullscreenchange', syncLessonPdfFullscreenUi);
-document.addEventListener('keydown', () => {
+document.addEventListener('keydown', event => {
+  if (!lessonPdfOverlay || lessonPdfOverlay.classList.contains('hidden')) return;
   if (isLessonPdfFullscreen()) showLessonPdfFullscreenControls();
+  if ((event.key === 'f' || event.key === 'F') && !event.ctrlKey && !event.metaKey && !event.altKey) {
+    event.preventDefault();
+    toggleLessonPdfFullscreen();
+  }
 });
 lessonPdfFrame?.addEventListener('load', () => {
   window.clearTimeout(lessonLibraryState.pdfLoadTimer);
@@ -15607,6 +15818,7 @@ lessonPdfFrame?.addEventListener('load', () => {
 lessonPdfOverlay?.addEventListener('click', event => {
   if (event.target === lessonPdfOverlay) event.stopPropagation();
 });
+window.addEventListener('beforeunload', finishCurrentLessonReadingSession);
 newProjectBtn?.addEventListener('click', () => openProjectNameDialog('create'));
 projectSearchInput?.addEventListener('input', renderStudentProjects);
 projectStatusFilter?.addEventListener('change', renderStudentProjects);

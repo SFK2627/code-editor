@@ -43,7 +43,7 @@
       document.documentElement.dataset.deviceMode = isPhone ? 'phone' : 'desktop';
     })();
   </script>
-  <link rel="stylesheet" href="style.css?v=20260725-step167-pdf-focus-fullscreen" />
+  <link rel="stylesheet" href="style.css?v=20260725-step168-immersive-pdf-fullscreen" />
 </head>
 <body class="entry-gate-active">
   <noscript>
@@ -225,6 +225,17 @@
         </div>
       </section>
 
+      <section id="lessonContinueCard" class="lesson-continue-card hidden" aria-label="Continue reading">
+        <div class="lesson-continue-icon" aria-hidden="true">📖</div>
+        <div class="lesson-continue-content">
+          <span class="lesson-library-eyebrow">Continue Reading</span>
+          <h3 id="lessonContinueTitle">Continue your lesson</h3>
+          <p id="lessonContinueMeta" class="muted-text">Pick up where you stopped.</p>
+          <div class="lesson-progress-track" aria-hidden="true"><span id="lessonContinueProgressBar"></span></div>
+        </div>
+        <button id="lessonContinueBtn" class="primary-btn" type="button">Continue</button>
+      </section>
+
       <section class="lesson-library-controls" aria-label="Lesson filters">
         <div id="lessonTermTabs" class="lesson-term-tabs" role="tablist" aria-label="Choose term">
           <button class="lesson-term-tab active" type="button" role="tab" aria-selected="true" data-lesson-term="term1">Term 1 <span data-term-count="term1">0</span></button>
@@ -257,9 +268,11 @@
             <div>
               <h2 id="lessonPdfTitle">Lesson</h2>
               <p id="lessonPdfDescription" class="muted-text"></p>
+              <p id="lessonPdfProgressText" class="lesson-pdf-progress-text">Not started yet</p>
             </div>
           </div>
           <div class="lesson-pdf-actions">
+            <button id="lessonPdfMarkDoneBtn" class="ghost-btn lesson-mark-done-btn" type="button">✓ Mark Done</button>
             <button id="lessonPdfFullscreenBtn" class="ghost-btn" type="button">⛶ Fullscreen</button>
             <a id="lessonPdfOpenBtn" class="ghost-btn lesson-link-btn" href="#" target="_blank" rel="noopener noreferrer">↗ Open</a>
             <a id="lessonPdfDownloadBtn" class="ghost-btn lesson-link-btn" href="#" target="_blank" rel="noopener noreferrer">⬇ Download</a>
@@ -1513,6 +1526,6 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
   <script src="firebase-config.js"></script>
-  <script src="script.js?v=20260725-step167-pdf-focus-fullscreen"></script>
+  <script src="script.js?v=20260725-step169-reading-progress"></script>
 </body>
 </html>

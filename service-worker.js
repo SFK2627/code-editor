@@ -1,13 +1,13 @@
-const CACHE_NAME = 'code-editor-20260725-step167-pdf-focus-fullscreen';
+const CACHE_NAME = 'code-editor-20260725-step169-reading-progress';
 const APP_SHELL = [
   './',
   './index.html',
-  './index.html?v=20260725-step167-pdf-focus-fullscreen',
-  './index.html?fresh=step167',
+  './index.html?v=20260725-step169-reading-progress',
+  './index.html?fresh=step169',
   './style.css',
-  './style.css?v=20260725-step167-pdf-focus-fullscreen',
+  './style.css?v=20260725-step169-reading-progress',
   './script.js',
-  './script.js?v=20260725-step167-pdf-focus-fullscreen',
+  './script.js?v=20260725-step169-reading-progress',
   './firebase-config.js',
   './manifest.webmanifest',
   './favicon.png',
