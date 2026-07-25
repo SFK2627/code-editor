@@ -5312,10 +5312,11 @@ function renderStudentProjects() {
       : 'Not scored';
     const recovery = getProjectRecoveryInfo(project);
     const teacherComment = getLatestTeacherCommentRecord(project);
-    const projectAlerts = [
-      recovery ? `<span class="project-alert-pill recovery">↻ Recovery backup</span>` : '',
-      teacherComment ? `<span class="project-alert-pill feedback">💬 Teacher feedback</span>` : ''
-    ].filter(Boolean).join('');
+    const projectAlertItems = [
+      recovery ? `<span class="project-alert-pill recovery" title="Recovery backup available"><span class="project-alert-icon" aria-hidden="true">↻</span><span class="project-alert-text project-alert-text-full">Recovery backup</span><span class="project-alert-text project-alert-text-short">Backup</span></span>` : '',
+      teacherComment ? `<span class="project-alert-pill feedback" title="Teacher feedback available"><span class="project-alert-icon" aria-hidden="true">💬</span><span class="project-alert-text project-alert-text-full">Teacher feedback</span><span class="project-alert-text project-alert-text-short">Feedback</span></span>` : ''
+    ].filter(Boolean);
+    const projectAlerts = projectAlertItems.join('');
     return `
       <article class="student-project-card" data-project-id="${escapeAttribute(project.id)}">
         <div class="project-card-top">
@@ -5324,7 +5325,7 @@ function renderStudentProjects() {
         </div>
         <h3>${escapeHTML(project.name || 'Untitled Project')}</h3>
         <p class="project-card-activity">${escapeHTML(project.activityTitle || 'Practice project')}</p>
-        ${projectAlerts ? `<div class="project-alert-row">${projectAlerts}</div>` : ''}
+        ${projectAlerts ? `<div class="project-alert-row${projectAlertItems.length > 1 ? ' has-multiple-alerts' : ''}">${projectAlerts}</div>` : ''}
         <div class="project-card-meta-row">
           <span class="project-card-meta project-card-edited">Last edited: ${escapeHTML(formatStudentDate(project.updatedAt, 'Not edited yet'))}</span>
           <span class="project-run-attempts" title="Run attempts" aria-label="Run attempts: ${Number(project.runCount || 0)}"><span class="project-run-label">Run attempts: </span><span class="project-run-icon" aria-hidden="true">▶</span><span class="project-run-count">${Number(project.runCount || 0)}</span></span>

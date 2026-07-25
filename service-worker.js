@@ -1,15 +1,13 @@
-const CACHE_NAME = 'code-editor-20260725-step164-lesson-viewer';
+const CACHE_NAME = 'code-editor-20260725-step166-responsive-alerts';
 const APP_SHELL = [
   './',
   './index.html',
-  './index.html?v=20260725-step164-lesson-viewer',
-  './index.html?fresh=step164',
+  './index.html?v=20260725-step166-responsive-alerts',
+  './index.html?fresh=step166',
   './style.css',
-  './style.css?v=20260725-step164-lesson-viewer',
-  './style.css?v=20260725-step164-lesson-viewer',
+  './style.css?v=20260725-step166-responsive-alerts',
   './script.js',
-  './script.js?v=20260725-step164-lesson-viewer',
-  './script.js?v=20260725-step164-lesson-viewer',
+  './script.js?v=20260725-step166-responsive-alerts',
   './firebase-config.js',
   './manifest.webmanifest',
   './favicon.png',
