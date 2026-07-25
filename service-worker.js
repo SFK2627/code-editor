@@ -1,13 +1,13 @@
-const CACHE_NAME = 'code-editor-20260725-step169-reading-progress';
+const CACHE_NAME = 'code-editor-20260725-step169b-lesson-optimization';
 const APP_SHELL = [
   './',
   './index.html',
-  './index.html?v=20260725-step169-reading-progress',
-  './index.html?fresh=step169',
+  './index.html?v=20260725-step169b-lesson-optimization',
+  './index.html?fresh=step169b',
   './style.css',
-  './style.css?v=20260725-step169-reading-progress',
+  './style.css?v=20260725-step169b-lesson-optimization',
   './script.js',
-  './script.js?v=20260725-step169-reading-progress',
+  './script.js?v=20260725-step169b-lesson-optimization',
   './firebase-config.js',
   './manifest.webmanifest',
   './favicon.png',

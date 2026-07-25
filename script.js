@@ -255,7 +255,7 @@ const lessonPdfOpenBtn = document.getElementById('lessonPdfOpenBtn');
 const lessonPdfDownloadBtn = document.getElementById('lessonPdfDownloadBtn');
 const lessonPdfCloseBtn = document.getElementById('lessonPdfCloseBtn');
 const lessonPdfLoading = document.getElementById('lessonPdfLoading');
-const lessonPdfFrame = document.getElementById('lessonPdfFrame');
+let lessonPdfFrame = document.getElementById('lessonPdfFrame');
 const lessonPdfWakeLayer = document.getElementById('lessonPdfWakeLayer');
 const lessonPdfHeader = lessonPdfCard?.querySelector('.lesson-pdf-header');
 
@@ -11242,6 +11242,9 @@ const lessonLibraryState = {
   driveTokenClient: null,
   pdfLoadTimer: null,
   pdfControlsTimer: null,
+  pdfFrameTimer: null,
+  renderTimer: null,
+  currentPdfRequestId: 0,
   currentLessonId: '',
   currentLessonOpenedAt: 0
 };
@@ -11373,6 +11376,76 @@ function setLessonDriveStatus(message = '', type = '') {
   if (!lessonDriveStatus) return;
   lessonDriveStatus.textContent = message;
   lessonDriveStatus.dataset.type = type;
+}
+
+function runLessonIdleTask(callback, delay = 60) {
+  if (typeof callback !== 'function') return 0;
+  if (typeof window.requestIdleCallback === 'function') {
+    return window.requestIdleCallback(callback, { timeout: Math.max(120, delay + 120) });
+  }
+  return window.setTimeout(callback, delay);
+}
+
+function cancelLessonIdleTask(id = 0) {
+  if (!id) return;
+  if (typeof window.cancelIdleCallback === 'function') window.cancelIdleCallback(id);
+  else window.clearTimeout(id);
+}
+
+function scheduleStudentLessonLibraryRender(delay = 80) {
+  window.clearTimeout(lessonLibraryState.renderTimer);
+  lessonLibraryState.renderTimer = window.setTimeout(() => {
+    lessonLibraryState.renderTimer = null;
+    renderStudentLessonLibrary();
+  }, Math.max(0, delay));
+}
+
+function handleLessonPdfFrameLoad() {
+  window.clearTimeout(lessonLibraryState.pdfLoadTimer);
+  lessonPdfLoading?.classList.add('hidden');
+}
+
+function bindLessonPdfFrameLoadHandler() {
+  lessonPdfFrame?.removeEventListener('load', handleLessonPdfFrameLoad);
+  lessonPdfFrame?.addEventListener('load', handleLessonPdfFrameLoad);
+}
+
+function resetLessonPdfFrame(options = {}) {
+  cancelLessonIdleTask(lessonLibraryState.pdfFrameTimer);
+  lessonLibraryState.pdfFrameTimer = null;
+  lessonLibraryState.currentPdfRequestId += 1;
+  if (!lessonPdfFrame) return;
+  try {
+    lessonPdfFrame.dataset.lessonSrc = '';
+    lessonPdfFrame.removeAttribute('src');
+    lessonPdfFrame.src = 'about:blank';
+  } catch (error) {
+    console.warn('Could not reset lesson PDF frame.', error);
+  }
+  if (options.hard && lessonPdfFrame.parentNode) {
+    const freshFrame = lessonPdfFrame.cloneNode(false);
+    freshFrame.removeAttribute('src');
+    freshFrame.dataset.lessonSrc = '';
+    lessonPdfFrame.replaceWith(freshFrame);
+    lessonPdfFrame = freshFrame;
+    bindLessonPdfFrameLoadHandler();
+  }
+}
+
+function loadLessonPdfFrame(url = '') {
+  const pdfUrl = String(url || '').trim();
+  if (!pdfUrl || !lessonPdfFrame) return;
+  resetLessonPdfFrame();
+  const requestId = lessonLibraryState.currentPdfRequestId;
+  lessonPdfLoading?.classList.remove('hidden', 'lesson-pdf-load-warning');
+  requestAnimationFrame(() => {
+    lessonLibraryState.pdfFrameTimer = runLessonIdleTask(() => {
+      if (requestId !== lessonLibraryState.currentPdfRequestId) return;
+      if (!lessonPdfFrame || !lessonPdfOverlay || lessonPdfOverlay.classList.contains('hidden')) return;
+      lessonPdfFrame.dataset.lessonSrc = pdfUrl;
+      lessonPdfFrame.src = pdfUrl;
+    }, 40);
+  });
 }
 
 
@@ -11618,6 +11691,16 @@ async function loadLessonLibrary(options = {}) {
   lessonLibraryState.loading = true;
   setLessonLibraryStatus('Loading lessons...', 'loading');
   if (lessonAdminListStatus) lessonAdminListStatus.textContent = 'Loading lessons...';
+  if (!options.force && !lessonLibraryState.loaded) {
+    const cached = loadLessonLibraryCache();
+    if (cached.length) {
+      lessonLibraryState.lessons = cached;
+      lessonLibraryState.loaded = true;
+      renderStudentLessonLibrary();
+      renderAdminLessonList();
+      setLessonLibraryStatus('Showing saved lessons · refreshing in background...', 'warning');
+    }
+  }
   try {
     const ready = await initFirebaseSync();
     if (!ready) throw new Error(firebaseSync.lastError || 'Could not connect to Firebase.');
@@ -11724,10 +11807,7 @@ function openLessonPdfViewer(lessonId = '') {
   lessonPdfOverlay?.classList.remove('hidden');
   document.body.classList.add('lesson-pdf-open');
   window.clearTimeout(lessonLibraryState.pdfLoadTimer);
-  if (lessonPdfFrame) {
-    lessonPdfFrame.src = 'about:blank';
-    requestAnimationFrame(() => { lessonPdfFrame.src = lesson.previewUrl; });
-  }
+  loadLessonPdfFrame(lesson.previewUrl);
   lessonLibraryState.pdfLoadTimer = window.setTimeout(() => {
     if (!lessonPdfLoading || lessonPdfLoading.classList.contains('hidden')) return;
     lessonPdfLoading.classList.add('lesson-pdf-load-warning');
@@ -11788,7 +11868,7 @@ function closeLessonPdfViewer() {
   lessonPdfOverlay?.classList.add('hidden');
   document.body.classList.remove('lesson-pdf-open');
   lessonPdfCard?.classList.remove('lesson-controls-hidden', 'lesson-native-fullscreen');
-  if (lessonPdfFrame) lessonPdfFrame.src = 'about:blank';
+  resetLessonPdfFrame({ hard: true });
   if (isLessonPdfFullscreen()) {
     const exitFullscreen = document.exitFullscreen || document.webkitExitFullscreen;
     if (exitFullscreen) Promise.resolve(exitFullscreen.call(document)).catch(() => {});
@@ -15763,7 +15843,7 @@ dashboardOpenLessonsBtn?.addEventListener('click', () => openLessonLibrary('dash
 lessonLibraryThemeBtn?.addEventListener('click', () => themeToggle?.click());
 lessonLibraryBackBtn?.addEventListener('click', closeLessonLibrary);
 lessonLibraryRefreshBtn?.addEventListener('click', () => loadLessonLibrary({ force: true }));
-lessonLibrarySearch?.addEventListener('input', renderStudentLessonLibrary);
+lessonLibrarySearch?.addEventListener('input', () => scheduleStudentLessonLibraryRender(90));
 lessonLibrarySort?.addEventListener('change', renderStudentLessonLibrary);
 lessonTermTabs?.addEventListener('click', event => {
   const button = event.target.closest('[data-lesson-term]');
@@ -15811,10 +15891,7 @@ document.addEventListener('keydown', event => {
     toggleLessonPdfFullscreen();
   }
 });
-lessonPdfFrame?.addEventListener('load', () => {
-  window.clearTimeout(lessonLibraryState.pdfLoadTimer);
-  lessonPdfLoading?.classList.add('hidden');
-});
+bindLessonPdfFrameLoadHandler();
 lessonPdfOverlay?.addEventListener('click', event => {
   if (event.target === lessonPdfOverlay) event.stopPropagation();
 });
