@@ -1,4 +1,4 @@
-const CACHE_NAME = 'code-editor-20260725-step190-fast-smart-result-step190';
+const CACHE_NAME = 'code-editor-20260725-step191-quota-friendly-smart-result';
 const APP_SHELL = [
   './',
   './index.html',

@@ -903,6 +903,8 @@ let lastRubricResult = null;
 let aiReviewController = null;
 let smartResultRequestId = 0;
 const smartResultMemoryCache = new Map();
+let smartResultCooldownUntil = 0;
+let smartResultCooldownReason = '';
 let isRestoringEditorHistory = false;
 let returnToFullEditorAfterPreview = false;
 let previewTransitionTimer = null;
@@ -11741,12 +11743,12 @@ function buildStudentAiRubricScoringPrompt(localResult = null) {
       title: item.title,
       detail: item.detail,
       fix: item.fix || ''
-    })).slice(0, 15),
+    })).slice(0, 8),
     outputSummary: collectStudentOutputSummaryForAi(),
     code: {
-      html: getShortCodeSample(codeStore.html, 5000),
-      css: getShortCodeSample(codeStore.css, 5000),
-      js: getShortCodeSample(codeStore.js, 5000)
+      html: getShortCodeSample(codeStore.html, 2600),
+      css: getShortCodeSample(codeStore.css, 2600),
+      js: getShortCodeSample(codeStore.js, 1800)
     }
   };
   const style = aiRubricSettings.reviewStyle || 'balanced';
@@ -11847,7 +11849,7 @@ async function callGeminiStudentRubricScoring(localResult = null, { signal } = {
   if (!shouldUseGeminiForResultFeedback(settings)) throw new Error('Smart Result Feedback is not enabled or API key is missing.');
   const raw = await callGeminiJson(settings, buildStudentAiRubricScoringPrompt(localResult), {
     signal,
-    maxOutputTokens: 3072,
+    maxOutputTokens: 1536,
     temperature: 0
   });
   return buildResultFromAiRubricReview(raw, localResult);
@@ -11887,14 +11889,37 @@ function buildSmartResultCacheKey() {
   }));
 }
 
+function getSmartReviewCooldownSeconds() {
+  const remaining = Math.ceil((smartResultCooldownUntil - Date.now()) / 1000);
+  return Math.max(0, remaining);
+}
+
+function extractRetryDelaySeconds(error) {
+  const detailText = [error?.message, error?.geminiDetail?.message, error?.geminiDetail?.raw].filter(Boolean).join(' ');
+  const retryMatch = String(detailText || '').match(/retry\s+in\s+([0-9]+(?:\.[0-9]+)?)s/i);
+  if (retryMatch) return Math.ceil(Number(retryMatch[1]) || 30);
+  const quotaMatch = String(detailText || '').match(/quota|rate\s*limit|429/i);
+  return quotaMatch ? 60 : 0;
+}
+
+function applySmartReviewCooldown(error) {
+  const status = Number(error?.status || error?.geminiDetail?.status || 0);
+  const delaySeconds = status === 429 ? Math.max(30, extractRetryDelaySeconds(error) || 60) : 0;
+  if (!delaySeconds) return 0;
+  smartResultCooldownUntil = Date.now() + (delaySeconds * 1000) + 2000;
+  smartResultCooldownReason = 'review-limit';
+  return delaySeconds;
+}
+
 function makeFastLocalResult(localResult, status = 'pending', detail = '') {
   const isPending = status === 'pending';
   return {
     ...localResult,
     source: isPending ? 'local-pending' : 'local-fallback',
-    feedback: isPending
-      ? `${localResult.feedback} A deeper smart review is still checking the rubric, code, and visible output in the background.`
-      : `${localResult.feedback} The deeper smart review was unavailable, so this local rubric result was kept. ${detail || ''}`.trim()
+    smartReviewStatus: status,
+    smartReviewDetail: detail || '',
+    // Keep the student feedback clean. Technical service errors belong in the small system note, not in the feedback paragraph.
+    feedback: localResult.feedback
   };
 }
 
@@ -11930,12 +11955,14 @@ async function runSmartResultInBackground(localResult, requestId, cacheKey) {
   } catch (error) {
     console.warn('Smart result scoring failed; keeping fast local result.', error);
     if (requestId !== smartResultRequestId) return;
-    const fallbackResult = makeFastLocalResult(localResult, 'fallback', error?.message || '');
+    const cooldownSeconds = applySmartReviewCooldown(error);
+    const fallbackStatus = cooldownSeconds ? 'cooldown' : 'fallback';
+    const fallbackResult = makeFastLocalResult(localResult, fallbackStatus, cooldownSeconds ? String(cooldownSeconds) : '');
     lastRubricResult = fallbackResult;
     renderResult(fallbackResult);
-    saveCurrentStudentProject({ result: fallbackResult, immediate: true, reason: 'result-fallback' });
+    saveCurrentStudentProject({ result: fallbackResult, immediate: true, reason: cooldownSeconds ? 'result-limit-fallback' : 'result-fallback' });
     saveSubmissionToCloud(fallbackResult);
-    setStatus(`Score ${formatPoints(fallbackResult.score)}/${formatPoints(fallbackResult.possible)}`);
+    setStatus(cooldownSeconds ? `Quick score kept. Smart review paused for about ${cooldownSeconds}s.` : `Score ${formatPoints(fallbackResult.score)}/${formatPoints(fallbackResult.possible)}`);
   }
 }
 
@@ -12028,12 +12055,14 @@ function renderResult(result) {
     .slice(0, 4)
     .map(item => `${item.title}: ${item.improvement || item.levelDescription || 'Improve this criterion.'}`);
   const confidenceLine = isSmart
-    ? `<p class="muted-text smart-result-note">Smart Review compared the rubric, code, checker hints, and visible output summary. Confidence: ${escapeHTML(result.aiConfidence || 'medium')}.</p>`
+    ? `<p class="muted-text smart-result-note">Smart review compared the rubric, code, checker hints, and visible output summary. Confidence: ${escapeHTML(result.aiConfidence || 'medium')}.</p>`
     : isPendingSmart
-      ? `<p class="muted-text smart-result-note smart-result-pending">Quick result is shown now. Smart Review is still checking in the background and will update this score automatically.</p>`
+      ? `<p class="muted-text smart-result-note smart-result-pending">Quick result is shown now. Smart review is checking in the background and will update this score automatically.</p>`
       : isFallbackSmart
-        ? `<p class="muted-text smart-result-note">Local rubric fallback was kept because Smart Review was unavailable.</p>`
-        : `<p class="muted-text smart-result-note">Local rubric fallback was used. Turn on Smart Review for deeper criterion judgement.</p>`;
+        ? result.smartReviewStatus === 'cooldown'
+          ? `<p class="muted-text smart-result-note">Quick local result is shown. Smart review is temporarily paused to avoid the request limit. Try again in about ${escapeHTML(String(getSmartReviewCooldownSeconds() || result.smartReviewDetail || 30))}s.</p>`
+          : `<p class="muted-text smart-result-note">Quick local result is shown. Smart review is temporarily unavailable, so no technical error was added to the feedback.</p>`
+        : `<p class="muted-text smart-result-note">Local rubric result was used. Turn on Smart Review for deeper criterion judgement.</p>`;
   const warnings = isSmart && Array.isArray(result.aiWarnings) && result.aiWarnings.length
     ? `<div class="result-warning-note"><strong>Review note:</strong> ${escapeHTML(result.aiWarnings.join(' '))}</div>`
     : '';
@@ -12106,8 +12135,10 @@ async function showResult(options = {}) {
   }
 
   runCode(false, { scroll: false });
-  const useGemini = shouldUseGeminiForResultFeedback(getCurrentAiRubricSettings());
-  setStatus(useGemini ? 'Preparing quick result...' : 'Checking rubric...');
+  const wantsGemini = shouldUseGeminiForResultFeedback(getCurrentAiRubricSettings());
+  const cooldownSecondsBeforeRun = getSmartReviewCooldownSeconds();
+  const useGemini = wantsGemini && cooldownSecondsBeforeRun <= 0;
+  setStatus(useGemini ? 'Preparing quick result...' : wantsGemini ? `Quick result only. Smart review can retry in about ${cooldownSecondsBeforeRun}s.` : 'Checking rubric...');
 
   try {
     await new Promise(resolve => window.setTimeout(resolve, 120));
@@ -12115,6 +12146,22 @@ async function showResult(options = {}) {
     if (!localResult) return;
 
     const requestId = ++smartResultRequestId;
+
+    if (wantsGemini && !useGemini) {
+      const cooldownResult = makeFastLocalResult(localResult, 'cooldown', String(cooldownSecondsBeforeRun || getSmartReviewCooldownSeconds() || 30));
+      lastRubricResult = cooldownResult;
+      renderResult(cooldownResult);
+      resetAIReviewPanel();
+      saveCurrentStudentProject({ result: cooldownResult, immediate: true, reason: 'result-cooldown' });
+      saveSubmissionToCloud(cooldownResult);
+      setStatus(`Quick score shown. Smart review can retry in about ${getSmartReviewCooldownSeconds()}s.`);
+      if (shouldUsePhoneResultFeedbackPopup(safeOptions)) {
+        openPhoneResultFeedbackPopup('result');
+      } else {
+        scrollElementIntoSafeView(resultPanel);
+      }
+      return;
+    }
 
     if (useGemini) {
       const cacheKey = buildSmartResultCacheKey();
