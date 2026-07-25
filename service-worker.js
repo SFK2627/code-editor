@@ -1,4 +1,4 @@
-const CACHE_NAME = 'code-editor-20260725-step191-quota-friendly-smart-result';
+const CACHE_NAME = 'code-editor-20260725-step192-smarter-local-rubric-judge';
 const APP_SHELL = [
   './',
   './index.html',

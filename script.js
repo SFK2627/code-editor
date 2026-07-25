@@ -8969,6 +8969,168 @@ function isCompleteHTMLStructure() {
 }
 
 
+function getHTMLSourceQualityReport() {
+  const html = codeStore.html || '';
+  const lower = html.toLowerCase();
+  const structure = getHTMLStructureReport();
+  const findIndex = pattern => {
+    const match = pattern.exec(lower);
+    return match ? match.index : -1;
+  };
+
+  const doctypeIndex = findIndex(/<!doctype\s+html\s*>/i);
+  const htmlOpenIndex = findIndex(/<html\b/i);
+  const headOpenIndex = findIndex(/<head\b/i);
+  const headCloseIndex = findIndex(/<\/head\s*>/i);
+  const titleIndex = findIndex(/<title\b/i);
+  const bodyOpenIndex = findIndex(/<body\b/i);
+  const bodyCloseIndex = findIndex(/<\/body\s*>/i);
+  const htmlCloseIndex = findIndex(/<\/html\s*>/i);
+
+  const bodyMatch = html.match(/<body\b[^>]*>([\s\S]*?)<\/body\s*>/i);
+  const bodyContent = bodyMatch ? bodyMatch[1] : '';
+  const visibleBodyText = bodyContent
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  const betweenHeadAndBody = headCloseIndex >= 0
+    ? html.slice(headCloseIndex + (html.match(/<\/head\s*>/i)?.[0]?.length || 7), bodyOpenIndex >= 0 ? bodyOpenIndex : (bodyCloseIndex >= 0 ? bodyCloseIndex : html.length))
+    : '';
+  const headContent = headOpenIndex >= 0 && headCloseIndex > headOpenIndex ? html.slice(headOpenIndex, headCloseIndex) : '';
+  const visibleTagsInHead = /<(h[1-6]|p|img|a|button|ul|ol|li|div|section|main|header|footer|nav)\b/i.test(headContent);
+  const visibleTagsOutsideBody = /<(h[1-6]|p|img|a|button|ul|ol|li|div|section|main|header|footer|nav)\b/i.test(betweenHeadAndBody);
+  const textOutsideBody = betweenHeadAndBody
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const tagErrors = getDetailedHTMLTagIssues(html || '').filter(issue => issue.severity === 'error');
+
+  const orderChecks = [];
+  if (doctypeIndex >= 0 && htmlOpenIndex >= 0) orderChecks.push(doctypeIndex <= htmlOpenIndex);
+  if (htmlOpenIndex >= 0 && headOpenIndex >= 0) orderChecks.push(htmlOpenIndex <= headOpenIndex);
+  if (headOpenIndex >= 0 && headCloseIndex >= 0) orderChecks.push(headOpenIndex < headCloseIndex);
+  if (titleIndex >= 0 && headOpenIndex >= 0 && headCloseIndex >= 0) orderChecks.push(titleIndex > headOpenIndex && titleIndex < headCloseIndex);
+  if (headCloseIndex >= 0 && bodyOpenIndex >= 0) orderChecks.push(headCloseIndex < bodyOpenIndex);
+  if (bodyOpenIndex >= 0 && bodyCloseIndex >= 0) orderChecks.push(bodyOpenIndex < bodyCloseIndex);
+  if (bodyCloseIndex >= 0 && htmlCloseIndex >= 0) orderChecks.push(bodyCloseIndex < htmlCloseIndex);
+
+  const orderProgress = orderChecks.length ? orderChecks.filter(Boolean).length / orderChecks.length : 0;
+  const requiredProgress = structure.checks.filter(item => item.passed).length / Math.max(1, structure.checks.length);
+  const bodyProgress = bodyOpenIndex >= 0 && bodyCloseIndex >= 0
+    ? (visibleBodyText.length >= 10 ? 1 : visibleBodyText.length ? 0.7 : 0.35)
+    : 0;
+  const placementProgress = (visibleTagsInHead || visibleTagsOutsideBody || (textOutsideBody && bodyOpenIndex < 0)) ? 0.25 : 1;
+  const balanceProgress = getBalancedTagProgress(html);
+
+  let progress = weightedProgress([
+    { value: requiredProgress, weight: 2.2 },
+    { value: orderProgress, weight: 1.4 },
+    { value: bodyProgress, weight: 2.4 },
+    { value: placementProgress, weight: 1.8 },
+    { value: balanceProgress, weight: 1.4 }
+  ]);
+
+  // Critical source mistakes should not still receive a strong score just because the browser renders something.
+  if (bodyOpenIndex < 0 || bodyCloseIndex < 0) progress = Math.min(progress, 0.58);
+  if (headCloseIndex >= 0 && bodyOpenIndex < 0 && (visibleTagsOutsideBody || textOutsideBody)) progress = Math.min(progress, 0.48);
+  if (visibleTagsInHead) progress = Math.min(progress, 0.55);
+  if (tagErrors.length) progress = Math.min(progress, 0.62);
+
+  const issues = [];
+  if (bodyOpenIndex < 0) issues.push('Missing opening <body> tag. Visible content should be inside <body>...</body>.');
+  if (bodyCloseIndex < 0) issues.push('Missing closing </body> tag.');
+  if (visibleTagsOutsideBody || (textOutsideBody && bodyOpenIndex < 0)) issues.push('Some visible page content is outside the body section.');
+  if (visibleTagsInHead) issues.push('Visible content tags should not be placed inside the head section.');
+  if (orderProgress < 1) issues.push('Some main HTML sections are not in the correct order.');
+  if (tagErrors.length) issues.push('Some HTML tags are not properly paired.');
+
+  return {
+    progress: clamp01(progress),
+    issues,
+    hasBodyOpen: bodyOpenIndex >= 0,
+    hasBodyClose: bodyCloseIndex >= 0,
+    hasVisibleBodyContent: visibleBodyText.length > 0,
+    visibleBodyTextLength: visibleBodyText.length,
+    visibleTagsOutsideBody,
+    visibleTagsInHead,
+    orderProgress,
+    requiredProgress,
+    placementProgress,
+    bodyProgress,
+    tagErrors
+  };
+}
+
+function getStrictHTMLStructureProgress() {
+  return getHTMLSourceQualityReport().progress;
+}
+
+function getLocalCriterionEvidence(criterion, progress) {
+  const text = getCriterionRubricText(criterion).toLowerCase();
+  const html = codeStore.html || '';
+  const css = codeStore.css || '';
+  const js = codeStore.js || '';
+  const basics = getCodeBasicsProgress();
+  const sourceQuality = getHTMLSourceQualityReport();
+  const cssProperties = countMatches(css, /[a-z-]+\s*:/gi);
+  const outputText = getOutputText().trim();
+  const title = String(criterion?.title || '').toLowerCase();
+  const combined = `${title} ${text}`;
+  const issues = [];
+  const evidence = [];
+
+  if (sourceQuality.issues.length) issues.push(...sourceQuality.issues.slice(0, 2));
+
+  if (includesAnyText(combined, [/html structure|structure|doctype|head|body|title|semantic|formatting|elements?/])) {
+    const report = getHTMLStructureReport();
+    const missing = report.missing.map(item => item.label);
+    if (!missing.length && sourceQuality.progress >= 0.9) evidence.push('The required document sections are present and in the correct order.');
+    if (missing.length) issues.push(`Missing or misplaced required structure: ${missing.slice(0, 3).join(', ')}.`);
+    if (/<h[1-6]\b/i.test(html)) evidence.push('A heading element is present.');
+    if (/<p\b/i.test(html)) evidence.push('A paragraph element is present.');
+  }
+
+  if (includesAnyText(combined, [/content|organization|visible text|readable|webpage|page/])) {
+    if (outputText.length >= 40) evidence.push('The output shows readable visible text.');
+    else if (outputText.length >= 5) evidence.push('The output has visible text, but it is still short.');
+    else issues.push('The rendered output has little or no visible text.');
+    if (!sourceQuality.hasVisibleBodyContent) issues.push('Visible content is not properly placed inside the body section.');
+  }
+
+  if (includesAnyText(combined, [/css|style|design|presentation|formatting|spacing|color|layout/])) {
+    if (css.trim()) evidence.push(`CSS is present with ${cssProperties} detected propert${cssProperties === 1 ? 'y' : 'ies'}.`);
+    else issues.push('No CSS styling was found.');
+    if (cssProperties > 0 && cssProperties < 3) issues.push('The styling is still limited; add more meaningful CSS properties.');
+  }
+
+  if (includesAnyText(combined, [/javascript|script|interactive|event|button|function/])) {
+    if (js.trim() || /onclick\s*=/i.test(html)) evidence.push('A script or inline event was detected.');
+    else issues.push('No JavaScript interaction was detected.');
+  }
+
+  if (!evidence.length) {
+    if (progress >= 0.9) evidence.push('The work strongly matches this rubric item.');
+    else if (progress >= 0.65) evidence.push('The work partially matches this rubric item.');
+    else evidence.push('Only limited evidence was found for this rubric item.');
+  }
+
+  let improvement = '';
+  if (issues.length) improvement = issues[0];
+  else if (progress < 0.9) improvement = 'Add more complete details and polish this part to reach the Excellent level.';
+  else improvement = 'Continue polishing readability and consistency.';
+
+  return {
+    evidence: evidence.slice(0, 2).join(' '),
+    improvement
+  };
+}
+
+
 function hasBalancedHTMLTags(html) {
   const issues = getDetailedHTMLTagIssues(html || '');
   return !issues.some(issue => issue.severity === 'error');
@@ -10962,8 +11124,7 @@ function checkCriterion(criterion) {
 }
 
 function getHTMLStructureProgress() {
-  const report = getHTMLStructureReport();
-  return report.checks.length ? report.checks.filter(item => item.passed).length / report.checks.length : 0;
+  return getStrictHTMLStructureProgress();
 }
 
 function getBalancedTagProgress(html) {
@@ -11042,12 +11203,21 @@ function getCodeBasicsProgress() {
   const previewDoc = getPreviewDocument();
   const hasRuntimeError = Boolean(previewDoc?.body?.dataset?.runtimeError);
   const bodyTextLength = getOutputText().trim().length;
+  const sourceQuality = getHTMLSourceQualityReport();
+  const visibleTextBase = bodyTextLength >= 80 ? 1 : bodyTextLength >= 40 ? 0.85 : bodyTextLength >= 15 ? 0.6 : bodyTextLength >= 3 ? 0.35 : 0;
+  const visibleText = sourceQuality.hasBodyOpen && sourceQuality.hasVisibleBodyContent
+    ? visibleTextBase
+    : Math.min(visibleTextBase, sourceQuality.hasBodyOpen ? 0.55 : 0.42);
 
   return {
-    htmlStructure: getHTMLStructureProgress(),
+    htmlStructure: sourceQuality.progress,
     balancedTags: getBalancedTagProgress(html),
     semanticTags: getSemanticTagProgress(html),
-    visibleText: bodyTextLength >= 80 ? 1 : bodyTextLength >= 40 ? 0.85 : bodyTextLength >= 15 ? 0.6 : bodyTextLength >= 3 ? 0.35 : 0,
+    visibleText,
+    rawVisibleText: visibleTextBase,
+    sourceQuality: sourceQuality.progress,
+    bodyPlacement: sourceQuality.placementProgress,
+    bodyContent: sourceQuality.bodyProgress,
     effort: Math.min(1, combinedLength / 180),
     noRuntimeError: hasRuntimeError ? 0 : 1
   };
@@ -11056,20 +11226,25 @@ function getCodeBasicsProgress() {
 function getHTMLContentSmartProgress(text) {
   const html = codeStore.html || '';
   const outputText = getOutputText();
+  const sourceQuality = getHTMLSourceQualityReport();
   const elementChecks = [];
 
-  if (includesAnyText(text, [/heading|title heading|\bh[1-6]\b/])) elementChecks.push(/<h[1-6](\s|>|\/)/i.test(html) || Boolean(queryPreview('h1, h2, h3, h4, h5, h6')) ? 1 : 0);
-  if (includesAnyText(text, [/paragraph|\bp\s*tag|\bp\b/])) elementChecks.push(/<p(\s|>|\/)/i.test(html) || Boolean(queryPreview('p')) ? 1 : 0);
-  if (includesAnyText(text, [/image|picture|photo|\bimg\b/])) elementChecks.push(/<img(\s|>|\/)/i.test(html) || Boolean(queryPreview('img')) ? 1 : 0);
-  if (includesAnyText(text, [/link|anchor|hyperlink|\ba\s*tag/])) elementChecks.push(/<a(\s|>|\/)/i.test(html) || Boolean(queryPreview('a')) ? 1 : 0);
-  if (includesAnyText(text, [/button|clickable/])) elementChecks.push(/<button(\s|>|\/)/i.test(html) || Boolean(queryPreview('button')) ? 1 : 0);
-  if (includesAnyText(text, [/list|bullet|numbered|\bul\b|\bol\b|\bli\b/])) elementChecks.push(/<(ul|ol)(\s|>|\/)/i.test(html) || Boolean(queryPreview('ul, ol')) ? 1 : 0);
+  const sourceHas = selectorRegex => selectorRegex.test(html) && sourceQuality.hasBodyOpen && !sourceQuality.visibleTagsInHead;
+  if (includesAnyText(text, [/heading|title heading|\bh[1-6]\b/])) elementChecks.push(sourceHas(/<h[1-6](\s|>|\/)/i) || Boolean(queryPreview('h1, h2, h3, h4, h5, h6')) && sourceQuality.hasBodyOpen ? 1 : 0);
+  if (includesAnyText(text, [/paragraph|\bp\s*tag|\bp\b/])) elementChecks.push(sourceHas(/<p(\s|>|\/)/i) || Boolean(queryPreview('p')) && sourceQuality.hasBodyOpen ? 1 : 0);
+  if (includesAnyText(text, [/image|picture|photo|\bimg\b/])) elementChecks.push(sourceHas(/<img(\s|>|\/)/i) || Boolean(queryPreview('img')) && sourceQuality.hasBodyOpen ? 1 : 0);
+  if (includesAnyText(text, [/link|anchor|hyperlink|\ba\s*tag/])) elementChecks.push(sourceHas(/<a(\s|>|\/)/i) || Boolean(queryPreview('a')) && sourceQuality.hasBodyOpen ? 1 : 0);
+  if (includesAnyText(text, [/button|clickable/])) elementChecks.push(sourceHas(/<button(\s|>|\/)/i) || Boolean(queryPreview('button')) && sourceQuality.hasBodyOpen ? 1 : 0);
+  if (includesAnyText(text, [/list|bullet|numbered|\bul\b|\bol\b|\bli\b/])) elementChecks.push(sourceHas(/<(ul|ol)(\s|>|\/)/i) || Boolean(queryPreview('ul, ol')) && sourceQuality.hasBodyOpen ? 1 : 0);
 
   if (!elementChecks.length) {
     elementChecks.push(outputText.trim().length >= 15 ? 1 : outputText.trim().length >= 3 ? 0.5 : 0);
   }
 
-  return averageProgress(elementChecks);
+  let progress = averageProgress(elementChecks);
+  if (!sourceQuality.hasBodyOpen || sourceQuality.visibleTagsOutsideBody || sourceQuality.visibleTagsInHead) progress = Math.min(progress, 0.62);
+  if (!sourceQuality.hasVisibleBodyContent) progress = Math.min(progress, 0.55);
+  return progress;
 }
 
 function getCSSSmartProgress(text) {
@@ -11141,8 +11316,9 @@ function getInstructionSmartProgress(text) {
   const wantsSemantic = includesAnyText(text, [/semantic|header|nav|main|section|article|aside|footer/]);
 
   const items = [
-    { value: basics.htmlStructure, weight: 2 },
+    { value: basics.htmlStructure, weight: 2.5 },
     { value: basics.balancedTags, weight: 1.5 },
+    { value: basics.bodyPlacement, weight: 1.4 },
     { value: basics.visibleText, weight: 1.5 },
     { value: basics.effort, weight: 1 },
     { value: basics.noRuntimeError, weight: 1 }
@@ -11168,6 +11344,7 @@ function getSmartCriterionProgress(criterion) {
   const wantsCSS = includesAnyText(text, [/css|style|styling|technical application|visual appeal|design|presentation|layout|aesthetic|consistent design|readability|creative|polish|color|background|font|spacing|border|broken layout/]);
   const wantsJS = includesAnyText(text, [/javascript|script|event listener|onclick|interaction|interactive|click event|button action|function|dom|textcontent|innerhtml|classlist/]);
   const wantsOutput = includesAnyText(text, [/visible text|readable content|content shown|output text|informative page|difficult to read|easy to read|webpage|page/]);
+  const wantsFormattingElements = includesAnyText(text, [/formatting|elements?|heading|paragraph|image|picture|link|anchor|list|button|required tags?|uses.*tags?/]);
 
   // Specific requirements first.
   if (wantsSemantic && wantsCompleteStructure) {
@@ -11204,6 +11381,15 @@ function getSmartCriterionProgress(criterion) {
   }
 
   if (wantsJS) return getJavaScriptSmartProgress(text);
+
+  if (wantsFormattingElements && !wantsCSS) {
+    return weightedProgress([
+      { value: getHTMLContentSmartProgress(text), weight: 2.2 },
+      { value: basics.htmlStructure, weight: 1.5 },
+      { value: basics.balancedTags, weight: 1 },
+      { value: basics.visibleText, weight: 0.8 }
+    ]);
+  }
 
   if (wantsCSS && includesAnyText(text, [/design|presentation|visual|aesthetic|creative|readability|layout|polish|sloppy|unfinished/])) {
     return getDesignPresentationSmartProgress(text);
@@ -11296,6 +11482,7 @@ function gradeCriterion(criterion) {
   const levelKey = progressToLevelKey(progress);
   const level = getCriterionLevel(normalizedCriterion, levelKey);
   const possible = getCriterionPossiblePoints(normalizedCriterion);
+  const localJudgement = getLocalCriterionEvidence(normalizedCriterion, progress);
 
   return {
     ...normalizedCriterion,
@@ -11303,6 +11490,8 @@ function gradeCriterion(criterion) {
     levelKey,
     levelLabel: level.label || rubricLevels.find(item => item.key === levelKey)?.label || levelKey,
     levelDescription: level.description || '',
+    evidence: localJudgement.evidence,
+    improvement: localJudgement.improvement,
     passed: levelKey === 'excellent' || levelKey === 'good',
     earned: Math.max(0, Number(level.points) || 0),
     points: possible
@@ -11334,29 +11523,32 @@ function formatPoints(value) {
 }
 
 function generateFeedback(score, possible, percent, results) {
-  const missing = results.filter(item => item.levelKey === 'needsImprovement' || item.levelKey === 'fair').map(item => `${item.title} (${item.levelLabel})`);
-  const achieved = results.filter(item => item.levelKey === 'excellent' || item.levelKey === 'good').map(item => `${item.title} (${item.levelLabel})`);
+  const missingItems = results.filter(item => item.levelKey === 'needsImprovement' || item.levelKey === 'fair');
+  const achievedItems = results.filter(item => item.levelKey === 'excellent' || item.levelKey === 'good');
+  const sourceQuality = getHTMLSourceQualityReport();
 
   let opening = '';
   if (percent >= 90) {
-    opening = 'Excellent work! Your webpage meets almost all rubric requirements and shows strong beginner coding skills.';
+    opening = 'Excellent work! Your webpage strongly matches the rubric.';
   } else if (percent >= 75) {
-    opening = 'Good job! Your output is on the right track. A few improvements can make it stronger.';
+    opening = 'Good work. The page shows progress, but the local checker found some areas to polish.';
   } else if (percent >= 60) {
-    opening = 'You are getting there. Review the missing criteria and improve your code before submitting.';
+    opening = 'You are getting there. Some important rubric requirements still need improvement.';
   } else {
-    opening = 'Keep practicing. Start by completing the full HTML structure, then add clear visible content inside the body.';
+    opening = 'Keep practicing. Fix the main structure first, then improve the visible content and design.';
   }
 
-  const strengths = achieved.length
-    ? `You successfully completed: ${achieved.slice(0, 3).join(', ')}${achieved.length > 3 ? ', and more' : ''}.`
-    : 'No rubric item was completed yet, so begin with the activity instructions.';
+  const structureWarning = sourceQuality.issues.length
+    ? `Main issue: ${sourceQuality.issues[0]}`
+    : '';
+  const strengths = achievedItems.length
+    ? `Strengths: ${achievedItems.slice(0, 2).map(item => `${item.title} (${item.levelLabel})`).join(', ')}.`
+    : 'No strong rubric area was detected yet.';
+  const nextSteps = missingItems.length
+    ? `Next: ${missingItems.slice(0, 3).map(item => item.improvement || `${item.title} needs improvement`).join(' ')}`
+    : 'Next: polish spacing, readability, and consistency before submitting.';
 
-  const nextSteps = missing.length
-    ? `Next, improve: ${missing.slice(0, 4).join(', ')}${missing.length > 4 ? ', and other missing items' : ''}.`
-    : 'No missing requirement was detected. You may polish the design, spacing, colors, and readability.';
-
-  return `${opening} ${strengths} ${nextSteps} Score: ${formatPoints(score)}/${formatPoints(possible)}.`;
+  return [opening, structureWarning, strengths, nextSteps, `Score: ${formatPoints(score)}/${formatPoints(possible)}.`].filter(Boolean).join(' ');
 }
 
 
@@ -12060,9 +12252,9 @@ function renderResult(result) {
       ? `<p class="muted-text smart-result-note smart-result-pending">Quick result is shown now. Smart review is checking in the background and will update this score automatically.</p>`
       : isFallbackSmart
         ? result.smartReviewStatus === 'cooldown'
-          ? `<p class="muted-text smart-result-note">Quick local result is shown. Smart review is temporarily paused to avoid the request limit. Try again in about ${escapeHTML(String(getSmartReviewCooldownSeconds() || result.smartReviewDetail || 30))}s.</p>`
-          : `<p class="muted-text smart-result-note">Quick local result is shown. Smart review is temporarily unavailable, so no technical error was added to the feedback.</p>`
-        : `<p class="muted-text smart-result-note">Local rubric result was used. Turn on Smart Review for deeper criterion judgement.</p>`;
+          ? `<p class="muted-text smart-result-note">Local rubric judge was used while Smart Review is temporarily paused to avoid the request limit. Try again in about ${escapeHTML(String(getSmartReviewCooldownSeconds() || result.smartReviewDetail || 30))}s.</p>`
+          : `<p class="muted-text smart-result-note">Local rubric judge was used. It checked structure, content placement, output, and rubric descriptions without showing technical errors.</p>`
+        : `<p class="muted-text smart-result-note">Local rubric judge was used. It checked the code and output against the selected rubric.</p>`;
   const warnings = isSmart && Array.isArray(result.aiWarnings) && result.aiWarnings.length
     ? `<div class="result-warning-note"><strong>Review note:</strong> ${escapeHTML(result.aiWarnings.join(' '))}</div>`
     : '';
