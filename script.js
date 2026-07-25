@@ -840,6 +840,8 @@ const MIN_EDITOR_FONT_SIZE = 12;
 const MAX_EDITOR_FONT_SIZE = 40;
 let editorFontSize = Number(loadJSON(STORAGE_KEYS.editorZoom, BASE_EDITOR_FONT_SIZE)) || BASE_EDITOR_FONT_SIZE;
 let activeTagMatches = [];
+let cssJumpHoverInfo = null;
+let cssJumpModifierActive = false;
 const EDITOR_HISTORY_LIMIT = 250;
 let editorHistoryByKey = {};
 let lastRubricResult = null;
@@ -7498,8 +7500,17 @@ function getBestTokenForSegment(tokens, start, end) {
 }
 
 function getMatchClassForSegment(spans, start, end) {
-  const match = spans.find(span => start >= span.start && end <= span.end);
-  return match ? `tag-match ${match.className}` : '';
+  const matches = (spans || []).filter(span => start >= span.start && end <= span.end);
+  if (!matches.length) return '';
+
+  // CSS Jump uses a tiny selector-word span inside the bigger HTML tag-match span.
+  // Prefer it over normal opening/closing tag highlights so Ctrl-hover only
+  // underlines class/id names, not the whole element pair.
+  const cssJumpMatch = matches.find(span => String(span.className || '').includes('css-jump-hover'));
+  if (cssJumpMatch) return `tag-match ${cssJumpMatch.className}`;
+
+  const smallest = matches.sort((a, b) => (a.end - a.start) - (b.end - b.start))[0];
+  return smallest ? `tag-match ${smallest.className}` : '';
 }
 
 function renderCodeMatchLayer(spans = []) {
@@ -7507,7 +7518,15 @@ function renderCodeMatchLayer(spans = []) {
 
   const text = editor.value || '';
   const syntaxTokens = getSyntaxTokens(text);
-  const sortedMatches = spans
+  const combinedSpans = [
+    ...(Array.isArray(spans) ? spans : []),
+    ...(cssJumpHoverInfo && activeLanguage === 'html' ? [{
+      start: cssJumpHoverInfo.start,
+      end: cssJumpHoverInfo.end,
+      className: 'css-jump-hover'
+    }] : [])
+  ];
+  const sortedMatches = combinedSpans
     .filter(span => Number.isFinite(span.start) && Number.isFinite(span.end) && span.end > span.start)
     .sort((a, b) => a.start - b.start);
 
@@ -9891,6 +9910,7 @@ function renderErrorChecker() {
       : 'No major errors found';
 
   errorCheckerContent.innerHTML = `
+    ${renderCssFinderCardHtml()}
     <div class="checker-summary ${summaryClass}">
       <div>
         <strong>${escapeHTML(summaryText)}</strong>
@@ -15576,6 +15596,835 @@ function handleSmartInlinePointer(event, options = {}) {
   smartInlineHintState.hoverTimer = window.setTimeout(() => showSmartInlineHintForLine(lineIndex, event), options.delay ?? 90);
 }
 
+
+
+/* Step 173: CSS Jump Assist - Ctrl+Click and mobile CSS Finder */
+const CSS_JUMP_LONG_PRESS_MS = 620;
+let cssJumpPopoverEl = null;
+let cssJumpLongPressTimer = 0;
+let cssJumpLastTouchPoint = null;
+let cssJumpPendingSelector = null;
+let cssJumpLastMouseDownHandledAt = 0;
+let cssJumpLastActivationAt = 0;
+let cssJumpLastActivationSelector = '';
+let cssJumpLastPointerPoint = null;
+let cssJumpHoverPopoverTimer = 0;
+let cssJumpPopoverShownSelector = '';
+
+function normalizeCssJumpSelectorName(value = '') {
+  return String(value || '').trim().replace(/^([.#])/, '').replace(/[^A-Za-z0-9_-]/g, '');
+}
+
+function isCssIdentifierBoundary(value) {
+  return !/[A-Za-z0-9_-]/.test(String(value || ''));
+}
+
+function findSelectorInSelectorText(selectorText = '', selector = '') {
+  const text = String(selectorText || '');
+  const needle = String(selector || '').trim();
+  if (!needle) return -1;
+  let index = text.indexOf(needle);
+  while (index >= 0) {
+    const before = text[index - 1] || '';
+    const after = text[index + needle.length] || '';
+    if (isCssIdentifierBoundary(before) && isCssIdentifierBoundary(after)) return index;
+    index = text.indexOf(needle, index + 1);
+  }
+  return -1;
+}
+
+function findCssRuleInText(cssText = '', selector = '') {
+  const source = String(cssText || '');
+  const cleanSelector = String(selector || '').trim();
+  if (!source || !cleanSelector) return null;
+
+  const rulePattern = /(^|[}\n])\s*([^{}@][^{}]*?)\s*\{/g;
+  let match;
+  while ((match = rulePattern.exec(source)) !== null) {
+    const selectorText = match[2] || '';
+    const localIndex = findSelectorInSelectorText(selectorText, cleanSelector);
+    if (localIndex < 0) continue;
+    const selectorStart = match.index + match[0].indexOf(selectorText) + localIndex;
+    return {
+      selector: cleanSelector,
+      start: selectorStart,
+      end: selectorStart + cleanSelector.length,
+      ruleStart: match.index + match[0].indexOf(selectorText)
+    };
+  }
+  return null;
+}
+
+function getHtmlAttributeValueBounds(tagText = '', attrMatch) {
+  if (!attrMatch) return null;
+  const full = attrMatch[0] || '';
+  const attrName = attrMatch[1] || '';
+  const rawValue = attrMatch[3] ?? attrMatch[4] ?? attrMatch[5] ?? '';
+  const valueIndex = full.indexOf(rawValue);
+  if (valueIndex < 0) return null;
+  return {
+    attrName: attrName.toLowerCase(),
+    value: rawValue,
+    localStart: attrMatch.index + valueIndex,
+    localEnd: attrMatch.index + valueIndex + rawValue.length
+  };
+}
+
+function findHtmlSelectorAtCursor(text = '', cursor = 0) {
+  const source = String(text || '');
+  if (!source) return null;
+  const safeCursor = Math.max(0, Math.min(source.length, Number(cursor) || 0));
+  const tagStart = source.lastIndexOf('<', safeCursor);
+  const tagEnd = source.indexOf('>', safeCursor);
+  if (tagStart < 0 || tagEnd < 0 || tagEnd <= tagStart) return null;
+  const previousClose = source.lastIndexOf('>', safeCursor);
+  if (previousClose > tagStart) return null;
+
+  const tagText = source.slice(tagStart, tagEnd + 1);
+  if (/^<\s*\//.test(tagText) || /^<\s*!/.test(tagText)) return null;
+  const attrPattern = /\b(class|id)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+))/gi;
+  let match;
+  while ((match = attrPattern.exec(tagText)) !== null) {
+    const bounds = getHtmlAttributeValueBounds(tagText, match);
+    if (!bounds) continue;
+    const absoluteStart = tagStart + bounds.localStart;
+    const absoluteEnd = tagStart + bounds.localEnd;
+    if (safeCursor < absoluteStart - 1 || safeCursor > absoluteEnd + 1) continue;
+
+    if (bounds.attrName === 'id') {
+      const idName = normalizeCssJumpSelectorName(bounds.value);
+      if (!idName) continue;
+      return {
+        type: 'id',
+        name: idName,
+        selector: `#${idName}`,
+        start: absoluteStart,
+        end: absoluteEnd
+      };
+    }
+
+    const valueOffset = Math.max(0, Math.min(bounds.value.length, safeCursor - absoluteStart));
+    const classPattern = /[^\s]+/g;
+    let classMatch;
+    while ((classMatch = classPattern.exec(bounds.value)) !== null) {
+      const className = normalizeCssJumpSelectorName(classMatch[0]);
+      if (!className) continue;
+      const tokenStart = classMatch.index;
+      const tokenEnd = tokenStart + classMatch[0].length;
+      if (valueOffset >= tokenStart - 1 && valueOffset <= tokenEnd + 1) {
+        return {
+          type: 'class',
+          name: className,
+          selector: `.${className}`,
+          start: absoluteStart + tokenStart,
+          end: absoluteStart + tokenEnd
+        };
+      }
+    }
+  }
+  return null;
+}
+
+function findHtmlSelectorAtOrNearCursor(text = '', cursor = 0) {
+  const source = String(text || '');
+  const safeCursor = Math.max(0, Math.min(source.length, Number(cursor) || 0));
+  const checked = new Set();
+  const offsets = [0, -1, 1, -2, 2, -3, 3, -5, 5, -8, 8, -12, 12, -18, 18, -26, 26];
+  for (const delta of offsets) {
+    const probe = Math.max(0, Math.min(source.length, safeCursor + delta));
+    if (checked.has(probe)) continue;
+    checked.add(probe);
+    const hit = findHtmlSelectorAtCursor(source, probe);
+    if (hit) return hit;
+  }
+  return null;
+}
+
+function measureEditorCssJumpCharacterWidth(styles) {
+  const canvas = measureEditorCssJumpCharacterWidth.canvas || (measureEditorCssJumpCharacterWidth.canvas = document.createElement('canvas'));
+  const context = canvas.getContext('2d');
+  if (!context) return parseFloat(styles.fontSize) * 0.62 || 9;
+  context.font = `${styles.fontWeight || '400'} ${styles.fontSize || '15px'} ${styles.fontFamily || 'monospace'}`;
+  const sample = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-';
+  const width = context.measureText(sample).width / sample.length;
+  return width || parseFloat(styles.fontSize) * 0.62 || 9;
+}
+
+function getEditorTextOffsetFromPoint(event) {
+  if (!event || !editor) return editor?.selectionStart || 0;
+  const text = String(editor.value || '');
+  const rect = editor.getBoundingClientRect();
+  const styles = window.getComputedStyle(editor);
+  const paddingLeft = parseFloat(styles.paddingLeft) || 0;
+  const paddingRight = parseFloat(styles.paddingRight) || 0;
+  const paddingTop = parseFloat(styles.paddingTop) || 0;
+  const lineHeight = parseFloat(styles.lineHeight) || ((parseFloat(styles.fontSize) || 15) * 1.65);
+  const charWidth = measureEditorCssJumpCharacterWidth(styles);
+  const innerWidth = Math.max(charWidth, editor.clientWidth - paddingLeft - paddingRight);
+  const wrapColumns = Math.max(1, Math.floor(innerWidth / charWidth));
+  const x = Math.max(0, event.clientX - rect.left - paddingLeft + (editor.scrollLeft || 0));
+  const y = Math.max(0, event.clientY - rect.top - paddingTop + (editor.scrollTop || 0));
+  const targetVisualLine = Math.max(0, Math.floor(y / lineHeight));
+  const visualColumn = Math.max(0, Math.floor((x + 1) / charWidth));
+  const lines = text.split('\n');
+  let visualLine = 0;
+  let offset = 0;
+
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i] || '';
+    const visualRows = Math.max(1, Math.ceil(Math.max(1, line.length) / wrapColumns));
+    if (targetVisualLine < visualLine + visualRows) {
+      const rowInLine = Math.max(0, targetVisualLine - visualLine);
+      const column = Math.max(0, Math.min(line.length, (rowInLine * wrapColumns) + visualColumn));
+      return Math.max(0, Math.min(text.length, offset + column));
+    }
+    visualLine += visualRows;
+    offset += line.length + 1;
+  }
+  return text.length;
+}
+
+function findHtmlSelectorFromPoint(event) {
+  const pointOffset = getEditorTextOffsetFromPoint(event);
+  return findHtmlSelectorAtOrNearCursor(editor.value, pointOffset);
+}
+
+function findHtmlSelectorFromPointStrict(event) {
+  const source = editor.value || '';
+  const pointOffset = getEditorTextOffsetFromPoint(event);
+  const offsets = [0, -1, 1, -2, 2, -3, 3];
+  const checked = new Set();
+  for (const delta of offsets) {
+    const probe = Math.max(0, Math.min(source.length, pointOffset + delta));
+    if (checked.has(probe)) continue;
+    checked.add(probe);
+    const hit = findHtmlSelectorAtCursor(source, probe);
+    if (hit) return hit;
+  }
+  return null;
+}
+
+function extractInternalStyleBlocksFromHtml(html = '') {
+  const blocks = [];
+  const pattern = /<style\b[^>]*>([\s\S]*?)<\/style\s*>/gi;
+  let match;
+  while ((match = pattern.exec(String(html || ''))) !== null) {
+    const full = match[0] || '';
+    const css = match[1] || '';
+    const cssStartInFull = full.indexOf(css);
+    blocks.push({ css, start: match.index + Math.max(0, cssStartInFull) });
+  }
+  return blocks;
+}
+
+function getPreferredCssFileNamesForJump(html = '') {
+  const cssFiles = getLanguageFileMap('css');
+  const names = getLanguageFileNames('css');
+  const activeCss = getActiveLanguageFileName('css');
+  const refs = getExternalCSSReferences(html)
+    .map(getBaseFileNameFromReference)
+    .filter(Boolean);
+  const ordered = [];
+  refs.forEach(ref => {
+    const found = names.find(name => name.toLowerCase() === ref);
+    if (found && !ordered.includes(found)) ordered.push(found);
+  });
+  if (activeCss && cssFiles[activeCss] !== undefined && !ordered.includes(activeCss)) ordered.push(activeCss);
+  names.forEach(name => {
+    if (!ordered.includes(name)) ordered.push(name);
+  });
+  return ordered;
+}
+
+function findCssDefinitionForSelector(selector = '') {
+  const cleanSelector = String(selector || '').trim();
+  if (!cleanSelector) return null;
+  const activeHtmlName = getActiveHtmlPageName();
+  const activeHtml = getHTMLPageContent(activeHtmlName) || '';
+
+  for (const block of extractInternalStyleBlocksFromHtml(activeHtml)) {
+    const hit = findCssRuleInText(block.css, cleanSelector);
+    if (hit) {
+      return {
+        kind: 'internal',
+        language: 'html',
+        fileName: activeHtmlName,
+        start: block.start + hit.start,
+        end: block.start + hit.end,
+        label: `${activeHtmlName} <style>`
+      };
+    }
+  }
+
+  const cssFiles = getLanguageFileMap('css');
+  const preferredCssFiles = getPreferredCssFileNamesForJump(activeHtml);
+  for (const fileName of preferredCssFiles) {
+    const css = cssFiles[fileName] || '';
+    const hit = findCssRuleInText(css, cleanSelector);
+    if (hit) {
+      return {
+        kind: 'external',
+        language: 'css',
+        fileName,
+        start: hit.start,
+        end: hit.end,
+        label: fileName
+      };
+    }
+  }
+
+  const htmlPages = getHTMLPages();
+  for (const [pageName, html] of Object.entries(htmlPages)) {
+    if (pageName === activeHtmlName) continue;
+    for (const block of extractInternalStyleBlocksFromHtml(html)) {
+      const hit = findCssRuleInText(block.css, cleanSelector);
+      if (hit) {
+        return {
+          kind: 'internal',
+          language: 'html',
+          fileName: pageName,
+          start: block.start + hit.start,
+          end: block.start + hit.end,
+          label: `${pageName} <style>`
+        };
+      }
+    }
+  }
+
+  return null;
+}
+
+function switchEditorToLanguageFile(language, fileName) {
+  const safeLanguage = ['html', 'css', 'js'].includes(language) ? language : 'html';
+  const safeName = cleanLanguageFileName(fileName || getActiveLanguageFileName(safeLanguage), safeLanguage);
+  saveActiveEditor();
+  activeLanguage = safeLanguage;
+  const meta = getLanguageFileMeta(safeLanguage);
+  const files = getLanguageFileMap(safeLanguage);
+  if (!files[safeName]) files[safeName] = '';
+  codeStore[meta.activeKey] = safeName;
+  syncActiveLanguageFileFromStore(safeLanguage);
+  tabButtons.forEach(tab => tab.classList.toggle('active', tab.dataset.language === safeLanguage));
+  loadActiveEditor();
+  renderHTMLPageManager();
+}
+
+function scrollEditorToPosition(position = 0) {
+  const safePosition = Math.max(0, Math.min((editor.value || '').length, Number(position) || 0));
+  const before = (editor.value || '').slice(0, safePosition);
+  const lineIndex = before.split('\n').length - 1;
+  const styles = window.getComputedStyle(editor);
+  const lineHeight = parseFloat(styles.lineHeight) || 22;
+  const targetTop = Math.max(0, (lineIndex * lineHeight) - (editor.clientHeight * 0.34));
+  editor.scrollTop = targetTop;
+  syncEditorScroll();
+}
+
+function focusEditorRange(start = 0, end = start) {
+  const textLength = (editor.value || '').length;
+  const safeStart = Math.max(0, Math.min(textLength, Number(start) || 0));
+  const safeEnd = Math.max(safeStart, Math.min(textLength, Number(end) || safeStart));
+  window.setTimeout(() => {
+    editor.focus({ preventScroll: true });
+    editor.setSelectionRange(safeStart, safeEnd);
+    scrollEditorToPosition(safeStart);
+    updateTagMatching();
+    scheduleSmartInlineHintForCursor(180);
+  }, 40);
+}
+
+function goToCssDefinition(selector = '', options = {}) {
+  const cleanSelector = String(selector || '').trim();
+  if (!cleanSelector) return false;
+  const hit = findCssDefinitionForSelector(cleanSelector);
+  if (!hit) {
+    setStatus(`No CSS rule found for ${cleanSelector}`);
+    if (options.showCreate !== false) showCssJumpPopover(cleanSelector, options.anchorEvent || null, { missing: true });
+    return false;
+  }
+  switchEditorToLanguageFile(hit.language, hit.fileName);
+  focusEditorRange(hit.start, hit.end);
+  setStatus(`Jumped to ${cleanSelector} in ${hit.label}`);
+  hideCssJumpPopover();
+  return true;
+}
+
+function chooseCssFileForNewRule() {
+  const activeHtml = getHTMLPageContent(getActiveHtmlPageName()) || '';
+  const cssFiles = getLanguageFileMap('css');
+  const names = getLanguageFileNames('css');
+  const preferred = getPreferredCssFileNamesForJump(activeHtml);
+  const firstPreferred = preferred.find(name => cssFiles[name] !== undefined);
+  if (firstPreferred) return firstPreferred;
+  const fallback = names[0] || 'style.css';
+  if (!cssFiles[fallback]) cssFiles[fallback] = '';
+  codeStore.activeCssFile = fallback;
+  return fallback;
+}
+
+function createCssRuleForSelector(selector = '') {
+  const cleanSelector = String(selector || '').trim();
+  if (!/^([.#])[A-Za-z0-9_-]+$/.test(cleanSelector)) {
+    setStatus('Choose a valid class or ID selector first');
+    return false;
+  }
+  const existing = findCssDefinitionForSelector(cleanSelector);
+  if (existing) return goToCssDefinition(cleanSelector, { showCreate: false });
+
+  const fileName = chooseCssFileForNewRule();
+  const cssFiles = getLanguageFileMap('css');
+  const before = String(cssFiles[fileName] || '').replace(/\s*$/, '');
+  const insertPrefix = before ? '\n\n' : '';
+  const newRule = `${insertPrefix}${cleanSelector} {\n  \n}`;
+  const insertStart = before.length + insertPrefix.length;
+  const cursorStart = insertStart + cleanSelector.length + 4;
+  cssFiles[fileName] = before + newRule;
+  codeStore.activeCssFile = fileName;
+  switchEditorToLanguageFile('css', fileName);
+  focusEditorRange(cursorStart, cursorStart);
+  setStatus(`Created ${cleanSelector} in ${fileName}`);
+  hideCssJumpPopover();
+  return true;
+}
+
+function copyCssSelector(selector = '') {
+  const cleanSelector = String(selector || '').trim();
+  if (!cleanSelector) return;
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(cleanSelector).then(() => setStatus(`${cleanSelector} copied`)).catch(() => setStatus(cleanSelector));
+  } else {
+    setStatus(cleanSelector);
+  }
+  hideCssJumpPopover();
+}
+
+function getCurrentHtmlSelectorsForFinder() {
+  const selectors = new Map();
+  const pages = getHTMLPages();
+  const activeName = getActiveHtmlPageName();
+  const orderedPages = [activeName, ...Object.keys(pages).filter(name => name !== activeName)];
+  orderedPages.forEach(pageName => {
+    const html = String(pages[pageName] || '');
+    const attrPattern = /\b(class|id)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+))/gi;
+    let match;
+    while ((match = attrPattern.exec(html)) !== null) {
+      const type = String(match[1] || '').toLowerCase();
+      const value = match[2] ?? match[3] ?? match[4] ?? '';
+      if (type === 'id') {
+        const idName = normalizeCssJumpSelectorName(value);
+        if (idName && !selectors.has(`#${idName}`)) selectors.set(`#${idName}`, { selector: `#${idName}`, type: 'ID', pageName });
+        continue;
+      }
+      String(value || '').split(/\s+/).forEach(item => {
+        const className = normalizeCssJumpSelectorName(item);
+        if (className && !selectors.has(`.${className}`)) selectors.set(`.${className}`, { selector: `.${className}`, type: 'Class', pageName });
+      });
+    }
+  });
+  return [...selectors.values()].slice(0, 60);
+}
+
+function renderCssFinderCardHtml() {
+  const selectors = getCurrentHtmlSelectorsForFinder();
+  if (!selectors.length) {
+    return `
+      <section class="css-finder-card empty">
+        <div class="css-finder-head">
+          <span class="css-finder-icon">🎯</span>
+          <div>
+            <h3>CSS Jump Assist</h3>
+            <p>Add class="card" or id="main" in HTML to jump or create CSS rules quickly.</p>
+          </div>
+        </div>
+      </section>
+    `;
+  }
+  return `
+    <section class="css-finder-card">
+      <div class="css-finder-head">
+        <span class="css-finder-icon">🎯</span>
+        <div>
+          <h3>CSS Jump Assist</h3>
+          <p>Desktop: Hold Ctrl over a class/id, then use the popup. Phone: use this selector list.</p>
+        </div>
+      </div>
+      <div class="css-finder-list">
+        ${selectors.map(item => `
+          <article class="css-finder-row">
+            <div>
+              <strong>${escapeHTML(item.selector)}</strong>
+              <small>${escapeHTML(item.type)} · ${escapeHTML(item.pageName)}</small>
+            </div>
+            <div class="css-finder-actions">
+              <button class="mini-btn strong css-finder-action" type="button" data-css-action="go" data-css-selector="${escapeAttribute(item.selector)}">Go</button>
+              <button class="mini-btn css-finder-action" type="button" data-css-action="create" data-css-selector="${escapeAttribute(item.selector)}">Create</button>
+            </div>
+          </article>
+        `).join('')}
+      </div>
+    </section>
+  `;
+}
+
+function ensureCssJumpPopover() {
+  if (cssJumpPopoverEl) return cssJumpPopoverEl;
+  cssJumpPopoverEl = document.createElement('div');
+  cssJumpPopoverEl.className = 'css-jump-popover hidden';
+  cssJumpPopoverEl.setAttribute('role', 'menu');
+  cssJumpPopoverEl.setAttribute('aria-label', 'CSS Jump Assist');
+  document.body.appendChild(cssJumpPopoverEl);
+  cssJumpPopoverEl.addEventListener('click', event => {
+    const button = event.target.closest('[data-css-jump-action]');
+    if (!button) return;
+    event.preventDefault();
+    const selector = button.dataset.cssSelector || cssJumpPendingSelector || '';
+    const action = button.dataset.cssJumpAction;
+    if (action === 'go') goToCssDefinition(selector, { showCreate: true });
+    if (action === 'create') createCssRuleForSelector(selector);
+    if (action === 'copy') copyCssSelector(selector);
+  });
+  return cssJumpPopoverEl;
+}
+
+function getCssJumpPopoverPoint(anchorEvent = null) {
+  if (anchorEvent?.clientX && anchorEvent?.clientY) {
+    return { x: anchorEvent.clientX, y: anchorEvent.clientY };
+  }
+  if (cssJumpLastTouchPoint?.x && cssJumpLastTouchPoint?.y) return cssJumpLastTouchPoint;
+  const rect = editor.getBoundingClientRect();
+  return { x: rect.left + 24, y: rect.top + 56 };
+}
+
+function showCssJumpPopover(selector = '', anchorEvent = null, options = {}) {
+  const cleanSelector = String(selector || '').trim();
+  if (!cleanSelector) return;
+  cssJumpPendingSelector = cleanSelector;
+  const popover = ensureCssJumpPopover();
+  const missing = Boolean(options.missing);
+  popover.innerHTML = `
+    <div class="css-jump-title">
+      <span>🎯</span>
+      <div>
+        <strong>${escapeHTML(cleanSelector)}</strong>
+        <small>${missing ? 'No rule found yet.' : 'CSS Jump Assist'}</small>
+      </div>
+    </div>
+    <div class="css-jump-actions">
+      <button type="button" data-css-jump-action="go" data-css-selector="${escapeAttribute(cleanSelector)}">Go to CSS</button>
+      <button type="button" data-css-jump-action="create" data-css-selector="${escapeAttribute(cleanSelector)}">Create Rule</button>
+      <button type="button" data-css-jump-action="copy" data-css-selector="${escapeAttribute(cleanSelector)}">Copy</button>
+    </div>
+  `;
+  const point = getCssJumpPopoverPoint(anchorEvent);
+  popover.classList.remove('hidden');
+  popover.style.left = `${Math.min(window.innerWidth - 260, Math.max(10, point.x + 8))}px`;
+  popover.style.top = `${Math.min(window.innerHeight - 150, Math.max(10, point.y + 12))}px`;
+}
+
+function hideCssJumpPopover() {
+  if (!cssJumpPopoverEl) return;
+  cssJumpPopoverEl.classList.add('hidden');
+  cssJumpPopoverShownSelector = '';
+}
+
+function getHtmlCssJumpCandidateSpans(text = editor?.value || '') {
+  const source = String(text || '');
+  if (!source || activeLanguage !== 'html') return [];
+  const spans = [];
+  const attrPattern = /\b(class|id)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+))/gi;
+  let match;
+  while ((match = attrPattern.exec(source)) !== null) {
+    const type = String(match[1] || '').toLowerCase();
+    const rawValue = match[2] ?? match[3] ?? match[4] ?? '';
+    const valueStartInMatch = String(match[0] || '').indexOf(rawValue);
+    if (valueStartInMatch < 0) continue;
+    const valueStart = match.index + valueStartInMatch;
+
+    if (type === 'id') {
+      const idName = normalizeCssJumpSelectorName(rawValue);
+      if (!idName) continue;
+      spans.push({
+        start: valueStart,
+        end: valueStart + rawValue.length,
+        selector: `#${idName}`,
+        className: 'css-jump-candidate'
+      });
+      continue;
+    }
+
+    const classPattern = /[^\s]+/g;
+    let classMatch;
+    while ((classMatch = classPattern.exec(String(rawValue || ''))) !== null) {
+      const className = normalizeCssJumpSelectorName(classMatch[0]);
+      if (!className) continue;
+      spans.push({
+        start: valueStart + classMatch.index,
+        end: valueStart + classMatch.index + classMatch[0].length,
+        selector: `.${className}`,
+        className: 'css-jump-candidate'
+      });
+    }
+  }
+  return spans;
+}
+
+function getCssJumpActiveSpans() {
+  // Separate CSS Jump Mode: while Ctrl/Command is held, replace the normal
+  // opening/closing HTML tag underline with class/id selector underlines only.
+  if (cssJumpModifierActive && activeLanguage === 'html') {
+    return getHtmlCssJumpCandidateSpans();
+  }
+  return activeTagMatches || [];
+}
+
+function setCssJumpHoverInfo(selectorInfo = null) {
+  const previousKey = cssJumpHoverInfo ? `${cssJumpHoverInfo.start}:${cssJumpHoverInfo.end}:${cssJumpHoverInfo.selector}` : '';
+  const nextKey = selectorInfo ? `${selectorInfo.start}:${selectorInfo.end}:${selectorInfo.selector}` : '';
+  cssJumpHoverInfo = selectorInfo;
+  editor.classList.toggle('css-jump-hovering', Boolean(selectorInfo));
+  document.body.classList.toggle('css-jump-active', Boolean(selectorInfo));
+  if (previousKey !== nextKey) renderCodeMatchLayer(getCssJumpActiveSpans());
+}
+
+function clearCssJumpHoverInfo() {
+  window.clearTimeout(cssJumpHoverPopoverTimer);
+  const shouldRender = Boolean(cssJumpHoverInfo)
+    || editor.classList.contains('css-jump-hovering')
+    || cssJumpModifierActive;
+  cssJumpHoverInfo = null;
+  editor.classList.remove('css-jump-hovering');
+  document.body.classList.remove('css-jump-active');
+  if (shouldRender) renderCodeMatchLayer(getCssJumpActiveSpans());
+}
+
+function isCssJumpModifierEvent(event) {
+  return Boolean(event && (event.ctrlKey || event.metaKey));
+}
+
+function updateCssJumpHoverFromLastPointer() {
+  if (!cssJumpModifierActive || activeLanguage !== 'html' || !cssJumpLastPointerPoint) {
+    clearCssJumpHoverInfo();
+    return;
+  }
+  const selectorInfo = findHtmlSelectorFromPointStrict({
+    clientX: cssJumpLastPointerPoint.clientX,
+    clientY: cssJumpLastPointerPoint.clientY,
+    ctrlKey: true
+  });
+  if (selectorInfo) {
+    setCssJumpHoverInfo(selectorInfo);
+    scheduleCssJumpChoicePopover(selectorInfo, cssJumpLastPointerPoint);
+  } else {
+    clearCssJumpHoverInfo();
+  }
+}
+
+function goToOrCreateCssRuleFromSelector(selector = '', options = {}) {
+  const cleanSelector = String(selector || '').trim();
+  if (!cleanSelector) return false;
+  const existing = findCssDefinitionForSelector(cleanSelector);
+  if (existing) return goToCssDefinition(cleanSelector, options);
+  setStatus(`No CSS rule found for ${cleanSelector}. Creating it now...`);
+  return createCssRuleForSelector(cleanSelector);
+}
+
+function showCssJumpChoiceForSelector(selectorInfo = null, anchorEvent = null) {
+  if (!selectorInfo || !selectorInfo.selector) return false;
+  const cleanSelector = String(selectorInfo.selector || '').trim();
+  if (!cleanSelector) return false;
+  const point = anchorEvent && Number.isFinite(anchorEvent.clientX) && Number.isFinite(anchorEvent.clientY)
+    ? { clientX: anchorEvent.clientX, clientY: anchorEvent.clientY }
+    : (cssJumpLastPointerPoint || null);
+  const hasRule = Boolean(findCssDefinitionForSelector(cleanSelector));
+  showCssJumpPopover(cleanSelector, point, { missing: !hasRule });
+  cssJumpPopoverShownSelector = cleanSelector;
+  setStatus(hasRule ? `${cleanSelector} found. Choose Go to CSS.` : `${cleanSelector} has no rule yet. Choose Create Rule.`);
+  return true;
+}
+
+function scheduleCssJumpChoicePopover(selectorInfo = null, anchorEvent = null) {
+  window.clearTimeout(cssJumpHoverPopoverTimer);
+  if (!selectorInfo || !selectorInfo.selector || activeLanguage !== 'html' || !cssJumpModifierActive) return;
+  const cleanSelector = String(selectorInfo.selector || '').trim();
+  if (!cleanSelector) return;
+  const popoverVisible = cssJumpPopoverEl && !cssJumpPopoverEl.classList.contains('hidden');
+  if (popoverVisible && cssJumpPopoverShownSelector === cleanSelector) return;
+  const point = anchorEvent && Number.isFinite(anchorEvent.clientX) && Number.isFinite(anchorEvent.clientY)
+    ? { clientX: anchorEvent.clientX, clientY: anchorEvent.clientY }
+    : (cssJumpLastPointerPoint || null);
+  cssJumpHoverPopoverTimer = window.setTimeout(() => {
+    if (!cssJumpModifierActive || activeLanguage !== 'html') return;
+    if (!cssJumpHoverInfo || cssJumpHoverInfo.selector !== cleanSelector) return;
+    showCssJumpChoiceForSelector(cssJumpHoverInfo, point);
+  }, 220);
+}
+
+function handleCssJumpHoverMove(event) {
+  if (event && Number.isFinite(event.clientX) && Number.isFinite(event.clientY)) {
+    cssJumpLastPointerPoint = { clientX: event.clientX, clientY: event.clientY };
+  }
+
+  if (activeLanguage !== 'html') {
+    clearCssJumpHoverInfo();
+    return;
+  }
+
+  cssJumpModifierActive = isCssJumpModifierEvent(event);
+  document.body.classList.toggle('css-jump-modifier-active', cssJumpModifierActive);
+
+  if (!cssJumpModifierActive) {
+    clearCssJumpHoverInfo();
+    return;
+  }
+
+  const selectorInfo = findHtmlSelectorFromPointStrict(event);
+  if (!selectorInfo) {
+    clearCssJumpHoverInfo();
+    return;
+  }
+
+  setCssJumpHoverInfo(selectorInfo);
+  scheduleCssJumpChoicePopover(selectorInfo, event);
+}
+
+function handleCssJumpAssistPointer(event) {
+  if (!isCssJumpModifierEvent(event) || activeLanguage !== 'html') return;
+  if (event.button !== undefined && event.button !== 0) return;
+
+  const selectorInfo = findHtmlSelectorFromPointStrict(event) || cssJumpHoverInfo;
+
+  if (!selectorInfo) {
+    // Let the browser place the caret, then the click handler will use
+    // selectionStart as a fallback. This makes Ctrl+Click more reliable when
+    // the visual syntax layer and textarea caret calculation are slightly off.
+    cssJumpLastMouseDownHandledAt = 0;
+    return;
+  }
+
+  event.preventDefault();
+  event.stopPropagation();
+  cssJumpLastMouseDownHandledAt = Date.now();
+
+  editor.focus({ preventScroll: true });
+  setCssJumpHoverInfo(selectorInfo);
+  try {
+    editor.setSelectionRange(selectorInfo.start, selectorInfo.end);
+  } catch (error) {}
+
+  showCssJumpChoiceForSelector(selectorInfo, event);
+}
+
+function handleCssJumpAssistClick(event) {
+  if (!isCssJumpModifierEvent(event) || activeLanguage !== 'html') return;
+
+  if (cssJumpLastMouseDownHandledAt && Date.now() - cssJumpLastMouseDownHandledAt < 500) {
+    event.preventDefault();
+    event.stopPropagation();
+    return;
+  }
+
+  window.setTimeout(() => {
+    const selectorInfo = findHtmlSelectorFromPointStrict(event)
+      || findHtmlSelectorAtOrNearCursor(editor.value, editor.selectionStart)
+      || cssJumpHoverInfo;
+    if (!selectorInfo) {
+      setStatus('Hold Ctrl and click directly on a class or id name to jump/create CSS');
+      return;
+    }
+    event.preventDefault?.();
+    setCssJumpHoverInfo(selectorInfo);
+    try { editor.setSelectionRange(selectorInfo.start, selectorInfo.end); } catch (error) {}
+    showCssJumpChoiceForSelector(selectorInfo, event);
+  }, 0);
+}
+
+
+function isPointInsideEditorTextArea(event) {
+  if (!event || !editor || !Number.isFinite(event.clientX) || !Number.isFinite(event.clientY)) return false;
+  const rect = editor.getBoundingClientRect();
+  return event.clientX >= rect.left
+    && event.clientX <= rect.right
+    && event.clientY >= rect.top
+    && event.clientY <= rect.bottom;
+}
+
+function getCssJumpSelectorInfoForActivation(event) {
+  if (activeLanguage !== 'html') return null;
+  return findHtmlSelectorFromPointStrict(event)
+    || cssJumpHoverInfo
+    || findHtmlSelectorAtOrNearCursor(editor.value, editor.selectionStart);
+}
+
+function handleCssJumpActivationCapture(event) {
+  if (!event || activeLanguage !== 'html') return;
+  if (!isCssJumpModifierEvent(event) && !cssJumpModifierActive) return;
+  if (event.button !== undefined && event.button !== 0) return;
+  if (!isPointInsideEditorTextArea(event)) return;
+
+  const selectorInfo = getCssJumpSelectorInfoForActivation(event);
+  if (!selectorInfo || !selectorInfo.selector) return;
+
+  const now = Date.now();
+  const duplicate = cssJumpLastActivationSelector === selectorInfo.selector
+    && now - cssJumpLastActivationAt < 350;
+
+  event.preventDefault();
+  event.stopPropagation();
+  if (typeof event.stopImmediatePropagation === 'function') event.stopImmediatePropagation();
+
+  if (duplicate) return;
+  cssJumpLastActivationAt = now;
+  cssJumpLastActivationSelector = selectorInfo.selector;
+  cssJumpLastMouseDownHandledAt = now;
+
+  editor.focus({ preventScroll: true });
+  setCssJumpHoverInfo(selectorInfo);
+  try {
+    editor.setSelectionRange(selectorInfo.start, selectorInfo.end);
+  } catch (error) {}
+
+  window.setTimeout(() => {
+    showCssJumpChoiceForSelector(selectorInfo, event);
+  }, 0);
+}
+
+function handleCssJumpKeyState(event) {
+  const isModifier = event.key === 'Control' || event.key === 'Meta';
+  if (!isModifier) return;
+  cssJumpModifierActive = event.type === 'keydown';
+  document.body.classList.toggle('css-jump-modifier-active', cssJumpModifierActive);
+
+  if (cssJumpModifierActive) {
+    // Holding Ctrl/Command is a dedicated CSS selector mode. Immediately redraw
+    // the overlay so existing HTML tag-pair underlines disappear, then underline
+    // only the class/id under the current mouse position if there is one.
+    renderCodeMatchLayer(getCssJumpActiveSpans());
+    updateCssJumpHoverFromLastPointer();
+  } else {
+    clearCssJumpHoverInfo();
+    updateTagMatching();
+  }
+}
+
+function scheduleCssJumpLongPress(event) {
+  if (activeLanguage !== 'html') return;
+  const touch = event.touches?.[0];
+  if (!touch) return;
+  cssJumpLastTouchPoint = { x: touch.clientX, y: touch.clientY };
+  window.clearTimeout(cssJumpLongPressTimer);
+  cssJumpLongPressTimer = window.setTimeout(() => {
+    const selectorInfo = findHtmlSelectorFromPointStrict(touch) || findHtmlSelectorAtCursor(editor.value, editor.selectionStart);
+    if (!selectorInfo) return;
+    try { navigator.vibrate?.(12); } catch (error) {}
+    showCssJumpPopover(selectorInfo.selector, null);
+  }, CSS_JUMP_LONG_PRESS_MS);
+}
+
+function cancelCssJumpLongPress() {
+  window.clearTimeout(cssJumpLongPressTimer);
+  cssJumpLongPressTimer = 0;
+}
+
 editor.addEventListener('input', event => {
   if (shouldSpinDesktopLogoForEditorEdit()) triggerDesktopHeaderLogoSaveSpin();
   saveActiveEditor();
@@ -15591,7 +16440,24 @@ editor.addEventListener('input', () => {
   scheduleSmartInlineHintForCursor(220);
 });
 
-editor.addEventListener('mousemove', event => handleSmartInlinePointer(event));
+editor.addEventListener('mousemove', event => {
+  handleSmartInlinePointer(event);
+  handleCssJumpHoverMove(event);
+});
+
+document.addEventListener('mousedown', handleCssJumpActivationCapture, true);
+document.addEventListener('pointerdown', handleCssJumpActivationCapture, true);
+document.addEventListener('click', handleCssJumpActivationCapture, true);
+editor.addEventListener('pointerdown', handleCssJumpAssistPointer, true);
+editor.addEventListener('click', handleCssJumpAssistClick, true);
+editor.addEventListener('mouseleave', clearCssJumpHoverInfo);
+document.addEventListener('keydown', handleCssJumpKeyState);
+document.addEventListener('keyup', handleCssJumpKeyState);
+window.addEventListener('blur', clearCssJumpHoverInfo);
+editor.addEventListener('touchstart', scheduleCssJumpLongPress, { passive: true });
+editor.addEventListener('touchmove', cancelCssJumpLongPress, { passive: true });
+editor.addEventListener('touchcancel', cancelCssJumpLongPress, { passive: true });
+editor.addEventListener('touchend', cancelCssJumpLongPress, { passive: true });
 
 editor.addEventListener('click', event => handleSmartInlinePointer(event, { fromCursor: true, force: true, delay: 0 }));
 
@@ -15610,6 +16476,23 @@ document.addEventListener('click', event => {
   if (!hintEl || hintEl.classList.contains('hidden')) return;
   if (hintEl.contains(event.target) || editor.contains(event.target)) return;
   hideSmartInlineHint();
+});
+
+document.addEventListener('click', event => {
+  const popover = cssJumpPopoverEl;
+  if (!popover || popover.classList.contains('hidden')) return;
+  if (popover.contains(event.target) || event.target === editor) return;
+  hideCssJumpPopover();
+});
+
+errorCheckerContent?.addEventListener('click', event => {
+  const button = event.target.closest('.css-finder-action');
+  if (!button) return;
+  event.preventDefault();
+  const selector = button.dataset.cssSelector || '';
+  const action = button.dataset.cssAction || 'go';
+  if (action === 'go') goToCssDefinition(selector, { showCreate: true });
+  if (action === 'create') createCssRuleForSelector(selector);
 });
 
 editor.addEventListener('scroll', () => {
