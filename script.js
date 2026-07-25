@@ -5056,8 +5056,10 @@ function renderStudentProjects() {
         <h3>${escapeHTML(project.name || 'Untitled Project')}</h3>
         <p class="project-card-activity">${escapeHTML(project.activityTitle || 'Practice project')}</p>
         ${projectAlerts ? `<div class="project-alert-row">${projectAlerts}</div>` : ''}
-        <p class="project-card-meta">Last edited: ${escapeHTML(formatStudentDate(project.updatedAt, 'Not edited yet'))}</p>
-        <p class="project-card-meta">Run attempts: ${Number(project.runCount || 0)}</p>
+        <div class="project-card-meta-row">
+          <span class="project-card-meta project-card-edited">Last edited: ${escapeHTML(formatStudentDate(project.updatedAt, 'Not edited yet'))}</span>
+          <span class="project-run-attempts" title="Run attempts" aria-label="Run attempts: ${Number(project.runCount || 0)}"><span class="project-run-label">Run attempts: </span><span class="project-run-icon" aria-hidden="true">▶</span><span class="project-run-count">${Number(project.runCount || 0)}</span></span>
+        </div>
         <div class="project-score-row"><span>Score</span><span class="project-score-value">${escapeHTML(scoreText)}</span></div>
         <div class="project-card-actions">
           <button class="primary-btn" type="button" data-project-action="open">Open Project</button>
