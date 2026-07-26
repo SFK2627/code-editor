@@ -40512,3 +40512,140 @@ button.entry-choice.recitation-choice strong {
     padding-right: 0.12em;
   }
 }
+
+/* =========================================================
+   STEP 204 - Mobile Greeting + Brand Pill Cleanup
+   Phone-only cleanup: keep the editor greeting readable as two controlled
+   lines and remove pill backgrounds from the name and mobile brand text.
+   ========================================================= */
+.student-greeting .student-greeting-primary-line,
+#menuStudentGreeting .student-greeting-primary-line,
+.student-greeting .student-greeting-section-line,
+#menuStudentGreeting .student-greeting-section-line {
+  min-width: 0;
+  line-height: inherit;
+}
+
+.student-greeting .student-greeting-primary-line,
+#menuStudentGreeting .student-greeting-primary-line {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.14em;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.student-greeting .student-greeting-section-line,
+#menuStudentGreeting .student-greeting-section-line {
+  display: inline;
+  white-space: nowrap;
+}
+
+.student-greeting .student-greeting-name-script,
+#menuStudentGreeting .student-greeting-name-script {
+  background: transparent !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  padding: 0 0.04em !important;
+  margin: 0 !important;
+  color: #075985 !important;
+  text-decoration: underline;
+  text-decoration-thickness: 0.08em;
+  text-decoration-color: rgba(14, 165, 233, 0.34);
+  text-underline-offset: 0.15em;
+}
+
+[data-theme="dark"] .student-greeting .student-greeting-name-script,
+[data-theme="dark"] #menuStudentGreeting .student-greeting-name-script {
+  background: transparent !important;
+  box-shadow: none !important;
+  color: #bae6fd !important;
+  text-decoration-color: rgba(125, 211, 252, 0.42);
+}
+
+@media (max-width: 820px) {
+  html[data-device-mode="phone"] body.student-session-active.mobile-student-strip-open #studentAccountStrip #headerStudentGreeting,
+  html[data-device-mode="phone"] body.student-session-active.mobile-student-strip-open #studentAccountStrip .student-greeting {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    justify-content: center !important;
+    gap: 1px !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    overflow: hidden !important;
+    white-space: normal !important;
+    text-overflow: clip !important;
+    line-height: 1.08 !important;
+    font-size: 0.82rem !important;
+    padding-left: 2px !important;
+  }
+
+  html[data-device-mode="phone"] body.student-session-active.mobile-student-strip-open #studentAccountStrip #headerStudentGreeting .student-greeting-primary-line,
+  html[data-device-mode="phone"] body.student-session-active.mobile-student-strip-open #studentAccountStrip .student-greeting .student-greeting-primary-line {
+    display: inline-flex !important;
+    align-items: baseline !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+    line-height: 1.08 !important;
+  }
+
+  html[data-device-mode="phone"] body.student-session-active.mobile-student-strip-open #studentAccountStrip #headerStudentGreeting .student-greeting-name-script,
+  html[data-device-mode="phone"] body.student-session-active.mobile-student-strip-open #studentAccountStrip .student-greeting .student-greeting-name-script {
+    display: inline !important;
+    flex: 0 1 auto !important;
+    max-width: min(58vw, 30ch) !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+    vertical-align: baseline !important;
+    font-size: 1.02em !important;
+    line-height: 1 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    padding: 0 0.03em !important;
+    margin: 0 !important;
+    transform: none !important;
+  }
+
+  html[data-device-mode="phone"] body.student-session-active.mobile-student-strip-open #studentAccountStrip #headerStudentGreeting .student-greeting-section-line,
+  html[data-device-mode="phone"] body.student-session-active.mobile-student-strip-open #studentAccountStrip .student-greeting .student-greeting-section-line {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+    font-size: 0.92em !important;
+    line-height: 1.08 !important;
+    opacity: 0.98 !important;
+  }
+
+  html[data-device-mode="phone"] body.guest-session-active .topbar .brand-block > div:last-child,
+  html[data-device-mode="phone"] body.student-session-active .topbar .brand-block > div:last-child {
+    background: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    padding: 0 !important;
+  }
+
+  html[data-device-mode="phone"] body.guest-session-active .topbar .brand-block #appTitleText,
+  html[data-device-mode="phone"] body.student-session-active .topbar .brand-block #appTitleText,
+  html[data-device-mode="phone"] body.guest-session-active .topbar .brand-block .ict8-brand-title,
+  html[data-device-mode="phone"] body.student-session-active .topbar .brand-block .ict8-brand-title,
+  html[data-device-mode="phone"] body.guest-session-active .topbar .brand-block .ict8-brand-kicker,
+  html[data-device-mode="phone"] body.student-session-active .topbar .brand-block .ict8-brand-kicker,
+  html[data-device-mode="phone"] body.guest-session-active .topbar .brand-block .brand-cycle,
+  html[data-device-mode="phone"] body.student-session-active .topbar .brand-block .brand-cycle {
+    background: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    padding: 0 !important;
+  }
+}

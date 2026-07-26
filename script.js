@@ -3221,15 +3221,24 @@ function getStudentEditorGreetingText({ forceNew = false } = {}) {
 function renderStudentEditorGreeting(target, parts = null) {
   if (!target) return;
   const data = parts || getStudentEditorGreetingParts();
+  const primaryLine = document.createElement('span');
+  primaryLine.className = 'student-greeting-primary-line';
+
   const nameHighlight = document.createElement('span');
   nameHighlight.className = 'student-greeting-name-script';
   nameHighlight.textContent = data.fullName;
   nameHighlight.title = data.fullName;
-  target.replaceChildren(
+
+  const sectionLine = document.createElement('span');
+  sectionLine.className = 'student-greeting-section-line';
+  sectionLine.textContent = ` of Grade 8 - ${data.sectionName}${data.endMark}`;
+
+  primaryLine.replaceChildren(
     document.createTextNode(`${data.prefix}, `),
-    nameHighlight,
-    document.createTextNode(` of Grade 8 - ${data.sectionName}${data.endMark}`)
+    nameHighlight
   );
+
+  target.replaceChildren(primaryLine, sectionLine);
   target.title = data.text;
   target.setAttribute('aria-label', data.text);
 }
