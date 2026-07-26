@@ -568,6 +568,7 @@ let aiRubricConnectionState = { status: 'untested', code: '', message: '' };
 
 const DEFAULT_STUDENT_PASSWORD = '123456';
 const STUDENT_EMAIL_DOMAIN = 'students.mcsian.app';
+const STUDENT_AUTH_RECOVERY_SLOTS = 3;
 const LAST_STUDENT_SESSION_KEY = 'studentCodeStudio.lastStudentSession.v1';
 const STUDENT_AUTOSAVE_DELAY = 1400;
 const PROFILE_ACTIVITY_WRITE_INTERVAL = 5 * 60 * 1000;
@@ -3059,6 +3060,39 @@ function studentIdToAuthEmail(value) {
   return safe ? `sid-${safe}@${STUDENT_EMAIL_DOMAIN}` : '';
 }
 
+function studentIdToRecoveryAuthEmail(value, slot = 1) {
+  const safe = getStudentIdAuthKey(value).toLowerCase();
+  const safeSlot = Math.max(1, Math.min(STUDENT_AUTH_RECOVERY_SLOTS, Number(slot) || 1));
+  return safe ? `sid-${safe}-r${safeSlot}@${STUDENT_EMAIL_DOMAIN}` : '';
+}
+
+function getStudentAuthEmailCandidates(studentId, roster = null) {
+  const candidates = [];
+  const addCandidate = value => {
+    const email = String(value || '').trim().toLowerCase();
+    if (email && !candidates.includes(email)) candidates.push(email);
+  };
+  addCandidate(studentIdToAuthEmail(studentId));
+  addCandidate(roster?.authEmail);
+  for (let slot = 1; slot <= STUDENT_AUTH_RECOVERY_SLOTS; slot += 1) {
+    addCandidate(studentIdToRecoveryAuthEmail(studentId, slot));
+  }
+  return candidates;
+}
+
+function isAuthMissingOrWrongPasswordError(error) {
+  const code = String(error?.code || error?.message || '').toLowerCase();
+  return code.includes('user-not-found')
+    || code.includes('invalid-credential')
+    || code.includes('wrong-password')
+    || code.includes('email_not_found');
+}
+
+function isAuthEmailAlreadyInUseError(error) {
+  const code = String(error?.code || error?.message || '').toLowerCase();
+  return code.includes('email-already-in-use') || code.includes('email_exists');
+}
+
 function getStudentFirstName(name) {
   const cleaned = String(name || 'Student').trim().replace(/\s+/g, ' ');
   if (!cleaned) return 'Student';
@@ -4243,7 +4277,7 @@ async function createOrRepairStudentProfileFromRoster(user, studentId, existingP
     ...(existingProfile || {}),
     studentId: rosterStudentId,
     studentIdNormalized: rosterStudentId,
-    authEmail: studentIdToAuthEmail(rosterStudentId),
+    authEmail: String(user.email || existingProfile?.authEmail || studentIdToAuthEmail(rosterStudentId)).toLowerCase(),
     name: roster.name || existingProfile?.name || 'Student',
     nameLower: String(roster.name || existingProfile?.name || 'Student').toLowerCase(),
     gender: roster.gender || existingProfile?.gender || '',
@@ -4274,8 +4308,43 @@ async function createOrRepairStudentProfileFromRoster(user, studentId, existingP
   return { uid: user.uid, ...profile, updatedAt: new Date() };
 }
 
+async function signInStudentWithCandidateEmails(studentId, password, roster = null) {
+  const candidates = getStudentAuthEmailCandidates(studentId, roster);
+  let lastError = null;
+  for (const candidateEmail of candidates) {
+    try {
+      const credential = await firebaseSync.authModule.signInWithEmailAndPassword(firebaseSync.auth, candidateEmail, password);
+      return { credential, authEmail: candidateEmail };
+    } catch (error) {
+      lastError = error;
+      if (!isAuthMissingOrWrongPasswordError(error)) throw error;
+    }
+  }
+  throw lastError || new Error('Student ID or password is incorrect.');
+}
+
+async function createFirebaseStudentCredential(studentId) {
+  const candidates = getStudentAuthEmailCandidates(studentId);
+  let lastEmailInUseError = null;
+  for (const candidateEmail of candidates) {
+    try {
+      const credential = await firebaseSync.authModule.createUserWithEmailAndPassword(firebaseSync.auth, candidateEmail, DEFAULT_STUDENT_PASSWORD);
+      return { credential, authEmail: candidateEmail };
+    } catch (error) {
+      if (isAuthEmailAlreadyInUseError(error)) {
+        lastEmailInUseError = error;
+        continue;
+      }
+      throw error;
+    }
+  }
+  const conflictError = new Error('This Student ID has a stuck login record. Ask the teacher to delete or reset the old Firebase Authentication user for this Student ID, then try 123456 again.');
+  conflictError.code = 'mcsian/auth-email-conflict';
+  conflictError.originalError = lastEmailInUseError;
+  throw conflictError;
+}
+
 async function createStudentAccountFromRoster(studentId, password) {
-  const authEmail = studentIdToAuthEmail(studentId);
   if (password !== DEFAULT_STUDENT_PASSWORD) {
     throw new Error('This Student ID is registered, but the account is not activated yet. Use the default password 123456 first.');
   }
@@ -4283,7 +4352,7 @@ async function createStudentAccountFromRoster(studentId, password) {
     throw new Error('Student account activation is not available yet. Refresh the page and try again.');
   }
 
-  const credential = await firebaseSync.authModule.createUserWithEmailAndPassword(firebaseSync.auth, authEmail, DEFAULT_STUDENT_PASSWORD);
+  const { credential, authEmail } = await createFirebaseStudentCredential(studentId);
   firebaseSync.currentUser = credential.user;
   let roster = null;
   try {
@@ -4296,11 +4365,15 @@ async function createStudentAccountFromRoster(studentId, password) {
       await deleteCurrentAuthUserQuietly(credential.user);
       throw new Error('This student account is disabled. Ask your teacher for help.');
     }
+    if (roster.authUid && roster.authUid !== credential.user.uid) {
+      await deleteCurrentAuthUserQuietly(credential.user);
+      throw new Error('This Student ID is already connected to another login. Use the password you created, or ask your teacher for reset help.');
+    }
 
     const { setDoc, serverTimestamp } = firebaseSync.modules;
     const profile = {
-      studentId: studentId,
-      studentIdNormalized: studentId,
+      studentId: normalizeStudentId(roster.studentId || roster.studentIdNormalized || roster.id || studentId),
+      studentIdNormalized: normalizeStudentId(roster.studentId || roster.studentIdNormalized || roster.id || studentId),
       authEmail,
       name: roster.name || 'Student',
       nameLower: String(roster.name || 'Student').toLowerCase(),
@@ -4318,8 +4391,9 @@ async function createStudentAccountFromRoster(studentId, password) {
     };
     await setDoc(getStudentDocRef(credential.user.uid), profile);
     try {
-      await setDoc(getStudentRosterDocRef(studentId), {
+      await setDoc(getStudentRosterDocRef(profile.studentIdNormalized || studentId), {
         authUid: credential.user.uid,
+        authEmail,
         authCreatedAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       }, { merge: true });
@@ -4337,6 +4411,7 @@ async function createStudentAccountFromRoster(studentId, password) {
 
 function getStudentAuthErrorMessage(error) {
   const code = String(error?.code || '');
+  if (code.includes('mcsian/auth-email-conflict')) return 'This Student ID has a stuck login record. Ask your teacher to delete or reset the old Firebase Authentication user, then try 123456 again.';
   if (code.includes('email-already-in-use')) return 'This Student ID already has an activated account. Log in using the new password you created.';
   if (code.includes('weak-password')) return 'The password must contain at least 6 characters.';
   if (code.includes('invalid-credential') || code.includes('wrong-password') || code.includes('user-not-found')) {
@@ -4375,23 +4450,21 @@ async function loginStudent() {
     let credential = null;
     let profile = null;
     try {
-      credential = await firebaseSync.authModule.signInWithEmailAndPassword(firebaseSync.auth, authEmail, password);
+      const signedIn = await signInStudentWithCandidateEmails(studentId, password);
+      credential = signedIn.credential;
       firebaseSync.currentUser = credential.user;
       profile = await loadStudentProfile(credential.user.uid);
       if (!profile) {
         profile = await createOrRepairStudentProfileFromRoster(credential.user, studentId, null);
       } else if (!areStudentIdsEquivalent(profile.studentId || profile.studentIdNormalized, studentId)) {
-        const sameAuthEmail = String(profile.authEmail || '').toLowerCase() === authEmail.toLowerCase();
+        const sameAuthEmail = getStudentAuthEmailCandidates(studentId).includes(String(profile.authEmail || '').toLowerCase());
         if (sameAuthEmail || areStudentIdsEquivalent(profile.studentIdNormalized, studentId)) {
           profile = await createOrRepairStudentProfileFromRoster(credential.user, studentId, profile);
         }
       }
     } catch (signInError) {
-      const signInCode = String(signInError?.code || signInError?.message || '').toLowerCase();
-      const shouldActivateFromRoster = signInCode.includes('user-not-found')
-        || signInCode.includes('invalid-credential')
-        || signInCode.includes('email_not_found');
-      if (!shouldActivateFromRoster) throw signInError;
+      if (!isAuthMissingOrWrongPasswordError(signInError)) throw signInError;
+      if (password !== DEFAULT_STUDENT_PASSWORD) throw signInError;
       profile = await createStudentAccountFromRoster(studentId, password);
     }
     if (!profile || !areStudentIdsEquivalent(profile.studentId || profile.studentIdNormalized, studentId)) {
@@ -11438,6 +11511,21 @@ function countMatches(text, pattern) {
   return (String(text || '').match(pattern) || []).length;
 }
 
+
+function getScorableStudentCodeText() {
+  return [codeStore.html || '', codeStore.css || '', codeStore.js || '']
+    .join('\n')
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/(^|\n)\s*\/\/.*(?=\n|$)/g, '\n')
+    .replace(/\s+/g, '')
+    .trim();
+}
+
+function isSubmissionEmptyForScoring() {
+  return getScorableStudentCodeText().length === 0;
+}
+
 function getCodeBasicsProgress() {
   const html = codeStore.html || '';
   const css = codeStore.css || '';
@@ -11729,11 +11817,17 @@ function progressToLevelKey(progress) {
 
 function gradeCriterion(criterion) {
   const normalizedCriterion = normalizeCriterion(criterion);
-  const progress = getCriterionProgress(normalizedCriterion);
-  const levelKey = progressToLevelKey(progress);
+  const emptySubmission = isSubmissionEmptyForScoring();
+  const progress = emptySubmission ? 0 : getCriterionProgress(normalizedCriterion);
+  const levelKey = emptySubmission ? 'needsImprovement' : progressToLevelKey(progress);
   const level = getCriterionLevel(normalizedCriterion, levelKey);
   const possible = getCriterionPossiblePoints(normalizedCriterion);
-  const localJudgement = getLocalCriterionEvidence(normalizedCriterion, progress);
+  const localJudgement = emptySubmission
+    ? {
+        evidence: 'No student code was submitted yet.',
+        improvement: 'Start by adding the required HTML/content for this activity, then run Result again.'
+      }
+    : getLocalCriterionEvidence(normalizedCriterion, progress);
 
   return {
     ...normalizedCriterion,
@@ -11774,6 +11868,10 @@ function formatPoints(value) {
 }
 
 function generateFeedback(score, possible, percent, results) {
+  if (isSubmissionEmptyForScoring()) {
+    return `No code was submitted yet. Add your HTML/content first, then run Result again. Score: ${formatPoints(score)}/${formatPoints(possible)}.`;
+  }
+
   const missingItems = results.filter(item => item.levelKey === 'needsImprovement' || item.levelKey === 'fair');
   const achievedItems = results.filter(item => item.levelKey === 'excellent' || item.levelKey === 'good');
   const sourceQuality = getHTMLSourceQualityReport();
