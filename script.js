@@ -4026,7 +4026,7 @@ function updateAppHeaderForSession({ forceTypewriter = false } = {}) {
     if (!appSession.currentProjectId) studentProjectDirty = false;
     setStudentSaveState(appSession.currentProjectId ? (studentProjectDirty ? 'Unsaved' : 'Saved') : 'Choose a project', studentProjectDirty ? 'unsaved' : '');
   } else if (isGuest) {
-    if (appTitleText) appTitleText.textContent = 'ICT 8 Connect';
+    if (appTitleText) appTitleText.textContent = 'A tool for every Grade 8 MCSian.';
     if (appSubtitleText) appSubtitleText.textContent = 'Learn, Code, Connect';
   } else {
     if (appTitleText) appTitleText.textContent = 'A tool for every Grade 8 MCSian.';

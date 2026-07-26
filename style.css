@@ -32166,16 +32166,8 @@ body.student-session-active #appTitleText .header-student-name-highlight {
 }
 
 #previewPanel.preview-panel > .preview-frame-shell::before {
-  content: "Student output starts below";
-  display: block;
-  padding: 6px 14px;
-  border-bottom: 1px solid #dbeafe;
-  color: #64748b;
-  background: #f8fbff;
-  font-size: 0.72rem;
-  font-weight: 800;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
+  content: none;
+  display: none;
 }
 
 [data-theme="dark"] #previewPanel.preview-panel > .preview-header {
@@ -32202,11 +32194,6 @@ body.student-session-active #appTitleText .header-student-name-highlight {
   background: linear-gradient(135deg, #2563eb, #0ea5e9);
 }
 
-[data-theme="dark"] #previewPanel.preview-panel > .preview-frame-shell::before {
-  color: #a7b4c7;
-  border-bottom-color: #243247;
-  background: #0f172a;
-}
 
 @media (max-width: 720px) {
   #previewPanel.preview-panel > .preview-header {

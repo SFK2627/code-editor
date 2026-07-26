@@ -1,13 +1,13 @@
-const CACHE_NAME = 'ict8-connect-step209';
+const CACHE_NAME = 'ict-8-connect-step-211';
 const APP_SHELL = [
   './',
   './index.html',
-  './index.html?v=20260726-step209-portrait-lock',
-  './index.html?fresh=step208',
+  './index.html?v=20260726-step211-label-fix',
+  './index.html?fresh=step211',
   './style.css',
-  './style.css?v=20260726-step209-portrait-lock',
+  './style.css?v=20260726-step211-label-fix',
   './script.js',
-  './script.js?v=20260726-step209-portrait-lock',
+  './script.js?v=20260726-step211-label-fix',
   './firebase-config.js',
   './manifest.webmanifest',
   './favicon.png',
