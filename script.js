@@ -1354,6 +1354,10 @@ function getCodeFileNames() {
   return codeFileNames;
 }
 
+function hasOwnFile(files, fileName) {
+  return Boolean(files && Object.prototype.hasOwnProperty.call(files, fileName));
+}
+
 
 function getLanguageFileMeta(language = activeLanguage) {
   const lang = ['html', 'css', 'js'].includes(language) ? language : 'html';
@@ -1456,9 +1460,9 @@ function normalizeLanguageFileMap(rawMap, language, fallbackContent = '') {
     files[meta.defaultName] = typeof fallbackContent === 'string' ? fallbackContent : '';
   }
 
-  if (!files[meta.defaultName]) {
+  if (!hasOwnFile(files, meta.defaultName)) {
     const firstKey = Object.keys(files)[0];
-    if (firstKey && firstKey !== meta.defaultName && !files[meta.defaultName]) {
+    if (firstKey && firstKey !== meta.defaultName && !hasOwnFile(files, meta.defaultName)) {
       files[meta.defaultName] = files[firstKey] || '';
     }
   }
@@ -1496,7 +1500,7 @@ function getActiveLanguageFileName(language = activeLanguage, store = codeStore)
   const meta = getLanguageFileMeta(language);
   const files = getLanguageFileMap(language, store);
   let active = cleanLanguageFileName(store[meta.activeKey] || codeFileNames?.[language] || meta.defaultName, language);
-  if (!files[active]) active = files[meta.defaultName] ? meta.defaultName : Object.keys(files)[0] || meta.defaultName;
+  if (!hasOwnFile(files, active)) active = hasOwnFile(files, meta.defaultName) ? meta.defaultName : Object.keys(files)[0] || meta.defaultName;
   store[meta.activeKey] = active;
   return active;
 }
@@ -1638,13 +1642,18 @@ function switchHTMLPage(fileName) {
   if (['html', 'css', 'js'].includes(activeLanguage)) saveActiveEditor();
   const safeName = cleanLanguageFileName(fileName, activeLanguage);
   const files = getLanguageFileMap(activeLanguage);
-  if (!files[safeName]) return;
+  if (!hasOwnFile(files, safeName)) {
+    renderHTMLPageManager();
+    setStatus('File not found');
+    return;
+  }
   codeStore[getLanguageFileMeta(activeLanguage).activeKey] = safeName;
   syncActiveLanguageFileFromStore(activeLanguage);
   saveCodeFileNames();
   saveCodeStoreForCurrentActivity();
   tabButtons.forEach(tab => tab.classList.toggle('active', tab.dataset.language === activeLanguage));
   loadActiveEditor();
+  renderHTMLPageManager();
   runCode(false, { scroll: false, pageName: getActiveHtmlPageName() });
   setStatus(`${getLanguageFileMeta(activeLanguage).label}: ${safeName}`);
 }
@@ -1758,11 +1767,17 @@ async function applyPageDialog() {
   if (pageDialogLanguage === 'html') syncActiveHTMLPageFromStore();
   saveCodeFileNames();
   saveCodeStoreForCurrentActivity();
-  renderHTMLPageManager();
-  if (activeLanguage === pageDialogLanguage) loadActiveEditor();
-  runCode(false, { scroll: false });
+
+  if (activeLanguage === pageDialogLanguage) {
+    renderHTMLPageManager();
+    loadActiveEditor();
+  } else {
+    renderHTMLPageManager();
+  }
+
+  runCode(false, { scroll: false, pageName: getActiveHtmlPageName() });
   closePageDialog();
-  setStatus(pageDialogMode === 'add' ? 'File added' : 'File renamed');
+  setStatus(pageDialogMode === 'add' ? `${meta.label}: ${newName}` : `Renamed to ${newName}`);
 }
 
 async function deleteCurrentHTMLPage() {
@@ -1852,7 +1867,7 @@ function normalizeHTMLPagesFromCodeStore(rawCode = {}) {
     pages[firstName] = typeof safeCode.html === 'string' ? safeCode.html : starterCode.html;
   }
 
-  if (!pages['index.html']) {
+  if (!hasOwnFile(pages, 'index.html')) {
     const firstKey = Object.keys(pages)[0];
     if (firstKey) pages['index.html'] = pages[firstKey];
   }
@@ -1865,15 +1880,15 @@ function normalizeCodeStore(rawCode) {
   const safeCode = rawCode && typeof rawCode === 'object' ? rawCode : {};
   const pages = normalizeHTMLPagesFromCodeStore(safeCode);
   let activeHtmlPage = cleanLanguageFileName(safeCode.activeHtmlPage || safeCode.currentHtmlPage || safeCode.htmlFileName || DEFAULT_CODE_FILE_NAMES.html, 'html');
-  if (!pages[activeHtmlPage]) activeHtmlPage = pages['index.html'] ? 'index.html' : Object.keys(pages)[0] || 'index.html';
+  if (!hasOwnFile(pages, activeHtmlPage)) activeHtmlPage = hasOwnFile(pages, 'index.html') ? 'index.html' : Object.keys(pages)[0] || 'index.html';
 
   const cssFiles = normalizeLanguageFileMap(safeCode.cssFiles, 'css', typeof safeCode.css === 'string' ? safeCode.css : starterCode.css);
   let activeCssFile = cleanLanguageFileName(safeCode.activeCssFile || safeCode.cssFileName || DEFAULT_CODE_FILE_NAMES.css, 'css');
-  if (!cssFiles[activeCssFile]) activeCssFile = cssFiles[DEFAULT_CODE_FILE_NAMES.css] ? DEFAULT_CODE_FILE_NAMES.css : Object.keys(cssFiles)[0] || DEFAULT_CODE_FILE_NAMES.css;
+  if (!hasOwnFile(cssFiles, activeCssFile)) activeCssFile = hasOwnFile(cssFiles, DEFAULT_CODE_FILE_NAMES.css) ? DEFAULT_CODE_FILE_NAMES.css : Object.keys(cssFiles)[0] || DEFAULT_CODE_FILE_NAMES.css;
 
   const jsFiles = normalizeLanguageFileMap(safeCode.jsFiles, 'js', typeof safeCode.js === 'string' ? safeCode.js : starterCode.js);
   let activeJsFile = cleanLanguageFileName(safeCode.activeJsFile || safeCode.jsFileName || DEFAULT_CODE_FILE_NAMES.js, 'js');
-  if (!jsFiles[activeJsFile]) activeJsFile = jsFiles[DEFAULT_CODE_FILE_NAMES.js] ? DEFAULT_CODE_FILE_NAMES.js : Object.keys(jsFiles)[0] || DEFAULT_CODE_FILE_NAMES.js;
+  if (!hasOwnFile(jsFiles, activeJsFile)) activeJsFile = hasOwnFile(jsFiles, DEFAULT_CODE_FILE_NAMES.js) ? DEFAULT_CODE_FILE_NAMES.js : Object.keys(jsFiles)[0] || DEFAULT_CODE_FILE_NAMES.js;
 
   return {
     html: typeof pages[activeHtmlPage] === 'string' ? pages[activeHtmlPage] : starterCode.html,
@@ -2027,6 +2042,29 @@ function getCodeStoreForActivity(activityId) {
   }
 
   return codeByActivity[activityId];
+}
+
+
+function codeStoreHasVisibleContent(store) {
+  const safeStore = normalizeCodeStore(store);
+  const buckets = [safeStore.pages, safeStore.cssFiles, safeStore.jsFiles];
+  return buckets.some(bucket => bucket && typeof bucket === 'object' && Object.values(bucket).some(value => String(value || '').trim().length > 0));
+}
+
+function cloneCurrentEditorCodeStore(options = {}) {
+  if (!options.skipSave && editor) {
+    saveActiveEditor();
+  }
+  return normalizeCodeStore(clone(codeStore));
+}
+
+function keepEditorCodeForActivityKey(activityKey, snapshot) {
+  const safeKey = activityKey || 'scratch';
+  const safeSnapshot = normalizeCodeStore(snapshot);
+  codeStore = safeSnapshot;
+  codeByActivity[safeKey] = normalizeCodeStore(clone(safeSnapshot));
+  saveCodeByActivity();
+  saveCodeFileNames();
 }
 
 
@@ -7455,7 +7493,7 @@ function attachAdminProjectViewerPreviewLinks() {
     if (!/\.html?$/i.test(fileName)) return;
     const page = cleanLanguageFileName(fileName, 'html');
     const pages = getAdminProjectFileMap('html');
-    if (!pages[page]) return;
+    if (!hasOwnFile(pages, page)) return;
     event.preventDefault();
     setAdminProjectActiveFileName('html', page);
     populateAdminProjectViewerFileSelect();
@@ -10263,7 +10301,7 @@ function navigatePreviewToPage(rawHref) {
   const target = normalizeInternalHtmlReference(rawHref);
   if (!target) return false;
   const pages = getHTMLPages();
-  if (!pages[target]) {
+  if (!hasOwnFile(pages, target)) {
     renderErrorChecker();
     setStatus('Missing page');
     appAlert(`${target} does not exist yet. Add this page in Pages, or change the link href.`, { title: 'Missing linked page' });
@@ -12941,12 +12979,20 @@ function renderActivitySummary() {
 }
 
 function selectActivity(activityId, options = {}) {
+  const shouldPreserveEditorCode = options.preserveEditorCode !== false;
+  const editorSnapshot = shouldPreserveEditorCode ? cloneCurrentEditorCodeStore({ skipSave: options.skipSave }) : null;
+  const hasEditorContent = shouldPreserveEditorCode && codeStoreHasVisibleContent(editorSnapshot);
+
   if (!activityId) {
-    if (!options.skipSave) saveActiveEditor();
+    if (!shouldPreserveEditorCode && !options.skipSave) saveActiveEditor();
     activity = null;
     selectedActivityId = '';
     saveJSON(STORAGE_KEYS.selectedActivityId, '');
-    codeStore = normalizeCodeStore(starterCode);
+    if (hasEditorContent) {
+      keepEditorCodeForActivityKey('scratch', editorSnapshot);
+    } else {
+      codeStore = codeByActivity.scratch ? getCodeStoreForActivity('scratch') : normalizeCodeStore(starterCode);
+    }
     renderActivitySummary();
     loadActiveEditor();
     resetResultPanel();
@@ -12957,7 +13003,7 @@ function selectActivity(activityId, options = {}) {
   const nextActivity = getActivityById(activityId);
   if (!nextActivity) return;
 
-  if (!options.skipSave) {
+  if (!shouldPreserveEditorCode && !options.skipSave) {
     saveActiveEditor();
   }
 
@@ -12965,7 +13011,12 @@ function selectActivity(activityId, options = {}) {
   selectedActivityId = nextActivity.id;
   adminEditingActivityId = nextActivity.id;
   saveJSON(STORAGE_KEYS.selectedActivityId, selectedActivityId);
-  codeStore = getCodeStoreForActivity(nextActivity.id);
+
+  if (hasEditorContent) {
+    keepEditorCodeForActivityKey(nextActivity.id, editorSnapshot);
+  } else {
+    codeStore = getCodeStoreForActivity(nextActivity.id);
+  }
 
   if (!options.keepLanguage) {
     activeLanguage = 'html';
@@ -16312,8 +16363,8 @@ function applyFileNameDialogValues() {
 
   const pages = getHTMLPages();
   if (nextNames.html !== previousActivePage) {
-    if (!pages[nextNames.html]) {
-      pages[nextNames.html] = pages[previousActivePage] || codeStore.html || '';
+    if (!hasOwnFile(pages, nextNames.html)) {
+      pages[nextNames.html] = hasOwnFile(pages, previousActivePage) ? pages[previousActivePage] : (codeStore.html || '');
       delete pages[previousActivePage];
       replaceHtmlFileReferences(previousActivePage, nextNames.html, 'html');
     }
@@ -16322,8 +16373,8 @@ function applyFileNameDialogValues() {
 
   const cssFiles = getLanguageFileMap('css');
   if (nextNames.css !== previousCssFile) {
-    if (!cssFiles[nextNames.css]) {
-      cssFiles[nextNames.css] = cssFiles[previousCssFile] || codeStore.css || '';
+    if (!hasOwnFile(cssFiles, nextNames.css)) {
+      cssFiles[nextNames.css] = hasOwnFile(cssFiles, previousCssFile) ? cssFiles[previousCssFile] : (codeStore.css || '');
       delete cssFiles[previousCssFile];
       replaceHtmlFileReferences(previousCssFile, nextNames.css, 'css');
     }
@@ -16332,8 +16383,8 @@ function applyFileNameDialogValues() {
 
   const jsFiles = getLanguageFileMap('js');
   if (nextNames.js !== previousJsFile) {
-    if (!jsFiles[nextNames.js]) {
-      jsFiles[nextNames.js] = jsFiles[previousJsFile] || codeStore.js || '';
+    if (!hasOwnFile(jsFiles, nextNames.js)) {
+      jsFiles[nextNames.js] = hasOwnFile(jsFiles, previousJsFile) ? jsFiles[previousJsFile] : (codeStore.js || '');
       delete jsFiles[previousJsFile];
       replaceHtmlFileReferences(previousJsFile, nextNames.js, 'js');
     }
@@ -17902,7 +17953,7 @@ function switchEditorToLanguageFile(language, fileName) {
   activeLanguage = safeLanguage;
   const meta = getLanguageFileMeta(safeLanguage);
   const files = getLanguageFileMap(safeLanguage);
-  if (!files[safeName]) files[safeName] = '';
+  if (!hasOwnFile(files, safeName)) files[safeName] = '';
   codeStore[meta.activeKey] = safeName;
   syncActiveLanguageFileFromStore(safeLanguage);
   tabButtons.forEach(tab => tab.classList.toggle('active', tab.dataset.language === safeLanguage));
@@ -17958,7 +18009,7 @@ function chooseCssFileForNewRule() {
   const firstPreferred = preferred.find(name => cssFiles[name] !== undefined);
   if (firstPreferred) return firstPreferred;
   const fallback = names[0] || 'style.css';
-  if (!cssFiles[fallback]) cssFiles[fallback] = '';
+  if (!hasOwnFile(cssFiles, fallback)) cssFiles[fallback] = '';
   codeStore.activeCssFile = fallback;
   return fallback;
 }

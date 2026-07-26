@@ -43031,3 +43031,121 @@ html[data-device-mode="phone"] .entry-choice-grid > button.lessons-choice strong
     font-size: 0.95rem !important;
   }
 }
+
+/* =========================================================
+   STEP 225 - Tablet Brand Text Position Lock
+   Keeps the cycling brand line anchored to the same left position as the
+   title on tablet/medium widths. Prevents "Learn, Code, Connect" from
+   visually sliding away from the ICT 8 Connect position.
+   ========================================================= */
+@media (min-width: 761px) and (max-width: 1368px) {
+  body:not(.entry-gate-active):not(.student-dashboard-active):not(.student-auth-open):not(.student-route-lock):not(.admin-open) .topbar .brand-block > div:last-child,
+  html.tablet-desktop-view:not([data-device-mode="phone"]) body:not(.entry-gate-active):not(.student-dashboard-active):not(.student-auth-open):not(.student-route-lock):not(.admin-open) .topbar .brand-block > div:last-child {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    justify-content: center !important;
+    text-align: left !important;
+    justify-items: start !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    overflow: hidden !important;
+  }
+
+  body:not(.entry-gate-active):not(.student-dashboard-active):not(.student-auth-open):not(.student-route-lock):not(.admin-open) .topbar .ict8-brand-kicker,
+  html.tablet-desktop-view:not([data-device-mode="phone"]) body:not(.entry-gate-active):not(.student-dashboard-active):not(.student-auth-open):not(.student-route-lock):not(.admin-open) .topbar .ict8-brand-kicker {
+    align-self: flex-start !important;
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    text-align: left !important;
+    justify-content: flex-start !important;
+    justify-items: start !important;
+    overflow: hidden !important;
+  }
+
+  body:not(.entry-gate-active):not(.student-dashboard-active):not(.student-auth-open):not(.student-route-lock):not(.admin-open) .topbar .ict8-brand-kicker .brand-cycle,
+  html.tablet-desktop-view:not([data-device-mode="phone"]) body:not(.entry-gate-active):not(.student-dashboard-active):not(.student-auth-open):not(.student-route-lock):not(.admin-open) .topbar .ict8-brand-kicker .brand-cycle {
+    display: inline-grid !important;
+    grid-template-areas: "brand" !important;
+    justify-items: start !important;
+    align-items: center !important;
+    justify-self: start !important;
+    text-align: left !important;
+    width: min(21ch, 100%) !important;
+    min-width: min(21ch, 100%) !important;
+    max-width: 100% !important;
+    margin-left: 0 !important;
+    margin-right: auto !important;
+    padding-left: 0 !important;
+    transform: none !important;
+    transform-origin: left center !important;
+  }
+
+  body:not(.entry-gate-active):not(.student-dashboard-active):not(.student-auth-open):not(.student-route-lock):not(.admin-open) .topbar .ict8-brand-kicker .brand-cycle-face,
+  html.tablet-desktop-view:not([data-device-mode="phone"]) body:not(.entry-gate-active):not(.student-dashboard-active):not(.student-auth-open):not(.student-route-lock):not(.admin-open) .topbar .ict8-brand-kicker .brand-cycle-face {
+    justify-self: start !important;
+    text-align: left !important;
+    left: 0 !important;
+    right: auto !important;
+    transform-origin: left center !important;
+  }
+
+  body:not(.entry-gate-active):not(.student-dashboard-active):not(.student-auth-open):not(.student-route-lock):not(.admin-open) .topbar #appTitleText,
+  html.tablet-desktop-view:not([data-device-mode="phone"]) body:not(.entry-gate-active):not(.student-dashboard-active):not(.student-auth-open):not(.student-route-lock):not(.admin-open) .topbar #appTitleText {
+    align-self: flex-start !important;
+    width: 100% !important;
+    text-align: left !important;
+    margin-left: 0 !important;
+    padding-left: 0 !important;
+  }
+}
+
+/* Step 227: Dark mode result readability + protect result insight cards */
+[data-theme="dark"] .result-insight-card,
+[data-theme="dark"] .result-insight-card.good,
+[data-theme="dark"] .result-insight-card.improve {
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.96), rgba(30, 41, 59, 0.92)) !important;
+  border-color: rgba(96, 165, 250, 0.26) !important;
+  box-shadow: none !important;
+}
+
+[data-theme="dark"] .result-insight-card.good {
+  border-color: rgba(34, 197, 94, 0.34) !important;
+}
+
+[data-theme="dark"] .result-insight-card.improve {
+  border-color: rgba(245, 158, 11, 0.36) !important;
+}
+
+[data-theme="dark"] .result-insight-card h4,
+[data-theme="dark"] .ai-review-block h4 {
+  color: #f8fafc !important;
+}
+
+[data-theme="dark"] .result-insight-card ul,
+[data-theme="dark"] .result-insight-card li,
+[data-theme="dark"] .ai-review-block ul,
+[data-theme="dark"] .ai-review-block li {
+  color: #cbd5e1 !important;
+}
+
+[data-theme="dark"] .result-warning-note {
+  color: #fde68a !important;
+  background: rgba(245, 158, 11, 0.16) !important;
+  border-color: rgba(245, 158, 11, 0.34) !important;
+}
+
+[data-theme="dark"] .rubric-evidence,
+[data-theme="dark"] .rubric-improvement {
+  color: #cbd5e1 !important;
+}
+
+[data-theme="dark"] .rubric-evidence strong,
+[data-theme="dark"] .rubric-improvement strong {
+  color: #f8fafc !important;
+}
