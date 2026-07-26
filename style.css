@@ -40452,11 +40452,18 @@ button.entry-choice.recitation-choice strong {
 #studentAccountStrip .student-greeting {
   flex: 1 1 340px;
   max-width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.18em;
+  line-height: 1.25;
 }
 
 #studentAccountMenu #menuStudentGreeting {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 0.18em;
   max-width: 100%;
+  line-height: 1.25;
 }
 
 @media (min-width: 821px) {
@@ -40465,19 +40472,20 @@ button.entry-choice.recitation-choice strong {
   }
 }
 
-/* STEP 202 - Cursive but readable full-name accent in rotating editor greeting */
+/* STEP 203 - Baseline-aligned cursive but readable full-name accent */
 .student-greeting .student-greeting-name-script,
 #menuStudentGreeting .student-greeting-name-script {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   max-width: min(100%, 32ch);
-  vertical-align: -0.02em;
-  margin: 0 0.06em;
-  padding: 0.02em 0.16em 0.04em;
+  margin: 0 0.04em;
+  padding: 0.01em 0.18em 0.03em;
   border-radius: 0.55em;
   font-family: "Segoe Script", "Lucida Handwriting", "Brush Script MT", "Comic Sans MS", cursive;
-  font-size: 1.08em;
+  font-size: 1.02em;
   font-weight: 700;
-  line-height: 1.08;
+  line-height: 1;
   letter-spacing: 0.005em;
   color: #075985;
   background: linear-gradient(180deg, rgba(224, 242, 254, 0.96), rgba(186, 230, 253, 0.58));
@@ -40485,6 +40493,7 @@ button.entry-choice.recitation-choice strong {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  transform: translateY(0.01em);
 }
 
 [data-theme="dark"] .student-greeting .student-greeting-name-script,
@@ -40498,7 +40507,7 @@ button.entry-choice.recitation-choice strong {
   .student-greeting .student-greeting-name-script,
   #menuStudentGreeting .student-greeting-name-script {
     max-width: min(46vw, 24ch);
-    font-size: 1.02em;
+    font-size: 1em;
     padding-left: 0.12em;
     padding-right: 0.12em;
   }

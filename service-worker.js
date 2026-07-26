@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ict8-connect-step-201';
+const CACHE_NAME = 'ict8-connect-step-203';
 const APP_SHELL = [
   './',
   './index.html',
