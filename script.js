@@ -19319,7 +19319,8 @@ let phonePreviewModeLatched = window.__mcsianPhonePreviewMode === true;
 function isLikelyPhoneViewport() {
   const userAgent = navigator.userAgent || '';
   const userAgentDataMobile = navigator.userAgentData?.mobile === true;
-  const mobileUserAgent = /Android|iPhone|iPod|Windows Phone|IEMobile|Opera Mini/i.test(userAgent);
+  const androidPhoneUserAgent = /Android/i.test(userAgent) && /Mobile/i.test(userAgent);
+  const mobileUserAgent = /iPhone|iPod|Windows Phone|IEMobile|Opera Mini/i.test(userAgent) || androidPhoneUserAgent;
   const coarsePointer = Boolean(window.matchMedia?.('(hover: none) and (pointer: coarse)')?.matches);
   const touchCapable = Number(navigator.maxTouchPoints || 0) > 0;
   const viewportWidth = Math.min(
@@ -19346,9 +19347,34 @@ function isLikelyPhoneViewport() {
   return strongPhoneSignal || phonePreviewModeLatched;
 }
 
+
+function isLikelyTabletDesktopViewport() {
+  const userAgent = navigator.userAgent || '';
+  const explicitTabletUserAgent = /iPad|Tablet|Silk|Kindle|PlayBook/i.test(userAgent) ||
+    (/Android/i.test(userAgent) && !/Mobile/i.test(userAgent));
+  const coarsePointer = Boolean(window.matchMedia?.('(hover: none) and (pointer: coarse)')?.matches);
+  const touchCapable = Number(navigator.maxTouchPoints || 0) > 1;
+  const viewportWidth = Math.min(
+    Number(window.innerWidth) || 9999,
+    Number(window.visualViewport?.width) || 9999
+  );
+  const viewportHeight = Number(window.visualViewport?.height) || Number(window.innerHeight) || 9999;
+  const screenWidth = Number(window.screen?.width) || viewportWidth;
+  const screenHeight = Number(window.screen?.height) || viewportHeight;
+  const shortestSide = Math.min(viewportWidth, viewportHeight, screenWidth, screenHeight);
+  const longestSide = Math.max(viewportWidth, viewportHeight, screenWidth, screenHeight);
+  const tabletSizedCanvas = viewportWidth >= 761 && shortestSide >= 740 && shortestSide <= 1180 && longestSide <= 1600;
+  const tabletSignal = explicitTabletUserAgent || (coarsePointer && touchCapable);
+  return Boolean(!isLikelyPhoneViewport() && tabletSignal && tabletSizedCanvas);
+}
+
 function applyPreviewDeviceMode() {
   const isPhone = isLikelyPhoneViewport();
+  const isTabletDesktop = !isPhone && isLikelyTabletDesktopViewport();
   document.documentElement.dataset.deviceMode = isPhone ? 'phone' : 'desktop';
+  document.documentElement.classList.toggle('tablet-desktop-view', isTabletDesktop);
+  document.body?.classList.toggle('tablet-desktop-view', isTabletDesktop);
+  document.documentElement.dataset.tabletDesktopView = isTabletDesktop ? 'true' : 'false';
 
   // The phone preview always uses the single stacked flow. Split, Stacked,
   // and Big Preview remain desktop-only controls and are never needed here.
