@@ -3737,13 +3737,15 @@ function makeHeaderTypewriterPayload() {
     };
   }
 
-  const fullText = 'ICT 8 Connect';
+  const guestHeaderText = activeMode === 'guest'
+    ? 'A tool for every Grade 8 MCSian.'
+    : 'ICT 8 Connect';
   return {
     mode: activeMode,
-    text: fullText,
-    key: `${activeMode}|${fullText}`,
+    text: guestHeaderText,
+    key: `${activeMode}|${guestHeaderText}`,
     makeFinalNodes() {
-      return [document.createTextNode(fullText)];
+      return [document.createTextNode(guestHeaderText)];
     }
   };
 }
