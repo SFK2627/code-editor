@@ -3093,6 +3093,54 @@ function isAuthEmailAlreadyInUseError(error) {
   return code.includes('email-already-in-use') || code.includes('email_exists');
 }
 
+function isFirestorePermissionError(error) {
+  const code = String(error?.code || error?.message || '').toLowerCase();
+  return code.includes('permission-denied')
+    || code.includes('missing or insufficient permissions')
+    || code.includes('insufficient permissions');
+}
+
+function buildStudentProfileWritePayload(user, profile = {}) {
+  const { serverTimestamp } = firebaseSync.modules;
+  const studentId = normalizeStudentId(profile.studentId || profile.studentIdNormalized || '');
+  const fallbackEmail = studentId ? studentIdToAuthEmail(studentId) : '';
+  const authEmail = String(user?.email || profile.authEmail || fallbackEmail || '').toLowerCase();
+  const name = String(profile.name || 'Student').trim() || 'Student';
+  const section = String(profile.section || '').trim();
+  return {
+    studentId,
+    studentIdNormalized: studentId,
+    authUid: user?.uid || profile.authUid || '',
+    authEmail,
+    name,
+    nameLower: name.toLowerCase(),
+    gender: profile.gender || '',
+    section,
+    sectionLower: section.toLowerCase(),
+    accountStatus: profile.accountStatus || 'active',
+    mustChangePassword: profile.mustChangePassword === false ? false : true,
+    loginCount: Number(profile.loginCount || 0),
+    projectCount: Number(profile.projectCount || 0),
+    createdAt: profile.createdAt || serverTimestamp(),
+    updatedAt: serverTimestamp()
+  };
+}
+
+async function writeStudentProfileDoc(user, profile, { merge = true, context = 'student-profile' } = {}) {
+  const { setDoc } = firebaseSync.modules;
+  try {
+    if (merge) await setDoc(getStudentDocRef(user.uid), profile, { merge: true });
+    else await setDoc(getStudentDocRef(user.uid), profile);
+    return profile;
+  } catch (error) {
+    if (!isFirestorePermissionError(error)) throw error;
+    console.warn(`Full ${context} write was blocked; retrying with permission-safe student fields.`, error);
+    const fallbackProfile = buildStudentProfileWritePayload(user, profile);
+    await setDoc(getStudentDocRef(user.uid), fallbackProfile, { merge: true });
+    return { ...profile, ...fallbackProfile };
+  }
+}
+
 function getStudentFirstName(name) {
   const cleaned = String(name || 'Student').trim().replace(/\s+/g, ' ');
   if (!cleaned) return 'Student';
@@ -3402,8 +3450,17 @@ async function loadStudentProfile(uid) {
   const ready = await initFirebaseSync();
   if (!ready || !uid) return null;
   const { getDoc } = firebaseSync.modules;
-  const snapshot = await getDoc(getStudentDocRef(uid));
-  return snapshotExists(snapshot) ? { uid, ...snapshotData(snapshot) } : null;
+  try {
+    const snapshot = await getDoc(getStudentDocRef(uid));
+    return snapshotExists(snapshot) ? { uid, ...snapshotData(snapshot) } : null;
+  } catch (error) {
+    const activeUser = getFirebaseActiveUser();
+    if (isFirestorePermissionError(error) && activeUser?.uid === uid) {
+      console.warn('Student profile read was blocked during first-login recovery; continuing profile setup.', error);
+      return null;
+    }
+    throw error;
+  }
 }
 
 async function loadStudentRosterRecord(studentId) {
@@ -4277,6 +4334,7 @@ async function createOrRepairStudentProfileFromRoster(user, studentId, existingP
     ...(existingProfile || {}),
     studentId: rosterStudentId,
     studentIdNormalized: rosterStudentId,
+    authUid: user.uid,
     authEmail: String(user.email || existingProfile?.authEmail || studentIdToAuthEmail(rosterStudentId)).toLowerCase(),
     name: roster.name || existingProfile?.name || 'Student',
     nameLower: String(roster.name || existingProfile?.name || 'Student').toLowerCase(),
@@ -4294,7 +4352,7 @@ async function createOrRepairStudentProfileFromRoster(user, studentId, existingP
     createdBy: existingProfile?.createdBy || 'student-login-repair'
   };
 
-  await setDoc(getStudentDocRef(user.uid), profile, { merge: true });
+  const savedProfile = await writeStudentProfileDoc(user, profile, { merge: true, context: 'student profile repair' });
   try {
     await setDoc(getStudentRosterDocRef(rosterStudentId), {
       authUid: user.uid,
@@ -4305,7 +4363,7 @@ async function createOrRepairStudentProfileFromRoster(user, studentId, existingP
   } catch (rosterUpdateError) {
     console.warn('Student roster repair marker was not updated.', rosterUpdateError);
   }
-  return { uid: user.uid, ...profile, updatedAt: new Date() };
+  return { uid: user.uid, ...savedProfile, updatedAt: new Date() };
 }
 
 async function signInStudentWithCandidateEmails(studentId, password, roster = null) {
@@ -4374,6 +4432,7 @@ async function createStudentAccountFromRoster(studentId, password) {
     const profile = {
       studentId: normalizeStudentId(roster.studentId || roster.studentIdNormalized || roster.id || studentId),
       studentIdNormalized: normalizeStudentId(roster.studentId || roster.studentIdNormalized || roster.id || studentId),
+      authUid: credential.user.uid,
       authEmail,
       name: roster.name || 'Student',
       nameLower: String(roster.name || 'Student').toLowerCase(),
@@ -4389,7 +4448,7 @@ async function createStudentAccountFromRoster(studentId, password) {
       rosterActivatedAt: serverTimestamp(),
       createdBy: 'student-first-login'
     };
-    await setDoc(getStudentDocRef(credential.user.uid), profile);
+    await writeStudentProfileDoc(credential.user, profile, { merge: false, context: 'student first login' });
     try {
       await setDoc(getStudentRosterDocRef(profile.studentIdNormalized || studentId), {
         authUid: credential.user.uid,
@@ -4421,6 +4480,7 @@ function getStudentAuthErrorMessage(error) {
   if (code.includes('network-request-failed')) return 'Internet connection problem. Please reconnect and try again.';
   if (code.includes('operation-not-allowed')) return 'Student login is not enabled yet. The teacher must enable Email/Password in Firebase Authentication.';
   if (code.includes('unauthorized-domain')) return 'This website domain must be added to Firebase Authentication authorized domains.';
+  if (isFirestorePermissionError(error)) return 'Login setup was blocked by Firestore permissions. Refresh after uploading the latest files, then try again with 123456. If it still appears, ask the teacher to publish the updated firestore.rules.';
   return error?.message || 'Login failed. Check your Student ID and password.';
 }
 
