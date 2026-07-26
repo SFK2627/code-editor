@@ -43217,3 +43217,13 @@ body:not(.entry-gate-active):not(.student-dashboard-active):not(.student-auth-op
     justify-content: center !important;
   }
 }
+
+/* Step 229: keep Studio launcher clickable after tablet/header layout moves. */
+#superStudioLauncher,
+.studio-launcher,
+.studio-launcher-desktop,
+.studio-launcher-mobile {
+  pointer-events: auto !important;
+  position: relative;
+  z-index: 6;
+}

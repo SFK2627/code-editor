@@ -20028,8 +20028,15 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     // The same button becomes "Hide Studio" so students always have a way to close it.
     launcher?.classList.toggle('studio-hidden', !enabled);
     launcher?.classList.toggle('hidden', !enabled);
-    toolbar?.classList.toggle('studio-hidden', !enabled || !studioDrawerOpen);
-    coach?.classList.toggle('studio-hidden', !enabled || !studioDrawerOpen);
+
+    // Some phone/tablet fallbacks add the generic .hidden class when Studio closes.
+    // The desktop drawer must remove BOTH .hidden and .studio-hidden when opening,
+    // otherwise the button can toggle but the Studio tools still stay invisible.
+    [toolbar, coach].forEach(part => {
+      if (!part) return;
+      part.classList.toggle('studio-hidden', !enabled || !studioDrawerOpen);
+      part.classList.toggle('hidden', !enabled || !studioDrawerOpen);
+    });
 
     document.querySelectorAll('.super-studio-only').forEach(item => item.classList.toggle('hidden', !enabled || !studioDrawerOpen));
     document.body.classList.toggle('super-studio-open', enabled && studioDrawerOpen);
@@ -20499,10 +20506,36 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
   }
 
   function wireStudioEvents() {
-    document.getElementById('superStudioLauncher')?.addEventListener('click', () => {
-      if (!isSuperStudioEnabled()) return;
-      setStudioDrawerOpen(!studioDrawerOpen);
-    });
+    const launcher = document.getElementById('superStudioLauncher');
+    if (launcher && !launcher.dataset.studioClickBound) {
+      launcher.dataset.studioClickBound = 'true';
+      launcher.addEventListener('click', event => {
+        event.preventDefault();
+        event.stopPropagation();
+        event.__mcsStudioLauncherHandled = true;
+        if (!isSuperStudioEnabled()) {
+          setStatus('Super Studio is disabled by the teacher');
+          return;
+        }
+        setStudioDrawerOpen(!studioDrawerOpen);
+      });
+    }
+    if (!document.documentElement.dataset.studioDelegatedClickBound) {
+      document.documentElement.dataset.studioDelegatedClickBound = 'true';
+      document.addEventListener('click', event => {
+        const launch = event.target?.closest?.('#superStudioLauncher');
+        if (!launch || event.__mcsStudioLauncherHandled) return;
+        // Fallback only. The normal launcher listener handles the real button.
+        // Keeping this in the bubble phase prevents double-toggle on desktop.
+        if (launch.dataset.studioClickBound === 'true') return;
+        event.preventDefault();
+        if (!isSuperStudioEnabled()) {
+          setStatus('Super Studio is disabled by the teacher');
+          return;
+        }
+        setStudioDrawerOpen(!studioDrawerOpen);
+      }, false);
+    }
     window.addEventListener('resize', () => {
       placeStudioLauncher();
       placeAllStudioOverlays();
@@ -20653,7 +20686,9 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     returnToDashboardAfterLeave: false,
     cursorTimer: null,
     lastCursorPosition: -1,
-    memberColorCache: {}
+    memberColorCache: {},
+    savedProjectId: '',
+    savedProjectName: ''
   };
 
   function isCollaborationEnabled() {
@@ -20679,8 +20714,51 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     return student?.name || student?.studentId || 'Student';
   }
 
+  function getCollabAuthUser() {
+    return firebaseSync.auth?.currentUser || firebaseSync.currentUser || null;
+  }
+
   function getCollabUid() {
-    return getCollabStudent()?.uid || firebaseSync.currentUser?.uid || '';
+    // Firestore rules compare sharedSessions.hostUid with request.auth.uid.
+    // Always prefer the live Firebase Auth UID because a student profile can
+    // keep an older uid after an Authentication reset/recreate.
+    const authUid = getCollabAuthUser()?.uid || '';
+    const student = getCollabStudent() || {};
+    return authUid || student.uid || student.authUid || '';
+  }
+
+  function waitForCollabAuthUser(timeoutMs = 1800) {
+    const current = getCollabAuthUser();
+    if (current) return Promise.resolve(current);
+    if (!firebaseSync.auth || !firebaseSync.authModule?.onAuthStateChanged) return Promise.resolve(null);
+    return new Promise(resolve => {
+      let settled = false;
+      let unsubscribe = null;
+      const finish = user => {
+        if (settled) return;
+        settled = true;
+        try { if (typeof unsubscribe === 'function') unsubscribe(); } catch (_) {}
+        firebaseSync.currentUser = user || getCollabAuthUser() || null;
+        resolve(firebaseSync.currentUser);
+      };
+      try {
+        unsubscribe = firebaseSync.authModule.onAuthStateChanged(firebaseSync.auth, user => finish(user || null));
+      } catch (error) {
+        console.warn('Could not wait for collaboration auth user.', error);
+        finish(getCollabAuthUser());
+        return;
+      }
+      window.setTimeout(() => finish(getCollabAuthUser()), timeoutMs);
+    });
+  }
+
+  async function ensureCollabAuthUserForWrite() {
+    const user = await waitForCollabAuthUser();
+    if (!user?.uid) {
+      throw new Error('Please log in again before using Share or Join.');
+    }
+    firebaseSync.currentUser = user;
+    return user;
   }
   function collabEscape(value) {
     return typeof escapeHTML === 'function'
@@ -21142,6 +21220,7 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
       pill.classList.remove('inside-editor-fullscreen');
     }
     renderCollabLiveIndicator(collabState.latestSession);
+    syncCollabSaveButtonVisibility();
     syncMobileCollabToolsBar();
   }
 
@@ -21358,16 +21437,31 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
       setCollabStatus(`Firebase is not ready. ${firebaseSync.lastError || 'Check connection.'}`, 'error');
       return;
     }
+    let authUser;
+    try {
+      authUser = await ensureCollabAuthUserForWrite();
+    } catch (authError) {
+      setCollabStatus(authError?.message || 'Please log in again before sharing.', 'error');
+      return;
+    }
     try {
       setCollabStatus('Starting live session...', 'warning');
-      await saveStudentProjectManually?.();
+      try {
+        // Saving the student's own project is helpful, but it must not block
+        // Share/Join. If a recovered account has an old project uid or a
+        // temporary permission issue, still allow the live session to start
+        // from the editor content currently on screen.
+        await saveStudentProjectManually?.();
+      } catch (saveError) {
+        console.warn('Live session will start without a pre-save.', saveError);
+      }
       const code = generateShareCode();
       const access = document.getElementById('collabAccessSelect')?.value === 'view' ? 'view' : 'edit';
       const allowEdit = access === 'edit' && isCollaborationEditAllowed();
       const sessionRef = getSharedSessionDocRef(code);
       const { setDoc, serverTimestamp } = firebaseSync.modules;
       const payload = getCollabContentPayload();
-      const uid = getCollabUid();
+      const uid = authUser.uid;
       await setDoc(sessionRef, {
         shareCode: code,
         active: true,
@@ -21446,6 +21540,13 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
       setCollabStatus(`Firebase is not ready. ${firebaseSync.lastError || 'Check connection.'}`, 'error');
       return false;
     }
+    let authUser;
+    try {
+      authUser = await ensureCollabAuthUserForWrite();
+    } catch (authError) {
+      setCollabStatus(authError?.message || 'Please log in again before joining.', 'error');
+      return false;
+    }
     try {
       const normalizedCode = String(code || '').trim().toUpperCase();
       const sessionRef = getSharedSessionDocRef(normalizedCode);
@@ -21454,7 +21555,7 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
       if (!snapshotExists(snap)) throw new Error('Share code not found.');
       const data = snapshotData(snap);
       if (data.active === false) throw new Error('This share code is already stopped.');
-      const uid = getCollabUid();
+      const uid = authUser.uid;
       const role = options.role === 'host' || data.hostUid === uid ? 'host' : 'member';
       if (role !== 'host' && !options.noRestore) {
         const fromDashboard = options.source === 'dashboard';
@@ -21495,6 +21596,10 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     collabState.code = code;
     collabState.sessionRef = sessionRef;
     collabState.canEdit = role === 'host' || (initialData.allowEdit !== false && isCollaborationEditAllowed());
+    if (role === 'host') {
+      collabState.savedProjectId = '';
+      collabState.savedProjectName = '';
+    }
     collabState.lastContentVersion = Number(initialData.contentVersion || 0);
     editor.readOnly = !collabState.canEdit;
     document.body.classList.toggle('collab-active', true);
@@ -21534,6 +21639,7 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     updateCollabHeartbeat();
     scheduleCollabCursorPush();
     updateCollaborationFeatureVisibility();
+    syncCollabSaveButtonVisibility();
     renderCollabLiveIndicator(initialData);
     renderCollabCursors(initialData);
   }
@@ -21555,6 +21661,17 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     const version = Number(data.contentVersion || 0);
     const sameEditor = data.lastEditorUid && data.lastEditorUid === getCollabUid();
     if (!options.force && (sameEditor || !version || version <= collabState.lastContentVersion)) return;
+
+    // Live project content should sync, but each device must keep its own
+    // current tab/page. A host or joiner changing from index.html to about.html
+    // should not drag everyone else to the same page.
+    const localFocus = {
+      activeLanguage,
+      html: getActiveLanguageFileName('html'),
+      css: getActiveLanguageFileName('css'),
+      js: getActiveLanguageFileName('js')
+    };
+
     collabState.applyingRemote = true;
     try {
       codeByActivity = normalizeProjectCodeByActivity(data.codeByActivity);
@@ -21564,6 +21681,22 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
       codeStore = codeByActivity[codeKey] ? normalizeCodeStore(codeByActivity[codeKey]) : normalizeCodeStore(starterCode);
       codeByActivity[codeKey] = normalizeCodeStore(codeStore);
       codeFileNames = normalizeCodeFileNames(data.fileNames || DEFAULT_CODE_FILE_NAMES);
+
+      if (!options.force) {
+        ['html', 'css', 'js'].forEach(language => {
+          const meta = getLanguageFileMeta(language);
+          const files = getLanguageFileMap(language, codeStore);
+          const preferred = cleanLanguageFileName(localFocus[language] || '', language);
+          if (preferred && hasOwnFile(files, preferred)) {
+            codeStore[meta.activeKey] = preferred;
+            codeFileNames[language] = preferred;
+          }
+        });
+        if (['html', 'css', 'js'].includes(localFocus.activeLanguage)) {
+          activeLanguage = localFocus.activeLanguage;
+        }
+      }
+
       saveJSON(STORAGE_KEYS.selectedActivityId, selectedActivityId);
       saveCodeByActivity();
       saveCodeFileNames();
@@ -21642,6 +21775,99 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     }
   }
 
+  function isJoinedCollabMemberSession() {
+    return Boolean(collabState.active && collabState.role !== 'host');
+  }
+
+  function syncCollabSaveButtonVisibility() {
+    const show = isCollaborationEnabled() && isJoinedCollabMemberSession() && Boolean(getCollabStudent());
+    [saveStudentProjectBtn, menuSaveProjectBtn].forEach(button => {
+      if (!button) return;
+      if (show) {
+        button.classList.remove('hidden');
+        button.removeAttribute('aria-hidden');
+        button.disabled = false;
+        button.textContent = '💾 Save';
+        button.title = collabState.savedProjectId
+          ? 'Save latest live project progress to your saved copy'
+          : 'Save this live project progress to My Projects';
+      } else if (!isStudentProjectActive()) {
+        button.classList.add('hidden');
+        button.setAttribute('aria-hidden', 'true');
+      }
+    });
+  }
+
+  async function saveJoinedCollaborationProgress() {
+    if (!isJoinedCollabMemberSession()) return false;
+    try {
+      saveActiveEditor();
+      const authUser = await ensureCollabAuthUserForWrite();
+      if (collabState.canEdit) {
+        try { await pushCollaborationUpdate('manual-save'); } catch (pushError) { console.warn('Live project push before save was skipped.', pushError); }
+      }
+      const { setDoc, serverTimestamp, increment } = firebaseSync.modules;
+      const payload = getCollabContentPayload();
+      const session = collabState.latestSession || {};
+      const baseName = String(session.projectName || getCollabProjectName(session) || 'Shared Project').trim() || 'Shared Project';
+      const projectName = collabState.savedProjectName || `Shared - ${baseName}`;
+      const projectId = collabState.savedProjectId || `shared-${String(collabState.code || createId()).toLowerCase()}-${Date.now().toString(36)}`.replace(/[^a-z0-9_-]/gi, '-');
+      const isNewCopy = !collabState.savedProjectId;
+      await setDoc(getStudentProjectDocRef(authUser.uid, projectId), {
+        name: projectName,
+        nameLower: projectName.toLowerCase(),
+        status: 'in-progress',
+        codeByActivity: payload.codeByActivity,
+        selectedActivityId: payload.selectedActivityId || '',
+        activityTitle: activity?.title || session.activityTitle || '',
+        fileNames: payload.fileNames,
+        runCount: Number(appSession.currentProject?.runCount || 0),
+        lastResult: lastRubricResult || null,
+        sharedFromCode: collabState.code || '',
+        sharedFromHost: session.hostName || '',
+        updatedAt: serverTimestamp(),
+        ...(isNewCopy ? { createdAt: serverTimestamp() } : {})
+      }, { merge: true });
+      if (isNewCopy) {
+        collabState.savedProjectId = projectId;
+        collabState.savedProjectName = projectName;
+        await setDoc(getStudentDocRef(authUser.uid), {
+          projectCount: increment(1),
+          lastProjectId: projectId,
+          lastProjectName: projectName,
+          lastActivityAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        }, { merge: true }).catch(error => console.warn('Saved live copy; profile counter update skipped.', error));
+      }
+      const cached = {
+        id: projectId,
+        name: projectName,
+        nameLower: projectName.toLowerCase(),
+        status: 'in-progress',
+        codeByActivity: payload.codeByActivity,
+        selectedActivityId: payload.selectedActivityId || '',
+        activityTitle: activity?.title || session.activityTitle || '',
+        fileNames: payload.fileNames,
+        lastResult: lastRubricResult || null,
+        updatedAt: new Date()
+      };
+      const index = appSession.projects?.findIndex?.(project => project.id === projectId) ?? -1;
+      if (index >= 0) appSession.projects[index] = { ...appSession.projects[index], ...cached };
+      else appSession.projects?.unshift?.(cached);
+      persistStudentProjectsCache?.();
+      setStudentSaveState?.('Saved shared copy', 'saved');
+      syncCollabSaveButtonVisibility();
+      setStatus('Live project progress saved to My Projects');
+      setCollabStatus('Saved to your My Projects.', 'success');
+      return true;
+    } catch (error) {
+      console.error('Could not save joined live project.', error);
+      setCollabStatus(error?.message || 'Could not save this live project yet.', 'error');
+      setStatus('Save failed');
+      return false;
+    }
+  }
+
   async function stopCollaborationSession() {
     if (!collabState.active || collabState.role !== 'host' || !collabState.sessionRef) return;
     const confirmed = await appConfirm('Stop this live sharing session? Classmates will no longer be able to edit or view using this code.', { title: 'Stop sharing', danger: true, confirmText: 'Stop Sharing' });
@@ -21681,6 +21907,8 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     collabState.canEdit = false;
     collabState.latestSession = null;
     collabState.lastIndicatorText = '';
+    collabState.savedProjectId = '';
+    collabState.savedProjectName = '';
     editor.readOnly = false;
     document.body.classList.remove('collab-active', 'collab-view-only');
     closeCollabMembersOverlay?.();
@@ -21974,13 +22202,25 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     if (document.activeElement === editor) scheduleCollabCursorPush();
   });
   document.addEventListener('change', event => {
-    if (['activitySelect', 'htmlPageSelect'].includes(event.target?.id)) scheduleCollaborationPush('change', { delay: 20 });
+    // Activity changes can be shared, but page/file switching is a local view
+    // choice. Do not sync page focus to classmates.
+    if (event.target?.id === 'activitySelect') scheduleCollaborationPush('change', { delay: 20 });
   });
   document.addEventListener('click', event => {
     if (event.target?.closest?.('#addHtmlPageBtn, #renameHtmlPageBtn, #deleteHtmlPageBtn, #applyPageDialogBtn, #renameFilesBtn')) {
       window.setTimeout(() => scheduleCollaborationPush('page', { delay: 20 }), 80);
     }
   });
+  document.addEventListener('click', event => {
+    const saveButton = event.target?.closest?.('#saveStudentProjectBtn, #menuSaveProjectBtn');
+    if (!saveButton || !isJoinedCollabMemberSession()) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation?.();
+    closeStudentAccountMenu?.();
+    saveJoinedCollaborationProgress();
+  }, true);
+
   document.addEventListener('studentAssistanceSettingsChanged', updateCollaborationFeatureVisibility);
   document.addEventListener('fullscreenchange', () => window.setTimeout(() => { ensureCollabControls(); placeAllCollabOverlays(); renderCollabCursors(collabState.latestSession); }, 60));
   document.addEventListener('webkitfullscreenchange', () => window.setTimeout(() => { ensureCollabControls(); placeAllCollabOverlays(); renderCollabCursors(collabState.latestSession); }, 60));
