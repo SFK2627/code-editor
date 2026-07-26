@@ -222,6 +222,7 @@ const resumeStudentBtn = document.getElementById('resumeStudentBtn');
 const resumeStudentText = document.getElementById('resumeStudentText');
 const openStudentLoginBtn = document.getElementById('openStudentLoginBtn');
 const continueGuestBtn = document.getElementById('continueGuestBtn');
+const entryLessonViewerBtn = document.getElementById('entryLessonViewerBtn');
 const studentLoginOverlay = document.getElementById('studentLoginOverlay');
 const closeStudentLoginBtn = document.getElementById('closeStudentLoginBtn');
 const studentLoginId = document.getElementById('studentLoginId');
@@ -13877,13 +13878,18 @@ async function saveLessonLibraryToCloud() {
 }
 
 async function openLessonLibrary(origin = 'dashboard') {
+  const openedFromEntry = origin === 'entry';
   if (!appSession.student && appSession.mode !== 'guest') {
-    openStudentLogin();
-    return;
+    if (!openedFromEntry) {
+      openStudentLogin();
+      return;
+    }
+    appSession.mode = 'guest';
   }
-  lessonLibraryState.returnView = origin === 'editor' ? 'editor' : 'dashboard';
+  lessonLibraryState.returnView = openedFromEntry ? 'entry' : (origin === 'editor' ? 'editor' : 'dashboard');
   closeStudentAccountMenu();
   closeLessonPdfViewer();
+  hideEntryGate();
   studentDashboard?.classList.add('hidden');
   document.body.classList.remove('student-dashboard-active');
   document.body.classList.add('lesson-viewer-active');
@@ -13897,7 +13903,13 @@ function closeLessonLibrary() {
   closeLessonPdfViewer();
   lessonViewerScreen?.classList.add('hidden');
   document.body.classList.remove('lesson-viewer-active');
-  if (lessonLibraryState.returnView === 'dashboard' && appSession.student) {
+  if (lessonLibraryState.returnView === 'entry') {
+    if (appSession.mode === 'guest' && !appSession.currentProjectId) {
+      appSession.mode = 'entry';
+      updateAppHeaderForSession();
+    }
+    showEntryGate();
+  } else if (lessonLibraryState.returnView === 'dashboard' && appSession.student) {
     showStudentDashboard();
   } else if (appSession.currentProjectId) {
     queueStudentPresenceUpdate({
@@ -18903,6 +18915,7 @@ criteriaEditor.addEventListener('click', async event => {
 // Welcome, student authentication, password, dashboard, and project actions.
 openStudentLoginBtn?.addEventListener('click', openStudentLogin);
 continueGuestBtn?.addEventListener('click', continueAsGuest);
+entryLessonViewerBtn?.addEventListener('click', () => openLessonLibrary('entry'));
 resumeStudentBtn?.addEventListener('click', resumeExistingStudentSession);
 closeStudentLoginBtn?.addEventListener('click', closeStudentLogin);
 studentLoginGuestBtn?.addEventListener('click', continueAsGuest);

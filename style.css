@@ -40649,3 +40649,453 @@ button.entry-choice.recitation-choice strong {
     padding: 0 !important;
   }
 }
+
+/* STEP 205 - Homepage lessons action button
+   Adds View Lessons as the third homepage secondary action and keeps the
+   three lower actions in one row on desktop and phone. */
+.entry-card .entry-lead {
+  max-width: 720px !important;
+}
+
+.entry-choice-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: clamp(8px, 1.25vw, 14px) !important;
+}
+
+.entry-choice-grid > .primary-choice,
+.entry-choice-grid > button.primary-choice {
+  grid-column: 1 / -1 !important;
+}
+
+.entry-choice-grid > .guest-choice,
+.entry-choice-grid > button.guest-choice {
+  grid-column: 1 / 2 !important;
+}
+
+.entry-choice-grid > .recitation-choice,
+.entry-choice-grid > button.recitation-choice {
+  grid-column: 2 / 3 !important;
+}
+
+.entry-choice-grid > .lessons-choice,
+.entry-choice-grid > button.lessons-choice {
+  grid-column: 3 / 4 !important;
+}
+
+.entry-choice-grid > .guest-choice,
+.entry-choice-grid > .recitation-choice,
+.entry-choice-grid > .lessons-choice,
+.entry-choice-grid > button.guest-choice,
+.entry-choice-grid > button.recitation-choice,
+.entry-choice-grid > button.lessons-choice {
+  width: 100% !important;
+  min-width: 0 !important;
+  min-height: 88px !important;
+}
+
+@media (min-width: 761px) {
+  .entry-choice-grid > .guest-choice,
+  .entry-choice-grid > .recitation-choice,
+  .entry-choice-grid > .lessons-choice,
+  .entry-choice-grid > button.guest-choice,
+  .entry-choice-grid > button.recitation-choice,
+  .entry-choice-grid > button.lessons-choice {
+    display: grid !important;
+    grid-template-columns: 42px minmax(0, 1fr) !important;
+    align-items: center !important;
+    text-align: left !important;
+    padding: 14px 12px !important;
+    gap: 12px !important;
+  }
+
+  .entry-choice-grid > .guest-choice .entry-choice-icon,
+  .entry-choice-grid > .recitation-choice .entry-choice-icon,
+  .entry-choice-grid > .lessons-choice .entry-choice-icon,
+  .entry-choice-grid > button.guest-choice .entry-choice-icon,
+  .entry-choice-grid > button.recitation-choice .entry-choice-icon,
+  .entry-choice-grid > button.lessons-choice .entry-choice-icon {
+    width: 42px !important;
+    height: 42px !important;
+    border-radius: 14px !important;
+    font-size: 1.08rem !important;
+  }
+
+  .entry-choice-grid > .guest-choice strong,
+  .entry-choice-grid > .recitation-choice strong,
+  .entry-choice-grid > .lessons-choice strong,
+  .entry-choice-grid > button.guest-choice strong,
+  .entry-choice-grid > button.recitation-choice strong,
+  .entry-choice-grid > button.lessons-choice strong {
+    font-size: clamp(0.9rem, 1.05vw, 1.02rem) !important;
+    line-height: 1.12 !important;
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+  }
+
+  .entry-choice-grid > .guest-choice small,
+  .entry-choice-grid > .recitation-choice small,
+  .entry-choice-grid > .lessons-choice small,
+  .entry-choice-grid > button.guest-choice small,
+  .entry-choice-grid > button.recitation-choice small,
+  .entry-choice-grid > button.lessons-choice small {
+    display: block !important;
+    font-size: clamp(0.72rem, 0.85vw, 0.84rem) !important;
+    line-height: 1.24 !important;
+  }
+}
+
+@media (max-width: 760px) {
+  html[data-device-mode="phone"] .entry-choice-grid,
+  .entry-choice-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 7px !important;
+  }
+
+  html[data-device-mode="phone"] .entry-choice-grid > .primary-choice,
+  html[data-device-mode="phone"] .entry-choice-grid > button.primary-choice,
+  .entry-choice-grid > .primary-choice,
+  .entry-choice-grid > button.primary-choice {
+    grid-column: 1 / -1 !important;
+  }
+
+  html[data-device-mode="phone"] .entry-choice-grid > .guest-choice,
+  html[data-device-mode="phone"] .entry-choice-grid > button.guest-choice,
+  .entry-choice-grid > .guest-choice,
+  .entry-choice-grid > button.guest-choice {
+    grid-column: 1 / 2 !important;
+  }
+
+  html[data-device-mode="phone"] .entry-choice-grid > .recitation-choice,
+  html[data-device-mode="phone"] .entry-choice-grid > button.recitation-choice,
+  .entry-choice-grid > .recitation-choice,
+  .entry-choice-grid > button.recitation-choice {
+    grid-column: 2 / 3 !important;
+  }
+
+  html[data-device-mode="phone"] .entry-choice-grid > .lessons-choice,
+  html[data-device-mode="phone"] .entry-choice-grid > button.lessons-choice,
+  .entry-choice-grid > .lessons-choice,
+  .entry-choice-grid > button.lessons-choice {
+    grid-column: 3 / 4 !important;
+  }
+
+  html[data-device-mode="phone"] .entry-choice-grid > .guest-choice,
+  html[data-device-mode="phone"] .entry-choice-grid > .recitation-choice,
+  html[data-device-mode="phone"] .entry-choice-grid > .lessons-choice,
+  html[data-device-mode="phone"] .entry-choice-grid > button.guest-choice,
+  html[data-device-mode="phone"] .entry-choice-grid > button.recitation-choice,
+  html[data-device-mode="phone"] .entry-choice-grid > button.lessons-choice,
+  .entry-choice-grid > .guest-choice,
+  .entry-choice-grid > .recitation-choice,
+  .entry-choice-grid > .lessons-choice,
+  .entry-choice-grid > button.guest-choice,
+  .entry-choice-grid > button.recitation-choice,
+  .entry-choice-grid > button.lessons-choice {
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: center !important;
+    align-items: center !important;
+    min-height: 82px !important;
+    padding: 8px 5px !important;
+    gap: 6px !important;
+    text-align: center !important;
+  }
+
+  html[data-device-mode="phone"] .entry-choice-grid > .guest-choice .entry-choice-icon,
+  html[data-device-mode="phone"] .entry-choice-grid > .recitation-choice .entry-choice-icon,
+  html[data-device-mode="phone"] .entry-choice-grid > .lessons-choice .entry-choice-icon,
+  html[data-device-mode="phone"] .entry-choice-grid > button.guest-choice .entry-choice-icon,
+  html[data-device-mode="phone"] .entry-choice-grid > button.recitation-choice .entry-choice-icon,
+  html[data-device-mode="phone"] .entry-choice-grid > button.lessons-choice .entry-choice-icon,
+  .entry-choice-grid > .guest-choice .entry-choice-icon,
+  .entry-choice-grid > .recitation-choice .entry-choice-icon,
+  .entry-choice-grid > .lessons-choice .entry-choice-icon,
+  .entry-choice-grid > button.guest-choice .entry-choice-icon,
+  .entry-choice-grid > button.recitation-choice .entry-choice-icon,
+  .entry-choice-grid > button.lessons-choice .entry-choice-icon {
+    width: 32px !important;
+    height: 32px !important;
+    border-radius: 12px !important;
+    font-size: 1rem !important;
+  }
+
+  html[data-device-mode="phone"] .entry-choice-grid > .guest-choice strong,
+  html[data-device-mode="phone"] .entry-choice-grid > .recitation-choice strong,
+  html[data-device-mode="phone"] .entry-choice-grid > .lessons-choice strong,
+  html[data-device-mode="phone"] .entry-choice-grid > button.guest-choice strong,
+  html[data-device-mode="phone"] .entry-choice-grid > button.recitation-choice strong,
+  html[data-device-mode="phone"] .entry-choice-grid > button.lessons-choice strong,
+  .entry-choice-grid > .guest-choice strong,
+  .entry-choice-grid > .recitation-choice strong,
+  .entry-choice-grid > .lessons-choice strong,
+  .entry-choice-grid > button.guest-choice strong,
+  .entry-choice-grid > button.recitation-choice strong,
+  .entry-choice-grid > button.lessons-choice strong {
+    font-size: clamp(0.58rem, 2.75vw, 0.74rem) !important;
+    line-height: 1.08 !important;
+    letter-spacing: -0.035em !important;
+    white-space: normal !important;
+    overflow-wrap: normal !important;
+    word-break: normal !important;
+  }
+
+  html[data-device-mode="phone"] .entry-choice-grid > .guest-choice small,
+  html[data-device-mode="phone"] .entry-choice-grid > .recitation-choice small,
+  html[data-device-mode="phone"] .entry-choice-grid > .lessons-choice small,
+  html[data-device-mode="phone"] .entry-choice-grid > button.guest-choice small,
+  html[data-device-mode="phone"] .entry-choice-grid > button.recitation-choice small,
+  html[data-device-mode="phone"] .entry-choice-grid > button.lessons-choice small,
+  .entry-choice-grid > .guest-choice small,
+  .entry-choice-grid > .recitation-choice small,
+  .entry-choice-grid > .lessons-choice small,
+  .entry-choice-grid > button.guest-choice small,
+  .entry-choice-grid > button.recitation-choice small,
+  .entry-choice-grid > button.lessons-choice small {
+    display: none !important;
+  }
+}
+
+/* Step 206: Subject Status modal action spacing fix
+   Keep the close button and Refresh button separated so they never overlap. */
+.student-compliance-overlay .student-compliance-panel {
+  position: relative !important;
+}
+
+.student-compliance-overlay .auth-close-btn {
+  top: 16px !important;
+  right: 16px !important;
+  z-index: 8 !important;
+}
+
+.student-compliance-overlay .student-compliance-header {
+  display: flex !important;
+  align-items: flex-start !important;
+  justify-content: space-between !important;
+  gap: 16px !important;
+  padding-right: 72px !important;
+}
+
+.student-compliance-overlay .student-compliance-title-block {
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+  padding-right: 0 !important;
+}
+
+.student-compliance-overlay #studentComplianceRefreshBtn {
+  flex: 0 0 auto !important;
+  margin-top: 2px !important;
+  margin-right: 0 !important;
+  white-space: nowrap !important;
+  position: relative !important;
+  z-index: 2 !important;
+}
+
+@media (max-width: 760px) {
+  .student-compliance-overlay .auth-close-btn {
+    top: 14px !important;
+    right: 14px !important;
+  }
+
+  .student-compliance-overlay .student-compliance-header {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 12px !important;
+    padding-right: 52px !important;
+  }
+
+  .student-compliance-overlay #studentComplianceRefreshBtn {
+    width: min(220px, 100%) !important;
+    justify-self: start !important;
+  }
+}
+
+/* Step 207: Compact homepage action buttons
+   Remove descriptive copy from the three secondary homepage actions so they read as true buttons. */
+.entry-choice-grid > .guest-choice small,
+.entry-choice-grid > .recitation-choice small,
+.entry-choice-grid > .lessons-choice small,
+.entry-choice-grid > button.guest-choice small,
+.entry-choice-grid > button.recitation-choice small,
+.entry-choice-grid > button.lessons-choice small {
+  display: none !important;
+}
+
+.entry-choice-grid > .guest-choice,
+.entry-choice-grid > .recitation-choice,
+.entry-choice-grid > .lessons-choice,
+.entry-choice-grid > button.guest-choice,
+.entry-choice-grid > button.recitation-choice,
+.entry-choice-grid > button.lessons-choice {
+  min-height: 62px !important;
+  padding: 10px 12px !important;
+  border-radius: 18px !important;
+  align-items: center !important;
+}
+
+@media (min-width: 761px) {
+  .entry-choice-grid > .guest-choice,
+  .entry-choice-grid > .recitation-choice,
+  .entry-choice-grid > .lessons-choice,
+  .entry-choice-grid > button.guest-choice,
+  .entry-choice-grid > button.recitation-choice,
+  .entry-choice-grid > button.lessons-choice {
+    display: flex !important;
+    flex-direction: row !important;
+    justify-content: center !important;
+    text-align: center !important;
+    gap: 10px !important;
+    min-height: 64px !important;
+  }
+
+  .entry-choice-grid > .guest-choice .entry-choice-icon,
+  .entry-choice-grid > .recitation-choice .entry-choice-icon,
+  .entry-choice-grid > .lessons-choice .entry-choice-icon,
+  .entry-choice-grid > button.guest-choice .entry-choice-icon,
+  .entry-choice-grid > button.recitation-choice .entry-choice-icon,
+  .entry-choice-grid > button.lessons-choice .entry-choice-icon {
+    width: 40px !important;
+    height: 40px !important;
+    flex: 0 0 40px !important;
+  }
+
+  .entry-choice-grid > .guest-choice strong,
+  .entry-choice-grid > .recitation-choice strong,
+  .entry-choice-grid > .lessons-choice strong,
+  .entry-choice-grid > button.guest-choice strong,
+  .entry-choice-grid > button.recitation-choice strong,
+  .entry-choice-grid > button.lessons-choice strong {
+    font-size: clamp(0.88rem, 1vw, 1.02rem) !important;
+    line-height: 1.12 !important;
+    letter-spacing: -0.02em !important;
+  }
+}
+
+@media (max-width: 760px) {
+  html[data-device-mode="phone"] .entry-choice-grid > .guest-choice,
+  html[data-device-mode="phone"] .entry-choice-grid > .recitation-choice,
+  html[data-device-mode="phone"] .entry-choice-grid > .lessons-choice,
+  html[data-device-mode="phone"] .entry-choice-grid > button.guest-choice,
+  html[data-device-mode="phone"] .entry-choice-grid > button.recitation-choice,
+  html[data-device-mode="phone"] .entry-choice-grid > button.lessons-choice,
+  .entry-choice-grid > .guest-choice,
+  .entry-choice-grid > .recitation-choice,
+  .entry-choice-grid > .lessons-choice,
+  .entry-choice-grid > button.guest-choice,
+  .entry-choice-grid > button.recitation-choice,
+  .entry-choice-grid > button.lessons-choice {
+    min-height: 64px !important;
+    padding: 7px 4px !important;
+    gap: 5px !important;
+    border-radius: 17px !important;
+  }
+
+  html[data-device-mode="phone"] .entry-choice-grid > .guest-choice .entry-choice-icon,
+  html[data-device-mode="phone"] .entry-choice-grid > .recitation-choice .entry-choice-icon,
+  html[data-device-mode="phone"] .entry-choice-grid > .lessons-choice .entry-choice-icon,
+  html[data-device-mode="phone"] .entry-choice-grid > button.guest-choice .entry-choice-icon,
+  html[data-device-mode="phone"] .entry-choice-grid > button.recitation-choice .entry-choice-icon,
+  html[data-device-mode="phone"] .entry-choice-grid > button.lessons-choice .entry-choice-icon {
+    width: 30px !important;
+    height: 30px !important;
+    flex: 0 0 30px !important;
+  }
+
+  html[data-device-mode="phone"] .entry-choice-grid > .guest-choice strong,
+  html[data-device-mode="phone"] .entry-choice-grid > .recitation-choice strong,
+  html[data-device-mode="phone"] .entry-choice-grid > .lessons-choice strong,
+  html[data-device-mode="phone"] .entry-choice-grid > button.guest-choice strong,
+  html[data-device-mode="phone"] .entry-choice-grid > button.recitation-choice strong,
+  html[data-device-mode="phone"] .entry-choice-grid > button.lessons-choice strong {
+    font-size: clamp(0.56rem, 2.65vw, 0.72rem) !important;
+    line-height: 1.03 !important;
+    letter-spacing: -0.035em !important;
+  }
+}
+
+/* Step 208: Homepage text polish
+   Slightly reduce the welcome headline and left-align the three compact action buttons. */
+.entry-card #entryGateTitle,
+.entry-card h1#entryGateTitle {
+  font-size: clamp(1.72rem, 4.35vw, 2.56rem) !important;
+  line-height: 1.04 !important;
+}
+
+.entry-choice-grid > .guest-choice,
+.entry-choice-grid > .recitation-choice,
+.entry-choice-grid > .lessons-choice,
+.entry-choice-grid > button.guest-choice,
+.entry-choice-grid > button.recitation-choice,
+.entry-choice-grid > button.lessons-choice,
+html[data-device-mode="phone"] .entry-choice-grid > .guest-choice,
+html[data-device-mode="phone"] .entry-choice-grid > .recitation-choice,
+html[data-device-mode="phone"] .entry-choice-grid > .lessons-choice,
+html[data-device-mode="phone"] .entry-choice-grid > button.guest-choice,
+html[data-device-mode="phone"] .entry-choice-grid > button.recitation-choice,
+html[data-device-mode="phone"] .entry-choice-grid > button.lessons-choice {
+  display: flex !important;
+  flex-direction: row !important;
+  justify-content: flex-start !important;
+  align-items: center !important;
+  text-align: left !important;
+  gap: clamp(7px, 1.1vw, 12px) !important;
+}
+
+.entry-choice-grid > .guest-choice > span:last-child,
+.entry-choice-grid > .recitation-choice > span:last-child,
+.entry-choice-grid > .lessons-choice > span:last-child,
+.entry-choice-grid > button.guest-choice > span:last-child,
+.entry-choice-grid > button.recitation-choice > span:last-child,
+.entry-choice-grid > button.lessons-choice > span:last-child,
+html[data-device-mode="phone"] .entry-choice-grid > .guest-choice > span:last-child,
+html[data-device-mode="phone"] .entry-choice-grid > .recitation-choice > span:last-child,
+html[data-device-mode="phone"] .entry-choice-grid > .lessons-choice > span:last-child,
+html[data-device-mode="phone"] .entry-choice-grid > button.guest-choice > span:last-child,
+html[data-device-mode="phone"] .entry-choice-grid > button.recitation-choice > span:last-child,
+html[data-device-mode="phone"] .entry-choice-grid > button.lessons-choice > span:last-child {
+  min-width: 0 !important;
+  flex: 1 1 auto !important;
+  display: flex !important;
+  align-items: flex-start !important;
+  justify-content: center !important;
+  text-align: left !important;
+}
+
+.entry-choice-grid > .guest-choice strong,
+.entry-choice-grid > .recitation-choice strong,
+.entry-choice-grid > .lessons-choice strong,
+.entry-choice-grid > button.guest-choice strong,
+.entry-choice-grid > button.recitation-choice strong,
+.entry-choice-grid > button.lessons-choice strong,
+html[data-device-mode="phone"] .entry-choice-grid > .guest-choice strong,
+html[data-device-mode="phone"] .entry-choice-grid > .recitation-choice strong,
+html[data-device-mode="phone"] .entry-choice-grid > .lessons-choice strong,
+html[data-device-mode="phone"] .entry-choice-grid > button.guest-choice strong,
+html[data-device-mode="phone"] .entry-choice-grid > button.recitation-choice strong,
+html[data-device-mode="phone"] .entry-choice-grid > button.lessons-choice strong {
+  display: block !important;
+  width: 100% !important;
+  text-align: left !important;
+}
+
+@media (max-width: 760px) {
+  .entry-card #entryGateTitle,
+  .entry-card h1#entryGateTitle {
+    font-size: clamp(1.62rem, 8.2vw, 2.12rem) !important;
+  }
+
+  html[data-device-mode="phone"] .entry-choice-grid > .guest-choice,
+  html[data-device-mode="phone"] .entry-choice-grid > .recitation-choice,
+  html[data-device-mode="phone"] .entry-choice-grid > .lessons-choice,
+  html[data-device-mode="phone"] .entry-choice-grid > button.guest-choice,
+  html[data-device-mode="phone"] .entry-choice-grid > button.recitation-choice,
+  html[data-device-mode="phone"] .entry-choice-grid > button.lessons-choice,
+  .entry-choice-grid > .guest-choice,
+  .entry-choice-grid > .recitation-choice,
+  .entry-choice-grid > .lessons-choice,
+  .entry-choice-grid > button.guest-choice,
+  .entry-choice-grid > button.recitation-choice,
+  .entry-choice-grid > button.lessons-choice {
+    padding: 7px 5px !important;
+  }
+}
