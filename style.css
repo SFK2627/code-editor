@@ -43149,3 +43149,71 @@ html[data-device-mode="phone"] .entry-choice-grid > button.lessons-choice strong
 [data-theme="dark"] .rubric-improvement strong {
   color: #f8fafc !important;
 }
+
+/* =========================================================
+   STEP 228 - Header Vertical Balance Fix
+   Balances the top and bottom breathing room inside the editor header.
+   Keeps the existing desktop/tablet/phone lane rules while centering the
+   visible header content vertically inside the rounded topbar.
+   ========================================================= */
+body:not(.entry-gate-active):not(.student-dashboard-active):not(.student-auth-open):not(.student-route-lock):not(.admin-open) .topbar.simplified-topbar,
+body:not(.entry-gate-active):not(.student-dashboard-active):not(.student-auth-open):not(.student-route-lock):not(.admin-open) .topbar {
+  align-items: center !important;
+  align-content: center !important;
+  padding-top: clamp(11px, 1.05vw, 16px) !important;
+  padding-bottom: clamp(11px, 1.05vw, 16px) !important;
+}
+
+body:not(.entry-gate-active):not(.student-dashboard-active):not(.student-auth-open):not(.student-route-lock):not(.admin-open) .topbar .brand-block,
+body:not(.entry-gate-active):not(.student-dashboard-active):not(.student-auth-open):not(.student-route-lock):not(.admin-open) .topbar .top-actions {
+  align-self: center !important;
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+}
+
+body:not(.entry-gate-active):not(.student-dashboard-active):not(.student-auth-open):not(.student-route-lock):not(.admin-open) .topbar .brand-block {
+  align-items: center !important;
+}
+
+body:not(.entry-gate-active):not(.student-dashboard-active):not(.student-auth-open):not(.student-route-lock):not(.admin-open) .topbar .brand-block > div:last-child {
+  justify-content: center !important;
+}
+
+body:not(.entry-gate-active):not(.student-dashboard-active):not(.student-auth-open):not(.student-route-lock):not(.admin-open) .topbar .ict8-brand-kicker,
+body:not(.entry-gate-active):not(.student-dashboard-active):not(.student-auth-open):not(.student-route-lock):not(.admin-open) .topbar h1,
+body:not(.entry-gate-active):not(.student-dashboard-active):not(.student-auth-open):not(.student-route-lock):not(.admin-open) .topbar .subtitle {
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+}
+
+body:not(.entry-gate-active):not(.student-dashboard-active):not(.student-auth-open):not(.student-route-lock):not(.admin-open) .topbar .top-actions {
+  align-items: center !important;
+}
+
+body:not(.entry-gate-active):not(.student-dashboard-active):not(.student-auth-open):not(.student-route-lock):not(.admin-open) .topbar .top-actions > * {
+  align-self: center !important;
+}
+
+@media (min-width: 761px) and (max-width: 1368px) {
+  html.tablet-desktop-view:not([data-device-mode="phone"]) body:not(.entry-gate-active):not(.student-dashboard-active):not(.student-auth-open):not(.student-route-lock):not(.admin-open) .topbar.simplified-topbar,
+  html.tablet-desktop-view:not([data-device-mode="phone"]) body:not(.entry-gate-active):not(.student-dashboard-active):not(.student-auth-open):not(.student-route-lock):not(.admin-open) .topbar,
+  body:not(.entry-gate-active):not(.student-dashboard-active):not(.student-auth-open):not(.student-route-lock):not(.admin-open) .topbar.simplified-topbar,
+  body:not(.entry-gate-active):not(.student-dashboard-active):not(.student-auth-open):not(.student-route-lock):not(.admin-open) .topbar {
+    align-items: center !important;
+    align-content: center !important;
+    padding-top: clamp(10px, 1.05vw, 14px) !important;
+    padding-bottom: clamp(10px, 1.05vw, 14px) !important;
+  }
+
+  html.tablet-desktop-view:not([data-device-mode="phone"]) body:not(.entry-gate-active):not(.student-dashboard-active):not(.student-auth-open):not(.student-route-lock):not(.admin-open) .topbar .brand-block,
+  html.tablet-desktop-view:not([data-device-mode="phone"]) body:not(.entry-gate-active):not(.student-dashboard-active):not(.student-auth-open):not(.student-route-lock):not(.admin-open) .topbar .top-actions,
+  body:not(.entry-gate-active):not(.student-dashboard-active):not(.student-auth-open):not(.student-route-lock):not(.admin-open) .topbar .brand-block,
+  body:not(.entry-gate-active):not(.student-dashboard-active):not(.student-auth-open):not(.student-route-lock):not(.admin-open) .topbar .top-actions {
+    align-self: center !important;
+  }
+
+  html.tablet-desktop-view:not([data-device-mode="phone"]) body:not(.entry-gate-active):not(.student-dashboard-active):not(.student-auth-open):not(.student-route-lock):not(.admin-open) .topbar .brand-block > div:last-child,
+  body:not(.entry-gate-active):not(.student-dashboard-active):not(.student-auth-open):not(.student-route-lock):not(.admin-open) .topbar .brand-block > div:last-child {
+    justify-content: center !important;
+  }
+}
