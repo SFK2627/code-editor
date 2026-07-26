@@ -3,17 +3,17 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title>Sir JR Web Coding App</title>
+  <title>ICT 8 Connect | Learn, Code, Connect</title>
 
-  <meta name="description" content="A classroom-ready HTML, CSS, and JavaScript coding workspace for Grade 8 MCSian students." />
-  <meta name="application-name" content="Sir JR Coding App" />
+  <meta name="description" content="ICT 8 Connect is a classroom-ready Grade 8 ICT learning workspace for lessons, coding, feedback, and progress tracking." />
+  <meta name="application-name" content="ICT 8 Connect" />
   <meta name="color-scheme" content="light dark" />
   <meta name="format-detection" content="telephone=no" />
   <meta name="theme-color" content="#2563eb" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-  <meta name="apple-mobile-web-app-title" content="Sir JR Coding" />
+  <meta name="apple-mobile-web-app-title" content="ICT 8 Connect" />
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="apple-touch-icon" href="icons/icon-192.png" />
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
@@ -45,7 +45,7 @@
   </script>
   <link rel="preconnect" href="https://drive.google.com" crossorigin>
   <link rel="preconnect" href="https://lh3.googleusercontent.com" crossorigin>
-  <link rel="stylesheet" href="style.css?v=20260725-step189-fast-smart-result" />
+  <link rel="stylesheet" href="style.css?v=20260725-step194-ict8-connect-branding" />
   <style>
     .ai-rubric-settings-card,
     .admin-project-ai-review-card {
@@ -280,14 +280,14 @@
 </head>
 <body class="entry-gate-active">
   <noscript>
-    <div class="noscript-notice">JavaScript is required to use the Sir JR Coding App.</div>
+    <div class="noscript-notice">JavaScript is required to use ICT 8 Connect.</div>
   </noscript>
   <div id="entryGate" class="entry-gate" role="dialog" aria-modal="true" aria-labelledby="entryGateTitle">
     <div class="entry-card">
-      <div class="entry-logo app-coded-eight" aria-hidden="true"><span class="logo-code">&lt;/&gt;</span><span class="logo-eight">8</span></div>
-      <p class="section-kicker">Sir JR Web Coding App</p>
+      <div class="entry-logo app-coded-eight" aria-hidden="true"><span class="logo-ict">ICT</span><span class="logo-eight">8</span><span class="logo-node node-a"></span><span class="logo-node node-b"></span><span class="logo-node node-c"></span></div>
+      <p class="section-kicker ict8-brand-kicker"><span class="brand-cycle" aria-label="ICT 8 Connect. Learn, Code, Connect"><span class="brand-cycle-face brand-cycle-name">ICT 8 Connect</span><span class="brand-cycle-face brand-cycle-tagline">Learn, Code, Connect</span></span></p>
       <h1 id="entryGateTitle">Welcome Grade 8 MCSian Students!</h1>
-      <p class="entry-lead">Build, preview, and save your web projects in one student-friendly workspace.</p>
+      <p class="entry-lead">Learn lessons, code projects, and connect your progress in one student-friendly workspace.</p>
       <button id="entryThemeToggle" class="entry-theme-toggle" type="button" aria-label="Switch light or dark mode">
         <span class="entry-theme-switch" aria-hidden="true"><span class="entry-theme-thumb"></span></span>
         <span id="entryThemeLabel">Dark Mode</span>
@@ -312,7 +312,6 @@
           <span><strong>View Recitation Status</strong><small>Enter your section code and see only your section's recitation standing.</small></span>
         </button>
       </div>
-      <p class="entry-free-note">No payment, subscription, or billing is required to use this app.</p>
     </div>
   </div>
 
@@ -363,9 +362,9 @@
   <div id="studentDashboard" class="student-dashboard-screen hidden" aria-labelledby="studentDashboardTitle">
     <header class="student-dashboard-header">
       <div class="dashboard-brand">
-        <div class="logo-mark app-coded-eight" aria-hidden="true"><span class="logo-code">&lt;/&gt;</span><span class="logo-eight">8</span></div>
+        <div class="logo-mark app-coded-eight" aria-hidden="true"><span class="logo-ict">ICT</span><span class="logo-eight">8</span><span class="logo-node node-a"></span><span class="logo-node node-b"></span><span class="logo-node node-c"></span></div>
         <div>
-          <p class="section-kicker">Sir JR Web Coding App</p>
+          <p class="section-kicker ict8-brand-kicker"><span class="brand-cycle" aria-label="ICT 8 Connect. Learn, Code, Connect"><span class="brand-cycle-face brand-cycle-name">ICT 8 Connect</span><span class="brand-cycle-face brand-cycle-tagline">Learn, Code, Connect</span></span></p>
           <h1 id="studentDashboardTitle">My Projects</h1>
           <p id="dashboardGreeting" class="muted-text">Welcome back!</p>
         </div>
@@ -382,9 +381,8 @@
     <main class="student-dashboard-main">
       <section class="dashboard-hero-card">
         <div>
-          <p class="section-kicker">Your Coding Workspace</p>
-          <h2>Continue a project or start something new.</h2>
-          <p>Every edit is saved automatically while you are logged in.</p>
+          <h2>Learn, code, and continue your ICT projects.</h2>
+          <p>Open lessons, build projects, and track your progress in one place.</p>
         </div>
         <div class="dashboard-hero-actions">
           <button id="dashboardOpenLessonsBtn" class="ghost-btn dashboard-lessons-hero-btn" type="button">📚 Open Lessons</button>
@@ -434,7 +432,7 @@
         <button id="lessonLibraryBackBtn" class="ghost-btn lesson-library-back-btn" type="button" aria-label="Go back">← Back</button>
         <div class="lesson-library-icon" aria-hidden="true">📚</div>
         <div>
-          <p class="section-kicker">Digital Learning Library</p>
+          <p class="section-kicker">ICT 8 Connect</p>
           <h1 id="lessonLibraryTitle">Lesson Viewer</h1>
           <p id="lessonLibrarySubtitle" class="muted-text">Choose a term, then open a PDF lesson.</p>
         </div>
@@ -633,9 +631,9 @@
   <div class="app-shell">
     <header class="topbar simplified-topbar">
       <div class="brand-block">
-        <div class="logo-mark app-coded-eight" aria-hidden="true"><span class="logo-code">&lt;/&gt;</span><span class="logo-eight">8</span></div>
+        <div class="logo-mark app-coded-eight" aria-hidden="true"><span class="logo-ict">ICT</span><span class="logo-eight">8</span><span class="logo-node node-a"></span><span class="logo-node node-b"></span><span class="logo-node node-c"></span></div>
         <div>
-          <p id="adminBtn" class="eyebrow hidden-admin-trigger" role="button" tabindex="0" aria-label="Teacher admin access">Sir JR Web Coding App</p>
+          <p id="adminBtn" class="eyebrow hidden-admin-trigger ict8-brand-kicker" role="button" tabindex="0" aria-label="Teacher admin access"><span class="brand-cycle" aria-label="ICT 8 Connect. Learn, Code, Connect"><span class="brand-cycle-face brand-cycle-name">ICT 8 Connect</span><span class="brand-cycle-face brand-cycle-tagline">Learn, Code, Connect</span></span></p>
           <h1 id="appTitleText">A tool for every Grade 8 MCSian.</h1>
           <p id="appSubtitleText" class="subtitle">Developed by Sir JR</p>
         </div>
@@ -1893,6 +1891,6 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
   <script src="firebase-config.js"></script>
-  <script src="script.js?v=20260725-step189-fast-smart-result"></script>
+  <script src="script.js?v=20260725-step194-ict8-connect-branding"></script>
 </body>
 </html>

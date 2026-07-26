@@ -93,7 +93,7 @@ button {
   border-color: var(--line);
   border-radius: var(--radius);
   background: var(--card);
-  box-shadow: var(--shadow);
+  box-shadow: var(--shadow-soft);
   backdrop-filter: blur(10px);
 }
 
@@ -10749,7 +10749,7 @@ body.student-auth-open {
   width: min(470px, 100%);
   padding: 30px;
   border: 1px solid var(--line-strong);
-  border-radius: 28px;
+  border-radius: 24px;
   background: var(--solid-card);
   box-shadow: var(--shadow-strong);
 }
@@ -37583,36 +37583,36 @@ body.lesson-viewer-active > .student-dashboard-screen {
 .lesson-library-main {
   width: min(1320px, calc(100% - 36px));
   margin: 0 auto;
-  padding: clamp(22px, 4vw, 48px) 0 64px;
+  padding: clamp(18px, 2.6vw, 34px) 0 56px;
 }
 
 .lesson-library-welcome-card {
   display: grid;
   grid-template-columns: 1fr auto;
   align-items: center;
-  gap: 28px;
-  padding: clamp(24px, 4vw, 44px);
+  gap: 22px;
+  padding: clamp(18px, 2.6vw, 30px);
   overflow: hidden;
   border: 1px solid rgba(37, 99, 235, 0.18);
-  border-radius: 28px;
+  border-radius: 24px;
   background:
     linear-gradient(120deg, color-mix(in srgb, var(--card) 95%, transparent), color-mix(in srgb, var(--card-2) 86%, transparent)),
     var(--card);
-  box-shadow: var(--shadow);
+  box-shadow: var(--shadow-soft);
 }
 
 .lesson-library-welcome-card h2 {
-  margin: 8px 0;
+  margin: 6px 0;
   max-width: 720px;
-  font-size: clamp(24px, 4vw, 42px);
-  line-height: 1.08;
+  font-size: clamp(22px, 3vw, 34px);
+  line-height: 1.12;
 }
 
 .lesson-library-welcome-card p {
   max-width: 780px;
   margin: 0;
   color: var(--muted);
-  line-height: 1.65;
+  line-height: 1.5;
 }
 
 .lesson-library-eyebrow,
@@ -37633,23 +37633,23 @@ body.lesson-viewer-active > .student-dashboard-screen {
 .lesson-library-stat {
   display: grid;
   place-items: center;
-  min-width: 132px;
-  min-height: 112px;
-  padding: 16px;
-  border-radius: 24px;
+  min-width: 104px;
+  min-height: 86px;
+  padding: 12px;
+  border-radius: 20px;
   color: #fff;
   background: linear-gradient(145deg, #2563eb, #0ea5e9);
-  box-shadow: 0 18px 40px rgba(37, 99, 235, 0.24);
+  box-shadow: 0 14px 30px rgba(37, 99, 235, 0.2);
 }
 
 .lesson-library-stat strong {
-  font-size: 40px;
+  font-size: 34px;
   line-height: 1;
 }
 
 .lesson-library-stat span {
-  margin-top: 7px;
-  font-size: 13px;
+  margin-top: 5px;
+  font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -38535,13 +38535,13 @@ body.lesson-viewer-active > .student-dashboard-screen {
   }
   .lesson-library-welcome-card {
     grid-template-columns: 1fr auto;
-    gap: 12px;
-    padding: 18px;
-    border-radius: 20px;
+    gap: 10px;
+    padding: 14px;
+    border-radius: 18px;
   }
   .lesson-library-welcome-card h2 {
-    margin: 5px 0;
-    font-size: 22px;
+    margin: 4px 0;
+    font-size: 20px;
   }
   .lesson-library-welcome-card p {
     display: none;
@@ -38550,13 +38550,13 @@ body.lesson-viewer-active > .student-dashboard-screen {
     font-size: 9px;
   }
   .lesson-library-stat {
-    min-width: 76px;
-    min-height: 76px;
-    padding: 10px;
-    border-radius: 18px;
+    min-width: 68px;
+    min-height: 68px;
+    padding: 8px;
+    border-radius: 16px;
   }
   .lesson-library-stat strong {
-    font-size: 27px;
+    font-size: 24px;
   }
   .lesson-library-stat span {
     font-size: 9px;
@@ -39708,4 +39708,798 @@ body.css-jump-active #codeEditor {
 }
 [data-theme="dark"] .smart-result-card.local-scored .smart-result-pending::before {
   background: #60a5fa;
+}
+
+
+/* =========================================================
+   STEP 194 - ICT 8 CONNECT BRANDING
+   Rebrands the app without touching feature logic. The brand line always stays
+   on one line and cycles softly between the app name and tagline.
+   ========================================================= */
+.brand-cycle {
+  --ict8-cycle-duration: 5.8s;
+  position: relative !important;
+  display: inline-grid !important;
+  grid-template-areas: "brand" !important;
+  align-items: center !important;
+  justify-items: start !important;
+  width: max-content !important;
+  max-width: 100% !important;
+  min-width: min(18ch, 100%) !important;
+  white-space: nowrap !important;
+  line-height: 1 !important;
+  vertical-align: middle !important;
+  overflow: hidden !important;
+}
+
+.brand-cycle-face {
+  grid-area: brand !important;
+  display: inline-block !important;
+  white-space: nowrap !important;
+  will-change: opacity, transform, filter !important;
+  animation-duration: var(--ict8-cycle-duration) !important;
+  animation-timing-function: cubic-bezier(.4, 0, .2, 1) !important;
+  animation-iteration-count: infinite !important;
+}
+
+.brand-cycle-name {
+  animation-name: ict8BrandNameCycle !important;
+}
+
+.brand-cycle-tagline {
+  animation-name: ict8BrandTaglineCycle !important;
+}
+
+@keyframes ict8BrandNameCycle {
+  0%, 39%, 100% { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+  47%, 91% { opacity: 0; transform: translateY(-0.36em) scale(.985); filter: blur(3px); }
+}
+
+@keyframes ict8BrandTaglineCycle {
+  0%, 43%, 96%, 100% { opacity: 0; transform: translateY(0.36em) scale(.985); filter: blur(3px); }
+  51%, 87% { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+}
+
+.ict8-brand-title,
+.brand-block h1.ict8-brand-title,
+.topbar h1.ict8-brand-title,
+.student-dashboard-header h1.ict8-brand-title {
+  display: block !important;
+  margin-bottom: 7px !important;
+  max-width: 100% !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: clip !important;
+  font-weight: 1000 !important;
+  letter-spacing: -0.035em !important;
+}
+
+.ict8-brand-title .brand-cycle {
+  min-width: min(19ch, 100%) !important;
+  color: var(--ink) !important;
+}
+
+.ict8-brand-kicker,
+.eyebrow.ict8-brand-kicker,
+.section-kicker.ict8-brand-kicker {
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: clip !important;
+  line-height: 1.05 !important;
+}
+
+.ict8-brand-kicker .brand-cycle {
+  min-width: min(21ch, 100%) !important;
+  color: var(--primary) !important;
+}
+
+.entry-logo.app-coded-eight,
+.logo-mark.app-coded-eight {
+  overflow: hidden !important;
+  border-radius: 22px !important;
+  background:
+    radial-gradient(circle at 26% 22%, rgba(255, 255, 255, 0.34) 0 8%, transparent 9%),
+    linear-gradient(135deg, #1d4ed8 0%, #06b6d4 58%, #22c55e 100%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.38) !important;
+  box-shadow:
+    0 18px 36px rgba(37, 99, 235, 0.30),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28) !important;
+}
+
+.entry-logo.app-coded-eight::before,
+.logo-mark.app-coded-eight::before {
+  content: "" !important;
+  position: absolute !important;
+  inset: 15% 16% auto auto !important;
+  width: 46% !important;
+  height: 2px !important;
+  background: rgba(255, 255, 255, 0.52) !important;
+  transform: rotate(-28deg) !important;
+  border-radius: 999px !important;
+}
+
+.entry-logo.app-coded-eight::after,
+.logo-mark.app-coded-eight::after {
+  content: "" !important;
+  position: absolute !important;
+  left: 16% !important;
+  bottom: 16% !important;
+  width: 50% !important;
+  height: 2px !important;
+  background: rgba(255, 255, 255, 0.36) !important;
+  transform: rotate(24deg) !important;
+  border-radius: 999px !important;
+}
+
+.entry-logo.app-coded-eight .logo-ict,
+.logo-mark.app-coded-eight .logo-ict {
+  position: relative !important;
+  z-index: 3 !important;
+  display: inline-flex !important;
+  align-items: baseline !important;
+  justify-content: center !important;
+  color: #ffffff !important;
+  font-size: 0.72em !important;
+  font-weight: 1000 !important;
+  letter-spacing: -0.03em !important;
+  line-height: 1 !important;
+  text-shadow: 0 2px 8px rgba(15, 23, 42, 0.24) !important;
+}
+
+.entry-logo.app-coded-eight .logo-eight,
+.logo-mark.app-coded-eight .logo-eight {
+  position: relative !important;
+  right: auto !important;
+  bottom: auto !important;
+  z-index: 4 !important;
+  display: inline-grid !important;
+  place-items: center !important;
+  width: 0.95em !important;
+  height: 0.95em !important;
+  margin-left: 1px !important;
+  border: 2px solid rgba(255, 255, 255, 0.9) !important;
+  border-radius: 999px !important;
+  color: #0f172a !important;
+  background: #ffffff !important;
+  box-shadow: 0 6px 14px rgba(2, 6, 23, 0.22) !important;
+  font-size: 0.82em !important;
+  font-weight: 1000 !important;
+  line-height: 1 !important;
+}
+
+.logo-node {
+  position: absolute !important;
+  z-index: 2 !important;
+  display: block !important;
+  width: 8px !important;
+  height: 8px !important;
+  border: 2px solid rgba(255, 255, 255, 0.9) !important;
+  border-radius: 999px !important;
+  background: #22c55e !important;
+  box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.14) !important;
+}
+
+.logo-node.node-a { top: 16%; right: 18%; }
+.logo-node.node-b { left: 17%; bottom: 19%; background: #60a5fa !important; box-shadow: 0 0 0 4px rgba(96, 165, 250, 0.14) !important; }
+.logo-node.node-c { right: 17%; bottom: 18%; background: #facc15 !important; box-shadow: 0 0 0 4px rgba(250, 204, 21, 0.16) !important; }
+
+.entry-logo.app-coded-eight {
+  font-size: 2.2rem !important;
+}
+
+.logo-mark.app-coded-eight {
+  font-size: 1.45rem !important;
+}
+
+html[data-device-mode="phone"] .brand-cycle {
+  --ict8-cycle-duration: 6.2s;
+  min-width: min(17ch, 100%) !important;
+}
+
+html[data-device-mode="phone"] .ict8-brand-title,
+html[data-device-mode="phone"] body.student-session-active .topbar .brand-block h1.ict8-brand-title,
+html[data-device-mode="phone"] body.student-session-active .topbar h1.ict8-brand-title {
+  max-width: calc(100vw - 150px) !important;
+  font-size: clamp(1.02rem, 5vw, 1.28rem) !important;
+  letter-spacing: -0.04em !important;
+}
+
+html[data-device-mode="phone"] .ict8-brand-kicker .brand-cycle {
+  min-width: min(20ch, 100%) !important;
+  font-size: 0.68rem !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .brand-cycle-face {
+    animation: none !important;
+  }
+  .brand-cycle-tagline {
+    display: none !important;
+  }
+}
+
+/* =========================================================
+   STEP 195 - ICT 8 CONNECT ICON + QUICK ACTION BUTTON ROW
+   UI-only patch. Keeps feature logic untouched.
+   ========================================================= */
+.entry-logo.app-coded-eight,
+.logo-mark.app-coded-eight {
+  isolation: isolate !important;
+  background:
+    radial-gradient(circle at 30% 18%, rgba(255, 255, 255, 0.42) 0 11%, transparent 12%),
+    radial-gradient(circle at 72% 78%, rgba(244, 114, 182, 0.38) 0 18%, transparent 19%),
+    linear-gradient(135deg, #0ea5e9 0%, #2563eb 42%, #7c3aed 100%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.58) !important;
+  box-shadow:
+    0 20px 42px rgba(37, 99, 235, 0.34),
+    0 0 0 6px rgba(14, 165, 233, 0.10),
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    inset 0 -12px 24px rgba(15, 23, 42, 0.14) !important;
+}
+
+.entry-logo.app-coded-eight {
+  width: 88px !important;
+  height: 88px !important;
+  margin-bottom: 16px !important;
+  border-radius: 26px !important;
+  font-size: 2.44rem !important;
+  transform: translateZ(0) !important;
+}
+
+.logo-mark.app-coded-eight {
+  border-radius: 18px !important;
+  font-size: 1.58rem !important;
+}
+
+.entry-logo.app-coded-eight::before,
+.logo-mark.app-coded-eight::before {
+  inset: 21% 15% auto auto !important;
+  width: 58% !important;
+  height: 3px !important;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.10), rgba(255, 255, 255, 0.88), rgba(255, 255, 255, 0.10)) !important;
+  transform: rotate(-31deg) !important;
+  box-shadow: 0 10px 18px rgba(103, 232, 249, 0.18) !important;
+}
+
+.entry-logo.app-coded-eight::after,
+.logo-mark.app-coded-eight::after {
+  left: 13% !important;
+  bottom: 18% !important;
+  width: 62% !important;
+  height: 3px !important;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.10), rgba(255, 255, 255, 0.74), rgba(255, 255, 255, 0.08)) !important;
+  transform: rotate(25deg) !important;
+  box-shadow: 0 -8px 18px rgba(216, 180, 254, 0.18) !important;
+}
+
+.entry-logo.app-coded-eight .logo-ict,
+.logo-mark.app-coded-eight .logo-ict {
+  padding: 0.15em 0.23em !important;
+  border-radius: 999px !important;
+  color: #0f172a !important;
+  background: rgba(255, 255, 255, 0.95) !important;
+  box-shadow: 0 5px 14px rgba(2, 6, 23, 0.20) !important;
+  font-size: 0.44em !important;
+  letter-spacing: -0.04em !important;
+  transform: translate(0.02em, -0.42em) !important;
+}
+
+.entry-logo.app-coded-eight .logo-eight,
+.logo-mark.app-coded-eight .logo-eight {
+  width: 1.08em !important;
+  height: 1.08em !important;
+  margin-left: -0.10em !important;
+  border: 3px solid rgba(255, 255, 255, 0.96) !important;
+  color: #1e3a8a !important;
+  background:
+    radial-gradient(circle at 28% 22%, #ffffff 0 18%, transparent 19%),
+    linear-gradient(155deg, #ffffff 0%, #dbeafe 48%, #bfdbfe 100%) !important;
+  box-shadow:
+    0 8px 18px rgba(15, 23, 42, 0.25),
+    inset 0 -3px 8px rgba(37, 99, 235, 0.16) !important;
+  font-size: 0.95em !important;
+}
+
+.entry-logo.app-coded-eight .logo-node,
+.logo-mark.app-coded-eight .logo-node {
+  width: 9px !important;
+  height: 9px !important;
+  border-width: 2px !important;
+  background: #67e8f9 !important;
+  box-shadow:
+    0 0 0 4px rgba(103, 232, 249, 0.18),
+    0 0 18px rgba(103, 232, 249, 0.62) !important;
+}
+
+.logo-node.node-a { top: 15% !important; right: 17% !important; }
+.logo-node.node-b { left: 16% !important; bottom: 18% !important; background: #34d399 !important; box-shadow: 0 0 0 4px rgba(52, 211, 153, 0.18), 0 0 18px rgba(52, 211, 153, 0.62) !important; }
+.logo-node.node-c { right: 16% !important; bottom: 18% !important; background: #f9a8d4 !important; box-shadow: 0 0 0 4px rgba(249, 168, 212, 0.20), 0 0 18px rgba(249, 168, 212, 0.62) !important; }
+
+/* Keep the main login button full-width, then place Practice and Recitation
+   side by side in one row on desktop and phone. */
+.entry-choice-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: clamp(8px, 1.5vw, 12px) !important;
+}
+
+.entry-choice.primary-choice,
+button.entry-choice.primary-choice {
+  grid-column: 1 / -1 !important;
+}
+
+.entry-choice.guest-choice,
+.entry-choice.recitation-choice,
+button.entry-choice.guest-choice,
+button.entry-choice.recitation-choice {
+  min-height: clamp(76px, 10vh, 94px) !important;
+  padding: clamp(11px, 1.7vw, 15px) !important;
+  gap: 10px !important;
+}
+
+.entry-choice.guest-choice strong,
+.entry-choice.recitation-choice strong,
+button.entry-choice.guest-choice strong,
+button.entry-choice.recitation-choice strong {
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: clip !important;
+}
+
+@media (min-width: 761px) {
+  .entry-card {
+    width: min(660px, calc(100vw - 40px)) !important;
+  }
+
+  .entry-choice.guest-choice,
+  .entry-choice.recitation-choice,
+  button.entry-choice.guest-choice,
+  button.entry-choice.recitation-choice {
+    display: grid !important;
+    grid-template-columns: 46px minmax(0, 1fr) !important;
+    align-items: center !important;
+    text-align: left !important;
+  }
+}
+
+@media (max-width: 760px) {
+  html[data-device-mode="phone"] .entry-choice-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+  }
+
+  html[data-device-mode="phone"] .entry-choice.primary-choice,
+  html[data-device-mode="phone"] button.entry-choice.primary-choice {
+    grid-column: 1 / -1 !important;
+  }
+
+  html[data-device-mode="phone"] .entry-choice.guest-choice,
+  html[data-device-mode="phone"] .entry-choice.recitation-choice,
+  html[data-device-mode="phone"] button.entry-choice.guest-choice,
+  html[data-device-mode="phone"] button.entry-choice.recitation-choice {
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: center !important;
+    align-items: center !important;
+    min-height: 78px !important;
+    padding: 10px 7px !important;
+    gap: 6px !important;
+    text-align: center !important;
+  }
+
+  html[data-device-mode="phone"] .entry-choice.guest-choice .entry-choice-icon,
+  html[data-device-mode="phone"] .entry-choice.recitation-choice .entry-choice-icon,
+  html[data-device-mode="phone"] button.entry-choice.guest-choice .entry-choice-icon,
+  html[data-device-mode="phone"] button.entry-choice.recitation-choice .entry-choice-icon {
+    width: 32px !important;
+    height: 32px !important;
+    border-radius: 12px !important;
+    font-size: 1rem !important;
+  }
+
+  html[data-device-mode="phone"] .entry-choice.guest-choice strong,
+  html[data-device-mode="phone"] .entry-choice.recitation-choice strong,
+  html[data-device-mode="phone"] button.entry-choice.guest-choice strong,
+  html[data-device-mode="phone"] button.entry-choice.recitation-choice strong {
+    max-width: 100% !important;
+    margin: 0 !important;
+    font-size: clamp(0.62rem, 3.1vw, 0.78rem) !important;
+    line-height: 1.08 !important;
+    letter-spacing: -0.02em !important;
+    white-space: nowrap !important;
+  }
+
+  html[data-device-mode="phone"] .entry-choice.guest-choice small,
+  html[data-device-mode="phone"] .entry-choice.recitation-choice small,
+  html[data-device-mode="phone"] button.entry-choice.guest-choice small,
+  html[data-device-mode="phone"] button.entry-choice.recitation-choice small {
+    display: none !important;
+  }
+
+  html[data-device-mode="phone"] .entry-logo.app-coded-eight {
+    width: 78px !important;
+    height: 78px !important;
+    margin-bottom: 12px !important;
+    border-radius: 24px !important;
+    font-size: 2.16rem !important;
+  }
+}
+
+
+/* STEP 196: restore original welcome content and force the two secondary
+   homepage actions into a true 2-column row on desktop and phone. */
+.entry-card #entryGateTitle {
+  max-width: 100% !important;
+}
+
+.entry-choice-grid {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  align-items: stretch !important;
+  gap: clamp(8px, 1.4vw, 12px) !important;
+}
+
+.entry-choice-grid > .primary-choice,
+.entry-choice-grid > button.primary-choice {
+  grid-column: 1 / -1 !important;
+}
+
+.entry-choice-grid > .guest-choice,
+.entry-choice-grid > button.guest-choice {
+  grid-column: 1 / 2 !important;
+  width: 100% !important;
+}
+
+.entry-choice-grid > .recitation-choice,
+.entry-choice-grid > button.recitation-choice {
+  grid-column: 2 / 3 !important;
+  width: 100% !important;
+}
+
+.entry-choice-grid > .guest-choice,
+.entry-choice-grid > .recitation-choice,
+.entry-choice-grid > button.guest-choice,
+.entry-choice-grid > button.recitation-choice {
+  min-width: 0 !important;
+  min-height: clamp(78px, 11vh, 96px) !important;
+}
+
+.entry-choice-grid > .guest-choice strong,
+.entry-choice-grid > .recitation-choice strong,
+.entry-choice-grid > button.guest-choice strong,
+.entry-choice-grid > button.recitation-choice strong {
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+@media (min-width: 761px) {
+  .entry-choice-grid > .guest-choice,
+  .entry-choice-grid > .recitation-choice,
+  .entry-choice-grid > button.guest-choice,
+  .entry-choice-grid > button.recitation-choice {
+    display: grid !important;
+    grid-template-columns: 44px minmax(0, 1fr) !important;
+    align-items: center !important;
+    text-align: left !important;
+    padding: 14px !important;
+  }
+}
+
+@media (max-width: 760px) {
+  html[data-device-mode="phone"] .entry-choice-grid,
+  .entry-choice-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+  }
+
+  html[data-device-mode="phone"] .entry-choice-grid > .primary-choice,
+  html[data-device-mode="phone"] .entry-choice-grid > button.primary-choice,
+  .entry-choice-grid > .primary-choice,
+  .entry-choice-grid > button.primary-choice {
+    grid-column: 1 / -1 !important;
+  }
+
+  html[data-device-mode="phone"] .entry-choice-grid > .guest-choice,
+  html[data-device-mode="phone"] .entry-choice-grid > button.guest-choice,
+  .entry-choice-grid > .guest-choice,
+  .entry-choice-grid > button.guest-choice {
+    grid-column: 1 / 2 !important;
+  }
+
+  html[data-device-mode="phone"] .entry-choice-grid > .recitation-choice,
+  html[data-device-mode="phone"] .entry-choice-grid > button.recitation-choice,
+  .entry-choice-grid > .recitation-choice,
+  .entry-choice-grid > button.recitation-choice {
+    grid-column: 2 / 3 !important;
+  }
+
+  html[data-device-mode="phone"] .entry-choice-grid > .guest-choice,
+  html[data-device-mode="phone"] .entry-choice-grid > .recitation-choice,
+  html[data-device-mode="phone"] .entry-choice-grid > button.guest-choice,
+  html[data-device-mode="phone"] .entry-choice-grid > button.recitation-choice,
+  .entry-choice-grid > .guest-choice,
+  .entry-choice-grid > .recitation-choice,
+  .entry-choice-grid > button.guest-choice,
+  .entry-choice-grid > button.recitation-choice {
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: center !important;
+    align-items: center !important;
+    min-height: 80px !important;
+    padding: 9px 6px !important;
+    gap: 6px !important;
+    text-align: center !important;
+  }
+
+  html[data-device-mode="phone"] .entry-choice-grid > .guest-choice .entry-choice-icon,
+  html[data-device-mode="phone"] .entry-choice-grid > .recitation-choice .entry-choice-icon,
+  html[data-device-mode="phone"] .entry-choice-grid > button.guest-choice .entry-choice-icon,
+  html[data-device-mode="phone"] .entry-choice-grid > button.recitation-choice .entry-choice-icon,
+  .entry-choice-grid > .guest-choice .entry-choice-icon,
+  .entry-choice-grid > .recitation-choice .entry-choice-icon,
+  .entry-choice-grid > button.guest-choice .entry-choice-icon,
+  .entry-choice-grid > button.recitation-choice .entry-choice-icon {
+    width: 32px !important;
+    height: 32px !important;
+    border-radius: 12px !important;
+    font-size: 1rem !important;
+  }
+
+  html[data-device-mode="phone"] .entry-choice-grid > .guest-choice strong,
+  html[data-device-mode="phone"] .entry-choice-grid > .recitation-choice strong,
+  html[data-device-mode="phone"] .entry-choice-grid > button.guest-choice strong,
+  html[data-device-mode="phone"] .entry-choice-grid > button.recitation-choice strong,
+  .entry-choice-grid > .guest-choice strong,
+  .entry-choice-grid > .recitation-choice strong,
+  .entry-choice-grid > button.guest-choice strong,
+  .entry-choice-grid > button.recitation-choice strong {
+    font-size: clamp(0.62rem, 3.05vw, 0.76rem) !important;
+    line-height: 1.08 !important;
+    letter-spacing: -0.03em !important;
+    white-space: nowrap !important;
+  }
+
+  html[data-device-mode="phone"] .entry-choice-grid > .guest-choice small,
+  html[data-device-mode="phone"] .entry-choice-grid > .recitation-choice small,
+  html[data-device-mode="phone"] .entry-choice-grid > button.guest-choice small,
+  html[data-device-mode="phone"] .entry-choice-grid > button.recitation-choice small,
+  .entry-choice-grid > .guest-choice small,
+  .entry-choice-grid > .recitation-choice small,
+  .entry-choice-grid > button.guest-choice small,
+  .entry-choice-grid > button.recitation-choice small {
+    display: none !important;
+  }
+}
+
+
+/* STEP 197 - Header spread + homepage cleanup
+   Desktop-only top My Projects header spread. Phone header is untouched.
+   Removes the repeated brand label from the blue dashboard banner and removes
+   the homepage billing notice spacing. */
+.entry-free-note {
+  display: none !important;
+}
+
+.entry-card > .ict8-brand-kicker {
+  width: 100% !important;
+  display: flex !important;
+  justify-content: center !important;
+  text-align: center !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+
+.entry-card > .ict8-brand-kicker .brand-cycle {
+  min-width: 0 !important;
+  width: auto !important;
+  justify-items: center !important;
+  text-align: center !important;
+}
+
+.dashboard-hero-card > div:first-child > .ict8-brand-kicker {
+  display: none !important;
+}
+
+@media (min-width: 821px) {
+  html:not([data-device-mode="phone"]) .student-dashboard-screen {
+    padding-top: 16px !important;
+  }
+
+  html:not([data-device-mode="phone"]) .student-dashboard-header {
+    width: calc(100% - clamp(32px, 3.2vw, 56px)) !important;
+    max-width: none !important;
+    margin: 0 auto 16px !important;
+    display: grid !important;
+    grid-template-columns: minmax(280px, 1fr) auto !important;
+    align-items: center !important;
+    column-gap: clamp(24px, 4vw, 72px) !important;
+    padding-left: clamp(22px, 2.4vw, 44px) !important;
+    padding-right: clamp(22px, 2.4vw, 44px) !important;
+  }
+
+  html:not([data-device-mode="phone"]) .student-dashboard-header .dashboard-brand {
+    justify-self: start !important;
+  }
+
+  html:not([data-device-mode="phone"]) .student-dashboard-header .dashboard-header-actions {
+    justify-self: end !important;
+    display: flex !important;
+    flex-wrap: wrap !important;
+    justify-content: flex-end !important;
+    align-items: center !important;
+    gap: 10px !important;
+    width: auto !important;
+    max-width: min(980px, 70vw) !important;
+  }
+
+  html:not([data-device-mode="phone"]) .student-dashboard-header .dashboard-header-actions button {
+    white-space: nowrap !important;
+  }
+}
+
+/* STEP 198: My Projects desktop header no-wrap fix.
+   Keep the phone/mobile header untouched. The desktop header should stay as one row
+   even when the Join a Project / Share option is visible. */
+@media (min-width: 769px) {
+  .student-dashboard-header {
+    width: min(1680px, calc(100% - 48px)) !important;
+    max-width: none !important;
+    box-sizing: border-box !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    flex-wrap: nowrap !important;
+    gap: clamp(14px, 1.6vw, 28px) !important;
+    padding-left: clamp(22px, 3vw, 48px) !important;
+    padding-right: clamp(22px, 3vw, 48px) !important;
+  }
+
+  .student-dashboard-header .dashboard-brand {
+    flex: 1 1 auto !important;
+    min-width: 240px !important;
+    max-width: min(520px, 42vw) !important;
+  }
+
+  .student-dashboard-header .dashboard-brand > div {
+    min-width: 0 !important;
+  }
+
+  .student-dashboard-header .dashboard-brand h1,
+  .student-dashboard-header .dashboard-brand .muted-text,
+  .student-dashboard-header .dashboard-brand .section-kicker {
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  .student-dashboard-header .dashboard-header-actions {
+    flex: 0 0 auto !important;
+    width: auto !important;
+    min-width: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    flex-wrap: nowrap !important;
+    gap: clamp(6px, 0.65vw, 10px) !important;
+  }
+
+  .student-dashboard-header .dashboard-header-actions > button,
+  .student-dashboard-header .dashboard-header-actions > .ghost-btn,
+  .student-dashboard-header .dashboard-header-actions #dashboardJoinProjectBtn,
+  .student-dashboard-header .dashboard-header-actions #dashboardLogoutBtn {
+    flex: 0 0 auto !important;
+    width: auto !important;
+    max-width: none !important;
+    white-space: nowrap !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    min-height: 46px !important;
+    padding-left: clamp(12px, 1vw, 18px) !important;
+    padding-right: clamp(12px, 1vw, 18px) !important;
+    line-height: 1 !important;
+  }
+
+  .student-dashboard-header .dashboard-header-actions #dashboardJoinProjectBtn {
+    min-width: 0 !important;
+  }
+}
+
+@media (min-width: 769px) and (max-width: 1280px) {
+  .student-dashboard-header {
+    width: min(100%, calc(100% - 28px)) !important;
+    gap: 10px !important;
+    padding-left: 18px !important;
+    padding-right: 18px !important;
+  }
+
+  .student-dashboard-header .dashboard-brand {
+    min-width: 210px !important;
+    max-width: 350px !important;
+    gap: 10px !important;
+  }
+
+  .student-dashboard-header .dashboard-brand .logo-mark {
+    width: 48px !important;
+    height: 48px !important;
+    flex-basis: 48px !important;
+  }
+
+  .student-dashboard-header .dashboard-header-actions {
+    gap: 6px !important;
+  }
+
+  .student-dashboard-header .dashboard-header-actions > button,
+  .student-dashboard-header .dashboard-header-actions > .ghost-btn {
+    min-height: 42px !important;
+    padding-left: 10px !important;
+    padding-right: 10px !important;
+    font-size: 0.86rem !important;
+    letter-spacing: -0.01em !important;
+  }
+}
+
+/* STEP 200 - Rotating complete student greeting
+   Keeps the editor greeting readable after adding full name + grade/section. */
+#studentAccountStrip .student-greeting,
+#studentAccountMenu #menuStudentGreeting {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#studentAccountStrip .student-greeting {
+  flex: 1 1 340px;
+  max-width: 100%;
+}
+
+#studentAccountMenu #menuStudentGreeting {
+  display: block;
+  max-width: 100%;
+}
+
+@media (min-width: 821px) {
+  body.student-session-active #studentAccountStrip .student-greeting {
+    max-width: min(760px, 54vw);
+  }
+}
+
+/* STEP 202 - Cursive but readable full-name accent in rotating editor greeting */
+.student-greeting .student-greeting-name-script,
+#menuStudentGreeting .student-greeting-name-script {
+  display: inline-block;
+  max-width: min(100%, 32ch);
+  vertical-align: -0.02em;
+  margin: 0 0.06em;
+  padding: 0.02em 0.16em 0.04em;
+  border-radius: 0.55em;
+  font-family: "Segoe Script", "Lucida Handwriting", "Brush Script MT", "Comic Sans MS", cursive;
+  font-size: 1.08em;
+  font-weight: 700;
+  line-height: 1.08;
+  letter-spacing: 0.005em;
+  color: #075985;
+  background: linear-gradient(180deg, rgba(224, 242, 254, 0.96), rgba(186, 230, 253, 0.58));
+  box-shadow: inset 0 -0.08em 0 rgba(14, 165, 233, 0.26);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[data-theme="dark"] .student-greeting .student-greeting-name-script,
+[data-theme="dark"] #menuStudentGreeting .student-greeting-name-script {
+  color: #bae6fd;
+  background: linear-gradient(180deg, rgba(12, 74, 110, 0.62), rgba(14, 165, 233, 0.18));
+  box-shadow: inset 0 -0.08em 0 rgba(56, 189, 248, 0.36);
+}
+
+@media (max-width: 820px) {
+  .student-greeting .student-greeting-name-script,
+  #menuStudentGreeting .student-greeting-name-script {
+    max-width: min(46vw, 24ch);
+    font-size: 1.02em;
+    padding-left: 0.12em;
+    padding-right: 0.12em;
+  }
 }

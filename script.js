@@ -605,6 +605,7 @@ let studentProjectRetryCount = 0;
 let studentProjectRetryTimer = null;
 let studentProjectRecoveryTimer = null;
 let lastProfileActivityWriteAt = 0;
+let editorStudentGreetingState = { key: '', text: '' };
 let adminStudentsCache = [];
 let studentPresenceTimer = null;
 let studentPresenceStarted = false;
@@ -2483,7 +2484,7 @@ async function saveActivitiesToCloud() {
   try {
     const { setDoc, serverTimestamp } = firebaseSync.modules;
     await setDoc(getCloudActivitiesDocRef(), {
-      title: 'Grade 8 MCSian Web Code Editor',
+      title: 'ICT 8 Connect',
       updatedAt: serverTimestamp(),
       activities: activities.map(item => normalizeActivity(item)),
       studentAssistanceSettings: normalizeAssistanceSettings(studentAssistanceSettings)
@@ -3101,6 +3102,138 @@ function getStudentFirstName(name) {
   return displayName.replace(/[,.]+$/g, '') || 'Student';
 }
 
+
+function smartTitleCaseStudentText(value = '') {
+  const clean = String(value || '').replace(/\s+/g, ' ').trim();
+  if (!clean) return '';
+  const lowerParticles = new Set(['de', 'del', 'dela', 'de la', 'delos', 'san', 'santa', 'santo', 'van', 'von']);
+  return clean.split(' ').map(part => {
+    if (!part) return part;
+    const normalized = part.replace(/[^A-Za-zÀ-ž]/g, '').toLowerCase();
+    if (lowerParticles.has(normalized)) return normalized === 'dela' ? 'Dela' : normalized.charAt(0).toUpperCase() + normalized.slice(1);
+    if (/^[IVX]+$/i.test(part)) return part.toUpperCase();
+    return part.split('-').map(chunk => {
+      if (!chunk) return chunk;
+      if (/^[A-Za-zÀ-ž]\.?$/.test(chunk)) return chunk.toUpperCase().replace(/\.$/, '') + '.';
+      return chunk.charAt(0).toUpperCase() + chunk.slice(1).toLowerCase();
+    }).join('-');
+  }).join(' ');
+}
+
+function getStudentFullNameNameFirst(rawName = '') {
+  const cleaned = String(rawName || 'Student').replace(/\s+/g, ' ').trim();
+  if (!cleaned) return 'Student';
+
+  const suffixes = new Set(['JR', 'JR.', 'SR', 'SR.', 'II', 'III', 'IV', 'V']);
+  const cleanToken = token => String(token || '')
+    .replace(/^[^A-Za-zÀ-ž0-9]+|[^A-Za-zÀ-ž0-9.\-']+$/g, '')
+    .trim();
+  const isSuffix = token => suffixes.has(cleanToken(token).toUpperCase());
+  const isMiddleInitial = token => /^[A-Za-zÀ-ž]\.?$/.test(cleanToken(token));
+
+  if (cleaned.includes(',')) {
+    const parts = cleaned.split(',');
+    const surname = smartTitleCaseStudentText(parts.shift() || '');
+    const givenPart = parts.join(' ').trim();
+    const givenTokens = givenPart.split(/\s+/).map(cleanToken).filter(Boolean).filter(token => !isSuffix(token));
+    const nonInitialGivenTokens = givenTokens.filter(token => !isMiddleInitial(token));
+    const givenName = smartTitleCaseStudentText(nonInitialGivenTokens.join(' ') || givenTokens.join(' '));
+    return [givenName, surname].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim() || smartTitleCaseStudentText(cleaned);
+  }
+
+  return smartTitleCaseStudentText(cleaned);
+}
+
+function getStudentSectionNameOnly(student = null) {
+  const rawSection = String(student?.section || student?.sectionName || '').replace(/\s+/g, ' ').trim();
+  if (!rawSection) return 'Section';
+  const match = rawSection.match(/^Grade\s*\d+\s*[-–—:]\s*(.+)$/i);
+  return smartTitleCaseStudentText(match ? match[1] : rawSection);
+}
+
+function getStudentEditorIdentityText(student = null) {
+  const profile = student || appSession.student || appSession.lastStudentProfile || {};
+  const fullName = getStudentFullNameNameFirst(profile.name || profile.studentName || 'Student');
+  const sectionName = getStudentSectionNameOnly(profile);
+  return `${fullName} of Grade 8 - ${sectionName}`;
+}
+
+const STUDENT_EDITOR_GREETINGS = [
+  'Hi',
+  'Hello',
+  'Welcome back',
+  'Good day',
+  'Ready to code',
+  'Let’s build today',
+  'Great to see you',
+  'Keep going',
+  'Time to code',
+  'Start strong',
+  'Code with confidence',
+  'Let’s continue',
+  'Nice to see you',
+  'Let’s create',
+  'Keep learning',
+  'Stay sharp',
+  'Let’s practice',
+  'Your workspace is ready',
+  'Let’s make progress',
+  'Ready for your next project',
+  'Hello coder',
+  'Welcome to your workspace'
+];
+
+function pickStudentEditorGreeting(seedKey = '') {
+  const list = STUDENT_EDITOR_GREETINGS;
+  if (!list.length) return 'Hi';
+  let index = Math.floor(Math.random() * list.length);
+  if (editorStudentGreetingState.text && list.length > 1) {
+    const previousPrefix = editorStudentGreetingState.text.split(',')[0].replace(/[!?]+$/g, '').trim();
+    let guard = 0;
+    while (list[index] === previousPrefix && guard < 8) {
+      index = Math.floor(Math.random() * list.length);
+      guard += 1;
+    }
+  }
+  return list[index];
+}
+
+function getStudentEditorGreetingParts({ forceNew = false } = {}) {
+  const student = appSession.student || appSession.lastStudentProfile || {};
+  const key = [student.uid || student.studentId || student.authEmail || 'student', appSession.currentProjectId || 'editor'].join('|');
+  if (!forceNew && editorStudentGreetingState.key === key && editorStudentGreetingState.text && editorStudentGreetingState.parts) {
+    return editorStudentGreetingState.parts;
+  }
+  const prefix = pickStudentEditorGreeting(key);
+  const fullName = getStudentFullNameNameFirst(student.name || student.studentName || 'Student');
+  const sectionName = getStudentSectionNameOnly(student);
+  const endMark = /(?:ready|code|project|workspace)$/i.test(prefix) ? '?' : '!';
+  const text = `${prefix}, ${fullName} of Grade 8 - ${sectionName}${endMark}`;
+  const parts = { prefix, fullName, sectionName, endMark, text };
+  editorStudentGreetingState = { key, text, parts };
+  return parts;
+}
+
+function getStudentEditorGreetingText({ forceNew = false } = {}) {
+  return getStudentEditorGreetingParts({ forceNew }).text;
+}
+
+function renderStudentEditorGreeting(target, parts = null) {
+  if (!target) return;
+  const data = parts || getStudentEditorGreetingParts();
+  const nameHighlight = document.createElement('span');
+  nameHighlight.className = 'student-greeting-name-script';
+  nameHighlight.textContent = data.fullName;
+  nameHighlight.title = data.fullName;
+  target.replaceChildren(
+    document.createTextNode(`${data.prefix}, `),
+    nameHighlight,
+    document.createTextNode(` of Grade 8 - ${data.sectionName}${data.endMark}`)
+  );
+  target.title = data.text;
+  target.setAttribute('aria-label', data.text);
+}
+
 function getStudentStatusDisplayName(student = null, fallbackName = '') {
   const name = String(
     student?.name
@@ -3594,7 +3727,7 @@ function makeHeaderTypewriterPayload() {
     };
   }
 
-  const fullText = 'A tool for every Grade 8 MCSian.';
+  const fullText = 'ICT 8 Connect';
   return {
     mode: activeMode,
     text: fullText,
@@ -3818,6 +3951,32 @@ function scheduleDesktopHeaderTypewriter(force = false) {
   desktopHeaderTypewriterTimer = window.setTimeout(startCycle, force ? 90 : 420);
 }
 
+
+function makeIct8ConnectBrandCycleElement(extraClass = '') {
+  const wrapper = document.createElement('span');
+  wrapper.className = `brand-cycle ${extraClass}`.trim();
+  wrapper.setAttribute('aria-label', 'ICT 8 Connect. Learn, Code, Connect');
+
+  const name = document.createElement('span');
+  name.className = 'brand-cycle-face brand-cycle-name';
+  name.textContent = 'ICT 8 Connect';
+
+  const tagline = document.createElement('span');
+  tagline.className = 'brand-cycle-face brand-cycle-tagline';
+  tagline.textContent = 'Learn, Code, Connect';
+
+  wrapper.append(name, tagline);
+  return wrapper;
+}
+
+function renderIct8ConnectBrandTitle() {
+  if (!appTitleText) return;
+  appTitleText.classList.add('ict8-brand-title');
+  appTitleText.replaceChildren(makeIct8ConnectBrandCycleElement());
+  appTitleText.setAttribute('aria-label', 'ICT 8 Connect. Learn, Code, Connect');
+  if (appSubtitleText) appSubtitleText.textContent = 'Grade 8 ICT learning hub';
+}
+
 function updateAppHeaderForSession({ forceTypewriter = false } = {}) {
   const isStudent = appSession.mode === 'student' && appSession.student;
   const isGuest = appSession.mode === 'guest';
@@ -3829,9 +3988,12 @@ function updateAppHeaderForSession({ forceTypewriter = false } = {}) {
   studentMenuBtn?.classList.toggle('hidden', !isStudent);
   if (!isStudent) closeStudentAccountMenu();
 
+  if (appTitleText) appTitleText.classList.remove('ict8-brand-title');
+
   if (isStudent) {
-    const firstName = getStudentFirstName(appSession.student.name);
     const titleParts = makeStudentHeaderTitleParts(appSession.student.name);
+    const editorGreetingParts = getStudentEditorGreetingParts();
+    const editorGreetingText = editorGreetingParts.text;
     if (appTitleText) {
       const nameHighlight = document.createElement('span');
       nameHighlight.className = 'header-student-name-highlight';
@@ -3845,10 +4007,17 @@ function updateAppHeaderForSession({ forceTypewriter = false } = {}) {
       appTitleText.setAttribute('aria-label', titleParts.ariaText);
     }
     if (appSubtitleText) appSubtitleText.textContent = 'Developed by Sir JR';
-    if (headerStudentGreeting) headerStudentGreeting.textContent = `Hi, ${firstName}!`;
-    if (menuStudentGreeting) menuStudentGreeting.textContent = `Hi, ${firstName}!`;
+    if (headerStudentGreeting) {
+      renderStudentEditorGreeting(headerStudentGreeting, editorGreetingParts);
+    }
+    if (menuStudentGreeting) {
+      renderStudentEditorGreeting(menuStudentGreeting, editorGreetingParts);
+    }
     if (!appSession.currentProjectId) studentProjectDirty = false;
     setStudentSaveState(appSession.currentProjectId ? (studentProjectDirty ? 'Unsaved' : 'Saved') : 'Choose a project', studentProjectDirty ? 'unsaved' : '');
+  } else if (isGuest) {
+    if (appTitleText) appTitleText.textContent = 'ICT 8 Connect';
+    if (appSubtitleText) appSubtitleText.textContent = 'Learn, Code, Connect';
   } else {
     if (appTitleText) appTitleText.textContent = 'A tool for every Grade 8 MCSian.';
     if (appSubtitleText) appSubtitleText.textContent = 'Developed by Sir JR';
@@ -5895,6 +6064,7 @@ async function openStudentProject(projectId) {
     else resetResultPanel();
     runCode(false, { scroll: false });
     closeStudentDashboard();
+    editorStudentGreetingState = { key: '', text: '' };
     updateAppHeaderForSession({ forceTypewriter: true });
     studentProjectDirty = recovered;
     if (recovered) {
@@ -7499,7 +7669,7 @@ async function runAdminAiRubricReview() {
     await new Promise(resolve => window.setTimeout(resolve, 650));
     const activityForReview = getAdminProjectRubricForAi();
     const context = {
-      app: 'Sir JR Web Coding App',
+      app: 'ICT 8 Connect',
       student: { name: student.name || '', studentId: student.studentId || '', section: student.section || '' },
       project: { name: project.name || '', id: project.id || '', activityKey: adminProjectViewerState.activityKey || '', updatedAt: formatStudentDate(project.updatedAt) },
       activity: {
@@ -10385,7 +10555,7 @@ function isAICodeCheckerEnabled() {
 function buildAICodeCheckerPayload(items = getErrorCheckerItems()) {
   const snapshot = getSmartProjectCodeSnapshot();
   return {
-    app: 'Grade 8 MCSian Web Code Editor',
+    app: 'ICT 8 Connect',
     task: 'teacher-code-helper-check',
     level: 'Grade 8 beginner web development',
     checkerItems: items.map(item => ({
@@ -11651,7 +11821,7 @@ function buildAIReviewPayload(result) {
   }));
 
   return {
-    app: 'Grade 8 MCSian Web Code Editor',
+    app: 'ICT 8 Connect',
     activity: activity ? {
       id: activity.id,
       title: activity.title,
@@ -11987,7 +12157,7 @@ function buildStudentAiRubricScoringPrompt(localResult = null) {
     levels: item.levels || {}
   })) || [];
   const context = {
-    app: 'Grade 8 MCSian Web Code Editor',
+    app: 'ICT 8 Connect',
     mode: 'student_result_scoring',
     activity: activity ? {
       title: activity.title,
@@ -13963,7 +14133,7 @@ async function uploadLessonPdfToGoogleDrive(file) {
   const metadata = {
     name: file.name,
     mimeType: 'application/pdf',
-    description: 'Uploaded from Sir JR Web Coding App Lesson Manager',
+    description: 'Uploaded from ICT 8 Connect Lesson Manager',
     appProperties: { mcsianLessonViewer: 'true' }
   };
   const body = new Blob([
@@ -16106,7 +16276,7 @@ function makeReadmeFile() {
   const cssNames = getLanguageFileNames('css');
   const jsNames = getLanguageFileNames('js');
   return [
-    'Grade 8 MCSian Web Code Editor - Saved Code',
+    'ICT 8 Connect - Saved Code',
     '================================',
     '',
     `Activity: ${title}`,
