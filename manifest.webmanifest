@@ -1,7 +1,7 @@
 {
   "name": "ICT 8 Connect",
   "short_name": "ICT 8 Connect",
-  "description": "Learn, Code, Connect — a Grade 8 ICT workspace for lessons, coding, feedback, and progress tracking.",
+  "description": "Learn, Code, Connect \u2014 a Grade 8 ICT workspace for lessons, coding, feedback, and progress tracking.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
@@ -32,5 +32,6 @@
       "type": "image/png",
       "purpose": "maskable"
     }
-  ]
+  ],
+  "orientation": "portrait-primary"
 }

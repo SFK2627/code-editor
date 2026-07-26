@@ -24730,3 +24730,24 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     }
   });
 })();
+
+
+(() => {
+  // Best-effort portrait lock for installed mobile PWAs. Browsers that do not
+  // allow orientation locking will safely ignore this and use the CSS overlay.
+  const isPhone = () => document.documentElement.dataset.deviceMode === 'phone';
+  const isStandalone = () =>
+    window.matchMedia?.('(display-mode: standalone)').matches ||
+    window.navigator.standalone === true;
+  async function requestPortraitLock() {
+    if (!isPhone() || !isStandalone()) return;
+    try {
+      await screen.orientation?.lock?.('portrait-primary');
+    } catch (error) {
+      // Normal on browsers that require fullscreen/user activation.
+    }
+  }
+  window.addEventListener('load', requestPortraitLock, { once: true });
+  window.addEventListener('orientationchange', requestPortraitLock);
+  document.addEventListener('pointerdown', requestPortraitLock, { once: true, passive: true });
+})();

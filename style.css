@@ -41099,3 +41099,72 @@ html[data-device-mode="phone"] .entry-choice-grid > button.lessons-choice strong
     padding: 7px 5px !important;
   }
 }
+
+
+/* Step 209: keep phones in portrait mode. Installed PWA uses the manifest
+   orientation lock; this overlay protects normal mobile browser sessions. */
+.portrait-lock-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 999999;
+  padding: max(18px, env(safe-area-inset-top)) max(18px, env(safe-area-inset-right)) max(18px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left));
+  background: radial-gradient(circle at 20% 20%, rgba(59, 130, 246, 0.28), transparent 35%),
+              linear-gradient(135deg, #eaf4ff, #eef7ff 46%, #f8fbff);
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.portrait-lock-card {
+  width: min(420px, 86vw);
+  border: 1px solid rgba(37, 99, 235, 0.24);
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.24);
+  padding: 26px 22px;
+  color: #0f2a4d;
+}
+
+.portrait-lock-icon {
+  width: 72px;
+  height: 72px;
+  margin: 0 auto 14px;
+  display: grid;
+  place-items: center;
+  border-radius: 24px;
+  background: linear-gradient(135deg, #2563eb, #06b6d4);
+  color: #ffffff;
+  font-size: 2.15rem;
+  box-shadow: 0 16px 32px rgba(37, 99, 235, 0.26);
+}
+
+.portrait-lock-card h2 {
+  margin: 0 0 8px;
+  font-size: 1.35rem;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+}
+
+.portrait-lock-card p {
+  margin: 0;
+  color: #52657f;
+  font-size: 0.98rem;
+  line-height: 1.45;
+}
+
+@media (orientation: landscape) and (max-height: 560px) and (hover: none) and (pointer: coarse) {
+  html[data-device-mode="phone"] body > :not(#portraitLockOverlay) {
+    display: none !important;
+  }
+
+  html[data-device-mode="phone"] .portrait-lock-overlay {
+    display: flex !important;
+  }
+
+  html[data-device-mode="phone"],
+  html[data-device-mode="phone"] body {
+    overflow: hidden !important;
+    min-height: 100vh;
+  }
+}
