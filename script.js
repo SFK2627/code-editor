@@ -575,13 +575,13 @@ const PROFILE_ACTIVITY_WRITE_INTERVAL = 5 * 60 * 1000;
 const AUTO_RUN_DELAY = 850;
 const PREVIEW_LOAD_TIMEOUT = 3200;
 const APP_NETWORK_TIMEOUT_MS = 12000;
-const PRESENCE_HEARTBEAT_MS = 90 * 1000;
-const PRESENCE_MIN_WRITE_INTERVAL = 45 * 1000;
-const PRESENCE_ONLINE_WINDOW_MS = 2.5 * 60 * 1000;
-const PRESENCE_RECENT_WINDOW_MS = 10 * 60 * 1000;
-const PRESENCE_ADMIN_WINDOW_MS = 20 * 60 * 1000;
-const PRESENCE_ADMIN_AUTO_REFRESH_MS = 60 * 1000;
-const PRESENCE_ADMIN_LIMIT = 200;
+const PRESENCE_HEARTBEAT_MS = 20 * 60 * 1000;
+const PRESENCE_MIN_WRITE_INTERVAL = 20 * 60 * 1000;
+const PRESENCE_ONLINE_WINDOW_MS = 25 * 60 * 1000;
+const PRESENCE_RECENT_WINDOW_MS = 60 * 60 * 1000;
+const PRESENCE_ADMIN_WINDOW_MS = 90 * 60 * 1000;
+const PRESENCE_ADMIN_AUTO_REFRESH_MS = 5 * 60 * 1000;
+const PRESENCE_ADMIN_LIMIT = 600;
 
 const appSession = {
   mode: 'pending', // pending | guest | student
@@ -614,9 +614,11 @@ let studentPresenceStarted = false;
 let studentPresenceLastWriteAt = 0;
 let studentPresenceLastSignature = '';
 let studentPresenceLastActivity = 'App open';
+let studentPresenceDeferredTimer = null;
+let studentPresencePendingOverride = null;
 let adminOnlinePresenceRecords = [];
 let adminOnlinePresenceTimer = null;
-let adminOnlinePresenceAutoRefresh = true;
+let adminOnlinePresenceAutoRefresh = false;
 let adminOnlinePresenceLoading = false;
 let pendingStudentImportRows = [];
 let studentImportRunning = false;
@@ -2353,12 +2355,29 @@ function initFirebaseWithCompatSDK() {
       updateDoc: (ref, data) => ref.update(data),
       deleteDoc: ref => ref.delete(),
       addDoc: (collectionRef, data) => collectionRef.add(data),
-      onSnapshot: (ref, callback, errorCallback) => ref.onSnapshot(snap => callback({
-        id: snap.id,
-        exists: () => snap.exists,
-        data: () => snap.data() || {},
-        ref: snap.ref
-      }), errorCallback),
+      onSnapshot: (ref, callback, errorCallback) => ref.onSnapshot(snap => {
+        if (Array.isArray(snap.docs)) {
+          const docs = snap.docs.map(docSnap => ({
+            id: docSnap.id,
+            exists: () => docSnap.exists,
+            data: () => docSnap.data() || {},
+            ref: docSnap.ref
+          }));
+          callback({
+            docs,
+            size: Number(snap.size || docs.length),
+            empty: Boolean(snap.empty),
+            forEach: fn => docs.forEach(fn)
+          });
+          return;
+        }
+        callback({
+          id: snap.id,
+          exists: () => snap.exists,
+          data: () => snap.data() || {},
+          ref: snap.ref
+        });
+      }, errorCallback),
       query: applyCompatQuery,
       where: (field, operator, value) => ({ type: 'where', field, operator, value }),
       orderBy: (field, direction = 'asc') => ({ type: 'orderBy', field, direction }),
@@ -3519,15 +3538,25 @@ async function findStudentRosterRecordById(studentId) {
   // Firebase Auth email removes symbols, so 19-00431 and 1900431 can point to
   // the same Auth account. Search the roster by comparable key before failing.
   try {
-    const { getDocs } = firebaseSync.modules;
-    const snapshot = await getDocs(getStudentRosterCollectionRef());
+    const activeUser = getFirebaseActiveUser();
+    if (!activeUser?.email) return exact || null;
+    const { getDocs, query, where, limit } = firebaseSync.modules;
+    // Privacy-safe fallback for old IDs with or without dashes. The query is
+    // limited to roster records owned by the authenticated email instead of
+    // downloading the full class roster to a student device.
+    const ownRosterQuery = query(
+      getStudentRosterCollectionRef(),
+      where('authEmail', '==', activeUser.email),
+      limit(10)
+    );
+    const snapshot = await getDocs(ownRosterQuery);
     const match = (snapshot.docs || []).map(docSnapshot => ({
       id: docSnapshot.id,
       ...snapshotData(docSnapshot)
     })).find(record => areStudentIdsEquivalent(record.studentId || record.studentIdNormalized || record.id, normalized));
     return match || null;
   } catch (error) {
-    console.warn('Could not search roster by Student ID key.', error);
+    console.warn('Could not search own roster record by Student ID key.', error);
     return exact || null;
   }
 }
@@ -4733,7 +4762,7 @@ async function logoutStudent() {
   }
   try {
     if (appSession.mode === 'student' && appSession.student?.uid) {
-      await writeStudentPresence({ currentView: 'signed_out', activityGroup: 'Signed out', activityLabel: 'Signed out' }, { force: true });
+      await writeStudentPresence({ currentView: 'signed_out', activityGroup: 'Signed out', activityLabel: 'Signed out' }, { force: true, critical: true });
     }
   } catch (error) {
     console.warn('Student sign-out presence update skipped.', error);
@@ -6897,7 +6926,21 @@ async function writeStudentPresence(activityOverride = {}, options = {}) {
   if (!options.force && document.visibilityState === 'hidden') return false;
   const signature = [payload.currentView, payload.activityLabel, payload.projectId, payload.lessonId, payload.pageVisible].join('|');
   const now = Date.now();
-  if (!options.force && signature === studentPresenceLastSignature && now - studentPresenceLastWriteAt < PRESENCE_MIN_WRITE_INTERVAL) {
+  // Presence is intentionally coarse-grained on the free plan. A view change
+  // updates the in-memory activity immediately, but Firestore receives at most
+  // one presence write per student every few minutes. Only critical lifecycle
+  // events (for example sign-out) may bypass this throttle.
+  if (!options.critical && studentPresenceLastWriteAt && now - studentPresenceLastWriteAt < PRESENCE_MIN_WRITE_INTERVAL) {
+    studentPresenceLastSignature = signature;
+    studentPresenceLastActivity = payload.activityLabel;
+    studentPresencePendingOverride = { ...activityOverride };
+    const remaining = Math.max(1000, PRESENCE_MIN_WRITE_INTERVAL - (now - studentPresenceLastWriteAt) + 250);
+    window.clearTimeout(studentPresenceDeferredTimer);
+    studentPresenceDeferredTimer = window.setTimeout(() => {
+      const pending = studentPresencePendingOverride || {};
+      studentPresencePendingOverride = null;
+      writeStudentPresence(pending, { force: true }).catch(error => console.warn('Deferred presence update skipped.', error));
+    }, remaining);
     return false;
   }
   if (navigator.onLine === false) return false;
@@ -6913,6 +6956,9 @@ async function writeStudentPresence(activityOverride = {}, options = {}) {
     studentPresenceLastWriteAt = now;
     studentPresenceLastSignature = signature;
     studentPresenceLastActivity = payload.activityLabel;
+    studentPresencePendingOverride = null;
+    window.clearTimeout(studentPresenceDeferredTimer);
+    studentPresenceDeferredTimer = null;
     return true;
   } catch (error) {
     console.warn('Student online presence update skipped.', error);
@@ -6942,7 +6988,10 @@ function startStudentPresenceHeartbeat() {
 function stopStudentPresenceHeartbeat() {
   studentPresenceStarted = false;
   window.clearTimeout(studentPresenceTimer);
+  window.clearTimeout(studentPresenceDeferredTimer);
   studentPresenceTimer = null;
+  studentPresenceDeferredTimer = null;
+  studentPresencePendingOverride = null;
   studentPresenceLastSignature = '';
 }
 
@@ -7081,8 +7130,8 @@ async function loadAdminOnlinePresence(options = {}) {
     renderAdminOnlinePresence();
     const online = adminOnlinePresenceRecords.filter(record => getOnlinePresenceStatus(record) === 'online').length;
     const message = adminOnlinePresenceRecords.length
-      ? `${online} online now · ${adminOnlinePresenceRecords.length} active in the last 20 minutes. Auto refresh is ${adminOnlinePresenceAutoRefresh ? 'on' : 'off'}.`
-      : 'No students reported active in the last 20 minutes.';
+      ? `${online} online now · ${adminOnlinePresenceRecords.length} active recently. Auto refresh is ${adminOnlinePresenceAutoRefresh ? 'on (5 min)' : 'off'}.`
+      : 'No students reported active recently.';
     setOnlinePresenceStatus(message, adminOnlinePresenceRecords.length ? 'success' : 'warning');
     return adminOnlinePresenceRecords;
   } catch (error) {
@@ -19390,7 +19439,7 @@ refreshOnlinePresenceBtn?.addEventListener('click', () => loadAdminOnlinePresenc
 onlinePresenceAutoBtn?.addEventListener('click', () => {
   adminOnlinePresenceAutoRefresh = !adminOnlinePresenceAutoRefresh;
   onlinePresenceAutoBtn.setAttribute('aria-pressed', adminOnlinePresenceAutoRefresh ? 'true' : 'false');
-  onlinePresenceAutoBtn.textContent = adminOnlinePresenceAutoRefresh ? 'Auto: 60s' : 'Auto: Off';
+  onlinePresenceAutoBtn.textContent = adminOnlinePresenceAutoRefresh ? 'Auto: 5m' : 'Auto: Off';
   setOnlinePresenceStatus(`Auto refresh is ${adminOnlinePresenceAutoRefresh ? 'on' : 'off'}.`, '');
   scheduleAdminOnlinePresenceRefresh();
 });
@@ -20662,8 +20711,14 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
   window.__MCS_COLLAB_FEATURE_READY__ = true;
   if (!editor || !editorPanel) return;
 
-  const COLLAB_PUSH_DELAY = 60;
-  const COLLAB_HEARTBEAT_MS = 12000;
+  const COLLAB_PUSH_DELAY = 55;
+  const COLLAB_HEARTBEAT_MS = 25000;
+  const COLLAB_SNAPSHOT_MS = 5 * 60 * 1000;
+  const COLLAB_SIGNAL_TIMEOUT_MS = 15000;
+  const COLLAB_CURSOR_DELAY_MS = 85;
+  const COLLAB_ICE_SERVERS = [
+    { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] }
+  ];
   const collabState = {
     active: false,
     role: '',
@@ -20688,7 +20743,23 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     lastCursorPosition: -1,
     memberColorCache: {},
     savedProjectId: '',
-    savedProjectName: ''
+    savedProjectName: '',
+    peerConnections: new Map(),
+    dataChannels: new Map(),
+    peerSignalUnsubscribe: null,
+    ownPeerUnsubscribe: null,
+    p2pConnectTimer: null,
+    snapshotTimer: null,
+    p2pReady: false,
+    p2pMode: false,
+    hostSequence: 0,
+    lastSnapshotWriteAt: 0,
+    pendingLiveMessage: null,
+    peerMembers: {},
+    peerOfferKeys: new Map(),
+    ownPeerRef: null,
+    chunkBuffers: new Map(),
+    reconnectAttempts: 0
   };
 
   function isCollaborationEnabled() {
@@ -20859,33 +20930,34 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
   }
 
   function scheduleCollabCursorPush() {
-    if (!collabState.active || !collabState.sessionRef || collabState.applyingRemote || !getCollabUid()) return;
+    if (!collabState.active || collabState.applyingRemote || !getCollabUid()) return;
     window.clearTimeout(collabState.cursorTimer);
-    collabState.cursorTimer = window.setTimeout(pushCollabCursor, 90);
+    collabState.cursorTimer = window.setTimeout(pushCollabCursor, COLLAB_CURSOR_DELAY_MS);
   }
 
   async function pushCollabCursor() {
-    if (!collabState.active || !collabState.sessionRef || !getCollabUid()) return;
+    if (!collabState.active || !getCollabUid()) return;
     const position = Number(editor?.selectionStart || 0);
     const uid = getCollabUid();
-    try {
-      const { setDoc, serverTimestamp } = firebaseSync.modules;
-      await setDoc(collabState.sessionRef, {
-        cursors: {
-          [uid]: {
-            uid,
-            name: getCollabName(),
-            color: getCollabMemberColor(uid),
-            language: activeLanguage,
-            position,
-            updatedAt: Date.now()
-          }
-        },
-        members: { [uid]: { ...buildCollabMember(collabState.role || 'member'), color: getCollabMemberColor(uid) } },
-        updatedAt: serverTimestamp()
-      }, { merge: true });
-    } catch (error) {
-      console.warn('Could not update live cursor.', error);
+    if (position === collabState.lastCursorPosition && collabState.p2pReady) return;
+    collabState.lastCursorPosition = position;
+    const cursor = {
+      uid,
+      name: getCollabName(),
+      color: getCollabMemberColor(uid),
+      language: activeLanguage,
+      position,
+      updatedAt: Date.now()
+    };
+    collabState.latestSession = {
+      ...(collabState.latestSession || {}),
+      cursors: { ...(collabState.latestSession?.cursors || {}), [uid]: cursor }
+    };
+    const message = buildCollabChannelMessage('cursor', { cursor });
+    if (collabState.role === 'host') broadcastCollabP2PMessage(message);
+    else {
+      const hostUid = collabState.latestSession?.hostUid;
+      if (hostUid) sendCollabP2PMessage(hostUid, message);
     }
   }
 
@@ -20900,6 +20972,677 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
   function getSharedSessionDocRef(code) {
     const { doc } = firebaseSync.modules;
     return doc(firebaseSync.db, firebaseSync.collectionName, firebaseSync.documentId, 'sharedSessions', String(code || '').trim().toUpperCase());
+  }
+
+
+  function getCollabPeersCollectionRef(code = collabState.code) {
+    const { collection } = firebaseSync.modules;
+    return collection(
+      firebaseSync.db,
+      firebaseSync.collectionName,
+      firebaseSync.documentId,
+      'sharedSessions',
+      String(code || '').trim().toUpperCase(),
+      'peers'
+    );
+  }
+
+  function getCollabPeerDocRef(code = collabState.code, uid = getCollabUid()) {
+    const { doc } = firebaseSync.modules;
+    return doc(
+      firebaseSync.db,
+      firebaseSync.collectionName,
+      firebaseSync.documentId,
+      'sharedSessions',
+      String(code || '').trim().toUpperCase(),
+      'peers',
+      String(uid || '').trim()
+    );
+  }
+
+  function supportsCollabP2P() {
+    return typeof window.RTCPeerConnection === 'function';
+  }
+
+  function getCollabSnapshotDocs(snapshot) {
+    if (!snapshot) return [];
+    if (Array.isArray(snapshot.docs)) return snapshot.docs;
+    const docs = [];
+    try { snapshot.forEach?.(docSnapshot => docs.push(docSnapshot)); } catch (_) {}
+    return docs;
+  }
+
+  function serializeRtcDescription(description) {
+    if (!description) return null;
+    return { type: description.type, sdp: description.sdp };
+  }
+
+  function serializeRtcCandidate(candidate) {
+    if (!candidate) return null;
+    if (typeof candidate.toJSON === 'function') return candidate.toJSON();
+    return {
+      candidate: candidate.candidate || '',
+      sdpMid: candidate.sdpMid ?? null,
+      sdpMLineIndex: candidate.sdpMLineIndex ?? null,
+      usernameFragment: candidate.usernameFragment ?? null
+    };
+  }
+
+  function waitForIceGatheringComplete(pc, timeoutMs = 4500) {
+    if (!pc || pc.iceGatheringState === 'complete') return Promise.resolve();
+    return new Promise(resolve => {
+      let settled = false;
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        try { pc.removeEventListener('icegatheringstatechange', check); } catch (_) {}
+        resolve();
+      };
+      const check = () => {
+        if (pc.iceGatheringState === 'complete') finish();
+      };
+      pc.addEventListener('icegatheringstatechange', check);
+      window.setTimeout(finish, timeoutMs);
+    });
+  }
+
+  async function addRemoteIceCandidates(pc, candidates = []) {
+    if (!pc || !Array.isArray(candidates)) return;
+    for (const candidate of candidates) {
+      if (!candidate || !candidate.candidate) continue;
+      try { await pc.addIceCandidate(candidate); } catch (error) {
+        console.warn('A collaboration ICE candidate was skipped.', error);
+      }
+    }
+  }
+
+  function updateCollabRuntimeMember(member = {}) {
+    const uid = String(member.uid || '').trim();
+    if (!uid) return;
+    const previous = collabState.peerMembers[uid] || collabState.latestSession?.members?.[uid] || {};
+    const next = {
+      ...previous,
+      ...member,
+      uid,
+      online: member.online !== false,
+      lastSeenAt: Number(member.lastSeenAt || Date.now())
+    };
+    collabState.peerMembers[uid] = next;
+    collabState.latestSession = {
+      ...(collabState.latestSession || {}),
+      members: {
+        ...(collabState.latestSession?.members || {}),
+        ...collabState.peerMembers,
+        [uid]: next
+      }
+    };
+    renderCollabMembers(collabState.latestSession);
+  }
+
+  function markCollabRuntimeMemberOffline(uid, extra = {}) {
+    const current = collabState.peerMembers[uid] || collabState.latestSession?.members?.[uid];
+    if (!current) return;
+    updateCollabRuntimeMember({ ...current, ...extra, uid, online: false, lastSeenAt: Date.now() });
+  }
+
+  function getCollabAuthoritativeState() {
+    const payload = getCollabContentPayload();
+    const current = collabState.latestSession || {};
+    return {
+      ...current,
+      ...payload,
+      active: current.active !== false,
+      shareCode: collabState.code || current.shareCode || '',
+      hostUid: current.hostUid || (collabState.role === 'host' ? getCollabUid() : ''),
+      hostName: current.hostName || (collabState.role === 'host' ? getCollabName() : ''),
+      contentVersion: Math.max(Number(current.contentVersion || 0), Number(collabState.lastContentVersion || 0)),
+      members: {
+        ...(current.members || {}),
+        ...collabState.peerMembers
+      },
+      cursors: { ...(current.cursors || {}) }
+    };
+  }
+
+  function getNextCollabHostVersion() {
+    const nowBase = Date.now() * 100;
+    collabState.hostSequence = Math.max(collabState.hostSequence + 1, nowBase);
+    return collabState.hostSequence;
+  }
+
+  function getCollabLivePatch(reason = 'edit') {
+    saveActiveEditor();
+    const fullSnapshotReason = /^(change|page|manual-save|snapshot|initial|queued-snapshot)$/i.test(String(reason || ''));
+    if (fullSnapshotReason) {
+      return {
+        patchMode: 'snapshot',
+        ...getCollabContentPayload()
+      };
+    }
+    const language = ['html', 'css', 'js'].includes(activeLanguage) ? activeLanguage : 'html';
+    const fileName = getActiveLanguageFileName(language);
+    return {
+      patchMode: 'file',
+      selectedActivityId: selectedActivityId || '',
+      language,
+      fileName,
+      content: getLanguageFileContent(language, fileName),
+      fileNames: normalizeCodeFileNames(codeFileNames)
+    };
+  }
+
+  function getCollabLivePatchSignature(patch = {}) {
+    try { return JSON.stringify(patch); } catch { return `${Date.now()}:${editor?.value?.length || 0}`; }
+  }
+
+  function applyCollaborationLivePatch(data = {}, options = {}) {
+    if (data.patchMode !== 'file') {
+      applyCollaborationContent(data, options);
+      return;
+    }
+    const version = Number(data.contentVersion || 0);
+    const sameEditor = data.lastEditorUid && data.lastEditorUid === getCollabUid();
+    if (!options.force && (sameEditor || !version || version <= collabState.lastContentVersion)) {
+      if (sameEditor && version > collabState.lastContentVersion) collabState.lastContentVersion = version;
+      return;
+    }
+
+    const language = ['html', 'css', 'js'].includes(data.language) ? data.language : 'html';
+    const activityId = activities.some(item => item.id === data.selectedActivityId) ? data.selectedActivityId : '';
+    const codeKey = activityId || 'scratch';
+    const targetStore = normalizeCodeStore(codeByActivity[codeKey] || starterCode);
+    const fileName = cleanLanguageFileName(data.fileName, language);
+    const files = getLanguageFileMap(language, targetStore);
+    files[fileName] = String(data.content ?? '');
+    const meta = getLanguageFileMeta(language);
+    targetStore[meta.codeKey] = files[fileName];
+    if (!targetStore[meta.activeKey]) targetStore[meta.activeKey] = fileName;
+    codeByActivity[codeKey] = targetStore;
+
+    const viewingSameActivity = (selectedActivityId || '') === activityId;
+    const viewingSameFile = viewingSameActivity
+      && activeLanguage === language
+      && getActiveLanguageFileName(language) === fileName;
+
+    collabState.applyingRemote = true;
+    try {
+      saveCodeByActivity();
+      if (data.fileNames) {
+        codeFileNames = normalizeCodeFileNames({ ...codeFileNames, ...data.fileNames });
+        saveCodeFileNames();
+      }
+      if (viewingSameActivity) codeStore = targetStore;
+      if (viewingSameFile) {
+        const start = Number(editor.selectionStart || 0);
+        const end = Number(editor.selectionEnd || start);
+        editor.value = files[fileName];
+        const max = editor.value.length;
+        editor.setSelectionRange(Math.min(start, max), Math.min(end, max));
+        resetResultPanel();
+        runCode(false, { scroll: false, source: 'collab-p2p' });
+      }
+      markCollabRemoteVersion(version);
+      setStatus(`${data.lastEditorName || 'Classmate'} updated ${fileName}`);
+    } finally {
+      window.setTimeout(() => { collabState.applyingRemote = false; }, 45);
+    }
+  }
+
+  function buildCollabChannelMessage(type, data = {}) {
+    return {
+      type,
+      room: collabState.code,
+      senderUid: getCollabUid(),
+      senderName: getCollabName(),
+      sentAt: Date.now(),
+      ...data
+    };
+  }
+
+  function sendRawCollabChannelMessage(channel, message) {
+    if (!channel || channel.readyState !== 'open') return false;
+    let serialized;
+    try { serialized = JSON.stringify(message); } catch { return false; }
+    const maxChunk = 32000;
+    try {
+      if (serialized.length <= maxChunk) {
+        channel.send(serialized);
+        return true;
+      }
+      const id = `${getCollabUid()}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const total = Math.ceil(serialized.length / maxChunk);
+      for (let index = 0; index < total; index += 1) {
+        channel.send(JSON.stringify({
+          __mcsCollabChunk: true,
+          id,
+          index,
+          total,
+          data: serialized.slice(index * maxChunk, (index + 1) * maxChunk)
+        }));
+      }
+      return true;
+    } catch (error) {
+      console.warn('Could not send a direct collaboration update.', error);
+      return false;
+    }
+  }
+
+  function sendCollabP2PMessage(targetUid, message) {
+    const channel = collabState.dataChannels.get(targetUid);
+    return sendRawCollabChannelMessage(channel, message);
+  }
+
+  function broadcastCollabP2PMessage(message, exceptUid = '') {
+    let sent = 0;
+    collabState.dataChannels.forEach((channel, uid) => {
+      if (uid === exceptUid) return;
+      if (sendRawCollabChannelMessage(channel, message)) sent += 1;
+    });
+    return sent;
+  }
+
+  function parseCollabChannelMessage(raw, remoteUid) {
+    let message;
+    try { message = JSON.parse(String(raw || '')); } catch { return null; }
+    if (!message?.__mcsCollabChunk) return message;
+    const key = `${remoteUid}:${message.id}`;
+    const existing = collabState.chunkBuffers.get(key) || {
+      chunks: new Array(Number(message.total || 0)),
+      received: 0,
+      expiresAt: Date.now() + 30000
+    };
+    if (!existing.chunks[message.index]) {
+      existing.chunks[message.index] = String(message.data || '');
+      existing.received += 1;
+    }
+    collabState.chunkBuffers.set(key, existing);
+    if (existing.received < existing.chunks.length) return null;
+    collabState.chunkBuffers.delete(key);
+    try { return JSON.parse(existing.chunks.join('')); } catch { return null; }
+  }
+
+  function pruneCollabChunkBuffers() {
+    const now = Date.now();
+    collabState.chunkBuffers.forEach((entry, key) => {
+      if (Number(entry?.expiresAt || 0) < now) collabState.chunkBuffers.delete(key);
+    });
+  }
+
+  function attachCollabDataChannel(remoteUid, channel) {
+    if (!channel || !remoteUid) return;
+    const previous = collabState.dataChannels.get(remoteUid);
+    if (previous && previous !== channel) {
+      try { previous.close(); } catch (_) {}
+    }
+    collabState.dataChannels.set(remoteUid, channel);
+    channel.binaryType = 'arraybuffer';
+    channel.onopen = () => {
+      collabState.p2pMode = true;
+      collabState.p2pReady = collabState.role === 'host' || remoteUid === collabState.latestSession?.hostUid;
+      collabState.reconnectAttempts = 0;
+      updateCollabRuntimeMember({
+        ...(collabState.peerMembers[remoteUid] || {}),
+        uid: remoteUid,
+        online: true,
+        lastSeenAt: Date.now()
+      });
+      if (collabState.role === 'host') {
+        sendCollabP2PMessage(remoteUid, buildCollabChannelMessage('state', { data: getCollabAuthoritativeState() }));
+        broadcastCollabP2PMessage(buildCollabChannelMessage('members', { members: collabState.peerMembers }));
+      } else {
+        sendCollabP2PMessage(remoteUid, buildCollabChannelMessage('hello', { member: buildCollabMember('member') }));
+        sendCollabP2PMessage(remoteUid, buildCollabChannelMessage('request-state'));
+        if (collabState.pendingLiveMessage) {
+          sendCollabP2PMessage(remoteUid, collabState.pendingLiveMessage);
+          collabState.pendingLiveMessage = null;
+        }
+      }
+      setStatus('Direct live sync connected');
+      setCollabStatus('Direct live sync connected. Firebase usage stays low.', 'success');
+      renderCollabMembers(collabState.latestSession);
+    };
+    channel.onmessage = event => {
+      pruneCollabChunkBuffers();
+      const message = parseCollabChannelMessage(event.data, remoteUid);
+      if (message) handleCollabP2PMessage(remoteUid, message);
+    };
+    channel.onclose = () => {
+      collabState.dataChannels.delete(remoteUid);
+      markCollabRuntimeMemberOffline(remoteUid);
+      if (collabState.role !== 'host' && collabState.active) {
+        collabState.p2pReady = false;
+        setStatus('Direct live sync reconnecting');
+        scheduleMemberP2PReconnect();
+      }
+    };
+    channel.onerror = error => console.warn('Direct collaboration channel error.', error);
+  }
+
+  function createCollabPeerConnection(remoteUid, hostSide = false) {
+    const existing = collabState.peerConnections.get(remoteUid);
+    if (existing) {
+      try { existing.close(); } catch (_) {}
+    }
+    const pc = new RTCPeerConnection({ iceServers: COLLAB_ICE_SERVERS });
+    pc.__mcsCandidates = [];
+    pc.onicecandidate = event => {
+      const candidate = serializeRtcCandidate(event.candidate);
+      if (candidate) pc.__mcsCandidates.push(candidate);
+    };
+    pc.onconnectionstatechange = () => {
+      const state = pc.connectionState;
+      if (state === 'connected') {
+        updateCollabRuntimeMember({ ...(collabState.peerMembers[remoteUid] || {}), uid: remoteUid, online: true, lastSeenAt: Date.now() });
+      } else if (['failed', 'disconnected', 'closed'].includes(state)) {
+        markCollabRuntimeMemberOffline(remoteUid);
+        if (!hostSide && collabState.active) scheduleMemberP2PReconnect();
+      }
+    };
+    if (hostSide) {
+      pc.ondatachannel = event => attachCollabDataChannel(remoteUid, event.channel);
+    }
+    collabState.peerConnections.set(remoteUid, pc);
+    return pc;
+  }
+
+  function closeCollabPeer(remoteUid, options = {}) {
+    const channel = collabState.dataChannels.get(remoteUid);
+    const pc = collabState.peerConnections.get(remoteUid);
+    if (options.suppressReconnect) {
+      if (channel) channel.onclose = null;
+      if (pc) pc.onconnectionstatechange = null;
+    }
+    try { channel?.close(); } catch (_) {}
+    try { pc?.close(); } catch (_) {}
+    collabState.dataChannels.delete(remoteUid);
+    collabState.peerConnections.delete(remoteUid);
+  }
+
+  function cleanupCollabP2P() {
+    window.clearTimeout(collabState.p2pConnectTimer);
+    window.clearInterval(collabState.snapshotTimer);
+    if (typeof collabState.peerSignalUnsubscribe === 'function') collabState.peerSignalUnsubscribe();
+    if (typeof collabState.ownPeerUnsubscribe === 'function') collabState.ownPeerUnsubscribe();
+    collabState.peerSignalUnsubscribe = null;
+    collabState.ownPeerUnsubscribe = null;
+    collabState.peerConnections.forEach(pc => { try { pc.close(); } catch (_) {} });
+    collabState.dataChannels.forEach(channel => { try { channel.close(); } catch (_) {} });
+    collabState.peerConnections.clear();
+    collabState.dataChannels.clear();
+    collabState.peerOfferKeys.clear();
+    collabState.chunkBuffers.clear();
+    collabState.peerMembers = {};
+    collabState.p2pMode = false;
+    collabState.p2pReady = false;
+    collabState.pendingLiveMessage = null;
+    collabState.ownPeerRef = null;
+    collabState.p2pConnectTimer = null;
+    collabState.snapshotTimer = null;
+  }
+
+  async function acceptCollabPeerOffer(peerDoc) {
+    if (collabState.role !== 'host' || !collabState.active) return;
+    const data = snapshotData(peerDoc);
+    const remoteUid = String(data.uid || peerDoc.id || '').trim();
+    if (!remoteUid || remoteUid === getCollabUid() || !data.offer?.sdp) return;
+    if (collabState.latestSession?.blockedUids?.[remoteUid]) return;
+    const offerKey = String(data.offerNonce || data.offer.sdp || '');
+    if (collabState.peerOfferKeys.get(remoteUid) === offerKey) return;
+    collabState.peerOfferKeys.set(remoteUid, offerKey);
+    updateCollabRuntimeMember({
+      uid: remoteUid,
+      name: data.name || data.studentId || 'Student',
+      studentId: data.studentId || '',
+      role: 'member',
+      color: getCollabMemberColor(remoteUid),
+      online: true,
+      lastSeenAt: Date.now()
+    });
+    try {
+      const pc = createCollabPeerConnection(remoteUid, true);
+      await pc.setRemoteDescription(data.offer);
+      await addRemoteIceCandidates(pc, data.memberCandidates || []);
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      await waitForIceGatheringComplete(pc);
+      const { setDoc, serverTimestamp } = firebaseSync.modules;
+      await setDoc(peerDoc.ref || getCollabPeerDocRef(collabState.code, remoteUid), {
+        uid: remoteUid,
+        hostUid: getCollabUid(),
+        answer: serializeRtcDescription(pc.localDescription),
+        hostCandidates: pc.__mcsCandidates || [],
+        answerNonce: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        acceptedAtMs: Date.now(),
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+    } catch (error) {
+      console.warn(`Could not establish direct collaboration with ${remoteUid}.`, error);
+      closeCollabPeer(remoteUid);
+      collabState.peerOfferKeys.delete(remoteUid);
+    }
+  }
+
+  function startHostP2PSignaling() {
+    if (!supportsCollabP2P() || collabState.role !== 'host') return false;
+    const { onSnapshot } = firebaseSync.modules;
+    const peersRef = getCollabPeersCollectionRef(collabState.code);
+    collabState.peerSignalUnsubscribe = onSnapshot(peersRef, snapshot => {
+      getCollabSnapshotDocs(snapshot).forEach(peerDoc => {
+        acceptCollabPeerOffer(peerDoc).catch(error => console.warn('Peer offer failed.', error));
+      });
+    }, error => {
+      console.warn('Collaboration signaling listener failed.', error);
+      setStatus('Live sync signaling disconnected');
+    });
+    collabState.p2pMode = true;
+    collabState.p2pReady = true;
+    collabState.snapshotTimer = window.setInterval(() => {
+      persistCollabSnapshot('periodic').catch(error => console.warn('Periodic live snapshot skipped.', error));
+    }, COLLAB_SNAPSHOT_MS);
+    return true;
+  }
+
+  async function startMemberP2PSignaling() {
+    if (!supportsCollabP2P() || collabState.role === 'host' || !collabState.active) return false;
+    const hostUid = String(collabState.latestSession?.hostUid || '').trim();
+    const ownUid = getCollabUid();
+    if (!hostUid || !ownUid) return false;
+    closeCollabPeer(hostUid, { suppressReconnect: true });
+    if (typeof collabState.ownPeerUnsubscribe === 'function') collabState.ownPeerUnsubscribe();
+    const pc = createCollabPeerConnection(hostUid, false);
+    const channel = pc.createDataChannel('mcs-live-collab', { ordered: true });
+    attachCollabDataChannel(hostUid, channel);
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    await waitForIceGatheringComplete(pc);
+    const peerRef = getCollabPeerDocRef(collabState.code, ownUid);
+    collabState.ownPeerRef = peerRef;
+    const { setDoc, onSnapshot, serverTimestamp } = firebaseSync.modules;
+    const offerNonce = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    await setDoc(peerRef, {
+      uid: ownUid,
+      hostUid,
+      name: getCollabName(),
+      studentId: getCollabStudent()?.studentId || '',
+      offer: serializeRtcDescription(pc.localDescription),
+      memberCandidates: pc.__mcsCandidates || [],
+      offerNonce,
+      state: 'offered',
+      createdAtMs: Date.now(),
+      updatedAt: serverTimestamp()
+    }, { merge: false });
+    collabState.ownPeerUnsubscribe = onSnapshot(peerRef, async snapshot => {
+      if (!snapshotExists(snapshot)) return;
+      const data = snapshotData(snapshot);
+      if (!data.answer?.sdp || pc.currentRemoteDescription) return;
+      try {
+        await pc.setRemoteDescription(data.answer);
+        await addRemoteIceCandidates(pc, data.hostCandidates || []);
+      } catch (error) {
+        console.warn('Could not finish direct collaboration connection.', error);
+      }
+    }, error => console.warn('Member signaling listener failed.', error));
+    window.clearTimeout(collabState.p2pConnectTimer);
+    collabState.p2pConnectTimer = window.setTimeout(() => {
+      if (!collabState.p2pReady && collabState.active) {
+        setStatus('Direct live sync is reconnecting');
+        setCollabStatus('Direct connection is taking longer than expected. Your work stays local while it reconnects.', 'warning');
+        scheduleMemberP2PReconnect();
+      }
+    }, COLLAB_SIGNAL_TIMEOUT_MS);
+    collabState.p2pMode = true;
+    return true;
+  }
+
+  function scheduleMemberP2PReconnect() {
+    if (!collabState.active || collabState.role === 'host') return;
+    window.clearTimeout(collabState.p2pConnectTimer);
+    collabState.reconnectAttempts += 1;
+    const delay = Math.min(15000, 1500 * Math.max(1, collabState.reconnectAttempts));
+    collabState.p2pConnectTimer = window.setTimeout(() => {
+      startMemberP2PSignaling().catch(error => console.warn('Direct live sync reconnect failed.', error));
+    }, delay);
+  }
+
+  async function startCollabP2P() {
+    if (!supportsCollabP2P()) {
+      setCollabStatus('This browser cannot use direct live sync. Use an updated Chrome, Edge, or Safari browser.', 'warning');
+      return false;
+    }
+    if (collabState.role === 'host') return startHostP2PSignaling();
+    try { return await startMemberP2PSignaling(); } catch (error) {
+      console.warn('Direct collaboration startup failed.', error);
+      scheduleMemberP2PReconnect();
+      return false;
+    }
+  }
+
+  function handleCollabP2PMessage(remoteUid, message = {}) {
+    if (!message || message.room !== collabState.code) return;
+    if (message.type === 'hello') {
+      if (collabState.role !== 'host') return;
+      updateCollabRuntimeMember({ ...(message.member || {}), uid: remoteUid, online: true, lastSeenAt: Date.now() });
+      sendCollabP2PMessage(remoteUid, buildCollabChannelMessage('state', { data: getCollabAuthoritativeState() }));
+      broadcastCollabP2PMessage(buildCollabChannelMessage('members', { members: collabState.peerMembers }));
+      return;
+    }
+    if (message.type === 'request-state') {
+      if (collabState.role === 'host') sendCollabP2PMessage(remoteUid, buildCollabChannelMessage('state', { data: getCollabAuthoritativeState() }));
+      return;
+    }
+    if (message.type === 'state') {
+      if (collabState.role === 'host' || !message.data) return;
+      collabState.latestSession = { ...(collabState.latestSession || {}), ...message.data };
+      collabState.peerMembers = { ...(message.data.members || {}) };
+      applyCollaborationContent(message.data, { force: true });
+      renderCollabMembers(collabState.latestSession);
+      renderCollabCursors(collabState.latestSession);
+      return;
+    }
+    if (message.type === 'members') {
+      collabState.peerMembers = { ...collabState.peerMembers, ...(message.members || {}) };
+      collabState.latestSession = {
+        ...(collabState.latestSession || {}),
+        members: { ...(collabState.latestSession?.members || {}), ...collabState.peerMembers }
+      };
+      renderCollabMembers(collabState.latestSession);
+      return;
+    }
+    if (message.type === 'ping') {
+      updateCollabRuntimeMember({
+        ...(collabState.peerMembers[remoteUid] || {}),
+        ...(message.member || {}),
+        uid: remoteUid,
+        online: true,
+        lastSeenAt: Date.now()
+      });
+      sendCollabP2PMessage(remoteUid, buildCollabChannelMessage('pong', { member: buildCollabMember(collabState.role || 'member') }));
+      return;
+    }
+    if (message.type === 'pong') {
+      updateCollabRuntimeMember({
+        ...(collabState.peerMembers[remoteUid] || {}),
+        ...(message.member || {}),
+        uid: remoteUid,
+        online: true,
+        lastSeenAt: Date.now()
+      });
+      return;
+    }
+    if (message.type === 'leave') {
+      if (collabState.role === 'host') {
+        markCollabRuntimeMemberOffline(remoteUid, { left: true });
+        closeCollabPeer(remoteUid);
+        broadcastCollabP2PMessage(buildCollabChannelMessage('members', { members: collabState.peerMembers }));
+      }
+      return;
+    }
+    if (message.type === 'stop') {
+      if (collabState.role !== 'host') {
+        leaveCollaborationSession({ silent: false, message: 'Host stopped sharing.' });
+        closeCollabOverlay();
+      }
+      return;
+    }
+    if (message.type === 'kick') {
+      if (collabState.role !== 'host' && (!message.targetUid || message.targetUid === getCollabUid())) {
+        leaveCollaborationSession({ silent: false, message: 'You were removed from the live project by the host.' });
+        closeCollabOverlay();
+      }
+      return;
+    }
+    if (message.type === 'cursor') {
+      const cursor = message.cursor || {};
+      collabState.latestSession = {
+        ...(collabState.latestSession || {}),
+        cursors: {
+          ...(collabState.latestSession?.cursors || {}),
+          [cursor.uid || remoteUid]: { ...cursor, uid: cursor.uid || remoteUid, updatedAt: Date.now() }
+        }
+      };
+      if (collabState.role === 'host') broadcastCollabP2PMessage(message, remoteUid);
+      renderCollabCursors(collabState.latestSession);
+      return;
+    }
+    if (message.type === 'content') {
+      const incoming = message.data || {};
+      if (collabState.role === 'host') {
+        if (collabState.latestSession?.allowEdit === false || !isCollaborationEditAllowed()) return;
+        const authoritative = {
+          ...incoming,
+          contentVersion: getNextCollabHostVersion(),
+          lastEditorUid: remoteUid,
+          lastEditorName: message.senderName || incoming.lastEditorName || 'Classmate'
+        };
+        collabState.latestSession = { ...(collabState.latestSession || {}), ...authoritative };
+        applyCollaborationLivePatch(authoritative);
+        broadcastCollabP2PMessage(buildCollabChannelMessage('content', { data: authoritative }));
+      } else {
+        collabState.latestSession = { ...(collabState.latestSession || {}), ...incoming };
+        applyCollaborationLivePatch(incoming);
+      }
+    }
+  }
+
+  async function persistCollabSnapshot(reason = 'periodic', options = {}) {
+    if (!collabState.active || collabState.role !== 'host' || !collabState.sessionRef) return false;
+    const now = Date.now();
+    if (!options.force && collabState.lastSnapshotWriteAt && now - collabState.lastSnapshotWriteAt < COLLAB_SNAPSHOT_MS - 5000) return false;
+    const payload = getCollabContentPayload();
+    const { setDoc, serverTimestamp } = firebaseSync.modules;
+    const version = Math.max(Number(collabState.lastContentVersion || 0), getNextCollabHostVersion());
+    await setDoc(collabState.sessionRef, {
+      ...payload,
+      contentVersion: version,
+      lastEditorUid: getCollabUid(),
+      lastEditorName: getCollabName(),
+      lastSnapshotReason: reason,
+      lastSnapshotAtMs: now,
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+    collabState.lastSnapshotWriteAt = now;
+    collabState.lastContentVersion = version;
+    return true;
   }
 
   function getCollabContentPayload() {
@@ -21476,6 +22219,8 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
         lastEditorUid: uid,
         lastEditorName: student.name || student.studentId || 'Host',
         contentVersion: Date.now(),
+        transport: 'webrtc-p2p',
+        blockedUids: {},
         members: { [uid]: buildCollabMember('host') },
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
@@ -21550,12 +22295,13 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     try {
       const normalizedCode = String(code || '').trim().toUpperCase();
       const sessionRef = getSharedSessionDocRef(normalizedCode);
-      const { getDoc, setDoc, serverTimestamp } = firebaseSync.modules;
+      const { getDoc } = firebaseSync.modules;
       const snap = await getDoc(sessionRef);
       if (!snapshotExists(snap)) throw new Error('Share code not found.');
       const data = snapshotData(snap);
       if (data.active === false) throw new Error('This share code is already stopped.');
       const uid = authUser.uid;
+      if (data.blockedUids?.[uid]) throw new Error('You were removed from this live project.');
       const role = options.role === 'host' || data.hostUid === uid ? 'host' : 'member';
       if (role !== 'host' && !options.noRestore) {
         const fromDashboard = options.source === 'dashboard';
@@ -21568,10 +22314,6 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
           else sessionStorage.removeItem('studentCodeStudio.collab.localBeforeJoin');
         } catch {}
       }
-      await setDoc(sessionRef, {
-        members: { [uid]: buildCollabMember(role) },
-        updatedAt: serverTimestamp()
-      }, { merge: true });
       startCollaborationListener(normalizedCode, sessionRef, role, data);
       if (data.codeByActivity) applyCollaborationContent(data, { force: true });
       if (options.source === 'dashboard' && role !== 'host') enterCollabWorkspaceFromDashboard(data);
@@ -21596,11 +22338,21 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     collabState.code = code;
     collabState.sessionRef = sessionRef;
     collabState.canEdit = role === 'host' || (initialData.allowEdit !== false && isCollaborationEditAllowed());
+    collabState.lastContentVersion = Number(initialData.contentVersion || 0);
+    collabState.hostSequence = Math.max(Number(initialData.contentVersion || 0), Date.now() * 100);
+    collabState.peerMembers = {
+      ...(initialData.members || {}),
+      [getCollabUid()]: buildCollabMember(role)
+    };
+    collabState.latestSession = {
+      ...initialData,
+      members: { ...(initialData.members || {}), ...collabState.peerMembers },
+      cursors: { ...(initialData.cursors || {}) }
+    };
     if (role === 'host') {
       collabState.savedProjectId = '';
       collabState.savedProjectName = '';
     }
-    collabState.lastContentVersion = Number(initialData.contentVersion || 0);
     editor.readOnly = !collabState.canEdit;
     document.body.classList.toggle('collab-active', true);
     document.body.classList.toggle('collab-view-only', !collabState.canEdit);
@@ -21611,49 +22363,56 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
         leaveCollaborationSession({ silent: false, message: 'Live session ended.' });
         return;
       }
-      const data = snapshotData(snapshot);
-      collabState.latestSession = data;
-      const ownMember = data.members?.[getCollabUid()];
-      if (collabState.role !== 'host' && ownMember?.kicked === true) {
+      const cloudData = snapshotData(snapshot);
+      if (collabState.role !== 'host' && cloudData.blockedUids?.[getCollabUid()]) {
         leaveCollaborationSession({ silent: false, message: 'You were removed from the live project by the host.' });
         closeCollabOverlay();
         return;
       }
-      if (data.active === false) {
+      if (cloudData.active === false) {
         leaveCollaborationSession({ silent: false, message: 'Host stopped sharing.' });
         return;
       }
+      const data = {
+        ...cloudData,
+        members: { ...(cloudData.members || {}), ...collabState.peerMembers },
+        cursors: { ...(cloudData.cursors || {}), ...(collabState.latestSession?.cursors || {}) }
+      };
+      collabState.latestSession = data;
       collabState.canEdit = collabState.role === 'host' || (data.allowEdit !== false && isCollaborationEditAllowed());
       editor.readOnly = !collabState.canEdit;
       document.body.classList.toggle('collab-view-only', !collabState.canEdit);
       renderCollabMembers(data);
       renderCollabLiveIndicator(data);
       renderCollabCursors(data);
+      // The session document now changes only for control events and periodic
+      // recovery snapshots. Live typing travels directly through WebRTC.
       applyCollaborationContent(data);
     }, error => {
       console.warn('Collaboration listener failed.', error);
-      setStatus('Live project sync disconnected');
+      setStatus('Live project control connection disconnected');
     });
     window.clearInterval(collabState.heartbeatTimer);
     collabState.heartbeatTimer = window.setInterval(updateCollabHeartbeat, COLLAB_HEARTBEAT_MS);
     updateCollabHeartbeat();
+    startCollabP2P().catch(error => console.warn('Direct live sync could not start.', error));
     scheduleCollabCursorPush();
     updateCollaborationFeatureVisibility();
     syncCollabSaveButtonVisibility();
+    renderCollabMembers(collabState.latestSession);
     renderCollabLiveIndicator(initialData);
     renderCollabCursors(initialData);
   }
 
   async function updateCollabHeartbeat() {
-    if (!collabState.active || !collabState.sessionRef || !getCollabUid()) return;
-    try {
-      const { setDoc, serverTimestamp } = firebaseSync.modules;
-      await setDoc(collabState.sessionRef, {
-        members: { [getCollabUid()]: buildCollabMember(collabState.role || 'member') },
-        updatedAt: serverTimestamp()
-      }, { merge: true });
-    } catch (error) {
-      console.warn('Could not update collaboration heartbeat.', error);
+    if (!collabState.active || !getCollabUid()) return;
+    const ownMember = buildCollabMember(collabState.role || 'member');
+    updateCollabRuntimeMember(ownMember);
+    const ping = buildCollabChannelMessage('ping', { member: ownMember });
+    if (collabState.role === 'host') broadcastCollabP2PMessage(ping);
+    else {
+      const hostUid = collabState.latestSession?.hostUid;
+      if (hostUid) sendCollabP2PMessage(hostUid, ping);
     }
   }
 
@@ -21729,48 +22488,57 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
   }
 
   async function pushCollaborationUpdate(reason = 'edit') {
-    if (!collabState.active || !collabState.sessionRef || !collabState.canEdit || collabState.applyingRemote) return;
+    if (!collabState.active || !collabState.canEdit || collabState.applyingRemote) return;
     if (collabState.pushInFlight) {
       collabState.queuedPush = true;
       return;
     }
-    let payload;
+    let patch;
     let signature;
     try {
-      payload = getCollabContentPayload();
-      signature = getCollabPayloadSignature(payload);
+      patch = getCollabLivePatch(reason);
+      signature = getCollabLivePatchSignature(patch);
       if (reason !== 'silent' && signature && signature === collabState.lastPushedSignature) return;
     } catch (error) {
-      console.warn('Could not prepare live project payload.', error);
+      console.warn('Could not prepare direct live project update.', error);
       return;
     }
     collabState.pushInFlight = true;
     collabState.queuedPush = false;
     try {
-      const { setDoc, serverTimestamp } = firebaseSync.modules;
-      const version = Date.now();
-      collabState.lastLocalVersion = version;
-      await setDoc(collabState.sessionRef, {
-        ...payload,
+      const provisionalVersion = collabState.role === 'host' ? getNextCollabHostVersion() : Date.now() * 100;
+      const data = {
+        ...patch,
         lastEditorUid: getCollabUid(),
         lastEditorName: getCollabName(),
         lastEditorLanguage: activeLanguage,
         lastEditorFile: getActiveLanguageFileName(activeLanguage),
-        contentVersion: version,
-        members: { [getCollabUid()]: buildCollabMember(collabState.role || 'member') },
-        updatedAt: serverTimestamp()
-      }, { merge: true });
-      collabState.lastContentVersion = version;
+        contentVersion: provisionalVersion
+      };
+      const message = buildCollabChannelMessage('content', { data });
+      let sent = false;
+      if (collabState.role === 'host') {
+        collabState.latestSession = { ...(collabState.latestSession || {}), ...data };
+        sent = broadcastCollabP2PMessage(message) > 0 || collabState.dataChannels.size === 0;
+        collabState.lastContentVersion = provisionalVersion;
+      } else {
+        const hostUid = collabState.latestSession?.hostUid;
+        sent = Boolean(hostUid && sendCollabP2PMessage(hostUid, message));
+        if (!sent) collabState.pendingLiveMessage = message;
+      }
+      collabState.lastLocalVersion = provisionalVersion;
       collabState.lastPushedSignature = signature;
-      if (reason !== 'silent') setStatus('Live project synced');
+      if (reason !== 'silent') {
+        setStatus(sent ? 'Live project synced directly' : 'Live sync reconnecting — your work is safe locally');
+      }
     } catch (error) {
-      console.warn('Could not sync collaboration update.', error);
-      setStatus('Live project sync failed');
+      console.warn('Could not sync direct collaboration update.', error);
+      setStatus('Live sync reconnecting — your work is safe locally');
     } finally {
       collabState.pushInFlight = false;
       if (collabState.queuedPush && collabState.active && collabState.canEdit) {
         collabState.queuedPush = false;
-        scheduleCollaborationPush('queued', { delay: 20 });
+        scheduleCollaborationPush('queued', { delay: 35 });
       }
     }
   }
@@ -21873,8 +22641,10 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     const confirmed = await appConfirm('Stop this live sharing session? Classmates will no longer be able to edit or view using this code.', { title: 'Stop sharing', danger: true, confirmText: 'Stop Sharing' });
     if (!confirmed) return;
     try {
+      await persistCollabSnapshot('stop', { force: true }).catch(error => console.warn('Final live snapshot skipped.', error));
       const { setDoc, serverTimestamp } = firebaseSync.modules;
       await setDoc(collabState.sessionRef, { active: false, stoppedAt: serverTimestamp(), updatedAt: serverTimestamp() }, { merge: true });
+      broadcastCollabP2PMessage(buildCollabChannelMessage('stop'));
       leaveCollaborationSession({ message: 'Sharing stopped.', closeOverlay: true });
       closeCollabMembersOverlay?.();
       closeCollabOverlay?.();
@@ -21895,8 +22665,12 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     window.clearTimeout(collabState.pushTimer);
     window.clearTimeout(collabState.cursorTimer);
     window.clearInterval(collabState.heartbeatTimer);
+    if (collabState.role !== 'host' && collabState.ownPeerRef && firebaseSync.modules?.deleteDoc) {
+      firebaseSync.modules.deleteDoc(collabState.ownPeerRef).catch(error => console.warn('Peer signal cleanup skipped.', error));
+    }
     if (typeof collabState.unsubscribe === 'function') collabState.unsubscribe();
     collabState.active = false;
+    cleanupCollabP2P();
     collabState.role = '';
     collabState.code = '';
     collabState.sessionRef = null;
@@ -21949,21 +22723,14 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     const confirmed = await appConfirm('Leave this live project? You will stop seeing the host project updates.', { title: 'Leave live project', confirmText: 'Leave Project' });
     if (!confirmed) return;
     try {
-      const { setDoc, serverTimestamp } = firebaseSync.modules;
-      const uid = getCollabUid();
-      await setDoc(collabState.sessionRef, {
-        members: {
-          [uid]: {
-            ...buildCollabMember(collabState.role || 'member'),
-            online: false,
-            left: true,
-            leftAt: Date.now()
-          }
-        },
-        updatedAt: serverTimestamp()
-      }, { merge: true });
+      const hostUid = collabState.latestSession?.hostUid;
+      if (hostUid) sendCollabP2PMessage(hostUid, buildCollabChannelMessage('leave'));
+      if (collabState.ownPeerRef && firebaseSync.modules?.deleteDoc) {
+        await firebaseSync.modules.deleteDoc(collabState.ownPeerRef).catch(() => {});
+        collabState.ownPeerRef = null;
+      }
     } catch (error) {
-      console.warn('Could not mark member as left.', error);
+      console.warn('Could not send leave notice.', error);
     }
     closeCollabMembersOverlay();
     closeCollabOverlay();
@@ -21975,23 +22742,23 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     const confirmed = await appConfirm(`Remove ${displayName} from this live project?`, { title: 'Remove member', danger: true, confirmText: 'Kick Member' });
     if (!confirmed) return;
     try {
+      sendCollabP2PMessage(uid, buildCollabChannelMessage('kick', { targetUid: uid }));
       const { setDoc, serverTimestamp } = firebaseSync.modules;
-      const existing = collabState.latestSession?.members?.[uid] || {};
       await setDoc(collabState.sessionRef, {
-        members: {
+        blockedUids: {
           [uid]: {
-            ...existing,
-            uid,
-            online: false,
-            kicked: true,
-            kickedBy: getCollabUid(),
-            kickedByName: getCollabName(),
-            kickedAt: Date.now(),
-            lastSeenAt: Date.now()
+            name: displayName,
+            kickedAtMs: Date.now(),
+            kickedBy: getCollabUid()
           }
         },
         updatedAt: serverTimestamp()
       }, { merge: true });
+      markCollabRuntimeMemberOffline(uid, { kicked: true, kickedAt: Date.now() });
+      closeCollabPeer(uid);
+      const peerRef = getCollabPeerDocRef(collabState.code, uid);
+      await firebaseSync.modules.deleteDoc(peerRef).catch(() => {});
+      broadcastCollabP2PMessage(buildCollabChannelMessage('members', { members: collabState.peerMembers }));
       setStatus(`${displayName} was removed from the live project.`);
       renderCollabMembers(collabState.latestSession);
       showCollabMembersList();
@@ -22225,7 +22992,15 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
   document.addEventListener('fullscreenchange', () => window.setTimeout(() => { ensureCollabControls(); placeAllCollabOverlays(); renderCollabCursors(collabState.latestSession); }, 60));
   document.addEventListener('webkitfullscreenchange', () => window.setTimeout(() => { ensureCollabControls(); placeAllCollabOverlays(); renderCollabCursors(collabState.latestSession); }, 60));
   window.addEventListener('resize', () => window.setTimeout(() => { ensureCollabControls(); placeAllCollabOverlays(); renderCollabCursors(collabState.latestSession); }, 60));
-  window.addEventListener('beforeunload', () => { if (collabState.active && collabState.canEdit) pushCollaborationUpdate('silent'); });
+  window.addEventListener('beforeunload', () => {
+    if (!collabState.active) return;
+    if (collabState.canEdit) pushCollaborationUpdate('silent');
+    if (collabState.role === 'host') persistCollabSnapshot('host-unload', { force: true }).catch(() => {});
+    else {
+      const hostUid = collabState.latestSession?.hostUid;
+      if (hostUid) sendCollabP2PMessage(hostUid, buildCollabChannelMessage('leave'));
+    }
+  });
   new MutationObserver(() => updateCollaborationFeatureVisibility()).observe(document.body, { attributes: true, attributeFilter: ['class'] });
 
   ensureCollabOverlay();
@@ -24713,11 +25488,16 @@ window.MCS_PHONE_MENU_STATUS = () => ({
 
   if (!overlay || !unlockBtn || !codeInput || !viewer || !leaderboard) return;
 
+  const RECITATION_SECTION_CACHE_MS = 24 * 60 * 60 * 1000;
+  const RECITATION_STUDENT_CACHE_MS = 2 * 60 * 1000;
+  const RECITATION_REFRESH_COOLDOWN_MS = 60 * 1000;
   const state = {
     sections: null,
     activeSection: null,
     students: [],
-    loading: false
+    loading: false,
+    lastStudentFetchAt: 0,
+    lastStudentSection: ''
   };
 
   function normalizeRecitationCode(value) {
@@ -24765,6 +25545,13 @@ window.MCS_PHONE_MENU_STATUS = () => ({
 
   async function fetchRecitationSections() {
     if (Array.isArray(state.sections)) return state.sections;
+    try {
+      const cached = JSON.parse(localStorage.getItem('mcsian.recitation.sections.v1') || 'null');
+      if (cached && Array.isArray(cached.sections) && Date.now() - Number(cached.savedAt || 0) < RECITATION_SECTION_CACHE_MS) {
+        state.sections = cached.sections;
+        return state.sections;
+      }
+    } catch (_) {}
     const response = await fetch(recitationEndpoint('/sections?pageSize=500'), { cache: 'no-store' });
     if (!response.ok) throw new Error(`Could not load recitation sections (${response.status}).`);
     const data = await response.json();
@@ -24777,6 +25564,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       }))
       .filter(section => section.name);
     state.sections = sections;
+    try { localStorage.setItem('mcsian.recitation.sections.v1', JSON.stringify({ savedAt: Date.now(), sections })); } catch (_) {}
     return sections;
   }
 
@@ -24874,7 +25662,19 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     return matches[0].section || null;
   }
 
-  async function fetchRecitationStudentsForSection(sectionName) {
+  async function fetchRecitationStudentsForSection(sectionName, options = {}) {
+    const cacheKey = `mcsian.recitation.students.${normalizeRecitationCode(sectionName)}`;
+    const now = Date.now();
+    if (!options.force) {
+      try {
+        const cached = JSON.parse(sessionStorage.getItem(cacheKey) || 'null');
+        if (cached && Array.isArray(cached.students) && now - Number(cached.savedAt || 0) < RECITATION_STUDENT_CACHE_MS) {
+          state.lastStudentFetchAt = Number(cached.savedAt || now);
+          state.lastStudentSection = sectionName;
+          return cached.students;
+        }
+      } catch (_) {}
+    }
     const body = {
       structuredQuery: {
         from: [{ collectionId: 'students' }],
@@ -24897,11 +25697,15 @@ window.MCS_PHONE_MENU_STATUS = () => ({
 
     if (!response.ok) throw new Error(`Could not load recitation records (${response.status}).`);
     const rows = await response.json();
-    return (Array.isArray(rows) ? rows : [])
+    const students = (Array.isArray(rows) ? rows : [])
       .map(row => row.document)
       .filter(Boolean)
       .map(doc => normalizeRecitationStudent(recitationDocFromFirestore(doc)))
       .filter(student => student.fullName || student.studentId);
+    state.lastStudentFetchAt = Date.now();
+    state.lastStudentSection = sectionName;
+    try { sessionStorage.setItem(cacheKey, JSON.stringify({ savedAt: state.lastStudentFetchAt, students })); } catch (_) {}
+    return students;
   }
 
   function getSchoolYear(date) {
@@ -25087,11 +25891,19 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     }
   }
 
-  async function loadRecitationStudents() {
+  async function loadRecitationStudents(options = {}) {
     if (!state.activeSection) return;
+    const sameSection = state.lastStudentSection === state.activeSection.name;
+    const elapsed = Date.now() - Number(state.lastStudentFetchAt || 0);
+    if (options.force === true && sameSection && elapsed < RECITATION_REFRESH_COOLDOWN_MS) {
+      const seconds = Math.max(1, Math.ceil((RECITATION_REFRESH_COOLDOWN_MS - elapsed) / 1000));
+      renderRecitationLeaderboard();
+      showRecitationMessage(`Latest saved view is shown. Refresh is available again in ${seconds}s.`, 'success');
+      return;
+    }
     try {
       showRecitationMessage(`Loading ${state.activeSection.name}...`);
-      state.students = await fetchRecitationStudentsForSection(state.activeSection.name);
+      state.students = await fetchRecitationStudentsForSection(state.activeSection.name, { force: options.force === true });
       renderRecitationLeaderboard();
       showRecitationMessage(`${state.activeSection.name} loaded. Only this section is shown.`, 'success');
     } catch (error) {
@@ -25140,7 +25952,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     }
   });
   changeCodeBtn?.addEventListener('click', resetRecitationGate);
-  refreshBtn?.addEventListener('click', loadRecitationStudents);
+  refreshBtn?.addEventListener('click', () => loadRecitationStudents({ force: true }));
   termSelect?.addEventListener('change', renderRecitationLeaderboard);
   sortSelect?.addEventListener('change', renderRecitationLeaderboard);
   searchInput?.addEventListener('input', renderRecitationLeaderboard);

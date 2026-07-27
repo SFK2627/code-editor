@@ -1,13 +1,13 @@
-const CACHE_NAME = 'ict-8-connect-step231';
+const CACHE_NAME = 'ict-8-connect-step232-free-scale-p2p';
 const APP_SHELL = [
   './',
   './index.html',
-  './index.html?v=20260726-step231-desktop-super-studio-fix',
-  './index.html?fresh=step231',
+  './index.html?v=20260727-step232-free-scale-p2p',
+  './index.html?fresh=step232-free-scale-p2p',
   './style.css',
-  './style.css?v=20260726-step231-desktop-super-studio-fix',
+  './style.css?v=20260727-step232-free-scale-p2p',
   './script.js',
-  './script.js?v=20260726-step231-desktop-super-studio-fix',
+  './script.js?v=20260727-step232-free-scale-p2p',
   './firebase-config.js',
   './manifest.webmanifest',
   './favicon.png',
