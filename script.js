@@ -471,6 +471,7 @@ const STORAGE_KEYS = {
   autoRun: 'studentCodeStudio.autoRun.v1',
   editorZoom: 'studentCodeStudio.editorZoom.v1',
   fileNames: 'studentCodeStudio.fileNames.v1',
+  localDraft: 'studentCodeStudio.localDraft.v1',
   assistanceSettings: 'studentCodeStudio.assistanceSettings.v1',
   complianceSettings: 'studentCodeStudio.complianceSettings.v1',
   lessonLibrary: 'studentCodeStudio.lessonLibrary.v1',
@@ -478,6 +479,53 @@ const STORAGE_KEYS = {
   aiRubricSettings: 'studentCodeStudio.aiRubricSettings.v1'
 };
 
+const FIREBASE_READ_CACHE_TTL_MS = 5 * 60 * 1000;
+const firebaseReadCache = new Map();
+
+function isFirebaseReadCacheFresh(entry) {
+  return Boolean(entry && entry.savedAt && Date.now() - entry.savedAt < FIREBASE_READ_CACHE_TTL_MS);
+}
+
+function getFirebaseReadCacheKey(label = '') {
+  const collection = firebaseSync?.collectionName || window.MCS_FIREBASE_COLLECTION || 'webCodeEditor';
+  const documentId = firebaseSync?.documentId || window.MCS_FIREBASE_DOCUMENT_ID || 'grade8-mcsian';
+  return `${collection}/${documentId}/${String(label || 'root')}`;
+}
+
+function invalidateFirebaseReadCache(label = '') {
+  if (!label) {
+    firebaseReadCache.clear();
+    return;
+  }
+  firebaseReadCache.delete(getFirebaseReadCacheKey(label));
+}
+
+function rememberFirebaseReadCache(label = '', payload = {}) {
+  firebaseReadCache.set(getFirebaseReadCacheKey(label), {
+    savedAt: Date.now(),
+    exists: payload.exists === true,
+    data: payload.data && typeof payload.data === 'object' ? payload.data : {}
+  });
+}
+
+async function getCachedFirestoreDocData(label = '', docRef, options = {}) {
+  const key = getFirebaseReadCacheKey(label);
+  const cached = firebaseReadCache.get(key);
+  if (!options.force && isFirebaseReadCacheFresh(cached)) {
+    return { exists: cached.exists === true, data: cached.data || {}, fromCache: true };
+  }
+
+  const { getDoc } = firebaseSync.modules;
+  const snap = await getDoc(docRef);
+  const exists = snapshotExists(snap);
+  const payload = {
+    exists,
+    data: exists ? snapshotData(snap) : {},
+    fromCache: false
+  };
+  rememberFirebaseReadCache(label, payload);
+  return payload;
+}
 
 // Code progress is intentionally kept out of permanent browser storage.
 // Guest work disappears after the browser session, while logged-in projects
@@ -575,13 +623,13 @@ const PROFILE_ACTIVITY_WRITE_INTERVAL = 5 * 60 * 1000;
 const AUTO_RUN_DELAY = 850;
 const PREVIEW_LOAD_TIMEOUT = 3200;
 const APP_NETWORK_TIMEOUT_MS = 12000;
-const PRESENCE_HEARTBEAT_MS = 20 * 60 * 1000;
-const PRESENCE_MIN_WRITE_INTERVAL = 20 * 60 * 1000;
-const PRESENCE_ONLINE_WINDOW_MS = 25 * 60 * 1000;
-const PRESENCE_RECENT_WINDOW_MS = 60 * 60 * 1000;
-const PRESENCE_ADMIN_WINDOW_MS = 90 * 60 * 1000;
-const PRESENCE_ADMIN_AUTO_REFRESH_MS = 5 * 60 * 1000;
-const PRESENCE_ADMIN_LIMIT = 600;
+const PRESENCE_HEARTBEAT_MS = 90 * 1000;
+const PRESENCE_MIN_WRITE_INTERVAL = 45 * 1000;
+const PRESENCE_ONLINE_WINDOW_MS = 2.5 * 60 * 1000;
+const PRESENCE_RECENT_WINDOW_MS = 10 * 60 * 1000;
+const PRESENCE_ADMIN_WINDOW_MS = 20 * 60 * 1000;
+const PRESENCE_ADMIN_AUTO_REFRESH_MS = 60 * 1000;
+const PRESENCE_ADMIN_LIMIT = 200;
 
 const appSession = {
   mode: 'pending', // pending | guest | student
@@ -609,16 +657,19 @@ let studentProjectRecoveryTimer = null;
 let lastProfileActivityWriteAt = 0;
 let editorStudentGreetingState = { key: '', text: '' };
 let adminStudentsCache = [];
+const ADMIN_STUDENT_RENDER_BATCH = 80;
+const ADMIN_STUDENT_RENDER_STEP = 80;
+let adminStudentVisibleLimit = ADMIN_STUDENT_RENDER_BATCH;
+let adminStudentFilterSignature = '';
+let adminStudentRenderTimer = null;
 let studentPresenceTimer = null;
 let studentPresenceStarted = false;
 let studentPresenceLastWriteAt = 0;
 let studentPresenceLastSignature = '';
 let studentPresenceLastActivity = 'App open';
-let studentPresenceDeferredTimer = null;
-let studentPresencePendingOverride = null;
 let adminOnlinePresenceRecords = [];
 let adminOnlinePresenceTimer = null;
-let adminOnlinePresenceAutoRefresh = false;
+let adminOnlinePresenceAutoRefresh = true;
 let adminOnlinePresenceLoading = false;
 let pendingStudentImportRows = [];
 let studentImportRunning = false;
@@ -1637,6 +1688,7 @@ function saveCodeStoreForCurrentActivity() {
   const codeKey = activity?.id || selectedActivityId || 'scratch';
   codeByActivity[codeKey] = normalizeCodeStore(codeStore);
   saveCodeByActivity();
+  scheduleLocalWorkspaceDraftSave('edit');
   queueStudentProjectSave('edit');
 }
 
@@ -2069,6 +2121,137 @@ function keepEditorCodeForActivityKey(activityKey, snapshot) {
   saveCodeFileNames();
 }
 
+const LOCAL_DRAFT_VERSION = 1;
+const LOCAL_DRAFT_MAX_BYTES = 4_000_000;
+let localDraftSaveTimer = null;
+let localDraftLastSavedSignature = '';
+
+function getWorkspaceCodeKey() {
+  return activity?.id || selectedActivityId || 'scratch';
+}
+
+function getCodeByActivityHasVisibleContent(source = codeByActivity) {
+  return Object.values(source || {}).some(store => codeStoreHasVisibleContent(store));
+}
+
+function buildLocalWorkspaceDraft(reason = 'edit') {
+  const currentKey = getWorkspaceCodeKey();
+  const safeCodeStore = normalizeCodeStore(codeStore);
+  const safeCodeByActivity = {
+    ...Object.fromEntries(Object.entries(codeByActivity || {}).map(([key, value]) => [key || 'scratch', normalizeCodeStore(value)])),
+    [currentKey]: normalizeCodeStore(safeCodeStore)
+  };
+
+  return {
+    version: LOCAL_DRAFT_VERSION,
+    savedAt: Date.now(),
+    reason: String(reason || 'edit'),
+    mode: appSession.mode || 'guest',
+    studentUid: appSession.student?.uid || '',
+    studentId: appSession.student?.studentId || '',
+    projectId: appSession.currentProjectId || '',
+    projectName: appSession.currentProject?.name || '',
+    selectedActivityId: selectedActivityId || '',
+    activityTitle: activity?.title || '',
+    currentCodeKey: currentKey,
+    activeLanguage: ['html', 'css', 'js'].includes(activeLanguage) ? activeLanguage : 'html',
+    fileNames: normalizeCodeFileNames(codeFileNames || DEFAULT_CODE_FILE_NAMES),
+    codeStore: safeCodeStore,
+    codeByActivity: safeCodeByActivity,
+    lastResult: lastRubricResult || null
+  };
+}
+
+function saveLocalWorkspaceDraft(reason = 'edit') {
+  try {
+    const draft = buildLocalWorkspaceDraft(reason);
+    const hasContent = codeStoreHasVisibleContent(draft.codeStore) || getCodeByActivityHasVisibleContent(draft.codeByActivity);
+    if (!hasContent) return;
+    const payload = JSON.stringify(draft);
+    if (payload.length > LOCAL_DRAFT_MAX_BYTES) return;
+    const signature = `${draft.selectedActivityId}|${draft.activeLanguage}|${payload.length}|${String(draft.codeStore?.html || '').length}|${String(draft.codeStore?.css || '').length}|${String(draft.codeStore?.js || '').length}`;
+    if (reason === 'edit' && signature === localDraftLastSavedSignature) return;
+    localStorage.setItem(STORAGE_KEYS.localDraft, payload);
+    localDraftLastSavedSignature = signature;
+  } catch (error) {
+    console.warn('Could not save local editor draft.', error);
+  }
+}
+
+function scheduleLocalWorkspaceDraftSave(reason = 'edit', options = {}) {
+  const urgent = options.immediate === true || /^(pagehide|beforeunload|visibility|activity-switch|rubric-switch|manual-save|reset|clear)$/i.test(String(reason || ''));
+  window.clearTimeout(localDraftSaveTimer);
+  if (urgent) {
+    saveLocalWorkspaceDraft(reason);
+    return;
+  }
+  localDraftSaveTimer = window.setTimeout(() => saveLocalWorkspaceDraft(reason), 420);
+}
+
+function getLocalWorkspaceDraft() {
+  try {
+    const draft = JSON.parse(localStorage.getItem(STORAGE_KEYS.localDraft) || 'null');
+    if (!draft || draft.version !== LOCAL_DRAFT_VERSION) return null;
+    const hasContent = codeStoreHasVisibleContent(draft.codeStore) || getCodeByActivityHasVisibleContent(draft.codeByActivity);
+    return hasContent ? draft : null;
+  } catch (error) {
+    console.warn('Could not read local editor draft.', error);
+    return null;
+  }
+}
+
+function restoreLocalWorkspaceDraftIfUseful(options = {}) {
+  const draft = getLocalWorkspaceDraft();
+  if (!draft) return false;
+  if (isStudentProjectActive() && options.force !== true) return false;
+
+  const draftAge = Date.now() - Number(draft.savedAt || 0);
+  if (!options.force && draftAge > 1000 * 60 * 60 * 24 * 14) return false;
+
+  try {
+    const draftCodeByActivity = normalizeProjectCodeByActivity(draft.codeByActivity);
+    const draftSelectedActivityId = activities.some(item => item.id === draft.selectedActivityId) ? draft.selectedActivityId : '';
+    const fallbackKey = draftSelectedActivityId || draft.currentCodeKey || 'scratch';
+    const restoredStore = draftCodeByActivity[fallbackKey]
+      ? normalizeCodeStore(draftCodeByActivity[fallbackKey])
+      : normalizeCodeStore(draft.codeStore || starterCode);
+
+    codeByActivity = draftCodeByActivity;
+    codeByActivity[fallbackKey] = normalizeCodeStore(restoredStore);
+    selectedActivityId = draftSelectedActivityId;
+    activity = selectedActivityId ? getActivityById(selectedActivityId) : null;
+    codeStore = normalizeCodeStore(restoredStore);
+    codeFileNames = normalizeCodeFileNames(draft.fileNames || DEFAULT_CODE_FILE_NAMES);
+    activeLanguage = ['html', 'css', 'js'].includes(draft.activeLanguage) ? draft.activeLanguage : 'html';
+    lastRubricResult = draft.lastResult || null;
+
+    saveJSON(STORAGE_KEYS.selectedActivityId, selectedActivityId || '');
+    saveCodeByActivity();
+    saveCodeFileNames();
+    tabButtons.forEach(tab => tab.classList.toggle('active', tab.dataset.language === activeLanguage));
+    renderActivitySummary();
+    renderActivitySelector();
+    loadActiveEditor();
+    if (lastRubricResult && activity) renderResult(lastRubricResult);
+    else resetResultPanel();
+    runCode(false, { scroll: false });
+    if (!options.silent) setStatus('Local draft restored');
+    return true;
+  } catch (error) {
+    console.warn('Could not restore local editor draft.', error);
+    return false;
+  }
+}
+
+function protectCurrentWorkspaceBeforeModeChange(reason = 'activity-switch') {
+  try {
+    if (editor) saveActiveEditor();
+    scheduleLocalWorkspaceDraftSave(reason, { immediate: true });
+  } catch (error) {
+    console.warn('Could not protect current editor work.', error);
+  }
+}
+
 
 
 function hasFirebaseConfig() {
@@ -2203,7 +2386,11 @@ function showAppDialog({
   if (appDialogIcon) appDialogIcon.textContent = icon;
   if (appDialogKicker) appDialogKicker.textContent = kicker;
   if (appDialogTitle) appDialogTitle.textContent = title;
-  if (appDialogMessage) appDialogMessage.textContent = message;
+  if (appDialogMessage) {
+    appDialogMessage.textContent = message;
+    appDialogMessage.style.whiteSpace = String(message || '').includes('\n') ? 'pre-line' : '';
+    appDialogMessage.style.userSelect = String(message || '').includes('Auth email:') ? 'text' : '';
+  }
   if (appDialogOkBtn) appDialogOkBtn.textContent = confirmText;
   if (appDialogCancelBtn) appDialogCancelBtn.textContent = cancelText;
 
@@ -2355,29 +2542,12 @@ function initFirebaseWithCompatSDK() {
       updateDoc: (ref, data) => ref.update(data),
       deleteDoc: ref => ref.delete(),
       addDoc: (collectionRef, data) => collectionRef.add(data),
-      onSnapshot: (ref, callback, errorCallback) => ref.onSnapshot(snap => {
-        if (Array.isArray(snap.docs)) {
-          const docs = snap.docs.map(docSnap => ({
-            id: docSnap.id,
-            exists: () => docSnap.exists,
-            data: () => docSnap.data() || {},
-            ref: docSnap.ref
-          }));
-          callback({
-            docs,
-            size: Number(snap.size || docs.length),
-            empty: Boolean(snap.empty),
-            forEach: fn => docs.forEach(fn)
-          });
-          return;
-        }
-        callback({
-          id: snap.id,
-          exists: () => snap.exists,
-          data: () => snap.data() || {},
-          ref: snap.ref
-        });
-      }, errorCallback),
+      onSnapshot: (ref, callback, errorCallback) => ref.onSnapshot(snap => callback({
+        id: snap.id,
+        exists: () => snap.exists,
+        data: () => snap.data() || {},
+        ref: snap.ref
+      }), errorCallback),
       query: applyCompatQuery,
       where: (field, operator, value) => ({ type: 'where', field, operator, value }),
       orderBy: (field, direction = 'asc') => ({ type: 'orderBy', field, direction }),
@@ -2480,21 +2650,25 @@ function getCloudActivitiesDocRef() {
   return doc(firebaseSync.db, firebaseSync.collectionName, firebaseSync.documentId);
 }
 
-async function loadActivitiesFromCloud() {
+async function loadActivitiesFromCloud(options = {}) {
   const ready = await initFirebaseSync();
   if (!ready) return false;
 
+  const protectedEditorSnapshot = cloneCurrentEditorCodeStore({ skipSave: false });
+  const protectedCodeByActivity = Object.fromEntries(Object.entries(codeByActivity || {}).map(([key, value]) => [key || 'scratch', normalizeCodeStore(value)]));
+  const protectedHasCode = codeStoreHasVisibleContent(protectedEditorSnapshot) || getCodeByActivityHasVisibleContent(protectedCodeByActivity);
+  const protectedActivityId = selectedActivityId || '';
+
   try {
-    const { getDoc } = firebaseSync.modules;
-    const snap = await getDoc(getCloudActivitiesDocRef());
-    if (!snap.exists()) {
+    const cachedDoc = await getCachedFirestoreDocData('root', getCloudActivitiesDocRef(), { force: options.force === true });
+    if (!cachedDoc.exists) {
       if (isTeacherAuthenticated()) {
         await saveActivitiesToCloud();
       }
       return false;
     }
 
-    const data = snap.data() || {};
+    const data = cachedDoc.data || {};
     let loadedCloudSettings = false;
     if (data.studentAssistanceSettings && typeof data.studentAssistanceSettings === 'object') {
       applyStudentAssistanceSettings(data.studentAssistanceSettings);
@@ -2509,12 +2683,20 @@ async function loadActivitiesFromCloud() {
 saveActivities({ cloud: false });
 
     if (!activities.some(item => item.id === selectedActivityId)) {
-      selectedActivityId = '';
-      saveJSON(STORAGE_KEYS.selectedActivityId, '');
+      selectedActivityId = activities.some(item => item.id === protectedActivityId) ? protectedActivityId : '';
+      saveJSON(STORAGE_KEYS.selectedActivityId, selectedActivityId || '');
     }
 
     activity = selectedActivityId ? getActivityById(selectedActivityId) : null;
-    codeStore = activity ? getCodeStoreForActivity(activity.id) : normalizeCodeStore(starterCode);
+    if (protectedHasCode) {
+      const safeKey = selectedActivityId || protectedActivityId || 'scratch';
+      codeByActivity = { ...protectedCodeByActivity, [safeKey]: normalizeCodeStore(protectedEditorSnapshot) };
+      codeStore = normalizeCodeStore(protectedEditorSnapshot);
+      saveCodeByActivity();
+      scheduleLocalWorkspaceDraftSave('cloud-activity-load', { immediate: true });
+    } else {
+      codeStore = activity ? getCodeStoreForActivity(activity.id) : normalizeCodeStore(starterCode);
+    }
     adminEditingActivityId = activity?.id || activities[0]?.id || '';
 
     renderActivitySummary();
@@ -2548,6 +2730,7 @@ async function saveActivitiesToCloud() {
       activities: activities.map(item => normalizeActivity(item)),
       studentAssistanceSettings: normalizeAssistanceSettings(studentAssistanceSettings)
     }, { merge: true });
+    invalidateFirebaseReadCache('root');
     setStatus('Saved to Firebase');
     return true;
   } catch (error) {
@@ -2576,6 +2759,7 @@ async function saveStudentAssistanceSettingsToCloud(settings = studentAssistance
       studentAssistanceSettings: normalizeAssistanceSettings(settings),
       studentAssistanceUpdatedAt: serverTimestamp()
     }, { merge: true });
+    invalidateFirebaseReadCache('root');
     setAssistanceSettingsStatus('Published to all students. Open student pages will update automatically.', 'success');
     setStatus('Student assistance published');
     return true;
@@ -2678,14 +2862,13 @@ async function loadAiRubricSettingsFromCloud({ silent = false } = {}) {
     return false;
   }
   try {
-    const { getDoc } = firebaseSync.modules;
-    const snapshot = await getDoc(getAiRubricSettingsDocRef());
-    if (!snapshotExists(snapshot)) {
+    const cachedDoc = await getCachedFirestoreDocData('aiRubricSettings', getAiRubricSettingsDocRef(), { force: silent !== true });
+    if (!cachedDoc.exists) {
       syncAiRubricSettingsControls(aiRubricSettings);
       if (!silent) setAiRubricSettingsStatus('No cloud Smart Review settings yet. Paste a key, then save.', 'warning');
       return false;
     }
-    const data = snapshotData(snapshot) || {};
+    const data = cachedDoc.data || {};
     saveAiRubricSettingsLocal(data.settings || data);
     if (!silent) setAiRubricSettingsStatus('Smart Review settings loaded.', 'success');
     return true;
@@ -2715,6 +2898,7 @@ async function saveAiRubricSettingsToCloud() {
       updatedAt: serverTimestamp(),
       updatedBy: firebaseSync.auth?.currentUser?.email || firebaseSync.currentUser?.email || 'teacher'
     }, { merge: true });
+    invalidateFirebaseReadCache('aiRubricSettings');
     setAiRubricSettingsStatus(settings.enabled && settings.apiKey ? 'Smart Review settings saved. Result & Feedback can now use Gemini.' : 'Smart Review settings saved. Add a key and turn ON before using.', settings.enabled && settings.apiKey ? 'success' : 'warning');
     setStatus('Smart Review settings saved');
     return true;
@@ -2893,6 +3077,7 @@ async function watchStudentAssistanceSettings() {
       snap => {
         if (!snap.exists()) return;
         const data = snap.data() || {};
+        rememberFirebaseReadCache('root', { exists: true, data });
         if (!data.studentAssistanceSettings) return;
         applyStudentAssistanceSettings(data.studentAssistanceSettings);
         if (adminOverlay && !adminOverlay.classList.contains('hidden')) {
@@ -3538,25 +3723,15 @@ async function findStudentRosterRecordById(studentId) {
   // Firebase Auth email removes symbols, so 19-00431 and 1900431 can point to
   // the same Auth account. Search the roster by comparable key before failing.
   try {
-    const activeUser = getFirebaseActiveUser();
-    if (!activeUser?.email) return exact || null;
-    const { getDocs, query, where, limit } = firebaseSync.modules;
-    // Privacy-safe fallback for old IDs with or without dashes. The query is
-    // limited to roster records owned by the authenticated email instead of
-    // downloading the full class roster to a student device.
-    const ownRosterQuery = query(
-      getStudentRosterCollectionRef(),
-      where('authEmail', '==', activeUser.email),
-      limit(10)
-    );
-    const snapshot = await getDocs(ownRosterQuery);
+    const { getDocs } = firebaseSync.modules;
+    const snapshot = await getDocs(getStudentRosterCollectionRef());
     const match = (snapshot.docs || []).map(docSnapshot => ({
       id: docSnapshot.id,
       ...snapshotData(docSnapshot)
     })).find(record => areStudentIdsEquivalent(record.studentId || record.studentIdNormalized || record.id, normalized));
     return match || null;
   } catch (error) {
-    console.warn('Could not search own roster record by Student ID key.', error);
+    console.warn('Could not search roster by Student ID key.', error);
     return exact || null;
   }
 }
@@ -4292,6 +4467,7 @@ function continueAsGuest() {
 
   try {
     resetWorkspaceState();
+    restoreLocalWorkspaceDraftIfUseful({ force: true, silent: true });
   } catch (error) {
     console.error('Could not fully reset guest workspace, but practice mode was opened.', error);
     try {
@@ -4762,7 +4938,7 @@ async function logoutStudent() {
   }
   try {
     if (appSession.mode === 'student' && appSession.student?.uid) {
-      await writeStudentPresence({ currentView: 'signed_out', activityGroup: 'Signed out', activityLabel: 'Signed out' }, { force: true, critical: true });
+      await writeStudentPresence({ currentView: 'signed_out', activityGroup: 'Signed out', activityLabel: 'Signed out' }, { force: true });
     }
   } catch (error) {
     console.warn('Student sign-out presence update skipped.', error);
@@ -5125,13 +5301,12 @@ async function loadComplianceSettingsFromCloud(options = {}) {
   }
   const ready = await initFirebaseSync();
   if (!ready) throw new Error(firebaseSync.lastError || 'Firebase is not ready.');
-  const { getDoc } = firebaseSync.modules;
-  const snapshot = await getDoc(getComplianceSettingsDocRef());
-  if (!snapshotExists(snapshot)) {
+  const cachedDoc = await getCachedFirestoreDocData('complianceSettings', getComplianceSettingsDocRef(), { force: options.force === true || options.silent !== true });
+  if (!cachedDoc.exists) {
     if (!options.silent) setComplianceSyncStatus('No cloud Compliance settings found yet. Save Settings once to use them on all teacher devices.', 'warning');
     return null;
   }
-  const data = snapshotData(snapshot);
+  const data = cachedDoc.data || {};
   const settings = saveComplianceSettings(getComplianceCloudSettingsSource(data));
   syncComplianceSettingsControls();
   if (!options.silent) setComplianceSyncStatus('Compliance settings loaded from Firebase. These links and task names are now available on this device.', 'success');
@@ -5154,6 +5329,7 @@ async function saveComplianceSettingsToCloud(settings = {}) {
     updatedAtMs: Date.now(),
     updatedBy: firebaseSync.auth?.currentUser?.email || firebaseSync.currentUser?.email || 'teacher'
   }, { merge: true });
+  invalidateFirebaseReadCache('complianceSettings');
   return normalized;
 }
 
@@ -6704,14 +6880,36 @@ function populateAdminSectionFilter() {
   populateOnlinePresenceSectionFilter();
 }
 
+function getAdminStudentFilterSignature() {
+  return [
+    String(adminStudentSearch?.value || '').trim().toLowerCase(),
+    adminSectionFilter?.value || 'all',
+    adminActivityFilter?.value || 'all',
+    String(adminStudentsCache.length)
+  ].join('|');
+}
+
+function getAdminStudentSearchBlob(student = {}) {
+  if (student.__searchBlob) return student.__searchBlob;
+  const blob = [
+    student.name,
+    student.studentId,
+    student.studentIdNormalized,
+    student.section,
+    student.gender,
+    student.authEmail,
+    student.lastProjectName
+  ].map(value => String(value || '').toLowerCase()).join(' ');
+  student.__searchBlob = blob;
+  return blob;
+}
+
 function getFilteredAdminStudents() {
   const search = String(adminStudentSearch?.value || '').trim().toLowerCase();
   const section = adminSectionFilter?.value || 'all';
   const activityFilter = adminActivityFilter?.value || 'all';
   return adminStudentsCache.filter(student => {
-    const matchesSearch = !search
-      || String(student.name || '').toLowerCase().includes(search)
-      || String(student.studentId || '').toLowerCase().includes(search);
+    const matchesSearch = !search || getAdminStudentSearchBlob(student).includes(search);
     const matchesSection = section === 'all' || student.section === section;
     const loggedIn = Boolean(student.lastLoginAt || Number(student.loginCount || 0) > 0);
     const hasProjects = Number(student.projectCount || 0) > 0;
@@ -6726,8 +6924,30 @@ function getFilteredAdminStudents() {
   });
 }
 
-function renderAdminStudentTracker() {
+function buildAdminStudentRowMarkup(student = {}) {
+  const loggedIn = Boolean(student.lastLoginAt || Number(student.loginCount || 0) > 0);
+  const rosterOnly = Boolean(student.isRosterOnly && !student.uid);
+  const accountLabel = rosterOnly ? 'Ready for First Login' : (student.mustChangePassword === false ? 'Active' : 'Password Change Needed');
+  const pillClass = rosterOnly ? '' : (student.mustChangePassword === false ? 'active' : '');
+  return `
+    <tr data-student-uid="${escapeAttribute(student.uid || '')}">
+      <td><span class="student-cell-name">${escapeHTML(student.name || 'Unnamed Student')}</span><span class="student-cell-id">ID: ${escapeHTML(student.studentId || '')} · ${escapeHTML(student.gender || 'Gender not set')}</span></td>
+      <td>${escapeHTML(student.section || 'No section')}</td>
+      <td><span class="student-account-pill ${pillClass}">${accountLabel}</span><span class="student-cell-sub">${loggedIn ? `${Number(student.loginCount || 0)} login${Number(student.loginCount || 0) === 1 ? '' : 's'}` : 'Never logged in'}</span></td>
+      <td><strong>${Math.max(0, Number(student.projectCount || 0))}</strong><span class="student-cell-sub">${escapeHTML(student.lastProjectName || 'No project yet')}</span></td>
+      <td>${escapeHTML(formatStudentDate(student.lastActivityAt))}</td>
+      <td><div class="student-action-stack">${rosterOnly ? '<span class="student-cell-sub">No projects yet</span>' : `<button class="ghost-btn view-student-projects-btn" type="button" data-student-uid="${escapeAttribute(student.uid)}">View Projects</button>`}<button class="ghost-btn recovery-student-account-btn" type="button" data-student-id="${escapeAttribute(student.studentId || '')}" data-student-uid="${escapeAttribute(student.uid || '')}">Recovery</button><button class="ghost-btn danger-btn delete-student-account-btn" type="button" data-student-id="${escapeAttribute(student.studentId || '')}" data-student-uid="${escapeAttribute(student.uid || '')}">Delete</button></div></td>
+    </tr>`;
+}
+
+function renderAdminStudentTracker(options = {}) {
   if (!adminStudentsTableBody) return;
+  const signature = getAdminStudentFilterSignature();
+  if (!options.preserveLimit && signature !== adminStudentFilterSignature) {
+    adminStudentVisibleLimit = ADMIN_STUDENT_RENDER_BATCH;
+    adminStudentFilterSignature = signature;
+  }
+
   const filtered = getFilteredAdminStudents();
   const loggedInCount = adminStudentsCache.filter(student => student.lastLoginAt || Number(student.loginCount || 0) > 0).length;
   const totalProjects = adminStudentsCache.reduce((sum, student) => sum + Math.max(0, Number(student.projectCount || 0)), 0);
@@ -6742,21 +6962,25 @@ function renderAdminStudentTracker() {
     return;
   }
 
-  adminStudentsTableBody.innerHTML = filtered.map(student => {
-    const loggedIn = Boolean(student.lastLoginAt || Number(student.loginCount || 0) > 0);
-    const rosterOnly = Boolean(student.isRosterOnly && !student.uid);
-    const accountLabel = rosterOnly ? 'Ready for First Login' : (student.mustChangePassword === false ? 'Active' : 'Password Change Needed');
-    const pillClass = rosterOnly ? '' : (student.mustChangePassword === false ? 'active' : '');
-    return `
-      <tr data-student-uid="${escapeAttribute(student.uid || '')}">
-        <td><span class="student-cell-name">${escapeHTML(student.name || 'Unnamed Student')}</span><span class="student-cell-id">ID: ${escapeHTML(student.studentId || '')} · ${escapeHTML(student.gender || 'Gender not set')}</span></td>
-        <td>${escapeHTML(student.section || 'No section')}</td>
-        <td><span class="student-account-pill ${pillClass}">${accountLabel}</span><span class="student-cell-sub">${loggedIn ? `${Number(student.loginCount || 0)} login${Number(student.loginCount || 0) === 1 ? '' : 's'}` : 'Never logged in'}</span></td>
-        <td><strong>${Math.max(0, Number(student.projectCount || 0))}</strong><span class="student-cell-sub">${escapeHTML(student.lastProjectName || 'No project yet')}</span></td>
-        <td>${escapeHTML(formatStudentDate(student.lastActivityAt))}</td>
-        <td><div class="student-action-stack">${rosterOnly ? '<span class="student-cell-sub">No projects yet</span>' : `<button class="ghost-btn view-student-projects-btn" type="button" data-student-uid="${escapeAttribute(student.uid)}">View Projects</button>`}<button class="ghost-btn danger-btn delete-student-account-btn" type="button" data-student-id="${escapeAttribute(student.studentId || '')}" data-student-uid="${escapeAttribute(student.uid || '')}">Delete</button></div></td>
-      </tr>`;
-  }).join('');
+  const visibleCount = Math.min(filtered.length, Math.max(ADMIN_STUDENT_RENDER_BATCH, adminStudentVisibleLimit));
+  const visibleStudents = filtered.slice(0, visibleCount);
+  const rows = visibleStudents.map(student => buildAdminStudentRowMarkup(student));
+  if (visibleCount < filtered.length) {
+    const nextCount = Math.min(filtered.length, visibleCount + ADMIN_STUDENT_RENDER_STEP);
+    rows.push(`
+      <tr class="admin-student-load-more-row">
+        <td colspan="6">
+          <button class="ghost-btn admin-students-load-more-btn" type="button">Show ${nextCount - visibleCount} more</button>
+          <span class="student-cell-sub">Showing ${visibleCount} of ${filtered.length} matching students. Search/filter still checks all loaded records.</span>
+        </td>
+      </tr>`);
+  }
+  adminStudentsTableBody.innerHTML = rows.join('');
+}
+
+function scheduleAdminStudentTrackerRender() {
+  window.clearTimeout(adminStudentRenderTimer);
+  adminStudentRenderTimer = window.setTimeout(() => renderAdminStudentTracker(), 90);
 }
 
 
@@ -6926,21 +7150,7 @@ async function writeStudentPresence(activityOverride = {}, options = {}) {
   if (!options.force && document.visibilityState === 'hidden') return false;
   const signature = [payload.currentView, payload.activityLabel, payload.projectId, payload.lessonId, payload.pageVisible].join('|');
   const now = Date.now();
-  // Presence is intentionally coarse-grained on the free plan. A view change
-  // updates the in-memory activity immediately, but Firestore receives at most
-  // one presence write per student every few minutes. Only critical lifecycle
-  // events (for example sign-out) may bypass this throttle.
-  if (!options.critical && studentPresenceLastWriteAt && now - studentPresenceLastWriteAt < PRESENCE_MIN_WRITE_INTERVAL) {
-    studentPresenceLastSignature = signature;
-    studentPresenceLastActivity = payload.activityLabel;
-    studentPresencePendingOverride = { ...activityOverride };
-    const remaining = Math.max(1000, PRESENCE_MIN_WRITE_INTERVAL - (now - studentPresenceLastWriteAt) + 250);
-    window.clearTimeout(studentPresenceDeferredTimer);
-    studentPresenceDeferredTimer = window.setTimeout(() => {
-      const pending = studentPresencePendingOverride || {};
-      studentPresencePendingOverride = null;
-      writeStudentPresence(pending, { force: true }).catch(error => console.warn('Deferred presence update skipped.', error));
-    }, remaining);
+  if (!options.force && signature === studentPresenceLastSignature && now - studentPresenceLastWriteAt < PRESENCE_MIN_WRITE_INTERVAL) {
     return false;
   }
   if (navigator.onLine === false) return false;
@@ -6956,9 +7166,6 @@ async function writeStudentPresence(activityOverride = {}, options = {}) {
     studentPresenceLastWriteAt = now;
     studentPresenceLastSignature = signature;
     studentPresenceLastActivity = payload.activityLabel;
-    studentPresencePendingOverride = null;
-    window.clearTimeout(studentPresenceDeferredTimer);
-    studentPresenceDeferredTimer = null;
     return true;
   } catch (error) {
     console.warn('Student online presence update skipped.', error);
@@ -6988,10 +7195,7 @@ function startStudentPresenceHeartbeat() {
 function stopStudentPresenceHeartbeat() {
   studentPresenceStarted = false;
   window.clearTimeout(studentPresenceTimer);
-  window.clearTimeout(studentPresenceDeferredTimer);
   studentPresenceTimer = null;
-  studentPresenceDeferredTimer = null;
-  studentPresencePendingOverride = null;
   studentPresenceLastSignature = '';
 }
 
@@ -7130,8 +7334,8 @@ async function loadAdminOnlinePresence(options = {}) {
     renderAdminOnlinePresence();
     const online = adminOnlinePresenceRecords.filter(record => getOnlinePresenceStatus(record) === 'online').length;
     const message = adminOnlinePresenceRecords.length
-      ? `${online} online now · ${adminOnlinePresenceRecords.length} active recently. Auto refresh is ${adminOnlinePresenceAutoRefresh ? 'on (5 min)' : 'off'}.`
-      : 'No students reported active recently.';
+      ? `${online} online now · ${adminOnlinePresenceRecords.length} active in the last 20 minutes. Auto refresh is ${adminOnlinePresenceAutoRefresh ? 'on' : 'off'}.`
+      : 'No students reported active in the last 20 minutes.';
     setOnlinePresenceStatus(message, adminOnlinePresenceRecords.length ? 'success' : 'warning');
     return adminOnlinePresenceRecords;
   } catch (error) {
@@ -7146,6 +7350,77 @@ async function loadAdminOnlinePresence(options = {}) {
     if (refreshOnlinePresenceBtn) refreshOnlinePresenceBtn.disabled = false;
     scheduleAdminOnlinePresenceRefresh();
   }
+}
+
+function findAdminStudentByIdOrUid(studentId = '', uid = '') {
+  const normalizedId = normalizeStudentId(studentId);
+  return adminStudentsCache.find(item =>
+    (normalizedId && areStudentIdsEquivalent(item.studentId || item.studentIdNormalized || item.rosterId, normalizedId))
+    || (uid && item.uid === uid)
+  ) || null;
+}
+
+async function copyTextSafely(text = '') {
+  const value = String(text || '').trim();
+  if (!value) return false;
+  try {
+    if (navigator.clipboard?.writeText && window.isSecureContext !== false) {
+      await navigator.clipboard.writeText(value);
+      return true;
+    }
+  } catch (error) {
+    console.warn('Clipboard copy skipped.', error);
+  }
+  return false;
+}
+
+async function showAdminStudentRecoveryHelper(studentId, uid = '') {
+  if (!isTeacherAuthenticated()) {
+    setStudentAdminStatus('Teacher login is required to open account recovery.', 'error');
+    return;
+  }
+  const normalizedId = normalizeStudentId(studentId);
+  const student = findAdminStudentByIdOrUid(normalizedId, uid);
+  const displayName = student?.name || normalizedId || 'this student';
+  const resolvedId = normalizeStudentId(student?.studentId || student?.studentIdNormalized || student?.rosterId || normalizedId);
+  const authEmail = String(student?.authEmail || (resolvedId ? studentIdToAuthEmail(resolvedId) : '')).trim();
+  const loggedIn = Boolean(student?.lastLoginAt || Number(student?.loginCount || 0) > 0);
+  const rosterOnly = Boolean(student?.isRosterOnly && !student?.uid);
+  const statusLabel = rosterOnly
+    ? 'Ready for First Login / Never logged in'
+    : (student?.mustChangePassword === false ? 'Active account' : 'Password Change Needed');
+  const copied = await copyTextSafely(authEmail);
+  const copyNote = copied && authEmail ? 'Auth email was copied to your clipboard.' : 'Copy the Auth email shown below.';
+  const profileNote = student?.uid
+    ? `App profile UID: ${student.uid}`
+    : 'App profile UID: none yet / roster record only';
+
+  setStudentAdminStatus(authEmail ? `Recovery info ready for ${displayName}. ${copied ? 'Auth email copied.' : 'Copy the Auth email from the dialog.'}` : `Recovery info ready for ${displayName}.`, copied ? 'success' : '');
+
+  const recoveryMessage = [
+    `Student: ${displayName}`,
+    `Student ID: ${resolvedId || 'No Student ID found'}`,
+    `Auth email: ${authEmail || 'No Auth email found'}`,
+    `Status: ${statusLabel}`,
+    profileNote,
+    '',
+    copyNote,
+    '',
+    'For stuck first login or forgotten password:',
+    '1. Open Firebase Console > Authentication > Users.',
+    '2. Paste/search the copied Auth email above.',
+    '3. Delete only that Firebase Auth user if you want a fresh first login.',
+    '4. Let the student log in again with the Student ID and default password 123456.',
+    '',
+    'Do not use the app Delete button unless you also want to remove app roster/profile/project records.'
+  ].join('\n');
+
+  await appAlert(recoveryMessage, {
+    title: 'Student Account Recovery',
+    kicker: 'Admin helper',
+    icon: 'R',
+    confirmText: copied && authEmail ? 'Copied / OK' : 'OK'
+  });
 }
 
 async function deleteAdminStudentRecord(studentId, uid = '') {
@@ -13029,8 +13304,13 @@ function renderActivitySummary() {
 
 function selectActivity(activityId, options = {}) {
   const shouldPreserveEditorCode = options.preserveEditorCode !== false;
+  const previousActivityKey = activity?.id || selectedActivityId || 'scratch';
   const editorSnapshot = shouldPreserveEditorCode ? cloneCurrentEditorCodeStore({ skipSave: options.skipSave }) : null;
   const hasEditorContent = shouldPreserveEditorCode && codeStoreHasVisibleContent(editorSnapshot);
+  if (shouldPreserveEditorCode && editorSnapshot) {
+    codeByActivity[previousActivityKey] = normalizeCodeStore(editorSnapshot);
+    scheduleLocalWorkspaceDraftSave('activity-switch', { immediate: true });
+  }
 
   if (!activityId) {
     if (!shouldPreserveEditorCode && !options.skipSave) saveActiveEditor();
@@ -13046,6 +13326,7 @@ function selectActivity(activityId, options = {}) {
     loadActiveEditor();
     resetResultPanel();
     runCode(false, { scroll: false });
+    scheduleLocalWorkspaceDraftSave('activity-switch', { immediate: true });
     return;
   }
 
@@ -13076,6 +13357,7 @@ function selectActivity(activityId, options = {}) {
   loadActiveEditor();
   resetResultPanel();
   runCode(false, { scroll: false });
+  scheduleLocalWorkspaceDraftSave('rubric-switch', { immediate: true });
   setStatus(`Loaded: ${nextActivity.title}`);
 }
 
@@ -14089,9 +14371,12 @@ async function loadLessonLibrary(options = {}) {
   try {
     const ready = await initFirebaseSync();
     if (!ready) throw new Error(firebaseSync.lastError || 'Could not connect to Firebase.');
-    const { getDoc } = firebaseSync.modules;
-    const snapshot = await withTimeout(getDoc(getCloudActivitiesDocRef()), APP_NETWORK_TIMEOUT_MS, 'Lesson list took too long to load. Check the connection and try again.');
-    const data = snapshotExists(snapshot) ? snapshotData(snapshot) : {};
+    const cachedDoc = await withTimeout(
+      getCachedFirestoreDocData('root', getCloudActivitiesDocRef(), { force: options.force === true }),
+      APP_NETWORK_TIMEOUT_MS,
+      'Lesson list took too long to load. Check the connection and try again.'
+    );
+    const data = cachedDoc.exists ? (cachedDoc.data || {}) : {};
     lessonLibraryState.lessons = (Array.isArray(data.lessons) ? data.lessons : []).map((lesson, index) => normalizeLesson(lesson, index));
     lessonLibraryState.loaded = true;
     saveLessonLibraryCache();
@@ -14129,6 +14414,7 @@ async function saveLessonLibraryToCloud() {
     lessons,
     lessonLibraryUpdatedAt: serverTimestamp()
   }, { merge: true }), APP_NETWORK_TIMEOUT_MS, 'Publishing lessons took too long. Check the connection and try again.');
+  invalidateFirebaseReadCache('root');
   lessonLibraryState.lessons = lessons;
   lessonLibraryState.loaded = true;
   saveLessonLibraryCache();
@@ -18724,8 +19010,8 @@ layoutButtons.forEach(button => {
 });
 
 desktopPreviewBtn?.addEventListener('click', toggleDesktopPreviewMode);
-fullPreviewBtn.addEventListener('click', enterFullPreview);
-exitPreviewBtn.addEventListener('click', () => exitFullPreview({ closeEditorFullscreen: true }));
+fullPreviewBtn?.addEventListener('click', enterFullPreview);
+exitPreviewBtn?.addEventListener('click', () => exitFullPreview({ closeEditorFullscreen: true }));
 ensureBackToEditorPreviewBtn();
 ensurePreviewResultBtn()?.classList.remove('hidden');
 if (zoomOutBtn) zoomOutBtn.addEventListener('click', () => changeEditorZoom(-1));
@@ -18794,17 +19080,22 @@ document.addEventListener('fullscreenchange', () => {
 
 
 window.addEventListener('resize', scheduleFullEditorControlsRestore);
-document.addEventListener('visibilitychange', scheduleFullEditorControlsRestore);
+document.addEventListener('visibilitychange', () => {
+  scheduleFullEditorControlsRestore();
+  if (document.visibilityState === 'hidden') scheduleLocalWorkspaceDraftSave('visibility', { immediate: true });
+});
+window.addEventListener('pagehide', () => scheduleLocalWorkspaceDraftSave('pagehide', { immediate: true }));
+window.addEventListener('beforeunload', () => scheduleLocalWorkspaceDraftSave('beforeunload', { immediate: true }));
 window.addEventListener('pageshow', scheduleFullEditorControlsRestore);
 
-runBtn.addEventListener('click', () => runCode());
+runBtn?.addEventListener('click', () => runCode());
 autoRunBtn?.addEventListener('click', toggleAutoRun);
 if (fullscreenAutoRunBtn && !fullscreenAutoRunBtn.dataset.fullscreenActionBound) {
   fullscreenAutoRunBtn.addEventListener('click', toggleAutoRun);
   fullscreenAutoRunBtn.dataset.fullscreenActionBound = 'true';
 }
 updateAutoRunButtons();
-resultBtn.addEventListener('click', showResult);
+resultBtn?.addEventListener('click', showResult);
 if (aiReviewTopBtn) aiReviewTopBtn.addEventListener('click', requestAIReview);
 if (runAiReviewBtn) runAiReviewBtn.addEventListener('click', requestAIReview);
 if (saveBtn) saveBtn.addEventListener('click', downloadCodeAsZip);
@@ -18823,8 +19114,8 @@ if (previewFrame) previewFrame.addEventListener('load', () => {
   attachPreviewLinkHandlers();
   window.setTimeout(renderErrorChecker, 80);
 });
-activitySelect.addEventListener('change', event => selectActivity(event.target.value));
-resetActivityCodeBtn.addEventListener('click', resetCurrentActivityCode);
+activitySelect?.addEventListener('change', event => selectActivity(event.target.value));
+resetActivityCodeBtn?.addEventListener('click', resetCurrentActivityCode);
 
 themeToggle?.addEventListener('click', () => {
   const currentTheme = document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light';
@@ -18836,7 +19127,7 @@ entryThemeToggle?.addEventListener('click', () => {
   applyTheme(currentTheme === 'dark' ? 'light' : 'dark');
 });
 
-resetBtn.addEventListener('click', async () => {
+resetBtn?.addEventListener('click', async () => {
   const resetLabel = activity ? `"${activity.title}"` : 'the editor';
   if (!await appConfirm(`Reset all tabs for ${resetLabel} to the sample code? Your current code in this activity will be replaced.`, { title: 'Reset editor', danger: true, confirmText: 'Reset' })) return;
   codeStore = normalizeCodeStore(starterCode);
@@ -18848,14 +19139,16 @@ resetBtn.addEventListener('click', async () => {
   loadActiveEditor();
   resetResultPanel();
   runCode();
+  scheduleLocalWorkspaceDraftSave('reset', { immediate: true });
   setStatus('Reset complete');
 });
 
-clearBtn.addEventListener('click', async () => {
+clearBtn?.addEventListener('click', async () => {
   if (!await appConfirm(`Clear the ${activeLanguage.toUpperCase()} tab? This removes the code in the current tab only.`, { title: 'Clear current tab', danger: true, confirmText: 'Clear' })) return;
   applyProgrammaticEditorChange('', 0, 0);
   hideSuggestions();
   runCode();
+  scheduleLocalWorkspaceDraftSave('clear', { immediate: true });
   setStatus(`${activeLanguage.toUpperCase()} cleared`);
 });
 
@@ -19050,7 +19343,7 @@ adminBtn?.addEventListener('keydown', event => {
     openAdminPanel();
   }
 });
-closeAdminBtn.addEventListener('click', closeAdminPanel);
+closeAdminBtn?.addEventListener('click', closeAdminPanel);
 unlockAdminBtn?.addEventListener('click', unlockAdmin);
 unlockAdminCodeBtn?.addEventListener('click', unlockAdminWithCode);
 adminCodeModeBtn?.addEventListener('click', () => setAdminLoginMode('code'));
@@ -19073,17 +19366,17 @@ adminQuickCode?.addEventListener('keydown', event => {
   }
 });
 
-adminOverlay.addEventListener('click', event => {
+adminOverlay?.addEventListener('click', event => {
   if (event.target === adminOverlay) event.stopPropagation();
 });
 
-adminForm.addEventListener('submit', saveRubric);
-adminActivitySelect.addEventListener('change', event => editAdminActivity(event.target.value));
-newActivityBtn.addEventListener('click', createNewActivity);
-duplicateActivityBtn.addEventListener('click', duplicateActivity);
-deleteActivityBtn.addEventListener('click', deleteActivity);
-addCriterionBtn.addEventListener('click', addCriterion);
-resetRubricBtn.addEventListener('click', restoreDefaultRubric);
+adminForm?.addEventListener('submit', saveRubric);
+adminActivitySelect?.addEventListener('change', event => editAdminActivity(event.target.value));
+newActivityBtn?.addEventListener('click', createNewActivity);
+duplicateActivityBtn?.addEventListener('click', duplicateActivity);
+deleteActivityBtn?.addEventListener('click', deleteActivity);
+addCriterionBtn?.addEventListener('click', addCriterion);
+resetRubricBtn?.addEventListener('click', restoreDefaultRubric);
 if (rubricImageInput) rubricImageInput.addEventListener('change', previewRubricImage);
 if (importRubricImageBtn) importRubricImageBtn.addEventListener('click', importRubricImage);
 if (clearRubricImageBtn) clearRubricImageBtn.addEventListener('click', clearRubricImageImport);
@@ -19152,8 +19445,8 @@ if (manualRubricInputBody) {
     ensureManualRubricRows();
   });
 }
-criteriaEditor.addEventListener('change', updateCriterionHelp);
-criteriaEditor.addEventListener('click', async event => {
+criteriaEditor?.addEventListener('change', updateCriterionHelp);
+criteriaEditor?.addEventListener('click', async event => {
   const removeButton = event.target.closest('.remove-criterion');
   if (!removeButton) return;
   event.preventDefault();
@@ -19439,7 +19732,7 @@ refreshOnlinePresenceBtn?.addEventListener('click', () => loadAdminOnlinePresenc
 onlinePresenceAutoBtn?.addEventListener('click', () => {
   adminOnlinePresenceAutoRefresh = !adminOnlinePresenceAutoRefresh;
   onlinePresenceAutoBtn.setAttribute('aria-pressed', adminOnlinePresenceAutoRefresh ? 'true' : 'false');
-  onlinePresenceAutoBtn.textContent = adminOnlinePresenceAutoRefresh ? 'Auto: 5m' : 'Auto: Off';
+  onlinePresenceAutoBtn.textContent = adminOnlinePresenceAutoRefresh ? 'Auto: 60s' : 'Auto: Off';
   setOnlinePresenceStatus(`Auto refresh is ${adminOnlinePresenceAutoRefresh ? 'on' : 'off'}.`, '');
   scheduleAdminOnlinePresenceRefresh();
 });
@@ -19461,10 +19754,21 @@ studentImportInput?.addEventListener('change', event => handleStudentImportFile(
 confirmStudentImportBtn?.addEventListener('click', confirmStudentImport);
 cancelStudentImportBtn?.addEventListener('click', cancelStudentImport);
 refreshStudentsBtn?.addEventListener('click', loadAdminStudents);
-adminStudentSearch?.addEventListener('input', renderAdminStudentTracker);
-adminSectionFilter?.addEventListener('change', renderAdminStudentTracker);
-adminActivityFilter?.addEventListener('change', renderAdminStudentTracker);
+adminStudentSearch?.addEventListener('input', scheduleAdminStudentTrackerRender);
+adminSectionFilter?.addEventListener('change', () => renderAdminStudentTracker());
+adminActivityFilter?.addEventListener('change', () => renderAdminStudentTracker());
 adminStudentsTableBody?.addEventListener('click', event => {
+  const loadMoreButton = event.target.closest('.admin-students-load-more-btn');
+  if (loadMoreButton) {
+    adminStudentVisibleLimit += ADMIN_STUDENT_RENDER_STEP;
+    renderAdminStudentTracker({ preserveLimit: true });
+    return;
+  }
+  const recoveryButton = event.target.closest('.recovery-student-account-btn');
+  if (recoveryButton) {
+    showAdminStudentRecoveryHelper(recoveryButton.dataset.studentId || '', recoveryButton.dataset.studentUid || '');
+    return;
+  }
   const deleteButton = event.target.closest('.delete-student-account-btn');
   if (deleteButton) {
     deleteAdminStudentRecord(deleteButton.dataset.studentId || '', deleteButton.dataset.studentUid || '');
@@ -19561,6 +19865,7 @@ applyEditorZoom(editorFontSize);
 renderActivitySummary();
 resetResultPanel();
 setPreviewLayout(loadJSON(STORAGE_KEYS.layout, 'split'));
+restoreLocalWorkspaceDraftIfUseful({ silent: true });
 loadActiveEditor();
 runCode(false);
 setAutoRunEnabled(autoRunEnabled, false);
@@ -20711,14 +21016,10 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
   window.__MCS_COLLAB_FEATURE_READY__ = true;
   if (!editor || !editorPanel) return;
 
-  const COLLAB_PUSH_DELAY = 55;
-  const COLLAB_HEARTBEAT_MS = 25000;
-  const COLLAB_SNAPSHOT_MS = 5 * 60 * 1000;
-  const COLLAB_SIGNAL_TIMEOUT_MS = 15000;
-  const COLLAB_CURSOR_DELAY_MS = 85;
-  const COLLAB_ICE_SERVERS = [
-    { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] }
-  ];
+  const COLLAB_PUSH_DELAY = 650;
+  const COLLAB_FAST_PUSH_DELAY = 220;
+  const COLLAB_CURSOR_PUSH_DELAY = 750;
+  const COLLAB_HEARTBEAT_MS = 24000;
   const collabState = {
     active: false,
     role: '',
@@ -20742,25 +21043,9 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     cursorTimer: null,
     lastCursorPosition: -1,
     memberColorCache: {},
+    actionLocks: {},
     savedProjectId: '',
-    savedProjectName: '',
-    peerConnections: new Map(),
-    dataChannels: new Map(),
-    peerSignalUnsubscribe: null,
-    ownPeerUnsubscribe: null,
-    p2pConnectTimer: null,
-    snapshotTimer: null,
-    p2pReady: false,
-    p2pMode: false,
-    hostSequence: 0,
-    lastSnapshotWriteAt: 0,
-    pendingLiveMessage: null,
-    peerMembers: {},
-    peerOfferKeys: new Map(),
-    ownPeerRef: null,
-    chunkBuffers: new Map(),
-    reconnectAttempts: 0,
-    fileSyncBases: {}
+    savedProjectName: ''
   };
 
   function isCollaborationEnabled() {
@@ -20832,6 +21117,55 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     firebaseSync.currentUser = user;
     return user;
   }
+
+  function getCollabActionButtons(key = '') {
+    const map = {
+      start: ['collabStartBtn'],
+      join: ['collabJoinBtn'],
+      saveJoined: ['saveStudentProjectBtn', 'menuSaveProjectBtn'],
+      stop: ['collabStopBtn'],
+      leave: ['collabLeaveBtn', 'collabMembersLeaveBtn']
+    };
+    return (map[key] || []).map(id => document.getElementById(id)).filter(Boolean);
+  }
+
+  function setCollabActionBusy(key = '', busy = false, busyText = 'Working...') {
+    getCollabActionButtons(key).forEach(button => {
+      if (!button.dataset.collabOriginalText) button.dataset.collabOriginalText = button.textContent || '';
+      if (busy) {
+        button.disabled = true;
+        button.textContent = busyText;
+        button.setAttribute('aria-busy', 'true');
+      } else {
+        button.disabled = false;
+        button.textContent = button.dataset.collabOriginalText || button.textContent || '';
+        button.removeAttribute('aria-busy');
+        delete button.dataset.collabOriginalText;
+      }
+    });
+    if (!busy) {
+      renderCollabShareButton?.();
+      syncCollabSaveButtonVisibility?.();
+    }
+  }
+
+  function beginCollabAction(key = 'action', busyText = 'Working...') {
+    const now = Date.now();
+    const existing = collabState.actionLocks?.[key];
+    if (existing && now - Number(existing.startedAt || 0) < 30000) {
+      setCollabStatus('Please wait. The previous action is still finishing.', 'warning');
+      return false;
+    }
+    collabState.actionLocks[key] = { startedAt: now };
+    setCollabActionBusy(key, true, busyText);
+    return true;
+  }
+
+  function endCollabAction(key = 'action') {
+    if (collabState.actionLocks) delete collabState.actionLocks[key];
+    setCollabActionBusy(key, false);
+  }
+
   function collabEscape(value) {
     return typeof escapeHTML === 'function'
       ? escapeHTML(value)
@@ -20915,15 +21249,7 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
       layer.classList.add('hidden');
       return;
     }
-    const activeFileName = getActiveLanguageFileName(activeLanguage);
-    const remote = cursors.filter(cursor => {
-      if (!cursor || !cursor.uid || cursor.uid === ownUid) return false;
-      if (cursor.language !== activeLanguage) return false;
-      if (cursor.fileName !== activeFileName) return false;
-      if (Number(cursor.updatedAt || 0) <= now - 12000) return false;
-      const pos = Number(cursor.position || 0);
-      return Number.isFinite(pos) && pos >= 0 && pos <= Math.max(0, editor.value.length + 1);
-    });
+    const remote = cursors.filter(cursor => cursor && cursor.uid && cursor.uid !== ownUid && cursor.language === activeLanguage && Number(cursor.updatedAt || 0) > now - 12000);
     layer.classList.toggle('hidden', remote.length === 0);
     layer.innerHTML = remote.map(cursor => {
       const member = members[cursor.uid] || {};
@@ -20939,35 +21265,33 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
   }
 
   function scheduleCollabCursorPush() {
-    if (!collabState.active || collabState.applyingRemote || !getCollabUid()) return;
+    if (!collabState.active || !collabState.sessionRef || collabState.applyingRemote || !getCollabUid()) return;
     window.clearTimeout(collabState.cursorTimer);
-    collabState.cursorTimer = window.setTimeout(pushCollabCursor, COLLAB_CURSOR_DELAY_MS);
+    collabState.cursorTimer = window.setTimeout(pushCollabCursor, COLLAB_CURSOR_PUSH_DELAY);
   }
 
   async function pushCollabCursor() {
-    if (!collabState.active || !getCollabUid()) return;
+    if (!collabState.active || !collabState.sessionRef || !getCollabUid()) return;
     const position = Number(editor?.selectionStart || 0);
     const uid = getCollabUid();
-    if (position === collabState.lastCursorPosition && collabState.p2pReady) return;
-    collabState.lastCursorPosition = position;
-    const cursor = {
-      uid,
-      name: getCollabName(),
-      color: getCollabMemberColor(uid),
-      language: activeLanguage,
-      fileName: getActiveLanguageFileName(activeLanguage),
-      position,
-      updatedAt: Date.now()
-    };
-    collabState.latestSession = {
-      ...(collabState.latestSession || {}),
-      cursors: { ...(collabState.latestSession?.cursors || {}), [uid]: cursor }
-    };
-    const message = buildCollabChannelMessage('cursor', { cursor });
-    if (collabState.role === 'host') broadcastCollabP2PMessage(message);
-    else {
-      const hostUid = collabState.latestSession?.hostUid;
-      if (hostUid) sendCollabP2PMessage(hostUid, message);
+    try {
+      const { setDoc, serverTimestamp } = firebaseSync.modules;
+      await setDoc(collabState.sessionRef, {
+        cursors: {
+          [uid]: {
+            uid,
+            name: getCollabName(),
+            color: getCollabMemberColor(uid),
+            language: activeLanguage,
+            position,
+            updatedAt: Date.now()
+          }
+        },
+        members: { [uid]: { ...buildCollabMember(collabState.role || 'member'), color: getCollabMemberColor(uid) } },
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+    } catch (error) {
+      console.warn('Could not update live cursor.', error);
     }
   }
 
@@ -20982,814 +21306,6 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
   function getSharedSessionDocRef(code) {
     const { doc } = firebaseSync.modules;
     return doc(firebaseSync.db, firebaseSync.collectionName, firebaseSync.documentId, 'sharedSessions', String(code || '').trim().toUpperCase());
-  }
-
-
-  function getCollabPeersCollectionRef(code = collabState.code) {
-    const { collection } = firebaseSync.modules;
-    return collection(
-      firebaseSync.db,
-      firebaseSync.collectionName,
-      firebaseSync.documentId,
-      'sharedSessions',
-      String(code || '').trim().toUpperCase(),
-      'peers'
-    );
-  }
-
-  function getCollabPeerDocRef(code = collabState.code, uid = getCollabUid()) {
-    const { doc } = firebaseSync.modules;
-    return doc(
-      firebaseSync.db,
-      firebaseSync.collectionName,
-      firebaseSync.documentId,
-      'sharedSessions',
-      String(code || '').trim().toUpperCase(),
-      'peers',
-      String(uid || '').trim()
-    );
-  }
-
-  function supportsCollabP2P() {
-    return typeof window.RTCPeerConnection === 'function';
-  }
-
-  function getCollabSnapshotDocs(snapshot) {
-    if (!snapshot) return [];
-    if (Array.isArray(snapshot.docs)) return snapshot.docs;
-    const docs = [];
-    try { snapshot.forEach?.(docSnapshot => docs.push(docSnapshot)); } catch (_) {}
-    return docs;
-  }
-
-  function serializeRtcDescription(description) {
-    if (!description) return null;
-    return { type: description.type, sdp: description.sdp };
-  }
-
-  function serializeRtcCandidate(candidate) {
-    if (!candidate) return null;
-    if (typeof candidate.toJSON === 'function') return candidate.toJSON();
-    return {
-      candidate: candidate.candidate || '',
-      sdpMid: candidate.sdpMid ?? null,
-      sdpMLineIndex: candidate.sdpMLineIndex ?? null,
-      usernameFragment: candidate.usernameFragment ?? null
-    };
-  }
-
-  function waitForIceGatheringComplete(pc, timeoutMs = 4500) {
-    if (!pc || pc.iceGatheringState === 'complete') return Promise.resolve();
-    return new Promise(resolve => {
-      let settled = false;
-      const finish = () => {
-        if (settled) return;
-        settled = true;
-        try { pc.removeEventListener('icegatheringstatechange', check); } catch (_) {}
-        resolve();
-      };
-      const check = () => {
-        if (pc.iceGatheringState === 'complete') finish();
-      };
-      pc.addEventListener('icegatheringstatechange', check);
-      window.setTimeout(finish, timeoutMs);
-    });
-  }
-
-  async function addRemoteIceCandidates(pc, candidates = []) {
-    if (!pc || !Array.isArray(candidates)) return;
-    for (const candidate of candidates) {
-      if (!candidate || !candidate.candidate) continue;
-      try { await pc.addIceCandidate(candidate); } catch (error) {
-        console.warn('A collaboration ICE candidate was skipped.', error);
-      }
-    }
-  }
-
-  function updateCollabRuntimeMember(member = {}) {
-    const uid = String(member.uid || '').trim();
-    if (!uid) return;
-    const previous = collabState.peerMembers[uid] || collabState.latestSession?.members?.[uid] || {};
-    const next = {
-      ...previous,
-      ...member,
-      uid,
-      online: member.online !== false,
-      lastSeenAt: Number(member.lastSeenAt || Date.now())
-    };
-    collabState.peerMembers[uid] = next;
-    collabState.latestSession = {
-      ...(collabState.latestSession || {}),
-      members: {
-        ...(collabState.latestSession?.members || {}),
-        ...collabState.peerMembers,
-        [uid]: next
-      }
-    };
-    renderCollabMembers(collabState.latestSession);
-  }
-
-  function markCollabRuntimeMemberOffline(uid, extra = {}) {
-    const current = collabState.peerMembers[uid] || collabState.latestSession?.members?.[uid];
-    if (!current) return;
-    updateCollabRuntimeMember({ ...current, ...extra, uid, online: false, lastSeenAt: Date.now() });
-  }
-
-  function getCollabAuthoritativeState() {
-    const payload = getCollabContentPayload();
-    const current = collabState.latestSession || {};
-    return {
-      ...current,
-      ...payload,
-      active: current.active !== false,
-      shareCode: collabState.code || current.shareCode || '',
-      hostUid: current.hostUid || (collabState.role === 'host' ? getCollabUid() : ''),
-      hostName: current.hostName || (collabState.role === 'host' ? getCollabName() : ''),
-      contentVersion: Math.max(Number(current.contentVersion || 0), Number(collabState.lastContentVersion || 0)),
-      members: {
-        ...(current.members || {}),
-        ...collabState.peerMembers
-      },
-      cursors: { ...(current.cursors || {}) }
-    };
-  }
-
-  function getNextCollabHostVersion() {
-    const nowBase = Date.now() * 100;
-    collabState.hostSequence = Math.max(collabState.hostSequence + 1, nowBase);
-    return collabState.hostSequence;
-  }
-
-  function getCollabLivePatch(reason = 'edit') {
-    saveActiveEditor();
-    const fullSnapshotReason = /^(change|page|manual-save|snapshot|initial|queued-snapshot)$/i.test(String(reason || ''));
-    if (fullSnapshotReason) {
-      return {
-        patchMode: 'snapshot',
-        ...getCollabContentPayload()
-      };
-    }
-    const language = ['html', 'css', 'js'].includes(activeLanguage) ? activeLanguage : 'html';
-    const fileName = getActiveLanguageFileName(language);
-    const activityId = selectedActivityId || '';
-    const scopeKey = getCollabFileScopeKey(activityId, language, fileName);
-    const currentContent = getLanguageFileContent(language, fileName);
-    const baseContent = getRememberedCollabFileBase(scopeKey, currentContent);
-    const textPatch = getCollabTextDiffPatch(baseContent, currentContent);
-    if (!textPatch.changed) {
-      return {
-        patchMode: 'noop',
-        selectedActivityId: activityId,
-        language,
-        fileName,
-        fileNames: normalizeCodeFileNames(codeFileNames)
-      };
-    }
-    return {
-      patchMode: 'textPatch',
-      selectedActivityId: activityId,
-      language,
-      fileName,
-      patch: textPatch,
-      baseContent,
-      fallbackContent: currentContent,
-      fileNames: normalizeCodeFileNames(codeFileNames)
-    };
-  }
-
-  function getCollabLivePatchSignature(patch = {}) {
-    try { return JSON.stringify(patch); } catch { return `${Date.now()}:${editor?.value?.length || 0}`; }
-  }
-
-  function transformCollabSelectionAfterRemoteEdit(oldText = '', newText = '', start = 0, end = start) {
-    const before = String(oldText || '');
-    const after = String(newText || '');
-    const oldLength = before.length;
-    const newLength = after.length;
-    let prefix = 0;
-    const maxPrefix = Math.min(oldLength, newLength);
-    while (prefix < maxPrefix && before.charCodeAt(prefix) === after.charCodeAt(prefix)) prefix += 1;
-    let suffix = 0;
-    while (
-      suffix < oldLength - prefix &&
-      suffix < newLength - prefix &&
-      before.charCodeAt(oldLength - 1 - suffix) === after.charCodeAt(newLength - 1 - suffix)
-    ) suffix += 1;
-    const removedStart = prefix;
-    const removedEnd = oldLength - suffix;
-    const insertedEnd = newLength - suffix;
-    const delta = (insertedEnd - removedStart) - (removedEnd - removedStart);
-    const mapPosition = position => {
-      const pos = Math.max(0, Math.min(oldLength, Number(position) || 0));
-      if (pos <= removedStart) return pos;
-      if (pos >= removedEnd) return Math.max(0, Math.min(newLength, pos + delta));
-      return Math.max(0, Math.min(newLength, insertedEnd));
-    };
-    const mappedStart = mapPosition(start);
-    const mappedEnd = mapPosition(end);
-    return {
-      start: Math.min(mappedStart, mappedEnd),
-      end: Math.max(mappedStart, mappedEnd)
-    };
-  }
-
-
-  function getCollabTextDiffPatch(before = '', after = '') {
-    const oldText = String(before || '');
-    const newText = String(after || '');
-    if (oldText === newText) return { start: 0, deleteCount: 0, insertText: '', changed: false };
-    let prefix = 0;
-    const maxPrefix = Math.min(oldText.length, newText.length);
-    while (prefix < maxPrefix && oldText.charCodeAt(prefix) === newText.charCodeAt(prefix)) prefix += 1;
-    let suffix = 0;
-    while (
-      suffix < oldText.length - prefix &&
-      suffix < newText.length - prefix &&
-      oldText.charCodeAt(oldText.length - 1 - suffix) === newText.charCodeAt(newText.length - 1 - suffix)
-    ) suffix += 1;
-    const deleteCount = Math.max(0, oldText.length - prefix - suffix);
-    const insertText = newText.slice(prefix, newText.length - suffix);
-    return { start: prefix, deleteCount, insertText, changed: true };
-  }
-
-  function getCollabFileScopeKey(activityId = selectedActivityId || '', language = activeLanguage, fileName = getActiveLanguageFileName(language)) {
-    return `${activityId || 'scratch'}::${language || 'html'}::${fileName || ''}`;
-  }
-
-  function getCollabActiveFileScopeKey() {
-    const language = ['html', 'css', 'js'].includes(activeLanguage) ? activeLanguage : 'html';
-    return getCollabFileScopeKey(selectedActivityId || '', language, getActiveLanguageFileName(language));
-  }
-
-  function rememberCollabFileBase(scopeKey, text) {
-    if (!scopeKey) return;
-    collabState.fileSyncBases[scopeKey] = String(text ?? '');
-  }
-
-  function getRememberedCollabFileBase(scopeKey, fallback = '') {
-    if (!scopeKey) return String(fallback ?? '');
-    return Object.prototype.hasOwnProperty.call(collabState.fileSyncBases, scopeKey)
-      ? String(collabState.fileSyncBases[scopeKey] ?? '')
-      : String(fallback ?? '');
-  }
-
-  function mapCollabPatchRangeFromBase(baseText = '', currentText = '', start = 0, deleteCount = 0) {
-    const base = String(baseText || '');
-    const current = String(currentText || '');
-    const safeStart = Math.max(0, Math.min(base.length, Number(start) || 0));
-    const safeEnd = Math.max(safeStart, Math.min(base.length, safeStart + Math.max(0, Number(deleteCount) || 0)));
-    if (base === current) return { start: safeStart, end: safeEnd };
-    const mapped = transformCollabSelectionAfterRemoteEdit(base, current, safeStart, safeEnd);
-    return {
-      start: Math.max(0, Math.min(current.length, mapped.start)),
-      end: Math.max(0, Math.min(current.length, mapped.end))
-    };
-  }
-
-  function applyCollabTextPatchToValue(currentText = '', patch = {}, baseText = '') {
-    const current = String(currentText || '');
-    const sourceBase = String(baseText ?? currentText ?? '');
-    const range = mapCollabPatchRangeFromBase(sourceBase, current, patch.start, patch.deleteCount);
-    const insertText = String(patch.insertText ?? '');
-    return current.slice(0, range.start) + insertText + current.slice(range.end);
-  }
-
-
-  function rememberCollabBasesFromCodeByActivity(source = codeByActivity) {
-    Object.entries(source || {}).forEach(([activityKey, store]) => {
-      const normalized = normalizeCodeStore(store || starterCode);
-      ['html', 'css', 'js'].forEach(language => {
-        const files = getLanguageFileMap(language, normalized);
-        Object.entries(files || {}).forEach(([fileName, content]) => {
-          rememberCollabFileBase(getCollabFileScopeKey(activityKey === 'scratch' ? '' : activityKey, language, fileName), content);
-        });
-      });
-    });
-  }
-
-  function applyCollaborationLivePatch(data = {}, options = {}) {
-    if (data.patchMode === 'noop') {
-      const version = Number(data.contentVersion || 0);
-      if (version > collabState.lastContentVersion) collabState.lastContentVersion = version;
-      return;
-    }
-    if (data.patchMode !== 'file' && data.patchMode !== 'textPatch') {
-      applyCollaborationContent(data, options);
-      return;
-    }
-    const version = Number(data.contentVersion || 0);
-    const sameEditor = data.lastEditorUid && data.lastEditorUid === getCollabUid();
-    if (!options.force && (sameEditor || !version || version <= collabState.lastContentVersion)) {
-      if (sameEditor && version > collabState.lastContentVersion) collabState.lastContentVersion = version;
-      return;
-    }
-
-    const language = ['html', 'css', 'js'].includes(data.language) ? data.language : 'html';
-    const activityId = activities.some(item => item.id === data.selectedActivityId) ? data.selectedActivityId : '';
-    const codeKey = activityId || 'scratch';
-    const targetStore = normalizeCodeStore(codeByActivity[codeKey] || starterCode);
-    const fileName = cleanLanguageFileName(data.fileName, language);
-    const scopeKey = getCollabFileScopeKey(activityId, language, fileName);
-    const files = getLanguageFileMap(language, targetStore);
-    const currentFileContent = String(files[fileName] ?? '');
-    const nextFileContent = data.patchMode === 'textPatch'
-      ? applyCollabTextPatchToValue(currentFileContent, data.patch || {}, String(data.baseContent ?? currentFileContent))
-      : String(data.content ?? '');
-    files[fileName] = nextFileContent;
-    rememberCollabFileBase(scopeKey, nextFileContent);
-    const meta = getLanguageFileMeta(language);
-    targetStore[meta.codeKey] = files[fileName];
-    if (!targetStore[meta.activeKey]) targetStore[meta.activeKey] = fileName;
-    codeByActivity[codeKey] = targetStore;
-
-    const viewingSameActivity = (selectedActivityId || '') === activityId;
-    const viewingSameFile = viewingSameActivity
-      && activeLanguage === language
-      && getActiveLanguageFileName(language) === fileName;
-
-    collabState.applyingRemote = true;
-    try {
-      saveCodeByActivity();
-      if (data.fileNames) {
-        codeFileNames = normalizeCodeFileNames({ ...codeFileNames, ...data.fileNames });
-        saveCodeFileNames();
-      }
-      if (viewingSameActivity) codeStore = targetStore;
-      if (viewingSameFile) {
-        const oldValue = String(editor.value || '');
-        const start = Number(editor.selectionStart || 0);
-        const end = Number(editor.selectionEnd || start);
-        const nextValue = String(files[fileName] || '');
-        const mappedSelection = transformCollabSelectionAfterRemoteEdit(oldValue, nextValue, start, end);
-        editor.value = nextValue;
-        const max = editor.value.length;
-        editor.setSelectionRange(Math.min(mappedSelection.start, max), Math.min(mappedSelection.end, max));
-        resetResultPanel();
-        runCode(false, { scroll: false, source: 'collab-p2p' });
-      }
-      markCollabRemoteVersion(version);
-      setStatus(`${data.lastEditorName || 'Classmate'} updated ${fileName}`);
-    } finally {
-      window.setTimeout(() => { collabState.applyingRemote = false; }, 45);
-    }
-  }
-
-  function buildCollabChannelMessage(type, data = {}) {
-    return {
-      type,
-      room: collabState.code,
-      senderUid: getCollabUid(),
-      senderName: getCollabName(),
-      sentAt: Date.now(),
-      ...data
-    };
-  }
-
-  function sendRawCollabChannelMessage(channel, message) {
-    if (!channel || channel.readyState !== 'open') return false;
-    let serialized;
-    try { serialized = JSON.stringify(message); } catch { return false; }
-    const maxChunk = 32000;
-    try {
-      if (serialized.length <= maxChunk) {
-        channel.send(serialized);
-        return true;
-      }
-      const id = `${getCollabUid()}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-      const total = Math.ceil(serialized.length / maxChunk);
-      for (let index = 0; index < total; index += 1) {
-        channel.send(JSON.stringify({
-          __mcsCollabChunk: true,
-          id,
-          index,
-          total,
-          data: serialized.slice(index * maxChunk, (index + 1) * maxChunk)
-        }));
-      }
-      return true;
-    } catch (error) {
-      console.warn('Could not send a direct collaboration update.', error);
-      return false;
-    }
-  }
-
-  function sendCollabP2PMessage(targetUid, message) {
-    const channel = collabState.dataChannels.get(targetUid);
-    return sendRawCollabChannelMessage(channel, message);
-  }
-
-  function broadcastCollabP2PMessage(message, exceptUid = '') {
-    let sent = 0;
-    collabState.dataChannels.forEach((channel, uid) => {
-      if (uid === exceptUid) return;
-      if (sendRawCollabChannelMessage(channel, message)) sent += 1;
-    });
-    return sent;
-  }
-
-  function parseCollabChannelMessage(raw, remoteUid) {
-    let message;
-    try { message = JSON.parse(String(raw || '')); } catch { return null; }
-    if (!message?.__mcsCollabChunk) return message;
-    const key = `${remoteUid}:${message.id}`;
-    const existing = collabState.chunkBuffers.get(key) || {
-      chunks: new Array(Number(message.total || 0)),
-      received: 0,
-      expiresAt: Date.now() + 30000
-    };
-    if (!existing.chunks[message.index]) {
-      existing.chunks[message.index] = String(message.data || '');
-      existing.received += 1;
-    }
-    collabState.chunkBuffers.set(key, existing);
-    if (existing.received < existing.chunks.length) return null;
-    collabState.chunkBuffers.delete(key);
-    try { return JSON.parse(existing.chunks.join('')); } catch { return null; }
-  }
-
-  function pruneCollabChunkBuffers() {
-    const now = Date.now();
-    collabState.chunkBuffers.forEach((entry, key) => {
-      if (Number(entry?.expiresAt || 0) < now) collabState.chunkBuffers.delete(key);
-    });
-  }
-
-  function attachCollabDataChannel(remoteUid, channel) {
-    if (!channel || !remoteUid) return;
-    const previous = collabState.dataChannels.get(remoteUid);
-    if (previous && previous !== channel) {
-      try { previous.close(); } catch (_) {}
-    }
-    collabState.dataChannels.set(remoteUid, channel);
-    channel.binaryType = 'arraybuffer';
-    channel.onopen = () => {
-      collabState.p2pMode = true;
-      collabState.p2pReady = collabState.role === 'host' || remoteUid === collabState.latestSession?.hostUid;
-      collabState.reconnectAttempts = 0;
-      updateCollabRuntimeMember({
-        ...(collabState.peerMembers[remoteUid] || {}),
-        uid: remoteUid,
-        online: true,
-        lastSeenAt: Date.now()
-      });
-      if (collabState.role === 'host') {
-        sendCollabP2PMessage(remoteUid, buildCollabChannelMessage('state', { data: getCollabAuthoritativeState() }));
-        broadcastCollabP2PMessage(buildCollabChannelMessage('members', { members: collabState.peerMembers }));
-      } else {
-        sendCollabP2PMessage(remoteUid, buildCollabChannelMessage('hello', { member: buildCollabMember('member') }));
-        sendCollabP2PMessage(remoteUid, buildCollabChannelMessage('request-state'));
-        if (collabState.pendingLiveMessage) {
-          sendCollabP2PMessage(remoteUid, collabState.pendingLiveMessage);
-          collabState.pendingLiveMessage = null;
-        }
-      }
-      setStatus('Direct live sync connected');
-      setCollabStatus('Direct live sync connected. Firebase usage stays low.', 'success');
-      renderCollabMembers(collabState.latestSession);
-    };
-    channel.onmessage = event => {
-      pruneCollabChunkBuffers();
-      const message = parseCollabChannelMessage(event.data, remoteUid);
-      if (message) handleCollabP2PMessage(remoteUid, message);
-    };
-    channel.onclose = () => {
-      collabState.dataChannels.delete(remoteUid);
-      markCollabRuntimeMemberOffline(remoteUid);
-      if (collabState.role !== 'host' && collabState.active) {
-        collabState.p2pReady = false;
-        setStatus('Direct live sync reconnecting');
-        scheduleMemberP2PReconnect();
-      }
-    };
-    channel.onerror = error => console.warn('Direct collaboration channel error.', error);
-  }
-
-  function createCollabPeerConnection(remoteUid, hostSide = false) {
-    const existing = collabState.peerConnections.get(remoteUid);
-    if (existing) {
-      try { existing.close(); } catch (_) {}
-    }
-    const pc = new RTCPeerConnection({ iceServers: COLLAB_ICE_SERVERS });
-    pc.__mcsCandidates = [];
-    pc.onicecandidate = event => {
-      const candidate = serializeRtcCandidate(event.candidate);
-      if (candidate) pc.__mcsCandidates.push(candidate);
-    };
-    pc.onconnectionstatechange = () => {
-      const state = pc.connectionState;
-      if (state === 'connected') {
-        updateCollabRuntimeMember({ ...(collabState.peerMembers[remoteUid] || {}), uid: remoteUid, online: true, lastSeenAt: Date.now() });
-      } else if (['failed', 'disconnected', 'closed'].includes(state)) {
-        markCollabRuntimeMemberOffline(remoteUid);
-        if (!hostSide && collabState.active) scheduleMemberP2PReconnect();
-      }
-    };
-    if (hostSide) {
-      pc.ondatachannel = event => attachCollabDataChannel(remoteUid, event.channel);
-    }
-    collabState.peerConnections.set(remoteUid, pc);
-    return pc;
-  }
-
-  function closeCollabPeer(remoteUid, options = {}) {
-    const channel = collabState.dataChannels.get(remoteUid);
-    const pc = collabState.peerConnections.get(remoteUid);
-    if (options.suppressReconnect) {
-      if (channel) channel.onclose = null;
-      if (pc) pc.onconnectionstatechange = null;
-    }
-    try { channel?.close(); } catch (_) {}
-    try { pc?.close(); } catch (_) {}
-    collabState.dataChannels.delete(remoteUid);
-    collabState.peerConnections.delete(remoteUid);
-  }
-
-  function cleanupCollabP2P() {
-    window.clearTimeout(collabState.p2pConnectTimer);
-    window.clearInterval(collabState.snapshotTimer);
-    if (typeof collabState.peerSignalUnsubscribe === 'function') collabState.peerSignalUnsubscribe();
-    if (typeof collabState.ownPeerUnsubscribe === 'function') collabState.ownPeerUnsubscribe();
-    collabState.peerSignalUnsubscribe = null;
-    collabState.ownPeerUnsubscribe = null;
-    collabState.peerConnections.forEach(pc => { try { pc.close(); } catch (_) {} });
-    collabState.dataChannels.forEach(channel => { try { channel.close(); } catch (_) {} });
-    collabState.peerConnections.clear();
-    collabState.dataChannels.clear();
-    collabState.peerOfferKeys.clear();
-    collabState.chunkBuffers.clear();
-    collabState.fileSyncBases = {};
-    collabState.peerMembers = {};
-    collabState.p2pMode = false;
-    collabState.p2pReady = false;
-    collabState.pendingLiveMessage = null;
-    collabState.ownPeerRef = null;
-    collabState.p2pConnectTimer = null;
-    collabState.snapshotTimer = null;
-  }
-
-  async function acceptCollabPeerOffer(peerDoc) {
-    if (collabState.role !== 'host' || !collabState.active) return;
-    const data = snapshotData(peerDoc);
-    const remoteUid = String(data.uid || peerDoc.id || '').trim();
-    if (!remoteUid || remoteUid === getCollabUid() || !data.offer?.sdp) return;
-    if (collabState.latestSession?.blockedUids?.[remoteUid]) return;
-    const offerKey = String(data.offerNonce || data.offer.sdp || '');
-    if (collabState.peerOfferKeys.get(remoteUid) === offerKey) return;
-    collabState.peerOfferKeys.set(remoteUid, offerKey);
-    updateCollabRuntimeMember({
-      uid: remoteUid,
-      name: data.name || data.studentId || 'Student',
-      studentId: data.studentId || '',
-      role: 'member',
-      color: getCollabMemberColor(remoteUid),
-      online: true,
-      lastSeenAt: Date.now()
-    });
-    try {
-      const pc = createCollabPeerConnection(remoteUid, true);
-      await pc.setRemoteDescription(data.offer);
-      await addRemoteIceCandidates(pc, data.memberCandidates || []);
-      const answer = await pc.createAnswer();
-      await pc.setLocalDescription(answer);
-      await waitForIceGatheringComplete(pc);
-      const { setDoc, serverTimestamp } = firebaseSync.modules;
-      await setDoc(peerDoc.ref || getCollabPeerDocRef(collabState.code, remoteUid), {
-        uid: remoteUid,
-        hostUid: getCollabUid(),
-        answer: serializeRtcDescription(pc.localDescription),
-        hostCandidates: pc.__mcsCandidates || [],
-        answerNonce: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-        acceptedAtMs: Date.now(),
-        updatedAt: serverTimestamp()
-      }, { merge: true });
-    } catch (error) {
-      console.warn(`Could not establish direct collaboration with ${remoteUid}.`, error);
-      closeCollabPeer(remoteUid);
-      collabState.peerOfferKeys.delete(remoteUid);
-    }
-  }
-
-  function startHostP2PSignaling() {
-    if (!supportsCollabP2P() || collabState.role !== 'host') return false;
-    const { onSnapshot } = firebaseSync.modules;
-    const peersRef = getCollabPeersCollectionRef(collabState.code);
-    collabState.peerSignalUnsubscribe = onSnapshot(peersRef, snapshot => {
-      getCollabSnapshotDocs(snapshot).forEach(peerDoc => {
-        acceptCollabPeerOffer(peerDoc).catch(error => console.warn('Peer offer failed.', error));
-      });
-    }, error => {
-      console.warn('Collaboration signaling listener failed.', error);
-      setStatus('Live sync signaling disconnected');
-    });
-    collabState.p2pMode = true;
-    collabState.p2pReady = true;
-    collabState.snapshotTimer = window.setInterval(() => {
-      persistCollabSnapshot('periodic').catch(error => console.warn('Periodic live snapshot skipped.', error));
-    }, COLLAB_SNAPSHOT_MS);
-    return true;
-  }
-
-  async function startMemberP2PSignaling() {
-    if (!supportsCollabP2P() || collabState.role === 'host' || !collabState.active) return false;
-    const hostUid = String(collabState.latestSession?.hostUid || '').trim();
-    const ownUid = getCollabUid();
-    if (!hostUid || !ownUid) return false;
-    closeCollabPeer(hostUid, { suppressReconnect: true });
-    if (typeof collabState.ownPeerUnsubscribe === 'function') collabState.ownPeerUnsubscribe();
-    const pc = createCollabPeerConnection(hostUid, false);
-    const channel = pc.createDataChannel('mcs-live-collab', { ordered: true });
-    attachCollabDataChannel(hostUid, channel);
-    const offer = await pc.createOffer();
-    await pc.setLocalDescription(offer);
-    await waitForIceGatheringComplete(pc);
-    const peerRef = getCollabPeerDocRef(collabState.code, ownUid);
-    collabState.ownPeerRef = peerRef;
-    const { setDoc, onSnapshot, serverTimestamp } = firebaseSync.modules;
-    const offerNonce = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    await setDoc(peerRef, {
-      uid: ownUid,
-      hostUid,
-      name: getCollabName(),
-      studentId: getCollabStudent()?.studentId || '',
-      offer: serializeRtcDescription(pc.localDescription),
-      memberCandidates: pc.__mcsCandidates || [],
-      offerNonce,
-      state: 'offered',
-      createdAtMs: Date.now(),
-      updatedAt: serverTimestamp()
-    }, { merge: false });
-    collabState.ownPeerUnsubscribe = onSnapshot(peerRef, async snapshot => {
-      if (!snapshotExists(snapshot)) return;
-      const data = snapshotData(snapshot);
-      if (!data.answer?.sdp || pc.currentRemoteDescription) return;
-      try {
-        await pc.setRemoteDescription(data.answer);
-        await addRemoteIceCandidates(pc, data.hostCandidates || []);
-      } catch (error) {
-        console.warn('Could not finish direct collaboration connection.', error);
-      }
-    }, error => console.warn('Member signaling listener failed.', error));
-    window.clearTimeout(collabState.p2pConnectTimer);
-    collabState.p2pConnectTimer = window.setTimeout(() => {
-      if (!collabState.p2pReady && collabState.active) {
-        setStatus('Direct live sync is reconnecting');
-        setCollabStatus('Direct connection is taking longer than expected. Your work stays local while it reconnects.', 'warning');
-        scheduleMemberP2PReconnect();
-      }
-    }, COLLAB_SIGNAL_TIMEOUT_MS);
-    collabState.p2pMode = true;
-    return true;
-  }
-
-  function scheduleMemberP2PReconnect() {
-    if (!collabState.active || collabState.role === 'host') return;
-    window.clearTimeout(collabState.p2pConnectTimer);
-    collabState.reconnectAttempts += 1;
-    const delay = Math.min(15000, 1500 * Math.max(1, collabState.reconnectAttempts));
-    collabState.p2pConnectTimer = window.setTimeout(() => {
-      startMemberP2PSignaling().catch(error => console.warn('Direct live sync reconnect failed.', error));
-    }, delay);
-  }
-
-  async function startCollabP2P() {
-    if (!supportsCollabP2P()) {
-      setCollabStatus('This browser cannot use direct live sync. Use an updated Chrome, Edge, or Safari browser.', 'warning');
-      return false;
-    }
-    if (collabState.role === 'host') return startHostP2PSignaling();
-    try { return await startMemberP2PSignaling(); } catch (error) {
-      console.warn('Direct collaboration startup failed.', error);
-      scheduleMemberP2PReconnect();
-      return false;
-    }
-  }
-
-  function handleCollabP2PMessage(remoteUid, message = {}) {
-    if (!message || message.room !== collabState.code) return;
-    if (message.type === 'hello') {
-      if (collabState.role !== 'host') return;
-      updateCollabRuntimeMember({ ...(message.member || {}), uid: remoteUid, online: true, lastSeenAt: Date.now() });
-      sendCollabP2PMessage(remoteUid, buildCollabChannelMessage('state', { data: getCollabAuthoritativeState() }));
-      broadcastCollabP2PMessage(buildCollabChannelMessage('members', { members: collabState.peerMembers }));
-      return;
-    }
-    if (message.type === 'request-state') {
-      if (collabState.role === 'host') sendCollabP2PMessage(remoteUid, buildCollabChannelMessage('state', { data: getCollabAuthoritativeState() }));
-      return;
-    }
-    if (message.type === 'state') {
-      if (collabState.role === 'host' || !message.data) return;
-      collabState.latestSession = { ...(collabState.latestSession || {}), ...message.data };
-      collabState.peerMembers = { ...(message.data.members || {}) };
-      applyCollaborationContent(message.data, { force: true });
-      renderCollabMembers(collabState.latestSession);
-      renderCollabCursors(collabState.latestSession);
-      return;
-    }
-    if (message.type === 'members') {
-      collabState.peerMembers = { ...collabState.peerMembers, ...(message.members || {}) };
-      collabState.latestSession = {
-        ...(collabState.latestSession || {}),
-        members: { ...(collabState.latestSession?.members || {}), ...collabState.peerMembers }
-      };
-      renderCollabMembers(collabState.latestSession);
-      return;
-    }
-    if (message.type === 'ping') {
-      updateCollabRuntimeMember({
-        ...(collabState.peerMembers[remoteUid] || {}),
-        ...(message.member || {}),
-        uid: remoteUid,
-        online: true,
-        lastSeenAt: Date.now()
-      });
-      sendCollabP2PMessage(remoteUid, buildCollabChannelMessage('pong', { member: buildCollabMember(collabState.role || 'member') }));
-      return;
-    }
-    if (message.type === 'pong') {
-      updateCollabRuntimeMember({
-        ...(collabState.peerMembers[remoteUid] || {}),
-        ...(message.member || {}),
-        uid: remoteUid,
-        online: true,
-        lastSeenAt: Date.now()
-      });
-      return;
-    }
-    if (message.type === 'leave') {
-      if (collabState.role === 'host') {
-        markCollabRuntimeMemberOffline(remoteUid, { left: true });
-        closeCollabPeer(remoteUid);
-        broadcastCollabP2PMessage(buildCollabChannelMessage('members', { members: collabState.peerMembers }));
-      }
-      return;
-    }
-    if (message.type === 'stop') {
-      if (collabState.role !== 'host') {
-        leaveCollaborationSession({ silent: false, message: 'Host stopped sharing.' });
-        closeCollabOverlay();
-      }
-      return;
-    }
-    if (message.type === 'kick') {
-      if (collabState.role !== 'host' && (!message.targetUid || message.targetUid === getCollabUid())) {
-        leaveCollaborationSession({ silent: false, message: 'You were removed from the live project by the host.' });
-        closeCollabOverlay();
-      }
-      return;
-    }
-    if (message.type === 'cursor') {
-      const cursor = message.cursor || {};
-      collabState.latestSession = {
-        ...(collabState.latestSession || {}),
-        cursors: {
-          ...(collabState.latestSession?.cursors || {}),
-          [cursor.uid || remoteUid]: { ...cursor, uid: cursor.uid || remoteUid, updatedAt: Date.now() }
-        }
-      };
-      if (collabState.role === 'host') broadcastCollabP2PMessage(message, remoteUid);
-      renderCollabCursors(collabState.latestSession);
-      return;
-    }
-    if (message.type === 'content') {
-      const incoming = message.data || {};
-      if (collabState.role === 'host') {
-        if (collabState.latestSession?.allowEdit === false || !isCollaborationEditAllowed()) return;
-        const authoritative = {
-          ...incoming,
-          contentVersion: getNextCollabHostVersion(),
-          lastEditorUid: remoteUid,
-          lastEditorName: message.senderName || incoming.lastEditorName || 'Classmate'
-        };
-        collabState.latestSession = { ...(collabState.latestSession || {}), ...authoritative };
-        applyCollaborationLivePatch(authoritative);
-        broadcastCollabP2PMessage(buildCollabChannelMessage('content', { data: authoritative }));
-      } else {
-        collabState.latestSession = { ...(collabState.latestSession || {}), ...incoming };
-        applyCollaborationLivePatch(incoming);
-      }
-    }
-  }
-
-  async function persistCollabSnapshot(reason = 'periodic', options = {}) {
-    if (!collabState.active || collabState.role !== 'host' || !collabState.sessionRef) return false;
-    const now = Date.now();
-    if (!options.force && collabState.lastSnapshotWriteAt && now - collabState.lastSnapshotWriteAt < COLLAB_SNAPSHOT_MS - 5000) return false;
-    const payload = getCollabContentPayload();
-    const { setDoc, serverTimestamp } = firebaseSync.modules;
-    const version = Math.max(Number(collabState.lastContentVersion || 0), getNextCollabHostVersion());
-    await setDoc(collabState.sessionRef, {
-      ...payload,
-      contentVersion: version,
-      lastEditorUid: getCollabUid(),
-      lastEditorName: getCollabName(),
-      lastSnapshotReason: reason,
-      lastSnapshotAtMs: now,
-      updatedAt: serverTimestamp()
-    }, { merge: true });
-    collabState.lastSnapshotWriteAt = now;
-    collabState.lastContentVersion = version;
-    return true;
   }
 
   function getCollabContentPayload() {
@@ -22316,26 +21832,28 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
   }
 
   async function startCollaborationHostSession() {
-    if (!isCollaborationEnabled()) return;
-    const student = getCollabStudent();
-    if (!student || !appSession.currentProjectId) {
-      setCollabStatus('Open or create a saved student project first before sharing.', 'error');
-      return;
-    }
-    const ready = await initFirebaseSync();
-    if (!ready) {
-      setCollabStatus(`Firebase is not ready. ${firebaseSync.lastError || 'Check connection.'}`, 'error');
-      return;
-    }
-    let authUser;
+    if (!beginCollabAction('start', 'Starting...')) return;
     try {
-      authUser = await ensureCollabAuthUserForWrite();
-    } catch (authError) {
-      setCollabStatus(authError?.message || 'Please log in again before sharing.', 'error');
-      return;
-    }
-    try {
-      setCollabStatus('Starting live session...', 'warning');
+      if (!isCollaborationEnabled()) return;
+      const student = getCollabStudent();
+      if (!student || !appSession.currentProjectId) {
+        setCollabStatus('Open or create a saved student project first before sharing.', 'error');
+        return;
+      }
+      const ready = await initFirebaseSync();
+      if (!ready) {
+        setCollabStatus(`Firebase is not ready. ${firebaseSync.lastError || 'Check connection.'}`, 'error');
+        return;
+      }
+      let authUser;
+      try {
+        authUser = await ensureCollabAuthUserForWrite();
+      } catch (authError) {
+        setCollabStatus(authError?.message || 'Please log in again before sharing.', 'error');
+        return;
+      }
+      try {
+        setCollabStatus('Starting live session...', 'warning');
       try {
         // Saving the student's own project is helpful, but it must not block
         // Share/Join. If a recovered account has an old project uid or a
@@ -22366,8 +21884,6 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
         lastEditorUid: uid,
         lastEditorName: student.name || student.studentId || 'Host',
         contentVersion: Date.now(),
-        transport: 'webrtc-p2p',
-        blockedUids: {},
         members: { [uid]: buildCollabMember('host') },
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
@@ -22385,9 +21901,12 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
       document.getElementById('collabCopyBtn')?.classList.remove('hidden');
       setCollabStatus(`Live code ready: ${code}. Copy this code and give it to classmates.`, 'success');
       setStatus(`Share code: ${code}`);
-    } catch (error) {
-      console.error('Could not start collaboration.', error);
-      setCollabStatus(error?.message || 'Could not start live session.', 'error');
+      } catch (error) {
+        console.error('Could not start collaboration.', error);
+        setCollabStatus(error?.message || 'Could not start live session.', 'error');
+      }
+    } finally {
+      endCollabAction('start');
     }
   }
 
@@ -22405,15 +21924,20 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
   }
 
   async function joinCollaborationFromOverlay() {
-    const input = document.getElementById('collabJoinCodeInput');
-    const code = String(input?.value || '').trim().toUpperCase();
-    if (!code) {
-      setCollabStatus('Type the share code first.', 'error');
-      return;
+    if (!beginCollabAction('join', 'Joining...')) return;
+    try {
+      const input = document.getElementById('collabJoinCodeInput');
+      const code = String(input?.value || '').trim().toUpperCase();
+      if (!code) {
+        setCollabStatus('Type the share code first.', 'error');
+        return;
+      }
+      const overlay = document.getElementById('collabOverlay');
+      const fromDashboard = overlay?.dataset?.collabSource === 'dashboard' || overlay?.classList.contains('collab-dashboard-join-mode');
+      await joinCollaborationSession(code, { role: 'member', source: fromDashboard ? 'dashboard' : '' });
+    } finally {
+      endCollabAction('join');
     }
-    const overlay = document.getElementById('collabOverlay');
-    const fromDashboard = overlay?.dataset?.collabSource === 'dashboard' || overlay?.classList.contains('collab-dashboard-join-mode');
-    await joinCollaborationSession(code, { role: 'member', source: fromDashboard ? 'dashboard' : '' });
   }
 
   async function joinCollaborationSession(code, options = {}) {
@@ -22442,13 +21966,12 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     try {
       const normalizedCode = String(code || '').trim().toUpperCase();
       const sessionRef = getSharedSessionDocRef(normalizedCode);
-      const { getDoc } = firebaseSync.modules;
+      const { getDoc, setDoc, serverTimestamp } = firebaseSync.modules;
       const snap = await getDoc(sessionRef);
       if (!snapshotExists(snap)) throw new Error('Share code not found.');
       const data = snapshotData(snap);
       if (data.active === false) throw new Error('This share code is already stopped.');
       const uid = authUser.uid;
-      if (data.blockedUids?.[uid]) throw new Error('You were removed from this live project.');
       const role = options.role === 'host' || data.hostUid === uid ? 'host' : 'member';
       if (role !== 'host' && !options.noRestore) {
         const fromDashboard = options.source === 'dashboard';
@@ -22461,6 +21984,10 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
           else sessionStorage.removeItem('studentCodeStudio.collab.localBeforeJoin');
         } catch {}
       }
+      await setDoc(sessionRef, {
+        members: { [uid]: buildCollabMember(role) },
+        updatedAt: serverTimestamp()
+      }, { merge: true });
       startCollaborationListener(normalizedCode, sessionRef, role, data);
       if (data.codeByActivity) applyCollaborationContent(data, { force: true });
       if (options.source === 'dashboard' && role !== 'host') enterCollabWorkspaceFromDashboard(data);
@@ -22485,22 +22012,11 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     collabState.code = code;
     collabState.sessionRef = sessionRef;
     collabState.canEdit = role === 'host' || (initialData.allowEdit !== false && isCollaborationEditAllowed());
-    collabState.lastContentVersion = Number(initialData.contentVersion || 0);
-    collabState.hostSequence = Math.max(Number(initialData.contentVersion || 0), Date.now() * 100);
-    collabState.fileSyncBases = {};
-    collabState.peerMembers = {
-      ...(initialData.members || {}),
-      [getCollabUid()]: buildCollabMember(role)
-    };
-    collabState.latestSession = {
-      ...initialData,
-      members: { ...(initialData.members || {}), ...collabState.peerMembers },
-      cursors: { ...(initialData.cursors || {}) }
-    };
     if (role === 'host') {
       collabState.savedProjectId = '';
       collabState.savedProjectName = '';
     }
+    collabState.lastContentVersion = Number(initialData.contentVersion || 0);
     editor.readOnly = !collabState.canEdit;
     document.body.classList.toggle('collab-active', true);
     document.body.classList.toggle('collab-view-only', !collabState.canEdit);
@@ -22511,56 +22027,49 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
         leaveCollaborationSession({ silent: false, message: 'Live session ended.' });
         return;
       }
-      const cloudData = snapshotData(snapshot);
-      if (collabState.role !== 'host' && cloudData.blockedUids?.[getCollabUid()]) {
+      const data = snapshotData(snapshot);
+      collabState.latestSession = data;
+      const ownMember = data.members?.[getCollabUid()];
+      if (collabState.role !== 'host' && ownMember?.kicked === true) {
         leaveCollaborationSession({ silent: false, message: 'You were removed from the live project by the host.' });
         closeCollabOverlay();
         return;
       }
-      if (cloudData.active === false) {
+      if (data.active === false) {
         leaveCollaborationSession({ silent: false, message: 'Host stopped sharing.' });
         return;
       }
-      const data = {
-        ...cloudData,
-        members: { ...(cloudData.members || {}), ...collabState.peerMembers },
-        cursors: { ...(cloudData.cursors || {}), ...(collabState.latestSession?.cursors || {}) }
-      };
-      collabState.latestSession = data;
       collabState.canEdit = collabState.role === 'host' || (data.allowEdit !== false && isCollaborationEditAllowed());
       editor.readOnly = !collabState.canEdit;
       document.body.classList.toggle('collab-view-only', !collabState.canEdit);
       renderCollabMembers(data);
       renderCollabLiveIndicator(data);
       renderCollabCursors(data);
-      // The session document now changes only for control events and periodic
-      // recovery snapshots. Live typing travels directly through WebRTC.
       applyCollaborationContent(data);
     }, error => {
       console.warn('Collaboration listener failed.', error);
-      setStatus('Live project control connection disconnected');
+      setStatus('Live project sync disconnected');
     });
     window.clearInterval(collabState.heartbeatTimer);
     collabState.heartbeatTimer = window.setInterval(updateCollabHeartbeat, COLLAB_HEARTBEAT_MS);
     updateCollabHeartbeat();
-    startCollabP2P().catch(error => console.warn('Direct live sync could not start.', error));
     scheduleCollabCursorPush();
     updateCollaborationFeatureVisibility();
     syncCollabSaveButtonVisibility();
-    renderCollabMembers(collabState.latestSession);
     renderCollabLiveIndicator(initialData);
     renderCollabCursors(initialData);
   }
 
   async function updateCollabHeartbeat() {
-    if (!collabState.active || !getCollabUid()) return;
-    const ownMember = buildCollabMember(collabState.role || 'member');
-    updateCollabRuntimeMember(ownMember);
-    const ping = buildCollabChannelMessage('ping', { member: ownMember });
-    if (collabState.role === 'host') broadcastCollabP2PMessage(ping);
-    else {
-      const hostUid = collabState.latestSession?.hostUid;
-      if (hostUid) sendCollabP2PMessage(hostUid, ping);
+    if (!collabState.active || !collabState.sessionRef || !getCollabUid()) return;
+    try {
+      const { setDoc, serverTimestamp } = firebaseSync.modules;
+      await setDoc(collabState.sessionRef, {
+        members: { [getCollabUid()]: buildCollabMember(collabState.role || 'member') },
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+    } catch (error) {
+      console.warn('Could not update collaboration heartbeat.', error);
     }
   }
 
@@ -22588,7 +22097,6 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
       codeStore = codeByActivity[codeKey] ? normalizeCodeStore(codeByActivity[codeKey]) : normalizeCodeStore(starterCode);
       codeByActivity[codeKey] = normalizeCodeStore(codeStore);
       codeFileNames = normalizeCodeFileNames(data.fileNames || DEFAULT_CODE_FILE_NAMES);
-      rememberCollabBasesFromCodeByActivity(codeByActivity);
 
       if (!options.force) {
         ['html', 'css', 'js'].forEach(language => {
@@ -22637,64 +22145,48 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
   }
 
   async function pushCollaborationUpdate(reason = 'edit') {
-    if (!collabState.active || !collabState.canEdit || collabState.applyingRemote) return;
+    if (!collabState.active || !collabState.sessionRef || !collabState.canEdit || collabState.applyingRemote) return;
     if (collabState.pushInFlight) {
       collabState.queuedPush = true;
       return;
     }
-    let patch;
+    let payload;
     let signature;
     try {
-      patch = getCollabLivePatch(reason);
-      if (patch?.patchMode === 'noop') return;
-      signature = getCollabLivePatchSignature(patch);
+      payload = getCollabContentPayload();
+      signature = getCollabPayloadSignature(payload);
       if (reason !== 'silent' && signature && signature === collabState.lastPushedSignature) return;
     } catch (error) {
-      console.warn('Could not prepare direct live project update.', error);
+      console.warn('Could not prepare live project payload.', error);
       return;
     }
     collabState.pushInFlight = true;
     collabState.queuedPush = false;
     try {
-      const provisionalVersion = collabState.role === 'host' ? getNextCollabHostVersion() : Date.now() * 100;
-      const data = {
-        ...patch,
+      const { setDoc, serverTimestamp } = firebaseSync.modules;
+      const version = Date.now();
+      collabState.lastLocalVersion = version;
+      await setDoc(collabState.sessionRef, {
+        ...payload,
         lastEditorUid: getCollabUid(),
         lastEditorName: getCollabName(),
         lastEditorLanguage: activeLanguage,
         lastEditorFile: getActiveLanguageFileName(activeLanguage),
-        contentVersion: provisionalVersion
-      };
-      const message = buildCollabChannelMessage('content', { data });
-      let sent = false;
-      if (collabState.role === 'host') {
-        collabState.latestSession = { ...(collabState.latestSession || {}), ...data };
-        sent = broadcastCollabP2PMessage(message) > 0 || collabState.dataChannels.size === 0;
-        collabState.lastContentVersion = provisionalVersion;
-      } else {
-        const hostUid = collabState.latestSession?.hostUid;
-        sent = Boolean(hostUid && sendCollabP2PMessage(hostUid, message));
-        if (!sent) collabState.pendingLiveMessage = message;
-      }
-      collabState.lastLocalVersion = provisionalVersion;
+        contentVersion: version,
+        members: { [getCollabUid()]: buildCollabMember(collabState.role || 'member') },
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+      collabState.lastContentVersion = version;
       collabState.lastPushedSignature = signature;
-      if (patch?.patchMode === 'textPatch' || patch?.patchMode === 'file') {
-        const sentLanguage = ['html', 'css', 'js'].includes(patch.language) ? patch.language : 'html';
-        const sentFileName = cleanLanguageFileName(patch.fileName, sentLanguage);
-        const sentScopeKey = getCollabFileScopeKey(patch.selectedActivityId || '', sentLanguage, sentFileName);
-        rememberCollabFileBase(sentScopeKey, patch.fallbackContent ?? patch.content ?? getLanguageFileContent(sentLanguage, sentFileName));
-      }
-      if (reason !== 'silent') {
-        setStatus(sent ? 'Live project synced directly' : 'Live sync reconnecting — your work is safe locally');
-      }
+      if (reason !== 'silent') setStatus('Live project synced');
     } catch (error) {
-      console.warn('Could not sync direct collaboration update.', error);
-      setStatus('Live sync reconnecting — your work is safe locally');
+      console.warn('Could not sync collaboration update.', error);
+      setStatus('Live project sync failed');
     } finally {
       collabState.pushInFlight = false;
       if (collabState.queuedPush && collabState.active && collabState.canEdit) {
         collabState.queuedPush = false;
-        scheduleCollaborationPush('queued', { delay: 35 });
+        scheduleCollaborationPush('queued', { delay: COLLAB_FAST_PUSH_DELAY });
       }
     }
   }
@@ -22724,6 +22216,7 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
 
   async function saveJoinedCollaborationProgress() {
     if (!isJoinedCollabMemberSession()) return false;
+    if (!beginCollabAction('saveJoined', 'Saving...')) return false;
     try {
       saveActiveEditor();
       const authUser = await ensureCollabAuthUserForWrite();
@@ -22789,24 +22282,27 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
       setCollabStatus(error?.message || 'Could not save this live project yet.', 'error');
       setStatus('Save failed');
       return false;
+    } finally {
+      endCollabAction('saveJoined');
     }
   }
 
   async function stopCollaborationSession() {
     if (!collabState.active || collabState.role !== 'host' || !collabState.sessionRef) return;
-    const confirmed = await appConfirm('Stop this live sharing session? Classmates will no longer be able to edit or view using this code.', { title: 'Stop sharing', danger: true, confirmText: 'Stop Sharing' });
-    if (!confirmed) return;
+    if (!beginCollabAction('stop', 'Stopping...')) return;
     try {
-      await persistCollabSnapshot('stop', { force: true }).catch(error => console.warn('Final live snapshot skipped.', error));
+      const confirmed = await appConfirm('Stop this live sharing session? Classmates will no longer be able to edit or view using this code.', { title: 'Stop sharing', danger: true, confirmText: 'Stop Sharing' });
+      if (!confirmed) return;
       const { setDoc, serverTimestamp } = firebaseSync.modules;
       await setDoc(collabState.sessionRef, { active: false, stoppedAt: serverTimestamp(), updatedAt: serverTimestamp() }, { merge: true });
-      broadcastCollabP2PMessage(buildCollabChannelMessage('stop'));
       leaveCollaborationSession({ message: 'Sharing stopped.', closeOverlay: true });
       closeCollabMembersOverlay?.();
       closeCollabOverlay?.();
       resetCollabOverlayToInactive('Sharing stopped. You can start a new live session anytime.');
     } catch (error) {
       setCollabStatus(error?.message || 'Could not stop sharing.', 'error');
+    } finally {
+      endCollabAction('stop');
     }
   }
 
@@ -22821,12 +22317,8 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     window.clearTimeout(collabState.pushTimer);
     window.clearTimeout(collabState.cursorTimer);
     window.clearInterval(collabState.heartbeatTimer);
-    if (collabState.role !== 'host' && collabState.ownPeerRef && firebaseSync.modules?.deleteDoc) {
-      firebaseSync.modules.deleteDoc(collabState.ownPeerRef).catch(error => console.warn('Peer signal cleanup skipped.', error));
-    }
     if (typeof collabState.unsubscribe === 'function') collabState.unsubscribe();
     collabState.active = false;
-    cleanupCollabP2P();
     collabState.role = '';
     collabState.code = '';
     collabState.sessionRef = null;
@@ -22876,21 +22368,33 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
       await stopCollaborationSession();
       return;
     }
-    const confirmed = await appConfirm('Leave this live project? You will stop seeing the host project updates.', { title: 'Leave live project', confirmText: 'Leave Project' });
-    if (!confirmed) return;
+    if (!beginCollabAction('leave', 'Leaving...')) return;
     try {
-      const hostUid = collabState.latestSession?.hostUid;
-      if (hostUid) sendCollabP2PMessage(hostUid, buildCollabChannelMessage('leave'));
-      if (collabState.ownPeerRef && firebaseSync.modules?.deleteDoc) {
-        await firebaseSync.modules.deleteDoc(collabState.ownPeerRef).catch(() => {});
-        collabState.ownPeerRef = null;
+      const confirmed = await appConfirm('Leave this live project? You will stop seeing the host project updates.', { title: 'Leave live project', confirmText: 'Leave Project' });
+      if (!confirmed) return;
+      try {
+        const { setDoc, serverTimestamp } = firebaseSync.modules;
+        const uid = getCollabUid();
+        await setDoc(collabState.sessionRef, {
+          members: {
+            [uid]: {
+              ...buildCollabMember(collabState.role || 'member'),
+              online: false,
+              left: true,
+              leftAt: Date.now()
+            }
+          },
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+      } catch (error) {
+        console.warn('Could not mark member as left.', error);
       }
-    } catch (error) {
-      console.warn('Could not send leave notice.', error);
+      closeCollabMembersOverlay();
+      closeCollabOverlay();
+      leaveCollaborationSession({ message: 'You left the live project.' });
+    } finally {
+      endCollabAction('leave');
     }
-    closeCollabMembersOverlay();
-    closeCollabOverlay();
-    leaveCollaborationSession({ message: 'You left the live project.' });
   }
 
   async function kickCollabMember(uid, displayName = 'this member') {
@@ -22898,23 +22402,23 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     const confirmed = await appConfirm(`Remove ${displayName} from this live project?`, { title: 'Remove member', danger: true, confirmText: 'Kick Member' });
     if (!confirmed) return;
     try {
-      sendCollabP2PMessage(uid, buildCollabChannelMessage('kick', { targetUid: uid }));
       const { setDoc, serverTimestamp } = firebaseSync.modules;
+      const existing = collabState.latestSession?.members?.[uid] || {};
       await setDoc(collabState.sessionRef, {
-        blockedUids: {
+        members: {
           [uid]: {
-            name: displayName,
-            kickedAtMs: Date.now(),
-            kickedBy: getCollabUid()
+            ...existing,
+            uid,
+            online: false,
+            kicked: true,
+            kickedBy: getCollabUid(),
+            kickedByName: getCollabName(),
+            kickedAt: Date.now(),
+            lastSeenAt: Date.now()
           }
         },
         updatedAt: serverTimestamp()
       }, { merge: true });
-      markCollabRuntimeMemberOffline(uid, { kicked: true, kickedAt: Date.now() });
-      closeCollabPeer(uid);
-      const peerRef = getCollabPeerDocRef(collabState.code, uid);
-      await firebaseSync.modules.deleteDoc(peerRef).catch(() => {});
-      broadcastCollabP2PMessage(buildCollabChannelMessage('members', { members: collabState.peerMembers }));
       setStatus(`${displayName} was removed from the live project.`);
       renderCollabMembers(collabState.latestSession);
       showCollabMembersList();
@@ -23099,30 +22603,24 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
 
   document.addEventListener('click', openPhoneCollabFromButton, true);
 
-  function rerenderCollabCursorsAfterLocalFileFocusChange() {
-    window.setTimeout(() => renderCollabCursors(collabState.latestSession), 30);
-  }
-  htmlPageSelect?.addEventListener('change', rerenderCollabCursorsAfterLocalFileFocusChange);
-  tabButtons.forEach(button => button.addEventListener('click', rerenderCollabCursorsAfterLocalFileFocusChange));
-
   editor.addEventListener('beforeinput', event => {
     if (!collabState.active || collabState.applyingRemote) return;
     const inputType = String(event.inputType || '');
     const fast = /insertLineBreak|insertParagraph|delete|insertFromPaste|insertFromDrop|historyUndo|historyRedo/i.test(inputType);
-    scheduleCollaborationPushAfterDom(fast ? inputType : 'beforeinput', fast ? 10 : COLLAB_PUSH_DELAY);
+    scheduleCollaborationPushAfterDom(fast ? inputType : 'beforeinput', fast ? COLLAB_FAST_PUSH_DELAY : COLLAB_PUSH_DELAY);
   });
   editor.addEventListener('input', () => {
-    scheduleCollaborationPush('edit', { delay: 35 });
+    scheduleCollaborationPush('edit', { delay: COLLAB_PUSH_DELAY });
     scheduleCollabCursorPush();
   });
   editor.addEventListener('keydown', event => {
     if (['Enter', 'Backspace', 'Delete'].includes(event.key) || (event.ctrlKey && ['z', 'y', 'v', 'x'].includes(String(event.key).toLowerCase()))) {
-      scheduleCollaborationPushAfterDom(`key:${event.key}`, 10);
+      scheduleCollaborationPushAfterDom(`key:${event.key}`, COLLAB_FAST_PUSH_DELAY);
     }
   });
-  editor.addEventListener('paste', () => scheduleCollaborationPushAfterDom('paste', 10));
-  editor.addEventListener('cut', () => scheduleCollaborationPushAfterDom('cut', 10));
-  editor.addEventListener('drop', () => scheduleCollaborationPushAfterDom('drop', 10));
+  editor.addEventListener('paste', () => scheduleCollaborationPushAfterDom('paste', COLLAB_FAST_PUSH_DELAY));
+  editor.addEventListener('cut', () => scheduleCollaborationPushAfterDom('cut', COLLAB_FAST_PUSH_DELAY));
+  editor.addEventListener('drop', () => scheduleCollaborationPushAfterDom('drop', COLLAB_FAST_PUSH_DELAY));
   editor.addEventListener('keyup', scheduleCollabCursorPush);
   editor.addEventListener('click', scheduleCollabCursorPush);
   editor.addEventListener('mouseup', scheduleCollabCursorPush);
@@ -23133,11 +22631,11 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
   document.addEventListener('change', event => {
     // Activity changes can be shared, but page/file switching is a local view
     // choice. Do not sync page focus to classmates.
-    if (event.target?.id === 'activitySelect') scheduleCollaborationPush('change', { delay: 20 });
+    if (event.target?.id === 'activitySelect') scheduleCollaborationPush('change', { delay: 300 });
   });
   document.addEventListener('click', event => {
     if (event.target?.closest?.('#addHtmlPageBtn, #renameHtmlPageBtn, #deleteHtmlPageBtn, #applyPageDialogBtn, #renameFilesBtn')) {
-      window.setTimeout(() => scheduleCollaborationPush('page', { delay: 20 }), 80);
+      window.setTimeout(() => scheduleCollaborationPush('page', { delay: 300 }), 80);
     }
   });
   document.addEventListener('click', event => {
@@ -23154,15 +22652,7 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
   document.addEventListener('fullscreenchange', () => window.setTimeout(() => { ensureCollabControls(); placeAllCollabOverlays(); renderCollabCursors(collabState.latestSession); }, 60));
   document.addEventListener('webkitfullscreenchange', () => window.setTimeout(() => { ensureCollabControls(); placeAllCollabOverlays(); renderCollabCursors(collabState.latestSession); }, 60));
   window.addEventListener('resize', () => window.setTimeout(() => { ensureCollabControls(); placeAllCollabOverlays(); renderCollabCursors(collabState.latestSession); }, 60));
-  window.addEventListener('beforeunload', () => {
-    if (!collabState.active) return;
-    if (collabState.canEdit) pushCollaborationUpdate('silent');
-    if (collabState.role === 'host') persistCollabSnapshot('host-unload', { force: true }).catch(() => {});
-    else {
-      const hostUid = collabState.latestSession?.hostUid;
-      if (hostUid) sendCollabP2PMessage(hostUid, buildCollabChannelMessage('leave'));
-    }
-  });
+  window.addEventListener('beforeunload', () => { if (collabState.active && collabState.canEdit) pushCollaborationUpdate('silent'); });
   new MutationObserver(() => updateCollaborationFeatureVisibility()).observe(document.body, { attributes: true, attributeFilter: ['class'] });
 
   ensureCollabOverlay();
@@ -25650,16 +25140,11 @@ window.MCS_PHONE_MENU_STATUS = () => ({
 
   if (!overlay || !unlockBtn || !codeInput || !viewer || !leaderboard) return;
 
-  const RECITATION_SECTION_CACHE_MS = 24 * 60 * 60 * 1000;
-  const RECITATION_STUDENT_CACHE_MS = 2 * 60 * 1000;
-  const RECITATION_REFRESH_COOLDOWN_MS = 60 * 1000;
   const state = {
     sections: null,
     activeSection: null,
     students: [],
-    loading: false,
-    lastStudentFetchAt: 0,
-    lastStudentSection: ''
+    loading: false
   };
 
   function normalizeRecitationCode(value) {
@@ -25707,13 +25192,6 @@ window.MCS_PHONE_MENU_STATUS = () => ({
 
   async function fetchRecitationSections() {
     if (Array.isArray(state.sections)) return state.sections;
-    try {
-      const cached = JSON.parse(localStorage.getItem('mcsian.recitation.sections.v1') || 'null');
-      if (cached && Array.isArray(cached.sections) && Date.now() - Number(cached.savedAt || 0) < RECITATION_SECTION_CACHE_MS) {
-        state.sections = cached.sections;
-        return state.sections;
-      }
-    } catch (_) {}
     const response = await fetch(recitationEndpoint('/sections?pageSize=500'), { cache: 'no-store' });
     if (!response.ok) throw new Error(`Could not load recitation sections (${response.status}).`);
     const data = await response.json();
@@ -25726,7 +25204,6 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       }))
       .filter(section => section.name);
     state.sections = sections;
-    try { localStorage.setItem('mcsian.recitation.sections.v1', JSON.stringify({ savedAt: Date.now(), sections })); } catch (_) {}
     return sections;
   }
 
@@ -25824,19 +25301,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     return matches[0].section || null;
   }
 
-  async function fetchRecitationStudentsForSection(sectionName, options = {}) {
-    const cacheKey = `mcsian.recitation.students.${normalizeRecitationCode(sectionName)}`;
-    const now = Date.now();
-    if (!options.force) {
-      try {
-        const cached = JSON.parse(sessionStorage.getItem(cacheKey) || 'null');
-        if (cached && Array.isArray(cached.students) && now - Number(cached.savedAt || 0) < RECITATION_STUDENT_CACHE_MS) {
-          state.lastStudentFetchAt = Number(cached.savedAt || now);
-          state.lastStudentSection = sectionName;
-          return cached.students;
-        }
-      } catch (_) {}
-    }
+  async function fetchRecitationStudentsForSection(sectionName) {
     const body = {
       structuredQuery: {
         from: [{ collectionId: 'students' }],
@@ -25859,15 +25324,11 @@ window.MCS_PHONE_MENU_STATUS = () => ({
 
     if (!response.ok) throw new Error(`Could not load recitation records (${response.status}).`);
     const rows = await response.json();
-    const students = (Array.isArray(rows) ? rows : [])
+    return (Array.isArray(rows) ? rows : [])
       .map(row => row.document)
       .filter(Boolean)
       .map(doc => normalizeRecitationStudent(recitationDocFromFirestore(doc)))
       .filter(student => student.fullName || student.studentId);
-    state.lastStudentFetchAt = Date.now();
-    state.lastStudentSection = sectionName;
-    try { sessionStorage.setItem(cacheKey, JSON.stringify({ savedAt: state.lastStudentFetchAt, students })); } catch (_) {}
-    return students;
   }
 
   function getSchoolYear(date) {
@@ -26053,19 +25514,11 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     }
   }
 
-  async function loadRecitationStudents(options = {}) {
+  async function loadRecitationStudents() {
     if (!state.activeSection) return;
-    const sameSection = state.lastStudentSection === state.activeSection.name;
-    const elapsed = Date.now() - Number(state.lastStudentFetchAt || 0);
-    if (options.force === true && sameSection && elapsed < RECITATION_REFRESH_COOLDOWN_MS) {
-      const seconds = Math.max(1, Math.ceil((RECITATION_REFRESH_COOLDOWN_MS - elapsed) / 1000));
-      renderRecitationLeaderboard();
-      showRecitationMessage(`Latest saved view is shown. Refresh is available again in ${seconds}s.`, 'success');
-      return;
-    }
     try {
       showRecitationMessage(`Loading ${state.activeSection.name}...`);
-      state.students = await fetchRecitationStudentsForSection(state.activeSection.name, { force: options.force === true });
+      state.students = await fetchRecitationStudentsForSection(state.activeSection.name);
       renderRecitationLeaderboard();
       showRecitationMessage(`${state.activeSection.name} loaded. Only this section is shown.`, 'success');
     } catch (error) {
@@ -26106,7 +25559,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   });
   openButtons.forEach(button => button.addEventListener('click', () => openRecitationOverlay()));
   closeBtn?.addEventListener('click', closeRecitationOverlay);
-  unlockBtn.addEventListener('click', unlockRecitationSection);
+  unlockBtn?.addEventListener('click', unlockRecitationSection);
   codeInput?.addEventListener('keydown', event => {
     if (event.key === 'Enter') {
       event.preventDefault();
@@ -26114,7 +25567,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     }
   });
   changeCodeBtn?.addEventListener('click', resetRecitationGate);
-  refreshBtn?.addEventListener('click', () => loadRecitationStudents({ force: true }));
+  refreshBtn?.addEventListener('click', loadRecitationStudents);
   termSelect?.addEventListener('change', renderRecitationLeaderboard);
   sortSelect?.addEventListener('change', renderRecitationLeaderboard);
   searchInput?.addEventListener('input', renderRecitationLeaderboard);
@@ -26173,8 +25626,8 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     window.open(RECITATION_FIREBASE_VIEW_URL, '_blank', 'noopener,noreferrer');
   }
 
-  shortcutLogo.addEventListener('click', openProtectedRecitationFirebaseView);
-  shortcutLogo.addEventListener('keydown', event => {
+  shortcutLogo?.addEventListener('click', openProtectedRecitationFirebaseView);
+  shortcutLogo?.addEventListener('keydown', event => {
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
       openProtectedRecitationFirebaseView();
