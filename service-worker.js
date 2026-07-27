@@ -1,13 +1,13 @@
-const CACHE_NAME = 'ict-8-connect-step232-free-scale-p2p';
+const CACHE_NAME = 'ict-8-connect-step234-collab-cursor-scope';
 const APP_SHELL = [
   './',
   './index.html',
-  './index.html?v=20260727-step232-free-scale-p2p',
-  './index.html?fresh=step232-free-scale-p2p',
+  './index.html?v=20260727-step234-collab-cursor-scope',
+  './index.html?fresh=step234-collab-cursor-scope',
   './style.css',
-  './style.css?v=20260727-step232-free-scale-p2p',
+  './style.css?v=20260727-step234-collab-cursor-scope',
   './script.js',
-  './script.js?v=20260727-step232-free-scale-p2p',
+  './script.js?v=20260727-step234-collab-cursor-scope',
   './firebase-config.js',
   './manifest.webmanifest',
   './favicon.png',

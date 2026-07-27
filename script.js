@@ -20914,7 +20914,15 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
       layer.classList.add('hidden');
       return;
     }
-    const remote = cursors.filter(cursor => cursor && cursor.uid && cursor.uid !== ownUid && cursor.language === activeLanguage && Number(cursor.updatedAt || 0) > now - 12000);
+    const activeFileName = getActiveLanguageFileName(activeLanguage);
+    const remote = cursors.filter(cursor => {
+      if (!cursor || !cursor.uid || cursor.uid === ownUid) return false;
+      if (cursor.language !== activeLanguage) return false;
+      if (cursor.fileName !== activeFileName) return false;
+      if (Number(cursor.updatedAt || 0) <= now - 12000) return false;
+      const pos = Number(cursor.position || 0);
+      return Number.isFinite(pos) && pos >= 0 && pos <= Math.max(0, editor.value.length + 1);
+    });
     layer.classList.toggle('hidden', remote.length === 0);
     layer.innerHTML = remote.map(cursor => {
       const member = members[cursor.uid] || {};
@@ -20946,6 +20954,7 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
       name: getCollabName(),
       color: getCollabMemberColor(uid),
       language: activeLanguage,
+      fileName: getActiveLanguageFileName(activeLanguage),
       position,
       updatedAt: Date.now()
     };
@@ -21135,6 +21144,38 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     try { return JSON.stringify(patch); } catch { return `${Date.now()}:${editor?.value?.length || 0}`; }
   }
 
+  function transformCollabSelectionAfterRemoteEdit(oldText = '', newText = '', start = 0, end = start) {
+    const before = String(oldText || '');
+    const after = String(newText || '');
+    const oldLength = before.length;
+    const newLength = after.length;
+    let prefix = 0;
+    const maxPrefix = Math.min(oldLength, newLength);
+    while (prefix < maxPrefix && before.charCodeAt(prefix) === after.charCodeAt(prefix)) prefix += 1;
+    let suffix = 0;
+    while (
+      suffix < oldLength - prefix &&
+      suffix < newLength - prefix &&
+      before.charCodeAt(oldLength - 1 - suffix) === after.charCodeAt(newLength - 1 - suffix)
+    ) suffix += 1;
+    const removedStart = prefix;
+    const removedEnd = oldLength - suffix;
+    const insertedEnd = newLength - suffix;
+    const delta = (insertedEnd - removedStart) - (removedEnd - removedStart);
+    const mapPosition = position => {
+      const pos = Math.max(0, Math.min(oldLength, Number(position) || 0));
+      if (pos <= removedStart) return pos;
+      if (pos >= removedEnd) return Math.max(0, Math.min(newLength, pos + delta));
+      return Math.max(0, Math.min(newLength, insertedEnd));
+    };
+    const mappedStart = mapPosition(start);
+    const mappedEnd = mapPosition(end);
+    return {
+      start: Math.min(mappedStart, mappedEnd),
+      end: Math.max(mappedStart, mappedEnd)
+    };
+  }
+
   function applyCollaborationLivePatch(data = {}, options = {}) {
     if (data.patchMode !== 'file') {
       applyCollaborationContent(data, options);
@@ -21173,11 +21214,14 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
       }
       if (viewingSameActivity) codeStore = targetStore;
       if (viewingSameFile) {
+        const oldValue = String(editor.value || '');
         const start = Number(editor.selectionStart || 0);
         const end = Number(editor.selectionEnd || start);
-        editor.value = files[fileName];
+        const nextValue = String(files[fileName] || '');
+        const mappedSelection = transformCollabSelectionAfterRemoteEdit(oldValue, nextValue, start, end);
+        editor.value = nextValue;
         const max = editor.value.length;
-        editor.setSelectionRange(Math.min(start, max), Math.min(end, max));
+        editor.setSelectionRange(Math.min(mappedSelection.start, max), Math.min(mappedSelection.end, max));
         resetResultPanel();
         runCode(false, { scroll: false, source: 'collab-p2p' });
       }
@@ -22942,6 +22986,12 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
   }
 
   document.addEventListener('click', openPhoneCollabFromButton, true);
+
+  function rerenderCollabCursorsAfterLocalFileFocusChange() {
+    window.setTimeout(() => renderCollabCursors(collabState.latestSession), 30);
+  }
+  htmlPageSelect?.addEventListener('change', rerenderCollabCursorsAfterLocalFileFocusChange);
+  tabButtons.forEach(button => button.addEventListener('click', rerenderCollabCursorsAfterLocalFileFocusChange));
 
   editor.addEventListener('beforeinput', event => {
     if (!collabState.active || collabState.applyingRemote) return;
