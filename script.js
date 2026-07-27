@@ -2203,7 +2203,11 @@ function showAppDialog({
   if (appDialogIcon) appDialogIcon.textContent = icon;
   if (appDialogKicker) appDialogKicker.textContent = kicker;
   if (appDialogTitle) appDialogTitle.textContent = title;
-  if (appDialogMessage) appDialogMessage.textContent = message;
+  if (appDialogMessage) {
+    appDialogMessage.textContent = message;
+    appDialogMessage.style.whiteSpace = String(message || '').includes('\n') ? 'pre-line' : '';
+    appDialogMessage.style.userSelect = String(message || '').includes('Auth email:') ? 'text' : '';
+  }
   if (appDialogOkBtn) appDialogOkBtn.textContent = confirmText;
   if (appDialogCancelBtn) appDialogCancelBtn.textContent = cancelText;
 
@@ -6754,7 +6758,7 @@ function renderAdminStudentTracker() {
         <td><span class="student-account-pill ${pillClass}">${accountLabel}</span><span class="student-cell-sub">${loggedIn ? `${Number(student.loginCount || 0)} login${Number(student.loginCount || 0) === 1 ? '' : 's'}` : 'Never logged in'}</span></td>
         <td><strong>${Math.max(0, Number(student.projectCount || 0))}</strong><span class="student-cell-sub">${escapeHTML(student.lastProjectName || 'No project yet')}</span></td>
         <td>${escapeHTML(formatStudentDate(student.lastActivityAt))}</td>
-        <td><div class="student-action-stack">${rosterOnly ? '<span class="student-cell-sub">No projects yet</span>' : `<button class="ghost-btn view-student-projects-btn" type="button" data-student-uid="${escapeAttribute(student.uid)}">View Projects</button>`}<button class="ghost-btn danger-btn delete-student-account-btn" type="button" data-student-id="${escapeAttribute(student.studentId || '')}" data-student-uid="${escapeAttribute(student.uid || '')}">Delete</button></div></td>
+        <td><div class="student-action-stack">${rosterOnly ? '<span class="student-cell-sub">No projects yet</span>' : `<button class="ghost-btn view-student-projects-btn" type="button" data-student-uid="${escapeAttribute(student.uid)}">View Projects</button>`}<button class="ghost-btn recovery-student-account-btn" type="button" data-student-id="${escapeAttribute(student.studentId || '')}" data-student-uid="${escapeAttribute(student.uid || '')}">Recovery</button><button class="ghost-btn danger-btn delete-student-account-btn" type="button" data-student-id="${escapeAttribute(student.studentId || '')}" data-student-uid="${escapeAttribute(student.uid || '')}">Delete</button></div></td>
       </tr>`;
   }).join('');
 }
@@ -7148,6 +7152,77 @@ async function loadAdminOnlinePresence(options = {}) {
   }
 }
 
+
+function findAdminStudentByIdOrUid(studentId = '', uid = '') {
+  const normalizedId = normalizeStudentId(studentId);
+  return adminStudentsCache.find(item =>
+    (normalizedId && areStudentIdsEquivalent(item.studentId || item.studentIdNormalized || item.rosterId, normalizedId))
+    || (uid && item.uid === uid)
+  ) || null;
+}
+
+async function copyTextSafely(text = '') {
+  const value = String(text || '').trim();
+  if (!value) return false;
+  try {
+    if (navigator.clipboard?.writeText && window.isSecureContext !== false) {
+      await navigator.clipboard.writeText(value);
+      return true;
+    }
+  } catch (error) {
+    console.warn('Clipboard copy skipped.', error);
+  }
+  return false;
+}
+
+async function showAdminStudentRecoveryHelper(studentId, uid = '') {
+  if (!isTeacherAuthenticated()) {
+    setStudentAdminStatus('Teacher login is required to open account recovery.', 'error');
+    return;
+  }
+  const normalizedId = normalizeStudentId(studentId);
+  const student = findAdminStudentByIdOrUid(normalizedId, uid);
+  const displayName = student?.name || normalizedId || 'this student';
+  const resolvedId = normalizeStudentId(student?.studentId || student?.studentIdNormalized || student?.rosterId || normalizedId);
+  const authEmail = String(student?.authEmail || (resolvedId ? studentIdToAuthEmail(resolvedId) : '')).trim();
+  const loggedIn = Boolean(student?.lastLoginAt || Number(student?.loginCount || 0) > 0);
+  const rosterOnly = Boolean(student?.isRosterOnly && !student?.uid);
+  const statusLabel = rosterOnly
+    ? 'Ready for First Login / Never logged in'
+    : (student?.mustChangePassword === false ? 'Active account' : 'Password Change Needed');
+  const copied = await copyTextSafely(authEmail);
+  const copyNote = copied && authEmail ? 'Auth email was copied to your clipboard.' : 'Copy the Auth email shown below.';
+  const profileNote = student?.uid
+    ? `App profile UID: ${student.uid}`
+    : 'App profile UID: none yet / roster record only';
+
+  setStudentAdminStatus(authEmail ? `Recovery info ready for ${displayName}. ${copied ? 'Auth email copied.' : 'Copy the Auth email from the dialog.'}` : `Recovery info ready for ${displayName}.`, copied ? 'success' : '');
+
+  const recoveryMessage = [
+    `Student: ${displayName}`,
+    `Student ID: ${resolvedId || 'No Student ID found'}`,
+    `Auth email: ${authEmail || 'No Auth email found'}`,
+    `Status: ${statusLabel}`,
+    profileNote,
+    '',
+    copyNote,
+    '',
+    'For stuck first login or forgotten password:',
+    '1. Open Firebase Console > Authentication > Users.',
+    '2. Paste/search the copied Auth email above.',
+    '3. Delete only that Firebase Auth user if you want a fresh first login.',
+    '4. Let the student log in again with the Student ID and default password 123456.',
+    '',
+    'Do not use the app Delete button unless you also want to remove app roster/profile/project records.'
+  ].join('\n');
+
+  await appAlert(recoveryMessage, {
+    title: 'Student Account Recovery',
+    kicker: 'Admin helper',
+    icon: 'R',
+    confirmText: copied && authEmail ? 'Copied / OK' : 'OK'
+  });
+}
 async function deleteAdminStudentRecord(studentId, uid = '') {
   if (!isTeacherAuthenticated()) {
     setStudentAdminStatus('Teacher login is required to delete student accounts.', 'error');
@@ -19465,6 +19540,11 @@ adminStudentSearch?.addEventListener('input', renderAdminStudentTracker);
 adminSectionFilter?.addEventListener('change', renderAdminStudentTracker);
 adminActivityFilter?.addEventListener('change', renderAdminStudentTracker);
 adminStudentsTableBody?.addEventListener('click', event => {
+  const recoveryButton = event.target.closest('.recovery-student-account-btn');
+  if (recoveryButton) {
+    showAdminStudentRecoveryHelper(recoveryButton.dataset.studentId || '', recoveryButton.dataset.studentUid || '');
+    return;
+  }
   const deleteButton = event.target.closest('.delete-student-account-btn');
   if (deleteButton) {
     deleteAdminStudentRecord(deleteButton.dataset.studentId || '', deleteButton.dataset.studentUid || '');
