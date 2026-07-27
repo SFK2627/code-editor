@@ -20759,7 +20759,8 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     peerOfferKeys: new Map(),
     ownPeerRef: null,
     chunkBuffers: new Map(),
-    reconnectAttempts: 0
+    reconnectAttempts: 0,
+    fileSyncBases: {}
   };
 
   function isCollaborationEnabled() {
@@ -21130,12 +21131,28 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     }
     const language = ['html', 'css', 'js'].includes(activeLanguage) ? activeLanguage : 'html';
     const fileName = getActiveLanguageFileName(language);
+    const activityId = selectedActivityId || '';
+    const scopeKey = getCollabFileScopeKey(activityId, language, fileName);
+    const currentContent = getLanguageFileContent(language, fileName);
+    const baseContent = getRememberedCollabFileBase(scopeKey, currentContent);
+    const textPatch = getCollabTextDiffPatch(baseContent, currentContent);
+    if (!textPatch.changed) {
+      return {
+        patchMode: 'noop',
+        selectedActivityId: activityId,
+        language,
+        fileName,
+        fileNames: normalizeCodeFileNames(codeFileNames)
+      };
+    }
     return {
-      patchMode: 'file',
-      selectedActivityId: selectedActivityId || '',
+      patchMode: 'textPatch',
+      selectedActivityId: activityId,
       language,
       fileName,
-      content: getLanguageFileContent(language, fileName),
+      patch: textPatch,
+      baseContent,
+      fallbackContent: currentContent,
       fileNames: normalizeCodeFileNames(codeFileNames)
     };
   }
@@ -21176,8 +21193,87 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     };
   }
 
+
+  function getCollabTextDiffPatch(before = '', after = '') {
+    const oldText = String(before || '');
+    const newText = String(after || '');
+    if (oldText === newText) return { start: 0, deleteCount: 0, insertText: '', changed: false };
+    let prefix = 0;
+    const maxPrefix = Math.min(oldText.length, newText.length);
+    while (prefix < maxPrefix && oldText.charCodeAt(prefix) === newText.charCodeAt(prefix)) prefix += 1;
+    let suffix = 0;
+    while (
+      suffix < oldText.length - prefix &&
+      suffix < newText.length - prefix &&
+      oldText.charCodeAt(oldText.length - 1 - suffix) === newText.charCodeAt(newText.length - 1 - suffix)
+    ) suffix += 1;
+    const deleteCount = Math.max(0, oldText.length - prefix - suffix);
+    const insertText = newText.slice(prefix, newText.length - suffix);
+    return { start: prefix, deleteCount, insertText, changed: true };
+  }
+
+  function getCollabFileScopeKey(activityId = selectedActivityId || '', language = activeLanguage, fileName = getActiveLanguageFileName(language)) {
+    return `${activityId || 'scratch'}::${language || 'html'}::${fileName || ''}`;
+  }
+
+  function getCollabActiveFileScopeKey() {
+    const language = ['html', 'css', 'js'].includes(activeLanguage) ? activeLanguage : 'html';
+    return getCollabFileScopeKey(selectedActivityId || '', language, getActiveLanguageFileName(language));
+  }
+
+  function rememberCollabFileBase(scopeKey, text) {
+    if (!scopeKey) return;
+    collabState.fileSyncBases[scopeKey] = String(text ?? '');
+  }
+
+  function getRememberedCollabFileBase(scopeKey, fallback = '') {
+    if (!scopeKey) return String(fallback ?? '');
+    return Object.prototype.hasOwnProperty.call(collabState.fileSyncBases, scopeKey)
+      ? String(collabState.fileSyncBases[scopeKey] ?? '')
+      : String(fallback ?? '');
+  }
+
+  function mapCollabPatchRangeFromBase(baseText = '', currentText = '', start = 0, deleteCount = 0) {
+    const base = String(baseText || '');
+    const current = String(currentText || '');
+    const safeStart = Math.max(0, Math.min(base.length, Number(start) || 0));
+    const safeEnd = Math.max(safeStart, Math.min(base.length, safeStart + Math.max(0, Number(deleteCount) || 0)));
+    if (base === current) return { start: safeStart, end: safeEnd };
+    const mapped = transformCollabSelectionAfterRemoteEdit(base, current, safeStart, safeEnd);
+    return {
+      start: Math.max(0, Math.min(current.length, mapped.start)),
+      end: Math.max(0, Math.min(current.length, mapped.end))
+    };
+  }
+
+  function applyCollabTextPatchToValue(currentText = '', patch = {}, baseText = '') {
+    const current = String(currentText || '');
+    const sourceBase = String(baseText ?? currentText ?? '');
+    const range = mapCollabPatchRangeFromBase(sourceBase, current, patch.start, patch.deleteCount);
+    const insertText = String(patch.insertText ?? '');
+    return current.slice(0, range.start) + insertText + current.slice(range.end);
+  }
+
+
+  function rememberCollabBasesFromCodeByActivity(source = codeByActivity) {
+    Object.entries(source || {}).forEach(([activityKey, store]) => {
+      const normalized = normalizeCodeStore(store || starterCode);
+      ['html', 'css', 'js'].forEach(language => {
+        const files = getLanguageFileMap(language, normalized);
+        Object.entries(files || {}).forEach(([fileName, content]) => {
+          rememberCollabFileBase(getCollabFileScopeKey(activityKey === 'scratch' ? '' : activityKey, language, fileName), content);
+        });
+      });
+    });
+  }
+
   function applyCollaborationLivePatch(data = {}, options = {}) {
-    if (data.patchMode !== 'file') {
+    if (data.patchMode === 'noop') {
+      const version = Number(data.contentVersion || 0);
+      if (version > collabState.lastContentVersion) collabState.lastContentVersion = version;
+      return;
+    }
+    if (data.patchMode !== 'file' && data.patchMode !== 'textPatch') {
       applyCollaborationContent(data, options);
       return;
     }
@@ -21193,8 +21289,14 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     const codeKey = activityId || 'scratch';
     const targetStore = normalizeCodeStore(codeByActivity[codeKey] || starterCode);
     const fileName = cleanLanguageFileName(data.fileName, language);
+    const scopeKey = getCollabFileScopeKey(activityId, language, fileName);
     const files = getLanguageFileMap(language, targetStore);
-    files[fileName] = String(data.content ?? '');
+    const currentFileContent = String(files[fileName] ?? '');
+    const nextFileContent = data.patchMode === 'textPatch'
+      ? applyCollabTextPatchToValue(currentFileContent, data.patch || {}, String(data.baseContent ?? currentFileContent))
+      : String(data.content ?? '');
+    files[fileName] = nextFileContent;
+    rememberCollabFileBase(scopeKey, nextFileContent);
     const meta = getLanguageFileMeta(language);
     targetStore[meta.codeKey] = files[fileName];
     if (!targetStore[meta.activeKey]) targetStore[meta.activeKey] = fileName;
@@ -21415,6 +21517,7 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     collabState.dataChannels.clear();
     collabState.peerOfferKeys.clear();
     collabState.chunkBuffers.clear();
+    collabState.fileSyncBases = {};
     collabState.peerMembers = {};
     collabState.p2pMode = false;
     collabState.p2pReady = false;
@@ -22384,6 +22487,7 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     collabState.canEdit = role === 'host' || (initialData.allowEdit !== false && isCollaborationEditAllowed());
     collabState.lastContentVersion = Number(initialData.contentVersion || 0);
     collabState.hostSequence = Math.max(Number(initialData.contentVersion || 0), Date.now() * 100);
+    collabState.fileSyncBases = {};
     collabState.peerMembers = {
       ...(initialData.members || {}),
       [getCollabUid()]: buildCollabMember(role)
@@ -22484,6 +22588,7 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
       codeStore = codeByActivity[codeKey] ? normalizeCodeStore(codeByActivity[codeKey]) : normalizeCodeStore(starterCode);
       codeByActivity[codeKey] = normalizeCodeStore(codeStore);
       codeFileNames = normalizeCodeFileNames(data.fileNames || DEFAULT_CODE_FILE_NAMES);
+      rememberCollabBasesFromCodeByActivity(codeByActivity);
 
       if (!options.force) {
         ['html', 'css', 'js'].forEach(language => {
@@ -22541,6 +22646,7 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     let signature;
     try {
       patch = getCollabLivePatch(reason);
+      if (patch?.patchMode === 'noop') return;
       signature = getCollabLivePatchSignature(patch);
       if (reason !== 'silent' && signature && signature === collabState.lastPushedSignature) return;
     } catch (error) {
@@ -22572,6 +22678,12 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
       }
       collabState.lastLocalVersion = provisionalVersion;
       collabState.lastPushedSignature = signature;
+      if (patch?.patchMode === 'textPatch' || patch?.patchMode === 'file') {
+        const sentLanguage = ['html', 'css', 'js'].includes(patch.language) ? patch.language : 'html';
+        const sentFileName = cleanLanguageFileName(patch.fileName, sentLanguage);
+        const sentScopeKey = getCollabFileScopeKey(patch.selectedActivityId || '', sentLanguage, sentFileName);
+        rememberCollabFileBase(sentScopeKey, patch.fallbackContent ?? patch.content ?? getLanguageFileContent(sentLanguage, sentFileName));
+      }
       if (reason !== 'silent') {
         setStatus(sent ? 'Live project synced directly' : 'Live sync reconnecting — your work is safe locally');
       }

@@ -1,13 +1,13 @@
-const CACHE_NAME = 'ict-8-connect-step234-collab-cursor-scope';
+const CACHE_NAME = 'ict-8-connect-step235-collab-concurrent-edit-fix';
 const APP_SHELL = [
   './',
   './index.html',
-  './index.html?v=20260727-step234-collab-cursor-scope',
-  './index.html?fresh=step234-collab-cursor-scope',
+  './index.html?v=20260727-step235-collab-concurrent-edit-fix',
+  './index.html?fresh=step235-collab-concurrent-edit-fix',
   './style.css',
-  './style.css?v=20260727-step234-collab-cursor-scope',
+  './style.css?v=20260727-step235-collab-concurrent-edit-fix',
   './script.js',
-  './script.js?v=20260727-step234-collab-cursor-scope',
+  './script.js?v=20260727-step235-collab-concurrent-edit-fix',
   './firebase-config.js',
   './manifest.webmanifest',
   './favicon.png',
