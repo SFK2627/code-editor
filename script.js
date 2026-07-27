@@ -21115,7 +21115,72 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
       throw new Error('Please log in again before using Share or Join.');
     }
     firebaseSync.currentUser = user;
+    try {
+      if (typeof user.getIdToken === 'function') await user.getIdToken(true);
+    } catch (tokenError) {
+      console.warn('Could not refresh collaboration auth token before Firestore write.', tokenError);
+    }
     return user;
+  }
+
+  function isCollabPermissionError(error) {
+    const text = String(error?.code || error?.message || error || '').toLowerCase();
+    return text.includes('permission-denied')
+      || text.includes('missing or insufficient permissions')
+      || text.includes('insufficient permissions');
+  }
+
+  async function refreshCollabFirestoreAuthToken() {
+    const user = await waitForCollabAuthUser(2200);
+    if (!user?.uid) return null;
+    firebaseSync.currentUser = user;
+    try {
+      if (typeof user.getIdToken === 'function') await user.getIdToken(true);
+    } catch (tokenError) {
+      console.warn('Could not refresh collaboration Firestore token.', tokenError);
+    }
+    return user;
+  }
+
+  async function getCollabSessionSnapshotWithRetry(sessionRef) {
+    const { getDoc } = firebaseSync.modules;
+    try {
+      return await getDoc(sessionRef);
+    } catch (error) {
+      if (!isCollabPermissionError(error)) throw error;
+      const refreshedUser = await refreshCollabFirestoreAuthToken();
+      if (!refreshedUser?.uid) throw error;
+      return await getDoc(sessionRef);
+    }
+  }
+
+  async function setCollabSessionDocWithRetry(sessionRef, payload = {}, options = { merge: true }, extra = {}) {
+    const { setDoc } = firebaseSync.modules;
+    try {
+      await setDoc(sessionRef, payload, options);
+      return true;
+    } catch (error) {
+      if (!isCollabPermissionError(error)) throw error;
+      const refreshedUser = await refreshCollabFirestoreAuthToken();
+      if (refreshedUser?.uid) {
+        try {
+          await setDoc(sessionRef, payload, options);
+          return true;
+        } catch (retryError) {
+          if (!isCollabPermissionError(retryError)) throw retryError;
+          if (extra.optional) {
+            console.warn(`Optional live project update was blocked${extra.label ? ` (${extra.label})` : ''}.`, retryError);
+            return false;
+          }
+          throw retryError;
+        }
+      }
+      if (extra.optional) {
+        console.warn(`Optional live project update was blocked${extra.label ? ` (${extra.label})` : ''}.`, error);
+        return false;
+      }
+      throw error;
+    }
   }
 
   function getCollabActionButtons(key = '') {
@@ -21275,8 +21340,8 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     const position = Number(editor?.selectionStart || 0);
     const uid = getCollabUid();
     try {
-      const { setDoc, serverTimestamp } = firebaseSync.modules;
-      await setDoc(collabState.sessionRef, {
+      const { serverTimestamp } = firebaseSync.modules;
+      await setCollabSessionDocWithRetry(collabState.sessionRef, {
         cursors: {
           [uid]: {
             uid,
@@ -21289,7 +21354,7 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
         },
         members: { [uid]: { ...buildCollabMember(collabState.role || 'member'), color: getCollabMemberColor(uid) } },
         updatedAt: serverTimestamp()
-      }, { merge: true });
+      }, { merge: true }, { optional: true, label: 'cursor' });
     } catch (error) {
       console.warn('Could not update live cursor.', error);
     }
@@ -21867,10 +21932,10 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
       const access = document.getElementById('collabAccessSelect')?.value === 'view' ? 'view' : 'edit';
       const allowEdit = access === 'edit' && isCollaborationEditAllowed();
       const sessionRef = getSharedSessionDocRef(code);
-      const { setDoc, serverTimestamp } = firebaseSync.modules;
+      const { serverTimestamp } = firebaseSync.modules;
       const payload = getCollabContentPayload();
       const uid = authUser.uid;
-      await setDoc(sessionRef, {
+      await setCollabSessionDocWithRetry(sessionRef, {
         shareCode: code,
         active: true,
         hostUid: uid,
@@ -21887,7 +21952,7 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
         members: { [uid]: buildCollabMember('host') },
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
-      }, { merge: true });
+      }, { merge: true }, { label: 'start live session' });
       document.getElementById('collabShareCode').textContent = code;
       document.getElementById('collabStopBtn')?.classList.remove('hidden');
       document.getElementById('collabLeaveBtn')?.classList.add('hidden');
@@ -21966,8 +22031,8 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     try {
       const normalizedCode = String(code || '').trim().toUpperCase();
       const sessionRef = getSharedSessionDocRef(normalizedCode);
-      const { getDoc, setDoc, serverTimestamp } = firebaseSync.modules;
-      const snap = await getDoc(sessionRef);
+      const { serverTimestamp } = firebaseSync.modules;
+      const snap = await getCollabSessionSnapshotWithRetry(sessionRef);
       if (!snapshotExists(snap)) throw new Error('Share code not found.');
       const data = snapshotData(snap);
       if (data.active === false) throw new Error('This share code is already stopped.');
@@ -21984,11 +22049,14 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
           else sessionStorage.removeItem('studentCodeStudio.collab.localBeforeJoin');
         } catch {}
       }
-      await setDoc(sessionRef, {
+      const memberWriteOk = await setCollabSessionDocWithRetry(sessionRef, {
         members: { [uid]: buildCollabMember(role) },
         updatedAt: serverTimestamp()
-      }, { merge: true });
+      }, { merge: true }, { optional: true, label: 'join member marker' });
       startCollaborationListener(normalizedCode, sessionRef, role, data);
+      if (!memberWriteOk) {
+        console.warn('Joined live session without updating the member list because Firestore blocked the optional member write.');
+      }
       if (data.codeByActivity) applyCollaborationContent(data, { force: true });
       if (options.source === 'dashboard' && role !== 'host') enterCollabWorkspaceFromDashboard(data);
       if (!options.silent) setCollabStatus(`Joined ${data.projectName || 'shared project'} by ${data.hostName || 'host'}.`, 'success');
@@ -21997,7 +22065,11 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
       return true;
     } catch (error) {
       console.error('Could not join collaboration.', error);
-      setCollabStatus(error?.message || 'Could not join project.', 'error');
+      if (isCollabPermissionError(error)) {
+        setCollabStatus('Join was blocked by Firestore permissions. Refresh both devices after uploading the latest files, then make sure sharedSessions has read/update access for signed-in students.', 'error');
+      } else {
+        setCollabStatus(error?.message || 'Could not join project.', 'error');
+      }
       return false;
     }
   }
@@ -22063,11 +22135,11 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
   async function updateCollabHeartbeat() {
     if (!collabState.active || !collabState.sessionRef || !getCollabUid()) return;
     try {
-      const { setDoc, serverTimestamp } = firebaseSync.modules;
-      await setDoc(collabState.sessionRef, {
+      const { serverTimestamp } = firebaseSync.modules;
+      await setCollabSessionDocWithRetry(collabState.sessionRef, {
         members: { [getCollabUid()]: buildCollabMember(collabState.role || 'member') },
         updatedAt: serverTimestamp()
-      }, { merge: true });
+      }, { merge: true }, { optional: true, label: 'heartbeat' });
     } catch (error) {
       console.warn('Could not update collaboration heartbeat.', error);
     }
@@ -22163,10 +22235,10 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     collabState.pushInFlight = true;
     collabState.queuedPush = false;
     try {
-      const { setDoc, serverTimestamp } = firebaseSync.modules;
+      const { serverTimestamp } = firebaseSync.modules;
       const version = Date.now();
       collabState.lastLocalVersion = version;
-      await setDoc(collabState.sessionRef, {
+      await setCollabSessionDocWithRetry(collabState.sessionRef, {
         ...payload,
         lastEditorUid: getCollabUid(),
         lastEditorName: getCollabName(),
@@ -22175,7 +22247,7 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
         contentVersion: version,
         members: { [getCollabUid()]: buildCollabMember(collabState.role || 'member') },
         updatedAt: serverTimestamp()
-      }, { merge: true });
+      }, { merge: true }, { label: 'content sync' });
       collabState.lastContentVersion = version;
       collabState.lastPushedSignature = signature;
       if (reason !== 'silent') setStatus('Live project synced');
@@ -22293,8 +22365,8 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     try {
       const confirmed = await appConfirm('Stop this live sharing session? Classmates will no longer be able to edit or view using this code.', { title: 'Stop sharing', danger: true, confirmText: 'Stop Sharing' });
       if (!confirmed) return;
-      const { setDoc, serverTimestamp } = firebaseSync.modules;
-      await setDoc(collabState.sessionRef, { active: false, stoppedAt: serverTimestamp(), updatedAt: serverTimestamp() }, { merge: true });
+      const { serverTimestamp } = firebaseSync.modules;
+      await setCollabSessionDocWithRetry(collabState.sessionRef, { active: false, stoppedAt: serverTimestamp(), updatedAt: serverTimestamp() }, { merge: true }, { label: 'stop sharing' });
       leaveCollaborationSession({ message: 'Sharing stopped.', closeOverlay: true });
       closeCollabMembersOverlay?.();
       closeCollabOverlay?.();
@@ -22373,9 +22445,9 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
       const confirmed = await appConfirm('Leave this live project? You will stop seeing the host project updates.', { title: 'Leave live project', confirmText: 'Leave Project' });
       if (!confirmed) return;
       try {
-        const { setDoc, serverTimestamp } = firebaseSync.modules;
+        const { serverTimestamp } = firebaseSync.modules;
         const uid = getCollabUid();
-        await setDoc(collabState.sessionRef, {
+        await setCollabSessionDocWithRetry(collabState.sessionRef, {
           members: {
             [uid]: {
               ...buildCollabMember(collabState.role || 'member'),
@@ -22385,7 +22457,7 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
             }
           },
           updatedAt: serverTimestamp()
-        }, { merge: true });
+        }, { merge: true }, { optional: true, label: 'leave member marker' });
       } catch (error) {
         console.warn('Could not mark member as left.', error);
       }
@@ -22402,9 +22474,9 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     const confirmed = await appConfirm(`Remove ${displayName} from this live project?`, { title: 'Remove member', danger: true, confirmText: 'Kick Member' });
     if (!confirmed) return;
     try {
-      const { setDoc, serverTimestamp } = firebaseSync.modules;
+      const { serverTimestamp } = firebaseSync.modules;
       const existing = collabState.latestSession?.members?.[uid] || {};
-      await setDoc(collabState.sessionRef, {
+      await setCollabSessionDocWithRetry(collabState.sessionRef, {
         members: {
           [uid]: {
             ...existing,

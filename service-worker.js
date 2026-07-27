@@ -1,13 +1,13 @@
-const CACHE_NAME = 'ict-8-connect-step235';
+const CACHE_NAME = 'ict-8-connect-step236';
 const APP_SHELL = [
   './',
   './index.html',
-  './index.html?v=20260727-step235-recovery-modal-format-copy',
-  './index.html?fresh=step235',
+  './index.html?v=20260727-step236-share-join-permission-safe',
+  './index.html?fresh=step236',
   './style.css',
-  './style.css?v=20260727-step235-recovery-modal-format-copy',
+  './style.css?v=20260727-step236-share-join-permission-safe',
   './script.js',
-  './script.js?v=20260727-step235-recovery-modal-format-copy',
+  './script.js?v=20260727-step236-share-join-permission-safe',
   './firebase-config.js',
   './manifest.webmanifest',
   './favicon.png',
