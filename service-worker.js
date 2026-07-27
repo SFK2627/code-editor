@@ -1,13 +1,13 @@
-const CACHE_NAME = 'ict-8-connect-step236';
+const CACHE_NAME = 'ict-8-connect-step235-collab-concurrent-edit-fix';
 const APP_SHELL = [
   './',
   './index.html',
-  './index.html?v=20260727-step236-share-join-permission-safe',
-  './index.html?fresh=step236',
+  './index.html?v=20260727-step235-collab-concurrent-edit-fix',
+  './index.html?fresh=step235-collab-concurrent-edit-fix',
   './style.css',
-  './style.css?v=20260727-step236-share-join-permission-safe',
+  './style.css?v=20260727-step235-collab-concurrent-edit-fix',
   './script.js',
-  './script.js?v=20260727-step236-share-join-permission-safe',
+  './script.js?v=20260727-step235-collab-concurrent-edit-fix',
   './firebase-config.js',
   './manifest.webmanifest',
   './favicon.png',
