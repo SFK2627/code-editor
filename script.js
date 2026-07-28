@@ -629,6 +629,94 @@ let previewRenderToken = 0;
 let latestPreviewRuntimeError = '';
 let latestPreviewConsoleMessage = '';
 
+const FIRESTORE_READ_CACHE_DEFAULT_MS = 5 * 60 * 1000;
+const FIRESTORE_READ_CACHE_SHORT_MS = 90 * 1000;
+const FIRESTORE_READ_CACHE_LONG_MS = 10 * 60 * 1000;
+const firestoreReadCache = new Map();
+
+function getFirestoreRefPath(ref) {
+  if (!ref) return '';
+  if (typeof ref.path === 'string' && ref.path) return ref.path;
+  if (typeof ref._path?.canonicalString === 'function') return ref._path.canonicalString();
+  if (typeof ref._delegate?._path?.canonicalString === 'function') return ref._delegate._path.canonicalString();
+  return '';
+}
+
+function normalizeReadCacheKey(key, ref, kind = 'doc') {
+  return String(key || getFirestoreRefPath(ref) || `${kind}:${Date.now()}:${Math.random()}`);
+}
+
+function getFirestoreReadCache(key, maxAgeMs = FIRESTORE_READ_CACHE_DEFAULT_MS) {
+  const entry = firestoreReadCache.get(key);
+  if (!entry) return null;
+  if (Date.now() - Number(entry.savedAt || 0) > maxAgeMs) {
+    firestoreReadCache.delete(key);
+    return null;
+  }
+  return entry.value;
+}
+
+function setFirestoreReadCache(key, value) {
+  if (!key || !value) return value;
+  firestoreReadCache.set(key, { savedAt: Date.now(), value });
+  if (firestoreReadCache.size > 120) {
+    const firstKey = firestoreReadCache.keys().next().value;
+    if (firstKey) firestoreReadCache.delete(firstKey);
+  }
+  return value;
+}
+
+function clearFirestoreReadCache(match = '') {
+  const text = String(match || '').trim();
+  if (!text) {
+    firestoreReadCache.clear();
+    return;
+  }
+  Array.from(firestoreReadCache.keys()).forEach(key => {
+    if (String(key).includes(text)) firestoreReadCache.delete(key);
+  });
+}
+
+async function cachedFirestoreGetDoc(ref, options = {}) {
+  const {
+    key = '',
+    maxAgeMs = FIRESTORE_READ_CACHE_DEFAULT_MS,
+    force = false,
+    cacheMissing = true
+  } = options || {};
+  const cacheKey = normalizeReadCacheKey(key, ref, 'doc');
+  if (!force) {
+    const cached = getFirestoreReadCache(cacheKey, maxAgeMs);
+    if (cached) return cached;
+  }
+  const { getDoc } = firebaseSync.modules || {};
+  if (typeof getDoc !== 'function') throw new Error('Firebase getDoc is not ready.');
+  const snapshot = await getDoc(ref);
+  const exists = typeof snapshot?.exists === 'function' ? snapshot.exists() : Boolean(snapshot?.exists);
+  if (exists || cacheMissing) setFirestoreReadCache(cacheKey, snapshot);
+  return snapshot;
+}
+
+async function cachedFirestoreGetDocs(ref, options = {}) {
+  const {
+    key = '',
+    maxAgeMs = FIRESTORE_READ_CACHE_DEFAULT_MS,
+    force = false,
+    cacheEmpty = true
+  } = options || {};
+  const cacheKey = normalizeReadCacheKey(key, ref, 'docs');
+  if (!force) {
+    const cached = getFirestoreReadCache(cacheKey, maxAgeMs);
+    if (cached) return cached;
+  }
+  const { getDocs } = firebaseSync.modules || {};
+  if (typeof getDocs !== 'function') throw new Error('Firebase getDocs is not ready.');
+  const snapshot = await getDocs(ref);
+  const hasDocs = Array.isArray(snapshot?.docs) && snapshot.docs.length > 0;
+  if (hasDocs || cacheEmpty) setFirestoreReadCache(cacheKey, snapshot);
+  return snapshot;
+}
+
 
 const STARTER_CODE_VERSION_KEY = 'studentCodeStudio.starterCodeVersion';
 const CURRENT_STARTER_CODE_VERSION = 'clean-uploaded-base-2026-07-09-v2';
@@ -2484,13 +2572,16 @@ function getCloudActivitiesDocRef() {
   return doc(firebaseSync.db, firebaseSync.collectionName, firebaseSync.documentId);
 }
 
-async function loadActivitiesFromCloud() {
+async function loadActivitiesFromCloud(options = {}) {
   const ready = await initFirebaseSync();
   if (!ready) return false;
 
   try {
-    const { getDoc } = firebaseSync.modules;
-    const snap = await getDoc(getCloudActivitiesDocRef());
+    const snap = await cachedFirestoreGetDoc(getCloudActivitiesDocRef(), {
+      key: 'cloud:activities-main',
+      maxAgeMs: FIRESTORE_READ_CACHE_DEFAULT_MS,
+      force: options.force === true
+    });
     if (!snap.exists()) {
       if (isTeacherAuthenticated()) {
         await saveActivitiesToCloud();
@@ -2552,6 +2643,8 @@ async function saveActivitiesToCloud() {
       activities: activities.map(item => normalizeActivity(item)),
       studentAssistanceSettings: normalizeAssistanceSettings(studentAssistanceSettings)
     }, { merge: true });
+    clearFirestoreReadCache('cloud:activities');
+    clearFirestoreReadCache('lesson-library');
     setStatus('Saved to Firebase');
     return true;
   } catch (error) {
@@ -2580,6 +2673,7 @@ async function saveStudentAssistanceSettingsToCloud(settings = studentAssistance
       studentAssistanceSettings: normalizeAssistanceSettings(settings),
       studentAssistanceUpdatedAt: serverTimestamp()
     }, { merge: true });
+    clearFirestoreReadCache('cloud:activities');
     setAssistanceSettingsStatus('Published to all students. Open student pages will update automatically.', 'success');
     setStatus('Student assistance published');
     return true;
@@ -2674,7 +2768,7 @@ function saveAiRubricSettingsLocal(settings = aiRubricSettings) {
   return aiRubricSettings;
 }
 
-async function loadAiRubricSettingsFromCloud({ silent = false } = {}) {
+async function loadAiRubricSettingsFromCloud({ silent = false, force = false } = {}) {
   const ready = await initFirebaseSync();
   if (!ready || !isTeacherAuthenticated()) {
     syncAiRubricSettingsControls(aiRubricSettings);
@@ -2682,8 +2776,11 @@ async function loadAiRubricSettingsFromCloud({ silent = false } = {}) {
     return false;
   }
   try {
-    const { getDoc } = firebaseSync.modules;
-    const snapshot = await getDoc(getAiRubricSettingsDocRef());
+    const snapshot = await cachedFirestoreGetDoc(getAiRubricSettingsDocRef(), {
+      key: 'adminSettings:aiRubric',
+      maxAgeMs: FIRESTORE_READ_CACHE_DEFAULT_MS,
+      force: force === true
+    });
     if (!snapshotExists(snapshot)) {
       syncAiRubricSettingsControls(aiRubricSettings);
       if (!silent) setAiRubricSettingsStatus('No cloud Smart Review settings yet. Paste a key, then save.', 'warning');
@@ -2719,6 +2816,7 @@ async function saveAiRubricSettingsToCloud() {
       updatedAt: serverTimestamp(),
       updatedBy: firebaseSync.auth?.currentUser?.email || firebaseSync.currentUser?.email || 'teacher'
     }, { merge: true });
+    clearFirestoreReadCache('adminSettings:aiRubric');
     setAiRubricSettingsStatus(settings.enabled && settings.apiKey ? 'Smart Review settings saved. Result & Feedback can now use Gemini.' : 'Smart Review settings saved. Add a key and turn ON before using.', settings.enabled && settings.apiKey ? 'success' : 'warning');
     setStatus('Smart Review settings saved');
     return true;
@@ -3512,7 +3610,11 @@ async function loadStudentProfile(uid) {
   if (!ready || !uid) return null;
   const { getDoc } = firebaseSync.modules;
   try {
-    const snapshot = await getDoc(getStudentDocRef(uid));
+    const snapshot = await cachedFirestoreGetDoc(getStudentDocRef(uid), {
+      key: `student-profile:${uid}`,
+      maxAgeMs: FIRESTORE_READ_CACHE_SHORT_MS,
+      cacheMissing: false
+    });
     return snapshotExists(snapshot) ? { uid, ...snapshotData(snapshot) } : null;
   } catch (error) {
     const activeUser = getFirebaseActiveUser();
@@ -3527,8 +3629,11 @@ async function loadStudentProfile(uid) {
 async function loadStudentRosterRecord(studentId) {
   const ready = await initFirebaseSync();
   if (!ready || !studentId) return null;
-  const { getDoc } = firebaseSync.modules;
-  const snapshot = await getDoc(getStudentRosterDocRef(studentId));
+  const snapshot = await cachedFirestoreGetDoc(getStudentRosterDocRef(studentId), {
+    key: `student-roster:${normalizeStudentId(studentId)}`,
+    maxAgeMs: FIRESTORE_READ_CACHE_LONG_MS,
+    cacheMissing: false
+  });
   return snapshotExists(snapshot) ? { id: snapshot.id, ...snapshotData(snapshot) } : null;
 }
 
@@ -3553,7 +3658,11 @@ async function findStudentRosterRecordById(studentId) {
       where('authEmail', '==', activeUser.email),
       limit(10)
     );
-    const snapshot = await getDocs(ownRosterQuery);
+    const snapshot = await cachedFirestoreGetDocs(ownRosterQuery, {
+      key: `student-roster-email:${String(activeUser.email || '').toLowerCase()}`,
+      maxAgeMs: FIRESTORE_READ_CACHE_LONG_MS,
+      cacheEmpty: false
+    });
     const match = (snapshot.docs || []).map(docSnapshot => ({
       id: docSnapshot.id,
       ...snapshotData(docSnapshot)
@@ -3608,6 +3717,10 @@ function getStudentProjectRecoveryKey(projectId = appSession.currentProjectId, u
 }
 
 function persistStudentProjectsCache() {
+  if (appSession.student?.uid) {
+    appSession.projectsLoadedAt = Date.now();
+    clearFirestoreReadCache(`student-projects:${appSession.student.uid}`);
+  }
   const key = getStudentProjectCacheKey();
   if (!key) return;
   try {
@@ -4816,9 +4929,15 @@ function closeStudentDashboard() {
   document.body.classList.remove('student-dashboard-active');
 }
 
-async function loadStudentProjects() {
+async function loadStudentProjects(options = {}) {
   const student = appSession.student;
   if (!student) return [];
+  const now = Date.now();
+  if (!options.force && Array.isArray(appSession.projects) && appSession.projects.length && now - Number(appSession.projectsLoadedAt || 0) < FIRESTORE_READ_CACHE_SHORT_MS) {
+    renderStudentProjects();
+    if (projectDashboardStatus) projectDashboardStatus.textContent = `${appSession.projects.length} project${appSession.projects.length === 1 ? '' : 's'} ready.`;
+    return appSession.projects;
+  }
   const ready = await initFirebaseSync();
   if (!ready) {
     if (projectDashboardStatus) projectDashboardStatus.textContent = 'Could not connect to saved projects.';
@@ -4826,9 +4945,13 @@ async function loadStudentProjects() {
   }
   try {
     if (projectDashboardStatus) projectDashboardStatus.textContent = 'Loading projects...';
-    const { getDocs } = firebaseSync.modules;
     const snapshot = await withTimeout(
-      getDocs(getStudentProjectsCollectionRef(student.uid)),
+      cachedFirestoreGetDocs(getStudentProjectsCollectionRef(student.uid), {
+        key: `student-projects:${student.uid}`,
+        maxAgeMs: FIRESTORE_READ_CACHE_SHORT_MS,
+        force: options.force === true,
+        cacheEmpty: true
+      }),
       APP_NETWORK_TIMEOUT_MS,
       'Loading projects is taking too long. Please check the internet connection, then try again.'
     );
@@ -4840,6 +4963,7 @@ async function loadStudentProjects() {
       const bTime = timestampToDate(b.updatedAt)?.getTime() || 0;
       return bTime - aTime;
     });
+    appSession.projectsLoadedAt = Date.now();
     persistStudentProjectsCache();
     renderStudentProjects();
     return appSession.projects;
@@ -5129,8 +5253,11 @@ async function loadComplianceSettingsFromCloud(options = {}) {
   }
   const ready = await initFirebaseSync();
   if (!ready) throw new Error(firebaseSync.lastError || 'Firebase is not ready.');
-  const { getDoc } = firebaseSync.modules;
-  const snapshot = await getDoc(getComplianceSettingsDocRef());
+  const snapshot = await cachedFirestoreGetDoc(getComplianceSettingsDocRef(), {
+    key: 'adminSettings:compliance',
+    maxAgeMs: FIRESTORE_READ_CACHE_LONG_MS,
+    force: options.force === true
+  });
   if (!snapshotExists(snapshot)) {
     if (!options.silent) setComplianceSyncStatus('No cloud Compliance settings found yet. Save Settings once to use them on all teacher devices.', 'warning');
     return null;
@@ -5158,6 +5285,7 @@ async function saveComplianceSettingsToCloud(settings = {}) {
     updatedAtMs: Date.now(),
     updatedBy: firebaseSync.auth?.currentUser?.email || firebaseSync.currentUser?.email || 'teacher'
   }, { merge: true });
+  clearFirestoreReadCache('adminSettings:compliance');
   return normalized;
 }
 
@@ -5688,7 +5816,12 @@ async function loadAdminComplianceViewer(options = {}) {
     if (!ready) throw new Error(firebaseSync.lastError || 'Firebase is not ready.');
     const { getDocs } = firebaseSync.modules;
     const snapshot = await withTimeout(
-      getDocs(getComplianceCollectionRef()),
+      cachedFirestoreGetDocs(getComplianceCollectionRef(), {
+        key: 'admin:subjectCompliance',
+        maxAgeMs: FIRESTORE_READ_CACHE_SHORT_MS,
+        force: options.force === true,
+        cacheEmpty: true
+      }),
       APP_NETWORK_TIMEOUT_MS,
       'Loading compliance viewer is taking too long. Check the connection and try again.'
     );
@@ -5747,7 +5880,12 @@ async function loadStudentComplianceStatus(options = {}) {
   try {
     const { getDoc } = firebaseSync.modules;
     const snapshot = await withTimeout(
-      getDoc(getStudentComplianceDocRef(studentId)),
+      cachedFirestoreGetDoc(getStudentComplianceDocRef(studentId), {
+        key: `student-compliance:${normalizeStudentId(studentId)}`,
+        maxAgeMs: FIRESTORE_READ_CACHE_DEFAULT_MS,
+        force: options.force === true,
+        cacheMissing: true
+      }),
       APP_NETWORK_TIMEOUT_MS,
       'Loading subject status is taking too long. Please check the internet connection.'
     );
@@ -6066,10 +6204,12 @@ async function publishComplianceSync() {
         if (saved % 10 === 0) setComplianceSyncStatus(`Publishing status... ${saved}/${payload.students.length}`, '');
       }
     }
+    clearFirestoreReadCache('admin:subjectCompliance');
+    clearFirestoreReadCache('student-compliance:');
     const issueText = Array.isArray(payload.errors) && payload.errors.length ? ` ${payload.errors.length} sheet issue(s) were skipped; check preview.` : '';
     setComplianceSyncStatus(`Published ${saved} student status records for ${payload.selectedSection || 'checked section(s)'}. Students can refresh My Projects to see updates.${issueText}`, 'success');
-    loadAdminComplianceViewer({ silent: true }).catch(error => console.warn('Compliance viewer refresh failed.', error));
-    if (appSession.student) loadStudentComplianceStatus({ silent: true });
+    loadAdminComplianceViewer({ silent: true, force: true }).catch(error => console.warn('Compliance viewer refresh failed.', error));
+    if (appSession.student) loadStudentComplianceStatus({ silent: true, force: true });
   } catch (error) {
     console.warn('Compliance publish failed.', error);
     const rawMessage = error?.message || 'Could not publish Google Sheets status.';
@@ -6606,6 +6746,9 @@ async function registerStudentRosterRecord(rawRecord) {
     createdBy: firebaseSync.auth?.currentUser?.email || firebaseSync.currentUser?.email || 'teacher'
   };
   await setDoc(getStudentRosterDocRef(record.studentId), rosterRecord, { merge: false });
+  clearFirestoreReadCache('admin:studentRoster');
+  clearFirestoreReadCache(`student-roster:${normalizeStudentId(record.studentId)}`);
+  loadAdminStudents.lastLoadedAt = 0;
   const localRecord = {
     uid: '',
     rosterId: record.studentId,
@@ -6648,14 +6791,29 @@ async function addStudentAccountFromForm() {
   }
 }
 
-async function loadAdminStudents() {
+async function loadAdminStudents(options = {}) {
   if (!isTeacherAuthenticated()) return [];
+  if (!options.force && adminStudentsCache.length && Date.now() - Number(loadAdminStudents.lastLoadedAt || 0) < FIRESTORE_READ_CACHE_SHORT_MS) {
+    populateAdminSectionFilter();
+    renderAdminStudentTracker();
+    setStudentAdminStatus(`${adminStudentsCache.length} student record${adminStudentsCache.length === 1 ? '' : 's'} ready.`, 'success');
+    return adminStudentsCache;
+  }
   try {
     setStudentAdminStatus('Loading student tracker...');
-    const { getDocs } = firebaseSync.modules;
     const [studentSnapshot, rosterSnapshot] = await Promise.all([
-      getDocs(getStudentsCollectionRef()),
-      getDocs(getStudentRosterCollectionRef()).catch(() => ({ docs: [] }))
+      cachedFirestoreGetDocs(getStudentsCollectionRef(), {
+        key: 'admin:students',
+        maxAgeMs: FIRESTORE_READ_CACHE_SHORT_MS,
+        force: options.force === true,
+        cacheEmpty: true
+      }),
+      cachedFirestoreGetDocs(getStudentRosterCollectionRef(), {
+        key: 'admin:studentRoster',
+        maxAgeMs: FIRESTORE_READ_CACHE_SHORT_MS,
+        force: options.force === true,
+        cacheEmpty: true
+      }).catch(() => ({ docs: [] }))
     ]);
     const activeProfiles = (studentSnapshot.docs || []).map(docSnapshot => ({
       uid: docSnapshot.id,
@@ -6681,6 +6839,7 @@ async function loadAdminStudents() {
     }).filter(Boolean);
     adminStudentsCache = [...activeProfiles, ...rosterProfiles]
       .sort((a, b) => String(a.section || '').localeCompare(String(b.section || '')) || String(a.name || '').localeCompare(String(b.name || '')));
+    loadAdminStudents.lastLoadedAt = Date.now();
     populateAdminSectionFilter();
     renderAdminStudentTracker();
     setStudentAdminStatus(`${adminStudentsCache.length} student record${adminStudentsCache.length === 1 ? '' : 's'} loaded.`, 'success');
@@ -7123,7 +7282,12 @@ async function loadAdminOnlinePresence(options = {}) {
       limit(PRESENCE_ADMIN_LIMIT)
     );
     const snapshot = await withTimeout(
-      getDocs(presenceQuery),
+      cachedFirestoreGetDocs(presenceQuery, {
+        key: `admin:onlinePresence:${Math.floor(Date.now() / 30000)}`,
+        maxAgeMs: 30 * 1000,
+        force: options.force === true,
+        cacheEmpty: true
+      }),
       APP_NETWORK_TIMEOUT_MS,
       'Online list took too long to load. Try Refresh again.'
     );
@@ -13807,10 +13971,11 @@ function saveLessonLibraryCache() {
   });
 }
 
-function loadLessonLibraryCache() {
+function loadLessonLibraryCache(options = {}) {
   const cached = loadJSON(STORAGE_KEYS.lessonLibrary, null);
   const list = Array.isArray(cached?.lessons) ? cached.lessons : [];
-  return list.map((lesson, index) => normalizeLesson(lesson, index));
+  const lessons = list.map((lesson, index) => normalizeLesson(lesson, index));
+  return options.withMeta ? { lessons, savedAt: Number(cached?.savedAt || 0) } : lessons;
 }
 
 function formatLessonFileSize(bytes = 0) {
@@ -14152,20 +14317,29 @@ async function loadLessonLibrary(options = {}) {
   setLessonLibraryStatus('Loading lessons...', 'loading');
   if (lessonAdminListStatus) lessonAdminListStatus.textContent = 'Loading lessons...';
   if (!options.force && !lessonLibraryState.loaded) {
-    const cached = loadLessonLibraryCache();
+    const cachedMeta = loadLessonLibraryCache({ withMeta: true });
+    const cached = cachedMeta.lessons || [];
     if (cached.length) {
       lessonLibraryState.lessons = cached;
       lessonLibraryState.loaded = true;
       renderStudentLessonLibrary();
       renderAdminLessonList();
-      setLessonLibraryStatus('Showing saved lessons · refreshing in background...', 'warning');
+      const freshEnough = Date.now() - Number(cachedMeta.savedAt || 0) < FIRESTORE_READ_CACHE_LONG_MS;
+      setLessonLibraryStatus(freshEnough ? `${cached.length} lesson${cached.length === 1 ? '' : 's'} ready.` : 'Showing saved lessons · refreshing in background...', freshEnough ? 'success' : 'warning');
+      if (freshEnough) {
+        lessonLibraryState.loading = false;
+        return lessonLibraryState.lessons;
+      }
     }
   }
   try {
     const ready = await initFirebaseSync();
     if (!ready) throw new Error(firebaseSync.lastError || 'Could not connect to Firebase.');
-    const { getDoc } = firebaseSync.modules;
-    const snapshot = await withTimeout(getDoc(getCloudActivitiesDocRef()), APP_NETWORK_TIMEOUT_MS, 'Lesson list took too long to load. Check the connection and try again.');
+    const snapshot = await withTimeout(cachedFirestoreGetDoc(getCloudActivitiesDocRef(), {
+      key: 'lesson-library:cloudActivities',
+      maxAgeMs: FIRESTORE_READ_CACHE_LONG_MS,
+      force: options.force === true
+    }), APP_NETWORK_TIMEOUT_MS, 'Lesson list took too long to load. Check the connection and try again.');
     const data = snapshotExists(snapshot) ? snapshotData(snapshot) : {};
     lessonLibraryState.lessons = (Array.isArray(data.lessons) ? data.lessons : []).map((lesson, index) => normalizeLesson(lesson, index));
     lessonLibraryState.loaded = true;
@@ -14204,6 +14378,8 @@ async function saveLessonLibraryToCloud() {
     lessons,
     lessonLibraryUpdatedAt: serverTimestamp()
   }, { merge: true }), APP_NETWORK_TIMEOUT_MS, 'Publishing lessons took too long. Check the connection and try again.');
+  clearFirestoreReadCache('lesson-library');
+  clearFirestoreReadCache('cloud:activities');
   lessonLibraryState.lessons = lessons;
   lessonLibraryState.loaded = true;
   saveLessonLibraryCache();
@@ -19040,7 +19216,7 @@ saveComplianceSettingsBtn?.addEventListener('click', async () => {
 });
 previewComplianceSyncBtn?.addEventListener('click', previewComplianceSync);
 publishComplianceSyncBtn?.addEventListener('click', publishComplianceSync);
-refreshAdminComplianceViewerBtn?.addEventListener('click', () => loadAdminComplianceViewer());
+refreshAdminComplianceViewerBtn?.addEventListener('click', () => loadAdminComplianceViewer({ force: true }));
 [adminComplianceViewerSectionSelect, adminComplianceViewerSearch, adminComplianceViewerFilter].forEach(control => {
   control?.addEventListener('input', renderAdminComplianceViewer);
   control?.addEventListener('change', renderAdminComplianceViewer);
@@ -19076,7 +19252,7 @@ document.addEventListener('keydown', event => {
     closeStudentComplianceModal();
   }
 });
-studentComplianceRefreshBtn?.addEventListener('click', () => loadStudentComplianceStatus());
+studentComplianceRefreshBtn?.addEventListener('click', () => loadStudentComplianceStatus({ force: true }));
 
 lessonDriveConnectBtn?.addEventListener('click', async () => {
   lessonDriveConnectBtn.disabled = true;
