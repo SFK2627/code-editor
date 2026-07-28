@@ -14920,6 +14920,72 @@ button.activity-stat-card {
   font-weight: 900;
 }
 
+.activity-result-prompt,
+.activity-rubric-result-prompt {
+  display: grid;
+  gap: 9px;
+  border: 1px solid color-mix(in srgb, var(--primary) 34%, var(--line-strong));
+  border-radius: 18px;
+  padding: 14px;
+  color: var(--text);
+  background: color-mix(in srgb, var(--primary-soft) 62%, var(--solid-card));
+  box-shadow: 0 12px 28px rgba(37, 99, 235, 0.12);
+}
+
+.activity-result-prompt.hidden,
+.activity-rubric-result-prompt.hidden {
+  display: none !important;
+}
+
+.activity-result-prompt p,
+.activity-rubric-result-prompt p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.activity-result-prompt span {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.activity-modal-result-btn {
+  width: 100%;
+  justify-content: center;
+  min-height: 42px;
+  padding-inline: 12px;
+  white-space: normal;
+}
+
+.activity-rubric-result-prompt {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  margin-top: 14px;
+}
+
+.activity-rubric-result-prompt strong {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--text);
+  font-size: 0.95rem;
+}
+
+.activity-rubric-result-prompt .activity-modal-result-btn {
+  width: auto;
+  min-width: 210px;
+  white-space: nowrap;
+}
+
+[data-theme="dark"] .activity-result-prompt,
+[data-theme="dark"] .activity-rubric-result-prompt {
+  background: rgba(37, 99, 235, 0.16);
+  border-color: rgba(96, 165, 250, 0.32);
+}
+
 .activity-rubric-overlay {
   position: fixed;
   inset: 0;
@@ -15066,6 +15132,19 @@ button.activity-stat-card {
 
   .activity-popup .activity-stats {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .activity-result-prompt {
+    grid-column: 1 / -1;
+  }
+
+  .activity-rubric-result-prompt {
+    grid-template-columns: 1fr;
+  }
+
+  .activity-rubric-result-prompt .activity-modal-result-btn {
+    width: 100%;
+    min-width: 0;
   }
 
   .activity-stat-card,

@@ -55,6 +55,10 @@ const activityRubricOverlay = document.getElementById('activityRubricOverlay');
 const activityRubricTitle = document.getElementById('activityRubricTitle');
 const activityRubricMeta = document.getElementById('activityRubricMeta');
 const activityRubricTable = document.getElementById('activityRubricTable');
+const activityResultPrompt = document.getElementById('activityResultPrompt');
+const activityModalResultBtn = document.getElementById('activityModalResultBtn');
+const activityRubricResultPrompt = document.getElementById('activityRubricResultPrompt');
+const activityRubricResultBtn = document.getElementById('activityRubricResultBtn');
 const closeActivityRubricBtn = document.getElementById('closeActivityRubricBtn');
 
 // Keep activity dialogs attached to <body> so fixed overlays center to the real viewport,
@@ -945,6 +949,8 @@ let smartResultRequestId = 0;
 const smartResultMemoryCache = new Map();
 let smartResultCooldownUntil = 0;
 let smartResultCooldownReason = '';
+let autoResultAfterActivityTimer = null;
+let autoResultAfterActivityRunning = false;
 let isRestoringEditorHistory = false;
 let returnToFullEditorAfterPreview = false;
 let previewTransitionTimer = null;
@@ -12975,7 +12981,7 @@ function renderNoActivityResult() {
   resultContent.innerHTML = `
     <div class="empty-icon">!</div>
     <h3>No activity selected yet</h3>
-    <p>Please choose an activity first before checking the result. Run Code still works, but scoring needs a selected rubric.</p>
+    <p>Please choose an activity first. After you select one, Result and Feedback will check your current code automatically.</p>
   `;
   if (!isPhoneResultFeedbackView()) scrollElementIntoSafeView(resultPanel);
 }
@@ -13068,8 +13074,42 @@ function resetResultPanel() {
   resultContent.innerHTML = `
     <div class="empty-icon">✓</div>
     <h3>No result yet</h3>
-    <p>Click <strong>See Result</strong> when you are done with your selected activity.</p>
+    <p>Choose an activity first, then click <strong>Result</strong> when you are ready to check your score.</p>
   `;
+}
+
+function showResultReadyAfterActivitySelection(message = 'Activity and rubric are ready. Click the Result button when you are ready to check your score.') {
+  if (!resultContent) return;
+  resultContent.classList.add('empty-state');
+  resultContent.innerHTML = `
+    <div class="empty-icon">✓</div>
+    <h3>Ready to check</h3>
+    <p>${escapeHTML(message)}</p>
+    <p class="muted-text small-note">Use the button inside the Activity/Rubric popup or the Result button in the header. No score is computed until you click.</p>
+  `;
+}
+
+function setActivityModalResultPromptVisible(isVisible) {
+  activityResultPrompt?.classList.toggle('hidden', !isVisible);
+  activityRubricResultPrompt?.classList.toggle('hidden', !isVisible);
+  if (activityModalResultBtn) {
+    activityModalResultBtn.disabled = !isVisible;
+    activityModalResultBtn.setAttribute('aria-disabled', String(!isVisible));
+  }
+  if (activityRubricResultBtn) {
+    activityRubricResultBtn.disabled = !isVisible;
+    activityRubricResultBtn.setAttribute('aria-disabled', String(!isVisible));
+  }
+}
+
+function handleActivityModalResultClick() {
+  if (!activity) {
+    showActivityRequiredWarning();
+    return;
+  }
+  closeActivityRubricModal();
+  closeActivityCard();
+  window.setTimeout(() => showResult({ source: 'activity-modal-button' }), 80);
 }
 
 
@@ -13131,7 +13171,7 @@ function openActivityRubricModal() {
   if (!activityRubricOverlay || !activityRubricTable) return;
   const possible = activity.criteria.reduce((sum, criterion) => sum + getCriterionPossiblePoints(criterion), 0);
   if (activityRubricTitle) activityRubricTitle.textContent = activity.title || 'Activity Rubric';
-  if (activityRubricMeta) activityRubricMeta.textContent = `${formatPoints(possible)} total points • ${activity.criteria.length} rubric item${activity.criteria.length === 1 ? '' : 's'} • This is the full teacher rubric.`;
+  if (activityRubricMeta) activityRubricMeta.textContent = `Rubric Total: ${formatPoints(possible)} pts • ${activity.criteria.length} rubric item${activity.criteria.length === 1 ? '' : 's'} • This is the full teacher rubric, not a scored result yet.`;
   activityRubricTable.innerHTML = getActivityRubricHTML(activity);
   activityRubricOverlay.classList.remove('hidden');
   document.body.classList.add('activity-rubric-open');
@@ -13173,6 +13213,7 @@ function renderActivitySummary() {
     totalPoints.textContent = '0';
     criteriaCount.textContent = '0';
     activityCriteriaStat?.classList.add('disabled');
+    setActivityModalResultPromptVisible(false);
     renderActivitySelector();
     updateActivityButtonState();
     renderStudentTeacherComment();
@@ -13185,6 +13226,7 @@ function renderActivitySummary() {
   totalPoints.textContent = formatPoints(possible);
   criteriaCount.textContent = activity.criteria.length;
   activityCriteriaStat?.classList.remove('disabled');
+  setActivityModalResultPromptVisible(true);
   renderActivitySelector();
   updateActivityButtonState();
   clearActivityRequiredWarning();
@@ -13197,6 +13239,7 @@ function selectActivity(activityId, options = {}) {
   const hasEditorContent = shouldPreserveEditorCode && codeStoreHasVisibleContent(editorSnapshot);
 
   if (!activityId) {
+    window.clearTimeout(autoResultAfterActivityTimer);
     if (!shouldPreserveEditorCode && !options.skipSave) saveActiveEditor();
     activity = null;
     selectedActivityId = '';
@@ -13207,6 +13250,7 @@ function selectActivity(activityId, options = {}) {
       codeStore = codeByActivity.scratch ? getCodeStoreForActivity('scratch') : normalizeCodeStore(starterCode);
     }
     renderActivitySummary();
+    setActivityModalResultPromptVisible(false);
     loadActiveEditor();
     resetResultPanel();
     runCode(false, { scroll: false });
@@ -13237,10 +13281,14 @@ function selectActivity(activityId, options = {}) {
   }
 
   renderActivitySummary();
+  setActivityModalResultPromptVisible(true);
   loadActiveEditor();
   resetResultPanel();
   runCode(false, { scroll: false });
-  setStatus(`Loaded: ${nextActivity.title}`);
+  if (options.showResultPrompt !== false) {
+    showResultReadyAfterActivitySelection('Activity rubric loaded. Click the button inside this popup or Result when you are ready to check your current HTML, CSS, and JavaScript.');
+  }
+  setStatus(`Loaded: ${nextActivity.title}. Click Result when ready.`);
 }
 
 async function resetCurrentActivityCode() {
@@ -18871,6 +18919,8 @@ activityRubricOverlay?.addEventListener('click', event => {
   if (event.target === activityRubricOverlay) event.stopPropagation();
 });
 closeActivityRubricBtn?.addEventListener('click', closeActivityRubricModal);
+activityModalResultBtn?.addEventListener('click', handleActivityModalResultClick);
+activityRubricResultBtn?.addEventListener('click', handleActivityModalResultClick);
 document.addEventListener('keydown', event => {
   if (event.key !== 'Escape') return;
   if (activityRubricOverlay && !activityRubricOverlay.classList.contains('hidden')) {
@@ -18969,6 +19019,11 @@ if (fullscreenAutoRunBtn && !fullscreenAutoRunBtn.dataset.fullscreenActionBound)
 }
 updateAutoRunButtons();
 resultBtn.addEventListener('click', showResult);
+resultContent?.addEventListener('click', event => {
+  const target = event.target?.closest?.('[data-result-check="true"]');
+  if (!target) return;
+  showResult();
+});
 if (aiReviewTopBtn) aiReviewTopBtn.addEventListener('click', requestAIReview);
 if (runAiReviewBtn) runAiReviewBtn.addEventListener('click', requestAIReview);
 if (saveBtn) saveBtn.addEventListener('click', downloadCodeAsZip);
@@ -18987,7 +19042,7 @@ if (previewFrame) previewFrame.addEventListener('load', () => {
   attachPreviewLinkHandlers();
   window.setTimeout(renderErrorChecker, 80);
 });
-activitySelect.addEventListener('change', event => selectActivity(event.target.value));
+activitySelect.addEventListener('change', event => selectActivity(event.target.value, { showResultPrompt: true }));
 resetActivityCodeBtn.addEventListener('click', resetCurrentActivityCode);
 
 themeToggle?.addEventListener('click', () => {

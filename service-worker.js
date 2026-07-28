@@ -1,13 +1,13 @@
-const CACHE_NAME = 'ict8-connect-step241-selective-read-write-safe';
+const CACHE_NAME = 'ict8-connect-step244-activity-modal-result-button';
 const APP_SHELL = [
   './',
   './index.html',
-  './index.html?v=20260728-step241-selective-read-write-safe',
-  './index.html?fresh=step241-selective-read-write-safe',
+  './index.html?v=20260728-step244-activity-modal-result-button',
+  './index.html?fresh=step244-activity-modal-result-button',
   './style.css',
-  './style.css?v=20260728-step241-selective-read-write-safe',
+  './style.css?v=20260728-step244-activity-modal-result-button',
   './script.js',
-  './script.js?v=20260728-step241-selective-read-write-safe',
+  './script.js?v=20260728-step244-activity-modal-result-button',
   './firebase-config.js',
   './manifest.webmanifest',
   './favicon.png',

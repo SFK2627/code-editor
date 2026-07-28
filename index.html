@@ -846,13 +846,13 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
           <div class="panel-header compact-header">
             <div>
               <h2>Result & Feedback</h2>
-              <p>Run your code, then check your score based on the selected rubric.</p>
+              <p>Choose an activity or rubric, then click Result to see the real score and feedback.</p>
             </div>
           </div>
           <div id="resultContent" class="result-content empty-state">
             <div class="empty-icon">✓</div>
             <h3>No result yet</h3>
-            <p>Click <strong>See Result</strong> when you are done with your activity.</p>
+            <p>Choose an activity first, then click <strong>Result</strong> when you are ready to check your score.</p>
           </div>
         </section>
       </aside>
@@ -886,13 +886,18 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
           <div class="activity-stats">
             <div class="activity-stat-card">
               <span id="totalPoints" class="stat-number">0</span>
-              <span class="stat-label">Total Points</span>
+              <span class="stat-label">Rubric Total</span>
             </div>
             <button id="activityCriteriaStat" class="activity-stat-card criteria-stat-card" type="button" title="View full rubric table">
               <span id="criteriaCount" class="stat-number">0</span>
               <span class="stat-label">Criteria</span>
-              <span class="stat-hint">View full rubric</span>
+              <span class="stat-hint">View full rubric, not score</span>
             </button>
+            <div id="activityResultPrompt" class="activity-result-prompt hidden" role="status" aria-live="polite">
+              <p>Activity and rubric are ready. This is not a score yet.</p>
+              <button id="activityModalResultBtn" class="success-btn activity-modal-result-btn" type="button">✓ Click Result and Score</button>
+              <span>No extra check happens until you click this button.</span>
+            </div>
           </div>
         </div>
       </div>
@@ -909,6 +914,13 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
           <button id="closeActivityRubricBtn" class="icon-btn" type="button" aria-label="Close rubric popup">×</button>
         </div>
         <div id="activityRubricTable" class="activity-rubric-table-wrap"></div>
+        <div id="activityRubricResultPrompt" class="activity-rubric-result-prompt hidden" role="status" aria-live="polite">
+          <div>
+            <strong>Ready to check?</strong>
+            <p>This rubric total is not your score yet. Click below to check your current code.</p>
+          </div>
+          <button id="activityRubricResultBtn" class="success-btn activity-modal-result-btn" type="button">✓ Click Result and Score</button>
+        </div>
       </div>
     </div>
     <details class="help-card friendly-help compact-help">
