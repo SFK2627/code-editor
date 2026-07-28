@@ -1,13 +1,13 @@
-const CACHE_NAME = 'ict-8-connect-step238-read-reduction';
+const CACHE_NAME = 'ict-8-connect-step237-recovery-on-working-share-join';
 const APP_SHELL = [
   './',
   './index.html',
-  './index.html?v=20260727-step238-read-reduction',
-  './index.html?fresh=step238-read-reduction',
+  './index.html?v=20260727-step237-recovery-on-working-share-join',
+  './index.html?fresh=step237-recovery-on-working-share-join',
   './style.css',
-  './style.css?v=20260727-step238-read-reduction',
+  './style.css?v=20260727-step237-recovery-on-working-share-join',
   './script.js',
-  './script.js?v=20260727-step238-read-reduction',
+  './script.js?v=20260727-step237-recovery-on-working-share-join',
   './firebase-config.js',
   './manifest.webmanifest',
   './favicon.png',
