@@ -641,6 +641,41 @@ function withTimeout(promise, timeoutMs = APP_NETWORK_TIMEOUT_MS, message = 'Thi
   return Promise.race([promise, timeout]).finally(() => window.clearTimeout(timeoutId));
 }
 
+// STEP 241: selective Firestore cache for stable, non-live data only.
+// IMPORTANT: live collaboration/WebRTC paths are intentionally bypassed so
+// Share/Join, peers, cursor sync, and room signaling always use fresh data.
+const SELECTIVE_FIRESTORE_CACHE = new Map();
+const SELECTIVE_CACHE_SHORT_MS = 60 * 1000;
+const SELECTIVE_CACHE_MEDIUM_MS = 3 * 60 * 1000;
+const SELECTIVE_CACHE_LONG_MS = 5 * 60 * 1000;
+
+function isLiveFirestoreCacheKey(key = '') {
+  return /sharedSessions|peers|collab|webrtc|liveSync|cursor|roomSignal/i.test(String(key || ''));
+}
+
+function clearSelectiveFirestoreCache(prefix = '') {
+  const safePrefix = String(prefix || '');
+  if (!safePrefix) {
+    SELECTIVE_FIRESTORE_CACHE.clear();
+    return;
+  }
+  Array.from(SELECTIVE_FIRESTORE_CACHE.keys()).forEach(key => {
+    if (String(key).startsWith(safePrefix)) SELECTIVE_FIRESTORE_CACHE.delete(key);
+  });
+}
+
+async function withSelectiveFirestoreCache(key, ttlMs, loader, options = {}) {
+  const cacheKey = String(key || '');
+  const ttl = Math.max(0, Number(ttlMs || 0));
+  if (!cacheKey || !ttl || options.force || isLiveFirestoreCacheKey(cacheKey)) return loader();
+  const now = Date.now();
+  const cached = SELECTIVE_FIRESTORE_CACHE.get(cacheKey);
+  if (cached && cached.expiresAt > now) return cached.value;
+  const value = await loader();
+  SELECTIVE_FIRESTORE_CACHE.set(cacheKey, { value, expiresAt: now + ttl });
+  return value;
+}
+
 function isAutoRunControlAllowed() {
   return isStudentAssistanceFeatureEnabled('autoRunControl');
 }
@@ -2484,21 +2519,31 @@ function getCloudActivitiesDocRef() {
   return doc(firebaseSync.db, firebaseSync.collectionName, firebaseSync.documentId);
 }
 
+async function readCloudActivitiesDocument(options = {}) {
+  const { getDoc } = firebaseSync.modules;
+  return withSelectiveFirestoreCache('rootDocument:activities-lessons-settings', SELECTIVE_CACHE_MEDIUM_MS, async () => {
+    const snap = await getDoc(getCloudActivitiesDocRef());
+    return {
+      exists: snapshotExists(snap),
+      data: snapshotExists(snap) ? snapshotData(snap) : {}
+    };
+  }, options);
+}
+
 async function loadActivitiesFromCloud() {
   const ready = await initFirebaseSync();
   if (!ready) return false;
 
   try {
-    const { getDoc } = firebaseSync.modules;
-    const snap = await getDoc(getCloudActivitiesDocRef());
-    if (!snap.exists()) {
+    const rootDoc = await readCloudActivitiesDocument();
+    if (!rootDoc.exists) {
       if (isTeacherAuthenticated()) {
         await saveActivitiesToCloud();
       }
       return false;
     }
 
-    const data = snap.data() || {};
+    const data = rootDoc.data || {};
     let loadedCloudSettings = false;
     if (data.studentAssistanceSettings && typeof data.studentAssistanceSettings === 'object') {
       applyStudentAssistanceSettings(data.studentAssistanceSettings);
@@ -2552,6 +2597,7 @@ async function saveActivitiesToCloud() {
       activities: activities.map(item => normalizeActivity(item)),
       studentAssistanceSettings: normalizeAssistanceSettings(studentAssistanceSettings)
     }, { merge: true });
+    clearSelectiveFirestoreCache('rootDocument:');
     setStatus('Saved to Firebase');
     return true;
   } catch (error) {
@@ -2580,6 +2626,7 @@ async function saveStudentAssistanceSettingsToCloud(settings = studentAssistance
       studentAssistanceSettings: normalizeAssistanceSettings(settings),
       studentAssistanceUpdatedAt: serverTimestamp()
     }, { merge: true });
+    clearSelectiveFirestoreCache('rootDocument:');
     setAssistanceSettingsStatus('Published to all students. Open student pages will update automatically.', 'success');
     setStatus('Student assistance published');
     return true;
@@ -2683,13 +2730,16 @@ async function loadAiRubricSettingsFromCloud({ silent = false } = {}) {
   }
   try {
     const { getDoc } = firebaseSync.modules;
-    const snapshot = await getDoc(getAiRubricSettingsDocRef());
-    if (!snapshotExists(snapshot)) {
+    const cloudSettings = await withSelectiveFirestoreCache('adminSettings:aiRubric', SELECTIVE_CACHE_LONG_MS, async () => {
+      const snapshot = await getDoc(getAiRubricSettingsDocRef());
+      return { exists: snapshotExists(snapshot), data: snapshotExists(snapshot) ? snapshotData(snapshot) : {} };
+    });
+    if (!cloudSettings.exists) {
       syncAiRubricSettingsControls(aiRubricSettings);
       if (!silent) setAiRubricSettingsStatus('No cloud Smart Review settings yet. Paste a key, then save.', 'warning');
       return false;
     }
-    const data = snapshotData(snapshot) || {};
+    const data = cloudSettings.data || {};
     saveAiRubricSettingsLocal(data.settings || data);
     if (!silent) setAiRubricSettingsStatus('Smart Review settings loaded.', 'success');
     return true;
@@ -2719,6 +2769,7 @@ async function saveAiRubricSettingsToCloud() {
       updatedAt: serverTimestamp(),
       updatedBy: firebaseSync.auth?.currentUser?.email || firebaseSync.currentUser?.email || 'teacher'
     }, { merge: true });
+    clearSelectiveFirestoreCache('adminSettings:aiRubric');
     setAiRubricSettingsStatus(settings.enabled && settings.apiKey ? 'Smart Review settings saved. Result & Feedback can now use Gemini.' : 'Smart Review settings saved. Add a key and turn ON before using.', settings.enabled && settings.apiKey ? 'success' : 'warning');
     setStatus('Smart Review settings saved');
     return true;
@@ -3512,8 +3563,10 @@ async function loadStudentProfile(uid) {
   if (!ready || !uid) return null;
   const { getDoc } = firebaseSync.modules;
   try {
-    const snapshot = await getDoc(getStudentDocRef(uid));
-    return snapshotExists(snapshot) ? { uid, ...snapshotData(snapshot) } : null;
+    return await withSelectiveFirestoreCache(`studentProfile:${uid}`, SELECTIVE_CACHE_MEDIUM_MS, async () => {
+      const snapshot = await getDoc(getStudentDocRef(uid));
+      return snapshotExists(snapshot) ? { uid, ...snapshotData(snapshot) } : null;
+    });
   } catch (error) {
     const activeUser = getFirebaseActiveUser();
     if (isFirestorePermissionError(error) && activeUser?.uid === uid) {
@@ -3528,8 +3581,11 @@ async function loadStudentRosterRecord(studentId) {
   const ready = await initFirebaseSync();
   if (!ready || !studentId) return null;
   const { getDoc } = firebaseSync.modules;
-  const snapshot = await getDoc(getStudentRosterDocRef(studentId));
-  return snapshotExists(snapshot) ? { id: snapshot.id, ...snapshotData(snapshot) } : null;
+  const normalized = normalizeStudentId(studentId);
+  return withSelectiveFirestoreCache(`studentRoster:${normalized}`, SELECTIVE_CACHE_LONG_MS, async () => {
+    const snapshot = await getDoc(getStudentRosterDocRef(normalized));
+    return snapshotExists(snapshot) ? { id: snapshot.id, ...snapshotData(snapshot) } : null;
+  });
 }
 
 async function findStudentRosterRecordById(studentId) {
@@ -4816,7 +4872,7 @@ function closeStudentDashboard() {
   document.body.classList.remove('student-dashboard-active');
 }
 
-async function loadStudentProjects() {
+async function loadStudentProjects(options = {}) {
   const student = appSession.student;
   if (!student) return [];
   const ready = await initFirebaseSync();
@@ -4827,15 +4883,18 @@ async function loadStudentProjects() {
   try {
     if (projectDashboardStatus) projectDashboardStatus.textContent = 'Loading projects...';
     const { getDocs } = firebaseSync.modules;
-    const snapshot = await withTimeout(
-      getDocs(getStudentProjectsCollectionRef(student.uid)),
-      APP_NETWORK_TIMEOUT_MS,
-      'Loading projects is taking too long. Please check the internet connection, then try again.'
-    );
-    appSession.projects = (snapshot.docs || []).map(docSnapshot => ({
-      id: docSnapshot.id,
-      ...snapshotData(docSnapshot)
-    })).sort((a, b) => {
+    const projectDocs = await withSelectiveFirestoreCache(`studentProjects:${student.uid}`, SELECTIVE_CACHE_SHORT_MS, async () => {
+      const snapshot = await withTimeout(
+        getDocs(getStudentProjectsCollectionRef(student.uid)),
+        APP_NETWORK_TIMEOUT_MS,
+        'Loading projects is taking too long. Please check the internet connection, then try again.'
+      );
+      return (snapshot.docs || []).map(docSnapshot => ({
+        id: docSnapshot.id,
+        ...snapshotData(docSnapshot)
+      }));
+    }, options);
+    appSession.projects = projectDocs.map(project => ({ ...project })).sort((a, b) => {
       const aTime = timestampToDate(a.updatedAt)?.getTime() || 0;
       const bTime = timestampToDate(b.updatedAt)?.getTime() || 0;
       return bTime - aTime;
@@ -5130,12 +5189,15 @@ async function loadComplianceSettingsFromCloud(options = {}) {
   const ready = await initFirebaseSync();
   if (!ready) throw new Error(firebaseSync.lastError || 'Firebase is not ready.');
   const { getDoc } = firebaseSync.modules;
-  const snapshot = await getDoc(getComplianceSettingsDocRef());
-  if (!snapshotExists(snapshot)) {
+  const cloudSettings = await withSelectiveFirestoreCache('adminSettings:compliance', SELECTIVE_CACHE_LONG_MS, async () => {
+    const snapshot = await getDoc(getComplianceSettingsDocRef());
+    return { exists: snapshotExists(snapshot), data: snapshotExists(snapshot) ? snapshotData(snapshot) : {} };
+  }, options);
+  if (!cloudSettings.exists) {
     if (!options.silent) setComplianceSyncStatus('No cloud Compliance settings found yet. Save Settings once to use them on all teacher devices.', 'warning');
     return null;
   }
-  const data = snapshotData(snapshot);
+  const data = cloudSettings.data;
   const settings = saveComplianceSettings(getComplianceCloudSettingsSource(data));
   syncComplianceSettingsControls();
   if (!options.silent) setComplianceSyncStatus('Compliance settings loaded from Firebase. These links and task names are now available on this device.', 'success');
@@ -5158,6 +5220,7 @@ async function saveComplianceSettingsToCloud(settings = {}) {
     updatedAtMs: Date.now(),
     updatedBy: firebaseSync.auth?.currentUser?.email || firebaseSync.currentUser?.email || 'teacher'
   }, { merge: true });
+  clearSelectiveFirestoreCache('adminSettings:compliance');
   return normalized;
 }
 
@@ -5687,16 +5750,18 @@ async function loadAdminComplianceViewer(options = {}) {
     const ready = await initFirebaseSync();
     if (!ready) throw new Error(firebaseSync.lastError || 'Firebase is not ready.');
     const { getDocs } = firebaseSync.modules;
-    const snapshot = await withTimeout(
-      getDocs(getComplianceCollectionRef()),
-      APP_NETWORK_TIMEOUT_MS,
-      'Loading compliance viewer is taking too long. Check the connection and try again.'
-    );
-    const docs = Array.from(snapshot?.docs || []);
-    adminComplianceViewerRecords = docs
-      .map(docSnap => sanitizeComplianceStudentRecord({ id: docSnap.id, ...(typeof docSnap.data === 'function' ? docSnap.data() : {}) }))
-      .filter(record => record.studentIdNormalized)
-      .sort((a, b) => String(a.section || '').localeCompare(String(b.section || '')) || String(a.studentName || '').localeCompare(String(b.studentName || '')));
+    const records = await withSelectiveFirestoreCache('compliance:viewerRecords', SELECTIVE_CACHE_SHORT_MS, async () => {
+      const snapshot = await withTimeout(
+        getDocs(getComplianceCollectionRef()),
+        APP_NETWORK_TIMEOUT_MS,
+        'Loading compliance viewer is taking too long. Check the connection and try again.'
+      );
+      return Array.from(snapshot?.docs || [])
+        .map(docSnap => sanitizeComplianceStudentRecord({ id: docSnap.id, ...(typeof docSnap.data === 'function' ? docSnap.data() : {}) }))
+        .filter(record => record.studentIdNormalized)
+        .sort((a, b) => String(a.section || '').localeCompare(String(b.section || '')) || String(a.studentName || '').localeCompare(String(b.studentName || '')));
+    }, options);
+    adminComplianceViewerRecords = records.map(record => ({ ...record }));
     renderAdminComplianceViewer();
     const lacking = adminComplianceViewerRecords.filter(record => Number((record.summary || {}).missing || 0) > 0).length;
     if (!options.silent) setAdminComplianceViewerStatus(`Loaded ${adminComplianceViewerRecords.length} student record(s). ${lacking} student(s) currently have lacking requirements.`, 'success');
@@ -5746,17 +5811,20 @@ async function loadStudentComplianceStatus(options = {}) {
   }
   try {
     const { getDoc } = firebaseSync.modules;
-    const snapshot = await withTimeout(
-      getDoc(getStudentComplianceDocRef(studentId)),
-      APP_NETWORK_TIMEOUT_MS,
-      'Loading subject status is taking too long. Please check the internet connection.'
-    );
-    if (!snapshotExists(snapshot)) {
+    const complianceDoc = await withSelectiveFirestoreCache(`subjectCompliance:${studentId}`, SELECTIVE_CACHE_SHORT_MS, async () => {
+      const snapshot = await withTimeout(
+        getDoc(getStudentComplianceDocRef(studentId)),
+        APP_NETWORK_TIMEOUT_MS,
+        'Loading subject status is taking too long. Please check the internet connection.'
+      );
+      return { exists: snapshotExists(snapshot), id: snapshot?.id || studentId, data: snapshotExists(snapshot) ? snapshotData(snapshot) : {} };
+    }, options);
+    if (!complianceDoc.exists) {
       studentComplianceRecord = null;
       renderStudentComplianceRecord(null, { message: 'No published subject status yet.' });
       return null;
     }
-    studentComplianceRecord = { id: snapshot.id, ...snapshotData(snapshot) };
+    studentComplianceRecord = { id: complianceDoc.id, ...complianceDoc.data };
     renderStudentComplianceRecord(studentComplianceRecord);
     return studentComplianceRecord;
   } catch (error) {
@@ -6069,7 +6137,9 @@ async function publishComplianceSync() {
     const issueText = Array.isArray(payload.errors) && payload.errors.length ? ` ${payload.errors.length} sheet issue(s) were skipped; check preview.` : '';
     setComplianceSyncStatus(`Published ${saved} student status records for ${payload.selectedSection || 'checked section(s)'}. Students can refresh My Projects to see updates.${issueText}`, 'success');
     loadAdminComplianceViewer({ silent: true }).catch(error => console.warn('Compliance viewer refresh failed.', error));
-    if (appSession.student) loadStudentComplianceStatus({ silent: true });
+    clearSelectiveFirestoreCache('compliance:');
+    clearSelectiveFirestoreCache('subjectCompliance:');
+    if (appSession.student) loadStudentComplianceStatus({ silent: true, force: true });
   } catch (error) {
     console.warn('Compliance publish failed.', error);
     const rawMessage = error?.message || 'Could not publish Google Sheets status.';
@@ -6218,6 +6288,8 @@ async function saveProjectNameDialog() {
       lastActivityAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     }, { merge: true });
+    clearSelectiveFirestoreCache(`studentProjects:${appSession.student.uid}`);
+    clearSelectiveFirestoreCache(`studentProfile:${appSession.student.uid}`);
     appSession.projects.unshift({ id: projectId, ...data });
     appSession.student.projectCount = Number(appSession.student.projectCount || 0) + 1;
     persistStudentProjectsCache();
@@ -6313,6 +6385,7 @@ async function renameStudentProject(projectId, name) {
     nameLower: name.toLowerCase(),
     updatedAt: serverTimestamp()
   }, { merge: true });
+  clearSelectiveFirestoreCache(`studentProjects:${appSession.student.uid}`);
   const cached = appSession.projects.find(project => project.id === projectId);
   if (cached) {
     cached.name = name;
@@ -6443,6 +6516,11 @@ async function saveCurrentStudentProject({ result = null, immediate = false, rea
     return false;
   }
   if (immediate) window.clearTimeout(studentProjectSaveTimer);
+  const hasResultUpdate = result !== null && typeof result !== 'undefined';
+  if (!hasResultUpdate && !studentProjectDirty && studentProjectRevision <= studentProjectLastSavedRevision) {
+    setStudentSaveState('Saved');
+    return true;
+  }
   if (studentProjectSaveInFlight) {
     studentProjectSaveQueued = true;
     return studentProjectSavePromise;
@@ -6466,6 +6544,7 @@ async function saveCurrentStudentProject({ result = null, immediate = false, rea
         APP_NETWORK_TIMEOUT_MS,
         'Saving is taking too long. Your recovery copy is safe on this device.'
       );
+      clearSelectiveFirestoreCache(`studentProjects:${studentUidBeingSaved}`);
 
       // Do not overwrite state if the student switched projects while this request was running.
       if (appSession.currentProjectId === projectIdBeingSaved && appSession.student?.uid === studentUidBeingSaved) {
@@ -6495,6 +6574,8 @@ async function saveCurrentStudentProject({ result = null, immediate = false, rea
       const now = Date.now();
       if (reason !== 'edit' || now - lastProfileActivityWriteAt >= PROFILE_ACTIVITY_WRITE_INTERVAL) {
         lastProfileActivityWriteAt = now;
+        clearSelectiveFirestoreCache(`studentProjects:${studentUidBeingSaved}`);
+        clearSelectiveFirestoreCache(`studentProfile:${studentUidBeingSaved}`);
         await withTimeout(
           setDoc(getStudentDocRef(studentUidBeingSaved), {
             lastActivityAt: serverTimestamp(),
@@ -6606,6 +6687,8 @@ async function registerStudentRosterRecord(rawRecord) {
     createdBy: firebaseSync.auth?.currentUser?.email || firebaseSync.currentUser?.email || 'teacher'
   };
   await setDoc(getStudentRosterDocRef(record.studentId), rosterRecord, { merge: false });
+  clearSelectiveFirestoreCache('admin:studentsAndRoster');
+  clearSelectiveFirestoreCache(`studentRoster:${record.studentId}`);
   const localRecord = {
     uid: '',
     rosterId: record.studentId,
@@ -6648,22 +6731,28 @@ async function addStudentAccountFromForm() {
   }
 }
 
-async function loadAdminStudents() {
+async function loadAdminStudents(options = {}) {
   if (!isTeacherAuthenticated()) return [];
   try {
     setStudentAdminStatus('Loading student tracker...');
     const { getDocs } = firebaseSync.modules;
-    const [studentSnapshot, rosterSnapshot] = await Promise.all([
-      getDocs(getStudentsCollectionRef()),
-      getDocs(getStudentRosterCollectionRef()).catch(() => ({ docs: [] }))
-    ]);
-    const activeProfiles = (studentSnapshot.docs || []).map(docSnapshot => ({
+    const adminData = await withSelectiveFirestoreCache('admin:studentsAndRoster', SELECTIVE_CACHE_SHORT_MS, async () => {
+      const [studentSnapshot, rosterSnapshot] = await Promise.all([
+        getDocs(getStudentsCollectionRef()),
+        getDocs(getStudentRosterCollectionRef()).catch(() => ({ docs: [] }))
+      ]);
+      return {
+        studentDocs: Array.from(studentSnapshot.docs || []),
+        rosterDocs: Array.from(rosterSnapshot.docs || [])
+      };
+    }, options);
+    const activeProfiles = (adminData.studentDocs || []).map(docSnapshot => ({
       uid: docSnapshot.id,
       isRosterOnly: false,
       ...snapshotData(docSnapshot)
     }));
     const byStudentId = new Map(activeProfiles.map(student => [normalizeStudentId(student.studentId), student]));
-    const rosterProfiles = (rosterSnapshot.docs || []).map(docSnapshot => {
+    const rosterProfiles = (adminData.rosterDocs || []).map(docSnapshot => {
       const data = snapshotData(docSnapshot);
       const studentId = normalizeStudentId(data.studentId || docSnapshot.id);
       const activeMatch = byStudentId.get(studentId);
@@ -14164,9 +14253,8 @@ async function loadLessonLibrary(options = {}) {
   try {
     const ready = await initFirebaseSync();
     if (!ready) throw new Error(firebaseSync.lastError || 'Could not connect to Firebase.');
-    const { getDoc } = firebaseSync.modules;
-    const snapshot = await withTimeout(getDoc(getCloudActivitiesDocRef()), APP_NETWORK_TIMEOUT_MS, 'Lesson list took too long to load. Check the connection and try again.');
-    const data = snapshotExists(snapshot) ? snapshotData(snapshot) : {};
+    const rootDoc = await withTimeout(readCloudActivitiesDocument(options), APP_NETWORK_TIMEOUT_MS, 'Lesson list took too long to load. Check the connection and try again.');
+    const data = rootDoc.exists ? rootDoc.data : {};
     lessonLibraryState.lessons = (Array.isArray(data.lessons) ? data.lessons : []).map((lesson, index) => normalizeLesson(lesson, index));
     lessonLibraryState.loaded = true;
     saveLessonLibraryCache();
@@ -14204,6 +14292,7 @@ async function saveLessonLibraryToCloud() {
     lessons,
     lessonLibraryUpdatedAt: serverTimestamp()
   }, { merge: true }), APP_NETWORK_TIMEOUT_MS, 'Publishing lessons took too long. Check the connection and try again.');
+  clearSelectiveFirestoreCache('rootDocument:');
   lessonLibraryState.lessons = lessons;
   lessonLibraryState.loaded = true;
   saveLessonLibraryCache();
@@ -19040,7 +19129,7 @@ saveComplianceSettingsBtn?.addEventListener('click', async () => {
 });
 previewComplianceSyncBtn?.addEventListener('click', previewComplianceSync);
 publishComplianceSyncBtn?.addEventListener('click', publishComplianceSync);
-refreshAdminComplianceViewerBtn?.addEventListener('click', () => loadAdminComplianceViewer());
+refreshAdminComplianceViewerBtn?.addEventListener('click', () => loadAdminComplianceViewer({ force: true }));
 [adminComplianceViewerSectionSelect, adminComplianceViewerSearch, adminComplianceViewerFilter].forEach(control => {
   control?.addEventListener('input', renderAdminComplianceViewer);
   control?.addEventListener('change', renderAdminComplianceViewer);
@@ -19076,7 +19165,7 @@ document.addEventListener('keydown', event => {
     closeStudentComplianceModal();
   }
 });
-studentComplianceRefreshBtn?.addEventListener('click', () => loadStudentComplianceStatus());
+studentComplianceRefreshBtn?.addEventListener('click', () => loadStudentComplianceStatus({ force: true }));
 
 lessonDriveConnectBtn?.addEventListener('click', async () => {
   lessonDriveConnectBtn.disabled = true;
@@ -19535,7 +19624,7 @@ chooseStudentImportBtn?.addEventListener('click', () => studentImportInput?.clic
 studentImportInput?.addEventListener('change', event => handleStudentImportFile(event.target.files?.[0]));
 confirmStudentImportBtn?.addEventListener('click', confirmStudentImport);
 cancelStudentImportBtn?.addEventListener('click', cancelStudentImport);
-refreshStudentsBtn?.addEventListener('click', loadAdminStudents);
+refreshStudentsBtn?.addEventListener('click', () => loadAdminStudents({ force: true }));
 adminStudentSearch?.addEventListener('input', renderAdminStudentTracker);
 adminSectionFilter?.addEventListener('change', renderAdminStudentTracker);
 adminActivityFilter?.addEventListener('change', renderAdminStudentTracker);
