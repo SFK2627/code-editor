@@ -7907,7 +7907,9 @@ function collectAdminProjectOutputSummary() {
 
 function buildAdminAiRubricPrompt(context) {
   const style = aiRubricSettings.reviewStyle || 'strict';
-  return `You are an experienced Grade 8 ICT/web coding teacher. Grade the student's project using ONLY the teacher rubric, the student code, and the rendered output summary below.\n\nIMPORTANT RULES:\n- Be consistent and evidence-based.\n- Do not reward code that is not present or output that cannot be verified.\n- If output summary is limited, use the code as evidence and mention the limitation.\n- Score each criterion from 0 up to its max points only.\n- Total score must equal the sum of criterion scores.\n- Use the rubric descriptions as the main basis.\n- Give constructive feedback that a beginner can understand.\n- Do not give a complete replacement code solution.\n- Return ONLY valid JSON. No markdown.\n- Use this review style: ${style}.\n\nRequired JSON schema:\n{\n  "summary": "one short teacher summary",\n  "totalScore": 0,\n  "possibleScore": 0,\n  "percent": 0,\n  "confidence": "high|medium|low",\n  "criteria": [\n    {"name":"criterion name", "max":0, "score":0, "level":"Excellent|Good|Fair|Needs Improvement", "evidence":"specific evidence from code/output", "improvement":"specific improvement"}\n  ],\n  "studentFeedback": "short feedback for the student",\n  "teacherNotes": ["short note for teacher"],\n  "warnings": ["limitations or uncertain items"]\n}\n\nPROJECT CONTEXT JSON:\n${JSON.stringify(context, null, 2)}`;
+  return `You are an experienced Grade 8 ICT/web coding teacher. Grade the student's project using ONLY the teacher rubric, the student code, and the rendered output summary below.\n\nIMPORTANT RULES:\n- Be consistent and evidence-based.\n- Do not reward code that is not present or output that cannot be verified.\n- If output summary is limited, use the code as evidence and mention the limitation.\n- Score each criterion from 0 up to its max points only.\n- A criterion that satisfies every explicit Excellent-level requirement must receive the Excellent score for that row.
+- Do a contradiction audit: evidence, level, score, and improvement must agree.
+- Total score must equal the sum of criterion scores.\n- Use the rubric descriptions as the main basis.\n- Review all provided HTML/CSS/JavaScript files and verify HTML-CSS selector connections; do not focus on one example or a fixed list of tags.\n- Give constructive feedback that a beginner can understand.\n- Do not give a complete replacement code solution.\n- Return ONLY valid JSON. No markdown.\n- Use this review style: ${style}.\n\nRequired JSON schema:\n{\n  "summary": "one short teacher summary",\n  "totalScore": 0,\n  "possibleScore": 0,\n  "percent": 0,\n  "confidence": "high|medium|low",\n  "criteria": [\n    {"name":"criterion name", "max":0, "score":0, "level":"Excellent|Good|Fair|Needs Improvement", "evidence":"specific evidence from code/output", "improvement":"specific improvement"}\n  ],\n  "studentFeedback": "short feedback for the student",\n  "teacherNotes": ["short note for teacher"],\n  "warnings": ["limitations or uncertain items"]\n}\n\nPROJECT CONTEXT JSON:\n${JSON.stringify(context, null, 2)}`;
 }
 
 function extractJsonObjectFromText(text) {
@@ -9651,9 +9653,13 @@ function getCriterionIntent(criterion) {
   const needs = String(normalized.levels?.needsImprovement?.description || '').toLowerCase();
   const text = `${title} ${excellent} ${good} ${fair} ${needs}`.replace(/<[^>]+>/g, ' ');
 
+  // Treat CSS as required only when the rubric clearly asks for stylesheet-based styling.
+  // Attribute names such as width/height on an <img> are HTML requirements, not CSS requirements.
   const explicitCss = includesAnyText(text, [
-    /\bcss\b/, /stylesheet/, /\bstyl(e|ing|ed)\b/, /visual design/, /visual appeal/, /presentation/,
-    /layout/, /responsive/, /media quer/, /flexbox|\bflex\b/, /grid/, /color|background|font|border|margin|padding|gap|box-shadow|width|height|align|justify/
+    /\bcss\b/, /stylesheet/, /css propert/, /css selector/, /style sheet/,
+    /visual design/, /visual appeal/, /responsive design/, /media quer/, /flexbox|\bflex layout\b/, /css grid/,
+    /background-color/, /font-family/, /font-size/, /border-radius/, /box-shadow/,
+    /(?:use|uses|using|apply|applies|add|adds|include|includes|required?)\s+(?:meaningful\s+)?(?:css|styling|styles)/
   ]);
 
   const explicitJs = includesAnyText(text, [
@@ -9687,6 +9693,20 @@ function getLocalCriterionEvidence(criterion, progress) {
   const cssProperties = countMatches(css, /[a-z-]+\s*:/gi);
   const issues = [];
   const evidence = [];
+  const requirementAudit = buildRubricRequirementAudit(criterion);
+
+  if (requirementAudit.checks.length) {
+    const passedDetails = requirementAudit.passed.slice(0, 5).map(item => item.evidence || `${item.label} passed.`).filter(Boolean);
+    const missingDetails = requirementAudit.missing.slice(0, 4).map(item => item.fix || `${item.label} is missing.`).filter(Boolean);
+    return {
+      evidence: passedDetails.length
+        ? passedDetails.join(' ')
+        : 'No required rubric evidence was verified in the submitted code.',
+      improvement: missingDetails.length
+        ? missingDetails.join(' ')
+        : 'All explicitly detected requirements for this criterion are satisfied.'
+    };
+  }
 
   // Only apply global HTML structure penalties to criteria that actually ask for HTML/source structure.
   // Content and element criteria may mention a specific element without requiring full document structure.
@@ -9755,7 +9775,7 @@ function getLocalCriterionEvidence(criterion, progress) {
   let improvement = '';
   if (issues.length) improvement = issues[0];
   else if (progress < 0.9) improvement = 'Add more evidence that directly matches this criterion description.';
-  else improvement = 'Continue polishing this criterion according to the rubric.';
+  else improvement = 'All detected requirements for this criterion are satisfied.';
 
   return {
     evidence: evidence.slice(0, 2).join(' '),
@@ -11871,6 +11891,293 @@ function getCodeBasicsProgress() {
   };
 }
 
+function getTagAttributeValue(tagSource, attributeName) {
+  const escaped = String(attributeName || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const match = String(tagSource || '').match(new RegExp(`\\b${escaped}\\s*=\\s*(?:["']([^"']*)["']|([^\\s>]+))`, 'i'));
+  return match ? String(match[1] ?? match[2] ?? '').trim() : '';
+}
+
+function getFirstOpeningTag(html, tagName) {
+  const match = String(html || '').match(new RegExp(`<${tagName}\\b[^>]*>`, 'i'));
+  return match ? match[0] : '';
+}
+
+
+function parseStudentHTMLForRubric(html = codeStore.html || '') {
+  try {
+    return new DOMParser().parseFromString(String(html || ''), 'text/html');
+  } catch (error) {
+    return null;
+  }
+}
+
+function isMeaningfulRubricText(value = '', minimum = 3) {
+  const text = String(value || '').replace(/\s+/g, ' ').trim();
+  if (text.length < minimum) return false;
+  return !/^(image|img|photo|picture|link|click here|text|none|n\/a|test|sample)$/i.test(text);
+}
+
+
+function getAllStudentCodeForRubric(language = 'html') {
+  try {
+    const files = getLanguageFileMap(language);
+    if (files && typeof files === 'object') return Object.values(files).map(value => String(value || '')).join('\n\n');
+  } catch (error) {}
+  if (language === 'html') return String(codeStore.html || '');
+  if (language === 'css') return String(codeStore.css || '');
+  if (language === 'js') return String(codeStore.js || '');
+  return '';
+}
+
+function parseRubricCssRules(cssText = '') {
+  const css = String(cssText || '').replace(/\/\*[\s\S]*?\*\//g, ' ');
+  const rules = [];
+  const blockPattern = /([^{}]+)\{([^{}]*)\}/g;
+  let match;
+  while ((match = blockPattern.exec(css)) !== null) {
+    const selectorText = String(match[1] || '').trim();
+    if (!selectorText || selectorText.startsWith('@')) continue;
+    const declarations = {};
+    String(match[2] || '').split(';').forEach(part => {
+      const colon = part.indexOf(':');
+      if (colon < 1) return;
+      const property = part.slice(0, colon).trim().toLowerCase();
+      const value = part.slice(colon + 1).trim();
+      if (property) declarations[property] = value;
+    });
+    selectorText.split(',').map(item => item.trim()).filter(Boolean).forEach(selector => rules.push({ selector, declarations }));
+  }
+  return rules;
+}
+
+function rubricSelectorMatchesDocument(doc, selector = '') {
+  if (!doc || !selector) return false;
+  try { return Boolean(doc.querySelector(selector)); } catch (error) {
+    const simple = String(selector).match(/([#.])([A-Za-z_][\w-]*)/);
+    if (!simple) return false;
+    return simple[1] === '#' ? Boolean(doc.getElementById(simple[2])) : Boolean(doc.querySelector(`.${simple[2]}`));
+  }
+}
+
+function enhanceUniversalRubricAudit({ criterion, requirementText, rubricText, html, doc, checks, add }) {
+  const allHtml = getAllStudentCodeForRubric('html') || html;
+  const allCss = [getAllStudentCodeForRubric('css'), ...Array.from(doc?.querySelectorAll('style') || []).map(node => node.textContent || '')].join('\n');
+  const cssRules = parseRubricCssRules(allCss);
+  const lower = String(requirementText || '').toLowerCase();
+  const tagAliases = {
+    navigation: 'nav', navbar: 'nav', header: 'header', footer: 'footer', main: 'main', section: 'section', article: 'article', aside: 'aside',
+    table: 'table', form: 'form', button: 'button', textarea: 'textarea', select: 'select', iframe: 'iframe', audio: 'audio', video: 'video', canvas: 'canvas'
+  };
+  const standardTags = new Set(['html','head','body','title','meta','link','style','script','header','nav','main','section','article','aside','footer','h1','h2','h3','h4','h5','h6','p','div','span','strong','b','em','i','u','small','mark','sub','sup','blockquote','pre','code','br','hr','ul','ol','li','dl','dt','dd','a','img','picture','source','audio','video','track','iframe','table','caption','thead','tbody','tfoot','tr','th','td','colgroup','col','form','label','input','textarea','select','option','button','fieldset','legend','details','summary','figure','figcaption','canvas']);
+
+  // Any literal HTML tags named by the selected rubric are checked, not just a fixed sample set.
+  const literalTags = new Set();
+  for (const match of String(requirementText || '').matchAll(/<\/?\s*([a-z][\w-]*)\b/gi)) literalTags.add(match[1].toLowerCase());
+  Object.entries(tagAliases).forEach(([word, tag]) => { if (new RegExp(`\\b${word}\\b`, 'i').test(lower)) literalTags.add(tag); });
+  standardTags.forEach(tag => {
+    if (new RegExp(`(?:\\b${tag}\\s+(?:tag|element)s?\\b|\\buse\\s+(?:an?\\s+)?${tag}\\b)`, 'i').test(lower)) literalTags.add(tag);
+  });
+  literalTags.forEach(tag => {
+    if (['img','a','ul','ol','li','br','hr','html','head','body','title'].includes(tag)) return;
+    const count = doc ? doc.querySelectorAll(tag).length : (allHtml.match(new RegExp(`<${tag}\\b`, 'gi')) || []).length;
+    add(`universal-tag-${tag}`, `<${tag}> element`, count > 0, `${count} <${tag}> element(s) detected.`, `Add the required <${tag}> element.`);
+  });
+
+  // Common structural relationships.
+  if (/semantic(?: html| elements?| tags?)|semantic structure/.test(lower)) {
+    const semantic = ['header','nav','main','section','article','aside','footer'];
+    const present = semantic.filter(tag => doc?.querySelector(tag));
+    add('universal-semantic', 'Semantic HTML structure', present.length >= 2, present.length ? `Semantic elements detected: ${present.join(', ')}.` : '', 'Use the semantic elements specifically requested by the rubric.');
+  }
+  if (/table/.test(lower)) {
+    if (/header cells?|<th|table headings?/.test(lower)) add('universal-th', 'Table header cells', Boolean(doc?.querySelector('table th')), 'Table header cells were detected.', 'Add <th> cells for the required table headings.');
+    if (/rows?/.test(lower)) {
+      const requested = lower.match(/(?:at least|minimum of|with)\s+(\d+)\s+(?:table\s+)?rows?/);
+      const count = doc?.querySelectorAll('table tr').length || 0;
+      if (requested) add('universal-table-rows', `At least ${requested[1]} table rows`, count >= Number(requested[1]), `${count} table row(s) detected.`, `Add enough <tr> rows to reach ${requested[1]}.`);
+    }
+  }
+  if (/form|input field|form field/.test(lower)) {
+    if (/label/.test(lower)) add('universal-label', 'Form labels', Boolean(doc?.querySelector('label')), `${doc?.querySelectorAll('label').length || 0} label(s) detected.`, 'Add labels for the required form controls.');
+    const typeMatches = [...lower.matchAll(/(?:input(?:\s+type)?|type)\s*[=:]?\s*["']?(text|email|password|number|date|radio|checkbox|submit)/g)].map(m => m[1]);
+    [...new Set(typeMatches)].forEach(type => add(`universal-input-${type}`, `Input type ${type}`, Boolean(doc?.querySelector(`input[type="${type}"]`)), `input[type="${type}"] was detected.`, `Add the required input type="${type}".`));
+    if (/required fields?|required attribute/.test(lower)) add('universal-required', 'Required form fields', Boolean(doc?.querySelector('input[required],select[required],textarea[required]')), 'A required form control was detected.', 'Add the required attribute to the specified form controls.');
+  }
+
+  // Generic attribute checks when the rubric explicitly names an attribute.
+  const attrNames = ['id','class','src','href','alt','title','target','width','height','placeholder','required','type','name','value','controls','autoplay','loop','poster','colspan','rowspan','action','method','for','role','tabindex'];
+  attrNames.forEach(attr => {
+    if (!new RegExp(`(?:\\b${attr}\\s+attribute\\b|\\battribute\\s+${attr}\\b|\\bwith\\s+(?:an?\\s+)?${attr}\\b)`, 'i').test(lower)) return;
+    if (['src','href','alt','target','width','height'].includes(attr) && (/image|link|anchor|youtube/.test(lower))) return;
+    const node = doc?.querySelector(`[${attr}]`);
+    add(`universal-attr-${attr}`, `${attr} attribute`, Boolean(node), node ? `${attr}="${String(node.getAttribute(attr) || '').slice(0,100)}" detected.` : '', `Add the explicitly required ${attr} attribute.`);
+  });
+
+  const hasAnyCss = Boolean(allCss.trim() || /\sstyle\s*=/.test(allHtml));
+  const cssExplicit = /\bcss\b|stylesheet|style(?:d|ing)?|visual design|layout|responsive|media quer|flexbox|css grid|grid layout|selector|pseudo-class|animation|transition/.test(lower);
+  if (!cssExplicit) return;
+
+  add('universal-css-present', 'CSS implementation', hasAnyCss, hasAnyCss ? 'CSS code was detected in the project.' : '', 'Add CSS because this selected criterion explicitly requires styling.', 1.15);
+
+  const cssRequirements = [
+    ['display','display'],['color','color'],['background-color','background-color'],['background','background'],['font-family','font-family'],['font-size','font-size'],['font-weight','font-weight'],['text-align','text-align'],['line-height','line-height'],
+    ['margin','margin'],['padding','padding'],['gap','gap'],['width','width'],['height','height'],['max-width','max-width'],['min-height','min-height'],['border','border'],['border-radius','border-radius'],['box-shadow','box-shadow'],
+    ['position','position'],['top','top'],['right','right'],['bottom','bottom'],['left','left'],['overflow','overflow'],['opacity','opacity'],['transform','transform'],['transition','transition'],['animation','animation'],
+    ['justify-content','justify-content'],['align-items','align-items'],['flex-direction','flex-direction'],['flex-wrap','flex-wrap'],['grid-template-columns','grid-template-columns'],['grid-template-rows','grid-template-rows']
+  ];
+  cssRequirements.forEach(([phrase, property]) => {
+    if (!new RegExp(`\\b${phrase.replace('-', '[- ]')}\\b`, 'i').test(lower)) return;
+    // width/height may be HTML attributes; only grade as CSS here because CSS was explicitly requested.
+    const matches = cssRules.filter(rule => Object.prototype.hasOwnProperty.call(rule.declarations, property));
+    add(`universal-css-${property}`, `CSS ${property}`, matches.length > 0, matches.length ? `${property} is used in selector “${matches[0].selector}”.` : '', `Add the required ${property}: value; declaration.`);
+  });
+
+  if (/flexbox|display\s*:\s*flex|\bflex layout\b|\buse flex\b/.test(lower)) {
+    const flexRules = cssRules.filter(rule => /\bflex\b/i.test(rule.declarations.display || ''));
+    add('universal-flex', 'Flexbox layout', flexRules.length > 0, flexRules.length ? `display: flex is used by “${flexRules[0].selector}”.` : '', 'Apply display: flex to the element named by the rubric.');
+    if (flexRules.length) add('universal-flex-connected', 'Flexbox selector matches HTML', flexRules.some(rule => rubricSelectorMatchesDocument(doc, rule.selector)), 'A Flexbox selector matches an element in the HTML.', 'Make sure the Flexbox selector matches an actual HTML element.');
+  }
+  if (/css grid|grid layout|display\s*:\s*grid|\buse grid\b/.test(lower)) {
+    const gridRules = cssRules.filter(rule => /\b(?:grid|inline-grid)\b/i.test(rule.declarations.display || ''));
+    add('universal-grid', 'CSS Grid layout', gridRules.length > 0, gridRules.length ? `display: grid is used by “${gridRules[0].selector}”.` : '', 'Apply display: grid to the element named by the rubric.');
+    if (gridRules.length) add('universal-grid-connected', 'Grid selector matches HTML', gridRules.some(rule => rubricSelectorMatchesDocument(doc, rule.selector)), 'A Grid selector matches an element in the HTML.', 'Make sure the Grid selector matches an actual HTML element.');
+  }
+  if (/responsive|media quer|mobile view|small screen/.test(lower)) add('universal-media-query', 'Responsive media query', /@media\b/i.test(allCss), '@media rule detected.', 'Add the responsive @media rule required by the rubric.');
+  if (/hover|pseudo-class/.test(lower)) add('universal-hover', 'CSS pseudo-class', /:[a-z-]+(?:\([^)]*\))?\s*\{/i.test(allCss), 'A CSS pseudo-class selector was detected.', 'Add the requested pseudo-class such as :hover or :focus.');
+  if (/transition/.test(lower)) add('universal-transition', 'CSS transition', /\btransition(?:-[a-z-]+)?\s*:/i.test(allCss), 'A transition declaration was detected.', 'Add the required CSS transition.');
+  if (/animation|keyframes/.test(lower)) {
+    add('universal-keyframes', 'CSS keyframes', /@keyframes\s+[\w-]+/i.test(allCss), '@keyframes rule detected.', 'Define the required @keyframes animation.');
+    add('universal-animation-use', 'Animation applied', /\banimation(?:-name)?\s*:/i.test(allCss), 'An animation declaration was detected.', 'Apply the animation to the intended selector.');
+  }
+
+  // Explicit class/id names in the rubric must exist in both HTML and CSS when styling is requested.
+  const classNames = [...String(requirementText || '').matchAll(/(?:class(?:name)?\s*[=:]?\s*["']?|\.)([A-Za-z_][\w-]{1,})/gi)].map(m => m[1]);
+  const idNames = [...String(requirementText || '').matchAll(/(?:id\s*[=:]?\s*["']?|#)([A-Za-z_][\w-]{1,})/gi)].map(m => m[1]);
+  [...new Set(classNames)].forEach(name => {
+    const inHtml = Boolean(doc?.querySelector(`.${CSS.escape(name)}`));
+    const inCss = cssRules.some(rule => new RegExp(`\\.${name}(?![\\w-])`).test(rule.selector));
+    add(`universal-class-html-${name}`, `HTML class .${name}`, inHtml, inHtml ? `class="${name}" is used in HTML.` : '', `Add class="${name}" to the intended HTML element.`);
+    add(`universal-class-css-${name}`, `CSS selector .${name}`, inCss, inCss ? `.${name} has a CSS rule.` : '', `Add a .${name} CSS rule.`);
+  });
+  [...new Set(idNames)].forEach(name => {
+    const inHtml = Boolean(doc?.getElementById(name));
+    const inCss = cssRules.some(rule => new RegExp(`#${name}(?![\\w-])`).test(rule.selector));
+    add(`universal-id-html-${name}`, `HTML id #${name}`, inHtml, inHtml ? `id="${name}" is used in HTML.` : '', `Add id="${name}" to the intended HTML element.`);
+    add(`universal-id-css-${name}`, `CSS selector #${name}`, inCss, inCss ? `#${name} has a CSS rule.` : '', `Add a #${name} CSS rule.`);
+  });
+}
+
+function buildRubricRequirementAudit(criterion) {
+  const normalized = normalizeCriterion(criterion);
+  const rubricText = getCriterionRubricText(normalized);
+  const text = rubricText.toLowerCase().replace(/<[^>]+>/g, ' ');
+  const excellentText = String(normalized.levels?.excellent?.description || '').toLowerCase().replace(/<[^>]+>/g, ' ');
+  const requirementText = `${normalized.title || ''} ${excellentText || text}`.toLowerCase();
+  const html = codeStore.html || '';
+  const doc = parseStudentHTMLForRubric(html);
+  const bodyText = String(doc?.body?.innerText || getOutputText() || '').replace(/\s+/g, ' ').trim();
+  const checks = [];
+  const add = (id, label, passed, evidence, fix, weight = 1) => checks.push({ id, label, passed: Boolean(passed), evidence, fix, weight });
+  const has = selector => Boolean(doc?.querySelector(selector));
+  const count = selector => doc ? doc.querySelectorAll(selector).length : 0;
+  const sourceHas = regex => regex.test(html);
+
+  const asks = (...patterns) => patterns.some(pattern => pattern.test(requirementText));
+  const asksAnyRubric = (...patterns) => patterns.some(pattern => pattern.test(text));
+
+  if (asks(/doctype/, /complete html structure/, /document structure/, /html structure/)) {
+    add('doctype', 'DOCTYPE declaration', /^\s*<!doctype\s+html[^>]*>/i.test(html), 'DOCTYPE is present.', 'Add <!DOCTYPE html> at the beginning.');
+    add('html', '<html> element', /<html\b/i.test(html) && /<\/html\s*>/i.test(html), 'Opening and closing <html> tags are present.', 'Add complete <html>...</html> tags.');
+    add('head', '<head> element', /<head\b/i.test(html) && /<\/head\s*>/i.test(html), 'Opening and closing <head> tags are present.', 'Add complete <head>...</head> tags.');
+    add('title', '<title> element', has('title') && isMeaningfulRubricText(doc?.title || ''), `Page title: “${String(doc?.title || '').trim()}”.`, 'Add a meaningful <title> inside <head>.');
+    add('body', '<body> element', /<body\b/i.test(html) && /<\/body\s*>/i.test(html), 'Opening and closing <body> tags are present.', 'Place visible page content inside complete <body>...</body> tags.');
+  }
+
+  if (asks(/heading/, /<h1/, /main title/)) add('heading', 'Required heading', has('h1,h2,h3,h4,h5,h6'), 'A heading element is present.', 'Add the heading requested by the rubric.');
+  if (asks(/paragraph/, /<p\b/)) add('paragraph', 'Paragraph content', has('p'), `${count('p')} paragraph element(s) detected.`, 'Add the required paragraph content.');
+  if (asks(/line break/, /<br\b/, /\bbr tag\b/)) add('br', '<br> line break', sourceHas(/<br\s*\/?\s*>/i), '<br> is present.', 'Add the required <br> line break.');
+  if (asks(/horizontal rule/, /<hr\b/, /\bhr tag\b/)) add('hr', '<hr> separator', sourceHas(/<hr\s*\/?\s*>/i), '<hr> is present.', 'Add the required <hr> separator.');
+
+  if (asks(/unordered list/, /bullet(?:ed)? list/, /<ul\b/) || /\bul\b/.test(requirementText)) {
+    add('ul', 'Unordered list', has('ul'), `${count('ul')} unordered list(s) detected.`, 'Add the required <ul> unordered list.');
+  }
+  if (asks(/ordered list/, /numbered list/, /<ol\b/) || /\bol\b/.test(requirementText)) {
+    add('ol', 'Ordered list', has('ol'), `${count('ol')} ordered list(s) detected.`, 'Add the required <ol> ordered list.');
+  }
+  const requestedItemsMatch = requirementText.match(/(?:at least|minimum of|with)\s+(\d+)\s+(?:list\s+)?items?/i);
+  if (requestedItemsMatch) {
+    const minimum = Number(requestedItemsMatch[1]) || 1;
+    add('li-count', `At least ${minimum} list items`, count('li') >= minimum, `${count('li')} list item(s) detected.`, `Add enough <li> items to reach at least ${minimum}.`);
+  } else if (asks(/list items?/, /<li\b/)) {
+    add('li', 'List items', count('li') > 0, `${count('li')} list item(s) detected.`, 'Add the required <li> list items.');
+  }
+
+  if (asks(/image/, /picture/, /photo/, /<img\b/, /\bimg tag\b/)) {
+    const images = Array.from(doc?.querySelectorAll('img') || []);
+    const validSrc = images.find(img => String(img.getAttribute('src') || '').trim());
+    const withWidth = images.find(img => String(img.getAttribute('width') || '').trim());
+    const withHeight = images.find(img => String(img.getAttribute('height') || '').trim());
+    const withAlt = images.find(img => isMeaningfulRubricText(img.getAttribute('alt') || '', 4));
+    add('img', 'Image element', images.length > 0, `${images.length} <img> element(s) detected.`, 'Add the required <img> element.');
+    if (asks(/\bsrc\b/, /image source/)) add('img-src', 'Image src', validSrc, validSrc ? `Image src is “${validSrc.getAttribute('src')}”.` : '', 'Add a non-empty src attribute to the image.');
+    if (asks(/\bwidth\b/)) add('img-width', 'Image width', withWidth, withWidth ? `Image width is ${withWidth.getAttribute('width')}.` : '', 'Add the required width attribute to the image.');
+    if (asks(/\bheight\b/)) add('img-height', 'Image height', withHeight, withHeight ? `Image height is ${withHeight.getAttribute('height')}.` : '', 'Add the required height attribute to the image.');
+    if (asks(/\balt\b/, /alternative text/, /meaningful alt/, /descriptive alt/)) add('img-alt', 'Meaningful image alt text', withAlt, withAlt ? `Image alt text is “${withAlt.getAttribute('alt')}”.` : '', 'Add meaningful, descriptive alt text to the image.');
+  }
+
+  if (asks(/link/, /anchor/, /hyperlink/, /youtube/, /<a\b/, /\ba tag\b/)) {
+    const links = Array.from(doc?.querySelectorAll('a') || []);
+    const withHref = links.find(link => String(link.getAttribute('href') || '').trim() && !/^#?$/.test(String(link.getAttribute('href') || '').trim()));
+    const blank = links.find(link => String(link.getAttribute('target') || '').toLowerCase() === '_blank');
+    const youtube = links.find(link => /(?:youtube\.com|youtu\.be)/i.test(String(link.getAttribute('href') || '')));
+    add('link', 'Anchor link', links.length > 0, `${links.length} <a> link(s) detected.`, 'Add the required <a> link.');
+    if (asks(/\bhref\b/, /working link/, /youtube link/)) add('href', 'Non-empty href', withHref, withHref ? `Link href is “${withHref.getAttribute('href')}”.` : '', 'Add a valid, non-empty href attribute.');
+    if (asks(/target/, /new tab/, /_blank/)) add('target', 'Open in new tab', blank, 'target="_blank" is present.', 'Add target="_blank" to the required link.');
+    // A rubric saying “YouTube link” requires a YouTube URL only when it explicitly says URL/link to YouTube, not merely a favorite-video section title.
+    if (/(youtube\s+(?:url|link)|link\s+to\s+(?:a\s+)?youtube)/.test(requirementText)) add('youtube-url', 'YouTube URL', youtube, youtube ? `YouTube URL detected: “${youtube.getAttribute('href')}”.` : '', 'Use a valid youtube.com or youtu.be URL.');
+  }
+
+  const sentenceRequirement = requirementText.match(/(?:at least|minimum of|write|include|contains?)\s+(\d+)\s+(?:complete\s+)?sentences?/i);
+  if (sentenceRequirement) {
+    const minimum = Number(sentenceRequirement[1]) || 1;
+    const sentenceCount = (bodyText.match(/[.!?](?=\s|$)/g) || []).length;
+    add('sentences', `At least ${minimum} sentences`, sentenceCount >= minimum, `${sentenceCount} sentence ending(s) detected in visible content.`, `Write at least ${minimum} complete sentences.`);
+  }
+
+  const keywordMap = [
+    ['name', /\bname\b/, /\bname\s*:/i],
+    ['birthday', /birthday|birth date|date of birth/, /(?:birthday|birth date|date of birth)\s*:/i],
+    ['introduction', /introduction|introduce yourself/, /introduction\s*:/i],
+    ['hobbies', /hobbies|hobby/, /hobbies?|my hobbies/i],
+    ['favorites', /favorite things?|favourites?/, /favo(?:u)?rite/i],
+    ['idol', /idol|favorite person|favourite person/, /idol|favorite person|favourite person/i]
+  ];
+  keywordMap.forEach(([id, rubricPattern, outputPattern]) => {
+    if (rubricPattern.test(requirementText)) add(`content-${id}`, `${id.charAt(0).toUpperCase()}${id.slice(1)} content`, outputPattern.test(bodyText), `Visible ${id} content was detected.`, `Add the required ${id} information.`);
+  });
+
+  if (asksAnyRubric(/css/, /stylesheet/, /visual design/, /styling/) && getCriterionIntent(normalized).explicitCss) {
+    add('css', 'Required CSS styling', Boolean(String(codeStore.css || '').trim() || /style\s*=|<style\b/i.test(html)), 'CSS styling was detected.', 'Add the CSS styling explicitly required by this criterion.', 1.2);
+  }
+  if (asksAnyRubric(/javascript/, /\bjs\b/, /interactive/, /event listener/) && getCriterionIntent(normalized).explicitJs) {
+    add('js', 'Required JavaScript', Boolean(String(codeStore.js || '').trim() || /onclick\s*=|<script\b/i.test(html)), 'JavaScript or an inline event was detected.', 'Add the JavaScript/interactivity explicitly required by this criterion.', 1.2);
+  }
+
+  enhanceUniversalRubricAudit({ criterion: normalized, requirementText, rubricText: text, html, doc, checks, add });
+
+  const unique = [];
+  const seen = new Set();
+  checks.forEach(check => { if (!seen.has(check.id)) { seen.add(check.id); unique.push(check); } });
+  const totalWeight = unique.reduce((sum, check) => sum + check.weight, 0);
+  const passedWeight = unique.reduce((sum, check) => sum + (check.passed ? check.weight : 0), 0);
+  return {
+    checks: unique,
+    progress: totalWeight ? clamp01(passedWeight / totalWeight) : null,
+    passed: unique.filter(item => item.passed),
+    missing: unique.filter(item => !item.passed)
+  };
+}
+
 function getHTMLContentSmartProgress(text) {
   const html = codeStore.html || '';
   const outputText = getOutputText();
@@ -11880,10 +12187,41 @@ function getHTMLContentSmartProgress(text) {
   const sourceHas = selectorRegex => selectorRegex.test(html) && sourceQuality.hasBodyOpen && !sourceQuality.visibleTagsInHead;
   if (includesAnyText(text, [/heading|title heading|\bh[1-6]\b/])) elementChecks.push(sourceHas(/<h[1-6](\s|>|\/)/i) || Boolean(queryPreview('h1, h2, h3, h4, h5, h6')) && sourceQuality.hasBodyOpen ? 1 : 0);
   if (includesAnyText(text, [/paragraph|\bp\s*tag|\bp\b/])) elementChecks.push(sourceHas(/<p(\s|>|\/)/i) || Boolean(queryPreview('p')) && sourceQuality.hasBodyOpen ? 1 : 0);
-  if (includesAnyText(text, [/image|picture|photo|\bimg\b/])) elementChecks.push(sourceHas(/<img(\s|>|\/)/i) || Boolean(queryPreview('img')) && sourceQuality.hasBodyOpen ? 1 : 0);
-  if (includesAnyText(text, [/link|anchor|hyperlink|\ba\s*tag/])) elementChecks.push(sourceHas(/<a(\s|>|\/)/i) || Boolean(queryPreview('a')) && sourceQuality.hasBodyOpen ? 1 : 0);
+
+  if (includesAnyText(text, [/image|picture|photo|\bimg\b/])) {
+    const imgTag = getFirstOpeningTag(html, 'img');
+    elementChecks.push(imgTag ? 1 : 0);
+    if (/\bsrc\b/.test(text)) elementChecks.push(getTagAttributeValue(imgTag, 'src') ? 1 : 0);
+    if (/\bwidth\b/.test(text)) elementChecks.push(getTagAttributeValue(imgTag, 'width') ? 1 : 0);
+    if (/\bheight\b/.test(text)) elementChecks.push(getTagAttributeValue(imgTag, 'height') ? 1 : 0);
+    if (/\balt\b|alternative text|meaningful alt/.test(text)) {
+      const alt = getTagAttributeValue(imgTag, 'alt');
+      elementChecks.push(alt && alt.length >= 3 ? 1 : alt ? 0.6 : 0);
+    }
+  }
+
+  if (includesAnyText(text, [/link|anchor|hyperlink|\ba\s*tag|youtube/])) {
+    const linkTag = getFirstOpeningTag(html, 'a');
+    elementChecks.push(linkTag ? 1 : 0);
+    if (/\bhref\b|working link|youtube link/.test(text)) elementChecks.push(getTagAttributeValue(linkTag, 'href') ? 1 : 0);
+    if (/target|new tab|_blank/.test(text)) elementChecks.push(getTagAttributeValue(linkTag, 'target').toLowerCase() === '_blank' ? 1 : 0);
+  }
+
   if (includesAnyText(text, [/button|clickable/])) elementChecks.push(sourceHas(/<button(\s|>|\/)/i) || Boolean(queryPreview('button')) && sourceQuality.hasBodyOpen ? 1 : 0);
-  if (includesAnyText(text, [/list|bullet|numbered|\bul\b|\bol\b|\bli\b/])) elementChecks.push(sourceHas(/<(ul|ol)(\s|>|\/)/i) || Boolean(queryPreview('ul, ol')) && sourceQuality.hasBodyOpen ? 1 : 0);
+
+  if (includesAnyText(text, [/list|bullet|numbered|\bul\b|\bol\b|\bli\b/])) {
+    const needsUl = /both[^.]{0,40}(?:<ul|\bul\b)|(?:<ul|\bul\b)[^.]{0,40}and[^.]{0,20}(?:<ol|\bol\b)/.test(text);
+    const needsOl = /both[^.]{0,40}(?:<ol|\bol\b)|(?:<ol|\bol\b)[^.]{0,40}and[^.]{0,20}(?:<ul|\bul\b)/.test(text);
+    if (needsUl || needsOl) {
+      elementChecks.push(sourceHas(/<ul(\s|>|\/)/i) ? 1 : 0);
+      elementChecks.push(sourceHas(/<ol(\s|>|\/)/i) ? 1 : 0);
+    } else {
+      elementChecks.push(sourceHas(/<(ul|ol)(\s|>|\/)/i) || Boolean(queryPreview('ul, ol')) && sourceQuality.hasBodyOpen ? 1 : 0);
+    }
+  }
+
+  if (/\b<br\b|line break/.test(text)) elementChecks.push(/<br\s*\/?>/i.test(html) ? 1 : 0);
+  if (/\b<hr\b|horizontal rule/.test(text)) elementChecks.push(/<hr\s*\/?>/i.test(html) ? 1 : 0);
 
   if (!elementChecks.length) {
     elementChecks.push(outputText.trim().length >= 15 ? 1 : outputText.trim().length >= 3 ? 0.5 : 0);
@@ -11983,6 +12321,11 @@ function getSmartCriterionProgress(criterion) {
   const rubricText = getCriterionRubricText(criterion);
   const text = rubricText.toLowerCase();
   if (!text.trim()) return null;
+
+  const requirementAudit = buildRubricRequirementAudit(criterion);
+  if (requirementAudit.progress !== null && requirementAudit.checks.length) {
+    return requirementAudit.progress;
+  }
 
   const intent = getCriterionIntent(criterion);
   const basics = getCodeBasicsProgress();
@@ -12616,11 +12959,18 @@ function buildStudentAiRubricScoringPrompt(localResult = null) {
 
 IMPORTANT:
 - The rubric builder has no auto-check rules. You must interpret the criteria and level descriptions.
-- Compare the actual code/output to each criterion.
-- Give points based on evidence, not generic encouragement.
+- Compare the actual code/output to EACH explicit requirement in the selected criterion, especially the Excellent-level description.
+- Evaluate the complete project across all HTML and CSS files, not only the active file or familiar sample tags.
+- Understand arbitrary valid HTML elements, attributes, nesting, forms, tables, media, semantic structure, and accessibility only when requested by the rubric.
+- For CSS, verify actual selectors, declarations, Flexbox, Grid, responsive media queries, pseudo-classes, transitions, animations, and whether selectors match real HTML elements.
+- Treat HTML attributes such as img width and height as HTML evidence; never invent a CSS requirement unless the rubric explicitly says CSS/styling/stylesheet.
+- Inspect all matching elements, not only the first image or link.
+- Give points based on quoted/specific evidence, not generic encouragement.
 - Do not reward missing code or output that cannot be verified.
 - If a visual judgment is limited by the text summary, mention it briefly.
 - Score each criterion from 0 up to its max points only.
+- A criterion that satisfies every explicit Excellent-level requirement must receive the Excellent score for that row.
+- Do a contradiction audit: evidence, level, score, and improvement must agree.
 - Total score must equal the sum of criterion scores.
 - Do not give full replacement code.
 - Return ONLY valid JSON. No markdown.
@@ -13186,8 +13536,8 @@ function closeActivityRubricModal() {
 function renderActivitySelector() {
   if (!activitySelect) return;
   const placeholder = `<option value="" ${activity ? '' : 'selected'}>Select an activity first...</option>`;
-  const options = activities.map((item, index) => `
-    <option value="${escapeAttribute(item.id)}" ${activity && item.id === activity.id ? 'selected' : ''}>${index + 1}. ${escapeHTML(item.title)}</option>
+  const options = activities.map((item) => `
+    <option value="${escapeAttribute(item.id)}" ${activity && item.id === activity.id ? 'selected' : ''}>${escapeHTML(item.title)}</option>
   `).join('');
   activitySelect.innerHTML = placeholder + options;
 }
@@ -13201,8 +13551,8 @@ function renderAdminActivitySelect() {
     return;
   }
 
-  adminActivitySelect.innerHTML = activities.map((item, index) => `
-    <option value="${escapeAttribute(item.id)}" ${item.id === adminEditingActivityId ? 'selected' : ''}>${index + 1}. ${escapeHTML(item.title)}</option>
+  adminActivitySelect.innerHTML = activities.map((item) => `
+    <option value="${escapeAttribute(item.id)}" ${item.id === adminEditingActivityId ? 'selected' : ''}>${escapeHTML(item.title)}</option>
   `).join('');
 }
 

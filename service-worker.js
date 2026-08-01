@@ -1,13 +1,13 @@
-const CACHE_NAME = 'ict8-connect-step244-activity-modal-result-button';
+const CACHE_NAME = 'ict8-connect-step248-clean-activity-titles';
 const APP_SHELL = [
   './',
   './index.html',
-  './index.html?v=20260728-step244-activity-modal-result-button',
-  './index.html?fresh=step244-activity-modal-result-button',
+  './index.html?v=20260801-step245-rubric-grading-fix',
+  './index.html?fresh=step245-rubric-grading-fix',
   './style.css',
-  './style.css?v=20260728-step244-activity-modal-result-button',
+  './style.css?v=20260801-step245-rubric-grading-fix',
   './script.js',
-  './script.js?v=20260728-step244-activity-modal-result-button',
+  './script.js?v=20260801-step245-rubric-grading-fix',
   './firebase-config.js',
   './manifest.webmanifest',
   './favicon.png',
