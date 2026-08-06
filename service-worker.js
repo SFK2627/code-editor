@@ -1,13 +1,13 @@
-const CACHE_NAME = 'ict8-connect-step253-result-record-labels';
+const CACHE_NAME = 'ict8-connect-step254-editor-project-label';
 const APP_SHELL = [
   './',
   './index.html',
-  './index.html?v=20260806-step253-result-record-labels',
-  './index.html?fresh=step253-result-record-labels',
+  './index.html?v=20260806-step254-editor-project-label',
+  './index.html?fresh=step254-editor-project-label',
   './style.css',
-  './style.css?v=20260806-step253-result-record-labels',
+  './style.css?v=20260806-step254-editor-project-label',
   './script.js',
-  './script.js?v=20260806-step253-result-record-labels',
+  './script.js?v=20260806-step254-editor-project-label',
   './firebase-config.js',
   './manifest.webmanifest',
   './favicon.png',

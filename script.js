@@ -33,6 +33,10 @@ const fullscreenAutoRunBtn = document.getElementById('fullscreenAutoRunBtn');
 const fullscreenResultBtn = document.getElementById('fullscreenResultBtn');
 const statusBadge = document.getElementById('statusBadge');
 const editorInfo = document.getElementById('editorInfo');
+const editorProjectHeader = document.getElementById('editorProjectHeader');
+const editorProjectName = document.getElementById('editorProjectName');
+const editorProjectActivity = document.getElementById('editorProjectActivity');
+const editorProjectSaveBadge = document.getElementById('editorProjectSaveBadge');
 const structureAlert = document.getElementById('structureAlert');
 const tabButtons = document.querySelectorAll('.tab-btn');
 const resultContent = document.getElementById('resultContent');
@@ -3640,6 +3644,66 @@ function setChangePasswordError(message = '') {
   changePasswordError.classList.toggle('hidden', !message);
 }
 
+function getCurrentProjectDisplayName() {
+  const directName = String(appSession.currentProject?.name || '').trim();
+  if (directName) return directName;
+
+  const currentId = appSession.currentProjectId || '';
+  if (currentId && Array.isArray(appSession.projects)) {
+    const matched = appSession.projects.find(project => project?.id === currentId);
+    const matchedName = String(matched?.name || '').trim();
+    if (matchedName) return matchedName;
+  }
+
+  return '';
+}
+
+function updateEditorProjectHeader() {
+  if (!editorProjectHeader || !editorProjectName) return;
+
+  const projectName = getCurrentProjectDisplayName();
+  const isStudent = appSession.mode === 'student' && Boolean(appSession.student);
+  const isGuest = appSession.mode === 'guest';
+  const activityName = String(activity?.title || '').trim();
+  const saveText = String(studentSaveState?.textContent || '').trim();
+
+  let displayName = projectName;
+  let saveLabel = saveText || '';
+
+  if (!displayName) {
+    if (isStudent) {
+      displayName = appSession.currentProjectId ? 'Untitled Project' : 'No project open';
+      saveLabel = saveLabel || (appSession.currentProjectId ? 'Saved' : 'Choose a project');
+    } else if (isGuest) {
+      displayName = 'Practice Mode';
+      saveLabel = 'Not saved';
+    } else {
+      displayName = 'Practice Workspace';
+      saveLabel = 'Not signed in';
+    }
+  }
+
+  editorProjectName.textContent = displayName;
+  editorProjectName.title = displayName;
+  editorProjectHeader.classList.toggle('has-open-project', Boolean(projectName || appSession.currentProjectId));
+  editorProjectHeader.classList.toggle('guest-project-label', isGuest);
+
+  if (editorProjectActivity) {
+    const activityText = activityName ? `Activity/Rubric: ${activityName}` : 'No activity selected';
+    editorProjectActivity.textContent = activityText;
+    editorProjectActivity.title = activityText;
+  }
+
+  if (editorProjectSaveBadge) {
+    editorProjectSaveBadge.textContent = saveLabel || 'Ready';
+    editorProjectSaveBadge.classList.remove('saving', 'error', 'unsaved');
+    if (studentSaveState?.classList?.contains('saving')) editorProjectSaveBadge.classList.add('saving');
+    if (studentSaveState?.classList?.contains('error')) editorProjectSaveBadge.classList.add('error');
+    if (studentSaveState?.classList?.contains('unsaved')) editorProjectSaveBadge.classList.add('unsaved');
+  }
+}
+
+
 function setProjectNameError(message = '') {
   if (!projectNameError) return;
   projectNameError.textContent = message;
@@ -3655,6 +3719,7 @@ function setStudentSaveState(text, state = '') {
   });
   updateManualSaveControls();
   updateStudentDashboardSaveFeedbackPanel?.();
+  updateEditorProjectHeader();
 }
 
 
@@ -4260,6 +4325,7 @@ function updateAppHeaderForSession({ forceTypewriter = false } = {}) {
     if (appSubtitleText) appSubtitleText.textContent = 'Developed by Sir JR';
   }
 
+  updateEditorProjectHeader();
   schedulePhoneHeaderTypewriter(forceTypewriter);
   scheduleDesktopHeaderTypewriter(forceTypewriter);
 }
@@ -6402,6 +6468,7 @@ async function renameStudentProject(projectId, name) {
   if (appSession.currentProjectId === projectId && appSession.currentProject) {
     appSession.currentProject.name = name;
   }
+  updateEditorProjectHeader();
   persistStudentProjectsCache();
   renderStudentProjects();
   setStatus('Project renamed');
@@ -9150,6 +9217,7 @@ function loadActiveEditor() {
   renderStructureAlert();
   fitEditorToContent();
   updateTagMatching();
+  updateEditorProjectHeader();
 }
 
 

@@ -1,1 +1,1 @@
-Step 253 - Result and Feedback student/activity recording labels
+Step 254 - Current project name visible in code editor header
