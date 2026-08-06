@@ -1,13 +1,13 @@
-const CACHE_NAME = 'ict8-connect-step254-editor-project-label';
+const CACHE_NAME = 'ict8-connect-step255-manual-rubric-copy';
 const APP_SHELL = [
   './',
   './index.html',
-  './index.html?v=20260806-step254-editor-project-label',
-  './index.html?fresh=step254-editor-project-label',
+  './index.html?v=20260806-step255-manual-rubric-copy',
+  './index.html?fresh=step255-manual-rubric-copy',
   './style.css',
-  './style.css?v=20260806-step254-editor-project-label',
+  './style.css?v=20260806-step255-manual-rubric-copy',
   './script.js',
-  './script.js?v=20260806-step254-editor-project-label',
+  './script.js?v=20260806-step255-manual-rubric-copy',
   './firebase-config.js',
   './manifest.webmanifest',
   './favicon.png',

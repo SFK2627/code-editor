@@ -16962,6 +16962,7 @@ function addManualRubricInputRow(data = {}) {
   cells.forEach(cellInfo => {
     const cell = document.createElement('td');
     cell.dataset.label = cellLabels[cellInfo.key] || cellInfo.key;
+    cell.dataset.key = cellInfo.key;
     cell.appendChild(createManualRubricTextarea(cellInfo.className, cellInfo.placeholder, data[cellInfo.key] || ''));
     row.appendChild(cell);
   });
@@ -16994,27 +16995,82 @@ function clearManualRubricInputTable() {
   setManualRubricStatus('Input table cleared. Type your rubric again, then click Apply Rubric Table.');
 }
 
+function getManualRubricRowValue(row, key) {
+  if (!row) return '';
+  if (key === 'criteria') return row.querySelector('.manual-criteria-input')?.value.trim() || '';
+
+  const exactCell = row.querySelector(`td[data-key="${key}"] textarea`);
+  if (exactCell) return exactCell.value.trim();
+
+  const keyIndex = { excellent: 1, good: 2, fair: 3, needsImprovement: 4 }[key];
+  if (Number.isFinite(keyIndex)) {
+    const byPosition = row.children[keyIndex]?.querySelector('textarea');
+    if (byPosition) return byPosition.value.trim();
+  }
+
+  const labelAliases = {
+    excellent: ['excellent'],
+    good: ['good'],
+    fair: ['fair', 'satisfactory / fair', 'satisfactory'],
+    needsImprovement: ['needs improvement', 'needsimprovement']
+  }[key] || [key];
+
+  for (const cell of row.querySelectorAll('td')) {
+    const label = String(cell.dataset.key || cell.dataset.label || '').trim().toLowerCase();
+    if (labelAliases.some(alias => label === alias || label.replace(/\s+/g, '') === alias.replace(/\s+/g, ''))) {
+      return cell.querySelector('textarea')?.value.trim() || '';
+    }
+  }
+
+  return '';
+}
+
+function buildManualRubricCriterionExact(title, sections, scores, index) {
+  const safeTitle = String(title || '').trim() || `Criterion ${index + 1}`;
+  const maxPoints = Math.max(
+    Number(scores?.excellent) || 0,
+    Number(scores?.good) || 0,
+    Number(scores?.fair) || 0,
+    Number(scores?.needsImprovement) || 0,
+    1
+  );
+
+  const levels = rubricLevels.reduce((acc, level) => {
+    acc[level.key] = {
+      label: level.label,
+      points: Number.isFinite(Number(scores?.[level.key])) ? Number(scores[level.key]) : defaultLevelPoints(maxPoints)[level.key],
+      description: String(sections?.[level.key] || '').trim()
+    };
+    return acc;
+  }, {});
+
+  return normalizeCriterion({
+    id: createId(),
+    title: safeTitle,
+    points: maxPoints,
+    rule: 'smart_rubric',
+    target: '',
+    levels
+  });
+}
+
 function collectManualRubricInputCriteria() {
   if (!manualRubricInputBody) return [];
   const scores = getManualRubricScoreMap();
   const rows = [...manualRubricInputBody.querySelectorAll('.manual-rubric-input-row')];
 
   return rows.map((row, index) => {
-    const criterionTitle = row.querySelector('.manual-criteria-input')?.value.trim() || '';
-    const excellent = row.querySelector('td[data-label="excellent"] textarea')?.value.trim() || '';
-    const good = row.querySelector('td[data-label="good"] textarea')?.value.trim() || '';
-    const fair = row.querySelector('td[data-label="fair"] textarea')?.value.trim() || '';
-    const needsImprovement = row.querySelector('td[data-label="needsImprovement"] textarea')?.value.trim() || '';
-    const hasAnyText = [criterionTitle, excellent, good, fair, needsImprovement].some(Boolean);
+    const criterionTitle = getManualRubricRowValue(row, 'criteria');
+    const sections = {
+      excellent: getManualRubricRowValue(row, 'excellent'),
+      good: getManualRubricRowValue(row, 'good'),
+      fair: getManualRubricRowValue(row, 'fair'),
+      needsImprovement: getManualRubricRowValue(row, 'needsImprovement')
+    };
+    const hasAnyText = [criterionTitle, sections.excellent, sections.good, sections.fair, sections.needsImprovement].some(Boolean);
     if (!hasAnyText) return null;
 
-    const cleanTitle = criterionTitle || `Criterion ${index + 1}`;
-    return buildCriterionFromParsedParts(cleanTitle, {
-      excellent,
-      good,
-      fair,
-      needsImprovement
-    }, scores);
+    return buildManualRubricCriterionExact(criterionTitle, sections, scores, index);
   }).filter(Boolean);
 }
 
@@ -17034,7 +17090,7 @@ function applyManualRubricTableToActualRubric() {
   });
 
   applyImportedActivityToAdminForm(imported);
-  setManualRubricStatus(`Applied ${criteria.length} row${criteria.length === 1 ? '' : 's'} and generated smart rubric checks. Review them, then click Save Activity.`, 'success');
+  setManualRubricStatus(`Copied ${criteria.length} rubric row${criteria.length === 1 ? '' : 's'} exactly to the Rubric Table below. Review, then click Save Activity.`, 'success');
 }
 
 
@@ -17050,11 +17106,11 @@ function getManualRubricDraftForAi() {
   const scores = getManualRubricScoreMap();
   const rows = [...(manualRubricInputBody?.querySelectorAll('.manual-rubric-input-row') || [])].map((row, index) => ({
     index: index + 1,
-    criterion: row.querySelector('.manual-criteria-input')?.value.trim() || '',
-    excellent: row.querySelector('td[data-label="excellent"] textarea')?.value.trim() || '',
-    good: row.querySelector('td[data-label="good"] textarea')?.value.trim() || '',
-    fair: row.querySelector('td[data-label="fair"] textarea')?.value.trim() || '',
-    needsImprovement: row.querySelector('td[data-label="needsImprovement"] textarea')?.value.trim() || ''
+    criterion: getManualRubricRowValue(row, 'criteria'),
+    excellent: getManualRubricRowValue(row, 'excellent'),
+    good: getManualRubricRowValue(row, 'good'),
+    fair: getManualRubricRowValue(row, 'fair'),
+    needsImprovement: getManualRubricRowValue(row, 'needsImprovement')
   })).filter(row => [row.criterion, row.excellent, row.good, row.fair, row.needsImprovement].some(Boolean));
 
   return {
