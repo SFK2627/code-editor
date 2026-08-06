@@ -1,13 +1,13 @@
-const CACHE_NAME = 'ict8-connect-step248-clean-activity-titles';
+const CACHE_NAME = 'ict8-connect-step253-result-record-labels';
 const APP_SHELL = [
   './',
   './index.html',
-  './index.html?v=20260801-step245-rubric-grading-fix',
-  './index.html?fresh=step245-rubric-grading-fix',
+  './index.html?v=20260806-step253-result-record-labels',
+  './index.html?fresh=step253-result-record-labels',
   './style.css',
-  './style.css?v=20260801-step245-rubric-grading-fix',
+  './style.css?v=20260806-step253-result-record-labels',
   './script.js',
-  './script.js?v=20260801-step245-rubric-grading-fix',
+  './script.js?v=20260806-step253-result-record-labels',
   './firebase-config.js',
   './manifest.webmanifest',
   './favicon.png',

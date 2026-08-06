@@ -18,6 +18,7 @@ const suggestionBox = document.getElementById('suggestionBox');
 const codeMatchLayer = document.getElementById('codeMatchLayer');
 const editorWrap = document.querySelector('.editor-wrap');
 const editorStack = document.querySelector('.editor-stack');
+const MCS_NATIVE_TEXT_EDITOR_MODE = false; // v252: syntax highlighting restored with cursor-safe overlay syncing.
 const tagMatchInfo = document.getElementById('tagMatchInfo');
 const zoomOutBtn = document.getElementById('zoomOutBtn');
 const zoomInBtn = document.getElementById('zoomInBtn');
@@ -8471,6 +8472,7 @@ function applyEditorZoom(value) {
   }
   saveJSON(STORAGE_KEYS.editorZoom, editorFontSize);
   fitEditorToContent();
+  updateTagMatching();
   syncEditorScroll();
 }
 
@@ -8490,6 +8492,50 @@ function syncEditorScroll() {
     codeMatchLayer.scrollTop = editor.scrollTop;
     codeMatchLayer.scrollLeft = editor.scrollLeft;
   }
+}
+
+function syncCodeHighlightLayerGeometry() {
+  if (!editor || !codeMatchLayer) return;
+
+  const computed = window.getComputedStyle(editor);
+  const mirroredProps = [
+    'boxSizing',
+    'fontFamily',
+    'fontSize',
+    'fontWeight',
+    'fontStyle',
+    'fontVariant',
+    'fontStretch',
+    'lineHeight',
+    'letterSpacing',
+    'textTransform',
+    'textIndent',
+    'textAlign',
+    'tabSize',
+    'whiteSpace',
+    'overflowWrap',
+    'wordBreak',
+    'paddingTop',
+    'paddingRight',
+    'paddingBottom',
+    'paddingLeft',
+    'borderTopWidth',
+    'borderRightWidth',
+    'borderBottomWidth',
+    'borderLeftWidth'
+  ];
+
+  mirroredProps.forEach(prop => {
+    try { codeMatchLayer.style[prop] = computed[prop]; } catch (_) {}
+  });
+
+  // Keep the visual syntax layer exactly on top of the editable textarea.
+  // This prevents the old cursor-drift issue after zoom, resize, fullscreen,
+  // or phone/desktop layout switches.
+  codeMatchLayer.style.width = `${editor.offsetWidth}px`;
+  codeMatchLayer.style.height = `${editor.offsetHeight}px`;
+  codeMatchLayer.style.minHeight = computed.minHeight;
+  codeMatchLayer.style.maxHeight = computed.maxHeight;
 }
 
 function isPhoneNativeEditorScrollMode() {
@@ -8523,6 +8569,7 @@ function fitEditorToContent() {
   // inside the editor feel stuck/laggy and forces students to scroll outside it.
   if (isPhoneNativeEditorScrollMode()) {
     clearEditorAutoHeightStyles();
+    syncCodeHighlightLayerGeometry();
     syncEditorScroll();
     return;
   }
@@ -8530,6 +8577,8 @@ function fitEditorToContent() {
   // In full editor mode, CSS controls the editor height so the full screen stays stable.
   if (document.body.classList.contains('editor-fullscreen-active')) {
     clearEditorAutoHeightStyles();
+    syncCodeHighlightLayerGeometry();
+    syncEditorScroll();
     return;
   }
 
@@ -8544,6 +8593,7 @@ function fitEditorToContent() {
   if (editorStack) editorStack.style.height = finalHeight;
   if (editorWrap) editorWrap.style.minHeight = finalHeight;
 
+  syncCodeHighlightLayerGeometry();
   syncEditorScroll();
 }
 
@@ -8842,7 +8892,13 @@ function getMatchClassForSegment(spans, start, end) {
 
 function renderCodeMatchLayer(spans = []) {
   if (!codeMatchLayer) return;
+  if (MCS_NATIVE_TEXT_EDITOR_MODE) {
+    codeMatchLayer.textContent = '';
+    syncEditorScroll();
+    return;
+  }
 
+  syncCodeHighlightLayerGeometry();
   const text = editor.value || '';
   const syntaxTokens = getSyntaxTokens(text);
   const combinedSpans = [
@@ -8899,6 +8955,12 @@ function resetTagMatchInfo() {
 
 function updateTagMatching() {
   if (!tagMatchInfo || !codeMatchLayer) return;
+  if (MCS_NATIVE_TEXT_EDITOR_MODE) {
+    activeTagMatches = [];
+    codeMatchLayer.textContent = '';
+    resetTagMatchInfo();
+    return;
+  }
 
   if (activeLanguage !== 'html') {
     activeTagMatches = [];
@@ -9090,6 +9152,16 @@ function loadActiveEditor() {
   updateTagMatching();
 }
 
+
+let editorHelperRefreshTimer = 0;
+function scheduleEditorHelperRefresh(delay = 260) {
+  window.clearTimeout(editorHelperRefreshTimer);
+  editorHelperRefreshTimer = window.setTimeout(() => {
+    if (!errorCheckerPanel || errorCheckerPanel.classList.contains('hidden')) return;
+    try { renderErrorChecker(); } catch (error) { console.warn('Code Helper refresh skipped', error); }
+  }, Math.max(80, Number(delay) || 260));
+}
+
 function saveActiveEditor() {
   setLanguageFileContent(activeLanguage, getActiveLanguageFileName(activeLanguage), editor.value);
   saveCodeFileNames();
@@ -9099,7 +9171,7 @@ function saveActiveEditor() {
   renderStructureAlert();
   fitEditorToContent();
   updateTagMatching();
-  renderErrorChecker();
+  scheduleEditorHelperRefresh();
 }
 
 function updateLineNumbers() {
@@ -12503,6 +12575,106 @@ function gradeCriterion(criterion) {
   };
 }
 
+
+function getResultRecordingMeta(result = null) {
+  const safeResult = result || {};
+  const cachedStudent = getLastStudentProfile?.() || {};
+  const liveStudent = appSession.student || appSession.lastStudentProfile || cachedStudent || {};
+  const preferLiveStudent = Boolean(appSession.mode === 'student' && (appSession.student || appSession.lastStudentProfile));
+  const currentActivity = activity || (safeResult.activityId ? getActivityById(safeResult.activityId) : null);
+  const studentName = String(
+    (preferLiveStudent ? (liveStudent.name || liveStudent.studentName || liveStudent.fullName) : '')
+    || safeResult.studentName
+    || safeResult.recordMeta?.studentName
+    || liveStudent.name
+    || liveStudent.studentName
+    || liveStudent.fullName
+    || (appSession.mode === 'guest' ? 'Guest / Practice Mode' : 'Not signed in')
+  ).trim();
+  const studentId = String(
+    (preferLiveStudent ? (liveStudent.studentId || liveStudent.studentIdNormalized || liveStudent.id) : '')
+    || safeResult.studentId
+    || safeResult.recordMeta?.studentId
+    || liveStudent.studentId
+    || liveStudent.studentIdNormalized
+    || liveStudent.id
+    || ''
+  ).trim();
+  const section = String(
+    (preferLiveStudent ? (liveStudent.section || liveStudent.gradeSection) : '')
+    || safeResult.section
+    || safeResult.recordMeta?.section
+    || liveStudent.section
+    || liveStudent.gradeSection
+    || ''
+  ).trim();
+  const activityTitle = String(
+    currentActivity?.title
+    || safeResult.activityTitle
+    || safeResult.recordMeta?.activityTitle
+    || 'No activity selected'
+  ).trim();
+  const activityId = String(
+    currentActivity?.id
+    || safeResult.activityId
+    || safeResult.recordMeta?.activityId
+    || ''
+  ).trim();
+  const projectName = String(
+    appSession.currentProject?.name
+    || safeResult.projectName
+    || safeResult.recordMeta?.projectName
+    || ''
+  ).trim();
+  const checkedAt = safeResult.checkedAt || safeResult.recordMeta?.checkedAt || new Date().toISOString();
+
+  return {
+    studentName: studentName || 'Not signed in',
+    studentId,
+    section,
+    activityTitle: activityTitle || 'No activity selected',
+    activityId,
+    projectName,
+    checkedAt
+  };
+}
+
+
+function attachCurrentResultRecordingMeta(result = null) {
+  if (!result || typeof result !== 'object') return result;
+  const recordMeta = getResultRecordingMeta(result);
+  result.activityId = recordMeta.activityId;
+  result.activityTitle = recordMeta.activityTitle;
+  result.studentId = recordMeta.studentId;
+  result.studentName = recordMeta.studentName;
+  result.section = recordMeta.section;
+  result.projectName = recordMeta.projectName;
+  result.checkedAt = result.checkedAt || recordMeta.checkedAt;
+  result.recordMeta = { ...(result.recordMeta || {}), ...recordMeta, checkedAt: result.checkedAt };
+  return result;
+}
+
+function buildResultRecordingHeader(result = null) {
+  const meta = getResultRecordingMeta(result);
+  const detailItems = [
+    meta.studentId ? `<span><strong>ID:</strong> ${escapeHTML(meta.studentId)}</span>` : '',
+    meta.section ? `<span><strong>Section:</strong> ${escapeHTML(meta.section)}</span>` : '',
+    meta.projectName ? `<span><strong>Project:</strong> ${escapeHTML(meta.projectName)}</span>` : '',
+    meta.checkedAt ? `<span><strong>Checked:</strong> ${escapeHTML(formatStudentDate(meta.checkedAt, 'Just now'))}</span>` : ''
+  ].filter(Boolean).join('');
+
+  return `
+    <div class="result-record-header" aria-label="Student result recording details">
+      <div class="result-record-main">
+        <span class="result-record-label">Result & Feedback</span>
+        <h3>${escapeHTML(meta.studentName)}</h3>
+        <p><strong>Activity/Rubric:</strong> ${escapeHTML(meta.activityTitle)}</p>
+      </div>
+      ${detailItems ? `<div class="result-record-details">${detailItems}</div>` : ''}
+    </div>
+  `;
+}
+
 function gradeActivity() {
   if (!activity) return null;
   saveActiveEditor();
@@ -12512,13 +12684,23 @@ function gradeActivity() {
   const possible = results.reduce((sum, item) => sum + item.points, 0);
   const percent = possible > 0 ? Math.round((score / possible) * 100) : 0;
 
+  const recordMeta = getResultRecordingMeta();
+
   return {
     score,
     possible,
     percent,
     passed: percent >= activity.passingScore,
     results,
-    feedback: generateFeedback(score, possible, percent, results)
+    feedback: generateFeedback(score, possible, percent, results),
+    activityId: recordMeta.activityId,
+    activityTitle: recordMeta.activityTitle,
+    studentId: recordMeta.studentId,
+    studentName: recordMeta.studentName,
+    section: recordMeta.section,
+    projectName: recordMeta.projectName,
+    checkedAt: recordMeta.checkedAt,
+    recordMeta
   };
 }
 
@@ -13038,6 +13220,7 @@ function buildResultFromAiRubricReview(raw, localResult = null) {
   const score = Math.round(results.reduce((sum, item) => sum + item.earned, 0) * 10) / 10;
   const percent = possible ? Math.round((score / possible) * 100) : 0;
   const feedback = String(raw?.studentFeedback || raw?.summary || generateFeedback(score, possible, percent, results)).slice(0, 1800);
+  const recordMeta = getResultRecordingMeta(localResult);
   return {
     source: 'gemini',
     score,
@@ -13046,6 +13229,14 @@ function buildResultFromAiRubricReview(raw, localResult = null) {
     passed: activity ? percent >= activity.passingScore : false,
     results,
     feedback,
+    activityId: recordMeta.activityId,
+    activityTitle: recordMeta.activityTitle,
+    studentId: recordMeta.studentId,
+    studentName: recordMeta.studentName,
+    section: recordMeta.section,
+    projectName: recordMeta.projectName,
+    checkedAt: recordMeta.checkedAt,
+    recordMeta,
     aiSummary: String(raw?.summary || '').slice(0, 700),
     aiConfidence: String(raw?.confidence || 'medium').toLowerCase(),
     aiWarnings: Array.isArray(raw?.warnings) ? raw.warnings.map(item => String(item).slice(0, 400)).slice(0, 6) : [],
@@ -13248,6 +13439,7 @@ async function requestAIReview(options = {}) {
 }
 
 function renderResult(result) {
+  result = attachCurrentResultRecordingMeta(result);
   const pillClass = result.percent >= activity.passingScore
     ? ''
     : result.percent >= 60
@@ -13277,9 +13469,12 @@ function renderResult(result) {
     ? `<div class="result-warning-note"><strong>Review note:</strong> ${escapeHTML(result.aiWarnings.join(' '))}</div>`
     : '';
 
+  const recordHeader = buildResultRecordingHeader(result);
+
   resultContent.classList.remove('empty-state');
   resultContent.innerHTML = `
     <div class="score-card smart-result-card ${isSmart ? 'gemini-scored' : 'local-scored'}">
+      ${recordHeader}
       <div class="score-main">
         <div>
           <p class="section-kicker">${isSmart ? 'Smart Rubric Score' : isPendingSmart ? 'Quick Rubric Preview' : 'Rubric Score'}</p>
@@ -13349,11 +13544,31 @@ async function showResult(options = {}) {
   const cooldownSecondsBeforeRun = getSmartReviewCooldownSeconds();
   const useGemini = wantsGemini && cooldownSecondsBeforeRun <= 0;
   setStatus(useGemini ? 'Preparing quick result...' : wantsGemini ? `Quick result only. Smart review can retry in about ${cooldownSecondsBeforeRun}s.` : 'Checking rubric...');
+  if (resultContent) {
+    resultContent.classList.remove('empty-state');
+    resultContent.innerHTML = `
+      <div class="score-card smart-result-card local-scored result-loading-card">
+        ${buildResultRecordingHeader()}
+        <div class="score-main">
+          <div>
+            <p class="section-kicker">Result & Feedback</p>
+            <div class="score-number"><small>Checking...</small></div>
+            <p class="muted-text">Please wait while the selected rubric checks the current code.</p>
+          </div>
+          <span class="score-pill almost">Checking</span>
+        </div>
+      </div>
+    `;
+  }
 
   try {
     await new Promise(resolve => window.setTimeout(resolve, 120));
     const localResult = gradeActivity();
-    if (!localResult) return;
+    if (!localResult) {
+      renderNoActivityResult();
+      setStatus('No rubric result generated');
+      return;
+    }
 
     const requestId = ++smartResultRequestId;
 
@@ -13408,8 +13623,25 @@ async function showResult(options = {}) {
     }
   } catch (error) {
     console.error('Result check failed', error);
-    await appAlert(error?.message || 'Could not check the result. Please try again.', { title: 'Result check failed', danger: true });
-    setStatus('Result failed');
+    if (resultContent) {
+      resultContent.classList.remove('empty-state');
+      resultContent.innerHTML = `
+        <div class="score-card smart-result-card result-error-card">
+          ${buildResultRecordingHeader(lastRubricResult)}
+          <div class="score-main">
+            <div>
+              <p class="section-kicker">Result Check</p>
+              <div class="score-number"><small>Try Again</small></div>
+              <p class="muted-text">The click worked, but the checker hit a temporary problem. Your code is still saved locally.</p>
+            </div>
+            <span class="score-pill needs-work">Retry</span>
+          </div>
+          <div class="feedback-box smart-feedback-box"><strong>What happened:</strong> ${escapeHTML(error?.message || 'Could not check the result. Please click Result again or refresh only if needed.')}</div>
+        </div>
+      `;
+      if (!isPhoneResultFeedbackView()) scrollElementIntoSafeView(resultPanel);
+    }
+    setStatus('Result failed · try again');
   }
 }
 
@@ -19428,7 +19660,7 @@ clearBtn.addEventListener('click', async () => {
   setStatus(`${activeLanguage.toUpperCase()} cleared`);
 });
 
-window.addEventListener('resize', fitEditorToContent);
+window.addEventListener('resize', () => { fitEditorToContent(); updateTagMatching(); });
 
 window.addEventListener('click', event => {
   if (!suggestionBox.contains(event.target) && event.target !== editor) {
@@ -20163,22 +20395,25 @@ function isLikelyPhoneViewport() {
   const screenHeight = Number(window.screen?.height) || Number(window.innerHeight) || 9999;
   const shortestScreenSide = Math.min(screenWidth, screenHeight);
   const longestScreenSide = Math.max(screenWidth, screenHeight);
-  const phoneSizedScreen = shortestScreenSide <= 760 && longestScreenSide <= 1100;
+  const phoneSizedScreen = shortestScreenSide <= 760 && longestScreenSide <= 1150;
+  const actualMobileSignal = userAgentDataMobile || mobileUserAgent || (phoneSizedScreen && (touchCapable || coarsePointer));
   const narrowResponsiveViewport = viewportWidth <= 760;
-  const strongPhoneSignal = userAgentDataMobile || mobileUserAgent ||
-    (phoneSizedScreen && (touchCapable || coarsePointer));
 
-  // Once a phone/narrow mobile layout has been detected, keep it while the
-  // device rotates to landscape. This prevents the phone UI from suddenly
-  // turning back into desktop controls after rotation.
-  if (strongPhoneSignal || narrowResponsiveViewport) {
+  // v251: Do not latch desktop/computer windows into phone mode just because the
+  // browser was temporarily resized. The previous latch made phone controls stay
+  // after returning to full screen on laptops/desktops.
+  const canUsePhoneMode = actualMobileSignal || (narrowResponsiveViewport && phoneSizedScreen && (touchCapable || coarsePointer));
+
+  if (canUsePhoneMode) {
     phonePreviewModeLatched = true;
     window.__mcsianPhonePreviewMode = true;
+  } else if (viewportWidth >= 880 && !actualMobileSignal) {
+    phonePreviewModeLatched = false;
+    window.__mcsianPhonePreviewMode = false;
   }
 
-  return strongPhoneSignal || phonePreviewModeLatched;
+  return Boolean(canUsePhoneMode || (phonePreviewModeLatched && actualMobileSignal));
 }
-
 
 function isLikelyTabletDesktopViewport() {
   const userAgent = navigator.userAgent || '';
@@ -20200,10 +20435,81 @@ function isLikelyTabletDesktopViewport() {
   return Boolean(!isLikelyPhoneViewport() && tabletSignal && tabletSizedCanvas);
 }
 
+
+function repairViewportModeAfterDetection(isPhone) {
+  const root = document.documentElement;
+  const body = document.body;
+  if (!root || !body) return;
+
+  if (isPhone) return;
+
+  // v251 desktop re-entry cleanup: remove phone-only state that can survive a
+  // temporary narrow window. This restores desktop buttons, editor sizing, and
+  // result panel visibility after resize/minimize/fullscreen changes.
+  [
+    'mobile-view-revamp',
+    'mobile-portrait',
+    'mobile-landscape',
+    'phone-editor-native-scroll-v2',
+    'phone-editor-font-slider-enabled',
+    'phone-editor-smooth-scroll-fix',
+    'phone-editor-fast-scroll-fix',
+    'phone-true-full-editor-enabled'
+  ].forEach(name => root.classList.remove(name));
+
+  [
+    'mobile-view-revamp',
+    'mobile-keyboard-open',
+    'mobile-editor-normal',
+    'editor-scroll-unlocked',
+    'mobile-editor-tools-open',
+    'mobile-guest-strip-open',
+    'phone-css-full-editor-active',
+    'phone-true-full-editor-active',
+    'mcs-step92-phone-full-editor'
+  ].forEach(name => body.classList.remove(name));
+
+  const fontControl = document.getElementById('mobileEditorFontControl');
+  if (fontControl) {
+    fontControl.classList.add('hidden');
+    fontControl.style.display = 'none';
+    fontControl.setAttribute('aria-hidden', 'true');
+  }
+
+  const toolsToggle = document.getElementById('mobileEditorToolsToggle');
+  if (toolsToggle) {
+    toolsToggle.classList.add('hidden');
+    toolsToggle.setAttribute('aria-expanded', 'false');
+    toolsToggle.setAttribute('aria-hidden', 'true');
+  }
+
+  if (editor) {
+    editor.setAttribute('wrap', 'soft');
+    ['height', 'minHeight', 'maxHeight', 'overflowX', 'overflowY', 'whiteSpace', 'wordBreak', 'overflowWrap', 'touchAction', 'scrollBehavior'].forEach(prop => {
+      try { editor.style[prop] = ''; } catch (_) {}
+    });
+  }
+  [lineNumbers, codeMatchLayer, editorStack, editorWrap].forEach(element => {
+    if (!element) return;
+    ['height', 'minHeight', 'maxHeight', 'overflow', 'overflowX', 'overflowY'].forEach(prop => {
+      try { element.style[prop] = ''; } catch (_) {}
+    });
+  });
+
+  window.requestAnimationFrame(() => {
+    try {
+      fitEditorToContent();
+      syncEditorScroll();
+      if (resultPanel) resultPanel.classList.remove('hidden');
+    } catch (_) {}
+  });
+}
+
 function applyPreviewDeviceMode() {
   const isPhone = isLikelyPhoneViewport();
   const isTabletDesktop = !isPhone && isLikelyTabletDesktopViewport();
   document.documentElement.dataset.deviceMode = isPhone ? 'phone' : 'desktop';
+  repairViewportModeAfterDetection(isPhone);
   document.documentElement.classList.toggle('tablet-desktop-view', isTabletDesktop);
   document.body?.classList.toggle('tablet-desktop-view', isTabletDesktop);
   document.documentElement.dataset.tabletDesktopView = isTabletDesktop ? 'true' : 'false';
@@ -23751,7 +24057,7 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
   let scheduled = false;
 
   function isPhoneMode() {
-    return document.documentElement?.dataset?.deviceMode === 'phone' || window.matchMedia('(max-width: 820px)').matches;
+    return document.documentElement?.dataset?.deviceMode === 'phone';
   }
 
   function isVisible(element) {
@@ -24471,9 +24777,7 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
   function isPhoneEditorFontScrollMode() {
     const root = document.documentElement;
     const body = document.body;
-    const phoneUi = root?.dataset?.deviceMode === 'phone'
-      || Boolean(window.matchMedia?.(MOBILE_QUERY)?.matches)
-      || Boolean(window.matchMedia?.('(hover: none) and (pointer: coarse)')?.matches);
+    const phoneUi = root?.dataset?.deviceMode === 'phone';
     return phoneUi
       && body?.classList?.contains('mobile-editor-normal')
       && !body?.classList?.contains('editor-fullscreen-active')
@@ -25864,9 +26168,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   if (!root || !body || !editorPanel || !editor) return;
 
   function isPhoneUi() {
-    return root.dataset.deviceMode === 'phone'
-      || Boolean(window.matchMedia?.(MOBILE_QUERY)?.matches)
-      || Boolean(window.matchMedia?.('(hover: none) and (pointer: coarse)')?.matches);
+    return root.dataset.deviceMode === 'phone';
   }
 
   function isPhoneFullEditorActive() {
@@ -25999,9 +26301,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   const PHONE_QUERY = '(max-width: 820px), (hover: none) and (pointer: coarse)';
 
   function isPhoneUi() {
-    return root?.dataset?.deviceMode === 'phone'
-      || Boolean(window.matchMedia?.(PHONE_QUERY)?.matches)
-      || Boolean(window.matchMedia?.('(hover: none) and (pointer: coarse)')?.matches);
+    return root?.dataset?.deviceMode === 'phone';
   }
 
   function getParts() {
@@ -26775,4 +27075,31 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   window.addEventListener('load', requestPortraitLock, { once: true });
   window.addEventListener('orientationchange', requestPortraitLock);
   document.addEventListener('pointerdown', requestPortraitLock, { once: true, passive: true });
+})();
+
+
+/* v251 Responsive/editor stability guard.
+   Keeps the app from staying in phone mode after desktop resizing and makes
+   the native textarea the visible source of truth so caret/click/copy positions
+   cannot drift from the displayed code. */
+(function installResponsiveEditorStabilityGuard() {
+  let resizeTimer = 0;
+  function refreshStableEditorLayout() {
+    window.clearTimeout(resizeTimer);
+    resizeTimer = window.setTimeout(() => {
+      try {
+        applyPreviewDeviceMode();
+        fitEditorToContent();
+        updateTagMatching();
+        syncEditorScroll();
+      } catch (error) {
+        console.warn('Stable editor layout refresh skipped', error);
+      }
+    }, 90);
+  }
+  window.addEventListener('resize', refreshStableEditorLayout, { passive: true });
+  window.visualViewport?.addEventListener('resize', refreshStableEditorLayout, { passive: true });
+  window.addEventListener('orientationchange', () => window.setTimeout(refreshStableEditorLayout, 180), { passive: true });
+  document.addEventListener('visibilitychange', refreshStableEditorLayout, { passive: true });
+  refreshStableEditorLayout();
 })();

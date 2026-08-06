@@ -43306,3 +43306,260 @@ body:not(.entry-gate-active):not(.student-dashboard-active):not(.student-auth-op
   position: relative;
   z-index: 6;
 }
+
+/* =========================================================
+   v251 Responsive + native editor stability patch
+   - Desktop should never keep phone-only controls/classes after resize.
+   - The actual textarea text is visible again, so caret, typing, clicking,
+     selection, and copy/paste always match what students see.
+   - The decorative syntax/highlight overlay is disabled for stability.
+   ========================================================= */
+@media (min-width: 821px) {
+  html:not([data-device-mode="phone"]) #mobileEditorFontControl,
+  html:not([data-device-mode="phone"]) #mobileEditorToolsToggle,
+  html:not([data-device-mode="phone"]) #mobileSuggestionToggle {
+    display: none !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+  }
+
+  html:not([data-device-mode="phone"]) body.mobile-editor-normal #editorPanel .editor-wrap,
+  html:not([data-device-mode="phone"]) body.mobile-editor-normal #editorPanel .editor-stack,
+  html:not([data-device-mode="phone"]) body.mobile-editor-normal #editorPanel #codeEditor,
+  html:not([data-device-mode="phone"]) body.mobile-editor-normal #editorPanel .line-numbers {
+    height: auto !important;
+    max-height: none !important;
+  }
+}
+
+#codeEditor {
+  color: var(--editor-text) !important;
+  -webkit-text-fill-color: var(--editor-text) !important;
+  caret-color: var(--editor-text) !important;
+  overflow-y: auto !important;
+  overflow-x: auto !important;
+  user-select: text !important;
+  -webkit-user-select: text !important;
+  text-rendering: optimizeLegibility;
+}
+
+#codeEditor::selection {
+  color: var(--editor-text) !important;
+  -webkit-text-fill-color: var(--editor-text) !important;
+  background: rgba(96, 165, 250, 0.35) !important;
+}
+
+.code-match-layer {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+.editor-stack {
+  isolation: auto !important;
+}
+
+body.result-checking #resultBtn,
+body.result-checking #stepResultBtn,
+body.result-checking #fullscreenResultBtn {
+  pointer-events: auto !important;
+}
+
+
+/* =========================================================
+   v252 Cursor-safe syntax highlighting restore
+   - Restores Notepad++/VS Code-like colors for HTML, CSS, and JavaScript.
+   - Keeps the textarea as the real typing/caret/copy source.
+   - The visual layer is pointer-events:none and its geometry is synced by JS.
+   ========================================================= */
+.editor-stack {
+  position: relative !important;
+  isolation: isolate !important;
+}
+
+#codeEditor,
+.code-match-layer {
+  box-sizing: border-box !important;
+  width: 100% !important;
+  padding: 18px !important;
+  font: var(--editor-font-size, 15px)/1.65 Consolas, Monaco, "Courier New", monospace !important;
+  letter-spacing: 0 !important;
+  tab-size: 2 !important;
+  white-space: pre-wrap !important;
+  overflow-wrap: break-word !important;
+  word-break: normal !important;
+}
+
+#codeEditor {
+  position: relative !important;
+  z-index: 2 !important;
+  display: block !important;
+  color: transparent !important;
+  -webkit-text-fill-color: transparent !important;
+  caret-color: var(--editor-text) !important;
+  background: transparent !important;
+  border: 0 !important;
+  outline: none !important;
+  resize: none !important;
+  text-rendering: optimizeLegibility !important;
+}
+
+#codeEditor::selection {
+  color: transparent !important;
+  -webkit-text-fill-color: transparent !important;
+  background: rgba(96, 165, 250, 0.35) !important;
+}
+
+.code-match-layer {
+  display: block !important;
+  visibility: visible !important;
+  position: absolute !important;
+  inset: 0 auto auto 0 !important;
+  z-index: 1 !important;
+  color: var(--editor-text) !important;
+  background: transparent !important;
+  pointer-events: none !important;
+  user-select: none !important;
+  overflow: hidden !important;
+  scrollbar-width: none !important;
+}
+
+.code-match-layer::-webkit-scrollbar {
+  display: none !important;
+}
+
+.code-match-layer .tag-match {
+  color: inherit !important;
+  border-radius: 4px !important;
+  text-decoration-line: underline !important;
+  text-decoration-thickness: 3px !important;
+  text-underline-offset: 4px !important;
+}
+
+.code-match-layer .tag-match-pair {
+  background: rgba(37, 99, 235, 0.16) !important;
+  text-decoration-color: #2563eb !important;
+}
+
+.code-match-layer .tag-match-missing {
+  background: rgba(239, 68, 68, 0.16) !important;
+  text-decoration-color: #ef4444 !important;
+  text-decoration-style: wavy !important;
+}
+
+.code-match-layer .tag-match-self {
+  background: rgba(22, 163, 74, 0.15) !important;
+  text-decoration-color: #16a34a !important;
+}
+
+@media (min-width: 821px) {
+  .editor-panel #codeEditor,
+  .editor-panel .code-match-layer {
+    white-space: pre-wrap !important;
+    overflow-wrap: break-word !important;
+    word-break: normal !important;
+  }
+}
+
+/* Step 253: Student/activity labels inside Result & Feedback for easier recording */
+.result-record-header {
+  display: grid;
+  gap: 0.75rem;
+  border: 1px solid rgba(37, 99, 235, 0.2);
+  border-radius: 18px;
+  padding: 1rem 1.1rem;
+  background: linear-gradient(135deg, rgba(239, 246, 255, 0.98), rgba(255, 255, 255, 0.92));
+  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.06);
+}
+
+.result-record-main {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.result-record-label {
+  display: inline-flex;
+  width: max-content;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.25rem 0.65rem;
+  background: rgba(37, 99, 235, 0.1);
+  color: #1d4ed8;
+  font-size: 0.76rem;
+  font-weight: 1000;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.result-record-main h3 {
+  margin: 0;
+  color: var(--ink);
+  font-size: clamp(1.15rem, 2vw, 1.55rem);
+  line-height: 1.15;
+  font-weight: 1000;
+}
+
+.result-record-main p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.result-record-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.result-record-details span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 999px;
+  padding: 0.35rem 0.65rem;
+  background: rgba(255, 255, 255, 0.78);
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.2;
+}
+
+.result-record-details strong {
+  color: var(--ink);
+}
+
+[data-theme="dark"] .result-record-header,
+html[data-theme="dark"] .result-record-header {
+  border-color: rgba(96, 165, 250, 0.28);
+  background: linear-gradient(135deg, rgba(30, 41, 59, 0.96), rgba(15, 23, 42, 0.92));
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.24);
+}
+
+[data-theme="dark"] .result-record-label,
+html[data-theme="dark"] .result-record-label {
+  background: rgba(59, 130, 246, 0.18);
+  color: #bfdbfe;
+}
+
+[data-theme="dark"] .result-record-details span,
+html[data-theme="dark"] .result-record-details span {
+  border-color: rgba(148, 163, 184, 0.2);
+  background: rgba(15, 23, 42, 0.55);
+}
+
+@media (max-width: 720px) {
+  .result-record-header {
+    padding: 0.85rem;
+    border-radius: 16px;
+  }
+
+  .result-record-details {
+    gap: 0.35rem;
+  }
+
+  .result-record-details span {
+    width: 100%;
+    justify-content: flex-start;
+    border-radius: 0.75rem;
+  }
+}
