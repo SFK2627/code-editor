@@ -1,13 +1,13 @@
-const CACHE_NAME = 'ict8-connect-step255-manual-rubric-copy';
+const CACHE_NAME = 'ict8-connect-step260-default-login-guard';
 const APP_SHELL = [
   './',
   './index.html',
-  './index.html?v=20260806-step255-manual-rubric-copy',
-  './index.html?fresh=step255-manual-rubric-copy',
+  './index.html?v=20260809-step260-default-login-guard',
+  './index.html?fresh=step260-default-login-guard',
   './style.css',
-  './style.css?v=20260806-step255-manual-rubric-copy',
+  './style.css?v=20260809-step260-default-login-guard',
   './script.js',
-  './script.js?v=20260806-step255-manual-rubric-copy',
+  './script.js?v=20260809-step260-default-login-guard',
   './firebase-config.js',
   './manifest.webmanifest',
   './favicon.png',

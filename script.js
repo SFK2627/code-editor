@@ -577,7 +577,7 @@ let aiRubricConnectionState = { status: 'untested', code: '', message: '' };
 
 const DEFAULT_STUDENT_PASSWORD = '123456';
 const STUDENT_EMAIL_DOMAIN = 'students.mcsian.app';
-const STUDENT_AUTH_RECOVERY_SLOTS = 3;
+const STUDENT_AUTH_RECOVERY_SLOTS = 12;
 const LAST_STUDENT_SESSION_KEY = 'studentCodeStudio.lastStudentSession.v1';
 const STUDENT_AUTOSAVE_DELAY = 1400;
 const PROFILE_ACTIVITY_WRITE_INTERVAL = 5 * 60 * 1000;
@@ -2196,11 +2196,40 @@ function setAdminLoginMode(mode = 'code') {
 let appDialogResolve = null;
 let lastDialogFocus = null;
 
+let appDialogCloseBtn = null;
+
+function ensureAppDialogCloseButton() {
+  if (!appDialogCard) return null;
+  let closeBtn = appDialogCard.querySelector('.app-dialog-close-btn');
+  if (!closeBtn) {
+    closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.className = 'app-dialog-close-btn';
+    closeBtn.setAttribute('aria-label', 'Close dialog');
+    closeBtn.title = 'Close';
+    closeBtn.textContent = '×';
+    closeBtn.addEventListener('click', event => {
+      event.preventDefault();
+      event.stopPropagation();
+      closeAppDialog(false);
+    });
+    appDialogCard.appendChild(closeBtn);
+  }
+  appDialogCloseBtn = closeBtn;
+  return closeBtn;
+}
+
+function isLongAppDialogMessage(message = '') {
+  const text = String(message || '');
+  return text.length > 520 || text.split('\n').length > 10;
+}
+
 function closeAppDialog(result = false) {
   if (!appDialogOverlay) return;
   appDialogOverlay.classList.add('hidden');
   document.body.classList.remove('dialog-open');
-  appDialogOverlay.classList.remove('inside-editor-fullscreen');
+  appDialogOverlay.classList.remove('inside-editor-fullscreen', 'long-dialog');
+  appDialogCard?.classList.remove('long-message');
   if (appDialogOverlay.parentElement !== document.body) document.body.appendChild(appDialogOverlay);
   if (lastDialogFocus && typeof lastDialogFocus.focus === 'function') {
     lastDialogFocus.focus({ preventScroll: true });
@@ -2245,14 +2274,21 @@ function showAppDialog({
   if (appDialogResolve) closeAppDialog(false);
   lastDialogFocus = document.activeElement;
 
-  appDialogCard.className = `app-dialog-card ${mode === 'confirm' ? 'confirm' : 'alert'} ${danger ? 'danger' : ''}`.trim();
+  const longDialog = isLongAppDialogMessage(message);
+  appDialogCard.className = `app-dialog-card ${mode === 'confirm' ? 'confirm' : 'alert'} ${danger ? 'danger' : ''} ${longDialog ? 'long-message' : ''}`.trim();
+  appDialogOverlay.classList.toggle('long-dialog', longDialog);
+  ensureAppDialogCloseButton();
   if (appDialogIcon) appDialogIcon.textContent = icon;
   if (appDialogKicker) appDialogKicker.textContent = kicker;
   if (appDialogTitle) appDialogTitle.textContent = title;
   if (appDialogMessage) {
     appDialogMessage.textContent = message;
-    appDialogMessage.style.whiteSpace = String(message || '').includes('\n') ? 'pre-line' : '';
+    appDialogMessage.style.whiteSpace = String(message || '').includes('\n') ? 'pre-wrap' : '';
     appDialogMessage.style.userSelect = String(message || '').includes('Auth email:') ? 'text' : '';
+    appDialogMessage.setAttribute('tabindex', longDialog ? '0' : '-1');
+  }
+  if (longDialog) {
+    setTimeout(() => appDialogMessage?.scrollTo?.({ top: 0, left: 0 }), 0);
   }
   if (appDialogOkBtn) appDialogOkBtn.textContent = confirmText;
   if (appDialogCancelBtn) appDialogCancelBtn.textContent = cancelText;
@@ -3201,6 +3237,32 @@ function getStudentAuthEmailCandidates(studentId, roster = null) {
     addCandidate(studentIdToRecoveryAuthEmail(studentId, slot));
   }
   return candidates;
+}
+
+function getStudentAuthEmailCreationCandidates(studentId, roster = null, { allowRecovery = false } = {}) {
+  const candidates = [];
+  const addCandidate = value => {
+    const email = String(value || '').trim().toLowerCase();
+    if (email && !candidates.includes(email)) candidates.push(email);
+  };
+  // For normal first login, create only the primary/roster Auth email.
+  // Recovery-slot emails are only allowed after the teacher explicitly clicks
+  // Reset Login. This prevents students with an existing changed password from
+  // typing 123456 and accidentally creating another account that asks for a new password.
+  addCandidate(studentIdToAuthEmail(studentId));
+  addCandidate(roster?.authEmail);
+  if (allowRecovery) {
+    for (let slot = 1; slot <= STUDENT_AUTH_RECOVERY_SLOTS; slot += 1) {
+      addCandidate(studentIdToRecoveryAuthEmail(studentId, slot));
+    }
+  }
+  return candidates;
+}
+
+function isRosterDefaultLoginResetActive(roster = null) {
+  // Timestamps are history/audit only. The active reset switch is forceDefaultPassword === true.
+  // It must be turned off immediately after a successful default-password activation.
+  return roster?.forceDefaultPassword === true;
 }
 
 function isAuthMissingOrWrongPasswordError(error) {
@@ -4581,8 +4643,8 @@ async function signInStudentWithCandidateEmails(studentId, password, roster = nu
   throw lastError || new Error('Student ID or password is incorrect.');
 }
 
-async function createFirebaseStudentCredential(studentId) {
-  const candidates = getStudentAuthEmailCandidates(studentId);
+async function createFirebaseStudentCredential(studentId, roster = null, { allowRecovery = false } = {}) {
+  const candidates = getStudentAuthEmailCreationCandidates(studentId, roster, { allowRecovery });
   let lastEmailInUseError = null;
   for (const candidateEmail of candidates) {
     try {
@@ -4596,8 +4658,12 @@ async function createFirebaseStudentCredential(studentId) {
       throw error;
     }
   }
-  const conflictError = new Error('This Student ID has a stuck login record. Ask the teacher to delete or reset the old Firebase Authentication user for this Student ID, then try 123456 again.');
-  conflictError.code = 'mcsian/auth-email-conflict';
+  const conflictError = new Error(
+    allowRecovery
+      ? 'No recovery login slot is available for this Student ID. Use Recovery/Firebase Console for this account.'
+      : 'This Student ID already has an activated account. Log in using the password you created, or ask your teacher to click Reset Login first.'
+  );
+  conflictError.code = allowRecovery ? 'mcsian/no-recovery-slot' : 'auth/email-already-in-use';
   conflictError.originalError = lastEmailInUseError;
   throw conflictError;
 }
@@ -4610,20 +4676,26 @@ async function createStudentAccountFromRoster(studentId, password) {
     throw new Error('Student account activation is not available yet. Refresh the page and try again.');
   }
 
-  const { credential, authEmail } = await createFirebaseStudentCredential(studentId);
+  let roster = await findStudentRosterRecordById(studentId);
+  if (!roster || !areStudentIdsEquivalent(roster.studentId || roster.studentIdNormalized || roster.id, studentId)) {
+    throw new Error('This Student ID is not registered in the class list. Ask your teacher to import or add it first.');
+  }
+  if (roster.accountStatus === 'disabled') {
+    throw new Error('This student account is disabled. Ask your teacher for help.');
+  }
+
+  const resetRequested = isRosterDefaultLoginResetActive(roster);
+  const hasExistingLinkedAuth = Boolean(String(roster.authUid || '').trim());
+  if (hasExistingLinkedAuth && !resetRequested) {
+    const passwordError = new Error('The default password 123456 is only for first login or after the teacher clicks Reset Login. Use the password you created.');
+    passwordError.code = 'auth/wrong-password';
+    throw passwordError;
+  }
+
+  const { credential, authEmail } = await createFirebaseStudentCredential(studentId, roster, { allowRecovery: resetRequested });
   firebaseSync.currentUser = credential.user;
-  let roster = null;
   try {
-    roster = await findStudentRosterRecordById(studentId);
-    if (!roster || !areStudentIdsEquivalent(roster.studentId || roster.studentIdNormalized || roster.id, studentId)) {
-      await deleteCurrentAuthUserQuietly(credential.user);
-      throw new Error('This Student ID is not registered in the class list. Ask your teacher to import or add it first.');
-    }
-    if (roster.accountStatus === 'disabled') {
-      await deleteCurrentAuthUserQuietly(credential.user);
-      throw new Error('This student account is disabled. Ask your teacher for help.');
-    }
-    if (roster.authUid && roster.authUid !== credential.user.uid) {
+    if (roster.authUid && roster.authUid !== credential.user.uid && !resetRequested) {
       await deleteCurrentAuthUserQuietly(credential.user);
       throw new Error('This Student ID is already connected to another login. Use the password you created, or ask your teacher for reset help.');
     }
@@ -4654,6 +4726,8 @@ async function createStudentAccountFromRoster(studentId, password) {
         authUid: credential.user.uid,
         authEmail,
         authCreatedAt: serverTimestamp(),
+        loginResetCompletedAt: serverTimestamp(),
+        forceDefaultPassword: false,
         updatedAt: serverTimestamp()
       }, { merge: true });
     } catch (rosterUpdateError) {
@@ -4671,10 +4745,11 @@ async function createStudentAccountFromRoster(studentId, password) {
 function getStudentAuthErrorMessage(error) {
   const code = String(error?.code || '');
   if (code.includes('mcsian/auth-email-conflict')) return 'This Student ID has a stuck login record. Ask your teacher to delete or reset the old Firebase Authentication user, then try 123456 again.';
-  if (code.includes('email-already-in-use')) return 'This Student ID already has an activated account. Log in using the new password you created.';
+  if (code.includes('email-already-in-use')) return 'This Student ID already has an activated account. Use the password you created. The default 123456 only works for first login or after Admin Reset Login.';
+  if (code.includes('mcsian/no-recovery-slot')) return 'All reset login slots are already used for this Student ID. Use Recovery/Firebase Console for this account.';
   if (code.includes('weak-password')) return 'The password must contain at least 6 characters.';
   if (code.includes('invalid-credential') || code.includes('wrong-password') || code.includes('user-not-found')) {
-    return 'Student ID or password is incorrect. New accounts use 123456 as the default password.';
+    return 'Student ID or password is incorrect. Use 123456 only for first login or after your teacher clicks Reset Login.';
   }
   if (code.includes('too-many-requests')) return 'Too many login attempts. Wait a few minutes and try again.';
   if (code.includes('network-request-failed')) return 'Internet connection problem. Please reconnect and try again.';
@@ -4725,6 +4800,10 @@ async function loginStudent() {
     } catch (signInError) {
       if (!isAuthMissingOrWrongPasswordError(signInError)) throw signInError;
       if (password !== DEFAULT_STUDENT_PASSWORD) throw signInError;
+      // A teacher may have just clicked Reset Login. Do not reuse an old cached
+      // roster link here; fetch the latest roster so the default 123456 recovery
+      // path can create a fresh recovery Auth account when needed.
+      clearSelectiveFirestoreCache(`studentRoster:${studentId}`);
       profile = await createStudentAccountFromRoster(studentId, password);
     }
     if (!profile || !areStudentIdsEquivalent(profile.studentId || profile.studentIdNormalized, studentId)) {
@@ -6805,6 +6884,87 @@ async function addStudentAccountFromForm() {
   }
 }
 
+function getAdminStudentIdentityKey(record = {}) {
+  const normalizedId = normalizeStudentId(record.studentId || record.studentIdNormalized || record.rosterId || record.id || '');
+  if (normalizedId) return `id:${normalizedId}`;
+  const authEmail = String(record.authEmail || '').trim().toLowerCase();
+  if (authEmail) return `email:${authEmail}`;
+  return `uid:${record.uid || record.authUid || Math.random().toString(36).slice(2)}`;
+}
+
+function getAdminRecordTimeMs(record = {}) {
+  const values = [record.lastActivityAt, record.updatedAt, record.lastLoginAt, record.createdAt]
+    .map(value => timestampToDate(value)?.getTime?.() || Number(value || 0) || 0);
+  return Math.max(0, ...values);
+}
+
+function getAdminStudentProfileUids(student = {}) {
+  const list = [];
+  if (student.uid) list.push(student.uid);
+  if (Array.isArray(student.profileUids)) list.push(...student.profileUids);
+  if (student.authUid) list.push(student.authUid);
+  return [...new Set(list.map(value => String(value || '').trim()).filter(Boolean))];
+}
+
+function pickLatestAdminRecord(records = [], predicate = null) {
+  const candidates = predicate ? records.filter(predicate) : records.slice();
+  return candidates.sort((a, b) => getAdminRecordTimeMs(b) - getAdminRecordTimeMs(a))[0] || null;
+}
+
+function mergeAdminStudentRecords(records = []) {
+  const clean = records.filter(Boolean);
+  const rosterRecord = clean.find(item => item.isRosterOnly) || null;
+  const profileRecords = clean.filter(item => !item.isRosterOnly);
+  const newestProfile = pickLatestAdminRecord(profileRecords) || null;
+  const newestAny = pickLatestAdminRecord(clean) || {};
+  const base = {
+    ...(rosterRecord || {}),
+    ...(newestProfile || newestAny)
+  };
+  const profileUids = [...new Set(profileRecords.map(item => item.uid || item.authUid || '').filter(Boolean))];
+  const latestProjectRecord = pickLatestAdminRecord(clean, item => String(item.lastProjectName || '').trim());
+  const latestActivityRecord = pickLatestAdminRecord(clean, item => item.lastActivityAt || item.updatedAt || item.lastLoginAt);
+  const totalProjects = clean.reduce((sum, item) => sum + Math.max(0, Number(item.projectCount || 0)), 0);
+  const totalLogins = clean.reduce((sum, item) => sum + Math.max(0, Number(item.loginCount || 0)), 0);
+  const normalizedId = normalizeStudentId(base.studentId || base.studentIdNormalized || base.rosterId || rosterRecord?.studentId || rosterRecord?.studentIdNormalized || '');
+
+  return {
+    ...base,
+    uid: profileUids[0] || base.uid || base.authUid || '',
+    profileUids,
+    duplicateProfileCount: Math.max(0, profileUids.length - 1),
+    mergedRecordCount: clean.length,
+    sourceRecords: clean,
+    isRosterOnly: profileRecords.length === 0,
+    rosterId: normalizedId || base.rosterId || '',
+    studentId: normalizedId || base.studentId || base.studentIdNormalized || '',
+    studentIdNormalized: normalizedId || base.studentIdNormalized || base.studentId || '',
+    name: base.name || rosterRecord?.name || newestAny.name || 'Unnamed Student',
+    section: base.section || rosterRecord?.section || newestAny.section || '',
+    gender: base.gender || rosterRecord?.gender || newestAny.gender || '',
+    authEmail: base.authEmail || rosterRecord?.authEmail || (normalizedId ? studentIdToAuthEmail(normalizedId) : ''),
+    loginCount: totalLogins,
+    projectCount: totalProjects,
+    lastProjectName: latestProjectRecord?.lastProjectName || base.lastProjectName || '',
+    lastActivityAt: latestActivityRecord?.lastActivityAt || latestActivityRecord?.updatedAt || base.lastActivityAt || base.updatedAt || '',
+    lastLoginAt: pickLatestAdminRecord(clean, item => item.lastLoginAt)?.lastLoginAt || base.lastLoginAt || '',
+    mustChangePassword: profileRecords.some(item => item.mustChangePassword === false) ? false : (base.mustChangePassword !== false),
+    accountStatus: clean.some(item => item.accountStatus === 'active') ? 'active' : (base.accountStatus || 'active')
+  };
+}
+
+function mergeAdminStudentList(records = []) {
+  const groups = new Map();
+  records.forEach(record => {
+    const key = getAdminStudentIdentityKey(record);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(record);
+  });
+  return [...groups.values()]
+    .map(mergeAdminStudentRecords)
+    .sort((a, b) => String(a.section || '').localeCompare(String(b.section || '')) || String(a.name || '').localeCompare(String(b.name || '')));
+}
+
 async function loadAdminStudents(options = {}) {
   if (!isTeacherAuthenticated()) return [];
   try {
@@ -6820,33 +6980,39 @@ async function loadAdminStudents(options = {}) {
         rosterDocs: Array.from(rosterSnapshot.docs || [])
       };
     }, options);
+
     const activeProfiles = (adminData.studentDocs || []).map(docSnapshot => ({
       uid: docSnapshot.id,
       isRosterOnly: false,
+      sourceType: 'studentProfile',
       ...snapshotData(docSnapshot)
     }));
-    const byStudentId = new Map(activeProfiles.map(student => [normalizeStudentId(student.studentId), student]));
+    const activeIdSet = new Set(activeProfiles.map(student => normalizeStudentId(student.studentId || student.studentIdNormalized)).filter(Boolean));
     const rosterProfiles = (adminData.rosterDocs || []).map(docSnapshot => {
       const data = snapshotData(docSnapshot);
-      const studentId = normalizeStudentId(data.studentId || docSnapshot.id);
-      const activeMatch = byStudentId.get(studentId);
-      if (activeMatch) return null;
+      const studentId = normalizeStudentId(data.studentId || data.studentIdNormalized || docSnapshot.id);
       return {
         uid: data.authUid || '',
         rosterId: studentId,
         isRosterOnly: true,
+        sourceType: 'studentRoster',
         mustChangePassword: true,
         loginCount: 0,
         projectCount: 0,
         ...data,
-        studentId
+        studentId,
+        studentIdNormalized: studentId || data.studentIdNormalized || data.studentId
       };
-    }).filter(Boolean);
-    adminStudentsCache = [...activeProfiles, ...rosterProfiles]
-      .sort((a, b) => String(a.section || '').localeCompare(String(b.section || '')) || String(a.name || '').localeCompare(String(b.name || '')));
+    });
+
+    const rawRecords = [...activeProfiles, ...rosterProfiles];
+    const rawCount = rawRecords.length;
+    adminStudentsCache = mergeAdminStudentList(rawRecords);
+    const mergedDuplicates = Math.max(0, rawCount - adminStudentsCache.length);
     populateAdminSectionFilter();
     renderAdminStudentTracker();
-    setStudentAdminStatus(`${adminStudentsCache.length} student record${adminStudentsCache.length === 1 ? '' : 's'} loaded.`, 'success');
+    const duplicateText = mergedDuplicates ? ` · ${mergedDuplicates} duplicate profile row${mergedDuplicates === 1 ? '' : 's'} merged` : '';
+    setStudentAdminStatus(`${adminStudentsCache.length} student${adminStudentsCache.length === 1 ? '' : 's'} loaded${duplicateText}.`, 'success');
     return adminStudentsCache;
   } catch (error) {
     console.error('Could not load student tracker', error);
@@ -6911,17 +7077,24 @@ function renderAdminStudentTracker() {
 
   adminStudentsTableBody.innerHTML = filtered.map(student => {
     const loggedIn = Boolean(student.lastLoginAt || Number(student.loginCount || 0) > 0);
-    const rosterOnly = Boolean(student.isRosterOnly && !student.uid);
+    const profileUids = getAdminStudentProfileUids(student);
+    const rosterOnly = Boolean(student.isRosterOnly && !profileUids.length);
     const accountLabel = rosterOnly ? 'Ready for First Login' : (student.mustChangePassword === false ? 'Active' : 'Password Change Needed');
     const pillClass = rosterOnly ? '' : (student.mustChangePassword === false ? 'active' : '');
+    const duplicateNote = Number(student.duplicateProfileCount || 0) > 0
+      ? `<span class="student-cell-sub">Merged ${Number(student.duplicateProfileCount || 0) + 1} linked profiles · all projects shown here</span>`
+      : '';
+    const viewProjectsButton = rosterOnly
+      ? '<span class="student-cell-sub">No projects yet</span>'
+      : `<button class="ghost-btn view-student-projects-btn" type="button" data-student-uid="${escapeAttribute(student.uid || profileUids[0] || '')}">View Projects</button>`;
     return `
-      <tr data-student-uid="${escapeAttribute(student.uid || '')}">
-        <td><span class="student-cell-name">${escapeHTML(student.name || 'Unnamed Student')}</span><span class="student-cell-id">ID: ${escapeHTML(student.studentId || '')} · ${escapeHTML(student.gender || 'Gender not set')}</span></td>
+      <tr data-student-uid="${escapeAttribute(student.uid || '')}" data-student-id="${escapeAttribute(student.studentId || '')}">
+        <td><span class="student-cell-name">${escapeHTML(student.name || 'Unnamed Student')}</span><span class="student-cell-id">ID: ${escapeHTML(student.studentId || '')} · ${escapeHTML(student.gender || 'Gender not set')}</span>${duplicateNote}</td>
         <td>${escapeHTML(student.section || 'No section')}</td>
         <td><span class="student-account-pill ${pillClass}">${accountLabel}</span><span class="student-cell-sub">${loggedIn ? `${Number(student.loginCount || 0)} login${Number(student.loginCount || 0) === 1 ? '' : 's'}` : 'Never logged in'}</span></td>
         <td><strong>${Math.max(0, Number(student.projectCount || 0))}</strong><span class="student-cell-sub">${escapeHTML(student.lastProjectName || 'No project yet')}</span></td>
         <td>${escapeHTML(formatStudentDate(student.lastActivityAt))}</td>
-        <td><div class="student-action-stack">${rosterOnly ? '<span class="student-cell-sub">No projects yet</span>' : `<button class="ghost-btn view-student-projects-btn" type="button" data-student-uid="${escapeAttribute(student.uid)}">View Projects</button>`}<button class="ghost-btn recovery-student-account-btn" type="button" data-student-id="${escapeAttribute(student.studentId || '')}" data-student-uid="${escapeAttribute(student.uid || '')}">Recovery</button><button class="ghost-btn danger-btn delete-student-account-btn" type="button" data-student-id="${escapeAttribute(student.studentId || '')}" data-student-uid="${escapeAttribute(student.uid || '')}">Delete</button></div></td>
+        <td><div class="student-action-stack">${viewProjectsButton}<button class="ghost-btn diagnose-student-login-btn" type="button" data-student-id="${escapeAttribute(student.studentId || '')}" data-student-uid="${escapeAttribute(student.uid || profileUids[0] || '')}">Login Check</button><button class="ghost-btn warning reset-student-login-btn" type="button" data-student-id="${escapeAttribute(student.studentId || '')}" data-student-uid="${escapeAttribute(student.uid || profileUids[0] || '')}">Reset Login</button><button class="ghost-btn recovery-student-account-btn" type="button" data-student-id="${escapeAttribute(student.studentId || '')}" data-student-uid="${escapeAttribute(student.uid || profileUids[0] || '')}">Recovery</button><button class="ghost-btn danger-btn delete-student-account-btn" type="button" data-student-id="${escapeAttribute(student.studentId || '')}" data-student-uid="${escapeAttribute(student.uid || profileUids[0] || '')}">Delete</button></div></td>
       </tr>`;
   }).join('');
 }
@@ -7318,10 +7491,11 @@ async function loadAdminOnlinePresence(options = {}) {
 
 function findAdminStudentByIdOrUid(studentId = '', uid = '') {
   const normalizedId = normalizeStudentId(studentId);
-  return adminStudentsCache.find(item =>
-    (normalizedId && areStudentIdsEquivalent(item.studentId || item.studentIdNormalized || item.rosterId, normalizedId))
-    || (uid && item.uid === uid)
-  ) || null;
+  return adminStudentsCache.find(item => {
+    const profileUids = getAdminStudentProfileUids(item);
+    return (normalizedId && areStudentIdsEquivalent(item.studentId || item.studentIdNormalized || item.rosterId, normalizedId))
+      || (uid && profileUids.includes(uid));
+  }) || null;
 }
 
 async function copyTextSafely(text = '') {
@@ -7386,18 +7560,344 @@ async function showAdminStudentRecoveryHelper(studentId, uid = '') {
     confirmText: copied && authEmail ? 'Copied / OK' : 'OK'
   });
 }
+
+function getAdminStudentDiagnosticRecords(student = {}) {
+  const records = Array.isArray(student?.sourceRecords) ? student.sourceRecords.slice() : [student].filter(Boolean);
+  return records.filter(record => record && !record.isRosterOnly);
+}
+
+function getAdminStudentDiagnosticAuthCandidates(studentId = '', student = {}) {
+  const values = new Set();
+  const add = value => {
+    const text = String(value || '').trim().toLowerCase();
+    if (text) values.add(text);
+  };
+  getStudentAuthEmailCandidates(studentId).forEach(add);
+  add(student?.authEmail);
+  (Array.isArray(student?.sourceRecords) ? student.sourceRecords : []).forEach(record => add(record?.authEmail));
+  return [...values];
+}
+
+function formatDiagnosticStatusLine(label, status, detail = '') {
+  const icon = status === 'pass' ? '✅' : status === 'warn' ? '⚠️' : status === 'info' ? 'ℹ️' : '❌';
+  return `${icon} ${label}${detail ? ` — ${detail}` : ''}`;
+}
+
+async function loadAdminStudentProjectsCountForUid(uid = '') {
+  if (!uid) return 0;
+  try {
+    const { getDocs } = firebaseSync.modules;
+    const snapshot = await getDocs(getStudentProjectsCollectionRef(uid));
+    return Array.isArray(snapshot.docs) ? snapshot.docs.length : 0;
+  } catch (error) {
+    console.warn('Login Doctor could not count projects for one profile.', error);
+    return 0;
+  }
+}
+
+async function queryAdminStudentProfilesForDiagnostic(studentId = '', student = null) {
+  const normalizedId = normalizeStudentId(studentId || student?.studentId || student?.studentIdNormalized || student?.rosterId || '');
+  const records = new Map();
+  const addRecord = (uid, data = {}) => {
+    const key = String(uid || data.uid || data.authUid || '').trim();
+    if (!key) return;
+    records.set(key, { uid: key, isRosterOnly: false, sourceType: 'studentProfile', ...data });
+  };
+
+  getAdminStudentDiagnosticRecords(student).forEach(record => addRecord(record.uid || record.authUid, record));
+
+  try {
+    const { getDocs, query, where, limit } = firebaseSync.modules;
+    const profileCollection = getStudentsCollectionRef();
+    const diagnosticQueries = [];
+    if (normalizedId) {
+      diagnosticQueries.push(query(profileCollection, where('studentIdNormalized', '==', normalizedId), limit(20)));
+      diagnosticQueries.push(query(profileCollection, where('studentId', '==', normalizedId), limit(20)));
+    }
+    const authCandidates = getAdminStudentDiagnosticAuthCandidates(normalizedId, student).slice(0, 10);
+    if (authCandidates.length) {
+      diagnosticQueries.push(query(profileCollection, where('authEmail', 'in', authCandidates), limit(20)));
+    }
+    for (const diagnosticQuery of diagnosticQueries) {
+      try {
+        const snapshot = await getDocs(diagnosticQuery);
+        (snapshot.docs || []).forEach(docSnapshot => addRecord(docSnapshot.id, snapshotData(docSnapshot)));
+      } catch (queryError) {
+        console.warn('One Login Doctor profile query was skipped.', queryError);
+      }
+    }
+  } catch (error) {
+    console.warn('Login Doctor profile lookup skipped.', error);
+  }
+  return [...records.values()];
+}
+
+async function runAdminStudentLoginDiagnostic(studentId = '', uid = '') {
+  if (!isTeacherAuthenticated()) {
+    setStudentAdminStatus('Teacher login is required to run Login Check.', 'error');
+    return;
+  }
+
+  if (!adminStudentsCache.length) {
+    await loadAdminStudents({ force: true });
+  }
+
+  const normalizedId = normalizeStudentId(studentId);
+  let student = findAdminStudentByIdOrUid(normalizedId, uid);
+  const resolvedId = normalizeStudentId(student?.studentId || student?.studentIdNormalized || student?.rosterId || normalizedId);
+  const displayName = student?.name || resolvedId || 'this student';
+  const authCandidates = getAdminStudentDiagnosticAuthCandidates(resolvedId, student);
+
+  try {
+    setStudentAdminStatus(`Running Login Check for ${displayName}...`);
+    const { getDoc } = firebaseSync.modules;
+    const rosterSnapshot = resolvedId ? await getDoc(getStudentRosterDocRef(resolvedId)).catch(error => {
+      console.warn('Login Doctor roster lookup failed.', error);
+      return null;
+    }) : null;
+    const roster = snapshotExists(rosterSnapshot) ? { id: rosterSnapshot.id, ...snapshotData(rosterSnapshot) } : null;
+    const profileRecords = await queryAdminStudentProfilesForDiagnostic(resolvedId, student);
+    const profileUids = [...new Set(profileRecords.map(record => String(record.uid || record.authUid || '').trim()).filter(Boolean))];
+    const profileProjectCounts = await Promise.all(profileUids.map(async activeUid => [activeUid, await loadAdminStudentProjectsCountForUid(activeUid)]));
+    const totalProjects = profileProjectCounts.reduce((sum, [, count]) => sum + Number(count || 0), 0);
+    const rosterAuthUid = String(roster?.authUid || '').trim();
+    const rosterAuthEmail = String(roster?.authEmail || '').trim().toLowerCase();
+    const profileEmails = [...new Set(profileRecords.map(record => String(record.authEmail || '').trim().toLowerCase()).filter(Boolean))];
+    const profileIds = [...new Set(profileRecords.map(record => normalizeStudentId(record.studentId || record.studentIdNormalized || '')).filter(Boolean))];
+    const profileStatusValues = [...new Set(profileRecords.map(record => String(record.accountStatus || '').trim()).filter(Boolean))];
+    const mustChangeValues = [...new Set(profileRecords.map(record => record.mustChangePassword === false ? 'No' : 'Yes').filter(Boolean))];
+
+    const lines = [];
+    const blockers = [];
+    const warnings = [];
+    const info = [];
+
+    if (!resolvedId) {
+      blockers.push('No Student ID was found for this row. Re-import or edit the roster record.');
+    }
+
+    if (!roster) {
+      blockers.push('Student ID is not in studentRoster. The app should show “not registered” until this ID is imported/added.');
+    } else {
+      lines.push(formatDiagnosticStatusLine('Roster record', 'pass', `found as ${roster.id || resolvedId}`));
+      if (roster.accountStatus === 'disabled') blockers.push('Roster accountStatus is disabled. Student cannot log in until reactivated.');
+      else lines.push(formatDiagnosticStatusLine('Roster status', 'pass', roster.accountStatus || 'active'));
+    }
+
+    if (!profileRecords.length) {
+      info.push('No app profile yet. This is normal for a student who never logged in. First login should use password 123456.');
+    } else {
+      lines.push(formatDiagnosticStatusLine('App profile', 'pass', `${profileRecords.length} profile document${profileRecords.length === 1 ? '' : 's'} found`));
+    }
+
+    if (profileRecords.length > 1) {
+      warnings.push(`Duplicate linked app profiles detected (${profileRecords.length}). Admin list will merge them, but old duplicate profiles may still exist in Firestore.`);
+    }
+
+    if (rosterAuthUid && profileUids.length && !profileUids.includes(rosterAuthUid)) {
+      warnings.push(`Roster authUid (${rosterAuthUid}) does not match the visible profile UID(s). This can cause old-link confusion.`);
+    }
+
+    if (rosterAuthEmail && authCandidates.length && !authCandidates.includes(rosterAuthEmail)) {
+      warnings.push(`Roster authEmail (${rosterAuthEmail}) is not one of the generated email candidates for this ID.`);
+    }
+
+    const unrelatedProfileIds = profileIds.filter(id => resolvedId && !areStudentIdsEquivalent(id, resolvedId));
+    if (unrelatedProfileIds.length) {
+      warnings.push(`Some profile documents have a different Student ID: ${unrelatedProfileIds.join(', ')}.`);
+    }
+
+    const unrelatedProfileEmails = profileEmails.filter(email => authCandidates.length && !authCandidates.includes(email));
+    if (unrelatedProfileEmails.length) {
+      warnings.push(`Some profile authEmail values do not match the generated login email: ${unrelatedProfileEmails.join(', ')}.`);
+    }
+
+    if (totalProjects > 0) {
+      lines.push(formatDiagnosticStatusLine('Saved projects', 'pass', `${totalProjects} project${totalProjects === 1 ? '' : 's'} found across linked profile(s)`));
+    } else {
+      lines.push(formatDiagnosticStatusLine('Saved projects', 'info', 'none found yet'));
+    }
+
+    const verdict = blockers.length
+      ? 'LOGIN WILL BE BLOCKED until the blocker below is fixed.'
+      : warnings.length
+        ? 'LOGIN SHOULD WORK if the password is correct, but review the warning(s).'
+        : 'LOGIN SHOULD WORK if the Student ID and password are correct.';
+
+    lines.unshift('', `VERDICT: ${verdict}`, '');
+    if (blockers.length) {
+      lines.push('', 'Blockers:', ...blockers.map(item => `❌ ${item}`));
+    }
+    if (warnings.length) {
+      lines.push('', 'Warnings:', ...warnings.map(item => `⚠️ ${item}`));
+    }
+    if (info.length) {
+      lines.push('', 'Notes:', ...info.map(item => `ℹ️ ${item}`));
+    }
+
+    lines.push(
+      '',
+      'Login details to check:',
+      `Student: ${displayName}`,
+      `Student ID: ${resolvedId || 'not found'}`,
+      `Name in roster: ${roster?.name || 'not found'}`,
+      `Section: ${roster?.section || student?.section || 'not set'}`,
+      `Generated/Auth email candidates: ${authCandidates.length ? authCandidates.join(', ') : 'none'}`,
+      `Roster authEmail: ${rosterAuthEmail || 'none yet'}`,
+      `Profile authEmail: ${profileEmails.length ? profileEmails.join(', ') : 'none yet'}`,
+      `Roster authUid: ${rosterAuthUid || 'none yet'}`,
+      `Profile UID(s): ${profileUids.length ? profileUids.join(', ') : 'none yet'}`,
+      `Password-change needed: ${mustChangeValues.length ? mustChangeValues.join(' / ') : 'No profile yet'}`,
+      `Profile status: ${profileStatusValues.length ? profileStatusValues.join(' / ') : 'No profile yet'}`,
+      '',
+      'Important: this browser app cannot view or verify the actual Firebase password. If Login Check says OK but the student still cannot enter, use Reset Login so the student can try Student ID + 123456. After they create a new password, 123456 will be rejected again unless you reset the login again.'
+    );
+
+    setStudentAdminStatus(blockers.length ? `${displayName}: login blocker found.` : warnings.length ? `${displayName}: login check completed with warning.` : `${displayName}: login check passed.`, blockers.length ? 'error' : warnings.length ? 'warning' : 'success');
+    await appAlert(lines.join('\n'), {
+      title: 'Student Login Check',
+      kicker: 'Admin diagnostic',
+      icon: blockers.length ? '!' : warnings.length ? 'i' : '✓',
+      confirmText: 'OK'
+    });
+  } catch (error) {
+    console.error('Login Check failed', error);
+    setStudentAdminStatus(error?.message || 'Login Check failed.', 'error');
+    await appAlert(error?.message || 'Login Check failed. Try refreshing the admin tracker.', {
+      title: 'Login Check failed',
+      danger: true
+    });
+  }
+}
+
+
+async function resetAdminStudentLoginAccess(studentId = '', uid = '') {
+  if (!isTeacherAuthenticated()) {
+    setStudentAdminStatus('Teacher login is required to reset student login access.', 'error');
+    return;
+  }
+
+  if (!adminStudentsCache.length) {
+    await loadAdminStudents({ force: true });
+  }
+
+  const normalizedId = normalizeStudentId(studentId);
+  const student = findAdminStudentByIdOrUid(normalizedId, uid);
+  const resolvedId = normalizeStudentId(student?.studentId || student?.studentIdNormalized || student?.rosterId || normalizedId);
+  const displayName = student?.name || resolvedId || 'this student';
+  if (!resolvedId) {
+    setStudentAdminStatus('No Student ID found for this row.', 'error');
+    await appAlert('No Student ID was found for this row. Re-import or fix the roster record first.', {
+      title: 'Reset Login failed',
+      danger: true
+    });
+    return;
+  }
+
+  const profileUids = getAdminStudentProfileUids(student);
+  const confirmed = await appConfirm([
+    `Reset login access for ${displayName}?`,
+    '',
+    `Student ID: ${resolvedId}`,
+    'After this, the student should log in using:',
+    `Password: ${DEFAULT_STUDENT_PASSWORD}`,
+    '',
+    'This does not delete projects. It prepares a fresh default-login path for this Student ID.'
+  ].join('\n'), {
+    title: 'Reset Login to 123456',
+    confirmText: 'Reset Login',
+    cancelText: 'Cancel',
+    danger: false
+  });
+  if (!confirmed) return;
+
+  try {
+    setStudentAdminStatus(`Resetting login access for ${displayName}...`);
+    const { setDoc, serverTimestamp } = firebaseSync.modules;
+    const resetPayload = {
+      authUid: '',
+      authEmail: studentIdToAuthEmail(resolvedId),
+      accountStatus: 'active',
+      mustChangePassword: true,
+      forceDefaultPassword: true,
+      loginResetRequestedAt: serverTimestamp(),
+      resetLoginRequestedAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      resetBy: firebaseSync.auth?.currentUser?.email || firebaseSync.currentUser?.email || 'teacher'
+    };
+
+    await setDoc(getStudentRosterDocRef(resolvedId), {
+      studentId: resolvedId,
+      studentIdNormalized: resolvedId,
+      ...resetPayload
+    }, { merge: true });
+
+    const updateProfilePromises = profileUids.map(activeUid => setDoc(getStudentDocRef(activeUid), {
+      mustChangePassword: true,
+      accountStatus: 'active',
+      loginResetRequestedAt: serverTimestamp(),
+      resetLoginRequestedAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      resetBy: firebaseSync.auth?.currentUser?.email || firebaseSync.currentUser?.email || 'teacher'
+    }, { merge: true }).catch(error => {
+      console.warn('One linked profile could not be marked for reset.', activeUid, error);
+      return null;
+    }));
+    await Promise.all(updateProfilePromises);
+
+    clearSelectiveFirestoreCache('admin:studentsAndRoster');
+    clearSelectiveFirestoreCache(`studentRoster:${resolvedId}`);
+    profileUids.forEach(activeUid => clearSelectiveFirestoreCache(`studentProfile:${activeUid}`));
+    await loadAdminStudents({ force: true });
+
+    const message = [
+      `${displayName} login access was reset.`,
+      '',
+      `Student ID: ${resolvedId}`,
+      `Temporary password: ${DEFAULT_STUDENT_PASSWORD}`,
+      '',
+      'Next step for the student:',
+      `1. Log in using Student ID + ${DEFAULT_STUDENT_PASSWORD}.`,
+      '2. Create a new password when asked.',
+      '',
+      'Note: because Firebase passwords cannot be changed directly from this browser-only admin panel, this reset prepares a fresh recovery login path. Old saved projects remain available in the admin merged project view.'
+    ].join('\n');
+
+    setStudentAdminStatus(`${displayName} can try logging in with ${DEFAULT_STUDENT_PASSWORD}.`, 'success');
+    await appAlert(message, {
+      title: 'Login Reset Ready',
+      kicker: 'Admin reset',
+      icon: '✓',
+      confirmText: 'OK'
+    });
+  } catch (error) {
+    console.error('Reset Login failed', error);
+    const message = isFirestorePermissionError(error)
+      ? 'Reset was blocked by Firestore rules. Make sure teacher accounts can update studentRoster and students.'
+      : (error?.message || 'Could not reset login access.');
+    setStudentAdminStatus(message, 'error');
+    await appAlert(message, {
+      title: 'Reset Login failed',
+      danger: true
+    });
+  }
+}
+
 async function deleteAdminStudentRecord(studentId, uid = '') {
   if (!isTeacherAuthenticated()) {
     setStudentAdminStatus('Teacher login is required to delete student accounts.', 'error');
     return;
   }
   const normalizedId = normalizeStudentId(studentId);
-  const student = adminStudentsCache.find(item =>
-    areStudentIdsEquivalent(item.studentId || item.studentIdNormalized || item.rosterId, normalizedId)
-    || (uid && item.uid === uid)
-  );
+  const student = findAdminStudentByIdOrUid(normalizedId, uid);
   const displayName = student?.name || normalizedId || 'this student';
-  const confirmed = await appConfirm(`Delete ${displayName}? This removes the student record, login profile, and saved project records from this app.`, {
+  const profileUids = getAdminStudentProfileUids(student);
+  const duplicateText = profileUids.length > 1
+    ? `
+
+This student has ${profileUids.length} linked app profiles because of earlier duplicate logins. This will remove all linked profiles and their saved projects for the same Student ID.`
+    : '';
+  const confirmed = await appConfirm(`Delete ${displayName}? This removes the student roster record, app login profile, and saved project records from this app.${duplicateText}`, {
     title: 'Delete student account',
     danger: true,
     confirmText: 'Delete'
@@ -7407,8 +7907,7 @@ async function deleteAdminStudentRecord(studentId, uid = '') {
   try {
     setStudentAdminStatus(`Deleting ${displayName}...`);
     const { getDocs, deleteDoc } = firebaseSync.modules;
-    const activeUid = uid || student?.uid || '';
-    if (activeUid) {
+    for (const activeUid of profileUids) {
       try {
         const projectSnapshot = await getDocs(getStudentProjectsCollectionRef(activeUid));
         for (const docSnapshot of (projectSnapshot.docs || [])) {
@@ -7427,10 +7926,12 @@ async function deleteAdminStudentRecord(studentId, uid = '') {
       });
     }
 
-    adminStudentsCache = adminStudentsCache.filter(item =>
-      !areStudentIdsEquivalent(item.studentId || item.studentIdNormalized || item.rosterId, normalizedId)
-      && !(activeUid && item.uid === activeUid)
-    );
+    adminStudentsCache = adminStudentsCache.filter(item => {
+      const itemId = item.studentId || item.studentIdNormalized || item.rosterId;
+      const itemUids = getAdminStudentProfileUids(item);
+      return !areStudentIdsEquivalent(itemId, normalizedId)
+        && !itemUids.some(itemUid => profileUids.includes(itemUid));
+    });
     populateAdminSectionFilter();
     renderAdminStudentTracker();
     setStudentAdminStatus(`${displayName} was deleted from this app. If the student already had a Firebase Auth login, the Auth user may still exist but cannot open projects without a registered profile.`, 'success');
@@ -8225,7 +8726,7 @@ async function applyAdminAiReviewAsScore() {
     if (adminApplyAiScoreBtn) adminApplyAiScoreBtn.disabled = true;
     setAdminAiReviewStatus('Applying score...', 'running');
     const { setDoc, serverTimestamp } = firebaseSync.modules;
-    await setDoc(getStudentProjectDocRef(student.uid, project.id), {
+    await setDoc(getStudentProjectDocRef(getAdminProjectOwnerUid(project), project.id), {
       lastResult: result,
       aiScoreAppliedAt: serverTimestamp(),
       aiScoreAppliedBy: firebaseSync.auth?.currentUser?.email || firebaseSync.currentUser?.email || 'teacher'
@@ -8258,7 +8759,7 @@ async function saveAdminAiRubricReview() {
       reviewedBy: teacherEmail,
       activityKey: key
     };
-    await setDoc(getStudentProjectDocRef(student.uid, project.id), {
+    await setDoc(getStudentProjectDocRef(getAdminProjectOwnerUid(project), project.id), {
       aiRubricReviews: { [key]: saveRecord },
       aiRubricReviewUpdatedAt: serverTimestamp(),
       aiRubricReviewUpdatedBy: teacherEmail
@@ -8398,7 +8899,7 @@ async function saveAdminProjectTeacherComment({ clear = false } = {}) {
       updatedBy: teacherEmail,
       updatedAt: serverTimestamp()
     };
-    await setDoc(getStudentProjectDocRef(student.uid, project.id), {
+    await setDoc(getStudentProjectDocRef(getAdminProjectOwnerUid(project), project.id), {
       teacherComments: { [key]: commentRecord },
       teacherCommentUpdatedAt: serverTimestamp(),
       teacherCommentUpdatedBy: teacherEmail
@@ -8444,15 +8945,49 @@ function renderAdminProjectViewer() {
   runAdminProjectViewerPreview(getAdminProjectActiveFileName('html'));
 }
 
-async function openAdminProjectViewer(projectId) {
+function makeAdminProjectReference(uid = '', projectId = '') {
+  return `${String(uid || '').trim()}::${String(projectId || '').trim()}`;
+}
+
+function parseAdminProjectReference(reference = '') {
+  const value = String(reference || '');
+  const separator = value.indexOf('::');
+  if (separator >= 0) {
+    return {
+      uid: value.slice(0, separator),
+      projectId: value.slice(separator + 2)
+    };
+  }
+  return { uid: '', projectId: value };
+}
+
+function getAdminProjectOwnerUid(project = adminProjectViewerState.project) {
+  return String(project?.ownerUid || project?.sourceUid || adminProjectViewerState.projectOwnerUid || adminProjectViewerState.student?.uid || '').trim();
+}
+
+async function openAdminProjectViewer(projectRef) {
   const student = adminProjectViewerState.student;
-  if (!student || !projectId) return;
-  let project = (adminProjectViewerState.projects || []).find(item => item.id === projectId) || null;
-  if (!project || !project.codeByActivity) {
+  if (!student || !projectRef) return;
+  const parsed = parseAdminProjectReference(projectRef);
+  const rawProjectId = parsed.projectId || projectRef;
+  let project = (adminProjectViewerState.projects || []).find(item =>
+    item.adminProjectRef === projectRef
+    || (item.id === rawProjectId && (!parsed.uid || getAdminProjectOwnerUid(item) === parsed.uid))
+  ) || null;
+  const ownerUid = parsed.uid || getAdminProjectOwnerUid(project) || student.uid || getAdminStudentProfileUids(student)[0] || '';
+  if ((!project || !project.codeByActivity) && ownerUid && rawProjectId) {
     try {
       const { getDoc } = firebaseSync.modules;
-      const snapshot = await getDoc(getStudentProjectDocRef(student.uid, projectId));
-      if (snapshotExists(snapshot)) project = { id: projectId, ...snapshotData(snapshot) };
+      const snapshot = await getDoc(getStudentProjectDocRef(ownerUid, rawProjectId));
+      if (snapshotExists(snapshot)) {
+        project = {
+          id: rawProjectId,
+          ownerUid,
+          sourceUid: ownerUid,
+          adminProjectRef: makeAdminProjectReference(ownerUid, rawProjectId),
+          ...snapshotData(snapshot)
+        };
+      }
     } catch (error) {
       console.error('Could not fetch project for viewer', error);
     }
@@ -8461,10 +8996,17 @@ async function openAdminProjectViewer(projectId) {
     appAlert('This project could not be opened. Check the internet connection and try again.', { title: 'Project unavailable' });
     return;
   }
-  adminProjectViewerState.project = project;
-  adminProjectViewerState.codeByActivity = normalizeProjectCodeByActivity(project.codeByActivity || {});
-  adminProjectViewerState.activityKey = project.selectedActivityId && adminProjectViewerState.codeByActivity[project.selectedActivityId]
-    ? project.selectedActivityId
+  adminProjectViewerState.projectOwnerUid = ownerUid || getAdminProjectOwnerUid(project);
+  adminProjectViewerState.project = {
+    ...project,
+    id: rawProjectId || project.id,
+    ownerUid: ownerUid || getAdminProjectOwnerUid(project),
+    sourceUid: ownerUid || getAdminProjectOwnerUid(project),
+    adminProjectRef: project.adminProjectRef || makeAdminProjectReference(ownerUid || getAdminProjectOwnerUid(project), rawProjectId || project.id)
+  };
+  adminProjectViewerState.codeByActivity = normalizeProjectCodeByActivity(adminProjectViewerState.project.codeByActivity || {});
+  adminProjectViewerState.activityKey = adminProjectViewerState.project.selectedActivityId && adminProjectViewerState.codeByActivity[adminProjectViewerState.project.selectedActivityId]
+    ? adminProjectViewerState.project.selectedActivityId
     : Object.keys(adminProjectViewerState.codeByActivity)[0] || 'scratch';
   adminProjectViewerState.language = 'html';
   adminProjectViewerOverlay?.classList.remove('hidden');
@@ -8480,33 +9022,48 @@ function closeAdminProjectViewer() {
 }
 
 async function showAdminStudentProjects(uid) {
-  const student = adminStudentsCache.find(item => item.uid === uid);
+  const student = adminStudentsCache.find(item => getAdminStudentProfileUids(item).includes(uid) || item.uid === uid);
   if (!student) return;
+  const profileUids = getAdminStudentProfileUids(student);
   adminStudentProjectsTitle.textContent = `${student.name}'s Projects`;
-  adminStudentProjectsSubtitle.textContent = `${student.studentId} · ${student.section}`;
+  adminStudentProjectsSubtitle.textContent = `${student.studentId} · ${student.section}${profileUids.length > 1 ? ` · ${profileUids.length} linked profiles merged` : ''}`;
   adminStudentProjectsList.innerHTML = '<div class="dashboard-status">Loading projects...</div>';
   adminStudentProjectsOverlay.classList.remove('hidden');
   document.body.classList.add('student-auth-open');
   try {
     const { getDocs } = firebaseSync.modules;
-    const snapshot = await getDocs(getStudentProjectsCollectionRef(uid));
-    const projects = (snapshot.docs || []).map(docSnapshot => ({ id: docSnapshot.id, ...snapshotData(docSnapshot) }))
+    const projectGroups = await Promise.all(profileUids.map(async profileUid => {
+      const snapshot = await getDocs(getStudentProjectsCollectionRef(profileUid));
+      return (snapshot.docs || []).map(docSnapshot => {
+        const projectId = docSnapshot.id;
+        return {
+          id: projectId,
+          ownerUid: profileUid,
+          sourceUid: profileUid,
+          adminProjectRef: makeAdminProjectReference(profileUid, projectId),
+          ...snapshotData(docSnapshot)
+        };
+      });
+    }));
+    const projects = projectGroups.flat()
       .sort((a, b) => (timestampToDate(b.updatedAt)?.getTime() || 0) - (timestampToDate(a.updatedAt)?.getTime() || 0));
     if (!projects.length) {
       adminStudentProjectsList.innerHTML = '<div class="empty-projects-card"><h3>No projects yet</h3><p>This student has logged in but has not created a project.</p></div>';
       return;
     }
     adminProjectViewerState.student = student;
+    adminProjectViewerState.projectOwnerUid = profileUids[0] || student.uid || '';
     adminProjectViewerState.projects = projects;
     adminStudentProjectsList.innerHTML = projects.map(project => {
       const result = project.lastResult;
+      const linkedProfileNote = profileUids.length > 1 ? ` · Profile ${profileUids.indexOf(project.ownerUid) + 1}` : '';
       return `
-        <article class="admin-project-row" data-admin-project-id="${escapeAttribute(project.id)}">
-          <div><strong>${escapeHTML(project.name || 'Untitled Project')}</strong><small>${escapeHTML(project.activityTitle || 'Practice project')} · Updated ${escapeHTML(formatStudentDate(project.updatedAt))}</small></div>
+        <article class="admin-project-row" data-admin-project-id="${escapeAttribute(project.adminProjectRef || project.id)}">
+          <div><strong>${escapeHTML(project.name || 'Untitled Project')}</strong><small>${escapeHTML(project.activityTitle || 'Practice project')} · Updated ${escapeHTML(formatStudentDate(project.updatedAt))}${escapeHTML(linkedProfileNote)}</small></div>
           <span>${getProjectStatusLabel(getProjectStatus(project))}</span>
           <span>${Number(project.runCount || 0)} run${Number(project.runCount || 0) === 1 ? '' : 's'}</span>
           <strong>${result ? `${formatPoints(result.score || 0)}/${formatPoints(result.possible || 0)} · ${Number(result.percent || 0)}%` : 'Not scored'}</strong>
-          <button class="primary-btn admin-project-view-btn" type="button" data-admin-project-action="view" data-admin-project-id="${escapeAttribute(project.id)}">View / Run</button>
+          <button class="primary-btn admin-project-view-btn" type="button" data-admin-project-action="view" data-admin-project-id="${escapeAttribute(project.adminProjectRef || project.id)}">View / Run</button>
         </article>`;
     }).join('');
   } catch (error) {
@@ -20390,6 +20947,16 @@ adminStudentSearch?.addEventListener('input', renderAdminStudentTracker);
 adminSectionFilter?.addEventListener('change', renderAdminStudentTracker);
 adminActivityFilter?.addEventListener('change', renderAdminStudentTracker);
 adminStudentsTableBody?.addEventListener('click', event => {
+  const diagnoseButton = event.target.closest('.diagnose-student-login-btn');
+  if (diagnoseButton) {
+    runAdminStudentLoginDiagnostic(diagnoseButton.dataset.studentId || '', diagnoseButton.dataset.studentUid || '');
+    return;
+  }
+  const resetLoginButton = event.target.closest('.reset-student-login-btn');
+  if (resetLoginButton) {
+    resetAdminStudentLoginAccess(resetLoginButton.dataset.studentId || '', resetLoginButton.dataset.studentUid || '');
+    return;
+  }
   const recoveryButton = event.target.closest('.recovery-student-account-btn');
   if (recoveryButton) {
     showAdminStudentRecoveryHelper(recoveryButton.dataset.studentId || '', recoveryButton.dataset.studentUid || '');
