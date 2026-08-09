@@ -3225,14 +3225,33 @@ function studentIdToRecoveryAuthEmail(value, slot = 1) {
   return safe ? `sid-${safe}-r${safeSlot}@${STUDENT_EMAIL_DOMAIN}` : '';
 }
 
+function makeStudentResetLoginKey() {
+  const timeKey = Date.now().toString(36);
+  const randomKey = Math.random().toString(36).slice(2, 10);
+  return `${timeKey}${randomKey}`.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 24);
+}
+
+function studentIdToFreshResetAuthEmail(value, resetKey = '') {
+  const safe = getStudentIdAuthKey(value).toLowerCase();
+  const key = String(resetKey || makeStudentResetLoginKey())
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '')
+    .slice(0, 24);
+  return safe && key ? `sid-${safe}-reset-${key}@${STUDENT_EMAIL_DOMAIN}` : '';
+}
+
 function getStudentAuthEmailCandidates(studentId, roster = null) {
   const candidates = [];
   const addCandidate = value => {
     const email = String(value || '').trim().toLowerCase();
     if (email && !candidates.includes(email)) candidates.push(email);
   };
-  addCandidate(studentIdToAuthEmail(studentId));
+  // Try the roster-linked Auth email first. After Admin Reset Login, this may
+  // be a fresh reset email instead of the old primary email, so students can
+  // log in with their newest password without needing the old Firebase account.
   addCandidate(roster?.authEmail);
+  addCandidate(roster?.resetAuthEmail);
+  addCandidate(studentIdToAuthEmail(studentId));
   for (let slot = 1; slot <= STUDENT_AUTH_RECOVERY_SLOTS; slot += 1) {
     addCandidate(studentIdToRecoveryAuthEmail(studentId, slot));
   }
@@ -3245,16 +3264,30 @@ function getStudentAuthEmailCreationCandidates(studentId, roster = null, { allow
     const email = String(value || '').trim().toLowerCase();
     if (email && !candidates.includes(email)) candidates.push(email);
   };
+
+  if (allowRecovery) {
+    // After Admin Reset Login, prefer the fresh reset email saved in the roster.
+    // This avoids the old Firebase Auth account whose password cannot be changed
+    // from the browser.
+    addCandidate(roster?.authEmail);
+    addCandidate(roster?.resetAuthEmail);
+    addCandidate(studentIdToFreshResetAuthEmail(studentId, roster?.resetLoginKey));
+  }
+
   // For normal first login, create only the primary/roster Auth email.
-  // Recovery-slot emails are only allowed after the teacher explicitly clicks
+  // Recovery/reset emails are only allowed after the teacher explicitly clicks
   // Reset Login. This prevents students with an existing changed password from
   // typing 123456 and accidentally creating another account that asks for a new password.
   addCandidate(studentIdToAuthEmail(studentId));
-  addCandidate(roster?.authEmail);
+  if (!allowRecovery) addCandidate(roster?.authEmail);
+
   if (allowRecovery) {
     for (let slot = 1; slot <= STUDENT_AUTH_RECOVERY_SLOTS; slot += 1) {
       addCandidate(studentIdToRecoveryAuthEmail(studentId, slot));
     }
+    // Final fallback: a fresh unique reset email for this attempt. It will be
+    // written back to the roster after successful activation.
+    addCandidate(studentIdToFreshResetAuthEmail(studentId));
   }
   return candidates;
 }
@@ -4725,9 +4758,11 @@ async function createStudentAccountFromRoster(studentId, password) {
       await setDoc(getStudentRosterDocRef(profile.studentIdNormalized || studentId), {
         authUid: credential.user.uid,
         authEmail,
+        resetAuthEmail: authEmail,
         authCreatedAt: serverTimestamp(),
         loginResetCompletedAt: serverTimestamp(),
         forceDefaultPassword: false,
+        authResetMode: '',
         updatedAt: serverTimestamp()
       }, { merge: true });
     } catch (rosterUpdateError) {
@@ -4744,9 +4779,9 @@ async function createStudentAccountFromRoster(studentId, password) {
 
 function getStudentAuthErrorMessage(error) {
   const code = String(error?.code || '');
-  if (code.includes('mcsian/auth-email-conflict')) return 'This Student ID has a stuck login record. Ask your teacher to delete or reset the old Firebase Authentication user, then try 123456 again.';
+  if (code.includes('mcsian/auth-email-conflict')) return 'This Student ID has an old login link. Ask your teacher to click Reset Login again, then use 123456.';
   if (code.includes('email-already-in-use')) return 'This Student ID already has an activated account. Use the password you created. The default 123456 only works for first login or after Admin Reset Login.';
-  if (code.includes('mcsian/no-recovery-slot')) return 'All reset login slots are already used for this Student ID. Use Recovery/Firebase Console for this account.';
+  if (code.includes('mcsian/no-recovery-slot')) return 'The reset login link could not be prepared. Ask your teacher to click Reset Login again, then use 123456.';
   if (code.includes('weak-password')) return 'The password must contain at least 6 characters.';
   if (code.includes('invalid-credential') || code.includes('wrong-password') || code.includes('user-not-found')) {
     return 'Student ID or password is incorrect. Use 123456 only for first login or after your teacher clicks Reset Login.';
@@ -4784,8 +4819,19 @@ async function loginStudent() {
     }
     let credential = null;
     let profile = null;
+    let rosterForLogin = null;
     try {
-      const signedIn = await signInStudentWithCandidateEmails(studentId, password);
+      if (password === DEFAULT_STUDENT_PASSWORD) clearSelectiveFirestoreCache(`studentRoster:${studentId}`);
+      rosterForLogin = await findStudentRosterRecordById(studentId);
+    } catch (rosterLookupError) {
+      // Older rules may block pre-login roster reads. Continue with normal Auth
+      // candidates; the default/reset path will show the Firestore rules message
+      // if the roster is still unavailable.
+      console.warn('Could not pre-read roster before student sign-in.', rosterLookupError);
+      rosterForLogin = null;
+    }
+    try {
+      const signedIn = await signInStudentWithCandidateEmails(studentId, password, rosterForLogin);
       credential = signedIn.credential;
       firebaseSync.currentUser = credential.user;
       profile = await loadStudentProfile(credential.user.uid);
@@ -7814,9 +7860,14 @@ async function resetAdminStudentLoginAccess(studentId = '', uid = '') {
   try {
     setStudentAdminStatus(`Resetting login access for ${displayName}...`);
     const { setDoc, serverTimestamp } = firebaseSync.modules;
+    const resetLoginKey = makeStudentResetLoginKey();
+    const resetAuthEmail = studentIdToFreshResetAuthEmail(resolvedId, resetLoginKey);
     const resetPayload = {
       authUid: '',
-      authEmail: studentIdToAuthEmail(resolvedId),
+      authEmail: resetAuthEmail,
+      resetAuthEmail,
+      resetLoginKey,
+      authResetMode: 'fresh-default-login',
       accountStatus: 'active',
       mustChangePassword: true,
       forceDefaultPassword: true,

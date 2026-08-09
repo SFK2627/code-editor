@@ -1,13 +1,13 @@
-const CACHE_NAME = 'ict8-connect-step260-default-login-guard';
+const CACHE_NAME = 'ict8-connect-step262-reset-login-fresh-auth';
 const APP_SHELL = [
   './',
   './index.html',
-  './index.html?v=20260809-step260-default-login-guard',
-  './index.html?fresh=step260-default-login-guard',
+  './index.html?v=20260809-step262-reset-login-fresh-auth',
+  './index.html?fresh=step262-reset-login-fresh-auth',
   './style.css',
-  './style.css?v=20260809-step260-default-login-guard',
+  './style.css?v=20260809-step262-reset-login-fresh-auth',
   './script.js',
-  './script.js?v=20260809-step260-default-login-guard',
+  './script.js?v=20260809-step262-reset-login-fresh-auth',
   './firebase-config.js',
   './manifest.webmanifest',
   './favicon.png',
