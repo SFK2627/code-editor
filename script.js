@@ -7645,6 +7645,167 @@ async function loadAdminStudentProjectsCountForUid(uid = '') {
   }
 }
 
+
+async function loadAdminStudentProfileProjectSummary(uid = '') {
+  if (!uid) return { projectCount: 0, lastProjectName: '', lastProjectUpdatedAt: '', sampleProjectNames: [] };
+  try {
+    const { getDocs } = firebaseSync.modules;
+    const snapshot = await getDocs(getStudentProjectsCollectionRef(uid));
+    const projects = (snapshot.docs || []).map(docSnapshot => ({ id: docSnapshot.id, ...snapshotData(docSnapshot) }));
+    const sorted = projects.slice().sort((a, b) => (timestampToDate(b.updatedAt)?.getTime() || 0) - (timestampToDate(a.updatedAt)?.getTime() || 0));
+    return {
+      projectCount: projects.length,
+      lastProjectName: sorted[0]?.name || sorted[0]?.title || '',
+      lastProjectUpdatedAt: sorted[0]?.updatedAt || '',
+      sampleProjectNames: sorted.slice(0, 3).map(project => project.name || project.title || 'Untitled Project')
+    };
+  } catch (error) {
+    console.warn('Could not load projects for reset profile picker.', error);
+    return { projectCount: 0, lastProjectName: '', lastProjectUpdatedAt: '', sampleProjectNames: [], projectReadError: true };
+  }
+}
+
+async function buildAdminResetProfileChoices(student = {}, resolvedId = '') {
+  const profileUids = getAdminStudentProfileUids(student);
+  const records = Array.isArray(student?.sourceRecords) ? student.sourceRecords.filter(record => record && !record.isRosterOnly) : [];
+  const recordByUid = new Map();
+  records.forEach(record => {
+    const uid = String(record.uid || record.authUid || '').trim();
+    if (uid && !recordByUid.has(uid)) recordByUid.set(uid, record);
+  });
+
+  const choices = await Promise.all(profileUids.map(async (uid, index) => {
+    const record = recordByUid.get(uid) || {};
+    const projectSummary = await loadAdminStudentProfileProjectSummary(uid);
+    const projectCount = Math.max(Number(record.projectCount || 0), Number(projectSummary.projectCount || 0));
+    const lastProjectName = projectSummary.lastProjectName || record.lastProjectName || '';
+    const lastActivityAt = projectSummary.lastProjectUpdatedAt || record.lastActivityAt || record.updatedAt || record.lastLoginAt || '';
+    return {
+      uid,
+      profileNumber: index + 1,
+      record,
+      name: record.name || student.name || 'Student',
+      studentId: normalizeStudentId(record.studentId || record.studentIdNormalized || resolvedId || student.studentId || ''),
+      section: record.section || student.section || '',
+      authEmail: String(record.authEmail || '').trim().toLowerCase(),
+      projectCount,
+      lastProjectName,
+      lastActivityAt,
+      loginCount: Number(record.loginCount || 0),
+      mustChangePassword: record.mustChangePassword !== false,
+      accountStatus: record.accountStatus || student.accountStatus || 'active',
+      sampleProjectNames: projectSummary.sampleProjectNames || [],
+      projectReadError: Boolean(projectSummary.projectReadError)
+    };
+  }));
+
+  return choices.sort((a, b) => {
+    const projectDiff = Number(b.projectCount || 0) - Number(a.projectCount || 0);
+    if (projectDiff) return projectDiff;
+    const timeDiff = (timestampToDate(b.lastActivityAt)?.getTime() || 0) - (timestampToDate(a.lastActivityAt)?.getTime() || 0);
+    if (timeDiff) return timeDiff;
+    return a.profileNumber - b.profileNumber;
+  }).map((choice, index) => ({
+    ...choice,
+    recommended: index === 0 && (Number(choice.projectCount || 0) > 0 || Boolean(choice.lastActivityAt))
+  }));
+}
+
+function chooseAdminResetProfile(student = {}, resolvedId = '', displayName = '') {
+  return new Promise(async resolve => {
+    const choices = await buildAdminResetProfileChoices(student, resolvedId);
+    if (!choices.length) {
+      resolve(null);
+      return;
+    }
+
+    const overlay = document.createElement('div');
+    overlay.className = 'custom-reset-profile-overlay';
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-modal', 'true');
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(15,23,42,.72);display:flex;align-items:center;justify-content:center;padding:18px;backdrop-filter:blur(10px);';
+
+    const listMarkup = choices.map(choice => {
+      const projectsText = `${Number(choice.projectCount || 0)} project${Number(choice.projectCount || 0) === 1 ? '' : 's'}`;
+      const loginText = `${Number(choice.loginCount || 0)} login${Number(choice.loginCount || 0) === 1 ? '' : 's'}`;
+      const statusText = choice.mustChangePassword ? 'Password Change Needed' : 'Active';
+      const projectSamples = choice.sampleProjectNames?.length
+        ? `<div style="margin-top:6px;color:#475569;font-size:12px;line-height:1.45;">Projects: ${escapeHTML(choice.sampleProjectNames.join(', '))}${Number(choice.projectCount || 0) > choice.sampleProjectNames.length ? '…' : ''}</div>`
+        : `<div style="margin-top:6px;color:#64748b;font-size:12px;line-height:1.45;">${choice.projectReadError ? 'Could not read this profile’s projects, but the UID can still be reset.' : 'No projects found in this profile.'}</div>`;
+      return `
+        <article style="border:1px solid #dbeafe;border-radius:18px;padding:14px;background:${choice.recommended ? '#eff6ff' : '#ffffff'};box-shadow:0 10px 24px rgba(15,23,42,.06);">
+          <div style="display:flex;gap:12px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;">
+            <div style="min-width:0;flex:1 1 320px;">
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                <strong style="font-size:15px;color:#0f172a;">Profile ${choice.profileNumber}</strong>
+                ${choice.recommended ? '<span style="font-size:11px;font-weight:800;color:#1d4ed8;background:#dbeafe;border-radius:999px;padding:4px 8px;">Recommended</span>' : ''}
+                <span style="font-size:11px;font-weight:800;color:#14532d;background:#dcfce7;border-radius:999px;padding:4px 8px;">${escapeHTML(projectsText)}</span>
+              </div>
+              <div style="margin-top:6px;color:#334155;font-size:13px;line-height:1.45;">
+                <div><strong>Name:</strong> ${escapeHTML(choice.name || displayName || 'Student')}</div>
+                <div><strong>Status:</strong> ${escapeHTML(statusText)} · ${escapeHTML(loginText)}</div>
+                <div><strong>Last activity:</strong> ${escapeHTML(formatStudentDate(choice.lastActivityAt))}</div>
+                <div style="overflow-wrap:anywhere;"><strong>UID:</strong> ${escapeHTML(choice.uid)}</div>
+                ${choice.authEmail ? `<div style="overflow-wrap:anywhere;"><strong>Auth email:</strong> ${escapeHTML(choice.authEmail)}</div>` : ''}
+              </div>
+              ${projectSamples}
+            </div>
+            <button class="primary-btn" type="button" data-reset-profile-uid="${escapeAttribute(choice.uid)}" style="white-space:nowrap;align-self:center;">Reset this profile</button>
+          </div>
+        </article>`;
+    }).join('');
+
+    overlay.innerHTML = `
+      <section style="width:min(920px,100%);max-height:calc(100vh - 36px);overflow:auto;background:#f8fafc;color:#0f172a;border-radius:24px;border:1px solid #bfdbfe;box-shadow:0 24px 80px rgba(15,23,42,.35);">
+        <div style="position:sticky;top:0;background:#f8fafc;padding:18px 20px 12px;border-bottom:1px solid #dbeafe;z-index:1;">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;">
+            <div>
+              <div style="font-size:11px;font-weight:900;letter-spacing:.14em;color:#2563eb;text-transform:uppercase;">Choose exact profile</div>
+              <h2 style="margin:6px 0 4px;font-size:22px;line-height:1.2;">Reset Pass for linked profiles</h2>
+              <p style="margin:0;color:#475569;font-size:14px;line-height:1.45;">${escapeHTML(displayName || 'Student')} · ID ${escapeHTML(resolvedId || '')} · ${choices.length} linked profiles found</p>
+            </div>
+            <button type="button" data-reset-profile-close="1" aria-label="Close" style="width:40px;height:40px;border-radius:999px;border:1px solid #bfdbfe;background:#fff;color:#0f172a;font-size:22px;font-weight:800;cursor:pointer;">×</button>
+          </div>
+        </div>
+        <div style="padding:16px 20px;display:grid;gap:12px;">
+          <div style="padding:12px 14px;border:1px solid #fde68a;border-radius:16px;background:#fffbeb;color:#92400e;font-size:13px;line-height:1.45;">
+            Multiple profiles were found, so the app will not reset automatically. Choose the profile that has the correct projects or latest activity. Only the selected UID password will be reset; projects will not be moved or deleted.
+          </div>
+          ${listMarkup}
+        </div>
+        <div style="position:sticky;bottom:0;background:#f8fafc;border-top:1px solid #dbeafe;padding:12px 20px;display:flex;justify-content:flex-end;">
+          <button class="ghost-btn" type="button" data-reset-profile-close="1">Cancel</button>
+        </div>
+      </section>`;
+
+    let settled = false;
+    const close = value => {
+      if (settled) return;
+      settled = true;
+      document.removeEventListener('keydown', onKeyDown);
+      overlay.remove();
+      resolve(value || null);
+    };
+    const onKeyDown = event => {
+      if (event.key === 'Escape') close(null);
+    };
+    overlay.addEventListener('click', event => {
+      if (event.target === overlay || event.target.closest('[data-reset-profile-close]')) {
+        close(null);
+        return;
+      }
+      const button = event.target.closest('[data-reset-profile-uid]');
+      if (!button) return;
+      const selectedUid = String(button.dataset.resetProfileUid || '').trim();
+      const selected = choices.find(choice => choice.uid === selectedUid) || null;
+      close(selected);
+    });
+    document.addEventListener('keydown', onKeyDown);
+    document.body.appendChild(overlay);
+    overlay.querySelector('[data-reset-profile-uid]')?.focus?.({ preventScroll: true });
+  });
+}
+
 async function queryAdminStudentProfilesForDiagnostic(studentId = '', student = null) {
   const normalizedId = normalizeStudentId(studentId || student?.studentId || student?.studentIdNormalized || student?.rosterId || '');
   const records = new Map();
@@ -7837,7 +7998,8 @@ async function resetAdminStudentLoginAccess(studentId = '', uid = '', triggerBut
   const displayName = student?.name || resolvedId || 'this student';
   const profileUids = getAdminStudentProfileUids(student);
   const uniqueProfileUids = [...new Set(profileUids.map(value => String(value || '').trim()).filter(Boolean))];
-  const targetUid = String(uid || student?.uid || uniqueProfileUids[0] || '').trim();
+  let targetUid = String(uid || student?.uid || uniqueProfileUids[0] || '').trim();
+  let selectedProfileChoice = null;
 
   if (!getMcsAppsScriptUrl()) {
     setStudentAdminStatus('Reset Pass needs the Apps Script Web App URL in firebase-config.js.', 'warn');
@@ -7882,22 +8044,14 @@ async function resetAdminStudentLoginAccess(studentId = '', uid = '', triggerBut
   }
 
   if (uniqueProfileUids.length > 1) {
-    setStudentAdminStatus(`${displayName} has multiple linked profiles. Use Recovery before Reset Pass.`, 'warn');
-    await appAlert([
-      `Student: ${displayName}`,
-      `Student ID: ${resolvedId}`,
-      `Linked profiles: ${uniqueProfileUids.length}`,
-      '',
-      'Reset Pass was blocked for safety because this row has multiple linked profiles/UIDs.',
-      'This protects the student projects from being linked to the wrong account.',
-      '',
-      'Use Recovery / View Projects first to identify the correct main profile, then reset only that exact UID.'
-    ].join('\n'), {
-      title: 'Multiple profiles found',
-      danger: false,
-      icon: '!'
-    });
-    return;
+    setStudentAdminStatus(`${displayName} has multiple linked profiles. Choose the exact profile to reset.`, 'warn');
+    selectedProfileChoice = await chooseAdminResetProfile(student, resolvedId, displayName);
+    if (!selectedProfileChoice?.uid) {
+      setStudentAdminStatus('Reset Pass cancelled. No profile was changed.');
+      return;
+    }
+    targetUid = selectedProfileChoice.uid;
+    setStudentAdminStatus(`Selected Profile ${selectedProfileChoice.profileNumber || ''} for ${displayName}. Confirm the exact UID before reset.`, 'warn');
   }
 
   if (!targetUid) {
@@ -7910,6 +8064,7 @@ async function resetAdminStudentLoginAccess(studentId = '', uid = '', triggerBut
     '',
     `Student ID: ${resolvedId}`,
     `Firebase UID: ${targetUid}`,
+    selectedProfileChoice ? `Selected profile: Profile ${selectedProfileChoice.profileNumber} · ${Number(selectedProfileChoice.projectCount || 0)} project${Number(selectedProfileChoice.projectCount || 0) === 1 ? '' : 's'} · ${selectedProfileChoice.lastProjectName || 'No project name'}` : '',
     '',
     'This will reset only the existing Firebase Auth password for this UID.',
     'It will NOT delete projects, create a new account, or move any project records.',
@@ -7973,6 +8128,7 @@ async function resetAdminStudentLoginAccess(studentId = '', uid = '', triggerBut
       '',
       `Student: ${displayName}`,
       `Student ID: ${resolvedId}`,
+      selectedProfileChoice ? `Reset profile: Profile ${selectedProfileChoice.profileNumber} / UID ${targetUid}` : `Firebase UID: ${targetUid}`,
       `Temporary password: ${temporaryPassword}`,
       '',
       copied ? 'The temporary password was copied to your clipboard.' : 'Copy the temporary password from this dialog.',
