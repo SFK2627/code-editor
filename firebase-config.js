@@ -27,3 +27,9 @@ window.MCS_RUBRIC_IMAGE_ENDPOINT = '';
 // Create a Web OAuth Client ID in Google Cloud Console, enable Google Drive API,
 // and paste the client ID below. No billing account or card is required.
 window.MCS_GOOGLE_DRIVE_CLIENT_ID = '485615856896-dt2spv7cp7ccop2347qktcb3l17ne8ml.apps.googleusercontent.com';
+
+
+// Secure Apps Script Web App URL for teacher-only password reset.
+// Paste your deployed /exec URL here after creating the supplied Apps Script.
+// Leave blank to keep Reset Pass disabled safely.
+window.MCS_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwA7YTR1SmZHk17XfJ4f4jfR63SdZejxCm10R6uHFD98vQyuB5NsJkBSjRj70GQ6qoN/exec';

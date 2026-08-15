@@ -465,6 +465,7 @@ function ensureFirebaseFrontendConfig() {
   if (typeof window.MCS_AI_CHECKER_ENDPOINT === 'undefined') window.MCS_AI_CHECKER_ENDPOINT = '';
   if (typeof window.MCS_AI_CHECKER_ENABLED === 'undefined') window.MCS_AI_CHECKER_ENABLED = true;
   if (typeof window.MCS_GOOGLE_DRIVE_CLIENT_ID === 'undefined') window.MCS_GOOGLE_DRIVE_CLIENT_ID = '';
+  if (typeof window.MCS_APPS_SCRIPT_URL === 'undefined') window.MCS_APPS_SCRIPT_URL = '';
 }
 
 ensureFirebaseFrontendConfig();
@@ -2284,7 +2285,7 @@ function showAppDialog({
   if (appDialogMessage) {
     appDialogMessage.textContent = message;
     appDialogMessage.style.whiteSpace = String(message || '').includes('\n') ? 'pre-wrap' : '';
-    appDialogMessage.style.userSelect = String(message || '').includes('Auth email:') ? 'text' : '';
+    appDialogMessage.style.userSelect = /Auth email:|Temporary password:/i.test(String(message || '')) ? 'text' : '';
     appDialogMessage.setAttribute('tabindex', longDialog ? '0' : '-1');
   }
   if (longDialog) {
@@ -3155,6 +3156,58 @@ function isTeacherUser(user) {
   return Boolean(user?.email && isAllowedTeacherEmail(user.email));
 }
 
+
+function getMcsAppsScriptUrl() {
+  return String(window.MCS_APPS_SCRIPT_URL || window.MCS_APPS_SCRIPT_WEB_APP_URL || '').trim();
+}
+
+async function callAppsScriptSecure(payload = {}) {
+  const url = getMcsAppsScriptUrl();
+  if (!url) {
+    throw new Error('Apps Script Web App URL is not configured yet. Paste it in firebase-config.js as window.MCS_APPS_SCRIPT_URL.');
+  }
+  const ready = await initFirebaseSync();
+  if (!ready || !firebaseSync.auth) {
+    throw new Error('Firebase is not ready. Refresh the page and try again.');
+  }
+  const user = getFirebaseActiveUser();
+  if (!user) {
+    throw new Error('Teacher session expired. Log in as teacher again.');
+  }
+  if (!isTeacherUser(user)) {
+    throw new Error('Only the allowed teacher account can use this secure reset.');
+  }
+  if (typeof user.getIdToken !== 'function') {
+    throw new Error('Could not create a teacher security token. Sign out and log in again.');
+  }
+
+  const idToken = await user.getIdToken(true);
+  const response = await fetch(url, {
+    method: 'POST',
+    redirect: 'follow',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({
+      ...payload,
+      idToken,
+      projectId: firebaseSync.config?.projectId || window.MCS_FIREBASE_CONFIG?.projectId || '',
+      collectionName: firebaseSync.collectionName || window.MCS_FIREBASE_COLLECTION || 'webCodeEditor',
+      documentId: firebaseSync.documentId || window.MCS_FIREBASE_DOCUMENT_ID || 'grade8-mcsian'
+    })
+  });
+
+  let result = null;
+  try {
+    result = await response.json();
+  } catch (error) {
+    throw new Error('Apps Script returned an unreadable response. Check the Web App deployment and access settings.');
+  }
+  if (!response.ok || !result?.ok) {
+    const message = result?.error || `Apps Script request failed${response.status ? ` (${response.status})` : ''}.`;
+    throw new Error(message);
+  }
+  return result;
+}
+
 function isStudentUserForActiveSession(user) {
   return Boolean(user && appSession.student?.uid && user.uid === appSession.student.uid);
 }
@@ -3231,11 +3284,12 @@ function getStudentAuthEmailCandidates(studentId, roster = null) {
     const email = String(value || '').trim().toLowerCase();
     if (email && !candidates.includes(email)) candidates.push(email);
   };
-  addCandidate(studentIdToAuthEmail(studentId));
+  // Safe login mode: try only the trusted login email(s).
+  // Do NOT automatically try recovery-slot emails. Trying several generated
+  // emails can trigger Firebase "too many attempts" faster and can confuse
+  // students when older reset-login experiments created duplicate profiles.
   addCandidate(roster?.authEmail);
-  for (let slot = 1; slot <= STUDENT_AUTH_RECOVERY_SLOTS; slot += 1) {
-    addCandidate(studentIdToRecoveryAuthEmail(studentId, slot));
-  }
+  addCandidate(studentIdToAuthEmail(studentId));
   return candidates;
 }
 
@@ -3245,24 +3299,20 @@ function getStudentAuthEmailCreationCandidates(studentId, roster = null, { allow
     const email = String(value || '').trim().toLowerCase();
     if (email && !candidates.includes(email)) candidates.push(email);
   };
-  // For normal first login, create only the primary/roster Auth email.
-  // Recovery-slot emails are only allowed after the teacher explicitly clicks
-  // Reset Login. This prevents students with an existing changed password from
-  // typing 123456 and accidentally creating another account that asks for a new password.
-  addCandidate(studentIdToAuthEmail(studentId));
+  // Safe first-login mode: create only the primary/roster Auth email.
+  // Recovery-slot account creation is disabled because browser-only "Reset
+  // Login" caused duplicate UIDs and made projects appear missing.
   addCandidate(roster?.authEmail);
-  if (allowRecovery) {
-    for (let slot = 1; slot <= STUDENT_AUTH_RECOVERY_SLOTS; slot += 1) {
-      addCandidate(studentIdToRecoveryAuthEmail(studentId, slot));
-    }
-  }
+  addCandidate(studentIdToAuthEmail(studentId));
   return candidates;
 }
 
 function isRosterDefaultLoginResetActive(roster = null) {
-  // Timestamps are history/audit only. The active reset switch is forceDefaultPassword === true.
-  // It must be turned off immediately after a successful default-password activation.
-  return roster?.forceDefaultPassword === true;
+  // Reset Login is intentionally disabled in safe mode.
+  // Browser-only Firebase code cannot change another user's real password;
+  // treating 123456 as a reset password created duplicate Auth/profile links.
+  // Keep 123456 for first activation only.
+  return false;
 }
 
 function isAuthMissingOrWrongPasswordError(error) {
@@ -4660,8 +4710,8 @@ async function createFirebaseStudentCredential(studentId, roster = null, { allow
   }
   const conflictError = new Error(
     allowRecovery
-      ? 'No recovery login slot is available for this Student ID. Use Recovery/Firebase Console for this account.'
-      : 'This Student ID already has an activated account. Log in using the password you created, or ask your teacher to click Reset Login first.'
+      ? 'Recovery-slot login creation is disabled. Use Login Check/Recovery to find the correct existing account.'
+      : 'This Student ID already has an activated account. Log in using the password you created, or ask your teacher to use Login Check/Recovery.'
   );
   conflictError.code = allowRecovery ? 'mcsian/no-recovery-slot' : 'auth/email-already-in-use';
   conflictError.originalError = lastEmailInUseError;
@@ -4687,7 +4737,7 @@ async function createStudentAccountFromRoster(studentId, password) {
   const resetRequested = isRosterDefaultLoginResetActive(roster);
   const hasExistingLinkedAuth = Boolean(String(roster.authUid || '').trim());
   if (hasExistingLinkedAuth && !resetRequested) {
-    const passwordError = new Error('The default password 123456 is only for first login or after the teacher clicks Reset Login. Use the password you created.');
+    const passwordError = new Error('The default password 123456 is only for first login. Use the password you created, or ask your teacher to use Login Check/Recovery.');
     passwordError.code = 'auth/wrong-password';
     throw passwordError;
   }
@@ -4697,7 +4747,7 @@ async function createStudentAccountFromRoster(studentId, password) {
   try {
     if (roster.authUid && roster.authUid !== credential.user.uid && !resetRequested) {
       await deleteCurrentAuthUserQuietly(credential.user);
-      throw new Error('This Student ID is already connected to another login. Use the password you created, or ask your teacher for reset help.');
+      throw new Error('This Student ID is already connected to another login. Use the password you created, or ask your teacher to use Login Check/Recovery.');
     }
 
     const { setDoc, serverTimestamp } = firebaseSync.modules;
@@ -4744,18 +4794,18 @@ async function createStudentAccountFromRoster(studentId, password) {
 
 function getStudentAuthErrorMessage(error) {
   const code = String(error?.code || '');
-  if (code.includes('mcsian/auth-email-conflict')) return 'This Student ID has a stuck login record. Ask your teacher to delete or reset the old Firebase Authentication user, then try 123456 again.';
-  if (code.includes('email-already-in-use')) return 'This Student ID already has an activated account. Use the password you created. The default 123456 only works for first login or after Admin Reset Login.';
-  if (code.includes('mcsian/no-recovery-slot')) return 'All reset login slots are already used for this Student ID. Use Recovery/Firebase Console for this account.';
+  if (code.includes('mcsian/auth-email-conflict')) return 'This Student ID has a stuck login record. Ask your teacher to use Login Check/Recovery. Do not keep trying 123456 unless this is a first login.';
+  if (code.includes('email-already-in-use')) return 'This Student ID already has an activated account. Use the password you created. The default 123456 works only for first login.';
+  if (code.includes('mcsian/no-recovery-slot')) return 'Recovery login slots are disabled for safety. Use Login Check/Recovery to find the correct existing account.';
   if (code.includes('weak-password')) return 'The password must contain at least 6 characters.';
   if (code.includes('invalid-credential') || code.includes('wrong-password') || code.includes('user-not-found')) {
-    return 'Student ID or password is incorrect. Use 123456 only for first login or after your teacher clicks Reset Login.';
+    return 'Student ID or password is incorrect. Use 123456 only for first login; otherwise use the password you created.';
   }
   if (code.includes('too-many-requests')) return 'Too many login attempts. Wait a few minutes and try again.';
   if (code.includes('network-request-failed')) return 'Internet connection problem. Please reconnect and try again.';
   if (code.includes('operation-not-allowed')) return 'Student login is not enabled yet. The teacher must enable Email/Password in Firebase Authentication.';
   if (code.includes('unauthorized-domain')) return 'This website domain must be added to Firebase Authentication authorized domains.';
-  if (isFirestorePermissionError(error)) return 'Login setup was blocked by Firestore permissions. Refresh after uploading the latest files, then try again with 123456. If it still appears, ask the teacher to publish the updated firestore.rules.';
+  if (isFirestorePermissionError(error)) return 'Login setup was blocked by Firestore permissions. Refresh after uploading the latest files. If it still appears, ask the teacher to publish the updated firestore.rules.';
   return error?.message || 'Login failed. Check your Student ID and password.';
 }
 
@@ -4800,9 +4850,9 @@ async function loginStudent() {
     } catch (signInError) {
       if (!isAuthMissingOrWrongPasswordError(signInError)) throw signInError;
       if (password !== DEFAULT_STUDENT_PASSWORD) throw signInError;
-      // A teacher may have just clicked Reset Login. Do not reuse an old cached
-      // roster link here; fetch the latest roster so the default 123456 recovery
-      // path can create a fresh recovery Auth account when needed.
+      // Default password is allowed for first activation only.
+      // Do not use 123456 to create a fresh recovery/duplicate account for an
+      // already activated student; that is handled by Recovery tools, not login.
       clearSelectiveFirestoreCache(`studentRoster:${studentId}`);
       profile = await createStudentAccountFromRoster(studentId, password);
     }
@@ -7094,7 +7144,7 @@ function renderAdminStudentTracker() {
         <td><span class="student-account-pill ${pillClass}">${accountLabel}</span><span class="student-cell-sub">${loggedIn ? `${Number(student.loginCount || 0)} login${Number(student.loginCount || 0) === 1 ? '' : 's'}` : 'Never logged in'}</span></td>
         <td><strong>${Math.max(0, Number(student.projectCount || 0))}</strong><span class="student-cell-sub">${escapeHTML(student.lastProjectName || 'No project yet')}</span></td>
         <td>${escapeHTML(formatStudentDate(student.lastActivityAt))}</td>
-        <td><div class="student-action-stack">${viewProjectsButton}<button class="ghost-btn diagnose-student-login-btn" type="button" data-student-id="${escapeAttribute(student.studentId || '')}" data-student-uid="${escapeAttribute(student.uid || profileUids[0] || '')}">Login Check</button><button class="ghost-btn warning reset-student-login-btn" type="button" data-student-id="${escapeAttribute(student.studentId || '')}" data-student-uid="${escapeAttribute(student.uid || profileUids[0] || '')}">Reset Login</button><button class="ghost-btn recovery-student-account-btn" type="button" data-student-id="${escapeAttribute(student.studentId || '')}" data-student-uid="${escapeAttribute(student.uid || profileUids[0] || '')}">Recovery</button><button class="ghost-btn danger-btn delete-student-account-btn" type="button" data-student-id="${escapeAttribute(student.studentId || '')}" data-student-uid="${escapeAttribute(student.uid || profileUids[0] || '')}">Delete</button></div></td>
+        <td><div class="student-action-stack">${viewProjectsButton}<button class="ghost-btn diagnose-student-login-btn" type="button" data-student-id="${escapeAttribute(student.studentId || '')}" data-student-uid="${escapeAttribute(student.uid || profileUids[0] || '')}">Login Check</button>${rosterOnly ? '' : `<button class="ghost-btn reset-student-login-btn" type="button" data-student-id="${escapeAttribute(student.studentId || '')}" data-student-uid="${escapeAttribute(student.uid || profileUids[0] || '')}">Reset Pass</button>`}<button class="ghost-btn recovery-student-account-btn" type="button" data-student-id="${escapeAttribute(student.studentId || '')}" data-student-uid="${escapeAttribute(student.uid || profileUids[0] || '')}">Recovery</button><button class="ghost-btn danger-btn delete-student-account-btn" type="button" data-student-id="${escapeAttribute(student.studentId || '')}" data-student-uid="${escapeAttribute(student.uid || profileUids[0] || '')}">Delete</button></div></td>
       </tr>`;
   }).join('');
 }
@@ -7750,7 +7800,7 @@ async function runAdminStudentLoginDiagnostic(studentId = '', uid = '') {
       `Password-change needed: ${mustChangeValues.length ? mustChangeValues.join(' / ') : 'No profile yet'}`,
       `Profile status: ${profileStatusValues.length ? profileStatusValues.join(' / ') : 'No profile yet'}`,
       '',
-      'Important: this browser app cannot view or verify the actual Firebase password. If Login Check says OK but the student still cannot enter, use Reset Login so the student can try Student ID + 123456. After they create a new password, 123456 will be rejected again unless you reset the login again.'
+      'Important: this browser app cannot view or verify the actual Firebase password. Use Reset Pass only when the secure Apps Script bridge is configured. Reset Pass changes only the selected existing Firebase UID password; it must not create a new profile or move projects. If this row has multiple linked profiles, use Recovery first.'
     );
 
     setStudentAdminStatus(blockers.length ? `${displayName}: login blocker found.` : warnings.length ? `${displayName}: login check completed with warning.` : `${displayName}: login check passed.`, blockers.length ? 'error' : warnings.length ? 'warning' : 'success');
@@ -7771,115 +7821,187 @@ async function runAdminStudentLoginDiagnostic(studentId = '', uid = '') {
 }
 
 
-async function resetAdminStudentLoginAccess(studentId = '', uid = '') {
+async function resetAdminStudentLoginAccess(studentId = '', uid = '', triggerButton = null) {
   if (!isTeacherAuthenticated()) {
-    setStudentAdminStatus('Teacher login is required to reset student login access.', 'error');
+    setStudentAdminStatus('Teacher login is required to reset a student password.', 'error');
     return;
   }
 
+  const normalizedId = normalizeStudentId(studentId);
   if (!adminStudentsCache.length) {
     await loadAdminStudents({ force: true });
   }
 
-  const normalizedId = normalizeStudentId(studentId);
   const student = findAdminStudentByIdOrUid(normalizedId, uid);
   const resolvedId = normalizeStudentId(student?.studentId || student?.studentIdNormalized || student?.rosterId || normalizedId);
   const displayName = student?.name || resolvedId || 'this student';
-  if (!resolvedId) {
-    setStudentAdminStatus('No Student ID found for this row.', 'error');
-    await appAlert('No Student ID was found for this row. Re-import or fix the roster record first.', {
-      title: 'Reset Login failed',
-      danger: true
+  const profileUids = getAdminStudentProfileUids(student);
+  const uniqueProfileUids = [...new Set(profileUids.map(value => String(value || '').trim()).filter(Boolean))];
+  const targetUid = String(uid || student?.uid || uniqueProfileUids[0] || '').trim();
+
+  if (!getMcsAppsScriptUrl()) {
+    setStudentAdminStatus('Reset Pass needs the Apps Script Web App URL in firebase-config.js.', 'warn');
+    await appAlert([
+      'Reset Pass is not configured yet.',
+      '',
+      'This safe reset needs the Apps Script bridge so the backend can reset the existing Firebase Auth password without creating a duplicate profile.',
+      '',
+      'Setup summary:',
+      '1. Open Google Apps Script.',
+      '2. Paste the supplied Code.gs.',
+      '3. Deploy as Web App: Execute as Me, access Anyone.',
+      '4. Paste the /exec URL into firebase-config.js as window.MCS_APPS_SCRIPT_URL.',
+      '',
+      'Until this is configured, do not use browser-only reset workarounds.'
+    ].join('\n'), {
+      title: 'Reset Pass setup needed',
+      icon: 'R',
+      confirmText: 'OK'
     });
     return;
   }
 
-  const profileUids = getAdminStudentProfileUids(student);
+  if (!student || !resolvedId) {
+    setStudentAdminStatus('Student record was not found. Refresh the tracker and try again.', 'error');
+    return;
+  }
+
+  if (!uniqueProfileUids.length || student.isRosterOnly) {
+    setStudentAdminStatus(`${displayName} has no activated app profile yet. First login still uses 123456.`, 'warn');
+    await appAlert([
+      `Student: ${displayName}`,
+      `Student ID: ${resolvedId || 'not found'}`,
+      '',
+      'This student has no activated profile/UID yet.',
+      'Reset Pass is not needed. For first login, use Student ID + 123456.'
+    ].join('\n'), {
+      title: 'No password to reset yet',
+      icon: 'i'
+    });
+    return;
+  }
+
+  if (uniqueProfileUids.length > 1) {
+    setStudentAdminStatus(`${displayName} has multiple linked profiles. Use Recovery before Reset Pass.`, 'warn');
+    await appAlert([
+      `Student: ${displayName}`,
+      `Student ID: ${resolvedId}`,
+      `Linked profiles: ${uniqueProfileUids.length}`,
+      '',
+      'Reset Pass was blocked for safety because this row has multiple linked profiles/UIDs.',
+      'This protects the student projects from being linked to the wrong account.',
+      '',
+      'Use Recovery / View Projects first to identify the correct main profile, then reset only that exact UID.'
+    ].join('\n'), {
+      title: 'Multiple profiles found',
+      danger: false,
+      icon: '!'
+    });
+    return;
+  }
+
+  if (!targetUid) {
+    setStudentAdminStatus('No Firebase Auth UID was found for this student.', 'error');
+    return;
+  }
+
   const confirmed = await appConfirm([
-    `Reset login access for ${displayName}?`,
+    `Reset password for ${displayName}?`,
     '',
     `Student ID: ${resolvedId}`,
-    'After this, the student should log in using:',
-    `Password: ${DEFAULT_STUDENT_PASSWORD}`,
+    `Firebase UID: ${targetUid}`,
     '',
-    'This does not delete projects. It prepares a fresh default-login path for this Student ID.'
+    'This will reset only the existing Firebase Auth password for this UID.',
+    'It will NOT delete projects, create a new account, or move any project records.',
+    '',
+    'After reset, the student must log in using the temporary password shown here and create a new password.'
   ].join('\n'), {
-    title: 'Reset Login to 123456',
-    confirmText: 'Reset Login',
+    title: 'Reset student password',
+    confirmText: 'Reset Pass',
     cancelText: 'Cancel',
-    danger: false
+    danger: true,
+    icon: 'R'
   });
   if (!confirmed) return;
 
-  try {
-    setStudentAdminStatus(`Resetting login access for ${displayName}...`);
-    const { setDoc, serverTimestamp } = firebaseSync.modules;
-    const resetPayload = {
-      authUid: '',
-      authEmail: studentIdToAuthEmail(resolvedId),
-      accountStatus: 'active',
-      mustChangePassword: true,
-      forceDefaultPassword: true,
-      loginResetRequestedAt: serverTimestamp(),
-      resetLoginRequestedAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-      resetBy: firebaseSync.auth?.currentUser?.email || firebaseSync.currentUser?.email || 'teacher'
-    };
+  const oldText = triggerButton?.textContent;
+  if (triggerButton) {
+    triggerButton.disabled = true;
+    triggerButton.textContent = 'Resetting...';
+  }
 
-    await setDoc(getStudentRosterDocRef(resolvedId), {
+  try {
+    setStudentAdminStatus(`Resetting password for ${displayName}...`, 'loading');
+    const result = await callAppsScriptSecure({
+      action: 'resetStudentPassword',
+      uid: targetUid,
       studentId: resolvedId,
-      studentIdNormalized: resolvedId,
-      ...resetPayload
+      expectedStudentId: resolvedId
+    });
+    const temporaryPassword = String(result?.temporaryPassword || '').trim();
+    if (!temporaryPassword) throw new Error('Apps Script did not return a temporary password.');
+
+    const { setDoc, serverTimestamp } = firebaseSync.modules;
+    const teacherEmail = getFirebaseActiveUser()?.email || '';
+    await setDoc(getStudentDocRef(targetUid), {
+      mustChangePassword: true,
+      passwordResetAt: serverTimestamp(),
+      passwordResetBy: teacherEmail,
+      updatedAt: serverTimestamp()
     }, { merge: true });
 
-    const updateProfilePromises = profileUids.map(activeUid => setDoc(getStudentDocRef(activeUid), {
-      mustChangePassword: true,
-      accountStatus: 'active',
-      loginResetRequestedAt: serverTimestamp(),
-      resetLoginRequestedAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-      resetBy: firebaseSync.auth?.currentUser?.email || firebaseSync.currentUser?.email || 'teacher'
-    }, { merge: true }).catch(error => {
-      console.warn('One linked profile could not be marked for reset.', activeUid, error);
-      return null;
-    }));
-    await Promise.all(updateProfilePromises);
+    try {
+      const rosterUpdate = {
+        authUid: targetUid,
+        passwordResetAt: serverTimestamp(),
+        passwordResetBy: teacherEmail,
+        updatedAt: serverTimestamp()
+      };
+      if (result.email) rosterUpdate.authEmail = String(result.email || '').toLowerCase();
+      await setDoc(getStudentRosterDocRef(resolvedId), rosterUpdate, { merge: true });
+    } catch (rosterError) {
+      console.warn('Password reset succeeded, but roster reset marker was not updated.', rosterError);
+    }
 
     clearSelectiveFirestoreCache('admin:studentsAndRoster');
     clearSelectiveFirestoreCache(`studentRoster:${resolvedId}`);
-    profileUids.forEach(activeUid => clearSelectiveFirestoreCache(`studentProfile:${activeUid}`));
     await loadAdminStudents({ force: true });
-
-    const message = [
-      `${displayName} login access was reset.`,
+    const copied = await copyTextSafely(temporaryPassword);
+    setStudentAdminStatus(`Password reset for ${displayName}. Give the temporary password to the student.`, 'success');
+    await appAlert([
+      'Password reset successful.',
       '',
+      `Student: ${displayName}`,
       `Student ID: ${resolvedId}`,
-      `Temporary password: ${DEFAULT_STUDENT_PASSWORD}`,
+      `Temporary password: ${temporaryPassword}`,
       '',
-      'Next step for the student:',
-      `1. Log in using Student ID + ${DEFAULT_STUDENT_PASSWORD}.`,
+      copied ? 'The temporary password was copied to your clipboard.' : 'Copy the temporary password from this dialog.',
+      '',
+      'Student steps:',
+      '1. Log in using Student ID and the temporary password above.',
       '2. Create a new password when asked.',
+      '3. Use the new password for future logins.',
       '',
-      'Note: because Firebase passwords cannot be changed directly from this browser-only admin panel, this reset prepares a fresh recovery login path. Old saved projects remain available in the admin merged project view.'
-    ].join('\n');
-
-    setStudentAdminStatus(`${displayName} can try logging in with ${DEFAULT_STUDENT_PASSWORD}.`, 'success');
-    await appAlert(message, {
-      title: 'Login Reset Ready',
-      kicker: 'Admin reset',
+      'Projects were not deleted or moved.'
+    ].join('\n'), {
+      title: 'Reset Pass complete',
+      kicker: 'Admin password reset',
       icon: '✓',
-      confirmText: 'OK'
+      confirmText: copied ? 'Copied / OK' : 'OK'
     });
   } catch (error) {
-    console.error('Reset Login failed', error);
-    const message = isFirestorePermissionError(error)
-      ? 'Reset was blocked by Firestore rules. Make sure teacher accounts can update studentRoster and students.'
-      : (error?.message || 'Could not reset login access.');
-    setStudentAdminStatus(message, 'error');
-    await appAlert(message, {
-      title: 'Reset Login failed',
-      danger: true
+    console.error('Secure Reset Pass failed', error);
+    setStudentAdminStatus(error?.message || 'Reset Pass failed.', 'error');
+    await appAlert(error?.message || 'Reset Pass failed. Check Apps Script setup and teacher permissions.', {
+      title: 'Reset Pass failed',
+      danger: true,
+      icon: '!'
     });
+  } finally {
+    if (triggerButton) {
+      triggerButton.disabled = false;
+      triggerButton.textContent = oldText || 'Reset Pass';
+    }
   }
 }
 
@@ -20954,7 +21076,7 @@ adminStudentsTableBody?.addEventListener('click', event => {
   }
   const resetLoginButton = event.target.closest('.reset-student-login-btn');
   if (resetLoginButton) {
-    resetAdminStudentLoginAccess(resetLoginButton.dataset.studentId || '', resetLoginButton.dataset.studentUid || '');
+    resetAdminStudentLoginAccess(resetLoginButton.dataset.studentId || '', resetLoginButton.dataset.studentUid || '', resetLoginButton);
     return;
   }
   const recoveryButton = event.target.closest('.recovery-student-account-btn');
