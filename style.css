@@ -43789,3 +43789,532 @@ body.editor-fullscreen-active .editor-project-header,
     height: 38px;
   }
 }
+
+/* =========================================================
+   STEP 270: CODE TRANSFER / CODE INBOX
+   Lightweight source-code sharing. Received code stays read-only
+   until the student explicitly copies it to the clipboard.
+   ========================================================= */
+.code-inbox-open-btn,
+.send-code-btn,
+.fullscreen-send-code-btn {
+  position: relative;
+}
+
+.code-inbox-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.35rem;
+  height: 1.35rem;
+  margin-left: 0.3rem;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  background: #dc2626;
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 800;
+  line-height: 1;
+  vertical-align: middle;
+}
+
+.code-transfer-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 17000;
+  display: grid;
+  place-items: center;
+  padding: clamp(10px, 2vw, 24px);
+  background: rgba(15, 23, 42, 0.72);
+  backdrop-filter: blur(10px);
+}
+
+.code-transfer-overlay.hidden {
+  display: none !important;
+}
+
+.code-transfer-card {
+  position: relative;
+  width: min(880px, 100%);
+  max-height: min(90dvh, 900px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--border-color, rgba(148, 163, 184, 0.35));
+  border-radius: 22px;
+  padding: clamp(18px, 2.5vw, 28px);
+  background: var(--panel-bg, #fff);
+  color: var(--text-color, #111827);
+  box-shadow: 0 28px 90px rgba(0, 0, 0, 0.28);
+}
+
+.code-inbox-card {
+  width: min(1120px, 100%);
+}
+
+.code-transfer-close {
+  position: sticky;
+  top: 0;
+  float: right;
+  z-index: 3;
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  font-size: 1.4rem;
+  background: var(--panel-bg, #fff);
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.12);
+}
+
+.code-transfer-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding-right: 44px;
+  margin-bottom: 18px;
+}
+
+.code-transfer-head h2 {
+  margin: 2px 0 6px;
+}
+
+.code-transfer-head .muted-text {
+  margin: 0;
+}
+
+.code-transfer-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  background: rgba(220, 38, 38, 0.1);
+  font-size: 1.5rem;
+}
+
+.code-transfer-project-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--border-color, rgba(148, 163, 184, 0.3));
+  border-radius: 14px;
+  background: rgba(148, 163, 184, 0.08);
+}
+
+.code-transfer-project-meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+
+.code-transfer-project-meta strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.code-transfer-field {
+  display: grid;
+  gap: 7px;
+  margin-top: 14px;
+  font-weight: 700;
+}
+
+.code-transfer-field input,
+.code-transfer-field textarea {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+}
+
+.code-transfer-file-section {
+  margin-top: 16px;
+  padding: 14px;
+  border: 1px solid var(--border-color, rgba(148, 163, 184, 0.3));
+  border-radius: 16px;
+  background: rgba(148, 163, 184, 0.055);
+}
+
+.code-transfer-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.code-transfer-section-head > div:first-child {
+  display: grid;
+  gap: 2px;
+}
+
+.code-transfer-section-head small,
+.code-transfer-field small {
+  color: var(--muted-color, #64748b);
+  font-weight: 500;
+}
+
+.code-transfer-mini-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.code-transfer-mini-actions .ghost-btn {
+  padding: 7px 10px;
+  min-height: auto;
+  font-size: 0.78rem;
+}
+
+.code-transfer-file-list {
+  display: grid;
+  gap: 8px;
+  max-height: 270px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.code-transfer-file-option {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 11px;
+  border: 1px solid var(--border-color, rgba(148, 163, 184, 0.28));
+  border-radius: 12px;
+  background: var(--panel-bg, #fff);
+  cursor: pointer;
+}
+
+.code-transfer-file-option:hover {
+  border-color: rgba(220, 38, 38, 0.45);
+}
+
+.code-transfer-file-option input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+}
+
+.code-transfer-file-option strong,
+.code-transfer-file-option small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.code-transfer-file-option small {
+  color: var(--muted-color, #64748b);
+  margin-top: 2px;
+}
+
+.code-transfer-file-size {
+  color: var(--muted-color, #64748b);
+  font-size: 0.76rem;
+  white-space: nowrap;
+}
+
+.code-transfer-status {
+  min-height: 1.15rem;
+  margin: 12px 0 0;
+  color: var(--muted-color, #64748b);
+  font-size: 0.88rem;
+}
+
+.code-transfer-status.error {
+  color: #dc2626;
+  font-weight: 700;
+}
+
+.code-transfer-status.success {
+  color: #15803d;
+  font-weight: 700;
+}
+
+.code-transfer-status.warning {
+  color: #b45309;
+  font-weight: 700;
+}
+
+.code-transfer-actions {
+  position: sticky;
+  bottom: -28px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 9px;
+  margin: 18px -4px -4px;
+  padding: 14px 4px 4px;
+  background: linear-gradient(to bottom, transparent, var(--panel-bg, #fff) 22%);
+}
+
+.code-inbox-head {
+  align-items: center;
+}
+
+.code-inbox-refresh-btn {
+  margin-left: auto;
+  flex: 0 0 auto;
+}
+
+.code-inbox-layout {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.8fr) minmax(0, 1.6fr);
+  gap: 14px;
+  min-height: 460px;
+}
+
+.code-inbox-list-panel,
+.code-inbox-detail {
+  min-width: 0;
+  border: 1px solid var(--border-color, rgba(148, 163, 184, 0.3));
+  border-radius: 16px;
+  background: rgba(148, 163, 184, 0.045);
+  overflow: hidden;
+}
+
+.code-inbox-list {
+  display: grid;
+  gap: 8px;
+  max-height: 62dvh;
+  overflow: auto;
+  padding: 10px;
+}
+
+.code-inbox-item {
+  width: 100%;
+  display: grid;
+  gap: 5px;
+  padding: 12px;
+  border: 1px solid var(--border-color, rgba(148, 163, 184, 0.25));
+  border-radius: 13px;
+  background: var(--panel-bg, #fff);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.code-inbox-item:hover,
+.code-inbox-item.active {
+  border-color: rgba(220, 38, 38, 0.48);
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.08);
+}
+
+.code-inbox-item.unread {
+  border-left: 4px solid #dc2626;
+  background: rgba(220, 38, 38, 0.055);
+}
+
+.code-inbox-item-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.code-inbox-item strong,
+.code-inbox-item span,
+.code-inbox-item small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.code-inbox-item small {
+  color: var(--muted-color, #64748b);
+}
+
+.code-inbox-new-pill {
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: #dc2626;
+  color: #fff;
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+}
+
+.code-inbox-empty,
+.code-inbox-empty-detail {
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 8px;
+  min-height: 280px;
+  padding: 26px;
+  color: var(--muted-color, #64748b);
+  text-align: center;
+}
+
+.code-inbox-empty-detail > span,
+.code-inbox-empty > span {
+  font-size: 2rem;
+}
+
+.code-inbox-detail {
+  max-height: 62dvh;
+  overflow: auto;
+  padding: 14px;
+}
+
+.code-inbox-detail-head {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.code-inbox-detail-head h3 {
+  margin: 0;
+}
+
+.code-inbox-detail-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px 12px;
+  color: var(--muted-color, #64748b);
+  font-size: 0.82rem;
+}
+
+.code-inbox-message {
+  margin: 10px 0 14px;
+  padding: 10px 12px;
+  border-left: 3px solid rgba(220, 38, 38, 0.55);
+  border-radius: 8px;
+  background: rgba(220, 38, 38, 0.055);
+  white-space: pre-wrap;
+}
+
+.code-inbox-file-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-bottom: 10px;
+}
+
+.code-inbox-file-tab {
+  max-width: 230px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.code-inbox-file-tab.active {
+  border-color: rgba(220, 38, 38, 0.55);
+  box-shadow: inset 0 0 0 1px rgba(220, 38, 38, 0.18);
+}
+
+.code-inbox-code-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.code-inbox-code-toolbar strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.code-inbox-code-preview {
+  width: 100%;
+  min-height: 280px;
+  max-height: 430px;
+  overflow: auto;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 14px;
+  border: 1px solid rgba(15, 23, 42, 0.15);
+  border-radius: 13px;
+  background: #0f172a;
+  color: #e2e8f0;
+  font: 500 13px/1.58 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  tab-size: 2;
+  white-space: pre;
+}
+
+html[data-theme="dark"] .code-transfer-card,
+html[data-theme="dark"] .code-transfer-file-option,
+html[data-theme="dark"] .code-inbox-item {
+  --panel-bg: #111827;
+  --text-color: #f8fafc;
+  --muted-color: #94a3b8;
+  --border-color: rgba(148, 163, 184, 0.25);
+}
+
+body.code-transfer-open {
+  overflow: hidden;
+}
+
+@media (max-width: 820px) {
+  .code-transfer-overlay {
+    align-items: end;
+    padding: 0;
+  }
+
+  .code-transfer-card {
+    width: 100%;
+    max-height: 94dvh;
+    border-radius: 22px 22px 0 0;
+    padding: 18px 14px calc(16px + env(safe-area-inset-bottom));
+  }
+
+  .code-transfer-close {
+    top: 2px;
+  }
+
+  .code-transfer-head {
+    gap: 10px;
+    padding-right: 38px;
+  }
+
+  .code-transfer-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+  }
+
+  .code-transfer-section-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .code-inbox-head {
+    align-items: flex-start;
+  }
+
+  .code-inbox-refresh-btn {
+    margin-left: 0;
+  }
+
+  .code-inbox-layout {
+    grid-template-columns: 1fr;
+    min-height: 0;
+  }
+
+  .code-inbox-list {
+    max-height: 34dvh;
+  }
+
+  .code-inbox-detail {
+    max-height: 46dvh;
+  }
+
+  .code-inbox-empty-detail {
+    min-height: 180px;
+  }
+
+  .code-inbox-code-preview {
+    min-height: 230px;
+    max-height: 35dvh;
+    font-size: 12px;
+  }
+
+  .code-transfer-actions {
+    bottom: calc(-16px - env(safe-area-inset-bottom));
+  }
+}

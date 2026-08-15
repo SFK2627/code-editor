@@ -1,13 +1,13 @@
-const CACHE_NAME = 'ict8-connect-step267-choose-reset-profile';
+const CACHE_NAME = 'ict8-connect-step270-code-transfer';
 const APP_SHELL = [
   './',
   './index.html',
-  './index.html?v=20260815-step267-choose-reset-profile',
-  './index.html?fresh=step267-choose-reset-profile',
+  './index.html?v=20260815-step270-code-transfer',
+  './index.html?fresh=step270-code-transfer',
   './style.css',
-  './style.css?v=20260815-step267-choose-reset-profile',
+  './style.css?v=20260815-step270-code-transfer',
   './script.js',
-  './script.js?v=20260815-step267-choose-reset-profile',
+  './script.js?v=20260815-step270-code-transfer',
   './firebase-config.js',
   './manifest.webmanifest',
   './favicon.png',

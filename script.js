@@ -4,6 +4,7 @@ const runBtn = document.getElementById('runBtn');
 const autoRunBtn = document.getElementById('autoRunBtn');
 const resultBtn = document.getElementById('resultBtn');
 const aiReviewTopBtn = document.getElementById('aiReviewTopBtn');
+const sendCodeBtn = document.getElementById('sendCodeBtn');
 const saveBtn = document.getElementById('saveBtn');
 const downloadZipBtn = document.getElementById('downloadZipBtn');
 const resetBtn = document.getElementById('resetBtn');
@@ -31,6 +32,7 @@ const fullscreenEditorActions = document.getElementById('fullscreenEditorActions
 const fullscreenRunBtn = document.getElementById('fullscreenRunBtn');
 const fullscreenAutoRunBtn = document.getElementById('fullscreenAutoRunBtn');
 const fullscreenResultBtn = document.getElementById('fullscreenResultBtn');
+const fullscreenSendCodeBtn = document.getElementById('fullscreenSendCodeBtn');
 const statusBadge = document.getElementById('statusBadge');
 const editorInfo = document.getElementById('editorInfo');
 const editorProjectHeader = document.getElementById('editorProjectHeader');
@@ -201,6 +203,7 @@ const starterCodeToggle = document.getElementById('starterCodeToggle');
 const collaborationToggle = document.getElementById('collaborationToggle');
 const collaborationEditToggle = document.getElementById('collaborationEditToggle');
 const collaborationMembersToggle = document.getElementById('collaborationMembersToggle');
+const codeTransferToggle = document.getElementById('codeTransferToggle');
 const applyAssistanceLocalBtn = document.getElementById('applyAssistanceLocalBtn');
 const publishAssistanceBtn = document.getElementById('publishAssistanceBtn');
 const assistanceSettingsStatus = document.getElementById('assistanceSettingsStatus');
@@ -284,6 +287,8 @@ const lessonPdfWakeLayer = document.getElementById('lessonPdfWakeLayer');
 const lessonPdfHeader = lessonPdfCard?.querySelector('.lesson-pdf-header');
 
 const dashboardLogoutBtn = document.getElementById('dashboardLogoutBtn');
+const dashboardCodeInboxBtn = document.getElementById('dashboardCodeInboxBtn');
+const dashboardCodeInboxBadge = document.getElementById('dashboardCodeInboxBadge');
 const newProjectBtn = document.getElementById('newProjectBtn');
 const projectSearchInput = document.getElementById('projectSearchInput');
 const projectStatusFilter = document.getElementById('projectStatusFilter');
@@ -323,13 +328,35 @@ const menuStudentGreeting = document.getElementById('menuStudentGreeting');
 const menuStudentSaveState = document.getElementById('menuStudentSaveState');
 const menuSaveProjectBtn = document.getElementById('menuSaveProjectBtn');
 const menuMyProjectsBtn = document.getElementById('menuMyProjectsBtn');
+const menuSendCodeBtn = document.getElementById('menuSendCodeBtn');
+const menuCodeInboxBtn = document.getElementById('menuCodeInboxBtn');
+const menuCodeInboxBadge = document.getElementById('menuCodeInboxBadge');
 const menuLessonViewerBtn = document.getElementById('menuLessonViewerBtn');
 const menuStudentLogoutBtn = document.getElementById('menuStudentLogoutBtn');
 const myProjectsBtn = document.getElementById('myProjectsBtn');
+const codeInboxBtn = document.getElementById('codeInboxBtn');
+const codeInboxBadge = document.getElementById('codeInboxBadge');
 const lessonViewerBtn = document.getElementById('lessonViewerBtn');
 const studentHeaderLogoutBtn = document.getElementById('studentHeaderLogoutBtn');
 const guestAccountStrip = document.getElementById('guestAccountStrip');
 const guestLoginToSaveBtn = document.getElementById('guestLoginToSaveBtn');
+const codeSendOverlay = document.getElementById('codeSendOverlay');
+const closeCodeSendBtn = document.getElementById('closeCodeSendBtn');
+const cancelCodeSendBtn = document.getElementById('cancelCodeSendBtn');
+const confirmCodeSendBtn = document.getElementById('confirmCodeSendBtn');
+const codeSendProjectMeta = document.getElementById('codeSendProjectMeta');
+const codeSendStudentId = document.getElementById('codeSendStudentId');
+const codeSendFileList = document.getElementById('codeSendFileList');
+const codeSendMessage = document.getElementById('codeSendMessage');
+const codeSendStatus = document.getElementById('codeSendStatus');
+const codeSendSelectAllBtn = document.getElementById('codeSendSelectAllBtn');
+const codeSendClearBtn = document.getElementById('codeSendClearBtn');
+const codeInboxOverlay = document.getElementById('codeInboxOverlay');
+const closeCodeInboxBtn = document.getElementById('closeCodeInboxBtn');
+const refreshCodeInboxBtn = document.getElementById('refreshCodeInboxBtn');
+const codeInboxList = document.getElementById('codeInboxList');
+const codeInboxDetail = document.getElementById('codeInboxDetail');
+const codeInboxStatus = document.getElementById('codeInboxStatus');
 const adminStudentId = document.getElementById('adminStudentId');
 const adminStudentName = document.getElementById('adminStudentName');
 const adminStudentGender = document.getElementById('adminStudentGender');
@@ -534,7 +561,8 @@ const DEFAULT_ASSISTANCE_SETTINGS = Object.freeze({
   starterCodeEnabled: true,
   collaboration: false,
   collaborationEdit: true,
-  collaborationMembers: true
+  collaborationMembers: true,
+  codeTransfer: true
 });
 
 let studentAssistanceSettings = normalizeAssistanceSettings(
@@ -1168,7 +1196,8 @@ function normalizeAssistanceSettings(value = {}) {
     starterCodeEnabled: source.starterCodeEnabled !== false,
     collaboration: source.collaboration === true,
     collaborationEdit: source.collaborationEdit !== false,
-    collaborationMembers: source.collaborationMembers !== false
+    collaborationMembers: source.collaborationMembers !== false,
+    codeTransfer: source.codeTransfer !== false
   };
 }
 
@@ -1192,7 +1221,8 @@ function getAssistanceSettingsFromControls() {
     starterCodeEnabled: starterCodeToggle?.checked !== false,
     collaboration: collaborationToggle?.checked === true,
     collaborationEdit: collaborationEditToggle?.checked !== false,
-    collaborationMembers: collaborationMembersToggle?.checked !== false
+    collaborationMembers: collaborationMembersToggle?.checked !== false,
+    codeTransfer: codeTransferToggle?.checked !== false
   });
 }
 
@@ -1224,6 +1254,7 @@ function syncAssistanceSettingsControls() {
   if (collaborationToggle) collaborationToggle.checked = settings.collaboration;
   if (collaborationEditToggle) collaborationEditToggle.checked = settings.collaborationEdit;
   if (collaborationMembersToggle) collaborationMembersToggle.checked = settings.collaborationMembers;
+  if (codeTransferToggle) codeTransferToggle.checked = settings.codeTransfer !== false;
   [collaborationEditToggle, collaborationMembersToggle].forEach(toggle => {
     if (!toggle) return;
     toggle.disabled = !settings.collaboration;
@@ -1231,7 +1262,7 @@ function syncAssistanceSettingsControls() {
   });
 
   studentAssistanceSettingsCard?.classList.toggle('master-disabled', !settings.enabled);
-  const effectiveOn = settings.enabled && (settings.codeSuggestions || settings.codeHelper || settings.teacherFeedback || settings.subjectStatus || settings.superStudio || settings.autoSave || settings.autoRunControl || settings.collaboration || settings.collaborationEdit || settings.collaborationMembers);
+  const effectiveOn = settings.enabled && (settings.codeSuggestions || settings.codeHelper || settings.teacherFeedback || settings.subjectStatus || settings.superStudio || settings.autoSave || settings.autoRunControl || settings.collaboration || settings.collaborationEdit || settings.collaborationMembers || settings.codeTransfer);
   if (assistanceModeBadge) {
     assistanceModeBadge.textContent = effectiveOn ? 'Assistance ON' : 'Assistance OFF';
     assistanceModeBadge.classList.toggle('off', !effectiveOn);
@@ -1323,6 +1354,7 @@ function applyStudentAssistanceSettings(nextSettings, options = {}) {
   updateAssistancePublishUI();
   document.dispatchEvent(new CustomEvent('studentAssistanceSettingsChanged', { detail: { settings: studentAssistanceSettings } }));
   if (typeof window.updateCollaborationFeatureVisibility === 'function') window.updateCollaborationFeatureVisibility();
+  if (typeof window.updateCodeTransferFeatureVisibility === 'function') window.updateCodeTransferFeatureVisibility();
   if (previewFrame && previewFrame.srcdoc && typeof runCode === 'function') {
     window.clearTimeout(applyStudentAssistanceSettings.previewRefreshTimer);
     applyStudentAssistanceSettings.previewRefreshTimer = window.setTimeout(() => runCode(false, { scroll: false, trackRun: false }), 120);
@@ -1337,7 +1369,8 @@ function applyAssistanceSettingsFromControls(options = {}) {
     const collabText = settings.collaboration ? 'Share button is now visible to students.' : 'Share button is now hidden from students.';
     const starterText = settings.starterCodeEnabled === false ? 'New projects will start blank.' : 'New projects will use starter HTML.';
     const subjectStatusText = settings.subjectStatus === false ? 'Subject Status is hidden from students.' : 'Subject Status is visible to students.';
-    setAssistanceSettingsStatus(`Applied on this browser. ${starterText} ${collabText} ${subjectStatusText}`, 'success');
+    const transferText = settings.codeTransfer === false ? 'Code Transfer is off.' : 'Code Transfer is on.';
+    setAssistanceSettingsStatus(`Applied on this browser. ${starterText} ${collabText} ${subjectStatusText} ${transferText}`, 'success');
     setStatus('Student assistance updated');
     if (applyAssistanceLocalBtn) {
       const oldText = applyAssistanceLocalBtn.textContent;
@@ -4438,6 +4471,7 @@ function updateAppHeaderForSession({ forceTypewriter = false } = {}) {
   }
 
   updateEditorProjectHeader();
+  if (typeof window.updateCodeTransferFeatureVisibility === 'function') window.updateCodeTransferFeatureVisibility();
   schedulePhoneHeaderTypewriter(forceTypewriter);
   scheduleDesktopHeaderTypewriter(forceTypewriter);
 }
@@ -5035,6 +5069,7 @@ async function logoutStudent() {
     console.warn('Student logout failed.', error);
   }
   stopStudentPresenceHeartbeat();
+  if (typeof window.stopCodeInboxWatcher === 'function') window.stopCodeInboxWatcher();
   appSession.mode = 'pending';
   appSession.student = null;
   appSession.existingStudentUser = null;
@@ -5060,6 +5095,7 @@ async function showStudentDashboard() {
   document.body.classList.remove('student-auth-open');
   studentDashboard?.classList.remove('hidden');
   document.body.classList.add('student-dashboard-active');
+  if (typeof window.startCodeInboxWatcher === 'function') window.startCodeInboxWatcher();
   const firstName = getStudentFirstName(appSession.student.name);
   if (dashboardGreeting) dashboardGreeting.textContent = `Hi, ${firstName}! Your saved work is ready.`;
   queueStudentPresenceUpdate({ currentView: 'dashboard', activityGroup: 'My Projects', activityLabel: 'On My Projects' }, { force: true });
@@ -20640,7 +20676,7 @@ window.addEventListener('keydown', event => {
   }
 });
 
-[assistanceMasterToggle, codeSuggestionsToggle, codeHelperToggle, teacherFeedbackToggle, superStudioToggle, autoSaveControlToggle, autoRunControlToggle, externalLinksSamePreviewToggle, starterCodeToggle, collaborationToggle, collaborationEditToggle, collaborationMembersToggle].forEach(toggle => {
+[assistanceMasterToggle, codeSuggestionsToggle, codeHelperToggle, teacherFeedbackToggle, superStudioToggle, autoSaveControlToggle, autoRunControlToggle, externalLinksSamePreviewToggle, starterCodeToggle, collaborationToggle, collaborationEditToggle, collaborationMembersToggle, codeTransferToggle].forEach(toggle => {
   toggle?.addEventListener('change', () => {
     applyAssistanceSettingsFromControls();
   });
@@ -28071,4 +28107,779 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   window.addEventListener('orientationchange', () => window.setTimeout(refreshStableEditorLayout, 180), { passive: true });
   document.addEventListener('visibilitychange', refreshStableEditorLayout, { passive: true });
   refreshStableEditorLayout();
+})();
+
+/* =========================================================
+   STEP 270: SEND CODE + CODE INBOX
+   Optimized Firestore design:
+   - 1 lightweight inbox metadata document + 1 full transfer document per send.
+   - Inbox listener reads metadata only (latest 20).
+   - Full source code is read only when the receiver opens one transfer.
+   - Copy is local clipboard only: zero Firestore writes.
+   - No automatic import/overwrite of the receiver's project.
+   ========================================================= */
+(() => {
+  const MAX_TRANSFER_FILES = 20;
+  const MAX_TRANSFER_BYTES = 300 * 1024;
+  const INBOX_LIMIT = 20;
+  const CODE_TRANSFER_SCHEMA_VERSION = 1;
+
+  const codeTransferState = {
+    sendFiles: [],
+    inboxItems: [],
+    inboxLoaded: false,
+    inboxUnsubscribe: null,
+    inboxUid: '',
+    selectedTransferId: '',
+    selectedFileIndex: 0,
+    fullTransferCache: new Map(),
+    lastUnreadCount: 0,
+    watcherInitialized: false
+  };
+
+  function isCodeTransferEnabled() {
+    return appSession.mode === 'student'
+      && Boolean(appSession.student?.uid)
+      && isStudentAssistanceFeatureEnabled('codeTransfer');
+  }
+
+  function getCodeTransferDocRef(transferId) {
+    const { doc } = firebaseSync.modules;
+    return doc(firebaseSync.db, firebaseSync.collectionName, firebaseSync.documentId, 'codeTransfers', transferId);
+  }
+
+  function getCodeInboxCollectionRef(uid) {
+    const { collection } = firebaseSync.modules;
+    return collection(firebaseSync.db, firebaseSync.collectionName, firebaseSync.documentId, 'students', uid, 'codeInbox');
+  }
+
+  function getCodeInboxDocRef(uid, transferId) {
+    const { doc } = firebaseSync.modules;
+    return doc(firebaseSync.db, firebaseSync.collectionName, firebaseSync.documentId, 'students', uid, 'codeInbox', transferId);
+  }
+
+  function getCodeTransferOverlayHost() {
+    const inNativeEditorFullscreen = Boolean(editorPanel && (
+      document.fullscreenElement === editorPanel ||
+      document.webkitFullscreenElement === editorPanel
+    ));
+    return inNativeEditorFullscreen ? editorPanel : document.body;
+  }
+
+  function placeCodeTransferOverlay(overlay) {
+    if (!overlay) return;
+    const host = getCodeTransferOverlayHost();
+    if (overlay.parentElement !== host) host.appendChild(overlay);
+  }
+
+  function restoreCodeTransferOverlay(overlay) {
+    if (!overlay || overlay.parentElement === document.body) return;
+    document.body.appendChild(overlay);
+  }
+
+  function setCodeTransferStatus(element, message = '', type = '') {
+    if (!element) return;
+    element.textContent = message;
+    element.classList.remove('error', 'success', 'warning');
+    if (type) element.classList.add(type);
+  }
+
+  function codeTransferByteLength(value = '') {
+    const text = String(value ?? '');
+    try {
+      return new TextEncoder().encode(text).length;
+    } catch (_) {
+      try { return new Blob([text]).size; } catch (_) { return text.length; }
+    }
+  }
+
+  function formatCodeTransferSize(bytes = 0) {
+    const value = Math.max(0, Number(bytes || 0));
+    if (value < 1024) return `${value} B`;
+    return `${(value / 1024).toFixed(value >= 10240 ? 0 : 1)} KB`;
+  }
+
+  function getCodeTransferLanguageLabel(language = '') {
+    if (language === 'html') return 'HTML';
+    if (language === 'css') return 'CSS';
+    return 'JavaScript';
+  }
+
+  function collectCurrentProjectTransferFiles() {
+    saveActiveEditor();
+    const files = [];
+    ['html', 'css', 'js'].forEach(language => {
+      const map = getLanguageFileMap(language, codeStore);
+      getLanguageFileNames(language, codeStore).forEach(name => {
+        const content = typeof map?.[name] === 'string' ? map[name] : '';
+        files.push({
+          key: `${language}:${name}`,
+          language,
+          name,
+          content,
+          bytes: codeTransferByteLength(content)
+        });
+      });
+    });
+    return files;
+  }
+
+  function renderCodeSendFileList() {
+    if (!codeSendFileList) return;
+    const files = codeTransferState.sendFiles;
+    if (!files.length) {
+      codeSendFileList.innerHTML = '<div class="code-inbox-empty"><span>📄</span><strong>No source files found</strong></div>';
+      return;
+    }
+    codeSendFileList.innerHTML = files.map((file, index) => {
+      const hasContent = String(file.content || '').trim().length > 0;
+      return `
+      <label class="code-transfer-file-option">
+        <input type="checkbox" data-code-transfer-file-index="${index}" ${hasContent ? 'checked' : ''} />
+        <span>
+          <strong>${escapeHTML(file.name)}</strong>
+          <small>${escapeHTML(getCodeTransferLanguageLabel(file.language))}${hasContent ? '' : ' · empty'}</small>
+        </span>
+        <span class="code-transfer-file-size">${escapeHTML(formatCodeTransferSize(file.bytes))}</span>
+      </label>`;
+    }).join('');
+  }
+
+  function getSelectedCodeTransferFiles() {
+    if (!codeSendFileList) return [];
+    return Array.from(codeSendFileList.querySelectorAll('[data-code-transfer-file-index]:checked'))
+      .map(input => codeTransferState.sendFiles[Number(input.dataset.codeTransferFileIndex)])
+      .filter(Boolean);
+  }
+
+  function openCodeSendDialog() {
+    if (!isCodeTransferEnabled()) {
+      appAlert('Send Code is currently unavailable. Ask your teacher if Code Transfer is disabled.', {
+        title: 'Send Code unavailable',
+        icon: '📤'
+      });
+      return;
+    }
+    if (!appSession.currentProjectId || !appSession.currentProject) {
+      appAlert('Open one of your saved projects first, then use Send Code.', {
+        title: 'Open a project first',
+        icon: '📁'
+      });
+      return;
+    }
+
+    codeTransferState.sendFiles = collectCurrentProjectTransferFiles();
+    if (codeTransferState.sendFiles.length > MAX_TRANSFER_FILES) {
+      codeTransferState.sendFiles = codeTransferState.sendFiles.slice(0, MAX_TRANSFER_FILES);
+    }
+    renderCodeSendFileList();
+    if (codeSendStudentId) codeSendStudentId.value = '';
+    if (codeSendMessage) codeSendMessage.value = '';
+    setCodeTransferStatus(codeSendStatus, `Select up to ${MAX_TRANSFER_FILES} files. Maximum ${formatCodeTransferSize(MAX_TRANSFER_BYTES)} total source code per send.`);
+    if (codeSendProjectMeta) {
+      const projectName = appSession.currentProject?.name || 'Current Project';
+      const activityName = activity?.title || appSession.currentProject?.activityTitle || 'No selected activity';
+      codeSendProjectMeta.innerHTML = `
+        <span>📁 <strong title="${escapeHTML(projectName)}">${escapeHTML(projectName)}</strong></span>
+        <span>📝 <strong title="${escapeHTML(activityName)}">${escapeHTML(activityName)}</strong></span>
+      `;
+    }
+    placeCodeTransferOverlay(codeSendOverlay);
+    codeSendOverlay?.classList.remove('hidden');
+    document.body.classList.add('code-transfer-open');
+    window.setTimeout(() => codeSendStudentId?.focus(), 70);
+  }
+
+  function closeCodeSendDialog() {
+    codeSendOverlay?.classList.add('hidden');
+    document.body.classList.remove('code-transfer-open');
+    setCodeTransferStatus(codeSendStatus, '');
+    window.setTimeout(() => restoreCodeTransferOverlay(codeSendOverlay), 0);
+  }
+
+  async function resolveCodeTransferRecipient(studentId) {
+    const normalized = normalizeStudentId(studentId);
+    if (!normalized) throw new Error('Enter the receiver’s Student ID.');
+    if (areStudentIdsEquivalent(normalized, appSession.student?.studentId || appSession.student?.studentIdNormalized)) {
+      throw new Error('Choose a classmate’s Student ID, not your own account.');
+    }
+
+    let roster = await loadStudentRosterRecord(normalized);
+    if (!roster || !areStudentIdsEquivalent(roster.studentId || roster.studentIdNormalized || roster.id, normalized)) {
+      // Rare old/imported roster format fallback. Only runs when the exact document read misses.
+      try {
+        const { getDocs, query, where, limit } = firebaseSync.modules;
+        const constraints = [
+          query(getStudentRosterCollectionRef(), where('studentIdNormalized', '==', normalized), limit(3)),
+          query(getStudentRosterCollectionRef(), where('studentId', '==', normalized), limit(3))
+        ];
+        for (const candidateQuery of constraints) {
+          const snapshot = await getDocs(candidateQuery);
+          const match = (snapshot.docs || []).map(docSnap => ({ id: docSnap.id, ...snapshotData(docSnap) }))
+            .find(record => areStudentIdsEquivalent(record.studentId || record.studentIdNormalized || record.id, normalized));
+          if (match) {
+            roster = match;
+            break;
+          }
+        }
+      } catch (error) {
+        console.warn('Code Transfer recipient fallback lookup skipped.', error);
+      }
+    }
+
+    if (!roster || !areStudentIdsEquivalent(roster.studentId || roster.studentIdNormalized || roster.id, normalized)) {
+      throw new Error('Student ID was not found in the class roster. Check the ID and try again.');
+    }
+    if (roster.accountStatus === 'disabled') throw new Error('This student account is disabled.');
+
+    const receiverUid = String(roster.authUid || '').trim();
+    if (!receiverUid) {
+      throw new Error('This student has not activated a login account yet. Ask the student to log in once before receiving code.');
+    }
+
+    return {
+      uid: receiverUid,
+      studentId: normalizeStudentId(roster.studentId || roster.studentIdNormalized || roster.id || normalized),
+      name: String(roster.name || 'Student').trim() || 'Student',
+      section: String(roster.section || '').trim(),
+      accountStatus: roster.accountStatus || 'active'
+    };
+  }
+
+  async function sendSelectedCodeTransfer() {
+    if (!isCodeTransferEnabled()) return;
+    if (!appSession.currentProjectId || !appSession.currentProject) {
+      setCodeTransferStatus(codeSendStatus, 'Open a saved project first.', 'error');
+      return;
+    }
+
+    const selectedFiles = getSelectedCodeTransferFiles();
+    if (!selectedFiles.length) {
+      setCodeTransferStatus(codeSendStatus, 'Select at least one file to send.', 'error');
+      return;
+    }
+    if (selectedFiles.length > MAX_TRANSFER_FILES) {
+      setCodeTransferStatus(codeSendStatus, `You can send up to ${MAX_TRANSFER_FILES} files at once.`, 'error');
+      return;
+    }
+
+    const totalBytes = selectedFiles.reduce((sum, file) => sum + Number(file.bytes || 0), 0);
+    if (totalBytes > MAX_TRANSFER_BYTES) {
+      setCodeTransferStatus(codeSendStatus, `Selected code is ${formatCodeTransferSize(totalBytes)}. Keep one send below ${formatCodeTransferSize(MAX_TRANSFER_BYTES)}.`, 'error');
+      return;
+    }
+
+    const receiverId = normalizeStudentId(codeSendStudentId?.value);
+    if (!receiverId) {
+      setCodeTransferStatus(codeSendStatus, 'Enter the receiver’s Student ID.', 'error');
+      codeSendStudentId?.focus();
+      return;
+    }
+
+    const ready = await initFirebaseSync();
+    if (!ready) {
+      setCodeTransferStatus(codeSendStatus, firebaseSync.lastError || 'Could not connect to Firebase.', 'error');
+      return;
+    }
+    const activeUser = getFirebaseActiveUser();
+    if (!activeUser || activeUser.uid !== appSession.student?.uid) {
+      setCodeTransferStatus(codeSendStatus, 'Your login session changed. Log in again before sending code.', 'error');
+      return;
+    }
+
+    confirmCodeSendBtn.disabled = true;
+    setCodeTransferStatus(codeSendStatus, 'Checking Student ID...', 'warning');
+    try {
+      const receiver = await resolveCodeTransferRecipient(receiverId);
+      const projectName = String(appSession.currentProject?.name || 'Project');
+      const fileNames = selectedFiles.map(file => file.name);
+      const confirmed = await appConfirm(
+        `Send ${selectedFiles.length} selected file${selectedFiles.length === 1 ? '' : 's'} from “${projectName}” to ${receiver.name} (${receiver.studentId})?`,
+        { title: 'Confirm Code Transfer', confirmText: 'Send Code', icon: '📤' }
+      );
+      if (!confirmed) {
+        setCodeTransferStatus(codeSendStatus, 'Send cancelled.');
+        return;
+      }
+
+      const nowMs = Date.now();
+      const transferId = createId().replace(/[^a-zA-Z0-9_-]/g, '-');
+      const { setDoc, serverTimestamp, writeBatch } = firebaseSync.modules;
+      const sender = appSession.student || {};
+      const message = String(codeSendMessage?.value || '').trim().slice(0, 180);
+      const transferPayload = {
+        schemaVersion: CODE_TRANSFER_SCHEMA_VERSION,
+        senderUid: activeUser.uid,
+        senderStudentId: normalizeStudentId(sender.studentId || sender.studentIdNormalized || ''),
+        senderName: String(sender.name || 'Student'),
+        senderSection: String(sender.section || ''),
+        receiverUid: receiver.uid,
+        receiverStudentId: receiver.studentId,
+        receiverName: receiver.name,
+        receiverSection: receiver.section,
+        projectId: appSession.currentProjectId,
+        projectName,
+        activityId: selectedActivityId || '',
+        activityTitle: activity?.title || appSession.currentProject?.activityTitle || '',
+        fileCount: selectedFiles.length,
+        fileNames,
+        totalBytes,
+        message,
+        files: selectedFiles.map(file => ({
+          language: file.language,
+          name: file.name,
+          content: String(file.content || ''),
+          bytes: Number(file.bytes || 0)
+        })),
+        createdAt: serverTimestamp(),
+        createdAtMs: nowMs
+      };
+      const inboxPayload = {
+        schemaVersion: CODE_TRANSFER_SCHEMA_VERSION,
+        transferId,
+        senderUid: activeUser.uid,
+        senderStudentId: transferPayload.senderStudentId,
+        senderName: transferPayload.senderName,
+        senderSection: transferPayload.senderSection,
+        receiverUid: receiver.uid,
+        receiverStudentId: receiver.studentId,
+        projectName,
+        activityTitle: transferPayload.activityTitle,
+        fileCount: selectedFiles.length,
+        fileNames,
+        totalBytes,
+        message,
+        status: 'unread',
+        createdAt: serverTimestamp(),
+        createdAtMs: nowMs
+      };
+      const transferRef = getCodeTransferDocRef(transferId);
+      const inboxRef = getCodeInboxDocRef(receiver.uid, transferId);
+
+      setCodeTransferStatus(codeSendStatus, 'Sending selected code...', 'warning');
+      if (typeof writeBatch === 'function') {
+        const batch = writeBatch(firebaseSync.db);
+        batch.set(transferRef, transferPayload);
+        batch.set(inboxRef, inboxPayload);
+        await batch.commit();
+      } else {
+        await setDoc(transferRef, transferPayload);
+        await setDoc(inboxRef, inboxPayload);
+      }
+
+      setCodeTransferStatus(codeSendStatus, `Sent ${selectedFiles.length} file${selectedFiles.length === 1 ? '' : 's'} to ${receiver.name}.`, 'success');
+      setStatus(`Code sent to ${receiver.name}`);
+      window.setTimeout(closeCodeSendDialog, 850);
+    } catch (error) {
+      console.error('Could not send code transfer.', error);
+      const message = isFirestorePermissionError(error)
+        ? 'Firestore Rules are blocking Code Transfer. Publish the Step 270 rules, then try again.'
+        : (error?.message || 'Could not send the selected code.');
+      setCodeTransferStatus(codeSendStatus, message, 'error');
+    } finally {
+      confirmCodeSendBtn.disabled = false;
+    }
+  }
+
+  function normalizeInboxSnapshot(snapshot) {
+    return (snapshot?.docs || []).map(docSnap => ({
+      id: docSnap.id,
+      ...snapshotData(docSnap)
+    })).sort((a, b) => Number(b.createdAtMs || 0) - Number(a.createdAtMs || 0));
+  }
+
+  function getCodeInboxUnreadCount() {
+    return codeTransferState.inboxItems.filter(item => item.status !== 'read').length;
+  }
+
+  function updateCodeInboxBadges() {
+    const count = getCodeInboxUnreadCount();
+    const label = count >= INBOX_LIMIT ? `${INBOX_LIMIT}+` : String(count);
+    [dashboardCodeInboxBadge, menuCodeInboxBadge, codeInboxBadge].forEach(badge => {
+      if (!badge) return;
+      badge.textContent = label;
+      badge.classList.toggle('hidden', count <= 0);
+    });
+    [dashboardCodeInboxBtn, menuCodeInboxBtn, codeInboxBtn].forEach(button => {
+      if (!button) return;
+      button.title = count > 0 ? `${count >= INBOX_LIMIT ? `${INBOX_LIMIT}+` : count} unread code transfer${count === 1 ? '' : 's'}` : 'Code Inbox';
+    });
+  }
+
+  function renderCodeInboxList() {
+    if (!codeInboxList) return;
+    const items = codeTransferState.inboxItems;
+    if (!items.length) {
+      codeInboxList.innerHTML = `
+        <div class="code-inbox-empty">
+          <span aria-hidden="true">📭</span>
+          <strong>No received code yet</strong>
+          <p>When a classmate sends selected code files to your Student ID, they will appear here.</p>
+        </div>`;
+      return;
+    }
+
+    codeInboxList.innerHTML = items.map(item => {
+      const unread = item.status !== 'read';
+      const fileSummary = Array.isArray(item.fileNames) && item.fileNames.length
+        ? item.fileNames.slice(0, 3).join(', ') + (item.fileNames.length > 3 ? ` +${item.fileNames.length - 3}` : '')
+        : `${Number(item.fileCount || 0)} file${Number(item.fileCount || 0) === 1 ? '' : 's'}`;
+      const time = formatStudentDate(item.createdAt || item.createdAtMs, 'Just now');
+      return `
+        <button class="code-inbox-item ${unread ? 'unread' : ''} ${codeTransferState.selectedTransferId === item.id ? 'active' : ''}" type="button" data-code-inbox-id="${escapeHTML(item.id)}">
+          <span class="code-inbox-item-top">
+            <strong>${escapeHTML(item.senderName || item.senderStudentId || 'Classmate')}</strong>
+            ${unread ? '<span class="code-inbox-new-pill">NEW</span>' : ''}
+          </span>
+          <span>${escapeHTML(item.projectName || 'Shared code')}</span>
+          <small>${escapeHTML(fileSummary)}</small>
+          <small>${escapeHTML(time)}</small>
+        </button>`;
+    }).join('');
+
+    codeInboxList.querySelectorAll('[data-code-inbox-id]').forEach(button => {
+      button.addEventListener('click', () => openCodeInboxTransfer(button.dataset.codeInboxId));
+    });
+  }
+
+  function renderCodeInboxEmptyDetail() {
+    if (!codeInboxDetail) return;
+    codeInboxDetail.innerHTML = `
+      <div class="code-inbox-empty-detail">
+        <span aria-hidden="true">🧾</span>
+        <strong>Select a received code item</strong>
+        <p>Full source code is loaded only when you open an item, which keeps Firestore reads and data usage low.</p>
+      </div>`;
+  }
+
+  async function markCodeInboxItemRead(item) {
+    if (!item || item.status === 'read' || !appSession.student?.uid) return;
+    try {
+      const { setDoc, serverTimestamp } = firebaseSync.modules;
+      await setDoc(getCodeInboxDocRef(appSession.student.uid, item.id), {
+        status: 'read',
+        readAt: serverTimestamp(),
+        readAtMs: Date.now()
+      }, { merge: true });
+      item.status = 'read';
+      item.readAtMs = Date.now();
+      updateCodeInboxBadges();
+      renderCodeInboxList();
+    } catch (error) {
+      console.warn('Could not mark Code Inbox item as read.', error);
+    }
+  }
+
+  function renderCodeInboxTransferDetail(transfer, meta) {
+    if (!codeInboxDetail) return;
+    const files = Array.isArray(transfer?.files) ? transfer.files : [];
+    if (!files.length) {
+      codeInboxDetail.innerHTML = '<div class="code-inbox-empty-detail"><span>⚠️</span><strong>No source files found in this transfer.</strong></div>';
+      return;
+    }
+    codeTransferState.selectedFileIndex = Math.min(codeTransferState.selectedFileIndex, files.length - 1);
+    const currentFile = files[codeTransferState.selectedFileIndex] || files[0];
+    const sentAt = formatStudentDate(meta?.createdAt || meta?.createdAtMs || transfer?.createdAt || transfer?.createdAtMs, 'Unknown time');
+    const message = String(transfer?.message || meta?.message || '').trim();
+
+    codeInboxDetail.innerHTML = `
+      <div class="code-inbox-detail-head">
+        <h3>${escapeHTML(transfer.projectName || meta?.projectName || 'Received Code')}</h3>
+        <div class="code-inbox-detail-meta">
+          <span><strong>From:</strong> ${escapeHTML(transfer.senderName || meta?.senderName || 'Classmate')}</span>
+          <span><strong>ID:</strong> ${escapeHTML(transfer.senderStudentId || meta?.senderStudentId || '')}</span>
+          <span><strong>Sent:</strong> ${escapeHTML(sentAt)}</span>
+          ${transfer.activityTitle ? `<span><strong>Activity:</strong> ${escapeHTML(transfer.activityTitle)}</span>` : ''}
+        </div>
+      </div>
+      ${message ? `<div class="code-inbox-message">${escapeHTML(message)}</div>` : ''}
+      <div class="code-inbox-file-tabs">
+        ${files.map((file, index) => `<button class="ghost-btn code-inbox-file-tab ${index === codeTransferState.selectedFileIndex ? 'active' : ''}" type="button" data-code-transfer-file-tab="${index}">${escapeHTML(file.name || `File ${index + 1}`)}</button>`).join('')}
+      </div>
+      <div class="code-inbox-code-toolbar">
+        <strong>${escapeHTML(currentFile.name || 'Code')}</strong>
+        <button id="copyReceivedCodeBtn" class="primary-btn" type="button">📋 Copy Code</button>
+      </div>
+      <pre id="receivedCodePreview" class="code-inbox-code-preview" tabindex="0"><code>${escapeHTML(String(currentFile.content || ''))}</code></pre>
+    `;
+
+    codeInboxDetail.querySelectorAll('[data-code-transfer-file-tab]').forEach(button => {
+      button.addEventListener('click', () => {
+        codeTransferState.selectedFileIndex = Number(button.dataset.codeTransferFileTab || 0);
+        renderCodeInboxTransferDetail(transfer, meta);
+      });
+    });
+    codeInboxDetail.querySelector('#copyReceivedCodeBtn')?.addEventListener('click', async event => {
+      const button = event.currentTarget;
+      const copied = await copyCodeTransferText(String(currentFile.content || ''));
+      if (copied) {
+        const oldText = button.textContent;
+        button.textContent = '✓ Copied';
+        setStatus(`${currentFile.name || 'Code'} copied. Paste it into your own project.`);
+        window.setTimeout(() => { if (button.isConnected) button.textContent = oldText; }, 1200);
+      } else {
+        await appAlert('Could not copy automatically. Select the code in the preview and copy it manually.', {
+          title: 'Copy unavailable',
+          icon: '📋'
+        });
+      }
+    });
+  }
+
+  async function copyCodeTransferText(text) {
+    try {
+      if (navigator.clipboard?.writeText && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+        return true;
+      }
+    } catch (_) {}
+    try {
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.setAttribute('readonly', '');
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      const ok = document.execCommand('copy');
+      textarea.remove();
+      return ok;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  async function openCodeInboxTransfer(transferId) {
+    if (!transferId || !isCodeTransferEnabled()) return;
+    const meta = codeTransferState.inboxItems.find(item => item.id === transferId);
+    if (!meta) return;
+    codeTransferState.selectedTransferId = transferId;
+    codeTransferState.selectedFileIndex = 0;
+    renderCodeInboxList();
+    if (codeInboxDetail) {
+      codeInboxDetail.innerHTML = '<div class="code-inbox-empty-detail"><span>⏳</span><strong>Loading source code...</strong></div>';
+    }
+    try {
+      let transfer = codeTransferState.fullTransferCache.get(transferId) || null;
+      if (!transfer) {
+        const { getDoc } = firebaseSync.modules;
+        const snapshot = await getDoc(getCodeTransferDocRef(transferId));
+        if (!snapshotExists(snapshot)) throw new Error('This code transfer is no longer available.');
+        transfer = { id: snapshot.id, ...snapshotData(snapshot) };
+        if (String(transfer.receiverUid || '') !== String(appSession.student?.uid || '')) {
+          throw new Error('This code transfer belongs to a different account.');
+        }
+        codeTransferState.fullTransferCache.set(transferId, transfer);
+      }
+      renderCodeInboxTransferDetail(transfer, meta);
+      await markCodeInboxItemRead(meta);
+    } catch (error) {
+      console.error('Could not open code transfer.', error);
+      if (codeInboxDetail) {
+        codeInboxDetail.innerHTML = `<div class="code-inbox-empty-detail"><span>⚠️</span><strong>${escapeHTML(error?.message || 'Could not open this code transfer.')}</strong></div>`;
+      }
+    }
+  }
+
+  function applyInboxSnapshot(items, options = {}) {
+    const previousUnread = getCodeInboxUnreadCount();
+    codeTransferState.inboxItems = Array.isArray(items) ? items.slice(0, INBOX_LIMIT) : [];
+    codeTransferState.inboxLoaded = true;
+    const nextUnread = getCodeInboxUnreadCount();
+    updateCodeInboxBadges();
+    renderCodeInboxList();
+    if (options.fromWatcher && codeTransferState.watcherInitialized && nextUnread > previousUnread) {
+      const newest = codeTransferState.inboxItems.find(item => item.status !== 'read');
+      if (newest) setStatus(`New code received from ${newest.senderName || newest.senderStudentId || 'a classmate'}`);
+    }
+    codeTransferState.lastUnreadCount = nextUnread;
+    if (options.fromWatcher) codeTransferState.watcherInitialized = true;
+  }
+
+  function stopCodeInboxWatcher() {
+    try { codeTransferState.inboxUnsubscribe?.(); } catch (_) {}
+    codeTransferState.inboxUnsubscribe = null;
+    codeTransferState.inboxUid = '';
+    codeTransferState.inboxItems = [];
+    codeTransferState.inboxLoaded = false;
+    codeTransferState.selectedTransferId = '';
+    codeTransferState.fullTransferCache.clear();
+    codeTransferState.watcherInitialized = false;
+    codeTransferState.lastUnreadCount = 0;
+    updateCodeInboxBadges();
+    renderCodeInboxList();
+    renderCodeInboxEmptyDetail();
+  }
+
+  async function startCodeInboxWatcher() {
+    if (!isCodeTransferEnabled()) {
+      stopCodeInboxWatcher();
+      return;
+    }
+    const uid = String(appSession.student?.uid || '');
+    if (!uid || (codeTransferState.inboxUnsubscribe && codeTransferState.inboxUid === uid)) return;
+    stopCodeInboxWatcher();
+    const ready = await initFirebaseSync();
+    if (!ready || !isCodeTransferEnabled()) return;
+
+    try {
+      const { onSnapshot, query, orderBy, limit } = firebaseSync.modules;
+      const inboxQuery = query(
+        getCodeInboxCollectionRef(uid),
+        orderBy('createdAtMs', 'desc'),
+        limit(INBOX_LIMIT)
+      );
+      codeTransferState.inboxUid = uid;
+      codeTransferState.inboxUnsubscribe = onSnapshot(inboxQuery, snapshot => {
+        applyInboxSnapshot(normalizeInboxSnapshot(snapshot), { fromWatcher: true });
+        if (!codeInboxOverlay?.classList.contains('hidden')) {
+          setCodeTransferStatus(codeInboxStatus, codeTransferState.inboxItems.length
+            ? `Showing latest ${codeTransferState.inboxItems.length} received code item${codeTransferState.inboxItems.length === 1 ? '' : 's'}.`
+            : 'No received code yet.');
+        }
+      }, error => {
+        console.warn('Code Inbox listener failed.', error);
+        if (isFirestorePermissionError(error)) {
+          setCodeTransferStatus(codeInboxStatus, 'Firestore Rules are blocking Code Inbox. Publish the Step 270 rules.', 'error');
+        }
+      });
+    } catch (error) {
+      console.warn('Could not start Code Inbox listener.', error);
+    }
+  }
+
+  async function refreshCodeInboxOnce() {
+    if (!isCodeTransferEnabled()) return;
+    const ready = await initFirebaseSync();
+    if (!ready) {
+      setCodeTransferStatus(codeInboxStatus, firebaseSync.lastError || 'Could not connect to Firebase.', 'error');
+      return;
+    }
+    try {
+      setCodeTransferStatus(codeInboxStatus, 'Refreshing latest received code...', 'warning');
+      const { getDocs, query, orderBy, limit } = firebaseSync.modules;
+      const inboxQuery = query(
+        getCodeInboxCollectionRef(appSession.student.uid),
+        orderBy('createdAtMs', 'desc'),
+        limit(INBOX_LIMIT)
+      );
+      const snapshot = await getDocs(inboxQuery);
+      applyInboxSnapshot(normalizeInboxSnapshot(snapshot));
+      setCodeTransferStatus(codeInboxStatus, codeTransferState.inboxItems.length
+        ? `Showing latest ${codeTransferState.inboxItems.length} received code item${codeTransferState.inboxItems.length === 1 ? '' : 's'}.`
+        : 'No received code yet.', 'success');
+    } catch (error) {
+      console.error('Could not refresh Code Inbox.', error);
+      const message = isFirestorePermissionError(error)
+        ? 'Firestore Rules are blocking Code Inbox. Publish the Step 270 rules.'
+        : (error?.message || 'Could not refresh Code Inbox.');
+      setCodeTransferStatus(codeInboxStatus, message, 'error');
+    }
+  }
+
+  function openCodeInboxDialog() {
+    if (!isCodeTransferEnabled()) {
+      appAlert('Code Inbox is currently unavailable. Ask your teacher if Code Transfer is disabled.', {
+        title: 'Code Inbox unavailable',
+        icon: '📥'
+      });
+      return;
+    }
+    placeCodeTransferOverlay(codeInboxOverlay);
+    codeInboxOverlay?.classList.remove('hidden');
+    document.body.classList.add('code-transfer-open');
+    renderCodeInboxList();
+    if (!codeTransferState.selectedTransferId) renderCodeInboxEmptyDetail();
+    setCodeTransferStatus(codeInboxStatus, codeTransferState.inboxLoaded
+      ? (codeTransferState.inboxItems.length ? `Showing latest ${codeTransferState.inboxItems.length} received code item${codeTransferState.inboxItems.length === 1 ? '' : 's'}.` : 'No received code yet.')
+      : 'Loading Code Inbox...');
+    startCodeInboxWatcher();
+  }
+
+  function closeCodeInboxDialog() {
+    codeInboxOverlay?.classList.add('hidden');
+    document.body.classList.remove('code-transfer-open');
+    window.setTimeout(() => restoreCodeTransferOverlay(codeInboxOverlay), 0);
+  }
+
+  function updateCodeTransferFeatureVisibility() {
+    const enabled = isCodeTransferEnabled();
+    const canSend = enabled && Boolean(appSession.currentProjectId && appSession.currentProject);
+    [dashboardCodeInboxBtn, menuCodeInboxBtn, codeInboxBtn].forEach(button => {
+      if (!button) return;
+      button.classList.toggle('hidden', !enabled);
+      button.disabled = !enabled;
+      button.setAttribute('aria-hidden', enabled ? 'false' : 'true');
+    });
+    [sendCodeBtn, fullscreenSendCodeBtn, menuSendCodeBtn].forEach(button => {
+      if (!button) return;
+      button.classList.toggle('hidden', !canSend);
+      button.disabled = !canSend;
+      button.setAttribute('aria-hidden', canSend ? 'false' : 'true');
+    });
+    if (!enabled) {
+      closeCodeSendDialog();
+      closeCodeInboxDialog();
+      stopCodeInboxWatcher();
+    } else if (appSession.student?.uid) {
+      startCodeInboxWatcher();
+    }
+    updateCodeInboxBadges();
+  }
+
+  function initCodeTransferFeature() {
+    sendCodeBtn?.addEventListener('click', openCodeSendDialog);
+    fullscreenSendCodeBtn?.addEventListener('click', openCodeSendDialog);
+    menuSendCodeBtn?.addEventListener('click', () => { closeStudentAccountMenu?.(); openCodeSendDialog(); });
+    [dashboardCodeInboxBtn, menuCodeInboxBtn, codeInboxBtn].forEach(button => {
+      button?.addEventListener('click', () => {
+        closeStudentAccountMenu?.();
+        openCodeInboxDialog();
+      });
+    });
+    closeCodeSendBtn?.addEventListener('click', closeCodeSendDialog);
+    cancelCodeSendBtn?.addEventListener('click', closeCodeSendDialog);
+    confirmCodeSendBtn?.addEventListener('click', sendSelectedCodeTransfer);
+    closeCodeInboxBtn?.addEventListener('click', closeCodeInboxDialog);
+    refreshCodeInboxBtn?.addEventListener('click', refreshCodeInboxOnce);
+    codeSendSelectAllBtn?.addEventListener('click', () => {
+      codeSendFileList?.querySelectorAll('[data-code-transfer-file-index]').forEach(input => { input.checked = true; });
+    });
+    codeSendClearBtn?.addEventListener('click', () => {
+      codeSendFileList?.querySelectorAll('[data-code-transfer-file-index]').forEach(input => { input.checked = false; });
+    });
+    codeSendOverlay?.addEventListener('click', event => {
+      if (event.target === codeSendOverlay) closeCodeSendDialog();
+    });
+    codeInboxOverlay?.addEventListener('click', event => {
+      if (event.target === codeInboxOverlay) closeCodeInboxDialog();
+    });
+    document.addEventListener('keydown', event => {
+      if (event.key !== 'Escape') return;
+      if (codeSendOverlay && !codeSendOverlay.classList.contains('hidden')) {
+        event.preventDefault();
+        closeCodeSendDialog();
+        return;
+      }
+      if (codeInboxOverlay && !codeInboxOverlay.classList.contains('hidden')) {
+        event.preventDefault();
+        closeCodeInboxDialog();
+      }
+    });
+    document.addEventListener('fullscreenchange', () => {
+      if (codeSendOverlay && !codeSendOverlay.classList.contains('hidden')) placeCodeTransferOverlay(codeSendOverlay);
+      if (codeInboxOverlay && !codeInboxOverlay.classList.contains('hidden')) placeCodeTransferOverlay(codeInboxOverlay);
+    });
+    document.addEventListener('webkitfullscreenchange', () => {
+      if (codeSendOverlay && !codeSendOverlay.classList.contains('hidden')) placeCodeTransferOverlay(codeSendOverlay);
+      if (codeInboxOverlay && !codeInboxOverlay.classList.contains('hidden')) placeCodeTransferOverlay(codeInboxOverlay);
+    });
+
+    window.updateCodeTransferFeatureVisibility = updateCodeTransferFeatureVisibility;
+    window.startCodeInboxWatcher = startCodeInboxWatcher;
+    window.stopCodeInboxWatcher = stopCodeInboxWatcher;
+    updateCodeTransferFeatureVisibility();
+  }
+
+  initCodeTransferFeature();
 })();

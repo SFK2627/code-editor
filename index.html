@@ -45,7 +45,7 @@
   </script>
   <link rel="preconnect" href="https://drive.google.com" crossorigin>
   <link rel="preconnect" href="https://lh3.googleusercontent.com" crossorigin>
-  <link rel="stylesheet" href="style.css?v=20260727-step235-collab-concurrent-edit-fix" />
+  <link rel="stylesheet" href="style.css?v=20260815-step270-code-transfer" />
   <style>
     .ai-rubric-settings-card,
     .admin-project-ai-review-card {
@@ -386,6 +386,7 @@
         <button id="dashboardRecitationStatusBtn" class="ghost-btn recitation-status-open-btn" type="button">📋 Recitation Status</button>
         <button id="dashboardSubjectStatusBtn" class="ghost-btn dashboard-subject-status-btn" type="button">📌 Subject Status</button>
         <button id="dashboardLessonViewerBtn" class="ghost-btn dashboard-lesson-viewer-btn" type="button">📚 Lesson Viewer</button>
+        <button id="dashboardCodeInboxBtn" class="ghost-btn code-inbox-open-btn" type="button">📥 Code Inbox <span id="dashboardCodeInboxBadge" class="code-inbox-badge hidden">0</span></button>
         <button id="dashboardJoinProjectBtn" class="ghost-btn dashboard-join-project-btn hidden" type="button">🤝 Join a Project</button>
         <button id="dashboardLogoutBtn" class="ghost-btn danger" type="button">Log Out</button>
       </div>
@@ -660,6 +661,7 @@
         <button id="autoRunBtn" class="ghost-btn auto-run-btn" type="button" aria-pressed="true" title="Auto update preview after typing">⚡ Auto</button>
         <button id="resultBtn" class="success-btn top-result-btn" type="button" title="Check result: Ctrl + Shift + Enter">✓ Result</button>
         <button id="aiReviewTopBtn" class="ghost-btn ai-review-top-btn" type="button" title="Open the latest result feedback">💬 Feedback</button>
+        <button id="sendCodeBtn" class="ghost-btn send-code-btn hidden" type="button" title="Send selected code files to a classmate">📤 Send Code</button>
         <button id="downloadZipBtn" class="ghost-btn save-zip-btn" type="button" title="Download your code as ZIP">💾 ZIP</button>
         <button id="fullEditorBtn" class="ghost-btn full-editor-top" type="button" title="Full editor: Ctrl + Shift + F">⛶ Full Editor</button>
         <button id="exitEditorBtn" class="ghost-btn danger-tool hidden" type="button" title="Exit full editor: Esc">Exit Full</button>
@@ -678,6 +680,8 @@
         </div>
         <button id="menuSaveProjectBtn" class="ghost-btn student-manual-save-btn hidden" type="button" role="menuitem">💾 Save</button>
         <button id="menuMyProjectsBtn" class="ghost-btn" type="button" role="menuitem">📁 My Projects</button>
+        <button id="menuSendCodeBtn" class="ghost-btn send-code-btn hidden" type="button" role="menuitem">📤 Send Code</button>
+        <button id="menuCodeInboxBtn" class="ghost-btn code-inbox-open-btn" type="button" role="menuitem">📥 Code Inbox <span id="menuCodeInboxBadge" class="code-inbox-badge hidden">0</span></button>
         <button id="menuLessonViewerBtn" class="ghost-btn" type="button" role="menuitem">📚 Lesson Viewer</button>
         <button id="menuStudentLogoutBtn" class="ghost-btn danger" type="button" role="menuitem">Log Out</button>
       </div>
@@ -687,6 +691,7 @@
         <span id="studentSaveState" class="student-save-state">Saved</span>
         <button id="saveStudentProjectBtn" class="ghost-btn student-manual-save-btn hidden" type="button" title="Save current project: Ctrl + S">💾 Save</button>
         <button id="myProjectsBtn" class="ghost-btn" type="button">📁 My Projects</button>
+        <button id="codeInboxBtn" class="ghost-btn code-inbox-open-btn" type="button">📥 Inbox <span id="codeInboxBadge" class="code-inbox-badge hidden">0</span></button>
         <button id="lessonViewerBtn" class="ghost-btn" type="button">📚 Lessons</button>
         <button id="studentHeaderLogoutBtn" class="ghost-btn danger" type="button">Log Out</button>
       </div>
@@ -704,6 +709,7 @@
           <button id="fullscreenRunBtn" class="primary-btn fullscreen-run-btn" type="button" title="Run: Ctrl + Enter">▶ Run</button>
           <button id="fullscreenAutoRunBtn" class="ghost-btn fullscreen-auto-run-btn" type="button" aria-pressed="true" title="Auto update preview after typing">⚡ Auto</button>
           <button id="fullscreenResultBtn" class="success-btn fullscreen-result-btn" type="button" title="Check result: Ctrl + Shift + Enter">✓ Result</button>
+          <button id="fullscreenSendCodeBtn" class="ghost-btn fullscreen-send-code-btn hidden" type="button" title="Send selected code files to a classmate">📤 Send Code</button>
           <button id="exitEditorStickyBtn" class="fullscreen-exit-btn" type="button" title="Exit full editor: Esc">Exit Full</button>
         </div>
         <button id="codeHelperFloatingBtn" class="code-helper-float-btn" type="button" title="Open Code Helper">🧭 Code Helper</button>
@@ -1136,6 +1142,18 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
             </span>
             <span class="admin-switch">
               <input id="collaborationMembersToggle" type="checkbox" checked />
+              <span class="admin-switch-track"><span class="admin-switch-thumb"></span></span>
+            </span>
+          </label>
+
+          <label class="assistance-option" for="codeTransferToggle">
+            <span class="assistance-option-icon">📨</span>
+            <span class="assistance-option-copy">
+              <strong>Send Code & Code Inbox</strong>
+              <small>Allow students to send selected HTML, CSS, or JavaScript files to a classmate by Student ID. Received code is read-only and must be copied manually.</small>
+            </span>
+            <span class="admin-switch">
+              <input id="codeTransferToggle" type="checkbox" checked />
               <span class="admin-switch-track"><span class="admin-switch-thumb"></span></span>
             </span>
           </label>
@@ -1908,6 +1926,76 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
     </div>
   </div>
 
+
+  <div id="codeSendOverlay" class="code-transfer-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="codeSendTitle">
+    <div class="code-transfer-card code-send-card">
+      <button id="closeCodeSendBtn" class="icon-btn code-transfer-close" type="button" aria-label="Close Send Code">×</button>
+      <div class="code-transfer-head">
+        <span class="code-transfer-icon" aria-hidden="true">📤</span>
+        <div>
+          <p class="section-kicker">Code Transfer</p>
+          <h2 id="codeSendTitle">Send Code</h2>
+          <p class="muted-text">Send selected source-code files from your open project. The receiver can view and copy them, but your project stays unchanged.</p>
+        </div>
+      </div>
+      <div id="codeSendProjectMeta" class="code-transfer-project-meta"></div>
+      <label class="code-transfer-field">
+        <span>Send to Student ID</span>
+        <input id="codeSendStudentId" type="text" maxlength="32" autocomplete="off" placeholder="Example: 22-0544" />
+      </label>
+      <div class="code-transfer-file-section">
+        <div class="code-transfer-section-head">
+          <div>
+            <strong>Select files to send</strong>
+            <small>Only the checked files are copied into the transfer.</small>
+          </div>
+          <div class="code-transfer-mini-actions">
+            <button id="codeSendSelectAllBtn" class="ghost-btn" type="button">Select All</button>
+            <button id="codeSendClearBtn" class="ghost-btn" type="button">Clear</button>
+          </div>
+        </div>
+        <div id="codeSendFileList" class="code-transfer-file-list"></div>
+      </div>
+      <label class="code-transfer-field">
+        <span>Message <small>(optional)</small></span>
+        <textarea id="codeSendMessage" maxlength="180" rows="2" placeholder="Example: Check my CSS for the activity."></textarea>
+      </label>
+      <p id="codeSendStatus" class="code-transfer-status" role="status"></p>
+      <div class="code-transfer-actions">
+        <button id="cancelCodeSendBtn" class="ghost-btn" type="button">Cancel</button>
+        <button id="confirmCodeSendBtn" class="primary-btn" type="button">Send Selected Code</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="codeInboxOverlay" class="code-transfer-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="codeInboxTitle">
+    <div class="code-transfer-card code-inbox-card">
+      <button id="closeCodeInboxBtn" class="icon-btn code-transfer-close" type="button" aria-label="Close Code Inbox">×</button>
+      <div class="code-transfer-head code-inbox-head">
+        <span class="code-transfer-icon" aria-hidden="true">📥</span>
+        <div>
+          <p class="section-kicker">Received Code</p>
+          <h2 id="codeInboxTitle">Code Inbox</h2>
+          <p class="muted-text">Open a received file, copy its code, then paste it wherever you want in your own project.</p>
+        </div>
+        <button id="refreshCodeInboxBtn" class="ghost-btn code-inbox-refresh-btn" type="button">↻ Refresh</button>
+      </div>
+      <p id="codeInboxStatus" class="code-transfer-status" role="status"></p>
+      <div class="code-inbox-layout">
+        <section class="code-inbox-list-panel" aria-label="Received code list">
+          <div id="codeInboxList" class="code-inbox-list"></div>
+        </section>
+        <section id="codeInboxDetail" class="code-inbox-detail" aria-label="Received code preview">
+          <div class="code-inbox-empty-detail">
+            <span aria-hidden="true">🧾</span>
+            <strong>Select a received code item</strong>
+            <p>Full source code is loaded only when you open an item, which keeps Firestore reads and data usage low.</p>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+
   <div id="appDialogOverlay" class="app-dialog-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="appDialogTitle">
     <div class="app-dialog-card" role="document">
       <div class="app-dialog-icon" id="appDialogIcon">!</div>
@@ -1925,6 +2013,6 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
   <script src="firebase-config.js"></script>
-  <script src="script.js?v=20260727-step235-collab-concurrent-edit-fix"></script>
+  <script src="script.js?v=20260815-step270-code-transfer"></script>
 </body>
 </html>
