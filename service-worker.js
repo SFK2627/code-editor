@@ -1,13 +1,13 @@
-const CACHE_NAME = 'ict8-connect-step270-code-transfer';
+const CACHE_NAME = 'ict8-connect-step272-my-projects-reminder';
 const APP_SHELL = [
   './',
   './index.html',
-  './index.html?v=20260815-step270-code-transfer',
-  './index.html?fresh=step270-code-transfer',
+  './index.html?v=20260816-step272-my-projects-reminder',
+  './index.html?fresh=step272-my-projects-reminder',
   './style.css',
-  './style.css?v=20260815-step270-code-transfer',
+  './style.css?v=20260816-step272-my-projects-reminder',
   './script.js',
-  './script.js?v=20260815-step270-code-transfer',
+  './script.js?v=20260816-step272-my-projects-reminder',
   './firebase-config.js',
   './manifest.webmanifest',
   './favicon.png',

@@ -550,6 +550,30 @@
     </section>
   </div>
 
+  <div id="loginLackingReminderOverlay" class="login-lacking-reminder-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="loginLackingReminderTitle" aria-describedby="loginLackingReminderMessage">
+    <section class="login-lacking-reminder-panel" aria-label="Student lacking requirements reminder">
+      <button id="closeLoginLackingReminderBtn" class="icon-btn login-lacking-reminder-close" type="button" aria-label="Close reminder">×</button>
+      <div class="login-lacking-reminder-hero">
+        <div id="loginLackingReminderIcon" class="login-lacking-reminder-icon" aria-hidden="true">📌</div>
+        <div>
+          <p id="loginLackingReminderEyebrow" class="section-kicker">Login Reminder</p>
+          <h2 id="loginLackingReminderTitle">Subject Status Reminder</h2>
+          <p id="loginLackingReminderStudent" class="login-lacking-reminder-student"></p>
+        </div>
+      </div>
+      <div id="loginLackingReminderMeta" class="login-lacking-reminder-meta" aria-label="Reminder details"></div>
+      <p id="loginLackingReminderMessage" class="login-lacking-reminder-message"></p>
+      <div id="loginLackingReminderList" class="login-lacking-reminder-list" aria-live="polite"></div>
+      <div id="loginLackingReminderMusicRow" class="login-lacking-reminder-music-row hidden">
+        <button id="playLoginLackingReminderMusicBtn" class="ghost-btn" type="button">▶ Play Music</button>
+        <span id="loginLackingReminderMusicStatus" class="muted-text">Music is optional.</span>
+      </div>
+      <div class="login-lacking-reminder-actions">
+        <button id="continueFromLoginLackingReminderBtn" class="primary-btn" type="button">Continue to My Projects</button>
+      </div>
+    </section>
+  </div>
+
   <div id="adminComplianceDetailOverlay" class="admin-compliance-detail-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="adminComplianceDetailModalTitle">
     <section class="admin-compliance-detail-panel" aria-label="Student compliance details">
       <button id="closeAdminComplianceDetailBtn" class="icon-btn auth-close-btn" type="button" aria-label="Close student details">×</button>
@@ -1159,6 +1183,52 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
           </label>
         </div>
 
+
+        <section class="login-reminder-settings-card" aria-labelledby="loginReminderSettingsTitle">
+          <div class="login-reminder-settings-header">
+            <div>
+              <p class="section-kicker">Login Lacking Reminder</p>
+              <h3 id="loginReminderSettingsTitle">Student Login Reminder Modal</h3>
+              <p class="muted-text">Automatically show each student their latest published lacking status after a successful login. This uses the existing Compliance record and adds only one cached status read per login.</p>
+            </div>
+            <span id="loginReminderSettingsPill" class="login-reminder-settings-pill">REMINDER ON</span>
+          </div>
+
+          <div class="login-reminder-settings-grid">
+            <label class="login-reminder-toggle-row" for="loginReminderEnabledToggle">
+              <span><strong>Enable Login Reminder Modal</strong><small>Show after every successful Student ID + password login.</small></span>
+              <span class="admin-switch"><input id="loginReminderEnabledToggle" type="checkbox" checked /><span class="admin-switch-track"><span class="admin-switch-thumb"></span></span></span>
+            </label>
+
+            <label class="login-reminder-toggle-row" for="loginReminderMusicEnabledToggle">
+              <span><strong>Background Music</strong><small>Try autoplay when the reminder opens. A Play Music button appears if the browser blocks autoplay.</small></span>
+              <span class="admin-switch"><input id="loginReminderMusicEnabledToggle" type="checkbox" /><span class="admin-switch-track"><span class="admin-switch-thumb"></span></span></span>
+            </label>
+
+            <label class="login-reminder-field login-reminder-field-wide">
+              <span>Music URL</span>
+              <input id="loginReminderMusicUrlInput" type="url" autocomplete="off" placeholder="Paste a direct JukeHost/audio URL" />
+              <small>Use a direct playable audio link. Leave blank when music is off.</small>
+            </label>
+
+            <label class="login-reminder-field login-reminder-field-wide">
+              <span>Positive Message — No Lacking</span>
+              <textarea id="loginReminderPositiveMessageInput" rows="3">Great! You have no lacking requirements. Keep up the good work and continue maintaining your performance.</textarea>
+            </label>
+
+            <label class="login-reminder-field login-reminder-field-wide">
+              <span>Warning Message — With Lackings</span>
+              <textarea id="loginReminderWarningMessageInput" rows="4">The First Term is nearing its end. Please complete the following missing requirements as soon as possible to avoid delays in your subject completion.</textarea>
+            </label>
+          </div>
+
+          <div class="login-reminder-settings-actions">
+            <button id="previewLoginReminderCompleteBtn" class="ghost-btn" type="button">Preview No Lacking</button>
+            <button id="previewLoginReminderMissingBtn" class="ghost-btn" type="button">Preview With Lackings</button>
+            <button id="saveLoginReminderSettingsBtn" class="primary-btn" type="button">Save Reminder to Students</button>
+          </div>
+          <p id="loginReminderSettingsStatus" class="helper-note" role="status">Music is OFF by default. Preview does not read or write Firebase.</p>
+        </section>
 
         <section class="ai-rubric-settings-card" aria-label="Smart rubric review settings">
           <div class="ai-rubric-settings-header">

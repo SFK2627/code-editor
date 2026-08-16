@@ -44318,3 +44318,285 @@ body.code-transfer-open {
     bottom: calc(-16px - env(safe-area-inset-bottom));
   }
 }
+
+
+/* STEP 271: Student Login Lacking Reminder -------------------------------- */
+.login-reminder-settings-card {
+  margin-top: 18px;
+  padding: 20px;
+  border: 1px solid var(--border-color, rgba(148, 163, 184, .28));
+  border-radius: 18px;
+  background: var(--panel-bg, rgba(255, 255, 255, .04));
+}
+.login-reminder-settings-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+.login-reminder-settings-header h3 { margin: 2px 0 6px; }
+.login-reminder-settings-pill {
+  flex: 0 0 auto;
+  padding: 7px 10px;
+  border-radius: 999px;
+  font-size: .72rem;
+  font-weight: 800;
+  letter-spacing: .06em;
+  background: rgba(34, 197, 94, .14);
+  color: #15803d;
+  border: 1px solid rgba(34, 197, 94, .28);
+}
+.login-reminder-settings-pill.off {
+  background: rgba(148, 163, 184, .14);
+  color: #64748b;
+  border-color: rgba(148, 163, 184, .28);
+}
+.login-reminder-settings-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.login-reminder-toggle-row,
+.login-reminder-field {
+  display: flex;
+  gap: 12px;
+  border: 1px solid rgba(148, 163, 184, .2);
+  border-radius: 14px;
+  padding: 13px;
+  background: rgba(148, 163, 184, .055);
+}
+.login-reminder-toggle-row {
+  align-items: center;
+  justify-content: space-between;
+}
+.login-reminder-toggle-row > span:first-child,
+.login-reminder-field { min-width: 0; }
+.login-reminder-toggle-row strong,
+.login-reminder-toggle-row small,
+.login-reminder-field > span,
+.login-reminder-field > small { display: block; }
+.login-reminder-toggle-row small,
+.login-reminder-field > small { margin-top: 4px; opacity: .72; line-height: 1.45; }
+.login-reminder-field {
+  flex-direction: column;
+  align-items: stretch;
+}
+.login-reminder-field-wide { grid-column: 1 / -1; }
+.login-reminder-field input,
+.login-reminder-field textarea {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+}
+.login-reminder-settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+}
+#loginReminderSettingsStatus[data-tone="success"] { color: #15803d; }
+#loginReminderSettingsStatus[data-tone="warning"] { color: #b45309; }
+#loginReminderSettingsStatus[data-tone="error"] { color: #b91c1c; }
+
+.login-lacking-reminder-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 15050;
+  display: grid;
+  place-items: center;
+  padding: max(18px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) max(18px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left));
+  background: rgba(15, 23, 42, .62);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  overflow: auto;
+  opacity: 0;
+  transition: opacity .22s ease;
+}
+.login-lacking-reminder-overlay.hidden { display: none !important; }
+.login-lacking-reminder-overlay.is-visible { opacity: 1; }
+.login-lacking-reminder-panel {
+  position: relative;
+  width: min(680px, 100%);
+  max-height: min(780px, calc(100dvh - 36px));
+  overflow: auto;
+  overscroll-behavior: contain;
+  border-radius: 24px;
+  padding: 24px;
+  background: #ffffff;
+  color: #172033;
+  border: 1px solid rgba(255,255,255,.7);
+  box-shadow: 0 28px 80px rgba(15, 23, 42, .32);
+  transform: translateY(16px) scale(.985);
+  opacity: 0;
+  transition: transform .26s cubic-bezier(.22,.9,.25,1), opacity .22s ease;
+}
+.login-lacking-reminder-overlay.is-visible .login-lacking-reminder-panel {
+  transform: translateY(0) scale(1);
+  opacity: 1;
+}
+.login-lacking-reminder-overlay[data-state="missing"] .login-lacking-reminder-panel { border-top: 5px solid #f59e0b; }
+.login-lacking-reminder-overlay[data-state="complete"] .login-lacking-reminder-panel { border-top: 5px solid #22c55e; }
+.login-lacking-reminder-overlay[data-state="unavailable"] .login-lacking-reminder-panel { border-top: 5px solid #64748b; }
+.login-lacking-reminder-close {
+  position: sticky;
+  float: right;
+  top: 0;
+  margin: -8px -8px 0 8px;
+  z-index: 3;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: #f1f5f9;
+  color: #334155;
+  box-shadow: 0 4px 14px rgba(15,23,42,.08);
+}
+.login-lacking-reminder-hero {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding-right: 42px;
+}
+.login-lacking-reminder-icon {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 62px;
+  height: 62px;
+  border-radius: 18px;
+  font-size: 1.8rem;
+  background: #f8fafc;
+  box-shadow: inset 0 0 0 1px rgba(148,163,184,.2);
+}
+.login-lacking-reminder-overlay[data-state="missing"] .login-lacking-reminder-icon { background: #fff7ed; }
+.login-lacking-reminder-overlay[data-state="complete"] .login-lacking-reminder-icon { background: #f0fdf4; }
+.login-lacking-reminder-hero h2 {
+  margin: 2px 0 4px;
+  font-size: clamp(1.35rem, 2.7vw, 1.9rem);
+  line-height: 1.15;
+  color: #0f172a;
+}
+.login-lacking-reminder-student { margin: 0; color: #64748b; font-weight: 650; }
+.login-lacking-reminder-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin: 18px 0 14px;
+}
+.login-lacking-reminder-meta span {
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: .78rem;
+  font-weight: 750;
+}
+.login-lacking-reminder-meta .warning { background: #fff7ed; color: #c2410c; }
+.login-lacking-reminder-meta .success { background: #f0fdf4; color: #15803d; }
+.login-lacking-reminder-meta .neutral { background: #f8fafc; color: #64748b; }
+.login-lacking-reminder-message {
+  margin: 0;
+  padding: 15px 16px;
+  border-radius: 15px;
+  background: #f8fafc;
+  color: #334155;
+  line-height: 1.65;
+  font-size: .98rem;
+}
+.login-lacking-reminder-overlay[data-state="missing"] .login-lacking-reminder-message { background: #fffbeb; }
+.login-lacking-reminder-overlay[data-state="complete"] .login-lacking-reminder-message { background: #f0fdf4; }
+.login-lacking-reminder-list { margin-top: 16px; }
+.login-lacking-reminder-list-title { margin-bottom: 9px; font-weight: 800; color: #334155; }
+.login-lacking-reminder-list ol {
+  list-style: none;
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  counter-reset: lacking-item;
+}
+.login-lacking-reminder-list li {
+  counter-increment: lacking-item;
+  position: relative;
+  display: grid;
+  gap: 2px;
+  padding: 11px 12px 11px 44px;
+  border: 1px solid #fed7aa;
+  border-radius: 13px;
+  background: #fffaf5;
+}
+.login-lacking-reminder-list li::before {
+  content: counter(lacking-item);
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  translate: 0 -50%;
+  display: grid;
+  place-items: center;
+  width: 23px;
+  height: 23px;
+  border-radius: 50%;
+  background: #f59e0b;
+  color: #fff;
+  font-size: .72rem;
+  font-weight: 850;
+}
+.login-lacking-reminder-list li span { font-weight: 800; color: #292524; }
+.login-lacking-reminder-list li small { color: #78716c; }
+.login-lacking-reminder-empty {
+  padding: 15px 16px;
+  border-radius: 14px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #475569;
+  line-height: 1.5;
+}
+.login-lacking-reminder-empty.success { background: #f0fdf4; border-color: #bbf7d0; color: #166534; }
+.login-lacking-reminder-empty.warning { background: #fff7ed; border-color: #fed7aa; color: #9a3412; }
+.login-lacking-reminder-music-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 15px;
+  padding: 10px;
+  border-radius: 13px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+.login-lacking-reminder-music-row.music-playing { background: #f0fdf4; border-color: #bbf7d0; }
+.login-lacking-reminder-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid #e2e8f0;
+}
+.login-lacking-reminder-actions .primary-btn { min-height: 44px; }
+body.login-lacking-reminder-open { overflow: hidden; }
+
+@media (max-width: 700px) {
+  .login-reminder-settings-grid { grid-template-columns: 1fr; }
+  .login-reminder-field-wide { grid-column: auto; }
+  .login-reminder-settings-header { flex-direction: column; }
+  .login-reminder-settings-actions > button { flex: 1 1 100%; min-height: 44px; }
+  .login-lacking-reminder-overlay { place-items: end center; padding: 10px; }
+  .login-lacking-reminder-panel {
+    width: 100%;
+    max-height: calc(100dvh - 20px);
+    border-radius: 22px 22px 16px 16px;
+    padding: 20px 16px max(16px, env(safe-area-inset-bottom));
+  }
+  .login-lacking-reminder-hero { gap: 12px; padding-right: 34px; }
+  .login-lacking-reminder-icon { width: 52px; height: 52px; border-radius: 15px; font-size: 1.5rem; }
+  .login-lacking-reminder-meta { margin-top: 14px; }
+  .login-lacking-reminder-message { padding: 13px 14px; }
+  .login-lacking-reminder-list li { padding: 11px 10px 11px 42px; }
+  .login-lacking-reminder-music-row { align-items: stretch; flex-direction: column; }
+  .login-lacking-reminder-music-row .ghost-btn { width: 100%; min-height: 44px; }
+  .login-lacking-reminder-actions .primary-btn { width: 100%; min-height: 48px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-lacking-reminder-overlay,
+  .login-lacking-reminder-panel { transition: none !important; }
+}

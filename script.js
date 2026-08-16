@@ -204,6 +204,29 @@ const collaborationToggle = document.getElementById('collaborationToggle');
 const collaborationEditToggle = document.getElementById('collaborationEditToggle');
 const collaborationMembersToggle = document.getElementById('collaborationMembersToggle');
 const codeTransferToggle = document.getElementById('codeTransferToggle');
+const loginReminderEnabledToggle = document.getElementById('loginReminderEnabledToggle');
+const loginReminderMusicEnabledToggle = document.getElementById('loginReminderMusicEnabledToggle');
+const loginReminderMusicUrlInput = document.getElementById('loginReminderMusicUrlInput');
+const loginReminderPositiveMessageInput = document.getElementById('loginReminderPositiveMessageInput');
+const loginReminderWarningMessageInput = document.getElementById('loginReminderWarningMessageInput');
+const previewLoginReminderCompleteBtn = document.getElementById('previewLoginReminderCompleteBtn');
+const previewLoginReminderMissingBtn = document.getElementById('previewLoginReminderMissingBtn');
+const saveLoginReminderSettingsBtn = document.getElementById('saveLoginReminderSettingsBtn');
+const loginReminderSettingsStatus = document.getElementById('loginReminderSettingsStatus');
+const loginReminderSettingsPill = document.getElementById('loginReminderSettingsPill');
+const loginLackingReminderOverlay = document.getElementById('loginLackingReminderOverlay');
+const closeLoginLackingReminderBtn = document.getElementById('closeLoginLackingReminderBtn');
+const continueFromLoginLackingReminderBtn = document.getElementById('continueFromLoginLackingReminderBtn');
+const loginLackingReminderIcon = document.getElementById('loginLackingReminderIcon');
+const loginLackingReminderEyebrow = document.getElementById('loginLackingReminderEyebrow');
+const loginLackingReminderTitle = document.getElementById('loginLackingReminderTitle');
+const loginLackingReminderStudent = document.getElementById('loginLackingReminderStudent');
+const loginLackingReminderMeta = document.getElementById('loginLackingReminderMeta');
+const loginLackingReminderMessage = document.getElementById('loginLackingReminderMessage');
+const loginLackingReminderList = document.getElementById('loginLackingReminderList');
+const loginLackingReminderMusicRow = document.getElementById('loginLackingReminderMusicRow');
+const playLoginLackingReminderMusicBtn = document.getElementById('playLoginLackingReminderMusicBtn');
+const loginLackingReminderMusicStatus = document.getElementById('loginLackingReminderMusicStatus');
 const applyAssistanceLocalBtn = document.getElementById('applyAssistanceLocalBtn');
 const publishAssistanceBtn = document.getElementById('publishAssistanceBtn');
 const assistanceSettingsStatus = document.getElementById('assistanceSettingsStatus');
@@ -512,7 +535,8 @@ const STORAGE_KEYS = {
   complianceSettings: 'studentCodeStudio.complianceSettings.v1',
   lessonLibrary: 'studentCodeStudio.lessonLibrary.v1',
   lessonProgress: 'studentCodeStudio.lessonReadingProgress.v1',
-  aiRubricSettings: 'studentCodeStudio.aiRubricSettings.v1'
+  aiRubricSettings: 'studentCodeStudio.aiRubricSettings.v1',
+  loginReminderSettings: 'studentCodeStudio.loginReminderSettings.v1'
 };
 
 
@@ -569,6 +593,358 @@ let studentAssistanceSettings = normalizeAssistanceSettings(
   loadJSON(STORAGE_KEYS.assistanceSettings, DEFAULT_ASSISTANCE_SETTINGS)
 );
 let unsubscribeCloudAssistanceSettings = null;
+
+const DEFAULT_LOGIN_REMINDER_SETTINGS = Object.freeze({
+  enabled: true,
+  musicEnabled: false,
+  musicUrl: '',
+  positiveMessage: 'Great! You have no lacking requirements. Keep up the good work and continue maintaining your performance.',
+  warningMessage: 'The First Term is nearing its end. Please complete the following missing requirements as soon as possible to avoid delays in your subject completion.'
+});
+
+function normalizeLoginReminderSettings(value = {}) {
+  const source = value && typeof value === 'object' ? value : {};
+  const cleanText = (text, fallback, max = 900) => {
+    const value = String(text ?? '').replace(/\s+/g, ' ').trim();
+    return (value || fallback).slice(0, max);
+  };
+  return {
+    enabled: source.enabled !== false,
+    musicEnabled: source.musicEnabled === true,
+    musicUrl: String(source.musicUrl || '').trim().slice(0, 1200),
+    positiveMessage: cleanText(source.positiveMessage, DEFAULT_LOGIN_REMINDER_SETTINGS.positiveMessage),
+    warningMessage: cleanText(source.warningMessage, DEFAULT_LOGIN_REMINDER_SETTINGS.warningMessage)
+  };
+}
+
+let loginReminderSettings = normalizeLoginReminderSettings(
+  loadJSON(STORAGE_KEYS.loginReminderSettings, DEFAULT_LOGIN_REMINDER_SETTINGS)
+);
+let loginReminderPendingAfterPasswordLogin = false;
+let loginReminderAudio = null;
+
+function persistLoginReminderSettings(settings = loginReminderSettings) {
+  loginReminderSettings = normalizeLoginReminderSettings(settings);
+  saveJSON(STORAGE_KEYS.loginReminderSettings, loginReminderSettings);
+  syncLoginReminderSettingsControls();
+  return loginReminderSettings;
+}
+
+function getLoginReminderSettingsFromControls() {
+  return normalizeLoginReminderSettings({
+    enabled: loginReminderEnabledToggle?.checked !== false,
+    musicEnabled: loginReminderMusicEnabledToggle?.checked === true,
+    musicUrl: loginReminderMusicUrlInput?.value,
+    positiveMessage: loginReminderPositiveMessageInput?.value,
+    warningMessage: loginReminderWarningMessageInput?.value
+  });
+}
+
+function syncLoginReminderSettingsControls() {
+  const settings = normalizeLoginReminderSettings(loginReminderSettings);
+  if (loginReminderEnabledToggle) loginReminderEnabledToggle.checked = settings.enabled;
+  if (loginReminderMusicEnabledToggle) loginReminderMusicEnabledToggle.checked = settings.musicEnabled;
+  if (loginReminderMusicUrlInput) {
+    loginReminderMusicUrlInput.value = settings.musicUrl;
+    loginReminderMusicUrlInput.disabled = !settings.musicEnabled;
+  }
+  if (loginReminderPositiveMessageInput) loginReminderPositiveMessageInput.value = settings.positiveMessage;
+  if (loginReminderWarningMessageInput) loginReminderWarningMessageInput.value = settings.warningMessage;
+  if (loginReminderSettingsPill) {
+    loginReminderSettingsPill.textContent = settings.enabled ? 'REMINDER ON' : 'REMINDER OFF';
+    loginReminderSettingsPill.classList.toggle('off', !settings.enabled);
+  }
+}
+
+function setLoginReminderSettingsStatus(message, tone = '') {
+  if (!loginReminderSettingsStatus) return;
+  loginReminderSettingsStatus.textContent = message || '';
+  loginReminderSettingsStatus.dataset.tone = tone || '';
+}
+
+async function saveLoginReminderSettingsToCloud() {
+  const settings = persistLoginReminderSettings(getLoginReminderSettingsFromControls());
+  const ready = await initFirebaseSync();
+  if (!ready) {
+    setLoginReminderSettingsStatus('Firebase is not ready. Check the connection and try again.', 'error');
+    return false;
+  }
+  if (!isTeacherAuthenticated()) {
+    setLoginReminderSettingsStatus('Teacher login is required before publishing this reminder to students.', 'warning');
+    return false;
+  }
+  try {
+    if (saveLoginReminderSettingsBtn) {
+      saveLoginReminderSettingsBtn.disabled = true;
+      saveLoginReminderSettingsBtn.textContent = 'Saving...';
+    }
+    const { setDoc, serverTimestamp } = firebaseSync.modules;
+    await setDoc(getCloudActivitiesDocRef(), {
+      loginReminderSettings: settings,
+      loginReminderUpdatedAt: serverTimestamp()
+    }, { merge: true });
+    clearSelectiveFirestoreCache('rootDocument:');
+    setLoginReminderSettingsStatus('Login Reminder published to all students.', 'success');
+    return true;
+  } catch (error) {
+    console.warn('Could not save login reminder settings.', error);
+    setLoginReminderSettingsStatus(error?.message || 'Could not publish Login Reminder settings.', 'error');
+    return false;
+  } finally {
+    if (saveLoginReminderSettingsBtn) {
+      saveLoginReminderSettingsBtn.disabled = false;
+      saveLoginReminderSettingsBtn.textContent = 'Save Reminder to Students';
+    }
+  }
+}
+
+function complianceTermFriendlyLabel(term = '') {
+  const value = String(term || '').trim().toUpperCase();
+  if (value === 'TERM_1') return 'First Term';
+  if (value === 'TERM_2') return 'Second Term';
+  if (value === 'TERM_3') return 'Third Term';
+  return String(term || '').trim();
+}
+
+function stopLoginReminderMusic() {
+  if (!loginReminderAudio) return;
+  try {
+    loginReminderAudio.pause();
+    loginReminderAudio.currentTime = 0;
+  } catch (_) {}
+  loginReminderAudio = null;
+}
+
+async function startLoginReminderMusic(settings = loginReminderSettings) {
+  stopLoginReminderMusic();
+  const safe = normalizeLoginReminderSettings(settings);
+
+  // Keep the music UI invisible during successful playback. The only time
+  // students should see a music control is when browser autoplay is blocked.
+  loginLackingReminderMusicStatus?.classList.add('hidden');
+  if (loginLackingReminderMusicStatus) loginLackingReminderMusicStatus.textContent = '';
+  loginLackingReminderMusicRow?.classList.remove('music-playing');
+  playLoginLackingReminderMusicBtn?.classList.add('hidden');
+
+  if (!safe.musicEnabled || !safe.musicUrl) {
+    loginLackingReminderMusicRow?.classList.add('hidden');
+    return false;
+  }
+
+  try {
+    loginReminderAudio = new Audio(safe.musicUrl);
+    loginReminderAudio.preload = 'none';
+    loginReminderAudio.loop = true;
+    loginReminderAudio.volume = 0.55;
+    const playResult = loginReminderAudio.play();
+    if (playResult && typeof playResult.then === 'function') await playResult;
+
+    // Music is playing, but do not show a "Music playing" badge/label.
+    loginLackingReminderMusicRow?.classList.add('hidden');
+    playLoginLackingReminderMusicBtn?.classList.add('hidden');
+    return true;
+  } catch (error) {
+    console.info('Login reminder autoplay was blocked or audio could not start.', error);
+
+    // Only expose a simple Play Music button when autoplay is blocked.
+    if (playLoginLackingReminderMusicBtn) {
+      playLoginLackingReminderMusicBtn.textContent = '▶ Play Music';
+      playLoginLackingReminderMusicBtn.classList.remove('hidden');
+    }
+    loginLackingReminderMusicRow?.classList.remove('hidden', 'music-playing');
+    return false;
+  }
+}
+
+async function playLoginReminderMusicManually() {
+  const settings = normalizeLoginReminderSettings(loginReminderSettings);
+  if (!settings.musicEnabled || !settings.musicUrl) return;
+
+  try {
+    stopLoginReminderMusic();
+    loginReminderAudio = new Audio(settings.musicUrl);
+    loginReminderAudio.loop = true;
+    loginReminderAudio.volume = 0.55;
+    await loginReminderAudio.play();
+
+    // Successful manual playback should also stay visually quiet.
+    loginLackingReminderMusicStatus?.classList.add('hidden');
+    if (loginLackingReminderMusicStatus) loginLackingReminderMusicStatus.textContent = '';
+    loginLackingReminderMusicRow?.classList.add('hidden');
+    loginLackingReminderMusicRow?.classList.remove('music-playing');
+    playLoginLackingReminderMusicBtn?.classList.add('hidden');
+  } catch (error) {
+    loginLackingReminderMusicStatus?.classList.add('hidden');
+    if (loginLackingReminderMusicStatus) loginLackingReminderMusicStatus.textContent = '';
+    if (playLoginLackingReminderMusicBtn) {
+      playLoginLackingReminderMusicBtn.textContent = '▶ Try Play Music Again';
+      playLoginLackingReminderMusicBtn.classList.remove('hidden');
+    }
+    loginLackingReminderMusicRow?.classList.remove('hidden', 'music-playing');
+  }
+}
+
+function closeLoginLackingReminder() {
+  stopLoginReminderMusic();
+  loginLackingReminderOverlay?.classList.remove('is-visible');
+  loginLackingReminderOverlay?.classList.add('hidden');
+  document.body.classList.remove('login-lacking-reminder-open');
+}
+
+function buildLoginReminderPreviewRecord(hasLackings = false) {
+  const student = appSession.student || { name: 'Sample Student', studentId: '00-0000', section: 'Sample Section' };
+  const tasks = hasLackings ? [
+    { id: 'WW1', category: 'Written Works', title: 'Written Work 1', status: 'missing' },
+    { id: 'PT2', category: 'Performance Task', title: 'Performance Task 2', status: 'missing' },
+    { id: 'TA1', category: 'Term Assessment', title: 'Term Assessment', status: 'missing' }
+  ] : [
+    { id: 'WW1', category: 'Written Works', title: 'Written Work 1', status: 'complete' },
+    { id: 'PT1', category: 'Performance Task', title: 'Performance Task 1', status: 'complete' }
+  ];
+  return {
+    studentName: student.name || 'Sample Student',
+    studentId: student.studentId || '00-0000',
+    section: student.section || 'Sample Section',
+    subject: 'ICT',
+    term: 'TERM_1',
+    updatedAtMs: Date.now(),
+    tasks,
+    summary: summarizeComplianceTasks(tasks)
+  };
+}
+
+function renderLoginLackingReminder(record = null, options = {}) {
+  if (!loginLackingReminderOverlay) return false;
+  const settings = normalizeLoginReminderSettings(options.settings || loginReminderSettings);
+  const student = appSession.student || {};
+  const sanitized = record ? sanitizeComplianceStudentRecord(record, { section: student.section || '' }) : null;
+  const missingTasks = sanitized?.tasks?.filter(task => normalizeComplianceStatus(task.status) !== 'complete') || [];
+  const missingCount = sanitized ? Number(sanitized.summary?.missing ?? missingTasks.length) : 0;
+  const state = options.state || (sanitized ? (missingCount > 0 ? 'missing' : 'complete') : 'unavailable');
+
+  loginLackingReminderOverlay.dataset.state = state;
+  if (loginLackingReminderStudent) {
+    const name = sanitized?.studentName || student.name || 'Student';
+    loginLackingReminderStudent.textContent = `Hi, ${name}.`;
+  }
+  if (loginLackingReminderMeta) {
+    const chips = [];
+    const subject = sanitized?.subject || 'ICT';
+    const term = complianceTermFriendlyLabel(sanitized?.term || '');
+    if (subject) chips.push(`<span>${escapeHTML(subject)}</span>`);
+    if (term) chips.push(`<span>${escapeHTML(term)}</span>`);
+    if (state === 'missing') chips.push(`<span class="warning">${missingCount} missing</span>`);
+    if (state === 'complete') chips.push('<span class="success">No lacking</span>');
+    if (state === 'unavailable') chips.push('<span class="neutral">Waiting for teacher update</span>');
+    loginLackingReminderMeta.innerHTML = chips.join('');
+  }
+
+  if (state === 'missing') {
+    if (loginLackingReminderIcon) loginLackingReminderIcon.textContent = '⚠️';
+    if (loginLackingReminderEyebrow) loginLackingReminderEyebrow.textContent = options.preview ? 'Preview · With Lackings' : 'Action Needed';
+    if (loginLackingReminderTitle) loginLackingReminderTitle.textContent = 'You Have Lacking Requirements';
+    if (loginLackingReminderMessage) loginLackingReminderMessage.textContent = settings.warningMessage;
+    if (loginLackingReminderList) {
+      loginLackingReminderList.innerHTML = missingTasks.length
+        ? `<div class="login-lacking-reminder-list-title">Please complete:</div><ol>${missingTasks.map(task => `<li><span>${escapeHTML(task.title || 'Requirement')}</span><small>${escapeHTML(task.category || 'Requirement')}</small></li>`).join('')}</ol>`
+        : '<div class="login-lacking-reminder-empty warning">Your published status reports missing requirements. Open Subject Status to view the latest details.</div>';
+    }
+  } else if (state === 'complete') {
+    if (loginLackingReminderIcon) loginLackingReminderIcon.textContent = '✅';
+    if (loginLackingReminderEyebrow) loginLackingReminderEyebrow.textContent = options.preview ? 'Preview · No Lacking' : 'Great Work';
+    if (loginLackingReminderTitle) loginLackingReminderTitle.textContent = 'You’re All Caught Up!';
+    if (loginLackingReminderMessage) loginLackingReminderMessage.textContent = settings.positiveMessage;
+    if (loginLackingReminderList) loginLackingReminderList.innerHTML = '<div class="login-lacking-reminder-empty success">No missing requirements are listed in your latest published subject status.</div>';
+  } else {
+    if (loginLackingReminderIcon) loginLackingReminderIcon.textContent = '🕒';
+    if (loginLackingReminderEyebrow) loginLackingReminderEyebrow.textContent = options.preview ? 'Preview · Waiting State' : 'Subject Status';
+    if (loginLackingReminderTitle) loginLackingReminderTitle.textContent = 'Status Update Not Available Yet';
+    if (loginLackingReminderMessage) loginLackingReminderMessage.textContent = 'Your latest subject status is not available yet. You may continue using the website normally and check Subject Status again after your teacher publishes an update.';
+    if (loginLackingReminderList) loginLackingReminderList.innerHTML = '<div class="login-lacking-reminder-empty neutral">No published compliance record was found for this login yet.</div>';
+  }
+
+  loginLackingReminderOverlay.classList.remove('hidden');
+  document.body.classList.add('login-lacking-reminder-open');
+  requestAnimationFrame(() => loginLackingReminderOverlay.classList.add('is-visible'));
+  startLoginReminderMusic(settings).catch(() => {});
+  return true;
+}
+
+async function getLoginReminderComplianceRecord() {
+  if (!appSession.student) return { state: 'unavailable', record: null };
+  const studentId = appSession.student.studentId || appSession.student.studentIdNormalized || appSession.student.id;
+  if (!studentId) return { state: 'unavailable', record: null };
+  const ready = await initFirebaseSync();
+  if (!ready) return { state: 'unavailable', record: null };
+  try {
+    const { getDoc } = firebaseSync.modules;
+    const complianceDoc = await withSelectiveFirestoreCache(`subjectCompliance:${studentId}`, SELECTIVE_CACHE_SHORT_MS, async () => {
+      const snapshot = await withTimeout(
+        getDoc(getStudentComplianceDocRef(studentId)),
+        Math.min(APP_NETWORK_TIMEOUT_MS, 9000),
+        'Subject status check timed out.'
+      );
+      return { exists: snapshotExists(snapshot), id: snapshot?.id || studentId, data: snapshotExists(snapshot) ? snapshotData(snapshot) : {} };
+    });
+    if (!complianceDoc.exists) return { state: 'unavailable', record: null };
+    const record = { id: complianceDoc.id, ...complianceDoc.data };
+    studentComplianceRecord = record;
+    const sanitized = sanitizeComplianceStudentRecord(record);
+    return { state: Number(sanitized.summary?.missing || 0) > 0 ? 'missing' : 'complete', record };
+  } catch (error) {
+    console.warn('Login reminder could not load compliance status.', error);
+    return { state: 'unavailable', record: null };
+  }
+}
+
+async function showLoginLackingReminderAfterLogin() {
+  // Step 272: this reminder is now a My Projects reminder, not login-only.
+  // The old pending flag is still cleared for compatibility with the login flow,
+  // but it no longer prevents the reminder from appearing when students return
+  // to My Projects from the editor, Lesson Viewer, or another student screen.
+  loginReminderPendingAfterPasswordLogin = false;
+
+  if (appSession.mode !== 'student' || !appSession.student) return false;
+  if (loginLackingReminderOverlay && !loginLackingReminderOverlay.classList.contains('hidden')) return false;
+
+  // Let My Projects finish painting first so the reminder never blocks route setup.
+  await new Promise(resolve => window.setTimeout(resolve, 120));
+
+  // Reuse the root-document cache. Returning to My Projects does not force a
+  // fresh settings read every time.
+  try {
+    const rootDoc = await readCloudActivitiesDocument();
+    if (rootDoc?.data?.loginReminderSettings) {
+      persistLoginReminderSettings(rootDoc.data.loginReminderSettings);
+    }
+  } catch (error) {
+    console.info('Using cached Login Reminder settings.', error);
+  }
+
+  const settings = normalizeLoginReminderSettings(loginReminderSettings);
+  if (!settings.enabled) return false;
+
+  // showStudentDashboard() has already loaded Subject Status. Reuse that record
+  // when available so the popup does not add another Firestore read.
+  if (studentComplianceRecord) {
+    const sanitized = sanitizeComplianceStudentRecord(studentComplianceRecord);
+    const state = Number(sanitized.summary?.missing || 0) > 0 ? 'missing' : 'complete';
+    return renderLoginLackingReminder(studentComplianceRecord, { state, settings });
+  }
+
+  // If no record is currently in memory, use the cached/fallback lookup.
+  const result = await getLoginReminderComplianceRecord();
+  return renderLoginLackingReminder(result.record, { state: result.state, settings });
+}
+
+function previewLoginLackingReminder(hasLackings = false) {
+  const settings = getLoginReminderSettingsFromControls();
+  renderLoginLackingReminder(buildLoginReminderPreviewRecord(hasLackings), {
+    state: hasLackings ? 'missing' : 'complete',
+    settings,
+    preview: true
+  });
+}
 
 const DEFAULT_AI_RUBRIC_SETTINGS = Object.freeze({
   enabled: false,
@@ -2632,6 +3008,11 @@ async function loadActivitiesFromCloud() {
       loadedCloudSettings = true;
     }
 
+    if (data.loginReminderSettings && typeof data.loginReminderSettings === 'object') {
+      persistLoginReminderSettings(data.loginReminderSettings);
+      loadedCloudSettings = true;
+    }
+
     if (!Array.isArray(data.activities) || !data.activities.length) return loadedCloudSettings;
 
     activities = normalizeActivities(data.activities);
@@ -2676,7 +3057,8 @@ async function saveActivitiesToCloud() {
       title: 'ICT 8 Connect',
       updatedAt: serverTimestamp(),
       activities: activities.map(item => normalizeActivity(item)),
-      studentAssistanceSettings: normalizeAssistanceSettings(studentAssistanceSettings)
+      studentAssistanceSettings: normalizeAssistanceSettings(studentAssistanceSettings),
+      loginReminderSettings: normalizeLoginReminderSettings(loginReminderSettings)
     }, { merge: true });
     clearSelectiveFirestoreCache('rootDocument:');
     setStatus('Saved to Firebase');
@@ -3029,10 +3411,14 @@ async function watchStudentAssistanceSettings() {
       snap => {
         if (!snap.exists()) return;
         const data = snap.data() || {};
-        if (!data.studentAssistanceSettings) return;
-        applyStudentAssistanceSettings(data.studentAssistanceSettings);
-        if (adminOverlay && !adminOverlay.classList.contains('hidden')) {
-          setAssistanceSettingsStatus('Live global settings synced from Firebase.', 'success');
+        if (data.studentAssistanceSettings) {
+          applyStudentAssistanceSettings(data.studentAssistanceSettings);
+          if (adminOverlay && !adminOverlay.classList.contains('hidden')) {
+            setAssistanceSettingsStatus('Live global settings synced from Firebase.', 'success');
+          }
+        }
+        if (data.loginReminderSettings) {
+          persistLoginReminderSettings(data.loginReminderSettings);
         }
       },
       error => console.warn('Student assistance live sync failed.', error)
@@ -4899,8 +5285,10 @@ async function loginStudent() {
       throw new Error('This student account is disabled. Ask your teacher for help.');
     }
     if (studentLoginPassword) studentLoginPassword.value = '';
+    loginReminderPendingAfterPasswordLogin = true;
     await activateStudentSession(profile);
   } catch (error) {
+    loginReminderPendingAfterPasswordLogin = false;
     console.error('Student login failed', error);
     setStudentLoginError(getStudentAuthErrorMessage(error));
   } finally {
@@ -5032,6 +5420,8 @@ async function resumeExistingStudentSession() {
 }
 
 async function logoutStudent() {
+  loginReminderPendingAfterPasswordLogin = false;
+  closeLoginLackingReminder();
   const hasPendingSave = Boolean(studentProjectDirty || studentProjectSaveTimer || studentProjectSaveInFlight || studentProjectSaveQueued);
   if (hasPendingSave && appSession.mode === 'student' && appSession.currentProjectId) {
     const shouldContinue = await appConfirm('Some recent changes may still be saving. Save now and log out?', {
@@ -5103,6 +5493,12 @@ async function showStudentDashboard() {
     loadStudentProjects(),
     loadStudentComplianceStatus()
   ]);
+
+  // Step 272: show the status reminder every time the student arrives at
+  // My Projects, including returns from the editor or Lesson Viewer.
+  showLoginLackingReminderAfterLogin().catch(error => {
+    console.warn('Could not open My Projects reminder.', error);
+  });
 }
 
 function closeStudentDashboard() {
@@ -20683,6 +21079,32 @@ window.addEventListener('keydown', event => {
 });
 applyAssistanceLocalBtn?.addEventListener('click', () => applyAssistanceSettingsFromControls());
 publishAssistanceBtn?.addEventListener('click', publishAssistanceSettings);
+loginReminderEnabledToggle?.addEventListener('change', () => {
+  persistLoginReminderSettings(getLoginReminderSettingsFromControls());
+});
+loginReminderMusicEnabledToggle?.addEventListener('change', () => {
+  const settings = getLoginReminderSettingsFromControls();
+  persistLoginReminderSettings(settings);
+  if (loginReminderMusicUrlInput) loginReminderMusicUrlInput.disabled = !settings.musicEnabled;
+});
+[loginReminderMusicUrlInput, loginReminderPositiveMessageInput, loginReminderWarningMessageInput].forEach(control => {
+  control?.addEventListener('input', () => persistLoginReminderSettings(getLoginReminderSettingsFromControls()));
+});
+previewLoginReminderCompleteBtn?.addEventListener('click', () => previewLoginLackingReminder(false));
+previewLoginReminderMissingBtn?.addEventListener('click', () => previewLoginLackingReminder(true));
+saveLoginReminderSettingsBtn?.addEventListener('click', saveLoginReminderSettingsToCloud);
+closeLoginLackingReminderBtn?.addEventListener('click', closeLoginLackingReminder);
+continueFromLoginLackingReminderBtn?.addEventListener('click', closeLoginLackingReminder);
+playLoginLackingReminderMusicBtn?.addEventListener('click', playLoginReminderMusicManually);
+syncLoginReminderSettingsControls();
+loginLackingReminderOverlay?.addEventListener('click', event => {
+  if (event.target === loginLackingReminderOverlay) return;
+});
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape' && loginLackingReminderOverlay && !loginLackingReminderOverlay.classList.contains('hidden')) {
+    closeLoginLackingReminder();
+  }
+});
 saveAiRubricSettingsBtn?.addEventListener('click', saveAiRubricSettingsToCloud);
 testAiRubricSettingsBtn?.addEventListener('click', testAiRubricConnection);
 [aiRubricEnabledToggle, aiRubricApiKeyInput, aiRubricModelInput, aiRubricReviewStyleSelect].forEach(control => {
