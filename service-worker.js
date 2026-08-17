@@ -1,13 +1,13 @@
-const CACHE_NAME = 'ict8-connect-step275-code-directory-scope-hotfix';
+const CACHE_NAME = 'ict8-connect-step276-simple-student-id-code-inbox';
 const APP_SHELL = [
   './',
   './index.html',
-  './index.html?v=20260816-step275-code-directory-scope-hotfix',
-  './index.html?fresh=step275-code-directory-scope-hotfix',
+  './index.html?v=20260816-step276-simple-student-id-code-inbox',
+  './index.html?fresh=step276-simple-student-id-code-inbox',
   './style.css',
-  './style.css?v=20260816-step275-code-directory-scope-hotfix',
+  './style.css?v=20260816-step276-simple-student-id-code-inbox',
   './script.js',
-  './script.js?v=20260816-step275-code-directory-scope-hotfix',
+  './script.js?v=20260816-step276-simple-student-id-code-inbox',
   './firebase-config.js',
   './manifest.webmanifest',
   './favicon.png',
