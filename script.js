@@ -3764,6 +3764,7 @@ function buildStudentProfileWritePayload(user, profile = {}) {
   return {
     studentId,
     studentIdNormalized: studentId,
+    rosterDocId: String(profile.rosterDocId || profile.rosterId || studentId || '').trim(),
     authUid: user?.uid || profile.authUid || '',
     authEmail,
     name,
@@ -5066,6 +5067,7 @@ async function createOrRepairStudentProfileFromRoster(user, studentId, existingP
     ...(existingProfile || {}),
     studentId: rosterStudentId,
     studentIdNormalized: rosterStudentId,
+    rosterDocId: String(roster.id || rosterStudentId).trim(),
     authUid: user.uid,
     authEmail: String(user.email || existingProfile?.authEmail || studentIdToAuthEmail(rosterStudentId)).toLowerCase(),
     name: roster.name || existingProfile?.name || 'Student',
@@ -5174,6 +5176,7 @@ async function createStudentAccountFromRoster(studentId, password) {
     const profile = {
       studentId: normalizeStudentId(roster.studentId || roster.studentIdNormalized || roster.id || studentId),
       studentIdNormalized: normalizeStudentId(roster.studentId || roster.studentIdNormalized || roster.id || studentId),
+      rosterDocId: String(roster.id || normalizeStudentId(studentId)).trim(),
       authUid: credential.user.uid,
       authEmail,
       name: roster.name || 'Student',
@@ -5225,7 +5228,7 @@ function getStudentAuthErrorMessage(error) {
   if (code.includes('network-request-failed')) return 'Internet connection problem. Please reconnect and try again.';
   if (code.includes('operation-not-allowed')) return 'Student login is not enabled yet. The teacher must enable Email/Password in Firebase Authentication.';
   if (code.includes('unauthorized-domain')) return 'This website domain must be added to Firebase Authentication authorized domains.';
-  if (isFirestorePermissionError(error)) return 'Login setup was blocked by Firestore permissions. Refresh after uploading the latest files. If it still appears, ask the teacher to publish the updated firestore.rules.';
+  if (isFirestorePermissionError(error)) return 'Firebase Authentication accepted this account, but Firestore blocked creation/repair of the student profile. Publish the v284 Firestore rules, hard refresh, then log in again. Do not delete the Auth account again.';
   return error?.message || 'Login failed. Check your Student ID and password.';
 }
 

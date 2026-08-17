@@ -1,13 +1,13 @@
-const CACHE_NAME = 'ict8-connect-step283-stable-multipage-collaboration';
+const CACHE_NAME = 'ict8-connect-step284-firestore-first-login-fix';
 const APP_SHELL = [
   './',
   './index.html',
-  './index.html?v=20260817-step283-stable-multipage-collaboration',
-  './index.html?fresh=step283-stable-multipage-collaboration',
+  './index.html?v=20260817-step284-firestore-first-login-fix',
+  './index.html?fresh=step284-firestore-first-login-fix',
   './style.css',
-  './style.css?v=20260817-step283-stable-multipage-collaboration',
+  './style.css?v=20260817-step284-firestore-first-login-fix',
   './script.js',
-  './script.js?v=20260817-step283-stable-multipage-collaboration',
+  './script.js?v=20260817-step284-firestore-first-login-fix',
   './firebase-config.js',
   './manifest.webmanifest',
   './favicon.png',
