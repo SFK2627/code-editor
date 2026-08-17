@@ -28570,14 +28570,24 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     return doc(firebaseSync.db, firebaseSync.collectionName, firebaseSync.documentId, 'codeTransfers', transferId);
   }
 
-  function getCodeInboxCollectionRef(uid) {
-    const { collection } = firebaseSync.modules;
-    return collection(firebaseSync.db, firebaseSync.collectionName, firebaseSync.documentId, 'students', uid, 'codeInbox');
+  function normalizeCodeInboxAuthEmail(value = '') {
+    return String(value || '').trim().toLowerCase();
   }
 
-  function getCodeInboxDocRef(uid, transferId) {
+  function getCurrentCodeInboxAuthEmail() {
+    return normalizeCodeInboxAuthEmail(getFirebaseActiveUser()?.email || appSession.student?.authEmail || '');
+  }
+
+  function getCodeInboxCollectionRef(authEmail) {
+    const { collection } = firebaseSync.modules;
+    const email = normalizeCodeInboxAuthEmail(authEmail);
+    return collection(firebaseSync.db, firebaseSync.collectionName, firebaseSync.documentId, 'codeInboxes', email, 'items');
+  }
+
+  function getCodeInboxDocRef(authEmail, transferId) {
     const { doc } = firebaseSync.modules;
-    return doc(firebaseSync.db, firebaseSync.collectionName, firebaseSync.documentId, 'students', uid, 'codeInbox', transferId);
+    const email = normalizeCodeInboxAuthEmail(authEmail);
+    return doc(firebaseSync.db, firebaseSync.collectionName, firebaseSync.documentId, 'codeInboxes', email, 'items', transferId);
   }
 
   function getCodeTransferOverlayHost() {
@@ -28721,46 +28731,105 @@ window.MCS_PHONE_MENU_STATUS = () => ({
 
   async function resolveCodeTransferRecipient(studentId) {
     const normalized = normalizeStudentId(studentId);
-    if (!normalized) throw new Error('Enter the receiver’s Student ID.');
+    const authKey = getStudentIdAuthKey(studentId);
+
+    if (!normalized || !authKey) throw new Error('Enter the receiver’s Student ID.');
     if (areStudentIdsEquivalent(normalized, appSession.student?.studentId || appSession.student?.studentIdNormalized)) {
       throw new Error('Choose a classmate’s Student ID, not your own account.');
     }
 
-    let roster = await loadStudentRosterRecord(normalized);
-    if (!roster || !areStudentIdsEquivalent(roster.studentId || roster.studentIdNormalized || roster.id, normalized)) {
-      // Rare old/imported roster format fallback. Only runs when the exact document read misses.
+    const matchesStudentId = record => Boolean(
+      record && areStudentIdsEquivalent(
+        record.studentId || record.studentIdNormalized || record.id || '',
+        normalized
+      )
+    );
+
+    let roster = null;
+
+    // Fast path: exact/known document ID formats. The normal current format
+    // costs only one roster read.
+    const candidateDocIds = [...new Set([normalized, authKey].filter(Boolean))];
+    for (const candidateId of candidateDocIds) {
+      try {
+        const candidate = await loadStudentRosterRecord(candidateId);
+        if (matchesStudentId(candidate)) {
+          roster = candidate;
+          break;
+        }
+      } catch (error) {
+        console.warn('Code Transfer exact roster lookup failed for', candidateId, error);
+      }
+    }
+
+    // Compatibility fallback for older imports where the Firestore document ID
+    // kept/removed dashes differently. First use the deterministic internal
+    // auth email because 22-0544 and 220544 map to the same login email.
+    if (!roster) {
       try {
         const { getDocs, query, where, limit } = firebaseSync.modules;
-        const constraints = [
-          query(getStudentRosterCollectionRef(), where('studentIdNormalized', '==', normalized), limit(3)),
-          query(getStudentRosterCollectionRef(), where('studentId', '==', normalized), limit(3))
-        ];
-        for (const candidateQuery of constraints) {
+        const generatedAuthEmail = studentIdToAuthEmail(normalized);
+        const fallbackQueries = [];
+
+        if (generatedAuthEmail) {
+          fallbackQueries.push(
+            query(getStudentRosterCollectionRef(), where('authEmail', '==', generatedAuthEmail), limit(3))
+          );
+        }
+
+        for (const candidateId of candidateDocIds) {
+          fallbackQueries.push(
+            query(getStudentRosterCollectionRef(), where('studentIdNormalized', '==', candidateId), limit(3))
+          );
+          fallbackQueries.push(
+            query(getStudentRosterCollectionRef(), where('studentId', '==', candidateId), limit(3))
+          );
+        }
+
+        for (const candidateQuery of fallbackQueries) {
           const snapshot = await getDocs(candidateQuery);
-          const match = (snapshot.docs || []).map(docSnap => ({ id: docSnap.id, ...snapshotData(docSnap) }))
-            .find(record => areStudentIdsEquivalent(record.studentId || record.studentIdNormalized || record.id, normalized));
+          const records = (snapshot.docs || []).map(docSnap => ({
+            id: docSnap.id,
+            ...snapshotData(docSnap)
+          }));
+          const match = records.find(matchesStudentId)
+            || records.find(record =>
+              generatedAuthEmail &&
+              normalizeCodeInboxAuthEmail(record.authEmail) === normalizeCodeInboxAuthEmail(generatedAuthEmail)
+            );
           if (match) {
             roster = match;
             break;
           }
         }
       } catch (error) {
-        console.warn('Code Transfer recipient fallback lookup skipped.', error);
+        console.warn('Code Transfer compatibility roster lookup failed.', error);
       }
     }
 
-    if (!roster || !areStudentIdsEquivalent(roster.studentId || roster.studentIdNormalized || roster.id, normalized)) {
-      throw new Error('Student ID was not found in the class roster. Check the ID and try again.');
+    if (!roster || !matchesStudentId(roster)) {
+      throw new Error('Student ID was not found in the class roster. Check the ID exactly as shown in the student list and try again.');
     }
     if (roster.accountStatus === 'disabled') throw new Error('This student account is disabled.');
 
-    const receiverUid = String(roster.authUid || '').trim();
-    if (!receiverUid) {
-      throw new Error('This student has not activated a login account yet. Ask the student to log in once before receiving code.');
+    // Step 273: Code Inbox is addressed by the student's internal Firebase
+    // auth email instead of requiring roster.authUid. This fixes valid students
+    // who can already log in but whose older roster row never received authUid.
+    const receiverAuthEmail = normalizeCodeInboxAuthEmail(
+      roster.authEmail || studentIdToAuthEmail(roster.studentId || roster.studentIdNormalized || normalized)
+    );
+    if (!receiverAuthEmail) {
+      throw new Error('This student roster record has no login address yet. Ask the teacher to open Login Check for this student.');
+    }
+
+    const senderAuthEmail = getCurrentCodeInboxAuthEmail();
+    if (senderAuthEmail && receiverAuthEmail === senderAuthEmail) {
+      throw new Error('Choose a classmate’s Student ID, not your own account.');
     }
 
     return {
-      uid: receiverUid,
+      uid: String(roster.authUid || '').trim(), // optional legacy metadata only
+      authEmail: receiverAuthEmail,
       studentId: normalizeStudentId(roster.studentId || roster.studentIdNormalized || roster.id || normalized),
       name: String(roster.name || 'Student').trim() || 'Student',
       section: String(roster.section || '').trim(),
@@ -28835,7 +28904,8 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         senderStudentId: normalizeStudentId(sender.studentId || sender.studentIdNormalized || ''),
         senderName: String(sender.name || 'Student'),
         senderSection: String(sender.section || ''),
-        receiverUid: receiver.uid,
+        receiverUid: receiver.uid || '',
+        receiverAuthEmail: receiver.authEmail,
         receiverStudentId: receiver.studentId,
         receiverName: receiver.name,
         receiverSection: receiver.section,
@@ -28863,7 +28933,8 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         senderStudentId: transferPayload.senderStudentId,
         senderName: transferPayload.senderName,
         senderSection: transferPayload.senderSection,
-        receiverUid: receiver.uid,
+        receiverUid: receiver.uid || '',
+        receiverAuthEmail: receiver.authEmail,
         receiverStudentId: receiver.studentId,
         projectName,
         activityTitle: transferPayload.activityTitle,
@@ -28876,7 +28947,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         createdAtMs: nowMs
       };
       const transferRef = getCodeTransferDocRef(transferId);
-      const inboxRef = getCodeInboxDocRef(receiver.uid, transferId);
+      const inboxRef = getCodeInboxDocRef(receiver.authEmail, transferId);
 
       setCodeTransferStatus(codeSendStatus, 'Sending selected code...', 'warning');
       if (typeof writeBatch === 'function') {
@@ -28975,10 +29046,11 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   }
 
   async function markCodeInboxItemRead(item) {
-    if (!item || item.status === 'read' || !appSession.student?.uid) return;
+    const inboxAuthEmail = getCurrentCodeInboxAuthEmail();
+    if (!item || item.status === 'read' || !inboxAuthEmail) return;
     try {
       const { setDoc, serverTimestamp } = firebaseSync.modules;
-      await setDoc(getCodeInboxDocRef(appSession.student.uid, item.id), {
+      await setDoc(getCodeInboxDocRef(inboxAuthEmail, item.id), {
         status: 'read',
         readAt: serverTimestamp(),
         readAtMs: Date.now()
@@ -29088,7 +29160,16 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         const snapshot = await getDoc(getCodeTransferDocRef(transferId));
         if (!snapshotExists(snapshot)) throw new Error('This code transfer is no longer available.');
         transfer = { id: snapshot.id, ...snapshotData(snapshot) };
-        if (String(transfer.receiverUid || '') !== String(appSession.student?.uid || '')) {
+        const currentAuthEmail = getCurrentCodeInboxAuthEmail();
+        const ownsByEmail = Boolean(
+          currentAuthEmail
+          && normalizeCodeInboxAuthEmail(transfer.receiverAuthEmail) === currentAuthEmail
+        );
+        const ownsLegacyUid = Boolean(
+          transfer.receiverUid
+          && String(transfer.receiverUid) === String(appSession.student?.uid || '')
+        );
+        if (!ownsByEmail && !ownsLegacyUid) {
           throw new Error('This code transfer belongs to a different account.');
         }
         codeTransferState.fullTransferCache.set(transferId, transfer);
@@ -29138,8 +29219,8 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       stopCodeInboxWatcher();
       return;
     }
-    const uid = String(appSession.student?.uid || '');
-    if (!uid || (codeTransferState.inboxUnsubscribe && codeTransferState.inboxUid === uid)) return;
+    const inboxAuthEmail = getCurrentCodeInboxAuthEmail();
+    if (!inboxAuthEmail || (codeTransferState.inboxUnsubscribe && codeTransferState.inboxUid === inboxAuthEmail)) return;
     stopCodeInboxWatcher();
     const ready = await initFirebaseSync();
     if (!ready || !isCodeTransferEnabled()) return;
@@ -29147,11 +29228,11 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     try {
       const { onSnapshot, query, orderBy, limit } = firebaseSync.modules;
       const inboxQuery = query(
-        getCodeInboxCollectionRef(uid),
+        getCodeInboxCollectionRef(inboxAuthEmail),
         orderBy('createdAtMs', 'desc'),
         limit(INBOX_LIMIT)
       );
-      codeTransferState.inboxUid = uid;
+      codeTransferState.inboxUid = inboxAuthEmail;
       codeTransferState.inboxUnsubscribe = onSnapshot(inboxQuery, snapshot => {
         applyInboxSnapshot(normalizeInboxSnapshot(snapshot), { fromWatcher: true });
         if (!codeInboxOverlay?.classList.contains('hidden')) {
@@ -29180,8 +29261,10 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     try {
       setCodeTransferStatus(codeInboxStatus, 'Refreshing latest received code...', 'warning');
       const { getDocs, query, orderBy, limit } = firebaseSync.modules;
+      const inboxAuthEmail = getCurrentCodeInboxAuthEmail();
+      if (!inboxAuthEmail) throw new Error('Your login session has no Code Inbox address. Log in again.');
       const inboxQuery = query(
-        getCodeInboxCollectionRef(appSession.student.uid),
+        getCodeInboxCollectionRef(inboxAuthEmail),
         orderBy('createdAtMs', 'desc'),
         limit(INBOX_LIMIT)
       );
