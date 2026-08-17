@@ -28570,14 +28570,41 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     return doc(firebaseSync.db, firebaseSync.collectionName, firebaseSync.documentId, 'codeTransfers', transferId);
   }
 
-  function getCodeInboxCollectionRef(uid) {
-    const { collection } = firebaseSync.modules;
-    return collection(firebaseSync.db, firebaseSync.collectionName, firebaseSync.documentId, 'students', uid, 'codeInbox');
+  function getCodeInboxStudentKey(studentId = '') {
+    return getStudentIdAuthKey(studentId).toLowerCase();
   }
 
-  function getCodeInboxDocRef(uid, transferId) {
+  function getCurrentCodeInboxStudentKey() {
+    return getCodeInboxStudentKey(
+      appSession.student?.studentId
+      || appSession.student?.studentIdNormalized
+      || ''
+    );
+  }
+
+  function getCodeInboxCollectionRef(studentIdKey) {
+    const { collection } = firebaseSync.modules;
+    return collection(
+      firebaseSync.db,
+      firebaseSync.collectionName,
+      firebaseSync.documentId,
+      'codeInboxesByStudentId',
+      String(studentIdKey || '').trim().toLowerCase(),
+      'items'
+    );
+  }
+
+  function getCodeInboxDocRef(studentIdKey, transferId) {
     const { doc } = firebaseSync.modules;
-    return doc(firebaseSync.db, firebaseSync.collectionName, firebaseSync.documentId, 'students', uid, 'codeInbox', transferId);
+    return doc(
+      firebaseSync.db,
+      firebaseSync.collectionName,
+      firebaseSync.documentId,
+      'codeInboxesByStudentId',
+      String(studentIdKey || '').trim().toLowerCase(),
+      'items',
+      transferId
+    );
   }
 
   function getCodeTransferOverlayHost() {
@@ -28721,50 +28748,65 @@ window.MCS_PHONE_MENU_STATUS = () => ({
 
   async function resolveCodeTransferRecipient(studentId) {
     const normalized = normalizeStudentId(studentId);
-    if (!normalized) throw new Error('Enter the receiver’s Student ID.');
-    if (areStudentIdsEquivalent(normalized, appSession.student?.studentId || appSession.student?.studentIdNormalized)) {
+    const studentIdKey = getCodeInboxStudentKey(normalized);
+
+    if (!normalized || !studentIdKey) throw new Error('Enter the receiver’s Student ID.');
+
+    const ownKey = getCurrentCodeInboxStudentKey();
+    if (ownKey && ownKey === studentIdKey) {
       throw new Error('Choose a classmate’s Student ID, not your own account.');
     }
 
-    let roster = await loadStudentRosterRecord(normalized);
-    if (!roster || !areStudentIdsEquivalent(roster.studentId || roster.studentIdNormalized || roster.id, normalized)) {
-      // Rare old/imported roster format fallback. Only runs when the exact document read misses.
-      try {
+    // STEP 279 (v272-safe):
+    // Roster lookup is now OPTIONAL. It is used only to show a nicer receiver
+    // name/section when available. Profile-only/older working accounts can
+    // still receive code directly through their Student ID inbox.
+    let roster = null;
+    try {
+      roster = await loadStudentRosterRecord(normalized);
+
+      if (!roster || !areStudentIdsEquivalent(
+        roster.studentId || roster.studentIdNormalized || roster.id,
+        normalized
+      )) {
         const { getDocs, query, where, limit } = firebaseSync.modules;
         const constraints = [
           query(getStudentRosterCollectionRef(), where('studentIdNormalized', '==', normalized), limit(3)),
           query(getStudentRosterCollectionRef(), where('studentId', '==', normalized), limit(3))
         ];
+
         for (const candidateQuery of constraints) {
           const snapshot = await getDocs(candidateQuery);
-          const match = (snapshot.docs || []).map(docSnap => ({ id: docSnap.id, ...snapshotData(docSnap) }))
-            .find(record => areStudentIdsEquivalent(record.studentId || record.studentIdNormalized || record.id, normalized));
+          const match = (snapshot.docs || [])
+            .map(docSnap => ({ id: docSnap.id, ...snapshotData(docSnap) }))
+            .find(record => areStudentIdsEquivalent(
+              record.studentId || record.studentIdNormalized || record.id,
+              normalized
+            ));
           if (match) {
             roster = match;
             break;
           }
         }
-      } catch (error) {
-        console.warn('Code Transfer recipient fallback lookup skipped.', error);
       }
+    } catch (error) {
+      // IMPORTANT: failure/missing roster must not block Send Code anymore.
+      console.info('Optional Send Code roster lookup skipped.', error);
+      roster = null;
     }
 
-    if (!roster || !areStudentIdsEquivalent(roster.studentId || roster.studentIdNormalized || roster.id, normalized)) {
-      throw new Error('Student ID was not found in the class roster. Check the ID and try again.');
-    }
-    if (roster.accountStatus === 'disabled') throw new Error('This student account is disabled.');
-
-    const receiverUid = String(roster.authUid || '').trim();
-    if (!receiverUid) {
-      throw new Error('This student has not activated a login account yet. Ask the student to log in once before receiving code.');
+    if (roster?.accountStatus === 'disabled') {
+      throw new Error('This student account is disabled.');
     }
 
     return {
-      uid: receiverUid,
-      studentId: normalizeStudentId(roster.studentId || roster.studentIdNormalized || roster.id || normalized),
-      name: String(roster.name || 'Student').trim() || 'Student',
-      section: String(roster.section || '').trim(),
-      accountStatus: roster.accountStatus || 'active'
+      uid: String(roster?.authUid || '').trim(), // optional legacy metadata only
+      studentId: normalized,
+      studentIdKey,
+      name: String(roster?.name || '').trim(),
+      section: String(roster?.section || '').trim(),
+      accountStatus: roster?.accountStatus || 'active',
+      hasRosterRecord: Boolean(roster)
     };
   }
 
@@ -28815,8 +28857,12 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       const receiver = await resolveCodeTransferRecipient(receiverId);
       const projectName = String(appSession.currentProject?.name || 'Project');
       const fileNames = selectedFiles.map(file => file.name);
+      const receiverLabel = receiver.name
+        ? `${receiver.name} (${receiver.studentId})`
+        : `Student ID ${receiver.studentId}`;
+
       const confirmed = await appConfirm(
-        `Send ${selectedFiles.length} selected file${selectedFiles.length === 1 ? '' : 's'} from “${projectName}” to ${receiver.name} (${receiver.studentId})?`,
+        `Send ${selectedFiles.length} selected file${selectedFiles.length === 1 ? '' : 's'} from “${projectName}” to ${receiverLabel}?`,
         { title: 'Confirm Code Transfer', confirmText: 'Send Code', icon: '📤' }
       );
       if (!confirmed) {
@@ -28835,10 +28881,11 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         senderStudentId: normalizeStudentId(sender.studentId || sender.studentIdNormalized || ''),
         senderName: String(sender.name || 'Student'),
         senderSection: String(sender.section || ''),
-        receiverUid: receiver.uid,
+        receiverUid: receiver.uid || '',
         receiverStudentId: receiver.studentId,
-        receiverName: receiver.name,
-        receiverSection: receiver.section,
+        receiverStudentIdAuthKey: receiver.studentIdKey,
+        receiverName: receiver.name || '',
+        receiverSection: receiver.section || '',
         projectId: appSession.currentProjectId,
         projectName,
         activityId: selectedActivityId || '',
@@ -28863,8 +28910,9 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         senderStudentId: transferPayload.senderStudentId,
         senderName: transferPayload.senderName,
         senderSection: transferPayload.senderSection,
-        receiverUid: receiver.uid,
+        receiverUid: receiver.uid || '',
         receiverStudentId: receiver.studentId,
+        receiverStudentIdAuthKey: receiver.studentIdKey,
         projectName,
         activityTitle: transferPayload.activityTitle,
         fileCount: selectedFiles.length,
@@ -28876,7 +28924,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         createdAtMs: nowMs
       };
       const transferRef = getCodeTransferDocRef(transferId);
-      const inboxRef = getCodeInboxDocRef(receiver.uid, transferId);
+      const inboxRef = getCodeInboxDocRef(receiver.studentIdKey, transferId);
 
       setCodeTransferStatus(codeSendStatus, 'Sending selected code...', 'warning');
       if (typeof writeBatch === 'function') {
@@ -28889,13 +28937,14 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         await setDoc(inboxRef, inboxPayload);
       }
 
-      setCodeTransferStatus(codeSendStatus, `Sent ${selectedFiles.length} file${selectedFiles.length === 1 ? '' : 's'} to ${receiver.name}.`, 'success');
-      setStatus(`Code sent to ${receiver.name}`);
+      const sentToLabel = receiver.name || receiver.studentId;
+      setCodeTransferStatus(codeSendStatus, `Sent ${selectedFiles.length} file${selectedFiles.length === 1 ? '' : 's'} to ${sentToLabel}.`, 'success');
+      setStatus(`Code sent to ${sentToLabel}`);
       window.setTimeout(closeCodeSendDialog, 850);
     } catch (error) {
       console.error('Could not send code transfer.', error);
       const message = isFirestorePermissionError(error)
-        ? 'Firestore Rules are blocking Code Transfer. Publish the Step 270 rules, then try again.'
+        ? 'Firestore Rules are blocking Code Transfer. Publish the updated Code Inbox rules, then try again.'
         : (error?.message || 'Could not send the selected code.');
       setCodeTransferStatus(codeSendStatus, message, 'error');
     } finally {
@@ -28975,10 +29024,11 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   }
 
   async function markCodeInboxItemRead(item) {
-    if (!item || item.status === 'read' || !appSession.student?.uid) return;
+    const inboxStudentKey = getCurrentCodeInboxStudentKey();
+    if (!item || item.status === 'read' || !inboxStudentKey) return;
     try {
       const { setDoc, serverTimestamp } = firebaseSync.modules;
-      await setDoc(getCodeInboxDocRef(appSession.student.uid, item.id), {
+      await setDoc(getCodeInboxDocRef(inboxStudentKey, item.id), {
         status: 'read',
         readAt: serverTimestamp(),
         readAtMs: Date.now()
@@ -29088,8 +29138,17 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         const snapshot = await getDoc(getCodeTransferDocRef(transferId));
         if (!snapshotExists(snapshot)) throw new Error('This code transfer is no longer available.');
         transfer = { id: snapshot.id, ...snapshotData(snapshot) };
-        if (String(transfer.receiverUid || '') !== String(appSession.student?.uid || '')) {
-          throw new Error('This code transfer belongs to a different account.');
+        const currentStudentKey = getCurrentCodeInboxStudentKey();
+        const ownsByStudentId = Boolean(
+          currentStudentKey
+          && String(transfer.receiverStudentIdAuthKey || '').toLowerCase() === currentStudentKey
+        );
+        const ownsLegacyUid = Boolean(
+          transfer.receiverUid
+          && String(transfer.receiverUid) === String(appSession.student?.uid || '')
+        );
+        if (!ownsByStudentId && !ownsLegacyUid) {
+          throw new Error('This code transfer belongs to a different Student ID.');
         }
         codeTransferState.fullTransferCache.set(transferId, transfer);
       }
@@ -29138,8 +29197,8 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       stopCodeInboxWatcher();
       return;
     }
-    const uid = String(appSession.student?.uid || '');
-    if (!uid || (codeTransferState.inboxUnsubscribe && codeTransferState.inboxUid === uid)) return;
+    const inboxStudentKey = getCurrentCodeInboxStudentKey();
+    if (!inboxStudentKey || (codeTransferState.inboxUnsubscribe && codeTransferState.inboxUid === inboxStudentKey)) return;
     stopCodeInboxWatcher();
     const ready = await initFirebaseSync();
     if (!ready || !isCodeTransferEnabled()) return;
@@ -29147,11 +29206,11 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     try {
       const { onSnapshot, query, orderBy, limit } = firebaseSync.modules;
       const inboxQuery = query(
-        getCodeInboxCollectionRef(uid),
+        getCodeInboxCollectionRef(inboxStudentKey),
         orderBy('createdAtMs', 'desc'),
         limit(INBOX_LIMIT)
       );
-      codeTransferState.inboxUid = uid;
+      codeTransferState.inboxUid = inboxStudentKey;
       codeTransferState.inboxUnsubscribe = onSnapshot(inboxQuery, snapshot => {
         applyInboxSnapshot(normalizeInboxSnapshot(snapshot), { fromWatcher: true });
         if (!codeInboxOverlay?.classList.contains('hidden')) {
@@ -29162,7 +29221,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       }, error => {
         console.warn('Code Inbox listener failed.', error);
         if (isFirestorePermissionError(error)) {
-          setCodeTransferStatus(codeInboxStatus, 'Firestore Rules are blocking Code Inbox. Publish the Step 270 rules.', 'error');
+          setCodeTransferStatus(codeInboxStatus, 'Firestore Rules are blocking Code Inbox. Publish the updated Code Inbox rules.', 'error');
         }
       });
     } catch (error) {
@@ -29180,8 +29239,10 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     try {
       setCodeTransferStatus(codeInboxStatus, 'Refreshing latest received code...', 'warning');
       const { getDocs, query, orderBy, limit } = firebaseSync.modules;
+      const inboxStudentKey = getCurrentCodeInboxStudentKey();
+      if (!inboxStudentKey) throw new Error('Your Student ID is unavailable. Log in again.');
       const inboxQuery = query(
-        getCodeInboxCollectionRef(appSession.student.uid),
+        getCodeInboxCollectionRef(inboxStudentKey),
         orderBy('createdAtMs', 'desc'),
         limit(INBOX_LIMIT)
       );
@@ -29193,7 +29254,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     } catch (error) {
       console.error('Could not refresh Code Inbox.', error);
       const message = isFirestorePermissionError(error)
-        ? 'Firestore Rules are blocking Code Inbox. Publish the Step 270 rules.'
+        ? 'Firestore Rules are blocking Code Inbox. Publish the updated Code Inbox rules.'
         : (error?.message || 'Could not refresh Code Inbox.');
       setCodeTransferStatus(codeInboxStatus, message, 'error');
     }

@@ -1,13 +1,13 @@
-const CACHE_NAME = 'ict8-connect-step272-my-projects-reminder';
+const CACHE_NAME = 'ict8-connect-step279-v272-send-code-profile-only-fix';
 const APP_SHELL = [
   './',
   './index.html',
-  './index.html?v=20260816-step272-my-projects-reminder',
-  './index.html?fresh=step272-my-projects-reminder',
+  './index.html?v=20260817-step279-v272-send-code-profile-only-fix',
+  './index.html?fresh=step279-v272-send-code-profile-only-fix',
   './style.css',
-  './style.css?v=20260816-step272-my-projects-reminder',
+  './style.css?v=20260817-step279-v272-send-code-profile-only-fix',
   './script.js',
-  './script.js?v=20260816-step272-my-projects-reminder',
+  './script.js?v=20260817-step279-v272-send-code-profile-only-fix',
   './firebase-config.js',
   './manifest.webmanifest',
   './favicon.png',
