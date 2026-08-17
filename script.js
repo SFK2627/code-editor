@@ -980,6 +980,10 @@ let adminLatestAiReview = null;
 let adminAiRubricController = null;
 let aiRubricConnectionState = { status: 'untested', code: '', message: '' };
 
+const MCS_APP_BUILD = 'v286';
+window.MCS_APP_BUILD = MCS_APP_BUILD;
+console.info(`[MCSian Code Editor] ${MCS_APP_BUILD} loaded`);
+
 const DEFAULT_STUDENT_PASSWORD = '123456';
 const STUDENT_EMAIL_DOMAIN = 'students.mcsian.app';
 const STUDENT_AUTH_RECOVERY_SLOTS = 12;
@@ -4047,6 +4051,85 @@ function getStudentRosterDocRef(studentId) {
   return doc(firebaseSync.db, firebaseSync.collectionName, firebaseSync.documentId, 'studentRoster', normalizeStudentId(studentId));
 }
 
+function getStudentLoginRouteDocRef(studentId) {
+  const { doc } = firebaseSync.modules;
+  const key = getStudentIdAuthKey(studentId).toLowerCase();
+  return doc(firebaseSync.db, firebaseSync.collectionName, firebaseSync.documentId, 'studentLoginRoutes', key);
+}
+
+async function loadStudentLoginRoute(studentId) {
+  const ready = await initFirebaseSync();
+  const key = getStudentIdAuthKey(studentId).toLowerCase();
+  if (!ready || !key) return null;
+  try {
+    const { getDoc } = firebaseSync.modules;
+    const snapshot = await getDoc(getStudentLoginRouteDocRef(studentId));
+    return snapshotExists(snapshot) ? { id: snapshot.id, ...snapshotData(snapshot) } : null;
+  } catch (error) {
+    console.info('Login route unavailable; using normal Student ID login.', error);
+    return null;
+  }
+}
+
+async function writeStudentLoginRoute(studentId, values = {}) {
+  const key = getStudentIdAuthKey(studentId).toLowerCase();
+  if (!key) return false;
+  const { setDoc, serverTimestamp } = firebaseSync.modules;
+  const authEmail = String(values.authEmail || studentIdToAuthEmail(studentId)).trim().toLowerCase();
+  await setDoc(getStudentLoginRouteDocRef(studentId), {
+    studentId: normalizeStudentId(studentId),
+    studentIdNormalized: normalizeStudentId(studentId),
+    studentIdAuthKey: key,
+    authEmail,
+    activated: values.activated === true,
+    accountStatus: values.accountStatus || 'active',
+    updatedAt: serverTimestamp()
+  }, { merge: true });
+  return true;
+}
+
+async function resolveStudentLoginTarget(studentId) {
+  const normalized = normalizeStudentId(studentId);
+  const primaryEmail = studentIdToAuthEmail(normalized);
+
+  // Tiny public GET only; no class roster listing.
+  const route = await loadStudentLoginRoute(normalized);
+  if (route?.accountStatus === 'disabled') {
+    const error = new Error('This student account is disabled. Ask your teacher for help.');
+    error.code = 'mcsian/account-disabled';
+    throw error;
+  }
+  if (route?.authEmail) {
+    return {
+      authEmail: String(route.authEmail).trim().toLowerCase(),
+      route,
+      roster: null,
+      activated: route.activated === true
+    };
+  }
+
+  // Compatibility for older imported records: exact Student-ID roster document
+  // may be read before login, but listing the class roster is still blocked.
+  let roster = null;
+  try {
+    roster = await loadStudentRosterRecord(normalized);
+  } catch (error) {
+    console.info('Exact roster login hint unavailable.', error);
+  }
+  if (roster?.accountStatus === 'disabled') {
+    const error = new Error('This student account is disabled. Ask your teacher for help.');
+    error.code = 'mcsian/account-disabled';
+    throw error;
+  }
+
+  return {
+    authEmail: String(roster?.authEmail || primaryEmail).trim().toLowerCase(),
+    route: null,
+    roster,
+    activated: Boolean(String(roster?.authUid || '').trim())
+  };
+}
+
 function getStudentDocRef(uid) {
   const { doc } = firebaseSync.modules;
   return doc(firebaseSync.db, firebaseSync.collectionName, firebaseSync.documentId, 'students', uid);
@@ -4133,33 +4216,65 @@ async function loadStudentRosterRecord(studentId) {
 
 async function findStudentRosterRecordById(studentId) {
   const normalized = normalizeStudentId(studentId);
+  const authKey = getStudentIdAuthKey(studentId);
   if (!normalized) return null;
-  const exact = await loadStudentRosterRecord(normalized);
-  if (exact && areStudentIdsEquivalent(exact.studentId || exact.studentIdNormalized || exact.id, normalized)) return exact;
 
-  // Some old accounts were created from Student IDs with/without dashes.
-  // Firebase Auth email removes symbols, so 19-00431 and 1900431 can point to
-  // the same Auth account. Search the roster by comparable key before failing.
+  const exact = await loadStudentRosterRecord(normalized);
+  if (
+    exact
+    && areStudentIdsEquivalent(
+      exact.studentId || exact.studentIdNormalized || exact.id,
+      normalized
+    )
+  ) return exact;
+
+  // STEP 285:
+  // Older imports may use a different Firestore document ID. After Firebase
+  // Authentication succeeds, query by the Student ID fields themselves.
   try {
     const activeUser = getFirebaseActiveUser();
-    if (!activeUser?.email) return exact || null;
+    if (!activeUser) return exact || null;
+
     const { getDocs, query, where, limit } = firebaseSync.modules;
-    // Privacy-safe fallback for old IDs with or without dashes. The query is
-    // limited to roster records owned by the authenticated email instead of
-    // downloading the full class roster to a student device.
-    const ownRosterQuery = query(
-      getStudentRosterCollectionRef(),
-      where('authEmail', '==', activeUser.email),
-      limit(10)
-    );
-    const snapshot = await getDocs(ownRosterQuery);
-    const match = (snapshot.docs || []).map(docSnapshot => ({
-      id: docSnapshot.id,
-      ...snapshotData(docSnapshot)
-    })).find(record => areStudentIdsEquivalent(record.studentId || record.studentIdNormalized || record.id, normalized));
-    return match || null;
+    const queries = [];
+
+    [...new Set([normalized, authKey].filter(Boolean))].forEach(value => {
+      queries.push(
+        query(getStudentRosterCollectionRef(), where('studentIdNormalized', '==', value), limit(5)),
+        query(getStudentRosterCollectionRef(), where('studentId', '==', value), limit(5))
+      );
+    });
+
+    if (activeUser.email) {
+      queries.push(
+        query(
+          getStudentRosterCollectionRef(),
+          where('authEmail', '==', String(activeUser.email).toLowerCase()),
+          limit(10)
+        )
+      );
+    }
+
+    for (const rosterQuery of queries) {
+      try {
+        const snapshot = await getDocs(rosterQuery);
+        const match = (snapshot.docs || [])
+          .map(docSnapshot => ({
+            id: docSnapshot.id,
+            ...snapshotData(docSnapshot)
+          }))
+          .find(record => areStudentIdsEquivalent(
+            record.studentId || record.studentIdNormalized || record.id,
+            normalized
+          ));
+        if (match) return match;
+      } catch (queryError) {
+        console.info('One legacy roster lookup path was skipped.', queryError);
+      }
+    }
+    return exact || null;
   } catch (error) {
-    console.warn('Could not search own roster record by Student ID key.', error);
+    console.warn('Could not search roster by Student ID compatibility keys.', error);
     return exact || null;
   }
 }
@@ -5097,22 +5212,31 @@ async function createOrRepairStudentProfileFromRoster(user, studentId, existingP
   } catch (rosterUpdateError) {
     console.warn('Student roster repair marker was not updated.', rosterUpdateError);
   }
+  try {
+    await writeStudentLoginRoute(rosterStudentId, {
+      authEmail: profile.authEmail,
+      activated: true,
+      accountStatus: profile.accountStatus || 'active'
+    });
+  } catch (routeError) {
+    console.warn('Student login route repair was skipped.', routeError);
+  }
   return { uid: user.uid, ...savedProfile, updatedAt: new Date() };
 }
 
-async function signInStudentWithCandidateEmails(studentId, password, roster = null) {
-  const candidates = getStudentAuthEmailCandidates(studentId, roster);
-  let lastError = null;
-  for (const candidateEmail of candidates) {
-    try {
-      const credential = await firebaseSync.authModule.signInWithEmailAndPassword(firebaseSync.auth, candidateEmail, password);
-      return { credential, authEmail: candidateEmail };
-    } catch (error) {
-      lastError = error;
-      if (!isAuthMissingOrWrongPasswordError(error)) throw error;
-    }
-  }
-  throw lastError || new Error('Student ID or password is incorrect.');
+async function signInStudentWithCandidateEmails(studentId, password, loginTarget = null) {
+  const target = loginTarget || await resolveStudentLoginTarget(studentId);
+  const authEmail = String(target?.authEmail || studentIdToAuthEmail(studentId)).trim().toLowerCase();
+  if (!authEmail) throw new Error('Student ID is invalid.');
+
+  // STEP 286: ONE button click = ONE Firebase Auth sign-in request.
+  // No loops through primary/recovery emails.
+  const credential = await firebaseSync.authModule.signInWithEmailAndPassword(
+    firebaseSync.auth,
+    authEmail,
+    password
+  );
+  return { credential, authEmail, loginTarget: target };
 }
 
 async function createFirebaseStudentCredential(studentId, roster = null, { allowRecovery = false } = {}) {
@@ -5140,7 +5264,7 @@ async function createFirebaseStudentCredential(studentId, roster = null, { allow
   throw conflictError;
 }
 
-async function createStudentAccountFromRoster(studentId, password) {
+async function createStudentAccountFromRoster(studentId, password, preloadedRoster = null) {
   if (password !== DEFAULT_STUDENT_PASSWORD) {
     throw new Error('This Student ID is registered, but the account is not activated yet. Use the default password 123456 first.');
   }
@@ -5148,7 +5272,7 @@ async function createStudentAccountFromRoster(studentId, password) {
     throw new Error('Student account activation is not available yet. Refresh the page and try again.');
   }
 
-  let roster = await findStudentRosterRecordById(studentId);
+  let roster = preloadedRoster || await loadStudentRosterRecord(studentId);
   if (!roster || !areStudentIdsEquivalent(roster.studentId || roster.studentIdNormalized || roster.id, studentId)) {
     throw new Error('This Student ID is not registered in the class list. Ask your teacher to import or add it first.');
   }
@@ -5206,6 +5330,15 @@ async function createStudentAccountFromRoster(studentId, password) {
     } catch (rosterUpdateError) {
       console.warn('Student roster activation marker was not updated.', rosterUpdateError);
     }
+    try {
+      await writeStudentLoginRoute(profile.studentIdNormalized || studentId, {
+        authEmail,
+        activated: true,
+        accountStatus: profile.accountStatus || 'active'
+      });
+    } catch (routeError) {
+      console.warn('Student login route self-heal was skipped.', routeError);
+    }
     return { uid: credential.user.uid, ...profile, createdAt: new Date(), updatedAt: new Date() };
   } catch (error) {
     if (firebaseSync.auth?.currentUser?.uid === credential.user?.uid) {
@@ -5224,77 +5357,180 @@ function getStudentAuthErrorMessage(error) {
   if (code.includes('invalid-credential') || code.includes('wrong-password') || code.includes('user-not-found')) {
     return 'Student ID or password is incorrect. Use 123456 only for first login; otherwise use the password you created.';
   }
-  if (code.includes('too-many-requests')) return 'Too many login attempts. Wait a few minutes and try again.';
+  if (code.includes('too-many-requests')) return 'Login is temporarily paused after repeated attempts. Please stop trying for a few minutes. If you are unsure of the password, ask your teacher to use Reset Pass.';
   if (code.includes('network-request-failed')) return 'Internet connection problem. Please reconnect and try again.';
   if (code.includes('operation-not-allowed')) return 'Student login is not enabled yet. The teacher must enable Email/Password in Firebase Authentication.';
   if (code.includes('unauthorized-domain')) return 'This website domain must be added to Firebase Authentication authorized domains.';
-  if (isFirestorePermissionError(error)) return 'Firebase Authentication accepted this account, but Firestore blocked creation/repair of the student profile. Publish the v284 Firestore rules, hard refresh, then log in again. Do not delete the Auth account again.';
+  if (isFirestorePermissionError(error)) return 'Your account needs a quick teacher repair before it can open. Please give your Student ID to your teacher. Do not keep retrying the login.';
   return error?.message || 'Login failed. Check your Student ID and password.';
+}
+
+
+const studentLoginGuard = {
+  busy: false,
+  failuresById: new Map()
+};
+
+function getStudentLoginGuardState(studentId) {
+  const key = normalizeStudentId(studentId);
+  if (!studentLoginGuard.failuresById.has(key)) {
+    studentLoginGuard.failuresById.set(key, { count: 0, blockedUntil: 0 });
+  }
+  return studentLoginGuard.failuresById.get(key);
+}
+
+function noteStudentLoginFailure(studentId, error) {
+  const state = getStudentLoginGuardState(studentId);
+  if (!isAuthMissingOrWrongPasswordError(error)) return state;
+  state.count += 1;
+  const delay = state.count >= 3 ? 30000 : 3500;
+  state.blockedUntil = Date.now() + delay;
+  return state;
+}
+
+function clearStudentLoginFailures(studentId) {
+  studentLoginGuard.failuresById.delete(normalizeStudentId(studentId));
 }
 
 async function loginStudent() {
   setStudentLoginError('');
+
+  if (studentLoginGuard.busy) return;
+
   const studentId = normalizeStudentId(studentLoginId?.value);
   const password = String(studentLoginPassword?.value || '');
-  const authEmail = studentIdToAuthEmail(studentId);
   if (!studentId || !password) {
     setStudentLoginError('Enter your Student ID and password.');
     return;
   }
-  if (!authEmail) {
+  if (!studentIdToAuthEmail(studentId)) {
     setStudentLoginError('Student ID is invalid.');
     return;
   }
-  const ready = await initFirebaseSync();
-  if (!ready || !firebaseSync.authModule) {
-    setStudentLoginError('Firebase is not ready. Check the internet connection and try again.');
+
+  const guard = getStudentLoginGuardState(studentId);
+  if (guard.blockedUntil > Date.now()) {
+    const seconds = Math.max(1, Math.ceil((guard.blockedUntil - Date.now()) / 1000));
+    setStudentLoginError(`Please wait ${seconds} seconds before trying again. Check the password first.`);
     return;
   }
+
+  const ready = await initFirebaseSync();
+  if (!ready || !firebaseSync.authModule) {
+    setStudentLoginError('Cannot connect right now. Check the internet connection, reopen the page, and try once.');
+    return;
+  }
+
+  studentLoginGuard.busy = true;
   try {
     if (studentLoginBtn) {
       studentLoginBtn.disabled = true;
       studentLoginBtn.textContent = 'Logging in...';
     }
+
+    const loginTarget = await resolveStudentLoginTarget(studentId);
     let credential = null;
     let profile = null;
+
     try {
-      const signedIn = await signInStudentWithCandidateEmails(studentId, password);
+      const signedIn = await signInStudentWithCandidateEmails(studentId, password, loginTarget);
       credential = signedIn.credential;
       firebaseSync.currentUser = credential.user;
+
+      // Existing healthy account: read its own profile and stop. Do not touch
+      // roster/profile documents unnecessarily on every login.
       profile = await loadStudentProfile(credential.user.uid);
+
       if (!profile) {
-        profile = await createOrRepairStudentProfileFromRoster(credential.user, studentId, null);
-      } else if (!areStudentIdsEquivalent(profile.studentId || profile.studentIdNormalized, studentId)) {
-        const sameAuthEmail = getStudentAuthEmailCandidates(studentId).includes(String(profile.authEmail || '').toLowerCase());
-        if (sameAuthEmail || areStudentIdsEquivalent(profile.studentIdNormalized, studentId)) {
-          profile = await createOrRepairStudentProfileFromRoster(credential.user, studentId, profile);
-        }
+        // Auth account exists but profile is missing: now that Auth succeeded,
+        // a signed-in legacy roster search is safe.
+        profile = await createOrRepairStudentProfileFromRoster(
+          credential.user,
+          studentId,
+          null
+        );
+      } else if (!areStudentIdsEquivalent(
+        profile.studentId || profile.studentIdNormalized,
+        studentId
+      )) {
+        profile = await createOrRepairStudentProfileFromRoster(
+          credential.user,
+          studentId,
+          profile
+        );
+      }
+
+      // Successful accounts self-heal their one tiny login route.
+      try {
+        await writeStudentLoginRoute(studentId, {
+          authEmail: credential.user.email,
+          activated: true,
+          accountStatus: profile?.accountStatus || 'active'
+        });
+      } catch (routeError) {
+        console.info('Login route self-heal skipped.', routeError);
       }
     } catch (signInError) {
+      // Do not try another email. One click already used its one Auth attempt.
       if (!isAuthMissingOrWrongPasswordError(signInError)) throw signInError;
-      if (password !== DEFAULT_STUDENT_PASSWORD) throw signInError;
-      // Default password is allowed for first activation only.
-      // Do not use 123456 to create a fresh recovery/duplicate account for an
-      // already activated student; that is handled by Recovery tools, not login.
-      clearSelectiveFirestoreCache(`studentRoster:${studentId}`);
-      profile = await createStudentAccountFromRoster(studentId, password);
+
+      if (password !== DEFAULT_STUDENT_PASSWORD) {
+        noteStudentLoginFailure(studentId, signInError);
+        throw signInError;
+      }
+
+      // If the route/roster says an Auth account already exists, 123456 is NOT
+      // treated as a reason to create another account.
+      if (loginTarget.activated || String(loginTarget.roster?.authUid || '').trim()) {
+        noteStudentLoginFailure(studentId, signInError);
+        const resetError = new Error(
+          'The default password is no longer active for this account. Use your current password or ask your teacher to use Reset Pass.'
+        );
+        resetError.code = 'auth/wrong-password';
+        throw resetError;
+      }
+
+      // Truly new account only. Exact roster GET is allowed; roster listing is not.
+      const roster = loginTarget.roster || await loadStudentRosterRecord(studentId);
+      if (!roster) {
+        const registrationError = new Error(
+          'This Student ID is not ready for first login yet. Ask your teacher to check the student record.'
+        );
+        registrationError.code = 'mcsian/not-ready';
+        throw registrationError;
+      }
+
+      profile = await createStudentAccountFromRoster(studentId, password, roster);
     }
-    if (!profile || !areStudentIdsEquivalent(profile.studentId || profile.studentIdNormalized, studentId)) {
+
+    if (!profile || !areStudentIdsEquivalent(
+      profile.studentId || profile.studentIdNormalized,
+      studentId
+    )) {
       await firebaseSync.authModule.signOut(firebaseSync.auth);
-      throw new Error('This login has no registered student profile. Ask your teacher to register the Student ID again.');
+      throw new Error('This account needs a teacher check before it can open.');
     }
+
     if (profile.accountStatus === 'disabled') {
       await firebaseSync.authModule.signOut(firebaseSync.auth);
       throw new Error('This student account is disabled. Ask your teacher for help.');
     }
+
+    clearStudentLoginFailures(studentId);
     if (studentLoginPassword) studentLoginPassword.value = '';
     loginReminderPendingAfterPasswordLogin = true;
     await activateStudentSession(profile);
   } catch (error) {
     loginReminderPendingAfterPasswordLogin = false;
     console.error('Student login failed', error);
+
+    if (isAuthMissingOrWrongPasswordError(error)) {
+      noteStudentLoginFailure(studentId, error);
+    }
+
     setStudentLoginError(getStudentAuthErrorMessage(error));
   } finally {
+    studentLoginGuard.busy = false;
     if (studentLoginBtn) {
       studentLoginBtn.disabled = false;
       studentLoginBtn.textContent = 'Log In';
@@ -7325,6 +7561,11 @@ async function registerStudentRosterRecord(rawRecord) {
     createdBy: firebaseSync.auth?.currentUser?.email || firebaseSync.currentUser?.email || 'teacher'
   };
   await setDoc(getStudentRosterDocRef(record.studentId), rosterRecord, { merge: false });
+  await writeStudentLoginRoute(record.studentId, {
+    authEmail: record.authEmail,
+    activated: false,
+    accountStatus: 'active'
+  });
   clearSelectiveFirestoreCache('admin:studentsAndRoster');
   clearSelectiveFirestoreCache(`studentRoster:${record.studentId}`);
   const localRecord = {
@@ -7621,6 +7862,11 @@ async function repairMissingRosterInternal(student = {}) {
   };
 
   await setDoc(rosterRef, rosterRecord, { merge: false });
+  await writeStudentLoginRoute(studentId, {
+    authEmail,
+    activated: true,
+    accountStatus: rosterRecord.accountStatus || 'active'
+  });
   clearSelectiveFirestoreCache('admin:studentsAndRoster');
   clearSelectiveFirestoreCache(`studentRoster:${studentId}`);
 
@@ -8613,6 +8859,21 @@ async function runAdminStudentLoginDiagnostic(studentId = '', uid = '') {
     const rosterAuthUid = String(roster?.authUid || '').trim();
     const rosterAuthEmail = String(roster?.authEmail || '').trim().toLowerCase();
     const profileEmails = [...new Set(profileRecords.map(record => String(record.authEmail || '').trim().toLowerCase()).filter(Boolean))];
+
+    // Teacher diagnostic doubles as a safe login-route repair when there is
+    // exactly one unambiguous working profile.
+    if (profileRecords.length === 1 && profileEmails.length === 1 && resolvedId) {
+      try {
+        await writeStudentLoginRoute(resolvedId, {
+          authEmail: profileEmails[0],
+          activated: true,
+          accountStatus: profileRecords[0].accountStatus || 'active'
+        });
+      } catch (routeRepairError) {
+        console.warn('Login Check route repair skipped.', routeRepairError);
+      }
+    }
+
     const profileIds = [...new Set(profileRecords.map(record => normalizeStudentId(record.studentId || record.studentIdNormalized || '')).filter(Boolean))];
     const profileStatusValues = [...new Set(profileRecords.map(record => String(record.accountStatus || '').trim()).filter(Boolean))];
     const mustChangeValues = [...new Set(profileRecords.map(record => record.mustChangePassword === false ? 'No' : 'Yes').filter(Boolean))];
@@ -8861,6 +9122,12 @@ async function resetAdminStudentLoginAccess(studentId = '', uid = '', triggerBut
       };
       if (result.email) rosterUpdate.authEmail = String(result.email || '').toLowerCase();
       await setDoc(getStudentRosterDocRef(resolvedId), rosterUpdate, { merge: true });
+
+      await writeStudentLoginRoute(resolvedId, {
+        authEmail: String(result.email || selectedProfileChoice?.authEmail || student?.authEmail || studentIdToAuthEmail(resolvedId)).toLowerCase(),
+        activated: true,
+        accountStatus: student?.accountStatus || 'active'
+      });
     } catch (rosterError) {
       console.warn('Password reset succeeded, but roster reset marker was not updated.', rosterError);
     }
@@ -13377,7 +13644,11 @@ function updateInstallButtonVisibility() {
 function registerPWAServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./service-worker.js').catch(error => {
+    navigator.serviceWorker.register('./service-worker.js?v=286', {
+      updateViaCache: 'none'
+    }).then(registration => {
+      registration.update().catch(() => {});
+    }).catch(error => {
       console.warn('Service worker registration failed', error);
     });
   });
