@@ -23335,7 +23335,7 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
 })();
 
 
-/* STUDENT COLLABORATION: Admin-controlled Share / Join live project sessions. */
+/* STUDENT COLLABORATION: Step 282 CRDT live typing + Share / Join sessions. */
 (function initStudentCollaborationFeature() {
   if (window.__MCS_COLLAB_FEATURE_READY__) return;
   window.__MCS_COLLAB_FEATURE_READY__ = true;
@@ -23391,9 +23391,11 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     chunkBuffers: new Map(),
     reconnectAttempts: 0,
     fileSyncBases: {},
-    editorComposing: false,
-    queuedRemotePatches: [],
-    remotePreviewTimer: null
+    crdtDocs: {},
+    crdtReady: false,
+    crdtLocalSeq: 0,
+    crdtBeforeInput: null,
+    crdtRemotePreviewTimer: null
   };
 
   function isCollaborationEnabled() {
@@ -23739,6 +23741,7 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
       hostUid: current.hostUid || (collabState.role === 'host' ? getCollabUid() : ''),
       hostName: current.hostName || (collabState.role === 'host' ? getCollabName() : ''),
       contentVersion: Math.max(Number(current.contentVersion || 0), Number(collabState.lastContentVersion || 0)),
+      crdtSnapshots: exportAllCrdtDocs(),
       members: {
         ...(current.members || {}),
         ...collabState.peerMembers
@@ -23827,6 +23830,451 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
   }
 
 
+
+  /* =========================================================
+     STEP 282 — CRDT LIVE TYPING
+     ---------------------------------------------------------
+     Normal typing no longer syncs by raw character positions.
+     Each visible character has a stable ID. Insert/delete ops
+     commute across users, so simultaneous typing does not make
+     another student's caret jump to a stale numeric position.
+     ========================================================= */
+
+  const COLLAB_CRDT_ROOT = '__ROOT__';
+
+  function crdtScopeKey(activityId = selectedActivityId || '', language = activeLanguage, fileName = getActiveLanguageFileName(language)) {
+    return getCollabFileScopeKey(activityId, language, fileName);
+  }
+
+  function crdtSafeUid() {
+    return String(getCollabUid() || 'anon').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 48) || 'anon';
+  }
+
+  function crdtInitialId(scopeKey, index) {
+    // Deterministic IDs for the initial shared text. All peers that initialize
+    // from the same snapshot produce identical IDs.
+    return `0000000000:init:${btoa(unescape(encodeURIComponent(scopeKey))).replace(/[^A-Za-z0-9]/g, '').slice(0, 18)}:${String(index).padStart(8, '0')}`;
+  }
+
+  function crdtNewId() {
+    collabState.crdtLocalSeq += 1;
+    const time = Date.now().toString(36).padStart(10, '0');
+    const seq = String(collabState.crdtLocalSeq).padStart(8, '0');
+    return `${time}:${crdtSafeUid()}:${seq}`;
+  }
+
+  function makeEmptyCrdtDoc(scopeKey = '') {
+    return {
+      scopeKey,
+      nodes: {},
+      children: { [COLLAB_CRDT_ROOT]: [] }
+    };
+  }
+
+  function crdtAddChild(doc, afterId, childId) {
+    const parent = afterId || COLLAB_CRDT_ROOT;
+    if (!Array.isArray(doc.children[parent])) doc.children[parent] = [];
+    if (!doc.children[parent].includes(childId)) {
+      doc.children[parent].push(childId);
+      // Newer IDs first. This makes a new insertion appear before the old
+      // successor while concurrent inserts still have deterministic ordering.
+      doc.children[parent].sort((a, b) => String(b).localeCompare(String(a)));
+    }
+  }
+
+  function createCrdtDocFromText(scopeKey, text = '') {
+    const doc = makeEmptyCrdtDoc(scopeKey);
+    let afterId = COLLAB_CRDT_ROOT;
+    Array.from(String(text || '')).forEach((ch, index) => {
+      const id = crdtInitialId(scopeKey, index);
+      doc.nodes[id] = { id, afterId, ch, deleted: false };
+      crdtAddChild(doc, afterId, id);
+      afterId = id;
+    });
+    return doc;
+  }
+
+  function getCrdtDoc(scopeKey, fallbackText = '') {
+    if (!scopeKey) return null;
+    let doc = collabState.crdtDocs[scopeKey];
+    if (!doc) {
+      doc = createCrdtDocFromText(scopeKey, fallbackText);
+      collabState.crdtDocs[scopeKey] = doc;
+    }
+    return doc;
+  }
+
+  function crdtVisit(doc, parentId, outputIds) {
+    const children = Array.isArray(doc?.children?.[parentId]) ? doc.children[parentId] : [];
+    children.forEach(id => {
+      const node = doc.nodes[id];
+      if (!node) return;
+      if (!node.deleted) outputIds.push(id);
+      crdtVisit(doc, id, outputIds);
+    });
+  }
+
+  function crdtVisibleIds(doc) {
+    const ids = [];
+    if (!doc) return ids;
+    crdtVisit(doc, COLLAB_CRDT_ROOT, ids);
+    return ids;
+  }
+
+  function crdtVisibleText(doc) {
+    return crdtVisibleIds(doc).map(id => doc.nodes[id]?.ch || '').join('');
+  }
+
+  function crdtExportDoc(doc) {
+    if (!doc) return null;
+    return {
+      scopeKey: doc.scopeKey || '',
+      nodes: Object.values(doc.nodes || {}).map(node => [
+        node.id,
+        node.afterId || COLLAB_CRDT_ROOT,
+        node.ch || '',
+        node.deleted === true ? 1 : 0
+      ])
+    };
+  }
+
+  function crdtImportDoc(snapshot) {
+    if (!snapshot?.scopeKey || !Array.isArray(snapshot.nodes)) return null;
+    const doc = makeEmptyCrdtDoc(snapshot.scopeKey);
+    snapshot.nodes.forEach(row => {
+      if (!Array.isArray(row) || !row[0]) return;
+      const [id, afterId, ch, deleted] = row;
+      doc.nodes[id] = {
+        id,
+        afterId: afterId || COLLAB_CRDT_ROOT,
+        ch: String(ch ?? ''),
+        deleted: Boolean(deleted)
+      };
+    });
+    Object.values(doc.nodes).forEach(node => crdtAddChild(doc, node.afterId, node.id));
+    return doc;
+  }
+
+  function exportAllCrdtDocs() {
+    const result = {};
+    Object.entries(collabState.crdtDocs || {}).forEach(([scopeKey, doc]) => {
+      const snapshot = crdtExportDoc(doc);
+      if (snapshot) result[scopeKey] = snapshot;
+    });
+    return result;
+  }
+
+  function importAllCrdtDocs(source = {}) {
+    if (!source || typeof source !== 'object') return false;
+    const next = {};
+    Object.entries(source).forEach(([scopeKey, snapshot]) => {
+      const imported = crdtImportDoc(snapshot);
+      if (imported) next[scopeKey] = imported;
+    });
+    if (Object.keys(next).length) {
+      collabState.crdtDocs = next;
+      return true;
+    }
+    return false;
+  }
+
+  function initializeCrdtDocsFromCurrentProject({ force = false } = {}) {
+    if (force) collabState.crdtDocs = {};
+    Object.entries(codeByActivity || {}).forEach(([activityKey, rawStore]) => {
+      const activityId = activityKey === 'scratch' ? '' : activityKey;
+      const store = normalizeCodeStore(rawStore);
+      ['html', 'css', 'js'].forEach(language => {
+        const files = getLanguageFileMap(language, store);
+        Object.entries(files || {}).forEach(([fileName, content]) => {
+          const scopeKey = crdtScopeKey(activityId, language, fileName);
+          if (!collabState.crdtDocs[scopeKey]) {
+            collabState.crdtDocs[scopeKey] = createCrdtDocFromText(scopeKey, content);
+          }
+        });
+      });
+    });
+
+    // Ensure the actively visible file is always initialized.
+    const language = ['html', 'css', 'js'].includes(activeLanguage) ? activeLanguage : 'html';
+    const fileName = getActiveLanguageFileName(language);
+    const scopeKey = crdtScopeKey(selectedActivityId || '', language, fileName);
+    getCrdtDoc(scopeKey, String(editor?.value || getLanguageFileContent(language, fileName) || ''));
+  }
+
+  function crdtCaptureEndpoint(doc, position) {
+    const ids = crdtVisibleIds(doc);
+    const pos = Math.max(0, Math.min(ids.length, Number(position) || 0));
+    return {
+      beforeId: pos > 0 ? ids[pos - 1] : '',
+      afterId: pos < ids.length ? ids[pos] : '',
+      fallback: pos
+    };
+  }
+
+  function crdtResolveEndpoint(doc, anchor = {}) {
+    const ids = crdtVisibleIds(doc);
+    if (anchor.beforeId) {
+      const beforeIndex = ids.indexOf(anchor.beforeId);
+      if (beforeIndex >= 0) return beforeIndex + 1;
+    }
+    if (anchor.afterId) {
+      const afterIndex = ids.indexOf(anchor.afterId);
+      if (afterIndex >= 0) return afterIndex;
+    }
+    return Math.max(0, Math.min(ids.length, Number(anchor.fallback) || 0));
+  }
+
+  function captureCrdtEditorSelection(doc) {
+    const start = Number(editor.selectionStart || 0);
+    const end = Number(editor.selectionEnd || start);
+    return {
+      start: crdtCaptureEndpoint(doc, start),
+      end: crdtCaptureEndpoint(doc, end),
+      direction: editor.selectionDirection || 'none',
+      scrollTop: Number(editor.scrollTop || 0),
+      scrollLeft: Number(editor.scrollLeft || 0),
+      hadFocus: document.activeElement === editor
+    };
+  }
+
+  function restoreCrdtEditorSelection(doc, saved = {}) {
+    const textLength = crdtVisibleIds(doc).length;
+    const start = Math.min(textLength, crdtResolveEndpoint(doc, saved.start || {}));
+    const end = Math.min(textLength, crdtResolveEndpoint(doc, saved.end || {}));
+    try {
+      editor.setSelectionRange(
+        Math.min(start, end),
+        Math.max(start, end),
+        saved.direction === 'backward' ? 'backward' : saved.direction === 'forward' ? 'forward' : 'none'
+      );
+    } catch (_) {}
+    editor.scrollTop = Number(saved.scrollTop || 0);
+    editor.scrollLeft = Number(saved.scrollLeft || 0);
+    // Never call focus() here. Remote typing must never steal focus.
+  }
+
+  function applyCrdtOps(doc, ops = []) {
+    if (!doc || !Array.isArray(ops)) return;
+    ops.forEach(op => {
+      if (!op || !op.type) return;
+      if (op.type === 'insert' && Array.isArray(op.nodes)) {
+        op.nodes.forEach(raw => {
+          if (!raw?.id) return;
+          if (!doc.nodes[raw.id]) {
+            doc.nodes[raw.id] = {
+              id: raw.id,
+              afterId: raw.afterId || COLLAB_CRDT_ROOT,
+              ch: String(raw.ch ?? ''),
+              deleted: false
+            };
+            crdtAddChild(doc, doc.nodes[raw.id].afterId, raw.id);
+          }
+        });
+      } else if (op.type === 'delete' && Array.isArray(op.ids)) {
+        op.ids.forEach(id => {
+          if (doc.nodes[id]) doc.nodes[id].deleted = true;
+        });
+      }
+    });
+  }
+
+  function buildCrdtOpsFromLocalEdit(doc, before = '', after = '') {
+    const patch = getCollabTextDiffPatch(before, after);
+    if (!patch.changed) return [];
+
+    const visibleIds = crdtVisibleIds(doc);
+    const start = Math.max(0, Math.min(visibleIds.length, Number(patch.start) || 0));
+    const deleteCount = Math.max(0, Number(patch.deleteCount) || 0);
+    const deleteIds = visibleIds.slice(start, start + deleteCount);
+    const ops = [];
+
+    if (deleteIds.length) ops.push({ type: 'delete', ids: deleteIds });
+
+    const insertText = Array.from(String(patch.insertText || ''));
+    if (insertText.length) {
+      let afterId = start > 0 ? visibleIds[start - 1] : COLLAB_CRDT_ROOT;
+      const nodes = insertText.map(ch => {
+        const node = { id: crdtNewId(), afterId, ch };
+        afterId = node.id;
+        return node;
+      });
+      ops.push({ type: 'insert', nodes });
+    }
+
+    return ops;
+  }
+
+  function getCrdtScopeMeta() {
+    const language = ['html', 'css', 'js'].includes(activeLanguage) ? activeLanguage : 'html';
+    const fileName = getActiveLanguageFileName(language);
+    const activityId = selectedActivityId || '';
+    return {
+      activityId,
+      language,
+      fileName,
+      scopeKey: crdtScopeKey(activityId, language, fileName)
+    };
+  }
+
+  function syncCrdtTextIntoCodeStore(meta, text) {
+    const codeKey = meta.activityId || 'scratch';
+    const targetStore = normalizeCodeStore(codeByActivity[codeKey] || starterCode);
+    const files = getLanguageFileMap(meta.language, targetStore);
+    files[meta.fileName] = String(text ?? '');
+    const languageMeta = getLanguageFileMeta(meta.language);
+    targetStore[languageMeta.codeKey] = files[meta.fileName];
+    if (!targetStore[languageMeta.activeKey]) targetStore[languageMeta.activeKey] = meta.fileName;
+    codeByActivity[codeKey] = targetStore;
+
+    if ((selectedActivityId || '') === meta.activityId) {
+      codeStore = targetStore;
+      if (activeLanguage === meta.language && getActiveLanguageFileName(meta.language) === meta.fileName) {
+        setLanguageFileContent(meta.language, meta.fileName, files[meta.fileName]);
+      }
+    }
+    saveCodeByActivity();
+  }
+
+  function refreshCrdtEditorVisuals() {
+    try { updateLineNumbers(); } catch (_) {}
+    try { renderStructureAlert(); } catch (_) {}
+    try { updateTagMatching(); } catch (_) {}
+    try { syncEditorScroll(); } catch (_) {}
+    try { scheduleEditorHelperRefresh(160); } catch (_) {}
+    window.clearTimeout(collabState.crdtRemotePreviewTimer);
+    collabState.crdtRemotePreviewTimer = window.setTimeout(() => {
+      try {
+        resetResultPanel();
+        runCode(false, { scroll: false, trackRun: false, source: 'collab-crdt' });
+      } catch (_) {}
+    }, 120);
+  }
+
+  function applyRemoteCrdtOps(data = {}) {
+    const meta = {
+      activityId: String(data.selectedActivityId || ''),
+      language: ['html', 'css', 'js'].includes(data.language) ? data.language : 'html',
+      fileName: cleanLanguageFileName(data.fileName, ['html', 'css', 'js'].includes(data.language) ? data.language : 'html'),
+      scopeKey: String(data.scopeKey || '')
+    };
+    if (!meta.scopeKey) meta.scopeKey = crdtScopeKey(meta.activityId, meta.language, meta.fileName);
+
+    const codeKey = meta.activityId || 'scratch';
+    const targetStore = normalizeCodeStore(codeByActivity[codeKey] || starterCode);
+    const files = getLanguageFileMap(meta.language, targetStore);
+    const fallbackText = String(files[meta.fileName] ?? '');
+    const doc = getCrdtDoc(meta.scopeKey, fallbackText);
+
+    const viewingSameFile = (selectedActivityId || '') === meta.activityId
+      && activeLanguage === meta.language
+      && getActiveLanguageFileName(meta.language) === meta.fileName;
+
+    // The sender already applied its own CRDT operation locally. Receiving the
+    // host echo is only an acknowledgement/version update, never a text reset.
+    if (data.lastEditorUid && data.lastEditorUid === getCollabUid()) {
+      const version = Number(data.contentVersion || 0);
+      if (version > collabState.lastContentVersion) collabState.lastContentVersion = version;
+      return;
+    }
+
+    const savedSelection = viewingSameFile ? captureCrdtEditorSelection(doc) : null;
+    applyCrdtOps(doc, data.ops || []);
+    const nextText = crdtVisibleText(doc);
+    syncCrdtTextIntoCodeStore(meta, nextText);
+
+    if (viewingSameFile) {
+      collabState.applyingRemote = true;
+      try {
+        editor.value = nextText;
+        restoreCrdtEditorSelection(doc, savedSelection);
+        refreshCrdtEditorVisuals();
+      } finally {
+        window.setTimeout(() => { collabState.applyingRemote = false; }, 0);
+      }
+    }
+
+    const version = Number(data.contentVersion || 0);
+    if (version > collabState.lastContentVersion) collabState.lastContentVersion = version;
+    setStatus(`${data.lastEditorName || 'Classmate'} updated ${meta.fileName}`);
+    window.setTimeout(() => renderCollabCursors(collabState.latestSession), 20);
+  }
+
+  function sendLocalCrdtOps(meta, ops = []) {
+    if (!collabState.active || !collabState.canEdit || !collabState.crdtReady || !ops.length) return false;
+
+    const baseData = {
+      patchMode: 'crdtOps',
+      selectedActivityId: meta.activityId,
+      language: meta.language,
+      fileName: meta.fileName,
+      scopeKey: meta.scopeKey,
+      ops,
+      lastEditorUid: getCollabUid(),
+      lastEditorName: getCollabName(),
+      lastEditorLanguage: meta.language,
+      lastEditorFile: meta.fileName
+    };
+
+    if (collabState.role === 'host') {
+      const authoritative = {
+        ...baseData,
+        contentVersion: getNextCollabHostVersion()
+      };
+      collabState.lastContentVersion = authoritative.contentVersion;
+      collabState.latestSession = { ...(collabState.latestSession || {}), ...authoritative };
+      broadcastCollabP2PMessage(buildCollabChannelMessage('content', { data: authoritative }));
+      return true;
+    }
+
+    const hostUid = collabState.latestSession?.hostUid;
+    const message = buildCollabChannelMessage('content', {
+      data: { ...baseData, contentVersion: Number(collabState.lastContentVersion || 0) }
+    });
+    const sent = Boolean(hostUid && sendCollabP2PMessage(hostUid, message));
+    if (!sent) collabState.pendingLiveMessage = message;
+    return sent;
+  }
+
+  function handleLocalCrdtEditorInput() {
+    if (!collabState.active || !collabState.canEdit || !collabState.crdtReady || collabState.applyingRemote) return false;
+
+    const meta = getCrdtScopeMeta();
+    const before = String(collabState.crdtBeforeInput?.value ?? '');
+    const after = String(editor.value || '');
+    const doc = getCrdtDoc(meta.scopeKey, before);
+
+    // If a browser event arrived without beforeinput, use the current CRDT text
+    // as the base. This is still deterministic and avoids guessing from a stale
+    // whole-document network snapshot.
+    const baseText = before || crdtVisibleText(doc);
+    if (crdtVisibleText(doc) !== baseText) {
+      console.warn('CRDT local base mismatch; using CRDT visible text as edit base.');
+    }
+
+    const ops = buildCrdtOpsFromLocalEdit(doc, crdtVisibleText(doc), after);
+    if (!ops.length) {
+      collabState.crdtBeforeInput = null;
+      return true;
+    }
+
+    applyCrdtOps(doc, ops);
+    const canonicalText = crdtVisibleText(doc);
+
+    // New local IDs are newest, so normal local typing should already match the
+    // textarea. If concurrent ordering changes one boundary, keep the stable
+    // local caret anchored by IDs rather than letting browser positions drift.
+    if (canonicalText !== after) {
+      const savedSelection = captureCrdtEditorSelection(doc);
+      editor.value = canonicalText;
+      restoreCrdtEditorSelection(doc, savedSelection);
+    }
+
+    syncCrdtTextIntoCodeStore(meta, canonicalText);
+    sendLocalCrdtOps(meta, ops);
+    collabState.crdtBeforeInput = null;
+    return true;
+  }
+
   function getCollabTextDiffPatch(before = '', after = '') {
     const oldText = String(before || '');
     const newText = String(after || '');
@@ -23888,191 +24336,6 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
   }
 
 
-
-  // STEP 281: map one caret/selection position through a known remote edit.
-  // Unlike comparing the whole old/new document, this uses the exact remote
-  // replace range so unrelated simultaneous edits do not confuse the cursor.
-  function mapCollabPositionThroughExactEdit(position, editStart, editEnd, insertedLength, affinity = 'right') {
-    const start = Math.max(0, Number(editStart) || 0);
-    const end = Math.max(start, Number(editEnd) || start);
-    const insertLength = Math.max(0, Number(insertedLength) || 0);
-    const delta = insertLength - (end - start);
-    const pos = Math.max(0, Number(position) || 0);
-
-    if (pos < start) return pos;
-    if (pos > end) return Math.max(0, pos + delta);
-
-    // Pure insertion exactly at the local caret:
-    // keep the caret logically after the incoming text by default.
-    if (start === end && pos === start) {
-      return affinity === 'left' ? start : start + insertLength;
-    }
-
-    // A caret/selection endpoint inside text replaced by a classmate lands at
-    // the end of the incoming replacement, which is the least surprising spot.
-    return start + insertLength;
-  }
-
-  function transformCollabSelectionThroughExactEdit(
-    selectionStart,
-    selectionEnd,
-    editStart,
-    editEnd,
-    insertedLength,
-    direction = 'none'
-  ) {
-    const collapsed = Number(selectionStart) === Number(selectionEnd);
-    const mappedStart = mapCollabPositionThroughExactEdit(
-      selectionStart,
-      editStart,
-      editEnd,
-      insertedLength,
-      collapsed ? 'right' : 'left'
-    );
-    const mappedEnd = mapCollabPositionThroughExactEdit(
-      selectionEnd,
-      editStart,
-      editEnd,
-      insertedLength,
-      'right'
-    );
-
-    return {
-      start: Math.min(mappedStart, mappedEnd),
-      end: Math.max(mappedStart, mappedEnd),
-      direction: direction === 'backward' ? 'backward' : direction === 'forward' ? 'forward' : 'none'
-    };
-  }
-
-  function refreshEditorAfterRemoteCollabEdit() {
-    // Do not call focus() and do not rebuild the editor. Only refresh visual
-    // helpers that depend on textarea text.
-    try { updateLineNumbers(); } catch (_) {}
-    try { renderStructureAlert(); } catch (_) {}
-    try { fitEditorToContent(); } catch (_) {}
-    try { updateTagMatching(); } catch (_) {}
-    try { syncEditorScroll(); } catch (_) {}
-    try { scheduleEditorHelperRefresh(180); } catch (_) {}
-  }
-
-  function scheduleCollabRemotePreviewRefresh() {
-    window.clearTimeout(collabState.remotePreviewTimer);
-    collabState.remotePreviewTimer = window.setTimeout(() => {
-      if (!collabState.active) return;
-      try {
-        resetResultPanel();
-        runCode(false, { scroll: false, trackRun: false, source: 'collab-p2p' });
-      } catch (error) {
-        console.warn('Remote collaboration preview refresh skipped.', error);
-      }
-    }, 120);
-  }
-
-  function applyCollabExactTextPatchToEditor(data = {}, currentEditorText = '') {
-    const patch = data.patch || {};
-    const sourceBase = String(data.baseContent ?? currentEditorText ?? '');
-    const oldValue = String(currentEditorText ?? editor.value ?? '');
-    const range = mapCollabPatchRangeFromBase(
-      sourceBase,
-      oldValue,
-      patch.start,
-      patch.deleteCount
-    );
-    const insertText = String(patch.insertText ?? '');
-
-    const hadFocus = document.activeElement === editor;
-    const scrollTop = Number(editor.scrollTop || 0);
-    const scrollLeft = Number(editor.scrollLeft || 0);
-    const selectionStart = Number(editor.selectionStart || 0);
-    const selectionEnd = Number(editor.selectionEnd || selectionStart);
-    const selectionDirection = editor.selectionDirection || 'none';
-
-    // textarea.setRangeText(..., "preserve") is specifically designed to
-    // preserve/shift selection around a replaced range. It does not blur or
-    // steal focus, so classmates can type at the same time safely.
-    if (typeof editor.setRangeText === 'function') {
-      try {
-        editor.setRangeText(insertText, range.start, range.end, 'preserve');
-      } catch (error) {
-        console.warn('Native collaborative range update failed; using exact cursor mapping.', error);
-        const nextValue = oldValue.slice(0, range.start) + insertText + oldValue.slice(range.end);
-        const mapped = transformCollabSelectionThroughExactEdit(
-          selectionStart,
-          selectionEnd,
-          range.start,
-          range.end,
-          insertText.length,
-          selectionDirection
-        );
-        editor.value = nextValue;
-        editor.setSelectionRange(
-          Math.min(mapped.start, nextValue.length),
-          Math.min(mapped.end, nextValue.length),
-          mapped.direction
-        );
-      }
-    } else {
-      const nextValue = oldValue.slice(0, range.start) + insertText + oldValue.slice(range.end);
-      const mapped = transformCollabSelectionThroughExactEdit(
-        selectionStart,
-        selectionEnd,
-        range.start,
-        range.end,
-        insertText.length,
-        selectionDirection
-      );
-      editor.value = nextValue;
-      editor.setSelectionRange(
-        Math.min(mapped.start, nextValue.length),
-        Math.min(mapped.end, nextValue.length),
-        mapped.direction
-      );
-    }
-
-    // Never call editor.focus() here. If the student was typing, the textarea
-    // naturally remains focused. If they were clicking another control, remote
-    // updates must not steal their focus back.
-    editor.scrollTop = scrollTop;
-    editor.scrollLeft = scrollLeft;
-
-    return {
-      value: String(editor.value || ''),
-      hadFocus,
-      range,
-      selectionStart: Number(editor.selectionStart || 0),
-      selectionEnd: Number(editor.selectionEnd || 0)
-    };
-  }
-
-  function queueCollabRemotePatchDuringComposition(data = {}, options = {}) {
-    collabState.queuedRemotePatches.push({
-      data: { ...data },
-      options: { ...options, fromCompositionQueue: true }
-    });
-    // Keep only a reasonable burst. Host versions are monotonic and the queue
-    // is normally only a few messages during phone/IME composition.
-    if (collabState.queuedRemotePatches.length > 80) {
-      collabState.queuedRemotePatches.splice(0, collabState.queuedRemotePatches.length - 80);
-    }
-  }
-
-  function flushCollabRemotePatchQueue() {
-    if (collabState.editorComposing || !collabState.queuedRemotePatches.length) return;
-    const queue = collabState.queuedRemotePatches
-      .splice(0)
-      .sort((left, right) =>
-        Number(left?.data?.contentVersion || 0) - Number(right?.data?.contentVersion || 0)
-      );
-
-    queue.forEach(entry => {
-      try {
-        applyCollaborationLivePatch(entry.data, entry.options);
-      } catch (error) {
-        console.warn('Queued collaboration update could not be applied.', error);
-      }
-    });
-  }
-
   function rememberCollabBasesFromCodeByActivity(source = codeByActivity) {
     Object.entries(source || {}).forEach(([activityKey, store]) => {
       const normalized = normalizeCodeStore(store || starterCode);
@@ -24095,7 +24358,6 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
       applyCollaborationContent(data, options);
       return;
     }
-
     const version = Number(data.contentVersion || 0);
     const sameEditor = data.lastEditorUid && data.lastEditorUid === getCollabUid();
     if (!options.force && (sameEditor || !version || version <= collabState.lastContentVersion)) {
@@ -24106,110 +24368,50 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     const language = ['html', 'css', 'js'].includes(data.language) ? data.language : 'html';
     const activityId = activities.some(item => item.id === data.selectedActivityId) ? data.selectedActivityId : '';
     const codeKey = activityId || 'scratch';
-    const fileName = cleanLanguageFileName(data.fileName, language);
-    const viewingSameActivity = (selectedActivityId || '') === activityId;
-    const viewingSameFile = viewingSameActivity
-      && activeLanguage === language
-      && getActiveLanguageFileName(language) === fileName;
-
-    // Phone keyboards/IME maintain an internal composition range. Changing that
-    // textarea range in the middle of composition can make characters jump to
-    // another line. Queue only the visible same-file patch for a few moments.
-    if (
-      viewingSameFile
-      && collabState.editorComposing
-      && !options.fromCompositionQueue
-    ) {
-      queueCollabRemotePatchDuringComposition(data, options);
-      return;
-    }
-
     const targetStore = normalizeCodeStore(codeByActivity[codeKey] || starterCode);
+    const fileName = cleanLanguageFileName(data.fileName, language);
     const scopeKey = getCollabFileScopeKey(activityId, language, fileName);
     const files = getLanguageFileMap(language, targetStore);
-
-    // When this user is looking at the target file, the live textarea is the
-    // freshest local text and may contain keystrokes not yet broadcast.
-    const currentFileContent = viewingSameFile
-      ? String(editor.value || '')
-      : String(files[fileName] ?? '');
-
-    let nextFileContent = '';
-    let editorPatchResult = null;
-
-    if (data.patchMode === 'textPatch') {
-      if (viewingSameFile) {
-        editorPatchResult = applyCollabExactTextPatchToEditor(data, currentFileContent);
-        nextFileContent = editorPatchResult.value;
-      } else {
-        nextFileContent = applyCollabTextPatchToValue(
-          currentFileContent,
-          data.patch || {},
-          String(data.baseContent ?? currentFileContent)
-        );
-      }
-    } else {
-      // Full file replacements are rare (page/file change). Keep the existing
-      // logical cursor mapping fallback, but never focus/blur the editor.
-      nextFileContent = String(data.content ?? '');
-      if (viewingSameFile) {
-        const oldValue = String(editor.value || '');
-        const start = Number(editor.selectionStart || 0);
-        const end = Number(editor.selectionEnd || start);
-        const direction = editor.selectionDirection || 'none';
-        const scrollTop = Number(editor.scrollTop || 0);
-        const scrollLeft = Number(editor.scrollLeft || 0);
-        const mapped = transformCollabSelectionAfterRemoteEdit(oldValue, nextFileContent, start, end);
-
-        editor.value = nextFileContent;
-        editor.setSelectionRange(
-          Math.min(mapped.start, nextFileContent.length),
-          Math.min(mapped.end, nextFileContent.length),
-          direction
-        );
-        editor.scrollTop = scrollTop;
-        editor.scrollLeft = scrollLeft;
-      }
-    }
-
+    const currentFileContent = String(files[fileName] ?? '');
+    const nextFileContent = data.patchMode === 'textPatch'
+      ? applyCollabTextPatchToValue(currentFileContent, data.patch || {}, String(data.baseContent ?? currentFileContent))
+      : String(data.content ?? '');
     files[fileName] = nextFileContent;
     rememberCollabFileBase(scopeKey, nextFileContent);
-
     const meta = getLanguageFileMeta(language);
     targetStore[meta.codeKey] = files[fileName];
     if (!targetStore[meta.activeKey]) targetStore[meta.activeKey] = fileName;
     codeByActivity[codeKey] = targetStore;
 
+    const viewingSameActivity = (selectedActivityId || '') === activityId;
+    const viewingSameFile = viewingSameActivity
+      && activeLanguage === language
+      && getActiveLanguageFileName(language) === fileName;
+
     collabState.applyingRemote = true;
     try {
       saveCodeByActivity();
-
       if (data.fileNames) {
         codeFileNames = normalizeCodeFileNames({ ...codeFileNames, ...data.fileNames });
         saveCodeFileNames();
       }
-
       if (viewingSameActivity) codeStore = targetStore;
-
       if (viewingSameFile) {
-        // Keep the model exactly aligned with the textarea after the native
-        // range operation. No loadActiveEditor(), no full textarea rebuild.
-        setLanguageFileContent(language, fileName, String(editor.value || nextFileContent));
-        files[fileName] = String(editor.value || nextFileContent);
-        targetStore[meta.codeKey] = files[fileName];
-        codeByActivity[codeKey] = targetStore;
-        rememberCollabFileBase(scopeKey, files[fileName]);
-
-        refreshEditorAfterRemoteCollabEdit();
-        scheduleCollabRemotePreviewRefresh();
+        const oldValue = String(editor.value || '');
+        const start = Number(editor.selectionStart || 0);
+        const end = Number(editor.selectionEnd || start);
+        const nextValue = String(files[fileName] || '');
+        const mappedSelection = transformCollabSelectionAfterRemoteEdit(oldValue, nextValue, start, end);
+        editor.value = nextValue;
+        const max = editor.value.length;
+        editor.setSelectionRange(Math.min(mappedSelection.start, max), Math.min(mappedSelection.end, max));
+        resetResultPanel();
+        runCode(false, { scroll: false, source: 'collab-p2p' });
       }
-
       markCollabRemoteVersion(version);
       setStatus(`${data.lastEditorName || 'Classmate'} updated ${fileName}`);
     } finally {
-      // Keep this very short. It only prevents our own input handlers from
-      // echoing the programmatic remote range update back into the room.
-      window.setTimeout(() => { collabState.applyingRemote = false; }, 20);
+      window.setTimeout(() => { collabState.applyingRemote = false; }, 45);
     }
   }
 
@@ -24560,9 +24762,19 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
       if (collabState.role === 'host' || !message.data) return;
       collabState.latestSession = { ...(collabState.latestSession || {}), ...message.data };
       collabState.peerMembers = { ...(message.data.members || {}) };
+
+      const imported = importAllCrdtDocs(message.data.crdtSnapshots || {});
       applyCollaborationContent(message.data, { force: true });
+      if (!imported) initializeCrdtDocsFromCurrentProject({ force: true });
+      collabState.crdtReady = true;
+
+      collabState.canEdit = message.data.allowEdit !== false && isCollaborationEditAllowed();
+      editor.readOnly = !collabState.canEdit;
+      document.body.classList.toggle('collab-view-only', !collabState.canEdit);
+
       renderCollabMembers(collabState.latestSession);
       renderCollabCursors(collabState.latestSession);
+      setStatus(collabState.canEdit ? 'Live typing connected' : 'Live project is view-only');
       return;
     }
     if (message.type === 'members') {
@@ -24632,6 +24844,28 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     }
     if (message.type === 'content') {
       const incoming = message.data || {};
+
+      if (incoming.patchMode === 'crdtOps') {
+        if (collabState.role === 'host') {
+          if (collabState.latestSession?.allowEdit === false || !isCollaborationEditAllowed()) return;
+          const authoritative = {
+            ...incoming,
+            contentVersion: getNextCollabHostVersion(),
+            lastEditorUid: remoteUid,
+            lastEditorName: message.senderName || incoming.lastEditorName || 'Classmate'
+          };
+          collabState.latestSession = { ...(collabState.latestSession || {}), ...authoritative };
+          applyRemoteCrdtOps(authoritative);
+          broadcastCollabP2PMessage(buildCollabChannelMessage('content', { data: authoritative }));
+        } else {
+          collabState.latestSession = { ...(collabState.latestSession || {}), ...incoming };
+          applyRemoteCrdtOps(incoming);
+        }
+        return;
+      }
+
+      // Structural changes (activity/file add/rename/delete) keep the existing
+      // snapshot path. Normal typing never reaches this old position patch path.
       if (collabState.role === 'host') {
         if (collabState.latestSession?.allowEdit === false || !isCollaborationEditAllowed()) return;
         const authoritative = {
@@ -24642,10 +24876,15 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
         };
         collabState.latestSession = { ...(collabState.latestSession || {}), ...authoritative };
         applyCollaborationLivePatch(authoritative);
-        broadcastCollabP2PMessage(buildCollabChannelMessage('content', { data: authoritative }));
+        initializeCrdtDocsFromCurrentProject({ force: true });
+        broadcastCollabP2PMessage(buildCollabChannelMessage('content', {
+          data: { ...authoritative, crdtSnapshots: exportAllCrdtDocs() }
+        }));
       } else {
         collabState.latestSession = { ...(collabState.latestSession || {}), ...incoming };
         applyCollaborationLivePatch(incoming);
+        if (incoming.crdtSnapshots) importAllCrdtDocs(incoming.crdtSnapshots);
+        else initializeCrdtDocsFromCurrentProject({ force: true });
       }
     }
   }
@@ -25367,6 +25606,10 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     collabState.lastContentVersion = Number(initialData.contentVersion || 0);
     collabState.hostSequence = Math.max(Number(initialData.contentVersion || 0), Date.now() * 100);
     collabState.fileSyncBases = {};
+    collabState.crdtDocs = {};
+    collabState.crdtLocalSeq = 0;
+    collabState.crdtBeforeInput = null;
+    collabState.crdtReady = role === 'host';
     collabState.peerMembers = {
       ...(initialData.members || {}),
       [getCollabUid()]: buildCollabMember(role)
@@ -25380,7 +25623,15 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
       collabState.savedProjectId = '';
       collabState.savedProjectName = '';
     }
-    editor.readOnly = !collabState.canEdit;
+    if (role === 'host') {
+      initializeCrdtDocsFromCurrentProject({ force: true });
+    }
+
+    // A joining member waits for the host's direct CRDT snapshot before typing.
+    // This is normally a very short WebRTC handshake and prevents stale-base
+    // edits from ever entering the shared document.
+    editor.readOnly = role === 'host' ? !collabState.canEdit : true;
+    if (role !== 'host' && collabState.canEdit) setStatus('Connecting live typing...');
     document.body.classList.toggle('collab-active', true);
     document.body.classList.toggle('collab-view-only', !collabState.canEdit);
     ensureCollabControls();
@@ -25407,14 +25658,17 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
       };
       collabState.latestSession = data;
       collabState.canEdit = collabState.role === 'host' || (data.allowEdit !== false && isCollaborationEditAllowed());
-      editor.readOnly = !collabState.canEdit;
+      editor.readOnly = collabState.role === 'host'
+        ? !collabState.canEdit
+        : (!collabState.crdtReady || !collabState.canEdit);
       document.body.classList.toggle('collab-view-only', !collabState.canEdit);
       renderCollabMembers(data);
       renderCollabLiveIndicator(data);
       renderCollabCursors(data);
-      // The session document now changes only for control events and periodic
-      // recovery snapshots. Live typing travels directly through WebRTC.
-      applyCollaborationContent(data);
+      // The session document changes only for control events / recovery
+      // snapshots. Once CRDT live typing is connected, never rebuild the active
+      // textarea from Firestore because that would disturb the local caret.
+      if (!collabState.crdtReady) applyCollaborationContent(data);
     }, error => {
       console.warn('Collaboration listener failed.', error);
       setStatus('Live project control connection disconnected');
@@ -25492,6 +25746,14 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
       loadActiveEditor();
       resetResultPanel();
       runCode(false, { scroll: false, source: 'collab' });
+
+      if (data.crdtSnapshots) {
+        importAllCrdtDocs(data.crdtSnapshots);
+        collabState.crdtReady = true;
+      } else if (collabState.active) {
+        initializeCrdtDocsFromCurrentProject({ force: true });
+      }
+
       markCollabRemoteVersion(version);
       setStatus(`${data.lastEditorName || 'Classmate'} updated the shared project`);
       window.setTimeout(() => renderCollabCursors(data), 30);
@@ -25502,6 +25764,13 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
 
   function scheduleCollaborationPush(reason = 'edit', options = {}) {
     if (!collabState.active || !collabState.sessionRef || collabState.applyingRemote) return;
+
+    // Normal editor typing is CRDT-only in Step 282. This guard prevents any
+    // older helper/event path from accidentally sending stale position patches.
+    if (
+      collabState.crdtReady
+      && /^(edit|beforeinput|compositionend|paste|cut|drop|key:|insert|delete|history)/i.test(String(reason || ''))
+    ) return;
     if (!collabState.canEdit) {
       setStatus('This shared project is view-only');
       return;
@@ -25699,9 +25968,6 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     const localSnapshot = wasJoinedStudent && !returnToDashboard && !options.noRestore && backupSnapshot ? backupSnapshot : null;
     window.clearTimeout(collabState.pushTimer);
     window.clearTimeout(collabState.cursorTimer);
-    window.clearTimeout(collabState.remotePreviewTimer);
-    collabState.editorComposing = false;
-    collabState.queuedRemotePatches.length = 0;
     window.clearInterval(collabState.heartbeatTimer);
     if (collabState.role !== 'host' && collabState.ownPeerRef && firebaseSync.modules?.deleteDoc) {
       firebaseSync.modules.deleteDoc(collabState.ownPeerRef).catch(error => console.warn('Peer signal cleanup skipped.', error));
@@ -25716,6 +25982,11 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     collabState.heartbeatTimer = null;
     collabState.pushTimer = null;
     collabState.cursorTimer = null;
+    window.clearTimeout(collabState.crdtRemotePreviewTimer);
+    collabState.crdtDocs = {};
+    collabState.crdtReady = false;
+    collabState.crdtBeforeInput = null;
+    collabState.crdtLocalSeq = 0;
     collabState.canEdit = false;
     collabState.latestSession = null;
     collabState.lastIndicatorText = '';
@@ -25987,46 +26258,25 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
   htmlPageSelect?.addEventListener('change', rerenderCollabCursorsAfterLocalFileFocusChange);
   tabButtons.forEach(button => button.addEventListener('click', rerenderCollabCursorsAfterLocalFileFocusChange));
 
-  editor.addEventListener('compositionstart', () => {
-    if (!collabState.active) return;
-    collabState.editorComposing = true;
+  editor.addEventListener('beforeinput', () => {
+    if (!collabState.active || !collabState.canEdit || !collabState.crdtReady || collabState.applyingRemote) return;
+    collabState.crdtBeforeInput = {
+      value: String(editor.value || ''),
+      selectionStart: Number(editor.selectionStart || 0),
+      selectionEnd: Number(editor.selectionEnd || editor.selectionStart || 0),
+      scopeKey: getCrdtScopeMeta().scopeKey
+    };
   });
 
-  editor.addEventListener('compositionend', () => {
-    if (!collabState.active) {
-      collabState.editorComposing = false;
-      collabState.queuedRemotePatches.length = 0;
-      return;
-    }
-    collabState.editorComposing = false;
-
-    // First let the browser commit the composed local text, then broadcast it
-    // and merge any remote updates that arrived during the composition.
-    window.setTimeout(() => {
-      scheduleCollaborationPush('compositionend', { delay: 5 });
-      flushCollabRemotePatchQueue();
-      scheduleCollabCursorPush();
-    }, 0);
-  });
-
-  editor.addEventListener('beforeinput', event => {
-    if (!collabState.active || collabState.applyingRemote) return;
-    const inputType = String(event.inputType || '');
-    const fast = /insertLineBreak|insertParagraph|delete|insertFromPaste|insertFromDrop|historyUndo|historyRedo/i.test(inputType);
-    scheduleCollaborationPushAfterDom(fast ? inputType : 'beforeinput', fast ? 10 : COLLAB_PUSH_DELAY);
-  });
   editor.addEventListener('input', () => {
-    scheduleCollaborationPush('edit', { delay: 35 });
+    if (collabState.active && collabState.crdtReady && !collabState.applyingRemote) {
+      handleLocalCrdtEditorInput();
+    }
     scheduleCollabCursorPush();
   });
-  editor.addEventListener('keydown', event => {
-    if (['Enter', 'Backspace', 'Delete'].includes(event.key) || (event.ctrlKey && ['z', 'y', 'v', 'x'].includes(String(event.key).toLowerCase()))) {
-      scheduleCollaborationPushAfterDom(`key:${event.key}`, 10);
-    }
-  });
-  editor.addEventListener('paste', () => scheduleCollaborationPushAfterDom('paste', 10));
-  editor.addEventListener('cut', () => scheduleCollaborationPushAfterDom('cut', 10));
-  editor.addEventListener('drop', () => scheduleCollaborationPushAfterDom('drop', 10));
+
+  // Keyboard/paste/cut/drop all produce input events and therefore CRDT ops.
+  // Do not additionally send the old position-based textPatch.
   editor.addEventListener('keyup', scheduleCollabCursorPush);
   editor.addEventListener('click', scheduleCollabCursorPush);
   editor.addEventListener('mouseup', scheduleCollabCursorPush);

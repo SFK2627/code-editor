@@ -1,13 +1,13 @@
-const CACHE_NAME = 'ict8-connect-step281-cursor-stable-collaboration';
+const CACHE_NAME = 'ict8-connect-step282-crdt-live-collaboration';
 const APP_SHELL = [
   './',
   './index.html',
-  './index.html?v=20260817-step281-cursor-stable-collaboration',
-  './index.html?fresh=step281-cursor-stable-collaboration',
+  './index.html?v=20260817-step282-crdt-live-collaboration',
+  './index.html?fresh=step282-crdt-live-collaboration',
   './style.css',
-  './style.css?v=20260817-step281-cursor-stable-collaboration',
+  './style.css?v=20260817-step282-crdt-live-collaboration',
   './script.js',
-  './script.js?v=20260817-step281-cursor-stable-collaboration',
+  './script.js?v=20260817-step282-crdt-live-collaboration',
   './firebase-config.js',
   './manifest.webmanifest',
   './favicon.png',
