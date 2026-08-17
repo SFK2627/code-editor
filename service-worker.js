@@ -1,13 +1,13 @@
-const CACHE_NAME = 'ict8-connect-step276-simple-student-id-code-inbox';
+const CACHE_NAME = 'ict8-connect-step272-my-projects-reminder';
 const APP_SHELL = [
   './',
   './index.html',
-  './index.html?v=20260816-step276-simple-student-id-code-inbox',
-  './index.html?fresh=step276-simple-student-id-code-inbox',
+  './index.html?v=20260816-step272-my-projects-reminder',
+  './index.html?fresh=step272-my-projects-reminder',
   './style.css',
-  './style.css?v=20260816-step276-simple-student-id-code-inbox',
+  './style.css?v=20260816-step272-my-projects-reminder',
   './script.js',
-  './script.js?v=20260816-step276-simple-student-id-code-inbox',
+  './script.js?v=20260816-step272-my-projects-reminder',
   './firebase-config.js',
   './manifest.webmanifest',
   './favicon.png',
