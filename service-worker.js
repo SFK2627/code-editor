@@ -1,13 +1,13 @@
-const CACHE_NAME = 'ict8-connect-step279-v272-send-code-profile-only-fix';
+const CACHE_NAME = 'ict8-connect-step280-safe-roster-repair';
 const APP_SHELL = [
   './',
   './index.html',
-  './index.html?v=20260817-step279-v272-send-code-profile-only-fix',
-  './index.html?fresh=step279-v272-send-code-profile-only-fix',
+  './index.html?v=20260817-step280-safe-roster-repair',
+  './index.html?fresh=step280-safe-roster-repair',
   './style.css',
-  './style.css?v=20260817-step279-v272-send-code-profile-only-fix',
+  './style.css?v=20260817-step280-safe-roster-repair',
   './script.js',
-  './script.js?v=20260817-step279-v272-send-code-profile-only-fix',
+  './script.js?v=20260817-step280-safe-roster-repair',
   './firebase-config.js',
   './manifest.webmanifest',
   './favicon.png',

@@ -7541,6 +7541,302 @@ function getFilteredAdminStudents() {
   });
 }
 
+
+function adminStudentHasRosterRecord(student = {}) {
+  return Boolean(
+    (Array.isArray(student?.sourceRecords) && student.sourceRecords.some(record => record?.isRosterOnly))
+    || (student?.isRosterOnly && !getAdminStudentProfileUids(student).length)
+  );
+}
+
+function getSafeRosterRepairProfile(student = {}) {
+  const profiles = getAdminStudentDiagnosticRecords(student);
+  if (profiles.length !== 1) return null;
+  const profile = profiles[0];
+  const uid = String(profile.uid || profile.authUid || '').trim();
+  const studentId = normalizeStudentId(
+    profile.studentId
+    || profile.studentIdNormalized
+    || student.studentId
+    || student.studentIdNormalized
+    || student.rosterId
+    || ''
+  );
+  if (!uid || !studentId) return null;
+  return { ...profile, uid, studentId };
+}
+
+async function repairMissingRosterInternal(student = {}) {
+  if (!isTeacherAuthenticated()) throw new Error('Teacher login is required.');
+
+  if (adminStudentHasRosterRecord(student)) {
+    return { status: 'exists', studentId: normalizeStudentId(student.studentId || '') };
+  }
+
+  const profile = getSafeRosterRepairProfile(student);
+  if (!profile) {
+    return {
+      status: 'ambiguous',
+      studentId: normalizeStudentId(student.studentId || student.studentIdNormalized || ''),
+      profileCount: getAdminStudentDiagnosticRecords(student).length
+    };
+  }
+
+  const studentId = profile.studentId;
+  const { getDoc, setDoc, serverTimestamp } = firebaseSync.modules;
+  const rosterRef = getStudentRosterDocRef(studentId);
+  const existing = await getDoc(rosterRef);
+
+  // Never overwrite an existing roster document.
+  if (snapshotExists(existing)) return { status: 'exists', studentId };
+
+  const authEmail = String(
+    profile.authEmail
+    || student.authEmail
+    || studentIdToAuthEmail(studentId)
+  ).trim().toLowerCase();
+
+  // IMPORTANT:
+  // Preserve the exact EXISTING UID/email from the working profile.
+  // This does not create an Auth account and does not change its password.
+  const rosterRecord = {
+    studentId,
+    studentIdNormalized: studentId,
+    authEmail,
+    authUid: profile.uid,
+    name: String(profile.name || student.name || 'Student').trim() || 'Student',
+    nameLower: String(profile.name || student.name || 'Student').trim().toLowerCase(),
+    gender: String(profile.gender || student.gender || '').trim(),
+    section: String(profile.section || student.section || '').trim(),
+    sectionLower: String(profile.section || student.section || '').trim().toLowerCase(),
+    accountStatus: profile.accountStatus || student.accountStatus || 'active',
+    repairedFromExistingProfile: true,
+    repairedAt: serverTimestamp(),
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+    createdBy: getFirebaseActiveUser()?.email || 'teacher'
+  };
+
+  await setDoc(rosterRef, rosterRecord, { merge: false });
+  clearSelectiveFirestoreCache('admin:studentsAndRoster');
+  clearSelectiveFirestoreCache(`studentRoster:${studentId}`);
+
+  return {
+    status: 'created',
+    studentId,
+    uid: profile.uid,
+    authEmail
+  };
+}
+
+async function repairAdminStudentRoster(studentId = '', uid = '', triggerButton = null) {
+  if (!isTeacherAuthenticated()) {
+    setStudentAdminStatus('Teacher login is required to repair a roster record.', 'error');
+    return;
+  }
+
+  if (!adminStudentsCache.length) await loadAdminStudents({ force: true });
+
+  const normalizedId = normalizeStudentId(studentId);
+  const student = findAdminStudentByIdOrUid(normalizedId, uid);
+  if (!student) {
+    await appAlert('Student record could not be found. Refresh the tracker and try again.', {
+      title: 'Repair Roster',
+      danger: true
+    });
+    return;
+  }
+
+  const profiles = getAdminStudentDiagnosticRecords(student);
+  if (profiles.length > 1) {
+    await appAlert(
+      `This Student ID has ${profiles.length} linked profiles/UIDs.\n\nFor safety, roster repair was NOT performed because the app should not guess which UID is the main account. Use Recovery first.`,
+      {
+        title: 'Roster Repair Blocked for Safety',
+        kicker: 'Multiple profiles found',
+        icon: 'i'
+      }
+    );
+    return;
+  }
+
+  const displayName = student.name || normalizedId || 'this student';
+  const confirmed = await appConfirm(
+    `Repair the missing roster record for ${displayName}?\n\nThis will copy only the existing Student ID, name, section, Auth email, and UID into studentRoster.\n\nIt will NOT change the password, Firebase Auth account, UID, or projects.`,
+    {
+      title: 'Repair Missing Roster',
+      kicker: 'Safe account cleanup',
+      icon: '🛠',
+      confirmText: 'Repair Roster'
+    }
+  );
+  if (!confirmed) return;
+
+  const oldText = triggerButton?.textContent || '';
+  try {
+    if (triggerButton) {
+      triggerButton.disabled = true;
+      triggerButton.textContent = 'Repairing...';
+    }
+    setStudentAdminStatus(`Repairing roster record for ${displayName}...`);
+    const result = await repairMissingRosterInternal(student);
+
+    if (result.status === 'ambiguous') {
+      throw new Error('This account cannot be auto-repaired because its profile link is ambiguous.');
+    }
+
+    await loadAdminStudents({ force: true });
+
+    setStudentAdminStatus(
+      result.status === 'created'
+        ? `${displayName}: missing roster record repaired.`
+        : `${displayName}: roster record already exists.`,
+      'success'
+    );
+
+    await appAlert(
+      result.status === 'created'
+        ? `Roster repair complete for ${displayName}.\n\nThe existing Firebase UID and Auth email were preserved. Password and projects were not changed.\n\nLogin Check should now show the roster record as found.`
+        : `A roster record already exists for ${displayName}. No account data was changed.`,
+      {
+        title: 'Roster Repair Complete',
+        icon: '✓'
+      }
+    );
+  } catch (error) {
+    console.error('Roster repair failed.', error);
+    setStudentAdminStatus(error?.message || 'Roster repair failed.', 'error');
+    await appAlert(error?.message || 'Roster repair failed.', {
+      title: 'Roster Repair Failed',
+      danger: true
+    });
+  } finally {
+    if (triggerButton) {
+      triggerButton.disabled = false;
+      triggerButton.textContent = oldText || 'Repair Roster';
+    }
+  }
+}
+
+function ensureRepairAllMissingRosterButton() {
+  if (!refreshStudentsBtn?.parentElement) return null;
+  let button = document.getElementById('repairAllMissingRosterBtn');
+  if (button) return button;
+
+  button = document.createElement('button');
+  button.id = 'repairAllMissingRosterBtn';
+  button.type = 'button';
+  button.className = 'ghost-btn';
+  button.textContent = '🛠 Repair Missing Roster';
+  button.title = 'Safely create missing studentRoster mirrors from existing single-profile student accounts.';
+  refreshStudentsBtn.insertAdjacentElement('afterend', button);
+  button.addEventListener('click', repairAllMissingRosterRecords);
+  return button;
+}
+
+async function repairAllMissingRosterRecords() {
+  if (!isTeacherAuthenticated()) {
+    setStudentAdminStatus('Teacher login is required to repair roster records.', 'error');
+    return;
+  }
+
+  await loadAdminStudents({ force: true });
+
+  const candidates = adminStudentsCache.filter(student => {
+    if (adminStudentHasRosterRecord(student)) return false;
+    return Boolean(getSafeRosterRepairProfile(student));
+  });
+
+  const ambiguousCount = adminStudentsCache.filter(student => {
+    if (adminStudentHasRosterRecord(student)) return false;
+    return getAdminStudentDiagnosticRecords(student).length > 1;
+  }).length;
+
+  if (!candidates.length) {
+    await appAlert(
+      ambiguousCount
+        ? `No single-profile accounts need automatic roster repair.\n\n${ambiguousCount} account${ambiguousCount === 1 ? '' : 's'} have multiple linked profiles and were intentionally left for Recovery.`
+        : 'No missing roster records need repair.',
+      { title: 'Repair Missing Roster', icon: '✓' }
+    );
+    return;
+  }
+
+  const confirmed = await appConfirm(
+    `Repair ${candidates.length} missing roster record${candidates.length === 1 ? '' : 's'} from existing working student profiles?\n\nOnly accounts with exactly ONE linked profile will be repaired automatically.\n\nPasswords, Firebase Auth accounts, UIDs, and projects will NOT be changed.${ambiguousCount ? `\n\n${ambiguousCount} multiple-profile account${ambiguousCount === 1 ? '' : 's'} will be skipped for safety.` : ''}`,
+    {
+      title: 'Repair All Missing Roster',
+      kicker: 'Safe bulk cleanup',
+      icon: '🛠',
+      confirmText: `Repair ${candidates.length}`
+    }
+  );
+  if (!confirmed) return;
+
+  const button = ensureRepairAllMissingRosterButton();
+  const oldText = button?.textContent || '';
+  let created = 0;
+  let existed = 0;
+  let failed = 0;
+
+  try {
+    if (button) {
+      button.disabled = true;
+      button.textContent = 'Repairing...';
+    }
+
+    // Small chunks: quick enough for a class roster without hammering Firestore.
+    const chunkSize = 6;
+    for (let start = 0; start < candidates.length; start += chunkSize) {
+      const chunk = candidates.slice(start, start + chunkSize);
+      const results = await Promise.all(chunk.map(async student => {
+        try {
+          return await repairMissingRosterInternal(student);
+        } catch (error) {
+          console.error('Bulk roster repair skipped one student.', error);
+          return { status: 'failed' };
+        }
+      }));
+
+      results.forEach(result => {
+        if (result.status === 'created') created += 1;
+        else if (result.status === 'exists') existed += 1;
+        else if (result.status === 'failed') failed += 1;
+      });
+
+      setStudentAdminStatus(`Roster repair: ${Math.min(start + chunk.length, candidates.length)}/${candidates.length} checked...`);
+    }
+
+    await loadAdminStudents({ force: true });
+
+    const summary = [
+      `${created} roster record${created === 1 ? '' : 's'} repaired.`,
+      existed ? `${existed} already existed and were not overwritten.` : '',
+      ambiguousCount ? `${ambiguousCount} multiple-profile account${ambiguousCount === 1 ? '' : 's'} skipped for safety.` : '',
+      failed ? `${failed} record${failed === 1 ? '' : 's'} failed and can be checked individually.` : '',
+      '',
+      'No passwords, Firebase Auth accounts, UIDs, or projects were changed.'
+    ].filter(Boolean).join('\n');
+
+    setStudentAdminStatus(
+      failed
+        ? `Roster repair completed with ${failed} issue${failed === 1 ? '' : 's'}.`
+        : `Roster repair complete. ${created} record${created === 1 ? '' : 's'} repaired.`,
+      failed ? 'warning' : 'success'
+    );
+
+    await appAlert(summary, {
+      title: 'Roster Repair Complete',
+      icon: failed ? 'i' : '✓'
+    });
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = oldText || '🛠 Repair Missing Roster';
+    }
+  }
+}
+
 function renderAdminStudentTracker() {
   if (!adminStudentsTableBody) return;
   const filtered = getFilteredAdminStudents();
@@ -7566,17 +7862,25 @@ function renderAdminStudentTracker() {
     const duplicateNote = Number(student.duplicateProfileCount || 0) > 0
       ? `<span class="student-cell-sub">Merged ${Number(student.duplicateProfileCount || 0) + 1} linked profiles · all projects shown here</span>`
       : '';
+    const hasRosterRecord = adminStudentHasRosterRecord(student);
+    const repairableProfile = getSafeRosterRepairProfile(student);
+    const rosterRepairNote = !hasRosterRecord && profileUids.length
+      ? `<span class="student-cell-sub">Roster mirror missing${repairableProfile ? ' · safe repair available' : ' · use Recovery for linked profiles'}</span>`
+      : '';
+    const repairRosterButton = !hasRosterRecord && repairableProfile
+      ? `<button class="ghost-btn repair-student-roster-btn" type="button" data-student-id="${escapeAttribute(student.studentId || '')}" data-student-uid="${escapeAttribute(student.uid || profileUids[0] || '')}">Repair Roster</button>`
+      : '';
     const viewProjectsButton = rosterOnly
       ? '<span class="student-cell-sub">No projects yet</span>'
       : `<button class="ghost-btn view-student-projects-btn" type="button" data-student-uid="${escapeAttribute(student.uid || profileUids[0] || '')}">View Projects</button>`;
     return `
       <tr data-student-uid="${escapeAttribute(student.uid || '')}" data-student-id="${escapeAttribute(student.studentId || '')}">
-        <td><span class="student-cell-name">${escapeHTML(student.name || 'Unnamed Student')}</span><span class="student-cell-id">ID: ${escapeHTML(student.studentId || '')} · ${escapeHTML(student.gender || 'Gender not set')}</span>${duplicateNote}</td>
+        <td><span class="student-cell-name">${escapeHTML(student.name || 'Unnamed Student')}</span><span class="student-cell-id">ID: ${escapeHTML(student.studentId || '')} · ${escapeHTML(student.gender || 'Gender not set')}</span>${duplicateNote}${rosterRepairNote}</td>
         <td>${escapeHTML(student.section || 'No section')}</td>
         <td><span class="student-account-pill ${pillClass}">${accountLabel}</span><span class="student-cell-sub">${loggedIn ? `${Number(student.loginCount || 0)} login${Number(student.loginCount || 0) === 1 ? '' : 's'}` : 'Never logged in'}</span></td>
         <td><strong>${Math.max(0, Number(student.projectCount || 0))}</strong><span class="student-cell-sub">${escapeHTML(student.lastProjectName || 'No project yet')}</span></td>
         <td>${escapeHTML(formatStudentDate(student.lastActivityAt))}</td>
-        <td><div class="student-action-stack">${viewProjectsButton}<button class="ghost-btn diagnose-student-login-btn" type="button" data-student-id="${escapeAttribute(student.studentId || '')}" data-student-uid="${escapeAttribute(student.uid || profileUids[0] || '')}">Login Check</button>${rosterOnly ? '' : `<button class="ghost-btn reset-student-login-btn" type="button" data-student-id="${escapeAttribute(student.studentId || '')}" data-student-uid="${escapeAttribute(student.uid || profileUids[0] || '')}">Reset Pass</button>`}<button class="ghost-btn recovery-student-account-btn" type="button" data-student-id="${escapeAttribute(student.studentId || '')}" data-student-uid="${escapeAttribute(student.uid || profileUids[0] || '')}">Recovery</button><button class="ghost-btn danger-btn delete-student-account-btn" type="button" data-student-id="${escapeAttribute(student.studentId || '')}" data-student-uid="${escapeAttribute(student.uid || profileUids[0] || '')}">Delete</button></div></td>
+        <td><div class="student-action-stack">${viewProjectsButton}<button class="ghost-btn diagnose-student-login-btn" type="button" data-student-id="${escapeAttribute(student.studentId || '')}" data-student-uid="${escapeAttribute(student.uid || profileUids[0] || '')}">Login Check</button>${repairRosterButton}${rosterOnly ? '' : `<button class="ghost-btn reset-student-login-btn" type="button" data-student-id="${escapeAttribute(student.studentId || '')}" data-student-uid="${escapeAttribute(student.uid || profileUids[0] || '')}">Reset Pass</button>`}<button class="ghost-btn recovery-student-account-btn" type="button" data-student-id="${escapeAttribute(student.studentId || '')}" data-student-uid="${escapeAttribute(student.uid || profileUids[0] || '')}">Recovery</button><button class="ghost-btn danger-btn delete-student-account-btn" type="button" data-student-id="${escapeAttribute(student.studentId || '')}" data-student-uid="${escapeAttribute(student.uid || profileUids[0] || '')}">Delete</button></div></td>
       </tr>`;
   }).join('');
 }
@@ -8320,7 +8624,15 @@ async function runAdminStudentLoginDiagnostic(studentId = '', uid = '') {
     }
 
     if (!roster) {
-      blockers.push('Student ID is not in studentRoster. The app should show “not registered” until this ID is imported/added.');
+      if (profileRecords.length === 1) {
+        lines.push(formatDiagnosticStatusLine('Roster record', 'warn', 'missing mirror; existing working profile found'));
+        warnings.push('This existing account is missing its studentRoster mirror. Use Repair Roster to permanently clean up the account link. Password, UID, and projects do not need to change.');
+      } else if (profileRecords.length > 1) {
+        lines.push(formatDiagnosticStatusLine('Roster record', 'warn', 'missing mirror; multiple linked profiles found'));
+        warnings.push('studentRoster is missing and multiple linked profiles exist. Use Recovery before repairing the roster so the app does not guess the wrong UID.');
+      } else {
+        blockers.push('No studentRoster record and no existing app profile were found. This Student ID must be imported/added before first login.');
+      }
     } else {
       lines.push(formatDiagnosticStatusLine('Roster record', 'pass', `found as ${roster.id || resolvedId}`));
       if (roster.accountStatus === 'disabled') blockers.push('Roster accountStatus is disabled. Student cannot log in until reactivated.');
@@ -8383,7 +8695,7 @@ async function runAdminStudentLoginDiagnostic(studentId = '', uid = '') {
       'Login details to check:',
       `Student: ${displayName}`,
       `Student ID: ${resolvedId || 'not found'}`,
-      `Name in roster: ${roster?.name || 'not found'}`,
+      `Name in roster: ${roster?.name || (profileRecords.length ? 'missing roster mirror' : 'not found')}`,
       `Section: ${roster?.section || student?.section || 'not set'}`,
       `Generated/Auth email candidates: ${authCandidates.length ? authCandidates.join(', ') : 'none'}`,
       `Roster authEmail: ${rosterAuthEmail || 'none yet'}`,
@@ -21682,7 +21994,18 @@ refreshStudentsBtn?.addEventListener('click', () => loadAdminStudents({ force: t
 adminStudentSearch?.addEventListener('input', renderAdminStudentTracker);
 adminSectionFilter?.addEventListener('change', renderAdminStudentTracker);
 adminActivityFilter?.addEventListener('change', renderAdminStudentTracker);
+ensureRepairAllMissingRosterButton();
+
 adminStudentsTableBody?.addEventListener('click', event => {
+  const repairRosterButton = event.target.closest('.repair-student-roster-btn');
+  if (repairRosterButton) {
+    repairAdminStudentRoster(
+      repairRosterButton.dataset.studentId || '',
+      repairRosterButton.dataset.studentUid || '',
+      repairRosterButton
+    );
+    return;
+  }
   const diagnoseButton = event.target.closest('.diagnose-student-login-btn');
   if (diagnoseButton) {
     runAdminStudentLoginDiagnostic(diagnoseButton.dataset.studentId || '', diagnoseButton.dataset.studentUid || '');
