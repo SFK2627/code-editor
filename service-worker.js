@@ -1,13 +1,13 @@
-const CACHE_NAME = 'ict8-connect-step280-safe-roster-repair';
+const CACHE_NAME = 'ict8-connect-step281-cursor-stable-collaboration';
 const APP_SHELL = [
   './',
   './index.html',
-  './index.html?v=20260817-step280-safe-roster-repair',
-  './index.html?fresh=step280-safe-roster-repair',
+  './index.html?v=20260817-step281-cursor-stable-collaboration',
+  './index.html?fresh=step281-cursor-stable-collaboration',
   './style.css',
-  './style.css?v=20260817-step280-safe-roster-repair',
+  './style.css?v=20260817-step281-cursor-stable-collaboration',
   './script.js',
-  './script.js?v=20260817-step280-safe-roster-repair',
+  './script.js?v=20260817-step281-cursor-stable-collaboration',
   './firebase-config.js',
   './manifest.webmanifest',
   './favicon.png',

@@ -23390,7 +23390,10 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     ownPeerRef: null,
     chunkBuffers: new Map(),
     reconnectAttempts: 0,
-    fileSyncBases: {}
+    fileSyncBases: {},
+    editorComposing: false,
+    queuedRemotePatches: [],
+    remotePreviewTimer: null
   };
 
   function isCollaborationEnabled() {
@@ -23885,6 +23888,191 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
   }
 
 
+
+  // STEP 281: map one caret/selection position through a known remote edit.
+  // Unlike comparing the whole old/new document, this uses the exact remote
+  // replace range so unrelated simultaneous edits do not confuse the cursor.
+  function mapCollabPositionThroughExactEdit(position, editStart, editEnd, insertedLength, affinity = 'right') {
+    const start = Math.max(0, Number(editStart) || 0);
+    const end = Math.max(start, Number(editEnd) || start);
+    const insertLength = Math.max(0, Number(insertedLength) || 0);
+    const delta = insertLength - (end - start);
+    const pos = Math.max(0, Number(position) || 0);
+
+    if (pos < start) return pos;
+    if (pos > end) return Math.max(0, pos + delta);
+
+    // Pure insertion exactly at the local caret:
+    // keep the caret logically after the incoming text by default.
+    if (start === end && pos === start) {
+      return affinity === 'left' ? start : start + insertLength;
+    }
+
+    // A caret/selection endpoint inside text replaced by a classmate lands at
+    // the end of the incoming replacement, which is the least surprising spot.
+    return start + insertLength;
+  }
+
+  function transformCollabSelectionThroughExactEdit(
+    selectionStart,
+    selectionEnd,
+    editStart,
+    editEnd,
+    insertedLength,
+    direction = 'none'
+  ) {
+    const collapsed = Number(selectionStart) === Number(selectionEnd);
+    const mappedStart = mapCollabPositionThroughExactEdit(
+      selectionStart,
+      editStart,
+      editEnd,
+      insertedLength,
+      collapsed ? 'right' : 'left'
+    );
+    const mappedEnd = mapCollabPositionThroughExactEdit(
+      selectionEnd,
+      editStart,
+      editEnd,
+      insertedLength,
+      'right'
+    );
+
+    return {
+      start: Math.min(mappedStart, mappedEnd),
+      end: Math.max(mappedStart, mappedEnd),
+      direction: direction === 'backward' ? 'backward' : direction === 'forward' ? 'forward' : 'none'
+    };
+  }
+
+  function refreshEditorAfterRemoteCollabEdit() {
+    // Do not call focus() and do not rebuild the editor. Only refresh visual
+    // helpers that depend on textarea text.
+    try { updateLineNumbers(); } catch (_) {}
+    try { renderStructureAlert(); } catch (_) {}
+    try { fitEditorToContent(); } catch (_) {}
+    try { updateTagMatching(); } catch (_) {}
+    try { syncEditorScroll(); } catch (_) {}
+    try { scheduleEditorHelperRefresh(180); } catch (_) {}
+  }
+
+  function scheduleCollabRemotePreviewRefresh() {
+    window.clearTimeout(collabState.remotePreviewTimer);
+    collabState.remotePreviewTimer = window.setTimeout(() => {
+      if (!collabState.active) return;
+      try {
+        resetResultPanel();
+        runCode(false, { scroll: false, trackRun: false, source: 'collab-p2p' });
+      } catch (error) {
+        console.warn('Remote collaboration preview refresh skipped.', error);
+      }
+    }, 120);
+  }
+
+  function applyCollabExactTextPatchToEditor(data = {}, currentEditorText = '') {
+    const patch = data.patch || {};
+    const sourceBase = String(data.baseContent ?? currentEditorText ?? '');
+    const oldValue = String(currentEditorText ?? editor.value ?? '');
+    const range = mapCollabPatchRangeFromBase(
+      sourceBase,
+      oldValue,
+      patch.start,
+      patch.deleteCount
+    );
+    const insertText = String(patch.insertText ?? '');
+
+    const hadFocus = document.activeElement === editor;
+    const scrollTop = Number(editor.scrollTop || 0);
+    const scrollLeft = Number(editor.scrollLeft || 0);
+    const selectionStart = Number(editor.selectionStart || 0);
+    const selectionEnd = Number(editor.selectionEnd || selectionStart);
+    const selectionDirection = editor.selectionDirection || 'none';
+
+    // textarea.setRangeText(..., "preserve") is specifically designed to
+    // preserve/shift selection around a replaced range. It does not blur or
+    // steal focus, so classmates can type at the same time safely.
+    if (typeof editor.setRangeText === 'function') {
+      try {
+        editor.setRangeText(insertText, range.start, range.end, 'preserve');
+      } catch (error) {
+        console.warn('Native collaborative range update failed; using exact cursor mapping.', error);
+        const nextValue = oldValue.slice(0, range.start) + insertText + oldValue.slice(range.end);
+        const mapped = transformCollabSelectionThroughExactEdit(
+          selectionStart,
+          selectionEnd,
+          range.start,
+          range.end,
+          insertText.length,
+          selectionDirection
+        );
+        editor.value = nextValue;
+        editor.setSelectionRange(
+          Math.min(mapped.start, nextValue.length),
+          Math.min(mapped.end, nextValue.length),
+          mapped.direction
+        );
+      }
+    } else {
+      const nextValue = oldValue.slice(0, range.start) + insertText + oldValue.slice(range.end);
+      const mapped = transformCollabSelectionThroughExactEdit(
+        selectionStart,
+        selectionEnd,
+        range.start,
+        range.end,
+        insertText.length,
+        selectionDirection
+      );
+      editor.value = nextValue;
+      editor.setSelectionRange(
+        Math.min(mapped.start, nextValue.length),
+        Math.min(mapped.end, nextValue.length),
+        mapped.direction
+      );
+    }
+
+    // Never call editor.focus() here. If the student was typing, the textarea
+    // naturally remains focused. If they were clicking another control, remote
+    // updates must not steal their focus back.
+    editor.scrollTop = scrollTop;
+    editor.scrollLeft = scrollLeft;
+
+    return {
+      value: String(editor.value || ''),
+      hadFocus,
+      range,
+      selectionStart: Number(editor.selectionStart || 0),
+      selectionEnd: Number(editor.selectionEnd || 0)
+    };
+  }
+
+  function queueCollabRemotePatchDuringComposition(data = {}, options = {}) {
+    collabState.queuedRemotePatches.push({
+      data: { ...data },
+      options: { ...options, fromCompositionQueue: true }
+    });
+    // Keep only a reasonable burst. Host versions are monotonic and the queue
+    // is normally only a few messages during phone/IME composition.
+    if (collabState.queuedRemotePatches.length > 80) {
+      collabState.queuedRemotePatches.splice(0, collabState.queuedRemotePatches.length - 80);
+    }
+  }
+
+  function flushCollabRemotePatchQueue() {
+    if (collabState.editorComposing || !collabState.queuedRemotePatches.length) return;
+    const queue = collabState.queuedRemotePatches
+      .splice(0)
+      .sort((left, right) =>
+        Number(left?.data?.contentVersion || 0) - Number(right?.data?.contentVersion || 0)
+      );
+
+    queue.forEach(entry => {
+      try {
+        applyCollaborationLivePatch(entry.data, entry.options);
+      } catch (error) {
+        console.warn('Queued collaboration update could not be applied.', error);
+      }
+    });
+  }
+
   function rememberCollabBasesFromCodeByActivity(source = codeByActivity) {
     Object.entries(source || {}).forEach(([activityKey, store]) => {
       const normalized = normalizeCodeStore(store || starterCode);
@@ -23907,6 +24095,7 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
       applyCollaborationContent(data, options);
       return;
     }
+
     const version = Number(data.contentVersion || 0);
     const sameEditor = data.lastEditorUid && data.lastEditorUid === getCollabUid();
     if (!options.force && (sameEditor || !version || version <= collabState.lastContentVersion)) {
@@ -23917,50 +24106,110 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     const language = ['html', 'css', 'js'].includes(data.language) ? data.language : 'html';
     const activityId = activities.some(item => item.id === data.selectedActivityId) ? data.selectedActivityId : '';
     const codeKey = activityId || 'scratch';
-    const targetStore = normalizeCodeStore(codeByActivity[codeKey] || starterCode);
     const fileName = cleanLanguageFileName(data.fileName, language);
-    const scopeKey = getCollabFileScopeKey(activityId, language, fileName);
-    const files = getLanguageFileMap(language, targetStore);
-    const currentFileContent = String(files[fileName] ?? '');
-    const nextFileContent = data.patchMode === 'textPatch'
-      ? applyCollabTextPatchToValue(currentFileContent, data.patch || {}, String(data.baseContent ?? currentFileContent))
-      : String(data.content ?? '');
-    files[fileName] = nextFileContent;
-    rememberCollabFileBase(scopeKey, nextFileContent);
-    const meta = getLanguageFileMeta(language);
-    targetStore[meta.codeKey] = files[fileName];
-    if (!targetStore[meta.activeKey]) targetStore[meta.activeKey] = fileName;
-    codeByActivity[codeKey] = targetStore;
-
     const viewingSameActivity = (selectedActivityId || '') === activityId;
     const viewingSameFile = viewingSameActivity
       && activeLanguage === language
       && getActiveLanguageFileName(language) === fileName;
 
-    collabState.applyingRemote = true;
-    try {
-      saveCodeByActivity();
-      if (data.fileNames) {
-        codeFileNames = normalizeCodeFileNames({ ...codeFileNames, ...data.fileNames });
-        saveCodeFileNames();
+    // Phone keyboards/IME maintain an internal composition range. Changing that
+    // textarea range in the middle of composition can make characters jump to
+    // another line. Queue only the visible same-file patch for a few moments.
+    if (
+      viewingSameFile
+      && collabState.editorComposing
+      && !options.fromCompositionQueue
+    ) {
+      queueCollabRemotePatchDuringComposition(data, options);
+      return;
+    }
+
+    const targetStore = normalizeCodeStore(codeByActivity[codeKey] || starterCode);
+    const scopeKey = getCollabFileScopeKey(activityId, language, fileName);
+    const files = getLanguageFileMap(language, targetStore);
+
+    // When this user is looking at the target file, the live textarea is the
+    // freshest local text and may contain keystrokes not yet broadcast.
+    const currentFileContent = viewingSameFile
+      ? String(editor.value || '')
+      : String(files[fileName] ?? '');
+
+    let nextFileContent = '';
+    let editorPatchResult = null;
+
+    if (data.patchMode === 'textPatch') {
+      if (viewingSameFile) {
+        editorPatchResult = applyCollabExactTextPatchToEditor(data, currentFileContent);
+        nextFileContent = editorPatchResult.value;
+      } else {
+        nextFileContent = applyCollabTextPatchToValue(
+          currentFileContent,
+          data.patch || {},
+          String(data.baseContent ?? currentFileContent)
+        );
       }
-      if (viewingSameActivity) codeStore = targetStore;
+    } else {
+      // Full file replacements are rare (page/file change). Keep the existing
+      // logical cursor mapping fallback, but never focus/blur the editor.
+      nextFileContent = String(data.content ?? '');
       if (viewingSameFile) {
         const oldValue = String(editor.value || '');
         const start = Number(editor.selectionStart || 0);
         const end = Number(editor.selectionEnd || start);
-        const nextValue = String(files[fileName] || '');
-        const mappedSelection = transformCollabSelectionAfterRemoteEdit(oldValue, nextValue, start, end);
-        editor.value = nextValue;
-        const max = editor.value.length;
-        editor.setSelectionRange(Math.min(mappedSelection.start, max), Math.min(mappedSelection.end, max));
-        resetResultPanel();
-        runCode(false, { scroll: false, source: 'collab-p2p' });
+        const direction = editor.selectionDirection || 'none';
+        const scrollTop = Number(editor.scrollTop || 0);
+        const scrollLeft = Number(editor.scrollLeft || 0);
+        const mapped = transformCollabSelectionAfterRemoteEdit(oldValue, nextFileContent, start, end);
+
+        editor.value = nextFileContent;
+        editor.setSelectionRange(
+          Math.min(mapped.start, nextFileContent.length),
+          Math.min(mapped.end, nextFileContent.length),
+          direction
+        );
+        editor.scrollTop = scrollTop;
+        editor.scrollLeft = scrollLeft;
       }
+    }
+
+    files[fileName] = nextFileContent;
+    rememberCollabFileBase(scopeKey, nextFileContent);
+
+    const meta = getLanguageFileMeta(language);
+    targetStore[meta.codeKey] = files[fileName];
+    if (!targetStore[meta.activeKey]) targetStore[meta.activeKey] = fileName;
+    codeByActivity[codeKey] = targetStore;
+
+    collabState.applyingRemote = true;
+    try {
+      saveCodeByActivity();
+
+      if (data.fileNames) {
+        codeFileNames = normalizeCodeFileNames({ ...codeFileNames, ...data.fileNames });
+        saveCodeFileNames();
+      }
+
+      if (viewingSameActivity) codeStore = targetStore;
+
+      if (viewingSameFile) {
+        // Keep the model exactly aligned with the textarea after the native
+        // range operation. No loadActiveEditor(), no full textarea rebuild.
+        setLanguageFileContent(language, fileName, String(editor.value || nextFileContent));
+        files[fileName] = String(editor.value || nextFileContent);
+        targetStore[meta.codeKey] = files[fileName];
+        codeByActivity[codeKey] = targetStore;
+        rememberCollabFileBase(scopeKey, files[fileName]);
+
+        refreshEditorAfterRemoteCollabEdit();
+        scheduleCollabRemotePreviewRefresh();
+      }
+
       markCollabRemoteVersion(version);
       setStatus(`${data.lastEditorName || 'Classmate'} updated ${fileName}`);
     } finally {
-      window.setTimeout(() => { collabState.applyingRemote = false; }, 45);
+      // Keep this very short. It only prevents our own input handlers from
+      // echoing the programmatic remote range update back into the room.
+      window.setTimeout(() => { collabState.applyingRemote = false; }, 20);
     }
   }
 
@@ -25450,6 +25699,9 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     const localSnapshot = wasJoinedStudent && !returnToDashboard && !options.noRestore && backupSnapshot ? backupSnapshot : null;
     window.clearTimeout(collabState.pushTimer);
     window.clearTimeout(collabState.cursorTimer);
+    window.clearTimeout(collabState.remotePreviewTimer);
+    collabState.editorComposing = false;
+    collabState.queuedRemotePatches.length = 0;
     window.clearInterval(collabState.heartbeatTimer);
     if (collabState.role !== 'host' && collabState.ownPeerRef && firebaseSync.modules?.deleteDoc) {
       firebaseSync.modules.deleteDoc(collabState.ownPeerRef).catch(error => console.warn('Peer signal cleanup skipped.', error));
@@ -25734,6 +25986,28 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
   }
   htmlPageSelect?.addEventListener('change', rerenderCollabCursorsAfterLocalFileFocusChange);
   tabButtons.forEach(button => button.addEventListener('click', rerenderCollabCursorsAfterLocalFileFocusChange));
+
+  editor.addEventListener('compositionstart', () => {
+    if (!collabState.active) return;
+    collabState.editorComposing = true;
+  });
+
+  editor.addEventListener('compositionend', () => {
+    if (!collabState.active) {
+      collabState.editorComposing = false;
+      collabState.queuedRemotePatches.length = 0;
+      return;
+    }
+    collabState.editorComposing = false;
+
+    // First let the browser commit the composed local text, then broadcast it
+    // and merge any remote updates that arrived during the composition.
+    window.setTimeout(() => {
+      scheduleCollaborationPush('compositionend', { delay: 5 });
+      flushCollabRemotePatchQueue();
+      scheduleCollabCursorPush();
+    }, 0);
+  });
 
   editor.addEventListener('beforeinput', event => {
     if (!collabState.active || collabState.applyingRemote) return;
