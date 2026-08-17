@@ -5013,11 +5013,6 @@ async function activateStudentSession(profile, { showDashboard = true } = {}) {
   updateAppHeaderForSession();
   startStudentPresenceHeartbeat();
 
-  // Step 274: one-time lightweight Send Code directory sync. Never block login.
-  ensureCodeRecipientDirectoryForCurrentStudent().catch(error => {
-    console.warn('Send Code directory sync skipped.', error);
-  });
-
   const loginTracker = recordStudentLogin().catch(error => {
     console.warn('Could not record student login before showing the dashboard.', error);
   });
@@ -28537,7 +28532,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
 })();
 
 /* =========================================================
-   STEP 274: SEND CODE + CODE INBOX
+   STEP 270: SEND CODE + CODE INBOX
    Optimized Firestore design:
    - 1 lightweight inbox metadata document + 1 full transfer document per send.
    - Inbox listener reads metadata only (latest 20).
@@ -28550,74 +28545,6 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   const MAX_TRANSFER_BYTES = 300 * 1024;
   const INBOX_LIMIT = 20;
   const CODE_TRANSFER_SCHEMA_VERSION = 1;
-  const CODE_RECIPIENT_DIRECTORY_VERSION = 1;
-
-  function getCodeRecipientDirectoryDocRef(studentIdAuthKey) {
-    const { doc } = firebaseSync.modules;
-    return doc(
-      firebaseSync.db,
-      firebaseSync.collectionName,
-      firebaseSync.documentId,
-      'codeRecipientDirectory',
-      String(studentIdAuthKey || '').trim()
-    );
-  }
-
-  async function ensureCodeRecipientDirectoryForCurrentStudent() {
-    if (appSession.mode !== 'student' || !appSession.student) return false;
-
-    const user = getFirebaseActiveUser();
-    if (!user?.uid || !user?.email) return false;
-
-    const student = appSession.student;
-    const studentId = normalizeStudentId(
-      student.studentId || student.studentIdNormalized || ''
-    );
-    const studentIdAuthKey = getStudentIdAuthKey(studentId);
-    const authEmail = normalizeCodeInboxAuthEmail(user.email);
-
-    if (!studentId || !studentIdAuthKey || !authEmail) return false;
-
-    const alreadySynced = Number(student.codeRecipientDirectoryVersion || 0) >= CODE_RECIPIENT_DIRECTORY_VERSION
-      && String(student.studentIdAuthKey || '') === studentIdAuthKey
-      && normalizeCodeInboxAuthEmail(student.codeRecipientDirectoryAuthEmail) === authEmail;
-
-    if (alreadySynced) return true;
-
-    try {
-      const { setDoc, serverTimestamp } = firebaseSync.modules;
-
-      // Store the punctuation-insensitive key on the student's own profile so
-      // Firestore rules can verify that this directory row truly belongs to them.
-      await setDoc(getStudentDocRef(user.uid), {
-        studentIdAuthKey,
-        codeRecipientDirectoryVersion: CODE_RECIPIENT_DIRECTORY_VERSION,
-        codeRecipientDirectoryAuthEmail: authEmail,
-        updatedAt: serverTimestamp()
-      }, { merge: true });
-
-      // Compact routing metadata only. No projects, passwords, scores, or code.
-      await setDoc(getCodeRecipientDirectoryDocRef(studentIdAuthKey), {
-        studentIdAuthKey,
-        studentId,
-        uid: user.uid,
-        authEmail,
-        name: String(student.name || 'Student').trim() || 'Student',
-        section: String(student.section || '').trim(),
-        accountStatus: student.accountStatus || 'active',
-        directoryVersion: CODE_RECIPIENT_DIRECTORY_VERSION,
-        updatedAt: serverTimestamp()
-      }, { merge: true });
-
-      appSession.student.studentIdAuthKey = studentIdAuthKey;
-      appSession.student.codeRecipientDirectoryVersion = CODE_RECIPIENT_DIRECTORY_VERSION;
-      appSession.student.codeRecipientDirectoryAuthEmail = authEmail;
-      return true;
-    } catch (error) {
-      console.warn('Could not sync Send Code recipient directory.', error);
-      return false;
-    }
-  }
 
   const codeTransferState = {
     sendFiles: [],
@@ -28811,58 +28738,18 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       throw new Error('Choose a classmate’s Student ID, not your own account.');
     }
 
-    // STEP 274 FAST PATH:
-    // 22-0544 and 220544 resolve to the same auth key. This exact directory
-    // lookup is only one Firestore read and does not depend on roster.authUid.
-    try {
-      const { getDoc } = firebaseSync.modules;
-      const directorySnap = await getDoc(getCodeRecipientDirectoryDocRef(authKey));
-      if (snapshotExists(directorySnap)) {
-        const directory = { id: directorySnap.id, ...snapshotData(directorySnap) };
-        const receiverAuthEmail = normalizeCodeInboxAuthEmail(directory.authEmail);
-        const senderAuthEmail = getCurrentCodeInboxAuthEmail();
-
-        if (directory.accountStatus === 'disabled') {
-          throw new Error('This student account is disabled.');
-        }
-        if (!receiverAuthEmail) {
-          throw new Error('This student account has no Code Inbox address yet.');
-        }
-        if (senderAuthEmail && receiverAuthEmail === senderAuthEmail) {
-          throw new Error('Choose a classmate’s Student ID, not your own account.');
-        }
-
-        return {
-          uid: String(directory.uid || '').trim(),
-          authEmail: receiverAuthEmail,
-          studentId: normalizeStudentId(directory.studentId || normalized),
-          name: String(directory.name || 'Student').trim() || 'Student',
-          section: String(directory.section || '').trim(),
-          accountStatus: directory.accountStatus || 'active',
-          source: 'recipient-directory'
-        };
-      }
-    } catch (directoryError) {
-      const message = String(directoryError?.message || '');
-      if (message.includes('disabled') || message.includes('own account')) throw directoryError;
-      console.warn('Code recipient directory lookup fell back to roster.', directoryError);
-    }
-
-    // Legacy fallback for students whose browser has not synced the new directory yet.
     const matchesStudentId = record => Boolean(
       record && areStudentIdsEquivalent(
-        record.studentId
-          || record.studentIdNormalized
-          || record.rosterId
-          || record.id
-          || '',
+        record.studentId || record.studentIdNormalized || record.id || '',
         normalized
       )
     );
 
     let roster = null;
-    const candidateDocIds = [...new Set([normalized, authKey].filter(Boolean))];
 
+    // Fast path: exact/known document ID formats. The normal current format
+    // costs only one roster read.
+    const candidateDocIds = [...new Set([normalized, authKey].filter(Boolean))];
     for (const candidateId of candidateDocIds) {
       try {
         const candidate = await loadStudentRosterRecord(candidateId);
@@ -28875,6 +28762,9 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       }
     }
 
+    // Compatibility fallback for older imports where the Firestore document ID
+    // kept/removed dashes differently. First use the deterministic internal
+    // auth email because 22-0544 and 220544 map to the same login email.
     if (!roster) {
       try {
         const { getDocs, query, where, limit } = firebaseSync.modules;
@@ -28904,8 +28794,8 @@ window.MCS_PHONE_MENU_STATUS = () => ({
           }));
           const match = records.find(matchesStudentId)
             || records.find(record =>
-              generatedAuthEmail
-              && normalizeCodeInboxAuthEmail(record.authEmail) === normalizeCodeInboxAuthEmail(generatedAuthEmail)
+              generatedAuthEmail &&
+              normalizeCodeInboxAuthEmail(record.authEmail) === normalizeCodeInboxAuthEmail(generatedAuthEmail)
             );
           if (match) {
             roster = match;
@@ -28917,33 +28807,34 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       }
     }
 
-    if (roster && matchesStudentId(roster)) {
-      if (roster.accountStatus === 'disabled') throw new Error('This student account is disabled.');
+    if (!roster || !matchesStudentId(roster)) {
+      throw new Error('Student ID was not found in the class roster. Check the ID exactly as shown in the student list and try again.');
+    }
+    if (roster.accountStatus === 'disabled') throw new Error('This student account is disabled.');
 
-      const receiverAuthEmail = normalizeCodeInboxAuthEmail(
-        roster.authEmail || studentIdToAuthEmail(roster.studentId || roster.studentIdNormalized || normalized)
-      );
-      const senderAuthEmail = getCurrentCodeInboxAuthEmail();
-
-      if (receiverAuthEmail && (!senderAuthEmail || receiverAuthEmail !== senderAuthEmail)) {
-        return {
-          uid: String(roster.authUid || '').trim(),
-          authEmail: receiverAuthEmail,
-          studentId: normalizeStudentId(roster.studentId || roster.studentIdNormalized || roster.id || normalized),
-          name: String(roster.name || 'Student').trim() || 'Student',
-          section: String(roster.section || '').trim(),
-          accountStatus: roster.accountStatus || 'active',
-          source: 'student-roster'
-        };
-      }
+    // Step 273: Code Inbox is addressed by the student's internal Firebase
+    // auth email instead of requiring roster.authUid. This fixes valid students
+    // who can already log in but whose older roster row never received authUid.
+    const receiverAuthEmail = normalizeCodeInboxAuthEmail(
+      roster.authEmail || studentIdToAuthEmail(roster.studentId || roster.studentIdNormalized || normalized)
+    );
+    if (!receiverAuthEmail) {
+      throw new Error('This student roster record has no login address yet. Ask the teacher to open Login Check for this student.');
     }
 
-    // A working older Firebase account can exist even if its old roster link is
-    // incomplete, so do not falsely label the student as "not registered".
-    throw new Error(
-      'This Student ID is not synced to Send Code yet. '
-      + 'Ask the receiver to open My Projects once using the latest app, then try again.'
-    );
+    const senderAuthEmail = getCurrentCodeInboxAuthEmail();
+    if (senderAuthEmail && receiverAuthEmail === senderAuthEmail) {
+      throw new Error('Choose a classmate’s Student ID, not your own account.');
+    }
+
+    return {
+      uid: String(roster.authUid || '').trim(), // optional legacy metadata only
+      authEmail: receiverAuthEmail,
+      studentId: normalizeStudentId(roster.studentId || roster.studentIdNormalized || roster.id || normalized),
+      name: String(roster.name || 'Student').trim() || 'Student',
+      section: String(roster.section || '').trim(),
+      accountStatus: roster.accountStatus || 'active'
+    };
   }
 
   async function sendSelectedCodeTransfer() {
