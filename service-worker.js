@@ -1,13 +1,13 @@
-const CACHE_NAME = 'ict8-connect-step273-code-transfer-roster-fix';
+const CACHE_NAME = 'ict8-connect-step274-code-recipient-directory';
 const APP_SHELL = [
   './',
   './index.html',
-  './index.html?v=20260816-step273-code-transfer-roster-fix',
-  './index.html?fresh=step273-code-transfer-roster-fix',
+  './index.html?v=20260816-step274-code-recipient-directory',
+  './index.html?fresh=step274-code-recipient-directory',
   './style.css',
-  './style.css?v=20260816-step273-code-transfer-roster-fix',
+  './style.css?v=20260816-step274-code-recipient-directory',
   './script.js',
-  './script.js?v=20260816-step273-code-transfer-roster-fix',
+  './script.js?v=20260816-step274-code-recipient-directory',
   './firebase-config.js',
   './manifest.webmanifest',
   './favicon.png',
