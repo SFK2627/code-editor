@@ -1,13 +1,13 @@
-const CACHE_NAME = 'ict8-connect-step282-crdt-live-collaboration';
+const CACHE_NAME = 'ict8-connect-step283-stable-multipage-collaboration';
 const APP_SHELL = [
   './',
   './index.html',
-  './index.html?v=20260817-step282-crdt-live-collaboration',
-  './index.html?fresh=step282-crdt-live-collaboration',
+  './index.html?v=20260817-step283-stable-multipage-collaboration',
+  './index.html?fresh=step283-stable-multipage-collaboration',
   './style.css',
-  './style.css?v=20260817-step282-crdt-live-collaboration',
+  './style.css?v=20260817-step283-stable-multipage-collaboration',
   './script.js',
-  './script.js?v=20260817-step282-crdt-live-collaboration',
+  './script.js?v=20260817-step283-stable-multipage-collaboration',
   './firebase-config.js',
   './manifest.webmanifest',
   './favicon.png',

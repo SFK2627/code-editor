@@ -24118,20 +24118,47 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
 
   function syncCrdtTextIntoCodeStore(meta, text) {
     const codeKey = meta.activityId || 'scratch';
+
+    // Capture THIS device's current tab/page before touching the shared store.
+    // Host page focus is shared data history, but it must never control a
+    // joiner's local editor focus.
+    const viewingSameActivity = (selectedActivityId || '') === meta.activityId;
+    const localFocus = viewingSameActivity ? {
+      html: getActiveLanguageFileName('html'),
+      css: getActiveLanguageFileName('css'),
+      js: getActiveLanguageFileName('js')
+    } : null;
+
     const targetStore = normalizeCodeStore(codeByActivity[codeKey] || starterCode);
     const files = getLanguageFileMap(meta.language, targetStore);
     files[meta.fileName] = String(text ?? '');
+
     const languageMeta = getLanguageFileMeta(meta.language);
     targetStore[languageMeta.codeKey] = files[meta.fileName];
-    if (!targetStore[languageMeta.activeKey]) targetStore[languageMeta.activeKey] = meta.fileName;
+
+    // Restore the joiner's own active page/file keys on this local store.
+    if (localFocus) {
+      ['html', 'css', 'js'].forEach(language => {
+        const focusName = cleanLanguageFileName(localFocus[language] || '', language);
+        const languageFiles = getLanguageFileMap(language, targetStore);
+        if (focusName && hasOwnFile(languageFiles, focusName)) {
+          targetStore[getLanguageFileMeta(language).activeKey] = focusName;
+        }
+      });
+    } else if (!targetStore[languageMeta.activeKey]) {
+      targetStore[languageMeta.activeKey] = meta.fileName;
+    }
+
     codeByActivity[codeKey] = targetStore;
 
-    if ((selectedActivityId || '') === meta.activityId) {
+    if (viewingSameActivity) {
       codeStore = targetStore;
-      if (activeLanguage === meta.language && getActiveLanguageFileName(meta.language) === meta.fileName) {
+      const localActiveFile = getActiveLanguageFileName(meta.language);
+      if (activeLanguage === meta.language && localActiveFile === meta.fileName) {
         setLanguageFileContent(meta.language, meta.fileName, files[meta.fileName]);
       }
     }
+
     saveCodeByActivity();
   }
 
@@ -24148,6 +24175,61 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
         runCode(false, { scroll: false, trackRun: false, source: 'collab-crdt' });
       } catch (_) {}
     }, 120);
+  }
+
+
+  function reconcileLocalProjectFromCrdtDocs() {
+    const currentActivity = selectedActivityId || '';
+    const localFocus = {
+      activeLanguage,
+      html: getActiveLanguageFileName('html'),
+      css: getActiveLanguageFileName('css'),
+      js: getActiveLanguageFileName('js')
+    };
+
+    Object.entries(collabState.crdtDocs || {}).forEach(([scopeKey, doc]) => {
+      const parts = String(scopeKey || '').split('::');
+      if (parts.length < 3) return;
+      const activityKey = parts.shift() || 'scratch';
+      const language = parts.shift() || 'html';
+      const fileName = parts.join('::');
+      if (!['html', 'css', 'js'].includes(language) || !fileName) return;
+
+      const activityId = activityKey === 'scratch' ? '' : activityKey;
+      const codeKey = activityId || 'scratch';
+      const store = normalizeCodeStore(codeByActivity[codeKey] || starterCode);
+      const files = getLanguageFileMap(language, store);
+      files[cleanLanguageFileName(fileName, language)] = crdtVisibleText(doc);
+      codeByActivity[codeKey] = store;
+    });
+
+    if ((selectedActivityId || '') === currentActivity) {
+      const codeKey = currentActivity || 'scratch';
+      codeStore = normalizeCodeStore(codeByActivity[codeKey] || codeStore || starterCode);
+
+      ['html', 'css', 'js'].forEach(language => {
+        const files = getLanguageFileMap(language, codeStore);
+        const preferred = cleanLanguageFileName(localFocus[language] || '', language);
+        if (preferred && hasOwnFile(files, preferred)) {
+          codeStore[getLanguageFileMeta(language).activeKey] = preferred;
+          codeFileNames[language] = preferred;
+        }
+      });
+
+      if (['html', 'css', 'js'].includes(localFocus.activeLanguage)) {
+        activeLanguage = localFocus.activeLanguage;
+      }
+
+      codeByActivity[codeKey] = codeStore;
+      saveCodeByActivity();
+      saveCodeFileNames();
+
+      // Only refresh the active textarea after the recovery merge. Tabs/pages
+      // remain this user's own choice.
+      loadActiveEditor();
+      renderHTMLPageManager?.();
+      refreshCrdtEditorVisuals();
+    }
   }
 
   function applyRemoteCrdtOps(data = {}) {
@@ -24514,11 +24596,11 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
         lastSeenAt: Date.now()
       });
       if (collabState.role === 'host') {
-        sendCollabP2PMessage(remoteUid, buildCollabChannelMessage('state', { data: getCollabAuthoritativeState() }));
+        // The member's hello triggers exactly one authoritative state response.
+        // Do not send a second/third huge project state during channel startup.
         broadcastCollabP2PMessage(buildCollabChannelMessage('members', { members: collabState.peerMembers }));
       } else {
         sendCollabP2PMessage(remoteUid, buildCollabChannelMessage('hello', { member: buildCollabMember('member') }));
-        sendCollabP2PMessage(remoteUid, buildCollabChannelMessage('request-state'));
         if (collabState.pendingLiveMessage) {
           sendCollabP2PMessage(remoteUid, collabState.pendingLiveMessage);
           collabState.pendingLiveMessage = null;
@@ -24613,7 +24695,6 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     const data = snapshotData(peerDoc);
     const remoteUid = String(data.uid || peerDoc.id || '').trim();
     if (!remoteUid || remoteUid === getCollabUid() || !data.offer?.sdp) return;
-    if (collabState.latestSession?.blockedUids?.[remoteUid]) return;
     const offerKey = String(data.offerNonce || data.offer.sdp || '');
     if (collabState.peerOfferKeys.get(remoteUid) === offerKey) return;
     collabState.peerOfferKeys.set(remoteUid, offerKey);
@@ -24760,13 +24841,30 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     }
     if (message.type === 'state') {
       if (collabState.role === 'host' || !message.data) return;
+
+      const alreadyReady = collabState.crdtReady;
       collabState.latestSession = { ...(collabState.latestSession || {}), ...message.data };
       collabState.peerMembers = { ...(message.data.members || {}) };
 
-      const imported = importAllCrdtDocs(message.data.crdtSnapshots || {});
-      applyCollaborationContent(message.data, { force: true });
-      if (!imported) initializeCrdtDocsFromCurrentProject({ force: true });
-      collabState.crdtReady = true;
+      if (!alreadyReady) {
+        // Initial join only: load the host project once.
+        applyCollaborationContent(message.data, {
+          force: true,
+          preserveLocalView: true,
+          initialLiveJoin: true
+        });
+
+        const imported = importAllCrdtDocs(message.data.crdtSnapshots || {});
+        if (!imported) initializeCrdtDocsFromCurrentProject({ force: true });
+        collabState.crdtReady = true;
+      } else {
+        // Reconnect/repeated state: NEVER replace codeByActivity or reload the
+        // editor. Import the canonical CRDT documents and merge their visible
+        // text into our existing multi-file store.
+        if (importAllCrdtDocs(message.data.crdtSnapshots || {})) {
+          reconcileLocalProjectFromCrdtDocs();
+        }
+      }
 
       collabState.canEdit = message.data.allowEdit !== false && isCollaborationEditAllowed();
       editor.readOnly = !collabState.canEdit;
@@ -24774,6 +24872,7 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
 
       renderCollabMembers(collabState.latestSession);
       renderCollabCursors(collabState.latestSession);
+      updateLiveCollabProjectDisplay(message.data);
       setStatus(collabState.canEdit ? 'Live typing connected' : 'Live project is view-only');
       return;
     }
@@ -24882,9 +24981,13 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
         }));
       } else {
         collabState.latestSession = { ...(collabState.latestSession || {}), ...incoming };
-        applyCollaborationLivePatch(incoming);
-        if (incoming.crdtSnapshots) importAllCrdtDocs(incoming.crdtSnapshots);
-        else initializeCrdtDocsFromCurrentProject({ force: true });
+        applyCollaborationLivePatch(incoming, { preserveLocalView: true });
+        if (incoming.crdtSnapshots) {
+          importAllCrdtDocs(incoming.crdtSnapshots);
+          reconcileLocalProjectFromCrdtDocs();
+        } else {
+          initializeCrdtDocsFromCurrentProject({ force: true });
+        }
       }
     }
   }
@@ -25377,6 +25480,34 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     if (message) setCollabStatus(message, 'success');
   }
 
+
+  function updateLiveCollabProjectDisplay(data = collabState.latestSession || {}) {
+    if (!collabState.active || collabState.role === 'host') return;
+    const projectName = String(data?.projectName || getCollabProjectName(data) || 'Shared Project').trim() || 'Shared Project';
+
+    // This is only a temporary display object. It is NOT a saved project and
+    // currentProjectId stays empty until the student chooses Save.
+    if (!appSession.currentProjectId) {
+      appSession.currentProject = {
+        ...(appSession.currentProject?.liveCollaboration ? appSession.currentProject : {}),
+        id: '',
+        name: projectName,
+        liveCollaboration: true,
+        shareCode: collabState.code || ''
+      };
+    }
+
+    updateEditorProjectHeader?.();
+    if (editorProjectSaveBadge) editorProjectSaveBadge.textContent = 'LIVE';
+  }
+
+  function clearLiveCollabProjectDisplay() {
+    if (!appSession.currentProjectId && appSession.currentProject?.liveCollaboration) {
+      appSession.currentProject = null;
+    }
+    updateEditorProjectHeader?.();
+  }
+
   function enterCollabWorkspaceFromDashboard(data = {}) {
     // Joining from My Projects must actually move the student into the editor workspace.
     // The live project is not the student's saved project, so we do not create/change
@@ -25393,6 +25524,7 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     updateAppHeaderForSession?.();
     const projectName = data?.projectName || getCollabProjectName(data);
     const hostName = data?.hostName || getCollabHostName(data);
+    updateLiveCollabProjectDisplay(data);
     if (typeof setStudentSaveState === 'function') setStudentSaveState(`Live: ${projectName}`, 'saved');
     setStatus(`Joined live project: ${projectName} by ${hostName}`);
     window.setTimeout(() => {
@@ -25426,6 +25558,7 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
       sessionStorage.removeItem('studentCodeStudio.collab.localBeforeJoin');
       sessionStorage.removeItem('studentCodeStudio.collab.joinSource');
     } catch {}
+    clearLiveCollabProjectDisplay();
     if (typeof setStudentSaveState === 'function') setStudentSaveState('Choose a project', '');
     window.setTimeout(() => {
       showStudentDashboard?.();
@@ -25566,7 +25699,6 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
       const data = snapshotData(snap);
       if (data.active === false) throw new Error('This share code is already stopped.');
       const uid = authUser.uid;
-      if (data.blockedUids?.[uid]) throw new Error('You were removed from this live project.');
       const role = options.role === 'host' || data.hostUid === uid ? 'host' : 'member';
       if (role !== 'host' && !options.noRestore) {
         const fromDashboard = options.source === 'dashboard';
@@ -25642,11 +25774,6 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
         return;
       }
       const cloudData = snapshotData(snapshot);
-      if (collabState.role !== 'host' && cloudData.blockedUids?.[getCollabUid()]) {
-        leaveCollaborationSession({ silent: false, message: 'You were removed from the live project by the host.' });
-        closeCollabOverlay();
-        return;
-      }
       if (cloudData.active === false) {
         leaveCollaborationSession({ silent: false, message: 'Host stopped sharing.' });
         return;
@@ -25715,15 +25842,29 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     collabState.applyingRemote = true;
     try {
       codeByActivity = normalizeProjectCodeByActivity(data.codeByActivity);
-      selectedActivityId = activities.some(item => item.id === data.selectedActivityId) ? data.selectedActivityId : '';
+
+      const incomingActivityId = String(data.selectedActivityId || '');
+      const incomingCodeKey = incomingActivityId || 'scratch';
+      const hasIncomingCode = Boolean(codeByActivity[incomingCodeKey]);
+
+      // During collaboration, show the host's actual project code even if the
+      // client's local activity/rubric list has not loaded that activity ID.
+      selectedActivityId = (activities.some(item => item.id === incomingActivityId) || hasIncomingCode)
+        ? incomingActivityId
+        : '';
+
       activity = selectedActivityId ? getActivityById(selectedActivityId) : null;
-      const codeKey = selectedActivityId || 'scratch';
+      const codeKey = selectedActivityId || (hasIncomingCode ? incomingCodeKey : 'scratch');
       codeStore = codeByActivity[codeKey] ? normalizeCodeStore(codeByActivity[codeKey]) : normalizeCodeStore(starterCode);
       codeByActivity[codeKey] = normalizeCodeStore(codeStore);
       codeFileNames = normalizeCodeFileNames(data.fileNames || DEFAULT_CODE_FILE_NAMES);
       rememberCollabBasesFromCodeByActivity(codeByActivity);
 
-      if (!options.force) {
+      const shouldPreserveLocalView = !options.force
+        || options.preserveLocalView === true
+        || (collabState.active && collabState.role !== 'host' && collabState.crdtReady);
+
+      if (shouldPreserveLocalView) {
         ['html', 'css', 'js'].forEach(language => {
           const meta = getLanguageFileMeta(language);
           const files = getLanguageFileMap(language, codeStore);
@@ -25994,6 +26135,7 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     collabState.savedProjectName = '';
     editor.readOnly = false;
     document.body.classList.remove('collab-active', 'collab-view-only');
+    clearLiveCollabProjectDisplay();
     closeCollabMembersOverlay?.();
     if (returnToDashboard) {
       collabState.localBeforeJoin = null;
@@ -26048,31 +26190,29 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
 
   async function kickCollabMember(uid, displayName = 'this member') {
     if (!collabState.active || collabState.role !== 'host' || !collabState.sessionRef || !uid || uid === getCollabUid()) return;
-    const confirmed = await appConfirm(`Remove ${displayName} from this live project?`, { title: 'Remove member', danger: true, confirmText: 'Kick Member' });
+    const confirmed = await appConfirm(
+      `Remove ${displayName} from this live project now?
+
+They can join again later using the same share code.`,
+      { title: 'Remove member', danger: true, confirmText: 'Remove Member' }
+    );
     if (!confirmed) return;
+
     try {
+      // STEP 283: kick is session-temporary. Do not write blockedUids.
       sendCollabP2PMessage(uid, buildCollabChannelMessage('kick', { targetUid: uid }));
-      const { setDoc, serverTimestamp } = firebaseSync.modules;
-      await setDoc(collabState.sessionRef, {
-        blockedUids: {
-          [uid]: {
-            name: displayName,
-            kickedAtMs: Date.now(),
-            kickedBy: getCollabUid()
-          }
-        },
-        updatedAt: serverTimestamp()
-      }, { merge: true });
       markCollabRuntimeMemberOffline(uid, { kicked: true, kickedAt: Date.now() });
-      closeCollabPeer(uid);
+      closeCollabPeer(uid, { suppressReconnect: true });
+
       const peerRef = getCollabPeerDocRef(collabState.code, uid);
       await firebaseSync.modules.deleteDoc(peerRef).catch(() => {});
+
       broadcastCollabP2PMessage(buildCollabChannelMessage('members', { members: collabState.peerMembers }));
-      setStatus(`${displayName} was removed from the live project.`);
+      setStatus(`${displayName} was removed. They may rejoin with the same code.`);
       renderCollabMembers(collabState.latestSession);
       showCollabMembersList();
     } catch (error) {
-      console.error('Could not kick collaboration member.', error);
+      console.error('Could not remove collaboration member.', error);
       setStatus(error?.message || 'Could not remove member.');
     }
   }
