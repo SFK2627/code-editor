@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ict8-connect-v286-stable-login';
+const CACHE_NAME = 'ict8-connect-v287-smart-rubric-result';
 
 self.addEventListener('install', event => {
   event.waitUntil(self.skipWaiting());

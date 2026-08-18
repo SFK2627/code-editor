@@ -1235,7 +1235,7 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
             <div>
               <p class="section-kicker">Teacher-Controlled Smart Review</p>
               <h3>Smart Rubric Review</h3>
-              <p class="muted-text">Optional Gemini-powered rubric help. Smart Review is only used when Result or Generate Rubric is clicked.</p>
+              <p class="muted-text">When ON, Result checks the selected activity rubric against the student’s complete project. When OFF, the normal built-in scoring system stays active.</p>
             </div>
             <span id="aiRubricStatusPill" class="ai-rubric-status-pill">SMART REVIEW OFF</span>
           </div>
@@ -1269,7 +1269,7 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
             <label class="ai-rubric-settings-toggle ai-rubric-mini-toggle" for="aiRubricStudentFeedbackToggle">
               <span>
                 <strong>Smart Result Feedback</strong>
-                <small>Use Gemini when Result is clicked. It compares code/output against the rubric and gives criterion scores.</small>
+                <small>When Result is clicked, review all HTML pages, CSS files, and JavaScript files against the selected rubric. Identical repeated checks reuse a cached result when available.</small>
               </span>
               <span class="admin-switch">
                 <input id="aiRubricStudentFeedbackToggle" type="checkbox" checked />
@@ -1279,7 +1279,7 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
             <label class="ai-rubric-settings-toggle ai-rubric-mini-toggle" for="aiRubricRubricFeedbackToggle">
               <span>
                 <strong>Use Smart Review in Result</strong>
-                <small>Result & Feedback uses Gemini as the main rubric judge when available; fallback stays local only if Gemini fails.</small>
+                <small>When ON, the secure rubric review is the main judge. If it is unavailable or temporarily limited, Result automatically uses the existing built-in rubric score without exposing technical service errors to students.</small>
               </span>
               <span class="admin-switch">
                 <input id="aiRubricRubricFeedbackToggle" type="checkbox" checked />
@@ -1301,7 +1301,7 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
             <button id="saveAiRubricSettingsBtn" class="primary-btn" type="button">Save Smart Settings</button>
             <button id="testAiRubricSettingsBtn" class="ghost-btn" type="button">Test Smart Connection</button>
           </div>
-          <p id="aiRubricSettingsStatus" class="helper-note">Smart Review is optional. Keep it OFF until you add your API key.</p>
+          <p id="aiRubricSettingsStatus" class="helper-note">OFF = normal built-in scoring. ON = secure complete-project rubric review. The student result screen never needs the API key.</p>
         </section>
 
         <div class="assistance-settings-actions">
