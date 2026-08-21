@@ -9874,7 +9874,7 @@ function buildAdminAiRubricPrompt(context) {
   const style = aiRubricSettings.reviewStyle || 'strict';
   return `You are an experienced Grade 8 ICT/web coding teacher. Grade the student's project using ONLY the teacher rubric, the student code, and the rendered output summary below.\n\nIMPORTANT RULES:\n- Be consistent and evidence-based.\n- Do not reward code that is not present or output that cannot be verified.\n- If output summary is limited, use the code as evidence and mention the limitation.\n- Score each criterion from 0 up to its max points only.\n- A criterion that satisfies every explicit Excellent-level requirement must receive the Excellent score for that row.
 - Do a contradiction audit: evidence, level, score, and improvement must agree.
-- Total score must equal the sum of criterion scores.\n- Use the rubric descriptions as the main basis.\n- Review all provided HTML/CSS/JavaScript files and verify HTML-CSS selector connections; do not focus on one example or a fixed list of tags.\n- Give constructive feedback that a beginner can understand.\n- Do not give a complete replacement code solution.\n- Return ONLY valid JSON. No markdown.\n- Use this review style: ${style}.\n\nRequired JSON schema:\n{\n  "summary": "one short teacher summary",\n  "totalScore": 0,\n  "possibleScore": 0,\n  "percent": 0,\n  "confidence": "high|medium|low",\n  "criteria": [\n    {"name":"criterion name", "max":0, "score":0, "level":"Excellent|Good|Fair|Needs Improvement", "evidence":"specific evidence from code/output", "improvement":"specific improvement"}\n  ],\n  "studentFeedback": "short feedback for the student",\n  "teacherNotes": ["short note for teacher"],\n  "warnings": ["limitations or uncertain items"]\n}\n\nPROJECT CONTEXT JSON:\n${JSON.stringify(context, null, 2)}`;
+- Total score must equal the sum of criterion scores.\n- Use the rubric descriptions as the main basis.\n- Review only the technologies and requirements included in the selected activity rubric. Ignore CSS, JavaScript, design preferences, or extra features when they are not part of the rubric.\n- Give constructive feedback that a beginner can understand.\n- Do not give a complete replacement code solution.\n- Return ONLY valid JSON. No markdown.\n- Use this review style: ${style}.\n\nRequired JSON schema:\n{\n  "summary": "one short teacher summary",\n  "totalScore": 0,\n  "possibleScore": 0,\n  "percent": 0,\n  "confidence": "high|medium|low",\n  "criteria": [\n    {"name":"criterion name", "max":0, "score":0, "level":"Excellent|Good|Fair|Needs Improvement", "evidence":"specific evidence from code/output", "improvement":"specific improvement"}\n  ],\n  "studentFeedback": "short teacher-style feedback for the student",\n  "strengths": ["specific strengths based only on rubric evidence"],\n  "areasToImprove": ["specific improvements based only on rubric evidence"],\n  "mainErrors": ["numbered rubric-related errors only"],\n  "teacherNotes": ["short note for teacher"],\n  "warnings": ["limitations or uncertain items"]\n}\n\nPROJECT CONTEXT JSON:\n${JSON.stringify(context, null, 2)}`;
 }
 
 function extractJsonObjectFromText(text) {
@@ -9889,6 +9889,82 @@ function extractJsonObjectFromText(text) {
   const end = raw.lastIndexOf('}');
   if (start >= 0 && end > start) return JSON.parse(raw.slice(start, end + 1));
   throw new Error('Gemini did not return valid JSON.');
+}
+
+
+function detectHtmlCodeQualityIssues(sourceCode) {
+  const lines = String(sourceCode || '').split(/\r?\n/);
+  const issues = [];
+  const stack = [];
+  const voidTags = new Set(['img','br','hr','meta','link','input','source','area','base','embed','param','track','wbr']);
+  const knownTags = new Set(['html','head','body','title','h1','h2','h3','h4','h5','h6','p','strong','em','b','i','u','ul','ol','li','a','img','br','hr','meta','link','input','div','span','table','tr','td','th','form','button','script','style']);
+
+  function similaritySuggestion(tag) {
+    const candidates = Array.from(knownTags);
+    let best = '';
+    let score = 0;
+    for (const c of candidates) {
+      let s = 0;
+      const max = Math.max(tag.length, c.length);
+      for (let i = 0; i < Math.min(tag.length, c.length); i++) {
+        if (tag[i] === c[i]) s++;
+      }
+      s = s / max;
+      if (s > score) {
+        score = s;
+        best = c;
+      }
+    }
+    return score >= 0.66 ? best : '';
+  }
+
+  // Detect incomplete tags and unknown tags from the actual student code.
+  lines.forEach((line, index) => {
+    const incomplete = line.match(/<([a-zA-Z][a-zA-Z0-9]*)\b[^<>]*$/);
+    if (incomplete) {
+      const tag = incomplete[1].toLowerCase();
+      if (knownTags.has(tag) && voidTags.has(tag)) {
+        issues.push(`Line ${index + 1}: The <${tag}> tag is incomplete because the closing angle bracket (>) is missing. Add > to complete the tag.`);
+      }
+    }
+
+    const openingTags = line.match(/<([a-zA-Z][a-zA-Z0-9]*)\b/g) || [];
+    openingTags.forEach(raw => {
+      const tag = raw.substring(1).toLowerCase();
+      if (!knownTags.has(tag)) {
+        const suggestion = similaritySuggestion(tag);
+        issues.push(`Line ${index + 1}: Unknown HTML tag <${tag}> detected.${suggestion ? ` Did you mean <${suggestion}>? Suggested fix: replace <${tag}> with <${suggestion}>.` : ' Check the tag name and correct the HTML element.'}`);
+      }
+    });
+  });
+
+  const tagPattern = /<\/?\s*([a-zA-Z0-9]+)\b[^>]*>?/g;
+  lines.forEach((line, index) => {
+    let match;
+    while ((match = tagPattern.exec(line)) !== null) {
+      const raw = match[0];
+      const tag = match[1].toLowerCase();
+      if (!knownTags.has(tag) || voidTags.has(tag)) continue;
+      if (raw.trim().startsWith('</')) {
+        const last = stack.map(item => item.tag).lastIndexOf(tag);
+        if (last !== -1) stack.splice(last, 1);
+      } else if (!raw.endsWith('/>')) {
+        stack.push({ tag, line: index + 1 });
+      }
+    }
+  });
+
+  stack.reverse().forEach(item => {
+    issues.push(`Line ${item.line}: The <${item.tag}> tag was opened but not closed. Missing: </${item.tag}>`);
+  });
+
+  return issues.slice(0, 10);
+}
+
+function buildCodeQualityNotes(sourceCode) {
+  const issues = detectHtmlCodeQualityIssues(sourceCode);
+  if (!issues.length) return [];
+  return issues.map(item => `Code Quality Note: ${item}`);
 }
 
 function normalizeAdminAiRubricReview(raw, context) {
@@ -9918,7 +9994,8 @@ function normalizeAdminAiRubricReview(raw, context) {
     confidence: ['high', 'medium', 'low'].includes(String(raw?.confidence || '').toLowerCase()) ? String(raw.confidence).toLowerCase() : 'medium',
     criteria,
     studentFeedback: String(raw?.studentFeedback || raw?.feedback || 'Good effort. Review the criterion notes and improve one item at a time.').slice(0, 1800),
-    teacherNotes: Array.isArray(raw?.teacherNotes) ? raw.teacherNotes.map(item => String(item).slice(0, 400)).slice(0, 8) : [],
+    teacherNotes: [...(Array.isArray(raw?.teacherNotes) ? raw.teacherNotes.map(item => String(item).slice(0, 400)).slice(0, 8) : []), ...buildCodeQualityNotes(context?.code || context?.html || '')].slice(0, 10),
+    mainErrors: Array.isArray(raw?.mainErrors) ? raw.mainErrors.map(item => String(item).slice(0, 300)).slice(0, 10) : [],
     warnings: Array.isArray(raw?.warnings) ? raw.warnings.map(item => String(item).slice(0, 400)).slice(0, 8) : [],
     reviewedAt: new Date(),
     activityId: context?.activity?.id || adminProjectViewerState.activityKey || 'scratch',
@@ -9982,12 +10059,14 @@ function renderAdminAiRubricReview(review) {
         <h4>Student Feedback</h4>
         <p>${escapeHTML(safe.studentFeedback || '')}</p>
       </div>
+      ${safe.mainErrors?.length ? `<div class="admin-ai-feedback-block"><h4>Main Errors to Point Out</h4><ol>${safe.mainErrors.map(item => `<li>${escapeHTML(item)}</li>`).join('')}</ol></div>` : ''}
       ${safe.teacherNotes?.length ? `<div class="admin-ai-feedback-block"><h4>Teacher Notes</h4><ul>${safe.teacherNotes.map(item => `<li>${escapeHTML(item)}</li>`).join('')}</ul></div>` : ''}
       ${safe.warnings?.length ? `<div class="admin-ai-feedback-block"><h4>Warnings / Limits</h4><ul class="admin-ai-warning-list">${safe.warnings.map(item => `<li>${escapeHTML(item)}</li>`).join('')}</ul></div>` : ''}
       <div class="admin-ai-criteria-list">
         ${safe.criteria.map(item => `
           <div class="admin-ai-criterion">
             <div class="admin-ai-criterion-top"><strong>${escapeHTML(item.name)}</strong><span class="admin-ai-criterion-score">${escapeHTML(formatPoints(item.score))}/${escapeHTML(formatPoints(item.max))}</span></div>
+            <p><strong>Level:</strong> ${escapeHTML(item.level || '')}</p>
             <p><strong>Evidence:</strong> ${escapeHTML(item.evidence || '')}</p>
             <p><strong>Improve:</strong> ${escapeHTML(item.improvement || '')}</p>
           </div>`).join('')}
@@ -15225,6 +15304,67 @@ function normalizeLevelKeyFromAi(level, score, max) {
   return progressToLevelKey(max ? Number(score || 0) / max : 0);
 }
 
+
+function applyRubricScoreGuard(item, localItem = null) {
+  if (!localItem) return item;
+
+  const aiScore = Number(item.earned || 0);
+  const localScore = Number(localItem.earned || 0);
+
+  // The rubric checker is the safety limit. Enhanced review can explain
+  // and improve feedback, but it cannot award points above verified evidence.
+  if (localScore < aiScore) {
+    item.earned = Math.round(localScore * 10) / 10;
+    item.levelKey = localItem.levelKey || item.levelKey;
+    item.levelLabel = localItem.levelLabel || item.levelLabel;
+    item.levelDescription = localItem.levelDescription || item.levelDescription;
+  }
+
+  if (!String(item.reason || '').trim()) {
+    item.reason = item.evidence || item.levelDescription || 'Score based on the selected activity rubric requirements.';
+  }
+
+  return item;
+}
+
+
+// v2.6 AI/local synchronization guard.
+// Keeps rubric scoring consistent regardless of review availability.
+function applyAiLocalSynchronizationGuard(aiResults = [], localResults = []) {
+  if (!Array.isArray(aiResults) || !Array.isArray(localResults)) return aiResults;
+  aiResults.forEach(item => {
+    const local = localResults.find(row => String(row.title || '').trim().toLowerCase() === String(item.title || '').trim().toLowerCase());
+    if (!local) return;
+    const localEarned = Number(local.earned ?? 0);
+    const maxAllowed = Number(local.points ?? item.points ?? 0);
+    if (Number.isFinite(localEarned) && localEarned >= 0 && Number.isFinite(maxAllowed)) {
+      item.earned = Math.min(Number(item.earned || 0), maxAllowed);
+    }
+  });
+  return aiResults;
+}
+
+
+function buildRubricEvidenceMatrix(results = []) {
+  return results.map(item => {
+    const evidence = String(item.evidence || item.reason || '').trim();
+    const issues = [];
+    if (Array.isArray(item.missing) && item.missing.length) {
+      item.missing.slice(0, 5).forEach(check => {
+        issues.push(String(check.fix || check.label || 'Requirement needs improvement.'));
+      });
+    }
+    return {
+      criterion: String(item.title || '').trim(),
+      score: Number(item.earned || 0),
+      possible: Number(item.points || 0),
+      level: String(item.levelLabel || item.levelKey || '').trim(),
+      evidence: evidence || 'Criterion compared with the selected activity rubric.',
+      issues: issues.slice(0, 5)
+    };
+  });
+}
+
 function buildResultFromAiRubricReview(raw, localResult = null) {
   const rubricCriteria = Array.isArray(activity?.criteria) ? activity.criteria : [];
   const rawCriteria = Array.isArray(raw?.criteria) ? raw.criteria : [];
@@ -15235,9 +15375,9 @@ function buildResultFromAiRubricReview(raw, localResult = null) {
     const earned = Math.round(clamp(Number(ai.score ?? ai.earned ?? 0) || 0, 0, max) * 10) / 10;
     const levelKey = normalizeLevelKeyFromAi(ai.level, earned, max);
     const level = getCriterionLevel(normalized, levelKey);
-    const evidence = String(ai.evidence || '').trim();
+    const evidence = String(ai.evidence || ai.reason || '').trim();
     const improvement = String(ai.improvement || '').trim();
-    const levelDescription = [evidence, improvement ? `Improve: ${improvement}` : ''].filter(Boolean).join(' ')
+    const levelDescription = evidence
       || level.description
       || 'This criterion was compared with the submitted project evidence.';
     return {
@@ -15252,13 +15392,37 @@ function buildResultFromAiRubricReview(raw, localResult = null) {
       rule: 'smart_rubric',
       target: '',
       evidence,
-      improvement
+      improvement,
+      reason: evidence || level.description || ''
     };
   });
+  // Smart scoring safeguard: the selected rubric remains the authority.
+  // Do not allow the review layer to award more points than the evidence-based
+  // rubric result supports. Additional technologies or preferences outside the
+  // rubric must not affect the grade.
+  if (localResult?.results?.length) {
+    results.forEach(item => {
+      const localItem = localResult.results.find(local =>
+        String(local.title || '').trim().toLowerCase() === String(item.title || '').trim().toLowerCase()
+      );
+      if (!localItem) return;
+      applyRubricScoreGuard(item, localItem);
+    });
+    applyAiLocalSynchronizationGuard(results, localResult.results);
+  }
   const possible = results.reduce((sum, item) => sum + item.points, 0);
   const score = Math.round(results.reduce((sum, item) => sum + item.earned, 0) * 10) / 10;
   const percent = possible ? Math.round((score / possible) * 100) : 0;
-  const feedback = String(raw?.studentFeedback || raw?.summary || generateFeedback(score, possible, percent, results)).slice(0, 1800);
+  const generatedFeedback = raw?.studentFeedback || raw?.summary || generateFeedback(score, possible, percent, results);
+  const strengths = Array.isArray(raw?.strengths) ? raw.strengths : [];
+  const areasToImprove = Array.isArray(raw?.areasToImprove) ? raw.areasToImprove : [];
+  const mainErrors = Array.isArray(raw?.mainErrors) ? raw.mainErrors : [];
+  const feedback = String([
+    generatedFeedback,
+    strengths.length ? `Strengths: ${strengths.join(' ')}` : '',
+    areasToImprove.length ? `Areas to improve: ${areasToImprove.join(' ')}` : '',
+    mainErrors.length ? `Main errors to point out: ${mainErrors.map((e, i) => `${i + 1}. ${e}`).join(' ')}` : ''
+  ].filter(Boolean).join('\n')).slice(0, 2200);
   const recordMeta = getResultRecordingMeta(localResult);
   return {
     source: 'rubric-review',
@@ -15280,7 +15444,8 @@ function buildResultFromAiRubricReview(raw, localResult = null) {
     aiConfidence: String(raw?.confidence || 'medium').toLowerCase(),
     aiWarnings: Array.isArray(raw?.warnings) ? raw.warnings.map(item => String(item).slice(0, 400)).slice(0, 6) : [],
     aiTeacherNotes: Array.isArray(raw?.teacherNotes) ? raw.teacherNotes.map(item => String(item).slice(0, 400)).slice(0, 6) : [],
-    localFallbackScore: localResult ? { score: localResult.score, possible: localResult.possible, percent: localResult.percent } : null
+    localFallbackScore: localResult ? { score: localResult.score, possible: localResult.possible, percent: localResult.percent } : null,
+    evidenceMatrix: buildRubricEvidenceMatrix(results)
   };
 }
 
@@ -15441,7 +15606,7 @@ function buildGeminiStudentRubricFeedbackPrompt(result) {
   const style = aiRubricSettings.reviewStyle || 'balanced';
   return `You are a careful Grade 8 ICT teacher reviewing a student's HTML/CSS/JavaScript project.
 
-Use the teacher rubric as the main scoring basis. Compare the rubric, code, checker warnings, and visible output text. Be fair and consistent. Do not invent output that is not shown. If a visual judgment is limited because you only have a text summary, mention that limitation briefly. Do not provide a complete replacement code solution.
+Use the teacher rubric as the ONLY scoring basis. Compare each rubric criterion with evidence found in the submitted project. Do not add requirements that are not written in the selected rubric. Ignore CSS, JavaScript, design quality, or extra features unless they are explicitly included in the rubric. Do not invent output that is not shown. If a visual judgment is limited because you only have a text summary, mention that limitation briefly. Do not provide a complete replacement code solution.
 
 Return ONLY valid JSON. No markdown.
 
@@ -15493,6 +15658,37 @@ async function requestAIReview(options = {}) {
   return showResult({ ...normalizeButtonActionOptions(options), scroll: true });
 }
 
+
+function classifyEvaluationIssue(text = '') {
+  const value = String(text || '').toLowerCase();
+  if (/missing|requirement|not found|absent|lacks|without/.test(value)) return 'Requirement Issue';
+  if (/tag|syntax|invalid|error|closing|closed|format|attribute|statement/.test(value)) return 'Syntax/Formatting Issue';
+  return 'Rubric Improvement';
+}
+
+function getMainEvaluationErrors(result = null) {
+  const errors = [];
+  const sources = [];
+  if (result?.aiWarnings) sources.push(...result.aiWarnings);
+  (result?.results || []).forEach(item => {
+    const improvement = String(item?.improvement || '').trim();
+    const evidence = String(item?.evidence || '').trim();
+    if (improvement && !/satisfied|no major|no rubric|meets|complete|all .*requirements/i.test(improvement)) {
+      sources.push(`${item.title}: ${improvement}`);
+    }
+    if (evidence && /error|missing|incorrect|not found|failed|issue|invalid|unclosed|closing|close tag|syntax/i.test(evidence)) {
+      sources.push(`${item.title}: ${evidence}`);
+    }
+  });
+  sources.forEach(text => {
+    const clean = String(text || '').trim();
+    if (!clean || /all explicitly detected requirements|doctype is present|opening and closing <.*> tags are present/i.test(clean)) return;
+    const labeled = `${classifyEvaluationIssue(clean)}: ${clean}`;
+    if (!errors.includes(labeled)) errors.push(labeled);
+  });
+  return errors.slice(0, 5);
+}
+
 function renderResult(result) {
   result = attachCurrentResultRecordingMeta(result);
   const pillClass = result.percent >= activity.passingScore
@@ -15508,18 +15704,23 @@ function renderResult(result) {
     ? result.results.filter(item => item.passed).slice(0, 4).map(item => `${item.title}: ${item.evidence || item.levelDescription || 'Meets the rubric level.'}`)
     : result.results.filter(item => item.passed).slice(0, 3).map(item => `${item.title}: ${item.levelDescription || 'Meets the rubric level.'}`);
   const improvements = result.results
-    .filter(item => !item.passed || item.improvement)
+    .filter(item => !item.passed && item.improvement && !/satisfied|no major|no rubric/i.test(String(item.improvement)))
     .slice(0, 4)
     .map(item => `${item.title}: ${item.improvement || item.levelDescription || 'Improve this criterion.'}`);
   const confidenceLine = isSmart
-    ? `<p class="muted-text smart-result-note">Your complete project was checked against the selected rubric. Review confidence: ${escapeHTML(result.aiConfidence || 'medium')}.</p>`
+    ? `<p class="muted-text smart-result-note">Your complete project was checked against the selected rubric.</p>`
     : isPendingSmart
       ? `<p class="muted-text smart-result-note smart-result-pending">A quick score is shown while the complete project check finishes. The result will update automatically if needed.</p>`
       : isFallbackSmart
-        ? `<p class="muted-text smart-result-note">The built-in rubric checker was used for this result. You can continue working normally.</p>`
-        : `<p class="muted-text smart-result-note">The built-in rubric checker compared your work with the selected rubric.</p>`;
-  const warnings = isSmart && Array.isArray(result.aiWarnings) && result.aiWarnings.length
-    ? `<div class="result-warning-note"><strong>Review note:</strong> ${escapeHTML(result.aiWarnings.join(' '))}</div>`
+        ? `<p class="muted-text smart-result-note">The selected rubric was used to evaluate your work.</p>`
+        : `<p class="muted-text smart-result-note">Your work was compared with the selected rubric.</p>`;
+  const mainErrors = getMainEvaluationErrors(result);
+  const warnings = mainErrors.length
+    ? `<div class="result-warning-note"><strong>Main Errors to Point Out:</strong><ol>${mainErrors.map(item => `<li>${escapeHTML(item)}</li>`).join('')}</ol></div>`
+    : '';
+  const codeQualityNotes = buildCodeQualityNotes(window.__currentSubmittedCode || editor?.value || result?.sourceCode || '');
+  const codeQualityBlock = codeQualityNotes.length
+    ? `<div class="result-code-quality-note"><strong>Code Quality Notes:</strong><ol>${codeQualityNotes.map(item => `<li>${escapeHTML(item.replace(/^Code Quality Note:\s*/i, ''))}</li>`).join('')}</ol></div>`
     : '';
 
   const recordHeader = buildResultRecordingHeader(result);
@@ -15542,6 +15743,7 @@ function renderResult(result) {
         <strong>Feedback:</strong> ${escapeHTML(result.feedback)}
       </div>
       ${warnings}
+      ${codeQualityBlock}
 
       <div class="result-insight-grid" aria-label="Result feedback highlights">
         <div class="result-insight-card good">
@@ -15550,7 +15752,7 @@ function renderResult(result) {
         </div>
         <div class="result-insight-card improve">
           <h4>Improve Next</h4>
-          <ul>${(improvements.length ? improvements : ['No major rubric issue was detected. Continue polishing readability and design.']).map(item => `<li>${escapeHTML(item)}</li>`).join('')}</ul>
+          <ul>${(improvements.length ? improvements : ['No rubric-related improvements are needed at this time.']).map(item => `<li>${escapeHTML(item)}</li>`).join('')}</ul>
         </div>
       </div>
 
