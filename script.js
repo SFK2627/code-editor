@@ -289,6 +289,26 @@ const dashboardThemeBtn = document.getElementById('dashboardThemeBtn');
 const dashboardSubjectStatusBtn = document.getElementById('dashboardSubjectStatusBtn');
 const dashboardLessonViewerBtn = document.getElementById('dashboardLessonViewerBtn');
 const dashboardOpenLessonsBtn = document.getElementById('dashboardOpenLessonsBtn');
+const dashboardGivenActivitiesBtn = document.getElementById('dashboardGivenActivitiesBtn');
+const dashboardOpenGivenActivitiesBtn = document.getElementById('dashboardOpenGivenActivitiesBtn');
+const givenActivitiesScreen = document.getElementById('givenActivitiesScreen');
+const givenActivitiesBackBtn = document.getElementById('givenActivitiesBackBtn');
+const givenActivitiesRefreshBtn = document.getElementById('givenActivitiesRefreshBtn');
+const givenActivitiesThemeBtn = document.getElementById('givenActivitiesThemeBtn');
+const givenActivitiesCurrentTermPill = document.getElementById('givenActivitiesCurrentTermPill');
+const givenActivitiesTotalCount = document.getElementById('givenActivitiesTotalCount');
+const givenActivitiesTermTabs = document.getElementById('givenActivitiesTermTabs');
+const givenActivitiesSearch = document.getElementById('givenActivitiesSearch');
+const givenActivitiesSort = document.getElementById('givenActivitiesSort');
+const givenActivitiesStatus = document.getElementById('givenActivitiesStatus');
+const givenActivitiesGrid = document.getElementById('givenActivitiesGrid');
+const givenActivityViewerOverlay = document.getElementById('givenActivityViewerOverlay');
+const givenActivityViewerMeta = document.getElementById('givenActivityViewerMeta');
+const givenActivityViewerTitle = document.getElementById('givenActivityViewerTitle');
+const givenActivityViewerDescription = document.getElementById('givenActivityViewerDescription');
+const givenActivityViewerOpenBtn = document.getElementById('givenActivityViewerOpenBtn');
+const givenActivityViewerCloseBtn = document.getElementById('givenActivityViewerCloseBtn');
+const givenActivityViewerBody = document.getElementById('givenActivityViewerBody');
 const lessonViewerScreen = document.getElementById('lessonViewerScreen');
 const lessonLibraryBackBtn = document.getElementById('lessonLibraryBackBtn');
 const lessonLibraryRefreshBtn = document.getElementById('lessonLibraryRefreshBtn');
@@ -366,11 +386,13 @@ const menuSendCodeBtn = document.getElementById('menuSendCodeBtn');
 const menuCodeInboxBtn = document.getElementById('menuCodeInboxBtn');
 const menuCodeInboxBadge = document.getElementById('menuCodeInboxBadge');
 const menuLessonViewerBtn = document.getElementById('menuLessonViewerBtn');
+const menuGivenActivitiesBtn = document.getElementById('menuGivenActivitiesBtn');
 const menuStudentLogoutBtn = document.getElementById('menuStudentLogoutBtn');
 const myProjectsBtn = document.getElementById('myProjectsBtn');
 const codeInboxBtn = document.getElementById('codeInboxBtn');
 const codeInboxBadge = document.getElementById('codeInboxBadge');
 const lessonViewerBtn = document.getElementById('lessonViewerBtn');
+const givenActivitiesBtn = document.getElementById('givenActivitiesBtn');
 const studentHeaderLogoutBtn = document.getElementById('studentHeaderLogoutBtn');
 const guestAccountStrip = document.getElementById('guestAccountStrip');
 const guestLoginToSaveBtn = document.getElementById('guestLoginToSaveBtn');
@@ -493,6 +515,60 @@ const lessonAdminListStatus = document.getElementById('lessonAdminListStatus');
 const lessonAdminList = document.getElementById('lessonAdminList');
 const lessonFileSourceTabs = Array.from(document.querySelectorAll('[data-lesson-source]'));
 
+// v295 Teacher action center, Activities Given, and responsive QA elements.
+const refreshNeedsAttentionBtn = document.getElementById('refreshNeedsAttentionBtn');
+const needsLackingCount = document.getElementById('needsLackingCount');
+const needsNoProjectCount = document.getElementById('needsNoProjectCount');
+const needsInactiveCount = document.getElementById('needsInactiveCount');
+const needsTermStatusCount = document.getElementById('needsTermStatusCount');
+const needsAttentionSearch = document.getElementById('needsAttentionSearch');
+const needsAttentionSection = document.getElementById('needsAttentionSection');
+const needsAttentionReason = document.getElementById('needsAttentionReason');
+const needsAttentionStatus = document.getElementById('needsAttentionStatus');
+const needsAttentionList = document.getElementById('needsAttentionList');
+const needsAttentionSummaryButtons = Array.from(document.querySelectorAll('[data-needs-summary]'));
+
+const givenActivityDriveConnectBtn = document.getElementById('givenActivityDriveConnectBtn');
+const givenActivityDriveStatus = document.getElementById('givenActivityDriveStatus');
+const givenActivityAdminRefreshBtn = document.getElementById('givenActivityAdminRefreshBtn');
+const givenActivityEditorBadge = document.getElementById('givenActivityEditorBadge');
+const givenActivityEditorTitle = document.getElementById('givenActivityEditorTitle');
+const givenActivityCancelEditBtn = document.getElementById('givenActivityCancelEditBtn');
+const givenActivityTitleInput = document.getElementById('givenActivityTitleInput');
+const givenActivityTermSelect = document.getElementById('givenActivityTermSelect');
+const givenActivityOrderInput = document.getElementById('givenActivityOrderInput');
+const givenActivityAudienceSelect = document.getElementById('givenActivityAudienceSelect');
+const givenActivityDueDateInput = document.getElementById('givenActivityDueDateInput');
+const givenActivityVisibilitySelect = document.getElementById('givenActivityVisibilitySelect');
+const givenActivityDescriptionInput = document.getElementById('givenActivityDescriptionInput');
+const givenActivityFileInput = document.getElementById('givenActivityFileInput');
+const givenActivityFileName = document.getElementById('givenActivityFileName');
+const givenActivityUploadPanel = document.getElementById('givenActivityUploadPanel');
+const givenActivityLinkPanel = document.getElementById('givenActivityLinkPanel');
+const givenActivityTextPanel = document.getElementById('givenActivityTextPanel');
+const givenActivityLinkTypeSelect = document.getElementById('givenActivityLinkTypeSelect');
+const givenActivityUrlInput = document.getElementById('givenActivityUrlInput');
+const givenActivityPublishBtn = document.getElementById('givenActivityPublishBtn');
+const givenActivityAdminStatus = document.getElementById('givenActivityAdminStatus');
+const givenActivityAdminTermFilter = document.getElementById('givenActivityAdminTermFilter');
+const givenActivityAdminSearch = document.getElementById('givenActivityAdminSearch');
+const givenActivityAdminListStatus = document.getElementById('givenActivityAdminListStatus');
+const givenActivityAdminList = document.getElementById('givenActivityAdminList');
+const givenActivitySourceTabs = Array.from(document.querySelectorAll('[data-given-source]'));
+
+const deviceQaReloadBtn = document.getElementById('deviceQaReloadBtn');
+const deviceQaPresetSelect = document.getElementById('deviceQaPresetSelect');
+const deviceQaWidthInput = document.getElementById('deviceQaWidthInput');
+const deviceQaHeightInput = document.getElementById('deviceQaHeightInput');
+const deviceQaOrientationSelect = document.getElementById('deviceQaOrientationSelect');
+const deviceQaScreenSelect = document.getElementById('deviceQaScreenSelect');
+const deviceQaApplyBtn = document.getElementById('deviceQaApplyBtn');
+const deviceQaSizeLabel = document.getElementById('deviceQaSizeLabel');
+const deviceQaOverflowStatus = document.getElementById('deviceQaOverflowStatus');
+const deviceQaViewportShell = document.getElementById('deviceQaViewportShell');
+const deviceQaViewportStage = document.getElementById('deviceQaViewportStage');
+const deviceQaFrame = document.getElementById('deviceQaFrame');
+
 
 
 // Built-in Firebase fallback config.
@@ -547,6 +623,7 @@ const STORAGE_KEYS = {
   academicTermSettings: 'studentCodeStudio.academicTermSettings.v1',
   lessonLibrary: 'studentCodeStudio.lessonLibrary.v1',
   lessonProgress: 'studentCodeStudio.lessonReadingProgress.v1',
+  givenActivities: 'studentCodeStudio.givenActivities.v1',
   aiRubricSettings: 'studentCodeStudio.aiRubricSettings.v1',
   loginReminderSettings: 'studentCodeStudio.loginReminderSettings.v1'
 };
@@ -1124,7 +1201,7 @@ let adminLatestAiReview = null;
 let adminAiRubricController = null;
 let aiRubricConnectionState = { status: 'untested', code: '', message: '' };
 
-const MCS_APP_BUILD = 'v294';
+const MCS_APP_BUILD = 'v295';
 window.MCS_APP_BUILD = MCS_APP_BUILD;
 console.info(`[MCSian Code Editor] ${MCS_APP_BUILD} loaded`);
 
@@ -5233,7 +5310,9 @@ function hideAllStudentScreens() {
   changePasswordOverlay?.classList.add('hidden');
   projectNameOverlay?.classList.add('hidden');
   studentDashboard?.classList.add('hidden');
-  document.body.classList.remove('student-auth-open', 'student-dashboard-active');
+  givenActivitiesScreen?.classList.add('hidden');
+  givenActivityViewerOverlay?.classList.add('hidden');
+  document.body.classList.remove('student-auth-open', 'student-dashboard-active', 'given-activities-active');
 }
 
 function showEntryGate() {
@@ -8212,6 +8291,7 @@ function populateAdminSectionFilter() {
       .map(section => `<option value="${escapeAttribute(section)}"></option>`).join('');
   }
   populateOnlinePresenceSectionFilter();
+  if (typeof populateGivenActivityAudienceOptions === 'function') populateGivenActivityAudienceOptions();
 }
 
 function getFilteredAdminStudents() {
@@ -18097,12 +18177,1155 @@ function initializeLessonManager() {
   else renderAdminLessonList();
 }
 
+
+/* =========================================================
+   v295 — Teacher Needs Attention + Activities Given + Device QA
+   Activities Given metadata is stored in the existing public-readable,
+   teacher-writable root Firestore document. PDF/image files remain in
+   the teacher's Google Drive, so no new Firestore or Storage rule is needed.
+   ========================================================= */
+const GIVEN_ACTIVITY_TYPES = Object.freeze(['pdf', 'image', 'link', 'text']);
+const GIVEN_ACTIVITY_VISIBILITY = Object.freeze(['published', 'draft']);
+const givenActivityState = {
+  items: [],
+  loaded: false,
+  loading: false,
+  activeTerm: 'term1',
+  sourceMode: 'upload',
+  editingId: '',
+  returnView: 'dashboard'
+};
+const needsAttentionState = { items: [], loaded: false };
+
+function libraryTermFromComplianceTerm(term = currentAcademicTerm()) {
+  if (term === 'TERM_2') return 'term2';
+  if (term === 'TERM_3') return 'term3';
+  return 'term1';
+}
+
+function complianceTermFromLibraryTerm(term = 'term1') {
+  if (term === 'term2') return 'TERM_2';
+  if (term === 'term3') return 'TERM_3';
+  return 'TERM_1';
+}
+
+function givenActivityTimestampMs(value) {
+  return timestampToDate(value)?.getTime?.() || lessonTimestampMs(value) || 0;
+}
+
+function buildGoogleDriveGivenActivityUrls(fileId = '', materialType = 'pdf') {
+  const id = String(fileId || '').trim();
+  if (!id) return { previewUrl: '', openUrl: '', downloadUrl: '' };
+  const common = buildGoogleDriveLessonUrls(id);
+  return {
+    previewUrl: materialType === 'image'
+      ? `https://drive.google.com/uc?export=view&id=${encodeURIComponent(id)}`
+      : common.previewUrl,
+    openUrl: common.openUrl,
+    downloadUrl: common.downloadUrl
+  };
+}
+
+function normalizeGivenActivity(raw = {}, index = 0) {
+  const term = Object.prototype.hasOwnProperty.call(LESSON_TERMS, raw.term) ? raw.term : 'term1';
+  const materialType = GIVEN_ACTIVITY_TYPES.includes(String(raw.materialType || raw.type || '').toLowerCase())
+    ? String(raw.materialType || raw.type).toLowerCase()
+    : (raw.previewUrl || raw.openUrl ? 'link' : 'text');
+  const visibility = GIVEN_ACTIVITY_VISIBILITY.includes(String(raw.visibility || '').toLowerCase())
+    ? String(raw.visibility).toLowerCase()
+    : (raw.published === false ? 'draft' : 'published');
+  const fileId = String(raw.fileId || extractGoogleDriveFileId(raw.openUrl || raw.previewUrl || raw.url || '') || '').trim();
+  const driveUrls = buildGoogleDriveGivenActivityUrls(fileId, materialType);
+  const previewUrl = String(raw.previewUrl || raw.url || driveUrls.previewUrl || '').trim();
+  const openUrl = String(raw.openUrl || driveUrls.openUrl || previewUrl).trim();
+  const downloadUrl = String(raw.downloadUrl || driveUrls.downloadUrl || openUrl).trim();
+  const order = Math.max(1, Math.min(999, Number.parseInt(raw.order, 10) || index + 1));
+  const audienceSection = String(raw.audienceSection || raw.section || 'all').trim() || 'all';
+  return {
+    id: String(raw.id || `given-${Date.now()}-${index}`).replace(/[^a-zA-Z0-9_-]/g, '-'),
+    title: String(raw.title || 'Untitled Activity').trim().slice(0, 140),
+    description: String(raw.description || raw.instructions || '').trim().slice(0, 1200),
+    term,
+    order,
+    audienceSection,
+    dueDate: String(raw.dueDate || '').trim().slice(0, 10),
+    visibility,
+    published: visibility === 'published',
+    materialType,
+    fileId,
+    fileName: String(raw.fileName || '').trim().slice(0, 180),
+    fileSize: Math.max(0, Number(raw.fileSize || 0)),
+    previewUrl,
+    openUrl,
+    downloadUrl,
+    source: String(raw.source || (fileId ? 'google-drive' : (materialType === 'text' ? 'text' : 'external-link'))),
+    sourceMode: String(raw.sourceMode || (materialType === 'text' ? 'text' : (fileId ? 'upload' : 'link'))),
+    createdAt: lessonIsoDate(raw.createdAt || raw.uploadedAt || Date.now()),
+    updatedAt: lessonIsoDate(raw.updatedAt || raw.createdAt || Date.now())
+  };
+}
+
+function sortGivenActivities(items = [], mode = 'order-asc') {
+  const list = [...items];
+  if (mode === 'title-asc') return list.sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }));
+  if (mode === 'newest') return list.sort((a, b) => givenActivityTimestampMs(b.updatedAt) - givenActivityTimestampMs(a.updatedAt));
+  return list.sort((a, b) => a.order - b.order || a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }));
+}
+
+function saveGivenActivitiesCache() {
+  saveJSON(STORAGE_KEYS.givenActivities, {
+    savedAt: Date.now(),
+    items: givenActivityState.items.map((item, index) => normalizeGivenActivity(item, index))
+  });
+}
+
+function loadGivenActivitiesCache() {
+  const cached = loadJSON(STORAGE_KEYS.givenActivities, null);
+  return (Array.isArray(cached?.items) ? cached.items : []).map((item, index) => normalizeGivenActivity(item, index));
+}
+
+function setGivenActivitiesStatus(message = '', tone = '') {
+  if (!givenActivitiesStatus) return;
+  givenActivitiesStatus.textContent = message;
+  givenActivitiesStatus.dataset.type = tone;
+}
+
+function setGivenActivityAdminStatus(message = '', tone = '') {
+  if (!givenActivityAdminStatus) return;
+  givenActivityAdminStatus.textContent = message;
+  givenActivityAdminStatus.dataset.type = tone;
+}
+
+function setGivenActivityDriveStatus(message = '', tone = '') {
+  if (!givenActivityDriveStatus) return;
+  givenActivityDriveStatus.textContent = message;
+  givenActivityDriveStatus.dataset.type = tone;
+}
+
+function getStudentGivenActivitySection() {
+  return String(appSession.student?.section || '').trim();
+}
+
+function givenActivityMatchesAudience(item = {}) {
+  const audience = String(item.audienceSection || 'all').trim();
+  if (!audience || audience.toLowerCase() === 'all') return true;
+  const section = getStudentGivenActivitySection();
+  return Boolean(section) && audience.toLowerCase() === section.toLowerCase();
+}
+
+function formatGivenActivityDueDate(value = '') {
+  const raw = String(value || '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return '';
+  const date = new Date(`${raw}T12:00:00`);
+  if (!Number.isFinite(date.getTime())) return '';
+  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function givenActivityTypeLabel(type = 'text') {
+  if (type === 'pdf') return 'PDF';
+  if (type === 'image') return 'IMAGE';
+  if (type === 'link') return 'LINK';
+  return 'TEXT';
+}
+
+function givenActivityTypeIcon(type = 'text') {
+  if (type === 'pdf') return '📄';
+  if (type === 'image') return '🖼️';
+  if (type === 'link') return '🔗';
+  return '📝';
+}
+
+function renderGivenActivityTermCounts() {
+  const visibleToStudent = givenActivityState.items.filter(item => item.published && givenActivityMatchesAudience(item));
+  Object.keys(LESSON_TERMS).forEach(term => {
+    const count = visibleToStudent.filter(item => item.term === term).length;
+    document.querySelectorAll(`[data-given-term-count="${term}"]`).forEach(el => { el.textContent = String(count); });
+  });
+  if (givenActivitiesTotalCount) givenActivitiesTotalCount.textContent = String(visibleToStudent.length);
+}
+
+function getFilteredGivenActivitiesForStudent() {
+  const search = String(givenActivitiesSearch?.value || '').trim().toLowerCase();
+  const mode = givenActivitiesSort?.value || 'order-asc';
+  return sortGivenActivities(givenActivityState.items.filter(item => {
+    if (!item.published || item.term !== givenActivityState.activeTerm || !givenActivityMatchesAudience(item)) return false;
+    if (!search) return true;
+    return `${item.title} ${item.description} ${item.fileName}`.toLowerCase().includes(search);
+  }), mode);
+}
+
+function renderStudentGivenActivities() {
+  if (!givenActivitiesGrid) return;
+  renderGivenActivityTermCounts();
+  givenActivitiesTermTabs?.querySelectorAll('[data-given-term]').forEach(button => {
+    const active = button.dataset.givenTerm === givenActivityState.activeTerm;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-selected', active ? 'true' : 'false');
+  });
+  const currentTerm = libraryTermFromComplianceTerm();
+  if (givenActivitiesCurrentTermPill) {
+    givenActivitiesCurrentTermPill.textContent = `${lessonTermLabel(currentTerm)} · Current`;
+  }
+  const items = getFilteredGivenActivitiesForStudent();
+  if (!items.length) {
+    givenActivitiesGrid.innerHTML = `
+      <div class="given-activities-empty">
+        <span aria-hidden="true">📝</span>
+        <h3>No ${escapeHTML(lessonTermLabel(givenActivityState.activeTerm))} activities found</h3>
+        <p>${givenActivitiesSearch?.value ? 'Try another search.' : 'Your teacher has not published an activity for this term/section yet.'}</p>
+      </div>`;
+    setGivenActivitiesStatus('No published activity matches this view.', 'empty');
+    return;
+  }
+  givenActivitiesGrid.innerHTML = items.map(item => {
+    const due = formatGivenActivityDueDate(item.dueDate);
+    const scope = String(item.audienceSection || 'all').toLowerCase() === 'all' ? 'All Sections' : item.audienceSection;
+    const updated = givenActivityTimestampMs(item.updatedAt)
+      ? new Date(givenActivityTimestampMs(item.updatedAt)).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+      : '';
+    return `
+      <article class="given-activity-card" data-given-activity-id="${escapeAttribute(item.id)}">
+        <button type="button" class="given-activity-card-open" data-given-open="${escapeAttribute(item.id)}">
+          <div class="given-activity-card-top">
+            <span class="given-activity-order">${escapeHTML(String(item.order).padStart(2, '0'))}</span>
+            <span class="given-activity-type">${givenActivityTypeIcon(item.materialType)} ${escapeHTML(givenActivityTypeLabel(item.materialType))}</span>
+          </div>
+          <div class="given-activity-card-body">
+            <span class="given-activity-term">${escapeHTML(lessonTermLabel(item.term))} · Activity ${escapeHTML(String(item.order))}</span>
+            <h3>${escapeHTML(item.title)}</h3>
+            <p>${escapeHTML(item.description || 'Open this activity to view the teacher instructions.')}</p>
+            <div class="given-activity-card-meta">
+              <span>${escapeHTML(scope)}</span>
+              <span>${due ? `Due ${escapeHTML(due)}` : (updated ? `Posted ${escapeHTML(updated)}` : 'Ready')}</span>
+            </div>
+            <span class="given-activity-card-cta">Open activity <b aria-hidden="true">→</b></span>
+          </div>
+        </button>
+      </article>`;
+  }).join('');
+  setGivenActivitiesStatus(`${items.length} published activit${items.length === 1 ? 'y' : 'ies'} in ${lessonTermLabel(givenActivityState.activeTerm)}.`, 'success');
+}
+
+async function loadGivenActivities(options = {}) {
+  if (givenActivityState.loading) return givenActivityState.items;
+  if (givenActivityState.loaded && !options.force) {
+    renderStudentGivenActivities();
+    renderAdminGivenActivityList();
+    return givenActivityState.items;
+  }
+  givenActivityState.loading = true;
+  setGivenActivitiesStatus('Loading activities...', 'loading');
+  if (!options.force) {
+    const cached = loadGivenActivitiesCache();
+    if (cached.length) {
+      givenActivityState.items = cached;
+      givenActivityState.loaded = true;
+      renderStudentGivenActivities();
+      renderAdminGivenActivityList();
+    }
+  }
+  try {
+    const ready = await initFirebaseSync();
+    if (!ready) throw new Error(firebaseSync.lastError || 'Could not connect to Firebase.');
+    const rootDoc = await readCloudActivitiesDocument(options);
+    givenActivityState.items = (Array.isArray(rootDoc?.data?.givenActivities) ? rootDoc.data.givenActivities : [])
+      .map((item, index) => normalizeGivenActivity(item, index));
+    givenActivityState.loaded = true;
+    saveGivenActivitiesCache();
+    renderStudentGivenActivities();
+    renderAdminGivenActivityList();
+    return givenActivityState.items;
+  } catch (error) {
+    console.warn('Could not load Activities Given.', error);
+    const cached = loadGivenActivitiesCache();
+    if (cached.length) {
+      givenActivityState.items = cached;
+      givenActivityState.loaded = true;
+      renderStudentGivenActivities();
+      renderAdminGivenActivityList();
+      setGivenActivitiesStatus(`Offline activity list · ${cached.length} saved item${cached.length === 1 ? '' : 's'}.`, 'warning');
+      return cached;
+    }
+    givenActivityState.items = [];
+    renderStudentGivenActivities();
+    renderAdminGivenActivityList();
+    setGivenActivitiesStatus(error?.message || 'Could not load activities.', 'error');
+    return [];
+  } finally {
+    givenActivityState.loading = false;
+  }
+}
+
+async function saveGivenActivitiesToCloud() {
+  if (!isTeacherAuthenticated()) throw new Error('Log in as teacher before publishing Activities Given.');
+  const ready = await initFirebaseSync();
+  if (!ready) throw new Error(firebaseSync.lastError || 'Firebase is not ready.');
+  const { setDoc, serverTimestamp } = firebaseSync.modules;
+  const items = givenActivityState.items.map((item, index) => normalizeGivenActivity(item, index));
+  await withTimeout(setDoc(getCloudActivitiesDocRef(), {
+    givenActivities: items,
+    givenActivitiesUpdatedAt: serverTimestamp()
+  }, { merge: true }), APP_NETWORK_TIMEOUT_MS, 'Publishing Activities Given took too long. Check the connection and try again.');
+  clearSelectiveFirestoreCache('rootDocument:');
+  givenActivityState.items = items;
+  givenActivityState.loaded = true;
+  saveGivenActivitiesCache();
+  renderStudentGivenActivities();
+  renderAdminGivenActivityList();
+  return true;
+}
+
+async function openGivenActivitiesLibrary(origin = 'dashboard') {
+  if (!appSession.student && appSession.mode !== 'guest') {
+    openStudentLogin();
+    return;
+  }
+  givenActivityState.returnView = origin === 'editor' ? 'editor' : 'dashboard';
+  closeStudentAccountMenu();
+  closeGivenActivityViewer();
+  try { await loadAcademicTermSettingsFromCloud({ silent: true }); } catch (_) {}
+  givenActivityState.activeTerm = libraryTermFromComplianceTerm();
+  hideEntryGate();
+  lessonViewerScreen?.classList.add('hidden');
+  studentDashboard?.classList.add('hidden');
+  document.body.classList.remove('student-dashboard-active', 'lesson-viewer-active');
+  document.body.classList.add('given-activities-active');
+  givenActivitiesScreen?.classList.remove('hidden');
+  queueStudentPresenceUpdate({ currentView: 'given_activities', activityGroup: 'Activities Given', activityLabel: 'Browsing teacher activities' }, { force: true });
+  await loadGivenActivities({ force: !givenActivityState.loaded });
+  window.setTimeout(() => givenActivitiesSearch?.focus({ preventScroll: true }), 60);
+}
+
+function closeGivenActivitiesLibrary() {
+  closeGivenActivityViewer();
+  givenActivitiesScreen?.classList.add('hidden');
+  document.body.classList.remove('given-activities-active');
+  if (givenActivityState.returnView === 'dashboard' && appSession.student) {
+    showStudentDashboard();
+  } else if (appSession.currentProjectId) {
+    queueStudentPresenceUpdate({ currentView: 'editor', activityGroup: 'Coding', activityLabel: `Coding: ${appSession.currentProject?.name || 'Project'}` }, { force: true });
+  } else if (!appSession.student) {
+    showEntryGate();
+  }
+}
+
+function openGivenActivityViewer(activityId = '') {
+  const item = givenActivityState.items.find(entry => entry.id === activityId && entry.published);
+  if (!item || !givenActivityViewerOverlay || !givenActivityViewerBody) return;
+  if (givenActivityViewerMeta) {
+    const due = formatGivenActivityDueDate(item.dueDate);
+    givenActivityViewerMeta.textContent = `${lessonTermLabel(item.term)} · Activity ${item.order}${due ? ` · Due ${due}` : ''}`;
+  }
+  if (givenActivityViewerTitle) givenActivityViewerTitle.textContent = item.title;
+  if (givenActivityViewerDescription) givenActivityViewerDescription.textContent = item.description || 'Teacher-posted activity.';
+  if (givenActivityViewerOpenBtn) {
+    givenActivityViewerOpenBtn.classList.toggle('hidden', !item.openUrl || item.materialType === 'text');
+    givenActivityViewerOpenBtn.href = item.openUrl || '#';
+    givenActivityViewerOpenBtn.textContent = item.materialType === 'link' ? '↗ Open Link' : '↗ Open File';
+  }
+  if (item.materialType === 'pdf' && item.previewUrl) {
+    givenActivityViewerBody.innerHTML = `<iframe class="given-activity-pdf-frame" src="${escapeAttribute(item.previewUrl)}" title="${escapeAttribute(item.title)}" loading="lazy"></iframe>`;
+  } else if (item.materialType === 'image' && item.previewUrl) {
+    givenActivityViewerBody.innerHTML = `<div class="given-activity-image-wrap"><img src="${escapeAttribute(item.previewUrl)}" alt="${escapeAttribute(item.title)}" loading="lazy" /></div>`;
+  } else if (item.materialType === 'link' && item.openUrl) {
+    givenActivityViewerBody.innerHTML = `<div class="given-activity-link-card"><span aria-hidden="true">🔗</span><strong>External activity link</strong><p>${escapeHTML(item.description || 'Use the Open Link button to view this activity.')}</p><a class="primary-btn" href="${escapeAttribute(item.openUrl)}" target="_blank" rel="noopener noreferrer">Open Link</a></div>`;
+  } else {
+    givenActivityViewerBody.innerHTML = `<div class="given-activity-text-card"><span aria-hidden="true">📝</span><h3>Activity Instructions</h3><p>${escapeHTML(item.description || 'No additional instructions were provided.').replace(/\n/g, '<br>')}</p></div>`;
+  }
+  givenActivityViewerOverlay.classList.remove('hidden');
+  document.body.classList.add('given-activity-viewer-open');
+}
+
+function closeGivenActivityViewer() {
+  if (givenActivityViewerBody) givenActivityViewerBody.innerHTML = '';
+  givenActivityViewerOverlay?.classList.add('hidden');
+  document.body.classList.remove('given-activity-viewer-open');
+}
+
+function populateGivenActivityAudienceOptions() {
+  if (!givenActivityAudienceSelect) return;
+  const current = givenActivityAudienceSelect.value || 'all';
+  const sections = new Set();
+  adminStudentsCache.forEach(student => {
+    const section = String(student.section || '').trim();
+    if (section) sections.add(section);
+  });
+  try {
+    (loadComplianceSettings().sections || []).forEach(item => {
+      const section = String(item.section || '').trim();
+      if (section) sections.add(section);
+    });
+  } catch (_) {}
+  const sorted = [...sections].sort((a, b) => a.localeCompare(b));
+  givenActivityAudienceSelect.innerHTML = '<option value="all">All Sections</option>'
+    + sorted.map(section => `<option value="${escapeAttribute(section)}">${escapeHTML(section)}</option>`).join('');
+  givenActivityAudienceSelect.value = current === 'all' || sorted.includes(current) ? current : 'all';
+}
+
+function getNextGivenActivityOrder(term = givenActivityTermSelect?.value || 'term1') {
+  const orders = givenActivityState.items.filter(item => item.term === term).map(item => Number(item.order || 0));
+  return Math.max(0, ...orders) + 1;
+}
+
+function setGivenActivitySourceMode(mode = 'upload') {
+  givenActivityState.sourceMode = ['upload', 'link', 'text'].includes(mode) ? mode : 'upload';
+  givenActivitySourceTabs.forEach(button => {
+    const active = button.dataset.givenSource === givenActivityState.sourceMode;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-selected', active ? 'true' : 'false');
+  });
+  givenActivityUploadPanel?.classList.toggle('hidden', givenActivityState.sourceMode !== 'upload');
+  givenActivityUploadPanel?.classList.toggle('active', givenActivityState.sourceMode === 'upload');
+  givenActivityLinkPanel?.classList.toggle('hidden', givenActivityState.sourceMode !== 'link');
+  givenActivityLinkPanel?.classList.toggle('active', givenActivityState.sourceMode === 'link');
+  givenActivityTextPanel?.classList.toggle('hidden', givenActivityState.sourceMode !== 'text');
+  givenActivityTextPanel?.classList.toggle('active', givenActivityState.sourceMode === 'text');
+}
+
+function syncGivenActivityDriveUI() {
+  const configured = Boolean(String(window.MCS_GOOGLE_DRIVE_CLIENT_ID || '').trim());
+  const connected = Boolean(lessonLibraryState.driveAccessToken && lessonLibraryState.driveTokenExpiresAt > Date.now() + 30000);
+  if (givenActivityDriveConnectBtn) {
+    givenActivityDriveConnectBtn.disabled = !configured;
+    givenActivityDriveConnectBtn.textContent = connected ? '☁ Drive Connected ✓' : (configured ? '☁ Connect Drive' : '☁ Drive Setup Required');
+  }
+  if (!configured) setGivenActivityDriveStatus('Direct PDF/image upload needs the same free Google Drive Client ID used by Lessons. Paste Link and Instructions Only already work.', 'warning');
+  else if (connected) setGivenActivityDriveStatus('Google Drive connected. PDF and image uploads are ready.', 'success');
+  else setGivenActivityDriveStatus('Connect Google Drive to upload a PDF/image, or use Paste Link.', '');
+}
+
+async function uploadGivenActivityFileToGoogleDrive(file) {
+  if (!(file instanceof File) || !file.name) throw new Error('Choose a PDF or image first.');
+  const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
+  const isImage = /^image\/(png|jpeg|webp)$/i.test(file.type) || /\.(png|jpe?g|webp)$/i.test(file.name);
+  if (!isPdf && !isImage) throw new Error('Only PDF, PNG, JPG/JPEG, or WEBP files can be uploaded.');
+  const materialType = isPdf ? 'pdf' : 'image';
+  const mimeType = isPdf ? 'application/pdf' : (file.type || 'image/jpeg');
+  const boundary = `mcsian_given_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+  const metadata = {
+    name: file.name,
+    mimeType,
+    description: 'Uploaded from ICT 8 Connect Activities Given',
+    appProperties: { mcsianGivenActivity: 'true', materialType }
+  };
+  const body = new Blob([
+    `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n`,
+    JSON.stringify(metadata),
+    `\r\n--${boundary}\r\nContent-Type: ${mimeType}\r\n\r\n`,
+    file,
+    `\r\n--${boundary}--`
+  ], { type: `multipart/related; boundary=${boundary}` });
+  const uploaded = await googleDriveFetch(`${LESSON_GOOGLE_UPLOAD_BASE}/files?uploadType=multipart&fields=id,name,mimeType,size,webViewLink`, {
+    method: 'POST',
+    headers: { 'Content-Type': `multipart/related; boundary=${boundary}` },
+    body
+  });
+  if (!uploaded?.id) throw new Error('Google Drive did not return a file ID.');
+  try {
+    await googleDriveFetch(`${LESSON_GOOGLE_API_BASE}/files/${encodeURIComponent(uploaded.id)}/permissions?fields=id`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'anyone', role: 'reader' })
+    });
+  } catch (error) {
+    await googleDriveFetch(`${LESSON_GOOGLE_API_BASE}/files/${encodeURIComponent(uploaded.id)}`, { method: 'DELETE' }).catch(() => {});
+    throw new Error(`The file uploaded, but Google Drive could not make it public. ${error?.message || ''}`.trim());
+  }
+  return {
+    materialType,
+    fileId: uploaded.id,
+    fileName: uploaded.name || file.name,
+    fileSize: Number(uploaded.size || file.size || 0),
+    ...buildGoogleDriveGivenActivityUrls(uploaded.id, materialType),
+    source: 'google-drive-upload',
+    sourceMode: 'upload'
+  };
+}
+
+function normalizeGivenActivityLink(url = '', materialType = 'link') {
+  const raw = String(url || '').trim();
+  if (!raw) throw new Error('Paste a public activity link first.');
+  let parsed;
+  try { parsed = new URL(raw, window.location.href); } catch (_) { throw new Error('Enter a complete public URL.'); }
+  if (!/^https?:$/i.test(parsed.protocol)) throw new Error('Only http/https links can be published.');
+  const type = GIVEN_ACTIVITY_TYPES.includes(materialType) && materialType !== 'text' ? materialType : 'link';
+  const fileId = extractGoogleDriveFileId(raw);
+  if (fileId) {
+    return { materialType: type, fileId, ...buildGoogleDriveGivenActivityUrls(fileId, type), source: 'drive-link', sourceMode: 'link' };
+  }
+  return { materialType: type, fileId: '', previewUrl: parsed.href, openUrl: parsed.href, downloadUrl: parsed.href, source: 'external-link', sourceMode: 'link' };
+}
+
+function resetGivenActivityAdminEditor(options = {}) {
+  givenActivityState.editingId = '';
+  if (givenActivityEditorBadge) givenActivityEditorBadge.textContent = 'New Activity';
+  if (givenActivityEditorTitle) givenActivityEditorTitle.textContent = 'Create an Activity';
+  givenActivityCancelEditBtn?.classList.add('hidden');
+  if (givenActivityTitleInput) givenActivityTitleInput.value = '';
+  if (givenActivityDescriptionInput) givenActivityDescriptionInput.value = '';
+  if (givenActivityDueDateInput) givenActivityDueDateInput.value = '';
+  if (givenActivityVisibilitySelect) givenActivityVisibilitySelect.value = 'published';
+  if (givenActivityUrlInput) givenActivityUrlInput.value = '';
+  if (givenActivityLinkTypeSelect) givenActivityLinkTypeSelect.value = 'pdf';
+  if (givenActivityFileInput) givenActivityFileInput.value = '';
+  if (givenActivityFileName) givenActivityFileName.textContent = 'Choose a PDF or image';
+  if (!options.keepTerm && givenActivityTermSelect) givenActivityTermSelect.value = libraryTermFromComplianceTerm();
+  if (givenActivityOrderInput) givenActivityOrderInput.value = String(getNextGivenActivityOrder(givenActivityTermSelect?.value || 'term1'));
+  if (givenActivityAudienceSelect) givenActivityAudienceSelect.value = 'all';
+  setGivenActivitySourceMode('upload');
+  if (givenActivityPublishBtn) givenActivityPublishBtn.textContent = 'Save Activity';
+  setGivenActivityAdminStatus('Ready to create an activity.');
+}
+
+function editGivenActivityAdmin(activityId = '') {
+  const item = givenActivityState.items.find(entry => entry.id === activityId);
+  if (!item) return;
+  givenActivityState.editingId = item.id;
+  if (givenActivityEditorBadge) givenActivityEditorBadge.textContent = 'Editing';
+  if (givenActivityEditorTitle) givenActivityEditorTitle.textContent = 'Edit Activity';
+  givenActivityCancelEditBtn?.classList.remove('hidden');
+  if (givenActivityTitleInput) givenActivityTitleInput.value = item.title;
+  if (givenActivityDescriptionInput) givenActivityDescriptionInput.value = item.description;
+  if (givenActivityTermSelect) givenActivityTermSelect.value = item.term;
+  if (givenActivityOrderInput) givenActivityOrderInput.value = String(item.order);
+  populateGivenActivityAudienceOptions();
+  if (givenActivityAudienceSelect) {
+    const hasOption = Array.from(givenActivityAudienceSelect.options).some(option => option.value === item.audienceSection);
+    if (!hasOption && item.audienceSection && item.audienceSection !== 'all') {
+      givenActivityAudienceSelect.insertAdjacentHTML('beforeend', `<option value="${escapeAttribute(item.audienceSection)}">${escapeHTML(item.audienceSection)}</option>`);
+    }
+    givenActivityAudienceSelect.value = item.audienceSection || 'all';
+  }
+  if (givenActivityDueDateInput) givenActivityDueDateInput.value = item.dueDate || '';
+  if (givenActivityVisibilitySelect) givenActivityVisibilitySelect.value = item.visibility;
+  if (givenActivityUrlInput) givenActivityUrlInput.value = item.openUrl || item.previewUrl || '';
+  if (givenActivityLinkTypeSelect) givenActivityLinkTypeSelect.value = item.materialType === 'text' ? 'link' : item.materialType;
+  if (givenActivityFileInput) givenActivityFileInput.value = '';
+  if (givenActivityFileName) givenActivityFileName.textContent = item.fileName || 'Choose a replacement PDF or image';
+  setGivenActivitySourceMode(item.materialType === 'text' ? 'text' : (item.sourceMode === 'upload' || item.fileId ? 'upload' : 'link'));
+  if (givenActivityPublishBtn) givenActivityPublishBtn.textContent = 'Save Changes';
+  setGivenActivityAdminStatus(`Editing ${item.title}.`, 'success');
+}
+
+function getAdminFilteredGivenActivities() {
+  const term = givenActivityAdminTermFilter?.value || 'all';
+  const search = String(givenActivityAdminSearch?.value || '').trim().toLowerCase();
+  return sortGivenActivities(givenActivityState.items.filter(item => {
+    if (term !== 'all' && item.term !== term) return false;
+    if (!search) return true;
+    return `${item.title} ${item.description} ${item.audienceSection}`.toLowerCase().includes(search);
+  }), 'order-asc').sort((a, b) => Object.keys(LESSON_TERMS).indexOf(a.term) - Object.keys(LESSON_TERMS).indexOf(b.term) || a.order - b.order);
+}
+
+function renderAdminGivenActivityList() {
+  if (!givenActivityAdminList) return;
+  const items = getAdminFilteredGivenActivities();
+  if (givenActivityAdminListStatus) givenActivityAdminListStatus.textContent = givenActivityState.loaded
+    ? `${items.length} of ${givenActivityState.items.length} activit${givenActivityState.items.length === 1 ? 'y' : 'ies'} shown.`
+    : 'Loading activities...';
+  if (!items.length) {
+    givenActivityAdminList.innerHTML = '<div class="given-activity-admin-empty">No Activities Given match this filter yet.</div>';
+    return;
+  }
+  givenActivityAdminList.innerHTML = items.map(item => {
+    const due = formatGivenActivityDueDate(item.dueDate);
+    return `
+      <article class="given-activity-admin-row" data-given-admin-id="${escapeAttribute(item.id)}">
+        <div class="given-activity-admin-order">${escapeHTML(String(item.order).padStart(2, '0'))}</div>
+        <div class="given-activity-admin-copy">
+          <div class="given-activity-admin-title-line"><strong>${escapeHTML(item.title)}</strong><span class="given-activity-visibility ${item.published ? 'published' : 'draft'}">${item.published ? 'Published' : 'Draft'}</span></div>
+          <small>${escapeHTML(lessonTermLabel(item.term))} · ${escapeHTML(givenActivityTypeLabel(item.materialType))} · ${escapeHTML(item.audienceSection === 'all' ? 'All Sections' : item.audienceSection)}${due ? ` · Due ${escapeHTML(due)}` : ''}</small>
+        </div>
+        <div class="given-activity-admin-actions">
+          <button class="ghost-btn mini" type="button" data-given-admin-action="up" title="Move up">↑</button>
+          <button class="ghost-btn mini" type="button" data-given-admin-action="down" title="Move down">↓</button>
+          ${item.openUrl ? '<button class="ghost-btn mini" type="button" data-given-admin-action="view">View</button>' : ''}
+          <button class="ghost-btn mini" type="button" data-given-admin-action="toggle">${item.published ? 'Unpublish' : 'Publish'}</button>
+          <button class="ghost-btn mini" type="button" data-given-admin-action="edit">Edit</button>
+          <button class="ghost-btn mini danger" type="button" data-given-admin-action="delete">Delete</button>
+        </div>
+      </article>`;
+  }).join('');
+}
+
+async function publishGivenActivityFromAdmin() {
+  if (!isTeacherAuthenticated()) {
+    setGivenActivityAdminStatus('Teacher Firebase login is required before publishing activities.', 'error');
+    return;
+  }
+  const title = String(givenActivityTitleInput?.value || '').trim();
+  const description = String(givenActivityDescriptionInput?.value || '').trim();
+  if (!title) {
+    setGivenActivityAdminStatus('Enter an Activity Title first.', 'error');
+    givenActivityTitleInput?.focus();
+    return;
+  }
+  const term = Object.prototype.hasOwnProperty.call(LESSON_TERMS, givenActivityTermSelect?.value) ? givenActivityTermSelect.value : 'term1';
+  const order = Math.max(1, Math.min(999, Number.parseInt(givenActivityOrderInput?.value, 10) || getNextGivenActivityOrder(term)));
+  const existing = givenActivityState.items.find(item => item.id === givenActivityState.editingId) || null;
+  let sourceRecord = existing ? { ...existing } : { materialType: 'text', previewUrl: '', openUrl: '', downloadUrl: '', fileId: '', fileName: '', fileSize: 0, source: 'text', sourceMode: 'text' };
+  const buttonText = givenActivityPublishBtn?.textContent || 'Save Activity';
+  if (givenActivityPublishBtn) givenActivityPublishBtn.disabled = true;
+  try {
+    if (givenActivityState.sourceMode === 'upload') {
+      const file = givenActivityFileInput?.files?.[0] || null;
+      if (file) {
+        setGivenActivityAdminStatus('Uploading PDF/image to Google Drive...', 'loading');
+        sourceRecord = { ...sourceRecord, ...(await uploadGivenActivityFileToGoogleDrive(file)) };
+      } else if (!existing || !existing.fileId) {
+        throw new Error('Choose a PDF/image, or switch to Paste Link / Instructions Only.');
+      }
+    } else if (givenActivityState.sourceMode === 'link') {
+      sourceRecord = { ...sourceRecord, ...normalizeGivenActivityLink(givenActivityUrlInput?.value || '', givenActivityLinkTypeSelect?.value || 'link') };
+      sourceRecord.fileName = '';
+      sourceRecord.fileSize = 0;
+    } else {
+      sourceRecord = { materialType: 'text', previewUrl: '', openUrl: '', downloadUrl: '', fileId: '', fileName: '', fileSize: 0, source: 'text', sourceMode: 'text' };
+    }
+    const nowIso = new Date().toISOString();
+    const record = normalizeGivenActivity({
+      ...(existing || {}),
+      ...sourceRecord,
+      id: existing?.id || `given-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      title,
+      description,
+      term,
+      order,
+      audienceSection: givenActivityAudienceSelect?.value || 'all',
+      dueDate: givenActivityDueDateInput?.value || '',
+      visibility: givenActivityVisibilitySelect?.value || 'published',
+      createdAt: existing?.createdAt || nowIso,
+      updatedAt: nowIso
+    });
+    if (existing) givenActivityState.items = givenActivityState.items.map(item => item.id === existing.id ? record : item);
+    else givenActivityState.items.push(record);
+    setGivenActivityAdminStatus('Publishing activity list to Firebase...', 'loading');
+    await saveGivenActivitiesToCloud();
+    resetGivenActivityAdminEditor({ keepTerm: true });
+    renderAdminGivenActivityList();
+    setGivenActivityAdminStatus(`${record.title} saved ${record.published ? 'and published' : 'as a draft'}.`, 'success');
+  } catch (error) {
+    console.warn('Could not save Activity Given.', error);
+    setGivenActivityAdminStatus(error?.message || 'Could not save the activity.', 'error');
+  } finally {
+    if (givenActivityPublishBtn) {
+      givenActivityPublishBtn.disabled = false;
+      givenActivityPublishBtn.textContent = givenActivityState.editingId ? 'Save Changes' : (buttonText.includes('Changes') ? 'Save Activity' : buttonText);
+    }
+  }
+}
+
+async function deleteGivenActivityFromAdmin(activityId = '') {
+  const item = givenActivityState.items.find(entry => entry.id === activityId);
+  if (!item) return;
+  const confirmed = await appConfirm(`Delete “${item.title}” from Activities Given?`, { title: 'Delete Activity', danger: true, confirmText: 'Delete' });
+  if (!confirmed) return;
+  const previous = [...givenActivityState.items];
+  givenActivityState.items = previous.filter(entry => entry.id !== activityId);
+  try {
+    await saveGivenActivitiesToCloud();
+    if (givenActivityState.editingId === activityId) resetGivenActivityAdminEditor({ keepTerm: true });
+    if (item.fileId && lessonLibraryState.driveAccessToken) {
+      deleteLessonDriveFile(item.fileId).catch(error => console.warn('Activity file remained in Drive.', error));
+    }
+    setGivenActivityAdminStatus('Activity deleted.', 'success');
+  } catch (error) {
+    givenActivityState.items = previous;
+    renderAdminGivenActivityList();
+    setGivenActivityAdminStatus(error?.message || 'Could not delete the activity.', 'error');
+  }
+}
+
+async function moveGivenActivityWithinTerm(activityId = '', direction = 'up') {
+  const target = givenActivityState.items.find(item => item.id === activityId);
+  if (!target) return;
+  const peers = sortGivenActivities(givenActivityState.items.filter(item => item.term === target.term), 'order-asc');
+  const index = peers.findIndex(item => item.id === activityId);
+  const swapIndex = direction === 'up' ? index - 1 : index + 1;
+  if (index < 0 || swapIndex < 0 || swapIndex >= peers.length) return;
+  const a = peers[index];
+  const b = peers[swapIndex];
+  const aOrder = a.order;
+  const bOrder = b.order;
+  a.order = bOrder;
+  b.order = aOrder;
+  try {
+    await saveGivenActivitiesToCloud();
+    renderAdminGivenActivityList();
+  } catch (error) {
+    a.order = aOrder;
+    b.order = bOrder;
+    renderAdminGivenActivityList();
+    setGivenActivityAdminStatus(error?.message || 'Could not reorder activities.', 'error');
+  }
+}
+
+async function toggleGivenActivityPublished(activityId = '') {
+  const item = givenActivityState.items.find(entry => entry.id === activityId);
+  if (!item) return;
+  const previous = item.visibility;
+  item.visibility = item.published ? 'draft' : 'published';
+  item.published = item.visibility === 'published';
+  item.updatedAt = new Date().toISOString();
+  try {
+    await saveGivenActivitiesToCloud();
+    setGivenActivityAdminStatus(`${item.title} is now ${item.published ? 'published' : 'a draft'}.`, 'success');
+  } catch (error) {
+    item.visibility = previous;
+    item.published = previous === 'published';
+    setGivenActivityAdminStatus(error?.message || 'Could not change visibility.', 'error');
+  }
+}
+
+async function initializeGivenActivitiesManager() {
+  populateGivenActivityAudienceOptions();
+  syncGivenActivityDriveUI();
+  try { await loadAcademicTermSettingsFromCloud({ silent: true }); } catch (_) {}
+  if (!givenActivityState.editingId && givenActivityTermSelect) givenActivityTermSelect.value = libraryTermFromComplianceTerm();
+  if (!givenActivityState.editingId && givenActivityOrderInput) givenActivityOrderInput.value = String(getNextGivenActivityOrder(givenActivityTermSelect?.value || 'term1'));
+  await loadGivenActivities({ force: !givenActivityState.loaded });
+}
+
+function setNeedsAttentionStatus(message = '', tone = '') {
+  if (!needsAttentionStatus) return;
+  needsAttentionStatus.textContent = message;
+  needsAttentionStatus.dataset.tone = tone;
+}
+
+function getNeedsAttentionRecordMap() {
+  const map = new Map();
+  adminComplianceViewerRecords.forEach(record => {
+    const id = normalizeStudentId(record.studentIdNormalized || record.studentId || record.id || '');
+    if (id) map.set(id, record);
+  });
+  return map;
+}
+
+function buildNeedsAttentionItems() {
+  const recordMap = getNeedsAttentionRecordMap();
+  const currentTerm = currentAcademicTerm();
+  const now = Date.now();
+  const inactiveMs = 14 * 24 * 60 * 60 * 1000;
+  needsAttentionState.items = adminStudentsCache.map(student => {
+    const studentId = normalizeStudentId(student.studentId || student.studentIdNormalized || student.rosterId || '');
+    const record = recordMap.get(studentId) || null;
+    const currentRecord = record && String(record.term || '') === currentTerm ? record : null;
+    const summary = currentRecord ? (currentRecord.summary || summarizeComplianceTasks(currentRecord.tasks || [])) : null;
+    const flags = [];
+    const missing = Number(summary?.missing || 0);
+    if (missing > 0) flags.push({ key: 'lacking', label: `${missing} lacking requirement${missing === 1 ? '' : 's'}`, severity: 4 });
+    if (Number(student.projectCount || 0) <= 0) flags.push({ key: 'no-project', label: 'No project yet', severity: 2 });
+    const loggedIn = Boolean(student.lastLoginAt || Number(student.loginCount || 0) > 0);
+    const lastActivityMs = timestampToDate(student.lastActivityAt)?.getTime?.() || 0;
+    if (loggedIn && lastActivityMs && now - lastActivityMs >= inactiveMs) {
+      const days = Math.max(14, Math.floor((now - lastActivityMs) / (24 * 60 * 60 * 1000)));
+      flags.push({ key: 'inactive', label: `Inactive ${days} days`, severity: 1 });
+    }
+    if (!currentRecord) flags.push({ key: 'term-status', label: `No ${complianceTermFriendlyLabel(currentTerm)} status`, severity: 3 });
+    const severity = Math.max(0, ...flags.map(flag => flag.severity));
+    return { student, studentId, record, currentRecord, flags, severity };
+  }).filter(item => item.flags.length)
+    .sort((a, b) => b.severity - a.severity || String(a.student.section || '').localeCompare(String(b.student.section || '')) || String(a.student.name || '').localeCompare(String(b.student.name || '')));
+  needsAttentionState.loaded = true;
+  return needsAttentionState.items;
+}
+
+function populateNeedsAttentionSectionOptions() {
+  if (!needsAttentionSection) return;
+  const current = needsAttentionSection.value || 'all';
+  const sections = [...new Set(adminStudentsCache.map(item => String(item.section || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  needsAttentionSection.innerHTML = '<option value="all">All Sections</option>' + sections.map(section => `<option value="${escapeAttribute(section)}">${escapeHTML(section)}</option>`).join('');
+  needsAttentionSection.value = sections.includes(current) ? current : 'all';
+}
+
+function getFilteredNeedsAttentionItems() {
+  const search = String(needsAttentionSearch?.value || '').trim().toLowerCase();
+  const section = needsAttentionSection?.value || 'all';
+  const reason = needsAttentionReason?.value || 'all';
+  return needsAttentionState.items.filter(item => {
+    const student = item.student || {};
+    const matchesSearch = !search || `${student.name || ''} ${item.studentId || ''}`.toLowerCase().includes(search);
+    const matchesSection = section === 'all' || String(student.section || '') === section;
+    const matchesReason = reason === 'all' || item.flags.some(flag => flag.key === reason);
+    return matchesSearch && matchesSection && matchesReason;
+  });
+}
+
+function renderNeedsAttentionDashboard() {
+  if (!needsAttentionList) return;
+  populateNeedsAttentionSectionOptions();
+  const all = needsAttentionState.items;
+  const countFor = key => all.filter(item => item.flags.some(flag => flag.key === key)).length;
+  if (needsLackingCount) needsLackingCount.textContent = String(countFor('lacking'));
+  if (needsNoProjectCount) needsNoProjectCount.textContent = String(countFor('no-project'));
+  if (needsInactiveCount) needsInactiveCount.textContent = String(countFor('inactive'));
+  if (needsTermStatusCount) needsTermStatusCount.textContent = String(countFor('term-status'));
+  const items = getFilteredNeedsAttentionItems();
+  if (!items.length) {
+    needsAttentionList.innerHTML = `<div class="needs-attention-empty"><span>✅</span><strong>No students match this attention filter.</strong><p>Change the filters or refresh the dashboard.</p></div>`;
+    return;
+  }
+  needsAttentionList.innerHTML = items.map(item => {
+    const student = item.student;
+    const flagHtml = item.flags.map(flag => `<span class="needs-flag ${escapeAttribute(flag.key)}">${escapeHTML(flag.label)}</span>`).join('');
+    const lastActivity = student.lastActivityAt ? formatStudentDate(student.lastActivityAt) : 'No activity recorded';
+    return `
+      <article class="needs-attention-card" data-needs-student="${escapeAttribute(item.studentId)}">
+        <div class="needs-attention-student">
+          <div class="needs-attention-avatar">${escapeHTML(String(student.name || 'S').trim().charAt(0).toUpperCase() || 'S')}</div>
+          <div><strong>${escapeHTML(student.name || 'Unnamed Student')}</strong><small>${escapeHTML(item.studentId || 'No ID')} · ${escapeHTML(student.section || 'No section')}</small></div>
+        </div>
+        <div class="needs-attention-flags">${flagHtml}</div>
+        <div class="needs-attention-meta"><span>${Math.max(0, Number(student.projectCount || 0))} project${Number(student.projectCount || 0) === 1 ? '' : 's'}</span><span>Last activity: ${escapeHTML(lastActivity)}</span></div>
+        <div class="needs-attention-actions">
+          <button class="ghost-btn mini" type="button" data-needs-action="student">View Student</button>
+          ${item.currentRecord ? '<button class="ghost-btn mini" type="button" data-needs-action="compliance">View Compliance</button>' : ''}
+        </div>
+      </article>`;
+  }).join('');
+}
+
+async function loadNeedsAttentionDashboard(options = {}) {
+  if (!needsAttentionList || !isTeacherAuthenticated()) {
+    setNeedsAttentionStatus('Teacher Firebase login is required to build the Needs Attention dashboard.', 'warning');
+    return [];
+  }
+  if (refreshNeedsAttentionBtn) refreshNeedsAttentionBtn.disabled = true;
+  setNeedsAttentionStatus('Checking students, projects, and current-term compliance...', '');
+  try {
+    await loadAcademicTermSettingsFromCloud({ silent: true });
+    await Promise.all([
+      loadAdminStudents({ force: options.force === true }),
+      loadAdminComplianceViewer({ force: options.force === true, silent: true })
+    ]);
+    buildNeedsAttentionItems();
+    renderNeedsAttentionDashboard();
+    const currentLabel = complianceTermFriendlyLabel(currentAcademicTerm());
+    setNeedsAttentionStatus(`${needsAttentionState.items.length} student${needsAttentionState.items.length === 1 ? '' : 's'} currently have at least one attention flag · ${currentLabel}.`, 'success');
+    return needsAttentionState.items;
+  } catch (error) {
+    console.warn('Needs Attention dashboard failed.', error);
+    setNeedsAttentionStatus(error?.message || 'Could not build the Needs Attention dashboard.', 'error');
+    return [];
+  } finally {
+    if (refreshNeedsAttentionBtn) refreshNeedsAttentionBtn.disabled = false;
+  }
+}
+
+function openNeedsAttentionStudent(item, action = 'student') {
+  if (!item) return;
+  if (action === 'compliance') {
+    setAdminTab('compliance');
+    if (adminComplianceViewerSearch) adminComplianceViewerSearch.value = item.studentId || item.student?.name || '';
+    if (adminComplianceViewerFilter) adminComplianceViewerFilter.value = 'all';
+    renderAdminComplianceViewer();
+    return;
+  }
+  setAdminTab('students');
+  if (adminStudentSearch) adminStudentSearch.value = item.studentId || item.student?.name || '';
+  if (adminSectionFilter) adminSectionFilter.value = 'all';
+  if (adminActivityFilter) adminActivityFilter.value = 'all';
+  renderAdminStudentTracker();
+}
+
+const DEVICE_QA_DEFAULT = Object.freeze({ width: 390, height: 844, orientation: 'portrait', screen: 'entry' });
+
+function getDeviceQaDimensions() {
+  let width = Math.max(280, Math.min(2560, Number(deviceQaWidthInput?.value || DEVICE_QA_DEFAULT.width)));
+  let height = Math.max(400, Math.min(1800, Number(deviceQaHeightInput?.value || DEVICE_QA_DEFAULT.height)));
+  const orientation = deviceQaOrientationSelect?.value || 'portrait';
+  if (orientation === 'portrait' && width > height) [width, height] = [height, width];
+  if (orientation === 'landscape' && height > width) [width, height] = [height, width];
+  if (deviceQaWidthInput) deviceQaWidthInput.value = String(width);
+  if (deviceQaHeightInput) deviceQaHeightInput.value = String(height);
+  return { width, height, orientation };
+}
+
+function buildDeviceQaPreviewUrl() {
+  const url = new URL(window.location.href);
+  url.hash = '';
+  url.search = '';
+  url.searchParams.set('qaPreview', '1');
+  url.searchParams.set('qaScreen', deviceQaScreenSelect?.value || 'entry');
+  return url.href;
+}
+
+function updateDeviceQaScale() {
+  if (!deviceQaViewportShell || !deviceQaViewportStage || !deviceQaFrame) return;
+  const { width, height } = getDeviceQaDimensions();
+  const available = Math.max(260, deviceQaViewportShell.clientWidth - 28);
+  const scale = Math.min(1, available / width);
+  deviceQaFrame.style.width = `${width}px`;
+  deviceQaFrame.style.height = `${height}px`;
+  deviceQaFrame.style.transform = `scale(${scale})`;
+  deviceQaViewportStage.style.width = `${Math.ceil(width * scale)}px`;
+  deviceQaViewportStage.style.height = `${Math.ceil(height * scale)}px`;
+  deviceQaViewportStage.style.setProperty('--qa-scale', String(scale));
+  if (deviceQaSizeLabel) deviceQaSizeLabel.textContent = `${width} × ${height} · ${deviceQaOrientationSelect?.value === 'landscape' ? 'Landscape' : 'Portrait'} · ${Math.round(scale * 100)}% preview`;
+}
+
+function checkDeviceQaOverflow() {
+  if (!deviceQaOverflowStatus || !deviceQaFrame) return;
+  try {
+    const doc = deviceQaFrame.contentDocument;
+    if (!doc) throw new Error('Preview not ready');
+    const root = doc.documentElement;
+    const horizontal = root.scrollWidth > root.clientWidth + 3;
+    const visibleDialogs = Array.from(doc.querySelectorAll('.modal-overlay:not(.hidden), .student-auth-overlay:not(.hidden), .login-lacking-reminder-overlay:not(.hidden), .given-activity-viewer-overlay:not(.hidden)'));
+    const dialogOverflow = visibleDialogs.some(dialog => {
+      const rect = dialog.getBoundingClientRect();
+      return rect.left < -3 || rect.right > root.clientWidth + 3 || rect.top < -3 || rect.bottom > root.clientHeight + 3;
+    });
+    if (horizontal) {
+      deviceQaOverflowStatus.textContent = '⚠ Horizontal overflow detected';
+      deviceQaOverflowStatus.dataset.status = 'error';
+    } else if (dialogOverflow) {
+      deviceQaOverflowStatus.textContent = '⚠ Visible dialog exceeds viewport';
+      deviceQaOverflowStatus.dataset.status = 'warning';
+    } else {
+      deviceQaOverflowStatus.textContent = '✓ No horizontal/dialog overflow detected';
+      deviceQaOverflowStatus.dataset.status = 'success';
+    }
+  } catch (error) {
+    deviceQaOverflowStatus.textContent = 'Preview loaded · overflow check unavailable';
+    deviceQaOverflowStatus.dataset.status = 'warning';
+  }
+}
+
+function applyDeviceQaPreview(options = {}) {
+  if (!deviceQaFrame) return;
+  updateDeviceQaScale();
+  if (options.reload !== false || !deviceQaFrame.src) {
+    if (deviceQaOverflowStatus) {
+      deviceQaOverflowStatus.textContent = 'Checking overflow…';
+      deviceQaOverflowStatus.dataset.status = 'checking';
+    }
+    deviceQaFrame.src = buildDeviceQaPreviewUrl();
+  }
+}
+
+function initializeDeviceQaPanel() {
+  if (!deviceQaFrame) return;
+  if (!deviceQaFrame.getAttribute('src')) applyDeviceQaPreview();
+  else updateDeviceQaScale();
+}
+
+function applyDeviceQaPreset() {
+  const value = String(deviceQaPresetSelect?.value || '390x844');
+  if (value !== 'custom') {
+    const match = value.match(/^(\d+)x(\d+)$/);
+    if (match) {
+      const width = Number(match[1]);
+      const height = Number(match[2]);
+      if (deviceQaWidthInput) deviceQaWidthInput.value = String(width);
+      if (deviceQaHeightInput) deviceQaHeightInput.value = String(height);
+      if (deviceQaOrientationSelect) deviceQaOrientationSelect.value = width > height ? 'landscape' : 'portrait';
+    }
+  }
+  applyDeviceQaPreview();
+}
+
+function prepareQaDashboardDemo() {
+  appSession.mode = 'student';
+  appSession.student = { uid: 'qa-student', studentId: 'QA-0001', studentIdNormalized: 'QA-0001', name: 'QA Student', section: 'QA Section', mustChangePassword: false, projectCount: 2 };
+  hideEntryGate();
+  hideAllStudentScreens();
+  studentDashboard?.classList.remove('hidden');
+  document.body.classList.add('student-dashboard-active', 'qa-preview-student-demo');
+  if (dashboardGreeting) dashboardGreeting.textContent = 'Welcome, QA Student!';
+  if (projectDashboardStatus) projectDashboardStatus.textContent = 'QA preview · sample projects';
+  if (studentProjectsGrid) studentProjectsGrid.innerHTML = `
+    <article class="project-card"><div class="project-card-top"><span class="project-status-pill">In Progress</span></div><h3>Sample Website</h3><p>Responsive QA demo project.</p></article>
+    <article class="project-card"><div class="project-card-top"><span class="project-status-pill active">Checked</span></div><h3>Activity Project</h3><p>Use this screen to inspect spacing and wrapping.</p></article>`;
+}
+
+async function initializeDeviceQaRuntime() {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('qaPreview') !== '1') return;
+  document.body.classList.add('device-qa-preview-runtime');
+  const target = params.get('qaScreen') || 'entry';
+  // Always close teacher-only overlays inside the preview frame.
+  adminOverlay?.classList.add('hidden');
+  document.body.classList.remove('admin-open');
+  if (target === 'entry') {
+    appSession.mode = 'entry';
+    showEntryGate();
+    return;
+  }
+  if (target === 'login') {
+    appSession.mode = 'entry';
+    showEntryGate();
+    openStudentLogin();
+    return;
+  }
+  if (target === 'dashboard') {
+    prepareQaDashboardDemo();
+    return;
+  }
+  if (target === 'lessons') {
+    appSession.mode = 'guest';
+    hideEntryGate();
+    hideAllStudentScreens();
+    lessonViewerScreen?.classList.remove('hidden');
+    document.body.classList.add('lesson-viewer-active');
+    lessonLibraryState.activeTerm = libraryTermFromComplianceTerm();
+    loadLessonLibrary({ force: true }).catch(() => {});
+    return;
+  }
+  if (target === 'given-activities') {
+    appSession.mode = 'student';
+    appSession.student = { uid: 'qa-student', studentId: 'QA-0001', name: 'QA Student', section: 'QA Section', mustChangePassword: false };
+    hideEntryGate();
+    hideAllStudentScreens();
+    givenActivitiesScreen?.classList.remove('hidden');
+    document.body.classList.add('given-activities-active');
+    try { await loadAcademicTermSettingsFromCloud({ silent: true }); } catch (_) {}
+    givenActivityState.activeTerm = libraryTermFromComplianceTerm();
+    loadGivenActivities({ force: true }).catch(() => {});
+    return;
+  }
+  if (target === 'lacking') {
+    prepareQaDashboardDemo();
+    window.setTimeout(() => previewLoginLackingReminder(true), 80);
+    return;
+  }
+  if (target === 'subject-status') {
+    prepareQaDashboardDemo();
+    if (studentComplianceMeta) studentComplianceMeta.textContent = `${complianceTermFriendlyLabel(currentAcademicTerm())} · QA Preview`;
+    if (studentComplianceSummary) studentComplianceSummary.innerHTML = '<span class="compliance-summary-pill complete">🟩 8 Complete</span><span class="compliance-summary-pill missing">🟥 3 Missing</span>';
+    if (studentComplianceList) studentComplianceList.innerHTML = '<div class="student-compliance-row complete"><span class="student-compliance-dot"></span><div><strong>Activity 1</strong><small>Complete</small></div></div><div class="student-compliance-row missing"><span class="student-compliance-dot"></span><div><strong>Activity 2</strong><small>Missing</small></div></div>';
+    if (studentComplianceLackingList) studentComplianceLackingList.innerHTML = '<div class="student-compliance-lacking-card"><strong>Lacking List</strong><ul><li>Activity 2</li><li>Quiz 3</li><li>Performance Task</li></ul></div>';
+    studentComplianceOverlay?.classList.remove('hidden');
+    document.body.classList.add('student-auth-open');
+    return;
+  }
+  // Editor demo.
+  appSession.mode = 'guest';
+  hideEntryGate();
+  hideAllStudentScreens();
+  lessonViewerScreen?.classList.add('hidden');
+  document.body.classList.remove('entry-gate-active', 'student-dashboard-active', 'lesson-viewer-active', 'given-activities-active');
+  updateAppHeaderForSession();
+}
+
+function bindTeacherToolsV295() {
+  if (bindTeacherToolsV295.bound) return;
+  bindTeacherToolsV295.bound = true;
+
+  [dashboardGivenActivitiesBtn, dashboardOpenGivenActivitiesBtn].forEach(button => button?.addEventListener('click', () => openGivenActivitiesLibrary('dashboard')));
+  menuGivenActivitiesBtn?.addEventListener('click', () => { closeStudentAccountMenu(); openGivenActivitiesLibrary('editor'); });
+  givenActivitiesBtn?.addEventListener('click', () => openGivenActivitiesLibrary('editor'));
+  givenActivitiesBackBtn?.addEventListener('click', closeGivenActivitiesLibrary);
+  givenActivitiesRefreshBtn?.addEventListener('click', () => loadGivenActivities({ force: true }));
+  givenActivitiesThemeBtn?.addEventListener('click', () => themeToggle?.click());
+  givenActivitiesSearch?.addEventListener('input', renderStudentGivenActivities);
+  givenActivitiesSort?.addEventListener('change', renderStudentGivenActivities);
+  givenActivitiesTermTabs?.addEventListener('click', event => {
+    const button = event.target.closest('[data-given-term]');
+    if (!button) return;
+    givenActivityState.activeTerm = button.dataset.givenTerm || 'term1';
+    renderStudentGivenActivities();
+  });
+  givenActivitiesGrid?.addEventListener('click', event => {
+    const button = event.target.closest('[data-given-open]');
+    if (button) openGivenActivityViewer(button.dataset.givenOpen || '');
+  });
+  givenActivityViewerCloseBtn?.addEventListener('click', closeGivenActivityViewer);
+  givenActivityViewerOverlay?.addEventListener('click', event => { if (event.target === givenActivityViewerOverlay) event.stopPropagation(); });
+
+  refreshNeedsAttentionBtn?.addEventListener('click', () => loadNeedsAttentionDashboard({ force: true }));
+  [needsAttentionSearch, needsAttentionSection, needsAttentionReason].forEach(control => {
+    control?.addEventListener('input', renderNeedsAttentionDashboard);
+    control?.addEventListener('change', renderNeedsAttentionDashboard);
+  });
+  needsAttentionSummaryButtons.forEach(button => button.addEventListener('click', () => {
+    if (needsAttentionReason) needsAttentionReason.value = button.dataset.needsSummary || 'all';
+    renderNeedsAttentionDashboard();
+  }));
+  needsAttentionList?.addEventListener('click', event => {
+    const button = event.target.closest('[data-needs-action]');
+    const card = event.target.closest('[data-needs-student]');
+    if (!button || !card) return;
+    const item = needsAttentionState.items.find(entry => entry.studentId === card.dataset.needsStudent);
+    openNeedsAttentionStudent(item, button.dataset.needsAction || 'student');
+  });
+
+  givenActivityDriveConnectBtn?.addEventListener('click', async () => {
+    if (givenActivityDriveConnectBtn) givenActivityDriveConnectBtn.disabled = true;
+    setGivenActivityDriveStatus('Connecting to Google Drive...', 'loading');
+    try { await connectLessonGoogleDrive({ force: true }); }
+    catch (error) { setGivenActivityDriveStatus(error?.message || 'Could not connect Google Drive.', 'error'); }
+    finally { syncGivenActivityDriveUI(); }
+  });
+  givenActivityAdminRefreshBtn?.addEventListener('click', () => loadGivenActivities({ force: true }));
+  givenActivityCancelEditBtn?.addEventListener('click', () => resetGivenActivityAdminEditor({ keepTerm: true }));
+  givenActivitySourceTabs.forEach(button => button.addEventListener('click', () => setGivenActivitySourceMode(button.dataset.givenSource || 'upload')));
+  givenActivityFileInput?.addEventListener('change', () => {
+    const file = givenActivityFileInput.files?.[0];
+    if (givenActivityFileName) givenActivityFileName.textContent = file ? `${file.name}${file.size ? ` · ${formatLessonFileSize(file.size)}` : ''}` : 'Choose a PDF or image';
+  });
+  givenActivityTermSelect?.addEventListener('change', () => {
+    if (!givenActivityState.editingId && givenActivityOrderInput) givenActivityOrderInput.value = String(getNextGivenActivityOrder(givenActivityTermSelect.value));
+  });
+  givenActivityPublishBtn?.addEventListener('click', publishGivenActivityFromAdmin);
+  givenActivityAdminTermFilter?.addEventListener('change', renderAdminGivenActivityList);
+  givenActivityAdminSearch?.addEventListener('input', renderAdminGivenActivityList);
+  givenActivityAdminList?.addEventListener('click', event => {
+    const button = event.target.closest('[data-given-admin-action]');
+    const row = event.target.closest('[data-given-admin-id]');
+    if (!button || !row) return;
+    const id = row.dataset.givenAdminId || '';
+    const action = button.dataset.givenAdminAction || '';
+    if (action === 'edit') editGivenActivityAdmin(id);
+    else if (action === 'delete') deleteGivenActivityFromAdmin(id);
+    else if (action === 'up' || action === 'down') moveGivenActivityWithinTerm(id, action);
+    else if (action === 'toggle') toggleGivenActivityPublished(id);
+    else if (action === 'view') {
+      const item = givenActivityState.items.find(entry => entry.id === id);
+      if (item?.openUrl) window.open(item.openUrl, '_blank', 'noopener,noreferrer');
+    }
+  });
+
+  deviceQaPresetSelect?.addEventListener('change', applyDeviceQaPreset);
+  deviceQaOrientationSelect?.addEventListener('change', () => applyDeviceQaPreview());
+  deviceQaScreenSelect?.addEventListener('change', () => applyDeviceQaPreview());
+  [deviceQaWidthInput, deviceQaHeightInput].forEach(input => input?.addEventListener('input', () => {
+    if (deviceQaPresetSelect) deviceQaPresetSelect.value = 'custom';
+    updateDeviceQaScale();
+  }));
+  deviceQaApplyBtn?.addEventListener('click', () => applyDeviceQaPreview());
+  deviceQaReloadBtn?.addEventListener('click', () => applyDeviceQaPreview());
+  deviceQaFrame?.addEventListener('load', () => {
+    updateDeviceQaScale();
+    window.setTimeout(checkDeviceQaOverflow, 400);
+    window.setTimeout(checkDeviceQaOverflow, 1200);
+  });
+  window.addEventListener('resize', updateDeviceQaScale);
+
+  document.addEventListener('keydown', event => {
+    if (event.key !== 'Escape') return;
+    if (givenActivityViewerOverlay && !givenActivityViewerOverlay.classList.contains('hidden')) {
+      event.preventDefault();
+      closeGivenActivityViewer();
+      return;
+    }
+    if (givenActivitiesScreen && !givenActivitiesScreen.classList.contains('hidden')) {
+      event.preventDefault();
+      closeGivenActivitiesLibrary();
+    }
+  });
+
+  window.setTimeout(() => initializeDeviceQaRuntime().catch(error => console.warn('QA preview runtime failed.', error)), 250);
+}
+
+bindTeacherToolsV295();
+
 function getStoredAdminTab() {
   return localStorage.getItem(ADMIN_TAB_STORAGE_KEY) || 'students';
 }
 
 function setAdminTab(tabName = 'students') {
-  const allowed = new Set(['students', 'online', 'assistance', 'compliance', 'lessons', 'activities']);
+  const allowed = new Set(['students', 'needs-attention', 'online', 'assistance', 'compliance', 'lessons', 'given-activities', 'activities', 'device-qa']);
   const nextTab = allowed.has(tabName) ? tabName : 'students';
   localStorage.setItem(ADMIN_TAB_STORAGE_KEY, nextTab);
 
@@ -18126,6 +19349,13 @@ function setAdminTab(tabName = 'students') {
     scheduleAdminOnlinePresenceRefresh();
   }
   if (nextTab === 'lessons' && isTeacherAuthenticated()) initializeLessonManager();
+  if (nextTab === 'needs-attention' && isTeacherAuthenticated()) {
+    loadNeedsAttentionDashboard({ force: !needsAttentionState.loaded }).catch(error => console.warn('Needs Attention auto-load failed.', error));
+  }
+  if (nextTab === 'given-activities' && isTeacherAuthenticated()) {
+    initializeGivenActivitiesManager().catch(error => console.warn('Activities Given manager load failed.', error));
+  }
+  if (nextTab === 'device-qa') initializeDeviceQaPanel();
 }
 
 function initAdminTabs() {
@@ -22793,6 +24023,16 @@ document.addEventListener('keydown', event => {
 
   const isOpen = element => Boolean(element && !element.classList.contains('hidden'));
 
+  if (isOpen(givenActivityViewerOverlay)) {
+    event.preventDefault();
+    closeGivenActivityViewer();
+    return;
+  }
+  if (isOpen(givenActivitiesScreen)) {
+    event.preventDefault();
+    closeGivenActivitiesLibrary();
+    return;
+  }
   if (isOpen(lessonPdfOverlay)) {
     event.preventDefault();
     closeLessonPdfViewer();

@@ -45,7 +45,7 @@
   </script>
   <link rel="preconnect" href="https://drive.google.com" crossorigin>
   <link rel="preconnect" href="https://lh3.googleusercontent.com" crossorigin>
-  <link rel="stylesheet" href="style.css?v=20260905-v294-1-dark-term-fix" />
+  <link rel="stylesheet" href="style.css?v=20260905-v295-teacher-tools" />
   <style>
     .ai-rubric-settings-card,
     .admin-project-ai-review-card {
@@ -386,6 +386,7 @@
         <button id="dashboardRecitationStatusBtn" class="ghost-btn recitation-status-open-btn" type="button">📋 Recitation Status</button>
         <button id="dashboardSubjectStatusBtn" class="ghost-btn dashboard-subject-status-btn" type="button">📌 Subject Status</button>
         <button id="dashboardLessonViewerBtn" class="ghost-btn dashboard-lesson-viewer-btn" type="button">📚 Lesson Viewer</button>
+        <button id="dashboardGivenActivitiesBtn" class="ghost-btn dashboard-given-activities-btn" type="button">📝 Activities</button>
         <button id="dashboardCodeInboxBtn" class="ghost-btn code-inbox-open-btn" type="button">📥 Code Inbox <span id="dashboardCodeInboxBadge" class="code-inbox-badge hidden">0</span></button>
         <button id="dashboardJoinProjectBtn" class="ghost-btn dashboard-join-project-btn hidden" type="button">🤝 Join a Project</button>
         <button id="dashboardLogoutBtn" class="ghost-btn danger" type="button">Log Out</button>
@@ -400,6 +401,7 @@
         </div>
         <div class="dashboard-hero-actions">
           <button id="dashboardOpenLessonsBtn" class="ghost-btn dashboard-lessons-hero-btn" type="button">📚 Open Lessons</button>
+          <button id="dashboardOpenGivenActivitiesBtn" class="ghost-btn dashboard-activities-hero-btn" type="button">📝 Open Activities</button>
           <button id="newProjectBtn" class="primary-btn dashboard-new-btn" type="button">+ New Project</button>
         </div>
       </section>
@@ -529,6 +531,71 @@
           <iframe id="lessonPdfFrame" class="lesson-pdf-frame" title="PDF lesson viewer" allow="fullscreen" loading="lazy" referrerpolicy="strict-origin-when-cross-origin"></iframe>
         </div>
         <div id="lessonPdfWakeLayer" class="lesson-pdf-wake-layer" aria-hidden="true"></div>
+      </section>
+    </div>
+  </div>
+
+  <div id="givenActivitiesScreen" class="given-activities-screen hidden" aria-labelledby="givenActivitiesTitle">
+    <header class="given-activities-header">
+      <div class="given-activities-brand">
+        <button id="givenActivitiesBackBtn" class="ghost-btn" type="button" aria-label="Go back">← Back</button>
+        <div class="given-activities-icon" aria-hidden="true">📝</div>
+        <div>
+          <p class="section-kicker">ICT 8 Connect</p>
+          <h1 id="givenActivitiesTitle">Activities Given</h1>
+          <p id="givenActivitiesSubtitle" class="muted-text">Teacher-posted activities, files, and instructions arranged by term and order.</p>
+        </div>
+      </div>
+      <div class="given-activities-header-actions">
+        <span id="givenActivitiesCurrentTermPill" class="given-activities-current-pill">Current Term</span>
+        <button id="givenActivitiesRefreshBtn" class="ghost-btn" type="button">↻ Refresh</button>
+        <button id="givenActivitiesThemeBtn" class="ghost-btn" type="button">🌙 Theme</button>
+      </div>
+    </header>
+
+    <main class="given-activities-main">
+      <section class="given-activities-welcome">
+        <div>
+          <span class="given-activities-eyebrow">Teacher-posted tasks</span>
+          <h2>Check what was given, in the correct order.</h2>
+          <p>Open PDF instructions, images, links, or text activities. The active academic term opens automatically, but older terms remain available.</p>
+        </div>
+        <div class="given-activities-stat"><strong id="givenActivitiesTotalCount">0</strong><span>Published</span></div>
+      </section>
+
+      <section class="given-activities-controls" aria-label="Activity filters">
+        <div id="givenActivitiesTermTabs" class="lesson-term-tabs" role="tablist" aria-label="Choose term">
+          <button class="lesson-term-tab active" type="button" role="tab" aria-selected="true" data-given-term="term1">Term 1 <span data-given-term-count="term1">0</span></button>
+          <button class="lesson-term-tab" type="button" role="tab" aria-selected="false" data-given-term="term2">Term 2 <span data-given-term-count="term2">0</span></button>
+          <button class="lesson-term-tab" type="button" role="tab" aria-selected="false" data-given-term="term3">Term 3 <span data-given-term-count="term3">0</span></button>
+        </div>
+        <div class="given-activities-filter-row">
+          <label class="lesson-library-search"><span aria-hidden="true">🔎</span><input id="givenActivitiesSearch" type="search" placeholder="Search activity title or instructions" autocomplete="off" /></label>
+          <select id="givenActivitiesSort" aria-label="Sort activities">
+            <option value="order-asc">Activity order</option>
+            <option value="title-asc">Title A–Z</option>
+            <option value="newest">Newest posted</option>
+          </select>
+        </div>
+      </section>
+      <div id="givenActivitiesStatus" class="lesson-library-status" role="status">Loading activities...</div>
+      <section id="givenActivitiesGrid" class="given-activities-grid" aria-live="polite"></section>
+    </main>
+
+    <div id="givenActivityViewerOverlay" class="given-activity-viewer-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="givenActivityViewerTitle">
+      <section class="given-activity-viewer-card">
+        <header class="given-activity-viewer-header">
+          <div>
+            <span id="givenActivityViewerMeta" class="given-activity-viewer-meta">Activity</span>
+            <h2 id="givenActivityViewerTitle">Activity</h2>
+            <p id="givenActivityViewerDescription" class="muted-text"></p>
+          </div>
+          <div class="given-activity-viewer-actions">
+            <a id="givenActivityViewerOpenBtn" class="ghost-btn" href="#" target="_blank" rel="noopener noreferrer">↗ Open</a>
+            <button id="givenActivityViewerCloseBtn" class="icon-btn" type="button" aria-label="Close activity">×</button>
+          </div>
+        </header>
+        <div id="givenActivityViewerBody" class="given-activity-viewer-body"></div>
       </section>
     </div>
   </div>
@@ -707,6 +774,7 @@
         <button id="menuSendCodeBtn" class="ghost-btn send-code-btn hidden" type="button" role="menuitem">📤 Send Code</button>
         <button id="menuCodeInboxBtn" class="ghost-btn code-inbox-open-btn" type="button" role="menuitem">📥 Code Inbox <span id="menuCodeInboxBadge" class="code-inbox-badge hidden">0</span></button>
         <button id="menuLessonViewerBtn" class="ghost-btn" type="button" role="menuitem">📚 Lesson Viewer</button>
+        <button id="menuGivenActivitiesBtn" class="ghost-btn" type="button" role="menuitem">📝 Activities Given</button>
         <button id="menuStudentLogoutBtn" class="ghost-btn danger" type="button" role="menuitem">Log Out</button>
       </div>
 
@@ -717,6 +785,7 @@
         <button id="myProjectsBtn" class="ghost-btn" type="button">📁 My Projects</button>
         <button id="codeInboxBtn" class="ghost-btn code-inbox-open-btn" type="button">📥 Inbox <span id="codeInboxBadge" class="code-inbox-badge hidden">0</span></button>
         <button id="lessonViewerBtn" class="ghost-btn" type="button">📚 Lessons</button>
+        <button id="givenActivitiesBtn" class="ghost-btn" type="button">📝 Activities</button>
         <button id="studentHeaderLogoutBtn" class="ghost-btn danger" type="button">Log Out</button>
       </div>
       <div id="guestAccountStrip" class="student-account-strip guest-account-strip hidden" aria-label="Guest actions">
@@ -992,11 +1061,14 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
       <div class="admin-tabs-wrap" aria-label="Admin sections">
         <div class="admin-tabs" role="tablist" aria-label="Admin sections">
           <button id="adminTabStudents" class="admin-tab-btn active" type="button" role="tab" aria-selected="true" aria-controls="studentAccountsAdmin" data-admin-tab="students">Students</button>
+          <button id="adminTabNeedsAttention" class="admin-tab-btn" type="button" role="tab" aria-selected="false" aria-controls="needsAttentionAdmin" data-admin-tab="needs-attention">Needs Attention</button>
           <button id="adminTabOnline" class="admin-tab-btn" type="button" role="tab" aria-selected="false" aria-controls="onlinePresenceAdmin" data-admin-tab="online">Online Now</button>
           <button id="adminTabAssistance" class="admin-tab-btn" type="button" role="tab" aria-selected="false" aria-controls="studentAssistanceSettings" data-admin-tab="assistance">Assistance</button>
           <button id="adminTabCompliance" class="admin-tab-btn" type="button" role="tab" aria-selected="false" aria-controls="complianceTrackerAdmin" data-admin-tab="compliance">Compliance</button>
           <button id="adminTabLessons" class="admin-tab-btn" type="button" role="tab" aria-selected="false" aria-controls="lessonManagerAdmin" data-admin-tab="lessons">Lessons</button>
+          <button id="adminTabGivenActivities" class="admin-tab-btn" type="button" role="tab" aria-selected="false" aria-controls="givenActivitiesAdmin" data-admin-tab="given-activities">Activities Given</button>
           <button id="adminTabActivities" class="admin-tab-btn" type="button" role="tab" aria-selected="false" aria-controls="activitiesRubricsAdmin" data-admin-tab="activities">Activities &amp; Rubric</button>
+          <button id="adminTabDeviceQa" class="admin-tab-btn" type="button" role="tab" aria-selected="false" aria-controls="deviceQaAdmin" data-admin-tab="device-qa">Device QA</button>
         </div>
       </div>
 
@@ -1483,6 +1555,30 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
           </div>
         </section>
 
+        <section id="needsAttentionAdmin" class="admin-tab-panel needs-attention-admin" data-admin-panel="needs-attention" aria-labelledby="needsAttentionTitle">
+          <div class="needs-attention-heading">
+            <div>
+              <p class="section-kicker">Teacher Action Center</p>
+              <h3 id="needsAttentionTitle">Students Who May Need Attention</h3>
+              <p class="muted-text">Factual flags only: current-term lackings, no project yet, no current-term compliance update, or long inactivity. A student can appear for more than one reason.</p>
+            </div>
+            <button id="refreshNeedsAttentionBtn" class="primary-btn" type="button">↻ Refresh Dashboard</button>
+          </div>
+          <div class="needs-attention-summary" aria-label="Attention summary">
+            <button type="button" data-needs-summary="lacking"><strong id="needsLackingCount">0</strong><span>With Lackings</span></button>
+            <button type="button" data-needs-summary="no-project"><strong id="needsNoProjectCount">0</strong><span>No Project Yet</span></button>
+            <button type="button" data-needs-summary="inactive"><strong id="needsInactiveCount">0</strong><span>Inactive 14+ Days</span></button>
+            <button type="button" data-needs-summary="term-status"><strong id="needsTermStatusCount">0</strong><span>No Current-Term Status</span></button>
+          </div>
+          <div class="needs-attention-toolbar">
+            <label><span>Search</span><input id="needsAttentionSearch" type="search" placeholder="Name or Student ID" autocomplete="off" /></label>
+            <label><span>Section</span><select id="needsAttentionSection"><option value="all">All Sections</option></select></label>
+            <label><span>Reason</span><select id="needsAttentionReason"><option value="all">All Attention Reasons</option><option value="lacking">With Lackings</option><option value="no-project">No Project Yet</option><option value="inactive">Inactive 14+ Days</option><option value="term-status">No Current-Term Status</option></select></label>
+          </div>
+          <p id="needsAttentionStatus" class="helper-note" role="status">Open this tab and refresh to build the current teacher action list.</p>
+          <div id="needsAttentionList" class="needs-attention-list" aria-live="polite"></div>
+        </section>
+
         <section id="onlinePresenceAdmin" class="admin-tab-panel online-presence-admin" data-admin-panel="online" aria-labelledby="onlinePresenceTitle">
           <div class="online-presence-heading">
             <div>
@@ -1814,6 +1910,68 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
           </div>
         </section>
 
+        <section id="givenActivitiesAdmin" class="admin-tab-panel given-activities-admin" data-admin-panel="given-activities" aria-labelledby="givenActivitiesAdminTitle">
+          <div class="given-activities-admin-heading">
+            <div>
+              <p class="section-kicker">Teacher Activity Library</p>
+              <h3 id="givenActivitiesAdminTitle">Publish Activities Given</h3>
+              <p class="muted-text">Like Lessons, but for tasks you assign. Set the term and order, then attach a PDF/image or paste a public link. Files uploaded here use the same free Google Drive connection as Lessons.</p>
+            </div>
+            <div class="given-activities-admin-head-actions">
+              <button id="givenActivityDriveConnectBtn" class="ghost-btn" type="button">☁ Connect Drive</button>
+              <button id="givenActivityAdminRefreshBtn" class="ghost-btn" type="button">↻ Refresh</button>
+            </div>
+          </div>
+          <p id="givenActivityDriveStatus" class="helper-note" role="status">Paste-link publishing works without Drive connection.</p>
+          <div class="given-activities-admin-layout">
+            <section class="given-activity-editor-card">
+              <div class="given-activity-editor-head">
+                <div><span id="givenActivityEditorBadge" class="lesson-editor-mode-badge">New Activity</span><h4 id="givenActivityEditorTitle">Create an Activity</h4></div>
+                <button id="givenActivityCancelEditBtn" class="ghost-btn hidden" type="button">Cancel Edit</button>
+              </div>
+              <div class="given-activity-form-grid">
+                <label>Activity Title<input id="givenActivityTitleInput" type="text" maxlength="140" placeholder="Example: Activity 4 – HTML Tables" autocomplete="off" /></label>
+                <label>Term<select id="givenActivityTermSelect"><option value="term1">Term 1</option><option value="term2">Term 2</option><option value="term3">Term 3</option></select></label>
+                <label>Order<input id="givenActivityOrderInput" type="number" min="1" max="999" step="1" value="1" inputmode="numeric" /></label>
+                <label>Audience<select id="givenActivityAudienceSelect"><option value="all">All Sections</option></select></label>
+                <label>Due Date <span class="lesson-optional-label">Optional</span><input id="givenActivityDueDateInput" type="date" /></label>
+                <label>Visibility<select id="givenActivityVisibilitySelect"><option value="published">Published – students can see</option><option value="draft">Draft – teacher only</option></select></label>
+              </div>
+              <label>Instructions<textarea id="givenActivityDescriptionInput" rows="4" maxlength="1200" placeholder="Write the activity instructions here."></textarea></label>
+              <div class="lesson-file-source-tabs" role="tablist" aria-label="Choose activity material source">
+                <button class="lesson-file-source-tab active" type="button" role="tab" aria-selected="true" data-given-source="upload">Upload PDF / Image</button>
+                <button class="lesson-file-source-tab" type="button" role="tab" aria-selected="false" data-given-source="link">Paste Link</button>
+                <button class="lesson-file-source-tab" type="button" role="tab" aria-selected="false" data-given-source="text">Instructions Only</button>
+              </div>
+              <div id="givenActivityUploadPanel" class="lesson-source-panel active">
+                <label class="lesson-file-dropzone" for="givenActivityFileInput">
+                  <input id="givenActivityFileInput" type="file" accept="application/pdf,image/png,image/jpeg,image/webp,.pdf,.png,.jpg,.jpeg,.webp" />
+                  <span class="lesson-file-drop-icon" aria-hidden="true">📎</span>
+                  <strong id="givenActivityFileName">Choose a PDF or image</strong>
+                  <small>Uploads to your connected Google Drive, then publishes only the small file link in Firebase.</small>
+                </label>
+              </div>
+              <div id="givenActivityLinkPanel" class="lesson-source-panel hidden">
+                <div class="given-activity-link-grid">
+                  <label>Material Type<select id="givenActivityLinkTypeSelect"><option value="pdf">PDF</option><option value="image">Image</option><option value="link">Web Link</option></select></label>
+                  <label>Public URL<input id="givenActivityUrlInput" type="url" placeholder="Google Drive, PDF, image, or website link" autocomplete="off" /></label>
+                </div>
+                <p class="helper-note">Google Drive files should be shared as “Anyone with the link can view.”</p>
+              </div>
+              <div id="givenActivityTextPanel" class="lesson-source-panel hidden"><p class="helper-note">No attachment will be used. Students will see the instructions directly in the activity viewer.</p></div>
+              <div class="given-activity-publish-row"><button id="givenActivityPublishBtn" class="primary-btn" type="button">Save Activity</button><span id="givenActivityAdminStatus" class="helper-note" role="status">Ready to create an activity.</span></div>
+            </section>
+            <section class="given-activity-library-card">
+              <div class="given-activity-admin-list-head">
+                <div><h4>Activities Given</h4><p class="muted-text">Published and draft activities, sorted by term and order.</p></div>
+                <div class="lesson-admin-list-filters"><select id="givenActivityAdminTermFilter"><option value="all">All Terms</option><option value="term1">Term 1</option><option value="term2">Term 2</option><option value="term3">Term 3</option></select><input id="givenActivityAdminSearch" type="search" placeholder="Search activities" autocomplete="off" /></div>
+              </div>
+              <div id="givenActivityAdminListStatus" class="helper-note" role="status">Loading activities...</div>
+              <div id="givenActivityAdminList" class="given-activity-admin-list"></div>
+            </section>
+          </div>
+        </section>
+
         <section id="activitiesRubricsAdmin" class="admin-tab-panel" data-admin-panel="activities" aria-labelledby="activitiesRubricsTitle">
         <div class="admin-section-divider"><span>Activities & Rubrics</span></div>
         <div class="admin-activity-manager">
@@ -1916,6 +2074,28 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
           <button id="resetRubricBtn" class="ghost-btn danger" type="button">Restore Default Rubric</button>
           <button class="success-btn" type="submit">Save Activity</button>
         </div>
+        </section>
+
+        <section id="deviceQaAdmin" class="admin-tab-panel device-qa-admin" data-admin-panel="device-qa" aria-labelledby="deviceQaTitle">
+          <div class="device-qa-heading">
+            <div><p class="section-kicker">Responsive QA</p><h3 id="deviceQaTitle">Phone / Tablet / Desktop Preview</h3><p class="muted-text">Browse the actual site inside simulated viewport sizes. Use the screen selector for fast demo states, then check for overflow.</p></div>
+            <button id="deviceQaReloadBtn" class="ghost-btn" type="button">↻ Reload Preview</button>
+          </div>
+          <div class="device-qa-controls">
+            <label>Device<select id="deviceQaPresetSelect"><option value="360x640">Small Phone · 360×640</option><option value="390x844" selected>Regular Phone · 390×844</option><option value="430x932">Large Phone · 430×932</option><option value="600x960">Small Tablet · 600×960</option><option value="768x1024">Tablet · 768×1024</option><option value="820x1180">Large Tablet · 820×1180</option><option value="1366x768">Laptop · 1366×768</option><option value="1920x1080">Desktop · 1920×1080</option><option value="custom">Custom Size</option></select></label>
+            <label>Width<input id="deviceQaWidthInput" type="number" min="280" max="2560" value="390" /></label>
+            <label>Height<input id="deviceQaHeightInput" type="number" min="400" max="1800" value="844" /></label>
+            <label>Orientation<select id="deviceQaOrientationSelect"><option value="portrait">Portrait</option><option value="landscape">Landscape</option></select></label>
+            <label>Preview Screen<select id="deviceQaScreenSelect"><option value="entry">Welcome / Entry</option><option value="login">Student Login</option><option value="dashboard">Student Dashboard</option><option value="lessons">Lessons</option><option value="given-activities">Activities Given</option><option value="lacking">Lacking Popup Demo</option><option value="subject-status">Subject Status Demo</option><option value="editor">Code Editor</option></select></label>
+            <button id="deviceQaApplyBtn" class="primary-btn" type="button">Apply Preview</button>
+          </div>
+          <div class="device-qa-status-row"><span id="deviceQaSizeLabel">390 × 844 · Portrait</span><strong id="deviceQaOverflowStatus" data-status="checking">Checking overflow…</strong></div>
+          <div id="deviceQaViewportShell" class="device-qa-viewport-shell">
+            <div id="deviceQaViewportStage" class="device-qa-viewport-stage">
+              <iframe id="deviceQaFrame" class="device-qa-frame" title="Responsive site preview" loading="lazy"></iframe>
+            </div>
+          </div>
+          <p class="helper-note">QA mode does not change student data. The demo dashboard/popups use temporary sample content. The Activities Given preview can read the same public activity list students see.</p>
         </section>
       </form>
     </div>
@@ -2196,6 +2376,6 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
   <script src="firebase-config.js"></script>
-  <script src="script.js?v=20260905-v294-auto-term"></script>
+  <script src="script.js?v=20260905-v295-teacher-tools"></script>
 </body>
 </html>
