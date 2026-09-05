@@ -598,15 +598,43 @@ let studentAssistanceSettings = normalizeAssistanceSettings(
 );
 let unsubscribeCloudAssistanceSettings = null;
 
-const LOGIN_REMINDER_THEMES = Object.freeze(['classic', 'christmas', 'spider-comic', 'halloween', 'valentine', 'graduation']);
+const LOGIN_REMINDER_THEMES = Object.freeze(['minimalism', 'maximalism', 'futuristic', 'vector-art', 'collage-art', 'retro', 'cyberpunk', 'pop-art', 'glassmorphism', 'clay-style', 'pixel-art', 'editorial', 'y2k', 'swiss-design', 'surreal-design', 'bohemian', 'victorian-style', 'graffiti', 'aurora', 'handwritten', 'classic', 'christmas', 'spider-comic', 'halloween', 'valentine', 'graduation', 'galaxy', 'cyber-neon', 'ocean', 'sakura', 'retro-arcade', 'birthday', 'fiesta', 'forest']);
 const LOGIN_REMINDER_ANIMATIONS = Object.freeze(['off', 'subtle', 'normal']);
 const LOGIN_REMINDER_THEME_LABELS = Object.freeze({
+  minimalism: 'Minimalism',
+  maximalism: 'Maximalism',
+  futuristic: 'Futuristic',
+  'vector-art': 'Vector Art',
+  'collage-art': 'Collage Art',
+  retro: 'Retro',
+  cyberpunk: 'Cyberpunk',
+  'pop-art': 'Pop Art',
+  glassmorphism: 'Glassmorphism',
+  'clay-style': 'Clay Style',
+  'pixel-art': 'Pixel Art',
+  editorial: 'Editorial',
+  y2k: 'Y2K',
+  'swiss-design': 'Swiss Design',
+  'surreal-design': 'Surreal Design',
+  bohemian: 'Bohemian',
+  'victorian-style': 'Victorian Style',
+  graffiti: 'Graffiti',
+  aurora: 'Aurora',
+  handwritten: 'Handwritten',
   classic: 'Classic / Clean',
   christmas: 'Christmas',
   'spider-comic': 'Spider-Man Inspired / Comic Web',
   halloween: 'Halloween',
   valentine: 'Valentine',
-  graduation: 'Graduation'
+  graduation: 'Graduation',
+  galaxy: 'Galaxy / Space',
+  'cyber-neon': 'Cyber Neon',
+  ocean: 'Ocean / Under the Sea',
+  sakura: 'Sakura / Pastel',
+  'retro-arcade': 'Retro Arcade',
+  birthday: 'Birthday Party',
+  fiesta: 'Fiesta',
+  forest: 'Nature / Forest'
 });
 
 const DEFAULT_LOGIN_REMINDER_SETTINGS = Object.freeze({
@@ -1055,7 +1083,7 @@ let adminLatestAiReview = null;
 let adminAiRubricController = null;
 let aiRubricConnectionState = { status: 'untested', code: '', message: '' };
 
-const MCS_APP_BUILD = 'v291';
+const MCS_APP_BUILD = 'v293';
 window.MCS_APP_BUILD = MCS_APP_BUILD;
 console.info(`[MCSian Code Editor] ${MCS_APP_BUILD} loaded`);
 
@@ -13898,7 +13926,7 @@ function updateInstallButtonVisibility() {
 function registerPWAServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./service-worker.js?v=286', {
+    navigator.serviceWorker.register('./service-worker.js?v=292', {
       updateViaCache: 'none'
     }).then(registration => {
       registration.update().catch(() => {});

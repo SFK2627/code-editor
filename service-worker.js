@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ict8-connect-v291-list-scroll-reminder';
+const CACHE_NAME = 'ict8-connect-v293-design-styles';
 
 self.addEventListener('install', event => {
   event.waitUntil(self.skipWaiting());

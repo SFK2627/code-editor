@@ -45622,3 +45622,1024 @@ html body [hidden] {
 .login-lacking-reminder-actions {
   background: transparent !important;
 }
+
+/* =========================================================
+   V292 ADDITIONAL LOGIN REMINDER THEMES
+   New presets share the same readable content hierarchy and V291 list-only
+   scrolling contract. Decorations remain behind the text layer.
+   ========================================================= */
+
+/* GALAXY / SPACE */
+.login-lacking-reminder-overlay[data-theme="galaxy"] {
+  background:
+    radial-gradient(circle at 18% 18%, rgba(124,58,237,.34), transparent 30%),
+    radial-gradient(circle at 84% 74%, rgba(37,99,235,.28), transparent 34%),
+    rgba(3,7,18,.90);
+}
+.login-lacking-reminder-overlay[data-theme="galaxy"] .login-lacking-reminder-panel {
+  background: linear-gradient(145deg, rgba(248,250,252,.98), rgba(238,242,255,.98));
+  border: 2px solid #6366f1;
+  box-shadow: 0 24px 70px rgba(15,23,42,.52), 0 0 28px rgba(99,102,241,.26);
+}
+.login-lacking-reminder-overlay[data-theme="galaxy"] .login-lacking-reminder-panel::before {
+  background:
+    radial-gradient(circle, rgba(99,102,241,.32) 0 1px, transparent 1.7px) 0 0/28px 28px,
+    radial-gradient(circle, rgba(14,165,233,.24) 0 1.2px, transparent 1.8px) 12px 7px/43px 43px,
+    radial-gradient(circle at 78% 18%, rgba(168,85,247,.22), transparent 22%);
+}
+.login-lacking-reminder-overlay[data-theme="galaxy"] .login-lacking-reminder-panel::after { border: 2px solid rgba(99,102,241,.32); }
+.login-lacking-reminder-overlay[data-theme="galaxy"] .login-lacking-reminder-hero h2,
+.login-lacking-reminder-overlay[data-theme="galaxy"] .section-kicker { color:#4338ca; font-family: Georgia, "Times New Roman", serif; letter-spacing:.02em; }
+.login-lacking-reminder-overlay[data-theme="galaxy"] .login-lacking-reminder-student { color:#1e3a8a; }
+.login-lacking-reminder-overlay[data-theme="galaxy"] .login-lacking-reminder-icon { background:#eef2ff; border:2px solid #818cf8; box-shadow:0 0 18px rgba(99,102,241,.22); }
+.login-lacking-reminder-overlay[data-theme="galaxy"] .login-lacking-reminder-message { background:rgba(255,255,255,.96)!important; border:1px solid #c7d2fe; color:#1e1b4b; }
+.login-lacking-reminder-overlay[data-theme="galaxy"] .login-lacking-reminder-list-title { color:#4338ca; }
+.login-lacking-reminder-overlay[data-theme="galaxy"] .login-lacking-reminder-list li { background:rgba(255,255,255,.97); border-color:#c4b5fd; }
+.login-lacking-reminder-overlay[data-theme="galaxy"] .login-lacking-reminder-list li::before { background:#4f46e5; box-shadow:0 0 0 3px #e0e7ff; }
+.login-lacking-reminder-overlay[data-theme="galaxy"] .login-lacking-reminder-actions .primary-btn { background:linear-gradient(135deg,#4f46e5,#7c3aed); border-color:#4338ca; box-shadow:0 5px 0 #312e81; }
+.login-lacking-reminder-overlay[data-theme="galaxy"] .login-lacking-reminder-close { background:#312e81; color:#fff; }
+
+/* CYBER NEON */
+.login-lacking-reminder-overlay[data-theme="cyber-neon"] { background:rgba(2,6,23,.92); }
+.login-lacking-reminder-overlay[data-theme="cyber-neon"] .login-lacking-reminder-panel {
+  background:linear-gradient(145deg,#f8fafc,#ecfeff);
+  border:2px solid #06b6d4;
+  box-shadow:0 0 0 2px rgba(217,70,239,.42), 0 22px 68px rgba(0,0,0,.58), 0 0 34px rgba(6,182,212,.25);
+}
+.login-lacking-reminder-overlay[data-theme="cyber-neon"] .login-lacking-reminder-panel::before {
+  background:
+    linear-gradient(rgba(6,182,212,.09) 1px, transparent 1px) 0 0/24px 24px,
+    linear-gradient(90deg, rgba(217,70,239,.08) 1px, transparent 1px) 0 0/24px 24px,
+    radial-gradient(circle at 86% 18%, rgba(217,70,239,.20), transparent 24%);
+}
+.login-lacking-reminder-overlay[data-theme="cyber-neon"] .login-lacking-reminder-panel::after { border:2px solid rgba(217,70,239,.34); }
+.login-lacking-reminder-overlay[data-theme="cyber-neon"] .login-lacking-reminder-hero h2,
+.login-lacking-reminder-overlay[data-theme="cyber-neon"] .section-kicker { color:#0e7490; font-family:"Courier New", monospace; font-weight:900; text-transform:uppercase; letter-spacing:.04em; }
+.login-lacking-reminder-overlay[data-theme="cyber-neon"] .login-lacking-reminder-student { color:#86198f; font-family:"Courier New", monospace; font-weight:800; }
+.login-lacking-reminder-overlay[data-theme="cyber-neon"] .login-lacking-reminder-icon { background:#cffafe; border:2px solid #06b6d4; box-shadow:3px 3px 0 #d946ef; }
+.login-lacking-reminder-overlay[data-theme="cyber-neon"] .login-lacking-reminder-message { background:rgba(255,255,255,.97)!important; border:1px solid #67e8f9; color:#164e63; font-family:"Trebuchet MS",Arial,sans-serif; }
+.login-lacking-reminder-overlay[data-theme="cyber-neon"] .login-lacking-reminder-list-title { color:#a21caf; font-family:"Courier New",monospace; text-transform:uppercase; }
+.login-lacking-reminder-overlay[data-theme="cyber-neon"] .login-lacking-reminder-list li { background:rgba(255,255,255,.98); border:1px solid #67e8f9; box-shadow:inset 3px 0 0 #d946ef; }
+.login-lacking-reminder-overlay[data-theme="cyber-neon"] .login-lacking-reminder-list li::before { background:#0891b2; }
+.login-lacking-reminder-overlay[data-theme="cyber-neon"] .login-lacking-reminder-actions .primary-btn { background:#0e7490; border-color:#164e63; box-shadow:0 5px 0 #a21caf; font-family:"Courier New",monospace; font-weight:900; text-transform:uppercase; }
+.login-lacking-reminder-overlay[data-theme="cyber-neon"] .login-lacking-reminder-close { background:#111827; color:#67e8f9; border:2px solid #d946ef; }
+
+/* OCEAN / UNDER THE SEA */
+.login-lacking-reminder-overlay[data-theme="ocean"] {
+  background:linear-gradient(160deg, rgba(7,89,133,.88), rgba(8,47,73,.90));
+}
+.login-lacking-reminder-overlay[data-theme="ocean"] .login-lacking-reminder-panel {
+  background:linear-gradient(145deg,#f0fdfa,#ecfeff);
+  border:2px solid #0891b2;
+  box-shadow:0 24px 68px rgba(8,47,73,.48);
+}
+.login-lacking-reminder-overlay[data-theme="ocean"] .login-lacking-reminder-panel::before {
+  background:
+    radial-gradient(circle at 12% 88%, rgba(20,184,166,.16) 0 8px, transparent 9px),
+    radial-gradient(circle at 22% 78%, rgba(14,165,233,.15) 0 5px, transparent 6px),
+    radial-gradient(circle at 82% 20%, rgba(56,189,248,.20) 0 7px, transparent 8px),
+    linear-gradient(180deg, rgba(255,255,255,.12), transparent 45%);
+  background-size:64px 64px,82px 82px,74px 74px,100% 100%;
+}
+.login-lacking-reminder-overlay[data-theme="ocean"] .login-lacking-reminder-panel::after { border:2px solid rgba(13,148,136,.35); }
+.login-lacking-reminder-overlay[data-theme="ocean"] .login-lacking-reminder-hero h2,
+.login-lacking-reminder-overlay[data-theme="ocean"] .section-kicker { color:#0e7490; font-family:"Trebuchet MS",Arial,sans-serif; }
+.login-lacking-reminder-overlay[data-theme="ocean"] .login-lacking-reminder-student { color:#0f766e; font-weight:800; }
+.login-lacking-reminder-overlay[data-theme="ocean"] .login-lacking-reminder-icon { background:#cffafe; border:2px solid #06b6d4; }
+.login-lacking-reminder-overlay[data-theme="ocean"] .login-lacking-reminder-message { background:rgba(255,255,255,.96)!important; border:1px solid #99f6e4; color:#134e4a; }
+.login-lacking-reminder-overlay[data-theme="ocean"] .login-lacking-reminder-list-title { color:#0369a1; }
+.login-lacking-reminder-overlay[data-theme="ocean"] .login-lacking-reminder-list li { background:rgba(255,255,255,.97); border-color:#67e8f9; }
+.login-lacking-reminder-overlay[data-theme="ocean"] .login-lacking-reminder-list li::before { background:#0891b2; box-shadow:0 0 0 3px #cffafe; }
+.login-lacking-reminder-overlay[data-theme="ocean"] .login-lacking-reminder-actions .primary-btn { background:linear-gradient(135deg,#0e7490,#0f766e); border-color:#155e75; box-shadow:0 5px 0 #164e63; }
+.login-lacking-reminder-overlay[data-theme="ocean"] .login-lacking-reminder-close { background:#075985; color:#fff; }
+
+/* SAKURA / PASTEL */
+.login-lacking-reminder-overlay[data-theme="sakura"] {
+  background:linear-gradient(145deg, rgba(136,19,55,.42), rgba(88,28,135,.30)), rgba(255,241,242,.58);
+}
+.login-lacking-reminder-overlay[data-theme="sakura"] .login-lacking-reminder-panel {
+  background:linear-gradient(145deg,#fff7ed,#fdf2f8 45%,#faf5ff);
+  border:2px solid #f9a8d4;
+  box-shadow:0 24px 68px rgba(131,24,67,.24);
+}
+.login-lacking-reminder-overlay[data-theme="sakura"] .login-lacking-reminder-panel::before {
+  background:
+    radial-gradient(ellipse at 20% 20%, rgba(244,114,182,.18) 0 5px, transparent 6px) 0 0/46px 46px,
+    radial-gradient(ellipse at 70% 60%, rgba(251,113,133,.13) 0 4px, transparent 5px) 12px 8px/58px 58px;
+}
+.login-lacking-reminder-overlay[data-theme="sakura"] .login-lacking-reminder-panel::after { border:2px dotted rgba(244,114,182,.38); }
+.login-lacking-reminder-overlay[data-theme="sakura"] .login-lacking-reminder-hero h2,
+.login-lacking-reminder-overlay[data-theme="sakura"] .section-kicker { color:#9d174d; font-family:Georgia,"Times New Roman",serif; font-style:italic; }
+.login-lacking-reminder-overlay[data-theme="sakura"] .login-lacking-reminder-student { color:#7e22ce; }
+.login-lacking-reminder-overlay[data-theme="sakura"] .login-lacking-reminder-icon { background:#fce7f3; border:2px solid #f472b6; }
+.login-lacking-reminder-overlay[data-theme="sakura"] .login-lacking-reminder-message { background:rgba(255,255,255,.96)!important; border:1px solid #fbcfe8; color:#701a75; }
+.login-lacking-reminder-overlay[data-theme="sakura"] .login-lacking-reminder-list-title { color:#be185d; }
+.login-lacking-reminder-overlay[data-theme="sakura"] .login-lacking-reminder-list li { background:rgba(255,255,255,.97); border-color:#f9a8d4; }
+.login-lacking-reminder-overlay[data-theme="sakura"] .login-lacking-reminder-list li::before { background:#db2777; box-shadow:0 0 0 3px #fce7f3; }
+.login-lacking-reminder-overlay[data-theme="sakura"] .login-lacking-reminder-actions .primary-btn { background:linear-gradient(135deg,#db2777,#9333ea); border-color:#be185d; box-shadow:0 5px 0 #831843; }
+.login-lacking-reminder-overlay[data-theme="sakura"] .login-lacking-reminder-close { background:#9d174d; color:#fff; }
+
+/* RETRO ARCADE */
+.login-lacking-reminder-overlay[data-theme="retro-arcade"] { background:rgba(2,6,23,.94); }
+.login-lacking-reminder-overlay[data-theme="retro-arcade"] .login-lacking-reminder-panel {
+  background:#fffbeb;
+  border:4px solid #111827;
+  border-radius:10px;
+  box-shadow:8px 8px 0 #facc15, -5px -5px 0 #22d3ee, 0 24px 70px rgba(0,0,0,.55);
+}
+.login-lacking-reminder-overlay[data-theme="retro-arcade"] .login-lacking-reminder-panel::before {
+  background:
+    linear-gradient(90deg, rgba(17,24,39,.07) 2px, transparent 2px) 0 0/16px 16px,
+    linear-gradient(rgba(17,24,39,.07) 2px, transparent 2px) 0 0/16px 16px;
+}
+.login-lacking-reminder-overlay[data-theme="retro-arcade"] .login-lacking-reminder-panel::after { border:3px dashed rgba(17,24,39,.38); border-radius:4px; }
+.login-lacking-reminder-overlay[data-theme="retro-arcade"] .login-lacking-reminder-hero h2,
+.login-lacking-reminder-overlay[data-theme="retro-arcade"] .section-kicker { color:#111827; font-family:"Courier New",monospace; font-weight:900; text-transform:uppercase; letter-spacing:.04em; }
+.login-lacking-reminder-overlay[data-theme="retro-arcade"] .login-lacking-reminder-student { color:#7c3aed; font-family:"Courier New",monospace; font-weight:900; }
+.login-lacking-reminder-overlay[data-theme="retro-arcade"] .login-lacking-reminder-icon { background:#22d3ee; border:3px solid #111827; border-radius:8px; box-shadow:4px 4px 0 #f43f5e; }
+.login-lacking-reminder-overlay[data-theme="retro-arcade"] .login-lacking-reminder-message { background:#fff!important; border:3px solid #111827; color:#111827; font-family:"Courier New",monospace; }
+.login-lacking-reminder-overlay[data-theme="retro-arcade"] .login-lacking-reminder-list-title { color:#7c3aed; font-family:"Courier New",monospace; text-transform:uppercase; }
+.login-lacking-reminder-overlay[data-theme="retro-arcade"] .login-lacking-reminder-list li { background:#fff; border:2px solid #111827; border-radius:6px; box-shadow:3px 3px 0 #22d3ee; }
+.login-lacking-reminder-overlay[data-theme="retro-arcade"] .login-lacking-reminder-list li::before { background:#f43f5e; border:2px solid #111827; }
+.login-lacking-reminder-overlay[data-theme="retro-arcade"] .login-lacking-reminder-actions { border-top:3px solid #111827; }
+.login-lacking-reminder-overlay[data-theme="retro-arcade"] .login-lacking-reminder-actions .primary-btn { background:#7c3aed; border:3px solid #111827; box-shadow:0 5px 0 #22d3ee; font-family:"Courier New",monospace; font-weight:900; text-transform:uppercase; }
+.login-lacking-reminder-overlay[data-theme="retro-arcade"] .login-lacking-reminder-close { background:#111827; color:#facc15; border:2px solid #22d3ee; border-radius:8px; }
+
+/* BIRTHDAY PARTY */
+.login-lacking-reminder-overlay[data-theme="birthday"] {
+  background:
+    radial-gradient(circle at 14% 22%, rgba(250,204,21,.28), transparent 20%),
+    radial-gradient(circle at 88% 76%, rgba(56,189,248,.28), transparent 24%),
+    rgba(88,28,135,.62);
+}
+.login-lacking-reminder-overlay[data-theme="birthday"] .login-lacking-reminder-panel {
+  background:linear-gradient(145deg,#fff7ed,#fdf2f8,#eff6ff);
+  border:3px solid #7c3aed;
+  box-shadow:0 24px 68px rgba(88,28,135,.34);
+}
+.login-lacking-reminder-overlay[data-theme="birthday"] .login-lacking-reminder-panel::before {
+  background:
+    radial-gradient(circle,#f43f5e 0 3px,transparent 3.5px) 0 0/34px 34px,
+    radial-gradient(circle,#22c55e 0 2.5px,transparent 3px) 12px 8px/42px 42px,
+    radial-gradient(circle,#facc15 0 2px,transparent 2.5px) 7px 18px/29px 29px;
+  opacity:.16;
+}
+.login-lacking-reminder-overlay[data-theme="birthday"] .login-lacking-reminder-panel::after { border:2px dashed rgba(124,58,237,.42); }
+.login-lacking-reminder-overlay[data-theme="birthday"] .login-lacking-reminder-hero h2,
+.login-lacking-reminder-overlay[data-theme="birthday"] .section-kicker { color:#7c3aed; font-family:"Trebuchet MS",Arial,sans-serif; font-weight:900; }
+.login-lacking-reminder-overlay[data-theme="birthday"] .login-lacking-reminder-student { color:#be123c; font-weight:800; }
+.login-lacking-reminder-overlay[data-theme="birthday"] .login-lacking-reminder-icon { background:#fef3c7; border:2px solid #f59e0b; box-shadow:3px 3px 0 #38bdf8; }
+.login-lacking-reminder-overlay[data-theme="birthday"] .login-lacking-reminder-message { background:rgba(255,255,255,.97)!important; border:1px solid #ddd6fe; color:#581c87; }
+.login-lacking-reminder-overlay[data-theme="birthday"] .login-lacking-reminder-list-title { color:#be123c; }
+.login-lacking-reminder-overlay[data-theme="birthday"] .login-lacking-reminder-list li { background:rgba(255,255,255,.98); border-color:#c4b5fd; }
+.login-lacking-reminder-overlay[data-theme="birthday"] .login-lacking-reminder-list li:nth-child(3n+1)::before { background:#f43f5e; }
+.login-lacking-reminder-overlay[data-theme="birthday"] .login-lacking-reminder-list li:nth-child(3n+2)::before { background:#7c3aed; }
+.login-lacking-reminder-overlay[data-theme="birthday"] .login-lacking-reminder-list li:nth-child(3n)::before { background:#0891b2; }
+.login-lacking-reminder-overlay[data-theme="birthday"] .login-lacking-reminder-actions .primary-btn { background:linear-gradient(135deg,#7c3aed,#db2777); border-color:#6d28d9; box-shadow:0 5px 0 #f59e0b; }
+.login-lacking-reminder-overlay[data-theme="birthday"] .login-lacking-reminder-close { background:#db2777; color:#fff; }
+
+/* FIESTA */
+.login-lacking-reminder-overlay[data-theme="fiesta"] {
+  background:linear-gradient(135deg, rgba(153,27,27,.66), rgba(30,64,175,.62)), rgba(15,23,42,.55);
+}
+.login-lacking-reminder-overlay[data-theme="fiesta"] .login-lacking-reminder-panel {
+  background:linear-gradient(145deg,#fffbeb,#fff7ed,#f0fdf4);
+  border:3px solid #dc2626;
+  box-shadow:0 24px 68px rgba(15,23,42,.40), inset 0 7px 0 #facc15;
+}
+.login-lacking-reminder-overlay[data-theme="fiesta"] .login-lacking-reminder-panel::before {
+  background:
+    linear-gradient(135deg, transparent 0 44%, rgba(220,38,38,.12) 45% 53%, transparent 54%) 0 0/52px 26px,
+    linear-gradient(45deg, transparent 0 44%, rgba(37,99,235,.11) 45% 53%, transparent 54%) 26px 0/52px 26px;
+}
+.login-lacking-reminder-overlay[data-theme="fiesta"] .login-lacking-reminder-panel::after { border:2px dashed rgba(234,88,12,.52); }
+.login-lacking-reminder-overlay[data-theme="fiesta"] .login-lacking-reminder-hero h2,
+.login-lacking-reminder-overlay[data-theme="fiesta"] .section-kicker { color:#b91c1c; font-family:Georgia,"Times New Roman",serif; font-weight:900; }
+.login-lacking-reminder-overlay[data-theme="fiesta"] .login-lacking-reminder-student { color:#1d4ed8; font-weight:900; }
+.login-lacking-reminder-overlay[data-theme="fiesta"] .login-lacking-reminder-icon { background:#fef3c7; border:2px solid #f59e0b; box-shadow:3px 3px 0 #16a34a; }
+.login-lacking-reminder-overlay[data-theme="fiesta"] .login-lacking-reminder-message { background:rgba(255,255,255,.97)!important; border:1px solid #fdba74; color:#7c2d12; }
+.login-lacking-reminder-overlay[data-theme="fiesta"] .login-lacking-reminder-list-title { color:#15803d; }
+.login-lacking-reminder-overlay[data-theme="fiesta"] .login-lacking-reminder-list li { background:rgba(255,255,255,.98); border-color:#fde68a; }
+.login-lacking-reminder-overlay[data-theme="fiesta"] .login-lacking-reminder-list li::before { background:#dc2626; box-shadow:0 0 0 3px #fef3c7; }
+.login-lacking-reminder-overlay[data-theme="fiesta"] .login-lacking-reminder-actions .primary-btn { background:linear-gradient(135deg,#dc2626,#ea580c); border-color:#991b1b; box-shadow:0 5px 0 #eab308; }
+.login-lacking-reminder-overlay[data-theme="fiesta"] .login-lacking-reminder-close { background:#1d4ed8; color:#fff; border:2px solid #facc15; }
+
+/* NATURE / FOREST */
+.login-lacking-reminder-overlay[data-theme="forest"] {
+  background:
+    radial-gradient(circle at 20% 18%, rgba(34,197,94,.25), transparent 30%),
+    radial-gradient(circle at 78% 82%, rgba(101,163,13,.20), transparent 34%),
+    rgba(20,48,29,.86);
+}
+.login-lacking-reminder-overlay[data-theme="forest"] .login-lacking-reminder-panel {
+  background:linear-gradient(145deg,#f7fee7,#f0fdf4,#fffbeb);
+  border:2px solid #15803d;
+  box-shadow:0 24px 68px rgba(20,83,45,.38);
+}
+.login-lacking-reminder-overlay[data-theme="forest"] .login-lacking-reminder-panel::before {
+  background:
+    radial-gradient(ellipse at 20% 20%, rgba(34,197,94,.18) 0 7px, transparent 8px) 0 0/54px 38px,
+    radial-gradient(ellipse at 76% 64%, rgba(101,163,13,.14) 0 6px, transparent 7px) 18px 12px/62px 44px;
+}
+.login-lacking-reminder-overlay[data-theme="forest"] .login-lacking-reminder-panel::after { border:2px solid rgba(21,128,61,.35); }
+.login-lacking-reminder-overlay[data-theme="forest"] .login-lacking-reminder-hero h2,
+.login-lacking-reminder-overlay[data-theme="forest"] .section-kicker { color:#166534; font-family:Georgia,"Times New Roman",serif; }
+.login-lacking-reminder-overlay[data-theme="forest"] .login-lacking-reminder-student { color:#3f6212; font-weight:800; }
+.login-lacking-reminder-overlay[data-theme="forest"] .login-lacking-reminder-icon { background:#ecfccb; border:2px solid #65a30d; }
+.login-lacking-reminder-overlay[data-theme="forest"] .login-lacking-reminder-message { background:rgba(255,255,255,.96)!important; border:1px solid #bbf7d0; color:#14532d; }
+.login-lacking-reminder-overlay[data-theme="forest"] .login-lacking-reminder-list-title { color:#166534; }
+.login-lacking-reminder-overlay[data-theme="forest"] .login-lacking-reminder-list li { background:rgba(255,255,255,.97); border-color:#a7f3d0; }
+.login-lacking-reminder-overlay[data-theme="forest"] .login-lacking-reminder-list li::before { background:#16a34a; box-shadow:0 0 0 3px #dcfce7; }
+.login-lacking-reminder-overlay[data-theme="forest"] .login-lacking-reminder-actions .primary-btn { background:linear-gradient(135deg,#166534,#4d7c0f); border-color:#14532d; box-shadow:0 5px 0 #365314; }
+.login-lacking-reminder-overlay[data-theme="forest"] .login-lacking-reminder-close { background:#14532d; color:#ecfccb; }
+
+/* Admin mini previews for the added themes. */
+.login-reminder-theme-sample[data-theme="galaxy"] { background:linear-gradient(135deg,#eef2ff,#faf5ff); border-color:#6366f1; color:#4338ca; font-family:Georgia,serif; }
+.login-reminder-theme-sample[data-theme="galaxy"]::before { background:radial-gradient(circle,#6366f1 0 1.5px,transparent 2px); background-size:22px 22px; }
+.login-reminder-theme-sample[data-theme="galaxy"] .login-reminder-theme-sample-art { background:radial-gradient(circle at 35% 30%,#fff 0 7%,#818cf8 8% 38%,#312e81 39%); border-color:#6366f1; }
+.login-reminder-theme-sample[data-theme="cyber-neon"] { background:#ecfeff; border:2px solid #06b6d4; color:#0e7490; font-family:"Courier New",monospace; box-shadow:4px 4px 0 #d946ef; }
+.login-reminder-theme-sample[data-theme="cyber-neon"]::before { background:linear-gradient(rgba(6,182,212,.18) 1px,transparent 1px),linear-gradient(90deg,rgba(217,70,239,.14) 1px,transparent 1px); background-size:18px 18px; }
+.login-reminder-theme-sample[data-theme="cyber-neon"] .login-reminder-theme-sample-art { background:linear-gradient(135deg,#06b6d4,#d946ef); border-color:#111827; border-radius:8px; }
+.login-reminder-theme-sample[data-theme="ocean"] { background:linear-gradient(135deg,#ecfeff,#f0fdfa); border-color:#0891b2; color:#0e7490; }
+.login-reminder-theme-sample[data-theme="ocean"]::before { background:radial-gradient(circle,rgba(14,165,233,.24) 0 4px,transparent 5px); background-size:34px 34px; }
+.login-reminder-theme-sample[data-theme="ocean"] .login-reminder-theme-sample-art { background:linear-gradient(180deg,#7dd3fc,#0e7490); border-color:#0f766e; border-radius:50% 50% 42% 42%; }
+.login-reminder-theme-sample[data-theme="sakura"] { background:linear-gradient(135deg,#fff1f2,#fdf2f8,#faf5ff); border-color:#f472b6; color:#9d174d; font-family:Georgia,serif; }
+.login-reminder-theme-sample[data-theme="sakura"]::before { content:"✿   ✿   ✿"; color:#ec4899; font-size:2rem; letter-spacing:1rem; opacity:.11; }
+.login-reminder-theme-sample[data-theme="sakura"] .login-reminder-theme-sample-art { background:radial-gradient(circle at 50% 50%,#fef3c7 0 12%,#f9a8d4 13% 46%,#fce7f3 47%); border-color:#ec4899; border-radius:50%; }
+.login-reminder-theme-sample[data-theme="retro-arcade"] { background:#fffbeb; border:3px solid #111827; color:#111827; font-family:"Courier New",monospace; box-shadow:4px 4px 0 #22d3ee; }
+.login-reminder-theme-sample[data-theme="retro-arcade"]::before { background:linear-gradient(rgba(17,24,39,.10) 1px,transparent 1px),linear-gradient(90deg,rgba(17,24,39,.10) 1px,transparent 1px); background-size:12px 12px; }
+.login-reminder-theme-sample[data-theme="retro-arcade"] .login-reminder-theme-sample-art { background:linear-gradient(135deg,#f43f5e 0 50%,#7c3aed 50%); border:3px solid #111827; border-radius:6px; box-shadow:3px 3px 0 #facc15; }
+.login-reminder-theme-sample[data-theme="birthday"] { background:linear-gradient(135deg,#fff7ed,#fdf2f8,#eff6ff); border-color:#7c3aed; color:#7c3aed; }
+.login-reminder-theme-sample[data-theme="birthday"]::before { background:radial-gradient(circle,#f43f5e 0 3px,transparent 3.5px),radial-gradient(circle,#22c55e 0 2px,transparent 2.5px); background-size:28px 28px,36px 36px; }
+.login-reminder-theme-sample[data-theme="birthday"] .login-reminder-theme-sample-art { background:conic-gradient(#f43f5e,#facc15,#22c55e,#38bdf8,#7c3aed,#f43f5e); border-color:#7c3aed; border-radius:50%; }
+.login-reminder-theme-sample[data-theme="fiesta"] { background:linear-gradient(135deg,#fffbeb,#fff7ed,#f0fdf4); border-color:#dc2626; color:#b91c1c; font-family:Georgia,serif; }
+.login-reminder-theme-sample[data-theme="fiesta"]::before { background:linear-gradient(135deg,transparent 42%,rgba(220,38,38,.15) 43% 55%,transparent 56%); background-size:30px 20px; }
+.login-reminder-theme-sample[data-theme="fiesta"] .login-reminder-theme-sample-art { background:conic-gradient(#dc2626 0 20%,#facc15 20% 40%,#16a34a 40% 60%,#2563eb 60% 80%,#ea580c 80%); border-color:#b91c1c; }
+.login-reminder-theme-sample[data-theme="forest"] { background:linear-gradient(135deg,#f7fee7,#f0fdf4); border-color:#15803d; color:#166534; font-family:Georgia,serif; }
+.login-reminder-theme-sample[data-theme="forest"]::before { background:radial-gradient(ellipse,rgba(34,197,94,.22) 0 6px,transparent 7px); background-size:38px 26px; }
+.login-reminder-theme-sample[data-theme="forest"] .login-reminder-theme-sample-art { background:linear-gradient(145deg,#84cc16,#15803d); border-color:#14532d; border-radius:52% 48% 58% 42%; }
+
+/* Additional theme motion. */
+@keyframes reminderThemeTwinkle { 0%,100% { opacity:.32; background-position:0 0,12px 7px,0 0; } 50% { opacity:.52; background-position:14px 18px,24px 2px,0 0; } }
+@keyframes reminderThemeGridMove { from { background-position:0 0,0 0,0 0; } to { background-position:24px 24px,24px 24px,0 0; } }
+@keyframes reminderThemeBubbleRise { from { background-position:0 54px,12px 82px,18px 72px,0 0; } to { background-position:0 -18px,12px -28px,18px -22px,0 0; } }
+@keyframes reminderThemePetalDrift { from { background-position:0 0,12px 8px; } to { background-position:34px 76px,-18px 58px; } }
+@keyframes reminderThemeArcadeShift { from { background-position:0 0,0 0; } to { background-position:16px 16px,16px 16px; } }
+@keyframes reminderThemeConfetti { from { background-position:0 0,12px 8px,7px 18px; } to { background-position:18px 68px,-14px 60px,24px 72px; } }
+@keyframes reminderThemeBunting { from { background-position:0 0,26px 0; } to { background-position:52px 0,78px 0; } }
+@keyframes reminderThemeLeaves { from { background-position:0 0,18px 12px; } to { background-position:28px 52px,-12px 40px; } }
+
+.login-lacking-reminder-overlay[data-animation="subtle"][data-theme="galaxy"] .login-lacking-reminder-panel::before { animation:reminderThemeTwinkle 8s ease-in-out infinite; }
+.login-lacking-reminder-overlay[data-animation="normal"][data-theme="galaxy"] .login-lacking-reminder-panel::before { animation:reminderThemeTwinkle 4.2s ease-in-out infinite; }
+.login-lacking-reminder-overlay[data-animation="subtle"][data-theme="cyber-neon"] .login-lacking-reminder-panel::before { animation:reminderThemeGridMove 10s linear infinite; }
+.login-lacking-reminder-overlay[data-animation="normal"][data-theme="cyber-neon"] .login-lacking-reminder-panel::before { animation:reminderThemeGridMove 5s linear infinite; }
+.login-lacking-reminder-overlay[data-animation="subtle"][data-theme="ocean"] .login-lacking-reminder-panel::before { animation:reminderThemeBubbleRise 13s linear infinite; }
+.login-lacking-reminder-overlay[data-animation="normal"][data-theme="ocean"] .login-lacking-reminder-panel::before { animation:reminderThemeBubbleRise 7s linear infinite; }
+.login-lacking-reminder-overlay[data-animation="subtle"][data-theme="sakura"] .login-lacking-reminder-panel::before { animation:reminderThemePetalDrift 15s linear infinite; }
+.login-lacking-reminder-overlay[data-animation="normal"][data-theme="sakura"] .login-lacking-reminder-panel::before { animation:reminderThemePetalDrift 8s linear infinite; }
+.login-lacking-reminder-overlay[data-animation="subtle"][data-theme="retro-arcade"] .login-lacking-reminder-panel::before { animation:reminderThemeArcadeShift 8s steps(4,end) infinite; }
+.login-lacking-reminder-overlay[data-animation="normal"][data-theme="retro-arcade"] .login-lacking-reminder-panel::before { animation:reminderThemeArcadeShift 4s steps(4,end) infinite; }
+.login-lacking-reminder-overlay[data-animation="subtle"][data-theme="birthday"] .login-lacking-reminder-panel::before { animation:reminderThemeConfetti 14s linear infinite; }
+.login-lacking-reminder-overlay[data-animation="normal"][data-theme="birthday"] .login-lacking-reminder-panel::before { animation:reminderThemeConfetti 7s linear infinite; }
+.login-lacking-reminder-overlay[data-animation="subtle"][data-theme="fiesta"] .login-lacking-reminder-panel::before { animation:reminderThemeBunting 14s linear infinite; }
+.login-lacking-reminder-overlay[data-animation="normal"][data-theme="fiesta"] .login-lacking-reminder-panel::before { animation:reminderThemeBunting 7s linear infinite; }
+.login-lacking-reminder-overlay[data-animation="subtle"][data-theme="forest"] .login-lacking-reminder-panel::before { animation:reminderThemeLeaves 16s linear infinite; }
+.login-lacking-reminder-overlay[data-animation="normal"][data-theme="forest"] .login-lacking-reminder-panel::before { animation:reminderThemeLeaves 8s linear infinite; }
+
+/* Large theme identity marks remain decorative and behind all readable content. */
+.login-lacking-reminder-overlay[data-theme="galaxy"] .login-lacking-reminder-panel::after,
+.login-lacking-reminder-overlay[data-theme="cyber-neon"] .login-lacking-reminder-panel::after,
+.login-lacking-reminder-overlay[data-theme="ocean"] .login-lacking-reminder-panel::after,
+.login-lacking-reminder-overlay[data-theme="sakura"] .login-lacking-reminder-panel::after,
+.login-lacking-reminder-overlay[data-theme="retro-arcade"] .login-lacking-reminder-panel::after,
+.login-lacking-reminder-overlay[data-theme="birthday"] .login-lacking-reminder-panel::after,
+.login-lacking-reminder-overlay[data-theme="fiesta"] .login-lacking-reminder-panel::after,
+.login-lacking-reminder-overlay[data-theme="forest"] .login-lacking-reminder-panel::after {
+  display:flex;
+  align-items:flex-end;
+  justify-content:flex-end;
+  padding:16px 20px;
+  box-sizing:border-box;
+  font-size:clamp(4.5rem,13vw,7.5rem);
+  line-height:1;
+  opacity:.09;
+}
+.login-lacking-reminder-overlay[data-theme="galaxy"] .login-lacking-reminder-panel::after { content:"✦"; color:#4f46e5; }
+.login-lacking-reminder-overlay[data-theme="cyber-neon"] .login-lacking-reminder-panel::after { content:"⌁"; color:#d946ef; font-family:"Courier New",monospace; }
+.login-lacking-reminder-overlay[data-theme="ocean"] .login-lacking-reminder-panel::after { content:"◌"; color:#0891b2; }
+.login-lacking-reminder-overlay[data-theme="sakura"] .login-lacking-reminder-panel::after { content:"✿"; color:#db2777; }
+.login-lacking-reminder-overlay[data-theme="retro-arcade"] .login-lacking-reminder-panel::after { content:"★"; color:#7c3aed; }
+.login-lacking-reminder-overlay[data-theme="birthday"] .login-lacking-reminder-panel::after { content:"★"; color:#db2777; }
+.login-lacking-reminder-overlay[data-theme="fiesta"] .login-lacking-reminder-panel::after { content:"◆"; color:#dc2626; }
+.login-lacking-reminder-overlay[data-theme="forest"] .login-lacking-reminder-panel::after { content:"❧"; color:#15803d; }
+
+/* Compact decorative marks on short screens without affecting V291 scrolling. */
+@media (max-height:620px) {
+  .login-lacking-reminder-overlay[data-theme="galaxy"] .login-lacking-reminder-panel::after,
+  .login-lacking-reminder-overlay[data-theme="cyber-neon"] .login-lacking-reminder-panel::after,
+  .login-lacking-reminder-overlay[data-theme="ocean"] .login-lacking-reminder-panel::after,
+  .login-lacking-reminder-overlay[data-theme="sakura"] .login-lacking-reminder-panel::after,
+  .login-lacking-reminder-overlay[data-theme="retro-arcade"] .login-lacking-reminder-panel::after,
+  .login-lacking-reminder-overlay[data-theme="birthday"] .login-lacking-reminder-panel::after,
+  .login-lacking-reminder-overlay[data-theme="fiesta"] .login-lacking-reminder-panel::after,
+  .login-lacking-reminder-overlay[data-theme="forest"] .login-lacking-reminder-panel::after {
+    font-size:3.7rem;
+    padding:10px 14px;
+  }
+}
+
+
+/* =========================================================
+   V293 DESIGN-STYLE LOGIN REMINDER PRESETS
+   20 visual styles requested for the Lacking Requirements popup.
+   All decorative layers stay behind readable content. V291's contract
+   remains intact: no horizontal scrolling; only the requirements list
+   may scroll vertically when necessary.
+   ========================================================= */
+
+/* Shared engine for the 20 design-style presets. */
+.login-lacking-reminder-overlay:is(
+  [data-theme="minimalism"], [data-theme="maximalism"], [data-theme="futuristic"],
+  [data-theme="vector-art"], [data-theme="collage-art"], [data-theme="retro"],
+  [data-theme="cyberpunk"], [data-theme="pop-art"], [data-theme="glassmorphism"],
+  [data-theme="clay-style"], [data-theme="pixel-art"], [data-theme="editorial"],
+  [data-theme="y2k"], [data-theme="swiss-design"], [data-theme="surreal-design"],
+  [data-theme="bohemian"], [data-theme="victorian-style"], [data-theme="graffiti"],
+  [data-theme="aurora"], [data-theme="handwritten"]
+) {
+  background: var(--ds-overlay, rgba(15,23,42,.68));
+}
+
+.login-lacking-reminder-overlay:is(
+  [data-theme="minimalism"], [data-theme="maximalism"], [data-theme="futuristic"],
+  [data-theme="vector-art"], [data-theme="collage-art"], [data-theme="retro"],
+  [data-theme="cyberpunk"], [data-theme="pop-art"], [data-theme="glassmorphism"],
+  [data-theme="clay-style"], [data-theme="pixel-art"], [data-theme="editorial"],
+  [data-theme="y2k"], [data-theme="swiss-design"], [data-theme="surreal-design"],
+  [data-theme="bohemian"], [data-theme="victorian-style"], [data-theme="graffiti"],
+  [data-theme="aurora"], [data-theme="handwritten"]
+) .login-lacking-reminder-panel {
+  background: var(--ds-panel, #fff);
+  color: var(--ds-text, #172033);
+  border: var(--ds-border, 2px solid #cbd5e1);
+  border-radius: var(--ds-panel-radius, 22px);
+  box-shadow: var(--ds-shadow, 0 24px 70px rgba(15,23,42,.35));
+  font-family: var(--ds-body-font, Inter, Arial, sans-serif);
+  backdrop-filter: var(--ds-backdrop, none);
+  -webkit-backdrop-filter: var(--ds-backdrop, none);
+}
+
+.login-lacking-reminder-overlay:is(
+  [data-theme="minimalism"], [data-theme="maximalism"], [data-theme="futuristic"],
+  [data-theme="vector-art"], [data-theme="collage-art"], [data-theme="retro"],
+  [data-theme="cyberpunk"], [data-theme="pop-art"], [data-theme="glassmorphism"],
+  [data-theme="clay-style"], [data-theme="pixel-art"], [data-theme="editorial"],
+  [data-theme="y2k"], [data-theme="swiss-design"], [data-theme="surreal-design"],
+  [data-theme="bohemian"], [data-theme="victorian-style"], [data-theme="graffiti"],
+  [data-theme="aurora"], [data-theme="handwritten"]
+) .login-lacking-reminder-panel::before {
+  background: var(--ds-pattern, none);
+  opacity: var(--ds-pattern-opacity, .28);
+}
+
+.login-lacking-reminder-overlay:is(
+  [data-theme="minimalism"], [data-theme="maximalism"], [data-theme="futuristic"],
+  [data-theme="vector-art"], [data-theme="collage-art"], [data-theme="retro"],
+  [data-theme="cyberpunk"], [data-theme="pop-art"], [data-theme="glassmorphism"],
+  [data-theme="clay-style"], [data-theme="pixel-art"], [data-theme="editorial"],
+  [data-theme="y2k"], [data-theme="swiss-design"], [data-theme="surreal-design"],
+  [data-theme="bohemian"], [data-theme="victorian-style"], [data-theme="graffiti"],
+  [data-theme="aurora"], [data-theme="handwritten"]
+) .login-lacking-reminder-hero h2,
+.login-lacking-reminder-overlay:is(
+  [data-theme="minimalism"], [data-theme="maximalism"], [data-theme="futuristic"],
+  [data-theme="vector-art"], [data-theme="collage-art"], [data-theme="retro"],
+  [data-theme="cyberpunk"], [data-theme="pop-art"], [data-theme="glassmorphism"],
+  [data-theme="clay-style"], [data-theme="pixel-art"], [data-theme="editorial"],
+  [data-theme="y2k"], [data-theme="swiss-design"], [data-theme="surreal-design"],
+  [data-theme="bohemian"], [data-theme="victorian-style"], [data-theme="graffiti"],
+  [data-theme="aurora"], [data-theme="handwritten"]
+) .section-kicker {
+  color: var(--ds-accent, #1d4ed8);
+  font-family: var(--ds-title-font, Inter, Arial, sans-serif);
+  font-weight: var(--ds-title-weight, 900);
+  letter-spacing: var(--ds-title-spacing, .02em);
+  text-transform: var(--ds-title-transform, none);
+  text-shadow: var(--ds-title-shadow, none);
+}
+
+.login-lacking-reminder-overlay:is(
+  [data-theme="minimalism"], [data-theme="maximalism"], [data-theme="futuristic"],
+  [data-theme="vector-art"], [data-theme="collage-art"], [data-theme="retro"],
+  [data-theme="cyberpunk"], [data-theme="pop-art"], [data-theme="glassmorphism"],
+  [data-theme="clay-style"], [data-theme="pixel-art"], [data-theme="editorial"],
+  [data-theme="y2k"], [data-theme="swiss-design"], [data-theme="surreal-design"],
+  [data-theme="bohemian"], [data-theme="victorian-style"], [data-theme="graffiti"],
+  [data-theme="aurora"], [data-theme="handwritten"]
+) .login-lacking-reminder-student { color: var(--ds-accent-2, var(--ds-accent)); font-family: var(--ds-title-font); }
+
+.login-lacking-reminder-overlay:is(
+  [data-theme="minimalism"], [data-theme="maximalism"], [data-theme="futuristic"],
+  [data-theme="vector-art"], [data-theme="collage-art"], [data-theme="retro"],
+  [data-theme="cyberpunk"], [data-theme="pop-art"], [data-theme="glassmorphism"],
+  [data-theme="clay-style"], [data-theme="pixel-art"], [data-theme="editorial"],
+  [data-theme="y2k"], [data-theme="swiss-design"], [data-theme="surreal-design"],
+  [data-theme="bohemian"], [data-theme="victorian-style"], [data-theme="graffiti"],
+  [data-theme="aurora"], [data-theme="handwritten"]
+) .login-lacking-reminder-icon {
+  background: var(--ds-icon-bg, #f8fafc);
+  border: var(--ds-icon-border, 2px solid var(--ds-accent));
+  border-radius: var(--ds-icon-radius, 18px);
+  box-shadow: var(--ds-icon-shadow, 0 8px 18px rgba(15,23,42,.12));
+}
+
+.login-lacking-reminder-overlay:is(
+  [data-theme="minimalism"], [data-theme="maximalism"], [data-theme="futuristic"],
+  [data-theme="vector-art"], [data-theme="collage-art"], [data-theme="retro"],
+  [data-theme="cyberpunk"], [data-theme="pop-art"], [data-theme="glassmorphism"],
+  [data-theme="clay-style"], [data-theme="pixel-art"], [data-theme="editorial"],
+  [data-theme="y2k"], [data-theme="swiss-design"], [data-theme="surreal-design"],
+  [data-theme="bohemian"], [data-theme="victorian-style"], [data-theme="graffiti"],
+  [data-theme="aurora"], [data-theme="handwritten"]
+) .login-lacking-reminder-meta span {
+  background: var(--ds-chip-bg, rgba(255,255,255,.86));
+  color: var(--ds-chip-text, var(--ds-text));
+  border: var(--ds-chip-border, 1px solid transparent);
+  border-radius: var(--ds-chip-radius, 999px);
+}
+
+.login-lacking-reminder-overlay:is(
+  [data-theme="minimalism"], [data-theme="maximalism"], [data-theme="futuristic"],
+  [data-theme="vector-art"], [data-theme="collage-art"], [data-theme="retro"],
+  [data-theme="cyberpunk"], [data-theme="pop-art"], [data-theme="glassmorphism"],
+  [data-theme="clay-style"], [data-theme="pixel-art"], [data-theme="editorial"],
+  [data-theme="y2k"], [data-theme="swiss-design"], [data-theme="surreal-design"],
+  [data-theme="bohemian"], [data-theme="victorian-style"], [data-theme="graffiti"],
+  [data-theme="aurora"], [data-theme="handwritten"]
+) .login-lacking-reminder-message,
+.login-lacking-reminder-overlay:is(
+  [data-theme="minimalism"], [data-theme="maximalism"], [data-theme="futuristic"],
+  [data-theme="vector-art"], [data-theme="collage-art"], [data-theme="retro"],
+  [data-theme="cyberpunk"], [data-theme="pop-art"], [data-theme="glassmorphism"],
+  [data-theme="clay-style"], [data-theme="pixel-art"], [data-theme="editorial"],
+  [data-theme="y2k"], [data-theme="swiss-design"], [data-theme="surreal-design"],
+  [data-theme="bohemian"], [data-theme="victorian-style"], [data-theme="graffiti"],
+  [data-theme="aurora"], [data-theme="handwritten"]
+) .login-lacking-reminder-empty {
+  background: var(--ds-card, rgba(255,255,255,.95)) !important;
+  color: var(--ds-card-text, var(--ds-text)) !important;
+  border: var(--ds-card-border, 1px solid rgba(148,163,184,.35));
+  border-radius: var(--ds-card-radius, 14px);
+  box-shadow: var(--ds-card-shadow, none);
+}
+
+.login-lacking-reminder-overlay:is(
+  [data-theme="minimalism"], [data-theme="maximalism"], [data-theme="futuristic"],
+  [data-theme="vector-art"], [data-theme="collage-art"], [data-theme="retro"],
+  [data-theme="cyberpunk"], [data-theme="pop-art"], [data-theme="glassmorphism"],
+  [data-theme="clay-style"], [data-theme="pixel-art"], [data-theme="editorial"],
+  [data-theme="y2k"], [data-theme="swiss-design"], [data-theme="surreal-design"],
+  [data-theme="bohemian"], [data-theme="victorian-style"], [data-theme="graffiti"],
+  [data-theme="aurora"], [data-theme="handwritten"]
+) .login-lacking-reminder-list-title {
+  color: var(--ds-accent, #1d4ed8) !important;
+  background: var(--ds-list-title-bg, var(--ds-panel)) !important;
+  font-family: var(--ds-title-font);
+}
+
+.login-lacking-reminder-overlay:is(
+  [data-theme="minimalism"], [data-theme="maximalism"], [data-theme="futuristic"],
+  [data-theme="vector-art"], [data-theme="collage-art"], [data-theme="retro"],
+  [data-theme="cyberpunk"], [data-theme="pop-art"], [data-theme="glassmorphism"],
+  [data-theme="clay-style"], [data-theme="pixel-art"], [data-theme="editorial"],
+  [data-theme="y2k"], [data-theme="swiss-design"], [data-theme="surreal-design"],
+  [data-theme="bohemian"], [data-theme="victorian-style"], [data-theme="graffiti"],
+  [data-theme="aurora"], [data-theme="handwritten"]
+) .login-lacking-reminder-list li {
+  background: var(--ds-item, rgba(255,255,255,.96));
+  border: var(--ds-item-border, 1px solid rgba(148,163,184,.38));
+  border-radius: var(--ds-item-radius, 13px);
+  box-shadow: var(--ds-item-shadow, none);
+}
+.login-lacking-reminder-overlay:is(
+  [data-theme="minimalism"], [data-theme="maximalism"], [data-theme="futuristic"],
+  [data-theme="vector-art"], [data-theme="collage-art"], [data-theme="retro"],
+  [data-theme="cyberpunk"], [data-theme="pop-art"], [data-theme="glassmorphism"],
+  [data-theme="clay-style"], [data-theme="pixel-art"], [data-theme="editorial"],
+  [data-theme="y2k"], [data-theme="swiss-design"], [data-theme="surreal-design"],
+  [data-theme="bohemian"], [data-theme="victorian-style"], [data-theme="graffiti"],
+  [data-theme="aurora"], [data-theme="handwritten"]
+) .login-lacking-reminder-list li::before {
+  background: var(--ds-accent, #1d4ed8);
+  color: var(--ds-counter-text, #fff);
+  border-radius: var(--ds-counter-radius, 50%);
+  box-shadow: var(--ds-counter-shadow, none);
+}
+.login-lacking-reminder-overlay:is(
+  [data-theme="minimalism"], [data-theme="maximalism"], [data-theme="futuristic"],
+  [data-theme="vector-art"], [data-theme="collage-art"], [data-theme="retro"],
+  [data-theme="cyberpunk"], [data-theme="pop-art"], [data-theme="glassmorphism"],
+  [data-theme="clay-style"], [data-theme="pixel-art"], [data-theme="editorial"],
+  [data-theme="y2k"], [data-theme="swiss-design"], [data-theme="surreal-design"],
+  [data-theme="bohemian"], [data-theme="victorian-style"], [data-theme="graffiti"],
+  [data-theme="aurora"], [data-theme="handwritten"]
+) .login-lacking-reminder-list li span { color: var(--ds-item-text, var(--ds-text)); }
+.login-lacking-reminder-overlay:is(
+  [data-theme="minimalism"], [data-theme="maximalism"], [data-theme="futuristic"],
+  [data-theme="vector-art"], [data-theme="collage-art"], [data-theme="retro"],
+  [data-theme="cyberpunk"], [data-theme="pop-art"], [data-theme="glassmorphism"],
+  [data-theme="clay-style"], [data-theme="pixel-art"], [data-theme="editorial"],
+  [data-theme="y2k"], [data-theme="swiss-design"], [data-theme="surreal-design"],
+  [data-theme="bohemian"], [data-theme="victorian-style"], [data-theme="graffiti"],
+  [data-theme="aurora"], [data-theme="handwritten"]
+) .login-lacking-reminder-list li small { color: var(--ds-muted, #64748b); }
+
+.login-lacking-reminder-overlay:is(
+  [data-theme="minimalism"], [data-theme="maximalism"], [data-theme="futuristic"],
+  [data-theme="vector-art"], [data-theme="collage-art"], [data-theme="retro"],
+  [data-theme="cyberpunk"], [data-theme="pop-art"], [data-theme="glassmorphism"],
+  [data-theme="clay-style"], [data-theme="pixel-art"], [data-theme="editorial"],
+  [data-theme="y2k"], [data-theme="swiss-design"], [data-theme="surreal-design"],
+  [data-theme="bohemian"], [data-theme="victorian-style"], [data-theme="graffiti"],
+  [data-theme="aurora"], [data-theme="handwritten"]
+) .login-lacking-reminder-actions {
+  border-top: var(--ds-divider, 1px solid rgba(148,163,184,.35));
+}
+.login-lacking-reminder-overlay:is(
+  [data-theme="minimalism"], [data-theme="maximalism"], [data-theme="futuristic"],
+  [data-theme="vector-art"], [data-theme="collage-art"], [data-theme="retro"],
+  [data-theme="cyberpunk"], [data-theme="pop-art"], [data-theme="glassmorphism"],
+  [data-theme="clay-style"], [data-theme="pixel-art"], [data-theme="editorial"],
+  [data-theme="y2k"], [data-theme="swiss-design"], [data-theme="surreal-design"],
+  [data-theme="bohemian"], [data-theme="victorian-style"], [data-theme="graffiti"],
+  [data-theme="aurora"], [data-theme="handwritten"]
+) .login-lacking-reminder-actions .primary-btn {
+  background: var(--ds-button, #1d4ed8);
+  color: var(--ds-button-text, #fff);
+  border: var(--ds-button-border, 2px solid transparent);
+  border-radius: var(--ds-button-radius, 12px);
+  box-shadow: var(--ds-button-shadow, none);
+  font-family: var(--ds-title-font);
+  font-weight: 900;
+  letter-spacing: var(--ds-button-spacing, .01em);
+  text-transform: var(--ds-button-transform, none);
+}
+.login-lacking-reminder-overlay:is(
+  [data-theme="minimalism"], [data-theme="maximalism"], [data-theme="futuristic"],
+  [data-theme="vector-art"], [data-theme="collage-art"], [data-theme="retro"],
+  [data-theme="cyberpunk"], [data-theme="pop-art"], [data-theme="glassmorphism"],
+  [data-theme="clay-style"], [data-theme="pixel-art"], [data-theme="editorial"],
+  [data-theme="y2k"], [data-theme="swiss-design"], [data-theme="surreal-design"],
+  [data-theme="bohemian"], [data-theme="victorian-style"], [data-theme="graffiti"],
+  [data-theme="aurora"], [data-theme="handwritten"]
+) .login-lacking-reminder-close {
+  background: var(--ds-close-bg, #0f172a);
+  color: var(--ds-close-text, #fff);
+  border: var(--ds-close-border, 2px solid transparent);
+  border-radius: var(--ds-close-radius, 50%);
+  box-shadow: var(--ds-close-shadow, none);
+}
+
+/* 1. MINIMALISM */
+.login-lacking-reminder-overlay[data-theme="minimalism"] {
+  --ds-overlay: rgba(245,245,244,.92); --ds-panel:#fff; --ds-text:#111827; --ds-muted:#6b7280;
+  --ds-accent:#111827; --ds-accent-2:#374151; --ds-border:1px solid #111827; --ds-shadow:none;
+  --ds-panel-radius:4px; --ds-card:#fff; --ds-card-border:1px solid #d1d5db; --ds-card-radius:2px;
+  --ds-item:#fff; --ds-item-border:1px solid #e5e7eb; --ds-item-radius:2px; --ds-icon-bg:#fff;
+  --ds-icon-border:1px solid #111827; --ds-icon-radius:2px; --ds-chip-bg:#f5f5f4; --ds-chip-text:#111827;
+  --ds-chip-border:1px solid #e7e5e4; --ds-chip-radius:2px; --ds-button:#111827; --ds-button-radius:2px;
+  --ds-button-transform:uppercase; --ds-button-spacing:.08em; --ds-close-bg:#fff; --ds-close-text:#111827;
+  --ds-close-border:1px solid #111827; --ds-close-radius:2px; --ds-divider:1px solid #111827;
+  --ds-title-font:Arial,Helvetica,sans-serif; --ds-body-font:Arial,Helvetica,sans-serif;
+  --ds-title-spacing:-.03em; --ds-pattern:linear-gradient(90deg,transparent 0 11%,rgba(17,24,39,.07) 11% 11.15%,transparent 11.15%);
+  --ds-pattern-opacity:.45; --ds-mark:"01"; --ds-mark-color:#111827; --ds-motion:reminderStyleLineShift;
+}
+
+/* 2. MAXIMALISM */
+.login-lacking-reminder-overlay[data-theme="maximalism"] {
+  --ds-overlay:linear-gradient(135deg,rgba(124,58,237,.72),rgba(236,72,153,.68),rgba(245,158,11,.68));
+  --ds-panel:linear-gradient(145deg,#fff7ed,#fdf2f8 42%,#eff6ff); --ds-text:#2e1065; --ds-muted:#6b214a;
+  --ds-accent:#be123c; --ds-accent-2:#6d28d9; --ds-border:4px solid #111827;
+  --ds-shadow:10px 10px 0 #06b6d4,-8px -8px 0 #facc15,0 28px 70px rgba(0,0,0,.38); --ds-panel-radius:28px;
+  --ds-card:#fff; --ds-card-border:3px solid #111827; --ds-card-radius:18px; --ds-card-shadow:4px 4px 0 #f9a8d4;
+  --ds-item:#fff; --ds-item-border:2px solid #111827; --ds-item-radius:16px; --ds-item-shadow:3px 3px 0 #facc15;
+  --ds-icon-bg:conic-gradient(#f43f5e,#facc15,#22c55e,#38bdf8,#a855f7,#f43f5e); --ds-icon-border:3px solid #111827;
+  --ds-icon-radius:50%; --ds-icon-shadow:5px 5px 0 #111827; --ds-chip-bg:#fff; --ds-chip-text:#111827;
+  --ds-chip-border:2px solid #111827; --ds-button:linear-gradient(135deg,#e11d48,#7c3aed); --ds-button-border:3px solid #111827;
+  --ds-button-shadow:0 6px 0 #111827; --ds-button-radius:999px; --ds-close-bg:#111827; --ds-close-text:#facc15;
+  --ds-close-border:3px solid #fff; --ds-title-font:"Arial Black",Impact,sans-serif; --ds-title-transform:uppercase;
+  --ds-title-spacing:-.02em; --ds-pattern:radial-gradient(circle,#f43f5e 0 5px,transparent 5.5px) 0 0/48px 48px,radial-gradient(circle,#2563eb 0 4px,transparent 4.5px) 19px 13px/58px 58px,linear-gradient(30deg,transparent 42%,rgba(250,204,21,.35) 43% 57%,transparent 58%) 0 0/64px 64px;
+  --ds-pattern-opacity:.3; --ds-mark:"✦"; --ds-mark-color:#7c3aed; --ds-motion:reminderStyleMaxShift;
+}
+
+/* 3. FUTURISTIC */
+.login-lacking-reminder-overlay[data-theme="futuristic"] {
+  --ds-overlay:radial-gradient(circle at 25% 10%,rgba(6,182,212,.25),transparent 28%),rgba(2,6,23,.95);
+  --ds-panel:linear-gradient(145deg,#071525,#0b2135); --ds-text:#e6fbff; --ds-muted:#94cbd6;
+  --ds-accent:#67e8f9; --ds-accent-2:#a5f3fc; --ds-border:1px solid #22d3ee;
+  --ds-shadow:0 0 0 1px rgba(34,211,238,.35),0 0 38px rgba(6,182,212,.24),0 28px 70px rgba(0,0,0,.65);
+  --ds-panel-radius:10px; --ds-card:rgba(8,47,73,.78); --ds-card-text:#ecfeff; --ds-card-border:1px solid #155e75;
+  --ds-card-radius:6px; --ds-item:rgba(15,23,42,.88); --ds-item-border:1px solid #0e7490; --ds-item-radius:4px;
+  --ds-item-text:#ecfeff; --ds-icon-bg:#083344; --ds-icon-border:1px solid #67e8f9; --ds-icon-radius:8px;
+  --ds-icon-shadow:0 0 22px rgba(34,211,238,.28); --ds-chip-bg:#083344; --ds-chip-text:#cffafe;
+  --ds-chip-border:1px solid #155e75; --ds-chip-radius:4px; --ds-button:linear-gradient(90deg,#0891b2,#22d3ee);
+  --ds-button-text:#022c22; --ds-button-border:1px solid #67e8f9; --ds-button-radius:4px; --ds-button-transform:uppercase;
+  --ds-button-spacing:.08em; --ds-close-bg:#020617; --ds-close-text:#67e8f9; --ds-close-border:1px solid #22d3ee;
+  --ds-close-radius:4px; --ds-divider:1px solid #155e75; --ds-title-font:"Courier New",monospace;
+  --ds-body-font:"Trebuchet MS",Arial,sans-serif; --ds-title-transform:uppercase; --ds-title-spacing:.1em;
+  --ds-title-shadow:0 0 12px rgba(103,232,249,.42); --ds-pattern:linear-gradient(rgba(34,211,238,.09) 1px,transparent 1px) 0 0/22px 22px,linear-gradient(90deg,rgba(34,211,238,.09) 1px,transparent 1px) 0 0/22px 22px,linear-gradient(135deg,transparent 0 49.5%,rgba(34,211,238,.14) 50%,transparent 50.5%) 0 0/70px 70px;
+  --ds-pattern-opacity:.9; --ds-list-title-bg:#0b2135; --ds-mark:"⌁"; --ds-mark-color:#22d3ee; --ds-motion:reminderStyleGridScan;
+}
+
+/* 4. VECTOR ART */
+.login-lacking-reminder-overlay[data-theme="vector-art"] {
+  --ds-overlay:linear-gradient(135deg,#dbeafe,#fae8ff); --ds-panel:#fff; --ds-text:#172554; --ds-muted:#475569;
+  --ds-accent:#2563eb; --ds-accent-2:#9333ea; --ds-border:3px solid #172554; --ds-shadow:8px 8px 0 #38bdf8;
+  --ds-panel-radius:18px; --ds-card:#f8fafc; --ds-card-border:2px solid #172554; --ds-card-radius:14px;
+  --ds-item:#fff; --ds-item-border:2px solid #172554; --ds-item-radius:12px; --ds-icon-bg:#facc15;
+  --ds-icon-border:3px solid #172554; --ds-icon-radius:50% 50% 12px 50%; --ds-icon-shadow:4px 4px 0 #f43f5e;
+  --ds-chip-bg:#dbeafe; --ds-chip-text:#1e3a8a; --ds-chip-border:2px solid #172554; --ds-chip-radius:8px;
+  --ds-button:#2563eb; --ds-button-border:3px solid #172554; --ds-button-shadow:4px 4px 0 #facc15;
+  --ds-button-radius:10px; --ds-close-bg:#f43f5e; --ds-close-border:3px solid #172554; --ds-close-radius:10px;
+  --ds-title-font:"Arial Black",Arial,sans-serif; --ds-title-spacing:-.02em; --ds-pattern:radial-gradient(circle at 14% 18%,rgba(250,204,21,.52) 0 34px,transparent 35px),linear-gradient(135deg,transparent 0 62%,rgba(37,99,235,.18) 62% 72%,transparent 72%),linear-gradient(45deg,transparent 0 78%,rgba(236,72,153,.17) 78% 88%,transparent 88%);
+  --ds-pattern-opacity:.8; --ds-mark:"◆"; --ds-mark-color:#9333ea; --ds-motion:reminderStyleVectorFloat;
+}
+
+/* 5. COLLAGE ART */
+.login-lacking-reminder-overlay[data-theme="collage-art"] {
+  --ds-overlay:#d6d3d1; --ds-panel:linear-gradient(3deg,#fffef8,#f7f3e8); --ds-text:#292524; --ds-muted:#78716c;
+  --ds-accent:#be123c; --ds-accent-2:#1d4ed8; --ds-border:2px solid #44403c;
+  --ds-shadow:7px 9px 0 rgba(68,64,60,.35),-5px -4px 0 rgba(250,204,21,.6); --ds-panel-radius:6px;
+  --ds-card:#fffef8; --ds-card-border:1px dashed #78716c; --ds-card-radius:2px; --ds-card-shadow:3px 3px 0 rgba(28,25,23,.12);
+  --ds-item:#fff; --ds-item-border:1px solid #a8a29e; --ds-item-radius:1px; --ds-item-shadow:2px 2px 0 #e7e5e4;
+  --ds-icon-bg:#fef08a; --ds-icon-border:2px solid #44403c; --ds-icon-radius:2px; --ds-icon-shadow:4px 4px 0 #fda4af;
+  --ds-chip-bg:#e0e7ff; --ds-chip-text:#312e81; --ds-chip-border:1px dashed #44403c; --ds-chip-radius:2px;
+  --ds-button:#be123c; --ds-button-border:2px solid #44403c; --ds-button-shadow:4px 4px 0 #1d4ed8; --ds-button-radius:2px;
+  --ds-close-bg:#fef08a; --ds-close-text:#292524; --ds-close-border:2px solid #44403c; --ds-close-radius:2px;
+  --ds-title-font:Georgia,"Times New Roman",serif; --ds-body-font:Arial,sans-serif; --ds-title-transform:uppercase;
+  --ds-title-spacing:.04em; --ds-pattern:linear-gradient(16deg,transparent 0 15%,rgba(239,68,68,.17) 15% 27%,transparent 27% 60%,rgba(37,99,235,.14) 60% 75%,transparent 75%),repeating-linear-gradient(92deg,transparent 0 64px,rgba(120,113,108,.10) 65px 67px,transparent 68px 130px);
+  --ds-pattern-opacity:.75; --ds-mark:"✂"; --ds-mark-color:#57534e; --ds-motion:reminderStylePaperDrift;
+}
+
+/* 6. RETRO */
+.login-lacking-reminder-overlay[data-theme="retro"] {
+  --ds-overlay:#4a3526; --ds-panel:linear-gradient(145deg,#fff3c4,#f6d99a); --ds-text:#4a2c1a; --ds-muted:#7c4f2e;
+  --ds-accent:#c2410c; --ds-accent-2:#854d0e; --ds-border:4px solid #5b341f; --ds-shadow:0 12px 0 #d97706,0 28px 70px rgba(0,0,0,.38);
+  --ds-panel-radius:26px; --ds-card:#fff7da; --ds-card-border:2px solid #9a5a31; --ds-card-radius:18px;
+  --ds-item:#fff8df; --ds-item-border:2px solid #9a5a31; --ds-item-radius:18px; --ds-icon-bg:#f97316;
+  --ds-icon-border:3px solid #5b341f; --ds-icon-radius:50%; --ds-icon-shadow:inset 0 0 0 7px #facc15;
+  --ds-chip-bg:#fed7aa; --ds-chip-text:#7c2d12; --ds-chip-border:1px solid #9a3412; --ds-button:#c2410c;
+  --ds-button-border:3px solid #5b341f; --ds-button-shadow:0 5px 0 #854d0e; --ds-button-radius:999px;
+  --ds-close-bg:#5b341f; --ds-close-text:#fde68a; --ds-close-border:2px solid #f59e0b; --ds-title-font:Georgia,serif;
+  --ds-title-weight:900; --ds-title-spacing:-.02em; --ds-pattern:repeating-radial-gradient(ellipse at 20% 15%,rgba(194,65,12,.14) 0 8px,transparent 9px 28px),linear-gradient(30deg,transparent 0 40%,rgba(132,204,22,.11) 40% 50%,transparent 50% 100%);
+  --ds-pattern-opacity:.8; --ds-mark:"☀"; --ds-mark-color:#c2410c; --ds-motion:reminderStyleRetroWave;
+}
+
+/* 7. CYBERPUNK */
+.login-lacking-reminder-overlay[data-theme="cyberpunk"] {
+  --ds-overlay:linear-gradient(135deg,rgba(3,7,18,.97),rgba(30,0,42,.96)); --ds-panel:#09090b; --ds-text:#f8fafc; --ds-muted:#a1a1aa;
+  --ds-accent:#facc15; --ds-accent-2:#22d3ee; --ds-border:2px solid #facc15;
+  --ds-shadow:8px 8px 0 #ec4899,-5px -5px 0 #22d3ee,0 28px 70px rgba(0,0,0,.72); --ds-panel-radius:4px;
+  --ds-card:#111827; --ds-card-text:#f8fafc; --ds-card-border:1px solid #ec4899; --ds-card-radius:2px;
+  --ds-item:#111827; --ds-item-border:1px solid #22d3ee; --ds-item-radius:2px; --ds-item-text:#f8fafc;
+  --ds-icon-bg:#facc15; --ds-icon-border:2px solid #ec4899; --ds-icon-radius:2px; --ds-icon-shadow:4px 4px 0 #22d3ee;
+  --ds-chip-bg:#18181b; --ds-chip-text:#facc15; --ds-chip-border:1px solid #ec4899; --ds-chip-radius:2px;
+  --ds-button:linear-gradient(90deg,#facc15 0 72%,#ec4899 72%); --ds-button-text:#09090b; --ds-button-border:2px solid #22d3ee;
+  --ds-button-shadow:4px 4px 0 #ec4899; --ds-button-radius:2px; --ds-button-transform:uppercase; --ds-button-spacing:.08em;
+  --ds-close-bg:#ec4899; --ds-close-text:#fff; --ds-close-border:2px solid #22d3ee; --ds-close-radius:2px;
+  --ds-title-font:"Courier New",monospace; --ds-body-font:"Courier New",monospace; --ds-title-transform:uppercase;
+  --ds-title-spacing:.08em; --ds-title-shadow:2px 0 #ec4899,-2px 0 #22d3ee; --ds-pattern:linear-gradient(rgba(34,211,238,.11) 1px,transparent 1px) 0 0/20px 20px,linear-gradient(90deg,rgba(236,72,153,.10) 1px,transparent 1px) 0 0/20px 20px,repeating-linear-gradient(0deg,transparent 0 9px,rgba(250,204,21,.04) 10px 11px);
+  --ds-pattern-opacity:1; --ds-list-title-bg:#09090b; --ds-divider:1px solid #3f3f46; --ds-mark:"//"; --ds-mark-color:#ec4899; --ds-motion:reminderStyleCyberGlitch;
+}
+
+/* 8. POP ART */
+.login-lacking-reminder-overlay[data-theme="pop-art"] {
+  --ds-overlay:#2563eb; --ds-panel:#fde047; --ds-text:#111827; --ds-muted:#374151; --ds-accent:#dc2626; --ds-accent-2:#1d4ed8;
+  --ds-border:4px solid #111827; --ds-shadow:9px 9px 0 #ef4444; --ds-panel-radius:4px;
+  --ds-card:#fff; --ds-card-border:3px solid #111827; --ds-card-radius:3px; --ds-item:#fff; --ds-item-border:3px solid #111827;
+  --ds-item-radius:3px; --ds-item-shadow:3px 3px 0 #2563eb; --ds-icon-bg:#fff; --ds-icon-border:4px solid #111827;
+  --ds-icon-radius:50%; --ds-icon-shadow:4px 4px 0 #ef4444; --ds-chip-bg:#fff; --ds-chip-text:#111827;
+  --ds-chip-border:2px solid #111827; --ds-chip-radius:3px; --ds-button:#dc2626; --ds-button-border:3px solid #111827;
+  --ds-button-shadow:5px 5px 0 #2563eb; --ds-button-radius:3px; --ds-button-transform:uppercase;
+  --ds-close-bg:#111827; --ds-close-text:#fff; --ds-close-border:3px solid #fff; --ds-title-font:"Arial Black",Impact,sans-serif;
+  --ds-title-transform:uppercase; --ds-title-spacing:-.04em; --ds-pattern:radial-gradient(circle,#111827 0 2px,transparent 2.6px) 0 0/14px 14px;
+  --ds-pattern-opacity:.11; --ds-mark:"WOW!"; --ds-mark-color:#dc2626; --ds-motion:reminderStyleDotsMove;
+}
+
+/* 9. GLASSMORPHISM */
+.login-lacking-reminder-overlay[data-theme="glassmorphism"] {
+  --ds-overlay:linear-gradient(135deg,rgba(59,130,246,.55),rgba(168,85,247,.48),rgba(14,165,233,.42));
+  --ds-panel:linear-gradient(135deg,rgba(255,255,255,.58),rgba(255,255,255,.28)); --ds-text:#0f172a; --ds-muted:#334155;
+  --ds-accent:#1d4ed8; --ds-accent-2:#6d28d9; --ds-border:1px solid rgba(255,255,255,.78);
+  --ds-shadow:0 28px 80px rgba(15,23,42,.28),inset 0 1px 0 rgba(255,255,255,.55); --ds-panel-radius:30px;
+  --ds-backdrop:blur(22px) saturate(145%); --ds-card:rgba(255,255,255,.58); --ds-card-border:1px solid rgba(255,255,255,.75);
+  --ds-card-radius:18px; --ds-card-shadow:inset 0 1px 0 rgba(255,255,255,.45); --ds-item:rgba(255,255,255,.62);
+  --ds-item-border:1px solid rgba(255,255,255,.75); --ds-item-radius:16px; --ds-icon-bg:rgba(255,255,255,.45);
+  --ds-icon-border:1px solid rgba(255,255,255,.75); --ds-icon-radius:20px; --ds-icon-shadow:0 12px 28px rgba(30,64,175,.18);
+  --ds-chip-bg:rgba(255,255,255,.50); --ds-chip-text:#1e293b; --ds-chip-border:1px solid rgba(255,255,255,.72);
+  --ds-button:linear-gradient(135deg,rgba(37,99,235,.92),rgba(124,58,237,.90)); --ds-button-border:1px solid rgba(255,255,255,.72);
+  --ds-button-shadow:0 10px 24px rgba(37,99,235,.24); --ds-button-radius:16px; --ds-close-bg:rgba(255,255,255,.55);
+  --ds-close-text:#1e293b; --ds-close-border:1px solid rgba(255,255,255,.75); --ds-title-font:Arial,sans-serif;
+  --ds-pattern:radial-gradient(circle at 12% 10%,rgba(255,255,255,.48),transparent 22%),radial-gradient(circle at 86% 72%,rgba(216,180,254,.38),transparent 25%),radial-gradient(circle at 70% 14%,rgba(125,211,252,.36),transparent 18%);
+  --ds-pattern-opacity:.9; --ds-mark:"◌"; --ds-mark-color:#fff; --ds-motion:reminderStyleGlassFlow;
+}
+
+/* 10. CLAY STYLE */
+.login-lacking-reminder-overlay[data-theme="clay-style"] {
+  --ds-overlay:#e9d5ff; --ds-panel:#fdf4ff; --ds-text:#4c1d95; --ds-muted:#7e5ba5; --ds-accent:#7c3aed; --ds-accent-2:#db2777;
+  --ds-border:0 solid transparent; --ds-shadow:16px 16px 32px rgba(126,34,206,.18),-12px -12px 28px rgba(255,255,255,.75),inset 0 0 0 1px rgba(255,255,255,.55);
+  --ds-panel-radius:38px; --ds-card:#fff7ff; --ds-card-border:0 solid transparent; --ds-card-radius:26px;
+  --ds-card-shadow:7px 7px 14px rgba(126,34,206,.10),-6px -6px 14px rgba(255,255,255,.9); --ds-item:#fff7ff;
+  --ds-item-border:0 solid transparent; --ds-item-radius:22px; --ds-item-shadow:5px 5px 12px rgba(126,34,206,.10),-4px -4px 10px #fff;
+  --ds-icon-bg:#f9a8d4; --ds-icon-border:0 solid transparent; --ds-icon-radius:24px; --ds-icon-shadow:inset 5px 5px 10px rgba(190,24,93,.12),7px 7px 14px rgba(126,34,206,.14);
+  --ds-chip-bg:#ede9fe; --ds-chip-text:#6d28d9; --ds-chip-border:0 solid transparent; --ds-button:linear-gradient(145deg,#8b5cf6,#ec4899);
+  --ds-button-border:0 solid transparent; --ds-button-shadow:0 8px 0 #6d28d9,0 14px 20px rgba(126,34,206,.18); --ds-button-radius:22px;
+  --ds-close-bg:#fff; --ds-close-text:#7c3aed; --ds-close-border:0 solid transparent; --ds-close-shadow:5px 5px 12px rgba(126,34,206,.12);
+  --ds-title-font:"Trebuchet MS",Arial,sans-serif; --ds-title-spacing:-.03em; --ds-pattern:radial-gradient(circle at 12% 20%,rgba(251,207,232,.75) 0 42px,transparent 43px),radial-gradient(circle at 88% 28%,rgba(196,181,253,.65) 0 56px,transparent 57px),radial-gradient(circle at 72% 84%,rgba(186,230,253,.58) 0 46px,transparent 47px);
+  --ds-pattern-opacity:.72; --ds-mark:"●"; --ds-mark-color:#c4b5fd; --ds-motion:reminderStyleClayFloat;
+}
+
+/* 11. PIXEL ART */
+.login-lacking-reminder-overlay[data-theme="pixel-art"] {
+  --ds-overlay:#111827; --ds-panel:#f8fafc; --ds-text:#111827; --ds-muted:#475569; --ds-accent:#7c3aed; --ds-accent-2:#db2777;
+  --ds-border:4px solid #111827; --ds-shadow:8px 8px 0 #22d3ee; --ds-panel-radius:0; --ds-card:#fff;
+  --ds-card-border:3px solid #111827; --ds-card-radius:0; --ds-item:#fff; --ds-item-border:3px solid #111827; --ds-item-radius:0;
+  --ds-item-shadow:4px 4px 0 #facc15; --ds-icon-bg:#22d3ee; --ds-icon-border:4px solid #111827; --ds-icon-radius:0;
+  --ds-icon-shadow:4px 4px 0 #f43f5e; --ds-chip-bg:#e9d5ff; --ds-chip-text:#111827; --ds-chip-border:3px solid #111827;
+  --ds-chip-radius:0; --ds-counter-radius:0; --ds-button:#7c3aed; --ds-button-border:4px solid #111827; --ds-button-shadow:0 6px 0 #111827;
+  --ds-button-radius:0; --ds-button-transform:uppercase; --ds-close-bg:#111827; --ds-close-text:#facc15; --ds-close-border:3px solid #22d3ee;
+  --ds-close-radius:0; --ds-title-font:"Courier New",monospace; --ds-body-font:"Courier New",monospace; --ds-title-transform:uppercase;
+  --ds-title-spacing:.04em; --ds-pattern:linear-gradient(45deg,rgba(124,58,237,.12) 25%,transparent 25% 75%,rgba(124,58,237,.12) 75%) 0 0/16px 16px,linear-gradient(45deg,rgba(34,211,238,.11) 25%,transparent 25% 75%,rgba(34,211,238,.11) 75%) 8px 8px/16px 16px;
+  --ds-pattern-opacity:.7; --ds-mark:"▦"; --ds-mark-color:#7c3aed; --ds-motion:reminderStylePixelStep;
+}
+
+/* 12. EDITORIAL */
+.login-lacking-reminder-overlay[data-theme="editorial"] {
+  --ds-overlay:#e7e5e4; --ds-panel:#fff; --ds-text:#0c0a09; --ds-muted:#57534e; --ds-accent:#0c0a09; --ds-accent-2:#78716c;
+  --ds-border:1px solid #0c0a09; --ds-shadow:0 24px 60px rgba(28,25,23,.20); --ds-panel-radius:0;
+  --ds-card:#fff; --ds-card-border:1px solid #0c0a09; --ds-card-radius:0; --ds-item:#fff; --ds-item-border:0 solid transparent;
+  --ds-item-radius:0; --ds-item-shadow:inset 0 -1px 0 #d6d3d1; --ds-icon-bg:#0c0a09; --ds-icon-border:1px solid #0c0a09;
+  --ds-icon-radius:0; --ds-chip-bg:#fff; --ds-chip-text:#0c0a09; --ds-chip-border:1px solid #0c0a09; --ds-chip-radius:0;
+  --ds-button:#0c0a09; --ds-button-border:1px solid #0c0a09; --ds-button-radius:0; --ds-button-transform:uppercase;
+  --ds-button-spacing:.12em; --ds-close-bg:#fff; --ds-close-text:#0c0a09; --ds-close-border:1px solid #0c0a09; --ds-close-radius:0;
+  --ds-divider:2px solid #0c0a09; --ds-title-font:Georgia,"Times New Roman",serif; --ds-body-font:Georgia,"Times New Roman",serif;
+  --ds-title-weight:700; --ds-title-spacing:-.035em; --ds-pattern:linear-gradient(90deg,rgba(12,10,9,.08) 1px,transparent 1px) 0 0/25% 100%;
+  --ds-pattern-opacity:.55; --ds-mark:"A"; --ds-mark-color:#0c0a09; --ds-motion:reminderStyleEditorialSlide;
+}
+
+/* 13. Y2K */
+.login-lacking-reminder-overlay[data-theme="y2k"] {
+  --ds-overlay:linear-gradient(135deg,#bae6fd,#fbcfe8,#ddd6fe); --ds-panel:linear-gradient(145deg,#fff,#f0f9ff 36%,#fdf2f8);
+  --ds-text:#312e81; --ds-muted:#6d5d8d; --ds-accent:#db2777; --ds-accent-2:#2563eb; --ds-border:2px solid #c084fc;
+  --ds-shadow:0 0 0 5px rgba(255,255,255,.58),0 24px 70px rgba(76,29,149,.25); --ds-panel-radius:32px;
+  --ds-card:linear-gradient(135deg,#fff,#fdf2f8); --ds-card-border:1px solid #f0abfc; --ds-card-radius:20px;
+  --ds-item:#fff; --ds-item-border:1px solid #93c5fd; --ds-item-radius:18px; --ds-item-shadow:0 5px 0 rgba(196,181,253,.55);
+  --ds-icon-bg:linear-gradient(145deg,#fff,#f9a8d4); --ds-icon-border:2px solid #a855f7; --ds-icon-radius:50%;
+  --ds-icon-shadow:inset 0 3px 0 rgba(255,255,255,.9),0 7px 0 #c4b5fd; --ds-chip-bg:#fff; --ds-chip-text:#7e22ce;
+  --ds-chip-border:1px solid #d8b4fe; --ds-button:linear-gradient(180deg,#f9a8d4,#ec4899); --ds-button-border:2px solid #a21caf;
+  --ds-button-shadow:inset 0 2px 0 #fce7f3,0 5px 0 #a21caf; --ds-button-radius:999px; --ds-close-bg:#fff;
+  --ds-close-text:#db2777; --ds-close-border:2px solid #c084fc; --ds-title-font:"Trebuchet MS",Arial,sans-serif;
+  --ds-title-shadow:0 2px 0 #fff; --ds-pattern:radial-gradient(circle at 16% 18%,rgba(255,255,255,.85) 0 10px,transparent 11px),radial-gradient(circle at 78% 22%,rgba(236,72,153,.18) 0 36px,transparent 37px),linear-gradient(120deg,transparent 0 38%,rgba(125,211,252,.18) 39% 48%,transparent 49%);
+  --ds-pattern-opacity:.9; --ds-mark:"♡"; --ds-mark-color:#ec4899; --ds-motion:reminderStyleY2KBubble;
+}
+
+/* 14. SWISS DESIGN */
+.login-lacking-reminder-overlay[data-theme="swiss-design"] {
+  --ds-overlay:#d6d3d1; --ds-panel:#fff; --ds-text:#111; --ds-muted:#525252; --ds-accent:#dc2626; --ds-accent-2:#111;
+  --ds-border:2px solid #111; --ds-shadow:0 20px 50px rgba(0,0,0,.22); --ds-panel-radius:0; --ds-card:#fff;
+  --ds-card-border:1px solid #111; --ds-card-radius:0; --ds-item:#fff; --ds-item-border:1px solid #d4d4d4; --ds-item-radius:0;
+  --ds-icon-bg:#dc2626; --ds-icon-border:0 solid transparent; --ds-icon-radius:0; --ds-chip-bg:#f5f5f5; --ds-chip-text:#111;
+  --ds-chip-border:1px solid #111; --ds-chip-radius:0; --ds-counter-radius:0; --ds-button:#dc2626; --ds-button-border:2px solid #111;
+  --ds-button-radius:0; --ds-button-transform:uppercase; --ds-button-spacing:.12em; --ds-close-bg:#111; --ds-close-text:#fff;
+  --ds-close-border:0 solid transparent; --ds-close-radius:0; --ds-divider:3px solid #111; --ds-title-font:Arial,Helvetica,sans-serif;
+  --ds-body-font:Arial,Helvetica,sans-serif; --ds-title-transform:uppercase; --ds-title-spacing:-.05em;
+  --ds-pattern:linear-gradient(90deg,#dc2626 0 11%,transparent 11%),linear-gradient(0deg,transparent 0 84%,rgba(17,17,17,.10) 84% 84.4%,transparent 84.4%);
+  --ds-pattern-opacity:.9; --ds-mark:"+"; --ds-mark-color:#dc2626; --ds-motion:reminderStyleSwissSlide;
+}
+
+/* 15. SURREAL DESIGN */
+.login-lacking-reminder-overlay[data-theme="surreal-design"] {
+  --ds-overlay:radial-gradient(circle at 18% 20%,#bfdbfe,transparent 30%),radial-gradient(circle at 82% 72%,#fbcfe8,transparent 34%),#ddd6fe;
+  --ds-panel:linear-gradient(145deg,#fff7ed,#f5f3ff 50%,#ecfeff); --ds-text:#312e81; --ds-muted:#6b5b83;
+  --ds-accent:#7e22ce; --ds-accent-2:#0e7490; --ds-border:2px solid #8b5cf6; --ds-shadow:0 28px 80px rgba(76,29,149,.28);
+  --ds-panel-radius:42px 18px 48px 22px; --ds-card:rgba(255,255,255,.82); --ds-card-border:1px solid #c4b5fd;
+  --ds-card-radius:28px 12px 26px 14px; --ds-item:rgba(255,255,255,.88); --ds-item-border:1px solid #a5f3fc;
+  --ds-item-radius:24px 8px 22px 12px; --ds-icon-bg:#fef3c7; --ds-icon-border:2px solid #a855f7;
+  --ds-icon-radius:55% 45% 60% 40%; --ds-icon-shadow:8px 5px 0 rgba(34,211,238,.38); --ds-chip-bg:#ede9fe;
+  --ds-chip-text:#5b21b6; --ds-chip-border:1px solid #c4b5fd; --ds-button:linear-gradient(135deg,#7c3aed,#0891b2);
+  --ds-button-border:0 solid transparent; --ds-button-shadow:0 8px 22px rgba(124,58,237,.28); --ds-button-radius:60% 40% 55% 45%/55% 45% 55% 45%;
+  --ds-close-bg:#fff; --ds-close-text:#7e22ce; --ds-close-border:2px solid #a855f7; --ds-title-font:Georgia,serif;
+  --ds-title-shadow:2px 2px 0 rgba(34,211,238,.25); --ds-pattern:radial-gradient(ellipse at 15% 75%,rgba(14,165,233,.18) 0 70px,transparent 71px),radial-gradient(ellipse at 82% 22%,rgba(236,72,153,.17) 0 88px,transparent 89px),conic-gradient(from 30deg at 60% 60%,transparent 0 76%,rgba(124,58,237,.10) 76% 83%,transparent 83%);
+  --ds-pattern-opacity:.85; --ds-mark:"∞"; --ds-mark-color:#7c3aed; --ds-motion:reminderStyleSurrealFloat;
+}
+
+/* 16. BOHEMIAN */
+.login-lacking-reminder-overlay[data-theme="bohemian"] {
+  --ds-overlay:#6b4b3e; --ds-panel:linear-gradient(145deg,#fff7ed,#fef3c7); --ds-text:#4c2d23; --ds-muted:#7c5b4c;
+  --ds-accent:#b45309; --ds-accent-2:#4d7c0f; --ds-border:2px solid #92400e; --ds-shadow:0 24px 65px rgba(69,26,3,.35);
+  --ds-panel-radius:28px; --ds-card:#fffbeb; --ds-card-border:1px solid #d6a76a; --ds-card-radius:18px;
+  --ds-item:#fffaf0; --ds-item-border:1px solid #d6a76a; --ds-item-radius:16px; --ds-icon-bg:#f59e0b;
+  --ds-icon-border:2px solid #78350f; --ds-icon-radius:50% 50% 45% 55%; --ds-icon-shadow:0 0 0 6px rgba(132,204,22,.16);
+  --ds-chip-bg:#ecfccb; --ds-chip-text:#3f6212; --ds-chip-border:1px solid #84cc16; --ds-button:#b45309;
+  --ds-button-border:2px solid #78350f; --ds-button-shadow:0 5px 0 #78350f; --ds-button-radius:18px;
+  --ds-close-bg:#4d7c0f; --ds-close-text:#fff; --ds-close-border:2px solid #365314; --ds-title-font:Georgia,serif;
+  --ds-title-spacing:.01em; --ds-pattern:radial-gradient(circle at 50% 50%,transparent 0 8px,rgba(180,83,9,.10) 9px 10px,transparent 11px 19px,rgba(77,124,15,.08) 20px 21px,transparent 22px) 0 0/54px 54px;
+  --ds-pattern-opacity:.85; --ds-mark:"☾"; --ds-mark-color:#b45309; --ds-motion:reminderStyleBohoDrift;
+}
+
+/* 17. VICTORIAN STYLE */
+.login-lacking-reminder-overlay[data-theme="victorian-style"] {
+  --ds-overlay:#2b1019; --ds-panel:#fff8e7; --ds-text:#3f151f; --ds-muted:#6f4b52; --ds-accent:#7f1d1d; --ds-accent-2:#8a5a15;
+  --ds-border:5px double #8a5a15; --ds-shadow:0 26px 70px rgba(0,0,0,.50),inset 0 0 0 2px #f3d58a;
+  --ds-panel-radius:8px; --ds-card:#fffdf5; --ds-card-border:2px solid #c59b4a; --ds-card-radius:6px;
+  --ds-item:#fffdf5; --ds-item-border:1px solid #c59b4a; --ds-item-radius:4px; --ds-icon-bg:#7f1d1d;
+  --ds-icon-border:3px double #d6b35a; --ds-icon-radius:50%; --ds-icon-shadow:0 0 0 4px #fff0c2;
+  --ds-chip-bg:#f9e8b8; --ds-chip-text:#5f1f28; --ds-chip-border:1px solid #8a5a15; --ds-chip-radius:2px;
+  --ds-button:linear-gradient(180deg,#8f1f2d,#5f1720); --ds-button-border:3px double #d6b35a; --ds-button-shadow:0 5px 0 #351015;
+  --ds-button-radius:4px; --ds-button-transform:uppercase; --ds-button-spacing:.06em; --ds-close-bg:#5f1720;
+  --ds-close-text:#f8e7ae; --ds-close-border:2px solid #d6b35a; --ds-close-radius:50%; --ds-title-font:Georgia,"Times New Roman",serif;
+  --ds-title-weight:700; --ds-title-spacing:.02em; --ds-pattern:radial-gradient(ellipse at 50% 0,transparent 0 28px,rgba(127,29,29,.08) 29px 31px,transparent 32px) 0 0/80px 44px,repeating-linear-gradient(90deg,transparent 0 44px,rgba(138,90,21,.06) 45px 46px,transparent 47px 92px);
+  --ds-pattern-opacity:.9; --ds-mark:"❦"; --ds-mark-color:#8a5a15; --ds-motion:reminderStyleVictorianShimmer;
+}
+
+/* 18. GRAFFITI */
+.login-lacking-reminder-overlay[data-theme="graffiti"] {
+  --ds-overlay:#27272a; --ds-panel:linear-gradient(145deg,#e7e5e4,#d6d3d1); --ds-text:#18181b; --ds-muted:#52525b;
+  --ds-accent:#e11d48; --ds-accent-2:#2563eb; --ds-border:3px solid #18181b; --ds-shadow:9px 9px 0 #22c55e;
+  --ds-panel-radius:7px; --ds-card:#fafafa; --ds-card-border:2px solid #18181b; --ds-card-radius:5px;
+  --ds-item:#fafafa; --ds-item-border:2px solid #18181b; --ds-item-radius:5px; --ds-item-shadow:3px 3px 0 #facc15;
+  --ds-icon-bg:#22c55e; --ds-icon-border:3px solid #18181b; --ds-icon-radius:12px 4px 10px 5px; --ds-icon-shadow:4px 4px 0 #e11d48;
+  --ds-chip-bg:#facc15; --ds-chip-text:#18181b; --ds-chip-border:2px solid #18181b; --ds-chip-radius:4px;
+  --ds-button:#18181b; --ds-button-border:3px solid #e11d48; --ds-button-shadow:5px 5px 0 #2563eb; --ds-button-radius:4px;
+  --ds-button-transform:uppercase; --ds-close-bg:#e11d48; --ds-close-text:#fff; --ds-close-border:3px solid #18181b; --ds-close-radius:4px;
+  --ds-title-font:"Arial Black",Impact,sans-serif; --ds-title-transform:uppercase; --ds-title-spacing:-.02em;
+  --ds-title-shadow:2px 2px 0 #facc15; --ds-pattern:radial-gradient(circle at 14% 22%,rgba(225,29,72,.25) 0 4px,transparent 5px),radial-gradient(circle at 17% 24%,rgba(225,29,72,.18) 0 11px,transparent 12px),linear-gradient(15deg,transparent 0 48%,rgba(37,99,235,.12) 48% 54%,transparent 54%),repeating-linear-gradient(92deg,transparent 0 58px,rgba(24,24,27,.06) 59px 61px,transparent 62px 120px);
+  --ds-pattern-opacity:.9; --ds-mark:"TAG"; --ds-mark-color:#e11d48; --ds-motion:reminderStyleGraffitiJitter;
+}
+
+/* 19. AURORA */
+.login-lacking-reminder-overlay[data-theme="aurora"] {
+  --ds-overlay:radial-gradient(circle at 20% 16%,rgba(16,185,129,.25),transparent 30%),radial-gradient(circle at 80% 70%,rgba(139,92,246,.27),transparent 34%),#020617;
+  --ds-panel:linear-gradient(145deg,#06151a,#10162a); --ds-text:#ecfeff; --ds-muted:#a5b4c8; --ds-accent:#5eead4; --ds-accent-2:#c4b5fd;
+  --ds-border:1px solid rgba(94,234,212,.62); --ds-shadow:0 0 36px rgba(45,212,191,.16),0 30px 80px rgba(0,0,0,.66);
+  --ds-panel-radius:28px; --ds-card:rgba(15,23,42,.76); --ds-card-text:#ecfeff; --ds-card-border:1px solid rgba(94,234,212,.35);
+  --ds-card-radius:18px; --ds-item:rgba(15,23,42,.82); --ds-item-border:1px solid rgba(196,181,253,.38);
+  --ds-item-radius:16px; --ds-item-text:#f8fafc; --ds-icon-bg:linear-gradient(135deg,#2dd4bf,#8b5cf6);
+  --ds-icon-border:1px solid rgba(255,255,255,.55); --ds-icon-radius:20px; --ds-icon-shadow:0 0 24px rgba(45,212,191,.28);
+  --ds-chip-bg:rgba(15,118,110,.32); --ds-chip-text:#ccfbf1; --ds-chip-border:1px solid rgba(94,234,212,.35);
+  --ds-button:linear-gradient(90deg,#14b8a6,#6366f1,#a855f7); --ds-button-border:1px solid rgba(255,255,255,.40);
+  --ds-button-shadow:0 8px 26px rgba(99,102,241,.28); --ds-button-radius:16px; --ds-close-bg:rgba(15,23,42,.82);
+  --ds-close-text:#5eead4; --ds-close-border:1px solid rgba(94,234,212,.45); --ds-divider:1px solid rgba(94,234,212,.22);
+  --ds-title-font:"Trebuchet MS",Arial,sans-serif; --ds-title-shadow:0 0 14px rgba(94,234,212,.28);
+  --ds-pattern:radial-gradient(ellipse at 10% 50%,rgba(45,212,191,.24) 0 70px,transparent 72px),radial-gradient(ellipse at 45% 18%,rgba(59,130,246,.18) 0 90px,transparent 92px),radial-gradient(ellipse at 86% 58%,rgba(168,85,247,.22) 0 100px,transparent 102px);
+  --ds-pattern-opacity:.85; --ds-list-title-bg:#10162a; --ds-mark:"≈"; --ds-mark-color:#5eead4; --ds-motion:reminderStyleAuroraFlow;
+}
+
+/* 20. HANDWRITTEN */
+.login-lacking-reminder-overlay[data-theme="handwritten"] {
+  --ds-overlay:#cbd5e1; --ds-panel:#fffef8; --ds-text:#1e3a8a; --ds-muted:#64748b; --ds-accent:#1d4ed8; --ds-accent-2:#be123c;
+  --ds-border:1px solid #94a3b8; --ds-shadow:4px 8px 20px rgba(15,23,42,.22); --ds-panel-radius:14px;
+  --ds-card:rgba(255,255,255,.92); --ds-card-border:1px solid #bfdbfe; --ds-card-radius:8px;
+  --ds-item:rgba(255,255,255,.92); --ds-item-border:1px solid #bfdbfe; --ds-item-radius:8px;
+  --ds-icon-bg:#fef3c7; --ds-icon-border:2px solid #1d4ed8; --ds-icon-radius:50%; --ds-icon-shadow:2px 3px 0 rgba(29,78,216,.18);
+  --ds-chip-bg:#eff6ff; --ds-chip-text:#1e40af; --ds-chip-border:1px solid #93c5fd; --ds-chip-radius:12px 7px 11px 8px;
+  --ds-button:#1d4ed8; --ds-button-border:2px solid #1e3a8a; --ds-button-shadow:2px 3px 0 #93c5fd;
+  --ds-button-radius:12px 7px 12px 8px; --ds-close-bg:#fff; --ds-close-text:#be123c; --ds-close-border:2px solid #be123c;
+  --ds-close-radius:50%; --ds-title-font:"Comic Sans MS","Segoe Print",cursive; --ds-body-font:"Comic Sans MS","Segoe Print",cursive;
+  --ds-title-weight:800; --ds-title-spacing:-.01em; --ds-pattern:linear-gradient(90deg,transparent 0 54px,rgba(239,68,68,.22) 55px 56px,transparent 57px),repeating-linear-gradient(0deg,transparent 0 27px,rgba(59,130,246,.13) 28px 29px);
+  --ds-pattern-opacity:.8; --ds-mark:"✎"; --ds-mark-color:#1d4ed8; --ds-motion:reminderStyleNotebookShift;
+}
+
+/* Decorative identity mark: always behind real content. */
+.login-lacking-reminder-overlay:is(
+  [data-theme="minimalism"], [data-theme="maximalism"], [data-theme="futuristic"],
+  [data-theme="vector-art"], [data-theme="collage-art"], [data-theme="retro"],
+  [data-theme="cyberpunk"], [data-theme="pop-art"], [data-theme="glassmorphism"],
+  [data-theme="clay-style"], [data-theme="pixel-art"], [data-theme="editorial"],
+  [data-theme="y2k"], [data-theme="swiss-design"], [data-theme="surreal-design"],
+  [data-theme="bohemian"], [data-theme="victorian-style"], [data-theme="graffiti"],
+  [data-theme="aurora"], [data-theme="handwritten"]
+) .login-lacking-reminder-panel::after {
+  content:var(--ds-mark, ""); display:flex; align-items:flex-end; justify-content:flex-end;
+  padding:16px 20px; box-sizing:border-box; font-family:var(--ds-title-font); font-weight:900;
+  font-size:clamp(4rem,12vw,7rem); line-height:1; color:var(--ds-mark-color,var(--ds-accent)); opacity:.07;
+  border:0;
+}
+
+/* Theme-aware preview cards in Admin. */
+.login-reminder-theme-sample:is(
+  [data-theme="minimalism"], [data-theme="maximalism"], [data-theme="futuristic"],
+  [data-theme="vector-art"], [data-theme="collage-art"], [data-theme="retro"],
+  [data-theme="cyberpunk"], [data-theme="pop-art"], [data-theme="glassmorphism"],
+  [data-theme="clay-style"], [data-theme="pixel-art"], [data-theme="editorial"],
+  [data-theme="y2k"], [data-theme="swiss-design"], [data-theme="surreal-design"],
+  [data-theme="bohemian"], [data-theme="victorian-style"], [data-theme="graffiti"],
+  [data-theme="aurora"], [data-theme="handwritten"]
+) {
+  background:var(--sp-bg,#fff); color:var(--sp-text,#111827); border:var(--sp-border,2px solid #cbd5e1);
+  border-radius:var(--sp-radius,16px); box-shadow:var(--sp-shadow,none); font-family:var(--sp-font,Arial,sans-serif);
+}
+.login-reminder-theme-sample:is(
+  [data-theme="minimalism"], [data-theme="maximalism"], [data-theme="futuristic"],
+  [data-theme="vector-art"], [data-theme="collage-art"], [data-theme="retro"],
+  [data-theme="cyberpunk"], [data-theme="pop-art"], [data-theme="glassmorphism"],
+  [data-theme="clay-style"], [data-theme="pixel-art"], [data-theme="editorial"],
+  [data-theme="y2k"], [data-theme="swiss-design"], [data-theme="surreal-design"],
+  [data-theme="bohemian"], [data-theme="victorian-style"], [data-theme="graffiti"],
+  [data-theme="aurora"], [data-theme="handwritten"]
+)::before { background:var(--sp-pattern,none); opacity:var(--sp-opacity,.24); }
+.login-reminder-theme-sample:is(
+  [data-theme="minimalism"], [data-theme="maximalism"], [data-theme="futuristic"],
+  [data-theme="vector-art"], [data-theme="collage-art"], [data-theme="retro"],
+  [data-theme="cyberpunk"], [data-theme="pop-art"], [data-theme="glassmorphism"],
+  [data-theme="clay-style"], [data-theme="pixel-art"], [data-theme="editorial"],
+  [data-theme="y2k"], [data-theme="swiss-design"], [data-theme="surreal-design"],
+  [data-theme="bohemian"], [data-theme="victorian-style"], [data-theme="graffiti"],
+  [data-theme="aurora"], [data-theme="handwritten"]
+) .login-reminder-theme-sample-art {
+  background:var(--sp-art,#fff); border:var(--sp-art-border,2px solid currentColor); border-radius:var(--sp-art-radius,16px);
+  box-shadow:var(--sp-art-shadow,none);
+}
+.login-reminder-theme-sample[data-theme="minimalism"] { --sp-bg:#fff;--sp-text:#111827;--sp-border:1px solid #111827;--sp-radius:3px;--sp-font:Arial,sans-serif;--sp-pattern:linear-gradient(90deg,transparent 0 15%,rgba(17,24,39,.08) 15% 15.3%,transparent 15.3%);--sp-art:#fff;--sp-art-border:1px solid #111827;--sp-art-radius:2px; }
+.login-reminder-theme-sample[data-theme="maximalism"] { --sp-bg:linear-gradient(135deg,#fff7ed,#fdf2f8,#eff6ff);--sp-text:#6d28d9;--sp-border:3px solid #111827;--sp-radius:22px;--sp-shadow:5px 5px 0 #22d3ee;--sp-font:"Arial Black",Arial,sans-serif;--sp-pattern:radial-gradient(circle,#f43f5e 0 4px,transparent 4.5px) 0 0/34px 34px;--sp-art:conic-gradient(#f43f5e,#facc15,#22c55e,#38bdf8,#a855f7);--sp-art-border:3px solid #111827;--sp-art-radius:50%;--sp-art-shadow:3px 3px 0 #111827; }
+.login-reminder-theme-sample[data-theme="futuristic"] { --sp-bg:#071525;--sp-text:#67e8f9;--sp-border:1px solid #22d3ee;--sp-radius:8px;--sp-font:"Courier New",monospace;--sp-pattern:linear-gradient(rgba(34,211,238,.17) 1px,transparent 1px),linear-gradient(90deg,rgba(34,211,238,.17) 1px,transparent 1px);--sp-art:#083344;--sp-art-border:1px solid #67e8f9;--sp-art-radius:7px;--sp-art-shadow:0 0 14px #0891b2; }
+.login-reminder-theme-sample[data-theme="vector-art"] { --sp-bg:#fff;--sp-text:#172554;--sp-border:3px solid #172554;--sp-radius:16px;--sp-shadow:5px 5px 0 #38bdf8;--sp-font:"Arial Black",Arial,sans-serif;--sp-pattern:linear-gradient(135deg,transparent 0 65%,rgba(236,72,153,.16) 65% 78%,transparent 78%);--sp-art:linear-gradient(135deg,#facc15 0 50%,#2563eb 50%);--sp-art-border:3px solid #172554;--sp-art-radius:50% 50% 8px 50%; }
+.login-reminder-theme-sample[data-theme="collage-art"] { --sp-bg:#fffef8;--sp-text:#292524;--sp-border:2px dashed #57534e;--sp-radius:5px;--sp-font:Georgia,serif;--sp-pattern:linear-gradient(16deg,transparent 0 30%,rgba(239,68,68,.20) 30% 44%,transparent 44%);--sp-art:#fef08a;--sp-art-border:2px solid #44403c;--sp-art-radius:2px;--sp-art-shadow:4px 4px 0 #fda4af; }
+.login-reminder-theme-sample[data-theme="retro"] { --sp-bg:#f6d99a;--sp-text:#7c2d12;--sp-border:3px solid #5b341f;--sp-radius:22px;--sp-font:Georgia,serif;--sp-pattern:repeating-radial-gradient(ellipse,rgba(194,65,12,.12) 0 5px,transparent 6px 18px);--sp-art:#f97316;--sp-art-border:3px solid #5b341f;--sp-art-radius:50%;--sp-art-shadow:inset 0 0 0 6px #facc15; }
+.login-reminder-theme-sample[data-theme="cyberpunk"] { --sp-bg:#09090b;--sp-text:#facc15;--sp-border:2px solid #facc15;--sp-radius:3px;--sp-shadow:4px 4px 0 #ec4899;--sp-font:"Courier New",monospace;--sp-pattern:linear-gradient(rgba(34,211,238,.18) 1px,transparent 1px),linear-gradient(90deg,rgba(236,72,153,.18) 1px,transparent 1px);--sp-art:linear-gradient(135deg,#facc15 0 50%,#ec4899 50%);--sp-art-border:2px solid #22d3ee;--sp-art-radius:2px; }
+.login-reminder-theme-sample[data-theme="pop-art"] { --sp-bg:#fde047;--sp-text:#111827;--sp-border:3px solid #111827;--sp-radius:3px;--sp-shadow:5px 5px 0 #ef4444;--sp-font:"Arial Black",Impact,sans-serif;--sp-pattern:radial-gradient(circle,#111827 0 2px,transparent 2.5px);--sp-art:#fff;--sp-art-border:3px solid #111827;--sp-art-radius:50%;--sp-art-shadow:3px 3px 0 #2563eb; }
+.login-reminder-theme-sample[data-theme="glassmorphism"] { --sp-bg:linear-gradient(135deg,rgba(255,255,255,.7),rgba(255,255,255,.35));--sp-text:#1e3a8a;--sp-border:1px solid rgba(255,255,255,.85);--sp-radius:24px;--sp-shadow:0 12px 28px rgba(59,130,246,.18);--sp-pattern:radial-gradient(circle at 20% 20%,rgba(59,130,246,.25),transparent 30%),radial-gradient(circle at 82% 70%,rgba(168,85,247,.22),transparent 32%);--sp-art:rgba(255,255,255,.52);--sp-art-border:1px solid #fff;--sp-art-radius:20px;--sp-art-shadow:0 8px 20px rgba(37,99,235,.16); }
+.login-reminder-theme-sample[data-theme="clay-style"] { --sp-bg:#fdf4ff;--sp-text:#7c3aed;--sp-border:0 solid transparent;--sp-radius:30px;--sp-shadow:8px 8px 18px rgba(126,34,206,.14),-6px -6px 16px #fff;--sp-font:"Trebuchet MS",Arial,sans-serif;--sp-pattern:radial-gradient(circle at 78% 25%,rgba(196,181,253,.55) 0 24px,transparent 25px);--sp-art:#f9a8d4;--sp-art-border:0 solid transparent;--sp-art-radius:22px;--sp-art-shadow:6px 6px 12px rgba(126,34,206,.15); }
+.login-reminder-theme-sample[data-theme="pixel-art"] { --sp-bg:#f8fafc;--sp-text:#111827;--sp-border:4px solid #111827;--sp-radius:0;--sp-shadow:5px 5px 0 #22d3ee;--sp-font:"Courier New",monospace;--sp-pattern:linear-gradient(45deg,rgba(124,58,237,.14) 25%,transparent 25% 75%,rgba(124,58,237,.14) 75%);--sp-art:#7c3aed;--sp-art-border:4px solid #111827;--sp-art-radius:0;--sp-art-shadow:3px 3px 0 #facc15; }
+.login-reminder-theme-sample[data-theme="editorial"] { --sp-bg:#fff;--sp-text:#0c0a09;--sp-border:1px solid #0c0a09;--sp-radius:0;--sp-font:Georgia,serif;--sp-pattern:linear-gradient(90deg,rgba(12,10,9,.10) 1px,transparent 1px);--sp-art:#0c0a09;--sp-art-border:1px solid #0c0a09;--sp-art-radius:0; }
+.login-reminder-theme-sample[data-theme="y2k"] { --sp-bg:linear-gradient(135deg,#fff,#fdf2f8,#eff6ff);--sp-text:#db2777;--sp-border:2px solid #c084fc;--sp-radius:28px;--sp-shadow:0 0 0 4px rgba(255,255,255,.6);--sp-font:"Trebuchet MS",Arial,sans-serif;--sp-pattern:radial-gradient(circle at 78% 22%,rgba(236,72,153,.2) 0 22px,transparent 23px);--sp-art:linear-gradient(145deg,#fff,#f9a8d4);--sp-art-border:2px solid #a855f7;--sp-art-radius:50%;--sp-art-shadow:0 5px 0 #c4b5fd; }
+.login-reminder-theme-sample[data-theme="swiss-design"] { --sp-bg:#fff;--sp-text:#111;--sp-border:2px solid #111;--sp-radius:0;--sp-font:Arial,Helvetica,sans-serif;--sp-pattern:linear-gradient(90deg,#dc2626 0 13%,transparent 13%);--sp-art:#dc2626;--sp-art-border:0 solid transparent;--sp-art-radius:0; }
+.login-reminder-theme-sample[data-theme="surreal-design"] { --sp-bg:linear-gradient(135deg,#fff7ed,#f5f3ff,#ecfeff);--sp-text:#7e22ce;--sp-border:2px solid #8b5cf6;--sp-radius:32px 12px 36px 15px;--sp-font:Georgia,serif;--sp-pattern:radial-gradient(ellipse at 80% 30%,rgba(236,72,153,.18) 0 35px,transparent 36px);--sp-art:#fef3c7;--sp-art-border:2px solid #a855f7;--sp-art-radius:55% 45% 60% 40%;--sp-art-shadow:5px 3px 0 rgba(34,211,238,.38); }
+.login-reminder-theme-sample[data-theme="bohemian"] { --sp-bg:#fff7ed;--sp-text:#92400e;--sp-border:2px solid #92400e;--sp-radius:24px;--sp-font:Georgia,serif;--sp-pattern:radial-gradient(circle at 50% 50%,transparent 0 5px,rgba(180,83,9,.14) 6px 7px,transparent 8px 15px);--sp-art:#f59e0b;--sp-art-border:2px solid #78350f;--sp-art-radius:50% 50% 45% 55%; }
+.login-reminder-theme-sample[data-theme="victorian-style"] { --sp-bg:#fff8e7;--sp-text:#7f1d1d;--sp-border:4px double #8a5a15;--sp-radius:6px;--sp-font:Georgia,serif;--sp-pattern:repeating-linear-gradient(90deg,transparent 0 38px,rgba(138,90,21,.08) 39px 40px);--sp-art:#7f1d1d;--sp-art-border:3px double #d6b35a;--sp-art-radius:50%; }
+.login-reminder-theme-sample[data-theme="graffiti"] { --sp-bg:#d6d3d1;--sp-text:#18181b;--sp-border:3px solid #18181b;--sp-radius:6px;--sp-shadow:5px 5px 0 #22c55e;--sp-font:"Arial Black",Impact,sans-serif;--sp-pattern:radial-gradient(circle at 20% 20%,rgba(225,29,72,.28) 0 4px,transparent 5px),linear-gradient(15deg,transparent 0 48%,rgba(37,99,235,.14) 48% 55%,transparent 55%);--sp-art:#22c55e;--sp-art-border:3px solid #18181b;--sp-art-radius:10px 3px 8px 4px;--sp-art-shadow:3px 3px 0 #e11d48; }
+.login-reminder-theme-sample[data-theme="aurora"] { --sp-bg:linear-gradient(135deg,#06151a,#10162a);--sp-text:#5eead4;--sp-border:1px solid rgba(94,234,212,.62);--sp-radius:24px;--sp-shadow:0 0 20px rgba(45,212,191,.18);--sp-font:"Trebuchet MS",Arial,sans-serif;--sp-pattern:radial-gradient(ellipse at 15% 50%,rgba(45,212,191,.28) 0 40px,transparent 42px),radial-gradient(ellipse at 85% 30%,rgba(168,85,247,.24) 0 45px,transparent 47px);--sp-art:linear-gradient(135deg,#2dd4bf,#8b5cf6);--sp-art-border:1px solid rgba(255,255,255,.5);--sp-art-radius:20px;--sp-art-shadow:0 0 18px rgba(45,212,191,.25); }
+.login-reminder-theme-sample[data-theme="handwritten"] { --sp-bg:#fffef8;--sp-text:#1d4ed8;--sp-border:1px solid #94a3b8;--sp-radius:12px;--sp-font:"Comic Sans MS","Segoe Print",cursive;--sp-pattern:linear-gradient(90deg,transparent 0 40px,rgba(239,68,68,.22) 41px 42px,transparent 43px),repeating-linear-gradient(0deg,transparent 0 20px,rgba(59,130,246,.13) 21px 22px);--sp-art:#fef3c7;--sp-art-border:2px solid #1d4ed8;--sp-art-radius:50%; }
+
+/* Motion is decorative only; it never changes the content layer or scroll contract. */
+@keyframes reminderStyleLineShift { from{background-position:0 0} to{background-position:22px 0} }
+@keyframes reminderStyleMaxShift { 0%,100%{background-position:0 0,19px 13px,0 0} 50%{background-position:18px 26px,4px 34px,32px 20px} }
+@keyframes reminderStyleGridScan { from{background-position:0 0,0 0,0 0} to{background-position:22px 22px,22px 22px,70px 70px} }
+@keyframes reminderStyleVectorFloat { 0%,100%{background-position:0 0} 50%{background-position:18px 10px} }
+@keyframes reminderStylePaperDrift { from{background-position:0 0,0 0} to{background-position:22px 10px,40px 0} }
+@keyframes reminderStyleRetroWave { from{background-position:0 0,0 0} to{background-position:30px 18px,36px 20px} }
+@keyframes reminderStyleCyberGlitch { 0%,92%,100%{background-position:0 0,0 0,0 0} 94%{background-position:7px 0,-5px 0,0 2px} 96%{background-position:-4px 0,6px 0,0 -2px} }
+@keyframes reminderStyleDotsMove { from{background-position:0 0} to{background-position:14px 14px} }
+@keyframes reminderStyleGlassFlow { 0%,100%{background-position:0 0} 50%{background-position:18px -12px} }
+@keyframes reminderStyleClayFloat { 0%,100%{background-position:0 0} 50%{background-position:10px 14px} }
+@keyframes reminderStylePixelStep { from{background-position:0 0,8px 8px} to{background-position:16px 16px,24px 24px} }
+@keyframes reminderStyleEditorialSlide { from{background-position:0 0} to{background-position:25% 0} }
+@keyframes reminderStyleY2KBubble { 0%,100%{background-position:0 0} 50%{background-position:10px -14px} }
+@keyframes reminderStyleSwissSlide { from{background-position:0 0,0 0} to{background-position:18px 0,0 0} }
+@keyframes reminderStyleSurrealFloat { 0%,100%{background-position:0 0} 50%{background-position:18px 12px} }
+@keyframes reminderStyleBohoDrift { from{background-position:0 0} to{background-position:54px 54px} }
+@keyframes reminderStyleVictorianShimmer { from{background-position:0 0,0 0} to{background-position:40px 0,92px 0} }
+@keyframes reminderStyleGraffitiJitter { 0%,90%,100%{background-position:0 0,0 0,0 0,0 0} 93%{background-position:4px -2px,2px 1px,0 0,0 0} 96%{background-position:-3px 2px,-2px 0,0 0,0 0} }
+@keyframes reminderStyleAuroraFlow { 0%,100%{background-position:0 0} 50%{background-position:18px -12px} }
+@keyframes reminderStyleNotebookShift { from{background-position:0 0,0 0} to{background-position:0 0,0 29px} }
+
+.login-lacking-reminder-overlay:is(
+  [data-theme="minimalism"], [data-theme="maximalism"], [data-theme="futuristic"],
+  [data-theme="vector-art"], [data-theme="collage-art"], [data-theme="retro"],
+  [data-theme="cyberpunk"], [data-theme="pop-art"], [data-theme="glassmorphism"],
+  [data-theme="clay-style"], [data-theme="pixel-art"], [data-theme="editorial"],
+  [data-theme="y2k"], [data-theme="swiss-design"], [data-theme="surreal-design"],
+  [data-theme="bohemian"], [data-theme="victorian-style"], [data-theme="graffiti"],
+  [data-theme="aurora"], [data-theme="handwritten"]
+)[data-animation="subtle"] .login-lacking-reminder-panel::before {
+  animation-name:var(--ds-motion); animation-duration:14s; animation-timing-function:ease-in-out; animation-iteration-count:infinite;
+}
+.login-lacking-reminder-overlay:is(
+  [data-theme="minimalism"], [data-theme="maximalism"], [data-theme="futuristic"],
+  [data-theme="vector-art"], [data-theme="collage-art"], [data-theme="retro"],
+  [data-theme="cyberpunk"], [data-theme="pop-art"], [data-theme="glassmorphism"],
+  [data-theme="clay-style"], [data-theme="pixel-art"], [data-theme="editorial"],
+  [data-theme="y2k"], [data-theme="swiss-design"], [data-theme="surreal-design"],
+  [data-theme="bohemian"], [data-theme="victorian-style"], [data-theme="graffiti"],
+  [data-theme="aurora"], [data-theme="handwritten"]
+)[data-animation="normal"] .login-lacking-reminder-panel::before {
+  animation-name:var(--ds-motion); animation-duration:7s; animation-timing-function:ease-in-out; animation-iteration-count:infinite;
+}
+.login-lacking-reminder-overlay[data-theme="pixel-art"][data-animation]:not([data-animation="off"]) .login-lacking-reminder-panel::before { animation-timing-function:steps(4,end); }
+.login-lacking-reminder-overlay[data-theme="cyberpunk"][data-animation]:not([data-animation="off"]) .login-lacking-reminder-panel::before,
+.login-lacking-reminder-overlay[data-theme="graffiti"][data-animation]:not([data-animation="off"]) .login-lacking-reminder-panel::before { animation-timing-function:steps(2,end); }
+
+@media (max-height:620px) {
+  .login-lacking-reminder-overlay:is(
+    [data-theme="minimalism"], [data-theme="maximalism"], [data-theme="futuristic"], [data-theme="vector-art"],
+    [data-theme="collage-art"], [data-theme="retro"], [data-theme="cyberpunk"], [data-theme="pop-art"],
+    [data-theme="glassmorphism"], [data-theme="clay-style"], [data-theme="pixel-art"], [data-theme="editorial"],
+    [data-theme="y2k"], [data-theme="swiss-design"], [data-theme="surreal-design"], [data-theme="bohemian"],
+    [data-theme="victorian-style"], [data-theme="graffiti"], [data-theme="aurora"], [data-theme="handwritten"]
+  ) .login-lacking-reminder-panel::after { font-size:3.5rem; padding:10px 14px; }
+}
+
+@media (prefers-reduced-motion:reduce) {
+  .login-lacking-reminder-overlay .login-lacking-reminder-panel::before,
+  .login-lacking-reminder-overlay .login-lacking-reminder-panel::after { animation:none !important; }
+}
