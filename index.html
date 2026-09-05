@@ -45,7 +45,7 @@
   </script>
   <link rel="preconnect" href="https://drive.google.com" crossorigin>
   <link rel="preconnect" href="https://lh3.googleusercontent.com" crossorigin>
-  <link rel="stylesheet" href="style.css?v=20260905-v300-drive-image-fix" />
+  <link rel="stylesheet" href="style.css?v=20260905-v302-compact-activity-viewer" />
   <style>
     .ai-rubric-settings-card,
     .admin-project-ai-review-card {
@@ -585,16 +585,23 @@
     <div id="givenActivityViewerOverlay" class="given-activity-viewer-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="givenActivityViewerTitle">
       <section class="given-activity-viewer-card">
         <header class="given-activity-viewer-header">
-          <div>
+          <div class="given-activity-viewer-heading">
             <span id="givenActivityViewerMeta" class="given-activity-viewer-meta">Activity</span>
             <h2 id="givenActivityViewerTitle">Activity</h2>
-            <p id="givenActivityViewerDescription" class="muted-text"></p>
           </div>
           <div class="given-activity-viewer-actions">
+            <button id="givenActivityViewerInstructionsBtn" class="ghost-btn given-activity-viewer-instructions-btn" type="button" aria-expanded="false" aria-controls="givenActivityViewerInstructions">☰ Instructions</button>
             <a id="givenActivityViewerOpenBtn" class="ghost-btn" href="#" target="_blank" rel="noopener noreferrer">↗ Open</a>
             <button id="givenActivityViewerCloseBtn" class="icon-btn" type="button" aria-label="Close activity">×</button>
           </div>
         </header>
+        <aside id="givenActivityViewerInstructions" class="given-activity-viewer-instructions hidden" aria-label="Activity instructions">
+          <div class="given-activity-viewer-instructions-head">
+            <strong>Instructions</strong>
+            <button id="givenActivityViewerInstructionsCloseBtn" class="icon-btn" type="button" aria-label="Hide instructions">×</button>
+          </div>
+          <p id="givenActivityViewerDescription"></p>
+        </aside>
         <div id="givenActivityViewerBody" class="given-activity-viewer-body"></div>
       </section>
     </div>
@@ -2405,6 +2412,6 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
   <script src="firebase-config.js"></script>
-  <script src="script.js?v=20260905-v300-drive-image-fix"></script>
+  <script src="script.js?v=20260905-v302-compact-activity-viewer"></script>
 </body>
 </html>

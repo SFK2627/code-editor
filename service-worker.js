@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ict8-connect-v301-hide-activities-hero-mobile';
+const CACHE_NAME = 'ict8-connect-v302-compact-activity-viewer';
 
 self.addEventListener('install', event => {
   event.waitUntil(self.skipWaiting());

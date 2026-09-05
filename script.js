@@ -310,6 +310,9 @@ const givenActivityViewerOverlay = document.getElementById('givenActivityViewerO
 const givenActivityViewerMeta = document.getElementById('givenActivityViewerMeta');
 const givenActivityViewerTitle = document.getElementById('givenActivityViewerTitle');
 const givenActivityViewerDescription = document.getElementById('givenActivityViewerDescription');
+const givenActivityViewerInstructionsBtn = document.getElementById('givenActivityViewerInstructionsBtn');
+const givenActivityViewerInstructions = document.getElementById('givenActivityViewerInstructions');
+const givenActivityViewerInstructionsCloseBtn = document.getElementById('givenActivityViewerInstructionsCloseBtn');
 const givenActivityViewerOpenBtn = document.getElementById('givenActivityViewerOpenBtn');
 const givenActivityViewerCloseBtn = document.getElementById('givenActivityViewerCloseBtn');
 const givenActivityViewerBody = document.getElementById('givenActivityViewerBody');
@@ -18725,10 +18728,10 @@ function renderGivenActivityViewerAttachment() {
     givenActivityViewerOpenBtn.classList.toggle('hidden', !attachment.openUrl);
     givenActivityViewerOpenBtn.href = attachment.openUrl || '#';
     givenActivityViewerOpenBtn.textContent = attachment.materialType === 'link'
-      ? '↗ Open Link'
+      ? '↗ Link'
       : attachment.materialType === 'image'
-        ? '↗ Open Image'
-        : '↗ Open PDF';
+        ? '↗ Image'
+        : '↗ PDF';
   }
   let stage = '';
   if (attachment.materialType === 'pdf' && attachment.previewUrl) {
@@ -18787,6 +18790,13 @@ function shiftGivenActivityViewerAttachment(delta = 0) {
   renderGivenActivityViewerAttachment();
 }
 
+function setGivenActivityViewerInstructionsOpen(open = false) {
+  const shouldOpen = Boolean(open);
+  givenActivityViewerInstructions?.classList.toggle('hidden', !shouldOpen);
+  givenActivityViewerInstructionsBtn?.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+  givenActivityViewerInstructionsBtn?.classList.toggle('active', shouldOpen);
+}
+
 function openGivenActivityViewer(activityId = '') {
   const item = givenActivityState.items.find(entry => entry.id === activityId && entry.published);
   if (!item || !givenActivityViewerOverlay || !givenActivityViewerBody) return;
@@ -18798,7 +18808,8 @@ function openGivenActivityViewer(activityId = '') {
     givenActivityViewerMeta.textContent = `${lessonTermLabel(item.term)} · Activity ${item.order}${attachmentCount > 1 ? ` · ${attachmentCount} attachments` : ''}${due ? ` · Due ${due}` : ''}`;
   }
   if (givenActivityViewerTitle) givenActivityViewerTitle.textContent = item.title;
-  if (givenActivityViewerDescription) givenActivityViewerDescription.textContent = item.description || 'Teacher-posted activity.';
+  if (givenActivityViewerDescription) givenActivityViewerDescription.textContent = item.description || 'No additional instructions were provided.';
+  setGivenActivityViewerInstructionsOpen(false);
   renderGivenActivityViewerAttachment();
   givenActivityViewerOverlay.classList.remove('hidden');
   document.body.classList.add('given-activity-viewer-open');
@@ -18808,6 +18819,7 @@ function closeGivenActivityViewer() {
   givenActivityState.viewerActivityId = '';
   givenActivityState.viewerAttachmentIndex = 0;
   if (givenActivityViewerBody) givenActivityViewerBody.innerHTML = '';
+  setGivenActivityViewerInstructionsOpen(false);
   givenActivityViewerOverlay?.classList.add('hidden');
   document.body.classList.remove('given-activity-viewer-open');
 }
@@ -19568,6 +19580,11 @@ function bindTeacherToolsV295() {
       renderGivenActivityViewerAttachment();
     }
   });
+  givenActivityViewerInstructionsBtn?.addEventListener('click', () => {
+    const isOpen = !givenActivityViewerInstructions?.classList.contains('hidden');
+    setGivenActivityViewerInstructionsOpen(!isOpen);
+  });
+  givenActivityViewerInstructionsCloseBtn?.addEventListener('click', () => setGivenActivityViewerInstructionsOpen(false));
   givenActivityViewerCloseBtn?.addEventListener('click', closeGivenActivityViewer);
   givenActivityViewerOverlay?.addEventListener('click', event => { if (event.target === givenActivityViewerOverlay) event.stopPropagation(); });
 
