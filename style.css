@@ -49293,3 +49293,25 @@ body.given-activity-viewer-open {
     font-size: .68rem;
   }
 }
+
+
+/* v304 — phone Instructions control uses a clear info icon */
+@media (max-width: 600px) {
+  .given-activity-viewer-instructions-btn {
+    width: 38px !important;
+    min-width: 38px !important;
+    height: 38px !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    font-size: 0 !important;
+    display: inline-grid !important;
+    place-items: center !important;
+  }
+
+  .given-activity-viewer-instructions-btn::before {
+    content: 'ⓘ' !important;
+    font-size: 1.18rem !important;
+    line-height: 1 !important;
+    font-weight: 900 !important;
+  }
+}
