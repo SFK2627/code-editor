@@ -14343,7 +14343,7 @@ function updateInstallButtonVisibility() {
 function registerPWAServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./service-worker.js?v=308-viewer-button-polish', {
+    navigator.serviceWorker.register('./service-worker.js?v=309-lessons-repair', {
       updateViaCache: 'none'
     }).then(registration => {
       registration.update().catch(() => {});
@@ -17296,11 +17296,7 @@ function normalizeLesson(raw = {}, index = 0) {
   const term = Object.prototype.hasOwnProperty.call(LESSON_TERMS, raw.term) ? raw.term : 'term1';
   const fileId = String(raw.fileId || extractGoogleDriveFileId(raw.previewUrl || raw.openUrl || raw.url || '') || '').trim();
   const driveUrls = buildGoogleDriveLessonUrls(fileId);
-  const previewUrl = String(
-    materialType === 'image' && fileId
-      ? (driveUrls.previewUrl || raw.previewUrl || raw.url || '')
-      : (raw.previewUrl || raw.url || driveUrls.previewUrl || '')
-  ).trim();
+  const previewUrl = String(raw.previewUrl || raw.url || driveUrls.previewUrl || '').trim();
   const openUrl = String(raw.openUrl || driveUrls.openUrl || previewUrl).trim();
   const downloadUrl = String(raw.downloadUrl || driveUrls.downloadUrl || openUrl).trim();
   const order = Math.max(1, Math.min(999, Number.parseInt(raw.order, 10) || index + 1));
