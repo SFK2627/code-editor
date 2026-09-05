@@ -48013,3 +48013,365 @@ html body [hidden] {
   .rubric-term-context-head { flex-direction: column; }
   .rubric-activity-meta-grid { grid-template-columns: 1fr; }
 }
+
+
+/* v297 — Activities Given responsive + visual polish */
+.given-activities-main > * {
+  width: min(1320px, 100%);
+}
+
+.given-activities-welcome > div:first-child {
+  min-width: 0;
+}
+
+.given-activities-controls {
+  padding: 16px;
+}
+
+.given-activities-filter-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 220px;
+  align-items: stretch;
+}
+
+.given-activities-filter-row .lesson-library-search,
+.given-activities-filter-row select {
+  min-height: 52px;
+  max-height: 52px;
+}
+
+.given-activities-filter-row .lesson-library-search {
+  overflow: hidden;
+  padding: 0 14px;
+  border-radius: 16px;
+}
+
+.given-activities-filter-row .lesson-library-search input {
+  min-height: 50px;
+  font-size: 1rem;
+}
+
+.given-activities-filter-row select {
+  width: 100%;
+  padding-inline: 14px;
+  border-radius: 16px;
+}
+
+.given-activities-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.given-activity-card {
+  position: relative;
+  border-radius: 24px;
+  transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+}
+
+.given-activity-card:hover,
+.given-activity-card:focus-within {
+  transform: translateY(-3px);
+  border-color: color-mix(in srgb, var(--primary) 32%, var(--line));
+  box-shadow: 0 18px 42px rgba(15, 23, 42, .12);
+}
+
+.given-activity-card-open {
+  display: flex;
+  flex-direction: column;
+}
+
+.given-activity-card-top {
+  min-height: 78px;
+  padding: 16px 18px;
+}
+
+.given-activity-order {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 58px;
+  height: 58px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, .68);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.45);
+  font-size: 1.6rem;
+}
+
+.given-activity-type {
+  padding: 8px 12px;
+  backdrop-filter: blur(10px);
+}
+
+.given-activity-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 230px;
+}
+
+.given-activity-term {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  min-height: 30px;
+  padding: 5px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--primary-soft) 72%, var(--solid-card));
+}
+
+.given-activity-card-body h3 {
+  margin: 0;
+  font-size: 1.14rem;
+  line-height: 1.32;
+}
+
+.given-activity-card-body p {
+  min-height: 4.7em;
+  margin: 0;
+}
+
+.given-activity-card-meta {
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: auto;
+}
+
+.given-activity-card-meta span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--card);
+}
+
+.given-activity-card-meta span:last-child {
+  background: color-mix(in srgb, var(--success-soft) 65%, var(--solid-card));
+}
+
+.given-activity-card-cta {
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--primary-soft) 40%, var(--solid-card));
+}
+
+.given-activity-card-open:hover .given-activity-card-cta,
+.given-activity-card-open:focus-visible .given-activity-card-cta {
+  color: var(--primary-dark);
+  transform: translateX(0);
+}
+
+[data-theme="dark"] .given-activities-welcome {
+  background: linear-gradient(135deg, rgba(15, 23, 42, .98), rgba(30, 41, 59, .96));
+}
+
+[data-theme="dark"] .given-activity-card {
+  box-shadow: 0 14px 34px rgba(2, 6, 23, .32);
+}
+
+[data-theme="dark"] .given-activity-card:hover,
+[data-theme="dark"] .given-activity-card:focus-within {
+  box-shadow: 0 20px 44px rgba(2, 6, 23, .48);
+}
+
+[data-theme="dark"] .given-activity-card-top {
+  background: linear-gradient(135deg, rgba(30, 64, 175, .28), rgba(8, 145, 178, .22));
+}
+
+[data-theme="dark"] .given-activity-order {
+  color: #dbeafe;
+  background: rgba(15, 23, 42, .55);
+  box-shadow: inset 0 0 0 1px rgba(148, 163, 184, .22);
+}
+
+[data-theme="dark"] .given-activity-term {
+  color: #bfdbfe;
+  background: rgba(30, 64, 175, .22);
+  border-color: rgba(96, 165, 250, .35);
+}
+
+[data-theme="dark"] .given-activity-card-meta span,
+[data-theme="dark"] .given-activity-card-cta {
+  border-color: rgba(148, 163, 184, .18);
+  background: rgba(15, 23, 42, .52);
+}
+
+[data-theme="dark"] .given-activity-card-meta span:last-child {
+  background: rgba(6, 95, 70, .32);
+}
+
+@media (max-width: 899px) {
+  .given-activities-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 820px) {
+  .given-activities-header {
+    gap: 10px;
+    padding: 10px 12px;
+  }
+
+  .given-activities-brand {
+    gap: 12px;
+  }
+
+  .given-activities-brand h1 {
+    font-size: 1.15rem;
+    line-height: 1.16;
+  }
+
+  .given-activities-header-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    width: 100%;
+  }
+
+  .given-activities-header-actions .ghost-btn,
+  .given-activities-current-pill {
+    width: 100%;
+    justify-content: center;
+    min-height: 44px;
+  }
+
+  .given-activities-current-pill {
+    order: -1;
+    grid-column: 1 / -1;
+  }
+
+  .given-activities-main {
+    padding: 10px;
+  }
+
+  .given-activities-welcome {
+    gap: 12px;
+    padding: 14px;
+    border-radius: 18px;
+  }
+
+  .given-activities-welcome h2 {
+    margin-bottom: 6px;
+    font-size: 1.08rem;
+    line-height: 1.26;
+  }
+
+  .given-activities-welcome p {
+    font-size: .94rem;
+    line-height: 1.55;
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+  }
+
+  .given-activities-stat {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    min-height: 56px;
+    border-radius: 16px;
+  }
+
+  .given-activities-stat strong {
+    font-size: 1.65rem;
+  }
+
+  .given-activities-stat span {
+    font-size: .82rem;
+  }
+
+  .given-activities-controls {
+    margin-top: 12px;
+    padding: 10px;
+    border-radius: 18px;
+  }
+
+  .given-activities-filter-row {
+    grid-template-columns: 1fr;
+    gap: 8px;
+    margin-top: 10px;
+  }
+
+  .given-activities-filter-row .lesson-library-search,
+  .given-activities-filter-row select {
+    min-height: 48px;
+    max-height: 48px;
+  }
+
+  .given-activities-filter-row .lesson-library-search input {
+    min-height: 46px;
+    font-size: 16px;
+  }
+
+  .given-activities-grid {
+    gap: 12px;
+    margin-top: 12px;
+    padding-bottom: 16px;
+  }
+
+  .given-activity-card {
+    border-radius: 18px;
+  }
+
+  .given-activity-card-top {
+    min-height: 0;
+    padding: 12px 14px;
+  }
+
+  .given-activity-order {
+    width: 46px;
+    height: 46px;
+    border-radius: 14px;
+    font-size: 1.22rem;
+  }
+
+  .given-activity-type {
+    padding: 6px 9px;
+    font-size: .68rem;
+  }
+
+  .given-activity-card-body {
+    min-height: 0;
+    padding: 14px;
+  }
+
+  .given-activity-card-body h3 {
+    font-size: 1rem;
+  }
+
+  .given-activity-card-body p {
+    min-height: auto;
+    font-size: .92rem;
+    -webkit-line-clamp: 3;
+  }
+
+  .given-activity-card-meta {
+    padding-top: 12px;
+  }
+
+  .given-activity-card-meta span {
+    font-size: .72rem;
+  }
+
+  .given-activity-card-cta {
+    margin-top: 12px;
+    padding: 11px 12px;
+  }
+}
+
+@media (max-width: 520px) {
+  .given-activities-welcome p {
+    -webkit-line-clamp: 2;
+  }
+
+  .given-activities-stat {
+    width: 100%;
+  }
+}
