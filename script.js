@@ -209,6 +209,10 @@ const loginReminderMusicEnabledToggle = document.getElementById('loginReminderMu
 const loginReminderMusicUrlInput = document.getElementById('loginReminderMusicUrlInput');
 const loginReminderPositiveMessageInput = document.getElementById('loginReminderPositiveMessageInput');
 const loginReminderWarningMessageInput = document.getElementById('loginReminderWarningMessageInput');
+const loginReminderThemeSelect = document.getElementById('loginReminderThemeSelect');
+const loginReminderAnimationSelect = document.getElementById('loginReminderAnimationSelect');
+const loginReminderThemeSample = document.getElementById('loginReminderThemeSample');
+const loginReminderThemeSampleName = document.getElementById('loginReminderThemeSampleName');
 const previewLoginReminderCompleteBtn = document.getElementById('previewLoginReminderCompleteBtn');
 const previewLoginReminderMissingBtn = document.getElementById('previewLoginReminderMissingBtn');
 const saveLoginReminderSettingsBtn = document.getElementById('saveLoginReminderSettingsBtn');
@@ -594,10 +598,23 @@ let studentAssistanceSettings = normalizeAssistanceSettings(
 );
 let unsubscribeCloudAssistanceSettings = null;
 
+const LOGIN_REMINDER_THEMES = Object.freeze(['classic', 'christmas', 'spider-comic', 'halloween', 'valentine', 'graduation']);
+const LOGIN_REMINDER_ANIMATIONS = Object.freeze(['off', 'subtle', 'normal']);
+const LOGIN_REMINDER_THEME_LABELS = Object.freeze({
+  classic: 'Classic / Clean',
+  christmas: 'Christmas',
+  'spider-comic': 'Spider-Man Inspired / Comic Web',
+  halloween: 'Halloween',
+  valentine: 'Valentine',
+  graduation: 'Graduation'
+});
+
 const DEFAULT_LOGIN_REMINDER_SETTINGS = Object.freeze({
   enabled: true,
   musicEnabled: false,
   musicUrl: '',
+  theme: 'classic',
+  animation: 'subtle',
   positiveMessage: 'Great! You have no lacking requirements. Keep up the good work and continue maintaining your performance.',
   warningMessage: 'The First Term is nearing its end. Please complete the following missing requirements as soon as possible to avoid delays in your subject completion.'
 });
@@ -608,10 +625,18 @@ function normalizeLoginReminderSettings(value = {}) {
     const value = String(text ?? '').replace(/\s+/g, ' ').trim();
     return (value || fallback).slice(0, max);
   };
+  const theme = LOGIN_REMINDER_THEMES.includes(String(source.theme || '').trim())
+    ? String(source.theme).trim()
+    : DEFAULT_LOGIN_REMINDER_SETTINGS.theme;
+  const animation = LOGIN_REMINDER_ANIMATIONS.includes(String(source.animation || '').trim())
+    ? String(source.animation).trim()
+    : DEFAULT_LOGIN_REMINDER_SETTINGS.animation;
   return {
     enabled: source.enabled !== false,
     musicEnabled: source.musicEnabled === true,
     musicUrl: String(source.musicUrl || '').trim().slice(0, 1200),
+    theme,
+    animation,
     positiveMessage: cleanText(source.positiveMessage, DEFAULT_LOGIN_REMINDER_SETTINGS.positiveMessage),
     warningMessage: cleanText(source.warningMessage, DEFAULT_LOGIN_REMINDER_SETTINGS.warningMessage)
   };
@@ -635,9 +660,22 @@ function getLoginReminderSettingsFromControls() {
     enabled: loginReminderEnabledToggle?.checked !== false,
     musicEnabled: loginReminderMusicEnabledToggle?.checked === true,
     musicUrl: loginReminderMusicUrlInput?.value,
+    theme: loginReminderThemeSelect?.value,
+    animation: loginReminderAnimationSelect?.value,
     positiveMessage: loginReminderPositiveMessageInput?.value,
     warningMessage: loginReminderWarningMessageInput?.value
   });
+}
+
+function syncLoginReminderThemeSample(settings = loginReminderSettings) {
+  const safe = normalizeLoginReminderSettings(settings);
+  if (loginReminderThemeSample) {
+    loginReminderThemeSample.dataset.theme = safe.theme;
+    loginReminderThemeSample.dataset.animation = safe.animation;
+  }
+  if (loginReminderThemeSampleName) {
+    loginReminderThemeSampleName.textContent = LOGIN_REMINDER_THEME_LABELS[safe.theme] || LOGIN_REMINDER_THEME_LABELS.classic;
+  }
 }
 
 function syncLoginReminderSettingsControls() {
@@ -648,6 +686,9 @@ function syncLoginReminderSettingsControls() {
     loginReminderMusicUrlInput.value = settings.musicUrl;
     loginReminderMusicUrlInput.disabled = !settings.musicEnabled;
   }
+  if (loginReminderThemeSelect) loginReminderThemeSelect.value = settings.theme;
+  if (loginReminderAnimationSelect) loginReminderAnimationSelect.value = settings.animation;
+  syncLoginReminderThemeSample(settings);
   if (loginReminderPositiveMessageInput) loginReminderPositiveMessageInput.value = settings.positiveMessage;
   if (loginReminderWarningMessageInput) loginReminderWarningMessageInput.value = settings.warningMessage;
   if (loginReminderSettingsPill) {
@@ -823,6 +864,8 @@ function renderLoginLackingReminder(record = null, options = {}) {
   const state = options.state || (sanitized ? (missingCount > 0 ? 'missing' : 'complete') : 'unavailable');
 
   loginLackingReminderOverlay.dataset.state = state;
+  loginLackingReminderOverlay.dataset.theme = settings.theme;
+  loginLackingReminderOverlay.dataset.animation = settings.animation;
   if (loginLackingReminderStudent) {
     const name = sanitized?.studentName || student.name || 'Student';
     loginLackingReminderStudent.textContent = `Hi, ${name}.`;
@@ -984,7 +1027,7 @@ let adminLatestAiReview = null;
 let adminAiRubricController = null;
 let aiRubricConnectionState = { status: 'untested', code: '', message: '' };
 
-const MCS_APP_BUILD = 'v287';
+const MCS_APP_BUILD = 'v288';
 window.MCS_APP_BUILD = MCS_APP_BUILD;
 console.info(`[MCSian Code Editor] ${MCS_APP_BUILD} loaded`);
 
@@ -22018,6 +22061,12 @@ loginReminderMusicEnabledToggle?.addEventListener('change', () => {
 });
 [loginReminderMusicUrlInput, loginReminderPositiveMessageInput, loginReminderWarningMessageInput].forEach(control => {
   control?.addEventListener('input', () => persistLoginReminderSettings(getLoginReminderSettingsFromControls()));
+});
+[loginReminderThemeSelect, loginReminderAnimationSelect].forEach(control => {
+  control?.addEventListener('change', () => {
+    const settings = persistLoginReminderSettings(getLoginReminderSettingsFromControls());
+    syncLoginReminderThemeSample(settings);
+  });
 });
 previewLoginReminderCompleteBtn?.addEventListener('click', () => previewLoginLackingReminder(false));
 previewLoginReminderMissingBtn?.addEventListener('click', () => previewLoginLackingReminder(true));

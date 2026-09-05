@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ict8-connect-v287-smart-rubric-result';
+const CACHE_NAME = 'ict8-connect-v288-themed-lacking-reminder';
 
 self.addEventListener('install', event => {
   event.waitUntil(self.skipWaiting());

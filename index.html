@@ -45,7 +45,7 @@
   </script>
   <link rel="preconnect" href="https://drive.google.com" crossorigin>
   <link rel="preconnect" href="https://lh3.googleusercontent.com" crossorigin>
-  <link rel="stylesheet" href="style.css?v=20260815-step270-code-transfer" />
+  <link rel="stylesheet" href="style.css?v=20260905-v288-themed-reminder" />
   <style>
     .ai-rubric-settings-card,
     .admin-project-ai-review-card {
@@ -1211,6 +1211,38 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
               <small>Use a direct playable audio link. Leave blank when music is off.</small>
             </label>
 
+            <label class="login-reminder-field">
+              <span>Popup Theme</span>
+              <select id="loginReminderThemeSelect" aria-label="Lacking requirements popup theme">
+                <option value="classic">Classic / Clean</option>
+                <option value="christmas">Christmas</option>
+                <option value="spider-comic">Spider-Man Inspired / Comic Web</option>
+                <option value="halloween">Halloween</option>
+                <option value="valentine">Valentine</option>
+                <option value="graduation">Graduation</option>
+              </select>
+              <small>Changes the font styling, colors, borders, buttons, background patterns, and decorative elements on both phone and desktop.</small>
+            </label>
+
+            <label class="login-reminder-field">
+              <span>Theme Animation</span>
+              <select id="loginReminderAnimationSelect" aria-label="Lacking requirements theme animation">
+                <option value="off">Off</option>
+                <option value="subtle" selected>Subtle</option>
+                <option value="normal">Normal</option>
+              </select>
+              <small>Animations stay behind the readable content and never cover the requirements list.</small>
+            </label>
+
+            <div id="loginReminderThemeSample" class="login-reminder-theme-sample login-reminder-field-wide" data-theme="classic" data-animation="subtle" aria-label="Selected theme sample">
+              <div class="login-reminder-theme-sample-art" aria-hidden="true"></div>
+              <div class="login-reminder-theme-sample-copy">
+                <small>Selected visual theme</small>
+                <strong id="loginReminderThemeSampleName">Classic / Clean</strong>
+                <span>Use “Preview With Lackings” below to see the complete student popup.</span>
+              </div>
+            </div>
+
             <label class="login-reminder-field login-reminder-field-wide">
               <span>Positive Message — No Lacking</span>
               <textarea id="loginReminderPositiveMessageInput" rows="3">Great! You have no lacking requirements. Keep up the good work and continue maintaining your performance.</textarea>
@@ -2083,6 +2115,6 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
   <script src="firebase-config.js"></script>
-  <script src="script.js?v=20260815-step270-code-transfer"></script>
+  <script src="script.js?v=20260905-v288-themed-reminder"></script>
 </body>
 </html>
