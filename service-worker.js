@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ict8-connect-v302-compact-activity-viewer';
+const CACHE_NAME = 'ict8-connect-v304-instructions-info-icon';
 
 self.addEventListener('install', event => {
   event.waitUntil(self.skipWaiting());
