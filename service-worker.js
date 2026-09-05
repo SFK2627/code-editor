@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ict8-connect-v295-teacher-tools';
+const CACHE_NAME = 'ict8-connect-v296-term-rubrics';
 
 self.addEventListener('install', event => {
   event.waitUntil(self.skipWaiting());

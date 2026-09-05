@@ -142,6 +142,10 @@ const adminActivityTitle = document.getElementById('adminActivityTitle');
 const adminActivityDescription = document.getElementById('adminActivityDescription');
 const adminPassingScore = document.getElementById('adminPassingScore');
 const adminActivitySelect = document.getElementById('adminActivitySelect');
+const adminRubricViewTermSelect = document.getElementById('adminRubricViewTermSelect');
+const adminRubricCurrentTermPill = document.getElementById('adminRubricCurrentTermPill');
+const adminRubricTermNotice = document.getElementById('adminRubricTermNotice');
+const adminActivityTermSelect = document.getElementById('adminActivityTermSelect');
 const newActivityBtn = document.getElementById('newActivityBtn');
 const duplicateActivityBtn = document.getElementById('duplicateActivityBtn');
 const deleteActivityBtn = document.getElementById('deleteActivityBtn');
@@ -1201,7 +1205,7 @@ let adminLatestAiReview = null;
 let adminAiRubricController = null;
 let aiRubricConnectionState = { status: 'untested', code: '', message: '' };
 
-const MCS_APP_BUILD = 'v295';
+const MCS_APP_BUILD = 'v296';
 window.MCS_APP_BUILD = MCS_APP_BUILD;
 console.info(`[MCSian Code Editor] ${MCS_APP_BUILD} loaded`);
 
@@ -1546,6 +1550,7 @@ const DEFAULT_CODE_FILE_NAMES = {
 };
 
 let activities = getInitialActivities();
+let rubricLegacyTermMigrationNeeded = false;
 let selectedActivityId = getInitialSelectedActivityId();
 let activity = getActivityById(selectedActivityId);
 let codeByActivity = getInitialCodeByActivity();
@@ -2659,11 +2664,17 @@ function normalizeActivity(rawActivity) {
   const safeActivity = rawActivity && typeof rawActivity === 'object' ? rawActivity : clone(defaultActivity);
   const criteria = Array.isArray(safeActivity.criteria) ? safeActivity.criteria : [];
 
+  const rawTerm = String(safeActivity.term || '').trim();
+  const term = ['TERM_1', 'TERM_2', 'TERM_3'].includes(rawTerm) ? rawTerm : 'TERM_1';
+
   return {
     id: safeActivity.id || createId(),
     title: safeActivity.title || defaultActivity.title,
     description: safeActivity.description || defaultActivity.description,
     passingScore: Number(safeActivity.passingScore) || 75,
+    // v296 legacy migration rule: every rubric created before term grouping
+    // belongs to First Term unless a valid term was already stored.
+    term,
     criteria: criteria.map(normalizeCriterion)
   };
 }
@@ -3251,9 +3262,11 @@ async function loadActivitiesFromCloud() {
 
     if (!Array.isArray(data.activities) || !data.activities.length) return loadedCloudSettings;
 
+    const hadLegacyRubricsWithoutTerm = data.activities.some(item => !['TERM_1', 'TERM_2', 'TERM_3'].includes(String(item?.term || '').trim()));
+    rubricLegacyTermMigrationNeeded = rubricLegacyTermMigrationNeeded || hadLegacyRubricsWithoutTerm;
     activities = normalizeActivities(data.activities);
     initManualRubricInputTable();
-saveActivities({ cloud: false });
+    saveActivities({ cloud: false });
 
     if (!activities.some(item => item.id === selectedActivityId)) {
       selectedActivityId = '';
@@ -3269,7 +3282,13 @@ saveActivities({ cloud: false });
     loadActiveEditor();
     resetResultPanel();
     runCode(false, { scroll: false });
-    setStatus('Cloud activities loaded');
+    if (hadLegacyRubricsWithoutTerm && isTeacherAuthenticated()) {
+      const migrated = await saveActivitiesToCloud();
+      if (migrated) rubricLegacyTermMigrationNeeded = false;
+      setStatus(migrated ? 'Cloud activities loaded · legacy rubrics assigned to First Term' : 'Cloud activities loaded');
+    } else {
+      setStatus('Cloud activities loaded');
+    }
     return true;
   } catch (error) {
     console.warn('Could not load cloud activities.', error);
@@ -3846,6 +3865,14 @@ async function watchTeacherAuth() {
     handleStudentAuthObserver(user).catch(error => console.warn('Student auth observer failed.', error));
     if (isTeacherAuthenticated()) {
       loadComplianceSettingsFromCloud({ silent: true }).catch(error => console.warn('Cloud Compliance settings load failed.', error));
+      if (rubricLegacyTermMigrationNeeded) {
+        saveActivitiesToCloud().then(saved => {
+          if (saved) {
+            rubricLegacyTermMigrationNeeded = false;
+            setStatus('Legacy rubrics assigned to First Term');
+          }
+        }).catch(error => console.warn('Legacy rubric term migration save failed.', error));
+      }
     }
 
     if (!adminOverlay.classList.contains('hidden')) {
@@ -6356,6 +6383,55 @@ function resolveAcademicTermInfo(settings = academicTermSettings, date = new Dat
 
 function currentAcademicTerm() {
   return resolveAcademicTermInfo(academicTermSettings).term;
+}
+
+function normalizeRubricActivityTerm(term = 'TERM_1') {
+  const safe = String(term || '').trim();
+  return COMPLIANCE_TERMS.includes(safe) ? safe : 'TERM_1';
+}
+
+function getRubricActivityTerm(activityItem = null) {
+  return normalizeRubricActivityTerm(activityItem?.term || 'TERM_1');
+}
+
+function getActivitiesForAcademicTerm(term = currentAcademicTerm()) {
+  const safeTerm = normalizeRubricActivityTerm(term);
+  return activities.filter(item => getRubricActivityTerm(item) === safeTerm);
+}
+
+function getAdminRubricViewTerm() {
+  const value = String(adminRubricViewTermSelect?.value || 'current').trim();
+  return value === 'current' ? currentAcademicTerm() : normalizeRubricActivityTerm(value);
+}
+
+function renderAdminRubricTermContext() {
+  const activeInfo = resolveAcademicTermInfo(academicTermSettings);
+  const viewTerm = getAdminRubricViewTerm();
+  const isHistory = viewTerm !== activeInfo.term;
+  const viewActivities = getActivitiesForAcademicTerm(viewTerm);
+  if (adminRubricCurrentTermPill) {
+    adminRubricCurrentTermPill.textContent = `Current: ${activeInfo.label}`;
+    adminRubricCurrentTermPill.dataset.term = activeInfo.term;
+  }
+  if (adminRubricTermNotice) {
+    adminRubricTermNotice.textContent = isHistory
+      ? `Viewing ${complianceTermFriendlyLabel(viewTerm)} history. Current academic term is ${activeInfo.label}. ${viewActivities.length} saved rubric${viewActivities.length === 1 ? '' : 's'} in this view.`
+      : `${activeInfo.label} is active automatically from the Academic Term Schedule. ${viewActivities.length} rubric${viewActivities.length === 1 ? '' : 's'} available for this term.`;
+    adminRubricTermNotice.classList.toggle('history', isHistory);
+  }
+}
+
+function syncRubricActivityForCurrentTerm(options = {}) {
+  const activeTerm = currentAcademicTerm();
+  if (activity && getRubricActivityTerm(activity) !== activeTerm && options.keepHistoricalSelection !== true) {
+    activity = null;
+    selectedActivityId = '';
+    saveJSON(STORAGE_KEYS.selectedActivityId, '');
+    lastRubricResult = null;
+  }
+  renderActivitySummary();
+  renderAdminActivitySelect();
+  renderAdminRubricTermContext();
 }
 
 function getAcademicTermSettingsFromControls() {
@@ -10116,10 +10192,18 @@ function attachAdminProjectViewerPreviewLinks() {
 function populateAdminProjectViewerActivitySelect() {
   if (!adminProjectViewerActivitySelect) return;
   const stores = adminProjectViewerState.codeByActivity || {};
-  const keys = Object.keys(stores).length ? Object.keys(stores) : ['scratch'];
-  adminProjectViewerActivitySelect.innerHTML = keys.map(key => `<option value="${escapeAttribute(key)}">${escapeHTML(getAdminProjectActivityLabel(key))}</option>`).join('');
-  adminProjectViewerActivitySelect.value = keys.includes(adminProjectViewerState.activityKey) ? adminProjectViewerState.activityKey : keys[0];
+  const activeTerm = currentAcademicTerm();
+  const allKeys = Object.keys(stores).length ? Object.keys(stores) : ['scratch'];
+  const keys = allKeys.filter(key => {
+    if (key === 'scratch') return true;
+    const known = getActivityById(key);
+    return known ? getRubricActivityTerm(known) === activeTerm : false;
+  });
+  const safeKeys = keys.length ? keys : ['scratch'];
+  adminProjectViewerActivitySelect.innerHTML = safeKeys.map(key => `<option value="${escapeAttribute(key)}">${escapeHTML(getAdminProjectActivityLabel(key))}</option>`).join('');
+  adminProjectViewerActivitySelect.value = safeKeys.includes(adminProjectViewerState.activityKey) ? adminProjectViewerState.activityKey : safeKeys[0];
   adminProjectViewerState.activityKey = adminProjectViewerActivitySelect.value;
+  adminProjectViewerActivitySelect.title = `${complianceTermFriendlyLabel(activeTerm)} activities only`;
 }
 
 function populateAdminProjectViewerFileSelect() {
@@ -16456,25 +16540,42 @@ function closeActivityRubricModal() {
 
 function renderActivitySelector() {
   if (!activitySelect) return;
-  const placeholder = `<option value="" ${activity ? '' : 'selected'}>Select an activity first...</option>`;
-  const options = activities.map((item) => `
-    <option value="${escapeAttribute(item.id)}" ${activity && item.id === activity.id ? 'selected' : ''}>${escapeHTML(item.title)}</option>
+  const activeTerm = currentAcademicTerm();
+  const activeTermLabel = complianceTermFriendlyLabel(activeTerm);
+  const visibleActivities = getActivitiesForAcademicTerm(activeTerm);
+  const currentSelectionIsVisible = Boolean(activity && visibleActivities.some(item => item.id === activity.id));
+  const placeholderText = visibleActivities.length
+    ? `Select a ${activeTermLabel} activity...`
+    : `No ${activeTermLabel} activities published yet`;
+  const placeholder = `<option value="" ${currentSelectionIsVisible ? '' : 'selected'}>${escapeHTML(placeholderText)}</option>`;
+  const options = visibleActivities.map((item) => `
+    <option value="${escapeAttribute(item.id)}" ${currentSelectionIsVisible && activity.id === item.id ? 'selected' : ''}>${escapeHTML(item.title)}</option>
   `).join('');
   activitySelect.innerHTML = placeholder + options;
 }
 
 function renderAdminActivitySelect() {
   if (!adminActivitySelect) return;
+  const viewTerm = getAdminRubricViewTerm();
+  const viewActivities = getActivitiesForAcademicTerm(viewTerm);
+  renderAdminRubricTermContext();
 
-  if (!activities.length) {
-    adminActivitySelect.innerHTML = '<option value="">No saved activities yet</option>';
+  if (!viewActivities.length) {
+    adminActivitySelect.innerHTML = `<option value="">No ${escapeHTML(complianceTermFriendlyLabel(viewTerm))} rubrics yet</option>`;
     adminActivitySelect.value = '';
     return;
   }
 
-  adminActivitySelect.innerHTML = activities.map((item) => `
+  const editingSavedActivity = viewActivities.some(item => item.id === adminEditingActivityId);
+  const editingUnsavedActivity = Boolean(adminEditingActivityId) && !activities.some(item => item.id === adminEditingActivityId);
+  if (!editingSavedActivity && !editingUnsavedActivity) {
+    adminEditingActivityId = viewActivities[0].id;
+  }
+  const unsavedOption = editingUnsavedActivity ? '<option value="" selected>New unsaved activity</option>' : '';
+  adminActivitySelect.innerHTML = unsavedOption + viewActivities.map((item) => `
     <option value="${escapeAttribute(item.id)}" ${item.id === adminEditingActivityId ? 'selected' : ''}>${escapeHTML(item.title)}</option>
   `).join('');
+  adminActivitySelect.value = editingUnsavedActivity ? '' : adminEditingActivityId;
 }
 
 function renderActivitySummary() {
@@ -19431,7 +19532,12 @@ function showAdminForm(activityId = adminEditingActivityId) {
   else loadAdminStudents().catch(error => console.warn('Student tracker load failed.', error));
   initializeLessonManager();
   if (isTeacherAuthenticated()) loadAiRubricSettingsFromCloud({ silent: true }).catch(error => console.warn('Smart Review settings load failed.', error));
-  const editActivity = getActivityById(activityId) || activity || activities[0] || null;
+  const viewTerm = getAdminRubricViewTerm();
+  const viewActivities = getActivitiesForAcademicTerm(viewTerm);
+  const requested = getActivityById(activityId);
+  const editActivity = requested && getRubricActivityTerm(requested) === viewTerm
+    ? requested
+    : viewActivities[0] || null;
 
   if (!editActivity) {
     adminEditingActivityId = '';
@@ -19439,9 +19545,10 @@ function showAdminForm(activityId = adminEditingActivityId) {
     adminActivityTitle.value = '';
     adminActivityDescription.value = '';
     adminPassingScore.value = 75;
+    if (adminActivityTermSelect) adminActivityTermSelect.value = viewTerm;
     renderCriteriaEditor([]);
     if (typeof initManualRubricInputTable === 'function') initManualRubricInputTable();
-    setStatus('No saved activities yet');
+    setStatus(`No ${complianceTermFriendlyLabel(viewTerm)} rubrics yet`);
     return;
   }
 
@@ -19450,6 +19557,7 @@ function showAdminForm(activityId = adminEditingActivityId) {
   adminActivityTitle.value = editActivity.title;
   adminActivityDescription.value = editActivity.description;
   adminPassingScore.value = editActivity.passingScore;
+  if (adminActivityTermSelect) adminActivityTermSelect.value = getRubricActivityTerm(editActivity);
   renderCriteriaEditor(editActivity.criteria);
 }
 
@@ -19731,6 +19839,7 @@ async function saveRubric(event) {
     title: adminActivityTitle.value.trim() || `Activity ${activities.length + 1}`,
     description: adminActivityDescription.value.trim() || 'Complete the activity based on the teacher rubric.',
     passingScore: Number(adminPassingScore.value) || 75,
+    term: adminActivityTermSelect?.value || currentAcademicTerm(),
     criteria
   });
 
@@ -19754,20 +19863,25 @@ async function saveRubric(event) {
     setStatus('Activity saved locally');
   }
 
-  selectActivity(savedActivity.id, { keepLanguage: true });
+  if (getRubricActivityTerm(savedActivity) === currentAcademicTerm()) {
+    selectActivity(savedActivity.id, { keepLanguage: true });
+  }
   closeAdminPanel();
-  setStatus(isTeacherAuthenticated() ? 'Activity saved' : 'Activity saved locally');
+  setStatus(`${complianceTermFriendlyLabel(getRubricActivityTerm(savedActivity))} activity saved${isTeacherAuthenticated() ? '' : ' locally'}`);
 }
 
 function createNewActivity() {
   adminEditingActivityId = createId();
+  if (adminRubricViewTermSelect) adminRubricViewTermSelect.value = 'current';
   renderAdminActivitySelect();
   adminActivityTitle.value = '';
   adminActivityDescription.value = '';
   adminPassingScore.value = 75;
+  if (adminActivityTermSelect) adminActivityTermSelect.value = currentAcademicTerm();
   renderCriteriaEditor([]);
   if (typeof initManualRubricInputTable === 'function') initManualRubricInputTable();
-  setStatus('Blank activity form ready');
+  renderAdminRubricTermContext();
+  setStatus(`Blank ${complianceTermFriendlyLabel(currentAcademicTerm())} activity form ready`);
 }
 
 function duplicateActivity() {
@@ -19780,6 +19894,7 @@ function duplicateActivity() {
     ...clone(source),
     id: createId(),
     title: `${source.title} (Copy)`,
+    term: currentAcademicTerm(),
     criteria: source.criteria.map(criterion => normalizeCriterion({ ...criterion, id: createId() }))
   });
 
@@ -19787,6 +19902,7 @@ function duplicateActivity() {
   saveActivities();
   codeByActivity[copy.id] = normalizeCodeStore(codeByActivity[source.id] || starterCode);
   saveCodeByActivity();
+  if (adminRubricViewTermSelect) adminRubricViewTermSelect.value = 'current';
   selectActivity(copy.id, { skipSave: true });
   showAdminForm(copy.id);
   setStatus('Activity duplicated');
@@ -19809,7 +19925,7 @@ async function deleteActivity() {
     selectActivity('', { skipSave: true });
   }
 
-  const nextActivity = activities[0] || null;
+  const nextActivity = getActivitiesForAcademicTerm(getAdminRubricViewTerm())[0] || null;
   showAdminForm(nextActivity?.id || '');
   setStatus('Activity deleted');
 }
@@ -19824,7 +19940,8 @@ async function restoreDefaultRubric() {
   const restored = normalizeActivity({
     ...clone(defaultActivity),
     id: existing.id,
-    title: existing.title || defaultActivity.title
+    title: existing.title || defaultActivity.title,
+    term: getRubricActivityTerm(existing)
   });
 
   const existingIndex = activities.findIndex(item => item.id === restored.id);
@@ -19925,6 +20042,7 @@ function normalizeImportedActivity(rawActivity) {
     title: safe.title || safe.activityTitle || 'Imported Rubric Activity',
     description: safe.description || safe.instructions || 'Complete the activity based on the imported rubric. Review the rubric table before saving.',
     passingScore: Number(safe.passingScore) || 75,
+    term: safe.term || adminActivityTermSelect?.value || currentAcademicTerm(),
     criteria: criteria.length ? criteria : clone(defaultActivity.criteria).map(item => normalizeCriterion({ ...item, id: createId() }))
   });
 }
@@ -19934,6 +20052,7 @@ function applyImportedActivityToAdminForm(importedActivity) {
   adminActivityTitle.value = normalized.title;
   adminActivityDescription.value = normalized.description;
   adminPassingScore.value = normalized.passingScore;
+  if (adminActivityTermSelect) adminActivityTermSelect.value = getRubricActivityTerm(normalized);
   renderCriteriaEditor(normalized.criteria);
   setRubricImportStatus('Rubric imported. Please review the table, then click Save Activity.', 'success');
   setStatus('Rubric imported');
@@ -23651,6 +23770,7 @@ academicTermControls.forEach(control => {
       return;
     }
     persistAcademicTermSettings(next);
+    syncRubricActivityForCurrentTerm();
     const compliance = loadComplianceSettings();
     compliance.term = currentAcademicTerm();
     saveComplianceSettings(compliance);
@@ -23719,6 +23839,7 @@ complianceClearSelectedSectionsBtn?.addEventListener('click', () => {
 });
 saveComplianceSettingsBtn?.addEventListener('click', async () => {
   const termSchedule = persistAcademicTermSettings(getAcademicTermSettingsFromControls());
+  syncRubricActivityForCurrentTerm();
   const settings = saveComplianceSettings(getComplianceSettingsFromControls());
   settings.term = resolveAcademicTermInfo(termSchedule).term;
   saveComplianceSettings(settings);
@@ -23856,6 +23977,22 @@ adminOverlay.addEventListener('click', event => {
 
 adminForm.addEventListener('submit', saveRubric);
 adminActivitySelect.addEventListener('change', event => editAdminActivity(event.target.value));
+adminRubricViewTermSelect?.addEventListener('change', () => {
+  const next = getActivitiesForAcademicTerm(getAdminRubricViewTerm())[0] || null;
+  adminEditingActivityId = next?.id || '';
+  showAdminForm(next?.id || '');
+  renderAdminRubricTermContext();
+});
+adminActivityTermSelect?.addEventListener('change', () => {
+  const selectedTerm = normalizeRubricActivityTerm(adminActivityTermSelect.value);
+  if (adminRubricTermNotice) {
+    const active = currentAcademicTerm();
+    adminRubricTermNotice.textContent = selectedTerm === active
+      ? `This activity will be saved under the current ${complianceTermFriendlyLabel(active)}.`
+      : `This activity will be saved under ${complianceTermFriendlyLabel(selectedTerm)} history. Current term is ${complianceTermFriendlyLabel(active)}.`;
+    adminRubricTermNotice.classList.toggle('history', selectedTerm !== active);
+  }
+});
 newActivityBtn.addEventListener('click', createNewActivity);
 duplicateActivityBtn.addEventListener('click', duplicateActivity);
 deleteActivityBtn.addEventListener('click', deleteActivity);

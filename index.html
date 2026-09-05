@@ -45,7 +45,7 @@
   </script>
   <link rel="preconnect" href="https://drive.google.com" crossorigin>
   <link rel="preconnect" href="https://lh3.googleusercontent.com" crossorigin>
-  <link rel="stylesheet" href="style.css?v=20260905-v295-teacher-tools" />
+  <link rel="stylesheet" href="style.css?v=20260905-v296-term-rubrics" />
   <style>
     .ai-rubric-settings-card,
     .admin-project-ai-review-card {
@@ -1974,9 +1974,29 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
 
         <section id="activitiesRubricsAdmin" class="admin-tab-panel" data-admin-panel="activities" aria-labelledby="activitiesRubricsTitle">
         <div class="admin-section-divider"><span>Activities & Rubrics</span></div>
+        <div class="rubric-term-context-card">
+          <div class="rubric-term-context-head">
+            <div>
+              <p class="section-kicker">Academic Term Filter</p>
+              <h3>Term-Aware Activities & Rubrics</h3>
+              <p id="adminRubricTermNotice" class="helper-note">Existing rubrics without a term are automatically assigned to First Term.</p>
+            </div>
+            <span id="adminRubricCurrentTermPill" class="rubric-current-term-pill">Current Term</span>
+          </div>
+          <label class="rubric-view-term-label">
+            View Rubrics
+            <select id="adminRubricViewTermSelect">
+              <option value="current" selected>Current Term (Automatic)</option>
+              <option value="TERM_1">First Term History</option>
+              <option value="TERM_2">Second Term History</option>
+              <option value="TERM_3">Third Term History</option>
+            </select>
+          </label>
+        </div>
+
         <div class="admin-activity-manager">
           <label>
-            Saved Activities
+            Saved Activities / Rubrics
             <select id="adminActivitySelect" aria-label="Choose activity to edit"></select>
           </label>
           <div class="admin-activity-actions">
@@ -1984,13 +2004,21 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
             <button id="duplicateActivityBtn" class="ghost-btn" type="button">Duplicate</button>
             <button id="deleteActivityBtn" class="ghost-btn danger" type="button">Delete</button>
           </div>
-          <p class="helper-note">Students will see these saved activities in the activity selector. Each activity has its own instructions, rubric, and saved code.</p>
+          <p class="helper-note">The normal selector shows only the active academic term. First/Second/Third Term history remains available here without mixing old rubrics into the current term.</p>
         </div>
 
-        <div class="form-grid">
+        <div class="form-grid rubric-activity-meta-grid">
           <label>
             Activity Title
             <input id="adminActivityTitle" type="text" placeholder="Example: Activity 1 - Personal Webpage" />
+          </label>
+          <label>
+            Activity Term
+            <select id="adminActivityTermSelect">
+              <option value="TERM_1">First Term</option>
+              <option value="TERM_2">Second Term</option>
+              <option value="TERM_3">Third Term</option>
+            </select>
           </label>
           <label>
             Passing Score (%)
@@ -2376,6 +2404,6 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
   <script src="firebase-config.js"></script>
-  <script src="script.js?v=20260905-v295-teacher-tools"></script>
+  <script src="script.js?v=20260905-v296-term-rubrics"></script>
 </body>
 </html>
