@@ -107,6 +107,13 @@ const ADMIN_TAB_STORAGE_KEY = 'mcsian.admin.activeTab';
 const complianceScriptUrlInput = document.getElementById('complianceScriptUrlInput');
 const complianceSyncKeyInput = document.getElementById('complianceSyncKeyInput');
 const complianceTermSelect = document.getElementById('complianceTermSelect');
+const academicTermModeSelect = document.getElementById('academicTermModeSelect');
+const academicTermManualSelect = document.getElementById('academicTermManualSelect');
+const academicTerm1StartInput = document.getElementById('academicTerm1StartInput');
+const academicTerm2StartInput = document.getElementById('academicTerm2StartInput');
+const academicTerm3StartInput = document.getElementById('academicTerm3StartInput');
+const academicTermCurrentPill = document.getElementById('academicTermCurrentPill');
+const academicTermScheduleSummary = document.getElementById('academicTermScheduleSummary');
 const complianceSubjectInput = document.getElementById('complianceSubjectInput');
 const complianceSectionSelect = document.getElementById('complianceSectionSelect');
 const complianceSectionChecklist = document.getElementById('complianceSectionChecklist');
@@ -537,6 +544,7 @@ const STORAGE_KEYS = {
   fileNames: 'studentCodeStudio.fileNames.v1',
   assistanceSettings: 'studentCodeStudio.assistanceSettings.v1',
   complianceSettings: 'studentCodeStudio.complianceSettings.v1',
+  academicTermSettings: 'studentCodeStudio.academicTermSettings.v1',
   lessonLibrary: 'studentCodeStudio.lessonLibrary.v1',
   lessonProgress: 'studentCodeStudio.lessonReadingProgress.v1',
   aiRubricSettings: 'studentCodeStudio.aiRubricSettings.v1',
@@ -644,7 +652,7 @@ const DEFAULT_LOGIN_REMINDER_SETTINGS = Object.freeze({
   theme: 'classic',
   animation: 'subtle',
   positiveMessage: 'Great! You have no lacking requirements. Keep up the good work and continue maintaining your performance.',
-  warningMessage: 'The First Term is nearing its end. Please complete the following missing requirements as soon as possible to avoid delays in your subject completion.'
+  warningMessage: 'The {term} is nearing its end. Please complete the following missing requirements as soon as possible to avoid delays in your subject completion.'
 });
 
 function normalizeLoginReminderSettings(value = {}) {
@@ -775,6 +783,18 @@ function complianceTermFriendlyLabel(term = '') {
   return String(term || '').trim();
 }
 
+function formatLoginReminderTermMessage(message = '', term = '') {
+  const friendly = complianceTermFriendlyLabel(term) || 'current term';
+  let text = String(message || '').trim();
+  if (!text) return text;
+  if (/\{term\}/i.test(text)) return text.replace(/\{term\}/gi, friendly);
+  // Backward compatibility for the old hard-coded default already saved in Firebase.
+  if (/^The (First|Second|Third) Term is nearing its end\./i.test(text)) {
+    return text.replace(/^The (First|Second|Third) Term is nearing its end\./i, `The ${friendly} is nearing its end.`);
+  }
+  return text;
+}
+
 function stopLoginReminderMusic() {
   if (!loginReminderAudio) return;
   try {
@@ -893,7 +913,7 @@ function buildLoginReminderPreviewRecord(hasLackings = false) {
     studentId: student.studentId || '00-0000',
     section: student.section || 'Sample Section',
     subject: 'ICT',
-    term: 'TERM_1',
+    term: currentAcademicTerm(),
     updatedAtMs: Date.now(),
     tasks,
     summary: summarizeComplianceTasks(tasks)
@@ -904,10 +924,18 @@ function renderLoginLackingReminder(record = null, options = {}) {
   if (!loginLackingReminderOverlay) return false;
   const settings = normalizeLoginReminderSettings(options.settings || loginReminderSettings);
   const student = appSession.student || {};
-  const sanitized = record ? sanitizeComplianceStudentRecord(record, { section: student.section || '' }) : null;
+  const rawSanitized = record ? sanitizeComplianceStudentRecord(record, { section: student.section || '' }) : null;
+  const termInfo = resolveAcademicTermInfo(academicTermSettings);
+  const activeTerm = termInfo.term;
+  const isPreview = options.preview === true;
+  const recordMatchesActiveTerm = !rawSanitized || isPreview || !rawSanitized.term || rawSanitized.term === activeTerm;
+  const stalePublishedTerm = rawSanitized && !recordMatchesActiveTerm ? rawSanitized.term : '';
+  const sanitized = recordMatchesActiveTerm ? rawSanitized : null;
   const missingTasks = sanitized?.tasks?.filter(task => normalizeComplianceStatus(task.status) !== 'complete') || [];
   const missingCount = sanitized ? Number(sanitized.summary?.missing ?? missingTasks.length) : 0;
-  const state = options.state || (sanitized ? (missingCount > 0 ? 'missing' : 'complete') : 'unavailable');
+  const state = stalePublishedTerm && !isPreview
+    ? 'unavailable'
+    : (options.state || (sanitized ? (missingCount > 0 ? 'missing' : 'complete') : 'unavailable'));
 
   loginLackingReminderOverlay.dataset.state = state;
   loginLackingReminderOverlay.dataset.theme = settings.theme;
@@ -919,7 +947,7 @@ function renderLoginLackingReminder(record = null, options = {}) {
   if (loginLackingReminderMeta) {
     const chips = [];
     const subject = sanitized?.subject || 'ICT';
-    const term = complianceTermFriendlyLabel(sanitized?.term || '');
+    const term = complianceTermFriendlyLabel(isPreview ? (sanitized?.term || activeTerm) : activeTerm);
     if (subject) chips.push(`<span>${escapeHTML(subject)}</span>`);
     if (term) chips.push(`<span>${escapeHTML(term)}</span>`);
     if (state === 'missing') chips.push(`<span class="warning">${missingCount} missing</span>`);
@@ -932,7 +960,7 @@ function renderLoginLackingReminder(record = null, options = {}) {
     if (loginLackingReminderIcon) loginLackingReminderIcon.textContent = '⚠️';
     if (loginLackingReminderEyebrow) loginLackingReminderEyebrow.textContent = options.preview ? 'Preview · With Lackings' : 'Action Needed';
     if (loginLackingReminderTitle) loginLackingReminderTitle.textContent = 'You Have Lacking Requirements';
-    if (loginLackingReminderMessage) loginLackingReminderMessage.textContent = settings.warningMessage;
+    if (loginLackingReminderMessage) loginLackingReminderMessage.textContent = formatLoginReminderTermMessage(settings.warningMessage, isPreview ? (sanitized?.term || activeTerm) : activeTerm);
     if (loginLackingReminderList) {
       if (missingTasks.length) {
         // V291: render the complete missing-requirements list. The list area itself
@@ -950,11 +978,21 @@ function renderLoginLackingReminder(record = null, options = {}) {
     if (loginLackingReminderMessage) loginLackingReminderMessage.textContent = settings.positiveMessage;
     if (loginLackingReminderList) loginLackingReminderList.innerHTML = '<div class="login-lacking-reminder-empty success">No missing requirements are listed in your latest published subject status.</div>';
   } else {
+    const activeLabel = complianceTermFriendlyLabel(activeTerm) || 'Current Term';
+    const staleLabel = complianceTermFriendlyLabel(stalePublishedTerm);
     if (loginLackingReminderIcon) loginLackingReminderIcon.textContent = '🕒';
     if (loginLackingReminderEyebrow) loginLackingReminderEyebrow.textContent = options.preview ? 'Preview · Waiting State' : 'Subject Status';
-    if (loginLackingReminderTitle) loginLackingReminderTitle.textContent = 'Status Update Not Available Yet';
-    if (loginLackingReminderMessage) loginLackingReminderMessage.textContent = 'Your latest subject status is not available yet. You may continue using the website normally and check Subject Status again after your teacher publishes an update.';
-    if (loginLackingReminderList) loginLackingReminderList.innerHTML = '<div class="login-lacking-reminder-empty neutral">No published compliance record was found for this login yet.</div>';
+    if (loginLackingReminderTitle) loginLackingReminderTitle.textContent = stalePublishedTerm ? `${activeLabel} Status Not Published Yet` : 'Status Update Not Available Yet';
+    if (loginLackingReminderMessage) {
+      loginLackingReminderMessage.textContent = stalePublishedTerm
+        ? `${activeLabel} is now active. Your previous ${staleLabel || 'term'} record will not be shown as the current status. Please wait for your teacher to publish the ${activeLabel} update.`
+        : `Your ${activeLabel} subject status is not available yet. You may continue using the website normally and check Subject Status again after your teacher publishes an update.`;
+    }
+    if (loginLackingReminderList) {
+      loginLackingReminderList.innerHTML = stalePublishedTerm
+        ? `<div class="login-lacking-reminder-empty neutral">Waiting for the ${escapeHTML(activeLabel)} compliance update.</div>`
+        : '<div class="login-lacking-reminder-empty neutral">No published compliance record was found for this login yet.</div>';
+    }
   }
 
   loginLackingReminderOverlay.classList.remove('hidden');
@@ -1015,6 +1053,9 @@ async function showLoginLackingReminderAfterLogin() {
     const rootDoc = await readCloudActivitiesDocument();
     if (rootDoc?.data?.loginReminderSettings) {
       persistLoginReminderSettings(rootDoc.data.loginReminderSettings);
+    }
+    if (rootDoc?.data?.academicTermSettings) {
+      persistAcademicTermSettings(rootDoc.data.academicTermSettings);
     }
   } catch (error) {
     console.info('Using cached Login Reminder settings.', error);
@@ -1083,7 +1124,7 @@ let adminLatestAiReview = null;
 let adminAiRubricController = null;
 let aiRubricConnectionState = { status: 'untested', code: '', message: '' };
 
-const MCS_APP_BUILD = 'v293';
+const MCS_APP_BUILD = 'v294';
 window.MCS_APP_BUILD = MCS_APP_BUILD;
 console.info(`[MCSian Code Editor] ${MCS_APP_BUILD} loaded`);
 
@@ -3121,6 +3162,11 @@ async function loadActivitiesFromCloud() {
       loadedCloudSettings = true;
     }
 
+    if (data.academicTermSettings && typeof data.academicTermSettings === 'object') {
+      persistAcademicTermSettings(data.academicTermSettings);
+      loadedCloudSettings = true;
+    }
+
     if (data.studentSmartReviewSettings && typeof data.studentSmartReviewSettings === 'object') {
       applyStudentSafeAiRubricSettings(data.studentSmartReviewSettings);
       loadedCloudSettings = true;
@@ -3171,7 +3217,8 @@ async function saveActivitiesToCloud() {
       updatedAt: serverTimestamp(),
       activities: activities.map(item => normalizeActivity(item)),
       studentAssistanceSettings: normalizeAssistanceSettings(studentAssistanceSettings),
-      loginReminderSettings: normalizeLoginReminderSettings(loginReminderSettings)
+      loginReminderSettings: normalizeLoginReminderSettings(loginReminderSettings),
+      academicTermSettings: normalizeAcademicTermSettings(academicTermSettings)
     }, { merge: true });
     clearSelectiveFirestoreCache('rootDocument:');
     setStatus('Saved to Firebase');
@@ -6124,6 +6171,191 @@ const COMPLIANCE_TASK_GROUPS = Object.freeze([
 
 const COMPLIANCE_TERMS = Object.freeze(['TERM_1', 'TERM_2', 'TERM_3']);
 
+
+const ACADEMIC_TERM_MODES = Object.freeze(['automatic', 'manual']);
+const DEFAULT_ACADEMIC_TERM_SETTINGS = Object.freeze({
+  mode: 'automatic',
+  term1Start: '06-01',
+  term2Start: '09-09',
+  term3Start: '01-04',
+  manualTerm: 'TERM_1'
+});
+
+function normalizeAcademicTermStart(value = '', fallback = '06-01') {
+  const raw = String(value || '').trim();
+  const match = raw.match(/^(\d{1,2})-(\d{1,2})$/);
+  if (!match) return fallback;
+  const month = Number(match[1]);
+  const day = Number(match[2]);
+  const test = new Date(2000, month - 1, day);
+  if (month < 1 || month > 12 || day < 1 || day > 31 || test.getMonth() !== month - 1 || test.getDate() !== day) return fallback;
+  return `${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
+function normalizeAcademicTermSettings(source = {}) {
+  const value = source && typeof source === 'object' ? source : {};
+  const safe = {
+    mode: ACADEMIC_TERM_MODES.includes(String(value.mode || '').trim()) ? String(value.mode).trim() : DEFAULT_ACADEMIC_TERM_SETTINGS.mode,
+    term1Start: normalizeAcademicTermStart(value.term1Start, DEFAULT_ACADEMIC_TERM_SETTINGS.term1Start),
+    term2Start: normalizeAcademicTermStart(value.term2Start, DEFAULT_ACADEMIC_TERM_SETTINGS.term2Start),
+    term3Start: normalizeAcademicTermStart(value.term3Start, DEFAULT_ACADEMIC_TERM_SETTINGS.term3Start),
+    manualTerm: COMPLIANCE_TERMS.includes(String(value.manualTerm || '').trim()) ? String(value.manualTerm).trim() : DEFAULT_ACADEMIC_TERM_SETTINGS.manualTerm
+  };
+  const uniqueStarts = new Set([safe.term1Start, safe.term2Start, safe.term3Start]);
+  if (uniqueStarts.size !== 3) {
+    safe.term1Start = DEFAULT_ACADEMIC_TERM_SETTINGS.term1Start;
+    safe.term2Start = DEFAULT_ACADEMIC_TERM_SETTINGS.term2Start;
+    safe.term3Start = DEFAULT_ACADEMIC_TERM_SETTINGS.term3Start;
+  }
+  return safe;
+}
+
+let academicTermSettings = normalizeAcademicTermSettings(
+  loadJSON(STORAGE_KEYS.academicTermSettings, DEFAULT_ACADEMIC_TERM_SETTINGS)
+);
+
+function persistAcademicTermSettings(settings = academicTermSettings) {
+  academicTermSettings = normalizeAcademicTermSettings(settings);
+  saveJSON(STORAGE_KEYS.academicTermSettings, academicTermSettings);
+  syncAcademicTermSettingsControls();
+  return academicTermSettings;
+}
+
+function academicTermStartDate(monthDay = '06-01', year = new Date().getFullYear()) {
+  const safe = normalizeAcademicTermStart(monthDay, '06-01');
+  const [month, day] = safe.split('-').map(Number);
+  return new Date(year, month - 1, day, 0, 0, 0, 0);
+}
+
+function formatAcademicTermStart(monthDay = '') {
+  const safe = normalizeAcademicTermStart(monthDay, '06-01');
+  const [month, day] = safe.split('-').map(Number);
+  return new Intl.DateTimeFormat('en-PH', { month: 'short', day: 'numeric' }).format(new Date(2000, month - 1, day));
+}
+
+function resolveAcademicTermInfo(settings = academicTermSettings, date = new Date()) {
+  const safe = normalizeAcademicTermSettings(settings);
+  if (safe.mode === 'manual') {
+    return {
+      term: safe.manualTerm,
+      label: complianceTermFriendlyLabel(safe.manualTerm),
+      mode: 'manual',
+      nextTerm: '',
+      nextStart: null
+    };
+  }
+
+  const now = date instanceof Date && !Number.isNaN(date.getTime()) ? new Date(date.getTime()) : new Date();
+  const starts = [
+    ['TERM_1', safe.term1Start],
+    ['TERM_2', safe.term2Start],
+    ['TERM_3', safe.term3Start]
+  ];
+  const candidates = [];
+  for (const [term, start] of starts) {
+    for (const year of [now.getFullYear() - 1, now.getFullYear(), now.getFullYear() + 1]) {
+      candidates.push({ term, start, date: academicTermStartDate(start, year) });
+    }
+  }
+  const active = candidates
+    .filter(item => item.date.getTime() <= now.getTime())
+    .sort((a, b) => b.date.getTime() - a.date.getTime())[0] || { term: 'TERM_1', start: safe.term1Start, date: now };
+  const next = candidates
+    .filter(item => item.date.getTime() > now.getTime())
+    .sort((a, b) => a.date.getTime() - b.date.getTime())[0] || null;
+  return {
+    term: active.term,
+    label: complianceTermFriendlyLabel(active.term),
+    mode: 'automatic',
+    start: active.start,
+    startDate: active.date,
+    nextTerm: next?.term || '',
+    nextStart: next?.date || null,
+    nextStartMonthDay: next?.start || ''
+  };
+}
+
+function currentAcademicTerm() {
+  return resolveAcademicTermInfo(academicTermSettings).term;
+}
+
+function getAcademicTermSettingsFromControls() {
+  return normalizeAcademicTermSettings({
+    mode: academicTermModeSelect?.value || academicTermSettings.mode,
+    manualTerm: academicTermManualSelect?.value || academicTermSettings.manualTerm,
+    term1Start: academicTerm1StartInput?.value || academicTermSettings.term1Start,
+    term2Start: academicTerm2StartInput?.value || academicTermSettings.term2Start,
+    term3Start: academicTerm3StartInput?.value || academicTermSettings.term3Start
+  });
+}
+
+function syncAcademicTermSettingsControls() {
+  const safe = normalizeAcademicTermSettings(academicTermSettings);
+  const info = resolveAcademicTermInfo(safe);
+  if (academicTermModeSelect) academicTermModeSelect.value = safe.mode;
+  if (academicTermManualSelect) {
+    academicTermManualSelect.value = safe.manualTerm;
+    academicTermManualSelect.disabled = safe.mode !== 'manual';
+  }
+  if (academicTerm1StartInput) academicTerm1StartInput.value = safe.term1Start;
+  if (academicTerm2StartInput) academicTerm2StartInput.value = safe.term2Start;
+  if (academicTerm3StartInput) academicTerm3StartInput.value = safe.term3Start;
+  if (complianceTermSelect) {
+    complianceTermSelect.value = info.term;
+    // Display-only mirror. The actual control is Term Mode + Manual Term above.
+    complianceTermSelect.disabled = true;
+    complianceTermSelect.title = safe.mode === 'automatic'
+      ? `Automatic mode is active. Current sheet: ${info.term}.`
+      : `Manual Override is active. Current sheet: ${info.term}.`;
+  }
+  if (academicTermCurrentPill) {
+    academicTermCurrentPill.textContent = safe.mode === 'automatic'
+      ? `${info.label.toUpperCase()} NOW`
+      : `MANUAL · ${info.label.toUpperCase()}`;
+    academicTermCurrentPill.dataset.mode = safe.mode;
+  }
+  if (academicTermScheduleSummary) {
+    if (safe.mode === 'manual') {
+      academicTermScheduleSummary.textContent = `Manual Override is active: ${info.label}. Automatic dates are saved and will be used again when you switch back to Automatic.`;
+    } else {
+      const nextLabel = complianceTermFriendlyLabel(info.nextTerm);
+      const nextDate = info.nextStartMonthDay ? formatAcademicTermStart(info.nextStartMonthDay) : '';
+      academicTermScheduleSummary.textContent = `${info.label} is active now.${nextLabel && nextDate ? ` ${nextLabel} starts automatically on ${nextDate}.` : ''} These month/day dates repeat every school year.`;
+    }
+  }
+  return safe;
+}
+
+async function loadAcademicTermSettingsFromCloud(options = {}) {
+  const ready = await initFirebaseSync();
+  if (!ready) return academicTermSettings;
+  try {
+    const rootDoc = await readCloudActivitiesDocument(options);
+    if (rootDoc?.data?.academicTermSettings && typeof rootDoc.data.academicTermSettings === 'object') {
+      return persistAcademicTermSettings(rootDoc.data.academicTermSettings);
+    }
+  } catch (error) {
+    if (!options.silent) console.warn('Could not load Academic Term Schedule.', error);
+  }
+  syncAcademicTermSettingsControls();
+  return academicTermSettings;
+}
+
+async function saveAcademicTermSettingsToCloud(settings = academicTermSettings) {
+  const safe = persistAcademicTermSettings(settings);
+  if (!isTeacherAuthenticated()) throw new Error('Teacher login is required to save the Academic Term Schedule.');
+  const ready = await initFirebaseSync();
+  if (!ready) throw new Error(firebaseSync.lastError || 'Firebase is not ready.');
+  const { setDoc, serverTimestamp } = firebaseSync.modules;
+  await setDoc(getCloudActivitiesDocRef(), {
+    academicTermSettings: safe,
+    academicTermUpdatedAt: serverTimestamp(),
+    academicTermUpdatedBy: firebaseSync.auth?.currentUser?.email || firebaseSync.currentUser?.email || 'teacher'
+  }, { merge: true });
+  clearSelectiveFirestoreCache('rootDocument:');
+  return safe;
+}
+
 const DEFAULT_COMPLIANCE_SETTINGS = Object.freeze({
   scriptUrl: '',
   syncKey: '052400',
@@ -6275,6 +6507,7 @@ async function loadComplianceSettingsFromCloud(options = {}) {
   }
   const data = cloudSettings.data;
   const settings = saveComplianceSettings(getComplianceCloudSettingsSource(data));
+  await loadAcademicTermSettingsFromCloud({ silent: true }).catch(() => academicTermSettings);
   syncComplianceSettingsControls();
   if (!options.silent) setComplianceSyncStatus('Compliance settings loaded from Firebase. These links and task names are now available on this device.', 'success');
   return settings;
@@ -6392,8 +6625,9 @@ function syncComplianceSettingsControls() {
   const settings = loadComplianceSettings();
   if (complianceScriptUrlInput) complianceScriptUrlInput.value = settings.scriptUrl;
   if (complianceSyncKeyInput) complianceSyncKeyInput.value = settings.syncKey;
-  if (complianceTermSelect) complianceTermSelect.value = settings.term;
   if (complianceSubjectInput) complianceSubjectInput.value = settings.subject;
+  syncAcademicTermSettingsControls();
+  settings.term = currentAcademicTerm();
   renderComplianceSectionSettings(settings);
   renderComplianceSectionSyncSelect(settings);
   renderComplianceTaskLabels(settings);
@@ -6456,7 +6690,7 @@ function getComplianceSettingsFromControls() {
     ...current,
     scriptUrl: complianceScriptUrlInput?.value,
     syncKey: complianceSyncKeyInput?.value,
-    term: complianceTermSelect?.value,
+    term: currentAcademicTerm(),
     subject: complianceSubjectInput?.value,
     selectedSectionCode: selectedSectionCodes[0] || current.selectedSectionCode,
     selectedSectionCodes,
@@ -6607,19 +6841,32 @@ function renderStudentComplianceRecord(record = null, options = {}) {
   updateStudentComplianceTitle(record);
 
   if (!record) {
-    if (studentComplianceMeta) studentComplianceMeta.textContent = options.message || 'No published subject status yet.';
+    const activeLabel = complianceTermFriendlyLabel(currentAcademicTerm()) || 'Current Term';
+    if (studentComplianceMeta) studentComplianceMeta.textContent = options.message || `${activeLabel} · No published subject status yet.`;
     if (studentComplianceSummary) studentComplianceSummary.innerHTML = '<span class="compliance-empty-pill">Waiting for teacher update</span>';
-    if (studentComplianceList) studentComplianceList.innerHTML = '<div class="student-compliance-empty">Your Google Sheets status will appear here after your teacher publishes it.</div>';
-    if (studentComplianceLackingList) studentComplianceLackingList.innerHTML = '<div class="student-compliance-lacking-card"><strong>Lacking List</strong><p>No status published yet.</p></div>';
+    if (studentComplianceList) studentComplianceList.innerHTML = `<div class="student-compliance-empty">${escapeHTML(activeLabel)} is active. Your Google Sheets status will appear here after your teacher publishes the current-term update.</div>`;
+    if (studentComplianceLackingList) studentComplianceLackingList.innerHTML = `<div class="student-compliance-lacking-card"><strong>${escapeHTML(activeLabel)} Lacking List</strong><p>No ${escapeHTML(activeLabel)} status published yet.</p></div>`;
     return;
   }
 
   const sanitized = sanitizeComplianceStudentRecord(record);
+  const termInfo = resolveAcademicTermInfo(academicTermSettings);
+  const activeTerm = termInfo.term;
+  const activeLabel = complianceTermFriendlyLabel(activeTerm);
+  if (sanitized.term && activeTerm && sanitized.term !== activeTerm) {
+    const previousLabel = complianceTermFriendlyLabel(sanitized.term) || sanitized.term;
+    const previousUpdated = sanitized.updatedAtText || formatStudentDate(sanitized.updatedAtMs, 'recently');
+    if (studentComplianceMeta) studentComplianceMeta.textContent = `${activeLabel} is active · Waiting for teacher publish`;
+    if (studentComplianceSummary) studentComplianceSummary.innerHTML = '<span class="compliance-empty-pill">Waiting for current-term update</span>';
+    if (studentComplianceList) studentComplianceList.innerHTML = `<div class="student-compliance-empty">${escapeHTML(activeLabel)} is now active. Your previous ${escapeHTML(previousLabel)} record is kept as an older update and is not shown as your current status. Ask your teacher to publish the ${escapeHTML(activeLabel)} compliance status.</div>`;
+    if (studentComplianceLackingList) studentComplianceLackingList.innerHTML = `<div class="student-compliance-lacking-card"><strong>${escapeHTML(activeLabel)} Lacking List</strong><p>No ${escapeHTML(activeLabel)} status has been published yet.</p><small>Previous published term: ${escapeHTML(previousLabel)} · Updated ${escapeHTML(previousUpdated)}</small></div>`;
+    return;
+  }
   const summary = sanitized.summary || summarizeComplianceTasks(sanitized.tasks);
   const updatedText = sanitized.updatedAtText || formatStudentDate(sanitized.updatedAtMs, 'recently');
   if (studentComplianceMeta) {
     const subjectPart = sanitized.subject ? `${sanitized.subject} · ` : '';
-    const termPart = sanitized.term ? `${sanitized.term} · ` : '';
+    const termPart = sanitized.term ? `${complianceTermFriendlyLabel(sanitized.term)} · ` : '';
     studentComplianceMeta.textContent = `${subjectPart}${termPart}Updated ${updatedText}`;
   }
   if (studentComplianceSummary) {
@@ -6885,6 +7132,7 @@ async function loadStudentComplianceStatus(options = {}) {
     renderStudentComplianceRecord(null, { message: 'Could not connect to subject status. Please reconnect and refresh.' });
     return null;
   }
+  await loadAcademicTermSettingsFromCloud({ silent: true, force: options.force === true }).catch(() => academicTermSettings);
   try {
     const { getDoc } = firebaseSync.modules;
     const complianceDoc = await withSelectiveFirestoreCache(`subjectCompliance:${studentId}`, SELECTIVE_CACHE_SHORT_MS, async () => {
@@ -22131,6 +22379,7 @@ closeLoginLackingReminderBtn?.addEventListener('click', closeLoginLackingReminde
 continueFromLoginLackingReminderBtn?.addEventListener('click', closeLoginLackingReminder);
 playLoginLackingReminderMusicBtn?.addEventListener('click', playLoginReminderMusicManually);
 syncLoginReminderSettingsControls();
+syncAcademicTermSettingsControls();
 loginLackingReminderOverlay?.addEventListener('click', event => {
   if (event.target === loginLackingReminderOverlay) return;
 });
@@ -22145,6 +22394,47 @@ testAiRubricSettingsBtn?.addEventListener('click', testAiRubricConnection);
   control?.addEventListener('change', () => saveAiRubricSettingsLocal(getAiRubricSettingsFromControls()));
   control?.addEventListener('input', () => saveAiRubricSettingsLocal(getAiRubricSettingsFromControls()));
 });
+const academicTermControls = [
+  academicTermModeSelect,
+  academicTermManualSelect,
+  academicTerm1StartInput,
+  academicTerm2StartInput,
+  academicTerm3StartInput
+];
+academicTermControls.forEach(control => {
+  control?.addEventListener('change', () => {
+    const previous = academicTermSettings;
+    const next = getAcademicTermSettingsFromControls();
+    if (control === academicTermModeSelect && next.mode === 'manual' && previous.mode === 'automatic') {
+      next.manualTerm = resolveAcademicTermInfo(previous).term;
+    }
+    const rawStarts = [
+      academicTerm1StartInput?.value || '',
+      academicTerm2StartInput?.value || '',
+      academicTerm3StartInput?.value || ''
+    ];
+    const normalizedStarts = rawStarts.map(value => normalizeAcademicTermStart(value, ''));
+    const unique = new Set(normalizedStarts.filter(Boolean));
+    if (normalizedStarts.some(value => !value) || unique.size < 3) {
+      setComplianceSyncStatus('Use valid MM-DD dates and give each term a different start date. The previous valid schedule was kept.', 'warning');
+      persistAcademicTermSettings(previous);
+      return;
+    }
+    persistAcademicTermSettings(next);
+    const compliance = loadComplianceSettings();
+    compliance.term = currentAcademicTerm();
+    saveComplianceSettings(compliance);
+    renderComplianceTaskLabels(compliance);
+    const info = resolveAcademicTermInfo(academicTermSettings);
+    setComplianceSyncStatus(
+      academicTermSettings.mode === 'automatic'
+        ? `Automatic Term is active: ${info.label}. Changes are local until you click Save Settings to Firebase.`
+        : `Manual Override is active: ${info.label}. Changes are local until you click Save Settings to Firebase.`,
+      'success'
+    );
+  });
+});
+
 complianceTermSelect?.addEventListener('change', () => {
   const settings = saveComplianceSettings(getComplianceSettingsFromControls());
   renderComplianceTaskLabels(settings);
@@ -22198,13 +22488,18 @@ complianceClearSelectedSectionsBtn?.addEventListener('click', () => {
   updateComplianceSectionSelectionStatus();
 });
 saveComplianceSettingsBtn?.addEventListener('click', async () => {
+  const termSchedule = persistAcademicTermSettings(getAcademicTermSettingsFromControls());
   const settings = saveComplianceSettings(getComplianceSettingsFromControls());
+  settings.term = resolveAcademicTermInfo(termSchedule).term;
+  saveComplianceSettings(settings);
   renderComplianceSectionSyncSelect(settings);
   if (saveComplianceSettingsBtn) saveComplianceSettingsBtn.disabled = true;
   setComplianceSyncStatus('Saving Compliance settings to Firebase...', '');
   try {
     await saveComplianceSettingsToCloud(settings);
-    setComplianceSyncStatus('Google Sheets links, checked section(s), and task names saved to Firebase. You can use another device after logging in as teacher.', 'success');
+    await saveAcademicTermSettingsToCloud(termSchedule);
+    const info = resolveAcademicTermInfo(termSchedule);
+    setComplianceSyncStatus(`Compliance settings and Academic Term Schedule saved to Firebase. ${info.label} is currently active.`, 'success');
   } catch (error) {
     console.warn('Could not save Compliance settings to Firebase.', error);
     const message = /permission|insufficient/i.test(error?.message || '')

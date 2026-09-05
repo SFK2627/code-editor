@@ -45,7 +45,7 @@
   </script>
   <link rel="preconnect" href="https://drive.google.com" crossorigin>
   <link rel="preconnect" href="https://lh3.googleusercontent.com" crossorigin>
-  <link rel="stylesheet" href="style.css?v=20260905-v293-design-styles" />
+  <link rel="stylesheet" href="style.css?v=20260905-v294-1-dark-term-fix" />
   <style>
     .ai-rubric-settings-card,
     .admin-project-ai-review-card {
@@ -1282,7 +1282,7 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
 
             <label class="login-reminder-field login-reminder-field-wide">
               <span>Warning Message — With Lackings</span>
-              <textarea id="loginReminderWarningMessageInput" rows="4">The First Term is nearing its end. Please complete the following missing requirements as soon as possible to avoid delays in your subject completion.</textarea>
+              <textarea id="loginReminderWarningMessageInput" rows="4">The {term} is nearing its end. Please complete the following missing requirements as soon as possible to avoid delays in your subject completion.</textarea>
             </label>
           </div>
 
@@ -1545,14 +1545,63 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
             <p class="helper-note">These are saved in Firebase for the teacher account. Students cannot view this setup.</p>
           </details>
 
+
+          <div class="academic-term-schedule-card" aria-labelledby="academicTermScheduleTitle">
+            <div class="academic-term-schedule-head">
+              <div>
+                <p class="section-kicker">Automatic Academic Term</p>
+                <h4 id="academicTermScheduleTitle">Term Schedule</h4>
+                <p class="muted-text">The Lacking Requirements popup, Subject Status, and Google Sheets sync automatically use the active term. Dates repeat every school year.</p>
+              </div>
+              <span id="academicTermCurrentPill" class="academic-term-current-pill">FIRST TERM NOW</span>
+            </div>
+            <div class="academic-term-mode-grid">
+              <label>
+                Term Mode
+                <select id="academicTermModeSelect">
+                  <option value="automatic">Automatic based on dates</option>
+                  <option value="manual">Manual Override</option>
+                </select>
+              </label>
+              <label>
+                Manual Term
+                <select id="academicTermManualSelect">
+                  <option value="TERM_1">TERM_1 · First Term</option>
+                  <option value="TERM_2">TERM_2 · Second Term</option>
+                  <option value="TERM_3">TERM_3 · Third Term</option>
+                </select>
+              </label>
+            </div>
+            <div class="academic-term-date-grid">
+              <label>
+                First Term starts
+                <input id="academicTerm1StartInput" type="text" inputmode="numeric" maxlength="5" pattern="[0-9]{2}-[0-9]{2}" value="06-01" placeholder="MM-DD" autocomplete="off" />
+                <small>MM-DD · Default: June 1</small>
+              </label>
+              <label>
+                Second Term starts
+                <input id="academicTerm2StartInput" type="text" inputmode="numeric" maxlength="5" pattern="[0-9]{2}-[0-9]{2}" value="09-09" placeholder="MM-DD" autocomplete="off" />
+                <small>MM-DD · Default: September 9</small>
+              </label>
+              <label>
+                Third Term starts
+                <input id="academicTerm3StartInput" type="text" inputmode="numeric" maxlength="5" pattern="[0-9]{2}-[0-9]{2}" value="01-04" placeholder="MM-DD" autocomplete="off" />
+                <small>MM-DD · Editable if the school calendar changes</small>
+              </label>
+            </div>
+            <p id="academicTermScheduleSummary" class="helper-note academic-term-schedule-summary">Loading current term…</p>
+            <p class="helper-note"><strong>Important:</strong> Automatic switching changes the active term immediately on the set date. If the teacher has not published the new term yet, students will see “waiting for current-term update” instead of old-term lackings.</p>
+          </div>
+
           <div class="compliance-admin-grid">
             <label>
-              Term Sheet
+              Active Term Sheet
               <select id="complianceTermSelect">
                 <option value="TERM_1">TERM_1</option>
                 <option value="TERM_2">TERM_2</option>
                 <option value="TERM_3">TERM_3</option>
               </select>
+              <small>Automatic mode locks this to the current term. Use Manual Override above only when needed.</small>
             </label>
             <label>
               Subject Label
@@ -2147,6 +2196,6 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
   <script src="firebase-config.js"></script>
-  <script src="script.js?v=20260905-v293-design-styles"></script>
+  <script src="script.js?v=20260905-v294-auto-term"></script>
 </body>
 </html>
