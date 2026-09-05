@@ -314,6 +314,7 @@ const givenActivityViewerInstructionsBtn = document.getElementById('givenActivit
 const givenActivityViewerInstructions = document.getElementById('givenActivityViewerInstructions');
 const givenActivityViewerInstructionsCloseBtn = document.getElementById('givenActivityViewerInstructionsCloseBtn');
 const givenActivityViewerOpenBtn = document.getElementById('givenActivityViewerOpenBtn');
+const givenActivityViewerDownloadBtn = document.getElementById('givenActivityViewerDownloadBtn');
 const givenActivityViewerCloseBtn = document.getElementById('givenActivityViewerCloseBtn');
 const givenActivityViewerBody = document.getElementById('givenActivityViewerBody');
 const lessonViewerScreen = document.getElementById('lessonViewerScreen');
@@ -18710,6 +18711,103 @@ function closeGivenActivitiesLibrary() {
   }
 }
 
+
+function updateGivenActivityViewerDownloadAction(attachment = null) {
+  if (!givenActivityViewerDownloadBtn) return;
+  const showPdfDownload = attachment?.materialType === 'pdf' && Boolean(attachment.downloadUrl);
+  givenActivityViewerDownloadBtn.classList.toggle('hidden', !showPdfDownload);
+  givenActivityViewerDownloadBtn.href = showPdfDownload ? attachment.downloadUrl : '#';
+  givenActivityViewerDownloadBtn.download = showPdfDownload ? String(attachment.fileName || 'activity.pdf') : '';
+  givenActivityViewerDownloadBtn.setAttribute('aria-label', showPdfDownload
+    ? `Download ${attachment.fileName || 'PDF attachment'}`
+    : 'Download PDF attachment');
+}
+
+function getGivenActivityImageZoomParts() {
+  if (!givenActivityViewerBody) return {};
+  const image = givenActivityViewerBody.querySelector('[data-given-activity-image]');
+  const scroll = givenActivityViewerBody.querySelector('[data-given-image-scroll]');
+  const label = givenActivityViewerBody.querySelector('[data-given-image-zoom-value]');
+  const canvas = givenActivityViewerBody.querySelector('[data-given-image-canvas]');
+  return { image, scroll, label, canvas };
+}
+
+function applyGivenActivityImageZoom(nextZoom = 1, options = {}) {
+  const { image, scroll, label } = getGivenActivityImageZoomParts();
+  if (!image || !scroll || !image.naturalWidth || !image.naturalHeight) return;
+
+  const minZoom = 0.5;
+  const maxZoom = 4;
+  const zoom = Math.max(minZoom, Math.min(maxZoom, Number(nextZoom || 1)));
+  const fitScale = Math.max(0.01, Number(image.dataset.givenFitScale || 1));
+  const previousMaxX = Math.max(0, scroll.scrollWidth - scroll.clientWidth);
+  const previousMaxY = Math.max(0, scroll.scrollHeight - scroll.clientHeight);
+  const ratioX = previousMaxX > 0 ? scroll.scrollLeft / previousMaxX : 0.5;
+  const ratioY = previousMaxY > 0 ? scroll.scrollTop / previousMaxY : 0.5;
+
+  image.dataset.givenZoom = String(zoom);
+  image.style.width = `${Math.max(1, image.naturalWidth * fitScale * zoom)}px`;
+  image.style.height = `${Math.max(1, image.naturalHeight * fitScale * zoom)}px`;
+  image.style.maxWidth = 'none';
+  image.style.maxHeight = 'none';
+  scroll.classList.toggle('is-zoomed', zoom > 1.001);
+
+  if (label) label.textContent = Math.abs(zoom - 1) < 0.001 ? 'Fit' : `${Math.round(zoom * 100)}%`;
+  givenActivityViewerBody.querySelectorAll('[data-given-image-zoom="out"]').forEach(button => { button.disabled = zoom <= minZoom + 0.001; });
+  givenActivityViewerBody.querySelectorAll('[data-given-image-zoom="in"]').forEach(button => { button.disabled = zoom >= maxZoom - 0.001; });
+
+  requestAnimationFrame(() => {
+    if (Math.abs(zoom - 1) < 0.001 || options.resetPosition) {
+      scroll.scrollLeft = 0;
+      scroll.scrollTop = 0;
+      return;
+    }
+    const nextMaxX = Math.max(0, scroll.scrollWidth - scroll.clientWidth);
+    const nextMaxY = Math.max(0, scroll.scrollHeight - scroll.clientHeight);
+    scroll.scrollLeft = nextMaxX * ratioX;
+    scroll.scrollTop = nextMaxY * ratioY;
+  });
+}
+
+function fitGivenActivityImageToViewer(options = {}) {
+  const { image, scroll } = getGivenActivityImageZoomParts();
+  if (!image || !scroll || !image.naturalWidth || !image.naturalHeight) return;
+  const horizontalPadding = 24;
+  const verticalPadding = 24;
+  const availableWidth = Math.max(1, scroll.clientWidth - horizontalPadding);
+  const availableHeight = Math.max(1, scroll.clientHeight - verticalPadding);
+  const fitScale = Math.min(
+    availableWidth / image.naturalWidth,
+    availableHeight / image.naturalHeight,
+    1
+  );
+  image.dataset.givenFitScale = String(Math.max(0.01, fitScale));
+  applyGivenActivityImageZoom(Number(image.dataset.givenZoom || 1), { resetPosition: Boolean(options.resetPosition) });
+}
+
+function initializeGivenActivityImageZoom(image) {
+  if (!image) return;
+  const setup = () => {
+    image.dataset.givenZoom = '1';
+    fitGivenActivityImageToViewer({ resetPosition: true });
+  };
+  if (image.complete && image.naturalWidth) setup();
+  else image.addEventListener('load', setup, { once: true });
+}
+
+function changeGivenActivityImageZoom(action = 'fit') {
+  const { image } = getGivenActivityImageZoomParts();
+  if (!image || !image.naturalWidth) return;
+  const current = Number(image.dataset.givenZoom || 1);
+  if (action === 'fit') {
+    image.dataset.givenZoom = '1';
+    fitGivenActivityImageToViewer({ resetPosition: true });
+    return;
+  }
+  const step = 0.25;
+  applyGivenActivityImageZoom(action === 'in' ? current + step : current - step);
+}
+
 function renderGivenActivityViewerAttachment() {
   if (!givenActivityViewerBody) return;
   const item = givenActivityState.items.find(entry => entry.id === givenActivityState.viewerActivityId && entry.published);
@@ -18717,6 +18815,7 @@ function renderGivenActivityViewerAttachment() {
   const attachments = getGivenActivityAttachments(item);
   if (!attachments.length) {
     if (givenActivityViewerOpenBtn) givenActivityViewerOpenBtn.classList.add('hidden');
+    updateGivenActivityViewerDownloadAction(null);
     givenActivityViewerBody.innerHTML = `<div class="given-activity-text-card"><span aria-hidden="true">📝</span><h3>Activity Instructions</h3><p>${escapeHTML(item.description || 'No additional instructions were provided.').replace(/\n/g, '<br>')}</p></div>`;
     return;
   }
@@ -18733,13 +18832,26 @@ function renderGivenActivityViewerAttachment() {
         ? '↗ Image'
         : '↗ PDF';
   }
+  updateGivenActivityViewerDownloadAction(attachment);
   let stage = '';
   if (attachment.materialType === 'pdf' && attachment.previewUrl) {
     stage = `<iframe class="given-activity-pdf-frame" src="${escapeAttribute(attachment.previewUrl)}" title="${escapeAttribute(attachment.fileName || item.title)}" loading="lazy"></iframe>`;
   } else if (attachment.materialType === 'image' && (attachment.previewUrl || attachment.fileId || attachment.openUrl)) {
     const imageCandidates = getGivenActivityImagePreviewCandidates(attachment);
     const initialImageUrl = imageCandidates[0] || attachment.previewUrl || attachment.openUrl || '';
-    stage = `<div class="given-activity-image-wrap"><img data-given-activity-image src="${escapeAttribute(initialImageUrl)}" alt="${escapeAttribute(attachment.fileName || item.title)}" loading="eager" decoding="async" referrerpolicy="no-referrer" /></div>`;
+    stage = `<div class="given-activity-image-wrap" data-given-image-viewer>
+      <div class="given-activity-image-zoom-controls" aria-label="Image zoom controls">
+        <button type="button" class="given-activity-image-zoom-btn" data-given-image-zoom="out" aria-label="Zoom out">−</button>
+        <span class="given-activity-image-zoom-value" data-given-image-zoom-value>Fit</span>
+        <button type="button" class="given-activity-image-zoom-btn" data-given-image-zoom="in" aria-label="Zoom in">+</button>
+        <button type="button" class="given-activity-image-fit-btn" data-given-image-zoom="fit">Fit</button>
+      </div>
+      <div class="given-activity-image-scroll" data-given-image-scroll>
+        <div class="given-activity-image-canvas" data-given-image-canvas>
+          <img data-given-activity-image src="${escapeAttribute(initialImageUrl)}" alt="${escapeAttribute(attachment.fileName || item.title)}" loading="eager" decoding="async" referrerpolicy="no-referrer" />
+        </div>
+      </div>
+    </div>`;
   } else if (attachment.materialType === 'link' && attachment.openUrl) {
     stage = `<div class="given-activity-link-card"><span aria-hidden="true">🔗</span><strong>External activity link</strong><p>${escapeHTML(attachment.fileName || item.description || 'Open this activity link.')}</p><a class="primary-btn" href="${escapeAttribute(attachment.openUrl)}" target="_blank" rel="noopener noreferrer">Open Link</a></div>`;
   } else {
@@ -18779,6 +18891,7 @@ function renderGivenActivityViewerAttachment() {
       };
       image.addEventListener('error', tryNextCandidate);
     }
+    if (image) initializeGivenActivityImageZoom(image);
   }
 }
 
@@ -18819,6 +18932,7 @@ function closeGivenActivityViewer() {
   givenActivityState.viewerActivityId = '';
   givenActivityState.viewerAttachmentIndex = 0;
   if (givenActivityViewerBody) givenActivityViewerBody.innerHTML = '';
+  updateGivenActivityViewerDownloadAction(null);
   setGivenActivityViewerInstructionsOpen(false);
   givenActivityViewerOverlay?.classList.add('hidden');
   document.body.classList.remove('given-activity-viewer-open');
@@ -19569,6 +19683,11 @@ function bindTeacherToolsV295() {
     if (button) openGivenActivityViewer(button.dataset.givenOpen || '');
   });
   givenActivityViewerBody?.addEventListener('click', event => {
+    const zoomButton = event.target.closest('[data-given-image-zoom]');
+    if (zoomButton) {
+      changeGivenActivityImageZoom(zoomButton.dataset.givenImageZoom || 'fit');
+      return;
+    }
     const nav = event.target.closest('[data-given-attachment-nav]');
     if (nav) {
       shiftGivenActivityViewerAttachment(nav.dataset.givenAttachmentNav === 'prev' ? -1 : 1);
@@ -19587,6 +19706,12 @@ function bindTeacherToolsV295() {
   givenActivityViewerInstructionsCloseBtn?.addEventListener('click', () => setGivenActivityViewerInstructionsOpen(false));
   givenActivityViewerCloseBtn?.addEventListener('click', closeGivenActivityViewer);
   givenActivityViewerOverlay?.addEventListener('click', event => { if (event.target === givenActivityViewerOverlay) event.stopPropagation(); });
+  window.addEventListener('resize', () => {
+    if (!givenActivityViewerOverlay?.classList.contains('hidden')) {
+      const { image } = getGivenActivityImageZoomParts();
+      if (image?.naturalWidth) fitGivenActivityImageToViewer();
+    }
+  }, { passive: true });
 
   refreshNeedsAttentionBtn?.addEventListener('click', () => loadNeedsAttentionDashboard({ force: true }));
   [needsAttentionSearch, needsAttentionSection, needsAttentionReason].forEach(control => {
