@@ -14343,7 +14343,7 @@ function updateInstallButtonVisibility() {
 function registerPWAServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./service-worker.js?v=306-activity-viewer-layer', {
+    navigator.serviceWorker.register('./service-worker.js?v=308-viewer-button-polish', {
       updateViaCache: 'none'
     }).then(registration => {
       registration.update().catch(() => {});

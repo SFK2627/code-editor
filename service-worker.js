@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ict8-connect-v306-activity-viewer-layer';
+const CACHE_NAME = 'ict8-connect-v308-viewer-button-polish';
 
 self.addEventListener('install', event => {
   event.waitUntil(self.skipWaiting());
