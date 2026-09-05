@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ict8-connect-v300-drive-image-fix';
+const CACHE_NAME = 'ict8-connect-v301-hide-activities-hero-mobile';
 
 self.addEventListener('install', event => {
   event.waitUntil(self.skipWaiting());
