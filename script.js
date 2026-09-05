@@ -237,6 +237,9 @@ const loginLackingReminderEyebrow = document.getElementById('loginLackingReminde
 const loginLackingReminderTitle = document.getElementById('loginLackingReminderTitle');
 const loginLackingReminderStudent = document.getElementById('loginLackingReminderStudent');
 const loginLackingReminderMeta = document.getElementById('loginLackingReminderMeta');
+const loginLackingReminderRecitation = document.getElementById('loginLackingReminderRecitation');
+const loginLackingReminderRecitationTerm = document.getElementById('loginLackingReminderRecitationTerm');
+const loginLackingReminderRecitationPoints = document.getElementById('loginLackingReminderRecitationPoints');
 const loginLackingReminderMessage = document.getElementById('loginLackingReminderMessage');
 const loginLackingReminderList = document.getElementById('loginLackingReminderList');
 const loginLackingReminderMusicRow = document.getElementById('loginLackingReminderMusicRow');
@@ -960,6 +963,7 @@ async function playLoginReminderMusicManually() {
 }
 
 function closeLoginLackingReminder() {
+  loginReminderRecitationRequestToken += 1;
   stopLoginReminderMusic();
   loginLackingReminderOverlay?.classList.remove('is-visible');
   loginLackingReminderOverlay?.classList.add('hidden');
@@ -983,6 +987,74 @@ function scheduleLoginLackingReminderViewportFit(delay = 30) {
 
 window.addEventListener('resize', () => scheduleLoginLackingReminderViewportFit(60), { passive: true });
 window.visualViewport?.addEventListener('resize', () => scheduleLoginLackingReminderViewportFit(60), { passive: true });
+
+let loginReminderRecitationRequestToken = 0;
+
+function setLoginReminderRecitationSummary(options = {}) {
+  if (!loginLackingReminderRecitation) return;
+  const state = String(options.state || 'loading');
+  const termLabel = String(options.termLabel || complianceTermFriendlyLabel(currentAcademicTerm()) || 'Current Term');
+  loginLackingReminderRecitation.dataset.state = state;
+  if (loginLackingReminderRecitationTerm) {
+    loginLackingReminderRecitationTerm.textContent = options.note
+      ? `${termLabel} · ${String(options.note)}`
+      : termLabel;
+  }
+  if (loginLackingReminderRecitationPoints) {
+    const hasPoints = Number.isFinite(Number(options.points));
+    loginLackingReminderRecitationPoints.textContent = hasPoints ? String(Number(options.points)) : '—';
+  }
+}
+
+async function refreshLoginReminderRecitationPoints(options = {}) {
+  const isPreview = options.preview === true;
+  const term = currentAcademicTerm();
+  const termLabel = complianceTermFriendlyLabel(term) || 'Current Term';
+  if (isPreview) {
+    setLoginReminderRecitationSummary({ state: 'ready', termLabel, points: 12, note: 'Preview' });
+    return { points: 12, term, termLabel, status: 'preview' };
+  }
+
+  const student = appSession.student;
+  if (!student || appSession.mode !== 'student') {
+    setLoginReminderRecitationSummary({ state: 'unavailable', termLabel, note: 'Not available' });
+    return null;
+  }
+
+  const requestToken = ++loginReminderRecitationRequestToken;
+  setLoginReminderRecitationSummary({ state: 'loading', termLabel, note: 'Loading…' });
+  const api = window.MCS_RECITATION_STATUS_API;
+  if (!api || typeof api.getStudentTermStatus !== 'function') {
+    setLoginReminderRecitationSummary({ state: 'unavailable', termLabel, note: 'Unavailable' });
+    return null;
+  }
+
+  try {
+    const result = await withTimeout(
+      api.getStudentTermStatus(student, { academicTerm: term }),
+      7000,
+      'Recitation status timed out.'
+    );
+    if (requestToken !== loginReminderRecitationRequestToken) return result;
+    const safePoints = Math.max(0, Number(result?.points) || 0);
+    if (result?.status === 'ok') {
+      setLoginReminderRecitationSummary({ state: 'ready', termLabel: result.termLabel || termLabel, points: safePoints });
+    } else if (result?.status === 'no-record') {
+      setLoginReminderRecitationSummary({ state: 'empty', termLabel: result.termLabel || termLabel, points: 0, note: 'No record yet' });
+    } else if (result?.status === 'section-not-found') {
+      setLoginReminderRecitationSummary({ state: 'unavailable', termLabel, note: 'Section not linked' });
+    } else {
+      setLoginReminderRecitationSummary({ state: 'unavailable', termLabel, note: 'Unavailable' });
+    }
+    scheduleLoginLackingReminderViewportFit(20);
+    return result;
+  } catch (error) {
+    if (requestToken !== loginReminderRecitationRequestToken) return null;
+    console.info('Login reminder recitation points unavailable.', error);
+    setLoginReminderRecitationSummary({ state: 'unavailable', termLabel, note: 'Unavailable' });
+    return null;
+  }
+}
 
 function buildLoginReminderPreviewRecord(hasLackings = false) {
   const student = appSession.student || { name: 'Sample Student', studentId: '00-0000', section: 'Sample Section' };
@@ -1040,6 +1112,12 @@ function renderLoginLackingReminder(record = null, options = {}) {
     if (state === 'complete') chips.push('<span class="success">No lacking</span>');
     if (state === 'unavailable') chips.push('<span class="neutral">Waiting for teacher update</span>');
     loginLackingReminderMeta.innerHTML = chips.join('');
+  }
+
+  if (isPreview) {
+    setLoginReminderRecitationSummary({ state: 'ready', termLabel: complianceTermFriendlyLabel(activeTerm), points: 12, note: 'Preview' });
+  } else {
+    setLoginReminderRecitationSummary({ state: 'loading', termLabel: complianceTermFriendlyLabel(activeTerm), note: 'Loading…' });
   }
 
   if (state === 'missing') {
@@ -1155,21 +1233,26 @@ async function showLoginLackingReminderAfterLogin() {
   if (studentComplianceRecord) {
     const sanitized = sanitizeComplianceStudentRecord(studentComplianceRecord);
     const state = Number(sanitized.summary?.missing || 0) > 0 ? 'missing' : 'complete';
-    return renderLoginLackingReminder(studentComplianceRecord, { state, settings });
+    const shown = renderLoginLackingReminder(studentComplianceRecord, { state, settings });
+    if (shown) refreshLoginReminderRecitationPoints().catch(() => {});
+    return shown;
   }
 
   // If no record is currently in memory, use the cached/fallback lookup.
   const result = await getLoginReminderComplianceRecord();
-  return renderLoginLackingReminder(result.record, { state: result.state, settings });
+  const shown = renderLoginLackingReminder(result.record, { state: result.state, settings });
+  if (shown) refreshLoginReminderRecitationPoints().catch(() => {});
+  return shown;
 }
 
 function previewLoginLackingReminder(hasLackings = false) {
   const settings = getLoginReminderSettingsFromControls();
-  renderLoginLackingReminder(buildLoginReminderPreviewRecord(hasLackings), {
+  const shown = renderLoginLackingReminder(buildLoginReminderPreviewRecord(hasLackings), {
     state: hasLackings ? 'missing' : 'complete',
     settings,
     preview: true
   });
+  if (shown) refreshLoginReminderRecitationPoints({ preview: true }).catch(() => {});
 }
 
 const DEFAULT_AI_RUBRIC_SETTINGS = Object.freeze({
@@ -14343,7 +14426,7 @@ function updateInstallButtonVisibility() {
 function registerPWAServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./service-worker.js?v=309-lessons-repair', {
+    navigator.serviceWorker.register('./service-worker.js?v=310-recitation-term-popup', {
       updateViaCache: 'none'
     }).then(registration => {
       registration.update().catch(() => {});
@@ -31943,34 +32026,48 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     return students;
   }
 
-  function getSchoolYear(date) {
-    const year = date.getFullYear();
-    const month = date.getMonth() + 1;
-    if (month >= 1 && month <= 4) return `${year - 1}-${year}`;
-    return `${year}-${year + 1}`;
+  function recitationTermIdFromAcademicTerm(term = currentAcademicTerm()) {
+    if (term === 'TERM_2') return 'term2';
+    if (term === 'TERM_3') return 'term3';
+    return 'term1';
   }
 
-  function getTermInfo(date = new Date()) {
-    const monthDay = (date.getMonth() + 1) * 100 + date.getDate();
-    const schoolYear = getSchoolYear(date);
-    if (monthDay >= 601 && monthDay <= 909) return { id: 'term1', name: 'Term 1', schoolYear };
-    if (monthDay >= 910 && monthDay <= 1215) return { id: 'term2', name: 'Term 2', schoolYear };
-    if (monthDay >= 104 && monthDay <= 403) return { id: 'term3', name: 'Term 3', schoolYear };
-    return { id: 'outOfTerm', name: 'Outside Term', schoolYear };
+  function academicTermFromRecitationTermId(termId = 'term1') {
+    if (termId === 'term2') return 'TERM_2';
+    if (termId === 'term3') return 'TERM_3';
+    return 'TERM_1';
+  }
+
+  function currentRecitationTermInfo() {
+    const info = resolveAcademicTermInfo(academicTermSettings);
+    return {
+      id: recitationTermIdFromAcademicTerm(info.term),
+      academicTerm: info.term,
+      name: info.label || complianceTermFriendlyLabel(info.term),
+      mode: info.mode
+    };
+  }
+
+  function syncRecitationCurrentTermOption() {
+    const option = termSelect?.querySelector('option[value="current"]');
+    if (!option) return;
+    const current = currentRecitationTermInfo();
+    option.textContent = `Current · ${current.name}`;
+    if (termSelect) termSelect.dataset.currentTerm = current.id;
   }
 
   function selectedRecitationTermId() {
     const value = termSelect?.value || 'current';
-    if (value === 'current') return getTermInfo().id;
+    if (value === 'current') return currentRecitationTermInfo().id;
     return value;
   }
 
   function selectedRecitationTermLabel() {
     const value = termSelect?.value || 'current';
-    if (value === 'current') return getTermInfo().name;
-    if (value === 'term1') return 'Term 1';
-    if (value === 'term2') return 'Term 2';
-    if (value === 'term3') return 'Term 3';
+    if (value === 'current') return currentRecitationTermInfo().name;
+    if (value === 'term1') return 'First Term';
+    if (value === 'term2') return 'Second Term';
+    if (value === 'term3') return 'Third Term';
     return 'All Time';
   }
 
@@ -31990,15 +32087,88 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     };
   }
 
-  function pointsFor(student) {
-    const termId = selectedRecitationTermId();
-    if (termId === 'allTime') return Number(student.totalPoints) || 0;
-    const termTotals = student.termTotals || {};
+  function pointsForTerm(student, termId = 'term1') {
+    if (termId === 'allTime') return Number(student?.totalPoints) || 0;
+    const termTotals = student?.termTotals || {};
     const explicitTermPoints = Number(termTotals[termId]) || 0;
     const assignedTermPoints = ['term1', 'term2', 'term3', 'outOfTerm'].reduce((total, key) => total + (Number(termTotals[key]) || 0), 0);
-    const legacyUnassignedPoints = Math.max(0, (Number(student.totalPoints) || 0) - assignedTermPoints);
+    const legacyUnassignedPoints = Math.max(0, (Number(student?.totalPoints) || 0) - assignedTermPoints);
+    // Recitation Central records created before termTotals existed belong to First Term.
     if (termId === 'term1') return explicitTermPoints + legacyUnassignedPoints;
     return explicitTermPoints;
+  }
+
+  function pointsFor(student) {
+    return pointsForTerm(student, selectedRecitationTermId());
+  }
+
+  function recitationStudentNameKey(value = '') {
+    return String(value || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  }
+
+  async function findRecitationSectionForStudentProfile(student = {}) {
+    const sectionName = String(student.section || '').trim();
+    if (!sectionName) return null;
+    const sections = await fetchRecitationSections();
+    if (!sections.length) return null;
+
+    // First use the same official section-code mapping as the student viewer.
+    const inferredCode = officialRecitationCodeForSection({ id: sectionName, name: sectionName, data: {} });
+    const byCode = sections.filter(section => officialRecitationCodeForSection(section) === inferredCode);
+    if (inferredCode && byCode.length === 1) return byCode[0];
+
+    const normalized = normalizeRecitationCode(sectionName);
+    const exact = sections.filter(section => {
+      return normalizeRecitationCode(section.name) === normalized || normalizeRecitationCode(section.id) === normalized;
+    });
+    if (exact.length === 1) return exact[0];
+
+    const compact = compactSectionNameForCode(sectionName);
+    const compactMatches = sections.filter(section => compactSectionNameForCode(section.name || section.id) === compact);
+    return compactMatches.length === 1 ? compactMatches[0] : null;
+  }
+
+  function findRecitationStudentForProfile(students = [], student = {}) {
+    const studentId = student.studentId || student.studentIdNormalized || student.id || '';
+    if (studentId) {
+      const byId = students.find(item => areStudentIdsEquivalent(item.studentId, studentId));
+      if (byId) return byId;
+    }
+    const nameKey = recitationStudentNameKey(student.name || student.fullName || '');
+    if (!nameKey) return null;
+    const byName = students.filter(item => recitationStudentNameKey(item.fullName) === nameKey);
+    return byName.length === 1 ? byName[0] : null;
+  }
+
+  async function getStudentRecitationTermStatus(student = {}, options = {}) {
+    try {
+      await loadAcademicTermSettingsFromCloud({ silent: true }).catch(() => academicTermSettings);
+    } catch (_) {}
+    const requestedAcademicTerm = COMPLIANCE_TERMS.includes(String(options.academicTerm || '').trim())
+      ? String(options.academicTerm).trim()
+      : currentAcademicTerm();
+    const termId = recitationTermIdFromAcademicTerm(requestedAcademicTerm);
+    const termLabel = complianceTermFriendlyLabel(requestedAcademicTerm) || currentRecitationTermInfo().name;
+    const section = await findRecitationSectionForStudentProfile(student);
+    if (!section) {
+      return { status: 'section-not-found', points: 0, termId, academicTerm: requestedAcademicTerm, termLabel };
+    }
+    const students = await fetchRecitationStudentsForSection(section.name);
+    const record = findRecitationStudentForProfile(students, student);
+    if (!record) {
+      return { status: 'no-record', points: 0, termId, academicTerm: requestedAcademicTerm, termLabel, section: section.name };
+    }
+    return {
+      status: 'ok',
+      points: pointsForTerm(record, termId),
+      totalPoints: Number(record.totalPoints) || 0,
+      termId,
+      academicTerm: requestedAcademicTerm,
+      termLabel,
+      section: section.name,
+      studentId: record.studentId,
+      fullName: record.fullName
+    };
   }
 
   function showRecitationMessage(text, type = '') {
@@ -32038,6 +32208,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   }
 
   function renderRecitationLeaderboard() {
+    syncRecitationCurrentTermOption();
     const visible = getVisibleRecitationStudents();
     const all = state.students || [];
     const total = all.reduce((sum, student) => sum + pointsFor(student), 0);
@@ -32147,7 +32318,11 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     }
   }
 
-  function openRecitationOverlay() {
+  async function openRecitationOverlay() {
+    try { await loadAcademicTermSettingsFromCloud({ silent: true }); } catch (_) {}
+    if (termSelect) termSelect.value = 'current';
+    syncRecitationCurrentTermOption();
+    if (state.activeSection && state.students.length) renderRecitationLeaderboard();
     overlay.classList.remove('hidden');
     document.body.classList.add('student-auth-open');
     window.setTimeout(() => codeInput?.focus(), 80);
@@ -32177,7 +32352,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   overlay.addEventListener('click', event => {
     if (event.target === overlay) event.stopPropagation();
   });
-  openButtons.forEach(button => button.addEventListener('click', () => openRecitationOverlay()));
+  openButtons.forEach(button => button.addEventListener('click', () => { openRecitationOverlay().catch(error => console.warn('Could not open Recitation Status.', error)); }));
   closeBtn?.addEventListener('click', closeRecitationOverlay);
   unlockBtn.addEventListener('click', unlockRecitationSection);
   codeInput?.addEventListener('keydown', event => {
@@ -32199,10 +32374,18 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     open: openRecitationOverlay,
     reset: resetRecitationGate,
     normalizeCode: normalizeRecitationCode,
+    currentTerm: () => currentRecitationTermInfo(),
     getSectionCodes: async () => {
       const sections = await fetchRecitationSections();
       return sections.map(section => ({ section: section.name, code: officialRecitationCodeForSection(section) }));
     }
+  };
+
+  // Read-only bridge used by the authenticated student's login reminder.
+  // It returns only the matching student's points for the requested academic term.
+  window.MCS_RECITATION_STATUS_API = {
+    getStudentTermStatus: getStudentRecitationTermStatus,
+    currentTerm: () => currentRecitationTermInfo()
   };
 })();
 

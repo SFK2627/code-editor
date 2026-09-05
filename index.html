@@ -45,7 +45,7 @@
   </script>
   <link rel="preconnect" href="https://drive.google.com" crossorigin>
   <link rel="preconnect" href="https://lh3.googleusercontent.com" crossorigin>
-  <link rel="stylesheet" href="style.css?v=20260905-v308-viewer-button-polish" />
+  <link rel="stylesheet" href="style.css?v=20260905-v310-recitation-term-popup" />
   <style>
     .ai-rubric-settings-card,
     .admin-project-ai-review-card {
@@ -637,6 +637,19 @@
         </div>
       </div>
       <div id="loginLackingReminderMeta" class="login-lacking-reminder-meta" aria-label="Reminder details"></div>
+      <div id="loginLackingReminderRecitation" class="login-lacking-reminder-recitation" data-state="loading" aria-live="polite">
+        <div class="login-lacking-reminder-recitation-label">
+          <span class="login-lacking-reminder-recitation-icon" aria-hidden="true">🎤</span>
+          <div>
+            <strong>Recitation Points</strong>
+            <small id="loginLackingReminderRecitationTerm">Current Term</small>
+          </div>
+        </div>
+        <div class="login-lacking-reminder-recitation-score">
+          <strong id="loginLackingReminderRecitationPoints">—</strong>
+          <span>pts</span>
+        </div>
+      </div>
       <p id="loginLackingReminderMessage" class="login-lacking-reminder-message"></p>
       <div id="loginLackingReminderList" class="login-lacking-reminder-list" aria-live="polite"></div>
       <div id="loginLackingReminderMusicRow" class="login-lacking-reminder-music-row hidden">
@@ -696,11 +709,11 @@
           <label>
             Term
             <select id="recitationTermSelect">
-              <option value="current">Current Term</option>
+              <option value="current">Current Academic Term</option>
               <option value="allTime">All Time</option>
-              <option value="term1">Term 1</option>
-              <option value="term2">Term 2</option>
-              <option value="term3">Term 3</option>
+              <option value="term1">First Term</option>
+              <option value="term2">Second Term</option>
+              <option value="term3">Third Term</option>
             </select>
           </label>
           <label>
@@ -2413,6 +2426,6 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
   <script src="firebase-config.js"></script>
-  <script src="script.js?v=20260905-v309-lessons-repair"></script>
+  <script src="script.js?v=20260905-v310-recitation-term-popup"></script>
 </body>
 </html>

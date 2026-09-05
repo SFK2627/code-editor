@@ -49498,3 +49498,122 @@ body.given-activity-viewer-open .given-activity-viewer-overlay {
     font-size: 1.08rem !important;
   }
 }
+
+
+/* v310 — Recitation points in Login Reminder + shared academic-term status */
+.login-lacking-reminder-recitation {
+  position: relative;
+  z-index: 2;
+  flex: 0 0 auto !important;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  min-width: 0;
+  margin: 0 0 12px;
+  padding: 11px 13px;
+  border: var(--ds-card-border, 1px solid rgba(59, 130, 246, .22));
+  border-radius: var(--ds-card-radius, 14px);
+  color: var(--ds-card-text, #172033);
+  background: var(--ds-card, linear-gradient(135deg, rgba(239,246,255,.96), rgba(240,253,250,.96)));
+  box-shadow: var(--ds-card-shadow, 0 8px 22px rgba(15,23,42,.06));
+  overflow: hidden;
+}
+
+.login-lacking-reminder-recitation-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.login-lacking-reminder-recitation-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 38px;
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  color: var(--ds-button-text, #fff);
+  background: var(--ds-accent, #2563eb);
+  box-shadow: 0 6px 14px rgba(37,99,235,.18);
+}
+
+.login-lacking-reminder-recitation-label > div {
+  min-width: 0;
+}
+
+.login-lacking-reminder-recitation-label strong,
+.login-lacking-reminder-recitation-label small {
+  display: block;
+}
+
+.login-lacking-reminder-recitation-label strong {
+  color: inherit;
+  font-size: .86rem;
+  font-weight: 900;
+}
+
+.login-lacking-reminder-recitation-label small {
+  margin-top: 2px;
+  color: var(--ds-muted, #64748b);
+  font-size: .7rem;
+  font-weight: 750;
+  overflow-wrap: anywhere;
+}
+
+.login-lacking-reminder-recitation-score {
+  display: inline-flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 4px;
+  flex: 0 0 auto;
+  color: var(--ds-accent, #1d4ed8);
+}
+
+.login-lacking-reminder-recitation-score strong {
+  font-size: 1.55rem;
+  line-height: 1;
+  font-weight: 1000;
+  letter-spacing: -.04em;
+}
+
+.login-lacking-reminder-recitation-score span {
+  font-size: .72rem;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.login-lacking-reminder-recitation[data-state="loading"] {
+  opacity: .78;
+}
+.login-lacking-reminder-recitation[data-state="empty"] .login-lacking-reminder-recitation-score,
+.login-lacking-reminder-recitation[data-state="unavailable"] .login-lacking-reminder-recitation-score {
+  color: var(--ds-muted, #64748b);
+}
+
+/* Keep the new current-term stat compact so the requirements list remains the only scroll area. */
+@media (max-width: 700px) {
+  .login-lacking-reminder-recitation {
+    gap: 9px;
+    margin-bottom: 9px;
+    padding: 9px 10px;
+    border-radius: 12px;
+  }
+  .login-lacking-reminder-recitation-icon {
+    flex-basis: 32px;
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
+    font-size: .9rem;
+  }
+  .login-lacking-reminder-recitation-label strong { font-size: .78rem; }
+  .login-lacking-reminder-recitation-label small { font-size: .64rem; }
+  .login-lacking-reminder-recitation-score strong { font-size: 1.3rem; }
+  .login-lacking-reminder-recitation-score span { font-size: .62rem; }
+}
+
+/* Recitation Status: make the automatically resolved term visually explicit. */
+#recitationTermSelect[data-current-term] option[value="current"] {
+  font-weight: 800;
+}

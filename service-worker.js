@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ict8-connect-v309-lessons-repair';
+const CACHE_NAME = 'ict8-connect-v310-recitation-term-popup';
 
 self.addEventListener('install', event => {
   event.waitUntil(self.skipWaiting());
