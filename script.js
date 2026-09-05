@@ -14343,10 +14343,22 @@ function updateInstallButtonVisibility() {
 function registerPWAServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./service-worker.js?v=292', {
+    navigator.serviceWorker.register('./service-worker.js?v=306-activity-viewer-layer', {
       updateViaCache: 'none'
     }).then(registration => {
       registration.update().catch(() => {});
+
+      // v305: when a newly deployed service worker takes control, reload once
+      // so GitHub Pages/PWA users immediately receive the matching HTML/CSS/JS build.
+      if (!window.__ict8SwControllerChangeBound) {
+        window.__ict8SwControllerChangeBound = true;
+        let refreshingForNewBuild = false;
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          if (refreshingForNewBuild) return;
+          refreshingForNewBuild = true;
+          window.location.reload();
+        });
+      }
     }).catch(error => {
       console.warn('Service worker registration failed', error);
     });

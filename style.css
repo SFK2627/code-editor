@@ -49315,3 +49315,24 @@ body.given-activity-viewer-open {
     font-weight: 900 !important;
   }
 }
+
+
+/* v306 — Activity Viewer must fully cover editor-only chrome */
+body.given-activity-viewer-open .topbar,
+body.given-activity-viewer-open .topbar.simplified-topbar,
+body.given-activity-viewer-open #fullscreenEditorActions,
+body.given-activity-viewer-open .fullscreen-editor-actions,
+body.given-activity-viewer-open #fullscreenBottomTools {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+body.given-activity-viewer-open .given-activities-screen {
+  z-index: 2147482000 !important;
+}
+
+body.given-activity-viewer-open .given-activity-viewer-overlay {
+  z-index: 2147483000 !important;
+  inset: 0 !important;
+}
