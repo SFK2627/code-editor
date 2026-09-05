@@ -832,6 +832,38 @@ function closeLoginLackingReminder() {
   document.body.classList.remove('login-lacking-reminder-open');
 }
 
+let loginReminderViewportFitTimer = 0;
+
+function fitLoginLackingReminderViewport() {
+  if (!loginLackingReminderOverlay || loginLackingReminderOverlay.classList.contains('hidden')) return;
+  const panel = loginLackingReminderOverlay.querySelector('.login-lacking-reminder-panel');
+  if (!panel) return;
+
+  loginLackingReminderOverlay.dataset.fit = 'normal';
+
+  const hasOverflow = () => (
+    panel.scrollHeight > panel.clientHeight + 1 ||
+    panel.scrollWidth > panel.clientWidth + 1
+  );
+
+  requestAnimationFrame(() => {
+    if (!hasOverflow()) return;
+    loginLackingReminderOverlay.dataset.fit = 'tight';
+    requestAnimationFrame(() => {
+      if (!hasOverflow()) return;
+      loginLackingReminderOverlay.dataset.fit = 'ultra';
+    });
+  });
+}
+
+function scheduleLoginLackingReminderViewportFit(delay = 30) {
+  window.clearTimeout(loginReminderViewportFitTimer);
+  loginReminderViewportFitTimer = window.setTimeout(fitLoginLackingReminderViewport, Math.max(0, Number(delay) || 0));
+}
+
+window.addEventListener('resize', () => scheduleLoginLackingReminderViewportFit(60), { passive: true });
+window.visualViewport?.addEventListener('resize', () => scheduleLoginLackingReminderViewportFit(60), { passive: true });
+
 function buildLoginReminderPreviewRecord(hasLackings = false) {
   const student = appSession.student || { name: 'Sample Student', studentId: '00-0000', section: 'Sample Section' };
   const tasks = hasLackings ? [
@@ -888,9 +920,22 @@ function renderLoginLackingReminder(record = null, options = {}) {
     if (loginLackingReminderTitle) loginLackingReminderTitle.textContent = 'You Have Lacking Requirements';
     if (loginLackingReminderMessage) loginLackingReminderMessage.textContent = settings.warningMessage;
     if (loginLackingReminderList) {
-      loginLackingReminderList.innerHTML = missingTasks.length
-        ? `<div class="login-lacking-reminder-list-title">Please complete:</div><ol>${missingTasks.map(task => `<li><span>${escapeHTML(task.title || 'Requirement')}</span><small>${escapeHTML(task.category || 'Requirement')}</small></li>`).join('')}</ol>`
-        : '<div class="login-lacking-reminder-empty warning">Your published status reports missing requirements. Open Subject Status to view the latest details.</div>';
+      if (missingTasks.length) {
+        const viewportHeight = Math.max(320, Number(window.visualViewport?.height || window.innerHeight || 800));
+        const viewportWidth = Math.max(280, Number(window.visualViewport?.width || window.innerWidth || 1200));
+        let previewLimit = 6;
+        if (viewportHeight <= 500) previewLimit = viewportWidth >= 560 ? 4 : 2;
+        else if (viewportHeight <= 620) previewLimit = viewportWidth >= 560 ? 5 : 3;
+        else if (viewportWidth <= 430) previewLimit = 4;
+        const visibleTasks = missingTasks.slice(0, Math.max(1, previewLimit));
+        const remainingCount = Math.max(0, missingTasks.length - visibleTasks.length);
+        const moreNote = remainingCount > 0
+          ? `<div class="login-lacking-reminder-more"><strong>+${remainingCount} more in Subject Status</strong><span>Open it after continuing to view the complete list.</span></div>`
+          : '';
+        loginLackingReminderList.innerHTML = `<div class="login-lacking-reminder-list-title">Please complete:</div><ol>${visibleTasks.map(task => `<li><span>${escapeHTML(task.title || 'Requirement')}</span><small>${escapeHTML(task.category || 'Requirement')}</small></li>`).join('')}</ol>${moreNote}`;
+      } else {
+        loginLackingReminderList.innerHTML = '<div class="login-lacking-reminder-empty warning">Your published status reports missing requirements. Open Subject Status to view the latest details.</div>';
+      }
     }
   } else if (state === 'complete') {
     if (loginLackingReminderIcon) loginLackingReminderIcon.textContent = '✅';
@@ -908,8 +953,13 @@ function renderLoginLackingReminder(record = null, options = {}) {
 
   loginLackingReminderOverlay.classList.remove('hidden');
   document.body.classList.add('login-lacking-reminder-open');
-  requestAnimationFrame(() => loginLackingReminderOverlay.classList.add('is-visible'));
-  startLoginReminderMusic(settings).catch(() => {});
+  requestAnimationFrame(() => {
+    loginLackingReminderOverlay.classList.add('is-visible');
+    scheduleLoginLackingReminderViewportFit(0);
+  });
+  startLoginReminderMusic(settings)
+    .catch(() => {})
+    .finally(() => scheduleLoginLackingReminderViewportFit(20));
   return true;
 }
 
@@ -1027,7 +1077,7 @@ let adminLatestAiReview = null;
 let adminAiRubricController = null;
 let aiRubricConnectionState = { status: 'untested', code: '', message: '' };
 
-const MCS_APP_BUILD = 'v288';
+const MCS_APP_BUILD = 'v290';
 window.MCS_APP_BUILD = MCS_APP_BUILD;
 console.info(`[MCSian Code Editor] ${MCS_APP_BUILD} loaded`);
 
