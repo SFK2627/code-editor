@@ -836,24 +836,10 @@ let loginReminderViewportFitTimer = 0;
 
 function fitLoginLackingReminderViewport() {
   if (!loginLackingReminderOverlay || loginLackingReminderOverlay.classList.contains('hidden')) return;
-  const panel = loginLackingReminderOverlay.querySelector('.login-lacking-reminder-panel');
-  if (!panel) return;
-
+  // V291: CSS owns the responsive sizing. Do not shrink/hide requirement rows
+  // to force a zero-scroll card; long lists are intentionally scrollable in the
+  // dedicated requirements area instead.
   loginLackingReminderOverlay.dataset.fit = 'normal';
-
-  const hasOverflow = () => (
-    panel.scrollHeight > panel.clientHeight + 1 ||
-    panel.scrollWidth > panel.clientWidth + 1
-  );
-
-  requestAnimationFrame(() => {
-    if (!hasOverflow()) return;
-    loginLackingReminderOverlay.dataset.fit = 'tight';
-    requestAnimationFrame(() => {
-      if (!hasOverflow()) return;
-      loginLackingReminderOverlay.dataset.fit = 'ultra';
-    });
-  });
 }
 
 function scheduleLoginLackingReminderViewportFit(delay = 30) {
@@ -921,18 +907,10 @@ function renderLoginLackingReminder(record = null, options = {}) {
     if (loginLackingReminderMessage) loginLackingReminderMessage.textContent = settings.warningMessage;
     if (loginLackingReminderList) {
       if (missingTasks.length) {
-        const viewportHeight = Math.max(320, Number(window.visualViewport?.height || window.innerHeight || 800));
-        const viewportWidth = Math.max(280, Number(window.visualViewport?.width || window.innerWidth || 1200));
-        let previewLimit = 6;
-        if (viewportHeight <= 500) previewLimit = viewportWidth >= 560 ? 4 : 2;
-        else if (viewportHeight <= 620) previewLimit = viewportWidth >= 560 ? 5 : 3;
-        else if (viewportWidth <= 430) previewLimit = 4;
-        const visibleTasks = missingTasks.slice(0, Math.max(1, previewLimit));
-        const remainingCount = Math.max(0, missingTasks.length - visibleTasks.length);
-        const moreNote = remainingCount > 0
-          ? `<div class="login-lacking-reminder-more"><strong>+${remainingCount} more in Subject Status</strong><span>Open it after continuing to view the complete list.</span></div>`
-          : '';
-        loginLackingReminderList.innerHTML = `<div class="login-lacking-reminder-list-title">Please complete:</div><ol>${visibleTasks.map(task => `<li><span>${escapeHTML(task.title || 'Requirement')}</span><small>${escapeHTML(task.category || 'Requirement')}</small></li>`).join('')}</ol>${moreNote}`;
+        // V291: render the complete missing-requirements list. The list area itself
+        // becomes vertically scrollable only when it exceeds the available popup
+        // height; the header and Continue button remain visible.
+        loginLackingReminderList.innerHTML = `<div class="login-lacking-reminder-list-title">Please complete:</div><ol>${missingTasks.map(task => `<li><span>${escapeHTML(task.title || 'Requirement')}</span><small>${escapeHTML(task.category || 'Requirement')}</small></li>`).join('')}</ol>`;
       } else {
         loginLackingReminderList.innerHTML = '<div class="login-lacking-reminder-empty warning">Your published status reports missing requirements. Open Subject Status to view the latest details.</div>';
       }
@@ -1077,7 +1055,7 @@ let adminLatestAiReview = null;
 let adminAiRubricController = null;
 let aiRubricConnectionState = { status: 'untested', code: '', message: '' };
 
-const MCS_APP_BUILD = 'v290';
+const MCS_APP_BUILD = 'v291';
 window.MCS_APP_BUILD = MCS_APP_BUILD;
 console.info(`[MCSian Code Editor] ${MCS_APP_BUILD} loaded`);
 

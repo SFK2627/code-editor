@@ -45490,3 +45490,135 @@ html body [hidden] {
   padding: 4px 9px;
   font-size: .62rem;
 }
+
+/* =========================================================
+   V291 LOGIN REMINDER: LIST-ONLY VERTICAL SCROLL
+   - Never horizontally scroll the reminder.
+   - The popup itself does not vertically scroll.
+   - When many requirements exist, ONLY the requirements list scrolls.
+   - Header/student info and action button remain visible.
+   ========================================================= */
+.login-lacking-reminder-overlay {
+  overflow: hidden !important;
+  overscroll-behavior: none !important;
+}
+
+.login-lacking-reminder-panel {
+  display: flex !important;
+  flex-direction: column !important;
+  width: min(680px, calc(100vw - 28px));
+  max-width: calc(100vw - 28px) !important;
+  max-height: calc(100dvh - 28px) !important;
+  overflow: hidden !important;
+  overscroll-behavior: none !important;
+}
+
+/* Close stays pinned to the upper-right and is never part of the scroll area. */
+.login-lacking-reminder-panel > .login-lacking-reminder-close {
+  position: absolute !important;
+  top: 14px !important;
+  right: 14px !important;
+  float: none !important;
+  margin: 0 !important;
+  z-index: 8 !important;
+  flex: 0 0 auto !important;
+}
+
+.login-lacking-reminder-hero,
+.login-lacking-reminder-meta,
+.login-lacking-reminder-message,
+.login-lacking-reminder-music-row,
+.login-lacking-reminder-actions {
+  flex: 0 0 auto !important;
+}
+
+/* This is the only area allowed to scroll vertically when the list is long. */
+.login-lacking-reminder-list {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  overscroll-behavior-y: contain !important;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-gutter: stable;
+  padding-right: 4px;
+  touch-action: pan-y;
+}
+
+.login-lacking-reminder-list-title {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  padding: 2px 0 7px;
+  margin-bottom: 2px !important;
+  background: inherit;
+}
+
+.login-lacking-reminder-list ol,
+.login-lacking-reminder-list li,
+.login-lacking-reminder-list li > * {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.login-lacking-reminder-list,
+.login-lacking-reminder-list ol,
+.login-lacking-reminder-list li {
+  overflow-x: hidden !important;
+}
+
+.login-lacking-reminder-list li span,
+.login-lacking-reminder-list li small {
+  overflow-wrap: anywhere !important;
+  word-break: normal !important;
+}
+
+/* Keep the action row visible while the list scrolls. */
+.login-lacking-reminder-actions {
+  position: relative;
+  z-index: 6;
+  background: inherit;
+}
+
+/* V290's adaptive "ultra" mode is retired: do not hide/clamp content. */
+.login-lacking-reminder-overlay[data-fit="tight"] .login-lacking-reminder-message,
+.login-lacking-reminder-overlay[data-fit="ultra"] .login-lacking-reminder-message {
+  display: block !important;
+  -webkit-line-clamp: unset !important;
+  overflow: visible !important;
+}
+.login-lacking-reminder-overlay[data-fit="ultra"][data-state="complete"] .login-lacking-reminder-list,
+.login-lacking-reminder-overlay[data-fit="ultra"][data-state="unavailable"] .login-lacking-reminder-list {
+  display: block !important;
+}
+
+/* Phone/tablet: centered card, no sideways movement, list scrolls only as needed. */
+@media (max-width: 700px) {
+  .login-lacking-reminder-panel {
+    width: calc(100vw - 20px) !important;
+    max-width: calc(100vw - 20px) !important;
+    max-height: calc(100dvh - 20px) !important;
+  }
+  .login-lacking-reminder-panel > .login-lacking-reminder-close {
+    top: 11px !important;
+    right: 11px !important;
+  }
+}
+
+/* Short landscape screens: reserve enough room for a usable list viewport. */
+@media (max-height: 500px) {
+  .login-lacking-reminder-list {
+    min-height: 46px !important;
+  }
+}
+
+/* V291 polish: keep the list heading readable as rows move beneath it. */
+.login-lacking-reminder-list-title {
+  background: rgba(255, 255, 255, .94) !important;
+  border-radius: 8px;
+}
+.login-lacking-reminder-actions {
+  background: transparent !important;
+}
