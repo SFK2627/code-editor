@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ict8-connect-v299-multi-attachments';
+const CACHE_NAME = 'ict8-connect-v300-drive-image-fix';
 
 self.addEventListener('install', event => {
   event.waitUntil(self.skipWaiting());

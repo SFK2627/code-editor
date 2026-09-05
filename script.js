@@ -17280,7 +17280,11 @@ function normalizeLesson(raw = {}, index = 0) {
   const term = Object.prototype.hasOwnProperty.call(LESSON_TERMS, raw.term) ? raw.term : 'term1';
   const fileId = String(raw.fileId || extractGoogleDriveFileId(raw.previewUrl || raw.openUrl || raw.url || '') || '').trim();
   const driveUrls = buildGoogleDriveLessonUrls(fileId);
-  const previewUrl = String(raw.previewUrl || raw.url || driveUrls.previewUrl || '').trim();
+  const previewUrl = String(
+    materialType === 'image' && fileId
+      ? (driveUrls.previewUrl || raw.previewUrl || raw.url || '')
+      : (raw.previewUrl || raw.url || driveUrls.previewUrl || '')
+  ).trim();
   const openUrl = String(raw.openUrl || driveUrls.openUrl || previewUrl).trim();
   const downloadUrl = String(raw.downloadUrl || driveUrls.downloadUrl || openUrl).trim();
   const order = Math.max(1, Math.min(999, Number.parseInt(raw.order, 10) || index + 1));
@@ -18317,17 +18321,40 @@ function givenActivityTimestampMs(value) {
   return timestampToDate(value)?.getTime?.() || lessonTimestampMs(value) || 0;
 }
 
+function buildGoogleDriveGivenActivityImagePreviewUrls(fileId = '') {
+  const id = String(fileId || '').trim();
+  if (!id) return [];
+  const encodedId = encodeURIComponent(id);
+  return [
+    `https://drive.google.com/thumbnail?id=${encodedId}&sz=w2000`,
+    `https://lh3.googleusercontent.com/d/${encodedId}=w2000`,
+    `https://drive.google.com/uc?export=view&id=${encodedId}`
+  ];
+}
+
 function buildGoogleDriveGivenActivityUrls(fileId = '', materialType = 'pdf') {
   const id = String(fileId || '').trim();
   if (!id) return { previewUrl: '', openUrl: '', downloadUrl: '' };
   const common = buildGoogleDriveLessonUrls(id);
+  const imagePreviewUrls = materialType === 'image' ? buildGoogleDriveGivenActivityImagePreviewUrls(id) : [];
   return {
-    previewUrl: materialType === 'image'
-      ? `https://drive.google.com/uc?export=view&id=${encodeURIComponent(id)}`
-      : common.previewUrl,
+    previewUrl: materialType === 'image' ? (imagePreviewUrls[0] || common.previewUrl) : common.previewUrl,
     openUrl: common.openUrl,
     downloadUrl: common.downloadUrl
   };
+}
+
+function getGivenActivityImagePreviewCandidates(attachment = {}) {
+  const candidates = [];
+  const push = value => {
+    const url = String(value || '').trim();
+    if (url && !candidates.includes(url)) candidates.push(url);
+  };
+  const fileId = String(attachment.fileId || extractGoogleDriveFileId(attachment.openUrl || attachment.previewUrl || '') || '').trim();
+  if (fileId) buildGoogleDriveGivenActivityImagePreviewUrls(fileId).forEach(push);
+  push(attachment.previewUrl);
+  if (!fileId) push(attachment.openUrl);
+  return candidates;
 }
 
 function normalizeGivenActivityAttachment(raw = {}, index = 0, fallbackType = 'link') {
@@ -18706,8 +18733,10 @@ function renderGivenActivityViewerAttachment() {
   let stage = '';
   if (attachment.materialType === 'pdf' && attachment.previewUrl) {
     stage = `<iframe class="given-activity-pdf-frame" src="${escapeAttribute(attachment.previewUrl)}" title="${escapeAttribute(attachment.fileName || item.title)}" loading="lazy"></iframe>`;
-  } else if (attachment.materialType === 'image' && attachment.previewUrl) {
-    stage = `<div class="given-activity-image-wrap"><img src="${escapeAttribute(attachment.previewUrl)}" alt="${escapeAttribute(attachment.fileName || item.title)}" loading="lazy" /></div>`;
+  } else if (attachment.materialType === 'image' && (attachment.previewUrl || attachment.fileId || attachment.openUrl)) {
+    const imageCandidates = getGivenActivityImagePreviewCandidates(attachment);
+    const initialImageUrl = imageCandidates[0] || attachment.previewUrl || attachment.openUrl || '';
+    stage = `<div class="given-activity-image-wrap"><img data-given-activity-image src="${escapeAttribute(initialImageUrl)}" alt="${escapeAttribute(attachment.fileName || item.title)}" loading="eager" decoding="async" referrerpolicy="no-referrer" /></div>`;
   } else if (attachment.materialType === 'link' && attachment.openUrl) {
     stage = `<div class="given-activity-link-card"><span aria-hidden="true">🔗</span><strong>External activity link</strong><p>${escapeHTML(attachment.fileName || item.description || 'Open this activity link.')}</p><a class="primary-btn" href="${escapeAttribute(attachment.openUrl)}" target="_blank" rel="noopener noreferrer">Open Link</a></div>`;
   } else {
@@ -18727,6 +18756,27 @@ function renderGivenActivityViewerAttachment() {
     </div>` : `
     <div class="given-activity-single-attachment-label"><span>${givenActivityTypeIcon(attachment.materialType)}</span><strong>${escapeHTML(attachment.fileName || givenActivityTypeLabel(attachment.materialType))}</strong></div>`;
   givenActivityViewerBody.innerHTML = `<div class="given-activity-attachment-viewer">${navigation}<div class="given-activity-attachment-stage">${stage}</div></div>`;
+
+  if (attachment.materialType === 'image') {
+    const image = givenActivityViewerBody.querySelector('[data-given-activity-image]');
+    const candidates = getGivenActivityImagePreviewCandidates(attachment);
+    if (image && candidates.length) {
+      let candidateIndex = Math.max(0, candidates.indexOf(image.currentSrc || image.src));
+      if (candidateIndex < 0) candidateIndex = 0;
+      const tryNextCandidate = () => {
+        candidateIndex += 1;
+        if (candidateIndex < candidates.length) {
+          image.src = candidates[candidateIndex];
+          return;
+        }
+        const wrap = image.closest('.given-activity-image-wrap');
+        if (wrap) {
+          wrap.innerHTML = `<div class="given-activity-text-card given-activity-image-error"><span aria-hidden="true">🖼️</span><h3>Image preview unavailable</h3><p>The image could not be displayed inside the app. Use <strong>Open Image</strong> above to open the Google Drive copy.</p></div>`;
+        }
+      };
+      image.addEventListener('error', tryNextCandidate);
+    }
+  }
 }
 
 function shiftGivenActivityViewerAttachment(delta = 0) {
