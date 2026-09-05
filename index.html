@@ -45,7 +45,7 @@
   </script>
   <link rel="preconnect" href="https://drive.google.com" crossorigin>
   <link rel="preconnect" href="https://lh3.googleusercontent.com" crossorigin>
-  <link rel="stylesheet" href="style.css?v=20260905-v296-term-rubrics" />
+  <link rel="stylesheet" href="style.css?v=20260905-v299-multi-attachments" />
   <style>
     .ai-rubric-settings-card,
     .admin-project-ai-review-card {
@@ -401,8 +401,8 @@
         </div>
         <div class="dashboard-hero-actions">
           <button id="dashboardOpenLessonsBtn" class="ghost-btn dashboard-lessons-hero-btn" type="button">📚 Open Lessons</button>
-          <button id="dashboardOpenGivenActivitiesBtn" class="ghost-btn dashboard-activities-hero-btn" type="button">📝 Open Activities</button>
           <button id="newProjectBtn" class="primary-btn dashboard-new-btn" type="button">+ New Project</button>
+          <button id="dashboardOpenGivenActivitiesBtn" class="ghost-btn dashboard-activities-hero-btn" type="button">📝 Open Activities</button>
         </div>
       </section>
 
@@ -1939,17 +1939,18 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
               </div>
               <label>Instructions<textarea id="givenActivityDescriptionInput" rows="4" maxlength="1200" placeholder="Write the activity instructions here."></textarea></label>
               <div class="lesson-file-source-tabs" role="tablist" aria-label="Choose activity material source">
-                <button class="lesson-file-source-tab active" type="button" role="tab" aria-selected="true" data-given-source="upload">Upload PDF / Image</button>
+                <button class="lesson-file-source-tab active" type="button" role="tab" aria-selected="true" data-given-source="upload">Upload PDFs / Images</button>
                 <button class="lesson-file-source-tab" type="button" role="tab" aria-selected="false" data-given-source="link">Paste Link</button>
                 <button class="lesson-file-source-tab" type="button" role="tab" aria-selected="false" data-given-source="text">Instructions Only</button>
               </div>
               <div id="givenActivityUploadPanel" class="lesson-source-panel active">
                 <label class="lesson-file-dropzone" for="givenActivityFileInput">
-                  <input id="givenActivityFileInput" type="file" accept="application/pdf,image/png,image/jpeg,image/webp,.pdf,.png,.jpg,.jpeg,.webp" />
+                  <input id="givenActivityFileInput" type="file" accept="application/pdf,image/png,image/jpeg,image/webp,.pdf,.png,.jpg,.jpeg,.webp" multiple />
                   <span class="lesson-file-drop-icon" aria-hidden="true">📎</span>
-                  <strong id="givenActivityFileName">Choose a PDF or image</strong>
-                  <small>Uploads to your connected Google Drive, then publishes only the small file link in Firebase.</small>
+                  <strong id="givenActivityFileName">Choose one or more PDFs / images</strong>
+                  <small>Select up to 20 files. Images and PDFs may be mixed. Files upload to your connected Google Drive; Firebase stores only small attachment metadata/links.</small>
                 </label>
+                <div id="givenActivitySelectedFiles" class="given-activity-selected-files" aria-live="polite"></div>
               </div>
               <div id="givenActivityLinkPanel" class="lesson-source-panel hidden">
                 <div class="given-activity-link-grid">
@@ -2404,6 +2405,6 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
   <script src="firebase-config.js"></script>
-  <script src="script.js?v=20260905-v296-term-rubrics"></script>
+  <script src="script.js?v=20260905-v299-multi-attachments"></script>
 </body>
 </html>

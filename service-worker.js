@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ict8-connect-v297-activities-polish';
+const CACHE_NAME = 'ict8-connect-v299-multi-attachments';
 
 self.addEventListener('install', event => {
   event.waitUntil(self.skipWaiting());

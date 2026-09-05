@@ -547,6 +547,7 @@ const givenActivityVisibilitySelect = document.getElementById('givenActivityVisi
 const givenActivityDescriptionInput = document.getElementById('givenActivityDescriptionInput');
 const givenActivityFileInput = document.getElementById('givenActivityFileInput');
 const givenActivityFileName = document.getElementById('givenActivityFileName');
+const givenActivitySelectedFiles = document.getElementById('givenActivitySelectedFiles');
 const givenActivityUploadPanel = document.getElementById('givenActivityUploadPanel');
 const givenActivityLinkPanel = document.getElementById('givenActivityLinkPanel');
 const givenActivityTextPanel = document.getElementById('givenActivityTextPanel');
@@ -18294,7 +18295,9 @@ const givenActivityState = {
   activeTerm: 'term1',
   sourceMode: 'upload',
   editingId: '',
-  returnView: 'dashboard'
+  returnView: 'dashboard',
+  viewerActivityId: '',
+  viewerAttachmentIndex: 0
 };
 const needsAttentionState = { items: [], loaded: false };
 
@@ -18327,19 +18330,63 @@ function buildGoogleDriveGivenActivityUrls(fileId = '', materialType = 'pdf') {
   };
 }
 
-function normalizeGivenActivity(raw = {}, index = 0) {
-  const term = Object.prototype.hasOwnProperty.call(LESSON_TERMS, raw.term) ? raw.term : 'term1';
-  const materialType = GIVEN_ACTIVITY_TYPES.includes(String(raw.materialType || raw.type || '').toLowerCase())
-    ? String(raw.materialType || raw.type).toLowerCase()
-    : (raw.previewUrl || raw.openUrl ? 'link' : 'text');
-  const visibility = GIVEN_ACTIVITY_VISIBILITY.includes(String(raw.visibility || '').toLowerCase())
-    ? String(raw.visibility).toLowerCase()
-    : (raw.published === false ? 'draft' : 'published');
+function normalizeGivenActivityAttachment(raw = {}, index = 0, fallbackType = 'link') {
+  const rawType = String(raw.materialType || raw.type || fallbackType || 'link').toLowerCase();
+  let materialType = ['pdf', 'image', 'link'].includes(rawType) ? rawType : 'link';
+  const fileName = String(raw.fileName || raw.name || '').trim().slice(0, 180);
+  if (!raw.materialType && !raw.type && fileName) {
+    if (/\.pdf$/i.test(fileName)) materialType = 'pdf';
+    else if (/\.(png|jpe?g|webp)$/i.test(fileName)) materialType = 'image';
+  }
   const fileId = String(raw.fileId || extractGoogleDriveFileId(raw.openUrl || raw.previewUrl || raw.url || '') || '').trim();
   const driveUrls = buildGoogleDriveGivenActivityUrls(fileId, materialType);
   const previewUrl = String(raw.previewUrl || raw.url || driveUrls.previewUrl || '').trim();
   const openUrl = String(raw.openUrl || driveUrls.openUrl || previewUrl).trim();
   const downloadUrl = String(raw.downloadUrl || driveUrls.downloadUrl || openUrl).trim();
+  return {
+    id: String(raw.id || raw.attachmentId || `attachment-${index + 1}`).replace(/[^a-zA-Z0-9_-]/g, '-'),
+    materialType,
+    fileId,
+    fileName,
+    fileSize: Math.max(0, Number(raw.fileSize || raw.size || 0)),
+    previewUrl,
+    openUrl,
+    downloadUrl,
+    source: String(raw.source || (fileId ? 'google-drive' : 'external-link')),
+    sourceMode: String(raw.sourceMode || (fileId ? 'upload' : 'link'))
+  };
+}
+
+function normalizeGivenActivity(raw = {}, index = 0) {
+  const term = Object.prototype.hasOwnProperty.call(LESSON_TERMS, raw.term) ? raw.term : 'term1';
+  const legacyMaterialType = GIVEN_ACTIVITY_TYPES.includes(String(raw.materialType || raw.type || '').toLowerCase())
+    ? String(raw.materialType || raw.type).toLowerCase()
+    : (raw.previewUrl || raw.openUrl ? 'link' : 'text');
+  const visibility = GIVEN_ACTIVITY_VISIBILITY.includes(String(raw.visibility || '').toLowerCase())
+    ? String(raw.visibility).toLowerCase()
+    : (raw.published === false ? 'draft' : 'published');
+  const rawAttachments = Array.isArray(raw.attachments) ? raw.attachments : [];
+  let attachments = rawAttachments
+    .slice(0, 20)
+    .map((attachment, attachmentIndex) => normalizeGivenActivityAttachment(attachment, attachmentIndex, legacyMaterialType === 'text' ? 'link' : legacyMaterialType))
+    .filter(attachment => attachment.fileId || attachment.previewUrl || attachment.openUrl);
+  if (!attachments.length && legacyMaterialType !== 'text' && (raw.fileId || raw.previewUrl || raw.openUrl || raw.url)) {
+    attachments = [normalizeGivenActivityAttachment({
+      id: 'attachment-1',
+      materialType: legacyMaterialType,
+      fileId: raw.fileId,
+      fileName: raw.fileName,
+      fileSize: raw.fileSize,
+      previewUrl: raw.previewUrl,
+      openUrl: raw.openUrl,
+      downloadUrl: raw.downloadUrl,
+      url: raw.url,
+      source: raw.source,
+      sourceMode: raw.sourceMode
+    }, 0, legacyMaterialType)];
+  }
+  const primary = attachments[0] || null;
+  const materialType = primary?.materialType || (legacyMaterialType === 'text' ? 'text' : legacyMaterialType);
   const order = Math.max(1, Math.min(999, Number.parseInt(raw.order, 10) || index + 1));
   const audienceSection = String(raw.audienceSection || raw.section || 'all').trim() || 'all';
   return {
@@ -18352,18 +18399,40 @@ function normalizeGivenActivity(raw = {}, index = 0) {
     dueDate: String(raw.dueDate || '').trim().slice(0, 10),
     visibility,
     published: visibility === 'published',
+    attachments,
+    attachmentCount: attachments.length,
     materialType,
-    fileId,
-    fileName: String(raw.fileName || '').trim().slice(0, 180),
-    fileSize: Math.max(0, Number(raw.fileSize || 0)),
-    previewUrl,
-    openUrl,
-    downloadUrl,
-    source: String(raw.source || (fileId ? 'google-drive' : (materialType === 'text' ? 'text' : 'external-link'))),
-    sourceMode: String(raw.sourceMode || (materialType === 'text' ? 'text' : (fileId ? 'upload' : 'link'))),
+    fileId: primary?.fileId || '',
+    fileName: primary?.fileName || '',
+    fileSize: primary?.fileSize || 0,
+    previewUrl: primary?.previewUrl || '',
+    openUrl: primary?.openUrl || '',
+    downloadUrl: primary?.downloadUrl || '',
+    source: primary?.source || String(raw.source || (materialType === 'text' ? 'text' : 'external-link')),
+    sourceMode: attachments.length ? (primary?.sourceMode || String(raw.sourceMode || 'upload')) : 'text',
     createdAt: lessonIsoDate(raw.createdAt || raw.uploadedAt || Date.now()),
     updatedAt: lessonIsoDate(raw.updatedAt || raw.createdAt || Date.now())
   };
+}
+
+function getGivenActivityAttachments(item = {}) {
+  if (Array.isArray(item.attachments) && item.attachments.length) return item.attachments.slice(0, 20);
+  if (item.materialType && item.materialType !== 'text' && (item.fileId || item.previewUrl || item.openUrl)) {
+    return [normalizeGivenActivityAttachment(item, 0, item.materialType)];
+  }
+  return [];
+}
+
+function givenActivityMaterialSummary(item = {}) {
+  const attachments = getGivenActivityAttachments(item);
+  if (!attachments.length) return { icon: '📝', label: 'TEXT' };
+  if (attachments.length === 1) {
+    return { icon: givenActivityTypeIcon(attachments[0].materialType), label: givenActivityTypeLabel(attachments[0].materialType) };
+  }
+  const types = new Set(attachments.map(attachment => attachment.materialType));
+  if (types.size === 1 && types.has('image')) return { icon: '🖼️', label: `${attachments.length} IMAGES` };
+  if (types.size === 1 && types.has('pdf')) return { icon: '📚', label: `${attachments.length} PDFs` };
+  return { icon: '🗂️', label: `${attachments.length} FILES` };
 }
 
 function sortGivenActivities(items = [], mode = 'order-asc') {
@@ -18480,6 +18549,7 @@ function renderStudentGivenActivities() {
   }
   givenActivitiesGrid.innerHTML = items.map(item => {
     const due = formatGivenActivityDueDate(item.dueDate);
+    const materialSummary = givenActivityMaterialSummary(item);
     const scope = String(item.audienceSection || 'all').toLowerCase() === 'all' ? 'All Sections' : item.audienceSection;
     const updated = givenActivityTimestampMs(item.updatedAt)
       ? new Date(givenActivityTimestampMs(item.updatedAt)).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
@@ -18489,7 +18559,7 @@ function renderStudentGivenActivities() {
         <button type="button" class="given-activity-card-open" data-given-open="${escapeAttribute(item.id)}">
           <div class="given-activity-card-top">
             <span class="given-activity-order">${escapeHTML(String(item.order).padStart(2, '0'))}</span>
-            <span class="given-activity-type">${givenActivityTypeIcon(item.materialType)} ${escapeHTML(givenActivityTypeLabel(item.materialType))}</span>
+            <span class="given-activity-type">${materialSummary.icon} ${escapeHTML(materialSummary.label)}</span>
           </div>
           <div class="given-activity-card-body">
             <span class="given-activity-term">${escapeHTML(lessonTermLabel(item.term))} · Activity ${escapeHTML(String(item.order))}</span>
@@ -18610,34 +18680,83 @@ function closeGivenActivitiesLibrary() {
   }
 }
 
+function renderGivenActivityViewerAttachment() {
+  if (!givenActivityViewerBody) return;
+  const item = givenActivityState.items.find(entry => entry.id === givenActivityState.viewerActivityId && entry.published);
+  if (!item) return;
+  const attachments = getGivenActivityAttachments(item);
+  if (!attachments.length) {
+    if (givenActivityViewerOpenBtn) givenActivityViewerOpenBtn.classList.add('hidden');
+    givenActivityViewerBody.innerHTML = `<div class="given-activity-text-card"><span aria-hidden="true">📝</span><h3>Activity Instructions</h3><p>${escapeHTML(item.description || 'No additional instructions were provided.').replace(/\n/g, '<br>')}</p></div>`;
+    return;
+  }
+  const maxIndex = attachments.length - 1;
+  givenActivityState.viewerAttachmentIndex = Math.max(0, Math.min(maxIndex, Number(givenActivityState.viewerAttachmentIndex || 0)));
+  const index = givenActivityState.viewerAttachmentIndex;
+  const attachment = attachments[index];
+  if (givenActivityViewerOpenBtn) {
+    givenActivityViewerOpenBtn.classList.toggle('hidden', !attachment.openUrl);
+    givenActivityViewerOpenBtn.href = attachment.openUrl || '#';
+    givenActivityViewerOpenBtn.textContent = attachment.materialType === 'link'
+      ? '↗ Open Link'
+      : attachment.materialType === 'image'
+        ? '↗ Open Image'
+        : '↗ Open PDF';
+  }
+  let stage = '';
+  if (attachment.materialType === 'pdf' && attachment.previewUrl) {
+    stage = `<iframe class="given-activity-pdf-frame" src="${escapeAttribute(attachment.previewUrl)}" title="${escapeAttribute(attachment.fileName || item.title)}" loading="lazy"></iframe>`;
+  } else if (attachment.materialType === 'image' && attachment.previewUrl) {
+    stage = `<div class="given-activity-image-wrap"><img src="${escapeAttribute(attachment.previewUrl)}" alt="${escapeAttribute(attachment.fileName || item.title)}" loading="lazy" /></div>`;
+  } else if (attachment.materialType === 'link' && attachment.openUrl) {
+    stage = `<div class="given-activity-link-card"><span aria-hidden="true">🔗</span><strong>External activity link</strong><p>${escapeHTML(attachment.fileName || item.description || 'Open this activity link.')}</p><a class="primary-btn" href="${escapeAttribute(attachment.openUrl)}" target="_blank" rel="noopener noreferrer">Open Link</a></div>`;
+  } else {
+    stage = `<div class="given-activity-text-card"><span aria-hidden="true">📎</span><h3>Attachment unavailable</h3><p>This attachment could not be previewed. Use the Open button if available.</p></div>`;
+  }
+  const navigation = attachments.length > 1 ? `
+    <div class="given-activity-attachment-toolbar" aria-label="Attachment navigation">
+      <button class="ghost-btn" type="button" data-given-attachment-nav="prev" ${index === 0 ? 'disabled' : ''}>← Previous</button>
+      <div class="given-activity-attachment-position">
+        <strong>${index + 1} / ${attachments.length}</strong>
+        <span>${escapeHTML(attachment.fileName || `${givenActivityTypeLabel(attachment.materialType)} ${index + 1}`)}</span>
+      </div>
+      <button class="ghost-btn" type="button" data-given-attachment-nav="next" ${index === maxIndex ? 'disabled' : ''}>Next →</button>
+    </div>
+    <div class="given-activity-attachment-list" aria-label="Activity attachments">
+      ${attachments.map((entry, attachmentIndex) => `<button type="button" class="given-activity-attachment-chip ${attachmentIndex === index ? 'active' : ''}" data-given-attachment-index="${attachmentIndex}" aria-pressed="${attachmentIndex === index ? 'true' : 'false'}"><span>${givenActivityTypeIcon(entry.materialType)}</span><b>${attachmentIndex + 1}</b><small>${escapeHTML(entry.fileName || givenActivityTypeLabel(entry.materialType))}</small></button>`).join('')}
+    </div>` : `
+    <div class="given-activity-single-attachment-label"><span>${givenActivityTypeIcon(attachment.materialType)}</span><strong>${escapeHTML(attachment.fileName || givenActivityTypeLabel(attachment.materialType))}</strong></div>`;
+  givenActivityViewerBody.innerHTML = `<div class="given-activity-attachment-viewer">${navigation}<div class="given-activity-attachment-stage">${stage}</div></div>`;
+}
+
+function shiftGivenActivityViewerAttachment(delta = 0) {
+  const item = givenActivityState.items.find(entry => entry.id === givenActivityState.viewerActivityId && entry.published);
+  const attachments = item ? getGivenActivityAttachments(item) : [];
+  if (attachments.length < 2) return;
+  givenActivityState.viewerAttachmentIndex = Math.max(0, Math.min(attachments.length - 1, givenActivityState.viewerAttachmentIndex + Number(delta || 0)));
+  renderGivenActivityViewerAttachment();
+}
+
 function openGivenActivityViewer(activityId = '') {
   const item = givenActivityState.items.find(entry => entry.id === activityId && entry.published);
   if (!item || !givenActivityViewerOverlay || !givenActivityViewerBody) return;
+  givenActivityState.viewerActivityId = item.id;
+  givenActivityState.viewerAttachmentIndex = 0;
   if (givenActivityViewerMeta) {
     const due = formatGivenActivityDueDate(item.dueDate);
-    givenActivityViewerMeta.textContent = `${lessonTermLabel(item.term)} · Activity ${item.order}${due ? ` · Due ${due}` : ''}`;
+    const attachmentCount = getGivenActivityAttachments(item).length;
+    givenActivityViewerMeta.textContent = `${lessonTermLabel(item.term)} · Activity ${item.order}${attachmentCount > 1 ? ` · ${attachmentCount} attachments` : ''}${due ? ` · Due ${due}` : ''}`;
   }
   if (givenActivityViewerTitle) givenActivityViewerTitle.textContent = item.title;
   if (givenActivityViewerDescription) givenActivityViewerDescription.textContent = item.description || 'Teacher-posted activity.';
-  if (givenActivityViewerOpenBtn) {
-    givenActivityViewerOpenBtn.classList.toggle('hidden', !item.openUrl || item.materialType === 'text');
-    givenActivityViewerOpenBtn.href = item.openUrl || '#';
-    givenActivityViewerOpenBtn.textContent = item.materialType === 'link' ? '↗ Open Link' : '↗ Open File';
-  }
-  if (item.materialType === 'pdf' && item.previewUrl) {
-    givenActivityViewerBody.innerHTML = `<iframe class="given-activity-pdf-frame" src="${escapeAttribute(item.previewUrl)}" title="${escapeAttribute(item.title)}" loading="lazy"></iframe>`;
-  } else if (item.materialType === 'image' && item.previewUrl) {
-    givenActivityViewerBody.innerHTML = `<div class="given-activity-image-wrap"><img src="${escapeAttribute(item.previewUrl)}" alt="${escapeAttribute(item.title)}" loading="lazy" /></div>`;
-  } else if (item.materialType === 'link' && item.openUrl) {
-    givenActivityViewerBody.innerHTML = `<div class="given-activity-link-card"><span aria-hidden="true">🔗</span><strong>External activity link</strong><p>${escapeHTML(item.description || 'Use the Open Link button to view this activity.')}</p><a class="primary-btn" href="${escapeAttribute(item.openUrl)}" target="_blank" rel="noopener noreferrer">Open Link</a></div>`;
-  } else {
-    givenActivityViewerBody.innerHTML = `<div class="given-activity-text-card"><span aria-hidden="true">📝</span><h3>Activity Instructions</h3><p>${escapeHTML(item.description || 'No additional instructions were provided.').replace(/\n/g, '<br>')}</p></div>`;
-  }
+  renderGivenActivityViewerAttachment();
   givenActivityViewerOverlay.classList.remove('hidden');
   document.body.classList.add('given-activity-viewer-open');
 }
 
 function closeGivenActivityViewer() {
+  givenActivityState.viewerActivityId = '';
+  givenActivityState.viewerAttachmentIndex = 0;
   if (givenActivityViewerBody) givenActivityViewerBody.innerHTML = '';
   givenActivityViewerOverlay?.classList.add('hidden');
   document.body.classList.remove('given-activity-viewer-open');
@@ -18690,9 +18809,9 @@ function syncGivenActivityDriveUI() {
     givenActivityDriveConnectBtn.disabled = !configured;
     givenActivityDriveConnectBtn.textContent = connected ? '☁ Drive Connected ✓' : (configured ? '☁ Connect Drive' : '☁ Drive Setup Required');
   }
-  if (!configured) setGivenActivityDriveStatus('Direct PDF/image upload needs the same free Google Drive Client ID used by Lessons. Paste Link and Instructions Only already work.', 'warning');
-  else if (connected) setGivenActivityDriveStatus('Google Drive connected. PDF and image uploads are ready.', 'success');
-  else setGivenActivityDriveStatus('Connect Google Drive to upload a PDF/image, or use Paste Link.', '');
+  if (!configured) setGivenActivityDriveStatus('Direct PDF/image uploads need the same free Google Drive Client ID used by Lessons. Paste Link and Instructions Only already work.', 'warning');
+  else if (connected) setGivenActivityDriveStatus('Google Drive connected. Multiple PDF/image uploads are ready.', 'success');
+  else setGivenActivityDriveStatus('Connect Google Drive to upload PDFs/images, or use Paste Link.', '');
 }
 
 async function uploadGivenActivityFileToGoogleDrive(file) {
@@ -18757,6 +18876,32 @@ function normalizeGivenActivityLink(url = '', materialType = 'link') {
   return { materialType: type, fileId: '', previewUrl: parsed.href, openUrl: parsed.href, downloadUrl: parsed.href, source: 'external-link', sourceMode: 'link' };
 }
 
+function renderGivenActivityFileSelection(existingItem = null) {
+  const files = Array.from(givenActivityFileInput?.files || []);
+  const existing = existingItem || givenActivityState.items.find(item => item.id === givenActivityState.editingId) || null;
+  if (files.length) {
+    const totalBytes = files.reduce((sum, file) => sum + Number(file.size || 0), 0);
+    if (givenActivityFileName) givenActivityFileName.textContent = `${files.length} file${files.length === 1 ? '' : 's'} selected · ${formatLessonFileSize(totalBytes)}`;
+    if (givenActivitySelectedFiles) {
+      givenActivitySelectedFiles.innerHTML = files.slice(0, 20).map((file, index) => {
+        const type = file.type === 'application/pdf' || /\.pdf$/i.test(file.name) ? 'PDF' : 'Image';
+        return `<span><b>${index + 1}</b>${escapeHTML(file.name)}<small>${escapeHTML(type)} · ${escapeHTML(formatLessonFileSize(file.size || 0))}</small></span>`;
+      }).join('');
+    }
+    return;
+  }
+  const attachments = existing ? getGivenActivityAttachments(existing) : [];
+  if (attachments.length) {
+    if (givenActivityFileName) givenActivityFileName.textContent = `${attachments.length} existing attachment${attachments.length === 1 ? '' : 's'} · choose new files only to replace them`;
+    if (givenActivitySelectedFiles) {
+      givenActivitySelectedFiles.innerHTML = attachments.map((attachment, index) => `<span class="existing"><b>${index + 1}</b>${escapeHTML(attachment.fileName || givenActivityTypeLabel(attachment.materialType))}<small>Existing ${escapeHTML(givenActivityTypeLabel(attachment.materialType))}</small></span>`).join('');
+    }
+    return;
+  }
+  if (givenActivityFileName) givenActivityFileName.textContent = 'Choose one or more PDFs / images';
+  if (givenActivitySelectedFiles) givenActivitySelectedFiles.innerHTML = '';
+}
+
 function resetGivenActivityAdminEditor(options = {}) {
   givenActivityState.editingId = '';
   if (givenActivityEditorBadge) givenActivityEditorBadge.textContent = 'New Activity';
@@ -18769,7 +18914,7 @@ function resetGivenActivityAdminEditor(options = {}) {
   if (givenActivityUrlInput) givenActivityUrlInput.value = '';
   if (givenActivityLinkTypeSelect) givenActivityLinkTypeSelect.value = 'pdf';
   if (givenActivityFileInput) givenActivityFileInput.value = '';
-  if (givenActivityFileName) givenActivityFileName.textContent = 'Choose a PDF or image';
+  renderGivenActivityFileSelection();
   if (!options.keepTerm && givenActivityTermSelect) givenActivityTermSelect.value = libraryTermFromComplianceTerm();
   if (givenActivityOrderInput) givenActivityOrderInput.value = String(getNextGivenActivityOrder(givenActivityTermSelect?.value || 'term1'));
   if (givenActivityAudienceSelect) givenActivityAudienceSelect.value = 'all';
@@ -18802,7 +18947,7 @@ function editGivenActivityAdmin(activityId = '') {
   if (givenActivityUrlInput) givenActivityUrlInput.value = item.openUrl || item.previewUrl || '';
   if (givenActivityLinkTypeSelect) givenActivityLinkTypeSelect.value = item.materialType === 'text' ? 'link' : item.materialType;
   if (givenActivityFileInput) givenActivityFileInput.value = '';
-  if (givenActivityFileName) givenActivityFileName.textContent = item.fileName || 'Choose a replacement PDF or image';
+  renderGivenActivityFileSelection(item);
   setGivenActivitySourceMode(item.materialType === 'text' ? 'text' : (item.sourceMode === 'upload' || item.fileId ? 'upload' : 'link'));
   if (givenActivityPublishBtn) givenActivityPublishBtn.textContent = 'Save Changes';
   setGivenActivityAdminStatus(`Editing ${item.title}.`, 'success');
@@ -18830,12 +18975,13 @@ function renderAdminGivenActivityList() {
   }
   givenActivityAdminList.innerHTML = items.map(item => {
     const due = formatGivenActivityDueDate(item.dueDate);
+    const materialSummary = givenActivityMaterialSummary(item);
     return `
       <article class="given-activity-admin-row" data-given-admin-id="${escapeAttribute(item.id)}">
         <div class="given-activity-admin-order">${escapeHTML(String(item.order).padStart(2, '0'))}</div>
         <div class="given-activity-admin-copy">
           <div class="given-activity-admin-title-line"><strong>${escapeHTML(item.title)}</strong><span class="given-activity-visibility ${item.published ? 'published' : 'draft'}">${item.published ? 'Published' : 'Draft'}</span></div>
-          <small>${escapeHTML(lessonTermLabel(item.term))} · ${escapeHTML(givenActivityTypeLabel(item.materialType))} · ${escapeHTML(item.audienceSection === 'all' ? 'All Sections' : item.audienceSection)}${due ? ` · Due ${escapeHTML(due)}` : ''}</small>
+          <small>${escapeHTML(lessonTermLabel(item.term))} · ${escapeHTML(materialSummary.label)} · ${escapeHTML(item.audienceSection === 'all' ? 'All Sections' : item.audienceSection)}${due ? ` · Due ${escapeHTML(due)}` : ''}</small>
         </div>
         <div class="given-activity-admin-actions">
           <button class="ghost-btn mini" type="button" data-given-admin-action="up" title="Move up">↑</button>
@@ -18869,19 +19015,48 @@ async function publishGivenActivityFromAdmin() {
   if (givenActivityPublishBtn) givenActivityPublishBtn.disabled = true;
   try {
     if (givenActivityState.sourceMode === 'upload') {
-      const file = givenActivityFileInput?.files?.[0] || null;
-      if (file) {
-        setGivenActivityAdminStatus('Uploading PDF/image to Google Drive...', 'loading');
-        sourceRecord = { ...sourceRecord, ...(await uploadGivenActivityFileToGoogleDrive(file)) };
-      } else if (!existing || !existing.fileId) {
-        throw new Error('Choose a PDF/image, or switch to Paste Link / Instructions Only.');
+      const files = Array.from(givenActivityFileInput?.files || []);
+      if (files.length > 20) throw new Error('Choose up to 20 PDF/image files per activity.');
+      if (files.length) {
+        const uploadedAttachments = [];
+        try {
+          for (let index = 0; index < files.length; index += 1) {
+            setGivenActivityAdminStatus(`Uploading file ${index + 1} of ${files.length}: ${files[index].name}`, 'loading');
+            const uploaded = await uploadGivenActivityFileToGoogleDrive(files[index]);
+            uploadedAttachments.push(normalizeGivenActivityAttachment({ ...uploaded, id: `attachment-${index + 1}` }, index, uploaded.materialType));
+          }
+        } catch (error) {
+          await Promise.all(uploadedAttachments.filter(item => item.fileId).map(item => googleDriveFetch(`${LESSON_GOOGLE_API_BASE}/files/${encodeURIComponent(item.fileId)}`, { method: 'DELETE' }).catch(() => {})));
+          throw error;
+        }
+        const primary = uploadedAttachments[0];
+        sourceRecord = {
+          attachments: uploadedAttachments,
+          attachmentCount: uploadedAttachments.length,
+          materialType: primary?.materialType || 'text',
+          fileId: primary?.fileId || '',
+          fileName: primary?.fileName || '',
+          fileSize: primary?.fileSize || 0,
+          previewUrl: primary?.previewUrl || '',
+          openUrl: primary?.openUrl || '',
+          downloadUrl: primary?.downloadUrl || '',
+          source: 'google-drive-upload',
+          sourceMode: 'upload'
+        };
+      } else if (!existing || !getGivenActivityAttachments(existing).length) {
+        throw new Error('Choose one or more PDFs/images, or switch to Paste Link / Instructions Only.');
       }
     } else if (givenActivityState.sourceMode === 'link') {
-      sourceRecord = { ...sourceRecord, ...normalizeGivenActivityLink(givenActivityUrlInput?.value || '', givenActivityLinkTypeSelect?.value || 'link') };
-      sourceRecord.fileName = '';
-      sourceRecord.fileSize = 0;
+      const linkRecord = normalizeGivenActivityAttachment(normalizeGivenActivityLink(givenActivityUrlInput?.value || '', givenActivityLinkTypeSelect?.value || 'link'), 0, givenActivityLinkTypeSelect?.value || 'link');
+      sourceRecord = {
+        attachments: [linkRecord],
+        attachmentCount: 1,
+        ...linkRecord,
+        fileName: '',
+        fileSize: 0
+      };
     } else {
-      sourceRecord = { materialType: 'text', previewUrl: '', openUrl: '', downloadUrl: '', fileId: '', fileName: '', fileSize: 0, source: 'text', sourceMode: 'text' };
+      sourceRecord = { attachments: [], attachmentCount: 0, materialType: 'text', previewUrl: '', openUrl: '', downloadUrl: '', fileId: '', fileName: '', fileSize: 0, source: 'text', sourceMode: 'text' };
     }
     const nowIso = new Date().toISOString();
     const record = normalizeGivenActivity({
@@ -19331,6 +19506,18 @@ function bindTeacherToolsV295() {
     const button = event.target.closest('[data-given-open]');
     if (button) openGivenActivityViewer(button.dataset.givenOpen || '');
   });
+  givenActivityViewerBody?.addEventListener('click', event => {
+    const nav = event.target.closest('[data-given-attachment-nav]');
+    if (nav) {
+      shiftGivenActivityViewerAttachment(nav.dataset.givenAttachmentNav === 'prev' ? -1 : 1);
+      return;
+    }
+    const attachmentButton = event.target.closest('[data-given-attachment-index]');
+    if (attachmentButton) {
+      givenActivityState.viewerAttachmentIndex = Number.parseInt(attachmentButton.dataset.givenAttachmentIndex, 10) || 0;
+      renderGivenActivityViewerAttachment();
+    }
+  });
   givenActivityViewerCloseBtn?.addEventListener('click', closeGivenActivityViewer);
   givenActivityViewerOverlay?.addEventListener('click', event => { if (event.target === givenActivityViewerOverlay) event.stopPropagation(); });
 
@@ -19362,8 +19549,12 @@ function bindTeacherToolsV295() {
   givenActivityCancelEditBtn?.addEventListener('click', () => resetGivenActivityAdminEditor({ keepTerm: true }));
   givenActivitySourceTabs.forEach(button => button.addEventListener('click', () => setGivenActivitySourceMode(button.dataset.givenSource || 'upload')));
   givenActivityFileInput?.addEventListener('change', () => {
-    const file = givenActivityFileInput.files?.[0];
-    if (givenActivityFileName) givenActivityFileName.textContent = file ? `${file.name}${file.size ? ` · ${formatLessonFileSize(file.size)}` : ''}` : 'Choose a PDF or image';
+    const files = Array.from(givenActivityFileInput.files || []);
+    if (files.length > 20) {
+      givenActivityFileInput.value = '';
+      setGivenActivityAdminStatus('Choose up to 20 PDF/image files per activity.', 'error');
+    }
+    renderGivenActivityFileSelection();
   });
   givenActivityTermSelect?.addEventListener('change', () => {
     if (!givenActivityState.editingId && givenActivityOrderInput) givenActivityOrderInput.value = String(getNextGivenActivityOrder(givenActivityTermSelect.value));
