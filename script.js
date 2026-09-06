@@ -10428,7 +10428,7 @@ function buildAdminProjectPreviewCode(pageName = '') {
   }
 
   return `<!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="page-${pageIndex + 1}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -13993,79 +13993,296 @@ function installDesktopEditorWheelScroll() {
   }, { passive: false });
 }
 
+function previewNodeCanScroll(node, deltaY, fallbackClientHeight = 0) {
+  if (!node || Math.abs(Number(deltaY || 0)) < 0.01) return false;
+  const clientHeight = Math.max(1, Number(node.clientHeight || fallbackClientHeight || 1));
+  const maxTop = Math.max(0, Number(node.scrollHeight || 0) - clientHeight);
+  const top = Math.max(0, Number(node.scrollTop || 0));
+  if (maxTop <= 1) return false;
+  return deltaY > 0 ? top < maxTop - 0.5 : top > 0.5;
+}
+
 function findPreviewScrollableAncestor(doc, startNode, deltaY) {
   let node = startNode?.nodeType === 1 ? startNode : startNode?.parentElement;
-  const stopAt = doc?.body || null;
-  while (node && node !== stopAt && node !== doc?.documentElement) {
+  while (node && node !== doc?.body && node !== doc?.documentElement) {
     try {
       const style = doc.defaultView?.getComputedStyle(node);
       const overflowY = String(style?.overflowY || '');
-      const scrollable = /(auto|scroll|overlay)/i.test(overflowY) && node.scrollHeight > node.clientHeight + 1;
-      if (scrollable) {
-        const maxTop = Math.max(0, node.scrollHeight - node.clientHeight);
-        const top = Number(node.scrollTop || 0);
-        const canMove = deltaY > 0 ? top < maxTop - 0.5 : top > 0.5;
-        if (canMove) return node;
-      }
+      const scrollable = /(auto|scroll|overlay)/i.test(overflowY) && previewNodeCanScroll(node, deltaY);
+      if (scrollable) return node;
     } catch (_) {}
     node = node.parentElement;
   }
   return null;
 }
 
+function getPreviewRootScrollCandidates(doc) {
+  const candidates = [doc?.scrollingElement, doc?.documentElement, doc?.body].filter(Boolean);
+  return candidates.filter((node, index) => candidates.indexOf(node) === index);
+}
+
+function getPreviewRootScroller(doc, deltaY = 0) {
+  if (!doc) return null;
+  const viewHeight = Math.max(
+    1,
+    Number(doc.defaultView?.innerHeight || 0),
+    Number(previewFrame?.clientHeight || 0),
+    Number(doc.documentElement?.clientHeight || 0)
+  );
+  const candidates = getPreviewRootScrollCandidates(doc);
+
+  // Prefer the actual root that can move in the requested direction. This is
+  // important because student pages may put overflow on BODY instead of HTML.
+  for (const node of candidates) {
+    if (previewNodeCanScroll(node, deltaY, viewHeight)) return node;
+  }
+
+  // If already at an edge, keep the root with the largest scroll range. This
+  // lets the next opposite wheel/touch gesture immediately scroll it back.
+  let best = null;
+  let bestRange = -1;
+  for (const node of candidates) {
+    const clientHeight = Math.max(1, Number(node.clientHeight || viewHeight || 1));
+    const range = Math.max(0, Number(node.scrollHeight || 0) - clientHeight);
+    if (range > bestRange) {
+      best = node;
+      bestRange = range;
+    }
+  }
+  return best || null;
+}
+
+const previewWheelScrollState = new WeakMap();
+
+function queuePreviewElementScroll(target, deltaY, doc) {
+  if (!target || Math.abs(Number(deltaY || 0)) < 0.01) return false;
+  let state = previewWheelScrollState.get(target);
+  if (!state) {
+    state = { pending: 0, rafId: 0 };
+    previewWheelScrollState.set(target, state);
+  }
+  state.pending += Number(deltaY || 0);
+  if (!state.rafId) {
+    state.rafId = window.requestAnimationFrame(() => {
+      state.rafId = 0;
+      const pending = state.pending;
+      state.pending = 0;
+      if (Math.abs(pending) < 0.01) return;
+
+      const viewHeight = Math.max(1, Number(doc?.defaultView?.innerHeight || previewFrame?.clientHeight || 1));
+      const clientHeight = Math.max(1, Number(target.clientHeight || viewHeight));
+      const maxTop = Math.max(0, Number(target.scrollHeight || 0) - clientHeight);
+      const before = Math.max(0, Number(target.scrollTop || 0));
+      const next = Math.max(0, Math.min(maxTop, before + pending));
+      if (Math.abs(next - before) > 0.01) target.scrollTop = next;
+    });
+  }
+  return true;
+}
+
+function ensurePreviewFrameScrollableSurface() {
+  if (!previewFrame) return;
+  previewFrame.setAttribute('scrolling', 'yes');
+  // Keep the iframe itself interactive. The document inside the iframe owns
+  // vertical scrolling; the parent shell must never swallow wheel/touch input.
+  previewFrame.style.setProperty('overflow', 'auto', 'important');
+  previewFrame.style.setProperty('pointer-events', 'auto', 'important');
+  previewFrame.style.setProperty('touch-action', 'pan-x pan-y pinch-zoom', 'important');
+  previewFrame.style.setProperty('overscroll-behavior', 'auto', 'important');
+  previewFrame.style.setProperty('-webkit-overflow-scrolling', 'touch', 'important');
+}
+
 function attachPreviewDesktopWheelScroll() {
   if (!previewFrame) return;
+  ensurePreviewFrameScrollableSurface();
   let doc = null;
   try {
     doc = previewFrame.contentDocument || previewFrame.contentWindow?.document || null;
   } catch (_) {
     doc = null;
   }
-  if (!doc || doc.__mcsDesktopWheelReady) return;
-  doc.__mcsDesktopWheelReady = true;
+  if (!doc || doc.__mcsPreviewInputScrollReady) return;
+  doc.__mcsPreviewInputScrollReady = true;
 
+  // Explicit wheel bridge. Native iframe wheel scrolling became unreliable
+  // after the fullscreen/monitor scaling work: the scrollbar could be dragged,
+  // but wheel/trackpad input did not move it. Scroll the actual inner scroller
+  // ourselves so desktop wheel/trackpad works in every preview mode.
   doc.addEventListener('wheel', event => {
-    if (!isDesktopNaturalScrollMode()) return;
-    if (event.defaultPrevented || event.ctrlKey || event.metaKey) return;
+    // Do not depend on the browser's native iframe wheel handling here.
+    // Some desktop/mobile preview modes keep a draggable scrollbar but lose
+    // wheel/trackpad scrolling. Route vertical wheel input ourselves whenever
+    // the preview actually has somewhere to scroll.
+    if (event.ctrlKey || event.metaKey) return;
     if (Math.abs(Number(event.deltaX || 0)) > Math.abs(Number(event.deltaY || 0))) return;
 
-    const viewHeight = previewFrame.clientHeight || doc.defaultView?.innerHeight || window.innerHeight;
+    const viewHeight = Math.max(1, Number(doc.defaultView?.innerHeight || previewFrame.clientHeight || window.innerHeight));
     const deltaY = normalizeWheelDeltaY(event, viewHeight);
     if (Math.abs(deltaY) < 0.25) return;
 
-    const scroller = doc.scrollingElement || doc.documentElement || doc.body;
-    if (!scroller) return;
-    const clientHeight = Math.max(1, scroller.clientHeight || doc.defaultView?.innerHeight || viewHeight);
-    const maxTop = Math.max(0, scroller.scrollHeight - clientHeight);
-    const top = Number(scroller.scrollTop || doc.defaultView?.scrollY || 0);
-    const rootCanMove = maxTop > 1 && (deltaY > 0 ? top < maxTop - 0.5 : top > 0.5);
+    const nested = findPreviewScrollableAncestor(doc, event.target, deltaY);
+    const target = nested || getPreviewRootScroller(doc, deltaY);
+    if (target && previewNodeCanScroll(target, deltaY, viewHeight)) {
+      event.preventDefault();
+      queuePreviewElementScroll(target, deltaY, doc);
+      return;
+    }
 
-    // Native iframe scrolling is much smoother than manually assigning
-    // scrollTop on every wheel event. Leave it completely untouched while the
-    // student page still has room to scroll.
-    if (rootCanMove) return;
-
-    // At the document edge, first respect any student-made nested scroll area.
-    // This relatively expensive style walk now runs only at an edge, not during
-    // every normal wheel tick.
-    if (findPreviewScrollableAncestor(doc, event.target, deltaY)) return;
-
+    // At the end of a normal in-page preview, hand the wheel back to the app
+    // page. Full Preview remains self-contained.
     const previewIsFullscreen = document.body.classList.contains('preview-fullscreen-active')
       || document.body.classList.contains('preview-inside-editor-fullscreen')
       || document.fullscreenElement === previewPanel;
-    if (previewIsFullscreen) return;
+    if (!previewIsFullscreen && queueParentPageWheel(deltaY)) event.preventDefault();
+  }, { passive: false, capture: true });
 
-    if (queueParentPageWheel(deltaY)) event.preventDefault();
-  }, { passive: false });
+  // Explicit touch bridge for phones/tablets, including the scaled Desktop
+  // Monitor preview. A transformed iframe is especially inconsistent across
+  // mobile browsers, so do not depend on native scroll chaining here.
+  const touchState = {
+    active: false,
+    lastX: 0,
+    lastY: 0,
+    lastAt: 0,
+    velocityY: 0,
+    startTarget: null,
+    scrollTarget: null,
+    inertiaFrame: 0
+  };
+
+  const cancelPreviewTouchInertia = () => {
+    if (touchState.inertiaFrame) {
+      const cancel = doc.defaultView?.cancelAnimationFrame || window.cancelAnimationFrame;
+      try { cancel.call(doc.defaultView || window, touchState.inertiaFrame); } catch (_) {
+        window.cancelAnimationFrame(touchState.inertiaFrame);
+      }
+      touchState.inertiaFrame = 0;
+    }
+    touchState.velocityY = 0;
+  };
+
+  const applyTouchScrollDelta = (target, deltaY, viewHeight) => {
+    if (!target || Math.abs(Number(deltaY || 0)) < 0.01) return false;
+    const clientHeight = Math.max(1, Number(target.clientHeight || viewHeight || 1));
+    const maxTop = Math.max(0, Number(target.scrollHeight || 0) - clientHeight);
+    const before = Math.max(0, Number(target.scrollTop || 0));
+    const next = Math.max(0, Math.min(maxTop, before + Number(deltaY || 0)));
+    if (Math.abs(next - before) < 0.01) return false;
+    target.scrollTop = next;
+    return true;
+  };
+
+  const startPreviewTouchInertia = () => {
+    const target = touchState.scrollTarget;
+    let velocity = Number(touchState.velocityY || 0);
+    if (!target || Math.abs(velocity) < 0.8) return;
+
+    const view = doc.defaultView || window;
+    const request = view.requestAnimationFrame?.bind(view) || window.requestAnimationFrame.bind(window);
+    let previousAt = view.performance?.now?.() || performance.now();
+
+    const step = now => {
+      const elapsed = Math.max(1, Math.min(34, Number(now || 0) - previousAt));
+      previousAt = Number(now || 0);
+      const frameScale = elapsed / 16.667;
+      const viewHeight = Math.max(1, Number(view.innerHeight || previewFrame.clientHeight || window.innerHeight));
+      const moved = applyTouchScrollDelta(target, velocity * frameScale, viewHeight);
+
+      // Time-corrected friction keeps phone swipes smooth while stopping quickly
+      // enough for classroom use. Stop immediately when the scroll edge is hit.
+      velocity *= Math.pow(0.91, frameScale);
+      if (!moved || Math.abs(velocity) < 0.45) {
+        touchState.inertiaFrame = 0;
+        return;
+      }
+      touchState.inertiaFrame = request(step);
+    };
+
+    touchState.inertiaFrame = request(step);
+  };
+
+  doc.addEventListener('touchstart', event => {
+    cancelPreviewTouchInertia();
+    if (!event.touches || event.touches.length !== 1) {
+      touchState.active = false;
+      return;
+    }
+    const touch = event.touches[0];
+    touchState.active = true;
+    touchState.lastX = Number(touch.clientX || 0);
+    touchState.lastY = Number(touch.clientY || 0);
+    touchState.lastAt = doc.defaultView?.performance?.now?.() || performance.now();
+    touchState.velocityY = 0;
+    touchState.startTarget = event.target;
+    touchState.scrollTarget = null;
+  }, { passive: true, capture: true });
+
+  doc.addEventListener('touchmove', event => {
+    if (!touchState.active || !event.touches || event.touches.length !== 1) return;
+    const touch = event.touches[0];
+    const currentX = Number(touch.clientX || 0);
+    const currentY = Number(touch.clientY || 0);
+    const now = doc.defaultView?.performance?.now?.() || performance.now();
+    const deltaX = touchState.lastX - currentX;
+    const deltaY = touchState.lastY - currentY;
+    const elapsed = Math.max(4, Math.min(80, now - touchState.lastAt));
+
+    touchState.lastX = currentX;
+    touchState.lastY = currentY;
+    touchState.lastAt = now;
+
+    // Leave intentional horizontal gestures alone (e.g. horizontally scrolling
+    // student components). Vertical swipes drive the preview page.
+    if (Math.abs(deltaY) < 0.5 || Math.abs(deltaX) > Math.abs(deltaY) * 1.15) return;
+
+    const viewHeight = Math.max(1, Number(doc.defaultView?.innerHeight || previewFrame.clientHeight || window.innerHeight));
+    const nested = findPreviewScrollableAncestor(doc, event.target || touchState.startTarget, deltaY);
+    const target = nested || getPreviewRootScroller(doc, deltaY);
+    if (!target || !previewNodeCanScroll(target, deltaY, viewHeight)) return;
+
+    event.preventDefault();
+    if (!applyTouchScrollDelta(target, deltaY, viewHeight)) return;
+
+    touchState.scrollTarget = target;
+    // Convert the finger speed to scroll pixels per 60 Hz frame and smooth it
+    // so both short swipes and long swipes feel natural rather than jerky.
+    const instantVelocity = (deltaY / elapsed) * 16.667;
+    touchState.velocityY = (touchState.velocityY * 0.58) + (instantVelocity * 0.42);
+  }, { passive: false, capture: true });
+
+  const endTouch = () => {
+    if (touchState.active) startPreviewTouchInertia();
+    touchState.active = false;
+    touchState.startTarget = null;
+  };
+  doc.addEventListener('touchend', endTouch, { passive: true, capture: true });
+  doc.addEventListener('touchcancel', () => {
+    cancelPreviewTouchInertia();
+    touchState.active = false;
+    touchState.startTarget = null;
+    touchState.scrollTarget = null;
+  }, { passive: true, capture: true });
 }
 
 installDesktopEditorWheelScroll();
+ensurePreviewFrameScrollableSurface();
 
 function buildFullCode(pageName = getActiveHtmlPageName()) {
   const safePageName = normalizeHtmlPageName(pageName);
   const rawHtml = getHTMLPageContent(safePageName) || '';
   const html = stripAppPreviewHelperLeak(rawHtml);
-  const styleBlock = getCSSBlocksForPreview(html);
+  const rawStyleBlock = getCSSBlocksForPreview(html);
+  // Older Wireframe -> Starter Code builds intentionally hid root overflow to
+  // remove a right-side gutter. That also prevented scrolling in Output Preview.
+  // Repair those generated starters at preview time without overriding normal
+  // student-authored CSS or mutating the saved project.
+  const legacyWireframeStarterScrollFix = /Starter CSS generated from ICT 8 Connect Wireframe Maker/i.test(rawStyleBlock)
+    ? `<style id="mcs-wireframe-starter-preview-scroll-fix">
+html, body { min-height: 100% !important; overflow-x: hidden !important; overflow-y: auto !important; -webkit-overflow-scrolling: touch; }
+.site-canvas { min-height: 100vh !important; min-height: 100dvh !important; overflow: visible !important; }
+</style>`
+    : '';
+  const styleBlock = [rawStyleBlock, legacyWireframeStarterScrollFix].filter(Boolean).join('\n');
   const scriptBlock = getJSBlocksForPreview(html);
   // App navigation helpers are attached from the parent iframe load handler.
   // Keeping them out of srcdoc prevents helper JS from ever becoming visible
@@ -18128,6 +18345,7 @@ function enterFullPreview(options = {}) {
   previewControlsToggle?.classList.toggle('hidden', !fromFullEditor);
   setPreviewControlsMenu(false);
 
+  document.documentElement.classList.add('preview-fullscreen-root');
   document.body.classList.add('preview-fullscreen-active');
   document.body.classList.toggle('preview-has-back-editor', fromFullEditor);
   document.body.classList.toggle('preview-inside-editor-fullscreen', insideEditorFullscreen);
@@ -18176,6 +18394,7 @@ function exitFullPreview(options = {}) {
     !safeOptions.fromNative &&
     document.exitFullscreen;
 
+  document.documentElement.classList.remove('preview-fullscreen-root');
   document.body.classList.remove(
     'preview-fullscreen-active',
     'preview-has-back-editor',
@@ -27756,7 +27975,7 @@ function buildWireframeStarterCss(data) {
   const phoneRules = [];
 
   normalized.pages.forEach((page, pageIndex) => {
-    baseRules.push(`body.page-${pageIndex + 1}, .page-${pageIndex + 1} .site-canvas { background: ${page.canvasBackground}; }`);
+    baseRules.push(`html.page-${pageIndex + 1}, body.page-${pageIndex + 1}, .page-${pageIndex + 1} .site-canvas { background: ${page.canvasBackground}; }`);
     page.elements.forEach((element, elementIndex) => {
       if (element.hidden) return;
       const selector = `.wf-p${pageIndex + 1}-e${elementIndex + 1}`;
@@ -27800,26 +28019,55 @@ html,
 body {
   margin: 0;
   width: 100%;
-  min-width: 100%;
+  min-width: 0;
   min-height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scroll-behavior: smooth;
+  overscroll-behavior-y: auto;
+}
+
+html {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(100, 116, 139, 0.62) transparent;
+}
+
+html::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+html::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+html::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: rgba(100, 116, 139, 0.62);
+  background-clip: padding-box;
 }
 
 body {
+  min-height: 100vh;
+  min-height: 100dvh;
   font-family: Arial, Helvetica, sans-serif;
   background: #e2e8f0;
   color: #0f172a;
-  overflow-x: hidden;
 }
 
-/* The wireframe is a reference canvas. The generated website expands it to the
-   actual browser viewport while preserving each element's proportional layout. */
+/* The wireframe is a reference canvas. The generated website fills the
+   viewport but keeps vertical overflow scrollable. Horizontal overflow stays
+   clipped so there is no white strip at the right edge. */
 .site-canvas {
   position: relative;
-  width: 100vw;
+  width: 100%;
   height: 100vh;
+  height: 100dvh;
   min-height: 100vh;
+  min-height: 100dvh;
   margin: 0;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .wf-element {
@@ -27856,9 +28104,11 @@ ${baseRules.join('\n\n')}
 
 @media (max-width: 600px) {
   .site-canvas {
-    width: 100vw;
+    width: 100%;
     height: 100vh;
+    height: 100dvh;
     min-height: 100vh;
+    min-height: 100dvh;
   }
 
 ${phoneRules.join('\n')}
