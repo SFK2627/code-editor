@@ -209,6 +209,8 @@ const subjectStatusToggle = document.getElementById('subjectStatusToggle');
 const superStudioToggle = document.getElementById('superStudioToggle');
 const autoRunControlToggle = document.getElementById('autoRunControlToggle');
 const autoSaveControlToggle = document.getElementById('autoSaveControlToggle');
+const wireframeAutoSaveToggle = document.getElementById('wireframeAutoSaveToggle');
+const wireframeStarterCodeToggle = document.getElementById('wireframeStarterCodeToggle');
 const externalLinksSamePreviewToggle = document.getElementById('externalLinksSamePreviewToggle');
 const starterCodeToggle = document.getElementById('starterCodeToggle');
 const collaborationToggle = document.getElementById('collaborationToggle');
@@ -381,6 +383,100 @@ const projectNameInput = document.getElementById('projectNameInput');
 const projectNameError = document.getElementById('projectNameError');
 const saveProjectNameBtn = document.getElementById('saveProjectNameBtn');
 const cancelProjectNameBtn = document.getElementById('cancelProjectNameBtn');
+const projectTypeOverlay = document.getElementById('projectTypeOverlay');
+const closeProjectTypeBtn = document.getElementById('closeProjectTypeBtn');
+const cancelProjectTypeBtn = document.getElementById('cancelProjectTypeBtn');
+const wireframeMakerScreen = document.getElementById('wireframeMakerScreen');
+const wireframeBackBtn = document.getElementById('wireframeBackBtn');
+const wireframeProjectTitle = document.getElementById('wireframeProjectTitle');
+const wireframeProjectMeta = document.getElementById('wireframeProjectMeta');
+const wireframeDesktopBtn = document.getElementById('wireframeDesktopBtn');
+const wireframePhoneBtn = document.getElementById('wireframePhoneBtn');
+const wireframeZoomSelect = document.getElementById('wireframeZoomSelect');
+const wireframePreviewBtn = document.getElementById('wireframePreviewBtn');
+const wireframeFocusBtn = document.getElementById('wireframeFocusBtn');
+const wireframePaletteToggleBtn = document.getElementById('wireframePaletteToggleBtn');
+const wireframePropertiesToggleBtn = document.getElementById('wireframePropertiesToggleBtn');
+const wireframeExitFocusBtn = document.getElementById('wireframeExitFocusBtn');
+const wireframePaletteCloseBtn = document.getElementById('wireframePaletteCloseBtn');
+const wireframePropertiesCloseBtn = document.getElementById('wireframePropertiesCloseBtn');
+const wireframeExportBtn = document.getElementById('wireframeExportBtn');
+const wireframeExportOverlay = document.getElementById('wireframeExportOverlay');
+const closeWireframeExportBtn = document.getElementById('closeWireframeExportBtn');
+const cancelWireframeExportBtn = document.getElementById('cancelWireframeExportBtn');
+const wireframeExportDevice = document.getElementById('wireframeExportDevice');
+const wireframeExportScope = document.getElementById('wireframeExportScope');
+const wireframeExportPageName = document.getElementById('wireframeExportPageName');
+const wireframeExportPngBtn = document.getElementById('wireframeExportPngBtn');
+const wireframeExportPdfBtn = document.getElementById('wireframeExportPdfBtn');
+const wireframeExportStatus = document.getElementById('wireframeExportStatus');
+const wireframeConvertBtn = document.getElementById('wireframeConvertBtn');
+const wireframeSaveBtn = document.getElementById('wireframeSaveBtn');
+const wireframeSaveState = document.getElementById('wireframeSaveState');
+const wireframeAutosaveMode = document.getElementById('wireframeAutosaveMode');
+const wireframePageTabs = document.getElementById('wireframePageTabs');
+const wireframeAddPageBtn = document.getElementById('wireframeAddPageBtn');
+const wireframeRenamePageBtn = document.getElementById('wireframeRenamePageBtn');
+const wireframeDuplicatePageBtn = document.getElementById('wireframeDuplicatePageBtn');
+const wireframeSetStartPageBtn = document.getElementById('wireframeSetStartPageBtn');
+const wireframeDeletePageBtn = document.getElementById('wireframeDeletePageBtn');
+const wireframePageDialogOverlay = document.getElementById('wireframePageDialogOverlay');
+const closeWireframePageDialogBtn = document.getElementById('closeWireframePageDialogBtn');
+const cancelWireframePageDialogBtn = document.getElementById('cancelWireframePageDialogBtn');
+const saveWireframePageDialogBtn = document.getElementById('saveWireframePageDialogBtn');
+const wireframePageDialogKicker = document.getElementById('wireframePageDialogKicker');
+const wireframePageDialogTitle = document.getElementById('wireframePageDialogTitle');
+const wireframePageNameInput = document.getElementById('wireframePageNameInput');
+const wireframePageDialogError = document.getElementById('wireframePageDialogError');
+const wireframePalette = document.getElementById('wireframePalette');
+const wireframeDeviceLabel = document.getElementById('wireframeDeviceLabel');
+const wireframeStageHint = document.getElementById('wireframeStageHint');
+const wireframeDuplicateBtn = document.getElementById('wireframeDuplicateBtn');
+const wireframeDeleteBtn = document.getElementById('wireframeDeleteBtn');
+const wireframeViewport = document.getElementById('wireframeViewport');
+const wireframeCanvasScaler = document.getElementById('wireframeCanvasScaler');
+const wireframeCanvas = document.getElementById('wireframeCanvas');
+const wireframePropertiesTitle = document.getElementById('wireframePropertiesTitle');
+const wireframePropertiesHint = document.getElementById('wireframePropertiesHint');
+const wireframeCanvasBgColor = document.getElementById('wireframeCanvasBgColor');
+const wireframeCanvasBgText = document.getElementById('wireframeCanvasBgText');
+const wireframeElementProperties = document.getElementById('wireframeElementProperties');
+const wireframeElementText = document.getElementById('wireframeElementText');
+const wireframeImageProperties = document.getElementById('wireframeImageProperties');
+const wireframeImageUploadBtn = document.getElementById('wireframeImageUploadBtn');
+const wireframeImageRemoveBtn = document.getElementById('wireframeImageRemoveBtn');
+const wireframeImageFileInput = document.getElementById('wireframeImageFileInput');
+const wireframeImageInfo = document.getElementById('wireframeImageInfo');
+const wireframeImageFit = document.getElementById('wireframeImageFit');
+const wireframeImagePositionX = document.getElementById('wireframeImagePositionX');
+const wireframeImagePositionY = document.getElementById('wireframeImagePositionY');
+const wireframeImagePositionXValue = document.getElementById('wireframeImagePositionXValue');
+const wireframeImagePositionYValue = document.getElementById('wireframeImagePositionYValue');
+const wireframeElementBg = document.getElementById('wireframeElementBg');
+const wireframeElementColor = document.getElementById('wireframeElementColor');
+const wireframeElementBorder = document.getElementById('wireframeElementBorder');
+const wireframeElementFontSize = document.getElementById('wireframeElementFontSize');
+const wireframeElementRadius = document.getElementById('wireframeElementRadius');
+const wireframeElementBorderWidth = document.getElementById('wireframeElementBorderWidth');
+const wireframeElementLinkTarget = document.getElementById('wireframeElementLinkTarget');
+const wireframeElementX = document.getElementById('wireframeElementX');
+const wireframeElementY = document.getElementById('wireframeElementY');
+const wireframeElementW = document.getElementById('wireframeElementW');
+const wireframeElementH = document.getElementById('wireframeElementH');
+const wireframeBringFrontBtn = document.getElementById('wireframeBringFrontBtn');
+const wireframeSendBackBtn = document.getElementById('wireframeSendBackBtn');
+const wireframeUndoBtn = document.getElementById('wireframeUndoBtn');
+const wireframeRedoBtn = document.getElementById('wireframeRedoBtn');
+const wireframeSnapBtn = document.getElementById('wireframeSnapBtn');
+const wireframeGroupBtn = document.getElementById('wireframeGroupBtn');
+const wireframeUngroupBtn = document.getElementById('wireframeUngroupBtn');
+const wireframeLayersList = document.getElementById('wireframeLayersList');
+const wireframeLayerCount = document.getElementById('wireframeLayerCount');
+const wireframeSelectionTools = document.getElementById('wireframeSelectionTools');
+const wireframeSelectionCount = document.getElementById('wireframeSelectionCount');
+const wireframeDistributeHBtn = document.getElementById('wireframeDistributeHBtn');
+const wireframeDistributeVBtn = document.getElementById('wireframeDistributeVBtn');
+const wireframeElementLayerName = document.getElementById('wireframeElementLayerName');
 const appTitleText = document.getElementById('appTitleText');
 const appSubtitleText = document.getElementById('appSubtitleText');
 const studentAccountStrip = document.getElementById('studentAccountStrip');
@@ -477,12 +573,34 @@ const adminProjectViewerActivitySelect = document.getElementById('adminProjectVi
 const adminProjectViewerFileSelect = document.getElementById('adminProjectViewerFileSelect');
 const adminProjectViewerLangTabs = document.querySelector('.admin-project-viewer-lang-tabs');
 const adminProjectViewerRunBtn = document.getElementById('adminProjectViewerRunBtn');
+const adminProjectViewerDownloadZipBtn = document.getElementById('adminProjectViewerDownloadZipBtn');
 const adminProjectViewerFileTitle = document.getElementById('adminProjectViewerFileTitle');
 const adminProjectViewerCode = document.getElementById('adminProjectViewerCode');
 const adminProjectViewerFrame = document.getElementById('adminProjectViewerFrame');
 const adminProjectViewerPreviewNote = document.getElementById('adminProjectViewerPreviewNote');
 const adminProjectViewerFullCodeBtn = document.getElementById('adminProjectViewerFullCodeBtn');
 const adminProjectViewerFullPreviewBtn = document.getElementById('adminProjectViewerFullPreviewBtn');
+const adminProjectViewerCopyBtn = document.getElementById('adminProjectViewerCopyBtn');
+const adminWireframeViewerOverlay = document.getElementById('adminWireframeViewerOverlay');
+const adminWireframeViewerTitle = document.getElementById('adminWireframeViewerTitle');
+const adminWireframeViewerSubtitle = document.getElementById('adminWireframeViewerSubtitle');
+const closeAdminWireframeViewerBtn = document.getElementById('closeAdminWireframeViewerBtn');
+const adminWireframeDesktopBtn = document.getElementById('adminWireframeDesktopBtn');
+const adminWireframePhoneBtn = document.getElementById('adminWireframePhoneBtn');
+const adminWireframeDeviceLabel = document.getElementById('adminWireframeDeviceLabel');
+const adminWireframePageSelect = document.getElementById('adminWireframePageSelect');
+const adminWireframeViewport = document.getElementById('adminWireframeViewport');
+const adminWireframeCanvasScaler = document.getElementById('adminWireframeCanvasScaler');
+const adminWireframeCanvas = document.getElementById('adminWireframeCanvas');
+const adminProjectRubricSelect = document.getElementById('adminProjectRubricSelect');
+const adminProjectCheckResultBtn = document.getElementById('adminProjectCheckResultBtn');
+const adminProjectSaveOfficialScoreBtn = document.getElementById('adminProjectSaveOfficialScoreBtn');
+const adminProjectResultCheckStatus = document.getElementById('adminProjectResultCheckStatus');
+const adminProjectRecordedScore = document.getElementById('adminProjectRecordedScore');
+const adminProjectRecordedScoreNote = document.getElementById('adminProjectRecordedScoreNote');
+const adminProjectRecheckScore = document.getElementById('adminProjectRecheckScore');
+const adminProjectRecheckScoreNote = document.getElementById('adminProjectRecheckScoreNote');
+const adminProjectResultCheckOutput = document.getElementById('adminProjectResultCheckOutput');
 const adminProjectTeacherComment = document.getElementById('adminProjectTeacherComment');
 const adminProjectSaveCommentBtn = document.getElementById('adminProjectSaveCommentBtn');
 const adminProjectClearCommentBtn = document.getElementById('adminProjectClearCommentBtn');
@@ -502,8 +620,11 @@ const adminProjectFullscreenCodePanel = document.getElementById('adminProjectFul
 const adminProjectFullscreenPreviewPanel = document.getElementById('adminProjectFullscreenPreviewPanel');
 const adminProjectFullscreenCodeTitle = document.getElementById('adminProjectFullscreenCodeTitle');
 const adminProjectFullscreenCode = document.getElementById('adminProjectFullscreenCode');
+const adminProjectFullscreenCopyBtn = document.getElementById('adminProjectFullscreenCopyBtn');
 const adminProjectFullscreenFrame = document.getElementById('adminProjectFullscreenFrame');
 const adminProjectFullscreenPreviewNote = document.getElementById('adminProjectFullscreenPreviewNote');
+const adminProjectFullscreenPreviewStage = document.getElementById('adminProjectFullscreenPreviewStage');
+const adminProjectFullscreenDesktopCanvas = document.getElementById('adminProjectFullscreenDesktopCanvas');
 
 // Lesson Viewer and teacher Lesson Manager elements.
 const lessonDriveConnectBtn = document.getElementById('lessonDriveConnectBtn');
@@ -686,6 +807,8 @@ const DEFAULT_ASSISTANCE_SETTINGS = Object.freeze({
   subjectStatus: true,
   superStudio: false,
   autoSave: true,
+  wireframeAutoSave: true,
+  wireframeStarterCode: true,
   autoRunControl: true,
   externalLinksSamePreview: true,
   starterCodeEnabled: true,
@@ -1326,6 +1449,7 @@ const appSession = {
   currentProject: null,
   projects: [],
   projectDialogMode: 'create',
+  pendingProjectType: 'code',
   renameProjectId: '',
   authReady: false,
   existingStudentUser: null,
@@ -1651,6 +1775,7 @@ let selectedActivityId = getInitialSelectedActivityId();
 let activity = getActivityById(selectedActivityId);
 let codeByActivity = getInitialCodeByActivity();
 let codeStore = activity ? getCodeStoreForActivity(activity.id) : normalizeCodeStore(starterCode);
+let rubricPreviewDocumentOverride = null;
 let codeFileNames = normalizeCodeFileNames(loadJSON(STORAGE_KEYS.fileNames, DEFAULT_CODE_FILE_NAMES));
 let activeLanguage = 'html';
 let activeSuggestionIndex = 0;
@@ -1894,6 +2019,8 @@ function normalizeAssistanceSettings(value = {}) {
     subjectStatus: source.subjectStatus !== false,
     superStudio: source.superStudio === true,
     autoSave: source.autoSave !== false,
+    wireframeAutoSave: source.wireframeAutoSave !== false,
+    wireframeStarterCode: source.wireframeStarterCode !== false,
     autoRunControl: source.autoRunControl !== false,
     externalLinksSamePreview: source.externalLinksSamePreview !== false,
     starterCodeEnabled: source.starterCodeEnabled !== false,
@@ -1919,6 +2046,8 @@ function getAssistanceSettingsFromControls() {
     subjectStatus: subjectStatusToggle?.checked !== false,
     superStudio: superStudioToggle?.checked === true,
     autoSave: autoSaveControlToggle?.checked !== false,
+    wireframeAutoSave: wireframeAutoSaveToggle?.checked !== false,
+    wireframeStarterCode: wireframeStarterCodeToggle?.checked !== false,
     autoRunControl: autoRunControlToggle?.checked !== false,
     externalLinksSamePreview: externalLinksSamePreviewToggle?.checked !== false,
     starterCodeEnabled: starterCodeToggle?.checked !== false,
@@ -1951,6 +2080,8 @@ function syncAssistanceSettingsControls() {
   if (subjectStatusToggle) subjectStatusToggle.checked = settings.subjectStatus !== false;
   if (superStudioToggle) superStudioToggle.checked = settings.superStudio;
   if (autoSaveControlToggle) autoSaveControlToggle.checked = settings.autoSave;
+  if (wireframeAutoSaveToggle) wireframeAutoSaveToggle.checked = settings.wireframeAutoSave;
+  if (wireframeStarterCodeToggle) wireframeStarterCodeToggle.checked = settings.wireframeStarterCode !== false;
   if (autoRunControlToggle) autoRunControlToggle.checked = settings.autoRunControl;
   if (externalLinksSamePreviewToggle) externalLinksSamePreviewToggle.checked = settings.externalLinksSamePreview;
   if (starterCodeToggle) starterCodeToggle.checked = settings.starterCodeEnabled !== false;
@@ -1965,7 +2096,7 @@ function syncAssistanceSettingsControls() {
   });
 
   studentAssistanceSettingsCard?.classList.toggle('master-disabled', !settings.enabled);
-  const effectiveOn = settings.enabled && (settings.codeSuggestions || settings.codeHelper || settings.teacherFeedback || settings.subjectStatus || settings.superStudio || settings.autoSave || settings.autoRunControl || settings.collaboration || settings.collaborationEdit || settings.collaborationMembers || settings.codeTransfer);
+  const effectiveOn = settings.enabled && (settings.codeSuggestions || settings.codeHelper || settings.teacherFeedback || settings.subjectStatus || settings.superStudio || settings.autoSave || settings.wireframeAutoSave || settings.wireframeStarterCode || settings.autoRunControl || settings.collaboration || settings.collaborationEdit || settings.collaborationMembers || settings.codeTransfer);
   if (assistanceModeBadge) {
     assistanceModeBadge.textContent = effectiveOn ? 'Assistance ON' : 'Assistance OFF';
     assistanceModeBadge.classList.toggle('off', !effectiveOn);
@@ -2019,6 +2150,8 @@ function applyStudentAssistanceSettings(nextSettings, options = {}) {
   }
   updateAutoRunButtons();
   updateManualSaveControls();
+  syncWireframeAutosaveUi({ queueIfEnabled: true });
+  syncWireframeStarterCodeUi();
   if (autoSaveEnabled && studentProjectDirty && isStudentProjectActive()) {
     queueStudentProjectSave('autosave-enabled');
   }
@@ -2073,7 +2206,9 @@ function applyAssistanceSettingsFromControls(options = {}) {
     const starterText = settings.starterCodeEnabled === false ? 'New projects will start blank.' : 'New projects will use starter HTML.';
     const subjectStatusText = settings.subjectStatus === false ? 'Subject Status is hidden from students.' : 'Subject Status is visible to students.';
     const transferText = settings.codeTransfer === false ? 'Code Transfer is off.' : 'Code Transfer is on.';
-    setAssistanceSettingsStatus(`Applied on this browser. ${starterText} ${collabText} ${subjectStatusText} ${transferText}`, 'success');
+    const wireframeSaveText = settings.wireframeAutoSave === false ? 'Wireframe autosave is OFF; students must save manually.' : 'Wireframe autosave is ON.';
+    const wireframeStarterText = settings.wireframeStarterCode === false ? 'Wireframe Starter Code is disabled.' : 'Wireframe Starter Code is enabled.';
+    setAssistanceSettingsStatus(`Applied on this browser. ${starterText} ${collabText} ${subjectStatusText} ${transferText} ${wireframeSaveText} ${wireframeStarterText}`, 'success');
     setStatus('Student assistance updated');
     if (applyAssistanceLocalBtn) {
       const oldText = applyAssistanceLocalBtn.textContent;
@@ -5432,10 +5567,12 @@ function hideAllStudentScreens() {
   studentLoginOverlay?.classList.add('hidden');
   changePasswordOverlay?.classList.add('hidden');
   projectNameOverlay?.classList.add('hidden');
+  projectTypeOverlay?.classList.add('hidden');
+  wireframeMakerScreen?.classList.add('hidden');
   studentDashboard?.classList.add('hidden');
   givenActivitiesScreen?.classList.add('hidden');
   givenActivityViewerOverlay?.classList.add('hidden');
-  document.body.classList.remove('student-auth-open', 'student-dashboard-active', 'given-activities-active');
+  document.body.classList.remove('student-auth-open', 'student-dashboard-active', 'given-activities-active', 'wireframe-maker-active');
 }
 
 function showEntryGate() {
@@ -6173,7 +6310,9 @@ async function showStudentDashboard() {
   studentLoginOverlay?.classList.add('hidden');
   changePasswordOverlay?.classList.add('hidden');
   projectNameOverlay?.classList.add('hidden');
-  document.body.classList.remove('student-auth-open');
+  projectTypeOverlay?.classList.add('hidden');
+  wireframeMakerScreen?.classList.add('hidden');
+  document.body.classList.remove('student-auth-open', 'wireframe-maker-active');
   studentDashboard?.classList.remove('hidden');
   document.body.classList.add('student-dashboard-active');
   if (typeof window.startCodeInboxWatcher === 'function') window.startCodeInboxWatcher();
@@ -7749,14 +7888,15 @@ function renderStudentProjects() {
     studentProjectsGrid.innerHTML = `
       <div class="empty-projects-card">
         <div class="student-auth-icon">💻</div>
-        <h3>${appSession.projects.length ? 'No matching project' : 'Create your first coding project'}</h3>
-        <p>${appSession.projects.length ? 'Try a different search or filter.' : 'Your HTML, CSS, JavaScript, activity, and score will be saved here.'}</p>
+        <h3>${appSession.projects.length ? 'No matching project' : 'Create your first project'}</h3>
+        <p>${appSession.projects.length ? 'Try a different search or filter.' : 'Create a Code Project or plan a responsive website with the Wireframe Maker.'}</p>
         ${appSession.projects.length ? '' : '<button class="primary-btn" type="button" data-project-action="new">+ New Project</button>'}
       </div>`;
     return;
   }
 
   studentProjectsGrid.innerHTML = projects.map(project => {
+    const isWireframe = String(project.projectType || 'code').toLowerCase() === 'wireframe';
     const status = getProjectStatus(project);
     const result = project.lastResult || null;
     const scoreText = result
@@ -7772,19 +7912,19 @@ function renderStudentProjects() {
     return `
       <article class="student-project-card" data-project-id="${escapeAttribute(project.id)}">
         <div class="project-card-top">
-          <span class="project-card-icon">&lt;/&gt;</span>
+          <span class="project-card-icon ${isWireframe ? 'wireframe' : ''}">${isWireframe ? '▦' : '&lt;/&gt;'}</span>
           <span class="project-status-pill ${escapeAttribute(status)}">${getProjectStatusLabel(status)}</span>
         </div>
         <h3>${escapeHTML(project.name || 'Untitled Project')}</h3>
-        <p class="project-card-activity">${escapeHTML(project.activityTitle || 'Practice project')}</p>
+        <p class="project-card-activity">${escapeHTML(isWireframe ? 'Wireframe · Desktop + Phone' : (project.activityTitle || 'Practice project'))}</p>
         ${projectAlerts ? `<div class="project-alert-row${projectAlertItems.length > 1 ? ' has-multiple-alerts' : ''}">${projectAlerts}</div>` : ''}
         <div class="project-card-meta-row">
           <span class="project-card-meta project-card-edited">Last edited: ${escapeHTML(formatStudentDate(project.updatedAt, 'Not edited yet'))}</span>
-          <span class="project-run-attempts" title="Run attempts" aria-label="Run attempts: ${Number(project.runCount || 0)}"><span class="project-run-label">Run attempts: </span><span class="project-run-icon" aria-hidden="true">▶</span><span class="project-run-count">${Number(project.runCount || 0)}</span></span>
+          ${isWireframe ? '<span class="project-run-attempts wireframe-project-meta">Multi-page · Desktop + Phone</span>' : `<span class="project-run-attempts" title="Run attempts" aria-label="Run attempts: ${Number(project.runCount || 0)}"><span class="project-run-label">Run attempts: </span><span class="project-run-icon" aria-hidden="true">▶</span><span class="project-run-count">${Number(project.runCount || 0)}</span></span>`}
         </div>
-        <div class="project-score-row"><span>Score</span><span class="project-score-value">${escapeHTML(scoreText)}</span></div>
+        <div class="project-score-row"><span>${isWireframe ? 'Project Type' : 'Score'}</span><span class="project-score-value">${escapeHTML(isWireframe ? 'Wireframe' : scoreText)}</span></div>
         <div class="project-card-actions">
-          <button class="primary-btn" type="button" data-project-action="open">Open Project</button>
+          <button class="primary-btn" type="button" data-project-action="open">${isWireframe ? 'Open Wireframe' : 'Open Project'}</button>
           <button class="ghost-btn" type="button" data-project-action="rename" title="Rename project">✏️</button>
           <button class="ghost-btn danger" type="button" data-project-action="delete" title="Delete project">🗑</button>
         </div>
@@ -7795,8 +7935,9 @@ function renderStudentProjects() {
 function openProjectNameDialog(mode = 'create', project = null) {
   appSession.projectDialogMode = mode;
   appSession.renameProjectId = project?.id || '';
-  if (projectNameKicker) projectNameKicker.textContent = mode === 'rename' ? 'Rename Project' : 'New Project';
-  if (projectNameTitle) projectNameTitle.textContent = mode === 'rename' ? 'Change Project Name' : 'Name Your Project';
+  const creatingWireframe = mode === 'create' && appSession.pendingProjectType === 'wireframe';
+  if (projectNameKicker) projectNameKicker.textContent = mode === 'rename' ? 'Rename Project' : (creatingWireframe ? 'New Wireframe Project' : 'New Code Project');
+  if (projectNameTitle) projectNameTitle.textContent = mode === 'rename' ? 'Change Project Name' : (creatingWireframe ? 'Name Your Wireframe' : 'Name Your Project');
   if (saveProjectNameBtn) saveProjectNameBtn.textContent = mode === 'rename' ? 'Save Name' : 'Create Project';
   if (projectNameInput) projectNameInput.value = mode === 'rename' ? String(project?.name || '') : '';
   setProjectNameError('');
@@ -7814,10 +7955,24 @@ function closeProjectNameDialog() {
   setProjectNameError('');
 }
 
-function buildNewProjectData(name) {
+function buildNewProjectData(name, projectType = 'code') {
+  if (projectType === 'wireframe') {
+    return {
+      name,
+      nameLower: name.toLowerCase(),
+      projectType: 'wireframe',
+      status: 'in-progress',
+      wireframeData: createDefaultWireframeData(),
+      runCount: 0,
+      lastResult: null,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+  }
   return {
     name,
     nameLower: name.toLowerCase(),
+    projectType: 'code',
     status: 'in-progress',
     codeByActivity: { scratch: normalizeCodeStore(starterCode) },
     selectedActivityId: '',
@@ -7849,7 +8004,7 @@ async function saveProjectNameDialog() {
     }
     saveProjectNameBtn.textContent = 'Creating...';
     const projectId = createId().replace(/[^a-zA-Z0-9_-]/g, '-');
-    const data = buildNewProjectData(name);
+    const data = buildNewProjectData(name, appSession.pendingProjectType || 'code');
     const { setDoc, serverTimestamp, increment } = firebaseSync.modules;
     await setDoc(getStudentProjectDocRef(appSession.student.uid, projectId), {
       ...data,
@@ -7881,7 +8036,7 @@ async function saveProjectNameDialog() {
 
 async function getStudentProject(projectId) {
   const cached = appSession.projects.find(project => project.id === projectId);
-  if (cached?.codeByActivity) return cached;
+  if (cached?.codeByActivity || String(cached?.projectType || '').toLowerCase() === 'wireframe') return cached;
   const { getDoc } = firebaseSync.modules;
   const snapshot = await withTimeout(
     getDoc(getStudentProjectDocRef(appSession.student.uid, projectId)),
@@ -7900,6 +8055,21 @@ async function openStudentProject(projectId) {
     appSession.currentProjectId = projectId;
     appSession.currentProject = project;
     persistLastStudentSession('student-project-opened');
+    if (String(project.projectType || 'code').toLowerCase() === 'wireframe') {
+      studentProjectDirty = false;
+      studentProjectRevision = 0;
+      studentProjectLastSavedRevision = 0;
+      closeStudentDashboard();
+      await openWireframeMaker(project);
+      queueStudentPresenceUpdate({
+        currentView: 'wireframe',
+        activityGroup: 'Wireframe',
+        activityLabel: `Wireframe: ${project.name || 'Project'}`,
+        projectId,
+        projectName: project.name || 'Project'
+      }, { force: true });
+      return;
+    }
     studentProjectRevision = 0;
     studentProjectLastSavedRevision = 0;
     const recovered = await offerStudentProjectRecovery(project);
@@ -7971,6 +8141,9 @@ async function renameStudentProject(projectId, name) {
     appSession.currentProject.name = name;
   }
   updateEditorProjectHeader();
+  if (appSession.currentProjectId === projectId && String(appSession.currentProject?.projectType || '').toLowerCase() === 'wireframe') {
+    if (wireframeProjectTitle) wireframeProjectTitle.textContent = name;
+  }
   persistStudentProjectsCache();
   renderStudentProjects();
   setStatus('Project renamed');
@@ -8000,6 +8173,7 @@ async function deleteStudentProject(projectId) {
     }, { merge: true });
     appSession.projects = appSession.projects.filter(item => item.id !== projectId);
     clearStudentProjectRecovery(projectId);
+    clearWireframeRecovery(projectId);
     persistStudentProjectsCache();
     if (appSession.currentProjectId === projectId) {
       appSession.currentProjectId = '';
@@ -8021,6 +8195,7 @@ function buildProjectSavePayload(result = null) {
   const currentResult = result || lastRubricResult || appSession.currentProject?.lastResult || null;
   const currentActivity = activity || null;
   return {
+    projectType: 'code',
     name: appSession.currentProject?.name || 'Untitled Project',
     nameLower: String(appSession.currentProject?.name || 'Untitled Project').toLowerCase(),
     status: currentResult?.passed ? 'passed' : currentResult ? 'checked' : 'in-progress',
@@ -10166,7 +10341,9 @@ let adminProjectViewerState = {
   project: null,
   codeByActivity: {},
   activityKey: 'scratch',
-  language: 'html'
+  language: 'html',
+  rubricId: '',
+  latestResult: null
 };
 
 function getAdminProjectActivityLabel(key, project = adminProjectViewerState.project) {
@@ -10251,7 +10428,7 @@ function buildAdminProjectPreviewCode(pageName = '') {
   }
 
   return `<!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="page-${pageIndex + 1}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -10264,13 +10441,30 @@ ${scriptBlock}
 </html>`;
 }
 
+function renderAdminProjectPreviewFrame(frame, pageName = '', noteElement = null, options = {}) {
+  if (!frame) return '';
+  const pages = getAdminProjectFileMap('html');
+  const requestedPage = normalizeInternalHtmlReference(pageName) || cleanLanguageFileName(pageName || '', 'html');
+  const fallbackPage = getAdminProjectActiveFileName('html');
+  const page = requestedPage && hasOwnFile(pages, requestedPage) ? requestedPage : fallbackPage;
+  const pendingAnchor = String(options.anchor || '').trim();
+
+  if (pendingAnchor && pendingAnchor !== '#') frame.dataset.pendingAnchor = pendingAnchor;
+  else delete frame.dataset.pendingAnchor;
+
+  frame.dataset.currentPage = page;
+  frame.srcdoc = buildAdminProjectPreviewCode(page);
+  if (noteElement) noteElement.textContent = options.note || `Previewing ${page}`;
+  return page;
+}
+
 function runAdminProjectViewerPreview(pageName = '') {
-  if (!adminProjectViewerFrame) return;
-  const store = getAdminProjectActiveStore();
-  const page = pageName || getAdminProjectActiveFileName('html');
-  adminProjectViewerFrame.srcdoc = buildAdminProjectPreviewCode(page);
-  adminProjectViewerFrame.dataset.currentPage = page;
-  if (adminProjectViewerPreviewNote) adminProjectViewerPreviewNote.textContent = `Previewing ${page}`;
+  const page = renderAdminProjectPreviewFrame(
+    adminProjectViewerFrame,
+    pageName || getAdminProjectActiveFileName('html'),
+    adminProjectViewerPreviewNote
+  );
+  return page;
 }
 
 function getAdminProjectViewerCurrentCodeDetails() {
@@ -10281,6 +10475,135 @@ function getAdminProjectViewerCurrentCodeDetails() {
   return { language, fileName, content };
 }
 
+function appendAdminProjectStoreZipFiles(files, store, prefix = '') {
+  ['html', 'css', 'js'].forEach(language => {
+    const map = getAdminProjectFileMap(language, store);
+    getAdminProjectFileNames(language, store).forEach(name => {
+      files.push({
+        name: `${prefix}${name}`,
+        content: typeof map[name] === 'string' ? map[name] : ''
+      });
+    });
+  });
+}
+
+function getAdminProjectZipFiles() {
+  const stores = adminProjectViewerState.codeByActivity || {};
+  const keys = Object.keys(stores);
+  const activeKey = stores[adminProjectViewerState.activityKey]
+    ? adminProjectViewerState.activityKey
+    : keys[0] || 'scratch';
+  const activeStore = stores[activeKey] || getAdminProjectActiveStore();
+  const files = [];
+
+  // Keep the currently selected project part at ZIP root so index.html opens
+  // immediately after extraction. Any other saved parts of the SAME selected
+  // project are preserved in a clearly named subfolder instead of being lost.
+  appendAdminProjectStoreZipFiles(files, activeStore, '');
+
+  keys.filter(key => key !== activeKey).forEach((key, index) => {
+    const folderLabel = sanitizeFilename(getAdminProjectActivityLabel(key) || key || `project-part-${index + 1}`);
+    appendAdminProjectStoreZipFiles(files, stores[key], `_other-project-parts/${folderLabel}/`);
+  });
+
+  return files;
+}
+
+function downloadAdminSelectedProjectAsZip() {
+  const project = adminProjectViewerState.project;
+  const student = adminProjectViewerState.student;
+  if (!project) {
+    appAlert('Open a student project first before downloading.', { title: 'Download Project ZIP' });
+    return;
+  }
+
+  const files = getAdminProjectZipFiles();
+  if (!files.length) {
+    appAlert('No HTML, CSS, or JavaScript files were found in this project.', { title: 'Download Project ZIP' });
+    return;
+  }
+
+  const studentLabel = sanitizeFilename(student?.name || student?.studentId || 'student');
+  const projectLabel = sanitizeFilename(project.name || 'project');
+  const filename = `${studentLabel}-${projectLabel}.zip`;
+  downloadBlob(createZipBlob(files), filename);
+  setStatus(`Downloaded ${project.name || 'student project'} ZIP`);
+}
+
+const ADMIN_PROJECT_DESKTOP_PREVIEW_WIDTH = 1366;
+const ADMIN_PROJECT_DESKTOP_PREVIEW_HEIGHT = 768;
+let adminProjectFullscreenScaleRaf = 0;
+
+function isCompactAdminProjectPreviewDevice() {
+  const phoneMode = document.documentElement?.dataset?.deviceMode === 'phone';
+  const narrowViewport = window.matchMedia?.('(max-width: 820px)')?.matches ?? window.innerWidth <= 820;
+  return Boolean(phoneMode || narrowViewport);
+}
+
+function syncAdminProjectFullscreenPreviewScale() {
+  if (!adminProjectFullscreenPreviewStage || !adminProjectFullscreenDesktopCanvas || !adminProjectFullscreenFrame) return;
+  if (adminProjectFullscreenOverlay?.classList.contains('hidden') || !adminProjectFullscreenOverlay?.classList.contains('preview-mode')) return;
+
+  const compact = isCompactAdminProjectPreviewDevice();
+  adminProjectFullscreenDesktopCanvas.classList.toggle('is-scaled-desktop', compact);
+
+  if (!compact) {
+    adminProjectFullscreenDesktopCanvas.style.removeProperty('--admin-project-preview-scale');
+    if (adminProjectFullscreenPreviewNote) {
+      const width = Math.max(1, Math.round(adminProjectFullscreenFrame.clientWidth || adminProjectFullscreenPreviewStage.clientWidth || 0));
+      const height = Math.max(1, Math.round(adminProjectFullscreenFrame.clientHeight || adminProjectFullscreenPreviewStage.clientHeight || 0));
+      adminProjectFullscreenPreviewNote.textContent = `Monitor viewport · ${width} × ${height}`;
+    }
+    return;
+  }
+
+  const stageWidth = Math.max(1, adminProjectFullscreenPreviewStage.clientWidth || 1);
+  const stageHeight = Math.max(1, adminProjectFullscreenPreviewStage.clientHeight || 1);
+  const scale = Math.max(0.08, Math.min(
+    stageWidth / ADMIN_PROJECT_DESKTOP_PREVIEW_WIDTH,
+    stageHeight / ADMIN_PROJECT_DESKTOP_PREVIEW_HEIGHT
+  ));
+  adminProjectFullscreenDesktopCanvas.style.setProperty('--admin-project-preview-scale', String(scale));
+  if (adminProjectFullscreenPreviewNote) {
+    adminProjectFullscreenPreviewNote.textContent = `Desktop ${ADMIN_PROJECT_DESKTOP_PREVIEW_WIDTH} × ${ADMIN_PROJECT_DESKTOP_PREVIEW_HEIGHT} · scaled to fit`;
+  }
+}
+
+function queueAdminProjectFullscreenPreviewScale() {
+  window.cancelAnimationFrame(adminProjectFullscreenScaleRaf);
+  adminProjectFullscreenScaleRaf = window.requestAnimationFrame(syncAdminProjectFullscreenPreviewScale);
+}
+
+function requestAdminProjectBrowserFullscreen() {
+  const target = adminProjectFullscreenOverlay;
+  if (!target || document.fullscreenElement) return;
+  const request = target.requestFullscreen || target.webkitRequestFullscreen;
+  if (typeof request !== 'function') return;
+  try {
+    const result = request.call(target, { navigationUI: 'hide' });
+    if (result && typeof result.catch === 'function') result.catch(() => {});
+  } catch (error) {}
+}
+
+function exitAdminProjectBrowserFullscreen() {
+  const fullscreenElement = document.fullscreenElement || document.webkitFullscreenElement;
+  if (!fullscreenElement || (fullscreenElement !== adminProjectFullscreenOverlay && !adminProjectFullscreenOverlay?.contains(fullscreenElement))) return;
+  const exit = document.exitFullscreen || document.webkitExitFullscreen;
+  if (typeof exit !== 'function') return;
+  try {
+    const result = exit.call(document);
+    if (result && typeof result.catch === 'function') result.catch(() => {});
+  } catch (error) {}
+}
+
+function updateAdminProjectFullscreenPreviewLabels(page = getAdminProjectActiveFileName('html')) {
+  const project = adminProjectViewerState.project || {};
+  const student = adminProjectViewerState.student || {};
+  if (adminProjectFullscreenKicker) adminProjectFullscreenKicker.textContent = 'Full Output Preview';
+  if (adminProjectFullscreenTitle) adminProjectFullscreenTitle.textContent = project.name || 'Student Project';
+  if (adminProjectFullscreenSubtitle) adminProjectFullscreenSubtitle.textContent = `${student.name || 'Student'} · Previewing ${page}`;
+}
+
 function openAdminProjectFullscreen(mode = 'code') {
   if (!adminProjectFullscreenOverlay) return;
   const project = adminProjectViewerState.project || {};
@@ -10289,6 +10612,7 @@ function openAdminProjectFullscreen(mode = 'code') {
   const codeDetails = getAdminProjectViewerCurrentCodeDetails();
   const activePage = getAdminProjectActiveFileName('html');
 
+  adminProjectFullscreenOverlay.classList.toggle('preview-mode', isPreview);
   if (adminProjectFullscreenKicker) adminProjectFullscreenKicker.textContent = isPreview ? 'Full Output Preview' : 'Full Code View';
   if (adminProjectFullscreenTitle) adminProjectFullscreenTitle.textContent = project.name || 'Student Project';
   if (adminProjectFullscreenSubtitle) {
@@ -10301,11 +10625,7 @@ function openAdminProjectFullscreen(mode = 'code') {
   adminProjectFullscreenPreviewPanel?.classList.toggle('hidden', !isPreview);
 
   if (isPreview) {
-    if (adminProjectFullscreenFrame) {
-      adminProjectFullscreenFrame.srcdoc = buildAdminProjectPreviewCode(activePage);
-      adminProjectFullscreenFrame.dataset.currentPage = activePage;
-    }
-    if (adminProjectFullscreenPreviewNote) adminProjectFullscreenPreviewNote.textContent = `Previewing ${activePage}`;
+    renderAdminProjectPreviewFrame(adminProjectFullscreenFrame, activePage, adminProjectFullscreenPreviewNote);
   } else {
     if (adminProjectFullscreenFrame) adminProjectFullscreenFrame.srcdoc = '';
     if (adminProjectFullscreenCodeTitle) adminProjectFullscreenCodeTitle.textContent = codeDetails.fileName || 'Code';
@@ -10314,43 +10634,153 @@ function openAdminProjectFullscreen(mode = 'code') {
 
   adminProjectFullscreenOverlay.classList.remove('hidden');
   document.body.classList.add('student-auth-open', 'admin-project-fullscreen-open');
+
+  if (isPreview) {
+    queueAdminProjectFullscreenPreviewScale();
+    window.setTimeout(queueAdminProjectFullscreenPreviewScale, 80);
+    requestAdminProjectBrowserFullscreen();
+  }
 }
 
 function closeAdminProjectFullscreen() {
+  exitAdminProjectBrowserFullscreen();
   adminProjectFullscreenOverlay?.classList.add('hidden');
+  adminProjectFullscreenOverlay?.classList.remove('preview-mode');
+  adminProjectFullscreenDesktopCanvas?.classList.remove('is-scaled-desktop');
+  adminProjectFullscreenDesktopCanvas?.style.removeProperty('--admin-project-preview-scale');
   if (adminProjectFullscreenFrame) adminProjectFullscreenFrame.srcdoc = '';
   document.body.classList.remove('admin-project-fullscreen-open');
   const viewerOpen = Boolean(adminProjectViewerOverlay && !adminProjectViewerOverlay.classList.contains('hidden'));
   const trackerOpen = Boolean(adminStudentProjectsOverlay && !adminStudentProjectsOverlay.classList.contains('hidden'));
   document.body.classList.toggle('student-auth-open', viewerOpen || trackerOpen);
+  if (viewerOpen) runAdminProjectViewerPreview(getAdminProjectActiveFileName('html'));
 }
 
-function attachAdminProjectViewerPreviewLinks() {
-  if (!adminProjectViewerFrame) return;
+function applyAdminProjectPendingPreviewAnchor(frame) {
+  if (!frame) return false;
+  const hash = String(frame.dataset.pendingAnchor || '').trim();
+  if (!hash || hash === '#') {
+    delete frame.dataset.pendingAnchor;
+    return false;
+  }
   let doc = null;
   try {
-    doc = adminProjectViewerFrame.contentDocument || adminProjectViewerFrame.contentWindow?.document || null;
+    doc = frame.contentDocument || frame.contentWindow?.document || null;
   } catch (error) {
     doc = null;
   }
-  if (!doc || doc.__adminProjectViewerLinksReady) return;
-  doc.__adminProjectViewerLinksReady = true;
+  if (!doc) return false;
+  const applied = scrollPreviewToAnchor(doc, hash, { instant: true });
+  if (applied) delete frame.dataset.pendingAnchor;
+  return applied;
+}
+
+function setAdminProjectPreviewNavigationNote(noteElement, message, page = '') {
+  if (!noteElement) return;
+  noteElement.textContent = message || (page ? `Previewing ${page}` : 'Project preview');
+}
+
+function navigateAdminProjectPreviewFrame(frame, href, noteElement, doc) {
+  const trimmed = String(href || '').trim();
+  const pages = getAdminProjectFileMap('html');
+  const hash = getPreviewHrefHash(trimmed);
+  const targetPage = normalizeInternalHtmlReference(trimmed);
+  const currentPage = cleanLanguageFileName(frame?.dataset?.currentPage || getAdminProjectActiveFileName('html'), 'html');
+
+  if (!targetPage) return false;
+  if (!hasOwnFile(pages, targetPage)) {
+    setAdminProjectPreviewNavigationNote(noteElement, `Page not found: ${targetPage}`);
+    return true;
+  }
+
+  if (targetPage.toLowerCase() === currentPage.toLowerCase()) {
+    if (hash) scrollPreviewToAnchor(doc, hash);
+    return true;
+  }
+
+  setAdminProjectActiveFileName('html', targetPage);
+  populateAdminProjectViewerFileSelect();
+  updateAdminProjectViewerCode();
+  resetAdminProjectResultCheck('Preview page changed · recheck when ready');
+
+  if (frame === adminProjectFullscreenFrame) {
+    renderAdminProjectPreviewFrame(adminProjectFullscreenFrame, targetPage, noteElement, { anchor: hash });
+    updateAdminProjectFullscreenPreviewLabels(targetPage);
+    queueAdminProjectFullscreenPreviewScale();
+  } else {
+    renderAdminProjectPreviewFrame(adminProjectViewerFrame, targetPage, noteElement, { anchor: hash });
+  }
+  return true;
+}
+
+function attachAdminProjectPreviewLinks(frame, noteElement) {
+  if (!frame) return;
+  let doc = null;
+  try {
+    doc = frame.contentDocument || frame.contentWindow?.document || null;
+  } catch (error) {
+    doc = null;
+  }
+  if (!doc || doc.__adminProjectPreviewLinksReady) return;
+  doc.__adminProjectPreviewLinksReady = true;
+
+  const prepareLinks = () => {
+    const links = doc.querySelectorAll ? doc.querySelectorAll('a[href]') : [];
+    Array.prototype.forEach.call(links, link => {
+      const href = String(link.getAttribute('href') || '').trim();
+      if (!/^https?:\/\//i.test(href)) return;
+      link.setAttribute('target', '_blank');
+      link.setAttribute('rel', 'noopener noreferrer');
+    });
+  };
+
+  prepareLinks();
+  try {
+    const observer = new MutationObserver(prepareLinks);
+    observer.observe(doc.documentElement || doc.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['href'] });
+  } catch (error) {}
+
   doc.addEventListener('click', event => {
     const link = event.target && event.target.closest ? event.target.closest('a[href]') : null;
     if (!link) return;
     const href = String(link.getAttribute('href') || '').trim();
-    if (!href || /^(https?:|mailto:|tel:|javascript:|data:|blob:|#)/i.test(href)) return;
-    const fileName = href.split('#')[0].split('?')[0].split('/').pop();
-    if (!/\.html?$/i.test(fileName)) return;
-    const page = cleanLanguageFileName(fileName, 'html');
-    const pages = getAdminProjectFileMap('html');
-    if (!hasOwnFile(pages, page)) return;
+
+    if (!href || href === '#') {
+      event.preventDefault();
+      return;
+    }
+
+    if (href.charAt(0) === '#') {
+      event.preventDefault();
+      scrollPreviewToAnchor(doc, href);
+      return;
+    }
+
+    if (/^(mailto:|tel:|javascript:|data:|blob:)/i.test(href)) return;
+
+    if (/^https?:\/\//i.test(href)) {
+      link.setAttribute('target', '_blank');
+      link.setAttribute('rel', 'noopener noreferrer');
+      return;
+    }
+
     event.preventDefault();
-    setAdminProjectActiveFileName('html', page);
-    populateAdminProjectViewerFileSelect();
-    updateAdminProjectViewerCode();
-    runAdminProjectViewerPreview(page);
+    if (navigateAdminProjectPreviewFrame(frame, href, noteElement, doc)) return;
+
+    const relativeTarget = href.split('#')[0].split('?')[0] || href;
+    setAdminProjectPreviewNavigationNote(noteElement, `Link unavailable in this project: ${relativeTarget}`);
   }, true);
+
+  window.setTimeout(() => applyAdminProjectPendingPreviewAnchor(frame), 0);
+}
+
+function attachAdminProjectViewerPreviewLinks() {
+  attachAdminProjectPreviewLinks(adminProjectViewerFrame, adminProjectViewerPreviewNote);
+}
+
+function attachAdminProjectFullscreenPreviewLinks() {
+  attachAdminProjectPreviewLinks(adminProjectFullscreenFrame, adminProjectFullscreenPreviewNote);
+  queueAdminProjectFullscreenPreviewScale();
 }
 
 function populateAdminProjectViewerActivitySelect() {
@@ -10399,6 +10829,409 @@ function updateAdminProjectViewerCode() {
   if (adminProjectViewerCode) adminProjectViewerCode.textContent = content || '/* Blank file */';
   populateAdminProjectViewerFileSelect();
   updateAdminProjectViewerLanguageTabs();
+}
+
+const ADMIN_PROJECT_RECORDED_RUBRIC_ID = '__recorded_project_rubric__';
+
+function getAdminProjectRecordedRubricActivity() {
+  const project = adminProjectViewerState.project || {};
+  const recorded = project.lastResult && typeof project.lastResult === 'object' ? project.lastResult : null;
+  const criteria = Array.isArray(recorded?.results) ? recorded.results : [];
+  if (!criteria.length) return null;
+  return normalizeActivity({
+    id: ADMIN_PROJECT_RECORDED_RUBRIC_ID,
+    title: project.activityTitle || recorded.activityTitle || 'Recorded project rubric snapshot',
+    description: 'Recovered from the rubric fields saved with this project result. Use a saved teacher rubric when available for the most accurate recheck.',
+    passingScore: Number(recorded?.passingScore || 75) || 75,
+    criteria: criteria.map((item, index) => ({
+      id: `recorded-${index + 1}`,
+      title: item.title || `Criterion ${index + 1}`,
+      points: Number(item.points || item.possible || item.max || 1) || 1,
+      rule: item.rule || 'smart_rubric',
+      target: item.target || ''
+    }))
+  });
+}
+
+function getAdminProjectAvailableRubrics() {
+  const activeTerm = currentAcademicTerm();
+  return (Array.isArray(activities) ? activities : [])
+    .map(item => normalizeActivity(item))
+    .sort((a, b) => {
+      const aActive = getRubricActivityTerm(a) === activeTerm ? 0 : 1;
+      const bActive = getRubricActivityTerm(b) === activeTerm ? 0 : 1;
+      if (aActive !== bActive) return aActive - bActive;
+      const termCompare = getRubricActivityTerm(a).localeCompare(getRubricActivityTerm(b));
+      if (termCompare) return termCompare;
+      return String(a.title || '').localeCompare(String(b.title || ''));
+    });
+}
+
+function populateAdminProjectRubricSelect(options = {}) {
+  if (!adminProjectRubricSelect) return;
+  const rubrics = getAdminProjectAvailableRubrics();
+  const recordedFallback = getAdminProjectRecordedRubricActivity();
+  const validIds = new Set(rubrics.map(item => item.id));
+  if (recordedFallback) validIds.add(ADMIN_PROJECT_RECORDED_RUBRIC_ID);
+
+  const requested = String(options.preferredId || adminProjectViewerState.rubricId || '').trim();
+  const activityMatch = validIds.has(adminProjectViewerState.activityKey) ? adminProjectViewerState.activityKey : '';
+  const projectMatch = validIds.has(adminProjectViewerState.project?.selectedActivityId) ? adminProjectViewerState.project.selectedActivityId : '';
+  const chosen = [requested, activityMatch, projectMatch, rubrics[0]?.id, recordedFallback ? ADMIN_PROJECT_RECORDED_RUBRIC_ID : '']
+    .find(id => id && validIds.has(id)) || '';
+
+  const optionsHtml = rubrics.map(item => {
+    const termLabel = complianceTermFriendlyLabel(getRubricActivityTerm(item));
+    return `<option value="${escapeAttribute(item.id)}">${escapeHTML(termLabel)} · ${escapeHTML(item.title || 'Untitled rubric')}</option>`;
+  });
+  if (recordedFallback) {
+    optionsHtml.push(`<option value="${ADMIN_PROJECT_RECORDED_RUBRIC_ID}">Recorded rubric snapshot · ${escapeHTML(recordedFallback.title)}</option>`);
+  }
+  if (!optionsHtml.length) optionsHtml.push('<option value="">No saved rubrics available</option>');
+
+  adminProjectRubricSelect.innerHTML = optionsHtml.join('');
+  adminProjectRubricSelect.value = chosen;
+  adminProjectRubricSelect.disabled = !chosen;
+  adminProjectViewerState.rubricId = chosen;
+}
+
+function getAdminProjectSelectedRubric() {
+  const rubricId = String(adminProjectRubricSelect?.value || adminProjectViewerState.rubricId || '').trim();
+  if (!rubricId) return null;
+  if (rubricId === ADMIN_PROJECT_RECORDED_RUBRIC_ID) return getAdminProjectRecordedRubricActivity();
+  const known = getActivityById(rubricId);
+  return known ? normalizeActivity(known) : null;
+}
+
+function getAdminProjectRecordedScoreText(result = adminProjectViewerState.project?.lastResult) {
+  if (!result || typeof result !== 'object') return 'Not scored';
+  const possible = Number(result.possible || 0);
+  const score = Number(result.score || 0);
+  const percent = Number.isFinite(Number(result.percent))
+    ? Number(result.percent)
+    : (possible > 0 ? Math.round((score / possible) * 100) : 0);
+  return `${formatPoints(score)}/${formatPoints(possible)} · ${percent}%`;
+}
+
+function setAdminProjectResultCheckStatus(message = '', tone = '') {
+  if (!adminProjectResultCheckStatus) return;
+  adminProjectResultCheckStatus.textContent = message || '';
+  adminProjectResultCheckStatus.classList.remove('running', 'ready', 'saved', 'error');
+  if (tone) adminProjectResultCheckStatus.classList.add(tone);
+}
+
+function renderAdminProjectScoreComparison() {
+  const project = adminProjectViewerState.project || {};
+  const recorded = project.lastResult && typeof project.lastResult === 'object' ? project.lastResult : null;
+  const recheck = adminProjectViewerState.latestResult;
+  if (adminProjectRecordedScore) adminProjectRecordedScore.textContent = getAdminProjectRecordedScoreText(recorded);
+  if (adminProjectRecordedScoreNote) {
+    const recordedLabel = project.activityTitle || recorded?.activityTitle || 'Saved project result';
+    adminProjectRecordedScoreNote.textContent = recorded ? recordedLabel : 'No saved score yet';
+  }
+  if (adminProjectRecheckScore) adminProjectRecheckScore.textContent = recheck ? getAdminProjectRecordedScoreText(recheck) : 'Not checked';
+  if (adminProjectRecheckScoreNote) {
+    const rubric = getAdminProjectSelectedRubric();
+    if (!recheck) {
+      adminProjectRecheckScoreNote.textContent = rubric ? `Will use: ${rubric.title}` : 'Select a saved rubric first';
+    } else if (recorded) {
+      const rePercent = Number(recheck.percent || 0);
+      const recPercent = Number(recorded.percent || 0);
+      const delta = Math.round((rePercent - recPercent) * 10) / 10;
+      adminProjectRecheckScoreNote.textContent = delta === 0
+        ? 'Matches the recorded percentage'
+        : `${delta > 0 ? '+' : ''}${delta}% vs recorded`;
+    } else {
+      adminProjectRecheckScoreNote.textContent = `Rubric: ${recheck.activityTitle || rubric?.title || 'Selected rubric'}`;
+    }
+  }
+}
+
+function renderAdminProjectResultCheck(result = adminProjectViewerState.latestResult) {
+  renderAdminProjectScoreComparison();
+  if (adminProjectSaveOfficialScoreBtn) adminProjectSaveOfficialScoreBtn.disabled = !result;
+  if (!adminProjectResultCheckOutput) return;
+  if (!result) {
+    adminProjectResultCheckOutput.innerHTML = `
+      <div class="admin-project-result-empty">
+        <strong>No admin recheck yet.</strong>
+        <p>Select a rubric, then click Check Result. The fresh score is only a preview until you save it as official.</p>
+      </div>`;
+    return;
+  }
+
+  const rubric = getAdminProjectSelectedRubric();
+  const passingScore = Number(rubric?.passingScore || 75);
+  const passed = Number(result.percent || 0) >= passingScore;
+  adminProjectResultCheckOutput.innerHTML = `
+    <div class="admin-project-result-summary">
+      <div>
+        <p class="section-kicker">Fresh Rubric Result</p>
+        <div class="admin-project-result-score">${escapeHTML(formatPoints(result.score))}<small> / ${escapeHTML(formatPoints(result.possible))}</small></div>
+        <p class="muted-text">${Number(result.percent || 0)}% · Passing score: ${passingScore}% · ${escapeHTML(result.activityTitle || rubric?.title || 'Selected rubric')}</p>
+      </div>
+      <span class="admin-project-result-pill ${passed ? 'passed' : 'needs-work'}">${passed ? 'Passed' : 'Needs Work'}</span>
+    </div>
+    <div class="admin-project-result-feedback"><strong>Feedback:</strong> ${escapeHTML(result.feedback || 'Project checked against the selected rubric.')}</div>
+    <div class="admin-project-result-criteria">
+      ${(Array.isArray(result.results) ? result.results : []).map(item => `
+        <article class="admin-project-result-criterion">
+          <div class="admin-project-result-criterion-top">
+            <strong>${escapeHTML(item.title || 'Criterion')}</strong>
+            <span>${escapeHTML(formatPoints(item.earned))}/${escapeHTML(formatPoints(item.points))}</span>
+          </div>
+          <p><strong>${escapeHTML(item.levelLabel || 'Result')}</strong>${item.levelDescription ? ` · ${escapeHTML(item.levelDescription)}` : ''}</p>
+          ${item.evidence ? `<p><strong>Evidence:</strong> ${escapeHTML(item.evidence)}</p>` : ''}
+          ${item.improvement ? `<p><strong>Improve:</strong> ${escapeHTML(item.improvement)}</p>` : ''}
+        </article>`).join('')}
+    </div>`;
+}
+
+function resetAdminProjectResultCheck(message = 'Ready') {
+  adminProjectViewerState.latestResult = null;
+  setAdminProjectResultCheckStatus(message, 'ready');
+  renderAdminProjectResultCheck(null);
+}
+
+async function copyAdminProjectCurrentCode(button = null) {
+  const details = getAdminProjectViewerCurrentCodeDetails();
+  const value = String(details.content ?? '');
+  if (!value.length) {
+    setStatus('Nothing to copy');
+    if (button) button.textContent = 'Empty';
+    window.setTimeout(() => { if (button) button.textContent = '📋 Copy'; }, 900);
+    return false;
+  }
+
+  let copied = false;
+  try {
+    if (navigator.clipboard?.writeText && window.isSecureContext !== false) {
+      await navigator.clipboard.writeText(value);
+      copied = true;
+    }
+  } catch (error) {
+    copied = false;
+  }
+  if (!copied) {
+    const textarea = document.createElement('textarea');
+    textarea.value = value;
+    textarea.setAttribute('readonly', '');
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    textarea.style.pointerEvents = 'none';
+    document.body.appendChild(textarea);
+    textarea.select();
+    textarea.setSelectionRange(0, value.length);
+    try { copied = document.execCommand('copy'); } catch (error) { copied = false; }
+    textarea.remove();
+  }
+
+  if (button) button.textContent = copied ? '✓ Copied' : 'Copy failed';
+  setStatus(copied ? `${details.fileName} copied` : 'Copy failed');
+  window.setTimeout(() => { if (button) button.textContent = '📋 Copy'; }, 1200);
+  return copied;
+}
+
+function waitForAdminProjectPreviewRun(pageName = getAdminProjectActiveFileName('html')) {
+  return new Promise(resolve => {
+    if (!adminProjectViewerFrame) {
+      resolve();
+      return;
+    }
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      resolve();
+    };
+    adminProjectViewerFrame.addEventListener('load', finish, { once: true });
+    runAdminProjectViewerPreview(pageName);
+    window.setTimeout(finish, 900);
+  });
+}
+
+function buildAdminProjectResultMetadata(result, rubric) {
+  if (!result) return null;
+  const student = adminProjectViewerState.student || {};
+  const project = adminProjectViewerState.project || {};
+  const checkedAt = new Date().toISOString();
+  const recordMeta = {
+    studentName: String(student.name || student.studentName || 'Student'),
+    studentId: String(student.studentId || student.studentIdNormalized || ''),
+    section: String(student.section || student.gradeSection || ''),
+    activityTitle: String(rubric?.title || 'Selected rubric'),
+    activityId: String(rubric?.id === ADMIN_PROJECT_RECORDED_RUBRIC_ID ? '' : rubric?.id || ''),
+    projectName: String(project.name || 'Student Project'),
+    checkedAt
+  };
+  return {
+    ...result,
+    activityId: recordMeta.activityId,
+    activityTitle: recordMeta.activityTitle,
+    studentId: recordMeta.studentId,
+    studentName: recordMeta.studentName,
+    section: recordMeta.section,
+    projectName: recordMeta.projectName,
+    checkedAt,
+    recordMeta,
+    adminRecheck: true,
+    source: 'admin-local-rubric-recheck'
+  };
+}
+
+function gradeAdminProjectCurrentCode(rubric) {
+  if (!rubric) return null;
+  const previousCodeStore = codeStore;
+  const previousActivity = activity;
+  const previousSelectedActivityId = selectedActivityId;
+  const previousPreviewOverride = rubricPreviewDocumentOverride;
+  try {
+    codeStore = normalizeCodeStore(clone(getAdminProjectActiveStore()));
+    codeStore.css = Object.values(codeStore.cssFiles || {}).map(value => String(value || '')).join('\n\n');
+    codeStore.js = Object.values(codeStore.jsFiles || {}).map(value => String(value || '')).join('\n\n');
+    activity = normalizeActivity(clone(rubric));
+    selectedActivityId = activity.id === ADMIN_PROJECT_RECORDED_RUBRIC_ID ? '' : activity.id;
+    try {
+      rubricPreviewDocumentOverride = adminProjectViewerFrame?.contentDocument || adminProjectViewerFrame?.contentWindow?.document || null;
+    } catch (error) {
+      rubricPreviewDocumentOverride = null;
+    }
+    const result = gradeActivity({ skipEditorSave: true });
+    return buildAdminProjectResultMetadata(result, activity);
+  } finally {
+    codeStore = previousCodeStore;
+    activity = previousActivity;
+    selectedActivityId = previousSelectedActivityId;
+    rubricPreviewDocumentOverride = previousPreviewOverride;
+  }
+}
+
+async function runAdminProjectResultCheck() {
+  const project = adminProjectViewerState.project;
+  if (!project?.id) {
+    appAlert('Open a student project first.', { title: 'Check Result' });
+    return;
+  }
+  const rubric = getAdminProjectSelectedRubric();
+  if (!rubric) {
+    appAlert('No saved rubric is available. Create or save a rubric in Admin first, then choose it here.', { title: 'Rubric required' });
+    return;
+  }
+
+  try {
+    if (adminProjectCheckResultBtn) adminProjectCheckResultBtn.disabled = true;
+    if (adminProjectSaveOfficialScoreBtn) adminProjectSaveOfficialScoreBtn.disabled = true;
+    setAdminProjectResultCheckStatus('Running project...', 'running');
+    await waitForAdminProjectPreviewRun(getAdminProjectActiveFileName('html'));
+    setAdminProjectResultCheckStatus('Checking rubric...', 'running');
+    const result = gradeAdminProjectCurrentCode(rubric);
+    if (!result) throw new Error('No rubric result was generated.');
+    adminProjectViewerState.latestResult = result;
+    renderAdminProjectResultCheck(result);
+    setAdminProjectResultCheckStatus('Recheck ready · not saved', 'ready');
+    setStatus(`Admin recheck ${formatPoints(result.score)}/${formatPoints(result.possible)}`);
+  } catch (error) {
+    console.error('Admin project result check failed.', error);
+    adminProjectViewerState.latestResult = null;
+    renderAdminProjectResultCheck(null);
+    setAdminProjectResultCheckStatus('Check failed', 'error');
+    appAlert(error?.message || 'Could not check this project result. Try running the preview again.', { title: 'Check Result' });
+  } finally {
+    if (adminProjectCheckResultBtn) adminProjectCheckResultBtn.disabled = false;
+    if (adminProjectSaveOfficialScoreBtn) adminProjectSaveOfficialScoreBtn.disabled = !adminProjectViewerState.latestResult;
+  }
+}
+
+function buildAdminOfficialScorePayload(result = adminProjectViewerState.latestResult) {
+  if (!result) return null;
+  return {
+    score: Number(result.score || 0),
+    possible: Number(result.possible || 0),
+    percent: Number(result.percent || 0),
+    passed: Boolean(result.passed),
+    feedback: String(result.feedback || ''),
+    activityId: String(result.activityId || ''),
+    activityTitle: String(result.activityTitle || ''),
+    studentId: String(result.studentId || ''),
+    studentName: String(result.studentName || ''),
+    section: String(result.section || ''),
+    projectName: String(result.projectName || ''),
+    checkedAt: String(result.checkedAt || new Date().toISOString()),
+    source: 'admin-local-rubric-recheck',
+    results: Array.isArray(result.results) ? result.results.map(item => ({
+      title: item.title || '',
+      levelKey: item.levelKey || '',
+      levelLabel: item.levelLabel || '',
+      levelDescription: item.levelDescription || '',
+      earned: Number(item.earned || 0),
+      points: Number(item.points || 0),
+      passed: Boolean(item.passed),
+      evidence: String(item.evidence || ''),
+      improvement: String(item.improvement || ''),
+      rule: item.rule || '',
+      target: item.target || ''
+    })) : []
+  };
+}
+
+function refreshAdminProjectListRowAfterScoreSave(project = adminProjectViewerState.project) {
+  if (!project || !adminStudentProjectsList) return;
+  const targetRef = project.adminProjectRef || makeAdminProjectReference(getAdminProjectOwnerUid(project), project.id);
+  const row = Array.from(adminStudentProjectsList.querySelectorAll('[data-admin-project-id]'))
+    .find(item => String(item.dataset.adminProjectId || '') === String(targetRef || project.id || ''));
+  if (!row) return;
+  const children = Array.from(row.children);
+  const statusNode = children[1] || null;
+  const scoreNode = children[3] || null;
+  if (statusNode) statusNode.textContent = getProjectStatusLabel(getProjectStatus(project));
+  if (scoreNode) scoreNode.textContent = project.lastResult
+    ? `${formatPoints(project.lastResult.score || 0)}/${formatPoints(project.lastResult.possible || 0)} · ${Number(project.lastResult.percent || 0)}%`
+    : 'Not scored';
+}
+
+async function saveAdminProjectRecheckAsOfficialScore() {
+  const project = adminProjectViewerState.project;
+  const result = buildAdminOfficialScorePayload();
+  const ownerUid = getAdminProjectOwnerUid(project);
+  if (!result || !project?.id || !ownerUid) return;
+  const recordedText = getAdminProjectRecordedScoreText(project.lastResult);
+  const nextText = getAdminProjectRecordedScoreText(result);
+  const confirmed = await appConfirm(`Replace the recorded score (${recordedText}) with the admin recheck (${nextText})? The project code will not be changed.`, {
+    title: 'Save Official Score',
+    confirmText: 'Save Score'
+  });
+  if (!confirmed) return;
+
+  try {
+    if (adminProjectSaveOfficialScoreBtn) adminProjectSaveOfficialScoreBtn.disabled = true;
+    setAdminProjectResultCheckStatus('Saving official score...', 'running');
+    const { setDoc, serverTimestamp } = firebaseSync.modules;
+    const teacherEmail = firebaseSync.auth?.currentUser?.email || firebaseSync.currentUser?.email || 'teacher';
+    const rubric = getAdminProjectSelectedRubric();
+    await setDoc(getStudentProjectDocRef(ownerUid, project.id), {
+      lastResult: result,
+      adminScoreAppliedAt: serverTimestamp(),
+      adminScoreAppliedBy: teacherEmail,
+      adminScoreRubricId: rubric?.id === ADMIN_PROJECT_RECORDED_RUBRIC_ID ? '' : (rubric?.id || ''),
+      adminScoreRubricTitle: rubric?.title || result.activityTitle || '',
+      adminScoreSource: 'built-in-rubric-recheck'
+    }, { merge: true });
+
+    project.lastResult = result;
+    const projectRef = project.adminProjectRef || makeAdminProjectReference(getAdminProjectOwnerUid(project), project.id);
+    const listProject = (adminProjectViewerState.projects || []).find(item => (item.adminProjectRef || makeAdminProjectReference(getAdminProjectOwnerUid(item), item.id)) === projectRef);
+    if (listProject) listProject.lastResult = result;
+    refreshAdminProjectListRowAfterScoreSave(project);
+    renderAdminProjectScoreComparison();
+    setAdminProjectResultCheckStatus('Official score saved', 'saved');
+    setStatus(`Official score ${formatPoints(result.score)}/${formatPoints(result.possible)}`);
+  } catch (error) {
+    console.error('Could not save admin recheck score.', error);
+    setAdminProjectResultCheckStatus('Save failed', 'error');
+    appAlert(error?.message || 'Could not save the official score. Check teacher login, internet connection, and Firestore rules.', { title: 'Save Official Score' });
+  } finally {
+    if (adminProjectSaveOfficialScoreBtn) adminProjectSaveOfficialScoreBtn.disabled = !adminProjectViewerState.latestResult;
+  }
 }
 
 
@@ -10473,6 +11306,8 @@ function renderSavedAdminAiReviewForCurrentProject() {
 }
 
 function getAdminProjectRubricForAi() {
+  const selectedRubric = getAdminProjectSelectedRubric();
+  if (selectedRubric) return selectedRubric;
   const project = adminProjectViewerState.project || {};
   const key = adminProjectViewerState.activityKey || project.selectedActivityId || 'scratch';
   const known = activities.find(item => item.id === key) || activities.find(item => item.id === project.selectedActivityId) || null;
@@ -10882,6 +11717,8 @@ async function applyAdminAiReviewAsScore() {
       aiScoreAppliedBy: firebaseSync.auth?.currentUser?.email || firebaseSync.currentUser?.email || 'teacher'
     }, { merge: true });
     project.lastResult = result;
+    refreshAdminProjectListRowAfterScoreSave(project);
+    renderAdminProjectScoreComparison();
     setAdminAiReviewStatus('Score applied', 'ready');
     setStatus('Smart score applied');
   } catch (error) {
@@ -11090,6 +11927,8 @@ function renderAdminProjectViewer() {
   populateAdminProjectViewerActivitySelect();
   populateAdminProjectViewerFileSelect();
   updateAdminProjectViewerCode();
+  populateAdminProjectRubricSelect();
+  resetAdminProjectResultCheck();
   renderAdminProjectTeacherComment();
   renderSavedAdminAiReviewForCurrentProject();
   runAdminProjectViewerPreview(getAdminProjectActiveFileName('html'));
@@ -11125,7 +11964,7 @@ async function openAdminProjectViewer(projectRef) {
     || (item.id === rawProjectId && (!parsed.uid || getAdminProjectOwnerUid(item) === parsed.uid))
   ) || null;
   const ownerUid = parsed.uid || getAdminProjectOwnerUid(project) || student.uid || getAdminStudentProfileUids(student)[0] || '';
-  if ((!project || !project.codeByActivity) && ownerUid && rawProjectId) {
+  if ((!project || (!project.codeByActivity && String(project.projectType || '').toLowerCase() !== 'wireframe')) && ownerUid && rawProjectId) {
     try {
       const { getDoc } = firebaseSync.modules;
       const snapshot = await getDoc(getStudentProjectDocRef(ownerUid, rawProjectId));
@@ -11146,6 +11985,10 @@ async function openAdminProjectViewer(projectRef) {
     appAlert('This project could not be opened. Check the internet connection and try again.', { title: 'Project unavailable' });
     return;
   }
+  if (String(project.projectType || 'code').toLowerCase() === 'wireframe') {
+    openAdminWireframeViewer({ ...project, ownerUid: ownerUid || getAdminProjectOwnerUid(project) }, student);
+    return;
+  }
   adminProjectViewerState.projectOwnerUid = ownerUid || getAdminProjectOwnerUid(project);
   adminProjectViewerState.project = {
     ...project,
@@ -11159,6 +12002,10 @@ async function openAdminProjectViewer(projectRef) {
     ? adminProjectViewerState.project.selectedActivityId
     : Object.keys(adminProjectViewerState.codeByActivity)[0] || 'scratch';
   adminProjectViewerState.language = 'html';
+  adminProjectViewerState.rubricId = getActivityById(adminProjectViewerState.activityKey)
+    ? adminProjectViewerState.activityKey
+    : (getActivityById(adminProjectViewerState.project.selectedActivityId) ? adminProjectViewerState.project.selectedActivityId : '');
+  adminProjectViewerState.latestResult = null;
   adminProjectViewerOverlay?.classList.remove('hidden');
   document.body.classList.add('student-auth-open');
   renderAdminProjectViewer();
@@ -11205,15 +12052,16 @@ async function showAdminStudentProjects(uid) {
     adminProjectViewerState.projectOwnerUid = profileUids[0] || student.uid || '';
     adminProjectViewerState.projects = projects;
     adminStudentProjectsList.innerHTML = projects.map(project => {
+      const isWireframe = String(project.projectType || 'code').toLowerCase() === 'wireframe';
       const result = project.lastResult;
       const linkedProfileNote = profileUids.length > 1 ? ` · Profile ${profileUids.indexOf(project.ownerUid) + 1}` : '';
       return `
         <article class="admin-project-row" data-admin-project-id="${escapeAttribute(project.adminProjectRef || project.id)}">
-          <div><strong>${escapeHTML(project.name || 'Untitled Project')}</strong><small>${escapeHTML(project.activityTitle || 'Practice project')} · Updated ${escapeHTML(formatStudentDate(project.updatedAt))}${escapeHTML(linkedProfileNote)}</small></div>
+          <div><strong>${escapeHTML(project.name || 'Untitled Project')}</strong><small>${escapeHTML(isWireframe ? 'Wireframe · Desktop + Phone' : (project.activityTitle || 'Practice project'))} · Updated ${escapeHTML(formatStudentDate(project.updatedAt))}${escapeHTML(linkedProfileNote)}</small></div>
           <span>${getProjectStatusLabel(getProjectStatus(project))}</span>
-          <span>${Number(project.runCount || 0)} run${Number(project.runCount || 0) === 1 ? '' : 's'}</span>
-          <strong>${result ? `${formatPoints(result.score || 0)}/${formatPoints(result.possible || 0)} · ${Number(result.percent || 0)}%` : 'Not scored'}</strong>
-          <button class="primary-btn admin-project-view-btn" type="button" data-admin-project-action="view" data-admin-project-id="${escapeAttribute(project.adminProjectRef || project.id)}">View / Run</button>
+          <span>${isWireframe ? 'Responsive' : `${Number(project.runCount || 0)} run${Number(project.runCount || 0) === 1 ? '' : 's'}`}</span>
+          <strong>${isWireframe ? 'Wireframe' : (result ? `${formatPoints(result.score || 0)}/${formatPoints(result.possible || 0)} · ${Number(result.percent || 0)}%` : 'Not scored')}</strong>
+          <button class="primary-btn admin-project-view-btn" type="button" data-admin-project-action="view" data-admin-project-id="${escapeAttribute(project.adminProjectRef || project.id)}">${isWireframe ? 'View Wireframe' : 'View / Run'}</button>
         </article>`;
     }).join('');
   } catch (error) {
@@ -11225,6 +12073,7 @@ async function showAdminStudentProjects(uid) {
 function closeAdminStudentProjects() {
   adminStudentProjectsOverlay?.classList.add('hidden');
   adminProjectViewerOverlay?.classList.add('hidden');
+  adminWireframeViewerOverlay?.classList.add('hidden');
   if (adminProjectViewerFrame) adminProjectViewerFrame.srcdoc = '';
   document.body.classList.remove('student-auth-open');
 }
@@ -13144,79 +13993,52 @@ function installDesktopEditorWheelScroll() {
   }, { passive: false });
 }
 
-function findPreviewScrollableAncestor(doc, startNode, deltaY) {
-  let node = startNode?.nodeType === 1 ? startNode : startNode?.parentElement;
-  const stopAt = doc?.body || null;
-  while (node && node !== stopAt && node !== doc?.documentElement) {
-    try {
-      const style = doc.defaultView?.getComputedStyle(node);
-      const overflowY = String(style?.overflowY || '');
-      const scrollable = /(auto|scroll|overlay)/i.test(overflowY) && node.scrollHeight > node.clientHeight + 1;
-      if (scrollable) {
-        const maxTop = Math.max(0, node.scrollHeight - node.clientHeight);
-        const top = Number(node.scrollTop || 0);
-        const canMove = deltaY > 0 ? top < maxTop - 0.5 : top > 0.5;
-        if (canMove) return node;
-      }
-    } catch (_) {}
-    node = node.parentElement;
-  }
-  return null;
+function ensurePreviewFrameScrollableSurface() {
+  if (!previewFrame) return;
+  // v336: Keep the iframe as a normal native scroll surface. Do not intercept
+  // wheel/touch input in JavaScript; browser-native scrolling is faster and
+  // preserves trackpad acceleration plus phone momentum/inertia.
+  previewFrame.setAttribute('scrolling', 'yes');
+  previewFrame.style.setProperty('pointer-events', 'auto', 'important');
 }
 
-function attachPreviewDesktopWheelScroll() {
+function attachPreviewNativeScroll() {
   if (!previewFrame) return;
+  ensurePreviewFrameScrollableSurface();
+
   let doc = null;
   try {
     doc = previewFrame.contentDocument || previewFrame.contentWindow?.document || null;
   } catch (_) {
     doc = null;
   }
-  if (!doc || doc.__mcsDesktopWheelReady) return;
-  doc.__mcsDesktopWheelReady = true;
+  if (!doc || doc.__mcsPreviewNativeScrollReady) return;
+  doc.__mcsPreviewNativeScrollReady = true;
 
-  doc.addEventListener('wheel', event => {
-    if (!isDesktopNaturalScrollMode()) return;
-    if (event.defaultPrevented || event.ctrlKey || event.metaKey) return;
-    if (Math.abs(Number(event.deltaX || 0)) > Math.abs(Number(event.deltaY || 0))) return;
-
-    const viewHeight = previewFrame.clientHeight || doc.defaultView?.innerHeight || window.innerHeight;
-    const deltaY = normalizeWheelDeltaY(event, viewHeight);
-    if (Math.abs(deltaY) < 0.25) return;
-
-    const scroller = doc.scrollingElement || doc.documentElement || doc.body;
-    if (!scroller) return;
-    const clientHeight = Math.max(1, scroller.clientHeight || doc.defaultView?.innerHeight || viewHeight);
-    const maxTop = Math.max(0, scroller.scrollHeight - clientHeight);
-    const top = Number(scroller.scrollTop || doc.defaultView?.scrollY || 0);
-    const rootCanMove = maxTop > 1 && (deltaY > 0 ? top < maxTop - 0.5 : top > 0.5);
-
-    // Native iframe scrolling is much smoother than manually assigning
-    // scrollTop on every wheel event. Leave it completely untouched while the
-    // student page still has room to scroll.
-    if (rootCanMove) return;
-
-    // At the document edge, first respect any student-made nested scroll area.
-    // This relatively expensive style walk now runs only at an edge, not during
-    // every normal wheel tick.
-    if (findPreviewScrollableAncestor(doc, event.target, deltaY)) return;
-
-    const previewIsFullscreen = document.body.classList.contains('preview-fullscreen-active')
-      || document.body.classList.contains('preview-inside-editor-fullscreen')
-      || document.fullscreenElement === previewPanel;
-    if (previewIsFullscreen) return;
-
-    if (queueParentPageWheel(deltaY)) event.preventDefault();
-  }, { passive: false });
+  // Intentionally no wheel/touchmove listeners here. The preview document owns
+  // its scrolling natively. This avoids the lag introduced by the former
+  // requestAnimationFrame wheel bridge and synthetic touch inertia engine.
 }
 
 installDesktopEditorWheelScroll();
+ensurePreviewFrameScrollableSurface();
 
 function buildFullCode(pageName = getActiveHtmlPageName()) {
   const safePageName = normalizeHtmlPageName(pageName);
   const rawHtml = getHTMLPageContent(safePageName) || '';
   const html = stripAppPreviewHelperLeak(rawHtml);
-  const styleBlock = getCSSBlocksForPreview(html);
+  const rawStyleBlock = getCSSBlocksForPreview(html);
+  // Older Wireframe -> Starter Code builds intentionally hid root overflow to
+  // remove a right-side gutter. That also prevented scrolling in Output Preview.
+  // Repair those generated starters at preview time without overriding normal
+  // student-authored CSS or mutating the saved project.
+  const legacyWireframeStarterScrollFix = /Starter CSS generated from ICT 8 Connect Wireframe Maker/i.test(rawStyleBlock)
+    ? `<style id="mcs-wireframe-starter-preview-scroll-fix">
+html, body { min-height: 100% !important; overflow-x: hidden !important; overflow-y: auto !important; -webkit-overflow-scrolling: touch; }
+.site-canvas { min-height: 100vh !important; min-height: 100dvh !important; overflow: visible !important; }
+</style>`
+    : '';
+  const styleBlock = [rawStyleBlock, legacyWireframeStarterScrollFix].filter(Boolean).join('\n');
   const scriptBlock = getJSBlocksForPreview(html);
   // App navigation helpers are attached from the parent iframe load handler.
   // Keeping them out of srcdoc prevents helper JS from ever becoming visible
@@ -13615,6 +14437,7 @@ function runCode(showMessage = true, options = {}) {
 }
 
 function getPreviewDocument() {
+  if (rubricPreviewDocumentOverride) return rubricPreviewDocumentOverride;
   try {
     return previewFrame.contentDocument || previewFrame.contentWindow.document;
   } catch (error) {
@@ -15721,9 +16544,9 @@ function buildResultRecordingHeader(result = null) {
   `;
 }
 
-function gradeActivity() {
+function gradeActivity(options = {}) {
   if (!activity) return null;
-  saveActiveEditor();
+  if (options?.skipEditorSave !== true) saveActiveEditor();
   const results = activity.criteria.map(gradeCriterion);
 
   const score = results.reduce((sum, item) => sum + item.earned, 0);
@@ -17278,6 +18101,7 @@ function enterFullPreview(options = {}) {
   previewControlsToggle?.classList.toggle('hidden', !fromFullEditor);
   setPreviewControlsMenu(false);
 
+  document.documentElement.classList.add('preview-fullscreen-root');
   document.body.classList.add('preview-fullscreen-active');
   document.body.classList.toggle('preview-has-back-editor', fromFullEditor);
   document.body.classList.toggle('preview-inside-editor-fullscreen', insideEditorFullscreen);
@@ -17326,6 +18150,7 @@ function exitFullPreview(options = {}) {
     !safeOptions.fromNative &&
     document.exitFullscreen;
 
+  document.documentElement.classList.remove('preview-fullscreen-root');
   document.body.classList.remove(
     'preview-fullscreen-active',
     'preview-has-back-editor',
@@ -24443,7 +25268,7 @@ if (advancedErrorCheckBtn) advancedErrorCheckBtn.addEventListener('click', reque
 if (previewFrame) previewFrame.addEventListener('load', () => {
   markPreviewReady();
   attachPreviewLinkHandlers();
-  attachPreviewDesktopWheelScroll();
+  attachPreviewNativeScroll();
   window.requestAnimationFrame(() => {
     if (!applyPendingPreviewAnchor()) window.setTimeout(applyPendingPreviewAnchor, 80);
   });
@@ -24506,7 +25331,7 @@ window.addEventListener('keydown', event => {
   }
 });
 
-[assistanceMasterToggle, codeSuggestionsToggle, codeHelperToggle, teacherFeedbackToggle, superStudioToggle, autoSaveControlToggle, autoRunControlToggle, externalLinksSamePreviewToggle, starterCodeToggle, collaborationToggle, collaborationEditToggle, collaborationMembersToggle, codeTransferToggle].forEach(toggle => {
+[assistanceMasterToggle, codeSuggestionsToggle, codeHelperToggle, teacherFeedbackToggle, superStudioToggle, autoSaveControlToggle, wireframeAutoSaveToggle, wireframeStarterCodeToggle, autoRunControlToggle, externalLinksSamePreviewToggle, starterCodeToggle, collaborationToggle, collaborationEditToggle, collaborationMembersToggle, codeTransferToggle].forEach(toggle => {
   toggle?.addEventListener('change', () => {
     applyAssistanceSettingsFromControls();
   });
@@ -25001,6 +25826,11 @@ document.addEventListener('keydown', event => {
     closeAdminProjectViewer?.();
     return;
   }
+  if (isOpen(adminWireframeViewerOverlay)) {
+    event.preventDefault();
+    closeAdminWireframeViewer?.();
+    return;
+  }
   if (isOpen(adminStudentProjectsOverlay)) {
     event.preventDefault();
     closeAdminStudentProjects?.();
@@ -25009,6 +25839,11 @@ document.addEventListener('keydown', event => {
   if (isOpen(projectNameOverlay)) {
     event.preventDefault();
     closeProjectNameDialog?.();
+    return;
+  }
+  if (isOpen(projectTypeOverlay)) {
+    event.preventDefault();
+    closeProjectTypeDialog?.();
     return;
   }
   if (isOpen(studentLoginOverlay)) {
@@ -25096,7 +25931,3329 @@ lessonPdfOverlay?.addEventListener('click', event => {
   if (event.target === lessonPdfOverlay) event.stopPropagation();
 });
 window.addEventListener('beforeunload', finishCurrentLessonReadingSession);
-newProjectBtn?.addEventListener('click', () => openProjectNameDialog('create'));
+
+/* =========================================================
+   Responsive Wireframe Maker v3
+   Multi-page visual website planning with shared design/content,
+   independent Desktop/Phone layouts, preview navigation, autosave,
+   read-only admin page/device inspection, and Wireframe-to-Code export.
+   ========================================================= */
+const WIREFRAME_DEVICE_SIZES = Object.freeze({
+  desktop: { width: 1200, height: 760, label: 'Desktop' },
+  phone: { width: 390, height: 844, label: 'Phone' }
+});
+
+const WIREFRAME_MAX_PAGES = 10;
+const WIREFRAME_IMAGE_MAX_SOURCE_BYTES = 8 * 1024 * 1024;
+const WIREFRAME_IMAGE_TARGET_DATA_URL_CHARS = 90000;
+const WIREFRAME_IMAGE_MAX_DATA_URL_CHARS = 120000;
+const WIREFRAME_IMAGE_TOTAL_DATA_URL_CHARS = 360000;
+const WIREFRAME_DEFAULT_STYLES = Object.freeze({
+  nav: { text: 'LOGO     Home     About     Contact', background: '#ffffff', color: '#111827', borderColor: '#cbd5e1', borderWidth: 1, radius: 8, fontSize: 16, textAlign: 'left', fontWeight: 700 },
+  section: { text: 'Section', background: '#f8fafc', color: '#475569', borderColor: '#cbd5e1', borderWidth: 1, radius: 10, fontSize: 15, textAlign: 'center', fontWeight: 600 },
+  heading: { text: 'Your Website Heading', background: '#ffffff', color: '#0f172a', borderColor: '#e2e8f0', borderWidth: 0, radius: 0, fontSize: 36, textAlign: 'left', fontWeight: 800 },
+  text: { text: 'Add a short description or website content here.', background: '#ffffff', color: '#334155', borderColor: '#e2e8f0', borderWidth: 0, radius: 0, fontSize: 17, textAlign: 'left', fontWeight: 400 },
+  button: { text: 'Learn More', background: '#2563eb', color: '#ffffff', borderColor: '#1d4ed8', borderWidth: 1, radius: 10, fontSize: 16, textAlign: 'center', fontWeight: 700 },
+  link: { text: 'About', background: '#ffffff', color: '#2563eb', borderColor: '#dbeafe', borderWidth: 0, radius: 4, fontSize: 16, textAlign: 'left', fontWeight: 700 },
+  image: { text: 'Image Placeholder', background: '#e2e8f0', color: '#64748b', borderColor: '#94a3b8', borderWidth: 1, radius: 12, fontSize: 16, textAlign: 'center', fontWeight: 600 },
+  card: { text: 'Card Title\nShort supporting text', background: '#ffffff', color: '#1e293b', borderColor: '#cbd5e1', borderWidth: 1, radius: 14, fontSize: 17, textAlign: 'left', fontWeight: 600 },
+  input: { text: 'Input / Form Field', background: '#ffffff', color: '#64748b', borderColor: '#94a3b8', borderWidth: 1, radius: 8, fontSize: 15, textAlign: 'left', fontWeight: 400 },
+  footer: { text: '© Website Footer', background: '#0f172a', color: '#ffffff', borderColor: '#0f172a', borderWidth: 0, radius: 0, fontSize: 15, textAlign: 'center', fontWeight: 600 }
+});
+
+const wireframeMakerState = {
+  projectId: '',
+  data: null,
+  pageId: '',
+  device: 'desktop',
+  selectedId: '',
+  selectedIds: [],
+  preview: false,
+  zoom: 'fit',
+  scale: 1,
+  dirty: false,
+  saving: false,
+  saveTimer: null,
+  drag: null,
+  snapEnabled: true,
+  clipboard: [],
+  historyPast: [],
+  historyFuture: [],
+  historyMergeKey: '',
+  historyMergeAt: 0,
+  pageDialogMode: 'add',
+  exporting: false,
+  paletteCollapsed: false,
+  propertiesCollapsed: false,
+  focusMode: false
+};
+
+const adminWireframeViewerState = {
+  project: null,
+  student: null,
+  data: null,
+  pageId: '',
+  device: 'desktop',
+  scale: 1
+};
+
+const WIREFRAME_WORKSPACE_PREFS_KEY = 'ict8-wireframe-workspace-v1';
+
+function readWireframeWorkspacePrefs() {
+  try {
+    const raw = localStorage.getItem(WIREFRAME_WORKSPACE_PREFS_KEY);
+    if (!raw) return { paletteCollapsed: false, propertiesCollapsed: false };
+    const parsed = JSON.parse(raw);
+    return {
+      paletteCollapsed: !!parsed?.paletteCollapsed,
+      propertiesCollapsed: !!parsed?.propertiesCollapsed
+    };
+  } catch {
+    return { paletteCollapsed: false, propertiesCollapsed: false };
+  }
+}
+
+function persistWireframeWorkspacePrefs() {
+  try {
+    localStorage.setItem(WIREFRAME_WORKSPACE_PREFS_KEY, JSON.stringify({
+      paletteCollapsed: !!wireframeMakerState.paletteCollapsed,
+      propertiesCollapsed: !!wireframeMakerState.propertiesCollapsed
+    }));
+  } catch {}
+}
+
+function isCompactWireframeWorkspace() {
+  return typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 900px)').matches;
+}
+
+function syncWireframeWorkspaceUi({ reflow = true } = {}) {
+  if (!wireframeMakerScreen) return;
+  wireframeMakerScreen.classList.toggle('palette-collapsed', !!wireframeMakerState.paletteCollapsed);
+  wireframeMakerScreen.classList.toggle('properties-collapsed', !!wireframeMakerState.propertiesCollapsed);
+  wireframeMakerScreen.classList.toggle('is-focus-mode', !!wireframeMakerState.focusMode);
+
+  if (wireframePaletteToggleBtn) {
+    const open = !wireframeMakerState.paletteCollapsed && !wireframeMakerState.focusMode;
+    wireframePaletteToggleBtn.classList.toggle('active', open);
+    wireframePaletteToggleBtn.setAttribute('aria-pressed', open ? 'true' : 'false');
+    wireframePaletteToggleBtn.title = open ? 'Hide Elements and Layers' : 'Show Elements and Layers';
+  }
+  if (wireframePropertiesToggleBtn) {
+    const open = !wireframeMakerState.propertiesCollapsed && !wireframeMakerState.focusMode;
+    wireframePropertiesToggleBtn.classList.toggle('active', open);
+    wireframePropertiesToggleBtn.setAttribute('aria-pressed', open ? 'true' : 'false');
+    wireframePropertiesToggleBtn.title = open ? 'Hide Properties' : 'Show Properties';
+  }
+  wireframeFocusBtn?.setAttribute('aria-pressed', wireframeMakerState.focusMode ? 'true' : 'false');
+  if (wireframeFocusBtn) wireframeFocusBtn.textContent = wireframeMakerState.focusMode ? '⛶ Focused' : '⛶ Focus';
+
+  if (reflow) window.setTimeout(syncWireframeCanvasScale, 30);
+}
+
+function toggleWireframePalettePanel() {
+  if (wireframeMakerState.focusMode) return;
+  wireframeMakerState.paletteCollapsed = !wireframeMakerState.paletteCollapsed;
+  if (isCompactWireframeWorkspace() && !wireframeMakerState.paletteCollapsed) {
+    wireframeMakerState.propertiesCollapsed = true;
+  }
+  persistWireframeWorkspacePrefs();
+  syncWireframeWorkspaceUi();
+}
+
+function toggleWireframePropertiesPanel() {
+  if (wireframeMakerState.focusMode) return;
+  wireframeMakerState.propertiesCollapsed = !wireframeMakerState.propertiesCollapsed;
+  if (isCompactWireframeWorkspace() && !wireframeMakerState.propertiesCollapsed) {
+    wireframeMakerState.paletteCollapsed = true;
+  }
+  persistWireframeWorkspacePrefs();
+  syncWireframeWorkspaceUi();
+}
+
+function setWireframeFocusMode(active) {
+  wireframeMakerState.focusMode = !!active;
+  syncWireframeWorkspaceUi();
+}
+
+function toggleWireframeFocusMode() {
+  setWireframeFocusMode(!wireframeMakerState.focusMode);
+}
+
+function safeWireframeColor(value, fallback = '#ffffff') {
+  const color = String(value || '').trim();
+  return /^#[0-9a-f]{6}$/i.test(color) ? color.toLowerCase() : fallback;
+}
+
+function clampWireframeNumber(value, min, max, fallback) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return fallback;
+  return Math.min(max, Math.max(min, number));
+}
+
+function createWireframePageId() {
+  return `wf-page-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function safeWireframePageName(value, fallback = 'Page') {
+  const cleaned = String(value || '').replace(/\s+/g, ' ').trim().slice(0, 32);
+  return cleaned || fallback;
+}
+
+function wireframePageSlug(name, index = 0) {
+  const slug = safeWireframePageName(name, `Page ${index + 1}`)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 42);
+  return slug || `page-${index + 1}`;
+}
+
+function createDefaultWireframePage(name = 'Home', index = 0) {
+  return {
+    id: createWireframePageId(),
+    name: safeWireframePageName(name, `Page ${index + 1}`),
+    slug: wireframePageSlug(name, index),
+    canvasBackground: '#ffffff',
+    elements: []
+  };
+}
+
+function createDefaultWireframeData() {
+  const home = createDefaultWireframePage('Home', 0);
+  return {
+    version: 4,
+    startPageId: home.id,
+    pages: [home]
+  };
+}
+
+function getWireframeDefaultLayout(type, device, index = 0) {
+  const offset = (index % 8) * 14;
+  const desktop = {
+    nav: { x: 40, y: 30, w: 1120, h: 70 },
+    section: { x: 40, y: 130, w: 1120, h: 220 },
+    heading: { x: 80, y: 150, w: 640, h: 76 },
+    text: { x: 80, y: 240, w: 620, h: 90 },
+    button: { x: 80, y: 350, w: 170, h: 52 },
+    link: { x: 80, y: 415, w: 150, h: 44 },
+    image: { x: 760, y: 150, w: 340, h: 240 },
+    card: { x: 80, y: 440, w: 300, h: 180 },
+    input: { x: 80, y: 650, w: 360, h: 52 },
+    footer: { x: 40, y: 670, w: 1120, h: 70 }
+  };
+  const phone = {
+    nav: { x: 16, y: 18, w: 358, h: 64 },
+    section: { x: 16, y: 105, w: 358, h: 220 },
+    heading: { x: 28, y: 120, w: 334, h: 72 },
+    text: { x: 28, y: 210, w: 334, h: 110 },
+    button: { x: 28, y: 340, w: 160, h: 50 },
+    link: { x: 28, y: 400, w: 140, h: 42 },
+    image: { x: 28, y: 415, w: 334, h: 210 },
+    card: { x: 28, y: 650, w: 334, h: 160 },
+    input: { x: 28, y: 735, w: 334, h: 50 },
+    footer: { x: 16, y: 760, w: 358, h: 66 }
+  };
+  const source = device === 'phone' ? phone : desktop;
+  const base = source[type] || source.text;
+  const size = WIREFRAME_DEVICE_SIZES[device] || WIREFRAME_DEVICE_SIZES.desktop;
+  const w = Math.min(base.w, size.width - 20);
+  const h = Math.min(base.h, size.height - 20);
+  return {
+    x: Math.max(0, Math.min(size.width - w, base.x + offset)),
+    y: Math.max(0, Math.min(size.height - h, base.y + offset)),
+    w,
+    h
+  };
+}
+
+function normalizeWireframeLayout(raw, device, fallback) {
+  const size = WIREFRAME_DEVICE_SIZES[device];
+  const candidate = raw && typeof raw === 'object' ? raw : fallback;
+  const w = clampWireframeNumber(candidate.w, 40, size.width, fallback.w);
+  const h = clampWireframeNumber(candidate.h, 30, size.height, fallback.h);
+  return {
+    x: clampWireframeNumber(candidate.x, 0, Math.max(0, size.width - w), fallback.x),
+    y: clampWireframeNumber(candidate.y, 0, Math.max(0, size.height - h), fallback.y),
+    w,
+    h
+  };
+}
+
+function sanitizeWireframeImageDataUrl(value) {
+  const src = String(value || '').trim();
+  return /^data:image\/(?:jpeg|png|webp);base64,[a-z0-9+/=\s]+$/i.test(src) ? src.replace(/\s+/g, '') : '';
+}
+
+function normalizeWireframeImageDisplay(raw, fallback = null) {
+  const source = raw && typeof raw === 'object' ? raw : {};
+  const base = fallback && typeof fallback === 'object' ? fallback : { fit: 'cover', positionX: 50, positionY: 50 };
+  return {
+    fit: ['cover', 'contain', 'fill'].includes(source.fit) ? source.fit : base.fit,
+    positionX: clampWireframeNumber(source.positionX, 0, 100, base.positionX),
+    positionY: clampWireframeNumber(source.positionY, 0, 100, base.positionY)
+  };
+}
+
+function normalizeWireframeImage(raw) {
+  const image = raw && typeof raw === 'object' ? raw : {};
+  const legacyDisplay = normalizeWireframeImageDisplay(image);
+  return {
+    src: sanitizeWireframeImageDataUrl(image.src),
+    fileName: String(image.fileName || '').replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, 80),
+    desktop: normalizeWireframeImageDisplay(image.desktop, legacyDisplay),
+    phone: normalizeWireframeImageDisplay(image.phone, legacyDisplay)
+  };
+}
+
+function getWireframeImageDisplay(element, device = wireframeMakerState.device) {
+  const image = normalizeWireframeImage(element?.image);
+  return image[device === 'phone' ? 'phone' : 'desktop'];
+}
+
+function wireframeImageDataUsage(data = wireframeMakerState.data, excludeElementId = '') {
+  const normalized = normalizeWireframeData(data);
+  return normalized.pages.reduce((sum, page) => sum + page.elements.reduce((pageSum, element) => {
+    if (excludeElementId && element.id === excludeElementId) return pageSum;
+    return pageSum + String(element.image?.src || '').length;
+  }, 0), 0);
+}
+
+function wireframeDataUrlApproxKb(src) {
+  const value = String(src || '');
+  if (!value) return 0;
+  const comma = value.indexOf(',');
+  const base64Length = comma >= 0 ? value.length - comma - 1 : value.length;
+  return Math.max(1, Math.round((base64Length * 0.75) / 1024));
+}
+
+function normalizeWireframeElement(raw, index = 0) {
+  const type = WIREFRAME_DEFAULT_STYLES[raw?.type] ? raw.type : 'text';
+  const defaults = WIREFRAME_DEFAULT_STYLES[type];
+  const style = raw?.style && typeof raw.style === 'object' ? raw.style : {};
+  const desktopFallback = getWireframeDefaultLayout(type, 'desktop', index);
+  const phoneFallback = getWireframeDefaultLayout(type, 'phone', index);
+  return {
+    id: String(raw?.id || `wf-${Date.now()}-${index}-${Math.random().toString(36).slice(2, 7)}`),
+    type,
+    text: String(raw?.text ?? defaults.text).slice(0, 180),
+    name: String(raw?.name || '').replace(/\s+/g, ' ').trim().slice(0, 40),
+    linkPageId: String(raw?.linkPageId || ''),
+    image: normalizeWireframeImage(raw?.image),
+    hidden: raw?.hidden === true,
+    locked: raw?.locked === true,
+    groupId: String(raw?.groupId || '').trim().slice(0, 80),
+    style: {
+      background: safeWireframeColor(style.background, defaults.background),
+      color: safeWireframeColor(style.color, defaults.color),
+      borderColor: safeWireframeColor(style.borderColor, defaults.borderColor),
+      borderWidth: clampWireframeNumber(style.borderWidth, 0, 8, defaults.borderWidth),
+      radius: clampWireframeNumber(style.radius, 0, 80, defaults.radius),
+      fontSize: clampWireframeNumber(style.fontSize, 10, 72, defaults.fontSize),
+      textAlign: ['left', 'center', 'right'].includes(style.textAlign) ? style.textAlign : defaults.textAlign,
+      fontWeight: clampWireframeNumber(style.fontWeight, 300, 900, defaults.fontWeight)
+    },
+    layouts: {
+      desktop: normalizeWireframeLayout(raw?.layouts?.desktop, 'desktop', desktopFallback),
+      phone: normalizeWireframeLayout(raw?.layouts?.phone, 'phone', phoneFallback)
+    },
+    z: clampWireframeNumber(raw?.z, 1, 999, index + 1)
+  };
+}
+
+function normalizeWireframePage(raw, index = 0, usedIds = new Set()) {
+  const fallbackName = index === 0 ? 'Home' : `Page ${index + 1}`;
+  const name = safeWireframePageName(raw?.name, fallbackName);
+  let id = String(raw?.id || '').trim();
+  if (!id || usedIds.has(id)) id = createWireframePageId();
+  usedIds.add(id);
+  const elements = Array.isArray(raw?.elements) ? raw.elements.slice(0, 120) : [];
+  return {
+    id,
+    name,
+    slug: wireframePageSlug(raw?.slug || name, index),
+    canvasBackground: safeWireframeColor(raw?.canvasBackground, '#ffffff'),
+    elements: elements.map((item, elementIndex) => normalizeWireframeElement(item, elementIndex))
+  };
+}
+
+function normalizeWireframeData(raw) {
+  const source = raw && typeof raw === 'object' ? raw : createDefaultWireframeData();
+  let pageInputs = Array.isArray(source.pages) ? source.pages.slice(0, WIREFRAME_MAX_PAGES) : [];
+
+  // Backward compatibility: v1 stored one canvas directly on wireframeData.
+  if (!pageInputs.length) {
+    pageInputs = [{
+      id: 'wf-page-home',
+      name: 'Home',
+      slug: 'home',
+      canvasBackground: source.canvasBackground,
+      elements: Array.isArray(source.elements) ? source.elements : []
+    }];
+  }
+
+  const usedIds = new Set();
+  const pages = pageInputs.map((page, index) => normalizeWireframePage(page, index, usedIds));
+  const validPageIds = new Set(pages.map(page => page.id));
+  pages.forEach(page => {
+    page.elements.forEach(element => {
+      if (element.linkPageId && !validPageIds.has(element.linkPageId)) element.linkPageId = '';
+    });
+  });
+  const requestedStart = String(source.startPageId || '');
+  return {
+    version: 4,
+    startPageId: validPageIds.has(requestedStart) ? requestedStart : pages[0].id,
+    pages
+  };
+}
+
+function getWireframePage(data = wireframeMakerState.data, pageId = wireframeMakerState.pageId) {
+  if (!data?.pages?.length) return null;
+  return data.pages.find(page => page.id === pageId) || data.pages[0];
+}
+
+function getAdminWireframePage() {
+  return getWireframePage(adminWireframeViewerState.data, adminWireframeViewerState.pageId);
+}
+
+function wireframeRecoveryKey(projectId = wireframeMakerState.projectId) {
+  const uid = appSession.student?.uid || 'student';
+  return `ict8.wireframeRecovery.v1:${uid}:${projectId}`;
+}
+
+function persistWireframeRecovery() {
+  if (!wireframeMakerState.projectId || !wireframeMakerState.data) return;
+  try {
+    localStorage.setItem(wireframeRecoveryKey(), JSON.stringify({
+      savedAt: Date.now(),
+      data: normalizeWireframeData(wireframeMakerState.data)
+    }));
+  } catch (_) {}
+}
+
+function clearWireframeRecovery(projectId = wireframeMakerState.projectId) {
+  try { localStorage.removeItem(wireframeRecoveryKey(projectId)); } catch (_) {}
+}
+
+function readWireframeRecovery(projectId) {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(wireframeRecoveryKey(projectId)) || 'null');
+    return parsed?.data ? parsed : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+function setWireframeSaveState(label, tone = '') {
+  if (!wireframeSaveState) return;
+  wireframeSaveState.textContent = label;
+  wireframeSaveState.dataset.tone = tone;
+}
+
+function isWireframeAutosaveEnabled() {
+  return normalizeAssistanceSettings(studentAssistanceSettings).wireframeAutoSave !== false;
+}
+
+function isWireframeStarterCodeEnabled() {
+  return normalizeAssistanceSettings(studentAssistanceSettings).wireframeStarterCode !== false;
+}
+
+function syncWireframeStarterCodeUi() {
+  if (!wireframeConvertBtn) return;
+  const enabled = isWireframeStarterCodeEnabled();
+  const busy = wireframeConvertBtn.dataset.busy === 'true';
+  wireframeConvertBtn.disabled = !enabled || busy;
+  wireframeConvertBtn.classList.toggle('wireframe-starter-disabled', !enabled);
+  wireframeConvertBtn.setAttribute('aria-disabled', enabled ? 'false' : 'true');
+  wireframeConvertBtn.title = enabled
+    ? 'Create a new editable Code Project from this wireframe'
+    : 'Starter Code is currently disabled by your teacher.';
+  if (!busy) wireframeConvertBtn.textContent = enabled ? '</> Starter Code' : '</> Starter Code 🔒';
+}
+
+function syncWireframeAutosaveUi({ queueIfEnabled = false } = {}) {
+  const enabled = isWireframeAutosaveEnabled();
+  if (wireframeAutosaveMode) {
+    wireframeAutosaveMode.textContent = enabled ? 'Autosave ON' : 'Manual Save';
+    wireframeAutosaveMode.dataset.tone = enabled ? 'saved' : 'unsaved';
+    wireframeAutosaveMode.title = enabled
+      ? 'Wireframe changes save automatically to the student account.'
+      : 'Wireframe autosave is disabled by the teacher. Press Save to store changes in the student account.';
+  }
+
+  if (typeof wireframeMakerState === 'undefined') return;
+  window.clearTimeout(wireframeMakerState.saveTimer);
+  if (wireframeMakerState.saving) return;
+
+  if (wireframeMakerState.dirty) {
+    if (navigator.onLine === false) {
+      setWireframeSaveState('Offline · pending', 'unsaved');
+    } else if (enabled) {
+      setWireframeSaveState('Unsaved · autosave', 'unsaved');
+      if (queueIfEnabled && wireframeMakerState.projectId && wireframeMakerScreen && !wireframeMakerScreen.classList.contains('hidden')) {
+        wireframeMakerState.saveTimer = window.setTimeout(() => saveWireframeProject({ silent: true }), 350);
+      }
+    } else {
+      setWireframeSaveState('Unsaved · press Save', 'unsaved');
+    }
+  } else if (wireframeMakerState.projectId) {
+    setWireframeSaveState(enabled ? 'Saved' : 'Saved · manual', 'saved');
+  }
+}
+
+function openProjectTypeDialog() {
+  if (!appSession.student) {
+    openStudentLogin();
+    return;
+  }
+  appSession.pendingProjectType = 'code';
+  projectTypeOverlay?.classList.remove('hidden');
+  document.body.classList.add('student-auth-open');
+}
+
+function closeProjectTypeDialog() {
+  projectTypeOverlay?.classList.add('hidden');
+  document.body.classList.remove('student-auth-open');
+}
+
+function chooseProjectType(type) {
+  appSession.pendingProjectType = type === 'wireframe' ? 'wireframe' : 'code';
+  closeProjectTypeDialog();
+  openProjectNameDialog('create');
+}
+
+function getWireframeSelectionIds() {
+  const page = getWireframePage();
+  if (!page) return [];
+  const valid = new Set(page.elements.map(item => item.id));
+  const ids = Array.isArray(wireframeMakerState.selectedIds) ? wireframeMakerState.selectedIds.filter(id => valid.has(id)) : [];
+  if (wireframeMakerState.selectedId && valid.has(wireframeMakerState.selectedId) && !ids.includes(wireframeMakerState.selectedId)) ids.push(wireframeMakerState.selectedId);
+  wireframeMakerState.selectedIds = [...new Set(ids)];
+  if (!wireframeMakerState.selectedIds.includes(wireframeMakerState.selectedId)) wireframeMakerState.selectedId = wireframeMakerState.selectedIds[0] || '';
+  return wireframeMakerState.selectedIds;
+}
+
+function getWireframeSelectedElements() {
+  const page = getWireframePage();
+  if (!page) return [];
+  const selected = new Set(getWireframeSelectionIds());
+  return page.elements.filter(item => selected.has(item.id));
+}
+
+function getWireframeSelectedElement() {
+  const page = getWireframePage();
+  if (!page) return null;
+  return page.elements.find(item => item.id === wireframeMakerState.selectedId) || getWireframeSelectedElements()[0] || null;
+}
+
+function setWireframeSelection(ids = [], primaryId = '') {
+  const page = getWireframePage();
+  if (!page) return;
+  const valid = new Set(page.elements.map(item => item.id));
+  const clean = [...new Set((Array.isArray(ids) ? ids : [ids]).filter(id => valid.has(id)))];
+  wireframeMakerState.selectedIds = clean;
+  wireframeMakerState.selectedId = clean.includes(primaryId) ? primaryId : (clean[clean.length - 1] || '');
+}
+
+function clearWireframeSelection() {
+  wireframeMakerState.selectedId = '';
+  wireframeMakerState.selectedIds = [];
+}
+
+function getWireframeLayout(element, device = wireframeMakerState.device) {
+  return element?.layouts?.[device] || null;
+}
+
+function wireframeTypeLabel(type) {
+  const labels = { nav: 'Navigation', section: 'Section', heading: 'Heading', text: 'Text', button: 'Button', link: 'Page Link', image: 'Image', card: 'Card', input: 'Input', footer: 'Footer' };
+  return labels[type] || 'Element';
+}
+
+function wireframeLayerLabel(element) {
+  const custom = String(element?.name || '').trim();
+  if (custom) return custom;
+  const text = String(element?.text || '').replace(/\s+/g, ' ').trim();
+  return text ? text.slice(0, 30) : wireframeTypeLabel(element?.type);
+}
+
+function cleanWireframeLayerName(value = '') {
+  return String(value || '').replace(/\s+/g, ' ').trim().slice(0, 40);
+}
+
+function getUniqueWireframeLayerName(element, page = getWireframePage(), reservedNames = []) {
+  const fallback = wireframeLayerLabel(element) || wireframeTypeLabel(element?.type);
+  const source = cleanWireframeLayerName(element?.name || fallback) || wireframeTypeLabel(element?.type);
+  const suffixMatch = source.match(/^(.*?)(?:\s+(\d+))$/);
+  const root = cleanWireframeLayerName(suffixMatch?.[1] || source) || wireframeTypeLabel(element?.type);
+  let suffix = suffixMatch ? Math.max(2, Number(suffixMatch[2] || 1) + 1) : 2;
+  const used = new Set([
+    ...(page?.elements || []).map(item => wireframeLayerLabel(item).toLowerCase()),
+    ...(reservedNames || []).map(name => cleanWireframeLayerName(name).toLowerCase())
+  ]);
+  let candidate = `${root} ${suffix}`.slice(0, 40);
+  while (used.has(candidate.toLowerCase())) {
+    suffix += 1;
+    candidate = `${root} ${suffix}`.slice(0, 40);
+  }
+  return candidate;
+}
+
+function beginWireframeLayerRename(id, row) {
+  const page = getWireframePage();
+  const element = page?.elements?.find(item => item.id === id);
+  if (!element || !row || wireframeMakerState.preview) return;
+  if (row.classList.contains('is-renaming')) return;
+
+  row.classList.add('is-renaming');
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'wireframe-layer-rename-input';
+  input.maxLength = 40;
+  input.value = cleanWireframeLayerName(element.name || wireframeLayerLabel(element));
+  input.setAttribute('aria-label', 'Rename layer');
+  row.insertBefore(input, row.querySelector('.wireframe-layer-controls'));
+
+  let finished = false;
+  const finish = commit => {
+    if (finished) return;
+    finished = true;
+    const nextName = cleanWireframeLayerName(input.value);
+    if (commit && nextName !== cleanWireframeLayerName(element.name)) {
+      pushWireframeHistory('Rename layer');
+      element.name = nextName;
+      markWireframeDirty();
+      if (getWireframeSelectionIds().includes(element.id)) syncWireframeProperties();
+      setStatus(nextName ? `Layer renamed to ${nextName}` : 'Layer name reset');
+    }
+    renderWireframeLayers();
+  };
+
+  input.addEventListener('keydown', event => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      finish(true);
+    } else if (event.key === 'Escape') {
+      event.preventDefault();
+      finish(false);
+    }
+  });
+  input.addEventListener('blur', () => finish(true), { once: true });
+  window.setTimeout(() => { input.focus(); input.select(); }, 0);
+}
+
+function makeWireframeSnapshot() {
+  return {
+    data: JSON.parse(JSON.stringify(normalizeWireframeData(wireframeMakerState.data))),
+    pageId: wireframeMakerState.pageId,
+    device: wireframeMakerState.device,
+    selectedIds: [...getWireframeSelectionIds()],
+    selectedId: wireframeMakerState.selectedId
+  };
+}
+
+function syncWireframeHistoryControls() {
+  if (wireframeUndoBtn) wireframeUndoBtn.disabled = !wireframeMakerState.historyPast.length || wireframeMakerState.preview;
+  if (wireframeRedoBtn) wireframeRedoBtn.disabled = !wireframeMakerState.historyFuture.length || wireframeMakerState.preview;
+}
+
+function resetWireframeHistory() {
+  wireframeMakerState.historyPast = [];
+  wireframeMakerState.historyFuture = [];
+  wireframeMakerState.historyMergeKey = '';
+  wireframeMakerState.historyMergeAt = 0;
+  syncWireframeHistoryControls();
+}
+
+function pushWireframeHistory(label = 'Edit', mergeKey = '') {
+  if (!wireframeMakerState.data || wireframeMakerState.preview) return;
+  const now = Date.now();
+  if (mergeKey && wireframeMakerState.historyMergeKey === mergeKey && now - wireframeMakerState.historyMergeAt < 650) {
+    wireframeMakerState.historyMergeAt = now;
+    return;
+  }
+  wireframeMakerState.historyPast.push(makeWireframeSnapshot());
+  if (wireframeMakerState.historyPast.length > 40) wireframeMakerState.historyPast.shift();
+  wireframeMakerState.historyFuture = [];
+  wireframeMakerState.historyMergeKey = mergeKey;
+  wireframeMakerState.historyMergeAt = now;
+  syncWireframeHistoryControls();
+}
+
+function restoreWireframeSnapshot(snapshot) {
+  if (!snapshot?.data) return;
+  wireframeMakerState.data = normalizeWireframeData(snapshot.data);
+  wireframeMakerState.pageId = wireframeMakerState.data.pages.some(page => page.id === snapshot.pageId) ? snapshot.pageId : wireframeMakerState.data.startPageId;
+  wireframeMakerState.device = WIREFRAME_DEVICE_SIZES[snapshot.device] ? snapshot.device : wireframeMakerState.device;
+  setWireframeSelection(snapshot.selectedIds || [], snapshot.selectedId || '');
+  renderWireframeCanvas();
+  syncWireframeDeviceControls();
+  markWireframeDirty();
+}
+
+function undoWireframeEdit() {
+  if (!wireframeMakerState.historyPast.length || wireframeMakerState.preview) return;
+  wireframeMakerState.historyFuture.push(makeWireframeSnapshot());
+  const snapshot = wireframeMakerState.historyPast.pop();
+  wireframeMakerState.historyMergeKey = '';
+  restoreWireframeSnapshot(snapshot);
+  syncWireframeHistoryControls();
+  setStatus('Wireframe undo');
+}
+
+function redoWireframeEdit() {
+  if (!wireframeMakerState.historyFuture.length || wireframeMakerState.preview) return;
+  wireframeMakerState.historyPast.push(makeWireframeSnapshot());
+  const snapshot = wireframeMakerState.historyFuture.pop();
+  wireframeMakerState.historyMergeKey = '';
+  restoreWireframeSnapshot(snapshot);
+  syncWireframeHistoryControls();
+  setStatus('Wireframe redo');
+}
+
+function syncWireframeSnapControl() {
+  if (!wireframeSnapBtn) return;
+  wireframeSnapBtn.classList.toggle('active', wireframeMakerState.snapEnabled);
+  wireframeSnapBtn.disabled = wireframeMakerState.preview;
+  wireframeSnapBtn.setAttribute('aria-pressed', wireframeMakerState.snapEnabled ? 'true' : 'false');
+  wireframeSnapBtn.textContent = wireframeMakerState.snapEnabled ? '⌗ Snap ON' : '⌗ Snap OFF';
+}
+
+function toggleWireframeSnap() {
+  wireframeMakerState.snapEnabled = !wireframeMakerState.snapEnabled;
+  syncWireframeSnapControl();
+  renderWireframeCanvas();
+}
+
+function renderWireframeLayers() {
+  if (!wireframeLayersList) return;
+  const page = getWireframePage();
+  wireframeLayersList.replaceChildren();
+  if (!page) return;
+  if (wireframeLayerCount) wireframeLayerCount.textContent = String(page.elements.length);
+  const selected = new Set(getWireframeSelectionIds());
+  const sorted = [...page.elements].sort((a, b) => Number(b.z || 0) - Number(a.z || 0));
+  if (!sorted.length) {
+    const empty = document.createElement('p');
+    empty.className = 'wireframe-layers-empty';
+    empty.textContent = 'No layers yet.';
+    wireframeLayersList.appendChild(empty);
+    return;
+  }
+  sorted.forEach(element => {
+    const row = document.createElement('div');
+    row.className = `wireframe-layer-row${selected.has(element.id) ? ' selected' : ''}${element.hidden ? ' is-hidden' : ''}${element.locked ? ' is-locked' : ''}`;
+    row.dataset.wireframeLayerId = element.id;
+    row.setAttribute('role', 'listitem');
+
+    const main = document.createElement('button');
+    main.type = 'button';
+    main.className = 'wireframe-layer-main';
+    main.dataset.wireframeLayerAction = 'select';
+    main.title = wireframeLayerLabel(element);
+    const meta = document.createElement('span');
+    meta.className = 'wireframe-layer-meta';
+    const strong = document.createElement('strong');
+    strong.textContent = wireframeLayerLabel(element);
+    const small = document.createElement('small');
+    small.textContent = `${wireframeTypeLabel(element.type)}${element.groupId ? ' · Grouped' : ''}`;
+    meta.append(strong, small);
+    main.appendChild(meta);
+
+    const controls = document.createElement('span');
+    controls.className = 'wireframe-layer-controls';
+    const buttons = [
+      ['rename', '✎', 'Rename layer'],
+      ['visibility', element.hidden ? '◌' : '◉', element.hidden ? 'Show layer' : 'Hide layer'],
+      ['lock', element.locked ? '🔒' : '🔓', element.locked ? 'Unlock layer' : 'Lock layer'],
+      ['up', '↑', 'Move layer forward'],
+      ['down', '↓', 'Move layer backward']
+    ];
+    buttons.forEach(([action, label, title]) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.dataset.wireframeLayerAction = action;
+      button.title = title;
+      button.setAttribute('aria-label', title);
+      button.textContent = label;
+      controls.appendChild(button);
+    });
+    row.append(main, controls);
+    wireframeLayersList.appendChild(row);
+  });
+}
+
+function syncWireframeProjectMeta() {
+  const data = wireframeMakerState.data;
+  const page = getWireframePage();
+  if (!data || !page) return;
+  if (wireframeProjectMeta) wireframeProjectMeta.textContent = `${data.pages.length} page${data.pages.length === 1 ? '' : 's'} · ${page.name} · Desktop + Phone`;
+}
+
+function renderWireframeElementContent(content, element, node = null, device = wireframeMakerState.device) {
+  if (!content || !element) return;
+  content.replaceChildren();
+  content.style.textAlign = element.style.textAlign;
+  const realImage = element.type === 'image' ? sanitizeWireframeImageDataUrl(element.image?.src) : '';
+  node?.classList.toggle('has-real-image', Boolean(realImage));
+
+  if (element.type === 'image' && realImage) {
+    const image = document.createElement('img');
+    image.className = 'wireframe-real-image';
+    image.src = realImage;
+    image.alt = element.text || element.image?.fileName || 'Wireframe image';
+    image.draggable = false;
+    const imageDisplay = getWireframeImageDisplay(element, device);
+    image.style.objectFit = imageDisplay.fit;
+    image.style.objectPosition = `${imageDisplay.positionX}% ${imageDisplay.positionY}%`;
+    content.appendChild(image);
+    return;
+  }
+
+  if (element.type === 'image') {
+    const icon = document.createElement('span');
+    icon.className = 'wireframe-image-icon';
+    icon.textContent = '▧';
+    const label = document.createElement('span');
+    label.className = 'wireframe-element-text';
+    label.textContent = element.text || 'Image Placeholder';
+    content.append(icon, label);
+    return;
+  }
+
+  const text = document.createElement('span');
+  text.className = 'wireframe-element-text';
+  text.textContent = element.text;
+  content.appendChild(text);
+}
+
+function makeWireframeElementNode(element, { interactive = true, selected = false, device = 'desktop', navigationEnabled = false, allowResize = true } = {}) {
+  const layout = getWireframeLayout(element, device);
+  const node = document.createElement('div');
+  node.className = `wireframe-element wf-el-${element.type}${selected ? ' selected' : ''}${element.locked ? ' is-locked' : ''}`;
+  node.dataset.wireframeElementId = element.id;
+  node.dataset.wireframeType = element.type;
+  if (element.groupId) node.dataset.wireframeGroupId = element.groupId;
+  node.style.left = `${layout.x}px`;
+  node.style.top = `${layout.y}px`;
+  node.style.width = `${layout.w}px`;
+  node.style.height = `${layout.h}px`;
+  node.style.zIndex = String(element.z || 1);
+  node.style.background = element.style.background;
+  node.style.color = element.style.color;
+  node.style.borderColor = element.style.borderColor;
+  node.style.borderWidth = `${element.style.borderWidth}px`;
+  node.style.borderRadius = `${element.style.radius}px`;
+  node.style.fontSize = `${element.style.fontSize}px`;
+  node.style.textAlign = element.style.textAlign;
+  node.style.fontWeight = String(element.style.fontWeight || 400);
+
+  if (element.linkPageId) {
+    node.dataset.wireframeLinkPageId = element.linkPageId;
+    node.classList.add('wireframe-has-page-link');
+    if (navigationEnabled) {
+      node.classList.add('wireframe-page-link-enabled');
+      node.setAttribute('role', 'link');
+      node.tabIndex = 0;
+    }
+  }
+
+  const content = document.createElement('div');
+  content.className = 'wireframe-element-content';
+  renderWireframeElementContent(content, element, node, device);
+  node.appendChild(content);
+
+  if (interactive) {
+    const typeTag = document.createElement('span');
+    typeTag.className = 'wireframe-element-type-tag';
+    typeTag.textContent = element.locked ? `${wireframeTypeLabel(element.type)} · Locked` : wireframeTypeLabel(element.type);
+    node.appendChild(typeTag);
+    if (element.linkPageId) {
+      const linkTag = document.createElement('span');
+      linkTag.className = 'wireframe-element-link-tag';
+      linkTag.textContent = '↗ linked';
+      node.appendChild(linkTag);
+    }
+    if (allowResize && !element.locked) {
+      const handle = document.createElement('span');
+      handle.className = 'wireframe-resize-handle';
+      handle.dataset.wireframeResize = 'true';
+      handle.setAttribute('aria-hidden', 'true');
+      node.appendChild(handle);
+    }
+  }
+  return node;
+}
+
+function updateWireframeElementNode(element) {
+  if (!wireframeCanvas || !element) return;
+  const node = wireframeCanvas.querySelector(`[data-wireframe-element-id="${CSS.escape(element.id)}"]`);
+  if (!node) return;
+  const layout = getWireframeLayout(element);
+  node.style.left = `${layout.x}px`;
+  node.style.top = `${layout.y}px`;
+  node.style.width = `${layout.w}px`;
+  node.style.height = `${layout.h}px`;
+  node.style.zIndex = String(element.z || 1);
+  node.style.background = element.style.background;
+  node.style.color = element.style.color;
+  node.style.borderColor = element.style.borderColor;
+  node.style.borderWidth = `${element.style.borderWidth}px`;
+  node.style.borderRadius = `${element.style.radius}px`;
+  node.style.fontSize = `${element.style.fontSize}px`;
+  node.style.textAlign = element.style.textAlign;
+  node.style.fontWeight = String(element.style.fontWeight || 400);
+  node.classList.toggle('is-locked', Boolean(element.locked));
+  node.classList.toggle('wireframe-has-page-link', Boolean(element.linkPageId));
+  if (element.linkPageId) node.dataset.wireframeLinkPageId = element.linkPageId;
+  else delete node.dataset.wireframeLinkPageId;
+  const content = node.querySelector('.wireframe-element-content');
+  if (content) renderWireframeElementContent(content, element, node, wireframeMakerState.device);
+}
+
+function renderWireframePageTabs() {
+  if (!wireframePageTabs || !wireframeMakerState.data) return;
+  const data = wireframeMakerState.data;
+  const current = getWireframePage();
+  wireframePageTabs.replaceChildren();
+  data.pages.forEach(page => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = `wireframe-page-tab${page.id === current?.id ? ' active' : ''}`;
+    button.dataset.wireframePageId = page.id;
+    button.setAttribute('role', 'tab');
+    button.setAttribute('aria-selected', page.id === current?.id ? 'true' : 'false');
+    button.title = page.id === data.startPageId ? `${page.name} · Start page` : page.name;
+    button.textContent = `${page.id === data.startPageId ? '⌂ ' : ''}${page.name}`;
+    wireframePageTabs.appendChild(button);
+  });
+  if (wireframeDeletePageBtn) wireframeDeletePageBtn.disabled = data.pages.length <= 1 || wireframeMakerState.preview;
+  if (wireframeAddPageBtn) wireframeAddPageBtn.disabled = data.pages.length >= WIREFRAME_MAX_PAGES || wireframeMakerState.preview;
+  if (wireframeRenamePageBtn) wireframeRenamePageBtn.disabled = wireframeMakerState.preview;
+  if (wireframeDuplicatePageBtn) wireframeDuplicatePageBtn.disabled = data.pages.length >= WIREFRAME_MAX_PAGES || wireframeMakerState.preview;
+  if (wireframeSetStartPageBtn) {
+    wireframeSetStartPageBtn.disabled = wireframeMakerState.preview || current?.id === data.startPageId;
+    wireframeSetStartPageBtn.textContent = current?.id === data.startPageId ? '⌂ Start Page' : '⌂ Set Start';
+  }
+  syncWireframeProjectMeta();
+}
+
+function renderWireframeCanvas() {
+  if (!wireframeCanvas || !wireframeMakerState.data) return;
+  const page = getWireframePage();
+  if (!page) return;
+  wireframeMakerState.pageId = page.id;
+  wireframeCanvas.replaceChildren();
+  wireframeCanvas.style.background = page.canvasBackground;
+  wireframeCanvas.dataset.pageId = page.id;
+  wireframeCanvas.classList.toggle('snap-enabled', !wireframeMakerState.preview && wireframeMakerState.snapEnabled);
+
+  if (!wireframeMakerState.preview && wireframeMakerState.snapEnabled) {
+    const grid = document.createElement('div');
+    grid.className = 'wireframe-grid-overlay';
+    grid.setAttribute('aria-hidden', 'true');
+    wireframeCanvas.appendChild(grid);
+  }
+
+  const selectedIds = new Set(getWireframeSelectionIds());
+  const visibleElements = page.elements.filter(element => !element.hidden);
+  const sorted = [...visibleElements].sort((a, b) => Number(a.z || 0) - Number(b.z || 0));
+  if (!sorted.length) {
+    const empty = document.createElement('div');
+    empty.className = 'wireframe-canvas-empty';
+    empty.innerHTML = `<span>▦</span><strong>${escapeHTML(page.name)} is empty</strong><p>Add Navigation, Heading, Section, Card, Image, Button, Page Link, and more.</p>`;
+    wireframeCanvas.appendChild(empty);
+  } else {
+    const canResize = selectedIds.size === 1;
+    sorted.forEach(element => wireframeCanvas.appendChild(makeWireframeElementNode(element, {
+      interactive: !wireframeMakerState.preview,
+      selected: !wireframeMakerState.preview && selectedIds.has(element.id),
+      device: wireframeMakerState.device,
+      navigationEnabled: wireframeMakerState.preview,
+      allowResize: canResize && selectedIds.has(element.id)
+    })));
+  }
+  renderWireframePageTabs();
+  renderWireframeLayers();
+  syncWireframeProperties();
+  syncWireframeHistoryControls();
+  syncWireframeSnapControl();
+}
+
+function syncWireframeLinkTargetOptions(element) {
+  if (!wireframeElementLinkTarget || !wireframeMakerState.data) return;
+  const currentValue = String(element?.linkPageId || '');
+  wireframeElementLinkTarget.replaceChildren();
+  const none = document.createElement('option');
+  none.value = '';
+  none.textContent = 'No page link';
+  wireframeElementLinkTarget.appendChild(none);
+  wireframeMakerState.data.pages.forEach(page => {
+    const option = document.createElement('option');
+    option.value = page.id;
+    option.textContent = page.id === wireframeMakerState.data.startPageId ? `${page.name} (Start)` : page.name;
+    wireframeElementLinkTarget.appendChild(option);
+  });
+  wireframeElementLinkTarget.value = wireframeMakerState.data.pages.some(page => page.id === currentValue) ? currentValue : '';
+}
+
+function syncWireframeProperties() {
+  if (!wireframeMakerState.data) return;
+  const selectedElements = getWireframeSelectedElements();
+  const element = selectedElements.length === 1 ? selectedElements[0] : null;
+  const page = getWireframePage();
+  if (!page) return;
+  if (wireframeCanvasBgColor) wireframeCanvasBgColor.value = page.canvasBackground;
+  if (wireframeCanvasBgText) wireframeCanvasBgText.value = page.canvasBackground;
+
+  wireframeSelectionTools?.classList.toggle('hidden', selectedElements.length === 0);
+  wireframeElementProperties?.classList.toggle('hidden', !element);
+  wireframeImageProperties?.classList.toggle('hidden', element?.type !== 'image');
+  if (wireframeDuplicateBtn) wireframeDuplicateBtn.disabled = selectedElements.length === 0 || wireframeMakerState.preview;
+  if (wireframeDeleteBtn) wireframeDeleteBtn.disabled = selectedElements.length === 0 || wireframeMakerState.preview;
+  if (wireframeGroupBtn) wireframeGroupBtn.disabled = selectedElements.length < 2 || wireframeMakerState.preview;
+  const selectedGroups = new Set(selectedElements.map(item => item.groupId).filter(Boolean));
+  if (wireframeUngroupBtn) wireframeUngroupBtn.disabled = selectedGroups.size === 0 || wireframeMakerState.preview;
+  if (wireframeDistributeHBtn) wireframeDistributeHBtn.disabled = selectedElements.length < 3 || wireframeMakerState.preview;
+  if (wireframeDistributeVBtn) wireframeDistributeVBtn.disabled = selectedElements.length < 3 || wireframeMakerState.preview;
+  if (wireframeSelectionCount) wireframeSelectionCount.textContent = `${selectedElements.length} element${selectedElements.length === 1 ? '' : 's'} selected`;
+
+  if (wireframePropertiesTitle) {
+    wireframePropertiesTitle.textContent = element ? wireframeTypeLabel(element.type) : (selectedElements.length ? `${selectedElements.length} Elements` : `${page.name} Page`);
+  }
+  if (wireframePropertiesHint) {
+    wireframePropertiesHint.textContent = element
+      ? `Editing ${wireframeTypeLabel(element.type)} · ${WIREFRAME_DEVICE_SIZES[wireframeMakerState.device].label} layout`
+      : selectedElements.length
+        ? 'Use Quick Layout tools to align or distribute the selected elements.'
+        : 'Choose an element to edit it.';
+  }
+  syncWireframeLinkTargetOptions(element);
+  if (!element) return;
+  const layout = getWireframeLayout(element);
+  if (wireframeElementLayerName) wireframeElementLayerName.value = element.name || '';
+  if (wireframeElementText) wireframeElementText.value = element.text;
+  if (element.type === 'image') {
+    const image = normalizeWireframeImage(element.image);
+    element.image = image;
+    const imageDisplay = image[wireframeMakerState.device === 'phone' ? 'phone' : 'desktop'];
+    if (wireframeImageFit) wireframeImageFit.value = imageDisplay.fit;
+    if (wireframeImagePositionX) wireframeImagePositionX.value = String(Math.round(imageDisplay.positionX));
+    if (wireframeImagePositionY) wireframeImagePositionY.value = String(Math.round(imageDisplay.positionY));
+    if (wireframeImagePositionXValue) wireframeImagePositionXValue.textContent = `${Math.round(imageDisplay.positionX)}%`;
+    if (wireframeImagePositionYValue) wireframeImagePositionYValue.textContent = `${Math.round(imageDisplay.positionY)}%`;
+    if (wireframeImageRemoveBtn) wireframeImageRemoveBtn.disabled = !image.src;
+    if (wireframeImageInfo) {
+      wireframeImageInfo.textContent = image.src
+        ? `${image.fileName || 'Uploaded image'} · about ${wireframeDataUrlApproxKb(image.src)} KB optimized`
+        : 'No image uploaded yet.';
+    }
+  }
+  if (wireframeElementBg) wireframeElementBg.value = element.style.background;
+  if (wireframeElementColor) wireframeElementColor.value = element.style.color;
+  if (wireframeElementBorder) wireframeElementBorder.value = element.style.borderColor;
+  if (wireframeElementFontSize) wireframeElementFontSize.value = String(element.style.fontSize);
+  if (wireframeElementRadius) wireframeElementRadius.value = String(element.style.radius);
+  if (wireframeElementBorderWidth) wireframeElementBorderWidth.value = String(element.style.borderWidth);
+  if (wireframeElementX) wireframeElementX.value = String(Math.round(layout.x));
+  if (wireframeElementY) wireframeElementY.value = String(Math.round(layout.y));
+  if (wireframeElementW) wireframeElementW.value = String(Math.round(layout.w));
+  if (wireframeElementH) wireframeElementH.value = String(Math.round(layout.h));
+  document.querySelectorAll('[data-wireframe-align]').forEach(button => button.classList.toggle('active', button.dataset.wireframeAlign === element.style.textAlign));
+}
+
+function syncWireframeDeviceControls() {
+  const device = wireframeMakerState.device;
+  const size = WIREFRAME_DEVICE_SIZES[device];
+  const page = getWireframePage();
+  wireframeDesktopBtn?.classList.toggle('active', device === 'desktop');
+  wireframePhoneBtn?.classList.toggle('active', device === 'phone');
+  wireframeDesktopBtn?.setAttribute('aria-pressed', device === 'desktop' ? 'true' : 'false');
+  wireframePhoneBtn?.setAttribute('aria-pressed', device === 'phone' ? 'true' : 'false');
+  if (wireframeDeviceLabel) wireframeDeviceLabel.textContent = `${page?.name || 'Page'} · ${size.label} canvas · ${size.width} × ${size.height}`;
+  syncWireframeCanvasScale();
+}
+
+function syncWireframeCanvasScale() {
+  if (!wireframeCanvas || !wireframeCanvasScaler || !wireframeViewport) return;
+  const size = WIREFRAME_DEVICE_SIZES[wireframeMakerState.device];
+  const zoomValue = wireframeMakerState.zoom;
+  let scale = Number(zoomValue);
+  if (zoomValue === 'fit' || !Number.isFinite(scale)) {
+    const availableW = Math.max(220, wireframeViewport.clientWidth - 34);
+    const availableH = Math.max(260, wireframeViewport.clientHeight - 34);
+    scale = Math.min(1, availableW / size.width, availableH / size.height);
+  }
+  scale = Math.max(0.2, Math.min(1, scale));
+  wireframeMakerState.scale = scale;
+  wireframeCanvas.style.width = `${size.width}px`;
+  wireframeCanvas.style.height = `${size.height}px`;
+  wireframeCanvas.style.transform = `scale(${scale})`;
+  wireframeCanvasScaler.style.width = `${Math.round(size.width * scale)}px`;
+  wireframeCanvasScaler.style.height = `${Math.round(size.height * scale)}px`;
+  wireframeCanvas.dataset.device = wireframeMakerState.device;
+}
+
+function switchWireframeDevice(device) {
+  if (!WIREFRAME_DEVICE_SIZES[device]) return;
+  wireframeMakerState.device = device;
+  clearWireframeSelection();
+  syncWireframeDeviceControls();
+  renderWireframeCanvas();
+}
+
+function switchWireframePage(pageId) {
+  const data = wireframeMakerState.data;
+  if (!data?.pages?.some(page => page.id === pageId)) return;
+  wireframeMakerState.pageId = pageId;
+  clearWireframeSelection();
+  renderWireframeCanvas();
+  syncWireframeDeviceControls();
+  window.setTimeout(syncWireframeCanvasScale, 10);
+}
+
+function showWireframePageDialogError(message = '') {
+  if (!wireframePageDialogError) return;
+  wireframePageDialogError.textContent = message;
+  wireframePageDialogError.classList.toggle('hidden', !message);
+}
+
+function openWireframePageDialog(mode = 'add') {
+  if (!wireframeMakerState.data || wireframeMakerState.preview) return;
+  const page = getWireframePage();
+  if (mode === 'add' && wireframeMakerState.data.pages.length >= WIREFRAME_MAX_PAGES) {
+    appAlert(`A wireframe project can have up to ${WIREFRAME_MAX_PAGES} pages.`, { title: 'Page limit reached' });
+    return;
+  }
+  wireframeMakerState.pageDialogMode = mode === 'rename' ? 'rename' : 'add';
+  showWireframePageDialogError('');
+  if (wireframePageDialogKicker) wireframePageDialogKicker.textContent = wireframeMakerState.pageDialogMode === 'rename' ? 'Current Page' : 'Wireframe Page';
+  if (wireframePageDialogTitle) wireframePageDialogTitle.textContent = wireframeMakerState.pageDialogMode === 'rename' ? 'Rename Page' : 'Add Page';
+  if (saveWireframePageDialogBtn) saveWireframePageDialogBtn.textContent = wireframeMakerState.pageDialogMode === 'rename' ? 'Save Page Name' : 'Add Page';
+  if (wireframePageNameInput) wireframePageNameInput.value = wireframeMakerState.pageDialogMode === 'rename' ? (page?.name || '') : '';
+  wireframePageDialogOverlay?.classList.remove('hidden');
+  window.setTimeout(() => wireframePageNameInput?.focus(), 20);
+}
+
+function closeWireframePageDialog() {
+  wireframePageDialogOverlay?.classList.add('hidden');
+  showWireframePageDialogError('');
+}
+
+function saveWireframePageDialog() {
+  const data = wireframeMakerState.data;
+  if (!data) return;
+  const name = safeWireframePageName(wireframePageNameInput?.value, '');
+  if (!name) {
+    showWireframePageDialogError('Enter a page name.');
+    return;
+  }
+  const current = getWireframePage();
+  const duplicateName = data.pages.some(page => page.id !== current?.id && page.name.toLowerCase() === name.toLowerCase());
+  if (duplicateName) {
+    showWireframePageDialogError('Use a different page name.');
+    return;
+  }
+
+  pushWireframeHistory(wireframeMakerState.pageDialogMode === 'rename' ? 'Rename page' : 'Add page');
+  if (wireframeMakerState.pageDialogMode === 'rename') {
+    if (!current) return;
+    current.name = name;
+    current.slug = wireframePageSlug(name, data.pages.indexOf(current));
+  } else {
+    if (data.pages.length >= WIREFRAME_MAX_PAGES) return;
+    const page = createDefaultWireframePage(name, data.pages.length);
+    data.pages.push(page);
+    wireframeMakerState.pageId = page.id;
+    clearWireframeSelection();
+  }
+  closeWireframePageDialog();
+  renderWireframeCanvas();
+  syncWireframeDeviceControls();
+  markWireframeDirty();
+}
+
+function duplicateCurrentWireframePage() {
+  const data = wireframeMakerState.data;
+  const source = getWireframePage();
+  if (!data || !source || data.pages.length >= WIREFRAME_MAX_PAGES || wireframeMakerState.preview) return;
+  const copiedImageChars = source.elements.reduce((sum, element) => sum + String(element.image?.src || '').length, 0);
+  if (copiedImageChars && wireframeImageDataUsage(data) + copiedImageChars > WIREFRAME_IMAGE_TOTAL_DATA_URL_CHARS) {
+    appAlert('This page contains uploaded images and duplicating it would exceed the safe wireframe image limit. Remove or reduce images first.', { title: 'Image storage limit' });
+    return;
+  }
+  pushWireframeHistory('Duplicate page');
+  let name = `${source.name} Copy`.slice(0, 32);
+  let suffix = 2;
+  while (data.pages.some(page => page.name.toLowerCase() === name.toLowerCase())) {
+    name = `${source.name.slice(0, 24)} Copy ${suffix++}`.slice(0, 32);
+  }
+  const clone = JSON.parse(JSON.stringify(source));
+  clone.id = createWireframePageId();
+  clone.name = name;
+  clone.slug = wireframePageSlug(name, data.pages.length);
+  const groupMap = new Map();
+  clone.elements = clone.elements.map((element, index) => {
+    const next = { ...element, id: `wf-${Date.now()}-${index}-${Math.random().toString(36).slice(2, 7)}` };
+    if (element.groupId) {
+      if (!groupMap.has(element.groupId)) groupMap.set(element.groupId, `wf-group-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`);
+      next.groupId = groupMap.get(element.groupId);
+    }
+    return next;
+  });
+  data.pages.push(normalizeWireframePage(clone, data.pages.length, new Set(data.pages.map(page => page.id))));
+  wireframeMakerState.pageId = data.pages[data.pages.length - 1].id;
+  clearWireframeSelection();
+  renderWireframeCanvas();
+  syncWireframeDeviceControls();
+  markWireframeDirty();
+}
+
+async function deleteCurrentWireframePage() {
+  const data = wireframeMakerState.data;
+  const page = getWireframePage();
+  if (!data || !page || data.pages.length <= 1 || wireframeMakerState.preview) return;
+  const confirmed = await appConfirm(`Delete the “${page.name}” wireframe page? Elements on this page will also be removed.`, {
+    title: 'Delete Wireframe Page', confirmText: 'Delete Page', danger: true, icon: '🗑'
+  });
+  if (!confirmed) return;
+  pushWireframeHistory('Delete page');
+  const deletedId = page.id;
+  data.pages = data.pages.filter(item => item.id !== deletedId);
+  data.pages.forEach(item => item.elements.forEach(element => {
+    if (element.linkPageId === deletedId) element.linkPageId = '';
+  }));
+  if (data.startPageId === deletedId) data.startPageId = data.pages[0].id;
+  wireframeMakerState.pageId = data.pages[0].id;
+  clearWireframeSelection();
+  renderWireframeCanvas();
+  syncWireframeDeviceControls();
+  markWireframeDirty();
+}
+
+function setCurrentWireframeStartPage() {
+  const data = wireframeMakerState.data;
+  const page = getWireframePage();
+  if (!data || !page || data.startPageId === page.id || wireframeMakerState.preview) return;
+  pushWireframeHistory('Set start page');
+  data.startPageId = page.id;
+  renderWireframePageTabs();
+  syncWireframeProperties();
+  markWireframeDirty();
+  setStatus(`${page.name} set as wireframe start page`);
+}
+
+function createWireframeElement(type) {
+  const page = getWireframePage();
+  if (!page || !WIREFRAME_DEFAULT_STYLES[type]) return;
+  pushWireframeHistory(`Add ${wireframeTypeLabel(type)}`);
+  const index = page.elements.length;
+  const defaults = WIREFRAME_DEFAULT_STYLES[type];
+  const maxZ = page.elements.reduce((max, item) => Math.max(max, Number(item.z || 0)), 0);
+  const element = normalizeWireframeElement({
+    id: `wf-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    type,
+    text: defaults.text,
+    linkPageId: '',
+    style: { ...defaults },
+    layouts: {
+      desktop: getWireframeDefaultLayout(type, 'desktop', index),
+      phone: getWireframeDefaultLayout(type, 'phone', index)
+    },
+    z: maxZ + 1
+  }, index);
+  page.elements.push(element);
+  setWireframeSelection([element.id], element.id);
+  renderWireframeCanvas();
+  markWireframeDirty();
+  wireframeCanvas?.focus({ preventScroll: true });
+}
+
+function duplicateSelectedWireframeElement() {
+  const page = getWireframePage();
+  const selected = getWireframeSelectedElements();
+  if (!page || !selected.length) return;
+  const copiedImageChars = selected.reduce((sum, element) => sum + String(element.image?.src || '').length, 0);
+  if (copiedImageChars && wireframeImageDataUsage() + copiedImageChars > WIREFRAME_IMAGE_TOTAL_DATA_URL_CHARS) {
+    appAlert('Duplicating these image elements would exceed the safe wireframe image limit. Remove or reduce images first.', { title: 'Image storage limit' });
+    return;
+  }
+  pushWireframeHistory('Duplicate elements');
+  const maxZ = page.elements.reduce((max, item) => Math.max(max, Number(item.z || 0)), 0);
+  const selectedIds = new Set(selected.map(item => item.id));
+  const groupMap = new Map();
+  const reservedNames = [];
+  const copies = selected.map((element, index) => {
+    const copy = normalizeWireframeElement(JSON.parse(JSON.stringify(element)), page.elements.length + index);
+    copy.id = `wf-${Date.now()}-${index}-${Math.random().toString(36).slice(2, 7)}`;
+    copy.name = getUniqueWireframeLayerName(element, page, reservedNames);
+    reservedNames.push(copy.name);
+    if (copy.groupId && selectedIds.size > 1) {
+      if (!groupMap.has(copy.groupId)) groupMap.set(copy.groupId, `wf-group-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`);
+      copy.groupId = groupMap.get(copy.groupId);
+    }
+    ['desktop', 'phone'].forEach(device => {
+      const size = WIREFRAME_DEVICE_SIZES[device];
+      copy.layouts[device].x = Math.min(size.width - copy.layouts[device].w, copy.layouts[device].x + 18);
+      copy.layouts[device].y = Math.min(size.height - copy.layouts[device].h, copy.layouts[device].y + 18);
+    });
+    copy.z = maxZ + index + 1;
+    return copy;
+  });
+  page.elements.push(...copies);
+  setWireframeSelection(copies.map(item => item.id), copies[copies.length - 1]?.id || '');
+  renderWireframeCanvas();
+  markWireframeDirty();
+}
+
+function deleteSelectedWireframeElement() {
+  const page = getWireframePage();
+  const selected = new Set(getWireframeSelectionIds());
+  if (!selected.size || !page) return;
+  pushWireframeHistory('Delete elements');
+  page.elements = page.elements.filter(item => !selected.has(item.id));
+  clearWireframeSelection();
+  renderWireframeCanvas();
+  markWireframeDirty();
+}
+
+function changeSelectedWireframeZ(direction) {
+  const selected = getWireframeSelectedElements();
+  const page = getWireframePage();
+  if (!selected.length || !page) return;
+  pushWireframeHistory(direction === 'front' ? 'Bring to front' : 'Send to back');
+  const selectedIds = new Set(selected.map(item => item.id));
+  const others = page.elements.filter(item => !selectedIds.has(item.id));
+  if (direction === 'front') {
+    let z = Math.max(0, ...others.map(item => Number(item.z || 0))) + 1;
+    selected.sort((a, b) => Number(a.z || 0) - Number(b.z || 0)).forEach(item => { item.z = z++; });
+  } else {
+    let z = selected.length + 1;
+    others.sort((a, b) => Number(a.z || 0) - Number(b.z || 0)).forEach(item => { item.z = z++; });
+    selected.sort((a, b) => Number(a.z || 0) - Number(b.z || 0)).forEach((item, index) => { item.z = index + 1; });
+  }
+  renderWireframeCanvas();
+  markWireframeDirty();
+}
+
+function normalizeWireframeZOrder(page = getWireframePage()) {
+  if (!page) return;
+  [...page.elements].sort((a, b) => Number(a.z || 0) - Number(b.z || 0)).forEach((item, index) => { item.z = index + 1; });
+}
+
+function moveWireframeLayerOneStep(id, direction) {
+  const page = getWireframePage();
+  const element = page?.elements?.find(item => item.id === id);
+  if (!page || !element) return;
+  normalizeWireframeZOrder(page);
+  const sorted = [...page.elements].sort((a, b) => Number(a.z || 0) - Number(b.z || 0));
+  const index = sorted.findIndex(item => item.id === id);
+  const targetIndex = direction === 'up' ? index + 1 : index - 1;
+  if (index < 0 || targetIndex < 0 || targetIndex >= sorted.length) return;
+  pushWireframeHistory('Reorder layer');
+  const other = sorted[targetIndex];
+  const z = element.z;
+  element.z = other.z;
+  other.z = z;
+  renderWireframeCanvas();
+  markWireframeDirty();
+}
+
+function toggleWireframeLayerVisibility(id) {
+  const page = getWireframePage();
+  const element = page?.elements?.find(item => item.id === id);
+  if (!element) return;
+  pushWireframeHistory(element.hidden ? 'Show layer' : 'Hide layer');
+  element.hidden = !element.hidden;
+  renderWireframeCanvas();
+  markWireframeDirty();
+}
+
+function toggleWireframeLayerLock(id) {
+  const page = getWireframePage();
+  const element = page?.elements?.find(item => item.id === id);
+  if (!element) return;
+  pushWireframeHistory(element.locked ? 'Unlock layer' : 'Lock layer');
+  element.locked = !element.locked;
+  renderWireframeCanvas();
+  markWireframeDirty();
+}
+
+function groupSelectedWireframeElements() {
+  const selected = getWireframeSelectedElements();
+  if (selected.length < 2 || wireframeMakerState.preview) return;
+  pushWireframeHistory('Group elements');
+  const groupId = `wf-group-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  selected.forEach(item => { item.groupId = groupId; });
+  renderWireframeCanvas();
+  markWireframeDirty();
+}
+
+function ungroupSelectedWireframeElements() {
+  const selected = getWireframeSelectedElements();
+  const groups = new Set(selected.map(item => item.groupId).filter(Boolean));
+  if (!groups.size || wireframeMakerState.preview) return;
+  pushWireframeHistory('Ungroup elements');
+  const page = getWireframePage();
+  page.elements.forEach(item => { if (groups.has(item.groupId)) item.groupId = ''; });
+  renderWireframeCanvas();
+  markWireframeDirty();
+}
+
+function copySelectedWireframeElements() {
+  const selected = getWireframeSelectedElements();
+  if (!selected.length) return;
+  wireframeMakerState.clipboard = selected.map(item => JSON.parse(JSON.stringify(item)));
+  setStatus(`${selected.length} wireframe element${selected.length === 1 ? '' : 's'} copied`);
+}
+
+function pasteWireframeElements() {
+  const page = getWireframePage();
+  const source = Array.isArray(wireframeMakerState.clipboard) ? wireframeMakerState.clipboard : [];
+  if (!page || !source.length || wireframeMakerState.preview) return;
+  const copiedImageChars = source.reduce((sum, element) => sum + String(element.image?.src || '').length, 0);
+  if (copiedImageChars && wireframeImageDataUsage() + copiedImageChars > WIREFRAME_IMAGE_TOTAL_DATA_URL_CHARS) {
+    appAlert('Pasting these image elements would exceed the safe wireframe image limit. Remove or reduce images first.', { title: 'Image storage limit' });
+    return;
+  }
+  pushWireframeHistory('Paste elements');
+  const maxZ = page.elements.reduce((max, item) => Math.max(max, Number(item.z || 0)), 0);
+  const groupMap = new Map();
+  const reservedNames = [];
+  const copies = source.map((raw, index) => {
+    const copy = normalizeWireframeElement(JSON.parse(JSON.stringify(raw)), page.elements.length + index);
+    copy.id = `wf-${Date.now()}-${index}-${Math.random().toString(36).slice(2, 7)}`;
+    copy.name = getUniqueWireframeLayerName(raw, page, reservedNames);
+    reservedNames.push(copy.name);
+    if (copy.groupId) {
+      if (!groupMap.has(copy.groupId)) groupMap.set(copy.groupId, `wf-group-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`);
+      copy.groupId = groupMap.get(copy.groupId);
+    }
+    copy.hidden = false;
+    ['desktop', 'phone'].forEach(device => {
+      const size = WIREFRAME_DEVICE_SIZES[device];
+      copy.layouts[device].x = Math.min(size.width - copy.layouts[device].w, copy.layouts[device].x + 20);
+      copy.layouts[device].y = Math.min(size.height - copy.layouts[device].h, copy.layouts[device].y + 20);
+    });
+    copy.z = maxZ + index + 1;
+    return copy;
+  });
+  page.elements.push(...copies);
+  wireframeMakerState.clipboard = copies.map(item => JSON.parse(JSON.stringify(item)));
+  setWireframeSelection(copies.map(item => item.id), copies[copies.length - 1]?.id || '');
+  renderWireframeCanvas();
+  markWireframeDirty();
+}
+
+function getWireframeSelectionBounds(elements, device = wireframeMakerState.device) {
+  const list = (elements || []).map(item => getWireframeLayout(item, device)).filter(Boolean);
+  if (!list.length) return null;
+  const left = Math.min(...list.map(item => item.x));
+  const top = Math.min(...list.map(item => item.y));
+  const right = Math.max(...list.map(item => item.x + item.w));
+  const bottom = Math.max(...list.map(item => item.y + item.h));
+  return { left, top, right, bottom, width: right - left, height: bottom - top, centerX: (left + right) / 2, centerY: (top + bottom) / 2 };
+}
+
+function alignSelectedWireframeElements(mode) {
+  const selected = getWireframeSelectedElements().filter(item => !item.locked);
+  if (!selected.length || wireframeMakerState.preview) return;
+  const size = WIREFRAME_DEVICE_SIZES[wireframeMakerState.device];
+  const bounds = selected.length === 1 ? { left: 0, top: 0, right: size.width, bottom: size.height, centerX: size.width / 2, centerY: size.height / 2 } : getWireframeSelectionBounds(selected);
+  if (!bounds) return;
+  pushWireframeHistory(`Align ${mode}`);
+  selected.forEach(element => {
+    const layout = getWireframeLayout(element);
+    if (mode === 'left') layout.x = bounds.left;
+    else if (mode === 'hcenter') layout.x = bounds.centerX - layout.w / 2;
+    else if (mode === 'right') layout.x = bounds.right - layout.w;
+    else if (mode === 'top') layout.y = bounds.top;
+    else if (mode === 'vcenter') layout.y = bounds.centerY - layout.h / 2;
+    else if (mode === 'bottom') layout.y = bounds.bottom - layout.h;
+    layout.x = Math.max(0, Math.min(size.width - layout.w, layout.x));
+    layout.y = Math.max(0, Math.min(size.height - layout.h, layout.y));
+  });
+  renderWireframeCanvas();
+  markWireframeDirty();
+}
+
+function distributeSelectedWireframeElements(axis) {
+  const selected = getWireframeSelectedElements().filter(item => !item.locked);
+  if (selected.length < 3 || wireframeMakerState.preview) return;
+  const horizontal = axis === 'horizontal';
+  const ordered = [...selected].sort((a, b) => {
+    const la = getWireframeLayout(a); const lb = getWireframeLayout(b);
+    return horizontal ? la.x - lb.x : la.y - lb.y;
+  });
+  const first = getWireframeLayout(ordered[0]);
+  const last = getWireframeLayout(ordered[ordered.length - 1]);
+  const totalSize = ordered.reduce((sum, item) => sum + (horizontal ? getWireframeLayout(item).w : getWireframeLayout(item).h), 0);
+  const spanStart = horizontal ? first.x : first.y;
+  const spanEnd = horizontal ? last.x + last.w : last.y + last.h;
+  const gap = (spanEnd - spanStart - totalSize) / (ordered.length - 1);
+  if (!Number.isFinite(gap)) return;
+  pushWireframeHistory(horizontal ? 'Distribute horizontally' : 'Distribute vertically');
+  let cursor = spanStart;
+  ordered.forEach((item, index) => {
+    const layout = getWireframeLayout(item);
+    if (index > 0 && index < ordered.length - 1) {
+      if (horizontal) layout.x = cursor;
+      else layout.y = cursor;
+    }
+    cursor += (horizontal ? layout.w : layout.h) + gap;
+  });
+  renderWireframeCanvas();
+  markWireframeDirty();
+}
+
+function nudgeSelectedWireframeElements(dx, dy) {
+  const selected = getWireframeSelectedElements().filter(item => !item.locked);
+  if (!selected.length || wireframeMakerState.preview) return;
+  const size = WIREFRAME_DEVICE_SIZES[wireframeMakerState.device];
+  const bounds = getWireframeSelectionBounds(selected);
+  if (!bounds) return;
+  const allowedDx = Math.max(-bounds.left, Math.min(size.width - bounds.right, dx));
+  const allowedDy = Math.max(-bounds.top, Math.min(size.height - bounds.bottom, dy));
+  if (!allowedDx && !allowedDy) return;
+  pushWireframeHistory('Nudge elements', 'keyboard-nudge');
+  selected.forEach(item => {
+    const layout = getWireframeLayout(item);
+    layout.x += allowedDx;
+    layout.y += allowedDy;
+  });
+  renderWireframeCanvas();
+  markWireframeDirty();
+}
+
+function clearWireframeSmartGuides() {
+  wireframeCanvas?.querySelectorAll('.wireframe-smart-guide').forEach(node => node.remove());
+}
+
+function showWireframeSmartGuides(guides = {}) {
+  clearWireframeSmartGuides();
+  if (!wireframeMakerState.snapEnabled || !wireframeCanvas) return;
+  if (Number.isFinite(guides.x)) {
+    const guide = document.createElement('span');
+    guide.className = 'wireframe-smart-guide vertical';
+    guide.style.left = `${guides.x}px`;
+    wireframeCanvas.appendChild(guide);
+  }
+  if (Number.isFinite(guides.y)) {
+    const guide = document.createElement('span');
+    guide.className = 'wireframe-smart-guide horizontal';
+    guide.style.top = `${guides.y}px`;
+    wireframeCanvas.appendChild(guide);
+  }
+}
+
+function snapWireframeMove(primaryElement, rawX, rawY, excludedIds = new Set()) {
+  const size = WIREFRAME_DEVICE_SIZES[wireframeMakerState.device];
+  const layout = getWireframeLayout(primaryElement);
+  let x = rawX;
+  let y = rawY;
+  const guides = {};
+  if (!wireframeMakerState.snapEnabled) return { x, y, guides };
+  const threshold = 7;
+  const page = getWireframePage();
+  const candidatesX = [
+    { value: 0, guide: 0 },
+    { value: (size.width - layout.w) / 2, guide: size.width / 2 },
+    { value: size.width - layout.w, guide: size.width }
+  ];
+  const candidatesY = [
+    { value: 0, guide: 0 },
+    { value: (size.height - layout.h) / 2, guide: size.height / 2 },
+    { value: size.height - layout.h, guide: size.height }
+  ];
+  page?.elements?.forEach(other => {
+    if (excludedIds.has(other.id) || other.hidden) return;
+    const o = getWireframeLayout(other);
+    const ocx = o.x + o.w / 2;
+    const ocy = o.y + o.h / 2;
+    candidatesX.push(
+      { value: o.x, guide: o.x },
+      { value: o.x + o.w - layout.w, guide: o.x + o.w },
+      { value: ocx - layout.w / 2, guide: ocx },
+      { value: o.x - layout.w, guide: o.x },
+      { value: o.x + o.w, guide: o.x + o.w }
+    );
+    candidatesY.push(
+      { value: o.y, guide: o.y },
+      { value: o.y + o.h - layout.h, guide: o.y + o.h },
+      { value: ocy - layout.h / 2, guide: ocy },
+      { value: o.y - layout.h, guide: o.y },
+      { value: o.y + o.h, guide: o.y + o.h }
+    );
+  });
+  const nearestX = candidatesX.map(item => ({ ...item, distance: Math.abs(item.value - rawX) })).sort((a, b) => a.distance - b.distance)[0];
+  const nearestY = candidatesY.map(item => ({ ...item, distance: Math.abs(item.value - rawY) })).sort((a, b) => a.distance - b.distance)[0];
+  if (nearestX?.distance <= threshold) { x = nearestX.value; guides.x = nearestX.guide; }
+  else x = Math.round(rawX / 10) * 10;
+  if (nearestY?.distance <= threshold) { y = nearestY.value; guides.y = nearestY.guide; }
+  else y = Math.round(rawY / 10) * 10;
+  return { x, y, guides };
+}
+
+function snapWireframeResize(element, rawW, rawH) {
+  const size = WIREFRAME_DEVICE_SIZES[wireframeMakerState.device];
+  const layout = getWireframeLayout(element);
+  let w = rawW;
+  let h = rawH;
+  const guides = {};
+  if (!wireframeMakerState.snapEnabled) return { w, h, guides };
+  const rightRaw = layout.x + rawW;
+  const bottomRaw = layout.y + rawH;
+  const threshold = 7;
+  const xGuides = [size.width];
+  const yGuides = [size.height];
+  getWireframePage()?.elements?.forEach(other => {
+    if (other.id === element.id || other.hidden) return;
+    const o = getWireframeLayout(other);
+    xGuides.push(o.x, o.x + o.w, o.x + o.w / 2);
+    yGuides.push(o.y, o.y + o.h, o.y + o.h / 2);
+  });
+  const nearestX = xGuides.map(value => ({ value, distance: Math.abs(value - rightRaw) })).sort((a, b) => a.distance - b.distance)[0];
+  const nearestY = yGuides.map(value => ({ value, distance: Math.abs(value - bottomRaw) })).sort((a, b) => a.distance - b.distance)[0];
+  if (nearestX?.distance <= threshold) { w = nearestX.value - layout.x; guides.x = nearestX.value; }
+  else w = Math.round(rawW / 10) * 10;
+  if (nearestY?.distance <= threshold) { h = nearestY.value - layout.y; guides.y = nearestY.value; }
+  else h = Math.round(rawH / 10) * 10;
+  return { w, h, guides };
+}
+
+function markWireframeDirty() {
+  wireframeMakerState.dirty = true;
+  persistWireframeRecovery();
+  window.clearTimeout(wireframeMakerState.saveTimer);
+  if (navigator.onLine === false) {
+    setWireframeSaveState('Offline · pending', 'unsaved');
+    return;
+  }
+  if (isWireframeAutosaveEnabled()) {
+    setWireframeSaveState('Unsaved · autosave', 'unsaved');
+    wireframeMakerState.saveTimer = window.setTimeout(() => saveWireframeProject({ silent: true }), 850);
+  } else {
+    setWireframeSaveState('Unsaved · press Save', 'unsaved');
+  }
+}
+
+async function saveWireframeProject({ silent = false } = {}) {
+  if (!wireframeMakerState.projectId || !wireframeMakerState.data || !appSession.student?.uid) return false;
+  if (wireframeMakerState.saving) return false;
+  if (navigator.onLine === false) {
+    setWireframeSaveState('Offline · pending', 'unsaved');
+    persistWireframeRecovery();
+    return false;
+  }
+  wireframeMakerState.saving = true;
+  window.clearTimeout(wireframeMakerState.saveTimer);
+  setWireframeSaveState('Saving...', 'saving');
+  if (wireframeSaveBtn) wireframeSaveBtn.disabled = true;
+  try {
+    const { setDoc, serverTimestamp } = firebaseSync.modules;
+    const cleanData = normalizeWireframeData(wireframeMakerState.data);
+    await withTimeout(setDoc(getStudentProjectDocRef(appSession.student.uid, wireframeMakerState.projectId), {
+      projectType: 'wireframe',
+      status: 'in-progress',
+      wireframeData: cleanData,
+      runCount: Number(appSession.currentProject?.runCount || 0),
+      updatedAt: serverTimestamp()
+    }, { merge: true }), APP_NETWORK_TIMEOUT_MS, 'Saving the wireframe is taking too long. Your local recovery copy is safe.');
+    wireframeMakerState.data = cleanData;
+    if (!cleanData.pages.some(page => page.id === wireframeMakerState.pageId)) wireframeMakerState.pageId = cleanData.startPageId;
+    wireframeMakerState.dirty = false;
+    clearWireframeRecovery();
+    clearSelectiveFirestoreCache(`studentProjects:${appSession.student.uid}`);
+    if (appSession.currentProject) {
+      appSession.currentProject.projectType = 'wireframe';
+      appSession.currentProject.wireframeData = cleanData;
+      appSession.currentProject.updatedAt = new Date();
+    }
+    const cached = appSession.projects.find(item => item.id === wireframeMakerState.projectId);
+    if (cached) {
+      cached.projectType = 'wireframe';
+      cached.wireframeData = cleanData;
+      cached.updatedAt = new Date();
+    }
+    persistStudentProjectsCache();
+    setWireframeSaveState(isWireframeAutosaveEnabled() ? 'Saved' : 'Saved · manual', 'saved');
+    syncWireframeAutosaveUi();
+    if (!silent) setStatus('Wireframe saved');
+    return true;
+  } catch (error) {
+    console.error('Could not save wireframe project', error);
+    wireframeMakerState.dirty = true;
+    persistWireframeRecovery();
+    setWireframeSaveState('Save failed', 'error');
+    if (!silent) appAlert(error?.message || 'Could not save the wireframe. Try again.', { title: 'Wireframe save failed', danger: true });
+    return false;
+  } finally {
+    wireframeMakerState.saving = false;
+    if (wireframeSaveBtn) wireframeSaveBtn.disabled = false;
+  }
+}
+
+
+function escapeGeneratedHtmlText(value = '') {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+function escapeGeneratedHtmlAttribute(value = '') {
+  return escapeGeneratedHtmlText(value)
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function buildUniqueWireframeHtmlFileMap(data) {
+  const normalized = normalizeWireframeData(data);
+  const used = new Set();
+  const map = new Map();
+  const startPageId = normalized.startPageId;
+  const startPage = normalized.pages.find(page => page.id === startPageId) || normalized.pages[0];
+  if (startPage) {
+    map.set(startPage.id, 'index.html');
+    used.add('index.html');
+  }
+  normalized.pages.forEach((page, index) => {
+    if (map.has(page.id)) return;
+    let base = wireframePageSlug(page.name, index)
+      .replace(/[^a-z0-9-]/g, '-')
+      .replace(/^-+|-+$/g, '') || `page-${index + 1}`;
+    if (base === 'index') base = 'page';
+    let fileName = `${base}.html`;
+    let suffix = 2;
+    while (used.has(fileName)) fileName = `${base}-${suffix++}.html`;
+    used.add(fileName);
+    map.set(page.id, fileName);
+  });
+  return map;
+}
+
+function getWireframeGeneratedElementTag(element, linked) {
+  if (linked) return 'a';
+  const tags = {
+    nav: 'nav',
+    section: 'section',
+    heading: 'h1',
+    text: 'p',
+    button: 'button',
+    link: 'span',
+    image: 'div',
+    card: 'article',
+    input: 'input',
+    footer: 'footer'
+  };
+  return tags[element?.type] || 'div';
+}
+
+function buildWireframeGeneratedElementHtml(element, pageIndex, elementIndex, fileMap) {
+  if (element?.hidden) return '';
+  const targetFile = element.linkPageId ? fileMap.get(element.linkPageId) : '';
+  const linked = Boolean(targetFile);
+  const tag = getWireframeGeneratedElementTag(element, linked);
+  const className = `wf-element wf-${element.type} wf-p${pageIndex + 1}-e${elementIndex + 1}`;
+  const text = escapeGeneratedHtmlText(element.text || '');
+  const href = linked ? ` href="${escapeGeneratedHtmlAttribute(targetFile)}"` : '';
+  const buttonType = !linked && tag === 'button' ? ' type="button"' : '';
+
+  if (element.type === 'input' && !linked) {
+    return `    <input class="${className}" type="text" placeholder="${escapeGeneratedHtmlAttribute(element.text || 'Input / Form Field')}" />`;
+  }
+
+  if (element.type === 'image') {
+    const imageSrc = sanitizeWireframeImageDataUrl(element.image?.src);
+    const altText = escapeGeneratedHtmlAttribute(element.text || element.image?.fileName || 'Website image');
+    if (imageSrc) {
+      const imageClass = `${className} has-real-image`;
+      if (linked) {
+        return `    <a class="${imageClass}" href="${escapeGeneratedHtmlAttribute(targetFile)}"><img class="wf-real-image" src="${escapeGeneratedHtmlAttribute(imageSrc)}" alt="${altText}" /></a>`;
+      }
+      return `    <img class="${imageClass}" src="${escapeGeneratedHtmlAttribute(imageSrc)}" alt="${altText}" />`;
+    }
+    const imageBody = `<span class="wf-image-mark" aria-hidden="true">&#9635;</span><span>${text || 'Image Placeholder'}</span>`;
+    const role = linked ? '' : ' role="img"';
+    const label = linked ? '' : ` aria-label="${escapeGeneratedHtmlAttribute(element.text || 'Image Placeholder')}"`;
+    return `    <${tag} class="${className}"${href}${role}${label}>${imageBody}</${tag}>`;
+  }
+
+  return `    <${tag} class="${className}"${href}${buttonType}>${text}</${tag}>`;
+}
+
+function buildWireframeStarterHtml(projectName, page, pageIndex, fileMap) {
+  const pageTitle = `${projectName || 'Website'} - ${page.name || `Page ${pageIndex + 1}`}`;
+  const elements = page.elements
+    .map((element, elementIndex) => buildWireframeGeneratedElementHtml(element, pageIndex, elementIndex, fileMap))
+    .join('\n');
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>${escapeGeneratedHtmlText(pageTitle)}</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body class="wireframe-generated-site page-${pageIndex + 1}">
+  <!-- Starter layout generated from ICT 8 Connect Wireframe Maker. -->
+  <main class="site-canvas" aria-label="${escapeGeneratedHtmlAttribute(page.name || `Page ${pageIndex + 1}`)} wireframe layout">
+${elements || '    <!-- Add your website content here. -->'}
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>`;
+}
+
+function wireframeGeneratedJustify(textAlign) {
+  if (textAlign === 'center') return 'center';
+  if (textAlign === 'right') return 'flex-end';
+  return 'flex-start';
+}
+
+function wireframeLayoutCss(layout, size) {
+  const toPercent = (value, total) => ((Number(value || 0) / Math.max(1, Number(total || 1))) * 100)
+    .toFixed(3)
+    .replace(/0+$/, '')
+    .replace(/\.$/, '');
+  const left = toPercent(layout.x, size.width);
+  const top = toPercent(layout.y, size.height);
+  const width = toPercent(layout.w, size.width);
+  const height = toPercent(layout.h, size.height);
+  return `left: ${left}%; top: ${top}%; width: ${width}%; height: ${height}%;`;
+}
+
+function buildWireframeStarterCss(data) {
+  const normalized = normalizeWireframeData(data);
+  const desktop = WIREFRAME_DEVICE_SIZES.desktop;
+  const phone = WIREFRAME_DEVICE_SIZES.phone;
+  const baseRules = [];
+  const phoneRules = [];
+
+  normalized.pages.forEach((page, pageIndex) => {
+    baseRules.push(`html.page-${pageIndex + 1}, body.page-${pageIndex + 1}, .page-${pageIndex + 1} .site-canvas { background: ${page.canvasBackground}; }`);
+    page.elements.forEach((element, elementIndex) => {
+      if (element.hidden) return;
+      const selector = `.wf-p${pageIndex + 1}-e${elementIndex + 1}`;
+      const style = element.style;
+      baseRules.push(`${selector} {
+  ${wireframeLayoutCss(element.layouts.desktop, desktop)}
+  z-index: ${Math.round(Number(element.z || elementIndex + 1))};
+  background: ${style.background};
+  color: ${style.color};
+  border: ${Math.round(Number(style.borderWidth || 0))}px solid ${style.borderColor};
+  border-radius: ${Math.round(Number(style.radius || 0))}px;
+  font-size: ${Math.round(Number(style.fontSize || 16))}px;
+  font-weight: ${Math.round(Number(style.fontWeight || 400))};
+  text-align: ${style.textAlign};
+  justify-content: ${wireframeGeneratedJustify(style.textAlign)};
+}`);
+      if (element.type === 'image' && sanitizeWireframeImageDataUrl(element.image?.src)) {
+        const image = normalizeWireframeImage(element.image);
+        const desktopImage = image.desktop;
+        const phoneImage = image.phone;
+        if (element.linkPageId) {
+          baseRules.push(`${selector}.has-real-image { padding: 0; overflow: hidden; }\n${selector}.has-real-image > .wf-real-image { width: 100%; height: 100%; display: block; object-fit: ${desktopImage.fit}; object-position: ${Math.round(desktopImage.positionX)}% ${Math.round(desktopImage.positionY)}%; }`);
+          phoneRules.push(`  ${selector}.has-real-image > .wf-real-image { object-fit: ${phoneImage.fit}; object-position: ${Math.round(phoneImage.positionX)}% ${Math.round(phoneImage.positionY)}%; }`);
+        } else {
+          baseRules.push(`${selector}.has-real-image { padding: 0; display: block; object-fit: ${desktopImage.fit}; object-position: ${Math.round(desktopImage.positionX)}% ${Math.round(desktopImage.positionY)}%; }`);
+          phoneRules.push(`  ${selector}.has-real-image { object-fit: ${phoneImage.fit}; object-position: ${Math.round(phoneImage.positionX)}% ${Math.round(phoneImage.positionY)}%; }`);
+        }
+      }
+      phoneRules.push(`  ${selector} { ${wireframeLayoutCss(element.layouts.phone, phone)} }`);
+    });
+  });
+
+  return `/* Starter CSS generated from ICT 8 Connect Wireframe Maker. */
+/* Continue editing this file to turn the wireframe into your finished website. */
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  width: 100%;
+  min-width: 0;
+  min-height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scroll-behavior: smooth;
+  overscroll-behavior-y: auto;
+}
+
+html {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(100, 116, 139, 0.62) transparent;
+}
+
+html::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+html::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+html::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: rgba(100, 116, 139, 0.62);
+  background-clip: padding-box;
+}
+
+body {
+  min-height: 100vh;
+  min-height: 100dvh;
+  font-family: Arial, Helvetica, sans-serif;
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+/* The wireframe is a reference canvas. The generated website fills the
+   viewport but keeps vertical overflow scrollable. Horizontal overflow stays
+   clipped so there is no white strip at the right edge. */
+.site-canvas {
+  position: relative;
+  width: 100%;
+  height: 100vh;
+  height: 100dvh;
+  min-height: 100vh;
+  min-height: 100dvh;
+  margin: 0;
+  overflow: visible;
+}
+
+.wf-element {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  padding: 12px;
+  margin: 0;
+  line-height: 1.35;
+  white-space: pre-wrap;
+  overflow: hidden;
+  text-decoration: none;
+  font-family: inherit;
+}
+
+a.wf-element,
+button.wf-element {
+  cursor: pointer;
+}
+
+button.wf-element {
+  appearance: none;
+}
+
+.wf-image {
+  gap: 8px;
+}
+
+.wf-image-mark {
+  font-size: 1.35em;
+}
+
+${baseRules.join('\n\n')}
+
+@media (max-width: 600px) {
+  .site-canvas {
+    width: 100%;
+    height: 100vh;
+    height: 100dvh;
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+
+${phoneRules.join('\n')}
+}`;
+}
+
+function buildWireframeStarterCodeProject(project, data) {
+  const normalized = normalizeWireframeData(data);
+  const fileMap = buildUniqueWireframeHtmlFileMap(normalized);
+  const pages = {};
+  const startPage = normalized.pages.find(page => page.id === normalized.startPageId) || normalized.pages[0];
+  const orderedPages = [startPage, ...normalized.pages.filter(page => page.id !== startPage?.id)].filter(Boolean);
+  orderedPages.forEach(page => {
+    const originalIndex = normalized.pages.findIndex(item => item.id === page.id);
+    pages[fileMap.get(page.id) || 'index.html'] = buildWireframeStarterHtml(project?.name || 'Website', page, originalIndex, fileMap);
+  });
+  const css = buildWireframeStarterCss(normalized);
+  const js = `// Starter JavaScript generated from ICT 8 Connect Wireframe Maker.\n// Add your website interactions below.\n\ndocument.addEventListener('DOMContentLoaded', () => {\n  // Your code here.\n});\n`;
+  return normalizeCodeStore({
+    html: pages['index.html'] || Object.values(pages)[0] || '',
+    css,
+    js,
+    pages,
+    cssFiles: { 'style.css': css },
+    jsFiles: { 'script.js': js },
+    activeHtmlPage: 'index.html',
+    activeCssFile: 'style.css',
+    activeJsFile: 'script.js'
+  });
+}
+
+function setWireframeExportStatus(message = '', tone = '') {
+  if (!wireframeExportStatus) return;
+  wireframeExportStatus.textContent = message;
+  if (tone) wireframeExportStatus.dataset.tone = tone;
+  else delete wireframeExportStatus.dataset.tone;
+}
+
+function syncWireframeExportDialog() {
+  const page = getWireframePage();
+  if (wireframeExportDevice && WIREFRAME_DEVICE_SIZES[wireframeMakerState.device]) {
+    wireframeExportDevice.value = wireframeMakerState.device;
+  }
+  if (wireframeExportPageName) wireframeExportPageName.textContent = page?.name || 'Current page';
+  if (wireframeExportScope) wireframeExportScope.value = 'current';
+  setWireframeExportStatus('PNG exports the current page. PDF follows the page option above.');
+}
+
+function openWireframeExportDialog() {
+  if (!wireframeMakerState.data || wireframeMakerState.exporting) return;
+  syncWireframeExportDialog();
+  wireframeExportOverlay?.classList.remove('hidden');
+  window.setTimeout(() => wireframeExportPngBtn?.focus(), 20);
+}
+
+function closeWireframeExportDialog() {
+  if (wireframeMakerState.exporting) return;
+  wireframeExportOverlay?.classList.add('hidden');
+  setWireframeExportStatus('');
+}
+
+function setWireframeExportBusy(isBusy, message = '') {
+  wireframeMakerState.exporting = Boolean(isBusy);
+  [wireframeExportPngBtn, wireframeExportPdfBtn, wireframeExportDevice, wireframeExportScope, cancelWireframeExportBtn, closeWireframeExportBtn]
+    .filter(Boolean)
+    .forEach(control => { control.disabled = Boolean(isBusy); });
+  if (wireframeExportBtn) wireframeExportBtn.disabled = Boolean(isBusy);
+  if (message) setWireframeExportStatus(message, isBusy ? 'busy' : '');
+}
+
+function wireframeSafeExportFilename(value, fallback = 'wireframe') {
+  const cleaned = String(value || '')
+    .replace(/[<>:"/\\|?*\x00-\x1F]/g, '-')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/[. ]+$/g, '')
+    .slice(0, 90);
+  return cleaned || fallback;
+}
+
+function getWireframeExportProjectName() {
+  const project = appSession.currentProject || appSession.projects.find(item => item.id === wireframeMakerState.projectId);
+  return wireframeSafeExportFilename(project?.name || wireframeProjectTitle?.textContent || 'Wireframe', 'Wireframe');
+}
+
+function wireframeRoundedRectPath(ctx, x, y, width, height, radius = 0) {
+  const r = Math.max(0, Math.min(Number(radius || 0), width / 2, height / 2));
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + width - r, y);
+  ctx.quadraticCurveTo(x + width, y, x + width, y + r);
+  ctx.lineTo(x + width, y + height - r);
+  ctx.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
+  ctx.lineTo(x + r, y + height);
+  ctx.quadraticCurveTo(x, y + height, x, y + height - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+function wireframeWrapExportText(ctx, text, maxWidth) {
+  const paragraphs = String(text || '').split('\n');
+  const lines = [];
+  const width = Math.max(1, Number(maxWidth || 1));
+
+  paragraphs.forEach((paragraph, paragraphIndex) => {
+    if (!paragraph) {
+      lines.push('');
+      return;
+    }
+    const words = paragraph.split(/\s+/).filter(Boolean);
+    let current = '';
+    words.forEach(word => {
+      const candidate = current ? `${current} ${word}` : word;
+      if (ctx.measureText(candidate).width <= width) {
+        current = candidate;
+        return;
+      }
+      if (current) lines.push(current);
+      if (ctx.measureText(word).width <= width) {
+        current = word;
+        return;
+      }
+      let chunk = '';
+      for (const char of word) {
+        const next = chunk + char;
+        if (chunk && ctx.measureText(next).width > width) {
+          lines.push(chunk);
+          chunk = char;
+        } else {
+          chunk = next;
+        }
+      }
+      current = chunk;
+    });
+    if (current) lines.push(current);
+    if (paragraphIndex < paragraphs.length - 1 && paragraph === '') lines.push('');
+  });
+
+  return lines.length ? lines : [''];
+}
+
+function drawWireframeExportText(ctx, element, layout) {
+  const style = element.style || {};
+  const fontSize = Math.max(10, Number(style.fontSize || 16));
+  const fontWeight = Math.max(100, Math.min(900, Number(style.fontWeight || 400)));
+  const paddingX = 14;
+  const paddingY = 10;
+  const maxWidth = Math.max(1, layout.w - paddingX * 2);
+  const maxHeight = Math.max(1, layout.h - paddingY * 2);
+  const lineHeight = fontSize * 1.3;
+
+  ctx.save();
+  wireframeRoundedRectPath(ctx, layout.x, layout.y, layout.w, layout.h, style.radius || 0);
+  ctx.clip();
+  ctx.font = `${fontWeight} ${fontSize}px Arial, Helvetica, sans-serif`;
+  ctx.fillStyle = style.color || '#0f172a';
+  ctx.textBaseline = 'top';
+  ctx.textAlign = ['center', 'right'].includes(style.textAlign) ? style.textAlign : 'left';
+
+  const lines = wireframeWrapExportText(ctx, element.text || '', maxWidth);
+  const visibleCount = Math.max(1, Math.min(lines.length, Math.floor(maxHeight / lineHeight) || 1));
+  const visibleLines = lines.slice(0, visibleCount);
+  const totalHeight = visibleLines.length * lineHeight;
+  const startY = layout.y + paddingY + Math.max(0, (maxHeight - totalHeight) / 2);
+  const textX = style.textAlign === 'center'
+    ? layout.x + layout.w / 2
+    : style.textAlign === 'right'
+      ? layout.x + layout.w - paddingX
+      : layout.x + paddingX;
+
+  visibleLines.forEach((line, index) => {
+    ctx.fillText(line, textX, startY + index * lineHeight, maxWidth);
+  });
+  ctx.restore();
+}
+
+function drawWireframeExportPlaceholder(ctx, element, layout) {
+  const style = element.style || {};
+  ctx.save();
+  wireframeRoundedRectPath(ctx, layout.x, layout.y, layout.w, layout.h, style.radius || 0);
+  ctx.clip();
+  ctx.globalAlpha = 0.16;
+  ctx.strokeStyle = style.borderColor || '#94a3b8';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(layout.x, layout.y);
+  ctx.lineTo(layout.x + layout.w, layout.y + layout.h);
+  ctx.moveTo(layout.x + layout.w, layout.y);
+  ctx.lineTo(layout.x, layout.y + layout.h);
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+
+  const iconSize = Math.max(24, Math.min(34, Number(style.fontSize || 16) * 1.8));
+  ctx.fillStyle = style.color || '#64748b';
+  ctx.font = `600 ${iconSize}px Arial, Helvetica, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('▧', layout.x + layout.w / 2, layout.y + layout.h / 2 - iconSize * 0.45);
+
+  ctx.font = `${Math.max(400, Number(style.fontWeight || 600))} ${Math.max(10, Number(style.fontSize || 16))}px Arial, Helvetica, sans-serif`;
+  ctx.fillText(String(element.text || 'Image Placeholder'), layout.x + layout.w / 2, layout.y + layout.h / 2 + iconSize * 0.55, Math.max(10, layout.w - 28));
+  ctx.restore();
+}
+
+const wireframeExportImageCache = new Map();
+
+function loadWireframeExportImage(src) {
+  const safeSrc = sanitizeWireframeImageDataUrl(src);
+  if (!safeSrc) return Promise.resolve(null);
+  if (wireframeExportImageCache.has(safeSrc)) return wireframeExportImageCache.get(safeSrc);
+  const promise = new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error('One uploaded image could not be rendered for export.'));
+    image.src = safeSrc;
+  });
+  wireframeExportImageCache.set(safeSrc, promise);
+  return promise;
+}
+
+function drawWireframeExportRealImage(ctx, image, display, layout) {
+  const sourceWidth = Math.max(1, Number(image.naturalWidth || image.width || 1));
+  const sourceHeight = Math.max(1, Number(image.naturalHeight || image.height || 1));
+  const fit = ['cover', 'contain', 'fill'].includes(display?.fit) ? display.fit : 'cover';
+  const positionX = Math.max(0, Math.min(100, Number(display?.positionX ?? 50))) / 100;
+  const positionY = Math.max(0, Math.min(100, Number(display?.positionY ?? 50))) / 100;
+
+  if (fit === 'fill') {
+    ctx.drawImage(image, layout.x, layout.y, layout.w, layout.h);
+    return;
+  }
+
+  if (fit === 'contain') {
+    const scale = Math.min(layout.w / sourceWidth, layout.h / sourceHeight);
+    const drawWidth = sourceWidth * scale;
+    const drawHeight = sourceHeight * scale;
+    const drawX = layout.x + (layout.w - drawWidth) * positionX;
+    const drawY = layout.y + (layout.h - drawHeight) * positionY;
+    ctx.drawImage(image, drawX, drawY, drawWidth, drawHeight);
+    return;
+  }
+
+  const scale = Math.max(layout.w / sourceWidth, layout.h / sourceHeight);
+  const scaledWidth = sourceWidth * scale;
+  const scaledHeight = sourceHeight * scale;
+  const cropX = Math.max(0, (scaledWidth - layout.w) * positionX / scale);
+  const cropY = Math.max(0, (scaledHeight - layout.h) * positionY / scale);
+  const cropWidth = Math.min(sourceWidth - cropX, layout.w / scale);
+  const cropHeight = Math.min(sourceHeight - cropY, layout.h / scale);
+  ctx.drawImage(image, cropX, cropY, cropWidth, cropHeight, layout.x, layout.y, layout.w, layout.h);
+}
+
+async function drawWireframeExportElement(ctx, element, device) {
+  const layout = getWireframeLayout(element, device);
+  if (!layout) return;
+  const style = element.style || {};
+  const realImageSrc = element.type === 'image' ? sanitizeWireframeImageDataUrl(element.image?.src) : '';
+
+  ctx.save();
+  wireframeRoundedRectPath(ctx, layout.x, layout.y, layout.w, layout.h, style.radius || 0);
+  ctx.fillStyle = style.background || '#ffffff';
+  ctx.fill();
+  ctx.restore();
+
+  if (element.type === 'image' && realImageSrc) {
+    const image = await loadWireframeExportImage(realImageSrc);
+    if (image) {
+      ctx.save();
+      wireframeRoundedRectPath(ctx, layout.x, layout.y, layout.w, layout.h, style.radius || 0);
+      ctx.clip();
+      drawWireframeExportRealImage(ctx, image, getWireframeImageDisplay(element, device), layout);
+      ctx.restore();
+    }
+  } else if (element.type === 'image') {
+    drawWireframeExportPlaceholder(ctx, element, layout);
+  } else {
+    drawWireframeExportText(ctx, element, layout);
+  }
+
+  const borderWidth = Math.max(0, Number(style.borderWidth || 0));
+  if (borderWidth > 0) {
+    ctx.save();
+    wireframeRoundedRectPath(ctx, layout.x + borderWidth / 2, layout.y + borderWidth / 2, Math.max(0, layout.w - borderWidth), Math.max(0, layout.h - borderWidth), Math.max(0, Number(style.radius || 0) - borderWidth / 2));
+    ctx.strokeStyle = style.borderColor || '#cbd5e1';
+    ctx.lineWidth = borderWidth;
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
+async function renderWireframeExportCanvas(page, device = 'desktop', scale = 2) {
+  if (!page || !WIREFRAME_DEVICE_SIZES[device]) throw new Error('Wireframe page is not available.');
+  const size = WIREFRAME_DEVICE_SIZES[device];
+  const renderScale = Math.max(1, Math.min(2.5, Number(scale || 2)));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(size.width * renderScale);
+  canvas.height = Math.round(size.height * renderScale);
+  const ctx = canvas.getContext('2d', { alpha: false });
+  if (!ctx) throw new Error('This browser cannot create the export image.');
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.scale(renderScale, renderScale);
+  ctx.fillStyle = safeWireframeColor(page.canvasBackground, '#ffffff');
+  ctx.fillRect(0, 0, size.width, size.height);
+
+  const visible = [...(page.elements || [])]
+    .filter(element => !element.hidden)
+    .sort((a, b) => Number(a.z || 0) - Number(b.z || 0));
+  for (const element of visible) await drawWireframeExportElement(ctx, element, device);
+  return canvas;
+}
+
+function wireframeCanvasToBlob(canvas, type = 'image/png', quality) {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(blob => {
+      if (blob) resolve(blob);
+      else reject(new Error('The browser could not create the export file.'));
+    }, type, quality);
+  });
+}
+
+function wireframePdfAscii(text) {
+  return new TextEncoder().encode(String(text || ''));
+}
+
+function buildWireframePdfBlob(images, device = 'desktop') {
+  if (!Array.isArray(images) || !images.length) throw new Error('No pages were rendered for the PDF.');
+  const landscape = device === 'desktop';
+  const pageWidth = landscape ? 841.89 : 595.28;
+  const pageHeight = landscape ? 595.28 : 841.89;
+  const margin = 24;
+  const objectCount = 2 + images.length * 3;
+  const offsets = new Array(objectCount + 1).fill(0);
+  const parts = [];
+  let byteOffset = 0;
+
+  const append = bytes => {
+    const chunk = bytes instanceof Uint8Array ? bytes : wireframePdfAscii(bytes);
+    parts.push(chunk);
+    byteOffset += chunk.length;
+  };
+  const startObject = number => {
+    offsets[number] = byteOffset;
+    append(`${number} 0 obj\n`);
+  };
+  const endObject = () => append('endobj\n');
+
+  append(wireframePdfAscii('%PDF-1.4\n%ICT8\n'));
+  startObject(1);
+  append('<< /Type /Catalog /Pages 2 0 R >>\n');
+  endObject();
+
+  const kids = images.map((_, index) => `${3 + index * 3} 0 R`).join(' ');
+  startObject(2);
+  append(`<< /Type /Pages /Count ${images.length} /Kids [ ${kids} ] >>\n`);
+  endObject();
+
+  images.forEach((image, index) => {
+    const pageObject = 3 + index * 3;
+    const contentObject = pageObject + 1;
+    const imageObject = pageObject + 2;
+    const availableWidth = pageWidth - margin * 2;
+    const availableHeight = pageHeight - margin * 2;
+    const ratio = Math.min(availableWidth / image.width, availableHeight / image.height);
+    const drawWidth = image.width * ratio;
+    const drawHeight = image.height * ratio;
+    const drawX = (pageWidth - drawWidth) / 2;
+    const drawY = (pageHeight - drawHeight) / 2;
+    const imageName = `Im${index + 1}`;
+    const content = `q\n${drawWidth.toFixed(3)} 0 0 ${drawHeight.toFixed(3)} ${drawX.toFixed(3)} ${drawY.toFixed(3)} cm\n/${imageName} Do\nQ\n`;
+    const contentBytes = wireframePdfAscii(content);
+
+    startObject(pageObject);
+    append(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageWidth.toFixed(2)} ${pageHeight.toFixed(2)}] /Resources << /ProcSet [/PDF /ImageC] /XObject << /${imageName} ${imageObject} 0 R >> >> /Contents ${contentObject} 0 R >>\n`);
+    endObject();
+
+    startObject(contentObject);
+    append(`<< /Length ${contentBytes.length} >>\nstream\n`);
+    append(contentBytes);
+    append('endstream\n');
+    endObject();
+
+    startObject(imageObject);
+    append(`<< /Type /XObject /Subtype /Image /Width ${image.width} /Height ${image.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${image.bytes.length} >>\nstream\n`);
+    append(image.bytes);
+    append('\nendstream\n');
+    endObject();
+  });
+
+  const xrefOffset = byteOffset;
+  append(`xref\n0 ${objectCount + 1}\n`);
+  append('0000000000 65535 f \n');
+  for (let i = 1; i <= objectCount; i += 1) append(`${String(offsets[i]).padStart(10, '0')} 00000 n \n`);
+  append(`trailer\n<< /Size ${objectCount + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`);
+
+  return new Blob(parts, { type: 'application/pdf' });
+}
+
+function getWireframeExportPages(scope = 'current') {
+  const data = normalizeWireframeData(wireframeMakerState.data);
+  if (scope !== 'all') {
+    const current = data.pages.find(page => page.id === wireframeMakerState.pageId) || data.pages[0];
+    return current ? [current] : [];
+  }
+  const start = data.pages.find(page => page.id === data.startPageId) || data.pages[0];
+  return [start, ...data.pages.filter(page => page.id !== start?.id)].filter(Boolean);
+}
+
+async function exportCurrentWireframePng() {
+  if (wireframeMakerState.exporting || !wireframeMakerState.data) return;
+  const data = normalizeWireframeData(wireframeMakerState.data);
+  const page = data.pages.find(item => item.id === wireframeMakerState.pageId) || data.pages[0];
+  const device = WIREFRAME_DEVICE_SIZES[wireframeExportDevice?.value] ? wireframeExportDevice.value : wireframeMakerState.device;
+  if (!page) return;
+
+  setWireframeExportBusy(true, `Rendering ${page.name} as high-resolution PNG...`);
+  try {
+    const canvas = await renderWireframeExportCanvas(page, device, 2);
+    const blob = await wireframeCanvasToBlob(canvas, 'image/png');
+    const filename = `${getWireframeExportProjectName()} - ${wireframeSafeExportFilename(page.name, 'Page')} - ${WIREFRAME_DEVICE_SIZES[device].label}.png`;
+    downloadBlob(blob, filename);
+    setWireframeExportStatus(`PNG ready · ${WIREFRAME_DEVICE_SIZES[device].label} · ${canvas.width} × ${canvas.height}px`, 'success');
+  } catch (error) {
+    console.error('Wireframe PNG export failed.', error);
+    setWireframeExportStatus(error?.message || 'PNG export failed. Please try again.', 'error');
+  } finally {
+    setWireframeExportBusy(false);
+  }
+}
+
+async function exportCurrentWireframePdf() {
+  if (wireframeMakerState.exporting || !wireframeMakerState.data) return;
+  const device = WIREFRAME_DEVICE_SIZES[wireframeExportDevice?.value] ? wireframeExportDevice.value : wireframeMakerState.device;
+  const scope = wireframeExportScope?.value === 'all' ? 'all' : 'current';
+  const pages = getWireframeExportPages(scope);
+  if (!pages.length) return;
+
+  setWireframeExportBusy(true, `Preparing ${pages.length} PDF page${pages.length === 1 ? '' : 's'}...`);
+  try {
+    const images = [];
+    for (let index = 0; index < pages.length; index += 1) {
+      setWireframeExportStatus(`Rendering PDF page ${index + 1} of ${pages.length} · ${pages[index].name}...`, 'busy');
+      const canvas = await renderWireframeExportCanvas(pages[index], device, 1.75);
+      const jpegBlob = await wireframeCanvasToBlob(canvas, 'image/jpeg', 0.92);
+      images.push({
+        width: canvas.width,
+        height: canvas.height,
+        bytes: new Uint8Array(await jpegBlob.arrayBuffer())
+      });
+      await new Promise(resolve => window.setTimeout(resolve, 0));
+    }
+    const pdfBlob = buildWireframePdfBlob(images, device);
+    const suffix = scope === 'all'
+      ? `All Pages - ${WIREFRAME_DEVICE_SIZES[device].label}`
+      : `${wireframeSafeExportFilename(pages[0].name, 'Page')} - ${WIREFRAME_DEVICE_SIZES[device].label}`;
+    downloadBlob(pdfBlob, `${getWireframeExportProjectName()} - ${suffix}.pdf`);
+    setWireframeExportStatus(`PDF ready · ${pages.length} page${pages.length === 1 ? '' : 's'} · ${WIREFRAME_DEVICE_SIZES[device].label}`, 'success');
+  } catch (error) {
+    console.error('Wireframe PDF export failed.', error);
+    setWireframeExportStatus(error?.message || 'PDF export failed. Please try again.', 'error');
+  } finally {
+    setWireframeExportBusy(false);
+  }
+}
+
+
+function getUniqueGeneratedCodeProjectName(baseName) {
+  const root = `${String(baseName || 'Wireframe').trim()} - Starter Code`.slice(0, 72);
+  const existing = new Set((appSession.projects || []).map(project => String(project.name || '').trim().toLowerCase()));
+  if (!existing.has(root.toLowerCase())) return root;
+  let suffix = 2;
+  while (existing.has(`${root} (${suffix})`.toLowerCase())) suffix += 1;
+  return `${root} (${suffix})`.slice(0, 80);
+}
+
+async function convertCurrentWireframeToStarterCode() {
+  if (!appSession.student?.uid || !wireframeMakerState.projectId || !wireframeMakerState.data) return;
+  if (!isWireframeStarterCodeEnabled()) {
+    syncWireframeStarterCodeUi();
+    return;
+  }
+  if (navigator.onLine === false) {
+    await appAlert('Connect to the internet first so the new Code Project can be saved to your account.', { title: 'Internet required' });
+    return;
+  }
+
+  const sourceProject = appSession.currentProject || appSession.projects.find(item => item.id === wireframeMakerState.projectId);
+  if (!sourceProject) return;
+  const data = normalizeWireframeData(wireframeMakerState.data);
+  const pageCount = data.pages.length;
+  const confirmed = await appConfirm(
+    `Create a new editable Code Project from this ${pageCount}-page wireframe? The original wireframe will stay unchanged.`,
+    { title: 'Create Starter Code', confirmText: 'Create Code Project', icon: '</>' }
+  );
+  if (!confirmed) return;
+
+  if (wireframeMakerState.dirty) {
+    const saved = await saveWireframeProject({ silent: true });
+    if (!saved) {
+      await appAlert('The wireframe could not be saved yet, so conversion was stopped to protect your latest design.', { title: 'Save wireframe first', danger: true });
+      return;
+    }
+  }
+
+  const originalLabel = wireframeConvertBtn?.textContent || '</> Starter Code';
+  if (wireframeConvertBtn) {
+    wireframeConvertBtn.dataset.busy = 'true';
+    wireframeConvertBtn.disabled = true;
+    wireframeConvertBtn.textContent = 'Creating...';
+  }
+
+  try {
+    const generatedStore = buildWireframeStarterCodeProject(sourceProject, wireframeMakerState.data);
+    const projectName = getUniqueGeneratedCodeProjectName(sourceProject.name || 'Wireframe');
+    const projectId = createId().replace(/[^a-zA-Z0-9_-]/g, '-');
+    const localProject = {
+      id: projectId,
+      name: projectName,
+      nameLower: projectName.toLowerCase(),
+      projectType: 'code',
+      status: 'in-progress',
+      codeByActivity: { scratch: generatedStore },
+      selectedActivityId: '',
+      activityTitle: '',
+      fileNames: normalizeCodeFileNames(DEFAULT_CODE_FILE_NAMES),
+      runCount: 0,
+      lastResult: null,
+      generatedFromWireframe: true,
+      sourceWireframeProjectId: wireframeMakerState.projectId,
+      sourceWireframeProjectName: sourceProject.name || '',
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+    const { setDoc, serverTimestamp, increment } = firebaseSync.modules;
+    const { id: _localOnlyId, ...cloudProject } = localProject;
+    await withTimeout(setDoc(getStudentProjectDocRef(appSession.student.uid, projectId), {
+      ...cloudProject,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    }), APP_NETWORK_TIMEOUT_MS, 'Creating the starter code project is taking too long. Please check the internet connection, then try again.');
+    await setDoc(getStudentDocRef(appSession.student.uid), {
+      projectCount: increment(1),
+      lastProjectId: projectId,
+      lastProjectName: projectName,
+      lastActivityAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+
+    clearSelectiveFirestoreCache(`studentProjects:${appSession.student.uid}`);
+    clearSelectiveFirestoreCache(`studentProfile:${appSession.student.uid}`);
+    appSession.projects.unshift(localProject);
+    appSession.student.projectCount = Number(appSession.student.projectCount || 0) + 1;
+    persistStudentProjectsCache();
+
+    wireframeMakerScreen?.classList.add('hidden');
+    document.body.classList.remove('wireframe-maker-active');
+    wireframeMakerState.preview = false;
+    clearWireframeSelection();
+    await openStudentProject(projectId);
+    setStatus(`Starter code created from ${sourceProject.name || 'wireframe'}`);
+  } catch (error) {
+    console.error('Could not create starter code from wireframe', error);
+    await appAlert(error?.message || 'Could not create the starter code project. Try again.', { title: 'Conversion failed', danger: true });
+  } finally {
+    if (wireframeConvertBtn) {
+      delete wireframeConvertBtn.dataset.busy;
+      wireframeConvertBtn.textContent = originalLabel;
+      syncWireframeStarterCodeUi();
+    }
+  }
+}
+
+async function openWireframeMaker(project) {
+  if (!project) return;
+  wireframeMakerState.projectId = project.id || appSession.currentProjectId;
+  wireframeMakerState.device = 'desktop';
+  clearWireframeSelection();
+  wireframeMakerState.preview = false;
+  wireframeMakerState.exporting = false;
+  wireframeExportOverlay?.classList.add('hidden');
+  wireframeMakerState.zoom = 'fit';
+  wireframeMakerState.dirty = false;
+  wireframeMakerState.drag = null;
+  wireframeMakerState.snapEnabled = true;
+  wireframeMakerState.clipboard = [];
+  const workspacePrefs = readWireframeWorkspacePrefs();
+  wireframeMakerState.paletteCollapsed = isCompactWireframeWorkspace() ? true : workspacePrefs.paletteCollapsed;
+  wireframeMakerState.propertiesCollapsed = isCompactWireframeWorkspace() ? true : workspacePrefs.propertiesCollapsed;
+  wireframeMakerState.focusMode = false;
+  wireframeMakerState.data = normalizeWireframeData(project.wireframeData);
+  wireframeMakerState.pageId = wireframeMakerState.data.startPageId;
+  resetWireframeHistory();
+
+  const recovery = readWireframeRecovery(wireframeMakerState.projectId);
+  const cloudTime = timestampToDate(project.updatedAt)?.getTime() || 0;
+  if (recovery?.data && Number(recovery.savedAt || 0) > cloudTime + 1000) {
+    const restore = await appConfirm('A newer unsaved wireframe copy was found on this device. Restore it?', {
+      title: 'Recover Wireframe', confirmText: 'Restore', icon: '↻'
+    });
+    if (restore) {
+      wireframeMakerState.data = normalizeWireframeData(recovery.data);
+      wireframeMakerState.pageId = wireframeMakerState.data.startPageId;
+      wireframeMakerState.dirty = true;
+    } else {
+      clearWireframeRecovery(wireframeMakerState.projectId);
+    }
+  }
+
+  if (wireframeProjectTitle) wireframeProjectTitle.textContent = project.name || 'Untitled Wireframe';
+  if (wireframeZoomSelect) wireframeZoomSelect.value = 'fit';
+  wireframeMakerScreen?.classList.remove('hidden', 'is-preview', 'is-focus-mode');
+  syncWireframeWorkspaceUi({ reflow: false });
+  document.body.classList.add('wireframe-maker-active');
+  wireframePreviewBtn?.setAttribute('aria-pressed', 'false');
+  if (wireframePreviewBtn) wireframePreviewBtn.textContent = '👁 Preview';
+  if (wireframeStageHint) wireframeStageHint.textContent = 'Drag to move · Shift/Ctrl click for multi-select · Arrow keys for precise movement.';
+  if (wireframeMakerState.dirty) setWireframeSaveState(isWireframeAutosaveEnabled() ? 'Recovered · autosave' : 'Recovered · press Save', 'unsaved');
+  else setWireframeSaveState(isWireframeAutosaveEnabled() ? 'Saved' : 'Saved · manual', 'saved');
+  syncWireframeAutosaveUi({ queueIfEnabled: wireframeMakerState.dirty });
+  syncWireframeStarterCodeUi();
+  syncWireframeSnapControl();
+  renderWireframePageTabs();
+  syncWireframeDeviceControls();
+  renderWireframeCanvas();
+  window.setTimeout(syncWireframeCanvasScale, 40);
+  if (wireframeMakerState.dirty) markWireframeDirty();
+}
+
+async function closeWireframeMakerToDashboard() {
+  closeWireframePageDialog();
+  if (wireframeMakerState.dirty) {
+    if (isWireframeAutosaveEnabled()) {
+      const saved = await saveWireframeProject({ silent: false });
+      if (!saved && navigator.onLine !== false) return;
+    } else {
+      const saveBeforeLeaving = await appConfirm(
+        'Wireframe Autosave is OFF. Save your latest changes to your account before returning to My Projects?',
+        { title: 'Unsaved Wireframe', confirmText: 'Save & Leave', cancelText: 'More Options', icon: '💾' }
+      );
+      if (saveBeforeLeaving) {
+        const saved = await saveWireframeProject({ silent: false });
+        if (!saved) return;
+      } else {
+        const leaveWithoutSaving = await appConfirm(
+          'Leave without saving to your account? Your latest work will stay only as a local recovery copy on this device until you save it.',
+          { title: 'Leave Without Saving?', confirmText: 'Leave Without Saving', cancelText: 'Keep Editing', icon: '⚠', danger: true }
+        );
+        if (!leaveWithoutSaving) return;
+        persistWireframeRecovery();
+      }
+    }
+  }
+  wireframeMakerScreen?.classList.add('hidden');
+  wireframeMakerScreen?.classList.remove('is-focus-mode');
+  document.body.classList.remove('wireframe-maker-active');
+  clearWireframeSelection();
+  wireframeMakerState.preview = false;
+  wireframeMakerState.focusMode = false;
+  resetWireframeHistory();
+  await showStudentDashboard();
+}
+
+function toggleWireframePreview() {
+  wireframeMakerState.preview = !wireframeMakerState.preview;
+  clearWireframeSelection();
+  clearWireframeSmartGuides();
+  if (wireframeMakerState.preview && wireframeMakerState.data?.startPageId) wireframeMakerState.pageId = wireframeMakerState.data.startPageId;
+  wireframeMakerScreen?.classList.toggle('is-preview', wireframeMakerState.preview);
+  wireframePreviewBtn?.setAttribute('aria-pressed', wireframeMakerState.preview ? 'true' : 'false');
+  if (wireframePreviewBtn) wireframePreviewBtn.textContent = wireframeMakerState.preview ? '✏ Edit' : '👁 Preview';
+  if (wireframeStageHint) wireframeStageHint.textContent = wireframeMakerState.preview
+    ? 'Preview mode · linked elements are clickable. Use page tabs or your page links to navigate.'
+    : 'Drag to move · Shift/Ctrl click for multi-select · Arrow keys for precise movement.';
+  renderWireframeCanvas();
+  syncWireframeDeviceControls();
+  syncWireframeHistoryControls();
+  window.setTimeout(syncWireframeCanvasScale, 20);
+}
+
+function selectWireframeElement(id, { additive = false, preferGroup = true, render = true } = {}) {
+  if (wireframeMakerState.preview) return;
+  const page = getWireframePage();
+  if (!page || !id) {
+    clearWireframeSelection();
+    if (render) renderWireframeCanvas();
+    return;
+  }
+  const element = page.elements.find(item => item.id === id);
+  if (!element) return;
+  const current = new Set(getWireframeSelectionIds());
+  if (additive) {
+    if (current.has(id)) current.delete(id);
+    else current.add(id);
+    setWireframeSelection([...current], current.has(id) ? id : (wireframeMakerState.selectedId === id ? '' : wireframeMakerState.selectedId));
+  } else if (preferGroup && element.groupId) {
+    const groupIds = page.elements.filter(item => item.groupId === element.groupId).map(item => item.id);
+    setWireframeSelection(groupIds, id);
+  } else {
+    setWireframeSelection([id], id);
+  }
+  if (render) renderWireframeCanvas();
+}
+
+function beginWireframePointerInteraction(event) {
+  if (wireframeMakerState.preview || event.button > 0) return;
+  const elementNode = event.target.closest('[data-wireframe-element-id]');
+  if (!elementNode) {
+    if (event.target === wireframeCanvas || event.target.closest('.wireframe-canvas-empty')) selectWireframeElement('');
+    return;
+  }
+  const id = elementNode.dataset.wireframeElementId;
+  const page = getWireframePage();
+  const element = page?.elements?.find(item => item.id === id);
+  if (!element) return;
+
+  const additive = event.shiftKey || event.ctrlKey || event.metaKey;
+  if (additive) {
+    selectWireframeElement(id, { additive: true, preferGroup: false });
+    event.preventDefault();
+    return;
+  }
+
+  const current = new Set(getWireframeSelectionIds());
+  if (!current.has(id)) selectWireframeElement(id, { additive: false, preferGroup: true, render: false });
+  const selected = getWireframeSelectedElements();
+  const mode = event.target.closest('[data-wireframe-resize]') && selected.length === 1 ? 'resize' : 'move';
+  const movable = selected.filter(item => !item.locked);
+  if (!movable.length || (mode === 'resize' && element.locked)) {
+    renderWireframeCanvas();
+    return;
+  }
+
+  const originals = new Map(movable.map(item => [item.id, { ...getWireframeLayout(item) }]));
+  const primary = movable.find(item => item.id === id) || movable[0];
+  wireframeMakerState.drag = {
+    id: primary.id,
+    ids: movable.map(item => item.id),
+    mode,
+    startX: event.clientX,
+    startY: event.clientY,
+    originals,
+    historyCaptured: false,
+    moved: false
+  };
+  renderWireframeCanvas();
+  wireframeCanvas?.querySelectorAll(`[data-wireframe-element-id]`).forEach(node => {
+    if (wireframeMakerState.drag.ids.includes(node.dataset.wireframeElementId)) node.classList.add('dragging');
+  });
+  event.preventDefault();
+}
+
+function moveWireframePointerInteraction(event) {
+  const drag = wireframeMakerState.drag;
+  const page = getWireframePage();
+  if (!drag || !page) return;
+  const primary = page.elements.find(item => item.id === drag.id);
+  if (!primary) return;
+  const size = WIREFRAME_DEVICE_SIZES[wireframeMakerState.device];
+  const scale = wireframeMakerState.scale || 1;
+  const dxRaw = (event.clientX - drag.startX) / scale;
+  const dyRaw = (event.clientY - drag.startY) / scale;
+  if (Math.abs(dxRaw) < .35 && Math.abs(dyRaw) < .35) return;
+  if (!drag.historyCaptured) {
+    pushWireframeHistory(drag.mode === 'resize' ? 'Resize element' : 'Move elements');
+    drag.historyCaptured = true;
+  }
+  drag.moved = true;
+
+  if (drag.mode === 'resize') {
+    const original = drag.originals.get(primary.id);
+    const layout = getWireframeLayout(primary);
+    const rawW = Math.max(40, Math.min(size.width - original.x, original.w + dxRaw));
+    const rawH = Math.max(30, Math.min(size.height - original.y, original.h + dyRaw));
+    const snapped = snapWireframeResize(primary, rawW, rawH);
+    layout.w = Math.max(40, Math.min(size.width - original.x, snapped.w));
+    layout.h = Math.max(30, Math.min(size.height - original.y, snapped.h));
+    updateWireframeElementNode(primary);
+    showWireframeSmartGuides(snapped.guides);
+  } else {
+    const movable = drag.ids.map(id => page.elements.find(item => item.id === id)).filter(Boolean);
+    const originalLayouts = movable.map(item => drag.originals.get(item.id)).filter(Boolean);
+    if (!originalLayouts.length) return;
+    const bounds = {
+      left: Math.min(...originalLayouts.map(item => item.x)),
+      top: Math.min(...originalLayouts.map(item => item.y)),
+      right: Math.max(...originalLayouts.map(item => item.x + item.w)),
+      bottom: Math.max(...originalLayouts.map(item => item.y + item.h))
+    };
+    let dx = Math.max(-bounds.left, Math.min(size.width - bounds.right, dxRaw));
+    let dy = Math.max(-bounds.top, Math.min(size.height - bounds.bottom, dyRaw));
+    const primaryOriginal = drag.originals.get(primary.id);
+    const excludedIds = new Set(drag.ids);
+    const snapped = snapWireframeMove(primary, primaryOriginal.x + dx, primaryOriginal.y + dy, excludedIds);
+    dx = snapped.x - primaryOriginal.x;
+    dy = snapped.y - primaryOriginal.y;
+    dx = Math.max(-bounds.left, Math.min(size.width - bounds.right, dx));
+    dy = Math.max(-bounds.top, Math.min(size.height - bounds.bottom, dy));
+    movable.forEach(item => {
+      const original = drag.originals.get(item.id);
+      const layout = getWireframeLayout(item);
+      layout.x = original.x + dx;
+      layout.y = original.y + dy;
+      updateWireframeElementNode(item);
+    });
+    showWireframeSmartGuides(snapped.guides);
+  }
+  syncWireframeProperties();
+  event.preventDefault();
+}
+
+function endWireframePointerInteraction() {
+  const drag = wireframeMakerState.drag;
+  if (!drag) return;
+  wireframeMakerState.drag = null;
+  clearWireframeSmartGuides();
+  wireframeCanvas?.querySelectorAll('.dragging').forEach(node => node.classList.remove('dragging'));
+  if (drag.moved) {
+    renderWireframeLayers();
+    syncWireframeProperties();
+    markWireframeDirty();
+  }
+}
+
+function readWireframeFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ''));
+    reader.onerror = () => reject(new Error('Could not read the selected image.'));
+    reader.readAsDataURL(file);
+  });
+}
+
+function loadWireframeImageFromDataUrl(src) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error('The selected image could not be opened.'));
+    image.src = src;
+  });
+}
+
+function drawWireframeImageToCanvas(image, width, height) {
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(width));
+  canvas.height = Math.max(1, Math.round(height));
+  const context = canvas.getContext('2d', { alpha: true });
+  if (!context) throw new Error('This browser cannot optimize the image.');
+  context.imageSmoothingEnabled = true;
+  context.imageSmoothingQuality = 'high';
+  context.drawImage(image, 0, 0, canvas.width, canvas.height);
+  return canvas;
+}
+
+async function optimizeWireframeImageFile(file) {
+  if (!file) throw new Error('Choose an image first.');
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(String(file.type || '').toLowerCase())) {
+    throw new Error('Use a JPG, PNG, or WebP image.');
+  }
+  if (Number(file.size || 0) > WIREFRAME_IMAGE_MAX_SOURCE_BYTES) {
+    throw new Error('The original image is too large. Choose an image smaller than 8 MB.');
+  }
+
+  const originalDataUrl = await readWireframeFileAsDataUrl(file);
+  const image = await loadWireframeImageFromDataUrl(originalDataUrl);
+  const sourceWidth = Math.max(1, Number(image.naturalWidth || image.width || 1));
+  const sourceHeight = Math.max(1, Number(image.naturalHeight || image.height || 1));
+  const initialScale = Math.min(1, 1400 / Math.max(sourceWidth, sourceHeight));
+  let width = Math.max(1, Math.round(sourceWidth * initialScale));
+  let height = Math.max(1, Math.round(sourceHeight * initialScale));
+  let best = '';
+
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const canvas = drawWireframeImageToCanvas(image, width, height);
+    const quality = Math.max(0.42, 0.84 - attempt * 0.045);
+    let encoded = '';
+    try { encoded = canvas.toDataURL('image/webp', quality); } catch (_) {}
+    if (!encoded.startsWith('data:image/webp;base64,')) {
+      try { encoded = canvas.toDataURL('image/jpeg', quality); } catch (_) {}
+    }
+    if (encoded && (!best || encoded.length < best.length)) best = encoded;
+    if (encoded && encoded.length <= WIREFRAME_IMAGE_TARGET_DATA_URL_CHARS) {
+      return {
+        src: encoded,
+        fileName: String(file.name || 'image').slice(0, 80),
+        width,
+        height
+      };
+    }
+    width = Math.max(320, Math.round(width * 0.84));
+    height = Math.max(220, Math.round(height * 0.84));
+  }
+
+  if (best && best.length <= WIREFRAME_IMAGE_MAX_DATA_URL_CHARS) {
+    return {
+      src: best,
+      fileName: String(file.name || 'image').slice(0, 80),
+      width,
+      height
+    };
+  }
+  throw new Error('This image could not be optimized enough for safe project saving. Try a smaller or simpler image.');
+}
+
+async function uploadSelectedWireframeImage(file) {
+  const selected = getWireframeSelectedElements();
+  const element = selected.length === 1 ? selected[0] : null;
+  if (!element || element.type !== 'image' || !file) return;
+
+  const originalLabel = wireframeImageUploadBtn?.textContent || 'Upload / Replace';
+  if (wireframeImageUploadBtn) {
+    wireframeImageUploadBtn.disabled = true;
+    wireframeImageUploadBtn.textContent = 'Optimizing...';
+  }
+  try {
+    const optimized = await optimizeWireframeImageFile(file);
+    const currentUsage = wireframeImageDataUsage(wireframeMakerState.data, element.id);
+    if (currentUsage + optimized.src.length > WIREFRAME_IMAGE_TOTAL_DATA_URL_CHARS) {
+      await appAlert('This wireframe already contains several uploaded images. Remove an image or use smaller images before adding another one. This limit protects cloud saving and Starter Code conversion.', { title: 'Image storage limit' });
+      return;
+    }
+    pushWireframeHistory(element.image?.src ? 'Replace image' : 'Upload image');
+    element.image = {
+      ...normalizeWireframeImage(element.image),
+      src: optimized.src,
+      fileName: optimized.fileName
+    };
+    renderWireframeCanvas();
+    markWireframeDirty();
+    setStatus(`Image added · about ${wireframeDataUrlApproxKb(optimized.src)} KB optimized`);
+  } catch (error) {
+    await appAlert(error?.message || 'The image could not be added.', { title: 'Image upload failed', danger: true });
+  } finally {
+    if (wireframeImageFileInput) wireframeImageFileInput.value = '';
+    if (wireframeImageUploadBtn) {
+      wireframeImageUploadBtn.disabled = false;
+      wireframeImageUploadBtn.textContent = originalLabel;
+    }
+  }
+}
+
+function removeSelectedWireframeImage() {
+  const selected = getWireframeSelectedElements();
+  const element = selected.length === 1 ? selected[0] : null;
+  if (!element || element.type !== 'image' || !element.image?.src) return;
+  pushWireframeHistory('Remove image');
+  element.image = { ...normalizeWireframeImage(element.image), src: '', fileName: '' };
+  renderWireframeCanvas();
+  markWireframeDirty();
+  setStatus('Image removed · placeholder restored');
+}
+
+function updateSelectedWireframeFromProperties(source) {
+  const selected = getWireframeSelectedElements();
+  if (selected.length !== 1) return;
+  const element = selected[0];
+  const layout = getWireframeLayout(element);
+  const size = WIREFRAME_DEVICE_SIZES[wireframeMakerState.device];
+  pushWireframeHistory('Edit element', `property:${source?.id || 'unknown'}`);
+  if (source === wireframeElementLayerName) element.name = String(source.value || '').replace(/\s+/g, ' ').trim().slice(0, 40);
+  else if (source === wireframeElementText) element.text = String(source.value || '').slice(0, 180);
+  else if (source === wireframeElementBg) element.style.background = safeWireframeColor(source.value, element.style.background);
+  else if (source === wireframeElementColor) element.style.color = safeWireframeColor(source.value, element.style.color);
+  else if (source === wireframeElementBorder) element.style.borderColor = safeWireframeColor(source.value, element.style.borderColor);
+  else if (source === wireframeElementFontSize) element.style.fontSize = clampWireframeNumber(source.value, 10, 72, element.style.fontSize);
+  else if (source === wireframeElementRadius) element.style.radius = clampWireframeNumber(source.value, 0, 80, element.style.radius);
+  else if (source === wireframeElementBorderWidth) element.style.borderWidth = clampWireframeNumber(source.value, 0, 8, element.style.borderWidth);
+  else if (source === wireframeElementLinkTarget) element.linkPageId = wireframeMakerState.data?.pages?.some(page => page.id === source.value) ? source.value : '';
+  else if (source === wireframeImageFit && element.type === 'image') {
+    element.image = normalizeWireframeImage(element.image);
+    const display = element.image[wireframeMakerState.device === 'phone' ? 'phone' : 'desktop'];
+    display.fit = ['cover', 'contain', 'fill'].includes(source.value) ? source.value : 'cover';
+  }
+  else if (source === wireframeImagePositionX && element.type === 'image') {
+    element.image = normalizeWireframeImage(element.image);
+    const display = element.image[wireframeMakerState.device === 'phone' ? 'phone' : 'desktop'];
+    display.positionX = clampWireframeNumber(source.value, 0, 100, display.positionX);
+  }
+  else if (source === wireframeImagePositionY && element.type === 'image') {
+    element.image = normalizeWireframeImage(element.image);
+    const display = element.image[wireframeMakerState.device === 'phone' ? 'phone' : 'desktop'];
+    display.positionY = clampWireframeNumber(source.value, 0, 100, display.positionY);
+  }
+  else if (source === wireframeElementW) layout.w = clampWireframeNumber(source.value, 40, size.width - layout.x, layout.w);
+  else if (source === wireframeElementH) layout.h = clampWireframeNumber(source.value, 30, size.height - layout.y, layout.h);
+  else if (source === wireframeElementX) layout.x = clampWireframeNumber(source.value, 0, Math.max(0, size.width - layout.w), layout.x);
+  else if (source === wireframeElementY) layout.y = clampWireframeNumber(source.value, 0, Math.max(0, size.height - layout.h), layout.y);
+  if (source === wireframeElementLinkTarget) renderWireframeCanvas();
+  else {
+    updateWireframeElementNode(element);
+    renderWireframeLayers();
+    syncWireframeProperties();
+  }
+  markWireframeDirty();
+}
+
+function setSelectedWireframeAlignment(alignment) {
+  const selected = getWireframeSelectedElements();
+  if (selected.length !== 1 || !['left', 'center', 'right'].includes(alignment)) return;
+  const element = selected[0];
+  pushWireframeHistory('Text alignment');
+  element.style.textAlign = alignment;
+  updateWireframeElementNode(element);
+  syncWireframeProperties();
+  markWireframeDirty();
+}
+
+function updateWireframeCanvasBackground(color) {
+  const page = getWireframePage();
+  if (!page) return;
+  const next = safeWireframeColor(color, page.canvasBackground);
+  if (next === page.canvasBackground) return;
+  pushWireframeHistory('Page background', 'canvas-background');
+  page.canvasBackground = next;
+  if (wireframeCanvas) wireframeCanvas.style.background = page.canvasBackground;
+  if (wireframeCanvasBgColor) wireframeCanvasBgColor.value = page.canvasBackground;
+  if (wireframeCanvasBgText) wireframeCanvasBgText.value = page.canvasBackground;
+  markWireframeDirty();
+}
+
+function handleWireframePreviewNavigation(event) {
+  if (!wireframeMakerState.preview) return;
+  const node = event.target.closest('[data-wireframe-link-page-id]');
+  if (!node) return;
+  const targetPageId = node.dataset.wireframeLinkPageId;
+  if (!wireframeMakerState.data?.pages?.some(page => page.id === targetPageId)) return;
+  event.preventDefault();
+  switchWireframePage(targetPageId);
+}
+
+function renderAdminWireframePageOptions() {
+  if (!adminWireframePageSelect || !adminWireframeViewerState.data) return;
+  const data = adminWireframeViewerState.data;
+  adminWireframePageSelect.replaceChildren();
+  data.pages.forEach(page => {
+    const option = document.createElement('option');
+    option.value = page.id;
+    option.textContent = page.id === data.startPageId ? `${page.name} (Start)` : page.name;
+    adminWireframePageSelect.appendChild(option);
+  });
+  adminWireframePageSelect.value = data.pages.some(page => page.id === adminWireframeViewerState.pageId) ? adminWireframeViewerState.pageId : data.startPageId;
+}
+
+function renderAdminWireframeCanvas() {
+  if (!adminWireframeCanvas || !adminWireframeCanvasScaler || !adminWireframeViewport || !adminWireframeViewerState.data) return;
+  const device = adminWireframeViewerState.device;
+  const size = WIREFRAME_DEVICE_SIZES[device];
+  const page = getAdminWireframePage();
+  if (!page) return;
+  adminWireframeViewerState.pageId = page.id;
+  adminWireframeCanvas.replaceChildren();
+  adminWireframeCanvas.style.background = page.canvasBackground;
+  adminWireframeCanvas.style.width = `${size.width}px`;
+  adminWireframeCanvas.style.height = `${size.height}px`;
+  adminWireframeCanvas.dataset.pageId = page.id;
+  [...page.elements]
+    .filter(element => !element.hidden)
+    .sort((a, b) => Number(a.z || 0) - Number(b.z || 0))
+    .forEach(element => adminWireframeCanvas.appendChild(makeWireframeElementNode(element, { interactive: false, selected: false, device, navigationEnabled: true })));
+  const availableW = Math.max(220, adminWireframeViewport.clientWidth - 36);
+  const availableH = Math.max(300, adminWireframeViewport.clientHeight - 36);
+  const scale = Math.max(0.2, Math.min(1, availableW / size.width, availableH / size.height));
+  adminWireframeViewerState.scale = scale;
+  adminWireframeCanvas.style.transform = `scale(${scale})`;
+  adminWireframeCanvasScaler.style.width = `${Math.round(size.width * scale)}px`;
+  adminWireframeCanvasScaler.style.height = `${Math.round(size.height * scale)}px`;
+  adminWireframeDesktopBtn?.classList.toggle('active', device === 'desktop');
+  adminWireframePhoneBtn?.classList.toggle('active', device === 'phone');
+  if (adminWireframeDeviceLabel) adminWireframeDeviceLabel.textContent = `${page.name} · ${size.label} · ${size.width} × ${size.height}`;
+  renderAdminWireframePageOptions();
+}
+
+function openAdminWireframeViewer(project, student = adminProjectViewerState.student) {
+  adminWireframeViewerState.project = project;
+  adminWireframeViewerState.student = student;
+  adminWireframeViewerState.data = normalizeWireframeData(project?.wireframeData);
+  adminWireframeViewerState.pageId = adminWireframeViewerState.data.startPageId;
+  adminWireframeViewerState.device = 'desktop';
+  if (adminWireframeViewerTitle) adminWireframeViewerTitle.textContent = project?.name || 'Untitled Wireframe';
+  if (adminWireframeViewerSubtitle) {
+    const owner = student ? `${student.name || 'Student'} · ${student.studentId || ''}` : 'Student';
+    const pageCount = adminWireframeViewerState.data.pages.length;
+    adminWireframeViewerSubtitle.textContent = `${owner} · ${pageCount} page${pageCount === 1 ? '' : 's'} · Responsive Wireframe · Updated ${formatStudentDate(project?.updatedAt)}`;
+  }
+  renderAdminWireframePageOptions();
+  adminWireframeViewerOverlay?.classList.remove('hidden');
+  document.body.classList.add('student-auth-open');
+  window.setTimeout(renderAdminWireframeCanvas, 20);
+}
+
+function closeAdminWireframeViewer() {
+  adminWireframeViewerOverlay?.classList.add('hidden');
+  document.body.classList.toggle('student-auth-open', Boolean(adminStudentProjectsOverlay && !adminStudentProjectsOverlay.classList.contains('hidden')));
+}
+
+function switchAdminWireframeDevice(device) {
+  if (!WIREFRAME_DEVICE_SIZES[device]) return;
+  adminWireframeViewerState.device = device;
+  renderAdminWireframeCanvas();
+}
+
+function switchAdminWireframePage(pageId) {
+  if (!adminWireframeViewerState.data?.pages?.some(page => page.id === pageId)) return;
+  adminWireframeViewerState.pageId = pageId;
+  renderAdminWireframeCanvas();
+}
+
+function handleAdminWireframeNavigation(event) {
+  const node = event.target.closest('[data-wireframe-link-page-id]');
+  if (!node) return;
+  const targetPageId = node.dataset.wireframeLinkPageId;
+  if (!adminWireframeViewerState.data?.pages?.some(page => page.id === targetPageId)) return;
+  event.preventDefault();
+  switchAdminWireframePage(targetPageId);
+}
+
+function installWireframeMakerEvents() {
+  projectTypeOverlay?.addEventListener('click', event => {
+    const choice = event.target.closest('[data-project-type-choice]');
+    if (choice) chooseProjectType(choice.dataset.projectTypeChoice);
+  });
+  closeProjectTypeBtn?.addEventListener('click', closeProjectTypeDialog);
+  cancelProjectTypeBtn?.addEventListener('click', closeProjectTypeDialog);
+  wireframeBackBtn?.addEventListener('click', closeWireframeMakerToDashboard);
+  wireframeDesktopBtn?.addEventListener('click', () => switchWireframeDevice('desktop'));
+  wireframePhoneBtn?.addEventListener('click', () => switchWireframeDevice('phone'));
+  wireframeUndoBtn?.addEventListener('click', undoWireframeEdit);
+  wireframeRedoBtn?.addEventListener('click', redoWireframeEdit);
+  wireframeSnapBtn?.addEventListener('click', toggleWireframeSnap);
+  wireframeGroupBtn?.addEventListener('click', groupSelectedWireframeElements);
+  wireframeUngroupBtn?.addEventListener('click', ungroupSelectedWireframeElements);
+  wireframeDistributeHBtn?.addEventListener('click', () => distributeSelectedWireframeElements('horizontal'));
+  wireframeDistributeVBtn?.addEventListener('click', () => distributeSelectedWireframeElements('vertical'));
+  document.querySelectorAll('[data-wireframe-layout-align]').forEach(button => {
+    button.addEventListener('click', () => alignSelectedWireframeElements(button.dataset.wireframeLayoutAlign));
+  });
+
+  wireframeZoomSelect?.addEventListener('change', event => {
+    wireframeMakerState.zoom = event.target.value || 'fit';
+    syncWireframeCanvasScale();
+  });
+  wireframePreviewBtn?.addEventListener('click', toggleWireframePreview);
+  wireframeFocusBtn?.addEventListener('click', toggleWireframeFocusMode);
+  wireframeExitFocusBtn?.addEventListener('click', () => setWireframeFocusMode(false));
+  wireframePaletteToggleBtn?.addEventListener('click', toggleWireframePalettePanel);
+  wireframePropertiesToggleBtn?.addEventListener('click', toggleWireframePropertiesPanel);
+  wireframePaletteCloseBtn?.addEventListener('click', () => {
+    wireframeMakerState.paletteCollapsed = true;
+    persistWireframeWorkspacePrefs();
+    syncWireframeWorkspaceUi();
+  });
+  wireframePropertiesCloseBtn?.addEventListener('click', () => {
+    wireframeMakerState.propertiesCollapsed = true;
+    persistWireframeWorkspacePrefs();
+    syncWireframeWorkspaceUi();
+  });
+  wireframeExportBtn?.addEventListener('click', openWireframeExportDialog);
+  closeWireframeExportBtn?.addEventListener('click', closeWireframeExportDialog);
+  cancelWireframeExportBtn?.addEventListener('click', closeWireframeExportDialog);
+  wireframeExportPngBtn?.addEventListener('click', exportCurrentWireframePng);
+  wireframeExportPdfBtn?.addEventListener('click', exportCurrentWireframePdf);
+  wireframeExportOverlay?.addEventListener('click', event => {
+    if (event.target === wireframeExportOverlay) closeWireframeExportDialog();
+  });
+  wireframeExportDevice?.addEventListener('change', () => {
+    const device = WIREFRAME_DEVICE_SIZES[wireframeExportDevice.value] ? wireframeExportDevice.value : 'desktop';
+    setWireframeExportStatus(`Ready to export ${WIREFRAME_DEVICE_SIZES[device].label}. PNG uses the current page; PDF follows the selected page scope.`);
+  });
+  wireframeExportScope?.addEventListener('change', () => {
+    const scope = wireframeExportScope.value === 'all' ? 'all wireframe pages' : 'the current page';
+    setWireframeExportStatus(`PDF will export ${scope}. PNG always exports the current page.`);
+  });
+  wireframeConvertBtn?.addEventListener('click', convertCurrentWireframeToStarterCode);
+  wireframeSaveBtn?.addEventListener('click', () => saveWireframeProject({ silent: false }));
+  wireframePageTabs?.addEventListener('click', event => {
+    const button = event.target.closest('[data-wireframe-page-id]');
+    if (button) switchWireframePage(button.dataset.wireframePageId);
+  });
+  wireframeAddPageBtn?.addEventListener('click', () => openWireframePageDialog('add'));
+  wireframeRenamePageBtn?.addEventListener('click', () => openWireframePageDialog('rename'));
+  wireframeDuplicatePageBtn?.addEventListener('click', duplicateCurrentWireframePage);
+  wireframeDeletePageBtn?.addEventListener('click', deleteCurrentWireframePage);
+  wireframeSetStartPageBtn?.addEventListener('click', setCurrentWireframeStartPage);
+  closeWireframePageDialogBtn?.addEventListener('click', closeWireframePageDialog);
+  cancelWireframePageDialogBtn?.addEventListener('click', closeWireframePageDialog);
+  saveWireframePageDialogBtn?.addEventListener('click', saveWireframePageDialog);
+  wireframePageNameInput?.addEventListener('keydown', event => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      saveWireframePageDialog();
+    }
+  });
+
+  wireframePalette?.addEventListener('click', event => {
+    const button = event.target.closest('[data-wireframe-add]');
+    if (button) createWireframeElement(button.dataset.wireframeAdd);
+  });
+  wireframeLayersList?.addEventListener('click', event => {
+    const actionButton = event.target.closest('[data-wireframe-layer-action]');
+    const row = event.target.closest('[data-wireframe-layer-id]');
+    if (!actionButton || !row) return;
+    const id = row.dataset.wireframeLayerId;
+    const action = actionButton.dataset.wireframeLayerAction;
+    if (action === 'select') {
+      selectWireframeElement(id, { additive: event.shiftKey || event.ctrlKey || event.metaKey, preferGroup: false });
+    } else if (action === 'rename') {
+      beginWireframeLayerRename(id, row);
+    } else if (action === 'visibility') {
+      toggleWireframeLayerVisibility(id);
+    } else if (action === 'lock') {
+      toggleWireframeLayerLock(id);
+    } else if (action === 'up' || action === 'down') {
+      moveWireframeLayerOneStep(id, action);
+    }
+  });
+
+  wireframeLayersList?.addEventListener('dblclick', event => {
+    const main = event.target.closest('[data-wireframe-layer-action="select"]');
+    const row = event.target.closest('[data-wireframe-layer-id]');
+    if (!main || !row) return;
+    event.preventDefault();
+    beginWireframeLayerRename(row.dataset.wireframeLayerId, row);
+  });
+
+  wireframeDuplicateBtn?.addEventListener('click', duplicateSelectedWireframeElement);
+  wireframeDeleteBtn?.addEventListener('click', deleteSelectedWireframeElement);
+  wireframeBringFrontBtn?.addEventListener('click', () => changeSelectedWireframeZ('front'));
+  wireframeSendBackBtn?.addEventListener('click', () => changeSelectedWireframeZ('back'));
+  wireframeCanvas?.addEventListener('pointerdown', beginWireframePointerInteraction);
+  wireframeCanvas?.addEventListener('click', handleWireframePreviewNavigation);
+  wireframeCanvas?.addEventListener('keydown', event => {
+    if (!wireframeMakerState.preview || !['Enter', ' '].includes(event.key)) return;
+    const node = event.target.closest('[data-wireframe-link-page-id]');
+    if (!node) return;
+    event.preventDefault();
+    switchWireframePage(node.dataset.wireframeLinkPageId);
+  });
+  window.addEventListener('pointermove', moveWireframePointerInteraction, { passive: false });
+  window.addEventListener('pointerup', endWireframePointerInteraction);
+  window.addEventListener('pointercancel', endWireframePointerInteraction);
+
+  [wireframeElementLayerName, wireframeElementText, wireframeElementBg, wireframeElementColor, wireframeElementBorder,
+    wireframeElementFontSize, wireframeElementRadius, wireframeElementBorderWidth,
+    wireframeElementX, wireframeElementY, wireframeElementW, wireframeElementH]
+    .filter(Boolean)
+    .forEach(input => input.addEventListener('input', () => updateSelectedWireframeFromProperties(input)));
+  wireframeElementLinkTarget?.addEventListener('change', () => updateSelectedWireframeFromProperties(wireframeElementLinkTarget));
+  wireframeImageUploadBtn?.addEventListener('click', () => wireframeImageFileInput?.click());
+  wireframeImageFileInput?.addEventListener('change', event => uploadSelectedWireframeImage(event.target.files?.[0] || null));
+  wireframeImageRemoveBtn?.addEventListener('click', removeSelectedWireframeImage);
+  wireframeImageFit?.addEventListener('change', () => updateSelectedWireframeFromProperties(wireframeImageFit));
+  wireframeImagePositionX?.addEventListener('input', () => updateSelectedWireframeFromProperties(wireframeImagePositionX));
+  wireframeImagePositionY?.addEventListener('input', () => updateSelectedWireframeFromProperties(wireframeImagePositionY));
+
+  document.querySelectorAll('[data-wireframe-align]').forEach(button => button.addEventListener('click', () => setSelectedWireframeAlignment(button.dataset.wireframeAlign)));
+  wireframeCanvasBgColor?.addEventListener('input', event => updateWireframeCanvasBackground(event.target.value));
+  wireframeCanvasBgText?.addEventListener('change', event => updateWireframeCanvasBackground(event.target.value));
+
+  closeAdminWireframeViewerBtn?.addEventListener('click', closeAdminWireframeViewer);
+  adminWireframeDesktopBtn?.addEventListener('click', () => switchAdminWireframeDevice('desktop'));
+  adminWireframePhoneBtn?.addEventListener('click', () => switchAdminWireframeDevice('phone'));
+  adminWireframePageSelect?.addEventListener('change', event => switchAdminWireframePage(event.target.value));
+  adminWireframeCanvas?.addEventListener('click', handleAdminWireframeNavigation);
+  adminWireframeCanvas?.addEventListener('keydown', event => {
+    if (!['Enter', ' '].includes(event.key)) return;
+    const node = event.target.closest('[data-wireframe-link-page-id]');
+    if (!node) return;
+    event.preventDefault();
+    switchAdminWireframePage(node.dataset.wireframeLinkPageId);
+  });
+
+  document.addEventListener('keydown', event => {
+    if (wireframeExportOverlay && !wireframeExportOverlay.classList.contains('hidden') && event.key === 'Escape') {
+      closeWireframeExportDialog();
+      return;
+    }
+    if (wireframePageDialogOverlay && !wireframePageDialogOverlay.classList.contains('hidden') && event.key === 'Escape') {
+      closeWireframePageDialog();
+      return;
+    }
+    if (wireframeMakerScreen && !wireframeMakerScreen.classList.contains('hidden')) {
+      const editingText = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName || '');
+      const mod = event.ctrlKey || event.metaKey;
+      const key = event.key.toLowerCase();
+
+      if (mod && key === 's') {
+        event.preventDefault();
+        saveWireframeProject({ silent: false });
+        return;
+      }
+      if (!editingText && !wireframeMakerState.preview && mod && key === 'z') {
+        event.preventDefault();
+        if (event.shiftKey) redoWireframeEdit();
+        else undoWireframeEdit();
+        return;
+      }
+      if (!editingText && !wireframeMakerState.preview && mod && key === 'y') {
+        event.preventDefault();
+        redoWireframeEdit();
+        return;
+      }
+      if (!editingText && !wireframeMakerState.preview && mod && key === 'c' && getWireframeSelectionIds().length) {
+        event.preventDefault();
+        copySelectedWireframeElements();
+        return;
+      }
+      if (!editingText && !wireframeMakerState.preview && mod && key === 'v' && wireframeMakerState.clipboard.length) {
+        event.preventDefault();
+        pasteWireframeElements();
+        return;
+      }
+      if (!editingText && !wireframeMakerState.preview && mod && key === 'd' && getWireframeSelectionIds().length) {
+        event.preventDefault();
+        duplicateSelectedWireframeElement();
+        return;
+      }
+      if (!editingText && !wireframeMakerState.preview && mod && key === 'g') {
+        event.preventDefault();
+        if (event.shiftKey) ungroupSelectedWireframeElements();
+        else groupSelectedWireframeElements();
+        return;
+      }
+      if (!editingText && !wireframeMakerState.preview && mod && key === 'a') {
+        const page = getWireframePage();
+        if (page?.elements?.length) {
+          event.preventDefault();
+          const selectable = page.elements.filter(item => !item.hidden).map(item => item.id);
+          setWireframeSelection(selectable, selectable[selectable.length - 1] || '');
+          renderWireframeCanvas();
+        }
+        return;
+      }
+      if (!editingText && !wireframeMakerState.preview && ['arrowleft', 'arrowright', 'arrowup', 'arrowdown'].includes(key) && getWireframeSelectionIds().length) {
+        event.preventDefault();
+        const step = event.shiftKey ? 10 : 1;
+        if (key === 'arrowleft') nudgeSelectedWireframeElements(-step, 0);
+        else if (key === 'arrowright') nudgeSelectedWireframeElements(step, 0);
+        else if (key === 'arrowup') nudgeSelectedWireframeElements(0, -step);
+        else nudgeSelectedWireframeElements(0, step);
+        return;
+      }
+      if (!editingText && (event.key === 'Delete' || event.key === 'Backspace') && getWireframeSelectionIds().length && !wireframeMakerState.preview) {
+        event.preventDefault();
+        deleteSelectedWireframeElement();
+        return;
+      }
+      if (event.key === 'Escape') {
+        if (wireframeMakerState.focusMode) {
+          setWireframeFocusMode(false);
+          return;
+        }
+        if (wireframeMakerState.preview) toggleWireframePreview();
+        else if (getWireframeSelectionIds().length) {
+          clearWireframeSelection();
+          renderWireframeCanvas();
+        }
+      }
+    }
+    if (event.key === 'Escape' && adminWireframeViewerOverlay && !adminWireframeViewerOverlay.classList.contains('hidden')) closeAdminWireframeViewer();
+  });
+
+  window.addEventListener('online', () => {
+    if (!wireframeMakerState.dirty || !wireframeMakerScreen || wireframeMakerScreen.classList.contains('hidden')) return;
+    if (isWireframeAutosaveEnabled()) saveWireframeProject({ silent: true });
+    else syncWireframeAutosaveUi();
+  });
+  window.addEventListener('offline', () => {
+    if (wireframeMakerState.dirty) setWireframeSaveState('Offline · pending', 'unsaved');
+  });
+  window.addEventListener('beforeunload', event => {
+    if (!wireframeMakerState.dirty) return;
+    persistWireframeRecovery();
+    event.preventDefault();
+    event.returnValue = '';
+  });
+
+  if (typeof ResizeObserver !== 'undefined') {
+    if (wireframeViewport) new ResizeObserver(() => syncWireframeCanvasScale()).observe(wireframeViewport);
+    if (adminWireframeViewport) new ResizeObserver(() => renderAdminWireframeCanvas()).observe(adminWireframeViewport);
+  } else {
+    window.addEventListener('resize', () => {
+      syncWireframeCanvasScale();
+      renderAdminWireframeCanvas();
+    });
+  }
+}
+installWireframeMakerEvents();
+
+newProjectBtn?.addEventListener('click', openProjectTypeDialog);
 projectSearchInput?.addEventListener('input', renderStudentProjects);
 projectStatusFilter?.addEventListener('change', renderStudentProjects);
 studentProjectsGrid?.addEventListener('click', async event => {
@@ -25108,7 +29265,7 @@ studentProjectsGrid?.addEventListener('click', async event => {
 
   const action = actionButton.dataset.projectAction;
   if (action === 'new') {
-    openProjectNameDialog('create');
+    openProjectTypeDialog();
     return;
   }
   if (action === 'retry-load') {
@@ -25299,6 +29456,9 @@ adminProjectViewerActivitySelect?.addEventListener('change', event => {
   adminProjectViewerState.activityKey = event.target.value || 'scratch';
   populateAdminProjectViewerFileSelect();
   updateAdminProjectViewerCode();
+  const matchingRubricId = getActivityById(adminProjectViewerState.activityKey) ? adminProjectViewerState.activityKey : adminProjectViewerState.rubricId;
+  populateAdminProjectRubricSelect({ preferredId: matchingRubricId });
+  resetAdminProjectResultCheck('Ready to recheck');
   renderAdminProjectTeacherComment();
   renderSavedAdminAiReviewForCurrentProject();
   runAdminProjectViewerPreview(getAdminProjectActiveFileName('html'));
@@ -25306,6 +29466,7 @@ adminProjectViewerActivitySelect?.addEventListener('change', event => {
 adminProjectViewerFileSelect?.addEventListener('change', event => {
   setAdminProjectActiveFileName(adminProjectViewerState.language, event.target.value || '');
   updateAdminProjectViewerCode();
+  resetAdminProjectResultCheck('File changed · recheck when ready');
   if (adminProjectViewerState.language === 'html') runAdminProjectViewerPreview(event.target.value || '');
 });
 adminProjectViewerLangTabs?.addEventListener('click', event => {
@@ -25315,7 +29476,17 @@ adminProjectViewerLangTabs?.addEventListener('click', event => {
   populateAdminProjectViewerFileSelect();
   updateAdminProjectViewerCode();
 });
+adminProjectRubricSelect?.addEventListener('change', event => {
+  adminProjectViewerState.rubricId = event.target.value || '';
+  resetAdminProjectResultCheck('Rubric changed · ready to recheck');
+  resetAdminAiReviewPanel();
+});
 adminProjectViewerRunBtn?.addEventListener('click', () => runAdminProjectViewerPreview(getAdminProjectActiveFileName('html')));
+adminProjectViewerCopyBtn?.addEventListener('click', () => copyAdminProjectCurrentCode(adminProjectViewerCopyBtn));
+adminProjectFullscreenCopyBtn?.addEventListener('click', () => copyAdminProjectCurrentCode(adminProjectFullscreenCopyBtn));
+adminProjectCheckResultBtn?.addEventListener('click', runAdminProjectResultCheck);
+adminProjectSaveOfficialScoreBtn?.addEventListener('click', saveAdminProjectRecheckAsOfficialScore);
+adminProjectViewerDownloadZipBtn?.addEventListener('click', downloadAdminSelectedProjectAsZip);
 adminProjectViewerFullCodeBtn?.addEventListener('click', () => openAdminProjectFullscreen('code'));
 adminProjectViewerFullPreviewBtn?.addEventListener('click', () => {
   runAdminProjectViewerPreview(getAdminProjectActiveFileName('html'));
@@ -25350,6 +29521,10 @@ adminProjectFullscreenOverlay?.addEventListener('click', event => {
   if (event.target === adminProjectFullscreenOverlay) event.stopPropagation();
 });
 adminProjectViewerFrame?.addEventListener('load', attachAdminProjectViewerPreviewLinks);
+adminProjectFullscreenFrame?.addEventListener('load', attachAdminProjectFullscreenPreviewLinks);
+window.addEventListener('resize', queueAdminProjectFullscreenPreviewScale, { passive: true });
+document.addEventListener('fullscreenchange', queueAdminProjectFullscreenPreviewScale);
+document.addEventListener('webkitfullscreenchange', queueAdminProjectFullscreenPreviewScale);
 
 
 initManualRubricInputTable();
