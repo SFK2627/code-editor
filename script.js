@@ -440,6 +440,11 @@ const studentImportPreviewBody = document.getElementById('studentImportPreviewBo
 const confirmStudentImportBtn = document.getElementById('confirmStudentImportBtn');
 const cancelStudentImportBtn = document.getElementById('cancelStudentImportBtn');
 const refreshStudentsBtn = document.getElementById('refreshStudentsBtn');
+const studentAccountsAdmin = document.getElementById('studentAccountsAdmin');
+const toggleStudentRegisterBtn = document.getElementById('toggleStudentRegisterBtn');
+const mobileDownloadStudentTemplateBtn = document.getElementById('mobileDownloadStudentTemplateBtn');
+const mobileChooseStudentImportBtn = document.getElementById('mobileChooseStudentImportBtn');
+const studentRegisterFormShell = document.getElementById('studentRegisterFormShell');
 const adminStudentSearch = document.getElementById('adminStudentSearch');
 const adminSectionFilter = document.getElementById('adminSectionFilter');
 const adminActivityFilter = document.getElementById('adminActivityFilter');
@@ -1340,6 +1345,9 @@ let studentProjectRecoveryTimer = null;
 let lastProfileActivityWriteAt = 0;
 let editorStudentGreetingState = { key: '', text: '' };
 let adminStudentsCache = [];
+const ADMIN_STUDENT_MOBILE_BATCH_SIZE = 30;
+let adminStudentMobileRenderLimit = ADMIN_STUDENT_MOBILE_BATCH_SIZE;
+const adminStudentExpandedKeys = new Set();
 let studentPresenceTimer = null;
 let studentPresenceStarted = false;
 let studentPresenceLastWriteAt = 0;
@@ -8294,7 +8302,9 @@ async function addStudentAccountFromForm() {
     if (adminStudentName) adminStudentName.value = '';
     if (adminStudentGender) adminStudentGender.value = '';
     setStudentAdminStatus(`${student.name} was added. Student ID: ${student.studentId} · First login password: 123456`, 'success');
+    resetAdminStudentMobileRenderLimit();
     renderAdminStudentTracker();
+    if (isAdminStudentMobileLayout()) setStudentRegisterMobileOpen(false);
   } catch (error) {
     console.error('Student record creation failed', error);
     setStudentAdminStatus(getRosterRegistrationErrorMessage(error), 'error');
@@ -8671,7 +8681,7 @@ function ensureRepairAllMissingRosterButton() {
   button.id = 'repairAllMissingRosterBtn';
   button.type = 'button';
   button.className = 'ghost-btn';
-  button.textContent = '🛠 Repair Missing Roster';
+  button.textContent = '🛠 Repair Roster';
   button.title = 'Safely create missing studentRoster mirrors from existing single-profile student accounts.';
   refreshStudentsBtn.insertAdjacentElement('afterend', button);
   button.addEventListener('click', repairAllMissingRosterRecords);
@@ -8776,9 +8786,32 @@ async function repairAllMissingRosterRecords() {
   } finally {
     if (button) {
       button.disabled = false;
-      button.textContent = oldText || '🛠 Repair Missing Roster';
+      button.textContent = oldText || '🛠 Repair Roster';
     }
   }
+}
+
+function isAdminStudentMobileLayout() {
+  return Boolean(window.matchMedia?.('(max-width: 820px)').matches);
+}
+
+function resetAdminStudentMobileRenderLimit() {
+  adminStudentMobileRenderLimit = ADMIN_STUDENT_MOBILE_BATCH_SIZE;
+}
+
+function setStudentRegisterMobileOpen(open = false) {
+  const shouldOpen = Boolean(open);
+  studentAccountsAdmin?.classList.toggle('student-register-mobile-open', shouldOpen);
+  toggleStudentRegisterBtn?.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+  const label = toggleStudentRegisterBtn?.querySelector('small');
+  if (label) label.textContent = shouldOpen ? 'Close' : 'Add';
+  if (shouldOpen && isAdminStudentMobileLayout()) {
+    window.setTimeout(() => adminStudentId?.focus({ preventScroll: true }), 80);
+  }
+}
+
+function getAdminStudentRenderKey(student = {}) {
+  return String(student.uid || student.studentId || student.authUid || student.rosterId || '').trim();
 }
 
 function renderAdminStudentTracker() {
@@ -8797,7 +8830,12 @@ function renderAdminStudentTracker() {
     return;
   }
 
-  adminStudentsTableBody.innerHTML = filtered.map(student => {
+  const mobileLayout = isAdminStudentMobileLayout();
+  const visibleStudents = mobileLayout
+    ? filtered.slice(0, Math.max(ADMIN_STUDENT_MOBILE_BATCH_SIZE, adminStudentMobileRenderLimit))
+    : filtered;
+
+  const rows = visibleStudents.map(student => {
     const loggedIn = Boolean(student.lastLoginAt || Number(student.loginCount || 0) > 0);
     const profileUids = getAdminStudentProfileUids(student);
     const rosterOnly = Boolean(student.isRosterOnly && !profileUids.length);
@@ -8811,22 +8849,60 @@ function renderAdminStudentTracker() {
     const rosterRepairNote = !hasRosterRecord && profileUids.length
       ? `<span class="student-cell-sub">Roster mirror missing${repairableProfile ? ' · safe repair available' : ' · use Recovery for linked profiles'}</span>`
       : '';
+    const studentKey = getAdminStudentRenderKey(student);
+    const expanded = adminStudentExpandedKeys.has(studentKey);
+    const projectCount = Math.max(0, Number(student.projectCount || 0));
+    const lastActivity = formatStudentDate(student.lastActivityAt);
     const repairRosterButton = !hasRosterRecord && repairableProfile
-      ? `<button class="ghost-btn repair-student-roster-btn" type="button" data-student-id="${escapeAttribute(student.studentId || '')}" data-student-uid="${escapeAttribute(student.uid || profileUids[0] || '')}">Repair Roster</button>`
+      ? `<button class="ghost-btn student-compact-action repair-student-roster-btn" type="button" data-student-id="${escapeAttribute(student.studentId || '')}" data-student-uid="${escapeAttribute(student.uid || profileUids[0] || '')}">Repair Roster</button>`
       : '';
     const viewProjectsButton = rosterOnly
-      ? '<span class="student-cell-sub">No projects yet</span>'
-      : `<button class="ghost-btn view-student-projects-btn" type="button" data-student-uid="${escapeAttribute(student.uid || profileUids[0] || '')}">View Projects</button>`;
+      ? '<span class="student-action-placeholder">No projects yet</span>'
+      : `<button class="ghost-btn student-compact-action view-student-projects-btn" type="button" data-student-uid="${escapeAttribute(student.uid || profileUids[0] || '')}">View Projects</button>`;
     return `
-      <tr data-student-uid="${escapeAttribute(student.uid || '')}" data-student-id="${escapeAttribute(student.studentId || '')}">
-        <td><span class="student-cell-name">${escapeHTML(student.name || 'Unnamed Student')}</span><span class="student-cell-id">ID: ${escapeHTML(student.studentId || '')} · ${escapeHTML(student.gender || 'Gender not set')}</span>${duplicateNote}${rosterRepairNote}</td>
-        <td>${escapeHTML(student.section || 'No section')}</td>
-        <td><span class="student-account-pill ${pillClass}">${accountLabel}</span><span class="student-cell-sub">${loggedIn ? `${Number(student.loginCount || 0)} login${Number(student.loginCount || 0) === 1 ? '' : 's'}` : 'Never logged in'}</span></td>
-        <td><strong>${Math.max(0, Number(student.projectCount || 0))}</strong><span class="student-cell-sub">${escapeHTML(student.lastProjectName || 'No project yet')}</span></td>
-        <td>${escapeHTML(formatStudentDate(student.lastActivityAt))}</td>
-        <td><div class="student-action-stack">${viewProjectsButton}<button class="ghost-btn diagnose-student-login-btn" type="button" data-student-id="${escapeAttribute(student.studentId || '')}" data-student-uid="${escapeAttribute(student.uid || profileUids[0] || '')}">Login Check</button>${repairRosterButton}${rosterOnly ? '' : `<button class="ghost-btn reset-student-login-btn" type="button" data-student-id="${escapeAttribute(student.studentId || '')}" data-student-uid="${escapeAttribute(student.uid || profileUids[0] || '')}">Reset Pass</button>`}<button class="ghost-btn recovery-student-account-btn" type="button" data-student-id="${escapeAttribute(student.studentId || '')}" data-student-uid="${escapeAttribute(student.uid || profileUids[0] || '')}">Recovery</button><button class="ghost-btn danger-btn delete-student-account-btn" type="button" data-student-id="${escapeAttribute(student.studentId || '')}" data-student-uid="${escapeAttribute(student.uid || profileUids[0] || '')}">Delete</button></div></td>
+      <tr class="student-tracker-row ${expanded ? 'is-expanded' : ''}" data-student-key="${escapeAttribute(studentKey)}" data-student-uid="${escapeAttribute(student.uid || '')}" data-student-id="${escapeAttribute(student.studentId || '')}">
+        <td class="student-primary-cell">
+          <div class="student-desktop-primary">
+            <span class="student-cell-name">${escapeHTML(student.name || 'Unnamed Student')}</span>
+            <span class="student-cell-id">ID: ${escapeHTML(student.studentId || '')} · ${escapeHTML(student.gender || 'Gender not set')}</span>${duplicateNote}${rosterRepairNote}
+          </div>
+          <div class="student-mobile-summary">
+            <div class="student-mobile-summary-head">
+              <div><strong>${escapeHTML(student.name || 'Unnamed Student')}</strong><span>${escapeHTML(student.studentId || 'No ID')} · ${escapeHTML(student.section || 'No section')}</span></div>
+              <span class="student-account-pill ${pillClass}">${accountLabel}</span>
+            </div>
+            <div class="student-mobile-summary-meta">
+              <span><b>${projectCount}</b> project${projectCount === 1 ? '' : 's'}</span>
+              <span>${escapeHTML(lastActivity || 'No activity yet')}</span>
+            </div>
+            ${(duplicateNote || rosterRepairNote) ? `<div class="student-mobile-warning-notes">${duplicateNote}${rosterRepairNote}</div>` : ''}
+            <button class="student-mobile-expand-btn" type="button" aria-expanded="${expanded ? 'true' : 'false'}">
+              <span class="student-mobile-expand-text">${expanded ? 'Hide' : 'Manage'}</span><span class="student-mobile-expand-chevron" aria-hidden="true">⌄</span>
+            </button>
+          </div>
+        </td>
+        <td data-student-detail="section">${escapeHTML(student.section || 'No section')}</td>
+        <td data-student-detail="account"><span class="student-account-pill ${pillClass}">${accountLabel}</span><span class="student-cell-sub">${loggedIn ? `${Number(student.loginCount || 0)} login${Number(student.loginCount || 0) === 1 ? '' : 's'}` : 'Never logged in'}</span></td>
+        <td data-student-detail="projects"><strong>${projectCount}</strong><span class="student-cell-sub">${escapeHTML(student.lastProjectName || 'No project yet')}</span></td>
+        <td data-student-detail="activity">${escapeHTML(lastActivity)}</td>
+        <td data-student-detail="actions"><div class="student-action-stack">${viewProjectsButton}<button class="ghost-btn student-compact-action diagnose-student-login-btn" type="button" data-student-id="${escapeAttribute(student.studentId || '')}" data-student-uid="${escapeAttribute(student.uid || profileUids[0] || '')}">Login Check</button>${repairRosterButton}${rosterOnly ? '' : `<button class="ghost-btn student-compact-action reset-student-login-btn" type="button" data-student-id="${escapeAttribute(student.studentId || '')}" data-student-uid="${escapeAttribute(student.uid || profileUids[0] || '')}">Reset Pass</button>`}<button class="ghost-btn student-compact-action recovery-student-account-btn" type="button" data-student-id="${escapeAttribute(student.studentId || '')}" data-student-uid="${escapeAttribute(student.uid || profileUids[0] || '')}">Recovery</button><button class="ghost-btn danger-btn student-compact-action delete-student-account-btn" type="button" data-student-id="${escapeAttribute(student.studentId || '')}" data-student-uid="${escapeAttribute(student.uid || profileUids[0] || '')}">Delete</button></div></td>
       </tr>`;
-  }).join('');
+  });
+
+  if (mobileLayout && visibleStudents.length < filtered.length) {
+    const remaining = filtered.length - visibleStudents.length;
+    const nextCount = Math.min(ADMIN_STUDENT_MOBILE_BATCH_SIZE, remaining);
+    rows.push(`
+      <tr class="student-load-more-row">
+        <td colspan="6">
+          <button class="ghost-btn student-load-more-btn" type="button" data-load-more-students>
+            Load ${nextCount} more <span>${remaining} remaining</span>
+          </button>
+        </td>
+      </tr>`);
+  }
+
+  adminStudentsTableBody.innerHTML = rows.join('');
 }
 
 
@@ -14681,7 +14757,7 @@ function updateInstallButtonVisibility() {
 function registerPWAServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./service-worker.js?v=314-true-live-collaboration', {
+    navigator.serviceWorker.register('./service-worker.js?v=315-mobile-admin-students', {
       updateViaCache: 'none'
     }).then(registration => {
       registration.update().catch(() => {});
@@ -25117,13 +25193,58 @@ chooseStudentImportBtn?.addEventListener('click', () => studentImportInput?.clic
 studentImportInput?.addEventListener('change', event => handleStudentImportFile(event.target.files?.[0]));
 confirmStudentImportBtn?.addEventListener('click', confirmStudentImport);
 cancelStudentImportBtn?.addEventListener('click', cancelStudentImport);
-refreshStudentsBtn?.addEventListener('click', () => loadAdminStudents({ force: true }));
-adminStudentSearch?.addEventListener('input', renderAdminStudentTracker);
-adminSectionFilter?.addEventListener('change', renderAdminStudentTracker);
-adminActivityFilter?.addEventListener('change', renderAdminStudentTracker);
+refreshStudentsBtn?.addEventListener('click', () => {
+  resetAdminStudentMobileRenderLimit();
+  loadAdminStudents({ force: true });
+});
+toggleStudentRegisterBtn?.addEventListener('click', () => {
+  const isOpen = studentAccountsAdmin?.classList.contains('student-register-mobile-open');
+  setStudentRegisterMobileOpen(!isOpen);
+});
+mobileDownloadStudentTemplateBtn?.addEventListener('click', () => downloadStudentTemplateBtn?.click());
+mobileChooseStudentImportBtn?.addEventListener('click', () => chooseStudentImportBtn?.click());
+adminStudentSearch?.addEventListener('input', () => {
+  resetAdminStudentMobileRenderLimit();
+  renderAdminStudentTracker();
+});
+adminSectionFilter?.addEventListener('change', () => {
+  resetAdminStudentMobileRenderLimit();
+  renderAdminStudentTracker();
+});
+adminActivityFilter?.addEventListener('change', () => {
+  resetAdminStudentMobileRenderLimit();
+  renderAdminStudentTracker();
+});
 ensureRepairAllMissingRosterButton();
 
+const adminStudentMobileMediaQuery = window.matchMedia?.('(max-width: 820px)');
+adminStudentMobileMediaQuery?.addEventListener?.('change', () => {
+  resetAdminStudentMobileRenderLimit();
+  renderAdminStudentTracker();
+});
+
 adminStudentsTableBody?.addEventListener('click', event => {
+  const loadMoreButton = event.target.closest('[data-load-more-students]');
+  if (loadMoreButton) {
+    adminStudentMobileRenderLimit += ADMIN_STUDENT_MOBILE_BATCH_SIZE;
+    renderAdminStudentTracker();
+    return;
+  }
+  const expandButton = event.target.closest('.student-mobile-expand-btn');
+  if (expandButton) {
+    const row = expandButton.closest('.student-tracker-row');
+    const key = String(row?.dataset.studentKey || '').trim();
+    const willExpand = !row?.classList.contains('is-expanded');
+    row?.classList.toggle('is-expanded', willExpand);
+    expandButton.setAttribute('aria-expanded', willExpand ? 'true' : 'false');
+    const textNode = expandButton.querySelector('.student-mobile-expand-text');
+    if (textNode) textNode.textContent = willExpand ? 'Hide' : 'Manage';
+    if (key) {
+      if (willExpand) adminStudentExpandedKeys.add(key);
+      else adminStudentExpandedKeys.delete(key);
+    }
+    return;
+  }
   const repairRosterButton = event.target.closest('.repair-student-roster-btn');
   if (repairRosterButton) {
     repairAdminStudentRoster(

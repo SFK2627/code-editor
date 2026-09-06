@@ -45,7 +45,7 @@
   </script>
   <link rel="preconnect" href="https://drive.google.com" crossorigin>
   <link rel="preconnect" href="https://lh3.googleusercontent.com" crossorigin>
-  <link rel="stylesheet" href="style.css?v=20260906-v314-true-live-collaboration" />
+  <link rel="stylesheet" href="style.css?v=20260906-v315-mobile-admin-students" />
   <style>
     .ai-rubric-settings-card,
     .admin-project-ai-review-card {
@@ -1538,17 +1538,25 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
             <div><strong id="adminActiveTodayCount">0</strong><span>Active Today</span></div>
           </div>
 
-          <div class="student-register-grid">
-            <label>Student ID<input id="adminStudentId" type="text" autocomplete="off" placeholder="Example: 2026-001" /></label>
-            <label>Full Name<input id="adminStudentName" type="text" autocomplete="off" placeholder="Juan Dela Cruz" /></label>
-            <label>Gender<select id="adminStudentGender"><option value="">Select</option><option>Male</option><option>Female</option><option>Prefer not to say</option></select></label>
-            <label>Section<input id="adminStudentSection" type="text" autocomplete="off" list="adminStudentSectionOptions" placeholder="Choose or type a section" /><datalist id="adminStudentSectionOptions"></datalist></label>
+          <div class="student-mobile-quick-tools" aria-label="Student record tools">
+            <button id="toggleStudentRegisterBtn" class="student-mobile-tool-btn" type="button" aria-expanded="false" aria-controls="studentRegisterFormShell"><span aria-hidden="true">＋</span><small>Add</small></button>
+            <button id="mobileDownloadStudentTemplateBtn" class="student-mobile-tool-btn" type="button"><span aria-hidden="true">↓</span><small>Template</small></button>
+            <button id="mobileChooseStudentImportBtn" class="student-mobile-tool-btn" type="button"><span aria-hidden="true">⇩</span><small>Import</small></button>
           </div>
-          <div class="student-register-actions">
-            <button id="addStudentAccountBtn" class="primary-btn" type="button">+ Add Student Record</button>
-            <button id="downloadStudentTemplateBtn" class="ghost-btn" type="button">⬇ Download Excel Template</button>
-            <button id="chooseStudentImportBtn" class="ghost-btn" type="button">📥 Import Excel / CSV</button>
-            <input id="studentImportInput" class="hidden" type="file" accept=".xlsx,.xls,.csv" />
+
+          <div id="studentRegisterFormShell" class="student-register-form-shell">
+            <div class="student-register-grid">
+              <label>Student ID<input id="adminStudentId" type="text" autocomplete="off" placeholder="Example: 2026-001" /></label>
+              <label>Full Name<input id="adminStudentName" type="text" autocomplete="off" placeholder="Juan Dela Cruz" /></label>
+              <label>Gender<select id="adminStudentGender"><option value="">Select</option><option>Male</option><option>Female</option><option>Prefer not to say</option></select></label>
+              <label>Section<input id="adminStudentSection" type="text" autocomplete="off" list="adminStudentSectionOptions" placeholder="Choose or type a section" /><datalist id="adminStudentSectionOptions"></datalist></label>
+            </div>
+            <div class="student-register-actions">
+              <button id="addStudentAccountBtn" class="primary-btn" type="button">+ Add Student Record</button>
+              <button id="downloadStudentTemplateBtn" class="ghost-btn" type="button">⬇ Download Excel Template</button>
+              <button id="chooseStudentImportBtn" class="ghost-btn" type="button">📥 Import Excel / CSV</button>
+              <input id="studentImportInput" class="hidden" type="file" accept=".xlsx,.xls,.csv" />
+            </div>
           </div>
           <p id="studentAccountAdminStatus" class="helper-note" role="status">Ready to register students.</p>
 
@@ -2426,6 +2434,6 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
   <script src="firebase-config.js"></script>
-  <script src="script.js?v=20260906-v314-true-live-collaboration"></script>
+  <script src="script.js?v=20260906-v315-mobile-admin-students"></script>
 </body>
 </html>
