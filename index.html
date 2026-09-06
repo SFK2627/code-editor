@@ -45,7 +45,7 @@
   </script>
   <link rel="preconnect" href="https://drive.google.com" crossorigin>
   <link rel="preconnect" href="https://lh3.googleusercontent.com" crossorigin>
-  <link rel="stylesheet" href="style.css?v=20260906-v315-mobile-admin-students" />
+  <link rel="stylesheet" href="style.css?v=20260906-v315-admin-project-eval" />
   <style>
     .ai-rubric-settings-card,
     .admin-project-ai-review-card {
@@ -2196,6 +2196,7 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
           <button class="ghost-btn" type="button" data-admin-viewer-lang="js">JavaScript</button>
         </div>
         <button id="adminProjectViewerRunBtn" class="primary-btn" type="button">▶ Run Preview</button>
+        <button id="adminProjectViewerDownloadZipBtn" class="ghost-btn admin-project-download-zip-btn" type="button" title="Download all HTML, CSS, and JavaScript files saved in this selected project">⬇ Download ZIP</button>
         <button id="adminProjectViewerFullCodeBtn" class="ghost-btn" type="button">⛶ Full Code</button>
         <button id="adminProjectViewerFullPreviewBtn" class="ghost-btn" type="button">⛶ Full Preview</button>
       </div>
@@ -2204,7 +2205,10 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
         <section class="admin-project-code-card" aria-label="Read-only student code">
           <div class="admin-project-code-title-row">
             <strong id="adminProjectViewerFileTitle">index.html</strong>
-            <span class="admin-project-readonly-pill">Read-only</span>
+            <div class="admin-project-code-actions">
+              <span class="admin-project-readonly-pill">Read-only</span>
+              <button id="adminProjectViewerCopyBtn" class="ghost-btn admin-project-copy-btn" type="button" title="Copy the currently viewed HTML, CSS, or JavaScript file">📋 Copy</button>
+            </div>
           </div>
           <pre id="adminProjectViewerCode" class="admin-project-code-output" tabindex="0"></pre>
         </section>
@@ -2217,6 +2221,42 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
         </section>
       </div>
 
+      <section id="adminProjectResultCheckCard" class="admin-project-result-check-card" aria-label="Admin rubric result check">
+        <div class="admin-project-result-check-header">
+          <div>
+            <p class="section-kicker">Admin Result Check</p>
+            <h3>Run Result / Recheck Score</h3>
+            <p class="muted-text">Choose the rubric you want to use, run the student's saved project, and compare the fresh score with the recorded score. Nothing is overwritten until you explicitly save it.</p>
+          </div>
+          <span id="adminProjectResultCheckStatus" class="admin-project-result-check-status">Ready</span>
+        </div>
+        <div class="admin-project-result-check-controls">
+          <label class="admin-project-result-rubric-wrap">
+            Rubric to use
+            <select id="adminProjectRubricSelect"></select>
+          </label>
+          <button id="adminProjectCheckResultBtn" class="primary-btn" type="button">✓ Check Result</button>
+          <button id="adminProjectSaveOfficialScoreBtn" class="ghost-btn" type="button" disabled>Save as Official Score</button>
+        </div>
+        <div class="admin-project-score-compare" aria-label="Recorded and rechecked score comparison">
+          <div class="admin-project-score-box">
+            <span>Recorded Score</span>
+            <strong id="adminProjectRecordedScore">Not scored</strong>
+            <small id="adminProjectRecordedScoreNote">Saved in this project</small>
+          </div>
+          <div class="admin-project-score-box admin-project-score-box-recheck">
+            <span>Admin Recheck</span>
+            <strong id="adminProjectRecheckScore">Not checked</strong>
+            <small id="adminProjectRecheckScoreNote">Uses the selected rubric</small>
+          </div>
+        </div>
+        <div id="adminProjectResultCheckOutput" class="admin-project-result-check-output">
+          <div class="admin-project-result-empty">
+            <strong>No admin recheck yet.</strong>
+            <p>Select a rubric, then click Check Result. The fresh score is only a preview until you save it as official.</p>
+          </div>
+        </div>
+      </section>
 
       <section id="adminProjectAiReviewCard" class="admin-project-ai-review-card" aria-label="Smart rubric review">
         <div class="admin-project-ai-review-header">
@@ -2271,16 +2311,23 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
       <div id="adminProjectFullscreenCodePanel" class="admin-project-fullscreen-code-panel">
         <div class="admin-project-code-title-row">
           <strong id="adminProjectFullscreenCodeTitle">index.html</strong>
-          <span class="admin-project-readonly-pill">Read-only</span>
+          <div class="admin-project-code-actions">
+            <span class="admin-project-readonly-pill">Read-only</span>
+            <button id="adminProjectFullscreenCopyBtn" class="ghost-btn admin-project-copy-btn" type="button" title="Copy the currently viewed HTML, CSS, or JavaScript file">📋 Copy</button>
+          </div>
         </div>
         <pre id="adminProjectFullscreenCode" class="admin-project-code-output admin-project-fullscreen-code" tabindex="0"></pre>
       </div>
       <div id="adminProjectFullscreenPreviewPanel" class="admin-project-fullscreen-preview-panel hidden">
-        <div class="admin-project-preview-title-row">
-          <strong>Output Preview</strong>
-          <small id="adminProjectFullscreenPreviewNote">Full preview runs inside this viewer only.</small>
+        <div class="admin-project-preview-title-row admin-project-fullscreen-preview-title-row">
+          <strong>Desktop Monitor Preview</strong>
+          <small id="adminProjectFullscreenPreviewNote">Desktop viewport</small>
         </div>
-        <iframe id="adminProjectFullscreenFrame" class="admin-project-fullscreen-frame" title="Student project full output preview" sandbox="allow-scripts allow-forms allow-modals allow-popups allow-same-origin"></iframe>
+        <div id="adminProjectFullscreenPreviewStage" class="admin-project-fullscreen-preview-stage" aria-label="Desktop monitor preview stage">
+          <div id="adminProjectFullscreenDesktopCanvas" class="admin-project-fullscreen-desktop-canvas">
+            <iframe id="adminProjectFullscreenFrame" class="admin-project-fullscreen-frame" title="Student project full desktop output preview" sandbox="allow-scripts allow-forms allow-modals allow-popups allow-same-origin"></iframe>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -2434,6 +2481,6 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
   <script src="firebase-config.js"></script>
-  <script src="script.js?v=20260906-v315-mobile-admin-students"></script>
+  <script src="script.js?v=20260906-v315-admin-project-eval"></script>
 </body>
 </html>

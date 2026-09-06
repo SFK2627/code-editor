@@ -477,12 +477,23 @@ const adminProjectViewerActivitySelect = document.getElementById('adminProjectVi
 const adminProjectViewerFileSelect = document.getElementById('adminProjectViewerFileSelect');
 const adminProjectViewerLangTabs = document.querySelector('.admin-project-viewer-lang-tabs');
 const adminProjectViewerRunBtn = document.getElementById('adminProjectViewerRunBtn');
+const adminProjectViewerDownloadZipBtn = document.getElementById('adminProjectViewerDownloadZipBtn');
 const adminProjectViewerFileTitle = document.getElementById('adminProjectViewerFileTitle');
 const adminProjectViewerCode = document.getElementById('adminProjectViewerCode');
 const adminProjectViewerFrame = document.getElementById('adminProjectViewerFrame');
 const adminProjectViewerPreviewNote = document.getElementById('adminProjectViewerPreviewNote');
 const adminProjectViewerFullCodeBtn = document.getElementById('adminProjectViewerFullCodeBtn');
 const adminProjectViewerFullPreviewBtn = document.getElementById('adminProjectViewerFullPreviewBtn');
+const adminProjectViewerCopyBtn = document.getElementById('adminProjectViewerCopyBtn');
+const adminProjectRubricSelect = document.getElementById('adminProjectRubricSelect');
+const adminProjectCheckResultBtn = document.getElementById('adminProjectCheckResultBtn');
+const adminProjectSaveOfficialScoreBtn = document.getElementById('adminProjectSaveOfficialScoreBtn');
+const adminProjectResultCheckStatus = document.getElementById('adminProjectResultCheckStatus');
+const adminProjectRecordedScore = document.getElementById('adminProjectRecordedScore');
+const adminProjectRecordedScoreNote = document.getElementById('adminProjectRecordedScoreNote');
+const adminProjectRecheckScore = document.getElementById('adminProjectRecheckScore');
+const adminProjectRecheckScoreNote = document.getElementById('adminProjectRecheckScoreNote');
+const adminProjectResultCheckOutput = document.getElementById('adminProjectResultCheckOutput');
 const adminProjectTeacherComment = document.getElementById('adminProjectTeacherComment');
 const adminProjectSaveCommentBtn = document.getElementById('adminProjectSaveCommentBtn');
 const adminProjectClearCommentBtn = document.getElementById('adminProjectClearCommentBtn');
@@ -502,8 +513,11 @@ const adminProjectFullscreenCodePanel = document.getElementById('adminProjectFul
 const adminProjectFullscreenPreviewPanel = document.getElementById('adminProjectFullscreenPreviewPanel');
 const adminProjectFullscreenCodeTitle = document.getElementById('adminProjectFullscreenCodeTitle');
 const adminProjectFullscreenCode = document.getElementById('adminProjectFullscreenCode');
+const adminProjectFullscreenCopyBtn = document.getElementById('adminProjectFullscreenCopyBtn');
 const adminProjectFullscreenFrame = document.getElementById('adminProjectFullscreenFrame');
 const adminProjectFullscreenPreviewNote = document.getElementById('adminProjectFullscreenPreviewNote');
+const adminProjectFullscreenPreviewStage = document.getElementById('adminProjectFullscreenPreviewStage');
+const adminProjectFullscreenDesktopCanvas = document.getElementById('adminProjectFullscreenDesktopCanvas');
 
 // Lesson Viewer and teacher Lesson Manager elements.
 const lessonDriveConnectBtn = document.getElementById('lessonDriveConnectBtn');
@@ -1651,6 +1665,7 @@ let selectedActivityId = getInitialSelectedActivityId();
 let activity = getActivityById(selectedActivityId);
 let codeByActivity = getInitialCodeByActivity();
 let codeStore = activity ? getCodeStoreForActivity(activity.id) : normalizeCodeStore(starterCode);
+let rubricPreviewDocumentOverride = null;
 let codeFileNames = normalizeCodeFileNames(loadJSON(STORAGE_KEYS.fileNames, DEFAULT_CODE_FILE_NAMES));
 let activeLanguage = 'html';
 let activeSuggestionIndex = 0;
@@ -10166,7 +10181,9 @@ let adminProjectViewerState = {
   project: null,
   codeByActivity: {},
   activityKey: 'scratch',
-  language: 'html'
+  language: 'html',
+  rubricId: '',
+  latestResult: null
 };
 
 function getAdminProjectActivityLabel(key, project = adminProjectViewerState.project) {
@@ -10264,13 +10281,30 @@ ${scriptBlock}
 </html>`;
 }
 
+function renderAdminProjectPreviewFrame(frame, pageName = '', noteElement = null, options = {}) {
+  if (!frame) return '';
+  const pages = getAdminProjectFileMap('html');
+  const requestedPage = normalizeInternalHtmlReference(pageName) || cleanLanguageFileName(pageName || '', 'html');
+  const fallbackPage = getAdminProjectActiveFileName('html');
+  const page = requestedPage && hasOwnFile(pages, requestedPage) ? requestedPage : fallbackPage;
+  const pendingAnchor = String(options.anchor || '').trim();
+
+  if (pendingAnchor && pendingAnchor !== '#') frame.dataset.pendingAnchor = pendingAnchor;
+  else delete frame.dataset.pendingAnchor;
+
+  frame.dataset.currentPage = page;
+  frame.srcdoc = buildAdminProjectPreviewCode(page);
+  if (noteElement) noteElement.textContent = options.note || `Previewing ${page}`;
+  return page;
+}
+
 function runAdminProjectViewerPreview(pageName = '') {
-  if (!adminProjectViewerFrame) return;
-  const store = getAdminProjectActiveStore();
-  const page = pageName || getAdminProjectActiveFileName('html');
-  adminProjectViewerFrame.srcdoc = buildAdminProjectPreviewCode(page);
-  adminProjectViewerFrame.dataset.currentPage = page;
-  if (adminProjectViewerPreviewNote) adminProjectViewerPreviewNote.textContent = `Previewing ${page}`;
+  const page = renderAdminProjectPreviewFrame(
+    adminProjectViewerFrame,
+    pageName || getAdminProjectActiveFileName('html'),
+    adminProjectViewerPreviewNote
+  );
+  return page;
 }
 
 function getAdminProjectViewerCurrentCodeDetails() {
@@ -10281,6 +10315,135 @@ function getAdminProjectViewerCurrentCodeDetails() {
   return { language, fileName, content };
 }
 
+function appendAdminProjectStoreZipFiles(files, store, prefix = '') {
+  ['html', 'css', 'js'].forEach(language => {
+    const map = getAdminProjectFileMap(language, store);
+    getAdminProjectFileNames(language, store).forEach(name => {
+      files.push({
+        name: `${prefix}${name}`,
+        content: typeof map[name] === 'string' ? map[name] : ''
+      });
+    });
+  });
+}
+
+function getAdminProjectZipFiles() {
+  const stores = adminProjectViewerState.codeByActivity || {};
+  const keys = Object.keys(stores);
+  const activeKey = stores[adminProjectViewerState.activityKey]
+    ? adminProjectViewerState.activityKey
+    : keys[0] || 'scratch';
+  const activeStore = stores[activeKey] || getAdminProjectActiveStore();
+  const files = [];
+
+  // Keep the currently selected project part at ZIP root so index.html opens
+  // immediately after extraction. Any other saved parts of the SAME selected
+  // project are preserved in a clearly named subfolder instead of being lost.
+  appendAdminProjectStoreZipFiles(files, activeStore, '');
+
+  keys.filter(key => key !== activeKey).forEach((key, index) => {
+    const folderLabel = sanitizeFilename(getAdminProjectActivityLabel(key) || key || `project-part-${index + 1}`);
+    appendAdminProjectStoreZipFiles(files, stores[key], `_other-project-parts/${folderLabel}/`);
+  });
+
+  return files;
+}
+
+function downloadAdminSelectedProjectAsZip() {
+  const project = adminProjectViewerState.project;
+  const student = adminProjectViewerState.student;
+  if (!project) {
+    appAlert('Open a student project first before downloading.', { title: 'Download Project ZIP' });
+    return;
+  }
+
+  const files = getAdminProjectZipFiles();
+  if (!files.length) {
+    appAlert('No HTML, CSS, or JavaScript files were found in this project.', { title: 'Download Project ZIP' });
+    return;
+  }
+
+  const studentLabel = sanitizeFilename(student?.name || student?.studentId || 'student');
+  const projectLabel = sanitizeFilename(project.name || 'project');
+  const filename = `${studentLabel}-${projectLabel}.zip`;
+  downloadBlob(createZipBlob(files), filename);
+  setStatus(`Downloaded ${project.name || 'student project'} ZIP`);
+}
+
+const ADMIN_PROJECT_DESKTOP_PREVIEW_WIDTH = 1366;
+const ADMIN_PROJECT_DESKTOP_PREVIEW_HEIGHT = 768;
+let adminProjectFullscreenScaleRaf = 0;
+
+function isCompactAdminProjectPreviewDevice() {
+  const phoneMode = document.documentElement?.dataset?.deviceMode === 'phone';
+  const narrowViewport = window.matchMedia?.('(max-width: 820px)')?.matches ?? window.innerWidth <= 820;
+  return Boolean(phoneMode || narrowViewport);
+}
+
+function syncAdminProjectFullscreenPreviewScale() {
+  if (!adminProjectFullscreenPreviewStage || !adminProjectFullscreenDesktopCanvas || !adminProjectFullscreenFrame) return;
+  if (adminProjectFullscreenOverlay?.classList.contains('hidden') || !adminProjectFullscreenOverlay?.classList.contains('preview-mode')) return;
+
+  const compact = isCompactAdminProjectPreviewDevice();
+  adminProjectFullscreenDesktopCanvas.classList.toggle('is-scaled-desktop', compact);
+
+  if (!compact) {
+    adminProjectFullscreenDesktopCanvas.style.removeProperty('--admin-project-preview-scale');
+    if (adminProjectFullscreenPreviewNote) {
+      const width = Math.max(1, Math.round(adminProjectFullscreenFrame.clientWidth || adminProjectFullscreenPreviewStage.clientWidth || 0));
+      const height = Math.max(1, Math.round(adminProjectFullscreenFrame.clientHeight || adminProjectFullscreenPreviewStage.clientHeight || 0));
+      adminProjectFullscreenPreviewNote.textContent = `Monitor viewport · ${width} × ${height}`;
+    }
+    return;
+  }
+
+  const stageWidth = Math.max(1, adminProjectFullscreenPreviewStage.clientWidth || 1);
+  const stageHeight = Math.max(1, adminProjectFullscreenPreviewStage.clientHeight || 1);
+  const scale = Math.max(0.08, Math.min(
+    stageWidth / ADMIN_PROJECT_DESKTOP_PREVIEW_WIDTH,
+    stageHeight / ADMIN_PROJECT_DESKTOP_PREVIEW_HEIGHT
+  ));
+  adminProjectFullscreenDesktopCanvas.style.setProperty('--admin-project-preview-scale', String(scale));
+  if (adminProjectFullscreenPreviewNote) {
+    adminProjectFullscreenPreviewNote.textContent = `Desktop ${ADMIN_PROJECT_DESKTOP_PREVIEW_WIDTH} × ${ADMIN_PROJECT_DESKTOP_PREVIEW_HEIGHT} · scaled to fit`;
+  }
+}
+
+function queueAdminProjectFullscreenPreviewScale() {
+  window.cancelAnimationFrame(adminProjectFullscreenScaleRaf);
+  adminProjectFullscreenScaleRaf = window.requestAnimationFrame(syncAdminProjectFullscreenPreviewScale);
+}
+
+function requestAdminProjectBrowserFullscreen() {
+  const target = adminProjectFullscreenOverlay;
+  if (!target || document.fullscreenElement) return;
+  const request = target.requestFullscreen || target.webkitRequestFullscreen;
+  if (typeof request !== 'function') return;
+  try {
+    const result = request.call(target, { navigationUI: 'hide' });
+    if (result && typeof result.catch === 'function') result.catch(() => {});
+  } catch (error) {}
+}
+
+function exitAdminProjectBrowserFullscreen() {
+  const fullscreenElement = document.fullscreenElement || document.webkitFullscreenElement;
+  if (!fullscreenElement || (fullscreenElement !== adminProjectFullscreenOverlay && !adminProjectFullscreenOverlay?.contains(fullscreenElement))) return;
+  const exit = document.exitFullscreen || document.webkitExitFullscreen;
+  if (typeof exit !== 'function') return;
+  try {
+    const result = exit.call(document);
+    if (result && typeof result.catch === 'function') result.catch(() => {});
+  } catch (error) {}
+}
+
+function updateAdminProjectFullscreenPreviewLabels(page = getAdminProjectActiveFileName('html')) {
+  const project = adminProjectViewerState.project || {};
+  const student = adminProjectViewerState.student || {};
+  if (adminProjectFullscreenKicker) adminProjectFullscreenKicker.textContent = 'Full Output Preview';
+  if (adminProjectFullscreenTitle) adminProjectFullscreenTitle.textContent = project.name || 'Student Project';
+  if (adminProjectFullscreenSubtitle) adminProjectFullscreenSubtitle.textContent = `${student.name || 'Student'} · Previewing ${page}`;
+}
+
 function openAdminProjectFullscreen(mode = 'code') {
   if (!adminProjectFullscreenOverlay) return;
   const project = adminProjectViewerState.project || {};
@@ -10289,6 +10452,7 @@ function openAdminProjectFullscreen(mode = 'code') {
   const codeDetails = getAdminProjectViewerCurrentCodeDetails();
   const activePage = getAdminProjectActiveFileName('html');
 
+  adminProjectFullscreenOverlay.classList.toggle('preview-mode', isPreview);
   if (adminProjectFullscreenKicker) adminProjectFullscreenKicker.textContent = isPreview ? 'Full Output Preview' : 'Full Code View';
   if (adminProjectFullscreenTitle) adminProjectFullscreenTitle.textContent = project.name || 'Student Project';
   if (adminProjectFullscreenSubtitle) {
@@ -10301,11 +10465,7 @@ function openAdminProjectFullscreen(mode = 'code') {
   adminProjectFullscreenPreviewPanel?.classList.toggle('hidden', !isPreview);
 
   if (isPreview) {
-    if (adminProjectFullscreenFrame) {
-      adminProjectFullscreenFrame.srcdoc = buildAdminProjectPreviewCode(activePage);
-      adminProjectFullscreenFrame.dataset.currentPage = activePage;
-    }
-    if (adminProjectFullscreenPreviewNote) adminProjectFullscreenPreviewNote.textContent = `Previewing ${activePage}`;
+    renderAdminProjectPreviewFrame(adminProjectFullscreenFrame, activePage, adminProjectFullscreenPreviewNote);
   } else {
     if (adminProjectFullscreenFrame) adminProjectFullscreenFrame.srcdoc = '';
     if (adminProjectFullscreenCodeTitle) adminProjectFullscreenCodeTitle.textContent = codeDetails.fileName || 'Code';
@@ -10314,43 +10474,153 @@ function openAdminProjectFullscreen(mode = 'code') {
 
   adminProjectFullscreenOverlay.classList.remove('hidden');
   document.body.classList.add('student-auth-open', 'admin-project-fullscreen-open');
+
+  if (isPreview) {
+    queueAdminProjectFullscreenPreviewScale();
+    window.setTimeout(queueAdminProjectFullscreenPreviewScale, 80);
+    requestAdminProjectBrowserFullscreen();
+  }
 }
 
 function closeAdminProjectFullscreen() {
+  exitAdminProjectBrowserFullscreen();
   adminProjectFullscreenOverlay?.classList.add('hidden');
+  adminProjectFullscreenOverlay?.classList.remove('preview-mode');
+  adminProjectFullscreenDesktopCanvas?.classList.remove('is-scaled-desktop');
+  adminProjectFullscreenDesktopCanvas?.style.removeProperty('--admin-project-preview-scale');
   if (adminProjectFullscreenFrame) adminProjectFullscreenFrame.srcdoc = '';
   document.body.classList.remove('admin-project-fullscreen-open');
   const viewerOpen = Boolean(adminProjectViewerOverlay && !adminProjectViewerOverlay.classList.contains('hidden'));
   const trackerOpen = Boolean(adminStudentProjectsOverlay && !adminStudentProjectsOverlay.classList.contains('hidden'));
   document.body.classList.toggle('student-auth-open', viewerOpen || trackerOpen);
+  if (viewerOpen) runAdminProjectViewerPreview(getAdminProjectActiveFileName('html'));
 }
 
-function attachAdminProjectViewerPreviewLinks() {
-  if (!adminProjectViewerFrame) return;
+function applyAdminProjectPendingPreviewAnchor(frame) {
+  if (!frame) return false;
+  const hash = String(frame.dataset.pendingAnchor || '').trim();
+  if (!hash || hash === '#') {
+    delete frame.dataset.pendingAnchor;
+    return false;
+  }
   let doc = null;
   try {
-    doc = adminProjectViewerFrame.contentDocument || adminProjectViewerFrame.contentWindow?.document || null;
+    doc = frame.contentDocument || frame.contentWindow?.document || null;
   } catch (error) {
     doc = null;
   }
-  if (!doc || doc.__adminProjectViewerLinksReady) return;
-  doc.__adminProjectViewerLinksReady = true;
+  if (!doc) return false;
+  const applied = scrollPreviewToAnchor(doc, hash, { instant: true });
+  if (applied) delete frame.dataset.pendingAnchor;
+  return applied;
+}
+
+function setAdminProjectPreviewNavigationNote(noteElement, message, page = '') {
+  if (!noteElement) return;
+  noteElement.textContent = message || (page ? `Previewing ${page}` : 'Project preview');
+}
+
+function navigateAdminProjectPreviewFrame(frame, href, noteElement, doc) {
+  const trimmed = String(href || '').trim();
+  const pages = getAdminProjectFileMap('html');
+  const hash = getPreviewHrefHash(trimmed);
+  const targetPage = normalizeInternalHtmlReference(trimmed);
+  const currentPage = cleanLanguageFileName(frame?.dataset?.currentPage || getAdminProjectActiveFileName('html'), 'html');
+
+  if (!targetPage) return false;
+  if (!hasOwnFile(pages, targetPage)) {
+    setAdminProjectPreviewNavigationNote(noteElement, `Page not found: ${targetPage}`);
+    return true;
+  }
+
+  if (targetPage.toLowerCase() === currentPage.toLowerCase()) {
+    if (hash) scrollPreviewToAnchor(doc, hash);
+    return true;
+  }
+
+  setAdminProjectActiveFileName('html', targetPage);
+  populateAdminProjectViewerFileSelect();
+  updateAdminProjectViewerCode();
+  resetAdminProjectResultCheck('Preview page changed · recheck when ready');
+
+  if (frame === adminProjectFullscreenFrame) {
+    renderAdminProjectPreviewFrame(adminProjectFullscreenFrame, targetPage, noteElement, { anchor: hash });
+    updateAdminProjectFullscreenPreviewLabels(targetPage);
+    queueAdminProjectFullscreenPreviewScale();
+  } else {
+    renderAdminProjectPreviewFrame(adminProjectViewerFrame, targetPage, noteElement, { anchor: hash });
+  }
+  return true;
+}
+
+function attachAdminProjectPreviewLinks(frame, noteElement) {
+  if (!frame) return;
+  let doc = null;
+  try {
+    doc = frame.contentDocument || frame.contentWindow?.document || null;
+  } catch (error) {
+    doc = null;
+  }
+  if (!doc || doc.__adminProjectPreviewLinksReady) return;
+  doc.__adminProjectPreviewLinksReady = true;
+
+  const prepareLinks = () => {
+    const links = doc.querySelectorAll ? doc.querySelectorAll('a[href]') : [];
+    Array.prototype.forEach.call(links, link => {
+      const href = String(link.getAttribute('href') || '').trim();
+      if (!/^https?:\/\//i.test(href)) return;
+      link.setAttribute('target', '_blank');
+      link.setAttribute('rel', 'noopener noreferrer');
+    });
+  };
+
+  prepareLinks();
+  try {
+    const observer = new MutationObserver(prepareLinks);
+    observer.observe(doc.documentElement || doc.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['href'] });
+  } catch (error) {}
+
   doc.addEventListener('click', event => {
     const link = event.target && event.target.closest ? event.target.closest('a[href]') : null;
     if (!link) return;
     const href = String(link.getAttribute('href') || '').trim();
-    if (!href || /^(https?:|mailto:|tel:|javascript:|data:|blob:|#)/i.test(href)) return;
-    const fileName = href.split('#')[0].split('?')[0].split('/').pop();
-    if (!/\.html?$/i.test(fileName)) return;
-    const page = cleanLanguageFileName(fileName, 'html');
-    const pages = getAdminProjectFileMap('html');
-    if (!hasOwnFile(pages, page)) return;
+
+    if (!href || href === '#') {
+      event.preventDefault();
+      return;
+    }
+
+    if (href.charAt(0) === '#') {
+      event.preventDefault();
+      scrollPreviewToAnchor(doc, href);
+      return;
+    }
+
+    if (/^(mailto:|tel:|javascript:|data:|blob:)/i.test(href)) return;
+
+    if (/^https?:\/\//i.test(href)) {
+      link.setAttribute('target', '_blank');
+      link.setAttribute('rel', 'noopener noreferrer');
+      return;
+    }
+
     event.preventDefault();
-    setAdminProjectActiveFileName('html', page);
-    populateAdminProjectViewerFileSelect();
-    updateAdminProjectViewerCode();
-    runAdminProjectViewerPreview(page);
+    if (navigateAdminProjectPreviewFrame(frame, href, noteElement, doc)) return;
+
+    const relativeTarget = href.split('#')[0].split('?')[0] || href;
+    setAdminProjectPreviewNavigationNote(noteElement, `Link unavailable in this project: ${relativeTarget}`);
   }, true);
+
+  window.setTimeout(() => applyAdminProjectPendingPreviewAnchor(frame), 0);
+}
+
+function attachAdminProjectViewerPreviewLinks() {
+  attachAdminProjectPreviewLinks(adminProjectViewerFrame, adminProjectViewerPreviewNote);
+}
+
+function attachAdminProjectFullscreenPreviewLinks() {
+  attachAdminProjectPreviewLinks(adminProjectFullscreenFrame, adminProjectFullscreenPreviewNote);
+  queueAdminProjectFullscreenPreviewScale();
 }
 
 function populateAdminProjectViewerActivitySelect() {
@@ -10399,6 +10669,409 @@ function updateAdminProjectViewerCode() {
   if (adminProjectViewerCode) adminProjectViewerCode.textContent = content || '/* Blank file */';
   populateAdminProjectViewerFileSelect();
   updateAdminProjectViewerLanguageTabs();
+}
+
+const ADMIN_PROJECT_RECORDED_RUBRIC_ID = '__recorded_project_rubric__';
+
+function getAdminProjectRecordedRubricActivity() {
+  const project = adminProjectViewerState.project || {};
+  const recorded = project.lastResult && typeof project.lastResult === 'object' ? project.lastResult : null;
+  const criteria = Array.isArray(recorded?.results) ? recorded.results : [];
+  if (!criteria.length) return null;
+  return normalizeActivity({
+    id: ADMIN_PROJECT_RECORDED_RUBRIC_ID,
+    title: project.activityTitle || recorded.activityTitle || 'Recorded project rubric snapshot',
+    description: 'Recovered from the rubric fields saved with this project result. Use a saved teacher rubric when available for the most accurate recheck.',
+    passingScore: Number(recorded?.passingScore || 75) || 75,
+    criteria: criteria.map((item, index) => ({
+      id: `recorded-${index + 1}`,
+      title: item.title || `Criterion ${index + 1}`,
+      points: Number(item.points || item.possible || item.max || 1) || 1,
+      rule: item.rule || 'smart_rubric',
+      target: item.target || ''
+    }))
+  });
+}
+
+function getAdminProjectAvailableRubrics() {
+  const activeTerm = currentAcademicTerm();
+  return (Array.isArray(activities) ? activities : [])
+    .map(item => normalizeActivity(item))
+    .sort((a, b) => {
+      const aActive = getRubricActivityTerm(a) === activeTerm ? 0 : 1;
+      const bActive = getRubricActivityTerm(b) === activeTerm ? 0 : 1;
+      if (aActive !== bActive) return aActive - bActive;
+      const termCompare = getRubricActivityTerm(a).localeCompare(getRubricActivityTerm(b));
+      if (termCompare) return termCompare;
+      return String(a.title || '').localeCompare(String(b.title || ''));
+    });
+}
+
+function populateAdminProjectRubricSelect(options = {}) {
+  if (!adminProjectRubricSelect) return;
+  const rubrics = getAdminProjectAvailableRubrics();
+  const recordedFallback = getAdminProjectRecordedRubricActivity();
+  const validIds = new Set(rubrics.map(item => item.id));
+  if (recordedFallback) validIds.add(ADMIN_PROJECT_RECORDED_RUBRIC_ID);
+
+  const requested = String(options.preferredId || adminProjectViewerState.rubricId || '').trim();
+  const activityMatch = validIds.has(adminProjectViewerState.activityKey) ? adminProjectViewerState.activityKey : '';
+  const projectMatch = validIds.has(adminProjectViewerState.project?.selectedActivityId) ? adminProjectViewerState.project.selectedActivityId : '';
+  const chosen = [requested, activityMatch, projectMatch, rubrics[0]?.id, recordedFallback ? ADMIN_PROJECT_RECORDED_RUBRIC_ID : '']
+    .find(id => id && validIds.has(id)) || '';
+
+  const optionsHtml = rubrics.map(item => {
+    const termLabel = complianceTermFriendlyLabel(getRubricActivityTerm(item));
+    return `<option value="${escapeAttribute(item.id)}">${escapeHTML(termLabel)} · ${escapeHTML(item.title || 'Untitled rubric')}</option>`;
+  });
+  if (recordedFallback) {
+    optionsHtml.push(`<option value="${ADMIN_PROJECT_RECORDED_RUBRIC_ID}">Recorded rubric snapshot · ${escapeHTML(recordedFallback.title)}</option>`);
+  }
+  if (!optionsHtml.length) optionsHtml.push('<option value="">No saved rubrics available</option>');
+
+  adminProjectRubricSelect.innerHTML = optionsHtml.join('');
+  adminProjectRubricSelect.value = chosen;
+  adminProjectRubricSelect.disabled = !chosen;
+  adminProjectViewerState.rubricId = chosen;
+}
+
+function getAdminProjectSelectedRubric() {
+  const rubricId = String(adminProjectRubricSelect?.value || adminProjectViewerState.rubricId || '').trim();
+  if (!rubricId) return null;
+  if (rubricId === ADMIN_PROJECT_RECORDED_RUBRIC_ID) return getAdminProjectRecordedRubricActivity();
+  const known = getActivityById(rubricId);
+  return known ? normalizeActivity(known) : null;
+}
+
+function getAdminProjectRecordedScoreText(result = adminProjectViewerState.project?.lastResult) {
+  if (!result || typeof result !== 'object') return 'Not scored';
+  const possible = Number(result.possible || 0);
+  const score = Number(result.score || 0);
+  const percent = Number.isFinite(Number(result.percent))
+    ? Number(result.percent)
+    : (possible > 0 ? Math.round((score / possible) * 100) : 0);
+  return `${formatPoints(score)}/${formatPoints(possible)} · ${percent}%`;
+}
+
+function setAdminProjectResultCheckStatus(message = '', tone = '') {
+  if (!adminProjectResultCheckStatus) return;
+  adminProjectResultCheckStatus.textContent = message || '';
+  adminProjectResultCheckStatus.classList.remove('running', 'ready', 'saved', 'error');
+  if (tone) adminProjectResultCheckStatus.classList.add(tone);
+}
+
+function renderAdminProjectScoreComparison() {
+  const project = adminProjectViewerState.project || {};
+  const recorded = project.lastResult && typeof project.lastResult === 'object' ? project.lastResult : null;
+  const recheck = adminProjectViewerState.latestResult;
+  if (adminProjectRecordedScore) adminProjectRecordedScore.textContent = getAdminProjectRecordedScoreText(recorded);
+  if (adminProjectRecordedScoreNote) {
+    const recordedLabel = project.activityTitle || recorded?.activityTitle || 'Saved project result';
+    adminProjectRecordedScoreNote.textContent = recorded ? recordedLabel : 'No saved score yet';
+  }
+  if (adminProjectRecheckScore) adminProjectRecheckScore.textContent = recheck ? getAdminProjectRecordedScoreText(recheck) : 'Not checked';
+  if (adminProjectRecheckScoreNote) {
+    const rubric = getAdminProjectSelectedRubric();
+    if (!recheck) {
+      adminProjectRecheckScoreNote.textContent = rubric ? `Will use: ${rubric.title}` : 'Select a saved rubric first';
+    } else if (recorded) {
+      const rePercent = Number(recheck.percent || 0);
+      const recPercent = Number(recorded.percent || 0);
+      const delta = Math.round((rePercent - recPercent) * 10) / 10;
+      adminProjectRecheckScoreNote.textContent = delta === 0
+        ? 'Matches the recorded percentage'
+        : `${delta > 0 ? '+' : ''}${delta}% vs recorded`;
+    } else {
+      adminProjectRecheckScoreNote.textContent = `Rubric: ${recheck.activityTitle || rubric?.title || 'Selected rubric'}`;
+    }
+  }
+}
+
+function renderAdminProjectResultCheck(result = adminProjectViewerState.latestResult) {
+  renderAdminProjectScoreComparison();
+  if (adminProjectSaveOfficialScoreBtn) adminProjectSaveOfficialScoreBtn.disabled = !result;
+  if (!adminProjectResultCheckOutput) return;
+  if (!result) {
+    adminProjectResultCheckOutput.innerHTML = `
+      <div class="admin-project-result-empty">
+        <strong>No admin recheck yet.</strong>
+        <p>Select a rubric, then click Check Result. The fresh score is only a preview until you save it as official.</p>
+      </div>`;
+    return;
+  }
+
+  const rubric = getAdminProjectSelectedRubric();
+  const passingScore = Number(rubric?.passingScore || 75);
+  const passed = Number(result.percent || 0) >= passingScore;
+  adminProjectResultCheckOutput.innerHTML = `
+    <div class="admin-project-result-summary">
+      <div>
+        <p class="section-kicker">Fresh Rubric Result</p>
+        <div class="admin-project-result-score">${escapeHTML(formatPoints(result.score))}<small> / ${escapeHTML(formatPoints(result.possible))}</small></div>
+        <p class="muted-text">${Number(result.percent || 0)}% · Passing score: ${passingScore}% · ${escapeHTML(result.activityTitle || rubric?.title || 'Selected rubric')}</p>
+      </div>
+      <span class="admin-project-result-pill ${passed ? 'passed' : 'needs-work'}">${passed ? 'Passed' : 'Needs Work'}</span>
+    </div>
+    <div class="admin-project-result-feedback"><strong>Feedback:</strong> ${escapeHTML(result.feedback || 'Project checked against the selected rubric.')}</div>
+    <div class="admin-project-result-criteria">
+      ${(Array.isArray(result.results) ? result.results : []).map(item => `
+        <article class="admin-project-result-criterion">
+          <div class="admin-project-result-criterion-top">
+            <strong>${escapeHTML(item.title || 'Criterion')}</strong>
+            <span>${escapeHTML(formatPoints(item.earned))}/${escapeHTML(formatPoints(item.points))}</span>
+          </div>
+          <p><strong>${escapeHTML(item.levelLabel || 'Result')}</strong>${item.levelDescription ? ` · ${escapeHTML(item.levelDescription)}` : ''}</p>
+          ${item.evidence ? `<p><strong>Evidence:</strong> ${escapeHTML(item.evidence)}</p>` : ''}
+          ${item.improvement ? `<p><strong>Improve:</strong> ${escapeHTML(item.improvement)}</p>` : ''}
+        </article>`).join('')}
+    </div>`;
+}
+
+function resetAdminProjectResultCheck(message = 'Ready') {
+  adminProjectViewerState.latestResult = null;
+  setAdminProjectResultCheckStatus(message, 'ready');
+  renderAdminProjectResultCheck(null);
+}
+
+async function copyAdminProjectCurrentCode(button = null) {
+  const details = getAdminProjectViewerCurrentCodeDetails();
+  const value = String(details.content ?? '');
+  if (!value.length) {
+    setStatus('Nothing to copy');
+    if (button) button.textContent = 'Empty';
+    window.setTimeout(() => { if (button) button.textContent = '📋 Copy'; }, 900);
+    return false;
+  }
+
+  let copied = false;
+  try {
+    if (navigator.clipboard?.writeText && window.isSecureContext !== false) {
+      await navigator.clipboard.writeText(value);
+      copied = true;
+    }
+  } catch (error) {
+    copied = false;
+  }
+  if (!copied) {
+    const textarea = document.createElement('textarea');
+    textarea.value = value;
+    textarea.setAttribute('readonly', '');
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    textarea.style.pointerEvents = 'none';
+    document.body.appendChild(textarea);
+    textarea.select();
+    textarea.setSelectionRange(0, value.length);
+    try { copied = document.execCommand('copy'); } catch (error) { copied = false; }
+    textarea.remove();
+  }
+
+  if (button) button.textContent = copied ? '✓ Copied' : 'Copy failed';
+  setStatus(copied ? `${details.fileName} copied` : 'Copy failed');
+  window.setTimeout(() => { if (button) button.textContent = '📋 Copy'; }, 1200);
+  return copied;
+}
+
+function waitForAdminProjectPreviewRun(pageName = getAdminProjectActiveFileName('html')) {
+  return new Promise(resolve => {
+    if (!adminProjectViewerFrame) {
+      resolve();
+      return;
+    }
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      resolve();
+    };
+    adminProjectViewerFrame.addEventListener('load', finish, { once: true });
+    runAdminProjectViewerPreview(pageName);
+    window.setTimeout(finish, 900);
+  });
+}
+
+function buildAdminProjectResultMetadata(result, rubric) {
+  if (!result) return null;
+  const student = adminProjectViewerState.student || {};
+  const project = adminProjectViewerState.project || {};
+  const checkedAt = new Date().toISOString();
+  const recordMeta = {
+    studentName: String(student.name || student.studentName || 'Student'),
+    studentId: String(student.studentId || student.studentIdNormalized || ''),
+    section: String(student.section || student.gradeSection || ''),
+    activityTitle: String(rubric?.title || 'Selected rubric'),
+    activityId: String(rubric?.id === ADMIN_PROJECT_RECORDED_RUBRIC_ID ? '' : rubric?.id || ''),
+    projectName: String(project.name || 'Student Project'),
+    checkedAt
+  };
+  return {
+    ...result,
+    activityId: recordMeta.activityId,
+    activityTitle: recordMeta.activityTitle,
+    studentId: recordMeta.studentId,
+    studentName: recordMeta.studentName,
+    section: recordMeta.section,
+    projectName: recordMeta.projectName,
+    checkedAt,
+    recordMeta,
+    adminRecheck: true,
+    source: 'admin-local-rubric-recheck'
+  };
+}
+
+function gradeAdminProjectCurrentCode(rubric) {
+  if (!rubric) return null;
+  const previousCodeStore = codeStore;
+  const previousActivity = activity;
+  const previousSelectedActivityId = selectedActivityId;
+  const previousPreviewOverride = rubricPreviewDocumentOverride;
+  try {
+    codeStore = normalizeCodeStore(clone(getAdminProjectActiveStore()));
+    codeStore.css = Object.values(codeStore.cssFiles || {}).map(value => String(value || '')).join('\n\n');
+    codeStore.js = Object.values(codeStore.jsFiles || {}).map(value => String(value || '')).join('\n\n');
+    activity = normalizeActivity(clone(rubric));
+    selectedActivityId = activity.id === ADMIN_PROJECT_RECORDED_RUBRIC_ID ? '' : activity.id;
+    try {
+      rubricPreviewDocumentOverride = adminProjectViewerFrame?.contentDocument || adminProjectViewerFrame?.contentWindow?.document || null;
+    } catch (error) {
+      rubricPreviewDocumentOverride = null;
+    }
+    const result = gradeActivity({ skipEditorSave: true });
+    return buildAdminProjectResultMetadata(result, activity);
+  } finally {
+    codeStore = previousCodeStore;
+    activity = previousActivity;
+    selectedActivityId = previousSelectedActivityId;
+    rubricPreviewDocumentOverride = previousPreviewOverride;
+  }
+}
+
+async function runAdminProjectResultCheck() {
+  const project = adminProjectViewerState.project;
+  if (!project?.id) {
+    appAlert('Open a student project first.', { title: 'Check Result' });
+    return;
+  }
+  const rubric = getAdminProjectSelectedRubric();
+  if (!rubric) {
+    appAlert('No saved rubric is available. Create or save a rubric in Admin first, then choose it here.', { title: 'Rubric required' });
+    return;
+  }
+
+  try {
+    if (adminProjectCheckResultBtn) adminProjectCheckResultBtn.disabled = true;
+    if (adminProjectSaveOfficialScoreBtn) adminProjectSaveOfficialScoreBtn.disabled = true;
+    setAdminProjectResultCheckStatus('Running project...', 'running');
+    await waitForAdminProjectPreviewRun(getAdminProjectActiveFileName('html'));
+    setAdminProjectResultCheckStatus('Checking rubric...', 'running');
+    const result = gradeAdminProjectCurrentCode(rubric);
+    if (!result) throw new Error('No rubric result was generated.');
+    adminProjectViewerState.latestResult = result;
+    renderAdminProjectResultCheck(result);
+    setAdminProjectResultCheckStatus('Recheck ready · not saved', 'ready');
+    setStatus(`Admin recheck ${formatPoints(result.score)}/${formatPoints(result.possible)}`);
+  } catch (error) {
+    console.error('Admin project result check failed.', error);
+    adminProjectViewerState.latestResult = null;
+    renderAdminProjectResultCheck(null);
+    setAdminProjectResultCheckStatus('Check failed', 'error');
+    appAlert(error?.message || 'Could not check this project result. Try running the preview again.', { title: 'Check Result' });
+  } finally {
+    if (adminProjectCheckResultBtn) adminProjectCheckResultBtn.disabled = false;
+    if (adminProjectSaveOfficialScoreBtn) adminProjectSaveOfficialScoreBtn.disabled = !adminProjectViewerState.latestResult;
+  }
+}
+
+function buildAdminOfficialScorePayload(result = adminProjectViewerState.latestResult) {
+  if (!result) return null;
+  return {
+    score: Number(result.score || 0),
+    possible: Number(result.possible || 0),
+    percent: Number(result.percent || 0),
+    passed: Boolean(result.passed),
+    feedback: String(result.feedback || ''),
+    activityId: String(result.activityId || ''),
+    activityTitle: String(result.activityTitle || ''),
+    studentId: String(result.studentId || ''),
+    studentName: String(result.studentName || ''),
+    section: String(result.section || ''),
+    projectName: String(result.projectName || ''),
+    checkedAt: String(result.checkedAt || new Date().toISOString()),
+    source: 'admin-local-rubric-recheck',
+    results: Array.isArray(result.results) ? result.results.map(item => ({
+      title: item.title || '',
+      levelKey: item.levelKey || '',
+      levelLabel: item.levelLabel || '',
+      levelDescription: item.levelDescription || '',
+      earned: Number(item.earned || 0),
+      points: Number(item.points || 0),
+      passed: Boolean(item.passed),
+      evidence: String(item.evidence || ''),
+      improvement: String(item.improvement || ''),
+      rule: item.rule || '',
+      target: item.target || ''
+    })) : []
+  };
+}
+
+function refreshAdminProjectListRowAfterScoreSave(project = adminProjectViewerState.project) {
+  if (!project || !adminStudentProjectsList) return;
+  const targetRef = project.adminProjectRef || makeAdminProjectReference(getAdminProjectOwnerUid(project), project.id);
+  const row = Array.from(adminStudentProjectsList.querySelectorAll('[data-admin-project-id]'))
+    .find(item => String(item.dataset.adminProjectId || '') === String(targetRef || project.id || ''));
+  if (!row) return;
+  const children = Array.from(row.children);
+  const statusNode = children[1] || null;
+  const scoreNode = children[3] || null;
+  if (statusNode) statusNode.textContent = getProjectStatusLabel(getProjectStatus(project));
+  if (scoreNode) scoreNode.textContent = project.lastResult
+    ? `${formatPoints(project.lastResult.score || 0)}/${formatPoints(project.lastResult.possible || 0)} · ${Number(project.lastResult.percent || 0)}%`
+    : 'Not scored';
+}
+
+async function saveAdminProjectRecheckAsOfficialScore() {
+  const project = adminProjectViewerState.project;
+  const result = buildAdminOfficialScorePayload();
+  const ownerUid = getAdminProjectOwnerUid(project);
+  if (!result || !project?.id || !ownerUid) return;
+  const recordedText = getAdminProjectRecordedScoreText(project.lastResult);
+  const nextText = getAdminProjectRecordedScoreText(result);
+  const confirmed = await appConfirm(`Replace the recorded score (${recordedText}) with the admin recheck (${nextText})? The project code will not be changed.`, {
+    title: 'Save Official Score',
+    confirmText: 'Save Score'
+  });
+  if (!confirmed) return;
+
+  try {
+    if (adminProjectSaveOfficialScoreBtn) adminProjectSaveOfficialScoreBtn.disabled = true;
+    setAdminProjectResultCheckStatus('Saving official score...', 'running');
+    const { setDoc, serverTimestamp } = firebaseSync.modules;
+    const teacherEmail = firebaseSync.auth?.currentUser?.email || firebaseSync.currentUser?.email || 'teacher';
+    const rubric = getAdminProjectSelectedRubric();
+    await setDoc(getStudentProjectDocRef(ownerUid, project.id), {
+      lastResult: result,
+      adminScoreAppliedAt: serverTimestamp(),
+      adminScoreAppliedBy: teacherEmail,
+      adminScoreRubricId: rubric?.id === ADMIN_PROJECT_RECORDED_RUBRIC_ID ? '' : (rubric?.id || ''),
+      adminScoreRubricTitle: rubric?.title || result.activityTitle || '',
+      adminScoreSource: 'built-in-rubric-recheck'
+    }, { merge: true });
+
+    project.lastResult = result;
+    const projectRef = project.adminProjectRef || makeAdminProjectReference(getAdminProjectOwnerUid(project), project.id);
+    const listProject = (adminProjectViewerState.projects || []).find(item => (item.adminProjectRef || makeAdminProjectReference(getAdminProjectOwnerUid(item), item.id)) === projectRef);
+    if (listProject) listProject.lastResult = result;
+    refreshAdminProjectListRowAfterScoreSave(project);
+    renderAdminProjectScoreComparison();
+    setAdminProjectResultCheckStatus('Official score saved', 'saved');
+    setStatus(`Official score ${formatPoints(result.score)}/${formatPoints(result.possible)}`);
+  } catch (error) {
+    console.error('Could not save admin recheck score.', error);
+    setAdminProjectResultCheckStatus('Save failed', 'error');
+    appAlert(error?.message || 'Could not save the official score. Check teacher login, internet connection, and Firestore rules.', { title: 'Save Official Score' });
+  } finally {
+    if (adminProjectSaveOfficialScoreBtn) adminProjectSaveOfficialScoreBtn.disabled = !adminProjectViewerState.latestResult;
+  }
 }
 
 
@@ -10473,6 +11146,8 @@ function renderSavedAdminAiReviewForCurrentProject() {
 }
 
 function getAdminProjectRubricForAi() {
+  const selectedRubric = getAdminProjectSelectedRubric();
+  if (selectedRubric) return selectedRubric;
   const project = adminProjectViewerState.project || {};
   const key = adminProjectViewerState.activityKey || project.selectedActivityId || 'scratch';
   const known = activities.find(item => item.id === key) || activities.find(item => item.id === project.selectedActivityId) || null;
@@ -10882,6 +11557,8 @@ async function applyAdminAiReviewAsScore() {
       aiScoreAppliedBy: firebaseSync.auth?.currentUser?.email || firebaseSync.currentUser?.email || 'teacher'
     }, { merge: true });
     project.lastResult = result;
+    refreshAdminProjectListRowAfterScoreSave(project);
+    renderAdminProjectScoreComparison();
     setAdminAiReviewStatus('Score applied', 'ready');
     setStatus('Smart score applied');
   } catch (error) {
@@ -11090,6 +11767,8 @@ function renderAdminProjectViewer() {
   populateAdminProjectViewerActivitySelect();
   populateAdminProjectViewerFileSelect();
   updateAdminProjectViewerCode();
+  populateAdminProjectRubricSelect();
+  resetAdminProjectResultCheck();
   renderAdminProjectTeacherComment();
   renderSavedAdminAiReviewForCurrentProject();
   runAdminProjectViewerPreview(getAdminProjectActiveFileName('html'));
@@ -11159,6 +11838,10 @@ async function openAdminProjectViewer(projectRef) {
     ? adminProjectViewerState.project.selectedActivityId
     : Object.keys(adminProjectViewerState.codeByActivity)[0] || 'scratch';
   adminProjectViewerState.language = 'html';
+  adminProjectViewerState.rubricId = getActivityById(adminProjectViewerState.activityKey)
+    ? adminProjectViewerState.activityKey
+    : (getActivityById(adminProjectViewerState.project.selectedActivityId) ? adminProjectViewerState.project.selectedActivityId : '');
+  adminProjectViewerState.latestResult = null;
   adminProjectViewerOverlay?.classList.remove('hidden');
   document.body.classList.add('student-auth-open');
   renderAdminProjectViewer();
@@ -13615,6 +14298,7 @@ function runCode(showMessage = true, options = {}) {
 }
 
 function getPreviewDocument() {
+  if (rubricPreviewDocumentOverride) return rubricPreviewDocumentOverride;
   try {
     return previewFrame.contentDocument || previewFrame.contentWindow.document;
   } catch (error) {
@@ -15721,9 +16405,9 @@ function buildResultRecordingHeader(result = null) {
   `;
 }
 
-function gradeActivity() {
+function gradeActivity(options = {}) {
   if (!activity) return null;
-  saveActiveEditor();
+  if (options?.skipEditorSave !== true) saveActiveEditor();
   const results = activity.criteria.map(gradeCriterion);
 
   const score = results.reduce((sum, item) => sum + item.earned, 0);
@@ -25299,6 +25983,9 @@ adminProjectViewerActivitySelect?.addEventListener('change', event => {
   adminProjectViewerState.activityKey = event.target.value || 'scratch';
   populateAdminProjectViewerFileSelect();
   updateAdminProjectViewerCode();
+  const matchingRubricId = getActivityById(adminProjectViewerState.activityKey) ? adminProjectViewerState.activityKey : adminProjectViewerState.rubricId;
+  populateAdminProjectRubricSelect({ preferredId: matchingRubricId });
+  resetAdminProjectResultCheck('Ready to recheck');
   renderAdminProjectTeacherComment();
   renderSavedAdminAiReviewForCurrentProject();
   runAdminProjectViewerPreview(getAdminProjectActiveFileName('html'));
@@ -25306,6 +25993,7 @@ adminProjectViewerActivitySelect?.addEventListener('change', event => {
 adminProjectViewerFileSelect?.addEventListener('change', event => {
   setAdminProjectActiveFileName(adminProjectViewerState.language, event.target.value || '');
   updateAdminProjectViewerCode();
+  resetAdminProjectResultCheck('File changed · recheck when ready');
   if (adminProjectViewerState.language === 'html') runAdminProjectViewerPreview(event.target.value || '');
 });
 adminProjectViewerLangTabs?.addEventListener('click', event => {
@@ -25315,7 +26003,17 @@ adminProjectViewerLangTabs?.addEventListener('click', event => {
   populateAdminProjectViewerFileSelect();
   updateAdminProjectViewerCode();
 });
+adminProjectRubricSelect?.addEventListener('change', event => {
+  adminProjectViewerState.rubricId = event.target.value || '';
+  resetAdminProjectResultCheck('Rubric changed · ready to recheck');
+  resetAdminAiReviewPanel();
+});
 adminProjectViewerRunBtn?.addEventListener('click', () => runAdminProjectViewerPreview(getAdminProjectActiveFileName('html')));
+adminProjectViewerCopyBtn?.addEventListener('click', () => copyAdminProjectCurrentCode(adminProjectViewerCopyBtn));
+adminProjectFullscreenCopyBtn?.addEventListener('click', () => copyAdminProjectCurrentCode(adminProjectFullscreenCopyBtn));
+adminProjectCheckResultBtn?.addEventListener('click', runAdminProjectResultCheck);
+adminProjectSaveOfficialScoreBtn?.addEventListener('click', saveAdminProjectRecheckAsOfficialScore);
+adminProjectViewerDownloadZipBtn?.addEventListener('click', downloadAdminSelectedProjectAsZip);
 adminProjectViewerFullCodeBtn?.addEventListener('click', () => openAdminProjectFullscreen('code'));
 adminProjectViewerFullPreviewBtn?.addEventListener('click', () => {
   runAdminProjectViewerPreview(getAdminProjectActiveFileName('html'));
@@ -25350,6 +26048,10 @@ adminProjectFullscreenOverlay?.addEventListener('click', event => {
   if (event.target === adminProjectFullscreenOverlay) event.stopPropagation();
 });
 adminProjectViewerFrame?.addEventListener('load', attachAdminProjectViewerPreviewLinks);
+adminProjectFullscreenFrame?.addEventListener('load', attachAdminProjectFullscreenPreviewLinks);
+window.addEventListener('resize', queueAdminProjectFullscreenPreviewScale, { passive: true });
+document.addEventListener('fullscreenchange', queueAdminProjectFullscreenPreviewScale);
+document.addEventListener('webkitfullscreenchange', queueAdminProjectFullscreenPreviewScale);
 
 
 initManualRubricInputTable();

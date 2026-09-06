@@ -50149,3 +50149,474 @@ body.given-activity-viewer-open .given-activity-viewer-overlay {
     height: 31px !important;
   }
 }
+
+/* =========================================================
+   V315 ADMIN PROJECT EXPORT + TRUE DESKTOP FULL PREVIEW
+   Scoped to Admin -> Student Project Viewer only.
+   ========================================================= */
+.admin-project-viewer-toolbar #adminProjectViewerDownloadZipBtn {
+  min-height: 42px;
+  white-space: nowrap;
+}
+
+.admin-project-fullscreen-preview-stage {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  overflow: hidden;
+  background: #0b1220;
+}
+
+.admin-project-fullscreen-desktop-canvas {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+}
+
+.admin-project-fullscreen-desktop-canvas.is-scaled-desktop {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 1366px;
+  height: 768px;
+  min-width: 1366px;
+  min-height: 768px;
+  transform: translate(-50%, -50%) scale(var(--admin-project-preview-scale, 0.25));
+  transform-origin: center center;
+}
+
+.admin-project-fullscreen-desktop-canvas .admin-project-fullscreen-frame {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-width: 100%;
+  min-height: 100%;
+  border: 0;
+  border-radius: 0;
+  background: #fff;
+  overflow: auto;
+}
+
+.admin-project-fullscreen-overlay.preview-mode {
+  padding: 0 !important;
+  background: #0b1220;
+}
+
+.admin-project-fullscreen-overlay.preview-mode .admin-project-fullscreen-card {
+  width: 100vw;
+  max-width: none;
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  gap: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  overflow: hidden;
+}
+
+.admin-project-fullscreen-overlay.preview-mode .admin-project-fullscreen-header {
+  position: absolute;
+  top: max(10px, env(safe-area-inset-top));
+  right: max(10px, env(safe-area-inset-right));
+  z-index: 8;
+  width: auto;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  pointer-events: none;
+}
+
+.admin-project-fullscreen-overlay.preview-mode .admin-project-fullscreen-header > div {
+  display: none;
+}
+
+.admin-project-fullscreen-overlay.preview-mode .admin-project-fullscreen-header .icon-btn {
+  pointer-events: auto;
+  width: 42px;
+  height: 42px;
+  border: 1px solid rgba(255, 255, 255, 0.38);
+  background: rgba(15, 23, 42, 0.82);
+  color: #fff;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(8px);
+}
+
+.admin-project-fullscreen-overlay.preview-mode .admin-project-fullscreen-preview-panel {
+  gap: 0;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.admin-project-fullscreen-overlay.preview-mode .admin-project-fullscreen-preview-title-row {
+  display: none;
+}
+
+@media (max-width: 820px) {
+  .admin-project-viewer-toolbar #adminProjectViewerDownloadZipBtn,
+  .admin-project-viewer-toolbar #adminProjectViewerFullCodeBtn,
+  .admin-project-viewer-toolbar #adminProjectViewerFullPreviewBtn {
+    width: 100%;
+  }
+
+  .admin-project-fullscreen-overlay.preview-mode:not(.hidden) {
+    display: block;
+    padding: 0 !important;
+    overflow: hidden;
+  }
+
+  .admin-project-fullscreen-overlay.preview-mode .admin-project-fullscreen-card {
+    width: 100vw;
+    height: 100vh;
+    height: 100dvh;
+    min-height: 0;
+    max-height: none;
+    border-radius: 0;
+    padding: 0;
+  }
+
+  .admin-project-fullscreen-overlay.preview-mode .admin-project-fullscreen-header {
+    top: max(8px, env(safe-area-inset-top));
+    right: max(8px, env(safe-area-inset-right));
+  }
+
+  .admin-project-fullscreen-overlay.preview-mode .admin-project-fullscreen-header .icon-btn {
+    width: 38px;
+    height: 38px;
+  }
+}
+
+/* =========================================================
+   V315 ADMIN PROJECT COPY + RUBRIC RESULT RECHECK
+   Scoped to Admin -> Student Project Viewer only.
+   ========================================================= */
+.admin-project-code-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.admin-project-copy-btn {
+  min-height: 30px;
+  padding: 5px 10px;
+  border-radius: 10px;
+  white-space: nowrap;
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.admin-project-result-check-card {
+  margin-top: 16px;
+  border: 1px solid var(--line-strong);
+  border-radius: 20px;
+  padding: 16px;
+  background: var(--bg-2);
+  box-shadow: var(--shadow-soft);
+}
+
+.admin-project-result-check-header,
+.admin-project-result-check-controls,
+.admin-project-result-summary,
+.admin-project-result-criterion-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.admin-project-result-check-header h3 {
+  margin: 2px 0 4px;
+}
+
+.admin-project-result-check-header .muted-text {
+  margin: 0;
+  max-width: 760px;
+}
+
+.admin-project-result-check-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 30px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.16);
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.admin-project-result-check-status.running {
+  background: rgba(245, 158, 11, 0.15);
+  color: #92400e;
+}
+
+.admin-project-result-check-status.ready {
+  background: rgba(59, 130, 246, 0.13);
+  color: var(--primary-strong);
+}
+
+.admin-project-result-check-status.saved {
+  background: rgba(34, 197, 94, 0.14);
+  color: #166534;
+}
+
+.admin-project-result-check-status.error {
+  background: rgba(239, 68, 68, 0.14);
+  color: #991b1b;
+}
+
+.admin-project-result-check-controls {
+  align-items: flex-end;
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.admin-project-result-rubric-wrap {
+  display: grid;
+  gap: 6px;
+  min-width: min(380px, 100%);
+  flex: 1 1 340px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.admin-project-result-rubric-wrap select {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  padding: 0 12px;
+  background: var(--card);
+  color: var(--text);
+  font: inherit;
+  font-weight: 800;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.admin-project-score-compare {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.admin-project-score-box {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 14px;
+  background: var(--card);
+}
+
+.admin-project-score-box > span,
+.admin-project-score-box > small {
+  display: block;
+  color: var(--muted);
+}
+
+.admin-project-score-box > span {
+  font-size: 0.76rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.admin-project-score-box > strong {
+  display: block;
+  margin: 4px 0;
+  color: var(--text);
+  font-size: clamp(1.15rem, 2vw, 1.55rem);
+  line-height: 1.15;
+}
+
+.admin-project-score-box-recheck {
+  border-color: rgba(59, 130, 246, 0.32);
+  background: rgba(59, 130, 246, 0.06);
+}
+
+.admin-project-result-check-output {
+  margin-top: 14px;
+}
+
+.admin-project-result-empty {
+  border: 1px dashed var(--line-strong);
+  border-radius: 16px;
+  padding: 18px;
+  text-align: center;
+  color: var(--muted);
+  background: var(--card);
+}
+
+.admin-project-result-empty strong {
+  color: var(--text);
+}
+
+.admin-project-result-empty p {
+  margin: 5px 0 0;
+}
+
+.admin-project-result-summary {
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 14px;
+  background: var(--card);
+}
+
+.admin-project-result-score {
+  margin-top: 2px;
+  color: var(--text);
+  font-size: clamp(2rem, 4vw, 3rem);
+  font-weight: 950;
+  line-height: 1;
+}
+
+.admin-project-result-score small {
+  font-size: 0.45em;
+  color: var(--muted);
+}
+
+.admin-project-result-summary .muted-text {
+  margin: 7px 0 0;
+}
+
+.admin-project-result-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  padding: 6px 11px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 950;
+  white-space: nowrap;
+}
+
+.admin-project-result-pill.passed {
+  background: rgba(34, 197, 94, 0.14);
+  color: #166534;
+}
+
+.admin-project-result-pill.needs-work {
+  background: rgba(239, 68, 68, 0.14);
+  color: #991b1b;
+}
+
+.admin-project-result-feedback {
+  margin-top: 10px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 12px 14px;
+  background: var(--card);
+  color: var(--text);
+  line-height: 1.5;
+}
+
+.admin-project-result-criteria {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.admin-project-result-criterion {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 12px 14px;
+  background: var(--card);
+}
+
+.admin-project-result-criterion-top {
+  align-items: center;
+}
+
+.admin-project-result-criterion-top span {
+  flex: 0 0 auto;
+  color: var(--primary-strong);
+  font-weight: 950;
+}
+
+.admin-project-result-criterion p {
+  margin: 5px 0 0;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.admin-project-result-criterion p strong {
+  color: var(--text);
+}
+
+[data-theme="dark"] .admin-project-result-check-status.running,
+body.dark-mode .admin-project-result-check-status.running {
+  color: #fde68a;
+}
+
+[data-theme="dark"] .admin-project-result-check-status.saved,
+body.dark-mode .admin-project-result-check-status.saved,
+[data-theme="dark"] .admin-project-result-pill.passed,
+body.dark-mode .admin-project-result-pill.passed {
+  color: #bbf7d0;
+}
+
+[data-theme="dark"] .admin-project-result-check-status.error,
+body.dark-mode .admin-project-result-check-status.error,
+[data-theme="dark"] .admin-project-result-pill.needs-work,
+body.dark-mode .admin-project-result-pill.needs-work {
+  color: #fecaca;
+}
+
+@media (max-width: 720px) {
+  .admin-project-code-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .admin-project-copy-btn {
+    min-height: 34px;
+  }
+
+  .admin-project-result-check-card {
+    padding: 13px;
+    border-radius: 17px;
+  }
+
+  .admin-project-result-check-header,
+  .admin-project-result-summary {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .admin-project-result-check-status,
+  .admin-project-result-pill {
+    align-self: flex-start;
+  }
+
+  .admin-project-result-check-controls .primary-btn,
+  .admin-project-result-check-controls .ghost-btn,
+  .admin-project-result-rubric-wrap {
+    width: 100%;
+    flex-basis: 100%;
+  }
+
+  .admin-project-score-compare {
+    grid-template-columns: 1fr;
+  }
+}
