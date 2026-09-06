@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ict8-connect-v310-recitation-term-popup';
+const CACHE_NAME = 'ict8-connect-v312-desktop-natural-scroll';
 
 self.addEventListener('install', event => {
   event.waitUntil(self.skipWaiting());

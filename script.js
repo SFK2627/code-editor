@@ -12830,6 +12830,66 @@ function stripAppPreviewHelperLeak(html = '') {
   return output;
 }
 
+function getPreviewHrefHash(value = '') {
+  const href = String(value || '').trim();
+  const hashIndex = href.indexOf('#');
+  return hashIndex >= 0 ? href.slice(hashIndex) : '';
+}
+
+function getPreviewAnchorName(hash = '') {
+  const raw = String(hash || '').trim();
+  if (!raw || raw === '#') return '';
+  const encodedName = raw.charAt(0) === '#' ? raw.slice(1) : raw;
+  if (!encodedName) return '';
+  try {
+    return decodeURIComponent(encodedName);
+  } catch (error) {
+    return encodedName;
+  }
+}
+
+function findPreviewAnchorTarget(doc, hash = '') {
+  if (!doc) return null;
+  const anchorName = getPreviewAnchorName(hash);
+  if (!anchorName) return null;
+  const byId = doc.getElementById ? doc.getElementById(anchorName) : null;
+  if (byId) return byId;
+  const named = doc.querySelectorAll ? doc.querySelectorAll('[name]') : [];
+  for (const element of Array.from(named || [])) {
+    if (String(element.getAttribute?.('name') || '') === anchorName) return element;
+  }
+  return null;
+}
+
+function scrollPreviewToAnchor(doc, hash = '', options = {}) {
+  const target = findPreviewAnchorTarget(doc, hash);
+  if (!target) return false;
+  try {
+    target.scrollIntoView({
+      behavior: options.instant ? 'auto' : 'smooth',
+      block: 'start',
+      inline: 'nearest'
+    });
+  } catch (error) {
+    try { target.scrollIntoView(true); } catch (fallbackError) { return false; }
+  }
+  return true;
+}
+
+function applyPendingPreviewAnchor() {
+  if (!previewFrame) return false;
+  const hash = String(previewFrame.dataset.pendingAnchor || '').trim();
+  if (!hash || hash === '#') {
+    delete previewFrame.dataset.pendingAnchor;
+    return false;
+  }
+  const doc = getPreviewDocument();
+  if (!doc) return false;
+  const applied = scrollPreviewToAnchor(doc, hash, { instant: true });
+  if (applied) delete previewFrame.dataset.pendingAnchor;
+  return applied;
+}
+
 function attachPreviewLinkHandlers() {
   if (!previewFrame) return;
   let doc = null;
@@ -12868,7 +12928,25 @@ function attachPreviewLinkHandlers() {
     if (!link) return;
     const href = link.getAttribute('href') || '';
     const trimmed = String(href || '').trim();
-    if (!trimmed || /^(mailto:|tel:|javascript:|data:|blob:|#)/i.test(trimmed)) return;
+
+    // An empty href or a plain # is only a placeholder inside the student's
+    // preview. Never let it resolve against the ICT 8 Connect/G8Code host URL.
+    if (!trimmed || trimmed === '#') {
+      event.preventDefault();
+      return;
+    }
+
+    // Same-page anchors stay inside the iframe and smoothly scroll to the
+    // matching id/name. Missing anchors are safely ignored instead of loading
+    // the host application inside the preview.
+    if (trimmed.charAt(0) === '#') {
+      event.preventDefault();
+      scrollPreviewToAnchor(doc, trimmed);
+      return;
+    }
+
+    if (/^(mailto:|tel:|javascript:|data:|blob:)/i.test(trimmed)) return;
+
     if (/^https?:\/\//i.test(trimmed)) {
       if (shouldOpenExternalLinksInsidePreview()) {
         event.preventDefault();
@@ -12876,13 +12954,166 @@ function attachPreviewLinkHandlers() {
       }
       return;
     }
+
+    const hash = getPreviewHrefHash(trimmed);
     const clean = trimmed.split('#')[0].split('?')[0];
     const fileName = clean.split('/').pop();
-    if (!/\.html?$/i.test(fileName)) return;
+
+    if (/\.html?$/i.test(fileName)) {
+      event.preventDefault();
+      const targetPage = normalizeInternalHtmlReference(trimmed);
+      const currentPage = normalizeHtmlPageName(previewFrame.dataset.currentPage || getActiveHtmlPageName());
+      if (targetPage && targetPage.toLowerCase() === currentPage.toLowerCase() && hash) {
+        scrollPreviewToAnchor(doc, hash);
+        return;
+      }
+      navigatePreviewToPage(trimmed);
+      return;
+    }
+
+    // Unsupported relative hrefs would otherwise inherit the parent document's
+    // base URL and accidentally browse ICT 8 Connect inside the iframe.
     event.preventDefault();
-    navigatePreviewToPage(trimmed);
   }, true);
 }
+
+/* v312 — desktop natural/chained wheel scrolling for editor + Output Preview */
+function isDesktopNaturalScrollMode() {
+  const root = document.documentElement;
+  const phoneMode = root?.dataset?.deviceMode === 'phone';
+  const desktopWidth = window.matchMedia?.('(min-width: 821px)')?.matches ?? window.innerWidth >= 821;
+  return Boolean(desktopWidth && !phoneMode);
+}
+
+function normalizeWheelDeltaY(event, viewportHeight = window.innerHeight) {
+  const raw = Number(event?.deltaY || 0);
+  if (!raw) return 0;
+  if (event?.deltaMode === 1) return raw * 18; // DOM_DELTA_LINE
+  if (event?.deltaMode === 2) return raw * Math.max(240, Number(viewportHeight || 0)); // DOM_DELTA_PAGE
+  return raw;
+}
+
+function scrollParentPageByWheel(deltaY) {
+  if (!deltaY) return false;
+  const scroller = document.scrollingElement || document.documentElement || document.body;
+  if (!scroller) return false;
+  const maxTop = Math.max(0, scroller.scrollHeight - window.innerHeight);
+  const before = Number(scroller.scrollTop || window.scrollY || 0);
+  const next = Math.max(0, Math.min(maxTop, before + deltaY));
+  if (Math.abs(next - before) < 0.5) return false;
+  scroller.scrollTop = next;
+  return true;
+}
+
+function installDesktopEditorWheelScroll() {
+  if (!editor || !editorWrap || editorWrap.__mcsDesktopWheelReady) return;
+  editorWrap.__mcsDesktopWheelReady = true;
+
+  editorWrap.addEventListener('wheel', event => {
+    if (!isDesktopNaturalScrollMode()) return;
+    if (event.ctrlKey || event.metaKey) return;
+    if (Math.abs(Number(event.deltaX || 0)) > Math.abs(Number(event.deltaY || 0))) return;
+
+    const deltaY = normalizeWheelDeltaY(event, editor.clientHeight || window.innerHeight);
+    if (Math.abs(deltaY) < 0.5) return;
+
+    const fullscreen = document.body.classList.contains('editor-fullscreen-active');
+    const maxTop = Math.max(0, editor.scrollHeight - editor.clientHeight);
+    const before = Number(editor.scrollTop || 0);
+    const wantsDown = deltaY > 0;
+    const canMoveEditor = maxTop > 1 && ((wantsDown && before < maxTop - 1) || (!wantsDown && before > 1));
+
+    if (canMoveEditor) {
+      event.preventDefault();
+      const next = Math.max(0, Math.min(maxTop, before + deltaY));
+      editor.scrollTop = next;
+      syncEditorScroll();
+
+      // Trackpad/wheel movement that goes beyond the last editor line continues
+      // onto the outer page in normal desktop mode instead of getting trapped.
+      const consumed = next - before;
+      const leftover = deltaY - consumed;
+      if (!fullscreen && Math.abs(leftover) > 0.5) scrollParentPageByWheel(leftover);
+      return;
+    }
+
+    // Full editor intentionally keeps wheel scrolling inside the editor only.
+    if (fullscreen) return;
+
+    // Normal desktop editor usually auto-grows to its content. A textarea can
+    // still swallow wheel gestures even when it has no vertical room, so pass
+    // those gestures to the actual app page explicitly.
+    if (scrollParentPageByWheel(deltaY)) event.preventDefault();
+  }, { passive: false });
+}
+
+function findPreviewScrollableAncestor(doc, startNode, deltaY) {
+  let node = startNode?.nodeType === 1 ? startNode : startNode?.parentElement;
+  const stopAt = doc?.body || null;
+  while (node && node !== stopAt && node !== doc?.documentElement) {
+    try {
+      const style = doc.defaultView?.getComputedStyle(node);
+      const overflowY = String(style?.overflowY || '');
+      const scrollable = /(auto|scroll|overlay)/i.test(overflowY) && node.scrollHeight > node.clientHeight + 1;
+      if (scrollable) {
+        const maxTop = Math.max(0, node.scrollHeight - node.clientHeight);
+        const top = Number(node.scrollTop || 0);
+        const canMove = deltaY > 0 ? top < maxTop - 1 : top > 1;
+        if (canMove) return node;
+      }
+    } catch (_) {}
+    node = node.parentElement;
+  }
+  return null;
+}
+
+function attachPreviewDesktopWheelScroll() {
+  if (!previewFrame) return;
+  let doc = null;
+  try {
+    doc = previewFrame.contentDocument || previewFrame.contentWindow?.document || null;
+  } catch (_) {
+    doc = null;
+  }
+  if (!doc || doc.__mcsDesktopWheelReady) return;
+  doc.__mcsDesktopWheelReady = true;
+
+  doc.addEventListener('wheel', event => {
+    if (!isDesktopNaturalScrollMode()) return;
+    if (event.defaultPrevented || event.ctrlKey || event.metaKey) return;
+    if (Math.abs(Number(event.deltaX || 0)) > Math.abs(Number(event.deltaY || 0))) return;
+
+    const viewHeight = previewFrame.clientHeight || doc.defaultView?.innerHeight || window.innerHeight;
+    const deltaY = normalizeWheelDeltaY(event, viewHeight);
+    if (Math.abs(deltaY) < 0.5) return;
+
+    // Respect student-made scrollable components (cards, menus, etc.). Native
+    // browser scrolling remains in charge while one of those can still move.
+    if (findPreviewScrollableAncestor(doc, event.target, deltaY)) return;
+
+    const scroller = doc.scrollingElement || doc.documentElement || doc.body;
+    if (!scroller) return;
+    const clientHeight = Math.max(1, scroller.clientHeight || doc.defaultView?.innerHeight || viewHeight);
+    const maxTop = Math.max(0, scroller.scrollHeight - clientHeight);
+    const before = Number(scroller.scrollTop || doc.defaultView?.scrollY || 0);
+    const next = Math.max(0, Math.min(maxTop, before + deltaY));
+
+    if (Math.abs(next - before) > 0.5) {
+      event.preventDefault();
+      scroller.scrollTop = next;
+      return;
+    }
+
+    // At the top/bottom of a normal Output Preview, continue scrolling the
+    // outer ICT 8 Connect page. Fullscreen preview stays self-contained.
+    const previewIsFullscreen = document.body.classList.contains('preview-fullscreen-active')
+      || document.body.classList.contains('preview-inside-editor-fullscreen')
+      || document.fullscreenElement === previewPanel;
+    if (!previewIsFullscreen && scrollParentPageByWheel(deltaY)) event.preventDefault();
+  }, { passive: false });
+}
+
+installDesktopEditorWheelScroll();
 
 function buildFullCode(pageName = getActiveHtmlPageName()) {
   const safePageName = normalizeHtmlPageName(pageName);
@@ -13259,6 +13490,7 @@ function runCode(showMessage = true, options = {}) {
   latestPreviewConsoleMessage = '';
   previewRenderToken += 1;
   setPreviewLoading(true, { token: previewRenderToken, pageName });
+  delete previewFrame.dataset.pendingAnchor;
   previewFrame.srcdoc = buildFullCode(pageName);
   previewFrame.dataset.currentPage = pageName;
   window.setTimeout(renderErrorChecker, 180);
@@ -13309,6 +13541,7 @@ function queryPreview(selector) {
 
 function navigatePreviewToPage(rawHref) {
   const target = normalizeInternalHtmlReference(rawHref);
+  const pendingAnchor = getPreviewHrefHash(rawHref);
   if (!target) return false;
   const pages = getHTMLPages();
   if (!hasOwnFile(pages, target)) {
@@ -13321,6 +13554,7 @@ function navigatePreviewToPage(rawHref) {
   latestPreviewConsoleMessage = '';
   previewRenderToken += 1;
   setPreviewLoading(true, { token: previewRenderToken, pageName: target });
+  previewFrame.dataset.pendingAnchor = pendingAnchor && pendingAnchor !== '#' ? pendingAnchor : '';
   previewFrame.srcdoc = buildFullCode(target);
   previewFrame.dataset.currentPage = target;
   setStatus(`Preview: ${target}`);
@@ -14426,7 +14660,7 @@ function updateInstallButtonVisibility() {
 function registerPWAServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./service-worker.js?v=310-recitation-term-popup', {
+    navigator.serviceWorker.register('./service-worker.js?v=312-desktop-natural-scroll', {
       updateViaCache: 'none'
     }).then(registration => {
       registration.update().catch(() => {});
@@ -24112,6 +24346,10 @@ if (advancedErrorCheckBtn) advancedErrorCheckBtn.addEventListener('click', reque
 if (previewFrame) previewFrame.addEventListener('load', () => {
   markPreviewReady();
   attachPreviewLinkHandlers();
+  attachPreviewDesktopWheelScroll();
+  window.requestAnimationFrame(() => {
+    if (!applyPendingPreviewAnchor()) window.setTimeout(applyPendingPreviewAnchor, 80);
+  });
   window.setTimeout(renderErrorChecker, 80);
 });
 activitySelect.addEventListener('change', event => selectActivity(event.target.value, { showResultPrompt: true }));
