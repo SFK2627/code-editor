@@ -10413,7 +10413,8 @@ function buildAdminProjectPreviewCode(pageName = '') {
   const store = getAdminProjectActiveStore();
   const pages = getAdminProjectFileMap('html', store);
   const safePageName = pageName && pages[pageName] !== undefined ? pageName : getAdminProjectActiveFileName('html');
-  const rawHtml = stripAppPreviewHelperLeak(String(pages[safePageName] || ''));
+  const rawHtmlWithProjectReferences = stripAppPreviewHelperLeak(String(pages[safePageName] || ''));
+  const rawHtml = stripLocalProjectAssetTagsForPreview(rawHtmlWithProjectReferences);
   const styleBlock = createAdminProjectStyleBlock(store);
   const scriptBlock = createAdminProjectScriptBlock(store);
   const looksLikeFullDocument = /<!doctype/i.test(rawHtml) || /<html(\s|>)/i.test(rawHtml) || /<head(\s|>)/i.test(rawHtml) || /<body(\s|>)/i.test(rawHtml);
@@ -13554,6 +13555,40 @@ function getJSBlocksForPreview(html) {
   return activeJs.trim() ? createScriptBlock(activeJs) : '';
 }
 
+function isExternalPreviewAssetReference(value = '') {
+  const ref = String(value || '').trim();
+  if (!ref) return false;
+  return /^(?:https?:)?\/\//i.test(ref)
+    || /^(?:data:|blob:)/i.test(ref);
+}
+
+function stripLocalProjectAssetTagsForPreview(html = '') {
+  let output = String(html || '');
+
+  // The preview already injects CSS/JS files stored inside the student's
+  // project. Leaving the original relative <link>/<script src> tags in srcdoc
+  // makes the browser resolve them against the ICT 8 Connect host, e.g.
+  // href="style.css" accidentally loads the app's own /style.css. Besides
+  // corrupting the student's design, those global rules can disable scrolling.
+  // Keep genuine external URLs, but remove all local project asset requests so
+  // they can never escape the iframe into the host application.
+  output = output.replace(/<link\b[^>]*>/gi, tag => {
+    if (!/rel\s*=\s*(["'])[^"']*stylesheet[^"']*\1/i.test(tag)) return tag;
+    const hrefMatch = tag.match(/href\s*=\s*(["'])(.*?)\1/i);
+    if (!hrefMatch || !hrefMatch[2]) return tag;
+    if (isExternalPreviewAssetReference(hrefMatch[2])) return tag;
+    return '<!-- ICT8 Preview: local stylesheet is injected from the student project -->';
+  });
+
+  output = output.replace(/<script\b([^>]*)\bsrc\s*=\s*(["'])(.*?)\2([^>]*)>\s*<\/script\s*>/gi,
+    (tag, before, quote, src) => {
+      if (isExternalPreviewAssetReference(src)) return tag;
+      return '<!-- ICT8 Preview: local script is injected from the student project -->';
+    });
+
+  return output;
+}
+
 function shouldApplyCSSForPreview(html) {
   return Boolean(getCSSBlocksForPreview(html));
 }
@@ -14026,8 +14061,10 @@ ensurePreviewFrameScrollableSurface();
 function buildFullCode(pageName = getActiveHtmlPageName()) {
   const safePageName = normalizeHtmlPageName(pageName);
   const rawHtml = getHTMLPageContent(safePageName) || '';
-  const html = stripAppPreviewHelperLeak(rawHtml);
-  const rawStyleBlock = getCSSBlocksForPreview(html);
+  const htmlWithProjectReferences = stripAppPreviewHelperLeak(rawHtml);
+  // Read references before removing them so the matching student CSS/JS files
+  // can still be selected and injected into the iframe.
+  const rawStyleBlock = getCSSBlocksForPreview(htmlWithProjectReferences);
   // Older Wireframe -> Starter Code builds intentionally hid root overflow to
   // remove a right-side gutter. That also prevented scrolling in Output Preview.
   // Repair those generated starters at preview time without overriding normal
@@ -14039,7 +14076,8 @@ html, body { min-height: 100% !important; overflow-x: hidden !important; overflo
 </style>`
     : '';
   const styleBlock = [rawStyleBlock, legacyWireframeStarterScrollFix].filter(Boolean).join('\n');
-  const scriptBlock = getJSBlocksForPreview(html);
+  const scriptBlock = getJSBlocksForPreview(htmlWithProjectReferences);
+  const html = stripLocalProjectAssetTagsForPreview(htmlWithProjectReferences);
   // App navigation helpers are attached from the parent iframe load handler.
   // Keeping them out of srcdoc prevents helper JS from ever becoming visible
   // text in Output Preview when a student's HTML is incomplete or cached.
