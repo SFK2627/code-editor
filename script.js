@@ -5029,11 +5029,18 @@ let desktopHeaderTypewriterLastKey = '';
 let desktopHeaderLogoSaveSpinTimer = null;
 
 function isPhoneHeaderTypewriterUi() {
-  return document.documentElement.dataset.deviceMode === 'phone';
+  return Boolean(
+    document.documentElement.dataset.deviceMode === 'phone' ||
+    window.__mcsianPhonePreviewMode === true ||
+    window.matchMedia?.('(max-width: 820px)')?.matches
+  );
 }
 
 function isDesktopHeaderTypewriterUi() {
-  return document.documentElement?.dataset?.deviceMode !== 'phone';
+  const explicitPhone = document.documentElement?.dataset?.deviceMode === 'phone';
+  const phonePreview = window.__mcsianPhonePreviewMode === true;
+  const desktopWidth = !window.matchMedia || window.matchMedia('(min-width: 821px)').matches;
+  return Boolean(!explicitPhone && !phonePreview && desktopWidth);
 }
 
 function getHeaderEditorModeForTypewriter() {
@@ -8785,10 +8792,7 @@ async function repairAllMissingRosterRecords() {
 }
 
 function isAdminStudentMobileLayout() {
-  const root = document.documentElement;
-  const mode = root?.dataset?.deviceMode || 'desktop';
-  const orientation = root?.dataset?.deviceOrientation || (window.innerWidth > window.innerHeight ? 'landscape' : 'portrait');
-  return mode === 'phone' || (mode === 'tablet' && orientation === 'portrait');
+  return Boolean(window.matchMedia?.('(max-width: 820px)').matches);
 }
 
 function resetAdminStudentMobileRenderLimit() {
@@ -8930,10 +8934,10 @@ function formatPresenceAgo(ms = 0) {
 }
 
 function getPresenceDeviceLabel() {
-  const mode = document.documentElement.dataset.deviceMode || 'desktop';
-  if (mode === 'phone') return 'Phone';
-  if (mode === 'tablet') return 'Tablet';
-  return 'Desktop';
+  const isPhone = document.documentElement.dataset.deviceMode === 'phone'
+    || Boolean(window.__mcsianPhonePreviewMode)
+    || Boolean(window.matchMedia?.('(max-width: 760px)').matches);
+  return isPhone ? 'Phone' : 'Desktop';
 }
 
 function getStudentPresenceActivitySnapshot(override = {}) {
@@ -11311,7 +11315,9 @@ function syncCodeHighlightLayerGeometry() {
 function isPhoneNativeEditorScrollMode() {
   const root = document.documentElement;
   const body = document.body;
-  const phoneLikeEditor = root?.dataset?.deviceMode === 'phone';
+  const narrowPhoneLayout = Boolean(window.matchMedia?.('(max-width: 820px)')?.matches);
+  const coarsePhoneTouch = Boolean(window.matchMedia?.('(hover: none) and (pointer: coarse)')?.matches);
+  const phoneLikeEditor = root?.dataset?.deviceMode === 'phone' || narrowPhoneLayout || coarsePhoneTouch;
   return phoneLikeEditor
     && body?.classList?.contains('mobile-editor-normal')
     && !body?.classList?.contains('editor-fullscreen-active')
@@ -12193,7 +12199,9 @@ function scheduleSuggestionHide(delay = 4200) {
 }
 
 function isPhoneUiViewportForSuggestions() {
-  return document.documentElement?.dataset?.deviceMode === 'phone';
+  const phoneMode = document.documentElement?.dataset?.deviceMode === 'phone';
+  const narrowViewport = Boolean(window.matchMedia && window.matchMedia('(max-width: 820px)').matches);
+  return phoneMode || narrowViewport;
 }
 
 function showSuggestions(event) {
@@ -13048,8 +13056,9 @@ function attachPreviewLinkHandlers() {
 /* v313 — ultra-smooth desktop scrolling: native first, JS only at scroll edges */
 function isDesktopNaturalScrollMode() {
   const root = document.documentElement;
-  const mode = root?.dataset?.deviceMode || 'desktop';
-  return mode === 'desktop' || mode === 'tablet';
+  const phoneMode = root?.dataset?.deviceMode === 'phone';
+  const desktopWidth = window.matchMedia?.('(min-width: 821px)')?.matches ?? window.innerWidth >= 821;
+  return Boolean(desktopWidth && !phoneMode);
 }
 
 function normalizeWheelDeltaY(event, viewportHeight = window.innerHeight) {
@@ -13255,7 +13264,7 @@ function getTopbarSafeOffset(options = {}) {
   const topbar = document.querySelector('.topbar');
   if (!topbar) return options.tight ? 8 : 14;
 
-  const isPhone = document.documentElement.dataset.deviceMode === 'phone';
+  const isPhone = document.documentElement.dataset.deviceMode === 'phone' || window.innerWidth <= 760;
   if (isPhone) {
     const rect = topbar.getBoundingClientRect();
     const visible = rect.bottom > 0 && rect.top < window.innerHeight;
@@ -13285,7 +13294,7 @@ function getViewportSafeTop(options = {}) {
   const margin = options.tight ? 6 : 10;
   if (!topbar) return margin;
 
-  const isPhone = document.documentElement.dataset.deviceMode === 'phone';
+  const isPhone = document.documentElement.dataset.deviceMode === 'phone' || window.innerWidth <= 760;
   const rect = topbar.getBoundingClientRect();
   const isVisible = rect.bottom > 0 && rect.top < window.innerHeight;
   if (!isVisible) return margin;
@@ -14748,7 +14757,7 @@ function updateInstallButtonVisibility() {
 function registerPWAServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./service-worker.js?v=316-tablet-responsive', {
+    navigator.serviceWorker.register('./service-worker.js?v=315-mobile-admin-students', {
       updateViaCache: 'none'
     }).then(registration => {
       registration.update().catch(() => {});
@@ -16005,7 +16014,8 @@ function normalizeButtonActionOptions(options = {}) {
 }
 
 function isPhoneResultFeedbackView() {
-  return document.documentElement?.dataset?.deviceMode === 'phone';
+  return document.documentElement?.dataset?.deviceMode === 'phone' ||
+    Boolean(window.matchMedia && window.matchMedia('(max-width: 820px)').matches);
 }
 
 function shouldUsePhoneResultFeedbackPopup(options = {}) {
@@ -17121,7 +17131,7 @@ function setDesktopPreviewMode(enabled) {
   if (desktopPreviewBtn) {
     desktopPreviewBtn.classList.toggle('active', isEnabled);
     desktopPreviewBtn.setAttribute('aria-pressed', String(isEnabled));
-    const isPhoneView = document.documentElement.dataset.deviceMode === 'phone';
+    const isPhoneView = document.documentElement.dataset.deviceMode === 'phone' || window.innerWidth <= 760;
     desktopPreviewBtn.textContent = isPhoneView ? (isEnabled ? 'Phone' : 'Monitor') : (isEnabled ? 'Phone View' : 'Desktop Monitor');
     desktopPreviewBtn.dataset.mobileLabel = isEnabled ? '📱 Phone' : '🖥️ Monitor';
     desktopPreviewBtn.setAttribute('aria-label', isEnabled ? 'Return to phone preview' : 'Open desktop monitor preview');
@@ -17562,8 +17572,8 @@ function enterFullEditor() {
   ensurePreviewResultBtn()?.classList.add('hidden');
   hideSuggestions();
 
-  const isPhoneScreen = document.documentElement?.dataset?.deviceMode === 'phone';
-  if (!isPhoneScreen && editorPanel?.requestFullscreen && !document.fullscreenElement) {
+  const isSmallScreen = window.matchMedia('(max-width: 820px)').matches;
+  if (!isSmallScreen && editorPanel?.requestFullscreen && !document.fullscreenElement) {
     editorPanel.requestFullscreen().catch(() => {
       // Browser may block fullscreen from some shortcuts; CSS fullscreen still works.
     });
@@ -25208,16 +25218,10 @@ adminActivityFilter?.addEventListener('change', () => {
 ensureRepairAllMissingRosterButton();
 
 const adminStudentMobileMediaQuery = window.matchMedia?.('(max-width: 820px)');
-let adminStudentLastCompactLayout = isAdminStudentMobileLayout();
-function syncAdminStudentResponsiveLayout() {
-  const nextCompactLayout = isAdminStudentMobileLayout();
-  if (nextCompactLayout === adminStudentLastCompactLayout) return;
-  adminStudentLastCompactLayout = nextCompactLayout;
+adminStudentMobileMediaQuery?.addEventListener?.('change', () => {
   resetAdminStudentMobileRenderLimit();
   renderAdminStudentTracker();
-}
-adminStudentMobileMediaQuery?.addEventListener?.('change', syncAdminStudentResponsiveLayout);
-window.addEventListener('ict8:device-mode-change', syncAdminStudentResponsiveLayout);
+});
 
 adminStudentsTableBody?.addEventListener('click', event => {
   const loadMoreButton = event.target.closest('[data-load-more-students]');
@@ -25369,56 +25373,64 @@ startFirebaseMode();
 
 
 // Final mobile desktop monitor sizing.
-// v316: one shared phone/tablet/desktop classifier prevents iPads and Android
-// tablets from falling into phone-only editor/admin/collaboration behavior.
+// The iframe always keeps a real 1366 x 768 CSS viewport, while only its visual
+// scale changes. This prevents the monitor from drifting outside its card and
+// keeps the whole desktop page visible in phone fullscreen/landscape.
 let phonePreviewModeLatched = window.__mcsianPhonePreviewMode === true;
 
-function getResponsiveDeviceProfile() {
+function isLikelyPhoneViewport() {
   const userAgent = navigator.userAgent || '';
   const userAgentDataMobile = navigator.userAgentData?.mobile === true;
-  const maxTouchPoints = Number(navigator.maxTouchPoints || 0);
+  const androidPhoneUserAgent = /Android/i.test(userAgent) && /Mobile/i.test(userAgent);
+  const mobileUserAgent = /iPhone|iPod|Windows Phone|IEMobile|Opera Mini/i.test(userAgent) || androidPhoneUserAgent;
   const coarsePointer = Boolean(window.matchMedia?.('(hover: none) and (pointer: coarse)')?.matches);
-  const touchCapable = maxTouchPoints > 0;
-  const viewportWidth = Math.max(1, Math.min(
+  const touchCapable = Number(navigator.maxTouchPoints || 0) > 0;
+  const viewportWidth = Math.min(
     Number(window.innerWidth) || 9999,
     Number(window.visualViewport?.width) || 9999
-  ));
-  const viewportHeight = Math.max(1, Number(window.visualViewport?.height) || Number(window.innerHeight) || 9999);
-  const screenWidth = Math.max(1, Number(window.screen?.width) || viewportWidth);
-  const screenHeight = Math.max(1, Number(window.screen?.height) || viewportHeight);
+  );
+  const screenWidth = Number(window.screen?.width) || viewportWidth;
+  const screenHeight = Number(window.screen?.height) || Number(window.innerHeight) || 9999;
   const shortestScreenSide = Math.min(screenWidth, screenHeight);
   const longestScreenSide = Math.max(screenWidth, screenHeight);
-  const explicitPhoneUserAgent = /iPhone|iPod|Windows Phone|IEMobile|Opera Mini/i.test(userAgent) ||
-    (/Android/i.test(userAgent) && /Mobile/i.test(userAgent)) ||
-    (userAgentDataMobile && !/iPad/i.test(userAgent));
-  const iPadDesktopUserAgent = /Macintosh/i.test(userAgent) && maxTouchPoints > 1;
-  const explicitTabletUserAgent = /iPad|Tablet|Silk|Kindle|PlayBook/i.test(userAgent) ||
-    (/Android/i.test(userAgent) && !/Mobile/i.test(userAgent)) ||
-    iPadDesktopUserAgent;
-  const tabletGeometry = shortestScreenSide >= 600 && longestScreenSide >= 850 && longestScreenSide <= 1900;
-  const touchTabletSignal = (touchCapable || coarsePointer) && tabletGeometry;
-  let mode = 'desktop';
-  if (explicitPhoneUserAgent) mode = 'phone';
-  else if (explicitTabletUserAgent || touchTabletSignal) mode = 'tablet';
-  else if ((touchCapable || coarsePointer) && shortestScreenSide < 600) mode = 'phone';
-  const orientation = viewportWidth > viewportHeight ? 'landscape' : 'portrait';
-  return {
-    mode, orientation, viewportWidth, viewportHeight, screenWidth, screenHeight,
-    shortestScreenSide, longestScreenSide, touchCapable, coarsePointer
-  };
-}
+  const phoneSizedScreen = shortestScreenSide <= 760 && longestScreenSide <= 1150;
+  const actualMobileSignal = userAgentDataMobile || mobileUserAgent || (phoneSizedScreen && (touchCapable || coarsePointer));
+  const narrowResponsiveViewport = viewportWidth <= 760;
 
-function isLikelyPhoneViewport() {
-  const profile = getResponsiveDeviceProfile();
-  const isPhone = profile.mode === 'phone';
-  phonePreviewModeLatched = isPhone;
-  window.__mcsianPhonePreviewMode = isPhone;
-  window.__mcsianResponsiveDeviceMode = profile.mode;
-  return isPhone;
+  // v251: Do not latch desktop/computer windows into phone mode just because the
+  // browser was temporarily resized. The previous latch made phone controls stay
+  // after returning to full screen on laptops/desktops.
+  const canUsePhoneMode = actualMobileSignal || (narrowResponsiveViewport && phoneSizedScreen && (touchCapable || coarsePointer));
+
+  if (canUsePhoneMode) {
+    phonePreviewModeLatched = true;
+    window.__mcsianPhonePreviewMode = true;
+  } else if (viewportWidth >= 880 && !actualMobileSignal) {
+    phonePreviewModeLatched = false;
+    window.__mcsianPhonePreviewMode = false;
+  }
+
+  return Boolean(canUsePhoneMode || (phonePreviewModeLatched && actualMobileSignal));
 }
 
 function isLikelyTabletDesktopViewport() {
-  return getResponsiveDeviceProfile().mode === 'tablet';
+  const userAgent = navigator.userAgent || '';
+  const explicitTabletUserAgent = /iPad|Tablet|Silk|Kindle|PlayBook/i.test(userAgent) ||
+    (/Android/i.test(userAgent) && !/Mobile/i.test(userAgent));
+  const coarsePointer = Boolean(window.matchMedia?.('(hover: none) and (pointer: coarse)')?.matches);
+  const touchCapable = Number(navigator.maxTouchPoints || 0) > 1;
+  const viewportWidth = Math.min(
+    Number(window.innerWidth) || 9999,
+    Number(window.visualViewport?.width) || 9999
+  );
+  const viewportHeight = Number(window.visualViewport?.height) || Number(window.innerHeight) || 9999;
+  const screenWidth = Number(window.screen?.width) || viewportWidth;
+  const screenHeight = Number(window.screen?.height) || viewportHeight;
+  const shortestSide = Math.min(viewportWidth, viewportHeight, screenWidth, screenHeight);
+  const longestSide = Math.max(viewportWidth, viewportHeight, screenWidth, screenHeight);
+  const tabletSizedCanvas = viewportWidth >= 761 && shortestSide >= 740 && shortestSide <= 1180 && longestSide <= 1600;
+  const tabletSignal = explicitTabletUserAgent || (coarsePointer && touchCapable);
+  return Boolean(!isLikelyPhoneViewport() && tabletSignal && tabletSizedCanvas);
 }
 
 
@@ -25492,24 +25504,13 @@ function repairViewportModeAfterDetection(isPhone) {
 }
 
 function applyPreviewDeviceMode() {
-  const profile = getResponsiveDeviceProfile();
-  const isPhone = profile.mode === 'phone';
-  const isTabletDesktop = profile.mode === 'tablet';
-  const root = document.documentElement;
-  const previousMode = root.dataset.deviceMode || '';
-  const previousOrientation = root.dataset.deviceOrientation || '';
-  root.dataset.deviceMode = profile.mode;
-  root.dataset.deviceOrientation = profile.orientation;
-  window.__mcsianResponsiveDeviceMode = profile.mode;
-  window.__mcsianPhonePreviewMode = isPhone;
-  phonePreviewModeLatched = isPhone;
+  const isPhone = isLikelyPhoneViewport();
+  const isTabletDesktop = !isPhone && isLikelyTabletDesktopViewport();
+  document.documentElement.dataset.deviceMode = isPhone ? 'phone' : 'desktop';
   repairViewportModeAfterDetection(isPhone);
-  root.classList.toggle('tablet-desktop-view', isTabletDesktop);
+  document.documentElement.classList.toggle('tablet-desktop-view', isTabletDesktop);
   document.body?.classList.toggle('tablet-desktop-view', isTabletDesktop);
-  root.dataset.tabletDesktopView = isTabletDesktop ? 'true' : 'false';
-  if (previousMode !== profile.mode || previousOrientation !== profile.orientation) {
-    window.dispatchEvent(new CustomEvent('ict8:device-mode-change', { detail: profile }));
-  }
+  document.documentElement.dataset.tabletDesktopView = isTabletDesktop ? 'true' : 'false';
 
   // The phone preview always uses the single stacked flow. Split, Stacked,
   // and Big Preview remain desktop-only controls and are never needed here.
@@ -25797,8 +25798,8 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
 
   function isDesktopEditorFullscreen() {
     const inEditorFullscreen = document.fullscreenElement === editorPanel || document.body.classList.contains('editor-fullscreen-active');
-    const phone = document.documentElement?.dataset?.deviceMode === 'phone';
-    return inEditorFullscreen && !phone;
+    const mobile = window.matchMedia('(max-width: 760px)').matches;
+    return inEditorFullscreen && !mobile;
   }
 
   function ensureFullscreenBottomToolDock() {
@@ -25856,7 +25857,7 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
       return;
     }
 
-    const mobile = document.documentElement?.dataset?.deviceMode === 'phone';
+    const mobile = window.matchMedia('(max-width: 760px)').matches;
     languageTabs.classList.toggle('has-studio-launcher', !mobile);
     pageActions?.classList.toggle('has-studio-launcher', mobile);
 
@@ -28600,7 +28601,11 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
   }
 
   function isCollabPhoneUi() {
-    return document.documentElement?.dataset?.deviceMode === 'phone';
+    return Boolean(
+      document.documentElement?.dataset?.deviceMode === 'phone' ||
+      window.__mcsianPhonePreviewMode === true ||
+      window.matchMedia?.('(max-width: 820px)')?.matches
+    );
   }
 
   function isCollabInFullEditor() {
@@ -28746,7 +28751,7 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
   function syncMobileCollabToolsBar() {
     const bar = document.getElementById('mobileCollabTools');
     if (!bar) return;
-    const mobile = document.documentElement?.dataset?.deviceMode === 'phone';
+    const mobile = window.matchMedia('(max-width: 760px)').matches;
     const hasVisibleTool = Boolean(bar.querySelector('.collab-share-btn:not(.hidden), .collab-members-pill:not(.hidden)'));
     bar.classList.toggle('hidden', !mobile || !hasVisibleTool || !isCollaborationEnabled());
   }
@@ -28793,7 +28798,7 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
 
     const languageTabs = editorPanel.querySelector('.language-tabs');
     const renameFilesButton = document.getElementById('renameFilesBtn');
-    const mobile = document.documentElement?.dataset?.deviceMode === 'phone';
+    const mobile = window.matchMedia('(max-width: 760px)').matches;
     const inFullEditor = document.body.classList.contains('editor-fullscreen-active') || document.fullscreenElement === editorPanel;
 
     if (mobile) {

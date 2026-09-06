@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ict8-connect-v316-tablet-responsive';
+const CACHE_NAME = 'ict8-connect-v315-mobile-admin-students';
 
 self.addEventListener('install', event => {
   event.waitUntil(self.skipWaiting());
