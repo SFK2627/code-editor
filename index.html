@@ -45,7 +45,7 @@
   </script>
   <link rel="preconnect" href="https://drive.google.com" crossorigin>
   <link rel="preconnect" href="https://lh3.googleusercontent.com" crossorigin>
-  <link rel="stylesheet" href="style.css?v=20260907-v335-preview-input-scroll-final" />
+  <link rel="stylesheet" href="style.css?v=20260906-v315-mobile-admin-students" />
   <style>
     .ai-rubric-settings-card,
     .admin-project-ai-review-card {
@@ -754,327 +754,6 @@
     </div>
   </div>
 
-  <div id="projectTypeOverlay" class="student-auth-overlay project-type-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="projectTypeTitle">
-    <div class="student-auth-card project-type-card">
-      <button id="closeProjectTypeBtn" class="icon-btn auth-close-btn" type="button" aria-label="Close project type dialog">×</button>
-      <div class="student-auth-icon">✨</div>
-      <p class="section-kicker">New Project</p>
-      <h2 id="projectTypeTitle">What do you want to create?</h2>
-      <p class="muted-text">Choose Code Editor for HTML/CSS/JavaScript, or Wireframe Maker to plan a website visually.</p>
-      <div class="project-type-options">
-        <button class="project-type-option" type="button" data-project-type-choice="code">
-          <span class="project-type-option-icon" aria-hidden="true">&lt;/&gt;</span>
-          <span><strong>Code Project</strong><small>Build with HTML, CSS, and JavaScript.</small></span>
-        </button>
-        <button class="project-type-option wireframe" type="button" data-project-type-choice="wireframe">
-          <span class="project-type-option-icon" aria-hidden="true">▦</span>
-          <span><strong>Wireframe Project</strong><small>Drag, resize, add colors, and plan Desktop + Phone layouts.</small></span>
-        </button>
-      </div>
-      <button id="cancelProjectTypeBtn" class="ghost-btn wide-btn" type="button">Cancel</button>
-    </div>
-  </div>
-
-  <div id="wireframeMakerScreen" class="wireframe-maker-screen hidden" aria-labelledby="wireframeProjectTitle">
-    <header class="wireframe-maker-topbar">
-      <div class="wireframe-topbar-left">
-        <button id="wireframeBackBtn" class="ghost-btn wireframe-back-btn" type="button">← My Projects</button>
-        <div>
-          <p class="section-kicker">Wireframe Maker</p>
-          <h1 id="wireframeProjectTitle">Website Wireframe</h1>
-          <p id="wireframeProjectMeta" class="muted-text">Plan your website before coding.</p>
-        </div>
-      </div>
-      <div class="wireframe-topbar-actions">
-        <div class="wireframe-device-toggle" role="group" aria-label="Wireframe device view">
-          <button id="wireframeDesktopBtn" class="ghost-btn active" type="button" data-wireframe-device="desktop">🖥 Desktop</button>
-          <button id="wireframePhoneBtn" class="ghost-btn" type="button" data-wireframe-device="phone">📱 Phone</button>
-        </div>
-        <div class="wireframe-panel-restore-actions" role="group" aria-label="Workspace panels">
-          <button id="wireframePaletteToggleBtn" class="ghost-btn wireframe-panel-toggle-btn active" type="button" aria-pressed="true" title="Show or hide Elements and Layers">☰ Tools</button>
-          <button id="wireframePropertiesToggleBtn" class="ghost-btn wireframe-panel-toggle-btn active" type="button" aria-pressed="true" title="Show or hide Properties">⚙ Properties</button>
-        </div>
-        <div class="wireframe-history-actions" role="group" aria-label="Undo and redo">
-          <button id="wireframeUndoBtn" class="ghost-btn" type="button" title="Undo (Ctrl+Z)" disabled>↶ Undo</button>
-          <button id="wireframeRedoBtn" class="ghost-btn" type="button" title="Redo (Ctrl+Y)" disabled>↷ Redo</button>
-        </div>
-        <label class="wireframe-zoom-wrap">Zoom
-          <select id="wireframeZoomSelect" aria-label="Wireframe canvas zoom">
-            <option value="fit">Fit</option>
-            <option value="0.5">50%</option>
-            <option value="0.75">75%</option>
-            <option value="1">100%</option>
-          </select>
-        </label>
-        <button id="wireframePreviewBtn" class="ghost-btn" type="button" aria-pressed="false">👁 Preview</button>
-        <button id="wireframeFocusBtn" class="ghost-btn wireframe-focus-open-btn" type="button" aria-pressed="false" title="Use the largest possible editing area">⛶ Focus</button>
-        <button id="wireframeExportBtn" class="ghost-btn wireframe-export-open-btn" type="button" title="Export the wireframe as PNG or PDF">⬇ Export</button>
-        <button id="wireframeConvertBtn" class="ghost-btn" type="button" title="Create a new editable Code Project from this wireframe">&lt;/&gt; Starter Code</button>
-        <button id="wireframeSaveBtn" class="primary-btn" type="button">💾 Save</button>
-        <span id="wireframeSaveState" class="wireframe-save-state">Saved</span>
-        <span id="wireframeAutosaveMode" class="wireframe-save-state" data-tone="saved" title="Wireframe saving mode">Autosave ON</span>
-      </div>
-    </header>
-
-    <nav class="wireframe-pagebar" aria-label="Wireframe pages">
-      <div class="wireframe-pagebar-main">
-        <span class="wireframe-pagebar-label">Pages</span>
-        <div id="wireframePageTabs" class="wireframe-page-tabs" role="tablist" aria-label="Website wireframe pages"></div>
-      </div>
-      <div class="wireframe-pagebar-actions">
-        <button id="wireframeAddPageBtn" class="ghost-btn" type="button">＋ Page</button>
-        <button id="wireframeRenamePageBtn" class="ghost-btn" type="button">✏ Rename</button>
-        <button id="wireframeDuplicatePageBtn" class="ghost-btn" type="button">⧉ Duplicate</button>
-        <button id="wireframeSetStartPageBtn" class="ghost-btn" type="button" title="Use this page when Preview opens">⌂ Start</button>
-        <button id="wireframeDeletePageBtn" class="ghost-btn danger" type="button">🗑 Delete</button>
-      </div>
-    </nav>
-
-    <main class="wireframe-maker-workspace">
-      <aside id="wireframePalette" class="wireframe-palette" aria-label="Wireframe elements">
-        <div class="wireframe-panel-heading">
-          <div><span class="wireframe-panel-kicker">Elements</span><strong>Add to canvas</strong></div>
-          <small>Tap or click an element.</small>
-          <button id="wireframePaletteCloseBtn" class="wireframe-panel-close-btn" type="button" aria-label="Hide Elements and Layers" title="Hide Elements and Layers">‹</button>
-        </div>
-        <div class="wireframe-component-grid">
-          <button type="button" data-wireframe-add="nav"><span>☰</span>Navigation</button>
-          <button type="button" data-wireframe-add="section"><span>▭</span>Section</button>
-          <button type="button" data-wireframe-add="heading"><span>H</span>Heading</button>
-          <button type="button" data-wireframe-add="text"><span>¶</span>Text</button>
-          <button type="button" data-wireframe-add="button"><span>▣</span>Button</button>
-          <button type="button" data-wireframe-add="link"><span>↗</span>Page Link</button>
-          <button type="button" data-wireframe-add="image"><span>▧</span>Image</button>
-          <button type="button" data-wireframe-add="card"><span>▤</span>Card</button>
-          <button type="button" data-wireframe-add="input"><span>⌨</span>Input</button>
-          <button type="button" data-wireframe-add="footer"><span>▔</span>Footer</button>
-        </div>
-        <div class="wireframe-palette-tip">
-          <strong>Tip</strong>
-          <p>Each page has Desktop + Phone layouts. Hold Shift or Ctrl/Cmd while selecting to work with several elements.</p>
-        </div>
-        <section class="wireframe-layers-section" aria-labelledby="wireframeLayersTitle">
-          <div class="wireframe-layers-heading">
-            <div><span class="wireframe-panel-kicker">Layers</span><strong id="wireframeLayersTitle">Page elements</strong></div>
-            <span id="wireframeLayerCount" class="wireframe-layer-count">0</span>
-          </div>
-          <div id="wireframeLayersList" class="wireframe-layers-list" role="list" aria-label="Wireframe layers"></div>
-          <small class="wireframe-layers-help">Select, hide, lock, or reorder elements. Edit the layer name from Properties.</small>
-        </section>
-      </aside>
-
-      <section class="wireframe-stage-section" aria-label="Wireframe canvas">
-        <div class="wireframe-stage-toolbar">
-          <div>
-            <strong id="wireframeDeviceLabel">Desktop canvas · 1200 × 760</strong>
-            <small id="wireframeStageHint">Drag elements to move. Use the corner handle to resize.</small>
-          </div>
-          <div class="wireframe-stage-actions">
-            <button id="wireframeExitFocusBtn" class="ghost-btn wireframe-focus-exit-btn" type="button" title="Exit Focus Mode (Esc)">✕ Exit Focus</button>
-            <button id="wireframeSnapBtn" class="ghost-btn active" type="button" aria-pressed="true" title="Snap to grid and smart alignment guides">⌗ Snap ON</button>
-            <button id="wireframeGroupBtn" class="ghost-btn" type="button" disabled title="Group selected elements (Ctrl+G)">Group</button>
-            <button id="wireframeUngroupBtn" class="ghost-btn" type="button" disabled title="Ungroup selected elements (Ctrl+Shift+G)">Ungroup</button>
-            <button id="wireframeDuplicateBtn" class="ghost-btn" type="button" disabled>⧉ Duplicate</button>
-            <button id="wireframeDeleteBtn" class="ghost-btn danger" type="button" disabled>🗑 Delete</button>
-          </div>
-        </div>
-        <div id="wireframeViewport" class="wireframe-viewport">
-          <div id="wireframeCanvasScaler" class="wireframe-canvas-scaler">
-            <div id="wireframeCanvas" class="wireframe-canvas" tabindex="0" aria-label="Website wireframe editing canvas">
-              <div id="wireframeCanvasEmpty" class="wireframe-canvas-empty">
-                <span>▦</span>
-                <strong>Start building your layout</strong>
-                <p>Add Navigation, Heading, Section, Card, Image, Button, and more.</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <aside id="wireframeProperties" class="wireframe-properties" aria-label="Selected element properties">
-        <div class="wireframe-panel-heading">
-          <div><span class="wireframe-panel-kicker">Properties</span><strong id="wireframePropertiesTitle">Canvas</strong></div>
-          <small id="wireframePropertiesHint">Choose an element to edit it.</small>
-          <button id="wireframePropertiesCloseBtn" class="wireframe-panel-close-btn" type="button" aria-label="Hide Properties" title="Hide Properties">›</button>
-        </div>
-
-        <div class="wireframe-property-group wireframe-canvas-properties">
-          <label>Page Background
-            <div class="wireframe-color-row">
-              <input id="wireframeCanvasBgColor" type="color" value="#ffffff" />
-              <input id="wireframeCanvasBgText" type="text" maxlength="7" value="#ffffff" aria-label="Canvas background hex color" />
-            </div>
-          </label>
-        </div>
-
-        <div id="wireframeSelectionTools" class="wireframe-selection-tools hidden">
-          <div class="wireframe-property-group">
-            <div class="wireframe-selection-summary"><strong id="wireframeSelectionCount">1 element selected</strong><small>Quick layout tools</small></div>
-            <div class="wireframe-layout-align-grid" role="group" aria-label="Align selected elements">
-              <button type="button" data-wireframe-layout-align="left" title="Align left">⇤ Left</button>
-              <button type="button" data-wireframe-layout-align="hcenter" title="Align horizontal center">↔ Center</button>
-              <button type="button" data-wireframe-layout-align="right" title="Align right">Right ⇥</button>
-              <button type="button" data-wireframe-layout-align="top" title="Align top">⇡ Top</button>
-              <button type="button" data-wireframe-layout-align="vcenter" title="Align vertical center">↕ Middle</button>
-              <button type="button" data-wireframe-layout-align="bottom" title="Align bottom">Bottom ⇣</button>
-            </div>
-            <div class="wireframe-distribute-actions">
-              <button id="wireframeDistributeHBtn" class="ghost-btn" type="button" disabled>Distribute ↔</button>
-              <button id="wireframeDistributeVBtn" class="ghost-btn" type="button" disabled>Distribute ↕</button>
-            </div>
-          </div>
-        </div>
-
-        <div id="wireframeElementProperties" class="wireframe-element-properties hidden">
-          <div class="wireframe-property-group">
-            <label>Layer Name
-              <input id="wireframeElementLayerName" type="text" maxlength="40" placeholder="Example: Hero title" />
-            </label>
-          </div>
-          <div class="wireframe-property-group">
-            <label>Text / Label
-              <textarea id="wireframeElementText" rows="3" maxlength="180" placeholder="Element text"></textarea>
-            </label>
-          </div>
-          <div id="wireframeImageProperties" class="wireframe-property-group wireframe-image-properties hidden">
-            <div class="wireframe-image-property-heading">
-              <div>
-                <span class="wireframe-property-label">Real Image</span>
-                <small id="wireframeImageInfo">No image uploaded yet.</small>
-              </div>
-              <div class="wireframe-image-upload-actions">
-                <button id="wireframeImageUploadBtn" class="ghost-btn" type="button">Upload / Replace</button>
-                <button id="wireframeImageRemoveBtn" class="ghost-btn danger" type="button" disabled>Remove</button>
-              </div>
-            </div>
-            <input id="wireframeImageFileInput" class="hidden" type="file" accept="image/jpeg,image/png,image/webp" />
-            <div class="wireframe-image-fit-grid">
-              <label>Image Fit
-                <select id="wireframeImageFit">
-                  <option value="cover">Cover / Crop</option>
-                  <option value="contain">Contain / Fit</option>
-                  <option value="fill">Stretch</option>
-                </select>
-              </label>
-              <label>Horizontal Focus <span id="wireframeImagePositionXValue">50%</span>
-                <input id="wireframeImagePositionX" type="range" min="0" max="100" step="1" value="50" />
-              </label>
-              <label>Vertical Focus <span id="wireframeImagePositionYValue">50%</span>
-                <input id="wireframeImagePositionY" type="range" min="0" max="100" step="1" value="50" />
-              </label>
-            </div>
-            <small>For Cover / Crop, move the focus sliders to choose which part of the image stays visible. Images are optimized automatically for safe project saving.</small>
-          </div>
-          <div class="wireframe-property-group wireframe-property-two-col">
-            <label>Background
-              <input id="wireframeElementBg" type="color" value="#ffffff" />
-            </label>
-            <label>Text Color
-              <input id="wireframeElementColor" type="color" value="#111827" />
-            </label>
-            <label>Border Color
-              <input id="wireframeElementBorder" type="color" value="#94a3b8" />
-            </label>
-            <label>Font Size
-              <input id="wireframeElementFontSize" type="number" min="10" max="72" step="1" value="16" />
-            </label>
-            <label>Corner Radius
-              <input id="wireframeElementRadius" type="number" min="0" max="80" step="1" value="8" />
-            </label>
-            <label>Border Width
-              <input id="wireframeElementBorderWidth" type="number" min="0" max="8" step="1" value="1" />
-            </label>
-          </div>
-          <div class="wireframe-property-group">
-            <span class="wireframe-property-label">Text Alignment</span>
-            <div class="wireframe-align-buttons" role="group" aria-label="Text alignment">
-              <button type="button" data-wireframe-align="left">Left</button>
-              <button type="button" data-wireframe-align="center">Center</button>
-              <button type="button" data-wireframe-align="right">Right</button>
-            </div>
-          </div>
-          <div class="wireframe-property-group wireframe-link-property-group">
-            <label>Link to Page
-              <select id="wireframeElementLinkTarget" aria-label="Choose a wireframe page to open in Preview">
-                <option value="">No page link</option>
-              </select>
-            </label>
-            <small>In Preview, clicking this element opens the selected page. For navigation menus, add separate Page Link elements.</small>
-          </div>
-          <div class="wireframe-property-group wireframe-property-two-col">
-            <label>X<input id="wireframeElementX" type="number" min="0" step="1" /></label>
-            <label>Y<input id="wireframeElementY" type="number" min="0" step="1" /></label>
-            <label>Width<input id="wireframeElementW" type="number" min="40" step="1" /></label>
-            <label>Height<input id="wireframeElementH" type="number" min="30" step="1" /></label>
-          </div>
-          <div class="wireframe-property-actions">
-            <button id="wireframeBringFrontBtn" class="ghost-btn" type="button">Bring Front</button>
-            <button id="wireframeSendBackBtn" class="ghost-btn" type="button">Send Back</button>
-          </div>
-        </div>
-      </aside>
-    </main>
-  </div>
-
-  <div id="wireframePageDialogOverlay" class="student-auth-overlay wireframe-page-dialog-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="wireframePageDialogTitle">
-    <div class="student-auth-card wireframe-page-dialog-card">
-      <button id="closeWireframePageDialogBtn" class="icon-btn auth-close-btn" type="button" aria-label="Close page dialog">×</button>
-      <div class="student-auth-icon">▦</div>
-      <p id="wireframePageDialogKicker" class="section-kicker">Wireframe Page</p>
-      <h2 id="wireframePageDialogTitle">Add Page</h2>
-      <label>Page Name
-        <input id="wireframePageNameInput" type="text" maxlength="32" autocomplete="off" placeholder="Example: About" />
-      </label>
-      <p id="wireframePageDialogError" class="login-error hidden" role="alert"></p>
-      <button id="saveWireframePageDialogBtn" class="primary-btn wide-btn" type="button">Add Page</button>
-      <button id="cancelWireframePageDialogBtn" class="ghost-btn wide-btn" type="button">Cancel</button>
-    </div>
-  </div>
-
-  <div id="wireframeExportOverlay" class="student-auth-overlay wireframe-export-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="wireframeExportTitle">
-    <div class="student-auth-card wireframe-export-card">
-      <button id="closeWireframeExportBtn" class="icon-btn auth-close-btn" type="button" aria-label="Close wireframe export">×</button>
-      <div class="student-auth-icon wireframe-export-icon">⬇</div>
-      <p class="section-kicker">Wireframe Export</p>
-      <h2 id="wireframeExportTitle">Export Clean Wireframe</h2>
-      <p class="muted-text">Export only the website layout. Editor tools, grid, selection outlines, resize handles, and panels are never included.</p>
-
-      <div class="wireframe-export-options">
-        <label>Device View
-          <select id="wireframeExportDevice">
-            <option value="desktop">Desktop · 1200 × 760</option>
-            <option value="phone">Phone · 390 × 844</option>
-          </select>
-        </label>
-        <label>PDF Pages
-          <select id="wireframeExportScope">
-            <option value="current">Current page only</option>
-            <option value="all">All wireframe pages</option>
-          </select>
-        </label>
-      </div>
-
-      <div class="wireframe-export-current">
-        <span>Current page</span>
-        <strong id="wireframeExportPageName">Home</strong>
-      </div>
-
-      <div class="wireframe-export-format-grid">
-        <button id="wireframeExportPngBtn" class="wireframe-export-format-btn" type="button">
-          <span class="wireframe-export-format-icon">🖼</span>
-          <span><strong>PNG Image</strong><small>High-resolution image of the current page.</small></span>
-        </button>
-        <button id="wireframeExportPdfBtn" class="wireframe-export-format-btn" type="button">
-          <span class="wireframe-export-format-icon">📄</span>
-          <span><strong>PDF Document</strong><small>Current page or all pages, one clean wireframe per sheet.</small></span>
-        </button>
-      </div>
-
-      <p id="wireframeExportStatus" class="wireframe-export-status" role="status">PNG exports the current page. PDF follows the page option above.</p>
-      <button id="cancelWireframeExportBtn" class="ghost-btn wide-btn" type="button">Cancel</button>
-    </div>
-  </div>
-
   <div class="app-shell">
     <header class="topbar simplified-topbar">
       <div class="brand-block">
@@ -1254,7 +933,7 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
 
           <div class="preview-frame-shell" aria-label="Output display area">
             <div class="desktop-monitor-label" aria-hidden="true">Desktop monitor preview</div>
-            <iframe id="previewFrame" title="Code output preview" scrolling="yes" sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-top-navigation-by-user-activation"></iframe>
+            <iframe id="previewFrame" title="Code output preview" sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-top-navigation-by-user-activation"></iframe>
           </div>
         </section>
 
@@ -1499,35 +1178,11 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
           <label class="assistance-option" for="autoSaveControlToggle">
             <span class="assistance-option-icon">💾</span>
             <span class="assistance-option-copy">
-              <strong>Code Editor Autosave</strong>
-              <small>When enabled, logged-in Code Projects save automatically while typing. When disabled, students must press Save or Ctrl+S.</small>
+              <strong>Auto Save Student Work</strong>
+              <small>When enabled, logged-in student projects save automatically while typing. When disabled, students must press Save or Ctrl+S.</small>
             </span>
             <span class="admin-switch">
               <input id="autoSaveControlToggle" type="checkbox" checked />
-              <span class="admin-switch-track"><span class="admin-switch-thumb"></span></span>
-            </span>
-          </label>
-
-          <label class="assistance-option" for="wireframeAutoSaveToggle">
-            <span class="assistance-option-icon">▦</span>
-            <span class="assistance-option-copy">
-              <strong>Wireframe Autosave</strong>
-              <small>When ON, Wireframe Projects save automatically after changes. When OFF, students must press Save; a local recovery copy is still kept for safety.</small>
-            </span>
-            <span class="admin-switch">
-              <input id="wireframeAutoSaveToggle" type="checkbox" checked />
-              <span class="admin-switch-track"><span class="admin-switch-thumb"></span></span>
-            </span>
-          </label>
-
-          <label class="assistance-option" for="wireframeStarterCodeToggle">
-            <span class="assistance-option-icon">&lt;/&gt;</span>
-            <span class="assistance-option-copy">
-              <strong>Wireframe Starter Code</strong>
-              <small>Allow students to convert a Wireframe Project into a new editable HTML/CSS Code Project. When OFF, the Starter Code button stays visible but is disabled.</small>
-            </span>
-            <span class="admin-switch">
-              <input id="wireframeStarterCodeToggle" type="checkbox" checked />
               <span class="admin-switch-track"><span class="admin-switch-thumb"></span></span>
             </span>
           </label>
@@ -2541,7 +2196,6 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
           <button class="ghost-btn" type="button" data-admin-viewer-lang="js">JavaScript</button>
         </div>
         <button id="adminProjectViewerRunBtn" class="primary-btn" type="button">▶ Run Preview</button>
-        <button id="adminProjectViewerDownloadZipBtn" class="ghost-btn admin-project-download-zip-btn" type="button" title="Download all HTML, CSS, and JavaScript files saved in this selected project">⬇ Download ZIP</button>
         <button id="adminProjectViewerFullCodeBtn" class="ghost-btn" type="button">⛶ Full Code</button>
         <button id="adminProjectViewerFullPreviewBtn" class="ghost-btn" type="button">⛶ Full Preview</button>
       </div>
@@ -2550,10 +2204,7 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
         <section class="admin-project-code-card" aria-label="Read-only student code">
           <div class="admin-project-code-title-row">
             <strong id="adminProjectViewerFileTitle">index.html</strong>
-            <div class="admin-project-code-actions">
-              <span class="admin-project-readonly-pill">Read-only</span>
-              <button id="adminProjectViewerCopyBtn" class="ghost-btn admin-project-copy-btn" type="button" title="Copy the currently viewed HTML, CSS, or JavaScript file">📋 Copy</button>
-            </div>
+            <span class="admin-project-readonly-pill">Read-only</span>
           </div>
           <pre id="adminProjectViewerCode" class="admin-project-code-output" tabindex="0"></pre>
         </section>
@@ -2566,42 +2217,6 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
         </section>
       </div>
 
-      <section id="adminProjectResultCheckCard" class="admin-project-result-check-card" aria-label="Admin rubric result check">
-        <div class="admin-project-result-check-header">
-          <div>
-            <p class="section-kicker">Admin Result Check</p>
-            <h3>Run Result / Recheck Score</h3>
-            <p class="muted-text">Choose the rubric you want to use, run the student's saved project, and compare the fresh score with the recorded score. Nothing is overwritten until you explicitly save it.</p>
-          </div>
-          <span id="adminProjectResultCheckStatus" class="admin-project-result-check-status">Ready</span>
-        </div>
-        <div class="admin-project-result-check-controls">
-          <label class="admin-project-result-rubric-wrap">
-            Rubric to use
-            <select id="adminProjectRubricSelect"></select>
-          </label>
-          <button id="adminProjectCheckResultBtn" class="primary-btn" type="button">✓ Check Result</button>
-          <button id="adminProjectSaveOfficialScoreBtn" class="ghost-btn" type="button" disabled>Save as Official Score</button>
-        </div>
-        <div class="admin-project-score-compare" aria-label="Recorded and rechecked score comparison">
-          <div class="admin-project-score-box">
-            <span>Recorded Score</span>
-            <strong id="adminProjectRecordedScore">Not scored</strong>
-            <small id="adminProjectRecordedScoreNote">Saved in this project</small>
-          </div>
-          <div class="admin-project-score-box admin-project-score-box-recheck">
-            <span>Admin Recheck</span>
-            <strong id="adminProjectRecheckScore">Not checked</strong>
-            <small id="adminProjectRecheckScoreNote">Uses the selected rubric</small>
-          </div>
-        </div>
-        <div id="adminProjectResultCheckOutput" class="admin-project-result-check-output">
-          <div class="admin-project-result-empty">
-            <strong>No admin recheck yet.</strong>
-            <p>Select a rubric, then click Check Result. The fresh score is only a preview until you save it as official.</p>
-          </div>
-        </div>
-      </section>
 
       <section id="adminProjectAiReviewCard" class="admin-project-ai-review-card" aria-label="Smart rubric review">
         <div class="admin-project-ai-review-header">
@@ -2643,35 +2258,6 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
     </div>
   </div>
 
-  <div id="adminWireframeViewerOverlay" class="student-auth-overlay admin-wireframe-viewer-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="adminWireframeViewerTitle">
-    <div class="admin-wireframe-viewer-card" role="document">
-      <div class="admin-wireframe-viewer-header">
-        <div>
-          <p class="section-kicker">Wireframe Project</p>
-          <h2 id="adminWireframeViewerTitle">Student Wireframe</h2>
-          <p id="adminWireframeViewerSubtitle" class="muted-text"></p>
-        </div>
-        <button id="closeAdminWireframeViewerBtn" class="icon-btn" type="button" aria-label="Close wireframe viewer">×</button>
-      </div>
-      <div class="admin-wireframe-viewer-toolbar">
-        <label class="admin-wireframe-page-select-wrap">Page
-          <select id="adminWireframePageSelect" aria-label="Choose wireframe page"></select>
-        </label>
-        <div class="wireframe-device-toggle" role="group" aria-label="Admin wireframe device view">
-          <button id="adminWireframeDesktopBtn" class="ghost-btn active" type="button" data-admin-wireframe-device="desktop">🖥 Desktop</button>
-          <button id="adminWireframePhoneBtn" class="ghost-btn" type="button" data-admin-wireframe-device="phone">📱 Phone</button>
-        </div>
-        <span id="adminWireframeDeviceLabel" class="admin-wireframe-device-label">Desktop · 1200 × 760</span>
-      </div>
-      <div id="adminWireframeViewport" class="admin-wireframe-viewport">
-        <div id="adminWireframeCanvasScaler" class="wireframe-canvas-scaler admin-wireframe-canvas-scaler">
-          <div id="adminWireframeCanvas" class="wireframe-canvas admin-wireframe-canvas" aria-label="Read-only student wireframe"></div>
-        </div>
-      </div>
-      <p class="helper-note">Read-only preview. Switch pages and devices to inspect the student's responsive wireframe. Linked elements also navigate between pages.</p>
-    </div>
-  </div>
-
   <div id="adminProjectFullscreenOverlay" class="student-auth-overlay admin-project-fullscreen-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="adminProjectFullscreenTitle">
     <div class="admin-project-fullscreen-card" role="document">
       <div class="admin-project-fullscreen-header">
@@ -2685,23 +2271,16 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
       <div id="adminProjectFullscreenCodePanel" class="admin-project-fullscreen-code-panel">
         <div class="admin-project-code-title-row">
           <strong id="adminProjectFullscreenCodeTitle">index.html</strong>
-          <div class="admin-project-code-actions">
-            <span class="admin-project-readonly-pill">Read-only</span>
-            <button id="adminProjectFullscreenCopyBtn" class="ghost-btn admin-project-copy-btn" type="button" title="Copy the currently viewed HTML, CSS, or JavaScript file">📋 Copy</button>
-          </div>
+          <span class="admin-project-readonly-pill">Read-only</span>
         </div>
         <pre id="adminProjectFullscreenCode" class="admin-project-code-output admin-project-fullscreen-code" tabindex="0"></pre>
       </div>
       <div id="adminProjectFullscreenPreviewPanel" class="admin-project-fullscreen-preview-panel hidden">
-        <div class="admin-project-preview-title-row admin-project-fullscreen-preview-title-row">
-          <strong>Desktop Monitor Preview</strong>
-          <small id="adminProjectFullscreenPreviewNote">Desktop viewport</small>
+        <div class="admin-project-preview-title-row">
+          <strong>Output Preview</strong>
+          <small id="adminProjectFullscreenPreviewNote">Full preview runs inside this viewer only.</small>
         </div>
-        <div id="adminProjectFullscreenPreviewStage" class="admin-project-fullscreen-preview-stage" aria-label="Desktop monitor preview stage">
-          <div id="adminProjectFullscreenDesktopCanvas" class="admin-project-fullscreen-desktop-canvas">
-            <iframe id="adminProjectFullscreenFrame" class="admin-project-fullscreen-frame" title="Student project full desktop output preview" sandbox="allow-scripts allow-forms allow-modals allow-popups allow-same-origin"></iframe>
-          </div>
-        </div>
+        <iframe id="adminProjectFullscreenFrame" class="admin-project-fullscreen-frame" title="Student project full output preview" sandbox="allow-scripts allow-forms allow-modals allow-popups allow-same-origin"></iframe>
       </div>
     </div>
   </div>
@@ -2855,6 +2434,6 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
   <script src="firebase-config.js"></script>
-  <script src="script.js?v=20260907-v335-preview-input-scroll-final"></script>
+  <script src="script.js?v=20260906-v315-mobile-admin-students"></script>
 </body>
 </html>
