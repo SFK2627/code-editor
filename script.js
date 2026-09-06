@@ -14681,7 +14681,7 @@ function updateInstallButtonVisibility() {
 function registerPWAServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./service-worker.js?v=313-ultra-smooth-scroll', {
+    navigator.serviceWorker.register('./service-worker.js?v=314-true-live-collaboration', {
       updateViaCache: 'none'
     }).then(registration => {
       registration.update().catch(() => {});
@@ -26472,7 +26472,10 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
   const COLLAB_HEARTBEAT_MS = 25000;
   const COLLAB_SNAPSHOT_MS = 5 * 60 * 1000;
   const COLLAB_SIGNAL_TIMEOUT_MS = 15000;
-  const COLLAB_CURSOR_DELAY_MS = 85;
+  const COLLAB_CURSOR_DELAY_MS = 70;
+  const COLLAB_REMOTE_PREVIEW_DELAY_MS = 320;
+  const COLLAB_REMOTE_VISUAL_DELAY_MS = 70;
+  const COLLAB_MAX_PENDING_MESSAGES = 500;
   const COLLAB_ICE_SERVERS = [
     { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] }
   ];
@@ -26498,6 +26501,9 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     returnToDashboardAfterLeave: false,
     cursorTimer: null,
     lastCursorPosition: -1,
+    lastCursorSignature: '',
+    cursorRenderFrame: 0,
+    cursorRenderData: null,
     memberColorCache: {},
     savedProjectId: '',
     savedProjectName: '',
@@ -26511,7 +26517,10 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     p2pMode: false,
     hostSequence: 0,
     lastSnapshotWriteAt: 0,
-    pendingLiveMessage: null,
+    pendingLiveMessages: [],
+    unackedLiveMessages: new Map(),
+    seenContentBatchIds: new Set(),
+    liveBatchSeq: 0,
     peerMembers: {},
     peerOfferKeys: new Map(),
     ownPeerRef: null,
@@ -26522,7 +26531,16 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     crdtReady: false,
     crdtLocalSeq: 0,
     crdtBeforeInput: null,
-    crdtRemotePreviewTimer: null
+    crdtRemotePreviewTimer: null,
+    crdtRemoteVisualTimer: null,
+    crdtCodeSaveTimer: null,
+    crdtIsComposing: false,
+    crdtCompositionBase: null,
+    crdtNeedsStateBroadcast: false,
+    outgoingCrdtBatches: new Map(),
+    outgoingCrdtFrame: 0,
+    remoteCrdtBatches: new Map(),
+    remoteCrdtFrame: 0
   };
 
   function isCollaborationEnabled() {
@@ -26664,7 +26682,7 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     return coords;
   }
 
-  function renderCollabCursors(data = collabState.latestSession) {
+  function renderCollabCursorsNow(data = collabState.latestSession) {
     const layer = getCollabCursorLayer();
     if (!layer) return;
     const cursors = data?.cursors && typeof data.cursors === 'object' ? Object.values(data.cursors) : [];
@@ -26678,18 +26696,23 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
       return;
     }
     const activeFileName = getActiveLanguageFileName(activeLanguage);
+    const activeScopeKey = crdtScopeKey(selectedActivityId || '', activeLanguage, activeFileName);
+    const activeDoc = collabState.crdtDocs?.[activeScopeKey] || null;
     const remote = cursors.filter(cursor => {
       if (!cursor || !cursor.uid || cursor.uid === ownUid) return false;
       if (cursor.language !== activeLanguage) return false;
       if (cursor.fileName !== activeFileName) return false;
+      if (cursor.scopeKey && cursor.scopeKey !== activeScopeKey) return false;
       if (Number(cursor.updatedAt || 0) <= now - 12000) return false;
-      const pos = Number(cursor.position || 0);
-      return Number.isFinite(pos) && pos >= 0 && pos <= Math.max(0, editor.value.length + 1);
+      return true;
     });
     layer.classList.toggle('hidden', remote.length === 0);
     layer.innerHTML = remote.map(cursor => {
       const member = members[cursor.uid] || {};
-      const coords = getCaretCoordinatesForCollab(editor, Number(cursor.position || 0));
+      let position = Number(cursor.position || 0);
+      if (activeDoc && cursor.startAnchor) position = crdtResolveEndpoint(activeDoc, cursor.startAnchor);
+      position = Math.max(0, Math.min(String(editor.value || '').length, Number(position) || 0));
+      const coords = getCaretCoordinatesForCollab(editor, position);
       if (!coords) return '';
       const color = getCollabMemberColor(cursor.uid, cursor.color || member.color || '');
       const name = collabEscape(cursor.name || member.name || 'Classmate');
@@ -26700,6 +26723,17 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     }).join('');
   }
 
+  function renderCollabCursors(data = collabState.latestSession) {
+    collabState.cursorRenderData = data || collabState.latestSession;
+    if (collabState.cursorRenderFrame) return;
+    collabState.cursorRenderFrame = window.requestAnimationFrame(() => {
+      collabState.cursorRenderFrame = 0;
+      const nextData = collabState.cursorRenderData || collabState.latestSession;
+      collabState.cursorRenderData = null;
+      renderCollabCursorsNow(nextData);
+    });
+  }
+
   function scheduleCollabCursorPush() {
     if (!collabState.active || collabState.applyingRemote || !getCollabUid()) return;
     window.clearTimeout(collabState.cursorTimer);
@@ -26707,18 +26741,35 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
   }
 
   async function pushCollabCursor() {
-    if (!collabState.active || !getCollabUid()) return;
-    const position = Number(editor?.selectionStart || 0);
+    if (!collabState.active || !getCollabUid() || !collabState.crdtReady) return;
     const uid = getCollabUid();
-    if (position === collabState.lastCursorPosition && collabState.p2pReady) return;
-    collabState.lastCursorPosition = position;
+    const meta = getCrdtScopeMeta();
+    const doc = getCrdtDoc(meta.scopeKey, String(editor?.value || ''));
+    const start = Number(editor?.selectionStart || 0);
+    const end = Number(editor?.selectionEnd || start);
+    const startAnchor = crdtCaptureEndpoint(doc, start);
+    const endAnchor = crdtCaptureEndpoint(doc, end);
+    const signature = JSON.stringify([
+      meta.scopeKey,
+      startAnchor.beforeId || '', startAnchor.afterId || '',
+      endAnchor.beforeId || '', endAnchor.afterId || '',
+      editor?.selectionDirection || 'none'
+    ]);
+    if (signature === collabState.lastCursorSignature && collabState.p2pReady) return;
+    collabState.lastCursorSignature = signature;
+    collabState.lastCursorPosition = start;
     const cursor = {
       uid,
       name: getCollabName(),
       color: getCollabMemberColor(uid),
-      language: activeLanguage,
-      fileName: getActiveLanguageFileName(activeLanguage),
-      position,
+      language: meta.language,
+      fileName: meta.fileName,
+      scopeKey: meta.scopeKey,
+      position: start,
+      selectionEnd: end,
+      startAnchor,
+      endAnchor,
+      direction: editor?.selectionDirection || 'none',
       updatedAt: Date.now()
     };
     collabState.latestSession = {
@@ -26858,6 +26909,7 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
   }
 
   function getCollabAuthoritativeState() {
+    if (collabState.remoteCrdtBatches.size && !collabState.crdtIsComposing) flushRemoteCrdtOps();
     const payload = getCollabContentPayload();
     const current = collabState.latestSession || {};
     return {
@@ -27105,6 +27157,35 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     return false;
   }
 
+  function mergeAllCrdtDocs(source = {}) {
+    if (!source || typeof source !== 'object') return false;
+    let changed = false;
+    Object.entries(source).forEach(([scopeKey, snapshot]) => {
+      const incoming = crdtImportDoc(snapshot);
+      if (!incoming) return;
+      const existing = collabState.crdtDocs[scopeKey];
+      if (!existing) {
+        collabState.crdtDocs[scopeKey] = incoming;
+        changed = true;
+        return;
+      }
+      Object.values(incoming.nodes || {}).forEach(node => {
+        const current = existing.nodes[node.id];
+        if (!current) {
+          existing.nodes[node.id] = { ...node };
+          crdtAddChild(existing, node.afterId, node.id);
+          changed = true;
+          return;
+        }
+        if (node.deleted && !current.deleted) {
+          current.deleted = true;
+          changed = true;
+        }
+      });
+    });
+    return changed;
+  }
+
   function initializeCrdtDocsFromCurrentProject({ force = false } = {}) {
     if (force) collabState.crdtDocs = {};
     Object.entries(codeByActivity || {}).forEach(([activityKey, rawStore]) => {
@@ -27138,17 +27219,57 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     };
   }
 
+  function crdtAllIds(doc) {
+    const ids = [];
+    const visit = parentId => {
+      const children = Array.isArray(doc?.children?.[parentId]) ? doc.children[parentId] : [];
+      children.forEach(id => {
+        if (!doc.nodes[id]) return;
+        ids.push(id);
+        visit(id);
+      });
+    };
+    visit(COLLAB_CRDT_ROOT);
+    return ids;
+  }
+
   function crdtResolveEndpoint(doc, anchor = {}) {
-    const ids = crdtVisibleIds(doc);
-    if (anchor.beforeId) {
-      const beforeIndex = ids.indexOf(anchor.beforeId);
-      if (beforeIndex >= 0) return beforeIndex + 1;
-    }
-    if (anchor.afterId) {
-      const afterIndex = ids.indexOf(anchor.afterId);
-      if (afterIndex >= 0) return afterIndex;
-    }
-    return Math.max(0, Math.min(ids.length, Number(anchor.fallback) || 0));
+    const visibleIds = crdtVisibleIds(doc);
+    const visibleIndex = new Map(visibleIds.map((id, index) => [id, index]));
+    if (anchor.beforeId && visibleIndex.has(anchor.beforeId)) return visibleIndex.get(anchor.beforeId) + 1;
+    if (anchor.afterId && visibleIndex.has(anchor.afterId)) return visibleIndex.get(anchor.afterId);
+
+    // Relative cursor anchors stay useful even when the exact neighbor was
+    // deleted by a classmate. Resolve to the nearest surviving CRDT character
+    // instead of falling back immediately to a stale numeric offset.
+    const allIds = crdtAllIds(doc);
+    const resolveDeletedNeighbor = (id, preferAfter) => {
+      if (!id || !doc?.nodes?.[id]) return null;
+      const rawIndex = allIds.indexOf(id);
+      if (rawIndex < 0) return null;
+      if (preferAfter) {
+        for (let i = rawIndex + 1; i < allIds.length; i += 1) {
+          if (visibleIndex.has(allIds[i])) return visibleIndex.get(allIds[i]);
+        }
+        for (let i = rawIndex - 1; i >= 0; i -= 1) {
+          if (visibleIndex.has(allIds[i])) return visibleIndex.get(allIds[i]) + 1;
+        }
+      } else {
+        for (let i = rawIndex - 1; i >= 0; i -= 1) {
+          if (visibleIndex.has(allIds[i])) return visibleIndex.get(allIds[i]) + 1;
+        }
+        for (let i = rawIndex + 1; i < allIds.length; i += 1) {
+          if (visibleIndex.has(allIds[i])) return visibleIndex.get(allIds[i]);
+        }
+      }
+      return 0;
+    };
+
+    const fromBefore = resolveDeletedNeighbor(anchor.beforeId, false);
+    if (fromBefore !== null) return fromBefore;
+    const fromAfter = resolveDeletedNeighbor(anchor.afterId, true);
+    if (fromAfter !== null) return fromAfter;
+    return Math.max(0, Math.min(visibleIds.length, Number(anchor.fallback) || 0));
   }
 
   function captureCrdtEditorSelection(doc) {
@@ -27286,22 +27407,36 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
       }
     }
 
-    saveCodeByActivity();
+    scheduleCollabCodeStoreSave();
+  }
+
+  function flushCollabCodeStoreSave() {
+    window.clearTimeout(collabState.crdtCodeSaveTimer);
+    collabState.crdtCodeSaveTimer = null;
+    try { saveCodeByActivity(); } catch (_) {}
+  }
+
+  function scheduleCollabCodeStoreSave(delay = 160) {
+    window.clearTimeout(collabState.crdtCodeSaveTimer);
+    collabState.crdtCodeSaveTimer = window.setTimeout(flushCollabCodeStoreSave, Math.max(0, Number(delay) || 0));
   }
 
   function refreshCrdtEditorVisuals() {
     try { updateLineNumbers(); } catch (_) {}
-    try { renderStructureAlert(); } catch (_) {}
-    try { updateTagMatching(); } catch (_) {}
     try { syncEditorScroll(); } catch (_) {}
-    try { scheduleEditorHelperRefresh(160); } catch (_) {}
+    try { scheduleEditorHelperRefresh(180); } catch (_) {}
+    window.clearTimeout(collabState.crdtRemoteVisualTimer);
+    collabState.crdtRemoteVisualTimer = window.setTimeout(() => {
+      try { renderStructureAlert(); } catch (_) {}
+      try { updateTagMatching(); } catch (_) {}
+    }, COLLAB_REMOTE_VISUAL_DELAY_MS);
     window.clearTimeout(collabState.crdtRemotePreviewTimer);
     collabState.crdtRemotePreviewTimer = window.setTimeout(() => {
       try {
         resetResultPanel();
         runCode(false, { scroll: false, trackRun: false, source: 'collab-crdt' });
       } catch (_) {}
-    }, 120);
+    }, COLLAB_REMOTE_PREVIEW_DELAY_MS);
   }
 
 
@@ -27359,89 +27494,199 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     }
   }
 
+  function applyCanonicalRemoteTextToEditor(doc, nextText, savedSelection) {
+    const currentText = String(editor.value || '');
+    const canonicalText = String(nextText || '');
+    if (currentText !== canonicalText) {
+      const patch = getCollabTextDiffPatch(currentText, canonicalText);
+      if (patch.changed) {
+        try {
+          editor.setRangeText(patch.insertText, patch.start, patch.start + patch.deleteCount, 'preserve');
+        } catch (_) {
+          editor.value = canonicalText;
+        }
+      }
+    }
+    restoreCrdtEditorSelection(doc, savedSelection);
+  }
+
+  function flushRemoteCrdtOps() {
+    collabState.remoteCrdtFrame = 0;
+    if (!collabState.remoteCrdtBatches.size) return;
+    if (collabState.crdtIsComposing) return;
+    const batches = Array.from(collabState.remoteCrdtBatches.values());
+    collabState.remoteCrdtBatches.clear();
+    let refreshedActiveEditor = false;
+    let newestVersion = Number(collabState.lastContentVersion || 0);
+    let lastEditorName = '';
+    let lastFileName = '';
+    batches.forEach(batch => {
+      const { meta, entries } = batch;
+      const codeKey = meta.activityId || 'scratch';
+      const targetStore = normalizeCodeStore(codeByActivity[codeKey] || starterCode);
+      const files = getLanguageFileMap(meta.language, targetStore);
+      const fallbackText = String(files[meta.fileName] ?? '');
+      const doc = getCrdtDoc(meta.scopeKey, fallbackText);
+      const viewingSameFile = (selectedActivityId || '') === meta.activityId
+        && activeLanguage === meta.language
+        && getActiveLanguageFileName(meta.language) === meta.fileName;
+      const savedSelection = viewingSameFile ? captureCrdtEditorSelection(doc) : null;
+      entries.forEach(data => {
+        applyCrdtOps(doc, data.ops || []);
+        newestVersion = Math.max(newestVersion, Number(data.contentVersion || 0));
+        lastEditorName = data.lastEditorName || lastEditorName;
+        lastFileName = meta.fileName || lastFileName;
+      });
+      const nextText = crdtVisibleText(doc);
+      syncCrdtTextIntoCodeStore(meta, nextText);
+      if (viewingSameFile) {
+        collabState.applyingRemote = true;
+        try {
+          applyCanonicalRemoteTextToEditor(doc, nextText, savedSelection);
+          refreshedActiveEditor = true;
+        } finally {
+          collabState.applyingRemote = false;
+        }
+      }
+    });
+    if (newestVersion > collabState.lastContentVersion) collabState.lastContentVersion = newestVersion;
+    if (refreshedActiveEditor) refreshCrdtEditorVisuals();
+    if (lastEditorName && lastFileName) setStatus(`${lastEditorName} updated ${lastFileName}`);
+    renderCollabCursors(collabState.latestSession);
+  }
+
+  function scheduleRemoteCrdtFlush() {
+    if (collabState.remoteCrdtFrame || collabState.crdtIsComposing) return;
+    collabState.remoteCrdtFrame = window.requestAnimationFrame(flushRemoteCrdtOps);
+  }
+
   function applyRemoteCrdtOps(data = {}) {
-    const meta = {
-      activityId: String(data.selectedActivityId || ''),
-      language: ['html', 'css', 'js'].includes(data.language) ? data.language : 'html',
-      fileName: cleanLanguageFileName(data.fileName, ['html', 'css', 'js'].includes(data.language) ? data.language : 'html'),
-      scopeKey: String(data.scopeKey || '')
-    };
-    if (!meta.scopeKey) meta.scopeKey = crdtScopeKey(meta.activityId, meta.language, meta.fileName);
-
-    const codeKey = meta.activityId || 'scratch';
-    const targetStore = normalizeCodeStore(codeByActivity[codeKey] || starterCode);
-    const files = getLanguageFileMap(meta.language, targetStore);
-    const fallbackText = String(files[meta.fileName] ?? '');
-    const doc = getCrdtDoc(meta.scopeKey, fallbackText);
-
-    const viewingSameFile = (selectedActivityId || '') === meta.activityId
-      && activeLanguage === meta.language
-      && getActiveLanguageFileName(meta.language) === meta.fileName;
-
-    // The sender already applied its own CRDT operation locally. Receiving the
-    // host echo is only an acknowledgement/version update, never a text reset.
+    const version = Number(data.contentVersion || 0);
     if (data.lastEditorUid && data.lastEditorUid === getCollabUid()) {
-      const version = Number(data.contentVersion || 0);
       if (version > collabState.lastContentVersion) collabState.lastContentVersion = version;
       return;
     }
+    const language = ['html', 'css', 'js'].includes(data.language) ? data.language : 'html';
+    const meta = {
+      activityId: String(data.selectedActivityId || ''),
+      language,
+      fileName: cleanLanguageFileName(data.fileName, language),
+      scopeKey: String(data.scopeKey || '')
+    };
+    if (!meta.scopeKey) meta.scopeKey = crdtScopeKey(meta.activityId, meta.language, meta.fileName);
+    if (collabState.crdtIsComposing && collabState.role === 'host') collabState.crdtNeedsStateBroadcast = true;
+    const existing = collabState.remoteCrdtBatches.get(meta.scopeKey) || { meta, entries: [] };
+    existing.entries.push(data);
+    collabState.remoteCrdtBatches.set(meta.scopeKey, existing);
+    scheduleRemoteCrdtFlush();
+  }
 
-    const savedSelection = viewingSameFile ? captureCrdtEditorSelection(doc) : null;
-    applyCrdtOps(doc, data.ops || []);
-    const nextText = crdtVisibleText(doc);
-    syncCrdtTextIntoCodeStore(meta, nextText);
-
-    if (viewingSameFile) {
-      collabState.applyingRemote = true;
-      try {
-        editor.value = nextText;
-        restoreCrdtEditorSelection(doc, savedSelection);
-        refreshCrdtEditorVisuals();
-      } finally {
-        window.setTimeout(() => { collabState.applyingRemote = false; }, 0);
-      }
+  function enqueuePendingLiveMessage(message, options = {}) {
+    if (!message) return;
+    const queue = collabState.pendingLiveMessages;
+    const batchId = String(message.batchId || '');
+    if (batchId && queue.some(entry => String(entry?.batchId || '') === batchId)) return;
+    if (options.front) queue.unshift(message);
+    else queue.push(message);
+    if (queue.length === COLLAB_MAX_PENDING_MESSAGES) {
+      console.warn('Live collaboration has a large reconnect queue; keeping all operations so no edit is lost.');
     }
+  }
 
-    const version = Number(data.contentVersion || 0);
-    if (version > collabState.lastContentVersion) collabState.lastContentVersion = version;
-    setStatus(`${data.lastEditorName || 'Classmate'} updated ${meta.fileName}`);
-    window.setTimeout(() => renderCollabCursors(collabState.latestSession), 20);
+  function trackUnackedLiveMessage(message) {
+    const batchId = String(message?.batchId || '');
+    if (!batchId || message?.type !== 'content' || message?.data?.patchMode !== 'crdtOps') return;
+    collabState.unackedLiveMessages.set(batchId, message);
+  }
+
+  function requeueUnackedLiveMessages() {
+    if (!collabState.unackedLiveMessages.size) return;
+    const pendingIds = new Set(collabState.pendingLiveMessages.map(message => String(message?.batchId || '')).filter(Boolean));
+    const unacked = Array.from(collabState.unackedLiveMessages.values());
+    for (let index = unacked.length - 1; index >= 0; index -= 1) {
+      const message = unacked[index];
+      const batchId = String(message?.batchId || '');
+      if (batchId && pendingIds.has(batchId)) continue;
+      enqueuePendingLiveMessage(message, { front: true });
+      if (batchId) pendingIds.add(batchId);
+    }
+    collabState.unackedLiveMessages.clear();
+  }
+
+  function nextCollabBatchId() {
+    collabState.liveBatchSeq += 1;
+    return `${crdtSafeUid()}:${Date.now().toString(36)}:${String(collabState.liveBatchSeq).padStart(6, '0')}`;
+  }
+
+  function rememberSeenContentBatch(batchId = '') {
+    const id = String(batchId || '');
+    if (!id) return false;
+    if (collabState.seenContentBatchIds.has(id)) return true;
+    collabState.seenContentBatchIds.add(id);
+    if (collabState.seenContentBatchIds.size > 4000) {
+      const first = collabState.seenContentBatchIds.values().next().value;
+      if (first) collabState.seenContentBatchIds.delete(first);
+    }
+    return false;
+  }
+
+  function flushPendingLiveMessages(targetUid = collabState.latestSession?.hostUid || '') {
+    if (!targetUid || !collabState.pendingLiveMessages.length) return 0;
+    let sent = 0;
+    while (collabState.pendingLiveMessages.length) {
+      const message = collabState.pendingLiveMessages[0];
+      if (!sendCollabP2PMessage(targetUid, message)) break;
+      trackUnackedLiveMessage(message);
+      collabState.pendingLiveMessages.shift();
+      sent += 1;
+    }
+    return sent;
+  }
+
+  function flushOutgoingCrdtOps() {
+    collabState.outgoingCrdtFrame = 0;
+    if (!collabState.active || !collabState.canEdit || !collabState.crdtReady || !collabState.outgoingCrdtBatches.size) return;
+    const batches = Array.from(collabState.outgoingCrdtBatches.values());
+    collabState.outgoingCrdtBatches.clear();
+    batches.forEach(({ meta, ops }) => {
+      if (!ops.length) return;
+      const baseData = {
+        patchMode: 'crdtOps', selectedActivityId: meta.activityId, language: meta.language,
+        fileName: meta.fileName, scopeKey: meta.scopeKey, ops,
+        lastEditorUid: getCollabUid(), lastEditorName: getCollabName(),
+        lastEditorLanguage: meta.language, lastEditorFile: meta.fileName
+      };
+      if (collabState.role === 'host') {
+        const authoritative = { ...baseData, contentVersion: getNextCollabHostVersion() };
+        collabState.lastContentVersion = authoritative.contentVersion;
+        collabState.latestSession = { ...(collabState.latestSession || {}), ...authoritative };
+        broadcastCollabP2PMessage(buildCollabChannelMessage('content', { data: authoritative }));
+        return;
+      }
+      const hostUid = collabState.latestSession?.hostUid;
+      const batchId = nextCollabBatchId();
+      const message = buildCollabChannelMessage('content', {
+        batchId,
+        data: { ...baseData, contentVersion: Number(collabState.lastContentVersion || 0) }
+      });
+      if (hostUid && collabState.pendingLiveMessages.length) {
+        enqueuePendingLiveMessage(message);
+        flushPendingLiveMessages(hostUid);
+        return;
+      }
+      const sent = Boolean(hostUid && sendCollabP2PMessage(hostUid, message));
+      if (sent) trackUnackedLiveMessage(message);
+      else enqueuePendingLiveMessage(message);
+    });
   }
 
   function sendLocalCrdtOps(meta, ops = []) {
     if (!collabState.active || !collabState.canEdit || !collabState.crdtReady || !ops.length) return false;
-
-    const baseData = {
-      patchMode: 'crdtOps',
-      selectedActivityId: meta.activityId,
-      language: meta.language,
-      fileName: meta.fileName,
-      scopeKey: meta.scopeKey,
-      ops,
-      lastEditorUid: getCollabUid(),
-      lastEditorName: getCollabName(),
-      lastEditorLanguage: meta.language,
-      lastEditorFile: meta.fileName
-    };
-
-    if (collabState.role === 'host') {
-      const authoritative = {
-        ...baseData,
-        contentVersion: getNextCollabHostVersion()
-      };
-      collabState.lastContentVersion = authoritative.contentVersion;
-      collabState.latestSession = { ...(collabState.latestSession || {}), ...authoritative };
-      broadcastCollabP2PMessage(buildCollabChannelMessage('content', { data: authoritative }));
-      return true;
-    }
-
-    const hostUid = collabState.latestSession?.hostUid;
-    const message = buildCollabChannelMessage('content', {
-      data: { ...baseData, contentVersion: Number(collabState.lastContentVersion || 0) }
-    });
-    const sent = Boolean(hostUid && sendCollabP2PMessage(hostUid, message));
-    if (!sent) collabState.pendingLiveMessage = message;
-    return sent;
+    const current = collabState.outgoingCrdtBatches.get(meta.scopeKey) || { meta: { ...meta }, ops: [] };
+    current.ops.push(...ops);
+    collabState.outgoingCrdtBatches.set(meta.scopeKey, current);
+    if (!collabState.outgoingCrdtFrame) collabState.outgoingCrdtFrame = window.requestAnimationFrame(flushOutgoingCrdtOps);
+    return true;
   }
 
   function handleLocalCrdtEditorInput() {
@@ -27728,10 +27973,7 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
         broadcastCollabP2PMessage(buildCollabChannelMessage('members', { members: collabState.peerMembers }));
       } else {
         sendCollabP2PMessage(remoteUid, buildCollabChannelMessage('hello', { member: buildCollabMember('member') }));
-        if (collabState.pendingLiveMessage) {
-          sendCollabP2PMessage(remoteUid, collabState.pendingLiveMessage);
-          collabState.pendingLiveMessage = null;
-        }
+        flushPendingLiveMessages(remoteUid);
       }
       setStatus('Direct live sync connected');
       setCollabStatus('Direct live sync connected. Firebase usage stays low.', 'success');
@@ -27745,6 +27987,7 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     channel.onclose = () => {
       collabState.dataChannels.delete(remoteUid);
       markCollabRuntimeMemberOffline(remoteUid);
+      if (collabState.role !== 'host' && collabState.active) requeueUnackedLiveMessages();
       if (collabState.role !== 'host' && collabState.active) {
         collabState.p2pReady = false;
         setStatus('Direct live sync reconnecting');
@@ -27811,7 +28054,8 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     collabState.peerMembers = {};
     collabState.p2pMode = false;
     collabState.p2pReady = false;
-    collabState.pendingLiveMessage = null;
+    collabState.pendingLiveMessages = [];
+    collabState.unackedLiveMessages.clear();
     collabState.ownPeerRef = null;
     collabState.p2pConnectTimer = null;
     collabState.snapshotTimer = null;
@@ -27988,9 +28232,10 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
         // Reconnect/repeated state: NEVER replace codeByActivity or reload the
         // editor. Import the canonical CRDT documents and merge their visible
         // text into our existing multi-file store.
-        if (importAllCrdtDocs(message.data.crdtSnapshots || {})) {
+        if (mergeAllCrdtDocs(message.data.crdtSnapshots || {})) {
           reconcileLocalProjectFromCrdtDocs();
         }
+        flushPendingLiveMessages(remoteUid);
       }
 
       collabState.canEdit = message.data.allowEdit !== false && isCollaborationEditAllowed();
@@ -28068,12 +28313,22 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
       renderCollabCursors(collabState.latestSession);
       return;
     }
+    if (message.type === 'ack') {
+      const batchId = String(message.batchId || '');
+      if (batchId) collabState.unackedLiveMessages.delete(batchId);
+      return;
+    }
     if (message.type === 'content') {
       const incoming = message.data || {};
 
       if (incoming.patchMode === 'crdtOps') {
+        const batchId = String(message.batchId || '');
+        if (collabState.role === 'host' && (collabState.latestSession?.allowEdit === false || !isCollaborationEditAllowed())) return;
+        if (collabState.role === 'host' && batchId && rememberSeenContentBatch(batchId)) {
+          sendCollabP2PMessage(remoteUid, buildCollabChannelMessage('ack', { batchId }));
+          return;
+        }
         if (collabState.role === 'host') {
-          if (collabState.latestSession?.allowEdit === false || !isCollaborationEditAllowed()) return;
           const authoritative = {
             ...incoming,
             contentVersion: getNextCollabHostVersion(),
@@ -28083,6 +28338,7 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
           collabState.latestSession = { ...(collabState.latestSession || {}), ...authoritative };
           applyRemoteCrdtOps(authoritative);
           broadcastCollabP2PMessage(buildCollabChannelMessage('content', { data: authoritative }));
+          if (batchId) sendCollabP2PMessage(remoteUid, buildCollabChannelMessage('ack', { batchId }));
         } else {
           collabState.latestSession = { ...(collabState.latestSession || {}), ...incoming };
           applyRemoteCrdtOps(incoming);
@@ -28868,6 +29124,16 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     collabState.crdtDocs = {};
     collabState.crdtLocalSeq = 0;
     collabState.crdtBeforeInput = null;
+    collabState.crdtIsComposing = false;
+    collabState.crdtCompositionBase = null;
+    collabState.crdtNeedsStateBroadcast = false;
+    collabState.pendingLiveMessages = [];
+    collabState.unackedLiveMessages.clear();
+    collabState.seenContentBatchIds.clear();
+    collabState.liveBatchSeq = 0;
+    collabState.outgoingCrdtBatches.clear();
+    collabState.remoteCrdtBatches.clear();
+    collabState.lastCursorSignature = '';
     collabState.crdtReady = role === 'host';
     collabState.peerMembers = {
       ...(initialData.members || {}),
@@ -29090,7 +29356,7 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
       } else {
         const hostUid = collabState.latestSession?.hostUid;
         sent = Boolean(hostUid && sendCollabP2PMessage(hostUid, message));
-        if (!sent) collabState.pendingLiveMessage = message;
+        if (!sent) enqueuePendingLiveMessage(message);
       }
       collabState.lastLocalVersion = provisionalVersion;
       collabState.lastPushedSignature = signature;
@@ -29251,6 +29517,23 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     collabState.pushTimer = null;
     collabState.cursorTimer = null;
     window.clearTimeout(collabState.crdtRemotePreviewTimer);
+    window.clearTimeout(collabState.crdtRemoteVisualTimer);
+    window.clearTimeout(collabState.crdtCodeSaveTimer);
+    if (collabState.outgoingCrdtFrame) window.cancelAnimationFrame(collabState.outgoingCrdtFrame);
+    if (collabState.remoteCrdtFrame) window.cancelAnimationFrame(collabState.remoteCrdtFrame);
+    if (collabState.cursorRenderFrame) window.cancelAnimationFrame(collabState.cursorRenderFrame);
+    flushCollabCodeStoreSave();
+    collabState.outgoingCrdtBatches.clear();
+    collabState.remoteCrdtBatches.clear();
+    collabState.pendingLiveMessages = [];
+    collabState.unackedLiveMessages.clear();
+    collabState.seenContentBatchIds.clear();
+    collabState.outgoingCrdtFrame = 0;
+    collabState.remoteCrdtFrame = 0;
+    collabState.cursorRenderFrame = 0;
+    collabState.crdtIsComposing = false;
+    collabState.crdtCompositionBase = null;
+    collabState.crdtNeedsStateBroadcast = false;
     collabState.crdtDocs = {};
     collabState.crdtReady = false;
     collabState.crdtBeforeInput = null;
@@ -29525,9 +29808,10 @@ They can join again later using the same share code.`,
   htmlPageSelect?.addEventListener('change', rerenderCollabCursorsAfterLocalFileFocusChange);
   tabButtons.forEach(button => button.addEventListener('click', rerenderCollabCursorsAfterLocalFileFocusChange));
 
-  editor.addEventListener('beforeinput', () => {
+  editor.addEventListener('compositionstart', () => {
     if (!collabState.active || !collabState.canEdit || !collabState.crdtReady || collabState.applyingRemote) return;
-    collabState.crdtBeforeInput = {
+    collabState.crdtIsComposing = true;
+    collabState.crdtCompositionBase = {
       value: String(editor.value || ''),
       selectionStart: Number(editor.selectionStart || 0),
       selectionEnd: Number(editor.selectionEnd || editor.selectionStart || 0),
@@ -29535,15 +29819,40 @@ They can join again later using the same share code.`,
     };
   });
 
-  editor.addEventListener('input', () => {
+  editor.addEventListener('beforeinput', event => {
+    if (!collabState.active || !collabState.canEdit || !collabState.crdtReady || collabState.applyingRemote) return;
+    if (collabState.crdtIsComposing || event.isComposing) return;
+    collabState.crdtBeforeInput = {
+      value: String(editor.value || ''), selectionStart: Number(editor.selectionStart || 0),
+      selectionEnd: Number(editor.selectionEnd || editor.selectionStart || 0), scopeKey: getCrdtScopeMeta().scopeKey
+    };
+  });
+
+  editor.addEventListener('input', event => {
     if (collabState.active && collabState.crdtReady && !collabState.applyingRemote) {
-      handleLocalCrdtEditorInput();
+      if (!collabState.crdtIsComposing && !event.isComposing) handleLocalCrdtEditorInput();
     }
     scheduleCollabCursorPush();
   });
 
-  // Keyboard/paste/cut/drop all produce input events and therefore CRDT ops.
-  // Do not additionally send the old position-based textPatch.
+  editor.addEventListener('compositionend', () => {
+    if (!collabState.crdtIsComposing) return;
+    collabState.crdtIsComposing = false;
+    if (collabState.crdtCompositionBase) collabState.crdtBeforeInput = collabState.crdtCompositionBase;
+    collabState.crdtCompositionBase = null;
+    if (collabState.active && collabState.crdtReady && !collabState.applyingRemote) handleLocalCrdtEditorInput();
+    scheduleRemoteCrdtFlush();
+    if (collabState.crdtNeedsStateBroadcast && collabState.role === 'host') {
+      collabState.crdtNeedsStateBroadcast = false;
+      window.setTimeout(() => {
+        if (!collabState.active || collabState.role !== 'host') return;
+        if (collabState.remoteCrdtBatches.size && !collabState.crdtIsComposing) flushRemoteCrdtOps();
+        broadcastCollabP2PMessage(buildCollabChannelMessage('state', { data: getCollabAuthoritativeState() }));
+      }, 24);
+    }
+    scheduleCollabCursorPush();
+  });
+
   editor.addEventListener('keyup', scheduleCollabCursorPush);
   editor.addEventListener('click', scheduleCollabCursorPush);
   editor.addEventListener('mouseup', scheduleCollabCursorPush);
@@ -29576,7 +29885,9 @@ They can join again later using the same share code.`,
   document.addEventListener('webkitfullscreenchange', () => window.setTimeout(() => { ensureCollabControls(); placeAllCollabOverlays(); renderCollabCursors(collabState.latestSession); }, 60));
   window.addEventListener('resize', () => window.setTimeout(() => { ensureCollabControls(); placeAllCollabOverlays(); renderCollabCursors(collabState.latestSession); }, 60));
   window.addEventListener('beforeunload', () => {
+    flushCollabCodeStoreSave();
     if (!collabState.active) return;
+    if (collabState.outgoingCrdtFrame) flushOutgoingCrdtOps();
     if (collabState.canEdit) pushCollaborationUpdate('silent');
     if (collabState.role === 'host') persistCollabSnapshot('host-unload', { force: true }).catch(() => {});
     else {
