@@ -53196,5 +53196,61 @@ html.preview-fullscreen-root body.preview-fullscreen-active #previewFrame {
   margin: 0 !important;
   padding: 0 !important;
   border: 0 !important;
+  overflow: auto !important;
+  touch-action: pan-x pan-y pinch-zoom !important;
+  overscroll-behavior: contain !important;
+  -webkit-overflow-scrolling: touch !important;
+}
+
+
+/* =========================================================
+   v334 - Output Preview scrolling repair
+   Keep the outer preview edge-to-edge, but never clip the iframe's own
+   scroll surface. Applies to normal preview, phone view, monitor view and
+   fullscreen preview. The outer app remains locked only in fullscreen.
+   ========================================================= */
+#previewFrame {
+  overflow: auto !important;
+  touch-action: pan-x pan-y pinch-zoom !important;
+  overscroll-behavior: contain !important;
+  -webkit-overflow-scrolling: touch !important;
+}
+
+.preview-frame-shell {
+  touch-action: pan-x pan-y pinch-zoom !important;
+}
+
+@media (hover: none) and (pointer: coarse), (max-width: 760px) {
+  .preview-panel,
+  .preview-panel.mobile-desktop-preview,
+  .preview-panel.mobile-landscape-desktop-preview {
+    touch-action: pan-y pinch-zoom !important;
+  }
+
+  .preview-panel #previewFrame,
+  .preview-panel.mobile-desktop-preview #previewFrame,
+  .preview-panel.mobile-landscape-desktop-preview #previewFrame {
+    overflow: auto !important;
+    touch-action: pan-x pan-y pinch-zoom !important;
+    overscroll-behavior: contain !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+}
+
+body.preview-fullscreen-active .preview-panel,
+body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel .preview-panel,
+#previewPanel:fullscreen,
+#previewPanel:-webkit-full-screen {
+  /* Outer fullscreen stays fixed/edge-to-edge. Scrolling belongs to iframe. */
   overflow: hidden !important;
+}
+
+body.preview-fullscreen-active #previewFrame,
+body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel #previewFrame,
+#previewPanel:fullscreen #previewFrame,
+#previewPanel:-webkit-full-screen #previewFrame {
+  overflow: auto !important;
+  touch-action: pan-x pan-y pinch-zoom !important;
+  overscroll-behavior: contain !important;
+  -webkit-overflow-scrolling: touch !important;
 }

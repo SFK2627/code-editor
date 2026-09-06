@@ -10428,7 +10428,7 @@ function buildAdminProjectPreviewCode(pageName = '') {
   }
 
   return `<!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="page-${pageIndex + 1}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -14013,8 +14013,18 @@ function findPreviewScrollableAncestor(doc, startNode, deltaY) {
   return null;
 }
 
+function ensurePreviewFrameScrollableSurface() {
+  if (!previewFrame) return;
+  previewFrame.setAttribute('scrolling', 'yes');
+  previewFrame.style.setProperty('overflow', 'auto', 'important');
+  previewFrame.style.setProperty('touch-action', 'pan-x pan-y pinch-zoom', 'important');
+  previewFrame.style.setProperty('overscroll-behavior', 'contain', 'important');
+  previewFrame.style.setProperty('-webkit-overflow-scrolling', 'touch', 'important');
+}
+
 function attachPreviewDesktopWheelScroll() {
   if (!previewFrame) return;
+  ensurePreviewFrameScrollableSurface();
   let doc = null;
   try {
     doc = previewFrame.contentDocument || previewFrame.contentWindow?.document || null;
@@ -14060,12 +14070,24 @@ function attachPreviewDesktopWheelScroll() {
 }
 
 installDesktopEditorWheelScroll();
+ensurePreviewFrameScrollableSurface();
 
 function buildFullCode(pageName = getActiveHtmlPageName()) {
   const safePageName = normalizeHtmlPageName(pageName);
   const rawHtml = getHTMLPageContent(safePageName) || '';
   const html = stripAppPreviewHelperLeak(rawHtml);
-  const styleBlock = getCSSBlocksForPreview(html);
+  const rawStyleBlock = getCSSBlocksForPreview(html);
+  // Older Wireframe -> Starter Code builds intentionally hid root overflow to
+  // remove a right-side gutter. That also prevented scrolling in Output Preview.
+  // Repair those generated starters at preview time without overriding normal
+  // student-authored CSS or mutating the saved project.
+  const legacyWireframeStarterScrollFix = /Starter CSS generated from ICT 8 Connect Wireframe Maker/i.test(rawStyleBlock)
+    ? `<style id="mcs-wireframe-starter-preview-scroll-fix">
+html, body { min-height: 100% !important; overflow-x: hidden !important; overflow-y: auto !important; -webkit-overflow-scrolling: touch; }
+.site-canvas { min-height: 100vh !important; min-height: 100dvh !important; overflow: visible !important; }
+</style>`
+    : '';
+  const styleBlock = [rawStyleBlock, legacyWireframeStarterScrollFix].filter(Boolean).join('\n');
   const scriptBlock = getJSBlocksForPreview(html);
   // App navigation helpers are attached from the parent iframe load handler.
   // Keeping them out of srcdoc prevents helper JS from ever becoming visible
@@ -27758,7 +27780,7 @@ function buildWireframeStarterCss(data) {
   const phoneRules = [];
 
   normalized.pages.forEach((page, pageIndex) => {
-    baseRules.push(`body.page-${pageIndex + 1}, .page-${pageIndex + 1} .site-canvas { background: ${page.canvasBackground}; }`);
+    baseRules.push(`html.page-${pageIndex + 1}, body.page-${pageIndex + 1}, .page-${pageIndex + 1} .site-canvas { background: ${page.canvasBackground}; }`);
     page.elements.forEach((element, elementIndex) => {
       if (element.hidden) return;
       const selector = `.wf-p${pageIndex + 1}-e${elementIndex + 1}`;
@@ -27802,28 +27824,55 @@ html,
 body {
   margin: 0;
   width: 100%;
-  height: 100%;
   min-width: 0;
-  min-height: 0;
-  overflow: hidden;
+  min-height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scroll-behavior: smooth;
+  overscroll-behavior-y: auto;
+}
+
+html {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(100, 116, 139, 0.62) transparent;
+}
+
+html::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+html::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+html::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: rgba(100, 116, 139, 0.62);
+  background-clip: padding-box;
 }
 
 body {
+  min-height: 100vh;
+  min-height: 100dvh;
   font-family: Arial, Helvetica, sans-serif;
   background: #e2e8f0;
   color: #0f172a;
 }
 
-/* The wireframe is a reference canvas. The generated website fills the exact
-   browser/preview viewport. Using 100% instead of 100vw avoids the scrollbar
-   gutter that can leave a white strip at the right edge. */
+/* The wireframe is a reference canvas. The generated website fills the
+   viewport but keeps vertical overflow scrollable. Horizontal overflow stays
+   clipped so there is no white strip at the right edge. */
 .site-canvas {
   position: relative;
   width: 100%;
-  height: 100%;
-  min-height: 100%;
+  height: 100vh;
+  height: 100dvh;
+  min-height: 100vh;
+  min-height: 100dvh;
   margin: 0;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .wf-element {
@@ -27861,8 +27910,10 @@ ${baseRules.join('\n\n')}
 @media (max-width: 600px) {
   .site-canvas {
     width: 100%;
-    height: 100%;
-    min-height: 100%;
+    height: 100vh;
+    height: 100dvh;
+    min-height: 100vh;
+    min-height: 100dvh;
   }
 
 ${phoneRules.join('\n')}
