@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ict8-connect-v312-desktop-natural-scroll';
+const CACHE_NAME = 'ict8-connect-v313-ultra-smooth-scroll';
 
 self.addEventListener('install', event => {
   event.waitUntil(self.skipWaiting());

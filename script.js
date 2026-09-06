@@ -12977,7 +12977,7 @@ function attachPreviewLinkHandlers() {
   }, true);
 }
 
-/* v312 — desktop natural/chained wheel scrolling for editor + Output Preview */
+/* v313 — ultra-smooth desktop scrolling: native first, JS only at scroll edges */
 function isDesktopNaturalScrollMode() {
   const root = document.documentElement;
   const phoneMode = root?.dataset?.deviceMode === 'phone';
@@ -12993,15 +12993,49 @@ function normalizeWheelDeltaY(event, viewportHeight = window.innerHeight) {
   return raw;
 }
 
-function scrollParentPageByWheel(deltaY) {
-  if (!deltaY) return false;
+const desktopParentWheelState = {
+  pendingDeltaY: 0,
+  rafId: 0
+};
+
+function getParentPageScrollInfo() {
   const scroller = document.scrollingElement || document.documentElement || document.body;
-  if (!scroller) return false;
-  const maxTop = Math.max(0, scroller.scrollHeight - window.innerHeight);
-  const before = Number(scroller.scrollTop || window.scrollY || 0);
-  const next = Math.max(0, Math.min(maxTop, before + deltaY));
-  if (Math.abs(next - before) < 0.5) return false;
-  scroller.scrollTop = next;
+  if (!scroller) return null;
+  const viewportHeight = Math.max(1, window.innerHeight || document.documentElement.clientHeight || 1);
+  const maxTop = Math.max(0, scroller.scrollHeight - viewportHeight);
+  const top = Number(scroller.scrollTop || window.scrollY || 0);
+  return { scroller, top, maxTop };
+}
+
+function canParentPageScrollByWheel(deltaY) {
+  const info = getParentPageScrollInfo();
+  if (!info || Math.abs(deltaY) < 0.25) return false;
+  if (deltaY > 0) return info.top < info.maxTop - 0.5;
+  return info.top > 0.5;
+}
+
+function flushQueuedParentWheel() {
+  desktopParentWheelState.rafId = 0;
+  const deltaY = desktopParentWheelState.pendingDeltaY;
+  desktopParentWheelState.pendingDeltaY = 0;
+  if (Math.abs(deltaY) < 0.25) return;
+
+  const info = getParentPageScrollInfo();
+  if (!info) return;
+  const next = Math.max(0, Math.min(info.maxTop, info.top + deltaY));
+  if (Math.abs(next - info.top) < 0.25) return;
+
+  // One scroll write per animation frame keeps high-frequency trackpad/wheel
+  // input smooth instead of forcing layout/paint work for every wheel event.
+  info.scroller.scrollTop = next;
+}
+
+function queueParentPageWheel(deltaY) {
+  if (!canParentPageScrollByWheel(deltaY)) return false;
+  desktopParentWheelState.pendingDeltaY += deltaY;
+  if (!desktopParentWheelState.rafId) {
+    desktopParentWheelState.rafId = window.requestAnimationFrame(flushQueuedParentWheel);
+  }
   return true;
 }
 
@@ -13015,35 +13049,22 @@ function installDesktopEditorWheelScroll() {
     if (Math.abs(Number(event.deltaX || 0)) > Math.abs(Number(event.deltaY || 0))) return;
 
     const deltaY = normalizeWheelDeltaY(event, editor.clientHeight || window.innerHeight);
-    if (Math.abs(deltaY) < 0.5) return;
+    if (Math.abs(deltaY) < 0.25) return;
 
-    const fullscreen = document.body.classList.contains('editor-fullscreen-active');
     const maxTop = Math.max(0, editor.scrollHeight - editor.clientHeight);
-    const before = Number(editor.scrollTop || 0);
+    const top = Number(editor.scrollTop || 0);
     const wantsDown = deltaY > 0;
-    const canMoveEditor = maxTop > 1 && ((wantsDown && before < maxTop - 1) || (!wantsDown && before > 1));
+    const editorCanMove = maxTop > 1 && (wantsDown ? top < maxTop - 0.5 : top > 0.5);
 
-    if (canMoveEditor) {
-      event.preventDefault();
-      const next = Math.max(0, Math.min(maxTop, before + deltaY));
-      editor.scrollTop = next;
-      syncEditorScroll();
+    // Let the browser handle normal textarea scrolling natively. This preserves
+    // built-in wheel acceleration and trackpad momentum and avoids JS jank.
+    if (editorCanMove) return;
 
-      // Trackpad/wheel movement that goes beyond the last editor line continues
-      // onto the outer page in normal desktop mode instead of getting trapped.
-      const consumed = next - before;
-      const leftover = deltaY - consumed;
-      if (!fullscreen && Math.abs(leftover) > 0.5) scrollParentPageByWheel(leftover);
-      return;
-    }
+    // Fullscreen editor intentionally remains self-contained at its edges.
+    if (document.body.classList.contains('editor-fullscreen-active')) return;
 
-    // Full editor intentionally keeps wheel scrolling inside the editor only.
-    if (fullscreen) return;
-
-    // Normal desktop editor usually auto-grows to its content. A textarea can
-    // still swallow wheel gestures even when it has no vertical room, so pass
-    // those gestures to the actual app page explicitly.
-    if (scrollParentPageByWheel(deltaY)) event.preventDefault();
+    // Only the edge handoff is custom. Batch it to one write per animation frame.
+    if (queueParentPageWheel(deltaY)) event.preventDefault();
   }, { passive: false });
 }
 
@@ -13058,7 +13079,7 @@ function findPreviewScrollableAncestor(doc, startNode, deltaY) {
       if (scrollable) {
         const maxTop = Math.max(0, node.scrollHeight - node.clientHeight);
         const top = Number(node.scrollTop || 0);
-        const canMove = deltaY > 0 ? top < maxTop - 1 : top > 1;
+        const canMove = deltaY > 0 ? top < maxTop - 0.5 : top > 0.5;
         if (canMove) return node;
       }
     } catch (_) {}
@@ -13085,31 +13106,31 @@ function attachPreviewDesktopWheelScroll() {
 
     const viewHeight = previewFrame.clientHeight || doc.defaultView?.innerHeight || window.innerHeight;
     const deltaY = normalizeWheelDeltaY(event, viewHeight);
-    if (Math.abs(deltaY) < 0.5) return;
-
-    // Respect student-made scrollable components (cards, menus, etc.). Native
-    // browser scrolling remains in charge while one of those can still move.
-    if (findPreviewScrollableAncestor(doc, event.target, deltaY)) return;
+    if (Math.abs(deltaY) < 0.25) return;
 
     const scroller = doc.scrollingElement || doc.documentElement || doc.body;
     if (!scroller) return;
     const clientHeight = Math.max(1, scroller.clientHeight || doc.defaultView?.innerHeight || viewHeight);
     const maxTop = Math.max(0, scroller.scrollHeight - clientHeight);
-    const before = Number(scroller.scrollTop || doc.defaultView?.scrollY || 0);
-    const next = Math.max(0, Math.min(maxTop, before + deltaY));
+    const top = Number(scroller.scrollTop || doc.defaultView?.scrollY || 0);
+    const rootCanMove = maxTop > 1 && (deltaY > 0 ? top < maxTop - 0.5 : top > 0.5);
 
-    if (Math.abs(next - before) > 0.5) {
-      event.preventDefault();
-      scroller.scrollTop = next;
-      return;
-    }
+    // Native iframe scrolling is much smoother than manually assigning
+    // scrollTop on every wheel event. Leave it completely untouched while the
+    // student page still has room to scroll.
+    if (rootCanMove) return;
 
-    // At the top/bottom of a normal Output Preview, continue scrolling the
-    // outer ICT 8 Connect page. Fullscreen preview stays self-contained.
+    // At the document edge, first respect any student-made nested scroll area.
+    // This relatively expensive style walk now runs only at an edge, not during
+    // every normal wheel tick.
+    if (findPreviewScrollableAncestor(doc, event.target, deltaY)) return;
+
     const previewIsFullscreen = document.body.classList.contains('preview-fullscreen-active')
       || document.body.classList.contains('preview-inside-editor-fullscreen')
       || document.fullscreenElement === previewPanel;
-    if (!previewIsFullscreen && scrollParentPageByWheel(deltaY)) event.preventDefault();
+    if (previewIsFullscreen) return;
+
+    if (queueParentPageWheel(deltaY)) event.preventDefault();
   }, { passive: false });
 }
 
@@ -14660,7 +14681,7 @@ function updateInstallButtonVisibility() {
 function registerPWAServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./service-worker.js?v=312-desktop-natural-scroll', {
+    navigator.serviceWorker.register('./service-worker.js?v=313-ultra-smooth-scroll', {
       updateViaCache: 'none'
     }).then(registration => {
       registration.update().catch(() => {});
