@@ -50620,3 +50620,2581 @@ body.dark-mode .admin-project-result-pill.needs-work {
     grid-template-columns: 1fr;
   }
 }
+
+/* =========================================================
+   Responsive Wireframe Maker v1
+   Isolated visual builder styles. Does not modify Code Editor layout.
+   ========================================================= */
+body.wireframe-maker-active {
+  overflow: hidden;
+}
+
+.project-type-card {
+  width: min(640px, calc(100vw - 32px));
+}
+
+.project-type-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin: 18px 0;
+}
+
+.project-type-option {
+  min-height: 138px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--solid-card);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  transition: transform .16s ease, border-color .16s ease, box-shadow .16s ease;
+}
+
+.project-type-option:hover,
+.project-type-option:focus-visible {
+  transform: translateY(-2px);
+  border-color: var(--primary);
+  box-shadow: var(--shadow);
+  outline: none;
+}
+
+.project-type-option.wireframe {
+  background: linear-gradient(145deg, var(--solid-card), var(--primary-soft));
+}
+
+.project-type-option-icon {
+  flex: 0 0 58px;
+  width: 58px;
+  height: 58px;
+  display: grid;
+  place-items: center;
+  border-radius: 16px;
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-size: 24px;
+  font-weight: 900;
+}
+
+.project-type-option span:last-child {
+  display: grid;
+  gap: 6px;
+}
+
+.project-type-option strong {
+  font-size: 17px;
+}
+
+.project-type-option small {
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.project-card-icon.wireframe {
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-size: 23px;
+}
+
+.wireframe-maker-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 2400;
+  display: flex;
+  flex-direction: column;
+  background:
+    radial-gradient(circle at 10% 0%, rgba(37, 99, 235, .12), transparent 30rem),
+    linear-gradient(180deg, var(--bg-2), var(--bg));
+  color: var(--text);
+}
+
+.wireframe-maker-topbar {
+  flex: 0 0 auto;
+  min-height: 86px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line);
+  background: var(--card);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 8px 30px rgba(15, 23, 42, .08);
+  position: relative;
+  z-index: 4;
+}
+
+.wireframe-topbar-left,
+.wireframe-topbar-actions,
+.wireframe-device-toggle,
+.wireframe-stage-actions,
+.wireframe-property-actions,
+.wireframe-align-buttons {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.wireframe-topbar-left {
+  min-width: 0;
+  gap: 14px;
+}
+
+.wireframe-topbar-left h1 {
+  margin: 1px 0 2px;
+  font-size: clamp(20px, 2vw, 28px);
+  line-height: 1.1;
+}
+
+.wireframe-topbar-left p {
+  margin: 0;
+}
+
+.wireframe-topbar-actions {
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.wireframe-device-toggle {
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--solid-card);
+}
+
+.wireframe-device-toggle .ghost-btn {
+  min-height: 38px;
+  padding: 8px 12px;
+  border: 0;
+  box-shadow: none;
+}
+
+.wireframe-device-toggle .ghost-btn.active {
+  background: var(--primary);
+  color: #fff;
+}
+
+.wireframe-zoom-wrap {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.wireframe-zoom-wrap select {
+  min-height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 6px 9px;
+  background: var(--solid-card);
+  color: var(--text);
+}
+
+.wireframe-save-state {
+  min-width: 58px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-align: center;
+}
+
+.wireframe-save-state[data-tone="saved"] { color: var(--success); }
+.wireframe-save-state[data-tone="saving"] { color: var(--primary); }
+.wireframe-save-state[data-tone="unsaved"] { color: var(--warning); }
+.wireframe-save-state[data-tone="error"] { color: var(--danger); }
+
+.wireframe-maker-workspace {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 230px minmax(0, 1fr) 290px;
+  gap: 0;
+  overflow: hidden;
+}
+
+.wireframe-palette,
+.wireframe-properties {
+  min-width: 0;
+  overflow-y: auto;
+  padding: 18px 14px;
+  background: var(--card);
+  scrollbar-width: thin;
+}
+
+.wireframe-palette {
+  border-right: 1px solid var(--line);
+}
+
+.wireframe-properties {
+  border-left: 1px solid var(--line);
+}
+
+.wireframe-panel-heading {
+  display: grid;
+  gap: 5px;
+  margin-bottom: 14px;
+}
+
+.wireframe-panel-heading > div {
+  display: grid;
+  gap: 2px;
+}
+
+.wireframe-panel-heading strong {
+  font-size: 16px;
+}
+
+.wireframe-panel-heading small,
+.wireframe-palette-tip,
+.wireframe-properties small {
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.wireframe-panel-kicker {
+  color: var(--primary);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.wireframe-component-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.wireframe-component-grid button {
+  min-height: 76px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 5px;
+  padding: 9px 6px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--solid-card);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.wireframe-component-grid button:hover,
+.wireframe-component-grid button:focus-visible {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  outline: none;
+}
+
+.wireframe-component-grid button span {
+  font-size: 20px;
+  color: var(--primary);
+  font-weight: 900;
+}
+
+.wireframe-palette-tip {
+  margin-top: 14px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--bg-2);
+  font-size: 12px;
+}
+
+.wireframe-palette-tip strong {
+  color: var(--text);
+}
+
+.wireframe-palette-tip p {
+  margin: 4px 0 0;
+}
+
+.wireframe-stage-section {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: rgba(148, 163, 184, .09);
+}
+
+.wireframe-stage-toolbar {
+  flex: 0 0 auto;
+  min-height: 62px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--line);
+  background: var(--card);
+}
+
+.wireframe-stage-toolbar > div:first-child {
+  display: grid;
+  gap: 3px;
+}
+
+.wireframe-stage-toolbar small {
+  color: var(--muted);
+}
+
+.wireframe-viewport,
+.admin-wireframe-viewport {
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: auto;
+  padding: 20px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  background-color: #dfe7f1;
+  background-image:
+    linear-gradient(45deg, rgba(100, 116, 139, .08) 25%, transparent 25%),
+    linear-gradient(-45deg, rgba(100, 116, 139, .08) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, rgba(100, 116, 139, .08) 75%),
+    linear-gradient(-45deg, transparent 75%, rgba(100, 116, 139, .08) 75%);
+  background-size: 20px 20px;
+  background-position: 0 0, 0 10px, 10px -10px, -10px 0;
+  overscroll-behavior: contain;
+}
+
+[data-theme="dark"] .wireframe-viewport,
+[data-theme="dark"] .admin-wireframe-viewport {
+  background-color: #101827;
+}
+
+.wireframe-canvas-scaler {
+  flex: 0 0 auto;
+  position: relative;
+  margin: auto;
+}
+
+.wireframe-canvas {
+  position: relative;
+  flex: 0 0 auto;
+  overflow: hidden;
+  transform-origin: top left;
+  background: #fff;
+  color: #0f172a;
+  box-shadow: 0 22px 55px rgba(15, 23, 42, .2);
+  outline: 1px solid rgba(100, 116, 139, .22);
+  transition: background-color .16s ease;
+}
+
+.wireframe-canvas[data-device="phone"] {
+  border-radius: 22px;
+}
+
+.wireframe-canvas-empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 8px;
+  padding: 28px;
+  color: #64748b;
+  text-align: center;
+  pointer-events: none;
+}
+
+.wireframe-canvas-empty > span {
+  font-size: 46px;
+  color: #94a3b8;
+}
+
+.wireframe-canvas-empty strong {
+  color: #334155;
+  font-size: 20px;
+}
+
+.wireframe-canvas-empty p {
+  max-width: 420px;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.wireframe-element {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: stretch;
+  border-style: solid;
+  overflow: visible;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  transition: box-shadow .12s ease;
+}
+
+.wireframe-element.dragging {
+  cursor: grabbing;
+}
+
+.wireframe-element.selected {
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, .72), 0 8px 24px rgba(37, 99, 235, .18);
+}
+
+.wireframe-element-content {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: inherit;
+  padding: 10px 14px;
+  white-space: pre-wrap;
+  overflow: hidden;
+  line-height: 1.3;
+  pointer-events: none;
+}
+
+.wireframe-element-text {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  text-align: inherit;
+  white-space: pre-wrap;
+}
+
+.wf-el-heading .wireframe-element-content,
+.wf-el-text .wireframe-element-content,
+.wf-el-card .wireframe-element-content,
+.wf-el-input .wireframe-element-content,
+.wf-el-nav .wireframe-element-content {
+  justify-content: flex-start;
+}
+
+.wf-el-button .wireframe-element-content,
+.wf-el-section .wireframe-element-content,
+.wf-el-footer .wireframe-element-content,
+.wf-el-image .wireframe-element-content {
+  justify-content: center;
+}
+
+.wf-el-image .wireframe-element-content {
+  flex-direction: column;
+  gap: 8px;
+  background-image: linear-gradient(135deg, transparent 49%, rgba(100, 116, 139, .18) 50%, transparent 51%),
+    linear-gradient(45deg, transparent 49%, rgba(100, 116, 139, .18) 50%, transparent 51%);
+}
+
+.wireframe-image-icon {
+  font-size: 30px;
+  opacity: .76;
+}
+
+.wireframe-element-type-tag {
+  position: absolute;
+  top: -24px;
+  left: -2px;
+  height: 20px;
+  display: none;
+  align-items: center;
+  padding: 0 7px;
+  border-radius: 5px 5px 0 0;
+  background: #2563eb;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 20px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.wireframe-element.selected .wireframe-element-type-tag {
+  display: flex;
+}
+
+.wireframe-resize-handle {
+  position: absolute;
+  right: -9px;
+  bottom: -9px;
+  width: 20px;
+  height: 20px;
+  border: 3px solid #fff;
+  border-radius: 50%;
+  background: #2563eb;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, .3);
+  cursor: nwse-resize;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.wireframe-element.selected .wireframe-resize-handle {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.wireframe-property-group {
+  display: grid;
+  gap: 9px;
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+}
+
+.wireframe-property-group label,
+.wireframe-property-label {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.wireframe-property-group input,
+.wireframe-property-group textarea {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--solid-card);
+  color: var(--text);
+  padding: 8px 9px;
+}
+
+.wireframe-property-group input[type="color"] {
+  height: 42px;
+  padding: 4px;
+  cursor: pointer;
+}
+
+.wireframe-property-group textarea {
+  resize: vertical;
+  min-height: 76px;
+}
+
+.wireframe-property-two-col {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.wireframe-color-row {
+  display: grid;
+  grid-template-columns: 54px minmax(0, 1fr);
+  gap: 8px;
+}
+
+.wireframe-align-buttons {
+  width: 100%;
+}
+
+.wireframe-align-buttons button {
+  flex: 1 1 0;
+  min-height: 35px;
+  border: 1px solid var(--line);
+  background: var(--solid-card);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.wireframe-align-buttons button:first-child { border-radius: 8px 0 0 8px; }
+.wireframe-align-buttons button:last-child { border-radius: 0 8px 8px 0; }
+.wireframe-align-buttons button.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+
+.wireframe-property-actions {
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+
+.wireframe-property-actions .ghost-btn {
+  flex: 1 1 110px;
+}
+
+.wireframe-maker-screen.is-preview .wireframe-palette,
+.wireframe-maker-screen.is-preview .wireframe-properties {
+  display: none;
+}
+
+.wireframe-maker-screen.is-preview .wireframe-maker-workspace {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.wireframe-maker-screen.is-preview .wireframe-stage-actions {
+  display: none;
+}
+
+.wireframe-maker-screen.is-preview .wireframe-stage-section {
+  grid-column: 1;
+}
+
+.wireframe-maker-screen.is-preview .wireframe-viewport {
+  padding: 24px;
+}
+
+.admin-wireframe-viewer-overlay {
+  z-index: 7600;
+}
+
+.admin-wireframe-viewer-card {
+  width: min(1500px, calc(100vw - 26px));
+  height: min(94vh, 980px);
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: var(--solid-card);
+  box-shadow: var(--shadow-strong);
+}
+
+.admin-wireframe-viewer-header,
+.admin-wireframe-viewer-toolbar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.admin-wireframe-viewer-header h2,
+.admin-wireframe-viewer-header p {
+  margin-top: 0;
+  margin-bottom: 3px;
+}
+
+.admin-wireframe-viewer-toolbar {
+  justify-content: flex-start;
+  background: var(--bg-2);
+}
+
+.admin-wireframe-device-label {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.admin-wireframe-viewport {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.admin-wireframe-canvas {
+  cursor: default;
+}
+
+.admin-wireframe-viewer-card > .helper-note {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 11px 18px 14px;
+  border-top: 1px solid var(--line);
+}
+
+@media (max-width: 1100px) {
+  .wireframe-maker-workspace {
+    grid-template-columns: 190px minmax(0, 1fr) 250px;
+  }
+
+  .wireframe-component-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 900px) {
+  body.wireframe-maker-active {
+    overflow: hidden;
+  }
+
+  .wireframe-maker-topbar {
+    align-items: flex-start;
+    flex-direction: column;
+    padding: 10px 12px;
+    gap: 10px;
+  }
+
+  .wireframe-topbar-left {
+    width: 100%;
+  }
+
+  .wireframe-topbar-left .muted-text,
+  .wireframe-topbar-left .section-kicker {
+    display: none;
+  }
+
+  .wireframe-topbar-left h1 {
+    font-size: 20px;
+  }
+
+  .wireframe-topbar-actions {
+    width: 100%;
+    justify-content: flex-start;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 2px;
+    scrollbar-width: thin;
+  }
+
+  .wireframe-topbar-actions > * {
+    flex: 0 0 auto;
+  }
+
+  .wireframe-maker-workspace {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(420px, 1fr) auto;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .wireframe-palette {
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+    overflow: hidden;
+    padding: 10px 12px;
+  }
+
+  .wireframe-palette .wireframe-panel-heading,
+  .wireframe-palette-tip {
+    display: none;
+  }
+
+  .wireframe-component-grid {
+    display: flex;
+    gap: 7px;
+    overflow-x: auto;
+    padding-bottom: 3px;
+    scrollbar-width: thin;
+  }
+
+  .wireframe-component-grid button {
+    flex: 0 0 86px;
+    min-height: 62px;
+  }
+
+  .wireframe-stage-section {
+    min-height: 420px;
+  }
+
+  .wireframe-stage-toolbar {
+    min-height: 54px;
+    padding: 8px 11px;
+  }
+
+  .wireframe-stage-toolbar small {
+    display: none;
+  }
+
+  .wireframe-properties {
+    border-left: 0;
+    border-top: 1px solid var(--line);
+    max-height: 42vh;
+    padding: 12px;
+  }
+
+  .wireframe-maker-screen.is-preview .wireframe-maker-workspace {
+    grid-template-rows: minmax(0, 1fr);
+    overflow: hidden;
+  }
+
+  .wireframe-maker-screen.is-preview .wireframe-stage-section {
+    min-height: 0;
+  }
+}
+
+@media (max-width: 600px) {
+  .project-type-options {
+    grid-template-columns: 1fr;
+  }
+
+  .project-type-option {
+    min-height: 104px;
+    padding: 14px;
+  }
+
+  .project-type-option-icon {
+    flex-basis: 50px;
+    width: 50px;
+    height: 50px;
+    border-radius: 14px;
+  }
+
+  .wireframe-maker-topbar {
+    min-height: 0;
+  }
+
+  .wireframe-back-btn {
+    padding: 7px 9px;
+    font-size: 12px;
+  }
+
+  .wireframe-device-toggle .ghost-btn {
+    min-height: 34px;
+    padding: 7px 9px;
+    font-size: 12px;
+  }
+
+  .wireframe-zoom-wrap {
+    font-size: 11px;
+  }
+
+  .wireframe-zoom-wrap select {
+    min-height: 34px;
+    padding: 5px 7px;
+  }
+
+  #wireframePreviewBtn,
+  #wireframeSaveBtn {
+    min-height: 34px;
+    padding: 7px 9px;
+    font-size: 12px;
+  }
+
+  .wireframe-save-state {
+    min-width: 46px;
+    font-size: 10px;
+  }
+
+  .wireframe-stage-actions .ghost-btn {
+    padding: 7px 9px;
+    font-size: 11px;
+  }
+
+  .wireframe-viewport,
+  .admin-wireframe-viewport {
+    justify-content: flex-start;
+    padding: 14px;
+  }
+
+  .wireframe-properties {
+    max-height: 46vh;
+  }
+
+  .wireframe-property-two-col {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .admin-wireframe-viewer-card {
+    width: calc(100vw - 14px);
+    height: calc(100dvh - 14px);
+    border-radius: 16px;
+  }
+
+  .admin-wireframe-viewer-header,
+  .admin-wireframe-viewer-toolbar {
+    padding: 10px 12px;
+  }
+
+  .admin-wireframe-viewer-toolbar {
+    flex-wrap: wrap;
+  }
+}
+
+/* =========================================================
+   Responsive Wireframe Maker v2 - Step 2
+   Multi-page management and in-preview page navigation.
+   ========================================================= */
+.wireframe-pagebar {
+  flex: 0 0 auto;
+  min-height: 54px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--line);
+  background: var(--solid-card);
+  position: relative;
+  z-index: 3;
+}
+
+.wireframe-pagebar-main,
+.wireframe-pagebar-actions,
+.wireframe-page-tabs {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.wireframe-pagebar-main {
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+
+.wireframe-pagebar-label {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.wireframe-page-tabs {
+  flex: 1 1 auto;
+  overflow-x: auto;
+  padding: 2px;
+  scrollbar-width: thin;
+  scroll-snap-type: x proximity;
+}
+
+.wireframe-page-tab {
+  flex: 0 0 auto;
+  min-height: 34px;
+  max-width: 180px;
+  padding: 7px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg-2);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  scroll-snap-align: start;
+}
+
+.wireframe-page-tab:hover,
+.wireframe-page-tab:focus-visible {
+  border-color: var(--primary);
+  outline: none;
+}
+
+.wireframe-page-tab.active {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: #fff;
+  box-shadow: 0 5px 14px rgba(37, 99, 235, .2);
+}
+
+.wireframe-pagebar-actions {
+  flex: 0 0 auto;
+}
+
+.wireframe-pagebar-actions .ghost-btn {
+  min-height: 34px;
+  padding: 7px 9px;
+  font-size: 11px;
+}
+
+.wireframe-page-dialog-overlay {
+  z-index: 7900;
+}
+
+.wireframe-page-dialog-card {
+  width: min(430px, calc(100vw - 28px));
+}
+
+.wireframe-property-group select,
+.admin-wireframe-page-select-wrap select {
+  width: 100%;
+  min-width: 0;
+  min-height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--solid-card);
+  color: var(--text);
+  padding: 7px 9px;
+}
+
+.wireframe-link-property-group small {
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.wf-el-link .wireframe-element-content {
+  justify-content: flex-start;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.wireframe-element-link-tag {
+  position: absolute;
+  top: -24px;
+  right: -2px;
+  height: 20px;
+  display: none;
+  align-items: center;
+  padding: 0 7px;
+  border-radius: 5px 5px 0 0;
+  background: #0f766e;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 20px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.wireframe-element.selected .wireframe-element-link-tag {
+  display: flex;
+}
+
+.wireframe-page-link-enabled {
+  cursor: pointer;
+}
+
+.wireframe-page-link-enabled:hover,
+.wireframe-page-link-enabled:focus-visible {
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, .28), 0 9px 26px rgba(15, 23, 42, .16);
+  outline: none;
+}
+
+.wireframe-maker-screen.is-preview .wireframe-pagebar-actions {
+  display: none;
+}
+
+.wireframe-maker-screen.is-preview .wireframe-pagebar {
+  justify-content: center;
+}
+
+.wireframe-maker-screen.is-preview .wireframe-pagebar-main {
+  max-width: min(980px, 100%);
+}
+
+.admin-wireframe-page-select-wrap {
+  min-width: 180px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.admin-wireframe-page-select-wrap select {
+  min-width: 120px;
+  max-width: 220px;
+}
+
+.admin-wireframe-canvas .wireframe-page-link-enabled {
+  cursor: pointer;
+}
+
+@media (max-width: 900px) {
+  .wireframe-pagebar {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 6px;
+    padding: 7px 10px;
+  }
+
+  .wireframe-pagebar-main {
+    width: 100%;
+  }
+
+  .wireframe-pagebar-actions {
+    width: 100%;
+    overflow-x: auto;
+    padding-bottom: 2px;
+    scrollbar-width: thin;
+  }
+
+  .wireframe-pagebar-actions > * {
+    flex: 0 0 auto;
+  }
+
+  .wireframe-maker-screen.is-preview .wireframe-pagebar {
+    flex-direction: row;
+    align-items: center;
+  }
+}
+
+@media (max-width: 600px) {
+  .wireframe-pagebar {
+    min-height: 44px;
+    padding: 5px 8px;
+  }
+
+  .wireframe-pagebar-label {
+    display: none;
+  }
+
+  .wireframe-page-tab {
+    min-height: 31px;
+    max-width: 135px;
+    padding: 6px 9px;
+    font-size: 11px;
+  }
+
+  .wireframe-pagebar-actions .ghost-btn {
+    min-height: 31px;
+    padding: 6px 8px;
+    font-size: 10px;
+  }
+
+  .admin-wireframe-page-select-wrap {
+    min-width: 100%;
+  }
+
+  .admin-wireframe-page-select-wrap select {
+    flex: 1 1 auto;
+    max-width: none;
+  }
+}
+
+/* v323: selected wireframe elements remain draggable without a floating hand icon.
+   Keep only the resize-handle contrast treatment. */
+.wireframe-element.selected::after,
+.wireframe-element.dragging::after {
+  content: none !important;
+  display: none !important;
+}
+
+.wireframe-resize-handle {
+  border-color: #fff;
+  outline: 2px solid rgba(15, 23, 42, .92);
+  outline-offset: 0;
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 255, .94),
+    0 4px 12px rgba(15, 23, 42, .42);
+}
+
+.wireframe-element.selected .wireframe-resize-handle:hover {
+  transform: scale(1.12);
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 255, .98),
+    0 5px 15px rgba(15, 23, 42, .5);
+}
+
+@media (hover: none) and (pointer: coarse) {
+  .wireframe-resize-handle {
+    width: 24px;
+    height: 24px;
+    right: -10px;
+    bottom: -10px;
+  }
+}
+
+/* =========================================================
+   Wireframe Maker v324 - Step 5 Productivity Tools
+   Undo/redo, multi-select, layers, grouping, snap/grid,
+   smart guides, quick alignment, distribution and shortcuts.
+   ========================================================= */
+.wireframe-history-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.wireframe-history-actions .ghost-btn,
+#wireframeSnapBtn,
+#wireframeGroupBtn,
+#wireframeUngroupBtn {
+  min-height: 36px;
+  padding: 7px 10px;
+  white-space: nowrap;
+}
+
+#wireframeSnapBtn.active {
+  border-color: rgba(37, 99, 235, .42);
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+.wireframe-stage-actions {
+  min-width: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.wireframe-layers-section {
+  display: grid;
+  gap: 9px;
+  margin-top: 16px;
+  padding-top: 15px;
+  border-top: 1px solid var(--line);
+}
+
+.wireframe-layers-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.wireframe-layers-heading > div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.wireframe-layers-heading strong {
+  font-size: 14px;
+}
+
+.wireframe-layer-count {
+  flex: 0 0 auto;
+  min-width: 26px;
+  min-height: 24px;
+  display: grid;
+  place-items: center;
+  padding: 2px 7px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--bg-2);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.wireframe-layers-list {
+  display: grid;
+  gap: 5px;
+  max-height: min(39vh, 360px);
+  overflow: auto;
+  padding: 2px;
+  scrollbar-width: thin;
+}
+
+.wireframe-layers-empty {
+  margin: 0;
+  padding: 12px 9px;
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
+}
+
+.wireframe-layer-row {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: var(--bg-2);
+}
+
+.wireframe-layer-row:hover {
+  border-color: var(--line);
+}
+
+.wireframe-layer-row.selected {
+  border-color: rgba(37, 99, 235, .48);
+  background: var(--primary-soft);
+  box-shadow: inset 3px 0 0 var(--primary);
+}
+
+.wireframe-layer-row.is-hidden {
+  opacity: .58;
+}
+
+.wireframe-layer-main {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 7px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.wireframe-layer-meta {
+  min-width: 0;
+  display: grid;
+  gap: 1px;
+}
+
+.wireframe-layer-meta strong,
+.wireframe-layer-meta small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wireframe-layer-meta strong {
+  font-size: 12px;
+}
+
+.wireframe-layer-meta small {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.wireframe-layer-controls {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.wireframe-layer-controls button {
+  width: 25px;
+  height: 25px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.wireframe-layer-controls button:hover,
+.wireframe-layer-controls button:focus-visible {
+  border-color: var(--line);
+  background: var(--solid-card);
+  color: var(--text);
+  outline: none;
+}
+
+.wireframe-layers-help {
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.wireframe-grid-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(to right, rgba(37, 99, 235, .09) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(37, 99, 235, .09) 1px, transparent 1px);
+  background-size: 10px 10px;
+}
+
+.wireframe-canvas-empty {
+  z-index: 1;
+}
+
+.wireframe-smart-guide {
+  position: absolute;
+  z-index: 2000;
+  pointer-events: none;
+  background: #e11d48;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, .72);
+}
+
+.wireframe-smart-guide.vertical {
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  transform: translateX(-.5px);
+}
+
+.wireframe-smart-guide.horizontal {
+  left: 0;
+  right: 0;
+  height: 1px;
+  transform: translateY(-.5px);
+}
+
+.wireframe-element.is-locked {
+  cursor: not-allowed;
+}
+
+.wireframe-element.is-locked.selected {
+  box-shadow: 0 0 0 3px rgba(100, 116, 139, .78), 0 8px 24px rgba(15, 23, 42, .15);
+}
+
+.wireframe-selection-tools {
+  display: block;
+}
+
+.wireframe-selection-tools.hidden {
+  display: none;
+}
+
+.wireframe-selection-summary {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.wireframe-selection-summary strong {
+  font-size: 12px;
+}
+
+.wireframe-selection-summary small {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.wireframe-layout-align-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.wireframe-layout-align-grid button {
+  min-width: 0;
+  min-height: 34px;
+  padding: 6px 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--solid-card);
+  color: var(--text);
+  font-size: 10px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.wireframe-layout-align-grid button:hover,
+.wireframe-layout-align-grid button:focus-visible {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  outline: none;
+}
+
+.wireframe-distribute-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.wireframe-distribute-actions .ghost-btn {
+  min-width: 0;
+  min-height: 34px;
+  padding: 6px;
+  font-size: 10px;
+}
+
+.wireframe-element.selected {
+  outline: 1px solid rgba(255, 255, 255, .92);
+  outline-offset: 3px;
+}
+
+@media (max-width: 1100px) {
+  .wireframe-layer-controls button {
+    width: 23px;
+    height: 23px;
+  }
+}
+
+@media (max-width: 900px) {
+  .wireframe-layers-section {
+    margin-top: 9px;
+    padding-top: 9px;
+  }
+
+  .wireframe-layers-heading {
+    margin-bottom: 2px;
+  }
+
+  .wireframe-layers-list {
+    display: flex;
+    gap: 6px;
+    max-height: none;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding-bottom: 3px;
+  }
+
+  .wireframe-layer-row {
+    flex: 0 0 190px;
+  }
+
+  .wireframe-layers-help {
+    display: none;
+  }
+
+  .wireframe-stage-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 7px;
+  }
+
+  .wireframe-stage-actions {
+    width: 100%;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    overflow-x: auto;
+    padding-bottom: 2px;
+    scrollbar-width: thin;
+  }
+
+  .wireframe-stage-actions > * {
+    flex: 0 0 auto;
+  }
+}
+
+@media (max-width: 600px) {
+  .wireframe-history-actions .ghost-btn {
+    min-height: 34px;
+    padding: 7px 8px;
+    font-size: 11px;
+  }
+
+  .wireframe-layers-heading strong {
+    font-size: 12px;
+  }
+
+  .wireframe-layer-row {
+    flex-basis: 174px;
+  }
+
+  .wireframe-layer-controls button {
+    width: 22px;
+    height: 22px;
+    font-size: 10px;
+  }
+
+  .wireframe-layout-align-grid button {
+    min-height: 32px;
+    font-size: 9px;
+  }
+}
+
+/* =========================================================
+   Wireframe Maker v325 - Real image upload / fit / crop
+   ========================================================= */
+.wf-el-image.has-real-image .wireframe-element-content {
+  padding: 0;
+  gap: 0;
+  background-image: none;
+}
+
+.wireframe-real-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.wireframe-image-properties {
+  display: grid;
+  gap: 12px;
+}
+
+.wireframe-image-properties.hidden {
+  display: none !important;
+}
+
+.wireframe-image-property-heading {
+  display: grid;
+  gap: 10px;
+}
+
+.wireframe-image-property-heading > div:first-child {
+  display: grid;
+  gap: 4px;
+}
+
+.wireframe-image-property-heading small,
+.wireframe-image-properties > small {
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.wireframe-image-upload-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.wireframe-image-upload-actions .ghost-btn {
+  min-height: 36px;
+  padding: 7px 10px;
+  font-size: 12px;
+}
+
+.wireframe-image-fit-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.wireframe-image-fit-grid label {
+  display: grid;
+  gap: 6px;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.wireframe-image-fit-grid label span {
+  justify-self: end;
+  margin-top: -20px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.wireframe-image-fit-grid select {
+  width: 100%;
+  min-height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--solid-card);
+  color: var(--text);
+  padding: 7px 9px;
+}
+
+.wireframe-image-fit-grid input[type="range"] {
+  width: 100%;
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+
+@media (max-width: 720px) {
+  .wireframe-image-upload-actions .ghost-btn {
+    flex: 1 1 120px;
+  }
+}
+
+/* =========================================================
+   Wireframe Maker v326 - Clean PNG / PDF export
+   ========================================================= */
+.wireframe-export-overlay {
+  z-index: 2520;
+}
+
+.wireframe-export-card {
+  width: min(560px, calc(100vw - 28px));
+  display: grid;
+  gap: 14px;
+}
+
+.wireframe-export-card > .muted-text {
+  margin: -4px 0 2px;
+  line-height: 1.5;
+}
+
+.wireframe-export-icon {
+  background: linear-gradient(145deg, rgba(37, 99, 235, .14), rgba(14, 165, 233, .16));
+}
+
+.wireframe-export-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.wireframe-export-options label {
+  display: grid;
+  gap: 7px;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--muted);
+}
+
+.wireframe-export-options select {
+  width: 100%;
+  min-height: 42px;
+}
+
+.wireframe-export-current {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--solid-card);
+}
+
+.wireframe-export-current span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.wireframe-export-current strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wireframe-export-format-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.wireframe-export-format-btn {
+  min-height: 108px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--solid-card);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, .06);
+  transition: transform .14s ease, border-color .14s ease, box-shadow .14s ease;
+}
+
+.wireframe-export-format-btn:hover:not(:disabled),
+.wireframe-export-format-btn:focus-visible:not(:disabled) {
+  transform: translateY(-1px);
+  border-color: rgba(37, 99, 235, .55);
+  box-shadow: 0 12px 28px rgba(37, 99, 235, .12);
+}
+
+.wireframe-export-format-btn:disabled {
+  opacity: .62;
+  cursor: wait;
+}
+
+.wireframe-export-format-icon {
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: rgba(37, 99, 235, .10);
+  font-size: 23px;
+}
+
+.wireframe-export-format-btn > span:last-child {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+
+.wireframe-export-format-btn strong {
+  font-size: 14px;
+}
+
+.wireframe-export-format-btn small {
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.wireframe-export-status {
+  min-height: 34px;
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(100, 116, 139, .09);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.wireframe-export-status[data-tone="busy"] {
+  background: rgba(37, 99, 235, .10);
+  color: #2563eb;
+}
+
+.wireframe-export-status[data-tone="success"] {
+  background: rgba(22, 163, 74, .10);
+  color: #15803d;
+}
+
+.wireframe-export-status[data-tone="error"] {
+  background: rgba(220, 38, 38, .10);
+  color: #b91c1c;
+}
+
+@media (max-width: 620px) {
+  .wireframe-export-card {
+    width: min(94vw, 520px);
+    max-height: min(92dvh, 760px);
+    overflow-y: auto;
+  }
+
+  .wireframe-export-options,
+  .wireframe-export-format-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .wireframe-export-format-btn {
+    min-height: 86px;
+  }
+}
+
+
+/* =========================================================
+   Wireframe Maker v328 - Workspace Expansion
+   Larger editing area, collapsible panels, compact chrome,
+   and Focus Mode. Desktop panels collapse into the grid;
+   tablet/phone panels become overlay drawers.
+   ========================================================= */
+.wireframe-maker-screen {
+  --wf-tools-width: 210px;
+  --wf-properties-width: 260px;
+}
+
+.wireframe-maker-topbar {
+  min-height: 62px;
+  gap: 10px;
+  padding: 8px 12px;
+}
+
+.wireframe-topbar-left {
+  flex: 0 1 300px;
+  gap: 10px;
+}
+
+.wireframe-topbar-left h1 {
+  font-size: clamp(17px, 1.5vw, 22px);
+}
+
+.wireframe-topbar-left .section-kicker {
+  font-size: 9px;
+}
+
+.wireframe-topbar-left .muted-text {
+  font-size: 12px;
+}
+
+.wireframe-topbar-actions {
+  flex: 1 1 auto;
+  min-width: 0;
+  flex-wrap: nowrap;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: thin;
+}
+
+.wireframe-topbar-actions > * {
+  flex: 0 0 auto;
+}
+
+.wireframe-topbar-actions .ghost-btn,
+.wireframe-topbar-actions .primary-btn,
+.wireframe-device-toggle .ghost-btn {
+  min-height: 34px;
+  padding: 6px 9px;
+  font-size: 12px;
+}
+
+.wireframe-device-toggle {
+  padding: 3px;
+  border-radius: 10px;
+}
+
+.wireframe-zoom-wrap {
+  gap: 5px;
+  font-size: 11px;
+}
+
+.wireframe-zoom-wrap select {
+  min-height: 34px;
+  padding: 5px 7px;
+}
+
+.wireframe-pagebar {
+  min-height: 42px;
+  gap: 8px;
+  padding: 5px 10px;
+}
+
+.wireframe-page-tab {
+  min-height: 30px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  font-size: 11px;
+}
+
+.wireframe-pagebar-actions .ghost-btn {
+  min-height: 30px;
+  padding: 5px 8px;
+  font-size: 10px;
+}
+
+.wireframe-maker-workspace {
+  --wf-left-col: var(--wf-tools-width);
+  --wf-right-col: var(--wf-properties-width);
+  grid-template-columns: var(--wf-left-col) minmax(0, 1fr) var(--wf-right-col);
+  position: relative;
+}
+
+.wireframe-maker-screen.palette-collapsed .wireframe-maker-workspace {
+  --wf-left-col: 0px;
+}
+
+.wireframe-maker-screen.properties-collapsed .wireframe-maker-workspace {
+  --wf-right-col: 0px;
+}
+
+.wireframe-maker-screen.palette-collapsed .wireframe-palette,
+.wireframe-maker-screen.properties-collapsed .wireframe-properties {
+  display: none;
+}
+
+.wireframe-palette,
+.wireframe-properties {
+  padding: 13px 11px;
+}
+
+.wireframe-panel-heading {
+  gap: 3px;
+  margin-bottom: 10px;
+}
+
+.wireframe-panel-heading strong {
+  font-size: 14px;
+}
+
+.wireframe-component-grid {
+  gap: 7px;
+}
+
+.wireframe-component-grid button {
+  min-height: 61px;
+  padding: 7px 5px;
+  border-radius: 10px;
+  font-size: 11px;
+}
+
+.wireframe-component-grid button span {
+  font-size: 17px;
+}
+
+.wireframe-palette-tip {
+  margin-top: 10px;
+  padding: 9px;
+  font-size: 11px;
+}
+
+.wireframe-stage-toolbar {
+  min-height: 46px;
+  gap: 8px;
+  padding: 6px 10px;
+}
+
+.wireframe-stage-toolbar > div:first-child {
+  flex: 1 1 auto;
+  min-width: 150px;
+}
+
+.wireframe-stage-toolbar > div:first-child strong {
+  font-size: 12px;
+}
+
+.wireframe-stage-toolbar small {
+  font-size: 10px;
+}
+
+.wireframe-stage-actions {
+  flex: 0 1 auto;
+  min-width: 0;
+  flex-wrap: nowrap;
+  gap: 5px;
+  overflow-x: auto;
+  padding-bottom: 1px;
+  scrollbar-width: thin;
+}
+
+.wireframe-stage-actions > * {
+  flex: 0 0 auto;
+}
+
+.wireframe-stage-actions .ghost-btn {
+  min-height: 31px;
+  padding: 5px 8px;
+  font-size: 10px;
+}
+
+.wireframe-panel-toggle-btn.active {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+.wireframe-focus-exit-btn {
+  display: none;
+}
+
+.wireframe-viewport {
+  padding: 12px;
+}
+
+@media (max-width: 1500px) and (min-width: 901px) {
+  .wireframe-topbar-left .section-kicker,
+  .wireframe-topbar-left .muted-text {
+    display: none;
+  }
+
+  .wireframe-topbar-left {
+    flex-basis: 245px;
+  }
+
+  .wireframe-stage-toolbar small {
+    display: none;
+  }
+}
+
+@media (min-width: 901px) and (max-width: 1100px) {
+  .wireframe-maker-screen {
+    --wf-tools-width: 180px;
+    --wf-properties-width: 235px;
+  }
+}
+
+/* True workspace focus: editor chrome disappears and the stage uses the screen. */
+.wireframe-maker-screen.is-focus-mode .wireframe-maker-topbar,
+.wireframe-maker-screen.is-focus-mode .wireframe-pagebar,
+.wireframe-maker-screen.is-focus-mode .wireframe-palette,
+.wireframe-maker-screen.is-focus-mode .wireframe-properties {
+  display: none !important;
+}
+
+.wireframe-maker-screen.is-focus-mode .wireframe-maker-workspace {
+  grid-template-columns: minmax(0, 1fr) !important;
+  grid-template-rows: minmax(0, 1fr) !important;
+  overflow: hidden;
+}
+
+.wireframe-maker-screen.is-focus-mode .wireframe-stage-section {
+  grid-column: 1 !important;
+  grid-row: 1 !important;
+  min-height: 0;
+  position: relative;
+}
+
+.wireframe-maker-screen.is-focus-mode .wireframe-stage-toolbar {
+  position: absolute;
+  z-index: 30;
+  top: 10px;
+  left: 50%;
+  width: min(1040px, calc(100% - 24px));
+  min-height: 42px;
+  transform: translateX(-50%);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--card);
+  box-shadow: 0 14px 36px rgba(15, 23, 42, .2);
+}
+
+.wireframe-maker-screen.is-focus-mode .wireframe-stage-toolbar > div:first-child,
+.wireframe-maker-screen.is-focus-mode #wireframePaletteToggleBtn,
+.wireframe-maker-screen.is-focus-mode #wireframePropertiesToggleBtn {
+  display: none !important;
+}
+
+.wireframe-maker-screen.is-focus-mode .wireframe-stage-actions {
+  width: 100%;
+  justify-content: center;
+}
+
+.wireframe-maker-screen.is-focus-mode .wireframe-focus-exit-btn {
+  display: inline-flex;
+}
+
+.wireframe-maker-screen.is-focus-mode .wireframe-viewport {
+  height: 100%;
+  padding: 62px 12px 12px;
+}
+
+/* Tablet/phone: tools and properties float over the canvas as drawers. */
+@media (max-width: 900px) {
+  .wireframe-maker-topbar {
+    min-height: 54px;
+    flex-direction: row;
+    align-items: center;
+    gap: 7px;
+    padding: 6px 8px;
+  }
+
+  .wireframe-topbar-left {
+    flex: 0 0 auto;
+    width: auto;
+    max-width: 150px;
+  }
+
+  .wireframe-topbar-left > div {
+    min-width: 0;
+  }
+
+  .wireframe-topbar-left h1 {
+    max-width: 110px;
+    overflow: hidden;
+    font-size: 16px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .wireframe-topbar-left .section-kicker,
+  .wireframe-topbar-left .muted-text {
+    display: none;
+  }
+
+  .wireframe-topbar-actions {
+    width: auto;
+    flex: 1 1 auto;
+  }
+
+  .wireframe-pagebar {
+    min-height: 40px;
+    flex-direction: row;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 7px;
+  }
+
+  .wireframe-pagebar-main {
+    width: auto;
+    flex: 1 1 42%;
+  }
+
+  .wireframe-pagebar-actions {
+    width: auto;
+    flex: 1 1 58%;
+    overflow-x: auto;
+  }
+
+  .wireframe-pagebar-label {
+    display: none;
+  }
+
+  .wireframe-maker-workspace,
+  .wireframe-maker-screen.palette-collapsed .wireframe-maker-workspace,
+  .wireframe-maker-screen.properties-collapsed .wireframe-maker-workspace {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+    overflow: hidden;
+    position: relative;
+  }
+
+  .wireframe-stage-section {
+    grid-column: 1;
+    grid-row: 1;
+    min-height: 0;
+  }
+
+  .wireframe-palette,
+  .wireframe-properties,
+  .wireframe-maker-screen.palette-collapsed .wireframe-palette,
+  .wireframe-maker-screen.properties-collapsed .wireframe-properties {
+    display: block;
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    z-index: 40;
+    width: min(320px, 86vw);
+    max-height: none;
+    overflow-y: auto;
+    border: 1px solid var(--line);
+    background: var(--card);
+    box-shadow: 0 18px 46px rgba(15, 23, 42, .28);
+    transition: transform .18s ease, opacity .18s ease;
+  }
+
+  .wireframe-palette {
+    left: 0;
+    border-left: 0;
+    border-radius: 0 16px 16px 0;
+    transform: translateX(0);
+  }
+
+  .wireframe-properties {
+    right: 0;
+    border-right: 0;
+    border-left: 1px solid var(--line);
+    border-radius: 16px 0 0 16px;
+    transform: translateX(0);
+  }
+
+  .wireframe-maker-screen.palette-collapsed .wireframe-palette {
+    display: block;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateX(-105%);
+  }
+
+  .wireframe-maker-screen.properties-collapsed .wireframe-properties {
+    display: block;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateX(105%);
+  }
+
+  .wireframe-component-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    overflow: visible;
+  }
+
+  .wireframe-component-grid button {
+    flex: initial;
+    min-height: 58px;
+  }
+
+  .wireframe-palette .wireframe-panel-heading,
+  .wireframe-palette-tip {
+    display: grid;
+  }
+
+  .wireframe-stage-toolbar {
+    min-height: 43px;
+    flex-direction: row;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 7px;
+  }
+
+  .wireframe-stage-toolbar > div:first-child {
+    flex: 0 1 150px;
+  }
+
+  .wireframe-stage-toolbar small {
+    display: none;
+  }
+
+  .wireframe-stage-actions {
+    width: auto;
+    flex: 1 1 auto;
+  }
+
+  .wireframe-viewport {
+    justify-content: center;
+    padding: 9px;
+  }
+
+  .wireframe-maker-screen.is-focus-mode .wireframe-stage-toolbar {
+    top: 7px;
+    width: calc(100% - 14px);
+  }
+
+  .wireframe-maker-screen.is-focus-mode .wireframe-viewport {
+    padding: 57px 7px 7px;
+  }
+}
+
+@media (max-width: 600px) {
+  .wireframe-back-btn {
+    min-height: 32px;
+    padding: 6px 7px;
+  }
+
+  .wireframe-topbar-left {
+    max-width: 118px;
+  }
+
+  .wireframe-topbar-left h1 {
+    max-width: 76px;
+    font-size: 14px;
+  }
+
+  .wireframe-topbar-actions .ghost-btn,
+  .wireframe-topbar-actions .primary-btn,
+  .wireframe-device-toggle .ghost-btn {
+    min-height: 32px;
+    padding: 5px 7px;
+    font-size: 11px;
+  }
+
+  .wireframe-pagebar-actions .ghost-btn,
+  .wireframe-page-tab {
+    min-height: 29px;
+    font-size: 10px;
+  }
+
+  .wireframe-stage-toolbar > div:first-child {
+    display: none;
+  }
+
+  .wireframe-stage-actions .ghost-btn {
+    min-height: 30px;
+    padding: 5px 7px;
+    font-size: 10px;
+  }
+
+  .wireframe-viewport {
+    padding: 7px;
+  }
+}
+
+
+/* Panel-local close controls remain reachable when a drawer overlays the stage. */
+.wireframe-panel-heading {
+  position: relative;
+  padding-right: 30px;
+}
+
+.wireframe-panel-close-btn {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 26px;
+  height: 26px;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg-2);
+  color: var(--text);
+  font-size: 18px;
+  font-weight: 900;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.wireframe-panel-close-btn:hover,
+.wireframe-panel-close-btn:focus-visible {
+  border-color: var(--primary);
+  color: var(--primary);
+  outline: none;
+}
+
+
+/* =========================================================
+   Wireframe Maker v329 - Permanent Panel Restore Controls
+   Keep Tools/Properties recovery in the always-visible topbar
+   so collapsing both side panels can never trap the editor.
+   ========================================================= */
+.wireframe-panel-restore-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--card) 92%, transparent);
+}
+
+.wireframe-panel-restore-actions .wireframe-panel-toggle-btn {
+  min-height: 30px;
+  padding: 5px 8px;
+  white-space: nowrap;
+}
+
+/* The stage toolbar no longer owns the recovery controls. */
+.wireframe-stage-actions .wireframe-panel-toggle-btn {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .wireframe-panel-restore-actions {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    background: var(--card);
+  }
+
+  .wireframe-panel-restore-actions .wireframe-panel-toggle-btn {
+    min-width: 36px;
+    padding-inline: 7px;
+    font-size: 0;
+  }
+
+  .wireframe-panel-restore-actions #wireframePaletteToggleBtn::before {
+    content: '☰';
+    font-size: 14px;
+  }
+
+  .wireframe-panel-restore-actions #wireframePropertiesToggleBtn::before {
+    content: '⚙';
+    font-size: 14px;
+  }
+}
+
+/* =========================================================
+   Wireframe Maker v330 - Header Layout Fix
+   Prevent the desktop/phone controls from being clipped or
+   pushed under the project title when the toolbar gets busy.
+   ========================================================= */
+@media (min-width: 901px) {
+  .wireframe-maker-topbar {
+    align-items: center;
+    min-height: 64px;
+    height: auto;
+  }
+
+  .wireframe-topbar-left {
+    flex: 0 0 clamp(250px, 21vw, 310px);
+    min-width: 250px;
+    max-width: 310px;
+  }
+
+  .wireframe-topbar-left > div {
+    min-width: 0;
+  }
+
+  .wireframe-topbar-left h1,
+  .wireframe-topbar-left .muted-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .wireframe-topbar-left h1 {
+    white-space: nowrap;
+  }
+
+  .wireframe-topbar-actions {
+    flex: 1 1 0;
+    min-width: 0;
+    overflow-x: visible;
+    overflow-y: visible;
+    flex-wrap: wrap;
+    align-content: center;
+    justify-content: flex-end;
+    row-gap: 5px;
+  }
+
+  .wireframe-device-toggle,
+  .wireframe-panel-restore-actions,
+  .wireframe-history-actions,
+  .wireframe-zoom-wrap {
+    flex: 0 0 auto;
+  }
+}
+
+/* On narrower desktop/laptop screens, give the controls a clean
+   second line instead of squeezing/clipping the first button. */
+@media (min-width: 901px) and (max-width: 1450px) {
+  .wireframe-maker-topbar {
+    padding-top: 7px;
+    padding-bottom: 7px;
+  }
+
+  .wireframe-topbar-left {
+    flex-basis: 250px;
+    min-width: 250px;
+  }
+
+  .wireframe-topbar-actions {
+    gap: 5px;
+  }
+
+  .wireframe-topbar-actions .ghost-btn,
+  .wireframe-topbar-actions .primary-btn,
+  .wireframe-device-toggle .ghost-btn {
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+}
+
+
+/* =========================================================
+   Wireframe Maker v331 - Starter Code control + layer rename
+   ========================================================= */
+#wireframeConvertBtn.wireframe-starter-disabled,
+#wireframeConvertBtn[aria-disabled="true"] {
+  opacity: .52;
+  filter: saturate(.45);
+  border-style: dashed;
+}
+
+.wireframe-layer-row.is-renaming {
+  grid-template-columns: minmax(0, 1fr);
+  border-color: color-mix(in srgb, var(--primary) 55%, var(--line));
+  background: color-mix(in srgb, var(--primary-soft) 72%, var(--bg-2));
+}
+
+.wireframe-layer-row.is-renaming .wireframe-layer-main,
+.wireframe-layer-row.is-renaming .wireframe-layer-controls {
+  display: none;
+}
+
+.wireframe-layer-rename-input {
+  width: 100%;
+  min-width: 0;
+  height: 32px;
+  padding: 5px 8px;
+  border: 1px solid var(--primary);
+  border-radius: 8px;
+  background: var(--solid-card);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  outline: 2px solid color-mix(in srgb, var(--primary) 24%, transparent);
+  outline-offset: 1px;
+}
+
+@media (max-width: 900px) {
+  .wireframe-layer-row.is-renaming {
+    flex: 0 0 190px;
+    display: block;
+  }
+  .wireframe-layer-rename-input {
+    height: 30px;
+  }
+}
+
+@media (max-width: 600px) {
+  .wireframe-layer-row.is-renaming {
+    flex-basis: 174px;
+  }
+}
+
+
+/* v333: Full Preview must occupy the exact browser viewport with no root
+   scrollbar gutter/white strip at the right edge. The class is placed on
+   <html> only while Full Preview is active so normal app scrolling is unchanged. */
+html.preview-fullscreen-root {
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100% !important;
+  overflow: hidden !important;
+  scrollbar-width: none !important;
+  background: #000 !important;
+}
+
+html.preview-fullscreen-root::-webkit-scrollbar,
+html.preview-fullscreen-root body::-webkit-scrollbar {
+  width: 0 !important;
+  height: 0 !important;
+  display: none !important;
+}
+
+html.preview-fullscreen-root body.preview-fullscreen-active {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+
+/* Override older fallback rules that used 4px/8px insets. Full Preview is now
+   true edge-to-edge; controls remain floating above the student's output. */
+html.preview-fullscreen-root body.preview-fullscreen-active .preview-panel {
+  position: fixed !important;
+  inset: 0 !important;
+  top: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  overflow: hidden !important;
+}
+
+html.preview-fullscreen-root body.preview-fullscreen-active #previewFrame {
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  max-width: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  overflow: hidden !important;
+}
