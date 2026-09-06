@@ -19,33 +19,43 @@
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
   <link rel="icon" type="image/png" sizes="32x32" href="favicon.png" />
   <script>
-    // Decide the responsive preview mode before CSS loads. A real phone is
-    // detected from its browser/screen, while a narrow viewport is also treated
-    // as the phone layout so mobile browser previews work consistently.
+    // v316: classify phone, tablet, and desktop before CSS paints.
+    // Tablets are deliberately NOT treated as phones, even at 600-820px portrait widths.
     (() => {
       const ua = navigator.userAgent || '';
       const uaDataMobile = navigator.userAgentData && navigator.userAgentData.mobile === true;
-      const phoneUA = /Android|iPhone|iPod|Windows Phone|IEMobile|Opera Mini/i.test(ua);
+      const maxTouchPoints = Number(navigator.maxTouchPoints || 0);
       const coarse = Boolean(window.matchMedia && window.matchMedia('(hover: none) and (pointer: coarse)').matches);
-      const touch = Number(navigator.maxTouchPoints || 0) > 0;
-      const viewportWidth = Math.min(
+      const touch = maxTouchPoints > 0;
+      const viewportWidth = Math.max(1, Math.min(
         Number(window.innerWidth) || 9999,
         Number(window.visualViewport && window.visualViewport.width) || 9999
-      );
-      const screenWidth = Number(window.screen && window.screen.width) || viewportWidth;
-      const screenHeight = Number(window.screen && window.screen.height) || Number(window.innerHeight) || 9999;
+      ));
+      const viewportHeight = Math.max(1, Number(window.visualViewport && window.visualViewport.height) || Number(window.innerHeight) || 9999);
+      const screenWidth = Math.max(1, Number(window.screen && window.screen.width) || viewportWidth);
+      const screenHeight = Math.max(1, Number(window.screen && window.screen.height) || viewportHeight);
       const shortestSide = Math.min(screenWidth, screenHeight);
       const longestSide = Math.max(screenWidth, screenHeight);
-      const phoneSizedScreen = shortestSide <= 760 && longestSide <= 1100;
-      const narrowViewport = viewportWidth <= 760;
-      const isPhone = uaDataMobile || phoneUA || (phoneSizedScreen && (touch || coarse)) || narrowViewport;
-      window.__mcsianPhonePreviewMode = Boolean(isPhone);
-      document.documentElement.dataset.deviceMode = isPhone ? 'phone' : 'desktop';
+      const explicitPhone = /iPhone|iPod|Windows Phone|IEMobile|Opera Mini/i.test(ua) || (/Android/i.test(ua) && /Mobile/i.test(ua)) || (uaDataMobile && !/iPad/i.test(ua));
+      const iPadDesktopUA = /Macintosh/i.test(ua) && maxTouchPoints > 1;
+      const explicitTablet = /iPad|Tablet|Silk|Kindle|PlayBook/i.test(ua) || (/Android/i.test(ua) && !/Mobile/i.test(ua)) || iPadDesktopUA;
+      const tabletGeometry = shortestSide >= 600 && longestSide >= 850 && longestSide <= 1900;
+      const touchTablet = (touch || coarse) && tabletGeometry;
+      let mode = 'desktop';
+      if (explicitPhone) mode = 'phone';
+      else if (explicitTablet || touchTablet) mode = 'tablet';
+      else if ((touch || coarse) && shortestSide < 600) mode = 'phone';
+      const orientation = viewportWidth > viewportHeight ? 'landscape' : 'portrait';
+      window.__mcsianPhonePreviewMode = mode === 'phone';
+      window.__mcsianResponsiveDeviceMode = mode;
+      document.documentElement.dataset.deviceMode = mode;
+      document.documentElement.dataset.deviceOrientation = orientation;
+      document.documentElement.classList.toggle('tablet-desktop-view', mode === 'tablet');
     })();
   </script>
   <link rel="preconnect" href="https://drive.google.com" crossorigin>
   <link rel="preconnect" href="https://lh3.googleusercontent.com" crossorigin>
-  <link rel="stylesheet" href="style.css?v=20260906-v315-mobile-admin-students" />
+  <link rel="stylesheet" href="style.css?v=20260906-v316-tablet-responsive" />
   <style>
     .ai-rubric-settings-card,
     .admin-project-ai-review-card {
@@ -2434,6 +2444,6 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
   <script src="firebase-config.js"></script>
-  <script src="script.js?v=20260906-v315-mobile-admin-students"></script>
+  <script src="script.js?v=20260906-v316-tablet-responsive"></script>
 </body>
 </html>

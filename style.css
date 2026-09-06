@@ -49627,7 +49627,7 @@ body.given-activity-viewer-open .given-activity-viewer-overlay {
   display: none;
 }
 
-@media (max-width: 820px) {
+@media (max-width: 820px), (min-width: 821px) and (max-width: 1100px) and (orientation: portrait) and (hover: none) and (pointer: coarse) {
   /* Compact panel shell */
   #studentAccountsAdmin.student-accounts-admin-card {
     padding: 10px !important;
@@ -50129,7 +50129,7 @@ body.given-activity-viewer-open .given-activity-viewer-overlay {
   }
 }
 
-@media (max-width: 820px) {
+@media (max-width: 820px), (min-width: 821px) and (max-width: 1100px) and (orientation: portrait) and (hover: none) and (pointer: coarse) {
   /* Final specificity guard against older full-width mobile action rules. */
   #studentAccountsAdmin .student-tracker-table td:last-child .student-action-stack button.student-compact-action,
   #studentAccountsAdmin .student-tracker-table td:last-child .student-action-stack .ghost-btn.student-compact-action,
@@ -50148,4 +50148,595 @@ body.given-activity-viewer-open .given-activity-viewer-overlay {
     min-height: 31px !important;
     height: 31px !important;
   }
+}
+
+
+/* =========================================================
+   v316 — TABLET RESPONSIVE SYSTEM
+   Tablets get their own portrait + landscape behavior.
+   Phone portrait-only rules stay scoped to data-device-mode="phone".
+   ========================================================= */
+html[data-device-mode="tablet"],
+html[data-device-mode="tablet"] body {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden !important;
+}
+
+html[data-device-mode="tablet"] .portrait-lock-overlay {
+  display: none !important;
+}
+
+html[data-device-mode="tablet"] .app-shell {
+  width: min(1400px, calc(100% - 20px)) !important;
+  max-width: 1400px !important;
+  padding: 10px 0 24px !important;
+}
+
+/* Tablet editor/header: touch-friendly without phone-only bottom-bar behavior. */
+html[data-device-mode="tablet"] body:not(.entry-gate-active):not(.student-dashboard-active):not(.student-auth-open):not(.student-route-lock):not(.admin-open) .topbar,
+html[data-device-mode="tablet"] body:not(.entry-gate-active):not(.student-dashboard-active):not(.student-auth-open):not(.student-route-lock):not(.admin-open) .topbar.simplified-topbar {
+  position: sticky !important;
+  top: 6px !important;
+  z-index: 80 !important;
+  display: grid !important;
+  align-items: center !important;
+  gap: 8px !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  min-height: 58px !important;
+  padding: 8px 10px !important;
+  border-radius: 18px !important;
+  overflow: visible !important;
+}
+
+html[data-device-mode="tablet"] .topbar .brand-block,
+html[data-device-mode="tablet"] .topbar .brand-block > div:last-child {
+  min-width: 0 !important;
+}
+
+html[data-device-mode="tablet"] .topbar .logo-mark {
+  flex: 0 0 38px !important;
+  width: 38px !important;
+  height: 38px !important;
+  border-radius: 12px !important;
+}
+
+html[data-device-mode="tablet"] .topbar #appTitleText,
+html[data-device-mode="tablet"] .topbar h1 {
+  max-width: 100% !important;
+  font-size: clamp(.95rem, 1.7vw, 1.2rem) !important;
+  line-height: 1.08 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+html[data-device-mode="tablet"] .topbar .subtitle {
+  display: block !important;
+  max-width: 100% !important;
+  font-size: .69rem !important;
+  line-height: 1.15 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+html[data-device-mode="tablet"] .topbar .top-actions,
+html[data-device-mode="tablet"] .dashboard-header-actions,
+html[data-device-mode="tablet"] .lesson-library-header-actions,
+html[data-device-mode="tablet"] .given-activities-header-actions {
+  display: flex !important;
+  flex-wrap: nowrap !important;
+  align-items: center !important;
+  gap: 5px !important;
+  min-width: 0 !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  scrollbar-width: none !important;
+  -webkit-overflow-scrolling: touch !important;
+}
+
+html[data-device-mode="tablet"] .topbar .top-actions::-webkit-scrollbar,
+html[data-device-mode="tablet"] .dashboard-header-actions::-webkit-scrollbar,
+html[data-device-mode="tablet"] .lesson-library-header-actions::-webkit-scrollbar,
+html[data-device-mode="tablet"] .given-activities-header-actions::-webkit-scrollbar {
+  display: none !important;
+}
+
+html[data-device-mode="tablet"] .topbar .top-actions > button,
+html[data-device-mode="tablet"] .topbar .top-actions > .ghost-btn,
+html[data-device-mode="tablet"] .topbar .top-actions > .primary-btn,
+html[data-device-mode="tablet"] .topbar .top-actions > .success-btn {
+  flex: 0 0 auto !important;
+  min-width: max-content !important;
+  width: auto !important;
+  min-height: 32px !important;
+  height: 32px !important;
+  padding: 0 8px !important;
+  border-radius: 999px !important;
+  font-size: .69rem !important;
+  white-space: nowrap !important;
+}
+
+html[data-device-mode="tablet"] .language-tabs {
+  position: relative !important;
+  top: auto !important;
+  display: flex !important;
+  gap: 4px !important;
+  width: 100% !important;
+  min-height: 36px !important;
+  height: 36px !important;
+  padding: 4px 6px 0 !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  scrollbar-width: none !important;
+}
+
+html[data-device-mode="tablet"] .language-tabs::-webkit-scrollbar { display: none !important; }
+html[data-device-mode="tablet"] .language-tabs .tab-btn {
+  flex: 0 0 auto !important;
+  min-width: 78px !important;
+  width: auto !important;
+  min-height: 31px !important;
+  height: 31px !important;
+  padding: 0 10px !important;
+  font-size: .75rem !important;
+}
+
+html[data-device-mode="tablet"] .workspace,
+html[data-device-mode="tablet"] .right-column,
+html[data-device-mode="tablet"] .panel,
+html[data-device-mode="tablet"] .editor-panel,
+html[data-device-mode="tablet"] .preview-panel {
+  min-width: 0 !important;
+  width: 100% !important;
+}
+
+html[data-device-mode="tablet"] .editor-wrap {
+  display: grid !important;
+  grid-template-columns: 38px minmax(0, 1fr) !important;
+  overflow: hidden !important;
+}
+
+html[data-device-mode="tablet"] #codeEditor,
+html[data-device-mode="tablet"] .code-match-layer {
+  white-space: pre !important;
+  word-break: normal !important;
+  overflow-wrap: normal !important;
+  overflow: auto !important;
+  touch-action: pan-x pan-y !important;
+  resize: none !important;
+}
+
+html[data-device-mode="tablet"] .preview-actions {
+  display: flex !important;
+  flex-wrap: nowrap !important;
+  gap: 5px !important;
+  overflow-x: auto !important;
+  scrollbar-width: none !important;
+}
+html[data-device-mode="tablet"] .preview-actions::-webkit-scrollbar { display: none !important; }
+html[data-device-mode="tablet"] .preview-actions .layout-btn,
+html[data-device-mode="tablet"] .preview-actions .ghost-btn,
+html[data-device-mode="tablet"] .preview-actions button {
+  flex: 0 0 auto !important;
+  min-height: 32px !important;
+  padding: 0 8px !important;
+  font-size: .7rem !important;
+  white-space: nowrap !important;
+}
+
+/* Tablet portrait: stacked editor + preview so neither pane becomes a cramped 350px column. */
+html[data-device-mode="tablet"][data-device-orientation="portrait"] body:not(.entry-gate-active):not(.student-dashboard-active):not(.admin-open) .topbar,
+html[data-device-mode="tablet"][data-device-orientation="portrait"] body:not(.entry-gate-active):not(.student-dashboard-active):not(.admin-open) .topbar.simplified-topbar {
+  grid-template-columns: minmax(0, 1fr) !important;
+  grid-template-rows: auto auto !important;
+}
+
+html[data-device-mode="tablet"][data-device-orientation="portrait"] .topbar .top-actions {
+  width: 100% !important;
+  justify-content: flex-start !important;
+}
+
+html[data-device-mode="tablet"][data-device-orientation="portrait"] .workspace,
+html[data-device-mode="tablet"][data-device-orientation="portrait"] .workspace[data-layout="split"],
+html[data-device-mode="tablet"][data-device-orientation="portrait"] .workspace[data-layout="preview-focus"],
+html[data-device-mode="tablet"][data-device-orientation="portrait"] .workspace[data-layout="stacked"] {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) !important;
+  gap: 12px !important;
+  align-items: start !important;
+}
+
+html[data-device-mode="tablet"][data-device-orientation="portrait"] .editor-panel {
+  min-height: 440px !important;
+}
+html[data-device-mode="tablet"][data-device-orientation="portrait"] .editor-wrap,
+html[data-device-mode="tablet"][data-device-orientation="portrait"] .line-numbers,
+html[data-device-mode="tablet"][data-device-orientation="portrait"] .editor-stack,
+html[data-device-mode="tablet"][data-device-orientation="portrait"] #codeEditor,
+html[data-device-mode="tablet"][data-device-orientation="portrait"] .code-match-layer {
+  height: clamp(420px, 48dvh, 620px) !important;
+  min-height: 420px !important;
+  max-height: 620px !important;
+}
+html[data-device-mode="tablet"][data-device-orientation="portrait"] #previewFrame,
+html[data-device-mode="tablet"][data-device-orientation="portrait"] .preview-frame-shell {
+  min-height: 420px !important;
+}
+
+/* Tablet landscape: real two-pane workspace. */
+html[data-device-mode="tablet"][data-device-orientation="landscape"] body:not(.entry-gate-active):not(.student-dashboard-active):not(.admin-open) .topbar,
+html[data-device-mode="tablet"][data-device-orientation="landscape"] body:not(.entry-gate-active):not(.student-dashboard-active):not(.admin-open) .topbar.simplified-topbar {
+  grid-template-columns: minmax(220px, .78fr) minmax(0, 1.22fr) !important;
+  grid-template-rows: auto !important;
+}
+html[data-device-mode="tablet"][data-device-orientation="landscape"] .topbar .top-actions {
+  justify-content: flex-end !important;
+}
+html[data-device-mode="tablet"][data-device-orientation="landscape"] .workspace,
+html[data-device-mode="tablet"][data-device-orientation="landscape"] .workspace[data-layout="split"] {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1.04fr) minmax(320px, .96fr) !important;
+  gap: 12px !important;
+  align-items: start !important;
+}
+html[data-device-mode="tablet"][data-device-orientation="landscape"] .workspace[data-layout="stacked"] { grid-template-columns: 1fr !important; }
+html[data-device-mode="tablet"][data-device-orientation="landscape"] .workspace[data-layout="preview-focus"] { grid-template-columns: minmax(0, .78fr) minmax(380px, 1.22fr) !important; }
+html[data-device-mode="tablet"][data-device-orientation="landscape"] .editor-wrap,
+html[data-device-mode="tablet"][data-device-orientation="landscape"] .line-numbers,
+html[data-device-mode="tablet"][data-device-orientation="landscape"] .editor-stack,
+html[data-device-mode="tablet"][data-device-orientation="landscape"] #codeEditor,
+html[data-device-mode="tablet"][data-device-orientation="landscape"] .code-match-layer {
+  height: max(420px, calc(100dvh - 150px)) !important;
+  min-height: 420px !important;
+  max-height: none !important;
+}
+html[data-device-mode="tablet"][data-device-orientation="landscape"] #previewFrame,
+html[data-device-mode="tablet"][data-device-orientation="landscape"] .preview-frame-shell {
+  min-height: max(420px, calc(100dvh - 150px)) !important;
+}
+
+/* Student dashboard: tablet keeps controls visible and uses a real multi-column grid. */
+html[data-device-mode="tablet"] .student-dashboard-screen {
+  width: 100% !important;
+  min-width: 0 !important;
+}
+html[data-device-mode="tablet"] .student-dashboard-header,
+html[data-device-mode="tablet"] .student-dashboard-main {
+  width: min(1320px, calc(100% - 24px)) !important;
+  max-width: 1320px !important;
+  margin-inline: auto !important;
+}
+html[data-device-mode="tablet"] .student-dashboard-header {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 10px !important;
+  min-height: 66px !important;
+  padding: 9px 0 !important;
+}
+html[data-device-mode="tablet"] .dashboard-mobile-menu-btn { display: none !important; }
+html[data-device-mode="tablet"] .dashboard-header-actions { display: flex !important; }
+html[data-device-mode="tablet"] .dashboard-hero-card {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 14px !important;
+  padding: 16px 18px !important;
+}
+html[data-device-mode="tablet"] .dashboard-hero-actions {
+  display: flex !important;
+  flex-wrap: nowrap !important;
+  gap: 7px !important;
+  overflow-x: auto !important;
+  scrollbar-width: none !important;
+}
+html[data-device-mode="tablet"] .dashboard-hero-actions > * { flex: 0 0 auto !important; }
+html[data-device-mode="tablet"] .student-projects-grid {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 12px !important;
+}
+html[data-device-mode="tablet"][data-device-orientation="landscape"] .student-projects-grid {
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)) !important;
+}
+
+/* Lessons: two cards across on tablet, with compact non-phone header. */
+html[data-device-mode="tablet"] .lesson-library-header {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 10px !important;
+  min-height: 66px !important;
+  padding: 9px 14px !important;
+}
+html[data-device-mode="tablet"] .lesson-library-brand { min-width: 0 !important; }
+html[data-device-mode="tablet"] .lesson-library-brand h1 {
+  font-size: clamp(1.05rem, 2vw, 1.4rem) !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+html[data-device-mode="tablet"] .lesson-library-main {
+  width: min(1320px, calc(100% - 24px)) !important;
+  padding: 14px 0 28px !important;
+}
+html[data-device-mode="tablet"] .lesson-library-grid {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 12px !important;
+}
+html[data-device-mode="tablet"][data-device-orientation="landscape"] .lesson-library-grid {
+  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)) !important;
+}
+html[data-device-mode="tablet"] .lesson-library-filter-row {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 230px) !important;
+  gap: 10px !important;
+}
+
+/* Activities Given: tablet avoids phone full-width header and keeps two useful columns. */
+html[data-device-mode="tablet"] .given-activities-header {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 10px !important;
+  min-height: 68px !important;
+  padding: 9px 14px !important;
+}
+html[data-device-mode="tablet"] .given-activities-header-actions {
+  width: auto !important;
+  justify-content: flex-end !important;
+}
+html[data-device-mode="tablet"] .given-activities-current-pill,
+html[data-device-mode="tablet"] .given-activities-header-actions .ghost-btn {
+  flex: 0 0 auto !important;
+  width: auto !important;
+  min-height: 34px !important;
+  padding: 0 10px !important;
+  font-size: .72rem !important;
+}
+html[data-device-mode="tablet"] .given-activities-current-pill { order: initial !important; grid-column: auto !important; }
+html[data-device-mode="tablet"] .given-activities-main { padding: 14px !important; }
+html[data-device-mode="tablet"] .given-activities-controls { padding: 12px !important; }
+html[data-device-mode="tablet"] .given-activities-filter-row {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 220px) !important;
+  gap: 10px !important;
+}
+html[data-device-mode="tablet"] .given-activities-grid {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 12px !important;
+}
+html[data-device-mode="tablet"] .given-activities-welcome { display: flex !important; }
+
+/* Tablet activity viewer stays inset instead of becoming a phone fullscreen sheet. */
+html[data-device-mode="tablet"] .given-activity-viewer-overlay {
+  padding: 10px !important;
+  place-items: center !important;
+  background: rgba(2, 6, 23, .72) !important;
+  backdrop-filter: blur(8px) !important;
+}
+html[data-device-mode="tablet"] .given-activity-viewer-card {
+  width: min(1180px, calc(100vw - 20px)) !important;
+  height: min(94dvh, 920px) !important;
+  max-height: min(94dvh, 920px) !important;
+  border: 1px solid var(--line-strong) !important;
+  border-radius: 20px !important;
+  box-shadow: 0 24px 70px rgba(0,0,0,.34) !important;
+}
+html[data-device-mode="tablet"] .given-activity-viewer-header {
+  min-height: 56px !important;
+  padding: 8px 10px 8px 14px !important;
+}
+html[data-device-mode="tablet"] .given-activity-viewer-header h2 {
+  font-size: clamp(.92rem, 1.8vw, 1.08rem) !important;
+  -webkit-line-clamp: 1 !important;
+}
+html[data-device-mode="tablet"] .given-activity-attachment-list {
+  display: flex !important;
+}
+html[data-device-mode="tablet"] .given-activity-viewer-instructions {
+  top: 56px !important;
+  right: 10px !important;
+  width: min(520px, calc(100% - 20px)) !important;
+}
+
+/* Admin: tablet uses an inset workspace, not the phone edge-to-edge sheet. */
+html[data-device-mode="tablet"] body.admin-open #adminOverlay.modal-overlay,
+html[data-device-mode="tablet"] #adminOverlay.modal-overlay {
+  display: grid !important;
+  place-items: center !important;
+  width: 100vw !important;
+  height: 100dvh !important;
+  padding: 10px !important;
+  overflow: hidden !important;
+}
+html[data-device-mode="tablet"] body.admin-open #adminOverlay .admin-modal,
+html[data-device-mode="tablet"] #adminOverlay .admin-modal {
+  width: min(1280px, calc(100vw - 20px)) !important;
+  max-width: 1280px !important;
+  height: calc(100dvh - 20px) !important;
+  max-height: calc(100dvh - 20px) !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 1px solid var(--line-strong) !important;
+  border-radius: 20px !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+}
+html[data-device-mode="tablet"] #adminOverlay .modal-header {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 30 !important;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  align-items: center !important;
+  gap: 10px !important;
+  min-height: 58px !important;
+  padding: 9px 12px !important;
+  background: color-mix(in srgb, var(--solid-card) 96%, transparent) !important;
+  backdrop-filter: blur(12px) !important;
+}
+html[data-device-mode="tablet"] #adminOverlay .modal-header h2 {
+  margin: 0 !important;
+  font-size: clamp(1rem, 2vw, 1.25rem) !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+html[data-device-mode="tablet"] #adminOverlay .modal-header .muted-text { display: none !important; }
+html[data-device-mode="tablet"] #adminOverlay #closeAdminBtn {
+  width: 38px !important;
+  height: 38px !important;
+  min-width: 38px !important;
+}
+html[data-device-mode="tablet"] #adminOverlay .admin-tabs-wrap {
+  position: sticky !important;
+  top: 58px !important;
+  z-index: 29 !important;
+  width: 100% !important;
+  margin: 0 !important;
+  padding: 7px 10px 9px !important;
+  background: color-mix(in srgb, var(--solid-card) 95%, transparent) !important;
+  backdrop-filter: blur(12px) !important;
+}
+html[data-device-mode="tablet"] #adminOverlay .admin-tabs {
+  width: 100% !important;
+  max-width: 100% !important;
+  gap: 6px !important;
+  padding: 4px !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  scrollbar-width: none !important;
+}
+html[data-device-mode="tablet"] #adminOverlay .admin-tabs::-webkit-scrollbar { display: none !important; }
+html[data-device-mode="tablet"] #adminOverlay .admin-tab-btn {
+  flex: 0 0 auto !important;
+  min-height: 34px !important;
+  padding: 7px 10px !important;
+  border-radius: 11px !important;
+  font-size: .74rem !important;
+}
+html[data-device-mode="tablet"] #adminOverlay .admin-form,
+html[data-device-mode="tablet"] #adminOverlay .admin-form.visible {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  padding: 12px !important;
+  overflow-x: hidden !important;
+}
+html[data-device-mode="tablet"] #adminOverlay .admin-tab-panel.active {
+  width: 100% !important;
+  min-width: 0 !important;
+}
+
+/* Tablet Admin > Students portrait uses compact cards; landscape returns to table. */
+html[data-device-mode="tablet"][data-device-orientation="portrait"] #studentAccountsAdmin .student-admin-summary {
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+}
+html[data-device-mode="tablet"][data-device-orientation="portrait"] #studentAccountsAdmin .student-tracker-toolbar {
+  grid-template-columns: minmax(0, 1.4fr) minmax(150px, .8fr) minmax(150px, .8fr) !important;
+  gap: 8px !important;
+}
+html[data-device-mode="tablet"][data-device-orientation="portrait"] #studentAccountsAdmin .student-tracker-table tbody {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  align-items: start !important;
+}
+html[data-device-mode="tablet"][data-device-orientation="portrait"] #studentAccountsAdmin .student-load-more-row {
+  grid-column: 1 / -1 !important;
+}
+html[data-device-mode="tablet"][data-device-orientation="portrait"] #studentAccountsAdmin .student-mobile-quick-tools {
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+}
+html[data-device-mode="tablet"][data-device-orientation="portrait"] #studentAccountsAdmin .student-action-stack {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+}
+
+html[data-device-mode="tablet"][data-device-orientation="landscape"] #studentAccountsAdmin .student-mobile-quick-tools,
+html[data-device-mode="tablet"][data-device-orientation="landscape"] #studentAccountsAdmin .student-mobile-summary,
+html[data-device-mode="tablet"][data-device-orientation="landscape"] #studentAccountsAdmin .student-mobile-expand-btn {
+  display: none !important;
+}
+html[data-device-mode="tablet"][data-device-orientation="landscape"] #studentAccountsAdmin .student-admin-summary {
+  display: grid !important;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  gap: 8px !important;
+}
+html[data-device-mode="tablet"][data-device-orientation="landscape"] #studentAccountsAdmin .student-register-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+}
+html[data-device-mode="tablet"][data-device-orientation="landscape"] #studentAccountsAdmin .student-tracker-toolbar {
+  grid-template-columns: minmax(0, 1.4fr) minmax(150px, .8fr) minmax(150px, .8fr) !important;
+}
+html[data-device-mode="tablet"][data-device-orientation="landscape"] #studentAccountsAdmin .student-tracker-table-wrap {
+  overflow-x: auto !important;
+  border: 1px solid var(--line) !important;
+  border-radius: 14px !important;
+}
+html[data-device-mode="tablet"][data-device-orientation="landscape"] #studentAccountsAdmin .student-tracker-table {
+  display: table !important;
+  width: 100% !important;
+  min-width: 920px !important;
+  border-collapse: collapse !important;
+}
+html[data-device-mode="tablet"][data-device-orientation="landscape"] #studentAccountsAdmin .student-tracker-table thead { display: table-header-group !important; }
+html[data-device-mode="tablet"][data-device-orientation="landscape"] #studentAccountsAdmin .student-tracker-table tbody { display: table-row-group !important; }
+html[data-device-mode="tablet"][data-device-orientation="landscape"] #studentAccountsAdmin .student-tracker-table tr { display: table-row !important; padding: 0 !important; border: 0 !important; box-shadow: none !important; background: transparent !important; }
+html[data-device-mode="tablet"][data-device-orientation="landscape"] #studentAccountsAdmin .student-tracker-table td {
+  display: table-cell !important;
+  width: auto !important;
+  padding: 9px 8px !important;
+  border-bottom: 1px solid var(--line) !important;
+  text-align: left !important;
+  vertical-align: middle !important;
+}
+html[data-device-mode="tablet"][data-device-orientation="landscape"] #studentAccountsAdmin .student-tracker-table td::before { display: none !important; content: none !important; }
+html[data-device-mode="tablet"][data-device-orientation="landscape"] #studentAccountsAdmin .student-action-stack {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(110px, 1fr)) !important;
+  gap: 5px !important;
+  min-width: 240px !important;
+}
+html[data-device-mode="tablet"][data-device-orientation="landscape"] #studentAccountsAdmin .student-action-stack .delete-student-account-btn { grid-column: 1 / -1 !important; }
+
+/* Generic admin forms: keep controls usable in portrait and landscape. */
+html[data-device-mode="tablet"] .form-grid,
+html[data-device-mode="tablet"] .ai-rubric-settings-grid,
+html[data-device-mode="tablet"] .assistance-settings-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+}
+html[data-device-mode="tablet"][data-device-orientation="landscape"] .assistance-settings-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+}
+
+@media (max-width: 680px) {
+  html[data-device-mode="tablet"] .student-projects-grid,
+  html[data-device-mode="tablet"] .lesson-library-grid,
+  html[data-device-mode="tablet"] .given-activities-grid,
+  html[data-device-mode="tablet"][data-device-orientation="portrait"] #studentAccountsAdmin .student-tracker-table tbody,
+  html[data-device-mode="tablet"] .form-grid,
+  html[data-device-mode="tablet"] .ai-rubric-settings-grid,
+  html[data-device-mode="tablet"] .assistance-settings-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* v316 QA refinement: force portrait tablet editor into one comfortable column. */
+html[data-device-mode="tablet"][data-device-orientation="portrait"].tablet-desktop-view body:not(.entry-gate-active):not(.student-dashboard-active):not(.student-auth-open):not(.student-route-lock):not(.admin-open) .workspace,
+html[data-device-mode="tablet"][data-device-orientation="portrait"].tablet-desktop-view body:not(.entry-gate-active):not(.student-dashboard-active):not(.student-auth-open):not(.student-route-lock):not(.admin-open) .workspace[data-layout="split"],
+html[data-device-mode="tablet"][data-device-orientation="portrait"].tablet-desktop-view body:not(.entry-gate-active):not(.student-dashboard-active):not(.student-auth-open):not(.student-route-lock):not(.admin-open) .workspace[data-layout="preview-focus"],
+html[data-device-mode="tablet"][data-device-orientation="portrait"].tablet-desktop-view body:not(.entry-gate-active):not(.student-dashboard-active):not(.student-auth-open):not(.student-route-lock):not(.admin-open) .workspace[data-layout="stacked"] {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) !important;
+  gap: 12px !important;
+}
+
+/* Expanded student details span the tablet portrait card grid, avoiding empty masonry-like gaps. */
+html[data-device-mode="tablet"][data-device-orientation="portrait"] #studentAccountsAdmin .student-tracker-row.is-expanded {
+  grid-column: 1 / -1 !important;
 }
