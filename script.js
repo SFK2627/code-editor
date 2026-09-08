@@ -40133,6 +40133,12 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     leaderboardOverlay: $('codeExplorerLeaderboardOverlay'),
     leaderboardCloseBtn: $('codeExplorerLeaderboardCloseBtn'),
     leaderboardRefreshBtn: $('codeExplorerLeaderboardRefreshBtn'),
+    leaderboardStudentsTab: $('codeExplorerLeaderboardStudentsTab'),
+    leaderboardSectionsTab: $('codeExplorerLeaderboardSectionsTab'),
+    leaderboardYourRankLabel: $('codeExplorerLeaderboardYourRankLabel'),
+    leaderboardYourXpLabel: $('codeExplorerLeaderboardYourXpLabel'),
+    leaderboardCountLabel: $('codeExplorerLeaderboardCountLabel'),
+    leaderboardTopXpLabel: $('codeExplorerLeaderboardTopXpLabel'),
     leaderboardYourRank: $('codeExplorerLeaderboardYourRank'),
     leaderboardYourXp: $('codeExplorerLeaderboardYourXp'),
     leaderboardStudentCount: $('codeExplorerLeaderboardStudentCount'),
@@ -40525,7 +40531,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   const HEARTS_MAX = 5;
   const HEART_REFILL_MS = 60 * 60 * 1000;
   const state = { course: 'html', topicId: '', filter: 'all', progress: null, reader: '', cloudLoaded: false, dashboardCloudLoading: false, saveTimer: null, heartTimer: null, profileUnsub: null, finalAnswers: {}, quickQuiz: { topicId: '', index: 0, answers: [], results: [], submitted: false }, miniGame: { topicId: '', selected: '', result: '', correct: '', choices: [], before: '', after: '' }, miniGameResetTimer: null, quickAdvanceTimer: null, quickFeedbackTimer: null, justUnlockedTopicId: '', justUnlockedCourse: '', mobileStage: 'learn', mobileStageDirection: 'next', mobileSwipeStart: null, mobileView: 'roadmap' };
-  const leaderboardState = { records: [], loadedAt: 0, loading: false, source: '', rosterLoaded: false };
+  const leaderboardState = { records: [], loadedAt: 0, loading: false, source: '', rosterLoaded: false, mode: 'students' };
 
   function normalizeHeartState(input = {}) {
     const source = input && typeof input === 'object' ? input : {};
@@ -42959,6 +42965,89 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     };
   }
 
+  function leaderboardSectionDisplayName(value = '') {
+    const cleaned = String(value || '').replace(/\s+/g, ' ').trim();
+    if (!cleaned) return 'No Section';
+    return getStudentSectionNameOnly({ section: cleaned }) || cleaned;
+  }
+
+  function leaderboardSectionKey(value = '') {
+    return leaderboardSectionDisplayName(value)
+      .toLowerCase()
+      .replace(/[–—]/g, '-')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  function buildSectionLeaderboard(records = leaderboardState.records || []) {
+    const currentProfile = appSession.student || appSession.lastStudentProfile || {};
+    const currentSectionKey = leaderboardSectionKey(currentProfile.section || currentProfile.sectionName || '');
+    const groups = new Map();
+    records.forEach(student => {
+      const display = leaderboardSectionDisplayName(student.section || '');
+      const key = leaderboardSectionKey(display);
+      if (!key || key === 'no section') return;
+      if (!groups.has(key)) groups.set(key, { key, name: display, xp: 0, studentCount: 0, current: false });
+      const group = groups.get(key);
+      group.xp += Math.max(0, Number(student.xp || 0));
+      group.studentCount += 1;
+      if (student.current || (currentSectionKey && key === currentSectionKey)) group.current = true;
+    });
+    const sections = Array.from(groups.values()).map(group => ({
+      ...group,
+      averageXp: group.studentCount ? Math.round(group.xp / group.studentCount) : 0
+    }));
+    const ranked = assignLeaderboardRanks(sections.map(group => ({ ...group, section: group.name })));
+    ranked.forEach(group => {
+      group.name = group.name || group.section || 'Section';
+      group.current = Boolean(group.current || (currentSectionKey && leaderboardSectionKey(group.name) === currentSectionKey));
+    });
+    return ranked;
+  }
+
+  function sectionLeaderboardRowHtml(record, options = {}) {
+    const rank = Number(record.rank || 0);
+    const current = Boolean(record.current);
+    const classes = ['code-explorer-leaderboard-row', 'section-row'];
+    if (rank <= 10) classes.push('top-ten');
+    if (rank <= 3) classes.push('podium');
+    if (current) classes.push('you');
+    if (options.detached) classes.push('detached-you');
+    return `<article class="${classes.join(' ')}" data-rank="${rank}">
+      <span class="code-explorer-leaderboard-rank">${escapeHTML(leaderboardMedal(rank))}</span>
+      <span class="code-explorer-leaderboard-person"><strong>${escapeHTML(record.name || 'Section')}${current ? '<em>YOUR SECTION</em>' : ''}</strong><small>${Number(record.studentCount || 0)} ${Number(record.studentCount || 0) === 1 ? 'student' : 'students'} · Avg ⚡ ${Number(record.averageXp || 0).toLocaleString()}</small></span>
+      <span class="code-explorer-leaderboard-xp"><strong>⚡ ${Number(record.xp || 0).toLocaleString()}</strong><small>TOTAL XP</small></span>
+    </article>`;
+  }
+
+  function sectionLeaderboardRankStorageKey(sectionName = '') {
+    return `studentCodeStudio.codeExplorerSectionLeaderboardRank.v1.${leaderboardSectionKey(sectionName) || 'section'}`;
+  }
+
+  function sectionLeaderboardMotivation(current) {
+    if (!current || !Number(current.rank || 0)) return 'Earn Mastery XP together to move your section up the rankings.';
+    let previous = 0;
+    const key = sectionLeaderboardRankStorageKey(current.name);
+    try { previous = Number(localStorage.getItem(key) || 0); } catch (_) {}
+    const now = Number(current.rank || 0);
+    let message = `Your section is Rank #${now} with ${Number(current.xp || 0).toLocaleString()} total XP.`;
+    if (previous > 10 && now <= 10) message = `🎉 Your section entered the Top 10 at Rank #${now}!`;
+    else if (previous > now && previous > 0) message = `🚀 Your section moved up from #${previous} to #${now}!`;
+    else if (now <= 3) message = `🏆 Your section is currently in the Top 3 at Rank #${now}!`;
+    try { localStorage.setItem(key, String(now)); } catch (_) {}
+    return message;
+  }
+
+  function setLeaderboardMode(mode = 'students') {
+    leaderboardState.mode = mode === 'sections' ? 'sections' : 'students';
+    const sectionsMode = leaderboardState.mode === 'sections';
+    dom.leaderboardStudentsTab?.classList.toggle('active', !sectionsMode);
+    dom.leaderboardSectionsTab?.classList.toggle('active', sectionsMode);
+    dom.leaderboardStudentsTab?.setAttribute('aria-selected', sectionsMode ? 'false' : 'true');
+    dom.leaderboardSectionsTab?.setAttribute('aria-selected', sectionsMode ? 'true' : 'false');
+    renderGlobalLeaderboard();
+  }
+
   function leaderboardRowHtml(record, options = {}) {
     const rank = Number(record.rank || 0);
     const current = Boolean(record.current);
@@ -42992,11 +43081,49 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   }
 
   function renderGlobalLeaderboard() {
-    const records = leaderboardState.records || [];
+    const studentRecords = leaderboardState.records || [];
     if (!dom.leaderboardList) return;
+    const sectionsMode = leaderboardState.mode === 'sections';
+    dom.leaderboardStudentsTab?.classList.toggle('active', !sectionsMode);
+    dom.leaderboardSectionsTab?.classList.toggle('active', sectionsMode);
+    dom.leaderboardStudentsTab?.setAttribute('aria-selected', sectionsMode ? 'false' : 'true');
+    dom.leaderboardSectionsTab?.setAttribute('aria-selected', sectionsMode ? 'true' : 'false');
+
+    if (sectionsMode) {
+      const records = buildSectionLeaderboard(studentRecords);
+      const current = records.find(record => record.current) || null;
+      const topRows = records.filter(record => Number(record.rank || 0) <= 20);
+      const topXp = records.length ? Number(records[0].xp || 0) : 0;
+      if (dom.leaderboardYourRankLabel) dom.leaderboardYourRankLabel.textContent = 'Section Rank';
+      if (dom.leaderboardYourXpLabel) dom.leaderboardYourXpLabel.textContent = 'Section XP';
+      if (dom.leaderboardCountLabel) dom.leaderboardCountLabel.textContent = 'Sections';
+      if (dom.leaderboardTopXpLabel) dom.leaderboardTopXpLabel.textContent = 'Top Section XP';
+      if (dom.leaderboardYourRank) dom.leaderboardYourRank.textContent = current ? `#${current.rank}` : '—';
+      if (dom.leaderboardYourXp) dom.leaderboardYourXp.textContent = current ? Number(current.xp || 0).toLocaleString() : '0';
+      if (dom.leaderboardStudentCount) dom.leaderboardStudentCount.textContent = String(records.length);
+      if (dom.leaderboardTopXp) dom.leaderboardTopXp.textContent = topXp.toLocaleString();
+      if (dom.leaderboardMotivation) dom.leaderboardMotivation.textContent = sectionLeaderboardMotivation(current);
+      if (dom.leaderboardStatus) dom.leaderboardStatus.textContent = `${records.length} ${records.length === 1 ? 'section' : 'sections'} ranked by accumulated student XP · ties share rank`;
+      if (!records.length) {
+        dom.leaderboardList.innerHTML = '<div class="code-explorer-leaderboard-empty"><strong>No section rankings yet.</strong><p>Section totals will appear once enrolled students have section information.</p></div>';
+        return;
+      }
+      let content = topRows.map(record => sectionLeaderboardRowHtml(record)).join('');
+      if (current && Number(current.rank || 0) > 20) {
+        content += `<div class="code-explorer-leaderboard-you-divider"><span>YOUR SECTION</span></div>${sectionLeaderboardRowHtml(current, { detached: true })}`;
+      }
+      dom.leaderboardList.innerHTML = content;
+      return;
+    }
+
+    const records = studentRecords;
     const current = records.find(record => record.current) || null;
     const topRows = records.filter(record => Number(record.rank || 0) <= 20);
     const topXp = records.length ? Number(records[0].xp || 0) : 0;
+    if (dom.leaderboardYourRankLabel) dom.leaderboardYourRankLabel.textContent = 'Your Rank';
+    if (dom.leaderboardYourXpLabel) dom.leaderboardYourXpLabel.textContent = 'Your XP';
+    if (dom.leaderboardCountLabel) dom.leaderboardCountLabel.textContent = 'Students';
+    if (dom.leaderboardTopXpLabel) dom.leaderboardTopXpLabel.textContent = 'Top XP';
     if (dom.leaderboardYourRank) dom.leaderboardYourRank.textContent = current ? `#${current.rank}` : '—';
     if (dom.leaderboardYourXp) dom.leaderboardYourXp.textContent = current ? Number(current.xp || 0).toLocaleString() : totalXp().toLocaleString();
     if (dom.leaderboardStudentCount) dom.leaderboardStudentCount.textContent = String(records.length);
@@ -43447,6 +43574,8 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     syncExplorerMobileChrome();
   });
   dom.leaderboardBtn?.addEventListener('click', openGlobalLeaderboard);
+  dom.leaderboardStudentsTab?.addEventListener('click', () => setLeaderboardMode('students'));
+  dom.leaderboardSectionsTab?.addEventListener('click', () => setLeaderboardMode('sections'));
   dom.leaderboardCloseBtn?.addEventListener('click', closeGlobalLeaderboard);
   dom.leaderboardRefreshBtn?.addEventListener('click', () => loadGlobalLeaderboard({ force: true }));
   dom.leaderboardOverlay?.addEventListener('click', event => { if (event.target === dom.leaderboardOverlay) closeGlobalLeaderboard(); });

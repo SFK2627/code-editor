@@ -45,7 +45,7 @@
   </script>
   <link rel="preconnect" href="https://drive.google.com" crossorigin>
   <link rel="preconnect" href="https://lh3.googleusercontent.com" crossorigin>
-  <link rel="stylesheet" href="style.css?v=20260908-v380-global-xp-leaderboard" />
+  <link rel="stylesheet" href="style.css?v=20260908-v381-student-section-leaderboards" />
   <style>
     .ai-rubric-settings-card,
     .admin-project-ai-review-card {
@@ -677,11 +677,15 @@
             <button id="codeExplorerLeaderboardCloseBtn" class="icon-btn" type="button" aria-label="Close leaderboard">×</button>
           </div>
         </header>
+        <div class="code-explorer-leaderboard-tabs" role="tablist" aria-label="Leaderboard type">
+          <button id="codeExplorerLeaderboardStudentsTab" class="active" type="button" role="tab" aria-selected="true" data-leaderboard-mode="students">🏆 Students</button>
+          <button id="codeExplorerLeaderboardSectionsTab" type="button" role="tab" aria-selected="false" data-leaderboard-mode="sections">🏫 Sections</button>
+        </div>
         <div class="code-explorer-leaderboard-summary">
-          <div><small>Your Rank</small><strong id="codeExplorerLeaderboardYourRank">—</strong></div>
-          <div><small>Your XP</small><strong id="codeExplorerLeaderboardYourXp">0</strong></div>
-          <div><small>Students</small><strong id="codeExplorerLeaderboardStudentCount">0</strong></div>
-          <div><small>Top XP</small><strong id="codeExplorerLeaderboardTopXp">0</strong></div>
+          <div><small id="codeExplorerLeaderboardYourRankLabel">Your Rank</small><strong id="codeExplorerLeaderboardYourRank">—</strong></div>
+          <div><small id="codeExplorerLeaderboardYourXpLabel">Your XP</small><strong id="codeExplorerLeaderboardYourXp">0</strong></div>
+          <div><small id="codeExplorerLeaderboardCountLabel">Students</small><strong id="codeExplorerLeaderboardStudentCount">0</strong></div>
+          <div><small id="codeExplorerLeaderboardTopXpLabel">Top XP</small><strong id="codeExplorerLeaderboardTopXp">0</strong></div>
         </div>
         <div id="codeExplorerLeaderboardMotivation" class="code-explorer-leaderboard-motivation"></div>
         <div id="codeExplorerLeaderboardStatus" class="code-explorer-leaderboard-status" role="status">Loading rankings...</div>
@@ -3315,6 +3319,6 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
       </section>
     </div>
 
-  <script src="script.js?v=20260908-v380-global-xp-leaderboard"></script>
+  <script src="script.js?v=20260908-v381-student-section-leaderboards"></script>
 </body>
 </html>
