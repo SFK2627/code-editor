@@ -3410,19 +3410,7 @@ function initFirebaseWithCompatSDK() {
       limit: count => ({ type: 'limit', count }),
       serverTimestamp: () => firebase.firestore.FieldValue.serverTimestamp(),
       increment: amount => firebase.firestore.FieldValue.increment(amount),
-      writeBatch: database => database.batch(),
-      runTransaction: (database, updateFunction) => database.runTransaction(async transaction => {
-        const wrapped = {
-          get: async ref => {
-            const snap = await transaction.get(ref);
-            return { id: snap.id, exists: () => snap.exists, data: () => snap.data() || {}, ref: snap.ref };
-          },
-          set: (ref, data, options = {}) => transaction.set(ref, data, options),
-          update: (ref, data) => transaction.update(ref, data),
-          delete: ref => transaction.delete(ref)
-        };
-        return updateFunction(wrapped);
-      })
+      writeBatch: database => database.batch()
     };
     firebaseSync.authModule = {
       onAuthStateChanged: (authInstance, callback) => authInstance.onAuthStateChanged(callback),
@@ -40600,7 +40588,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   const HEARTS_DEFAULT = 5;
   const HEARTS_MAX = 5;
   const HEART_REFILL_MS = 60 * 60 * 1000;
-  const state = { course: 'html', topicId: '', filter: 'all', progress: null, reader: '', cloudLoaded: false, cloudXpHint: 0, dashboardCloudLoading: false, saveTimer: null, cloudSavePromise: null, cloudSaveQueued: false, lastCloudSyncAt: 0, identityCheckedAt: 0, identityCanonical: true, heartTimer: null, profileUnsub: null, finalAnswers: {}, finalStartedAt: 0, quickQuiz: { topicId: '', index: 0, answers: [], results: [], submitted: false, questionStartedAt: [], responseMs: [], attemptStartedAt: 0 }, miniGame: { topicId: '', selected: '', result: '', correct: '', choices: [], before: '', after: '' }, miniGameResetTimer: null, quickAdvanceTimer: null, quickFeedbackTimer: null, justUnlockedTopicId: '', justUnlockedCourse: '', mobileStage: 'learn', mobileStageDirection: 'next', mobileSwipeStart: null, mobileView: 'roadmap' };
+  const state = { course: 'html', topicId: '', filter: 'all', progress: null, reader: '', cloudLoaded: false, cloudXpHint: 0, dashboardCloudLoading: false, saveTimer: null, heartTimer: null, profileUnsub: null, finalAnswers: {}, finalStartedAt: 0, quickQuiz: { topicId: '', index: 0, answers: [], results: [], submitted: false, questionStartedAt: [], responseMs: [], attemptStartedAt: 0 }, miniGame: { topicId: '', selected: '', result: '', correct: '', choices: [], before: '', after: '' }, miniGameResetTimer: null, quickAdvanceTimer: null, quickFeedbackTimer: null, justUnlockedTopicId: '', justUnlockedCourse: '', mobileStage: 'learn', mobileStageDirection: 'next', mobileSwipeStart: null, mobileView: 'roadmap' };
   const CODE_EXPLORER_LEADERBOARD_SETTINGS_ROW_ID = 'leaderboard_settings';
   const leaderboardState = { records: [], loadedAt: 0, loading: false, source: '', rosterLoaded: false, mode: 'students', settingsLoaded: false, settingsError: false, currentSectionIncluded: true };
   let leaderboardSectionSettings = { configured: false, includedSections: [], includedSectionKeys: [] };
@@ -41140,39 +41128,19 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         if (!snapshotExists(snapshot) || !state.progress) return;
         const profile = snapshotData(snapshot);
         const remote = normalizeProgress(profile?.codeExplorerProgress || {});
-        const beforeSignature = progressSyncSignature(state.progress);
-        const remoteSignature = progressSyncSignature(remote);
-        state.cloudXpHint = Math.max(state.cloudXpHint || 0, Math.max(0, Number(profile?.codeExplorerXp || 0)));
-
-        const merged = mergeProgress(state.progress, remote);
-        migrateLegacyXpProgress(merged, state.cloudXpHint, { source: 'live-cross-device-sync' });
-        const mergedSignature = progressSyncSignature(merged);
-        const localChanged = mergedSignature !== beforeSignature;
-        const remoteMissingLocalProgress = mergedSignature !== remoteSignature;
-
-        state.progress = merged;
-        state.cloudLoaded = true;
-        state.lastCloudSyncAt = Date.now();
+        const localHeart = normalizeHeartState(state.progress.hearts || {});
+        const remoteHeart = normalizeHeartState(remote.hearts || {});
+        const localTime = Date.parse(localHeart.updatedAt || '') || 0;
+        const remoteTime = Date.parse(remoteHeart.updatedAt || '') || 0;
+        if (remoteTime <= localTime) return;
+        state.progress.hearts = remoteHeart;
         saveLocalProgress(state.progress);
-
-        if (localChanged) {
-          renderHeartStatus();
-          renderTopProgress();
-          renderCourseCards();
-          renderTopicList();
-          renderFinalCard();
-          renderCertificates();
-          if (state.mobileView === 'roadmap') renderCourseRoadmap();
-          else renderMobileJourney();
-        }
-
-        // If this browser has legitimate progress that an older/stale browser
-        // just overwrote, immediately merge it back through the transaction-safe
-        // cloud writer. This keeps all browsers converging on one progress record.
-        if (remoteMissingLocalProgress) scheduleCloudSave();
-      }, error => console.info('Code Explorer live progress sync unavailable.', error));
+        renderHeartStatus();
+        renderQuickQuiz();
+        renderFinalCard();
+      }, error => console.info('Code Explorer live heart sync unavailable.', error));
     } catch (error) {
-      console.info('Code Explorer live progress sync skipped.', error);
+      console.info('Code Explorer live heart sync skipped.', error);
     }
   }
 
@@ -41198,24 +41166,6 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     return base;
   }
 
-  function stableSyncValue(value) {
-    if (Array.isArray(value)) return value.map(stableSyncValue);
-    if (!value || typeof value !== 'object') return value;
-    return Object.keys(value).sort().reduce((result, key) => {
-      if (key === 'updatedAt') return result;
-      result[key] = stableSyncValue(value[key]);
-      return result;
-    }, {});
-  }
-
-  function progressSyncSignature(progress = {}) {
-    try {
-      return JSON.stringify(stableSyncValue(normalizeProgress(progress)));
-    } catch (_) {
-      return '';
-    }
-  }
-
   function readerKey() {
     const student = appSession.student || appSession.lastStudentProfile || {};
     return String(student.uid || student.studentIdNormalized || student.studentId || 'local').replace(/[^a-zA-Z0-9_-]/g, '-').slice(0, 96) || 'local';
@@ -41238,10 +41188,6 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       state.progress = loadLocalProgress();
       state.cloudLoaded = false;
       state.cloudXpHint = 0;
-      state.lastCloudSyncAt = 0;
-      state.cloudSaveQueued = false;
-      state.identityCheckedAt = 0;
-      state.identityCanonical = true;
     }
     return state.progress;
   }
@@ -41252,31 +41198,6 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     progress.updatedAt = new Date().toISOString();
     root[readerKey()] = progress;
     saveJSON(STORAGE_KEYS.codeExplorerProgress, root);
-  }
-
-  function topicProgressActivityMs(record = {}) {
-    return Math.max(
-      Date.parse(record.lastOpenedAt || '') || 0,
-      Date.parse(record.openedAt || '') || 0,
-      Date.parse(record.completedAt || '') || 0,
-      Date.parse(record.quizAnsweredAt || '') || 0,
-      Date.parse(record.miniGamePassedAt || '') || 0
-    );
-  }
-
-  function resolveMergedLastTopicId(courseKey, leftCourse = {}, rightCourse = {}, mergedCourse = {}) {
-    const course = COURSES[courseKey];
-    if (!course) return String(leftCourse.lastTopicId || rightCourse.lastTopicId || '');
-    const records = mergedCourse.topics || {};
-    const active = course.topics
-      .map((item, index) => ({ id: item.id, index, time: topicProgressActivityMs(records[item.id] || {}) }))
-      .filter(item => item.time > 0)
-      .sort((a, b) => b.time - a.time || a.index - b.index);
-    if (active.length) return active[0].id;
-    const fallback = [String(leftCourse.lastTopicId || ''), String(rightCourse.lastTopicId || '')]
-      .filter(id => course.topics.some(item => item.id === id))
-      .sort();
-    return fallback[0] || '';
   }
 
   function mergeProgress(a, b) {
@@ -41350,7 +41271,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       const xc = left.courses[key].certificate || {};
       const yc = right.courses[key].certificate || {};
       left.courses[key].certificate = xc.issuedAt ? { ...xc } : (yc.issuedAt ? { ...yc } : {});
-      left.courses[key].lastTopicId = resolveMergedLastTopicId(key, left.courses[key], right.courses[key], left.courses[key]);
+      left.courses[key].lastTopicId = left.courses[key].lastTopicId || right.courses[key].lastTopicId || '';
     });
     const leftHearts = normalizeHeartState(left.hearts);
     const rightHearts = normalizeHeartState(right.hearts);
@@ -41377,39 +41298,12 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     return left;
   }
 
-  async function validateExplorerStudentIdentity(options = {}) {
-    if (!appSession.student?.uid || appSession.mode !== 'student') return true;
-    const force = options.force === true;
-    if (!force && Date.now() - Number(state.identityCheckedAt || 0) < 60000) return state.identityCanonical !== false;
-    state.identityCheckedAt = Date.now();
-    try {
-      const student = appSession.student || {};
-      const studentId = normalizeStudentId(student.studentId || student.studentIdNormalized || '');
-      const activeUser = getFirebaseActiveUser();
-      if (!studentId || !activeUser?.email) {
-        state.identityCanonical = true;
-        return true;
-      }
-      const route = await loadStudentLoginRoute(studentId);
-      const routeEmail = String(route?.authEmail || '').trim().toLowerCase();
-      const activeEmail = String(activeUser.email || '').trim().toLowerCase();
-      state.identityCanonical = !routeEmail || routeEmail === activeEmail;
-      return state.identityCanonical;
-    } catch (error) {
-      console.info('Code Explorer canonical login check skipped.', error);
-      // A temporary route read failure must not erase legitimate offline work.
-      state.identityCanonical = true;
-      return true;
-    }
-  }
-
   async function loadCloudProgress() {
     if (!appSession.student?.uid || appSession.mode !== 'student') return null;
     try {
       clearSelectiveFirestoreCache(`studentProfile:${appSession.student.uid}`);
       const profile = await loadStudentProfile(appSession.student.uid);
       state.cloudXpHint = Math.max(state.cloudXpHint || 0, Math.max(0, Number(profile?.codeExplorerXp || 0)));
-      state.lastCloudSyncAt = Date.now();
       return profile?.codeExplorerProgress ? normalizeProgress(profile.codeExplorerProgress) : null;
     } catch (error) {
       console.warn('Code Explorer cloud progress could not be loaded.', error);
@@ -41419,132 +41313,46 @@ window.MCS_PHONE_MENU_STATUS = () => ({
 
   function scheduleCloudSave() {
     saveLocalProgress();
-    if (state.cloudSavePromise) {
-      state.cloudSaveQueued = true;
-      return;
-    }
     clearTimeout(state.saveTimer);
-    state.saveTimer = window.setTimeout(() => {
-      saveCloudProgress().catch(() => false);
-    }, 700);
+    state.saveTimer = window.setTimeout(saveCloudProgress, 700);
   }
 
   async function saveCloudProgress() {
     clearTimeout(state.saveTimer);
     state.saveTimer = null;
     if (!appSession.student?.uid || appSession.mode !== 'student' || !state.progress) return false;
-
-    // Never let two saves from the same browser race each other. If another
-    // activity changes progress while a cloud save is running, queue one more
-    // merge-save immediately after the current transaction finishes.
-    if (state.cloudSavePromise) {
-      state.cloudSaveQueued = true;
-      return state.cloudSavePromise;
-    }
-
-    const saveJob = (async () => {
-      try {
-        const canonicalIdentity = await validateExplorerStudentIdentity();
-        if (!canonicalIdentity) {
-          console.warn('Code Explorer save blocked because this browser is signed into an older student login route.');
-          return false;
-        }
-        const ready = await initFirebaseSync();
-        if (!ready) return false;
-        const { setDoc, getDoc, runTransaction, serverTimestamp } = firebaseSync.modules;
-        const uid = appSession.student.uid;
-        const studentRef = getStudentDocRef(uid);
-        const localSnapshot = normalizeProgress(state.progress);
-        let committedProgress = localSnapshot;
-        let masteryXp = explorerXpFor(localSnapshot);
-
-        const mergeWithRemoteProfile = profile => {
-          const remote = normalizeProgress(profile?.codeExplorerProgress || {});
-          const merged = mergeProgress(remote, localSnapshot);
-          const protectedXp = Math.max(
-            state.cloudXpHint || 0,
-            Math.max(0, Number(profile?.codeExplorerXp || 0)),
-            explorerXpFor(localSnapshot)
-          );
-          migrateLegacyXpProgress(merged, protectedXp, { source: 'v397-cross-device-save' });
-          merged.updatedAt = new Date().toISOString();
-          return merged;
-        };
-
-        if (typeof runTransaction === 'function') {
-          await runTransaction(firebaseSync.db, async transaction => {
-            const snapshot = await transaction.get(studentRef);
-            const profile = snapshotExists(snapshot) ? snapshotData(snapshot) : {};
-            committedProgress = mergeWithRemoteProfile(profile);
-            masteryXp = explorerXpFor(committedProgress);
-            transaction.set(studentRef, {
-              codeExplorerProgress: normalizeProgress(committedProgress),
-              codeExplorerXp: masteryXp,
-              codeExplorerXpMigrationVersion: Math.max(0, Number(committedProgress.xpMigrationVersion || 0)),
-              codeExplorerUpdatedAt: serverTimestamp()
-            }, { merge: true });
-          });
-        } else {
-          // Fallback for unusual builds without transaction support. We still
-          // read and merge the newest remote copy immediately before writing.
-          const snapshot = await getDoc(studentRef);
-          const profile = snapshotExists(snapshot) ? snapshotData(snapshot) : {};
-          committedProgress = mergeWithRemoteProfile(profile);
-          masteryXp = explorerXpFor(committedProgress);
-          await setDoc(studentRef, {
-            codeExplorerProgress: normalizeProgress(committedProgress),
-            codeExplorerXp: masteryXp,
-            codeExplorerXpMigrationVersion: Math.max(0, Number(committedProgress.xpMigrationVersion || 0)),
-            codeExplorerUpdatedAt: serverTimestamp()
-          }, { merge: true });
-        }
-
-        // The student may have answered another item while the transaction was
-        // running. Merge the committed cloud copy back into the live state so
-        // nothing disappears locally; a queued save will publish newer work.
-        state.progress = mergeProgress(committedProgress, state.progress);
-        state.cloudXpHint = Math.max(state.cloudXpHint || 0, masteryXp, explorerXpFor(state.progress));
-        state.cloudLoaded = true;
-        state.lastCloudSyncAt = Date.now();
-        saveLocalProgress(state.progress);
-
-        try {
-          const profile = appSession.student || appSession.lastStudentProfile || {};
-          await setDoc(getCodeExplorerLeaderboardDocRef(uid), {
-            uid,
-            studentId: normalizeStudentId(profile.studentId || profile.studentIdNormalized || ''),
-            name: String(profile.name || profile.fullName || 'Student').trim(),
-            section: String(profile.section || '').trim(),
-            xp: masteryXp,
-            accountStatus: String(profile.accountStatus || 'active'),
-            updatedAt: serverTimestamp()
-          }, { merge: true });
-        } catch (leaderboardSyncError) {
-          console.info('Code Explorer leaderboard quick-sync unavailable; rankings can still use student progress.', leaderboardSyncError);
-        }
-
-        clearSelectiveFirestoreCache(`studentProfile:${uid}`);
-        clearSelectiveFirestoreCache('admin:studentsAndRoster');
-        leaderboardState.loadedAt = 0;
-        return true;
-      } catch (error) {
-        console.warn('Code Explorer progress cloud save skipped.', error);
-        return false;
-      }
-    })();
-
-    state.cloudSavePromise = saveJob;
     try {
-      return await saveJob;
-    } finally {
-      if (state.cloudSavePromise === saveJob) state.cloudSavePromise = null;
-      if (state.cloudSaveQueued) {
-        state.cloudSaveQueued = false;
-        clearTimeout(state.saveTimer);
-        state.saveTimer = window.setTimeout(() => {
-          saveCloudProgress().catch(() => false);
-        }, 80);
+      const ready = await initFirebaseSync();
+      if (!ready) return false;
+      const { setDoc, serverTimestamp } = firebaseSync.modules;
+      const masteryXp = explorerXpFor(state.progress);
+      await setDoc(getStudentDocRef(appSession.student.uid), {
+        codeExplorerProgress: normalizeProgress(state.progress),
+        codeExplorerXp: masteryXp,
+        codeExplorerXpMigrationVersion: Math.max(0, Number(state.progress.xpMigrationVersion || 0)),
+        codeExplorerUpdatedAt: serverTimestamp()
+      }, { merge: true });
+      try {
+        const profile = appSession.student || appSession.lastStudentProfile || {};
+        await setDoc(getCodeExplorerLeaderboardDocRef(appSession.student.uid), {
+          uid: appSession.student.uid,
+          studentId: normalizeStudentId(profile.studentId || profile.studentIdNormalized || ''),
+          name: String(profile.name || profile.fullName || 'Student').trim(),
+          section: String(profile.section || '').trim(),
+          xp: masteryXp,
+          accountStatus: String(profile.accountStatus || 'active'),
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+      } catch (leaderboardSyncError) {
+        console.info('Code Explorer leaderboard quick-sync unavailable; rankings can still use student progress.', leaderboardSyncError);
       }
+      clearSelectiveFirestoreCache(`studentProfile:${appSession.student.uid}`);
+      clearSelectiveFirestoreCache('admin:studentsAndRoster');
+      leaderboardState.loadedAt = 0;
+      return true;
+    } catch (error) {
+      console.warn('Code Explorer progress cloud save skipped.', error);
+      return false;
     }
   }
 
@@ -42082,9 +41890,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     const currentReader = readerKey();
     ensureReaderProgress();
     updateDashboardExplorerCard();
-    const explorerScreenHidden = Boolean(screen?.classList.contains('hidden'));
-    const dashboardCloudStale = !state.cloudLoaded || (explorerScreenHidden && Date.now() - Number(state.lastCloudSyncAt || 0) > 15000);
-    if (appSession.mode === 'student' && appSession.student?.uid && dashboardCloudStale && !state.dashboardCloudLoading) {
+    if (appSession.mode === 'student' && appSession.student?.uid && !state.cloudLoaded && !state.dashboardCloudLoading) {
       state.dashboardCloudLoading = true;
       loadCloudProgress().then(cloud => {
         if (readerKey() !== currentReader) return;
@@ -43224,14 +43030,6 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       await appAlert('Log in as a student to use Code Explorer and save your progress.', { title: 'Code Explorer', icon: '🚀' });
       return;
     }
-    const canonicalIdentity = await validateExplorerStudentIdentity({ force: true });
-    if (!canonicalIdentity) {
-      await appAlert(
-        'This browser is still signed in to an older student account route, usually after Login Recovery or Reset Pass. Sign out on this browser, then log in again with your current Student ID account before continuing Code Explorer. This protects your XP and lesson progress from splitting between two Firebase profiles.',
-        { title: 'Refresh Student Login', icon: '🔄' }
-      );
-      return;
-    }
     closeStudentAccountMenu?.();
     closeStudentDashboard();
     loadExplorerAudioPrefs();
@@ -43242,15 +43040,15 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     // satisfying mobile/browser autoplay policies before async cloud loading begins.
     unlockExplorerAudio().catch(() => false);
     ensureReaderProgress();
-    // Always refresh from Firestore when Code Explorer opens. The old one-load-
-    // per-session behavior let a second browser keep stale progress for the
-    // entire session and later overwrite the newer XP/progress.
-    const cloud = await loadCloudProgress();
-    if (cloud) state.progress = mergeProgress(state.progress, cloud);
-    normalizeCurrentStudentLegacyXp({ source: 'student-open', cloudSave: false });
-    state.cloudLoaded = true;
-    state.lastCloudSyncAt = Date.now();
-    saveLocalProgress();
+    if (!state.cloudLoaded) {
+      const cloud = await loadCloudProgress();
+      if (cloud) state.progress = mergeProgress(state.progress, cloud);
+      normalizeCurrentStudentLegacyXp({ source: 'student-open', cloudSave: false });
+      state.cloudLoaded = true;
+      saveLocalProgress();
+    } else {
+      normalizeCurrentStudentLegacyXp({ source: 'student-open', cloudSave: false });
+    }
     startHeartTicker();
     await startExplorerProfileListener();
     const preferredCourse = COURSE_KEYS.find(key => isCourseUnlocked(key) && state.progress.courses[key]?.lastTopicId) || (isCourseUnlocked(state.course) ? state.course : 'html');
@@ -45028,15 +44826,15 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     if (!isTeacherAuthenticated()) return;
     const button = dom.adminXpMigrationBtn;
     const status = dom.adminXpMigrationStatus;
-    if (button) { button.disabled = true; button.textContent = 'Repairing…'; }
-    if (status) status.textContent = 'Checking current and older Code Explorer profiles, progress, and legacy XP…';
+    if (button) { button.disabled = true; button.textContent = 'Normalizing…'; }
+    if (status) status.textContent = 'Checking existing student XP and legacy Code Explorer progress…';
     renderLegacyXpMigrationAudit([]);
 
     try {
-      await loadAdminStudents({ force: true });
+      if (!adminStudentsCache.length) await loadAdminStudents({ force: true });
       const ready = await initFirebaseSync();
       if (!ready) throw new Error(firebaseSync.lastError || 'Firebase is not ready.');
-      const { setDoc, getDoc, runTransaction, serverTimestamp } = firebaseSync.modules;
+      const { setDoc, serverTimestamp } = firebaseSync.modules;
       const students = adminStudentsCache.slice();
       let checked = 0;
       let normalized = 0;
@@ -45056,76 +44854,33 @@ window.MCS_PHONE_MENU_STATUS = () => ({
             skipped += 1;
             return;
           }
-
-          const adminSnapshotProgress = studentExplorerProgress(student);
-          const targetRef = getStudentDocRef(targetUid);
-          let result = null;
-          let finalXp = 0;
-          let hadHistory = false;
-          let mergedDuplicateProgress = false;
-
-          const normalizeLatest = profile => {
-            const liveProgress = normalizeProgress(profile?.codeExplorerProgress || {});
-            const progress = mergeProgress(liveProgress, adminSnapshotProgress);
-            mergedDuplicateProgress = progressSyncSignature(progress) !== progressSyncSignature(liveProgress);
-            const rawXp = explorerRawXpFor(progress);
-            const existingXp = Math.max(
-              storedExplorerXpForAdminStudent(student),
-              Math.max(0, Number(profile?.codeExplorerXp || 0)),
-              rawXp
-            );
-            const overall = explorerOverallFor(progress);
-            hadHistory = existingXp > 0 || overall.explored > 0 || explorerCertificateCountFor(progress) > 0;
-            if (!hadHistory) return { progress, result: null, finalXp: 0 };
-            const source = Math.max(0, Number(progress.xpMigrationVersion || 0)) >= EXPLORER_XP_MIGRATION_VERSION
-              ? 'admin-v397-recheck'
-              : 'admin-v397-backfill';
-            const migration = migrateLegacyXpProgress(progress, existingXp, { source });
-            return { progress, result: migration, finalXp: explorerXpFor(progress) };
-          };
-
-          if (typeof runTransaction === 'function') {
-            await runTransaction(firebaseSync.db, async transaction => {
-              const snapshot = await transaction.get(targetRef);
-              const profile = snapshotExists(snapshot) ? snapshotData(snapshot) : {};
-              const normalized = normalizeLatest(profile);
-              result = normalized.result;
-              finalXp = normalized.finalXp;
-              if (!hadHistory || (!result?.changed && !mergedDuplicateProgress)) return;
-              transaction.set(targetRef, {
-                codeExplorerProgress: normalizeProgress(normalized.progress),
-                codeExplorerXp: finalXp,
-                codeExplorerXpMigrationVersion: EXPLORER_XP_MIGRATION_VERSION,
-                codeExplorerXpMigratedAt: serverTimestamp(),
-                codeExplorerUpdatedAt: serverTimestamp()
-              }, { merge: true });
-            });
-          } else {
-            const snapshot = await getDoc(targetRef);
-            const profile = snapshotExists(snapshot) ? snapshotData(snapshot) : {};
-            const normalized = normalizeLatest(profile);
-            result = normalized.result;
-            finalXp = normalized.finalXp;
-            if (hadHistory && (result?.changed || mergedDuplicateProgress)) {
-              await setDoc(targetRef, {
-                codeExplorerProgress: normalizeProgress(normalized.progress),
-                codeExplorerXp: finalXp,
-                codeExplorerXpMigrationVersion: EXPLORER_XP_MIGRATION_VERSION,
-                codeExplorerXpMigratedAt: serverTimestamp(),
-                codeExplorerUpdatedAt: serverTimestamp()
-              }, { merge: true });
-            }
-          }
-
-          if (!hadHistory) {
+          const progress = studentExplorerProgress(student);
+          const rawXp = explorerRawXpFor(progress);
+          const existingXp = Math.max(storedExplorerXpForAdminStudent(student), rawXp);
+          const overall = explorerOverallFor(progress);
+          const hasExplorerHistory = existingXp > 0 || overall.explored > 0 || explorerCertificateCountFor(progress) > 0;
+          if (!hasExplorerHistory) {
             skipped += 1;
             return;
           }
-          if (!result?.changed && !mergedDuplicateProgress) {
+          let result;
+          if (Math.max(0, Number(progress.xpMigrationVersion || 0)) >= EXPLORER_XP_MIGRATION_VERSION) {
+            result = migrateLegacyXpProgress(progress, existingXp, { source: 'admin-v395-recheck' });
+          } else {
+            result = migrateLegacyXpProgress(progress, existingXp, { source: 'admin-v395-backfill' });
+          }
+          if (!result.changed) {
             already += 1;
             return;
           }
-
+          const finalXp = explorerXpFor(progress);
+          await setDoc(getStudentDocRef(targetUid), {
+            codeExplorerProgress: normalizeProgress(progress),
+            codeExplorerXp: finalXp,
+            codeExplorerXpMigrationVersion: EXPLORER_XP_MIGRATION_VERSION,
+            codeExplorerXpMigratedAt: serverTimestamp(),
+            codeExplorerUpdatedAt: serverTimestamp()
+          }, { merge: true });
           normalized += 1;
           if (result.credit > 0) {
             adjusted += 1;
@@ -45142,7 +44897,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
           errors.push(error?.message || String(error));
         } finally {
           checked += 1;
-          if (status) status.textContent = `Repairing Code Explorer progress… ${checked}/${students.length}`;
+          if (status) status.textContent = `Normalizing legacy XP… ${checked}/${students.length}`;
         }
       };
 
@@ -45158,36 +44913,36 @@ window.MCS_PHONE_MENU_STATUS = () => ({
 
       const summary = [
         `${checked} checked`,
-        `${normalized} repaired/normalized`,
+        `${normalized} normalized`,
         `${adjusted} XP adjusted`,
         `+${totalCredit} total legacy XP credited`,
         `${already} already compatible`
       ];
       if (skipped) summary.push(`${skipped} no Explorer history / skipped`);
       if (failed) summary.push(`${failed} failed`);
-      if (status) status.textContent = `Progress repair complete: ${summary.join(' · ')}.`;
+      if (status) status.textContent = `Legacy XP normalization complete: ${summary.join(' · ')}.`;
 
       if (failed) {
         const permissionProblem = errors.some(message => /permission|insufficient/i.test(message));
         await appAlert(
           `${permissionProblem ? 'Some student profiles could not be updated because of Firestore permissions. ' : ''}${summary.join(' · ')}\n\nNo existing Total XP was reduced. No old speed, first-try, or mistake data was invented.`,
-          { title: 'Code Explorer Progress Repair', icon: '⚡', danger: permissionProblem }
+          { title: 'Legacy XP Normalization', icon: '⚡', danger: permissionProblem }
         );
       } else {
         await appAlert(
           `${summary.join(' · ')}\n\nExisting XP was protected. Only missing guaranteed legacy mastery credit was added; no retroactive penalties or invented bonuses were applied.`,
-          { title: 'Code Explorer Progress Repair Complete', icon: '⚡' }
+          { title: 'Legacy XP Normalization Complete', icon: '⚡' }
         );
       }
     } catch (error) {
-      console.error('Code Explorer progress repair failed.', error);
+      console.error('Legacy XP normalization failed.', error);
       const message = error?.message || String(error);
-      if (status) status.textContent = `Progress repair failed: ${message}`;
-      await appAlert(message, { title: 'Code Explorer Progress Repair Failed', danger: true });
+      if (status) status.textContent = `Legacy XP normalization failed: ${message}`;
+      await appAlert(message, { title: 'Legacy XP Normalization Failed', danger: true });
     } finally {
       if (button) {
         button.disabled = false;
-        button.textContent = '⚡ Repair / Normalize Progress';
+        button.textContent = '⚡ Normalize Legacy XP';
       }
     }
   }
@@ -45329,20 +45084,8 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   }
 
   function getAdminExplorerHeartTargetUid(student = {}) {
-    const sourceRecords = Array.isArray(student.sourceRecords) ? student.sourceRecords : [student];
-    const records = sourceRecords
+    const records = (Array.isArray(student.sourceRecords) ? student.sourceRecords : [student])
       .filter(record => !record?.isRosterOnly && String(record?.uid || record?.authUid || '').trim());
-
-    // Prefer the UID currently linked by the roster. After account recovery an
-    // older profile can still contain more Explorer history, but writing new
-    // progress back to that retired UID would split the student's data again.
-    const rosterRecord = sourceRecords.find(record => record?.isRosterOnly) || null;
-    const rosterUid = String(rosterRecord?.authUid || '').trim();
-    if (rosterUid) {
-      const canonicalProfile = records.find(record => String(record?.uid || record?.authUid || '').trim() === rosterUid);
-      if (canonicalProfile) return rosterUid;
-    }
-
     records.sort((a, b) => {
       const aExplorer = a?.codeExplorerProgress ? 1 : 0;
       const bExplorer = b?.codeExplorerProgress ? 1 : 0;

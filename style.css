@@ -60053,3 +60053,142 @@ html[data-theme="dark"] .code-explorer-admin-xp-migration-audit i { color: #86ef
   .code-explorer-admin-xp-migration-audit span { grid-template-columns: minmax(0, 1fr) auto; }
   .code-explorer-admin-xp-migration-audit em { grid-column: 1 / -1; }
 }
+
+
+/* ================================================================
+   Code Explorer v396 - Audio Experience (music + SFX)
+   ================================================================ */
+.code-explorer-audio-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 38px;
+  padding: 8px 11px;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  background: #f8fafc;
+  color: #334155;
+  font: inherit;
+  font-size: .78rem;
+  font-weight: 850;
+  line-height: 1;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: transform .16s ease, background .16s ease, border-color .16s ease, opacity .16s ease, box-shadow .16s ease;
+}
+.code-explorer-audio-toggle:hover { transform: translateY(-1px); border-color: #94a3b8; box-shadow: 0 5px 13px rgba(15,23,42,.09); }
+.code-explorer-audio-toggle:focus-visible { outline: 3px solid color-mix(in srgb, #3b82f6 32%, transparent); outline-offset: 2px; }
+.code-explorer-audio-toggle.active { background: #ecfeff; border-color: #a5f3fc; color: #0e7490; }
+.code-explorer-audio-toggle.muted { background: #f8fafc; border-color: #e2e8f0; color: #94a3b8; opacity: .86; }
+.code-explorer-audio-toggle:disabled { cursor: not-allowed; opacity: .45; transform: none; box-shadow: none; }
+.code-explorer-audio-icon { width: 1.15em; text-align: center; font-size: .95rem; }
+.code-explorer-audio-label { font-size: .75rem; font-weight: 900; }
+html[data-theme="dark"] .code-explorer-audio-toggle { background: #182235; border-color: #334155; color: #cbd5e1; }
+html[data-theme="dark"] .code-explorer-audio-toggle.active { background: #0b3037; border-color: #155e75; color: #a5f3fc; }
+html[data-theme="dark"] .code-explorer-audio-toggle.muted { background: #141d2d; border-color: #26364b; color: #718096; }
+
+@media (max-width: 1100px) {
+  .code-explorer-audio-toggle { min-height: 34px; padding: 7px 9px; font-size: .72rem; }
+}
+
+@media (max-width: 760px) {
+  .code-explorer-screen.code-explorer-mobile-focus .code-explorer-audio-toggle {
+    flex: 0 0 auto;
+    width: 36px;
+    min-width: 36px;
+    height: 34px;
+    min-height: 34px;
+    padding: 0;
+    border-radius: 12px;
+  }
+  .code-explorer-screen.code-explorer-mobile-focus .code-explorer-audio-label { display: none; }
+  .code-explorer-screen.code-explorer-mobile-focus .code-explorer-audio-icon { width: auto; font-size: .94rem; }
+}
+
+@media (max-width: 390px) {
+  .code-explorer-screen.code-explorer-mobile-focus .code-explorer-audio-toggle {
+    width: 32px;
+    min-width: 32px;
+    height: 32px;
+    min-height: 32px;
+    border-radius: 10px;
+  }
+}
+
+
+/* v396 compact audio menu: full controls on desktop, one compact trigger on phone. */
+.code-explorer-audio-menu { display: inline-flex; align-items: center; position: relative; }
+.code-explorer-audio-menu-toggle { display: none; }
+.code-explorer-audio-menu-panel { display: inline-flex; align-items: center; gap: 6px; }
+
+@media (max-width: 760px) {
+  .code-explorer-screen.code-explorer-mobile-focus .code-explorer-audio-menu { flex: 0 0 auto; }
+  .code-explorer-screen.code-explorer-mobile-focus .code-explorer-audio-menu-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    min-width: 36px;
+    height: 36px;
+    min-height: 36px;
+    padding: 0;
+    border: 1px solid #d7e1ee;
+    border-radius: 999px;
+    background: #fff;
+    color: #334155;
+    font: inherit;
+    font-size: .95rem;
+    cursor: pointer;
+    box-shadow: 0 2px 7px rgba(15,23,42,.06);
+    -webkit-tap-highlight-color: transparent;
+  }
+  .code-explorer-screen.code-explorer-mobile-focus .code-explorer-audio-menu-toggle.muted { color: #94a3b8; background: #f8fafc; }
+  .code-explorer-screen.code-explorer-mobile-focus .code-explorer-audio-menu-panel {
+    display: none;
+    position: absolute;
+    z-index: 75;
+    top: calc(100% + 9px);
+    right: 0;
+    min-width: 156px;
+    padding: 8px;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 7px;
+    border: 1px solid #dbe4ef;
+    border-radius: 16px;
+    background: rgba(255,255,255,.98);
+    box-shadow: 0 16px 38px rgba(15,23,42,.2);
+    backdrop-filter: blur(14px);
+  }
+  .code-explorer-screen.code-explorer-mobile-focus .code-explorer-audio-menu.open .code-explorer-audio-menu-panel { display: flex; }
+  .code-explorer-screen.code-explorer-mobile-focus .code-explorer-audio-menu-panel::before {
+    content: '';
+    position: absolute;
+    right: 12px;
+    top: -6px;
+    width: 11px;
+    height: 11px;
+    transform: rotate(45deg);
+    background: inherit;
+    border-left: 1px solid #dbe4ef;
+    border-top: 1px solid #dbe4ef;
+  }
+  .code-explorer-screen.code-explorer-mobile-focus .code-explorer-audio-menu .code-explorer-audio-toggle {
+    width: 100%;
+    min-width: 0;
+    height: 38px;
+    min-height: 38px;
+    padding: 8px 10px;
+    justify-content: flex-start;
+    border-radius: 11px;
+  }
+  .code-explorer-screen.code-explorer-mobile-focus .code-explorer-audio-menu .code-explorer-audio-label { display: inline; }
+  html[data-theme="dark"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-audio-menu-toggle { background: #172235; border-color: #334155; color: #e2e8f0; }
+  html[data-theme="dark"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-audio-menu-panel { background: rgba(21,31,49,.98); border-color: #334155; box-shadow: 0 16px 40px rgba(0,0,0,.35); }
+  html[data-theme="dark"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-audio-menu-panel::before { border-color: #334155; }
+}
+
+@media (max-width: 390px) {
+  .code-explorer-screen.code-explorer-mobile-focus .code-explorer-audio-menu-toggle { width: 32px; min-width: 32px; height: 32px; min-height: 32px; }
+}
