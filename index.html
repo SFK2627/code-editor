@@ -45,7 +45,7 @@
   </script>
   <link rel="preconnect" href="https://drive.google.com" crossorigin>
   <link rel="preconnect" href="https://lh3.googleusercontent.com" crossorigin>
-  <link rel="stylesheet" href="style.css?v=20260908-v373-compact-phone-courses" />
+  <link rel="stylesheet" href="style.css?v=20260908-v375-fill-blank-game" />
   <style>
     .ai-rubric-settings-card,
     .admin-project-ai-review-card {
@@ -537,19 +537,20 @@
 
           <nav id="codeExplorerMobileJourney" class="code-explorer-mobile-journey" aria-label="Topic learning steps">
             <div class="code-explorer-mobile-journey-head">
-              <div><span id="codeExplorerMobileStageCount">Step 1 of 5</span><strong id="codeExplorerMobileStageTitle">Learn</strong></div>
+              <div><span id="codeExplorerMobileStageCount">Step 1 of 6</span><strong id="codeExplorerMobileStageTitle">Learn</strong></div>
               <small>Swipe or tap Continue</small>
             </div>
             <div class="code-explorer-mobile-progress-shell" aria-hidden="true">
               <div class="code-explorer-mobile-progress-track"><i id="codeExplorerMobileProgressBar"></i></div>
-              <span id="codeExplorerMobileProgressText" class="code-explorer-mobile-progress-text">20%</span>
+              <span id="codeExplorerMobileProgressText" class="code-explorer-mobile-progress-text">10%</span>
             </div>
             <div id="codeExplorerMobileStageSteps" class="code-explorer-mobile-stage-steps" role="group" aria-label="Topic stages">
               <button type="button" data-explorer-mobile-stage="learn" aria-label="Learn stage"><span>1</span><b>Learn</b></button>
               <button type="button" data-explorer-mobile-stage="example" aria-label="Example stage"><span>2</span><b>Example</b></button>
-              <button type="button" data-explorer-mobile-stage="practice" aria-label="Try It stage"><span>3</span><b>Try It</b></button>
-              <button type="button" data-explorer-mobile-stage="quiz" aria-label="Quick Check stage"><span>4</span><b>Quiz</b></button>
-              <button type="button" data-explorer-mobile-stage="complete" aria-label="Complete stage"><span>5</span><b>Done</b></button>
+              <button type="button" data-explorer-mobile-stage="game" aria-label="Fill in the Blank game stage"><span>3</span><b>Game</b></button>
+              <button type="button" data-explorer-mobile-stage="practice" aria-label="Try It stage"><span>4</span><b>Try It</b></button>
+              <button type="button" data-explorer-mobile-stage="quiz" aria-label="Quick Check stage"><span>5</span><b>Quiz</b></button>
+              <button type="button" data-explorer-mobile-stage="complete" aria-label="Complete stage"><span>6</span><b>Done</b></button>
             </div>
             <div id="codeExplorerMobileStageMessage" class="code-explorer-mobile-stage-message" role="status"></div>
           </nav>
@@ -561,6 +562,24 @@
               <div class="code-explorer-example-head"><strong>Example</strong><button id="codeExplorerCopyExampleBtn" class="ghost-btn mini" type="button">Copy</button></div>
               <pre><code id="codeExplorerExampleCode"></code></pre>
             </div>
+          </section>
+
+          <section id="codeExplorerMiniGameCard" class="code-explorer-mini-game-card" aria-labelledby="codeExplorerMiniGameTitle">
+            <div class="code-explorer-section-heading">
+              <div>
+                <span class="code-explorer-card-label">🧩 Fill in the Blank</span>
+                <h3 id="codeExplorerMiniGameTitle">Complete the code</h3>
+                <p id="codeExplorerMiniGamePrompt" class="code-explorer-mini-game-prompt">Choose the missing code that makes the example complete.</p>
+              </div>
+              <span id="codeExplorerMiniGameBadge" class="code-explorer-check-badge">Not completed</span>
+            </div>
+            <div id="codeExplorerMiniGameCode" class="code-explorer-mini-game-code" aria-live="polite"></div>
+            <div id="codeExplorerMiniGameOptions" class="code-explorer-mini-game-options" role="group" aria-label="Fill in the blank choices"></div>
+            <div class="code-explorer-mini-game-actions">
+              <button id="codeExplorerMiniGameResetBtn" class="ghost-btn" type="button">Reset</button>
+              <button id="codeExplorerMiniGameCheckBtn" class="primary-btn" type="button" disabled>Check Answer</button>
+            </div>
+            <div id="codeExplorerMiniGameFeedback" class="code-explorer-feedback hidden" role="status"></div>
           </section>
 
           <section class="code-explorer-practice-card">
@@ -3249,6 +3268,6 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
       </section>
     </div>
 
-  <script src="script.js?v=20260908-v372-course-journey"></script>
+  <script src="script.js?v=20260908-v375-fill-blank-game"></script>
 </body>
 </html>

@@ -40151,6 +40151,15 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     previewStatus: $('codeExplorerPreviewStatus'),
     practiceBadge: $('codeExplorerPracticeBadge'),
     practiceFeedback: $('codeExplorerPracticeFeedback'),
+    miniGameCard: $('codeExplorerMiniGameCard'),
+    miniGameTitle: $('codeExplorerMiniGameTitle'),
+    miniGamePrompt: $('codeExplorerMiniGamePrompt'),
+    miniGameBadge: $('codeExplorerMiniGameBadge'),
+    miniGameCode: $('codeExplorerMiniGameCode'),
+    miniGameOptions: $('codeExplorerMiniGameOptions'),
+    miniGameResetBtn: $('codeExplorerMiniGameResetBtn'),
+    miniGameCheckBtn: $('codeExplorerMiniGameCheckBtn'),
+    miniGameFeedback: $('codeExplorerMiniGameFeedback'),
     quizQuestion: $('codeExplorerQuizQuestion'),
     quizOptions: $('codeExplorerQuizOptions'),
     quizSubmitBtn: $('codeExplorerQuizSubmitBtn'),
@@ -40478,7 +40487,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   const HEARTS_DEFAULT = 5;
   const HEARTS_MAX = 5;
   const HEART_REFILL_MS = 60 * 60 * 1000;
-  const state = { course: 'html', topicId: '', filter: 'all', progress: null, reader: '', cloudLoaded: false, dashboardCloudLoading: false, saveTimer: null, heartTimer: null, profileUnsub: null, finalAnswers: {}, quickQuiz: { topicId: '', index: 0, answers: [], results: [], submitted: false }, quickAdvanceTimer: null, quickFeedbackTimer: null, justUnlockedTopicId: '', justUnlockedCourse: '', mobileStage: 'learn', mobileStageDirection: 'next', mobileSwipeStart: null };
+  const state = { course: 'html', topicId: '', filter: 'all', progress: null, reader: '', cloudLoaded: false, dashboardCloudLoading: false, saveTimer: null, heartTimer: null, profileUnsub: null, finalAnswers: {}, quickQuiz: { topicId: '', index: 0, answers: [], results: [], submitted: false }, miniGame: { topicId: '', selected: '', result: '', correct: '', choices: [], before: '', after: '' }, miniGameResetTimer: null, quickAdvanceTimer: null, quickFeedbackTimer: null, justUnlockedTopicId: '', justUnlockedCourse: '', mobileStage: 'learn', mobileStageDirection: 'next', mobileSwipeStart: null };
 
   function normalizeHeartState(input = {}) {
     const source = input && typeof input === 'object' ? input : {};
@@ -40596,17 +40605,22 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     dom.quickFeedbackCard?.classList.remove('correct', 'wrong');
   }
 
-  function showQuickScreenFeedback(correct) {
+  function showQuickScreenFeedback(correct, options = {}) {
     if (!screen || !dom.quickFeedbackOverlay || !dom.quickFeedbackCard) return;
     clearTimeout(state.quickFeedbackTimer);
     const positive = Boolean(correct);
+    const title = positive ? (options.correctTitle || 'Correct!') : (options.wrongTitle || 'Incorrect');
+    const text = positive
+      ? (options.correctText || 'Nice work — moving to the next question.')
+      : (options.wrongText || 'Not quite — the screen marks it right away and 1 heart is used.');
+    const duration = Math.max(500, Number(positive ? options.correctDuration : options.wrongDuration) || (positive ? 820 : 1180));
     screen.classList.remove('feedback-correct', 'feedback-wrong');
     dom.quickFeedbackOverlay.classList.remove('hidden', 'correct', 'wrong', 'show');
     dom.quickFeedbackCard.classList.remove('correct', 'wrong');
     dom.quickFeedbackOverlay.setAttribute('aria-hidden', 'false');
     if (dom.quickFeedbackIcon) dom.quickFeedbackIcon.textContent = positive ? '✓' : '✕';
-    if (dom.quickFeedbackTitle) dom.quickFeedbackTitle.textContent = positive ? 'Correct!' : 'Incorrect';
-    if (dom.quickFeedbackText) dom.quickFeedbackText.textContent = positive ? 'Nice work — moving to the next question.' : 'Not quite — the screen marks it right away and 1 heart is used.';
+    if (dom.quickFeedbackTitle) dom.quickFeedbackTitle.textContent = title;
+    if (dom.quickFeedbackText) dom.quickFeedbackText.textContent = text;
     void dom.quickFeedbackOverlay.offsetWidth;
     screen.classList.add(positive ? 'feedback-correct' : 'feedback-wrong');
     dom.quickFeedbackOverlay.classList.add('show', positive ? 'correct' : 'wrong');
@@ -40617,7 +40631,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       dom.quickFeedbackOverlay?.classList.add('hidden');
       dom.quickFeedbackOverlay?.setAttribute('aria-hidden', 'true');
       screen?.classList.remove('feedback-correct', 'feedback-wrong');
-    }, positive ? 820 : 1180);
+    }, duration);
   }
 
   function heartOutMessage() {
@@ -40740,6 +40754,9 @@ window.MCS_PHONE_MENU_STATUS = () => ({
           openedAt: x.openedAt || y.openedAt || '',
           lastOpenedAt: [x.lastOpenedAt, y.lastOpenedAt].filter(Boolean).sort().pop() || '',
           practicePassed: Boolean(x.practicePassed || y.practicePassed),
+          miniGamePassed: Boolean(x.miniGamePassed || y.miniGamePassed),
+          miniGamePassedAt: [x.miniGamePassedAt, y.miniGamePassedAt].filter(Boolean).sort().pop() || '',
+          miniGameAttempts: Math.max(Number(x.miniGameAttempts || 0), Number(y.miniGameAttempts || 0)),
           quizPassed: Boolean(x.quizPassed || y.quizPassed),
           quizFivePassed: Boolean(x.quizFivePassed || y.quizFivePassed),
           quizBestCorrect: best,
@@ -40905,7 +40922,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
 
   function topicStatus(record = {}) {
     if (record.completedAt) return 'complete';
-    if (record.openedAt || record.practicePassed || record.quizPassed) return 'progress';
+    if (record.openedAt || record.miniGamePassed || record.practicePassed || record.quizPassed) return 'progress';
     return 'todo';
   }
 
@@ -41387,9 +41404,240 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     renderQuickQuiz();
   }
 
+  const MINI_GAME_POOLS = {
+    htmlTags: ['<h1', '<h2', '<p', '<a', '<img', '<ul', '<li', '<div', '<span', '<section', '<header', '<main', '<form', '<input', '<button'],
+    htmlAttrs: ['href', 'src', 'alt', 'id', 'class', 'type', 'title', 'controls', 'required', 'for'],
+    css: ['color', 'background', 'display', 'padding', 'margin', 'border', 'font-size', 'width', 'height', 'gap', 'position', 'overflow', 'transform', 'transition'],
+    js: ['const', 'let', 'if', 'else', 'function', 'return', 'document', 'querySelector', 'addEventListener', 'textContent', 'classList', 'forEach', 'map', 'length']
+  };
+
+  function miniGameStableHash(value = '') {
+    let hash = 2166136261;
+    const text = String(value || '');
+    for (let index = 0; index < text.length; index += 1) {
+      hash ^= text.charCodeAt(index);
+      hash = Math.imul(hash, 16777619);
+    }
+    return hash >>> 0;
+  }
+
+  function uniqueMiniGameValues(values = []) {
+    const seen = new Set();
+    return values.filter(value => {
+      const text = String(value || '').trim();
+      const key = text.toLowerCase();
+      if (!text || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }
+
+  function miniGameTokenVariants(raw = '') {
+    const token = String(raw || '').trim();
+    if (!token) return [];
+    const variants = [];
+    const tagMatch = token.match(/<\/?[a-z][\w-]*/i);
+    const attrMatch = token.match(/\b([a-z][\w-]*)\s*=/i);
+    const jsCall = token.match(/\b([A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)+)\b/);
+    const cssProp = token.match(/\b([a-z-]{3,})\s*:/i);
+    if (tagMatch) variants.push(tagMatch[0].replace(/^<\//, '<'));
+    if (attrMatch) variants.push(attrMatch[1]);
+    if (jsCall) variants.push(jsCall[1]);
+    if (cssProp) variants.push(cssProp[1]);
+    token.match(/[A-Za-z_$][\w$-]*/g)?.forEach(part => variants.push(part));
+    variants.push(token);
+    return uniqueMiniGameValues(variants).filter(value => value.length >= 2 && value.length <= 32);
+  }
+
+  function findMiniGameAnswer(item = currentTopic()) {
+    const source = String(item?.example || '');
+    if (!source) return null;
+    const sourceLower = source.toLowerCase();
+    const rawCandidates = [
+      ...(Array.isArray(item?.must) ? item.must : []),
+      ...(Array.isArray(item?.any) ? item.any : []),
+      item?.quiz?.options?.[Number(item?.quiz?.answer || 0)] || ''
+    ];
+    const candidates = uniqueMiniGameValues(rawCandidates.flatMap(miniGameTokenVariants));
+    for (const candidate of candidates) {
+      const lower = candidate.toLowerCase();
+      const at = sourceLower.indexOf(lower);
+      if (at < 0) continue;
+      const actual = source.slice(at, at + candidate.length);
+      if (!actual.trim()) continue;
+      return { answer: actual, start: at, end: at + candidate.length };
+    }
+
+    const fallbackPatterns = state.course === 'html'
+      ? [/<[a-z][\w-]*/i, /\b(?:href|src|alt|class|id|type|title|controls|required)\b/i]
+      : state.course === 'css'
+        ? [/\b[a-z-]{3,}(?=\s*:)/i]
+        : [/\b(?:const|let|function|return|if|else|document|querySelector|addEventListener|console\.log)\b/i];
+    for (const pattern of fallbackPatterns) {
+      const match = source.match(pattern);
+      if (!match || match.index == null) continue;
+      return { answer: match[0], start: match.index, end: match.index + match[0].length };
+    }
+    const generic = source.match(/[A-Za-z_$][\w$-]{2,}/);
+    return generic && generic.index != null ? { answer: generic[0], start: generic.index, end: generic.index + generic[0].length } : null;
+  }
+
+  function miniGameChoicePool(answer = '') {
+    const normalized = String(answer || '').trim();
+    if (state.course === 'html') {
+      if (normalized.startsWith('<')) return MINI_GAME_POOLS.htmlTags;
+      if (MINI_GAME_POOLS.htmlAttrs.some(item => item.toLowerCase() === normalized.toLowerCase())) return MINI_GAME_POOLS.htmlAttrs;
+      return [...MINI_GAME_POOLS.htmlTags, ...MINI_GAME_POOLS.htmlAttrs];
+    }
+    if (state.course === 'css') return MINI_GAME_POOLS.css;
+    return MINI_GAME_POOLS.js;
+  }
+
+  function buildMiniGame(item = currentTopic()) {
+    const found = findMiniGameAnswer(item);
+    if (!found) return null;
+    const answer = found.answer;
+    const distractors = uniqueMiniGameValues(miniGameChoicePool(answer))
+      .filter(value => value.toLowerCase() !== answer.toLowerCase())
+      .sort((a, b) => miniGameStableHash(`${item.id}:${a}`) - miniGameStableHash(`${item.id}:${b}`))
+      .slice(0, 3);
+    const choices = uniqueMiniGameValues([answer, ...distractors])
+      .sort((a, b) => miniGameStableHash(`${item.id}:choice:${a}`) - miniGameStableHash(`${item.id}:choice:${b}`));
+    return {
+      answer,
+      choices,
+      before: String(item.example || '').slice(0, found.start),
+      after: String(item.example || '').slice(found.end)
+    };
+  }
+
+  function ensureMiniGameState(item = currentTopic()) {
+    if (!item) return null;
+    if (!state.miniGame || state.miniGame.topicId !== item.id) {
+      const game = buildMiniGame(item);
+      state.miniGame = {
+        topicId: item.id,
+        selected: '',
+        result: '',
+        correct: game?.answer || '',
+        choices: game?.choices || [],
+        before: game?.before || '',
+        after: game?.after || ''
+      };
+    }
+    return state.miniGame;
+  }
+
+  function renderMiniGame() {
+    const item = currentTopic();
+    const game = ensureMiniGameState(item);
+    if (!game || !dom.miniGameCode || !dom.miniGameOptions) return;
+    const record = topicRecord();
+    const passed = Boolean(record.miniGamePassed);
+    const selected = String(game.selected || '');
+    const blankText = selected || '____';
+    dom.miniGameTitle.textContent = `${COURSES[state.course].short} Code Puzzle`;
+    dom.miniGamePrompt.textContent = passed
+      ? 'Completed. You can review the puzzle or continue to Try It.'
+      : 'Tap the code that correctly fills the blank. Wrong tries do not use hearts.';
+    dom.miniGameBadge.textContent = passed ? '✓ Completed' : (game.result === 'wrong' ? 'Try again' : 'Not completed');
+    dom.miniGameBadge.dataset.state = passed ? 'complete' : (game.result === 'wrong' ? 'warning' : '');
+    dom.miniGameCode.innerHTML = `<pre><code>${escapeHTML(game.before)}<mark class="code-explorer-mini-game-blank ${game.result === 'wrong' ? 'wrong' : (passed && selected ? 'correct' : '')}">${escapeHTML(blankText)}</mark>${escapeHTML(game.after)}</code></pre>`;
+    dom.miniGameOptions.innerHTML = game.choices.map(choice => {
+      const active = selected === choice;
+      const classes = ['code-explorer-mini-game-option'];
+      if (active) classes.push('selected');
+      if (game.result === 'wrong' && active) classes.push('wrong');
+      if (passed && choice === game.correct) classes.push('correct');
+      return `<button type="button" class="${classes.join(' ')}" data-explorer-mini-game-option="${escapeAttribute(choice)}" ${passed ? 'disabled' : ''}><code>${escapeHTML(choice)}</code></button>`;
+    }).join('');
+    if (dom.miniGameCheckBtn) {
+      dom.miniGameCheckBtn.disabled = passed || !selected;
+      dom.miniGameCheckBtn.textContent = passed ? '✓ Completed' : 'Check Answer';
+    }
+    if (dom.miniGameResetBtn) {
+      dom.miniGameResetBtn.disabled = passed;
+      dom.miniGameResetBtn.textContent = passed ? '✓ Passed' : 'Reset';
+    }
+    if (dom.miniGameFeedback) {
+      if (passed) {
+        dom.miniGameFeedback.classList.remove('hidden');
+        dom.miniGameFeedback.dataset.type = 'success';
+        dom.miniGameFeedback.textContent = 'Puzzle passed. Try It is unlocked.';
+      } else if (game.result === 'wrong') {
+        dom.miniGameFeedback.classList.remove('hidden');
+        dom.miniGameFeedback.dataset.type = 'warning';
+        dom.miniGameFeedback.textContent = 'That code does not fit here. Try another option — no heart lost.';
+      } else {
+        dom.miniGameFeedback.classList.add('hidden');
+        dom.miniGameFeedback.textContent = '';
+      }
+    }
+  }
+
+  function selectMiniGameOption(value = '') {
+    const game = ensureMiniGameState();
+    const record = topicRecord();
+    if (!game || record.miniGamePassed) return;
+    game.selected = String(value || '');
+    game.result = '';
+    clearTimeout(state.miniGameResetTimer);
+    renderMiniGame();
+  }
+
+  function resetMiniGame(options = {}) {
+    const game = ensureMiniGameState();
+    if (!game) return;
+    clearTimeout(state.miniGameResetTimer);
+    game.selected = '';
+    game.result = '';
+    if (options.review && topicRecord().miniGamePassed) {
+      // Review mode keeps the earned pass but lets the learner inspect the choices again.
+      game.selected = game.correct;
+    }
+    renderMiniGame();
+  }
+
+  function checkMiniGameAnswer() {
+    const game = ensureMiniGameState();
+    const record = topicRecord();
+    if (!game || record.miniGamePassed || !game.selected) return;
+    record.miniGameAttempts = Number(record.miniGameAttempts || 0) + 1;
+    const correct = String(game.selected).toLowerCase() === String(game.correct).toLowerCase();
+    game.result = correct ? 'correct' : 'wrong';
+    if (correct) {
+      record.miniGamePassed = true;
+      record.miniGamePassedAt = record.miniGamePassedAt || new Date().toISOString();
+      scheduleCloudSave();
+      showQuickScreenFeedback(true, {
+        correctTitle: 'Code Complete!',
+        correctText: 'Great job — the Fill in the Blank game is passed. Try It is now unlocked.',
+        correctDuration: 980
+      });
+      renderMiniGame();
+      renderMobileJourney();
+      return;
+    }
+    scheduleCloudSave();
+    showQuickScreenFeedback(false, {
+      wrongTitle: 'Try Again',
+      wrongText: 'That code does not complete the blank. No heart was used.',
+      wrongDuration: 900
+    });
+    renderMiniGame();
+    clearTimeout(state.miniGameResetTimer);
+    state.miniGameResetTimer = window.setTimeout(() => {
+      if (state.miniGame !== game || topicRecord().miniGamePassed) return;
+      game.selected = '';
+      game.result = '';
+      renderMiniGame();
+    }, 940);
+  }
+
   const MOBILE_EXPLORER_STAGES = [
     { key: 'learn', title: 'Learn' },
     { key: 'example', title: 'Example' },
+    { key: 'game', title: 'Fill the Blank' },
     { key: 'practice', title: 'Try It' },
     { key: 'quiz', title: 'Quick Check' },
     { key: 'complete', title: 'Complete' }
@@ -41404,7 +41652,8 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   }
 
   function isMobileStageUnlocked(stage, record = topicRecord()) {
-    if (stage === 'learn' || stage === 'example' || stage === 'practice') return true;
+    if (stage === 'learn' || stage === 'example' || stage === 'game') return true;
+    if (stage === 'practice') return Boolean(record?.miniGamePassed || record?.practicePassed || record?.quizPassed || record?.completedAt || record?.mobileStage === 'practice');
     if (stage === 'quiz') return Boolean(record?.practicePassed);
     if (stage === 'complete') return Boolean(record?.completedAt);
     return false;
@@ -41415,10 +41664,12 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     if (saved && MOBILE_EXPLORER_STAGES.some(entry => entry.key === saved) && isMobileStageUnlocked(saved, record)) return saved;
     if (record?.completedAt) return 'complete';
     if (record?.practicePassed) return 'quiz';
+    if (record?.miniGamePassed) return 'practice';
     return 'learn';
   }
 
   function mobileStageLockMessage(stage, record = topicRecord()) {
+    if (stage === 'practice' && !record?.miniGamePassed && !record?.practicePassed) return '🔒 Complete the Fill in the Blank code game first to unlock Try It.';
     if (stage === 'quiz' && !record?.practicePassed) return '🔒 Pass the Try It coding challenge first to unlock Quick Check.';
     if (stage === 'complete' && !record?.completedAt) return '🔒 Pass the coding challenge and score at least 4/5 on Quick Check first.';
     return '';
@@ -41462,18 +41713,19 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   function mobileJourneyProgressPercent(record = topicRecord()) {
     const stage = state.mobileStage;
     if (stage === 'complete' || record?.completedAt) return 100;
-    if (stage === 'learn') return 12;
-    if (stage === 'example') return 30;
-    if (stage === 'practice') return record?.practicePassed ? 58 : 48;
+    if (stage === 'learn') return 10;
+    if (stage === 'example') return 25;
+    if (stage === 'game') return record?.miniGamePassed ? 45 : 36;
+    if (stage === 'practice') return record?.practicePassed ? 62 : 52;
     if (stage === 'quiz') {
       const pack = ensureQuickQuizState();
       const total = Math.max(1, Number(pack?.questions?.length || 5));
       const answered = Array.isArray(pack?.quiz?.results)
         ? pack.quiz.results.filter(value => value !== null && value !== undefined).length
         : 0;
-      return Math.min(96, 62 + Math.round((answered / total) * 34));
+      return Math.min(96, 66 + Math.round((answered / total) * 30));
     }
-    return 12;
+    return 10;
   }
 
   function updateMobileJourneyProgress(record = topicRecord()) {
@@ -41529,6 +41781,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         const unlocked = Boolean(nextStage && isMobileStageUnlocked(nextStage.key, record));
         dom.mobileStageNextBtn.disabled = !nextStage || !unlocked;
         if (!nextStage) dom.mobileStageNextBtn.textContent = 'Done';
+        else if (!unlocked && nextStage.key === 'practice') dom.mobileStageNextBtn.textContent = 'Complete Code Game First';
         else if (!unlocked && nextStage.key === 'quiz') dom.mobileStageNextBtn.textContent = 'Pass Try It First';
         else if (!unlocked && nextStage.key === 'complete') dom.mobileStageNextBtn.textContent = 'Finish Quick Check';
         else dom.mobileStageNextBtn.textContent = 'Continue';
@@ -41636,6 +41889,8 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     dom.practiceBadge.dataset.state = record.practicePassed ? 'complete' : '';
     dom.practiceFeedback.classList.add('hidden');
     dom.practiceFeedback.textContent = '';
+    state.miniGame = { topicId: '', selected: '', result: '', correct: '', choices: [], before: '', after: '' };
+    renderMiniGame();
     dom.quizQuestion.textContent = '5-question Quick Check';
     state.quickQuiz = { topicId: item.id, index: 0, answers: Array(buildQuickCheckQuestions(course, item).length).fill(null), results: Array(buildQuickCheckQuestions(course, item).length).fill(null), submitted: false };
     if (isMobileExplorerLayout()) state.mobileStage = bestMobileStageForRecord(record);
@@ -42662,7 +42917,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         : (topicRecordData.quizPassed
           ? (Number(topicRecordData.quizBestCorrect || 0) > 0 ? `Previous pass · new best ${topicRecordData.quizBestCorrect}/5` : 'Passed (previous version)')
           : (Number(topicRecordData.quizBestCorrect || 0) > 0 ? `${topicRecordData.quizBestCorrect}/5 best` : 'Not passed'));
-      return `<article class="code-explorer-admin-topic-row" data-state="${status}"><span class="code-explorer-admin-topic-number">${status === 'complete' ? '✓' : index + 1}</span><div><strong>${escapeHTML(topicItem.title)}</strong><small>${status === 'complete' ? 'Completed' : status === 'progress' ? 'In progress' : 'Not started'} · Practice ${topicRecordData.practicePassed ? '✓' : '—'} · Quick Check ${escapeHTML(scoreText)}</small></div><span>${topicRecordData.quizAttempts ? `${Number(topicRecordData.quizAttempts)} quiz attempt${Number(topicRecordData.quizAttempts) === 1 ? '' : 's'}` : ''}</span></article>`;
+      return `<article class="code-explorer-admin-topic-row" data-state="${status}"><span class="code-explorer-admin-topic-number">${status === 'complete' ? '✓' : index + 1}</span><div><strong>${escapeHTML(topicItem.title)}</strong><small>${status === 'complete' ? 'Completed' : status === 'progress' ? 'In progress' : 'Not started'} · Game ${topicRecordData.miniGamePassed ? '✓' : '—'} · Practice ${topicRecordData.practicePassed ? '✓' : '—'} · Quick Check ${escapeHTML(scoreText)}</small></div><span>${topicRecordData.quizAttempts ? `${Number(topicRecordData.quizAttempts)} quiz attempt${Number(topicRecordData.quizAttempts) === 1 ? '' : 's'}` : ''}</span></article>`;
     }).join('');
   }
 
@@ -42777,6 +43032,12 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     dom.copyExampleBtn.textContent = ok ? '✓ Copied' : 'Copy';
     window.setTimeout(() => { dom.copyExampleBtn.textContent = 'Copy'; }, 1100);
   });
+  dom.miniGameOptions?.addEventListener('click', event => {
+    const button = event.target.closest('[data-explorer-mini-game-option]');
+    if (button) selectMiniGameOption(button.dataset.explorerMiniGameOption || '');
+  });
+  dom.miniGameCheckBtn?.addEventListener('click', checkMiniGameAnswer);
+  dom.miniGameResetBtn?.addEventListener('click', () => resetMiniGame());
   dom.quizOptions?.addEventListener('click', event => {
     const option = event.target.closest('[data-explorer-quick-option]');
     if (option) { selectQuickQuizOption(option.dataset.explorerQuickOption); return; }

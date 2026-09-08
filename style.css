@@ -57665,3 +57665,231 @@ html[data-theme="dark"] .code-explorer-quick-feedback-card.wrong .code-explorer-
     color: #1d4ed8 !important;
   }
 }
+
+
+/* ================================================================
+   v375 — Phone Fill-in-the-Blank coding mini game
+   A required, no-heart learning checkpoint between Example and Try It.
+   Desktop remains unchanged: the game card is phone-only for now.
+   ================================================================ */
+.code-explorer-mini-game-card { display: none; }
+
+@media (max-width: 760px) {
+  .code-explorer-mobile-stage-steps { grid-template-columns: repeat(6,minmax(0,1fr)); }
+
+  .code-explorer-lesson-panel[data-mobile-stage] > .code-explorer-mini-game-card {
+    display: none !important;
+  }
+  .code-explorer-lesson-panel[data-mobile-stage="game"] > .code-explorer-mini-game-card {
+    display: block !important;
+  }
+
+  .code-explorer-lesson-panel.mobile-slide-next[data-mobile-stage="game"] > .code-explorer-mini-game-card,
+  .code-explorer-lesson-panel.mobile-slide-prev[data-mobile-stage="game"] > .code-explorer-mini-game-card {
+    animation-duration: .30s;
+    animation-timing-function: cubic-bezier(.22,.8,.25,1);
+    animation-fill-mode: both;
+  }
+  .code-explorer-lesson-panel.mobile-slide-next[data-mobile-stage="game"] > .code-explorer-mini-game-card { animation-name: explorerStageInFromRight; }
+  .code-explorer-lesson-panel.mobile-slide-prev[data-mobile-stage="game"] > .code-explorer-mini-game-card { animation-name: explorerStageInFromLeft; }
+
+  .code-explorer-mini-game-card {
+    margin-top: 0;
+    padding: 14px;
+    border: 1px solid #d9e2ec;
+    border-radius: 18px;
+    background: #ffffff;
+    color: #0f172a;
+    box-shadow: 0 8px 24px rgba(15,23,42,.06);
+  }
+  .code-explorer-mini-game-card .code-explorer-section-heading {
+    display: grid;
+    grid-template-columns: minmax(0,1fr) auto;
+    gap: 10px;
+    align-items: start;
+    margin-bottom: 12px;
+  }
+  .code-explorer-mini-game-card h3 {
+    margin: 4px 0 4px;
+    font-size: 1.12rem;
+    line-height: 1.2;
+  }
+  .code-explorer-mini-game-prompt {
+    margin: 0;
+    color: #526174;
+    font-size: .82rem;
+    line-height: 1.45;
+  }
+  .code-explorer-mini-game-code {
+    border: 1px solid #d7e2ef;
+    border-radius: 16px;
+    overflow: hidden;
+    background: #0f172a;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,.02);
+  }
+  .code-explorer-mini-game-code pre {
+    margin: 0;
+    max-height: 230px;
+    overflow: auto;
+    padding: 15px;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    -webkit-overflow-scrolling: touch;
+  }
+  .code-explorer-mini-game-code code {
+    color: #e2e8f0;
+    font: 12.5px/1.65 Consolas, Monaco, monospace;
+  }
+  .code-explorer-mini-game-blank {
+    display: inline-block;
+    min-width: 58px;
+    margin: 0 2px;
+    padding: 1px 7px;
+    border-radius: 8px;
+    border: 1px dashed #60a5fa;
+    background: rgba(37,99,235,.22);
+    color: #dbeafe;
+    font: inherit;
+    text-decoration: none;
+    vertical-align: baseline;
+  }
+  .code-explorer-mini-game-blank.correct {
+    border-style: solid;
+    border-color: #4ade80;
+    background: rgba(22,163,74,.28);
+    color: #dcfce7;
+  }
+  .code-explorer-mini-game-blank.wrong {
+    border-style: solid;
+    border-color: #fb7185;
+    background: rgba(190,24,93,.25);
+    color: #ffe4e6;
+    animation: explorerWrongShake .42s ease;
+  }
+  .code-explorer-mini-game-options {
+    display: grid;
+    grid-template-columns: repeat(2,minmax(0,1fr));
+    gap: 8px;
+    margin-top: 12px;
+  }
+  .code-explorer-mini-game-option {
+    min-width: 0;
+    min-height: 48px;
+    padding: 9px 10px;
+    border: 1px solid #d6e1ee;
+    border-radius: 13px;
+    background: #f8fafc;
+    color: #172033;
+    text-align: center;
+    transition: transform .16s ease, border-color .16s ease, background .16s ease, box-shadow .16s ease;
+  }
+  .code-explorer-mini-game-option:not(:disabled):active { transform: scale(.98); }
+  .code-explorer-mini-game-option code {
+    font: 700 .82rem/1.25 Consolas, Monaco, monospace;
+    color: inherit;
+    overflow-wrap: anywhere;
+  }
+  .code-explorer-mini-game-option.selected {
+    border-color: #2563eb;
+    background: #eff6ff;
+    color: #1d4ed8;
+    box-shadow: 0 0 0 3px rgba(37,99,235,.10);
+  }
+  .code-explorer-mini-game-option.wrong {
+    border-color: #ef4444;
+    background: #fff1f2;
+    color: #991b1b;
+  }
+  .code-explorer-mini-game-option.correct {
+    border-color: #22c55e;
+    background: #ecfdf5;
+    color: #166534;
+  }
+  .code-explorer-mini-game-actions {
+    display: grid;
+    grid-template-columns: minmax(0,.75fr) minmax(0,1.25fr);
+    gap: 8px;
+    margin-top: 12px;
+  }
+  .code-explorer-mini-game-actions button {
+    min-width: 0;
+    min-height: 44px;
+    border-radius: 13px;
+    font-size: .8rem;
+  }
+  .code-explorer-mini-game-card .code-explorer-feedback { margin-top: 10px; }
+
+  .code-explorer-screen.code-explorer-mobile-focus .code-explorer-mini-game-card {
+    border-radius: 22px;
+    border-color: rgba(255,255,255,.08);
+    background: #1a2130;
+    color: #f8fafc;
+    box-shadow: 0 10px 26px rgba(0,0,0,.22);
+  }
+  .code-explorer-screen.code-explorer-mobile-focus .code-explorer-mini-game-card .code-explorer-card-label,
+  .code-explorer-screen.code-explorer-mobile-focus .code-explorer-mini-game-prompt {
+    color: #b9c6da;
+  }
+
+  html[data-theme="light"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-mini-game-card {
+    background: #ffffff;
+    border-color: #d9e2ec;
+    color: #0f172a;
+    box-shadow: 0 8px 24px rgba(15,23,42,.06);
+  }
+  html[data-theme="light"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-mini-game-card h3 {
+    color: #0f172a;
+  }
+  html[data-theme="light"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-mini-game-card .code-explorer-card-label {
+    color: #334155;
+  }
+  html[data-theme="light"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-mini-game-prompt {
+    color: #475569;
+  }
+  html[data-theme="light"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-mini-game-option {
+    background: #f8fafc;
+    border-color: #cbd5e1;
+    color: #172033;
+  }
+  html[data-theme="light"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-mini-game-option.selected {
+    background: #eff6ff;
+    border-color: #2563eb;
+    color: #1d4ed8;
+  }
+
+  html[data-theme="dark"] .code-explorer-mini-game-card,
+  html[data-theme="dark"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-mini-game-card {
+    background: #1a2130;
+    border-color: #334155;
+    color: #f8fafc;
+  }
+  html[data-theme="dark"] .code-explorer-mini-game-prompt { color: #aebed5; }
+  html[data-theme="dark"] .code-explorer-mini-game-option {
+    background: #111827;
+    border-color: #334155;
+    color: #e5edf7;
+  }
+  html[data-theme="dark"] .code-explorer-mini-game-option.selected {
+    background: #132b4f;
+    border-color: #60a5fa;
+    color: #dbeafe;
+  }
+  html[data-theme="dark"] .code-explorer-mini-game-option.wrong {
+    background: rgba(153,27,27,.28);
+    border-color: #ef4444;
+    color: #fee2e2;
+  }
+  html[data-theme="dark"] .code-explorer-mini-game-option.correct {
+    background: rgba(22,101,52,.28);
+    border-color: #22c55e;
+    color: #dcfce7;
+  }
+}
+
+@media (max-width: 390px) {
+  .code-explorer-mini-game-card { padding: 12px; }
+  .code-explorer-mini-game-options { gap: 7px; }
+  .code-explorer-mini-game-option { padding: 8px; }
+  .code-explorer-mini-game-option code { font-size: .76rem; }
+}
