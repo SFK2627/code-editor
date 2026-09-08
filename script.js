@@ -40147,6 +40147,11 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     quizSubmitBtn: $('codeExplorerQuizSubmitBtn'),
     quizBadge: $('codeExplorerQuizBadge'),
     quizFeedback: $('codeExplorerQuizFeedback'),
+    quickFeedbackOverlay: $('codeExplorerQuickFeedbackOverlay'),
+    quickFeedbackCard: $('codeExplorerQuickFeedbackCard'),
+    quickFeedbackIcon: $('codeExplorerQuickFeedbackIcon'),
+    quickFeedbackTitle: $('codeExplorerQuickFeedbackTitle'),
+    quickFeedbackText: $('codeExplorerQuickFeedbackText'),
     completeCard: $('codeExplorerTopicCompleteCard'),
     mobileJourney: $('codeExplorerMobileJourney'),
     mobileStageCount: $('codeExplorerMobileStageCount'),
@@ -40464,7 +40469,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   const HEARTS_DEFAULT = 5;
   const HEARTS_MAX = 5;
   const HEART_REFILL_MS = 60 * 60 * 1000;
-  const state = { course: 'html', topicId: '', filter: 'all', progress: null, reader: '', cloudLoaded: false, dashboardCloudLoading: false, saveTimer: null, heartTimer: null, profileUnsub: null, finalAnswers: {}, quickQuiz: { topicId: '', index: 0, answers: [], results: [], submitted: false }, quickAdvanceTimer: null, justUnlockedTopicId: '', justUnlockedCourse: '', mobileStage: 'learn', mobileStageDirection: 'next', mobileSwipeStart: null };
+  const state = { course: 'html', topicId: '', filter: 'all', progress: null, reader: '', cloudLoaded: false, dashboardCloudLoading: false, saveTimer: null, heartTimer: null, profileUnsub: null, finalAnswers: {}, quickQuiz: { topicId: '', index: 0, answers: [], results: [], submitted: false }, quickAdvanceTimer: null, quickFeedbackTimer: null, justUnlockedTopicId: '', justUnlockedCourse: '', mobileStage: 'learn', mobileStageDirection: 'next', mobileSwipeStart: null };
 
   function normalizeHeartState(input = {}) {
     const source = input && typeof input === 'object' ? input : {};
@@ -40572,6 +40577,38 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     document.body.appendChild(floater);
     window.setTimeout(() => floater.remove(), 950);
     window.setTimeout(() => dom.heartBadge?.classList.remove('heart-loss'), 700);
+  }
+
+  function hideQuickScreenFeedback() {
+    clearTimeout(state.quickFeedbackTimer);
+    screen?.classList.remove('feedback-correct', 'feedback-wrong');
+    dom.quickFeedbackOverlay?.classList.add('hidden');
+    dom.quickFeedbackOverlay?.classList.remove('show', 'correct', 'wrong');
+    dom.quickFeedbackCard?.classList.remove('correct', 'wrong');
+  }
+
+  function showQuickScreenFeedback(correct) {
+    if (!screen || !dom.quickFeedbackOverlay || !dom.quickFeedbackCard) return;
+    clearTimeout(state.quickFeedbackTimer);
+    const positive = Boolean(correct);
+    screen.classList.remove('feedback-correct', 'feedback-wrong');
+    dom.quickFeedbackOverlay.classList.remove('hidden', 'correct', 'wrong', 'show');
+    dom.quickFeedbackCard.classList.remove('correct', 'wrong');
+    dom.quickFeedbackOverlay.setAttribute('aria-hidden', 'false');
+    if (dom.quickFeedbackIcon) dom.quickFeedbackIcon.textContent = positive ? '✓' : '✕';
+    if (dom.quickFeedbackTitle) dom.quickFeedbackTitle.textContent = positive ? 'Correct!' : 'Incorrect';
+    if (dom.quickFeedbackText) dom.quickFeedbackText.textContent = positive ? 'Nice work — moving to the next question.' : 'Not quite — the screen marks it right away and 1 heart is used.';
+    void dom.quickFeedbackOverlay.offsetWidth;
+    screen.classList.add(positive ? 'feedback-correct' : 'feedback-wrong');
+    dom.quickFeedbackOverlay.classList.add('show', positive ? 'correct' : 'wrong');
+    dom.quickFeedbackCard.classList.add(positive ? 'correct' : 'wrong');
+    state.quickFeedbackTimer = window.setTimeout(() => {
+      dom.quickFeedbackOverlay?.classList.remove('show', 'correct', 'wrong');
+      dom.quickFeedbackCard?.classList.remove('correct', 'wrong');
+      dom.quickFeedbackOverlay?.classList.add('hidden');
+      dom.quickFeedbackOverlay?.setAttribute('aria-hidden', 'true');
+      screen?.classList.remove('feedback-correct', 'feedback-wrong');
+    }, positive ? 820 : 1180);
   }
 
   function heartOutMessage() {
@@ -41201,6 +41238,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     const { quiz, questions } = pack;
     const index = quiz.index;
     if (quiz.results[index] !== null && quiz.results[index] !== undefined) return;
+    hideQuickScreenFeedback();
     applyHeartRefill(state.progress, { persist: true });
     if (currentHeartSnapshot().balance <= 0) {
       dom.quizFeedback.classList.remove('hidden');
@@ -41215,6 +41253,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     quiz.results[index] = correct;
     if (!correct) { spendHearts(1); animateHeartLoss(); }
     renderQuickQuiz();
+    showQuickScreenFeedback(correct);
     scheduleCloudSave();
     const finished = quiz.results.every(value => value !== null && value !== undefined);
     if (finished) {
@@ -41226,7 +41265,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       if (state.quickQuiz !== quiz || quiz.submitted || quiz.index !== index) return;
       quiz.index = Math.min(questions.length - 1, index + 1);
       renderQuickQuiz();
-    }, correct ? 800 : 1250);
+    }, correct ? 820 : 1220);
   }
 
   function moveQuickQuiz(delta) {
@@ -41615,6 +41654,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   async function closeExplorer() {
     stopHeartTicker();
     stopExplorerProfileListener();
+    hideQuickScreenFeedback();
     await saveCloudProgress();
     screen.classList.add('hidden');
     document.body.classList.remove('code-explorer-active');

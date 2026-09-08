@@ -56745,3 +56745,160 @@ html[data-theme="dark"] .code-explorer-mobile-stage-steps button.done:not(.activ
     min-height: min(58vh, 540px);
   }
 }
+
+
+/* ================================================================
+   v371 — Quick Check screen-level feedback pulse
+   Shows centered instant feedback and full-screen tint for correct/wrong
+   answers so learners do not need to look below the options.
+   ================================================================ */
+.code-explorer-screen { isolation: isolate; }
+.code-explorer-screen.feedback-correct { animation: explorerScreenCorrectFlash .82s ease; }
+.code-explorer-screen.feedback-wrong { animation: explorerScreenWrongFlash 1.16s ease; }
+.code-explorer-quick-feedback-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1400;
+  display: grid;
+  place-items: center;
+  padding: 22px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .18s ease;
+}
+.code-explorer-quick-feedback-overlay.show { opacity: 1; }
+.code-explorer-quick-feedback-overlay.correct {
+  background: radial-gradient(circle at center, rgba(34,197,94,.18) 0%, rgba(34,197,94,.12) 26%, rgba(34,197,94,.06) 44%, rgba(34,197,94,0) 72%);
+}
+.code-explorer-quick-feedback-overlay.wrong {
+  background: radial-gradient(circle at center, rgba(239,68,68,.18) 0%, rgba(239,68,68,.12) 26%, rgba(239,68,68,.06) 44%, rgba(239,68,68,0) 72%);
+}
+.code-explorer-quick-feedback-card {
+  width: min(92vw, 340px);
+  display: grid;
+  justify-items: center;
+  gap: 7px;
+  text-align: center;
+  padding: 22px 20px;
+  border-radius: 24px;
+  border: 1px solid rgba(255,255,255,.45);
+  background: rgba(255,255,255,.92);
+  color: #0f172a;
+  box-shadow: 0 20px 50px rgba(15,23,42,.20);
+  transform: translateY(12px) scale(.96);
+}
+.code-explorer-quick-feedback-overlay.show .code-explorer-quick-feedback-card {
+  animation: explorerQuickFeedbackIn .24s ease forwards;
+}
+.code-explorer-quick-feedback-card.correct {
+  background: linear-gradient(180deg, rgba(240,253,244,.98), rgba(220,252,231,.98));
+  border-color: rgba(34,197,94,.38);
+  color: #14532d;
+}
+.code-explorer-quick-feedback-card.wrong {
+  background: linear-gradient(180deg, rgba(255,241,242,.98), rgba(254,226,226,.98));
+  border-color: rgba(239,68,68,.34);
+  color: #991b1b;
+}
+.code-explorer-quick-feedback-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 72px;
+  height: 72px;
+  border-radius: 999px;
+  font-size: 2.4rem;
+  font-weight: 900;
+  line-height: 1;
+  background: rgba(255,255,255,.68);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.55);
+}
+.code-explorer-quick-feedback-card.correct .code-explorer-quick-feedback-icon {
+  color: #16a34a;
+  background: rgba(220,252,231,.98);
+}
+.code-explorer-quick-feedback-card.wrong .code-explorer-quick-feedback-icon {
+  color: #dc2626;
+  background: rgba(254,226,226,.98);
+}
+.code-explorer-quick-feedback-card strong {
+  font-size: 1.35rem;
+  line-height: 1.05;
+}
+.code-explorer-quick-feedback-card p {
+  margin: 0;
+  font-size: .95rem;
+  line-height: 1.45;
+}
+@keyframes explorerQuickFeedbackIn {
+  0% { opacity: 0; transform: translateY(12px) scale(.94); }
+  65% { opacity: 1; transform: translateY(-2px) scale(1.02); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes explorerScreenCorrectFlash {
+  0% { background-color: transparent; box-shadow: inset 0 0 0 0 rgba(34,197,94,0); }
+  35% { background-color: rgba(34,197,94,.10); box-shadow: inset 0 0 0 999px rgba(34,197,94,.10); }
+  100% { background-color: transparent; box-shadow: inset 0 0 0 0 rgba(34,197,94,0); }
+}
+@keyframes explorerScreenWrongFlash {
+  0% { background-color: transparent; box-shadow: inset 0 0 0 0 rgba(239,68,68,0); }
+  30% { background-color: rgba(239,68,68,.10); box-shadow: inset 0 0 0 999px rgba(239,68,68,.10); }
+  100% { background-color: transparent; box-shadow: inset 0 0 0 0 rgba(239,68,68,0); }
+}
+html[data-theme="dark"] .code-explorer-quick-feedback-card {
+  background: rgba(15,23,42,.94);
+  border-color: rgba(148,163,184,.26);
+  color: #f8fafc;
+}
+html[data-theme="dark"] .code-explorer-quick-feedback-card.correct {
+  background: linear-gradient(180deg, rgba(20,83,45,.94), rgba(22,101,52,.92));
+  border-color: rgba(74,222,128,.42);
+  color: #dcfce7;
+}
+html[data-theme="dark"] .code-explorer-quick-feedback-card.wrong {
+  background: linear-gradient(180deg, rgba(127,29,29,.94), rgba(153,27,27,.92));
+  border-color: rgba(248,113,113,.42);
+  color: #fee2e2;
+}
+html[data-theme="dark"] .code-explorer-quick-feedback-card .code-explorer-quick-feedback-icon {
+  background: rgba(255,255,255,.08);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.08);
+}
+html[data-theme="dark"] .code-explorer-quick-feedback-card.correct .code-explorer-quick-feedback-icon {
+  color: #86efac;
+  background: rgba(220,252,231,.10);
+}
+html[data-theme="dark"] .code-explorer-quick-feedback-card.wrong .code-explorer-quick-feedback-icon {
+  color: #fca5a5;
+  background: rgba(254,226,226,.10);
+}
+@media (max-width: 760px) {
+  .code-explorer-quick-feedback-overlay { padding: 16px; }
+  .code-explorer-quick-feedback-card {
+    width: min(92vw, 320px);
+    padding: 20px 18px;
+    border-radius: 22px;
+  }
+  .code-explorer-quick-feedback-icon {
+    width: 68px;
+    height: 68px;
+    font-size: 2.2rem;
+  }
+  .code-explorer-quick-feedback-card strong { font-size: 1.25rem; }
+  .code-explorer-quick-feedback-card p { font-size: .88rem; }
+  .code-explorer-screen.code-explorer-mobile-focus.feedback-correct {
+    animation: explorerScreenCorrectFlashMobile .82s ease;
+  }
+  .code-explorer-screen.code-explorer-mobile-focus.feedback-wrong {
+    animation: explorerScreenWrongFlashMobile 1.16s ease;
+  }
+}
+@keyframes explorerScreenCorrectFlashMobile {
+  0% { background: #10151f; box-shadow: inset 0 0 0 0 rgba(34,197,94,0); }
+  35% { background: #112019; box-shadow: inset 0 0 0 999px rgba(34,197,94,.12); }
+  100% { background: #10151f; box-shadow: inset 0 0 0 0 rgba(34,197,94,0); }
+}
+@keyframes explorerScreenWrongFlashMobile {
+  0% { background: #10151f; box-shadow: inset 0 0 0 0 rgba(239,68,68,0); }
+  30% { background: #211417; box-shadow: inset 0 0 0 999px rgba(239,68,68,.12); }
+  100% { background: #10151f; box-shadow: inset 0 0 0 0 rgba(239,68,68,0); }
+}
