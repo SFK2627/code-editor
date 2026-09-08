@@ -59929,3 +59929,50 @@ html[data-theme="dark"] .code-explorer-xp-reward-line span { color: #fde68a; }
   .code-explorer-xp-reward-line b { font-size: .85rem; }
   .code-explorer-xp-reward-line span { font-size: .72rem; }
 }
+
+
+/* ================================================================
+   v394 — Mistake-aware activity rewards
+   Wrong answers reduce only the current activity's possible reward.
+   Already-earned Total XP is never deducted.
+   ================================================================ */
+.code-explorer-xp-penalty-inline {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  max-width: 100%;
+  margin-top: 6px;
+  padding: 5px 8px;
+  border-radius: 999px;
+  border: 1px solid #fecdd3;
+  background: #fff1f2;
+  color: #be123c;
+  font-size: .74rem;
+  font-weight: 900;
+  line-height: 1.25;
+}
+.code-explorer-instant-feedback.wrong span { line-height: 1.45; }
+.code-explorer-reward-hint {
+  margin: -2px 0 12px;
+  padding: 8px 10px;
+  border-radius: 11px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  color: #92400e;
+  font-size: .76rem;
+  font-weight: 800;
+  line-height: 1.4;
+}
+html[data-theme="dark"] .code-explorer-reward-hint {
+  background: rgba(120,53,15,.2);
+  border-color: rgba(251,191,36,.3);
+  color: #fde68a;
+}
+html[data-theme="dark"] .code-explorer-xp-penalty-inline {
+  border-color: rgba(251,113,133,.42);
+  background: rgba(159,18,57,.22);
+  color: #fecdd3;
+}
+@media (max-width:760px) {
+  .code-explorer-xp-penalty-inline { font-size: .7rem; white-space: normal; }
+}

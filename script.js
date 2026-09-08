@@ -40854,7 +40854,10 @@ window.MCS_PHONE_MENU_STATUS = () => ({
           miniGamePassedAt: [x.miniGamePassedAt, y.miniGamePassedAt].filter(Boolean).sort().pop() || '',
           miniGameAttempts: Math.max(Number(x.miniGameAttempts || 0), Number(y.miniGameAttempts || 0)),
           miniGameFirstTryBonus: Boolean(x.miniGameFirstTryBonus || y.miniGameFirstTryBonus),
+          miniGameRewardXp: Math.max(0, Number(x.miniGameRewardXp || 0), Number(y.miniGameRewardXp || 0)),
           practiceFirstTryBonus: Boolean(x.practiceFirstTryBonus || y.practiceFirstTryBonus),
+          practiceRewardXp: Math.max(0, Number(x.practiceRewardXp || 0), Number(y.practiceRewardXp || 0)),
+          rewardModelVersion: Math.max(0, Number(x.rewardModelVersion || 0), Number(y.rewardModelVersion || 0)),
           quizPassed: Boolean(x.quizPassed || y.quizPassed),
           quizFivePassed: Boolean(x.quizFivePassed || y.quizFivePassed),
           quizBestCorrect: best,
@@ -40873,6 +40876,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
             return values.length ? Math.min(...values) : 0;
           })(),
           quizSpeedBonus: Math.max(0, Number(x.quizSpeedBonus || 0), Number(y.quizSpeedBonus || 0)),
+          quizRewardXp: Math.max(0, Number(x.quizRewardXp || 0), Number(y.quizRewardXp || 0)),
           completedAt: x.completedAt || y.completedAt || '',
           attempts: Math.max(Number(x.attempts || 0), Number(y.attempts || 0))
         };
@@ -40888,6 +40892,8 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       }
       left.courses[key].final.attempts = Math.max(Number(xf.attempts || 0), Number(yf.attempts || 0), Number(left.courses[key].final.attempts || 0));
       left.courses[key].final.speedBonus = Math.max(0, Number(xf.speedBonus || 0), Number(yf.speedBonus || 0), Number(left.courses[key].final.speedBonus || 0));
+      left.courses[key].final.rewardXp = Math.max(0, Number(xf.rewardXp || 0), Number(yf.rewardXp || 0), Number(left.courses[key].final.rewardXp || 0));
+      left.courses[key].final.rewardModelVersion = Math.max(0, Number(xf.rewardModelVersion || 0), Number(yf.rewardModelVersion || 0), Number(left.courses[key].final.rewardModelVersion || 0));
       const finalFirstPassMsValues = [Number(xf.firstPassMs || 0), Number(yf.firstPassMs || 0), Number(left.courses[key].final.firstPassMs || 0)].filter(value => value > 0);
       left.courses[key].final.firstPassMs = finalFirstPassMsValues.length ? Math.min(...finalFirstPassMsValues) : 0;
       const xc = left.courses[key].certificate || {};
@@ -41136,17 +41142,29 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   const EXPLORER_XP = Object.freeze({
     miniGame: 5,
     miniGameFirstTry: 2,
+    miniGameMin: 3,
+    miniGameRetryPenalty: 2,
     practice: 10,
     practiceFirstTry: 2,
+    practiceMin: 8,
+    practiceRetryPenalty: 2,
     quickCheck: 10,
     quickPerfect: 5,
     quickSpeedMax: 3,
+    quickMistakePenalty: 2,
     topicComplete: 10,
     finalPass: 50,
     finalPerfect: 10,
     finalSpeedMax: 5,
+    finalMistakePenalty: 3,
     certificate: 25
   });
+
+  const EXPLORER_REWARD_MODEL_VERSION = 394;
+
+  function hasStoredXpReward(record, key) {
+    return Boolean(record && Object.prototype.hasOwnProperty.call(record, key) && Number.isFinite(Number(record[key])));
+  }
 
   function quickSpeedBonusFor(responseMs = []) {
     const values = (Array.isArray(responseMs) ? responseMs : [])
@@ -41171,15 +41189,82 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     return seconds < 10 ? `${seconds.toFixed(1)}s` : `${Math.round(seconds)}s`;
   }
 
+  function legacyMiniGameXp(record = {}) {
+    return record.miniGamePassed
+      ? EXPLORER_XP.miniGame + (record.miniGameFirstTryBonus ? EXPLORER_XP.miniGameFirstTry : 0)
+      : 0;
+  }
+
+  function legacyPracticeXp(record = {}) {
+    return record.practicePassed
+      ? EXPLORER_XP.practice + (record.practiceFirstTryBonus ? EXPLORER_XP.practiceFirstTry : 0)
+      : 0;
+  }
+
+  function legacyQuickXp(record = {}) {
+    if (!(record.quizFivePassed || record.quizPassed)) return 0;
+    return EXPLORER_XP.quickCheck
+      + (Number(record.quizBestCorrect || 0) >= 5 ? EXPLORER_XP.quickPerfect : 0)
+      + Math.min(EXPLORER_XP.quickSpeedMax, Math.max(0, Number(record.quizSpeedBonus || 0)));
+  }
+
+  function activateTopicRewardModel(record = {}) {
+    if (!record || Number(record.rewardModelVersion || 0) >= EXPLORER_REWARD_MODEL_VERSION) return true;
+    // Completed topics from older versions keep their original XP forever.
+    if (record.completedAt) return false;
+    // Seed already-earned milestones before switching an in-progress topic to v394.
+    if (record.miniGamePassed && Math.max(0, Number(record.miniGameRewardXp || 0)) <= 0) record.miniGameRewardXp = legacyMiniGameXp(record);
+    if (record.practicePassed && Math.max(0, Number(record.practiceRewardXp || 0)) <= 0) record.practiceRewardXp = legacyPracticeXp(record);
+    if ((record.quizFivePassed || record.quizPassed) && Math.max(0, Number(record.quizRewardXp || 0)) <= 0) record.quizRewardXp = legacyQuickXp(record);
+    record.rewardModelVersion = EXPLORER_REWARD_MODEL_VERSION;
+    return true;
+  }
+
+  function miniGameRewardForAttempt(attemptNumber = 1) {
+    const attempt = Math.max(1, Number(attemptNumber || 1));
+    if (attempt === 1) return EXPLORER_XP.miniGame + EXPLORER_XP.miniGameFirstTry;
+    if (attempt === 2) return EXPLORER_XP.miniGame;
+    return EXPLORER_XP.miniGameMin;
+  }
+
+  function practiceRewardForAttempt(attemptNumber = 1) {
+    const attempt = Math.max(1, Number(attemptNumber || 1));
+    if (attempt === 1) return EXPLORER_XP.practice + EXPLORER_XP.practiceFirstTry;
+    if (attempt === 2) return EXPLORER_XP.practice;
+    return EXPLORER_XP.practiceMin;
+  }
+
+  function quickAttemptReward(correctCount = 0, speedBonus = 0, totalQuestions = 5) {
+    const total = Math.max(1, Number(totalQuestions || 5));
+    const correct = Math.max(0, Math.min(total, Number(correctCount || 0)));
+    if (correct < Math.ceil(total * 0.8)) return 0;
+    const wrong = Math.max(0, total - correct);
+    const perfect = correct === total ? EXPLORER_XP.quickPerfect : 0;
+    const speed = Math.min(EXPLORER_XP.quickSpeedMax, Math.max(0, Number(speedBonus || 0)));
+    return Math.max(0, EXPLORER_XP.quickCheck + perfect + speed - (wrong * EXPLORER_XP.quickMistakePenalty));
+  }
+
+  function finalAttemptReward(correctCount = 0, speedBonus = 0, totalQuestions = 5) {
+    const total = Math.max(1, Number(totalQuestions || 5));
+    const correct = Math.max(0, Math.min(total, Number(correctCount || 0)));
+    if (correct < Math.ceil(total * 0.8)) return 0;
+    const wrong = Math.max(0, total - correct);
+    const perfect = correct === total ? EXPLORER_XP.finalPerfect : 0;
+    const speed = Math.min(EXPLORER_XP.finalSpeedMax, Math.max(0, Number(speedBonus || 0)));
+    return Math.max(0, EXPLORER_XP.finalPass + perfect + speed - (wrong * EXPLORER_XP.finalMistakePenalty));
+  }
+
   function explorerTopicXp(record = {}) {
-    let xp = 0;
-    if (record.miniGamePassed) xp += EXPLORER_XP.miniGame;
-    if (record.miniGameFirstTryBonus) xp += EXPLORER_XP.miniGameFirstTry;
-    if (record.practicePassed) xp += EXPLORER_XP.practice;
-    if (record.practiceFirstTryBonus) xp += EXPLORER_XP.practiceFirstTry;
-    if (record.quizFivePassed || record.quizPassed) xp += EXPLORER_XP.quickCheck;
-    if (Number(record.quizBestCorrect || 0) >= 5) xp += EXPLORER_XP.quickPerfect;
-    xp += Math.min(EXPLORER_XP.quickSpeedMax, Math.max(0, Number(record.quizSpeedBonus || 0)));
+    if (Number(record.rewardModelVersion || 0) >= EXPLORER_REWARD_MODEL_VERSION) {
+      let xp = 0;
+      if (record.miniGamePassed) xp += hasStoredXpReward(record, 'miniGameRewardXp') ? Math.max(0, Number(record.miniGameRewardXp || 0)) : legacyMiniGameXp(record);
+      if (record.practicePassed) xp += hasStoredXpReward(record, 'practiceRewardXp') ? Math.max(0, Number(record.practiceRewardXp || 0)) : legacyPracticeXp(record);
+      if (record.quizFivePassed || record.quizPassed) xp += hasStoredXpReward(record, 'quizRewardXp') ? Math.max(0, Number(record.quizRewardXp || 0)) : legacyQuickXp(record);
+      if (record.completedAt) xp += EXPLORER_XP.topicComplete;
+      return xp;
+    }
+
+    let xp = legacyMiniGameXp(record) + legacyPracticeXp(record) + legacyQuickXp(record);
     if (record.completedAt) xp += EXPLORER_XP.topicComplete;
     // Legacy completed topics pre-date some newer activities. Never reduce their original mastery floor.
     if (record.completedAt) xp = Math.max(xp, 35);
@@ -41195,9 +41280,11 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       const final = data.final || {};
       const cert = data.certificate || {};
       const finalXp = final.passed
-        ? EXPLORER_XP.finalPass
-          + (Number(final.score || 0) >= 100 ? EXPLORER_XP.finalPerfect : 0)
-          + Math.min(EXPLORER_XP.finalSpeedMax, Math.max(0, Number(final.speedBonus || 0)))
+        ? (Number(final.rewardModelVersion || 0) >= EXPLORER_REWARD_MODEL_VERSION && hasStoredXpReward(final, 'rewardXp')
+          ? Math.max(0, Number(final.rewardXp || 0))
+          : EXPLORER_XP.finalPass
+            + (Number(final.score || 0) >= 100 ? EXPLORER_XP.finalPerfect : 0)
+            + Math.min(EXPLORER_XP.finalSpeedMax, Math.max(0, Number(final.speedBonus || 0))))
         : 0;
       const certificateXp = cert.issuedAt ? EXPLORER_XP.certificate : 0;
       return sum + topicXp + finalXp + certificateXp;
@@ -41308,7 +41395,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     if (dom.explored) dom.explored.textContent = String(explored);
     if (dom.completed) dom.completed.textContent = String(complete);
     if (dom.certCount) dom.certCount.textContent = String(certificateCount());
-    if (dom.xpBadge) { dom.xpBadge.textContent = `⚡ ${totalXp()} XP`; dom.xpBadge.title = 'Mastery XP rewards first-time learning milestones, accuracy, and small speed bonuses. Speed never removes XP, and repeating completed work does not add duplicate XP.'; }
+    if (dom.xpBadge) { dom.xpBadge.textContent = `⚡ ${totalXp()} XP`; dom.xpBadge.title = 'Mastery XP rewards accuracy, first tries, and small speed bonuses. Wrong answers reduce only the current activity reward — already-earned Total XP is never deducted. Retakes can improve a best reward but cannot farm duplicate XP.'; }
     renderHeartStatus();
     if (dom.courseProgressOverlay && !dom.courseProgressOverlay.classList.contains('hidden')) renderCourseProgressPanel();
     renderDashboardSummary();
@@ -41613,12 +41700,12 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       return `<button type="button" class="${classes.join(' ')}" data-explorer-quick-option="${optionIndex}" ${disabled ? 'disabled' : ''}><span class="code-explorer-quick-letter">${String.fromCharCode(65 + optionIndex)}</span><span>${escapeHTML(option)}</span></button>`;
     }).join('');
     const instantFeedback = reviewed
-      ? `<div class="code-explorer-instant-feedback ${result ? 'correct' : 'wrong'}"><strong>${result ? '✓ Correct!' : '✕ Not quite'}</strong><span>${result ? 'Nice work — that answer is correct.' : `Correct answer: ${escapeHTML(question.options[expected])}. ❤️ −1 heart`}</span></div>`
+      ? `<div class="code-explorer-instant-feedback ${result ? 'correct' : 'wrong'}"><strong>${result ? '✓ Correct!' : '✕ Not quite'}</strong><span>${result ? 'Nice work — that answer is correct.' : `Correct answer: ${escapeHTML(question.options[expected])}. ❤️ −1 heart · ⚡ −${EXPLORER_XP.quickMistakePenalty} potential XP`}</span></div>`
       : (hearts.balance <= 0 ? `<div class="code-explorer-instant-feedback hearts-empty"><strong>❤️ Out of hearts</strong><span>Next heart in ${escapeHTML(formatHeartCountdown(hearts.nextInMs))}. You can keep reviewing this topic while you wait.</span></div>` : '');
     dom.quizOptions.innerHTML = `
       <div class="code-explorer-quick-shell ${reviewed ? (result ? 'answer-correct' : 'answer-wrong') : ''}">
         <div class="code-explorer-quick-progress-head">
-          <div><strong>Question ${quiz.index + 1} of ${total}</strong><span>${answeredCount}/${total} checked · 4/5 to pass · up to +${EXPLORER_XP.quickSpeedMax} speed XP</span></div>
+          <div><strong>Question ${quiz.index + 1} of ${total}</strong><span>${answeredCount}/${total} checked · 4/5 to pass · Max ${EXPLORER_XP.quickCheck + EXPLORER_XP.quickPerfect + EXPLORER_XP.quickSpeedMax} XP · −${EXPLORER_XP.quickMistakePenalty} XP per wrong answer</span></div>
           <div class="code-explorer-quick-steps" aria-label="Quick Check questions">${stepButtons}</div>
         </div>
         <div class="code-explorer-quick-progress-track"><span style="width:${progressPercent}%"></span></div>
@@ -41630,7 +41717,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         </section>
         <div class="code-explorer-quick-nav">
           <button type="button" class="secondary-btn" data-explorer-quick-prev ${quiz.index <= 0 ? 'disabled' : ''}>← Previous</button>
-          <span>${reviewed ? (result ? 'Correct answer checked.' : 'Wrong answer checked · heart updated.') : (hearts.balance <= 0 ? 'Wait for a heart to continue.' : 'Choose one answer. It will be checked immediately.')}</span>
+          <span>${reviewed ? (result ? 'Correct answer checked.' : `Wrong answer checked · ❤️ −1 · ⚡ −${EXPLORER_XP.quickMistakePenalty} potential XP`) : (hearts.balance <= 0 ? 'Wait for a heart to continue.' : 'Choose one answer. It will be checked immediately.')}</span>
           <button type="button" class="secondary-btn" data-explorer-quick-next ${quiz.index >= total - 1 || !reviewed ? 'disabled' : ''}>Next →</button>
         </div>
       </div>`;
@@ -41650,9 +41737,18 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     const wasPassedBefore = Boolean(record.quizFivePassed || record.quizPassed);
     const wasCompletedBefore = Boolean(record.completedAt);
     const previousBest = Math.max(0, Number(record.quizBestCorrect || 0));
+    const usesRewardModel = activateTopicRewardModel(record);
+    const previousReward = usesRewardModel
+      ? (hasStoredXpReward(record, 'quizRewardXp') ? Math.max(0, Number(record.quizRewardXp || 0)) : legacyQuickXp(record))
+      : legacyQuickXp(record);
     const correct = quiz.results.filter(Boolean).length;
     const score = Math.round(correct / questions.length * 100);
+    const wrongCount = Math.max(0, questions.length - correct);
     const passed = correct >= 4;
+    const timing = passed ? quickSpeedBonusFor(quiz.responseMs) : { bonus: 0, avgMs: 0 };
+    const attemptReward = passed && usesRewardModel ? quickAttemptReward(correct, timing.bonus, questions.length) : 0;
+    const mistakePenalty = passed ? wrongCount * EXPLORER_XP.quickMistakePenalty : wrongCount * EXPLORER_XP.quickMistakePenalty;
+
     record.quizAttempts = Number(record.quizAttempts || 0) + 1;
     record.quizLastCorrect = correct;
     record.quizLastScore = score;
@@ -41663,32 +41759,44 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       record.quizPassed = true;
       record.quizFivePassed = true;
       if (!wasPassedBefore) {
-        const timing = quickSpeedBonusFor(quiz.responseMs);
         record.quizFirstPassAt = record.quizAnsweredAt;
         record.quizFirstPassAvgMs = timing.avgMs;
-        record.quizSpeedBonus = timing.bonus;
       }
+      record.quizSpeedBonus = Math.max(0, Number(record.quizSpeedBonus || 0), Number(timing.bonus || 0));
+      if (usesRewardModel) record.quizRewardXp = Math.max(previousReward, attemptReward);
     }
     scheduleCloudSave();
     updateTopicCompletion(item);
+
     const earnedXp = Math.max(0, totalXp() - xpBefore);
-    const speedBonus = !wasPassedBefore && passed ? Math.max(0, Number(record.quizSpeedBonus || 0)) : 0;
-    const avgLabel = !wasPassedBefore && passed ? formatExplorerResponseTime(record.quizFirstPassAvgMs) : '';
-    const earnedPerfect = correct >= 5 && previousBest < 5;
+    const rewardGain = usesRewardModel && passed ? Math.max(0, Math.max(previousReward, attemptReward) - previousReward) : 0;
+    const avgLabel = passed ? formatExplorerResponseTime(timing.avgMs) : '';
     const earnedTopic = !wasCompletedBefore && Boolean(record.completedAt);
+    const maxQuickReward = EXPLORER_XP.quickCheck + EXPLORER_XP.quickPerfect + EXPLORER_XP.quickSpeedMax;
     const rewardBits = [];
-    if (!wasPassedBefore && passed) rewardBits.push(`Pass +${EXPLORER_XP.quickCheck}`);
-    if (earnedPerfect) rewardBits.push(`Perfect +${EXPLORER_XP.quickPerfect}`);
-    if (speedBonus > 0) rewardBits.push(`Speed +${speedBonus}${avgLabel ? ` (${avgLabel}/question)` : ''}`);
+    if (usesRewardModel && passed) {
+      if (rewardGain > 0) rewardBits.push(`Quick Check +${rewardGain} · best ${Math.max(previousReward, attemptReward)}/${maxQuickReward}`);
+      else rewardBits.push(`Best Quick Check reward stays ${previousReward}/${maxQuickReward}`);
+      rewardBits.push(`Pass +${EXPLORER_XP.quickCheck}`);
+      if (correct === questions.length) rewardBits.push(`Perfect +${EXPLORER_XP.quickPerfect}`);
+      if (timing.bonus > 0) rewardBits.push(`Speed +${timing.bonus}${avgLabel ? ` (${avgLabel}/question)` : ''}`);
+      if (wrongCount > 0) rewardBits.push(`Mistake −${mistakePenalty}`);
+    } else if (!usesRewardModel && passed) {
+      if (!wasPassedBefore) rewardBits.push(`Pass +${EXPLORER_XP.quickCheck}`);
+      if (correct >= 5 && previousBest < 5) rewardBits.push(`Perfect +${EXPLORER_XP.quickPerfect}`);
+      const legacySpeed = !wasPassedBefore ? Math.max(0, Number(record.quizSpeedBonus || 0)) : 0;
+      if (legacySpeed > 0) rewardBits.push(`Speed +${legacySpeed}`);
+    }
     if (earnedTopic) rewardBits.push(`Topic +${EXPLORER_XP.topicComplete}`);
-    const rewardHtml = earnedXp > 0
-      ? `<div class="code-explorer-xp-reward-line"><b>⚡ +${earnedXp} XP</b><span>${escapeHTML(rewardBits.join(' · ') || 'Mastery progress')}</span></div>`
+    const rewardHtml = passed
+      ? `<div class="code-explorer-xp-reward-line"><b>${earnedXp > 0 ? `⚡ +${earnedXp} XP earned` : '⚡ No duplicate XP'}</b><span>${escapeHTML(rewardBits.join(' · ') || 'Your best mastery reward is already saved.')}</span></div>`
       : '';
+
     dom.quizFeedback.classList.remove('hidden');
     dom.quizFeedback.dataset.type = passed ? 'success' : 'warning';
     dom.quizFeedback.innerHTML = passed
       ? `<strong>🎉 ${correct}/5 — Quick Check passed!</strong><span>${record.practicePassed ? 'Coding practice is also passed, so this topic is complete.' : 'Now pass the coding practice to unlock the next topic.'}</span>${rewardHtml}`
-      : `<strong>${correct}/5 — Keep going.</strong><span>You need at least 4/5. Review the answers, then retake when you have enough hearts. Taking longer never removes XP.</span>`;
+      : `<strong>${correct}/5 — Keep going.</strong><span>You need at least 4/5. ${wrongCount} wrong answer${wrongCount === 1 ? '' : 's'} used ${wrongCount} heart${wrongCount === 1 ? '' : 's'} and reduced this attempt's potential reward by ${mistakePenalty} XP. No Quick Check XP is awarded on a failed attempt. Your already-earned Total XP is safe.</span>`;
     dom.quizBadge.textContent = record.quizFivePassed ? `✓ Passed · Best ${record.quizBestCorrect}/5` : `Best ${record.quizBestCorrect}/5`;
     dom.quizBadge.dataset.state = record.quizFivePassed ? 'complete' : '';
     renderQuickQuiz();
@@ -41696,7 +41804,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       showQuickScreenFeedback(true, {
         correctTitle: `Quick Check Passed! +${earnedXp} XP`,
         correctText: rewardBits.join(' · ') || 'Mastery reward earned.',
-        correctDuration: 1450
+        correctDuration: 1550
       });
     }
     if (passed && record.practicePassed && record.miniGamePassed) {
@@ -41728,7 +41836,11 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     quiz.results[index] = correct;
     if (!correct) { spendHearts(1); animateHeartLoss(); }
     renderQuickQuiz();
-    showQuickScreenFeedback(correct);
+    showQuickScreenFeedback(correct, correct ? {} : {
+      wrongTitle: `Incorrect · ❤️ −1`,
+      wrongText: `This wrong answer also reduces the current Quick Check reward by ${EXPLORER_XP.quickMistakePenalty} XP. Your existing Total XP is not touched.`,
+      wrongDuration: 1280
+    });
     scheduleCloudSave();
     const finished = quiz.results.every(value => value !== null && value !== undefined);
     if (finished) {
@@ -41897,8 +42009,8 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     const blankText = selected || '____';
     dom.miniGameTitle.textContent = `${COURSES[state.course].short} Code Puzzle`;
     dom.miniGamePrompt.textContent = passed
-      ? 'Completed. You can review the puzzle or continue to Try It.'
-      : 'Tap the code that correctly fills the blank. Wrong tries do not use hearts.';
+      ? `Completed · ⚡ ${hasStoredXpReward(record, 'miniGameRewardXp') ? Number(record.miniGameRewardXp || 0) : legacyMiniGameXp(record)} XP earned. You can review or continue to Try It.`
+      : `Tap the code that fills the blank. Max ${EXPLORER_XP.miniGame + EXPLORER_XP.miniGameFirstTry} XP · wrong tries lower this activity reward, but do not use hearts.`;
     dom.miniGameBadge.textContent = passed ? '✓ Completed' : (game.result === 'wrong' ? 'Try again' : 'Not completed');
     dom.miniGameBadge.dataset.state = passed ? 'complete' : (game.result === 'wrong' ? 'warning' : '');
     dom.miniGameCode.innerHTML = `<pre><span class="code-explorer-mini-game-source">${escapeHTML(game.before)}<mark class="code-explorer-mini-game-blank ${game.result === 'wrong' ? 'wrong' : (passed && selected ? 'correct' : '')}">${escapeHTML(blankText)}</mark>${escapeHTML(game.after)}</span></pre>`;
@@ -41962,6 +42074,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     const record = topicRecord();
     if (!game || record.miniGamePassed || !game.selected) return;
     const xpBefore = totalXp();
+    const usesRewardModel = activateTopicRewardModel(record);
     record.miniGameAttempts = Number(record.miniGameAttempts || 0) + 1;
     const correct = String(game.selected).toLowerCase() === String(game.correct).toLowerCase();
     game.result = correct ? 'correct' : 'wrong';
@@ -41969,14 +42082,20 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       record.miniGamePassed = true;
       record.miniGamePassedAt = record.miniGamePassedAt || new Date().toISOString();
       if (record.miniGameAttempts === 1) record.miniGameFirstTryBonus = true;
+      if (usesRewardModel) record.miniGameRewardXp = miniGameRewardForAttempt(record.miniGameAttempts);
       scheduleCloudSave();
       const earnedXp = Math.max(0, totalXp() - xpBefore);
+      const activityReward = usesRewardModel
+        ? Math.max(0, Number(record.miniGameRewardXp || 0))
+        : legacyMiniGameXp(record);
+      const maxReward = EXPLORER_XP.miniGame + EXPLORER_XP.miniGameFirstTry;
+      const penalty = Math.max(0, maxReward - activityReward);
       showQuickScreenFeedback(true, {
         correctTitle: `Code Complete! +${earnedXp} XP`,
-        correctText: record.miniGameFirstTryBonus
-          ? `Fill in the Blank +${EXPLORER_XP.miniGame} · First-try bonus +${EXPLORER_XP.miniGameFirstTry}. Try It is now unlocked.`
-          : `Fill in the Blank +${EXPLORER_XP.miniGame}. Try It is now unlocked.`,
-        correctDuration: 1200
+        correctText: penalty > 0
+          ? `Fill in the Blank reward ${activityReward}/${maxReward} XP · retry adjustment −${penalty}. Try It is now unlocked.`
+          : `Perfect first try · Fill in the Blank ${activityReward}/${maxReward} XP. Try It is now unlocked.`,
+        correctDuration: 1250
       });
       renderMiniGame();
       renderTopProgress();
@@ -41984,19 +42103,29 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       return;
     }
     scheduleCloudSave();
+    const nextReward = usesRewardModel
+      ? miniGameRewardForAttempt(Number(record.miniGameAttempts || 0) + 1)
+      : EXPLORER_XP.miniGame;
+    const maxReward = EXPLORER_XP.miniGame + EXPLORER_XP.miniGameFirstTry;
+    const lostPotential = Math.max(0, maxReward - nextReward);
     showQuickScreenFeedback(false, {
-      wrongTitle: 'Try Again',
-      wrongText: 'That code does not complete the blank. No heart was used.',
-      wrongDuration: 900
+      wrongTitle: 'Try Again · Reward Reduced',
+      wrongText: `No heart used. Next successful Fill in the Blank reward: ${nextReward}/${maxReward} XP${lostPotential ? ` (−${lostPotential} from max)` : ''}.`,
+      wrongDuration: 1100
     });
     renderMiniGame();
+    if (dom.miniGameFeedback) {
+      dom.miniGameFeedback.classList.remove('hidden');
+      dom.miniGameFeedback.dataset.type = 'warning';
+      dom.miniGameFeedback.innerHTML = `That code does not fit here. <span class="code-explorer-xp-penalty-inline">⚡ Next reward ${nextReward}/${maxReward} XP</span>`;
+    }
     clearTimeout(state.miniGameResetTimer);
     state.miniGameResetTimer = window.setTimeout(() => {
       if (state.miniGame !== game || topicRecord().miniGamePassed) return;
       game.selected = '';
       game.result = '';
       renderMiniGame();
-    }, 940);
+    }, 1040);
   }
 
   const MOBILE_EXPLORER_STAGES = [
@@ -42444,6 +42573,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     const record = topicRecord();
     const xpBefore = totalXp();
     const wasPassedBefore = Boolean(record.practicePassed);
+    const usesRewardModel = activateTopicRewardModel(record);
     record.attempts = Number(record.attempts || 0) + 1;
     const result = validatePractice(item, dom.practiceEditor.value);
     dom.practiceFeedback.classList.remove('hidden');
@@ -42451,6 +42581,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     if (result.ok) {
       record.practicePassed = true;
       if (!wasPassedBefore && record.attempts === 1) record.practiceFirstTryBonus = true;
+      if (!wasPassedBefore && usesRewardModel) record.practiceRewardXp = practiceRewardForAttempt(record.attempts);
       dom.practiceBadge.textContent = '✓ Passed';
       dom.practiceBadge.dataset.state = 'complete';
     }
@@ -42459,14 +42590,30 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     updateTopicCompletion(item);
     const earnedXp = Math.max(0, totalXp() - xpBefore);
     if (result.ok && !wasPassedBefore) {
-      const bonusText = record.practiceFirstTryBonus ? ` · First-try bonus +${EXPLORER_XP.practiceFirstTry}` : '';
-      dom.practiceFeedback.innerHTML = `<strong>${escapeHTML(result.message)}</strong><span class="code-explorer-xp-inline">⚡ +${earnedXp} XP · Try It +${EXPLORER_XP.practice}${escapeHTML(bonusText)}</span>`;
+      const activityReward = usesRewardModel
+        ? Math.max(0, Number(record.practiceRewardXp || 0))
+        : legacyPracticeXp(record);
+      const maxReward = EXPLORER_XP.practice + EXPLORER_XP.practiceFirstTry;
+      const penalty = Math.max(0, maxReward - activityReward);
+      dom.practiceFeedback.innerHTML = `<strong>${escapeHTML(result.message)}</strong><span class="code-explorer-xp-inline">⚡ +${earnedXp} XP · Try It reward ${activityReward}/${maxReward}${penalty ? ` · <span class="code-explorer-xp-penalty-inline">retry adjustment −${penalty}</span>` : ' · perfect first try'}</span>`;
       showQuickScreenFeedback(true, {
         correctTitle: `Try It Passed! +${earnedXp} XP`,
-        correctText: record.practiceFirstTryBonus
-          ? `Coding challenge +${EXPLORER_XP.practice} · First-try bonus +${EXPLORER_XP.practiceFirstTry}`
-          : `Coding challenge +${EXPLORER_XP.practice}`,
-        correctDuration: 1200
+        correctText: penalty > 0
+          ? `Coding reward ${activityReward}/${maxReward} XP · retry adjustment −${penalty}.`
+          : `Perfect first try · Coding reward ${activityReward}/${maxReward} XP.`,
+        correctDuration: 1250
+      });
+    } else if (!result.ok) {
+      const nextReward = usesRewardModel
+        ? practiceRewardForAttempt(Number(record.attempts || 0) + 1)
+        : EXPLORER_XP.practice;
+      const maxReward = EXPLORER_XP.practice + EXPLORER_XP.practiceFirstTry;
+      const penalty = Math.max(0, maxReward - nextReward);
+      dom.practiceFeedback.innerHTML = `<strong>${escapeHTML(result.message)}</strong><span class="code-explorer-xp-penalty-inline">⚡ Next successful Try It reward: ${nextReward}/${maxReward} XP${penalty ? ` · −${penalty} from max` : ''}</span>`;
+      showQuickScreenFeedback(false, {
+        wrongTitle: 'Try It Needs Fixing',
+        wrongText: `No heart used. Your next successful Try It can earn ${nextReward}/${maxReward} XP. Existing Total XP stays safe.`,
+        wrongDuration: 1100
       });
     } else {
       dom.practiceFeedback.textContent = result.message;
@@ -42491,7 +42638,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     state.finalAnswers = {};
     state.finalStartedAt = Date.now();
     dom.finalModalTitle.textContent = `${course.title} Final Challenge`;
-    dom.finalModalMeta.textContent = `5 questions · Pass at 80% · Accuracy first · up to +${EXPLORER_XP.finalSpeedMax} speed XP · ❤️ ${hearts.balance}/${HEARTS_MAX}`;
+    dom.finalModalMeta.textContent = `5 questions · Pass at 80% · Max ${EXPLORER_XP.finalPass + EXPLORER_XP.finalPerfect + EXPLORER_XP.finalSpeedMax} XP · −${EXPLORER_XP.finalMistakePenalty} XP per wrong answer · ❤️ ${hearts.balance}/${HEARTS_MAX}`;
     dom.finalQuestions.innerHTML = course.finalQuiz.map((item, qIndex) => `<fieldset class="code-explorer-final-question"><legend>${qIndex + 1}. ${escapeHTML(item[0])}</legend>${item[1].map((option, optionIndex) => `<label><input type="radio" name="explorer-final-${qIndex}" value="${optionIndex}"><span>${escapeHTML(option)}</span></label>`).join('')}</fieldset>`).join('');
     dom.finalResult.classList.add('hidden');
     dom.finalResult.textContent = '';
@@ -42554,6 +42701,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       dom.finalResult.textContent = 'Answer all 5 questions before checking your score.';
       return;
     }
+
     const xpBefore = totalXp();
     const score = Math.round(correct / course.finalQuiz.length * 100);
     const wrongCount = Math.max(0, course.finalQuiz.length - correct);
@@ -42565,7 +42713,14 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     const hadCertificateBefore = Boolean(courseState.certificate?.issuedAt);
     const passed = score >= 80;
     const elapsedMs = state.finalStartedAt ? Math.max(0, Date.now() - state.finalStartedAt) : 0;
-    const firstPassSpeedBonus = passed && !wasPassedBefore ? finalSpeedBonusFor(elapsedMs) : Math.max(0, Number(previousFinal.speedBonus || 0));
+    const legacyCompletedFinal = wasPassedBefore && Number(previousFinal.rewardModelVersion || 0) < EXPLORER_REWARD_MODEL_VERSION;
+    const usesRewardModel = !legacyCompletedFinal;
+    const attemptSpeedBonus = passed ? finalSpeedBonusFor(elapsedMs) : 0;
+    const previousReward = usesRewardModel && hasStoredXpReward(previousFinal, 'rewardXp') ? Math.max(0, Number(previousFinal.rewardXp || 0)) : 0;
+    const attemptReward = passed && usesRewardModel ? finalAttemptReward(correct, attemptSpeedBonus, course.finalQuiz.length) : 0;
+    const bestReward = usesRewardModel ? Math.max(previousReward, attemptReward) : 0;
+    const firstPassSpeedBonus = passed && !wasPassedBefore ? attemptSpeedBonus : Math.max(0, Number(previousFinal.speedBonus || 0), attemptSpeedBonus);
+
     courseState.final = {
       ...previousFinal,
       score: Math.max(previous, score),
@@ -42576,6 +42731,11 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       speedBonus: firstPassSpeedBonus,
       firstPassMs: previousFinal.firstPassMs || (passed && !wasPassedBefore ? elapsedMs : 0)
     };
+    if (usesRewardModel) {
+      courseState.final.rewardModelVersion = EXPLORER_REWARD_MODEL_VERSION;
+      courseState.final.rewardXp = bestReward;
+    }
+
     let unlockedCourse = '';
     if (passed) {
       ensureCertificate(state.course);
@@ -42587,31 +42747,44 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     renderCourseCards();
     renderFinalCard();
     renderCertificates();
+
     const earnedXp = Math.max(0, totalXp() - xpBefore);
+    const rewardGain = usesRewardModel && passed ? Math.max(0, bestReward - previousReward) : 0;
     const earnedPerfect = score >= 100 && previous < 100;
-    const earnedSpeed = passed && !wasPassedBefore ? Math.max(0, Number(courseState.final.speedBonus || 0)) : 0;
     const earnedCertificate = passed && !hadCertificateBefore && Boolean(courseState.certificate?.issuedAt);
+    const mistakePenalty = wrongCount * EXPLORER_XP.finalMistakePenalty;
+    const maxFinalReward = EXPLORER_XP.finalPass + EXPLORER_XP.finalPerfect + EXPLORER_XP.finalSpeedMax;
     const rewardBits = [];
-    if (passed && !wasPassedBefore) rewardBits.push(`Final pass +${EXPLORER_XP.finalPass}`);
-    if (earnedPerfect) rewardBits.push(`Perfect +${EXPLORER_XP.finalPerfect}`);
-    if (earnedSpeed > 0) rewardBits.push(`Speed +${earnedSpeed} (${formatExplorerResponseTime(courseState.final.firstPassMs)} total)`);
+    if (usesRewardModel && passed) {
+      if (rewardGain > 0) rewardBits.push(`Final +${rewardGain} · best ${bestReward}/${maxFinalReward}`);
+      else rewardBits.push(`Best Final reward stays ${previousReward}/${maxFinalReward}`);
+      rewardBits.push(`Pass +${EXPLORER_XP.finalPass}`);
+      if (correct === course.finalQuiz.length) rewardBits.push(`Perfect +${EXPLORER_XP.finalPerfect}`);
+      if (attemptSpeedBonus > 0) rewardBits.push(`Speed +${attemptSpeedBonus} (${formatExplorerResponseTime(elapsedMs)} total)`);
+      if (mistakePenalty > 0) rewardBits.push(`Mistake −${mistakePenalty}`);
+    } else if (passed) {
+      if (!wasPassedBefore) rewardBits.push(`Final pass +${EXPLORER_XP.finalPass}`);
+      if (earnedPerfect) rewardBits.push(`Perfect +${EXPLORER_XP.finalPerfect}`);
+      if (passed && !wasPassedBefore && firstPassSpeedBonus > 0) rewardBits.push(`Speed +${firstPassSpeedBonus}`);
+    }
     if (earnedCertificate) rewardBits.push(`Certificate +${EXPLORER_XP.certificate}`);
+
     dom.finalResult.classList.remove('hidden');
     dom.finalResult.dataset.type = passed ? 'success' : 'warning';
     const heartNote = wrongCount === 0
       ? 'Perfect score — no hearts used.'
-      : `${wrongCount} wrong answer${wrongCount === 1 ? '' : 's'} · ${heartsSpent} heart${heartsSpent === 1 ? '' : 's'} used${heartsSpent < wrongCount ? ' before your balance reached 0' : ''}.`;
-    const rewardHtml = earnedXp > 0
-      ? `<div class="code-explorer-xp-reward-line"><b>⚡ +${earnedXp} XP</b><span>${escapeHTML(rewardBits.join(' · '))}</span></div>`
+      : `${wrongCount} wrong answer${wrongCount === 1 ? '' : 's'} · ${heartsSpent} heart${heartsSpent === 1 ? '' : 's'} used${heartsSpent < wrongCount ? ' before your balance reached 0' : ''} · ${mistakePenalty} XP potential removed from this attempt.`;
+    const rewardHtml = passed
+      ? `<div class="code-explorer-xp-reward-line"><b>${earnedXp > 0 ? `⚡ +${earnedXp} XP earned` : '⚡ No duplicate XP'}</b><span>${escapeHTML(rewardBits.join(' · ') || 'Your best Final reward is already saved.')}</span></div>`
       : '';
     dom.finalResult.innerHTML = passed
       ? `<strong>🎉 Passed! ${score}%</strong><span>Your ${escapeHTML(course.title)} certificate is unlocked. ${escapeHTML(heartNote)}${unlockedCourse ? ` ${escapeHTML(COURSES[unlockedCourse].icon)} ${escapeHTML(COURSES[unlockedCourse].title)} is now unlocked!` : ''}</span>${rewardHtml}`
-      : `<strong>${score}% · Keep going</strong><span>You need 80% to pass. ${escapeHTML(heartNote)} Taking longer never removes XP.</span>`;
+      : `<strong>${score}% · Keep going</strong><span>You need 80% to pass. ${escapeHTML(heartNote)} No Final XP is awarded on a failed attempt, and already-earned Total XP is never deducted.</span>`;
     if (passed && earnedXp > 0) {
       showQuickScreenFeedback(true, {
         correctTitle: `Final Passed! +${earnedXp} XP`,
         correctText: rewardBits.join(' · ') || 'Mastery reward earned.',
-        correctDuration: 1700
+        correctDuration: 1750
       });
     }
     dom.finalSubmitBtn.textContent = passed ? '🏅 View Certificate' : 'Try Again';
