@@ -4692,6 +4692,16 @@ function getStudentRosterCollectionRef() {
   return collection(firebaseSync.db, firebaseSync.collectionName, firebaseSync.documentId, 'studentRoster');
 }
 
+function getCodeExplorerLeaderboardCollectionRef() {
+  const { collection } = firebaseSync.modules;
+  return collection(firebaseSync.db, firebaseSync.collectionName, firebaseSync.documentId, 'codeExplorerLeaderboard');
+}
+
+function getCodeExplorerLeaderboardDocRef(uid) {
+  const { doc } = firebaseSync.modules;
+  return doc(firebaseSync.db, firebaseSync.collectionName, firebaseSync.documentId, 'codeExplorerLeaderboard', String(uid || '').trim());
+}
+
 function getStudentRosterDocRef(studentId) {
   const { doc } = firebaseSync.modules;
   return doc(firebaseSync.db, firebaseSync.collectionName, firebaseSync.documentId, 'studentRoster', normalizeStudentId(studentId));
@@ -40117,8 +40127,19 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     themeBtn: $('codeExplorerThemeBtn'),
     certificatesBtn: $('codeExplorerCertificatesBtn'),
     xpBadge: $('codeExplorerXpBadge'),
+    leaderboardBtn: $('codeExplorerLeaderboardBtn'),
     heartBadge: $('codeExplorerHeartBadge'),
     quickThemeToggle: $('codeExplorerQuickThemeToggle'),
+    leaderboardOverlay: $('codeExplorerLeaderboardOverlay'),
+    leaderboardCloseBtn: $('codeExplorerLeaderboardCloseBtn'),
+    leaderboardRefreshBtn: $('codeExplorerLeaderboardRefreshBtn'),
+    leaderboardYourRank: $('codeExplorerLeaderboardYourRank'),
+    leaderboardYourXp: $('codeExplorerLeaderboardYourXp'),
+    leaderboardStudentCount: $('codeExplorerLeaderboardStudentCount'),
+    leaderboardTopXp: $('codeExplorerLeaderboardTopXp'),
+    leaderboardMotivation: $('codeExplorerLeaderboardMotivation'),
+    leaderboardStatus: $('codeExplorerLeaderboardStatus'),
+    leaderboardList: $('codeExplorerLeaderboardList'),
     overallBar: $('codeExplorerOverallBar'),
     overallText: $('codeExplorerOverallText'),
     explored: $('codeExplorerTopicsExplored'),
@@ -40504,6 +40525,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   const HEARTS_MAX = 5;
   const HEART_REFILL_MS = 60 * 60 * 1000;
   const state = { course: 'html', topicId: '', filter: 'all', progress: null, reader: '', cloudLoaded: false, dashboardCloudLoading: false, saveTimer: null, heartTimer: null, profileUnsub: null, finalAnswers: {}, quickQuiz: { topicId: '', index: 0, answers: [], results: [], submitted: false }, miniGame: { topicId: '', selected: '', result: '', correct: '', choices: [], before: '', after: '' }, miniGameResetTimer: null, quickAdvanceTimer: null, quickFeedbackTimer: null, justUnlockedTopicId: '', justUnlockedCourse: '', mobileStage: 'learn', mobileStageDirection: 'next', mobileSwipeStart: null, mobileView: 'roadmap' };
+  const leaderboardState = { records: [], loadedAt: 0, loading: false, source: '', rosterLoaded: false };
 
   function normalizeHeartState(input = {}) {
     const source = input && typeof input === 'object' ? input : {};
@@ -40836,12 +40858,29 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       const ready = await initFirebaseSync();
       if (!ready) return false;
       const { setDoc, serverTimestamp } = firebaseSync.modules;
+      const masteryXp = explorerXpFor(state.progress);
       await setDoc(getStudentDocRef(appSession.student.uid), {
         codeExplorerProgress: normalizeProgress(state.progress),
+        codeExplorerXp: masteryXp,
         codeExplorerUpdatedAt: serverTimestamp()
       }, { merge: true });
+      try {
+        const profile = appSession.student || appSession.lastStudentProfile || {};
+        await setDoc(getCodeExplorerLeaderboardDocRef(appSession.student.uid), {
+          uid: appSession.student.uid,
+          studentId: normalizeStudentId(profile.studentId || profile.studentIdNormalized || ''),
+          name: String(profile.name || profile.fullName || 'Student').trim(),
+          section: String(profile.section || '').trim(),
+          xp: masteryXp,
+          accountStatus: String(profile.accountStatus || 'active'),
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+      } catch (leaderboardSyncError) {
+        console.info('Code Explorer leaderboard quick-sync unavailable; rankings can still use student progress.', leaderboardSyncError);
+      }
       clearSelectiveFirestoreCache(`studentProfile:${appSession.student.uid}`);
       clearSelectiveFirestoreCache('admin:studentsAndRoster');
+      leaderboardState.loadedAt = 0;
       return true;
     } catch (error) {
       console.warn('Code Explorer progress cloud save skipped.', error);
@@ -41021,8 +41060,32 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     return index >= 0 && index < COURSE_KEYS.length - 1 ? COURSE_KEYS[index + 1] : '';
   }
 
+  const EXPLORER_XP = Object.freeze({ miniGame: 5, practice: 10, quickCheck: 10, quickPerfect: 5, topicComplete: 10, finalPass: 50, finalPerfect: 10, certificate: 25 });
+
+  function explorerTopicXp(record = {}) {
+    let xp = 0;
+    if (record.miniGamePassed) xp += EXPLORER_XP.miniGame;
+    if (record.practicePassed) xp += EXPLORER_XP.practice;
+    if (record.quizFivePassed || record.quizPassed) xp += EXPLORER_XP.quickCheck;
+    if (Number(record.quizBestCorrect || 0) >= 5) xp += EXPLORER_XP.quickPerfect;
+    if (record.completedAt) xp += EXPLORER_XP.topicComplete;
+    // Legacy completed topics pre-date the mini game. Give them a fair mastery floor.
+    if (record.completedAt) xp = Math.max(xp, 35);
+    return xp;
+  }
+
   function explorerXpFor(progress) {
-    return COURSE_KEYS.reduce((sum, key) => sum + courseProgressFor(progress, key).completed * 10 + (progress?.courses?.[key]?.final?.passed ? 50 : 0), 0);
+    return COURSE_KEYS.reduce((sum, key) => {
+      const course = COURSES[key];
+      const data = progress?.courses?.[key] || {};
+      const records = data.topics || {};
+      const topicXp = course.topics.reduce((topicSum, item) => topicSum + explorerTopicXp(records[item.id] || {}), 0);
+      const final = data.final || {};
+      const cert = data.certificate || {};
+      const finalXp = final.passed ? EXPLORER_XP.finalPass + (Number(final.score || 0) >= 100 ? EXPLORER_XP.finalPerfect : 0) : 0;
+      const certificateXp = cert.issuedAt ? EXPLORER_XP.certificate : 0;
+      return sum + topicXp + finalXp + certificateXp;
+    }, 0);
   }
 
   function explorerCertificateCountFor(progress) {
@@ -41129,7 +41192,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     if (dom.explored) dom.explored.textContent = String(explored);
     if (dom.completed) dom.completed.textContent = String(complete);
     if (dom.certCount) dom.certCount.textContent = String(certificateCount());
-    if (dom.xpBadge) dom.xpBadge.textContent = `⚡ ${totalXp()} XP`;
+    if (dom.xpBadge) { dom.xpBadge.textContent = `⚡ ${totalXp()} XP`; dom.xpBadge.title = 'Mastery XP rewards first-time learning milestones. Repeating completed work does not add duplicate XP.'; }
     renderHeartStatus();
     if (dom.courseProgressOverlay && !dom.courseProgressOverlay.classList.contains('hidden')) renderCourseProgressPanel();
     renderDashboardSummary();
@@ -41733,11 +41796,12 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       record.miniGamePassedAt = record.miniGamePassedAt || new Date().toISOString();
       scheduleCloudSave();
       showQuickScreenFeedback(true, {
-        correctTitle: 'Code Complete!',
+        correctTitle: `Code Complete! +${EXPLORER_XP.miniGame} XP`,
         correctText: 'Great job — the Fill in the Blank game is passed. Try It is now unlocked.',
         correctDuration: 980
       });
       renderMiniGame();
+      renderTopProgress();
       renderMobileJourney();
       return;
     }
@@ -41818,6 +41882,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       dom.backBtn.setAttribute('aria-label', mobile ? (roadmap ? 'Close Code Explorer' : 'Back to course path') : 'Back to My Projects');
       dom.backBtn.title = mobile ? (roadmap ? 'Close' : 'Course path') : 'Back to My Projects';
     }
+    if (dom.leaderboardBtn) { dom.leaderboardBtn.title = 'Global Code Explorer Leaderboard'; dom.leaderboardBtn.setAttribute('aria-label', 'Open global Code Explorer leaderboard'); }
     if (dom.certificatesBtn) dom.certificatesBtn.textContent = mobile ? '🏅' : '🏅 My Certificates';
     if (dom.themeBtn) dom.themeBtn.textContent = mobile ? '🌙' : '🌙 Theme';
     if (dom.quickThemeToggle) {
@@ -42161,6 +42226,8 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     renderCertificates();
     if (isMobileExplorerLayout()) renderCourseRoadmap();
     syncExplorerMobileChrome();
+    // Publish only the safe leaderboard fields for this student, even if they only opened Code Explorer.
+    saveCloudProgress().catch(() => false);
     window.scrollTo({ top: 0, behavior: 'auto' });
     queueStudentPresenceUpdate?.({ currentView: 'code-explorer', activityGroup: 'Code Explorer', activityLabel: 'Exploring code lessons' }, { force: true });
   }
@@ -42841,6 +42908,228 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   }
 
 
+  function leaderboardStudentIdentity(student = {}) {
+    const uid = String(student.uid || student.authUid || '').trim();
+    const studentId = normalizeStudentId(student.studentId || student.studentIdNormalized || student.rosterId || '');
+    return studentId ? `id:${studentId}` : (uid ? `uid:${uid}` : `name:${String(student.name || '').trim().toLowerCase()}|${String(student.section || '').trim().toLowerCase()}`);
+  }
+
+  function isCurrentLeaderboardStudent(student = {}) {
+    const current = appSession.student || appSession.lastStudentProfile || {};
+    const currentUid = String(current.uid || '').trim();
+    const uids = [student.uid, student.authUid, ...(Array.isArray(student.profileUids) ? student.profileUids : [])].map(value => String(value || '').trim()).filter(Boolean);
+    if (currentUid && uids.includes(currentUid)) return true;
+    const currentId = normalizeStudentId(current.studentId || current.studentIdNormalized || '');
+    const studentId = normalizeStudentId(student.studentId || student.studentIdNormalized || student.rosterId || '');
+    return Boolean(currentId && studentId && areStudentIdsEquivalent(currentId, studentId));
+  }
+
+  function leaderboardMedal(rank) {
+    if (rank === 1) return '🥇';
+    if (rank === 2) return '🥈';
+    if (rank === 3) return '🥉';
+    return `#${rank}`;
+  }
+
+  function assignLeaderboardRanks(records = []) {
+    const sorted = records.slice().sort((a, b) => Number(b.xp || 0) - Number(a.xp || 0)
+      || String(a.name || '').localeCompare(String(b.name || ''))
+      || String(a.section || '').localeCompare(String(b.section || '')));
+    let previousXp = null;
+    let rank = 0;
+    sorted.forEach((record, index) => {
+      const xp = Number(record.xp || 0);
+      if (previousXp === null || xp !== previousXp) rank = index + 1;
+      record.rank = rank;
+      previousXp = xp;
+    });
+    return sorted;
+  }
+
+  function leaderboardCurrentFallback() {
+    const profile = appSession.student || appSession.lastStudentProfile || {};
+    return {
+      uid: String(profile.uid || '').trim(),
+      studentId: normalizeStudentId(profile.studentId || profile.studentIdNormalized || ''),
+      name: String(profile.name || profile.fullName || 'You').trim(),
+      section: String(profile.section || '').trim(),
+      xp: totalXp(),
+      current: true,
+      accountStatus: 'active'
+    };
+  }
+
+  function leaderboardRowHtml(record, options = {}) {
+    const rank = Number(record.rank || 0);
+    const current = Boolean(record.current);
+    const classes = ['code-explorer-leaderboard-row'];
+    if (rank <= 10) classes.push('top-ten');
+    if (rank <= 3) classes.push('podium');
+    if (current) classes.push('you');
+    if (options.detached) classes.push('detached-you');
+    return `<article class="${classes.join(' ')}" data-rank="${rank}">
+      <span class="code-explorer-leaderboard-rank">${escapeHTML(leaderboardMedal(rank))}</span>
+      <span class="code-explorer-leaderboard-person"><strong>${escapeHTML(record.name || 'Unnamed Student')}${current ? '<em>YOU</em>' : ''}</strong><small>${escapeHTML(record.section || 'No section')}</small></span>
+      <span class="code-explorer-leaderboard-xp"><strong>⚡ ${Number(record.xp || 0).toLocaleString()}</strong><small>XP</small></span>
+    </article>`;
+  }
+
+  function leaderboardRankStorageKey() {
+    return `studentCodeStudio.codeExplorerLeaderboardRank.v1.${readerKey()}`;
+  }
+
+  function leaderboardRankMotivation(current) {
+    if (!current || !Number(current.rank || 0)) return 'Earn Mastery XP by completing real learning milestones.';
+    let previous = 0;
+    try { previous = Number(localStorage.getItem(leaderboardRankStorageKey()) || 0); } catch (_) {}
+    const now = Number(current.rank || 0);
+    let message = `You are currently Rank #${now} with ${Number(current.xp || 0).toLocaleString()} XP.`;
+    if (previous > 20 && now <= 20) message = `🎉 You entered the Top 20! Rank #${now}.`;
+    else if (previous > now && previous > 0) message = `🚀 You moved up from #${previous} to #${now}!`;
+    else if (now <= 10) message = `⭐ You are in the Top 10 at Rank #${now}. Keep mastering the course!`;
+    try { localStorage.setItem(leaderboardRankStorageKey(), String(now)); } catch (_) {}
+    return message;
+  }
+
+  function renderGlobalLeaderboard() {
+    const records = leaderboardState.records || [];
+    if (!dom.leaderboardList) return;
+    const current = records.find(record => record.current) || null;
+    const topRows = records.filter(record => Number(record.rank || 0) <= 20);
+    const topXp = records.length ? Number(records[0].xp || 0) : 0;
+    if (dom.leaderboardYourRank) dom.leaderboardYourRank.textContent = current ? `#${current.rank}` : '—';
+    if (dom.leaderboardYourXp) dom.leaderboardYourXp.textContent = current ? Number(current.xp || 0).toLocaleString() : totalXp().toLocaleString();
+    if (dom.leaderboardStudentCount) dom.leaderboardStudentCount.textContent = String(records.length);
+    if (dom.leaderboardTopXp) dom.leaderboardTopXp.textContent = topXp.toLocaleString();
+    if (dom.leaderboardMotivation) dom.leaderboardMotivation.textContent = leaderboardRankMotivation(current);
+    if (dom.leaderboardStatus) {
+      const scope = leaderboardState.rosterLoaded ? 'all enrolled students' : (leaderboardState.source || 'available student accounts');
+      dom.leaderboardStatus.textContent = `${records.length} ${records.length === 1 ? 'student' : 'students'} ranked · ${scope} · ties share rank`;
+    }
+    if (!records.length) {
+      dom.leaderboardList.innerHTML = '<div class="code-explorer-leaderboard-empty"><strong>No rankings yet.</strong><p>Complete a learning milestone to earn Mastery XP.</p></div>';
+      return;
+    }
+    let content = topRows.map(record => leaderboardRowHtml(record)).join('');
+    if (current && Number(current.rank || 0) > 20) {
+      content += `<div class="code-explorer-leaderboard-you-divider"><span>YOUR POSITION</span></div>${leaderboardRowHtml(current, { detached: true })}`;
+    }
+    dom.leaderboardList.innerHTML = content;
+  }
+
+  async function loadGlobalLeaderboard(options = {}) {
+    if (leaderboardState.loading) return;
+    const maxAge = 90 * 1000;
+    if (!options.force && leaderboardState.records.length && Date.now() - leaderboardState.loadedAt < maxAge) {
+      renderGlobalLeaderboard();
+      return;
+    }
+    leaderboardState.loading = true;
+    if (dom.leaderboardStatus) dom.leaderboardStatus.textContent = 'Loading all enrolled student rankings...';
+    if (dom.leaderboardRefreshBtn) { dom.leaderboardRefreshBtn.disabled = true; dom.leaderboardRefreshBtn.textContent = 'Loading...'; }
+    try {
+      const ready = await initFirebaseSync();
+      if (!ready) throw new Error('Cloud ranking is not available right now.');
+      const { getDocs } = firebaseSync.modules;
+      const [rosterResult, quickResult] = await Promise.allSettled([
+        getDocs(getStudentRosterCollectionRef()),
+        getDocs(getCodeExplorerLeaderboardCollectionRef())
+      ]);
+
+      const rosterDocs = rosterResult.status === 'fulfilled' ? Array.from(rosterResult.value.docs || []) : [];
+      const quickDocs = quickResult.status === 'fulfilled' ? Array.from(quickResult.value.docs || []) : [];
+      leaderboardState.rosterLoaded = rosterResult.status === 'fulfilled';
+      leaderboardState.source = leaderboardState.rosterLoaded ? 'all enrolled students' : 'synced leaderboard accounts';
+
+      const rosterProfiles = rosterDocs.map(snapshot => {
+        const data = snapshotData(snapshot);
+        const studentId = normalizeStudentId(data.studentId || data.studentIdNormalized || snapshot.id);
+        return { uid: data.authUid || '', rosterId: studentId, isRosterOnly: true, sourceType: 'studentRoster', ...data, studentId, studentIdNormalized: studentId || data.studentIdNormalized || data.studentId };
+      });
+      const quickRows = quickDocs.map(snapshot => ({ id: snapshot.id, ...snapshotData(snapshot) }));
+      const quickByUid = new Map();
+      const quickByStudentId = new Map();
+      quickRows.forEach(row => {
+        const uid = String(row.uid || '').trim();
+        const sid = normalizeStudentId(row.studentId || row.studentIdNormalized || '');
+        if (uid) quickByUid.set(uid, row);
+        if (sid) {
+          const existing = quickByStudentId.get(sid);
+          if (!existing || Number(row.xp || 0) >= Number(existing.xp || 0)) quickByStudentId.set(sid, row);
+        }
+      });
+
+      const records = rosterProfiles
+        .filter(student => String(student.accountStatus || 'active') !== 'disabled')
+        .map(student => {
+          const uid = String(student.uid || student.authUid || '').trim();
+          const sid = normalizeStudentId(student.studentId || student.studentIdNormalized || student.rosterId || '');
+          const quick = (uid ? quickByUid.get(uid) : null) || (sid ? quickByStudentId.get(sid) : null);
+          return {
+            uid: uid || String(quick?.uid || '').trim(),
+            studentId: sid || normalizeStudentId(quick?.studentId || ''),
+            name: String(student.name || quick?.name || 'Unnamed Student').trim(),
+            section: String(student.section || quick?.section || '').trim(),
+            xp: Number(quick?.xp || 0),
+            current: isCurrentLeaderboardStudent(student),
+            accountStatus: String(student.accountStatus || quick?.accountStatus || 'active')
+          };
+        });
+
+      // If the roster is not readable to students, the dedicated leaderboard
+      // collection still exposes only safe ranking fields (name, section, XP).
+      const identities = new Set(records.map(record => leaderboardStudentIdentity(record)));
+      quickRows.forEach(row => {
+        if (String(row.accountStatus || 'active') === 'disabled') return;
+        const candidate = { uid: String(row.uid || '').trim(), studentId: normalizeStudentId(row.studentId || ''), name: String(row.name || 'Student').trim(), section: String(row.section || '').trim(), xp: Number(row.xp || 0), accountStatus: String(row.accountStatus || 'active') };
+        const identity = leaderboardStudentIdentity(candidate);
+        const existingIndex = records.findIndex(record => leaderboardStudentIdentity(record) === identity);
+        if (existingIndex >= 0) {
+          records[existingIndex].xp = Math.max(Number(records[existingIndex].xp || 0), Number(candidate.xp || 0));
+          if (!records[existingIndex].uid) records[existingIndex].uid = candidate.uid;
+          if (!records[existingIndex].name || records[existingIndex].name === 'Unnamed Student') records[existingIndex].name = candidate.name;
+          if (!records[existingIndex].section) records[existingIndex].section = candidate.section;
+          records[existingIndex].current = records[existingIndex].current || isCurrentLeaderboardStudent(candidate);
+          return;
+        }
+        candidate.current = isCurrentLeaderboardStudent(candidate);
+        identities.add(identity);
+        records.push(candidate);
+      });
+
+      if (!records.some(record => record.current)) records.push(leaderboardCurrentFallback());
+      const ranked = assignLeaderboardRanks(records);
+      ranked.forEach(record => { record.current = record.current || isCurrentLeaderboardStudent(record); });
+      leaderboardState.records = ranked;
+      leaderboardState.loadedAt = Date.now();
+      renderGlobalLeaderboard();
+    } catch (error) {
+      console.warn('Global Code Explorer leaderboard could not be loaded.', error);
+      const fallback = assignLeaderboardRanks([leaderboardCurrentFallback()]);
+      leaderboardState.records = fallback;
+      leaderboardState.loadedAt = Date.now();
+      leaderboardState.source = 'your saved progress';
+      leaderboardState.rosterLoaded = false;
+      renderGlobalLeaderboard();
+      if (dom.leaderboardStatus) dom.leaderboardStatus.textContent = 'Global rankings could not be loaded right now. Your own Mastery XP is shown.';
+    } finally {
+      leaderboardState.loading = false;
+      if (dom.leaderboardRefreshBtn) { dom.leaderboardRefreshBtn.disabled = false; dom.leaderboardRefreshBtn.textContent = '↻ Refresh'; }
+    }
+  }
+
+  function openGlobalLeaderboard() {
+    dom.leaderboardOverlay?.classList.remove('hidden');
+    document.body.classList.add('code-explorer-modal-open');
+    loadGlobalLeaderboard();
+  }
+
+  function closeGlobalLeaderboard() {
+    dom.leaderboardOverlay?.classList.add('hidden');
+    if (dom.finalOverlay?.classList.contains('hidden') && dom.certOverlay?.classList.contains('hidden')) document.body.classList.remove('code-explorer-modal-open');
+  }
+
+
   const adminExplorerState = { selectedStudentKey: '', selectedCourse: 'html', loaded: false };
 
   function studentExplorerProgress(student = {}) {
@@ -42937,12 +43226,59 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     if (dom.adminStatus) dom.adminStatus.textContent = `${filtered.length} of ${records.length} students shown · ${exploring} have explored at least one topic.`;
   }
 
+  let codeExplorerLeaderboardPublishAt = 0;
+
+  async function publishSafeCodeExplorerLeaderboardFromAdmin(options = {}) {
+    if (!isTeacherAuthenticated() || !adminStudentsCache.length) return;
+    if (!options.force && Date.now() - codeExplorerLeaderboardPublishAt < 5 * 60 * 1000) return;
+    try {
+      const ready = await initFirebaseSync();
+      if (!ready) return;
+      const { getDocs, setDoc, serverTimestamp } = firebaseSync.modules;
+      const snapshot = await getDocs(getCodeExplorerLeaderboardCollectionRef()).catch(() => ({ docs: [] }));
+      const existingRows = Array.from(snapshot.docs || []).map(docSnap => ({ id: docSnap.id, ...snapshotData(docSnap) }));
+      const existingByIdentity = new Map(existingRows.map(row => [leaderboardStudentIdentity(row), row]));
+      const writes = [];
+      adminStudentsCache.forEach(student => {
+        if (String(student.accountStatus || 'active') === 'disabled') return;
+        const record = adminExplorerRecord(student);
+        const sid = normalizeStudentId(student.studentId || student.studentIdNormalized || student.rosterId || '');
+        const uid = String(student.uid || student.authUid || '').trim();
+        const safe = {
+          uid,
+          studentId: sid,
+          name: String(student.name || 'Unnamed Student').trim(),
+          section: String(student.section || '').trim(),
+          xp: Number(record.xp || 0),
+          accountStatus: String(student.accountStatus || 'active')
+        };
+        const identity = leaderboardStudentIdentity(safe);
+        const previous = existingByIdentity.get(identity);
+        const unchanged = previous
+          && Number(previous.xp || 0) === safe.xp
+          && String(previous.name || '') === safe.name
+          && String(previous.section || '') === safe.section
+          && String(previous.accountStatus || 'active') === safe.accountStatus;
+        if (unchanged) return;
+        const docId = uid || (sid ? `roster-${sid.replace(/[^a-zA-Z0-9_-]/g, '-')}` : `student-${Math.random().toString(36).slice(2,10)}`);
+        writes.push(() => setDoc(getCodeExplorerLeaderboardDocRef(docId), { ...safe, updatedAt: serverTimestamp() }, { merge: true }));
+      });
+      for (let index = 0; index < writes.length; index += 20) {
+        await Promise.allSettled(writes.slice(index, index + 20).map(write => write()));
+      }
+      codeExplorerLeaderboardPublishAt = Date.now();
+    } catch (error) {
+      console.info('Safe Code Explorer leaderboard publishing skipped.', error);
+    }
+  }
+
   async function initializeCodeExplorerAdmin(options = {}) {
     if (!isTeacherAuthenticated()) return;
     if (dom.adminStatus) dom.adminStatus.textContent = 'Loading Code Explorer progress...';
     if (options.force || !adminStudentsCache.length) await loadAdminStudents({ force: options.force === true });
     adminExplorerState.loaded = true;
     renderAdminExplorerProgress();
+    publishSafeCodeExplorerLeaderboardFromAdmin({ force: options.force === true });
   }
 
   function getAdminExplorerHeartTargetUid(student = {}) {
@@ -43110,6 +43446,10 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     applyTheme(currentTheme === 'dark' ? 'light' : 'dark');
     syncExplorerMobileChrome();
   });
+  dom.leaderboardBtn?.addEventListener('click', openGlobalLeaderboard);
+  dom.leaderboardCloseBtn?.addEventListener('click', closeGlobalLeaderboard);
+  dom.leaderboardRefreshBtn?.addEventListener('click', () => loadGlobalLeaderboard({ force: true }));
+  dom.leaderboardOverlay?.addEventListener('click', event => { if (event.target === dom.leaderboardOverlay) closeGlobalLeaderboard(); });
   dom.certificatesBtn?.addEventListener('click', openCertificates);
   dom.certCloseBtn?.addEventListener('click', closeCertificates);
   dom.lessonHead?.addEventListener('click', event => {
