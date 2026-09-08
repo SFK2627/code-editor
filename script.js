@@ -42940,7 +42940,14 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     if (currentUid && uids.includes(currentUid)) return true;
     const currentId = normalizeStudentId(current.studentId || current.studentIdNormalized || '');
     const studentId = normalizeStudentId(student.studentId || student.studentIdNormalized || student.rosterId || '');
-    return Boolean(currentId && studentId && areStudentIdsEquivalent(currentId, studentId));
+    if (currentId && studentId && areStudentIdsEquivalent(currentId, studentId)) return true;
+    // Public leaderboard snapshots intentionally avoid exposing Student IDs.
+    // Fall back to exact name + section matching when a UID is unavailable.
+    const currentName = String(current.name || current.fullName || '').replace(/\s+/g, ' ').trim().toLowerCase();
+    const studentName = String(student.name || student.fullName || '').replace(/\s+/g, ' ').trim().toLowerCase();
+    const currentSection = leaderboardSectionKey(current.section || current.sectionName || '');
+    const studentSection = leaderboardSectionKey(student.section || student.sectionName || '');
+    return Boolean(currentName && studentName && currentName === studentName && currentSection && studentSection && currentSection === studentSection);
   }
 
   function leaderboardMedal(rank) {
@@ -43005,6 +43012,66 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     return { configured, includedSections: names, includedSectionKeys: keys };
   }
 
+  function normalizePublicLeaderboardSnapshot(data = {}) {
+    const source = data && typeof data === 'object' ? data : {};
+    const settings = normalizeLeaderboardSectionSettings(source.settings || source);
+    const rows = Array.isArray(source.records) ? source.records : [];
+    const records = rows.map(row => ({
+      uid: String(row?.uid || '').trim(),
+      name: String(row?.name || 'Student').replace(/\s+/g, ' ').trim(),
+      section: String(row?.section || '').replace(/\s+/g, ' ').trim(),
+      xp: Math.max(0, Number(row?.xp || 0)),
+      accountStatus: String(row?.accountStatus || 'active')
+    })).filter(row => row.name && row.section && String(row.accountStatus || 'active') !== 'disabled');
+    return { settings, records };
+  }
+
+  function buildAdminPublicLeaderboardRecords(settings = leaderboardSectionSettings) {
+    const normalizedSettings = normalizeLeaderboardSectionSettings(settings);
+    return adminStudentsCache
+      .filter(student => String(student.accountStatus || 'active') !== 'disabled')
+      .filter(student => isLeaderboardSectionIncluded(student.section || '', normalizedSettings))
+      .map(student => {
+        const record = adminExplorerRecord(student);
+        return {
+          uid: String(student.uid || student.authUid || '').trim(),
+          name: String(student.name || 'Unnamed Student').replace(/\s+/g, ' ').trim(),
+          section: String(student.section || '').replace(/\s+/g, ' ').trim(),
+          xp: Math.max(0, Number(record.xp || 0)),
+          accountStatus: 'active'
+        };
+      })
+      .filter(row => row.name && row.section && leaderboardSectionKey(row.section) !== 'no section');
+  }
+
+  async function publishLeaderboardSnapshotToRoot(settings = leaderboardSectionSettings) {
+    const ready = await initFirebaseSync();
+    if (!ready || !isTeacherAuthenticated()) return false;
+    const normalizedSettings = normalizeLeaderboardSectionSettings(settings);
+    const records = buildAdminPublicLeaderboardRecords(normalizedSettings);
+    const { setDoc, serverTimestamp } = firebaseSync.modules;
+    await setDoc(getCloudActivitiesDocRef(), {
+      codeExplorerLeaderboardSettings: {
+        configured: Boolean(normalizedSettings.configured),
+        includedSections: normalizedSettings.includedSections,
+        includedSectionKeys: normalizedSettings.includedSectionKeys
+      },
+      codeExplorerLeaderboardPublic: {
+        version: 1,
+        settings: {
+          configured: Boolean(normalizedSettings.configured),
+          includedSections: normalizedSettings.includedSections,
+          includedSectionKeys: normalizedSettings.includedSectionKeys
+        },
+        records,
+        updatedAt: serverTimestamp()
+      },
+      codeExplorerLeaderboardUpdatedAt: serverTimestamp()
+    }, { merge: true });
+    clearSelectiveFirestoreCache('rootDocument:');
+    return true;
+  }
+
   function isLeaderboardSectionIncluded(section = '', settings = leaderboardSectionSettings) {
     const normalized = normalizeLeaderboardSectionSettings(settings);
     if (!normalized.configured) return true;
@@ -43020,15 +43087,35 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   async function loadLeaderboardSectionSettings() {
     const ready = await initFirebaseSync();
     if (!ready) return { loaded: false, error: true, settings: leaderboardSectionSettings };
+    const { getDoc } = firebaseSync.modules;
+    // Primary source: the existing root Firestore document. It is already
+    // readable by student clients and writable by the authenticated teacher in
+    // this app, so leaderboard visibility does not require a new rules path.
     try {
-      const { getDoc } = firebaseSync.modules;
+      const rootSnapshot = await getDoc(getCloudActivitiesDocRef());
+      if (snapshotExists(rootSnapshot)) {
+        const rootData = snapshotData(rootSnapshot) || {};
+        const rootSettings = rootData.codeExplorerLeaderboardSettings || rootData.codeExplorerLeaderboardPublic?.settings;
+        if (rootSettings && typeof rootSettings === 'object') {
+          leaderboardSectionSettings = normalizeLeaderboardSectionSettings(rootSettings);
+          return { loaded: true, error: false, settings: leaderboardSectionSettings, source: 'root' };
+        }
+      }
+    } catch (error) {
+      console.info('Root leaderboard settings are unavailable; trying legacy settings path.', error);
+    }
+    // Compatibility fallback for installations where the older settings path
+    // is already allowed by Firestore Rules.
+    try {
       const snapshot = await getDoc(getCodeExplorerLeaderboardSettingsDocRef());
       leaderboardSectionSettings = snapshotExists(snapshot)
         ? normalizeLeaderboardSectionSettings(snapshotData(snapshot))
         : normalizeLeaderboardSectionSettings({ configured: false });
-      return { loaded: true, error: false, settings: leaderboardSectionSettings };
+      return { loaded: true, error: false, settings: leaderboardSectionSettings, source: 'legacy' };
     } catch (error) {
       console.info('Code Explorer leaderboard section settings are unavailable.', error);
+      // Do not treat a permissions/read failure as "section excluded".
+      leaderboardSectionSettings = normalizeLeaderboardSectionSettings({ configured: false });
       return { loaded: false, error: true, settings: leaderboardSectionSettings };
     }
   }
@@ -43084,42 +43171,50 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     const includedSections = inputs.filter(input => input.checked).map(input => leaderboardSectionDisplayName(input.value));
     const includedSectionKeys = includedSections.map(leaderboardSectionKey).filter(Boolean);
     if (dom.adminLeaderboardSaveBtn) { dom.adminLeaderboardSaveBtn.disabled = true; dom.adminLeaderboardSaveBtn.textContent = 'Saving…'; }
-    if (dom.adminLeaderboardSettingsStatus) dom.adminLeaderboardSettingsStatus.textContent = 'Saving leaderboard visibility and updating student ranking records…';
+    if (dom.adminLeaderboardSettingsStatus) dom.adminLeaderboardSettingsStatus.textContent = 'Saving leaderboard visibility and publishing the student ranking snapshot…';
     try {
       const ready = await initFirebaseSync();
       if (!ready) throw new Error('Cloud settings are unavailable right now.');
       const { setDoc, serverTimestamp } = firebaseSync.modules;
       leaderboardSectionSettings = normalizeLeaderboardSectionSettings({ configured: true, includedSections, includedSectionKeys });
-      await setDoc(getCodeExplorerLeaderboardSettingsDocRef(), {
-        configured: true,
-        includedSections: leaderboardSectionSettings.includedSections,
-        includedSectionKeys: leaderboardSectionSettings.includedSectionKeys,
-        updatedAt: serverTimestamp()
-      }, { merge: true });
-      // Mirror only non-sensitive visibility settings into the leaderboard
-      // collection so student clients can enforce the same section filter even
-      // when adminSettings reads are restricted by Firestore rules.
-      await setDoc(getCodeExplorerLeaderboardDocRef(CODE_EXPLORER_LEADERBOARD_SETTINGS_ROW_ID), {
-        recordType: 'settings',
-        accountStatus: 'disabled',
-        configured: true,
-        includedSections: leaderboardSectionSettings.includedSections,
-        includedSectionKeys: leaderboardSectionSettings.includedSectionKeys,
-        updatedAt: serverTimestamp()
-      }, { merge: true });
+
+      // Authoritative save: existing root document. This uses the same
+      // teacher-write/student-read rules already used by activities and lessons.
+      await publishLeaderboardSnapshotToRoot(leaderboardSectionSettings);
+
+      // Optional compatibility mirrors. Permission failures here no longer make
+      // the Save button fail because students can read the root snapshot above.
+      await Promise.allSettled([
+        setDoc(getCodeExplorerLeaderboardSettingsDocRef(), {
+          configured: true,
+          includedSections: leaderboardSectionSettings.includedSections,
+          includedSectionKeys: leaderboardSectionSettings.includedSectionKeys,
+          updatedAt: serverTimestamp()
+        }, { merge: true }),
+        setDoc(getCodeExplorerLeaderboardDocRef(CODE_EXPLORER_LEADERBOARD_SETTINGS_ROW_ID), {
+          recordType: 'settings',
+          accountStatus: 'disabled',
+          configured: true,
+          includedSections: leaderboardSectionSettings.includedSections,
+          includedSectionKeys: leaderboardSectionSettings.includedSectionKeys,
+          updatedAt: serverTimestamp()
+        }, { merge: true })
+      ]);
+
       codeExplorerLeaderboardPublishAt = 0;
       await publishSafeCodeExplorerLeaderboardFromAdmin({ force: true });
       leaderboardState.records = [];
       leaderboardState.loadedAt = 0;
       leaderboardState.settingsLoaded = true;
       leaderboardState.settingsError = false;
+      leaderboardState.currentSectionIncluded = true;
       renderAdminLeaderboardSectionSettings();
-      if (dom.adminLeaderboardSettingsStatus) dom.adminLeaderboardSettingsStatus.textContent = `${includedSections.length} section${includedSections.length === 1 ? '' : 's'} included. Students from hidden sections are now excluded from both leaderboards.`;
+      if (dom.adminLeaderboardSettingsStatus) dom.adminLeaderboardSettingsStatus.textContent = `${includedSections.length} section${includedSections.length === 1 ? '' : 's'} included. Leaderboard visibility and the public ranking snapshot were saved successfully.`;
     } catch (error) {
       console.error('Could not save Code Explorer leaderboard section settings.', error);
       const rawMessage = String(error?.message || 'Could not save leaderboard section settings.');
-      const friendlyMessage = /reserved|resource id/i.test(rawMessage)
-        ? 'Could not publish leaderboard settings because the cloud settings record name was invalid. Please use this updated version and try Save again.'
+      const friendlyMessage = /permission|insufficient/i.test(rawMessage)
+        ? 'Leaderboard save is still blocked on the main app document. Confirm the teacher account is logged in, then check the existing root-document teacher write rule.'
         : rawMessage;
       if (dom.adminLeaderboardSettingsStatus) dom.adminLeaderboardSettingsStatus.textContent = friendlyMessage;
     } finally {
@@ -43318,29 +43413,31 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       const ready = await initFirebaseSync();
       if (!ready) throw new Error('Cloud ranking is not available right now.');
       const { getDocs, getDoc } = firebaseSync.modules;
-      const [rosterResult, quickResult, settingsResult] = await Promise.allSettled([
+      const [rootResult, rosterResult, quickResult, settingsResult] = await Promise.allSettled([
+        getDoc(getCloudActivitiesDocRef()),
         getDocs(getStudentRosterCollectionRef()),
         getDocs(getCodeExplorerLeaderboardCollectionRef()),
         getDoc(getCodeExplorerLeaderboardSettingsDocRef())
       ]);
 
+      const rootData = rootResult.status === 'fulfilled' && snapshotExists(rootResult.value) ? (snapshotData(rootResult.value) || {}) : {};
+      const rootPublic = normalizePublicLeaderboardSnapshot(rootData.codeExplorerLeaderboardPublic || {});
+      const rootSettingsRaw = rootData.codeExplorerLeaderboardSettings || rootData.codeExplorerLeaderboardPublic?.settings || null;
       const rosterDocs = rosterResult.status === 'fulfilled' ? Array.from(rosterResult.value.docs || []) : [];
       const quickDocs = quickResult.status === 'fulfilled' ? Array.from(quickResult.value.docs || []) : [];
-      leaderboardState.settingsLoaded = settingsResult.status === 'fulfilled';
-      leaderboardState.settingsError = settingsResult.status !== 'fulfilled';
-      if (settingsResult.status === 'fulfilled') {
+
+      leaderboardState.settingsLoaded = Boolean(rootSettingsRaw) || settingsResult.status === 'fulfilled';
+      leaderboardState.settingsError = !leaderboardState.settingsLoaded;
+      if (rootSettingsRaw) {
+        leaderboardSectionSettings = normalizeLeaderboardSectionSettings(rootSettingsRaw);
+      } else if (settingsResult.status === 'fulfilled') {
         leaderboardSectionSettings = snapshotExists(settingsResult.value)
           ? normalizeLeaderboardSectionSettings(snapshotData(settingsResult.value))
           : normalizeLeaderboardSectionSettings({ configured: false });
+      } else {
+        leaderboardSectionSettings = normalizeLeaderboardSectionSettings({ configured: false });
       }
-      leaderboardState.rosterLoaded = rosterResult.status === 'fulfilled';
-      leaderboardState.source = leaderboardState.rosterLoaded ? 'included enrolled students' : 'synced leaderboard accounts';
 
-      const rosterProfiles = rosterDocs.map(snapshot => {
-        const data = snapshotData(snapshot);
-        const studentId = normalizeStudentId(data.studentId || data.studentIdNormalized || snapshot.id);
-        return { uid: data.authUid || '', rosterId: studentId, isRosterOnly: true, sourceType: 'studentRoster', ...data, studentId, studentIdNormalized: studentId || data.studentIdNormalized || data.studentId };
-      });
       const allQuickRows = quickDocs.map(snapshot => ({ id: snapshot.id, ...snapshotData(snapshot) }));
       const safeSettingsRow = allQuickRows.find(row => row.id === CODE_EXPLORER_LEADERBOARD_SETTINGS_ROW_ID || row.recordType === 'settings') || null;
       if (!leaderboardState.settingsLoaded && safeSettingsRow) {
@@ -43348,72 +43445,87 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         leaderboardState.settingsLoaded = true;
         leaderboardState.settingsError = false;
       }
+
+      // Prefer the teacher-published root snapshot because it is intentionally
+      // student-readable under the app's existing root-document rules.
+      let records = rootPublic.records
+        .filter(row => !leaderboardState.settingsLoaded || isLeaderboardSectionIncluded(row.section || '', leaderboardSectionSettings))
+        .map(row => ({ ...row, current: isCurrentLeaderboardStudent(row) }));
+
       const quickRows = allQuickRows.filter(row => row.id !== CODE_EXPLORER_LEADERBOARD_SETTINGS_ROW_ID && row.recordType !== 'settings');
       const visibleQuickRows = quickRows.filter(row => leaderboardState.settingsLoaded
         ? isLeaderboardSectionIncluded(row.section || '', leaderboardSectionSettings)
         : row.leaderboardIncluded !== false);
-      const quickByUid = new Map();
-      const quickByStudentId = new Map();
-      visibleQuickRows.forEach(row => {
-        const uid = String(row.uid || '').trim();
-        const sid = normalizeStudentId(row.studentId || row.studentIdNormalized || '');
-        if (uid) quickByUid.set(uid, row);
-        if (sid) {
-          const existing = quickByStudentId.get(sid);
-          if (!existing || Number(row.xp || 0) >= Number(existing.xp || 0)) quickByStudentId.set(sid, row);
-        }
-      });
 
-      const records = rosterProfiles
-        .filter(student => String(student.accountStatus || 'active') !== 'disabled')
-        .filter(student => {
-          if (leaderboardState.settingsLoaded) return isLeaderboardSectionIncluded(student.section || '', leaderboardSectionSettings);
-          const uid = String(student.uid || student.authUid || '').trim();
-          const sid = normalizeStudentId(student.studentId || student.studentIdNormalized || student.rosterId || '');
-          return Boolean((uid && quickByUid.has(uid)) || (sid && quickByStudentId.has(sid)));
-        })
-        .map(student => {
-          const uid = String(student.uid || student.authUid || '').trim();
-          const sid = normalizeStudentId(student.studentId || student.studentIdNormalized || student.rosterId || '');
-          const quick = (uid ? quickByUid.get(uid) : null) || (sid ? quickByStudentId.get(sid) : null);
-          return {
-            uid: uid || String(quick?.uid || '').trim(),
-            studentId: sid || normalizeStudentId(quick?.studentId || ''),
-            name: String(student.name || quick?.name || 'Unnamed Student').trim(),
-            section: String(student.section || quick?.section || '').trim(),
-            xp: Number(quick?.xp || 0),
-            current: isCurrentLeaderboardStudent(student),
-            accountStatus: String(student.accountStatus || quick?.accountStatus || 'active')
-          };
+      // If the root snapshot has not been published yet, fall back to the old
+      // roster + quick-row pipeline when those collections are readable.
+      if (!records.length && rosterDocs.length) {
+        const rosterProfiles = rosterDocs.map(snapshot => {
+          const data = snapshotData(snapshot);
+          const studentId = normalizeStudentId(data.studentId || data.studentIdNormalized || snapshot.id);
+          return { uid: data.authUid || '', rosterId: studentId, isRosterOnly: true, sourceType: 'studentRoster', ...data, studentId, studentIdNormalized: studentId || data.studentIdNormalized || data.studentId };
         });
+        const quickByUid = new Map();
+        const quickByStudentId = new Map();
+        visibleQuickRows.forEach(row => {
+          const uid = String(row.uid || '').trim();
+          const sid = normalizeStudentId(row.studentId || row.studentIdNormalized || '');
+          if (uid) quickByUid.set(uid, row);
+          if (sid) {
+            const existing = quickByStudentId.get(sid);
+            if (!existing || Number(row.xp || 0) >= Number(existing.xp || 0)) quickByStudentId.set(sid, row);
+          }
+        });
+        records = rosterProfiles
+          .filter(student => String(student.accountStatus || 'active') !== 'disabled')
+          .filter(student => !leaderboardState.settingsLoaded || isLeaderboardSectionIncluded(student.section || '', leaderboardSectionSettings))
+          .map(student => {
+            const uid = String(student.uid || student.authUid || '').trim();
+            const sid = normalizeStudentId(student.studentId || student.studentIdNormalized || student.rosterId || '');
+            const quick = (uid ? quickByUid.get(uid) : null) || (sid ? quickByStudentId.get(sid) : null);
+            return {
+              uid: uid || String(quick?.uid || '').trim(),
+              studentId: sid || normalizeStudentId(quick?.studentId || ''),
+              name: String(student.name || quick?.name || 'Unnamed Student').trim(),
+              section: String(student.section || quick?.section || '').trim(),
+              xp: Number(quick?.xp || 0),
+              current: isCurrentLeaderboardStudent(student),
+              accountStatus: String(student.accountStatus || quick?.accountStatus || 'active')
+            };
+          });
+      }
 
-      const identities = new Set(records.map(record => leaderboardStudentIdentity(record)));
+      // Merge any readable quick rows so recent XP can be fresher than the last
+      // teacher-published snapshot. This is optional; permission denial is safe.
       visibleQuickRows.forEach(row => {
         if (String(row.accountStatus || 'active') === 'disabled') return;
         const candidate = { uid: String(row.uid || '').trim(), studentId: normalizeStudentId(row.studentId || ''), name: String(row.name || 'Student').trim(), section: String(row.section || '').trim(), xp: Number(row.xp || 0), accountStatus: String(row.accountStatus || 'active') };
-        const identity = leaderboardStudentIdentity(candidate);
-        const existingIndex = records.findIndex(record => leaderboardStudentIdentity(record) === identity);
+        if (leaderboardState.settingsLoaded && !isLeaderboardSectionIncluded(candidate.section, leaderboardSectionSettings)) return;
+        const existingIndex = records.findIndex(record => leaderboardStudentIdentity(record) === leaderboardStudentIdentity(candidate) || isCurrentLeaderboardStudent(record) && isCurrentLeaderboardStudent(candidate));
         if (existingIndex >= 0) {
           records[existingIndex].xp = Math.max(Number(records[existingIndex].xp || 0), Number(candidate.xp || 0));
-          if (!records[existingIndex].uid) records[existingIndex].uid = candidate.uid;
-          if (!records[existingIndex].name || records[existingIndex].name === 'Unnamed Student') records[existingIndex].name = candidate.name;
-          if (!records[existingIndex].section) records[existingIndex].section = candidate.section;
           records[existingIndex].current = records[existingIndex].current || isCurrentLeaderboardStudent(candidate);
-          return;
+        } else {
+          candidate.current = isCurrentLeaderboardStudent(candidate);
+          records.push(candidate);
         }
-        candidate.current = isCurrentLeaderboardStudent(candidate);
-        identities.add(identity);
-        records.push(candidate);
       });
 
-      const currentSection = currentLeaderboardSectionName();
-      if (leaderboardState.settingsLoaded) {
-        leaderboardState.currentSectionIncluded = isLeaderboardSectionIncluded(currentSection, leaderboardSectionSettings);
+      const currentRecord = records.find(record => record.current || isCurrentLeaderboardStudent(record)) || null;
+      const profileSection = currentLeaderboardSectionName();
+      const effectiveCurrentSection = currentRecord?.section || profileSection;
+      const effectiveKey = leaderboardSectionKey(effectiveCurrentSection);
+      if (leaderboardState.settingsLoaded && effectiveKey && effectiveKey !== 'no section') {
+        leaderboardState.currentSectionIncluded = isLeaderboardSectionIncluded(effectiveCurrentSection, leaderboardSectionSettings);
       } else {
-        const currentQuick = visibleQuickRows.find(row => isCurrentLeaderboardStudent(row));
-        leaderboardState.currentSectionIncluded = Boolean(currentQuick && currentQuick.leaderboardIncluded !== false);
+        // A settings/permission failure must never falsely label a student as
+        // excluded. Default to visible until an actual configured filter says no.
+        leaderboardState.currentSectionIncluded = true;
       }
-      if (leaderboardState.currentSectionIncluded && !records.some(record => record.current)) records.push(leaderboardCurrentFallback());
+
+      if (leaderboardState.currentSectionIncluded && !records.some(record => record.current || isCurrentLeaderboardStudent(record))) {
+        records.push(leaderboardCurrentFallback());
+      }
       const freshCurrentXp = totalXp();
       records.forEach(record => {
         if (record.current || isCurrentLeaderboardStudent(record)) {
@@ -43421,10 +43533,13 @@ window.MCS_PHONE_MENU_STATUS = () => ({
           record.xp = Math.max(Number(record.xp || 0), Number(freshCurrentXp || 0));
         }
       });
-      const ranked = assignLeaderboardRanks(records);
+
+      const ranked = assignLeaderboardRanks(records.filter(record => String(record.accountStatus || 'active') !== 'disabled'));
       ranked.forEach(record => { record.current = record.current || isCurrentLeaderboardStudent(record); });
       leaderboardState.records = ranked;
       leaderboardState.loadedAt = Date.now();
+      leaderboardState.rosterLoaded = Boolean(rootPublic.records.length || rosterDocs.length);
+      leaderboardState.source = rootPublic.records.length ? 'teacher-published enrolled students' : (rosterDocs.length ? 'included enrolled students' : 'synced leaderboard accounts');
       renderGlobalLeaderboard();
     } catch (error) {
       console.warn('Global Code Explorer leaderboard could not be loaded.', error);
@@ -43560,15 +43675,20 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     try {
       const ready = await initFirebaseSync();
       if (!ready) return;
+      // Always publish the root snapshot first. This is the reliable student
+      // source and uses existing app permissions.
+      await publishLeaderboardSnapshotToRoot(leaderboardSectionSettings);
       const { getDocs, setDoc, serverTimestamp } = firebaseSync.modules;
-      await setDoc(getCodeExplorerLeaderboardDocRef(CODE_EXPLORER_LEADERBOARD_SETTINGS_ROW_ID), {
-        recordType: 'settings',
-        accountStatus: 'disabled',
-        configured: Boolean(leaderboardSectionSettings.configured),
-        includedSections: leaderboardSectionSettings.includedSections || [],
-        includedSectionKeys: leaderboardSectionSettings.includedSectionKeys || [],
-        updatedAt: serverTimestamp()
-      }, { merge: true });
+      await Promise.allSettled([
+        setDoc(getCodeExplorerLeaderboardDocRef(CODE_EXPLORER_LEADERBOARD_SETTINGS_ROW_ID), {
+          recordType: 'settings',
+          accountStatus: 'disabled',
+          configured: Boolean(leaderboardSectionSettings.configured),
+          includedSections: leaderboardSectionSettings.includedSections || [],
+          includedSectionKeys: leaderboardSectionSettings.includedSectionKeys || [],
+          updatedAt: serverTimestamp()
+        }, { merge: true })
+      ]);
       const snapshot = await getDocs(getCodeExplorerLeaderboardCollectionRef()).catch(() => ({ docs: [] }));
       const existingRows = Array.from(snapshot.docs || [])
         .map(docSnap => ({ id: docSnap.id, ...snapshotData(docSnap) }))
