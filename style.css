@@ -55773,3 +55773,150 @@ html[data-theme="dark"] .code-explorer-admin-heart-control span{color:#b7c8e3}
 [data-theme="dark"] .code-explorer-course-mobile-tab { color: #dbe7f6; }
 [data-theme="dark"] .code-explorer-course-mobile-tab small { color: #9fb0c8; }
 [data-theme="dark"] .code-explorer-course-card.active .code-explorer-course-mobile-tab small { color: #f8fbff; }
+
+
+/* ================================================================
+   v365 — My Projects Code Explorer compact quick-access card
+   Keeps projects visually dominant on the student dashboard.
+   ================================================================ */
+.student-dashboard-main .code-explorer-dashboard-card {
+  display: grid !important;
+  grid-template-columns: minmax(250px,.85fr) auto minmax(118px,auto) !important;
+  align-items: center !important;
+  gap: 14px !important;
+  margin: 12px 0 !important;
+  padding: 12px 14px !important;
+  min-height: 0 !important;
+  border-radius: 17px !important;
+}
+.student-dashboard-main .code-explorer-dashboard-copy { gap: 10px !important; }
+.student-dashboard-main .code-explorer-dashboard-icon {
+  width: 40px !important;
+  height: 40px !important;
+  border-radius: 13px !important;
+  font-size: 21px !important;
+}
+.code-explorer-dashboard-titleblock { min-width: 0; }
+.code-explorer-dashboard-titleline { display:flex; align-items:center; gap:8px; min-width:0; }
+.student-dashboard-main .code-explorer-dashboard-copy h3 {
+  margin: 0 !important;
+  font-size: 1rem !important;
+  line-height: 1.15 !important;
+  white-space: nowrap;
+}
+.student-dashboard-main .code-explorer-dashboard-copy p {
+  margin: 3px 0 0 !important;
+  font-size: .76rem !important;
+  line-height: 1.25 !important;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.code-explorer-dashboard-overall,
+.code-explorer-dashboard-cert {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(59,130,246,.22);
+  background: rgba(219,234,254,.62);
+  color: #1d4ed8;
+  font-size: .68rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.code-explorer-dashboard-cert { color:#92400e; background:#fffbeb; border-color:#fde68a; }
+.student-dashboard-main .code-explorer-dashboard-progress {
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  grid-column: auto !important;
+  grid-row: auto !important;
+}
+.student-dashboard-main .code-explorer-dashboard-progress > div {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 5px !important;
+  grid-template-columns: none !important;
+  min-height: 30px;
+  padding: 5px 8px;
+  border: 1px solid #dbe3ed;
+  border-radius: 10px;
+  background: rgba(255,255,255,.72);
+  font-size: .7rem !important;
+  white-space: nowrap;
+}
+.student-dashboard-main .code-explorer-dashboard-progress span { font-size:.67rem; }
+.student-dashboard-main .code-explorer-dashboard-progress strong { font-size:.72rem; text-align:left !important; }
+.student-dashboard-main .code-explorer-dashboard-progress .code-explorer-mini-track { display:none !important; }
+.student-dashboard-main .code-explorer-dashboard-btn {
+  width: auto !important;
+  min-height: 38px !important;
+  padding: 8px 13px !important;
+  border-radius: 12px !important;
+  font-size: .76rem !important;
+  white-space: nowrap !important;
+}
+[data-theme="dark"] .code-explorer-dashboard-overall { background:#17365b; border-color:#315a86; color:#b9dcff; }
+[data-theme="dark"] .code-explorer-dashboard-cert { background:#3b2b13; border-color:#6b5122; color:#ffd67a; }
+[data-theme="dark"] .student-dashboard-main .code-explorer-dashboard-progress > div {
+  background:#13243a !important;
+  border-color:#304760 !important;
+  color:#eef5ff !important;
+}
+
+@media (max-width:760px) {
+  .student-dashboard-main .code-explorer-dashboard-card {
+    grid-template-columns: minmax(0,1fr) auto !important;
+    gap: 9px 10px !important;
+    padding: 11px 12px !important;
+    margin: 10px 0 !important;
+    border-radius: 15px !important;
+  }
+  .student-dashboard-main .code-explorer-dashboard-copy {
+    grid-column: 1 / -1;
+    gap: 9px !important;
+  }
+  .student-dashboard-main .code-explorer-dashboard-icon {
+    width: 36px !important;
+    height: 36px !important;
+    font-size: 19px !important;
+    border-radius: 11px !important;
+  }
+  .student-dashboard-main .code-explorer-dashboard-copy h3 { font-size: .94rem !important; }
+  .student-dashboard-main .code-explorer-dashboard-copy p { font-size: .7rem !important; }
+  .code-explorer-dashboard-overall,
+  .code-explorer-dashboard-cert { min-height: 21px; padding:2px 6px; font-size:.61rem; }
+  .student-dashboard-main .code-explorer-dashboard-progress {
+    grid-column: 1 !important;
+    display: grid !important;
+    grid-template-columns: repeat(3,minmax(0,1fr)) !important;
+    gap: 5px !important;
+    min-width: 0;
+  }
+  .student-dashboard-main .code-explorer-dashboard-progress > div {
+    justify-content: center !important;
+    min-width: 0;
+    min-height: 32px;
+    padding: 5px 4px;
+    border-radius: 9px;
+    gap: 3px !important;
+  }
+  .student-dashboard-main .code-explorer-dashboard-progress span { font-size: .61rem !important; }
+  .student-dashboard-main .code-explorer-dashboard-progress strong { font-size: .67rem !important; }
+  .student-dashboard-main .code-explorer-dashboard-btn {
+    grid-column: 2 !important;
+    align-self: stretch;
+    min-height: 32px !important;
+    padding: 6px 10px !important;
+    font-size: .68rem !important;
+  }
+}
+
+@media (max-width:390px) {
+  .code-explorer-dashboard-overall { display:none; }
+  .student-dashboard-main .code-explorer-dashboard-copy p { max-width: 250px; }
+  .student-dashboard-main .code-explorer-dashboard-btn { padding-inline: 8px !important; }
+}

@@ -45,7 +45,7 @@
   </script>
   <link rel="preconnect" href="https://drive.google.com" crossorigin>
   <link rel="preconnect" href="https://lh3.googleusercontent.com" crossorigin>
-  <link rel="stylesheet" href="style.css?v=20260908-v364-code-explorer-mobile-course-tabs" />
+  <link rel="stylesheet" href="style.css?v=20260908-v365-compact-explorer-dashboard" />
   <style>
     .ai-rubric-settings-card,
     .admin-project-ai-review-card {
@@ -409,16 +409,19 @@
       <section id="codeExplorerDashboardCard" class="code-explorer-dashboard-card" aria-label="Code Explorer learning progress">
         <div class="code-explorer-dashboard-copy">
           <span class="code-explorer-dashboard-icon" aria-hidden="true">🚀</span>
-          <div>
-            <span class="code-explorer-eyebrow">Explore beyond class lessons</span>
-            <h3>Code Explorer</h3>
-            <p>Learn HTML, CSS, and JavaScript at your own pace with live practice, quick checks, challenges, and certificates.</p>
+          <div class="code-explorer-dashboard-titleblock">
+            <div class="code-explorer-dashboard-titleline">
+              <h3>Code Explorer</h3>
+              <span id="dashboardExplorerOverallText" class="code-explorer-dashboard-overall">0% overall</span>
+              <span id="dashboardExplorerCertificateText" class="code-explorer-dashboard-cert hidden">🏅 0</span>
+            </div>
+            <p id="dashboardExplorerResumeText">HTML, CSS &amp; JavaScript · Self-paced practice</p>
           </div>
         </div>
         <div class="code-explorer-dashboard-progress" aria-label="Code Explorer progress summary">
-          <div><span>HTML</span><div class="code-explorer-mini-track"><i id="dashboardExplorerHtmlBar"></i></div><strong id="dashboardExplorerHtmlText">0%</strong></div>
-          <div><span>CSS</span><div class="code-explorer-mini-track"><i id="dashboardExplorerCssBar"></i></div><strong id="dashboardExplorerCssText">0%</strong></div>
-          <div><span>JS</span><div class="code-explorer-mini-track"><i id="dashboardExplorerJsBar"></i></div><strong id="dashboardExplorerJsText">0%</strong></div>
+          <div class="html"><span>HTML</span><div class="code-explorer-mini-track"><i id="dashboardExplorerHtmlBar"></i></div><strong id="dashboardExplorerHtmlText">0%</strong></div>
+          <div class="css"><span>CSS</span><div class="code-explorer-mini-track"><i id="dashboardExplorerCssBar"></i></div><strong id="dashboardExplorerCssText">0%</strong></div>
+          <div class="js"><span>JS</span><div class="code-explorer-mini-track"><i id="dashboardExplorerJsBar"></i></div><strong id="dashboardExplorerJsText">0%</strong></div>
         </div>
         <button id="dashboardCodeExplorerBtn" class="primary-btn code-explorer-dashboard-btn" type="button">🚀 Start Exploring</button>
       </section>
@@ -3192,6 +3195,6 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
       </section>
     </div>
 
-  <script src="script.js?v=20260908-v364-code-explorer-mobile-course-tabs"></script>
+  <script src="script.js?v=20260908-v365-compact-explorer-dashboard"></script>
 </body>
 </html>

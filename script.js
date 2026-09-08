@@ -40167,6 +40167,9 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     certCloseBtn: $('codeExplorerCertificatesCloseBtn'),
     dashBars: { html: $('dashboardExplorerHtmlBar'), css: $('dashboardExplorerCssBar'), js: $('dashboardExplorerJsBar') },
     dashTexts: { html: $('dashboardExplorerHtmlText'), css: $('dashboardExplorerCssText'), js: $('dashboardExplorerJsText') },
+    dashOverall: $('dashboardExplorerOverallText'),
+    dashCertificate: $('dashboardExplorerCertificateText'),
+    dashResume: $('dashboardExplorerResumeText'),
     adminPanel: $('codeExplorerAdmin'),
     adminRefreshBtn: $('refreshCodeExplorerAdminBtn'),
     adminStudentCount: $('codeExplorerAdminStudentCount'),
@@ -40785,14 +40788,55 @@ window.MCS_PHONE_MENU_STATUS = () => ({
 
   function certificateCount() { return explorerCertificateCountFor(state.progress); }
 
-  function renderDashboardSummary() {
-    const currentReader = readerKey();
-    ensureReaderProgress();
+  function dashboardExplorerResumeInfo() {
+    let latest = null;
+    COURSE_KEYS.forEach(key => {
+      const course = COURSES[key];
+      const records = state.progress?.courses?.[key]?.topics || {};
+      course.topics.forEach((item, index) => {
+        const record = records[item.id] || {};
+        const stamp = Math.max(
+          Date.parse(record.lastOpenedAt || '') || 0,
+          Date.parse(record.openedAt || '') || 0,
+          Date.parse(record.completedAt || '') || 0,
+          Date.parse(record.quizLastAttemptAt || record.lastAttemptAt || '') || 0
+        );
+        if (!stamp) return;
+        if (!latest || stamp > latest.stamp) latest = { key, course, item, index, stamp, completed: Boolean(record.completedAt) };
+      });
+    });
+    return latest;
+  }
+
+  function updateDashboardExplorerCard() {
+    const overall = explorerOverallFor(state.progress);
+    const certs = explorerCertificateCountFor(state.progress);
     COURSE_KEYS.forEach(key => {
       const stats = courseProgress(key);
       if (dom.dashBars[key]) dom.dashBars[key].style.width = `${stats.percent}%`;
       if (dom.dashTexts[key]) dom.dashTexts[key].textContent = `${stats.percent}%`;
     });
+    if (dom.dashOverall) dom.dashOverall.textContent = `${overall.percent}% overall`;
+    if (dom.dashCertificate) {
+      dom.dashCertificate.textContent = `🏅 ${certs}`;
+      dom.dashCertificate.classList.toggle('hidden', certs <= 0);
+    }
+    const resume = dashboardExplorerResumeInfo();
+    if (dom.dashResume) {
+      dom.dashResume.textContent = resume
+        ? `Continue: ${resume.course.short} · ${resume.item.title}`
+        : 'HTML, CSS & JavaScript · Self-paced practice';
+    }
+    if (dom.dashboardBtn) {
+      dom.dashboardBtn.textContent = overall.explored > 0 ? 'Continue →' : '🚀 Start Exploring';
+      dom.dashboardBtn.setAttribute('aria-label', overall.explored > 0 ? 'Continue Code Explorer' : 'Start Code Explorer');
+    }
+  }
+
+  function renderDashboardSummary() {
+    const currentReader = readerKey();
+    ensureReaderProgress();
+    updateDashboardExplorerCard();
     if (appSession.mode === 'student' && appSession.student?.uid && !state.cloudLoaded && !state.dashboardCloudLoading) {
       state.dashboardCloudLoading = true;
       loadCloudProgress().then(cloud => {
@@ -40802,11 +40846,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
           saveLocalProgress();
         }
         state.cloudLoaded = true;
-        COURSE_KEYS.forEach(key => {
-          const stats = courseProgress(key);
-          if (dom.dashBars[key]) dom.dashBars[key].style.width = `${stats.percent}%`;
-          if (dom.dashTexts[key]) dom.dashTexts[key].textContent = `${stats.percent}%`;
-        });
+        updateDashboardExplorerCard();
       }).catch(error => console.warn('Code Explorer dashboard progress refresh skipped.', error)).finally(() => {
         state.dashboardCloudLoading = false;
       });
