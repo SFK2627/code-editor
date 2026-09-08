@@ -40542,6 +40542,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   const HEARTS_MAX = 5;
   const HEART_REFILL_MS = 60 * 60 * 1000;
   const state = { course: 'html', topicId: '', filter: 'all', progress: null, reader: '', cloudLoaded: false, dashboardCloudLoading: false, saveTimer: null, heartTimer: null, profileUnsub: null, finalAnswers: {}, quickQuiz: { topicId: '', index: 0, answers: [], results: [], submitted: false }, miniGame: { topicId: '', selected: '', result: '', correct: '', choices: [], before: '', after: '' }, miniGameResetTimer: null, quickAdvanceTimer: null, quickFeedbackTimer: null, justUnlockedTopicId: '', justUnlockedCourse: '', mobileStage: 'learn', mobileStageDirection: 'next', mobileSwipeStart: null, mobileView: 'roadmap' };
+  const CODE_EXPLORER_LEADERBOARD_SETTINGS_ROW_ID = 'leaderboard_settings';
   const leaderboardState = { records: [], loadedAt: 0, loading: false, source: '', rosterLoaded: false, mode: 'students', settingsLoaded: false, settingsError: false, currentSectionIncluded: true };
   let leaderboardSectionSettings = { configured: false, includedSections: [], includedSectionKeys: [] };
 
@@ -43098,7 +43099,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       // Mirror only non-sensitive visibility settings into the leaderboard
       // collection so student clients can enforce the same section filter even
       // when adminSettings reads are restricted by Firestore rules.
-      await setDoc(getCodeExplorerLeaderboardDocRef('__settings__'), {
+      await setDoc(getCodeExplorerLeaderboardDocRef(CODE_EXPLORER_LEADERBOARD_SETTINGS_ROW_ID), {
         recordType: 'settings',
         accountStatus: 'disabled',
         configured: true,
@@ -43116,7 +43117,11 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       if (dom.adminLeaderboardSettingsStatus) dom.adminLeaderboardSettingsStatus.textContent = `${includedSections.length} section${includedSections.length === 1 ? '' : 's'} included. Students from hidden sections are now excluded from both leaderboards.`;
     } catch (error) {
       console.error('Could not save Code Explorer leaderboard section settings.', error);
-      if (dom.adminLeaderboardSettingsStatus) dom.adminLeaderboardSettingsStatus.textContent = error?.message || 'Could not save leaderboard section settings.';
+      const rawMessage = String(error?.message || 'Could not save leaderboard section settings.');
+      const friendlyMessage = /reserved|resource id/i.test(rawMessage)
+        ? 'Could not publish leaderboard settings because the cloud settings record name was invalid. Please use this updated version and try Save again.'
+        : rawMessage;
+      if (dom.adminLeaderboardSettingsStatus) dom.adminLeaderboardSettingsStatus.textContent = friendlyMessage;
     } finally {
       if (dom.adminLeaderboardSaveBtn) { dom.adminLeaderboardSaveBtn.disabled = false; dom.adminLeaderboardSaveBtn.textContent = 'Save Leaderboard Sections'; }
     }
@@ -43337,13 +43342,13 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         return { uid: data.authUid || '', rosterId: studentId, isRosterOnly: true, sourceType: 'studentRoster', ...data, studentId, studentIdNormalized: studentId || data.studentIdNormalized || data.studentId };
       });
       const allQuickRows = quickDocs.map(snapshot => ({ id: snapshot.id, ...snapshotData(snapshot) }));
-      const safeSettingsRow = allQuickRows.find(row => row.id === '__settings__' || row.recordType === 'settings') || null;
+      const safeSettingsRow = allQuickRows.find(row => row.id === CODE_EXPLORER_LEADERBOARD_SETTINGS_ROW_ID || row.recordType === 'settings') || null;
       if (!leaderboardState.settingsLoaded && safeSettingsRow) {
         leaderboardSectionSettings = normalizeLeaderboardSectionSettings(safeSettingsRow);
         leaderboardState.settingsLoaded = true;
         leaderboardState.settingsError = false;
       }
-      const quickRows = allQuickRows.filter(row => row.id !== '__settings__' && row.recordType !== 'settings');
+      const quickRows = allQuickRows.filter(row => row.id !== CODE_EXPLORER_LEADERBOARD_SETTINGS_ROW_ID && row.recordType !== 'settings');
       const visibleQuickRows = quickRows.filter(row => leaderboardState.settingsLoaded
         ? isLeaderboardSectionIncluded(row.section || '', leaderboardSectionSettings)
         : row.leaderboardIncluded !== false);
@@ -43556,7 +43561,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       const ready = await initFirebaseSync();
       if (!ready) return;
       const { getDocs, setDoc, serverTimestamp } = firebaseSync.modules;
-      await setDoc(getCodeExplorerLeaderboardDocRef('__settings__'), {
+      await setDoc(getCodeExplorerLeaderboardDocRef(CODE_EXPLORER_LEADERBOARD_SETTINGS_ROW_ID), {
         recordType: 'settings',
         accountStatus: 'disabled',
         configured: Boolean(leaderboardSectionSettings.configured),
@@ -43567,7 +43572,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       const snapshot = await getDocs(getCodeExplorerLeaderboardCollectionRef()).catch(() => ({ docs: [] }));
       const existingRows = Array.from(snapshot.docs || [])
         .map(docSnap => ({ id: docSnap.id, ...snapshotData(docSnap) }))
-        .filter(row => row.id !== '__settings__' && row.recordType !== 'settings');
+        .filter(row => row.id !== CODE_EXPLORER_LEADERBOARD_SETTINGS_ROW_ID && row.recordType !== 'settings');
       const existingByIdentity = new Map(existingRows.map(row => [leaderboardStudentIdentity(row), row]));
       const writes = [];
       adminStudentsCache.forEach(student => {
