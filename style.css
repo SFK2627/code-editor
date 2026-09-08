@@ -58342,3 +58342,51 @@ html[data-theme="dark"] .code-explorer-quick-feedback-card.wrong .code-explorer-
     color: #9a3412 !important;
   }
 }
+
+/* ================================================================
+   v378 — Fix global <code> pill styling inside Fill in the Blank game
+   The app-wide code{} rule was adding a pale blue background/padding to
+   every line inside the dark puzzle sample, which made white code hard
+   to read in light mode. Reset only the mini-game code surfaces.
+   ================================================================ */
+@media (max-width: 760px) {
+  html[data-theme="light"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-mini-game-code code {
+    display: inline !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    color: #f8fafc !important;
+    -webkit-text-fill-color: #f8fafc !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+
+  html[data-theme="light"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-mini-game-code pre {
+    background: #0b1220 !important;
+    color: #f8fafc !important;
+    -webkit-text-fill-color: #f8fafc !important;
+  }
+
+  /* Choice buttons already supply their own container/background. */
+  html[data-theme="light"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-mini-game-option code {
+    padding: 0 !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    color: inherit !important;
+    -webkit-text-fill-color: currentColor !important;
+    box-shadow: none !important;
+  }
+
+  /* The actual blank remains intentionally highlighted. */
+  html[data-theme="light"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-mini-game-blank {
+    -webkit-text-fill-color: #1e3a8a !important;
+  }
+  html[data-theme="light"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-mini-game-blank.correct {
+    -webkit-text-fill-color: #14532d !important;
+  }
+  html[data-theme="light"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-mini-game-blank.wrong {
+    -webkit-text-fill-color: #7f1d1d !important;
+  }
+}
