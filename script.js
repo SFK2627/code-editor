@@ -3410,7 +3410,19 @@ function initFirebaseWithCompatSDK() {
       limit: count => ({ type: 'limit', count }),
       serverTimestamp: () => firebase.firestore.FieldValue.serverTimestamp(),
       increment: amount => firebase.firestore.FieldValue.increment(amount),
-      writeBatch: database => database.batch()
+      writeBatch: database => database.batch(),
+      runTransaction: (database, updateFunction) => database.runTransaction(async transaction => {
+        const wrapped = {
+          get: async ref => {
+            const snap = await transaction.get(ref);
+            return { id: snap.id, exists: () => snap.exists, data: () => snap.data() || {}, ref: snap.ref };
+          },
+          set: (ref, data, options = {}) => transaction.set(ref, data, options),
+          update: (ref, data) => transaction.update(ref, data),
+          delete: ref => transaction.delete(ref)
+        };
+        return updateFunction(wrapped);
+      })
     };
     firebaseSync.authModule = {
       onAuthStateChanged: (authInstance, callback) => authInstance.onAuthStateChanged(callback),
@@ -40165,6 +40177,11 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     leaderboardBtn: $('codeExplorerLeaderboardBtn'),
     heartBadge: $('codeExplorerHeartBadge'),
     quickThemeToggle: $('codeExplorerQuickThemeToggle'),
+    audioMenu: $('codeExplorerAudioMenu'),
+    audioMenuToggle: $('codeExplorerAudioMenuToggle'),
+    audioMenuPanel: $('codeExplorerAudioMenuPanel'),
+    musicToggle: $('codeExplorerMusicToggle'),
+    sfxToggle: $('codeExplorerSfxToggle'),
     leaderboardOverlay: $('codeExplorerLeaderboardOverlay'),
     leaderboardCloseBtn: $('codeExplorerLeaderboardCloseBtn'),
     leaderboardRefreshBtn: $('codeExplorerLeaderboardRefreshBtn'),
@@ -40583,10 +40600,347 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   const HEARTS_DEFAULT = 5;
   const HEARTS_MAX = 5;
   const HEART_REFILL_MS = 60 * 60 * 1000;
-  const state = { course: 'html', topicId: '', filter: 'all', progress: null, reader: '', cloudLoaded: false, cloudXpHint: 0, dashboardCloudLoading: false, saveTimer: null, heartTimer: null, profileUnsub: null, finalAnswers: {}, finalStartedAt: 0, quickQuiz: { topicId: '', index: 0, answers: [], results: [], submitted: false, questionStartedAt: [], responseMs: [], attemptStartedAt: 0 }, miniGame: { topicId: '', selected: '', result: '', correct: '', choices: [], before: '', after: '' }, miniGameResetTimer: null, quickAdvanceTimer: null, quickFeedbackTimer: null, justUnlockedTopicId: '', justUnlockedCourse: '', mobileStage: 'learn', mobileStageDirection: 'next', mobileSwipeStart: null, mobileView: 'roadmap' };
+  const state = { course: 'html', topicId: '', filter: 'all', progress: null, reader: '', cloudLoaded: false, cloudXpHint: 0, dashboardCloudLoading: false, saveTimer: null, cloudSavePromise: null, cloudSaveQueued: false, lastCloudSyncAt: 0, identityCheckedAt: 0, identityCanonical: true, heartTimer: null, profileUnsub: null, finalAnswers: {}, finalStartedAt: 0, quickQuiz: { topicId: '', index: 0, answers: [], results: [], submitted: false, questionStartedAt: [], responseMs: [], attemptStartedAt: 0 }, miniGame: { topicId: '', selected: '', result: '', correct: '', choices: [], before: '', after: '' }, miniGameResetTimer: null, quickAdvanceTimer: null, quickFeedbackTimer: null, justUnlockedTopicId: '', justUnlockedCourse: '', mobileStage: 'learn', mobileStageDirection: 'next', mobileSwipeStart: null, mobileView: 'roadmap' };
   const CODE_EXPLORER_LEADERBOARD_SETTINGS_ROW_ID = 'leaderboard_settings';
   const leaderboardState = { records: [], loadedAt: 0, loading: false, source: '', rosterLoaded: false, mode: 'students', settingsLoaded: false, settingsError: false, currentSectionIncluded: true };
   let leaderboardSectionSettings = { configured: false, includedSections: [], includedSectionKeys: [] };
+
+  // v396 — Code Explorer audio experience. Everything is synthesized with the
+  // Web Audio API so there are no external/copyrighted music files to load.
+  const CODE_EXPLORER_AUDIO_PREFS_KEY = 'mcsian.codeExplorerAudio.v1';
+  const EXPLORER_AUDIO_DEFAULTS = Object.freeze({ music: true, sfx: true });
+  const EXPLORER_SFX_PRIORITY = Object.freeze({
+    correct: 1,
+    wrong: 2,
+    xp: 2,
+    miniComplete: 3,
+    practicePass: 3,
+    quickPass: 4,
+    perfect: 5,
+    topicComplete: 6,
+    finalPass: 7,
+    certificate: 8
+  });
+  const explorerAudio = {
+    context: null,
+    masterGain: null,
+    musicGain: null,
+    sfxGain: null,
+    prefs: { ...EXPLORER_AUDIO_DEFAULTS },
+    musicTimer: null,
+    musicNodes: new Set(),
+    sfxNodes: new Set(),
+    queuedSfxTimers: new Set(),
+    phraseIndex: 0,
+    lastSfxAt: 0,
+    lastSfxPriority: 0,
+    unlocked: false
+  };
+
+  function explorerAudioSupported() {
+    return Boolean(window.AudioContext || window.webkitAudioContext);
+  }
+
+  function explorerAudioPrefsKey() {
+    return `${CODE_EXPLORER_AUDIO_PREFS_KEY}.${readerKey()}`;
+  }
+
+  function loadExplorerAudioPrefs() {
+    let saved = null;
+    try { saved = JSON.parse(localStorage.getItem(explorerAudioPrefsKey()) || 'null'); } catch (_) {}
+    explorerAudio.prefs = {
+      music: saved?.music !== false,
+      sfx: saved?.sfx !== false
+    };
+    syncExplorerAudioControls();
+    return explorerAudio.prefs;
+  }
+
+  function saveExplorerAudioPrefs() {
+    try { localStorage.setItem(explorerAudioPrefsKey(), JSON.stringify(explorerAudio.prefs)); } catch (_) {}
+  }
+
+  function syncExplorerAudioControls() {
+    const supported = explorerAudioSupported();
+    const musicOn = supported && explorerAudio.prefs.music !== false;
+    const sfxOn = supported && explorerAudio.prefs.sfx !== false;
+    if (dom.musicToggle) {
+      dom.musicToggle.disabled = !supported;
+      dom.musicToggle.classList.toggle('active', musicOn);
+      dom.musicToggle.classList.toggle('muted', !musicOn);
+      dom.musicToggle.setAttribute('aria-pressed', String(musicOn));
+      dom.musicToggle.setAttribute('aria-label', supported ? `Turn background music ${musicOn ? 'off' : 'on'}` : 'Background music is not supported in this browser');
+      dom.musicToggle.title = supported ? `Background music: ${musicOn ? 'on' : 'off'}` : 'Audio is not supported in this browser';
+      const icon = dom.musicToggle.querySelector('.code-explorer-audio-icon');
+      if (icon) icon.textContent = musicOn ? '🎵' : '🔇';
+    }
+    if (dom.sfxToggle) {
+      dom.sfxToggle.disabled = !supported;
+      dom.sfxToggle.classList.toggle('active', sfxOn);
+      dom.sfxToggle.classList.toggle('muted', !sfxOn);
+      dom.sfxToggle.setAttribute('aria-pressed', String(sfxOn));
+      dom.sfxToggle.setAttribute('aria-label', supported ? `Turn sound effects ${sfxOn ? 'off' : 'on'}` : 'Sound effects are not supported in this browser');
+      dom.sfxToggle.title = supported ? `Sound effects: ${sfxOn ? 'on' : 'off'}` : 'Audio is not supported in this browser';
+      const icon = dom.sfxToggle.querySelector('.code-explorer-audio-icon');
+      if (icon) icon.textContent = sfxOn ? '🔊' : '🔇';
+    }
+    if (dom.audioMenuToggle) {
+      dom.audioMenuToggle.disabled = !supported;
+      dom.audioMenuToggle.textContent = !supported ? '🔇' : ((musicOn || sfxOn) ? '🎧' : '🔇');
+      dom.audioMenuToggle.classList.toggle('muted', supported && !musicOn && !sfxOn);
+      dom.audioMenuToggle.title = supported ? `Audio · Music ${musicOn ? 'on' : 'off'} · Sound ${sfxOn ? 'on' : 'off'}` : 'Audio is not supported in this browser';
+    }
+  }
+
+  function ensureExplorerAudioContext() {
+    if (!explorerAudioSupported()) return null;
+    if (explorerAudio.context) return explorerAudio.context;
+    const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+    try {
+      const context = new AudioContextCtor();
+      const masterGain = context.createGain();
+      const musicGain = context.createGain();
+      const sfxGain = context.createGain();
+      masterGain.gain.value = 0.82;
+      musicGain.gain.value = 0.22;
+      sfxGain.gain.value = 0.78;
+      musicGain.connect(masterGain);
+      sfxGain.connect(masterGain);
+      masterGain.connect(context.destination);
+      explorerAudio.context = context;
+      explorerAudio.masterGain = masterGain;
+      explorerAudio.musicGain = musicGain;
+      explorerAudio.sfxGain = sfxGain;
+      return context;
+    } catch (error) {
+      console.info('Code Explorer audio is unavailable.', error);
+      return null;
+    }
+  }
+
+  function stopExplorerNodeSet(nodeSet) {
+    nodeSet.forEach(node => {
+      try { node.stop(); } catch (_) {}
+      try { node.disconnect(); } catch (_) {}
+    });
+    nodeSet.clear();
+  }
+
+  function scheduleExplorerTone(busName, frequency, offset = 0, duration = 0.14, volume = 0.12, type = 'sine') {
+    const context = ensureExplorerAudioContext();
+    const bus = busName === 'music' ? explorerAudio.musicGain : explorerAudio.sfxGain;
+    if (!context || !bus || context.state !== 'running') return null;
+    const startAt = Math.max(context.currentTime + 0.006, context.currentTime + Math.max(0, Number(offset || 0)));
+    const endAt = startAt + Math.max(0.04, Number(duration || 0.14));
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    oscillator.type = type;
+    oscillator.frequency.setValueAtTime(Math.max(40, Number(frequency || 440)), startAt);
+    gain.gain.setValueAtTime(0.0001, startAt);
+    gain.gain.exponentialRampToValueAtTime(Math.max(0.001, Number(volume || 0.1)), startAt + Math.min(0.035, (endAt - startAt) * 0.25));
+    gain.gain.exponentialRampToValueAtTime(0.0001, Math.max(startAt + 0.04, endAt - 0.015));
+    oscillator.connect(gain);
+    gain.connect(bus);
+    const nodes = busName === 'music' ? explorerAudio.musicNodes : explorerAudio.sfxNodes;
+    nodes.add(oscillator);
+    oscillator.addEventListener?.('ended', () => {
+      nodes.delete(oscillator);
+      try { oscillator.disconnect(); } catch (_) {}
+      try { gain.disconnect(); } catch (_) {}
+    }, { once: true });
+    try {
+      oscillator.start(startAt);
+      oscillator.stop(endAt + 0.025);
+    } catch (_) {
+      nodes.delete(oscillator);
+    }
+    return oscillator;
+  }
+
+  async function unlockExplorerAudio() {
+    const context = ensureExplorerAudioContext();
+    if (!context) return false;
+    try {
+      if (context.state === 'suspended') await context.resume();
+      explorerAudio.unlocked = context.state === 'running';
+      if (explorerAudio.unlocked && explorerAudio.prefs.music && document.body.classList.contains('code-explorer-active') && !document.hidden) startExplorerMusic();
+      return explorerAudio.unlocked;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function playExplorerSfx(name = 'correct', options = {}) {
+    if (!explorerAudio.prefs.sfx || document.hidden) return false;
+    const context = ensureExplorerAudioContext();
+    if (!context) return false;
+    if (context.state !== 'running') {
+      unlockExplorerAudio().then(ok => { if (ok && options.retry !== false) playExplorerSfx(name, { ...options, retry: false }); }).catch(() => {});
+      return false;
+    }
+    const now = performance.now();
+    const priority = Number(EXPLORER_SFX_PRIORITY[name] || 1);
+    const gap = now - Number(explorerAudio.lastSfxAt || 0);
+    if (!options.force && gap < 190 && priority < Number(explorerAudio.lastSfxPriority || 0)) return false;
+    if (gap < 260 && priority >= Number(explorerAudio.lastSfxPriority || 0)) stopExplorerNodeSet(explorerAudio.sfxNodes);
+    explorerAudio.lastSfxAt = now;
+    explorerAudio.lastSfxPriority = priority;
+
+    const patterns = {
+      correct: [
+        [0.00, 659.25, 0.09, 0.105, 'sine'],
+        [0.075, 880.00, 0.13, 0.085, 'sine']
+      ],
+      wrong: [
+        [0.00, 220.00, 0.11, 0.105, 'triangle'],
+        [0.085, 164.81, 0.19, 0.085, 'triangle']
+      ],
+      xp: [
+        [0.00, 880.00, 0.07, 0.075, 'sine'],
+        [0.055, 1174.66, 0.08, 0.065, 'sine'],
+        [0.105, 1567.98, 0.11, 0.055, 'sine']
+      ],
+      miniComplete: [
+        [0.00, 523.25, 0.10, 0.09, 'triangle'],
+        [0.075, 659.25, 0.11, 0.085, 'triangle'],
+        [0.150, 783.99, 0.16, 0.075, 'sine']
+      ],
+      practicePass: [
+        [0.00, 440.00, 0.10, 0.09, 'triangle'],
+        [0.080, 659.25, 0.11, 0.085, 'triangle'],
+        [0.160, 880.00, 0.16, 0.075, 'sine']
+      ],
+      quickPass: [
+        [0.00, 587.33, 0.10, 0.09, 'triangle'],
+        [0.075, 739.99, 0.11, 0.085, 'triangle'],
+        [0.150, 880.00, 0.17, 0.075, 'sine']
+      ],
+      perfect: [
+        [0.00, 659.25, 0.10, 0.085, 'sine'],
+        [0.070, 830.61, 0.10, 0.08, 'sine'],
+        [0.140, 987.77, 0.11, 0.075, 'sine'],
+        [0.215, 1318.51, 0.20, 0.065, 'sine']
+      ],
+      topicComplete: [
+        [0.00, 523.25, 0.13, 0.09, 'triangle'],
+        [0.095, 659.25, 0.13, 0.085, 'triangle'],
+        [0.190, 783.99, 0.14, 0.08, 'triangle'],
+        [0.290, 1046.50, 0.24, 0.07, 'sine']
+      ],
+      finalPass: [
+        [0.00, 196.00, 0.38, 0.055, 'sine'],
+        [0.00, 392.00, 0.14, 0.09, 'triangle'],
+        [0.115, 523.25, 0.14, 0.085, 'triangle'],
+        [0.230, 659.25, 0.15, 0.08, 'triangle'],
+        [0.350, 783.99, 0.17, 0.075, 'triangle'],
+        [0.500, 1046.50, 0.32, 0.07, 'sine']
+      ],
+      certificate: [
+        [0.00, 523.25, 0.15, 0.07, 'sine'],
+        [0.090, 659.25, 0.15, 0.07, 'sine'],
+        [0.180, 783.99, 0.16, 0.065, 'sine'],
+        [0.275, 1046.50, 0.18, 0.06, 'sine'],
+        [0.390, 1318.51, 0.30, 0.052, 'sine'],
+        [0.455, 1567.98, 0.24, 0.042, 'sine']
+      ]
+    };
+    (patterns[name] || patterns.correct).forEach(([offset, frequency, duration, volume, type]) => {
+      scheduleExplorerTone('sfx', frequency, offset, duration, volume, type);
+    });
+    return true;
+  }
+
+  function queueExplorerSfx(name, delayMs = 0) {
+    const timer = window.setTimeout(() => {
+      explorerAudio.queuedSfxTimers.delete(timer);
+      if (!document.body.classList.contains('code-explorer-active')) return;
+      playExplorerSfx(name, { force: true });
+    }, Math.max(0, Number(delayMs || 0)));
+    explorerAudio.queuedSfxTimers.add(timer);
+    return timer;
+  }
+
+  function clearQueuedExplorerSfx() {
+    explorerAudio.queuedSfxTimers.forEach(timer => clearTimeout(timer));
+    explorerAudio.queuedSfxTimers.clear();
+  }
+
+  function scheduleExplorerMusicPhrase() {
+    if (!explorerAudio.prefs.music || document.hidden || !document.body.classList.contains('code-explorer-active')) {
+      stopExplorerMusic();
+      return;
+    }
+    const context = ensureExplorerAudioContext();
+    if (!context || context.state !== 'running') return;
+    const progression = [
+      [261.63, 329.63, 392.00],
+      [220.00, 261.63, 329.63],
+      [174.61, 220.00, 261.63],
+      [196.00, 246.94, 293.66]
+    ];
+    const chord = progression[explorerAudio.phraseIndex % progression.length];
+    explorerAudio.phraseIndex = (explorerAudio.phraseIndex + 1) % progression.length;
+    chord.forEach((frequency, index) => {
+      scheduleExplorerTone('music', frequency, 0.02 + index * 0.035, 3.45, 0.026 - index * 0.003, 'sine');
+    });
+    scheduleExplorerTone('music', chord[0] / 2, 0.02, 3.35, 0.022, 'sine');
+    const melody = [chord[1] * 2, chord[2] * 2, chord[1] * 2, chord[0] * 2];
+    [0.45, 1.35, 2.25, 3.12].forEach((offset, index) => {
+      scheduleExplorerTone('music', melody[index], offset, 0.26, 0.018, 'triangle');
+    });
+    clearTimeout(explorerAudio.musicTimer);
+    explorerAudio.musicTimer = window.setTimeout(scheduleExplorerMusicPhrase, 3650);
+  }
+
+  function startExplorerMusic() {
+    if (!explorerAudio.prefs.music || document.hidden || !document.body.classList.contains('code-explorer-active')) return;
+    const context = ensureExplorerAudioContext();
+    if (!context || context.state !== 'running' || explorerAudio.musicTimer) return;
+    scheduleExplorerMusicPhrase();
+  }
+
+  function stopExplorerMusic() {
+    clearTimeout(explorerAudio.musicTimer);
+    explorerAudio.musicTimer = null;
+    stopExplorerNodeSet(explorerAudio.musicNodes);
+  }
+
+  function stopExplorerAudioEffects() {
+    stopExplorerMusic();
+    clearQueuedExplorerSfx();
+    stopExplorerNodeSet(explorerAudio.sfxNodes);
+  }
+
+  function closeExplorerAudioMenu() {
+    dom.audioMenu?.classList.remove('open');
+    dom.audioMenuToggle?.setAttribute('aria-expanded', 'false');
+  }
+
+  function toggleExplorerAudioMenu() {
+    if (!dom.audioMenu || !dom.audioMenuToggle) return;
+    const opening = !dom.audioMenu.classList.contains('open');
+    dom.audioMenu.classList.toggle('open', opening);
+    dom.audioMenuToggle.setAttribute('aria-expanded', String(opening));
+    if (opening) unlockExplorerAudio().catch(() => false);
+  }
+
+  function setExplorerAudioPreference(kind, enabled) {
+    if (kind !== 'music' && kind !== 'sfx') return;
+    explorerAudio.prefs[kind] = Boolean(enabled);
+    saveExplorerAudioPrefs();
+    syncExplorerAudioControls();
+    unlockExplorerAudio().then(() => {
+      if (kind === 'music') {
+        if (explorerAudio.prefs.music) startExplorerMusic();
+        else stopExplorerMusic();
+      } else if (explorerAudio.prefs.sfx) {
+        playExplorerSfx('correct', { force: true });
+      } else {
+        clearQueuedExplorerSfx();
+        stopExplorerNodeSet(explorerAudio.sfxNodes);
+      }
+    }).catch(() => {});
+  }
 
   function normalizeHeartState(input = {}) {
     const source = input && typeof input === 'object' ? input : {};
@@ -40725,6 +41079,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       ? (options.correctText || 'Nice work — moving to the next question.')
       : (options.wrongText || 'Not quite — the screen marks it right away and 1 heart is used.');
     const duration = Math.max(500, Number(positive ? options.correctDuration : options.wrongDuration) || (positive ? 820 : 1180));
+    if (options.sound !== false) playExplorerSfx(String(options.sound || (positive ? 'correct' : 'wrong')));
     screen.classList.remove('feedback-correct', 'feedback-wrong');
     dom.quickFeedbackOverlay.classList.remove('hidden', 'correct', 'wrong', 'show');
     dom.quickFeedbackCard.classList.remove('correct', 'wrong');
@@ -40785,19 +41140,39 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         if (!snapshotExists(snapshot) || !state.progress) return;
         const profile = snapshotData(snapshot);
         const remote = normalizeProgress(profile?.codeExplorerProgress || {});
-        const localHeart = normalizeHeartState(state.progress.hearts || {});
-        const remoteHeart = normalizeHeartState(remote.hearts || {});
-        const localTime = Date.parse(localHeart.updatedAt || '') || 0;
-        const remoteTime = Date.parse(remoteHeart.updatedAt || '') || 0;
-        if (remoteTime <= localTime) return;
-        state.progress.hearts = remoteHeart;
+        const beforeSignature = progressSyncSignature(state.progress);
+        const remoteSignature = progressSyncSignature(remote);
+        state.cloudXpHint = Math.max(state.cloudXpHint || 0, Math.max(0, Number(profile?.codeExplorerXp || 0)));
+
+        const merged = mergeProgress(state.progress, remote);
+        migrateLegacyXpProgress(merged, state.cloudXpHint, { source: 'live-cross-device-sync' });
+        const mergedSignature = progressSyncSignature(merged);
+        const localChanged = mergedSignature !== beforeSignature;
+        const remoteMissingLocalProgress = mergedSignature !== remoteSignature;
+
+        state.progress = merged;
+        state.cloudLoaded = true;
+        state.lastCloudSyncAt = Date.now();
         saveLocalProgress(state.progress);
-        renderHeartStatus();
-        renderQuickQuiz();
-        renderFinalCard();
-      }, error => console.info('Code Explorer live heart sync unavailable.', error));
+
+        if (localChanged) {
+          renderHeartStatus();
+          renderTopProgress();
+          renderCourseCards();
+          renderTopicList();
+          renderFinalCard();
+          renderCertificates();
+          if (state.mobileView === 'roadmap') renderCourseRoadmap();
+          else renderMobileJourney();
+        }
+
+        // If this browser has legitimate progress that an older/stale browser
+        // just overwrote, immediately merge it back through the transaction-safe
+        // cloud writer. This keeps all browsers converging on one progress record.
+        if (remoteMissingLocalProgress) scheduleCloudSave();
+      }, error => console.info('Code Explorer live progress sync unavailable.', error));
     } catch (error) {
-      console.info('Code Explorer live heart sync skipped.', error);
+      console.info('Code Explorer live progress sync skipped.', error);
     }
   }
 
@@ -40823,6 +41198,24 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     return base;
   }
 
+  function stableSyncValue(value) {
+    if (Array.isArray(value)) return value.map(stableSyncValue);
+    if (!value || typeof value !== 'object') return value;
+    return Object.keys(value).sort().reduce((result, key) => {
+      if (key === 'updatedAt') return result;
+      result[key] = stableSyncValue(value[key]);
+      return result;
+    }, {});
+  }
+
+  function progressSyncSignature(progress = {}) {
+    try {
+      return JSON.stringify(stableSyncValue(normalizeProgress(progress)));
+    } catch (_) {
+      return '';
+    }
+  }
+
   function readerKey() {
     const student = appSession.student || appSession.lastStudentProfile || {};
     return String(student.uid || student.studentIdNormalized || student.studentId || 'local').replace(/[^a-zA-Z0-9_-]/g, '-').slice(0, 96) || 'local';
@@ -40845,6 +41238,10 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       state.progress = loadLocalProgress();
       state.cloudLoaded = false;
       state.cloudXpHint = 0;
+      state.lastCloudSyncAt = 0;
+      state.cloudSaveQueued = false;
+      state.identityCheckedAt = 0;
+      state.identityCanonical = true;
     }
     return state.progress;
   }
@@ -40855,6 +41252,31 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     progress.updatedAt = new Date().toISOString();
     root[readerKey()] = progress;
     saveJSON(STORAGE_KEYS.codeExplorerProgress, root);
+  }
+
+  function topicProgressActivityMs(record = {}) {
+    return Math.max(
+      Date.parse(record.lastOpenedAt || '') || 0,
+      Date.parse(record.openedAt || '') || 0,
+      Date.parse(record.completedAt || '') || 0,
+      Date.parse(record.quizAnsweredAt || '') || 0,
+      Date.parse(record.miniGamePassedAt || '') || 0
+    );
+  }
+
+  function resolveMergedLastTopicId(courseKey, leftCourse = {}, rightCourse = {}, mergedCourse = {}) {
+    const course = COURSES[courseKey];
+    if (!course) return String(leftCourse.lastTopicId || rightCourse.lastTopicId || '');
+    const records = mergedCourse.topics || {};
+    const active = course.topics
+      .map((item, index) => ({ id: item.id, index, time: topicProgressActivityMs(records[item.id] || {}) }))
+      .filter(item => item.time > 0)
+      .sort((a, b) => b.time - a.time || a.index - b.index);
+    if (active.length) return active[0].id;
+    const fallback = [String(leftCourse.lastTopicId || ''), String(rightCourse.lastTopicId || '')]
+      .filter(id => course.topics.some(item => item.id === id))
+      .sort();
+    return fallback[0] || '';
   }
 
   function mergeProgress(a, b) {
@@ -40928,7 +41350,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       const xc = left.courses[key].certificate || {};
       const yc = right.courses[key].certificate || {};
       left.courses[key].certificate = xc.issuedAt ? { ...xc } : (yc.issuedAt ? { ...yc } : {});
-      left.courses[key].lastTopicId = left.courses[key].lastTopicId || right.courses[key].lastTopicId || '';
+      left.courses[key].lastTopicId = resolveMergedLastTopicId(key, left.courses[key], right.courses[key], left.courses[key]);
     });
     const leftHearts = normalizeHeartState(left.hearts);
     const rightHearts = normalizeHeartState(right.hearts);
@@ -40955,12 +41377,39 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     return left;
   }
 
+  async function validateExplorerStudentIdentity(options = {}) {
+    if (!appSession.student?.uid || appSession.mode !== 'student') return true;
+    const force = options.force === true;
+    if (!force && Date.now() - Number(state.identityCheckedAt || 0) < 60000) return state.identityCanonical !== false;
+    state.identityCheckedAt = Date.now();
+    try {
+      const student = appSession.student || {};
+      const studentId = normalizeStudentId(student.studentId || student.studentIdNormalized || '');
+      const activeUser = getFirebaseActiveUser();
+      if (!studentId || !activeUser?.email) {
+        state.identityCanonical = true;
+        return true;
+      }
+      const route = await loadStudentLoginRoute(studentId);
+      const routeEmail = String(route?.authEmail || '').trim().toLowerCase();
+      const activeEmail = String(activeUser.email || '').trim().toLowerCase();
+      state.identityCanonical = !routeEmail || routeEmail === activeEmail;
+      return state.identityCanonical;
+    } catch (error) {
+      console.info('Code Explorer canonical login check skipped.', error);
+      // A temporary route read failure must not erase legitimate offline work.
+      state.identityCanonical = true;
+      return true;
+    }
+  }
+
   async function loadCloudProgress() {
     if (!appSession.student?.uid || appSession.mode !== 'student') return null;
     try {
       clearSelectiveFirestoreCache(`studentProfile:${appSession.student.uid}`);
       const profile = await loadStudentProfile(appSession.student.uid);
       state.cloudXpHint = Math.max(state.cloudXpHint || 0, Math.max(0, Number(profile?.codeExplorerXp || 0)));
+      state.lastCloudSyncAt = Date.now();
       return profile?.codeExplorerProgress ? normalizeProgress(profile.codeExplorerProgress) : null;
     } catch (error) {
       console.warn('Code Explorer cloud progress could not be loaded.', error);
@@ -40970,46 +41419,132 @@ window.MCS_PHONE_MENU_STATUS = () => ({
 
   function scheduleCloudSave() {
     saveLocalProgress();
+    if (state.cloudSavePromise) {
+      state.cloudSaveQueued = true;
+      return;
+    }
     clearTimeout(state.saveTimer);
-    state.saveTimer = window.setTimeout(saveCloudProgress, 700);
+    state.saveTimer = window.setTimeout(() => {
+      saveCloudProgress().catch(() => false);
+    }, 700);
   }
 
   async function saveCloudProgress() {
     clearTimeout(state.saveTimer);
     state.saveTimer = null;
     if (!appSession.student?.uid || appSession.mode !== 'student' || !state.progress) return false;
-    try {
-      const ready = await initFirebaseSync();
-      if (!ready) return false;
-      const { setDoc, serverTimestamp } = firebaseSync.modules;
-      const masteryXp = explorerXpFor(state.progress);
-      await setDoc(getStudentDocRef(appSession.student.uid), {
-        codeExplorerProgress: normalizeProgress(state.progress),
-        codeExplorerXp: masteryXp,
-        codeExplorerXpMigrationVersion: Math.max(0, Number(state.progress.xpMigrationVersion || 0)),
-        codeExplorerUpdatedAt: serverTimestamp()
-      }, { merge: true });
+
+    // Never let two saves from the same browser race each other. If another
+    // activity changes progress while a cloud save is running, queue one more
+    // merge-save immediately after the current transaction finishes.
+    if (state.cloudSavePromise) {
+      state.cloudSaveQueued = true;
+      return state.cloudSavePromise;
+    }
+
+    const saveJob = (async () => {
       try {
-        const profile = appSession.student || appSession.lastStudentProfile || {};
-        await setDoc(getCodeExplorerLeaderboardDocRef(appSession.student.uid), {
-          uid: appSession.student.uid,
-          studentId: normalizeStudentId(profile.studentId || profile.studentIdNormalized || ''),
-          name: String(profile.name || profile.fullName || 'Student').trim(),
-          section: String(profile.section || '').trim(),
-          xp: masteryXp,
-          accountStatus: String(profile.accountStatus || 'active'),
-          updatedAt: serverTimestamp()
-        }, { merge: true });
-      } catch (leaderboardSyncError) {
-        console.info('Code Explorer leaderboard quick-sync unavailable; rankings can still use student progress.', leaderboardSyncError);
+        const canonicalIdentity = await validateExplorerStudentIdentity();
+        if (!canonicalIdentity) {
+          console.warn('Code Explorer save blocked because this browser is signed into an older student login route.');
+          return false;
+        }
+        const ready = await initFirebaseSync();
+        if (!ready) return false;
+        const { setDoc, getDoc, runTransaction, serverTimestamp } = firebaseSync.modules;
+        const uid = appSession.student.uid;
+        const studentRef = getStudentDocRef(uid);
+        const localSnapshot = normalizeProgress(state.progress);
+        let committedProgress = localSnapshot;
+        let masteryXp = explorerXpFor(localSnapshot);
+
+        const mergeWithRemoteProfile = profile => {
+          const remote = normalizeProgress(profile?.codeExplorerProgress || {});
+          const merged = mergeProgress(remote, localSnapshot);
+          const protectedXp = Math.max(
+            state.cloudXpHint || 0,
+            Math.max(0, Number(profile?.codeExplorerXp || 0)),
+            explorerXpFor(localSnapshot)
+          );
+          migrateLegacyXpProgress(merged, protectedXp, { source: 'v397-cross-device-save' });
+          merged.updatedAt = new Date().toISOString();
+          return merged;
+        };
+
+        if (typeof runTransaction === 'function') {
+          await runTransaction(firebaseSync.db, async transaction => {
+            const snapshot = await transaction.get(studentRef);
+            const profile = snapshotExists(snapshot) ? snapshotData(snapshot) : {};
+            committedProgress = mergeWithRemoteProfile(profile);
+            masteryXp = explorerXpFor(committedProgress);
+            transaction.set(studentRef, {
+              codeExplorerProgress: normalizeProgress(committedProgress),
+              codeExplorerXp: masteryXp,
+              codeExplorerXpMigrationVersion: Math.max(0, Number(committedProgress.xpMigrationVersion || 0)),
+              codeExplorerUpdatedAt: serverTimestamp()
+            }, { merge: true });
+          });
+        } else {
+          // Fallback for unusual builds without transaction support. We still
+          // read and merge the newest remote copy immediately before writing.
+          const snapshot = await getDoc(studentRef);
+          const profile = snapshotExists(snapshot) ? snapshotData(snapshot) : {};
+          committedProgress = mergeWithRemoteProfile(profile);
+          masteryXp = explorerXpFor(committedProgress);
+          await setDoc(studentRef, {
+            codeExplorerProgress: normalizeProgress(committedProgress),
+            codeExplorerXp: masteryXp,
+            codeExplorerXpMigrationVersion: Math.max(0, Number(committedProgress.xpMigrationVersion || 0)),
+            codeExplorerUpdatedAt: serverTimestamp()
+          }, { merge: true });
+        }
+
+        // The student may have answered another item while the transaction was
+        // running. Merge the committed cloud copy back into the live state so
+        // nothing disappears locally; a queued save will publish newer work.
+        state.progress = mergeProgress(committedProgress, state.progress);
+        state.cloudXpHint = Math.max(state.cloudXpHint || 0, masteryXp, explorerXpFor(state.progress));
+        state.cloudLoaded = true;
+        state.lastCloudSyncAt = Date.now();
+        saveLocalProgress(state.progress);
+
+        try {
+          const profile = appSession.student || appSession.lastStudentProfile || {};
+          await setDoc(getCodeExplorerLeaderboardDocRef(uid), {
+            uid,
+            studentId: normalizeStudentId(profile.studentId || profile.studentIdNormalized || ''),
+            name: String(profile.name || profile.fullName || 'Student').trim(),
+            section: String(profile.section || '').trim(),
+            xp: masteryXp,
+            accountStatus: String(profile.accountStatus || 'active'),
+            updatedAt: serverTimestamp()
+          }, { merge: true });
+        } catch (leaderboardSyncError) {
+          console.info('Code Explorer leaderboard quick-sync unavailable; rankings can still use student progress.', leaderboardSyncError);
+        }
+
+        clearSelectiveFirestoreCache(`studentProfile:${uid}`);
+        clearSelectiveFirestoreCache('admin:studentsAndRoster');
+        leaderboardState.loadedAt = 0;
+        return true;
+      } catch (error) {
+        console.warn('Code Explorer progress cloud save skipped.', error);
+        return false;
       }
-      clearSelectiveFirestoreCache(`studentProfile:${appSession.student.uid}`);
-      clearSelectiveFirestoreCache('admin:studentsAndRoster');
-      leaderboardState.loadedAt = 0;
-      return true;
-    } catch (error) {
-      console.warn('Code Explorer progress cloud save skipped.', error);
-      return false;
+    })();
+
+    state.cloudSavePromise = saveJob;
+    try {
+      return await saveJob;
+    } finally {
+      if (state.cloudSavePromise === saveJob) state.cloudSavePromise = null;
+      if (state.cloudSaveQueued) {
+        state.cloudSaveQueued = false;
+        clearTimeout(state.saveTimer);
+        state.saveTimer = window.setTimeout(() => {
+          saveCloudProgress().catch(() => false);
+        }, 80);
+      }
     }
   }
 
@@ -41547,7 +42082,9 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     const currentReader = readerKey();
     ensureReaderProgress();
     updateDashboardExplorerCard();
-    if (appSession.mode === 'student' && appSession.student?.uid && !state.cloudLoaded && !state.dashboardCloudLoading) {
+    const explorerScreenHidden = Boolean(screen?.classList.contains('hidden'));
+    const dashboardCloudStale = !state.cloudLoaded || (explorerScreenHidden && Date.now() - Number(state.lastCloudSyncAt || 0) > 15000);
+    if (appSession.mode === 'student' && appSession.student?.uid && dashboardCloudStale && !state.dashboardCloudLoading) {
       state.dashboardCloudLoading = true;
       loadCloudProgress().then(cloud => {
         if (readerKey() !== currentReader) return;
@@ -41983,7 +42520,8 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       showQuickScreenFeedback(true, {
         correctTitle: `Quick Check Passed! +${earnedXp} XP`,
         correctText: rewardBits.join(' · ') || 'Mastery reward earned.',
-        correctDuration: 1550
+        correctDuration: 1550,
+        sound: earnedTopic ? 'topicComplete' : (correct === questions.length ? 'perfect' : 'quickPass')
       });
     }
     if (passed && record.practicePassed && record.miniGamePassed) {
@@ -42274,7 +42812,8 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         correctText: penalty > 0
           ? `Fill in the Blank reward ${activityReward}/${maxReward} XP · retry adjustment −${penalty}. Try It is now unlocked.`
           : `Perfect first try · Fill in the Blank ${activityReward}/${maxReward} XP. Try It is now unlocked.`,
-        correctDuration: 1250
+        correctDuration: 1250,
+        sound: 'miniComplete'
       });
       renderMiniGame();
       renderTopProgress();
@@ -42685,21 +43224,33 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       await appAlert('Log in as a student to use Code Explorer and save your progress.', { title: 'Code Explorer', icon: '🚀' });
       return;
     }
+    const canonicalIdentity = await validateExplorerStudentIdentity({ force: true });
+    if (!canonicalIdentity) {
+      await appAlert(
+        'This browser is still signed in to an older student account route, usually after Login Recovery or Reset Pass. Sign out on this browser, then log in again with your current Student ID account before continuing Code Explorer. This protects your XP and lesson progress from splitting between two Firebase profiles.',
+        { title: 'Refresh Student Login', icon: '🔄' }
+      );
+      return;
+    }
     closeStudentAccountMenu?.();
     closeStudentDashboard();
+    loadExplorerAudioPrefs();
     document.body.classList.remove('lesson-viewer-active', 'given-activities-active');
     document.body.classList.add('code-explorer-active');
     screen.classList.remove('hidden');
+    // This call happens synchronously from the learner's click whenever possible,
+    // satisfying mobile/browser autoplay policies before async cloud loading begins.
+    unlockExplorerAudio().catch(() => false);
     ensureReaderProgress();
-    if (!state.cloudLoaded) {
-      const cloud = await loadCloudProgress();
-      if (cloud) state.progress = mergeProgress(state.progress, cloud);
-      normalizeCurrentStudentLegacyXp({ source: 'student-open', cloudSave: false });
-      state.cloudLoaded = true;
-      saveLocalProgress();
-    } else {
-      normalizeCurrentStudentLegacyXp({ source: 'student-open', cloudSave: false });
-    }
+    // Always refresh from Firestore when Code Explorer opens. The old one-load-
+    // per-session behavior let a second browser keep stale progress for the
+    // entire session and later overwrite the newer XP/progress.
+    const cloud = await loadCloudProgress();
+    if (cloud) state.progress = mergeProgress(state.progress, cloud);
+    normalizeCurrentStudentLegacyXp({ source: 'student-open', cloudSave: false });
+    state.cloudLoaded = true;
+    state.lastCloudSyncAt = Date.now();
+    saveLocalProgress();
     startHeartTicker();
     await startExplorerProfileListener();
     const preferredCourse = COURSE_KEYS.find(key => isCourseUnlocked(key) && state.progress.courses[key]?.lastTopicId) || (isCourseUnlocked(state.course) ? state.course : 'html');
@@ -42719,6 +43270,8 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   async function closeExplorer() {
     stopHeartTicker();
     stopExplorerProfileListener();
+    stopExplorerAudioEffects();
+    closeExplorerAudioMenu();
     hideQuickScreenFeedback();
     closeCourseProgressPanel();
 
@@ -42783,7 +43336,8 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         correctText: penalty > 0
           ? `Coding reward ${activityReward}/${maxReward} XP · retry adjustment −${penalty}.`
           : `Perfect first try · Coding reward ${activityReward}/${maxReward} XP.`,
-        correctDuration: 1250
+        correctDuration: 1250,
+        sound: 'practicePass'
       });
     } else if (!result.ok) {
       const nextReward = usesRewardModel
@@ -42966,9 +43520,15 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       showQuickScreenFeedback(true, {
         correctTitle: `Final Passed! +${earnedXp} XP`,
         correctText: rewardBits.join(' · ') || 'Mastery reward earned.',
-        correctDuration: 1750
+        correctDuration: 1750,
+        sound: !wasPassedBefore ? 'finalPass' : (correct === course.finalQuiz.length ? 'perfect' : 'quickPass')
       });
+    } else if (!passed) {
+      playExplorerSfx('wrong');
+    } else if (passed && !wasPassedBefore) {
+      playExplorerSfx('finalPass');
     }
+    if (earnedCertificate) queueExplorerSfx('certificate', 1150);
     dom.finalSubmitBtn.textContent = passed ? '🏅 View Certificate' : 'Try Again';
     dom.finalSubmitBtn.dataset.passed = passed ? 'true' : 'false';
     dom.finalSubmitBtn.dataset.mode = passed ? 'certificate' : 'retry';
@@ -43527,6 +44087,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       const pdfBlob = await buildCertificatePdfBlob(canvas);
       const name = String(appSession.student?.name || 'Student').trim().replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '') || 'Student';
       downloadBlob(pdfBlob, `${name}-${course.short}-Certificate.pdf`);
+      playExplorerSfx('certificate', { force: true });
       if (!publishResult.ok) {
         window.setTimeout(() => appAlert(
           'Your certificate PDF was created, but its QR record could not be published to online verification yet. Ask your teacher/admin to enable the v390 Firestore certificate rule, then open Code Explorer again or download the certificate again.',
@@ -44467,15 +45028,15 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     if (!isTeacherAuthenticated()) return;
     const button = dom.adminXpMigrationBtn;
     const status = dom.adminXpMigrationStatus;
-    if (button) { button.disabled = true; button.textContent = 'Normalizing…'; }
-    if (status) status.textContent = 'Checking existing student XP and legacy Code Explorer progress…';
+    if (button) { button.disabled = true; button.textContent = 'Repairing…'; }
+    if (status) status.textContent = 'Checking current and older Code Explorer profiles, progress, and legacy XP…';
     renderLegacyXpMigrationAudit([]);
 
     try {
-      if (!adminStudentsCache.length) await loadAdminStudents({ force: true });
+      await loadAdminStudents({ force: true });
       const ready = await initFirebaseSync();
       if (!ready) throw new Error(firebaseSync.lastError || 'Firebase is not ready.');
-      const { setDoc, serverTimestamp } = firebaseSync.modules;
+      const { setDoc, getDoc, runTransaction, serverTimestamp } = firebaseSync.modules;
       const students = adminStudentsCache.slice();
       let checked = 0;
       let normalized = 0;
@@ -44495,33 +45056,76 @@ window.MCS_PHONE_MENU_STATUS = () => ({
             skipped += 1;
             return;
           }
-          const progress = studentExplorerProgress(student);
-          const rawXp = explorerRawXpFor(progress);
-          const existingXp = Math.max(storedExplorerXpForAdminStudent(student), rawXp);
-          const overall = explorerOverallFor(progress);
-          const hasExplorerHistory = existingXp > 0 || overall.explored > 0 || explorerCertificateCountFor(progress) > 0;
-          if (!hasExplorerHistory) {
+
+          const adminSnapshotProgress = studentExplorerProgress(student);
+          const targetRef = getStudentDocRef(targetUid);
+          let result = null;
+          let finalXp = 0;
+          let hadHistory = false;
+          let mergedDuplicateProgress = false;
+
+          const normalizeLatest = profile => {
+            const liveProgress = normalizeProgress(profile?.codeExplorerProgress || {});
+            const progress = mergeProgress(liveProgress, adminSnapshotProgress);
+            mergedDuplicateProgress = progressSyncSignature(progress) !== progressSyncSignature(liveProgress);
+            const rawXp = explorerRawXpFor(progress);
+            const existingXp = Math.max(
+              storedExplorerXpForAdminStudent(student),
+              Math.max(0, Number(profile?.codeExplorerXp || 0)),
+              rawXp
+            );
+            const overall = explorerOverallFor(progress);
+            hadHistory = existingXp > 0 || overall.explored > 0 || explorerCertificateCountFor(progress) > 0;
+            if (!hadHistory) return { progress, result: null, finalXp: 0 };
+            const source = Math.max(0, Number(progress.xpMigrationVersion || 0)) >= EXPLORER_XP_MIGRATION_VERSION
+              ? 'admin-v397-recheck'
+              : 'admin-v397-backfill';
+            const migration = migrateLegacyXpProgress(progress, existingXp, { source });
+            return { progress, result: migration, finalXp: explorerXpFor(progress) };
+          };
+
+          if (typeof runTransaction === 'function') {
+            await runTransaction(firebaseSync.db, async transaction => {
+              const snapshot = await transaction.get(targetRef);
+              const profile = snapshotExists(snapshot) ? snapshotData(snapshot) : {};
+              const normalized = normalizeLatest(profile);
+              result = normalized.result;
+              finalXp = normalized.finalXp;
+              if (!hadHistory || (!result?.changed && !mergedDuplicateProgress)) return;
+              transaction.set(targetRef, {
+                codeExplorerProgress: normalizeProgress(normalized.progress),
+                codeExplorerXp: finalXp,
+                codeExplorerXpMigrationVersion: EXPLORER_XP_MIGRATION_VERSION,
+                codeExplorerXpMigratedAt: serverTimestamp(),
+                codeExplorerUpdatedAt: serverTimestamp()
+              }, { merge: true });
+            });
+          } else {
+            const snapshot = await getDoc(targetRef);
+            const profile = snapshotExists(snapshot) ? snapshotData(snapshot) : {};
+            const normalized = normalizeLatest(profile);
+            result = normalized.result;
+            finalXp = normalized.finalXp;
+            if (hadHistory && (result?.changed || mergedDuplicateProgress)) {
+              await setDoc(targetRef, {
+                codeExplorerProgress: normalizeProgress(normalized.progress),
+                codeExplorerXp: finalXp,
+                codeExplorerXpMigrationVersion: EXPLORER_XP_MIGRATION_VERSION,
+                codeExplorerXpMigratedAt: serverTimestamp(),
+                codeExplorerUpdatedAt: serverTimestamp()
+              }, { merge: true });
+            }
+          }
+
+          if (!hadHistory) {
             skipped += 1;
             return;
           }
-          let result;
-          if (Math.max(0, Number(progress.xpMigrationVersion || 0)) >= EXPLORER_XP_MIGRATION_VERSION) {
-            result = migrateLegacyXpProgress(progress, existingXp, { source: 'admin-v395-recheck' });
-          } else {
-            result = migrateLegacyXpProgress(progress, existingXp, { source: 'admin-v395-backfill' });
-          }
-          if (!result.changed) {
+          if (!result?.changed && !mergedDuplicateProgress) {
             already += 1;
             return;
           }
-          const finalXp = explorerXpFor(progress);
-          await setDoc(getStudentDocRef(targetUid), {
-            codeExplorerProgress: normalizeProgress(progress),
-            codeExplorerXp: finalXp,
-            codeExplorerXpMigrationVersion: EXPLORER_XP_MIGRATION_VERSION,
-            codeExplorerXpMigratedAt: serverTimestamp(),
-            codeExplorerUpdatedAt: serverTimestamp()
-          }, { merge: true });
+
           normalized += 1;
           if (result.credit > 0) {
             adjusted += 1;
@@ -44538,7 +45142,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
           errors.push(error?.message || String(error));
         } finally {
           checked += 1;
-          if (status) status.textContent = `Normalizing legacy XP… ${checked}/${students.length}`;
+          if (status) status.textContent = `Repairing Code Explorer progress… ${checked}/${students.length}`;
         }
       };
 
@@ -44554,36 +45158,36 @@ window.MCS_PHONE_MENU_STATUS = () => ({
 
       const summary = [
         `${checked} checked`,
-        `${normalized} normalized`,
+        `${normalized} repaired/normalized`,
         `${adjusted} XP adjusted`,
         `+${totalCredit} total legacy XP credited`,
         `${already} already compatible`
       ];
       if (skipped) summary.push(`${skipped} no Explorer history / skipped`);
       if (failed) summary.push(`${failed} failed`);
-      if (status) status.textContent = `Legacy XP normalization complete: ${summary.join(' · ')}.`;
+      if (status) status.textContent = `Progress repair complete: ${summary.join(' · ')}.`;
 
       if (failed) {
         const permissionProblem = errors.some(message => /permission|insufficient/i.test(message));
         await appAlert(
           `${permissionProblem ? 'Some student profiles could not be updated because of Firestore permissions. ' : ''}${summary.join(' · ')}\n\nNo existing Total XP was reduced. No old speed, first-try, or mistake data was invented.`,
-          { title: 'Legacy XP Normalization', icon: '⚡', danger: permissionProblem }
+          { title: 'Code Explorer Progress Repair', icon: '⚡', danger: permissionProblem }
         );
       } else {
         await appAlert(
           `${summary.join(' · ')}\n\nExisting XP was protected. Only missing guaranteed legacy mastery credit was added; no retroactive penalties or invented bonuses were applied.`,
-          { title: 'Legacy XP Normalization Complete', icon: '⚡' }
+          { title: 'Code Explorer Progress Repair Complete', icon: '⚡' }
         );
       }
     } catch (error) {
-      console.error('Legacy XP normalization failed.', error);
+      console.error('Code Explorer progress repair failed.', error);
       const message = error?.message || String(error);
-      if (status) status.textContent = `Legacy XP normalization failed: ${message}`;
-      await appAlert(message, { title: 'Legacy XP Normalization Failed', danger: true });
+      if (status) status.textContent = `Progress repair failed: ${message}`;
+      await appAlert(message, { title: 'Code Explorer Progress Repair Failed', danger: true });
     } finally {
       if (button) {
         button.disabled = false;
-        button.textContent = '⚡ Normalize Legacy XP';
+        button.textContent = '⚡ Repair / Normalize Progress';
       }
     }
   }
@@ -44725,8 +45329,20 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   }
 
   function getAdminExplorerHeartTargetUid(student = {}) {
-    const records = (Array.isArray(student.sourceRecords) ? student.sourceRecords : [student])
+    const sourceRecords = Array.isArray(student.sourceRecords) ? student.sourceRecords : [student];
+    const records = sourceRecords
       .filter(record => !record?.isRosterOnly && String(record?.uid || record?.authUid || '').trim());
+
+    // Prefer the UID currently linked by the roster. After account recovery an
+    // older profile can still contain more Explorer history, but writing new
+    // progress back to that retired UID would split the student's data again.
+    const rosterRecord = sourceRecords.find(record => record?.isRosterOnly) || null;
+    const rosterUid = String(rosterRecord?.authUid || '').trim();
+    if (rosterUid) {
+      const canonicalProfile = records.find(record => String(record?.uid || record?.authUid || '').trim() === rosterUid);
+      if (canonicalProfile) return rosterUid;
+    }
+
     records.sort((a, b) => {
       const aExplorer = a?.codeExplorerProgress ? 1 : 0;
       const bExplorer = b?.codeExplorerProgress ? 1 : 0;
@@ -44898,6 +45514,36 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   dom.menuBtn?.addEventListener('click', openExplorer);
   dom.backBtn?.addEventListener('click', () => { if (state.mobileView === 'lesson') showCourseRoadmap({ behavior: 'smooth' }); else closeExplorer(); });
   dom.themeBtn?.addEventListener('click', () => dashboardThemeBtn?.click());
+  dom.audioMenuToggle?.addEventListener('click', event => {
+    event.stopPropagation();
+    toggleExplorerAudioMenu();
+  });
+  dom.audioMenuPanel?.addEventListener('click', event => event.stopPropagation());
+  document.addEventListener('click', event => {
+    if (dom.audioMenu?.classList.contains('open') && !event.target.closest?.('#codeExplorerAudioMenu')) closeExplorerAudioMenu();
+  });
+
+  dom.musicToggle?.addEventListener('click', () => {
+    setExplorerAudioPreference('music', !explorerAudio.prefs.music);
+  });
+  dom.sfxToggle?.addEventListener('click', () => {
+    setExplorerAudioPreference('sfx', !explorerAudio.prefs.sfx);
+  });
+  // Any learner interaction can re-unlock a suspended AudioContext on strict
+  // mobile browsers. This keeps music/SFX reliable without forced autoplay.
+  screen?.addEventListener('pointerdown', () => {
+    unlockExplorerAudio().catch(() => false);
+  }, { passive: true });
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      stopExplorerMusic();
+      return;
+    }
+    if (document.body.classList.contains('code-explorer-active') && explorerAudio.prefs.music) {
+      unlockExplorerAudio().then(started => { if (started) startExplorerMusic(); }).catch(() => false);
+    }
+  });
+
   dom.quickThemeToggle?.addEventListener('click', () => {
     const currentTheme = document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light';
     applyTheme(currentTheme === 'dark' ? 'light' : 'dark');
@@ -44951,6 +45597,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   explorerMobileMq.addEventListener?.('change', () => { syncExplorerMobileChrome(); if (state.mobileView === 'roadmap') renderCourseRoadmap(); else renderMobileJourney(); });
   document.addEventListener('keydown', event => {
     if (event.key === 'Escape' && dom.courseProgressOverlay && !dom.courseProgressOverlay.classList.contains('hidden')) closeCourseProgressPanel();
+    if (event.key === 'Escape' && dom.audioMenu?.classList.contains('open')) closeExplorerAudioMenu();
   });
   dom.verifyCloseBtn?.addEventListener('click', () => closeExplorerCertificateVerification(true));
   dom.verifyDoneBtn?.addEventListener('click', () => closeExplorerCertificateVerification(true));
@@ -45063,6 +45710,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     else if (!dom.certOverlay.classList.contains('hidden')) closeCertificates();
   });
 
+  syncExplorerAudioControls();
   const certificateVerificationRouteActive = maybeOpenExplorerCertificateVerificationFromUrl();
   if (!certificateVerificationRouteActive) {
     ensureReaderProgress();

@@ -45,7 +45,7 @@
   </script>
   <link rel="preconnect" href="https://drive.google.com" crossorigin>
   <link rel="preconnect" href="https://lh3.googleusercontent.com" crossorigin>
-  <link rel="stylesheet" href="style.css?v=20260908-v395-legacy-xp-normalization" />
+  <link rel="stylesheet" href="style.css?v=20260908-v396-code-explorer-audio" />
   <style>
     .ai-rubric-settings-card,
     .admin-project-ai-review-card {
@@ -482,6 +482,17 @@
           <span class="code-explorer-quick-theme-track" aria-hidden="true"><i></i></span>
           <span class="code-explorer-quick-theme-icon" aria-hidden="true">🌙</span>
         </button>
+        <div id="codeExplorerAudioMenu" class="code-explorer-audio-menu">
+          <button id="codeExplorerAudioMenuToggle" class="code-explorer-audio-menu-toggle" type="button" aria-label="Open audio controls" aria-expanded="false" title="Audio controls">🎧</button>
+          <div id="codeExplorerAudioMenuPanel" class="code-explorer-audio-menu-panel" role="group" aria-label="Code Explorer audio controls">
+            <button id="codeExplorerMusicToggle" class="code-explorer-audio-toggle" type="button" aria-label="Turn background music off" aria-pressed="true" title="Background music: on">
+              <span class="code-explorer-audio-icon" aria-hidden="true">🎵</span><b class="code-explorer-audio-label">Music</b>
+            </button>
+            <button id="codeExplorerSfxToggle" class="code-explorer-audio-toggle" type="button" aria-label="Turn sound effects off" aria-pressed="true" title="Sound effects: on">
+              <span class="code-explorer-audio-icon" aria-hidden="true">🔊</span><b class="code-explorer-audio-label">Sound</b>
+            </button>
+          </div>
+        </div>
         <span id="codeExplorerHeartBadge" class="code-explorer-heart-badge" title="Hearts are used only when scored answers are wrong.">❤️ 5/5</span>
         <button id="codeExplorerCertificatesBtn" class="ghost-btn" type="button">🏅 My Certificates</button>
         <button id="codeExplorerThemeBtn" class="ghost-btn" type="button">🌙 Theme</button>
@@ -2847,13 +2858,13 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
 
           <section class="code-explorer-admin-xp-migration" aria-labelledby="codeExplorerAdminXpMigrationTitle">
             <div class="code-explorer-admin-xp-migration-copy">
-              <span>⚡ Legacy XP Migration</span>
-              <strong id="codeExplorerAdminXpMigrationTitle">Normalize students who played before the current XP system</strong>
-              <p>Preserves every student's already-earned Total XP, adds only missing guaranteed mastery credit for legacy work, and never invents old speed or first-try bonuses. No retroactive mistake penalties are applied.</p>
-              <p id="codeExplorerAdminXpMigrationStatus" class="code-explorer-admin-xp-migration-status" role="status">Legacy XP normalization has not been run in this session.</p>
+              <span>⚡ Progress Repair + Legacy XP</span>
+              <strong id="codeExplorerAdminXpMigrationTitle">Repair cross-browser progress and normalize legacy XP</strong>
+              <p>Merges Code Explorer progress found across duplicate/older student profiles into the currently linked student account, preserves every already-earned Total XP, and adds only missing guaranteed mastery credit for legacy work. No retroactive penalties or invented speed/first-try bonuses are applied.</p>
+              <p id="codeExplorerAdminXpMigrationStatus" class="code-explorer-admin-xp-migration-status" role="status">Progress repair has not been run in this session.</p>
               <div id="codeExplorerAdminXpMigrationAudit" class="code-explorer-admin-xp-migration-audit hidden" aria-live="polite"></div>
             </div>
-            <button id="codeExplorerAdminXpMigrationBtn" class="primary-btn code-explorer-admin-xp-migration-btn" type="button">⚡ Normalize Legacy XP</button>
+            <button id="codeExplorerAdminXpMigrationBtn" class="primary-btn code-explorer-admin-xp-migration-btn" type="button">⚡ Repair / Normalize Progress</button>
           </section>
 
           <div class="code-explorer-admin-certificate-sample" aria-label="Code Explorer sample certificate">
@@ -3393,6 +3404,6 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
       </section>
     </div>
 
-  <script src="script.js?v=20260908-v395-legacy-xp-normalization"></script>
+  <script src="script.js?v=20260908-v397-cross-browser-progress-sync"></script>
 </body>
 </html>
