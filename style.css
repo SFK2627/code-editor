@@ -59663,3 +59663,231 @@ html[data-theme="dark"] .code-explorer-admin-certificate-sync-btn {
 @media (max-width:760px) {
   .code-explorer-admin-certificate-sync-btn { width: 100%; }
 }
+
+
+/* ================================================================
+   v392 — Desktop / Phone Code Explorer learning parity
+   Both layouts now open on the course roadmap and use the same six-step
+   mastery flow: Learn → Example → Fill the Blank → Try It → Quick Check → Complete.
+   ================================================================ */
+@media (min-width: 761px) {
+  /* Roadmap is the Code Explorer landing view on desktop too. */
+  .code-explorer-screen.code-explorer-roadmap-mode .code-explorer-course-roadmap {
+    display: block !important;
+    width: min(1120px, calc(100% - 8px));
+    margin: 18px auto 28px;
+    padding: 24px;
+    border: 1px solid var(--ce-border, #d9e2ec);
+    border-radius: 24px;
+    background: var(--ce-panel, #ffffff);
+    color: var(--ce-text, #172033);
+    box-shadow: 0 16px 38px rgba(15,23,42,.08);
+  }
+  .code-explorer-screen.code-explorer-roadmap-mode .code-explorer-hero,
+  .code-explorer-screen.code-explorer-roadmap-mode .code-explorer-workspace,
+  .code-explorer-screen.code-explorer-roadmap-mode > .code-explorer-main > .code-explorer-final-card {
+    display: none !important;
+  }
+  .code-explorer-screen.code-explorer-lesson-mode .code-explorer-course-roadmap {
+    display: none !important;
+  }
+  .code-explorer-roadmap-head {
+    display: grid;
+    grid-template-columns: minmax(0,1fr) auto;
+    align-items: center;
+    gap: 18px;
+  }
+  .code-explorer-roadmap-head h2 { margin: 4px 0 3px; font-size: 1.65rem; line-height: 1.15; }
+  .code-explorer-roadmap-head p { margin: 0; color: var(--ce-muted, #64748b); font-size: .9rem; }
+  .code-explorer-roadmap-percent {
+    min-width: 68px;
+    padding: 9px 13px;
+    border: 1px solid #bfdbfe;
+    border-radius: 999px;
+    background: #eff6ff;
+    color: #1d4ed8;
+    text-align: center;
+    font-weight: 900;
+  }
+  .code-explorer-roadmap-progress {
+    height: 10px;
+    margin-top: 16px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: #e2e8f0;
+  }
+  .code-explorer-roadmap-progress i {
+    display: block;
+    width: 0;
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg,#2563eb,#22c55e);
+    transition: width .3s ease;
+  }
+  .code-explorer-roadmap-message {
+    margin: 14px 0 16px;
+    padding: 12px 14px;
+    border: 1px solid #dbeafe;
+    border-radius: 14px;
+    background: #f4f8ff;
+    color: #334155;
+    font-size: .86rem;
+    line-height: 1.45;
+  }
+  .code-explorer-course-roadmap-list { display: grid; gap: 9px; }
+  .code-explorer-roadmap-row {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 42px minmax(0,1fr) 92px;
+    align-items: center;
+    gap: 13px;
+    min-height: 76px;
+    padding: 12px 14px;
+    border: 1px solid #d8e2ec;
+    border-radius: 17px;
+    background: #ffffff;
+    color: #172033;
+    text-align: left;
+    font: inherit;
+  }
+  .code-explorer-roadmap-row:not(:disabled) { cursor: pointer; transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease; }
+  .code-explorer-roadmap-row:not(:disabled):hover { transform: translateY(-1px); box-shadow: 0 8px 22px rgba(15,23,42,.07); }
+  .code-explorer-roadmap-row.current { border-color: #60a5fa; background: #eff6ff; box-shadow: 0 0 0 2px rgba(59,130,246,.08); }
+  .code-explorer-roadmap-row.complete { border-color: #86efac; background: #f0fdf4; }
+  .code-explorer-roadmap-row.locked { opacity: .55; filter: saturate(.65); }
+  .code-explorer-roadmap-marker {
+    width: 38px; height: 38px; display: grid; place-items: center; border-radius: 999px;
+    background: #eef3f8; border: 1px solid #d5dee8; color: #475569; font-size: .8rem; font-weight: 900;
+  }
+  .code-explorer-roadmap-row.current .code-explorer-roadmap-marker { background:#2563eb; border-color:#2563eb; color:#fff; }
+  .code-explorer-roadmap-row.complete .code-explorer-roadmap-marker { background:#16a34a; border-color:#16a34a; color:#fff; }
+  .code-explorer-roadmap-copy { display:grid; gap:3px; min-width:0; }
+  .code-explorer-roadmap-copy small { color:#64748b; font-size:.67rem; font-weight:800; letter-spacing:.05em; text-transform:uppercase; }
+  .code-explorer-roadmap-copy strong { color:#172033; font-size:1rem; line-height:1.2; }
+  .code-explorer-roadmap-copy em { color:#526174; font-size:.78rem; font-style:normal; }
+  .code-explorer-roadmap-action {
+    min-width: 78px; padding: 8px 10px; border-radius:999px; background:#eef2f7; border:1px solid #cbd5e1;
+    color:#475569; text-align:center; font-size:.68rem; font-weight:900; letter-spacing:.035em;
+  }
+  .code-explorer-roadmap-row.current .code-explorer-roadmap-action { background:#2563eb; border-color:#2563eb; color:#fff; }
+  .code-explorer-roadmap-row.complete .code-explorer-roadmap-action { background:#dcfce7; border-color:#86efac; color:#14532d; }
+  .code-explorer-roadmap-row.certificate.current { background:#fffbeb; border-color:#eab308; }
+  .code-explorer-roadmap-divider { display:flex; align-items:center; gap:10px; margin:8px 2px 2px; color:#64748b; font-size:.68rem; font-weight:900; letter-spacing:.08em; text-transform:uppercase; }
+  .code-explorer-roadmap-divider::before,.code-explorer-roadmap-divider::after { content:''; flex:1; height:1px; background:#d8e2ec; }
+
+  /* Same six-step guided lesson flow as phones, adapted to a wide screen. */
+  .code-explorer-mobile-journey {
+    display: block;
+    margin: 0 0 2px;
+    padding: 16px 18px;
+    border: 1px solid #d8e3f1;
+    border-radius: 18px;
+    background: linear-gradient(180deg,#fbfdff,#f4f8fd);
+    box-shadow: 0 8px 22px rgba(15,23,42,.05);
+  }
+  .code-explorer-mobile-journey-head { display:flex; align-items:center; justify-content:space-between; gap:14px; margin-bottom:11px; }
+  .code-explorer-mobile-journey-head > div { display:flex; align-items:baseline; gap:9px; min-width:0; }
+  .code-explorer-mobile-journey-head span { color:#64748b; font-size:.72rem; font-weight:900; letter-spacing:.06em; text-transform:uppercase; }
+  .code-explorer-mobile-journey-head strong { color:#0f172a; font-size:1rem; }
+  .code-explorer-mobile-journey-head small { color:#7b8ba3; font-size:.75rem; }
+  .code-explorer-mobile-progress-shell { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:12px; margin-bottom:12px; }
+  .code-explorer-mobile-progress-track { height:9px; overflow:hidden; border-radius:999px; background:#e2e8f0; }
+  .code-explorer-mobile-progress-track i { display:block; height:100%; width:10%; border-radius:inherit; background:linear-gradient(90deg,#2563eb,#22c55e); transition:width .25s ease; }
+  .code-explorer-mobile-progress-text { color:#475569; font-size:.76rem; font-weight:900; }
+  .code-explorer-mobile-stage-steps { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:8px; }
+  .code-explorer-mobile-stage-steps button {
+    min-width:0; min-height:52px; padding:7px 5px; border:1px solid #d7e1ee; border-radius:13px; background:#fff; color:#64748b;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; font:inherit; transition:.18s ease;
+  }
+  .code-explorer-mobile-stage-steps button span { width:22px; height:22px; border-radius:999px; display:inline-flex; align-items:center; justify-content:center; background:#edf2f8; color:#516178; font-size:.68rem; font-weight:900; }
+  .code-explorer-mobile-stage-steps button b { font-size:.68rem; line-height:1; white-space:nowrap; }
+  .code-explorer-mobile-stage-steps button.active { border-color:#60a5fa; background:#eff6ff; color:#1d4ed8; box-shadow:0 0 0 2px rgba(59,130,246,.08); }
+  .code-explorer-mobile-stage-steps button.active span { background:#2563eb; color:#fff; }
+  .code-explorer-mobile-stage-steps button.done:not(.active) { border-color:#bbf7d0; color:#15803d; background:#f0fdf4; }
+  .code-explorer-mobile-stage-steps button.done:not(.active) span { background:#dcfce7; color:#166534; }
+  .code-explorer-mobile-stage-steps button.locked { opacity:.48; cursor:not-allowed; }
+  .code-explorer-mobile-stage-message { min-height:0; margin-top:8px; color:#64748b; font-size:.75rem; line-height:1.4; text-align:center; }
+  .code-explorer-mobile-stage-message:empty { display:none; }
+
+  .code-explorer-lesson-panel[data-mobile-stage] > .code-explorer-learn-card,
+  .code-explorer-lesson-panel[data-mobile-stage] > .code-explorer-mini-game-card,
+  .code-explorer-lesson-panel[data-mobile-stage] > .code-explorer-practice-card,
+  .code-explorer-lesson-panel[data-mobile-stage] > .code-explorer-quiz-card,
+  .code-explorer-lesson-panel[data-mobile-stage] > .code-explorer-topic-complete-card { display:none !important; }
+  .code-explorer-lesson-panel[data-mobile-stage="learn"] > .code-explorer-learn-card,
+  .code-explorer-lesson-panel[data-mobile-stage="example"] > .code-explorer-learn-card,
+  .code-explorer-lesson-panel[data-mobile-stage="game"] > .code-explorer-mini-game-card,
+  .code-explorer-lesson-panel[data-mobile-stage="practice"] > .code-explorer-practice-card,
+  .code-explorer-lesson-panel[data-mobile-stage="quiz"] > .code-explorer-quiz-card,
+  .code-explorer-lesson-panel[data-mobile-stage="complete"] > .code-explorer-topic-complete-card:not(.hidden) { display:block !important; }
+  .code-explorer-lesson-panel[data-mobile-stage="learn"] .code-explorer-learn-card .code-explorer-example-block { display:none !important; }
+  .code-explorer-lesson-panel[data-mobile-stage="example"] .code-explorer-learn-card > .code-explorer-card-label,
+  .code-explorer-lesson-panel[data-mobile-stage="example"] .code-explorer-learn-card > .code-explorer-topic-explanation { display:none !important; }
+  .code-explorer-lesson-panel[data-mobile-stage="example"] .code-explorer-learn-card .code-explorer-example-block { display:block !important; margin-top:0; }
+  .code-explorer-lesson-panel[data-mobile-stage="complete"] > .code-explorer-topic-complete-card { min-height:240px; align-items:center; justify-content:center; text-align:center; flex-direction:column; gap:14px; padding:34px 24px; }
+  .code-explorer-lesson-panel[data-mobile-stage="complete"] > .code-explorer-topic-complete-card:not(.hidden) { display:flex !important; }
+
+  .code-explorer-mini-game-card {
+    margin-top:0; padding:22px; border:1px solid #d9e2ec; border-radius:20px; background:#fff; color:#0f172a; box-shadow:0 8px 24px rgba(15,23,42,.06);
+  }
+  .code-explorer-mini-game-card .code-explorer-section-heading { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:16px; align-items:start; margin-bottom:15px; }
+  .code-explorer-mini-game-card h3 { margin:4px 0 5px; font-size:1.25rem; }
+  .code-explorer-mini-game-prompt { margin:0; color:#526174; font-size:.9rem; line-height:1.5; }
+  .code-explorer-mini-game-code { border:1px solid #27364b; border-radius:17px; overflow:hidden; background:#0f172a; }
+  .code-explorer-mini-game-code pre { margin:0; max-height:320px; overflow:auto; padding:20px; white-space:pre-wrap; overflow-wrap:anywhere; word-break:break-word; }
+  .code-explorer-mini-game-source { color:#e2e8f0; font:14px/1.72 Consolas,Monaco,monospace; }
+  .code-explorer-mini-game-blank { display:inline-block; min-width:70px; margin:0 3px; padding:2px 8px; border-radius:8px; border:1px dashed #60a5fa; background:rgba(37,99,235,.22); color:#dbeafe; font:inherit; }
+  .code-explorer-mini-game-blank.correct { border-style:solid; border-color:#4ade80; background:rgba(22,163,74,.28); color:#dcfce7; }
+  .code-explorer-mini-game-blank.wrong { border-style:solid; border-color:#fb7185; background:rgba(190,24,93,.25); color:#ffe4e6; }
+  .code-explorer-mini-game-options { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin-top:14px; }
+  .code-explorer-mini-game-option { min-height:52px; padding:10px 12px; border:1px solid #d6e1ee; border-radius:14px; background:#f8fafc; color:#172033; text-align:center; font-weight:800; }
+  .code-explorer-mini-game-option.selected { border-color:#2563eb; background:#eff6ff; color:#1d4ed8; box-shadow:0 0 0 3px rgba(37,99,235,.10); }
+  .code-explorer-mini-game-option.wrong { border-color:#ef4444; background:#fff1f2; color:#991b1b; }
+  .code-explorer-mini-game-option.correct { border-color:#22c55e; background:#ecfdf5; color:#166534; }
+  .code-explorer-mini-game-actions { display:grid; grid-template-columns:minmax(0,.7fr) minmax(0,1.3fr); gap:10px; margin-top:14px; }
+  .code-explorer-mini-game-actions button { min-height:46px; border-radius:13px; }
+
+  .code-explorer-mobile-stage-nav {
+    display:grid;
+    grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr);
+    gap:10px;
+    margin-top:2px;
+  }
+  .code-explorer-mobile-stage-nav button { min-height:46px; border-radius:13px; }
+  .code-explorer-lesson-panel[data-mobile-stage] > .code-explorer-lesson-nav { display:none !important; }
+
+  html[data-theme="dark"] .code-explorer-screen.code-explorer-roadmap-mode .code-explorer-course-roadmap,
+  html[data-theme="dark"] .code-explorer-mobile-journey,
+  html[data-theme="dark"] .code-explorer-mini-game-card { background:#151f31; border-color:#2b3a50; color:#e6edf7; }
+  html[data-theme="dark"] .code-explorer-roadmap-head p,
+  html[data-theme="dark"] .code-explorer-roadmap-copy em,
+  html[data-theme="dark"] .code-explorer-mini-game-prompt { color:#9fb0c5; }
+  html[data-theme="dark"] .code-explorer-roadmap-progress,
+  html[data-theme="dark"] .code-explorer-mobile-progress-track { background:#26364d; }
+  html[data-theme="dark"] .code-explorer-roadmap-message { background:#13243c; border-color:#28486f; color:#c7d7eb; }
+  html[data-theme="dark"] .code-explorer-roadmap-row { background:#111927; border-color:#2b3a50; color:#eef4ff; }
+  html[data-theme="dark"] .code-explorer-roadmap-row.current { background:linear-gradient(135deg,#13243c,#142a47); border-color:#60a5fa; }
+  html[data-theme="dark"] .code-explorer-roadmap-row.complete { background:#11241d; border-color:rgba(74,222,128,.28); }
+  html[data-theme="dark"] .code-explorer-roadmap-copy strong { color:#f8fbff; }
+  html[data-theme="dark"] .code-explorer-roadmap-copy small { color:#8293ab; }
+  html[data-theme="dark"] .code-explorer-roadmap-marker { background:#26354b; border-color:#38506e; color:#d8e7fb; }
+  html[data-theme="dark"] .code-explorer-roadmap-action { background:#26354b; border-color:#38506e; color:#cbd8e8; }
+  html[data-theme="dark"] .code-explorer-roadmap-divider { color:#8293ab; }
+  html[data-theme="dark"] .code-explorer-roadmap-divider::before,
+  html[data-theme="dark"] .code-explorer-roadmap-divider::after { background:#2a3a52; }
+  html[data-theme="dark"] .code-explorer-mobile-journey-head strong { color:#f8fbff; }
+  html[data-theme="dark"] .code-explorer-mobile-journey-head span,
+  html[data-theme="dark"] .code-explorer-mobile-journey-head small,
+  html[data-theme="dark"] .code-explorer-mobile-progress-text,
+  html[data-theme="dark"] .code-explorer-mobile-stage-message { color:#9fb0c8; }
+  html[data-theme="dark"] .code-explorer-mobile-stage-steps button { background:#121e31; border-color:#30435f; color:#9fb0c8; }
+  html[data-theme="dark"] .code-explorer-mobile-stage-steps button span { background:#21314a; color:#c8d6e8; }
+  html[data-theme="dark"] .code-explorer-mobile-stage-steps button.active { background:#132b4f; border-color:#4f8ee8; color:#bfdbfe; }
+  html[data-theme="dark"] .code-explorer-mobile-stage-steps button.active span { background:#3b82f6; color:#fff; }
+  html[data-theme="dark"] .code-explorer-mobile-stage-steps button.done:not(.active) { background:#10281e; border-color:#286b4a; color:#86efac; }
+  html[data-theme="dark"] .code-explorer-mobile-stage-steps button.done:not(.active) span { background:#164e3a; color:#bbf7d0; }
+  html[data-theme="dark"] .code-explorer-mini-game-option { background:#121e31; border-color:#30435f; color:#e6edf7; }
+  html[data-theme="dark"] .code-explorer-mini-game-option.selected { background:#132b4f; border-color:#4f8ee8; color:#bfdbfe; }
+  html[data-theme="dark"] .code-explorer-mini-game-option.correct { background:rgba(22,101,52,.25); color:#dcfce7; }
+  html[data-theme="dark"] .code-explorer-mini-game-option.wrong { background:rgba(153,27,27,.25); color:#fee2e2; }
+}

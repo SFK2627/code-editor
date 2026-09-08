@@ -41096,7 +41096,6 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   }
 
   function showCourseRoadmap(options = {}) {
-    if (!isMobileExplorerLayout()) return false;
     closeCourseProgressPanel();
     hideQuickScreenFeedback();
     state.mobileView = 'roadmap';
@@ -41447,7 +41446,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   function updateTopicCompletion(item = currentTopic()) {
     const record = topicRecord();
     const wasCompleted = Boolean(record.completedAt);
-    if (record.practicePassed && record.quizFivePassed && !record.completedAt) {
+    if (record.miniGamePassed && record.practicePassed && record.quizFivePassed && !record.completedAt) {
       record.completedAt = new Date().toISOString();
       const course = COURSES[state.course];
       const index = course.topics.findIndex(entry => entry.id === item.id);
@@ -41464,8 +41463,8 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     }
     dom.completeCard?.classList.toggle('hidden', !completed);
     if (dom.topicStatus) {
-      dom.topicStatus.textContent = completed ? '✓ Completed' : (record.practicePassed || record.quizPassed ? 'In progress' : 'Not started');
-      dom.topicStatus.dataset.state = completed ? 'complete' : (record.practicePassed || record.quizPassed ? 'progress' : 'todo');
+      dom.topicStatus.textContent = completed ? '✓ Completed' : (record.miniGamePassed || record.practicePassed || record.quizPassed ? 'In progress' : 'Not started');
+      dom.topicStatus.dataset.state = completed ? 'complete' : (record.miniGamePassed || record.practicePassed || record.quizPassed ? 'progress' : 'todo');
     }
     renderTopProgress();
     renderCourseCards();
@@ -41586,7 +41585,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     scheduleCloudSave();
     updateTopicCompletion(item);
     renderQuickQuiz();
-    if (passed && record.practicePassed && isMobileExplorerLayout()) {
+    if (passed && record.practicePassed && record.miniGamePassed) {
       window.setTimeout(() => setMobileJourneyStage('complete', { direction: 'next' }), 850);
     }
   }
@@ -41898,16 +41897,19 @@ window.MCS_PHONE_MENU_STATUS = () => ({
 
   function isMobileStageUnlocked(stage, record = topicRecord()) {
     if (stage === 'learn' || stage === 'example' || stage === 'game') return true;
-    if (stage === 'practice') return Boolean(record?.miniGamePassed || record?.practicePassed || record?.quizPassed || record?.completedAt || record?.mobileStage === 'practice');
+    if (stage === 'practice') return Boolean(record?.miniGamePassed || record?.practicePassed || record?.quizPassed || record?.completedAt);
     if (stage === 'quiz') return Boolean(record?.practicePassed);
     if (stage === 'complete') return Boolean(record?.completedAt);
     return false;
   }
 
   function bestMobileStageForRecord(record = topicRecord()) {
+    if (record?.completedAt) return 'complete';
+    // Older in-progress work may already have Try It / Quick Check data from before
+    // the Fill in the Blank step existed. Route it to the missing mastery step first.
+    if (!record?.miniGamePassed && (record?.practicePassed || record?.quizPassed || record?.quizFivePassed)) return 'game';
     const saved = String(record?.mobileStage || '').trim();
     if (saved && MOBILE_EXPLORER_STAGES.some(entry => entry.key === saved) && isMobileStageUnlocked(saved, record)) return saved;
-    if (record?.completedAt) return 'complete';
     if (record?.practicePassed) return 'quiz';
     if (record?.miniGamePassed) return 'practice';
     return 'learn';
@@ -41916,7 +41918,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   function mobileStageLockMessage(stage, record = topicRecord()) {
     if (stage === 'practice' && !record?.miniGamePassed && !record?.practicePassed) return '🔒 Complete the Fill in the Blank code game first to unlock Try It.';
     if (stage === 'quiz' && !record?.practicePassed) return '🔒 Pass the Try It coding challenge first to unlock Quick Check.';
-    if (stage === 'complete' && !record?.completedAt) return '🔒 Pass the coding challenge and score at least 4/5 on Quick Check first.';
+    if (stage === 'complete' && !record?.completedAt) return '🔒 Complete the code game, pass Try It, and score at least 4/5 on Quick Check first.';
     return '';
   }
 
@@ -41931,14 +41933,14 @@ window.MCS_PHONE_MENU_STATUS = () => ({
 
   function syncExplorerMobileChrome() {
     const mobile = isMobileExplorerLayout();
-    const roadmap = mobile && state.mobileView === 'roadmap';
+    const roadmap = state.mobileView === 'roadmap';
     screen?.classList.toggle('code-explorer-mobile-focus', mobile);
     screen?.classList.toggle('code-explorer-roadmap-mode', roadmap);
-    screen?.classList.toggle('code-explorer-lesson-mode', mobile && !roadmap);
+    screen?.classList.toggle('code-explorer-lesson-mode', !roadmap);
     if (dom.backBtn) {
-      dom.backBtn.textContent = mobile ? (roadmap ? '✕' : '←') : '← My Projects';
-      dom.backBtn.setAttribute('aria-label', mobile ? (roadmap ? 'Close Code Explorer' : 'Back to course path') : 'Back to My Projects');
-      dom.backBtn.title = mobile ? (roadmap ? 'Close' : 'Course path') : 'Back to My Projects';
+      dom.backBtn.textContent = mobile ? (roadmap ? '✕' : '←') : (roadmap ? '← My Projects' : '← Course Path');
+      dom.backBtn.setAttribute('aria-label', roadmap ? 'Back to My Projects' : 'Back to course path');
+      dom.backBtn.title = roadmap ? 'Back to My Projects' : 'Course path';
     }
     if (dom.leaderboardBtn) { dom.leaderboardBtn.title = 'Global Code Explorer Leaderboard'; dom.leaderboardBtn.setAttribute('aria-label', 'Open global Code Explorer leaderboard'); }
     if (dom.certificatesBtn) dom.certificatesBtn.textContent = mobile ? '🏅' : '🏅 My Certificates';
@@ -41985,7 +41987,6 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   }
 
   function updateMobileJourneyProgress(record = topicRecord()) {
-    if (!isMobileExplorerLayout()) return;
     const progressPercent = mobileJourneyProgressPercent(record);
     if (dom.mobileProgressBar) dom.mobileProgressBar.style.width = `${progressPercent}%`;
     if (dom.mobileProgressText) dom.mobileProgressText.textContent = `${progressPercent}%`;
@@ -41995,11 +41996,6 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     syncExplorerMobileChrome();
     if (!dom.lessonPanel) return;
     const record = topicRecord();
-    if (!isMobileExplorerLayout()) {
-      dom.lessonPanel.removeAttribute('data-mobile-stage');
-      dom.lessonPanel.classList.remove('mobile-slide-next', 'mobile-slide-prev');
-      return;
-    }
     if (!MOBILE_EXPLORER_STAGES.some(entry => entry.key === state.mobileStage) || !isMobileStageUnlocked(state.mobileStage, record)) {
       state.mobileStage = bestMobileStageForRecord(record);
     }
@@ -42052,7 +42048,6 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   }
 
   function setMobileJourneyStage(stage, options = {}) {
-    if (!isMobileExplorerLayout()) return false;
     const nextIndex = mobileStageIndex(stage);
     const currentIndex = mobileStageIndex();
     const record = topicRecord();
@@ -42070,7 +42065,6 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   }
 
   function goMobileJourney(delta) {
-    if (!isMobileExplorerLayout()) return false;
     const index = mobileStageIndex();
     const targetIndex = index + Number(delta || 0);
     if (targetIndex < 0) return false;
@@ -42086,7 +42080,6 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   }
 
   function handleMobileJourneyNext() {
-    if (!isMobileExplorerLayout()) return;
     if (state.mobileStage === 'complete') {
       const course = COURSES[state.course];
       const topicIndex = course.topics.findIndex(entry => entry.id === state.topicId);
@@ -42149,7 +42142,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     renderMiniGame();
     dom.quizQuestion.textContent = '5-question Quick Check';
     state.quickQuiz = { topicId: item.id, index: 0, answers: Array(buildQuickCheckQuestions(course, item).length).fill(null), results: Array(buildQuickCheckQuestions(course, item).length).fill(null), submitted: false };
-    if (isMobileExplorerLayout()) state.mobileStage = bestMobileStageForRecord(record);
+    state.mobileStage = bestMobileStageForRecord(record);
     renderQuickQuiz();
     if (record.quizFivePassed) {
       dom.quizBadge.textContent = `✓ Passed · Best ${Number(record.quizBestCorrect || 0)}/5`;
@@ -42183,8 +42176,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     }
     state.course = key;
     const course = COURSES[key];
-    const mobile = isMobileExplorerLayout();
-    const openLesson = options.openLesson === true || !mobile;
+    const openLesson = options.openLesson === true;
     const existingId = options.topicId || state.progress.courses[key].lastTopicId || '';
     const item = openLesson ? (firstAvailableTopic(key, existingId) || course.topics[0]) : (roadmapCurrentTopic(key) || firstAvailableTopic(key, existingId) || course.topics[0]);
     state.topicId = item.id;
@@ -42211,7 +42203,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     const index = course.topics.findIndex(item => item.id === id);
     if (index < 0) return false;
     if (!isTopicUnlocked(state.course, index)) {
-      if (!options.silent) await appAlert('Complete and pass the previous topic first. Each topic requires the coding practice and at least 4/5 on the Quick Check.', { title: 'Topic locked', icon: '🔒' });
+      if (!options.silent) await appAlert('Complete and pass the previous topic first. Each new topic requires the Fill in the Blank game, coding practice, and at least 4/5 on the Quick Check.', { title: 'Topic locked', icon: '🔒' });
       renderTopicList();
       return false;
     }
@@ -42279,10 +42271,10 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     startHeartTicker();
     await startExplorerProfileListener();
     const preferredCourse = COURSE_KEYS.find(key => isCourseUnlocked(key) && state.progress.courses[key]?.lastTopicId) || (isCourseUnlocked(state.course) ? state.course : 'html');
-    state.mobileView = isMobileExplorerLayout() ? 'roadmap' : 'lesson';
-    await selectCourse(preferredCourse, { topicId: state.progress.courses[preferredCourse]?.lastTopicId, silent: true, openLesson: !isMobileExplorerLayout() });
+    state.mobileView = 'roadmap';
+    await selectCourse(preferredCourse, { topicId: state.progress.courses[preferredCourse]?.lastTopicId, silent: true, openLesson: false });
     renderCertificates();
-    if (isMobileExplorerLayout()) renderCourseRoadmap();
+    renderCourseRoadmap();
     syncExplorerMobileChrome();
     // Publish only the safe leaderboard fields for this student, even if they only opened Code Explorer.
     saveCloudProgress().then(saved => {
@@ -42343,7 +42335,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     runPractice();
     updateTopicCompletion(item);
     renderMobileJourney();
-    if (result.ok && isMobileExplorerLayout() && state.mobileStage === 'practice') {
+    if (result.ok && state.mobileStage === 'practice') {
       pulseMobileStageLock('✓ Quick Check unlocked. Swipe left or tap Quick Check to continue.');
     }
   }
@@ -44233,7 +44225,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
 
   dom.dashboardBtn?.addEventListener('click', openExplorer);
   dom.menuBtn?.addEventListener('click', openExplorer);
-  dom.backBtn?.addEventListener('click', () => { if (isMobileExplorerLayout() && state.mobileView === 'lesson') showCourseRoadmap({ behavior: 'smooth' }); else closeExplorer(); });
+  dom.backBtn?.addEventListener('click', () => { if (state.mobileView === 'lesson') showCourseRoadmap({ behavior: 'smooth' }); else closeExplorer(); });
   dom.themeBtn?.addEventListener('click', () => dashboardThemeBtn?.click());
   dom.quickThemeToggle?.addEventListener('click', () => {
     const currentTheme = document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light';
@@ -44285,7 +44277,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   });
   dom.lessonPanel?.addEventListener('touchstart', handleMobileJourneyTouchStart, { passive: true });
   dom.lessonPanel?.addEventListener('touchend', handleMobileJourneyTouchEnd, { passive: true });
-  explorerMobileMq.addEventListener?.('change', () => { if (isMobileExplorerLayout()) showCourseRoadmap({ scroll: false }); else if (state.mobileView === 'roadmap') { state.mobileView = 'lesson'; renderTopic(); } syncExplorerMobileChrome(); renderMobileJourney(); });
+  explorerMobileMq.addEventListener?.('change', () => { syncExplorerMobileChrome(); if (state.mobileView === 'roadmap') renderCourseRoadmap(); else renderMobileJourney(); });
   document.addEventListener('keydown', event => {
     if (event.key === 'Escape' && dom.courseProgressOverlay && !dom.courseProgressOverlay.classList.contains('hidden')) closeCourseProgressPanel();
   });
@@ -44300,7 +44292,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   });
   dom.courseCards?.addEventListener('click', event => {
     const button = event.target.closest('[data-explorer-course]');
-    if (button) selectCourse(button.dataset.explorerCourse, { openLesson: !isMobileExplorerLayout() });
+    if (button) selectCourse(button.dataset.explorerCourse, { openLesson: false });
   });
   dom.courseRoadmapList?.addEventListener('click', async event => {
     const topicButton = event.target.closest('[data-course-roadmap-topic]');
