@@ -45,7 +45,7 @@
   </script>
   <link rel="preconnect" href="https://drive.google.com" crossorigin>
   <link rel="preconnect" href="https://lh3.googleusercontent.com" crossorigin>
-  <link rel="stylesheet" href="style.css?v=20260908-v381-student-section-leaderboards" />
+  <link rel="stylesheet" href="style.css?v=20260908-v383-average-section-ranking" />
   <style>
     .ai-rubric-settings-card,
     .admin-project-ai-review-card {
@@ -670,7 +670,7 @@
           <div>
             <span class="code-explorer-eyebrow">All enrolled students</span>
             <h2 id="codeExplorerLeaderboardTitle">🏆 Global Leaderboard</h2>
-            <p>Top 10 are highlighted. Tied XP shares the same rank.</p>
+            <p>Top 10 are highlighted. Student ranks use XP; section ranks use average XP per student. Ties share the same rank.</p>
           </div>
           <div class="code-explorer-leaderboard-head-actions">
             <button id="codeExplorerLeaderboardRefreshBtn" class="ghost-btn mini" type="button">↻ Refresh</button>
@@ -2822,6 +2822,28 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
             <div><strong id="codeExplorerAdminAverage">0%</strong><span>Average Progress</span></div>
           </div>
 
+          <section class="code-explorer-admin-leaderboard-settings" aria-labelledby="codeExplorerAdminLeaderboardSettingsTitle">
+            <div class="code-explorer-admin-leaderboard-settings-head">
+              <div>
+                <span class="code-explorer-admin-setting-kicker">🏆 Leaderboard Visibility</span>
+                <h4 id="codeExplorerAdminLeaderboardSettingsTitle">Choose sections included in rankings</h4>
+                <p>Only students from checked sections appear in the Student Leaderboard. Only checked sections appear in the Section Leaderboard. Hidden sections keep their XP and return with the same progress when enabled again.</p>
+              </div>
+              <span id="codeExplorerAdminLeaderboardSettingsPill" class="code-explorer-admin-leaderboard-settings-pill">Loading…</span>
+            </div>
+            <div class="code-explorer-admin-leaderboard-settings-actions">
+              <button id="codeExplorerAdminLeaderboardSelectAllBtn" class="ghost-btn mini" type="button">Select All</button>
+              <button id="codeExplorerAdminLeaderboardClearBtn" class="ghost-btn mini" type="button">Clear All</button>
+            </div>
+            <div id="codeExplorerAdminLeaderboardSectionList" class="code-explorer-admin-leaderboard-section-list" aria-live="polite">
+              <div class="code-explorer-admin-leaderboard-empty">Load Code Explorer progress to see enrolled sections.</div>
+            </div>
+            <div class="code-explorer-admin-leaderboard-settings-foot">
+              <p id="codeExplorerAdminLeaderboardSettingsStatus" class="helper-note" role="status">All sections are included until you save a custom selection.</p>
+              <button id="codeExplorerAdminLeaderboardSaveBtn" class="primary-btn" type="button">Save Leaderboard Sections</button>
+            </div>
+          </section>
+
           <div class="code-explorer-admin-certificate-sample" aria-label="Code Explorer sample certificate">
             <div class="code-explorer-admin-certificate-copy">
               <span>Certificate Sample</span>
@@ -3319,6 +3341,6 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
       </section>
     </div>
 
-  <script src="script.js?v=20260908-v381-student-section-leaderboards"></script>
+  <script src="script.js?v=20260908-v383-average-section-ranking"></script>
 </body>
 </html>

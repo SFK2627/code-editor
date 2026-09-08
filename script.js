@@ -4702,6 +4702,11 @@ function getCodeExplorerLeaderboardDocRef(uid) {
   return doc(firebaseSync.db, firebaseSync.collectionName, firebaseSync.documentId, 'codeExplorerLeaderboard', String(uid || '').trim());
 }
 
+function getCodeExplorerLeaderboardSettingsDocRef() {
+  const { doc } = firebaseSync.modules;
+  return doc(firebaseSync.db, firebaseSync.collectionName, firebaseSync.documentId, 'adminSettings', 'codeExplorerLeaderboard');
+}
+
 function getStudentRosterDocRef(studentId) {
   const { doc } = firebaseSync.modules;
   return doc(firebaseSync.db, firebaseSync.collectionName, firebaseSync.documentId, 'studentRoster', normalizeStudentId(studentId));
@@ -40255,6 +40260,12 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     adminSampleCourse: $('codeExplorerAdminSampleCertCourse'),
     adminSampleViewBtn: $('codeExplorerAdminViewSampleCertBtn'),
     adminSampleDownloadBtn: $('codeExplorerAdminDownloadSampleCertBtn'),
+    adminLeaderboardSectionList: $('codeExplorerAdminLeaderboardSectionList'),
+    adminLeaderboardSettingsPill: $('codeExplorerAdminLeaderboardSettingsPill'),
+    adminLeaderboardSettingsStatus: $('codeExplorerAdminLeaderboardSettingsStatus'),
+    adminLeaderboardSelectAllBtn: $('codeExplorerAdminLeaderboardSelectAllBtn'),
+    adminLeaderboardClearBtn: $('codeExplorerAdminLeaderboardClearBtn'),
+    adminLeaderboardSaveBtn: $('codeExplorerAdminLeaderboardSaveBtn'),
     verifyOverlay: $('codeExplorerVerifyOverlay'),
     verifyBody: $('codeExplorerVerifyBody'),
     verifyCloseBtn: $('codeExplorerVerifyCloseBtn'),
@@ -40531,7 +40542,8 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   const HEARTS_MAX = 5;
   const HEART_REFILL_MS = 60 * 60 * 1000;
   const state = { course: 'html', topicId: '', filter: 'all', progress: null, reader: '', cloudLoaded: false, dashboardCloudLoading: false, saveTimer: null, heartTimer: null, profileUnsub: null, finalAnswers: {}, quickQuiz: { topicId: '', index: 0, answers: [], results: [], submitted: false }, miniGame: { topicId: '', selected: '', result: '', correct: '', choices: [], before: '', after: '' }, miniGameResetTimer: null, quickAdvanceTimer: null, quickFeedbackTimer: null, justUnlockedTopicId: '', justUnlockedCourse: '', mobileStage: 'learn', mobileStageDirection: 'next', mobileSwipeStart: null, mobileView: 'roadmap' };
-  const leaderboardState = { records: [], loadedAt: 0, loading: false, source: '', rosterLoaded: false, mode: 'students' };
+  const leaderboardState = { records: [], loadedAt: 0, loading: false, source: '', rosterLoaded: false, mode: 'students', settingsLoaded: false, settingsError: false, currentSectionIncluded: true };
+  let leaderboardSectionSettings = { configured: false, includedSections: [], includedSectionKeys: [] };
 
   function normalizeHeartState(input = {}) {
     const source = input && typeof input === 'object' ? input : {};
@@ -42937,17 +42949,18 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     return `#${rank}`;
   }
 
-  function assignLeaderboardRanks(records = []) {
-    const sorted = records.slice().sort((a, b) => Number(b.xp || 0) - Number(a.xp || 0)
+  function assignLeaderboardRanks(records = [], scoreField = 'xp') {
+    const scoreFor = record => Number(record?.[scoreField] || 0);
+    const sorted = records.slice().sort((a, b) => scoreFor(b) - scoreFor(a)
       || String(a.name || '').localeCompare(String(b.name || ''))
       || String(a.section || '').localeCompare(String(b.section || '')));
-    let previousXp = null;
+    let previousScore = null;
     let rank = 0;
     sorted.forEach((record, index) => {
-      const xp = Number(record.xp || 0);
-      if (previousXp === null || xp !== previousXp) rank = index + 1;
+      const score = scoreFor(record);
+      if (previousScore === null || score !== previousScore) rank = index + 1;
       record.rank = rank;
-      previousXp = xp;
+      previousScore = score;
     });
     return sorted;
   }
@@ -42979,6 +42992,136 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       .trim();
   }
 
+  function normalizeLeaderboardSectionSettings(data = {}) {
+    const source = data && typeof data === 'object' ? data : {};
+    const configured = source.configured === true;
+    const names = Array.isArray(source.includedSections)
+      ? [...new Set(source.includedSections.map(value => leaderboardSectionDisplayName(value)).filter(value => value && leaderboardSectionKey(value) !== 'no section'))]
+      : [];
+    const keys = Array.isArray(source.includedSectionKeys)
+      ? [...new Set(source.includedSectionKeys.map(value => String(value || '').trim().toLowerCase()).filter(Boolean))]
+      : names.map(leaderboardSectionKey).filter(Boolean);
+    return { configured, includedSections: names, includedSectionKeys: keys };
+  }
+
+  function isLeaderboardSectionIncluded(section = '', settings = leaderboardSectionSettings) {
+    const normalized = normalizeLeaderboardSectionSettings(settings);
+    if (!normalized.configured) return true;
+    const key = leaderboardSectionKey(section);
+    return Boolean(key && key !== 'no section' && normalized.includedSectionKeys.includes(key));
+  }
+
+  function currentLeaderboardSectionName() {
+    const profile = appSession.student || appSession.lastStudentProfile || {};
+    return leaderboardSectionDisplayName(profile.section || profile.sectionName || '');
+  }
+
+  async function loadLeaderboardSectionSettings() {
+    const ready = await initFirebaseSync();
+    if (!ready) return { loaded: false, error: true, settings: leaderboardSectionSettings };
+    try {
+      const { getDoc } = firebaseSync.modules;
+      const snapshot = await getDoc(getCodeExplorerLeaderboardSettingsDocRef());
+      leaderboardSectionSettings = snapshotExists(snapshot)
+        ? normalizeLeaderboardSectionSettings(snapshotData(snapshot))
+        : normalizeLeaderboardSectionSettings({ configured: false });
+      return { loaded: true, error: false, settings: leaderboardSectionSettings };
+    } catch (error) {
+      console.info('Code Explorer leaderboard section settings are unavailable.', error);
+      return { loaded: false, error: true, settings: leaderboardSectionSettings };
+    }
+  }
+
+  function adminLeaderboardSections() {
+    return [...new Set(adminStudentsCache
+      .filter(student => String(student.accountStatus || 'active') !== 'disabled')
+      .map(student => leaderboardSectionDisplayName(student.section || ''))
+      .filter(section => section && leaderboardSectionKey(section) !== 'no section'))]
+      .sort((a, b) => a.localeCompare(b));
+  }
+
+  function renderAdminLeaderboardSectionSettings() {
+    if (!dom.adminLeaderboardSectionList) return;
+    const sections = adminLeaderboardSections();
+    const settings = normalizeLeaderboardSectionSettings(leaderboardSectionSettings);
+    const selectedKeys = settings.configured
+      ? new Set(settings.includedSectionKeys)
+      : new Set(sections.map(leaderboardSectionKey));
+    if (!sections.length) {
+      dom.adminLeaderboardSectionList.innerHTML = '<div class="code-explorer-admin-leaderboard-empty">No enrolled sections found yet.</div>';
+    } else {
+      dom.adminLeaderboardSectionList.innerHTML = sections.map(section => {
+        const key = leaderboardSectionKey(section);
+        const studentCount = adminStudentsCache.filter(student => String(student.accountStatus || 'active') !== 'disabled' && leaderboardSectionKey(student.section || '') === key).length;
+        const checked = selectedKeys.has(key);
+        return `<label class="code-explorer-admin-leaderboard-section-option ${checked ? '' : 'excluded'}"><input type="checkbox" value="${escapeAttribute(section)}" data-leaderboard-admin-section="${escapeAttribute(key)}" ${checked ? 'checked' : ''}><span><strong>${escapeHTML(section)}</strong><small>${studentCount} ${studentCount === 1 ? 'student' : 'students'}</small></span><b>${checked ? 'Visible' : 'Hidden'}</b></label>`;
+      }).join('');
+    }
+    const selectedCount = sections.filter(section => selectedKeys.has(leaderboardSectionKey(section))).length;
+    if (dom.adminLeaderboardSettingsPill) dom.adminLeaderboardSettingsPill.textContent = `${selectedCount} of ${sections.length} included`;
+    if (dom.adminLeaderboardSettingsStatus) dom.adminLeaderboardSettingsStatus.textContent = settings.configured
+      ? `${selectedCount} section${selectedCount === 1 ? '' : 's'} currently included in both leaderboards.`
+      : `All ${sections.length} enrolled section${sections.length === 1 ? '' : 's'} are currently included. Save to create a custom selection.`;
+  }
+
+  function updateAdminLeaderboardSelectionLabels() {
+    const options = Array.from(dom.adminLeaderboardSectionList?.querySelectorAll('[data-leaderboard-admin-section]') || []);
+    options.forEach(input => {
+      const label = input.closest('.code-explorer-admin-leaderboard-section-option');
+      const badge = label?.querySelector('b');
+      label?.classList.toggle('excluded', !input.checked);
+      if (badge) badge.textContent = input.checked ? 'Visible' : 'Hidden';
+    });
+    const selected = options.filter(input => input.checked).length;
+    if (dom.adminLeaderboardSettingsPill) dom.adminLeaderboardSettingsPill.textContent = `${selected} of ${options.length} included`;
+    if (dom.adminLeaderboardSettingsStatus) dom.adminLeaderboardSettingsStatus.textContent = `${selected} section${selected === 1 ? '' : 's'} selected. Click Save Leaderboard Sections to publish the change.`;
+  }
+
+  async function saveAdminLeaderboardSectionSettings() {
+    if (!isTeacherAuthenticated()) return;
+    const inputs = Array.from(dom.adminLeaderboardSectionList?.querySelectorAll('[data-leaderboard-admin-section]') || []);
+    const includedSections = inputs.filter(input => input.checked).map(input => leaderboardSectionDisplayName(input.value));
+    const includedSectionKeys = includedSections.map(leaderboardSectionKey).filter(Boolean);
+    if (dom.adminLeaderboardSaveBtn) { dom.adminLeaderboardSaveBtn.disabled = true; dom.adminLeaderboardSaveBtn.textContent = 'Saving…'; }
+    if (dom.adminLeaderboardSettingsStatus) dom.adminLeaderboardSettingsStatus.textContent = 'Saving leaderboard visibility and updating student ranking records…';
+    try {
+      const ready = await initFirebaseSync();
+      if (!ready) throw new Error('Cloud settings are unavailable right now.');
+      const { setDoc, serverTimestamp } = firebaseSync.modules;
+      leaderboardSectionSettings = normalizeLeaderboardSectionSettings({ configured: true, includedSections, includedSectionKeys });
+      await setDoc(getCodeExplorerLeaderboardSettingsDocRef(), {
+        configured: true,
+        includedSections: leaderboardSectionSettings.includedSections,
+        includedSectionKeys: leaderboardSectionSettings.includedSectionKeys,
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+      // Mirror only non-sensitive visibility settings into the leaderboard
+      // collection so student clients can enforce the same section filter even
+      // when adminSettings reads are restricted by Firestore rules.
+      await setDoc(getCodeExplorerLeaderboardDocRef('__settings__'), {
+        recordType: 'settings',
+        accountStatus: 'disabled',
+        configured: true,
+        includedSections: leaderboardSectionSettings.includedSections,
+        includedSectionKeys: leaderboardSectionSettings.includedSectionKeys,
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+      codeExplorerLeaderboardPublishAt = 0;
+      await publishSafeCodeExplorerLeaderboardFromAdmin({ force: true });
+      leaderboardState.records = [];
+      leaderboardState.loadedAt = 0;
+      leaderboardState.settingsLoaded = true;
+      leaderboardState.settingsError = false;
+      renderAdminLeaderboardSectionSettings();
+      if (dom.adminLeaderboardSettingsStatus) dom.adminLeaderboardSettingsStatus.textContent = `${includedSections.length} section${includedSections.length === 1 ? '' : 's'} included. Students from hidden sections are now excluded from both leaderboards.`;
+    } catch (error) {
+      console.error('Could not save Code Explorer leaderboard section settings.', error);
+      if (dom.adminLeaderboardSettingsStatus) dom.adminLeaderboardSettingsStatus.textContent = error?.message || 'Could not save leaderboard section settings.';
+    } finally {
+      if (dom.adminLeaderboardSaveBtn) { dom.adminLeaderboardSaveBtn.disabled = false; dom.adminLeaderboardSaveBtn.textContent = 'Save Leaderboard Sections'; }
+    }
+  }
+
   function buildSectionLeaderboard(records = leaderboardState.records || []) {
     const currentProfile = appSession.student || appSession.lastStudentProfile || {};
     const currentSectionKey = leaderboardSectionKey(currentProfile.section || currentProfile.sectionName || '');
@@ -42995,9 +43138,12 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     });
     const sections = Array.from(groups.values()).map(group => ({
       ...group,
-      averageXp: group.studentCount ? Math.round(group.xp / group.studentCount) : 0
+      // Rank sections by average Mastery XP so larger sections do not gain an
+      // automatic advantage simply because they have more enrolled students.
+      // Round to one decimal so displayed ties also share the same rank.
+      averageXp: group.studentCount ? Math.round((group.xp / group.studentCount) * 10) / 10 : 0
     }));
-    const ranked = assignLeaderboardRanks(sections.map(group => ({ ...group, section: group.name })));
+    const ranked = assignLeaderboardRanks(sections.map(group => ({ ...group, section: group.name })), 'averageXp');
     ranked.forEach(group => {
       group.name = group.name || group.section || 'Section';
       group.current = Boolean(group.current || (currentSectionKey && leaderboardSectionKey(group.name) === currentSectionKey));
@@ -43015,8 +43161,8 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     if (options.detached) classes.push('detached-you');
     return `<article class="${classes.join(' ')}" data-rank="${rank}">
       <span class="code-explorer-leaderboard-rank">${escapeHTML(leaderboardMedal(rank))}</span>
-      <span class="code-explorer-leaderboard-person"><strong>${escapeHTML(record.name || 'Section')}${current ? '<em>YOUR SECTION</em>' : ''}</strong><small>${Number(record.studentCount || 0)} ${Number(record.studentCount || 0) === 1 ? 'student' : 'students'} · Avg ⚡ ${Number(record.averageXp || 0).toLocaleString()}</small></span>
-      <span class="code-explorer-leaderboard-xp"><strong>⚡ ${Number(record.xp || 0).toLocaleString()}</strong><small>TOTAL XP</small></span>
+      <span class="code-explorer-leaderboard-person"><strong>${escapeHTML(record.name || 'Section')}${current ? '<em>YOUR SECTION</em>' : ''}</strong><small>${Number(record.studentCount || 0)} ${Number(record.studentCount || 0) === 1 ? 'student' : 'students'} · Total ⚡ ${Number(record.xp || 0).toLocaleString()} XP</small></span>
+      <span class="code-explorer-leaderboard-xp"><strong>⚡ ${Number(record.averageXp || 0).toLocaleString(undefined, { maximumFractionDigits: 1 })}</strong><small>AVG XP</small></span>
     </article>`;
   }
 
@@ -43030,7 +43176,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     const key = sectionLeaderboardRankStorageKey(current.name);
     try { previous = Number(localStorage.getItem(key) || 0); } catch (_) {}
     const now = Number(current.rank || 0);
-    let message = `Your section is Rank #${now} with ${Number(current.xp || 0).toLocaleString()} total XP.`;
+    let message = `Your section is Rank #${now} with an average of ${Number(current.averageXp || 0).toLocaleString(undefined, { maximumFractionDigits: 1 })} XP per student and ${Number(current.xp || 0).toLocaleString()} total XP.`;
     if (previous > 10 && now <= 10) message = `🎉 Your section entered the Top 10 at Rank #${now}!`;
     else if (previous > now && previous > 0) message = `🚀 Your section moved up from #${previous} to #${now}!`;
     else if (now <= 3) message = `🏆 Your section is currently in the Top 3 at Rank #${now}!`;
@@ -43084,6 +43230,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     const studentRecords = leaderboardState.records || [];
     if (!dom.leaderboardList) return;
     const sectionsMode = leaderboardState.mode === 'sections';
+    const currentExcluded = leaderboardState.currentSectionIncluded === false;
     dom.leaderboardStudentsTab?.classList.toggle('active', !sectionsMode);
     dom.leaderboardSectionsTab?.classList.toggle('active', sectionsMode);
     dom.leaderboardStudentsTab?.setAttribute('aria-selected', sectionsMode ? 'false' : 'true');
@@ -43093,19 +43240,23 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       const records = buildSectionLeaderboard(studentRecords);
       const current = records.find(record => record.current) || null;
       const topRows = records.filter(record => Number(record.rank || 0) <= 20);
-      const topXp = records.length ? Number(records[0].xp || 0) : 0;
+      const topAverageXp = records.length ? Number(records[0].averageXp || 0) : 0;
       if (dom.leaderboardYourRankLabel) dom.leaderboardYourRankLabel.textContent = 'Section Rank';
-      if (dom.leaderboardYourXpLabel) dom.leaderboardYourXpLabel.textContent = 'Section XP';
+      if (dom.leaderboardYourXpLabel) dom.leaderboardYourXpLabel.textContent = 'Avg XP';
       if (dom.leaderboardCountLabel) dom.leaderboardCountLabel.textContent = 'Sections';
-      if (dom.leaderboardTopXpLabel) dom.leaderboardTopXpLabel.textContent = 'Top Section XP';
+      if (dom.leaderboardTopXpLabel) dom.leaderboardTopXpLabel.textContent = 'Top Avg XP';
       if (dom.leaderboardYourRank) dom.leaderboardYourRank.textContent = current ? `#${current.rank}` : '—';
-      if (dom.leaderboardYourXp) dom.leaderboardYourXp.textContent = current ? Number(current.xp || 0).toLocaleString() : '0';
+      if (dom.leaderboardYourXp) dom.leaderboardYourXp.textContent = current ? Number(current.averageXp || 0).toLocaleString(undefined, { maximumFractionDigits: 1 }) : '0';
       if (dom.leaderboardStudentCount) dom.leaderboardStudentCount.textContent = String(records.length);
-      if (dom.leaderboardTopXp) dom.leaderboardTopXp.textContent = topXp.toLocaleString();
-      if (dom.leaderboardMotivation) dom.leaderboardMotivation.textContent = sectionLeaderboardMotivation(current);
-      if (dom.leaderboardStatus) dom.leaderboardStatus.textContent = `${records.length} ${records.length === 1 ? 'section' : 'sections'} ranked by accumulated student XP · ties share rank`;
+      if (dom.leaderboardTopXp) dom.leaderboardTopXp.textContent = topAverageXp.toLocaleString(undefined, { maximumFractionDigits: 1 });
+      if (dom.leaderboardMotivation) dom.leaderboardMotivation.textContent = currentExcluded
+        ? 'Your section is currently not included in the leaderboard. Your learning progress and XP are still saved.'
+        : sectionLeaderboardMotivation(current);
+      if (dom.leaderboardStatus) dom.leaderboardStatus.textContent = `${records.length} ${records.length === 1 ? 'section' : 'sections'} ranked by average XP per student · total XP is still shown · admin-selected sections only · ties share rank`;
       if (!records.length) {
-        dom.leaderboardList.innerHTML = '<div class="code-explorer-leaderboard-empty"><strong>No section rankings yet.</strong><p>Section totals will appear once enrolled students have section information.</p></div>';
+        dom.leaderboardList.innerHTML = currentExcluded
+          ? '<div class="code-explorer-leaderboard-empty"><strong>Your section is not included.</strong><p>The teacher controls which sections participate in the leaderboard. Your XP and course progress are unaffected.</p></div>'
+          : '<div class="code-explorer-leaderboard-empty"><strong>No section rankings yet.</strong><p>Section totals will appear once included students have section information.</p></div>';
         return;
       }
       let content = topRows.map(record => sectionLeaderboardRowHtml(record)).join('');
@@ -43125,16 +43276,20 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     if (dom.leaderboardCountLabel) dom.leaderboardCountLabel.textContent = 'Students';
     if (dom.leaderboardTopXpLabel) dom.leaderboardTopXpLabel.textContent = 'Top XP';
     if (dom.leaderboardYourRank) dom.leaderboardYourRank.textContent = current ? `#${current.rank}` : '—';
-    if (dom.leaderboardYourXp) dom.leaderboardYourXp.textContent = current ? Number(current.xp || 0).toLocaleString() : totalXp().toLocaleString();
+    if (dom.leaderboardYourXp) dom.leaderboardYourXp.textContent = Math.max(Number(current?.xp || 0), Number(totalXp() || 0)).toLocaleString();
     if (dom.leaderboardStudentCount) dom.leaderboardStudentCount.textContent = String(records.length);
     if (dom.leaderboardTopXp) dom.leaderboardTopXp.textContent = topXp.toLocaleString();
-    if (dom.leaderboardMotivation) dom.leaderboardMotivation.textContent = leaderboardRankMotivation(current);
+    if (dom.leaderboardMotivation) dom.leaderboardMotivation.textContent = currentExcluded
+      ? 'Your section is currently not included in the leaderboard. You can keep earning XP; it will count again if your section is enabled.'
+      : leaderboardRankMotivation(current);
     if (dom.leaderboardStatus) {
-      const scope = leaderboardState.rosterLoaded ? 'all enrolled students' : (leaderboardState.source || 'available student accounts');
-      dom.leaderboardStatus.textContent = `${records.length} ${records.length === 1 ? 'student' : 'students'} ranked · ${scope} · ties share rank`;
+      const scope = leaderboardState.rosterLoaded ? 'included enrolled students' : (leaderboardState.source || 'available student accounts');
+      dom.leaderboardStatus.textContent = `${records.length} ${records.length === 1 ? 'student' : 'students'} ranked · ${scope} · admin-selected sections only · ties share rank`;
     }
     if (!records.length) {
-      dom.leaderboardList.innerHTML = '<div class="code-explorer-leaderboard-empty"><strong>No rankings yet.</strong><p>Complete a learning milestone to earn Mastery XP.</p></div>';
+      dom.leaderboardList.innerHTML = currentExcluded
+        ? '<div class="code-explorer-leaderboard-empty"><strong>Your section is not included.</strong><p>The teacher controls which sections participate. Your Mastery XP is still being saved.</p></div>'
+        : '<div class="code-explorer-leaderboard-empty"><strong>No rankings yet.</strong><p>Complete a learning milestone to earn Mastery XP.</p></div>';
       return;
     }
     let content = topRows.map(record => leaderboardRowHtml(record)).join('');
@@ -43152,31 +43307,49 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       return;
     }
     leaderboardState.loading = true;
-    if (dom.leaderboardStatus) dom.leaderboardStatus.textContent = 'Loading all enrolled student rankings...';
+    if (dom.leaderboardStatus) dom.leaderboardStatus.textContent = 'Loading included student rankings...';
     if (dom.leaderboardRefreshBtn) { dom.leaderboardRefreshBtn.disabled = true; dom.leaderboardRefreshBtn.textContent = 'Loading...'; }
     try {
       const ready = await initFirebaseSync();
       if (!ready) throw new Error('Cloud ranking is not available right now.');
-      const { getDocs } = firebaseSync.modules;
-      const [rosterResult, quickResult] = await Promise.allSettled([
+      const { getDocs, getDoc } = firebaseSync.modules;
+      const [rosterResult, quickResult, settingsResult] = await Promise.allSettled([
         getDocs(getStudentRosterCollectionRef()),
-        getDocs(getCodeExplorerLeaderboardCollectionRef())
+        getDocs(getCodeExplorerLeaderboardCollectionRef()),
+        getDoc(getCodeExplorerLeaderboardSettingsDocRef())
       ]);
 
       const rosterDocs = rosterResult.status === 'fulfilled' ? Array.from(rosterResult.value.docs || []) : [];
       const quickDocs = quickResult.status === 'fulfilled' ? Array.from(quickResult.value.docs || []) : [];
+      leaderboardState.settingsLoaded = settingsResult.status === 'fulfilled';
+      leaderboardState.settingsError = settingsResult.status !== 'fulfilled';
+      if (settingsResult.status === 'fulfilled') {
+        leaderboardSectionSettings = snapshotExists(settingsResult.value)
+          ? normalizeLeaderboardSectionSettings(snapshotData(settingsResult.value))
+          : normalizeLeaderboardSectionSettings({ configured: false });
+      }
       leaderboardState.rosterLoaded = rosterResult.status === 'fulfilled';
-      leaderboardState.source = leaderboardState.rosterLoaded ? 'all enrolled students' : 'synced leaderboard accounts';
+      leaderboardState.source = leaderboardState.rosterLoaded ? 'included enrolled students' : 'synced leaderboard accounts';
 
       const rosterProfiles = rosterDocs.map(snapshot => {
         const data = snapshotData(snapshot);
         const studentId = normalizeStudentId(data.studentId || data.studentIdNormalized || snapshot.id);
         return { uid: data.authUid || '', rosterId: studentId, isRosterOnly: true, sourceType: 'studentRoster', ...data, studentId, studentIdNormalized: studentId || data.studentIdNormalized || data.studentId };
       });
-      const quickRows = quickDocs.map(snapshot => ({ id: snapshot.id, ...snapshotData(snapshot) }));
+      const allQuickRows = quickDocs.map(snapshot => ({ id: snapshot.id, ...snapshotData(snapshot) }));
+      const safeSettingsRow = allQuickRows.find(row => row.id === '__settings__' || row.recordType === 'settings') || null;
+      if (!leaderboardState.settingsLoaded && safeSettingsRow) {
+        leaderboardSectionSettings = normalizeLeaderboardSectionSettings(safeSettingsRow);
+        leaderboardState.settingsLoaded = true;
+        leaderboardState.settingsError = false;
+      }
+      const quickRows = allQuickRows.filter(row => row.id !== '__settings__' && row.recordType !== 'settings');
+      const visibleQuickRows = quickRows.filter(row => leaderboardState.settingsLoaded
+        ? isLeaderboardSectionIncluded(row.section || '', leaderboardSectionSettings)
+        : row.leaderboardIncluded !== false);
       const quickByUid = new Map();
       const quickByStudentId = new Map();
-      quickRows.forEach(row => {
+      visibleQuickRows.forEach(row => {
         const uid = String(row.uid || '').trim();
         const sid = normalizeStudentId(row.studentId || row.studentIdNormalized || '');
         if (uid) quickByUid.set(uid, row);
@@ -43188,6 +43361,12 @@ window.MCS_PHONE_MENU_STATUS = () => ({
 
       const records = rosterProfiles
         .filter(student => String(student.accountStatus || 'active') !== 'disabled')
+        .filter(student => {
+          if (leaderboardState.settingsLoaded) return isLeaderboardSectionIncluded(student.section || '', leaderboardSectionSettings);
+          const uid = String(student.uid || student.authUid || '').trim();
+          const sid = normalizeStudentId(student.studentId || student.studentIdNormalized || student.rosterId || '');
+          return Boolean((uid && quickByUid.has(uid)) || (sid && quickByStudentId.has(sid)));
+        })
         .map(student => {
           const uid = String(student.uid || student.authUid || '').trim();
           const sid = normalizeStudentId(student.studentId || student.studentIdNormalized || student.rosterId || '');
@@ -43203,10 +43382,8 @@ window.MCS_PHONE_MENU_STATUS = () => ({
           };
         });
 
-      // If the roster is not readable to students, the dedicated leaderboard
-      // collection still exposes only safe ranking fields (name, section, XP).
       const identities = new Set(records.map(record => leaderboardStudentIdentity(record)));
-      quickRows.forEach(row => {
+      visibleQuickRows.forEach(row => {
         if (String(row.accountStatus || 'active') === 'disabled') return;
         const candidate = { uid: String(row.uid || '').trim(), studentId: normalizeStudentId(row.studentId || ''), name: String(row.name || 'Student').trim(), section: String(row.section || '').trim(), xp: Number(row.xp || 0), accountStatus: String(row.accountStatus || 'active') };
         const identity = leaderboardStudentIdentity(candidate);
@@ -43224,7 +43401,21 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         records.push(candidate);
       });
 
-      if (!records.some(record => record.current)) records.push(leaderboardCurrentFallback());
+      const currentSection = currentLeaderboardSectionName();
+      if (leaderboardState.settingsLoaded) {
+        leaderboardState.currentSectionIncluded = isLeaderboardSectionIncluded(currentSection, leaderboardSectionSettings);
+      } else {
+        const currentQuick = visibleQuickRows.find(row => isCurrentLeaderboardStudent(row));
+        leaderboardState.currentSectionIncluded = Boolean(currentQuick && currentQuick.leaderboardIncluded !== false);
+      }
+      if (leaderboardState.currentSectionIncluded && !records.some(record => record.current)) records.push(leaderboardCurrentFallback());
+      const freshCurrentXp = totalXp();
+      records.forEach(record => {
+        if (record.current || isCurrentLeaderboardStudent(record)) {
+          record.current = true;
+          record.xp = Math.max(Number(record.xp || 0), Number(freshCurrentXp || 0));
+        }
+      });
       const ranked = assignLeaderboardRanks(records);
       ranked.forEach(record => { record.current = record.current || isCurrentLeaderboardStudent(record); });
       leaderboardState.records = ranked;
@@ -43237,6 +43428,9 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       leaderboardState.loadedAt = Date.now();
       leaderboardState.source = 'your saved progress';
       leaderboardState.rosterLoaded = false;
+      leaderboardState.settingsLoaded = false;
+      leaderboardState.settingsError = true;
+      leaderboardState.currentSectionIncluded = true;
       renderGlobalLeaderboard();
       if (dom.leaderboardStatus) dom.leaderboardStatus.textContent = 'Global rankings could not be loaded right now. Your own Mastery XP is shown.';
     } finally {
@@ -43362,8 +43556,18 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       const ready = await initFirebaseSync();
       if (!ready) return;
       const { getDocs, setDoc, serverTimestamp } = firebaseSync.modules;
+      await setDoc(getCodeExplorerLeaderboardDocRef('__settings__'), {
+        recordType: 'settings',
+        accountStatus: 'disabled',
+        configured: Boolean(leaderboardSectionSettings.configured),
+        includedSections: leaderboardSectionSettings.includedSections || [],
+        includedSectionKeys: leaderboardSectionSettings.includedSectionKeys || [],
+        updatedAt: serverTimestamp()
+      }, { merge: true });
       const snapshot = await getDocs(getCodeExplorerLeaderboardCollectionRef()).catch(() => ({ docs: [] }));
-      const existingRows = Array.from(snapshot.docs || []).map(docSnap => ({ id: docSnap.id, ...snapshotData(docSnap) }));
+      const existingRows = Array.from(snapshot.docs || [])
+        .map(docSnap => ({ id: docSnap.id, ...snapshotData(docSnap) }))
+        .filter(row => row.id !== '__settings__' && row.recordType !== 'settings');
       const existingByIdentity = new Map(existingRows.map(row => [leaderboardStudentIdentity(row), row]));
       const writes = [];
       adminStudentsCache.forEach(student => {
@@ -43377,7 +43581,8 @@ window.MCS_PHONE_MENU_STATUS = () => ({
           name: String(student.name || 'Unnamed Student').trim(),
           section: String(student.section || '').trim(),
           xp: Number(record.xp || 0),
-          accountStatus: String(student.accountStatus || 'active')
+          accountStatus: String(student.accountStatus || 'active'),
+          leaderboardIncluded: isLeaderboardSectionIncluded(student.section || '', leaderboardSectionSettings)
         };
         const identity = leaderboardStudentIdentity(safe);
         const previous = existingByIdentity.get(identity);
@@ -43385,7 +43590,8 @@ window.MCS_PHONE_MENU_STATUS = () => ({
           && Number(previous.xp || 0) === safe.xp
           && String(previous.name || '') === safe.name
           && String(previous.section || '') === safe.section
-          && String(previous.accountStatus || 'active') === safe.accountStatus;
+          && String(previous.accountStatus || 'active') === safe.accountStatus
+          && previous.leaderboardIncluded === safe.leaderboardIncluded;
         if (unchanged) return;
         const docId = uid || (sid ? `roster-${sid.replace(/[^a-zA-Z0-9_-]/g, '-')}` : `student-${Math.random().toString(36).slice(2,10)}`);
         writes.push(() => setDoc(getCodeExplorerLeaderboardDocRef(docId), { ...safe, updatedAt: serverTimestamp() }, { merge: true }));
@@ -43403,8 +43609,10 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     if (!isTeacherAuthenticated()) return;
     if (dom.adminStatus) dom.adminStatus.textContent = 'Loading Code Explorer progress...';
     if (options.force || !adminStudentsCache.length) await loadAdminStudents({ force: options.force === true });
+    await loadLeaderboardSectionSettings();
     adminExplorerState.loaded = true;
     renderAdminExplorerProgress();
+    renderAdminLeaderboardSectionSettings();
     publishSafeCodeExplorerLeaderboardFromAdmin({ force: options.force === true });
   }
 
@@ -43538,6 +43746,18 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   }
 
   dom.adminRefreshBtn?.addEventListener('click', () => initializeCodeExplorerAdmin({ force: true }));
+  dom.adminLeaderboardSectionList?.addEventListener('change', event => {
+    if (event.target?.matches?.('[data-leaderboard-admin-section]')) updateAdminLeaderboardSelectionLabels();
+  });
+  dom.adminLeaderboardSelectAllBtn?.addEventListener('click', () => {
+    dom.adminLeaderboardSectionList?.querySelectorAll('[data-leaderboard-admin-section]').forEach(input => { input.checked = true; });
+    updateAdminLeaderboardSelectionLabels();
+  });
+  dom.adminLeaderboardClearBtn?.addEventListener('click', () => {
+    dom.adminLeaderboardSectionList?.querySelectorAll('[data-leaderboard-admin-section]').forEach(input => { input.checked = false; });
+    updateAdminLeaderboardSelectionLabels();
+  });
+  dom.adminLeaderboardSaveBtn?.addEventListener('click', saveAdminLeaderboardSectionSettings);
   dom.adminSampleViewBtn?.addEventListener('click', viewAdminSampleCertificate);
   dom.adminSampleDownloadBtn?.addEventListener('click', downloadAdminSampleCertificate);
   dom.adminHeartControl?.addEventListener('click', event => {
