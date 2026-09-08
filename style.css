@@ -59891,3 +59891,41 @@ html[data-theme="dark"] .code-explorer-admin-certificate-sync-btn {
   html[data-theme="dark"] .code-explorer-mini-game-option.correct { background:rgba(22,101,52,.25); color:#dcfce7; }
   html[data-theme="dark"] .code-explorer-mini-game-option.wrong { background:rgba(153,27,27,.25); color:#fee2e2; }
 }
+
+
+/* ================================================================
+   v393 — Smart mastery XP: accuracy + first-try + small speed bonus
+   Speed can add a small reward but never removes XP.
+   ================================================================ */
+.code-explorer-xp-reward-line {
+  display: grid;
+  gap: 3px;
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 13px;
+  border: 1px solid rgba(245,158,11,.28);
+  background: rgba(255,247,237,.84);
+  color: #7c2d12;
+}
+.code-explorer-xp-reward-line b { font-size: .9rem; color: #b45309; }
+.code-explorer-xp-reward-line span { font-size: .76rem; line-height: 1.4; color: #7c2d12; }
+.code-explorer-xp-inline {
+  display: block;
+  margin-top: 6px;
+  font-size: .78rem;
+  font-weight: 800;
+  color: #b45309;
+}
+html[data-theme="dark"] .code-explorer-xp-reward-line {
+  border-color: rgba(251,191,36,.32);
+  background: rgba(120,53,15,.22);
+  color: #fde68a;
+}
+html[data-theme="dark"] .code-explorer-xp-reward-line b,
+html[data-theme="dark"] .code-explorer-xp-inline { color: #fbbf24; }
+html[data-theme="dark"] .code-explorer-xp-reward-line span { color: #fde68a; }
+@media (max-width:760px) {
+  .code-explorer-xp-reward-line { padding: 9px 10px; border-radius: 12px; }
+  .code-explorer-xp-reward-line b { font-size: .85rem; }
+  .code-explorer-xp-reward-line span { font-size: .72rem; }
+}

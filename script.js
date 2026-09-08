@@ -40580,7 +40580,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   const HEARTS_DEFAULT = 5;
   const HEARTS_MAX = 5;
   const HEART_REFILL_MS = 60 * 60 * 1000;
-  const state = { course: 'html', topicId: '', filter: 'all', progress: null, reader: '', cloudLoaded: false, dashboardCloudLoading: false, saveTimer: null, heartTimer: null, profileUnsub: null, finalAnswers: {}, quickQuiz: { topicId: '', index: 0, answers: [], results: [], submitted: false }, miniGame: { topicId: '', selected: '', result: '', correct: '', choices: [], before: '', after: '' }, miniGameResetTimer: null, quickAdvanceTimer: null, quickFeedbackTimer: null, justUnlockedTopicId: '', justUnlockedCourse: '', mobileStage: 'learn', mobileStageDirection: 'next', mobileSwipeStart: null, mobileView: 'roadmap' };
+  const state = { course: 'html', topicId: '', filter: 'all', progress: null, reader: '', cloudLoaded: false, dashboardCloudLoading: false, saveTimer: null, heartTimer: null, profileUnsub: null, finalAnswers: {}, finalStartedAt: 0, quickQuiz: { topicId: '', index: 0, answers: [], results: [], submitted: false, questionStartedAt: [], responseMs: [], attemptStartedAt: 0 }, miniGame: { topicId: '', selected: '', result: '', correct: '', choices: [], before: '', after: '' }, miniGameResetTimer: null, quickAdvanceTimer: null, quickFeedbackTimer: null, justUnlockedTopicId: '', justUnlockedCourse: '', mobileStage: 'learn', mobileStageDirection: 'next', mobileSwipeStart: null, mobileView: 'roadmap' };
   const CODE_EXPLORER_LEADERBOARD_SETTINGS_ROW_ID = 'leaderboard_settings';
   const leaderboardState = { records: [], loadedAt: 0, loading: false, source: '', rosterLoaded: false, mode: 'students', settingsLoaded: false, settingsError: false, currentSectionIncluded: true };
   let leaderboardSectionSettings = { configured: false, includedSections: [], includedSectionKeys: [] };
@@ -40853,6 +40853,8 @@ window.MCS_PHONE_MENU_STATUS = () => ({
           miniGamePassed: Boolean(x.miniGamePassed || y.miniGamePassed),
           miniGamePassedAt: [x.miniGamePassedAt, y.miniGamePassedAt].filter(Boolean).sort().pop() || '',
           miniGameAttempts: Math.max(Number(x.miniGameAttempts || 0), Number(y.miniGameAttempts || 0)),
+          miniGameFirstTryBonus: Boolean(x.miniGameFirstTryBonus || y.miniGameFirstTryBonus),
+          practiceFirstTryBonus: Boolean(x.practiceFirstTryBonus || y.practiceFirstTryBonus),
           quizPassed: Boolean(x.quizPassed || y.quizPassed),
           quizFivePassed: Boolean(x.quizFivePassed || y.quizFivePassed),
           quizBestCorrect: best,
@@ -40861,6 +40863,16 @@ window.MCS_PHONE_MENU_STATUS = () => ({
           quizLastScore: latestQuiz === y.quizAnsweredAt ? Number(y.quizLastScore || 0) : Number(x.quizLastScore || 0),
           quizAttempts: Math.max(Number(x.quizAttempts || 0), Number(y.quizAttempts || 0)),
           quizAnsweredAt: latestQuiz,
+          quizFirstPassAt: [x.quizFirstPassAt, y.quizFirstPassAt].filter(Boolean).sort()[0] || '',
+          quizFirstPassAvgMs: (() => {
+            const xb = Math.max(0, Number(x.quizSpeedBonus || 0));
+            const yb = Math.max(0, Number(y.quizSpeedBonus || 0));
+            if (yb > xb) return Math.max(0, Number(y.quizFirstPassAvgMs || 0));
+            if (xb > yb) return Math.max(0, Number(x.quizFirstPassAvgMs || 0));
+            const values = [Number(x.quizFirstPassAvgMs || 0), Number(y.quizFirstPassAvgMs || 0)].filter(value => value > 0);
+            return values.length ? Math.min(...values) : 0;
+          })(),
+          quizSpeedBonus: Math.max(0, Number(x.quizSpeedBonus || 0), Number(y.quizSpeedBonus || 0)),
           completedAt: x.completedAt || y.completedAt || '',
           attempts: Math.max(Number(x.attempts || 0), Number(y.attempts || 0))
         };
@@ -40871,9 +40883,13 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       left.courses[key].final = Number(yf.score || 0) > Number(xf.score || 0) ? { ...yf } : { ...xf };
       if (xf.passed || yf.passed) {
         left.courses[key].final.passed = true;
-        left.courses[key].final.passedAt = xf.passedAt || yf.passedAt || '';
+        left.courses[key].final.passedAt = [xf.passedAt, yf.passedAt].filter(Boolean).sort()[0] || '';
         left.courses[key].final.score = Math.max(Number(xf.score || 0), Number(yf.score || 0));
       }
+      left.courses[key].final.attempts = Math.max(Number(xf.attempts || 0), Number(yf.attempts || 0), Number(left.courses[key].final.attempts || 0));
+      left.courses[key].final.speedBonus = Math.max(0, Number(xf.speedBonus || 0), Number(yf.speedBonus || 0), Number(left.courses[key].final.speedBonus || 0));
+      const finalFirstPassMsValues = [Number(xf.firstPassMs || 0), Number(yf.firstPassMs || 0), Number(left.courses[key].final.firstPassMs || 0)].filter(value => value > 0);
+      left.courses[key].final.firstPassMs = finalFirstPassMsValues.length ? Math.min(...finalFirstPassMsValues) : 0;
       const xc = left.courses[key].certificate || {};
       const yc = right.courses[key].certificate || {};
       left.courses[key].certificate = xc.issuedAt ? { ...xc } : (yc.issuedAt ? { ...yc } : {});
@@ -41117,16 +41133,55 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     return index >= 0 && index < COURSE_KEYS.length - 1 ? COURSE_KEYS[index + 1] : '';
   }
 
-  const EXPLORER_XP = Object.freeze({ miniGame: 5, practice: 10, quickCheck: 10, quickPerfect: 5, topicComplete: 10, finalPass: 50, finalPerfect: 10, certificate: 25 });
+  const EXPLORER_XP = Object.freeze({
+    miniGame: 5,
+    miniGameFirstTry: 2,
+    practice: 10,
+    practiceFirstTry: 2,
+    quickCheck: 10,
+    quickPerfect: 5,
+    quickSpeedMax: 3,
+    topicComplete: 10,
+    finalPass: 50,
+    finalPerfect: 10,
+    finalSpeedMax: 5,
+    certificate: 25
+  });
+
+  function quickSpeedBonusFor(responseMs = []) {
+    const values = (Array.isArray(responseMs) ? responseMs : [])
+      .map(value => Math.max(0, Number(value || 0)))
+      .filter(value => value > 0 && value <= 120000);
+    if (values.length < 5) return { bonus: 0, avgMs: 0 };
+    const avgMs = Math.round(values.reduce((sum, value) => sum + value, 0) / values.length);
+    const bonus = avgMs <= 8000 ? 3 : avgMs <= 15000 ? 2 : avgMs <= 25000 ? 1 : 0;
+    return { bonus: Math.min(EXPLORER_XP.quickSpeedMax, bonus), avgMs };
+  }
+
+  function finalSpeedBonusFor(elapsedMs = 0) {
+    const ms = Math.max(0, Number(elapsedMs || 0));
+    if (!ms || ms > 900000) return 0;
+    const bonus = ms <= 60000 ? 5 : ms <= 90000 ? 3 : ms <= 120000 ? 2 : ms <= 180000 ? 1 : 0;
+    return Math.min(EXPLORER_XP.finalSpeedMax, bonus);
+  }
+
+  function formatExplorerResponseTime(ms = 0) {
+    const seconds = Math.max(0, Number(ms || 0)) / 1000;
+    if (!seconds) return '';
+    return seconds < 10 ? `${seconds.toFixed(1)}s` : `${Math.round(seconds)}s`;
+  }
 
   function explorerTopicXp(record = {}) {
     let xp = 0;
     if (record.miniGamePassed) xp += EXPLORER_XP.miniGame;
+    if (record.miniGameFirstTryBonus) xp += EXPLORER_XP.miniGameFirstTry;
     if (record.practicePassed) xp += EXPLORER_XP.practice;
+    if (record.practiceFirstTryBonus) xp += EXPLORER_XP.practiceFirstTry;
     if (record.quizFivePassed || record.quizPassed) xp += EXPLORER_XP.quickCheck;
     if (Number(record.quizBestCorrect || 0) >= 5) xp += EXPLORER_XP.quickPerfect;
+    xp += Math.min(EXPLORER_XP.quickSpeedMax, Math.max(0, Number(record.quizSpeedBonus || 0)));
     if (record.completedAt) xp += EXPLORER_XP.topicComplete;
-    // Legacy completed topics pre-date the mini game. Give them a fair mastery floor.
+    // Legacy completed topics pre-date some newer activities. Never reduce their original mastery floor.
     if (record.completedAt) xp = Math.max(xp, 35);
     return xp;
   }
@@ -41139,7 +41194,11 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       const topicXp = course.topics.reduce((topicSum, item) => topicSum + explorerTopicXp(records[item.id] || {}), 0);
       const final = data.final || {};
       const cert = data.certificate || {};
-      const finalXp = final.passed ? EXPLORER_XP.finalPass + (Number(final.score || 0) >= 100 ? EXPLORER_XP.finalPerfect : 0) : 0;
+      const finalXp = final.passed
+        ? EXPLORER_XP.finalPass
+          + (Number(final.score || 0) >= 100 ? EXPLORER_XP.finalPerfect : 0)
+          + Math.min(EXPLORER_XP.finalSpeedMax, Math.max(0, Number(final.speedBonus || 0)))
+        : 0;
       const certificateXp = cert.issuedAt ? EXPLORER_XP.certificate : 0;
       return sum + topicXp + finalXp + certificateXp;
     }, 0);
@@ -41249,7 +41308,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     if (dom.explored) dom.explored.textContent = String(explored);
     if (dom.completed) dom.completed.textContent = String(complete);
     if (dom.certCount) dom.certCount.textContent = String(certificateCount());
-    if (dom.xpBadge) { dom.xpBadge.textContent = `⚡ ${totalXp()} XP`; dom.xpBadge.title = 'Mastery XP rewards first-time learning milestones. Repeating completed work does not add duplicate XP.'; }
+    if (dom.xpBadge) { dom.xpBadge.textContent = `⚡ ${totalXp()} XP`; dom.xpBadge.title = 'Mastery XP rewards first-time learning milestones, accuracy, and small speed bonuses. Speed never removes XP, and repeating completed work does not add duplicate XP.'; }
     renderHeartStatus();
     if (dom.courseProgressOverlay && !dom.courseProgressOverlay.classList.contains('hidden')) renderCourseProgressPanel();
     renderDashboardSummary();
@@ -41477,9 +41536,21 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     if (!item) return null;
     const questions = buildQuickCheckQuestions(COURSES[state.course], item);
     if (!state.quickQuiz || state.quickQuiz.topicId !== item.id || state.quickQuiz.answers.length !== questions.length) {
-      state.quickQuiz = { topicId: item.id, index: 0, answers: Array(questions.length).fill(null), results: Array(questions.length).fill(null), submitted: false };
+      state.quickQuiz = {
+        topicId: item.id,
+        index: 0,
+        answers: Array(questions.length).fill(null),
+        results: Array(questions.length).fill(null),
+        submitted: false,
+        questionStartedAt: Array(questions.length).fill(0),
+        responseMs: Array(questions.length).fill(null),
+        attemptStartedAt: Date.now()
+      };
     }
     if (!Array.isArray(state.quickQuiz.results) || state.quickQuiz.results.length !== questions.length) state.quickQuiz.results = Array(questions.length).fill(null);
+    if (!Array.isArray(state.quickQuiz.questionStartedAt) || state.quickQuiz.questionStartedAt.length !== questions.length) state.quickQuiz.questionStartedAt = Array(questions.length).fill(0);
+    if (!Array.isArray(state.quickQuiz.responseMs) || state.quickQuiz.responseMs.length !== questions.length) state.quickQuiz.responseMs = Array(questions.length).fill(null);
+    if (!Number(state.quickQuiz.attemptStartedAt || 0)) state.quickQuiz.attemptStartedAt = Date.now();
     return { quiz: state.quickQuiz, questions };
   }
 
@@ -41487,7 +41558,16 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     if (!item) return;
     clearTimeout(state.quickAdvanceTimer);
     const questions = buildQuickCheckQuestions(COURSES[state.course], item);
-    state.quickQuiz = { topicId: item.id, index: 0, answers: Array(questions.length).fill(null), results: Array(questions.length).fill(null), submitted: false };
+    state.quickQuiz = {
+      topicId: item.id,
+      index: 0,
+      answers: Array(questions.length).fill(null),
+      results: Array(questions.length).fill(null),
+      submitted: false,
+      questionStartedAt: Array(questions.length).fill(0),
+      responseMs: Array(questions.length).fill(null),
+      attemptStartedAt: Date.now()
+    };
     dom.quizFeedback?.classList.add('hidden');
     if (dom.quizFeedback) dom.quizFeedback.textContent = '';
     renderQuickQuiz();
@@ -41505,6 +41585,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     const hasSelection = selected !== null && selected !== undefined;
     const result = quiz.results[quiz.index];
     const reviewed = result !== null && result !== undefined;
+    if (!reviewed && !Number(quiz.questionStartedAt?.[quiz.index] || 0)) quiz.questionStartedAt[quiz.index] = Date.now();
     const answeredCount = quiz.results.filter(value => value !== null && value !== undefined).length;
     const expected = Number(question.answer);
     const progressPercent = Math.round((answeredCount / total) * 100);
@@ -41537,7 +41618,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     dom.quizOptions.innerHTML = `
       <div class="code-explorer-quick-shell ${reviewed ? (result ? 'answer-correct' : 'answer-wrong') : ''}">
         <div class="code-explorer-quick-progress-head">
-          <div><strong>Question ${quiz.index + 1} of ${total}</strong><span>${answeredCount}/${total} checked · 4/5 to pass · instant feedback</span></div>
+          <div><strong>Question ${quiz.index + 1} of ${total}</strong><span>${answeredCount}/${total} checked · 4/5 to pass · up to +${EXPLORER_XP.quickSpeedMax} speed XP</span></div>
           <div class="code-explorer-quick-steps" aria-label="Quick Check questions">${stepButtons}</div>
         </div>
         <div class="code-explorer-quick-progress-track"><span style="width:${progressPercent}%"></span></div>
@@ -41565,6 +41646,10 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     if (quiz.submitted || quiz.results.some(value => value === null || value === undefined)) return;
     quiz.submitted = true;
     const record = topicRecord();
+    const xpBefore = totalXp();
+    const wasPassedBefore = Boolean(record.quizFivePassed || record.quizPassed);
+    const wasCompletedBefore = Boolean(record.completedAt);
+    const previousBest = Math.max(0, Number(record.quizBestCorrect || 0));
     const correct = quiz.results.filter(Boolean).length;
     const score = Math.round(correct / questions.length * 100);
     const passed = correct >= 4;
@@ -41574,19 +41659,48 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     record.quizAnsweredAt = new Date().toISOString();
     if (correct > Number(record.quizBestCorrect || 0)) record.quizBestCorrect = correct;
     record.quizBestScore = Math.max(Number(record.quizBestScore || 0), Math.round(Number(record.quizBestCorrect || 0) / 5 * 100));
-    if (passed) { record.quizPassed = true; record.quizFivePassed = true; }
+    if (passed) {
+      record.quizPassed = true;
+      record.quizFivePassed = true;
+      if (!wasPassedBefore) {
+        const timing = quickSpeedBonusFor(quiz.responseMs);
+        record.quizFirstPassAt = record.quizAnsweredAt;
+        record.quizFirstPassAvgMs = timing.avgMs;
+        record.quizSpeedBonus = timing.bonus;
+      }
+    }
+    scheduleCloudSave();
+    updateTopicCompletion(item);
+    const earnedXp = Math.max(0, totalXp() - xpBefore);
+    const speedBonus = !wasPassedBefore && passed ? Math.max(0, Number(record.quizSpeedBonus || 0)) : 0;
+    const avgLabel = !wasPassedBefore && passed ? formatExplorerResponseTime(record.quizFirstPassAvgMs) : '';
+    const earnedPerfect = correct >= 5 && previousBest < 5;
+    const earnedTopic = !wasCompletedBefore && Boolean(record.completedAt);
+    const rewardBits = [];
+    if (!wasPassedBefore && passed) rewardBits.push(`Pass +${EXPLORER_XP.quickCheck}`);
+    if (earnedPerfect) rewardBits.push(`Perfect +${EXPLORER_XP.quickPerfect}`);
+    if (speedBonus > 0) rewardBits.push(`Speed +${speedBonus}${avgLabel ? ` (${avgLabel}/question)` : ''}`);
+    if (earnedTopic) rewardBits.push(`Topic +${EXPLORER_XP.topicComplete}`);
+    const rewardHtml = earnedXp > 0
+      ? `<div class="code-explorer-xp-reward-line"><b>⚡ +${earnedXp} XP</b><span>${escapeHTML(rewardBits.join(' · ') || 'Mastery progress')}</span></div>`
+      : '';
     dom.quizFeedback.classList.remove('hidden');
     dom.quizFeedback.dataset.type = passed ? 'success' : 'warning';
     dom.quizFeedback.innerHTML = passed
-      ? `<strong>🎉 ${correct}/5 — Quick Check passed!</strong><span>${record.practicePassed ? 'Coding practice is also passed, so this topic is complete.' : 'Now pass the coding practice to unlock the next topic.'}</span>`
-      : `<strong>${correct}/5 — Keep going.</strong><span>You need at least 4/5. Review the answers, then retake when you have enough hearts.</span>`;
+      ? `<strong>🎉 ${correct}/5 — Quick Check passed!</strong><span>${record.practicePassed ? 'Coding practice is also passed, so this topic is complete.' : 'Now pass the coding practice to unlock the next topic.'}</span>${rewardHtml}`
+      : `<strong>${correct}/5 — Keep going.</strong><span>You need at least 4/5. Review the answers, then retake when you have enough hearts. Taking longer never removes XP.</span>`;
     dom.quizBadge.textContent = record.quizFivePassed ? `✓ Passed · Best ${record.quizBestCorrect}/5` : `Best ${record.quizBestCorrect}/5`;
     dom.quizBadge.dataset.state = record.quizFivePassed ? 'complete' : '';
-    scheduleCloudSave();
-    updateTopicCompletion(item);
     renderQuickQuiz();
+    if (passed && earnedXp > 0) {
+      showQuickScreenFeedback(true, {
+        correctTitle: `Quick Check Passed! +${earnedXp} XP`,
+        correctText: rewardBits.join(' · ') || 'Mastery reward earned.',
+        correctDuration: 1450
+      });
+    }
     if (passed && record.practicePassed && record.miniGamePassed) {
-      window.setTimeout(() => setMobileJourneyStage('complete', { direction: 'next' }), 850);
+      window.setTimeout(() => setMobileJourneyStage('complete', { direction: 'next' }), 1050);
     }
   }
 
@@ -41608,6 +41722,8 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     }
     const selected = Number(optionIndex);
     const correct = selected === Number(questions[index].answer);
+    const startedAt = Math.max(0, Number(quiz.questionStartedAt?.[index] || 0));
+    quiz.responseMs[index] = startedAt ? Math.min(120000, Math.max(250, Date.now() - startedAt)) : null;
     quiz.answers[index] = selected;
     quiz.results[index] = correct;
     if (!correct) { spendHearts(1); animateHeartLoss(); }
@@ -41845,17 +41961,22 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     const game = ensureMiniGameState();
     const record = topicRecord();
     if (!game || record.miniGamePassed || !game.selected) return;
+    const xpBefore = totalXp();
     record.miniGameAttempts = Number(record.miniGameAttempts || 0) + 1;
     const correct = String(game.selected).toLowerCase() === String(game.correct).toLowerCase();
     game.result = correct ? 'correct' : 'wrong';
     if (correct) {
       record.miniGamePassed = true;
       record.miniGamePassedAt = record.miniGamePassedAt || new Date().toISOString();
+      if (record.miniGameAttempts === 1) record.miniGameFirstTryBonus = true;
       scheduleCloudSave();
+      const earnedXp = Math.max(0, totalXp() - xpBefore);
       showQuickScreenFeedback(true, {
-        correctTitle: `Code Complete! +${EXPLORER_XP.miniGame} XP`,
-        correctText: 'Great job — the Fill in the Blank game is passed. Try It is now unlocked.',
-        correctDuration: 980
+        correctTitle: `Code Complete! +${earnedXp} XP`,
+        correctText: record.miniGameFirstTryBonus
+          ? `Fill in the Blank +${EXPLORER_XP.miniGame} · First-try bonus +${EXPLORER_XP.miniGameFirstTry}. Try It is now unlocked.`
+          : `Fill in the Blank +${EXPLORER_XP.miniGame}. Try It is now unlocked.`,
+        correctDuration: 1200
       });
       renderMiniGame();
       renderTopProgress();
@@ -42321,19 +42442,35 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   function checkPractice() {
     const item = currentTopic();
     const record = topicRecord();
+    const xpBefore = totalXp();
+    const wasPassedBefore = Boolean(record.practicePassed);
     record.attempts = Number(record.attempts || 0) + 1;
     const result = validatePractice(item, dom.practiceEditor.value);
     dom.practiceFeedback.classList.remove('hidden');
     dom.practiceFeedback.dataset.type = result.ok ? 'success' : 'warning';
-    dom.practiceFeedback.textContent = result.message;
     if (result.ok) {
       record.practicePassed = true;
+      if (!wasPassedBefore && record.attempts === 1) record.practiceFirstTryBonus = true;
       dom.practiceBadge.textContent = '✓ Passed';
       dom.practiceBadge.dataset.state = 'complete';
     }
     scheduleCloudSave();
     runPractice();
     updateTopicCompletion(item);
+    const earnedXp = Math.max(0, totalXp() - xpBefore);
+    if (result.ok && !wasPassedBefore) {
+      const bonusText = record.practiceFirstTryBonus ? ` · First-try bonus +${EXPLORER_XP.practiceFirstTry}` : '';
+      dom.practiceFeedback.innerHTML = `<strong>${escapeHTML(result.message)}</strong><span class="code-explorer-xp-inline">⚡ +${earnedXp} XP · Try It +${EXPLORER_XP.practice}${escapeHTML(bonusText)}</span>`;
+      showQuickScreenFeedback(true, {
+        correctTitle: `Try It Passed! +${earnedXp} XP`,
+        correctText: record.practiceFirstTryBonus
+          ? `Coding challenge +${EXPLORER_XP.practice} · First-try bonus +${EXPLORER_XP.practiceFirstTry}`
+          : `Coding challenge +${EXPLORER_XP.practice}`,
+        correctDuration: 1200
+      });
+    } else {
+      dom.practiceFeedback.textContent = result.message;
+    }
     renderMobileJourney();
     if (result.ok && state.mobileStage === 'practice') {
       pulseMobileStageLock('✓ Quick Check unlocked. Swipe left or tap Quick Check to continue.');
@@ -42352,8 +42489,9 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       return;
     }
     state.finalAnswers = {};
+    state.finalStartedAt = Date.now();
     dom.finalModalTitle.textContent = `${course.title} Final Challenge`;
-    dom.finalModalMeta.textContent = `5 questions · Pass at 80% · Wrong answers use 1 heart each · ❤️ ${hearts.balance}/${HEARTS_MAX}`;
+    dom.finalModalMeta.textContent = `5 questions · Pass at 80% · Accuracy first · up to +${EXPLORER_XP.finalSpeedMax} speed XP · ❤️ ${hearts.balance}/${HEARTS_MAX}`;
     dom.finalQuestions.innerHTML = course.finalQuiz.map((item, qIndex) => `<fieldset class="code-explorer-final-question"><legend>${qIndex + 1}. ${escapeHTML(item[0])}</legend>${item[1].map((option, optionIndex) => `<label><input type="radio" name="explorer-final-${qIndex}" value="${optionIndex}"><span>${escapeHTML(option)}</span></label>`).join('')}</fieldset>`).join('');
     dom.finalResult.classList.add('hidden');
     dom.finalResult.textContent = '';
@@ -42366,6 +42504,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   }
 
   function closeFinal() {
+    state.finalStartedAt = 0;
     dom.finalOverlay.classList.add('hidden');
     document.body.classList.remove('code-explorer-modal-open');
   }
@@ -42415,17 +42554,27 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       dom.finalResult.textContent = 'Answer all 5 questions before checking your score.';
       return;
     }
+    const xpBefore = totalXp();
     const score = Math.round(correct / course.finalQuiz.length * 100);
     const wrongCount = Math.max(0, course.finalQuiz.length - correct);
     const heartsSpent = spendHearts(wrongCount);
     const courseState = state.progress.courses[state.course];
-    const previous = Number(courseState.final?.score || 0);
+    const previousFinal = courseState.final && typeof courseState.final === 'object' ? { ...courseState.final } : {};
+    const previous = Number(previousFinal.score || 0);
+    const wasPassedBefore = Boolean(previousFinal.passed);
+    const hadCertificateBefore = Boolean(courseState.certificate?.issuedAt);
     const passed = score >= 80;
+    const elapsedMs = state.finalStartedAt ? Math.max(0, Date.now() - state.finalStartedAt) : 0;
+    const firstPassSpeedBonus = passed && !wasPassedBefore ? finalSpeedBonusFor(elapsedMs) : Math.max(0, Number(previousFinal.speedBonus || 0));
     courseState.final = {
-      score: Math.max(previous, score), passed: Boolean(courseState.final?.passed || passed),
-      attempts: Number(courseState.final?.attempts || 0) + 1,
+      ...previousFinal,
+      score: Math.max(previous, score),
+      passed: Boolean(wasPassedBefore || passed),
+      attempts: Number(previousFinal.attempts || 0) + 1,
       lastAttemptAt: new Date().toISOString(),
-      passedAt: courseState.final?.passedAt || (passed ? new Date().toISOString() : '')
+      passedAt: previousFinal.passedAt || (passed ? new Date().toISOString() : ''),
+      speedBonus: firstPassSpeedBonus,
+      firstPassMs: previousFinal.firstPassMs || (passed && !wasPassedBefore ? elapsedMs : 0)
     };
     let unlockedCourse = '';
     if (passed) {
@@ -42438,14 +42587,33 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     renderCourseCards();
     renderFinalCard();
     renderCertificates();
+    const earnedXp = Math.max(0, totalXp() - xpBefore);
+    const earnedPerfect = score >= 100 && previous < 100;
+    const earnedSpeed = passed && !wasPassedBefore ? Math.max(0, Number(courseState.final.speedBonus || 0)) : 0;
+    const earnedCertificate = passed && !hadCertificateBefore && Boolean(courseState.certificate?.issuedAt);
+    const rewardBits = [];
+    if (passed && !wasPassedBefore) rewardBits.push(`Final pass +${EXPLORER_XP.finalPass}`);
+    if (earnedPerfect) rewardBits.push(`Perfect +${EXPLORER_XP.finalPerfect}`);
+    if (earnedSpeed > 0) rewardBits.push(`Speed +${earnedSpeed} (${formatExplorerResponseTime(courseState.final.firstPassMs)} total)`);
+    if (earnedCertificate) rewardBits.push(`Certificate +${EXPLORER_XP.certificate}`);
     dom.finalResult.classList.remove('hidden');
     dom.finalResult.dataset.type = passed ? 'success' : 'warning';
     const heartNote = wrongCount === 0
       ? 'Perfect score — no hearts used.'
       : `${wrongCount} wrong answer${wrongCount === 1 ? '' : 's'} · ${heartsSpent} heart${heartsSpent === 1 ? '' : 's'} used${heartsSpent < wrongCount ? ' before your balance reached 0' : ''}.`;
+    const rewardHtml = earnedXp > 0
+      ? `<div class="code-explorer-xp-reward-line"><b>⚡ +${earnedXp} XP</b><span>${escapeHTML(rewardBits.join(' · '))}</span></div>`
+      : '';
     dom.finalResult.innerHTML = passed
-      ? `<strong>🎉 Passed! ${score}%</strong><span>Your ${escapeHTML(course.title)} certificate is unlocked. ${escapeHTML(heartNote)}${unlockedCourse ? ` ${escapeHTML(COURSES[unlockedCourse].icon)} ${escapeHTML(COURSES[unlockedCourse].title)} is now unlocked!` : ''}</span>`
-      : `<strong>${score}% · Keep going</strong><span>You need 80% to pass. ${escapeHTML(heartNote)}</span>`;
+      ? `<strong>🎉 Passed! ${score}%</strong><span>Your ${escapeHTML(course.title)} certificate is unlocked. ${escapeHTML(heartNote)}${unlockedCourse ? ` ${escapeHTML(COURSES[unlockedCourse].icon)} ${escapeHTML(COURSES[unlockedCourse].title)} is now unlocked!` : ''}</span>${rewardHtml}`
+      : `<strong>${score}% · Keep going</strong><span>You need 80% to pass. ${escapeHTML(heartNote)} Taking longer never removes XP.</span>`;
+    if (passed && earnedXp > 0) {
+      showQuickScreenFeedback(true, {
+        correctTitle: `Final Passed! +${earnedXp} XP`,
+        correctText: rewardBits.join(' · ') || 'Mastery reward earned.',
+        correctDuration: 1700
+      });
+    }
     dom.finalSubmitBtn.textContent = passed ? '🏅 View Certificate' : 'Try Again';
     dom.finalSubmitBtn.dataset.passed = passed ? 'true' : 'false';
     dom.finalSubmitBtn.dataset.mode = passed ? 'certificate' : 'retry';
@@ -44369,6 +44537,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       dom.finalSubmitBtn.textContent = 'Check Final Challenge';
       dom.finalSubmitBtn.dataset.mode = 'submit';
       dom.finalSubmitBtn.dataset.passed = 'false';
+      state.finalStartedAt = Date.now();
       return;
     }
     await submitFinal();
