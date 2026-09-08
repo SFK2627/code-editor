@@ -40290,6 +40290,8 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     adminSampleCourse: $('codeExplorerAdminSampleCertCourse'),
     adminSampleViewBtn: $('codeExplorerAdminViewSampleCertBtn'),
     adminSampleDownloadBtn: $('codeExplorerAdminDownloadSampleCertBtn'),
+    adminCertificateBackfillBtn: $('codeExplorerAdminCertificateBackfillBtn'),
+    adminCertificateBackfillStatus: $('codeExplorerAdminCertificateBackfillStatus'),
     adminLeaderboardSectionList: $('codeExplorerAdminLeaderboardSectionList'),
     adminLeaderboardSettingsPill: $('codeExplorerAdminLeaderboardSettingsPill'),
     adminLeaderboardSettingsStatus: $('codeExplorerAdminLeaderboardSettingsStatus'),
@@ -43924,6 +43926,131 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     }
   }
 
+  function collectLegacyCertificateBackfillCandidates() {
+    const byNumber = new Map();
+    let skipped = 0;
+    adminStudentsCache.forEach(student => {
+      const progress = studentExplorerProgress(student);
+      COURSE_KEYS.forEach(courseKey => {
+        const courseState = progress?.courses?.[courseKey] || {};
+        const cert = courseState.certificate || {};
+        const finalPassed = Boolean(courseState.final?.passed);
+        const number = String(cert.number || '').trim();
+        const issuedAt = String(cert.issuedAt || '').trim();
+        if (!finalPassed && !number && !issuedAt) return;
+        if (!finalPassed || !number || !issuedAt || number.includes('/')) {
+          skipped += 1;
+          return;
+        }
+        if (!byNumber.has(number)) {
+          byNumber.set(number, {
+            number,
+            courseKey,
+            studentName: String(student.name || student.fullName || 'Student').trim(),
+            section: String(student.section || '').trim(),
+            issuedAt
+          });
+        }
+      });
+    });
+    return { candidates: [...byNumber.values()], skipped };
+  }
+
+  async function syncExistingCertificatesFromAdmin() {
+    if (!isTeacherAuthenticated()) return;
+    const button = dom.adminCertificateBackfillBtn;
+    const status = dom.adminCertificateBackfillStatus;
+    if (button) button.disabled = true;
+    if (button) button.textContent = 'Syncing…';
+    if (status) status.textContent = 'Scanning enrolled student progress for existing certificates…';
+    try {
+      if (!adminStudentsCache.length) await loadAdminStudents({ force: true });
+      const { candidates, skipped } = collectLegacyCertificateBackfillCandidates();
+      if (!candidates.length) {
+        if (status) status.textContent = skipped
+          ? `No publishable legacy certificate records found. ${skipped} record${skipped === 1 ? '' : 's'} lacked a passed final, certificate number, or issue date.`
+          : 'No existing earned certificates were found to sync.';
+        return;
+      }
+      const ready = await initFirebaseSync();
+      if (!ready) throw new Error(firebaseSync.lastError || 'Firebase is not ready.');
+      const { getDoc, setDoc, serverTimestamp } = firebaseSync.modules;
+      let published = 0;
+      let existing = 0;
+      let failed = 0;
+      let processed = 0;
+      const errors = [];
+      const concurrency = 6;
+
+      const publishOne = async record => {
+        try {
+          const ref = getPublicCertificateDocRef(record.number);
+          const snapshot = await getDoc(ref);
+          if (snapshotExists(snapshot)) {
+            existing += 1;
+            return;
+          }
+          await setDoc(ref, {
+            number: record.number,
+            courseKey: record.courseKey,
+            studentName: record.studentName,
+            section: record.section,
+            issuedAt: record.issuedAt,
+            status: 'valid',
+            schemaVersion: 1,
+            publishedAt: serverTimestamp()
+          });
+          published += 1;
+        } catch (error) {
+          failed += 1;
+          errors.push(error?.message || String(error));
+        } finally {
+          processed += 1;
+          if (status) status.textContent = `Syncing existing certificates… ${processed}/${candidates.length}`;
+        }
+      };
+
+      for (let index = 0; index < candidates.length; index += concurrency) {
+        await Promise.all(candidates.slice(index, index + concurrency).map(publishOne));
+      }
+
+      const summary = [`${published} published`, `${existing} already online`];
+      if (skipped) summary.push(`${skipped} skipped`);
+      if (failed) summary.push(`${failed} failed`);
+      if (status) status.textContent = `Certificate sync complete: ${summary.join(' · ')}.`;
+
+      if (failed) {
+        const permissionProblem = errors.some(message => /permission|insufficient/i.test(message));
+        await appAlert(
+          permissionProblem
+            ? `Some certificates could not be published because the admin account does not have permission to create public certificate records. Publish the v391 Firestore rule included with this update, then run Sync Existing Certificates again.\n\n${summary.join(' · ')}`
+            : `Legacy certificate sync finished with some errors.\n\n${summary.join(' · ')}`,
+          { title: 'Certificate Sync', icon: '🏅', danger: permissionProblem }
+        );
+      } else {
+        await appAlert(
+          `Legacy certificate sync finished.\n\n${summary.join(' · ')}\n\nOld QR codes keep their original certificate numbers and can now be verified online.`,
+          { title: 'Certificate Sync Complete', icon: '🏅' }
+        );
+      }
+    } catch (error) {
+      console.error('Legacy certificate backfill failed.', error);
+      const message = error?.message || String(error);
+      if (status) status.textContent = `Certificate sync failed: ${message}`;
+      await appAlert(
+        /permission|insufficient/i.test(message)
+          ? 'Admin certificate backfill is blocked by Firestore permissions. Publish the v391 Firestore rule included with this update, then try again.'
+          : message,
+        { title: 'Certificate Sync Failed', danger: true }
+      );
+    } finally {
+      if (button) {
+        button.disabled = false;
+        button.textContent = '🏅 Sync Existing Certificates';
+      }
+    }
+  }
+
   async function initializeCodeExplorerAdmin(options = {}) {
     if (!isTeacherAuthenticated()) return;
     if (dom.adminStatus) dom.adminStatus.textContent = 'Loading Code Explorer progress...';
@@ -44079,6 +44206,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   dom.adminLeaderboardSaveBtn?.addEventListener('click', saveAdminLeaderboardSectionSettings);
   dom.adminSampleViewBtn?.addEventListener('click', viewAdminSampleCertificate);
   dom.adminSampleDownloadBtn?.addEventListener('click', downloadAdminSampleCertificate);
+  dom.adminCertificateBackfillBtn?.addEventListener('click', syncExistingCertificatesFromAdmin);
   dom.adminHeartControl?.addEventListener('click', event => {
     const button = event.target.closest('[data-admin-explorer-add-heart]');
     if (!button || !adminExplorerState.selectedStudentKey) return;

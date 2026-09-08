@@ -45,7 +45,7 @@
   </script>
   <link rel="preconnect" href="https://drive.google.com" crossorigin>
   <link rel="preconnect" href="https://lh3.googleusercontent.com" crossorigin>
-  <link rel="stylesheet" href="style.css?v=20260908-v390-cloud-certificate-verification" />
+  <link rel="stylesheet" href="style.css?v=20260908-v391-legacy-certificate-backfill" />
   <style>
     .ai-rubric-settings-card,
     .admin-project-ai-review-card {
@@ -2846,14 +2846,16 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
 
           <div class="code-explorer-admin-certificate-sample" aria-label="Code Explorer sample certificate">
             <div class="code-explorer-admin-certificate-copy">
-              <span>Certificate Sample</span>
-              <strong>Preview the downloadable student certificate</strong>
-              <p>HTML, CSS, and JavaScript now have different certificate designs. Choose a course below to preview its sample PDF with certificate ID and QR verification.</p>
+              <span>Certificate Registry</span>
+              <strong>Preview certificates and sync legacy QR records</strong>
+              <p>Use Sync Existing Certificates once after enabling cloud verification. It publishes legitimate certificates already earned before the online registry was added, without changing their original certificate numbers or QR codes.</p>
+              <p id="codeExplorerAdminCertificateBackfillStatus" class="code-explorer-admin-certificate-backfill-status" role="status">Legacy certificate sync has not been run in this session.</p>
             </div>
             <div class="code-explorer-admin-certificate-actions">
               <label class="code-explorer-admin-sample-picker"><span>Course</span><select id="codeExplorerAdminSampleCertCourse"><option value="html">HTML Certificate</option><option value="css">CSS Certificate</option><option value="js">JavaScript Certificate</option></select></label>
               <button id="codeExplorerAdminViewSampleCertBtn" class="ghost-btn" type="button">View Sample PDF</button>
               <button id="codeExplorerAdminDownloadSampleCertBtn" class="primary-btn" type="button">Download Sample PDF</button>
+              <button id="codeExplorerAdminCertificateBackfillBtn" class="ghost-btn code-explorer-admin-certificate-sync-btn" type="button">🏅 Sync Existing Certificates</button>
             </div>
           </div>
 
@@ -3379,6 +3381,6 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
       </section>
     </div>
 
-  <script src="script.js?v=20260908-v390-cloud-certificate-verification"></script>
+  <script src="script.js?v=20260908-v391-legacy-certificate-backfill"></script>
 </body>
 </html>

@@ -59625,3 +59625,41 @@ body.certificate-verification-route > *:not(#certificatePublicVerificationScreen
   .certificate-public-status-card.unavailable { background:#321722; border-color:#7a3049; }
   .certificate-public-status-icon { background:rgba(255,255,255,.06); }
 }
+
+
+/* ================================================================
+   v391 — Legacy certificate registry backfill admin controls
+   ================================================================ */
+.code-explorer-admin-certificate-backfill-status {
+  margin: 8px 0 0 !important;
+  padding: 9px 11px;
+  border-radius: 12px;
+  border: 1px solid rgba(37,99,235,.16);
+  background: rgba(239,246,255,.72);
+  color: #334155 !important;
+  font-size: .76rem !important;
+  line-height: 1.45 !important;
+}
+.code-explorer-admin-certificate-sync-btn {
+  border-color: rgba(5,150,105,.26) !important;
+  background: linear-gradient(135deg,rgba(236,253,245,.96),rgba(255,255,255,.96)) !important;
+  color: #047857 !important;
+  font-weight: 900 !important;
+}
+.code-explorer-admin-certificate-sync-btn:disabled {
+  opacity: .62;
+  cursor: wait;
+}
+html[data-theme="dark"] .code-explorer-admin-certificate-backfill-status {
+  background: rgba(30,58,138,.18);
+  border-color: rgba(96,165,250,.24);
+  color: #cbd5e1 !important;
+}
+html[data-theme="dark"] .code-explorer-admin-certificate-sync-btn {
+  background: linear-gradient(135deg,rgba(6,78,59,.28),rgba(15,23,42,.9)) !important;
+  border-color: rgba(52,211,153,.3) !important;
+  color: #a7f3d0 !important;
+}
+@media (max-width:760px) {
+  .code-explorer-admin-certificate-sync-btn { width: 100%; }
+}
