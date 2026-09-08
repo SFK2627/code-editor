@@ -45,7 +45,7 @@
   </script>
   <link rel="preconnect" href="https://drive.google.com" crossorigin>
   <link rel="preconnect" href="https://lh3.googleusercontent.com" crossorigin>
-  <link rel="stylesheet" href="style.css?v=20260908-v370-phone-focus-polish" />
+  <link rel="stylesheet" href="style.css?v=20260908-v372-course-journey" />
   <style>
     .ai-rubric-settings-card,
     .admin-project-ai-review-card {
@@ -532,6 +532,7 @@
               <p id="codeExplorerTopicBlurb">Start exploring how webpages are structured.</p>
             </div>
             <span id="codeExplorerTopicStatus" class="code-explorer-topic-status">Not started</span>
+            <span class="code-explorer-course-map-cue" aria-hidden="true"><b>Course Progress</b><i>⌄</i></span>
           </div>
 
           <nav id="codeExplorerMobileJourney" class="code-explorer-mobile-journey" aria-label="Topic learning steps">
@@ -622,6 +623,27 @@
         <button id="codeExplorerFinalBtn" class="primary-btn" type="button" disabled>🔒 Complete topics first</button>
       </section>
     </main>
+
+    <div id="codeExplorerCourseProgressOverlay" class="code-explorer-course-progress-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="codeExplorerCourseProgressTitle">
+      <section class="code-explorer-course-progress-sheet">
+        <div class="code-explorer-course-progress-grabber" aria-hidden="true"></div>
+        <header class="code-explorer-course-progress-head">
+          <div>
+            <span class="code-explorer-eyebrow">Your learning path</span>
+            <h2 id="codeExplorerCourseProgressTitle">HTML Course Progress</h2>
+            <p id="codeExplorerCourseProgressSummary">0 of 0 topics completed</p>
+          </div>
+          <button id="codeExplorerCourseProgressCloseBtn" class="icon-btn" type="button" aria-label="Close course progress">×</button>
+        </header>
+        <div class="code-explorer-course-progress-overview">
+          <div class="code-explorer-course-progress-track"><i id="codeExplorerCourseProgressBar"></i></div>
+          <strong id="codeExplorerCourseProgressPercent">0%</strong>
+        </div>
+        <div id="codeExplorerCourseProgressMessage" class="code-explorer-course-progress-message"></div>
+        <div id="codeExplorerCourseProgressList" class="code-explorer-course-progress-list" aria-live="polite"></div>
+        <p class="code-explorer-course-progress-note">Completed topics can be reviewed anytime. Locked topics unlock in order.</p>
+      </section>
+    </div>
 
     <div id="codeExplorerQuickFeedbackOverlay" class="code-explorer-quick-feedback-overlay hidden" aria-hidden="true">
       <div id="codeExplorerQuickFeedbackCard" class="code-explorer-quick-feedback-card" role="status" aria-live="polite">
@@ -3227,6 +3249,6 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
       </section>
     </div>
 
-  <script src="script.js?v=20260908-v370-phone-focus-polish"></script>
+  <script src="script.js?v=20260908-v372-course-journey"></script>
 </body>
 </html>

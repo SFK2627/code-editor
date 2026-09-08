@@ -40128,6 +40128,15 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     topicTitle: $('codeExplorerTopicTitle'),
     topicBlurb: $('codeExplorerTopicBlurb'),
     topicStatus: $('codeExplorerTopicStatus'),
+    lessonHead: screen.querySelector('.code-explorer-lesson-head'),
+    courseProgressOverlay: $('codeExplorerCourseProgressOverlay'),
+    courseProgressCloseBtn: $('codeExplorerCourseProgressCloseBtn'),
+    courseProgressTitle: $('codeExplorerCourseProgressTitle'),
+    courseProgressSummary: $('codeExplorerCourseProgressSummary'),
+    courseProgressBar: $('codeExplorerCourseProgressBar'),
+    courseProgressPercent: $('codeExplorerCourseProgressPercent'),
+    courseProgressMessage: $('codeExplorerCourseProgressMessage'),
+    courseProgressList: $('codeExplorerCourseProgressList'),
     topicExplanation: $('codeExplorerTopicExplanation'),
     exampleCode: $('codeExplorerExampleCode'),
     copyExampleBtn: $('codeExplorerCopyExampleBtn'),
@@ -40982,6 +40991,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     if (dom.certCount) dom.certCount.textContent = String(certificateCount());
     if (dom.xpBadge) dom.xpBadge.textContent = `⚡ ${totalXp()} XP`;
     renderHeartStatus();
+    if (dom.courseProgressOverlay && !dom.courseProgressOverlay.classList.contains('hidden')) renderCourseProgressPanel();
     renderDashboardSummary();
   }
 
@@ -41005,6 +41015,95 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       </button>`;
     }).join('');
     if (state.justUnlockedCourse) window.setTimeout(() => { state.justUnlockedCourse = ''; renderCourseCards(); }, 1800);
+  }
+
+  function renderCourseProgressPanel() {
+    if (!dom.courseProgressList || !state.progress || !COURSES[state.course]) return;
+    const course = COURSES[state.course];
+    const stats = courseProgress(state.course);
+    const courseData = state.progress.courses[state.course] || {};
+    const records = courseData.topics || {};
+    const final = courseData.final || {};
+    const cert = courseData.certificate || {};
+    const currentIndex = course.topics.findIndex(item => item.id === state.topicId);
+    const remaining = Math.max(0, stats.total - stats.completed);
+
+    if (dom.courseProgressTitle) dom.courseProgressTitle.textContent = `${course.title} Course Progress`;
+    if (dom.courseProgressSummary) dom.courseProgressSummary.textContent = `${stats.completed} of ${stats.total} topics completed`;
+    if (dom.courseProgressBar) dom.courseProgressBar.style.width = `${stats.percent}%`;
+    if (dom.courseProgressPercent) dom.courseProgressPercent.textContent = `${stats.percent}%`;
+
+    let message = `${remaining} topic${remaining === 1 ? '' : 's'} left before the Final Challenge.`;
+    if (cert.issuedAt) message = `🏅 ${course.short} complete — your certificate is earned.`;
+    else if (final.passed) message = '🏁 Final Challenge passed — your certificate is ready.';
+    else if (stats.completed === stats.total) message = '🏁 All topics complete! Your Final Challenge is unlocked.';
+    else if (remaining <= 2) message = `✨ Almost there! Only ${remaining} topic${remaining === 1 ? '' : 's'} left before your Final Challenge.`;
+    else if (currentIndex >= 0) message = `You are on Topic ${currentIndex + 1} of ${stats.total}. Keep going toward the certificate.`;
+    if (dom.courseProgressMessage) dom.courseProgressMessage.textContent = message;
+
+    const topicRows = course.topics.map((item, index) => {
+      const record = records[item.id] || {};
+      const completed = Boolean(record.completedAt);
+      const current = item.id === state.topicId;
+      const unlocked = isTopicUnlocked(state.course, index);
+      const rowState = `${completed ? 'complete ' : ''}${current ? 'current' : unlocked ? 'available' : 'locked'}`.trim();
+      const marker = completed ? '✓' : current ? String(index + 1) : unlocked ? String(index + 1) : '🔒';
+      const stateLabel = current ? 'You are here' : completed ? 'Done' : unlocked ? 'Available' : 'Locked';
+      const detail = completed
+        ? `Completed · ${estimatedTopicMinutes(item)} min`
+        : unlocked
+          ? `${escapeHTML(item.level)} · ${estimatedTopicMinutes(item)} min`
+          : 'Complete the previous topic first';
+      return `<button type="button" class="code-explorer-course-journey-row ${rowState}" data-course-journey-topic="${escapeAttribute(item.id)}" ${unlocked ? '' : 'disabled'} aria-current="${current ? 'step' : 'false'}">
+        <span class="code-explorer-course-journey-marker">${marker}</span>
+        <span class="code-explorer-course-journey-copy"><small>Topic ${index + 1}</small><strong>${escapeHTML(item.title)}</strong><em>${detail}</em></span>
+        <span class="code-explorer-course-journey-state">${stateLabel}</span>
+      </button>`;
+    }).join('');
+
+    const finalReady = stats.completed === stats.total;
+    const finalState = final.passed ? 'complete' : finalReady ? 'available milestone' : 'locked milestone';
+    const finalLabel = final.passed ? 'Passed' : finalReady ? 'Unlocked' : 'Locked';
+    const finalIcon = final.passed ? '✓' : finalReady ? '🏁' : '🔒';
+    const finalRow = `<button type="button" class="code-explorer-course-journey-row ${finalState}" data-course-journey-action="final" ${finalReady ? '' : 'disabled'}>
+      <span class="code-explorer-course-journey-marker">${finalIcon}</span>
+      <span class="code-explorer-course-journey-copy"><small>Course checkpoint</small><strong>Final Challenge</strong><em>${final.passed ? `Passed · ${Math.round(Number(final.score || 0))}%` : finalReady ? 'Score at least 80% to pass' : 'Complete all topics to unlock'}</em></span>
+      <span class="code-explorer-course-journey-state">${finalLabel}</span>
+    </button>`;
+
+    const certReady = Boolean(cert.issuedAt || final.passed);
+    const certState = cert.issuedAt ? 'complete certificate' : certReady ? 'available certificate' : 'locked certificate';
+    const certLabel = cert.issuedAt ? 'Earned' : certReady ? 'Ready' : 'Goal';
+    const certIcon = cert.issuedAt ? '🏅' : certReady ? '🏅' : '🔒';
+    const certRow = `<button type="button" class="code-explorer-course-journey-row ${certState}" data-course-journey-action="certificate" ${certReady ? '' : 'disabled'}>
+      <span class="code-explorer-course-journey-marker">${certIcon}</span>
+      <span class="code-explorer-course-journey-copy"><small>Your goal</small><strong>${escapeHTML(course.title)} Certificate</strong><em>${cert.issuedAt ? 'Certificate earned — tap to view' : final.passed ? 'Final passed — tap to view your certificate' : 'Complete all topics and pass the Final Challenge'}</em></span>
+      <span class="code-explorer-course-journey-state">${certLabel}</span>
+    </button>`;
+
+    dom.courseProgressList.innerHTML = `${topicRows}<div class="code-explorer-course-journey-divider"><span>Finish line</span></div>${finalRow}${certRow}`;
+  }
+
+  function openCourseProgressPanel() {
+    if (!isMobileExplorerLayout() || !dom.courseProgressOverlay) return;
+    renderCourseProgressPanel();
+    dom.courseProgressOverlay.classList.remove('hidden');
+    dom.courseProgressOverlay.setAttribute('aria-hidden', 'false');
+    screen?.classList.add('course-progress-open');
+    window.requestAnimationFrame(() => {
+      dom.courseProgressOverlay?.classList.add('show');
+      dom.courseProgressList?.querySelector('.code-explorer-course-journey-row.current')?.scrollIntoView?.({ block: 'center', behavior: 'auto' });
+    });
+  }
+
+  function closeCourseProgressPanel() {
+    if (!dom.courseProgressOverlay) return;
+    dom.courseProgressOverlay.classList.remove('show');
+    screen?.classList.remove('course-progress-open');
+    window.setTimeout(() => {
+      dom.courseProgressOverlay?.classList.add('hidden');
+      dom.courseProgressOverlay?.setAttribute('aria-hidden', 'true');
+    }, 190);
   }
 
   function renderTopicList() {
@@ -41344,6 +41443,20 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     }
     if (dom.certificatesBtn) dom.certificatesBtn.textContent = mobile ? '🏅' : '🏅 My Certificates';
     if (dom.themeBtn) dom.themeBtn.textContent = mobile ? '🌙' : '🌙 Theme';
+    if (dom.lessonHead) {
+      if (mobile) {
+        dom.lessonHead.setAttribute('role', 'button');
+        dom.lessonHead.setAttribute('tabindex', '0');
+        dom.lessonHead.setAttribute('aria-label', 'Open course progress and topic journey');
+        dom.lessonHead.title = 'View course progress';
+      } else {
+        dom.lessonHead.removeAttribute('role');
+        dom.lessonHead.removeAttribute('tabindex');
+        dom.lessonHead.removeAttribute('aria-label');
+        dom.lessonHead.removeAttribute('title');
+        closeCourseProgressPanel();
+      }
+    }
   }
 
   function mobileJourneyProgressPercent(record = topicRecord()) {
@@ -41655,6 +41768,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     stopHeartTicker();
     stopExplorerProfileListener();
     hideQuickScreenFeedback();
+    closeCourseProgressPanel();
     await saveCloudProgress();
     screen.classList.add('hidden');
     document.body.classList.remove('code-explorer-active');
@@ -42592,6 +42706,35 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   dom.themeBtn?.addEventListener('click', () => dashboardThemeBtn?.click());
   dom.certificatesBtn?.addEventListener('click', openCertificates);
   dom.certCloseBtn?.addEventListener('click', closeCertificates);
+  dom.lessonHead?.addEventListener('click', event => {
+    if (!isMobileExplorerLayout()) return;
+    if (event.target.closest('button,a,input,textarea,select')) return;
+    openCourseProgressPanel();
+  });
+  dom.lessonHead?.addEventListener('keydown', event => {
+    if (!isMobileExplorerLayout() || (event.key !== 'Enter' && event.key !== ' ')) return;
+    event.preventDefault();
+    openCourseProgressPanel();
+  });
+  dom.courseProgressCloseBtn?.addEventListener('click', closeCourseProgressPanel);
+  dom.courseProgressOverlay?.addEventListener('click', event => {
+    if (event.target === dom.courseProgressOverlay) closeCourseProgressPanel();
+  });
+  dom.courseProgressList?.addEventListener('click', async event => {
+    const topicButton = event.target.closest('[data-course-journey-topic]');
+    if (topicButton && !topicButton.disabled) {
+      const topicId = topicButton.dataset.courseJourneyTopic || '';
+      closeCourseProgressPanel();
+      await selectTopic(topicId);
+      return;
+    }
+    const actionButton = event.target.closest('[data-course-journey-action]');
+    if (!actionButton || actionButton.disabled) return;
+    const action = actionButton.dataset.courseJourneyAction || '';
+    closeCourseProgressPanel();
+    if (action === 'final') openFinal();
+    if (action === 'certificate') openCertificates();
+  });
   dom.mobileStageBackBtn?.addEventListener('click', handleMobileJourneyBack);
   dom.mobileStageNextBtn?.addEventListener('click', handleMobileJourneyNext);
   dom.mobileStageSteps?.addEventListener('click', event => {
@@ -42601,6 +42744,9 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   dom.lessonPanel?.addEventListener('touchstart', handleMobileJourneyTouchStart, { passive: true });
   dom.lessonPanel?.addEventListener('touchend', handleMobileJourneyTouchEnd, { passive: true });
   explorerMobileMq.addEventListener?.('change', () => { syncExplorerMobileChrome(); renderMobileJourney(); });
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && dom.courseProgressOverlay && !dom.courseProgressOverlay.classList.contains('hidden')) closeCourseProgressPanel();
+  });
   dom.verifyCloseBtn?.addEventListener('click', () => closeExplorerCertificateVerification(true));
   dom.verifyDoneBtn?.addEventListener('click', () => closeExplorerCertificateVerification(true));
   dom.courseCards?.addEventListener('click', event => {
