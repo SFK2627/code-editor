@@ -45,7 +45,7 @@
   </script>
   <link rel="preconnect" href="https://drive.google.com" crossorigin>
   <link rel="preconnect" href="https://lh3.googleusercontent.com" crossorigin>
-  <link rel="stylesheet" href="style.css?v=20260908-v389-leaderboard-admin-visibility-ui" />
+  <link rel="stylesheet" href="style.css?v=20260908-v390-cloud-certificate-verification" />
   <style>
     .ai-rubric-settings-card,
     .admin-project-ai-review-card {
@@ -3307,6 +3307,44 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
     </section>
   </div>
 
+  <div id="certificatePublicVerificationScreen" class="certificate-public-screen hidden" aria-labelledby="certificatePublicVerificationTitle">
+    <main class="certificate-public-shell">
+      <header class="certificate-public-brand">
+        <div class="certificate-public-brand-mark" aria-hidden="true">🏅</div>
+        <div>
+          <span>ICT 8 Connect</span>
+          <strong>Certificate Verification</strong>
+        </div>
+      </header>
+
+      <section class="certificate-public-card">
+        <div class="certificate-public-hero-icon" aria-hidden="true">🔎</div>
+        <p class="certificate-public-kicker">Official verification</p>
+        <h1 id="certificatePublicVerificationTitle">Checking certificate…</h1>
+        <p id="certificatePublicVerificationLead" class="certificate-public-lead">Please wait while ICT 8 Connect checks the online certificate registry.</p>
+
+        <div class="certificate-public-number">
+          <span>Certificate No.</span>
+          <strong id="certificatePublicVerificationNumber">—</strong>
+        </div>
+
+        <div id="certificatePublicVerificationBody" class="certificate-public-result" aria-live="polite">
+          <div class="certificate-public-loading">
+            <span class="certificate-public-spinner" aria-hidden="true"></span>
+            <div><strong>Verifying online…</strong><small>This normally takes only a moment.</small></div>
+          </div>
+        </div>
+
+        <div class="certificate-public-actions">
+          <button id="certificatePublicVerificationRetryBtn" class="ghost-btn" type="button">↻ Check Again</button>
+          <button id="certificatePublicVerificationHomeBtn" class="primary-btn" type="button">Go to ICT 8 Connect</button>
+        </div>
+      </section>
+
+      <p class="certificate-public-footer">Only the exact certificate number in the QR code is checked. The certificate registry is not publicly browsable.</p>
+    </main>
+  </div>
+
   <div id="appDialogOverlay" class="app-dialog-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="appDialogTitle">
     <div class="app-dialog-card" role="document">
       <div class="app-dialog-icon" id="appDialogIcon">!</div>
@@ -3341,6 +3379,6 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
       </section>
     </div>
 
-  <script src="script.js?v=20260908-v388-fast-code-explorer-exit"></script>
+  <script src="script.js?v=20260908-v390-cloud-certificate-verification"></script>
 </body>
 </html>

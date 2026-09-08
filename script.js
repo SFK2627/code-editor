@@ -4702,6 +4702,13 @@ function getCodeExplorerLeaderboardDocRef(uid) {
   return doc(firebaseSync.db, firebaseSync.collectionName, firebaseSync.documentId, 'codeExplorerLeaderboard', String(uid || '').trim());
 }
 
+function getPublicCertificateDocRef(certificateNumber) {
+  const { doc } = firebaseSync.modules;
+  const key = String(certificateNumber || '').trim();
+  if (!key || key.includes('/')) throw new Error('Invalid certificate number.');
+  return doc(firebaseSync.db, firebaseSync.collectionName, firebaseSync.documentId, 'publicCertificates', key);
+}
+
 function getCodeExplorerLeaderboardSettingsDocRef() {
   const { doc } = firebaseSync.modules;
   return doc(firebaseSync.db, firebaseSync.collectionName, firebaseSync.documentId, 'adminSettings', 'codeExplorerLeaderboard');
@@ -40293,6 +40300,13 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     verifyBody: $('codeExplorerVerifyBody'),
     verifyCloseBtn: $('codeExplorerVerifyCloseBtn'),
     verifyDoneBtn: $('codeExplorerVerifyDoneBtn'),
+    publicVerifyScreen: $('certificatePublicVerificationScreen'),
+    publicVerifyTitle: $('certificatePublicVerificationTitle'),
+    publicVerifyLead: $('certificatePublicVerificationLead'),
+    publicVerifyNumber: $('certificatePublicVerificationNumber'),
+    publicVerifyBody: $('certificatePublicVerificationBody'),
+    publicVerifyRetryBtn: $('certificatePublicVerificationRetryBtn'),
+    publicVerifyHomeBtn: $('certificatePublicVerificationHomeBtn'),
     adminSearch: $('codeExplorerAdminSearch'),
     adminSection: $('codeExplorerAdminSection'),
     adminStatusFilter: $('codeExplorerAdminStatusFilter'),
@@ -42269,7 +42283,9 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     if (isMobileExplorerLayout()) renderCourseRoadmap();
     syncExplorerMobileChrome();
     // Publish only the safe leaderboard fields for this student, even if they only opened Code Explorer.
-    saveCloudProgress().catch(() => false);
+    saveCloudProgress().then(saved => {
+      if (saved) syncIssuedCertificatesToCloud({ ensureProgress: false }).catch(() => []);
+    }).catch(() => false);
     window.scrollTo({ top: 0, behavior: 'auto' });
     queueStudentPresenceUpdate?.({ currentView: 'code-explorer', activityGroup: 'Code Explorer', activityLabel: 'Exploring code lessons' }, { force: true });
   }
@@ -42375,6 +42391,9 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       courseProgressData.certificate = { issuedAt, number: certificateId(courseKey, issuedAt), courseKey };
       registerCertificateRecord(courseKey, courseProgressData.certificate);
       scheduleCloudSave();
+      window.setTimeout(() => {
+        publishCertificateRecordCloud(courseKey, courseProgressData.certificate, {}, { ensureProgress: true }).catch(() => false);
+      }, 950);
     }
     return courseProgressData.certificate;
   }
@@ -42514,12 +42533,21 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   };
 
   function certificateVerificationUrl(details = {}) {
-    const certNo = encodeURIComponent(String(details.number || '').trim());
-    const isHostedWeb = /^https?:$/i.test(String(window.location.protocol || ''));
-    const hostedBase = isHostedWeb
-      ? `${window.location.origin}${window.location.pathname}`
-      : 'https://sfk2627.github.io/code-editor-main/';
-    return certNo ? `${hostedBase}?codeExplorerVerify=${certNo}` : hostedBase;
+    const certNo = String(details.number || '').trim();
+    const productionBase = 'https://g8code.xyz/';
+    let base;
+    try {
+      const protocol = String(window.location.protocol || '');
+      const host = String(window.location.hostname || '').toLowerCase();
+      const publicHost = /^https?:$/i.test(protocol) && host && !['localhost', '127.0.0.1', '0.0.0.0'].includes(host);
+      base = publicHost ? new URL(`${window.location.origin}${window.location.pathname}`) : new URL(productionBase);
+    } catch (_) {
+      base = new URL(productionBase);
+    }
+    base.search = '';
+    base.hash = '';
+    if (certNo) base.searchParams.set('verify', certNo);
+    return base.toString();
   }
 
   function readCertificateRegistry() {
@@ -42534,11 +42562,10 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     try { localStorage.setItem(CODE_EXPLORER_CERT_REGISTRY_KEY, JSON.stringify(registry || {})); } catch (_) {}
   }
 
-  function registerCertificateRecord(courseKey, cert = {}, details = {}) {
+  function buildCertificateRecord(courseKey, cert = {}, details = {}) {
     const number = String(cert.number || '').trim();
-    if (!number) return;
-    const registry = readCertificateRegistry();
-    registry[number] = {
+    if (!number) return null;
+    return {
       number,
       courseKey,
       courseTitle: COURSES[courseKey]?.title || details.courseTitle || courseKey,
@@ -42547,6 +42574,24 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       section: String(details.section || appSession.student?.section || appSession.lastStudentProfile?.section || '').trim(),
       updatedAt: new Date().toISOString()
     };
+  }
+
+  function registerCertificateRecord(courseKey, cert = {}, details = {}) {
+    const record = buildCertificateRecord(courseKey, cert, details);
+    if (!record) return null;
+    const registry = readCertificateRegistry();
+    registry[record.number] = { ...(registry[record.number] || {}), ...record };
+    writeCertificateRegistry(registry);
+    return registry[record.number];
+  }
+
+  function markCertificateCloudPublished(number = '') {
+    const key = String(number || '').trim();
+    if (!key) return;
+    const registry = readCertificateRegistry();
+    if (!registry[key]) return;
+    registry[key].cloudPublishedAt = new Date().toISOString();
+    registry[key].updatedAt = new Date().toISOString();
     writeCertificateRegistry(registry);
   }
 
@@ -42554,6 +42599,73 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     const number = String(certificateNumber || '').trim();
     if (!number) return null;
     return readCertificateRegistry()[number] || null;
+  }
+
+  async function publishCertificateRecordCloud(courseKey, cert = {}, details = {}, options = {}) {
+    const localRecord = registerCertificateRecord(courseKey, cert, details);
+    const studentUid = String(appSession.student?.uid || '').trim();
+    if (!localRecord || !studentUid || appSession.mode !== 'student') {
+      return { ok: false, reason: 'student-session-required', record: localRecord };
+    }
+    try {
+      const ready = await initFirebaseSync();
+      if (!ready) return { ok: false, reason: 'firebase-unavailable', error: firebaseSync.lastError || '', record: localRecord };
+      if (options.ensureProgress !== false) await saveCloudProgress();
+      const { getDoc, setDoc, serverTimestamp } = firebaseSync.modules;
+      const ref = getPublicCertificateDocRef(localRecord.number);
+      const existing = await getDoc(ref);
+      if (snapshotExists(existing)) {
+        markCertificateCloudPublished(localRecord.number);
+        return { ok: true, existing: true, record: snapshotData(existing) };
+      }
+      await setDoc(ref, {
+        number: localRecord.number,
+        courseKey: localRecord.courseKey,
+        studentName: localRecord.studentName,
+        section: localRecord.section,
+        issuedAt: localRecord.issuedAt,
+        status: 'valid',
+        schemaVersion: 1,
+        publishedAt: serverTimestamp()
+      });
+      markCertificateCloudPublished(localRecord.number);
+      return { ok: true, existing: false, record: localRecord };
+    } catch (error) {
+      console.warn('Certificate cloud publication failed.', error);
+      return { ok: false, reason: 'publish-failed', error: error?.message || String(error), record: localRecord };
+    }
+  }
+
+  async function syncIssuedCertificatesToCloud(options = {}) {
+    if (!appSession.student?.uid || appSession.mode !== 'student' || !state.progress) return [];
+    if (options.ensureProgress !== false) await saveCloudProgress();
+    const results = [];
+    for (const courseKey of COURSE_KEYS) {
+      const cert = state.progress?.courses?.[courseKey]?.certificate || {};
+      if (!cert.issuedAt || !cert.number) continue;
+      results.push(await publishCertificateRecordCloud(courseKey, cert, {}, { ensureProgress: false }));
+    }
+    return results;
+  }
+
+  async function fetchPublicCertificateRecord(certificateNumber) {
+    const number = String(certificateNumber || '').trim();
+    if (!number) return { ok: false, state: 'invalid', record: null };
+    try {
+      const ready = await initFirebaseSync();
+      if (!ready) return { ok: false, state: 'unavailable', error: firebaseSync.lastError || 'Verification service unavailable.', record: null };
+      const { getDoc } = firebaseSync.modules;
+      const snapshot = await getDoc(getPublicCertificateDocRef(number));
+      if (!snapshotExists(snapshot)) return { ok: true, state: 'not-found', record: null };
+      const record = snapshotData(snapshot);
+      if (String(record.status || 'valid') !== 'valid') return { ok: true, state: 'invalidated', record };
+      return { ok: true, state: 'verified', record };
+    } catch (error) {
+      const message = error?.message || String(error);
+      const permission = /permission|insufficient/i.test(message);
+      console.warn('Public certificate verification failed.', error);
+      return { ok: false, state: permission ? 'permissions' : 'unavailable', error: message, record: null };
+    }
   }
 
   function drawCertificatePattern(ctx, theme, canvas) {
@@ -42892,11 +43004,18 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     try {
       const course = COURSES[courseKey];
       const cert = ensureCertificate(courseKey);
-      if (cert) registerCertificateRecord(courseKey, cert);
+      if (!cert) throw new Error('Certificate is not unlocked yet.');
+      const publishResult = await publishCertificateRecordCloud(courseKey, cert, {}, { ensureProgress: true });
       const canvas = await renderCertificateCanvas(courseKey);
       const pdfBlob = await buildCertificatePdfBlob(canvas);
       const name = String(appSession.student?.name || 'Student').trim().replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '') || 'Student';
       downloadBlob(pdfBlob, `${name}-${course.short}-Certificate.pdf`);
+      if (!publishResult.ok) {
+        window.setTimeout(() => appAlert(
+          'Your certificate PDF was created, but its QR record could not be published to online verification yet. Ask your teacher/admin to enable the v390 Firestore certificate rule, then open Code Explorer again or download the certificate again.',
+          { title: 'QR verification not published', icon: '⚠️' }
+        ), 250);
+      }
     } catch (error) {
       console.error('Certificate PDF download failed.', error);
       await appAlert(error?.message || 'Could not create the certificate PDF.', { title: 'Certificate download', danger: true });
@@ -42919,10 +43038,10 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     if (!dom.verifyOverlay || !dom.verifyBody) return;
     const found = options.found !== false;
     const title = found ? 'Certificate Found' : 'Certificate Record Not Found';
-    const courseTitle = record.courseTitle || COURSES[record.courseKey || 'html']?.title || 'Unknown Course';
+    const courseTitle = COURSES[record.courseKey || '']?.title || record.courseTitle || 'Unknown Course';
     dom.verifyBody.innerHTML = found
-      ? `<article class="code-explorer-verify-card success"><div class="code-explorer-verify-pill">✓ Verified</div><h3>${escapeHTML(title)}</h3><p>The certificate number exists in the app record available on this device.</p><dl><div><dt>Student</dt><dd>${escapeHTML(record.studentName || 'Unknown')}</dd></div><div><dt>Course</dt><dd>${escapeHTML(courseTitle)}</dd></div><div><dt>Date Issued</dt><dd>${escapeHTML(formatCertificateDate(record.issuedAt || ''))}</dd></div><div><dt>Certificate No.</dt><dd>${escapeHTML(record.number || '')}</dd></div>${record.section ? `<div><dt>Section</dt><dd>${escapeHTML(record.section)}</dd></div>` : ''}</dl><small>Tip: if you move to another device, make sure the certificate registry is also synced there.</small></article>`
-      : `<article class="code-explorer-verify-card warning"><div class="code-explorer-verify-pill">?</div><h3>${escapeHTML(title)}</h3><p>We could not find a matching certificate record on this device yet.</p><dl><div><dt>Certificate No.</dt><dd>${escapeHTML(record.number || options.number || '')}</dd></div></dl><small>This may happen if the certificate has not been generated here yet or if the device has no stored certificate registry.</small></article>`;
+      ? `<article class="code-explorer-verify-card success"><div class="code-explorer-verify-pill">✓ Verified</div><h3>${escapeHTML(title)}</h3><p>This certificate is available in the ICT 8 Connect record.</p><dl><div><dt>Student</dt><dd>${escapeHTML(record.studentName || 'Unknown')}</dd></div><div><dt>Course</dt><dd>${escapeHTML(courseTitle)}</dd></div><div><dt>Date Issued</dt><dd>${escapeHTML(formatCertificateDate(record.issuedAt || ''))}</dd></div><div><dt>Certificate No.</dt><dd>${escapeHTML(record.number || '')}</dd></div>${record.section ? `<div><dt>Section</dt><dd>${escapeHTML(record.section)}</dd></div>` : ''}</dl></article>`
+      : `<article class="code-explorer-verify-card warning"><div class="code-explorer-verify-pill">?</div><h3>${escapeHTML(title)}</h3><p>We could not confirm this certificate.</p><dl><div><dt>Certificate No.</dt><dd>${escapeHTML(record.number || options.number || '')}</dd></div></dl></article>`;
     dom.verifyOverlay.classList.remove('hidden');
     document.body.classList.add('code-explorer-modal-open');
   }
@@ -42934,26 +43053,108 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     if (clearUrl) {
       try {
         const url = new URL(window.location.href);
+        url.searchParams.delete('verify');
         url.searchParams.delete('codeExplorerVerify');
         window.history.replaceState({}, '', url.toString());
       } catch (_) {}
     }
   }
 
-  function maybeOpenExplorerCertificateVerificationFromUrl() {
+  function publicVerificationHomeUrl() {
     try {
       const url = new URL(window.location.href);
-      const certNo = String(url.searchParams.get('codeExplorerVerify') || '').trim();
-      if (!certNo) return;
-      const record = findCertificateRecord(certNo);
-      if (record) openExplorerCertificateVerification(record, { found: true });
-      else openExplorerCertificateVerification({ number: certNo }, { found: false, number: certNo });
-    } catch (_) {}
+      url.searchParams.delete('verify');
+      url.searchParams.delete('codeExplorerVerify');
+      url.hash = '';
+      return url.toString();
+    } catch (_) { return 'https://g8code.xyz/'; }
   }
+
+  function showPublicVerificationShell(certificateNumber) {
+    if (!dom.publicVerifyScreen) return false;
+    document.body.classList.add('certificate-verification-route');
+    dom.publicVerifyScreen.classList.remove('hidden');
+    if (dom.publicVerifyNumber) dom.publicVerifyNumber.textContent = certificateNumber || '—';
+    if (dom.publicVerifyTitle) dom.publicVerifyTitle.textContent = 'Checking certificate…';
+    if (dom.publicVerifyLead) dom.publicVerifyLead.textContent = 'Please wait while ICT 8 Connect checks the online certificate registry.';
+    if (dom.publicVerifyBody) dom.publicVerifyBody.innerHTML = `<div class="certificate-public-loading"><span class="certificate-public-spinner" aria-hidden="true"></span><div><strong>Verifying online…</strong><small>This normally takes only a moment.</small></div></div>`;
+    return true;
+  }
+
+  function renderPublicCertificateVerificationResult(certificateNumber, result = {}) {
+    if (!dom.publicVerifyBody) return;
+    const stateKey = result.state || 'unavailable';
+    const record = result.record || {};
+    const courseTitle = COURSES[record.courseKey || '']?.title || record.courseTitle || 'Unknown Course';
+    if (stateKey === 'verified') {
+      if (dom.publicVerifyTitle) dom.publicVerifyTitle.textContent = 'Certificate verified';
+      if (dom.publicVerifyLead) dom.publicVerifyLead.textContent = 'This certificate number matches an official ICT 8 Connect online record.';
+      dom.publicVerifyBody.innerHTML = `
+        <article class="certificate-public-status-card verified">
+          <div class="certificate-public-status-icon" aria-hidden="true">✓</div>
+          <div class="certificate-public-status-copy"><span>VERIFIED</span><strong>Authentic ICT 8 Connect Certificate</strong><p>The QR code matches the online certificate registry.</p></div>
+        </article>
+        <dl class="certificate-public-details">
+          <div><dt>Student</dt><dd>${escapeHTML(record.studentName || 'Unknown')}</dd></div>
+          <div><dt>Section</dt><dd>${escapeHTML(record.section || '—')}</dd></div>
+          <div><dt>Course</dt><dd>${escapeHTML(courseTitle)}</dd></div>
+          <div><dt>Date Issued</dt><dd>${escapeHTML(formatCertificateDate(record.issuedAt || ''))}</dd></div>
+          <div class="wide"><dt>Certificate Number</dt><dd>${escapeHTML(record.number || certificateNumber)}</dd></div>
+        </dl>`;
+      return;
+    }
+    if (stateKey === 'not-found' || stateKey === 'invalidated') {
+      if (dom.publicVerifyTitle) dom.publicVerifyTitle.textContent = stateKey === 'invalidated' ? 'Certificate is not valid' : 'Certificate not found';
+      if (dom.publicVerifyLead) dom.publicVerifyLead.textContent = stateKey === 'invalidated'
+        ? 'This certificate record exists but is not currently marked valid.'
+        : 'No matching certificate number was found in the online registry.';
+      dom.publicVerifyBody.innerHTML = `
+        <article class="certificate-public-status-card not-found">
+          <div class="certificate-public-status-icon" aria-hidden="true">!</div>
+          <div class="certificate-public-status-copy"><span>${stateKey === 'invalidated' ? 'NOT VALID' : 'NOT FOUND'}</span><strong>${stateKey === 'invalidated' ? 'Certificate cannot be verified' : 'No online record matches this QR code'}</strong><p>Check that the QR code belongs to the original ICT 8 Connect certificate.</p></div>
+        </article>`;
+      return;
+    }
+    const permissionProblem = stateKey === 'permissions';
+    if (dom.publicVerifyTitle) dom.publicVerifyTitle.textContent = 'Verification service unavailable';
+    if (dom.publicVerifyLead) dom.publicVerifyLead.textContent = 'The certificate could not be checked online right now.';
+    dom.publicVerifyBody.innerHTML = `
+      <article class="certificate-public-status-card unavailable">
+        <div class="certificate-public-status-icon" aria-hidden="true">⚠</div>
+        <div class="certificate-public-status-copy"><span>TRY AGAIN</span><strong>${permissionProblem ? 'Online certificate access is not enabled yet' : 'Could not reach the verification service'}</strong><p>${permissionProblem ? 'The site administrator needs to publish the v390 Firestore certificate verification rule.' : 'Check your internet connection, then try again.'}</p></div>
+      </article>`;
+  }
+
+  async function runPublicCertificateVerification(certificateNumber) {
+    const number = String(certificateNumber || '').trim();
+    if (!number) return;
+    showPublicVerificationShell(number);
+    const result = await fetchPublicCertificateRecord(number);
+    renderPublicCertificateVerificationResult(number, result);
+  }
+
+  function certificateNumberFromUrl() {
+    try {
+      const url = new URL(window.location.href);
+      return String(url.searchParams.get('verify') || url.searchParams.get('codeExplorerVerify') || '').trim();
+    } catch (_) { return ''; }
+  }
+
+  function maybeOpenExplorerCertificateVerificationFromUrl() {
+    const certNo = certificateNumberFromUrl();
+    if (!certNo) return false;
+    showPublicVerificationShell(certNo);
+    runPublicCertificateVerification(certNo).catch(error => {
+      renderPublicCertificateVerificationResult(certNo, { state: 'unavailable', error: error?.message || String(error) });
+    });
+    return true;
+  }
+
   function openCertificates() {
     renderCertificates();
     dom.certOverlay.classList.remove('hidden');
     document.body.classList.add('code-explorer-modal-open');
+    syncIssuedCertificatesToCloud({ ensureProgress: true }).catch(() => []);
   }
 
   function closeCertificates() {
@@ -43962,6 +44163,13 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   });
   dom.verifyCloseBtn?.addEventListener('click', () => closeExplorerCertificateVerification(true));
   dom.verifyDoneBtn?.addEventListener('click', () => closeExplorerCertificateVerification(true));
+  dom.publicVerifyRetryBtn?.addEventListener('click', () => {
+    const number = certificateNumberFromUrl() || String(dom.publicVerifyNumber?.textContent || '').trim();
+    if (number) runPublicCertificateVerification(number);
+  });
+  dom.publicVerifyHomeBtn?.addEventListener('click', () => {
+    window.location.assign(publicVerificationHomeUrl());
+  });
   dom.courseCards?.addEventListener('click', event => {
     const button = event.target.closest('[data-explorer-course]');
     if (button) selectCourse(button.dataset.explorerCourse, { openLesson: !isMobileExplorerLayout() });
@@ -44063,10 +44271,12 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     else if (!dom.certOverlay.classList.contains('hidden')) closeCertificates();
   });
 
-  ensureReaderProgress();
-  applyHeartRefill(state.progress);
-  renderDashboardSummary();
-  maybeOpenExplorerCertificateVerificationFromUrl();
+  const certificateVerificationRouteActive = maybeOpenExplorerCertificateVerificationFromUrl();
+  if (!certificateVerificationRouteActive) {
+    ensureReaderProgress();
+    applyHeartRefill(state.progress);
+    renderDashboardSummary();
+  }
   window.renderCodeExplorerDashboardSummary = renderDashboardSummary;
   window.openCodeExplorer = openExplorer;
   window.__CODE_EXPLORER_COURSES__ = COURSES;

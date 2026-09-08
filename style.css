@@ -59372,3 +59372,256 @@ html[data-theme="dark"] .code-explorer-admin-leaderboard-settings-foot {
     justify-self: start;
   }
 }
+
+
+/* ================================================================
+   v390 — Public cloud certificate verification route
+   QR scans open a dedicated, login-free verification screen.
+   ================================================================ */
+body.certificate-verification-route {
+  min-height: 100dvh;
+  overflow: auto !important;
+  background:
+    radial-gradient(circle at 12% 0%, rgba(37,99,235,.18), transparent 28rem),
+    radial-gradient(circle at 90% 100%, rgba(16,185,129,.12), transparent 26rem),
+    #f5f8fc;
+}
+body.certificate-verification-route > *:not(#certificatePublicVerificationScreen):not(script) {
+  display: none !important;
+}
+.certificate-public-screen {
+  min-height: 100dvh;
+  width: 100%;
+  padding: clamp(18px, 4vw, 44px) 16px;
+  color: #142033;
+}
+.certificate-public-screen.hidden { display: none !important; }
+.certificate-public-shell {
+  width: min(760px, 100%);
+  margin: 0 auto;
+  display: grid;
+  gap: 16px;
+}
+.certificate-public-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 4px 2px;
+}
+.certificate-public-brand-mark {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border-radius: 15px;
+  background: linear-gradient(135deg,#2563eb,#06b6d4);
+  box-shadow: 0 12px 30px rgba(37,99,235,.22);
+  font-size: 24px;
+}
+.certificate-public-brand > div:last-child { display: grid; gap: 2px; }
+.certificate-public-brand span {
+  color: #64748b;
+  font-size: .72rem;
+  font-weight: 900;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+}
+.certificate-public-brand strong { font-size: 1.08rem; color: #0f172a; }
+.certificate-public-card {
+  padding: clamp(22px, 5vw, 38px);
+  border: 1px solid #dbe5f1;
+  border-radius: 30px;
+  background: rgba(255,255,255,.96);
+  box-shadow: 0 24px 70px rgba(15,23,42,.12);
+  text-align: center;
+}
+.certificate-public-hero-icon {
+  width: 66px;
+  height: 66px;
+  margin: 0 auto 12px;
+  display: grid;
+  place-items: center;
+  border-radius: 22px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  font-size: 31px;
+}
+.certificate-public-kicker {
+  margin: 0 0 6px;
+  color: #2563eb;
+  font-size: .73rem;
+  font-weight: 1000;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+.certificate-public-card h1 {
+  margin: 0;
+  color: #0f172a;
+  font-size: clamp(1.65rem, 5vw, 2.35rem);
+  line-height: 1.08;
+}
+.certificate-public-lead {
+  max-width: 590px;
+  margin: 10px auto 18px;
+  color: #5b6b82;
+  line-height: 1.55;
+}
+.certificate-public-number {
+  display: inline-grid;
+  gap: 4px;
+  min-width: min(100%, 360px);
+  margin: 0 auto 18px;
+  padding: 11px 16px;
+  border: 1px solid #dbe5f1;
+  border-radius: 15px;
+  background: #f8fafc;
+}
+.certificate-public-number span {
+  color: #64748b;
+  font-size: .66rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+.certificate-public-number strong {
+  color: #0f172a;
+  font: 800 .84rem/1.35 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  overflow-wrap: anywhere;
+}
+.certificate-public-result { margin-top: 4px; text-align: left; }
+.certificate-public-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  min-height: 126px;
+  padding: 22px;
+  border-radius: 20px;
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+}
+.certificate-public-loading > div { display: grid; gap: 3px; }
+.certificate-public-loading strong { color: #0f172a; }
+.certificate-public-loading small { color: #64748b; }
+.certificate-public-spinner {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  border: 4px solid #dbeafe;
+  border-top-color: #2563eb;
+  border-radius: 999px;
+  animation: certificatePublicSpin .8s linear infinite;
+}
+@keyframes certificatePublicSpin { to { transform: rotate(360deg); } }
+.certificate-public-status-card {
+  display: grid;
+  grid-template-columns: auto minmax(0,1fr);
+  align-items: center;
+  gap: 15px;
+  padding: 18px;
+  border-radius: 20px;
+  border: 1px solid;
+}
+.certificate-public-status-card.verified { background:#ecfdf5; border-color:#86efac; }
+.certificate-public-status-card.not-found { background:#fff7ed; border-color:#fdba74; }
+.certificate-public-status-card.unavailable { background:#fff1f2; border-color:#fda4af; }
+.certificate-public-status-icon {
+  width: 50px;
+  height: 50px;
+  display: grid;
+  place-items: center;
+  border-radius: 16px;
+  font-size: 1.65rem;
+  font-weight: 1000;
+  background: rgba(255,255,255,.8);
+}
+.certificate-public-status-card.verified .certificate-public-status-icon { color:#15803d; }
+.certificate-public-status-card.not-found .certificate-public-status-icon { color:#c2410c; }
+.certificate-public-status-card.unavailable .certificate-public-status-icon { color:#be123c; }
+.certificate-public-status-copy { display:grid; gap:3px; min-width:0; }
+.certificate-public-status-copy > span { font-size:.66rem; font-weight:1000; letter-spacing:.09em; text-transform:uppercase; }
+.certificate-public-status-card.verified .certificate-public-status-copy > span { color:#15803d; }
+.certificate-public-status-card.not-found .certificate-public-status-copy > span { color:#c2410c; }
+.certificate-public-status-card.unavailable .certificate-public-status-copy > span { color:#be123c; }
+.certificate-public-status-copy strong { color:#0f172a; font-size:1.05rem; }
+.certificate-public-status-copy p { margin:0; color:#526174; line-height:1.45; }
+.certificate-public-details {
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:10px;
+  margin:14px 0 0;
+}
+.certificate-public-details > div {
+  padding:13px 14px;
+  border:1px solid #e2e8f0;
+  border-radius:15px;
+  background:#f8fafc;
+}
+.certificate-public-details > div.wide { grid-column:1/-1; }
+.certificate-public-details dt {
+  margin:0 0 4px;
+  color:#64748b;
+  font-size:.66rem;
+  font-weight:900;
+  letter-spacing:.07em;
+  text-transform:uppercase;
+}
+.certificate-public-details dd {
+  margin:0;
+  color:#0f172a;
+  font-weight:800;
+  overflow-wrap:anywhere;
+}
+.certificate-public-actions {
+  display:flex;
+  justify-content:center;
+  gap:10px;
+  margin-top:20px;
+}
+.certificate-public-actions button { min-height:46px; border-radius:14px; }
+.certificate-public-footer {
+  margin:0;
+  padding:0 12px;
+  text-align:center;
+  color:#718096;
+  font-size:.78rem;
+  line-height:1.45;
+}
+@media (max-width:600px) {
+  .certificate-public-screen { padding:14px 10px 24px; }
+  .certificate-public-brand { padding:4px 6px; }
+  .certificate-public-brand-mark { width:43px; height:43px; border-radius:13px; font-size:21px; }
+  .certificate-public-card { padding:20px 15px; border-radius:24px; }
+  .certificate-public-hero-icon { width:58px; height:58px; border-radius:18px; font-size:27px; }
+  .certificate-public-status-card { grid-template-columns:1fr; justify-items:center; text-align:center; }
+  .certificate-public-details { grid-template-columns:1fr; }
+  .certificate-public-details > div.wide { grid-column:auto; }
+  .certificate-public-actions { display:grid; grid-template-columns:1fr; }
+  .certificate-public-actions button { width:100%; }
+}
+@media (prefers-color-scheme: dark) {
+  body.certificate-verification-route { background:#09111f; }
+  .certificate-public-screen { color:#e5edf7; }
+  .certificate-public-brand span { color:#93a4bc; }
+  .certificate-public-brand strong,
+  .certificate-public-card h1,
+  .certificate-public-number strong,
+  .certificate-public-loading strong,
+  .certificate-public-status-copy strong,
+  .certificate-public-details dd { color:#f8fafc; }
+  .certificate-public-card { background:rgba(15,23,42,.97); border-color:#26364d; box-shadow:0 24px 70px rgba(0,0,0,.38); }
+  .certificate-public-hero-icon { background:#102443; border-color:#274b77; }
+  .certificate-public-lead,
+  .certificate-public-status-copy p { color:#aebed2; }
+  .certificate-public-number,
+  .certificate-public-loading,
+  .certificate-public-details > div { background:#111c2d; border-color:#2a3a50; }
+  .certificate-public-number span,
+  .certificate-public-loading small,
+  .certificate-public-details dt,
+  .certificate-public-footer { color:#91a4bd; }
+  .certificate-public-status-card.verified { background:#0f2b21; border-color:#287653; }
+  .certificate-public-status-card.not-found { background:#30230e; border-color:#7d5920; }
+  .certificate-public-status-card.unavailable { background:#321722; border-color:#7a3049; }
+  .certificate-public-status-icon { background:rgba(255,255,255,.06); }
+}
