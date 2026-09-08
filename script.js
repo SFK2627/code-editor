@@ -40175,7 +40175,9 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     certificatesBtn: $('codeExplorerCertificatesBtn'),
     xpBadge: $('codeExplorerXpBadge'),
     leaderboardBtn: $('codeExplorerLeaderboardBtn'),
+    heartWrap: $('codeExplorerHeartWrap'),
     heartBadge: $('codeExplorerHeartBadge'),
+    heartPopover: $('codeExplorerHeartPopover'),
     quickThemeToggle: $('codeExplorerQuickThemeToggle'),
     audioMenu: $('codeExplorerAudioMenu'),
     audioMenuToggle: $('codeExplorerAudioMenuToggle'),
@@ -40600,7 +40602,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   const HEARTS_DEFAULT = 5;
   const HEARTS_MAX = 5;
   const HEART_REFILL_MS = 60 * 60 * 1000;
-  const state = { course: 'html', topicId: '', filter: 'all', progress: null, reader: '', cloudLoaded: false, cloudXpHint: 0, dashboardCloudLoading: false, saveTimer: null, cloudSavePromise: null, cloudSaveQueued: false, lastCloudSyncAt: 0, identityCheckedAt: 0, identityCanonical: true, heartTimer: null, profileUnsub: null, finalAnswers: {}, finalStartedAt: 0, quickQuiz: { topicId: '', index: 0, answers: [], results: [], submitted: false, questionStartedAt: [], responseMs: [], attemptStartedAt: 0 }, miniGame: { topicId: '', selected: '', result: '', correct: '', choices: [], before: '', after: '' }, miniGameResetTimer: null, quickAdvanceTimer: null, quickFeedbackTimer: null, justUnlockedTopicId: '', justUnlockedCourse: '', mobileStage: 'learn', mobileStageDirection: 'next', mobileSwipeStart: null, mobileView: 'roadmap' };
+  const state = { course: 'html', topicId: '', filter: 'all', progress: null, reader: '', cloudLoaded: false, cloudXpHint: 0, dashboardCloudLoading: false, saveTimer: null, cloudSavePromise: null, cloudSaveQueued: false, lastCloudSyncAt: 0, identityCheckedAt: 0, identityCanonical: true, heartTimer: null, heartPopoverTimer: null, profileUnsub: null, finalAnswers: {}, finalStartedAt: 0, quickQuiz: { topicId: '', index: 0, answers: [], results: [], submitted: false, questionStartedAt: [], responseMs: [], attemptStartedAt: 0 }, miniGame: { topicId: '', selected: '', result: '', correct: '', choices: [], before: '', after: '' }, miniGameResetTimer: null, quickAdvanceTimer: null, quickFeedbackTimer: null, justUnlockedTopicId: '', justUnlockedCourse: '', mobileStage: 'learn', mobileStageDirection: 'next', mobileSwipeStart: null, mobileView: 'roadmap' };
   const CODE_EXPLORER_LEADERBOARD_SETTINGS_ROW_ID = 'leaderboard_settings';
   const leaderboardState = { records: [], loadedAt: 0, loading: false, source: '', rosterLoaded: false, mode: 'students', settingsLoaded: false, settingsError: false, currentSectionIncluded: true };
   let leaderboardSectionSettings = { configured: false, includedSections: [], includedSectionKeys: [] };
@@ -41049,6 +41051,46 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     return `${totalMinutes}m`;
   }
 
+  function heartDetailSummary(snapshot = currentHeartSnapshot()) {
+    if (snapshot.balance >= HEARTS_MAX) return `Full hearts. Wrong scored answers cost 1 heart each.`;
+    const wait = formatHeartCountdown(snapshot.nextInMs);
+    if (snapshot.balance <= 0) return `Out of hearts. One heart returns in ${wait}. Lessons and coding practice still work.`;
+    return `${snapshot.balance} of ${HEARTS_MAX} hearts. One more heart in ${wait}. Wrong scored answers cost 1 heart each.`;
+  }
+
+  function renderHeartPopover(snapshot = currentHeartSnapshot()) {
+    if (!dom.heartPopover) return;
+    const full = snapshot.balance >= HEARTS_MAX;
+    const empty = snapshot.balance <= 0;
+    const wait = formatHeartCountdown(snapshot.nextInMs);
+    const statusText = full ? 'Full energy' : (empty ? 'Recovering' : 'Refilling');
+    const nextText = full ? 'Full now' : `+1 in ${wait}`;
+    dom.heartPopover.innerHTML = `
+      <div class="code-explorer-heart-popover-top">
+        <span class="code-explorer-heart-popover-icon" aria-hidden="true">❤️</span>
+        <div><strong>${snapshot.balance}/${HEARTS_MAX} Hearts</strong><small>${statusText}</small></div>
+      </div>
+      <div class="code-explorer-heart-popover-meter" aria-hidden="true"><i style="width:${Math.max(0, Math.min(100, (snapshot.balance / HEARTS_MAX) * 100))}%"></i></div>
+      <div class="code-explorer-heart-popover-row"><span>Next heart</span><b>${nextText}</b></div>
+      <p>Wrong scored answers use 1 heart. Hearts refill by 1 every hour.</p>`;
+  }
+
+  function hideHeartPopover() {
+    clearTimeout(state.heartPopoverTimer);
+    state.heartPopoverTimer = null;
+    dom.heartPopover?.classList.add('hidden');
+    dom.heartBadge?.setAttribute('aria-expanded', 'false');
+  }
+
+  function showHeartPopover() {
+    if (!dom.heartPopover || !dom.heartBadge || !state.progress) return;
+    renderHeartPopover();
+    dom.heartPopover.classList.remove('hidden');
+    dom.heartBadge.setAttribute('aria-expanded', 'true');
+    clearTimeout(state.heartPopoverTimer);
+    state.heartPopoverTimer = window.setTimeout(hideHeartPopover, 3000);
+  }
+
   function renderHeartStatus() {
     if (!dom.heartBadge || !state.progress) return;
     const snapshot = currentHeartSnapshot();
@@ -41059,9 +41101,10 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         ? `❤️ ${snapshot.balance}/${HEARTS_MAX}`
         : `❤️ ${snapshot.balance}/${HEARTS_MAX} · +1 in ${formatHeartCountdown(snapshot.nextInMs)}`);
     dom.heartBadge.dataset.state = snapshot.balance <= 0 ? 'empty' : (snapshot.balance >= HEARTS_MAX ? 'full' : 'ready');
-    dom.heartBadge.title = snapshot.balance <= 0
-      ? `Out of hearts. One heart returns in ${formatHeartCountdown(snapshot.nextInMs)}. Lessons and coding practice still work.`
-      : `Wrong scored answers cost 1 heart each. Hearts refill by 1 every hour up to ${HEARTS_MAX}.`;
+    const summary = heartDetailSummary(snapshot);
+    dom.heartBadge.title = summary;
+    dom.heartBadge.setAttribute('aria-label', summary + ' Tap to show heart details.');
+    if (dom.heartPopover && !dom.heartPopover.classList.contains('hidden')) renderHeartPopover(snapshot);
   }
 
   function spendHearts(requested = 0) {
@@ -42946,7 +42989,11 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       dom.backBtn.title = roadmap ? 'Back to My Projects' : 'Course path';
     }
     if (dom.leaderboardBtn) { dom.leaderboardBtn.title = 'Global Code Explorer Leaderboard'; dom.leaderboardBtn.setAttribute('aria-label', 'Open global Code Explorer leaderboard'); }
-    if (dom.certificatesBtn) dom.certificatesBtn.textContent = mobile ? '🏅' : '🏅 My Certificates';
+    if (dom.certificatesBtn) {
+      dom.certificatesBtn.textContent = mobile ? '🏅' : '🏅 My Certificates';
+      dom.certificatesBtn.title = 'My Certificates';
+      dom.certificatesBtn.setAttribute('aria-label', 'Open my Code Explorer certificates');
+    }
     if (dom.themeBtn) dom.themeBtn.textContent = mobile ? '🌙' : '🌙 Theme';
     if (dom.quickThemeToggle) {
       const isDark = document.documentElement.dataset.theme === 'dark';
@@ -45556,7 +45603,14 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   dom.audioMenuPanel?.addEventListener('click', event => event.stopPropagation());
   document.addEventListener('click', event => {
     if (dom.audioMenu?.classList.contains('open') && !event.target.closest?.('#codeExplorerAudioMenu')) closeExplorerAudioMenu();
+    if (dom.heartPopover && !dom.heartPopover.classList.contains('hidden') && !event.target.closest?.('#codeExplorerHeartWrap')) hideHeartPopover();
   });
+
+  dom.heartBadge?.addEventListener('click', event => {
+    event.stopPropagation();
+    showHeartPopover();
+  });
+  dom.heartPopover?.addEventListener('click', event => event.stopPropagation());
 
   dom.musicToggle?.addEventListener('click', () => {
     setExplorerAudioPreference('music', !explorerAudio.prefs.music);
@@ -45633,6 +45687,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   document.addEventListener('keydown', event => {
     if (event.key === 'Escape' && dom.courseProgressOverlay && !dom.courseProgressOverlay.classList.contains('hidden')) closeCourseProgressPanel();
     if (event.key === 'Escape' && dom.audioMenu?.classList.contains('open')) closeExplorerAudioMenu();
+    if (event.key === 'Escape' && dom.heartPopover && !dom.heartPopover.classList.contains('hidden')) hideHeartPopover();
   });
   dom.verifyCloseBtn?.addEventListener('click', () => closeExplorerCertificateVerification(true));
   dom.verifyDoneBtn?.addEventListener('click', () => closeExplorerCertificateVerification(true));

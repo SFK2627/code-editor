@@ -45,7 +45,7 @@
   </script>
   <link rel="preconnect" href="https://drive.google.com" crossorigin>
   <link rel="preconnect" href="https://lh3.googleusercontent.com" crossorigin>
-  <link rel="stylesheet" href="style.css?v=20260908-v399-audio-polish" />
+  <link rel="stylesheet" href="style.css?v=20260908-v400-cert-heart-header-polish" />
   <style>
     .ai-rubric-settings-card,
     .admin-project-ai-review-card {
@@ -493,8 +493,11 @@
             </button>
           </div>
         </div>
-        <span id="codeExplorerHeartBadge" class="code-explorer-heart-badge" title="Hearts are used only when scored answers are wrong.">❤️ 5/5</span>
-        <button id="codeExplorerCertificatesBtn" class="ghost-btn" type="button">🏅 My Certificates</button>
+        <div id="codeExplorerHeartWrap" class="code-explorer-heart-wrap">
+          <button id="codeExplorerHeartBadge" class="code-explorer-heart-badge" type="button" aria-expanded="false" aria-controls="codeExplorerHeartPopover" title="Hearts are used only when scored answers are wrong.">❤️ 5/5</button>
+          <div id="codeExplorerHeartPopover" class="code-explorer-heart-popover hidden" role="status" aria-live="polite"></div>
+        </div>
+        <button id="codeExplorerCertificatesBtn" class="ghost-btn code-explorer-certificates-btn" type="button" aria-label="Open my certificates" title="My Certificates">🏅 My Certificates</button>
         <button id="codeExplorerThemeBtn" class="ghost-btn" type="button">🌙 Theme</button>
       </div>
     </header>
@@ -3404,6 +3407,6 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
       </section>
     </div>
 
-  <script src="script.js?v=20260908-v399-audio-polish"></script>
+  <script src="script.js?v=20260908-v400-cert-heart-header-polish"></script>
 </body>
 </html>
