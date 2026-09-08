@@ -45,7 +45,7 @@
   </script>
   <link rel="preconnect" href="https://drive.google.com" crossorigin>
   <link rel="preconnect" href="https://lh3.googleusercontent.com" crossorigin>
-  <link rel="stylesheet" href="style.css?v=20260908-v396-code-explorer-audio" />
+  <link rel="stylesheet" href="style.css?v=20260908-v398-mobile-header-sync-audit" />
   <style>
     .ai-rubric-settings-card,
     .admin-project-ai-review-card {
@@ -2858,13 +2858,13 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
 
           <section class="code-explorer-admin-xp-migration" aria-labelledby="codeExplorerAdminXpMigrationTitle">
             <div class="code-explorer-admin-xp-migration-copy">
-              <span>⚡ Legacy XP Migration</span>
-              <strong id="codeExplorerAdminXpMigrationTitle">Normalize students who played before the current XP system</strong>
-              <p>Preserves every student's already-earned Total XP, adds only missing guaranteed mastery credit for legacy work, and never invents old speed or first-try bonuses. No retroactive mistake penalties are applied.</p>
-              <p id="codeExplorerAdminXpMigrationStatus" class="code-explorer-admin-xp-migration-status" role="status">Legacy XP normalization has not been run in this session.</p>
+              <span>⚡ Progress Repair + Legacy XP</span>
+              <strong id="codeExplorerAdminXpMigrationTitle">Repair cross-browser progress and normalize legacy XP</strong>
+              <p>Merges Code Explorer progress found across duplicate/older student profiles into the currently linked student account, preserves every already-earned Total XP, and adds only missing guaranteed mastery credit for legacy work. No retroactive penalties or invented speed/first-try bonuses are applied.</p>
+              <p id="codeExplorerAdminXpMigrationStatus" class="code-explorer-admin-xp-migration-status" role="status">Progress repair has not been run in this session.</p>
               <div id="codeExplorerAdminXpMigrationAudit" class="code-explorer-admin-xp-migration-audit hidden" aria-live="polite"></div>
             </div>
-            <button id="codeExplorerAdminXpMigrationBtn" class="primary-btn code-explorer-admin-xp-migration-btn" type="button">⚡ Normalize Legacy XP</button>
+            <button id="codeExplorerAdminXpMigrationBtn" class="primary-btn code-explorer-admin-xp-migration-btn" type="button">⚡ Repair / Normalize Progress</button>
           </section>
 
           <div class="code-explorer-admin-certificate-sample" aria-label="Code Explorer sample certificate">
@@ -3404,6 +3404,6 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
       </section>
     </div>
 
-  <script src="script.js?v=20260908-v396-code-explorer-audio"></script>
+  <script src="script.js?v=20260908-v398-mobile-header-sync-audit"></script>
 </body>
 </html>

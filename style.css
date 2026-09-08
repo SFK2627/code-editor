@@ -60192,3 +60192,193 @@ html[data-theme="dark"] .code-explorer-audio-toggle.muted { background: #141d2d;
 @media (max-width: 390px) {
   .code-explorer-screen.code-explorer-mobile-focus .code-explorer-audio-menu-toggle { width: 32px; min-width: 32px; height: 32px; min-height: 32px; }
 }
+
+
+/* ================================================================
+   Code Explorer v398 - Mobile header repair after audio controls
+   One intentional top row on phones; audio/theme/leaderboard stay compact.
+   ================================================================ */
+@media (max-width: 760px) {
+  .code-explorer-screen .code-explorer-header {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 6px !important;
+    min-height: 54px;
+    padding: calc(env(safe-area-inset-top, 0px) + 8px) 9px 8px !important;
+    overflow: visible !important;
+  }
+
+  .code-explorer-screen .code-explorer-header-brand {
+    display: flex !important;
+    flex: 1 1 auto !important;
+    width: auto !important;
+    min-width: 0 !important;
+    align-items: center !important;
+    gap: 7px !important;
+  }
+
+  .code-explorer-screen .code-explorer-header-brand .code-explorer-logo,
+  .code-explorer-screen .code-explorer-header-brand .code-explorer-eyebrow,
+  .code-explorer-screen .code-explorer-header-brand p {
+    display: none !important;
+  }
+
+  .code-explorer-screen .code-explorer-header-brand > div {
+    display: block !important;
+    flex: 1 1 auto;
+    min-width: 0 !important;
+  }
+
+  .code-explorer-screen .code-explorer-header-brand > .ghost-btn {
+    display: inline-flex !important;
+    flex: 0 0 36px !important;
+    width: 36px !important;
+    min-width: 36px !important;
+    height: 36px !important;
+    min-height: 36px !important;
+    align-items: center;
+    justify-content: center;
+    padding: 0 !important;
+    overflow: hidden;
+    border-radius: 12px !important;
+    font-size: 0 !important;
+    line-height: 1 !important;
+  }
+
+  .code-explorer-screen .code-explorer-header-brand > .ghost-btn::before {
+    content: '←';
+    font-size: 1.05rem;
+    font-weight: 950;
+    line-height: 1;
+  }
+  .code-explorer-screen.code-explorer-roadmap-mode .code-explorer-header-brand > .ghost-btn::before { content: '✕'; }
+  .code-explorer-screen.code-explorer-lesson-mode .code-explorer-header-brand > .ghost-btn::before { content: '←'; }
+
+  .code-explorer-screen .code-explorer-header h1 {
+    display: block !important;
+    margin: 0 !important;
+    max-width: 98px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: .93rem !important;
+    line-height: 1.05 !important;
+    letter-spacing: -.015em;
+  }
+
+  .code-explorer-screen .code-explorer-header-actions {
+    display: flex !important;
+    flex: 0 0 auto !important;
+    width: auto !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    flex-wrap: nowrap !important;
+    gap: 4px !important;
+    overflow: visible !important;
+  }
+  .code-explorer-screen .code-explorer-header-actions > * { flex: 0 0 auto !important; }
+
+  .code-explorer-screen .code-explorer-header-actions > .ghost-btn { display: none !important; }
+
+  .code-explorer-screen .code-explorer-xp-badge,
+  .code-explorer-screen .code-explorer-heart-badge {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    min-width: 0 !important;
+    min-height: 34px !important;
+    height: 34px !important;
+    padding: 0 8px !important;
+    border-radius: 999px !important;
+    font-size: .7rem !important;
+    line-height: 1 !important;
+    white-space: nowrap;
+  }
+
+  .code-explorer-screen .code-explorer-leaderboard-btn,
+  .code-explorer-screen .code-explorer-audio-menu-toggle,
+  .code-explorer-screen .code-explorer-quick-theme-toggle {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    flex: 0 0 34px !important;
+    width: 34px !important;
+    min-width: 34px !important;
+    height: 34px !important;
+    min-height: 34px !important;
+    padding: 0 !important;
+    border-radius: 999px !important;
+  }
+
+  .code-explorer-screen .code-explorer-leaderboard-btn b { display: none !important; }
+  .code-explorer-screen .code-explorer-leaderboard-btn { font-size: .94rem !important; }
+
+  /* Phone theme control is a single icon instead of the wide sun/track/moon pill. */
+  .code-explorer-screen .code-explorer-quick-theme-toggle {
+    gap: 0 !important;
+    font-size: 0 !important;
+  }
+  .code-explorer-screen .code-explorer-quick-theme-toggle > * { display: none !important; }
+  .code-explorer-screen .code-explorer-quick-theme-toggle::before {
+    content: '☀️';
+    display: block;
+    font-size: .86rem;
+    line-height: 1;
+  }
+  html[data-theme="dark"] .code-explorer-screen .code-explorer-quick-theme-toggle::before { content: '🌙'; }
+
+  .code-explorer-screen .code-explorer-audio-menu {
+    display: inline-flex !important;
+    flex: 0 0 34px !important;
+    width: 34px;
+    min-width: 34px;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+  }
+  .code-explorer-screen .code-explorer-audio-menu-toggle {
+    font-size: .9rem !important;
+  }
+  .code-explorer-screen .code-explorer-audio-menu-panel {
+    right: -2px !important;
+    top: calc(100% + 10px) !important;
+  }
+}
+
+@media (max-width: 380px) {
+  .code-explorer-screen .code-explorer-header { gap: 4px !important; padding-left: 7px !important; padding-right: 7px !important; }
+  .code-explorer-screen .code-explorer-header-brand { gap: 4px !important; }
+  .code-explorer-screen .code-explorer-header h1 { display: none !important; }
+  .code-explorer-screen .code-explorer-header-brand > div { display: none !important; }
+  .code-explorer-screen .code-explorer-header-brand { flex: 0 0 34px !important; }
+  .code-explorer-screen .code-explorer-header-brand > .ghost-btn,
+  .code-explorer-screen .code-explorer-leaderboard-btn,
+  .code-explorer-screen .code-explorer-audio-menu-toggle,
+  .code-explorer-screen .code-explorer-quick-theme-toggle {
+    flex-basis: 32px !important;
+    width: 32px !important;
+    min-width: 32px !important;
+    height: 32px !important;
+    min-height: 32px !important;
+  }
+  .code-explorer-screen .code-explorer-audio-menu { flex-basis: 32px !important; width: 32px !important; min-width: 32px !important; }
+  .code-explorer-screen .code-explorer-xp-badge,
+  .code-explorer-screen .code-explorer-heart-badge {
+    height: 32px !important;
+    min-height: 32px !important;
+    padding-left: 6px !important;
+    padding-right: 6px !important;
+    font-size: .66rem !important;
+  }
+}
+
+@media (max-width: 315px) {
+  .code-explorer-screen .code-explorer-header-actions { gap: 3px !important; }
+  .code-explorer-screen .code-explorer-xp-badge,
+  .code-explorer-screen .code-explorer-heart-badge { padding-left: 5px !important; padding-right: 5px !important; }
+}
