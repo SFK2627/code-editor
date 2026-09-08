@@ -41095,6 +41095,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     quiz.index = Math.max(0, Math.min(total - 1, Number(quiz.index || 0)));
     const question = questions[quiz.index];
     const selected = quiz.answers[quiz.index];
+    const hasSelection = selected !== null && selected !== undefined;
     const result = quiz.results[quiz.index];
     const reviewed = result !== null && result !== undefined;
     const answeredCount = quiz.results.filter(value => value !== null && value !== undefined).length;
@@ -41114,10 +41115,10 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     }).join('');
     const optionButtons = question.options.map((option, optionIndex) => {
       const classes = ['code-explorer-quick-option'];
-      if (Number(selected) === optionIndex) classes.push('selected');
+      if (hasSelection && Number(selected) === optionIndex) classes.push('selected');
       if (reviewed) {
         if (optionIndex === expected) classes.push('correct');
-        if (Number(selected) === optionIndex && optionIndex !== expected) classes.push('wrong');
+        if (hasSelection && Number(selected) === optionIndex && optionIndex !== expected) classes.push('wrong');
       }
       const disabled = reviewed || hearts.balance <= 0;
       return `<button type="button" class="${classes.join(' ')}" data-explorer-quick-option="${optionIndex}" ${disabled ? 'disabled' : ''}><span class="code-explorer-quick-letter">${String.fromCharCode(65 + optionIndex)}</span><span>${escapeHTML(option)}</span></button>`;
