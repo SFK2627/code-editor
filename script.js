@@ -40454,7 +40454,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   const HEARTS_DEFAULT = 5;
   const HEARTS_MAX = 5;
   const HEART_REFILL_MS = 60 * 60 * 1000;
-  const state = { course: 'html', topicId: '', filter: 'all', progress: null, reader: '', cloudLoaded: false, dashboardCloudLoading: false, saveTimer: null, heartTimer: null, profileUnsub: null, finalAnswers: {}, quickQuiz: { topicId: '', index: 0, answers: [], submitted: false } };
+  const state = { course: 'html', topicId: '', filter: 'all', progress: null, reader: '', cloudLoaded: false, dashboardCloudLoading: false, saveTimer: null, heartTimer: null, profileUnsub: null, finalAnswers: {}, quickQuiz: { topicId: '', index: 0, answers: [], results: [], submitted: false }, quickAdvanceTimer: null, justUnlockedTopicId: '', justUnlockedCourse: '' };
 
   function normalizeHeartState(input = {}) {
     const source = input && typeof input === 'object' ? input : {};
@@ -40546,6 +40546,22 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     scheduleCloudSave();
     renderHeartStatus();
     return spent;
+  }
+
+  function animateHeartLoss() {
+    if (!dom.heartBadge) return;
+    dom.heartBadge.classList.remove('heart-loss');
+    void dom.heartBadge.offsetWidth;
+    dom.heartBadge.classList.add('heart-loss');
+    const rect = dom.heartBadge.getBoundingClientRect();
+    const floater = document.createElement('span');
+    floater.className = 'code-explorer-heart-loss-float';
+    floater.textContent = '−1 ❤️';
+    floater.style.left = `${Math.max(12, rect.left + rect.width / 2 - 24)}px`;
+    floater.style.top = `${Math.max(12, rect.top + rect.height / 2)}px`;
+    document.body.appendChild(floater);
+    window.setTimeout(() => floater.remove(), 950);
+    window.setTimeout(() => dom.heartBadge?.classList.remove('heart-loss'), 700);
   }
 
   function heartOutMessage() {
@@ -40756,6 +40772,59 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     return courseProgressFor(state.progress, key);
   }
 
+  function prerequisiteCourseKey(key) {
+    if (key === 'css') return 'html';
+    if (key === 'js') return 'css';
+    return '';
+  }
+
+  function isCourseUnlocked(key, progress = state.progress) {
+    if (key === 'html') return true;
+    if (progress?.courses?.[key]?.certificate?.issuedAt) return true;
+    const required = prerequisiteCourseKey(key);
+    return Boolean(required && progress?.courses?.[required]?.certificate?.issuedAt);
+  }
+
+  function courseLockMessage(key) {
+    const required = prerequisiteCourseKey(key);
+    if (!required) return '';
+    return `Earn your ${COURSES[required].title} certificate first to unlock ${COURSES[key].title}.`;
+  }
+
+  function isTopicUnlocked(courseKey, topicIndex, progress = state.progress) {
+    if (!isCourseUnlocked(courseKey, progress)) return false;
+    const course = COURSES[courseKey];
+    if (!course || topicIndex < 0 || topicIndex >= course.topics.length) return false;
+    const records = progress?.courses?.[courseKey]?.topics || {};
+    const currentRecord = records[course.topics[topicIndex].id] || {};
+    if (currentRecord.completedAt) return true; // Preserve completed legacy work for review.
+    if (topicIndex === 0) return true;
+    for (let index = 0; index < topicIndex; index += 1) {
+      if (!records[course.topics[index].id]?.completedAt) return false;
+    }
+    return true;
+  }
+
+  function firstAvailableTopic(courseKey, preferredId = '') {
+    const course = COURSES[courseKey];
+    if (!course) return null;
+    const preferredIndex = course.topics.findIndex(item => item.id === preferredId);
+    if (preferredIndex >= 0 && isTopicUnlocked(courseKey, preferredIndex)) return course.topics[preferredIndex];
+    const records = state.progress?.courses?.[courseKey]?.topics || {};
+    const next = course.topics.find((item, index) => isTopicUnlocked(courseKey, index) && !records[item.id]?.completedAt);
+    if (next) return next;
+    const completed = course.topics.slice().reverse().find((item, reverseIndex) => {
+      const index = course.topics.length - 1 - reverseIndex;
+      return isTopicUnlocked(courseKey, index) && records[item.id]?.completedAt;
+    });
+    return completed || course.topics[0];
+  }
+
+  function nextCourseKey(key) {
+    const index = COURSE_KEYS.indexOf(key);
+    return index >= 0 && index < COURSE_KEYS.length - 1 ? COURSE_KEYS[index + 1] : '';
+  }
+
   function explorerXpFor(progress) {
     return COURSE_KEYS.reduce((sum, key) => sum + courseProgressFor(progress, key).completed * 10 + (progress?.courses?.[key]?.final?.passed ? 50 : 0), 0);
   }
@@ -40875,15 +40944,20 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       const course = COURSES[key];
       const stats = courseProgress(key);
       const cert = state.progress.courses[key].certificate || {};
-      const isActive = key === state.course;
-      return `<button type="button" class="code-explorer-course-card ${isActive ? 'active' : ''}" data-explorer-course="${key}" style="--course-accent:${course.accent}" aria-pressed="${isActive ? 'true' : 'false'}">
-        <span class="code-explorer-course-mobile-tab" aria-hidden="true"><span class="code-explorer-course-mobile-check">${isActive ? '✓' : ''}</span><strong>${escapeHTML(course.short)}</strong><small>${stats.percent}%</small></span>
-        <span class="code-explorer-course-icon">${course.icon}</span>
-        <span class="code-explorer-course-copy"><strong>${escapeHTML(course.title)}</strong><small>${escapeHTML(course.description)}</small></span>
-        <span class="code-explorer-course-progress"><i style="width:${stats.percent}%"></i></span>
-        <span class="code-explorer-course-foot"><b>${stats.percent}%</b><small>${stats.completed}/${stats.total} topics</small>${cert.issuedAt ? '<em>🏅 Certified</em>' : ''}<span class="code-explorer-course-selected" aria-hidden="true">✓ Selected</span></span>
+      const unlocked = isCourseUnlocked(key);
+      const isActive = key === state.course && unlocked;
+      const required = prerequisiteCourseKey(key);
+      const lockCopy = !unlocked && required ? `Earn ${COURSES[required].short} certificate to unlock` : '';
+      const justUnlocked = state.justUnlockedCourse === key;
+      return `<button type="button" class="code-explorer-course-card ${isActive ? 'active' : ''} ${unlocked ? '' : 'locked'} ${justUnlocked ? 'just-unlocked' : ''}" data-explorer-course="${key}" style="--course-accent:${course.accent}" aria-pressed="${isActive ? 'true' : 'false'}" aria-disabled="${unlocked ? 'false' : 'true'}" title="${escapeAttribute(unlocked ? course.title : lockCopy)}">
+        <span class="code-explorer-course-mobile-tab" aria-hidden="true"><span class="code-explorer-course-mobile-check">${unlocked ? (isActive ? '✓' : '') : '🔒'}</span><strong>${escapeHTML(course.short)}</strong><small>${unlocked ? `${stats.percent}%` : 'Locked'}</small></span>
+        <span class="code-explorer-course-icon">${unlocked ? course.icon : '🔒'}</span>
+        <span class="code-explorer-course-copy"><strong>${escapeHTML(course.title)}</strong><small>${escapeHTML(unlocked ? course.description : lockCopy)}</small></span>
+        <span class="code-explorer-course-progress"><i style="width:${unlocked ? stats.percent : 0}%"></i></span>
+        <span class="code-explorer-course-foot"><b>${unlocked ? `${stats.percent}%` : '🔒'}</b><small>${unlocked ? `${stats.completed}/${stats.total} topics` : lockCopy}</small>${cert.issuedAt ? '<em>🏅 Certified</em>' : ''}<span class="code-explorer-course-selected" aria-hidden="true">✓ Selected</span></span>
       </button>`;
     }).join('');
+    if (state.justUnlockedCourse) window.setTimeout(() => { state.justUnlockedCourse = ''; renderCourseCards(); }, 1800);
   }
 
   function renderTopicList() {
@@ -40902,12 +40976,16 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     dom.topicList.innerHTML = filtered.map(item => {
       const index = course.topics.findIndex(topicItem => topicItem.id === item.id);
       const record = state.progress.courses[state.course].topics[item.id] || {};
-      const status = topicStatus(record);
-      const icon = status === 'complete' ? '✓' : status === 'progress' ? '•' : String(index + 1);
-      return `<button type="button" class="code-explorer-topic-item ${item.id === state.topicId ? 'active' : ''} ${status}" data-explorer-topic="${escapeAttribute(item.id)}">
-        <span>${icon}</span><span><strong>${escapeHTML(item.title)}</strong><small>${escapeHTML(item.level)} · ${estimatedTopicMinutes(item)} min</small></span>
+      const unlocked = isTopicUnlocked(state.course, index);
+      const status = unlocked ? topicStatus(record) : 'locked';
+      const icon = !unlocked ? '🔒' : status === 'complete' ? '✓' : status === 'progress' ? '•' : String(index + 1);
+      const justUnlocked = state.justUnlockedTopicId === item.id;
+      const detail = unlocked ? `${escapeHTML(item.level)} · ${estimatedTopicMinutes(item)} min` : 'Complete the previous topic first';
+      return `<button type="button" class="code-explorer-topic-item ${item.id === state.topicId ? 'active' : ''} ${status} ${justUnlocked ? 'just-unlocked' : ''}" data-explorer-topic="${escapeAttribute(item.id)}" aria-disabled="${unlocked ? 'false' : 'true'}" title="${unlocked ? '' : 'Complete the previous topic first'}">
+        <span>${icon}</span><span><strong>${escapeHTML(item.title)}</strong><small>${detail}</small></span>
       </button>`;
     }).join('') || '<div class="code-explorer-topic-empty">No topics match this filter.</div>';
+    if (state.justUnlockedTopicId) window.setTimeout(() => { state.justUnlockedTopicId = ''; renderTopicList(); }, 1800);
   }
 
   function currentTopic() {
@@ -40961,11 +41039,22 @@ window.MCS_PHONE_MENU_STATUS = () => ({
 
   function updateTopicCompletion(item = currentTopic()) {
     const record = topicRecord();
-    if (record.practicePassed && record.quizPassed && !record.completedAt) {
+    const wasCompleted = Boolean(record.completedAt);
+    if (record.practicePassed && record.quizFivePassed && !record.completedAt) {
       record.completedAt = new Date().toISOString();
+      const course = COURSES[state.course];
+      const index = course.topics.findIndex(entry => entry.id === item.id);
+      if (index >= 0 && index < course.topics.length - 1) state.justUnlockedTopicId = course.topics[index + 1].id;
       scheduleCloudSave();
     }
     const completed = Boolean(record.completedAt);
+    const course = COURSES[state.course];
+    const currentIndex = course.topics.findIndex(entry => entry.id === item.id);
+    if (dom.nextBtn && currentIndex >= 0) {
+      const hasNext = currentIndex < course.topics.length - 1;
+      dom.nextBtn.disabled = !hasNext || !completed;
+      dom.nextBtn.textContent = !hasNext ? 'Course topics complete ✓' : (completed ? 'Next Topic →' : '🔒 Pass this topic first');
+    }
     dom.completeCard?.classList.toggle('hidden', !completed);
     if (dom.topicStatus) {
       dom.topicStatus.textContent = completed ? '✓ Completed' : (record.practicePassed || record.quizPassed ? 'In progress' : 'Not started');
@@ -40981,15 +41070,17 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     if (!item) return null;
     const questions = buildQuickCheckQuestions(COURSES[state.course], item);
     if (!state.quickQuiz || state.quickQuiz.topicId !== item.id || state.quickQuiz.answers.length !== questions.length) {
-      state.quickQuiz = { topicId: item.id, index: 0, answers: Array(questions.length).fill(null), submitted: false };
+      state.quickQuiz = { topicId: item.id, index: 0, answers: Array(questions.length).fill(null), results: Array(questions.length).fill(null), submitted: false };
     }
+    if (!Array.isArray(state.quickQuiz.results) || state.quickQuiz.results.length !== questions.length) state.quickQuiz.results = Array(questions.length).fill(null);
     return { quiz: state.quickQuiz, questions };
   }
 
   function resetQuickQuiz(item = currentTopic()) {
     if (!item) return;
+    clearTimeout(state.quickAdvanceTimer);
     const questions = buildQuickCheckQuestions(COURSES[state.course], item);
-    state.quickQuiz = { topicId: item.id, index: 0, answers: Array(questions.length).fill(null), submitted: false };
+    state.quickQuiz = { topicId: item.id, index: 0, answers: Array(questions.length).fill(null), results: Array(questions.length).fill(null), submitted: false };
     dom.quizFeedback?.classList.add('hidden');
     if (dom.quizFeedback) dom.quizFeedback.textContent = '';
     renderQuickQuiz();
@@ -41004,31 +41095,40 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     quiz.index = Math.max(0, Math.min(total - 1, Number(quiz.index || 0)));
     const question = questions[quiz.index];
     const selected = quiz.answers[quiz.index];
-    const answeredCount = quiz.answers.filter(value => value !== null && value !== undefined).length;
+    const result = quiz.results[quiz.index];
+    const reviewed = result !== null && result !== undefined;
+    const answeredCount = quiz.results.filter(value => value !== null && value !== undefined).length;
     const expected = Number(question.answer);
     const progressPercent = Math.round((answeredCount / total) * 100);
+    const hearts = currentHeartSnapshot();
+    const firstUnanswered = quiz.results.findIndex(value => value === null || value === undefined);
     const stepButtons = questions.map((entry, index) => {
-      const answer = quiz.answers[index];
-      const answered = answer !== null && answer !== undefined;
+      const answerResult = quiz.results[index];
+      const answered = answerResult !== null && answerResult !== undefined;
+      const canVisit = answered || index === firstUnanswered || (firstUnanswered < 0 && index === total - 1);
       const classes = ['code-explorer-quick-step'];
       if (index === quiz.index) classes.push('current');
-      if (answered) classes.push('answered');
-      if (quiz.submitted && answered) classes.push(Number(answer) === Number(entry.answer) ? 'correct' : 'wrong');
-      return `<button type="button" class="${classes.join(' ')}" data-explorer-quick-jump="${index}" aria-label="Question ${index + 1}">${index + 1}</button>`;
+      if (answered) classes.push(answerResult ? 'correct' : 'wrong');
+      if (!canVisit) classes.push('locked');
+      return `<button type="button" class="${classes.join(' ')}" data-explorer-quick-jump="${index}" aria-label="Question ${index + 1}" ${canVisit ? '' : 'disabled'}>${answered ? (answerResult ? '✓' : '×') : index + 1}</button>`;
     }).join('');
     const optionButtons = question.options.map((option, optionIndex) => {
       const classes = ['code-explorer-quick-option'];
       if (Number(selected) === optionIndex) classes.push('selected');
-      if (quiz.submitted) {
+      if (reviewed) {
         if (optionIndex === expected) classes.push('correct');
         if (Number(selected) === optionIndex && optionIndex !== expected) classes.push('wrong');
       }
-      return `<button type="button" class="${classes.join(' ')}" data-explorer-quick-option="${optionIndex}" ${quiz.submitted ? 'disabled' : ''}><span class="code-explorer-quick-letter">${String.fromCharCode(65 + optionIndex)}</span><span>${escapeHTML(option)}</span></button>`;
+      const disabled = reviewed || hearts.balance <= 0;
+      return `<button type="button" class="${classes.join(' ')}" data-explorer-quick-option="${optionIndex}" ${disabled ? 'disabled' : ''}><span class="code-explorer-quick-letter">${String.fromCharCode(65 + optionIndex)}</span><span>${escapeHTML(option)}</span></button>`;
     }).join('');
+    const instantFeedback = reviewed
+      ? `<div class="code-explorer-instant-feedback ${result ? 'correct' : 'wrong'}"><strong>${result ? '✓ Correct!' : '✕ Not quite'}</strong><span>${result ? 'Nice work — that answer is correct.' : `Correct answer: ${escapeHTML(question.options[expected])}. ❤️ −1 heart`}</span></div>`
+      : (hearts.balance <= 0 ? `<div class="code-explorer-instant-feedback hearts-empty"><strong>❤️ Out of hearts</strong><span>Next heart in ${escapeHTML(formatHeartCountdown(hearts.nextInMs))}. You can keep reviewing this topic while you wait.</span></div>` : '');
     dom.quizOptions.innerHTML = `
-      <div class="code-explorer-quick-shell">
+      <div class="code-explorer-quick-shell ${reviewed ? (result ? 'answer-correct' : 'answer-wrong') : ''}">
         <div class="code-explorer-quick-progress-head">
-          <div><strong>Question ${quiz.index + 1} of ${total}</strong><span>${answeredCount}/${total} answered · 4/5 to pass · ❤️ 1 per wrong scored answer</span></div>
+          <div><strong>Question ${quiz.index + 1} of ${total}</strong><span>${answeredCount}/${total} checked · 4/5 to pass · instant feedback</span></div>
           <div class="code-explorer-quick-steps" aria-label="Quick Check questions">${stepButtons}</div>
         </div>
         <div class="code-explorer-quick-progress-track"><span style="width:${progressPercent}%"></span></div>
@@ -41036,42 +41136,100 @@ window.MCS_PHONE_MENU_STATUS = () => ({
           <div class="code-explorer-quick-question-kicker">Quick Check ${quiz.index + 1}</div>
           <h4>${escapeHTML(question.q)}</h4>
           <div class="code-explorer-quick-option-list">${optionButtons}</div>
+          ${instantFeedback}
         </section>
         <div class="code-explorer-quick-nav">
           <button type="button" class="secondary-btn" data-explorer-quick-prev ${quiz.index <= 0 ? 'disabled' : ''}>← Previous</button>
-          <span>${selected === null || selected === undefined ? 'Choose an answer to continue.' : (quiz.submitted ? 'Answer reviewed.' : 'Answer saved.')}</span>
-          <button type="button" class="secondary-btn" data-explorer-quick-next ${quiz.index >= total - 1 ? 'disabled' : ''}>Next →</button>
+          <span>${reviewed ? (result ? 'Correct answer checked.' : 'Wrong answer checked · heart updated.') : (hearts.balance <= 0 ? 'Wait for a heart to continue.' : 'Choose one answer. It will be checked immediately.')}</span>
+          <button type="button" class="secondary-btn" data-explorer-quick-next ${quiz.index >= total - 1 || !reviewed ? 'disabled' : ''}>Next →</button>
         </div>
       </div>`;
     if (dom.quizSubmitBtn) {
-      const hearts = currentHeartSnapshot();
-      const checkingBlocked = !quiz.submitted && answeredCount >= total && hearts.balance <= 0;
-      dom.quizSubmitBtn.disabled = !quiz.submitted && (answeredCount < total || checkingBlocked);
-      dom.quizSubmitBtn.textContent = quiz.submitted
-        ? '↻ Retake 5 Questions'
-        : (answeredCount < total ? `Answer ${total - answeredCount} More` : (checkingBlocked ? `❤️ Next heart in ${formatHeartCountdown(hearts.nextInMs)}` : '✓ Check 5 Answers'));
+      dom.quizSubmitBtn.classList.toggle('hidden', !quiz.submitted);
+      dom.quizSubmitBtn.disabled = false;
+      dom.quizSubmitBtn.textContent = '↻ Retake 5 Questions';
     }
   }
 
-  function selectQuickQuizOption(optionIndex) {
-    const pack = ensureQuickQuizState();
-    if (!pack || pack.quiz.submitted) return;
-    pack.quiz.answers[pack.quiz.index] = Number(optionIndex);
+  function finalizeQuickQuizAttempt(item, pack) {
+    const { quiz, questions } = pack;
+    if (quiz.submitted || quiz.results.some(value => value === null || value === undefined)) return;
+    quiz.submitted = true;
+    const record = topicRecord();
+    const correct = quiz.results.filter(Boolean).length;
+    const score = Math.round(correct / questions.length * 100);
+    const passed = correct >= 4;
+    record.quizAttempts = Number(record.quizAttempts || 0) + 1;
+    record.quizLastCorrect = correct;
+    record.quizLastScore = score;
+    record.quizAnsweredAt = new Date().toISOString();
+    if (correct > Number(record.quizBestCorrect || 0)) record.quizBestCorrect = correct;
+    record.quizBestScore = Math.max(Number(record.quizBestScore || 0), Math.round(Number(record.quizBestCorrect || 0) / 5 * 100));
+    if (passed) { record.quizPassed = true; record.quizFivePassed = true; }
+    dom.quizFeedback.classList.remove('hidden');
+    dom.quizFeedback.dataset.type = passed ? 'success' : 'warning';
+    dom.quizFeedback.innerHTML = passed
+      ? `<strong>🎉 ${correct}/5 — Quick Check passed!</strong><span>${record.practicePassed ? 'Coding practice is also passed, so this topic is complete.' : 'Now pass the coding practice to unlock the next topic.'}</span>`
+      : `<strong>${correct}/5 — Keep going.</strong><span>You need at least 4/5. Review the answers, then retake when you have enough hearts.</span>`;
+    dom.quizBadge.textContent = record.quizFivePassed ? `✓ Passed · Best ${record.quizBestCorrect}/5` : `Best ${record.quizBestCorrect}/5`;
+    dom.quizBadge.dataset.state = record.quizFivePassed ? 'complete' : '';
+    scheduleCloudSave();
+    updateTopicCompletion(item);
     renderQuickQuiz();
+  }
+
+  function selectQuickQuizOption(optionIndex) {
+    const item = currentTopic();
+    const pack = ensureQuickQuizState(item);
+    if (!pack || pack.quiz.submitted) return;
+    const { quiz, questions } = pack;
+    const index = quiz.index;
+    if (quiz.results[index] !== null && quiz.results[index] !== undefined) return;
+    applyHeartRefill(state.progress, { persist: true });
+    if (currentHeartSnapshot().balance <= 0) {
+      dom.quizFeedback.classList.remove('hidden');
+      dom.quizFeedback.dataset.type = 'warning';
+      dom.quizFeedback.textContent = heartOutMessage();
+      renderQuickQuiz();
+      return;
+    }
+    const selected = Number(optionIndex);
+    const correct = selected === Number(questions[index].answer);
+    quiz.answers[index] = selected;
+    quiz.results[index] = correct;
+    if (!correct) { spendHearts(1); animateHeartLoss(); }
+    renderQuickQuiz();
+    scheduleCloudSave();
+    const finished = quiz.results.every(value => value !== null && value !== undefined);
+    if (finished) {
+      finalizeQuickQuizAttempt(item, pack);
+      return;
+    }
+    clearTimeout(state.quickAdvanceTimer);
+    state.quickAdvanceTimer = window.setTimeout(() => {
+      if (state.quickQuiz !== quiz || quiz.submitted || quiz.index !== index) return;
+      quiz.index = Math.min(questions.length - 1, index + 1);
+      renderQuickQuiz();
+    }, correct ? 800 : 1250);
   }
 
   function moveQuickQuiz(delta) {
     const pack = ensureQuickQuizState();
     if (!pack) return;
-    const nextIndex = Math.max(0, Math.min(pack.questions.length - 1, pack.quiz.index + Number(delta || 0)));
-    pack.quiz.index = nextIndex;
+    const candidate = Math.max(0, Math.min(pack.questions.length - 1, pack.quiz.index + Number(delta || 0)));
+    if (candidate > pack.quiz.index && (pack.quiz.results[pack.quiz.index] === null || pack.quiz.results[pack.quiz.index] === undefined)) return;
+    pack.quiz.index = candidate;
     renderQuickQuiz();
   }
 
   function jumpQuickQuiz(index) {
     const pack = ensureQuickQuizState();
     if (!pack) return;
-    pack.quiz.index = Math.max(0, Math.min(pack.questions.length - 1, Number(index || 0)));
+    const target = Math.max(0, Math.min(pack.questions.length - 1, Number(index || 0)));
+    const firstUnanswered = pack.quiz.results.findIndex(value => value === null || value === undefined);
+    const allowed = pack.quiz.results[target] !== null && pack.quiz.results[target] !== undefined || target === firstUnanswered || firstUnanswered < 0;
+    if (!allowed) return;
+    pack.quiz.index = target;
     renderQuickQuiz();
   }
 
@@ -41102,7 +41260,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     dom.practiceFeedback.classList.add('hidden');
     dom.practiceFeedback.textContent = '';
     dom.quizQuestion.textContent = '5-question Quick Check';
-    state.quickQuiz = { topicId: item.id, index: 0, answers: Array(buildQuickCheckQuestions(course, item).length).fill(null), submitted: false };
+    state.quickQuiz = { topicId: item.id, index: 0, answers: Array(buildQuickCheckQuestions(course, item).length).fill(null), results: Array(buildQuickCheckQuestions(course, item).length).fill(null), submitted: false };
     renderQuickQuiz();
     if (record.quizFivePassed) {
       dom.quizBadge.textContent = `✓ Passed · Best ${Number(record.quizBestCorrect || 0)}/5`;
@@ -41117,18 +41275,26 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     dom.quizFeedback.classList.add('hidden');
     dom.quizFeedback.textContent = '';
     dom.prevBtn.disabled = index <= 0;
-    dom.nextBtn.disabled = index >= course.topics.length - 1;
+    const topicComplete = Boolean(record.completedAt);
+    const hasNext = index < course.topics.length - 1;
+    dom.nextBtn.disabled = !hasNext || !topicComplete;
+    dom.nextBtn.textContent = !hasNext ? 'Course topics complete ✓' : (topicComplete ? 'Next Topic →' : '🔒 Pass this topic first');
     runPractice();
     updateTopicCompletion(item);
     queueStudentPresenceUpdate?.({ currentView: 'code-explorer', activityGroup: 'Code Explorer', activityLabel: `${course.short}: ${item.title}` });
   }
 
-  function selectCourse(key, options = {}) {
-    if (!COURSES[key]) return;
+  async function selectCourse(key, options = {}) {
+    if (!COURSES[key]) return false;
+    if (!isCourseUnlocked(key)) {
+      if (!options.silent) await appAlert(courseLockMessage(key), { title: `${COURSES[key].short} is locked`, icon: '🔒' });
+      renderCourseCards();
+      return false;
+    }
     state.course = key;
     const course = COURSES[key];
     const existingId = options.topicId || state.progress.courses[key].lastTopicId || '';
-    const item = course.topics.find(t => t.id === existingId) || course.topics[0];
+    const item = firstAvailableTopic(key, existingId) || course.topics[0];
     state.topicId = item.id;
     state.progress.courses[key].lastTopicId = item.id;
     scheduleCloudSave();
@@ -41137,17 +41303,25 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     renderTopicList();
     renderTopic();
     renderFinalCard();
+    return true;
   }
 
-  function selectTopic(id) {
+  async function selectTopic(id, options = {}) {
     const course = COURSES[state.course];
-    if (!course.topics.some(item => item.id === id)) return;
+    const index = course.topics.findIndex(item => item.id === id);
+    if (index < 0) return false;
+    if (!isTopicUnlocked(state.course, index)) {
+      if (!options.silent) await appAlert('Complete and pass the previous topic first. Each topic requires the coding practice and at least 4/5 on the Quick Check.', { title: 'Topic locked', icon: '🔒' });
+      renderTopicList();
+      return false;
+    }
     state.topicId = id;
     state.progress.courses[state.course].lastTopicId = id;
     scheduleCloudSave();
     renderTopicList();
     renderTopic();
     dom.lessonPanel?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+    return true;
   }
 
   function renderFinalCard() {
@@ -41202,8 +41376,8 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     }
     startHeartTicker();
     await startExplorerProfileListener();
-    const preferredCourse = COURSE_KEYS.find(key => state.progress.courses[key]?.lastTopicId) || state.course || 'html';
-    selectCourse(preferredCourse, { topicId: state.progress.courses[preferredCourse]?.lastTopicId });
+    const preferredCourse = COURSE_KEYS.find(key => isCourseUnlocked(key) && state.progress.courses[key]?.lastTopicId) || (isCourseUnlocked(state.course) ? state.course : 'html');
+    await selectCourse(preferredCourse, { topicId: state.progress.courses[preferredCourse]?.lastTopicId, silent: true });
     renderCertificates();
     window.scrollTo({ top: 0, behavior: 'auto' });
     queueStudentPresenceUpdate?.({ currentView: 'code-explorer', activityGroup: 'Code Explorer', activityLabel: 'Exploring code lessons' }, { force: true });
@@ -41220,72 +41394,13 @@ window.MCS_PHONE_MENU_STATUS = () => ({
 
   function submitTopicQuiz() {
     const item = currentTopic();
-    const record = topicRecord();
     const pack = ensureQuickQuizState(item);
     if (!pack) return;
-    const { quiz, questions } = pack;
-
-    if (quiz.submitted) {
+    if (pack.quiz.submitted) {
       resetQuickQuiz(item);
+      dom.quizBadge.textContent = topicRecord().quizFivePassed ? `✓ Passed · Best ${Number(topicRecord().quizBestCorrect || 0)}/5` : `Best ${Number(topicRecord().quizBestCorrect || 0)}/5`;
       return;
     }
-
-    const firstUnanswered = quiz.answers.findIndex(value => value === null || value === undefined);
-    if (firstUnanswered >= 0) {
-      quiz.index = firstUnanswered;
-      renderQuickQuiz();
-      dom.quizFeedback.classList.remove('hidden');
-      dom.quizFeedback.dataset.type = 'warning';
-      dom.quizFeedback.textContent = `Answer question ${firstUnanswered + 1} before checking your score.`;
-      return;
-    }
-
-    applyHeartRefill(state.progress, { persist: true });
-    if (currentHeartSnapshot().balance <= 0) {
-      dom.quizFeedback.classList.remove('hidden');
-      dom.quizFeedback.dataset.type = 'warning';
-      dom.quizFeedback.textContent = heartOutMessage();
-      renderQuickQuiz();
-      return;
-    }
-
-    let correct = 0;
-    quiz.answers.forEach((answer, questionIndex) => {
-      if (Number(answer) === Number(questions[questionIndex].answer)) correct += 1;
-    });
-
-    quiz.submitted = true;
-    const score = Math.round(correct / questions.length * 100);
-    const passed = correct >= 4;
-    const wrongCount = Math.max(0, questions.length - correct);
-    const heartsSpent = spendHearts(wrongCount);
-    record.quizAttempts = Number(record.quizAttempts || 0) + 1;
-    record.quizLastCorrect = correct;
-    record.quizLastScore = score;
-    record.quizAnsweredAt = new Date().toISOString();
-    if (correct > Number(record.quizBestCorrect || 0)) record.quizBestCorrect = correct;
-    record.quizBestScore = Math.max(Number(record.quizBestScore || 0), Math.round(Number(record.quizBestCorrect || 0) / 5 * 100));
-    if (passed) { record.quizPassed = true; record.quizFivePassed = true; }
-
-    dom.quizFeedback.classList.remove('hidden');
-    dom.quizFeedback.dataset.type = passed ? 'success' : 'warning';
-    const heartNote = wrongCount === 0
-      ? ' Perfect score — no hearts used.'
-      : ` ${wrongCount} wrong answer${wrongCount === 1 ? '' : 's'} · ${heartsSpent} heart${heartsSpent === 1 ? '' : 's'} used${heartsSpent < wrongCount ? ' before your balance reached 0' : ''}.`;
-    dom.quizFeedback.textContent = (passed
-      ? `${correct}/5 — Passed! You met the 4/5 Quick Check requirement.`
-      : (record.quizPassed && !record.quizFivePassed
-        ? `${correct}/5 on the new 5-question check. Your previous topic completion is kept, but score at least 4/5 to pass the new Quick Check format.`
-        : `${correct}/5 — Keep going. Review each question, then retake when you're ready. You need at least 4/5.`)) + heartNote;
-    dom.quizBadge.textContent = record.quizFivePassed
-      ? `✓ Passed · Best ${record.quizBestCorrect}/5`
-      : (record.quizPassed ? `✓ Previous pass · New best ${record.quizBestCorrect}/5` : `Best ${record.quizBestCorrect}/5`);
-    dom.quizBadge.dataset.state = record.quizPassed ? 'complete' : '';
-    renderQuickQuiz();
-    renderHeartStatus();
-    renderFinalCard();
-    scheduleCloudSave();
-    updateTopicCompletion(item);
   }
 
   function checkPractice() {
@@ -41390,7 +41505,12 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       lastAttemptAt: new Date().toISOString(),
       passedAt: courseState.final?.passedAt || (passed ? new Date().toISOString() : '')
     };
-    if (passed) ensureCertificate(state.course);
+    let unlockedCourse = '';
+    if (passed) {
+      ensureCertificate(state.course);
+      const candidate = nextCourseKey(state.course);
+      if (candidate && isCourseUnlocked(candidate)) { unlockedCourse = candidate; state.justUnlockedCourse = candidate; }
+    }
     scheduleCloudSave();
     renderTopProgress();
     renderCourseCards();
@@ -41402,7 +41522,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       ? 'Perfect score — no hearts used.'
       : `${wrongCount} wrong answer${wrongCount === 1 ? '' : 's'} · ${heartsSpent} heart${heartsSpent === 1 ? '' : 's'} used${heartsSpent < wrongCount ? ' before your balance reached 0' : ''}.`;
     dom.finalResult.innerHTML = passed
-      ? `<strong>🎉 Passed! ${score}%</strong><span>Your ${escapeHTML(course.title)} certificate is unlocked. ${escapeHTML(heartNote)}</span>`
+      ? `<strong>🎉 Passed! ${score}%</strong><span>Your ${escapeHTML(course.title)} certificate is unlocked. ${escapeHTML(heartNote)}${unlockedCourse ? ` ${escapeHTML(COURSES[unlockedCourse].icon)} ${escapeHTML(COURSES[unlockedCourse].title)} is now unlocked!` : ''}</span>`
       : `<strong>${score}% · Keep going</strong><span>You need 80% to pass. ${escapeHTML(heartNote)}</span>`;
     dom.finalSubmitBtn.textContent = passed ? '🏅 View Certificate' : 'Try Again';
     dom.finalSubmitBtn.dataset.passed = passed ? 'true' : 'false';
