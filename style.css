@@ -58909,49 +58909,95 @@ html[data-theme="dark"] .code-explorer-leaderboard-row.section-row.top-ten.you {
 
 
 /* ================================================================
-   v382 - Admin-controlled leaderboard section visibility
+   v387 — Section leaderboard card spacing / outline fix
+   Prevents YOUR SECTION badge + meta line from colliding with the
+   bottom border on phone layouts. Keeps AVG XP fixed at the right.
    ================================================================ */
-.code-explorer-admin-leaderboard-settings {
-  margin-top: 16px;
-  padding: 18px;
-  border: 1px solid rgba(37,99,235,.18);
-  border-radius: 20px;
-  background: linear-gradient(135deg,rgba(239,246,255,.96),rgba(255,255,255,.98));
-  box-shadow: 0 10px 28px rgba(15,23,42,.055);
+.code-explorer-leaderboard-row.section-row {
+  min-height: 72px;
+  padding-top: 11px;
+  padding-bottom: 11px;
 }
-.code-explorer-admin-leaderboard-settings-head { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; }
-.code-explorer-admin-setting-kicker { display:block; margin-bottom:4px; color:#2563eb; font-size:.72rem; font-weight:900; letter-spacing:.06em; text-transform:uppercase; }
-.code-explorer-admin-leaderboard-settings h4 { margin:0 0 6px; color:#0f172a; font-size:1.05rem; }
-.code-explorer-admin-leaderboard-settings-head p { max-width:820px; margin:0; color:#64748b; font-size:.82rem; line-height:1.5; }
-.code-explorer-admin-leaderboard-settings-pill { flex:0 0 auto; display:inline-flex; align-items:center; min-height:34px; padding:7px 11px; border-radius:999px; border:1px solid #bfdbfe; background:#eff6ff; color:#1d4ed8; font-size:.72rem; font-weight:900; white-space:nowrap; }
-.code-explorer-admin-leaderboard-settings-actions { display:flex; gap:8px; margin-top:14px; }
-.code-explorer-admin-leaderboard-section-list { display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:9px; margin-top:10px; }
-.code-explorer-admin-leaderboard-section-option { display:grid; grid-template-columns:auto minmax(0,1fr) auto; align-items:center; gap:10px; min-height:58px; padding:10px 12px; border:1px solid #bfdbfe; border-radius:14px; background:#fff; cursor:pointer; }
-.code-explorer-admin-leaderboard-section-option.excluded { border-color:#d8e0ea; background:#f8fafc; opacity:.72; }
-.code-explorer-admin-leaderboard-section-option input { width:18px; height:18px; accent-color:#2563eb; }
-.code-explorer-admin-leaderboard-section-option span { min-width:0; }
-.code-explorer-admin-leaderboard-section-option strong { display:block; overflow:hidden; color:#0f172a; font-size:.84rem; text-overflow:ellipsis; white-space:nowrap; }
-.code-explorer-admin-leaderboard-section-option small { display:block; margin-top:3px; color:#64748b; font-size:.7rem; }
-.code-explorer-admin-leaderboard-section-option b { color:#15803d; font-size:.68rem; font-weight:900; }
-.code-explorer-admin-leaderboard-section-option.excluded b { color:#64748b; }
-.code-explorer-admin-leaderboard-settings-foot { display:flex; align-items:center; justify-content:space-between; gap:14px; margin-top:14px; }
-.code-explorer-admin-leaderboard-settings-foot .helper-note { margin:0; }
-.code-explorer-admin-leaderboard-empty { grid-column:1 / -1; padding:14px; border:1px dashed #cbd5e1; border-radius:14px; color:#64748b; background:#f8fafc; font-size:.8rem; }
-html[data-theme="dark"] .code-explorer-admin-leaderboard-settings { border-color:#2b4163; background:linear-gradient(135deg,#111d33,#151f31); }
-html[data-theme="dark"] .code-explorer-admin-leaderboard-settings h4,
-html[data-theme="dark"] .code-explorer-admin-leaderboard-section-option strong { color:#f8fafc; }
-html[data-theme="dark"] .code-explorer-admin-leaderboard-settings-head p,
-html[data-theme="dark"] .code-explorer-admin-leaderboard-section-option small { color:#aebed5; }
-html[data-theme="dark"] .code-explorer-admin-leaderboard-settings-pill { border-color:#31568c; background:#132b4f; color:#bfdbfe; }
-html[data-theme="dark"] .code-explorer-admin-leaderboard-section-option { border-color:#304763; background:#121e31; }
-html[data-theme="dark"] .code-explorer-admin-leaderboard-section-option.excluded { border-color:#26384f; background:#0e1828; }
-html[data-theme="dark"] .code-explorer-admin-leaderboard-empty { border-color:#334155; background:#0f172a; color:#aebed5; }
-@media (max-width:760px) {
-  .code-explorer-admin-leaderboard-settings { padding:14px; border-radius:16px; }
-  .code-explorer-admin-leaderboard-settings-head { display:grid; gap:10px; }
-  .code-explorer-admin-leaderboard-settings-pill { justify-self:start; }
-  .code-explorer-admin-leaderboard-section-list { grid-template-columns:1fr; }
-  .code-explorer-admin-leaderboard-settings-actions { display:grid; grid-template-columns:1fr 1fr; }
-  .code-explorer-admin-leaderboard-settings-foot { display:grid; }
-  .code-explorer-admin-leaderboard-settings-foot .primary-btn { width:100%; }
+.code-explorer-leaderboard-row.section-row .code-explorer-leaderboard-person {
+  min-width: 0;
+  gap: 5px;
+  align-self: stretch;
+  justify-content: center;
+}
+.code-explorer-leaderboard-row.section-row .code-explorer-leaderboard-person strong {
+  min-width: 0;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  line-height: 1.18;
+}
+.code-explorer-leaderboard-row.section-row .code-explorer-leaderboard-person small {
+  display: block;
+  line-height: 1.28;
+  white-space: normal;
+}
+.code-explorer-leaderboard-row.section-row .code-explorer-leaderboard-xp {
+  align-self: center;
+  min-width: 62px;
+}
+.code-explorer-leaderboard-row.section-row.you {
+  position: relative;
+  box-shadow: inset 0 0 0 1px rgba(20,184,166,.18), 0 0 0 2px rgba(20,184,166,.11);
+}
+.code-explorer-leaderboard-row.section-row.podium {
+  border-width: 2px;
+}
+
+@media (max-width: 760px) {
+  .code-explorer-leaderboard-row.section-row {
+    grid-template-columns: 44px minmax(0,1fr) 66px;
+    min-height: 78px;
+    padding: 10px 10px;
+    gap: 8px;
+    align-items: center;
+    overflow: visible;
+  }
+  .code-explorer-leaderboard-row.section-row .code-explorer-leaderboard-person {
+    gap: 4px;
+  }
+  .code-explorer-leaderboard-row.section-row .code-explorer-leaderboard-person strong {
+    display: grid;
+    justify-items: start;
+    gap: 4px;
+    font-size: .82rem;
+    line-height: 1.16;
+  }
+  .code-explorer-leaderboard-row.section-row .code-explorer-leaderboard-person strong em {
+    display: inline-flex;
+    width: max-content;
+    max-width: 100%;
+    margin: 0;
+    padding: 2px 7px;
+    line-height: 1.25;
+    vertical-align: 0;
+  }
+  .code-explorer-leaderboard-row.section-row .code-explorer-leaderboard-person small {
+    font-size: .63rem;
+    line-height: 1.3;
+  }
+  .code-explorer-leaderboard-row.section-row .code-explorer-leaderboard-xp {
+    min-width: 62px;
+    align-self: center;
+  }
+  .code-explorer-leaderboard-row.section-row .code-explorer-leaderboard-xp strong {
+    font-size: .78rem;
+  }
+  .code-explorer-leaderboard-row.section-row .code-explorer-leaderboard-xp small {
+    font-size: .52rem;
+  }
+}
+
+@media (max-width: 390px) {
+  .code-explorer-leaderboard-row.section-row {
+    grid-template-columns: 40px minmax(0,1fr) 60px;
+    min-height: 80px;
+    padding-left: 8px;
+    padding-right: 8px;
+    gap: 6px;
+  }
 }
