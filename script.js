@@ -40837,6 +40837,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       const cert = state.progress.courses[key].certificate || {};
       const isActive = key === state.course;
       return `<button type="button" class="code-explorer-course-card ${isActive ? 'active' : ''}" data-explorer-course="${key}" style="--course-accent:${course.accent}" aria-pressed="${isActive ? 'true' : 'false'}">
+        <span class="code-explorer-course-mobile-tab" aria-hidden="true"><span class="code-explorer-course-mobile-check">${isActive ? '✓' : ''}</span><strong>${escapeHTML(course.short)}</strong><small>${stats.percent}%</small></span>
         <span class="code-explorer-course-icon">${course.icon}</span>
         <span class="code-explorer-course-copy"><strong>${escapeHTML(course.title)}</strong><small>${escapeHTML(course.description)}</small></span>
         <span class="code-explorer-course-progress"><i style="width:${stats.percent}%"></i></span>
