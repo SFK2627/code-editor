@@ -40835,11 +40835,12 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       const course = COURSES[key];
       const stats = courseProgress(key);
       const cert = state.progress.courses[key].certificate || {};
-      return `<button type="button" class="code-explorer-course-card ${key === state.course ? 'active' : ''}" data-explorer-course="${key}" style="--course-accent:${course.accent}">
+      const isActive = key === state.course;
+      return `<button type="button" class="code-explorer-course-card ${isActive ? 'active' : ''}" data-explorer-course="${key}" style="--course-accent:${course.accent}" aria-pressed="${isActive ? 'true' : 'false'}">
         <span class="code-explorer-course-icon">${course.icon}</span>
         <span class="code-explorer-course-copy"><strong>${escapeHTML(course.title)}</strong><small>${escapeHTML(course.description)}</small></span>
         <span class="code-explorer-course-progress"><i style="width:${stats.percent}%"></i></span>
-        <span class="code-explorer-course-foot"><b>${stats.percent}%</b><small>${stats.completed}/${stats.total} topics</small>${cert.issuedAt ? '<em>🏅 Certified</em>' : ''}</span>
+        <span class="code-explorer-course-foot"><b>${stats.percent}%</b><small>${stats.completed}/${stats.total} topics</small>${cert.issuedAt ? '<em>🏅 Certified</em>' : ''}<span class="code-explorer-course-selected" aria-hidden="true">✓ Selected</span></span>
       </button>`;
     }).join('');
   }
@@ -41065,7 +41066,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     if (record.quizFivePassed) {
       dom.quizBadge.textContent = `✓ Passed · Best ${Number(record.quizBestCorrect || 0)}/5`;
     } else if (record.quizPassed) {
-      dom.quizBadge.textContent = Number(record.quizBestCorrect || 0) > 0 ? `✓ Previous pass · New best ${record.quizBestCorrect}/5` : '✓ Passed · Previous version';
+      dom.quizBadge.textContent = Number(record.quizBestCorrect || 0) > 0 ? `✓ Passed · Best ${record.quizBestCorrect}/5` : '✓ Passed';
     } else if (Number(record.quizAttempts || 0) > 0) {
       dom.quizBadge.textContent = `Best ${Number(record.quizBestCorrect || 0)}/5`;
     } else {
