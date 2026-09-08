@@ -320,6 +320,8 @@ const givenActivityViewerInstructions = document.getElementById('givenActivityVi
 const givenActivityViewerInstructionsCloseBtn = document.getElementById('givenActivityViewerInstructionsCloseBtn');
 const givenActivityViewerOpenBtn = document.getElementById('givenActivityViewerOpenBtn');
 const givenActivityViewerDownloadBtn = document.getElementById('givenActivityViewerDownloadBtn');
+const givenActivityViewerReadBtn = document.getElementById('givenActivityViewerReadBtn');
+const givenActivityViewerHeartBtn = document.getElementById('givenActivityViewerHeartBtn');
 const givenActivityViewerCloseBtn = document.getElementById('givenActivityViewerCloseBtn');
 const givenActivityViewerBody = document.getElementById('givenActivityViewerBody');
 const lessonViewerScreen = document.getElementById('lessonViewerScreen');
@@ -342,8 +344,10 @@ const lessonPdfCard = document.getElementById('lessonPdfCard');
 const lessonPdfTerm = document.getElementById('lessonPdfTerm');
 const lessonPdfTitle = document.getElementById('lessonPdfTitle');
 const lessonPdfDescription = document.getElementById('lessonPdfDescription');
+const lessonPdfDescriptionToggle = document.getElementById('lessonPdfDescriptionToggle');
 const lessonPdfProgressText = document.getElementById('lessonPdfProgressText');
 const lessonPdfMarkDoneBtn = document.getElementById('lessonPdfMarkDoneBtn');
+const lessonPdfHeartBtn = document.getElementById('lessonPdfHeartBtn');
 const lessonPdfFullscreenBtn = document.getElementById('lessonPdfFullscreenBtn');
 const lessonPdfOpenBtn = document.getElementById('lessonPdfOpenBtn');
 const lessonPdfDownloadBtn = document.getElementById('lessonPdfDownloadBtn');
@@ -352,6 +356,20 @@ const lessonPdfLoading = document.getElementById('lessonPdfLoading');
 let lessonPdfFrame = document.getElementById('lessonPdfFrame');
 const lessonPdfWakeLayer = document.getElementById('lessonPdfWakeLayer');
 const lessonPdfHeader = lessonPdfCard?.querySelector('.lesson-pdf-header');
+
+const engagementAnalyticsOverlay = document.getElementById('engagementAnalyticsOverlay');
+const engagementAnalyticsKicker = document.getElementById('engagementAnalyticsKicker');
+const engagementAnalyticsTitle = document.getElementById('engagementAnalyticsTitle');
+const engagementAnalyticsMeta = document.getElementById('engagementAnalyticsMeta');
+const engagementAnalyticsRefreshBtn = document.getElementById('engagementAnalyticsRefreshBtn');
+const engagementAnalyticsCloseBtn = document.getElementById('engagementAnalyticsCloseBtn');
+const engagementAnalyticsStatus = document.getElementById('engagementAnalyticsStatus');
+const engagementAnalyticsSummary = document.getElementById('engagementAnalyticsSummary');
+const engagementAnalyticsSectionSummary = document.getElementById('engagementAnalyticsSectionSummary');
+const engagementAnalyticsSectionFilter = document.getElementById('engagementAnalyticsSectionFilter');
+const engagementAnalyticsStatusFilter = document.getElementById('engagementAnalyticsStatusFilter');
+const engagementAnalyticsSort = document.getElementById('engagementAnalyticsSort');
+const engagementAnalyticsList = document.getElementById('engagementAnalyticsList');
 
 const dashboardLogoutBtn = document.getElementById('dashboardLogoutBtn');
 const dashboardCodeInboxBtn = document.getElementById('dashboardCodeInboxBtn');
@@ -762,6 +780,7 @@ const STORAGE_KEYS = {
   lessonLibrary: 'studentCodeStudio.lessonLibrary.v1',
   lessonProgress: 'studentCodeStudio.lessonReadingProgress.v1',
   givenActivities: 'studentCodeStudio.givenActivities.v1',
+  givenActivityEngagement: 'studentCodeStudio.givenActivityEngagement.v1',
   aiRubricSettings: 'studentCodeStudio.aiRubricSettings.v1',
   loginReminderSettings: 'studentCodeStudio.loginReminderSettings.v1'
 };
@@ -6301,11 +6320,16 @@ async function logoutStudent() {
   showEntryGate();
 }
 
-async function showStudentDashboard() {
+async function showStudentDashboard(options = {}) {
   if (!appSession.student) {
     openStudentLogin();
     return;
   }
+  const returningFromLessonOrActivities = Boolean(
+    document.body.classList.contains('lesson-viewer-active') ||
+    document.body.classList.contains('given-activities-active')
+  );
+  const suppressStatusReminder = options.suppressStatusReminder === true || returningFromLessonOrActivities;
   hideEntryGate();
   studentLoginOverlay?.classList.add('hidden');
   changePasswordOverlay?.classList.add('hidden');
@@ -6324,11 +6348,16 @@ async function showStudentDashboard() {
     loadStudentComplianceStatus()
   ]);
 
-  // Step 272: show the status reminder every time the student arrives at
-  // My Projects, including returns from the editor or Lesson Viewer.
-  showLoginLackingReminderAfterLogin().catch(error => {
-    console.warn('Could not open My Projects reminder.', error);
-  });
+  // Keep the automatic status reminder for normal dashboard arrivals such as
+  // login/resume, but do not reopen it when Back returns from Lessons or
+  // Activities Given. Those navigation actions should return quietly to My Projects.
+  if (suppressStatusReminder) {
+    closeLoginLackingReminder();
+  } else {
+    showLoginLackingReminderAfterLogin().catch(error => {
+      console.warn('Could not open My Projects reminder.', error);
+    });
+  }
 }
 
 function closeStudentDashboard() {
@@ -18736,6 +18765,69 @@ function saveLessonProgressMap(progressMap = {}) {
   saveJSON(STORAGE_KEYS.lessonProgress, root);
 }
 
+
+function engagementIso(value = 0) {
+  const ms = lessonTimestampMs(value);
+  return ms ? new Date(ms).toISOString() : '';
+}
+
+function getStudentEngagementProfileRef() {
+  const uid = String(appSession.student?.uid || '').trim();
+  return uid ? getStudentDocRef(uid) : null;
+}
+
+async function writeStudentEngagementEntry(mapKey = '', itemId = '', record = {}) {
+  const safeMapKey = String(mapKey || '').trim();
+  const safeItemId = String(itemId || '').trim();
+  const profileRef = getStudentEngagementProfileRef();
+  if (!profileRef || appSession.mode !== 'student' || !safeMapKey || !safeItemId) return false;
+  try {
+    const ready = await initFirebaseSync();
+    if (!ready) return false;
+    const { updateDoc, setDoc, serverTimestamp } = firebaseSync.modules;
+    const dottedField = `${safeMapKey}.${safeItemId}`;
+    try {
+      await updateDoc(profileRef, {
+        [dottedField]: record,
+        [`${safeMapKey}UpdatedAt`]: serverTimestamp()
+      });
+    } catch (updateError) {
+      await setDoc(profileRef, {
+        [safeMapKey]: { [safeItemId]: record },
+        [`${safeMapKey}UpdatedAt`]: serverTimestamp()
+      }, { merge: true });
+    }
+    clearSelectiveFirestoreCache('admin:studentsAndRoster');
+    return true;
+  } catch (error) {
+    console.warn(`Could not sync ${safeMapKey} engagement.`, error);
+    return false;
+  }
+}
+
+function buildLessonCloudEngagement(lesson = {}, progress = {}) {
+  const normalized = normalizeLessonProgress(progress);
+  return {
+    itemId: String(lesson.id || ''),
+    title: String(lesson.title || 'Lesson').slice(0, 140),
+    term: String(lesson.term || 'term1'),
+    openedAt: engagementIso(normalized.startedAt || normalized.lastOpenedAt),
+    lastOpenedAt: engagementIso(normalized.lastOpenedAt || normalized.startedAt),
+    readAt: engagementIso(normalized.completedAt),
+    hearted: normalized.hearted === true,
+    heartedAt: engagementIso(normalized.heartedAt),
+    heartUpdatedAt: engagementIso(normalized.heartUpdatedAt),
+    openCount: Math.max(0, Number(normalized.openCount || 0))
+  };
+}
+
+function syncLessonEngagementToCloud(lessonId = '') {
+  const lesson = lessonLibraryState.lessons.find(item => item.id === String(lessonId || ''));
+  if (!lesson || !appSession.student) return;
+  const progress = getLessonProgress(lesson.id);
+  void writeStudentEngagementEntry('lessonEngagement', lesson.id, buildLessonCloudEngagement(lesson, progress));
+}
+
 function normalizeLessonProgress(record = {}) {
   const progress = record && typeof record === 'object' ? record : {};
   const startedAt = lessonTimestampMs(progress.startedAt) || 0;
@@ -18743,6 +18835,9 @@ function normalizeLessonProgress(record = {}) {
   const completedAt = lessonTimestampMs(progress.completedAt) || 0;
   const totalSeconds = Math.max(0, Number(progress.totalSeconds || 0));
   const openCount = Math.max(0, Number.parseInt(progress.openCount || 0, 10));
+  const hearted = progress.hearted === true;
+  const heartedAt = lessonTimestampMs(progress.heartedAt) || 0;
+  const heartUpdatedAt = lessonTimestampMs(progress.heartUpdatedAt) || heartedAt || 0;
   const percent = completedAt ? 100 : (lastOpenedAt ? Math.max(15, Math.min(60, 15 + Math.min(45, openCount * 10))) : 0);
   return {
     startedAt,
@@ -18750,6 +18845,9 @@ function normalizeLessonProgress(record = {}) {
     completedAt,
     totalSeconds,
     openCount,
+    hearted,
+    heartedAt,
+    heartUpdatedAt,
     percent,
     status: completedAt ? 'completed' : (lastOpenedAt ? 'in-progress' : 'not-started')
   };
@@ -18854,6 +18952,11 @@ function syncLessonPdfProgressUi(lessonId = lessonLibraryState.currentLessonId) 
     lessonPdfMarkDoneBtn.textContent = progress.completedAt ? '✓ Done' : '✓ Mark Done';
     lessonPdfMarkDoneBtn.disabled = Boolean(progress.completedAt);
   }
+  if (lessonPdfHeartBtn) {
+    lessonPdfHeartBtn.textContent = progress.hearted ? '♥ Hearted' : '♡ Heart';
+    lessonPdfHeartBtn.classList.toggle('active', progress.hearted);
+    lessonPdfHeartBtn.setAttribute('aria-pressed', progress.hearted ? 'true' : 'false');
+  }
 }
 
 function finishCurrentLessonReadingSession() {
@@ -18925,7 +19028,10 @@ function renderStudentLessonLibrary() {
             <span class="lesson-card-book" aria-hidden="true">📘</span>
           </div>
           <div class="lesson-card-content">
-            <span class="lesson-card-term">${escapeHTML(lessonTermLabel(lesson.term))} · Lesson ${escapeHTML(String(lesson.order))}</span>
+            <div class="lesson-card-topline">
+              <span class="lesson-card-term">${escapeHTML(lessonTermLabel(lesson.term))} · Lesson ${escapeHTML(String(lesson.order))}</span>
+              ${getLessonProgress(lesson.id).hearted ? '<span class="lesson-card-heart-indicator" title="Hearted" aria-label="Hearted">♥</span>' : ''}
+            </div>
             <h3>${escapeHTML(lesson.title)}</h3>
             <p>${escapeHTML(lesson.description || 'Open this PDF lesson to read and review the topic.')}</p>
             <div class="lesson-card-meta">
@@ -19027,6 +19133,11 @@ async function openLessonLibrary(origin = 'dashboard') {
   lessonLibraryState.returnView = openedFromEntry ? 'entry' : (origin === 'editor' ? 'editor' : 'dashboard');
   closeStudentAccountMenu();
   closeLessonPdfViewer();
+  // Match Activities Given: every time Lessons opens, refresh the shared
+  // academic-term settings first, then open the tab for the active term.
+  // Students may still manually view older terms while the library is open.
+  try { await loadAcademicTermSettingsFromCloud({ silent: true }); } catch (_) {}
+  lessonLibraryState.activeTerm = libraryTermFromComplianceTerm();
   hideEntryGate();
   studentDashboard?.classList.add('hidden');
   document.body.classList.remove('student-dashboard-active');
@@ -19048,7 +19159,7 @@ function closeLessonLibrary() {
     }
     showEntryGate();
   } else if (lessonLibraryState.returnView === 'dashboard' && appSession.student) {
-    showStudentDashboard();
+    showStudentDashboard({ suppressStatusReminder: true });
   } else if (appSession.currentProjectId) {
     queueStudentPresenceUpdate({
       currentView: 'editor',
@@ -19058,6 +19169,45 @@ function closeLessonLibrary() {
       projectName: appSession.currentProject?.name || 'Project'
     }, { force: true });
   }
+}
+
+function setLessonPdfCopyExpanded(expanded = false) {
+  const isExpanded = Boolean(expanded);
+  lessonPdfCard?.classList.toggle('lesson-copy-expanded', isExpanded);
+  if (lessonPdfDescriptionToggle) {
+    lessonPdfDescriptionToggle.setAttribute('aria-expanded', isExpanded ? 'true' : 'false');
+    lessonPdfDescriptionToggle.textContent = isExpanded ? 'Show less' : 'Show more';
+  }
+}
+
+function refreshLessonPdfDescriptionToggle() {
+  if (!lessonPdfDescriptionToggle || !lessonPdfTitle || !lessonPdfDescription) return;
+  const descriptionText = (lessonPdfDescription.textContent || '').trim();
+  const titleText = (lessonPdfTitle.textContent || '').trim();
+  const expanded = lessonPdfCard?.classList.contains('lesson-copy-expanded');
+
+  // Once expanded, keep the control available so the student can collapse it.
+  if (expanded) {
+    lessonPdfDescriptionToggle.classList.remove('hidden');
+    return;
+  }
+
+  const titleOverflow = lessonPdfTitle.scrollHeight > lessonPdfTitle.clientHeight + 1
+    || lessonPdfTitle.scrollWidth > lessonPdfTitle.clientWidth + 1;
+  const descriptionStyle = window.getComputedStyle(lessonPdfDescription);
+  const descriptionHidden = descriptionStyle.display === 'none';
+  const descriptionOverflow = Boolean(descriptionText) && (
+    descriptionHidden
+    || lessonPdfDescription.scrollHeight > lessonPdfDescription.clientHeight + 1
+    || lessonPdfDescription.scrollWidth > lessonPdfDescription.clientWidth + 1
+  );
+  const needsToggle = Boolean(titleText) && (titleOverflow || descriptionOverflow);
+  lessonPdfDescriptionToggle.classList.toggle('hidden', !needsToggle);
+}
+
+function resetLessonPdfCopyExpansion() {
+  setLessonPdfCopyExpanded(false);
+  lessonPdfDescriptionToggle?.classList.add('hidden');
 }
 
 function openLessonPdfViewer(lessonId = '') {
@@ -19073,6 +19223,7 @@ function openLessonPdfViewer(lessonId = '') {
     lastOpenedAt: Date.now(),
     openCount: Math.max(0, Number(currentProgress.openCount || 0)) + 1
   });
+  syncLessonEngagementToCloud(lesson.id);
   lessonLibraryState.currentLessonId = lesson.id;
   lessonLibraryState.currentLessonOpenedAt = Date.now();
   queueStudentPresenceUpdate({
@@ -19083,6 +19234,7 @@ function openLessonPdfViewer(lessonId = '') {
     lessonTitle: lesson.title
   }, { force: true });
   renderStudentLessonLibrary();
+  resetLessonPdfCopyExpansion();
   if (lessonPdfTerm) lessonPdfTerm.textContent = `${lessonTermLabel(lesson.term)} · Lesson ${lesson.order}`;
   if (lessonPdfTitle) lessonPdfTitle.textContent = lesson.title;
   if (lessonPdfDescription) lessonPdfDescription.textContent = lesson.description || lesson.fileName || 'PDF lesson';
@@ -19096,6 +19248,10 @@ function openLessonPdfViewer(lessonId = '') {
   if (lessonPdfLoading) lessonPdfLoading.innerHTML = '<span class="lesson-loading-spinner" aria-hidden="true"></span><strong>Opening PDF lesson...</strong><small>Large files may take a moment on slower connections.</small>';
   lessonPdfOverlay?.classList.remove('hidden');
   document.body.classList.add('lesson-pdf-open');
+  window.requestAnimationFrame(() => {
+    refreshLessonPdfDescriptionToggle();
+    window.setTimeout(refreshLessonPdfDescriptionToggle, 80);
+  });
   window.clearTimeout(lessonLibraryState.pdfLoadTimer);
   loadLessonPdfFrame(lesson.previewUrl);
   lessonLibraryState.pdfLoadTimer = window.setTimeout(() => {
@@ -19157,6 +19313,7 @@ function closeLessonPdfViewer() {
   clearLessonPdfControlsTimer();
   lessonPdfOverlay?.classList.add('hidden');
   document.body.classList.remove('lesson-pdf-open');
+  resetLessonPdfCopyExpansion();
   lessonPdfCard?.classList.remove('lesson-controls-hidden', 'lesson-native-fullscreen');
   resetLessonPdfFrame({ hard: true });
   if (!lessonViewerScreen?.classList.contains('hidden')) {
@@ -19425,6 +19582,7 @@ function renderAdminLessonList() {
         <button class="ghost-btn" type="button" data-lesson-admin-action="up" title="Move up">↑</button>
         <button class="ghost-btn" type="button" data-lesson-admin-action="down" title="Move down">↓</button>
         <button class="ghost-btn" type="button" data-lesson-admin-action="view">View</button>
+        <button class="ghost-btn engagement-admin-btn" type="button" data-lesson-admin-action="engagement">📊 Engagement</button>
         <button class="ghost-btn" type="button" data-lesson-admin-action="edit">Edit</button>
         <button class="ghost-btn danger" type="button" data-lesson-admin-action="delete">Delete</button>
       </div>
@@ -19792,6 +19950,91 @@ function getStudentGivenActivitySection() {
   return String(appSession.student?.section || '').trim();
 }
 
+
+function loadGivenActivityEngagementRoot() {
+  const value = loadJSON(STORAGE_KEYS.givenActivityEngagement, {});
+  return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+}
+
+function loadGivenActivityEngagementMap() {
+  const root = loadGivenActivityEngagementRoot();
+  const readerKey = getLessonReaderKey();
+  const map = root[readerKey];
+  return map && typeof map === 'object' && !Array.isArray(map) ? map : {};
+}
+
+function saveGivenActivityEngagementMap(map = {}) {
+  const root = loadGivenActivityEngagementRoot();
+  root[getLessonReaderKey()] = map;
+  saveJSON(STORAGE_KEYS.givenActivityEngagement, root);
+}
+
+function normalizeGivenActivityEngagement(record = {}) {
+  const value = record && typeof record === 'object' ? record : {};
+  return {
+    openedAt: lessonTimestampMs(value.openedAt) || 0,
+    lastOpenedAt: lessonTimestampMs(value.lastOpenedAt) || 0,
+    readAt: lessonTimestampMs(value.readAt) || 0,
+    hearted: value.hearted === true,
+    heartedAt: lessonTimestampMs(value.heartedAt) || 0,
+    heartUpdatedAt: lessonTimestampMs(value.heartUpdatedAt) || lessonTimestampMs(value.heartedAt) || 0,
+    openCount: Math.max(0, Number.parseInt(value.openCount || 0, 10))
+  };
+}
+
+function getGivenActivityEngagement(activityId = '') {
+  const map = loadGivenActivityEngagementMap();
+  return normalizeGivenActivityEngagement(map[String(activityId || '')] || {});
+}
+
+function updateGivenActivityEngagement(activityId = '', patch = {}) {
+  const id = String(activityId || '').trim();
+  if (!id) return normalizeGivenActivityEngagement({});
+  const map = loadGivenActivityEngagementMap();
+  const current = normalizeGivenActivityEngagement(map[id] || {});
+  const next = normalizeGivenActivityEngagement({ ...current, ...patch });
+  map[id] = next;
+  saveGivenActivityEngagementMap(map);
+  return next;
+}
+
+function buildGivenActivityCloudEngagement(item = {}, engagement = {}) {
+  const normalized = normalizeGivenActivityEngagement(engagement);
+  return {
+    itemId: String(item.id || ''),
+    title: String(item.title || 'Activity').slice(0, 160),
+    term: String(item.term || 'term1'),
+    openedAt: engagementIso(normalized.openedAt || normalized.lastOpenedAt),
+    lastOpenedAt: engagementIso(normalized.lastOpenedAt || normalized.openedAt),
+    readAt: engagementIso(normalized.readAt),
+    hearted: normalized.hearted === true,
+    heartedAt: engagementIso(normalized.heartedAt),
+    heartUpdatedAt: engagementIso(normalized.heartUpdatedAt),
+    openCount: Math.max(0, Number(normalized.openCount || 0))
+  };
+}
+
+function syncGivenActivityEngagementToCloud(activityId = '') {
+  const item = givenActivityState.items.find(entry => entry.id === String(activityId || ''));
+  if (!item || !appSession.student) return;
+  const engagement = getGivenActivityEngagement(item.id);
+  void writeStudentEngagementEntry('activityEngagement', item.id, buildGivenActivityCloudEngagement(item, engagement));
+}
+
+function syncGivenActivityViewerEngagementUi(activityId = givenActivityState.viewerActivityId) {
+  const engagement = getGivenActivityEngagement(activityId);
+  if (givenActivityViewerReadBtn) {
+    givenActivityViewerReadBtn.textContent = engagement.readAt ? '✓ Read' : '✓ Mark as Read';
+    givenActivityViewerReadBtn.disabled = Boolean(engagement.readAt);
+    givenActivityViewerReadBtn.classList.toggle('active', Boolean(engagement.readAt));
+  }
+  if (givenActivityViewerHeartBtn) {
+    givenActivityViewerHeartBtn.textContent = engagement.hearted ? '♥ Hearted' : '♡ Heart';
+    givenActivityViewerHeartBtn.classList.toggle('active', engagement.hearted);
+    givenActivityViewerHeartBtn.setAttribute('aria-pressed', engagement.hearted ? 'true' : 'false');
+  }
+}
+
 function givenActivityMatchesAudience(item = {}) {
   const audience = String(item.audienceSection || 'all').trim();
   if (!audience || audience.toLowerCase() === 'all') return true;
@@ -19870,6 +20113,7 @@ function renderStudentGivenActivities() {
     const updated = givenActivityTimestampMs(item.updatedAt)
       ? new Date(givenActivityTimestampMs(item.updatedAt)).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
       : '';
+    const engagement = getGivenActivityEngagement(item.id);
     return `
       <article class="given-activity-card" data-given-activity-id="${escapeAttribute(item.id)}">
         <button type="button" class="given-activity-card-open" data-given-open="${escapeAttribute(item.id)}">
@@ -19885,6 +20129,7 @@ function renderStudentGivenActivities() {
               <span>${escapeHTML(scope)}</span>
               <span>${due ? `Due ${escapeHTML(due)}` : (updated ? `Posted ${escapeHTML(updated)}` : 'Ready')}</span>
             </div>
+            ${(engagement.readAt || engagement.hearted) ? `<div class="student-engagement-badges">${engagement.readAt ? '<span class="student-engagement-badge read">✓ Read</span>' : ''}${engagement.hearted ? '<span class="student-engagement-badge hearted">♥ Hearted</span>' : ''}</div>` : ''}
             <span class="given-activity-card-cta">Open activity <b aria-hidden="true">→</b></span>
           </div>
         </button>
@@ -19988,7 +20233,7 @@ function closeGivenActivitiesLibrary() {
   givenActivitiesScreen?.classList.add('hidden');
   document.body.classList.remove('given-activities-active');
   if (givenActivityState.returnView === 'dashboard' && appSession.student) {
-    showStudentDashboard();
+    showStudentDashboard({ suppressStatusReminder: true });
   } else if (appSession.currentProjectId) {
     queueStudentPresenceUpdate({ currentView: 'editor', activityGroup: 'Coding', activityLabel: `Coding: ${appSession.currentProject?.name || 'Project'}` }, { force: true });
   } else if (!appSession.student) {
@@ -20200,6 +20445,13 @@ function openGivenActivityViewer(activityId = '') {
   if (!item || !givenActivityViewerOverlay || !givenActivityViewerBody) return;
   givenActivityState.viewerActivityId = item.id;
   givenActivityState.viewerAttachmentIndex = 0;
+  const currentEngagement = getGivenActivityEngagement(item.id);
+  updateGivenActivityEngagement(item.id, {
+    openedAt: currentEngagement.openedAt || Date.now(),
+    lastOpenedAt: Date.now(),
+    openCount: Math.max(0, Number(currentEngagement.openCount || 0)) + 1
+  });
+  syncGivenActivityEngagementToCloud(item.id);
   if (givenActivityViewerMeta) {
     const due = formatGivenActivityDueDate(item.dueDate);
     const attachmentCount = getGivenActivityAttachments(item).length;
@@ -20209,6 +20461,8 @@ function openGivenActivityViewer(activityId = '') {
   if (givenActivityViewerDescription) givenActivityViewerDescription.textContent = item.description || 'No additional instructions were provided.';
   setGivenActivityViewerInstructionsOpen(false);
   renderGivenActivityViewerAttachment();
+  syncGivenActivityViewerEngagementUi(item.id);
+  renderStudentGivenActivities();
   givenActivityViewerOverlay.classList.remove('hidden');
   document.body.classList.add('given-activity-viewer-open');
 }
@@ -20448,12 +20702,239 @@ function renderAdminGivenActivityList() {
           <button class="ghost-btn mini" type="button" data-given-admin-action="up" title="Move up">↑</button>
           <button class="ghost-btn mini" type="button" data-given-admin-action="down" title="Move down">↓</button>
           ${item.openUrl ? '<button class="ghost-btn mini" type="button" data-given-admin-action="view">View</button>' : ''}
+          <button class="ghost-btn mini engagement-admin-btn" type="button" data-given-admin-action="engagement">📊 Engagement</button>
           <button class="ghost-btn mini" type="button" data-given-admin-action="toggle">${item.published ? 'Unpublish' : 'Publish'}</button>
           <button class="ghost-btn mini" type="button" data-given-admin-action="edit">Edit</button>
           <button class="ghost-btn mini danger" type="button" data-given-admin-action="delete">Delete</button>
         </div>
       </article>`;
   }).join('');
+}
+
+
+const engagementAnalyticsState = {
+  kind: '',
+  itemId: '',
+  rows: [],
+  loading: false
+};
+
+function normalizeAdminEngagementRecord(record = {}) {
+  const value = record && typeof record === 'object' ? record : {};
+  return {
+    openedAt: lessonTimestampMs(value.openedAt) || 0,
+    lastOpenedAt: lessonTimestampMs(value.lastOpenedAt) || lessonTimestampMs(value.openedAt) || 0,
+    readAt: lessonTimestampMs(value.readAt) || lessonTimestampMs(value.completedAt) || 0,
+    hearted: value.hearted === true,
+    heartedAt: lessonTimestampMs(value.heartedAt) || 0,
+    heartUpdatedAt: lessonTimestampMs(value.heartUpdatedAt) || lessonTimestampMs(value.heartedAt) || 0,
+    openCount: Math.max(0, Number.parseInt(value.openCount || 0, 10))
+  };
+}
+
+function getStudentAdminEngagementRecord(student = {}, mapKey = '', itemId = '') {
+  const records = [];
+  const collect = source => {
+    const raw = source?.[mapKey]?.[itemId];
+    if (raw && typeof raw === 'object') records.push(normalizeAdminEngagementRecord(raw));
+  };
+  collect(student);
+  (Array.isArray(student.sourceRecords) ? student.sourceRecords : []).forEach(collect);
+  if (!records.length) return normalizeAdminEngagementRecord({});
+  const openedAt = records.reduce((min, item) => item.openedAt && (!min || item.openedAt < min) ? item.openedAt : min, 0);
+  const lastOpenedAt = Math.max(0, ...records.map(item => item.lastOpenedAt || item.openedAt || 0));
+  const readAt = Math.max(0, ...records.map(item => item.readAt || 0));
+  const latestHeart = records.slice().sort((a, b) => (b.heartUpdatedAt || b.heartedAt || 0) - (a.heartUpdatedAt || a.heartedAt || 0))[0] || {};
+  return {
+    openedAt,
+    lastOpenedAt,
+    readAt,
+    hearted: latestHeart.hearted === true,
+    heartedAt: latestHeart.heartedAt || 0,
+    heartUpdatedAt: latestHeart.heartUpdatedAt || latestHeart.heartedAt || 0,
+    openCount: Math.max(0, ...records.map(item => item.openCount || 0))
+  };
+}
+
+function getEngagementAnalyticsTarget(kind = engagementAnalyticsState.kind, itemId = engagementAnalyticsState.itemId) {
+  if (kind === 'lesson') return lessonLibraryState.lessons.find(item => item.id === itemId) || null;
+  if (kind === 'activity') return givenActivityState.items.find(item => item.id === itemId) || null;
+  return null;
+}
+
+function buildEngagementAnalyticsRows(kind = '', item = null) {
+  if (!item) return [];
+  const mapKey = kind === 'lesson' ? 'lessonEngagement' : 'activityEngagement';
+  const audienceSection = kind === 'activity' ? String(item.audienceSection || 'all').trim() : 'all';
+  return adminStudentsCache
+    .filter(student => String(student.accountStatus || 'active').toLowerCase() !== 'disabled')
+    .filter(student => audienceSection.toLowerCase() === 'all' || String(student.section || '').trim().toLowerCase() === audienceSection.toLowerCase())
+    .map(student => {
+      const record = getStudentAdminEngagementRecord(student, mapKey, item.id);
+      return {
+        student,
+        name: String(student.name || 'Unnamed Student').trim() || 'Unnamed Student',
+        studentId: String(student.studentId || student.studentIdNormalized || '').trim(),
+        section: String(student.section || '').trim() || 'No Section',
+        record,
+        viewed: Boolean(record.lastOpenedAt || record.openedAt),
+        read: Boolean(record.readAt),
+        hearted: record.hearted === true
+      };
+    });
+}
+
+function getEngagementAnalyticsFilteredRows() {
+  const section = engagementAnalyticsSectionFilter?.value || 'all';
+  const status = engagementAnalyticsStatusFilter?.value || 'all';
+  const sortMode = engagementAnalyticsSort?.value || 'section-name';
+  const rows = engagementAnalyticsState.rows.filter(row => {
+    if (section !== 'all' && row.section !== section) return false;
+    if (status === 'viewed' && !row.viewed) return false;
+    if (status === 'read' && !row.read) return false;
+    if (status === 'hearted' && !row.hearted) return false;
+    if (status === 'not-viewed' && row.viewed) return false;
+    return true;
+  });
+  rows.sort((a, b) => {
+    if (sortMode === 'name') return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+    if (sortMode === 'last-viewed') return (b.record.lastOpenedAt || 0) - (a.record.lastOpenedAt || 0) || a.name.localeCompare(b.name);
+    return a.section.localeCompare(b.section, undefined, { sensitivity: 'base' }) || a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+  });
+  return rows;
+}
+
+function renderEngagementSectionSummary(rows = []) {
+  if (!engagementAnalyticsSectionSummary) return;
+  const groups = new Map();
+  rows.forEach(row => {
+    const key = row.section || 'No Section';
+    if (!groups.has(key)) groups.set(key, { section: key, total: 0, viewed: 0, read: 0, hearted: 0 });
+    const group = groups.get(key);
+    group.total += 1;
+    if (row.viewed) group.viewed += 1;
+    if (row.read) group.read += 1;
+    if (row.hearted) group.hearted += 1;
+  });
+  const values = [...groups.values()].sort((a, b) => a.section.localeCompare(b.section, undefined, { sensitivity: 'base' }));
+  engagementAnalyticsSectionSummary.innerHTML = values.map(group => `
+    <button type="button" class="engagement-section-card" data-engagement-section="${escapeAttribute(group.section)}">
+      <strong>${escapeHTML(group.section)}</strong>
+      <span><b>${group.viewed}/${group.total}</b> viewed</span>
+      <span>${group.read} read · ${group.hearted} ♥</span>
+    </button>`).join('');
+}
+
+function renderEngagementAnalytics() {
+  const item = getEngagementAnalyticsTarget();
+  if (!item) return;
+  const allRows = engagementAnalyticsState.rows;
+  const total = allRows.length;
+  const viewed = allRows.filter(row => row.viewed).length;
+  const read = allRows.filter(row => row.read).length;
+  const hearted = allRows.filter(row => row.hearted).length;
+  const notViewed = Math.max(0, total - viewed);
+
+  if (engagementAnalyticsSummary) {
+    engagementAnalyticsSummary.innerHTML = `
+      <article><span>👁</span><div><strong>${viewed}<small> / ${total}</small></strong><p>Viewed</p></div></article>
+      <article><span>✓</span><div><strong>${read}<small> / ${total}</small></strong><p>Read</p></div></article>
+      <article><span>♥</span><div><strong>${hearted}<small> / ${total}</small></strong><p>Hearted</p></div></article>
+      <article><span>—</span><div><strong>${notViewed}<small> / ${total}</small></strong><p>Not Viewed</p></div></article>`;
+  }
+
+  const sections = [...new Set(allRows.map(row => row.section).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  if (engagementAnalyticsSectionFilter) {
+    const current = engagementAnalyticsSectionFilter.value || 'all';
+    engagementAnalyticsSectionFilter.innerHTML = '<option value="all">All Sections</option>' + sections.map(section => `<option value="${escapeAttribute(section)}">${escapeHTML(section)}</option>`).join('');
+    engagementAnalyticsSectionFilter.value = sections.includes(current) ? current : 'all';
+  }
+  renderEngagementSectionSummary(allRows);
+
+  const filtered = getEngagementAnalyticsFilteredRows();
+  if (engagementAnalyticsStatus) {
+    const targetLabel = engagementAnalyticsState.kind === 'lesson' ? 'lesson' : 'activity';
+    engagementAnalyticsStatus.textContent = `${filtered.length} of ${total} eligible student${total === 1 ? '' : 's'} shown for this ${targetLabel}.`;
+    engagementAnalyticsStatus.dataset.type = 'success';
+  }
+  if (!engagementAnalyticsList) return;
+  if (!filtered.length) {
+    engagementAnalyticsList.innerHTML = '<div class="engagement-analytics-empty"><span>🔎</span><strong>No students match this filter.</strong><p>Choose another section or engagement status.</p></div>';
+    return;
+  }
+  engagementAnalyticsList.innerHTML = filtered.map(row => {
+    const viewedText = row.viewed ? `Viewed ${escapeHTML(formatStudentDate(row.record.lastOpenedAt || row.record.openedAt, ''))}` : 'Not viewed';
+    return `
+      <article class="engagement-student-row ${row.viewed ? 'viewed' : 'not-viewed'}">
+        <div class="engagement-student-main">
+          <span class="engagement-student-avatar" aria-hidden="true">${escapeHTML((row.name || '?').charAt(0).toUpperCase())}</span>
+          <div>
+            <strong>${escapeHTML(row.name)}</strong>
+            <small>${escapeHTML(row.studentId || 'No Student ID')} · ${escapeHTML(row.section)}</small>
+          </div>
+        </div>
+        <div class="engagement-student-statuses">
+          <span class="${row.viewed ? 'on' : 'off'}">👁 ${escapeHTML(viewedText)}</span>
+          <span class="${row.read ? 'on read' : 'off'}">✓ ${row.read ? `Read ${escapeHTML(formatStudentDate(row.record.readAt, ''))}` : 'Not read'}</span>
+          <span class="${row.hearted ? 'on hearted' : 'off'}">${row.hearted ? '♥ Hearted' : '♡ Not hearted'}</span>
+        </div>
+      </article>`;
+  }).join('');
+}
+
+async function openEngagementAnalytics(kind = '', itemId = '', options = {}) {
+  const item = kind === 'lesson'
+    ? lessonLibraryState.lessons.find(entry => entry.id === itemId)
+    : givenActivityState.items.find(entry => entry.id === itemId);
+  if (!item || !engagementAnalyticsOverlay) return;
+  if (!isTeacherAuthenticated()) {
+    await appAlert('Log in as teacher to view student engagement.', { title: 'Engagement Analytics' });
+    return;
+  }
+  engagementAnalyticsState.kind = kind;
+  engagementAnalyticsState.itemId = item.id;
+  engagementAnalyticsState.loading = true;
+  if (engagementAnalyticsKicker) engagementAnalyticsKicker.textContent = kind === 'lesson' ? 'Lesson Engagement' : 'Activity Engagement';
+  if (engagementAnalyticsTitle) engagementAnalyticsTitle.textContent = item.title;
+  if (engagementAnalyticsMeta) {
+    const audience = kind === 'activity' && String(item.audienceSection || 'all').toLowerCase() !== 'all' ? ` · ${item.audienceSection}` : ' · All Sections';
+    engagementAnalyticsMeta.textContent = `${lessonTermLabel(item.term)} · ${kind === 'lesson' ? `Lesson ${item.order}` : `Activity ${item.order}`}${audience}`;
+  }
+  if (engagementAnalyticsStatus) {
+    engagementAnalyticsStatus.textContent = 'Loading the latest student names and engagement...';
+    engagementAnalyticsStatus.dataset.type = 'loading';
+  }
+  engagementAnalyticsSummary.innerHTML = '';
+  engagementAnalyticsSectionSummary.innerHTML = '';
+  engagementAnalyticsList.innerHTML = '<div class="engagement-analytics-loading"><span class="lesson-loading-spinner" aria-hidden="true"></span><strong>Loading engagement...</strong></div>';
+  engagementAnalyticsOverlay.classList.remove('hidden');
+  document.body.classList.add('engagement-analytics-open');
+  try {
+    await loadAdminStudents({ force: true });
+    engagementAnalyticsState.rows = buildEngagementAnalyticsRows(kind, item);
+    renderEngagementAnalytics();
+  } catch (error) {
+    console.error('Could not load engagement analytics.', error);
+    if (engagementAnalyticsStatus) {
+      engagementAnalyticsStatus.textContent = error?.message || 'Could not load student engagement.';
+      engagementAnalyticsStatus.dataset.type = 'error';
+    }
+  } finally {
+    engagementAnalyticsState.loading = false;
+  }
+}
+
+function closeEngagementAnalytics() {
+  engagementAnalyticsOverlay?.classList.add('hidden');
+  document.body.classList.remove('engagement-analytics-open');
+  engagementAnalyticsState.kind = '';
+  engagementAnalyticsState.itemId = '';
+  engagementAnalyticsState.rows = [];
+}
+
+async function refreshEngagementAnalytics() {
+  if (!engagementAnalyticsState.kind || !engagementAnalyticsState.itemId || engagementAnalyticsState.loading) return;
+  await openEngagementAnalytics(engagementAnalyticsState.kind, engagementAnalyticsState.itemId, { force: true });
 }
 
 async function publishGivenActivityFromAdmin() {
@@ -20984,6 +21465,30 @@ function bindTeacherToolsV295() {
       renderGivenActivityViewerAttachment();
     }
   });
+  givenActivityViewerReadBtn?.addEventListener('click', () => {
+    const activityId = givenActivityState.viewerActivityId;
+    if (!activityId) return;
+    const current = getGivenActivityEngagement(activityId);
+    if (!current.readAt) updateGivenActivityEngagement(activityId, { readAt: Date.now(), lastOpenedAt: Date.now() });
+    syncGivenActivityViewerEngagementUi(activityId);
+    renderStudentGivenActivities();
+    syncGivenActivityEngagementToCloud(activityId);
+  });
+  givenActivityViewerHeartBtn?.addEventListener('click', () => {
+    const activityId = givenActivityState.viewerActivityId;
+    if (!activityId) return;
+    const current = getGivenActivityEngagement(activityId);
+    const nextHearted = !current.hearted;
+    updateGivenActivityEngagement(activityId, {
+      hearted: nextHearted,
+      heartedAt: nextHearted ? Date.now() : 0,
+      heartUpdatedAt: Date.now(),
+      lastOpenedAt: Date.now()
+    });
+    syncGivenActivityViewerEngagementUi(activityId);
+    renderStudentGivenActivities();
+    syncGivenActivityEngagementToCloud(activityId);
+  });
   givenActivityViewerInstructionsBtn?.addEventListener('click', () => {
     const isOpen = !givenActivityViewerInstructions?.classList.contains('hidden');
     setGivenActivityViewerInstructionsOpen(!isOpen);
@@ -21046,6 +21551,7 @@ function bindTeacherToolsV295() {
     const id = row.dataset.givenAdminId || '';
     const action = button.dataset.givenAdminAction || '';
     if (action === 'edit') editGivenActivityAdmin(id);
+    else if (action === 'engagement') openEngagementAnalytics('activity', id);
     else if (action === 'delete') deleteGivenActivityFromAdmin(id);
     else if (action === 'up' || action === 'down') moveGivenActivityWithinTerm(id, action);
     else if (action === 'toggle') toggleGivenActivityPublished(id);
@@ -21073,6 +21579,11 @@ function bindTeacherToolsV295() {
 
   document.addEventListener('keydown', event => {
     if (event.key !== 'Escape') return;
+    if (engagementAnalyticsOverlay && !engagementAnalyticsOverlay.classList.contains('hidden')) {
+      event.preventDefault();
+      closeEngagementAnalytics();
+      return;
+    }
     if (givenActivityViewerOverlay && !givenActivityViewerOverlay.classList.contains('hidden')) {
       event.preventDefault();
       closeGivenActivityViewer();
@@ -25597,6 +26108,21 @@ lessonAdminTerm?.addEventListener('change', () => {
 lessonAdminPublishBtn?.addEventListener('click', publishLessonFromAdmin);
 lessonAdminTermFilter?.addEventListener('change', renderAdminLessonList);
 lessonAdminSearch?.addEventListener('input', renderAdminLessonList);
+engagementAnalyticsCloseBtn?.addEventListener('click', closeEngagementAnalytics);
+engagementAnalyticsRefreshBtn?.addEventListener('click', refreshEngagementAnalytics);
+[engagementAnalyticsSectionFilter, engagementAnalyticsStatusFilter, engagementAnalyticsSort].forEach(control => {
+  control?.addEventListener('change', renderEngagementAnalytics);
+});
+engagementAnalyticsSectionSummary?.addEventListener('click', event => {
+  const button = event.target.closest('[data-engagement-section]');
+  if (!button || !engagementAnalyticsSectionFilter) return;
+  engagementAnalyticsSectionFilter.value = button.dataset.engagementSection || 'all';
+  renderEngagementAnalytics();
+});
+engagementAnalyticsOverlay?.addEventListener('click', event => {
+  if (event.target === engagementAnalyticsOverlay) closeEngagementAnalytics();
+});
+
 lessonAdminList?.addEventListener('click', event => {
   const button = event.target.closest('[data-lesson-admin-action]');
   const row = event.target.closest('[data-admin-lesson-id]');
@@ -25604,6 +26130,7 @@ lessonAdminList?.addEventListener('click', event => {
   const lessonId = row.dataset.adminLessonId || '';
   const action = button.dataset.lessonAdminAction;
   if (action === 'edit') editLessonAdmin(lessonId);
+  if (action === 'engagement') openEngagementAnalytics('lesson', lessonId);
   if (action === 'delete') deleteLessonFromAdmin(lessonId);
   if (action === 'up' || action === 'down') moveLessonWithinTerm(lessonId, action);
   if (action === 'view') {
@@ -25933,6 +26460,11 @@ lessonContinueBtn?.addEventListener('click', () => {
   if (lessonId) openLessonPdfViewer(lessonId);
 });
 lessonPdfCloseBtn?.addEventListener('click', closeLessonPdfViewer);
+lessonPdfDescriptionToggle?.addEventListener('click', () => {
+  const expanded = lessonPdfDescriptionToggle.getAttribute('aria-expanded') === 'true';
+  setLessonPdfCopyExpanded(!expanded);
+  showLessonPdfFullscreenControls({ keepVisible: true });
+});
 lessonPdfMarkDoneBtn?.addEventListener('click', () => {
   const lessonId = lessonLibraryState.currentLessonId;
   if (!lessonId) return;
@@ -25940,6 +26472,22 @@ lessonPdfMarkDoneBtn?.addEventListener('click', () => {
   syncLessonPdfProgressUi(lessonId);
   renderStudentLessonLibrary();
   renderLessonContinueReading();
+  syncLessonEngagementToCloud(lessonId);
+});
+lessonPdfHeartBtn?.addEventListener('click', () => {
+  const lessonId = lessonLibraryState.currentLessonId;
+  if (!lessonId) return;
+  const current = getLessonProgress(lessonId);
+  const nextHearted = !current.hearted;
+  updateLessonProgress(lessonId, {
+    hearted: nextHearted,
+    heartedAt: nextHearted ? Date.now() : 0,
+    heartUpdatedAt: Date.now(),
+    lastOpenedAt: Date.now()
+  });
+  syncLessonPdfProgressUi(lessonId);
+  renderStudentLessonLibrary();
+  syncLessonEngagementToCloud(lessonId);
 });
 lessonPdfFullscreenBtn?.addEventListener('click', toggleLessonPdfFullscreen);
 lessonPdfCard?.addEventListener('pointermove', () => showLessonPdfFullscreenControls());
@@ -25967,6 +26515,10 @@ document.addEventListener('keydown', event => {
 bindLessonPdfFrameLoadHandler();
 lessonPdfOverlay?.addEventListener('click', event => {
   if (event.target === lessonPdfOverlay) event.stopPropagation();
+});
+window.addEventListener('resize', () => {
+  if (!lessonPdfOverlay || lessonPdfOverlay.classList.contains('hidden')) return;
+  window.requestAnimationFrame(refreshLessonPdfDescriptionToggle);
 });
 window.addEventListener('beforeunload', finishCurrentLessonReadingSession);
 

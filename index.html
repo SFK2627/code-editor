@@ -45,7 +45,7 @@
   </script>
   <link rel="preconnect" href="https://drive.google.com" crossorigin>
   <link rel="preconnect" href="https://lh3.googleusercontent.com" crossorigin>
-  <link rel="stylesheet" href="style.css?v=20260907-v336-native-preview-scroll" />
+  <link rel="stylesheet" href="style.css?v=20260908-v345-compact-lesson-viewer" />
   <style>
     .ai-rubric-settings-card,
     .admin-project-ai-review-card {
@@ -515,11 +515,13 @@
             <div>
               <h2 id="lessonPdfTitle">Lesson</h2>
               <p id="lessonPdfDescription" class="muted-text"></p>
+              <button id="lessonPdfDescriptionToggle" class="lesson-pdf-description-toggle hidden" type="button" aria-expanded="false" aria-controls="lessonPdfDescription">Show more</button>
               <p id="lessonPdfProgressText" class="lesson-pdf-progress-text">Not started yet</p>
             </div>
           </div>
           <div class="lesson-pdf-actions">
             <button id="lessonPdfMarkDoneBtn" class="ghost-btn lesson-mark-done-btn" type="button">✓ Mark Done</button>
+            <button id="lessonPdfHeartBtn" class="ghost-btn lesson-heart-btn" type="button" aria-pressed="false">♡ Heart</button>
             <button id="lessonPdfFullscreenBtn" class="ghost-btn" type="button">⛶ Fullscreen</button>
             <a id="lessonPdfOpenBtn" class="ghost-btn lesson-link-btn" href="#" target="_blank" rel="noopener noreferrer">↗ Open</a>
             <a id="lessonPdfDownloadBtn" class="ghost-btn lesson-link-btn" href="#" target="_blank" rel="noopener noreferrer">⬇ Download</a>
@@ -590,6 +592,8 @@
             <h2 id="givenActivityViewerTitle">Activity</h2>
           </div>
           <div class="given-activity-viewer-actions">
+            <button id="givenActivityViewerReadBtn" class="ghost-btn given-activity-read-btn" type="button">✓ Mark as Read</button>
+            <button id="givenActivityViewerHeartBtn" class="ghost-btn given-activity-heart-btn" type="button" aria-pressed="false">♡ Heart</button>
             <button id="givenActivityViewerInstructionsBtn" class="ghost-btn given-activity-viewer-instructions-btn" type="button" aria-expanded="false" aria-controls="givenActivityViewerInstructions" aria-label="Show instructions" title="Instructions" data-tooltip="Instructions">i</button>
             <a id="givenActivityViewerOpenBtn" class="ghost-btn" href="#" target="_blank" rel="noopener noreferrer">↗ Open</a>
             <a id="givenActivityViewerDownloadBtn" class="ghost-btn given-activity-viewer-download-btn hidden" href="#" target="_blank" rel="noopener noreferrer" download aria-label="Download attachment" title="Download" data-tooltip="Download">↓</a>
@@ -2838,6 +2842,56 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
     </div>
   </div>
 
+
+  <div id="engagementAnalyticsOverlay" class="engagement-analytics-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="engagementAnalyticsTitle">
+    <section class="engagement-analytics-panel" aria-label="Student engagement analytics">
+      <header class="engagement-analytics-header">
+        <div>
+          <p id="engagementAnalyticsKicker" class="section-kicker">Engagement Analytics</p>
+          <h2 id="engagementAnalyticsTitle">Student Engagement</h2>
+          <p id="engagementAnalyticsMeta" class="muted-text">Loading student engagement...</p>
+        </div>
+        <div class="engagement-analytics-header-actions">
+          <button id="engagementAnalyticsRefreshBtn" class="ghost-btn" type="button">↻ Refresh</button>
+          <button id="engagementAnalyticsCloseBtn" class="icon-btn" type="button" aria-label="Close engagement analytics">×</button>
+        </div>
+      </header>
+
+      <div id="engagementAnalyticsStatus" class="engagement-analytics-status" role="status">Loading students...</div>
+      <div id="engagementAnalyticsSummary" class="engagement-analytics-summary" aria-label="Engagement summary"></div>
+      <div id="engagementAnalyticsSectionSummary" class="engagement-section-summary" aria-label="Engagement by section"></div>
+
+      <div class="engagement-analytics-controls">
+        <label>
+          Section
+          <select id="engagementAnalyticsSectionFilter">
+            <option value="all">All Sections</option>
+          </select>
+        </label>
+        <label>
+          Show
+          <select id="engagementAnalyticsStatusFilter">
+            <option value="all">All Students</option>
+            <option value="viewed">Viewed</option>
+            <option value="read">Read</option>
+            <option value="hearted">Hearted</option>
+            <option value="not-viewed">Not Viewed</option>
+          </select>
+        </label>
+        <label>
+          Sort
+          <select id="engagementAnalyticsSort">
+            <option value="section-name">Section, then Name</option>
+            <option value="name">Name A–Z</option>
+            <option value="last-viewed">Latest Viewed</option>
+          </select>
+        </label>
+      </div>
+
+      <div id="engagementAnalyticsList" class="engagement-analytics-list" aria-live="polite"></div>
+    </section>
+  </div>
+
   <div id="appDialogOverlay" class="app-dialog-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="appDialogTitle">
     <div class="app-dialog-card" role="document">
       <div class="app-dialog-icon" id="appDialogIcon">!</div>
@@ -2855,6 +2909,6 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
   <script src="firebase-config.js"></script>
-  <script src="script.js?v=20260907-v337-local-asset-preview-fix"></script>
+  <script src="script.js?v=20260908-v345-compact-lesson-viewer"></script>
 </body>
 </html>

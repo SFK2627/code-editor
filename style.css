@@ -46852,6 +46852,18 @@ html body [hidden] {
    ========================================================= */
 
 /* ---------- Student Activities Given library ---------- */
+/* Activities Given is a standalone student route. Hide the Code Editor shell
+   while this screen is active, matching the existing Lessons/Dashboard routing. */
+body.given-activities-active {
+  overflow: hidden !important;
+}
+
+body.given-activities-active > .app-shell,
+body.given-activities-active > .hidden-admin-trigger,
+body.given-activities-active > .student-dashboard-screen {
+  display: none !important;
+}
+
 .given-activities-screen {
   position: fixed;
   inset: 0;
@@ -53307,4 +53319,1080 @@ body.editor-fullscreen-active.preview-inside-editor-fullscreen #editorPanel #pre
 .preview-frame-shell::after,
 .desktop-monitor-label {
   pointer-events: none !important;
+}
+
+
+/* =========================================================
+   v341 · Lesson + Activities engagement analytics
+   ========================================================= */
+.lesson-heart-btn.active,
+.given-activity-heart-btn.active {
+  border-color: rgba(225, 29, 72, 0.42);
+  background: rgba(244, 63, 94, 0.11);
+  color: #be123c;
+}
+
+.given-activity-read-btn.active,
+.lesson-mark-done-btn:disabled {
+  border-color: rgba(22, 163, 74, 0.32);
+  background: rgba(34, 197, 94, 0.10);
+  color: #15803d;
+  opacity: 1;
+}
+
+.student-engagement-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.student-engagement-badge {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  line-height: 1;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.student-engagement-badge.read {
+  color: #15803d;
+  border-color: rgba(22, 163, 74, 0.24);
+  background: rgba(240, 253, 244, 0.95);
+}
+
+.student-engagement-badge.hearted {
+  color: #be123c;
+  border-color: rgba(225, 29, 72, 0.24);
+  background: rgba(255, 241, 242, 0.96);
+}
+
+.engagement-admin-btn {
+  white-space: nowrap;
+}
+
+.engagement-analytics-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 15050;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(2, 6, 23, 0.66);
+  backdrop-filter: blur(8px);
+}
+
+.engagement-analytics-overlay.hidden {
+  display: none !important;
+}
+
+.engagement-analytics-panel {
+  width: min(1120px, 96vw);
+  max-height: min(880px, 94vh);
+  overflow: auto;
+  overscroll-behavior: contain;
+  border-radius: 24px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: var(--solid-card, #ffffff);
+  color: var(--text, #0f172a);
+  box-shadow: 0 28px 90px rgba(2, 6, 23, 0.30);
+  padding: 20px;
+}
+
+.engagement-analytics-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  position: sticky;
+  top: -20px;
+  z-index: 4;
+  margin: -20px -20px 16px;
+  padding: 20px;
+  background: color-mix(in srgb, var(--solid-card, #fff) 94%, transparent);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+}
+
+.engagement-analytics-header h2 {
+  margin: 3px 0 4px;
+  font-size: clamp(1.25rem, 2.2vw, 1.85rem);
+}
+
+.engagement-analytics-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.engagement-analytics-status {
+  min-height: 22px;
+  margin-bottom: 12px;
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: var(--muted, #64748b);
+}
+
+.engagement-analytics-status[data-type="error"] { color: #b91c1c; }
+.engagement-analytics-status[data-type="success"] { color: #166534; }
+
+.engagement-analytics-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.engagement-analytics-summary article {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 13px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: color-mix(in srgb, var(--solid-card, #fff) 94%, #e2e8f0 6%);
+}
+
+.engagement-analytics-summary article > span {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  background: rgba(59, 130, 246, 0.10);
+  font-size: 1.05rem;
+}
+
+.engagement-analytics-summary strong {
+  display: block;
+  font-size: 1.2rem;
+  line-height: 1.05;
+}
+
+.engagement-analytics-summary strong small {
+  font-size: 0.68em;
+  color: var(--muted, #64748b);
+}
+
+.engagement-analytics-summary p {
+  margin: 3px 0 0;
+  color: var(--muted, #64748b);
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.engagement-section-summary {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 2px 1px 10px;
+  scrollbar-width: thin;
+}
+
+.engagement-section-card {
+  min-width: 170px;
+  text-align: left;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 14px;
+  padding: 10px 12px;
+  background: color-mix(in srgb, var(--solid-card, #fff) 94%, #dbeafe 6%);
+  color: inherit;
+  cursor: pointer;
+}
+
+.engagement-section-card:hover {
+  border-color: rgba(37, 99, 235, 0.38);
+  transform: translateY(-1px);
+}
+
+.engagement-section-card strong,
+.engagement-section-card span {
+  display: block;
+}
+
+.engagement-section-card strong {
+  margin-bottom: 5px;
+  font-size: 0.84rem;
+}
+
+.engagement-section-card span {
+  color: var(--muted, #64748b);
+  font-size: 0.72rem;
+  line-height: 1.45;
+}
+
+.engagement-analytics-controls {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 2px 0 14px;
+}
+
+.engagement-analytics-controls label {
+  display: grid;
+  gap: 5px;
+  font-size: 0.76rem;
+  font-weight: 800;
+  color: var(--muted, #64748b);
+}
+
+.engagement-analytics-controls select {
+  width: 100%;
+  min-height: 40px;
+  border-radius: 11px;
+}
+
+.engagement-analytics-list {
+  display: grid;
+  gap: 8px;
+}
+
+.engagement-student-row {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.9fr) minmax(390px, 1.1fr);
+  gap: 12px;
+  align-items: center;
+  padding: 11px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: color-mix(in srgb, var(--solid-card, #fff) 97%, #e2e8f0 3%);
+}
+
+.engagement-student-row.not-viewed {
+  opacity: 0.78;
+}
+
+.engagement-student-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.engagement-student-avatar {
+  display: grid;
+  place-items: center;
+  flex: 0 0 38px;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: rgba(59, 130, 246, 0.13);
+  color: #1d4ed8;
+  font-weight: 900;
+}
+
+.engagement-student-main strong,
+.engagement-student-main small {
+  display: block;
+}
+
+.engagement-student-main strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.engagement-student-main small {
+  margin-top: 3px;
+  color: var(--muted, #64748b);
+  font-size: 0.72rem;
+}
+
+.engagement-student-statuses {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.engagement-student-statuses span {
+  min-width: 0;
+  padding: 7px 8px;
+  border-radius: 10px;
+  background: rgba(148, 163, 184, 0.08);
+  color: var(--muted, #64748b);
+  font-size: 0.68rem;
+  font-weight: 750;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.engagement-student-statuses span.on {
+  color: #1d4ed8;
+  background: rgba(59, 130, 246, 0.10);
+}
+.engagement-student-statuses span.read { color: #15803d; background: rgba(34, 197, 94, 0.10); }
+.engagement-student-statuses span.hearted { color: #be123c; background: rgba(244, 63, 94, 0.10); }
+
+.engagement-analytics-empty,
+.engagement-analytics-loading {
+  display: grid;
+  place-items: center;
+  gap: 7px;
+  min-height: 180px;
+  text-align: center;
+  color: var(--muted, #64748b);
+}
+
+.engagement-analytics-empty span { font-size: 2rem; }
+.engagement-analytics-empty p { margin: 0; font-size: 0.82rem; }
+
+@media (max-width: 900px) {
+  .engagement-analytics-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .engagement-student-row { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 640px) {
+  .engagement-analytics-overlay {
+    padding: 0;
+    place-items: stretch;
+  }
+  .engagement-analytics-panel {
+    width: 100%;
+    max-height: 100dvh;
+    min-height: 100dvh;
+    border-radius: 0;
+    padding: 14px;
+  }
+  .engagement-analytics-header {
+    top: -14px;
+    margin: -14px -14px 12px;
+    padding: 14px;
+  }
+  .engagement-analytics-header-actions .ghost-btn {
+    min-width: 42px;
+    padding-inline: 10px;
+    font-size: 0;
+  }
+  .engagement-analytics-header-actions .ghost-btn::before {
+    content: '↻';
+    font-size: 1rem;
+  }
+  .engagement-analytics-summary { gap: 7px; }
+  .engagement-analytics-summary article { padding: 10px; }
+  .engagement-analytics-controls { grid-template-columns: 1fr; gap: 7px; }
+  .engagement-student-statuses { grid-template-columns: 1fr; }
+  .lesson-pdf-actions,
+  .given-activity-viewer-actions {
+    flex-wrap: wrap;
+  }
+}
+
+
+/* =========================================================
+   v342 · Student Lesson engagement UI polish
+   Engagement stays visible without changing the card height or
+   colliding with long lesson titles in the PDF viewer.
+   ========================================================= */
+.lesson-card-topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+
+.lesson-card-topline .lesson-card-term {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.lesson-card-heart-indicator {
+  flex: 0 0 auto;
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 1px solid rgba(225, 29, 72, 0.22);
+  border-radius: 999px;
+  background: rgba(255, 241, 242, 0.9);
+  color: #e11d48;
+  font-size: 13px;
+  line-height: 1;
+  box-shadow: 0 2px 8px rgba(225, 29, 72, 0.08);
+}
+
+[data-theme="dark"] .lesson-card-heart-indicator {
+  border-color: rgba(251, 113, 133, 0.3);
+  background: rgba(159, 18, 57, 0.2);
+  color: #fda4af;
+}
+
+/* Keep the reader header calm: lesson information gets the full first row,
+   controls get a dedicated second row. */
+.lesson-pdf-header {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) !important;
+  align-items: start !important;
+  gap: 9px !important;
+  padding: 12px 16px !important;
+}
+
+.lesson-pdf-heading {
+  width: 100%;
+  min-width: 0;
+  align-items: flex-start !important;
+}
+
+.lesson-pdf-heading > div {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.lesson-pdf-heading h2 {
+  display: -webkit-box !important;
+  max-width: 100%;
+  margin: 0;
+  overflow: hidden;
+  white-space: normal !important;
+  text-overflow: ellipsis;
+  line-height: 1.2;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.lesson-pdf-heading .muted-text {
+  max-width: 100%;
+  margin-top: 3px;
+  overflow: hidden;
+  white-space: nowrap !important;
+  text-overflow: ellipsis;
+}
+
+.lesson-pdf-progress-text {
+  margin-top: 3px !important;
+}
+
+.lesson-pdf-actions {
+  display: flex !important;
+  width: 100%;
+  min-width: 0;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  flex-wrap: nowrap !important;
+  gap: 7px !important;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 1px 0 2px;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.lesson-pdf-actions::-webkit-scrollbar {
+  display: none;
+}
+
+.lesson-pdf-actions .ghost-btn,
+.lesson-pdf-actions .lesson-link-btn {
+  flex: 0 0 auto !important;
+  min-width: 0 !important;
+  height: 36px !important;
+  min-height: 36px !important;
+  padding: 0 12px !important;
+  border-radius: 999px !important;
+  font-size: 12px !important;
+  gap: 6px !important;
+}
+
+.lesson-pdf-actions .icon-btn {
+  flex: 0 0 36px !important;
+  width: 36px !important;
+  min-width: 36px !important;
+  height: 36px !important;
+  min-height: 36px !important;
+  padding: 0 !important;
+  border-radius: 999px !important;
+  font-size: 21px !important;
+}
+
+.lesson-heart-btn.active {
+  box-shadow: inset 0 0 0 1px rgba(225, 29, 72, 0.08);
+}
+
+@media (min-width: 901px) {
+  .lesson-pdf-actions {
+    overflow-x: visible;
+  }
+}
+
+@media (max-width: 720px) {
+  .lesson-pdf-overlay {
+    padding: 0 !important;
+  }
+
+  .lesson-pdf-card {
+    width: 100% !important;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+  }
+
+  .lesson-pdf-header {
+    gap: 7px !important;
+    padding: 9px 10px !important;
+  }
+
+  .lesson-pdf-heading {
+    gap: 8px !important;
+  }
+
+  .lesson-pdf-term {
+    padding: 5px 8px !important;
+    font-size: 10px !important;
+  }
+
+  .lesson-pdf-heading h2 {
+    font-size: 16px !important;
+    -webkit-line-clamp: 1;
+  }
+
+  .lesson-pdf-heading .muted-text {
+    display: none;
+  }
+
+  .lesson-pdf-progress-text {
+    font-size: 10px !important;
+  }
+
+  .lesson-pdf-actions {
+    justify-content: flex-start !important;
+    gap: 5px !important;
+    margin-inline: -1px;
+  }
+
+  .lesson-pdf-actions .ghost-btn,
+  .lesson-pdf-actions .lesson-link-btn {
+    height: 34px !important;
+    min-height: 34px !important;
+    padding: 0 10px !important;
+    font-size: 11px !important;
+  }
+
+  .lesson-pdf-actions .icon-btn {
+    flex-basis: 34px !important;
+    width: 34px !important;
+    min-width: 34px !important;
+    height: 34px !important;
+    min-height: 34px !important;
+    font-size: 20px !important;
+  }
+}
+
+/* Keep the same stacked reader header in tablet-desktop emulation, whose
+   older QA rules used a higher-specificity two-column header. */
+html.tablet-desktop-view:not([data-device-mode="phone"]) .lesson-pdf-header {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) !important;
+  align-items: start !important;
+  gap: 8px !important;
+  padding: 10px 12px !important;
+}
+
+html.tablet-desktop-view:not([data-device-mode="phone"]) .lesson-pdf-actions {
+  width: 100% !important;
+  justify-content: flex-end !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+}
+
+
+/* =========================================================
+   v343 — Admin Activities Given list layout repair
+   Keep activity copy readable; place actions on their own row.
+   ========================================================= */
+.given-activity-admin-row {
+  grid-template-columns: 48px minmax(0, 1fr);
+  grid-template-areas:
+    "order copy"
+    "order actions";
+  align-items: start;
+  column-gap: 10px;
+  row-gap: 9px;
+}
+
+.given-activity-admin-order {
+  grid-area: order;
+  align-self: center;
+}
+
+.given-activity-admin-copy {
+  grid-area: copy;
+  min-width: 0;
+  width: 100%;
+}
+
+.given-activity-admin-title-line {
+  width: 100%;
+  min-width: 0;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 8px;
+}
+
+.given-activity-admin-title-line strong {
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  overflow-wrap: break-word;
+  word-break: normal;
+  line-height: 1.3;
+}
+
+.given-activity-admin-copy small {
+  overflow-wrap: break-word;
+  word-break: normal;
+  line-height: 1.35;
+}
+
+.given-activity-admin-actions {
+  grid-area: actions;
+  min-width: 0;
+  width: 100%;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.given-activity-admin-actions .ghost-btn.mini {
+  flex: 0 0 auto;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+@media (max-width: 700px) {
+  .given-activity-admin-row {
+    grid-template-columns: 42px minmax(0, 1fr);
+  }
+
+  .given-activity-admin-actions {
+    grid-column: auto;
+  }
+}
+
+/* =========================================================
+   v344 — Lesson viewer full title/description reveal
+   Keep the reader compact by default, but let students expand
+   long lesson copy instead of permanently truncating it.
+   ========================================================= */
+.lesson-pdf-description-toggle {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  margin: 3px 0 0;
+  padding: 0;
+  border: 0;
+  color: var(--primary);
+  background: transparent;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1.2;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.lesson-pdf-description-toggle:hover,
+.lesson-pdf-description-toggle:focus-visible {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.lesson-pdf-description-toggle:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--primary) 42%, transparent);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+/* Expanded copy gets its natural height. The PDF body automatically takes
+   the remaining space because .lesson-pdf-card is an auto + 1fr grid. */
+.lesson-pdf-card.lesson-copy-expanded .lesson-pdf-heading h2 {
+  display: block !important;
+  overflow: visible !important;
+  white-space: normal !important;
+  text-overflow: clip !important;
+  -webkit-line-clamp: unset !important;
+  -webkit-box-orient: initial !important;
+}
+
+.lesson-pdf-card.lesson-copy-expanded .lesson-pdf-heading .muted-text {
+  display: block !important;
+  max-width: 100% !important;
+  overflow: visible !important;
+  white-space: normal !important;
+  text-overflow: clip !important;
+  line-height: 1.4;
+}
+
+@media (max-width: 720px) {
+  .lesson-pdf-description-toggle {
+    margin-top: 2px;
+    font-size: 10px;
+  }
+
+  .lesson-pdf-card.lesson-copy-expanded .lesson-pdf-heading h2 {
+    font-size: 16px !important;
+    line-height: 1.25 !important;
+  }
+
+  .lesson-pdf-card.lesson-copy-expanded .lesson-pdf-heading .muted-text {
+    margin-top: 4px !important;
+    font-size: 11px !important;
+    line-height: 1.35 !important;
+  }
+}
+
+/* =========================================================
+   v345 — Compact Lesson PDF viewer header
+   Give the PDF more screen space while preserving Show more.
+   Desktop: lesson copy + actions share the header row.
+   Phone: compact stacked copy + native horizontal action strip.
+   ========================================================= */
+.lesson-pdf-header {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  grid-template-areas: "lesson-heading lesson-actions" !important;
+  align-items: center !important;
+  gap: 10px !important;
+  min-height: 0 !important;
+  padding: 8px 12px !important;
+}
+
+.lesson-pdf-heading {
+  grid-area: lesson-heading;
+  display: flex !important;
+  align-items: flex-start !important;
+  gap: 9px !important;
+  width: 100%;
+  min-width: 0;
+}
+
+.lesson-pdf-term {
+  align-self: flex-start;
+  margin-top: 1px;
+  padding: 5px 8px !important;
+  font-size: 10px !important;
+  line-height: 1.1;
+}
+
+.lesson-pdf-heading > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "lesson-title lesson-title"
+    "lesson-description lesson-toggle"
+    "lesson-progress lesson-progress";
+  column-gap: 8px;
+  row-gap: 1px;
+  width: 100%;
+  min-width: 0;
+}
+
+.lesson-pdf-heading h2 {
+  grid-area: lesson-title;
+  display: block !important;
+  min-width: 0;
+  margin: 0 !important;
+  overflow: hidden !important;
+  white-space: nowrap !important;
+  text-overflow: ellipsis !important;
+  font-size: clamp(16px, 1.45vw, 20px) !important;
+  line-height: 1.18 !important;
+  -webkit-line-clamp: unset !important;
+}
+
+.lesson-pdf-heading .muted-text {
+  grid-area: lesson-description;
+  display: block !important;
+  min-width: 0;
+  max-width: 100%;
+  margin: 1px 0 0 !important;
+  overflow: hidden !important;
+  white-space: nowrap !important;
+  text-overflow: ellipsis !important;
+  font-size: 11.5px !important;
+  line-height: 1.2 !important;
+}
+
+.lesson-pdf-description-toggle {
+  grid-area: lesson-toggle;
+  align-self: center;
+  margin: 0 !important;
+  white-space: nowrap;
+  font-size: 10px !important;
+  line-height: 1.1 !important;
+}
+
+.lesson-pdf-progress-text {
+  grid-area: lesson-progress;
+  margin: 1px 0 0 !important;
+  font-size: 10px !important;
+  line-height: 1.15 !important;
+}
+
+.lesson-pdf-actions {
+  grid-area: lesson-actions;
+  display: flex !important;
+  width: auto !important;
+  min-width: 0;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  flex-wrap: nowrap !important;
+  gap: 5px !important;
+  overflow-x: visible !important;
+  overflow-y: hidden !important;
+  padding: 0 !important;
+}
+
+.lesson-pdf-actions .ghost-btn,
+.lesson-pdf-actions .lesson-link-btn {
+  flex: 0 0 auto !important;
+  height: 32px !important;
+  min-height: 32px !important;
+  padding: 0 9px !important;
+  border-radius: 999px !important;
+  font-size: 10.5px !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+}
+
+.lesson-pdf-actions .icon-btn {
+  flex: 0 0 32px !important;
+  width: 32px !important;
+  min-width: 32px !important;
+  height: 32px !important;
+  min-height: 32px !important;
+  padding: 0 !important;
+  border-radius: 999px !important;
+  font-size: 19px !important;
+}
+
+/* Expanded copy gets the width it needs. The header is allowed to grow only
+   while the student intentionally asks to read the full lesson description. */
+.lesson-pdf-card.lesson-copy-expanded .lesson-pdf-header {
+  grid-template-columns: minmax(0, 1fr) !important;
+  grid-template-areas:
+    "lesson-heading"
+    "lesson-actions" !important;
+  align-items: start !important;
+  gap: 6px !important;
+}
+
+.lesson-pdf-card.lesson-copy-expanded .lesson-pdf-heading > div {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas:
+    "lesson-title"
+    "lesson-description"
+    "lesson-toggle"
+    "lesson-progress";
+  row-gap: 3px;
+}
+
+.lesson-pdf-card.lesson-copy-expanded .lesson-pdf-heading h2,
+.lesson-pdf-card.lesson-copy-expanded .lesson-pdf-heading .muted-text {
+  overflow: visible !important;
+  white-space: normal !important;
+  text-overflow: clip !important;
+}
+
+.lesson-pdf-card.lesson-copy-expanded .lesson-pdf-actions {
+  width: 100% !important;
+}
+
+/* Mid-width desktop/tablet: keep the copy readable and move the compact
+   controls below instead of squeezing the lesson title. */
+@media (max-width: 1080px) {
+  .lesson-pdf-header {
+    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-areas:
+      "lesson-heading"
+      "lesson-actions" !important;
+    gap: 5px !important;
+    padding: 7px 10px !important;
+  }
+
+  .lesson-pdf-actions {
+    width: 100% !important;
+    justify-content: flex-end !important;
+    overflow-x: auto !important;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .lesson-pdf-actions::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* Phone: keep the reader header compact, but do not hide the description.
+   One line is shown by default, with Show more for the complete copy. */
+@media (max-width: 720px) {
+  .lesson-pdf-header {
+    position: relative;
+    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-areas:
+      "lesson-heading"
+      "lesson-actions" !important;
+    gap: 5px !important;
+    padding: max(6px, env(safe-area-inset-top)) 7px 6px !important;
+  }
+
+  .lesson-pdf-heading {
+    gap: 0 !important;
+    padding-right: 36px;
+  }
+
+  .lesson-pdf-term {
+    display: none !important;
+  }
+
+  .lesson-pdf-heading > div {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "lesson-title lesson-title"
+      "lesson-description lesson-toggle"
+      "lesson-progress lesson-progress";
+    column-gap: 6px;
+    row-gap: 1px;
+  }
+
+  .lesson-pdf-heading h2 {
+    display: -webkit-box !important;
+    overflow: hidden !important;
+    white-space: normal !important;
+    text-overflow: ellipsis !important;
+    font-size: 14px !important;
+    line-height: 1.15 !important;
+    -webkit-line-clamp: 2 !important;
+    -webkit-box-orient: vertical !important;
+  }
+
+  .lesson-pdf-heading .muted-text {
+    display: block !important;
+    margin: 1px 0 0 !important;
+    overflow: hidden !important;
+    white-space: nowrap !important;
+    text-overflow: ellipsis !important;
+    font-size: 9.5px !important;
+    line-height: 1.15 !important;
+  }
+
+  .lesson-pdf-description-toggle {
+    align-self: center;
+    font-size: 9px !important;
+  }
+
+  .lesson-pdf-progress-text {
+    margin-top: 1px !important;
+    font-size: 9px !important;
+    line-height: 1.1 !important;
+  }
+
+  .lesson-pdf-actions {
+    width: calc(100% - 38px) !important;
+    max-width: calc(100% - 38px) !important;
+    justify-content: flex-start !important;
+    gap: 4px !important;
+    overflow-x: auto !important;
+    padding: 0 !important;
+    scrollbar-width: none !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .lesson-pdf-actions::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  .lesson-pdf-actions .ghost-btn,
+  .lesson-pdf-actions .lesson-link-btn {
+    height: 29px !important;
+    min-height: 29px !important;
+    padding: 0 8px !important;
+    font-size: 9.5px !important;
+  }
+
+  .lesson-pdf-actions #lessonPdfCloseBtn {
+    position: absolute;
+    top: max(6px, env(safe-area-inset-top));
+    right: 6px;
+    z-index: 4;
+    width: 30px !important;
+    min-width: 30px !important;
+    height: 30px !important;
+    min-height: 30px !important;
+    font-size: 18px !important;
+  }
+
+  .lesson-pdf-card.lesson-copy-expanded .lesson-pdf-heading {
+    padding-right: 36px;
+  }
+
+  .lesson-pdf-card.lesson-copy-expanded .lesson-pdf-heading > div {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "lesson-title"
+      "lesson-description"
+      "lesson-toggle"
+      "lesson-progress";
+    row-gap: 3px;
+  }
+
+  .lesson-pdf-card.lesson-copy-expanded .lesson-pdf-heading h2 {
+    display: block !important;
+    overflow: visible !important;
+    white-space: normal !important;
+    -webkit-line-clamp: unset !important;
+  }
+
+  .lesson-pdf-card.lesson-copy-expanded .lesson-pdf-heading .muted-text {
+    overflow: visible !important;
+    white-space: normal !important;
+    text-overflow: clip !important;
+    font-size: 10.5px !important;
+    line-height: 1.3 !important;
+  }
+}
+
+/* Tablet-desktop emulation has older high-specificity lesson-reader rules.
+   Re-assert the compact v345 layout there too. */
+html.tablet-desktop-view:not([data-device-mode="phone"]) .lesson-pdf-header {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  grid-template-areas: "lesson-heading lesson-actions" !important;
+  align-items: center !important;
+  gap: 8px !important;
+  padding: 7px 10px !important;
+}
+
+html.tablet-desktop-view:not([data-device-mode="phone"]) .lesson-pdf-actions {
+  grid-area: lesson-actions !important;
+  width: auto !important;
+  justify-content: flex-end !important;
+  overflow-x: visible !important;
+}
+
+@media (max-width: 1080px) {
+  html.tablet-desktop-view:not([data-device-mode="phone"]) .lesson-pdf-header {
+    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-areas:
+      "lesson-heading"
+      "lesson-actions" !important;
+  }
+
+  html.tablet-desktop-view:not([data-device-mode="phone"]) .lesson-pdf-actions {
+    width: 100% !important;
+    overflow-x: auto !important;
+  }
 }
