@@ -56267,3 +56267,481 @@ html[data-theme="dark"] .code-explorer-mobile-stage-steps button.active { backgr
 html[data-theme="dark"] .code-explorer-mobile-stage-steps button.active span { background:#3b82f6; color:#fff; }
 html[data-theme="dark"] .code-explorer-mobile-stage-steps button.done:not(.active) { background:#10281e; border-color:#286b4a; color:#86efac; }
 html[data-theme="dark"] .code-explorer-mobile-stage-steps button.done:not(.active) span { background:#164e3a; color:#bbf7d0; }
+
+
+/* ================================================================
+   v369 — Phone full-screen Code Explorer focus mode
+   Keeps desktop/tablet behavior intact while making phone lessons feel
+   closer to a full-screen learning flow with top progress and bottom CTA.
+   ================================================================ */
+@media (max-width: 760px) {
+  .code-explorer-screen.code-explorer-mobile-focus {
+    background: #10151f;
+  }
+
+  .code-explorer-screen.code-explorer-mobile-focus .code-explorer-header {
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 12px 10px;
+    background: rgba(16,21,31,.94);
+    border-bottom: 1px solid rgba(255,255,255,.06);
+    box-shadow: none;
+    backdrop-filter: blur(16px);
+  }
+  .code-explorer-screen.code-explorer-mobile-focus .code-explorer-header-brand {
+    display: contents;
+  }
+  .code-explorer-screen.code-explorer-mobile-focus .code-explorer-logo,
+  .code-explorer-screen.code-explorer-mobile-focus .code-explorer-header-brand > div,
+  .code-explorer-screen.code-explorer-mobile-focus .code-explorer-header-actions .ghost-btn,
+  .code-explorer-screen.code-explorer-mobile-focus .code-explorer-hero,
+  .code-explorer-screen.code-explorer-mobile-focus .code-explorer-sidebar,
+  .code-explorer-screen.code-explorer-mobile-focus .code-explorer-mobile-stage-steps,
+  .code-explorer-screen.code-explorer-mobile-focus #codeExplorerMobileStageBackBtn {
+    display: none !important;
+  }
+  .code-explorer-screen.code-explorer-mobile-focus .code-explorer-header-brand > .ghost-btn {
+    grid-column: 1;
+    width: 42px;
+    min-width: 42px;
+    height: 42px;
+    min-height: 42px;
+    padding: 0;
+    border-radius: 14px;
+    font-size: 1.15rem;
+    font-weight: 900;
+    border-color: rgba(255,255,255,.1);
+    background: rgba(255,255,255,.05);
+    color: #f8fafc;
+  }
+  .code-explorer-screen.code-explorer-mobile-focus .code-explorer-header-actions {
+    grid-column: 3;
+    width: auto;
+    margin-left: auto;
+    justify-content: flex-end;
+    gap: 8px;
+    overflow: visible;
+    padding: 0;
+  }
+  .code-explorer-screen.code-explorer-mobile-focus .code-explorer-xp-badge,
+  .code-explorer-screen.code-explorer-mobile-focus .code-explorer-heart-badge {
+    min-height: 38px;
+    padding: 8px 12px;
+    border-radius: 999px;
+    font-size: .76rem;
+    font-weight: 900;
+  }
+
+  .code-explorer-screen.code-explorer-mobile-focus .code-explorer-main {
+    padding: 0 0 calc(env(safe-area-inset-bottom,0px) + 10px);
+    background: #10151f;
+  }
+  .code-explorer-screen.code-explorer-mobile-focus .code-explorer-main > * {
+    max-width: none;
+    margin-left: 0;
+    margin-right: 0;
+  }
+  .code-explorer-screen.code-explorer-mobile-focus .code-explorer-course-cards {
+    margin: 0;
+    padding: 10px 12px 6px;
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 8px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .code-explorer-screen.code-explorer-mobile-focus .code-explorer-course-cards::-webkit-scrollbar {
+    display: none;
+  }
+  .code-explorer-screen.code-explorer-mobile-focus .code-explorer-course-card {
+    flex: 0 0 148px;
+  }
+  .code-explorer-screen.code-explorer-mobile-focus .code-explorer-workspace {
+    display: block;
+    margin-top: 0;
+  }
+  .code-explorer-screen.code-explorer-mobile-focus .code-explorer-lesson-panel {
+    gap: 12px;
+    padding: 0 12px;
+  }
+  .code-explorer-screen.code-explorer-mobile-focus .code-explorer-lesson-head,
+  .code-explorer-screen.code-explorer-mobile-focus .code-explorer-learn-card,
+  .code-explorer-screen.code-explorer-mobile-focus .code-explorer-practice-card,
+  .code-explorer-screen.code-explorer-mobile-focus .code-explorer-quiz-card,
+  .code-explorer-screen.code-explorer-mobile-focus .code-explorer-topic-complete-card,
+  .code-explorer-screen.code-explorer-mobile-focus .code-explorer-final-card {
+    border-radius: 22px;
+    border-color: rgba(255,255,255,.08);
+    background: #1a2130;
+    color: #f8fafc;
+    box-shadow: 0 10px 26px rgba(0,0,0,.22);
+  }
+  .code-explorer-screen.code-explorer-mobile-focus .code-explorer-lesson-head p,
+  .code-explorer-screen.code-explorer-mobile-focus .code-explorer-topic-explanation p,
+  .code-explorer-screen.code-explorer-mobile-focus .code-explorer-quiz-note,
+  .code-explorer-screen.code-explorer-mobile-focus .code-explorer-final-card p,
+  .code-explorer-screen.code-explorer-mobile-focus .code-explorer-topic-complete-card p,
+  .code-explorer-screen.code-explorer-mobile-focus .code-explorer-card-label,
+  .code-explorer-screen.code-explorer-mobile-focus .code-explorer-mobile-journey-head span,
+  .code-explorer-screen.code-explorer-mobile-focus .code-explorer-mobile-progress-text,
+  .code-explorer-screen.code-explorer-mobile-focus .code-explorer-mobile-stage-message {
+    color: #b9c6da;
+  }
+  .code-explorer-screen.code-explorer-mobile-focus .code-explorer-topic-status {
+    background: rgba(59,130,246,.16);
+    border-color: rgba(96,165,250,.28);
+    color: #dbeafe;
+  }
+  .code-explorer-screen.code-explorer-mobile-focus .code-explorer-mobile-journey {
+    position: sticky;
+    top: 0;
+    z-index: 15;
+    margin: 0;
+    padding: 8px 0 6px;
+    border: 0;
+    border-radius: 0;
+    background: linear-gradient(180deg,rgba(16,21,31,.98) 0%, rgba(16,21,31,.88) 74%, rgba(16,21,31,0) 100%);
+    box-shadow: none;
+    backdrop-filter: blur(12px);
+  }
+  .code-explorer-screen.code-explorer-mobile-focus .code-explorer-mobile-journey-head {
+    margin-bottom: 8px;
+  }
+  .code-explorer-screen.code-explorer-mobile-focus .code-explorer-mobile-journey-head > div {
+    display: grid;
+    gap: 2px;
+  }
+  .code-explorer-screen.code-explorer-mobile-focus .code-explorer-mobile-journey-head strong {
+    color: #ffffff;
+    font-size: 1rem;
+  }
+  .code-explorer-screen.code-explorer-mobile-focus .code-explorer-mobile-journey-head small {
+    color: #8ca0bb;
+    font-size: .68rem;
+  }
+  .code-explorer-screen.code-explorer-mobile-focus .code-explorer-mobile-progress-shell {
+    display: grid;
+    grid-template-columns: minmax(0,1fr) auto;
+    align-items: center;
+    gap: 10px;
+  }
+  .code-explorer-screen.code-explorer-mobile-focus .code-explorer-mobile-progress-track {
+    height: 12px;
+    border-radius: 999px;
+    overflow: hidden;
+    background: rgba(255,255,255,.07);
+  }
+  .code-explorer-screen.code-explorer-mobile-focus .code-explorer-mobile-progress-track i {
+    display: block;
+    width: 20%;
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg,#22c55e,#84cc16);
+    transition: width .22s ease;
+  }
+  .code-explorer-screen.code-explorer-mobile-focus .code-explorer-mobile-progress-text {
+    font-size: .76rem;
+    font-weight: 800;
+    letter-spacing: .02em;
+  }
+  .code-explorer-screen.code-explorer-mobile-focus .code-explorer-mobile-stage-message {
+    min-height: 18px;
+    margin-top: 8px;
+    text-align: left;
+    font-size: .72rem;
+  }
+
+  .code-explorer-screen.code-explorer-mobile-focus .code-explorer-mobile-stage-nav {
+    display: block;
+    position: sticky;
+    bottom: 0;
+    z-index: 18;
+    margin-top: 2px;
+    padding: 10px 0 calc(6px + env(safe-area-inset-bottom,0px));
+    background: linear-gradient(180deg,rgba(16,21,31,0) 0%, rgba(16,21,31,.92) 34%, rgba(16,21,31,.99) 100%);
+  }
+  .code-explorer-screen.code-explorer-mobile-focus #codeExplorerMobileStageNextBtn {
+    width: 100%;
+    min-height: 56px;
+    border-radius: 18px;
+    font-size: 1rem;
+    font-weight: 900;
+    letter-spacing: .03em;
+    text-transform: uppercase;
+    box-shadow: 0 12px 24px rgba(37,99,235,.24);
+  }
+  .code-explorer-screen.code-explorer-mobile-focus #codeExplorerMobileStageNextBtn:disabled {
+    box-shadow: none;
+    opacity: .62;
+  }
+  .code-explorer-screen.code-explorer-mobile-focus .code-explorer-practice-feedback,
+  .code-explorer-screen.code-explorer-mobile-focus .code-explorer-feedback {
+    border-radius: 16px;
+  }
+
+  .code-explorer-screen.code-explorer-mobile-focus .code-explorer-example-block,
+  .code-explorer-screen.code-explorer-mobile-focus .code-explorer-editor-pane,
+  .code-explorer-screen.code-explorer-mobile-focus .code-explorer-preview-pane,
+  .code-explorer-screen.code-explorer-mobile-focus .code-explorer-quick-single {
+    border-radius: 16px;
+  }
+
+  .code-explorer-screen.code-explorer-mobile-focus .code-explorer-final-card {
+    margin: 14px 12px 0;
+  }
+}
+
+/* ================================================================
+   v370 — Mobile focus polish + dark-mode readability pass
+   Phone-only. Desktop/tablet layout remains untouched.
+   ================================================================ */
+@media (max-width: 760px) {
+  /* Light theme: keep the immersive layout, but do not force a dark canvas. */
+  html[data-theme="light"] .code-explorer-screen.code-explorer-mobile-focus,
+  html[data-theme="light"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-main {
+    background: #f4f7fb;
+    color: #172033;
+  }
+  html[data-theme="light"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-header {
+    background: rgba(255,255,255,.96);
+    border-bottom-color: #dce5ef;
+  }
+  html[data-theme="light"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-header-brand > .ghost-btn {
+    background: #ffffff;
+    border-color: #d7e1ec;
+    color: #1e293b;
+  }
+  html[data-theme="light"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-mobile-journey {
+    background: linear-gradient(180deg,rgba(244,247,251,.99) 0%,rgba(244,247,251,.93) 78%,rgba(244,247,251,0) 100%);
+  }
+  html[data-theme="light"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-mobile-journey-head strong,
+  html[data-theme="light"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-lesson-head h2,
+  html[data-theme="light"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-section-heading h3,
+  html[data-theme="light"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-topic-complete-card strong {
+    color: #172033;
+  }
+  html[data-theme="light"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-mobile-journey-head span,
+  html[data-theme="light"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-mobile-journey-head small,
+  html[data-theme="light"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-mobile-progress-text,
+  html[data-theme="light"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-mobile-stage-message,
+  html[data-theme="light"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-lesson-head p,
+  html[data-theme="light"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-topic-explanation p,
+  html[data-theme="light"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-practice-card > p,
+  html[data-theme="light"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-quiz-note,
+  html[data-theme="light"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-topic-complete-card p {
+    color: #5f6f85;
+  }
+  html[data-theme="light"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-lesson-head,
+  html[data-theme="light"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-learn-card,
+  html[data-theme="light"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-practice-card,
+  html[data-theme="light"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-quiz-card,
+  html[data-theme="light"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-topic-complete-card,
+  html[data-theme="light"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-final-card {
+    background: #ffffff;
+    border-color: #dbe4ee;
+    color: #172033;
+    box-shadow: 0 9px 24px rgba(15,23,42,.07);
+  }
+  html[data-theme="light"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-topic-meta span {
+    background: #eef3f8;
+    color: #526174;
+  }
+  html[data-theme="light"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-mobile-progress-track {
+    background: #dfe7ef;
+  }
+  html[data-theme="light"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-mobile-stage-nav {
+    background: linear-gradient(180deg,rgba(244,247,251,0) 0%,rgba(244,247,251,.94) 34%,rgba(244,247,251,.99) 100%);
+  }
+
+  /* Dark theme: explicit high-contrast text/background pairs for every lesson block. */
+  html[data-theme="dark"] .code-explorer-screen.code-explorer-mobile-focus,
+  html[data-theme="dark"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-main {
+    background: #0b111b !important;
+    color: #f3f7fd !important;
+  }
+  html[data-theme="dark"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-header {
+    background: rgba(11,17,27,.97) !important;
+    border-bottom-color: #223047 !important;
+  }
+  html[data-theme="dark"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-header-brand > .ghost-btn {
+    background: #121b29 !important;
+    border-color: #2a3a52 !important;
+    color: #f8fbff !important;
+  }
+  html[data-theme="dark"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-mobile-journey {
+    background: linear-gradient(180deg,rgba(11,17,27,.995) 0%,rgba(11,17,27,.95) 78%,rgba(11,17,27,0) 100%) !important;
+  }
+  html[data-theme="dark"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-mobile-journey-head strong,
+  html[data-theme="dark"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-lesson-head h2,
+  html[data-theme="dark"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-section-heading h3,
+  html[data-theme="dark"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-quick-progress-head strong,
+  html[data-theme="dark"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-quick-single h4,
+  html[data-theme="dark"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-pane-head strong,
+  html[data-theme="dark"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-example-head strong,
+  html[data-theme="dark"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-topic-complete-card strong,
+  html[data-theme="dark"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-final-card h2 {
+    color: #f8fbff !important;
+  }
+  html[data-theme="dark"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-mobile-journey-head span,
+  html[data-theme="dark"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-mobile-journey-head small,
+  html[data-theme="dark"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-mobile-progress-text,
+  html[data-theme="dark"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-mobile-stage-message,
+  html[data-theme="dark"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-lesson-head p,
+  html[data-theme="dark"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-topic-explanation,
+  html[data-theme="dark"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-topic-explanation p,
+  html[data-theme="dark"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-topic-explanation li,
+  html[data-theme="dark"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-practice-card > p,
+  html[data-theme="dark"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-quiz-note,
+  html[data-theme="dark"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-quick-progress-head span,
+  html[data-theme="dark"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-quick-nav > span,
+  html[data-theme="dark"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-topic-complete-card p,
+  html[data-theme="dark"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-final-card p {
+    color: #c8d4e5 !important;
+  }
+  html[data-theme="dark"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-lesson-head,
+  html[data-theme="dark"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-learn-card,
+  html[data-theme="dark"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-practice-card,
+  html[data-theme="dark"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-quiz-card,
+  html[data-theme="dark"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-topic-complete-card,
+  html[data-theme="dark"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-final-card {
+    background: #141d2b !important;
+    border-color: #2a3a52 !important;
+    color: #f3f7fd !important;
+    box-shadow: 0 12px 30px rgba(0,0,0,.28) !important;
+  }
+  html[data-theme="dark"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-topic-meta span {
+    background: #202d40 !important;
+    color: #c7d5e8 !important;
+  }
+  html[data-theme="dark"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-topic-status,
+  html[data-theme="dark"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-check-badge {
+    background: #202d40 !important;
+    border: 1px solid #344862 !important;
+    color: #d7e4f5 !important;
+  }
+  html[data-theme="dark"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-topic-status[data-state="complete"],
+  html[data-theme="dark"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-check-badge[data-state="complete"] {
+    background: #103323 !important;
+    border-color: #2d7650 !important;
+    color: #bcf7d6 !important;
+  }
+  html[data-theme="dark"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-topic-status[data-state="progress"] {
+    background: #35290f !important;
+    border-color: #775d24 !important;
+    color: #ffe0a1 !important;
+  }
+  html[data-theme="dark"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-card-label,
+  html[data-theme="dark"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-quick-question-kicker {
+    color: #8ec2ff !important;
+  }
+  html[data-theme="dark"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-mobile-progress-track {
+    background: #253348 !important;
+  }
+  html[data-theme="dark"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-mobile-progress-track i {
+    background: linear-gradient(90deg,#38d66b,#9bdc34) !important;
+    box-shadow: 0 0 14px rgba(56,214,107,.18);
+  }
+  html[data-theme="dark"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-example-block {
+    background: #08111f !important;
+    border-color: #31425b !important;
+  }
+  html[data-theme="dark"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-example-head {
+    background: #101a2a !important;
+    color: #eef5ff !important;
+  }
+  html[data-theme="dark"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-example-block pre,
+  html[data-theme="dark"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-example-block code {
+    background: #08111f !important;
+    color: #e6eef9 !important;
+  }
+  html[data-theme="dark"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-playground {
+    border-color: #31425b !important;
+    background: #0d1624 !important;
+  }
+  html[data-theme="dark"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-editor-pane,
+  html[data-theme="dark"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-preview-pane {
+    background: #0d1624 !important;
+  }
+  html[data-theme="dark"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-editor-pane {
+    border-right-color: #31425b !important;
+  }
+  html[data-theme="dark"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-pane-head {
+    background: #121e2f !important;
+    border-bottom-color: #31425b !important;
+    color: #eef5ff !important;
+  }
+  html[data-theme="dark"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-pane-head span {
+    color: #b2c2d8 !important;
+  }
+  html[data-theme="dark"] .code-explorer-screen.code-explorer-mobile-focus #codeExplorerPracticeEditor {
+    background: #07101d !important;
+    color: #ecf4ff !important;
+  }
+  html[data-theme="dark"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-practice-actions {
+    background: #101a2a !important;
+  }
+  html[data-theme="dark"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-quick-single {
+    background: #101a28 !important;
+    border-color: #30435e !important;
+  }
+  html[data-theme="dark"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-quick-option {
+    background: #121d2d !important;
+    border-color: #344963 !important;
+    color: #e7effb !important;
+  }
+  html[data-theme="dark"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-quick-option:hover:not(:disabled) {
+    background: #18263a !important;
+    border-color: #5c8bc7 !important;
+  }
+  html[data-theme="dark"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-quick-option.selected {
+    background: #17365c !important;
+    border-color: #5ca2f2 !important;
+    color: #ffffff !important;
+  }
+  html[data-theme="dark"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-quick-letter {
+    background: #22334a !important;
+    color: #d4e3f6 !important;
+  }
+  html[data-theme="dark"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-instant-feedback.correct {
+    background: #103423 !important;
+    border-color: #357c58 !important;
+    color: #c6f7da !important;
+  }
+  html[data-theme="dark"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-instant-feedback.wrong {
+    background: #3a1724 !important;
+    border-color: #7d3750 !important;
+    color: #ffd0dc !important;
+  }
+  html[data-theme="dark"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-feedback[data-type="success"] {
+    background: #103423 !important;
+    border-color: #357c58 !important;
+    color: #c6f7da !important;
+  }
+  html[data-theme="dark"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-feedback[data-type="warning"] {
+    background: #3a2911 !important;
+    border-color: #805f2d !important;
+    color: #ffe0a3 !important;
+  }
+  html[data-theme="dark"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-mobile-stage-nav {
+    background: linear-gradient(180deg,rgba(11,17,27,0) 0%,rgba(11,17,27,.95) 34%,rgba(11,17,27,.995) 100%) !important;
+  }
+  html[data-theme="dark"] .code-explorer-screen.code-explorer-mobile-focus #codeExplorerMobileStageNextBtn {
+    color: #ffffff !important;
+  }
+
+  /* Slight spacing polish: the content starts immediately below the progress strip. */
+  .code-explorer-screen.code-explorer-mobile-focus .code-explorer-lesson-panel[data-mobile-stage] > .code-explorer-learn-card,
+  .code-explorer-screen.code-explorer-mobile-focus .code-explorer-lesson-panel[data-mobile-stage] > .code-explorer-practice-card,
+  .code-explorer-screen.code-explorer-mobile-focus .code-explorer-lesson-panel[data-mobile-stage] > .code-explorer-quiz-card,
+  .code-explorer-screen.code-explorer-mobile-focus .code-explorer-lesson-panel[data-mobile-stage] > .code-explorer-topic-complete-card {
+    min-height: min(56vh, 520px);
+  }
+  .code-explorer-screen.code-explorer-mobile-focus .code-explorer-lesson-panel[data-mobile-stage="complete"] > .code-explorer-topic-complete-card {
+    min-height: min(58vh, 540px);
+  }
+}

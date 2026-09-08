@@ -40151,6 +40151,8 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     mobileJourney: $('codeExplorerMobileJourney'),
     mobileStageCount: $('codeExplorerMobileStageCount'),
     mobileStageTitle: $('codeExplorerMobileStageTitle'),
+    mobileProgressBar: $('codeExplorerMobileProgressBar'),
+    mobileProgressText: $('codeExplorerMobileProgressText'),
     mobileStageSteps: $('codeExplorerMobileStageSteps'),
     mobileStageMessage: $('codeExplorerMobileStageMessage'),
     mobileStageNav: $('codeExplorerMobileStageNav'),
@@ -41110,6 +41112,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     const answeredCount = quiz.results.filter(value => value !== null && value !== undefined).length;
     const expected = Number(question.answer);
     const progressPercent = Math.round((answeredCount / total) * 100);
+    updateMobileJourneyProgress(topicRecord());
     const hearts = currentHeartSnapshot();
     const firstUnanswered = quiz.results.findIndex(value => value === null || value === undefined);
     const stepButtons = questions.map((entry, index) => {
@@ -41292,7 +41295,44 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     window.setTimeout(() => dom.mobileStageMessage?.classList.remove('pulse'), 700);
   }
 
+  function syncExplorerMobileChrome() {
+    const mobile = isMobileExplorerLayout();
+    screen?.classList.toggle('code-explorer-mobile-focus', mobile);
+    if (dom.backBtn) {
+      dom.backBtn.textContent = mobile ? '✕' : '← My Projects';
+      dom.backBtn.setAttribute('aria-label', mobile ? 'Close Code Explorer' : 'Back to My Projects');
+      dom.backBtn.title = mobile ? 'Close' : 'Back to My Projects';
+    }
+    if (dom.certificatesBtn) dom.certificatesBtn.textContent = mobile ? '🏅' : '🏅 My Certificates';
+    if (dom.themeBtn) dom.themeBtn.textContent = mobile ? '🌙' : '🌙 Theme';
+  }
+
+  function mobileJourneyProgressPercent(record = topicRecord()) {
+    const stage = state.mobileStage;
+    if (stage === 'complete' || record?.completedAt) return 100;
+    if (stage === 'learn') return 12;
+    if (stage === 'example') return 30;
+    if (stage === 'practice') return record?.practicePassed ? 58 : 48;
+    if (stage === 'quiz') {
+      const pack = ensureQuickQuizState();
+      const total = Math.max(1, Number(pack?.questions?.length || 5));
+      const answered = Array.isArray(pack?.quiz?.results)
+        ? pack.quiz.results.filter(value => value !== null && value !== undefined).length
+        : 0;
+      return Math.min(96, 62 + Math.round((answered / total) * 34));
+    }
+    return 12;
+  }
+
+  function updateMobileJourneyProgress(record = topicRecord()) {
+    if (!isMobileExplorerLayout()) return;
+    const progressPercent = mobileJourneyProgressPercent(record);
+    if (dom.mobileProgressBar) dom.mobileProgressBar.style.width = `${progressPercent}%`;
+    if (dom.mobileProgressText) dom.mobileProgressText.textContent = `${progressPercent}%`;
+  }
+
   function renderMobileJourney(options = {}) {
+    syncExplorerMobileChrome();
     if (!dom.lessonPanel) return;
     const record = topicRecord();
     if (!isMobileExplorerLayout()) {
@@ -41308,6 +41348,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     dom.lessonPanel.dataset.mobileStage = stage.key;
     if (dom.mobileStageCount) dom.mobileStageCount.textContent = `Step ${index + 1} of ${MOBILE_EXPLORER_STAGES.length}`;
     if (dom.mobileStageTitle) dom.mobileStageTitle.textContent = stage.title;
+    updateMobileJourneyProgress(record);
     if (dom.mobileStageMessage) dom.mobileStageMessage.textContent = mobileStageLockMessage(MOBILE_EXPLORER_STAGES[index + 1]?.key || '', record);
     dom.mobileStageSteps?.querySelectorAll('[data-explorer-mobile-stage]').forEach(button => {
       const key = button.dataset.explorerMobileStage || 'learn';
@@ -41330,12 +41371,15 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       if (stage.key === 'complete') {
         const hasNextTopic = topicIndex >= 0 && topicIndex < course.topics.length - 1;
         dom.mobileStageNextBtn.disabled = !hasNextTopic;
-        dom.mobileStageNextBtn.textContent = hasNextTopic ? 'Next Topic →' : 'Course topics complete ✓';
+        dom.mobileStageNextBtn.textContent = hasNextTopic ? 'Continue to Next Topic' : 'Course Topic Complete';
       } else {
         const nextStage = MOBILE_EXPLORER_STAGES[index + 1];
         const unlocked = Boolean(nextStage && isMobileStageUnlocked(nextStage.key, record));
         dom.mobileStageNextBtn.disabled = !nextStage || !unlocked;
-        dom.mobileStageNextBtn.textContent = !nextStage ? 'Done ✓' : (unlocked ? `${nextStage.title} →` : `🔒 ${nextStage.title}`);
+        if (!nextStage) dom.mobileStageNextBtn.textContent = 'Done';
+        else if (!unlocked && nextStage.key === 'quiz') dom.mobileStageNextBtn.textContent = 'Pass Try It First';
+        else if (!unlocked && nextStage.key === 'complete') dom.mobileStageNextBtn.textContent = 'Finish Quick Check';
+        else dom.mobileStageNextBtn.textContent = 'Continue';
       }
     }
     if (options.animate) {
@@ -41503,6 +41547,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     scheduleCloudSave();
     renderTopicList();
     renderTopic();
+    syncExplorerMobileChrome();
     dom.lessonPanel?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
     return true;
   }
@@ -41562,6 +41607,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     const preferredCourse = COURSE_KEYS.find(key => isCourseUnlocked(key) && state.progress.courses[key]?.lastTopicId) || (isCourseUnlocked(state.course) ? state.course : 'html');
     await selectCourse(preferredCourse, { topicId: state.progress.courses[preferredCourse]?.lastTopicId, silent: true });
     renderCertificates();
+    syncExplorerMobileChrome();
     window.scrollTo({ top: 0, behavior: 'auto' });
     queueStudentPresenceUpdate?.({ currentView: 'code-explorer', activityGroup: 'Code Explorer', activityLabel: 'Exploring code lessons' }, { force: true });
   }
@@ -42514,7 +42560,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   });
   dom.lessonPanel?.addEventListener('touchstart', handleMobileJourneyTouchStart, { passive: true });
   dom.lessonPanel?.addEventListener('touchend', handleMobileJourneyTouchEnd, { passive: true });
-  explorerMobileMq.addEventListener?.('change', () => renderMobileJourney());
+  explorerMobileMq.addEventListener?.('change', () => { syncExplorerMobileChrome(); renderMobileJourney(); });
   dom.verifyCloseBtn?.addEventListener('click', () => closeExplorerCertificateVerification(true));
   dom.verifyDoneBtn?.addEventListener('click', () => closeExplorerCertificateVerification(true));
   dom.courseCards?.addEventListener('click', event => {
