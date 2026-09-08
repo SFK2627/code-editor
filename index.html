@@ -45,7 +45,7 @@
   </script>
   <link rel="preconnect" href="https://drive.google.com" crossorigin>
   <link rel="preconnect" href="https://lh3.googleusercontent.com" crossorigin>
-  <link rel="stylesheet" href="style.css?v=20260908-v394-mistake-aware-rewards" />
+  <link rel="stylesheet" href="style.css?v=20260908-v395-legacy-xp-normalization" />
   <style>
     .ai-rubric-settings-card,
     .admin-project-ai-review-card {
@@ -2845,6 +2845,17 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
             </div>
           </section>
 
+          <section class="code-explorer-admin-xp-migration" aria-labelledby="codeExplorerAdminXpMigrationTitle">
+            <div class="code-explorer-admin-xp-migration-copy">
+              <span>⚡ Legacy XP Migration</span>
+              <strong id="codeExplorerAdminXpMigrationTitle">Normalize students who played before the current XP system</strong>
+              <p>Preserves every student's already-earned Total XP, adds only missing guaranteed mastery credit for legacy work, and never invents old speed or first-try bonuses. No retroactive mistake penalties are applied.</p>
+              <p id="codeExplorerAdminXpMigrationStatus" class="code-explorer-admin-xp-migration-status" role="status">Legacy XP normalization has not been run in this session.</p>
+              <div id="codeExplorerAdminXpMigrationAudit" class="code-explorer-admin-xp-migration-audit hidden" aria-live="polite"></div>
+            </div>
+            <button id="codeExplorerAdminXpMigrationBtn" class="primary-btn code-explorer-admin-xp-migration-btn" type="button">⚡ Normalize Legacy XP</button>
+          </section>
+
           <div class="code-explorer-admin-certificate-sample" aria-label="Code Explorer sample certificate">
             <div class="code-explorer-admin-certificate-copy">
               <span>Certificate Registry</span>
@@ -3382,6 +3393,6 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
       </section>
     </div>
 
-  <script src="script.js?v=20260908-v394-mistake-aware-rewards"></script>
+  <script src="script.js?v=20260908-v395-legacy-xp-normalization"></script>
 </body>
 </html>

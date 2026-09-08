@@ -59976,3 +59976,80 @@ html[data-theme="dark"] .code-explorer-xp-penalty-inline {
 @media (max-width:760px) {
   .code-explorer-xp-penalty-inline { font-size: .7rem; white-space: normal; }
 }
+
+
+/* v395 — one-time legacy XP normalization */
+.code-explorer-admin-xp-migration {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin: 16px 0;
+  padding: 18px 20px;
+  border: 1px solid rgba(245, 158, 11, .28);
+  border-radius: 20px;
+  background: linear-gradient(135deg, rgba(255, 251, 235, .98), rgba(255, 255, 255, .98) 52%, rgba(239, 246, 255, .96));
+  box-shadow: 0 12px 28px rgba(15, 23, 42, .06);
+}
+.code-explorer-admin-xp-migration-copy { display: grid; gap: 4px; min-width: 0; }
+.code-explorer-admin-xp-migration-copy > span {
+  color: #b45309;
+  font-size: .68rem;
+  font-weight: 900;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.code-explorer-admin-xp-migration-copy > strong { color: #172033; font-size: .98rem; }
+.code-explorer-admin-xp-migration-copy > p { margin: 0; color: #64748b; font-size: .79rem; line-height: 1.5; }
+.code-explorer-admin-xp-migration-status {
+  margin-top: 5px !important;
+  padding: 9px 11px;
+  border-radius: 12px;
+  background: rgba(245, 158, 11, .09);
+  border: 1px solid rgba(245, 158, 11, .16);
+  color: #92400e !important;
+  font-weight: 700;
+}
+.code-explorer-admin-xp-migration-btn { flex: 0 0 auto; min-width: 205px; }
+.code-explorer-admin-xp-migration-audit {
+  margin-top: 8px;
+  padding: 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, .78);
+  border: 1px solid rgba(148, 163, 184, .22);
+}
+.code-explorer-admin-xp-migration-audit > strong { display: block; margin-bottom: 7px; color: #334155; font-size: .76rem; }
+.code-explorer-admin-xp-migration-audit > div { display: grid; gap: 6px; }
+.code-explorer-admin-xp-migration-audit span {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 9px;
+  border-radius: 10px;
+  background: rgba(248, 250, 252, .9);
+}
+.code-explorer-admin-xp-migration-audit b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #0f172a; font-size: .77rem; }
+.code-explorer-admin-xp-migration-audit em { color: #64748b; font-size: .72rem; font-style: normal; }
+.code-explorer-admin-xp-migration-audit i { color: #15803d; font-size: .73rem; font-style: normal; font-weight: 900; }
+.code-explorer-admin-xp-migration-audit small { display: block; margin-top: 7px; color: #64748b; }
+html[data-theme="dark"] .code-explorer-admin-xp-migration {
+  border-color: rgba(245, 158, 11, .28);
+  background: linear-gradient(135deg, #261d0d, #111827 54%, #0f1d31);
+}
+html[data-theme="dark"] .code-explorer-admin-xp-migration-copy > strong { color: #f8fafc; }
+html[data-theme="dark"] .code-explorer-admin-xp-migration-copy > p { color: #aebed5; }
+html[data-theme="dark"] .code-explorer-admin-xp-migration-status { background: rgba(245, 158, 11, .1); color: #fbbf24 !important; border-color: rgba(245, 158, 11, .2); }
+html[data-theme="dark"] .code-explorer-admin-xp-migration-audit { background: rgba(15, 23, 42, .78); border-color: rgba(148, 163, 184, .2); }
+html[data-theme="dark"] .code-explorer-admin-xp-migration-audit > strong,
+html[data-theme="dark"] .code-explorer-admin-xp-migration-audit b { color: #e5eefb; }
+html[data-theme="dark"] .code-explorer-admin-xp-migration-audit span { background: rgba(30, 41, 59, .75); }
+html[data-theme="dark"] .code-explorer-admin-xp-migration-audit em,
+html[data-theme="dark"] .code-explorer-admin-xp-migration-audit small { color: #9fb0c8; }
+html[data-theme="dark"] .code-explorer-admin-xp-migration-audit i { color: #86efac; }
+@media (max-width: 760px) {
+  .code-explorer-admin-xp-migration { display: grid; padding: 16px; border-radius: 17px; }
+  .code-explorer-admin-xp-migration-btn { width: 100%; min-width: 0; }
+  .code-explorer-admin-xp-migration-audit span { grid-template-columns: minmax(0, 1fr) auto; }
+  .code-explorer-admin-xp-migration-audit em { grid-column: 1 / -1; }
+}

@@ -40292,6 +40292,9 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     adminSampleDownloadBtn: $('codeExplorerAdminDownloadSampleCertBtn'),
     adminCertificateBackfillBtn: $('codeExplorerAdminCertificateBackfillBtn'),
     adminCertificateBackfillStatus: $('codeExplorerAdminCertificateBackfillStatus'),
+    adminXpMigrationBtn: $('codeExplorerAdminXpMigrationBtn'),
+    adminXpMigrationStatus: $('codeExplorerAdminXpMigrationStatus'),
+    adminXpMigrationAudit: $('codeExplorerAdminXpMigrationAudit'),
     adminLeaderboardSectionList: $('codeExplorerAdminLeaderboardSectionList'),
     adminLeaderboardSettingsPill: $('codeExplorerAdminLeaderboardSettingsPill'),
     adminLeaderboardSettingsStatus: $('codeExplorerAdminLeaderboardSettingsStatus'),
@@ -40580,7 +40583,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   const HEARTS_DEFAULT = 5;
   const HEARTS_MAX = 5;
   const HEART_REFILL_MS = 60 * 60 * 1000;
-  const state = { course: 'html', topicId: '', filter: 'all', progress: null, reader: '', cloudLoaded: false, dashboardCloudLoading: false, saveTimer: null, heartTimer: null, profileUnsub: null, finalAnswers: {}, finalStartedAt: 0, quickQuiz: { topicId: '', index: 0, answers: [], results: [], submitted: false, questionStartedAt: [], responseMs: [], attemptStartedAt: 0 }, miniGame: { topicId: '', selected: '', result: '', correct: '', choices: [], before: '', after: '' }, miniGameResetTimer: null, quickAdvanceTimer: null, quickFeedbackTimer: null, justUnlockedTopicId: '', justUnlockedCourse: '', mobileStage: 'learn', mobileStageDirection: 'next', mobileSwipeStart: null, mobileView: 'roadmap' };
+  const state = { course: 'html', topicId: '', filter: 'all', progress: null, reader: '', cloudLoaded: false, cloudXpHint: 0, dashboardCloudLoading: false, saveTimer: null, heartTimer: null, profileUnsub: null, finalAnswers: {}, finalStartedAt: 0, quickQuiz: { topicId: '', index: 0, answers: [], results: [], submitted: false, questionStartedAt: [], responseMs: [], attemptStartedAt: 0 }, miniGame: { topicId: '', selected: '', result: '', correct: '', choices: [], before: '', after: '' }, miniGameResetTimer: null, quickAdvanceTimer: null, quickFeedbackTimer: null, justUnlockedTopicId: '', justUnlockedCourse: '', mobileStage: 'learn', mobileStageDirection: 'next', mobileSwipeStart: null, mobileView: 'roadmap' };
   const CODE_EXPLORER_LEADERBOARD_SETTINGS_ROW_ID = 'leaderboard_settings';
   const leaderboardState = { records: [], loadedAt: 0, loading: false, source: '', rosterLoaded: false, mode: 'students', settingsLoaded: false, settingsError: false, currentSectionIncluded: true };
   let leaderboardSectionSettings = { configured: false, includedSections: [], includedSectionKeys: [] };
@@ -40596,7 +40599,19 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   }
 
   function emptyProgress() {
-    return { version: 1, hearts: normalizeHeartState(), courses: { html: { topics: {}, final: {}, certificate: {} }, css: { topics: {}, final: {}, certificate: {} }, js: { topics: {}, final: {}, certificate: {} } }, updatedAt: '' };
+    return {
+      version: 1,
+      hearts: normalizeHeartState(),
+      courses: { html: { topics: {}, final: {}, certificate: {} }, css: { topics: {}, final: {}, certificate: {} }, js: { topics: {}, final: {}, certificate: {} } },
+      xpMigrationVersion: 0,
+      legacyXpAdjustment: 0,
+      legacyXpBefore: 0,
+      legacyXpRawAtMigration: 0,
+      legacyXpNormalizedTarget: 0,
+      legacyXpMigratedAt: '',
+      legacyXpMigrationSource: '',
+      updatedAt: ''
+    };
   }
 
   function heartSnapshotFromState(input = {}, nowMs = Date.now()) {
@@ -40797,6 +40812,13 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       base.courses[key].certificate = src.certificate && typeof src.certificate === 'object' ? { ...src.certificate } : {};
       base.courses[key].lastTopicId = String(src.lastTopicId || '');
     });
+    base.xpMigrationVersion = Math.max(0, Number(source.xpMigrationVersion || 0));
+    base.legacyXpAdjustment = Math.max(0, Number(source.legacyXpAdjustment || 0));
+    base.legacyXpBefore = Math.max(0, Number(source.legacyXpBefore || 0));
+    base.legacyXpRawAtMigration = Math.max(0, Number(source.legacyXpRawAtMigration || 0));
+    base.legacyXpNormalizedTarget = Math.max(0, Number(source.legacyXpNormalizedTarget || 0));
+    base.legacyXpMigratedAt = String(source.legacyXpMigratedAt || '');
+    base.legacyXpMigrationSource = String(source.legacyXpMigrationSource || '');
     base.updatedAt = String(source.updatedAt || '');
     return base;
   }
@@ -40822,6 +40844,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       state.reader = currentReader;
       state.progress = loadLocalProgress();
       state.cloudLoaded = false;
+      state.cloudXpHint = 0;
     }
     return state.progress;
   }
@@ -40878,7 +40901,10 @@ window.MCS_PHONE_MENU_STATUS = () => ({
           quizSpeedBonus: Math.max(0, Number(x.quizSpeedBonus || 0), Number(y.quizSpeedBonus || 0)),
           quizRewardXp: Math.max(0, Number(x.quizRewardXp || 0), Number(y.quizRewardXp || 0)),
           completedAt: x.completedAt || y.completedAt || '',
-          attempts: Math.max(Number(x.attempts || 0), Number(y.attempts || 0))
+          attempts: Math.max(Number(x.attempts || 0), Number(y.attempts || 0)),
+          legacyNormalized: Boolean(x.legacyNormalized || y.legacyNormalized),
+          legacyNormalizedAt: [x.legacyNormalizedAt, y.legacyNormalizedAt].filter(Boolean).sort()[0] || '',
+          legacyNormalizedBaseXp: Math.max(0, Number(x.legacyNormalizedBaseXp || 0), Number(y.legacyNormalizedBaseXp || 0))
         };
         if (!left.courses[key].topics[id].completedAt && y.completedAt) left.courses[key].topics[id].completedAt = y.completedAt;
       });
@@ -40894,6 +40920,9 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       left.courses[key].final.speedBonus = Math.max(0, Number(xf.speedBonus || 0), Number(yf.speedBonus || 0), Number(left.courses[key].final.speedBonus || 0));
       left.courses[key].final.rewardXp = Math.max(0, Number(xf.rewardXp || 0), Number(yf.rewardXp || 0), Number(left.courses[key].final.rewardXp || 0));
       left.courses[key].final.rewardModelVersion = Math.max(0, Number(xf.rewardModelVersion || 0), Number(yf.rewardModelVersion || 0), Number(left.courses[key].final.rewardModelVersion || 0));
+      left.courses[key].final.legacyNormalized = Boolean(xf.legacyNormalized || yf.legacyNormalized || left.courses[key].final.legacyNormalized);
+      left.courses[key].final.legacyNormalizedAt = [xf.legacyNormalizedAt, yf.legacyNormalizedAt, left.courses[key].final.legacyNormalizedAt].filter(Boolean).sort()[0] || '';
+      left.courses[key].final.legacyNormalizedBaseXp = Math.max(0, Number(xf.legacyNormalizedBaseXp || 0), Number(yf.legacyNormalizedBaseXp || 0), Number(left.courses[key].final.legacyNormalizedBaseXp || 0));
       const finalFirstPassMsValues = [Number(xf.firstPassMs || 0), Number(yf.firstPassMs || 0), Number(left.courses[key].final.firstPassMs || 0)].filter(value => value > 0);
       left.courses[key].final.firstPassMs = finalFirstPassMsValues.length ? Math.min(...finalFirstPassMsValues) : 0;
       const xc = left.courses[key].certificate || {};
@@ -40908,6 +40937,20 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     if (rightHeartTime > leftHeartTime) left.hearts = { ...rightHearts };
     else if (leftHeartTime > rightHeartTime) left.hearts = { ...leftHearts };
     else left.hearts = { ...(leftHearts.balance <= rightHearts.balance ? leftHearts : rightHearts) };
+
+    const leftMigrationVersion = Math.max(0, Number(left.xpMigrationVersion || 0));
+    const rightMigrationVersion = Math.max(0, Number(right.xpMigrationVersion || 0));
+    const leftMigrationAt = String(left.legacyXpMigratedAt || '');
+    const rightMigrationAt = String(right.legacyXpMigratedAt || '');
+    left.xpMigrationVersion = Math.max(leftMigrationVersion, rightMigrationVersion);
+    left.legacyXpAdjustment = Math.max(0, Number(left.legacyXpAdjustment || 0), Number(right.legacyXpAdjustment || 0));
+    left.legacyXpBefore = Math.max(0, Number(left.legacyXpBefore || 0), Number(right.legacyXpBefore || 0));
+    left.legacyXpRawAtMigration = Math.max(0, Number(left.legacyXpRawAtMigration || 0), Number(right.legacyXpRawAtMigration || 0));
+    left.legacyXpNormalizedTarget = Math.max(0, Number(left.legacyXpNormalizedTarget || 0), Number(right.legacyXpNormalizedTarget || 0));
+    left.legacyXpMigratedAt = [leftMigrationAt, rightMigrationAt].filter(Boolean).sort()[0] || '';
+    left.legacyXpMigrationSource = rightMigrationVersion > leftMigrationVersion
+      ? String(right.legacyXpMigrationSource || '')
+      : String(left.legacyXpMigrationSource || right.legacyXpMigrationSource || '');
     left.updatedAt = [left.updatedAt, right.updatedAt].filter(Boolean).sort().pop() || '';
     return left;
   }
@@ -40917,6 +40960,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     try {
       clearSelectiveFirestoreCache(`studentProfile:${appSession.student.uid}`);
       const profile = await loadStudentProfile(appSession.student.uid);
+      state.cloudXpHint = Math.max(state.cloudXpHint || 0, Math.max(0, Number(profile?.codeExplorerXp || 0)));
       return profile?.codeExplorerProgress ? normalizeProgress(profile.codeExplorerProgress) : null;
     } catch (error) {
       console.warn('Code Explorer cloud progress could not be loaded.', error);
@@ -40942,6 +40986,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       await setDoc(getStudentDocRef(appSession.student.uid), {
         codeExplorerProgress: normalizeProgress(state.progress),
         codeExplorerXp: masteryXp,
+        codeExplorerXpMigrationVersion: Math.max(0, Number(state.progress.xpMigrationVersion || 0)),
         codeExplorerUpdatedAt: serverTimestamp()
       }, { merge: true });
       try {
@@ -41161,6 +41206,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   });
 
   const EXPLORER_REWARD_MODEL_VERSION = 394;
+  const EXPLORER_XP_MIGRATION_VERSION = 395;
 
   function hasStoredXpReward(record, key) {
     return Boolean(record && Object.prototype.hasOwnProperty.call(record, key) && Number.isFinite(Number(record[key])));
@@ -41271,7 +41317,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     return xp;
   }
 
-  function explorerXpFor(progress) {
+  function explorerRawXpFor(progress) {
     return COURSE_KEYS.reduce((sum, key) => {
       const course = COURSES[key];
       const data = progress?.courses?.[key] || {};
@@ -41289,6 +41335,125 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       const certificateXp = cert.issuedAt ? EXPLORER_XP.certificate : 0;
       return sum + topicXp + finalXp + certificateXp;
     }, 0);
+  }
+
+  function legacyNormalizedTopicTargetXp(record = {}) {
+    if (Number(record.rewardModelVersion || 0) >= EXPLORER_REWARD_MODEL_VERSION) return explorerTopicXp(record);
+    const bestCorrect = Math.max(0, Number(record.quizBestCorrect || 0));
+    if (record.completedAt) {
+      // Legacy completed topics may pre-date the Fill in the Blank stage. Grant
+      // the guaranteed mastery base only; never invent first-try or speed data.
+      return 35 + (bestCorrect >= 5 ? EXPLORER_XP.quickPerfect : 0);
+    }
+    let xp = 0;
+    if (record.miniGamePassed) xp += EXPLORER_XP.miniGame;
+    if (record.practicePassed) xp += EXPLORER_XP.practice;
+    if (record.quizFivePassed || record.quizPassed) {
+      xp += EXPLORER_XP.quickCheck;
+      if (bestCorrect >= 5) xp += EXPLORER_XP.quickPerfect;
+    }
+    return xp;
+  }
+
+  function legacyNormalizedFinalTargetXp(final = {}) {
+    if (!final.passed) return 0;
+    const current = Number(final.rewardModelVersion || 0) >= EXPLORER_REWARD_MODEL_VERSION && hasStoredXpReward(final, 'rewardXp')
+      ? Math.max(0, Number(final.rewardXp || 0))
+      : EXPLORER_XP.finalPass
+        + (Number(final.score || 0) >= 100 ? EXPLORER_XP.finalPerfect : 0)
+        + Math.min(EXPLORER_XP.finalSpeedMax, Math.max(0, Number(final.speedBonus || 0)));
+    if (Number(final.rewardModelVersion || 0) >= EXPLORER_REWARD_MODEL_VERSION) return current;
+    const guaranteed = EXPLORER_XP.finalPass + (Number(final.score || 0) >= 100 ? EXPLORER_XP.finalPerfect : 0);
+    return Math.max(current, guaranteed);
+  }
+
+  function explorerLegacyNormalizedTargetFor(progress) {
+    return COURSE_KEYS.reduce((sum, key) => {
+      const course = COURSES[key];
+      const data = progress?.courses?.[key] || {};
+      const records = data.topics || {};
+      const topicXp = course.topics.reduce((topicSum, item) => {
+        const record = records[item.id] || {};
+        const current = explorerTopicXp(record);
+        const normalized = legacyNormalizedTopicTargetXp(record);
+        return topicSum + Math.max(current, normalized);
+      }, 0);
+      const finalXp = legacyNormalizedFinalTargetXp(data.final || {});
+      const certificateXp = data.certificate?.issuedAt ? EXPLORER_XP.certificate : 0;
+      return sum + topicXp + finalXp + certificateXp;
+    }, 0);
+  }
+
+  function markLegacyProgressNormalized(progress, migratedAt = '') {
+    const stamp = migratedAt || new Date().toISOString();
+    COURSE_KEYS.forEach(key => {
+      const course = COURSES[key];
+      const data = progress?.courses?.[key] || {};
+      const records = data.topics || {};
+      course.topics.forEach(item => {
+        const record = records[item.id];
+        if (!record || Number(record.rewardModelVersion || 0) >= EXPLORER_REWARD_MODEL_VERSION) return;
+        const hasLegacyWork = Boolean(record.completedAt || record.openedAt || record.miniGamePassed || record.practicePassed || record.quizPassed || record.quizFivePassed || Number(record.quizAttempts || 0) > 0);
+        if (!hasLegacyWork) return;
+        record.legacyNormalized = true;
+        record.legacyNormalizedAt = record.legacyNormalizedAt || stamp;
+        record.legacyNormalizedBaseXp = legacyNormalizedTopicTargetXp(record);
+      });
+      const final = data.final || {};
+      if (final.passed && Number(final.rewardModelVersion || 0) < EXPLORER_REWARD_MODEL_VERSION) {
+        final.legacyNormalized = true;
+        final.legacyNormalizedAt = final.legacyNormalizedAt || stamp;
+        final.legacyNormalizedBaseXp = legacyNormalizedFinalTargetXp(final);
+      }
+    });
+  }
+
+  function migrateLegacyXpProgress(progress, existingTotalXp = 0, options = {}) {
+    if (!progress) return { changed: false, credit: 0, before: 0, after: 0, raw: 0, normalizedTarget: 0 };
+    const migrationVersion = Math.max(0, Number(progress.xpMigrationVersion || 0));
+    const raw = explorerRawXpFor(progress);
+    const currentAdjustment = Math.max(0, Number(progress.legacyXpAdjustment || 0));
+    const currentTotal = raw + currentAdjustment;
+    const existing = Math.max(0, Number(existingTotalXp || 0));
+    const normalizedTarget = explorerLegacyNormalizedTargetFor(progress);
+    const protectedTarget = Math.max(raw, existing, normalizedTarget);
+    const neededAdjustment = Math.max(0, protectedTarget - raw);
+    const nextAdjustment = Math.max(currentAdjustment, neededAdjustment);
+    const visibleBefore = existing > 0 ? existing : currentTotal;
+
+    // Already-normalized records are normally a no-op. Re-checking is still
+    // safe and repairs rare merged/duplicate legacy profiles without farming XP.
+    if (migrationVersion >= EXPLORER_XP_MIGRATION_VERSION && nextAdjustment <= currentAdjustment) {
+      return { changed: false, credit: 0, before: currentTotal, after: currentTotal, raw, normalizedTarget, protectedExistingXp: existing, adjustment: currentAdjustment };
+    }
+
+    const stamp = new Date().toISOString();
+    progress.xpMigrationVersion = EXPLORER_XP_MIGRATION_VERSION;
+    progress.legacyXpAdjustment = nextAdjustment;
+    progress.legacyXpBefore = Math.max(existing, currentTotal, Number(progress.legacyXpBefore || 0));
+    progress.legacyXpRawAtMigration = Math.max(raw, Number(progress.legacyXpRawAtMigration || 0));
+    progress.legacyXpNormalizedTarget = Math.max(normalizedTarget, Number(progress.legacyXpNormalizedTarget || 0));
+    progress.legacyXpMigratedAt = progress.legacyXpMigratedAt || stamp;
+    progress.legacyXpMigrationSource = String(options.source || progress.legacyXpMigrationSource || 'automatic');
+    markLegacyProgressNormalized(progress, stamp);
+
+    const after = explorerRawXpFor(progress) + nextAdjustment;
+    return {
+      changed: true,
+      credit: Math.max(0, after - visibleBefore),
+      before: visibleBefore,
+      after,
+      raw,
+      normalizedTarget,
+      protectedExistingXp: existing,
+      adjustment: nextAdjustment
+    };
+  }
+
+  function explorerXpFor(progress) {
+    const raw = explorerRawXpFor(progress);
+    const adjustment = Math.max(0, Number(progress?.legacyXpAdjustment || 0));
+    return raw + adjustment;
   }
 
   function explorerCertificateCountFor(progress) {
@@ -41316,6 +41481,20 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   }
 
   function totalXp() { return explorerXpFor(state.progress); }
+
+  function normalizeCurrentStudentLegacyXp(options = {}) {
+    if (!state.progress) return { changed: false, credit: 0, before: 0, after: 0 };
+    const sessionXp = Math.max(0, Number(appSession.student?.codeExplorerXp || appSession.lastStudentProfile?.codeExplorerXp || 0));
+    const existingXp = Math.max(sessionXp, Math.max(0, Number(state.cloudXpHint || 0)));
+    const result = migrateLegacyXpProgress(state.progress, existingXp, { source: options.source || 'student-auto' });
+    if (result.changed) {
+      saveLocalProgress();
+      if (options.cloudSave === true && appSession.mode === 'student' && appSession.student?.uid) {
+        saveCloudProgress().catch(() => false);
+      }
+    }
+    return result;
+  }
 
   function certificateCount() { return explorerCertificateCountFor(state.progress); }
 
@@ -41372,12 +41551,12 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       state.dashboardCloudLoading = true;
       loadCloudProgress().then(cloud => {
         if (readerKey() !== currentReader) return;
-        if (cloud) {
-          state.progress = mergeProgress(state.progress, cloud);
-          saveLocalProgress();
-        }
+        if (cloud) state.progress = mergeProgress(state.progress, cloud);
+        const migration = normalizeCurrentStudentLegacyXp({ source: 'student-dashboard', cloudSave: false });
+        saveLocalProgress();
         state.cloudLoaded = true;
         updateDashboardExplorerCard();
+        if (migration.changed && appSession.student?.uid) saveCloudProgress().catch(() => false);
       }).catch(error => console.warn('Code Explorer dashboard progress refresh skipped.', error)).finally(() => {
         state.dashboardCloudLoading = false;
       });
@@ -42515,8 +42694,11 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     if (!state.cloudLoaded) {
       const cloud = await loadCloudProgress();
       if (cloud) state.progress = mergeProgress(state.progress, cloud);
+      normalizeCurrentStudentLegacyXp({ source: 'student-open', cloudSave: false });
       state.cloudLoaded = true;
       saveLocalProgress();
+    } else {
+      normalizeCurrentStudentLegacyXp({ source: 'student-open', cloudSave: false });
     }
     startHeartTicker();
     await startExplorerProfileListener();
@@ -44259,6 +44441,153 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     }
   }
 
+  function storedExplorerXpForAdminStudent(student = {}) {
+    const values = [student.codeExplorerXp];
+    (Array.isArray(student.sourceRecords) ? student.sourceRecords : [student]).forEach(record => {
+      values.push(record?.codeExplorerXp);
+    });
+    return values.reduce((max, value) => Math.max(max, Math.max(0, Number(value || 0))), 0);
+  }
+
+  function renderLegacyXpMigrationAudit(rows = []) {
+    if (!dom.adminXpMigrationAudit) return;
+    const adjusted = rows.filter(row => Number(row.credit || 0) > 0);
+    if (!adjusted.length) {
+      dom.adminXpMigrationAudit.classList.add('hidden');
+      dom.adminXpMigrationAudit.innerHTML = '';
+      return;
+    }
+    const visible = adjusted.slice(0, 12);
+    dom.adminXpMigrationAudit.classList.remove('hidden');
+    dom.adminXpMigrationAudit.innerHTML = `<strong>Recent XP adjustments</strong><div>${visible.map(row => `
+      <span><b>${escapeHTML(row.name || 'Student')}</b><em>${Number(row.before || 0)} → ${Number(row.after || 0)} XP</em><i>+${Number(row.credit || 0)}</i></span>`).join('')}</div>${adjusted.length > visible.length ? `<small>+${adjusted.length - visible.length} more adjusted student${adjusted.length - visible.length === 1 ? '' : 's'}</small>` : ''}`;
+  }
+
+  async function normalizeLegacyXpFromAdmin() {
+    if (!isTeacherAuthenticated()) return;
+    const button = dom.adminXpMigrationBtn;
+    const status = dom.adminXpMigrationStatus;
+    if (button) { button.disabled = true; button.textContent = 'Normalizing…'; }
+    if (status) status.textContent = 'Checking existing student XP and legacy Code Explorer progress…';
+    renderLegacyXpMigrationAudit([]);
+
+    try {
+      if (!adminStudentsCache.length) await loadAdminStudents({ force: true });
+      const ready = await initFirebaseSync();
+      if (!ready) throw new Error(firebaseSync.lastError || 'Firebase is not ready.');
+      const { setDoc, serverTimestamp } = firebaseSync.modules;
+      const students = adminStudentsCache.slice();
+      let checked = 0;
+      let normalized = 0;
+      let adjusted = 0;
+      let already = 0;
+      let skipped = 0;
+      let failed = 0;
+      let totalCredit = 0;
+      const auditRows = [];
+      const errors = [];
+      const concurrency = 5;
+
+      const normalizeOne = async student => {
+        try {
+          const targetUid = getAdminExplorerHeartTargetUid(student);
+          if (!targetUid) {
+            skipped += 1;
+            return;
+          }
+          const progress = studentExplorerProgress(student);
+          const rawXp = explorerRawXpFor(progress);
+          const existingXp = Math.max(storedExplorerXpForAdminStudent(student), rawXp);
+          const overall = explorerOverallFor(progress);
+          const hasExplorerHistory = existingXp > 0 || overall.explored > 0 || explorerCertificateCountFor(progress) > 0;
+          if (!hasExplorerHistory) {
+            skipped += 1;
+            return;
+          }
+          let result;
+          if (Math.max(0, Number(progress.xpMigrationVersion || 0)) >= EXPLORER_XP_MIGRATION_VERSION) {
+            result = migrateLegacyXpProgress(progress, existingXp, { source: 'admin-v395-recheck' });
+          } else {
+            result = migrateLegacyXpProgress(progress, existingXp, { source: 'admin-v395-backfill' });
+          }
+          if (!result.changed) {
+            already += 1;
+            return;
+          }
+          const finalXp = explorerXpFor(progress);
+          await setDoc(getStudentDocRef(targetUid), {
+            codeExplorerProgress: normalizeProgress(progress),
+            codeExplorerXp: finalXp,
+            codeExplorerXpMigrationVersion: EXPLORER_XP_MIGRATION_VERSION,
+            codeExplorerXpMigratedAt: serverTimestamp(),
+            codeExplorerUpdatedAt: serverTimestamp()
+          }, { merge: true });
+          normalized += 1;
+          if (result.credit > 0) {
+            adjusted += 1;
+            totalCredit += result.credit;
+            auditRows.push({
+              name: String(student.name || student.fullName || 'Student').trim(),
+              before: result.before,
+              after: result.after,
+              credit: result.credit
+            });
+          }
+        } catch (error) {
+          failed += 1;
+          errors.push(error?.message || String(error));
+        } finally {
+          checked += 1;
+          if (status) status.textContent = `Normalizing legacy XP… ${checked}/${students.length}`;
+        }
+      };
+
+      for (let index = 0; index < students.length; index += concurrency) {
+        await Promise.all(students.slice(index, index + concurrency).map(normalizeOne));
+      }
+
+      clearSelectiveFirestoreCache('admin:studentsAndRoster');
+      await loadAdminStudents({ force: true });
+      renderAdminExplorerProgress();
+      publishSafeCodeExplorerLeaderboardFromAdmin({ force: true }).catch(() => {});
+      renderLegacyXpMigrationAudit(auditRows);
+
+      const summary = [
+        `${checked} checked`,
+        `${normalized} normalized`,
+        `${adjusted} XP adjusted`,
+        `+${totalCredit} total legacy XP credited`,
+        `${already} already compatible`
+      ];
+      if (skipped) summary.push(`${skipped} no Explorer history / skipped`);
+      if (failed) summary.push(`${failed} failed`);
+      if (status) status.textContent = `Legacy XP normalization complete: ${summary.join(' · ')}.`;
+
+      if (failed) {
+        const permissionProblem = errors.some(message => /permission|insufficient/i.test(message));
+        await appAlert(
+          `${permissionProblem ? 'Some student profiles could not be updated because of Firestore permissions. ' : ''}${summary.join(' · ')}\n\nNo existing Total XP was reduced. No old speed, first-try, or mistake data was invented.`,
+          { title: 'Legacy XP Normalization', icon: '⚡', danger: permissionProblem }
+        );
+      } else {
+        await appAlert(
+          `${summary.join(' · ')}\n\nExisting XP was protected. Only missing guaranteed legacy mastery credit was added; no retroactive penalties or invented bonuses were applied.`,
+          { title: 'Legacy XP Normalization Complete', icon: '⚡' }
+        );
+      }
+    } catch (error) {
+      console.error('Legacy XP normalization failed.', error);
+      const message = error?.message || String(error);
+      if (status) status.textContent = `Legacy XP normalization failed: ${message}`;
+      await appAlert(message, { title: 'Legacy XP Normalization Failed', danger: true });
+    } finally {
+      if (button) {
+        button.disabled = false;
+        button.textContent = '⚡ Normalize Legacy XP';
+      }
+    }
+  }
+
   function collectLegacyCertificateBackfillCandidates() {
     const byNumber = new Map();
     let skipped = 0;
@@ -44540,6 +44869,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   dom.adminSampleViewBtn?.addEventListener('click', viewAdminSampleCertificate);
   dom.adminSampleDownloadBtn?.addEventListener('click', downloadAdminSampleCertificate);
   dom.adminCertificateBackfillBtn?.addEventListener('click', syncExistingCertificatesFromAdmin);
+  dom.adminXpMigrationBtn?.addEventListener('click', normalizeLegacyXpFromAdmin);
   dom.adminHeartControl?.addEventListener('click', event => {
     const button = event.target.closest('[data-admin-explorer-add-heart]');
     if (!button || !adminExplorerState.selectedStudentKey) return;
