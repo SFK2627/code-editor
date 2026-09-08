@@ -43044,6 +43044,23 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       .filter(row => row.name && row.section && leaderboardSectionKey(row.section) !== 'no section');
   }
 
+  async function saveLeaderboardSettingsToRoot(settings = leaderboardSectionSettings) {
+    const ready = await initFirebaseSync();
+    if (!ready || !isTeacherAuthenticated()) return false;
+    const normalizedSettings = normalizeLeaderboardSectionSettings(settings);
+    const { setDoc, serverTimestamp } = firebaseSync.modules;
+    await setDoc(getCloudActivitiesDocRef(), {
+      codeExplorerLeaderboardSettings: {
+        configured: Boolean(normalizedSettings.configured),
+        includedSections: normalizedSettings.includedSections,
+        includedSectionKeys: normalizedSettings.includedSectionKeys
+      },
+      codeExplorerLeaderboardUpdatedAt: serverTimestamp()
+    }, { merge: true });
+    clearSelectiveFirestoreCache('rootDocument:');
+    return true;
+  }
+
   async function publishLeaderboardSnapshotToRoot(settings = leaderboardSectionSettings) {
     const ready = await initFirebaseSync();
     if (!ready || !isTeacherAuthenticated()) return false;
@@ -43171,50 +43188,38 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     const includedSections = inputs.filter(input => input.checked).map(input => leaderboardSectionDisplayName(input.value));
     const includedSectionKeys = includedSections.map(leaderboardSectionKey).filter(Boolean);
     if (dom.adminLeaderboardSaveBtn) { dom.adminLeaderboardSaveBtn.disabled = true; dom.adminLeaderboardSaveBtn.textContent = 'Saving…'; }
-    if (dom.adminLeaderboardSettingsStatus) dom.adminLeaderboardSettingsStatus.textContent = 'Saving leaderboard visibility and publishing the student ranking snapshot…';
+    if (dom.adminLeaderboardSettingsStatus) dom.adminLeaderboardSettingsStatus.textContent = 'Saving leaderboard section visibility…';
     try {
-      const ready = await initFirebaseSync();
-      if (!ready) throw new Error('Cloud settings are unavailable right now.');
-      const { setDoc, serverTimestamp } = firebaseSync.modules;
       leaderboardSectionSettings = normalizeLeaderboardSectionSettings({ configured: true, includedSections, includedSectionKeys });
 
-      // Authoritative save: existing root document. This uses the same
-      // teacher-write/student-read rules already used by activities and lessons.
-      await publishLeaderboardSnapshotToRoot(leaderboardSectionSettings);
+      // v386: save ONLY the small visibility settings here. The old version
+      // rebuilt/published hundreds of student rows before the button could
+      // finish, which made a simple checkbox save feel stuck.
+      const saved = await saveLeaderboardSettingsToRoot(leaderboardSectionSettings);
+      if (!saved) throw new Error('Cloud settings are unavailable right now.');
 
-      // Optional compatibility mirrors. Permission failures here no longer make
-      // the Save button fail because students can read the root snapshot above.
-      await Promise.allSettled([
-        setDoc(getCodeExplorerLeaderboardSettingsDocRef(), {
-          configured: true,
-          includedSections: leaderboardSectionSettings.includedSections,
-          includedSectionKeys: leaderboardSectionSettings.includedSectionKeys,
-          updatedAt: serverTimestamp()
-        }, { merge: true }),
-        setDoc(getCodeExplorerLeaderboardDocRef(CODE_EXPLORER_LEADERBOARD_SETTINGS_ROW_ID), {
-          recordType: 'settings',
-          accountStatus: 'disabled',
-          configured: true,
-          includedSections: leaderboardSectionSettings.includedSections,
-          includedSectionKeys: leaderboardSectionSettings.includedSectionKeys,
-          updatedAt: serverTimestamp()
-        }, { merge: true })
-      ]);
-
-      codeExplorerLeaderboardPublishAt = 0;
-      await publishSafeCodeExplorerLeaderboardFromAdmin({ force: true });
-      leaderboardState.records = [];
+      leaderboardState.records = (leaderboardState.records || []).filter(record => isLeaderboardSectionIncluded(record.section || '', leaderboardSectionSettings));
       leaderboardState.loadedAt = 0;
       leaderboardState.settingsLoaded = true;
       leaderboardState.settingsError = false;
-      leaderboardState.currentSectionIncluded = true;
+      const currentSection = currentLeaderboardSectionName();
+      leaderboardState.currentSectionIncluded = currentSection
+        ? isLeaderboardSectionIncluded(currentSection, leaderboardSectionSettings)
+        : true;
       renderAdminLeaderboardSectionSettings();
-      if (dom.adminLeaderboardSettingsStatus) dom.adminLeaderboardSettingsStatus.textContent = `${includedSections.length} section${includedSections.length === 1 ? '' : 's'} included. Leaderboard visibility and the public ranking snapshot were saved successfully.`;
+      if (dom.adminLeaderboardSettingsStatus) dom.adminLeaderboardSettingsStatus.textContent = `${includedSections.length} section${includedSections.length === 1 ? '' : 's'} included. Saved. Leaderboards will refresh automatically.`;
+
+      // Refresh the public ranking snapshot AFTER the settings save has
+      // completed. This is intentionally not awaited, so the admin button is
+      // responsive even with hundreds of enrolled students.
+      window.setTimeout(() => {
+        publishSafeCodeExplorerLeaderboardFromAdmin({ force: true }).catch?.(() => {});
+      }, 0);
     } catch (error) {
       console.error('Could not save Code Explorer leaderboard section settings.', error);
       const rawMessage = String(error?.message || 'Could not save leaderboard section settings.');
       const friendlyMessage = /permission|insufficient/i.test(rawMessage)
-        ? 'Leaderboard save is still blocked on the main app document. Confirm the teacher account is logged in, then check the existing root-document teacher write rule.'
+        ? 'Leaderboard visibility could not be saved. Confirm the teacher account can update the main app document.'
         : rawMessage;
       if (dom.adminLeaderboardSettingsStatus) dom.adminLeaderboardSettingsStatus.textContent = friendlyMessage;
     } finally {
@@ -43673,60 +43678,13 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     if (!isTeacherAuthenticated() || !adminStudentsCache.length) return;
     if (!options.force && Date.now() - codeExplorerLeaderboardPublishAt < 5 * 60 * 1000) return;
     try {
-      const ready = await initFirebaseSync();
-      if (!ready) return;
-      // Always publish the root snapshot first. This is the reliable student
-      // source and uses existing app permissions.
+      // v386: one consolidated root-document snapshot only. Do not scan the
+      // leaderboard collection and do not write one Firestore document per
+      // student. Student clients already read this root snapshot first.
       await publishLeaderboardSnapshotToRoot(leaderboardSectionSettings);
-      const { getDocs, setDoc, serverTimestamp } = firebaseSync.modules;
-      await Promise.allSettled([
-        setDoc(getCodeExplorerLeaderboardDocRef(CODE_EXPLORER_LEADERBOARD_SETTINGS_ROW_ID), {
-          recordType: 'settings',
-          accountStatus: 'disabled',
-          configured: Boolean(leaderboardSectionSettings.configured),
-          includedSections: leaderboardSectionSettings.includedSections || [],
-          includedSectionKeys: leaderboardSectionSettings.includedSectionKeys || [],
-          updatedAt: serverTimestamp()
-        }, { merge: true })
-      ]);
-      const snapshot = await getDocs(getCodeExplorerLeaderboardCollectionRef()).catch(() => ({ docs: [] }));
-      const existingRows = Array.from(snapshot.docs || [])
-        .map(docSnap => ({ id: docSnap.id, ...snapshotData(docSnap) }))
-        .filter(row => row.id !== CODE_EXPLORER_LEADERBOARD_SETTINGS_ROW_ID && row.recordType !== 'settings');
-      const existingByIdentity = new Map(existingRows.map(row => [leaderboardStudentIdentity(row), row]));
-      const writes = [];
-      adminStudentsCache.forEach(student => {
-        if (String(student.accountStatus || 'active') === 'disabled') return;
-        const record = adminExplorerRecord(student);
-        const sid = normalizeStudentId(student.studentId || student.studentIdNormalized || student.rosterId || '');
-        const uid = String(student.uid || student.authUid || '').trim();
-        const safe = {
-          uid,
-          studentId: sid,
-          name: String(student.name || 'Unnamed Student').trim(),
-          section: String(student.section || '').trim(),
-          xp: Number(record.xp || 0),
-          accountStatus: String(student.accountStatus || 'active'),
-          leaderboardIncluded: isLeaderboardSectionIncluded(student.section || '', leaderboardSectionSettings)
-        };
-        const identity = leaderboardStudentIdentity(safe);
-        const previous = existingByIdentity.get(identity);
-        const unchanged = previous
-          && Number(previous.xp || 0) === safe.xp
-          && String(previous.name || '') === safe.name
-          && String(previous.section || '') === safe.section
-          && String(previous.accountStatus || 'active') === safe.accountStatus
-          && previous.leaderboardIncluded === safe.leaderboardIncluded;
-        if (unchanged) return;
-        const docId = uid || (sid ? `roster-${sid.replace(/[^a-zA-Z0-9_-]/g, '-')}` : `student-${Math.random().toString(36).slice(2,10)}`);
-        writes.push(() => setDoc(getCodeExplorerLeaderboardDocRef(docId), { ...safe, updatedAt: serverTimestamp() }, { merge: true }));
-      });
-      for (let index = 0; index < writes.length; index += 20) {
-        await Promise.allSettled(writes.slice(index, index + 20).map(write => write()));
-      }
       codeExplorerLeaderboardPublishAt = Date.now();
     } catch (error) {
-      console.info('Safe Code Explorer leaderboard publishing skipped.', error);
+      console.info('Safe Code Explorer leaderboard snapshot refresh skipped.', error);
     }
   }
 
