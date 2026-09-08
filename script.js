@@ -12715,6 +12715,14 @@ function applyTheme(theme) {
     entryThemeToggle.setAttribute('aria-pressed', String(safeTheme === 'dark'));
   }
   if (entryThemeLabel) entryThemeLabel.textContent = safeTheme === 'dark' ? 'Dark Mode' : 'Light Mode';
+  const explorerQuickThemeToggle = document.getElementById('codeExplorerQuickThemeToggle');
+  if (explorerQuickThemeToggle) {
+    const isDark = safeTheme === 'dark';
+    explorerQuickThemeToggle.classList.toggle('is-dark', isDark);
+    explorerQuickThemeToggle.setAttribute('aria-pressed', String(isDark));
+    explorerQuickThemeToggle.setAttribute('aria-label', isDark ? 'Switch to light mode' : 'Switch to dark mode');
+    explorerQuickThemeToggle.title = isDark ? 'Switch to light mode' : 'Switch to dark mode';
+  }
   saveJSON(STORAGE_KEYS.theme, safeTheme);
 }
 
@@ -40110,6 +40118,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     certificatesBtn: $('codeExplorerCertificatesBtn'),
     xpBadge: $('codeExplorerXpBadge'),
     heartBadge: $('codeExplorerHeartBadge'),
+    quickThemeToggle: $('codeExplorerQuickThemeToggle'),
     overallBar: $('codeExplorerOverallBar'),
     overallText: $('codeExplorerOverallText'),
     explored: $('codeExplorerTopicsExplored'),
@@ -41656,14 +41665,14 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       : 'Tap the code that correctly fills the blank. Wrong tries do not use hearts.';
     dom.miniGameBadge.textContent = passed ? '✓ Completed' : (game.result === 'wrong' ? 'Try again' : 'Not completed');
     dom.miniGameBadge.dataset.state = passed ? 'complete' : (game.result === 'wrong' ? 'warning' : '');
-    dom.miniGameCode.innerHTML = `<pre><code>${escapeHTML(game.before)}<mark class="code-explorer-mini-game-blank ${game.result === 'wrong' ? 'wrong' : (passed && selected ? 'correct' : '')}">${escapeHTML(blankText)}</mark>${escapeHTML(game.after)}</code></pre>`;
+    dom.miniGameCode.innerHTML = `<pre><span class="code-explorer-mini-game-source">${escapeHTML(game.before)}<mark class="code-explorer-mini-game-blank ${game.result === 'wrong' ? 'wrong' : (passed && selected ? 'correct' : '')}">${escapeHTML(blankText)}</mark>${escapeHTML(game.after)}</span></pre>`;
     dom.miniGameOptions.innerHTML = game.choices.map(choice => {
       const active = selected === choice;
       const classes = ['code-explorer-mini-game-option'];
       if (active) classes.push('selected');
       if (game.result === 'wrong' && active) classes.push('wrong');
       if (passed && choice === game.correct) classes.push('correct');
-      return `<button type="button" class="${classes.join(' ')}" data-explorer-mini-game-option="${escapeAttribute(choice)}" ${passed ? 'disabled' : ''}><code>${escapeHTML(choice)}</code></button>`;
+      return `<button type="button" class="${classes.join(' ')}" data-explorer-mini-game-option="${escapeAttribute(choice)}" ${passed ? 'disabled' : ''}><span class="code-explorer-mini-game-option-text">${escapeHTML(choice)}</span></button>`;
     }).join('');
     if (dom.miniGameCheckBtn) {
       dom.miniGameCheckBtn.disabled = passed || !selected;
@@ -41811,6 +41820,13 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     }
     if (dom.certificatesBtn) dom.certificatesBtn.textContent = mobile ? '🏅' : '🏅 My Certificates';
     if (dom.themeBtn) dom.themeBtn.textContent = mobile ? '🌙' : '🌙 Theme';
+    if (dom.quickThemeToggle) {
+      const isDark = document.documentElement.dataset.theme === 'dark';
+      dom.quickThemeToggle.classList.toggle('is-dark', isDark);
+      dom.quickThemeToggle.setAttribute('aria-pressed', String(isDark));
+      dom.quickThemeToggle.setAttribute('aria-label', isDark ? 'Switch to light mode' : 'Switch to dark mode');
+      dom.quickThemeToggle.title = isDark ? 'Switch to light mode' : 'Switch to dark mode';
+    }
     if (dom.lessonHead) {
       if (mobile) {
         dom.lessonHead.setAttribute('role', 'button');
@@ -43089,6 +43105,11 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   dom.menuBtn?.addEventListener('click', openExplorer);
   dom.backBtn?.addEventListener('click', () => { if (isMobileExplorerLayout() && state.mobileView === 'lesson') showCourseRoadmap({ behavior: 'smooth' }); else closeExplorer(); });
   dom.themeBtn?.addEventListener('click', () => dashboardThemeBtn?.click());
+  dom.quickThemeToggle?.addEventListener('click', () => {
+    const currentTheme = document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light';
+    applyTheme(currentTheme === 'dark' ? 'light' : 'dark');
+    syncExplorerMobileChrome();
+  });
   dom.certificatesBtn?.addEventListener('click', openCertificates);
   dom.certCloseBtn?.addEventListener('click', closeCertificates);
   dom.lessonHead?.addEventListener('click', event => {

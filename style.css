@@ -58390,3 +58390,177 @@ html[data-theme="dark"] .code-explorer-quick-feedback-card.wrong .code-explorer-
     -webkit-text-fill-color: #7f1d1d !important;
   }
 }
+
+
+/* ================================================================
+   v379 - definitive phone puzzle readability + header theme switch
+   The mini game source/choices no longer use <code>, so the app-wide
+   code{} background can never create pale strips in light mode.
+   ================================================================ */
+.code-explorer-quick-theme-toggle { display: none; }
+
+.code-explorer-mini-game-source {
+  display: inline;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #f8fafc;
+  -webkit-text-fill-color: #f8fafc;
+  font: 12.5px/1.65 Consolas, Monaco, "Courier New", monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  text-shadow: none;
+  box-shadow: none;
+}
+
+.code-explorer-mini-game-option-text {
+  display: inline;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  -webkit-text-fill-color: currentColor;
+  font: 800 .82rem/1.25 Consolas, Monaco, "Courier New", monospace;
+  overflow-wrap: anywhere;
+  box-shadow: none;
+  text-shadow: none;
+}
+
+@media (max-width: 760px) {
+  .code-explorer-screen.code-explorer-mobile-focus .code-explorer-header-actions { gap: 7px; }
+
+  .code-explorer-screen.code-explorer-mobile-focus .code-explorer-quick-theme-toggle {
+    flex: 0 0 auto;
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    min-width: 74px;
+    height: 38px;
+    min-height: 38px;
+    padding: 4px 6px;
+    border: 1px solid #d7e1ee;
+    border-radius: 999px;
+    background: #ffffff;
+    color: #334155;
+    box-shadow: 0 2px 7px rgba(15,23,42,.06);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .code-explorer-quick-theme-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    font-size: 12px;
+    line-height: 1;
+  }
+
+  .code-explorer-quick-theme-track {
+    position: relative;
+    width: 29px;
+    height: 17px;
+    flex: 0 0 29px;
+    border-radius: 999px;
+    background: #cbd5e1;
+    box-shadow: inset 0 0 0 1px rgba(15,23,42,.08);
+    transition: background .18s ease;
+  }
+
+  .code-explorer-quick-theme-track i {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 13px;
+    height: 13px;
+    border-radius: 999px;
+    background: #ffffff;
+    box-shadow: 0 1px 3px rgba(15,23,42,.28);
+    transition: transform .18s ease;
+  }
+
+  .code-explorer-quick-theme-toggle.is-dark {
+    border-color: #334155;
+    background: #172033;
+    color: #e2e8f0;
+  }
+  .code-explorer-quick-theme-toggle.is-dark .code-explorer-quick-theme-track { background: #3b82f6; }
+  .code-explorer-quick-theme-toggle.is-dark .code-explorer-quick-theme-track i { transform: translateX(12px); }
+
+  /* Hard reset for the source sample in BOTH modes. */
+  .code-explorer-screen.code-explorer-mobile-focus .code-explorer-mini-game-code,
+  html[data-theme="light"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-mini-game-code,
+  html[data-theme="dark"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-mini-game-code {
+    background: #07111f !important;
+    border-color: #26364c !important;
+  }
+
+  .code-explorer-screen.code-explorer-mobile-focus .code-explorer-mini-game-code pre,
+  html[data-theme="light"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-mini-game-code pre,
+  html[data-theme="dark"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-mini-game-code pre {
+    background: #07111f !important;
+    color: #f8fafc !important;
+    -webkit-text-fill-color: #f8fafc !important;
+  }
+
+  .code-explorer-screen.code-explorer-mobile-focus .code-explorer-mini-game-source,
+  html[data-theme="light"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-mini-game-source,
+  html[data-theme="dark"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-mini-game-source {
+    background: transparent !important;
+    color: #f8fafc !important;
+    -webkit-text-fill-color: #f8fafc !important;
+    opacity: 1 !important;
+  }
+
+  html[data-theme="light"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-mini-game-blank {
+    background: #dbeafe !important;
+    border: 2px dashed #60a5fa !important;
+    color: #1e3a8a !important;
+    -webkit-text-fill-color: #1e3a8a !important;
+  }
+  html[data-theme="light"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-mini-game-blank.correct {
+    background: #dcfce7 !important;
+    border-color: #22c55e !important;
+    color: #14532d !important;
+    -webkit-text-fill-color: #14532d !important;
+  }
+  html[data-theme="light"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-mini-game-blank.wrong {
+    background: #fee2e2 !important;
+    border-color: #ef4444 !important;
+    color: #7f1d1d !important;
+    -webkit-text-fill-color: #7f1d1d !important;
+  }
+
+  html[data-theme="dark"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-mini-game-blank {
+    background: rgba(37,99,235,.28) !important;
+    border-color: #60a5fa !important;
+    color: #dbeafe !important;
+    -webkit-text-fill-color: #dbeafe !important;
+  }
+
+  .code-explorer-screen.code-explorer-mobile-focus .code-explorer-mini-game-option-text,
+  html[data-theme="light"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-mini-game-option-text,
+  html[data-theme="dark"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-mini-game-option-text {
+    background: transparent !important;
+    color: inherit !important;
+    -webkit-text-fill-color: currentColor !important;
+    opacity: 1 !important;
+  }
+}
+
+@media (max-width: 380px) {
+  .code-explorer-screen.code-explorer-mobile-focus .code-explorer-quick-theme-toggle {
+    min-width: 62px;
+    padding-left: 4px;
+    padding-right: 4px;
+    gap: 2px;
+  }
+  .code-explorer-quick-theme-icon { width: 13px; font-size: 10px; }
+}
