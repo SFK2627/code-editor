@@ -45,7 +45,7 @@
   </script>
   <link rel="preconnect" href="https://drive.google.com" crossorigin>
   <link rel="preconnect" href="https://lh3.googleusercontent.com" crossorigin>
-  <link rel="stylesheet" href="style.css?v=20260908-v367-mobile-practice-quickcheck" />
+  <link rel="stylesheet" href="style.css?v=20260908-v368-mobile-slide-learning" />
   <style>
     .ai-rubric-settings-card,
     .admin-project-ai-review-card {
@@ -534,6 +534,21 @@
             <span id="codeExplorerTopicStatus" class="code-explorer-topic-status">Not started</span>
           </div>
 
+          <nav id="codeExplorerMobileJourney" class="code-explorer-mobile-journey" aria-label="Topic learning steps">
+            <div class="code-explorer-mobile-journey-head">
+              <div><span id="codeExplorerMobileStageCount">Step 1 of 5</span><strong id="codeExplorerMobileStageTitle">Learn</strong></div>
+              <small>Swipe left or right</small>
+            </div>
+            <div id="codeExplorerMobileStageSteps" class="code-explorer-mobile-stage-steps" role="group" aria-label="Topic stages">
+              <button type="button" data-explorer-mobile-stage="learn" aria-label="Learn stage"><span>1</span><b>Learn</b></button>
+              <button type="button" data-explorer-mobile-stage="example" aria-label="Example stage"><span>2</span><b>Example</b></button>
+              <button type="button" data-explorer-mobile-stage="practice" aria-label="Try It stage"><span>3</span><b>Try It</b></button>
+              <button type="button" data-explorer-mobile-stage="quiz" aria-label="Quick Check stage"><span>4</span><b>Quiz</b></button>
+              <button type="button" data-explorer-mobile-stage="complete" aria-label="Complete stage"><span>5</span><b>Done</b></button>
+            </div>
+            <div id="codeExplorerMobileStageMessage" class="code-explorer-mobile-stage-message" role="status"></div>
+          </nav>
+
           <section class="code-explorer-learn-card">
             <div class="code-explorer-card-label">📖 Learn</div>
             <div id="codeExplorerTopicExplanation" class="code-explorer-topic-explanation"></div>
@@ -580,6 +595,11 @@
             <span aria-hidden="true">🎉</span>
             <div><strong>Topic completed!</strong><p>You earned 10 XP. Keep exploring when you are ready.</p></div>
           </section>
+
+          <div id="codeExplorerMobileStageNav" class="code-explorer-mobile-stage-nav" aria-label="Learning step navigation">
+            <button id="codeExplorerMobileStageBackBtn" class="ghost-btn" type="button">← Back</button>
+            <button id="codeExplorerMobileStageNextBtn" class="primary-btn" type="button">Next →</button>
+          </div>
 
           <div class="code-explorer-lesson-nav">
             <button id="codeExplorerPrevTopicBtn" class="ghost-btn" type="button">← Previous</button>
@@ -3195,6 +3215,6 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
       </section>
     </div>
 
-  <script src="script.js?v=20260908-v367-mobile-practice-quickcheck"></script>
+  <script src="script.js?v=20260908-v368-mobile-slide-learning"></script>
 </body>
 </html>

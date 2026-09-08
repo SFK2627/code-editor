@@ -40148,6 +40148,14 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     quizBadge: $('codeExplorerQuizBadge'),
     quizFeedback: $('codeExplorerQuizFeedback'),
     completeCard: $('codeExplorerTopicCompleteCard'),
+    mobileJourney: $('codeExplorerMobileJourney'),
+    mobileStageCount: $('codeExplorerMobileStageCount'),
+    mobileStageTitle: $('codeExplorerMobileStageTitle'),
+    mobileStageSteps: $('codeExplorerMobileStageSteps'),
+    mobileStageMessage: $('codeExplorerMobileStageMessage'),
+    mobileStageNav: $('codeExplorerMobileStageNav'),
+    mobileStageBackBtn: $('codeExplorerMobileStageBackBtn'),
+    mobileStageNextBtn: $('codeExplorerMobileStageNextBtn'),
     prevBtn: $('codeExplorerPrevTopicBtn'),
     nextBtn: $('codeExplorerNextTopicBtn'),
     finalCard: $('codeExplorerFinalCard'),
@@ -40454,7 +40462,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   const HEARTS_DEFAULT = 5;
   const HEARTS_MAX = 5;
   const HEART_REFILL_MS = 60 * 60 * 1000;
-  const state = { course: 'html', topicId: '', filter: 'all', progress: null, reader: '', cloudLoaded: false, dashboardCloudLoading: false, saveTimer: null, heartTimer: null, profileUnsub: null, finalAnswers: {}, quickQuiz: { topicId: '', index: 0, answers: [], results: [], submitted: false }, quickAdvanceTimer: null, justUnlockedTopicId: '', justUnlockedCourse: '' };
+  const state = { course: 'html', topicId: '', filter: 'all', progress: null, reader: '', cloudLoaded: false, dashboardCloudLoading: false, saveTimer: null, heartTimer: null, profileUnsub: null, finalAnswers: {}, quickQuiz: { topicId: '', index: 0, answers: [], results: [], submitted: false }, quickAdvanceTimer: null, justUnlockedTopicId: '', justUnlockedCourse: '', mobileStage: 'learn', mobileStageDirection: 'next', mobileSwipeStart: null };
 
   function normalizeHeartState(input = {}) {
     const source = input && typeof input === 'object' ? input : {};
@@ -41064,6 +41072,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     renderCourseCards();
     renderTopicList();
     renderFinalCard();
+    renderMobileJourney();
   }
 
   function ensureQuickQuizState(item = currentTopic()) {
@@ -41177,6 +41186,9 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     scheduleCloudSave();
     updateTopicCompletion(item);
     renderQuickQuiz();
+    if (passed && record.practicePassed && isMobileExplorerLayout()) {
+      window.setTimeout(() => setMobileJourneyStage('complete', { direction: 'next' }), 850);
+    }
   }
 
   function selectQuickQuizOption(optionIndex) {
@@ -41234,6 +41246,174 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     renderQuickQuiz();
   }
 
+  const MOBILE_EXPLORER_STAGES = [
+    { key: 'learn', title: 'Learn' },
+    { key: 'example', title: 'Example' },
+    { key: 'practice', title: 'Try It' },
+    { key: 'quiz', title: 'Quick Check' },
+    { key: 'complete', title: 'Complete' }
+  ];
+  const explorerMobileMq = window.matchMedia('(max-width: 760px)');
+
+  function isMobileExplorerLayout() { return explorerMobileMq.matches; }
+
+  function mobileStageIndex(stage = state.mobileStage) {
+    const index = MOBILE_EXPLORER_STAGES.findIndex(entry => entry.key === stage);
+    return index >= 0 ? index : 0;
+  }
+
+  function isMobileStageUnlocked(stage, record = topicRecord()) {
+    if (stage === 'learn' || stage === 'example' || stage === 'practice') return true;
+    if (stage === 'quiz') return Boolean(record?.practicePassed);
+    if (stage === 'complete') return Boolean(record?.completedAt);
+    return false;
+  }
+
+  function bestMobileStageForRecord(record = topicRecord()) {
+    const saved = String(record?.mobileStage || '').trim();
+    if (saved && MOBILE_EXPLORER_STAGES.some(entry => entry.key === saved) && isMobileStageUnlocked(saved, record)) return saved;
+    if (record?.completedAt) return 'complete';
+    if (record?.practicePassed) return 'quiz';
+    return 'learn';
+  }
+
+  function mobileStageLockMessage(stage, record = topicRecord()) {
+    if (stage === 'quiz' && !record?.practicePassed) return '🔒 Pass the Try It coding challenge first to unlock Quick Check.';
+    if (stage === 'complete' && !record?.completedAt) return '🔒 Pass the coding challenge and score at least 4/5 on Quick Check first.';
+    return '';
+  }
+
+  function pulseMobileStageLock(message) {
+    if (!dom.mobileStageMessage || !message) return;
+    dom.mobileStageMessage.textContent = message;
+    dom.mobileStageMessage.classList.remove('pulse');
+    void dom.mobileStageMessage.offsetWidth;
+    dom.mobileStageMessage.classList.add('pulse');
+    window.setTimeout(() => dom.mobileStageMessage?.classList.remove('pulse'), 700);
+  }
+
+  function renderMobileJourney(options = {}) {
+    if (!dom.lessonPanel) return;
+    const record = topicRecord();
+    if (!isMobileExplorerLayout()) {
+      dom.lessonPanel.removeAttribute('data-mobile-stage');
+      dom.lessonPanel.classList.remove('mobile-slide-next', 'mobile-slide-prev');
+      return;
+    }
+    if (!MOBILE_EXPLORER_STAGES.some(entry => entry.key === state.mobileStage) || !isMobileStageUnlocked(state.mobileStage, record)) {
+      state.mobileStage = bestMobileStageForRecord(record);
+    }
+    const index = mobileStageIndex();
+    const stage = MOBILE_EXPLORER_STAGES[index];
+    dom.lessonPanel.dataset.mobileStage = stage.key;
+    if (dom.mobileStageCount) dom.mobileStageCount.textContent = `Step ${index + 1} of ${MOBILE_EXPLORER_STAGES.length}`;
+    if (dom.mobileStageTitle) dom.mobileStageTitle.textContent = stage.title;
+    if (dom.mobileStageMessage) dom.mobileStageMessage.textContent = mobileStageLockMessage(MOBILE_EXPLORER_STAGES[index + 1]?.key || '', record);
+    dom.mobileStageSteps?.querySelectorAll('[data-explorer-mobile-stage]').forEach(button => {
+      const key = button.dataset.explorerMobileStage || 'learn';
+      const buttonIndex = mobileStageIndex(key);
+      const unlocked = isMobileStageUnlocked(key, record);
+      button.classList.toggle('active', key === stage.key);
+      button.classList.toggle('done', buttonIndex < index || (key === 'complete' && Boolean(record.completedAt)));
+      button.classList.toggle('locked', !unlocked);
+      button.disabled = !unlocked;
+      button.setAttribute('aria-current', key === stage.key ? 'step' : 'false');
+      button.setAttribute('aria-disabled', unlocked ? 'false' : 'true');
+    });
+    if (dom.mobileStageBackBtn) {
+      dom.mobileStageBackBtn.disabled = index <= 0;
+      dom.mobileStageBackBtn.textContent = index <= 0 ? '← Start' : `← ${MOBILE_EXPLORER_STAGES[index - 1].title}`;
+    }
+    if (dom.mobileStageNextBtn) {
+      const course = COURSES[state.course];
+      const topicIndex = course.topics.findIndex(entry => entry.id === state.topicId);
+      if (stage.key === 'complete') {
+        const hasNextTopic = topicIndex >= 0 && topicIndex < course.topics.length - 1;
+        dom.mobileStageNextBtn.disabled = !hasNextTopic;
+        dom.mobileStageNextBtn.textContent = hasNextTopic ? 'Next Topic →' : 'Course topics complete ✓';
+      } else {
+        const nextStage = MOBILE_EXPLORER_STAGES[index + 1];
+        const unlocked = Boolean(nextStage && isMobileStageUnlocked(nextStage.key, record));
+        dom.mobileStageNextBtn.disabled = !nextStage || !unlocked;
+        dom.mobileStageNextBtn.textContent = !nextStage ? 'Done ✓' : (unlocked ? `${nextStage.title} →` : `🔒 ${nextStage.title}`);
+      }
+    }
+    if (options.animate) {
+      dom.lessonPanel.classList.remove('mobile-slide-next', 'mobile-slide-prev');
+      void dom.lessonPanel.offsetWidth;
+      dom.lessonPanel.classList.add(state.mobileStageDirection === 'prev' ? 'mobile-slide-prev' : 'mobile-slide-next');
+      window.setTimeout(() => dom.lessonPanel?.classList.remove('mobile-slide-next', 'mobile-slide-prev'), 360);
+    }
+  }
+
+  function setMobileJourneyStage(stage, options = {}) {
+    if (!isMobileExplorerLayout()) return false;
+    const nextIndex = mobileStageIndex(stage);
+    const currentIndex = mobileStageIndex();
+    const record = topicRecord();
+    if (!isMobileStageUnlocked(stage, record)) {
+      pulseMobileStageLock(mobileStageLockMessage(stage, record));
+      return false;
+    }
+    state.mobileStageDirection = options.direction || (nextIndex < currentIndex ? 'prev' : 'next');
+    state.mobileStage = stage;
+    record.mobileStage = stage;
+    scheduleCloudSave();
+    renderMobileJourney({ animate: options.animate !== false });
+    if (options.scroll !== false) dom.lessonPanel?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+    return true;
+  }
+
+  function goMobileJourney(delta) {
+    if (!isMobileExplorerLayout()) return false;
+    const index = mobileStageIndex();
+    const targetIndex = index + Number(delta || 0);
+    if (targetIndex < 0) return false;
+    if (targetIndex >= MOBILE_EXPLORER_STAGES.length) {
+      if (state.mobileStage === 'complete') {
+        const course = COURSES[state.course];
+        const topicIndex = course.topics.findIndex(entry => entry.id === state.topicId);
+        if (topicIndex >= 0 && topicIndex < course.topics.length - 1) selectTopic(course.topics[topicIndex + 1].id);
+      }
+      return false;
+    }
+    return setMobileJourneyStage(MOBILE_EXPLORER_STAGES[targetIndex].key, { direction: delta < 0 ? 'prev' : 'next' });
+  }
+
+  function handleMobileJourneyNext() {
+    if (!isMobileExplorerLayout()) return;
+    if (state.mobileStage === 'complete') {
+      const course = COURSES[state.course];
+      const topicIndex = course.topics.findIndex(entry => entry.id === state.topicId);
+      if (topicIndex >= 0 && topicIndex < course.topics.length - 1) selectTopic(course.topics[topicIndex + 1].id);
+      return;
+    }
+    const index = mobileStageIndex();
+    const next = MOBILE_EXPLORER_STAGES[index + 1];
+    if (!next || !setMobileJourneyStage(next.key, { direction: 'next' })) pulseMobileStageLock(mobileStageLockMessage(next?.key || '', topicRecord()));
+  }
+
+  function handleMobileJourneyBack() { goMobileJourney(-1); }
+
+  function handleMobileJourneyTouchStart(event) {
+    if (!isMobileExplorerLayout() || event.touches?.length !== 1) return;
+    if (event.target.closest('textarea,input,select,button,a,iframe,pre,code,.code-explorer-quick-option')) return;
+    const touch = event.touches[0];
+    state.mobileSwipeStart = { x: touch.clientX, y: touch.clientY, at: Date.now() };
+  }
+
+  function handleMobileJourneyTouchEnd(event) {
+    if (!isMobileExplorerLayout() || !state.mobileSwipeStart || event.changedTouches?.length !== 1) { state.mobileSwipeStart = null; return; }
+    const touch = event.changedTouches[0];
+    const dx = touch.clientX - state.mobileSwipeStart.x;
+    const dy = touch.clientY - state.mobileSwipeStart.y;
+    const elapsed = Date.now() - state.mobileSwipeStart.at;
+    state.mobileSwipeStart = null;
+    if (elapsed > 900 || Math.abs(dx) < 58 || Math.abs(dx) < Math.abs(dy) * 1.25) return;
+    if (dx < 0) handleMobileJourneyNext();
+    else handleMobileJourneyBack();
+  }
+
   function renderTopic() {
     const course = COURSES[state.course];
     const item = currentTopic();
@@ -41262,6 +41442,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     dom.practiceFeedback.textContent = '';
     dom.quizQuestion.textContent = '5-question Quick Check';
     state.quickQuiz = { topicId: item.id, index: 0, answers: Array(buildQuickCheckQuestions(course, item).length).fill(null), results: Array(buildQuickCheckQuestions(course, item).length).fill(null), submitted: false };
+    if (isMobileExplorerLayout()) state.mobileStage = bestMobileStageForRecord(record);
     renderQuickQuiz();
     if (record.quizFivePassed) {
       dom.quizBadge.textContent = `✓ Passed · Best ${Number(record.quizBestCorrect || 0)}/5`;
@@ -41282,6 +41463,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     dom.nextBtn.textContent = !hasNext ? 'Course topics complete ✓' : (topicComplete ? 'Next Topic →' : '🔒 Pass this topic first');
     runPractice();
     updateTopicCompletion(item);
+    renderMobileJourney();
     queueStudentPresenceUpdate?.({ currentView: 'code-explorer', activityGroup: 'Code Explorer', activityLabel: `${course.short}: ${item.title}` });
   }
 
@@ -41420,6 +41602,10 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     scheduleCloudSave();
     runPractice();
     updateTopicCompletion(item);
+    renderMobileJourney();
+    if (result.ok && isMobileExplorerLayout() && state.mobileStage === 'practice') {
+      pulseMobileStageLock('✓ Quick Check unlocked. Swipe left or tap Quick Check to continue.');
+    }
   }
 
   function openFinal() {
@@ -42320,6 +42506,15 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   dom.themeBtn?.addEventListener('click', () => dashboardThemeBtn?.click());
   dom.certificatesBtn?.addEventListener('click', openCertificates);
   dom.certCloseBtn?.addEventListener('click', closeCertificates);
+  dom.mobileStageBackBtn?.addEventListener('click', handleMobileJourneyBack);
+  dom.mobileStageNextBtn?.addEventListener('click', handleMobileJourneyNext);
+  dom.mobileStageSteps?.addEventListener('click', event => {
+    const button = event.target.closest('[data-explorer-mobile-stage]');
+    if (button) setMobileJourneyStage(button.dataset.explorerMobileStage || 'learn');
+  });
+  dom.lessonPanel?.addEventListener('touchstart', handleMobileJourneyTouchStart, { passive: true });
+  dom.lessonPanel?.addEventListener('touchend', handleMobileJourneyTouchEnd, { passive: true });
+  explorerMobileMq.addEventListener?.('change', () => renderMobileJourney());
   dom.verifyCloseBtn?.addEventListener('click', () => closeExplorerCertificateVerification(true));
   dom.verifyDoneBtn?.addEventListener('click', () => closeExplorerCertificateVerification(true));
   dom.courseCards?.addEventListener('click', event => {
@@ -42412,5 +42607,10 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   window.renderCodeExplorerDashboardSummary = renderDashboardSummary;
   window.openCodeExplorer = openExplorer;
   window.__CODE_EXPLORER_COURSES__ = COURSES;
+  window.__ICT8_EXPLORER_MOBILE_JOURNEY_QA__ = {
+    stages: MOBILE_EXPLORER_STAGES.map(entry => entry.key),
+    isStageUnlocked: (stage, record) => isMobileStageUnlocked(stage, record || {}),
+    bestStage: record => bestMobileStageForRecord(record || {})
+  };
 })();
 

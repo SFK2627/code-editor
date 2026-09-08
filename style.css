@@ -56068,3 +56068,202 @@ html[data-theme="dark"] .code-explorer-instant-feedback.correct{background:rgba(
     font-size: .73rem;
   }
 }
+
+
+/* ================================================================
+   v368 — Code Explorer mobile slide learning journey
+   Phone-only SoloLearn-style stage flow. Desktop keeps the existing
+   full vertical lesson layout unchanged.
+   ================================================================ */
+.code-explorer-mobile-journey,
+.code-explorer-mobile-stage-nav { display: none; }
+
+@media (max-width: 760px) {
+  .code-explorer-mobile-journey {
+    display: block;
+    margin: 0 0 10px;
+    padding: 10px 11px;
+    border: 1px solid #d8e3f1;
+    border-radius: 15px;
+    background: linear-gradient(180deg,#fbfdff,#f4f8fd);
+    box-shadow: 0 7px 18px rgba(15,23,42,.05);
+  }
+  .code-explorer-mobile-journey-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+  .code-explorer-mobile-journey-head > div {
+    display: flex;
+    align-items: baseline;
+    gap: 7px;
+    min-width: 0;
+  }
+  .code-explorer-mobile-journey-head span {
+    color: #64748b;
+    font-size: .64rem;
+    font-weight: 800;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+  }
+  .code-explorer-mobile-journey-head strong { color: #0f172a; font-size: .9rem; }
+  .code-explorer-mobile-journey-head small { color: #7b8ba3; font-size: .63rem; white-space: nowrap; }
+  .code-explorer-mobile-stage-steps {
+    display: grid;
+    grid-template-columns: repeat(5,minmax(0,1fr));
+    gap: 5px;
+  }
+  .code-explorer-mobile-stage-steps button {
+    min-width: 0;
+    min-height: 43px;
+    padding: 5px 2px;
+    border: 1px solid #d7e1ee;
+    border-radius: 11px;
+    background: #fff;
+    color: #64748b;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    font: inherit;
+    transition: .18s ease;
+  }
+  .code-explorer-mobile-stage-steps button span {
+    width: 20px;
+    height: 20px;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: #edf2f8;
+    color: #516178;
+    font-size: .63rem;
+    font-weight: 900;
+  }
+  .code-explorer-mobile-stage-steps button b { font-size: .57rem; line-height: 1; white-space: nowrap; }
+  .code-explorer-mobile-stage-steps button.active {
+    border-color: #60a5fa;
+    background: #eff6ff;
+    color: #1d4ed8;
+    box-shadow: 0 0 0 2px rgba(59,130,246,.08);
+  }
+  .code-explorer-mobile-stage-steps button.active span { background: #2563eb; color: #fff; }
+  .code-explorer-mobile-stage-steps button.done:not(.active) { border-color: #bbf7d0; color: #15803d; background: #f0fdf4; }
+  .code-explorer-mobile-stage-steps button.done:not(.active) span { background: #dcfce7; color: #166534; }
+  .code-explorer-mobile-stage-steps button.locked { opacity: .48; cursor: not-allowed; }
+  .code-explorer-mobile-stage-message {
+    min-height: 0;
+    margin-top: 6px;
+    color: #64748b;
+    font-size: .65rem;
+    line-height: 1.35;
+    text-align: center;
+  }
+  .code-explorer-mobile-stage-message:empty { display: none; }
+  .code-explorer-mobile-stage-message.pulse { animation: explorerStageLockPulse .65s ease; color: #b45309; }
+
+  /* One learning stage is visible at a time on phones. */
+  .code-explorer-lesson-panel[data-mobile-stage] > .code-explorer-learn-card,
+  .code-explorer-lesson-panel[data-mobile-stage] > .code-explorer-practice-card,
+  .code-explorer-lesson-panel[data-mobile-stage] > .code-explorer-quiz-card,
+  .code-explorer-lesson-panel[data-mobile-stage] > .code-explorer-topic-complete-card {
+    display: none !important;
+  }
+  .code-explorer-lesson-panel[data-mobile-stage="learn"] > .code-explorer-learn-card,
+  .code-explorer-lesson-panel[data-mobile-stage="example"] > .code-explorer-learn-card,
+  .code-explorer-lesson-panel[data-mobile-stage="practice"] > .code-explorer-practice-card,
+  .code-explorer-lesson-panel[data-mobile-stage="quiz"] > .code-explorer-quiz-card,
+  .code-explorer-lesson-panel[data-mobile-stage="complete"] > .code-explorer-topic-complete-card:not(.hidden) {
+    display: block !important;
+  }
+  .code-explorer-lesson-panel[data-mobile-stage="learn"] .code-explorer-learn-card .code-explorer-example-block { display: none !important; }
+  .code-explorer-lesson-panel[data-mobile-stage="example"] .code-explorer-learn-card > .code-explorer-card-label,
+  .code-explorer-lesson-panel[data-mobile-stage="example"] .code-explorer-learn-card > .code-explorer-topic-explanation { display: none !important; }
+  .code-explorer-lesson-panel[data-mobile-stage="example"] .code-explorer-learn-card .code-explorer-example-block {
+    display: block !important;
+    margin-top: 0;
+  }
+  .code-explorer-lesson-panel[data-mobile-stage="complete"] > .code-explorer-topic-complete-card {
+    display: flex !important;
+    min-height: 210px;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    flex-direction: column;
+    gap: 12px;
+    padding: 28px 20px;
+  }
+  .code-explorer-lesson-panel[data-mobile-stage="complete"] > .code-explorer-topic-complete-card > span { font-size: 3rem; }
+  .code-explorer-lesson-panel[data-mobile-stage="complete"] > .code-explorer-topic-complete-card strong { font-size: 1.15rem; }
+
+  .code-explorer-mobile-stage-nav {
+    display: grid;
+    grid-template-columns: minmax(0,.9fr) minmax(0,1.1fr);
+    gap: 8px;
+    margin-top: 10px;
+    padding-bottom: calc(4px + env(safe-area-inset-bottom,0px));
+  }
+  .code-explorer-mobile-stage-nav button {
+    min-width: 0;
+    min-height: 42px;
+    padding: 8px 10px;
+    border-radius: 12px;
+    font-size: .77rem;
+    white-space: nowrap;
+  }
+  /* Existing topic nav is desktop-only now. */
+  .code-explorer-lesson-panel[data-mobile-stage] > .code-explorer-lesson-nav { display: none !important; }
+
+  /* The visible stage slides horizontally when changed. */
+  .code-explorer-lesson-panel.mobile-slide-next[data-mobile-stage="learn"] > .code-explorer-learn-card,
+  .code-explorer-lesson-panel.mobile-slide-next[data-mobile-stage="example"] > .code-explorer-learn-card,
+  .code-explorer-lesson-panel.mobile-slide-next[data-mobile-stage="practice"] > .code-explorer-practice-card,
+  .code-explorer-lesson-panel.mobile-slide-next[data-mobile-stage="quiz"] > .code-explorer-quiz-card,
+  .code-explorer-lesson-panel.mobile-slide-next[data-mobile-stage="complete"] > .code-explorer-topic-complete-card,
+  .code-explorer-lesson-panel.mobile-slide-prev[data-mobile-stage="learn"] > .code-explorer-learn-card,
+  .code-explorer-lesson-panel.mobile-slide-prev[data-mobile-stage="example"] > .code-explorer-learn-card,
+  .code-explorer-lesson-panel.mobile-slide-prev[data-mobile-stage="practice"] > .code-explorer-practice-card,
+  .code-explorer-lesson-panel.mobile-slide-prev[data-mobile-stage="quiz"] > .code-explorer-quiz-card,
+  .code-explorer-lesson-panel.mobile-slide-prev[data-mobile-stage="complete"] > .code-explorer-topic-complete-card {
+    animation-duration: .30s;
+    animation-timing-function: cubic-bezier(.22,.8,.25,1);
+    animation-fill-mode: both;
+  }
+  .code-explorer-lesson-panel.mobile-slide-next > :is(.code-explorer-learn-card,.code-explorer-practice-card,.code-explorer-quiz-card,.code-explorer-topic-complete-card) { animation-name: explorerStageInFromRight; }
+  .code-explorer-lesson-panel.mobile-slide-prev > :is(.code-explorer-learn-card,.code-explorer-practice-card,.code-explorer-quiz-card,.code-explorer-topic-complete-card) { animation-name: explorerStageInFromLeft; }
+
+  /* A topic stage should feel like one screen/card, not a long stacked page. */
+  .code-explorer-lesson-panel[data-mobile-stage] > .code-explorer-learn-card,
+  .code-explorer-lesson-panel[data-mobile-stage] > .code-explorer-practice-card,
+  .code-explorer-lesson-panel[data-mobile-stage] > .code-explorer-quiz-card {
+    margin-top: 0;
+    border-radius: 16px;
+  }
+}
+
+@media (max-width: 390px) {
+  .code-explorer-mobile-journey { padding: 9px; }
+  .code-explorer-mobile-stage-steps { gap: 4px; }
+  .code-explorer-mobile-stage-steps button { min-height: 40px; border-radius: 10px; }
+  .code-explorer-mobile-stage-steps button b { font-size: .53rem; }
+  .code-explorer-mobile-stage-nav button { font-size: .72rem; }
+}
+
+@keyframes explorerStageInFromRight { from { opacity:.35; transform:translateX(32px); } to { opacity:1; transform:translateX(0); } }
+@keyframes explorerStageInFromLeft { from { opacity:.35; transform:translateX(-32px); } to { opacity:1; transform:translateX(0); } }
+@keyframes explorerStageLockPulse { 0%,100%{transform:scale(1)} 40%{transform:scale(1.025);color:#b45309} }
+
+html[data-theme="dark"] .code-explorer-mobile-journey { background:linear-gradient(180deg,#111c2e,#0d1727); border-color:#2b3d56; }
+html[data-theme="dark"] .code-explorer-mobile-journey-head strong { color:#f8fbff; }
+html[data-theme="dark"] .code-explorer-mobile-journey-head span,
+html[data-theme="dark"] .code-explorer-mobile-journey-head small,
+html[data-theme="dark"] .code-explorer-mobile-stage-message { color:#9fb0c8; }
+html[data-theme="dark"] .code-explorer-mobile-stage-steps button { background:#121e31; border-color:#30435f; color:#9fb0c8; }
+html[data-theme="dark"] .code-explorer-mobile-stage-steps button span { background:#21314a; color:#c8d6e8; }
+html[data-theme="dark"] .code-explorer-mobile-stage-steps button.active { background:#132b4f; border-color:#4f8ee8; color:#bfdbfe; }
+html[data-theme="dark"] .code-explorer-mobile-stage-steps button.active span { background:#3b82f6; color:#fff; }
+html[data-theme="dark"] .code-explorer-mobile-stage-steps button.done:not(.active) { background:#10281e; border-color:#286b4a; color:#86efac; }
+html[data-theme="dark"] .code-explorer-mobile-stage-steps button.done:not(.active) span { background:#164e3a; color:#bbf7d0; }
