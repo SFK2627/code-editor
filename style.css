@@ -60562,3 +60562,1617 @@ html[data-theme="dark"] .code-explorer-heart-popover-row span { color: #cbd5e1; 
   .code-explorer-screen .code-explorer-heart-badge { padding-left: 4px !important; padding-right: 4px !important; font-size: .64rem !important; }
   .code-explorer-screen .code-explorer-heart-popover { right: -2px; width: min(278px, calc(100vw - 14px)); }
 }
+
+
+/* ================================================================
+   Code Explorer v401 - Desktop header cleanup
+   Desktop only: compact hearts, one-line certificates, and a Settings menu.
+   Phone header from v400 is intentionally preserved.
+   ================================================================ */
+.code-explorer-desktop-settings { display: none; }
+
+@media (min-width: 761px) {
+  .code-explorer-header {
+    align-items: center;
+  }
+  .code-explorer-header-actions {
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    gap: 12px !important;
+  }
+
+  /* Music, Sound, and Theme stay available on desktop, but inside Settings. */
+  .code-explorer-screen #codeExplorerAudioMenu,
+  .code-explorer-screen #codeExplorerThemeBtn,
+  .code-explorer-screen #codeExplorerQuickThemeToggle {
+    display: none !important;
+  }
+
+  .code-explorer-heart-wrap {
+    min-width: 0 !important;
+  }
+  .code-explorer-heart-badge {
+    min-width: 70px !important;
+    height: 42px !important;
+    min-height: 42px !important;
+    padding: 0 18px !important;
+    border-radius: 999px !important;
+    font-size: 1rem !important;
+    font-weight: 950 !important;
+    letter-spacing: .01em;
+    background: linear-gradient(135deg, #fff1f2, #ffe4e6) !important;
+    border-color: #fecdd3 !important;
+    color: #be123c !important;
+    box-shadow: 0 5px 15px rgba(244,63,94,.10);
+  }
+  .code-explorer-heart-badge[data-state="full"] {
+    background: linear-gradient(135deg, #ecfdf5, #dcfce7) !important;
+    border-color: #bbf7d0 !important;
+    color: #047857 !important;
+  }
+  .code-explorer-heart-badge[data-state="empty"] {
+    background: linear-gradient(135deg, #fff7ed, #ffedd5) !important;
+    border-color: #fed7aa !important;
+    color: #c2410c !important;
+  }
+
+  .code-explorer-certificates-btn {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    min-width: 164px !important;
+    min-height: 42px !important;
+    padding: 8px 18px !important;
+    white-space: nowrap !important;
+    flex-shrink: 0 !important;
+    line-height: 1 !important;
+    gap: 7px;
+  }
+
+  .code-explorer-desktop-settings {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    flex: 0 0 auto;
+    z-index: 65;
+  }
+  .code-explorer-settings-btn {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    min-height: 42px !important;
+    min-width: 128px !important;
+    padding: 8px 18px !important;
+    gap: 7px;
+    border-radius: 999px !important;
+    font-weight: 950 !important;
+    white-space: nowrap !important;
+    line-height: 1 !important;
+  }
+  .code-explorer-desktop-settings-panel {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 12px);
+    display: grid;
+    width: 266px;
+    padding: 10px;
+    gap: 8px;
+    border: 1px solid #dbe4ef;
+    border-radius: 20px;
+    background: rgba(255,255,255,.98);
+    box-shadow: 0 20px 48px rgba(15,23,42,.22);
+    backdrop-filter: blur(16px);
+    transform-origin: top right;
+    animation: explorerSettingsIn .18s ease both;
+  }
+  .code-explorer-desktop-settings-panel.hidden { display: none !important; }
+  .code-explorer-desktop-settings-panel::before {
+    content: '';
+    position: absolute;
+    right: 26px;
+    top: -6px;
+    width: 11px;
+    height: 11px;
+    transform: rotate(45deg);
+    background: inherit;
+    border-left: 1px solid #dbe4ef;
+    border-top: 1px solid #dbe4ef;
+  }
+  .code-explorer-settings-item {
+    display: grid;
+    grid-template-columns: 38px minmax(0,1fr) auto;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    min-height: 54px;
+    padding: 9px 10px;
+    border: 1px solid #e2e8f0;
+    border-radius: 15px;
+    background: #f8fafc;
+    color: #172033;
+    text-align: left;
+    cursor: pointer;
+    transition: transform .15s ease, border-color .15s ease, background .15s ease, box-shadow .15s ease, opacity .15s ease;
+  }
+  .code-explorer-settings-item:hover {
+    transform: translateY(-1px);
+    border-color: #bfdbfe;
+    background: #f0f9ff;
+    box-shadow: 0 8px 18px rgba(15,23,42,.09);
+  }
+  .code-explorer-settings-item:focus-visible {
+    outline: 3px solid rgba(59,130,246,.28);
+    outline-offset: 2px;
+  }
+  .code-explorer-settings-item:disabled {
+    cursor: not-allowed;
+    opacity: .55;
+    transform: none;
+    box-shadow: none;
+  }
+  .code-explorer-settings-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    height: 38px;
+    border-radius: 14px;
+    background: #e0f2fe;
+    font-size: 1.08rem;
+  }
+  .code-explorer-settings-copy {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+  }
+  .code-explorer-settings-copy b {
+    color: #0f172a;
+    font-size: .9rem;
+    font-weight: 950;
+    line-height: 1.05;
+  }
+  .code-explorer-settings-copy small {
+    color: #64748b;
+    font-size: .72rem;
+    font-weight: 800;
+    line-height: 1.15;
+  }
+  .code-explorer-settings-status {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 44px;
+    padding: 5px 8px;
+    border-radius: 999px;
+    background: #e0f2fe;
+    color: #0369a1;
+    font-size: .72rem;
+    font-weight: 950;
+    white-space: nowrap;
+  }
+  .code-explorer-settings-item.active .code-explorer-settings-status {
+    background: #dcfce7;
+    color: #047857;
+  }
+  .code-explorer-settings-item.muted .code-explorer-settings-status {
+    background: #f1f5f9;
+    color: #64748b;
+  }
+
+  html[data-theme="dark"] .code-explorer-heart-badge {
+    background: linear-gradient(135deg, #3a1724, #4c1d2f) !important;
+    border-color: #763047 !important;
+    color: #ffb8cb !important;
+  }
+  html[data-theme="dark"] .code-explorer-heart-badge[data-state="full"] {
+    background: linear-gradient(135deg, #0f3024, #123f2d) !important;
+    border-color: #2f7354 !important;
+    color: #b9f6d2 !important;
+  }
+  html[data-theme="dark"] .code-explorer-heart-badge[data-state="empty"] {
+    background: linear-gradient(135deg, #35280d, #4a3410) !important;
+    border-color: #7a5920 !important;
+    color: #ffd991 !important;
+  }
+  html[data-theme="dark"] .code-explorer-desktop-settings-panel {
+    background: rgba(21,31,49,.98);
+    border-color: #334155;
+    box-shadow: 0 20px 54px rgba(0,0,0,.42);
+  }
+  html[data-theme="dark"] .code-explorer-desktop-settings-panel::before { border-color: #334155; }
+  html[data-theme="dark"] .code-explorer-settings-item {
+    background: #172235;
+    border-color: #334155;
+    color: #e5eefb;
+  }
+  html[data-theme="dark"] .code-explorer-settings-item:hover {
+    background: #1e2d45;
+    border-color: #3b82f6;
+  }
+  html[data-theme="dark"] .code-explorer-settings-icon { background: #24344d; }
+  html[data-theme="dark"] .code-explorer-settings-copy b { color: #f8fafc; }
+  html[data-theme="dark"] .code-explorer-settings-copy small { color: #aebbd0; }
+  html[data-theme="dark"] .code-explorer-settings-status { background: #1e3a5f; color: #bfdbfe; }
+  html[data-theme="dark"] .code-explorer-settings-item.active .code-explorer-settings-status { background: #0f3b2d; color: #86efac; }
+  html[data-theme="dark"] .code-explorer-settings-item.muted .code-explorer-settings-status { background: #26364b; color: #94a3b8; }
+}
+
+@media (max-width: 760px) {
+  .code-explorer-desktop-settings { display: none !important; }
+}
+
+@keyframes explorerSettingsIn {
+  from { opacity: 0; transform: translateY(-6px) scale(.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* ================================================================
+   v402 — Desktop leaderboard compact layout
+   More ranking space, cleaner one-line controls. Phone layout untouched.
+   ================================================================ */
+@media (min-width: 761px) {
+  .code-explorer-leaderboard-overlay {
+    padding: 16px;
+  }
+
+  .code-explorer-leaderboard-sheet {
+    width: min(980px, calc(100vw - 32px));
+    height: min(760px, calc(100dvh - 32px));
+    max-height: calc(100dvh - 32px);
+    border-radius: 24px;
+  }
+
+  .code-explorer-leaderboard-head {
+    align-items: center;
+    gap: 12px;
+    padding: 14px 18px 10px;
+  }
+
+  .code-explorer-leaderboard-head h2 {
+    margin: 2px 0 3px;
+    font-size: 1.28rem;
+    line-height: 1.05;
+  }
+
+  .code-explorer-leaderboard-head p {
+    max-width: 670px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: .74rem;
+    line-height: 1.25;
+  }
+
+  .code-explorer-leaderboard-head-actions {
+    flex: 0 0 auto;
+    gap: 7px;
+  }
+
+  .code-explorer-leaderboard-head-actions .ghost-btn.mini,
+  #codeExplorerLeaderboardRefreshBtn {
+    display: inline-flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    width: auto;
+    min-width: 118px;
+    min-height: 38px;
+    padding: 0 14px;
+    white-space: nowrap;
+    line-height: 1;
+    font-size: .8rem;
+  }
+
+  .code-explorer-leaderboard-head-actions .icon-btn,
+  #codeExplorerLeaderboardCloseBtn {
+    width: 38px;
+    min-width: 38px;
+    height: 38px;
+    min-height: 38px;
+    padding: 0;
+    font-size: 1.25rem;
+  }
+
+  .code-explorer-leaderboard-tabs {
+    gap: 8px;
+    padding: 8px 18px 2px;
+  }
+
+  .code-explorer-leaderboard-tabs button {
+    min-height: 36px;
+    border-radius: 13px;
+    font-size: .78rem;
+  }
+
+  .code-explorer-leaderboard-summary {
+    gap: 8px;
+    padding: 8px 18px 5px;
+  }
+
+  .code-explorer-leaderboard-summary > div {
+    min-height: 48px;
+    padding: 8px 10px;
+    border-radius: 13px;
+  }
+
+  .code-explorer-leaderboard-summary small {
+    font-size: .6rem;
+    letter-spacing: .04em;
+  }
+
+  .code-explorer-leaderboard-summary strong {
+    margin-top: 2px;
+    font-size: 1rem;
+    line-height: 1.05;
+  }
+
+  .code-explorer-leaderboard-motivation {
+    margin: 4px 18px 5px;
+    padding: 7px 10px;
+    border-radius: 11px;
+    font-size: .7rem;
+    line-height: 1.25;
+  }
+
+  .code-explorer-leaderboard-status {
+    padding: 0 18px 6px;
+    font-size: .64rem;
+    line-height: 1.2;
+  }
+
+  .code-explorer-leaderboard-list {
+    flex: 1 1 auto;
+    min-height: 290px;
+    gap: 5px;
+    padding: 3px 18px 10px;
+  }
+
+  .code-explorer-leaderboard-list::-webkit-scrollbar {
+    width: 10px;
+  }
+
+  .code-explorer-leaderboard-list::-webkit-scrollbar-thumb {
+    border: 3px solid transparent;
+    border-radius: 999px;
+    background: rgba(100,116,139,.72);
+    background-clip: padding-box;
+  }
+
+  .code-explorer-leaderboard-row {
+    grid-template-columns: 46px minmax(0,1fr) auto;
+    gap: 9px;
+    min-height: 50px;
+    padding: 7px 10px;
+    border-radius: 14px;
+  }
+
+  .code-explorer-leaderboard-rank {
+    min-width: 38px;
+    font-size: .8rem;
+  }
+
+  .code-explorer-leaderboard-row.podium .code-explorer-leaderboard-rank {
+    font-size: 1.24rem;
+  }
+
+  .code-explorer-leaderboard-person {
+    gap: 1px;
+  }
+
+  .code-explorer-leaderboard-person strong {
+    font-size: .82rem;
+    line-height: 1.15;
+  }
+
+  .code-explorer-leaderboard-person small {
+    font-size: .64rem;
+    line-height: 1.15;
+  }
+
+  .code-explorer-leaderboard-xp strong {
+    font-size: .8rem;
+    line-height: 1;
+  }
+
+  .code-explorer-leaderboard-xp small {
+    font-size: .52rem;
+    line-height: 1;
+  }
+
+  .code-explorer-leaderboard-you-divider {
+    padding: 6px 2px 1px;
+    font-size: .56rem;
+  }
+
+  .code-explorer-leaderboard-note {
+    padding: 8px 18px 10px;
+    font-size: .58rem;
+    line-height: 1.3;
+  }
+}
+
+
+/* v403 - My Projects desktop header single-line rail.
+   Desktop/tablet only: phone My Projects header stays on its existing mobile menu.
+   This intentionally outranks the older html:not([data-device-mode="phone"]) wrap rule. */
+@media (min-width: 821px) {
+  html:not([data-device-mode="phone"]) .student-dashboard-header {
+    width: min(1680px, calc(100% - clamp(28px, 3vw, 56px))) !important;
+    max-width: none !important;
+    display: grid !important;
+    grid-template-columns: minmax(220px, clamp(260px, 28vw, 430px)) minmax(0, 1fr) !important;
+    align-items: center !important;
+    column-gap: clamp(10px, 1.45vw, 24px) !important;
+    row-gap: 0 !important;
+    padding-top: 14px !important;
+    padding-bottom: 14px !important;
+    padding-left: clamp(14px, 2vw, 34px) !important;
+    padding-right: clamp(14px, 2vw, 34px) !important;
+    overflow: hidden !important;
+  }
+
+  html:not([data-device-mode="phone"]) .student-dashboard-header .dashboard-brand {
+    justify-self: start !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    flex: 0 1 auto !important;
+    overflow: hidden !important;
+  }
+
+  html:not([data-device-mode="phone"]) .student-dashboard-header .dashboard-brand > div {
+    min-width: 0 !important;
+    overflow: hidden !important;
+  }
+
+  html:not([data-device-mode="phone"]) .student-dashboard-header .dashboard-brand .logo-mark {
+    width: clamp(44px, 4vw, 56px) !important;
+    height: clamp(44px, 4vw, 56px) !important;
+    flex: 0 0 clamp(44px, 4vw, 56px) !important;
+  }
+
+  html:not([data-device-mode="phone"]) .student-dashboard-header h1,
+  html:not([data-device-mode="phone"]) .student-dashboard-header .section-kicker,
+  html:not([data-device-mode="phone"]) .student-dashboard-header .muted-text {
+    display: block !important;
+    max-width: 100% !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  html:not([data-device-mode="phone"]) .student-dashboard-header .dashboard-header-actions {
+    justify-self: stretch !important;
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    gap: clamp(5px, 0.55vw, 9px) !important;
+    width: 100% !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    min-height: 44px !important;
+    padding: 2px 0 2px 2px !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    overscroll-behavior-x: contain !important;
+    -webkit-overflow-scrolling: touch !important;
+    scrollbar-width: none !important;
+    white-space: nowrap !important;
+  }
+
+  html:not([data-device-mode="phone"]) .student-dashboard-header .dashboard-header-actions::-webkit-scrollbar {
+    width: 0 !important;
+    height: 0 !important;
+  }
+
+  html:not([data-device-mode="phone"]) .student-dashboard-header .dashboard-header-actions > button,
+  html:not([data-device-mode="phone"]) .student-dashboard-header .dashboard-header-actions > .ghost-btn,
+  html:not([data-device-mode="phone"]) .student-dashboard-header .dashboard-header-actions #dashboardJoinProjectBtn,
+  html:not([data-device-mode="phone"]) .student-dashboard-header .dashboard-header-actions #dashboardLogoutBtn,
+  html:not([data-device-mode="phone"]) .student-dashboard-header .dashboard-header-actions #dashboardCodeInboxBtn {
+    flex: 0 0 auto !important;
+    width: auto !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    height: 40px !important;
+    min-height: 40px !important;
+    max-height: 40px !important;
+    padding: 0 clamp(9px, 0.85vw, 15px) !important;
+    border-radius: 999px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 6px !important;
+    font-size: clamp(0.76rem, 0.76vw, 0.88rem) !important;
+    line-height: 1 !important;
+    letter-spacing: -0.01em !important;
+    white-space: nowrap !important;
+    text-wrap: nowrap !important;
+  }
+
+  html:not([data-device-mode="phone"]) .student-dashboard-header .dashboard-header-actions .code-inbox-badge {
+    flex: 0 0 auto !important;
+  }
+}
+
+@media (min-width: 821px) and (max-width: 1160px) {
+  html:not([data-device-mode="phone"]) .student-dashboard-header {
+    grid-template-columns: minmax(190px, 250px) minmax(0, 1fr) !important;
+    column-gap: 8px !important;
+    padding-left: 12px !important;
+    padding-right: 12px !important;
+  }
+
+  html:not([data-device-mode="phone"]) .student-dashboard-header .dashboard-brand {
+    gap: 8px !important;
+  }
+
+  html:not([data-device-mode="phone"]) .student-dashboard-header .dashboard-brand .logo-mark {
+    width: 42px !important;
+    height: 42px !important;
+    flex-basis: 42px !important;
+  }
+
+  html:not([data-device-mode="phone"]) .student-dashboard-header h1 {
+    font-size: clamp(1.35rem, 2.1vw, 1.75rem) !important;
+  }
+
+  html:not([data-device-mode="phone"]) .student-dashboard-header .muted-text {
+    font-size: 0.78rem !important;
+  }
+
+  html:not([data-device-mode="phone"]) .student-dashboard-header .dashboard-header-actions > button,
+  html:not([data-device-mode="phone"]) .student-dashboard-header .dashboard-header-actions > .ghost-btn {
+    height: 38px !important;
+    min-height: 38px !important;
+    max-height: 38px !important;
+    padding-left: 9px !important;
+    padding-right: 9px !important;
+    font-size: 0.78rem !important;
+  }
+}
+
+
+/* v404 - True My Projects desktop header rail.
+   Fixes the v403 one-line header clipping: the action rail starts at the
+   left edge of its grid column, never hides the first button, and compresses
+   desktop-only button spacing before allowing safe horizontal scrolling.
+   Phone dashboard header/menu rules are intentionally untouched. */
+@media (min-width: 821px) {
+  html:not([data-device-mode="phone"]) .student-dashboard-screen {
+    overflow-x: hidden !important;
+  }
+
+  html:not([data-device-mode="phone"]) .student-dashboard-header {
+    width: min(1680px, calc(100% - clamp(22px, 2.6vw, 48px))) !important;
+    max-width: none !important;
+    box-sizing: border-box !important;
+    display: grid !important;
+    grid-template-columns: minmax(190px, clamp(235px, 23vw, 345px)) minmax(0, 1fr) !important;
+    align-items: center !important;
+    gap: clamp(8px, 1.1vw, 18px) !important;
+    padding: clamp(11px, 1.35vw, 16px) clamp(12px, 1.7vw, 28px) !important;
+    overflow: hidden !important;
+  }
+
+  html:not([data-device-mode="phone"]) .student-dashboard-header .dashboard-brand {
+    min-width: 0 !important;
+    max-width: none !important;
+    width: 100% !important;
+    justify-self: stretch !important;
+    overflow: hidden !important;
+    gap: clamp(8px, 0.9vw, 12px) !important;
+  }
+
+  html:not([data-device-mode="phone"]) .student-dashboard-header .dashboard-brand > div {
+    min-width: 0 !important;
+    overflow: hidden !important;
+  }
+
+  html:not([data-device-mode="phone"]) .student-dashboard-header .dashboard-brand .logo-mark {
+    width: clamp(42px, 3.6vw, 54px) !important;
+    height: clamp(42px, 3.6vw, 54px) !important;
+    flex: 0 0 clamp(42px, 3.6vw, 54px) !important;
+  }
+
+  html:not([data-device-mode="phone"]) .student-dashboard-header h1,
+  html:not([data-device-mode="phone"]) .student-dashboard-header .section-kicker,
+  html:not([data-device-mode="phone"]) .student-dashboard-header .muted-text {
+    display: block !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  html:not([data-device-mode="phone"]) .student-dashboard-header h1 {
+    font-size: clamp(1.2rem, 1.65vw, 1.72rem) !important;
+    line-height: 1.05 !important;
+  }
+
+  html:not([data-device-mode="phone"]) .student-dashboard-header .muted-text {
+    font-size: clamp(0.72rem, 0.86vw, 0.9rem) !important;
+    line-height: 1.15 !important;
+  }
+
+  html:not([data-device-mode="phone"]) .student-dashboard-header .dashboard-header-actions {
+    justify-self: stretch !important;
+    align-self: center !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    gap: clamp(4px, 0.45vw, 8px) !important;
+    padding: 2px 2px 2px 0 !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    overscroll-behavior-x: contain !important;
+    -webkit-overflow-scrolling: touch !important;
+    scrollbar-width: none !important;
+    white-space: nowrap !important;
+    scroll-padding-inline: 0 12px !important;
+  }
+
+  html:not([data-device-mode="phone"]) .student-dashboard-header .dashboard-header-actions::-webkit-scrollbar {
+    width: 0 !important;
+    height: 0 !important;
+    display: none !important;
+  }
+
+  html:not([data-device-mode="phone"]) .student-dashboard-header .dashboard-header-actions > button,
+  html:not([data-device-mode="phone"]) .student-dashboard-header .dashboard-header-actions > .ghost-btn,
+  html:not([data-device-mode="phone"]) .student-dashboard-header .dashboard-header-actions #dashboardJoinProjectBtn,
+  html:not([data-device-mode="phone"]) .student-dashboard-header .dashboard-header-actions #dashboardLogoutBtn,
+  html:not([data-device-mode="phone"]) .student-dashboard-header .dashboard-header-actions #dashboardCodeInboxBtn {
+    flex: 0 0 auto !important;
+    width: auto !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    height: 38px !important;
+    min-height: 38px !important;
+    max-height: 38px !important;
+    padding: 0 clamp(8px, 0.74vw, 13px) !important;
+    border-radius: 999px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 5px !important;
+    font-size: clamp(0.68rem, 0.72vw, 0.82rem) !important;
+    line-height: 1 !important;
+    letter-spacing: -0.02em !important;
+    white-space: nowrap !important;
+    text-wrap: nowrap !important;
+  }
+
+  html:not([data-device-mode="phone"]) .student-dashboard-header .dashboard-header-actions #dashboardLogoutBtn {
+    margin-left: auto !important;
+    flex-shrink: 0 !important;
+  }
+
+  html:not([data-device-mode="phone"]) .student-dashboard-header .dashboard-header-actions .code-inbox-badge {
+    flex: 0 0 auto !important;
+  }
+}
+
+@media (min-width: 821px) and (max-width: 1180px) {
+  html:not([data-device-mode="phone"]) .student-dashboard-header {
+    grid-template-columns: minmax(170px, 220px) minmax(0, 1fr) !important;
+    gap: 7px !important;
+    padding-left: 10px !important;
+    padding-right: 10px !important;
+  }
+
+  html:not([data-device-mode="phone"]) .student-dashboard-header .dashboard-brand .logo-mark {
+    width: 38px !important;
+    height: 38px !important;
+    flex-basis: 38px !important;
+  }
+
+  html:not([data-device-mode="phone"]) .student-dashboard-header h1 {
+    font-size: 1.12rem !important;
+  }
+
+  html:not([data-device-mode="phone"]) .student-dashboard-header .muted-text {
+    font-size: 0.7rem !important;
+  }
+
+  html:not([data-device-mode="phone"]) .student-dashboard-header .dashboard-header-actions {
+    gap: 4px !important;
+  }
+
+  html:not([data-device-mode="phone"]) .student-dashboard-header .dashboard-header-actions > button,
+  html:not([data-device-mode="phone"]) .student-dashboard-header .dashboard-header-actions > .ghost-btn {
+    height: 34px !important;
+    min-height: 34px !important;
+    max-height: 34px !important;
+    padding-left: 7px !important;
+    padding-right: 7px !important;
+    font-size: 0.66rem !important;
+  }
+}
+
+
+/* v406 — Desktop editor header cleanup: keep the coding header focused and one-line. */
+@media (min-width: 761px) {
+  html:not([data-device-mode="phone"]) .topbar.simplified-topbar {
+    grid-template-columns: minmax(260px, 430px) minmax(0, 1fr) !important;
+    align-items: center !important;
+    gap: 12px !important;
+    min-height: 76px !important;
+    padding: 12px 18px !important;
+    overflow: visible !important;
+  }
+
+  html:not([data-device-mode="phone"]) .topbar.simplified-topbar .brand-block {
+    min-width: 0 !important;
+    max-width: 430px !important;
+  }
+
+  html:not([data-device-mode="phone"]) .topbar.simplified-topbar .brand-block h1,
+  html:not([data-device-mode="phone"]) .topbar.simplified-topbar .brand-block .subtitle {
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  html:not([data-device-mode="phone"]) .top-actions.editor-main-actions {
+    position: relative !important;
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    gap: 8px !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    background: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+  }
+
+  html:not([data-device-mode="phone"]) .editor-status-hidden {
+    display: none !important;
+  }
+
+  html:not([data-device-mode="phone"]) .top-actions.editor-main-actions > button,
+  html:not([data-device-mode="phone"]) .top-actions.editor-main-actions > .editor-settings-wrap > .editor-settings-btn {
+    flex: 0 0 auto !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    height: 40px !important;
+    min-height: 40px !important;
+    max-height: 40px !important;
+    padding: 0 16px !important;
+    border-radius: 999px !important;
+    font-size: clamp(0.72rem, 0.74vw, 0.86rem) !important;
+    font-weight: 900 !important;
+    line-height: 1 !important;
+    white-space: nowrap !important;
+    text-wrap: nowrap !important;
+  }
+
+  html:not([data-device-mode="phone"]) .top-actions.editor-main-actions .activity-launch-btn {
+    min-width: 126px !important;
+    background: linear-gradient(135deg, rgba(34,197,94,0.14), rgba(20,184,166,0.12)) !important;
+    border-color: rgba(34,197,94,0.46) !important;
+    color: #047857 !important;
+  }
+
+  html[data-theme="dark"]:not([data-device-mode="phone"]) .top-actions.editor-main-actions .activity-launch-btn {
+    color: #bbf7d0 !important;
+    background: linear-gradient(135deg, rgba(34,197,94,0.20), rgba(20,184,166,0.13)) !important;
+  }
+
+  html:not([data-device-mode="phone"]) .top-actions.editor-main-actions .editor-auto-run-toggle {
+    min-width: 146px !important;
+    border-color: rgba(14,165,233,0.44) !important;
+    background: linear-gradient(135deg, rgba(14,165,233,0.13), rgba(99,102,241,0.10)) !important;
+    color: #075985 !important;
+  }
+
+  html[data-theme="dark"]:not([data-device-mode="phone"]) .top-actions.editor-main-actions .editor-auto-run-toggle {
+    color: #bae6fd !important;
+    background: linear-gradient(135deg, rgba(14,165,233,0.20), rgba(99,102,241,0.15)) !important;
+  }
+
+  html:not([data-device-mode="phone"]) .top-actions.editor-main-actions .editor-auto-run-toggle.active {
+    border-color: rgba(37,99,235,0.65) !important;
+    background: linear-gradient(135deg, #2563eb, #06b6d4) !important;
+    color: #ffffff !important;
+    box-shadow: 0 12px 28px rgba(37,99,235,0.18) !important;
+  }
+
+  html:not([data-device-mode="phone"]) .auto-run-btn .desktop-auto-label,
+  html:not([data-device-mode="phone"]) .fullscreen-auto-run-btn .desktop-auto-label {
+    display: inline !important;
+  }
+
+  html:not([data-device-mode="phone"]) .auto-run-btn .mobile-auto-label,
+  html:not([data-device-mode="phone"]) .fullscreen-auto-run-btn .mobile-auto-label {
+    display: none !important;
+  }
+
+  html:not([data-device-mode="phone"]) .top-actions.editor-main-actions .top-result-btn {
+    min-width: 96px !important;
+  }
+
+  html:not([data-device-mode="phone"]) .top-actions.editor-main-actions .full-editor-top {
+    min-width: 122px !important;
+  }
+
+  html:not([data-device-mode="phone"]) .top-actions.editor-main-actions .editor-manual-run-btn {
+    display: none !important;
+    min-width: 112px !important;
+  }
+
+  html:not([data-device-mode="phone"]) body.auto-run-is-off .top-actions.editor-main-actions .editor-manual-run-btn:not(.hidden),
+  html:not([data-device-mode="phone"]) body.auto-run-control-disabled .top-actions.editor-main-actions .editor-manual-run-btn:not(.hidden) {
+    display: inline-flex !important;
+  }
+
+  html:not([data-device-mode="phone"]) body.auto-run-control-disabled .top-actions.editor-main-actions .editor-auto-run-toggle {
+    display: none !important;
+  }
+
+  html:not([data-device-mode="phone"]) .editor-settings-wrap {
+    position: relative !important;
+    flex: 0 0 auto !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    overflow: visible !important;
+    z-index: 80 !important;
+  }
+
+  html:not([data-device-mode="phone"]) .top-actions.editor-main-actions .editor-settings-btn {
+    min-width: 112px !important;
+    border-color: rgba(100,116,139,0.26) !important;
+    background: rgba(248,250,252,0.82) !important;
+    color: #0f172a !important;
+  }
+
+  html[data-theme="dark"]:not([data-device-mode="phone"]) .top-actions.editor-main-actions .editor-settings-btn {
+    color: #e5edf8 !important;
+    background: rgba(15,23,42,0.72) !important;
+    border-color: rgba(148,163,184,0.28) !important;
+  }
+
+  html:not([data-device-mode="phone"]) .top-actions.editor-main-actions .editor-settings-btn.active,
+  html:not([data-device-mode="phone"]) .top-actions.editor-main-actions .editor-settings-btn:hover {
+    border-color: rgba(59,130,246,0.48) !important;
+    background: rgba(219,234,254,0.90) !important;
+    color: #1d4ed8 !important;
+  }
+
+  html[data-theme="dark"]:not([data-device-mode="phone"]) .top-actions.editor-main-actions .editor-settings-btn.active,
+  html[data-theme="dark"]:not([data-device-mode="phone"]) .top-actions.editor-main-actions .editor-settings-btn:hover {
+    background: rgba(30,41,59,0.96) !important;
+    color: #bfdbfe !important;
+  }
+
+  html:not([data-device-mode="phone"]) .editor-header-settings-menu.hidden {
+    display: none !important;
+  }
+
+  html:not([data-device-mode="phone"]) .editor-header-settings-menu {
+    position: absolute !important;
+    top: calc(100% + 10px) !important;
+    right: 0 !important;
+    width: min(270px, calc(100vw - 34px)) !important;
+    padding: 12px !important;
+    display: grid !important;
+    gap: 10px !important;
+    border: 1px solid rgba(148,163,184,0.28) !important;
+    border-radius: 22px !important;
+    background: rgba(255,255,255,0.98) !important;
+    box-shadow: 0 24px 60px rgba(15,23,42,0.20) !important;
+    z-index: 1000 !important;
+  }
+
+  html[data-theme="dark"]:not([data-device-mode="phone"]) .editor-header-settings-menu {
+    background: rgba(15,23,42,0.98) !important;
+    border-color: rgba(148,163,184,0.24) !important;
+    box-shadow: 0 26px 70px rgba(0,0,0,0.42) !important;
+  }
+
+  html:not([data-device-mode="phone"]) .editor-settings-section {
+    display: grid !important;
+    gap: 7px !important;
+    padding: 9px !important;
+    border-radius: 16px !important;
+    background: rgba(241,245,249,0.72) !important;
+  }
+
+  html[data-theme="dark"]:not([data-device-mode="phone"]) .editor-settings-section {
+    background: rgba(30,41,59,0.62) !important;
+  }
+
+  html:not([data-device-mode="phone"]) .editor-settings-section.danger-zone {
+    background: rgba(254,242,242,0.82) !important;
+  }
+
+  html[data-theme="dark"]:not([data-device-mode="phone"]) .editor-settings-section.danger-zone {
+    background: rgba(127,29,29,0.24) !important;
+  }
+
+  html:not([data-device-mode="phone"]) .editor-settings-label {
+    display: block !important;
+    color: #64748b !important;
+    font-size: 0.68rem !important;
+    font-weight: 950 !important;
+    letter-spacing: 0.11em !important;
+    text-transform: uppercase !important;
+  }
+
+  html[data-theme="dark"]:not([data-device-mode="phone"]) .editor-settings-label {
+    color: #9ca3af !important;
+  }
+
+  html:not([data-device-mode="phone"]) .editor-header-settings-menu .editor-settings-item {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    height: 38px !important;
+    min-height: 38px !important;
+    justify-content: flex-start !important;
+    padding: 0 12px !important;
+    border-radius: 13px !important;
+    font-size: 0.78rem !important;
+    font-weight: 900 !important;
+    white-space: nowrap !important;
+    text-align: left !important;
+  }
+
+  html:not([data-device-mode="phone"]) .editor-header-settings-menu .editor-settings-item.hidden {
+    display: none !important;
+  }
+}
+
+/* Preserve the existing phone editor action rail even though desktop now uses a settings menu. */
+html[data-device-mode="phone"] .editor-settings-wrap {
+  display: contents !important;
+}
+
+html[data-device-mode="phone"] #editorHeaderSettingsBtn {
+  display: none !important;
+}
+
+html[data-device-mode="phone"] #editorHeaderSettingsMenu,
+html[data-device-mode="phone"] #editorHeaderSettingsMenu.hidden,
+html[data-device-mode="phone"] .editor-settings-section {
+  display: contents !important;
+}
+
+html[data-device-mode="phone"] .editor-settings-label {
+  display: none !important;
+}
+
+html[data-device-mode="phone"] .auto-run-btn .desktop-auto-label,
+html[data-device-mode="phone"] .fullscreen-auto-run-btn .desktop-auto-label {
+  display: none !important;
+}
+
+html[data-device-mode="phone"] .auto-run-btn .mobile-auto-label,
+html[data-device-mode="phone"] .fullscreen-auto-run-btn .mobile-auto-label {
+  display: inline !important;
+}
+
+/* v407 — Editor settings popover fix: gear-only button + fixed, unclipped dropdown. */
+.sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+@media (min-width: 761px) {
+  html:not([data-device-mode="phone"]) .topbar.simplified-topbar,
+  html:not([data-device-mode="phone"]) .top-actions.editor-main-actions,
+  html:not([data-device-mode="phone"]) .editor-settings-wrap {
+    overflow: visible !important;
+  }
+
+  html:not([data-device-mode="phone"]) .top-actions.editor-main-actions > .editor-settings-wrap > .editor-settings-btn.icon-only {
+    width: 44px !important;
+    min-width: 44px !important;
+    max-width: 44px !important;
+    height: 40px !important;
+    padding: 0 !important;
+    font-size: 1.05rem !important;
+    line-height: 1 !important;
+  }
+
+  html:not([data-device-mode="phone"]) .top-actions.editor-main-actions > .editor-settings-wrap > .editor-settings-btn.icon-only span[aria-hidden="true"] {
+    display: inline-grid !important;
+    place-items: center !important;
+    line-height: 1 !important;
+  }
+
+  html:not([data-device-mode="phone"]) .editor-header-settings-menu {
+    position: fixed !important;
+    top: var(--editor-settings-menu-top, 86px) !important;
+    left: var(--editor-settings-menu-left, auto) !important;
+    right: auto !important;
+    width: var(--editor-settings-menu-width, min(286px, calc(100vw - 28px))) !important;
+    max-height: min(76vh, 520px) !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain !important;
+    z-index: 2147483000 !important;
+  }
+}
+
+/* v408 — Editor desktop navigation + settings cleanup. Desktop only; phone keeps its existing rail. */
+#statusBadge.editor-status-hidden {
+  display: none !important;
+}
+
+@media (min-width: 761px) {
+  html:not([data-device-mode="phone"]) .topbar.simplified-topbar {
+    overflow: visible !important;
+  }
+
+  html:not([data-device-mode="phone"]) .student-account-strip:not(.hidden) {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    gap: 10px !important;
+    width: 100% !important;
+    overflow: visible !important;
+    min-width: 0 !important;
+  }
+
+  html:not([data-device-mode="phone"]) .student-account-strip .editor-strip-greeting {
+    display: none !important;
+  }
+
+  html:not([data-device-mode="phone"]) .student-account-strip #studentSaveState,
+  html:not([data-device-mode="phone"]) .student-account-strip #saveStudentProjectBtn,
+  html:not([data-device-mode="phone"]) .student-account-strip #editorNavigationBtn {
+    flex: 0 0 auto !important;
+    height: 38px !important;
+    min-height: 38px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    white-space: nowrap !important;
+    text-wrap: nowrap !important;
+    line-height: 1 !important;
+    border-radius: 999px !important;
+    font-weight: 950 !important;
+  }
+
+  html:not([data-device-mode="phone"]) .student-account-strip #studentSaveState {
+    padding: 0 16px !important;
+    color: #92400e !important;
+    background: linear-gradient(135deg, rgba(254, 243, 199, 0.95), rgba(255, 237, 213, 0.94)) !important;
+    border: 1px solid rgba(245, 158, 11, 0.30) !important;
+    min-width: 92px !important;
+  }
+
+  html[data-theme="dark"]:not([data-device-mode="phone"]) .student-account-strip #studentSaveState {
+    color: #fed7aa !important;
+    background: rgba(120, 53, 15, 0.35) !important;
+    border-color: rgba(251, 146, 60, 0.32) !important;
+  }
+
+  html:not([data-device-mode="phone"]) .student-account-strip #studentSaveState.saved {
+    color: #047857 !important;
+    background: linear-gradient(135deg, rgba(209, 250, 229, 0.95), rgba(220, 252, 231, 0.94)) !important;
+    border-color: rgba(34, 197, 94, 0.30) !important;
+  }
+
+  html[data-theme="dark"]:not([data-device-mode="phone"]) .student-account-strip #studentSaveState.saved {
+    color: #bbf7d0 !important;
+    background: rgba(20, 83, 45, 0.34) !important;
+    border-color: rgba(74, 222, 128, 0.26) !important;
+  }
+
+  html:not([data-device-mode="phone"]) .student-account-strip #saveStudentProjectBtn {
+    padding: 0 20px !important;
+    min-width: 112px !important;
+    border-color: rgba(14, 165, 233, 0.38) !important;
+    background: linear-gradient(135deg, rgba(224, 242, 254, 0.96), rgba(219, 234, 254, 0.94)) !important;
+    color: #075985 !important;
+    box-shadow: 0 10px 24px rgba(14, 165, 233, 0.10) !important;
+  }
+
+  html[data-theme="dark"]:not([data-device-mode="phone"]) .student-account-strip #saveStudentProjectBtn {
+    color: #bae6fd !important;
+    background: linear-gradient(135deg, rgba(14, 165, 233, 0.22), rgba(59, 130, 246, 0.18)) !important;
+    border-color: rgba(125, 211, 252, 0.26) !important;
+  }
+
+  html:not([data-device-mode="phone"]) .editor-navigation-wrap {
+    position: relative !important;
+    flex: 0 0 auto !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    overflow: visible !important;
+    z-index: 90 !important;
+  }
+
+  html:not([data-device-mode="phone"]) #editorNavigationBtn {
+    padding: 0 18px !important;
+    min-width: 142px !important;
+    border-color: rgba(99, 102, 241, 0.34) !important;
+    background: linear-gradient(135deg, rgba(238, 242, 255, 0.98), rgba(219, 234, 254, 0.94)) !important;
+    color: #3730a3 !important;
+  }
+
+  html:not([data-device-mode="phone"]) #editorNavigationBtn.active,
+  html:not([data-device-mode="phone"]) #editorNavigationBtn:hover {
+    border-color: rgba(37, 99, 235, 0.48) !important;
+    color: #1d4ed8 !important;
+    box-shadow: 0 14px 28px rgba(37, 99, 235, 0.12) !important;
+  }
+
+  html[data-theme="dark"]:not([data-device-mode="phone"]) #editorNavigationBtn {
+    color: #c7d2fe !important;
+    background: linear-gradient(135deg, rgba(49, 46, 129, 0.35), rgba(30, 64, 175, 0.26)) !important;
+    border-color: rgba(129, 140, 248, 0.30) !important;
+  }
+
+  html:not([data-device-mode="phone"]) #editorNavigationMenu.hidden {
+    display: none !important;
+  }
+
+  html:not([data-device-mode="phone"]) #editorNavigationMenu {
+    position: fixed !important;
+    top: var(--editor-nav-menu-top, 138px) !important;
+    left: var(--editor-nav-menu-left, auto) !important;
+    right: auto !important;
+    width: var(--editor-nav-menu-width, min(254px, calc(100vw - 28px))) !important;
+    display: grid !important;
+    gap: 8px !important;
+    padding: 12px !important;
+    border: 1px solid rgba(148, 163, 184, 0.28) !important;
+    border-radius: 20px !important;
+    background: rgba(255, 255, 255, 0.98) !important;
+    box-shadow: 0 24px 60px rgba(15, 23, 42, 0.20) !important;
+    z-index: 2147483001 !important;
+  }
+
+  html[data-theme="dark"]:not([data-device-mode="phone"]) #editorNavigationMenu {
+    background: rgba(15, 23, 42, 0.98) !important;
+    border-color: rgba(148, 163, 184, 0.24) !important;
+    box-shadow: 0 26px 70px rgba(0,0,0,0.42) !important;
+  }
+
+  html:not([data-device-mode="phone"]) .editor-navigation-label {
+    color: #64748b !important;
+    font-size: 0.68rem !important;
+    font-weight: 950 !important;
+    letter-spacing: 0.11em !important;
+    text-transform: uppercase !important;
+    padding: 0 4px !important;
+  }
+
+  html[data-theme="dark"]:not([data-device-mode="phone"]) .editor-navigation-label {
+    color: #9ca3af !important;
+  }
+
+  html:not([data-device-mode="phone"]) #editorNavigationMenu .editor-navigation-item {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    height: 40px !important;
+    min-height: 40px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    padding: 0 12px !important;
+    border-radius: 14px !important;
+    font-size: 0.8rem !important;
+    font-weight: 900 !important;
+    white-space: nowrap !important;
+    text-align: left !important;
+    color: #0f172a !important;
+    background: rgba(241, 245, 249, 0.76) !important;
+    border-color: rgba(148, 163, 184, 0.22) !important;
+  }
+
+  html:not([data-device-mode="phone"]) #editorNavigationMenu .editor-navigation-item:hover {
+    color: #1d4ed8 !important;
+    background: rgba(219, 234, 254, 0.90) !important;
+    border-color: rgba(96, 165, 250, 0.42) !important;
+  }
+
+  html[data-theme="dark"]:not([data-device-mode="phone"]) #editorNavigationMenu .editor-navigation-item {
+    color: #e5edf8 !important;
+    background: rgba(30, 41, 59, 0.66) !important;
+    border-color: rgba(148, 163, 184, 0.20) !important;
+  }
+
+  html[data-theme="dark"]:not([data-device-mode="phone"]) #editorNavigationMenu .editor-navigation-item:hover {
+    color: #bfdbfe !important;
+    background: rgba(30, 64, 175, 0.34) !important;
+    border-color: rgba(96, 165, 250, 0.36) !important;
+  }
+
+  body.student-session-active .topbar:hover .student-account-strip:not(.hidden),
+  body.student-session-active .topbar:focus-within .student-account-strip:not(.hidden) {
+    overflow: visible !important;
+  }
+}
+
+html[data-device-mode="phone"] .desktop-settings-only,
+html[data-device-mode="phone"] .desktop-nav-only {
+  display: none !important;
+}
+
+html[data-device-mode="phone"] .editor-navigation-wrap {
+  display: contents !important;
+}
+
+html[data-device-mode="phone"] #editorNavigationBtn {
+  display: none !important;
+}
+
+html[data-device-mode="phone"] #editorNavigationMenu,
+html[data-device-mode="phone"] #editorNavigationMenu.hidden {
+  display: contents !important;
+}
+
+html[data-device-mode="phone"] .editor-navigation-label {
+  display: none !important;
+}
+
+body:not(.student-session-active) #codeInboxBtn,
+body:not(.student-session-active) #studentHeaderLogoutBtn {
+  display: none !important;
+}
+
+
+/* v409 — Editor desktop final header polish: preserve welcome line, compact Go to, stronger gear. */
+@media (min-width: 761px) {
+  html:not([data-device-mode="phone"]) .topbar.simplified-topbar {
+    overflow: visible !important;
+  }
+
+  html:not([data-device-mode="phone"]) .top-actions.editor-main-actions {
+    justify-content: flex-end !important;
+    gap: 9px !important;
+    padding-left: 18px !important;
+  }
+
+  html:not([data-device-mode="phone"]) .top-actions.editor-main-actions .full-editor-top {
+    order: 90 !important;
+    min-width: 122px !important;
+  }
+
+  html:not([data-device-mode="phone"]) .top-actions.editor-main-actions .editor-settings-wrap {
+    order: 99 !important;
+    margin-left: 2px !important;
+  }
+
+  html:not([data-device-mode="phone"]) .top-actions.editor-main-actions > .editor-settings-wrap > .editor-settings-btn.icon-only {
+    width: 48px !important;
+    min-width: 48px !important;
+    max-width: 48px !important;
+    height: 42px !important;
+    min-height: 42px !important;
+    max-height: 42px !important;
+    padding: 0 !important;
+    border-radius: 999px !important;
+    font-size: 1.22rem !important;
+    border: 1px solid rgba(37, 99, 235, 0.34) !important;
+    color: #1d4ed8 !important;
+    background: linear-gradient(135deg, rgba(239, 246, 255, 0.98), rgba(219, 234, 254, 0.94)) !important;
+    box-shadow: 0 12px 28px rgba(37, 99, 235, 0.12) !important;
+  }
+
+  html:not([data-device-mode="phone"]) .top-actions.editor-main-actions > .editor-settings-wrap > .editor-settings-btn.icon-only.active,
+  html:not([data-device-mode="phone"]) .top-actions.editor-main-actions > .editor-settings-wrap > .editor-settings-btn.icon-only:hover {
+    transform: translateY(-1px) !important;
+    border-color: rgba(37, 99, 235, 0.58) !important;
+    background: linear-gradient(135deg, rgba(219, 234, 254, 1), rgba(191, 219, 254, 0.98)) !important;
+    box-shadow: 0 16px 34px rgba(37, 99, 235, 0.18) !important;
+  }
+
+  html[data-theme="dark"]:not([data-device-mode="phone"]) .top-actions.editor-main-actions > .editor-settings-wrap > .editor-settings-btn.icon-only {
+    color: #dbeafe !important;
+    background: linear-gradient(135deg, rgba(30, 64, 175, 0.38), rgba(79, 70, 229, 0.26)) !important;
+    border-color: rgba(147, 197, 253, 0.38) !important;
+    box-shadow: 0 14px 32px rgba(0, 0, 0, 0.22) !important;
+  }
+
+  html[data-theme="dark"]:not([data-device-mode="phone"]) .top-actions.editor-main-actions > .editor-settings-wrap > .editor-settings-btn.icon-only.active,
+  html[data-theme="dark"]:not([data-device-mode="phone"]) .top-actions.editor-main-actions > .editor-settings-wrap > .editor-settings-btn.icon-only:hover {
+    background: linear-gradient(135deg, rgba(37, 99, 235, 0.48), rgba(79, 70, 229, 0.38)) !important;
+    border-color: rgba(191, 219, 254, 0.55) !important;
+  }
+
+  html:not([data-device-mode="phone"]) .student-account-strip:not(.hidden):not(.guest-account-strip) {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    gap: 10px !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    overflow: visible !important;
+  }
+
+  html:not([data-device-mode="phone"]) .student-account-strip:not(.guest-account-strip) .editor-strip-greeting {
+    display: inline-block !important;
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    margin-right: auto !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+    text-wrap: nowrap !important;
+    line-height: 1.25 !important;
+  }
+
+  html:not([data-device-mode="phone"]) .student-account-strip #studentSaveState,
+  html:not([data-device-mode="phone"]) .student-account-strip #saveStudentProjectBtn,
+  html:not([data-device-mode="phone"]) .student-account-strip #editorNavigationBtn {
+    flex: 0 0 auto !important;
+  }
+
+  html:not([data-device-mode="phone"]) #editorNavigationBtn {
+    min-width: 104px !important;
+    padding: 0 16px !important;
+    gap: 6px !important;
+  }
+
+  html:not([data-device-mode="phone"]) #editorNavigationMenu {
+    width: var(--editor-nav-menu-width, min(218px, calc(100vw - 28px))) !important;
+    gap: 6px !important;
+    padding: 10px !important;
+    border-radius: 16px !important;
+    box-shadow: 0 18px 44px rgba(15, 23, 42, 0.18) !important;
+  }
+
+  html:not([data-device-mode="phone"]) .editor-navigation-label {
+    font-size: 0.62rem !important;
+    letter-spacing: 0.10em !important;
+    padding: 0 4px 1px !important;
+  }
+
+  html:not([data-device-mode="phone"]) #editorNavigationMenu .editor-navigation-item {
+    height: 34px !important;
+    min-height: 34px !important;
+    padding: 0 10px !important;
+    border-radius: 11px !important;
+    font-size: 0.76rem !important;
+    gap: 7px !important;
+  }
+}
+
+/* v410 — Desktop editor menu polish: stronger gear, tighter Go to popover, logout last. */
+@media (min-width: 761px) {
+  html:not([data-device-mode="phone"]) .top-actions.editor-main-actions {
+    gap: 10px !important;
+  }
+
+  html:not([data-device-mode="phone"]) .top-actions.editor-main-actions .editor-settings-wrap {
+    order: 999 !important;
+    margin-left: 6px !important;
+  }
+
+  html:not([data-device-mode="phone"]) .top-actions.editor-main-actions > .editor-settings-wrap > .editor-settings-btn.icon-only {
+    width: 58px !important;
+    min-width: 58px !important;
+    max-width: 58px !important;
+    height: 46px !important;
+    min-height: 46px !important;
+    max-height: 46px !important;
+    padding: 0 !important;
+    border-radius: 999px !important;
+    font-size: 1.42rem !important;
+    color: #ffffff !important;
+    border: 1px solid rgba(37, 99, 235, 0.58) !important;
+    background: linear-gradient(135deg, #2563eb, #7c3aed) !important;
+    box-shadow: 0 16px 34px rgba(37, 99, 235, 0.24), 0 0 0 4px rgba(59, 130, 246, 0.10) !important;
+  }
+
+  html:not([data-device-mode="phone"]) .top-actions.editor-main-actions > .editor-settings-wrap > .editor-settings-btn.icon-only span[aria-hidden="true"] {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 1em !important;
+    height: 1em !important;
+    line-height: 1 !important;
+    filter: drop-shadow(0 1px 1px rgba(15, 23, 42, 0.24)) !important;
+  }
+
+  html:not([data-device-mode="phone"]) .top-actions.editor-main-actions > .editor-settings-wrap > .editor-settings-btn.icon-only.active,
+  html:not([data-device-mode="phone"]) .top-actions.editor-main-actions > .editor-settings-wrap > .editor-settings-btn.icon-only:hover,
+  html:not([data-device-mode="phone"]) .top-actions.editor-main-actions > .editor-settings-wrap > .editor-settings-btn.icon-only:focus-visible {
+    transform: translateY(-1px) scale(1.03) !important;
+    color: #ffffff !important;
+    border-color: rgba(14, 165, 233, 0.74) !important;
+    background: linear-gradient(135deg, #1d4ed8, #9333ea) !important;
+    box-shadow: 0 18px 38px rgba(37, 99, 235, 0.30), 0 0 0 5px rgba(96, 165, 250, 0.16) !important;
+  }
+
+  html[data-theme="dark"]:not([data-device-mode="phone"]) .top-actions.editor-main-actions > .editor-settings-wrap > .editor-settings-btn.icon-only {
+    color: #ffffff !important;
+    border-color: rgba(147, 197, 253, 0.58) !important;
+    background: linear-gradient(135deg, #2563eb, #7c3aed) !important;
+    box-shadow: 0 16px 36px rgba(0, 0, 0, 0.34), 0 0 0 4px rgba(96, 165, 250, 0.14) !important;
+  }
+
+  html:not([data-device-mode="phone"]) .editor-header-settings-menu {
+    gap: 8px !important;
+    padding: 10px !important;
+    border-radius: 18px !important;
+  }
+
+  html:not([data-device-mode="phone"]) .editor-settings-section {
+    gap: 5px !important;
+    padding: 8px !important;
+    border-radius: 14px !important;
+  }
+
+  html:not([data-device-mode="phone"]) .editor-settings-section.account-zone {
+    background: rgba(255, 247, 237, 0.86) !important;
+  }
+
+  html[data-theme="dark"]:not([data-device-mode="phone"]) .editor-settings-section.account-zone {
+    background: rgba(120, 53, 15, 0.26) !important;
+  }
+
+  html:not([data-device-mode="phone"]) .editor-header-settings-menu #studentHeaderLogoutBtn {
+    color: #b91c1c !important;
+    border-color: rgba(248, 113, 113, 0.42) !important;
+    background: rgba(254, 242, 242, 0.95) !important;
+    justify-content: center !important;
+  }
+
+  html[data-theme="dark"]:not([data-device-mode="phone"]) .editor-header-settings-menu #studentHeaderLogoutBtn {
+    color: #fecaca !important;
+    background: rgba(127, 29, 29, 0.35) !important;
+    border-color: rgba(248, 113, 113, 0.32) !important;
+  }
+
+  html:not([data-device-mode="phone"]) .editor-navigation-wrap {
+    position: relative !important;
+    z-index: 120 !important;
+  }
+
+  html:not([data-device-mode="phone"]) #editorNavigationMenu {
+    position: absolute !important;
+    top: calc(100% + 3px) !important;
+    right: 0 !important;
+    left: auto !important;
+    width: 198px !important;
+    display: grid !important;
+    gap: 4px !important;
+    padding: 8px !important;
+    border-radius: 14px !important;
+    box-shadow: 0 14px 34px rgba(15, 23, 42, 0.16) !important;
+  }
+
+  html:not([data-device-mode="phone"]) .editor-navigation-label {
+    font-size: 0.58rem !important;
+    letter-spacing: 0.09em !important;
+    padding: 0 2px !important;
+    line-height: 1 !important;
+  }
+
+  html:not([data-device-mode="phone"]) #editorNavigationMenu .editor-navigation-item {
+    height: 30px !important;
+    min-height: 30px !important;
+    padding: 0 9px !important;
+    border-radius: 10px !important;
+    font-size: 0.73rem !important;
+    gap: 6px !important;
+  }
+}
+
+/* v411 — Balanced desktop Go to / Settings menus.
+   Desktop only. Keeps the menu close to the button, but restores readable
+   click targets and a more premium size. Phone action rail is untouched. */
+@media (min-width: 761px) {
+  html:not([data-device-mode="phone"]) #editorNavigationBtn {
+    min-width: 112px !important;
+    height: 38px !important;
+    padding: 0 18px !important;
+    gap: 7px !important;
+  }
+
+  html:not([data-device-mode="phone"]) #editorNavigationMenu {
+    position: absolute !important;
+    top: calc(100% + 7px) !important;
+    right: 0 !important;
+    left: auto !important;
+    width: 228px !important;
+    display: grid !important;
+    gap: 7px !important;
+    padding: 12px !important;
+    border-radius: 18px !important;
+    border: 1px solid rgba(148, 163, 184, 0.28) !important;
+    background: rgba(255, 255, 255, 0.985) !important;
+    box-shadow: 0 20px 46px rgba(15, 23, 42, 0.18) !important;
+  }
+
+  html[data-theme="dark"]:not([data-device-mode="phone"]) #editorNavigationMenu {
+    background: rgba(15, 23, 42, 0.985) !important;
+    border-color: rgba(148, 163, 184, 0.26) !important;
+    box-shadow: 0 24px 54px rgba(0, 0, 0, 0.44) !important;
+  }
+
+  html:not([data-device-mode="phone"]) .editor-navigation-label {
+    font-size: 0.64rem !important;
+    letter-spacing: 0.105em !important;
+    line-height: 1.15 !important;
+    padding: 0 5px 1px !important;
+    color: #64748b !important;
+  }
+
+  html:not([data-device-mode="phone"]) #editorNavigationMenu .editor-navigation-item {
+    height: 42px !important;
+    min-height: 42px !important;
+    padding: 0 13px !important;
+    border-radius: 13px !important;
+    font-size: 0.83rem !important;
+    font-weight: 950 !important;
+    line-height: 1.12 !important;
+    gap: 10px !important;
+    background: linear-gradient(135deg, rgba(248, 250, 252, 0.96), rgba(241, 245, 249, 0.92)) !important;
+    border: 1px solid rgba(148, 163, 184, 0.24) !important;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72) !important;
+  }
+
+  html:not([data-device-mode="phone"]) #editorNavigationMenu .editor-navigation-item:hover,
+  html:not([data-device-mode="phone"]) #editorNavigationMenu .editor-navigation-item:focus-visible {
+    transform: translateY(-1px) !important;
+    color: #1d4ed8 !important;
+    background: linear-gradient(135deg, rgba(239, 246, 255, 1), rgba(219, 234, 254, 0.98)) !important;
+    border-color: rgba(96, 165, 250, 0.50) !important;
+    box-shadow: 0 8px 18px rgba(37, 99, 235, 0.10) !important;
+  }
+
+  html[data-theme="dark"]:not([data-device-mode="phone"]) #editorNavigationMenu .editor-navigation-item {
+    color: #e5edf8 !important;
+    background: linear-gradient(135deg, rgba(30, 41, 59, 0.86), rgba(15, 23, 42, 0.72)) !important;
+    border-color: rgba(148, 163, 184, 0.24) !important;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06) !important;
+  }
+
+  html[data-theme="dark"]:not([data-device-mode="phone"]) #editorNavigationMenu .editor-navigation-item:hover,
+  html[data-theme="dark"]:not([data-device-mode="phone"]) #editorNavigationMenu .editor-navigation-item:focus-visible {
+    color: #bfdbfe !important;
+    background: linear-gradient(135deg, rgba(30, 64, 175, 0.42), rgba(49, 46, 129, 0.36)) !important;
+    border-color: rgba(96, 165, 250, 0.44) !important;
+    box-shadow: 0 10px 22px rgba(0, 0, 0, 0.24) !important;
+  }
+
+  html:not([data-device-mode="phone"]) .editor-header-settings-menu {
+    width: var(--editor-settings-menu-width, min(304px, calc(100vw - 28px))) !important;
+    gap: 9px !important;
+    padding: 12px !important;
+    border-radius: 20px !important;
+  }
+
+  html:not([data-device-mode="phone"]) .editor-header-settings-menu .editor-settings-item {
+    min-height: 38px !important;
+    border-radius: 12px !important;
+    font-size: 0.82rem !important;
+    font-weight: 900 !important;
+  }
+}

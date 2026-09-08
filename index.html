@@ -45,7 +45,7 @@
   </script>
   <link rel="preconnect" href="https://drive.google.com" crossorigin>
   <link rel="preconnect" href="https://lh3.googleusercontent.com" crossorigin>
-  <link rel="stylesheet" href="style.css?v=20260908-v400-cert-heart-header-polish" />
+  <link rel="stylesheet" href="style.css?v=20260908-v411-balanced-editor-menus" />
   <style>
     .ai-rubric-settings-card,
     .admin-project-ai-review-card {
@@ -499,6 +499,26 @@
         </div>
         <button id="codeExplorerCertificatesBtn" class="ghost-btn code-explorer-certificates-btn" type="button" aria-label="Open my certificates" title="My Certificates">🏅 My Certificates</button>
         <button id="codeExplorerThemeBtn" class="ghost-btn" type="button">🌙 Theme</button>
+        <div id="codeExplorerDesktopSettings" class="code-explorer-desktop-settings">
+          <button id="codeExplorerDesktopSettingsToggle" class="ghost-btn code-explorer-settings-btn" type="button" aria-label="Open Code Explorer settings" aria-expanded="false" aria-controls="codeExplorerDesktopSettingsPanel" title="Settings">⚙️ Settings</button>
+          <div id="codeExplorerDesktopSettingsPanel" class="code-explorer-desktop-settings-panel hidden" role="group" aria-label="Code Explorer settings">
+            <button id="codeExplorerDesktopMusicToggle" class="code-explorer-settings-item" type="button" aria-label="Turn background music off" aria-pressed="true">
+              <span class="code-explorer-settings-icon" aria-hidden="true">🎵</span>
+              <span class="code-explorer-settings-copy"><b>Music</b><small>Background loop</small></span>
+              <span class="code-explorer-settings-status">On</span>
+            </button>
+            <button id="codeExplorerDesktopSfxToggle" class="code-explorer-settings-item" type="button" aria-label="Turn sound effects off" aria-pressed="true">
+              <span class="code-explorer-settings-icon" aria-hidden="true">🔊</span>
+              <span class="code-explorer-settings-copy"><b>Sound</b><small>Answer & reward SFX</small></span>
+              <span class="code-explorer-settings-status">On</span>
+            </button>
+            <button id="codeExplorerDesktopThemeToggle" class="code-explorer-settings-item" type="button" aria-label="Switch theme">
+              <span class="code-explorer-settings-icon" aria-hidden="true">🌙</span>
+              <span class="code-explorer-settings-copy"><b>Theme</b><small>Light / dark mode</small></span>
+              <span class="code-explorer-settings-status">Dark</span>
+            </button>
+          </div>
+        </div>
       </div>
     </header>
 
@@ -1424,20 +1444,39 @@
         </div>
       </div>
 
-      <div class="top-actions" aria-label="Main actions">
-        <span id="statusBadge" class="status-badge compact-status">Ready</span>
-        <button id="themeToggle" class="ghost-btn" type="button" title="Switch light or dark mode">🌙 Dark</button>
-        <button id="stepActivityBtn" class="ghost-btn activity-launch-btn" type="button" aria-expanded="false" aria-controls="activityCard">📌 Activity</button>
-        <button id="runBtn" class="primary-btn top-run-btn" type="button" title="Run: Ctrl + Enter">▶ Run</button>
-        <button id="autoRunBtn" class="ghost-btn auto-run-btn" type="button" aria-pressed="true" title="Auto update preview after typing">⚡ Auto</button>
+      <div class="top-actions editor-main-actions" aria-label="Main actions">
+        <span id="statusBadge" class="status-badge compact-status editor-status-hidden" aria-live="polite">Ready</span>
+        <button id="stepActivityBtn" class="ghost-btn activity-launch-btn" type="button" aria-expanded="false" aria-controls="activityCard">✅ Activity Set</button>
+        <button id="runBtn" class="primary-btn top-run-btn editor-manual-run-btn" type="button" title="Run code now: Ctrl + Enter">▶ Run Code</button>
+        <button id="autoRunBtn" class="ghost-btn auto-run-btn editor-auto-run-toggle" type="button" aria-pressed="true" title="Auto update preview after typing">⚡ Auto Run</button>
         <button id="resultBtn" class="success-btn top-result-btn" type="button" title="Check result: Ctrl + Shift + Enter">✓ Result</button>
-        <button id="aiReviewTopBtn" class="ghost-btn ai-review-top-btn" type="button" title="Open the latest result feedback">💬 Feedback</button>
-        <button id="sendCodeBtn" class="ghost-btn send-code-btn hidden" type="button" title="Send selected code files to a classmate">📤 Send Code</button>
-        <button id="downloadZipBtn" class="ghost-btn save-zip-btn" type="button" title="Download your code as ZIP">💾 ZIP</button>
         <button id="fullEditorBtn" class="ghost-btn full-editor-top" type="button" title="Full editor: Ctrl + Shift + F">⛶ Full Editor</button>
+        <div class="editor-settings-wrap">
+          <button id="editorHeaderSettingsBtn" class="ghost-btn editor-settings-btn icon-only" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="editorHeaderSettingsMenu" aria-label="Open editor settings" title="Editor settings"><span aria-hidden="true">⚙️</span><span class="sr-only">Editor settings</span></button>
+          <div id="editorHeaderSettingsMenu" class="editor-header-settings-menu hidden" role="menu" aria-label="Editor settings">
+            <div class="editor-settings-section">
+              <span class="editor-settings-label">Appearance</span>
+              <button id="themeToggle" class="ghost-btn editor-settings-item" type="button" role="menuitem" title="Switch light or dark mode">🌙 Dark</button>
+            </div>
+            <div class="editor-settings-section">
+              <span class="editor-settings-label">Tools</span>
+              <button id="aiReviewTopBtn" class="ghost-btn ai-review-top-btn editor-settings-item" type="button" role="menuitem" title="Open the latest result feedback">💬 Feedback</button>
+              <button id="sendCodeBtn" class="ghost-btn send-code-btn editor-settings-item hidden" type="button" role="menuitem" title="Send selected code files to a classmate">📤 Send Code</button>
+              <button id="codeInboxBtn" class="ghost-btn code-inbox-open-btn editor-settings-item desktop-settings-only" type="button" role="menuitem" title="Open received code messages">📥 Inbox <span id="codeInboxBadge" class="code-inbox-badge hidden">0</span></button>
+              <button id="downloadZipBtn" class="ghost-btn save-zip-btn editor-settings-item" type="button" role="menuitem" title="Download your code as ZIP">💾 Download ZIP</button>
+            </div>
+            <div class="editor-settings-section danger-zone">
+              <span class="editor-settings-label">Reset tools</span>
+              <button id="resetBtn" class="ghost-btn quiet-action editor-settings-item" type="button" role="menuitem">Reset Editor</button>
+              <button id="clearBtn" class="ghost-btn danger quiet-action editor-settings-item" type="button" role="menuitem">Clear Current Tab</button>
+            </div>
+            <div class="editor-settings-section account-zone">
+              <span class="editor-settings-label">Account</span>
+              <button id="studentHeaderLogoutBtn" class="ghost-btn danger editor-settings-item desktop-settings-only" type="button" role="menuitem">Log Out</button>
+            </div>
+          </div>
+        </div>
         <button id="exitEditorBtn" class="ghost-btn danger-tool hidden" type="button" title="Exit full editor: Esc">Exit Full</button>
-        <button id="resetBtn" class="ghost-btn quiet-action" type="button">Reset</button>
-        <button id="clearBtn" class="ghost-btn danger quiet-action" type="button">Clear Tab</button>
       </div>
 
       <button id="studentMenuBtn" class="student-menu-btn hidden" type="button" aria-label="Open student menu" aria-expanded="false" aria-controls="studentAccountMenu">
@@ -1460,14 +1499,19 @@
       </div>
 
       <div id="studentAccountStrip" class="student-account-strip hidden" aria-label="Student account actions">
-        <span id="headerStudentGreeting" class="student-greeting">Hi, Student!</span>
+        <span id="headerStudentGreeting" class="student-greeting editor-strip-greeting">Hi, Student!</span>
         <span id="studentSaveState" class="student-save-state">Saved</span>
         <button id="saveStudentProjectBtn" class="ghost-btn student-manual-save-btn hidden" type="button" title="Save current project: Ctrl + S">💾 Save</button>
-        <button id="myProjectsBtn" class="ghost-btn" type="button">📁 My Projects</button>
-        <button id="codeInboxBtn" class="ghost-btn code-inbox-open-btn" type="button">📥 Inbox <span id="codeInboxBadge" class="code-inbox-badge hidden">0</span></button>
-        <button id="lessonViewerBtn" class="ghost-btn" type="button">📚 Lessons</button>
-        <button id="givenActivitiesBtn" class="ghost-btn" type="button">📝 Activities</button>
-        <button id="studentHeaderLogoutBtn" class="ghost-btn danger" type="button">Log Out</button>
+        <div class="editor-navigation-wrap">
+          <button id="editorNavigationBtn" class="ghost-btn editor-navigation-btn" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="editorNavigationMenu" title="Open editor navigation">🧭 Go to</button>
+          <div id="editorNavigationMenu" class="editor-navigation-menu hidden" role="menu" aria-label="Editor navigation">
+            <span class="editor-navigation-label">Go to</span>
+            <button id="myProjectsBtn" class="ghost-btn editor-navigation-item" type="button" role="menuitem">📁 My Projects</button>
+            <button id="lessonViewerBtn" class="ghost-btn editor-navigation-item" type="button" role="menuitem">📚 Lessons</button>
+            <button id="givenActivitiesBtn" class="ghost-btn editor-navigation-item" type="button" role="menuitem">📝 Activities</button>
+            <button id="editorCoursePathBtn" class="ghost-btn editor-navigation-item desktop-nav-only" type="button" role="menuitem">🚀 Course Path</button>
+          </div>
+        </div>
       </div>
       <div id="guestAccountStrip" class="student-account-strip guest-account-strip hidden" aria-label="Guest actions">
         <span>Practice Mode · Work is not saved</span>
@@ -3407,6 +3451,55 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
       </section>
     </div>
 
-  <script src="script.js?v=20260908-v400-cert-heart-header-polish"></script>
+  <script src="script.js?v=20260908-v410-editor-menu-spacing-polish"></script>
+  <script>
+    // v410 fallback: keep the desktop editor settings popover working even if older cached
+    // toolbar code fails before binding the click handler.
+    (() => {
+      const bind = () => {
+        const btn = document.getElementById('editorHeaderSettingsBtn');
+        const menu = document.getElementById('editorHeaderSettingsMenu');
+        if (!btn || !menu || btn.dataset.fallbackSettingsBound === 'true') return;
+        btn.dataset.fallbackSettingsBound = 'true';
+        const placeMenu = () => {
+          const rect = btn.getBoundingClientRect();
+          const width = Math.min(286, Math.max(240, window.innerWidth - 28));
+          const left = Math.max(12, Math.min(window.innerWidth - width - 12, rect.right - width));
+          menu.style.setProperty('--editor-settings-menu-top', `${Math.round(rect.bottom + 6)}px`);
+          menu.style.setProperty('--editor-settings-menu-left', `${Math.round(left)}px`);
+          menu.style.setProperty('--editor-settings-menu-width', `${Math.round(width)}px`);
+        };
+        const setOpen = open => {
+          const shouldOpen = Boolean(open);
+          if (shouldOpen) placeMenu();
+          menu.classList.toggle('hidden', !shouldOpen);
+          btn.classList.toggle('active', shouldOpen);
+          btn.setAttribute('aria-expanded', String(shouldOpen));
+        };
+        btn.addEventListener('click', event => {
+          if (event.defaultPrevented) return;
+          event.preventDefault();
+          event.stopPropagation();
+          setOpen(menu.classList.contains('hidden'));
+        });
+        document.addEventListener('click', event => {
+          if (menu.classList.contains('hidden')) return;
+          if (event.target && event.target.closest && event.target.closest('.editor-settings-wrap')) return;
+          setOpen(false);
+        });
+        document.addEventListener('keydown', event => {
+          if (event.key === 'Escape') setOpen(false);
+        });
+        window.addEventListener('resize', () => {
+          if (!menu.classList.contains('hidden')) placeMenu();
+        }, { passive: true });
+      };
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', bind, { once: true });
+      } else {
+        bind();
+      }
+    })();
+  </script>
 </body>
 </html>

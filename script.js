@@ -10,6 +10,11 @@ const downloadZipBtn = document.getElementById('downloadZipBtn');
 const resetBtn = document.getElementById('resetBtn');
 const clearBtn = document.getElementById('clearBtn');
 const themeToggle = document.getElementById('themeToggle');
+const editorHeaderSettingsBtn = document.getElementById('editorHeaderSettingsBtn');
+const editorHeaderSettingsMenu = document.getElementById('editorHeaderSettingsMenu');
+const editorNavigationBtn = document.getElementById('editorNavigationBtn');
+const editorNavigationMenu = document.getElementById('editorNavigationMenu');
+const editorCoursePathBtn = document.getElementById('editorCoursePathBtn');
 const entryThemeToggle = document.getElementById('entryThemeToggle');
 const entryThemeLabel = document.getElementById('entryThemeLabel');
 const installAppBtn = document.getElementById('installAppBtn');
@@ -1612,6 +1617,8 @@ function isStudentAutoSaveAllowed() {
 function updateAutoRunButtons() {
   const allowed = isAutoRunControlAllowed();
   document.body.classList.toggle('auto-run-control-disabled', !allowed);
+  document.body.classList.toggle('auto-run-is-on', allowed && autoRunEnabled);
+  document.body.classList.toggle('auto-run-is-off', allowed && !autoRunEnabled);
   const buttons = [autoRunBtn, document.getElementById('fullscreenAutoRunBtn')].filter(Boolean);
   buttons.forEach(button => {
     button.classList.toggle('hidden', !allowed);
@@ -1619,11 +1626,13 @@ function updateAutoRunButtons() {
     button.disabled = !allowed;
     button.classList.toggle('active', allowed && autoRunEnabled);
     button.setAttribute('aria-pressed', String(allowed && autoRunEnabled));
-    button.textContent = autoRunEnabled ? '⚡ Auto On' : '⚡ Auto Off';
+    button.innerHTML = autoRunEnabled
+      ? '<span class="desktop-auto-label">⚡ Auto Run: ON</span><span class="mobile-auto-label">⚡ Auto On</span>'
+      : '<span class="desktop-auto-label">⚡ Auto Run: OFF</span><span class="mobile-auto-label">⚡ Auto Off</span>';
     button.title = allowed
       ? (autoRunEnabled
         ? 'Auto Run is on. Preview updates after you stop typing.'
-        : 'Auto Run is off. Click Run to update the preview.')
+        : 'Auto Run is off. Use Run Code to update the preview manually.')
       : 'Auto Run is disabled by the teacher.';
   });
 }
@@ -11515,7 +11524,7 @@ function buildAdminAiRubricPrompt(context) {
   const style = aiRubricSettings.reviewStyle || 'strict';
   return `You are an experienced Grade 8 ICT/web coding teacher. Grade the student's project using ONLY the teacher rubric, the student code, and the rendered output summary below.\n\nIMPORTANT RULES:\n- Be consistent and evidence-based.\n- Do not reward code that is not present or output that cannot be verified.\n- If output summary is limited, use the code as evidence and mention the limitation.\n- Score each criterion from 0 up to its max points only.\n- A criterion that satisfies every explicit Excellent-level requirement must receive the Excellent score for that row.
 - Do a contradiction audit: evidence, level, score, and improvement must agree.
-- Total score must equal the sum of criterion scores.\n- Use the rubric descriptions as the main basis.\n- Review only the technologies and requirements included in the selected activity rubric. Ignore CSS, JavaScript, design preferences, or extra features when they are not part of the rubric.\n- Give constructive feedback that a beginner can understand.\n- Do not give a complete replacement code solution.\n- Return ONLY valid JSON. No markdown.\n- Use this review style: ${style}.\n\nRequired JSON schema:\n{\n  "summary": "one short teacher summary",\n  "totalScore": 0,\n  "possibleScore": 0,\n  "percent": 0,\n  "confidence": "high|medium|low",\n  "criteria": [\n    {"name":"criterion name", "max":0, "score":0, "level":"Excellent|Good|Fair|Needs Improvement", "evidence":"specific evidence from code/output", "improvement":"specific improvement"}\n  ],\n  "studentFeedback": "short teacher-style feedback for the student",\n  "strengths": ["specific strengths based only on rubric evidence"],\n  "areasToImprove": ["specific improvements based only on rubric evidence"],\n  "mainErrors": ["numbered rubric-related errors only"],\n  "teacherNotes": ["short note for teacher"],\n  "warnings": ["limitations or uncertain items"]\n}\n\nPROJECT CONTEXT JSON:\n${JSON.stringify(context, null, 2)}`;
+- Total score must equal the sum of criterion scores.\n- Use the rubric descriptions as the main basis.\n- Review only the technologies and requirements included in the selected activity rubric. Ignore CSS, JavaScript, design preferences, or extra features when they are not part of the rubric.\n- Treat valid HTML5 semantic elements such as <header>, <nav>, <main>, <section>, <article>, <aside>, <figure>, <figcaption>, <details>, and <summary> as valid HTML. Do not suggest replacing <header> with <head> unless the student is clearly writing document metadata incorrectly.\n- Treat modern CSS properties as valid unless there is clear evidence of a misspelling or syntax problem. Do not penalize advanced-but-valid CSS just because it is outside a beginner example.\n- Give constructive feedback that a beginner can understand.\n- Do not give a complete replacement code solution.\n- Return ONLY valid JSON. No markdown.\n- Use this review style: ${style}.\n\nRequired JSON schema:\n{\n  "summary": "one short teacher summary",\n  "totalScore": 0,\n  "possibleScore": 0,\n  "percent": 0,\n  "confidence": "high|medium|low",\n  "criteria": [\n    {"name":"criterion name", "max":0, "score":0, "level":"Excellent|Good|Fair|Needs Improvement", "evidence":"specific evidence from code/output", "improvement":"specific improvement"}\n  ],\n  "studentFeedback": "short teacher-style feedback for the student",\n  "strengths": ["specific strengths based only on rubric evidence"],\n  "areasToImprove": ["specific improvements based only on rubric evidence"],\n  "mainErrors": ["numbered rubric-related errors only"],\n  "teacherNotes": ["short note for teacher"],\n  "warnings": ["limitations or uncertain items"]\n}\n\nPROJECT CONTEXT JSON:\n${JSON.stringify(context, null, 2)}`;
 }
 
 function extractJsonObjectFromText(text) {
@@ -11534,68 +11543,166 @@ function extractJsonObjectFromText(text) {
 
 
 function detectHtmlCodeQualityIssues(sourceCode) {
-  const lines = String(sourceCode || '').split(/\r?\n/);
+  const source = String(sourceCode || '');
   const issues = [];
   const stack = [];
-  const voidTags = new Set(['img','br','hr','meta','link','input','source','area','base','embed','param','track','wbr']);
-  const knownTags = new Set(['html','head','body','title','h1','h2','h3','h4','h5','h6','p','strong','em','b','i','u','ul','ol','li','a','img','br','hr','meta','link','input','div','span','table','tr','td','th','form','button','script','style']);
+  const voidTags = new Set([
+    'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr'
+  ]);
+  const optionalEndTags = new Set([
+    'li', 'p', 'dt', 'dd', 'option', 'optgroup', 'tr', 'td', 'th', 'thead', 'tbody', 'tfoot', 'colgroup', 'rp', 'rt'
+  ]);
+  const rawTextTags = new Set(['script', 'style', 'textarea', 'title']);
+  const knownTags = new Set([
+    // Document / metadata
+    'html', 'head', 'body', 'title', 'base', 'link', 'meta', 'style', 'script', 'noscript', 'template', 'slot',
+    // Sections / semantic layout
+    'header', 'nav', 'main', 'section', 'article', 'aside', 'footer', 'address', 'hgroup', 'search',
+    'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+    // Text content
+    'p', 'hr', 'pre', 'blockquote', 'ol', 'ul', 'menu', 'li', 'dl', 'dt', 'dd', 'figure', 'figcaption', 'div',
+    // Inline text semantics
+    'a', 'em', 'strong', 'small', 's', 'cite', 'q', 'dfn', 'abbr', 'ruby', 'rb', 'rt', 'rtc', 'rp', 'data', 'time',
+    'code', 'var', 'samp', 'kbd', 'sub', 'sup', 'i', 'b', 'u', 'mark', 'bdi', 'bdo', 'span', 'br', 'wbr',
+    // Edits / embedded content
+    'ins', 'del', 'picture', 'source', 'img', 'iframe', 'embed', 'object', 'param', 'video', 'audio', 'track', 'map', 'area',
+    'canvas', 'svg', 'math',
+    // Tables
+    'table', 'caption', 'colgroup', 'col', 'tbody', 'thead', 'tfoot', 'tr', 'td', 'th',
+    // Forms / interactive
+    'form', 'label', 'input', 'button', 'select', 'datalist', 'optgroup', 'option', 'textarea', 'output', 'progress', 'meter',
+    'fieldset', 'legend',
+    // Interactive / web components
+    'details', 'summary', 'dialog', 'portal'
+  ]);
+  const svgTags = new Set([
+    'svg', 'a', 'animate', 'animatemotion', 'animatetransform', 'circle', 'clippath', 'defs', 'desc', 'ellipse', 'feblend',
+    'fecolormatrix', 'fecomponenttransfer', 'fecomposite', 'feconvolvematrix', 'fediffuselighting', 'fedisplacementmap',
+    'fedistantlight', 'fedropshadow', 'feflood', 'fefunca', 'fefuncb', 'fefuncg', 'fefuncr', 'fegaussianblur', 'feimage',
+    'femerge', 'femergenode', 'femorphology', 'feoffset', 'fepointlight', 'fespecularlighting', 'fespotlight', 'fetile',
+    'feturbulence', 'filter', 'foreignobject', 'g', 'image', 'line', 'lineargradient', 'marker', 'mask', 'metadata', 'mpath',
+    'path', 'pattern', 'polygon', 'polyline', 'radialgradient', 'rect', 'script', 'set', 'stop', 'style', 'switch', 'symbol',
+    'text', 'textpath', 'title', 'tspan', 'use', 'view'
+  ]);
+  const mathTags = new Set([
+    'math', 'maction', 'maligngroup', 'malignmark', 'menclose', 'merror', 'mfenced', 'mfrac', 'mglyph', 'mi', 'mlabeledtr',
+    'mlongdiv', 'mmultiscripts', 'mn', 'mo', 'mover', 'mpadded', 'mphantom', 'mroot', 'mrow', 'ms', 'mscarries', 'mscarry',
+    'msgroup', 'msline', 'mspace', 'msqrt', 'msrow', 'mstack', 'mstyle', 'msub', 'msubsup', 'msup', 'mtable', 'mtd', 'mtext',
+    'mtr', 'munder', 'munderover', 'semantics', 'annotation', 'annotation-xml'
+  ]);
 
-  function similaritySuggestion(tag) {
-    const candidates = Array.from(knownTags);
-    let best = '';
-    let score = 0;
-    for (const c of candidates) {
-      let s = 0;
-      const max = Math.max(tag.length, c.length);
-      for (let i = 0; i < Math.min(tag.length, c.length); i++) {
-        if (tag[i] === c[i]) s++;
-      }
-      s = s / max;
-      if (s > score) {
-        score = s;
-        best = c;
-      }
-    }
-    return score >= 0.66 ? best : '';
+  function normalizeTagName(tag = '') {
+    return String(tag || '').trim().toLowerCase();
   }
 
+  function isKnownTag(tag = '') {
+    const clean = normalizeTagName(tag);
+    if (!clean) return false;
+    if (knownTags.has(clean) || svgTags.has(clean) || mathTags.has(clean)) return true;
+    // Custom elements are valid when their name contains a hyphen, e.g. <my-card>.
+    if (/^[a-z][a-z0-9]*-[a-z0-9._-]*$/.test(clean)) return true;
+    return false;
+  }
+
+  function editDistance(a = '', b = '') {
+    const first = normalizeTagName(a).replace(/[-:_]/g, '');
+    const second = normalizeTagName(b).replace(/[-:_]/g, '');
+    if (first === second) return 0;
+    if (!first) return second.length;
+    if (!second) return first.length;
+    const previous = Array.from({ length: second.length + 1 }, (_, index) => index);
+    for (let i = 1; i <= first.length; i += 1) {
+      const current = [i];
+      for (let j = 1; j <= second.length; j += 1) {
+        const cost = first[i - 1] === second[j - 1] ? 0 : 1;
+        current[j] = Math.min(current[j - 1] + 1, previous[j] + 1, previous[j - 1] + cost);
+      }
+      previous.splice(0, previous.length, ...current);
+    }
+    return previous[second.length];
+  }
+
+  function similaritySuggestion(tag) {
+    const clean = normalizeTagName(tag);
+    if (!clean || isKnownTag(clean)) return '';
+    const explicit = {
+      hmtl: 'html', hml: 'html', haed: 'head', hed: 'head', titel: 'title', titile: 'title', boddy: 'body', boody: 'body',
+      hedder: 'header', heder: 'header', navgation: 'nav', navigaton: 'nav', maim: 'main', mian: 'main', secion: 'section',
+      artilce: 'article', articel: 'article', asdie: 'aside', foooter: 'footer', fotter: 'footer', figcaptionn: 'figcaption',
+      figcapton: 'figcaption', detail: 'details', summry: 'summary', buton: 'button', botton: 'button', lable: 'label', imge: 'img',
+      iamge: 'img', pargraph: 'p', paragrap: 'p', stong: 'strong', strog: 'strong', scrpit: 'script', sytle: 'style',
+      tabel: 'table', tbale: 'table', capton: 'caption', canavs: 'canvas', vedio: 'video', audoi: 'audio'
+    };
+    if (explicit[clean]) return explicit[clean];
+    const candidates = [...knownTags].filter(tagName => tagName.length > 1);
+    let best = '';
+    let bestDistance = Infinity;
+    for (const candidate of candidates) {
+      const distance = editDistance(clean, candidate);
+      if (distance < bestDistance) {
+        best = candidate;
+        bestDistance = distance;
+      }
+    }
+    const maxDistance = clean.length <= 4 ? 1 : 2;
+    if (!best || bestDistance > maxDistance) return '';
+    // Avoid unsafe beginner false positives like <header> -> <head>.
+    if (Math.abs(clean.length - best.length) >= 3 && bestDistance > 1) return '';
+    return best;
+  }
+
+  function stripRawTextAndComments(value = '') {
+    return String(value || '')
+      .replace(/<!--([\s\S]*?)-->/g, match => ' '.repeat(match.length))
+      .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, match => ' '.repeat(match.length))
+      .replace(/<\s*(script|style|textarea)\b[\s\S]*?<\s*\/\s*\1\s*>/gi, match => ' '.repeat(match.length));
+  }
+
+  const sanitizedSource = stripRawTextAndComments(source);
+  const sanitizedLines = sanitizedSource.split(/\r?\n/);
+
   // Detect incomplete tags and unknown tags from the actual student code.
-  lines.forEach((line, index) => {
-    const incomplete = line.match(/<([a-zA-Z][a-zA-Z0-9]*)\b[^<>]*$/);
-    if (incomplete) {
-      const tag = incomplete[1].toLowerCase();
-      if (knownTags.has(tag) && voidTags.has(tag)) {
+  sanitizedLines.forEach((line, index) => {
+    const incomplete = line.match(/<\s*([a-zA-Z][\w:-]*)\b[^<>]*$/);
+    if (incomplete && !/>/.test(line.slice(incomplete.index))) {
+      const tag = normalizeTagName(incomplete[1]);
+      if (isKnownTag(tag) && voidTags.has(tag)) {
         issues.push(`Line ${index + 1}: The <${tag}> tag is incomplete because the closing angle bracket (>) is missing. Add > to complete the tag.`);
       }
     }
 
-    const openingTags = line.match(/<([a-zA-Z][a-zA-Z0-9]*)\b/g) || [];
-    openingTags.forEach(raw => {
-      const tag = raw.substring(1).toLowerCase();
-      if (!knownTags.has(tag)) {
+    const tagPattern = /<\s*\/?\s*([a-zA-Z][\w:-]*)\b/g;
+    const reportedUnknownThisLine = new Set();
+    let tagMatch;
+    while ((tagMatch = tagPattern.exec(line)) !== null) {
+      const tag = normalizeTagName(tagMatch[1]);
+      if (reportedUnknownThisLine.has(tag)) continue;
+      if (!isKnownTag(tag)) {
+        reportedUnknownThisLine.add(tag);
         const suggestion = similaritySuggestion(tag);
-        issues.push(`Line ${index + 1}: Unknown HTML tag <${tag}> detected.${suggestion ? ` Did you mean <${suggestion}>? Suggested fix: replace <${tag}> with <${suggestion}>.` : ' Check the tag name and correct the HTML element.'}`);
-      }
-    });
-  });
-
-  const tagPattern = /<\/?\s*([a-zA-Z0-9]+)\b[^>]*>?/g;
-  lines.forEach((line, index) => {
-    let match;
-    while ((match = tagPattern.exec(line)) !== null) {
-      const raw = match[0];
-      const tag = match[1].toLowerCase();
-      if (!knownTags.has(tag) || voidTags.has(tag)) continue;
-      if (raw.trim().startsWith('</')) {
-        const last = stack.map(item => item.tag).lastIndexOf(tag);
-        if (last !== -1) stack.splice(last, 1);
-      } else if (!raw.endsWith('/>')) {
-        stack.push({ tag, line: index + 1 });
+        issues.push(`Line ${index + 1}: Unknown HTML tag <${tag}> detected.${suggestion ? ` Did you mean <${suggestion}>? Suggested fix: replace <${tag}> with <${suggestion}>.` : ' Check the tag name and correct the HTML element only if this was not a custom element.'}`);
       }
     }
   });
 
+  const tagPattern = /<\s*(\/?)\s*([a-zA-Z][\w:-]*)\b([^>]*)>/g;
+  let match;
+  while ((match = tagPattern.exec(sanitizedSource)) !== null) {
+    const closing = Boolean(match[1]);
+    const tag = normalizeTagName(match[2]);
+    const raw = match[0];
+    if (!isKnownTag(tag) || voidTags.has(tag) || /^<!|^<\?/.test(raw)) continue;
+    if (closing) {
+      const last = stack.map(item => item.tag).lastIndexOf(tag);
+      if (last !== -1) stack.splice(last, 1);
+    } else if (!/\/\s*>$/.test(raw) && !rawTextTags.has(tag)) {
+      if (optionalEndTags.has(tag) && stack[stack.length - 1]?.tag === tag) stack.pop();
+      stack.push({ tag, line: getLineNumberAt(sanitizedSource, match.index) });
+    }
+  }
+
   stack.reverse().forEach(item => {
+    if (optionalEndTags.has(item.tag)) return;
     issues.push(`Line ${item.line}: The <${item.tag}> tag was opened but not closed. Missing: </${item.tag}>`);
   });
 
@@ -12779,6 +12886,17 @@ function applyTheme(theme) {
     explorerQuickThemeToggle.setAttribute('aria-pressed', String(isDark));
     explorerQuickThemeToggle.setAttribute('aria-label', isDark ? 'Switch to light mode' : 'Switch to dark mode');
     explorerQuickThemeToggle.title = isDark ? 'Switch to light mode' : 'Switch to dark mode';
+  }
+  const explorerDesktopThemeToggle = document.getElementById('codeExplorerDesktopThemeToggle');
+  if (explorerDesktopThemeToggle) {
+    const isDark = safeTheme === 'dark';
+    const icon = explorerDesktopThemeToggle.querySelector('.code-explorer-settings-icon');
+    const status = explorerDesktopThemeToggle.querySelector('.code-explorer-settings-status');
+    explorerDesktopThemeToggle.classList.toggle('active', isDark);
+    explorerDesktopThemeToggle.setAttribute('aria-label', isDark ? 'Switch to light mode' : 'Switch to dark mode');
+    explorerDesktopThemeToggle.title = isDark ? 'Theme: dark mode' : 'Theme: light mode';
+    if (icon) icon.textContent = isDark ? '🌙' : '☀️';
+    if (status) status.textContent = isDark ? 'Dark' : 'Light';
   }
   saveJSON(STORAGE_KEYS.theme, safeTheme);
 }
@@ -21541,7 +21659,7 @@ function bindTeacherToolsV295() {
 
   [dashboardGivenActivitiesBtn, dashboardOpenGivenActivitiesBtn].forEach(button => button?.addEventListener('click', () => openGivenActivitiesLibrary('dashboard')));
   menuGivenActivitiesBtn?.addEventListener('click', () => { closeStudentAccountMenu(); openGivenActivitiesLibrary('editor'); });
-  givenActivitiesBtn?.addEventListener('click', () => openGivenActivitiesLibrary('editor'));
+  
   givenActivitiesBackBtn?.addEventListener('click', closeGivenActivitiesLibrary);
   givenActivitiesRefreshBtn?.addEventListener('click', () => loadGivenActivities({ force: true }));
   givenActivitiesThemeBtn?.addEventListener('click', () => themeToggle?.click());
@@ -23588,6 +23706,73 @@ function setStatus(text) {
 }
 
 
+
+function positionEditorHeaderSettingsMenu() {
+  if (!editorHeaderSettingsBtn || !editorHeaderSettingsMenu) return;
+  const rect = editorHeaderSettingsBtn.getBoundingClientRect();
+  const width = Math.min(286, Math.max(240, window.innerWidth - 28));
+  const left = Math.max(12, Math.min(window.innerWidth - width - 12, rect.right - width));
+  editorHeaderSettingsMenu.style.setProperty('--editor-settings-menu-top', `${Math.round(rect.bottom + 10)}px`);
+  editorHeaderSettingsMenu.style.setProperty('--editor-settings-menu-left', `${Math.round(left)}px`);
+  editorHeaderSettingsMenu.style.setProperty('--editor-settings-menu-width', `${Math.round(width)}px`);
+}
+
+function setEditorHeaderSettingsOpen(open) {
+  if (!editorHeaderSettingsBtn || !editorHeaderSettingsMenu) return;
+  const shouldOpen = Boolean(open);
+  if (shouldOpen) {
+    closeEditorNavigation();
+    positionEditorHeaderSettingsMenu();
+  }
+  editorHeaderSettingsMenu.classList.toggle('hidden', !shouldOpen);
+  editorHeaderSettingsBtn.classList.toggle('active', shouldOpen);
+  editorHeaderSettingsBtn.setAttribute('aria-expanded', String(shouldOpen));
+}
+
+function toggleEditorHeaderSettings(event) {
+  event?.preventDefault?.();
+  event?.stopPropagation?.();
+  if (!editorHeaderSettingsBtn || !editorHeaderSettingsMenu) return;
+  setEditorHeaderSettingsOpen(editorHeaderSettingsMenu.classList.contains('hidden'));
+}
+
+function closeEditorHeaderSettings() {
+  setEditorHeaderSettingsOpen(false);
+}
+
+function positionEditorNavigationMenu() {
+  if (!editorNavigationBtn || !editorNavigationMenu) return;
+  const rect = editorNavigationBtn.getBoundingClientRect();
+  const width = Math.min(218, Math.max(190, window.innerWidth - 28));
+  const left = Math.max(12, Math.min(window.innerWidth - width - 12, rect.right - width));
+  editorNavigationMenu.style.setProperty('--editor-nav-menu-top', `${Math.round(rect.bottom + 10)}px`);
+  editorNavigationMenu.style.setProperty('--editor-nav-menu-left', `${Math.round(left)}px`);
+  editorNavigationMenu.style.setProperty('--editor-nav-menu-width', `${Math.round(width)}px`);
+}
+
+function setEditorNavigationOpen(open) {
+  if (!editorNavigationBtn || !editorNavigationMenu) return;
+  const shouldOpen = Boolean(open);
+  if (shouldOpen) {
+    closeEditorHeaderSettings();
+    positionEditorNavigationMenu();
+  }
+  editorNavigationMenu.classList.toggle('hidden', !shouldOpen);
+  editorNavigationBtn.classList.toggle('active', shouldOpen);
+  editorNavigationBtn.setAttribute('aria-expanded', String(shouldOpen));
+}
+
+function toggleEditorNavigation(event) {
+  event?.preventDefault?.();
+  event?.stopPropagation?.();
+  if (!editorNavigationBtn || !editorNavigationMenu) return;
+  setEditorNavigationOpen(editorNavigationMenu.classList.contains('hidden'));
+}
+
+function closeEditorNavigation() {
+  setEditorNavigationOpen(false);
+}
+
 function sanitizeFilename(value) {
   const cleaned = String(value || 'student-code')
     .toLowerCase()
@@ -24123,11 +24308,549 @@ const SMART_INLINE_COMMON_HTML_TAGS = new Set([
 
 const SMART_INLINE_VOID_HTML_TAGS = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr']);
 const SMART_INLINE_CSS_PROPERTIES = new Set([
-  'color', 'background', 'background-color', 'font-size', 'font-family', 'font-weight', 'text-align', 'margin', 'padding',
-  'width', 'height', 'border', 'border-radius', 'display', 'justify-content', 'align-items', 'gap', 'flex-direction',
-  'grid-template-columns', 'position', 'top', 'right', 'bottom', 'left', 'opacity', 'box-shadow', 'line-height',
-  'font-style', 'letter-spacing', 'max-width', 'min-width', 'max-height', 'min-height', 'overflow', 'z-index',
-  'object-fit', 'object-position', 'text-decoration', 'list-style', 'list-style-type', 'place-items'
+  '-moz-appearance',
+  '-moz-backdrop-filter',
+  '-moz-background-clip',
+  '-moz-box-align',
+  '-moz-box-decoration-break',
+  '-moz-box-flex',
+  '-moz-box-orient',
+  '-moz-box-pack',
+  '-moz-font-smoothing',
+  '-moz-hyphens',
+  '-moz-line-clamp',
+  '-moz-mask',
+  '-moz-mask-image',
+  '-moz-mask-position',
+  '-moz-mask-repeat',
+  '-moz-mask-size',
+  '-moz-print-color-adjust',
+  '-moz-text-fill-color',
+  '-moz-text-security',
+  '-moz-text-size-adjust',
+  '-moz-text-stroke',
+  '-moz-text-stroke-color',
+  '-moz-text-stroke-width',
+  '-moz-transform',
+  '-moz-transition',
+  '-moz-user-select',
+  '-ms-appearance',
+  '-ms-backdrop-filter',
+  '-ms-background-clip',
+  '-ms-box-align',
+  '-ms-box-decoration-break',
+  '-ms-box-flex',
+  '-ms-box-orient',
+  '-ms-box-pack',
+  '-ms-font-smoothing',
+  '-ms-hyphens',
+  '-ms-line-clamp',
+  '-ms-mask',
+  '-ms-mask-image',
+  '-ms-mask-position',
+  '-ms-mask-repeat',
+  '-ms-mask-size',
+  '-ms-print-color-adjust',
+  '-ms-text-fill-color',
+  '-ms-text-security',
+  '-ms-text-size-adjust',
+  '-ms-text-stroke',
+  '-ms-text-stroke-color',
+  '-ms-text-stroke-width',
+  '-ms-transform',
+  '-ms-transition',
+  '-ms-user-select',
+  '-webkit-appearance',
+  '-webkit-backdrop-filter',
+  '-webkit-background-clip',
+  '-webkit-box-align',
+  '-webkit-box-decoration-break',
+  '-webkit-box-flex',
+  '-webkit-box-orient',
+  '-webkit-box-pack',
+  '-webkit-font-smoothing',
+  '-webkit-hyphens',
+  '-webkit-line-clamp',
+  '-webkit-mask',
+  '-webkit-mask-image',
+  '-webkit-mask-position',
+  '-webkit-mask-repeat',
+  '-webkit-mask-size',
+  '-webkit-print-color-adjust',
+  '-webkit-text-fill-color',
+  '-webkit-text-security',
+  '-webkit-text-size-adjust',
+  '-webkit-text-stroke',
+  '-webkit-text-stroke-color',
+  '-webkit-text-stroke-width',
+  '-webkit-transform',
+  '-webkit-transition',
+  '-webkit-user-select',
+  'accent-color',
+  'align-content',
+  'align-items',
+  'align-self',
+  'alignment-baseline',
+  'all',
+  'anchor-name',
+  'anchor-scope',
+  'animation',
+  'animation-composition',
+  'animation-delay',
+  'animation-direction',
+  'animation-duration',
+  'animation-fill-mode',
+  'animation-iteration-count',
+  'animation-name',
+  'animation-play-state',
+  'animation-range',
+  'animation-range-end',
+  'animation-range-start',
+  'animation-timeline',
+  'animation-timing-function',
+  'appearance',
+  'aspect-ratio',
+  'azimuth',
+  'backdrop-filter',
+  'backface-visibility',
+  'background',
+  'background-attachment',
+  'background-blend-mode',
+  'background-clip',
+  'background-color',
+  'background-image',
+  'background-origin',
+  'background-position',
+  'background-position-x',
+  'background-position-y',
+  'background-repeat',
+  'background-size',
+  'baseline-shift',
+  'block-size',
+  'border',
+  'border-block',
+  'border-block-color',
+  'border-block-end',
+  'border-block-end-color',
+  'border-block-end-style',
+  'border-block-end-width',
+  'border-block-start',
+  'border-block-start-color',
+  'border-block-start-style',
+  'border-block-start-width',
+  'border-block-style',
+  'border-block-width',
+  'border-bottom',
+  'border-bottom-color',
+  'border-bottom-left-radius',
+  'border-bottom-right-radius',
+  'border-bottom-style',
+  'border-bottom-width',
+  'border-collapse',
+  'border-color',
+  'border-end-end-radius',
+  'border-end-start-radius',
+  'border-image',
+  'border-image-outset',
+  'border-image-repeat',
+  'border-image-slice',
+  'border-image-source',
+  'border-image-width',
+  'border-inline',
+  'border-inline-color',
+  'border-inline-end',
+  'border-inline-end-color',
+  'border-inline-end-style',
+  'border-inline-end-width',
+  'border-inline-start',
+  'border-inline-start-color',
+  'border-inline-start-style',
+  'border-inline-start-width',
+  'border-inline-style',
+  'border-inline-width',
+  'border-left',
+  'border-left-color',
+  'border-left-style',
+  'border-left-width',
+  'border-radius',
+  'border-right',
+  'border-right-color',
+  'border-right-style',
+  'border-right-width',
+  'border-spacing',
+  'border-start-end-radius',
+  'border-start-start-radius',
+  'border-style',
+  'border-top',
+  'border-top-color',
+  'border-top-left-radius',
+  'border-top-right-radius',
+  'border-top-style',
+  'border-top-width',
+  'border-width',
+  'bottom',
+  'box-decoration-break',
+  'box-shadow',
+  'box-sizing',
+  'break-after',
+  'break-before',
+  'break-inside',
+  'buffered-rendering',
+  'caption-side',
+  'caret-color',
+  'clear',
+  'clip',
+  'clip-path',
+  'clip-rule',
+  'color',
+  'color-interpolation',
+  'color-interpolation-filters',
+  'color-scheme',
+  'column-count',
+  'column-fill',
+  'column-gap',
+  'column-rule',
+  'column-rule-color',
+  'column-rule-style',
+  'column-rule-width',
+  'column-span',
+  'column-width',
+  'columns',
+  'contain',
+  'contain-intrinsic-block-size',
+  'contain-intrinsic-height',
+  'contain-intrinsic-inline-size',
+  'contain-intrinsic-size',
+  'contain-intrinsic-width',
+  'container',
+  'container-name',
+  'container-type',
+  'content',
+  'content-visibility',
+  'counter-increment',
+  'counter-reset',
+  'counter-set',
+  'cursor',
+  'cx',
+  'cy',
+  'd',
+  'direction',
+  'display',
+  'dominant-baseline',
+  'empty-cells',
+  'enable-background',
+  'fill',
+  'fill-opacity',
+  'fill-rule',
+  'filter',
+  'flex',
+  'flex-basis',
+  'flex-direction',
+  'flex-flow',
+  'flex-grow',
+  'flex-shrink',
+  'flex-wrap',
+  'float',
+  'flood-color',
+  'flood-opacity',
+  'font',
+  'font-display',
+  'font-family',
+  'font-feature-settings',
+  'font-kerning',
+  'font-language-override',
+  'font-optical-sizing',
+  'font-palette',
+  'font-size',
+  'font-size-adjust',
+  'font-stretch',
+  'font-style',
+  'font-synthesis',
+  'font-synthesis-small-caps',
+  'font-synthesis-style',
+  'font-synthesis-weight',
+  'font-variant',
+  'font-variant-alternates',
+  'font-variant-caps',
+  'font-variant-east-asian',
+  'font-variant-emoji',
+  'font-variant-ligatures',
+  'font-variant-numeric',
+  'font-variant-position',
+  'font-variation-settings',
+  'font-weight',
+  'forced-color-adjust',
+  'gap',
+  'grid',
+  'grid-area',
+  'grid-auto-columns',
+  'grid-auto-flow',
+  'grid-auto-rows',
+  'grid-column',
+  'grid-column-end',
+  'grid-column-gap',
+  'grid-column-start',
+  'grid-gap',
+  'grid-row',
+  'grid-row-end',
+  'grid-row-gap',
+  'grid-row-start',
+  'grid-template',
+  'grid-template-areas',
+  'grid-template-columns',
+  'grid-template-rows',
+  'hanging-punctuation',
+  'height',
+  'hyphenate-character',
+  'hyphenate-limit-chars',
+  'hyphens',
+  'image-orientation',
+  'image-rendering',
+  'image-resolution',
+  'ime-mode',
+  'initial-letter',
+  'inline-size',
+  'inset',
+  'inset-block',
+  'inset-block-end',
+  'inset-block-start',
+  'inset-inline',
+  'inset-inline-end',
+  'inset-inline-start',
+  'isolation',
+  'justify-content',
+  'justify-items',
+  'justify-self',
+  'left',
+  'letter-spacing',
+  'lighting-color',
+  'line-break',
+  'line-height',
+  'list-style',
+  'list-style-image',
+  'list-style-position',
+  'list-style-type',
+  'margin',
+  'margin-block',
+  'margin-block-end',
+  'margin-block-start',
+  'margin-bottom',
+  'margin-inline',
+  'margin-inline-end',
+  'margin-inline-start',
+  'margin-left',
+  'margin-right',
+  'margin-top',
+  'marker',
+  'marker-end',
+  'marker-mid',
+  'marker-start',
+  'mask',
+  'mask-border',
+  'mask-border-mode',
+  'mask-border-outset',
+  'mask-border-repeat',
+  'mask-border-slice',
+  'mask-border-source',
+  'mask-border-width',
+  'mask-clip',
+  'mask-composite',
+  'mask-image',
+  'mask-mode',
+  'mask-origin',
+  'mask-position',
+  'mask-repeat',
+  'mask-size',
+  'mask-type',
+  'math-depth',
+  'math-shift',
+  'math-style',
+  'max-block-size',
+  'max-height',
+  'max-inline-size',
+  'max-width',
+  'min-block-size',
+  'min-height',
+  'min-inline-size',
+  'min-width',
+  'mix-blend-mode',
+  'object-fit',
+  'object-position',
+  'offset',
+  'offset-anchor',
+  'offset-distance',
+  'offset-path',
+  'offset-position',
+  'offset-rotate',
+  'opacity',
+  'order',
+  'orphans',
+  'outline',
+  'outline-color',
+  'outline-offset',
+  'outline-style',
+  'outline-width',
+  'overflow',
+  'overflow-anchor',
+  'overflow-block',
+  'overflow-clip-margin',
+  'overflow-inline',
+  'overflow-wrap',
+  'overflow-x',
+  'overflow-y',
+  'overscroll-behavior',
+  'overscroll-behavior-block',
+  'overscroll-behavior-inline',
+  'overscroll-behavior-x',
+  'overscroll-behavior-y',
+  'padding',
+  'padding-block',
+  'padding-block-end',
+  'padding-block-start',
+  'padding-bottom',
+  'padding-inline',
+  'padding-inline-end',
+  'padding-inline-start',
+  'padding-left',
+  'padding-right',
+  'padding-top',
+  'page',
+  'page-break-after',
+  'page-break-before',
+  'page-break-inside',
+  'paint-order',
+  'perspective',
+  'perspective-origin',
+  'place-content',
+  'place-items',
+  'place-self',
+  'pointer-events',
+  'position',
+  'print-color-adjust',
+  'quotes',
+  'r',
+  'resize',
+  'right',
+  'rotate',
+  'row-gap',
+  'ruby-align',
+  'ruby-position',
+  'rx',
+  'ry',
+  'scale',
+  'scroll-behavior',
+  'scroll-margin',
+  'scroll-margin-block',
+  'scroll-margin-block-end',
+  'scroll-margin-block-start',
+  'scroll-margin-bottom',
+  'scroll-margin-inline',
+  'scroll-margin-inline-end',
+  'scroll-margin-inline-start',
+  'scroll-margin-left',
+  'scroll-margin-right',
+  'scroll-margin-top',
+  'scroll-padding',
+  'scroll-padding-block',
+  'scroll-padding-block-end',
+  'scroll-padding-block-start',
+  'scroll-padding-bottom',
+  'scroll-padding-inline',
+  'scroll-padding-inline-end',
+  'scroll-padding-inline-start',
+  'scroll-padding-left',
+  'scroll-padding-right',
+  'scroll-padding-top',
+  'scroll-snap-align',
+  'scroll-snap-stop',
+  'scroll-snap-type',
+  'scroll-timeline',
+  'scroll-timeline-axis',
+  'scroll-timeline-name',
+  'scrollbar-color',
+  'scrollbar-gutter',
+  'scrollbar-width',
+  'shape-image-threshold',
+  'shape-margin',
+  'shape-outside',
+  'shape-rendering',
+  'speak',
+  'stop-color',
+  'stop-opacity',
+  'stroke',
+  'stroke-dasharray',
+  'stroke-dashoffset',
+  'stroke-linecap',
+  'stroke-linejoin',
+  'stroke-miterlimit',
+  'stroke-opacity',
+  'stroke-width',
+  'tab-size',
+  'table-layout',
+  'text-align',
+  'text-align-last',
+  'text-anchor',
+  'text-combine-upright',
+  'text-decoration',
+  'text-decoration-color',
+  'text-decoration-line',
+  'text-decoration-skip',
+  'text-decoration-skip-ink',
+  'text-decoration-style',
+  'text-decoration-thickness',
+  'text-emphasis',
+  'text-emphasis-color',
+  'text-emphasis-position',
+  'text-emphasis-style',
+  'text-indent',
+  'text-justify',
+  'text-orientation',
+  'text-overflow',
+  'text-rendering',
+  'text-shadow',
+  'text-size-adjust',
+  'text-transform',
+  'text-underline-offset',
+  'text-underline-position',
+  'text-wrap',
+  'text-wrap-mode',
+  'text-wrap-style',
+  'timeline-scope',
+  'top',
+  'touch-action',
+  'transform',
+  'transform-box',
+  'transform-origin',
+  'transform-style',
+  'transition',
+  'transition-behavior',
+  'transition-delay',
+  'transition-duration',
+  'transition-property',
+  'transition-timing-function',
+  'translate',
+  'unicode-bidi',
+  'user-select',
+  'vector-effect',
+  'vertical-align',
+  'view-timeline',
+  'view-timeline-axis',
+  'view-timeline-inset',
+  'view-timeline-name',
+  'view-transition-name',
+  'visibility',
+  'white-space',
+  'white-space-collapse',
+  'widows',
+  'width',
+  'will-change',
+  'word-break',
+  'word-spacing',
+  'writing-mode',
+  'x',
+  'y',
+  'z-index',
+  'zoom'
 ]);
 
 const SMART_INLINE_CSS_PROPERTY_FIXES = {
@@ -24320,7 +25043,12 @@ function getClosestSmartHtmlTagName(tagName = '') {
 }
 
 function getClosestSmartCssPropertyName(propertyName = '') {
-  return getClosestSmartInlineValue(propertyName, SMART_INLINE_CSS_PROPERTIES, SMART_INLINE_CSS_PROPERTY_FIXES, { maxDistance: String(propertyName || '').length <= 5 ? 1 : 2 });
+  const clean = String(propertyName || '').trim().toLowerCase();
+  if (!clean) return '';
+  if (clean.startsWith('--')) return clean;
+  if (SMART_INLINE_CSS_PROPERTIES.has(clean)) return clean;
+  if (/^-(webkit|moz|ms|o)-[a-z-]+$/.test(clean)) return clean;
+  return getClosestSmartInlineValue(clean, SMART_INLINE_CSS_PROPERTIES, SMART_INLINE_CSS_PROPERTY_FIXES, { maxDistance: clean.length <= 5 ? 1 : 2 });
 }
 
 function createFixedHtmlTagText(slash = '', tagName = '', attrs = '') {
@@ -25897,8 +26625,43 @@ document.addEventListener('fullscreenchange', () => {
 
 
 window.addEventListener('resize', scheduleFullEditorControlsRestore);
+window.addEventListener('resize', () => {
+  if (editorHeaderSettingsMenu && !editorHeaderSettingsMenu.classList.contains('hidden')) {
+    positionEditorHeaderSettingsMenu();
+  }
+  if (editorNavigationMenu && !editorNavigationMenu.classList.contains('hidden')) {
+    positionEditorNavigationMenu();
+  }
+});
 document.addEventListener('visibilitychange', scheduleFullEditorControlsRestore);
 window.addEventListener('pageshow', scheduleFullEditorControlsRestore);
+
+editorHeaderSettingsBtn?.addEventListener('click', toggleEditorHeaderSettings);
+editorHeaderSettingsMenu?.addEventListener('click', event => {
+  const clickedButton = event.target?.closest?.('button');
+  if (!clickedButton) return;
+  window.setTimeout(closeEditorHeaderSettings, 80);
+});
+editorNavigationBtn?.addEventListener('click', toggleEditorNavigation);
+editorNavigationMenu?.addEventListener('click', event => {
+  const clickedButton = event.target?.closest?.('button');
+  if (!clickedButton) return;
+  window.setTimeout(closeEditorNavigation, 80);
+});
+document.addEventListener('click', event => {
+  if (editorHeaderSettingsMenu && !editorHeaderSettingsMenu.classList.contains('hidden')) {
+    if (!event.target?.closest?.('.editor-settings-wrap')) closeEditorHeaderSettings();
+  }
+  if (editorNavigationMenu && !editorNavigationMenu.classList.contains('hidden')) {
+    if (!event.target?.closest?.('.editor-navigation-wrap')) closeEditorNavigation();
+  }
+});
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape') {
+    closeEditorHeaderSettings();
+    closeEditorNavigation();
+  }
+});
 
 runBtn.addEventListener('click', () => runCode());
 autoRunBtn?.addEventListener('click', toggleAutoRun);
@@ -26435,8 +27198,14 @@ changePasswordLogoutBtn?.addEventListener('click', logoutStudent);
     saveStudentNewPassword();
   }
 }));
-myProjectsBtn?.addEventListener('click', showStudentDashboard);
-studentHeaderLogoutBtn?.addEventListener('click', logoutStudent);
+myProjectsBtn?.addEventListener('click', () => {
+  closeEditorNavigation();
+  showStudentDashboard();
+});
+studentHeaderLogoutBtn?.addEventListener('click', () => {
+  closeEditorHeaderSettings();
+  logoutStudent();
+});
 saveStudentProjectBtn?.addEventListener('click', saveStudentProjectManually);
 studentMenuBtn?.addEventListener('click', event => {
   event.stopPropagation();
@@ -26451,7 +27220,22 @@ menuMyProjectsBtn?.addEventListener('click', () => {
   showStudentDashboard();
 });
 menuLessonViewerBtn?.addEventListener('click', () => openLessonLibrary('editor'));
-lessonViewerBtn?.addEventListener('click', () => openLessonLibrary('editor'));
+lessonViewerBtn?.addEventListener('click', () => {
+  closeEditorNavigation();
+  openLessonLibrary('editor');
+});
+givenActivitiesBtn?.addEventListener('click', () => {
+  closeEditorNavigation();
+  openGivenActivitiesLibrary('editor');
+});
+editorCoursePathBtn?.addEventListener('click', async () => {
+  closeEditorNavigation();
+  if (typeof window.openCodeExplorer === 'function') {
+    await window.openCodeExplorer();
+  } else {
+    await appAlert('Code Explorer is still loading. Please try again.', { title: 'Course Path', icon: '🚀' });
+  }
+});
 menuStudentLogoutBtn?.addEventListener('click', () => {
   closeStudentAccountMenu();
   logoutStudent();
@@ -40184,6 +40968,12 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     audioMenuPanel: $('codeExplorerAudioMenuPanel'),
     musicToggle: $('codeExplorerMusicToggle'),
     sfxToggle: $('codeExplorerSfxToggle'),
+    desktopSettings: $('codeExplorerDesktopSettings'),
+    desktopSettingsToggle: $('codeExplorerDesktopSettingsToggle'),
+    desktopSettingsPanel: $('codeExplorerDesktopSettingsPanel'),
+    desktopMusicToggle: $('codeExplorerDesktopMusicToggle'),
+    desktopSfxToggle: $('codeExplorerDesktopSfxToggle'),
+    desktopThemeToggle: $('codeExplorerDesktopThemeToggle'),
     leaderboardOverlay: $('codeExplorerLeaderboardOverlay'),
     leaderboardCloseBtn: $('codeExplorerLeaderboardCloseBtn'),
     leaderboardRefreshBtn: $('codeExplorerLeaderboardRefreshBtn'),
@@ -40689,6 +41479,24 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       const icon = dom.sfxToggle.querySelector('.code-explorer-audio-icon');
       if (icon) icon.textContent = sfxOn ? '🔊' : '🔇';
     }
+    const syncDesktopAudioButton = (button, enabled, kindLabel, iconOn, iconOff) => {
+      if (!button) return;
+      button.disabled = !supported;
+      button.classList.toggle('active', enabled);
+      button.classList.toggle('muted', !enabled);
+      button.setAttribute('aria-pressed', String(enabled));
+      button.setAttribute('aria-label', supported ? `Turn ${kindLabel} ${enabled ? 'off' : 'on'}` : `${kindLabel} is not supported in this browser`);
+      button.title = supported ? `${kindLabel}: ${enabled ? 'on' : 'off'}` : 'Audio is not supported in this browser';
+      const icon = button.querySelector('.code-explorer-settings-icon');
+      const status = button.querySelector('.code-explorer-settings-status');
+      if (icon) icon.textContent = enabled ? iconOn : iconOff;
+      if (status) status.textContent = supported ? (enabled ? 'On' : 'Off') : 'N/A';
+    };
+    syncDesktopAudioButton(dom.desktopMusicToggle, musicOn, 'background music', '🎵', '🔇');
+    syncDesktopAudioButton(dom.desktopSfxToggle, sfxOn, 'sound effects', '🔊', '🔇');
+    if (dom.desktopSettingsToggle) {
+      dom.desktopSettingsToggle.title = supported ? `Settings · Music ${musicOn ? 'on' : 'off'} · Sound ${sfxOn ? 'on' : 'off'}` : 'Settings · Audio is not supported';
+    }
     if (dom.audioMenuToggle) {
       dom.audioMenuToggle.disabled = !supported;
       dom.audioMenuToggle.textContent = !supported ? '🔇' : ((musicOn || sfxOn) ? '🎧' : '🔇');
@@ -40958,6 +41766,24 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     if (opening) unlockExplorerAudio().catch(() => false);
   }
 
+  function closeExplorerDesktopSettingsMenu() {
+    dom.desktopSettings?.classList.remove('open');
+    dom.desktopSettingsPanel?.classList.add('hidden');
+    dom.desktopSettingsToggle?.setAttribute('aria-expanded', 'false');
+  }
+
+  function toggleExplorerDesktopSettingsMenu() {
+    if (!dom.desktopSettings || !dom.desktopSettingsToggle || !dom.desktopSettingsPanel) return;
+    const opening = !dom.desktopSettings.classList.contains('open');
+    dom.desktopSettings.classList.toggle('open', opening);
+    dom.desktopSettingsPanel.classList.toggle('hidden', !opening);
+    dom.desktopSettingsToggle.setAttribute('aria-expanded', String(opening));
+    if (opening) {
+      closeExplorerAudioMenu();
+      unlockExplorerAudio().catch(() => false);
+    }
+  }
+
   function setExplorerAudioPreference(kind, enabled) {
     if (kind !== 'music' && kind !== 'sfx') return;
     explorerAudio.prefs[kind] = Boolean(enabled);
@@ -41094,12 +41920,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   function renderHeartStatus() {
     if (!dom.heartBadge || !state.progress) return;
     const snapshot = currentHeartSnapshot();
-    const compactHeader = isMobileExplorerLayout();
-    dom.heartBadge.textContent = compactHeader
-      ? `❤️ ${snapshot.balance}`
-      : (snapshot.balance >= HEARTS_MAX
-        ? `❤️ ${snapshot.balance}/${HEARTS_MAX}`
-        : `❤️ ${snapshot.balance}/${HEARTS_MAX} · +1 in ${formatHeartCountdown(snapshot.nextInMs)}`);
+    dom.heartBadge.textContent = `❤️ ${snapshot.balance}`;
     dom.heartBadge.dataset.state = snapshot.balance <= 0 ? 'empty' : (snapshot.balance >= HEARTS_MAX ? 'full' : 'ready');
     const summary = heartDetailSummary(snapshot);
     dom.heartBadge.title = summary;
@@ -45601,8 +46422,14 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     toggleExplorerAudioMenu();
   });
   dom.audioMenuPanel?.addEventListener('click', event => event.stopPropagation());
+  dom.desktopSettingsToggle?.addEventListener('click', event => {
+    event.stopPropagation();
+    toggleExplorerDesktopSettingsMenu();
+  });
+  dom.desktopSettingsPanel?.addEventListener('click', event => event.stopPropagation());
   document.addEventListener('click', event => {
     if (dom.audioMenu?.classList.contains('open') && !event.target.closest?.('#codeExplorerAudioMenu')) closeExplorerAudioMenu();
+    if (dom.desktopSettings?.classList.contains('open') && !event.target.closest?.('#codeExplorerDesktopSettings')) closeExplorerDesktopSettingsMenu();
     if (dom.heartPopover && !dom.heartPopover.classList.contains('hidden') && !event.target.closest?.('#codeExplorerHeartWrap')) hideHeartPopover();
   });
 
@@ -45617,6 +46444,15 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   });
   dom.sfxToggle?.addEventListener('click', () => {
     setExplorerAudioPreference('sfx', !explorerAudio.prefs.sfx);
+  });
+  dom.desktopMusicToggle?.addEventListener('click', () => {
+    setExplorerAudioPreference('music', !explorerAudio.prefs.music);
+  });
+  dom.desktopSfxToggle?.addEventListener('click', () => {
+    setExplorerAudioPreference('sfx', !explorerAudio.prefs.sfx);
+  });
+  dom.desktopThemeToggle?.addEventListener('click', () => {
+    dashboardThemeBtn?.click();
   });
   // Any learner interaction can re-unlock a suspended AudioContext on strict
   // mobile browsers. This keeps music/SFX reliable without forced autoplay.
@@ -45687,6 +46523,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   document.addEventListener('keydown', event => {
     if (event.key === 'Escape' && dom.courseProgressOverlay && !dom.courseProgressOverlay.classList.contains('hidden')) closeCourseProgressPanel();
     if (event.key === 'Escape' && dom.audioMenu?.classList.contains('open')) closeExplorerAudioMenu();
+    if (event.key === 'Escape' && dom.desktopSettings?.classList.contains('open')) closeExplorerDesktopSettingsMenu();
     if (event.key === 'Escape' && dom.heartPopover && !dom.heartPopover.classList.contains('hidden')) hideHeartPopover();
   });
   dom.verifyCloseBtn?.addEventListener('click', () => closeExplorerCertificateVerification(true));
