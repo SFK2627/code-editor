@@ -40605,8 +40605,10 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   const leaderboardState = { records: [], loadedAt: 0, loading: false, source: '', rosterLoaded: false, mode: 'students', settingsLoaded: false, settingsError: false, currentSectionIncluded: true };
   let leaderboardSectionSettings = { configured: false, includedSections: [], includedSectionKeys: [] };
 
-  // v396 — Code Explorer audio experience. Everything is synthesized with the
+  // v399 — Code Explorer audio polish. Everything is synthesized with the
   // Web Audio API so there are no external/copyrighted music files to load.
+  // Volumes are intentionally stronger now, but routed through a compressor
+  // limiter so phone speakers stay clean and do not clip/distort.
   const CODE_EXPLORER_AUDIO_PREFS_KEY = 'mcsian.codeExplorerAudio.v1';
   const EXPLORER_AUDIO_DEFAULTS = Object.freeze({ music: true, sfx: true });
   const EXPLORER_SFX_PRIORITY = Object.freeze({
@@ -40626,6 +40628,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     masterGain: null,
     musicGain: null,
     sfxGain: null,
+    limiter: null,
     prefs: { ...EXPLORER_AUDIO_DEFAULTS },
     musicTimer: null,
     musicNodes: new Set(),
@@ -40701,16 +40704,26 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       const masterGain = context.createGain();
       const musicGain = context.createGain();
       const sfxGain = context.createGain();
-      masterGain.gain.value = 0.82;
-      musicGain.gain.value = 0.22;
-      sfxGain.gain.value = 0.78;
+      const limiter = context.createDynamicsCompressor();
+      // Stronger default output for real phone speakers. The compressor acts
+      // like a soft limiter so stacked SFX + music stay energetic, not harsh.
+      masterGain.gain.value = 0.9;
+      musicGain.gain.value = 0.42;
+      sfxGain.gain.value = 0.96;
+      limiter.threshold.setValueAtTime(-13, context.currentTime);
+      limiter.knee.setValueAtTime(18, context.currentTime);
+      limiter.ratio.setValueAtTime(7.5, context.currentTime);
+      limiter.attack.setValueAtTime(0.003, context.currentTime);
+      limiter.release.setValueAtTime(0.18, context.currentTime);
       musicGain.connect(masterGain);
       sfxGain.connect(masterGain);
-      masterGain.connect(context.destination);
+      masterGain.connect(limiter);
+      limiter.connect(context.destination);
       explorerAudio.context = context;
       explorerAudio.masterGain = masterGain;
       explorerAudio.musicGain = musicGain;
       explorerAudio.sfxGain = sfxGain;
+      explorerAudio.limiter = limiter;
       return context;
     } catch (error) {
       console.info('Code Explorer audio is unavailable.', error);
@@ -40788,60 +40801,71 @@ window.MCS_PHONE_MENU_STATUS = () => ({
 
     const patterns = {
       correct: [
-        [0.00, 659.25, 0.09, 0.105, 'sine'],
-        [0.075, 880.00, 0.13, 0.085, 'sine']
+        [0.000, 523.25, 0.075, 0.165, 'triangle'],
+        [0.055, 659.25, 0.090, 0.150, 'triangle'],
+        [0.120, 880.00, 0.120, 0.115, 'sine']
       ],
       wrong: [
-        [0.00, 220.00, 0.11, 0.105, 'triangle'],
-        [0.085, 164.81, 0.19, 0.085, 'triangle']
+        [0.000, 246.94, 0.105, 0.150, 'sawtooth'],
+        [0.080, 196.00, 0.130, 0.132, 'sawtooth'],
+        [0.170, 146.83, 0.180, 0.105, 'triangle']
       ],
       xp: [
-        [0.00, 880.00, 0.07, 0.075, 'sine'],
-        [0.055, 1174.66, 0.08, 0.065, 'sine'],
-        [0.105, 1567.98, 0.11, 0.055, 'sine']
+        [0.000, 987.77, 0.055, 0.125, 'triangle'],
+        [0.045, 1318.51, 0.070, 0.105, 'sine'],
+        [0.095, 1760.00, 0.095, 0.085, 'sine'],
+        [0.155, 2093.00, 0.115, 0.055, 'sine']
       ],
       miniComplete: [
-        [0.00, 523.25, 0.10, 0.09, 'triangle'],
-        [0.075, 659.25, 0.11, 0.085, 'triangle'],
-        [0.150, 783.99, 0.16, 0.075, 'sine']
+        [0.000, 392.00, 0.085, 0.135, 'triangle'],
+        [0.065, 523.25, 0.090, 0.128, 'triangle'],
+        [0.130, 659.25, 0.110, 0.112, 'triangle'],
+        [0.205, 987.77, 0.150, 0.085, 'sine']
       ],
       practicePass: [
-        [0.00, 440.00, 0.10, 0.09, 'triangle'],
-        [0.080, 659.25, 0.11, 0.085, 'triangle'],
-        [0.160, 880.00, 0.16, 0.075, 'sine']
+        [0.000, 329.63, 0.095, 0.140, 'triangle'],
+        [0.070, 493.88, 0.105, 0.125, 'triangle'],
+        [0.145, 659.25, 0.125, 0.110, 'triangle'],
+        [0.235, 880.00, 0.185, 0.085, 'sine']
       ],
       quickPass: [
-        [0.00, 587.33, 0.10, 0.09, 'triangle'],
-        [0.075, 739.99, 0.11, 0.085, 'triangle'],
-        [0.150, 880.00, 0.17, 0.075, 'sine']
+        [0.000, 440.00, 0.080, 0.135, 'triangle'],
+        [0.060, 587.33, 0.090, 0.125, 'triangle'],
+        [0.125, 739.99, 0.115, 0.108, 'triangle'],
+        [0.210, 987.77, 0.180, 0.085, 'sine']
       ],
       perfect: [
-        [0.00, 659.25, 0.10, 0.085, 'sine'],
-        [0.070, 830.61, 0.10, 0.08, 'sine'],
-        [0.140, 987.77, 0.11, 0.075, 'sine'],
-        [0.215, 1318.51, 0.20, 0.065, 'sine']
+        [0.000, 659.25, 0.070, 0.130, 'triangle'],
+        [0.052, 830.61, 0.080, 0.120, 'triangle'],
+        [0.108, 987.77, 0.090, 0.105, 'triangle'],
+        [0.170, 1318.51, 0.115, 0.088, 'sine'],
+        [0.255, 1760.00, 0.210, 0.060, 'sine']
       ],
       topicComplete: [
-        [0.00, 523.25, 0.13, 0.09, 'triangle'],
-        [0.095, 659.25, 0.13, 0.085, 'triangle'],
-        [0.190, 783.99, 0.14, 0.08, 'triangle'],
-        [0.290, 1046.50, 0.24, 0.07, 'sine']
+        [0.000, 261.63, 0.260, 0.082, 'sine'],
+        [0.000, 523.25, 0.105, 0.130, 'triangle'],
+        [0.085, 659.25, 0.115, 0.120, 'triangle'],
+        [0.170, 783.99, 0.130, 0.110, 'triangle'],
+        [0.270, 1046.50, 0.180, 0.090, 'sine'],
+        [0.390, 1318.51, 0.240, 0.060, 'sine']
       ],
       finalPass: [
-        [0.00, 196.00, 0.38, 0.055, 'sine'],
-        [0.00, 392.00, 0.14, 0.09, 'triangle'],
-        [0.115, 523.25, 0.14, 0.085, 'triangle'],
-        [0.230, 659.25, 0.15, 0.08, 'triangle'],
-        [0.350, 783.99, 0.17, 0.075, 'triangle'],
-        [0.500, 1046.50, 0.32, 0.07, 'sine']
+        [0.000, 196.00, 0.420, 0.070, 'sine'],
+        [0.000, 392.00, 0.120, 0.135, 'triangle'],
+        [0.100, 523.25, 0.130, 0.125, 'triangle'],
+        [0.205, 659.25, 0.145, 0.112, 'triangle'],
+        [0.320, 783.99, 0.160, 0.098, 'triangle'],
+        [0.455, 1046.50, 0.210, 0.080, 'sine'],
+        [0.620, 1567.98, 0.320, 0.052, 'sine']
       ],
       certificate: [
-        [0.00, 523.25, 0.15, 0.07, 'sine'],
-        [0.090, 659.25, 0.15, 0.07, 'sine'],
-        [0.180, 783.99, 0.16, 0.065, 'sine'],
-        [0.275, 1046.50, 0.18, 0.06, 'sine'],
-        [0.390, 1318.51, 0.30, 0.052, 'sine'],
-        [0.455, 1567.98, 0.24, 0.042, 'sine']
+        [0.000, 329.63, 0.320, 0.062, 'sine'],
+        [0.000, 659.25, 0.120, 0.115, 'triangle'],
+        [0.080, 830.61, 0.125, 0.105, 'triangle'],
+        [0.165, 987.77, 0.140, 0.092, 'triangle'],
+        [0.265, 1318.51, 0.160, 0.074, 'sine'],
+        [0.380, 1760.00, 0.210, 0.056, 'sine'],
+        [0.500, 2093.00, 0.270, 0.044, 'sine']
       ]
     };
     (patterns[name] || patterns.correct).forEach(([offset, frequency, duration, volume, type]) => {
@@ -40872,24 +40896,32 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     }
     const context = ensureExplorerAudioContext();
     if (!context || context.state !== 'running') return;
+    // More energetic 100-BPM style coding loop: warm pad + pulse bass +
+    // light arpeggio. Still procedural and subtle enough for studying.
     const progression = [
-      [261.63, 329.63, 392.00],
-      [220.00, 261.63, 329.63],
-      [174.61, 220.00, 261.63],
-      [196.00, 246.94, 293.66]
+      { chord: [261.63, 329.63, 392.00], bass: 130.81, arp: [523.25, 659.25, 783.99, 659.25, 1046.50, 783.99, 659.25, 523.25] },
+      { chord: [220.00, 261.63, 329.63], bass: 110.00, arp: [440.00, 523.25, 659.25, 523.25, 880.00, 659.25, 523.25, 440.00] },
+      { chord: [174.61, 220.00, 261.63], bass: 87.31, arp: [349.23, 440.00, 523.25, 440.00, 698.46, 523.25, 440.00, 349.23] },
+      { chord: [196.00, 246.94, 293.66], bass: 98.00, arp: [392.00, 493.88, 587.33, 493.88, 783.99, 587.33, 493.88, 392.00] }
     ];
-    const chord = progression[explorerAudio.phraseIndex % progression.length];
+    const phrase = progression[explorerAudio.phraseIndex % progression.length];
     explorerAudio.phraseIndex = (explorerAudio.phraseIndex + 1) % progression.length;
-    chord.forEach((frequency, index) => {
-      scheduleExplorerTone('music', frequency, 0.02 + index * 0.035, 3.45, 0.026 - index * 0.003, 'sine');
+    phrase.chord.forEach((frequency, index) => {
+      scheduleExplorerTone('music', frequency, 0.01 + index * 0.025, 2.24, 0.044 - index * 0.004, 'sine');
     });
-    scheduleExplorerTone('music', chord[0] / 2, 0.02, 3.35, 0.022, 'sine');
-    const melody = [chord[1] * 2, chord[2] * 2, chord[1] * 2, chord[0] * 2];
-    [0.45, 1.35, 2.25, 3.12].forEach((offset, index) => {
-      scheduleExplorerTone('music', melody[index], offset, 0.26, 0.018, 'triangle');
+    [0.00, 0.60, 1.20, 1.80].forEach((offset, index) => {
+      const pulse = index % 2 === 0 ? phrase.bass : phrase.bass * 1.5;
+      scheduleExplorerTone('music', pulse, offset + 0.015, 0.23, 0.060, 'triangle');
     });
+    const arpOffsets = [0.15, 0.42, 0.72, 1.02, 1.32, 1.58, 1.86, 2.12];
+    arpOffsets.forEach((offset, index) => {
+      scheduleExplorerTone('music', phrase.arp[index], offset, 0.115, 0.040, index % 4 === 0 ? 'square' : 'triangle');
+    });
+    const lift = phrase.arp[(explorerAudio.phraseIndex + 3) % phrase.arp.length];
+    scheduleExplorerTone('music', lift * 1.5, 0.92, 0.18, 0.030, 'sine');
+    scheduleExplorerTone('music', lift * 2, 1.72, 0.20, 0.026, 'sine');
     clearTimeout(explorerAudio.musicTimer);
-    explorerAudio.musicTimer = window.setTimeout(scheduleExplorerMusicPhrase, 3650);
+    explorerAudio.musicTimer = window.setTimeout(scheduleExplorerMusicPhrase, 2400);
   }
 
   function startExplorerMusic() {
