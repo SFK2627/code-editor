@@ -6388,6 +6388,7 @@ async function showStudentDashboard(options = {}) {
     document.body.classList.contains('given-activities-active')
   );
   const suppressStatusReminder = options.suppressStatusReminder === true || returningFromLessonOrActivities;
+  const deferRefresh = options.deferRefresh === true;
   hideEntryGate();
   studentLoginOverlay?.classList.add('hidden');
   changePasswordOverlay?.classList.add('hidden');
@@ -6402,10 +6403,32 @@ async function showStudentDashboard(options = {}) {
   if (dashboardGreeting) dashboardGreeting.textContent = `Hi, ${firstName}! Your saved work is ready.`;
   queueStudentPresenceUpdate({ currentView: 'dashboard', activityGroup: 'My Projects', activityLabel: 'On My Projects' }, { force: true });
   try { window.renderCodeExplorerDashboardSummary?.(); } catch (_) {}
-  await Promise.allSettled([
+
+  const refreshDashboardData = () => Promise.allSettled([
     loadStudentProjects(),
     loadStudentComplianceStatus()
   ]);
+
+  // Returning from Code Explorer should paint My Projects immediately. The
+  // cached dashboard stays visible first, then projects/compliance refresh in
+  // the background on the next frame instead of blocking the transition.
+  if (deferRefresh) {
+    if (suppressStatusReminder) {
+      closeLoginLackingReminder();
+    } else {
+      showLoginLackingReminderAfterLogin().catch(error => {
+        console.warn('Could not open My Projects reminder.', error);
+      });
+    }
+    window.requestAnimationFrame(() => {
+      window.setTimeout(() => {
+        refreshDashboardData().catch?.(() => {});
+      }, 0);
+    });
+    return;
+  }
+
+  await refreshDashboardData();
 
   // Keep the automatic status reminder for normal dashboard arrivals such as
   // login/resume, but do not reopen it when Back returns from Lessons or
@@ -42256,10 +42279,22 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     stopExplorerProfileListener();
     hideQuickScreenFeedback();
     closeCourseProgressPanel();
-    await saveCloudProgress();
+
+    // Save the latest lesson state locally first, then leave Code Explorer
+    // immediately. Cloud sync must never hold the learner on this screen.
+    saveLocalProgress();
     screen.classList.add('hidden');
     document.body.classList.remove('code-explorer-active');
-    await showStudentDashboard({ suppressStatusReminder: true });
+
+    // Paint My Projects from its existing/cached state before any Firestore
+    // refresh. This removes the visible pause after tapping X.
+    await showStudentDashboard({ suppressStatusReminder: true, deferRefresh: true });
+
+    // Give the browser one paint, then sync Code Explorer progress quietly in
+    // the background. A slow connection no longer delays navigation.
+    window.setTimeout(() => {
+      saveCloudProgress().catch(() => false);
+    }, 60);
   }
 
   function submitTopicQuiz() {
