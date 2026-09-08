@@ -234,6 +234,9 @@ const loginReminderSettingsPill = document.getElementById('loginReminderSettings
 const loginLackingReminderOverlay = document.getElementById('loginLackingReminderOverlay');
 const closeLoginLackingReminderBtn = document.getElementById('closeLoginLackingReminderBtn');
 const continueFromLoginLackingReminderBtn = document.getElementById('continueFromLoginLackingReminderBtn');
+const loginReminderLessonsBtn = document.getElementById('loginReminderLessonsBtn');
+const loginReminderActivitiesBtn = document.getElementById('loginReminderActivitiesBtn');
+const loginReminderExplorerBtn = document.getElementById('loginReminderExplorerBtn');
 const loginLackingReminderIcon = document.getElementById('loginLackingReminderIcon');
 const loginLackingReminderEyebrow = document.getElementById('loginLackingReminderEyebrow');
 const loginLackingReminderTitle = document.getElementById('loginLackingReminderTitle');
@@ -782,7 +785,8 @@ const STORAGE_KEYS = {
   givenActivities: 'studentCodeStudio.givenActivities.v1',
   givenActivityEngagement: 'studentCodeStudio.givenActivityEngagement.v1',
   aiRubricSettings: 'studentCodeStudio.aiRubricSettings.v1',
-  loginReminderSettings: 'studentCodeStudio.loginReminderSettings.v1'
+  loginReminderSettings: 'studentCodeStudio.loginReminderSettings.v1',
+  codeExplorerProgress: 'studentCodeStudio.codeExplorerProgress.v1'
 };
 
 
@@ -1117,6 +1121,44 @@ function closeLoginLackingReminder() {
   document.body.classList.remove('login-lacking-reminder-open');
 }
 
+async function navigateFromLoginLackingReminder(destination = 'projects') {
+  const target = String(destination || 'projects').toLowerCase();
+  const isPreview = loginLackingReminderOverlay?.dataset.preview === 'true';
+  closeLoginLackingReminder();
+
+  // Admin's reminder preview is visual-only. Closing it must not switch the
+  // admin into a student route.
+  if (isPreview || !appSession.student) return;
+
+  try {
+    if (target === 'lessons') {
+      await openLessonLibrary('dashboard');
+      return;
+    }
+    if (target === 'activities') {
+      await openGivenActivitiesLibrary('dashboard');
+      return;
+    }
+    if (target === 'explorer') {
+      if (typeof window.openCodeExplorer === 'function') {
+        await window.openCodeExplorer();
+      } else {
+        await showStudentDashboard({ suppressStatusReminder: true });
+      }
+      return;
+    }
+
+    // X, Escape, and My Projects all resolve to the dashboard without
+    // reopening the automatic status reminder.
+    if (studentDashboard?.classList.contains('hidden') || !document.body.classList.contains('student-dashboard-active')) {
+      await showStudentDashboard({ suppressStatusReminder: true });
+    }
+  } catch (error) {
+    console.warn('Could not open the selected student destination.', error);
+    await showStudentDashboard({ suppressStatusReminder: true });
+  }
+}
+
 let loginReminderViewportFitTimer = 0;
 
 function fitLoginLackingReminderViewport() {
@@ -1245,6 +1287,7 @@ function renderLoginLackingReminder(record = null, options = {}) {
   loginLackingReminderOverlay.dataset.state = state;
   loginLackingReminderOverlay.dataset.theme = settings.theme;
   loginLackingReminderOverlay.dataset.animation = settings.animation;
+  loginLackingReminderOverlay.dataset.preview = isPreview ? 'true' : 'false';
   if (loginLackingReminderStudent) {
     const name = sanitized?.studentName || student.name || 'Student';
     loginLackingReminderStudent.textContent = `Hi, ${name}.`;
@@ -6343,6 +6386,7 @@ async function showStudentDashboard(options = {}) {
   const firstName = getStudentFirstName(appSession.student.name);
   if (dashboardGreeting) dashboardGreeting.textContent = `Hi, ${firstName}! Your saved work is ready.`;
   queueStudentPresenceUpdate({ currentView: 'dashboard', activityGroup: 'My Projects', activityLabel: 'On My Projects' }, { force: true });
+  try { window.renderCodeExplorerDashboardSummary?.(); } catch (_) {}
   await Promise.allSettled([
     loadStudentProjects(),
     loadStudentComplianceStatus()
@@ -21605,7 +21649,7 @@ function getStoredAdminTab() {
 }
 
 function setAdminTab(tabName = 'students') {
-  const allowed = new Set(['students', 'needs-attention', 'online', 'assistance', 'compliance', 'lessons', 'given-activities', 'activities', 'device-qa']);
+  const allowed = new Set(['students', 'needs-attention', 'online', 'assistance', 'compliance', 'lessons', 'given-activities', 'activities', 'code-explorer', 'device-qa']);
   const nextTab = allowed.has(tabName) ? tabName : 'students';
   localStorage.setItem(ADMIN_TAB_STORAGE_KEY, nextTab);
 
@@ -21634,6 +21678,9 @@ function setAdminTab(tabName = 'students') {
   }
   if (nextTab === 'given-activities' && isTeacherAuthenticated()) {
     initializeGivenActivitiesManager().catch(error => console.warn('Activities Given manager load failed.', error));
+  }
+  if (nextTab === 'code-explorer' && isTeacherAuthenticated()) {
+    window.initializeCodeExplorerAdmin?.({ force: false });
   }
   if (nextTab === 'device-qa') initializeDeviceQaPanel();
 }
@@ -25907,8 +25954,11 @@ loginReminderMusicEnabledToggle?.addEventListener('change', () => {
 previewLoginReminderCompleteBtn?.addEventListener('click', () => previewLoginLackingReminder(false));
 previewLoginReminderMissingBtn?.addEventListener('click', () => previewLoginLackingReminder(true));
 saveLoginReminderSettingsBtn?.addEventListener('click', saveLoginReminderSettingsToCloud);
-closeLoginLackingReminderBtn?.addEventListener('click', closeLoginLackingReminder);
-continueFromLoginLackingReminderBtn?.addEventListener('click', closeLoginLackingReminder);
+closeLoginLackingReminderBtn?.addEventListener('click', () => navigateFromLoginLackingReminder('projects'));
+continueFromLoginLackingReminderBtn?.addEventListener('click', () => navigateFromLoginLackingReminder('projects'));
+loginReminderLessonsBtn?.addEventListener('click', () => navigateFromLoginLackingReminder('lessons'));
+loginReminderActivitiesBtn?.addEventListener('click', () => navigateFromLoginLackingReminder('activities'));
+loginReminderExplorerBtn?.addEventListener('click', () => navigateFromLoginLackingReminder('explorer'));
 playLoginLackingReminderMusicBtn?.addEventListener('click', playLoginReminderMusicManually);
 syncLoginReminderSettingsControls();
 syncAcademicTermSettingsControls();
@@ -25917,7 +25967,7 @@ loginLackingReminderOverlay?.addEventListener('click', event => {
 });
 document.addEventListener('keydown', event => {
   if (event.key === 'Escape' && loginLackingReminderOverlay && !loginLackingReminderOverlay.classList.contains('hidden')) {
-    closeLoginLackingReminder();
+    navigateFromLoginLackingReminder('projects');
   }
 });
 saveAiRubricSettingsBtn?.addEventListener('click', saveAiRubricSettingsToCloud);
@@ -38777,3 +38827,2123 @@ window.MCS_PHONE_MENU_STATUS = () => ({
 
   initCodeTransferFeature();
 })();
+
+/* ================================================================
+   Code Explorer v355
+   Self-paced HTML/CSS/JavaScript learning paths with live practice,
+   progress sync, final checkpoints, XP, and downloadable certificates.
+   This is intentionally separate from teacher-published Lessons.
+   ================================================================ */
+(() => {
+  const screen = document.getElementById('codeExplorerScreen');
+  if (!screen) return;
+
+  const $ = id => document.getElementById(id);
+  const dom = {
+    dashboardBtn: $('dashboardCodeExplorerBtn'),
+    menuBtn: $('menuCodeExplorerBtn'),
+    backBtn: $('codeExplorerBackBtn'),
+    themeBtn: $('codeExplorerThemeBtn'),
+    certificatesBtn: $('codeExplorerCertificatesBtn'),
+    xpBadge: $('codeExplorerXpBadge'),
+    heartBadge: $('codeExplorerHeartBadge'),
+    overallBar: $('codeExplorerOverallBar'),
+    overallText: $('codeExplorerOverallText'),
+    explored: $('codeExplorerTopicsExplored'),
+    completed: $('codeExplorerTopicsCompleted'),
+    certCount: $('codeExplorerCertificatesCount'),
+    courseCards: $('codeExplorerCourseCards'),
+    courseKicker: $('codeExplorerCourseKicker'),
+    courseTitle: $('codeExplorerCourseTitle'),
+    coursePercent: $('codeExplorerCoursePercent'),
+    courseBar: $('codeExplorerCourseBar'),
+    topicList: $('codeExplorerTopicList'),
+    lessonPanel: $('codeExplorerLessonPanel'),
+    topicNumber: $('codeExplorerTopicNumber'),
+    topicLevel: $('codeExplorerTopicLevel'),
+    topicMinutes: $('codeExplorerTopicMinutes'),
+    topicTitle: $('codeExplorerTopicTitle'),
+    topicBlurb: $('codeExplorerTopicBlurb'),
+    topicStatus: $('codeExplorerTopicStatus'),
+    topicExplanation: $('codeExplorerTopicExplanation'),
+    exampleCode: $('codeExplorerExampleCode'),
+    copyExampleBtn: $('codeExplorerCopyExampleBtn'),
+    challengeTitle: $('codeExplorerChallengeTitle'),
+    challengeText: $('codeExplorerChallengeText'),
+    editorLabel: $('codeExplorerEditorLabel'),
+    practiceEditor: $('codeExplorerPracticeEditor'),
+    runBtn: $('codeExplorerRunBtn'),
+    checkBtn: $('codeExplorerCheckBtn'),
+    resetPracticeBtn: $('codeExplorerResetPracticeBtn'),
+    previewFrame: $('codeExplorerPreviewFrame'),
+    previewStatus: $('codeExplorerPreviewStatus'),
+    practiceBadge: $('codeExplorerPracticeBadge'),
+    practiceFeedback: $('codeExplorerPracticeFeedback'),
+    quizQuestion: $('codeExplorerQuizQuestion'),
+    quizOptions: $('codeExplorerQuizOptions'),
+    quizSubmitBtn: $('codeExplorerQuizSubmitBtn'),
+    quizBadge: $('codeExplorerQuizBadge'),
+    quizFeedback: $('codeExplorerQuizFeedback'),
+    completeCard: $('codeExplorerTopicCompleteCard'),
+    prevBtn: $('codeExplorerPrevTopicBtn'),
+    nextBtn: $('codeExplorerNextTopicBtn'),
+    finalCard: $('codeExplorerFinalCard'),
+    finalTitle: $('codeExplorerFinalTitle'),
+    finalText: $('codeExplorerFinalText'),
+    finalBtn: $('codeExplorerFinalBtn'),
+    finalOverlay: $('codeExplorerFinalOverlay'),
+    finalModalTitle: $('codeExplorerFinalModalTitle'),
+    finalModalMeta: $('codeExplorerFinalModalMeta'),
+    finalQuestions: $('codeExplorerFinalQuestions'),
+    finalResult: $('codeExplorerFinalResult'),
+    finalSubmitBtn: $('codeExplorerFinalSubmitBtn'),
+    finalCloseBtn: $('codeExplorerFinalCloseBtn'),
+    finalCancelBtn: $('codeExplorerFinalCancelBtn'),
+    certOverlay: $('codeExplorerCertificatesOverlay'),
+    certList: $('codeExplorerCertificateList'),
+    certCloseBtn: $('codeExplorerCertificatesCloseBtn'),
+    dashBars: { html: $('dashboardExplorerHtmlBar'), css: $('dashboardExplorerCssBar'), js: $('dashboardExplorerJsBar') },
+    dashTexts: { html: $('dashboardExplorerHtmlText'), css: $('dashboardExplorerCssText'), js: $('dashboardExplorerJsText') },
+    adminPanel: $('codeExplorerAdmin'),
+    adminRefreshBtn: $('refreshCodeExplorerAdminBtn'),
+    adminStudentCount: $('codeExplorerAdminStudentCount'),
+    adminExploringCount: $('codeExplorerAdminExploringCount'),
+    adminCertifiedCount: $('codeExplorerAdminCertifiedCount'),
+    adminAverage: $('codeExplorerAdminAverage'),
+    adminSampleCourse: $('codeExplorerAdminSampleCertCourse'),
+    adminSampleViewBtn: $('codeExplorerAdminViewSampleCertBtn'),
+    adminSampleDownloadBtn: $('codeExplorerAdminDownloadSampleCertBtn'),
+    verifyOverlay: $('codeExplorerVerifyOverlay'),
+    verifyBody: $('codeExplorerVerifyBody'),
+    verifyCloseBtn: $('codeExplorerVerifyCloseBtn'),
+    verifyDoneBtn: $('codeExplorerVerifyDoneBtn'),
+    adminSearch: $('codeExplorerAdminSearch'),
+    adminSection: $('codeExplorerAdminSection'),
+    adminStatusFilter: $('codeExplorerAdminStatusFilter'),
+    adminSort: $('codeExplorerAdminSort'),
+    adminStatus: $('codeExplorerAdminStatus'),
+    adminTableBody: $('codeExplorerAdminTableBody'),
+    adminDetailOverlay: $('codeExplorerAdminDetailOverlay'),
+    adminDetailTitle: $('codeExplorerAdminDetailTitle'),
+    adminDetailSubtitle: $('codeExplorerAdminDetailSubtitle'),
+    adminDetailSummary: $('codeExplorerAdminDetailSummary'),
+    adminHeartControl: $('codeExplorerAdminHeartControl'),
+    adminHeartText: $('codeExplorerAdminHeartText'),
+    adminDetailCourses: $('codeExplorerAdminDetailCourses'),
+    adminDetailCourseMeta: $('codeExplorerAdminDetailCourseMeta'),
+    adminDetailTopics: $('codeExplorerAdminDetailTopics'),
+    adminDetailCloseBtn: $('closeCodeExplorerAdminDetailBtn')
+  };
+
+  const topic = (id, title, blurb, explanation, example, starter, challenge, must, quiz, options = {}) => ({
+    id, title, blurb, explanation, example, starter, challenge, must: Array.isArray(must) ? must : [must], quiz,
+    level: options.level || 'Beginner', minutes: options.minutes || 5, previewHtml: options.previewHtml || '', any: options.any || [], note: options.note || ''
+  });
+
+  const COURSES = {
+    html: {
+      key: 'html', short: 'HTML', title: 'HTML Foundations', icon: '🧱', accent: '#f97316',
+      description: 'Build the structure of webpages with elements, forms, media, semantics, accessibility, and more.',
+      editorLabel: 'HTML',
+      topics: [
+        topic('document', 'Your First HTML Document', 'Meet the basic structure every webpage starts with.', 'HTML gives a webpage its structure. A complete document normally includes a doctype, an <html> element, a <head> for page information, and a <body> for visible content.', '<!DOCTYPE html>\n<html>\n<head>\n  <title>My Page</title>\n</head>\n<body>\n  <h1>Hello, web!</h1>\n</body>\n</html>', '<h1>Hello, web!</h1>\n<p>I am learning HTML.</p>', 'Create an <h1> and a paragraph that will appear on the page.', ['<h1', '</h1>', '<p', '</p>'], { q: 'Which part contains the content visitors usually see?', options: ['<head>', '<body>', '<title>', '<meta>'], answer: 1 }),
+        topic('headings', 'Headings & Paragraphs', 'Organize ideas with readable text structure.', 'Headings range from <h1> to <h6>. Paragraphs use <p>. Use headings for structure, not just for making text large.', '<h1>Main Title</h1>\n<h2>Section Title</h2>\n<p>This is a paragraph.</p>', '<h1>My Favorite Hobby</h1>\n<p>Write one sentence here.</p>', 'Add an <h2> subheading below the paragraph.', ['<h2', '</h2>'], { q: 'Which tag is best for a normal paragraph?', options: ['<p>', '<h3>', '<span>', '<br>'], answer: 0 }),
+        topic('formatting', 'Text Formatting', 'Add meaning and emphasis to important words.', 'HTML has semantic text elements such as <strong> for importance and <em> for emphasis. You can also use <mark>, <small>, <sub>, and <sup> when they match the meaning.', '<p>This is <strong>important</strong> and this is <em>emphasized</em>.</p>', '<p>Practice makes progress.</p>', 'Make the word “progress” strongly important using <strong>.', ['<strong', 'progress', '</strong>'], { q: 'Which element adds semantic importance?', options: ['<b>', '<strong>', '<big>', '<font>'], answer: 1 }),
+        topic('links', 'Links & Navigation', 'Connect pages and destinations with anchors.', 'The <a> element creates a hyperlink. The href attribute tells the browser where to go. Relative links are useful for pages inside the same project.', '<a href="about.html">About</a>\n<a href="https://example.com">External site</a>', '<a href="#about">Go to About</a>\n<section id="about"><h2>About</h2></section>', 'Add a link whose href is "contact.html" and whose text says Contact.', ['href="contact.html"', '>Contact<'], { q: 'Which attribute stores a link destination?', options: ['src', 'href', 'alt', 'target'], answer: 1 }),
+        topic('images', 'Images & Alt Text', 'Place images while keeping pages accessible.', 'Images use <img>. The src attribute points to the image and alt describes it when the image cannot be seen or loaded. Useful alt text explains the image’s purpose.', '<img src="photo.jpg" alt="Student coding on a laptop">', '<img src="https://images.unsplash.com/photo-1498050108023-c5249f4df085?w=600" alt="">', 'Give the image a meaningful alt description.', ['alt="'], { q: 'Why is alt text important?', options: ['It changes image size', 'It describes images for accessibility and fallback', 'It creates a link', 'It compresses the file'], answer: 1 }),
+        topic('lists', 'Lists', 'Present steps, menus, and groups of items clearly.', 'Use <ul> for unordered lists and <ol> for ordered lists. Every item belongs inside an <li>.', '<ul>\n  <li>HTML</li>\n  <li>CSS</li>\n</ul>', '<ul>\n  <li>Pizza</li>\n</ul>', 'Add two more <li> items to the list.', ['<li', '</li>'], { q: 'Which tag represents a list item?', options: ['<ul>', '<ol>', '<li>', '<list>'], answer: 2 }),
+        topic('tables', 'Tables', 'Display row-and-column data with proper structure.', 'Tables are for tabular data. Use <table>, <tr> for rows, <th> for headings, and <td> for data cells.', '<table>\n  <tr><th>Name</th><th>Score</th></tr>\n  <tr><td>Ana</td><td>10</td></tr>\n</table>', '<table>\n  <tr><th>Subject</th><th>Grade</th></tr>\n</table>', 'Add one data row using <tr> and two <td> cells.', ['<td', '</td>', '<tr'], { q: 'Which element is normally used for a table heading cell?', options: ['<td>', '<th>', '<tr>', '<caption>'], answer: 1 }, { level: 'Intermediate' }),
+        topic('forms', 'Forms', 'Collect information from users.', 'A <form> groups interactive fields. Labels help users understand inputs. Pair <label> with an input id whenever possible.', '<form>\n  <label for="name">Name</label>\n  <input id="name" type="text">\n  <button>Send</button>\n</form>', '<form>\n  <label for="email">Email</label>\n  <input id="email">\n</form>', 'Set the input type to email and add a submit button.', ['type="email"', '<button'], { q: 'Which element groups fields that users can submit?', options: ['<form>', '<fieldset>', '<section>', '<input>'], answer: 0 }, { level: 'Intermediate' }),
+        topic('inputs', 'Input Types', 'Choose controls that match the data being collected.', 'HTML includes input types such as text, email, number, date, checkbox, radio, color, range, and password. The right type can improve validation and mobile keyboards.', '<input type="date">\n<input type="color">\n<input type="range" min="0" max="100">', '<label>Age <input></label>', 'Turn the input into a number field and require it.', ['type="number"', 'required'], { q: 'Which type is best for selecting a date?', options: ['calendar', 'datetime', 'date', 'day'], answer: 2 }, { level: 'Intermediate' }),
+        topic('semantic', 'Semantic HTML', 'Describe the role of page regions, not just their appearance.', 'Semantic elements make structure clearer to people, browsers, and assistive technology. Examples include <header>, <nav>, <main>, <section>, <article>, <aside>, and <footer>.', '<header><h1>News</h1></header>\n<main>\n  <article><h2>Story</h2></article>\n</main>\n<footer>2026</footer>', '<div><h1>My Blog</h1></div>\n<div><p>Main story</p></div>', 'Replace the first wrapper with <header> and the second with <main>.', ['<header', '</header>', '<main', '</main>'], { q: 'Which semantic element represents the primary content of a page?', options: ['<main>', '<aside>', '<nav>', '<span>'], answer: 0 }, { level: 'Intermediate' }),
+        topic('media', 'Audio & Video', 'Embed media with built-in browser controls.', 'The <audio> and <video> elements can include controls. Source files can be listed using <source> so browsers can choose a supported format.', '<video controls width="320">\n  <source src="movie.mp4" type="video/mp4">\n</video>', '<audio>\n  <source src="sound.mp3" type="audio/mpeg">\n</audio>', 'Add the controls attribute to the audio player.', ['<audio', 'controls'], { q: 'Which attribute displays the browser’s media controls?', options: ['play', 'controls', 'buttons', 'ui'], answer: 1 }, { level: 'Intermediate' }),
+        topic('iframe', 'Iframes', 'Embed another webpage or resource inside a page.', 'An <iframe> creates an embedded browsing area. Use it carefully, give it a useful title, and only embed trusted resources.', '<iframe src="https://example.com" title="Example website"></iframe>', '<iframe src="https://example.com"></iframe>', 'Add a title attribute that describes the iframe.', ['title="'], { q: 'Which element embeds another webpage?', options: ['<embedpage>', '<frame>', '<iframe>', '<objectpage>'], answer: 2 }, { level: 'Intermediate' }),
+        topic('classes-ids', 'Classes & IDs', 'Name elements so CSS and JavaScript can target them.', 'A class can be reused on many elements. An id should identify one unique element on a page. Both are common hooks for styling and scripting.', '<p class="note">First note</p>\n<p class="note" id="important-note">Important note</p>', '<h2>Featured</h2>\n<p>Special content</p>', 'Give the h2 an id of "featured" and the paragraph a class of "note".', ['id="featured"', 'class="note"'], { q: 'Which can normally be reused on many elements?', options: ['id', 'class', 'title', 'name only'], answer: 1 }),
+        topic('div-span', 'Div & Span', 'Use generic containers when no semantic element fits.', '<div> is a block-level generic container. <span> is an inline generic container. Prefer meaningful semantic elements when one exists.', '<div class="card">\n  <p>Hello <span class="highlight">world</span></p>\n</div>', '<p>My favorite color is blue.</p>', 'Wrap only the word “blue” in a <span>.', ['<span', 'blue', '</span>'], { q: 'Which generic element is inline by default?', options: ['<div>', '<span>', '<section>', '<main>'], answer: 1 }),
+        topic('entities', 'Entities & Special Characters', 'Display reserved characters safely.', 'Some characters have special meaning in HTML. Entities such as &lt;, &gt;, &amp;, and &copy; let you display them as text.', '<p>Use &lt;h1&gt; for a main heading.</p>\n<p>&copy; 2026</p>', '<p>HTML uses < and > around tags.</p>', 'Replace the raw less-than and greater-than symbols in the sentence with &lt; and &gt;.', ['&lt;', '&gt;'], { q: 'Which entity displays an ampersand?', options: ['&and;', '&amp;', '&amps;', '&symbol;'], answer: 1 }),
+        topic('accessibility', 'Accessibility Basics', 'Make webpages easier for more people to use.', 'Accessible HTML starts with clear headings, labels, alt text, meaningful link text, keyboard-friendly controls, and the correct language attribute.', '<html lang="en">\n<body>\n<label for="search">Search</label>\n<input id="search">\n</body>\n</html>', '<button><img src="search.png" alt=""></button>', 'Give the button an aria-label of "Search".', ['aria-label="Search"'], { q: 'Which practice improves accessibility?', options: ['Removing labels', 'Using meaningful alt text', 'Using only color for meaning', 'Skipping heading levels randomly'], answer: 1 }, { level: 'Intermediate' }),
+        topic('meta-seo', 'Meta & SEO Basics', 'Give browsers and search engines useful page information.', 'The <head> can include charset, viewport, title, and meta description. A clear title and description help users and search engines understand a page.', '<head>\n  <meta charset="UTF-8">\n  <meta name="viewport" content="width=device-width, initial-scale=1.0">\n  <meta name="description" content="A student portfolio">\n  <title>My Portfolio</title>\n</head>', '<head>\n  <title>My Page</title>\n</head>', 'Add a viewport meta tag for responsive pages.', ['name="viewport"', 'width=device-width'], { q: 'Where do meta elements normally belong?', options: ['<footer>', '<head>', '<main>', '<nav>'], answer: 1 }, { level: 'Intermediate' }),
+        topic('paths', 'File Paths', 'Connect files in the same project without hard-coded website URLs.', 'Relative paths describe where a file is compared with the current document. Examples include images/logo.png, ../index.html, and styles/main.css.', '<img src="images/logo.png" alt="Logo">\n<a href="pages/about.html">About</a>', '<img src="logo.png" alt="Logo">', 'Change the image path so the logo is inside an images folder.', ['src="images/logo.png"'], { q: 'Which is a relative project path?', options: ['https://site.com/a.png', 'C:\\pics\\a.png', 'images/a.png', 'ftp://site/a.png'], answer: 2 }, { level: 'Intermediate' })
+      ],
+      finalQuiz: [
+        ['Which element contains the main visible document content?', ['<body>', '<head>', '<meta>', '<title>'], 0],
+        ['What does semantic HTML mainly improve?', ['Only font size', 'Meaning and structure', 'Image quality', 'Internet speed'], 1],
+        ['Which pair correctly connects a label to an input?', ['class + name', 'for + id', 'href + src', 'type + value'], 1],
+        ['What should an image usually include for accessibility?', ['alt text', 'target', 'method', 'rel=stylesheet'], 0],
+        ['Which is best for internal multi-page navigation?', ['A relative href', 'A CSS selector', 'A JavaScript variable only', 'A meta description'], 0]
+      ]
+    },
+    css: {
+      key: 'css', short: 'CSS', title: 'CSS Styling & Responsive Design', icon: '🎨', accent: '#2563eb',
+      description: 'Style layouts with colors, spacing, Flexbox, Grid, animation, and responsive techniques.',
+      editorLabel: 'CSS',
+      topics: [
+        topic('syntax', 'CSS Syntax & Selectors', 'Target HTML elements and apply style rules.', 'A CSS rule has a selector and declarations. Selectors choose elements; declarations set properties and values.', 'h1 {\n  color: royalblue;\n  font-size: 2rem;\n}', 'h1 {\n  color: black;\n}', 'Change the heading color to royalblue.', ['color:', 'royalblue'], { q: 'What comes before the declaration block?', options: ['Selector', 'Value', 'Semicolon', 'Comment'], answer: 0 }, { previewHtml: '<h1>Hello CSS</h1><p>Edit the style.</p>' }),
+        topic('colors', 'Colors', 'Use named, hex, RGB, and HSL colors.', 'CSS supports several color formats. Hex and HSL are common when building design systems, while rgba/hsla can include transparency.', '.card {\n  color: #0f172a;\n  background: hsl(210 40% 96%);\n}', '.card {\n  color: #111827;\n  background: white;\n}', 'Give the card a blue background using any valid blue color.', ['background:'], { q: 'Which is a valid hex color?', options: ['#2563eb', 'rgb#blue', 'color(12)', 'hex-blue'], answer: 0 }, { previewHtml: '<div class="card">Color me!</div>', any: ['blue', '#', 'rgb', 'hsl'] }),
+        topic('backgrounds', 'Backgrounds', 'Combine colors and images behind content.', 'Background properties can control color, image, repeat, size, and position. background-size: cover is common for hero images.', '.hero {\n  background: linear-gradient(135deg, #2563eb, #7c3aed);\n}', '.hero {\n  min-height: 160px;\n  background: #e2e8f0;\n}', 'Use a linear-gradient for the hero background.', ['linear-gradient'], { q: 'Which property can make a background image cover its box?', options: ['background-fit', 'background-size: cover', 'image-fit', 'cover: true'], answer: 1 }, { previewHtml: '<div class="hero"><h2>Hero Area</h2></div>' }),
+        topic('borders', 'Borders & Radius', 'Shape cards, buttons, and containers.', 'Borders have width, style, and color. border-radius rounds corners and can create pills or circles.', '.card {\n  border: 2px solid #94a3b8;\n  border-radius: 16px;\n}', '.card {\n  border: 2px solid #94a3b8;\n}', 'Round the card corners with border-radius.', ['border-radius'], { q: 'Which property rounds corners?', options: ['corner', 'radius', 'border-radius', 'round-border'], answer: 2 }, { previewHtml: '<div class="card">Rounded card</div>' }),
+        topic('box-model', 'Box Model', 'Understand content, padding, border, and margin.', 'Every element is a box. Padding creates space inside the border; margin creates space outside it. box-sizing: border-box makes sizing easier to reason about.', '.card {\n  box-sizing: border-box;\n  padding: 24px;\n  margin: 16px;\n}', '.card {\n  width: 260px;\n  background: #e0f2fe;\n}', 'Add 24px padding inside the card and 16px margin outside it.', ['padding:', '24px', 'margin:', '16px'], { q: 'Which creates space inside an element’s border?', options: ['margin', 'padding', 'gap only', 'outline'], answer: 1 }, { previewHtml: '<div class="card">Box model</div>' }),
+        topic('sizing', 'Width, Height & Units', 'Size elements with px, %, rem, vw, vh, and more.', 'Relative units adapt better to different screens. Percentages relate to a containing block; rem relates to root font size; viewport units relate to the browser viewport.', '.panel {\n  width: min(90%, 700px);\n  min-height: 40vh;\n}', '.panel {\n  width: 300px;\n}', 'Make the panel width 80% and set max-width to 600px.', ['width:', '80%', 'max-width:', '600px'], { q: 'Which unit is based on viewport width?', options: ['vh', 'vw', 'rem', 'em'], answer: 1 }, { previewHtml: '<div class="panel">Responsive width</div>' }),
+        topic('typography', 'Typography', 'Control font, weight, spacing, and readability.', 'Typography affects hierarchy and readability. Useful properties include font-family, font-size, font-weight, line-height, letter-spacing, and text-align.', 'body {\n  font-family: Arial, sans-serif;\n  line-height: 1.6;\n}\nh1 { letter-spacing: -0.02em; }', 'p {\n  font-size: 16px;\n}', 'Set the paragraph line-height to 1.6 and center its text.', ['line-height:', '1.6', 'text-align:', 'center'], { q: 'Which property controls space between lines of text?', options: ['line-height', 'letter-spacing', 'word-wrap', 'font-gap'], answer: 0 }, { previewHtml: '<p>Readable text is easier to understand across different devices.</p>' }),
+        topic('display', 'Display', 'Control how elements participate in layout.', 'display changes an element’s layout behavior. Common values include block, inline, inline-block, flex, grid, and none.', '.badge {\n  display: inline-block;\n  padding: 6px 10px;\n}', '.badge {\n  padding: 6px 10px;\n  background: #dcfce7;\n}', 'Make the badge inline-block.', ['display:', 'inline-block'], { q: 'Which display value hides an element from layout?', options: ['hidden', 'none', 'zero', 'invisible'], answer: 1 }, { previewHtml: '<span class="badge">New</span><span>More text</span>' }),
+        topic('position', 'Position & Z-index', 'Place elements in normal flow or at specific coordinates.', 'position can be static, relative, absolute, fixed, or sticky. z-index controls stacking when positioned elements overlap.', '.card { position: relative; }\n.badge { position: absolute; top: 8px; right: 8px; z-index: 2; }', '.card {\n  position: relative;\n}\n.badge {\n  background: gold;\n}', 'Position the badge absolutely at top: 8px and right: 8px.', ['position:', 'absolute', 'top:', '8px', 'right:', '8px'], { q: 'Which position value stays attached to the viewport while scrolling?', options: ['relative', 'absolute', 'fixed', 'static'], answer: 2 }, { previewHtml: '<div class="card">Card<div class="badge">Hot</div></div>' }),
+        topic('overflow', 'Overflow & Scrolling', 'Decide what happens when content exceeds a box.', 'overflow can be visible, hidden, auto, or scroll. For normal pages, avoid locking the root page with overflow: hidden unless you truly need it.', '.box {\n  max-height: 120px;\n  overflow-y: auto;\n}', '.box {\n  height: 80px;\n}\n', 'Make the box vertically scrollable only when needed.', ['overflow-y:', 'auto'], { q: 'Which value adds scrolling only when content overflows?', options: ['overflow: auto', 'overflow: none', 'overflow: fit', 'scroll: smart'], answer: 0 }, { previewHtml: '<div class="box">Line 1<br>Line 2<br>Line 3<br>Line 4<br>Line 5<br>Line 6<br>Line 7</div>' }),
+        topic('flexbox', 'Flexbox', 'Align and distribute items in one dimension.', 'Flexbox is ideal for rows, columns, navigation, and alignment. Start with display: flex, then use gap, justify-content, and align-items.', '.row {\n  display: flex;\n  gap: 12px;\n  justify-content: center;\n  align-items: center;\n}', '.row {\n  gap: 12px;\n}', 'Turn the row into flex layout and center its items horizontally.', ['display:', 'flex', 'justify-content:', 'center'], { q: 'Which property distributes flex items along the main axis?', options: ['align-items', 'justify-content', 'place-text', 'flex-align'], answer: 1 }, { previewHtml: '<div class="row"><button>One</button><button>Two</button><button>Three</button></div>', level: 'Intermediate' }),
+        topic('grid', 'CSS Grid', 'Create two-dimensional row-and-column layouts.', 'Grid is excellent for galleries and card layouts. grid-template-columns defines columns, and gap controls spacing between tracks.', '.grid {\n  display: grid;\n  grid-template-columns: repeat(3, 1fr);\n  gap: 16px;\n}', '.grid {\n  gap: 10px;\n}', 'Create a two-column grid using repeat(2, 1fr).', ['display:', 'grid', 'repeat(2', '1fr'], { q: 'Which property defines grid columns?', options: ['grid-columns', 'grid-template-columns', 'columns-grid', 'template'], answer: 1 }, { previewHtml: '<div class="grid"><div>A</div><div>B</div><div>C</div><div>D</div></div>', level: 'Intermediate' }),
+        topic('pseudo-classes', 'Pseudo-classes', 'Style states such as hover, focus, and checked.', 'Pseudo-classes select elements in a particular state. :hover, :focus-visible, :checked, :first-child, and :nth-child() are common examples.', 'button:hover {\n  transform: translateY(-2px);\n}\nbutton:focus-visible { outline: 3px solid #93c5fd; }', 'button {\n  padding: 10px 16px;\n}\n', 'Add a :hover rule that changes the button background.', ['button:hover', 'background'], { q: 'Which selector targets a button while the pointer is over it?', options: ['button::hover', 'button:hover', 'button[hover]', 'hover(button)'], answer: 1 }, { previewHtml: '<button>Hover me</button>', level: 'Intermediate' }),
+        topic('pseudo-elements', 'Pseudo-elements', 'Style or create a specific part of an element.', 'Pseudo-elements use double colons. ::before and ::after can insert decorative generated content without adding extra HTML.', '.label::before {\n  content: "★ ";\n  color: gold;\n}', '.label {\n  font-weight: bold;\n}', 'Use ::after to add a star after the label.', ['.label::after', 'content:'], { q: 'Which uses pseudo-element syntax?', options: ['::before', ':hover', '[data-x]', '#before'], answer: 0 }, { previewHtml: '<p class="label">Featured</p>', level: 'Intermediate' }),
+        topic('shadows', 'Shadows', 'Add depth to cards and text.', 'box-shadow creates depth around boxes; text-shadow works on text. Subtle shadows usually look more natural than very dark ones.', '.card {\n  box-shadow: 0 12px 30px rgba(15,23,42,.15);\n}', '.card {\n  padding: 24px;\n  background: white;\n}', 'Add any box-shadow to the card.', ['box-shadow:'], { q: 'Which property adds a shadow around a box?', options: ['shadow', 'box-shadow', 'filter-shadow only', 'border-shadow'], answer: 1 }, { previewHtml: '<div class="card">Shadow card</div>' }),
+        topic('gradients', 'Gradients', 'Blend colors without image files.', 'linear-gradient and radial-gradient can be used anywhere an image value is accepted, including backgrounds.', '.hero { background: linear-gradient(120deg, #0ea5e9, #8b5cf6); }', '.hero {\n  min-height: 160px;\n}', 'Give the hero a radial-gradient background.', ['radial-gradient'], { q: 'Which creates a circular or elliptical color blend?', options: ['linear-gradient', 'radial-gradient', 'color-mix only', 'blend()'], answer: 1 }, { previewHtml: '<div class="hero"></div>' }),
+        topic('transform', 'Transforms', 'Move, rotate, scale, and skew without changing document flow.', 'transform can translate, rotate, scale, or skew an element. Multiple transform functions can be combined.', '.card:hover { transform: translateY(-4px) scale(1.02); }', '.box {\n  width: 100px; height: 100px; background: #38bdf8;\n}', 'Rotate the box by 8 degrees.', ['transform:', 'rotate(', '8deg'], { q: 'Which transform changes an element’s size?', options: ['scale()', 'size()', 'zoom-layout()', 'grow()'], answer: 0 }, { previewHtml: '<div class="box"></div>', level: 'Intermediate' }),
+        topic('transitions', 'Transitions', 'Animate changes between CSS states smoothly.', 'Transitions interpolate property changes over time. Specify a property, duration, and optionally timing function.', 'button { transition: transform .2s ease, background .2s ease; }\nbutton:hover { transform: translateY(-2px); }', 'button {\n  background: #2563eb;\n}\nbutton:hover {\n  background: #1d4ed8;\n}', 'Add a 0.3s transition for the background property.', ['transition:', 'background', '.3s'], { q: 'What does transition-duration control?', options: ['How long the change takes', 'The element width', 'The number of keyframes', 'The selector order'], answer: 0 }, { previewHtml: '<button>Hover me</button>', level: 'Intermediate' }),
+        topic('animations', 'Keyframe Animations', 'Create multi-step motion and visual effects.', '@keyframes defines animation stages. animation attaches a keyframe sequence to an element with duration and other settings.', '@keyframes pulse {\n  50% { transform: scale(1.08); }\n}\n.dot { animation: pulse 1s infinite; }', '.dot {\n  width: 60px; height: 60px; border-radius: 50%; background: #f43f5e;\n}', 'Create an animation property that uses a keyframe named pulse.', ['animation:', 'pulse'], { q: 'Which rule defines animation steps?', options: ['@frames', '@keyframes', '@animate', '@steps'], answer: 1 }, { previewHtml: '<div class="dot"></div>', level: 'Intermediate' }),
+        topic('responsive', 'Responsive Design & Media Queries', 'Adapt layouts to phones, tablets, and desktops.', 'Responsive CSS uses flexible sizes plus media queries when the layout needs a breakpoint. Mobile-first styles begin with the small-screen layout, then enhance larger screens.', '.cards { display: grid; grid-template-columns: 1fr; }\n@media (min-width: 700px) {\n  .cards { grid-template-columns: repeat(3, 1fr); }\n}', '.cards {\n  display: grid;\n  grid-template-columns: repeat(3, 1fr);\n}\n', 'Add a max-width: 600px media query that changes the grid to one column.', ['@media', 'max-width:', '600px', 'grid-template-columns:', '1fr'], { q: 'What is the main purpose of a media query?', options: ['Store data', 'Apply styles under specific conditions', 'Create HTML elements', 'Run database queries'], answer: 1 }, { previewHtml: '<div class="cards"><div>A</div><div>B</div><div>C</div></div>', level: 'Intermediate' })
+      ],
+      finalQuiz: [
+        ['Which layout system is best known for one-dimensional alignment?', ['Flexbox', 'Grid only', 'Float only', 'Tables'], 0],
+        ['What creates space inside a border?', ['Margin', 'Padding', 'Outline', 'Gap always'], 1],
+        ['Which rule is used for responsive breakpoints?', ['@responsive', '@media', '@screenonly', '@viewport-rule'], 1],
+        ['Which property rounds corners?', ['border-radius', 'corner-size', 'radius', 'border-curve'], 0],
+        ['Which value makes overflow scroll only when needed?', ['auto', 'hidden', 'visible', 'clip-only'], 0]
+      ]
+    },
+    js: {
+      key: 'js', short: 'JS', title: 'JavaScript Fundamentals', icon: '⚙️', accent: '#ca8a04',
+      description: 'Add logic and interaction with variables, functions, DOM events, storage, timers, and async basics.',
+      editorLabel: 'JavaScript',
+      topics: [
+        topic('intro', 'JavaScript & Output', 'Use JavaScript to make webpages respond and change.', 'JavaScript can calculate values, react to events, update the DOM, and communicate with services. console.log() is useful for debugging while textContent can show results on the page.', 'console.log("Hello JavaScript!");\ndocument.querySelector("#output").textContent = "Hello!";', 'document.querySelector("#output").textContent = "Ready";', 'Change the output text to “Hello JavaScript!”.', ['Hello JavaScript!'], { q: 'Which method is commonly used to print a debugging message?', options: ['console.log()', 'document.print()', 'debug.show()', 'window.text()'], answer: 0 }, { previewHtml: '<h2 id="output">Ready</h2>' }),
+        topic('variables', 'Variables & Constants', 'Store values with let and const.', 'Use const when a binding should not be reassigned and let when its value will change. Avoid var in new beginner code unless you are learning legacy behavior.', 'const name = "Ana";\nlet score = 0;\nscore = score + 1;', 'let points = 5;\npoints = points + 5;\ndocument.querySelector("#output").textContent = points;', 'Create a const named course with the value "ICT".', ['const', 'course', 'ICT'], { q: 'Which keyword is best when the variable will not be reassigned?', options: ['var', 'const', 'change', 'fixed'], answer: 1 }, { previewHtml: '<p id="output">0</p>' }),
+        topic('types', 'Data Types', 'Work with strings, numbers, booleans, arrays, objects, and more.', 'Common JavaScript types include string, number, boolean, undefined, bigint, symbol, and object. Arrays are objects designed for ordered collections.', 'const name = "Lia";\nconst age = 14;\nconst online = true;\nconst skills = ["HTML", "CSS"];', 'const city = "Jolo";\nconst year = 2026;\n', 'Create a boolean variable named learning and set it to true.', ['learning', 'true'], { q: 'What type is true?', options: ['string', 'number', 'boolean', 'object'], answer: 2 }, { previewHtml: '<pre id="output">Open the console mentally: types matter!</pre>' }),
+        topic('operators', 'Operators', 'Calculate and compare values.', 'Arithmetic operators calculate values. Comparison operators such as ===, >, and <= produce booleans. Prefer strict equality === when comparing values.', 'const total = 8 + 4;\nconst passed = total >= 10;\nconsole.log(total, passed);', 'const a = 7;\nconst b = 3;\ndocument.querySelector("#output").textContent = a + b;', 'Change the calculation so output shows the product of a and b.', ['a * b'], { q: 'Which operator checks strict equality?', options: ['=', '==', '===', '!='], answer: 2 }, { previewHtml: '<strong id="output"></strong>' }),
+        topic('strings', 'Strings & Template Literals', 'Build text from values.', 'Template literals use backticks and ${...} placeholders. They are often easier to read than long chains of string concatenation.', 'const name = "Mika";\nconst message = `Hello, ${name}!`;\nconsole.log(message);', 'const name = "Student";\ndocument.querySelector("#output").textContent = "Hello " + name;', 'Rewrite the greeting using a template literal with ${name}.', ['`', '${name}'], { q: 'Which characters create a template literal?', options: ['Single quotes', 'Double quotes', 'Backticks', 'Parentheses'], answer: 2 }, { previewHtml: '<p id="output"></p>' }),
+        topic('arrays', 'Arrays', 'Keep ordered collections of values.', 'Arrays use zero-based indexes. Useful methods include push, pop, includes, map, filter, and forEach.', 'const colors = ["red", "blue"];\ncolors.push("green");\nconsole.log(colors[0]);', 'const fruits = ["apple", "banana"];\nfruits.push("orange");\ndocument.querySelector("#output").textContent = fruits.join(", ");', 'Add “mango” to the array using push().', ['push(', 'mango'], { q: 'What index is the first array item?', options: ['0', '1', '-1', 'first'], answer: 0 }, { previewHtml: '<p id="output"></p>' }),
+        topic('objects', 'Objects', 'Group related properties and values.', 'Objects store key-value pairs. Use dot notation or bracket notation to read and update properties.', 'const student = { name: "Ana", grade: 8 };\nconsole.log(student.name);', 'const student = { name: "Ana", grade: 8 };\ndocument.querySelector("#output").textContent = student.name;', 'Add a property section with the value "St. Matthew".', ['section', 'St. Matthew'], { q: 'Which accesses the name property?', options: ['student->name', 'student.name', 'student:name', 'name.student'], answer: 1 }, { previewHtml: '<p id="output"></p>' }),
+        topic('conditions', 'If / Else', 'Make decisions based on conditions.', 'if runs code when a condition is true. else handles the alternative. else if lets you test more possibilities.', 'const score = 85;\nif (score >= 75) {\n  console.log("Passed");\n} else {\n  console.log("Try again");\n}', 'const score = 90;\nlet result = "";\nif (score >= 75) { result = "Passed"; }\ndocument.querySelector("#output").textContent = result;', 'Add an else branch that sets result to “Try again”.', ['else', 'Try again'], { q: 'Which block runs when an if condition is false?', options: ['then', 'else', 'switch only', 'return'], answer: 1 }, { previewHtml: '<p id="output"></p>' }),
+        topic('switch', 'Switch', 'Choose among several exact cases.', 'switch can be clearer when comparing one value against several possible cases. break prevents execution from falling into the next case.', 'const day = "Mon";\nswitch (day) {\n  case "Mon": console.log("Start"); break;\n  default: console.log("Another day");\n}', 'const level = "easy";\nlet message = "";\nswitch (level) {\n  case "easy": message = "Warm up"; break;\n}\ndocument.querySelector("#output").textContent = message;', 'Add a default case that sets message to “Keep learning”.', ['default:', 'Keep learning'], { q: 'What usually stops one switch case from continuing into the next?', options: ['stop', 'break', 'exitcase', 'end'], answer: 1 }, { previewHtml: '<p id="output"></p>' }),
+        topic('loops', 'Loops', 'Repeat work without rewriting the same code.', 'for loops are useful when you know the iteration pattern. while loops repeat while a condition stays true. Always make sure a loop can eventually stop.', 'for (let i = 1; i <= 3; i++) {\n  console.log(i);\n}', 'let text = "";\nfor (let i = 1; i <= 3; i++) { text += i + " "; }\ndocument.querySelector("#output").textContent = text;', 'Change the loop so it counts from 1 through 5.', ['i <= 5'], { q: 'Which loop is common for a known counter pattern?', options: ['for', 'if', 'switch', 'try'], answer: 0 }, { previewHtml: '<p id="output"></p>' }),
+        topic('functions', 'Functions', 'Package reusable logic into named actions.', 'Functions group reusable behavior. Parameters receive inputs and return sends a result back to the caller.', 'function greet(name) {\n  return `Hello, ${name}!`;\n}\nconsole.log(greet("Kai"));', 'function double(number) {\n  return number;\n}\ndocument.querySelector("#output").textContent = double(4);', 'Make double() return number * 2.', ['return', 'number * 2'], { q: 'Which keyword sends a value back from a function?', options: ['give', 'return', 'send', 'yield always'], answer: 1 }, { previewHtml: '<p id="output"></p>' }),
+        topic('scope', 'Scope', 'Understand where variables can be accessed.', 'Variables declared inside a block or function may only exist there. let and const are block-scoped. Good scope keeps code predictable.', 'const outside = "visible";\nif (true) {\n  const inside = "local";\n  console.log(outside, inside);\n}', 'if (true) {\n  const secret = "inside";\n}\nconst message = "outside";\ndocument.querySelector("#output").textContent = message;', 'Create a block-scoped let variable named count inside the if block.', ['let', 'count'], { q: 'Which keywords are block-scoped?', options: ['let and const', 'var only', 'function only', 'all HTML attributes'], answer: 0 }, { previewHtml: '<p id="output"></p>' }),
+        topic('selectors', 'DOM Selectors', 'Find HTML elements so JavaScript can work with them.', 'querySelector returns the first matching element. querySelectorAll returns a collection of matches. IDs can also be accessed with getElementById.', 'const title = document.querySelector("h1");\nconst cards = document.querySelectorAll(".card");', 'const title = document.querySelector("#title");\ntitle.textContent = "Old title";', 'Change the selected title text to “New title”.', ['New title'], { q: 'Which selects the first element matching a CSS selector?', options: ['querySelector()', 'findHTML()', 'getCSS()', 'selectFirstHTML()'], answer: 0 }, { previewHtml: '<h2 id="title">Old title</h2>', level: 'Intermediate' }),
+        topic('dom-change', 'Changing the DOM & Styles', 'Update page content and classes from JavaScript.', 'textContent changes text safely. classList can add, remove, or toggle CSS classes. style can set inline styles for small dynamic changes.', 'const box = document.querySelector(".box");\nbox.textContent = "Updated";\nbox.classList.add("active");', 'const box = document.querySelector(".box");\nbox.textContent = "Ready";', 'Set the box text to “Updated by JavaScript”.', ['Updated by JavaScript'], { q: 'Which property is a safe way to replace plain text?', options: ['textContent', 'outerScript', 'cssText only', 'href'], answer: 0 }, { previewHtml: '<div class="box">Ready</div>', level: 'Intermediate' }),
+        topic('events', 'Events', 'Respond to clicks, input, keys, and other user actions.', 'addEventListener attaches behavior without replacing other listeners. Common events include click, input, change, submit, and keydown.', 'button.addEventListener("click", () => {\n  console.log("Clicked!");\n});', 'const button = document.querySelector("#btn");\nconst output = document.querySelector("#output");\n', 'Add a click listener that sets output.textContent to “Clicked!”.', ['addEventListener', 'click', 'Clicked!'], { q: 'Which event is fired when a button is activated with a click?', options: ['press', 'taponly', 'click', 'activateevent'], answer: 2 }, { previewHtml: '<button id="btn">Click me</button><p id="output">Waiting...</p>', level: 'Intermediate' }),
+        topic('forms', 'Forms & Validation', 'Read user input and prevent invalid submissions.', 'Form submit events can be intercepted with preventDefault() when you want JavaScript to handle the action. Input values are strings unless you convert them.', 'form.addEventListener("submit", event => {\n  event.preventDefault();\n  const name = input.value.trim();\n});', 'const form = document.querySelector("#form");\nform.addEventListener("submit", event => {\n  // stop page reload here\n});', 'Call event.preventDefault() inside the submit listener.', ['preventDefault()'], { q: 'Which method stops the browser’s default submit navigation?', options: ['event.preventDefault()', 'event.stopPage()', 'form.cancel()', 'returnHTML()'], answer: 0 }, { previewHtml: '<form id="form"><input placeholder="Name"><button>Submit</button></form>', level: 'Intermediate' }),
+        topic('math', 'Math & Random', 'Use built-in math tools for calculations and games.', 'Math provides helpers such as round, floor, ceil, max, min, and random. Math.random() returns a number from 0 up to but not including 1.', 'const die = Math.floor(Math.random() * 6) + 1;\nconsole.log(die);', 'const random = Math.random();\ndocument.querySelector("#output").textContent = random;', 'Create a random whole number from 1 to 10 using Math.floor and Math.random.', ['Math.floor', 'Math.random', '* 10', '+ 1'], { q: 'What range does Math.random() use?', options: ['0 inclusive to 1 exclusive', '1 to 100 only', '-1 to 1', 'Whole numbers only'], answer: 0 }, { previewHtml: '<p id="output"></p>', level: 'Intermediate' }),
+        topic('timers', 'Dates & Timers', 'Work with time and schedule future actions.', 'Date represents dates and times. setTimeout runs once after a delay; setInterval repeats until cleared.', 'const now = new Date();\nsetTimeout(() => console.log("Done"), 1000);', 'document.querySelector("#output").textContent = "Waiting...";\n', 'Use setTimeout to change the output to “Done!” after 1000 ms.', ['setTimeout', '1000', 'Done!'], { q: 'Which function repeats a callback on an interval?', options: ['setInterval()', 'setTimeout()', 'repeatDate()', 'loopTime()'], answer: 0 }, { previewHtml: '<p id="output">Waiting...</p>', level: 'Intermediate' }),
+        topic('storage-json', 'JSON & Local Storage', 'Save small pieces of data in the browser.', 'localStorage stores strings that remain after a reload. JSON.stringify converts objects to strings, while JSON.parse converts them back. Do not store passwords or secrets there.', 'const settings = { theme: "dark" };\nlocalStorage.setItem("settings", JSON.stringify(settings));\nconst saved = JSON.parse(localStorage.getItem("settings"));', 'const profile = { name: "Ana" };\nconst text = JSON.stringify(profile);\ndocument.querySelector("#output").textContent = text;', 'Store the JSON text in localStorage using the key "profile".', ['localStorage.setItem', 'profile'], { q: 'What does JSON.stringify() return?', options: ['A string', 'A DOM node', 'A number always', 'A database'], answer: 0 }, { previewHtml: '<pre id="output"></pre>', level: 'Intermediate' }),
+        topic('async', 'Async & Fetch Basics', 'Understand the idea of waiting for network results.', 'fetch returns a Promise. async/await can make asynchronous code easier to read. Network requests may fail, so real apps should handle errors.', 'async function loadData() {\n  const response = await fetch("data.json");\n  const data = await response.json();\n  console.log(data);\n}', 'async function demo() {\n  const value = Promise.resolve("Loaded");\n  const result = await value;\n  document.querySelector("#output").textContent = result;\n}\ndemo();', 'Keep the function async and use await to get the Promise result before displaying it.', ['async', 'await'], { q: 'What does fetch() return?', options: ['A Promise', 'Only a string', 'An HTML tag', 'A CSS rule'], answer: 0 }, { previewHtml: '<p id="output">Waiting...</p>', level: 'Intermediate' })
+      ],
+      finalQuiz: [
+        ['Which keyword declares a value that should not be reassigned?', ['const', 'letchange', 'static', 'fixed'], 0],
+        ['Which DOM method selects the first CSS-selector match?', ['querySelector()', 'getOne()', 'select()', 'findTag()'], 0],
+        ['Which method attaches a click handler without replacing other listeners?', ['addEventListener()', 'onclickOnly()', 'listenDOM()', 'eventAdd()'], 0],
+        ['Which converts an object to JSON text?', ['JSON.stringify()', 'JSON.parse()', 'JSON.object()', 'toJSONOnly()'], 0],
+        ['Which keyword pauses inside an async function until a Promise settles?', ['await', 'pause', 'hold', 'defer'], 0]
+      ]
+    }
+  };
+
+  const TOPIC_ENRICHMENT = {
+    'html.document': ['A clean document structure helps browsers, accessibility tools, and developers understand where page information and visible content belong.', 'Keep page metadata in the head and visible content in the body. Use one clear structure before adding more elements.'],
+    'html.headings': ['Headings create a readable outline, while paragraphs hold normal body text. Good structure helps both people and assistive technology scan a page.', 'Use heading levels in a logical order. Do not choose h1–h6 only because of their default size; CSS can control size later.'],
+    'html.formatting': ['Text-formatting elements add meaning or emphasis to words without changing the overall document structure.', 'Prefer semantic emphasis such as strong and em when the meaning matters, rather than styling text only for appearance.'],
+    'html.links': ['Links connect pages, sections, files, and external resources, making navigation possible across a website.', 'Use meaningful link text. For same-page navigation, match href="#id" with an element that has the same id.'],
+    'html.images': ['Images communicate visually, while alt text gives important context when an image cannot be seen or loaded.', 'Write useful alt text that describes the image purpose. Decorative images may use an empty alt value when appropriate.'],
+    'html.lists': ['Lists group related information so steps, choices, or items are easier to scan.', 'Use ul when order does not matter and ol when sequence or ranking matters. Put each item inside li.'],
+    'html.tables': ['Tables are designed for real rows-and-columns data such as schedules, scores, and comparisons.', 'Use th for headers and td for data. Avoid using tables only to position page layout.'],
+    'html.forms': ['Forms collect information from users and combine labels, controls, and submission behavior.', 'Pair each important form control with a clear label so users know what information is expected.'],
+    'html.inputs': ['Different input types give browsers better keyboards, validation hints, and controls for specific kinds of data.', 'Choose the input type that matches the data: email for email addresses, number for numbers, date for dates, and so on.'],
+    'html.semantic': ['Semantic elements describe the purpose of page regions, making structure clearer to developers, search engines, and assistive technology.', 'Use header, nav, main, section, article, aside, and footer for their meaning—not simply as generic boxes.'],
+    'html.media': ['Native audio and video elements let webpages present media with browser controls and fallback content.', 'Include controls when users need playback control and provide usable source formats or fallback text.'],
+    'html.iframe': ['An iframe embeds another webpage or supported resource inside the current page.', 'Use iframes only when embedding is appropriate, give them a useful title, and remember that external sites may block embedding.'],
+    'html.classes-ids': ['Classes and IDs give elements reusable or unique identifiers that CSS, links, and JavaScript can target.', 'Reuse a class across many elements. Keep an id unique within the page.'],
+    'html.div-span': ['Div and span are generic containers useful when no more meaningful semantic element fits the job.', 'Div is block-level by default; span is inline by default. Prefer semantic elements when they better describe the content.'],
+    'html.entities': ['HTML entities let you display reserved characters and symbols that may otherwise be interpreted as markup.', 'Use entities when you need to show characters such as <, >, &, or special symbols as text.'],
+    'html.accessibility': ['Accessible HTML helps more people use a site, including keyboard and screen-reader users.', 'Start with semantic HTML, useful alt text, labels, meaningful headings, and controls that work without a mouse.'],
+    'html.meta-seo': ['Metadata helps browsers and search engines understand page settings, summaries, encoding, and responsive behavior.', 'A descriptive title, viewport meta tag, correct charset, and useful description are strong basics for a well-formed page.'],
+    'html.paths': ['File paths tell the browser where another page, stylesheet, script, image, or media file is located.', 'Relative paths depend on the current file location. Keep project folders organized so links remain predictable.'],
+    'css.syntax': ['Selectors choose elements and declarations define how those elements should look.', 'A CSS rule needs a selector, braces, property names, colons, and values. Check punctuation when a rule appears to do nothing.'],
+    'css.colors': ['Color helps create hierarchy, identity, and readability across text, backgrounds, borders, and interface states.', 'Always check contrast. A beautiful color combination is not useful if text becomes difficult to read.'],
+    'css.backgrounds': ['Background properties can add solid colors, images, gradients, positioning, and visual depth behind content.', 'Keep foreground text readable and control background size/position when using images.'],
+    'css.borders': ['Borders and radius define edges, separation, and shape for cards, buttons, inputs, and sections.', 'Border needs width, style, and color to be visible. Radius rounds corners but does not create spacing.'],
+    'css.box-model': ['Every visible element is a box made of content, padding, border, and margin.', 'Use box-sizing:border-box when you want declared width and height to include padding and border.'],
+    'css.sizing': ['CSS units let layouts respond to containers, fonts, and viewports instead of relying only on fixed pixels.', 'Use percentages, rem, em, vw/vh, min/max sizes, and pixels intentionally based on what should stay fixed or flexible.'],
+    'css.typography': ['Typography controls readability and visual hierarchy through font family, size, weight, line height, and spacing.', 'Readable line height and consistent font sizes matter more than using many different fonts.'],
+    'css.display': ['Display controls how an element participates in layout, including block, inline, inline-block, flex, grid, and none.', 'Changing display can affect width, height, alignment, and how neighboring elements flow.'],
+    'css.position': ['Positioning lets elements stay in normal flow or move relative to a containing block or viewport.', 'Absolute positioning is removed from normal flow. Use it carefully and understand which ancestor establishes the positioning context.'],
+    'css.overflow': ['Overflow controls what happens when content is larger than its box: visible, hidden, clipped, or scrollable.', 'Avoid overflow:hidden on page roots unless you truly want to prevent scrolling; it can make content unreachable.'],
+    'css.flexbox': ['Flexbox is ideal for arranging items in one main direction with powerful alignment and spacing controls.', 'Remember the main axis and cross axis. justify-content works on the main axis; align-items works on the cross axis.'],
+    'css.grid': ['CSS Grid creates two-dimensional row-and-column layouts that are useful for galleries, dashboards, and page sections.', 'Define tracks on the container, then let items occupy cells or spans. Grid and Flexbox can be used together.'],
+    'css.pseudo-classes': ['Pseudo-classes style an element in a state such as hover, focus, checked, first-child, or nth-child.', 'Use focus styles as carefully as hover styles so keyboard users can see where they are.'],
+    'css.pseudo-elements': ['Pseudo-elements style a specific virtual part of an element, commonly ::before and ::after.', 'Generated content should be decorative or supportive; important information should still exist in the HTML.'],
+    'css.shadows': ['Shadows can communicate elevation, focus, or separation when used with restraint.', 'Use subtle blur, spread, and opacity. Strong shadows everywhere make interfaces harder to scan.'],
+    'css.gradients': ['Gradients create smooth color transitions without requiring an image file.', 'Choose direction and color stops carefully, and keep text contrast readable over the entire gradient.'],
+    'css.transform': ['Transforms visually move, rotate, scale, or skew elements without changing normal document flow.', 'Transforms affect appearance, not the original layout space. This is useful for animation and small visual adjustments.'],
+    'css.transitions': ['Transitions animate changes between property values, making hover and state changes feel smoother.', 'Transition only properties that need animation and choose durations that feel responsive rather than slow.'],
+    'css.animations': ['Keyframe animations define multiple stages of movement or style change over time.', 'Use animation with purpose and avoid excessive motion. Respect reduced-motion preferences in real projects.'],
+    'css.responsive': ['Responsive design adapts layout and styling to different screen sizes and device capabilities.', 'Design flexible layouts first, then use media queries where the content genuinely needs a different arrangement.'],
+    'js.intro': ['JavaScript adds behavior and logic so a webpage can respond, calculate, update content, and interact with data.', 'Use the console and small experiments to understand what each statement does before combining many ideas.'],
+    'js.variables': ['Variables store values that your program can read and update while it runs.', 'Prefer const when a binding should not be reassigned and let when the value must change.'],
+    'js.types': ['Data types describe what kind of value you are working with, such as strings, numbers, booleans, objects, or undefined.', 'Knowing the type helps you choose valid operations and avoid surprising conversions.'],
+    'js.operators': ['Operators combine, compare, assign, and transform values in expressions.', 'Distinguish assignment = from comparison operators such as ===. Use parentheses when expression order could be unclear.'],
+    'js.strings': ['Strings represent text and can be combined, searched, transformed, or built with template literals.', 'Template literals use backticks and ${...} expressions, which often make mixed text and values easier to read.'],
+    'js.arrays': ['Arrays store ordered collections and provide methods for adding, removing, searching, and transforming items.', 'Array positions start at index 0. Use array methods when they express the task more clearly than manual index changes.'],
+    'js.objects': ['Objects group related values under named properties, making structured data easier to model.', 'Access properties with dot notation when the property name is known, or bracket notation when it is dynamic.'],
+    'js.conditions': ['Conditional statements let a program choose what to do based on true-or-false expressions.', 'Write conditions that are easy to read and test edge cases, not only the expected case.'],
+    'js.switch': ['Switch is useful when one expression is compared against several specific cases.', 'Remember break when you do not want execution to continue into the next case, and consider a default case.'],
+    'js.loops': ['Loops repeat work while controlling when repetition starts and stops.', 'Make sure the loop condition can eventually become false; otherwise you can create an infinite loop.'],
+    'js.functions': ['Functions package reusable behavior, accept inputs through parameters, and can return results.', 'Give functions one clear job and descriptive names. Return a value when other code needs the result.'],
+    'js.scope': ['Scope determines where a variable or function can be accessed in your program.', 'let and const are block-scoped. Keep variables as local as possible to reduce accidental conflicts.'],
+    'js.selectors': ['DOM selectors connect JavaScript to elements already present in the webpage.', 'Check that a selector actually matches an element before using the returned value. IDs use # and classes use . in CSS-style selectors.'],
+    'js.dom-change': ['DOM APIs let JavaScript change text, attributes, classes, styles, and even create or remove elements.', 'Prefer changing classes for larger style changes instead of setting many inline style properties one by one.'],
+    'js.events': ['Events let code react when users click, type, submit, focus, scroll, or interact in other ways.', 'Pass a function to addEventListener. Avoid calling the function immediately unless that is what you intend.'],
+    'js.forms': ['JavaScript can inspect form values, validate input, and provide feedback before or after submission.', 'Client-side validation improves experience, but important real applications still validate data on the server too.'],
+    'js.math': ['Math utilities help with rounding, powers, random numbers, absolute values, and other calculations.', 'Math.random returns a value from 0 inclusive up to 1 exclusive, so scale it carefully for ranges.'],
+    'js.timers': ['Dates represent moments in time, while timers schedule code to run later or repeatedly.', 'Store timer IDs when you may need to cancel them with clearTimeout or clearInterval.'],
+    'js.storage-json': ['JSON is a text format for structured data, while localStorage keeps string data in the browser between page loads.', 'Use JSON.stringify before storing objects and JSON.parse after reading them back.'],
+    'js.async': ['Asynchronous code lets a page wait for operations such as network requests without freezing the rest of the interface.', 'Promises represent future results. async/await makes many Promise-based flows easier to read, but errors should still be handled.']
+  };
+
+  function getTopicEnrichment(courseKey, item) {
+    const fallbackWhy = courseKey === 'html'
+      ? `This HTML concept helps create clearer, more meaningful page structure. ${item.blurb}`
+      : courseKey === 'css'
+        ? `This CSS concept helps control how a webpage looks and adapts. ${item.blurb}`
+        : `This JavaScript concept helps add behavior and logic to webpages. ${item.blurb}`;
+    const fallbackTip = `Read the example carefully, then change one part at a time in the practice editor so you can see what the concept controls.`;
+    const value = TOPIC_ENRICHMENT[`${courseKey}.${item.id}`] || [fallbackWhy, fallbackTip];
+    return { why: value[0], tip: value[1] };
+  }
+
+  function estimatedTopicMinutes(item) {
+    return Math.max(8, Number(item?.minutes || 5) + 3);
+  }
+
+  function firstSentence(value) {
+    const text = String(value || '').trim();
+    const match = text.match(/^(.+?[.!?])(?:\\s|$)/);
+    return (match ? match[1] : text).slice(0, 180);
+  }
+
+  function stableHash(value) {
+    let hash = 2166136261;
+    const text = String(value || '');
+    for (let i = 0; i < text.length; i += 1) { hash ^= text.charCodeAt(i); hash = Math.imul(hash, 16777619); }
+    return hash >>> 0;
+  }
+
+  function quickCheckPeers(course, item) {
+    const index = Math.max(0, course.topics.findIndex(entry => entry.id === item.id));
+    const count = course.topics.length;
+    const offsets = [1, Math.max(2, Math.floor(count / 3)), Math.max(3, Math.floor(count * 2 / 3)), count - 1];
+    const peers = [];
+    offsets.forEach(offset => {
+      const candidate = course.topics[(index + offset) % count];
+      if (candidate && candidate.id !== item.id && !peers.some(entry => entry.id === candidate.id)) peers.push(candidate);
+    });
+    for (const candidate of course.topics) {
+      if (peers.length >= 3) break;
+      if (candidate.id !== item.id && !peers.some(entry => entry.id === candidate.id)) peers.push(candidate);
+    }
+    return peers.slice(0, 3);
+  }
+
+  function rotateQuickOptions(values, correctIndex, salt) {
+    const list = values.map(value => String(value || '').trim());
+    const rotation = list.length ? stableHash(salt) % list.length : 0;
+    const rotated = list.slice(rotation).concat(list.slice(0, rotation));
+    const answer = (correctIndex - rotation + list.length) % list.length;
+    return { options: rotated, answer };
+  }
+
+  function distinctTopicOptions(item, peers, selector) {
+    const sources = [item, ...peers];
+    const seen = new Set();
+    return sources.map((entry, index) => {
+      let value = String(selector(entry) || entry.title || '').trim();
+      const key = value.toLowerCase();
+      if (!value || seen.has(key)) value = `${value || 'Concept'} — ${entry.title}`;
+      seen.add(String(value).toLowerCase());
+      return value;
+    });
+  }
+
+  function buildQuickCheckQuestions(course, item) {
+    const peers = quickCheckPeers(course, item);
+    const original = item.quiz || { q: `Which statement best matches ${item.title}?`, options: [item.blurb, ...peers.map(entry => entry.blurb)], answer: 0 };
+    const purpose = rotateQuickOptions(distinctTopicOptions(item, peers, entry => entry.blurb), 0, `${course.key}:${item.id}:purpose`);
+    const explanation = rotateQuickOptions(distinctTopicOptions(item, peers, entry => firstSentence(entry.explanation)), 0, `${course.key}:${item.id}:explanation`);
+    const challenge = rotateQuickOptions(distinctTopicOptions(item, peers, entry => entry.challenge), 0, `${course.key}:${item.id}:challenge`);
+    const why = rotateQuickOptions(distinctTopicOptions(item, peers, entry => getTopicEnrichment(course.key, entry).why), 0, `${course.key}:${item.id}:why`);
+    return [
+      { q: original.q, options: original.options.slice(0, 4), answer: Number(original.answer || 0) },
+      { q: `What is the main goal of “${item.title}”?`, options: purpose.options, answer: purpose.answer },
+      { q: `Which statement correctly describes “${item.title}”?`, options: explanation.options, answer: explanation.answer },
+      { q: `Which practice task belongs to this “${item.title}” topic?`, options: challenge.options, answer: challenge.answer },
+      { q: `Why is “${item.title}” useful in a real webpage or program?`, options: why.options, answer: why.answer }
+    ];
+  }
+
+  const COURSE_KEYS = ['html', 'css', 'js'];
+  const HEARTS_DEFAULT = 5;
+  const HEARTS_MAX = 5;
+  const HEART_REFILL_MS = 60 * 60 * 1000;
+  const state = { course: 'html', topicId: '', filter: 'all', progress: null, reader: '', cloudLoaded: false, dashboardCloudLoading: false, saveTimer: null, heartTimer: null, profileUnsub: null, finalAnswers: {}, quickQuiz: { topicId: '', index: 0, answers: [], submitted: false } };
+
+  function normalizeHeartState(input = {}) {
+    const source = input && typeof input === 'object' ? input : {};
+    const raw = Number(source.balance);
+    return {
+      balance: Number.isFinite(raw) ? Math.max(0, Math.min(HEARTS_MAX, Math.floor(raw))) : HEARTS_DEFAULT,
+      lastRefillAt: String(source.lastRefillAt || ''),
+      updatedAt: String(source.updatedAt || '')
+    };
+  }
+
+  function emptyProgress() {
+    return { version: 1, hearts: normalizeHeartState(), courses: { html: { topics: {}, final: {}, certificate: {} }, css: { topics: {}, final: {}, certificate: {} }, js: { topics: {}, final: {}, certificate: {} } }, updatedAt: '' };
+  }
+
+  function heartSnapshotFromState(input = {}, nowMs = Date.now()) {
+    const hearts = normalizeHeartState(input);
+    let balance = hearts.balance;
+    let anchorMs = Date.parse(hearts.lastRefillAt || '');
+    if (!Number.isFinite(anchorMs)) anchorMs = nowMs;
+    if (balance < HEARTS_MAX) {
+      const elapsed = Math.max(0, nowMs - anchorMs);
+      const refillCount = Math.floor(elapsed / HEART_REFILL_MS);
+      if (refillCount > 0) {
+        const room = HEARTS_MAX - balance;
+        const applied = Math.min(room, refillCount);
+        balance += applied;
+        anchorMs += applied * HEART_REFILL_MS;
+      }
+    }
+    const nextInMs = balance >= HEARTS_MAX ? 0 : Math.max(0, HEART_REFILL_MS - Math.max(0, nowMs - anchorMs));
+    return { balance, lastRefillAt: new Date(anchorMs).toISOString(), nextInMs, max: HEARTS_MAX };
+  }
+
+  function applyHeartRefill(progress = state.progress, options = {}) {
+    if (!progress) return { balance: HEARTS_DEFAULT, lastRefillAt: new Date().toISOString(), nextInMs: HEART_REFILL_MS, max: HEARTS_MAX, changed: false };
+    const before = normalizeHeartState(progress.hearts);
+    const nowMs = Date.now();
+    const snapshot = heartSnapshotFromState(before, nowMs);
+    const hadAnchor = Number.isFinite(Date.parse(before.lastRefillAt || ''));
+    const changed = !hadAnchor || snapshot.balance !== before.balance || snapshot.lastRefillAt !== before.lastRefillAt;
+    progress.hearts = {
+      balance: snapshot.balance,
+      lastRefillAt: snapshot.lastRefillAt,
+      updatedAt: changed ? new Date(nowMs).toISOString() : before.updatedAt
+    };
+    if (changed && options.persist) scheduleCloudSave();
+    return { ...snapshot, changed };
+  }
+
+  function currentHeartSnapshot(progress = state.progress) {
+    return heartSnapshotFromState(progress?.hearts || {});
+  }
+
+  function formatHeartCountdown(ms) {
+    const totalMinutes = Math.max(1, Math.ceil(Number(ms || 0) / 60000));
+    if (totalMinutes >= 60) {
+      const hours = Math.floor(totalMinutes / 60);
+      const minutes = totalMinutes % 60;
+      return minutes ? `${hours}h ${minutes}m` : `${hours}h`;
+    }
+    return `${totalMinutes}m`;
+  }
+
+  function renderHeartStatus() {
+    if (!dom.heartBadge || !state.progress) return;
+    const snapshot = currentHeartSnapshot();
+    dom.heartBadge.textContent = snapshot.balance >= HEARTS_MAX
+      ? `❤️ ${snapshot.balance}/${HEARTS_MAX}`
+      : `❤️ ${snapshot.balance}/${HEARTS_MAX} · +1 in ${formatHeartCountdown(snapshot.nextInMs)}`;
+    dom.heartBadge.dataset.state = snapshot.balance <= 0 ? 'empty' : (snapshot.balance >= HEARTS_MAX ? 'full' : 'ready');
+    dom.heartBadge.title = snapshot.balance <= 0
+      ? `Out of hearts. One heart returns in ${formatHeartCountdown(snapshot.nextInMs)}. Lessons and coding practice still work.`
+      : `Wrong scored answers cost 1 heart each. Hearts refill by 1 every hour up to ${HEARTS_MAX}.`;
+  }
+
+  function spendHearts(requested = 0) {
+    if (!state.progress) return 0;
+    const refreshed = applyHeartRefill(state.progress);
+    const wanted = Math.max(0, Math.floor(Number(requested || 0)));
+    if (!wanted || refreshed.balance <= 0) return 0;
+    const hearts = normalizeHeartState(state.progress.hearts);
+    const wasFull = hearts.balance >= HEARTS_MAX;
+    const spent = Math.min(wanted, hearts.balance);
+    hearts.balance -= spent;
+    if (wasFull) hearts.lastRefillAt = new Date().toISOString();
+    hearts.updatedAt = new Date().toISOString();
+    state.progress.hearts = hearts;
+    scheduleCloudSave();
+    renderHeartStatus();
+    return spent;
+  }
+
+  function heartOutMessage() {
+    const snapshot = currentHeartSnapshot();
+    return `You are out of hearts. Your next heart returns in ${formatHeartCountdown(snapshot.nextInMs)}. You can keep reading lessons and using coding practice while you wait.`;
+  }
+
+  function startHeartTicker() {
+    clearInterval(state.heartTimer);
+    applyHeartRefill(state.progress, { persist: true });
+    renderHeartStatus();
+    state.heartTimer = window.setInterval(() => {
+      const result = applyHeartRefill(state.progress, { persist: true });
+      renderHeartStatus();
+      if (result.changed) {
+        renderQuickQuiz();
+        renderFinalCard();
+      }
+    }, 30000);
+  }
+
+  function stopHeartTicker() {
+    clearInterval(state.heartTimer);
+    state.heartTimer = null;
+  }
+
+  function stopExplorerProfileListener() {
+    try { state.profileUnsub?.(); } catch (_) {}
+    state.profileUnsub = null;
+  }
+
+  async function startExplorerProfileListener() {
+    stopExplorerProfileListener();
+    if (!appSession.student?.uid || appSession.mode !== 'student') return;
+    try {
+      const ready = await initFirebaseSync();
+      if (!ready) return;
+      const { onSnapshot } = firebaseSync.modules;
+      state.profileUnsub = onSnapshot(getStudentDocRef(appSession.student.uid), snapshot => {
+        if (!snapshotExists(snapshot) || !state.progress) return;
+        const profile = snapshotData(snapshot);
+        const remote = normalizeProgress(profile?.codeExplorerProgress || {});
+        const localHeart = normalizeHeartState(state.progress.hearts || {});
+        const remoteHeart = normalizeHeartState(remote.hearts || {});
+        const localTime = Date.parse(localHeart.updatedAt || '') || 0;
+        const remoteTime = Date.parse(remoteHeart.updatedAt || '') || 0;
+        if (remoteTime <= localTime) return;
+        state.progress.hearts = remoteHeart;
+        saveLocalProgress(state.progress);
+        renderHeartStatus();
+        renderQuickQuiz();
+        renderFinalCard();
+      }, error => console.info('Code Explorer live heart sync unavailable.', error));
+    } catch (error) {
+      console.info('Code Explorer live heart sync skipped.', error);
+    }
+  }
+
+  function normalizeProgress(input = {}) {
+    const base = emptyProgress();
+    const source = input && typeof input === 'object' ? input : {};
+    base.hearts = normalizeHeartState(source.hearts || {});
+    COURSE_KEYS.forEach(key => {
+      const src = source.courses?.[key] || {};
+      base.courses[key].topics = src.topics && typeof src.topics === 'object' ? { ...src.topics } : {};
+      base.courses[key].final = src.final && typeof src.final === 'object' ? { ...src.final } : {};
+      base.courses[key].certificate = src.certificate && typeof src.certificate === 'object' ? { ...src.certificate } : {};
+      base.courses[key].lastTopicId = String(src.lastTopicId || '');
+    });
+    base.updatedAt = String(source.updatedAt || '');
+    return base;
+  }
+
+  function readerKey() {
+    const student = appSession.student || appSession.lastStudentProfile || {};
+    return String(student.uid || student.studentIdNormalized || student.studentId || 'local').replace(/[^a-zA-Z0-9_-]/g, '-').slice(0, 96) || 'local';
+  }
+
+  function loadLocalRoot() {
+    const root = loadJSON(STORAGE_KEYS.codeExplorerProgress, {});
+    return root && typeof root === 'object' && !Array.isArray(root) ? root : {};
+  }
+
+  function loadLocalProgress() {
+    const root = loadLocalRoot();
+    return normalizeProgress(root[readerKey()] || {});
+  }
+
+  function ensureReaderProgress() {
+    const currentReader = readerKey();
+    if (!state.progress || state.reader !== currentReader) {
+      state.reader = currentReader;
+      state.progress = loadLocalProgress();
+      state.cloudLoaded = false;
+    }
+    return state.progress;
+  }
+
+  function saveLocalProgress(progress = state.progress) {
+    if (!progress) return;
+    const root = loadLocalRoot();
+    progress.updatedAt = new Date().toISOString();
+    root[readerKey()] = progress;
+    saveJSON(STORAGE_KEYS.codeExplorerProgress, root);
+  }
+
+  function mergeProgress(a, b) {
+    const left = normalizeProgress(a);
+    const right = normalizeProgress(b);
+    COURSE_KEYS.forEach(key => {
+      const ids = new Set([...Object.keys(left.courses[key].topics), ...Object.keys(right.courses[key].topics)]);
+      ids.forEach(id => {
+        const x = left.courses[key].topics[id] || {};
+        const y = right.courses[key].topics[id] || {};
+        const xBest = Math.max(0, Number(x.quizBestCorrect || 0));
+        const yBest = Math.max(0, Number(y.quizBestCorrect || 0));
+        const best = Math.max(xBest, yBest);
+        const latestQuiz = [x.quizAnsweredAt, y.quizAnsweredAt].filter(Boolean).sort().pop() || '';
+        left.courses[key].topics[id] = {
+          openedAt: x.openedAt || y.openedAt || '',
+          lastOpenedAt: [x.lastOpenedAt, y.lastOpenedAt].filter(Boolean).sort().pop() || '',
+          practicePassed: Boolean(x.practicePassed || y.practicePassed),
+          quizPassed: Boolean(x.quizPassed || y.quizPassed),
+          quizFivePassed: Boolean(x.quizFivePassed || y.quizFivePassed),
+          quizBestCorrect: best,
+          quizBestScore: Math.max(Number(x.quizBestScore || 0), Number(y.quizBestScore || 0), best ? Math.round(best / 5 * 100) : 0),
+          quizLastCorrect: latestQuiz === y.quizAnsweredAt ? Number(y.quizLastCorrect || 0) : Number(x.quizLastCorrect || 0),
+          quizLastScore: latestQuiz === y.quizAnsweredAt ? Number(y.quizLastScore || 0) : Number(x.quizLastScore || 0),
+          quizAttempts: Math.max(Number(x.quizAttempts || 0), Number(y.quizAttempts || 0)),
+          quizAnsweredAt: latestQuiz,
+          completedAt: x.completedAt || y.completedAt || '',
+          attempts: Math.max(Number(x.attempts || 0), Number(y.attempts || 0))
+        };
+        if (!left.courses[key].topics[id].completedAt && y.completedAt) left.courses[key].topics[id].completedAt = y.completedAt;
+      });
+      const xf = left.courses[key].final || {};
+      const yf = right.courses[key].final || {};
+      left.courses[key].final = Number(yf.score || 0) > Number(xf.score || 0) ? { ...yf } : { ...xf };
+      if (xf.passed || yf.passed) {
+        left.courses[key].final.passed = true;
+        left.courses[key].final.passedAt = xf.passedAt || yf.passedAt || '';
+        left.courses[key].final.score = Math.max(Number(xf.score || 0), Number(yf.score || 0));
+      }
+      const xc = left.courses[key].certificate || {};
+      const yc = right.courses[key].certificate || {};
+      left.courses[key].certificate = xc.issuedAt ? { ...xc } : (yc.issuedAt ? { ...yc } : {});
+      left.courses[key].lastTopicId = left.courses[key].lastTopicId || right.courses[key].lastTopicId || '';
+    });
+    const leftHearts = normalizeHeartState(left.hearts);
+    const rightHearts = normalizeHeartState(right.hearts);
+    const leftHeartTime = Date.parse(leftHearts.updatedAt || '') || 0;
+    const rightHeartTime = Date.parse(rightHearts.updatedAt || '') || 0;
+    if (rightHeartTime > leftHeartTime) left.hearts = { ...rightHearts };
+    else if (leftHeartTime > rightHeartTime) left.hearts = { ...leftHearts };
+    else left.hearts = { ...(leftHearts.balance <= rightHearts.balance ? leftHearts : rightHearts) };
+    left.updatedAt = [left.updatedAt, right.updatedAt].filter(Boolean).sort().pop() || '';
+    return left;
+  }
+
+  async function loadCloudProgress() {
+    if (!appSession.student?.uid || appSession.mode !== 'student') return null;
+    try {
+      clearSelectiveFirestoreCache(`studentProfile:${appSession.student.uid}`);
+      const profile = await loadStudentProfile(appSession.student.uid);
+      return profile?.codeExplorerProgress ? normalizeProgress(profile.codeExplorerProgress) : null;
+    } catch (error) {
+      console.warn('Code Explorer cloud progress could not be loaded.', error);
+      return null;
+    }
+  }
+
+  function scheduleCloudSave() {
+    saveLocalProgress();
+    clearTimeout(state.saveTimer);
+    state.saveTimer = window.setTimeout(saveCloudProgress, 700);
+  }
+
+  async function saveCloudProgress() {
+    clearTimeout(state.saveTimer);
+    state.saveTimer = null;
+    if (!appSession.student?.uid || appSession.mode !== 'student' || !state.progress) return false;
+    try {
+      const ready = await initFirebaseSync();
+      if (!ready) return false;
+      const { setDoc, serverTimestamp } = firebaseSync.modules;
+      await setDoc(getStudentDocRef(appSession.student.uid), {
+        codeExplorerProgress: normalizeProgress(state.progress),
+        codeExplorerUpdatedAt: serverTimestamp()
+      }, { merge: true });
+      clearSelectiveFirestoreCache(`studentProfile:${appSession.student.uid}`);
+      clearSelectiveFirestoreCache('admin:studentsAndRoster');
+      return true;
+    } catch (error) {
+      console.warn('Code Explorer progress cloud save skipped.', error);
+      return false;
+    }
+  }
+
+  function courseProgressFor(progress, key) {
+    const course = COURSES[key];
+    const records = progress?.courses?.[key]?.topics || {};
+    const completed = course.topics.filter(item => Boolean(records[item.id]?.completedAt)).length;
+    const explored = course.topics.filter(item => Boolean(records[item.id]?.openedAt || records[item.id]?.lastOpenedAt)).length;
+    return { total: course.topics.length, completed, explored, percent: course.topics.length ? Math.round(completed / course.topics.length * 100) : 0 };
+  }
+
+  function courseProgress(key) {
+    return courseProgressFor(state.progress, key);
+  }
+
+  function explorerXpFor(progress) {
+    return COURSE_KEYS.reduce((sum, key) => sum + courseProgressFor(progress, key).completed * 10 + (progress?.courses?.[key]?.final?.passed ? 50 : 0), 0);
+  }
+
+  function explorerCertificateCountFor(progress) {
+    return COURSE_KEYS.filter(key => Boolean(progress?.courses?.[key]?.certificate?.issuedAt)).length;
+  }
+
+  function explorerOverallFor(progress) {
+    const stats = COURSE_KEYS.map(key => courseProgressFor(progress, key));
+    const total = stats.reduce((sum, item) => sum + item.total, 0);
+    const completed = stats.reduce((sum, item) => sum + item.completed, 0);
+    const explored = stats.reduce((sum, item) => sum + item.explored, 0);
+    return { total, completed, explored, percent: total ? Math.round(completed / total * 100) : 0 };
+  }
+
+  function topicRecord(key = state.course, id = state.topicId) {
+    const courseProgress = state.progress.courses[key];
+    if (!courseProgress.topics[id]) courseProgress.topics[id] = {};
+    return courseProgress.topics[id];
+  }
+
+  function topicStatus(record = {}) {
+    if (record.completedAt) return 'complete';
+    if (record.openedAt || record.practicePassed || record.quizPassed) return 'progress';
+    return 'todo';
+  }
+
+  function totalXp() { return explorerXpFor(state.progress); }
+
+  function certificateCount() { return explorerCertificateCountFor(state.progress); }
+
+  function renderDashboardSummary() {
+    const currentReader = readerKey();
+    ensureReaderProgress();
+    COURSE_KEYS.forEach(key => {
+      const stats = courseProgress(key);
+      if (dom.dashBars[key]) dom.dashBars[key].style.width = `${stats.percent}%`;
+      if (dom.dashTexts[key]) dom.dashTexts[key].textContent = `${stats.percent}%`;
+    });
+    if (appSession.mode === 'student' && appSession.student?.uid && !state.cloudLoaded && !state.dashboardCloudLoading) {
+      state.dashboardCloudLoading = true;
+      loadCloudProgress().then(cloud => {
+        if (readerKey() !== currentReader) return;
+        if (cloud) {
+          state.progress = mergeProgress(state.progress, cloud);
+          saveLocalProgress();
+        }
+        state.cloudLoaded = true;
+        COURSE_KEYS.forEach(key => {
+          const stats = courseProgress(key);
+          if (dom.dashBars[key]) dom.dashBars[key].style.width = `${stats.percent}%`;
+          if (dom.dashTexts[key]) dom.dashTexts[key].textContent = `${stats.percent}%`;
+        });
+      }).catch(error => console.warn('Code Explorer dashboard progress refresh skipped.', error)).finally(() => {
+        state.dashboardCloudLoading = false;
+      });
+    }
+  }
+
+  function renderTopProgress() {
+    const stats = COURSE_KEYS.map(key => courseProgress(key));
+    const total = stats.reduce((sum, item) => sum + item.total, 0);
+    const complete = stats.reduce((sum, item) => sum + item.completed, 0);
+    const explored = stats.reduce((sum, item) => sum + item.explored, 0);
+    const overall = total ? Math.round(complete / total * 100) : 0;
+    if (dom.overallBar) dom.overallBar.style.width = `${overall}%`;
+    if (dom.overallText) dom.overallText.textContent = `${overall}% overall`;
+    if (dom.explored) dom.explored.textContent = String(explored);
+    if (dom.completed) dom.completed.textContent = String(complete);
+    if (dom.certCount) dom.certCount.textContent = String(certificateCount());
+    if (dom.xpBadge) dom.xpBadge.textContent = `⚡ ${totalXp()} XP`;
+    renderHeartStatus();
+    renderDashboardSummary();
+  }
+
+  function renderCourseCards() {
+    if (!dom.courseCards) return;
+    dom.courseCards.innerHTML = COURSE_KEYS.map(key => {
+      const course = COURSES[key];
+      const stats = courseProgress(key);
+      const cert = state.progress.courses[key].certificate || {};
+      return `<button type="button" class="code-explorer-course-card ${key === state.course ? 'active' : ''}" data-explorer-course="${key}" style="--course-accent:${course.accent}">
+        <span class="code-explorer-course-icon">${course.icon}</span>
+        <span class="code-explorer-course-copy"><strong>${escapeHTML(course.title)}</strong><small>${escapeHTML(course.description)}</small></span>
+        <span class="code-explorer-course-progress"><i style="width:${stats.percent}%"></i></span>
+        <span class="code-explorer-course-foot"><b>${stats.percent}%</b><small>${stats.completed}/${stats.total} topics</small>${cert.issuedAt ? '<em>🏅 Certified</em>' : ''}</span>
+      </button>`;
+    }).join('');
+  }
+
+  function renderTopicList() {
+    const course = COURSES[state.course];
+    const stats = courseProgress(state.course);
+    if (dom.courseKicker) dom.courseKicker.textContent = `${course.icon} ${course.title}`;
+    if (dom.courseTitle) dom.courseTitle.textContent = course.short;
+    if (dom.coursePercent) dom.coursePercent.textContent = `${stats.percent}%`;
+    if (dom.courseBar) dom.courseBar.style.width = `${stats.percent}%`;
+    const filtered = course.topics.filter(item => {
+      const status = topicStatus(state.progress.courses[state.course].topics[item.id] || {});
+      if (state.filter === 'complete') return status === 'complete';
+      if (state.filter === 'todo') return status !== 'complete';
+      return true;
+    });
+    dom.topicList.innerHTML = filtered.map(item => {
+      const index = course.topics.findIndex(topicItem => topicItem.id === item.id);
+      const record = state.progress.courses[state.course].topics[item.id] || {};
+      const status = topicStatus(record);
+      const icon = status === 'complete' ? '✓' : status === 'progress' ? '•' : String(index + 1);
+      return `<button type="button" class="code-explorer-topic-item ${item.id === state.topicId ? 'active' : ''} ${status}" data-explorer-topic="${escapeAttribute(item.id)}">
+        <span>${icon}</span><span><strong>${escapeHTML(item.title)}</strong><small>${escapeHTML(item.level)} · ${estimatedTopicMinutes(item)} min</small></span>
+      </button>`;
+    }).join('') || '<div class="code-explorer-topic-empty">No topics match this filter.</div>';
+  }
+
+  function currentTopic() {
+    const course = COURSES[state.course];
+    return course.topics.find(item => item.id === state.topicId) || course.topics[0];
+  }
+
+  function explanationHtml(item, courseKey) {
+    const enrichment = getTopicEnrichment(courseKey, item);
+    const paragraphs = String(item?.explanation || '').split(/\n\n+/).filter(Boolean).map(p => `<p>${escapeHTML(p)}</p>`).join('');
+    const tokens = (item?.must || []).slice(0, 5).map(token => `<code>${escapeHTML(String(token))}</code>`).join('');
+    return `${paragraphs}
+      <div class="code-explorer-concept-grid">
+        <article><span>💡 Why it matters</span><p>${escapeHTML(enrichment.why)}</p></article>
+        <article><span>🧭 Remember</span><p>${escapeHTML(enrichment.tip)}</p></article>
+      </div>
+      ${tokens ? `<div class="code-explorer-key-code"><strong>Key code to notice</strong><div>${tokens}</div></div>` : ''}`;
+  }
+
+  function buildPreviewDoc(topicItem, code) {
+    const course = COURSES[state.course];
+    const baseStyle = `<style>html{color-scheme:light}*{box-sizing:border-box}body{font-family:Arial,sans-serif;margin:0;padding:24px;line-height:1.5;color:#172033;background:#fff}button,input{font:inherit}.card,.box,.panel,.hero,.row,.grid,.cards{padding:18px;border:1px solid #cbd5e1;border-radius:12px}.grid>div,.cards>div{padding:16px;background:#e0f2fe;border-radius:10px}.hero{color:#fff}.dot{margin:30px}.badge{padding:5px 10px}.box{background:#e0f2fe}</style>`;
+    if (state.course === 'html') {
+      const trimmed = String(code || '').trim();
+      if (/<!doctype|<html[\s>]/i.test(trimmed)) return trimmed;
+      return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">${baseStyle}</head><body>${trimmed}</body></html>`;
+    }
+    if (state.course === 'css') {
+      return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">${baseStyle}<style>${String(code || '').replace(/<\/style/gi, '<\\/style')}</style></head><body>${topicItem.previewHtml || '<div class="card">CSS Practice</div>'}</body></html>`;
+    }
+    const safeCode = JSON.stringify(String(code || ''));
+    return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">${baseStyle}</head><body>${topicItem.previewHtml || '<p id="output">JavaScript Practice</p>'}<script>try{(0,eval)(${safeCode});}catch(error){const box=document.createElement('pre');box.style.cssText='white-space:pre-wrap;color:#b91c1c;background:#fee2e2;padding:12px;border-radius:8px';box.textContent='JavaScript error: '+error.message;document.body.appendChild(box);}<\/script></body></html>`;
+  }
+
+  function runPractice() {
+    const item = currentTopic();
+    if (!item || !dom.previewFrame) return;
+    dom.previewFrame.srcdoc = buildPreviewDoc(item, dom.practiceEditor.value);
+    if (dom.previewStatus) dom.previewStatus.textContent = 'Updated';
+  }
+
+  function validatePractice(item, code) {
+    const source = String(code || '').toLowerCase().replace(/\s+/g, ' ');
+    const missing = (item.must || []).filter(token => !source.includes(String(token).toLowerCase().replace(/\s+/g, ' ')));
+    if (missing.length) return { ok: false, message: `Almost there. Your code still needs: ${missing.slice(0, 3).join(', ')}` };
+    if (item.any?.length && !item.any.some(token => source.includes(String(token).toLowerCase()))) {
+      return { ok: false, message: `Try using one of these ideas: ${item.any.join(', ')}` };
+    }
+    return { ok: true, message: 'Challenge passed! Your code includes the required idea.' };
+  }
+
+  function updateTopicCompletion(item = currentTopic()) {
+    const record = topicRecord();
+    if (record.practicePassed && record.quizPassed && !record.completedAt) {
+      record.completedAt = new Date().toISOString();
+      scheduleCloudSave();
+    }
+    const completed = Boolean(record.completedAt);
+    dom.completeCard?.classList.toggle('hidden', !completed);
+    if (dom.topicStatus) {
+      dom.topicStatus.textContent = completed ? '✓ Completed' : (record.practicePassed || record.quizPassed ? 'In progress' : 'Not started');
+      dom.topicStatus.dataset.state = completed ? 'complete' : (record.practicePassed || record.quizPassed ? 'progress' : 'todo');
+    }
+    renderTopProgress();
+    renderCourseCards();
+    renderTopicList();
+    renderFinalCard();
+  }
+
+  function ensureQuickQuizState(item = currentTopic()) {
+    if (!item) return null;
+    const questions = buildQuickCheckQuestions(COURSES[state.course], item);
+    if (!state.quickQuiz || state.quickQuiz.topicId !== item.id || state.quickQuiz.answers.length !== questions.length) {
+      state.quickQuiz = { topicId: item.id, index: 0, answers: Array(questions.length).fill(null), submitted: false };
+    }
+    return { quiz: state.quickQuiz, questions };
+  }
+
+  function resetQuickQuiz(item = currentTopic()) {
+    if (!item) return;
+    const questions = buildQuickCheckQuestions(COURSES[state.course], item);
+    state.quickQuiz = { topicId: item.id, index: 0, answers: Array(questions.length).fill(null), submitted: false };
+    dom.quizFeedback?.classList.add('hidden');
+    if (dom.quizFeedback) dom.quizFeedback.textContent = '';
+    renderQuickQuiz();
+  }
+
+  function renderQuickQuiz() {
+    const item = currentTopic();
+    const pack = ensureQuickQuizState(item);
+    if (!pack || !dom.quizOptions) return;
+    const { quiz, questions } = pack;
+    const total = questions.length;
+    quiz.index = Math.max(0, Math.min(total - 1, Number(quiz.index || 0)));
+    const question = questions[quiz.index];
+    const selected = quiz.answers[quiz.index];
+    const answeredCount = quiz.answers.filter(value => value !== null && value !== undefined).length;
+    const expected = Number(question.answer);
+    const progressPercent = Math.round((answeredCount / total) * 100);
+    const stepButtons = questions.map((entry, index) => {
+      const answer = quiz.answers[index];
+      const answered = answer !== null && answer !== undefined;
+      const classes = ['code-explorer-quick-step'];
+      if (index === quiz.index) classes.push('current');
+      if (answered) classes.push('answered');
+      if (quiz.submitted && answered) classes.push(Number(answer) === Number(entry.answer) ? 'correct' : 'wrong');
+      return `<button type="button" class="${classes.join(' ')}" data-explorer-quick-jump="${index}" aria-label="Question ${index + 1}">${index + 1}</button>`;
+    }).join('');
+    const optionButtons = question.options.map((option, optionIndex) => {
+      const classes = ['code-explorer-quick-option'];
+      if (Number(selected) === optionIndex) classes.push('selected');
+      if (quiz.submitted) {
+        if (optionIndex === expected) classes.push('correct');
+        if (Number(selected) === optionIndex && optionIndex !== expected) classes.push('wrong');
+      }
+      return `<button type="button" class="${classes.join(' ')}" data-explorer-quick-option="${optionIndex}" ${quiz.submitted ? 'disabled' : ''}><span class="code-explorer-quick-letter">${String.fromCharCode(65 + optionIndex)}</span><span>${escapeHTML(option)}</span></button>`;
+    }).join('');
+    dom.quizOptions.innerHTML = `
+      <div class="code-explorer-quick-shell">
+        <div class="code-explorer-quick-progress-head">
+          <div><strong>Question ${quiz.index + 1} of ${total}</strong><span>${answeredCount}/${total} answered · 4/5 to pass · ❤️ 1 per wrong scored answer</span></div>
+          <div class="code-explorer-quick-steps" aria-label="Quick Check questions">${stepButtons}</div>
+        </div>
+        <div class="code-explorer-quick-progress-track"><span style="width:${progressPercent}%"></span></div>
+        <section class="code-explorer-quick-single" aria-live="polite">
+          <div class="code-explorer-quick-question-kicker">Quick Check ${quiz.index + 1}</div>
+          <h4>${escapeHTML(question.q)}</h4>
+          <div class="code-explorer-quick-option-list">${optionButtons}</div>
+        </section>
+        <div class="code-explorer-quick-nav">
+          <button type="button" class="secondary-btn" data-explorer-quick-prev ${quiz.index <= 0 ? 'disabled' : ''}>← Previous</button>
+          <span>${selected === null || selected === undefined ? 'Choose an answer to continue.' : (quiz.submitted ? 'Answer reviewed.' : 'Answer saved.')}</span>
+          <button type="button" class="secondary-btn" data-explorer-quick-next ${quiz.index >= total - 1 ? 'disabled' : ''}>Next →</button>
+        </div>
+      </div>`;
+    if (dom.quizSubmitBtn) {
+      const hearts = currentHeartSnapshot();
+      const checkingBlocked = !quiz.submitted && answeredCount >= total && hearts.balance <= 0;
+      dom.quizSubmitBtn.disabled = !quiz.submitted && (answeredCount < total || checkingBlocked);
+      dom.quizSubmitBtn.textContent = quiz.submitted
+        ? '↻ Retake 5 Questions'
+        : (answeredCount < total ? `Answer ${total - answeredCount} More` : (checkingBlocked ? `❤️ Next heart in ${formatHeartCountdown(hearts.nextInMs)}` : '✓ Check 5 Answers'));
+    }
+  }
+
+  function selectQuickQuizOption(optionIndex) {
+    const pack = ensureQuickQuizState();
+    if (!pack || pack.quiz.submitted) return;
+    pack.quiz.answers[pack.quiz.index] = Number(optionIndex);
+    renderQuickQuiz();
+  }
+
+  function moveQuickQuiz(delta) {
+    const pack = ensureQuickQuizState();
+    if (!pack) return;
+    const nextIndex = Math.max(0, Math.min(pack.questions.length - 1, pack.quiz.index + Number(delta || 0)));
+    pack.quiz.index = nextIndex;
+    renderQuickQuiz();
+  }
+
+  function jumpQuickQuiz(index) {
+    const pack = ensureQuickQuizState();
+    if (!pack) return;
+    pack.quiz.index = Math.max(0, Math.min(pack.questions.length - 1, Number(index || 0)));
+    renderQuickQuiz();
+  }
+
+  function renderTopic() {
+    const course = COURSES[state.course];
+    const item = currentTopic();
+    if (!item) return;
+    state.topicId = item.id;
+    const record = topicRecord();
+    const now = new Date().toISOString();
+    if (!record.openedAt) record.openedAt = now;
+    record.lastOpenedAt = now;
+    scheduleCloudSave();
+    const index = course.topics.findIndex(t => t.id === item.id);
+    dom.topicNumber.textContent = `Topic ${index + 1} of ${course.topics.length}`;
+    dom.topicLevel.textContent = item.level;
+    dom.topicMinutes.textContent = `${estimatedTopicMinutes(item)} min`;
+    dom.topicTitle.textContent = item.title;
+    dom.topicBlurb.textContent = item.blurb;
+    dom.topicExplanation.innerHTML = explanationHtml(item, state.course);
+    dom.exampleCode.textContent = item.example;
+    dom.challengeTitle.textContent = `${course.short} Challenge`;
+    dom.challengeText.textContent = item.challenge;
+    dom.editorLabel.textContent = course.editorLabel;
+    dom.practiceEditor.value = item.starter;
+    dom.practiceBadge.textContent = record.practicePassed ? '✓ Passed' : 'Not checked';
+    dom.practiceBadge.dataset.state = record.practicePassed ? 'complete' : '';
+    dom.practiceFeedback.classList.add('hidden');
+    dom.practiceFeedback.textContent = '';
+    dom.quizQuestion.textContent = '5-question Quick Check';
+    state.quickQuiz = { topicId: item.id, index: 0, answers: Array(buildQuickCheckQuestions(course, item).length).fill(null), submitted: false };
+    renderQuickQuiz();
+    if (record.quizFivePassed) {
+      dom.quizBadge.textContent = `✓ Passed · Best ${Number(record.quizBestCorrect || 0)}/5`;
+    } else if (record.quizPassed) {
+      dom.quizBadge.textContent = Number(record.quizBestCorrect || 0) > 0 ? `✓ Previous pass · New best ${record.quizBestCorrect}/5` : '✓ Passed · Previous version';
+    } else if (Number(record.quizAttempts || 0) > 0) {
+      dom.quizBadge.textContent = `Best ${Number(record.quizBestCorrect || 0)}/5`;
+    } else {
+      dom.quizBadge.textContent = 'Not answered';
+    }
+    dom.quizBadge.dataset.state = record.quizPassed ? 'complete' : '';
+    dom.quizFeedback.classList.add('hidden');
+    dom.quizFeedback.textContent = '';
+    dom.prevBtn.disabled = index <= 0;
+    dom.nextBtn.disabled = index >= course.topics.length - 1;
+    runPractice();
+    updateTopicCompletion(item);
+    queueStudentPresenceUpdate?.({ currentView: 'code-explorer', activityGroup: 'Code Explorer', activityLabel: `${course.short}: ${item.title}` });
+  }
+
+  function selectCourse(key, options = {}) {
+    if (!COURSES[key]) return;
+    state.course = key;
+    const course = COURSES[key];
+    const existingId = options.topicId || state.progress.courses[key].lastTopicId || '';
+    const item = course.topics.find(t => t.id === existingId) || course.topics[0];
+    state.topicId = item.id;
+    state.progress.courses[key].lastTopicId = item.id;
+    scheduleCloudSave();
+    renderTopProgress();
+    renderCourseCards();
+    renderTopicList();
+    renderTopic();
+    renderFinalCard();
+  }
+
+  function selectTopic(id) {
+    const course = COURSES[state.course];
+    if (!course.topics.some(item => item.id === id)) return;
+    state.topicId = id;
+    state.progress.courses[state.course].lastTopicId = id;
+    scheduleCloudSave();
+    renderTopicList();
+    renderTopic();
+    dom.lessonPanel?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+  }
+
+  function renderFinalCard() {
+    const course = COURSES[state.course];
+    const stats = courseProgress(state.course);
+    const final = state.progress.courses[state.course].final || {};
+    const cert = state.progress.courses[state.course].certificate || {};
+    const ready = stats.completed === stats.total;
+    dom.finalTitle.textContent = `${course.title} Final Challenge`;
+    if (cert.issuedAt) {
+      dom.finalText.textContent = `Completed with ${Math.round(Number(final.score || 0))}%. Your certificate is ready to download.`;
+      dom.finalBtn.disabled = false;
+      dom.finalBtn.textContent = '🏅 View Certificate';
+      dom.finalBtn.dataset.mode = 'certificate';
+    } else if (final.passed) {
+      dom.finalText.textContent = `You passed with ${Math.round(Number(final.score || 0))}%. Your certificate is being prepared.`;
+      dom.finalBtn.disabled = false;
+      dom.finalBtn.textContent = '🏅 Get Certificate';
+      dom.finalBtn.dataset.mode = 'certificate';
+    } else if (ready) {
+      const hearts = currentHeartSnapshot();
+      dom.finalText.textContent = hearts.balance > 0
+        ? 'All topics complete. Score at least 80% on the final challenge to unlock your certificate. Wrong answers use hearts.'
+        : heartOutMessage();
+      dom.finalBtn.disabled = hearts.balance <= 0;
+      dom.finalBtn.textContent = hearts.balance > 0 ? '🏁 Start Final Challenge' : `❤️ Next heart in ${formatHeartCountdown(hearts.nextInMs)}`;
+      dom.finalBtn.dataset.mode = hearts.balance > 0 ? 'final' : 'hearts';
+    } else {
+      dom.finalText.textContent = `Complete ${stats.total - stats.completed} more topic${stats.total - stats.completed === 1 ? '' : 's'} to unlock the final challenge and certificate.`;
+      dom.finalBtn.disabled = true;
+      dom.finalBtn.textContent = '🔒 Complete topics first';
+      dom.finalBtn.dataset.mode = 'locked';
+    }
+  }
+
+  async function openExplorer() {
+    if (!appSession.student) {
+      await appAlert('Log in as a student to use Code Explorer and save your progress.', { title: 'Code Explorer', icon: '🚀' });
+      return;
+    }
+    closeStudentAccountMenu?.();
+    closeStudentDashboard();
+    document.body.classList.remove('lesson-viewer-active', 'given-activities-active');
+    document.body.classList.add('code-explorer-active');
+    screen.classList.remove('hidden');
+    ensureReaderProgress();
+    if (!state.cloudLoaded) {
+      const cloud = await loadCloudProgress();
+      if (cloud) state.progress = mergeProgress(state.progress, cloud);
+      state.cloudLoaded = true;
+      saveLocalProgress();
+    }
+    startHeartTicker();
+    await startExplorerProfileListener();
+    const preferredCourse = COURSE_KEYS.find(key => state.progress.courses[key]?.lastTopicId) || state.course || 'html';
+    selectCourse(preferredCourse, { topicId: state.progress.courses[preferredCourse]?.lastTopicId });
+    renderCertificates();
+    window.scrollTo({ top: 0, behavior: 'auto' });
+    queueStudentPresenceUpdate?.({ currentView: 'code-explorer', activityGroup: 'Code Explorer', activityLabel: 'Exploring code lessons' }, { force: true });
+  }
+
+  async function closeExplorer() {
+    stopHeartTicker();
+    stopExplorerProfileListener();
+    await saveCloudProgress();
+    screen.classList.add('hidden');
+    document.body.classList.remove('code-explorer-active');
+    await showStudentDashboard({ suppressStatusReminder: true });
+  }
+
+  function submitTopicQuiz() {
+    const item = currentTopic();
+    const record = topicRecord();
+    const pack = ensureQuickQuizState(item);
+    if (!pack) return;
+    const { quiz, questions } = pack;
+
+    if (quiz.submitted) {
+      resetQuickQuiz(item);
+      return;
+    }
+
+    const firstUnanswered = quiz.answers.findIndex(value => value === null || value === undefined);
+    if (firstUnanswered >= 0) {
+      quiz.index = firstUnanswered;
+      renderQuickQuiz();
+      dom.quizFeedback.classList.remove('hidden');
+      dom.quizFeedback.dataset.type = 'warning';
+      dom.quizFeedback.textContent = `Answer question ${firstUnanswered + 1} before checking your score.`;
+      return;
+    }
+
+    applyHeartRefill(state.progress, { persist: true });
+    if (currentHeartSnapshot().balance <= 0) {
+      dom.quizFeedback.classList.remove('hidden');
+      dom.quizFeedback.dataset.type = 'warning';
+      dom.quizFeedback.textContent = heartOutMessage();
+      renderQuickQuiz();
+      return;
+    }
+
+    let correct = 0;
+    quiz.answers.forEach((answer, questionIndex) => {
+      if (Number(answer) === Number(questions[questionIndex].answer)) correct += 1;
+    });
+
+    quiz.submitted = true;
+    const score = Math.round(correct / questions.length * 100);
+    const passed = correct >= 4;
+    const wrongCount = Math.max(0, questions.length - correct);
+    const heartsSpent = spendHearts(wrongCount);
+    record.quizAttempts = Number(record.quizAttempts || 0) + 1;
+    record.quizLastCorrect = correct;
+    record.quizLastScore = score;
+    record.quizAnsweredAt = new Date().toISOString();
+    if (correct > Number(record.quizBestCorrect || 0)) record.quizBestCorrect = correct;
+    record.quizBestScore = Math.max(Number(record.quizBestScore || 0), Math.round(Number(record.quizBestCorrect || 0) / 5 * 100));
+    if (passed) { record.quizPassed = true; record.quizFivePassed = true; }
+
+    dom.quizFeedback.classList.remove('hidden');
+    dom.quizFeedback.dataset.type = passed ? 'success' : 'warning';
+    const heartNote = wrongCount === 0
+      ? ' Perfect score — no hearts used.'
+      : ` ${wrongCount} wrong answer${wrongCount === 1 ? '' : 's'} · ${heartsSpent} heart${heartsSpent === 1 ? '' : 's'} used${heartsSpent < wrongCount ? ' before your balance reached 0' : ''}.`;
+    dom.quizFeedback.textContent = (passed
+      ? `${correct}/5 — Passed! You met the 4/5 Quick Check requirement.`
+      : (record.quizPassed && !record.quizFivePassed
+        ? `${correct}/5 on the new 5-question check. Your previous topic completion is kept, but score at least 4/5 to pass the new Quick Check format.`
+        : `${correct}/5 — Keep going. Review each question, then retake when you're ready. You need at least 4/5.`)) + heartNote;
+    dom.quizBadge.textContent = record.quizFivePassed
+      ? `✓ Passed · Best ${record.quizBestCorrect}/5`
+      : (record.quizPassed ? `✓ Previous pass · New best ${record.quizBestCorrect}/5` : `Best ${record.quizBestCorrect}/5`);
+    dom.quizBadge.dataset.state = record.quizPassed ? 'complete' : '';
+    renderQuickQuiz();
+    renderHeartStatus();
+    renderFinalCard();
+    scheduleCloudSave();
+    updateTopicCompletion(item);
+  }
+
+  function checkPractice() {
+    const item = currentTopic();
+    const record = topicRecord();
+    record.attempts = Number(record.attempts || 0) + 1;
+    const result = validatePractice(item, dom.practiceEditor.value);
+    dom.practiceFeedback.classList.remove('hidden');
+    dom.practiceFeedback.dataset.type = result.ok ? 'success' : 'warning';
+    dom.practiceFeedback.textContent = result.message;
+    if (result.ok) {
+      record.practicePassed = true;
+      dom.practiceBadge.textContent = '✓ Passed';
+      dom.practiceBadge.dataset.state = 'complete';
+    }
+    scheduleCloudSave();
+    runPractice();
+    updateTopicCompletion(item);
+  }
+
+  function openFinal() {
+    const course = COURSES[state.course];
+    const stats = courseProgress(state.course);
+    if (stats.completed !== stats.total) return;
+    applyHeartRefill(state.progress, { persist: true });
+    const hearts = currentHeartSnapshot();
+    if (hearts.balance <= 0) {
+      appAlert(heartOutMessage(), { title: 'Out of Hearts', icon: '❤️' });
+      renderFinalCard();
+      return;
+    }
+    state.finalAnswers = {};
+    dom.finalModalTitle.textContent = `${course.title} Final Challenge`;
+    dom.finalModalMeta.textContent = `5 questions · Pass at 80% · Wrong answers use 1 heart each · ❤️ ${hearts.balance}/${HEARTS_MAX}`;
+    dom.finalQuestions.innerHTML = course.finalQuiz.map((item, qIndex) => `<fieldset class="code-explorer-final-question"><legend>${qIndex + 1}. ${escapeHTML(item[0])}</legend>${item[1].map((option, optionIndex) => `<label><input type="radio" name="explorer-final-${qIndex}" value="${optionIndex}"><span>${escapeHTML(option)}</span></label>`).join('')}</fieldset>`).join('');
+    dom.finalResult.classList.add('hidden');
+    dom.finalResult.textContent = '';
+    dom.finalSubmitBtn.disabled = false;
+    dom.finalSubmitBtn.textContent = 'Check Final Challenge';
+    dom.finalSubmitBtn.dataset.mode = 'submit';
+    dom.finalSubmitBtn.dataset.passed = 'false';
+    dom.finalOverlay.classList.remove('hidden');
+    document.body.classList.add('code-explorer-modal-open');
+  }
+
+  function closeFinal() {
+    dom.finalOverlay.classList.add('hidden');
+    document.body.classList.remove('code-explorer-modal-open');
+  }
+
+  function certificateId(courseKey, issuedAt) {
+    const raw = `${appSession.student?.uid || readerKey()}|${courseKey}|${issuedAt}`;
+    let hash = 2166136261;
+    for (let i = 0; i < raw.length; i += 1) { hash ^= raw.charCodeAt(i); hash = Math.imul(hash, 16777619); }
+    return `ICT8-${courseKey.toUpperCase()}-${new Date(issuedAt).getFullYear()}-${(hash >>> 0).toString(36).toUpperCase().padStart(7, '0').slice(0, 7)}`;
+  }
+
+  function ensureCertificate(courseKey) {
+    const courseProgressData = state.progress.courses[courseKey];
+    if (!courseProgressData.final?.passed) return null;
+    if (!courseProgressData.certificate?.issuedAt) {
+      const issuedAt = courseProgressData.final.passedAt || new Date().toISOString();
+      courseProgressData.certificate = { issuedAt, number: certificateId(courseKey, issuedAt), courseKey };
+      registerCertificateRecord(courseKey, courseProgressData.certificate);
+      scheduleCloudSave();
+    }
+    return courseProgressData.certificate;
+  }
+
+  async function submitFinal() {
+    const course = COURSES[state.course];
+    applyHeartRefill(state.progress, { persist: true });
+    if (currentHeartSnapshot().balance <= 0) {
+      dom.finalResult.classList.remove('hidden');
+      dom.finalResult.dataset.type = 'warning';
+      dom.finalResult.textContent = heartOutMessage();
+      return;
+    }
+    let correct = 0;
+    let answered = 0;
+    course.finalQuiz.forEach((item, qIndex) => {
+      const checked = dom.finalQuestions.querySelector(`input[name="explorer-final-${qIndex}"]:checked`);
+      if (!checked) return;
+      answered += 1;
+      if (Number(checked.value) === Number(item[2])) correct += 1;
+    });
+    if (answered < course.finalQuiz.length) {
+      dom.finalResult.classList.remove('hidden');
+      dom.finalResult.dataset.type = 'warning';
+      dom.finalResult.textContent = 'Answer all 5 questions before checking your score.';
+      return;
+    }
+    const score = Math.round(correct / course.finalQuiz.length * 100);
+    const wrongCount = Math.max(0, course.finalQuiz.length - correct);
+    const heartsSpent = spendHearts(wrongCount);
+    const courseState = state.progress.courses[state.course];
+    const previous = Number(courseState.final?.score || 0);
+    const passed = score >= 80;
+    courseState.final = {
+      score: Math.max(previous, score), passed: Boolean(courseState.final?.passed || passed),
+      attempts: Number(courseState.final?.attempts || 0) + 1,
+      lastAttemptAt: new Date().toISOString(),
+      passedAt: courseState.final?.passedAt || (passed ? new Date().toISOString() : '')
+    };
+    if (passed) ensureCertificate(state.course);
+    scheduleCloudSave();
+    renderTopProgress();
+    renderCourseCards();
+    renderFinalCard();
+    renderCertificates();
+    dom.finalResult.classList.remove('hidden');
+    dom.finalResult.dataset.type = passed ? 'success' : 'warning';
+    const heartNote = wrongCount === 0
+      ? 'Perfect score — no hearts used.'
+      : `${wrongCount} wrong answer${wrongCount === 1 ? '' : 's'} · ${heartsSpent} heart${heartsSpent === 1 ? '' : 's'} used${heartsSpent < wrongCount ? ' before your balance reached 0' : ''}.`;
+    dom.finalResult.innerHTML = passed
+      ? `<strong>🎉 Passed! ${score}%</strong><span>Your ${escapeHTML(course.title)} certificate is unlocked. ${escapeHTML(heartNote)}</span>`
+      : `<strong>${score}% · Keep going</strong><span>You need 80% to pass. ${escapeHTML(heartNote)}</span>`;
+    dom.finalSubmitBtn.textContent = passed ? '🏅 View Certificate' : 'Try Again';
+    dom.finalSubmitBtn.dataset.passed = passed ? 'true' : 'false';
+    dom.finalSubmitBtn.dataset.mode = passed ? 'certificate' : 'retry';
+    renderHeartStatus();
+    renderFinalCard();
+  }
+
+  function formatCertificateDate(value) {
+    const date = value ? new Date(value) : new Date();
+    return date.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+  }
+
+  function wrapCanvasText(ctx, text, x, y, maxWidth, lineHeight, maxLines = 3) {
+    const words = String(text || '').split(/\s+/);
+    let line = '';
+    let lineNo = 0;
+    for (const word of words) {
+      const test = line ? `${line} ${word}` : word;
+      if (ctx.measureText(test).width > maxWidth && line) {
+        ctx.fillText(line, x, y + lineNo * lineHeight);
+        line = word;
+        lineNo += 1;
+        if (lineNo >= maxLines - 1) break;
+      } else line = test;
+    }
+    if (lineNo < maxLines) ctx.fillText(line, x, y + lineNo * lineHeight);
+  }
+
+  function drawRoundRect(ctx, x, y, width, height, radius, fill = false, stroke = false) {
+    ctx.beginPath();
+    if (typeof ctx.roundRect === 'function') ctx.roundRect(x, y, width, height, radius);
+    else {
+      const r = Math.max(0, Math.min(radius, Math.min(width, height) / 2));
+      ctx.moveTo(x + r, y);
+      ctx.arcTo(x + width, y, x + width, y + height, r);
+      ctx.arcTo(x + width, y + height, x, y + height, r);
+      ctx.arcTo(x, y + height, x, y, r);
+      ctx.arcTo(x, y, x + width, y, r);
+    }
+    if (fill) ctx.fill();
+    if (stroke) ctx.stroke();
+  }
+
+  const CODE_EXPLORER_CERT_REGISTRY_KEY = 'ict8-code-explorer-cert-registry-v1';
+  const CERTIFICATE_THEMES = {
+    html: {
+      title: 'HTML Foundations',
+      palette: ['#fff7ed', '#ffffff', '#ffedd5'],
+      border: '#f97316',
+      accent: '#ea580c',
+      accentSoft: '#fed7aa',
+      dark: '#7c2d12',
+      subtitle: 'Structure • Semantics • Accessibility',
+      pattern: 'code',
+      seal: 'HTML MASTERED'
+    },
+    css: {
+      title: 'CSS Styling & Responsive Design',
+      palette: ['#eff6ff', '#ffffff', '#f5f3ff'],
+      border: '#3b82f6',
+      accent: '#2563eb',
+      accentSoft: '#dbeafe',
+      dark: '#1e3a8a',
+      subtitle: 'Layout • Styling • Responsiveness',
+      pattern: 'wave',
+      seal: 'CSS STYLIST'
+    },
+    js: {
+      title: 'JavaScript Fundamentals',
+      palette: ['#fffbeb', '#ffffff', '#fef3c7'],
+      border: '#f59e0b',
+      accent: '#d97706',
+      accentSoft: '#fde68a',
+      dark: '#78350f',
+      subtitle: 'Logic • Interactivity • Problem Solving',
+      pattern: 'nodes',
+      seal: 'JS EXPLORER'
+    }
+  };
+
+  function certificateVerificationUrl(details = {}) {
+    const certNo = encodeURIComponent(String(details.number || '').trim());
+    const isHostedWeb = /^https?:$/i.test(String(window.location.protocol || ''));
+    const hostedBase = isHostedWeb
+      ? `${window.location.origin}${window.location.pathname}`
+      : 'https://sfk2627.github.io/code-editor-main/';
+    return certNo ? `${hostedBase}?codeExplorerVerify=${certNo}` : hostedBase;
+  }
+
+  function readCertificateRegistry() {
+    try {
+      const raw = localStorage.getItem(CODE_EXPLORER_CERT_REGISTRY_KEY);
+      const parsed = raw ? JSON.parse(raw) : {};
+      return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch (_) { return {}; }
+  }
+
+  function writeCertificateRegistry(registry) {
+    try { localStorage.setItem(CODE_EXPLORER_CERT_REGISTRY_KEY, JSON.stringify(registry || {})); } catch (_) {}
+  }
+
+  function registerCertificateRecord(courseKey, cert = {}, details = {}) {
+    const number = String(cert.number || '').trim();
+    if (!number) return;
+    const registry = readCertificateRegistry();
+    registry[number] = {
+      number,
+      courseKey,
+      courseTitle: COURSES[courseKey]?.title || details.courseTitle || courseKey,
+      studentName: String(details.studentName || appSession.student?.name || appSession.lastStudentProfile?.name || 'Student').trim(),
+      issuedAt: cert.issuedAt || new Date().toISOString(),
+      section: String(details.section || appSession.student?.section || appSession.lastStudentProfile?.section || '').trim(),
+      updatedAt: new Date().toISOString()
+    };
+    writeCertificateRegistry(registry);
+  }
+
+  function findCertificateRecord(certificateNumber) {
+    const number = String(certificateNumber || '').trim();
+    if (!number) return null;
+    return readCertificateRegistry()[number] || null;
+  }
+
+  function drawCertificatePattern(ctx, theme, canvas) {
+    ctx.save();
+    if (theme.pattern === 'code') {
+      ctx.globalAlpha = 0.10;
+      ctx.fillStyle = theme.accent;
+      ctx.font = '700 24px Consolas, monospace';
+      const lines = ['<html>', '<header>', '<main>', '<section>', '<footer>'];
+      lines.forEach((line, index) => ctx.fillText(line, 110 + (index % 2) * 1000, 120 + index * 135));
+    } else if (theme.pattern === 'wave') {
+      ctx.globalAlpha = 0.16;
+      ctx.strokeStyle = theme.accent;
+      ctx.lineWidth = 7;
+      for (let row = 0; row < 5; row += 1) {
+        ctx.beginPath();
+        for (let x = 0; x <= canvas.width; x += 22) {
+          const y = 155 + row * 135 + Math.sin((x / 85) + row) * 24;
+          if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+      }
+    } else {
+      ctx.globalAlpha = 0.18;
+      ctx.fillStyle = theme.accent;
+      const points = [[190, 150], [320, 210], [220, 300], [360, 360], [230, 470], [360, 570], [260, 690]];
+      points.forEach(([x, y], index) => {
+        ctx.beginPath(); ctx.arc(x, y, index % 2 ? 10 : 14, 0, Math.PI * 2); ctx.fill();
+        if (index) { ctx.lineWidth = 4; ctx.strokeStyle = theme.accent; ctx.beginPath(); ctx.moveTo(points[index - 1][0], points[index - 1][1]); ctx.lineTo(x, y); ctx.stroke(); }
+      });
+      const rightPoints = points.map(([x, y]) => [canvas.width - x, y]);
+      rightPoints.forEach(([x, y], index) => {
+        ctx.beginPath(); ctx.arc(x, y, index % 2 ? 10 : 14, 0, Math.PI * 2); ctx.fill();
+        if (index) { ctx.lineWidth = 4; ctx.strokeStyle = theme.accent; ctx.beginPath(); ctx.moveTo(rightPoints[index - 1][0], rightPoints[index - 1][1]); ctx.lineTo(x, y); ctx.stroke(); }
+      });
+    }
+    ctx.restore();
+  }
+
+  function drawPseudoQr(ctx, x, y, size, seed = '') {
+    const modules = 29;
+    const cell = size / modules;
+    const fillFinder = (fx, fy) => {
+      ctx.fillStyle = '#111827';
+      ctx.fillRect(x + fx * cell, y + fy * cell, cell * 7, cell * 7);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(x + (fx + 1) * cell, y + (fy + 1) * cell, cell * 5, cell * 5);
+      ctx.fillStyle = '#111827';
+      ctx.fillRect(x + (fx + 2) * cell, y + (fy + 2) * cell, cell * 3, cell * 3);
+    };
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(x, y, size, size);
+    fillFinder(0, 0); fillFinder(modules - 7, 0); fillFinder(0, modules - 7);
+    let hash = 0;
+    const text = String(seed || 'ICT8');
+    for (let i = 0; i < text.length; i += 1) hash = ((hash << 5) - hash + text.charCodeAt(i)) | 0;
+    const reserved = (mx, my) => (mx < 7 && my < 7) || (mx >= modules - 7 && my < 7) || (mx < 7 && my >= modules - 7);
+    for (let row = 0; row < modules; row += 1) {
+      for (let col = 0; col < modules; col += 1) {
+        if (reserved(col, row)) continue;
+        const bit = ((hash >>> ((row + col) % 24)) + row * 3 + col * 5 + text.length) % 2;
+        if (!bit) continue;
+        ctx.fillStyle = '#111827';
+        ctx.fillRect(x + col * cell, y + row * cell, Math.ceil(cell), Math.ceil(cell));
+      }
+    }
+    ctx.strokeStyle = '#cbd5e1';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(x, y, size, size);
+  }
+
+  async function loadQrImage(url) {
+    if (!url) return null;
+    try {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.decoding = 'async';
+      const ready = new Promise((resolve, reject) => {
+        img.onload = () => resolve(img);
+        img.onerror = reject;
+      });
+      img.src = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(url)}`;
+      return await ready;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  async function renderCertificateCanvasDesign(courseKey, details = {}) {
+    const course = COURSES[courseKey];
+    if (!course) throw new Error('Certificate course is unavailable.');
+    const theme = CERTIFICATE_THEMES[courseKey] || CERTIFICATE_THEMES.html;
+    const studentName = String(details.studentName || 'STUDENT').trim().toUpperCase();
+    const issuedAt = String(details.issuedAt || new Date().toISOString());
+    const certificateNumber = String(details.number || `ICT8-${courseKey.toUpperCase()}-SAMPLE-0001`);
+    const verifyUrl = String(details.verifyUrl || certificateVerificationUrl({ number: certificateNumber }));
+    const canvas = document.createElement('canvas');
+    canvas.width = 1600; canvas.height = 1000;
+    const ctx = canvas.getContext('2d', { alpha: false });
+
+    // Premium paper background.
+    const bg = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+    bg.addColorStop(0, theme.palette[0]);
+    bg.addColorStop(0.50, '#ffffff');
+    bg.addColorStop(1, theme.palette[2]);
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Main framed certificate panel.
+    ctx.fillStyle = 'rgba(255,255,255,0.88)';
+    drawRoundRect(ctx, 68, 68, 1464, 864, 30, true, false);
+    ctx.strokeStyle = theme.border;
+    ctx.lineWidth = 9;
+    drawRoundRect(ctx, 68, 68, 1464, 864, 30, false, true);
+    ctx.strokeStyle = '#0f172a';
+    ctx.lineWidth = 2;
+    drawRoundRect(ctx, 91, 91, 1418, 818, 23, false, true);
+    drawCertificatePattern(ctx, theme, canvas);
+
+    // Course badge top-left.
+    ctx.fillStyle = theme.accent;
+    ctx.beginPath();
+    ctx.arc(152, 150, 34, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '700 25px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(course.short, 152, 150);
+    ctx.textBaseline = 'alphabetic';
+
+    // Brand / course subtitle.
+    ctx.fillStyle = '#0f172a';
+    ctx.font = '700 26px Arial';
+    ctx.fillText('ICT 8 CONNECT • CODE EXPLORER', 800, 128);
+    ctx.font = '700 22px Arial';
+    ctx.fillStyle = theme.dark;
+    ctx.fillText(theme.subtitle, 800, 168);
+
+    // Seal moved to the top-right, completely outside the title area.
+    const sealX = 1380;
+    const sealY = 155;
+    const sealRadius = 56;
+    ctx.fillStyle = theme.accentSoft;
+    ctx.beginPath(); ctx.arc(sealX, sealY, sealRadius, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = theme.accent;
+    ctx.lineWidth = 6;
+    ctx.beginPath(); ctx.arc(sealX, sealY, sealRadius, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = theme.dark;
+    ctx.font = '700 18px Arial';
+    ctx.textAlign = 'center';
+    wrapCanvasText(ctx, theme.seal, sealX, sealY - 5, 78, 20, 3);
+
+    // Main title safely below the top badges/seal.
+    ctx.fillStyle = theme.accent;
+    let certTitleSize = 67;
+    ctx.font = `700 ${certTitleSize}px Georgia`;
+    while (ctx.measureText('CERTIFICATE OF COMPLETION').width > 1280 && certTitleSize > 54) {
+      certTitleSize -= 2;
+      ctx.font = `700 ${certTitleSize}px Georgia`;
+    }
+    ctx.fillText('CERTIFICATE OF COMPLETION', 800, 290);
+
+    ctx.fillStyle = '#475569';
+    ctx.font = '27px Arial';
+    ctx.fillText('This certificate is proudly presented to', 800, 357);
+
+    let nameSize = 70;
+    ctx.fillStyle = '#0f172a';
+    while (nameSize > 42) {
+      ctx.font = `700 ${nameSize}px Georgia`;
+      if (ctx.measureText(studentName).width <= 1160) break;
+      nameSize -= 2;
+    }
+    ctx.fillText(studentName, 800, 455);
+
+    ctx.fillStyle = '#475569';
+    ctx.font = '27px Arial';
+    ctx.fillText('for successfully completing the', 800, 532);
+    ctx.fillStyle = theme.accent;
+    ctx.font = '700 46px Arial';
+    wrapCanvasText(ctx, course.title.toUpperCase(), 800, 603, 1040, 52, 2);
+
+    ctx.fillStyle = '#334155';
+    ctx.font = '22px Arial';
+    ctx.fillText('including guided lessons, coding practice, quick checks, and a final challenge.', 760, 692);
+
+    // Dedicated verification block in the lower-right. No URL/file path is printed.
+    const qrX = 1265;
+    const qrY = 694;
+    const qrSize = 142;
+    ctx.fillStyle = 'rgba(248,250,252,0.96)';
+    drawRoundRect(ctx, 1234, 666, 210, 226, 18, true, false);
+    ctx.strokeStyle = 'rgba(148,163,184,0.55)';
+    ctx.lineWidth = 2;
+    drawRoundRect(ctx, 1234, 666, 210, 226, 18, false, true);
+    ctx.fillStyle = theme.dark;
+    ctx.font = '700 15px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('VERIFY CERTIFICATE', 1339, 688);
+    const qrImage = await loadQrImage(verifyUrl);
+    if (qrImage) ctx.drawImage(qrImage, qrX, qrY, qrSize, qrSize);
+    else drawPseudoQr(ctx, qrX, qrY, qrSize, certificateNumber);
+    ctx.fillStyle = '#0f172a';
+    ctx.font = '700 16px Arial';
+    ctx.fillText('Scan to verify', 1339, 856);
+    ctx.fillStyle = '#64748b';
+    ctx.font = '13px Arial';
+    ctx.fillText(certificateNumber, 1339, 878);
+
+    // Clean bottom information zone kept away from QR.
+    ctx.strokeStyle = '#cbd5e1';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(190, 760); ctx.lineTo(1175, 760); ctx.stroke();
+
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#334155';
+    ctx.font = '20px Arial';
+    ctx.fillText(`Awarded on: ${formatCertificateDate(issuedAt)}`, 190, 820);
+
+    ctx.strokeStyle = '#94a3b8';
+    ctx.beginPath(); ctx.moveTo(190, 873); ctx.lineTo(475, 873); ctx.stroke();
+    ctx.fillStyle = '#475569';
+    ctx.font = '17px Arial';
+    ctx.fillText('Instructor / Teacher Signature', 190, 900);
+
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#334155';
+    ctx.font = '18px Arial';
+    ctx.fillText(`Certificate No. ${certificateNumber}`, 800, 820);
+    ctx.fillStyle = '#64748b';
+    ctx.font = '17px Arial';
+    ctx.fillText('Learn • Code • Connect', 800, 900);
+
+    return canvas;
+  }
+
+  async function renderCertificateCanvas(courseKey) {
+    const cert = ensureCertificate(courseKey);
+    if (!cert) throw new Error('Certificate is not unlocked yet.');
+    return renderCertificateCanvasDesign(courseKey, {
+      studentName: String(appSession.student?.name || appSession.lastStudentProfile?.name || 'Student'),
+      issuedAt: cert.issuedAt,
+      number: cert.number,
+      verifyUrl: certificateVerificationUrl(cert)
+    });
+  }
+
+  async function buildCertificatePdfBlob(canvas) {
+    const jpegBlob = await wireframeCanvasToBlob(canvas, 'image/jpeg', 0.94);
+    return buildWireframePdfBlob([{ width: canvas.width, height: canvas.height, bytes: new Uint8Array(await jpegBlob.arrayBuffer()) }], 'desktop');
+  }
+
+  async function createAdminSampleCertificatePdf() {
+    const courseKey = dom.adminSampleCourse?.value || 'html';
+    const canvas = await renderCertificateCanvasDesign(courseKey, {
+      studentName: 'JUAN DELA CRUZ',
+      issuedAt: new Date().toISOString(),
+      number: `ICT8-${courseKey.toUpperCase()}-${new Date().getFullYear()}-SAMPLE`,
+      verifyUrl: certificateVerificationUrl({ number: `ICT8-${courseKey.toUpperCase()}-${new Date().getFullYear()}-SAMPLE` })
+    });
+    return buildCertificatePdfBlob(canvas);
+  }
+
+  async function viewAdminSampleCertificate() {
+    try {
+      const pdfBlob = await createAdminSampleCertificatePdf();
+      const url = URL.createObjectURL(pdfBlob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.target = '_blank';
+      link.rel = 'noopener';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (error) {
+      console.error('Sample certificate preview failed.', error);
+      await appAlert(error?.message || 'Could not open the sample certificate.', { title: 'Sample Certificate', danger: true });
+    }
+  }
+
+  async function downloadAdminSampleCertificate() {
+    try {
+      const courseKey = dom.adminSampleCourse?.value || 'html';
+      const pdfBlob = await createAdminSampleCertificatePdf();
+      downloadBlob(pdfBlob, `ICT8-Code-Explorer-Sample-${String(COURSES[courseKey]?.short || courseKey).toUpperCase()}-Certificate.pdf`);
+    } catch (error) {
+      console.error('Sample certificate download failed.', error);
+      await appAlert(error?.message || 'Could not download the sample certificate.', { title: 'Sample Certificate', danger: true });
+    }
+  }
+
+  async function downloadCertificate(courseKey) {
+    try {
+      const course = COURSES[courseKey];
+      const cert = ensureCertificate(courseKey);
+      if (cert) registerCertificateRecord(courseKey, cert);
+      const canvas = await renderCertificateCanvas(courseKey);
+      const pdfBlob = await buildCertificatePdfBlob(canvas);
+      const name = String(appSession.student?.name || 'Student').trim().replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '') || 'Student';
+      downloadBlob(pdfBlob, `${name}-${course.short}-Certificate.pdf`);
+    } catch (error) {
+      console.error('Certificate PDF download failed.', error);
+      await appAlert(error?.message || 'Could not create the certificate PDF.', { title: 'Certificate download', danger: true });
+    }
+  }
+
+  function renderCertificates() {
+    if (!dom.certList) return;
+    dom.certList.innerHTML = COURSE_KEYS.map(key => {
+      const course = COURSES[key];
+      const stats = courseProgress(key);
+      const final = state.progress.courses[key].final || {};
+      const cert = state.progress.courses[key].certificate || {};
+      if (cert.issuedAt) return `<article class="code-explorer-certificate-card unlocked" style="--course-accent:${course.accent}"><span>${course.icon}</span><div><strong>${escapeHTML(course.title)}</strong><p>Completed ${escapeHTML(formatCertificateDate(cert.issuedAt))}</p><small>${escapeHTML(cert.number || '')}</small></div><button class="primary-btn" type="button" data-download-explorer-cert="${key}">⬇ PDF</button></article>`;
+      return `<article class="code-explorer-certificate-card locked" style="--course-accent:${course.accent}"><span>🔒</span><div><strong>${escapeHTML(course.title)}</strong><p>${stats.completed}/${stats.total} topics · ${final.passed ? 'Final passed' : 'Certificate locked'}</p><small>${final.passed ? 'Open the course to issue your certificate.' : 'Complete the course and pass the final challenge.'}</small></div></article>`;
+    }).join('');
+  }
+
+  function openExplorerCertificateVerification(record = {}, options = {}) {
+    if (!dom.verifyOverlay || !dom.verifyBody) return;
+    const found = options.found !== false;
+    const title = found ? 'Certificate Found' : 'Certificate Record Not Found';
+    const courseTitle = record.courseTitle || COURSES[record.courseKey || 'html']?.title || 'Unknown Course';
+    dom.verifyBody.innerHTML = found
+      ? `<article class="code-explorer-verify-card success"><div class="code-explorer-verify-pill">✓ Verified</div><h3>${escapeHTML(title)}</h3><p>The certificate number exists in the app record available on this device.</p><dl><div><dt>Student</dt><dd>${escapeHTML(record.studentName || 'Unknown')}</dd></div><div><dt>Course</dt><dd>${escapeHTML(courseTitle)}</dd></div><div><dt>Date Issued</dt><dd>${escapeHTML(formatCertificateDate(record.issuedAt || ''))}</dd></div><div><dt>Certificate No.</dt><dd>${escapeHTML(record.number || '')}</dd></div>${record.section ? `<div><dt>Section</dt><dd>${escapeHTML(record.section)}</dd></div>` : ''}</dl><small>Tip: if you move to another device, make sure the certificate registry is also synced there.</small></article>`
+      : `<article class="code-explorer-verify-card warning"><div class="code-explorer-verify-pill">?</div><h3>${escapeHTML(title)}</h3><p>We could not find a matching certificate record on this device yet.</p><dl><div><dt>Certificate No.</dt><dd>${escapeHTML(record.number || options.number || '')}</dd></div></dl><small>This may happen if the certificate has not been generated here yet or if the device has no stored certificate registry.</small></article>`;
+    dom.verifyOverlay.classList.remove('hidden');
+    document.body.classList.add('code-explorer-modal-open');
+  }
+
+  function closeExplorerCertificateVerification(clearUrl = true) {
+    if (!dom.verifyOverlay) return;
+    dom.verifyOverlay.classList.add('hidden');
+    document.body.classList.remove('code-explorer-modal-open');
+    if (clearUrl) {
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('codeExplorerVerify');
+        window.history.replaceState({}, '', url.toString());
+      } catch (_) {}
+    }
+  }
+
+  function maybeOpenExplorerCertificateVerificationFromUrl() {
+    try {
+      const url = new URL(window.location.href);
+      const certNo = String(url.searchParams.get('codeExplorerVerify') || '').trim();
+      if (!certNo) return;
+      const record = findCertificateRecord(certNo);
+      if (record) openExplorerCertificateVerification(record, { found: true });
+      else openExplorerCertificateVerification({ number: certNo }, { found: false, number: certNo });
+    } catch (_) {}
+  }
+  function openCertificates() {
+    renderCertificates();
+    dom.certOverlay.classList.remove('hidden');
+    document.body.classList.add('code-explorer-modal-open');
+  }
+
+  function closeCertificates() {
+    dom.certOverlay.classList.add('hidden');
+    document.body.classList.remove('code-explorer-modal-open');
+  }
+
+
+  const adminExplorerState = { selectedStudentKey: '', selectedCourse: 'html', loaded: false };
+
+  function studentExplorerProgress(student = {}) {
+    let merged = emptyProgress();
+    const records = Array.isArray(student.sourceRecords) ? student.sourceRecords : [student];
+    records.forEach(record => {
+      if (record?.codeExplorerProgress) merged = mergeProgress(merged, record.codeExplorerProgress);
+    });
+    if (student.codeExplorerProgress) merged = mergeProgress(merged, student.codeExplorerProgress);
+    return normalizeProgress(merged);
+  }
+
+  function explorerLastActivity(student, progress) {
+    const candidates = [progress?.updatedAt, student?.codeExplorerUpdatedAt];
+    (student?.sourceRecords || []).forEach(record => {
+      if (record?.codeExplorerUpdatedAt) candidates.push(record.codeExplorerUpdatedAt);
+      if (record?.codeExplorerProgress?.updatedAt) candidates.push(record.codeExplorerProgress.updatedAt);
+    });
+    const dates = candidates.map(value => timestampToDate(value)).filter(Boolean).sort((a, b) => b.getTime() - a.getTime());
+    return dates[0] || null;
+  }
+
+  function adminExplorerRecord(student) {
+    const progress = studentExplorerProgress(student);
+    const overall = explorerOverallFor(progress);
+    const certificates = explorerCertificateCountFor(progress);
+    const xp = explorerXpFor(progress);
+    const hearts = currentHeartSnapshot(progress);
+    const courses = Object.fromEntries(COURSE_KEYS.map(key => [key, courseProgressFor(progress, key)]));
+    const lastDate = explorerLastActivity(student, progress);
+    let status = 'not-started';
+    if (overall.explored > 0) status = overall.completed === overall.total ? 'completed' : 'in-progress';
+    if (certificates > 0 && status === 'not-started') status = 'in-progress';
+    return { student, progress, overall, certificates, xp, hearts, courses, lastDate, status };
+  }
+
+  function populateCodeExplorerAdminSections(records) {
+    if (!dom.adminSection) return;
+    const current = dom.adminSection.value || 'all';
+    const sections = [...new Set(records.map(record => String(record.student.section || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+    dom.adminSection.innerHTML = '<option value="all">All Sections</option>' + sections.map(section => `<option value="${escapeAttribute(section)}">${escapeHTML(section)}</option>`).join('');
+    dom.adminSection.value = sections.includes(current) ? current : 'all';
+  }
+
+  function renderAdminExplorerProgress() {
+    if (!dom.adminTableBody) return;
+    const records = adminStudentsCache.map(adminExplorerRecord);
+    populateCodeExplorerAdminSections(records);
+    const search = String(dom.adminSearch?.value || '').trim().toLowerCase();
+    const section = String(dom.adminSection?.value || 'all');
+    const statusFilter = String(dom.adminStatusFilter?.value || 'all');
+    let filtered = records.filter(record => {
+      const student = record.student;
+      if (search && !`${student.name || ''} ${student.studentId || ''}`.toLowerCase().includes(search)) return false;
+      if (section !== 'all' && String(student.section || '') !== section) return false;
+      if (statusFilter === 'not-started' && record.status !== 'not-started') return false;
+      if (statusFilter === 'in-progress' && record.status !== 'in-progress') return false;
+      if (statusFilter === 'completed' && record.status !== 'completed') return false;
+      if (statusFilter === 'certified' && record.certificates < 1) return false;
+      return true;
+    });
+
+    const sort = String(dom.adminSort?.value || 'section');
+    filtered.sort((a, b) => {
+      if (sort === 'progress') return b.overall.percent - a.overall.percent || String(a.student.name || '').localeCompare(String(b.student.name || ''));
+      if (sort === 'recent') return Number(b.lastDate?.getTime?.() || 0) - Number(a.lastDate?.getTime?.() || 0);
+      if (sort === 'xp') return b.xp - a.xp || String(a.student.name || '').localeCompare(String(b.student.name || ''));
+      return String(a.student.section || '').localeCompare(String(b.student.section || '')) || String(a.student.name || '').localeCompare(String(b.student.name || ''));
+    });
+
+    const exploring = records.filter(record => record.overall.explored > 0).length;
+    const certified = records.filter(record => record.certificates > 0).length;
+    const average = records.length ? Math.round(records.reduce((sum, record) => sum + record.overall.percent, 0) / records.length) : 0;
+    if (dom.adminStudentCount) dom.adminStudentCount.textContent = String(records.length);
+    if (dom.adminExploringCount) dom.adminExploringCount.textContent = String(exploring);
+    if (dom.adminCertifiedCount) dom.adminCertifiedCount.textContent = String(certified);
+    if (dom.adminAverage) dom.adminAverage.textContent = `${average}%`;
+
+    if (!filtered.length) {
+      dom.adminTableBody.innerHTML = '<tr><td colspan="9"><div class="empty-projects-card"><strong>No matching Code Explorer progress.</strong><p>Change the filters or wait for students to start exploring.</p></div></td></tr>';
+    } else {
+      dom.adminTableBody.innerHTML = filtered.map(record => {
+        const student = record.student;
+        const key = getAdminStudentRenderKey(student);
+        const courseCell = courseKey => {
+          const stat = record.courses[courseKey];
+          const certified = Boolean(record.progress.courses[courseKey]?.certificate?.issuedAt);
+          return `<div class="code-explorer-admin-course-cell"><strong>${stat.percent}%${certified ? ' 🏅' : ''}</strong><span>${stat.completed}/${stat.total}</span><i><b style="width:${stat.percent}%"></b></i></div>`;
+        };
+        const statusLabel = record.status === 'completed' ? 'All Topics Complete' : record.status === 'in-progress' ? 'In Progress' : 'Not Started';
+        return `<tr><td><strong>${escapeHTML(student.name || 'Unnamed Student')}</strong><small>${escapeHTML(student.studentId || '')}</small><em data-state="${record.status}">${statusLabel}</em></td><td>${escapeHTML(student.section || 'No section')}</td><td>${courseCell('html')}</td><td>${courseCell('css')}</td><td>${courseCell('js')}</td><td><strong>${record.xp}</strong></td><td><strong>${record.certificates}/3</strong></td><td>${record.lastDate ? escapeHTML(formatStudentDate(record.lastDate)) : 'No Explorer activity yet'}</td><td><button class="ghost-btn student-compact-action" type="button" data-view-code-explorer-student="${escapeAttribute(key)}">View</button></td></tr>`;
+      }).join('');
+    }
+    if (dom.adminStatus) dom.adminStatus.textContent = `${filtered.length} of ${records.length} students shown · ${exploring} have explored at least one topic.`;
+  }
+
+  async function initializeCodeExplorerAdmin(options = {}) {
+    if (!isTeacherAuthenticated()) return;
+    if (dom.adminStatus) dom.adminStatus.textContent = 'Loading Code Explorer progress...';
+    if (options.force || !adminStudentsCache.length) await loadAdminStudents({ force: options.force === true });
+    adminExplorerState.loaded = true;
+    renderAdminExplorerProgress();
+  }
+
+  function getAdminExplorerHeartTargetUid(student = {}) {
+    const records = (Array.isArray(student.sourceRecords) ? student.sourceRecords : [student])
+      .filter(record => !record?.isRosterOnly && String(record?.uid || record?.authUid || '').trim());
+    records.sort((a, b) => {
+      const aExplorer = a?.codeExplorerProgress ? 1 : 0;
+      const bExplorer = b?.codeExplorerProgress ? 1 : 0;
+      if (aExplorer !== bExplorer) return bExplorer - aExplorer;
+      const aTime = timestampToDate(a?.codeExplorerUpdatedAt || a?.codeExplorerProgress?.updatedAt || a?.updatedAt)?.getTime?.() || 0;
+      const bTime = timestampToDate(b?.codeExplorerUpdatedAt || b?.codeExplorerProgress?.updatedAt || b?.updatedAt)?.getTime?.() || 0;
+      return bTime - aTime;
+    });
+    return String(records[0]?.uid || records[0]?.authUid || student.uid || '').trim();
+  }
+
+  async function grantAdminExplorerHearts(studentKey, amount = 'fill') {
+    if (!isTeacherAuthenticated()) return;
+    const student = adminStudentsCache.find(item => getAdminStudentRenderKey(item) === String(studentKey || ''));
+    if (!student) {
+      await appAlert('Student record could not be found.', { title: 'Heart Refill', danger: true });
+      return;
+    }
+    const targetUid = getAdminExplorerHeartTargetUid(student);
+    if (!targetUid) {
+      await appAlert('This student has not activated a Code Explorer profile yet.', { title: 'Heart Refill' });
+      return;
+    }
+    const buttons = dom.adminHeartControl?.querySelectorAll('button') || [];
+    buttons.forEach(button => { button.disabled = true; });
+    if (dom.adminHeartText) dom.adminHeartText.textContent = 'Updating hearts...';
+    try {
+      const ready = await initFirebaseSync();
+      if (!ready) throw new Error('Firebase is not ready.');
+      const { getDoc, updateDoc, setDoc, serverTimestamp } = firebaseSync.modules;
+      const profileRef = getStudentDocRef(targetUid);
+      const snapshot = await getDoc(profileRef);
+      const profile = snapshotExists(snapshot) ? snapshotData(snapshot) : {};
+      const progress = normalizeProgress(profile?.codeExplorerProgress || {});
+      const current = heartSnapshotFromState(progress.hearts || {});
+      const add = amount === 'fill' ? HEARTS_MAX : Math.max(1, Math.floor(Number(amount || 1)));
+      const nextBalance = amount === 'fill' ? HEARTS_MAX : Math.min(HEARTS_MAX, current.balance + add);
+      if (nextBalance <= current.balance) {
+        await appAlert(`${student.name || 'Student'} already has ${current.balance}/${HEARTS_MAX} hearts.`, { title: 'Heart Refill', icon: '\u2764\ufe0f' });
+        return;
+      }
+      const nowIso = new Date().toISOString();
+      const nextHearts = {
+        balance: nextBalance,
+        lastRefillAt: nextBalance >= HEARTS_MAX ? nowIso : current.lastRefillAt,
+        updatedAt: nowIso
+      };
+      try {
+        await updateDoc(profileRef, {
+          'codeExplorerProgress.hearts': nextHearts,
+          codeExplorerUpdatedAt: serverTimestamp()
+        });
+      } catch (updateError) {
+        progress.hearts = nextHearts;
+        progress.updatedAt = nowIso;
+        await setDoc(profileRef, {
+          codeExplorerProgress: normalizeProgress(progress),
+          codeExplorerUpdatedAt: serverTimestamp()
+        }, { merge: true });
+      }
+      clearSelectiveFirestoreCache(`studentProfile:${targetUid}`);
+      clearSelectiveFirestoreCache('admin:studentsAndRoster');
+      await loadAdminStudents({ force: true });
+      renderAdminExplorerProgress();
+      renderCodeExplorerAdminStudentDetail();
+      await appAlert(`${student.name || 'Student'} now has ${nextBalance}/${HEARTS_MAX} hearts.`, { title: 'Heart Refill', icon: '\u2764\ufe0f' });
+    } catch (error) {
+      console.error('Admin Code Explorer heart refill failed.', error);
+      await appAlert(error?.message || 'Could not update the student hearts.', { title: 'Heart Refill', danger: true });
+    } finally {
+      const activeStudent = adminStudentsCache.find(item => getAdminStudentRenderKey(item) === adminExplorerState.selectedStudentKey);
+      const balance = activeStudent ? adminExplorerRecord(activeStudent).hearts.balance : 0;
+      buttons.forEach(button => { button.disabled = balance >= HEARTS_MAX; });
+      if (activeStudent && dom.adminHeartText) dom.adminHeartText.textContent = `Current balance: ${balance}/${HEARTS_MAX}. Add only when the student needs another scored attempt.`;
+    }
+  }
+
+  function closeCodeExplorerAdminDetail() {
+    dom.adminDetailOverlay?.classList.add('hidden');
+    adminExplorerState.selectedStudentKey = '';
+  }
+
+  function renderCodeExplorerAdminStudentDetail() {
+    if (!adminExplorerState.selectedStudentKey || !dom.adminDetailOverlay) return;
+    const student = adminStudentsCache.find(item => getAdminStudentRenderKey(item) === adminExplorerState.selectedStudentKey);
+    if (!student) return;
+    const record = adminExplorerRecord(student);
+    const progress = record.progress;
+    const key = COURSES[adminExplorerState.selectedCourse] ? adminExplorerState.selectedCourse : 'html';
+    adminExplorerState.selectedCourse = key;
+    const course = COURSES[key];
+    const stats = record.courses[key];
+    const courseData = progress.courses[key] || {};
+    if (dom.adminDetailTitle) dom.adminDetailTitle.textContent = student.name || 'Student Progress';
+    if (dom.adminDetailSubtitle) dom.adminDetailSubtitle.textContent = `${student.studentId || 'No ID'} · ${student.section || 'No section'} · ${record.overall.percent}% overall`;
+    if (dom.adminDetailSummary) dom.adminDetailSummary.innerHTML = `<div><strong>${record.overall.completed}/${record.overall.total}</strong><span>Topics Completed</span></div><div><strong>${record.xp}</strong><span>XP</span></div><div><strong>❤️ ${record.hearts.balance}/${HEARTS_MAX}</strong><span>Current Hearts</span></div><div><strong>${record.certificates}/3</strong><span>Certificates</span></div><div><strong>${record.lastDate ? escapeHTML(formatStudentDate(record.lastDate)) : '—'}</strong><span>Last Explorer Activity</span></div>`;
+    if (dom.adminHeartText) dom.adminHeartText.textContent = `Current balance: ${record.hearts.balance}/${HEARTS_MAX}. Add only when the student needs another scored attempt.`;
+    dom.adminHeartControl?.querySelectorAll('button').forEach(button => { button.disabled = record.hearts.balance >= HEARTS_MAX; });
+    if (dom.adminDetailCourses) dom.adminDetailCourses.innerHTML = COURSE_KEYS.map(courseKey => {
+      const item = COURSES[courseKey];
+      const stat = record.courses[courseKey];
+      const cert = Boolean(progress.courses[courseKey]?.certificate?.issuedAt);
+      return `<button type="button" class="${courseKey === key ? 'active' : ''}" data-admin-explorer-detail-course="${courseKey}" style="--course-accent:${item.accent}"><span>${item.icon}</span><strong>${escapeHTML(item.short)}</strong><small>${stat.percent}% · ${stat.completed}/${stat.total}${cert ? ' · 🏅' : ''}</small></button>`;
+    }).join('');
+    const final = courseData.final || {};
+    const cert = courseData.certificate || {};
+    if (dom.adminDetailCourseMeta) dom.adminDetailCourseMeta.innerHTML = `<div><strong>${escapeHTML(course.title)}</strong><span>${stats.percent}% complete · ${stats.explored}/${stats.total} explored</span></div><div><span>Final: ${final.passed ? `${Math.round(Number(final.score || 0))}% passed` : (Number(final.score || 0) ? `${Math.round(Number(final.score || 0))}% best` : 'Not passed')}</span><span>Certificate: ${cert.issuedAt ? `Issued ${escapeHTML(formatCertificateDate(cert.issuedAt))}` : 'Not earned'}</span></div>`;
+    if (dom.adminDetailTopics) dom.adminDetailTopics.innerHTML = course.topics.map((topicItem, index) => {
+      const topicRecordData = courseData.topics?.[topicItem.id] || {};
+      const status = topicRecordData.completedAt ? 'complete' : (topicRecordData.openedAt || topicRecordData.lastOpenedAt ? 'progress' : 'todo');
+      const scoreText = topicRecordData.quizFivePassed
+        ? `${Number(topicRecordData.quizBestCorrect || 0)}/5 best`
+        : (topicRecordData.quizPassed
+          ? (Number(topicRecordData.quizBestCorrect || 0) > 0 ? `Previous pass · new best ${topicRecordData.quizBestCorrect}/5` : 'Passed (previous version)')
+          : (Number(topicRecordData.quizBestCorrect || 0) > 0 ? `${topicRecordData.quizBestCorrect}/5 best` : 'Not passed'));
+      return `<article class="code-explorer-admin-topic-row" data-state="${status}"><span class="code-explorer-admin-topic-number">${status === 'complete' ? '✓' : index + 1}</span><div><strong>${escapeHTML(topicItem.title)}</strong><small>${status === 'complete' ? 'Completed' : status === 'progress' ? 'In progress' : 'Not started'} · Practice ${topicRecordData.practicePassed ? '✓' : '—'} · Quick Check ${escapeHTML(scoreText)}</small></div><span>${topicRecordData.quizAttempts ? `${Number(topicRecordData.quizAttempts)} quiz attempt${Number(topicRecordData.quizAttempts) === 1 ? '' : 's'}` : ''}</span></article>`;
+    }).join('');
+  }
+
+  function openCodeExplorerAdminDetail(studentKey) {
+    adminExplorerState.selectedStudentKey = String(studentKey || '');
+    adminExplorerState.selectedCourse = 'html';
+    renderCodeExplorerAdminStudentDetail();
+    dom.adminDetailOverlay?.classList.remove('hidden');
+  }
+
+  dom.adminRefreshBtn?.addEventListener('click', () => initializeCodeExplorerAdmin({ force: true }));
+  dom.adminSampleViewBtn?.addEventListener('click', viewAdminSampleCertificate);
+  dom.adminSampleDownloadBtn?.addEventListener('click', downloadAdminSampleCertificate);
+  dom.adminHeartControl?.addEventListener('click', event => {
+    const button = event.target.closest('[data-admin-explorer-add-heart]');
+    if (!button || !adminExplorerState.selectedStudentKey) return;
+    grantAdminExplorerHearts(adminExplorerState.selectedStudentKey, button.dataset.adminExplorerAddHeart || 'fill');
+  });
+  [dom.adminSearch, dom.adminSection, dom.adminStatusFilter, dom.adminSort].forEach(control => {
+    control?.addEventListener(control?.tagName === 'INPUT' ? 'input' : 'change', renderAdminExplorerProgress);
+  });
+  dom.adminTableBody?.addEventListener('click', event => {
+    const button = event.target.closest('[data-view-code-explorer-student]');
+    if (button) openCodeExplorerAdminDetail(button.dataset.viewCodeExplorerStudent);
+  });
+  dom.adminDetailCourses?.addEventListener('click', event => {
+    const button = event.target.closest('[data-admin-explorer-detail-course]');
+    if (!button) return;
+    adminExplorerState.selectedCourse = button.dataset.adminExplorerDetailCourse || 'html';
+    renderCodeExplorerAdminStudentDetail();
+  });
+  dom.adminDetailCloseBtn?.addEventListener('click', closeCodeExplorerAdminDetail);
+  dom.adminDetailOverlay?.addEventListener('click', event => { if (event.target === dom.adminDetailOverlay) closeCodeExplorerAdminDetail(); });
+
+  window.initializeCodeExplorerAdmin = initializeCodeExplorerAdmin;
+  window.renderCodeExplorerAdminProgress = renderAdminExplorerProgress;
+
+  dom.dashboardBtn?.addEventListener('click', openExplorer);
+  dom.menuBtn?.addEventListener('click', openExplorer);
+  dom.backBtn?.addEventListener('click', closeExplorer);
+  dom.themeBtn?.addEventListener('click', () => dashboardThemeBtn?.click());
+  dom.certificatesBtn?.addEventListener('click', openCertificates);
+  dom.certCloseBtn?.addEventListener('click', closeCertificates);
+  dom.verifyCloseBtn?.addEventListener('click', () => closeExplorerCertificateVerification(true));
+  dom.verifyDoneBtn?.addEventListener('click', () => closeExplorerCertificateVerification(true));
+  dom.courseCards?.addEventListener('click', event => {
+    const button = event.target.closest('[data-explorer-course]');
+    if (button) selectCourse(button.dataset.explorerCourse);
+  });
+  dom.topicList?.addEventListener('click', event => {
+    const button = event.target.closest('[data-explorer-topic]');
+    if (button) selectTopic(button.dataset.explorerTopic);
+  });
+  screen.querySelectorAll('[data-explorer-filter]').forEach(button => button.addEventListener('click', () => {
+    state.filter = button.dataset.explorerFilter || 'all';
+    screen.querySelectorAll('[data-explorer-filter]').forEach(item => item.classList.toggle('active', item === button));
+    renderTopicList();
+  }));
+  dom.runBtn?.addEventListener('click', runPractice);
+  dom.checkBtn?.addEventListener('click', checkPractice);
+  dom.resetPracticeBtn?.addEventListener('click', () => { dom.practiceEditor.value = currentTopic().starter; runPractice(); });
+  dom.practiceEditor?.addEventListener('input', () => { if (dom.previewStatus) dom.previewStatus.textContent = 'Run to update'; });
+  dom.copyExampleBtn?.addEventListener('click', async () => {
+    const text = currentTopic()?.example || '';
+    let ok = false;
+    try { await navigator.clipboard.writeText(text); ok = true; } catch (_) {}
+    if (!ok) {
+      const area = document.createElement('textarea'); area.value = text; area.style.position = 'fixed'; area.style.opacity = '0'; document.body.appendChild(area); area.select();
+      try { ok = document.execCommand('copy'); } catch (_) {} area.remove();
+    }
+    dom.copyExampleBtn.textContent = ok ? '✓ Copied' : 'Copy';
+    window.setTimeout(() => { dom.copyExampleBtn.textContent = 'Copy'; }, 1100);
+  });
+  dom.quizOptions?.addEventListener('click', event => {
+    const option = event.target.closest('[data-explorer-quick-option]');
+    if (option) { selectQuickQuizOption(option.dataset.explorerQuickOption); return; }
+    const prev = event.target.closest('[data-explorer-quick-prev]');
+    if (prev) { moveQuickQuiz(-1); return; }
+    const next = event.target.closest('[data-explorer-quick-next]');
+    if (next) { moveQuickQuiz(1); return; }
+    const jump = event.target.closest('[data-explorer-quick-jump]');
+    if (jump) jumpQuickQuiz(jump.dataset.explorerQuickJump);
+  });
+  dom.quizSubmitBtn?.addEventListener('click', submitTopicQuiz);
+  dom.prevBtn?.addEventListener('click', () => {
+    const course = COURSES[state.course]; const index = course.topics.findIndex(item => item.id === state.topicId); if (index > 0) selectTopic(course.topics[index - 1].id);
+  });
+  dom.nextBtn?.addEventListener('click', () => {
+    const course = COURSES[state.course]; const index = course.topics.findIndex(item => item.id === state.topicId); if (index >= 0 && index < course.topics.length - 1) selectTopic(course.topics[index + 1].id);
+  });
+  dom.finalBtn?.addEventListener('click', () => {
+    if (dom.finalBtn.dataset.mode === 'certificate') openCertificates();
+    else if (dom.finalBtn.dataset.mode === 'hearts') appAlert(heartOutMessage(), { title: 'Out of Hearts', icon: '❤️' });
+    else openFinal();
+  });
+  dom.finalCloseBtn?.addEventListener('click', closeFinal);
+  dom.finalCancelBtn?.addEventListener('click', closeFinal);
+  dom.finalSubmitBtn?.addEventListener('click', async () => {
+    if (dom.finalSubmitBtn.dataset.mode === 'certificate' || dom.finalSubmitBtn.dataset.passed === 'true') { closeFinal(); openCertificates(); return; }
+    if (dom.finalSubmitBtn.dataset.mode === 'retry') {
+      dom.finalQuestions.querySelectorAll('input[type="radio"]').forEach(input => { input.checked = false; });
+      dom.finalResult.classList.add('hidden');
+      dom.finalResult.textContent = '';
+      dom.finalSubmitBtn.textContent = 'Check Final Challenge';
+      dom.finalSubmitBtn.dataset.mode = 'submit';
+      dom.finalSubmitBtn.dataset.passed = 'false';
+      return;
+    }
+    await submitFinal();
+  });
+  dom.certList?.addEventListener('click', event => {
+    const button = event.target.closest('[data-download-explorer-cert]');
+    if (button) downloadCertificate(button.dataset.downloadExplorerCert);
+  });
+  [dom.finalOverlay, dom.certOverlay, dom.verifyOverlay].forEach(overlay => overlay?.addEventListener('click', event => {
+    if (event.target !== overlay) return;
+    if (overlay === dom.finalOverlay) closeFinal();
+    else if (overlay === dom.certOverlay) closeCertificates();
+    else closeExplorerCertificateVerification(true);
+  }));
+  document.addEventListener('keydown', event => {
+    if (event.key !== 'Escape') return;
+    if (dom.adminDetailOverlay && !dom.adminDetailOverlay.classList.contains('hidden')) closeCodeExplorerAdminDetail();
+    else if (dom.verifyOverlay && !dom.verifyOverlay.classList.contains('hidden')) closeExplorerCertificateVerification(true);
+    else if (!dom.finalOverlay.classList.contains('hidden')) closeFinal();
+    else if (!dom.certOverlay.classList.contains('hidden')) closeCertificates();
+  });
+
+  ensureReaderProgress();
+  applyHeartRefill(state.progress);
+  renderDashboardSummary();
+  maybeOpenExplorerCertificateVerificationFromUrl();
+  window.renderCodeExplorerDashboardSummary = renderDashboardSummary;
+  window.openCodeExplorer = openExplorer;
+  window.__CODE_EXPLORER_COURSES__ = COURSES;
+})();
+

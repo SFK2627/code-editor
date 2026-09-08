@@ -45,7 +45,7 @@
   </script>
   <link rel="preconnect" href="https://drive.google.com" crossorigin>
   <link rel="preconnect" href="https://lh3.googleusercontent.com" crossorigin>
-  <link rel="stylesheet" href="style.css?v=20260908-v345-compact-lesson-viewer" />
+  <link rel="stylesheet" href="style.css?v=20260908-v357-certificate-layout-fix" />
   <style>
     .ai-rubric-settings-card,
     .admin-project-ai-review-card {
@@ -406,6 +406,23 @@
         </div>
       </section>
 
+      <section id="codeExplorerDashboardCard" class="code-explorer-dashboard-card" aria-label="Code Explorer learning progress">
+        <div class="code-explorer-dashboard-copy">
+          <span class="code-explorer-dashboard-icon" aria-hidden="true">🚀</span>
+          <div>
+            <span class="code-explorer-eyebrow">Explore beyond class lessons</span>
+            <h3>Code Explorer</h3>
+            <p>Learn HTML, CSS, and JavaScript at your own pace with live practice, quick checks, challenges, and certificates.</p>
+          </div>
+        </div>
+        <div class="code-explorer-dashboard-progress" aria-label="Code Explorer progress summary">
+          <div><span>HTML</span><div class="code-explorer-mini-track"><i id="dashboardExplorerHtmlBar"></i></div><strong id="dashboardExplorerHtmlText">0%</strong></div>
+          <div><span>CSS</span><div class="code-explorer-mini-track"><i id="dashboardExplorerCssBar"></i></div><strong id="dashboardExplorerCssText">0%</strong></div>
+          <div><span>JS</span><div class="code-explorer-mini-track"><i id="dashboardExplorerJsBar"></i></div><strong id="dashboardExplorerJsText">0%</strong></div>
+        </div>
+        <button id="dashboardCodeExplorerBtn" class="primary-btn code-explorer-dashboard-btn" type="button">🚀 Start Exploring</button>
+      </section>
+
       <section id="dashboardSaveFeedbackPanel" class="dashboard-save-feedback-panel" aria-label="Save, recovery, and teacher feedback notifications">
         <article class="dashboard-notice-card dashboard-save-card">
           <span class="dashboard-notice-icon" aria-hidden="true">💾</span>
@@ -441,6 +458,160 @@
     </main>
   </div>
 
+
+
+  <div id="codeExplorerScreen" class="code-explorer-screen hidden" aria-labelledby="codeExplorerTitle">
+    <header class="code-explorer-header">
+      <div class="code-explorer-header-brand">
+        <button id="codeExplorerBackBtn" class="ghost-btn" type="button">← My Projects</button>
+        <span class="code-explorer-logo" aria-hidden="true">🚀</span>
+        <div>
+          <span class="code-explorer-eyebrow">ICT 8 Connect</span>
+          <h1 id="codeExplorerTitle">Code Explorer</h1>
+          <p>Learn. Practice. Build confidence. Earn certificates.</p>
+        </div>
+      </div>
+      <div class="code-explorer-header-actions">
+        <span id="codeExplorerXpBadge" class="code-explorer-xp-badge" title="XP is permanent progress and is never spent.">⚡ 0 XP</span>
+        <span id="codeExplorerHeartBadge" class="code-explorer-heart-badge" title="Hearts are used only when scored answers are wrong.">❤️ 5/5</span>
+        <button id="codeExplorerCertificatesBtn" class="ghost-btn" type="button">🏅 My Certificates</button>
+        <button id="codeExplorerThemeBtn" class="ghost-btn" type="button">🌙 Theme</button>
+      </div>
+    </header>
+
+    <main class="code-explorer-main">
+      <section class="code-explorer-hero">
+        <div>
+          <span class="code-explorer-eyebrow">Self-paced coding journey</span>
+          <h2 id="codeExplorerHeroTitle">Explore HTML, CSS & JavaScript</h2>
+          <p id="codeExplorerHeroText">Pick any path, try the code yourself, and continue exactly where you stopped.</p>
+          <div class="code-explorer-overall-row">
+            <div class="code-explorer-overall-track"><i id="codeExplorerOverallBar"></i></div>
+            <strong id="codeExplorerOverallText">0% overall</strong>
+          </div>
+        </div>
+        <div class="code-explorer-hero-stats">
+          <div><strong id="codeExplorerTopicsExplored">0</strong><span>Explored</span></div>
+          <div><strong id="codeExplorerTopicsCompleted">0</strong><span>Completed</span></div>
+          <div><strong id="codeExplorerCertificatesCount">0</strong><span>Certificates</span></div>
+        </div>
+      </section>
+
+      <section id="codeExplorerCourseCards" class="code-explorer-course-cards" aria-label="Choose a coding path"></section>
+
+      <section class="code-explorer-workspace">
+        <aside class="code-explorer-sidebar" aria-label="Course topics">
+          <div class="code-explorer-sidebar-head">
+            <div>
+              <span id="codeExplorerCourseKicker" class="code-explorer-eyebrow">HTML Path</span>
+              <h2 id="codeExplorerCourseTitle">HTML</h2>
+            </div>
+            <span id="codeExplorerCoursePercent" class="code-explorer-course-percent">0%</span>
+          </div>
+          <div class="code-explorer-course-track"><i id="codeExplorerCourseBar"></i></div>
+          <div class="code-explorer-topic-filter" role="group" aria-label="Filter topics">
+            <button class="active" type="button" data-explorer-filter="all">All</button>
+            <button type="button" data-explorer-filter="todo">To do</button>
+            <button type="button" data-explorer-filter="complete">Done</button>
+          </div>
+          <div id="codeExplorerTopicList" class="code-explorer-topic-list" aria-live="polite"></div>
+        </aside>
+
+        <article id="codeExplorerLessonPanel" class="code-explorer-lesson-panel" aria-live="polite">
+          <div class="code-explorer-lesson-head">
+            <div>
+              <div class="code-explorer-topic-meta">
+                <span id="codeExplorerTopicNumber">Topic 1</span>
+                <span id="codeExplorerTopicLevel">Beginner</span>
+                <span id="codeExplorerTopicMinutes">5 min</span>
+              </div>
+              <h2 id="codeExplorerTopicTitle">Welcome to HTML</h2>
+              <p id="codeExplorerTopicBlurb">Start exploring how webpages are structured.</p>
+            </div>
+            <span id="codeExplorerTopicStatus" class="code-explorer-topic-status">Not started</span>
+          </div>
+
+          <section class="code-explorer-learn-card">
+            <div class="code-explorer-card-label">📖 Learn</div>
+            <div id="codeExplorerTopicExplanation" class="code-explorer-topic-explanation"></div>
+            <div class="code-explorer-example-block">
+              <div class="code-explorer-example-head"><strong>Example</strong><button id="codeExplorerCopyExampleBtn" class="ghost-btn mini" type="button">Copy</button></div>
+              <pre><code id="codeExplorerExampleCode"></code></pre>
+            </div>
+          </section>
+
+          <section class="code-explorer-practice-card">
+            <div class="code-explorer-section-heading">
+              <div><span class="code-explorer-card-label">🧪 Try It</span><h3 id="codeExplorerChallengeTitle">Practice challenge</h3></div>
+              <span id="codeExplorerPracticeBadge" class="code-explorer-check-badge">Not checked</span>
+            </div>
+            <p id="codeExplorerChallengeText"></p>
+            <div class="code-explorer-playground">
+              <div class="code-explorer-editor-pane">
+                <div class="code-explorer-pane-head"><strong id="codeExplorerEditorLabel">HTML</strong><button id="codeExplorerResetPracticeBtn" class="ghost-btn mini" type="button">Reset</button></div>
+                <textarea id="codeExplorerPracticeEditor" spellcheck="false" aria-label="Code Explorer practice editor"></textarea>
+                <div class="code-explorer-practice-actions">
+                  <button id="codeExplorerRunBtn" class="ghost-btn" type="button">▶ Run</button>
+                  <button id="codeExplorerCheckBtn" class="primary-btn" type="button">✓ Check Challenge</button>
+                </div>
+              </div>
+              <div class="code-explorer-preview-pane">
+                <div class="code-explorer-pane-head"><strong>Live Result</strong><span id="codeExplorerPreviewStatus">Ready</span></div>
+                <iframe id="codeExplorerPreviewFrame" title="Code Explorer live result" sandbox="allow-scripts"></iframe>
+              </div>
+            </div>
+            <div id="codeExplorerPracticeFeedback" class="code-explorer-feedback hidden" role="status"></div>
+          </section>
+
+          <section class="code-explorer-quiz-card">
+            <div class="code-explorer-section-heading">
+              <div><span class="code-explorer-card-label">⚡ Quick Check</span><h3 id="codeExplorerQuizQuestion">5-question Quick Check</h3><p class="code-explorer-quiz-note">Answer one question at a time. Score at least 4/5 to pass. Wrong scored answers use 1 heart each; lessons and coding practice never cost hearts.</p></div>
+              <span id="codeExplorerQuizBadge" class="code-explorer-check-badge">Not answered</span>
+            </div>
+            <div id="codeExplorerQuizOptions" class="code-explorer-quiz-options"></div>
+            <div class="code-explorer-quiz-actions"><button id="codeExplorerQuizSubmitBtn" class="primary-btn" type="button">✓ Check 5 Questions</button></div>
+            <div id="codeExplorerQuizFeedback" class="code-explorer-feedback hidden" role="status"></div>
+          </section>
+
+          <section id="codeExplorerTopicCompleteCard" class="code-explorer-topic-complete-card hidden">
+            <span aria-hidden="true">🎉</span>
+            <div><strong>Topic completed!</strong><p>You earned 10 XP. Keep exploring when you are ready.</p></div>
+          </section>
+
+          <div class="code-explorer-lesson-nav">
+            <button id="codeExplorerPrevTopicBtn" class="ghost-btn" type="button">← Previous</button>
+            <button id="codeExplorerNextTopicBtn" class="primary-btn" type="button">Next Topic →</button>
+          </div>
+        </article>
+      </section>
+
+      <section id="codeExplorerFinalCard" class="code-explorer-final-card">
+        <div class="code-explorer-final-icon" aria-hidden="true">🏁</div>
+        <div>
+          <span class="code-explorer-eyebrow">Course checkpoint</span>
+          <h2 id="codeExplorerFinalTitle">HTML Final Challenge</h2>
+          <p id="codeExplorerFinalText">Complete all course topics to unlock the final challenge and certificate.</p>
+        </div>
+        <button id="codeExplorerFinalBtn" class="primary-btn" type="button" disabled>🔒 Complete topics first</button>
+      </section>
+    </main>
+
+    <div id="codeExplorerFinalOverlay" class="code-explorer-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="codeExplorerFinalModalTitle">
+      <section class="code-explorer-modal code-explorer-final-modal">
+        <header><div><span class="code-explorer-eyebrow">Final Challenge</span><h2 id="codeExplorerFinalModalTitle">HTML Final Challenge</h2><p id="codeExplorerFinalModalMeta">Score at least 80% to pass. Wrong scored answers use 1 heart each.</p></div><button id="codeExplorerFinalCloseBtn" class="icon-btn" type="button" aria-label="Close final challenge">×</button></header>
+        <div id="codeExplorerFinalQuestions" class="code-explorer-final-questions"></div>
+        <div id="codeExplorerFinalResult" class="code-explorer-final-result hidden" role="status"></div>
+        <footer><button id="codeExplorerFinalCancelBtn" class="ghost-btn" type="button">Not now</button><button id="codeExplorerFinalSubmitBtn" class="primary-btn" type="button">Check Final Challenge</button></footer>
+      </section>
+    </div>
+
+    <div id="codeExplorerCertificatesOverlay" class="code-explorer-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="codeExplorerCertificatesTitle">
+      <section class="code-explorer-modal code-explorer-certificates-modal">
+        <header><div><span class="code-explorer-eyebrow">Your achievements</span><h2 id="codeExplorerCertificatesTitle">My Certificates</h2><p>Certificates are unlocked after passing each course final challenge.</p></div><button id="codeExplorerCertificatesCloseBtn" class="icon-btn" type="button" aria-label="Close certificates">×</button></header>
+        <div id="codeExplorerCertificateList" class="code-explorer-certificate-list"></div>
+      </section>
+    </div>
+  </div>
 
   <div id="lessonViewerScreen" class="lesson-viewer-screen hidden" aria-labelledby="lessonLibraryTitle">
     <header class="lesson-library-header">
@@ -660,8 +831,29 @@
         <button id="playLoginLackingReminderMusicBtn" class="ghost-btn" type="button">▶ Play Music</button>
         <span id="loginLackingReminderMusicStatus" class="muted-text">Music is optional.</span>
       </div>
-      <div class="login-lacking-reminder-actions">
-        <button id="continueFromLoginLackingReminderBtn" class="primary-btn" type="button">Continue to My Projects</button>
+      <div class="login-lacking-reminder-actions" aria-label="Continue learning">
+        <div class="login-lacking-reminder-nav-head">
+          <span>Continue learning</span>
+          <small>Choose where you want to go next.</small>
+        </div>
+        <div class="login-lacking-reminder-nav-grid">
+          <button id="continueFromLoginLackingReminderBtn" class="login-lacking-reminder-nav-card is-primary" type="button" data-login-reminder-destination="projects">
+            <span class="login-lacking-reminder-nav-icon" aria-hidden="true">📁</span>
+            <span><strong>My Projects</strong><small>Open your saved work</small></span>
+          </button>
+          <button id="loginReminderLessonsBtn" class="login-lacking-reminder-nav-card" type="button" data-login-reminder-destination="lessons">
+            <span class="login-lacking-reminder-nav-icon" aria-hidden="true">📚</span>
+            <span><strong>Lessons</strong><small>Continue your lessons</small></span>
+          </button>
+          <button id="loginReminderActivitiesBtn" class="login-lacking-reminder-nav-card" type="button" data-login-reminder-destination="activities">
+            <span class="login-lacking-reminder-nav-icon" aria-hidden="true">📋</span>
+            <span><strong>Activities</strong><small>See teacher-posted tasks</small></span>
+          </button>
+          <button id="loginReminderExplorerBtn" class="login-lacking-reminder-nav-card" type="button" data-login-reminder-destination="explorer">
+            <span class="login-lacking-reminder-nav-icon" aria-hidden="true">🚀</span>
+            <span><strong>Code Explorer</strong><small>Explore HTML, CSS &amp; JS</small></span>
+          </button>
+        </div>
       </div>
     </section>
   </div>
@@ -1120,6 +1312,7 @@
         <button id="menuSendCodeBtn" class="ghost-btn send-code-btn hidden" type="button" role="menuitem">📤 Send Code</button>
         <button id="menuCodeInboxBtn" class="ghost-btn code-inbox-open-btn" type="button" role="menuitem">📥 Code Inbox <span id="menuCodeInboxBadge" class="code-inbox-badge hidden">0</span></button>
         <button id="menuLessonViewerBtn" class="ghost-btn" type="button" role="menuitem">📚 Lesson Viewer</button>
+        <button id="menuCodeExplorerBtn" class="ghost-btn" type="button" role="menuitem">🚀 Code Explorer</button>
         <button id="menuGivenActivitiesBtn" class="ghost-btn" type="button" role="menuitem">📝 Activities Given</button>
         <button id="menuStudentLogoutBtn" class="ghost-btn danger" type="button" role="menuitem">Log Out</button>
       </div>
@@ -1414,6 +1607,7 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
           <button id="adminTabLessons" class="admin-tab-btn" type="button" role="tab" aria-selected="false" aria-controls="lessonManagerAdmin" data-admin-tab="lessons">Lessons</button>
           <button id="adminTabGivenActivities" class="admin-tab-btn" type="button" role="tab" aria-selected="false" aria-controls="givenActivitiesAdmin" data-admin-tab="given-activities">Activities Given</button>
           <button id="adminTabActivities" class="admin-tab-btn" type="button" role="tab" aria-selected="false" aria-controls="activitiesRubricsAdmin" data-admin-tab="activities">Activities &amp; Rubric</button>
+          <button id="adminTabCodeExplorer" class="admin-tab-btn" type="button" role="tab" aria-selected="false" aria-controls="codeExplorerAdmin" data-admin-tab="code-explorer">Code Explorer</button>
           <button id="adminTabDeviceQa" class="admin-tab-btn" type="button" role="tab" aria-selected="false" aria-controls="deviceQaAdmin" data-admin-tab="device-qa">Device QA</button>
         </div>
       </div>
@@ -2483,6 +2677,53 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
         </div>
         </section>
 
+
+        <section id="codeExplorerAdmin" class="admin-tab-panel code-explorer-admin" data-admin-panel="code-explorer" aria-labelledby="codeExplorerAdminTitle">
+          <div class="code-explorer-admin-heading">
+            <div>
+              <p class="section-kicker">Self-paced Learning Analytics</p>
+              <h3 id="codeExplorerAdminTitle">Code Explorer Progress</h3>
+              <p class="muted-text">See who is exploring HTML, CSS, and JavaScript, their topic completion, 5-question Quick Check scores, XP, final challenge status, and certificates.</p>
+            </div>
+            <button id="refreshCodeExplorerAdminBtn" class="primary-btn" type="button">↻ Refresh Progress</button>
+          </div>
+
+          <div class="code-explorer-admin-summary" aria-label="Code Explorer class summary">
+            <div><strong id="codeExplorerAdminStudentCount">0</strong><span>Students</span></div>
+            <div><strong id="codeExplorerAdminExploringCount">0</strong><span>Exploring</span></div>
+            <div><strong id="codeExplorerAdminCertifiedCount">0</strong><span>With Certificate</span></div>
+            <div><strong id="codeExplorerAdminAverage">0%</strong><span>Average Progress</span></div>
+          </div>
+
+          <div class="code-explorer-admin-certificate-sample" aria-label="Code Explorer sample certificate">
+            <div class="code-explorer-admin-certificate-copy">
+              <span>Certificate Sample</span>
+              <strong>Preview the downloadable student certificate</strong>
+              <p>HTML, CSS, and JavaScript now have different certificate designs. Choose a course below to preview its sample PDF with certificate ID and QR verification.</p>
+            </div>
+            <div class="code-explorer-admin-certificate-actions">
+              <label class="code-explorer-admin-sample-picker"><span>Course</span><select id="codeExplorerAdminSampleCertCourse"><option value="html">HTML Certificate</option><option value="css">CSS Certificate</option><option value="js">JavaScript Certificate</option></select></label>
+              <button id="codeExplorerAdminViewSampleCertBtn" class="ghost-btn" type="button">View Sample PDF</button>
+              <button id="codeExplorerAdminDownloadSampleCertBtn" class="primary-btn" type="button">Download Sample PDF</button>
+            </div>
+          </div>
+
+          <div class="code-explorer-admin-toolbar">
+            <label><span>Search</span><input id="codeExplorerAdminSearch" type="search" placeholder="Name or Student ID" autocomplete="off" /></label>
+            <label><span>Section</span><select id="codeExplorerAdminSection"><option value="all">All Sections</option></select></label>
+            <label><span>Status</span><select id="codeExplorerAdminStatusFilter"><option value="all">All Students</option><option value="not-started">Not Started</option><option value="in-progress">In Progress</option><option value="completed">All Topics Completed</option><option value="certified">Has Certificate</option></select></label>
+            <label><span>Sort</span><select id="codeExplorerAdminSort"><option value="section">Section, then Name</option><option value="progress">Highest Progress</option><option value="recent">Most Recent Explorer Activity</option><option value="xp">Highest XP</option></select></label>
+          </div>
+          <p id="codeExplorerAdminStatus" class="helper-note" role="status">Open this tab or click Refresh Progress to load student Code Explorer activity.</p>
+
+          <div class="code-explorer-admin-table-wrap">
+            <table class="code-explorer-admin-table">
+              <thead><tr><th>Student</th><th>Section</th><th>HTML</th><th>CSS</th><th>JavaScript</th><th>XP</th><th>Certificates</th><th>Last Explorer Activity</th><th>Details</th></tr></thead>
+              <tbody id="codeExplorerAdminTableBody"></tbody>
+            </table>
+          </div>
+        </section>
+
         <section id="deviceQaAdmin" class="admin-tab-panel device-qa-admin" data-admin-panel="device-qa" aria-labelledby="deviceQaTitle">
           <div class="device-qa-heading">
             <div><p class="section-kicker">Responsive QA</p><h3 id="deviceQaTitle">Phone / Tablet / Desktop Preview</h3><p class="muted-text">Browse the actual site inside simulated viewport sizes. Use the screen selector for fast demo states, then check for overflow.</p></div>
@@ -2506,6 +2747,31 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
         </section>
       </form>
     </div>
+  </div>
+
+
+  <div id="codeExplorerAdminDetailOverlay" class="student-auth-overlay code-explorer-admin-detail-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="codeExplorerAdminDetailTitle">
+    <section class="code-explorer-admin-detail-card">
+      <header class="code-explorer-admin-detail-header">
+        <div><p class="section-kicker">Code Explorer Student Detail</p><h2 id="codeExplorerAdminDetailTitle">Student Progress</h2><p id="codeExplorerAdminDetailSubtitle" class="muted-text"></p></div>
+        <button id="closeCodeExplorerAdminDetailBtn" class="icon-btn" type="button" aria-label="Close Code Explorer student progress">×</button>
+      </header>
+      <div id="codeExplorerAdminDetailSummary" class="code-explorer-admin-detail-summary"></div>
+      <div id="codeExplorerAdminHeartControl" class="code-explorer-admin-heart-control">
+        <div>
+          <strong>Heart Refill</strong>
+          <span id="codeExplorerAdminHeartText">Select a student to manage hearts.</span>
+        </div>
+        <div class="code-explorer-admin-heart-actions">
+          <button class="ghost-btn" type="button" data-admin-explorer-add-heart="1">+1 Heart</button>
+          <button class="ghost-btn" type="button" data-admin-explorer-add-heart="2">+2 Hearts</button>
+          <button class="primary-btn" type="button" data-admin-explorer-add-heart="fill">Fill to 5</button>
+        </div>
+      </div>
+      <div id="codeExplorerAdminDetailCourses" class="code-explorer-admin-detail-courses" role="tablist" aria-label="Choose Code Explorer course"></div>
+      <div id="codeExplorerAdminDetailCourseMeta" class="code-explorer-admin-detail-course-meta"></div>
+      <div id="codeExplorerAdminDetailTopics" class="code-explorer-admin-detail-topics"></div>
+    </section>
   </div>
 
 
@@ -2909,6 +3175,23 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
   <script src="firebase-config.js"></script>
-  <script src="script.js?v=20260908-v345-compact-lesson-viewer"></script>
+    <div id="codeExplorerVerifyOverlay" class="code-explorer-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="codeExplorerVerifyTitle">
+      <section class="code-explorer-modal code-explorer-verify-modal">
+        <header>
+          <div>
+            <span class="code-explorer-eyebrow">Certificate verification</span>
+            <h2 id="codeExplorerVerifyTitle">Validate Certificate</h2>
+            <p>Use the certificate number or QR code to confirm if a certificate record exists in the app.</p>
+          </div>
+          <button id="codeExplorerVerifyCloseBtn" class="icon-btn" type="button" aria-label="Close certificate verification">×</button>
+        </header>
+        <div id="codeExplorerVerifyBody" class="code-explorer-verify-body"></div>
+        <div class="code-explorer-verify-actions">
+          <button id="codeExplorerVerifyDoneBtn" class="primary-btn" type="button">Close</button>
+        </div>
+      </section>
+    </div>
+
+  <script src="script.js?v=20260908-v357-certificate-layout-fix"></script>
 </body>
 </html>
