@@ -58198,3 +58198,147 @@ html[data-theme="dark"] .code-explorer-quick-feedback-card.wrong .code-explorer-
   .code-explorer-roadmap-marker { width: 29px; height: 29px; }
   .code-explorer-roadmap-action { min-width: 50px; padding-left: 5px; padding-right: 5px; font-size: .52rem; }
 }
+
+/* ================================================================
+   v377 — Light-mode Code Puzzle readability fix
+   Makes every Fill in the Blank surface explicit and high-contrast.
+   Phone-only; dark mode and desktop behavior stay unchanged.
+   ================================================================ */
+@media (max-width: 760px) {
+  html[data-theme="light"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-mini-game-card {
+    background: #ffffff !important;
+    border-color: #cbd5e1 !important;
+    color: #0f172a !important;
+    box-shadow: 0 8px 24px rgba(15,23,42,.08) !important;
+  }
+
+  html[data-theme="light"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-mini-game-card h3,
+  html[data-theme="light"] .code-explorer-screen.code-explorer-mobile-focus #codeExplorerMiniGameTitle {
+    color: #0f172a !important;
+    opacity: 1 !important;
+  }
+
+  html[data-theme="light"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-mini-game-card .code-explorer-card-label {
+    color: #1d4ed8 !important;
+    opacity: 1 !important;
+  }
+
+  html[data-theme="light"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-mini-game-prompt {
+    color: #334155 !important;
+    opacity: 1 !important;
+  }
+
+  html[data-theme="light"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-mini-game-card .code-explorer-check-badge {
+    background: #eef2f7 !important;
+    border: 1px solid #cbd5e1 !important;
+    color: #334155 !important;
+  }
+
+  html[data-theme="light"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-mini-game-card .code-explorer-check-badge[data-state="complete"] {
+    background: #dcfce7 !important;
+    border-color: #86efac !important;
+    color: #166534 !important;
+  }
+
+  html[data-theme="light"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-mini-game-card .code-explorer-check-badge[data-state="warning"] {
+    background: #fff7ed !important;
+    border-color: #fdba74 !important;
+    color: #9a3412 !important;
+  }
+
+  /* Keep the code sample dark even in light mode, but with strong contrast. */
+  html[data-theme="light"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-mini-game-code {
+    background: #0b1220 !important;
+    border-color: #334155 !important;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,.04) !important;
+  }
+
+  html[data-theme="light"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-mini-game-code pre,
+  html[data-theme="light"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-mini-game-code code {
+    color: #f8fafc !important;
+    opacity: 1 !important;
+    text-shadow: none !important;
+  }
+
+  html[data-theme="light"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-mini-game-blank {
+    background: #dbeafe !important;
+    border: 2px dashed #60a5fa !important;
+    color: #1e3a8a !important;
+    font-weight: 800 !important;
+  }
+
+  html[data-theme="light"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-mini-game-blank.correct {
+    background: #dcfce7 !important;
+    border-color: #22c55e !important;
+    color: #14532d !important;
+  }
+
+  html[data-theme="light"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-mini-game-blank.wrong {
+    background: #fee2e2 !important;
+    border-color: #ef4444 !important;
+    color: #7f1d1d !important;
+  }
+
+  html[data-theme="light"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-mini-game-option {
+    background: #ffffff !important;
+    border-color: #b8c5d4 !important;
+    color: #111827 !important;
+    box-shadow: 0 2px 7px rgba(15,23,42,.04) !important;
+  }
+
+  html[data-theme="light"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-mini-game-option code {
+    color: inherit !important;
+    opacity: 1 !important;
+    font-weight: 800 !important;
+  }
+
+  html[data-theme="light"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-mini-game-option.selected:not(.wrong):not(.correct) {
+    background: #dbeafe !important;
+    border-color: #2563eb !important;
+    color: #1e3a8a !important;
+    box-shadow: 0 0 0 3px rgba(37,99,235,.12) !important;
+  }
+
+  html[data-theme="light"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-mini-game-option.correct {
+    background: #dcfce7 !important;
+    border-color: #22c55e !important;
+    color: #14532d !important;
+  }
+
+  html[data-theme="light"] .code-explorer-screen.code-explorer-mobile-focus .code-explorer-mini-game-option.wrong {
+    background: #fee2e2 !important;
+    border-color: #ef4444 !important;
+    color: #7f1d1d !important;
+  }
+
+  html[data-theme="light"] .code-explorer-screen.code-explorer-mobile-focus #codeExplorerMiniGameResetBtn {
+    background: #ffffff !important;
+    border-color: #cbd5e1 !important;
+    color: #334155 !important;
+  }
+
+  html[data-theme="light"] .code-explorer-screen.code-explorer-mobile-focus #codeExplorerMiniGameCheckBtn {
+    background: #2563eb !important;
+    border-color: #2563eb !important;
+    color: #ffffff !important;
+  }
+
+  html[data-theme="light"] .code-explorer-screen.code-explorer-mobile-focus #codeExplorerMiniGameCheckBtn:disabled {
+    background: #cbd5e1 !important;
+    border-color: #cbd5e1 !important;
+    color: #475569 !important;
+    opacity: 1 !important;
+  }
+
+  html[data-theme="light"] .code-explorer-screen.code-explorer-mobile-focus #codeExplorerMiniGameFeedback[data-type="success"] {
+    background: #dcfce7 !important;
+    border-color: #86efac !important;
+    color: #166534 !important;
+  }
+
+  html[data-theme="light"] .code-explorer-screen.code-explorer-mobile-focus #codeExplorerMiniGameFeedback[data-type="warning"] {
+    background: #fff7ed !important;
+    border-color: #fdba74 !important;
+    color: #9a3412 !important;
+  }
+}
