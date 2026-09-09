@@ -42329,6 +42329,13 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   let codeExplorerMusicSettingsLoaded = false;
   let codeExplorerMusicSettingsPromise = null;
   let codeExplorerAdminTestAudio = null;
+  // v452 — Music settings save UX is optimistic. Firestore can take a few
+  // seconds to acknowledge writes on weak school/mobile connections, so the
+  // admin UI applies the setting immediately while cloud writes are serialized
+  // in the background. The latest save alone owns the visible sync status.
+  let codeExplorerMusicSaveGeneration = 0;
+  let codeExplorerMusicSaveQueue = Promise.resolve();
+  let codeExplorerMusicSaveButtonTimer = 0;
 
   function normalizeCodeExplorerMusicSettings(value = {}) {
     const source = value && typeof value === 'object' ? value : {};
@@ -48084,7 +48091,59 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     }
   }
 
-  async function saveCodeExplorerAdminMusicSettings() {
+  function getCodeExplorerMusicSavedMessage(settings = codeExplorerMusicSettings) {
+    const safe = normalizeCodeExplorerMusicSettings(settings);
+    return safe.enabled
+      ? (safe.url
+        ? `Custom Code Explorer music is ON at ${safe.volume}%.`
+        : `Built-in Code Explorer music is ON at ${safe.volume}%.`)
+      : 'Code Explorer background music is OFF for students.';
+  }
+
+  function flashCodeExplorerMusicSaveButton(saveGeneration) {
+    if (!dom.adminMusicSaveBtn) return;
+    window.clearTimeout(codeExplorerMusicSaveButtonTimer);
+    dom.adminMusicSaveBtn.disabled = false;
+    dom.adminMusicSaveBtn.textContent = 'Saved ✓';
+    codeExplorerMusicSaveButtonTimer = window.setTimeout(() => {
+      if (saveGeneration !== codeExplorerMusicSaveGeneration || !dom.adminMusicSaveBtn) return;
+      dom.adminMusicSaveBtn.textContent = 'Save Music Settings';
+    }, 900);
+  }
+
+  function queueCodeExplorerMusicCloudSave(settings, saveGeneration) {
+    // Keep writes ordered. A slow first network acknowledgement can never land
+    // after a newer click and replace the newer setting with stale values.
+    codeExplorerMusicSaveQueue = codeExplorerMusicSaveQueue
+      .catch(() => undefined)
+      .then(async () => {
+        const ready = firebaseSync.initialized ? true : await initFirebaseSync();
+        if (!ready) throw new Error(firebaseSync.lastError || 'Firebase is not ready.');
+        const { setDoc, serverTimestamp } = firebaseSync.modules;
+        await setDoc(getCloudActivitiesDocRef(), {
+          codeExplorerMusicSettings: settings,
+          codeExplorerMusicUpdatedAt: serverTimestamp()
+        }, { merge: true });
+        clearSelectiveFirestoreCache('rootDocument:');
+        if (saveGeneration === codeExplorerMusicSaveGeneration) {
+          setCodeExplorerAdminMusicStatus(`Saved & synced. ${getCodeExplorerMusicSavedMessage(settings)}`, 'success');
+        }
+        return true;
+      })
+      .catch(error => {
+        console.error('Could not sync Code Explorer music settings.', error);
+        if (saveGeneration === codeExplorerMusicSaveGeneration) {
+          setCodeExplorerAdminMusicStatus(
+            `Applied here, but cloud sync failed: ${error?.message || 'Check the connection and press Save again.'}`,
+            'error'
+          );
+        }
+        return false;
+      });
+    return codeExplorerMusicSaveQueue;
+  }
+
+  function saveCodeExplorerAdminMusicSettings() {
     if (!isTeacherAuthenticated()) {
       setCodeExplorerAdminMusicStatus('Teacher login is required before saving Code Explorer music.', 'warning');
       return false;
@@ -48094,43 +48153,26 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       setCodeExplorerAdminMusicStatus('Enter a valid http/https audio URL, or leave the URL blank for the built-in music.', 'error');
       return false;
     }
-    const ready = await initFirebaseSync();
-    if (!ready) {
-      setCodeExplorerAdminMusicStatus('Firebase is not ready. Check the connection and try again.', 'error');
-      return false;
-    }
-    try {
-      stopCodeExplorerAdminMusicTest();
-      if (dom.adminMusicSaveBtn) {
-        dom.adminMusicSaveBtn.disabled = true;
-        dom.adminMusicSaveBtn.textContent = 'Saving…';
-      }
-      const { setDoc, serverTimestamp } = firebaseSync.modules;
-      await setDoc(getCloudActivitiesDocRef(), {
-        codeExplorerMusicSettings: settings,
-        codeExplorerMusicUpdatedAt: serverTimestamp()
-      }, { merge: true });
-      clearSelectiveFirestoreCache('rootDocument:');
-      codeExplorerMusicSettings = settings;
-      codeExplorerMusicSettingsLoaded = true;
-      explorerAudio.externalFailedUrl = '';
-      if (explorerAudio.externalMusicUrl && explorerAudio.externalMusicUrl !== settings.url) disposeExplorerExternalMusic();
-      syncCodeExplorerAdminMusicControls(settings);
-      applyCodeExplorerMusicSettingsLive();
-      setCodeExplorerAdminMusicStatus(settings.enabled
-        ? (settings.url ? `Saved. Custom Code Explorer music is ON at ${settings.volume}%.` : `Saved. Built-in Code Explorer music is ON at ${settings.volume}%.`)
-        : 'Saved. Code Explorer background music is OFF for students.', 'success');
-      return true;
-    } catch (error) {
-      console.error('Could not save Code Explorer music settings.', error);
-      setCodeExplorerAdminMusicStatus(error?.message || 'Could not save Code Explorer music settings.', 'error');
-      return false;
-    } finally {
-      if (dom.adminMusicSaveBtn) {
-        dom.adminMusicSaveBtn.disabled = false;
-        dom.adminMusicSaveBtn.textContent = 'Save Music Settings';
-      }
-    }
+
+    const saveGeneration = ++codeExplorerMusicSaveGeneration;
+    stopCodeExplorerAdminMusicTest();
+
+    // Apply immediately. Do not make the admin wait for Firestore's network
+    // round-trip just to see the setting saved in the UI.
+    codeExplorerMusicSettings = settings;
+    codeExplorerMusicSettingsLoaded = true;
+    explorerAudio.externalFailedUrl = '';
+    if (explorerAudio.externalMusicUrl && explorerAudio.externalMusicUrl !== settings.url) disposeExplorerExternalMusic();
+    syncCodeExplorerAdminMusicControls(settings);
+    applyCodeExplorerMusicSettingsLive();
+
+    flashCodeExplorerMusicSaveButton(saveGeneration);
+    setCodeExplorerAdminMusicStatus(`Saved ✓ · Syncing to students… ${getCodeExplorerMusicSavedMessage(settings)}`, 'success');
+
+    // Intentionally not awaited: cloud acknowledgement happens in the
+    // background and updates the status once it finishes.
+    queueCodeExplorerMusicCloudSave(settings, saveGeneration);
+    return true;
   }
 
   async function initializeCodeExplorerAdmin(options = {}) {
