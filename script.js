@@ -41127,6 +41127,14 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     adminLeaderboardSelectAllBtn: $('codeExplorerAdminLeaderboardSelectAllBtn'),
     adminLeaderboardClearBtn: $('codeExplorerAdminLeaderboardClearBtn'),
     adminLeaderboardSaveBtn: $('codeExplorerAdminLeaderboardSaveBtn'),
+    adminMusicEnabled: $('codeExplorerAdminMusicEnabled'),
+    adminMusicUrl: $('codeExplorerAdminMusicUrl'),
+    adminMusicVolume: $('codeExplorerAdminMusicVolume'),
+    adminMusicVolumeValue: $('codeExplorerAdminMusicVolumeValue'),
+    adminMusicPill: $('codeExplorerAdminMusicPill'),
+    adminMusicTestBtn: $('codeExplorerAdminMusicTestBtn'),
+    adminMusicSaveBtn: $('codeExplorerAdminMusicSaveBtn'),
+    adminMusicStatus: $('codeExplorerAdminMusicStatus'),
     verifyOverlay: $('codeExplorerVerifyOverlay'),
     verifyBody: $('codeExplorerVerifyBody'),
     verifyCloseBtn: $('codeExplorerVerifyCloseBtn'),
@@ -42312,6 +42320,102 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   const leaderboardState = { records: [], loadedAt: 0, loading: false, source: '', rosterLoaded: false, mode: 'students', settingsLoaded: false, settingsError: false, currentSectionIncluded: true };
   let leaderboardSectionSettings = { configured: false, includedSections: [], includedSectionKeys: [] };
 
+  // v451 — Teacher-configurable Code Explorer background music.
+  // Stored on the existing root webCodeEditor document so students can read it
+  // with the app's current public-root read rule; only the teacher can update
+  // that root document. A blank URL preserves the built-in procedural track.
+  const CODE_EXPLORER_MUSIC_DEFAULTS = Object.freeze({ enabled: true, url: '', volume: 100 });
+  let codeExplorerMusicSettings = { ...CODE_EXPLORER_MUSIC_DEFAULTS };
+  let codeExplorerMusicSettingsLoaded = false;
+  let codeExplorerMusicSettingsPromise = null;
+  let codeExplorerAdminTestAudio = null;
+
+  function normalizeCodeExplorerMusicSettings(value = {}) {
+    const source = value && typeof value === 'object' ? value : {};
+    const rawVolume = Number(source.volume);
+    return {
+      enabled: source.enabled !== false,
+      url: String(source.url || '').trim().slice(0, 1600),
+      volume: Number.isFinite(rawVolume) ? Math.max(0, Math.min(100, Math.round(rawVolume))) : CODE_EXPLORER_MUSIC_DEFAULTS.volume
+    };
+  }
+
+  function codeExplorerMusicUrlIsUsable(rawUrl = '') {
+    const value = String(rawUrl || '').trim();
+    if (!value) return true;
+    try {
+      const parsed = new URL(value, window.location.href);
+      return parsed.protocol === 'https:' || parsed.protocol === 'http:';
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function setCodeExplorerAdminMusicStatus(message = '', tone = '') {
+    if (!dom.adminMusicStatus) return;
+    dom.adminMusicStatus.textContent = message || '';
+    dom.adminMusicStatus.dataset.tone = tone || '';
+  }
+
+  function codeExplorerMusicSettingsFromAdminControls() {
+    return normalizeCodeExplorerMusicSettings({
+      enabled: dom.adminMusicEnabled?.checked !== false,
+      url: dom.adminMusicUrl?.value,
+      volume: dom.adminMusicVolume?.value
+    });
+  }
+
+  function syncCodeExplorerAdminMusicControls(settings = codeExplorerMusicSettings) {
+    const safe = normalizeCodeExplorerMusicSettings(settings);
+    if (dom.adminMusicEnabled) dom.adminMusicEnabled.checked = safe.enabled;
+    if (dom.adminMusicUrl) {
+      dom.adminMusicUrl.value = safe.url;
+      dom.adminMusicUrl.disabled = !safe.enabled;
+    }
+    if (dom.adminMusicVolume) {
+      dom.adminMusicVolume.value = String(safe.volume);
+      dom.adminMusicVolume.disabled = !safe.enabled;
+    }
+    if (dom.adminMusicVolumeValue) dom.adminMusicVolumeValue.textContent = `${safe.volume}%`;
+    if (dom.adminMusicPill) {
+      dom.adminMusicPill.textContent = !safe.enabled ? 'MUSIC OFF' : (safe.url ? 'CUSTOM URL' : 'BUILT-IN');
+      dom.adminMusicPill.classList.toggle('off', !safe.enabled);
+    }
+  }
+
+  async function loadCodeExplorerMusicSettings(options = {}) {
+    if (codeExplorerMusicSettingsLoaded && !options.force) {
+      syncCodeExplorerAdminMusicControls();
+      return codeExplorerMusicSettings;
+    }
+    if (codeExplorerMusicSettingsPromise && !options.force) return codeExplorerMusicSettingsPromise;
+    codeExplorerMusicSettingsPromise = (async () => {
+      try {
+        const ready = await initFirebaseSync();
+        if (!ready) throw new Error('Firebase is not ready.');
+        const { getDoc } = firebaseSync.modules;
+        const snapshot = await getDoc(getCloudActivitiesDocRef());
+        const data = snapshotExists(snapshot) ? snapshotData(snapshot) : {};
+        codeExplorerMusicSettings = normalizeCodeExplorerMusicSettings(data?.codeExplorerMusicSettings || CODE_EXPLORER_MUSIC_DEFAULTS);
+        codeExplorerMusicSettingsLoaded = true;
+        syncCodeExplorerAdminMusicControls();
+        applyCodeExplorerMusicSettingsLive();
+        return codeExplorerMusicSettings;
+      } catch (error) {
+        console.info('Code Explorer music settings unavailable; using built-in defaults.', error);
+        codeExplorerMusicSettings = normalizeCodeExplorerMusicSettings(CODE_EXPLORER_MUSIC_DEFAULTS);
+        codeExplorerMusicSettingsLoaded = true;
+        syncCodeExplorerAdminMusicControls();
+        if (isTeacherAuthenticated()) setCodeExplorerAdminMusicStatus('Could not load the cloud music setting. Built-in defaults are shown.', 'warning');
+        applyCodeExplorerMusicSettingsLive();
+        return codeExplorerMusicSettings;
+      } finally {
+        codeExplorerMusicSettingsPromise = null;
+      }
+    })();
+    return codeExplorerMusicSettingsPromise;
+  }
+
   // v399 — Code Explorer audio polish. Everything is synthesized with the
   // Web Audio API so there are no external/copyrighted music files to load.
   // Volumes are intentionally stronger now, but routed through a compressor
@@ -42344,7 +42448,10 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     phraseIndex: 0,
     lastSfxAt: 0,
     lastSfxPriority: 0,
-    unlocked: false
+    unlocked: false,
+    externalMusic: null,
+    externalMusicUrl: '',
+    externalFailedUrl: ''
   };
 
   function explorerAudioSupported() {
@@ -42372,15 +42479,16 @@ window.MCS_PHONE_MENU_STATUS = () => ({
 
   function syncExplorerAudioControls() {
     const supported = explorerAudioSupported();
-    const musicOn = supported && explorerAudio.prefs.music !== false;
+    const musicAllowed = !codeExplorerMusicSettingsLoaded || codeExplorerMusicAdminEnabled();
+    const musicOn = supported && musicAllowed && explorerAudio.prefs.music !== false;
     const sfxOn = supported && explorerAudio.prefs.sfx !== false;
     if (dom.musicToggle) {
-      dom.musicToggle.disabled = !supported;
+      dom.musicToggle.disabled = !supported || !musicAllowed;
       dom.musicToggle.classList.toggle('active', musicOn);
       dom.musicToggle.classList.toggle('muted', !musicOn);
       dom.musicToggle.setAttribute('aria-pressed', String(musicOn));
-      dom.musicToggle.setAttribute('aria-label', supported ? `Turn background music ${musicOn ? 'off' : 'on'}` : 'Background music is not supported in this browser');
-      dom.musicToggle.title = supported ? `Background music: ${musicOn ? 'on' : 'off'}` : 'Audio is not supported in this browser';
+      dom.musicToggle.setAttribute('aria-label', !supported ? 'Background music is not supported in this browser' : (!musicAllowed ? 'Background music is disabled by your teacher' : `Turn background music ${musicOn ? 'off' : 'on'}`));
+      dom.musicToggle.title = !supported ? 'Audio is not supported in this browser' : (!musicAllowed ? 'Background music: disabled by teacher' : `Background music: ${musicOn ? 'on' : 'off'}`);
       const icon = dom.musicToggle.querySelector('.code-explorer-audio-icon');
       if (icon) icon.textContent = musicOn ? '🎵' : '🔇';
     }
@@ -42408,6 +42516,13 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       if (status) status.textContent = supported ? (enabled ? 'On' : 'Off') : 'N/A';
     };
     syncDesktopAudioButton(dom.desktopMusicToggle, musicOn, 'background music', '🎵', '🔇');
+    if (dom.desktopMusicToggle && !musicAllowed) {
+      dom.desktopMusicToggle.disabled = true;
+      dom.desktopMusicToggle.title = 'Background music: disabled by teacher';
+      dom.desktopMusicToggle.setAttribute('aria-label', 'Background music is disabled by your teacher');
+      const status = dom.desktopMusicToggle.querySelector('.code-explorer-settings-status');
+      if (status) status.textContent = 'Teacher Off';
+    }
     syncDesktopAudioButton(dom.desktopSfxToggle, sfxOn, 'sound effects', '🔊', '🔇');
     if (dom.desktopSettingsToggle) {
       dom.desktopSettingsToggle.title = supported ? `Settings · Music ${musicOn ? 'on' : 'off'} · Sound ${sfxOn ? 'on' : 'off'}` : 'Settings · Audio is not supported';
@@ -42436,7 +42551,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       // Stronger default output for real phone speakers. The compressor acts
       // like a soft limiter so stacked SFX + music stay energetic, not harsh.
       masterGain.gain.value = 0.9;
-      musicGain.gain.value = 0.78;
+      musicGain.gain.value = 0.78 * (normalizeCodeExplorerMusicSettings(codeExplorerMusicSettings).volume / 100);
       sfxGain.gain.value = 0.96;
       limiter.threshold.setValueAtTime(-13, context.currentTime);
       limiter.knee.setValueAtTime(18, context.currentTime);
@@ -42617,15 +42732,97 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     explorerAudio.queuedSfxTimers.clear();
   }
 
+  function codeExplorerMusicAdminEnabled() {
+    return normalizeCodeExplorerMusicSettings(codeExplorerMusicSettings).enabled !== false;
+  }
+
+  function codeExplorerCustomMusicUrl() {
+    const settings = normalizeCodeExplorerMusicSettings(codeExplorerMusicSettings);
+    return settings.enabled && settings.url ? settings.url : '';
+  }
+
+  function applyExplorerMusicVolume() {
+    const settings = normalizeCodeExplorerMusicSettings(codeExplorerMusicSettings);
+    const ratio = settings.enabled ? (settings.volume / 100) : 0;
+    if (explorerAudio.musicGain && explorerAudio.context) {
+      const now = explorerAudio.context.currentTime;
+      try {
+        explorerAudio.musicGain.gain.cancelScheduledValues(now);
+        explorerAudio.musicGain.gain.setTargetAtTime(0.78 * ratio, now, 0.035);
+      } catch (_) {
+        explorerAudio.musicGain.gain.value = 0.78 * ratio;
+      }
+    }
+    if (explorerAudio.externalMusic) explorerAudio.externalMusic.volume = Math.max(0, Math.min(1, ratio));
+  }
+
+  function stopExplorerSyntheticMusic() {
+    clearTimeout(explorerAudio.musicTimer);
+    explorerAudio.musicTimer = null;
+    stopExplorerNodeSet(explorerAudio.musicNodes);
+  }
+
+  function stopExplorerExternalMusic(options = {}) {
+    const audio = explorerAudio.externalMusic;
+    if (!audio) return;
+    try { audio.pause(); } catch (_) {}
+    if (options.reset) {
+      try { audio.currentTime = 0; } catch (_) {}
+    }
+  }
+
+  function disposeExplorerExternalMusic() {
+    const audio = explorerAudio.externalMusic;
+    if (audio) {
+      try { audio.pause(); } catch (_) {}
+      try { audio.removeAttribute('src'); audio.load(); } catch (_) {}
+    }
+    explorerAudio.externalMusic = null;
+    explorerAudio.externalMusicUrl = '';
+  }
+
+  function ensureExplorerExternalMusic(url = '') {
+    const safeUrl = String(url || '').trim();
+    if (!safeUrl) return null;
+    if (explorerAudio.externalMusic && explorerAudio.externalMusicUrl === safeUrl) {
+      applyExplorerMusicVolume();
+      return explorerAudio.externalMusic;
+    }
+    disposeExplorerExternalMusic();
+    const audio = new Audio(safeUrl);
+    audio.loop = true;
+    audio.preload = 'auto';
+    audio.playsInline = true;
+    audio.volume = Math.max(0, Math.min(1, normalizeCodeExplorerMusicSettings(codeExplorerMusicSettings).volume / 100));
+    audio.addEventListener('canplay', () => {
+      if (explorerAudio.externalMusicUrl === safeUrl) explorerAudio.externalFailedUrl = '';
+    });
+    audio.addEventListener('error', () => {
+      if (explorerAudio.externalMusicUrl !== safeUrl) return;
+      explorerAudio.externalFailedUrl = safeUrl;
+      console.info('Custom Code Explorer music could not be loaded. Falling back to the built-in track.');
+      if (document.body.classList.contains('code-explorer-active') && explorerAudio.prefs.music && codeExplorerMusicAdminEnabled()) {
+        startExplorerSyntheticMusic();
+      }
+    });
+    explorerAudio.externalMusic = audio;
+    explorerAudio.externalMusicUrl = safeUrl;
+    return audio;
+  }
+
   function scheduleExplorerMusicPhrase() {
-    if (!explorerAudio.prefs.music || document.hidden || !document.body.classList.contains('code-explorer-active')) {
-      stopExplorerMusic();
+    const customUrl = codeExplorerCustomMusicUrl();
+    const customSourceAvailable = customUrl && explorerAudio.externalFailedUrl !== customUrl;
+    if (!codeExplorerMusicSettingsLoaded || !codeExplorerMusicAdminEnabled() || customSourceAvailable || !explorerAudio.prefs.music || document.hidden || !document.body.classList.contains('code-explorer-active')) {
+      stopExplorerSyntheticMusic();
       return;
     }
     const context = ensureExplorerAudioContext();
     if (!context || context.state !== 'running') return;
+    applyExplorerMusicVolume();
     // More energetic 100-BPM style coding loop: warm pad + pulse bass +
-    // light arpeggio. Still procedural and subtle enough for studying.
+    // light arpeggio. Used as the safe built-in fallback when no custom URL
+    // is configured or when a custom audio source cannot load.
     const progression = [
       { chord: [261.63, 329.63, 392.00], bass: 130.81, arp: [523.25, 659.25, 783.99, 659.25, 1046.50, 783.99, 659.25, 523.25] },
       { chord: [220.00, 261.63, 329.63], bass: 110.00, arp: [440.00, 523.25, 659.25, 523.25, 880.00, 659.25, 523.25, 440.00] },
@@ -42652,17 +42849,50 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     explorerAudio.musicTimer = window.setTimeout(scheduleExplorerMusicPhrase, 2400);
   }
 
-  function startExplorerMusic() {
-    if (!explorerAudio.prefs.music || document.hidden || !document.body.classList.contains('code-explorer-active')) return;
+  function startExplorerSyntheticMusic() {
+    if (!codeExplorerMusicAdminEnabled() || !explorerAudio.prefs.music || document.hidden || !document.body.classList.contains('code-explorer-active')) return;
     const context = ensureExplorerAudioContext();
     if (!context || context.state !== 'running' || explorerAudio.musicTimer) return;
+    stopExplorerExternalMusic();
+    applyExplorerMusicVolume();
     scheduleExplorerMusicPhrase();
   }
 
+  function startExplorerMusic() {
+    if (!codeExplorerMusicSettingsLoaded || !codeExplorerMusicAdminEnabled() || !explorerAudio.prefs.music || document.hidden || !document.body.classList.contains('code-explorer-active')) return;
+    applyExplorerMusicVolume();
+    const customUrl = codeExplorerCustomMusicUrl();
+    if (customUrl && explorerAudio.externalFailedUrl !== customUrl) {
+      stopExplorerSyntheticMusic();
+      const audio = ensureExplorerExternalMusic(customUrl);
+      if (!audio) return;
+      const playResult = audio.play();
+      if (playResult && typeof playResult.catch === 'function') {
+        playResult.catch(error => {
+          // Autoplay rejection is normal on strict mobile browsers. Do not mark
+          // the URL as broken; the next tap inside Code Explorer retries it.
+          if (String(error?.name || '').toLowerCase() === 'notallowederror') return;
+          explorerAudio.externalFailedUrl = customUrl;
+          console.info('Custom Code Explorer music playback failed; using built-in fallback.', error);
+          startExplorerSyntheticMusic();
+        });
+      }
+      return;
+    }
+    startExplorerSyntheticMusic();
+  }
+
   function stopExplorerMusic() {
-    clearTimeout(explorerAudio.musicTimer);
-    explorerAudio.musicTimer = null;
-    stopExplorerNodeSet(explorerAudio.musicNodes);
+    stopExplorerSyntheticMusic();
+    stopExplorerExternalMusic();
+  }
+
+  function applyCodeExplorerMusicSettingsLive() {
+    applyExplorerMusicVolume();
+    syncExplorerAudioControls();
+    if (!document.body.classList.contains('code-explorer-active')) return;
+    stopExplorerMusic();
+    if (codeExplorerMusicAdminEnabled() && explorerAudio.prefs.music && !document.hidden) startExplorerMusic();
   }
 
   function stopExplorerAudioEffects() {
@@ -42709,7 +42939,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     syncExplorerAudioControls();
     unlockExplorerAudio().then(() => {
       if (kind === 'music') {
-        if (explorerAudio.prefs.music) startExplorerMusic();
+        if (explorerAudio.prefs.music && codeExplorerMusicAdminEnabled()) startExplorerMusic();
         else stopExplorerMusic();
       } else if (explorerAudio.prefs.sfx) {
         playExplorerSfx('correct', { force: true });
@@ -45718,9 +45948,16 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     document.body.classList.remove('lesson-viewer-active', 'given-activities-active');
     document.body.classList.add('code-explorer-active');
     screen.classList.remove('hidden');
-    // This call happens synchronously from the learner's click whenever possible,
-    // satisfying mobile/browser autoplay policies before async cloud loading begins.
-    unlockExplorerAudio().catch(() => false);
+    // Load the teacher's current music source/volume. Audio still obeys browser
+    // autoplay policy; if the async cloud read loses the original gesture, the
+    // next tap/click inside Code Explorer retries playback automatically.
+    loadCodeExplorerMusicSettings({ force: true }).then(() => {
+      unlockExplorerAudio().then(ok => { if (ok) startExplorerMusic(); }).catch(() => false);
+    }).catch(() => false);
+    // Resume/unlock the Web Audio context synchronously for SFX on strict
+    // mobile browsers without prematurely starting the wrong music source.
+    const audioContext = ensureExplorerAudioContext();
+    if (audioContext?.state === 'suspended') audioContext.resume?.().catch?.(() => false);
     ensureReaderProgress();
     // Always refresh from Firestore when Code Explorer opens. The old one-load-
     // per-session behavior let a second browser keep stale progress for the
@@ -47797,11 +48034,114 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     }
   }
 
+  function stopCodeExplorerAdminMusicTest() {
+    if (!codeExplorerAdminTestAudio) return;
+    try { codeExplorerAdminTestAudio.pause(); } catch (_) {}
+    try { codeExplorerAdminTestAudio.currentTime = 0; } catch (_) {}
+    codeExplorerAdminTestAudio = null;
+    if (dom.adminMusicTestBtn) dom.adminMusicTestBtn.textContent = '▶ Test Music';
+  }
+
+  async function testCodeExplorerAdminMusic() {
+    if (codeExplorerAdminTestAudio) {
+      stopCodeExplorerAdminMusicTest();
+      setCodeExplorerAdminMusicStatus('Music preview stopped.');
+      return;
+    }
+    const settings = codeExplorerMusicSettingsFromAdminControls();
+    if (!settings.enabled) {
+      setCodeExplorerAdminMusicStatus('Turn Background Music ON before testing.', 'warning');
+      return;
+    }
+    if (!settings.url) {
+      setCodeExplorerAdminMusicStatus('URL is blank, so students will use the built-in Code Explorer music. Save if that is what you want.', 'warning');
+      return;
+    }
+    if (!codeExplorerMusicUrlIsUsable(settings.url)) {
+      setCodeExplorerAdminMusicStatus('Enter a valid http/https direct audio URL.', 'error');
+      return;
+    }
+    try {
+      const audio = new Audio(settings.url);
+      audio.loop = true;
+      audio.preload = 'auto';
+      audio.playsInline = true;
+      audio.volume = Math.max(0, Math.min(1, settings.volume / 100));
+      audio.addEventListener('error', () => {
+        if (codeExplorerAdminTestAudio !== audio) return;
+        stopCodeExplorerAdminMusicTest();
+        setCodeExplorerAdminMusicStatus('That link could not be played as direct audio. Try a direct MP3/M4A/OGG/WAV file or compatible audio stream.', 'error');
+      }, { once: true });
+      codeExplorerAdminTestAudio = audio;
+      if (dom.adminMusicTestBtn) dom.adminMusicTestBtn.textContent = '■ Stop Test';
+      setCodeExplorerAdminMusicStatus(`Testing at ${settings.volume}% volume…`);
+      await audio.play();
+      setCodeExplorerAdminMusicStatus(`Playing preview at ${settings.volume}% volume. Press Stop Test when finished.`, 'success');
+    } catch (error) {
+      stopCodeExplorerAdminMusicTest();
+      console.info('Code Explorer admin music preview failed.', error);
+      setCodeExplorerAdminMusicStatus('The browser could not play that link. Use a direct browser-playable audio URL.', 'error');
+    }
+  }
+
+  async function saveCodeExplorerAdminMusicSettings() {
+    if (!isTeacherAuthenticated()) {
+      setCodeExplorerAdminMusicStatus('Teacher login is required before saving Code Explorer music.', 'warning');
+      return false;
+    }
+    const settings = codeExplorerMusicSettingsFromAdminControls();
+    if (settings.url && !codeExplorerMusicUrlIsUsable(settings.url)) {
+      setCodeExplorerAdminMusicStatus('Enter a valid http/https audio URL, or leave the URL blank for the built-in music.', 'error');
+      return false;
+    }
+    const ready = await initFirebaseSync();
+    if (!ready) {
+      setCodeExplorerAdminMusicStatus('Firebase is not ready. Check the connection and try again.', 'error');
+      return false;
+    }
+    try {
+      stopCodeExplorerAdminMusicTest();
+      if (dom.adminMusicSaveBtn) {
+        dom.adminMusicSaveBtn.disabled = true;
+        dom.adminMusicSaveBtn.textContent = 'Saving…';
+      }
+      const { setDoc, serverTimestamp } = firebaseSync.modules;
+      await setDoc(getCloudActivitiesDocRef(), {
+        codeExplorerMusicSettings: settings,
+        codeExplorerMusicUpdatedAt: serverTimestamp()
+      }, { merge: true });
+      clearSelectiveFirestoreCache('rootDocument:');
+      codeExplorerMusicSettings = settings;
+      codeExplorerMusicSettingsLoaded = true;
+      explorerAudio.externalFailedUrl = '';
+      if (explorerAudio.externalMusicUrl && explorerAudio.externalMusicUrl !== settings.url) disposeExplorerExternalMusic();
+      syncCodeExplorerAdminMusicControls(settings);
+      applyCodeExplorerMusicSettingsLive();
+      setCodeExplorerAdminMusicStatus(settings.enabled
+        ? (settings.url ? `Saved. Custom Code Explorer music is ON at ${settings.volume}%.` : `Saved. Built-in Code Explorer music is ON at ${settings.volume}%.`)
+        : 'Saved. Code Explorer background music is OFF for students.', 'success');
+      return true;
+    } catch (error) {
+      console.error('Could not save Code Explorer music settings.', error);
+      setCodeExplorerAdminMusicStatus(error?.message || 'Could not save Code Explorer music settings.', 'error');
+      return false;
+    } finally {
+      if (dom.adminMusicSaveBtn) {
+        dom.adminMusicSaveBtn.disabled = false;
+        dom.adminMusicSaveBtn.textContent = 'Save Music Settings';
+      }
+    }
+  }
+
   async function initializeCodeExplorerAdmin(options = {}) {
     if (!isTeacherAuthenticated()) return;
     if (dom.adminStatus) dom.adminStatus.textContent = 'Loading Code Explorer progress...';
     if (options.force || !adminStudentsCache.length) await loadAdminStudents({ force: options.force === true });
-    await loadLeaderboardSectionSettings();
+    await Promise.all([
+      loadLeaderboardSectionSettings(),
+      loadCodeExplorerMusicSettings({ force: options.force === true })
+    ]);
+    if (dom.adminMusicStatus) setCodeExplorerAdminMusicStatus('Music settings loaded. Change the link or volume, then press Save Music Settings.');
     adminExplorerState.loaded = true;
     renderAdminExplorerProgress();
     renderAdminLeaderboardSectionSettings();
@@ -47949,6 +48289,26 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     dom.adminDetailOverlay?.classList.remove('hidden');
   }
 
+  dom.adminMusicEnabled?.addEventListener('change', () => {
+    const settings = codeExplorerMusicSettingsFromAdminControls();
+    if (dom.adminMusicUrl) dom.adminMusicUrl.disabled = !settings.enabled;
+    if (dom.adminMusicVolume) dom.adminMusicVolume.disabled = !settings.enabled;
+    syncCodeExplorerAdminMusicControls(settings);
+    setCodeExplorerAdminMusicStatus(settings.enabled ? 'Music is enabled in this draft. Press Save Music Settings to publish.' : 'Music is disabled in this draft. Press Save Music Settings to publish.');
+  });
+  dom.adminMusicUrl?.addEventListener('input', () => {
+    const settings = codeExplorerMusicSettingsFromAdminControls();
+    syncCodeExplorerAdminMusicControls(settings);
+    setCodeExplorerAdminMusicStatus('Music link changed. Test it, then press Save Music Settings.');
+  });
+  dom.adminMusicVolume?.addEventListener('input', () => {
+    const settings = codeExplorerMusicSettingsFromAdminControls();
+    if (dom.adminMusicVolumeValue) dom.adminMusicVolumeValue.textContent = `${settings.volume}%`;
+    if (codeExplorerAdminTestAudio) codeExplorerAdminTestAudio.volume = Math.max(0, Math.min(1, settings.volume / 100));
+  });
+  dom.adminMusicTestBtn?.addEventListener('click', testCodeExplorerAdminMusic);
+  dom.adminMusicSaveBtn?.addEventListener('click', saveCodeExplorerAdminMusicSettings);
+
   dom.adminRefreshBtn?.addEventListener('click', () => initializeCodeExplorerAdmin({ force: true }));
   dom.adminLeaderboardSectionList?.addEventListener('change', event => {
     if (event.target?.matches?.('[data-leaderboard-admin-section]')) updateAdminLeaderboardSelectionLabels();
@@ -48034,7 +48394,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   // Any learner interaction can re-unlock a suspended AudioContext on strict
   // mobile browsers. This keeps music/SFX reliable without forced autoplay.
   screen?.addEventListener('pointerdown', () => {
-    unlockExplorerAudio().catch(() => false);
+    unlockExplorerAudio().then(ok => { if (ok) startExplorerMusic(); }).catch(() => false);
   }, { passive: true });
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) {

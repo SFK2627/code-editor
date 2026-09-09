@@ -2883,6 +2883,42 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
             <div><strong id="codeExplorerAdminAverage">0%</strong><span>Average Progress</span></div>
           </div>
 
+          <section class="code-explorer-admin-music-settings" aria-labelledby="codeExplorerAdminMusicTitle">
+            <div class="code-explorer-admin-music-head">
+              <div>
+                <span class="code-explorer-admin-setting-kicker">🎵 Background Music</span>
+                <h4 id="codeExplorerAdminMusicTitle">Code Explorer Music</h4>
+                <p>Paste a direct browser-playable audio link, set the volume, then save. Students hear it only inside Code Explorer and only after the browser allows audio. Leave the URL blank to keep the built-in Code Explorer music.</p>
+              </div>
+              <span id="codeExplorerAdminMusicPill" class="code-explorer-admin-music-pill">Loading…</span>
+            </div>
+
+            <div class="code-explorer-admin-music-grid">
+              <label class="code-explorer-admin-music-toggle" for="codeExplorerAdminMusicEnabled">
+                <span><strong>Background Music</strong><small>Teacher master switch for Code Explorer music.</small></span>
+                <span class="admin-switch"><input id="codeExplorerAdminMusicEnabled" type="checkbox" checked /><span class="admin-switch-track"><span class="admin-switch-thumb"></span></span></span>
+              </label>
+
+              <label class="code-explorer-admin-music-field code-explorer-admin-music-url" for="codeExplorerAdminMusicUrl">
+                <span>Music URL</span>
+                <input id="codeExplorerAdminMusicUrl" type="url" inputmode="url" autocomplete="off" placeholder="https://example.com/background-music.mp3" />
+                <small>Use a direct audio file/stream URL such as MP3, M4A, OGG, or WAV. A normal YouTube/Spotify webpage link will not play as an HTML audio source.</small>
+              </label>
+
+              <label class="code-explorer-admin-music-field code-explorer-admin-music-volume" for="codeExplorerAdminMusicVolume">
+                <span>Music Volume <strong id="codeExplorerAdminMusicVolumeValue">100%</strong></span>
+                <input id="codeExplorerAdminMusicVolume" type="range" min="0" max="100" step="1" value="100" />
+                <small>This controls only background music. Code Explorer sound effects keep their existing volume.</small>
+              </label>
+            </div>
+
+            <div class="code-explorer-admin-music-actions">
+              <button id="codeExplorerAdminMusicTestBtn" class="ghost-btn" type="button">▶ Test Music</button>
+              <button id="codeExplorerAdminMusicSaveBtn" class="primary-btn" type="button">Save Music Settings</button>
+            </div>
+            <p id="codeExplorerAdminMusicStatus" class="helper-note" role="status">Loading the current Code Explorer music setting…</p>
+          </section>
+
           <section class="code-explorer-admin-leaderboard-settings" aria-labelledby="codeExplorerAdminLeaderboardSettingsTitle">
             <div class="code-explorer-admin-leaderboard-settings-head">
               <div>
