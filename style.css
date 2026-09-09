@@ -64890,3 +64890,29 @@ body:not(.student-session-active) #studentHeaderLogoutBtn {
     -webkit-overflow-scrolling: touch !important;
   }
 }
+
+/* =========================================================
+   v425 PHONE FULL EDITOR: EXTENDED CODE AREA
+   Scope: phone/mobile Full Editor only. Desktop untouched.
+   - reduces the reserved footer band from 88px to 48px
+   - leaves ~10px visual breathing room above the 30px font slider
+   - preserves the v424 stable-height / keyboard / overscroll behavior
+   ========================================================= */
+@media (max-width: 820px) {
+  html[data-device-mode="phone"] body.phone-full-editor-lock-v424 #editorPanel,
+  html[data-device-mode="phone"] body.phone-css-full-editor-active #editorPanel,
+  html[data-device-mode="phone"] body.phone-true-full-editor-active #editorPanel,
+  html[data-device-mode="phone"] body.editor-fullscreen-active #editorPanel {
+    padding-bottom: calc(48px + env(safe-area-inset-bottom)) !important;
+  }
+
+  html[data-device-mode="phone"] body.phone-full-editor-lock-v424 #editorPanel > .editor-wrap,
+  html[data-device-mode="phone"] body.phone-css-full-editor-active #editorPanel > .editor-wrap,
+  html[data-device-mode="phone"] body.phone-true-full-editor-active #editorPanel > .editor-wrap,
+  html[data-device-mode="phone"] body.editor-fullscreen-active #editorPanel > .editor-wrap {
+    flex: 1 1 0 !important;
+    min-height: 0 !important;
+    height: 0 !important;
+    margin-bottom: 0 !important;
+  }
+}
