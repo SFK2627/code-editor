@@ -45,7 +45,7 @@
   </script>
   <link rel="preconnect" href="https://drive.google.com" crossorigin>
   <link rel="preconnect" href="https://lh3.googleusercontent.com" crossorigin>
-  <link rel="stylesheet" href="style.css?v=20260909-v422-mobile-menu-font-hud" />
+  <link rel="stylesheet" href="style.css?v=20260909-v423-mobile-popover-full-editor" />
   <style>
     .ai-rubric-settings-card,
     .admin-project-ai-review-card {
@@ -3847,10 +3847,17 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
         // v422: keep this a true right-side phone popover, not an almost-full-width panel.
         const width = Math.min(286, Math.max(236, viewportWidth * 0.72), Math.max(0, viewportWidth - (safeGap * 2)));
         const right = Math.max(safeGap, Math.min(24, viewportWidth - rect.right));
-        const top = Math.max(10, Math.min(window.innerHeight - 120, rect.bottom + 7));
+        // v423: leave enough room for the small pointer that visually connects
+        // the floating menu to the hamburger button.
+        const top = Math.max(14, Math.min(window.innerHeight - 120, rect.bottom + 12));
+        const menuRightEdge = viewportWidth - right;
+        const buttonCenter = rect.left + (rect.width / 2);
+        const rawPointerRight = menuRightEdge - buttonCenter - 8;
+        const pointerRight = Math.max(18, Math.min(width - 26, rawPointerRight));
         menu.style.setProperty('--mcs-mobile-editor-menu-top-v416', `${Math.round(top)}px`);
         menu.style.setProperty('--mcs-mobile-editor-menu-right-v418', `${Math.round(right)}px`);
         menu.style.setProperty('--mcs-mobile-editor-menu-width-v416', `${Math.round(width)}px`);
+        menu.style.setProperty('--mcs-mobile-editor-menu-pointer-right-v423', `${Math.round(pointerRight)}px`);
         menu.style.removeProperty('--mcs-mobile-editor-menu-left-v416');
       }
 
@@ -4274,6 +4281,122 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
           new MutationObserver(queueSync).observe(document.documentElement, { attributes: true, attributeFilter: ['data-device-mode'] });
         } catch (_) {}
         window.MCS_V420_MOBILE_PAGES = { sync, open: openPageMenu, close: closePageMenu, position: positionPageMenu, syncCollabProjectPill };
+      }
+
+      if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bind, { once: true });
+      else bind();
+    })();
+  </script>
+
+  <script>
+    // v423 MOBILE FULL EDITOR: the phone full-editor surface is intentionally
+    // minimal: language tabs, compact project/save/pages row, editor, and the
+    // existing bottom font-size slider. Desktop is never modified here.
+    (() => {
+      const EXIT_ID = 'mobileFullEditorExitBtnV423';
+      let syncQueued = false;
+
+      const $ = id => document.getElementById(id);
+      const isPhoneUi = () => {
+        try {
+          return document.documentElement?.dataset?.deviceMode === 'phone'
+            || window.matchMedia?.('(max-width: 820px)')?.matches;
+        } catch (_) {
+          return false;
+        }
+      };
+      const isPhoneFullEditor = () => {
+        if (!isPhoneUi()) return false;
+        const b = document.body;
+        return Boolean(
+          b?.classList?.contains('phone-true-full-editor-active')
+          || b?.classList?.contains('phone-css-full-editor-active')
+          || (
+            b?.classList?.contains('editor-fullscreen-active')
+            && !b?.classList?.contains('preview-fullscreen-active')
+            && !b?.classList?.contains('preview-inside-editor-fullscreen')
+          )
+        );
+      };
+
+      function getDock() {
+        const header = $('editorProjectHeader');
+        if (!header) return null;
+        let dock = header.querySelector('.mobile-editor-save-dock');
+        if (!dock && window.MCS_V420_MOBILE_PAGES?.sync) {
+          try { window.MCS_V420_MOBILE_PAGES.sync(); } catch (_) {}
+          dock = header.querySelector('.mobile-editor-save-dock');
+        }
+        return dock;
+      }
+
+      function ensureExitButton() {
+        const dock = getDock();
+        if (!dock) return null;
+        let button = $(EXIT_ID);
+        if (!button) {
+          button = document.createElement('button');
+          button.id = EXIT_ID;
+          button.type = 'button';
+          button.className = 'mobile-full-editor-exit-v423';
+          button.innerHTML = '<span aria-hidden="true">×</span>';
+          button.setAttribute('aria-label', 'Exit full editor');
+          button.setAttribute('title', 'Exit full editor');
+          button.addEventListener('click', event => {
+            event.preventDefault();
+            event.stopPropagation();
+            event.stopImmediatePropagation?.();
+            // Reuse the app's existing exit logic so fullscreen state, body
+            // classes, scroll restoration, and editor focus stay consistent.
+            const realExit = $('exitEditorStickyBtn') || $('exitEditorBtn');
+            realExit?.click?.();
+          }, true);
+        }
+        if (button.parentElement !== dock) dock.appendChild(button);
+        return button;
+      }
+
+      function sync() {
+        const button = ensureExitButton();
+        if (!button) return;
+        const active = isPhoneFullEditor();
+        button.classList.toggle('hidden', !active);
+        button.setAttribute('aria-hidden', String(!active));
+        document.body?.classList?.toggle('mobile-full-editor-v423', active);
+        // The old standalone fullscreen action row must not occupy any height.
+        if (active) {
+          $('fullscreenEditorActions')?.setAttribute?.('aria-hidden', 'true');
+        } else {
+          $('fullscreenEditorActions')?.removeAttribute?.('aria-hidden');
+        }
+      }
+
+      function queueSync() {
+        if (syncQueued) return;
+        syncQueued = true;
+        (window.requestAnimationFrame || window.setTimeout)(() => {
+          syncQueued = false;
+          try { sync(); } catch (error) { console.warn('v423 full editor sync skipped:', error); }
+        }, 0);
+      }
+
+      function bind() {
+        queueSync();
+        try {
+          new MutationObserver(queueSync).observe(document.body, {
+            attributes: true,
+            attributeFilter: ['class'],
+            childList: true,
+            subtree: true
+          });
+          new MutationObserver(queueSync).observe(document.documentElement, {
+            attributes: true,
+            attributeFilter: ['data-device-mode', 'class']
+          });
+        } catch (_) {}
+        window.addEventListener('resize', queueSync, { passive: true });
+        window.addEventListener('orientationchange', () => window.setTimeout(queueSync, 100), { passive: true });
+        window.MCS_V423_PHONE_FULL_EDITOR = { sync: queueSync, isActive: isPhoneFullEditor };
       }
 
       if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bind, { once: true });
