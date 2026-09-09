@@ -42336,6 +42336,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   let codeExplorerMusicSaveGeneration = 0;
   let codeExplorerMusicSaveQueue = Promise.resolve();
   let codeExplorerMusicSaveButtonTimer = 0;
+  const CODE_EXPLORER_MUSIC_ADMIN_DRAFT_KEY = 'studentCodeStudio.codeExplorerMusicAdminDraft.v2';
 
   function normalizeCodeExplorerMusicSettings(value = {}) {
     const source = value && typeof value === 'object' ? value : {};
@@ -42347,15 +42348,70 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     };
   }
 
-  function codeExplorerMusicUrlIsUsable(rawUrl = '') {
+  function resolveCodeExplorerMusicUrl(rawUrl = '') {
     const value = String(rawUrl || '').trim();
-    if (!value) return true;
+    if (!value) return '';
     try {
       const parsed = new URL(value, window.location.href);
-      return parsed.protocol === 'https:' || parsed.protocol === 'http:';
+      if (!['https:', 'http:'].includes(parsed.protocol)) return '';
+
+      if (/^(www\.)?dropbox\.com$/i.test(parsed.hostname)) {
+        parsed.searchParams.delete('dl');
+        parsed.searchParams.set('raw', '1');
+        return parsed.href;
+      }
+
+      if (/^(drive\.)?google\.com$/i.test(parsed.hostname)) {
+        const driveMatch = parsed.pathname.match(/\/file\/d\/([^/]+)/i);
+        if (driveMatch?.[1]) return `https://drive.google.com/uc?export=download&id=${encodeURIComponent(driveMatch[1])}`;
+      }
+
+      if (/^(www\.)?github\.com$/i.test(parsed.hostname)) {
+        const parts = parsed.pathname.split('/').filter(Boolean);
+        const blobIndex = parts.indexOf('blob');
+        if (parts.length >= 5 && blobIndex === 2) {
+          const [owner, repo] = parts;
+          const branch = parts[3];
+          const filePath = parts.slice(4).join('/');
+          return `https://raw.githubusercontent.com/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/${encodeURIComponent(branch)}/${filePath.split('/').map(encodeURIComponent).join('/')}`;
+        }
+      }
+
+      return parsed.href;
     } catch (_) {
-      return false;
+      return '';
     }
+  }
+
+  function codeExplorerMusicUrlIsUsable(rawUrl = '') {
+    const value = String(rawUrl || '').trim();
+    return !value || Boolean(resolveCodeExplorerMusicUrl(value));
+  }
+
+  function codeExplorerMusicSettingsEqual(left = {}, right = {}) {
+    const a = normalizeCodeExplorerMusicSettings(left);
+    const b = normalizeCodeExplorerMusicSettings(right);
+    return a.enabled === b.enabled && a.url === b.url && a.volume === b.volume;
+  }
+
+  function readCodeExplorerMusicAdminDraft() {
+    if (!isTeacherAuthenticated()) return null;
+    const raw = loadJSON(CODE_EXPLORER_MUSIC_ADMIN_DRAFT_KEY, null);
+    if (!raw || typeof raw !== 'object' || !raw.settings) return null;
+    return {
+      settings: normalizeCodeExplorerMusicSettings(raw.settings),
+      savedAtMs: Math.max(0, Number(raw.savedAtMs || 0)),
+      synced: raw.synced === true
+    };
+  }
+
+  function persistCodeExplorerMusicAdminDraft(settings, options = {}) {
+    if (!isTeacherAuthenticated()) return;
+    saveJSON(CODE_EXPLORER_MUSIC_ADMIN_DRAFT_KEY, {
+      settings: normalizeCodeExplorerMusicSettings(settings),
+      savedAtMs: Math.max(0, Number(options.savedAtMs || Date.now())),
+      synced: options.synced === true
+    });
   }
 
   function setCodeExplorerAdminMusicStatus(message = '', tone = '') {
@@ -42396,24 +42452,64 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       return codeExplorerMusicSettings;
     }
     if (codeExplorerMusicSettingsPromise && !options.force) return codeExplorerMusicSettingsPromise;
+
+    const localDraft = readCodeExplorerMusicAdminDraft();
+    if (localDraft) {
+      codeExplorerMusicSettings = localDraft.settings;
+      syncCodeExplorerAdminMusicControls(localDraft.settings);
+      if (!localDraft.synced && isTeacherAuthenticated()) {
+        setCodeExplorerAdminMusicStatus('Local music draft restored. It is not yet confirmed as published to students.', 'warning');
+      }
+    }
+
     codeExplorerMusicSettingsPromise = (async () => {
       try {
         const ready = await initFirebaseSync();
-        if (!ready) throw new Error('Firebase is not ready.');
-        const { getDoc } = firebaseSync.modules;
-        const snapshot = await getDoc(getCloudActivitiesDocRef());
+        if (!ready) throw new Error(firebaseSync.lastError || 'Firebase is not ready.');
+        const { getDoc, getDocFromServer } = firebaseSync.modules;
+        const reader = options.force && typeof getDocFromServer === 'function' ? getDocFromServer : getDoc;
+        const snapshot = await reader(getCloudActivitiesDocRef());
         const data = snapshotExists(snapshot) ? snapshotData(snapshot) : {};
-        codeExplorerMusicSettings = normalizeCodeExplorerMusicSettings(data?.codeExplorerMusicSettings || CODE_EXPLORER_MUSIC_DEFAULTS);
+        const hasCloudSetting = Boolean(data?.codeExplorerMusicSettings && typeof data.codeExplorerMusicSettings === 'object');
+        const cloudSettings = normalizeCodeExplorerMusicSettings(hasCloudSetting ? data.codeExplorerMusicSettings : CODE_EXPLORER_MUSIC_DEFAULTS);
+        const cloudUpdatedAtMs = timestampToDate(data?.codeExplorerMusicUpdatedAt)?.getTime?.() || 0;
+
+        const keepUnsyncedDraft = Boolean(
+          isTeacherAuthenticated()
+          && localDraft
+          && !localDraft.synced
+          && localDraft.savedAtMs > cloudUpdatedAtMs
+          && !codeExplorerMusicSettingsEqual(localDraft.settings, cloudSettings)
+        );
+
+        if (keepUnsyncedDraft) {
+          codeExplorerMusicSettings = localDraft.settings;
+          setCodeExplorerAdminMusicStatus('Local draft restored, but it is NOT published yet. Press Save Music Settings and wait for “Published ✓”.', 'warning');
+        } else {
+          codeExplorerMusicSettings = cloudSettings;
+          if (isTeacherAuthenticated()) {
+            persistCodeExplorerMusicAdminDraft(cloudSettings, { synced: true, savedAtMs: cloudUpdatedAtMs || Date.now() });
+            setCodeExplorerAdminMusicStatus(hasCloudSetting
+              ? 'Published music settings loaded from Firestore.'
+              : 'No custom cloud music is published yet. Built-in music is active.');
+          }
+        }
+
         codeExplorerMusicSettingsLoaded = true;
-        syncCodeExplorerAdminMusicControls();
+        syncCodeExplorerAdminMusicControls(codeExplorerMusicSettings);
         applyCodeExplorerMusicSettingsLive();
         return codeExplorerMusicSettings;
       } catch (error) {
-        console.info('Code Explorer music settings unavailable; using built-in defaults.', error);
-        codeExplorerMusicSettings = normalizeCodeExplorerMusicSettings(CODE_EXPLORER_MUSIC_DEFAULTS);
+        console.info('Code Explorer music settings unavailable.', error);
+        if (localDraft && isTeacherAuthenticated()) {
+          codeExplorerMusicSettings = localDraft.settings;
+          setCodeExplorerAdminMusicStatus('Cloud music settings could not be loaded. Your local draft is still preserved on this device.', 'warning');
+        } else {
+          codeExplorerMusicSettings = normalizeCodeExplorerMusicSettings(CODE_EXPLORER_MUSIC_DEFAULTS);
+          if (isTeacherAuthenticated()) setCodeExplorerAdminMusicStatus('Could not load the cloud music setting. Built-in defaults are shown.', 'warning');
+        }
         codeExplorerMusicSettingsLoaded = true;
-        syncCodeExplorerAdminMusicControls();
-        if (isTeacherAuthenticated()) setCodeExplorerAdminMusicStatus('Could not load the cloud music setting. Built-in defaults are shown.', 'warning');
+        syncCodeExplorerAdminMusicControls(codeExplorerMusicSettings);
         applyCodeExplorerMusicSettingsLive();
         return codeExplorerMusicSettings;
       } finally {
@@ -42745,7 +42841,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
 
   function codeExplorerCustomMusicUrl() {
     const settings = normalizeCodeExplorerMusicSettings(codeExplorerMusicSettings);
-    return settings.enabled && settings.url ? settings.url : '';
+    return settings.enabled && settings.url ? resolveCodeExplorerMusicUrl(settings.url) : '';
   }
 
   function applyExplorerMusicVolume() {
@@ -42900,6 +42996,35 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     if (!document.body.classList.contains('code-explorer-active')) return;
     stopExplorerMusic();
     if (codeExplorerMusicAdminEnabled() && explorerAudio.prefs.music && !document.hidden) startExplorerMusic();
+  }
+
+  function primeExplorerAudioForLaunchGesture() {
+    loadExplorerAudioPrefs();
+    const context = ensureExplorerAudioContext();
+    if (context?.state === 'suspended') context.resume?.().catch?.(() => false);
+    if (!codeExplorerMusicSettingsLoaded || !explorerAudio.prefs.music || !codeExplorerMusicAdminEnabled()) return;
+    const customUrl = codeExplorerCustomMusicUrl();
+    if (!customUrl || explorerAudio.externalFailedUrl === customUrl) return;
+    const audio = ensureExplorerExternalMusic(customUrl);
+    if (!audio) return;
+    const wasMuted = audio.muted;
+    audio.muted = true;
+    const playResult = audio.play();
+    if (playResult && typeof playResult.then === 'function') {
+      playResult.then(() => {
+        window.setTimeout(() => {
+          audio.muted = wasMuted;
+          applyExplorerMusicVolume();
+          if (document.body.classList.contains('code-explorer-active') && explorerAudio.prefs.music && !document.hidden) {
+            startExplorerMusic();
+          } else {
+            try { audio.pause(); } catch (_) {}
+          }
+        }, 500);
+      }).catch(() => { audio.muted = wasMuted; });
+    } else {
+      audio.muted = wasMuted;
+    }
   }
 
   function stopExplorerAudioEffects() {
@@ -48069,7 +48194,8 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       return;
     }
     try {
-      const audio = new Audio(settings.url);
+      const resolvedUrl = resolveCodeExplorerMusicUrl(settings.url);
+      const audio = new Audio(resolvedUrl);
       audio.loop = true;
       audio.preload = 'auto';
       audio.playsInline = true;
@@ -48100,43 +48226,61 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       : 'Code Explorer background music is OFF for students.';
   }
 
-  function flashCodeExplorerMusicSaveButton(saveGeneration) {
+  function setCodeExplorerMusicSaveButton(label = 'Save Music Settings', options = {}) {
     if (!dom.adminMusicSaveBtn) return;
     window.clearTimeout(codeExplorerMusicSaveButtonTimer);
-    dom.adminMusicSaveBtn.disabled = false;
-    dom.adminMusicSaveBtn.textContent = 'Saved ✓';
-    codeExplorerMusicSaveButtonTimer = window.setTimeout(() => {
-      if (saveGeneration !== codeExplorerMusicSaveGeneration || !dom.adminMusicSaveBtn) return;
-      dom.adminMusicSaveBtn.textContent = 'Save Music Settings';
-    }, 900);
+    dom.adminMusicSaveBtn.disabled = options.disabled === true;
+    dom.adminMusicSaveBtn.textContent = label;
+    if (options.resetAfterMs) {
+      const generation = options.generation;
+      codeExplorerMusicSaveButtonTimer = window.setTimeout(() => {
+        if (generation && generation !== codeExplorerMusicSaveGeneration) return;
+        if (!dom.adminMusicSaveBtn) return;
+        dom.adminMusicSaveBtn.disabled = false;
+        dom.adminMusicSaveBtn.textContent = 'Save Music Settings';
+      }, options.resetAfterMs);
+    }
   }
 
-  function queueCodeExplorerMusicCloudSave(settings, saveGeneration) {
-    // Keep writes ordered. A slow first network acknowledgement can never land
-    // after a newer click and replace the newer setting with stale values.
+  function queueCodeExplorerMusicCloudSave(settings, saveGeneration, localSavedAtMs) {
     codeExplorerMusicSaveQueue = codeExplorerMusicSaveQueue
       .catch(() => undefined)
       .then(async () => {
         const ready = firebaseSync.initialized ? true : await initFirebaseSync();
         if (!ready) throw new Error(firebaseSync.lastError || 'Firebase is not ready.');
-        const { setDoc, serverTimestamp } = firebaseSync.modules;
+        const { setDoc, serverTimestamp, getDoc, getDocFromServer } = firebaseSync.modules;
         await setDoc(getCloudActivitiesDocRef(), {
-          codeExplorerMusicSettings: settings,
+          codeExplorerMusicSettings: normalizeCodeExplorerMusicSettings(settings),
           codeExplorerMusicUpdatedAt: serverTimestamp()
         }, { merge: true });
         clearSelectiveFirestoreCache('rootDocument:');
+
+        const reader = typeof getDocFromServer === 'function' ? getDocFromServer : getDoc;
+        const verifySnapshot = await reader(getCloudActivitiesDocRef());
+        const verifyData = snapshotExists(verifySnapshot) ? snapshotData(verifySnapshot) : {};
+        const verifiedSettings = normalizeCodeExplorerMusicSettings(verifyData?.codeExplorerMusicSettings || {});
+        if (!verifyData?.codeExplorerMusicSettings || !codeExplorerMusicSettingsEqual(verifiedSettings, settings)) {
+          throw new Error('Firestore did not return the same music setting after save. Please press Save again.');
+        }
+
+        persistCodeExplorerMusicAdminDraft(verifiedSettings, { synced: true, savedAtMs: localSavedAtMs });
+        codeExplorerMusicSettings = verifiedSettings;
+        codeExplorerMusicSettingsLoaded = true;
         if (saveGeneration === codeExplorerMusicSaveGeneration) {
-          setCodeExplorerAdminMusicStatus(`Saved & synced. ${getCodeExplorerMusicSavedMessage(settings)}`, 'success');
+          syncCodeExplorerAdminMusicControls(verifiedSettings);
+          setCodeExplorerAdminMusicStatus(`Published ✓ · ${getCodeExplorerMusicSavedMessage(verifiedSettings)}`, 'success');
+          setCodeExplorerMusicSaveButton('Published ✓', { generation: saveGeneration, resetAfterMs: 1400 });
         }
         return true;
       })
       .catch(error => {
-        console.error('Could not sync Code Explorer music settings.', error);
+        console.error('Could not publish Code Explorer music settings.', error);
         if (saveGeneration === codeExplorerMusicSaveGeneration) {
           setCodeExplorerAdminMusicStatus(
-            `Applied here, but cloud sync failed: ${error?.message || 'Check the connection and press Save again.'}`,
+            `Saved on this device, but NOT published to students: ${error?.message || 'Check the connection and press Save again.'}`,
             'error'
           );
+          setCodeExplorerMusicSaveButton('Save Again', { generation: saveGeneration, resetAfterMs: 2200 });
         }
         return false;
       });
@@ -48155,23 +48299,21 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     }
 
     const saveGeneration = ++codeExplorerMusicSaveGeneration;
+    const localSavedAtMs = Date.now();
     stopCodeExplorerAdminMusicTest();
 
-    // Apply immediately. Do not make the admin wait for Firestore's network
-    // round-trip just to see the setting saved in the UI.
+    persistCodeExplorerMusicAdminDraft(settings, { synced: false, savedAtMs: localSavedAtMs });
     codeExplorerMusicSettings = settings;
     codeExplorerMusicSettingsLoaded = true;
     explorerAudio.externalFailedUrl = '';
-    if (explorerAudio.externalMusicUrl && explorerAudio.externalMusicUrl !== settings.url) disposeExplorerExternalMusic();
+    const resolvedNextUrl = settings.url ? resolveCodeExplorerMusicUrl(settings.url) : '';
+    if (explorerAudio.externalMusicUrl && explorerAudio.externalMusicUrl !== resolvedNextUrl) disposeExplorerExternalMusic();
     syncCodeExplorerAdminMusicControls(settings);
     applyCodeExplorerMusicSettingsLive();
 
-    flashCodeExplorerMusicSaveButton(saveGeneration);
-    setCodeExplorerAdminMusicStatus(`Saved ✓ · Syncing to students… ${getCodeExplorerMusicSavedMessage(settings)}`, 'success');
-
-    // Intentionally not awaited: cloud acknowledgement happens in the
-    // background and updates the status once it finishes.
-    queueCodeExplorerMusicCloudSave(settings, saveGeneration);
+    setCodeExplorerMusicSaveButton('Saved locally ✓');
+    setCodeExplorerAdminMusicStatus(`Saved locally ✓ · Publishing to students… ${getCodeExplorerMusicSavedMessage(settings)}`, 'success');
+    queueCodeExplorerMusicCloudSave(settings, saveGeneration, localSavedAtMs);
     return true;
   }
 
@@ -48183,7 +48325,6 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       loadLeaderboardSectionSettings(),
       loadCodeExplorerMusicSettings({ force: options.force === true })
     ]);
-    if (dom.adminMusicStatus) setCodeExplorerAdminMusicStatus('Music settings loaded. Change the link or volume, then press Save Music Settings.');
     adminExplorerState.loaded = true;
     renderAdminExplorerProgress();
     renderAdminLeaderboardSectionSettings();
@@ -48392,6 +48533,9 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   window.initializeCodeExplorerAdmin = initializeCodeExplorerAdmin;
   window.renderCodeExplorerAdminProgress = renderAdminExplorerProgress;
 
+  window.setTimeout(() => { loadCodeExplorerMusicSettings().catch(() => false); }, 0);
+  dom.dashboardBtn?.addEventListener('pointerdown', primeExplorerAudioForLaunchGesture, { passive: true });
+  dom.menuBtn?.addEventListener('pointerdown', primeExplorerAudioForLaunchGesture, { passive: true });
   dom.dashboardBtn?.addEventListener('click', openExplorer);
   dom.menuBtn?.addEventListener('click', openExplorer);
   dom.backBtn?.addEventListener('click', () => { if (state.mobileView === 'lesson') showCourseRoadmap({ behavior: 'smooth' }); else closeExplorer(); });
