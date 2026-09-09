@@ -46656,3 +46656,517 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   };
 })();
 
+
+/* =========================================================
+   v427 PHONE EDITOR HARD RUNTIME REPAIR
+   Scope: phone/mobile editor only.
+   - Makes the unified Editor Menu a real independent scroll surface.
+   - Places a real backdrop above the editor so touch gestures never leak
+     through to the textarea/page behind the menu.
+   - Forces Full Editor geometry with inline !important declarations so old
+     high-specificity fullscreen CSS cannot shorten the code area.
+   Desktop layout and desktop fullscreen behavior are untouched.
+   ========================================================= */
+(() => {
+  const root = document.documentElement;
+  const body = document.body;
+  if (!root || !body) return;
+
+  const FIX_VERSION = 'v427-phone-runtime-hardfix';
+  const MENU_ID = 'mobileEditorUnifiedMenu';
+  const BACKDROP_ID = 'mobileEditorMenuBackdropV427';
+  const PHONE_MAX_WIDTH = 820;
+  const FULL_TABS_HEIGHT = 44;
+  const FULL_PROJECT_HEIGHT = 38;
+  const FULL_BOTTOM_RESERVE = 35;
+  const FONT_CONTROL_HEIGHT = 28;
+  const FONT_CONTROL_BOTTOM = 4;
+  const MOBILE_FONT_STORAGE_KEY = 'studentCodeStudio.mobileEditorFontSize.v1';
+  const fullRestoreMap = new Map();
+  const menuRestoreMap = new Map();
+  let scheduled = false;
+  let menuTouchStartY = 0;
+  let menuTouchStartScroll = 0;
+  let menuDragged = false;
+  let menuDragReleaseTimer = 0;
+
+  window.MCS_PHONE_EDITOR_FIX_VERSION = FIX_VERSION;
+
+  function isPhoneUi() {
+    if (root.dataset.deviceMode) return root.dataset.deviceMode === 'phone';
+    const width = Math.min(
+      Number(window.innerWidth) || 9999,
+      Number(window.visualViewport?.width) || 9999
+    );
+    const touchCapable = Number(navigator.maxTouchPoints || 0) > 0;
+    const coarsePointer = Boolean(window.matchMedia?.('(hover: none) and (pointer: coarse)')?.matches);
+    return width <= 760 && (touchCapable || coarsePointer);
+  }
+
+  function isPhoneFullEditor() {
+    if (!isPhoneUi()) return false;
+    return body.classList.contains('editor-fullscreen-active')
+      || body.classList.contains('phone-css-full-editor-active')
+      || body.classList.contains('phone-true-full-editor-active')
+      || body.classList.contains('mobile-full-editor-v423');
+  }
+
+  function isMenuOpen() {
+    const menu = document.getElementById(MENU_ID);
+    return Boolean(
+      isPhoneUi()
+      && menu
+      && !menu.classList.contains('hidden')
+      && (body.classList.contains('mobile-editor-menu-open-v416')
+        || body.classList.contains('mobile-editor-menu-open-v415')
+        || menu.getAttribute('aria-hidden') === 'false')
+    );
+  }
+
+  function visualViewportHeight() {
+    return Math.max(
+      320,
+      Math.round(Number(window.visualViewport?.height) || Number(window.innerHeight) || 640)
+    );
+  }
+
+  function rememberAndSetImportant(store, el, property, value) {
+    if (!el) return;
+    let saved = store.get(el);
+    if (!saved) {
+      saved = new Map();
+      store.set(el, saved);
+    }
+    if (!saved.has(property)) {
+      saved.set(property, {
+        value: el.style.getPropertyValue(property),
+        priority: el.style.getPropertyPriority(property)
+      });
+    }
+    el.style.setProperty(property, value, 'important');
+  }
+
+  function setImportant(el, property, value) {
+    rememberAndSetImportant(fullRestoreMap, el, property, value);
+  }
+
+  function setMenuImportant(el, property, value) {
+    rememberAndSetImportant(menuRestoreMap, el, property, value);
+  }
+
+  function restoreElementFrom(store, el) {
+    const saved = store.get(el);
+    if (!el || !saved) return;
+    saved.forEach((original, property) => {
+      if (original.value) el.style.setProperty(property, original.value, original.priority || '');
+      else el.style.removeProperty(property);
+    });
+    store.delete(el);
+  }
+
+  function restoreAllFullEditorOverrides() {
+    [...fullRestoreMap.keys()].forEach(el => restoreElementFrom(fullRestoreMap, el));
+    body.classList.remove('mobile-full-editor-v427');
+  }
+
+  function restoreAllMenuOverrides() {
+    [...menuRestoreMap.keys()].forEach(el => restoreElementFrom(menuRestoreMap, el));
+  }
+
+  function ensureBackdrop() {
+    let backdrop = document.getElementById(BACKDROP_ID);
+    if (!backdrop) {
+      backdrop = document.createElement('div');
+      backdrop.id = BACKDROP_ID;
+      backdrop.setAttribute('aria-hidden', 'true');
+      backdrop.style.display = 'none';
+      document.body.appendChild(backdrop);
+
+      backdrop.addEventListener('touchstart', event => {
+        event.preventDefault();
+        event.stopPropagation();
+      }, { passive: false });
+      backdrop.addEventListener('touchmove', event => {
+        event.preventDefault();
+        event.stopPropagation();
+      }, { passive: false });
+      backdrop.addEventListener('wheel', event => {
+        event.preventDefault();
+        event.stopPropagation();
+      }, { passive: false });
+      backdrop.addEventListener('click', event => {
+        event.preventDefault();
+        event.stopPropagation();
+        try { window.MCS_V416_MOBILE_EDITOR_MENU?.close?.(); } catch (_) {}
+      });
+    }
+    return backdrop;
+  }
+
+  function bindMenuScroll(menu) {
+    if (!menu || menu.dataset.v427ScrollBound === 'true') return;
+    menu.dataset.v427ScrollBound = 'true';
+
+    menu.addEventListener('touchstart', event => {
+      if (!isMenuOpen() || event.touches?.length !== 1) return;
+      clearTimeout(menuDragReleaseTimer);
+      menuTouchStartY = event.touches[0].clientY;
+      menuTouchStartScroll = menu.scrollTop;
+      menuDragged = false;
+      event.stopPropagation();
+    }, { passive: true });
+
+    menu.addEventListener('touchmove', event => {
+      if (!isMenuOpen() || event.touches?.length !== 1) return;
+      const maxScroll = Math.max(0, menu.scrollHeight - menu.clientHeight);
+      if (maxScroll <= 0) {
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
+      const delta = menuTouchStartY - event.touches[0].clientY;
+      if (Math.abs(delta) < 2) return;
+      menuDragged = true;
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation?.();
+      menu.scrollTop = Math.max(0, Math.min(maxScroll, menuTouchStartScroll + delta));
+    }, { passive: false });
+
+    menu.addEventListener('touchend', event => {
+      if (menuDragged) event.stopPropagation();
+      clearTimeout(menuDragReleaseTimer);
+      menuDragReleaseTimer = window.setTimeout(() => { menuDragged = false; }, 140);
+    }, { passive: true });
+
+    menu.addEventListener('wheel', event => {
+      if (!isMenuOpen()) return;
+      const maxScroll = Math.max(0, menu.scrollHeight - menu.clientHeight);
+      if (maxScroll <= 0) return;
+      event.preventDefault();
+      event.stopPropagation();
+      menu.scrollTop = Math.max(0, Math.min(maxScroll, menu.scrollTop + event.deltaY));
+    }, { passive: false });
+
+    menu.addEventListener('click', event => {
+      if (!menuDragged) return;
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation?.();
+    }, true);
+  }
+
+  function syncMenu() {
+    const menu = document.getElementById(MENU_ID);
+    const backdrop = ensureBackdrop();
+    if (!menu || !isPhoneUi()) {
+      restoreAllMenuOverrides();
+      return;
+    }
+
+    bindMenuScroll(menu);
+    const open = isMenuOpen();
+    if (!open) {
+      restoreAllMenuOverrides();
+      return;
+    }
+
+    const button = document.getElementById('studentMenuBtn');
+    const rect = button?.getBoundingClientRect?.();
+    const viewportWidth = Math.max(0, Number(window.innerWidth) || root.clientWidth || 0);
+    const viewportHeight = visualViewportHeight();
+    const safeGap = 10;
+    const width = Math.min(286, Math.max(236, viewportWidth * 0.72), Math.max(0, viewportWidth - safeGap * 2));
+    const right = rect
+      ? Math.max(safeGap, Math.min(24, viewportWidth - rect.right))
+      : safeGap;
+    const top = rect
+      ? Math.max(12, Math.min(viewportHeight - 170, rect.bottom + 10))
+      : 64;
+    const availableHeight = Math.max(170, viewportHeight - top - 10);
+
+    setMenuImportant(backdrop, 'display', 'block');
+    setMenuImportant(backdrop, 'position', 'fixed');
+    setMenuImportant(backdrop, 'inset', '0');
+    setMenuImportant(backdrop, 'z-index', '100000');
+    setMenuImportant(backdrop, 'background', 'transparent');
+    setMenuImportant(backdrop, 'pointer-events', 'auto');
+    setMenuImportant(backdrop, 'touch-action', 'none');
+
+    setMenuImportant(menu, 'display', 'grid');
+    setMenuImportant(menu, 'position', 'fixed');
+    setMenuImportant(menu, 'top', `${Math.round(top)}px`);
+    setMenuImportant(menu, 'right', `${Math.round(right)}px`);
+    setMenuImportant(menu, 'bottom', 'auto');
+    setMenuImportant(menu, 'left', 'auto');
+    setMenuImportant(menu, 'width', `${Math.round(width)}px`);
+    setMenuImportant(menu, 'max-width', `calc(100vw - ${safeGap * 2}px)`);
+    setMenuImportant(menu, 'height', `${Math.round(availableHeight)}px`);
+    setMenuImportant(menu, 'min-height', '0');
+    setMenuImportant(menu, 'max-height', `${Math.round(availableHeight)}px`);
+    setMenuImportant(menu, 'overflow-x', 'hidden');
+    setMenuImportant(menu, 'overflow-y', 'auto');
+    setMenuImportant(menu, 'overscroll-behavior', 'contain');
+    setMenuImportant(menu, '-webkit-overflow-scrolling', 'touch');
+    setMenuImportant(menu, 'touch-action', 'none');
+    setMenuImportant(menu, 'pointer-events', 'auto');
+    setMenuImportant(menu, 'z-index', '100010');
+    setMenuImportant(menu, 'padding', '10px');
+    setMenuImportant(menu, 'gap', '8px');
+    setMenuImportant(menu, 'box-sizing', 'border-box');
+
+    const inner = menu.querySelector('.mobile-editor-menu-scroll-v424');
+    if (inner) {
+      setMenuImportant(inner, 'display', 'contents');
+      setMenuImportant(inner, 'width', 'auto');
+      setMenuImportant(inner, 'height', 'auto');
+      setMenuImportant(inner, 'min-height', '0');
+      setMenuImportant(inner, 'max-height', 'none');
+      setMenuImportant(inner, 'padding', '0');
+      setMenuImportant(inner, 'overflow', 'visible');
+      setMenuImportant(inner, 'pointer-events', 'auto');
+    }
+
+    if (button) setMenuImportant(button, 'z-index', '100020');
+  }
+
+  function readMobileFontSize() {
+    const cssValue = parseFloat(getComputedStyle(root).getPropertyValue('--mobile-editor-font-size'));
+    if (Number.isFinite(cssValue)) return Math.min(22, Math.max(11, cssValue));
+    try {
+      const stored = Number(localStorage.getItem(MOBILE_FONT_STORAGE_KEY));
+      if (Number.isFinite(stored)) return Math.min(22, Math.max(11, stored));
+    } catch (_) {}
+    return 12.5;
+  }
+
+  function ensureFullEditorFontControl() {
+    const panel = document.getElementById('editorPanel');
+    if (!panel) return null;
+    let control = document.getElementById('mobileEditorFontControl');
+    if (!control) {
+      const value = readMobileFontSize();
+      control = document.createElement('div');
+      control.id = 'mobileEditorFontControl';
+      control.className = 'mobile-editor-font-control';
+      control.setAttribute('aria-label', 'Adjust editor font size');
+      control.innerHTML = `
+        <label class="mobile-editor-font-label" for="mobileEditorFontSizeRange">Aa</label>
+        <input id="mobileEditorFontSizeRange" class="mobile-editor-font-range" type="range" min="11" max="22" step="0.5" value="${value}" aria-label="Editor font size" />
+        <output id="mobileEditorFontSizeValue" class="mobile-editor-font-value" for="mobileEditorFontSizeRange">${value}px</output>
+      `;
+      panel.appendChild(control);
+    }
+    const range = control.querySelector('#mobileEditorFontSizeRange');
+    if (range && range.dataset.v427Bound !== 'true') {
+      range.dataset.v427Bound = 'true';
+      range.addEventListener('input', () => {
+        const value = Math.min(22, Math.max(11, Number(range.value) || 12.5));
+        root.style.setProperty('--mobile-editor-font-size', `${value}px`);
+        try { localStorage.setItem(MOBILE_FONT_STORAGE_KEY, String(value)); } catch (_) {}
+        const output = document.getElementById('mobileEditorFontSizeValue');
+        if (output) output.textContent = `${value}px`;
+      }, { passive: true });
+    }
+    return control;
+  }
+
+  function applyFullEditorGeometry() {
+    const panel = document.getElementById('editorPanel');
+    const tabs = panel?.querySelector(':scope > .language-tabs');
+    const project = document.getElementById('editorProjectHeader');
+    const wrap = panel?.querySelector('.editor-wrap');
+    const stack = panel?.querySelector('.editor-stack');
+    const editor = document.getElementById('codeEditor');
+    const match = document.getElementById('codeMatchLayer');
+    const lines = document.getElementById('lineNumbers');
+    if (!panel || !tabs || !project || !wrap || !stack || !editor || !lines) return;
+
+    const viewportHeight = visualViewportHeight();
+    const editorHeight = Math.max(180, viewportHeight - FULL_TABS_HEIGHT - FULL_PROJECT_HEIGHT - FULL_BOTTOM_RESERVE);
+    body.classList.add('mobile-full-editor-v427');
+    root.style.setProperty('--mcs-phone-full-editor-height', `${viewportHeight}px`);
+
+    setImportant(panel, 'position', 'fixed');
+    setImportant(panel, 'inset', '0');
+    setImportant(panel, 'display', 'block');
+    setImportant(panel, 'width', '100vw');
+    setImportant(panel, 'max-width', '100vw');
+    setImportant(panel, 'height', `${viewportHeight}px`);
+    setImportant(panel, 'min-height', `${viewportHeight}px`);
+    setImportant(panel, 'max-height', `${viewportHeight}px`);
+    setImportant(panel, 'margin', '0');
+    setImportant(panel, 'padding', '0');
+    setImportant(panel, 'border', '0');
+    setImportant(panel, 'border-radius', '0');
+    setImportant(panel, 'overflow', 'hidden');
+    setImportant(panel, 'box-sizing', 'border-box');
+    setImportant(panel, 'z-index', '60000');
+
+    setImportant(tabs, 'position', 'absolute');
+    setImportant(tabs, 'top', '0');
+    setImportant(tabs, 'right', '0');
+    setImportant(tabs, 'bottom', 'auto');
+    setImportant(tabs, 'left', '0');
+    setImportant(tabs, 'display', 'grid');
+    setImportant(tabs, 'grid-template-columns', 'repeat(3, minmax(0, 1fr))');
+    setImportant(tabs, 'width', '100%');
+    setImportant(tabs, 'height', `${FULL_TABS_HEIGHT}px`);
+    setImportant(tabs, 'min-height', `${FULL_TABS_HEIGHT}px`);
+    setImportant(tabs, 'max-height', `${FULL_TABS_HEIGHT}px`);
+    setImportant(tabs, 'margin', '0');
+    setImportant(tabs, 'box-sizing', 'border-box');
+    setImportant(tabs, 'z-index', '3');
+
+    setImportant(project, 'position', 'absolute');
+    setImportant(project, 'top', `${FULL_TABS_HEIGHT}px`);
+    setImportant(project, 'right', '0');
+    setImportant(project, 'bottom', 'auto');
+    setImportant(project, 'left', '0');
+    setImportant(project, 'width', '100%');
+    setImportant(project, 'height', `${FULL_PROJECT_HEIGHT}px`);
+    setImportant(project, 'min-height', `${FULL_PROJECT_HEIGHT}px`);
+    setImportant(project, 'max-height', `${FULL_PROJECT_HEIGHT}px`);
+    setImportant(project, 'margin', '0');
+    setImportant(project, 'box-sizing', 'border-box');
+    setImportant(project, 'overflow', 'hidden');
+    setImportant(project, 'z-index', '3');
+
+    setImportant(wrap, 'position', 'absolute');
+    setImportant(wrap, 'top', `${FULL_TABS_HEIGHT + FULL_PROJECT_HEIGHT}px`);
+    setImportant(wrap, 'right', '0');
+    setImportant(wrap, 'bottom', 'auto');
+    setImportant(wrap, 'left', '0');
+    setImportant(wrap, 'display', 'grid');
+    setImportant(wrap, 'grid-template-columns', '30px minmax(0, 1fr)');
+    setImportant(wrap, 'width', '100%');
+    setImportant(wrap, 'height', `${editorHeight}px`);
+    setImportant(wrap, 'min-height', `${editorHeight}px`);
+    setImportant(wrap, 'max-height', `${editorHeight}px`);
+    setImportant(wrap, 'margin', '0');
+    setImportant(wrap, 'padding', '0');
+    setImportant(wrap, 'border-radius', '0');
+    setImportant(wrap, 'overflow', 'hidden');
+    setImportant(wrap, 'box-sizing', 'border-box');
+
+    [stack, editor, match, lines].filter(Boolean).forEach(el => {
+      setImportant(el, 'height', '100%');
+      setImportant(el, 'min-height', '0');
+      setImportant(el, 'max-height', '100%');
+      setImportant(el, 'box-sizing', 'border-box');
+    });
+
+    setImportant(editor, 'overflow-y', 'auto');
+    setImportant(editor, 'overflow-x', 'hidden');
+    setImportant(editor, 'resize', 'none');
+    setImportant(editor, 'padding-bottom', '12px');
+    setImportant(editor, 'scroll-padding-bottom', '12px');
+    setImportant(editor, '-webkit-overflow-scrolling', 'touch');
+
+    const hideIds = [
+      'fullscreenEditorActions',
+      'codeHelperFloatingBtn',
+      'editorInfo',
+      'structureAlert',
+      'tagMatchInfo',
+      'errorCheckerPanel',
+      'mobileEditorToolsToggle',
+      'mobileSuggestionToggle'
+    ];
+    hideIds.forEach(id => setImportant(document.getElementById(id), 'display', 'none'));
+    panel.querySelectorAll(':scope > .tips-row').forEach(el => setImportant(el, 'display', 'none'));
+    setImportant(document.getElementById('htmlPageManager'), 'display', body.classList.contains('mobile-page-manager-open-v420') ? 'grid' : 'none');
+
+    const fontControl = ensureFullEditorFontControl();
+    if (fontControl) {
+      setImportant(fontControl, 'position', 'fixed');
+      setImportant(fontControl, 'left', '50%');
+      setImportant(fontControl, 'right', 'auto');
+      setImportant(fontControl, 'top', 'auto');
+      setImportant(fontControl, 'bottom', `calc(${FONT_CONTROL_BOTTOM}px + env(safe-area-inset-bottom))`);
+      setImportant(fontControl, 'transform', 'translateX(-50%)');
+      setImportant(fontControl, 'display', 'inline-flex');
+      setImportant(fontControl, 'visibility', 'visible');
+      setImportant(fontControl, 'opacity', '1');
+      setImportant(fontControl, 'pointer-events', 'auto');
+      setImportant(fontControl, 'align-items', 'center');
+      setImportant(fontControl, 'justify-content', 'center');
+      setImportant(fontControl, 'gap', '7px');
+      setImportant(fontControl, 'width', 'min(214px, 66vw)');
+      setImportant(fontControl, 'max-width', 'min(214px, 66vw)');
+      setImportant(fontControl, 'height', `${FONT_CONTROL_HEIGHT}px`);
+      setImportant(fontControl, 'min-height', `${FONT_CONTROL_HEIGHT}px`);
+      setImportant(fontControl, 'max-height', `${FONT_CONTROL_HEIGHT}px`);
+      setImportant(fontControl, 'margin', '0');
+      setImportant(fontControl, 'padding', '0 5px');
+      setImportant(fontControl, 'border', '0');
+      setImportant(fontControl, 'background', 'transparent');
+      setImportant(fontControl, 'box-shadow', 'none');
+      setImportant(fontControl, 'z-index', '60070');
+      const range = fontControl.querySelector('.mobile-editor-font-range');
+      const label = fontControl.querySelector('.mobile-editor-font-label');
+      const value = fontControl.querySelector('.mobile-editor-font-value');
+      if (range) {
+        setImportant(range, 'width', '154px');
+        setImportant(range, 'max-width', '50vw');
+        setImportant(range, 'pointer-events', 'auto');
+      }
+      if (label) {
+        setImportant(label, 'display', 'inline');
+        setImportant(label, 'font-size', '0.72rem');
+        setImportant(label, 'font-weight', '900');
+      }
+      if (value) setImportant(value, 'display', 'none');
+    }
+  }
+
+  function syncFullEditor() {
+    if (!isPhoneFullEditor()) {
+      restoreAllFullEditorOverrides();
+      return;
+    }
+    applyFullEditorGeometry();
+    window.setTimeout(() => {
+      if (isPhoneFullEditor()) applyFullEditorGeometry();
+    }, 80);
+  }
+
+  function syncAll() {
+    scheduled = false;
+    try { syncMenu(); } catch (error) { console.warn('v427 menu sync skipped:', error); }
+    try { syncFullEditor(); } catch (error) { console.warn('v427 full editor sync skipped:', error); }
+  }
+
+  function scheduleSync() {
+    if (scheduled) return;
+    scheduled = true;
+    (window.requestAnimationFrame || window.setTimeout)(syncAll, 0);
+  }
+
+  try {
+    new MutationObserver(scheduleSync).observe(body, {
+      attributes: true,
+      attributeFilter: ['class'],
+      childList: true
+    });
+    new MutationObserver(scheduleSync).observe(root, {
+      attributes: true,
+      attributeFilter: ['data-device-mode', 'class']
+    });
+  } catch (_) {}
+
+  window.addEventListener('resize', scheduleSync, { passive: true });
+  window.addEventListener('orientationchange', () => window.setTimeout(scheduleSync, 120), { passive: true });
+  window.visualViewport?.addEventListener?.('resize', scheduleSync, { passive: true });
+  window.visualViewport?.addEventListener?.('scroll', scheduleSync, { passive: true });
+  document.addEventListener('DOMContentLoaded', scheduleSync, { once: true });
+
+  window.MCS_V427_PHONE_EDITOR_REPAIR = {
+    version: FIX_VERSION,
+    sync: scheduleSync,
+    menuOpen: isMenuOpen,
+    fullEditorActive: isPhoneFullEditor
+  };
+
+  scheduleSync();
+})();
