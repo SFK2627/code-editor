@@ -45,7 +45,7 @@
   </script>
   <link rel="preconnect" href="https://drive.google.com" crossorigin>
   <link rel="preconnect" href="https://lh3.googleusercontent.com" crossorigin>
-  <link rel="stylesheet" href="style.css?v=20260909-v422-mobile-menu-font-hud" />
+  <link rel="stylesheet" href="style.css?v=20260909-v423-mobile-fullscreen-compact" />
   <style>
     .ai-rubric-settings-card,
     .admin-project-ai-review-card {
@@ -4069,6 +4069,22 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
           dock.appendChild(button);
         }
 
+        // v423: phone Full Editor exit belongs in the same compact project strip
+        // as Saved / Save / Pages. It is hidden outside phone full-screen mode.
+        let fullExit = $('mobileFullEditorExitBtn');
+        if (!fullExit) {
+          fullExit = document.createElement('button');
+          fullExit.id = 'mobileFullEditorExitBtn';
+          fullExit.type = 'button';
+          fullExit.className = 'mobile-full-editor-exit-btn';
+          fullExit.textContent = '×';
+          fullExit.title = 'Exit full editor';
+          fullExit.setAttribute('aria-label', 'Exit full editor');
+          dock.appendChild(fullExit);
+        } else if (fullExit.parentElement !== dock) {
+          dock.appendChild(fullExit);
+        }
+
         ensurePageMenuHead(manager);
         return button;
       }
@@ -4227,6 +4243,16 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
 
       function handleTap(event) {
         if (!isPhoneUi()) return;
+        const fullExitButton = event.target?.closest?.('#mobileFullEditorExitBtn');
+        if (fullExitButton) {
+          event.preventDefault();
+          event.stopPropagation();
+          event.stopImmediatePropagation?.();
+          closePageMenu();
+          $('exitEditorStickyBtn')?.click?.();
+          return;
+        }
+
         const pagesButton = event.target?.closest?.('#mobileEditorPagesBtn');
         if (pagesButton) {
           event.preventDefault();
