@@ -46656,3 +46656,432 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   };
 })();
 
+
+/* =========================================================
+   v427 PHONE FULL EDITOR: RUNTIME HARD GEOMETRY
+   Scope: phone/mobile Full Editor only. Desktop untouched.
+   Why this exists:
+   - the app contains several historical fullscreen rules, including older
+     !important bottom padding values (112px) that can keep the code canvas
+     short even when newer stylesheet rules are correct.
+   - this patch deliberately uses INLINE !important geometry so author CSS
+     cannot win the sizing fight.
+   - while active, only the three visible rows consume layout space:
+       language tabs -> compact project strip -> code editor
+     The font-size slider is overlaid at the physical bottom of the stable
+     Full Editor canvas and the textarea ends only a few pixels above it.
+   ========================================================= */
+(() => {
+  const root = document.documentElement;
+  const body = document.body;
+  if (!root || !body) return;
+
+  const PHONE_QUERY = '(max-width: 820px), (hover: none) and (pointer: coarse)';
+  const PANEL_SIDE = 8;
+  const TOP_ROW_HEIGHT = 34;
+  const ROW_GAP = 4;
+  const SLIDER_HEIGHT = 30;
+  const SLIDER_BOTTOM = 6;
+  const EDITOR_SLIDER_GAP = 6;
+  const EDITOR_BOTTOM_RESERVE = SLIDER_HEIGHT + SLIDER_BOTTOM + EDITOR_SLIDER_GAP; // 42px
+
+  let active = false;
+  let stableHeight = 0;
+  let rafId = 0;
+  let orientationTimer = 0;
+  let childObserver = null;
+  const snapshots = new Map();
+
+  function isPhoneUi() {
+    if (root.dataset.deviceMode === 'phone') return true;
+    try {
+      const width = Math.min(
+        Number(window.innerWidth) || 9999,
+        Number(window.visualViewport?.width) || 9999
+      );
+      return width <= 820 || Boolean(window.matchMedia?.(PHONE_QUERY)?.matches);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function isFullEditorActive() {
+    return Boolean(
+      isPhoneUi() &&
+      !body.classList.contains('preview-fullscreen-active') &&
+      !body.classList.contains('preview-inside-editor-fullscreen') &&
+      (
+        body.classList.contains('phone-css-full-editor-active') ||
+        body.classList.contains('phone-true-full-editor-active') ||
+        body.classList.contains('editor-fullscreen-active')
+      )
+    );
+  }
+
+  function readStableHeightHint() {
+    const cssHint = Number.parseFloat(
+      root.style.getPropertyValue('--mcs-v424-full-editor-stable-height') ||
+      getComputedStyle(root).getPropertyValue('--mcs-v424-full-editor-stable-height') ||
+      ''
+    );
+    const layout = Math.max(
+      Number(window.innerHeight) || 0,
+      Number(root.clientHeight) || 0,
+      Number(document.body?.clientHeight) || 0
+    );
+    return Math.max(320, Math.round(Number.isFinite(cssHint) && cssHint > 0 ? cssHint : (layout || 640)));
+  }
+
+  function keyboardLooksOpen() {
+    if (!active || !stableHeight) return false;
+    const visual = Number(window.visualViewport?.height) || 0;
+    if (!visual) return false;
+    const deficit = stableHeight - visual;
+    return deficit > Math.max(120, stableHeight * 0.18);
+  }
+
+  function capture(el, prop) {
+    if (!el) return;
+    let props = snapshots.get(el);
+    if (!props) {
+      props = new Map();
+      snapshots.set(el, props);
+    }
+    if (props.has(prop)) return;
+    props.set(prop, {
+      value: el.style.getPropertyValue(prop),
+      priority: el.style.getPropertyPriority(prop)
+    });
+  }
+
+  function hard(el, prop, value) {
+    if (!el) return;
+    capture(el, prop);
+    el.style.setProperty(prop, value, 'important');
+  }
+
+  function restoreAll() {
+    snapshots.forEach((props, el) => {
+      props.forEach((previous, prop) => {
+        if (previous.value) el.style.setProperty(prop, previous.value, previous.priority || '');
+        else el.style.removeProperty(prop);
+      });
+    });
+    snapshots.clear();
+  }
+
+  function hideRow(el) {
+    if (!el) return;
+    hard(el, 'display', 'none');
+    hard(el, 'visibility', 'hidden');
+    hard(el, 'pointer-events', 'none');
+  }
+
+  function getParts() {
+    const panel = document.getElementById('editorPanel');
+    return {
+      panel,
+      tabs: panel?.querySelector(':scope > .language-tabs') || null,
+      project: document.getElementById('editorProjectHeader'),
+      editorWrap: panel?.querySelector(':scope > .editor-wrap') || null,
+      editorStack: panel?.querySelector(':scope > .editor-wrap > .editor-stack') || null,
+      lineNumbers: document.getElementById('lineNumbers'),
+      editor: document.getElementById('codeEditor'),
+      matchLayer: document.getElementById('codeMatchLayer'),
+      fontControl: document.getElementById('mobileEditorFontControl'),
+      actions: document.getElementById('fullscreenEditorActions'),
+      pageManager: document.getElementById('htmlPageManager'),
+      editorInfo: document.getElementById('editorInfo'),
+      structureAlert: document.getElementById('structureAlert'),
+      tagMatchInfo: document.getElementById('tagMatchInfo'),
+      tips: panel?.querySelector(':scope > .tips-row') || null,
+      oldToolsToggle: document.getElementById('mobileEditorToolsToggle'),
+      renameFiles: document.getElementById('renameFilesBtn')
+    };
+  }
+
+  function applyPanelGeometry(parts) {
+    const { panel } = parts;
+    if (!panel) return;
+
+    hard(panel, 'position', 'fixed');
+    hard(panel, 'inset', '0');
+    hard(panel, 'top', '0');
+    hard(panel, 'right', '0');
+    hard(panel, 'bottom', 'auto');
+    hard(panel, 'left', '0');
+    hard(panel, 'display', 'block');
+    hard(panel, 'box-sizing', 'border-box');
+    hard(panel, 'width', '100vw');
+    hard(panel, 'min-width', '100vw');
+    hard(panel, 'max-width', '100vw');
+    hard(panel, 'height', `${stableHeight}px`);
+    hard(panel, 'min-height', `${stableHeight}px`);
+    hard(panel, 'max-height', `${stableHeight}px`);
+    // Critical: kills every historical 88/112px author padding rule.
+    hard(panel, 'padding', '0');
+    hard(panel, 'margin', '0');
+    hard(panel, 'overflow', 'hidden');
+    hard(panel, 'overscroll-behavior', 'none');
+    hard(panel, 'z-index', '30000');
+  }
+
+  function applyTopRows(parts) {
+    const safeTop = 'max(4px, env(safe-area-inset-top, 0px))';
+    const projectTop = `calc(${safeTop} + ${TOP_ROW_HEIGHT + ROW_GAP}px)`;
+    const editorTop = `calc(${safeTop} + ${(TOP_ROW_HEIGHT * 2) + (ROW_GAP * 2)}px)`;
+
+    if (parts.tabs) {
+      hard(parts.tabs, 'position', 'absolute');
+      hard(parts.tabs, 'top', safeTop);
+      hard(parts.tabs, 'right', `${PANEL_SIDE}px`);
+      hard(parts.tabs, 'bottom', 'auto');
+      hard(parts.tabs, 'left', `${PANEL_SIDE}px`);
+      hard(parts.tabs, 'width', 'auto');
+      hard(parts.tabs, 'height', `${TOP_ROW_HEIGHT}px`);
+      hard(parts.tabs, 'min-height', `${TOP_ROW_HEIGHT}px`);
+      hard(parts.tabs, 'max-height', `${TOP_ROW_HEIGHT}px`);
+      hard(parts.tabs, 'margin', '0');
+      hard(parts.tabs, 'padding', '0');
+      hard(parts.tabs, 'display', 'grid');
+      hard(parts.tabs, 'grid-template-columns', 'repeat(3, minmax(0, 1fr))');
+      hard(parts.tabs, 'gap', '4px');
+      hard(parts.tabs, 'overflow', 'hidden');
+      hard(parts.tabs, 'z-index', '5');
+    }
+
+    if (parts.project) {
+      hard(parts.project, 'position', 'absolute');
+      hard(parts.project, 'top', projectTop);
+      hard(parts.project, 'right', `${PANEL_SIDE}px`);
+      hard(parts.project, 'bottom', 'auto');
+      hard(parts.project, 'left', `${PANEL_SIDE}px`);
+      hard(parts.project, 'width', 'auto');
+      hard(parts.project, 'height', `${TOP_ROW_HEIGHT}px`);
+      hard(parts.project, 'min-height', `${TOP_ROW_HEIGHT}px`);
+      hard(parts.project, 'max-height', `${TOP_ROW_HEIGHT}px`);
+      hard(parts.project, 'margin', '0');
+      hard(parts.project, 'padding-top', '3px');
+      hard(parts.project, 'padding-bottom', '3px');
+      hard(parts.project, 'box-sizing', 'border-box');
+      hard(parts.project, 'overflow', 'visible');
+      hard(parts.project, 'z-index', '6');
+    }
+
+    if (parts.editorWrap) {
+      hard(parts.editorWrap, 'position', 'absolute');
+      hard(parts.editorWrap, 'top', editorTop);
+      hard(parts.editorWrap, 'right', `${PANEL_SIDE}px`);
+      hard(parts.editorWrap, 'bottom', `calc(${EDITOR_BOTTOM_RESERVE}px + env(safe-area-inset-bottom, 0px))`);
+      hard(parts.editorWrap, 'left', `${PANEL_SIDE}px`);
+      hard(parts.editorWrap, 'display', 'grid');
+      hard(parts.editorWrap, 'grid-template-columns', '28px minmax(0, 1fr)');
+      hard(parts.editorWrap, 'width', 'auto');
+      hard(parts.editorWrap, 'height', 'auto');
+      hard(parts.editorWrap, 'min-height', '0');
+      hard(parts.editorWrap, 'max-height', 'none');
+      hard(parts.editorWrap, 'margin', '0');
+      hard(parts.editorWrap, 'padding', '0');
+      hard(parts.editorWrap, 'box-sizing', 'border-box');
+      hard(parts.editorWrap, 'overflow', 'hidden');
+      hard(parts.editorWrap, 'overscroll-behavior', 'none');
+    }
+  }
+
+  function applyEditorCanvas(parts) {
+    [parts.lineNumbers, parts.editorStack, parts.editor, parts.matchLayer].forEach(el => {
+      if (!el) return;
+      hard(el, 'height', '100%');
+      hard(el, 'min-height', '0');
+      hard(el, 'max-height', '100%');
+      hard(el, 'box-sizing', 'border-box');
+    });
+
+    if (parts.lineNumbers) {
+      hard(parts.lineNumbers, 'overflow', 'hidden');
+      hard(parts.lineNumbers, 'margin', '0');
+    }
+
+    if (parts.editorStack) {
+      hard(parts.editorStack, 'position', 'relative');
+      hard(parts.editorStack, 'overflow', 'hidden');
+      hard(parts.editorStack, 'min-width', '0');
+    }
+
+    if (parts.editor) {
+      hard(parts.editor, 'width', '100%');
+      hard(parts.editor, 'overflow-x', 'hidden');
+      hard(parts.editor, 'overflow-y', 'auto');
+      hard(parts.editor, 'overscroll-behavior', 'contain');
+      hard(parts.editor, '-webkit-overflow-scrolling', 'touch');
+      hard(parts.editor, 'resize', 'none');
+    }
+
+    if (parts.matchLayer) {
+      hard(parts.matchLayer, 'width', '100%');
+      hard(parts.matchLayer, 'overflow', 'hidden');
+    }
+  }
+
+  function applyFontSlider(parts) {
+    const control = parts.fontControl;
+    if (!control) return;
+
+    // Inline !important intentionally defeats the v422 rule that hides this
+    // control in Full Editor.
+    hard(control, 'position', 'absolute');
+    hard(control, 'top', 'auto');
+    hard(control, 'right', 'auto');
+    hard(control, 'bottom', `calc(${SLIDER_BOTTOM}px + env(safe-area-inset-bottom, 0px))`);
+    hard(control, 'left', '50%');
+    hard(control, 'transform', 'translateX(-50%)');
+    hard(control, 'display', 'inline-flex');
+    hard(control, 'visibility', 'visible');
+    hard(control, 'opacity', '1');
+    hard(control, 'pointer-events', 'auto');
+    hard(control, 'align-items', 'center');
+    hard(control, 'justify-content', 'center');
+    hard(control, 'height', `${SLIDER_HEIGHT}px`);
+    hard(control, 'min-height', `${SLIDER_HEIGHT}px`);
+    hard(control, 'margin', '0');
+    hard(control, 'z-index', '30030');
+  }
+
+  function applyHiddenLegacyRows(parts) {
+    hideRow(parts.actions); // standalone Exit Full row must never reserve height
+    hideRow(parts.editorInfo);
+    hideRow(parts.structureAlert);
+    hideRow(parts.tagMatchInfo);
+    hideRow(parts.tips);
+    hideRow(parts.oldToolsToggle);
+    hideRow(parts.renameFiles);
+    // Do not touch htmlPageManager inline: the v420 controller owns it as a
+    // fixed popover. Because the editor canvas is absolutely positioned, the
+    // manager cannot steal vertical height even when legacy CSS makes it visible.
+  }
+
+  function applyGeometry() {
+    rafId = 0;
+    if (!isFullEditorActive()) {
+      if (active) deactivate();
+      return;
+    }
+
+    if (!active) {
+      active = true;
+      lockedScrollX = window.scrollX || 0;
+      lockedScrollY = window.scrollY || 0;
+      stableHeight = readStableHeightHint();
+      root.classList.add('phone-full-editor-runtime-v427');
+      body.classList.add('phone-full-editor-runtime-v427');
+    } else if (!keyboardLooksOpen()) {
+      const hint = readStableHeightHint();
+      // Ignore tiny browser-chrome fluctuations; accept real viewport changes.
+      if (Math.abs(hint - stableHeight) >= 24) stableHeight = hint;
+    }
+
+    const parts = getParts();
+    if (!parts.panel || !parts.editorWrap || !parts.editor) return;
+
+    applyPanelGeometry(parts);
+    applyTopRows(parts);
+    applyEditorCanvas(parts);
+    applyHiddenLegacyRows(parts);
+    applyFontSlider(parts);
+
+    // Reassert scroll lock at runtime as a second line of defense against body
+    // rubber-banding revealing Teacher Feedback / Preview / Output underneath.
+    hard(root, 'overflow', 'hidden');
+    hard(root, 'overscroll-behavior', 'none');
+    hard(body, 'overflow', 'hidden');
+    hard(body, 'overscroll-behavior', 'none');
+    hard(body, 'height', `${stableHeight}px`);
+    hard(body, 'max-height', `${stableHeight}px`);
+  }
+
+  function deactivate() {
+    active = false;
+    stableHeight = 0;
+    root.classList.remove('phone-full-editor-runtime-v427');
+    body.classList.remove('phone-full-editor-runtime-v427');
+    restoreAll();
+  }
+
+  function schedule() {
+    if (rafId) return;
+    rafId = window.requestAnimationFrame(applyGeometry);
+  }
+
+  const classObserver = new MutationObserver(schedule);
+  classObserver.observe(body, {
+    attributes: true,
+    attributeFilter: ['class']
+  });
+  classObserver.observe(root, {
+    attributes: true,
+    attributeFilter: ['class', 'data-device-mode']
+  });
+
+  // The font slider is created lazily by the older Step 99 engine. Reapply as
+  // soon as that node appears, without running a heavy subtree observer app-wide.
+  const panel = document.getElementById('editorPanel');
+  if (panel) {
+    childObserver = new MutationObserver(schedule);
+    childObserver.observe(panel, { childList: true });
+  }
+
+  window.addEventListener('resize', schedule, { passive: true });
+  window.visualViewport?.addEventListener('resize', schedule, { passive: true });
+  window.visualViewport?.addEventListener('scroll', schedule, { passive: true });
+  window.addEventListener('orientationchange', () => {
+    window.clearTimeout(orientationTimer);
+    orientationTimer = window.setTimeout(() => {
+      if (active && !keyboardLooksOpen()) stableHeight = readStableHeightHint();
+      schedule();
+    }, 220);
+  }, { passive: true });
+  document.addEventListener('visibilitychange', schedule, { passive: true });
+
+  // If an old controller tries to move the document while Full Editor is open,
+  // immediately put it back. The textarea keeps its own independent scroll.
+  let lockedScrollX = 0;
+  let lockedScrollY = 0;
+  document.addEventListener('click', event => {
+    const full = event.target?.closest?.('#fullEditorBtn');
+    if (full && isPhoneUi()) {
+      lockedScrollX = window.scrollX || 0;
+      lockedScrollY = window.scrollY || 0;
+    }
+  }, true);
+  window.addEventListener('scroll', () => {
+    if (!active) return;
+    const x = window.scrollX || 0;
+    const y = window.scrollY || 0;
+    if (Math.abs(x - lockedScrollX) > 1 || Math.abs(y - lockedScrollY) > 1) {
+      try { window.scrollTo(lockedScrollX, lockedScrollY); } catch (_) {}
+    }
+  }, { passive: true });
+
+  schedule();
+
+  window.MCS_V427_PHONE_FULL_EDITOR_RUNTIME = {
+    refresh: schedule,
+    status: () => {
+      const parts = getParts();
+      const panelRect = parts.panel?.getBoundingClientRect?.();
+      const editorRect = parts.editorWrap?.getBoundingClientRect?.();
+      const sliderRect = parts.fontControl?.getBoundingClientRect?.();
+      return {
+        active,
+        stableHeight,
+        keyboardOpen: keyboardLooksOpen(),
+        panelHeight: Math.round(panelRect?.height || 0),
+        editorTop: Math.round(editorRect?.top || 0),
+        editorBottom: Math.round(editorRect?.bottom || 0),
+        editorHeight: Math.round(editorRect?.height || 0),
+        sliderTop: Math.round(sliderRect?.top || 0),
+        gapToSlider: Math.round((sliderRect?.top || 0) - (editorRect?.bottom || 0))
+      };
+    }
+  };
+})();
