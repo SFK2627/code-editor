@@ -3536,6 +3536,22 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
         return menu;
       }
 
+      // v425: use a real backdrop instead of a body pseudo-element. A real
+      // sibling stays below the menu in the stacking order, so it blocks the
+      // editor/page behind the popover without stealing swipe gestures from
+      // the menu's own scroll surface on iOS/Android browsers.
+      function ensureMenuBackdropV425() {
+        let backdrop = $('mobileEditorMenuBackdropV425');
+        if (!backdrop) {
+          backdrop = document.createElement('div');
+          backdrop.id = 'mobileEditorMenuBackdropV425';
+          backdrop.className = 'mobile-editor-menu-backdrop-v425 hidden';
+          backdrop.setAttribute('aria-hidden', 'true');
+          document.body.appendChild(backdrop);
+        }
+        return backdrop;
+      }
+
       function closeLegacyMenus() {
         document.body?.classList?.remove(
           'mobile-student-strip-open',
@@ -3790,6 +3806,11 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
         const scrollSurface = document.createElement('div');
         scrollSurface.className = 'mobile-editor-menu-scroll-v424';
         scrollSurface.setAttribute('role', 'presentation');
+        // Keep wheel/touch movement owned by the popover. We intentionally do
+        // not preventDefault here so native momentum scrolling remains smooth.
+        ['touchstart', 'touchmove', 'wheel'].forEach(type => {
+          scrollSurface.addEventListener(type, event => event.stopPropagation(), { passive: true });
+        });
         menu.appendChild(scrollSurface);
 
         const head = document.createElement('div');
@@ -3857,7 +3878,10 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
         const right = Math.max(safeGap, Math.min(24, viewportWidth - rect.right));
         // v423: leave enough room for the small pointer that visually connects
         // the floating menu to the hamburger button.
-        const top = Math.max(14, Math.min(window.innerHeight - 120, rect.bottom + 12));
+        const layoutHeight = Math.max(0, window.innerHeight || document.documentElement.clientHeight || 0);
+        const visualHeight = Math.max(0, Number(window.visualViewport?.height) || layoutHeight);
+        const viewportHeight = Math.max(0, Math.min(layoutHeight || visualHeight, visualHeight || layoutHeight));
+        const top = Math.max(14, Math.min(Math.max(14, viewportHeight - 120), rect.bottom + 12));
         const menuRightEdge = viewportWidth - right;
         const buttonCenter = rect.left + (rect.width / 2);
         const rawPointerRight = menuRightEdge - buttonCenter - 8;
@@ -3866,7 +3890,10 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
         menu.style.setProperty('--mcs-mobile-editor-menu-right-v418', `${Math.round(right)}px`);
         menu.style.setProperty('--mcs-mobile-editor-menu-width-v416', `${Math.round(width)}px`);
         menu.style.setProperty('--mcs-mobile-editor-menu-pointer-right-v423', `${Math.round(pointerRight)}px`);
-        const availableHeight = Math.max(180, (window.innerHeight || document.documentElement.clientHeight || 0) - top - 12);
+        // v425: size against the *visual* viewport. Mobile browsers can keep
+        // window.innerHeight taller than the actually visible area; using that
+        // value made the menu think everything fit, leaving no scroll range.
+        const availableHeight = Math.max(150, viewportHeight - top - 12);
         menu.style.setProperty('--mcs-mobile-editor-menu-max-height-v424', `${Math.round(availableHeight)}px`);
         menu.style.removeProperty('--mcs-mobile-editor-menu-left-v416');
       }
@@ -3876,7 +3903,10 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
         if (!syncHeader()) return;
         const btn = $('studentMenuBtn');
         const menu = ensureMenu();
+        const backdrop = ensureMenuBackdropV425();
         renderMenu();
+        backdrop.classList.remove('hidden');
+        backdrop.setAttribute('aria-hidden', 'false');
         menu.classList.remove('hidden');
         menu.setAttribute('aria-hidden', 'false');
         document.body?.classList?.add('mobile-editor-menu-open-v416', 'mobile-editor-menu-open-v415', 'mobile-editor-menu-scroll-lock-v424');
@@ -3888,8 +3918,11 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
       function closeMenu() {
         const btn = $('studentMenuBtn');
         const menu = $(MENU_ID);
+        const backdrop = $('mobileEditorMenuBackdropV425');
         menu?.classList?.add('hidden');
         menu?.setAttribute?.('aria-hidden', 'true');
+        backdrop?.classList?.add('hidden');
+        backdrop?.setAttribute?.('aria-hidden', 'true');
         document.body?.classList?.remove('mobile-editor-menu-open-v416', 'mobile-editor-menu-open-v415', 'mobile-editor-menu-scroll-lock-v424');
         btn?.setAttribute?.('aria-expanded', 'false');
         btn?.setAttribute?.('aria-label', 'Open editor menu');
