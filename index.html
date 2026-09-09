@@ -45,7 +45,7 @@
   </script>
   <link rel="preconnect" href="https://drive.google.com" crossorigin>
   <link rel="preconnect" href="https://lh3.googleusercontent.com" crossorigin>
-  <link rel="stylesheet" href="style.css?v=20260909-v419-mobile-menu-share-suggestions" />
+  <link rel="stylesheet" href="style.css?v=20260909-v420-mobile-pages-compact-header" />
   <style>
     .ai-rubric-settings-card,
     .admin-project-ai-review-card {
@@ -3850,6 +3850,232 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
         } catch (_) {}
         window.MCS_V416_MOBILE_EDITOR_MENU = { sync: syncHeader, open: openMenu, close: closeMenu, position: positionMenu, render: renderMenu };
         window.MCS_V415_MOBILE_EDITOR_MENU = window.MCS_V416_MOBILE_EDITOR_MENU;
+      }
+
+      if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bind, { once: true });
+      else bind();
+    })();
+  </script>
+
+
+  <script>
+    // v420 MOBILE PAGE MANAGER POPOVER + LOGGED-IN HEADER COMPACTION
+    // Phone/mobile only. Desktop layout and desktop controls are intentionally untouched.
+    (() => {
+      const PHONE_QUERY = '(max-width: 820px)';
+      const $ = id => document.getElementById(id);
+      let syncQueued = false;
+      let resizeTimer = null;
+
+      function isPhoneUi() {
+        try {
+          const width = Math.min(window.innerWidth || 9999, window.visualViewport?.width || 9999);
+          return Boolean(
+            document.documentElement.dataset.deviceMode === 'phone' ||
+            window.__mcsianPhonePreviewMode === true ||
+            width <= 820 ||
+            window.matchMedia?.(PHONE_QUERY)?.matches
+          );
+        } catch (_) {
+          return false;
+        }
+      }
+
+      function isEditorSession() {
+        return Boolean(
+          document.body?.classList?.contains('student-session-active') ||
+          document.body?.classList?.contains('guest-session-active') ||
+          document.body?.classList?.contains('mobile-editor-menu-v416')
+        );
+      }
+
+      function ensurePageMenuHead(manager) {
+        if (!manager) return null;
+        let head = manager.querySelector('.mobile-page-manager-head-v420');
+        if (!head) {
+          head = document.createElement('div');
+          head.className = 'mobile-page-manager-head-v420';
+          head.innerHTML = `
+            <div>
+              <strong>Pages &amp; Files</strong>
+              <span>Switch, add, rename, or delete</span>
+            </div>
+            <button id="mobilePageManagerCloseBtn" type="button" aria-label="Close pages menu">×</button>
+          `;
+          manager.insertBefore(head, manager.firstChild);
+        }
+        return head;
+      }
+
+      function ensurePagesButton() {
+        if (!isPhoneUi() || !isEditorSession()) return null;
+        const header = $('editorProjectHeader');
+        const manager = $('htmlPageManager');
+        if (!header || !manager) return null;
+
+        let dock = header.querySelector('.mobile-editor-save-dock');
+        if (!dock) {
+          dock = document.createElement('div');
+          dock.className = 'mobile-editor-save-dock';
+          const badge = $('editorProjectSaveBadge');
+          if (badge && badge.parentElement === header) {
+            header.insertBefore(dock, badge);
+            dock.appendChild(badge);
+          } else {
+            header.appendChild(dock);
+          }
+        }
+
+        const badge = $('editorProjectSaveBadge');
+        const saveBtn = $('saveStudentProjectBtn');
+        if (badge && badge.parentElement !== dock) dock.appendChild(badge);
+        if (saveBtn && saveBtn.parentElement !== dock) dock.appendChild(saveBtn);
+
+        let button = $('mobileEditorPagesBtn');
+        if (!button) {
+          button = document.createElement('button');
+          button.id = 'mobileEditorPagesBtn';
+          button.type = 'button';
+          button.className = 'mobile-editor-pages-btn';
+          button.innerHTML = '<span aria-hidden="true">▤</span><strong>Pages</strong><span class="mobile-editor-pages-caret" aria-hidden="true">▾</span>';
+          button.setAttribute('aria-haspopup', 'true');
+          button.setAttribute('aria-expanded', 'false');
+          button.setAttribute('aria-controls', 'htmlPageManager');
+          button.setAttribute('aria-label', 'Open page and file tools');
+          dock.appendChild(button);
+        } else if (button.parentElement !== dock) {
+          dock.appendChild(button);
+        }
+
+        ensurePageMenuHead(manager);
+        return button;
+      }
+
+      function isPageMenuOpen() {
+        return Boolean(document.body?.classList?.contains('mobile-page-manager-open-v420'));
+      }
+
+      function positionPageMenu() {
+        if (!isPhoneUi() || !isPageMenuOpen()) return;
+        const button = $('mobileEditorPagesBtn');
+        const manager = $('htmlPageManager');
+        if (!button || !manager) return;
+        const rect = button.getBoundingClientRect();
+        const vw = Math.max(280, window.visualViewport?.width || window.innerWidth || document.documentElement.clientWidth || 360);
+        const vh = Math.max(360, window.visualViewport?.height || window.innerHeight || 640);
+        const safe = 8;
+        const width = Math.min(326, Math.max(280, vw - 20));
+        const right = Math.max(safe, Math.min(18, vw - rect.right));
+        const top = Math.max(safe, Math.min(vh - 220, rect.bottom + 6));
+        manager.style.setProperty('--mcs-pages-popover-top-v420', `${Math.round(top)}px`);
+        manager.style.setProperty('--mcs-pages-popover-right-v420', `${Math.round(right)}px`);
+        manager.style.setProperty('--mcs-pages-popover-width-v420', `${Math.round(width)}px`);
+      }
+
+      function openPageMenu() {
+        if (!isPhoneUi() || !isEditorSession()) return;
+        const button = ensurePagesButton();
+        const manager = $('htmlPageManager');
+        if (!button || !manager) return;
+        // Retire the old Show/Hide panel state so it can no longer add height.
+        document.body?.classList?.remove('mobile-editor-tools-open');
+        document.body?.classList?.add('mobile-page-manager-open-v420');
+        button.setAttribute('aria-expanded', 'true');
+        button.setAttribute('aria-label', 'Close page and file tools');
+        manager.setAttribute('aria-hidden', 'false');
+        positionPageMenu();
+      }
+
+      function closePageMenu() {
+        document.body?.classList?.remove('mobile-page-manager-open-v420', 'mobile-editor-tools-open');
+        const button = $('mobileEditorPagesBtn');
+        const manager = $('htmlPageManager');
+        button?.setAttribute?.('aria-expanded', 'false');
+        button?.setAttribute?.('aria-label', 'Open page and file tools');
+        manager?.setAttribute?.('aria-hidden', 'true');
+      }
+
+      function sync() {
+        if (!isPhoneUi()) {
+          document.body?.classList?.remove('mobile-page-manager-open-v420', 'mobile-editor-tools-open');
+          $('htmlPageManager')?.removeAttribute?.('aria-hidden');
+          $('mobileEditorPagesBtn')?.setAttribute?.('aria-expanded', 'false');
+          return;
+        }
+        if (!isEditorSession()) {
+          closePageMenu();
+          return;
+        }
+        // The legacy Show/Hide control must never reserve a row on the phone.
+        document.body?.classList?.remove('mobile-editor-tools-open');
+        const oldToggle = $('mobileEditorToolsToggle');
+        if (oldToggle) {
+          oldToggle.classList.add('mobile-v420-retired');
+          oldToggle.setAttribute('aria-hidden', 'true');
+          oldToggle.tabIndex = -1;
+        }
+        ensurePagesButton();
+        if (isPageMenuOpen()) positionPageMenu();
+      }
+
+      function queueSync() {
+        if (syncQueued) return;
+        syncQueued = true;
+        (window.requestAnimationFrame || window.setTimeout)(() => {
+          syncQueued = false;
+          try { sync(); } catch (error) { console.warn('v420 mobile pages sync skipped:', error); }
+        }, 0);
+      }
+
+      function handleTap(event) {
+        if (!isPhoneUi()) return;
+        const pagesButton = event.target?.closest?.('#mobileEditorPagesBtn');
+        if (pagesButton) {
+          event.preventDefault();
+          event.stopPropagation();
+          event.stopImmediatePropagation?.();
+          if (isPageMenuOpen()) closePageMenu();
+          else openPageMenu();
+          return;
+        }
+
+        const oldToggle = event.target?.closest?.('#mobileEditorToolsToggle');
+        if (oldToggle) {
+          event.preventDefault();
+          event.stopPropagation();
+          event.stopImmediatePropagation?.();
+          closePageMenu();
+          return;
+        }
+
+        if (event.target?.closest?.('#mobilePageManagerCloseBtn')) {
+          event.preventDefault();
+          event.stopPropagation();
+          closePageMenu();
+          return;
+        }
+
+        if (isPageMenuOpen() && !event.target?.closest?.('#htmlPageManager')) {
+          closePageMenu();
+        }
+      }
+
+      function bind() {
+        queueSync();
+        document.addEventListener('click', handleTap, true);
+        document.addEventListener('keydown', event => {
+          if (event.key === 'Escape' && isPageMenuOpen()) closePageMenu();
+        }, true);
+        window.addEventListener('resize', () => {
+          clearTimeout(resizeTimer);
+          resizeTimer = window.setTimeout(() => { queueSync(); positionPageMenu(); }, 80);
+        }, { passive: true });
+        window.addEventListener('orientationchange', () => window.setTimeout(() => { queueSync(); positionPageMenu(); }, 140), { passive: true });
+        try {
+          new MutationObserver(queueSync).observe(document.body, { attributes: true, childList: true, subtree: true, attributeFilter: ['class'] });
+          new MutationObserver(queueSync).observe(document.documentElement, { attributes: true, attributeFilter: ['data-device-mode'] });
+        } catch (_) {}
+        window.MCS_V420_MOBILE_PAGES = { sync, open: openPageMenu, close: closePageMenu, position: positionPageMenu };
       }
 
       if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bind, { once: true });
