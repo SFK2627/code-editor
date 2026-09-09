@@ -43556,7 +43556,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     if (dom.certCount) dom.certCount.textContent = String(certificateCount());
     if (dom.xpBadge) {
       const visibleXp = totalXp();
-      dom.xpBadge.textContent = isMobileExplorerLayout() ? `⚡ ${visibleXp}` : `⚡ ${visibleXp} XP`;
+      dom.xpBadge.textContent = isMobileExplorerLayout() ? `⚡ ${visibleXp} 🎮` : `⚡ ${visibleXp} XP 🎮`;
       dom.xpBadge.title = 'Total XP includes learning rewards plus up to 50 bonus XP per day from Mini-Games. Click or tap to open XP Mini-Games.';
       dom.xpBadge.setAttribute('aria-label', `${visibleXp} XP. Open XP Mini-Games.`);
     }
