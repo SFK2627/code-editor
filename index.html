@@ -45,7 +45,7 @@
   </script>
   <link rel="preconnect" href="https://drive.google.com" crossorigin>
   <link rel="preconnect" href="https://lh3.googleusercontent.com" crossorigin>
-  <link rel="stylesheet" href="style.css?v=20260909-v420-mobile-pages-compact-header" />
+  <link rel="stylesheet" href="style.css?v=20260909-v421-mobile-editor-compact-live-strip" />
   <style>
     .ai-rubric-settings-card,
     .admin-project-ai-review-card {
@@ -3951,6 +3951,79 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
         return button;
       }
 
+      function readCollabProjectState() {
+        if (!isPhoneUi() || !document.body?.classList?.contains('student-session-active')) return null;
+        const source = $('collabShareBtn');
+        if (!source || source.classList.contains('hidden')) return null;
+        const hosting = source.classList.contains('is-hosting');
+        const joined = source.classList.contains('is-joined');
+        if (!hosting && !joined) return null;
+
+        let code = String($('collabShareCode')?.textContent || '').trim().toUpperCase();
+        if (!code || code === '------') {
+          code = String($('collabJoinCodeInput')?.value || '').trim().toUpperCase();
+        }
+        if (!/^[A-Z0-9-]{3,16}$/.test(code)) code = '';
+
+        const countText = String(source.querySelector('em')?.textContent || $('collabMembersPill')?.textContent || '').trim();
+        const countMatch = countText.match(/(\d+)/);
+        const count = countMatch ? Number(countMatch[1]) : 0;
+        return { role: hosting ? 'host' : 'joined', code, count };
+      }
+
+      function ensureCollabProjectPill() {
+        const main = $('editorProjectHeader')?.querySelector('.editor-project-main');
+        const name = $('editorProjectName');
+        if (!main || !name) return null;
+        let pill = $('mobileCollabProjectPill');
+        if (!pill) {
+          pill = document.createElement('button');
+          pill.id = 'mobileCollabProjectPill';
+          pill.type = 'button';
+          pill.className = 'mobile-collab-project-pill hidden';
+          pill.setAttribute('aria-label', 'Open live project details');
+          pill.addEventListener('click', event => {
+            event.preventDefault();
+            event.stopPropagation();
+            const members = $('collabMembersPill');
+            if (members && !members.classList.contains('hidden')) members.click();
+            else $('collabShareBtn')?.click?.();
+          });
+          name.insertAdjacentElement('afterend', pill);
+        } else if (pill.parentElement !== main) {
+          name.insertAdjacentElement('afterend', pill);
+        }
+        return pill;
+      }
+
+      function syncCollabProjectPill() {
+        const pill = ensureCollabProjectPill();
+        if (!pill) return;
+        const state = readCollabProjectState();
+        if (!state) {
+          pill.classList.add('hidden');
+          pill.classList.remove('is-hosting', 'is-joined');
+          pill.dataset.stateKey = '';
+          return;
+        }
+        const label = state.role === 'host' ? 'Hosting' : 'Joined';
+        const icon = state.role === 'host' ? '🟢' : '🟣';
+        const parts = [icon, label];
+        if (state.code) parts.push(state.code);
+        if (state.count > 0) parts.push(`👥 ${state.count}`);
+        const key = parts.join('|');
+        if (pill.dataset.stateKey !== key) {
+          pill.textContent = parts.join(' ');
+          pill.dataset.stateKey = key;
+          pill.title = state.code
+            ? `${label} live project · Code ${state.code}${state.count ? ` · ${state.count} online` : ''}`
+            : `${label} live project${state.count ? ` · ${state.count} online` : ''}`;
+        }
+        pill.classList.toggle('is-hosting', state.role === 'host');
+        pill.classList.toggle('is-joined', state.role === 'joined');
+        pill.classList.remove('hidden');
+      }
+
       function isPageMenuOpen() {
         return Boolean(document.body?.classList?.contains('mobile-page-manager-open-v420'));
       }
@@ -4000,6 +4073,7 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
           document.body?.classList?.remove('mobile-page-manager-open-v420', 'mobile-editor-tools-open');
           $('htmlPageManager')?.removeAttribute?.('aria-hidden');
           $('mobileEditorPagesBtn')?.setAttribute?.('aria-expanded', 'false');
+          $('mobileCollabProjectPill')?.classList?.add('hidden');
           return;
         }
         if (!isEditorSession()) {
@@ -4010,11 +4084,13 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
         document.body?.classList?.remove('mobile-editor-tools-open');
         const oldToggle = $('mobileEditorToolsToggle');
         if (oldToggle) {
-          oldToggle.classList.add('mobile-v420-retired');
-          oldToggle.setAttribute('aria-hidden', 'true');
-          oldToggle.tabIndex = -1;
+          // v421: the legacy Show/Hide control is fully retired on phones.
+          // Remove it from the DOM so older mobile code cannot reserve space
+          // or make it visible again with a higher-specificity rule.
+          oldToggle.remove();
         }
         ensurePagesButton();
+        syncCollabProjectPill();
         if (isPageMenuOpen()) positionPageMenu();
       }
 
@@ -4075,7 +4151,7 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
           new MutationObserver(queueSync).observe(document.body, { attributes: true, childList: true, subtree: true, attributeFilter: ['class'] });
           new MutationObserver(queueSync).observe(document.documentElement, { attributes: true, attributeFilter: ['data-device-mode'] });
         } catch (_) {}
-        window.MCS_V420_MOBILE_PAGES = { sync, open: openPageMenu, close: closePageMenu, position: positionPageMenu };
+        window.MCS_V420_MOBILE_PAGES = { sync, open: openPageMenu, close: closePageMenu, position: positionPageMenu, syncCollabProjectPill };
       }
 
       if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bind, { once: true });
