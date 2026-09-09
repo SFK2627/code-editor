@@ -41394,7 +41394,193 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   const HEARTS_DEFAULT = 5;
   const HEARTS_MAX = 5;
   const HEART_REFILL_MS = 60 * 60 * 1000;
+
+  // v429 — XP Mini-Games account state. The cap is shared by every mini-game
+  // added to the hub. Manila time is deliberate so the classroom day resets
+  // consistently even when a student's device timezone is misconfigured.
+  const XP_MINI_GAMES_DAILY_CAP = 20;
+  const XP_MINI_GAMES_TIME_ZONE = 'Asia/Manila';
+  const XP_MINI_GAMES_RECENT_REWARD_LIMIT = 64;
+  const XP_MINI_GAME_ID_CODE_FLY = 'code-fly';
+
+  function miniGamesDayKey(value = Date.now()) {
+    const date = value instanceof Date ? value : new Date(value);
+    try {
+      const parts = new Intl.DateTimeFormat('en-CA', {
+        timeZone: XP_MINI_GAMES_TIME_ZONE,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      }).formatToParts(date).reduce((map, part) => {
+        if (part.type !== 'literal') map[part.type] = part.value;
+        return map;
+      }, {});
+      if (parts.year && parts.month && parts.day) return `${parts.year}-${parts.month}-${parts.day}`;
+    } catch (_) {}
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  function miniGameRewardForScore(score = 0) {
+    const safeScore = Math.max(0, Math.floor(Number(score || 0)));
+    if (safeScore >= 100) return 15;
+    if (safeScore >= 75) return 10;
+    if (safeScore >= 50) return 8;
+    if (safeScore >= 30) return 5;
+    if (safeScore >= 20) return 3;
+    if (safeScore >= 10) return 2;
+    if (safeScore >= 5) return 1;
+    return 0;
+  }
+
+  function normalizeMiniGameRewardLedger(input = {}) {
+    const source = input && typeof input === 'object' && !Array.isArray(input) ? input : {};
+    const output = {};
+    Object.entries(source).forEach(([rawId, rawEntry]) => {
+      const id = String(rawId || '').trim().slice(0, 120);
+      if (!id) return;
+      const entry = rawEntry && typeof rawEntry === 'object' ? rawEntry : {};
+      const day = /^\d{4}-\d{2}-\d{2}$/.test(String(entry.day || '')) ? String(entry.day) : '';
+      output[id] = {
+        gameId: String(entry.gameId || XP_MINI_GAME_ID_CODE_FLY).trim().slice(0, 40) || XP_MINI_GAME_ID_CODE_FLY,
+        score: Math.max(0, Math.min(10000, Math.floor(Number(entry.score || 0)))),
+        xp: Math.max(0, Math.min(XP_MINI_GAMES_DAILY_CAP, Math.floor(Number(entry.xp || 0)))),
+        day,
+        at: String(entry.at || '').slice(0, 48)
+      };
+    });
+    return output;
+  }
+
+  function trimMiniGameRewardLedger(input = {}, limit = XP_MINI_GAMES_RECENT_REWARD_LIMIT) {
+    const normalized = normalizeMiniGameRewardLedger(input);
+    const entries = Object.entries(normalized).sort((a, b) => {
+      const atDiff = (Date.parse(b[1].at || '') || 0) - (Date.parse(a[1].at || '') || 0);
+      if (atDiff) return atDiff;
+      const dayDiff = String(b[1].day || '').localeCompare(String(a[1].day || ''));
+      if (dayDiff) return dayDiff;
+      return a[0].localeCompare(b[0]);
+    }).slice(0, Math.max(1, Number(limit || XP_MINI_GAMES_RECENT_REWARD_LIMIT)));
+    return Object.fromEntries(entries);
+  }
+
+  function mergeMiniGameRewardLedgers(a = {}, b = {}, limit = XP_MINI_GAMES_RECENT_REWARD_LIMIT) {
+    const left = normalizeMiniGameRewardLedger(a);
+    const right = normalizeMiniGameRewardLedger(b);
+    Object.entries(right).forEach(([id, entry]) => {
+      const existing = left[id];
+      if (!existing) {
+        left[id] = entry;
+        return;
+      }
+      const existingTime = Date.parse(existing.at || '') || 0;
+      const nextTime = Date.parse(entry.at || '') || 0;
+      if (nextTime > existingTime || Number(entry.xp || 0) > Number(existing.xp || 0)) left[id] = entry;
+    });
+    return trimMiniGameRewardLedger(left, limit);
+  }
+
+  function normalizeMiniGamesState(input = {}) {
+    const source = input && typeof input === 'object' && !Array.isArray(input) ? input : {};
+    const dailySource = source.daily && typeof source.daily === 'object' ? source.daily : {};
+    const dailyDate = /^\d{4}-\d{2}-\d{2}$/.test(String(dailySource.date || '')) ? String(dailySource.date) : '';
+    const dailySessions = normalizeMiniGameRewardLedger(dailySource.sessions || {});
+    const dailySessionXp = Object.values(dailySessions).reduce((sum, entry) => {
+      if (dailyDate && entry.day && entry.day !== dailyDate) return sum;
+      return sum + Math.max(0, Number(entry.xp || 0));
+    }, 0);
+    const gamesSource = source.games && typeof source.games === 'object' ? source.games : {};
+    const codeFlySource = gamesSource.codeFly && typeof gamesSource.codeFly === 'object'
+      ? gamesSource.codeFly
+      : (source.codeFly && typeof source.codeFly === 'object' ? source.codeFly : {});
+    return {
+      version: 1,
+      lifetimeXp: Math.max(0, Math.floor(Number(source.lifetimeXp || 0))),
+      daily: {
+        date: dailyDate,
+        earned: Math.min(XP_MINI_GAMES_DAILY_CAP, Math.max(
+          0,
+          Math.floor(Number(dailySource.earned || 0)),
+          Math.floor(dailySessionXp)
+        )),
+        sessions: dailySessions
+      },
+      games: {
+        codeFly: {
+          bestScore: Math.max(0, Math.min(10000, Math.floor(Number(codeFlySource.bestScore || 0)))),
+          lastPlayedAt: String(codeFlySource.lastPlayedAt || '').slice(0, 48)
+        }
+      },
+      soundEnabled: source.soundEnabled !== false,
+      soundUpdatedAt: String(source.soundUpdatedAt || '').slice(0, 48),
+      recentRewards: trimMiniGameRewardLedger(source.recentRewards || {}),
+      updatedAt: String(source.updatedAt || '').slice(0, 48)
+    };
+  }
+
+  function mergeMiniGamesState(a = {}, b = {}) {
+    const left = normalizeMiniGamesState(a);
+    const right = normalizeMiniGamesState(b);
+    const leftDaily = left.daily || {};
+    const rightDaily = right.daily || {};
+    let daily;
+    if (leftDaily.date && leftDaily.date === rightDaily.date) {
+      const sessions = mergeMiniGameRewardLedgers(leftDaily.sessions, rightDaily.sessions, XP_MINI_GAMES_RECENT_REWARD_LIMIT);
+      const sessionXp = Object.values(sessions).reduce((sum, entry) => {
+        if (entry.day && entry.day !== leftDaily.date) return sum;
+        return sum + Math.max(0, Number(entry.xp || 0));
+      }, 0);
+      daily = {
+        date: leftDaily.date,
+        earned: Math.min(XP_MINI_GAMES_DAILY_CAP, Math.max(
+          Number(leftDaily.earned || 0),
+          Number(rightDaily.earned || 0),
+          sessionXp
+        )),
+        sessions
+      };
+    } else {
+      const candidates = [leftDaily, rightDaily].filter(item => item && item.date);
+      const chosen = candidates.sort((x, y) => String(y.date).localeCompare(String(x.date)))[0] || { date: '', earned: 0, sessions: {} };
+      daily = {
+        date: String(chosen.date || ''),
+        earned: Math.min(XP_MINI_GAMES_DAILY_CAP, Math.max(0, Number(chosen.earned || 0))),
+        sessions: normalizeMiniGameRewardLedger(chosen.sessions || {})
+      };
+    }
+
+    const leftSoundTime = Date.parse(left.soundUpdatedAt || '') || 0;
+    const rightSoundTime = Date.parse(right.soundUpdatedAt || '') || 0;
+    const soundSource = rightSoundTime > leftSoundTime ? right : left;
+    const leftPlayed = String(left.games?.codeFly?.lastPlayedAt || '');
+    const rightPlayed = String(right.games?.codeFly?.lastPlayedAt || '');
+    return {
+      version: 1,
+      lifetimeXp: Math.max(Number(left.lifetimeXp || 0), Number(right.lifetimeXp || 0)),
+      daily,
+      games: {
+        codeFly: {
+          bestScore: Math.max(Number(left.games?.codeFly?.bestScore || 0), Number(right.games?.codeFly?.bestScore || 0)),
+          lastPlayedAt: [leftPlayed, rightPlayed].filter(Boolean).sort().pop() || ''
+        }
+      },
+      soundEnabled: soundSource.soundEnabled !== false,
+      soundUpdatedAt: [left.soundUpdatedAt, right.soundUpdatedAt].filter(Boolean).sort().pop() || '',
+      recentRewards: mergeMiniGameRewardLedgers(left.recentRewards, right.recentRewards, XP_MINI_GAMES_RECENT_REWARD_LIMIT),
+      updatedAt: [left.updatedAt, right.updatedAt].filter(Boolean).sort().pop() || ''
+    };
+  }
+
+  function miniGameLifetimeXpFor(progress = {}) {
+    return Math.max(0, Math.floor(Number(normalizeMiniGamesState(progress?.miniGames || {}).lifetimeXp || 0)));
+  }
+
   const state = { course: 'html', topicId: '', filter: 'all', progress: null, reader: '', cloudLoaded: false, cloudXpHint: 0, dashboardCloudLoading: false, saveTimer: null, cloudSavePromise: null, cloudSaveQueued: false, lastCloudSyncAt: 0, identityCheckedAt: 0, identityCanonical: true, heartTimer: null, heartPopoverTimer: null, profileUnsub: null, finalAnswers: {}, finalStartedAt: 0, quickQuiz: { topicId: '', index: 0, answers: [], results: [], submitted: false, questionStartedAt: [], responseMs: [], attemptStartedAt: 0 }, miniGame: { topicId: '', selected: '', result: '', correct: '', choices: [], before: '', after: '' }, miniGameResetTimer: null, quickAdvanceTimer: null, quickFeedbackTimer: null, justUnlockedTopicId: '', justUnlockedCourse: '', mobileStage: 'learn', mobileStageDirection: 'next', mobileSwipeStart: null, mobileView: 'roadmap' };
+  const miniGameProgressSubscribers = new Set();
+  const activeXpMiniGameRounds = new Map();
+  const xpMiniGameRoundClaims = new Map();
   const CODE_EXPLORER_LEADERBOARD_SETTINGS_ROW_ID = 'leaderboard_settings';
   const leaderboardState = { records: [], loadedAt: 0, loading: false, source: '', rosterLoaded: false, mode: 'students', settingsLoaded: false, settingsError: false, currentSectionIncluded: true };
   let leaderboardSectionSettings = { configured: false, includedSections: [], includedSectionKeys: [] };
@@ -41818,6 +42004,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     return {
       version: 1,
       hearts: normalizeHeartState(),
+      miniGames: normalizeMiniGamesState(),
       courses: { html: { topics: {}, final: {}, certificate: {} }, css: { topics: {}, final: {}, certificate: {} }, js: { topics: {}, final: {}, certificate: {} } },
       xpMigrationVersion: 0,
       legacyXpAdjustment: 0,
@@ -42081,6 +42268,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     const base = emptyProgress();
     const source = input && typeof input === 'object' ? input : {};
     base.hearts = normalizeHeartState(source.hearts || {});
+    base.miniGames = normalizeMiniGamesState(source.miniGames || {});
     COURSE_KEYS.forEach(key => {
       const src = source.courses?.[key] || {};
       base.courses[key].topics = src.topics && typeof src.topics === 'object' ? { ...src.topics } : {};
@@ -42260,6 +42448,10 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     if (rightHeartTime > leftHeartTime) left.hearts = { ...rightHearts };
     else if (leftHeartTime > rightHeartTime) left.hearts = { ...leftHearts };
     else left.hearts = { ...(leftHearts.balance <= rightHearts.balance ? leftHearts : rightHearts) };
+
+    // XP Mini-Games are merged independently from course mastery. Lifetime XP
+    // is monotonic, best score is max-only, and the newest daily bucket wins.
+    left.miniGames = mergeMiniGamesState(left.miniGames, right.miniGames);
 
     const leftMigrationVersion = Math.max(0, Number(left.xpMigrationVersion || 0));
     const rightMigrationVersion = Math.max(0, Number(right.xpMigrationVersion || 0));
@@ -42848,11 +43040,16 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     if (!progress) return { changed: false, credit: 0, before: 0, after: 0, raw: 0, normalizedTarget: 0 };
     const migrationVersion = Math.max(0, Number(progress.xpMigrationVersion || 0));
     const raw = explorerRawXpFor(progress);
+    const miniGameXp = miniGameLifetimeXpFor(progress);
     const currentAdjustment = Math.max(0, Number(progress.legacyXpAdjustment || 0));
-    const currentTotal = raw + currentAdjustment;
+    const currentTotal = raw + currentAdjustment + miniGameXp;
     const existing = Math.max(0, Number(existingTotalXp || 0));
+    // codeExplorerXp is now the total visible XP (learning + mini-games). Legacy
+    // normalization must protect only the learning portion or the mini-game XP
+    // would be counted again inside legacyXpAdjustment.
+    const existingLearningXp = Math.max(0, existing - miniGameXp);
     const normalizedTarget = explorerLegacyNormalizedTargetFor(progress);
-    const protectedTarget = Math.max(raw, existing, normalizedTarget);
+    const protectedTarget = Math.max(raw, existingLearningXp, normalizedTarget);
     const neededAdjustment = Math.max(0, protectedTarget - raw);
     const nextAdjustment = Math.max(currentAdjustment, neededAdjustment);
     const visibleBefore = existing > 0 ? existing : currentTotal;
@@ -42860,7 +43057,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     // Already-normalized records are normally a no-op. Re-checking is still
     // safe and repairs rare merged/duplicate legacy profiles without farming XP.
     if (migrationVersion >= EXPLORER_XP_MIGRATION_VERSION && nextAdjustment <= currentAdjustment) {
-      return { changed: false, credit: 0, before: currentTotal, after: currentTotal, raw, normalizedTarget, protectedExistingXp: existing, adjustment: currentAdjustment };
+      return { changed: false, credit: 0, before: currentTotal, after: currentTotal, raw, normalizedTarget, protectedExistingXp: existing, adjustment: currentAdjustment, miniGameXp };
     }
 
     const stamp = new Date().toISOString();
@@ -42873,7 +43070,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     progress.legacyXpMigrationSource = String(options.source || progress.legacyXpMigrationSource || 'automatic');
     markLegacyProgressNormalized(progress, stamp);
 
-    const after = explorerRawXpFor(progress) + nextAdjustment;
+    const after = explorerRawXpFor(progress) + nextAdjustment + miniGameXp;
     return {
       changed: true,
       credit: Math.max(0, after - visibleBefore),
@@ -42882,14 +43079,15 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       raw,
       normalizedTarget,
       protectedExistingXp: existing,
-      adjustment: nextAdjustment
+      adjustment: nextAdjustment,
+      miniGameXp
     };
   }
 
   function explorerXpFor(progress) {
     const raw = explorerRawXpFor(progress);
     const adjustment = Math.max(0, Number(progress?.legacyXpAdjustment || 0));
-    return raw + adjustment;
+    return raw + adjustment + miniGameLifetimeXpFor(progress);
   }
 
   function explorerCertificateCountFor(progress) {
@@ -42917,6 +43115,274 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   }
 
   function totalXp() { return explorerXpFor(state.progress); }
+
+  function currentXpMiniGamesSnapshot() {
+    ensureReaderProgress();
+    const miniGames = normalizeMiniGamesState(state.progress?.miniGames || {});
+    const dayKey = miniGamesDayKey();
+    const todayXp = miniGames.daily?.date === dayKey
+      ? Math.min(XP_MINI_GAMES_DAILY_CAP, Math.max(0, Number(miniGames.daily?.earned || 0)))
+      : 0;
+    const loggedIn = Boolean(appSession.mode === 'student' && appSession.student?.uid);
+    return {
+      loggedIn,
+      dayKey,
+      timeZone: XP_MINI_GAMES_TIME_ZONE,
+      dailyCap: XP_MINI_GAMES_DAILY_CAP,
+      todayXp,
+      remainingXp: Math.max(0, XP_MINI_GAMES_DAILY_CAP - todayXp),
+      capReached: todayXp >= XP_MINI_GAMES_DAILY_CAP,
+      lifetimeGameXp: Math.max(0, Number(miniGames.lifetimeXp || 0)),
+      totalXp: explorerXpFor(state.progress),
+      bestScores: {
+        codeFly: Math.max(0, Number(miniGames.games?.codeFly?.bestScore || 0))
+      },
+      soundEnabled: miniGames.soundEnabled !== false
+    };
+  }
+
+  function notifyXpMiniGamesProgress(extra = {}) {
+    const snapshot = { ...currentXpMiniGamesSnapshot(), ...extra };
+    miniGameProgressSubscribers.forEach(callback => {
+      try { callback(snapshot); } catch (error) { console.info('XP Mini-Games subscriber skipped.', error); }
+    });
+    try {
+      window.dispatchEvent(new CustomEvent('ict8:xp-mini-games-progress', { detail: snapshot }));
+    } catch (_) {}
+    return snapshot;
+  }
+
+  function setXpMiniGamesSoundEnabled(enabled) {
+    ensureReaderProgress();
+    const miniGames = normalizeMiniGamesState(state.progress.miniGames || {});
+    const next = Boolean(enabled);
+    miniGames.soundEnabled = next;
+    miniGames.soundUpdatedAt = new Date().toISOString();
+    miniGames.updatedAt = miniGames.soundUpdatedAt;
+    state.progress.miniGames = miniGames;
+    saveLocalProgress();
+    if (appSession.mode === 'student' && appSession.student?.uid) scheduleCloudSave();
+    return notifyXpMiniGamesProgress();
+  }
+
+  function xpMiniGameRoundId(gameId = XP_MINI_GAME_ID_CODE_FLY) {
+    const random = (() => {
+      try { return crypto.randomUUID(); } catch (_) { return `${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`; }
+    })();
+    return `${String(gameId || 'game').replace(/[^a-z0-9_-]/gi, '').slice(0, 24)}-${Date.now().toString(36)}-${random}`.slice(0, 118);
+  }
+
+  function cleanupXpMiniGameRoundMaps() {
+    const cutoff = Date.now() - (60 * 60 * 1000);
+    activeXpMiniGameRounds.forEach((round, id) => {
+      if (Number(round?.startedAt || 0) < cutoff) activeXpMiniGameRounds.delete(id);
+    });
+    if (xpMiniGameRoundClaims.size > 96) {
+      const ids = Array.from(xpMiniGameRoundClaims.keys());
+      ids.slice(0, ids.length - 64).forEach(id => xpMiniGameRoundClaims.delete(id));
+    }
+  }
+
+  function beginXpMiniGameRound(gameId = XP_MINI_GAME_ID_CODE_FLY) {
+    const normalizedGameId = String(gameId || '').trim().toLowerCase();
+    if (normalizedGameId !== XP_MINI_GAME_ID_CODE_FLY) throw new Error('Unknown mini-game.');
+    cleanupXpMiniGameRoundMaps();
+    const sessionId = xpMiniGameRoundId(normalizedGameId);
+    const startedAt = Date.now();
+    activeXpMiniGameRounds.set(sessionId, { gameId: normalizedGameId, startedAt });
+    return { sessionId, gameId: normalizedGameId, startedAt };
+  }
+
+  function verifiedXpMiniGameScore(round = {}, reportedScore = 0) {
+    const rawScore = Math.max(0, Math.min(10000, Math.floor(Number(reportedScore || 0))));
+    const durationMs = Math.max(0, Date.now() - Math.max(0, Number(round.startedAt || Date.now())));
+    // CODE FLY cannot physically pass many barriers instantly. This is a
+    // deliberately generous sanity ceiling: it blocks accidental/arbitrary
+    // reward calls without penalizing legitimate high-FPS or fast runs.
+    const maxPlausibleScore = Math.max(4, Math.floor(Math.max(0, durationMs - 700) / 550) + 4);
+    return { score: Math.min(rawScore, maxPlausibleScore), reportedScore: rawScore, durationMs, maxPlausibleScore };
+  }
+
+  async function performXpMiniGameClaim(sessionId, round, reportedScore) {
+    ensureReaderProgress();
+    const verified = verifiedXpMiniGameScore(round, reportedScore);
+    const gameId = round.gameId || XP_MINI_GAME_ID_CODE_FLY;
+    const nowIso = new Date().toISOString();
+
+    // Best score can be kept locally even when the network is unavailable; XP
+    // itself is never credited locally for a logged-in account.
+    const localMiniGames = normalizeMiniGamesState(state.progress.miniGames || {});
+    localMiniGames.games.codeFly.bestScore = Math.max(localMiniGames.games.codeFly.bestScore, verified.score);
+    localMiniGames.games.codeFly.lastPlayedAt = nowIso;
+    localMiniGames.updatedAt = nowIso;
+    state.progress.miniGames = localMiniGames;
+    saveLocalProgress();
+
+    const baseResult = {
+      sessionId,
+      gameId,
+      score: verified.score,
+      reportedScore: verified.reportedScore,
+      scoreAdjusted: verified.score !== verified.reportedScore,
+      durationMs: verified.durationMs,
+      requestedXp: miniGameRewardForScore(verified.score),
+      awardedXp: 0,
+      duplicate: false,
+      loginRequired: false,
+      syncFailed: false
+    };
+
+    if (!(appSession.mode === 'student' && appSession.student?.uid)) {
+      const snapshot = notifyXpMiniGamesProgress();
+      return { ...baseResult, ...snapshot, loginRequired: true, bestScore: snapshot.bestScores.codeFly };
+    }
+
+    try {
+      const canonicalIdentity = await validateExplorerStudentIdentity({ force: true });
+      if (!canonicalIdentity) throw new Error('Student identity could not be validated.');
+      if (state.cloudSavePromise) {
+        try { await state.cloudSavePromise; } catch (_) {}
+      }
+      const ready = await initFirebaseSync();
+      if (!ready) throw new Error(firebaseSync.lastError || 'Firebase is unavailable.');
+      const { runTransaction, serverTimestamp } = firebaseSync.modules;
+      if (typeof runTransaction !== 'function') throw new Error('Transaction-safe XP rewards are unavailable in this build.');
+
+      const uid = appSession.student.uid;
+      const studentRef = getStudentDocRef(uid);
+      let committedProgress = normalizeProgress(state.progress);
+      let masteryXp = explorerXpFor(committedProgress);
+      let awardedXp = 0;
+      let requestedXp = miniGameRewardForScore(verified.score);
+      let duplicate = false;
+      let todayXp = 0;
+      let bestScore = verified.score;
+
+      await runTransaction(firebaseSync.db, async transaction => {
+        const snapshot = await transaction.get(studentRef);
+        const profile = snapshotExists(snapshot) ? snapshotData(snapshot) : {};
+        committedProgress = mergeProgress(normalizeProgress(profile?.codeExplorerProgress || {}), state.progress);
+        migrateLegacyXpProgress(committedProgress, Math.max(0, Number(profile?.codeExplorerXp || 0)), { source: 'v429-mini-game-claim' });
+
+        const miniGames = normalizeMiniGamesState(committedProgress.miniGames || {});
+        const today = miniGamesDayKey();
+        if (miniGames.daily.date !== today) {
+          miniGames.daily = { date: today, earned: 0, sessions: {} };
+        }
+
+        const priorReward = miniGames.recentRewards?.[sessionId]
+          || miniGames.daily.sessions?.[sessionId]
+          || null;
+        duplicate = Boolean(priorReward);
+        if (priorReward) {
+          awardedXp = Math.max(0, Number(priorReward.xp || 0));
+          requestedXp = miniGameRewardForScore(Math.max(verified.score, Number(priorReward.score || 0)));
+        } else {
+          const remaining = Math.max(0, XP_MINI_GAMES_DAILY_CAP - Math.max(0, Number(miniGames.daily.earned || 0)));
+          awardedXp = Math.min(requestedXp, remaining);
+          const rewardEntry = {
+            gameId,
+            score: verified.score,
+            xp: awardedXp,
+            day: today,
+            at: nowIso
+          };
+          miniGames.recentRewards = trimMiniGameRewardLedger({ ...miniGames.recentRewards, [sessionId]: rewardEntry });
+          if (awardedXp > 0) {
+            miniGames.daily.sessions = { ...miniGames.daily.sessions, [sessionId]: rewardEntry };
+            miniGames.daily.earned = Math.min(XP_MINI_GAMES_DAILY_CAP, Math.max(0, Number(miniGames.daily.earned || 0)) + awardedXp);
+            miniGames.lifetimeXp = Math.max(0, Number(miniGames.lifetimeXp || 0)) + awardedXp;
+          }
+        }
+
+        miniGames.games.codeFly.bestScore = Math.max(Number(miniGames.games.codeFly.bestScore || 0), verified.score);
+        miniGames.games.codeFly.lastPlayedAt = nowIso;
+        miniGames.updatedAt = nowIso;
+        committedProgress.miniGames = miniGames;
+        committedProgress.updatedAt = nowIso;
+        todayXp = Math.min(XP_MINI_GAMES_DAILY_CAP, Math.max(0, Number(miniGames.daily.earned || 0)));
+        bestScore = Math.max(0, Number(miniGames.games.codeFly.bestScore || 0));
+        masteryXp = explorerXpFor(committedProgress);
+
+        transaction.set(studentRef, {
+          codeExplorerProgress: normalizeProgress(committedProgress),
+          codeExplorerXp: masteryXp,
+          codeExplorerXpMigrationVersion: Math.max(0, Number(committedProgress.xpMigrationVersion || 0)),
+          codeExplorerUpdatedAt: serverTimestamp()
+        }, { merge: true });
+
+        // Keep the existing leaderboard's XP mirror in the same atomic claim.
+        const profileIdentity = appSession.student || appSession.lastStudentProfile || {};
+        transaction.set(getCodeExplorerLeaderboardDocRef(uid), {
+          uid,
+          studentId: normalizeStudentId(profileIdentity.studentId || profileIdentity.studentIdNormalized || ''),
+          name: String(profileIdentity.name || profileIdentity.fullName || 'Student').trim(),
+          section: String(profileIdentity.section || '').trim(),
+          xp: masteryXp,
+          accountStatus: String(profileIdentity.accountStatus || 'active'),
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+      });
+
+      state.progress = mergeProgress(state.progress, committedProgress);
+      state.cloudXpHint = Math.max(state.cloudXpHint || 0, masteryXp, explorerXpFor(state.progress));
+      state.cloudLoaded = true;
+      state.lastCloudSyncAt = Date.now();
+      if (appSession.student) appSession.student.codeExplorerXp = masteryXp;
+      if (appSession.lastStudentProfile) appSession.lastStudentProfile.codeExplorerXp = masteryXp;
+      saveLocalProgress(state.progress);
+      clearSelectiveFirestoreCache(`studentProfile:${uid}`);
+      clearSelectiveFirestoreCache('admin:studentsAndRoster');
+      leaderboardState.loadedAt = 0;
+      renderTopProgress();
+      const snapshot = notifyXpMiniGamesProgress({ awardedXp, requestedXp, duplicate });
+      return {
+        ...baseResult,
+        ...snapshot,
+        awardedXp,
+        requestedXp,
+        duplicate,
+        todayXp,
+        bestScore,
+        capReached: todayXp >= XP_MINI_GAMES_DAILY_CAP,
+        totalXp: masteryXp
+      };
+    } catch (error) {
+      console.warn('XP Mini-Games reward was not credited because the secure sync failed.', error);
+      // Save only non-XP game progress (best score/sound) through the ordinary
+      // merge-safe path. A failed reward never becomes a frontend-only XP gain.
+      scheduleCloudSave();
+      const snapshot = notifyXpMiniGamesProgress();
+      return {
+        ...baseResult,
+        ...snapshot,
+        syncFailed: true,
+        error: String(error?.message || error || 'Could not sync XP reward.'),
+        bestScore: snapshot.bestScores.codeFly
+      };
+    }
+  }
+
+  function claimXpMiniGameRound(sessionId, score = 0) {
+    const id = String(sessionId || '').trim();
+    if (!id) return Promise.resolve({ awardedXp: 0, invalidSession: true, error: 'Missing mini-game session.' });
+    const existingClaim = xpMiniGameRoundClaims.get(id);
+    if (existingClaim) return existingClaim;
+    const round = activeXpMiniGameRounds.get(id);
+    if (!round) return Promise.resolve({ awardedXp: 0, invalidSession: true, error: 'This mini-game round is no longer active.' });
+    activeXpMiniGameRounds.delete(id);
+    const claimPromise = performXpMiniGameClaim(id, round, score);
+    xpMiniGameRoundClaims.set(id, claimPromise);
+    claimPromise.finally(cleanupXpMiniGameRoundMaps).catch(() => {});
+    return claimPromise;
+  }
+
+  function subscribeXpMiniGamesProgress(callback) {
+    if (typeof callback !== 'function') return () => {};
+    miniGameProgressSubscribers.add(callback);
+    try { callback(currentXpMiniGamesSnapshot()); } catch (_) {}
+    return () => miniGameProgressSubscribers.delete(callback);
+  }
 
   function normalizeCurrentStudentLegacyXp(options = {}) {
     if (!state.progress) return { changed: false, credit: 0, before: 0, after: 0 };
@@ -43012,7 +43478,12 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     if (dom.explored) dom.explored.textContent = String(explored);
     if (dom.completed) dom.completed.textContent = String(complete);
     if (dom.certCount) dom.certCount.textContent = String(certificateCount());
-    if (dom.xpBadge) { dom.xpBadge.textContent = isMobileExplorerLayout() ? `⚡ ${totalXp()}` : `⚡ ${totalXp()} XP`; dom.xpBadge.title = 'Mastery XP rewards accuracy, first tries, and small speed bonuses. Wrong answers reduce only the current activity reward — already-earned Total XP is never deducted. Retakes can improve a best reward but cannot farm duplicate XP.'; }
+    if (dom.xpBadge) {
+      const visibleXp = totalXp();
+      dom.xpBadge.textContent = isMobileExplorerLayout() ? `⚡ ${visibleXp}` : `⚡ ${visibleXp} XP`;
+      dom.xpBadge.title = 'Total XP includes learning rewards plus up to 20 bonus XP per day from Mini-Games. Click or tap to open XP Mini-Games.';
+      dom.xpBadge.setAttribute('aria-label', `${visibleXp} XP. Open XP Mini-Games.`);
+    }
     renderHeartStatus();
     if (dom.courseProgressOverlay && !dom.courseProgressOverlay.classList.contains('hidden')) renderCourseProgressPanel();
     renderDashboardSummary();
@@ -46654,6 +47125,21 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     isStageUnlocked: (stage, record) => isMobileStageUnlocked(stage, record || {}),
     bestStage: record => bestMobileStageForRecord(record || {})
   };
+
+  // Small, explicit bridge for the isolated games/ modules. The game code can
+  // request a round and submit a score, but it cannot choose an XP amount.
+  // Reward tiers, daily cap, duplicate protection, total XP integration, and
+  // Firestore transaction logic stay inside the existing Code Explorer system.
+  window.ICT8_XP_MINIGAMES_BRIDGE = Object.freeze({
+    version: 1,
+    dailyCap: XP_MINI_GAMES_DAILY_CAP,
+    getSnapshot: currentXpMiniGamesSnapshot,
+    rewardForScore: miniGameRewardForScore,
+    beginRound: beginXpMiniGameRound,
+    claimRound: claimXpMiniGameRound,
+    setSoundEnabled: setXpMiniGamesSoundEnabled,
+    subscribe: subscribeXpMiniGamesProgress
+  });
 })();
 
 

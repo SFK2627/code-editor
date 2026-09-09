@@ -46,6 +46,8 @@
   <link rel="preconnect" href="https://drive.google.com" crossorigin>
   <link rel="preconnect" href="https://lh3.googleusercontent.com" crossorigin>
   <link rel="stylesheet" href="style.css?v=20260909-v426-true-full-height" />
+  <link rel="stylesheet" href="games/mini-games-hub.css?v=20260909-v429-xp-mini-games" />
+  <link rel="stylesheet" href="games/code-fly/code-fly.css?v=20260909-v429-xp-mini-games" />
   <style>
     .ai-rubric-settings-card,
     .admin-project-ai-review-card {
@@ -475,7 +477,7 @@
         </div>
       </div>
       <div class="code-explorer-header-actions">
-        <span id="codeExplorerXpBadge" class="code-explorer-xp-badge" title="Mastery XP rewards real learning milestones and cannot be farmed by repeating completed work.">⚡ 0 XP</span>
+        <span id="codeExplorerXpBadge" class="code-explorer-xp-badge" role="button" tabindex="0" aria-haspopup="dialog" aria-controls="xpMiniGamesOverlay" title="Open XP Mini-Games">⚡ 0 XP</span>
         <button id="codeExplorerLeaderboardBtn" class="code-explorer-leaderboard-btn" type="button" aria-label="Open global leaderboard" title="Global leaderboard"><span aria-hidden="true">🏆</span><b>Leaderboard</b></button>
         <button id="codeExplorerQuickThemeToggle" class="code-explorer-quick-theme-toggle" type="button" aria-label="Switch to dark mode" aria-pressed="false" title="Switch theme">
           <span class="code-explorer-quick-theme-icon" aria-hidden="true">☀️</span>
@@ -4335,7 +4337,7 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
     })();
   </script>
 
-  <script src="script.js?v=20260909-v415-mobile-editor-popover-fix"></script>
+  <script src="script.js?v=20260909-v429-xp-mini-games"></script>
   <script>
     // v410 fallback: keep the desktop editor settings popover working even if older cached
     // toolbar code fails before binding the click handler.
@@ -4544,5 +4546,9 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
     // strip handlers can intercept it.
     window.MCS_V414_MOBILE_EDITOR_MENU = window.MCS_V415_MOBILE_EDITOR_MENU || null;
   </script>
+
+  <!-- v429 XP Mini-Games: isolated modules loaded after the main app bridge. -->
+  <script src="games/code-fly/code-fly.js?v=20260909-v429-xp-mini-games"></script>
+  <script src="games/mini-games-hub.js?v=20260909-v429-xp-mini-games"></script>
 </body>
 </html>

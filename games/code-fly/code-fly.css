@@ -1,0 +1,264 @@
+/* ================================================================
+   ICT 8 Connect v429 — CODE FLY
+   Fullscreen/arcade layer only. No global canvas/button/body selectors.
+   ================================================================ */
+
+.xp-games-game-overlay {
+  z-index: 24100;
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(circle at 50% 20%, rgba(37, 99, 235, .24), transparent 42%),
+    #07101f;
+  touch-action: none;
+  overscroll-behavior: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.code-fly-shell {
+  position: relative;
+  width: min(430px, calc(100vw - 34px));
+  height: min(760px, calc(100dvh - 34px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)));
+  min-height: 420px;
+  overflow: hidden;
+  border: 1px solid rgba(96, 165, 250, .34);
+  border-radius: 28px;
+  background: #0b1730;
+  box-shadow: 0 30px 90px rgba(0, 0, 0, .46), inset 0 0 0 1px rgba(255, 255, 255, .03);
+  isolation: isolate;
+}
+
+.code-fly-canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.code-fly-topbar {
+  position: absolute;
+  z-index: 5;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 11px 11px 0;
+  pointer-events: none;
+}
+
+.code-fly-topbar button {
+  pointer-events: auto;
+  min-height: 38px;
+  border: 1px solid rgba(191, 219, 254, .20);
+  border-radius: 12px;
+  background: rgba(7, 17, 35, .72);
+  color: #e8f3ff;
+  font: inherit;
+  font-size: .69rem;
+  font-weight: 900;
+  backdrop-filter: blur(7px);
+  -webkit-backdrop-filter: blur(7px);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.code-fly-back { padding: 0 10px; }
+.code-fly-sound,
+.code-fly-pause,
+.code-fly-close { width: 38px; padding: 0; font-size: .86rem !important; }
+.code-fly-close { margin-left: auto; font-size: 1.05rem !important; }
+.code-fly-topbar button:hover { background: rgba(18, 37, 68, .90); }
+.code-fly-topbar button:focus-visible { outline: 3px solid rgba(96, 165, 250, .35); outline-offset: 1px; }
+
+.code-fly-score {
+  position: absolute;
+  z-index: 4;
+  top: 58px;
+  left: 50%;
+  transform: translateX(-50%);
+  min-width: 54px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: rgba(5, 15, 31, .52);
+  color: #fff;
+  text-align: center;
+  font-size: 1.55rem;
+  line-height: 1;
+  font-weight: 950;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, .35);
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+  pointer-events: none;
+}
+
+.code-fly-fx {
+  position: absolute;
+  z-index: 6;
+  left: 50%;
+  top: 34%;
+  transform: translate(-50%, -50%);
+  color: #fef3c7;
+  font-size: .95rem;
+  font-weight: 950;
+  text-shadow: 0 2px 10px rgba(0,0,0,.45);
+  pointer-events: none;
+  opacity: 0;
+}
+.code-fly-fx.show { animation: codeFlyFx .8s ease-out forwards; }
+@keyframes codeFlyFx {
+  0% { opacity: 0; transform: translate(-50%, -10%) scale(.86); }
+  20% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -115%) scale(1.08); }
+}
+
+.code-fly-panel {
+  position: absolute;
+  z-index: 8;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(3, 10, 22, .38);
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+}
+.code-fly-panel[hidden] { display: none !important; }
+
+.code-fly-panel-card {
+  width: min(310px, 100%);
+  padding: 21px;
+  border: 1px solid rgba(191, 219, 254, .22);
+  border-radius: 22px;
+  background: rgba(10, 25, 49, .94);
+  color: #eef6ff;
+  text-align: center;
+  box-shadow: 0 20px 55px rgba(0, 0, 0, .32);
+}
+.code-fly-panel-card h2 { margin: 0 0 6px; font-size: 1.45rem; }
+.code-fly-panel-card p { margin: 0; color: #aac0d8; font-size: .78rem; line-height: 1.45; }
+
+.code-fly-gameover-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin: 16px 0 14px;
+}
+.code-fly-gameover-stats div {
+  padding: 10px 5px;
+  border-radius: 14px;
+  background: rgba(30, 58, 97, .58);
+}
+.code-fly-gameover-stats small {
+  display: block;
+  color: #8fa8c4;
+  font-size: .58rem;
+  font-weight: 850;
+  letter-spacing: .055em;
+  text-transform: uppercase;
+}
+.code-fly-gameover-stats strong {
+  display: block;
+  margin-top: 3px;
+  color: #fff;
+  font-size: 1.08rem;
+}
+.code-fly-gameover-stats .xp strong { color: #fbbf24; }
+
+.code-fly-reward-note {
+  min-height: 34px;
+  margin: 0 0 12px !important;
+  display: grid;
+  place-items: center;
+  padding: 7px 9px;
+  border-radius: 11px;
+  background: rgba(15, 36, 68, .72);
+  color: #cbdcf0 !important;
+}
+.code-fly-reward-note.success { background: rgba(20, 83, 45, .42); color: #bbf7d0 !important; }
+.code-fly-reward-note.warn { background: rgba(120, 53, 15, .42); color: #fed7aa !important; }
+
+.code-fly-actions {
+  display: grid;
+  gap: 8px;
+}
+.code-fly-actions button,
+.code-fly-resume {
+  width: 100%;
+  min-height: 43px;
+  border: 1px solid rgba(147, 197, 253, .20);
+  border-radius: 13px;
+  background: #172c4c;
+  color: #eaf4ff;
+  font: inherit;
+  font-size: .74rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+.code-fly-actions button.primary,
+.code-fly-resume { border-color: transparent; background: linear-gradient(135deg, #2563eb, #7c3aed); color: #fff; }
+.code-fly-actions button:hover,
+.code-fly-resume:hover { filter: brightness(1.08); }
+.code-fly-actions button:focus-visible,
+.code-fly-resume:focus-visible { outline: 3px solid rgba(96, 165, 250, .35); outline-offset: 2px; }
+
+.code-fly-shell.impact { animation: codeFlyImpact .22s linear 1; }
+@keyframes codeFlyImpact {
+  0%,100% { transform: translateX(0); }
+  25% { transform: translateX(-4px); }
+  50% { transform: translateX(4px); }
+  75% { transform: translateX(-2px); }
+}
+
+@media (max-width: 600px) {
+  .xp-games-game-overlay {
+    padding: 0;
+    place-items: stretch;
+  }
+  .code-fly-shell {
+    width: 100%;
+    height: 100dvh;
+    min-height: 0;
+    max-height: none;
+    border: 0;
+    border-radius: 0;
+  }
+  .code-fly-topbar {
+    padding:
+      max(8px, env(safe-area-inset-top, 0px))
+      max(8px, env(safe-area-inset-right, 0px))
+      0
+      max(8px, env(safe-area-inset-left, 0px));
+  }
+  .code-fly-topbar button { min-height: 38px; }
+  .code-fly-score { top: max(54px, calc(env(safe-area-inset-top, 0px) + 46px)); }
+  .code-fly-panel { padding: 16px max(14px, env(safe-area-inset-right, 0px)) max(16px, env(safe-area-inset-bottom, 0px)) max(14px, env(safe-area-inset-left, 0px)); }
+}
+
+@media (max-height: 560px) and (orientation: landscape) {
+  .xp-games-game-overlay { padding: 5px; }
+  .code-fly-shell {
+    width: min(360px, calc(100vw - 12px));
+    height: calc(100dvh - 10px);
+    min-height: 0;
+    border-radius: 18px;
+  }
+  .code-fly-topbar { padding: 6px 6px 0; }
+  .code-fly-topbar button { min-height: 34px; }
+  .code-fly-score { top: 45px; font-size: 1.2rem; }
+  .code-fly-panel-card { padding: 14px; }
+  .code-fly-gameover-stats { margin: 10px 0; }
+  .code-fly-actions { grid-template-columns: repeat(3, 1fr); }
+  .code-fly-actions button { min-height: 36px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .code-fly-fx.show,
+  .code-fly-shell.impact { animation: none !important; }
+}
