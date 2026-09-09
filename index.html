@@ -45,7 +45,7 @@
   </script>
   <link rel="preconnect" href="https://drive.google.com" crossorigin>
   <link rel="preconnect" href="https://lh3.googleusercontent.com" crossorigin>
-  <link rel="stylesheet" href="style.css?v=20260909-v416-mobile-editor-menu-final-fix" />
+  <link rel="stylesheet" href="style.css?v=20260909-v417-mobile-editor-single-tap-menu" />
   <style>
     .ai-rubric-settings-card,
     .admin-project-ai-review-card {
@@ -3755,6 +3755,7 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
 
       function handleMenuTap(event) {
         if (!shouldOwnMenuTap(event)) return;
+        if (typeof event.button === 'number' && event.button !== 0) return;
         event.preventDefault();
         event.stopPropagation();
         event.stopImmediatePropagation?.();
@@ -3790,7 +3791,9 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
         if (installed) return;
         installed = true;
         scheduleSync();
-        document.addEventListener('pointerdown', handleMenuTap, true);
+        // One normal tap/click owns the phone editor menu. Do NOT bind pointerdown
+        // here: pointerdown + click caused one tap to toggle twice (open then close),
+        // which made the menu appear only during a long press.
         document.addEventListener('click', handleMenuTap, true);
         document.addEventListener('click', handleMenuAction, true);
         document.addEventListener('click', outsideClose, true);
