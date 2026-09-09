@@ -65027,3 +65027,141 @@ body:not(.student-session-active) #studentHeaderLogoutBtn {
     display: none !important;
   }
 }
+
+/* =========================================================
+   v424 MOBILE EDITOR: TRUE POPOVER SCROLL + FULL-EDITOR FILL
+   Phone/mobile only. Desktop is intentionally untouched.
+   ========================================================= */
+@media (max-width: 820px) {
+  /* The outer card keeps overflow visible so the pointer can protrude. The
+     inner v424 surface owns scrolling, so swipes never fall through to the
+     editor/page behind the menu. */
+  body.mobile-editor-menu-v416 #mobileEditorUnifiedMenu:not(.hidden) {
+    overflow: visible !important;
+    max-height: none !important;
+    padding: 0 !important;
+    gap: 0 !important;
+    overscroll-behavior: none !important;
+    touch-action: pan-y !important;
+  }
+
+  body.mobile-editor-menu-v416 #mobileEditorUnifiedMenu .mobile-editor-menu-scroll-v424 {
+    display: grid !important;
+    gap: 8px !important;
+    width: 100% !important;
+    max-height: var(--mcs-mobile-editor-menu-max-height-v424, calc(100dvh - 92px)) !important;
+    padding: 10px !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    overscroll-behavior-y: contain !important;
+    -webkit-overflow-scrolling: touch !important;
+    touch-action: pan-y !important;
+    scrollbar-width: thin !important;
+    scrollbar-gutter: stable !important;
+    border-radius: inherit !important;
+    box-sizing: border-box !important;
+  }
+
+  body.mobile-editor-menu-v416 #mobileEditorUnifiedMenu .mobile-editor-menu-scroll-v424::-webkit-scrollbar {
+    width: 5px !important;
+  }
+
+  body.mobile-editor-menu-v416 #mobileEditorUnifiedMenu .mobile-editor-menu-scroll-v424::-webkit-scrollbar-thumb {
+    border-radius: 999px !important;
+    background: rgba(100, 116, 139, 0.42) !important;
+  }
+
+  html[data-theme="dark"] body.mobile-editor-menu-v416 #mobileEditorUnifiedMenu .mobile-editor-menu-scroll-v424::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.42) !important;
+  }
+
+  /* While the menu is open the document/editor behind it must not scroll. */
+  body.mobile-editor-menu-scroll-lock-v424 {
+    overflow: hidden !important;
+    overscroll-behavior: none !important;
+  }
+
+  /* Transparent interaction shield: blocks the textarea/page behind the menu
+     from receiving swipe gestures while keeping the popover itself scrollable. */
+  body.mobile-editor-menu-scroll-lock-v424::before {
+    content: "" !important;
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 2150 !important;
+    background: transparent !important;
+    pointer-events: auto !important;
+    touch-action: none !important;
+  }
+
+  body.mobile-editor-menu-scroll-lock-v424 #studentMenuBtn {
+    z-index: 2300 !important;
+  }
+
+  body.mobile-editor-menu-scroll-lock-v424 #mobileEditorUnifiedMenu,
+  body.mobile-editor-menu-scroll-lock-v424 #mobileEditorUnifiedMenu * {
+    pointer-events: auto !important;
+  }
+
+  /* Full editor: remove every direct editor-panel helper row that can create
+     implicit CSS-grid rows below the editor. These hidden rows were consuming
+     hundreds of pixels and causing the large blank gap above the font slider. */
+  html[data-device-mode="phone"] body.mobile-full-editor-v423 #editorPanel > #codeHelperFloatingBtn,
+  html[data-device-mode="phone"] body.mobile-full-editor-v423 #editorPanel > #editorInfo,
+  html[data-device-mode="phone"] body.mobile-full-editor-v423 #editorPanel > #structureAlert,
+  html[data-device-mode="phone"] body.mobile-full-editor-v423 #editorPanel > #tagMatchInfo,
+  html[data-device-mode="phone"] body.mobile-full-editor-v423 #editorPanel > .tips-row,
+  html[data-device-mode="phone"] body.mobile-full-editor-v423 #editorPanel > #errorCheckerPanel,
+  body.mobile-full-editor-v423 #editorPanel > #codeHelperFloatingBtn,
+  body.mobile-full-editor-v423 #editorPanel > #editorInfo,
+  body.mobile-full-editor-v423 #editorPanel > #structureAlert,
+  body.mobile-full-editor-v423 #editorPanel > #tagMatchInfo,
+  body.mobile-full-editor-v423 #editorPanel > .tips-row,
+  body.mobile-full-editor-v423 #editorPanel > #errorCheckerPanel {
+    display: none !important;
+  }
+
+  html[data-device-mode="phone"] body.mobile-full-editor-v423 #editorPanel,
+  body.mobile-full-editor-v423 #editorPanel {
+    /* 36px is enough room for the retained bottom font control + safe area. */
+    padding-bottom: calc(36px + env(safe-area-inset-bottom)) !important;
+  }
+
+  html[data-device-mode="phone"] body.mobile-full-editor-v423 #editorPanel .editor-wrap,
+  body.mobile-full-editor-v423 #editorPanel .editor-wrap {
+    align-self: stretch !important;
+    min-height: 0 !important;
+    height: 100% !important;
+    max-height: 100% !important;
+  }
+
+  html[data-device-mode="phone"] body.mobile-full-editor-v423 #editorPanel .editor-stack,
+  html[data-device-mode="phone"] body.mobile-full-editor-v423 #editorPanel #codeEditor,
+  html[data-device-mode="phone"] body.mobile-full-editor-v423 #editorPanel .code-match-layer,
+  html[data-device-mode="phone"] body.mobile-full-editor-v423 #editorPanel #lineNumbers,
+  body.mobile-full-editor-v423 #editorPanel .editor-stack,
+  body.mobile-full-editor-v423 #editorPanel #codeEditor,
+  body.mobile-full-editor-v423 #editorPanel .code-match-layer,
+  body.mobile-full-editor-v423 #editorPanel #lineNumbers {
+    min-height: 100% !important;
+    height: 100% !important;
+    max-height: 100% !important;
+  }
+
+  html[data-device-mode="phone"] body.mobile-full-editor-v423 #editorPanel #codeEditor,
+  body.mobile-full-editor-v423 #editorPanel #codeEditor {
+    padding-bottom: calc(40px + env(safe-area-inset-bottom)) !important;
+    scroll-padding-bottom: calc(40px + env(safe-area-inset-bottom)) !important;
+  }
+
+  html[data-device-mode="phone"] body.mobile-full-editor-v423 #mobileEditorFontControl,
+  body.mobile-full-editor-v423 #mobileEditorFontControl {
+    bottom: calc(4px + env(safe-area-inset-bottom)) !important;
+  }
+}
+
+@media (min-width: 821px) {
+  /* Defensive desktop lock for v424-only mobile mechanics. */
+  .mobile-editor-menu-scroll-v424 {
+    display: contents !important;
+  }
+}

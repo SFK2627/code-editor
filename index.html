@@ -45,7 +45,7 @@
   </script>
   <link rel="preconnect" href="https://drive.google.com" crossorigin>
   <link rel="preconnect" href="https://lh3.googleusercontent.com" crossorigin>
-  <link rel="stylesheet" href="style.css?v=20260909-v423-mobile-popover-full-editor" />
+  <link rel="stylesheet" href="style.css?v=20260909-v424-menu-scroll-full-editor-fill" />
   <style>
     .ai-rubric-settings-card,
     .admin-project-ai-review-card {
@@ -3784,10 +3784,18 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
         const isFull = fullModeActive();
         menu.replaceChildren();
 
+        // v424: keep the outer popover overflow-visible for the pointer while
+        // all actual menu content lives in its own independently scrollable
+        // surface. This prevents touch scrolling from leaking to the editor.
+        const scrollSurface = document.createElement('div');
+        scrollSurface.className = 'mobile-editor-menu-scroll-v424';
+        scrollSurface.setAttribute('role', 'presentation');
+        menu.appendChild(scrollSurface);
+
         const head = document.createElement('div');
         head.className = 'mobile-editor-menu-head';
         head.innerHTML = `<strong>${isGuest ? 'Practice Editor Menu' : 'Editor Menu'}</strong><span>${isGuest ? 'Not saved' : 'Tools & navigation'}</span>`;
-        menu.appendChild(head);
+        scrollSurface.appendChild(head);
 
         const work = [];
         if (actionExists('stepActivityBtn')) work.push({ label: '✅ Activity Set', action: 'activity' });
@@ -3796,9 +3804,9 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
         if (actionExists('resultBtn')) work.push({ label: '✓ Result', action: 'result' });
         if (isFull) work.push({ label: '⛶ Exit Full Editor', action: 'exitFull', className: 'warning' });
         else if (actionExists('fullEditorBtn')) work.push({ label: '⛶ Full Editor', action: 'full' });
-        appendSection(menu, 'Work Controls', work, 'mobile-editor-menu-work');
+        appendSection(scrollSurface, 'Work Controls', work, 'mobile-editor-menu-work');
 
-        appendSection(menu, 'Appearance', [
+        appendSection(scrollSurface, 'Appearance', [
           { label: getThemeText(), action: 'theme' },
           { label: 'Aa Font Size', action: 'fontSize' }
         ], 'mobile-editor-menu-appearance');
@@ -3810,24 +3818,24 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
         if (!isGuest && isFeatureButtonVisible('collabShareBtn')) tools.push({ label: getShareJoinText(), action: 'collab' });
         if (codeSuggestionsAvailable()) tools.push({ label: getCodeSuggestionsText(), action: 'suggestions' });
         if (actionExists('downloadZipBtn')) tools.push({ label: '💾 Download ZIP', action: 'zip' });
-        appendSection(menu, 'Tools', tools, 'mobile-editor-menu-tools');
+        appendSection(scrollSurface, 'Tools', tools, 'mobile-editor-menu-tools');
 
         const reset = [];
         if (actionExists('resetBtn')) reset.push({ label: 'Reset Editor', action: 'reset' });
         if (actionExists('clearBtn')) reset.push({ label: 'Clear Current Tab', action: 'clear', className: 'danger' });
-        appendSection(menu, 'Reset Tools', reset, 'mobile-editor-menu-reset');
+        appendSection(scrollSurface, 'Reset Tools', reset, 'mobile-editor-menu-reset');
 
         const nav = [];
         nav.push({ label: '📁 My Projects', action: 'projects' });
         nav.push({ label: '📚 Lessons', action: 'lessons' });
         nav.push({ label: '📝 Activities', action: 'activities' });
         nav.push({ label: '🚀 Course Path', action: 'course' });
-        appendSection(menu, 'Go to', nav, 'mobile-editor-menu-nav');
+        appendSection(scrollSurface, 'Go to', nav, 'mobile-editor-menu-nav');
 
         const account = [];
         if (isGuest) account.push({ label: '🔐 Login to Save', action: 'login', className: 'primary' });
         else account.push({ label: 'Log Out', action: 'logout', className: 'danger' });
-        appendSection(menu, 'Account', account, 'mobile-editor-menu-account');
+        appendSection(scrollSurface, 'Account', account, 'mobile-editor-menu-account');
       }
 
       function isMenuOpen() {
@@ -3858,6 +3866,8 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
         menu.style.setProperty('--mcs-mobile-editor-menu-right-v418', `${Math.round(right)}px`);
         menu.style.setProperty('--mcs-mobile-editor-menu-width-v416', `${Math.round(width)}px`);
         menu.style.setProperty('--mcs-mobile-editor-menu-pointer-right-v423', `${Math.round(pointerRight)}px`);
+        const availableHeight = Math.max(180, (window.innerHeight || document.documentElement.clientHeight || 0) - top - 12);
+        menu.style.setProperty('--mcs-mobile-editor-menu-max-height-v424', `${Math.round(availableHeight)}px`);
         menu.style.removeProperty('--mcs-mobile-editor-menu-left-v416');
       }
 
@@ -3869,7 +3879,7 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
         renderMenu();
         menu.classList.remove('hidden');
         menu.setAttribute('aria-hidden', 'false');
-        document.body?.classList?.add('mobile-editor-menu-open-v416', 'mobile-editor-menu-open-v415');
+        document.body?.classList?.add('mobile-editor-menu-open-v416', 'mobile-editor-menu-open-v415', 'mobile-editor-menu-scroll-lock-v424');
         btn?.setAttribute('aria-expanded', 'true');
         btn?.setAttribute('aria-label', 'Close editor menu');
         positionMenu();
@@ -3880,7 +3890,7 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
         const menu = $(MENU_ID);
         menu?.classList?.add('hidden');
         menu?.setAttribute?.('aria-hidden', 'true');
-        document.body?.classList?.remove('mobile-editor-menu-open-v416', 'mobile-editor-menu-open-v415');
+        document.body?.classList?.remove('mobile-editor-menu-open-v416', 'mobile-editor-menu-open-v415', 'mobile-editor-menu-scroll-lock-v424');
         btn?.setAttribute?.('aria-expanded', 'false');
         btn?.setAttribute?.('aria-label', 'Open editor menu');
       }
