@@ -65166,33 +65166,58 @@ body:not(.student-session-active) #studentHeaderLogoutBtn {
   }
 }
 
+
 /* =========================================================
-   v425 PHONE EDITOR: RELIABLE MENU SCROLL + TALLER FULL EDITOR
-   Phone/mobile only. Desktop layout and desktop CSS are untouched.
+   v426 PHONE EDITOR: HARD MENU SCROLL + TRUE FULL-HEIGHT CODE AREA
+   Phone/mobile only. Desktop remains untouched.
    ========================================================= */
 @media (max-width: 820px) {
-  /* v424 used body::before as an invisible shield. On some mobile browsers
-     that pseudo-element can win hit-testing and make the popover feel stuck.
-     v425 replaces it with a real sibling backdrop below the menu. */
+  /* Use ONE real scroll container: the menu card itself. Older nested-scroll
+     rules were fragile on phones and could hand the swipe to the editor page. */
   body.mobile-editor-menu-scroll-lock-v424::before {
     content: none !important;
     display: none !important;
     pointer-events: none !important;
   }
 
-  #mobileEditorMenuBackdropV425 {
+  body.mobile-editor-menu-v416 #mobileEditorUnifiedMenu:not(.hidden) {
+    position: fixed !important;
+    top: var(--mcs-mobile-editor-menu-top-v416, calc(64px + env(safe-area-inset-top))) !important;
+    right: var(--mcs-mobile-editor-menu-right-v418, 10px) !important;
+    bottom: var(--mcs-mobile-editor-menu-bottom-v426, calc(10px + env(safe-area-inset-bottom))) !important;
+    left: auto !important;
+    width: var(--mcs-mobile-editor-menu-width-v416, min(286px, calc(100vw - 20px))) !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain !important;
+    -webkit-overflow-scrolling: touch !important;
+    touch-action: none !important;
+    padding: 10px !important;
+    gap: 8px !important;
+    scrollbar-width: thin !important;
+  }
+
+  /* The pointer required overflow:visible and fought the real scroll box.
+     The card stays anchored beside the hamburger without that fragile layer. */
+  body.mobile-editor-menu-v416 #mobileEditorUnifiedMenu:not(.hidden)::before {
+    content: none !important;
     display: none !important;
   }
 
-  body.mobile-editor-menu-scroll-lock-v424 #mobileEditorMenuBackdropV425:not(.hidden) {
-    display: block !important;
-    position: fixed !important;
-    inset: 0 !important;
-    z-index: 2190 !important;
-    background: transparent !important;
-    pointer-events: auto !important;
-    touch-action: none !important;
-    overscroll-behavior: none !important;
+  /* Remove the nested v424 scroll box. Its children now participate directly
+     in the parent grid while the outer card owns every swipe/wheel movement. */
+  body.mobile-editor-menu-v416 #mobileEditorUnifiedMenu .mobile-editor-menu-scroll-v424 {
+    display: contents !important;
+    width: auto !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    touch-action: inherit !important;
   }
 
   body.mobile-editor-menu-scroll-lock-v424 {
@@ -65200,50 +65225,64 @@ body:not(.student-session-active) #studentHeaderLogoutBtn {
     overscroll-behavior: none !important;
   }
 
-  body.mobile-editor-menu-v416 #mobileEditorUnifiedMenu:not(.hidden) {
-    z-index: 2200 !important;
-    overflow: visible !important;
-    touch-action: auto !important;
-  }
-
-  body.mobile-editor-menu-v416 #mobileEditorUnifiedMenu .mobile-editor-menu-scroll-v424 {
-    display: grid !important;
-    min-height: 0 !important;
-    height: auto !important;
-    max-height: var(--mcs-mobile-editor-menu-max-height-v424, calc(100dvh - 86px)) !important;
-    overflow-x: hidden !important;
-    overflow-y: auto !important;
-    overscroll-behavior: contain !important;
-    -webkit-overflow-scrolling: touch !important;
-    touch-action: pan-y !important;
+  body.mobile-editor-menu-scroll-lock-v424 #mobileEditorUnifiedMenu,
+  body.mobile-editor-menu-scroll-lock-v424 #mobileEditorUnifiedMenu * {
     pointer-events: auto !important;
-    scrollbar-width: thin !important;
   }
 
-  body.mobile-editor-menu-v416 #mobileEditorUnifiedMenu .mobile-editor-menu-scroll-v424 > * {
-    min-width: 0 !important;
-  }
-
-  /* Full Editor: explicitly calculate the editor row from the real phone
-     viewport so it cannot fall back to an older short 62vh editor rule.
-     Reserve only a slim bottom strip for the Aa slider. */
+  /* FULL EDITOR: use fixed geometry instead of inherited flex/grid heights.
+     Tabs = 44px, project strip = 38px, then code fills everything until 4px
+     above the retained 28px font-size slider. */
   html[data-device-mode="phone"] body.mobile-full-editor-v423 #editorPanel,
   body.mobile-full-editor-v423 #editorPanel {
-    grid-template-rows: 44px 38px minmax(0, 1fr) !important;
-    padding-bottom: calc(33px + env(safe-area-inset-bottom)) !important;
-    align-content: stretch !important;
+    position: fixed !important;
+    inset: 0 !important;
+    width: 100vw !important;
+    height: var(--mcs-phone-full-editor-height, 100dvh) !important;
+    min-height: var(--mcs-phone-full-editor-height, 100dvh) !important;
+    max-height: var(--mcs-phone-full-editor-height, 100dvh) !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+  }
+
+  html[data-device-mode="phone"] body.mobile-full-editor-v423 #editorPanel > .language-tabs,
+  body.mobile-full-editor-v423 #editorPanel > .language-tabs {
+    position: absolute !important;
+    top: 0 !important;
+    right: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: 44px !important;
+    min-height: 44px !important;
+    max-height: 44px !important;
+  }
+
+  html[data-device-mode="phone"] body.mobile-full-editor-v423 #editorProjectHeader,
+  body.mobile-full-editor-v423 #editorProjectHeader {
+    position: absolute !important;
+    top: 44px !important;
+    right: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: 38px !important;
+    min-height: 38px !important;
+    max-height: 38px !important;
   }
 
   html[data-device-mode="phone"] body.mobile-full-editor-v423 #editorPanel .editor-wrap,
   body.mobile-full-editor-v423 #editorPanel .editor-wrap {
-    grid-row: 3 !important;
-    align-self: stretch !important;
-    height: calc(var(--mcs-phone-full-editor-height, 100dvh) - 44px - 38px - 33px - env(safe-area-inset-bottom)) !important;
+    position: absolute !important;
+    top: 82px !important;
+    right: 0 !important;
+    bottom: calc(36px + env(safe-area-inset-bottom)) !important;
+    left: 0 !important;
+    width: auto !important;
+    height: auto !important;
     min-height: 0 !important;
-    max-height: calc(var(--mcs-phone-full-editor-height, 100dvh) - 44px - 38px - 33px - env(safe-area-inset-bottom)) !important;
+    max-height: none !important;
     margin: 0 !important;
+    padding: 0 !important;
     overflow: hidden !important;
-    box-sizing: border-box !important;
   }
 
   html[data-device-mode="phone"] body.mobile-full-editor-v423 #editorPanel .editor-stack,
@@ -65261,20 +65300,18 @@ body:not(.student-session-active) #studentHeaderLogoutBtn {
 
   html[data-device-mode="phone"] body.mobile-full-editor-v423 #editorPanel #codeEditor,
   body.mobile-full-editor-v423 #editorPanel #codeEditor {
-    /* Enough clearance that the last line never sits under the slider, while
-       keeping the visible editor box almost flush with the control. */
-    padding-bottom: calc(34px + env(safe-area-inset-bottom)) !important;
-    scroll-padding-bottom: calc(34px + env(safe-area-inset-bottom)) !important;
+    overflow-y: auto !important;
+    padding-bottom: 18px !important;
+    scroll-padding-bottom: 18px !important;
+    -webkit-overflow-scrolling: touch !important;
   }
 
   html[data-device-mode="phone"] body.mobile-full-editor-v423 #mobileEditorFontControl,
   body.mobile-full-editor-v423 #mobileEditorFontControl {
-    bottom: calc(3px + env(safe-area-inset-bottom)) !important;
+    bottom: calc(4px + env(safe-area-inset-bottom)) !important;
+    height: 28px !important;
+    min-height: 28px !important;
+    max-height: 28px !important;
   }
 }
 
-@media (min-width: 821px) {
-  #mobileEditorMenuBackdropV425 {
-    display: none !important;
-  }
-}
