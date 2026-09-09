@@ -3522,6 +3522,18 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
         return false;
       }
 
+      function ensureMenuPointerV428() {
+        let pointer = $('mobileEditorMenuPointerV428');
+        if (!pointer) {
+          pointer = document.createElement('span');
+          pointer.id = 'mobileEditorMenuPointerV428';
+          pointer.className = 'mobile-editor-menu-pointer-v428 hidden';
+          pointer.setAttribute('aria-hidden', 'true');
+          document.body.appendChild(pointer);
+        }
+        return pointer;
+      }
+
       function ensureMenu() {
         let menu = $(MENU_ID);
         if (!menu) {
@@ -3533,6 +3545,7 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
           menu.setAttribute('aria-hidden', 'true');
           document.body.appendChild(menu);
         }
+        ensureMenuPointerV428();
         return menu;
       }
 
@@ -3847,11 +3860,23 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
         // v422: keep this a true right-side phone popover, not an almost-full-width panel.
         const width = Math.min(286, Math.max(236, viewportWidth * 0.72), Math.max(0, viewportWidth - (safeGap * 2)));
         const right = Math.max(safeGap, Math.min(24, viewportWidth - rect.right));
-        const top = Math.max(10, Math.min(window.innerHeight - 120, rect.bottom + 7));
+        // v428: leave enough room for the visual connector between the
+        // hamburger trigger and the popover, like a speech-bubble pointer.
+        const top = Math.max(14, Math.min(window.innerHeight - 120, rect.bottom + 12));
         menu.style.setProperty('--mcs-mobile-editor-menu-top-v416', `${Math.round(top)}px`);
         menu.style.setProperty('--mcs-mobile-editor-menu-right-v418', `${Math.round(right)}px`);
         menu.style.setProperty('--mcs-mobile-editor-menu-width-v416', `${Math.round(width)}px`);
         menu.style.removeProperty('--mcs-mobile-editor-menu-left-v416');
+
+        const pointer = ensureMenuPointerV428();
+        const pointerWidth = 22;
+        const buttonCenter = rect.left + (rect.width / 2);
+        const menuLeft = viewportWidth - right - width;
+        // Keep the pointer visually inside the rounded top edge while still
+        // following the actual hamburger center on different phone widths.
+        const pointerCenter = Math.max(menuLeft + 24, Math.min(menuLeft + width - 24, buttonCenter));
+        pointer.style.setProperty('--mcs-editor-menu-pointer-top-v428', `${Math.round(top - 10)}px`);
+        pointer.style.setProperty('--mcs-editor-menu-pointer-left-v428', `${Math.round(pointerCenter - (pointerWidth / 2))}px`);
       }
 
       function openMenu() {
@@ -3862,6 +3887,8 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
         renderMenu();
         menu.classList.remove('hidden');
         menu.setAttribute('aria-hidden', 'false');
+        const pointer = ensureMenuPointerV428();
+        pointer.classList.remove('hidden');
         document.body?.classList?.add('mobile-editor-menu-open-v416', 'mobile-editor-menu-open-v415');
         btn?.setAttribute('aria-expanded', 'true');
         btn?.setAttribute('aria-label', 'Close editor menu');
@@ -3873,6 +3900,7 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
         const menu = $(MENU_ID);
         menu?.classList?.add('hidden');
         menu?.setAttribute?.('aria-hidden', 'true');
+        $('mobileEditorMenuPointerV428')?.classList?.add('hidden');
         document.body?.classList?.remove('mobile-editor-menu-open-v416', 'mobile-editor-menu-open-v415');
         btn?.setAttribute?.('aria-expanded', 'false');
         btn?.setAttribute?.('aria-label', 'Open editor menu');
