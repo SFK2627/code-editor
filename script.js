@@ -42430,10 +42430,13 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       const musicGain = context.createGain();
       const sfxGain = context.createGain();
       const limiter = context.createDynamicsCompressor();
+      // v450 — Music loudness rebalance. Keep SFX unchanged, but raise the music
+      // bus and source-note levels so the procedural track is clearly audible
+      // on phone speakers. The compressor still protects mixed peaks.
       // Stronger default output for real phone speakers. The compressor acts
       // like a soft limiter so stacked SFX + music stay energetic, not harsh.
       masterGain.gain.value = 0.9;
-      musicGain.gain.value = 0.42;
+      musicGain.gain.value = 0.78;
       sfxGain.gain.value = 0.96;
       limiter.threshold.setValueAtTime(-13, context.currentTime);
       limiter.knee.setValueAtTime(18, context.currentTime);
@@ -42632,19 +42635,19 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     const phrase = progression[explorerAudio.phraseIndex % progression.length];
     explorerAudio.phraseIndex = (explorerAudio.phraseIndex + 1) % progression.length;
     phrase.chord.forEach((frequency, index) => {
-      scheduleExplorerTone('music', frequency, 0.01 + index * 0.025, 2.24, 0.044 - index * 0.004, 'sine');
+      scheduleExplorerTone('music', frequency, 0.01 + index * 0.025, 2.24, 0.064 - index * 0.005, 'sine');
     });
     [0.00, 0.60, 1.20, 1.80].forEach((offset, index) => {
       const pulse = index % 2 === 0 ? phrase.bass : phrase.bass * 1.5;
-      scheduleExplorerTone('music', pulse, offset + 0.015, 0.23, 0.060, 'triangle');
+      scheduleExplorerTone('music', pulse, offset + 0.015, 0.23, 0.086, 'triangle');
     });
     const arpOffsets = [0.15, 0.42, 0.72, 1.02, 1.32, 1.58, 1.86, 2.12];
     arpOffsets.forEach((offset, index) => {
-      scheduleExplorerTone('music', phrase.arp[index], offset, 0.115, 0.040, index % 4 === 0 ? 'square' : 'triangle');
+      scheduleExplorerTone('music', phrase.arp[index], offset, 0.115, 0.058, index % 4 === 0 ? 'square' : 'triangle');
     });
     const lift = phrase.arp[(explorerAudio.phraseIndex + 3) % phrase.arp.length];
-    scheduleExplorerTone('music', lift * 1.5, 0.92, 0.18, 0.030, 'sine');
-    scheduleExplorerTone('music', lift * 2, 1.72, 0.20, 0.026, 'sine');
+    scheduleExplorerTone('music', lift * 1.5, 0.92, 0.18, 0.044, 'sine');
+    scheduleExplorerTone('music', lift * 2, 1.72, 0.20, 0.038, 'sine');
     clearTimeout(explorerAudio.musicTimer);
     explorerAudio.musicTimer = window.setTimeout(scheduleExplorerMusicPhrase, 2400);
   }
