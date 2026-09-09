@@ -64916,3 +64916,163 @@ body:not(.student-session-active) #studentHeaderLogoutBtn {
     margin-bottom: 0 !important;
   }
 }
+
+/* =========================================================
+   v426 PHONE FULL EDITOR: TRUE REMAINING-HEIGHT CODE CANVAS
+   Scope: phone/mobile Full Editor only. Desktop untouched.
+   Why: legacy Full Editor layers mixed grid + flex sizing, so reducing footer
+   padding alone could not reliably grow the textarea on every phone.
+   This final override gives the panel exactly three in-flow rows:
+   tabs -> compact project strip -> editor (fills ALL remaining height).
+   ========================================================= */
+@media (max-width: 820px) {
+  html[data-device-mode="phone"] body.phone-full-editor-lock-v424 #editorPanel,
+  html[data-device-mode="phone"] body.phone-css-full-editor-active #editorPanel,
+  html[data-device-mode="phone"] body.phone-true-full-editor-active #editorPanel,
+  html[data-device-mode="phone"] body.editor-fullscreen-active #editorPanel {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-rows: 34px 34px minmax(0, 1fr) !important;
+    grid-template-areas:
+      "full-tabs"
+      "full-project"
+      "full-editor" !important;
+    align-content: stretch !important;
+    align-items: stretch !important;
+    column-gap: 0 !important;
+    row-gap: 4px !important;
+    /* 30px slider at bottom: 8px bottom + 6px breathing room. */
+    padding: max(4px, env(safe-area-inset-top)) 8px calc(44px + env(safe-area-inset-bottom)) !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
+  }
+
+  html[data-device-mode="phone"] body.phone-full-editor-lock-v424 #editorPanel > .language-tabs,
+  html[data-device-mode="phone"] body.phone-css-full-editor-active #editorPanel > .language-tabs,
+  html[data-device-mode="phone"] body.phone-true-full-editor-active #editorPanel > .language-tabs,
+  html[data-device-mode="phone"] body.editor-fullscreen-active #editorPanel > .language-tabs {
+    grid-area: full-tabs !important;
+    order: initial !important;
+    width: 100% !important;
+    height: 34px !important;
+    min-height: 34px !important;
+    max-height: 34px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    align-self: stretch !important;
+    overflow: hidden !important;
+  }
+
+  html[data-device-mode="phone"] body.phone-full-editor-lock-v424 #editorProjectHeader,
+  html[data-device-mode="phone"] body.phone-css-full-editor-active #editorProjectHeader,
+  html[data-device-mode="phone"] body.phone-true-full-editor-active #editorProjectHeader,
+  html[data-device-mode="phone"] body.editor-fullscreen-active #editorProjectHeader {
+    grid-area: full-project !important;
+    order: initial !important;
+    position: relative !important;
+    inset: auto !important;
+    width: 100% !important;
+    height: 34px !important;
+    min-height: 34px !important;
+    max-height: 34px !important;
+    margin: 0 !important;
+    padding: 3px 7px !important;
+    align-self: stretch !important;
+    box-sizing: border-box !important;
+    overflow: visible !important;
+  }
+
+  html[data-device-mode="phone"] body.phone-full-editor-lock-v424 #editorPanel > .editor-wrap,
+  html[data-device-mode="phone"] body.phone-css-full-editor-active #editorPanel > .editor-wrap,
+  html[data-device-mode="phone"] body.phone-true-full-editor-active #editorPanel > .editor-wrap,
+  html[data-device-mode="phone"] body.editor-fullscreen-active #editorPanel > .editor-wrap {
+    grid-area: full-editor !important;
+    order: initial !important;
+    align-self: stretch !important;
+    justify-self: stretch !important;
+    flex: none !important;
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
+  }
+
+  html[data-device-mode="phone"] body.phone-full-editor-lock-v424 #editorPanel > .editor-wrap > #lineNumbers,
+  html[data-device-mode="phone"] body.phone-full-editor-lock-v424 #editorPanel > .editor-wrap > .editor-stack,
+  html[data-device-mode="phone"] body.phone-css-full-editor-active #editorPanel > .editor-wrap > #lineNumbers,
+  html[data-device-mode="phone"] body.phone-css-full-editor-active #editorPanel > .editor-wrap > .editor-stack,
+  html[data-device-mode="phone"] body.phone-true-full-editor-active #editorPanel > .editor-wrap > #lineNumbers,
+  html[data-device-mode="phone"] body.phone-true-full-editor-active #editorPanel > .editor-wrap > .editor-stack,
+  html[data-device-mode="phone"] body.editor-fullscreen-active #editorPanel > .editor-wrap > #lineNumbers,
+  html[data-device-mode="phone"] body.editor-fullscreen-active #editorPanel > .editor-wrap > .editor-stack {
+    height: 100% !important;
+    min-height: 0 !important;
+    max-height: none !important;
+  }
+
+  html[data-device-mode="phone"] body.phone-full-editor-lock-v424 #codeEditor,
+  html[data-device-mode="phone"] body.phone-full-editor-lock-v424 #codeMatchLayer,
+  html[data-device-mode="phone"] body.phone-css-full-editor-active #codeEditor,
+  html[data-device-mode="phone"] body.phone-css-full-editor-active #codeMatchLayer,
+  html[data-device-mode="phone"] body.phone-true-full-editor-active #codeEditor,
+  html[data-device-mode="phone"] body.phone-true-full-editor-active #codeMatchLayer,
+  html[data-device-mode="phone"] body.editor-fullscreen-active #codeEditor,
+  html[data-device-mode="phone"] body.editor-fullscreen-active #codeMatchLayer {
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    box-sizing: border-box !important;
+  }
+
+  /* Keep old non-editor rows completely out of the three-row layout. */
+  html[data-device-mode="phone"] body.phone-full-editor-lock-v424 #fullscreenEditorActions,
+  html[data-device-mode="phone"] body.phone-full-editor-lock-v424 #editorInfo,
+  html[data-device-mode="phone"] body.phone-full-editor-lock-v424 #structureAlert,
+  html[data-device-mode="phone"] body.phone-full-editor-lock-v424 #tagMatchInfo,
+  html[data-device-mode="phone"] body.phone-full-editor-lock-v424 #editorPanel > .tips-row,
+  html[data-device-mode="phone"] body.phone-css-full-editor-active #fullscreenEditorActions,
+  html[data-device-mode="phone"] body.phone-css-full-editor-active #editorInfo,
+  html[data-device-mode="phone"] body.phone-css-full-editor-active #structureAlert,
+  html[data-device-mode="phone"] body.phone-css-full-editor-active #tagMatchInfo,
+  html[data-device-mode="phone"] body.phone-css-full-editor-active #editorPanel > .tips-row,
+  html[data-device-mode="phone"] body.phone-true-full-editor-active #fullscreenEditorActions,
+  html[data-device-mode="phone"] body.phone-true-full-editor-active #editorInfo,
+  html[data-device-mode="phone"] body.phone-true-full-editor-active #structureAlert,
+  html[data-device-mode="phone"] body.phone-true-full-editor-active #tagMatchInfo,
+  html[data-device-mode="phone"] body.phone-true-full-editor-active #editorPanel > .tips-row,
+  html[data-device-mode="phone"] body.editor-fullscreen-active #fullscreenEditorActions,
+  html[data-device-mode="phone"] body.editor-fullscreen-active #editorInfo,
+  html[data-device-mode="phone"] body.editor-fullscreen-active #structureAlert,
+  html[data-device-mode="phone"] body.editor-fullscreen-active #tagMatchInfo,
+  html[data-device-mode="phone"] body.editor-fullscreen-active #editorPanel > .tips-row {
+    display: none !important;
+  }
+
+  /* Closed Pages tools must not silently create an implicit grid row. When
+     Pages is opened, the existing v420 popover rules take it out of flow. */
+  html[data-device-mode="phone"] body.phone-full-editor-lock-v424:not(.mobile-page-manager-open-v420) #htmlPageManager,
+  html[data-device-mode="phone"] body.phone-css-full-editor-active:not(.mobile-page-manager-open-v420) #htmlPageManager,
+  html[data-device-mode="phone"] body.phone-true-full-editor-active:not(.mobile-page-manager-open-v420) #htmlPageManager,
+  html[data-device-mode="phone"] body.editor-fullscreen-active:not(.mobile-page-manager-open-v420) #htmlPageManager {
+    display: none !important;
+  }
+
+  /* The slider remains anchored to the stable Full Editor canvas. */
+  html[data-device-mode="phone"] body.phone-full-editor-lock-v424 #mobileEditorFontControl,
+  html[data-device-mode="phone"] body.phone-css-full-editor-active #mobileEditorFontControl,
+  html[data-device-mode="phone"] body.phone-true-full-editor-active #mobileEditorFontControl,
+  html[data-device-mode="phone"] body.editor-fullscreen-active #mobileEditorFontControl {
+    position: absolute !important;
+    left: 50% !important;
+    bottom: calc(8px + env(safe-area-inset-bottom)) !important;
+    transform: translateX(-50%) !important;
+    height: 30px !important;
+    min-height: 30px !important;
+    margin: 0 !important;
+  }
+}
