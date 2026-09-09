@@ -45,7 +45,7 @@
   </script>
   <link rel="preconnect" href="https://drive.google.com" crossorigin>
   <link rel="preconnect" href="https://lh3.googleusercontent.com" crossorigin>
-  <link rel="stylesheet" href="style.css?v=20260909-v423-mobile-fullscreen-compact" />
+  <link rel="stylesheet" href="style.css?v=20260909-v424-mobile-fullscreen-scroll-lock" />
   <style>
     .ai-rubric-settings-card,
     .admin-project-ai-review-card {
@@ -4355,6 +4355,158 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
       } else {
         bind();
       }
+    })();
+  </script>
+
+  <script>
+    // v424: phone Full Editor keyboard-stable viewport + hard page-scroll lock.
+    // The editor itself remains scrollable; the document behind it does not.
+    (() => {
+      const root = document.documentElement;
+      const body = document.body;
+      const panel = document.getElementById('editorPanel');
+      const editor = document.getElementById('codeEditor');
+      if (!root || !body || !panel || !editor) return;
+
+      let locked = false;
+      let lockedScrollX = 0;
+      let lockedScrollY = 0;
+      let stableHeight = 0;
+      let touchStartY = 0;
+      let resizeTimer = null;
+
+      const isPhone = () => root.dataset.deviceMode === 'phone';
+      const isFullEditor = () => Boolean(
+        isPhone() &&
+        !body.classList.contains('preview-fullscreen-active') &&
+        !body.classList.contains('preview-inside-editor-fullscreen') &&
+        (
+          body.classList.contains('phone-css-full-editor-active') ||
+          body.classList.contains('phone-true-full-editor-active') ||
+          body.classList.contains('editor-fullscreen-active')
+        )
+      );
+
+      const readLayoutHeight = () => Math.max(
+        320,
+        Math.round(
+          Number(window.innerHeight) ||
+          Number(root.clientHeight) ||
+          Number(document.body?.clientHeight) ||
+          640
+        )
+      );
+
+      const keyboardLooksOpen = () => {
+        if (!locked || !stableHeight) return false;
+        const vv = Number(window.visualViewport?.height) || 0;
+        return Boolean(vv && stableHeight - vv > 120);
+      };
+
+      const applyStableHeight = (force = false) => {
+        if (!locked) return;
+        if (!force && keyboardLooksOpen()) return;
+        const next = readLayoutHeight();
+        if (!force && stableHeight && Math.abs(next - stableHeight) < 24) return;
+        stableHeight = next;
+        root.style.setProperty('--mcs-v424-full-editor-stable-height', `${stableHeight}px`);
+      };
+
+      const lock = () => {
+        if (locked) return;
+        locked = true;
+        lockedScrollX = window.scrollX || 0;
+        lockedScrollY = window.scrollY || 0;
+        stableHeight = readLayoutHeight();
+        root.style.setProperty('--mcs-v424-full-editor-stable-height', `${stableHeight}px`);
+        root.classList.add('phone-full-editor-lock-v424');
+        body.classList.add('phone-full-editor-lock-v424');
+      };
+
+      const unlock = () => {
+        if (!locked) return;
+        locked = false;
+        root.classList.remove('phone-full-editor-lock-v424');
+        body.classList.remove('phone-full-editor-lock-v424');
+        root.style.removeProperty('--mcs-v424-full-editor-stable-height');
+        window.requestAnimationFrame(() => {
+          try { window.scrollTo(lockedScrollX, lockedScrollY); } catch (_) {}
+        });
+      };
+
+      const sync = () => {
+        if (isFullEditor()) lock();
+        else unlock();
+      };
+
+      // Never let a document/body scroll leak reveal Teacher Feedback,
+      // Preview, Output, Result, or any section behind the fixed Full Editor.
+      window.addEventListener('scroll', () => {
+        if (!locked) return;
+        const x = window.scrollX || 0;
+        const y = window.scrollY || 0;
+        if (Math.abs(x - lockedScrollX) > 1 || Math.abs(y - lockedScrollY) > 1) {
+          try { window.scrollTo(lockedScrollX, lockedScrollY); } catch (_) {}
+        }
+      }, { passive: true });
+
+      // Stop pull/bounce when the code textarea is already at its first/last
+      // line. Normal scrolling inside the textarea is still allowed.
+      editor.addEventListener('touchstart', event => {
+        touchStartY = Number(event.touches?.[0]?.clientY) || 0;
+      }, { passive: true });
+
+      editor.addEventListener('touchmove', event => {
+        if (!locked || !event.touches?.length) return;
+        const currentY = Number(event.touches[0].clientY) || 0;
+        const deltaY = currentY - touchStartY;
+        const atTop = editor.scrollTop <= 0;
+        const atBottom = editor.scrollTop + editor.clientHeight >= editor.scrollHeight - 1;
+        if ((atTop && deltaY > 0) || (atBottom && deltaY < 0)) {
+          event.preventDefault();
+        }
+      }, { passive: false });
+
+      // Any touch that starts outside the Full Editor is blocked while locked.
+      // This is defensive for browsers that try to transfer a gesture to body.
+      document.addEventListener('touchmove', event => {
+        if (!locked) return;
+        const target = event.target;
+        if (target instanceof Element && target.closest('#editorPanel')) return;
+        event.preventDefault();
+      }, { capture: true, passive: false });
+
+      const observer = new MutationObserver(sync);
+      observer.observe(body, { attributes: true, attributeFilter: ['class'] });
+      observer.observe(root, { attributes: true, attributeFilter: ['data-device-mode'] });
+
+      window.addEventListener('resize', () => {
+        if (!locked) return;
+        clearTimeout(resizeTimer);
+        resizeTimer = window.setTimeout(() => applyStableHeight(false), 90);
+      }, { passive: true });
+
+      window.addEventListener('orientationchange', () => {
+        if (!locked) return;
+        clearTimeout(resizeTimer);
+        resizeTimer = window.setTimeout(() => {
+          // Orientation is a real layout change. Only replace the stable
+          // height when a keyboard is not currently covering the viewport.
+          if (!keyboardLooksOpen()) applyStableHeight(true);
+        }, 220);
+      }, { passive: true });
+
+      window.visualViewport?.addEventListener?.('resize', () => {
+        // Intentionally do not shrink Full Editor to visualViewport while the
+        // keyboard is open. That old behavior was what lifted the font slider.
+        if (locked && !keyboardLooksOpen()) applyStableHeight(false);
+      }, { passive: true });
+
+      sync();
+      window.MCS_V424_PHONE_FULL_EDITOR_LOCK = {
+        sync,
+        status: () => ({ locked, stableHeight, keyboardOpen: keyboardLooksOpen() })
+      };
     })();
   </script>
 
