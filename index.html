@@ -45,7 +45,7 @@
   </script>
   <link rel="preconnect" href="https://drive.google.com" crossorigin>
   <link rel="preconnect" href="https://lh3.googleusercontent.com" crossorigin>
-  <link rel="stylesheet" href="style.css?v=20260909-v417-mobile-editor-single-tap-menu" />
+  <link rel="stylesheet" href="style.css?v=20260909-v418-mobile-editor-right-menu-compact-project" />
   <style>
     .ai-rubric-settings-card,
     .admin-project-ai-review-card {
@@ -3692,12 +3692,17 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
         const menu = $(MENU_ID);
         if (!btn || !menu || menu.classList.contains('hidden')) return;
         const rect = btn.getBoundingClientRect();
-        const width = Math.min(360, Math.max(304, window.innerWidth - 20));
-        const left = Math.max(10, Math.min(window.innerWidth - width - 10, rect.right - width));
-        const top = Math.max(10, Math.min(window.innerHeight - 120, rect.bottom + 8));
+        // v418: keep the phone editor menu visually anchored to the hamburger
+        // on the RIGHT instead of stretching almost edge-to-edge from the left.
+        const viewportWidth = Math.max(0, window.innerWidth || document.documentElement.clientWidth || 0);
+        const safeGap = 10;
+        const width = Math.min(330, Math.max(260, viewportWidth - 48), Math.max(0, viewportWidth - (safeGap * 2)));
+        const right = Math.max(safeGap, Math.min(24, viewportWidth - rect.right));
+        const top = Math.max(10, Math.min(window.innerHeight - 120, rect.bottom + 7));
         menu.style.setProperty('--mcs-mobile-editor-menu-top-v416', `${Math.round(top)}px`);
-        menu.style.setProperty('--mcs-mobile-editor-menu-left-v416', `${Math.round(left)}px`);
+        menu.style.setProperty('--mcs-mobile-editor-menu-right-v418', `${Math.round(right)}px`);
         menu.style.setProperty('--mcs-mobile-editor-menu-width-v416', `${Math.round(width)}px`);
+        menu.style.removeProperty('--mcs-mobile-editor-menu-left-v416');
       }
 
       function openMenu() {
