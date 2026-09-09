@@ -45,7 +45,7 @@
   </script>
   <link rel="preconnect" href="https://drive.google.com" crossorigin>
   <link rel="preconnect" href="https://lh3.googleusercontent.com" crossorigin>
-  <link rel="stylesheet" href="style.css?v=20260909-v414-mobile-editor-menu-loading-fix" />
+  <link rel="stylesheet" href="style.css?v=20260909-v415-mobile-editor-popover-fix" />
   <style>
     .ai-rubric-settings-card,
     .admin-project-ai-review-card {
@@ -3451,7 +3451,282 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
       </section>
     </div>
 
-  <script src="script.js?v=20260909-v414-mobile-editor-menu-loading-fix"></script>
+  <script>
+    // v415 EARLY mobile editor menu controller.
+    // It runs before script.js so old phone strip handlers cannot steal the
+    // hamburger click. Phone/mobile only; desktop remains untouched.
+    (() => {
+      const PHONE_QUERY = '(max-width: 820px)';
+      const $ = id => document.getElementById(id);
+      const moved = new Map();
+      const renamed = new Map();
+      let installed = false;
+      let scheduled = false;
+      let repositionTimer = null;
+
+      function isPhoneUi() {
+        try {
+          return Boolean(
+            document.documentElement.dataset.deviceMode === 'phone' ||
+            window.__mcsianPhonePreviewMode === true ||
+            window.matchMedia?.(PHONE_QUERY)?.matches
+          );
+        } catch (_) {
+          return false;
+        }
+      }
+
+      function inEditorSession() {
+        return Boolean(
+          document.body?.classList?.contains('student-session-active') ||
+          document.body?.classList?.contains('guest-session-active')
+        );
+      }
+
+      function isGuestSession() {
+        return Boolean(document.body?.classList?.contains('guest-session-active') && !document.body?.classList?.contains('student-session-active'));
+      }
+
+      function remember(el) {
+        if (!el || moved.has(el)) return;
+        moved.set(el, { parent: el.parentNode, next: el.nextSibling });
+      }
+
+      function moveTo(el, parent) {
+        if (!el || !parent) return;
+        remember(el);
+        if (el.parentNode !== parent) parent.appendChild(el);
+      }
+
+      function rename(el, html) {
+        if (!el) return;
+        if (!renamed.has(el)) renamed.set(el, el.innerHTML);
+        if (el.innerHTML !== html) el.innerHTML = html;
+      }
+
+      function ensureSection(menu, key, label) {
+        let section = menu.querySelector(`[data-mobile-editor-section="${key}"]`);
+        if (!section) {
+          section = document.createElement('section');
+          section.className = `mobile-editor-menu-section mobile-editor-menu-${key}`;
+          section.dataset.mobileEditorSection = key;
+          section.innerHTML = `<span class="mobile-editor-menu-label">${label}</span><div class="mobile-editor-menu-grid"></div>`;
+          menu.appendChild(section);
+        }
+        return section.querySelector('.mobile-editor-menu-grid');
+      }
+
+      function restoreAll() {
+        for (const [el, pos] of moved.entries()) {
+          if (!el || !pos.parent) continue;
+          try {
+            if (pos.next && pos.next.parentNode === pos.parent) pos.parent.insertBefore(el, pos.next);
+            else pos.parent.appendChild(el);
+          } catch (_) {}
+        }
+        moved.clear();
+        for (const [el, html] of renamed.entries()) {
+          try { if (el) el.innerHTML = html; } catch (_) {}
+        }
+        renamed.clear();
+        document.body?.classList?.remove(
+          'mobile-editor-menu-v413',
+          'mobile-editor-menu-v414',
+          'mobile-editor-menu-v415',
+          'mobile-editor-menu-open-v415',
+          'mobile-editor-fullmode-v413',
+          'mobile-editor-fullmode-v415'
+        );
+        window.MCS_UNIFIED_MOBILE_EDITOR_MENU_V415_ACTIVE = false;
+      }
+
+      function closeMenu() {
+        const menu = $('studentAccountMenu');
+        const btn = $('studentMenuBtn');
+        menu?.classList?.add('hidden');
+        menu?.setAttribute?.('aria-hidden', 'true');
+        btn?.setAttribute?.('aria-expanded', 'false');
+        btn?.setAttribute?.('aria-label', 'Open editor menu');
+        document.body?.classList?.remove('mobile-editor-menu-open-v415');
+      }
+
+      function fullModeActive() {
+        return Boolean(
+          document.body?.classList?.contains('editor-fullscreen-active') ||
+          document.body?.classList?.contains('phone-css-full-editor-active') ||
+          document.body?.classList?.contains('phone-true-full-editor-active')
+        );
+      }
+
+      function syncFullModeFlag() {
+        document.body?.classList?.toggle('mobile-editor-fullmode-v413', fullModeActive());
+        document.body?.classList?.toggle('mobile-editor-fullmode-v415', fullModeActive());
+      }
+
+      function positionMenu() {
+        const btn = $('studentMenuBtn');
+        const menu = $('studentAccountMenu');
+        if (!btn || !menu || menu.classList.contains('hidden')) return;
+        const rect = btn.getBoundingClientRect();
+        const width = Math.min(360, Math.max(304, window.innerWidth - 20));
+        const left = Math.max(10, Math.min(window.innerWidth - width - 10, rect.right - width));
+        const top = Math.max(10, Math.min(window.innerHeight - 120, rect.bottom + 8));
+        menu.style.setProperty('--mcs-mobile-editor-menu-top-v415', `${Math.round(top)}px`);
+        menu.style.setProperty('--mcs-mobile-editor-menu-left-v415', `${Math.round(left)}px`);
+        menu.style.setProperty('--mcs-mobile-editor-menu-width-v415', `${Math.round(width)}px`);
+      }
+
+      function installMenuDom() {
+        if (!document.body) return false;
+        if (!isPhoneUi() || !inEditorSession()) {
+          restoreAll();
+          return false;
+        }
+
+        const menu = $('studentAccountMenu');
+        const btn = $('studentMenuBtn');
+        if (!menu || !btn) return false;
+
+        window.MCS_UNIFIED_MOBILE_EDITOR_MENU_V415_ACTIVE = true;
+        document.body.classList.add('mobile-editor-menu-v413', 'mobile-editor-menu-v414', 'mobile-editor-menu-v415');
+        document.body.classList.remove('mobile-student-strip-open', 'mobile-guest-strip-open', 'phone-practice-menu-open');
+        syncFullModeFlag();
+
+        btn.classList.remove('hidden');
+        btn.setAttribute('aria-controls', 'studentAccountMenu');
+        btn.setAttribute('aria-label', menu.classList.contains('hidden') ? 'Open editor menu' : 'Close editor menu');
+
+        // Remove the old guest-only injected block that caused Practice Mode to show only "Login to Save".
+        $('guestPracticeMenuContent')?.classList?.add('hidden', 'mobile-v415-suppressed');
+
+        let head = menu.querySelector('.student-account-menu-head');
+        if (head && head.parentElement !== menu) menu.prepend(head);
+        const title = $('menuStudentGreeting');
+        if (title) title.textContent = isGuestSession() ? 'Practice Editor Menu' : 'Editor Menu';
+        $('menuStudentSaveState')?.classList?.add('mobile-menu-head-save-hidden');
+
+        const work = ensureSection(menu, 'work', 'Work Controls');
+        const appearance = ensureSection(menu, 'appearance', 'Appearance');
+        const tools = ensureSection(menu, 'tools', 'Tools');
+        const reset = ensureSection(menu, 'reset', 'Reset Tools');
+        const nav = ensureSection(menu, 'navigation', 'Go to');
+        const account = ensureSection(menu, 'account', 'Account');
+
+        ['stepActivityBtn', 'runBtn', 'autoRunBtn', 'resultBtn', 'fullEditorBtn', 'exitEditorBtn'].forEach(id => moveTo($(id), work));
+        moveTo($('themeToggle'), appearance);
+        ['aiReviewTopBtn', 'sendCodeBtn', 'menuCodeInboxBtn', 'downloadZipBtn'].forEach(id => moveTo($(id), tools));
+        ['resetBtn', 'clearBtn'].forEach(id => moveTo($(id), reset));
+        ['menuMyProjectsBtn', 'menuLessonViewerBtn', 'menuGivenActivitiesBtn', 'menuCodeExplorerBtn'].forEach(id => moveTo($(id), nav));
+
+        if (isGuestSession()) {
+          $('menuStudentLogoutBtn')?.classList?.add('mobile-account-inactive');
+          $('studentHeaderLogoutBtn')?.classList?.add('mobile-account-inactive');
+          const login = $('guestLoginToSaveBtn');
+          if (login) {
+            login.classList.remove('hidden', 'mobile-account-inactive');
+            moveTo(login, account);
+          }
+        } else {
+          $('guestLoginToSaveBtn')?.classList?.add('mobile-account-inactive');
+          const logout = $('menuStudentLogoutBtn') || $('studentHeaderLogoutBtn');
+          if (logout) {
+            logout.classList.remove('hidden', 'mobile-account-inactive');
+            moveTo(logout, account);
+          }
+        }
+
+        rename($('menuLessonViewerBtn'), '📚 Lessons');
+        rename($('menuGivenActivitiesBtn'), '📝 Activities');
+        rename($('menuCodeExplorerBtn'), '🚀 Course Path');
+        rename($('downloadZipBtn'), '💾 Download ZIP');
+        rename($('guestLoginToSaveBtn'), '🔐 Login to Save');
+        rename($('autoRunBtn'), $('autoRunBtn')?.getAttribute('aria-pressed') === 'false' ? '⚡ Auto Run: OFF' : '⚡ Auto Run: ON');
+
+        const projectHeader = $('editorProjectHeader');
+        const saveBtn = $('saveStudentProjectBtn');
+        if (projectHeader) {
+          let saveDock = projectHeader.querySelector('.mobile-editor-save-dock');
+          if (!saveDock) {
+            saveDock = document.createElement('div');
+            saveDock.className = 'mobile-editor-save-dock';
+            const badge = $('editorProjectSaveBadge');
+            if (badge && badge.parentElement === projectHeader) {
+              projectHeader.insertBefore(saveDock, badge);
+              saveDock.appendChild(badge);
+            } else {
+              projectHeader.appendChild(saveDock);
+            }
+          }
+          if (saveBtn) moveTo(saveBtn, saveDock);
+        }
+        return true;
+      }
+
+      function openMenu() {
+        if (!installMenuDom()) return;
+        const menu = $('studentAccountMenu');
+        const btn = $('studentMenuBtn');
+        if (!menu || !btn) return;
+        menu.classList.remove('hidden');
+        menu.setAttribute('aria-hidden', 'false');
+        btn.setAttribute('aria-expanded', 'true');
+        btn.setAttribute('aria-label', 'Close editor menu');
+        document.body?.classList?.add('mobile-editor-menu-open-v415');
+        positionMenu();
+      }
+
+      function toggleMenu(event) {
+        const button = event?.target?.closest?.('#studentMenuBtn');
+        if (!button || !isPhoneUi() || !inEditorSession()) return;
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation?.();
+        const menu = $('studentAccountMenu');
+        if (!menu || menu.classList.contains('hidden')) openMenu();
+        else closeMenu();
+      }
+
+      function outsideClose(event) {
+        if (!isPhoneUi() || !document.body?.classList?.contains('mobile-editor-menu-open-v415')) return;
+        if (event?.target?.closest?.('#studentMenuBtn, #studentAccountMenu')) return;
+        closeMenu();
+      }
+
+      function scheduleInstall() {
+        if (scheduled) return;
+        scheduled = true;
+        (window.requestAnimationFrame || window.setTimeout)(() => {
+          scheduled = false;
+          try { installMenuDom(); } catch (error) { console.warn('v415 mobile menu install skipped:', error); }
+        }, 0);
+      }
+
+      function bind() {
+        if (installed) return;
+        installed = true;
+        scheduleInstall();
+        document.addEventListener('pointerdown', toggleMenu, true);
+        document.addEventListener('click', toggleMenu, true);
+        document.addEventListener('click', outsideClose, true);
+        document.addEventListener('keydown', event => { if (event.key === 'Escape') closeMenu(); }, true);
+        window.addEventListener('resize', () => {
+          clearTimeout(repositionTimer);
+          repositionTimer = setTimeout(() => { scheduleInstall(); positionMenu(); }, 100);
+        }, { passive: true });
+        window.addEventListener('orientationchange', () => setTimeout(() => { scheduleInstall(); positionMenu(); }, 160), { passive: true });
+        try {
+          new MutationObserver(scheduleInstall).observe(document.body, { attributes: true, attributeFilter: ['class'] });
+          new MutationObserver(scheduleInstall).observe(document.documentElement, { attributes: true, attributeFilter: ['data-device-mode'] });
+        } catch (_) {}
+        window.MCS_V415_MOBILE_EDITOR_MENU = { install: installMenuDom, open: openMenu, close: closeMenu, restore: restoreAll, position: positionMenu };
+      }
+
+      if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bind, { once: true });
+      else bind();
+    })();
+  </script>
+
+  <script src="script.js?v=20260909-v415-mobile-editor-popover-fix"></script>
   <script>
     // v410 fallback: keep the desktop editor settings popover working even if older cached
     // toolbar code fails before binding the click handler.
@@ -3503,259 +3778,10 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
   </script>
 
   <script>
-    // v414: safe mobile-only editor menu controller.
-    // This keeps desktop untouched and never lets the mobile menu patch block app loading.
-    (() => {
-      try {
-        const PHONE_QUERY = '(max-width: 820px)';
-        const $ = id => document.getElementById(id);
-        const moved = new Map();
-        const renamed = new Map();
-        let resizeTimer = null;
-        let scheduled = false;
-        let observerStarted = false;
-
-        function isPhoneUi() {
-          try {
-            return Boolean(
-              document.documentElement.dataset.deviceMode === 'phone' ||
-              window.__mcsianPhonePreviewMode === true ||
-              window.matchMedia?.(PHONE_QUERY)?.matches
-            );
-          } catch (_) {
-            return false;
-          }
-        }
-
-        function editorSessionActive() {
-          return Boolean(
-            document.body?.classList?.contains('student-session-active') ||
-            document.body?.classList?.contains('guest-session-active')
-          );
-        }
-
-        function remember(el) {
-          if (!el || moved.has(el)) return;
-          moved.set(el, { parent: el.parentNode, next: el.nextSibling });
-        }
-
-        function moveTo(el, parent) {
-          if (!el || !parent || el.parentNode === parent) return;
-          remember(el);
-          parent.appendChild(el);
-        }
-
-        function restoreAll() {
-          for (const [el, pos] of moved.entries()) {
-            if (!el || !pos.parent) continue;
-            try {
-              if (pos.next && pos.next.parentNode === pos.parent) pos.parent.insertBefore(el, pos.next);
-              else pos.parent.appendChild(el);
-            } catch (_) {}
-          }
-          moved.clear();
-          for (const [el, value] of renamed.entries()) {
-            try { if (el) el.innerHTML = value; } catch (_) {}
-          }
-          renamed.clear();
-          document.body?.classList?.remove('mobile-editor-menu-v413', 'mobile-editor-menu-v414', 'mobile-editor-fullmode-v413');
-        }
-
-        function setMenuText(el, html) {
-          if (!el) return;
-          if (!renamed.has(el)) renamed.set(el, el.innerHTML);
-          if (el.innerHTML !== html) el.innerHTML = html;
-        }
-
-        function ensureSection(menu, key, label) {
-          let section = menu.querySelector(`[data-mobile-editor-section="${key}"]`);
-          if (!section) {
-            section = document.createElement('section');
-            section.className = `mobile-editor-menu-section mobile-editor-menu-${key}`;
-            section.dataset.mobileEditorSection = key;
-            section.innerHTML = `<span class="mobile-editor-menu-label">${label}</span><div class="mobile-editor-menu-grid"></div>`;
-            menu.appendChild(section);
-          }
-          return section.querySelector('.mobile-editor-menu-grid');
-        }
-
-        function updateFullModeFlags() {
-          const full = Boolean(
-            document.body?.classList?.contains('editor-fullscreen-active') ||
-            document.body?.classList?.contains('phone-css-full-editor-active') ||
-            document.body?.classList?.contains('phone-true-full-editor-active')
-          );
-          document.body?.classList?.toggle('mobile-editor-fullmode-v413', full);
-        }
-
-        function installMobileMenu() {
-          if (!document.body) return;
-          if (!isPhoneUi() || !editorSessionActive()) {
-            restoreAll();
-            return;
-          }
-
-          const menu = $('studentAccountMenu');
-          const menuBtn = $('studentMenuBtn');
-          const projectHeader = $('editorProjectHeader');
-          if (!menu || !menuBtn) return;
-
-          document.body.classList.add('mobile-editor-menu-v413', 'mobile-editor-menu-v414');
-          updateFullModeFlags();
-
-          menuBtn.classList.remove('hidden');
-          menuBtn.setAttribute('aria-controls', 'studentAccountMenu');
-          menuBtn.setAttribute('aria-label', menu.classList.contains('hidden') ? 'Open editor menu' : 'Close editor menu');
-
-          const head = menu.querySelector('.student-account-menu-head');
-          if (head && head.parentElement !== menu) menu.prepend(head);
-          const headTitle = $('menuStudentGreeting');
-          if (headTitle) {
-            const isGuest = document.body.classList.contains('guest-session-active');
-            headTitle.textContent = isGuest ? 'Practice Editor Menu' : 'Editor Menu';
-          }
-          const headSave = $('menuStudentSaveState');
-          if (headSave) headSave.classList.add('mobile-menu-head-save-hidden');
-
-          const work = ensureSection(menu, 'work', 'Work Controls');
-          const appearance = ensureSection(menu, 'appearance', 'Appearance');
-          const tools = ensureSection(menu, 'tools', 'Tools');
-          const reset = ensureSection(menu, 'reset', 'Reset Tools');
-          const nav = ensureSection(menu, 'navigation', 'Go to');
-          const account = ensureSection(menu, 'account', 'Account');
-
-          ['stepActivityBtn', 'runBtn', 'autoRunBtn', 'resultBtn', 'fullEditorBtn', 'exitEditorBtn'].forEach(id => moveTo($(id), work));
-          moveTo($('themeToggle'), appearance);
-          ['aiReviewTopBtn', 'sendCodeBtn', 'menuCodeInboxBtn', 'downloadZipBtn'].forEach(id => moveTo($(id), tools));
-          ['resetBtn', 'clearBtn'].forEach(id => moveTo($(id), reset));
-          ['menuMyProjectsBtn', 'menuLessonViewerBtn', 'menuGivenActivitiesBtn', 'menuCodeExplorerBtn'].forEach(id => moveTo($(id), nav));
-
-          const isGuest = document.body.classList.contains('guest-session-active');
-          const logout = $('menuStudentLogoutBtn') || $('studentHeaderLogoutBtn');
-          const login = $('guestLoginToSaveBtn');
-          if (isGuest) {
-            if (logout) logout.classList.add('mobile-account-inactive');
-            if (login) {
-              login.classList.remove('hidden', 'mobile-account-inactive');
-              moveTo(login, account);
-            }
-          } else {
-            if (login) login.classList.add('mobile-account-inactive');
-            if (logout) {
-              logout.classList.remove('hidden', 'mobile-account-inactive');
-              moveTo(logout, account);
-            }
-          }
-
-          setMenuText($('menuLessonViewerBtn'), '📚 Lessons');
-          setMenuText($('menuGivenActivitiesBtn'), '📝 Activities');
-          setMenuText($('menuCodeExplorerBtn'), '🚀 Course Path');
-          setMenuText($('downloadZipBtn'), '💾 Download ZIP');
-          setMenuText($('guestLoginToSaveBtn'), '🔐 Login to Save');
-
-          if (projectHeader) {
-            let saveDock = projectHeader.querySelector('.mobile-editor-save-dock');
-            if (!saveDock) {
-              saveDock = document.createElement('div');
-              saveDock.className = 'mobile-editor-save-dock';
-              const badge = $('editorProjectSaveBadge');
-              if (badge && badge.parentElement === projectHeader) {
-                projectHeader.insertBefore(saveDock, badge);
-                saveDock.appendChild(badge);
-              } else {
-                projectHeader.appendChild(saveDock);
-              }
-            }
-            const saveBtn = $('saveStudentProjectBtn');
-            if (saveBtn) moveTo(saveBtn, saveDock);
-          }
-        }
-
-        function safeInstall() {
-          try {
-            installMobileMenu();
-          } catch (error) {
-            console.warn('Mobile editor menu skipped safely:', error);
-            try { restoreAll(); } catch (_) {}
-          }
-        }
-
-        function scheduleInstall() {
-          if (scheduled) return;
-          scheduled = true;
-          window.requestAnimationFrame?.(() => {
-            scheduled = false;
-            safeInstall();
-          }) || window.setTimeout(() => {
-            scheduled = false;
-            safeInstall();
-          }, 0);
-        }
-
-        function closeUnifiedMenu() {
-          const menu = $('studentAccountMenu');
-          const menuBtn = $('studentMenuBtn');
-          if (!menu || !menuBtn) return;
-          menu.classList.add('hidden');
-          menuBtn.setAttribute('aria-expanded', 'false');
-          menuBtn.setAttribute('aria-label', 'Open editor menu');
-        }
-
-        function closestFromEvent(event, selector) {
-          const target = event?.target;
-          return target && typeof target.closest === 'function' ? target.closest(selector) : null;
-        }
-
-        function toggleUnifiedMenu(event) {
-          const btn = closestFromEvent(event, '#studentMenuBtn');
-          if (!btn || !isPhoneUi() || !editorSessionActive()) return;
-          event.preventDefault();
-          event.stopPropagation();
-          event.stopImmediatePropagation?.();
-          safeInstall();
-          const menu = $('studentAccountMenu');
-          if (!menu) return;
-          const open = menu.classList.contains('hidden');
-          menu.classList.toggle('hidden', !open);
-          btn.setAttribute('aria-expanded', String(open));
-          btn.setAttribute('aria-label', open ? 'Close editor menu' : 'Open editor menu');
-          updateFullModeFlags();
-        }
-
-        function closeOnOutsideClick(event) {
-          if (!isPhoneUi()) return;
-          if (closestFromEvent(event, '#studentMenuBtn, #studentAccountMenu')) return;
-          closeUnifiedMenu();
-        }
-
-        function bind() {
-          if (observerStarted) return;
-          observerStarted = true;
-          scheduleInstall();
-          document.addEventListener('click', toggleUnifiedMenu, true);
-          document.addEventListener('click', closeOnOutsideClick, false);
-          document.addEventListener('keydown', event => {
-            if (event.key === 'Escape') closeUnifiedMenu();
-          });
-          window.addEventListener('resize', () => {
-            window.clearTimeout(resizeTimer);
-            resizeTimer = window.setTimeout(scheduleInstall, 120);
-          }, { passive: true });
-          try {
-            const bodyObserver = new MutationObserver(scheduleInstall);
-            bodyObserver.observe(document.body, { attributes: true, attributeFilter: ['class'] });
-            const htmlObserver = new MutationObserver(scheduleInstall);
-            htmlObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-device-mode'] });
-          } catch (_) {}
-          window.MCS_V414_MOBILE_EDITOR_MENU = { install: safeInstall, restore: restoreAll, close: closeUnifiedMenu };
-        }
-
-        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bind, { once: true });
-        else bind();
-      } catch (error) {
-        console.warn('Mobile editor menu disabled safely:', error);
-      }
-    })();
+    // v415: late v414 mobile controller intentionally disabled. The early
+    // v415 controller above owns the phone editor hamburger before legacy
+    // strip handlers can intercept it.
+    window.MCS_V414_MOBILE_EDITOR_MENU = window.MCS_V415_MOBILE_EDITOR_MENU || null;
   </script>
 </body>
 </html>

@@ -37435,6 +37435,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
 
   let lastTap = 0;
   function onGuestMenuTap(event) {
+    if (window.MCS_UNIFIED_MOBILE_EDITOR_MENU_V415_ACTIVE || document.body.classList.contains('mobile-editor-menu-v415')) return;
     const button = event.target?.closest?.('#studentMenuBtn');
     if (!button || !isPhoneUi() || !isGuestPractice()) return;
     event.preventDefault();
@@ -37745,6 +37746,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   }
 
   function handleStudentMenuClick(event) {
+    if (window.MCS_UNIFIED_MOBILE_EDITOR_MENU_V415_ACTIVE || document.body.classList.contains('mobile-editor-menu-v415')) return;
     const button = event.target?.closest?.('#studentMenuBtn');
     if (!button || !isPhoneUi() || !document.body.classList.contains('student-session-active')) return;
     event.preventDefault();
