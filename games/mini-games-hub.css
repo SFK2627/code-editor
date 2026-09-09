@@ -437,3 +437,14 @@ html[data-theme="dark"] .xp-games-xp-float { text-shadow: 0 1px 0 #0f172a; }
   .xp-games-daily-track i,
   .xp-games-play { transition: none !important; }
 }
+
+/* v434 — multiple reusable game cards inside the existing scrollable list. */
+.xp-games-game-list [data-xp-games-cards] {
+  display: grid;
+  gap: 12px;
+}
+.xp-games-play:disabled {
+  cursor: wait;
+  opacity: .72;
+  transform: none !important;
+}

@@ -1,0 +1,49 @@
+/* ICT 8 Connect v434 — BUG SMASH. Namespace-only styles. */
+.bug-smash-overlay { background: radial-gradient(circle at 50% 15%, rgba(14,165,233,.22), transparent 42%), #050b16; }
+.bug-smash-shell {
+  position: relative; width: min(760px, calc(100vw - 34px)); height: min(620px, calc(100dvh - 34px));
+  min-height: 430px; overflow: hidden; border: 1px solid rgba(56,189,248,.28); border-radius: 26px;
+  background: #07101e; box-shadow: 0 30px 90px rgba(0,0,0,.48); isolation: isolate;
+}
+.bug-smash-canvas { position:absolute; inset:0; width:100%; height:100%; display:block; touch-action:none; -webkit-tap-highlight-color:transparent; }
+.bug-smash-topbar { position:absolute; z-index:8; top:0; left:0; right:0; display:flex; gap:7px; padding:10px 10px 0; pointer-events:none; }
+.bug-smash-topbar button { pointer-events:auto; min-height:38px; padding:0 10px; border:1px solid rgba(186,230,253,.18); border-radius:12px; background:rgba(4,15,29,.76); color:#e0f2fe; font:inherit; font-size:.69rem; font-weight:900; cursor:pointer; backdrop-filter:blur(7px); }
+.bug-smash-topbar button[data-bug-smash-close] { margin-left:auto; width:38px; padding:0; font-size:1.05rem; }
+.bug-smash-hud { position:absolute; z-index:7; top:58px; left:50%; transform:translateX(-50%); display:grid; grid-template-columns:repeat(3,auto); gap:7px; pointer-events:none; }
+.bug-smash-hud div { min-width:76px; padding:7px 10px; border-radius:12px; background:rgba(3,15,29,.72); text-align:center; backdrop-filter:blur(6px); }
+.bug-smash-hud small { display:block; color:#7dd3fc; font-size:.55rem; font-weight:900; letter-spacing:.08em; }
+.bug-smash-hud strong { display:block; color:#fff; font-size:1rem; margin-top:2px; }
+.bug-smash-panel { position:absolute; z-index:12; inset:0; display:grid; place-items:center; padding:22px; background:rgba(2,8,23,.48); backdrop-filter:blur(5px); }
+.bug-smash-panel[hidden] { display:none !important; }
+.bug-smash-panel-card { width:min(360px,100%); padding:22px; border:1px solid rgba(125,211,252,.22); border-radius:22px; background:rgba(7,25,45,.96); color:#eaf8ff; text-align:center; box-shadow:0 22px 60px rgba(0,0,0,.35); }
+.bug-smash-panel-card h2 { margin:0 0 7px; font-size:1.5rem; }
+.bug-smash-panel-card p { margin:0 0 14px; color:#a8c7d9; font-size:.8rem; line-height:1.45; }
+.bug-smash-hero { display:block; font-size:2.4rem; margin-bottom:4px; }
+.bug-smash-round-label { display:block; margin:10px 0 16px; color:#facc15; letter-spacing:.08em; }
+.bug-smash-panel-card button { width:100%; min-height:43px; border:1px solid rgba(125,211,252,.18); border-radius:13px; background:#12304c; color:#e9f7ff; font:inherit; font-size:.74rem; font-weight:900; cursor:pointer; }
+.bug-smash-panel-card button.primary { border-color:transparent; background:linear-gradient(135deg,#0284c7,#7c3aed); color:#fff; }
+.bug-smash-stats { display:grid; grid-template-columns:repeat(4,1fr); gap:7px; margin:15px 0 12px; }
+.bug-smash-stats div { padding:9px 4px; border-radius:13px; background:rgba(20,55,82,.62); }
+.bug-smash-stats small { display:block; color:#8bb6cb; font-size:.54rem; font-weight:850; text-transform:uppercase; }
+.bug-smash-stats strong { display:block; color:#fff; margin-top:3px; }
+.bug-smash-stats .xp strong { color:#fbbf24; }
+.bug-smash-reward-note { min-height:34px; display:grid; place-items:center; margin:0 0 12px !important; padding:7px 9px; border-radius:11px; background:rgba(15,45,70,.78); color:#cce8f5 !important; font-size:.72rem !important; }
+.bug-smash-reward-note.success { background:rgba(20,83,45,.42); color:#bbf7d0 !important; }
+.bug-smash-reward-note.warn { background:rgba(120,53,15,.42); color:#fed7aa !important; }
+.bug-smash-actions { display:grid; gap:8px; }
+@media (max-width:600px) {
+  .bug-smash-overlay { padding:0; place-items:stretch; }
+  .bug-smash-shell { width:100%; height:100dvh; min-height:0; border:0; border-radius:0; }
+  .bug-smash-topbar { padding:max(8px,env(safe-area-inset-top,0px)) max(8px,env(safe-area-inset-right,0px)) 0 max(8px,env(safe-area-inset-left,0px)); }
+  .bug-smash-hud { top:max(55px,calc(env(safe-area-inset-top,0px) + 46px)); gap:5px; }
+  .bug-smash-hud div { min-width:68px; padding:6px 8px; }
+  .bug-smash-panel { padding:16px max(14px,env(safe-area-inset-right,0px)) max(16px,env(safe-area-inset-bottom,0px)) max(14px,env(safe-area-inset-left,0px)); }
+  .bug-smash-stats { grid-template-columns:repeat(2,1fr); }
+}
+@media (max-height:520px) and (orientation:landscape) {
+  .bug-smash-overlay { padding:4px; }
+  .bug-smash-shell { height:calc(100dvh - 8px); width:min(720px,calc(100vw - 8px)); min-height:0; border-radius:16px; }
+  .bug-smash-hud { top:48px; }
+  .bug-smash-panel-card { padding:14px; }
+}
+@media (prefers-reduced-motion:reduce) { .bug-smash-panel { backdrop-filter:none; } }
