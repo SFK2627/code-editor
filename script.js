@@ -41398,7 +41398,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   // v429 — XP Mini-Games account state. The cap is shared by every mini-game
   // added to the hub. Manila time is deliberate so the classroom day resets
   // consistently even when a student's device timezone is misconfigured.
-  const XP_MINI_GAMES_DAILY_CAP = 20;
+  const XP_MINI_GAMES_DAILY_CAP = 50;
   const XP_MINI_GAMES_TIME_ZONE = 'Asia/Manila';
   const XP_MINI_GAMES_RECENT_REWARD_LIMIT = 64;
   const XP_MINI_GAME_ID_CODE_FLY = 'code-fly';
@@ -41435,6 +41435,17 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     return 0;
   }
 
+
+  // v431 — Mini-game XP must be ledger-based and tier-based only.
+  // A corrupted older client could accidentally store a game score or today's
+  // cumulative XP as if it were the per-round XP reward. This clamp repairs
+  // those records by making every reward entry obey the official score tiers.
+  function sanitizeMiniGameEntryXp(score = 0, xp = 0) {
+    const tierReward = miniGameRewardForScore(score);
+    const claimedXp = Math.max(0, Math.floor(Number(xp || 0)));
+    return Math.min(XP_MINI_GAMES_DAILY_CAP, tierReward, claimedXp);
+  }
+
   function normalizeMiniGameRewardLedger(input = {}) {
     const source = input && typeof input === 'object' && !Array.isArray(input) ? input : {};
     const output = {};
@@ -41446,7 +41457,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       output[id] = {
         gameId: String(entry.gameId || XP_MINI_GAME_ID_CODE_FLY).trim().slice(0, 40) || XP_MINI_GAME_ID_CODE_FLY,
         score: Math.max(0, Math.min(10000, Math.floor(Number(entry.score || 0)))),
-        xp: Math.max(0, Math.min(XP_MINI_GAMES_DAILY_CAP, Math.floor(Number(entry.xp || 0)))),
+        xp: sanitizeMiniGameEntryXp(entry.score || 0, entry.xp || 0),
         day,
         at: String(entry.at || '').slice(0, 48)
       };
@@ -41484,27 +41495,35 @@ window.MCS_PHONE_MENU_STATUS = () => ({
 
   function normalizeMiniGamesState(input = {}) {
     const source = input && typeof input === 'object' && !Array.isArray(input) ? input : {};
+    const sourceVersion = Math.max(0, Math.floor(Number(source.version || 0)));
     const dailySource = source.daily && typeof source.daily === 'object' ? source.daily : {};
     const dailyDate = /^\d{4}-\d{2}-\d{2}$/.test(String(dailySource.date || '')) ? String(dailySource.date) : '';
     const dailySessions = normalizeMiniGameRewardLedger(dailySource.sessions || {});
+    const recentRewards = trimMiniGameRewardLedger(source.recentRewards || {});
     const dailySessionXp = Object.values(dailySessions).reduce((sum, entry) => {
       if (dailyDate && entry.day && entry.day !== dailyDate) return sum;
       return sum + Math.max(0, Number(entry.xp || 0));
     }, 0);
+    const knownLifetimeXp = Object.values(recentRewards).reduce((sum, entry) => sum + Math.max(0, Number(entry.xp || 0)), 0);
+    const sourceLifetimeXp = Math.max(0, Math.floor(Number(source.lifetimeXp || 0)));
+    // v431 repair rule:
+    // - Old version-1 Mini-Games data is not trusted because it may have saved
+    //   score/today totals as XP. Repair it from the per-round reward ledger.
+    // - New version-2 data may keep an older lifetime total even after the
+    //   recent ledger is trimmed, but it can never be lower than known sessions.
+    const lifetimeXp = sourceVersion >= 2
+      ? Math.max(sourceLifetimeXp, knownLifetimeXp)
+      : knownLifetimeXp;
     const gamesSource = source.games && typeof source.games === 'object' ? source.games : {};
     const codeFlySource = gamesSource.codeFly && typeof gamesSource.codeFly === 'object'
       ? gamesSource.codeFly
       : (source.codeFly && typeof source.codeFly === 'object' ? source.codeFly : {});
     return {
-      version: 1,
-      lifetimeXp: Math.max(0, Math.floor(Number(source.lifetimeXp || 0))),
+      version: 2,
+      lifetimeXp: Math.max(0, Math.floor(Number(lifetimeXp || 0))),
       daily: {
         date: dailyDate,
-        earned: Math.min(XP_MINI_GAMES_DAILY_CAP, Math.max(
-          0,
-          Math.floor(Number(dailySource.earned || 0)),
-          Math.floor(dailySessionXp)
-        )),
+        earned: Math.min(XP_MINI_GAMES_DAILY_CAP, Math.floor(dailySessionXp)),
         sessions: dailySessions
       },
       games: {
@@ -41515,7 +41534,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       },
       soundEnabled: source.soundEnabled !== false,
       soundUpdatedAt: String(source.soundUpdatedAt || '').slice(0, 48),
-      recentRewards: trimMiniGameRewardLedger(source.recentRewards || {}),
+      recentRewards,
       updatedAt: String(source.updatedAt || '').slice(0, 48)
     };
   }
@@ -43275,7 +43294,10 @@ window.MCS_PHONE_MENU_STATUS = () => ({
           || null;
         duplicate = Boolean(priorReward);
         if (priorReward) {
-          awardedXp = Math.max(0, Number(priorReward.xp || 0));
+          // Duplicate/replayed claims must never add or re-announce XP. The
+          // existing ledger entry remains for audit/history, but this call is
+          // treated as +0 so the header and floating reward do not climb again.
+          awardedXp = 0;
           requestedXp = miniGameRewardForScore(Math.max(verified.score, Number(priorReward.score || 0)));
         } else {
           const remaining = Math.max(0, XP_MINI_GAMES_DAILY_CAP - Math.max(0, Number(miniGames.daily.earned || 0)));
@@ -43481,7 +43503,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     if (dom.xpBadge) {
       const visibleXp = totalXp();
       dom.xpBadge.textContent = isMobileExplorerLayout() ? `⚡ ${visibleXp}` : `⚡ ${visibleXp} XP`;
-      dom.xpBadge.title = 'Total XP includes learning rewards plus up to 20 bonus XP per day from Mini-Games. Click or tap to open XP Mini-Games.';
+      dom.xpBadge.title = 'Total XP includes learning rewards plus up to 50 bonus XP per day from Mini-Games. Click or tap to open XP Mini-Games.';
       dom.xpBadge.setAttribute('aria-label', `${visibleXp} XP. Open XP Mini-Games.`);
     }
     renderHeartStatus();

@@ -62,12 +62,12 @@
           <div class="xp-games-daily">
             <div class="xp-games-daily-head">
               <span>TODAY'S GAME XP</span>
-              <strong data-xp-games-daily-value>0 / 20 XP</strong>
+              <strong data-xp-games-daily-value>0 / 50 XP</strong>
             </div>
             <div class="xp-games-daily-track" aria-hidden="true"><i data-xp-games-daily-bar></i></div>
             <div class="xp-games-daily-foot">
               <span data-xp-games-daily-foot>Small bonus only — learning XP still matters most.</span>
-              <b>20 XP/day</b>
+              <b>50 XP/day</b>
             </div>
           </div>
         </section>
@@ -141,7 +141,7 @@
       const best = Math.max(0, Number(snapshot?.bestScores?.[game.bestKey] || 0));
       const xpCopy = snapshot?.capReached
         ? 'XP limit reached · play for high score'
-        : 'Up to +15 XP/run · 20 XP/day cap';
+        : 'Up to +15 XP/run · 50 XP/day cap';
       return `
         <article class="xp-games-card" data-xp-game-card="${game.id}">
           <div class="xp-games-card-art" aria-hidden="true">${game.icon}</div>
@@ -161,13 +161,13 @@
   function render(snapshot = null) {
     if (!state.built) return;
     const next = snapshot || state.bridge?.getSnapshot?.() || {
-      dailyCap: 20,
+      dailyCap: 50,
       todayXp: 0,
       capReached: false,
       loggedIn: false,
       bestScores: { codeFly: 0 }
     };
-    const cap = Math.max(1, Number(next.dailyCap || 20));
+    const cap = Math.max(1, Number(next.dailyCap || 50));
     const today = Math.max(0, Math.min(cap, Number(next.todayXp || 0)));
     const percent = Math.max(0, Math.min(100, today / cap * 100));
     state.dailyValue.textContent = `${today} / ${cap} XP`;
