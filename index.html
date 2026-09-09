@@ -45,7 +45,7 @@
   </script>
   <link rel="preconnect" href="https://drive.google.com" crossorigin>
   <link rel="preconnect" href="https://lh3.googleusercontent.com" crossorigin>
-  <link rel="stylesheet" href="style.css?v=20260909-v418-mobile-editor-right-menu-compact-project" />
+  <link rel="stylesheet" href="style.css?v=20260909-v419-mobile-menu-share-suggestions" />
   <style>
     .ai-rubric-settings-card,
     .admin-project-ai-review-card {
@@ -3615,6 +3615,38 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
         return text || '🌙 Dark / Light';
       }
 
+      function isFeatureButtonVisible(id) {
+        const el = $(id);
+        if (!el || el.disabled) return false;
+        if (el.classList.contains('hidden')) return false;
+        if (el.getAttribute('aria-hidden') === 'true') return false;
+        return true;
+      }
+
+      function getShareJoinText() {
+        const button = $('collabShareBtn');
+        if (!button) return '🤝 Share / Join';
+        if (button.classList.contains('is-hosting')) return '🟢 Hosting Live';
+        if (button.classList.contains('is-joined')) return '🟣 Joined Live';
+        return '🤝 Share / Join';
+      }
+
+      function codeSuggestionsAvailable() {
+        if (document.body?.classList?.contains('code-suggestions-disabled')) return false;
+        const toggle = $('mobileSuggestionToggle');
+        return Boolean(toggle && !toggle.disabled);
+      }
+
+      function codeSuggestionsOff() {
+        if (document.body?.classList?.contains('mobile-suggestions-off')) return true;
+        try { return localStorage.getItem('mcs.mobile.suggestionsOff.v1') === '1'; }
+        catch (_) { return false; }
+      }
+
+      function getCodeSuggestionsText() {
+        return `✨ Code Suggestions: ${codeSuggestionsOff() ? 'OFF' : 'ON'}`;
+      }
+
       function makeButton(label, action, extraClass = '') {
         const button = document.createElement('button');
         button.type = 'button';
@@ -3661,6 +3693,8 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
         if (actionExists('aiReviewTopBtn')) tools.push({ label: '💬 Feedback', action: 'feedback' });
         if (!isFull && !isGuest && actionExists('sendCodeBtn')) tools.push({ label: '📤 Send Code', action: 'send' });
         if (!isGuest && (actionExists('codeInboxBtn') || actionExists('menuCodeInboxBtn'))) tools.push({ label: '📥 Inbox', action: 'inbox' });
+        if (!isGuest && isFeatureButtonVisible('collabShareBtn')) tools.push({ label: getShareJoinText(), action: 'collab' });
+        if (codeSuggestionsAvailable()) tools.push({ label: getCodeSuggestionsText(), action: 'suggestions' });
         if (actionExists('downloadZipBtn')) tools.push({ label: '💾 Download ZIP', action: 'zip' });
         appendSection(menu, 'Tools', tools, 'mobile-editor-menu-tools');
 
@@ -3741,6 +3775,8 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
           case 'feedback': clickReal('aiReviewTopBtn'); break;
           case 'send': clickReal('sendCodeBtn'); break;
           case 'inbox': clickReal(['codeInboxBtn', 'menuCodeInboxBtn']); break;
+          case 'collab': clickReal('collabShareBtn'); break;
+          case 'suggestions': clickReal('mobileSuggestionToggle'); break;
           case 'zip': clickReal('downloadZipBtn'); break;
           case 'reset': clickReal('resetBtn'); break;
           case 'clear': clickReal('clearBtn'); break;

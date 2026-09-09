@@ -63737,3 +63737,23 @@ body:not(.student-session-active) #studentHeaderLogoutBtn {
     font-size: 0.62rem !important;
   }
 }
+
+
+/* =========================================================
+   v419 MOBILE UNIFIED MENU: SHARE/JOIN + CODE SUGGESTIONS
+   Phone/mobile only. Desktop remains untouched.
+   The standalone mobile collaboration/suggestion controls are folded into
+   the hamburger popover so the editor surface stays clean.
+   ========================================================= */
+@media (max-width: 820px) {
+  body.mobile-editor-menu-v416 #mobileCollabTools,
+  body.mobile-editor-menu-v416 #mobileSuggestionToggle,
+  body.mobile-editor-menu-v416 .mobile-collab-tools,
+  body.mobile-editor-menu-v416 .mobile-suggestion-toggle {
+    display: none !important;
+  }
+
+  body.mobile-editor-menu-v416 #mobileEditorUnifiedMenu .mobile-editor-menu-tools .mobile-editor-menu-action {
+    min-width: 0 !important;
+  }
+}
