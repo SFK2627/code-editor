@@ -235,6 +235,18 @@
     limitMessage: null,
     loginMessage: null,
     gameList: null,
+    tabs: [],
+    panels: [],
+    activeTab: 'games',
+    weeklyRefreshBtn: null,
+    weeklyWeekLabel: null,
+    weeklyResetLabel: null,
+    weeklyStatus: null,
+    weeklyList: null,
+    weeklyYou: null,
+    weeklyLoadedAt: 0,
+    weeklyLoading: false,
+    weeklyData: null,
     launcher: null,
     bridge: null,
     unsubscribe: null,
@@ -251,6 +263,20 @@
 
   function gameById(id) {
     return GAME_REGISTRY.find(game => game.id === id) || null;
+  }
+
+  function escapeHTML(value = '') {
+    return String(value ?? '').replace(/[&<>"']/g, char => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[char]));
+  }
+
+  function weeklyRankLabel(rank = 0) {
+    const safe = Math.max(0, Math.floor(Number(rank || 0)));
+    if (safe === 1) return '🥇';
+    if (safe === 2) return '🥈';
+    if (safe === 3) return '🥉';
+    return safe > 0 ? `#${safe}` : '—';
   }
 
   function build() {
@@ -275,31 +301,61 @@
           <button class="xp-games-close" type="button" data-xp-games-close aria-label="Close XP Mini-Games">×</button>
         </header>
 
-        <section class="xp-games-summary">
-          <h3>WANT SOME EXTRA XP?</h3>
-          <p>Play mini-games, beat your records, and earn a little bonus XP. Pick a game below.</p>
-          <div class="xp-games-daily">
-            <div class="xp-games-daily-head">
-              <span>TODAY'S GAME XP</span>
-              <strong data-xp-games-daily-value>0 / 50 XP</strong>
-            </div>
-            <div class="xp-games-daily-track" aria-hidden="true"><i data-xp-games-daily-bar></i></div>
-            <div class="xp-games-daily-foot">
-              <span data-xp-games-daily-foot>Small bonus only — learning XP still matters most.</span>
-              <b data-xp-games-cap-label>50 XP/day</b>
-            </div>
-          </div>
-        </section>
+        <nav class="xp-games-tabs" role="tablist" aria-label="XP Mini-Games views">
+          <button class="xp-games-tab active" type="button" role="tab" aria-selected="true" data-xp-games-tab="games">🎮 GAMES</button>
+          <button class="xp-games-tab" type="button" role="tab" aria-selected="false" data-xp-games-tab="weekly">🏆 WEEKLY</button>
+        </nav>
 
-        <section class="xp-games-game-list" aria-label="Available mini-games">
-          <div class="xp-games-limit-message" data-xp-games-limit>
-            DAILY XP LIMIT REACHED — you can still play every mini-game and beat your records, but no more bonus XP can be earned today.
-          </div>
-          <div class="xp-games-login-message" data-xp-games-login>
-            Log in as a student to earn account XP. Mini-games remain playable in practice mode.
-          </div>
-          <div data-xp-games-cards></div>
-        </section>
+        <div class="xp-games-panels">
+          <section class="xp-games-panel xp-games-panel-games" role="tabpanel" data-xp-games-panel="games">
+            <section class="xp-games-summary">
+              <h3>WANT SOME EXTRA XP?</h3>
+              <p>Play mini-games, beat your records, and earn a little bonus XP. Pick a game below.</p>
+              <div class="xp-games-daily">
+                <div class="xp-games-daily-head">
+                  <span>TODAY'S GAME XP</span>
+                  <strong data-xp-games-daily-value>0 / 50 XP</strong>
+                </div>
+                <div class="xp-games-daily-track" aria-hidden="true"><i data-xp-games-daily-bar></i></div>
+                <div class="xp-games-daily-foot">
+                  <span data-xp-games-daily-foot>Small bonus only — learning XP still matters most.</span>
+                  <b data-xp-games-cap-label>50 XP/day</b>
+                </div>
+              </div>
+            </section>
+
+            <section class="xp-games-game-list" aria-label="Available mini-games">
+              <div class="xp-games-limit-message" data-xp-games-limit>
+                DAILY XP LIMIT REACHED — you can still play every mini-game and beat your records, but no more bonus XP can be earned today.
+              </div>
+              <div class="xp-games-login-message" data-xp-games-login>
+                Log in as a student to earn account XP. Mini-games remain playable in practice mode.
+              </div>
+              <div data-xp-games-cards></div>
+            </section>
+          </section>
+
+          <section class="xp-games-panel xp-games-panel-weekly" role="tabpanel" data-xp-games-panel="weekly" hidden>
+            <div class="xp-games-weekly-head">
+              <div>
+                <small>🏆 WEEKLY ARCADE</small>
+                <h3 data-xp-games-week-label>This Week</h3>
+                <p data-xp-games-week-reset>Resets Monday · Manila time</p>
+              </div>
+              <button class="xp-games-weekly-refresh" type="button" data-xp-games-weekly-refresh aria-label="Refresh weekly leaderboard">↻ Refresh</button>
+            </div>
+            <div class="xp-games-weekly-rule">
+              <span><b>50 XP/day</b> shared across all games</span>
+              <span><b>350 XP</b> theoretical weekly max</span>
+              <small>Ranking uses only Mini-Game XP actually awarded this week — never raw game score.</small>
+            </div>
+            <div class="xp-games-weekly-scroll">
+              <div class="xp-games-weekly-status" data-xp-games-weekly-status>Open this tab to load the leaderboard.</div>
+              <div class="xp-games-weekly-list" data-xp-games-weekly-list></div>
+            </div>
+            <div class="xp-games-weekly-you" data-xp-games-weekly-you hidden></div>
+          </section>
+        </div>
       </section>`;
     document.body.appendChild(overlay);
 
@@ -312,8 +368,18 @@
     state.limitMessage = overlay.querySelector('[data-xp-games-limit]');
     state.loginMessage = overlay.querySelector('[data-xp-games-login]');
     state.gameList = overlay.querySelector('[data-xp-games-cards]');
+    state.tabs = Array.from(overlay.querySelectorAll('[data-xp-games-tab]'));
+    state.panels = Array.from(overlay.querySelectorAll('[data-xp-games-panel]'));
+    state.weeklyRefreshBtn = overlay.querySelector('[data-xp-games-weekly-refresh]');
+    state.weeklyWeekLabel = overlay.querySelector('[data-xp-games-week-label]');
+    state.weeklyResetLabel = overlay.querySelector('[data-xp-games-week-reset]');
+    state.weeklyStatus = overlay.querySelector('[data-xp-games-weekly-status]');
+    state.weeklyList = overlay.querySelector('[data-xp-games-weekly-list]');
+    state.weeklyYou = overlay.querySelector('[data-xp-games-weekly-you]');
 
     state.closeBtn.addEventListener('click', closeHub);
+    state.tabs.forEach(button => button.addEventListener('click', () => switchTab(button.dataset.xpGamesTab || 'games')));
+    state.weeklyRefreshBtn?.addEventListener('click', () => loadWeeklyLeaderboard({ force: true }));
     state.gameList.addEventListener('click', event => {
       const button = event.target.closest('[data-xp-game-play]');
       if (!button || button.disabled) return;
@@ -352,6 +418,128 @@
     });
 
     state.built = true;
+  }
+
+  function renderWeeklyLeaderboard(data = null) {
+    if (!state.weeklyStatus || !state.weeklyList || !state.weeklyYou) return;
+    const info = data || state.weeklyData || {};
+    if (state.weeklyWeekLabel) state.weeklyWeekLabel.textContent = info.weekLabel || 'This Week';
+    if (state.weeklyResetLabel) state.weeklyResetLabel.textContent = info.resetLabel || 'Resets Monday · Manila time';
+
+    if (state.weeklyLoading) {
+      state.weeklyStatus.hidden = false;
+      state.weeklyStatus.className = 'xp-games-weekly-status loading';
+      state.weeklyStatus.textContent = 'Loading Weekly Arcade standings…';
+      state.weeklyList.innerHTML = '';
+      state.weeklyYou.hidden = true;
+      return;
+    }
+
+    if (!info.loggedIn) {
+      state.weeklyStatus.hidden = false;
+      state.weeklyStatus.className = 'xp-games-weekly-status warning';
+      state.weeklyStatus.textContent = info.error || 'Log in as a student to view the Weekly Arcade leaderboard.';
+      state.weeklyList.innerHTML = '';
+      state.weeklyYou.hidden = true;
+      return;
+    }
+
+    if (!info.ok) {
+      state.weeklyStatus.hidden = false;
+      state.weeklyStatus.className = 'xp-games-weekly-status error';
+      state.weeklyStatus.textContent = info.error || 'Weekly standings could not be loaded. Refresh and try again.';
+      state.weeklyList.innerHTML = '';
+      state.weeklyYou.hidden = true;
+      return;
+    }
+
+    const entries = Array.isArray(info.entries) ? info.entries : [];
+    if (!entries.length) {
+      state.weeklyStatus.hidden = false;
+      state.weeklyStatus.className = 'xp-games-weekly-status empty';
+      state.weeklyStatus.textContent = 'No ranked players yet this week. Earn Mini-Game XP to become the first!';
+      state.weeklyList.innerHTML = '';
+    } else {
+      state.weeklyStatus.hidden = true;
+      state.weeklyList.innerHTML = entries.map(entry => {
+        const rank = Math.max(0, Number(entry.rank || 0));
+        const isYou = Boolean(info.yourEntry?.uid && entry.uid === info.yourEntry.uid);
+        const section = entry.section ? `<small>${escapeHTML(entry.section)}</small>` : '<small>ICT 8 Connect</small>';
+        return `<article class="xp-games-weekly-row ${isYou ? 'is-you' : ''} ${rank <= 3 ? `top-${rank}` : ''}">
+          <div class="xp-games-weekly-rank" aria-label="Rank ${rank}">${weeklyRankLabel(rank)}</div>
+          <div class="xp-games-weekly-person"><strong>${escapeHTML(entry.name || 'Student')}${isYou ? ' <em>YOU</em>' : ''}</strong>${section}</div>
+          <div class="xp-games-weekly-score"><strong>${Math.max(0, Number(entry.weeklyXp || 0))} XP</strong><small>${Math.max(0, Number(entry.rewardedSessions || 0))} rewarded run${Number(entry.rewardedSessions || 0) === 1 ? '' : 's'}</small></div>
+        </article>`;
+      }).join('');
+    }
+
+    const your = info.yourEntry || null;
+    state.weeklyYou.hidden = false;
+    state.weeklyYou.innerHTML = your
+      ? `<span>YOUR WEEKLY RANK</span><strong>${weeklyRankLabel(info.yourRank)} · ${Math.max(0, Number(your.weeklyXp || 0))} XP</strong><small>${Math.max(0, Number(info.totalPlayers || 0))} ranked player${Number(info.totalPlayers || 0) === 1 ? '' : 's'} this week</small>`
+      : `<span>YOUR WEEKLY RANK</span><strong>Not ranked yet</strong><small>Earn at least 1 Mini-Game XP this week to enter the leaderboard.</small>`;
+  }
+
+  async function loadWeeklyLeaderboard(options = {}) {
+    if (!state.built || state.weeklyLoading) return state.weeklyData;
+    state.bridge = getBridge();
+    const loader = state.bridge?.loadWeeklyLeaderboard;
+    if (typeof loader !== 'function') {
+      state.weeklyData = { loggedIn: false, ok: false, error: 'Weekly Arcade is unavailable in this build.' };
+      renderWeeklyLeaderboard(state.weeklyData);
+      return state.weeklyData;
+    }
+
+    const currentWeek = state.bridge?.getWeekInfo?.() || null;
+    const freshEnough = !options.force
+      && state.weeklyData
+      && (!currentWeek?.key || state.weeklyData.weekKey === currentWeek.key)
+      && Date.now() - Number(state.weeklyLoadedAt || 0) < 15000;
+    if (freshEnough) {
+      renderWeeklyLeaderboard(state.weeklyData);
+      return state.weeklyData;
+    }
+
+    state.weeklyLoading = true;
+    if (state.weeklyRefreshBtn) state.weeklyRefreshBtn.disabled = true;
+    renderWeeklyLeaderboard(state.weeklyData);
+    try {
+      state.weeklyData = await loader({ limit: 10 });
+      state.weeklyLoadedAt = Date.now();
+      return state.weeklyData;
+    } catch (error) {
+      state.weeklyData = {
+        loggedIn: true,
+        ok: false,
+        weekLabel: currentWeek?.label || 'This Week',
+        resetLabel: currentWeek?.resetLabel || 'Resets Monday · Manila time',
+        error: String(error?.message || error || 'Could not load Weekly Arcade standings.')
+      };
+      return state.weeklyData;
+    } finally {
+      state.weeklyLoading = false;
+      if (state.weeklyRefreshBtn) state.weeklyRefreshBtn.disabled = false;
+      if (state.activeTab === 'weekly') renderWeeklyLeaderboard(state.weeklyData);
+    }
+  }
+
+  function switchTab(tab = 'games', options = {}) {
+    const next = tab === 'weekly' ? 'weekly' : 'games';
+    state.activeTab = next;
+    state.tabs.forEach(button => {
+      const selected = button.dataset.xpGamesTab === next;
+      button.classList.toggle('active', selected);
+      button.setAttribute('aria-selected', selected ? 'true' : 'false');
+    });
+    state.panels.forEach(panel => {
+      panel.hidden = panel.dataset.xpGamesPanel !== next;
+    });
+    if (next === 'weekly') {
+      const week = state.bridge?.getWeekInfo?.();
+      if (week && state.weeklyWeekLabel) state.weeklyWeekLabel.textContent = week.label || 'This Week';
+      if (week && state.weeklyResetLabel) state.weeklyResetLabel.textContent = week.resetLabel || 'Resets Monday · Manila time';
+      if (options.load !== false) loadWeeklyLeaderboard({ force: Boolean(options.force) });
+    }
   }
 
   function gameCardsHtml(snapshot) {
@@ -425,6 +613,7 @@
     lockAppBehindHub();
     render();
     state.overlay.hidden = false;
+    switchTab('games', { load: false });
     state.closeBtn.focus({ preventScroll: true });
   }
 
@@ -456,6 +645,7 @@
     state.activeGameApi = null;
     render();
     state.overlay.hidden = false;
+    switchTab('games', { load: false });
     window.requestAnimationFrame(() => {
       try { state.closeBtn.focus({ preventScroll: true }); } catch (_) {}
     });
@@ -466,7 +656,7 @@
     if (document.querySelector(`link[data-xp-game-style="${game.id}"]`)) return;
     const link = document.createElement('link');
     link.rel = 'stylesheet';
-    link.href = `${game.style}?v=20260909-v440-maze-pattern`;
+    link.href = `${game.style}?v=20260909-v447-weekly-arcade`;
     link.dataset.xpGameStyle = game.id;
     document.head.appendChild(link);
   }
@@ -483,7 +673,7 @@
       // forever for a load event that already fired.
       if (existing) existing.remove();
       const script = document.createElement('script');
-      script.src = `${game.script}?v=20260909-v440-maze-pattern`;
+      script.src = `${game.script}?v=20260909-v447-weekly-arcade`;
       script.defer = true;
       script.dataset.xpGameScript = game.id;
       script.addEventListener('load', () => {
@@ -519,9 +709,13 @@
         onBack: showHubAfterGame,
         onClose: closeHub,
         onReward: result => {
-          render();
           const amount = Math.max(0, Number(result?.awardedXp || 0));
-          if (amount > 0) animateXpAward(amount);
+          if (amount > 0) {
+            state.weeklyData = null;
+            state.weeklyLoadedAt = 0;
+            animateXpAward(amount);
+          }
+          render();
         }
       });
     } catch (error) {
@@ -603,6 +797,7 @@
     open: openHub,
     close: closeHub,
     render: () => render(),
+    showWeekly: () => { openHub(); switchTab('weekly', { force: true }); },
     games: GAME_REGISTRY.map(game => ({ id: game.id, name: game.name }))
   });
 })();

@@ -4723,6 +4723,21 @@ function getCodeExplorerLeaderboardDocRef(uid) {
   return doc(firebaseSync.db, firebaseSync.collectionName, firebaseSync.documentId, 'codeExplorerLeaderboard', String(uid || '').trim());
 }
 
+function getXpMiniGameWeeklyLeaderboardCollectionRef(weekKey) {
+  const { collection } = firebaseSync.modules;
+  const key = String(weekKey || '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) throw new Error('Invalid Mini-Games week key.');
+  return collection(firebaseSync.db, firebaseSync.collectionName, firebaseSync.documentId, 'miniGameWeeklyLeaderboards', key, 'entries');
+}
+
+function getXpMiniGameWeeklyLeaderboardDocRef(weekKey, uid) {
+  const { doc } = firebaseSync.modules;
+  const key = String(weekKey || '').trim();
+  const studentUid = String(uid || '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(key) || !studentUid || studentUid.includes('/')) throw new Error('Invalid Mini-Games leaderboard key.');
+  return doc(firebaseSync.db, firebaseSync.collectionName, firebaseSync.documentId, 'miniGameWeeklyLeaderboards', key, 'entries', studentUid);
+}
+
 function getPublicCertificateDocRef(certificateNumber) {
   const { doc } = firebaseSync.modules;
   const key = String(certificateNumber || '').trim();
@@ -41399,6 +41414,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   // one reward ledger. The latest classroom setting is 50 XP/day across every
   // mini-game combined. Manila time keeps the school-day reset deterministic.
   const XP_MINI_GAMES_DAILY_CAP = 50;
+  const XP_MINI_GAMES_WEEKLY_MAX = XP_MINI_GAMES_DAILY_CAP * 7;
   const XP_MINI_GAMES_TIME_ZONE = 'Asia/Manila';
   const XP_MINI_GAMES_RECENT_REWARD_LIMIT = 96;
 
@@ -41459,6 +41475,40 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
+  }
+
+  function xpMiniGamesWeekInfo(value = Date.now()) {
+    const dayKey = miniGamesDayKey(value);
+    const parts = String(dayKey || '').split('-').map(Number);
+    const year = Number(parts[0] || 0);
+    const month = Number(parts[1] || 1);
+    const day = Number(parts[2] || 1);
+    const calendarDay = new Date(Date.UTC(year || 1970, Math.max(0, month - 1), Math.max(1, day)));
+    const mondayOffset = (calendarDay.getUTCDay() + 6) % 7;
+    const start = new Date(calendarDay.getTime() - mondayOffset * 86400000);
+    const end = new Date(start.getTime() + 6 * 86400000);
+    const keyFor = date => `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`;
+    const startKey = keyFor(start);
+    const endKey = keyFor(end);
+    let label = `${startKey} – ${endKey}`;
+    try {
+      const short = new Intl.DateTimeFormat('en-PH', { timeZone: 'UTC', month: 'short', day: 'numeric' });
+      const full = new Intl.DateTimeFormat('en-PH', { timeZone: 'UTC', month: 'short', day: 'numeric', year: 'numeric' });
+      if (start.getUTCFullYear() === end.getUTCFullYear() && start.getUTCMonth() === end.getUTCMonth()) {
+        label = `${short.format(start).replace(/\s+\d+$/, '')} ${start.getUTCDate()}–${end.getUTCDate()}, ${end.getUTCFullYear()}`;
+      } else {
+        label = `${full.format(start)} – ${full.format(end)}`;
+      }
+    } catch (_) {}
+    return {
+      key: startKey,
+      startKey,
+      endKey,
+      label,
+      resetLabel: 'Resets Monday · Manila time',
+      dailyCap: XP_MINI_GAMES_DAILY_CAP,
+      weeklyMax: XP_MINI_GAMES_WEEKLY_MAX
+    };
   }
 
   function miniGameRewardForScore(score = 0) {
@@ -43874,6 +43924,8 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       dayKey,
       timeZone: XP_MINI_GAMES_TIME_ZONE,
       dailyCap: XP_MINI_GAMES_DAILY_CAP,
+      weeklyMax: XP_MINI_GAMES_WEEKLY_MAX,
+      weekInfo: xpMiniGamesWeekInfo(),
       todayXp,
       remainingXp: Math.max(0, XP_MINI_GAMES_DAILY_CAP - todayXp),
       capReached: todayXp >= XP_MINI_GAMES_DAILY_CAP,
@@ -43899,6 +43951,70 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       gameRecords,
       soundEnabled: miniGames.soundEnabled !== false
     };
+  }
+
+  async function loadXpMiniGamesWeeklyLeaderboard(options = {}) {
+    const week = xpMiniGamesWeekInfo();
+    const uid = String(appSession.student?.uid || '').trim();
+    const loggedIn = Boolean(appSession.mode === 'student' && uid);
+    const topLimit = Math.max(5, Math.min(50, Math.floor(Number(options.limit || 10))));
+    const base = {
+      ok: false,
+      loggedIn,
+      weekKey: week.key,
+      weekStart: week.startKey,
+      weekEnd: week.endKey,
+      weekLabel: week.label,
+      resetLabel: week.resetLabel,
+      dailyCap: XP_MINI_GAMES_DAILY_CAP,
+      weeklyMax: XP_MINI_GAMES_WEEKLY_MAX,
+      entries: [],
+      totalPlayers: 0,
+      yourRank: 0,
+      yourEntry: null
+    };
+    if (!loggedIn) return { ...base, error: 'Log in as a student to view the Weekly Arcade leaderboard.' };
+
+    try {
+      const ready = await initFirebaseSync();
+      if (!ready) throw new Error(firebaseSync.lastError || 'Firebase is unavailable.');
+      const { getDocs } = firebaseSync.modules;
+      const snapshot = await getDocs(getXpMiniGameWeeklyLeaderboardCollectionRef(week.key));
+      const rows = (snapshot?.docs || []).map(docSnapshot => {
+        const data = snapshotData(docSnapshot) || {};
+        return {
+          uid: String(data.uid || docSnapshot.id || '').trim(),
+          name: String(data.name || 'Student').trim() || 'Student',
+          section: String(data.section || '').trim(),
+          weeklyXp: Math.max(0, Math.min(XP_MINI_GAMES_WEEKLY_MAX, Math.floor(Number(data.weeklyXp || 0)))),
+          rewardedSessions: Math.max(0, Math.floor(Number(data.rewardedSessions || 0))),
+          lastRewardGameId: normalizeXpMiniGameId(data.lastRewardGameId || ''),
+          lastRewardXp: Math.max(0, Math.min(15, Math.floor(Number(data.lastRewardXp || 0)))),
+          accountStatus: String(data.accountStatus || 'active').trim().toLowerCase()
+        };
+      }).filter(row => row.uid && row.weeklyXp > 0 && row.accountStatus !== 'disabled');
+
+      rows.sort((a, b) => {
+        if (b.weeklyXp !== a.weeklyXp) return b.weeklyXp - a.weeklyXp;
+        if (a.rewardedSessions !== b.rewardedSessions) return a.rewardedSessions - b.rewardedSessions;
+        const nameOrder = a.name.localeCompare(b.name, 'en', { sensitivity: 'base' });
+        if (nameOrder) return nameOrder;
+        return a.uid.localeCompare(b.uid);
+      });
+      rows.forEach((row, index) => { row.rank = index + 1; });
+      const yourEntry = rows.find(row => row.uid === uid) || null;
+      return {
+        ...base,
+        ok: true,
+        entries: rows.slice(0, topLimit),
+        totalPlayers: rows.length,
+        yourRank: yourEntry?.rank || 0,
+        yourEntry
+      };
+    } catch (error) {
+      console.warn('XP Mini-Games weekly leaderboard could not be loaded.', error);
+      return { ...base, error: String(error?.message || error || 'Could not load Weekly Arcade leaderboard.') };
+    }
   }
 
   function notifyXpMiniGamesProgress(extra = {}) {
@@ -44191,7 +44307,10 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       let requestedXp = verified.requestedXp;
       let duplicate = false;
       let todayXp = 0;
+      let committedWeeklyXp = 0;
       let committedRecord = normalizeMiniGameRecord(gameId, localMiniGames.games[stateKey]);
+      const weeklyInfo = xpMiniGamesWeekInfo(Date.parse(nowIso));
+      const profileIdentity = appSession.student || appSession.lastStudentProfile || {};
 
       await runTransaction(firebaseSync.db, async transaction => {
         const snapshot = await transaction.get(studentRef);
@@ -44243,6 +44362,32 @@ window.MCS_PHONE_MENU_STATUS = () => ({
           }
         }
 
+        let weeklyWrite = null;
+        if (!duplicate && awardedXp > 0) {
+          const weeklyRef = getXpMiniGameWeeklyLeaderboardDocRef(weeklyInfo.key, uid);
+          const weeklySnapshot = await transaction.get(weeklyRef);
+          const priorWeekly = snapshotExists(weeklySnapshot) ? snapshotData(weeklySnapshot) : {};
+          const priorWeeklyXp = Math.max(0, Math.min(XP_MINI_GAMES_WEEKLY_MAX, Math.floor(Number(priorWeekly?.weeklyXp || 0))));
+          const priorSessions = Math.max(0, Math.floor(Number(priorWeekly?.rewardedSessions || 0)));
+          committedWeeklyXp = Math.min(XP_MINI_GAMES_WEEKLY_MAX, priorWeeklyXp + awardedXp);
+          weeklyWrite = {
+            ref: weeklyRef,
+            data: {
+              uid,
+              name: String(profileIdentity.name || profileIdentity.fullName || 'Student').trim() || 'Student',
+              section: String(profileIdentity.section || '').trim(),
+              weekKey: weeklyInfo.key,
+              weeklyXp: committedWeeklyXp,
+              rewardedSessions: priorSessions + 1,
+              lastRewardGameId: gameId,
+              lastRewardXp: awardedXp,
+              accountStatus: String(profileIdentity.accountStatus || 'active'),
+              lastRewardAt: serverTimestamp(),
+              updatedAt: serverTimestamp()
+            }
+          };
+        }
+
         miniGames.games[stateKey] = applyMiniGameResultToRecord(gameId, miniGames.games[stateKey], verified, nowIso);
         committedRecord = miniGames.games[stateKey];
         miniGames.updatedAt = nowIso;
@@ -44259,7 +44404,6 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         }, { merge: true });
 
         // Keep the existing leaderboard XP mirror in the SAME atomic claim.
-        const profileIdentity = appSession.student || appSession.lastStudentProfile || {};
         transaction.set(getCodeExplorerLeaderboardDocRef(uid), {
           uid,
           studentId: normalizeStudentId(profileIdentity.studentId || profileIdentity.studentIdNormalized || ''),
@@ -44269,6 +44413,10 @@ window.MCS_PHONE_MENU_STATUS = () => ({
           accountStatus: String(profileIdentity.accountStatus || 'active'),
           updatedAt: serverTimestamp()
         }, { merge: true });
+
+        // Weekly Arcade uses the ACTUAL XP awarded by this one completed round.
+        // It never copies game score, today's cumulative XP, or total account XP.
+        if (weeklyWrite) transaction.set(weeklyWrite.ref, weeklyWrite.data, { merge: true });
       });
 
       state.progress = mergeProgress(state.progress, committedProgress);
@@ -44291,6 +44439,8 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         requestedXp,
         duplicate,
         todayXp,
+        weeklyXp: committedWeeklyXp,
+        weekKey: weeklyInfo.key,
         gameRecord,
         bestScore: Math.max(0, Number(gameRecord?.bestScore || 0)),
         capReached: todayXp >= XP_MINI_GAMES_DAILY_CAP,
@@ -48082,9 +48232,12 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   // Reward tiers, daily cap, duplicate protection, total XP integration, and
   // Firestore transaction logic stay inside the existing Code Explorer system.
   window.ICT8_XP_MINIGAMES_BRIDGE = Object.freeze({
-    version: 2,
+    version: 3,
     dailyCap: XP_MINI_GAMES_DAILY_CAP,
+    weeklyMax: XP_MINI_GAMES_WEEKLY_MAX,
     getSnapshot: currentXpMiniGamesSnapshot,
+    getWeekInfo: xpMiniGamesWeekInfo,
+    loadWeeklyLeaderboard: loadXpMiniGamesWeeklyLeaderboard,
     rewardForScore: miniGameRewardForScore,
     rewardForGame: miniGameRewardForResult,
     beginRound: beginXpMiniGameRound,
