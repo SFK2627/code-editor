@@ -48678,121 +48678,150 @@ window.MCS_PHONE_MENU_STATUS = () => ({
 })();
 
 /* =========================================================
-   v448 PHONE MY PROJECTS: anchored floating menu controller
-   Phone-only. Reuses the existing dashboard menu trigger and
-   actions; desktop behavior is deliberately untouched.
+   v449 PHONE MY PROJECTS: SAFE CONNECTED POPOVER CONTROLLER
+   IMPORTANT: performs no class/DOM state mutation on desktop.
    ========================================================= */
 (() => {
   const PHONE_QUERY = '(max-width: 820px)';
-  const isPhone = () => Boolean(
-    window.matchMedia?.(PHONE_QUERY)?.matches &&
-    document.documentElement?.dataset?.deviceMode === 'phone'
+  const media = window.matchMedia ? window.matchMedia(PHONE_QUERY) : null;
+  let installed = false;
+  let pointer = null;
+
+  const phoneMode = () => Boolean(
+    media?.matches && document.documentElement?.dataset?.deviceMode === 'phone'
   );
 
-  const getParts = () => ({
+  const parts = () => ({
     header: document.querySelector('.student-dashboard-header'),
     button: document.getElementById('dashboardMobileMenuBtn'),
     menu: document.querySelector('.student-dashboard-header .dashboard-header-actions')
   });
 
-  function closeProjectsMenuV448() {
-    const { header, button } = getParts();
+  function hidePointer() {
+    if (pointer) pointer.hidden = true;
+  }
+
+  function closePhoneMenu() {
+    if (!phoneMode()) return;
+    const { header, button } = parts();
     if (!header) return;
     header.classList.remove('dashboard-mobile-menu-open');
     button?.setAttribute('aria-expanded', 'false');
     button?.setAttribute('aria-label', 'Open dashboard menu');
+    hidePointer();
   }
 
-  function positionProjectsMenuV448() {
-    if (!isPhone()) return;
-    const { header, button, menu } = getParts();
-    if (!header || !button || !menu || !header.classList.contains('dashboard-mobile-menu-open')) return;
-
-    const rect = button.getBoundingClientRect();
-    const viewport = window.visualViewport;
-    const viewportWidth = Math.max(0, viewport?.width || window.innerWidth || document.documentElement.clientWidth || 0);
-    const viewportHeight = Math.max(0, viewport?.height || window.innerHeight || document.documentElement.clientHeight || 0);
-    const viewportTop = Math.max(0, viewport?.offsetTop || 0);
-    const safeGap = 10;
-    const width = Math.min(292, Math.max(236, viewportWidth * 0.74), Math.max(0, viewportWidth - safeGap * 2));
-    const right = Math.max(safeGap, Math.min(18, viewportWidth - rect.right));
-    const top = Math.max(viewportTop + safeGap, Math.min(viewportTop + viewportHeight - 120, rect.bottom + 12));
-    const maxHeight = Math.max(180, viewportTop + viewportHeight - top - safeGap);
-
-    const menuLeft = viewportWidth - right - width;
-    const buttonCenter = rect.left + rect.width / 2;
-    const pointerCenter = Math.max(menuLeft + 24, Math.min(menuLeft + width - 24, buttonCenter));
-    const pointerLeft = pointerCenter - menuLeft;
-
-    menu.style.setProperty('--mcs-projects-menu-top-v448', `${Math.round(top)}px`);
-    menu.style.setProperty('--mcs-projects-menu-right-v448', `${Math.round(right)}px`);
-    menu.style.setProperty('--mcs-projects-menu-width-v448', `${Math.round(width)}px`);
-    menu.style.setProperty('--mcs-projects-menu-max-height-v448', `${Math.round(maxHeight)}px`);
-    menu.style.setProperty('--mcs-projects-menu-pointer-left-v448', `${Math.round(pointerLeft)}px`);
-  }
-
-  function syncProjectsMenuV448() {
-    const { header, button } = getParts();
-    if (!header || !button) return;
-
-    if (!isPhone()) {
-      closeProjectsMenuV448();
+  function positionPhoneMenu() {
+    if (!phoneMode()) return;
+    const { header, button, menu } = parts();
+    if (!header || !button || !menu || !header.classList.contains('dashboard-mobile-menu-open')) {
+      hidePointer();
       return;
     }
 
-    if (header.classList.contains('dashboard-mobile-menu-open')) {
-      button.setAttribute('aria-expanded', 'true');
-      window.requestAnimationFrame(positionProjectsMenuV448);
+    const rect = button.getBoundingClientRect();
+    const vv = window.visualViewport;
+    const vw = Math.max(0, vv?.width || window.innerWidth || document.documentElement.clientWidth || 0);
+    const vh = Math.max(0, vv?.height || window.innerHeight || document.documentElement.clientHeight || 0);
+    const vx = Math.max(0, vv?.offsetLeft || 0);
+    const vy = Math.max(0, vv?.offsetTop || 0);
+    const edge = 10;
+    const width = Math.min(292, Math.max(236, vw * 0.74), Math.max(0, vw - edge * 2));
+    const desiredLeft = rect.right - width;
+    const left = Math.max(vx + edge, Math.min(desiredLeft, vx + vw - width - edge));
+    const top = Math.max(vy + edge, Math.min(vy + vh - 120, rect.bottom + 12));
+    const maxHeight = Math.max(180, vy + vh - top - edge);
+
+    menu.style.setProperty('--mcs-projects-menu-top-v449', `${Math.round(top)}px`);
+    menu.style.setProperty('--mcs-projects-menu-left-v449', `${Math.round(left)}px`);
+    menu.style.setProperty('--mcs-projects-menu-width-v449', `${Math.round(width)}px`);
+    menu.style.setProperty('--mcs-projects-menu-max-height-v449', `${Math.round(maxHeight)}px`);
+
+    if (pointer) {
+      const center = Math.max(left + 23, Math.min(left + width - 23, rect.left + rect.width / 2));
+      pointer.style.setProperty('--mcs-projects-pointer-top-v449', `${Math.round(top - 11)}px`);
+      pointer.style.setProperty('--mcs-projects-pointer-left-v449', `${Math.round(center - 11)}px`);
+      pointer.hidden = false;
     }
   }
 
-  function installProjectsMenuV448() {
-    const { header, button, menu } = getParts();
+  function syncPhonePopover() {
+    if (!phoneMode()) return;
+    const { header, button } = parts();
+    if (!header || !button) return;
+    if (header.classList.contains('dashboard-mobile-menu-open')) {
+      button.setAttribute('aria-expanded', 'true');
+      requestAnimationFrame(positionPhoneMenu);
+    } else {
+      hidePointer();
+    }
+  }
+
+  function installPhoneOnly() {
+    if (installed || !phoneMode()) return;
+    const { header, button, menu } = parts();
     if (!header || !button || !menu) return;
 
-    /* Existing onclick owns opening/closing. This listener only positions the
-       out-of-flow popover after the class has changed. */
+    installed = true;
+    document.body.classList.add('mcs-projects-phone-popover-v449');
+
+    pointer = document.getElementById('dashboardMenuPointerV449');
+    if (!pointer) {
+      pointer = document.createElement('div');
+      pointer.id = 'dashboardMenuPointerV449';
+      pointer.hidden = true;
+      pointer.setAttribute('aria-hidden', 'true');
+      document.body.appendChild(pointer);
+    }
+
     button.addEventListener('click', () => {
-      window.requestAnimationFrame(syncProjectsMenuV448);
+      if (!phoneMode()) return;
+      requestAnimationFrame(syncPhonePopover);
     });
 
     menu.addEventListener('click', event => {
-      if (!isPhone()) return;
-      const action = event.target?.closest?.('button');
-      if (action) window.setTimeout(closeProjectsMenuV448, 0);
+      if (!phoneMode()) return;
+      if (event.target?.closest?.('button')) setTimeout(closePhoneMenu, 0);
     });
 
     document.addEventListener('pointerdown', event => {
-      if (!isPhone()) return;
-      const parts = getParts();
-      if (!parts.header?.classList.contains('dashboard-mobile-menu-open')) return;
-      if (parts.button?.contains(event.target) || parts.menu?.contains(event.target)) return;
-      closeProjectsMenuV448();
+      if (!phoneMode()) return;
+      const current = parts();
+      if (!current.header?.classList.contains('dashboard-mobile-menu-open')) return;
+      if (current.button?.contains(event.target) || current.menu?.contains(event.target)) return;
+      closePhoneMenu();
     }, { passive: true });
 
     document.addEventListener('keydown', event => {
-      if (event.key === 'Escape' && isPhone()) closeProjectsMenuV448();
+      if (event.key === 'Escape' && phoneMode()) closePhoneMenu();
     });
 
-    window.addEventListener('resize', () => window.requestAnimationFrame(syncProjectsMenuV448), { passive: true });
-    window.addEventListener('orientationchange', () => window.setTimeout(syncProjectsMenuV448, 120), { passive: true });
-    window.visualViewport?.addEventListener?.('resize', () => window.requestAnimationFrame(syncProjectsMenuV448), { passive: true });
-    window.visualViewport?.addEventListener?.('scroll', () => window.requestAnimationFrame(positionProjectsMenuV448), { passive: true });
-
-    const observer = new MutationObserver(() => syncProjectsMenuV448());
-    observer.observe(header, { attributes: true, attributeFilter: ['class'] });
-
-    syncProjectsMenuV448();
-    window.MCS_V448_PROJECTS_MENU = {
-      position: positionProjectsMenuV448,
-      close: closeProjectsMenuV448,
-      sync: syncProjectsMenuV448
+    const reposition = () => {
+      if (phoneMode()) requestAnimationFrame(syncPhonePopover);
     };
+    window.addEventListener('resize', reposition, { passive: true });
+    window.addEventListener('orientationchange', () => setTimeout(reposition, 120), { passive: true });
+    window.visualViewport?.addEventListener?.('resize', reposition, { passive: true });
+    window.visualViewport?.addEventListener?.('scroll', () => {
+      if (phoneMode()) requestAnimationFrame(positionPhoneMenu);
+    }, { passive: true });
+
+    syncPhonePopover();
+  }
+
+  function maybeActivate() {
+    if (phoneMode()) installPhoneOnly();
+    /* Deliberately do nothing on desktop. Existing desktop code remains owner. */
   }
 
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => window.setTimeout(installProjectsMenuV448, 0), { once: true });
+    document.addEventListener('DOMContentLoaded', () => setTimeout(maybeActivate, 0), { once: true });
   } else {
-    window.setTimeout(installProjectsMenuV448, 0);
+    setTimeout(maybeActivate, 0);
   }
+
+  media?.addEventListener?.('change', event => {
+    if (event.matches) setTimeout(maybeActivate, 0);
+    else hidePointer();
+  });
 })();
