@@ -64,6 +64,161 @@
       script: 'games/code-snake/code-snake.js',
       style: 'games/code-snake/code-snake.css',
       bestText(record = {}) { return `🏆 Best: ${Math.max(0, Number(record.bestScore || 0))}`; }
+    },
+    {
+      id: 'code-stack',
+      stateKey: 'codeStack',
+      name: 'CODE STACK',
+      icon: '🧱',
+      description: 'Stack moving code blocks, hit perfect placements, and build the highest tower you can.',
+      maxXp: 10,
+      globalName: 'ICT8CodeStack',
+      script: 'games/code-stack/code-stack.js',
+      style: 'games/code-stack/code-stack.css',
+      bestText(record = {}) {
+        const score = Math.max(0, Number(record.bestScore || 0));
+        const tower = Math.max(0, Number(record.highestTower || 0));
+        return tower > 0 ? `🏆 Best: ${score} · Tower ${tower}` : `🏆 Best: ${score}`;
+      }
+    },
+    {
+      id: 'byte-rush',
+      stateKey: 'byteRush',
+      name: 'BYTE RUSH',
+      icon: '🚗',
+      description: 'Race through a cyber highway, dodge errors, and collect score chips without crashing.',
+      maxXp: 10,
+      globalName: 'ICT8ByteRush',
+      script: 'games/byte-rush/byte-rush.js',
+      style: 'games/byte-rush/byte-rush.css',
+      bestText(record = {}) {
+        const distance = Math.max(0, Number(record.bestDistance || record.bestScore || 0));
+        return `🏆 Best Distance: ${Math.floor(distance)}`;
+      }
+    },
+    {
+      id: 'rocket-byte',
+      stateKey: 'rocketByte',
+      name: 'ROCKET BYTE',
+      icon: '🚀',
+      description: 'Climb through the digital sky, dodge errors, collect fuel, and reach a new height record.',
+      maxXp: 10,
+      globalName: 'ICT8RocketByte',
+      script: 'games/rocket-byte/rocket-byte.js',
+      style: 'games/rocket-byte/rocket-byte.css',
+      bestText(record = {}) {
+        const height = Math.max(0, Number(record.bestHeight || record.bestScore || 0));
+        return `🏆 Best Height: ${Math.floor(height)}`;
+      }
+    },
+    {
+      id: 'falling-code',
+      stateKey: 'fallingCode',
+      name: 'FALLING CODE',
+      icon: '🪂',
+      description: 'Fall through digital platforms, line up with shrinking gaps, and dive as deep as you can.',
+      maxXp: 10,
+      globalName: 'ICT8FallingCode',
+      script: 'games/falling-code/falling-code.js',
+      style: 'games/falling-code/falling-code.css',
+      bestText(record = {}) {
+        const depth = Math.max(0, Number(record.bestDepth || record.bestScore || 0));
+        return `🏆 Best Depth: ${Math.floor(depth)}`;
+      }
+    },
+    {
+      id: 'perfect-shot',
+      stateKey: 'perfectShot',
+      name: 'PERFECT SHOT',
+      icon: '\u{1F3AF}',
+      description: 'Time the moving target, hit the bullseye, and build a perfect-shot combo.',
+      maxXp: 10,
+      globalName: 'ICT8PerfectShot',
+      script: 'games/perfect-shot/perfect-shot.js',
+      style: 'games/perfect-shot/perfect-shot.css',
+      bestText(record = {}) {
+        const score = Math.max(0, Number(record.bestScore || 0));
+        const combo = Math.max(0, Number(record.bestCombo || 0));
+        return combo > 0 ? `\u{1F3C6} Best: ${score} \u00b7 Combo x${combo}` : `\u{1F3C6} Best: ${score}`;
+      }
+    },
+    {
+      id: 'color-switch-byte',
+      stateKey: 'colorSwitchByte',
+      name: 'COLOR SWITCH BYTE',
+      icon: '\u{1F7E8}',
+      description: 'Tap upward and pass through rotating color sections only when your byte color matches.',
+      maxXp: 10,
+      globalName: 'ICT8ColorSwitchByte',
+      script: 'games/color-switch-byte/color-switch-byte.js',
+      style: 'games/color-switch-byte/color-switch-byte.css',
+      bestText(record = {}) {
+        const score = Math.max(0, Number(record.bestScore || 0));
+        return `\u{1F3C6} Best: ${score}`;
+      }
+    },
+    {
+      id: 'code-hoops',
+      stateKey: 'codeHoops',
+      name: 'CODE HOOPS',
+      icon: '\u{1F3C0}',
+      description: 'Drag, aim, and release a digital ball into moving hoops. Perfect swishes build your streak.',
+      maxXp: 10,
+      globalName: 'ICT8CodeHoops',
+      script: 'games/code-hoops/code-hoops.js',
+      style: 'games/code-hoops/code-hoops.css',
+      bestText(record = {}) {
+        const score = Math.max(0, Number(record.bestScore || 0));
+        const streak = Math.max(0, Number(record.bestStreak || 0));
+        return streak > 0 ? `\u{1F3C6} Best: ${score} \u00b7 Streak x${streak}` : `\u{1F3C6} Best: ${score}`;
+      }
+    },
+    {
+      id: 'red-light-green-light',
+      stateKey: 'redLightGreenLight',
+      name: 'RED LIGHT / GREEN LIGHT',
+      icon: '\u{1F534}',
+      description: 'Hold to run on green, stop fast on red, and reach the digital finish line without getting caught.',
+      maxXp: 10,
+      globalName: 'ICT8RedLightGreenLight',
+      script: 'games/red-light-green-light/red-light-green-light.js',
+      style: 'games/red-light-green-light/red-light-green-light.css',
+      bestText(record = {}) {
+        const distance = Math.max(0, Number(record.bestDistance || record.bestScore || 0));
+        const timeMs = Math.max(0, Number(record.fastestFinishMs || 0));
+        return timeMs > 0 ? `\u{1F3C6} Finish: ${(timeMs / 1000).toFixed(1)}s` : `\u{1F3C6} Best Run: ${Math.floor(distance)}`;
+      }
+    },
+    {
+      id: 'code-maze',
+      stateKey: 'codeMaze',
+      name: 'CODE MAZE',
+      icon: '🧩',
+      description: 'Guide a coding cursor through generated mazes, collect the key, and reach the exit before time runs out.',
+      maxXp: 10,
+      globalName: 'ICT8CodeMaze',
+      script: 'games/code-maze/code-maze.js',
+      style: 'games/code-maze/code-maze.css',
+      bestText(record = {}) {
+        const level = Math.max(0, Number(record.bestLevel || record.bestScore || 0));
+        const timeMs = Math.max(0, Number(record.fastestLevelMs || 0));
+        return timeMs > 0 ? `🏆 Best Level: ${level} · ${(timeMs / 1000).toFixed(1)}s` : `🏆 Best Level: ${level}`;
+      }
+    },
+    {
+      id: 'pattern-lock',
+      stateKey: 'patternLock',
+      name: 'PATTERN LOCK',
+      icon: '🔐',
+      description: 'Watch the code pattern, remember the sequence, and repeat it as the chain gets longer.',
+      maxXp: 10,
+      globalName: 'ICT8PatternLock',
+      script: 'games/pattern-lock/pattern-lock.js',
+      style: 'games/pattern-lock/pattern-lock.css',
+      bestText(record = {}) {
+        const level = Math.max(0, Number(record.bestLevel || record.bestScore || 0));
+        return `🏆 Best Level: ${level}`;
+      }
     }
   ]);
 
@@ -311,7 +466,7 @@
     if (document.querySelector(`link[data-xp-game-style="${game.id}"]`)) return;
     const link = document.createElement('link');
     link.rel = 'stylesheet';
-    link.href = `${game.style}?v=20260909-v434-five-games`;
+    link.href = `${game.style}?v=20260909-v440-maze-pattern`;
     link.dataset.xpGameStyle = game.id;
     document.head.appendChild(link);
   }
@@ -328,7 +483,7 @@
       // forever for a load event that already fired.
       if (existing) existing.remove();
       const script = document.createElement('script');
-      script.src = `${game.script}?v=20260909-v434-five-games`;
+      script.src = `${game.script}?v=20260909-v440-maze-pattern`;
       script.defer = true;
       script.dataset.xpGameScript = game.id;
       script.addEventListener('load', () => {

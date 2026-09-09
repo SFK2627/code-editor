@@ -41407,13 +41407,33 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   const XP_MINI_GAME_ID_RUNNER_404 = 'runner-404';
   const XP_MINI_GAME_ID_MEMORY_CODE = 'memory-code';
   const XP_MINI_GAME_ID_CODE_SNAKE = 'code-snake';
+  const XP_MINI_GAME_ID_CODE_STACK = 'code-stack';
+  const XP_MINI_GAME_ID_BYTE_RUSH = 'byte-rush';
+  const XP_MINI_GAME_ID_ROCKET_BYTE = 'rocket-byte';
+  const XP_MINI_GAME_ID_FALLING_CODE = 'falling-code';
+  const XP_MINI_GAME_ID_PERFECT_SHOT = 'perfect-shot';
+  const XP_MINI_GAME_ID_COLOR_SWITCH_BYTE = 'color-switch-byte';
+  const XP_MINI_GAME_ID_CODE_HOOPS = 'code-hoops';
+  const XP_MINI_GAME_ID_RED_LIGHT_GREEN_LIGHT = 'red-light-green-light';
+  const XP_MINI_GAME_ID_CODE_MAZE = 'code-maze';
+  const XP_MINI_GAME_ID_PATTERN_LOCK = 'pattern-lock';
 
   const XP_MINI_GAME_DEFINITIONS = Object.freeze({
     [XP_MINI_GAME_ID_CODE_FLY]: Object.freeze({ stateKey: 'codeFly', maxReward: 15 }),
     [XP_MINI_GAME_ID_BUG_SMASH]: Object.freeze({ stateKey: 'bugSmash', maxReward: 10 }),
     [XP_MINI_GAME_ID_RUNNER_404]: Object.freeze({ stateKey: 'runner404', maxReward: 15 }),
     [XP_MINI_GAME_ID_MEMORY_CODE]: Object.freeze({ stateKey: 'memoryCode', maxReward: 8 }),
-    [XP_MINI_GAME_ID_CODE_SNAKE]: Object.freeze({ stateKey: 'codeSnake', maxReward: 10 })
+    [XP_MINI_GAME_ID_CODE_SNAKE]: Object.freeze({ stateKey: 'codeSnake', maxReward: 10 }),
+    [XP_MINI_GAME_ID_CODE_STACK]: Object.freeze({ stateKey: 'codeStack', maxReward: 10 }),
+    [XP_MINI_GAME_ID_BYTE_RUSH]: Object.freeze({ stateKey: 'byteRush', maxReward: 10 }),
+    [XP_MINI_GAME_ID_ROCKET_BYTE]: Object.freeze({ stateKey: 'rocketByte', maxReward: 10 }),
+    [XP_MINI_GAME_ID_FALLING_CODE]: Object.freeze({ stateKey: 'fallingCode', maxReward: 10 }),
+    [XP_MINI_GAME_ID_PERFECT_SHOT]: Object.freeze({ stateKey: 'perfectShot', maxReward: 10 }),
+    [XP_MINI_GAME_ID_COLOR_SWITCH_BYTE]: Object.freeze({ stateKey: 'colorSwitchByte', maxReward: 10 }),
+    [XP_MINI_GAME_ID_CODE_HOOPS]: Object.freeze({ stateKey: 'codeHoops', maxReward: 10 }),
+    [XP_MINI_GAME_ID_RED_LIGHT_GREEN_LIGHT]: Object.freeze({ stateKey: 'redLightGreenLight', maxReward: 10 }),
+    [XP_MINI_GAME_ID_CODE_MAZE]: Object.freeze({ stateKey: 'codeMaze', maxReward: 10 }),
+    [XP_MINI_GAME_ID_PATTERN_LOCK]: Object.freeze({ stateKey: 'patternLock', maxReward: 10 })
   });
 
   function normalizeXpMiniGameId(gameId = XP_MINI_GAME_ID_CODE_FLY) {
@@ -41488,6 +41508,117 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     return 0;
   }
 
+  function codeStackRewardForScore(score = 0) {
+    const safeScore = Math.max(0, Math.floor(Number(score || 0)));
+    if (safeScore >= 160) return 10;
+    if (safeScore >= 120) return 8;
+    if (safeScore >= 80) return 5;
+    if (safeScore >= 55) return 3;
+    if (safeScore >= 35) return 2;
+    if (safeScore >= 20) return 1;
+    return 0;
+  }
+
+  function byteRushRewardForScore(score = 0) {
+    const safeScore = Math.max(0, Math.floor(Number(score || 0)));
+    if (safeScore >= 2300) return 10;
+    if (safeScore >= 1600) return 8;
+    if (safeScore >= 1100) return 5;
+    if (safeScore >= 750) return 3;
+    if (safeScore >= 450) return 2;
+    if (safeScore >= 250) return 1;
+    return 0;
+  }
+
+  function rocketByteRewardForScore(score = 0) {
+    const safeScore = Math.max(0, Math.floor(Number(score || 0)));
+    if (safeScore >= 2200) return 10;
+    if (safeScore >= 1500) return 8;
+    if (safeScore >= 1000) return 5;
+    if (safeScore >= 700) return 3;
+    if (safeScore >= 450) return 2;
+    if (safeScore >= 250) return 1;
+    return 0;
+  }
+
+  function fallingCodeRewardForScore(score = 0) {
+    const safeScore = Math.max(0, Math.floor(Number(score || 0)));
+    if (safeScore >= 1800) return 10;
+    if (safeScore >= 1250) return 8;
+    if (safeScore >= 850) return 5;
+    if (safeScore >= 600) return 3;
+    if (safeScore >= 400) return 2;
+    if (safeScore >= 220) return 1;
+    return 0;
+  }
+
+  function perfectShotRewardForScore(score = 0) {
+    const safeScore = Math.max(0, Math.floor(Number(score || 0)));
+    if (safeScore >= 100) return 10;
+    if (safeScore >= 75) return 8;
+    if (safeScore >= 55) return 5;
+    if (safeScore >= 40) return 3;
+    if (safeScore >= 25) return 2;
+    if (safeScore >= 15) return 1;
+    return 0;
+  }
+
+  function colorSwitchByteRewardForScore(score = 0) {
+    const safeScore = Math.max(0, Math.floor(Number(score || 0)));
+    if (safeScore >= 40) return 10;
+    if (safeScore >= 30) return 8;
+    if (safeScore >= 20) return 5;
+    if (safeScore >= 15) return 3;
+    if (safeScore >= 10) return 2;
+    if (safeScore >= 5) return 1;
+    return 0;
+  }
+
+  function codeHoopsRewardForScore(score = 0) {
+    const safeScore = Math.max(0, Math.floor(Number(score || 0)));
+    if (safeScore >= 60) return 10;
+    if (safeScore >= 45) return 8;
+    if (safeScore >= 30) return 5;
+    if (safeScore >= 20) return 3;
+    if (safeScore >= 12) return 2;
+    if (safeScore >= 6) return 1;
+    return 0;
+  }
+
+  function redLightGreenLightRewardForScore(score = 0) {
+    const safeScore = Math.max(0, Math.min(1000, Math.floor(Number(score || 0))));
+    if (safeScore >= 1000) return 10;
+    if (safeScore >= 950) return 8;
+    if (safeScore >= 800) return 5;
+    if (safeScore >= 600) return 3;
+    if (safeScore >= 400) return 2;
+    if (safeScore >= 200) return 1;
+    return 0;
+  }
+
+
+  function codeMazeRewardForScore(score = 0) {
+    const levels = Math.max(0, Math.min(99, Math.floor(Number(score || 0))));
+    if (levels >= 6) return 10;
+    if (levels >= 5) return 8;
+    if (levels >= 4) return 5;
+    if (levels >= 3) return 3;
+    if (levels >= 2) return 2;
+    if (levels >= 1) return 1;
+    return 0;
+  }
+
+  function patternLockRewardForScore(score = 0) {
+    const level = Math.max(0, Math.min(99, Math.floor(Number(score || 0))));
+    if (level >= 15) return 10;
+    if (level >= 12) return 8;
+    if (level >= 9) return 5;
+    if (level >= 7) return 3;
+    if (level >= 5) return 2;
+    if (level >= 3) return 1;
+    return 0;
+  }
+
   function memoryCodeRewardForMetrics(metrics = {}) {
     const source = metrics && typeof metrics === 'object' ? metrics : {};
     const completed = source.completed === true;
@@ -41512,6 +41643,16 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       case XP_MINI_GAME_ID_RUNNER_404: return runner404RewardForScore(score);
       case XP_MINI_GAME_ID_MEMORY_CODE: return memoryCodeRewardForMetrics(source.metrics || source);
       case XP_MINI_GAME_ID_CODE_SNAKE: return codeSnakeRewardForScore(score);
+      case XP_MINI_GAME_ID_CODE_STACK: return codeStackRewardForScore(score);
+      case XP_MINI_GAME_ID_BYTE_RUSH: return byteRushRewardForScore(score);
+      case XP_MINI_GAME_ID_ROCKET_BYTE: return rocketByteRewardForScore(score);
+      case XP_MINI_GAME_ID_FALLING_CODE: return fallingCodeRewardForScore(score);
+      case XP_MINI_GAME_ID_PERFECT_SHOT: return perfectShotRewardForScore(score);
+      case XP_MINI_GAME_ID_COLOR_SWITCH_BYTE: return colorSwitchByteRewardForScore(score);
+      case XP_MINI_GAME_ID_CODE_HOOPS: return codeHoopsRewardForScore(score);
+      case XP_MINI_GAME_ID_RED_LIGHT_GREEN_LIGHT: return redLightGreenLightRewardForScore(score);
+      case XP_MINI_GAME_ID_CODE_MAZE: return codeMazeRewardForScore(score);
+      case XP_MINI_GAME_ID_PATTERN_LOCK: return patternLockRewardForScore(score);
       default: return 0;
     }
   }
@@ -41555,6 +41696,100 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         durationMs: Math.max(0, Math.min(60 * 60 * 1000, Math.floor(Number(source.durationMs || 0)))),
         tokens: Math.max(0, Math.min(10000, Math.floor(Number(source.tokens || 0)))),
         longestSnake: Math.max(0, Math.min(10000, Math.floor(Number(source.longestSnake || 0))))
+      };
+    }
+    if (id === XP_MINI_GAME_ID_CODE_STACK) {
+      return {
+        durationMs: Math.max(0, Math.min(60 * 60 * 1000, Math.floor(Number(source.durationMs || 0)))),
+        placements: Math.max(0, Math.min(10000, Math.floor(Number(source.placements || 0)))),
+        perfects: Math.max(0, Math.min(10000, Math.floor(Number(source.perfects || 0)))),
+        bestCombo: Math.max(0, Math.min(999, Math.floor(Number(source.bestCombo || 0)))),
+        highestTower: Math.max(0, Math.min(10000, Math.floor(Number(source.highestTower || source.placements || 0))))
+      };
+    }
+    if (id === XP_MINI_GAME_ID_BYTE_RUSH) {
+      return {
+        durationMs: Math.max(0, Math.min(60 * 60 * 1000, Math.floor(Number(source.durationMs || 0)))),
+        distance: Math.max(0, Math.min(1000000, Math.floor(Number(source.distance || 0)))),
+        chips: Math.max(0, Math.min(10000, Math.floor(Number(source.chips || 0)))),
+        obstaclesPassed: Math.max(0, Math.min(100000, Math.floor(Number(source.obstaclesPassed || 0))))
+      };
+    }
+    if (id === XP_MINI_GAME_ID_ROCKET_BYTE) {
+      return {
+        durationMs: Math.max(0, Math.min(60 * 60 * 1000, Math.floor(Number(source.durationMs || 0)))),
+        height: Math.max(0, Math.min(1000000, Math.floor(Number(source.height || 0)))),
+        fuelCollected: Math.max(0, Math.min(10000, Math.floor(Number(source.fuelCollected || 0)))),
+        chips: Math.max(0, Math.min(10000, Math.floor(Number(source.chips || 0)))),
+        obstaclesPassed: Math.max(0, Math.min(100000, Math.floor(Number(source.obstaclesPassed || 0))))
+      };
+    }
+    if (id === XP_MINI_GAME_ID_FALLING_CODE) {
+      return {
+        durationMs: Math.max(0, Math.min(60 * 60 * 1000, Math.floor(Number(source.durationMs || 0)))),
+        depth: Math.max(0, Math.min(1000000, Math.floor(Number(source.depth || 0)))),
+        gatesPassed: Math.max(0, Math.min(100000, Math.floor(Number(source.gatesPassed || 0))))
+      };
+    }
+    if (id === XP_MINI_GAME_ID_PERFECT_SHOT) {
+      const attempts = Math.max(0, Math.min(1000, Math.floor(Number(source.attempts || 0))));
+      const hits = Math.max(0, Math.min(attempts || 1000, Math.floor(Number(source.hits || 0))));
+      const accuracy = attempts > 0 ? Math.max(0, Math.min(100, Number(source.accuracy ?? (hits / attempts * 100)))) : 0;
+      return {
+        durationMs: Math.max(0, Math.min(120000, Math.floor(Number(source.durationMs || 0)))),
+        attempts,
+        hits,
+        perfects: Math.max(0, Math.min(hits, Math.floor(Number(source.perfects || 0)))),
+        accuracy: Math.round(accuracy * 10) / 10,
+        bestCombo: Math.max(0, Math.min(999, Math.floor(Number(source.bestCombo || 0))))
+      };
+    }
+    if (id === XP_MINI_GAME_ID_COLOR_SWITCH_BYTE) {
+      return {
+        durationMs: Math.max(0, Math.min(60 * 60 * 1000, Math.floor(Number(source.durationMs || 0)))),
+        passes: Math.max(0, Math.min(100000, Math.floor(Number(source.passes || 0)))),
+        bestCombo: Math.max(0, Math.min(999, Math.floor(Number(source.bestCombo || 0))))
+      };
+    }
+    if (id === XP_MINI_GAME_ID_CODE_HOOPS) {
+      const attempts = Math.max(0, Math.min(1000, Math.floor(Number(source.attempts || 0))));
+      const made = Math.max(0, Math.min(attempts || 1000, Math.floor(Number(source.made || 0))));
+      const perfects = Math.max(0, Math.min(made, Math.floor(Number(source.perfects || 0))));
+      const accuracy = attempts > 0 ? Math.max(0, Math.min(100, Number(source.accuracy ?? (made / attempts * 100)))) : 0;
+      return {
+        durationMs: Math.max(0, Math.min(120000, Math.floor(Number(source.durationMs || 0)))),
+        attempts,
+        made,
+        perfects,
+        accuracy: Math.round(accuracy * 10) / 10,
+        bestStreak: Math.max(0, Math.min(999, Math.floor(Number(source.bestStreak || 0))))
+      };
+    }
+    if (id === XP_MINI_GAME_ID_RED_LIGHT_GREEN_LIGHT) {
+      return {
+        durationMs: Math.max(0, Math.min(120000, Math.floor(Number(source.durationMs || 0)))),
+        distance: Math.max(0, Math.min(1000, Math.floor(Number(source.distance || 0)))),
+        strikes: Math.max(0, Math.min(3, Math.floor(Number(source.strikes || 0)))),
+        completed: source.completed === true,
+        timeMs: Math.max(0, Math.min(120000, Math.floor(Number(source.timeMs || source.durationMs || 0))))
+      };
+    }
+    if (id === XP_MINI_GAME_ID_CODE_MAZE) {
+      return {
+        durationMs: Math.max(0, Math.min(60 * 60 * 1000, Math.floor(Number(source.durationMs || 0)))),
+        completedLevels: Math.max(0, Math.min(99, Math.floor(Number(source.completedLevels || source.levels || 0)))),
+        level: Math.max(1, Math.min(100, Math.floor(Number(source.level || 1)))),
+        moves: Math.max(0, Math.min(100000, Math.floor(Number(source.moves || 0)))),
+        keys: Math.max(0, Math.min(1000, Math.floor(Number(source.keys || 0)))),
+        fastestLevelMs: Math.max(0, Math.min(120000, Math.floor(Number(source.fastestLevelMs || 0))))
+      };
+    }
+    if (id === XP_MINI_GAME_ID_PATTERN_LOCK) {
+      return {
+        durationMs: Math.max(0, Math.min(60 * 60 * 1000, Math.floor(Number(source.durationMs || 0)))),
+        highestLevel: Math.max(0, Math.min(99, Math.floor(Number(source.highestLevel || source.level || 0)))),
+        longestPattern: Math.max(0, Math.min(120, Math.floor(Number(source.longestPattern || 0)))),
+        roundsCompleted: Math.max(0, Math.min(99, Math.floor(Number(source.roundsCompleted || source.highestLevel || 0))))
       };
     }
     return {
@@ -41648,6 +41883,87 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         longestSnake: Math.max(0, Math.min(10000, Math.floor(Number(source.longestSnake || 0))))
       };
     }
+    if (id === XP_MINI_GAME_ID_CODE_STACK) {
+      return {
+        ...base,
+        bestScore: Math.max(0, Math.min(100000, Math.floor(Number(source.bestScore || 0)))),
+        highestTower: Math.max(0, Math.min(10000, Math.floor(Number(source.highestTower || 0)))),
+        bestCombo: Math.max(0, Math.min(999, Math.floor(Number(source.bestCombo || 0))))
+      };
+    }
+    if (id === XP_MINI_GAME_ID_BYTE_RUSH) {
+      return {
+        ...base,
+        bestScore: Math.max(0, Math.min(1000000, Math.floor(Number(source.bestScore || 0)))),
+        bestDistance: Math.max(0, Math.min(1000000, Math.floor(Number(source.bestDistance || 0)))),
+        bestChips: Math.max(0, Math.min(10000, Math.floor(Number(source.bestChips || 0))))
+      };
+    }
+    if (id === XP_MINI_GAME_ID_ROCKET_BYTE) {
+      return {
+        ...base,
+        bestScore: Math.max(0, Math.min(1000000, Math.floor(Number(source.bestScore || 0)))),
+        bestHeight: Math.max(0, Math.min(1000000, Math.floor(Number(source.bestHeight || 0)))),
+        bestFuel: Math.max(0, Math.min(10000, Math.floor(Number(source.bestFuel || 0)))),
+        bestChips: Math.max(0, Math.min(10000, Math.floor(Number(source.bestChips || 0))))
+      };
+    }
+    if (id === XP_MINI_GAME_ID_FALLING_CODE) {
+      return {
+        ...base,
+        bestScore: Math.max(0, Math.min(1000000, Math.floor(Number(source.bestScore || 0)))),
+        bestDepth: Math.max(0, Math.min(1000000, Math.floor(Number(source.bestDepth || 0)))),
+        bestGates: Math.max(0, Math.min(100000, Math.floor(Number(source.bestGates || 0))))
+      };
+    }
+    if (id === XP_MINI_GAME_ID_PERFECT_SHOT) {
+      return {
+        ...base,
+        bestScore: Math.max(0, Math.min(100000, Math.floor(Number(source.bestScore || 0)))),
+        bestCombo: Math.max(0, Math.min(999, Math.floor(Number(source.bestCombo || 0)))),
+        bestAccuracy: Math.max(0, Math.min(100, Number(source.bestAccuracy || 0)))
+      };
+    }
+    if (id === XP_MINI_GAME_ID_COLOR_SWITCH_BYTE) {
+      return {
+        ...base,
+        bestScore: Math.max(0, Math.min(100000, Math.floor(Number(source.bestScore || 0)))),
+        bestCombo: Math.max(0, Math.min(999, Math.floor(Number(source.bestCombo || 0))))
+      };
+    }
+    if (id === XP_MINI_GAME_ID_CODE_HOOPS) {
+      return {
+        ...base,
+        bestScore: Math.max(0, Math.min(100000, Math.floor(Number(source.bestScore || 0)))),
+        bestStreak: Math.max(0, Math.min(999, Math.floor(Number(source.bestStreak || 0)))),
+        bestAccuracy: Math.max(0, Math.min(100, Number(source.bestAccuracy || 0))),
+        bestMade: Math.max(0, Math.min(1000, Math.floor(Number(source.bestMade || 0))))
+      };
+    }
+    if (id === XP_MINI_GAME_ID_RED_LIGHT_GREEN_LIGHT) {
+      return {
+        ...base,
+        bestScore: Math.max(0, Math.min(1000, Math.floor(Number(source.bestScore || 0)))),
+        bestDistance: Math.max(0, Math.min(1000, Math.floor(Number(source.bestDistance || source.bestScore || 0)))),
+        fastestFinishMs: Math.max(0, Math.min(120000, Math.floor(Number(source.fastestFinishMs || 0))))
+      };
+    }
+    if (id === XP_MINI_GAME_ID_CODE_MAZE) {
+      return {
+        ...base,
+        bestScore: Math.max(0, Math.min(99, Math.floor(Number(source.bestScore || source.bestLevel || 0)))),
+        bestLevel: Math.max(0, Math.min(99, Math.floor(Number(source.bestLevel || source.bestScore || 0)))),
+        fastestLevelMs: Math.max(0, Math.min(120000, Math.floor(Number(source.fastestLevelMs || 0))))
+      };
+    }
+    if (id === XP_MINI_GAME_ID_PATTERN_LOCK) {
+      return {
+        ...base,
+        bestScore: Math.max(0, Math.min(99, Math.floor(Number(source.bestScore || source.bestLevel || 0)))),
+        bestLevel: Math.max(0, Math.min(99, Math.floor(Number(source.bestLevel || source.bestScore || 0)))),
+        longestPattern: Math.max(0, Math.min(120, Math.floor(Number(source.longestPattern || 0))))
+      };
+    }
     return {
       ...base,
       bestScore: Math.max(0, Math.min(100000, Math.floor(Number(source.bestScore || 0))))
@@ -41687,6 +42003,87 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         longestSnake: Math.max(Number(left.longestSnake || 0), Number(right.longestSnake || 0))
       };
     }
+    if (id === XP_MINI_GAME_ID_CODE_STACK) {
+      return {
+        lastPlayedAt,
+        bestScore: Math.max(Number(left.bestScore || 0), Number(right.bestScore || 0)),
+        highestTower: Math.max(Number(left.highestTower || 0), Number(right.highestTower || 0)),
+        bestCombo: Math.max(Number(left.bestCombo || 0), Number(right.bestCombo || 0))
+      };
+    }
+    if (id === XP_MINI_GAME_ID_BYTE_RUSH) {
+      return {
+        lastPlayedAt,
+        bestScore: Math.max(Number(left.bestScore || 0), Number(right.bestScore || 0)),
+        bestDistance: Math.max(Number(left.bestDistance || 0), Number(right.bestDistance || 0)),
+        bestChips: Math.max(Number(left.bestChips || 0), Number(right.bestChips || 0))
+      };
+    }
+    if (id === XP_MINI_GAME_ID_ROCKET_BYTE) {
+      return {
+        lastPlayedAt,
+        bestScore: Math.max(Number(left.bestScore || 0), Number(right.bestScore || 0)),
+        bestHeight: Math.max(Number(left.bestHeight || 0), Number(right.bestHeight || 0)),
+        bestFuel: Math.max(Number(left.bestFuel || 0), Number(right.bestFuel || 0)),
+        bestChips: Math.max(Number(left.bestChips || 0), Number(right.bestChips || 0))
+      };
+    }
+    if (id === XP_MINI_GAME_ID_FALLING_CODE) {
+      return {
+        lastPlayedAt,
+        bestScore: Math.max(Number(left.bestScore || 0), Number(right.bestScore || 0)),
+        bestDepth: Math.max(Number(left.bestDepth || 0), Number(right.bestDepth || 0)),
+        bestGates: Math.max(Number(left.bestGates || 0), Number(right.bestGates || 0))
+      };
+    }
+    if (id === XP_MINI_GAME_ID_PERFECT_SHOT) {
+      return {
+        lastPlayedAt,
+        bestScore: Math.max(Number(left.bestScore || 0), Number(right.bestScore || 0)),
+        bestCombo: Math.max(Number(left.bestCombo || 0), Number(right.bestCombo || 0)),
+        bestAccuracy: Math.max(Number(left.bestAccuracy || 0), Number(right.bestAccuracy || 0))
+      };
+    }
+    if (id === XP_MINI_GAME_ID_COLOR_SWITCH_BYTE) {
+      return {
+        lastPlayedAt,
+        bestScore: Math.max(Number(left.bestScore || 0), Number(right.bestScore || 0)),
+        bestCombo: Math.max(Number(left.bestCombo || 0), Number(right.bestCombo || 0))
+      };
+    }
+    if (id === XP_MINI_GAME_ID_CODE_HOOPS) {
+      return {
+        lastPlayedAt,
+        bestScore: Math.max(Number(left.bestScore || 0), Number(right.bestScore || 0)),
+        bestStreak: Math.max(Number(left.bestStreak || 0), Number(right.bestStreak || 0)),
+        bestAccuracy: Math.max(Number(left.bestAccuracy || 0), Number(right.bestAccuracy || 0)),
+        bestMade: Math.max(Number(left.bestMade || 0), Number(right.bestMade || 0))
+      };
+    }
+    if (id === XP_MINI_GAME_ID_RED_LIGHT_GREEN_LIGHT) {
+      return {
+        lastPlayedAt,
+        bestScore: Math.max(Number(left.bestScore || 0), Number(right.bestScore || 0)),
+        bestDistance: Math.max(Number(left.bestDistance || 0), Number(right.bestDistance || 0)),
+        fastestFinishMs: earlierPositiveMin(left.fastestFinishMs, right.fastestFinishMs)
+      };
+    }
+    if (id === XP_MINI_GAME_ID_CODE_MAZE) {
+      return {
+        lastPlayedAt,
+        bestScore: Math.max(Number(left.bestScore || 0), Number(right.bestScore || 0)),
+        bestLevel: Math.max(Number(left.bestLevel || 0), Number(right.bestLevel || 0)),
+        fastestLevelMs: earlierPositiveMin(left.fastestLevelMs, right.fastestLevelMs)
+      };
+    }
+    if (id === XP_MINI_GAME_ID_PATTERN_LOCK) {
+      return {
+        lastPlayedAt,
+        bestScore: Math.max(Number(left.bestScore || 0), Number(right.bestScore || 0)),
+        bestLevel: Math.max(Number(left.bestLevel || 0), Number(right.bestLevel || 0)),
+        longestPattern: Math.max(Number(left.longestPattern || 0), Number(right.longestPattern || 0))
+      };
+    }
     return {
       lastPlayedAt,
       bestScore: Math.max(Number(left.bestScore || 0), Number(right.bestScore || 0))
@@ -41712,6 +42109,47 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     }
     if (id === XP_MINI_GAME_ID_CODE_SNAKE) {
       next.longestSnake = Math.max(Number(next.longestSnake || 0), Number(metrics.longestSnake || 0));
+    }
+    if (id === XP_MINI_GAME_ID_CODE_STACK) {
+      next.highestTower = Math.max(Number(next.highestTower || 0), Number(metrics.highestTower || metrics.placements || 0));
+      next.bestCombo = Math.max(Number(next.bestCombo || 0), Number(metrics.bestCombo || 0));
+    }
+    if (id === XP_MINI_GAME_ID_BYTE_RUSH) {
+      next.bestDistance = Math.max(Number(next.bestDistance || 0), Number(metrics.distance || 0));
+      next.bestChips = Math.max(Number(next.bestChips || 0), Number(metrics.chips || 0));
+    }
+    if (id === XP_MINI_GAME_ID_ROCKET_BYTE) {
+      next.bestHeight = Math.max(Number(next.bestHeight || 0), Number(metrics.height || score));
+      next.bestFuel = Math.max(Number(next.bestFuel || 0), Number(metrics.fuelCollected || 0));
+      next.bestChips = Math.max(Number(next.bestChips || 0), Number(metrics.chips || 0));
+    }
+    if (id === XP_MINI_GAME_ID_FALLING_CODE) {
+      next.bestDepth = Math.max(Number(next.bestDepth || 0), Number(metrics.depth || score));
+      next.bestGates = Math.max(Number(next.bestGates || 0), Number(metrics.gatesPassed || 0));
+    }
+    if (id === XP_MINI_GAME_ID_PERFECT_SHOT) {
+      next.bestCombo = Math.max(Number(next.bestCombo || 0), Number(metrics.bestCombo || 0));
+      next.bestAccuracy = Math.max(Number(next.bestAccuracy || 0), Number(metrics.accuracy || 0));
+    }
+    if (id === XP_MINI_GAME_ID_COLOR_SWITCH_BYTE) {
+      next.bestCombo = Math.max(Number(next.bestCombo || 0), Number(metrics.bestCombo || 0));
+    }
+    if (id === XP_MINI_GAME_ID_CODE_HOOPS) {
+      next.bestStreak = Math.max(Number(next.bestStreak || 0), Number(metrics.bestStreak || 0));
+      next.bestAccuracy = Math.max(Number(next.bestAccuracy || 0), Number(metrics.accuracy || 0));
+      next.bestMade = Math.max(Number(next.bestMade || 0), Number(metrics.made || 0));
+    }
+    if (id === XP_MINI_GAME_ID_RED_LIGHT_GREEN_LIGHT) {
+      next.bestDistance = Math.max(Number(next.bestDistance || 0), Number(metrics.distance || score));
+      if (metrics.completed && metrics.timeMs > 0) next.fastestFinishMs = earlierPositiveMin(next.fastestFinishMs, metrics.timeMs);
+    }
+    if (id === XP_MINI_GAME_ID_CODE_MAZE) {
+      next.bestLevel = Math.max(Number(next.bestLevel || 0), Number(metrics.completedLevels || score));
+      if (metrics.fastestLevelMs > 0) next.fastestLevelMs = earlierPositiveMin(next.fastestLevelMs, metrics.fastestLevelMs);
+    }
+    if (id === XP_MINI_GAME_ID_PATTERN_LOCK) {
+      next.bestLevel = Math.max(Number(next.bestLevel || 0), Number(metrics.highestLevel || score));
+      next.longestPattern = Math.max(Number(next.longestPattern || 0), Number(metrics.longestPattern || 0));
     }
     return next;
   }
@@ -43419,7 +43857,17 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       bugSmash: normalizeMiniGameRecord(XP_MINI_GAME_ID_BUG_SMASH, miniGames.games?.bugSmash),
       runner404: normalizeMiniGameRecord(XP_MINI_GAME_ID_RUNNER_404, miniGames.games?.runner404),
       memoryCode: normalizeMiniGameRecord(XP_MINI_GAME_ID_MEMORY_CODE, miniGames.games?.memoryCode),
-      codeSnake: normalizeMiniGameRecord(XP_MINI_GAME_ID_CODE_SNAKE, miniGames.games?.codeSnake)
+      codeSnake: normalizeMiniGameRecord(XP_MINI_GAME_ID_CODE_SNAKE, miniGames.games?.codeSnake),
+      codeStack: normalizeMiniGameRecord(XP_MINI_GAME_ID_CODE_STACK, miniGames.games?.codeStack),
+      byteRush: normalizeMiniGameRecord(XP_MINI_GAME_ID_BYTE_RUSH, miniGames.games?.byteRush),
+      rocketByte: normalizeMiniGameRecord(XP_MINI_GAME_ID_ROCKET_BYTE, miniGames.games?.rocketByte),
+      fallingCode: normalizeMiniGameRecord(XP_MINI_GAME_ID_FALLING_CODE, miniGames.games?.fallingCode),
+      perfectShot: normalizeMiniGameRecord(XP_MINI_GAME_ID_PERFECT_SHOT, miniGames.games?.perfectShot),
+      colorSwitchByte: normalizeMiniGameRecord(XP_MINI_GAME_ID_COLOR_SWITCH_BYTE, miniGames.games?.colorSwitchByte),
+      codeHoops: normalizeMiniGameRecord(XP_MINI_GAME_ID_CODE_HOOPS, miniGames.games?.codeHoops),
+      redLightGreenLight: normalizeMiniGameRecord(XP_MINI_GAME_ID_RED_LIGHT_GREEN_LIGHT, miniGames.games?.redLightGreenLight),
+      codeMaze: normalizeMiniGameRecord(XP_MINI_GAME_ID_CODE_MAZE, miniGames.games?.codeMaze),
+      patternLock: normalizeMiniGameRecord(XP_MINI_GAME_ID_PATTERN_LOCK, miniGames.games?.patternLock)
     };
     return {
       loggedIn,
@@ -43436,7 +43884,17 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         bugSmash: Math.max(0, Number(gameRecords.bugSmash.bestScore || 0)),
         runner404: Math.max(0, Number(gameRecords.runner404.bestScore || 0)),
         memoryCode: gameRecords.memoryCode.bestTimeMs > 0 ? Math.round(gameRecords.memoryCode.bestTimeMs) : 0,
-        codeSnake: Math.max(0, Number(gameRecords.codeSnake.bestScore || 0))
+        codeSnake: Math.max(0, Number(gameRecords.codeSnake.bestScore || 0)),
+        codeStack: Math.max(0, Number(gameRecords.codeStack.bestScore || 0)),
+        byteRush: Math.max(0, Number(gameRecords.byteRush.bestDistance || gameRecords.byteRush.bestScore || 0)),
+        rocketByte: Math.max(0, Number(gameRecords.rocketByte.bestHeight || gameRecords.rocketByte.bestScore || 0)),
+        fallingCode: Math.max(0, Number(gameRecords.fallingCode.bestDepth || gameRecords.fallingCode.bestScore || 0)),
+        perfectShot: Math.max(0, Number(gameRecords.perfectShot.bestScore || 0)),
+        colorSwitchByte: Math.max(0, Number(gameRecords.colorSwitchByte.bestScore || 0)),
+        codeHoops: Math.max(0, Number(gameRecords.codeHoops.bestScore || 0)),
+        redLightGreenLight: Math.max(0, Number(gameRecords.redLightGreenLight.bestDistance || gameRecords.redLightGreenLight.bestScore || 0)),
+        codeMaze: Math.max(0, Number(gameRecords.codeMaze.bestLevel || gameRecords.codeMaze.bestScore || 0)),
+        patternLock: Math.max(0, Number(gameRecords.patternLock.bestLevel || gameRecords.patternLock.bestScore || 0))
       },
       gameRecords,
       soundEnabled: miniGames.soundEnabled !== false
@@ -43543,6 +44001,118 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       metrics.durationMs = durationMs;
       metrics.tokens = Math.min(metrics.tokens || score, score);
       metrics.longestSnake = Math.max(0, Math.min(metrics.longestSnake || (4 + metrics.tokens), 4 + Math.max(0, metrics.tokens) + 12));
+    }
+    else if (gameId === XP_MINI_GAME_ID_CODE_STACK) {
+      // At most three score points per placement. This generous timing ceiling
+      // prevents instant fake high scores without punishing fast legitimate taps.
+      const placementCeiling = Math.max(2, Math.floor(durationMs / 180) + 3);
+      metrics.durationMs = durationMs;
+      metrics.placements = Math.min(metrics.placements || Math.ceil(score / 3), placementCeiling);
+      metrics.perfects = Math.min(metrics.perfects || 0, metrics.placements);
+      metrics.highestTower = Math.min(metrics.highestTower || metrics.placements, metrics.placements);
+      metrics.bestCombo = Math.min(metrics.bestCombo || 0, metrics.perfects || metrics.placements);
+      maxPlausibleScore = Math.max(6, metrics.placements * 3 + 3);
+      score = Math.min(score, maxPlausibleScore);
+    } else if (gameId === XP_MINI_GAME_ID_BYTE_RUSH) {
+      // BYTE RUSH score is distance plus small chip bonuses. Keep the ceiling
+      // generous for fast play while blocking impossible instant thousands.
+      metrics.durationMs = durationMs;
+      const seconds = durationMs / 1000;
+      metrics.chips = Math.min(metrics.chips || 0, Math.floor(seconds / 1.2) + 3);
+      metrics.obstaclesPassed = Math.min(metrics.obstaclesPassed || 0, Math.floor(seconds / .7) + 4);
+      metrics.distance = Math.min(metrics.distance || score, Math.floor(seconds * 42) + 120);
+      maxPlausibleScore = Math.max(180, metrics.distance + metrics.chips * 45 + 100);
+      score = Math.min(score, maxPlausibleScore);
+    } else if (gameId === XP_MINI_GAME_ID_ROCKET_BYTE) {
+      // ROCKET BYTE account reward is based on flight height only. Pickups are
+      // tracked as records/feedback, never as direct account XP.
+      metrics.durationMs = durationMs;
+      const seconds = durationMs / 1000;
+      metrics.fuelCollected = Math.min(metrics.fuelCollected || 0, Math.floor(seconds / 3.2) + 3);
+      metrics.chips = Math.min(metrics.chips || 0, Math.floor(seconds / 2.1) + 3);
+      metrics.obstaclesPassed = Math.min(metrics.obstaclesPassed || 0, Math.floor(seconds / .65) + 5);
+      metrics.height = Math.min(metrics.height || score, Math.floor(seconds * 38) + 120);
+      maxPlausibleScore = Math.max(180, metrics.height + 70);
+      score = Math.min(score, maxPlausibleScore);
+    } else if (gameId === XP_MINI_GAME_ID_FALLING_CODE) {
+      // FALLING CODE reward uses depth only. The gate count is separately
+      // bounded so a client cannot manufacture a record or reward tier.
+      metrics.durationMs = durationMs;
+      const seconds = durationMs / 1000;
+      metrics.gatesPassed = Math.min(metrics.gatesPassed || 0, Math.floor(seconds / .62) + 4);
+      metrics.depth = Math.min(metrics.depth || score, Math.floor(seconds * 45) + 120);
+      maxPlausibleScore = Math.max(180, metrics.depth + 60);
+      score = Math.min(score, maxPlausibleScore);
+    } else if (gameId === XP_MINI_GAME_ID_PERFECT_SHOT) {
+      // PERFECT SHOT is a timed 30-second reaction round. Score comes only
+      // from one resolved shot per moving target: perfect +3, good +2, hit +1.
+      metrics.durationMs = durationMs;
+      const shotCeiling = Math.max(4, Math.floor(durationMs / 520) + 4);
+      metrics.attempts = Math.min(metrics.attempts || 0, shotCeiling);
+      metrics.hits = Math.min(metrics.hits || 0, metrics.attempts);
+      metrics.perfects = Math.min(metrics.perfects || 0, metrics.hits);
+      metrics.bestCombo = Math.min(metrics.bestCombo || 0, metrics.perfects);
+      metrics.accuracy = metrics.attempts > 0 ? Math.round(metrics.hits / metrics.attempts * 1000) / 10 : 0;
+      maxPlausibleScore = Math.max(12, metrics.hits * 3);
+      score = durationMs >= 27000 ? Math.min(score, maxPlausibleScore) : 0;
+    } else if (gameId === XP_MINI_GAME_ID_COLOR_SWITCH_BYTE) {
+      // COLOR SWITCH BYTE awards one score per passed ring. A generous time
+      // ceiling blocks instant fabricated runs without penalizing fast tapping.
+      metrics.durationMs = durationMs;
+      const passCeiling = Math.max(4, Math.floor(durationMs / 700) + 4);
+      metrics.passes = Math.min(metrics.passes || score, passCeiling);
+      metrics.bestCombo = Math.min(metrics.bestCombo || metrics.passes, metrics.passes);
+      maxPlausibleScore = passCeiling;
+      score = Math.min(score, metrics.passes, maxPlausibleScore);
+    } else if (gameId === XP_MINI_GAME_ID_CODE_HOOPS) {
+      // CODE HOOPS is a 45-second drag-and-release round. One made shot is +1
+      // or +3 for a perfect swish; records never become direct account XP.
+      metrics.durationMs = durationMs;
+      const shotCeiling = Math.max(4, Math.floor(durationMs / 650) + 5);
+      metrics.attempts = Math.min(metrics.attempts || 0, shotCeiling);
+      metrics.made = Math.min(metrics.made || 0, metrics.attempts);
+      metrics.perfects = Math.min(metrics.perfects || 0, metrics.made);
+      metrics.bestStreak = Math.min(metrics.bestStreak || 0, metrics.perfects);
+      metrics.accuracy = metrics.attempts > 0 ? Math.round(metrics.made / metrics.attempts * 1000) / 10 : 0;
+      maxPlausibleScore = Math.max(6, metrics.made * 3);
+      score = durationMs >= 40000 ? Math.min(score, maxPlausibleScore) : 0;
+    } else if (gameId === XP_MINI_GAME_ID_RED_LIGHT_GREEN_LIGHT) {
+      // RED LIGHT / GREEN LIGHT uses a fixed 0-1000 distance track. The wall-
+      // clock ceiling is intentionally generous, but instant fabricated finishes
+      // cannot reach a reward-bearing distance or completion state.
+      metrics.durationMs = durationMs;
+      const seconds = durationMs / 1000;
+      const distanceCeiling = Math.min(1000, Math.floor(seconds * 58) + 45);
+      metrics.distance = Math.min(metrics.distance || score, distanceCeiling);
+      metrics.strikes = Math.min(3, metrics.strikes || 0);
+      metrics.completed = Boolean(metrics.completed && metrics.distance >= 1000 && durationMs >= 18000 && metrics.strikes < 3);
+      if (metrics.completed) metrics.timeMs = Math.max(18000, Math.min(metrics.timeMs || durationMs, durationMs));
+      else metrics.timeMs = Math.min(metrics.timeMs || durationMs, durationMs);
+      maxPlausibleScore = distanceCeiling;
+      score = Math.min(score, metrics.distance, maxPlausibleScore);
+      if (metrics.completed) score = 1000;
+    } else if (gameId === XP_MINI_GAME_ID_CODE_MAZE) {
+      // Each cleared maze requires a real sequence of movements. Reward is based
+      // only on verified levels cleared, never on client-selected XP values.
+      metrics.durationMs = durationMs;
+      const levelCeiling = durationMs < 2200 ? 0 : Math.min(99, Math.floor(durationMs / 2200));
+      metrics.completedLevels = Math.min(metrics.completedLevels || score, levelCeiling);
+      metrics.level = Math.max(1, Math.min(metrics.level || (metrics.completedLevels + 1), metrics.completedLevels + 1));
+      metrics.keys = Math.min(metrics.keys || 0, metrics.completedLevels + 1);
+      metrics.moves = Math.min(metrics.moves || 0, Math.floor(durationMs / 55) + 30);
+      if (metrics.fastestLevelMs > 0) metrics.fastestLevelMs = Math.max(1200, Math.min(metrics.fastestLevelMs, durationMs));
+      maxPlausibleScore = levelCeiling;
+      score = metrics.completedLevels;
+    } else if (gameId === XP_MINI_GAME_ID_PATTERN_LOCK) {
+      // PATTERN LOCK sequences take progressively longer to display and repeat.
+      // A generous wall-clock ceiling blocks instant fabricated high levels.
+      metrics.durationMs = durationMs;
+      const levelCeiling = durationMs < 2500 ? 0 : Math.min(99, Math.floor(durationMs / 850) + 2);
+      metrics.highestLevel = Math.min(metrics.highestLevel || score, levelCeiling);
+      metrics.roundsCompleted = Math.min(metrics.roundsCompleted || metrics.highestLevel, metrics.highestLevel);
+      metrics.longestPattern = Math.min(metrics.longestPattern || (metrics.highestLevel ? metrics.highestLevel + 2 : 0), metrics.highestLevel ? metrics.highestLevel + 2 : 0);
+      maxPlausibleScore = levelCeiling;
+      score = metrics.highestLevel;
     }
 
     const requestedXp = miniGameRewardForResult(gameId, { score, metrics });
