@@ -45,7 +45,7 @@
   </script>
   <link rel="preconnect" href="https://drive.google.com" crossorigin>
   <link rel="preconnect" href="https://lh3.googleusercontent.com" crossorigin>
-  <link rel="stylesheet" href="style.css?v=20260909-v424-menu-scroll-full-editor-fill" />
+  <link rel="stylesheet" href="style.css?v=20260909-v423-mobile-fullscreen-compact" />
   <style>
     .ai-rubric-settings-card,
     .admin-project-ai-review-card {
@@ -3784,18 +3784,10 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
         const isFull = fullModeActive();
         menu.replaceChildren();
 
-        // v424: keep the outer popover overflow-visible for the pointer while
-        // all actual menu content lives in its own independently scrollable
-        // surface. This prevents touch scrolling from leaking to the editor.
-        const scrollSurface = document.createElement('div');
-        scrollSurface.className = 'mobile-editor-menu-scroll-v424';
-        scrollSurface.setAttribute('role', 'presentation');
-        menu.appendChild(scrollSurface);
-
         const head = document.createElement('div');
         head.className = 'mobile-editor-menu-head';
         head.innerHTML = `<strong>${isGuest ? 'Practice Editor Menu' : 'Editor Menu'}</strong><span>${isGuest ? 'Not saved' : 'Tools & navigation'}</span>`;
-        scrollSurface.appendChild(head);
+        menu.appendChild(head);
 
         const work = [];
         if (actionExists('stepActivityBtn')) work.push({ label: '✅ Activity Set', action: 'activity' });
@@ -3804,9 +3796,9 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
         if (actionExists('resultBtn')) work.push({ label: '✓ Result', action: 'result' });
         if (isFull) work.push({ label: '⛶ Exit Full Editor', action: 'exitFull', className: 'warning' });
         else if (actionExists('fullEditorBtn')) work.push({ label: '⛶ Full Editor', action: 'full' });
-        appendSection(scrollSurface, 'Work Controls', work, 'mobile-editor-menu-work');
+        appendSection(menu, 'Work Controls', work, 'mobile-editor-menu-work');
 
-        appendSection(scrollSurface, 'Appearance', [
+        appendSection(menu, 'Appearance', [
           { label: getThemeText(), action: 'theme' },
           { label: 'Aa Font Size', action: 'fontSize' }
         ], 'mobile-editor-menu-appearance');
@@ -3818,24 +3810,24 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
         if (!isGuest && isFeatureButtonVisible('collabShareBtn')) tools.push({ label: getShareJoinText(), action: 'collab' });
         if (codeSuggestionsAvailable()) tools.push({ label: getCodeSuggestionsText(), action: 'suggestions' });
         if (actionExists('downloadZipBtn')) tools.push({ label: '💾 Download ZIP', action: 'zip' });
-        appendSection(scrollSurface, 'Tools', tools, 'mobile-editor-menu-tools');
+        appendSection(menu, 'Tools', tools, 'mobile-editor-menu-tools');
 
         const reset = [];
         if (actionExists('resetBtn')) reset.push({ label: 'Reset Editor', action: 'reset' });
         if (actionExists('clearBtn')) reset.push({ label: 'Clear Current Tab', action: 'clear', className: 'danger' });
-        appendSection(scrollSurface, 'Reset Tools', reset, 'mobile-editor-menu-reset');
+        appendSection(menu, 'Reset Tools', reset, 'mobile-editor-menu-reset');
 
         const nav = [];
         nav.push({ label: '📁 My Projects', action: 'projects' });
         nav.push({ label: '📚 Lessons', action: 'lessons' });
         nav.push({ label: '📝 Activities', action: 'activities' });
         nav.push({ label: '🚀 Course Path', action: 'course' });
-        appendSection(scrollSurface, 'Go to', nav, 'mobile-editor-menu-nav');
+        appendSection(menu, 'Go to', nav, 'mobile-editor-menu-nav');
 
         const account = [];
         if (isGuest) account.push({ label: '🔐 Login to Save', action: 'login', className: 'primary' });
         else account.push({ label: 'Log Out', action: 'logout', className: 'danger' });
-        appendSection(scrollSurface, 'Account', account, 'mobile-editor-menu-account');
+        appendSection(menu, 'Account', account, 'mobile-editor-menu-account');
       }
 
       function isMenuOpen() {
@@ -3855,19 +3847,10 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
         // v422: keep this a true right-side phone popover, not an almost-full-width panel.
         const width = Math.min(286, Math.max(236, viewportWidth * 0.72), Math.max(0, viewportWidth - (safeGap * 2)));
         const right = Math.max(safeGap, Math.min(24, viewportWidth - rect.right));
-        // v423: leave enough room for the small pointer that visually connects
-        // the floating menu to the hamburger button.
-        const top = Math.max(14, Math.min(window.innerHeight - 120, rect.bottom + 12));
-        const menuRightEdge = viewportWidth - right;
-        const buttonCenter = rect.left + (rect.width / 2);
-        const rawPointerRight = menuRightEdge - buttonCenter - 8;
-        const pointerRight = Math.max(18, Math.min(width - 26, rawPointerRight));
+        const top = Math.max(10, Math.min(window.innerHeight - 120, rect.bottom + 7));
         menu.style.setProperty('--mcs-mobile-editor-menu-top-v416', `${Math.round(top)}px`);
         menu.style.setProperty('--mcs-mobile-editor-menu-right-v418', `${Math.round(right)}px`);
         menu.style.setProperty('--mcs-mobile-editor-menu-width-v416', `${Math.round(width)}px`);
-        menu.style.setProperty('--mcs-mobile-editor-menu-pointer-right-v423', `${Math.round(pointerRight)}px`);
-        const availableHeight = Math.max(180, (window.innerHeight || document.documentElement.clientHeight || 0) - top - 12);
-        menu.style.setProperty('--mcs-mobile-editor-menu-max-height-v424', `${Math.round(availableHeight)}px`);
         menu.style.removeProperty('--mcs-mobile-editor-menu-left-v416');
       }
 
@@ -3879,7 +3862,7 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
         renderMenu();
         menu.classList.remove('hidden');
         menu.setAttribute('aria-hidden', 'false');
-        document.body?.classList?.add('mobile-editor-menu-open-v416', 'mobile-editor-menu-open-v415', 'mobile-editor-menu-scroll-lock-v424');
+        document.body?.classList?.add('mobile-editor-menu-open-v416', 'mobile-editor-menu-open-v415');
         btn?.setAttribute('aria-expanded', 'true');
         btn?.setAttribute('aria-label', 'Close editor menu');
         positionMenu();
@@ -3890,7 +3873,7 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
         const menu = $(MENU_ID);
         menu?.classList?.add('hidden');
         menu?.setAttribute?.('aria-hidden', 'true');
-        document.body?.classList?.remove('mobile-editor-menu-open-v416', 'mobile-editor-menu-open-v415', 'mobile-editor-menu-scroll-lock-v424');
+        document.body?.classList?.remove('mobile-editor-menu-open-v416', 'mobile-editor-menu-open-v415');
         btn?.setAttribute?.('aria-expanded', 'false');
         btn?.setAttribute?.('aria-label', 'Open editor menu');
       }
@@ -4086,6 +4069,22 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
           dock.appendChild(button);
         }
 
+        // v423: phone Full Editor exit belongs in the same compact project strip
+        // as Saved / Save / Pages. It is hidden outside phone full-screen mode.
+        let fullExit = $('mobileFullEditorExitBtn');
+        if (!fullExit) {
+          fullExit = document.createElement('button');
+          fullExit.id = 'mobileFullEditorExitBtn';
+          fullExit.type = 'button';
+          fullExit.className = 'mobile-full-editor-exit-btn';
+          fullExit.textContent = '×';
+          fullExit.title = 'Exit full editor';
+          fullExit.setAttribute('aria-label', 'Exit full editor');
+          dock.appendChild(fullExit);
+        } else if (fullExit.parentElement !== dock) {
+          dock.appendChild(fullExit);
+        }
+
         ensurePageMenuHead(manager);
         return button;
       }
@@ -4244,6 +4243,16 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
 
       function handleTap(event) {
         if (!isPhoneUi()) return;
+        const fullExitButton = event.target?.closest?.('#mobileFullEditorExitBtn');
+        if (fullExitButton) {
+          event.preventDefault();
+          event.stopPropagation();
+          event.stopImmediatePropagation?.();
+          closePageMenu();
+          $('exitEditorStickyBtn')?.click?.();
+          return;
+        }
+
         const pagesButton = event.target?.closest?.('#mobileEditorPagesBtn');
         if (pagesButton) {
           event.preventDefault();
@@ -4298,123 +4307,7 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
     })();
   </script>
 
-  <script>
-    // v423 MOBILE FULL EDITOR: the phone full-editor surface is intentionally
-    // minimal: language tabs, compact project/save/pages row, editor, and the
-    // existing bottom font-size slider. Desktop is never modified here.
-    (() => {
-      const EXIT_ID = 'mobileFullEditorExitBtnV423';
-      let syncQueued = false;
-
-      const $ = id => document.getElementById(id);
-      const isPhoneUi = () => {
-        try {
-          return document.documentElement?.dataset?.deviceMode === 'phone'
-            || window.matchMedia?.('(max-width: 820px)')?.matches;
-        } catch (_) {
-          return false;
-        }
-      };
-      const isPhoneFullEditor = () => {
-        if (!isPhoneUi()) return false;
-        const b = document.body;
-        return Boolean(
-          b?.classList?.contains('phone-true-full-editor-active')
-          || b?.classList?.contains('phone-css-full-editor-active')
-          || (
-            b?.classList?.contains('editor-fullscreen-active')
-            && !b?.classList?.contains('preview-fullscreen-active')
-            && !b?.classList?.contains('preview-inside-editor-fullscreen')
-          )
-        );
-      };
-
-      function getDock() {
-        const header = $('editorProjectHeader');
-        if (!header) return null;
-        let dock = header.querySelector('.mobile-editor-save-dock');
-        if (!dock && window.MCS_V420_MOBILE_PAGES?.sync) {
-          try { window.MCS_V420_MOBILE_PAGES.sync(); } catch (_) {}
-          dock = header.querySelector('.mobile-editor-save-dock');
-        }
-        return dock;
-      }
-
-      function ensureExitButton() {
-        const dock = getDock();
-        if (!dock) return null;
-        let button = $(EXIT_ID);
-        if (!button) {
-          button = document.createElement('button');
-          button.id = EXIT_ID;
-          button.type = 'button';
-          button.className = 'mobile-full-editor-exit-v423';
-          button.innerHTML = '<span aria-hidden="true">×</span>';
-          button.setAttribute('aria-label', 'Exit full editor');
-          button.setAttribute('title', 'Exit full editor');
-          button.addEventListener('click', event => {
-            event.preventDefault();
-            event.stopPropagation();
-            event.stopImmediatePropagation?.();
-            // Reuse the app's existing exit logic so fullscreen state, body
-            // classes, scroll restoration, and editor focus stay consistent.
-            const realExit = $('exitEditorStickyBtn') || $('exitEditorBtn');
-            realExit?.click?.();
-          }, true);
-        }
-        if (button.parentElement !== dock) dock.appendChild(button);
-        return button;
-      }
-
-      function sync() {
-        const button = ensureExitButton();
-        if (!button) return;
-        const active = isPhoneFullEditor();
-        button.classList.toggle('hidden', !active);
-        button.setAttribute('aria-hidden', String(!active));
-        document.body?.classList?.toggle('mobile-full-editor-v423', active);
-        // The old standalone fullscreen action row must not occupy any height.
-        if (active) {
-          $('fullscreenEditorActions')?.setAttribute?.('aria-hidden', 'true');
-        } else {
-          $('fullscreenEditorActions')?.removeAttribute?.('aria-hidden');
-        }
-      }
-
-      function queueSync() {
-        if (syncQueued) return;
-        syncQueued = true;
-        (window.requestAnimationFrame || window.setTimeout)(() => {
-          syncQueued = false;
-          try { sync(); } catch (error) { console.warn('v423 full editor sync skipped:', error); }
-        }, 0);
-      }
-
-      function bind() {
-        queueSync();
-        try {
-          new MutationObserver(queueSync).observe(document.body, {
-            attributes: true,
-            attributeFilter: ['class'],
-            childList: true,
-            subtree: true
-          });
-          new MutationObserver(queueSync).observe(document.documentElement, {
-            attributes: true,
-            attributeFilter: ['data-device-mode', 'class']
-          });
-        } catch (_) {}
-        window.addEventListener('resize', queueSync, { passive: true });
-        window.addEventListener('orientationchange', () => window.setTimeout(queueSync, 100), { passive: true });
-        window.MCS_V423_PHONE_FULL_EDITOR = { sync: queueSync, isActive: isPhoneFullEditor };
-      }
-
-      if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bind, { once: true });
-      else bind();
-    })();
-  </script>
-
-  <script src="script.js?v=20260909-v427-phone-runtime-hardfix"></script>
+  <script src="script.js?v=20260909-v415-mobile-editor-popover-fix"></script>
   <script>
     // v410 fallback: keep the desktop editor settings popover working even if older cached
     // toolbar code fails before binding the click handler.
