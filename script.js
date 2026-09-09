@@ -41576,7 +41576,10 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     const leftPlayed = String(left.games?.codeFly?.lastPlayedAt || '');
     const rightPlayed = String(right.games?.codeFly?.lastPlayedAt || '');
     return {
-      version: 1,
+      // v432: merged Mini-Games data is already normalized to the v2 ledger
+      // model. Never downgrade it back to v1, otherwise later syncs treat
+      // valid state as legacy/corrupt data again.
+      version: 2,
       lifetimeXp: Math.max(Number(left.lifetimeXp || 0), Number(right.lifetimeXp || 0)),
       daily,
       games: {
@@ -43063,6 +43066,57 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     const currentAdjustment = Math.max(0, Number(progress.legacyXpAdjustment || 0));
     const currentTotal = raw + currentAdjustment + miniGameXp;
     const existing = Math.max(0, Number(existingTotalXp || 0));
+
+    // v432 CRITICAL RUNAWAY-XP GUARD:
+    // legacyXpAdjustment is a one-time migration value. Once a student has
+    // reached the migration version it must NEVER be increased again by live
+    // listeners, autosave, dashboard refresh, or a Mini-Game claim.
+    //
+    // Before this guard, codeExplorerXp (which already contains Mini-Game XP)
+    // could be mistaken for old learning XP during a transient cross-device
+    // merge. The migration then ratcheted legacyXpAdjustment upward by the
+    // Mini-Game amount. When Mini-Game state reappeared, that same amount was
+    // counted again, causing passive +N XP loops while coding or even after
+    // simply opening/closing screens.
+    if (migrationVersion >= EXPLORER_XP_MIGRATION_VERSION) {
+      return {
+        changed: false,
+        credit: 0,
+        before: currentTotal,
+        after: currentTotal,
+        raw,
+        normalizedTarget: explorerLegacyNormalizedTargetFor(progress),
+        protectedExistingXp: existing,
+        adjustment: currentAdjustment,
+        miniGameXp,
+        locked: true
+      };
+    }
+
+    // If an older, not-yet-migrated profile already has Mini-Game history, do
+    // not perform an automatic background migration using the combined visible
+    // XP value. That value includes Mini-Game XP and cannot safely be treated
+    // as historical learning XP. An explicit admin normalization can handle
+    // such an exceptional legacy profile without risking another runaway loop.
+    const migrationSource = String(options.source || '');
+    const hasMiniGameHistory = miniGameXp > 0
+      || Object.keys(normalizeMiniGameRewardLedger(progress?.miniGames?.recentRewards || {})).length > 0
+      || Object.keys(normalizeMiniGameRewardLedger(progress?.miniGames?.daily?.sessions || {})).length > 0;
+    const explicitAdminMigration = migrationSource.startsWith('admin-');
+    if (hasMiniGameHistory && !explicitAdminMigration) {
+      return {
+        changed: false,
+        credit: 0,
+        before: currentTotal,
+        after: currentTotal,
+        raw,
+        normalizedTarget: explorerLegacyNormalizedTargetFor(progress),
+        protectedExistingXp: existing,
+        adjustment: currentAdjustment,
+        miniGameXp,
+        migrationDeferred: true
+      };
+    }
     // codeExplorerXp is now the total visible XP (learning + mini-games). Legacy
     // normalization must protect only the learning portion or the mini-game XP
     // would be counted again inside legacyXpAdjustment.
