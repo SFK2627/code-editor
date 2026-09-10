@@ -41858,6 +41858,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   const XP_MINI_GAME_ID_BYTE_SLING = 'byte-sling';
   const XP_MINI_GAME_ID_CODE_BRIDGE = 'code-bridge';
   const XP_MINI_GAME_ID_CODE_SLICE = 'code-slice';
+  const XP_MINI_GAME_ID_MILLION_BYTE = 'million-byte';
 
   const XP_MINI_GAME_DEFINITIONS = Object.freeze({
     [XP_MINI_GAME_ID_CODE_FLY]: Object.freeze({ stateKey: 'codeFly', maxReward: 15 }),
@@ -41878,7 +41879,8 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     [XP_MINI_GAME_ID_CODE_FLOW]: Object.freeze({ stateKey: 'codeFlow', maxReward: 5 }),
     [XP_MINI_GAME_ID_BYTE_SLING]: Object.freeze({ stateKey: 'byteSling', maxReward: 3 }),
     [XP_MINI_GAME_ID_CODE_BRIDGE]: Object.freeze({ stateKey: 'codeBridge', maxReward: 3 }),
-    [XP_MINI_GAME_ID_CODE_SLICE]: Object.freeze({ stateKey: 'codeSlice', maxReward: 3 })
+    [XP_MINI_GAME_ID_CODE_SLICE]: Object.freeze({ stateKey: 'codeSlice', maxReward: 3 }),
+    [XP_MINI_GAME_ID_MILLION_BYTE]: Object.freeze({ stateKey: 'millionByte', maxReward: 3 })
   });
 
   function normalizeXpMiniGameId(gameId = XP_MINI_GAME_ID_CODE_FLY) {
@@ -42378,6 +42380,34 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     return 1;
   }
 
+  // V472 — MILLION BYTE is one 15-question knowledge ladder. The browser
+  // receives a reserved unseen question set once, then all answering stays local.
+  function millionByteScoreDetails(metrics = {}) {
+    const source = metrics && typeof metrics === 'object' ? metrics : {};
+    const activeTimeMs = Math.max(0, Math.min(30 * 60 * 1000, Math.floor(Number(source.activeTimeMs || source.durationMs || 0))));
+    const completed = source.completedRun === true
+      && Math.max(0, Math.min(15, Math.floor(Number(source.correctCount || 0)))) === 15
+      && Array.isArray(source.questionIds) && source.questionIds.length === 15
+      && Array.isArray(source.answers) && source.answers.length === 15
+      && activeTimeMs >= 45000;
+    if (!completed) return { score: 0, tier: 0, completed: false, activeTimeMs };
+    const lifelinesUsed = Math.max(0, Math.min(2, Math.floor(Number(source.lifelinesUsed || 0))));
+    const rescuedWrong = Math.max(0, Math.min(1, Math.floor(Number(source.rescuedWrong || 0))));
+    const lifelineBonus = lifelinesUsed === 0 ? 150 : (lifelinesUsed === 1 ? 75 : 0);
+    const cleanBonus = rescuedWrong === 0 ? 100 : 25;
+    const sec = activeTimeMs / 1000;
+    const speedBonus = sec <= 150 ? 100 : (sec <= 240 ? 60 : (sec <= 360 ? 30 : 0));
+    const score = Math.max(0, Math.min(1000, 650 + lifelineBonus + cleanBonus + speedBonus));
+    let tier = score >= 650 ? 1 : 0;
+    if (score >= 825 && lifelinesUsed <= 1 && rescuedWrong === 0) tier = 2;
+    if (score >= 950 && lifelinesUsed === 0 && rescuedWrong === 0 && sec >= 45) tier = 3;
+    return { score, tier, completed: true, lifelinesUsed, rescuedWrong, activeTimeMs };
+  }
+
+  function millionByteRewardForMetrics(metrics = {}) {
+    return millionByteScoreDetails(metrics).tier;
+  }
+
   // v464 — XP pace balance. Score tiers still measure skill, but a second
   // server-mirrored cap limits how much XP a very short round can produce.
   // Missing duration means legacy stored data, so old already-earned XP is not
@@ -42427,6 +42457,13 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       if (seconds < 65) return 2;
       if (seconds < 95) return 3;
       return 4;
+    }
+
+    // MILLION BYTE is a full 15-question run. Duration is only an anti-
+    // fabrication floor; waiting longer never increases the reward tier.
+    if (id === XP_MINI_GAME_ID_MILLION_BYTE) {
+      const activeSeconds = Math.max(0, Number(source.activeTimeMs || durationMs)) / 1000;
+      return activeSeconds >= 45 ? 3 : 0;
     }
 
     // CODE SLICE evaluates a complete five-wave stream. Time is only a
@@ -42512,6 +42549,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       case XP_MINI_GAME_ID_BYTE_SLING: tierReward = byteSlingRewardForMetrics(metrics); break;
       case XP_MINI_GAME_ID_CODE_BRIDGE: tierReward = codeBridgeRewardForMetrics(metrics); break;
       case XP_MINI_GAME_ID_CODE_SLICE: tierReward = codeSliceRewardForMetrics(metrics); break;
+      case XP_MINI_GAME_ID_MILLION_BYTE: tierReward = millionByteRewardForMetrics(metrics); break;
       default: tierReward = 0;
     }
     return Math.min(tierReward, miniGameDurationRewardCap(id, metrics));
@@ -42743,6 +42781,29 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         crashHit: source.crashHit === true,
         activeTimeMs: Math.max(0, Math.min(10 * 60 * 1000, Math.floor(Number(source.activeTimeMs || 0)))),
         durationMs: Math.max(0, Math.min(10 * 60 * 1000, Math.floor(Number(source.durationMs || 0))))
+      };
+    }
+
+    if (id === XP_MINI_GAME_ID_MILLION_BYTE) {
+      const questionIds = Array.isArray(source.questionIds)
+        ? source.questionIds.slice(0, 15).map(value => String(value || '').trim().slice(0, 12)).filter(value => /^mb[1-5]-\d{3}$/.test(value))
+        : [];
+      const answers = Array.isArray(source.answers)
+        ? source.answers.slice(0, 15).map(value => Math.max(-1, Math.min(3, Math.floor(Number(value)))))
+        : [];
+      return {
+        completedRun: source.completedRun === true,
+        bankVersion: Math.max(0, Math.min(99, Math.floor(Number(source.bankVersion || 0)))),
+        questionIds,
+        answers,
+        correctCount: Math.max(0, Math.min(15, Math.floor(Number(source.correctCount || 0)))),
+        reachedQuestion: Math.max(0, Math.min(15, Math.floor(Number(source.reachedQuestion || 0)))),
+        lifelinesUsed: Math.max(0, Math.min(2, Math.floor(Number(source.lifelinesUsed || 0)))),
+        fiftyUsed: source.fiftyUsed === true,
+        doubleUsed: source.doubleUsed === true,
+        rescuedWrong: Math.max(0, Math.min(1, Math.floor(Number(source.rescuedWrong || 0)))),
+        activeTimeMs: Math.max(0, Math.min(30 * 60 * 1000, Math.floor(Number(source.activeTimeMs || 0)))),
+        durationMs: Math.max(0, Math.min(30 * 60 * 1000, Math.floor(Number(source.durationMs || 0))))
       };
     }
 
@@ -42986,6 +43047,17 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       };
     }
 
+    if (id === XP_MINI_GAME_ID_MILLION_BYTE) {
+      return {
+        ...base,
+        bestScore: Math.max(0, Math.min(1000, Math.floor(Number(source.bestScore || 0)))),
+        bestReached: Math.max(0, Math.min(15, Math.floor(Number(source.bestReached || 0)))),
+        fastestWinMs: Math.max(0, Math.min(30 * 60 * 1000, Math.floor(Number(source.fastestWinMs || 0)))),
+        lastRewardDay: /^\d{4}-\d{2}-\d{2}$/.test(String(source.lastRewardDay || '')) ? String(source.lastRewardDay) : '',
+        lastRewardXp: Math.max(0, Math.min(3, Math.floor(Number(source.lastRewardXp || 0))))
+      };
+    }
+
     return {
       ...base,
       bestScore: Math.max(0, Math.min(100000, Math.floor(Number(source.bestScore || 0))))
@@ -43165,6 +43237,20 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         lastRewardXp: Math.max(0, Math.min(3, Math.floor(lastRewardXp || 0)))
       };
     }
+    if (id === XP_MINI_GAME_ID_MILLION_BYTE) {
+      const leftDay = String(left.lastRewardDay || '');
+      const rightDay = String(right.lastRewardDay || '');
+      const newestDay = [leftDay, rightDay].filter(Boolean).sort().pop() || '';
+      const lastRewardXp = newestDay === rightDay ? Number(right.lastRewardXp || 0) : Number(left.lastRewardXp || 0);
+      return {
+        lastPlayedAt,
+        bestScore: Math.max(Number(left.bestScore || 0), Number(right.bestScore || 0)),
+        bestReached: Math.max(Number(left.bestReached || 0), Number(right.bestReached || 0)),
+        fastestWinMs: earlierPositiveMin(left.fastestWinMs, right.fastestWinMs),
+        lastRewardDay: newestDay,
+        lastRewardXp: Math.max(0, Math.min(3, Math.floor(lastRewardXp || 0)))
+      };
+    }
     return {
       lastPlayedAt,
       bestScore: Math.max(Number(left.bestScore || 0), Number(right.bestScore || 0))
@@ -43255,6 +43341,14 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       next.bestRunScore = Math.max(Number(next.bestRunScore || 0), Number(details.score || score || 0));
       next.bestCombo = Math.max(Number(next.bestCombo || 0), Number(details.maxCombo || metrics.maxCombo || 0));
       next.bestAccuracy = Math.max(Number(next.bestAccuracy || 0), Number(details.accuracy || 0));
+    }
+    if (id === XP_MINI_GAME_ID_MILLION_BYTE) {
+      next.bestReached = Math.max(Number(next.bestReached || 0), Number(metrics.reachedQuestion || metrics.correctCount || 0));
+      if (metrics.completedRun) {
+        const details = millionByteScoreDetails(metrics);
+        next.bestScore = Math.max(Number(next.bestScore || 0), Number(details.score || score || 0));
+        if (metrics.activeTimeMs > 0) next.fastestWinMs = earlierPositiveMin(next.fastestWinMs, metrics.activeTimeMs);
+      }
     }
     return next;
   }
@@ -45624,7 +45718,8 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       codeFlow: normalizeMiniGameRecord(XP_MINI_GAME_ID_CODE_FLOW, miniGames.games?.codeFlow),
       byteSling: normalizeMiniGameRecord(XP_MINI_GAME_ID_BYTE_SLING, miniGames.games?.byteSling),
       codeBridge: normalizeMiniGameRecord(XP_MINI_GAME_ID_CODE_BRIDGE, miniGames.games?.codeBridge),
-      codeSlice: normalizeMiniGameRecord(XP_MINI_GAME_ID_CODE_SLICE, miniGames.games?.codeSlice)
+      codeSlice: normalizeMiniGameRecord(XP_MINI_GAME_ID_CODE_SLICE, miniGames.games?.codeSlice),
+      millionByte: normalizeMiniGameRecord(XP_MINI_GAME_ID_MILLION_BYTE, miniGames.games?.millionByte)
     };
     return {
       loggedIn,
@@ -45657,7 +45752,8 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         codeFlow: Math.max(0, Number(gameRecords.codeFlow.bestScore || 0)),
         byteSling: Math.max(0, Number(gameRecords.byteSling.bestRunScore || gameRecords.byteSling.bestScore || 0)),
         codeBridge: Math.max(0, Number(gameRecords.codeBridge.bestRunScore || gameRecords.codeBridge.bestScore || 0)),
-        codeSlice: Math.max(0, Number(gameRecords.codeSlice.bestRunScore || gameRecords.codeSlice.bestScore || 0))
+        codeSlice: Math.max(0, Number(gameRecords.codeSlice.bestRunScore || gameRecords.codeSlice.bestScore || 0)),
+        millionByte: Math.max(0, Number(gameRecords.millionByte.bestScore || 0))
       },
       gameRecords,
       soundEnabled: miniGames.soundEnabled !== false
@@ -45841,6 +45937,34 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     activeXpMiniGameRounds.set(sessionId, { gameId: normalizedGameId, startedAt });
     enterMiniGameNetworkQuiet(sessionId);
     return { sessionId, gameId: normalizedGameId, startedAt };
+  }
+
+  async function prepareMillionByteRound(sessionId, bankVersion = 1) {
+    const id = String(sessionId || '').trim();
+    const round = activeXpMiniGameRounds.get(id);
+    if (!round || round.gameId !== XP_MINI_GAME_ID_MILLION_BYTE) {
+      return { ok: false, practiceOnly: true, error: 'Million Byte round is not active.' };
+    }
+    if (!(appSession.mode === 'student' && appSession.student?.uid)) {
+      return { ok: true, loginRequired: true, practiceOnly: true, questionIds: [] };
+    }
+    if (!shouldUseAppsScriptMiniGameRewards()) {
+      return { ok: true, practiceOnly: true, questionIds: [] };
+    }
+    const server = await callAppsScriptSecure({
+      action: 'startMillionByteRound',
+      roundId: id,
+      gameId: XP_MINI_GAME_ID_MILLION_BYTE,
+      bankVersion: Math.max(1, Math.min(99, Math.floor(Number(bankVersion || 1))))
+    }, { allowStudent: true });
+    return {
+      ok: server?.ok === true,
+      questionIds: Array.isArray(server?.questionIds) ? server.questionIds.slice(0, 15) : [],
+      bankVersion: Number(server?.bankVersion || bankVersion || 1),
+      cycleInfo: server?.cycleInfo || null,
+      practiceOnly: false,
+      loginRequired: false
+    };
   }
 
   function reportedXpMiniGameResult(input = 0) {
@@ -46029,6 +46153,29 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       metrics.integrityRemaining = details.integrityRemaining;
       metrics.crashHit = metrics.crashHit === true;
       score = details.completed ? details.score : 0;
+      maxPlausibleScore = 1000;
+    } else if (gameId === XP_MINI_GAME_ID_MILLION_BYTE) {
+      metrics.durationMs = durationMs;
+      metrics.activeTimeMs = Math.max(0, Math.min(Number(metrics.activeTimeMs || durationMs), durationMs));
+      const bank = window.ICT8_MILLION_BYTE_BANK?.byId || null;
+      const ids = Array.isArray(metrics.questionIds) ? metrics.questionIds.slice(0, 15) : [];
+      const answers = Array.isArray(metrics.answers) ? metrics.answers.slice(0, 15) : [];
+      let validatedCorrect = 0;
+      let idsValid = ids.length === 15 && new Set(ids).size === 15;
+      if (idsValid && bank) {
+        for (let i = 0; i < answers.length && i < ids.length; i += 1) {
+          const q = bank[ids[i]];
+          if (!q) { idsValid = false; break; }
+          if (Number(answers[i]) === Number(q.answer)) validatedCorrect += 1;
+        }
+      } else if (!bank) {
+        validatedCorrect = Math.max(0, Math.min(15, Number(metrics.correctCount || 0)));
+      }
+      metrics.correctCount = Math.max(0, Math.min(15, validatedCorrect));
+      metrics.reachedQuestion = Math.max(metrics.correctCount, Math.min(15, Number(metrics.reachedQuestion || answers.length || 0)));
+      metrics.completedRun = Boolean(metrics.completedRun && idsValid && answers.length === 15 && metrics.correctCount === 15 && metrics.activeTimeMs >= 45000);
+      const millionDetails = millionByteScoreDetails(metrics);
+      score = millionDetails.completed ? millionDetails.score : 0;
       maxPlausibleScore = 1000;
     } else if (gameId === XP_MINI_GAME_ID_BYTE_SLING) {
       metrics.durationMs = durationMs;
@@ -46448,7 +46595,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
 
     // Zero-XP rounds do not need an immediate cloud request. Their personal-best
     // record stays local and can merge into the next normal Explorer checkpoint.
-    if (verified.requestedXp <= 0 && !(gameId === XP_MINI_GAME_ID_CODE_FLOW && verified.metrics?.completed === true) && !(gameId === XP_MINI_GAME_ID_BYTE_SLING && verified.metrics?.completedRun === true)) {
+    if (verified.requestedXp <= 0 && !(gameId === XP_MINI_GAME_ID_CODE_FLOW && verified.metrics?.completed === true) && !(gameId === XP_MINI_GAME_ID_BYTE_SLING && verified.metrics?.completedRun === true) && !(gameId === XP_MINI_GAME_ID_MILLION_BYTE && verified.metrics?.completedRun === true)) {
       const snapshot = notifyXpMiniGamesProgress({ awardedXp: 0, requestedXp: 0, duplicate: false, gameId });
       const record = snapshot.gameRecords?.[stateKey] || localMiniGames.games[stateKey];
       return { ...baseResult, ...snapshot, gameRecord: record, bestScore: Math.max(0, Number(record?.bestScore || 0)) };
@@ -46461,7 +46608,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     const localTodayXp = localMiniGames.daily?.date === localDayKey
       ? Math.min(XP_MINI_GAMES_DAILY_CAP, Math.max(0, Number(localMiniGames.daily?.earned || 0)))
       : 0;
-    if (localTodayXp >= XP_MINI_GAMES_DAILY_CAP && !(gameId === XP_MINI_GAME_ID_CODE_FLOW && verified.metrics?.completed === true) && !(gameId === XP_MINI_GAME_ID_BYTE_SLING && verified.metrics?.completedRun === true)) {
+    if (localTodayXp >= XP_MINI_GAMES_DAILY_CAP && !(gameId === XP_MINI_GAME_ID_CODE_FLOW && verified.metrics?.completed === true) && !(gameId === XP_MINI_GAME_ID_BYTE_SLING && verified.metrics?.completedRun === true) && !(gameId === XP_MINI_GAME_ID_MILLION_BYTE && verified.metrics?.completedRun === true)) {
       const snapshot = notifyXpMiniGamesProgress({ awardedXp: 0, requestedXp: verified.requestedXp, duplicate: false, gameId });
       const record = snapshot.gameRecords?.[stateKey] || localMiniGames.games[stateKey];
       return {
@@ -46542,13 +46689,14 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         firestoreSynced: server.firestoreSynced === true,
         replayNoXp: server.replayNoXp === true,
         replayReduced: server.replayReduced === true,
-        progressionBlocked: server.progressionBlocked === true
+        progressionBlocked: server.progressionBlocked === true,
+        reservationMismatch: server.reservationMismatch === true
       };
     } catch (error) {
       // During rollout only, an OLD Apps Script deployment can fall back to the
       // proven Firestore transaction. Network/quota errors do NOT cause a second
       // Firestore claim attempt, preventing double load and duplicate rewards.
-      if (miniGameBridgeNeedsLegacyFallback(error) && gameId !== XP_MINI_GAME_ID_CODE_FLOW && gameId !== XP_MINI_GAME_ID_BYTE_SLING && gameId !== XP_MINI_GAME_ID_CODE_BRIDGE && gameId !== XP_MINI_GAME_ID_CODE_SLICE) {
+      if (miniGameBridgeNeedsLegacyFallback(error) && gameId !== XP_MINI_GAME_ID_CODE_FLOW && gameId !== XP_MINI_GAME_ID_BYTE_SLING && gameId !== XP_MINI_GAME_ID_CODE_BRIDGE && gameId !== XP_MINI_GAME_ID_CODE_SLICE && gameId !== XP_MINI_GAME_ID_MILLION_BYTE) {
         console.warn('Mini-game Apps Script route is not deployed yet; using temporary legacy reward path.', error);
         return performXpMiniGameClaimLegacyFirestore(sessionId, round, reportedResult);
       }
@@ -50511,7 +50659,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   // Reward tiers, daily cap, duplicate protection, total XP integration, and
   // Firestore transaction logic stay inside the existing Code Explorer system.
   window.ICT8_XP_MINIGAMES_BRIDGE = Object.freeze({
-    version: 4,
+    version: 5,
     dailyCap: XP_MINI_GAMES_DAILY_CAP,
     weeklyMax: XP_MINI_GAMES_WEEKLY_MAX,
     getSnapshot: currentXpMiniGamesSnapshot,
@@ -50521,6 +50669,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     rewardForScore: miniGameRewardForScore,
     rewardForGame: miniGameRewardForResult,
     beginRound: beginXpMiniGameRound,
+    prepareMillionByteRound,
     claimRound: claimXpMiniGameRound,
     cancelRound: cancelXpMiniGameRound,
     cancelGame: cancelXpMiniGameRoundsForGame,

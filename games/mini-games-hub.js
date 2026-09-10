@@ -278,6 +278,24 @@
       }
     },
     {
+      id: 'million-byte',
+      stateKey: 'millionByte',
+      name: 'MILLION BYTE',
+      icon: '🧠',
+      description: 'Climb a 15-question general-knowledge ladder from Easy to Expert. Fresh questions retire as you play.',
+      maxXp: 3,
+      category: 'QUIZ / GENERAL KNOWLEDGE',
+      difficulty: '★★★★☆',
+      globalName: 'ICT8MillionByte',
+      script: 'games/million-byte/million-byte.js',
+      style: 'games/million-byte/million-byte.css',
+      bestText(record = {}) {
+        const reached = Math.max(0, Number(record.bestReached || 0));
+        const score = Math.max(0, Number(record.bestScore || 0));
+        return reached >= 15 ? `🏆 1M BYTE · Best ${score}` : (reached > 0 ? `🏆 Best Q${reached}/15` : '🏆 Fresh ladder ready');
+      }
+    },
+    {
       id: 'pattern-lock',
       stateKey: 'patternLock',
       name: 'PATTERN LOCK',
@@ -733,7 +751,7 @@
     if (document.querySelector(`link[data-xp-game-style="${game.id}"]`)) return;
     const link = document.createElement('link');
     link.rel = 'stylesheet';
-    link.href = `${game.style}?v=20260910-v471-code-slice`;
+    link.href = `${game.style}?v=20260910-v472-million-byte`;
     link.dataset.xpGameStyle = game.id;
     document.head.appendChild(link);
   }
@@ -750,7 +768,7 @@
       // forever for a load event that already fired.
       if (existing) existing.remove();
       const script = document.createElement('script');
-      script.src = `${game.script}?v=20260910-v471-code-slice`;
+      script.src = `${game.script}?v=20260910-v472-million-byte`;
       script.defer = true;
       script.dataset.xpGameScript = game.id;
       script.addEventListener('load', () => {

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ict8-connect-v471-code-slice';
+const CACHE_NAME = 'ict8-connect-v472-million-byte';
 
 self.addEventListener('install', event => {
   event.waitUntil(self.skipWaiting());
