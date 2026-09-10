@@ -4265,6 +4265,11 @@ function shouldUseAppsScriptMiniGameRewards() {
   return window.MCS_MINI_GAME_REWARDS_VIA_APPS_SCRIPT !== false && Boolean(getMcsAppsScriptUrl());
 }
 
+
+function shouldUseRtdbWeeklyArcade() {
+  return window.MCS_USE_RTDB_WEEKLY_ARCADE !== false && Boolean(getMcsRealtimeDatabaseUrl());
+}
+
 async function getActiveFirebaseIdToken(options = {}) {
   const ready = await initFirebaseSync();
   if (!ready || !firebaseSync.auth) throw new Error(firebaseSync.lastError || 'Firebase is not ready.');
@@ -44450,16 +44455,78 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       totalPlayers: 0,
       yourRank: 0,
       yourEntry: null,
-      partial: true
+      partial: true,
+      source: shouldUseRtdbWeeklyArcade() ? 'rtdb' : 'firestore-legacy'
     };
     if (!loggedIn) return { ...base, error: 'Log in as a student to view the Weekly Arcade leaderboard.' };
 
+    const cleanEntry = (data = {}, fallbackUid = '') => ({
+      uid: String(data?.uid || fallbackUid || '').trim(),
+      name: String(data?.name || 'Student').trim() || 'Student',
+      section: String(data?.section || '').trim(),
+      weeklyXp: Math.max(0, Math.min(XP_MINI_GAMES_WEEKLY_MAX, Math.floor(Number(data?.weeklyXp || 0)))),
+      rewardedSessions: Math.max(0, Math.floor(Number(data?.rewardedSessions || 0))),
+      lastRewardGameId: normalizeXpMiniGameId(data?.lastRewardGameId || ''),
+      lastRewardXp: Math.max(0, Math.min(15, Math.floor(Number(data?.lastRewardXp || 0)))),
+      accountStatus: String(data?.accountStatus || 'active').trim().toLowerCase()
+    });
+    const sortRows = rows => {
+      rows.sort((a, b) => {
+        if (b.weeklyXp !== a.weeklyXp) return b.weeklyXp - a.weeklyXp;
+        if (a.rewardedSessions !== b.rewardedSessions) return a.rewardedSessions - b.rewardedSessions;
+        return a.name.localeCompare(b.name, 'en', { sensitivity: 'base' });
+      });
+      rows.forEach((row, index) => { row.rank = index + 1; });
+      return rows;
+    };
+
+    // Phase 2: once RTDB is configured, Weekly Arcade never touches Firestore.
+    // Students read only the Top N rows + their own row through short REST calls.
+    if (shouldUseRtdbWeeklyArcade()) {
+      try {
+        const [topRaw, yourRaw] = await Promise.all([
+          rtdbRestRequest(`arcadeWeekly/${week.key}/entries`, {
+            query: {
+              orderBy: JSON.stringify('weeklyXp'),
+              limitToLast: topLimit
+            }
+          }),
+          rtdbRestRequest(`arcadeWeekly/${week.key}/entries/${uid}`)
+        ]);
+        const rows = sortRows(Object.entries(topRaw && typeof topRaw === 'object' ? topRaw : {}).map(([rowUid, data]) => cleanEntry(data, rowUid))
+          .filter(row => row.uid && row.weeklyXp > 0 && row.accountStatus !== 'disabled'));
+        let yourEntry = rows.find(row => row.uid === uid) || null;
+        if (!yourEntry && yourRaw && typeof yourRaw === 'object') {
+          const candidate = cleanEntry(yourRaw, uid);
+          if (candidate.weeklyXp > 0 && candidate.accountStatus !== 'disabled') yourEntry = { ...candidate, rank: 0 };
+        }
+        return {
+          ...base,
+          ok: true,
+          source: 'rtdb',
+          entries: rows,
+          totalPlayers: rows.length,
+          yourRank: yourEntry?.rank || 0,
+          yourEntry
+        };
+      } catch (error) {
+        console.warn('RTDB Weekly Arcade leaderboard could not be loaded.', error);
+        // Deliberately DO NOT fall back to Firestore here. If RTDB is enabled,
+        // protecting Firestore quota is more important than a temporary ranking.
+        return {
+          ...base,
+          source: 'rtdb',
+          error: String(error?.message || error || 'Could not load Weekly Arcade from Realtime Database.')
+        };
+      }
+    }
+
+    // Legacy rollout fallback only when RTDB Weekly Arcade is intentionally
+    // disabled or the database URL has not been configured yet.
     try {
       const ready = await initFirebaseSync();
       if (!ready) throw new Error(firebaseSync.lastError || 'Firebase is unavailable.');
       const { getDocs, getDoc, query, orderBy, limit } = firebaseSync.modules;
-      // v458 quota guard: never download the entire weekly collection. Load the
-      // top rows plus the signed-in student's exact row only.
       const [topSnapshot, yourSnapshot] = await Promise.all([
         getDocs(query(
           getXpMiniGameWeeklyLeaderboardCollectionRef(week.key),
@@ -44468,55 +44535,24 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         )),
         getDoc(getXpMiniGameWeeklyLeaderboardDocRef(week.key, uid))
       ]);
-      const rows = (topSnapshot?.docs || []).map(docSnapshot => {
-        const data = snapshotData(docSnapshot) || {};
-        return {
-          uid: String(data.uid || docSnapshot.id || '').trim(),
-          name: String(data.name || 'Student').trim() || 'Student',
-          section: String(data.section || '').trim(),
-          weeklyXp: Math.max(0, Math.min(XP_MINI_GAMES_WEEKLY_MAX, Math.floor(Number(data.weeklyXp || 0)))),
-          rewardedSessions: Math.max(0, Math.floor(Number(data.rewardedSessions || 0))),
-          lastRewardGameId: normalizeXpMiniGameId(data.lastRewardGameId || ''),
-          lastRewardXp: Math.max(0, Math.min(15, Math.floor(Number(data.lastRewardXp || 0)))),
-          accountStatus: String(data.accountStatus || 'active').trim().toLowerCase()
-        };
-      }).filter(row => row.uid && row.weeklyXp > 0 && row.accountStatus !== 'disabled');
-
-      rows.sort((a, b) => {
-        if (b.weeklyXp !== a.weeklyXp) return b.weeklyXp - a.weeklyXp;
-        if (a.rewardedSessions !== b.rewardedSessions) return a.rewardedSessions - b.rewardedSessions;
-        return a.name.localeCompare(b.name, 'en', { sensitivity: 'base' });
-      });
-      rows.forEach((row, index) => { row.rank = index + 1; });
-
+      const rows = sortRows((topSnapshot?.docs || []).map(docSnapshot => cleanEntry(snapshotData(docSnapshot) || {}, docSnapshot.id))
+        .filter(row => row.uid && row.weeklyXp > 0 && row.accountStatus !== 'disabled'));
       let yourEntry = rows.find(row => row.uid === uid) || null;
       if (!yourEntry && snapshotExists(yourSnapshot)) {
-        const data = snapshotData(yourSnapshot) || {};
-        if (String(data.accountStatus || 'active').toLowerCase() !== 'disabled' && Number(data.weeklyXp || 0) > 0) {
-          yourEntry = {
-            uid,
-            name: String(data.name || appSession.student?.name || 'Student').trim() || 'Student',
-            section: String(data.section || appSession.student?.section || '').trim(),
-            weeklyXp: Math.max(0, Math.min(XP_MINI_GAMES_WEEKLY_MAX, Math.floor(Number(data.weeklyXp || 0)))),
-            rewardedSessions: Math.max(0, Math.floor(Number(data.rewardedSessions || 0))),
-            lastRewardGameId: normalizeXpMiniGameId(data.lastRewardGameId || ''),
-            lastRewardXp: Math.max(0, Math.min(15, Math.floor(Number(data.lastRewardXp || 0)))),
-            accountStatus: String(data.accountStatus || 'active').trim().toLowerCase(),
-            rank: 0
-          };
-        }
+        const candidate = cleanEntry(snapshotData(yourSnapshot) || {}, uid);
+        if (candidate.weeklyXp > 0 && candidate.accountStatus !== 'disabled') yourEntry = { ...candidate, rank: 0 };
       }
-      const yourRank = yourEntry?.rank || 0;
       return {
         ...base,
         ok: true,
+        source: 'firestore-legacy',
         entries: rows,
         totalPlayers: rows.length,
-        yourRank,
+        yourRank: yourEntry?.rank || 0,
         yourEntry
       };
     } catch (error) {
-      console.warn('XP Mini-Games weekly leaderboard could not be loaded.', error);
+      console.warn('Legacy Firestore Weekly Arcade leaderboard could not be loaded.', error);
       return { ...base, error: String(error?.message || error || 'Could not load Weekly Arcade leaderboard.') };
     }
   }
@@ -44976,39 +45012,8 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       || message.includes('claimminigamereward is not available');
   }
 
-  async function mirrorWeeklyMiniGameRewardAfterServerClaim(gameId, awardedXp, weekKey = '') {
-    const amount = Math.max(0, Math.floor(Number(awardedXp || 0)));
-    if (!amount || !(appSession.mode === 'student' && appSession.student?.uid)) return false;
-    try {
-      const ready = await initFirebaseSync();
-      if (!ready) return false;
-      const { setDoc, increment, serverTimestamp } = firebaseSync.modules;
-      if (typeof increment !== 'function') return false;
-      const uid = appSession.student.uid;
-      const weeklyInfo = xpMiniGamesWeekInfo();
-      const key = /^\d{4}-\d{2}-\d{2}$/.test(String(weekKey || '')) ? String(weekKey) : weeklyInfo.key;
-      const profile = appSession.student || appSession.lastStudentProfile || {};
-      await setDoc(getXpMiniGameWeeklyLeaderboardDocRef(key, uid), {
-        uid,
-        name: String(profile.name || profile.fullName || 'Student').trim() || 'Student',
-        section: String(profile.section || '').trim(),
-        weekKey: key,
-        weeklyXp: increment(amount),
-        rewardedSessions: increment(1),
-        lastRewardGameId: gameId,
-        lastRewardXp: amount,
-        accountStatus: String(profile.accountStatus || 'active'),
-        lastRewardAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      }, { merge: true });
-      return true;
-    } catch (error) {
-      // Weekly ranking is deliberately NON-CRITICAL in the hybrid backend.
-      // A leaderboard mirror failure must never roll back real account XP.
-      console.warn('Weekly Arcade mirror skipped after a valid XP reward.', error);
-      return false;
-    }
-  }
+  // Phase 2: Weekly Arcade writes are server-only through Apps Script + RTDB.
+
 
   async function performXpMiniGameClaim(sessionId, round, reportedResult) {
     ensureReaderProgress();
@@ -45111,12 +45116,8 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       const todayXp = Math.max(0, Math.min(XP_MINI_GAMES_DAILY_CAP, Math.floor(Number(server.todayXp || 0))));
       const weekKey = String(server.weekKey || xpMiniGamesWeekInfo().key);
 
-      // Non-critical mirror only. It no longer participates in account-XP success.
-      if (!duplicate && awardedXp > 0) {
-        mirrorWeeklyMiniGameRewardAfterServerClaim(gameId, awardedXp, weekKey).then(ok => {
-          if (ok) leaderboardState.loadedAt = 0;
-        }).catch(() => {});
-      }
+      // Phase 2: the Apps Script backend mirrors valid awarded XP into RTDB.
+      // The browser performs NO Weekly Arcade Firestore write here.
 
       const snapshot = notifyXpMiniGamesProgress({ awardedXp, requestedXp, duplicate, gameId });
       const gameRecord = snapshot.gameRecords?.[stateKey] || state.progress.miniGames?.games?.[stateKey] || localMiniGames.games[stateKey];
