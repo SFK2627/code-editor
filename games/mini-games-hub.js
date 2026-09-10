@@ -260,6 +260,24 @@
       }
     },
     {
+      id: 'code-slice',
+      stateKey: 'codeSlice',
+      name: 'CODE SLICE',
+      icon: '⚔️',
+      description: 'Swipe through flying code tokens, build combos, and avoid the CRASH CORE through five rising-speed waves.',
+      maxXp: 3,
+      category: 'ARCADE / REFLEX',
+      difficulty: '★★★☆☆',
+      globalName: 'ICT8CodeSlice',
+      script: 'games/code-slice/code-slice.js',
+      style: 'games/code-slice/code-slice.css',
+      bestText(record = {}) {
+        const score = Math.max(0, Number(record.bestRunScore || record.bestScore || 0));
+        const combo = Math.max(0, Number(record.bestCombo || 0));
+        return score > 0 ? `🏆 Best ${score} · Combo x${combo}` : '🏆 Stream ready';
+      }
+    },
+    {
       id: 'pattern-lock',
       stateKey: 'patternLock',
       name: 'PATTERN LOCK',
@@ -715,7 +733,7 @@
     if (document.querySelector(`link[data-xp-game-style="${game.id}"]`)) return;
     const link = document.createElement('link');
     link.rel = 'stylesheet';
-    link.href = `${game.style}?v=20260910-v470-code-bridge`;
+    link.href = `${game.style}?v=20260910-v471-code-slice`;
     link.dataset.xpGameStyle = game.id;
     document.head.appendChild(link);
   }
@@ -732,7 +750,7 @@
       // forever for a load event that already fired.
       if (existing) existing.remove();
       const script = document.createElement('script');
-      script.src = `${game.script}?v=20260910-v470-code-bridge`;
+      script.src = `${game.script}?v=20260910-v471-code-slice`;
       script.defer = true;
       script.dataset.xpGameScript = game.id;
       script.addEventListener('load', () => {
