@@ -675,7 +675,7 @@
     if (document.querySelector(`link[data-xp-game-style="${game.id}"]`)) return;
     const link = document.createElement('link');
     link.rel = 'stylesheet';
-    link.href = `${game.style}?v=20260910-v466-code-flow`;
+    link.href = `${game.style}?v=20260910-v466a-code-flow`;
     link.dataset.xpGameStyle = game.id;
     document.head.appendChild(link);
   }
@@ -692,7 +692,7 @@
       // forever for a load event that already fired.
       if (existing) existing.remove();
       const script = document.createElement('script');
-      script.src = `${game.script}?v=20260910-v466-code-flow`;
+      script.src = `${game.script}?v=20260910-v466a-code-flow`;
       script.defer = true;
       script.dataset.xpGameScript = game.id;
       script.addEventListener('load', () => {
