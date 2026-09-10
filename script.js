@@ -41857,6 +41857,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   const XP_MINI_GAME_ID_CODE_FLOW = 'code-flow';
   const XP_MINI_GAME_ID_BYTE_SLING = 'byte-sling';
   const XP_MINI_GAME_ID_CODE_BRIDGE = 'code-bridge';
+  const XP_MINI_GAME_ID_CODE_SLICE = 'code-slice';
 
   const XP_MINI_GAME_DEFINITIONS = Object.freeze({
     [XP_MINI_GAME_ID_CODE_FLY]: Object.freeze({ stateKey: 'codeFly', maxReward: 15 }),
@@ -41876,7 +41877,8 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     [XP_MINI_GAME_ID_PATTERN_LOCK]: Object.freeze({ stateKey: 'patternLock', maxReward: 10 }),
     [XP_MINI_GAME_ID_CODE_FLOW]: Object.freeze({ stateKey: 'codeFlow', maxReward: 5 }),
     [XP_MINI_GAME_ID_BYTE_SLING]: Object.freeze({ stateKey: 'byteSling', maxReward: 3 }),
-    [XP_MINI_GAME_ID_CODE_BRIDGE]: Object.freeze({ stateKey: 'codeBridge', maxReward: 3 })
+    [XP_MINI_GAME_ID_CODE_BRIDGE]: Object.freeze({ stateKey: 'codeBridge', maxReward: 3 }),
+    [XP_MINI_GAME_ID_CODE_SLICE]: Object.freeze({ stateKey: 'codeSlice', maxReward: 3 })
   });
 
   function normalizeXpMiniGameId(gameId = XP_MINI_GAME_ID_CODE_FLY) {
@@ -42331,6 +42333,51 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     return 1;
   }
 
+  // V471 — CODE SLICE is one complete five-wave arcade run. Active gameplay
+  // stays local; this compact summary is recomputed before the secured reward claim.
+  function codeSliceScoreDetails(metrics = {}) {
+    const source = metrics && typeof metrics === 'object' ? metrics : {};
+    const totalTargets = 60;
+    const slicedTargets = Math.max(0, Math.min(totalTargets, Math.floor(Number(source.slicedTargets || 0))));
+    const missedTargets = Math.max(0, totalTargets - slicedTargets);
+    const integrityRemaining = Math.max(0, Math.min(3, 3 - missedTargets));
+    const maxCombo = Math.max(0, Math.min(slicedTargets, Math.floor(Number(source.maxCombo || 0))));
+    const multiSlices = Math.max(0, Math.min(Math.floor(slicedTargets / 2), Math.floor(Number(source.multiSlices || 0))));
+    const activeTimeMs = Math.max(0, Math.min(10 * 60 * 1000, Math.floor(Number(source.activeTimeMs || source.durationMs || 0))));
+    const completed = source.completedRun === true
+      && Number(source.wavesCompleted || 0) === 5
+      && source.crashHit !== true
+      && missedTargets <= 2
+      && activeTimeMs >= 44000;
+    if (!completed) {
+      return { score: 0, completed: false, accuracy: 0, slicedTargets, missedTargets, maxCombo, multiSlices, integrityRemaining, activeTimeMs };
+    }
+    const accuracy = slicedTargets / totalTargets;
+    const accuracyBonus = Math.round(accuracy * 260);
+    const comboBonus = Math.round(Math.max(0, Math.min(1, maxCombo / 35)) * 220);
+    const integrityBonus = Math.round((integrityRemaining / 3) * 120);
+    const score = Math.max(0, Math.min(1000, 400 + accuracyBonus + comboBonus + integrityBonus));
+    return {
+      score,
+      completed: true,
+      accuracy: Math.round(accuracy * 1000) / 10,
+      slicedTargets,
+      missedTargets,
+      maxCombo,
+      multiSlices,
+      integrityRemaining,
+      activeTimeMs
+    };
+  }
+
+  function codeSliceRewardForMetrics(metrics = {}) {
+    const details = codeSliceScoreDetails(metrics);
+    if (!details.completed || details.score < 700) return 0;
+    if (details.score >= 950 && details.accuracy >= 99.5 && details.maxCombo >= 35 && details.integrityRemaining === 3 && details.multiSlices >= 2) return 3;
+    if (details.score >= 870 && details.accuracy >= 98 && details.maxCombo >= 20) return 2;
+    return 1;
+  }
+
   // v464 — XP pace balance. Score tiers still measure skill, but a second
   // server-mirrored cap limits how much XP a very short round can produce.
   // Missing duration means legacy stored data, so old already-earned XP is not
@@ -42380,6 +42427,13 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       if (seconds < 65) return 2;
       if (seconds < 95) return 3;
       return 4;
+    }
+
+    // CODE SLICE evaluates a complete five-wave stream. Time is only a
+    // plausibility floor; waiting longer never raises the reward tier.
+    if (id === XP_MINI_GAME_ID_CODE_SLICE) {
+      const activeSeconds = Math.max(0, Number(source.activeTimeMs || durationMs)) / 1000;
+      return activeSeconds >= 44 ? 3 : 0;
     }
 
     // CODE BRIDGE evaluates one complete 10-link endpoint run. Duration is
@@ -42457,6 +42511,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       case XP_MINI_GAME_ID_CODE_FLOW: tierReward = codeFlowRewardForScore(score); break;
       case XP_MINI_GAME_ID_BYTE_SLING: tierReward = byteSlingRewardForMetrics(metrics); break;
       case XP_MINI_GAME_ID_CODE_BRIDGE: tierReward = codeBridgeRewardForMetrics(metrics); break;
+      case XP_MINI_GAME_ID_CODE_SLICE: tierReward = codeSliceRewardForMetrics(metrics); break;
       default: tierReward = 0;
     }
     return Math.min(tierReward, miniGameDurationRewardCap(id, metrics));
@@ -42673,6 +42728,21 @@ window.MCS_PHONE_MENU_STATUS = () => ({
           ? source.stickLengths.slice(0, 10).map(value => Math.max(0, Math.min(470, Math.round(Number(value || 0) * 10) / 10)))
           : [],
         durationMs: Math.max(0, Math.min(60 * 60 * 1000, Math.floor(Number(source.durationMs || 0))))
+      };
+    }
+    if (id === XP_MINI_GAME_ID_CODE_SLICE) {
+      return {
+        completedRun: source.completedRun === true,
+        wavesCompleted: Math.max(0, Math.min(5, Math.floor(Number(source.wavesCompleted || 0)))),
+        totalTargets: Math.max(0, Math.min(60, Math.floor(Number(source.totalTargets || 0)))),
+        slicedTargets: Math.max(0, Math.min(60, Math.floor(Number(source.slicedTargets || 0)))),
+        missedTargets: Math.max(0, Math.min(60, Math.floor(Number(source.missedTargets || 0)))),
+        maxCombo: Math.max(0, Math.min(60, Math.floor(Number(source.maxCombo || 0)))),
+        multiSlices: Math.max(0, Math.min(30, Math.floor(Number(source.multiSlices || 0)))),
+        integrityRemaining: Math.max(0, Math.min(3, Math.floor(Number(source.integrityRemaining || 0)))),
+        crashHit: source.crashHit === true,
+        activeTimeMs: Math.max(0, Math.min(10 * 60 * 1000, Math.floor(Number(source.activeTimeMs || 0)))),
+        durationMs: Math.max(0, Math.min(10 * 60 * 1000, Math.floor(Number(source.durationMs || 0))))
       };
     }
 
@@ -42904,6 +42974,17 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         lastRewardXp: Math.max(0, Math.min(3, Math.floor(Number(source.lastRewardXp || 0))))
       };
     }
+    if (id === XP_MINI_GAME_ID_CODE_SLICE) {
+      return {
+        ...base,
+        bestScore: Math.max(0, Math.min(1000, Math.floor(Number(source.bestScore || source.bestRunScore || 0)))),
+        bestRunScore: Math.max(0, Math.min(1000, Math.floor(Number(source.bestRunScore || source.bestScore || 0)))),
+        bestCombo: Math.max(0, Math.min(60, Math.floor(Number(source.bestCombo || 0)))),
+        bestAccuracy: Math.max(0, Math.min(100, Number(source.bestAccuracy || 0))),
+        lastRewardDay: /^\d{4}-\d{2}-\d{2}$/.test(String(source.lastRewardDay || '')) ? String(source.lastRewardDay) : '',
+        lastRewardXp: Math.max(0, Math.min(3, Math.floor(Number(source.lastRewardXp || 0))))
+      };
+    }
 
     return {
       ...base,
@@ -43069,6 +43150,21 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         lastRewardXp: Math.max(0, Math.min(3, Math.floor(lastRewardXp || 0)))
       };
     }
+    if (id === XP_MINI_GAME_ID_CODE_SLICE) {
+      const leftDay = String(left.lastRewardDay || '');
+      const rightDay = String(right.lastRewardDay || '');
+      const newestDay = [leftDay, rightDay].filter(Boolean).sort().pop() || '';
+      const lastRewardXp = newestDay === rightDay ? Number(right.lastRewardXp || 0) : Number(left.lastRewardXp || 0);
+      return {
+        lastPlayedAt,
+        bestScore: Math.max(Number(left.bestScore || 0), Number(right.bestScore || 0)),
+        bestRunScore: Math.max(Number(left.bestRunScore || 0), Number(right.bestRunScore || 0)),
+        bestCombo: Math.max(Number(left.bestCombo || 0), Number(right.bestCombo || 0)),
+        bestAccuracy: Math.max(Number(left.bestAccuracy || 0), Number(right.bestAccuracy || 0)),
+        lastRewardDay: newestDay,
+        lastRewardXp: Math.max(0, Math.min(3, Math.floor(lastRewardXp || 0)))
+      };
+    }
     return {
       lastPlayedAt,
       bestScore: Math.max(Number(left.bestScore || 0), Number(right.bestScore || 0))
@@ -43152,6 +43248,13 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       next.bestRunScore = Math.max(Number(next.bestRunScore || 0), Number(details.score || score || 0));
       next.bestPerfects = Math.max(Number(next.bestPerfects || 0), Number(details.perfects || metrics.perfects || 0));
       next.bestAccuracy = Math.max(Number(next.bestAccuracy || 0), Number(details.accuracy || metrics.accuracy || 0));
+    }
+    if (id === XP_MINI_GAME_ID_CODE_SLICE && metrics.completedRun) {
+      const details = codeSliceScoreDetails(metrics);
+      next.bestScore = Math.max(Number(next.bestScore || 0), Number(details.score || score || 0));
+      next.bestRunScore = Math.max(Number(next.bestRunScore || 0), Number(details.score || score || 0));
+      next.bestCombo = Math.max(Number(next.bestCombo || 0), Number(details.maxCombo || metrics.maxCombo || 0));
+      next.bestAccuracy = Math.max(Number(next.bestAccuracy || 0), Number(details.accuracy || 0));
     }
     return next;
   }
@@ -45520,7 +45623,8 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       patternLock: normalizeMiniGameRecord(XP_MINI_GAME_ID_PATTERN_LOCK, miniGames.games?.patternLock),
       codeFlow: normalizeMiniGameRecord(XP_MINI_GAME_ID_CODE_FLOW, miniGames.games?.codeFlow),
       byteSling: normalizeMiniGameRecord(XP_MINI_GAME_ID_BYTE_SLING, miniGames.games?.byteSling),
-      codeBridge: normalizeMiniGameRecord(XP_MINI_GAME_ID_CODE_BRIDGE, miniGames.games?.codeBridge)
+      codeBridge: normalizeMiniGameRecord(XP_MINI_GAME_ID_CODE_BRIDGE, miniGames.games?.codeBridge),
+      codeSlice: normalizeMiniGameRecord(XP_MINI_GAME_ID_CODE_SLICE, miniGames.games?.codeSlice)
     };
     return {
       loggedIn,
@@ -45552,7 +45656,8 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         patternLock: Math.max(0, Number(gameRecords.patternLock.bestLevel || gameRecords.patternLock.bestScore || 0)),
         codeFlow: Math.max(0, Number(gameRecords.codeFlow.bestScore || 0)),
         byteSling: Math.max(0, Number(gameRecords.byteSling.bestRunScore || gameRecords.byteSling.bestScore || 0)),
-        codeBridge: Math.max(0, Number(gameRecords.codeBridge.bestRunScore || gameRecords.codeBridge.bestScore || 0))
+        codeBridge: Math.max(0, Number(gameRecords.codeBridge.bestRunScore || gameRecords.codeBridge.bestScore || 0)),
+        codeSlice: Math.max(0, Number(gameRecords.codeSlice.bestRunScore || gameRecords.codeSlice.bestScore || 0))
       },
       gameRecords,
       soundEnabled: miniGames.soundEnabled !== false
@@ -45909,6 +46014,21 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       metrics.perfects = details.perfects;
       metrics.accuracy = details.accuracy;
       score = metrics.completedRun ? details.score : 0;
+      maxPlausibleScore = 1000;
+    } else if (gameId === XP_MINI_GAME_ID_CODE_SLICE) {
+      metrics.durationMs = durationMs;
+      metrics.activeTimeMs = Math.max(0, Math.min(metrics.activeTimeMs || durationMs, durationMs));
+      const details = codeSliceScoreDetails(metrics);
+      metrics.completedRun = details.completed;
+      metrics.wavesCompleted = details.completed ? 5 : Math.max(0, Math.min(5, metrics.wavesCompleted || 0));
+      metrics.totalTargets = 60;
+      metrics.slicedTargets = details.slicedTargets;
+      metrics.missedTargets = details.missedTargets;
+      metrics.maxCombo = details.maxCombo;
+      metrics.multiSlices = details.multiSlices;
+      metrics.integrityRemaining = details.integrityRemaining;
+      metrics.crashHit = metrics.crashHit === true;
+      score = details.completed ? details.score : 0;
       maxPlausibleScore = 1000;
     } else if (gameId === XP_MINI_GAME_ID_BYTE_SLING) {
       metrics.durationMs = durationMs;
@@ -46428,7 +46548,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       // During rollout only, an OLD Apps Script deployment can fall back to the
       // proven Firestore transaction. Network/quota errors do NOT cause a second
       // Firestore claim attempt, preventing double load and duplicate rewards.
-      if (miniGameBridgeNeedsLegacyFallback(error) && gameId !== XP_MINI_GAME_ID_CODE_FLOW && gameId !== XP_MINI_GAME_ID_BYTE_SLING && gameId !== XP_MINI_GAME_ID_CODE_BRIDGE) {
+      if (miniGameBridgeNeedsLegacyFallback(error) && gameId !== XP_MINI_GAME_ID_CODE_FLOW && gameId !== XP_MINI_GAME_ID_BYTE_SLING && gameId !== XP_MINI_GAME_ID_CODE_BRIDGE && gameId !== XP_MINI_GAME_ID_CODE_SLICE) {
         console.warn('Mini-game Apps Script route is not deployed yet; using temporary legacy reward path.', error);
         return performXpMiniGameClaimLegacyFirestore(sessionId, round, reportedResult);
       }
