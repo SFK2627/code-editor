@@ -41855,6 +41855,8 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   const XP_MINI_GAME_ID_CODE_MAZE = 'code-maze';
   const XP_MINI_GAME_ID_PATTERN_LOCK = 'pattern-lock';
   const XP_MINI_GAME_ID_CODE_FLOW = 'code-flow';
+  const XP_MINI_GAME_ID_BYTE_SLING = 'byte-sling';
+  const XP_MINI_GAME_ID_CODE_BRIDGE = 'code-bridge';
 
   const XP_MINI_GAME_DEFINITIONS = Object.freeze({
     [XP_MINI_GAME_ID_CODE_FLY]: Object.freeze({ stateKey: 'codeFly', maxReward: 15 }),
@@ -41872,7 +41874,9 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     [XP_MINI_GAME_ID_RED_LIGHT_GREEN_LIGHT]: Object.freeze({ stateKey: 'redLightGreenLight', maxReward: 10 }),
     [XP_MINI_GAME_ID_CODE_MAZE]: Object.freeze({ stateKey: 'codeMaze', maxReward: 10 }),
     [XP_MINI_GAME_ID_PATTERN_LOCK]: Object.freeze({ stateKey: 'patternLock', maxReward: 10 }),
-    [XP_MINI_GAME_ID_CODE_FLOW]: Object.freeze({ stateKey: 'codeFlow', maxReward: 5 })
+    [XP_MINI_GAME_ID_CODE_FLOW]: Object.freeze({ stateKey: 'codeFlow', maxReward: 5 }),
+    [XP_MINI_GAME_ID_BYTE_SLING]: Object.freeze({ stateKey: 'byteSling', maxReward: 3 }),
+    [XP_MINI_GAME_ID_CODE_BRIDGE]: Object.freeze({ stateKey: 'codeBridge', maxReward: 3 })
   });
 
   function normalizeXpMiniGameId(gameId = XP_MINI_GAME_ID_CODE_FLY) {
@@ -42154,6 +42158,68 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     return 0;
   }
 
+  // v469 — BYTE SLING run scoring. One reward-bearing session represents
+  // exactly three distinct sequential levels. Physics stays local; only this
+  // compact summary is validated by the shared secured reward bridge.
+  function byteSlingRunSpec(runIndex = 1) {
+    const safe = Math.max(1, Math.min(4, Math.floor(Number(runIndex || 1))));
+    const levelIds = [safe * 3 - 2, safe * 3 - 1, safe * 3];
+    const maxShotsByLevel = [3,3,3,3,3,3,4,4,4,4,4,4];
+    const bugsByLevel = [1,2,2,2,2,3,2,3,3,2,3,4];
+    return {
+      runIndex: safe,
+      runId: `bs-run-${String(safe).padStart(2, '0')}`,
+      levelIds,
+      levelSpecs: levelIds.map(levelId => ({
+        levelId,
+        maxShots: maxShotsByLevel[levelId - 1],
+        totalBugs: bugsByLevel[levelId - 1]
+      }))
+    };
+  }
+
+  function byteSlingLevelScoreForMetrics(levelMetric = {}, spec = {}) {
+    const cleared = levelMetric.cleared === true;
+    if (!cleared) return 0;
+    const maxShots = Math.max(1, Math.min(6, Math.floor(Number(spec.maxShots || levelMetric.maxShots || 1))));
+    const shotsUsed = Math.max(1, Math.min(maxShots, Math.floor(Number(levelMetric.shotsUsed || 0))));
+    const totalBugs = Math.max(1, Math.min(8, Math.floor(Number(spec.totalBugs || levelMetric.totalBugs || 1))));
+    const directHits = Math.max(0, Math.min(totalBugs, Math.floor(Number(levelMetric.directHits || 0))));
+    const chainKills = Math.max(0, Math.min(totalBugs - directHits, Math.floor(Number(levelMetric.chainKills || 0))));
+    const destroyed = Math.max(0, Math.min(totalBugs, Math.floor(Number(levelMetric.bugsDestroyed || 0))));
+    if (destroyed < totalBugs) return 0;
+    const remaining = Math.max(0, maxShots - shotsUsed);
+    const shotBonus = Math.round(250 * (remaining / maxShots));
+    const accuracyBonus = Math.round(100 * Math.min(1, directHits / shotsUsed));
+    const chainRatio = Math.min(1, chainKills / totalBugs);
+    const bugPerShot = totalBugs / shotsUsed;
+    const strategyBonus = Math.max(0, Math.min(150, Math.round(bugPerShot * 62 + chainRatio * 78)));
+    return Math.max(0, Math.min(1000, 500 + shotBonus + accuracyBonus + strategyBonus));
+  }
+
+  function byteSlingScoreForMetrics(metrics = {}) {
+    const source = metrics && typeof metrics === 'object' ? metrics : {};
+    const spec = byteSlingRunSpec(source.runIndex || 1);
+    const rows = Array.isArray(source.levelResults) ? source.levelResults.slice(0, 3) : [];
+    if (rows.length !== 3) return 0;
+    return spec.levelSpecs.reduce((sum, levelSpec) => {
+      const row = rows.find(item => Number(item?.levelId || 0) === levelSpec.levelId) || {};
+      return sum + byteSlingLevelScoreForMetrics(row, levelSpec);
+    }, 0);
+  }
+
+  function byteSlingRewardForMetrics(metrics = {}) {
+    const source = metrics && typeof metrics === 'object' ? metrics : {};
+    const score = Math.max(0, Math.floor(Number(source.totalScore || byteSlingScoreForMetrics(source) || 0)));
+    const cleared = Math.max(0, Math.min(3, Math.floor(Number(source.levelsCleared || 0))));
+    const stars = Math.max(0, Math.min(9, Math.floor(Number(source.totalStars || 0))));
+    const retries = Math.max(0, Math.min(99, Math.floor(Number(source.totalRetries || 0))));
+    if (cleared < 3 || score < 1700) return 0;
+    if (score >= 2700 && stars >= 8 && retries <= 2) return 3;
+    if (score >= 2300 && stars >= 7) return 2;
+    return 1;
+  }
+
   function memoryCodeRewardForMetrics(metrics = {}) {
     const source = metrics && typeof metrics === 'object' ? metrics : {};
     const completed = source.completed === true;
@@ -42165,6 +42231,103 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     if (timeMs <= 45000 && moves <= 24) return 5;
     if (timeMs <= 60000 && moves <= 30) return 3;
     if (timeMs <= 75000 && moves <= 36) return 2;
+    return 1;
+  }
+
+  // v470 — CODE BRIDGE deterministic 10-link run. The platform sequence is
+  // derived locally from the shared round ID so gameplay needs no database reads.
+  // The server mirrors the same generator and recomputes completion/score from the
+  // submitted stick lengths before any XP can be awarded.
+  const CODE_BRIDGE_STEP_BANDS = Object.freeze([
+    Object.freeze({ gap: [108, 146], width: [150, 182] }),
+    Object.freeze({ gap: [124, 170], width: [142, 174] }),
+    Object.freeze({ gap: [142, 195], width: [134, 164] }),
+    Object.freeze({ gap: [158, 218], width: [126, 154] }),
+    Object.freeze({ gap: [176, 242], width: [118, 148] }),
+    Object.freeze({ gap: [195, 265], width: [110, 138] }),
+    Object.freeze({ gap: [214, 288], width: [102, 130] }),
+    Object.freeze({ gap: [232, 312], width: [94, 122] }),
+    Object.freeze({ gap: [252, 330], width: [88, 114] }),
+    Object.freeze({ gap: [272, 350], width: [82, 106] })
+  ]);
+
+  function codeBridgeSeedFromString(value = '') {
+    const text = String(value || 'code-bridge');
+    let hash = 2166136261 >>> 0;
+    for (let index = 0; index < text.length; index += 1) {
+      hash = (((hash * 31) >>> 0) + text.charCodeAt(index)) >>> 0;
+    }
+    return hash >>> 0;
+  }
+
+  function codeBridgeRunSpec(roundId = '') {
+    let stateValue = codeBridgeSeedFromString(roundId) || 1;
+    const nextRandom = () => {
+      stateValue = (stateValue * 1664525 + 1013904223) >>> 0;
+      return stateValue / 4294967296;
+    };
+    const randomInt = (min, max) => Math.floor(nextRandom() * (max - min + 1)) + min;
+    return CODE_BRIDGE_STEP_BANDS.map((band, index) => {
+      const gap = randomInt(band.gap[0], band.gap[1]);
+      const width = randomInt(band.width[0], band.width[1]);
+      return {
+        index,
+        gap,
+        width,
+        perfectHalf: Math.max(10, Math.min(16, Math.round(width * .12)))
+      };
+    });
+  }
+
+  function codeBridgeScoreDetails(metrics = {}) {
+    const source = metrics && typeof metrics === 'object' ? metrics : {};
+    const runToken = String(source.runToken || '').slice(0, 118);
+    const specs = codeBridgeRunSpec(runToken);
+    const lengths = Array.isArray(source.stickLengths)
+      ? source.stickLengths.slice(0, 10).map(value => Math.max(0, Math.min(470, Number(value || 0))))
+      : [];
+    if (source.completedRun !== true || lengths.length !== 10 || Number(source.bridges || 0) !== 10) {
+      return { score: 0, completed: false, perfects: 0, accuracy: 0, validLinks: 0 };
+    }
+    let perfects = 0;
+    let accuracyTotal = 0;
+    let validLinks = 0;
+    for (let index = 0; index < specs.length; index += 1) {
+      const spec = specs[index];
+      const length = lengths[index];
+      const minLength = spec.gap;
+      const maxLength = spec.gap + spec.width;
+      if (!(length >= minLength - .75 && length <= maxLength + .75)) {
+        return { score: 0, completed: false, perfects: 0, accuracy: 0, validLinks };
+      }
+      validLinks += 1;
+      const center = spec.gap + spec.width / 2;
+      const error = Math.abs(length - center);
+      const accuracy = Math.max(0, Math.min(1, 1 - error / Math.max(1, spec.width / 2)));
+      accuracyTotal += accuracy;
+      if (error <= spec.perfectHalf + .75) perfects += 1;
+    }
+    const averageAccuracy = validLinks ? accuracyTotal / validLinks : 0;
+    const sessionFails = Math.max(0, Math.min(99, Math.floor(Number(source.sessionFails || 0))));
+    const perfectBonus = Math.round((perfects / 10) * 250);
+    const accuracyBonus = Math.round(averageAccuracy * 150);
+    const cleanBonus = sessionFails === 0 ? 100 : 0;
+    const score = Math.max(0, Math.min(1000, 500 + perfectBonus + accuracyBonus + cleanBonus));
+    return {
+      score,
+      completed: validLinks === 10,
+      perfects,
+      accuracy: Math.round(averageAccuracy * 1000) / 10,
+      validLinks,
+      clean: sessionFails === 0
+    };
+  }
+
+  function codeBridgeRewardForMetrics(metrics = {}) {
+    const details = codeBridgeScoreDetails(metrics);
+    if (!details.completed || details.score < 650) return 0;
+    if (details.score >= 875 && details.perfects >= 6 && details.accuracy >= 88 && details.clean) return 3;
+    if (details.score >= 750 && details.perfects >= 3) return 2;
     return 1;
   }
 
@@ -42217,6 +42380,20 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       if (seconds < 65) return 2;
       if (seconds < 95) return 3;
       return 4;
+    }
+
+    // CODE BRIDGE evaluates one complete 10-link endpoint run. Duration is
+    // only an anti-fabrication floor; waiting longer never increases the XP tier.
+    if (id === XP_MINI_GAME_ID_CODE_BRIDGE) {
+      const activeSeconds = Math.max(0, Number(source.activeTimeMs || durationMs)) / 1000;
+      return activeSeconds >= 12 ? 3 : 0;
+    }
+
+    // BYTE SLING evaluates a full three-level run. Duration is only an
+    // anti-fabrication floor; slower play never increases the XP tier.
+    if (id === XP_MINI_GAME_ID_BYTE_SLING) {
+      const activeSeconds = Math.max(0, Number(source.activeTimeMs || durationMs)) / 1000;
+      return activeSeconds >= 18 ? 3 : 0;
     }
 
     // CODE FLOW is a deliberate puzzle game. Fast easy clears stay low-XP,
@@ -42278,6 +42455,8 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       case XP_MINI_GAME_ID_CODE_MAZE: tierReward = codeMazeRewardForScore(score); break;
       case XP_MINI_GAME_ID_PATTERN_LOCK: tierReward = patternLockRewardForScore(score); break;
       case XP_MINI_GAME_ID_CODE_FLOW: tierReward = codeFlowRewardForScore(score); break;
+      case XP_MINI_GAME_ID_BYTE_SLING: tierReward = byteSlingRewardForMetrics(metrics); break;
+      case XP_MINI_GAME_ID_CODE_BRIDGE: tierReward = codeBridgeRewardForMetrics(metrics); break;
       default: tierReward = 0;
     }
     return Math.min(tierReward, miniGameDurationRewardCap(id, metrics));
@@ -42442,6 +42621,61 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         durationMs: Math.max(0, Math.min(60 * 60 * 1000, Math.floor(Number(source.durationMs || 0))))
       };
     }
+    if (id === XP_MINI_GAME_ID_BYTE_SLING) {
+      const runIndex = Math.max(1, Math.min(4, Math.floor(Number(source.runIndex || 1))));
+      const spec = byteSlingRunSpec(runIndex);
+      const rawRows = Array.isArray(source.levelResults) ? source.levelResults.slice(0, 3) : [];
+      const levelResults = rawRows.map(row => {
+        const levelId = Math.max(1, Math.min(12, Math.floor(Number(row?.levelId || 0))));
+        const levelSpec = spec.levelSpecs.find(item => item.levelId === levelId) || { levelId, maxShots: 4, totalBugs: 4 };
+        return {
+          levelId,
+          cleared: row?.cleared === true,
+          score: Math.max(0, Math.min(1000, Math.floor(Number(row?.score || 0)))),
+          stars: Math.max(0, Math.min(3, Math.floor(Number(row?.stars || 0)))),
+          shotsUsed: Math.max(0, Math.min(levelSpec.maxShots, Math.floor(Number(row?.shotsUsed || 0)))),
+          maxShots: levelSpec.maxShots,
+          directHits: Math.max(0, Math.min(levelSpec.totalBugs, Math.floor(Number(row?.directHits || 0)))),
+          chainKills: Math.max(0, Math.min(levelSpec.totalBugs, Math.floor(Number(row?.chainKills || 0)))),
+          bugsDestroyed: Math.max(0, Math.min(levelSpec.totalBugs, Math.floor(Number(row?.bugsDestroyed || 0)))),
+          totalBugs: levelSpec.totalBugs,
+          activeTimeMs: Math.max(0, Math.min(10 * 60 * 1000, Math.floor(Number(row?.activeTimeMs || 0))))
+        };
+      });
+      return {
+        runId: String(source.runId || '').trim().slice(0, 24),
+        runIndex,
+        levelIds: Array.isArray(source.levelIds) ? source.levelIds.slice(0, 3).map(value => Math.max(1, Math.min(12, Math.floor(Number(value || 0))))) : [],
+        levelsCleared: Math.max(0, Math.min(3, Math.floor(Number(source.levelsCleared || 0)))),
+        totalScore: Math.max(0, Math.min(3000, Math.floor(Number(source.totalScore || 0)))),
+        totalStars: Math.max(0, Math.min(9, Math.floor(Number(source.totalStars || 0)))),
+        totalShots: Math.max(0, Math.min(20, Math.floor(Number(source.totalShots || 0)))),
+        maxShots: Math.max(0, Math.min(20, Math.floor(Number(source.maxShots || 0)))),
+        directHits: Math.max(0, Math.min(20, Math.floor(Number(source.directHits || 0)))),
+        chainKills: Math.max(0, Math.min(20, Math.floor(Number(source.chainKills || 0)))),
+        totalRetries: Math.max(0, Math.min(99, Math.floor(Number(source.totalRetries || 0)))),
+        activeTimeMs: Math.max(0, Math.min(60 * 60 * 1000, Math.floor(Number(source.activeTimeMs || 0)))),
+        completedRun: source.completedRun === true,
+        levelResults,
+        durationMs: Math.max(0, Math.min(60 * 60 * 1000, Math.floor(Number(source.durationMs || 0))))
+      };
+    }
+    if (id === XP_MINI_GAME_ID_CODE_BRIDGE) {
+      return {
+        completedRun: source.completedRun === true,
+        runToken: String(source.runToken || '').trim().slice(0, 118),
+        bridges: Math.max(0, Math.min(10, Math.floor(Number(source.bridges || 0)))),
+        perfects: Math.max(0, Math.min(10, Math.floor(Number(source.perfects || 0)))),
+        accuracy: Math.max(0, Math.min(100, Number(source.accuracy || 0))),
+        sessionFails: Math.max(0, Math.min(99, Math.floor(Number(source.sessionFails || 0)))),
+        activeTimeMs: Math.max(0, Math.min(60 * 60 * 1000, Math.floor(Number(source.activeTimeMs || 0)))),
+        stickLengths: Array.isArray(source.stickLengths)
+          ? source.stickLengths.slice(0, 10).map(value => Math.max(0, Math.min(470, Math.round(Number(value || 0) * 10) / 10)))
+          : [],
+        durationMs: Math.max(0, Math.min(60 * 60 * 1000, Math.floor(Number(source.durationMs || 0))))
+      };
+    }
+
     return {
       durationMs: Math.max(0, Math.min(60 * 60 * 1000, Math.floor(Number(source.durationMs || 0))))
     };
@@ -42513,6 +42747,18 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       const id = String(key || '').trim();
       if (!/^cf-[0-9]{3}$/.test(id)) return;
       const xp = Math.max(0, Math.min(5, Math.floor(Number(value || 0))));
+      if (xp > 0) out[id] = xp;
+    });
+    return out;
+  }
+
+  function normalizeByteSlingRewardedRuns(input = {}) {
+    const source = input && typeof input === 'object' && !Array.isArray(input) ? input : {};
+    const out = {};
+    Object.entries(source).slice(0, 12).forEach(([key, value]) => {
+      const id = String(key || '').trim();
+      if (!/^bs-run-0[1-4]$/.test(id)) return;
+      const xp = Math.max(0, Math.min(3, Math.floor(Number(value || 0))));
       if (xp > 0) out[id] = xp;
     });
     return out;
@@ -42637,6 +42883,28 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         rewardedPuzzles: normalizeCodeFlowRewardedPuzzles(source.rewardedPuzzles || {})
       };
     }
+    if (id === XP_MINI_GAME_ID_BYTE_SLING) {
+      return {
+        ...base,
+        bestScore: Math.max(0, Math.min(3000, Math.floor(Number(source.bestScore || source.bestRunScore || 0)))),
+        bestRunScore: Math.max(0, Math.min(3000, Math.floor(Number(source.bestRunScore || source.bestScore || 0)))),
+        highestRunIndex: Math.max(0, Math.min(4, Math.floor(Number(source.highestRunIndex || 0)))),
+        bestStars: Math.max(0, Math.min(9, Math.floor(Number(source.bestStars || 0)))),
+        rewardedRuns: normalizeByteSlingRewardedRuns(source.rewardedRuns || {})
+      };
+    }
+    if (id === XP_MINI_GAME_ID_CODE_BRIDGE) {
+      return {
+        ...base,
+        bestScore: Math.max(0, Math.min(1000, Math.floor(Number(source.bestScore || source.bestRunScore || 0)))),
+        bestRunScore: Math.max(0, Math.min(1000, Math.floor(Number(source.bestRunScore || source.bestScore || 0)))),
+        bestPerfects: Math.max(0, Math.min(10, Math.floor(Number(source.bestPerfects || 0)))),
+        bestAccuracy: Math.max(0, Math.min(100, Number(source.bestAccuracy || 0))),
+        lastRewardDay: /^\d{4}-\d{2}-\d{2}$/.test(String(source.lastRewardDay || '')) ? String(source.lastRewardDay) : '',
+        lastRewardXp: Math.max(0, Math.min(3, Math.floor(Number(source.lastRewardXp || 0))))
+      };
+    }
+
     return {
       ...base,
       bestScore: Math.max(0, Math.min(100000, Math.floor(Number(source.bestScore || 0))))
@@ -42757,6 +43025,20 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         longestPattern: Math.max(Number(left.longestPattern || 0), Number(right.longestPattern || 0))
       };
     }
+    if (id === XP_MINI_GAME_ID_BYTE_SLING) {
+      const rewardedRuns = { ...normalizeByteSlingRewardedRuns(left.rewardedRuns), ...normalizeByteSlingRewardedRuns(right.rewardedRuns) };
+      Object.keys(rewardedRuns).forEach(key => {
+        rewardedRuns[key] = Math.max(Number(left.rewardedRuns?.[key] || 0), Number(right.rewardedRuns?.[key] || 0));
+      });
+      return {
+        lastPlayedAt,
+        bestScore: Math.max(Number(left.bestScore || 0), Number(right.bestScore || 0)),
+        bestRunScore: Math.max(Number(left.bestRunScore || 0), Number(right.bestRunScore || 0)),
+        highestRunIndex: Math.max(Number(left.highestRunIndex || 0), Number(right.highestRunIndex || 0)),
+        bestStars: Math.max(Number(left.bestStars || 0), Number(right.bestStars || 0)),
+        rewardedRuns
+      };
+    }
     if (id === XP_MINI_GAME_ID_CODE_FLOW) {
       const rewardedPuzzles = { ...normalizeCodeFlowRewardedPuzzles(left.rewardedPuzzles), ...normalizeCodeFlowRewardedPuzzles(right.rewardedPuzzles) };
       Object.keys(rewardedPuzzles).forEach(key => {
@@ -42770,6 +43052,21 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         fastestSolveMs: earlierPositiveMin(left.fastestSolveMs, right.fastestSolveMs),
         bestPerfectLevel: Math.max(Number(left.bestPerfectLevel || 0), Number(right.bestPerfectLevel || 0)),
         rewardedPuzzles
+      };
+    }
+    if (id === XP_MINI_GAME_ID_CODE_BRIDGE) {
+      const leftDay = String(left.lastRewardDay || '');
+      const rightDay = String(right.lastRewardDay || '');
+      const newestDay = [leftDay, rightDay].filter(Boolean).sort().pop() || '';
+      const lastRewardXp = newestDay === rightDay ? Number(right.lastRewardXp || 0) : Number(left.lastRewardXp || 0);
+      return {
+        lastPlayedAt,
+        bestScore: Math.max(Number(left.bestScore || 0), Number(right.bestScore || 0)),
+        bestRunScore: Math.max(Number(left.bestRunScore || 0), Number(right.bestRunScore || 0)),
+        bestPerfects: Math.max(Number(left.bestPerfects || 0), Number(right.bestPerfects || 0)),
+        bestAccuracy: Math.max(Number(left.bestAccuracy || 0), Number(right.bestAccuracy || 0)),
+        lastRewardDay: newestDay,
+        lastRewardXp: Math.max(0, Math.min(3, Math.floor(lastRewardXp || 0)))
       };
     }
     return {
@@ -42839,11 +43136,22 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       next.bestLevel = Math.max(Number(next.bestLevel || 0), Number(metrics.highestLevel || score));
       next.longestPattern = Math.max(Number(next.longestPattern || 0), Number(metrics.longestPattern || 0));
     }
+    if (id === XP_MINI_GAME_ID_BYTE_SLING && metrics.completedRun) {
+      next.bestRunScore = Math.max(Number(next.bestRunScore || 0), score);
+      next.highestRunIndex = Math.max(Number(next.highestRunIndex || 0), Number(metrics.runIndex || 0));
+      next.bestStars = Math.max(Number(next.bestStars || 0), Number(metrics.totalStars || 0));
+    }
     if (id === XP_MINI_GAME_ID_CODE_FLOW && metrics.completed) {
       next.highestCompletedLevel = Math.max(Number(next.highestCompletedLevel || 0), Number(metrics.level || 0));
       next.bestLevel = Math.max(Number(next.bestLevel || 0), Number(metrics.level || 0));
       if (metrics.activeTimeMs > 0) next.fastestSolveMs = earlierPositiveMin(next.fastestSolveMs, metrics.activeTimeMs);
       if (metrics.perfectSolve) next.bestPerfectLevel = Math.max(Number(next.bestPerfectLevel || 0), Number(metrics.level || 0));
+    }
+    if (id === XP_MINI_GAME_ID_CODE_BRIDGE && metrics.completedRun) {
+      const details = codeBridgeScoreDetails(metrics);
+      next.bestRunScore = Math.max(Number(next.bestRunScore || 0), Number(details.score || score || 0));
+      next.bestPerfects = Math.max(Number(next.bestPerfects || 0), Number(details.perfects || metrics.perfects || 0));
+      next.bestAccuracy = Math.max(Number(next.bestAccuracy || 0), Number(details.accuracy || metrics.accuracy || 0));
     }
     return next;
   }
@@ -45210,7 +45518,9 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       redLightGreenLight: normalizeMiniGameRecord(XP_MINI_GAME_ID_RED_LIGHT_GREEN_LIGHT, miniGames.games?.redLightGreenLight),
       codeMaze: normalizeMiniGameRecord(XP_MINI_GAME_ID_CODE_MAZE, miniGames.games?.codeMaze),
       patternLock: normalizeMiniGameRecord(XP_MINI_GAME_ID_PATTERN_LOCK, miniGames.games?.patternLock),
-      codeFlow: normalizeMiniGameRecord(XP_MINI_GAME_ID_CODE_FLOW, miniGames.games?.codeFlow)
+      codeFlow: normalizeMiniGameRecord(XP_MINI_GAME_ID_CODE_FLOW, miniGames.games?.codeFlow),
+      byteSling: normalizeMiniGameRecord(XP_MINI_GAME_ID_BYTE_SLING, miniGames.games?.byteSling),
+      codeBridge: normalizeMiniGameRecord(XP_MINI_GAME_ID_CODE_BRIDGE, miniGames.games?.codeBridge)
     };
     return {
       loggedIn,
@@ -45240,7 +45550,9 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         redLightGreenLight: Math.max(0, Number(gameRecords.redLightGreenLight.bestDistance || gameRecords.redLightGreenLight.bestScore || 0)),
         codeMaze: Math.max(0, Number(gameRecords.codeMaze.bestLevel || gameRecords.codeMaze.bestScore || 0)),
         patternLock: Math.max(0, Number(gameRecords.patternLock.bestLevel || gameRecords.patternLock.bestScore || 0)),
-        codeFlow: Math.max(0, Number(gameRecords.codeFlow.bestScore || 0))
+        codeFlow: Math.max(0, Number(gameRecords.codeFlow.bestScore || 0)),
+        byteSling: Math.max(0, Number(gameRecords.byteSling.bestRunScore || gameRecords.byteSling.bestScore || 0)),
+        codeBridge: Math.max(0, Number(gameRecords.codeBridge.bestRunScore || gameRecords.codeBridge.bestScore || 0))
       },
       gameRecords,
       soundEnabled: miniGames.soundEnabled !== false
@@ -45434,7 +45746,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     };
   }
 
-  function verifiedXpMiniGameResult(round = {}, reportedInput = 0) {
+  function verifiedXpMiniGameResult(round = {}, reportedInput = 0, sessionId = '') {
     const gameId = normalizeXpMiniGameId(round.gameId) || XP_MINI_GAME_ID_CODE_FLY;
     const reported = reportedXpMiniGameResult(reportedInput);
     const durationMs = Math.max(0, Date.now() - Math.max(0, Number(round.startedAt || Date.now())));
@@ -45587,6 +45899,77 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       metrics.longestPattern = Math.min(metrics.longestPattern || (metrics.highestLevel ? metrics.highestLevel + 2 : 0), metrics.highestLevel ? metrics.highestLevel + 2 : 0);
       maxPlausibleScore = levelCeiling;
       score = metrics.highestLevel;
+    } else if (gameId === XP_MINI_GAME_ID_CODE_BRIDGE) {
+      metrics.durationMs = durationMs;
+      metrics.runToken = String(sessionId || metrics.runToken || '').slice(0, 118);
+      metrics.activeTimeMs = Math.max(0, Math.min(metrics.activeTimeMs || durationMs, durationMs));
+      const details = codeBridgeScoreDetails(metrics);
+      metrics.completedRun = Boolean(details.completed && metrics.activeTimeMs >= 12000);
+      metrics.bridges = details.validLinks;
+      metrics.perfects = details.perfects;
+      metrics.accuracy = details.accuracy;
+      score = metrics.completedRun ? details.score : 0;
+      maxPlausibleScore = 1000;
+    } else if (gameId === XP_MINI_GAME_ID_BYTE_SLING) {
+      metrics.durationMs = durationMs;
+      const spec = byteSlingRunSpec(metrics.runIndex || 1);
+      const idsOk = Array.isArray(metrics.levelIds)
+        && metrics.levelIds.length === 3
+        && spec.levelIds.every((id, index) => Number(metrics.levelIds[index]) === id)
+        && new Set(metrics.levelIds).size === 3;
+      const rows = Array.isArray(metrics.levelResults) ? metrics.levelResults : [];
+      const rowIdsOk = rows.length === 3 && spec.levelIds.every(id => rows.some(row => Number(row?.levelId || 0) === id));
+      const minActive = 18000;
+      const activeMs = Math.max(0, Math.min(metrics.activeTimeMs || durationMs, durationMs));
+      metrics.activeTimeMs = activeMs;
+      metrics.runId = String(metrics.runId || '');
+      metrics.completedRun = Boolean(metrics.completedRun && metrics.runId === spec.runId && idsOk && rowIdsOk && activeMs >= minActive);
+      let levelsCleared = 0;
+      let totalScore = 0;
+      let totalStars = 0;
+      let totalShots = 0;
+      let maxShots = 0;
+      let directHits = 0;
+      let chainKills = 0;
+      const cleanRows = spec.levelSpecs.map(levelSpec => {
+        const row = rows.find(item => Number(item?.levelId || 0) === levelSpec.levelId) || {};
+        const shotsUsed = Math.max(0, Math.min(levelSpec.maxShots, Math.floor(Number(row.shotsUsed || 0))));
+        const destroyed = Math.max(0, Math.min(levelSpec.totalBugs, Math.floor(Number(row.bugsDestroyed || 0))));
+        const cleared = Boolean(metrics.completedRun && row.cleared === true && shotsUsed > 0 && destroyed >= levelSpec.totalBugs);
+        const normalizedRow = {
+          levelId: levelSpec.levelId,
+          cleared,
+          shotsUsed,
+          maxShots: levelSpec.maxShots,
+          directHits: Math.max(0, Math.min(levelSpec.totalBugs, Math.floor(Number(row.directHits || 0)))),
+          chainKills: Math.max(0, Math.min(levelSpec.totalBugs, Math.floor(Number(row.chainKills || 0)))),
+          bugsDestroyed: destroyed,
+          totalBugs: levelSpec.totalBugs,
+          activeTimeMs: Math.max(0, Math.min(10 * 60 * 1000, Math.floor(Number(row.activeTimeMs || 0))))
+        };
+        normalizedRow.score = byteSlingLevelScoreForMetrics(normalizedRow, levelSpec);
+        normalizedRow.stars = normalizedRow.score >= 850 ? 3 : normalizedRow.score >= 650 ? 2 : normalizedRow.score >= 500 ? 1 : 0;
+        if (cleared) levelsCleared += 1;
+        totalScore += normalizedRow.score;
+        totalStars += normalizedRow.stars;
+        totalShots += shotsUsed;
+        maxShots += levelSpec.maxShots;
+        directHits += normalizedRow.directHits;
+        chainKills += normalizedRow.chainKills;
+        return normalizedRow;
+      });
+      metrics.levelResults = cleanRows;
+      metrics.levelIds = spec.levelIds.slice();
+      metrics.levelsCleared = levelsCleared;
+      metrics.totalScore = totalScore;
+      metrics.totalStars = totalStars;
+      metrics.totalShots = totalShots;
+      metrics.maxShots = maxShots;
+      metrics.directHits = directHits;
+      metrics.chainKills = chainKills;
+      metrics.totalRetries = Math.max(0, Math.min(99, Math.floor(Number(metrics.totalRetries || 0))));
+      score = totalScore;
+      maxPlausibleScore = 3000;
     } else if (gameId === XP_MINI_GAME_ID_CODE_FLOW) {
       const spec = codeFlowLevelSpec(metrics.level || 1);
       const expectedPuzzleId = `cf-${String(spec.level).padStart(3, '0')}`;
@@ -45677,7 +46060,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
 
   async function performXpMiniGameClaimLegacyFirestore(sessionId, round, reportedResult) {
     ensureReaderProgress();
-    const verified = verifiedXpMiniGameResult(round, reportedResult);
+    const verified = verifiedXpMiniGameResult(round, reportedResult, sessionId);
     const gameId = verified.gameId;
     const definition = XP_MINI_GAME_DEFINITIONS[gameId];
     const stateKey = definition?.stateKey;
@@ -45908,7 +46291,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
 
   async function performXpMiniGameClaim(sessionId, round, reportedResult) {
     ensureReaderProgress();
-    const verified = verifiedXpMiniGameResult(round, reportedResult);
+    const verified = verifiedXpMiniGameResult(round, reportedResult, sessionId);
     const gameId = verified.gameId;
     const definition = XP_MINI_GAME_DEFINITIONS[gameId];
     const stateKey = definition?.stateKey;
@@ -45945,7 +46328,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
 
     // Zero-XP rounds do not need an immediate cloud request. Their personal-best
     // record stays local and can merge into the next normal Explorer checkpoint.
-    if (verified.requestedXp <= 0 && !(gameId === XP_MINI_GAME_ID_CODE_FLOW && verified.metrics?.completed === true)) {
+    if (verified.requestedXp <= 0 && !(gameId === XP_MINI_GAME_ID_CODE_FLOW && verified.metrics?.completed === true) && !(gameId === XP_MINI_GAME_ID_BYTE_SLING && verified.metrics?.completedRun === true)) {
       const snapshot = notifyXpMiniGamesProgress({ awardedXp: 0, requestedXp: 0, duplicate: false, gameId });
       const record = snapshot.gameRecords?.[stateKey] || localMiniGames.games[stateKey];
       return { ...baseResult, ...snapshot, gameRecord: record, bestScore: Math.max(0, Number(record?.bestScore || 0)) };
@@ -45958,7 +46341,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     const localTodayXp = localMiniGames.daily?.date === localDayKey
       ? Math.min(XP_MINI_GAMES_DAILY_CAP, Math.max(0, Number(localMiniGames.daily?.earned || 0)))
       : 0;
-    if (localTodayXp >= XP_MINI_GAMES_DAILY_CAP && !(gameId === XP_MINI_GAME_ID_CODE_FLOW && verified.metrics?.completed === true)) {
+    if (localTodayXp >= XP_MINI_GAMES_DAILY_CAP && !(gameId === XP_MINI_GAME_ID_CODE_FLOW && verified.metrics?.completed === true) && !(gameId === XP_MINI_GAME_ID_BYTE_SLING && verified.metrics?.completedRun === true)) {
       const snapshot = notifyXpMiniGamesProgress({ awardedXp: 0, requestedXp: verified.requestedXp, duplicate: false, gameId });
       const record = snapshot.gameRecords?.[stateKey] || localMiniGames.games[stateKey];
       return {
@@ -46045,7 +46428,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       // During rollout only, an OLD Apps Script deployment can fall back to the
       // proven Firestore transaction. Network/quota errors do NOT cause a second
       // Firestore claim attempt, preventing double load and duplicate rewards.
-      if (miniGameBridgeNeedsLegacyFallback(error) && gameId !== XP_MINI_GAME_ID_CODE_FLOW) {
+      if (miniGameBridgeNeedsLegacyFallback(error) && gameId !== XP_MINI_GAME_ID_CODE_FLOW && gameId !== XP_MINI_GAME_ID_BYTE_SLING && gameId !== XP_MINI_GAME_ID_CODE_BRIDGE) {
         console.warn('Mini-game Apps Script route is not deployed yet; using temporary legacy reward path.', error);
         return performXpMiniGameClaimLegacyFirestore(sessionId, round, reportedResult);
       }

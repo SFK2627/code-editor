@@ -224,6 +224,42 @@
       }
     },
     {
+      id: 'byte-sling',
+      stateKey: 'byteSling',
+      name: 'BYTE SLING',
+      icon: '🚀',
+      description: 'Pull, aim, and launch code packets to collapse corrupted structures and debug every BUG.',
+      maxXp: 3,
+      category: 'PHYSICS / PUZZLE',
+      difficulty: '★★★★☆',
+      globalName: 'ICT8ByteSling',
+      script: 'games/byte-sling/byte-sling.js',
+      style: 'games/byte-sling/byte-sling.css',
+      bestText(record = {}) {
+        const run = Math.max(0, Number(record.highestRunIndex || 0));
+        const score = Math.max(0, Number(record.bestRunScore || record.bestScore || 0));
+        return run > 0 ? `🏆 Run ${run} · Best ${score}` : '🏆 Run 1 ready';
+      }
+    },
+    {
+      id: 'code-bridge',
+      stateKey: 'codeBridge',
+      name: 'CODE BRIDGE',
+      icon: '🌉',
+      description: 'Hold to extend a DATA LINK, release to bridge the gap, and reach the ENDPOINT without falling.',
+      maxXp: 3,
+      category: 'TIMING / LOGIC',
+      difficulty: '★★★☆☆',
+      globalName: 'ICT8CodeBridge',
+      script: 'games/code-bridge/code-bridge.js',
+      style: 'games/code-bridge/code-bridge.css',
+      bestText(record = {}) {
+        const score = Math.max(0, Number(record.bestRunScore || record.bestScore || 0));
+        const perfects = Math.max(0, Number(record.bestPerfects || 0));
+        return score > 0 ? `🏆 Best ${score} · ${perfects} Perfect` : '🏆 Endpoint ready';
+      }
+    },
+    {
       id: 'pattern-lock',
       stateKey: 'patternLock',
       name: 'PATTERN LOCK',
@@ -679,7 +715,7 @@
     if (document.querySelector(`link[data-xp-game-style="${game.id}"]`)) return;
     const link = document.createElement('link');
     link.rel = 'stylesheet';
-    link.href = `${game.style}?v=20260910-v468-mini-game-quiet`;
+    link.href = `${game.style}?v=20260910-v470-code-bridge`;
     link.dataset.xpGameStyle = game.id;
     document.head.appendChild(link);
   }
@@ -696,7 +732,7 @@
       // forever for a load event that already fired.
       if (existing) existing.remove();
       const script = document.createElement('script');
-      script.src = `${game.script}?v=20260910-v468-mini-game-quiet`;
+      script.src = `${game.script}?v=20260910-v470-code-bridge`;
       script.defer = true;
       script.dataset.xpGameScript = game.id;
       script.addEventListener('load', () => {
