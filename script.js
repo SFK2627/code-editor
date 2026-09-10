@@ -4244,6 +4244,76 @@ function getMcsAppsScriptUrl() {
   return String(window.MCS_APPS_SCRIPT_URL || window.MCS_APPS_SCRIPT_WEB_APP_URL || '').trim();
 }
 
+
+// v458 hybrid backend — Realtime Database is used only for lightweight,
+// transient presence data. It intentionally uses short REST requests instead
+// of a permanent realtime socket so hundreds of students do not keep hundreds
+// of simultaneous RTDB connections open all day.
+function getMcsRealtimeDatabaseUrl() {
+  return String(
+    window.MCS_FIREBASE_DATABASE_URL
+      || window.MCS_FIREBASE_CONFIG?.databaseURL
+      || ''
+  ).trim().replace(/\/+$/, '');
+}
+
+function shouldUseRtdbPresence() {
+  return window.MCS_USE_RTDB_PRESENCE !== false && Boolean(getMcsRealtimeDatabaseUrl());
+}
+
+function shouldUseAppsScriptMiniGameRewards() {
+  return window.MCS_MINI_GAME_REWARDS_VIA_APPS_SCRIPT !== false && Boolean(getMcsAppsScriptUrl());
+}
+
+async function getActiveFirebaseIdToken(options = {}) {
+  const ready = await initFirebaseSync();
+  if (!ready || !firebaseSync.auth) throw new Error(firebaseSync.lastError || 'Firebase is not ready.');
+  const user = getFirebaseActiveUser();
+  if (!user || typeof user.getIdToken !== 'function') throw new Error('Session expired. Sign in again.');
+  return user.getIdToken(options.forceRefresh === true);
+}
+
+function encodeRtdbPath(path = '') {
+  return String(path || '')
+    .split('/')
+    .filter(Boolean)
+    .map(segment => encodeURIComponent(segment))
+    .join('/');
+}
+
+async function rtdbRestRequest(path = '', options = {}) {
+  const baseUrl = getMcsRealtimeDatabaseUrl();
+  if (!baseUrl) throw new Error('Realtime Database URL is not configured.');
+  const idToken = options.idToken || await getActiveFirebaseIdToken();
+  const encodedPath = encodeRtdbPath(path);
+  const query = new URLSearchParams();
+  query.set('auth', idToken);
+  Object.entries(options.query || {}).forEach(([key, value]) => {
+    if (value === undefined || value === null || value === '') return;
+    query.set(key, String(value));
+  });
+  const url = `${baseUrl}/${encodedPath ? `${encodedPath}.json` : '.json'}?${query.toString()}`;
+  const response = await fetch(url, {
+    method: options.method || 'GET',
+    headers: options.body === undefined ? undefined : { 'Content-Type': 'application/json' },
+    body: options.body === undefined ? undefined : JSON.stringify(options.body),
+    cache: 'no-store',
+    keepalive: options.keepalive === true
+  });
+  let data = null;
+  const text = await response.text();
+  if (text) {
+    try { data = JSON.parse(text); } catch (_) { data = text; }
+  }
+  if (!response.ok) {
+    const message = data?.error || data?.message || `Realtime Database request failed (${response.status}).`;
+    const error = new Error(String(message));
+    error.status = response.status;
+    throw error;
+  }
+  return data;
+}
+
 async function callAppsScriptSecure(payload = {}, options = {}) {
   const url = getMcsAppsScriptUrl();
   if (!url) {
@@ -9401,10 +9471,6 @@ async function writeStudentPresence(activityOverride = {}, options = {}) {
   if (!options.force && document.visibilityState === 'hidden') return false;
   const signature = [payload.currentView, payload.activityLabel, payload.projectId, payload.lessonId, payload.pageVisible].join('|');
   const now = Date.now();
-  // Presence is intentionally coarse-grained on the free plan. A view change
-  // updates the in-memory activity immediately, but Firestore receives at most
-  // one presence write per student every few minutes. Only critical lifecycle
-  // events (for example sign-out) may bypass this throttle.
   if (!options.critical && studentPresenceLastWriteAt && now - studentPresenceLastWriteAt < PRESENCE_MIN_WRITE_INTERVAL) {
     studentPresenceLastSignature = signature;
     studentPresenceLastActivity = payload.activityLabel;
@@ -9419,15 +9485,36 @@ async function writeStudentPresence(activityOverride = {}, options = {}) {
     return false;
   }
   if (navigator.onLine === false) return false;
-  const ready = await initFirebaseSync();
-  if (!ready) return false;
+
   try {
-    const { setDoc, serverTimestamp } = firebaseSync.modules;
-    await setDoc(getOnlinePresenceDocRef(payload.uid), {
-      ...payload,
-      lastSeenAt: serverTimestamp(),
-      updatedAt: serverTimestamp()
-    }, { merge: true });
+    // v458: prefer RTDB REST presence when configured. This avoids Firestore
+    // document writes for transient online/activity heartbeats and does not
+    // maintain a permanent realtime socket per student.
+    if (shouldUseRtdbPresence()) {
+      const idToken = await getActiveFirebaseIdToken();
+      await rtdbRestRequest(`presence/${payload.uid}`, {
+        method: 'PATCH',
+        idToken,
+        keepalive: options.critical === true,
+        body: {
+          ...payload,
+          lastSeenMs: now,
+          updatedAtMs: now
+        }
+      });
+    } else {
+      // Safe rollout fallback: if RTDB has not been created/configured yet,
+      // keep the previously working Firestore presence path.
+      const ready = await initFirebaseSync();
+      if (!ready) return false;
+      const { setDoc, serverTimestamp } = firebaseSync.modules;
+      await setDoc(getOnlinePresenceDocRef(payload.uid), {
+        ...payload,
+        lastSeenAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+    }
+
     studentPresenceLastWriteAt = now;
     studentPresenceLastSignature = signature;
     studentPresenceLastActivity = payload.activityLabel;
@@ -9583,37 +9670,63 @@ async function loadAdminOnlinePresence(options = {}) {
   if (refreshOnlinePresenceBtn) refreshOnlinePresenceBtn.disabled = true;
   if (!options.silent) setOnlinePresenceStatus('Checking who is online...', 'loading');
   try {
-    const ready = await initFirebaseSync();
-    if (!ready) throw new Error(firebaseSync.lastError || 'Firebase is not ready.');
-    const { getDocs, query, where, orderBy, limit } = firebaseSync.modules;
     const cutoff = Date.now() - PRESENCE_ADMIN_WINDOW_MS;
-    const presenceQuery = query(
-      getOnlinePresenceCollectionRef(),
-      where('lastSeenMs', '>=', cutoff),
-      orderBy('lastSeenMs', 'desc'),
-      limit(PRESENCE_ADMIN_LIMIT)
-    );
-    const snapshot = await withTimeout(
-      getDocs(presenceQuery),
-      APP_NETWORK_TIMEOUT_MS,
-      'Online list took too long to load. Try Refresh again.'
-    );
-    adminOnlinePresenceRecords = (snapshot.docs || []).map(docSnapshot => ({
-      id: docSnapshot.id,
-      ...snapshotData(docSnapshot)
-    })).sort((a, b) => Number(b.lastSeenMs || 0) - Number(a.lastSeenMs || 0));
+
+    if (shouldUseRtdbPresence()) {
+      const idToken = await getActiveFirebaseIdToken();
+      const data = await withTimeout(
+        rtdbRestRequest('presence', {
+          idToken,
+          query: {
+            orderBy: JSON.stringify('lastSeenMs'),
+            startAt: cutoff,
+            limitToLast: PRESENCE_ADMIN_LIMIT
+          }
+        }),
+        APP_NETWORK_TIMEOUT_MS,
+        'Online list took too long to load. Try Refresh again.'
+      );
+      adminOnlinePresenceRecords = Object.entries(data && typeof data === 'object' ? data : {}).map(([id, record]) => ({
+        id,
+        ...(record && typeof record === 'object' ? record : {})
+      })).sort((a, b) => Number(b.lastSeenMs || 0) - Number(a.lastSeenMs || 0));
+    } else {
+      // Safe rollout fallback while RTDB URL is blank/not configured.
+      const ready = await initFirebaseSync();
+      if (!ready) throw new Error(firebaseSync.lastError || 'Firebase is not ready.');
+      const { getDocs, query, where, orderBy, limit } = firebaseSync.modules;
+      const presenceQuery = query(
+        getOnlinePresenceCollectionRef(),
+        where('lastSeenMs', '>=', cutoff),
+        orderBy('lastSeenMs', 'desc'),
+        limit(PRESENCE_ADMIN_LIMIT)
+      );
+      const snapshot = await withTimeout(
+        getDocs(presenceQuery),
+        APP_NETWORK_TIMEOUT_MS,
+        'Online list took too long to load. Try Refresh again.'
+      );
+      adminOnlinePresenceRecords = (snapshot.docs || []).map(docSnapshot => ({
+        id: docSnapshot.id,
+        ...snapshotData(docSnapshot)
+      })).sort((a, b) => Number(b.lastSeenMs || 0) - Number(a.lastSeenMs || 0));
+    }
+
     renderAdminOnlinePresence();
     const online = adminOnlinePresenceRecords.filter(record => getOnlinePresenceStatus(record) === 'online').length;
+    const sourceLabel = shouldUseRtdbPresence() ? 'RTDB' : 'Firestore fallback';
     const message = adminOnlinePresenceRecords.length
-      ? `${online} online now · ${adminOnlinePresenceRecords.length} active recently. Auto refresh is ${adminOnlinePresenceAutoRefresh ? 'on (5 min)' : 'off'}.`
-      : 'No students reported active recently.';
+      ? `${online} online now · ${adminOnlinePresenceRecords.length} active recently · ${sourceLabel}. Auto refresh is ${adminOnlinePresenceAutoRefresh ? 'on (5 min)' : 'off'}.`
+      : `No students reported active recently · ${sourceLabel}.`;
     setOnlinePresenceStatus(message, adminOnlinePresenceRecords.length ? 'success' : 'warning');
     return adminOnlinePresenceRecords;
   } catch (error) {
     console.warn('Could not load online presence.', error);
-    const message = /permission|insufficient/i.test(error?.message || '')
-      ? 'Firebase Rules may need to allow the onlinePresence collection. The feature is ready, but Firestore rejected the read.'
-      : (error?.message || 'Could not load online students.');
+    const message = shouldUseRtdbPresence()
+      ? `Realtime Database presence could not load: ${error?.message || 'check the RTDB URL and rules.'}`
+      : (/permission|insufficient/i.test(error?.message || '')
+        ? 'Firebase Rules may need to allow the onlinePresence collection. Firestore rejected the read.'
+        : (error?.message || 'Could not load online students.'));
     setOnlinePresenceStatus(message, 'error');
     return [];
   } finally {
@@ -30824,7 +30937,7 @@ document.addEventListener('visibilitychange', () => {
     saveCurrentStudentProject({ immediate: true, reason: 'visibility' });
   }
   if (appSession.mode === 'student' && appSession.student?.uid) {
-    writeStudentPresence({}, { force: true }).catch(error => console.warn('Visibility presence update skipped.', error));
+    writeStudentPresence({}, { force: true, critical: document.visibilityState === 'hidden' }).catch(error => console.warn('Visibility presence update skipped.', error));
     if (document.visibilityState !== 'hidden') scheduleStudentPresenceHeartbeat();
   }
 });
@@ -44322,7 +44435,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     const week = xpMiniGamesWeekInfo();
     const uid = String(appSession.student?.uid || '').trim();
     const loggedIn = Boolean(appSession.mode === 'student' && uid);
-    const topLimit = Math.max(5, Math.min(50, Math.floor(Number(options.limit || 10))));
+    const topLimit = Math.max(5, Math.min(20, Math.floor(Number(options.limit || 10))));
     const base = {
       ok: false,
       loggedIn,
@@ -44336,16 +44449,26 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       entries: [],
       totalPlayers: 0,
       yourRank: 0,
-      yourEntry: null
+      yourEntry: null,
+      partial: true
     };
     if (!loggedIn) return { ...base, error: 'Log in as a student to view the Weekly Arcade leaderboard.' };
 
     try {
       const ready = await initFirebaseSync();
       if (!ready) throw new Error(firebaseSync.lastError || 'Firebase is unavailable.');
-      const { getDocs } = firebaseSync.modules;
-      const snapshot = await getDocs(getXpMiniGameWeeklyLeaderboardCollectionRef(week.key));
-      const rows = (snapshot?.docs || []).map(docSnapshot => {
+      const { getDocs, getDoc, query, orderBy, limit } = firebaseSync.modules;
+      // v458 quota guard: never download the entire weekly collection. Load the
+      // top rows plus the signed-in student's exact row only.
+      const [topSnapshot, yourSnapshot] = await Promise.all([
+        getDocs(query(
+          getXpMiniGameWeeklyLeaderboardCollectionRef(week.key),
+          orderBy('weeklyXp', 'desc'),
+          limit(topLimit)
+        )),
+        getDoc(getXpMiniGameWeeklyLeaderboardDocRef(week.key, uid))
+      ]);
+      const rows = (topSnapshot?.docs || []).map(docSnapshot => {
         const data = snapshotData(docSnapshot) || {};
         return {
           uid: String(data.uid || docSnapshot.id || '').trim(),
@@ -44362,18 +44485,34 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       rows.sort((a, b) => {
         if (b.weeklyXp !== a.weeklyXp) return b.weeklyXp - a.weeklyXp;
         if (a.rewardedSessions !== b.rewardedSessions) return a.rewardedSessions - b.rewardedSessions;
-        const nameOrder = a.name.localeCompare(b.name, 'en', { sensitivity: 'base' });
-        if (nameOrder) return nameOrder;
-        return a.uid.localeCompare(b.uid);
+        return a.name.localeCompare(b.name, 'en', { sensitivity: 'base' });
       });
       rows.forEach((row, index) => { row.rank = index + 1; });
-      const yourEntry = rows.find(row => row.uid === uid) || null;
+
+      let yourEntry = rows.find(row => row.uid === uid) || null;
+      if (!yourEntry && snapshotExists(yourSnapshot)) {
+        const data = snapshotData(yourSnapshot) || {};
+        if (String(data.accountStatus || 'active').toLowerCase() !== 'disabled' && Number(data.weeklyXp || 0) > 0) {
+          yourEntry = {
+            uid,
+            name: String(data.name || appSession.student?.name || 'Student').trim() || 'Student',
+            section: String(data.section || appSession.student?.section || '').trim(),
+            weeklyXp: Math.max(0, Math.min(XP_MINI_GAMES_WEEKLY_MAX, Math.floor(Number(data.weeklyXp || 0)))),
+            rewardedSessions: Math.max(0, Math.floor(Number(data.rewardedSessions || 0))),
+            lastRewardGameId: normalizeXpMiniGameId(data.lastRewardGameId || ''),
+            lastRewardXp: Math.max(0, Math.min(15, Math.floor(Number(data.lastRewardXp || 0)))),
+            accountStatus: String(data.accountStatus || 'active').trim().toLowerCase(),
+            rank: 0
+          };
+        }
+      }
+      const yourRank = yourEntry?.rank || 0;
       return {
         ...base,
         ok: true,
-        entries: rows.slice(0, topLimit),
+        entries: rows,
         totalPlayers: rows.length,
-        yourRank: yourEntry?.rank || 0,
+        yourRank,
         yourEntry
       };
     } catch (error) {
@@ -44609,7 +44748,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     };
   }
 
-  async function performXpMiniGameClaim(sessionId, round, reportedResult) {
+  async function performXpMiniGameClaimLegacyFirestore(sessionId, round, reportedResult) {
     ensureReaderProgress();
     const verified = verifiedXpMiniGameResult(round, reportedResult);
     const gameId = verified.gameId;
@@ -44816,6 +44955,194 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       // Save only non-XP records through the ordinary merge-safe path. A failed
       // claim never becomes a frontend-only XP gain.
       scheduleCloudSave();
+      const snapshot = notifyXpMiniGamesProgress();
+      const gameRecord = snapshot.gameRecords?.[stateKey] || localMiniGames.games[stateKey];
+      return {
+        ...baseResult,
+        ...snapshot,
+        syncFailed: true,
+        error: String(error?.message || error || 'Could not sync XP reward.'),
+        gameRecord,
+        bestScore: Math.max(0, Number(gameRecord?.bestScore || 0))
+      };
+    }
+  }
+
+  function miniGameBridgeNeedsLegacyFallback(error) {
+    const message = String(error?.message || error || '').toLowerCase();
+    return message.includes('unknown action')
+      || message.includes('teacher-only actions')
+      || message.includes('not allowed to use teacher-only')
+      || message.includes('claimminigamereward is not available');
+  }
+
+  async function mirrorWeeklyMiniGameRewardAfterServerClaim(gameId, awardedXp, weekKey = '') {
+    const amount = Math.max(0, Math.floor(Number(awardedXp || 0)));
+    if (!amount || !(appSession.mode === 'student' && appSession.student?.uid)) return false;
+    try {
+      const ready = await initFirebaseSync();
+      if (!ready) return false;
+      const { setDoc, increment, serverTimestamp } = firebaseSync.modules;
+      if (typeof increment !== 'function') return false;
+      const uid = appSession.student.uid;
+      const weeklyInfo = xpMiniGamesWeekInfo();
+      const key = /^\d{4}-\d{2}-\d{2}$/.test(String(weekKey || '')) ? String(weekKey) : weeklyInfo.key;
+      const profile = appSession.student || appSession.lastStudentProfile || {};
+      await setDoc(getXpMiniGameWeeklyLeaderboardDocRef(key, uid), {
+        uid,
+        name: String(profile.name || profile.fullName || 'Student').trim() || 'Student',
+        section: String(profile.section || '').trim(),
+        weekKey: key,
+        weeklyXp: increment(amount),
+        rewardedSessions: increment(1),
+        lastRewardGameId: gameId,
+        lastRewardXp: amount,
+        accountStatus: String(profile.accountStatus || 'active'),
+        lastRewardAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+      return true;
+    } catch (error) {
+      // Weekly ranking is deliberately NON-CRITICAL in the hybrid backend.
+      // A leaderboard mirror failure must never roll back real account XP.
+      console.warn('Weekly Arcade mirror skipped after a valid XP reward.', error);
+      return false;
+    }
+  }
+
+  async function performXpMiniGameClaim(sessionId, round, reportedResult) {
+    ensureReaderProgress();
+    const verified = verifiedXpMiniGameResult(round, reportedResult);
+    const gameId = verified.gameId;
+    const definition = XP_MINI_GAME_DEFINITIONS[gameId];
+    const stateKey = definition?.stateKey;
+    if (!stateKey) return { awardedXp: 0, invalidSession: true, error: 'Unknown mini-game.' };
+    const nowIso = new Date().toISOString();
+
+    // Best records remain instant/local. Account XP is never added here.
+    const localMiniGames = normalizeMiniGamesState(state.progress.miniGames || {});
+    localMiniGames.games[stateKey] = applyMiniGameResultToRecord(gameId, localMiniGames.games[stateKey], verified, nowIso);
+    localMiniGames.updatedAt = nowIso;
+    state.progress.miniGames = localMiniGames;
+    saveLocalProgress();
+
+    const baseResult = {
+      sessionId,
+      gameId,
+      score: verified.score,
+      reportedScore: verified.reportedScore,
+      scoreAdjusted: verified.scoreAdjusted,
+      metrics: verified.metrics,
+      durationMs: verified.durationMs,
+      requestedXp: verified.requestedXp,
+      awardedXp: 0,
+      duplicate: false,
+      loginRequired: false,
+      syncFailed: false
+    };
+
+    if (!(appSession.mode === 'student' && appSession.student?.uid)) {
+      const snapshot = notifyXpMiniGamesProgress();
+      const record = snapshot.gameRecords?.[stateKey] || localMiniGames.games[stateKey];
+      return { ...baseResult, ...snapshot, loginRequired: true, gameRecord: record, bestScore: Math.max(0, Number(record?.bestScore || 0)) };
+    }
+
+    // Zero-XP rounds do not need an immediate cloud request. Their personal-best
+    // record stays local and can merge into the next normal Explorer checkpoint.
+    if (verified.requestedXp <= 0) {
+      const snapshot = notifyXpMiniGamesProgress({ awardedXp: 0, requestedXp: 0, duplicate: false, gameId });
+      const record = snapshot.gameRecords?.[stateKey] || localMiniGames.games[stateKey];
+      return { ...baseResult, ...snapshot, gameRecord: record, bestScore: Math.max(0, Number(record?.bestScore || 0)) };
+    }
+
+    // Once the locally-synced daily cap is already known to be reached, keep
+    // unlimited high-score play local-only. This prevents post-cap farming from
+    // generating pointless backend reads/writes on every additional round.
+    const localDayKey = miniGamesDayKey();
+    const localTodayXp = localMiniGames.daily?.date === localDayKey
+      ? Math.min(XP_MINI_GAMES_DAILY_CAP, Math.max(0, Number(localMiniGames.daily?.earned || 0)))
+      : 0;
+    if (localTodayXp >= XP_MINI_GAMES_DAILY_CAP) {
+      const snapshot = notifyXpMiniGamesProgress({ awardedXp: 0, requestedXp: verified.requestedXp, duplicate: false, gameId });
+      const record = snapshot.gameRecords?.[stateKey] || localMiniGames.games[stateKey];
+      return {
+        ...baseResult,
+        ...snapshot,
+        requestedXp: verified.requestedXp,
+        todayXp: XP_MINI_GAMES_DAILY_CAP,
+        capReached: true,
+        gameRecord: record,
+        bestScore: Math.max(0, Number(record?.bestScore || 0))
+      };
+    }
+
+    if (!shouldUseAppsScriptMiniGameRewards()) {
+      return performXpMiniGameClaimLegacyFirestore(sessionId, round, reportedResult);
+    }
+
+    try {
+      const server = await callAppsScriptSecure({
+        action: 'claimMiniGameReward',
+        roundId: sessionId,
+        gameId,
+        startedAtMs: Math.max(0, Number(round?.startedAt || 0)),
+        finishedAtMs: Date.now(),
+        result: reportedXpMiniGameResult(reportedResult)
+      }, { allowStudent: true });
+
+      const serverMiniGames = normalizeMiniGamesState(server.miniGames || {});
+      state.progress.miniGames = mergeMiniGamesState(state.progress.miniGames || {}, serverMiniGames);
+      state.progress.updatedAt = nowIso;
+      const totalXp = Math.max(0, Math.floor(Number(server.totalXp || appSession.student?.codeExplorerXp || 0)));
+      state.cloudXpHint = Math.max(state.cloudXpHint || 0, totalXp);
+      state.cloudLoaded = true;
+      state.lastCloudSyncAt = Date.now();
+      if (appSession.student) appSession.student.codeExplorerXp = totalXp;
+      if (appSession.lastStudentProfile) appSession.lastStudentProfile.codeExplorerXp = totalXp;
+      saveLocalProgress(state.progress);
+      clearSelectiveFirestoreCache(`studentProfile:${appSession.student.uid}`);
+      clearSelectiveFirestoreCache('admin:studentsAndRoster');
+      leaderboardState.loadedAt = 0;
+      renderTopProgress();
+
+      const awardedXp = Math.max(0, Math.floor(Number(server.awardedXp || 0)));
+      const requestedXp = Math.max(0, Math.floor(Number(server.requestedXp ?? verified.requestedXp)));
+      const duplicate = server.duplicate === true;
+      const todayXp = Math.max(0, Math.min(XP_MINI_GAMES_DAILY_CAP, Math.floor(Number(server.todayXp || 0))));
+      const weekKey = String(server.weekKey || xpMiniGamesWeekInfo().key);
+
+      // Non-critical mirror only. It no longer participates in account-XP success.
+      if (!duplicate && awardedXp > 0) {
+        mirrorWeeklyMiniGameRewardAfterServerClaim(gameId, awardedXp, weekKey).then(ok => {
+          if (ok) leaderboardState.loadedAt = 0;
+        }).catch(() => {});
+      }
+
+      const snapshot = notifyXpMiniGamesProgress({ awardedXp, requestedXp, duplicate, gameId });
+      const gameRecord = snapshot.gameRecords?.[stateKey] || state.progress.miniGames?.games?.[stateKey] || localMiniGames.games[stateKey];
+      return {
+        ...baseResult,
+        ...snapshot,
+        awardedXp,
+        requestedXp,
+        duplicate,
+        todayXp,
+        weeklyXp: Math.max(0, Number(server.weeklyXp || 0)),
+        weekKey,
+        gameRecord,
+        bestScore: Math.max(0, Number(gameRecord?.bestScore || 0)),
+        capReached: todayXp >= XP_MINI_GAMES_DAILY_CAP,
+        totalXp
+      };
+    } catch (error) {
+      // During rollout only, an OLD Apps Script deployment can fall back to the
+      // proven Firestore transaction. Network/quota errors do NOT cause a second
+      // Firestore claim attempt, preventing double load and duplicate rewards.
+      if (miniGameBridgeNeedsLegacyFallback(error)) {
+        console.warn('Mini-game Apps Script route is not deployed yet; using temporary legacy reward path.', error);
+        return performXpMiniGameClaimLegacyFirestore(sessionId, round, reportedResult);
+      }
+      console.warn(`XP Mini-Games Apps Script claim for ${gameId} failed.`, error);
       const snapshot = notifyXpMiniGamesProgress();
       const gameRecord = snapshot.gameRecords?.[stateKey] || localMiniGames.games[stateKey];
       return {

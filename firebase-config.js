@@ -14,6 +14,17 @@ window.MCS_FIREBASE_DOCUMENT_ID = 'grade8-mcsian-blank-v1';
 window.MCS_TEACHER_EMAILS = ['sirjr.mcsian@gmail.com'];
 window.MCS_FIREBASE_SDK_VERSION = '10.12.5';
 
+// Optional Firebase Realtime Database URL for low-quota transient features.
+// Create Realtime Database in Firebase Console, then paste the EXACT database URL here.
+// Example formats:
+// https://PROJECT_ID-default-rtdb.firebaseio.com
+// https://PROJECT_ID-default-rtdb.asia-southeast1.firebasedatabase.app
+window.MCS_FIREBASE_DATABASE_URL = 'https://code-editor-f0f9d-default-rtdb.asia-southeast1.firebasedatabase.app';
+
+// Hybrid backend switches. Keep enabled after the matching backend is deployed.
+window.MCS_USE_RTDB_PRESENCE = true;
+window.MCS_MINI_GAME_REWARDS_VIA_APPS_SCRIPT = true;
+
 // Leave blank if you do not have a deployed secure backend endpoint.
 window.MCS_AI_FEEDBACK_ENDPOINT = '';
 // Optional secure endpoint for AI-assisted error checking. Leave blank to use the improved local checker.
@@ -29,7 +40,7 @@ window.MCS_RUBRIC_IMAGE_ENDPOINT = '';
 window.MCS_GOOGLE_DRIVE_CLIENT_ID = '485615856896-dt2spv7cp7ccop2347qktcb3l17ne8ml.apps.googleusercontent.com';
 
 
-// Secure Apps Script Web App URL for teacher-only password reset.
-// Paste your deployed /exec URL here after creating the supplied Apps Script.
-// Leave blank to keep Reset Pass disabled safely.
+// Secure Apps Script Web App URL for password reset, Smart Review, and hybrid Mini-Game XP claims.
+// Keep the deployed /exec URL here after updating the supplied Apps Script.
+// If blank, Mini-Game XP safely falls back to the legacy Firestore path during rollout.
 window.MCS_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwA7YTR1SmZHk17XfJ4f4jfR63SdZejxCm10R6uHFD98vQyuB5NsJkBSjRj70GQ6qoN/exec';

@@ -476,7 +476,7 @@
     const your = info.yourEntry || null;
     state.weeklyYou.hidden = false;
     state.weeklyYou.innerHTML = your
-      ? `<span>YOUR WEEKLY RANK</span><strong>${weeklyRankLabel(info.yourRank)} · ${Math.max(0, Number(your.weeklyXp || 0))} XP</strong><small>${Math.max(0, Number(info.totalPlayers || 0))} ranked player${Number(info.totalPlayers || 0) === 1 ? '' : 's'} this week</small>`
+      ? `<span>YOUR WEEKLY RANK</span><strong>${info.yourRank ? weeklyRankLabel(info.yourRank) : 'Outside Top 10'} · ${Math.max(0, Number(your.weeklyXp || 0))} XP</strong><small>${info.partial ? 'Low-data view: Top 10 + your own record only.' : `${Math.max(0, Number(info.totalPlayers || 0))} ranked player${Number(info.totalPlayers || 0) === 1 ? '' : 's'} this week`}</small>`
       : `<span>YOUR WEEKLY RANK</span><strong>Not ranked yet</strong><small>Earn at least 1 Mini-Game XP this week to enter the leaderboard.</small>`;
   }
 
@@ -494,7 +494,7 @@
     const freshEnough = !options.force
       && state.weeklyData
       && (!currentWeek?.key || state.weeklyData.weekKey === currentWeek.key)
-      && Date.now() - Number(state.weeklyLoadedAt || 0) < 15000;
+      && Date.now() - Number(state.weeklyLoadedAt || 0) < 5 * 60 * 1000;
     if (freshEnough) {
       renderWeeklyLeaderboard(state.weeklyData);
       return state.weeklyData;
