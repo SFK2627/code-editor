@@ -11,7 +11,8 @@
     finalXp: null, rewardNote: null, soundBtn: null, pauseBtn: null, fxEl: null,
     view: { w: 620, h: 680, dpr: 1 }, raf: 0, lastFrame: 0, resizeTimer: 0,
     blocks: [], moving: null, direction: 1, score: 0, placements: 0, perfects: 0, combo: 0, bestCombo: 0,
-    bestVisible: 0, towerVisible: 0, round: null, soundEnabled: true, audioContext: null
+    bestVisible: 0, towerVisible: 0, round: null, soundEnabled: true, audioContext: null,
+    fragments: [], sliceEffects: [], impactShake: 0, impactStrength: 0
   };
 
   function build() {
@@ -177,6 +178,8 @@
     if (runtime.blocks.length && Math.abs(ratio - 1) > .001) {
       runtime.blocks.forEach(block => { block.x *= ratio; block.w *= ratio; });
       if (runtime.moving) { runtime.moving.x *= ratio; runtime.moving.w *= ratio; }
+      runtime.fragments.forEach(piece => { piece.x *= ratio; piece.w *= ratio; piece.vx *= ratio; });
+      runtime.sliceEffects.forEach(fx => { fx.x *= ratio; fx.len *= ratio; });
     }
     const dpr = Math.max(1, Math.min(MAX_DPR, Number(devicePixelRatio || 1)));
     runtime.canvas.width = Math.round(w * dpr);
@@ -192,11 +195,19 @@
     runtime.blocks = [{ x: (runtime.view.w - w) / 2, w }];
   }
 
+  function resetEffects() {
+    runtime.fragments = [];
+    runtime.sliceEffects = [];
+    runtime.impactShake = 0;
+    runtime.impactStrength = 0;
+  }
+
   function resetReady() {
     runtime.state = 'ready';
     runtime.score = 0; runtime.placements = 0; runtime.perfects = 0; runtime.combo = 0; runtime.bestCombo = 0;
     runtime.round = null; runtime.direction = 1; runtime.moving = null;
     seedBase();
+    resetEffects();
     updateHud();
     runtime.readyPanel.hidden = false;
     runtime.pausePanel.hidden = true;
@@ -210,6 +221,7 @@
     try { runtime.round = runtime.bridge?.beginRound?.(GAME_ID) || null; } catch (_) { runtime.round = null; }
     runtime.score = 0; runtime.placements = 0; runtime.perfects = 0; runtime.combo = 0; runtime.bestCombo = 0;
     seedBase();
+    resetEffects();
     runtime.readyPanel.hidden = true;
     runtime.overPanel.hidden = true;
     runtime.state = 'playing';
@@ -244,24 +256,92 @@
     runtime.fxEl.classList.add('show');
   }
 
+  function triggerImpact(strength = .5) {
+    runtime.impactShake = clamp(runtime.impactShake + .18 + strength * .28, 0, .52);
+    runtime.impactStrength = Math.max(runtime.impactStrength, strength);
+  }
+
+  function getDrawYForIndex(index) {
+    return blockY(index);
+  }
+
+  function getMovingY() {
+    const bh = blockHeight();
+    return blockY(runtime.blocks.length - 1) - bh - 9;
+  }
+
+  function getBlockColor(index, moving = false) {
+    if (moving) return '#22d3ee';
+    const hue = (190 + index * 17) % 360;
+    return `hsl(${hue} 72% 50%)`;
+  }
+
+  function getBlockShadow(index, moving = false) {
+    if (moving) return 'rgba(34,211,238,.28)';
+    const hue = (190 + index * 17) % 360;
+    return `hsla(${hue},90%,60%,.28)`;
+  }
+
+  function getBlockLabel(index) {
+    const labels = ['HTML', 'CSS', 'JS', '{}', '</>', '01'];
+    return labels[index % labels.length];
+  }
+
+  function spawnSliceEffect(piece, label, stackIndex, side) {
+    const bh = blockHeight();
+    const edgeX = side === 'left' ? piece.x + piece.w : piece.x;
+    runtime.sliceEffects.push({
+      x: edgeX,
+      y: piece.y + (bh - 3) / 2,
+      len: clamp(piece.w * .5, 16, 48),
+      age: 0,
+      ttl: .2,
+      side,
+      color: getBlockColor(stackIndex, false)
+    });
+
+    runtime.fragments.push({
+      x: piece.x,
+      y: piece.y,
+      w: piece.w,
+      h: bh - 3,
+      vx: (side === 'left' ? -1 : 1) * clamp(70 + piece.w * 1.25, 95, 215),
+      vy: -clamp(48 + piece.w * .16, 52, 92),
+      gravity: clamp(runtime.view.h * 2.3, 860, 1450),
+      rotation: 0,
+      vr: (side === 'left' ? -1 : 1) * clamp(.9 + piece.w * .012, 1.1, 2.45),
+      age: 0,
+      ttl: 1.1,
+      color: getBlockColor(stackIndex, false),
+      shadow: getBlockShadow(stackIndex, false),
+      label: piece.w > 44 ? label : '',
+      stackIndex
+    });
+  }
+
   function placeBlock() {
     if (runtime.state !== 'playing' || !runtime.moving) return;
     const top = runtime.blocks[runtime.blocks.length - 1];
-    let left = Math.max(runtime.moving.x, top.x);
-    let right = Math.min(runtime.moving.x + runtime.moving.w, top.x + top.w);
+    const movingX = runtime.moving.x;
+    const movingW = runtime.moving.w;
+    const movingY = getMovingY();
+    let left = Math.max(movingX, top.x);
+    let right = Math.min(movingX + movingW, top.x + top.w);
     let overlap = right - left;
     if (overlap <= 0) {
+      triggerImpact(.8);
       tone('miss');
       finishRound();
       return;
     }
 
-    const centerDiff = Math.abs((runtime.moving.x + runtime.moving.w / 2) - (top.x + top.w / 2));
+    const centerDiff = Math.abs((movingX + movingW / 2) - (top.x + top.w / 2));
     const perfect = centerDiff <= Math.max(4, top.w * .045);
     let points = 1;
     if (perfect) {
       left = top.x; overlap = top.w; points = 3; runtime.combo += 1; runtime.perfects += 1;
       runtime.bestCombo = Math.max(runtime.bestCombo, runtime.combo);
+      triggerImpact(.18);
       tone('perfect');
       const milestone = runtime.combo >= 10 ? `🔥 PERFECT x${runtime.combo}` : runtime.combo >= 3 ? `PERFECT x${runtime.combo}` : 'PERFECT! +3';
       showFx(milestone, true);
@@ -271,9 +351,18 @@
       runtime.combo = 0;
       tone('drop');
       showFx(points === 2 ? 'GOOD! +2' : '+1');
+
+      if (movingX < left) {
+        spawnSliceEffect({ x: movingX, y: movingY, w: left - movingX }, getBlockLabel(runtime.blocks.length), runtime.blocks.length, 'left');
+      } else if (movingX + movingW > right) {
+        spawnSliceEffect({ x: right, y: movingY, w: movingX + movingW - right }, getBlockLabel(runtime.blocks.length), runtime.blocks.length, 'right');
+      }
+      const cutRatio = 1 - ratio;
+      triggerImpact(clamp(.24 + cutRatio * .7, .24, .92));
     }
 
     runtime.blocks.push({ x: left, w: overlap });
+    runtime.moving = null;
     runtime.placements += 1;
     runtime.score += points;
     updateHud();
@@ -302,12 +391,36 @@
   }
 
   function update(dt) {
-    if (runtime.state !== 'playing' || !runtime.moving) return;
-    const speed = moveSpeed();
-    runtime.moving.x += runtime.direction * speed * dt;
-    if (runtime.moving.x <= 8) { runtime.moving.x = 8; runtime.direction = 1; }
-    const maxX = runtime.view.w - runtime.moving.w - 8;
-    if (runtime.moving.x >= maxX) { runtime.moving.x = maxX; runtime.direction = -1; }
+    if (runtime.state === 'playing' && runtime.moving) {
+      const speed = moveSpeed();
+      runtime.moving.x += runtime.direction * speed * dt;
+      if (runtime.moving.x <= 8) { runtime.moving.x = 8; runtime.direction = 1; }
+      const maxX = runtime.view.w - runtime.moving.w - 8;
+      if (runtime.moving.x >= maxX) { runtime.moving.x = maxX; runtime.direction = -1; }
+    }
+
+    if (runtime.impactShake > 0) {
+      runtime.impactShake = Math.max(0, runtime.impactShake - dt * 2.25);
+      runtime.impactStrength = Math.max(0, runtime.impactStrength - dt * 1.8);
+    }
+
+    if (runtime.fragments.length) {
+      runtime.fragments = runtime.fragments.filter(piece => {
+        piece.age += dt;
+        piece.vy += piece.gravity * dt;
+        piece.x += piece.vx * dt;
+        piece.y += piece.vy * dt;
+        piece.rotation += piece.vr * dt;
+        return piece.age < piece.ttl && piece.y < runtime.view.h + piece.h + 60;
+      });
+    }
+
+    if (runtime.sliceEffects.length) {
+      runtime.sliceEffects = runtime.sliceEffects.filter(fx => {
+        fx.age += dt;
+        return fx.age < fx.ttl;
+      });
+    }
   }
 
   function rounded(ctx, x, y, w, h, r) {
@@ -335,27 +448,97 @@
 
   function drawBlock(block, index, moving = false) {
     const { ctx } = runtime; const bh = blockHeight();
-    const y = moving ? blockY(runtime.blocks.length - 1) - bh - 9 : blockY(index);
-    const hue = (190 + index * 17) % 360;
+    const y = moving ? getMovingY() : getDrawYForIndex(index);
     ctx.save();
-    ctx.shadowColor = `hsla(${hue},90%,60%,.28)`; ctx.shadowBlur = moving ? 16 : 8;
-    ctx.fillStyle = moving ? '#22d3ee' : `hsl(${hue} 72% 50%)`;
+    ctx.shadowColor = getBlockShadow(index, moving); ctx.shadowBlur = moving ? 16 : 8;
+    ctx.fillStyle = getBlockColor(index, moving);
     rounded(ctx, block.x, y, block.w, bh - 3, 7); ctx.fill();
     ctx.shadowBlur = 0;
     if (block.w > 54) {
       ctx.fillStyle = moving ? '#042f3e' : 'rgba(255,255,255,.9)';
       ctx.font = `900 ${clamp(bh * .39, 9, 12)}px system-ui`;
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      const labels = ['HTML', 'CSS', 'JS', '{}', '</>', '01'];
-      ctx.fillText(labels[index % labels.length], block.x + block.w / 2, y + (bh - 3) / 2);
+      ctx.fillText(getBlockLabel(index), block.x + block.w / 2, y + (bh - 3) / 2);
     }
     ctx.restore();
   }
 
+  function drawFragments() {
+    if (!runtime.fragments.length) return;
+    const { ctx } = runtime;
+    runtime.fragments.forEach(piece => {
+      const fade = 1 - (piece.age / piece.ttl);
+      if (fade <= 0) return;
+      ctx.save();
+      ctx.translate(piece.x + piece.w / 2, piece.y + piece.h / 2);
+      ctx.rotate(piece.rotation);
+      ctx.globalAlpha = clamp(fade, 0, 1);
+      ctx.shadowColor = piece.shadow;
+      ctx.shadowBlur = 12;
+      ctx.fillStyle = piece.color;
+      rounded(ctx, -piece.w / 2, -piece.h / 2, piece.w, piece.h, 7);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      if (piece.label) {
+        ctx.fillStyle = 'rgba(255,255,255,.82)';
+        ctx.font = `900 ${clamp(piece.h * .39, 9, 12)}px system-ui`;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(piece.label, 0, 0);
+      }
+      ctx.restore();
+    });
+  }
+
+  function drawSliceEffects() {
+    if (!runtime.sliceEffects.length) return;
+    const { ctx } = runtime;
+    runtime.sliceEffects.forEach(fx => {
+      const t = fx.age / fx.ttl;
+      const alpha = 1 - t;
+      if (alpha <= 0) return;
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.strokeStyle = 'rgba(255,255,255,.85)';
+      ctx.lineWidth = 2.2;
+      ctx.shadowColor = 'rgba(186,230,253,.8)';
+      ctx.shadowBlur = 10;
+      ctx.beginPath();
+      ctx.moveTo(fx.x, fx.y - 10 - t * 6);
+      ctx.lineTo(fx.x, fx.y + 10 + t * 6);
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = fx.color;
+      const dir = fx.side === 'left' ? -1 : 1;
+      for (let i = 0; i < 3; i += 1) {
+        const px = fx.x + dir * (6 + i * 6 + t * 10);
+        const py = fx.y + (i - 1) * 6 + t * 4;
+        ctx.globalAlpha = alpha * .85;
+        ctx.fillRect(px - 1.5, py - 1.5, 3, 3);
+      }
+      ctx.restore();
+    });
+  }
+
+  function getShakeOffset() {
+    if (runtime.impactShake <= 0) return { x: 0, y: 0 };
+    const mag = clamp(runtime.impactShake * 7 * (0.65 + runtime.impactStrength), 0, 6.8);
+    return {
+      x: (Math.random() - .5) * mag,
+      y: (Math.random() - .5) * mag * .55
+    };
+  }
+
   function render(time) {
+    const { ctx } = runtime;
+    const shake = getShakeOffset();
+    ctx.save();
+    ctx.translate(shake.x, shake.y);
     drawBackground(time);
     runtime.blocks.forEach((block, index) => drawBlock(block, index, false));
+    drawFragments();
+    drawSliceEffects();
     if (runtime.moving && (runtime.state === 'playing' || runtime.state === 'paused')) drawBlock(runtime.moving, runtime.blocks.length, true);
+    ctx.restore();
   }
 
   function frame(time) {
@@ -370,6 +553,7 @@
   async function finishRound() {
     if (runtime.state !== 'playing') return;
     runtime.state = 'gameover';
+    triggerImpact(.9);
     tone('over');
     const tower = runtime.placements;
     runtime.finalScore.textContent = String(runtime.score);
@@ -416,6 +600,7 @@
     runtime.open = false; runtime.overlay.hidden = true; document.body.classList.remove('code-stack-active');
     if (runtime.raf) cancelAnimationFrame(runtime.raf); runtime.raf = 0;
     runtime.state = 'ready'; runtime.round = null; runtime.pausePanel.hidden = true; runtime.overPanel.hidden = true;
+    resetEffects();
   }
 
   function open(options = {}) {
