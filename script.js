@@ -1488,7 +1488,7 @@ let adminLatestAiReview = null;
 let adminAiRubricController = null;
 let aiRubricConnectionState = { status: 'untested', code: '', message: '' };
 
-const MCS_APP_BUILD = 'v463-quota-audit-fix';
+const MCS_APP_BUILD = 'v468-mini-game-network-quiet';
 window.MCS_APP_BUILD = MCS_APP_BUILD;
 console.info(`[MCSian Code Editor] ${MCS_APP_BUILD} loaded`);
 
@@ -1508,6 +1508,15 @@ const PRESENCE_RECENT_WINDOW_MS = 60 * 60 * 1000;
 const PRESENCE_ADMIN_WINDOW_MS = 90 * 60 * 1000;
 const PRESENCE_ADMIN_AUTO_REFRESH_MS = 5 * 60 * 1000;
 const PRESENCE_ADMIN_LIMIT = 600;
+
+// v468 — Mini-Game Network Quiet. Active game rounds are intentionally local-only.
+// Reward submission is allowed after the round, but background project autosave,
+// Code Explorer checkpoints, RTDB hydration and presence heartbeats are deferred
+// while gameplay is active so taps/movement never create database traffic.
+window.__ICT8_MINIGAME_NETWORK_QUIET__ = false;
+function isMiniGameNetworkQuiet() {
+  return window.__ICT8_MINIGAME_NETWORK_QUIET__ === true;
+}
 
 const appSession = {
   mode: 'pending', // pending | guest | student
@@ -8550,6 +8559,22 @@ function isStudentProjectActive() {
   return canCurrentUserSaveActiveStudentProject();
 }
 
+// v468: if an editor autosave became due while a Mini-Game was active, keep
+// the recovery copy local during play and resume the ordinary delayed save only
+// after the game/reward transaction has settled.
+window.addEventListener('ict8:mini-game-network-quiet', event => {
+  if (event?.detail?.active === true) return;
+  if (studentProjectDirty && isStudentProjectActive() && isStudentAutoSaveAllowed() && navigator.onLine !== false) {
+    window.clearTimeout(studentProjectSaveTimer);
+    studentProjectSaveTimer = window.setTimeout(() => {
+      saveCurrentStudentProject({ reason: 'post-mini-game' }).catch(error => console.warn('Deferred autosave failed', error));
+    }, 1200);
+  }
+  if (studentPresenceStarted && appSession.mode === 'student' && appSession.student?.uid) {
+    scheduleStudentPresenceHeartbeat();
+  }
+});
+
 function buildProjectSavePayload(result = null) {
   const currentResult = result || lastRubricResult || appSession.currentProject?.lastResult || null;
   const currentActivity = activity || null;
@@ -8593,6 +8618,11 @@ function queueStudentProjectSave(reason = 'edit') {
   updateManualSaveControls();
   window.clearTimeout(studentProjectSaveTimer);
   window.clearTimeout(studentProjectRetryTimer);
+  if (isMiniGameNetworkQuiet()) {
+    studentProjectSaveTimer = null;
+    setStudentSaveState('Local copy · game active', 'unsaved');
+    return;
+  }
   if (!isStudentAutoSaveAllowed()) {
     setStudentSaveState('Unsaved', 'unsaved');
     return;
@@ -8611,6 +8641,14 @@ function queueStudentProjectSave(reason = 'edit') {
 async function saveCurrentStudentProject({ result = null, immediate = false, reason = 'edit' } = {}) {
   if (!isStudentProjectActive()) return false;
   const manualReason = reason === 'manual' || reason === 'logout' || reason === 'reconnect' || reason === 'visibility';
+  if (isMiniGameNetworkQuiet() && !manualReason) {
+    studentProjectDirty = true;
+    window.clearTimeout(studentProjectSaveTimer);
+    studentProjectSaveTimer = null;
+    persistStudentProjectRecoverySnapshot('mini-game-deferred');
+    setStudentSaveState('Local copy · game active', 'unsaved');
+    return false;
+  }
   if (!isStudentAutoSaveAllowed() && !manualReason) {
     studentProjectDirty = true;
     window.clearTimeout(studentProjectSaveTimer);
@@ -9625,6 +9663,10 @@ function buildStudentPresencePayload(activityOverride = {}) {
 async function writeStudentPresence(activityOverride = {}, options = {}) {
   const payload = buildStudentPresencePayload(activityOverride);
   if (!payload || appSession.mode !== 'student') return false;
+  if (isMiniGameNetworkQuiet() && options.critical !== true) {
+    studentPresencePendingOverride = { ...activityOverride };
+    return false;
+  }
   if (!options.force && document.visibilityState === 'hidden') return false;
   const signature = [payload.currentView, payload.activityLabel, payload.projectId, payload.lessonId, payload.pageVisible].join('|');
   const now = Date.now();
@@ -42917,6 +42959,32 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   const miniGameProgressSubscribers = new Set();
   const activeXpMiniGameRounds = new Map();
   const xpMiniGameRoundClaims = new Map();
+  const miniGameNetworkQuietRounds = new Set();
+
+  function syncMiniGameNetworkQuietState() {
+    const active = miniGameNetworkQuietRounds.size > 0;
+    const changed = window.__ICT8_MINIGAME_NETWORK_QUIET__ !== active;
+    window.__ICT8_MINIGAME_NETWORK_QUIET__ = active;
+    if (!changed) return active;
+    try {
+      window.dispatchEvent(new CustomEvent('ict8:mini-game-network-quiet', {
+        detail: { active, rounds: miniGameNetworkQuietRounds.size }
+      }));
+    } catch (_) {}
+    return active;
+  }
+
+  function enterMiniGameNetworkQuiet(sessionId) {
+    const id = String(sessionId || '').trim();
+    if (id) miniGameNetworkQuietRounds.add(id);
+    syncMiniGameNetworkQuietState();
+  }
+
+  function leaveMiniGameNetworkQuiet(sessionId) {
+    const id = String(sessionId || '').trim();
+    if (id) miniGameNetworkQuietRounds.delete(id);
+    syncMiniGameNetworkQuietState();
+  }
   const CODE_EXPLORER_LEADERBOARD_SETTINGS_ROW_ID = 'leaderboard_settings';
   const leaderboardState = { records: [], loadedAt: 0, loading: false, source: '', rosterLoaded: false, mode: 'students', settingsLoaded: false, settingsError: false, currentSectionIncluded: true };
   let leaderboardSectionSettings = { configured: false, includedSections: [], includedSectionKeys: [] };
@@ -44436,6 +44504,16 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   function scheduleCloudSave(reason = 'progress') {
     saveLocalProgress();
 
+    if (isMiniGameNetworkQuiet()) {
+      if (appSession.student?.uid && appSession.mode === 'student' && state.progress) {
+        refreshExplorerCheckpointDirtyState(reason);
+      }
+      clearTimeout(state.saveTimer);
+      state.saveTimer = null;
+      state.checkpointDueAt = 0;
+      return;
+    }
+
     // Keep the legacy behavior only when Phase 3 is explicitly disabled or the
     // secure bridge is not configured.
     if (!shouldUseAppsScriptCodeExplorerCheckpoints()) {
@@ -44477,6 +44555,17 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   }
 
   async function saveCodeExplorerCheckpointViaAppsScript(options = {}) {
+    if (isMiniGameNetworkQuiet()) {
+      clearTimeout(state.saveTimer);
+      state.saveTimer = null;
+      state.checkpointDueAt = 0;
+      if (appSession.student?.uid && appSession.mode === 'student' && state.progress) {
+        state.checkpointDirty = true;
+        state.checkpointDirtySince = state.checkpointDirtySince || Date.now();
+        state.checkpointReason = String(options.reason || state.checkpointReason || 'mini-game-deferred').slice(0, 80);
+      }
+      return false;
+    }
     clearTimeout(state.saveTimer);
     state.saveTimer = null;
     state.checkpointDueAt = 0;
@@ -45298,8 +45387,10 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     miniGames.soundUpdatedAt = new Date().toISOString();
     miniGames.updatedAt = miniGames.soundUpdatedAt;
     state.progress.miniGames = miniGames;
+    // v468: sound toggles are intentionally local-first. Do not spend a cloud
+    // write from inside a game just because the student tapped the speaker.
+    // The next normal Explorer checkpoint can persist the preference.
     saveLocalProgress();
-    if (appSession.mode === 'student' && appSession.student?.uid) scheduleCloudSave();
     return notifyXpMiniGamesProgress();
   }
 
@@ -45313,7 +45404,10 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   function cleanupXpMiniGameRoundMaps() {
     const cutoff = Date.now() - (60 * 60 * 1000);
     activeXpMiniGameRounds.forEach((round, id) => {
-      if (Number(round?.startedAt || 0) < cutoff) activeXpMiniGameRounds.delete(id);
+      if (Number(round?.startedAt || 0) < cutoff) {
+        activeXpMiniGameRounds.delete(id);
+        leaveMiniGameNetworkQuiet(id);
+      }
     });
     if (xpMiniGameRoundClaims.size > 96) {
       const ids = Array.from(xpMiniGameRoundClaims.keys());
@@ -45328,6 +45422,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     const sessionId = xpMiniGameRoundId(normalizedGameId);
     const startedAt = Date.now();
     activeXpMiniGameRounds.set(sessionId, { gameId: normalizedGameId, startedAt });
+    enterMiniGameNetworkQuiet(sessionId);
     return { sessionId, gameId: normalizedGameId, startedAt };
   }
 
@@ -45535,6 +45630,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   let miniGameRtdbHydratedAt = 0;
 
   async function refreshXpMiniGamesFromRtdb(options = {}) {
+    if (isMiniGameNetworkQuiet()) return currentXpMiniGamesSnapshot();
     if (!shouldUseRtdbMiniGameLedger()) return currentXpMiniGamesSnapshot();
     if (!(appSession.mode === 'student' && appSession.student?.uid)) return currentXpMiniGamesSnapshot();
     const force = options.force === true;
@@ -45973,12 +46069,44 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     const existingClaim = xpMiniGameRoundClaims.get(id);
     if (existingClaim) return existingClaim;
     const round = activeXpMiniGameRounds.get(id);
-    if (!round) return Promise.resolve({ awardedXp: 0, invalidSession: true, error: 'This mini-game round is no longer active.' });
+    if (!round) {
+      leaveMiniGameNetworkQuiet(id);
+      return Promise.resolve({ awardedXp: 0, invalidSession: true, error: 'This mini-game round is no longer active.' });
+    }
     activeXpMiniGameRounds.delete(id);
+    // Keep unrelated background traffic quiet until this one legitimate reward
+    // request settles. The reward request itself still uses the secured bridge.
     const claimPromise = performXpMiniGameClaim(id, round, result);
     xpMiniGameRoundClaims.set(id, claimPromise);
-    claimPromise.finally(cleanupXpMiniGameRoundMaps).catch(() => {});
+    claimPromise.finally(() => {
+      leaveMiniGameNetworkQuiet(id);
+      cleanupXpMiniGameRoundMaps();
+    }).catch(() => {});
     return claimPromise;
+  }
+
+  function cancelXpMiniGameRound(sessionId) {
+    const id = String(sessionId || '').trim();
+    if (!id) return false;
+    if (xpMiniGameRoundClaims.has(id)) return false;
+    const existed = activeXpMiniGameRounds.delete(id);
+    leaveMiniGameNetworkQuiet(id);
+    cleanupXpMiniGameRoundMaps();
+    return existed;
+  }
+
+  function cancelXpMiniGameRoundsForGame(gameId) {
+    const normalizedGameId = normalizeXpMiniGameId(gameId);
+    if (!normalizedGameId) return 0;
+    let cancelled = 0;
+    Array.from(activeXpMiniGameRounds.entries()).forEach(([id, round]) => {
+      if (round?.gameId !== normalizedGameId || xpMiniGameRoundClaims.has(id)) return;
+      activeXpMiniGameRounds.delete(id);
+      leaveMiniGameNetworkQuiet(id);
+      cancelled += 1;
+    });
+    cleanupXpMiniGameRoundMaps();
+    return cancelled;
   }
 
   function subscribeXpMiniGamesProgress(callback) {
@@ -45987,6 +46115,13 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     try { callback(currentXpMiniGamesSnapshot()); } catch (_) {}
     return () => miniGameProgressSubscribers.delete(callback);
   }
+
+  window.addEventListener('ict8:mini-game-network-quiet', event => {
+    if (event?.detail?.active === true) return;
+    if (state.checkpointDirty && appSession.mode === 'student' && appSession.student?.uid) {
+      scheduleCloudSave('post-mini-game');
+    }
+  });
 
   function normalizeCurrentStudentLegacyXp(options = {}) {
     if (!state.progress) return { changed: false, credit: 0, before: 0, after: 0 };
@@ -49884,6 +50019,9 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     rewardForGame: miniGameRewardForResult,
     beginRound: beginXpMiniGameRound,
     claimRound: claimXpMiniGameRound,
+    cancelRound: cancelXpMiniGameRound,
+    cancelGame: cancelXpMiniGameRoundsForGame,
+    isGameplayActive: () => miniGameNetworkQuietRounds.size > 0,
     setSoundEnabled: setXpMiniGamesSoundEnabled,
     subscribe: subscribeXpMiniGamesProgress
   });

@@ -639,6 +639,8 @@
   function closeHub() {
     if (!state.open && !state.gameOpen) return;
     const api = state.activeGameApi;
+    const closingGameId = state.activeGameId;
+    try { if (closingGameId) state.bridge?.cancelGame?.(closingGameId); } catch (_) {}
     state.gameOpen = false;
     state.open = false;
     state.activeGameId = '';
@@ -658,6 +660,8 @@
   }
 
   function showHubAfterGame() {
+    const closingGameId = state.activeGameId;
+    try { if (closingGameId) state.bridge?.cancelGame?.(closingGameId); } catch (_) {}
     state.open = true;
     state.gameOpen = false;
     state.activeGameId = '';
@@ -675,7 +679,7 @@
     if (document.querySelector(`link[data-xp-game-style="${game.id}"]`)) return;
     const link = document.createElement('link');
     link.rel = 'stylesheet';
-    link.href = `${game.style}?v=20260910-v466a-code-flow`;
+    link.href = `${game.style}?v=20260910-v468-mini-game-quiet`;
     link.dataset.xpGameStyle = game.id;
     document.head.appendChild(link);
   }
@@ -692,7 +696,7 @@
       // forever for a load event that already fired.
       if (existing) existing.remove();
       const script = document.createElement('script');
-      script.src = `${game.script}?v=20260910-v466a-code-flow`;
+      script.src = `${game.script}?v=20260910-v468-mini-game-quiet`;
       script.defer = true;
       script.dataset.xpGameScript = game.id;
       script.addEventListener('load', () => {

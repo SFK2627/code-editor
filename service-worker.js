@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ict8-connect-v466a-code-flow';
+const CACHE_NAME = 'ict8-connect-v468-mini-game-network-quiet';
 
 self.addEventListener('install', event => {
   event.waitUntil(self.skipWaiting());
