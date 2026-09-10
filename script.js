@@ -41812,6 +41812,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   const XP_MINI_GAME_ID_RED_LIGHT_GREEN_LIGHT = 'red-light-green-light';
   const XP_MINI_GAME_ID_CODE_MAZE = 'code-maze';
   const XP_MINI_GAME_ID_PATTERN_LOCK = 'pattern-lock';
+  const XP_MINI_GAME_ID_CODE_FLOW = 'code-flow';
 
   const XP_MINI_GAME_DEFINITIONS = Object.freeze({
     [XP_MINI_GAME_ID_CODE_FLY]: Object.freeze({ stateKey: 'codeFly', maxReward: 15 }),
@@ -41828,7 +41829,8 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     [XP_MINI_GAME_ID_CODE_HOOPS]: Object.freeze({ stateKey: 'codeHoops', maxReward: 10 }),
     [XP_MINI_GAME_ID_RED_LIGHT_GREEN_LIGHT]: Object.freeze({ stateKey: 'redLightGreenLight', maxReward: 10 }),
     [XP_MINI_GAME_ID_CODE_MAZE]: Object.freeze({ stateKey: 'codeMaze', maxReward: 10 }),
-    [XP_MINI_GAME_ID_PATTERN_LOCK]: Object.freeze({ stateKey: 'patternLock', maxReward: 10 })
+    [XP_MINI_GAME_ID_PATTERN_LOCK]: Object.freeze({ stateKey: 'patternLock', maxReward: 10 }),
+    [XP_MINI_GAME_ID_CODE_FLOW]: Object.freeze({ stateKey: 'codeFlow', maxReward: 5 })
   });
 
   function normalizeXpMiniGameId(gameId = XP_MINI_GAME_ID_CODE_FLY) {
@@ -42048,6 +42050,68 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     return 0;
   }
 
+  // v466 — CODE FLOW scoring is skill/efficiency based. Difficulty comes
+  // from the fixed level band, not from a client-selected XP value.
+  function codeFlowLevelSpec(level = 1) {
+    const safeLevel = Math.max(1, Math.min(50, Math.floor(Number(level || 1))));
+    if (safeLevel <= 5) {
+      return { level: safeLevel, difficulty: 'easy', size: 5, pairs: safeLevel <= 3 ? 3 : 4, targetTimeMs: 50000 + safeLevel * 3500, base: 50, complexity: safeLevel * 5 };
+    }
+    if (safeLevel <= 10) {
+      return { level: safeLevel, difficulty: 'medium', size: 6, pairs: 4, targetTimeMs: 78000 + (safeLevel - 6) * 4500, base: 120, complexity: 80 + (safeLevel - 6) * 8 };
+    }
+    if (safeLevel <= 15) {
+      return { level: safeLevel, difficulty: 'medium', size: 7, pairs: 5, targetTimeMs: 104000 + (safeLevel - 11) * 5000, base: 120, complexity: 80 + (safeLevel - 6) * 8 };
+    }
+    if (safeLevel <= 22) {
+      return { level: safeLevel, difficulty: 'hard', size: 7, pairs: safeLevel >= 19 ? 6 : 5, targetTimeMs: 126000 + (safeLevel - 16) * 5500, base: 220, complexity: 180 + (safeLevel - 16) * 8 };
+    }
+    if (safeLevel <= 30) {
+      return { level: safeLevel, difficulty: 'hard', size: 8, pairs: safeLevel >= 27 ? 7 : 6, targetTimeMs: 158000 + (safeLevel - 23) * 6000, base: 220, complexity: 180 + (safeLevel - 16) * 8 };
+    }
+    if (safeLevel <= 36) {
+      return { level: safeLevel, difficulty: 'expert', size: 9, pairs: 7, targetTimeMs: 205000 + (safeLevel - 31) * 7000, base: 350, complexity: 320 + Math.min(110, (safeLevel - 31) * 10) };
+    }
+    return { level: safeLevel, difficulty: 'expert', size: 10, pairs: 8, targetTimeMs: 250000 + (safeLevel - 37) * 8500, base: 350, complexity: 320 + Math.min(110, (safeLevel - 31) * 10) };
+  }
+
+  function codeFlowScoreForMetrics(metrics = {}) {
+    const source = metrics && typeof metrics === 'object' ? metrics : {};
+    const spec = codeFlowLevelSpec(source.level || 1);
+    const requiredCells = spec.size * spec.size;
+    const optimalMoves = Math.max(1, requiredCells - spec.pairs);
+    const moves = Math.max(optimalMoves, Math.floor(Number(source.moves || 0)));
+    const mistakes = Math.max(0, Math.min(999, Math.floor(Number(source.mistakes || 0))));
+    const hints = Math.max(0, Math.min(99, Math.floor(Number(source.hints || 0))));
+    const resets = Math.max(0, Math.min(99, Math.floor(Number(source.resets || 0))));
+    const redraws = Math.max(0, Math.min(999, Math.floor(Number(source.redraws || 0))));
+    const activeTimeMs = Math.max(0, Math.floor(Number(source.activeTimeMs || source.durationMs || 0)));
+    const extraMoves = Math.max(0, moves - optimalMoves);
+    const efficiencyBonus = Math.max(0, Math.min(100, Math.round(100 - extraMoves * 4 - mistakes * 3)));
+    const ratio = activeTimeMs / Math.max(1, spec.targetTimeMs);
+    let timeBonus = 0;
+    if (ratio <= .7) timeBonus = 100;
+    else if (ratio <= 1) timeBonus = Math.round(100 - (ratio - .7) / .3 * 30);
+    else if (ratio <= 1.5) timeBonus = Math.round(70 - (ratio - 1) / .5 * 50);
+    else if (ratio <= 2) timeBonus = Math.round(20 - (ratio - 1.5) / .5 * 20);
+    const perfect = hints === 0 && resets === 0 && mistakes === 0 && redraws <= 1 && extraMoves <= 2 && ratio <= 1.05;
+    const hintPenalty = hints * 75;
+    const resetPenalty = resets * 50;
+    const redrawPenalty = Math.min(90, Math.max(0, redraws - 1) * 8 + Math.max(0, redraws - 4) * 3);
+    const mistakePenalty = Math.min(80, mistakes * 5);
+    return Math.max(0, Math.round(spec.base + spec.complexity + efficiencyBonus + timeBonus + (perfect ? 150 : 0) - hintPenalty - resetPenalty - redrawPenalty - mistakePenalty));
+  }
+
+  function codeFlowRewardForScore(score = 0) {
+    const safeScore = Math.max(0, Math.floor(Number(score || 0)));
+    if (safeScore >= 1000) return 5;
+    if (safeScore >= 800) return 4;
+    if (safeScore >= 600) return 3;
+    if (safeScore >= 400) return 2;
+    if (safeScore >= 200) return 1;
+    return 0;
+  }
+
   function memoryCodeRewardForMetrics(metrics = {}) {
     const source = metrics && typeof metrics === 'object' ? metrics : {};
     const completed = source.completed === true;
@@ -42113,6 +42177,18 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       return 4;
     }
 
+    // CODE FLOW is a deliberate puzzle game. Fast easy clears stay low-XP,
+    // while 4–5 XP requires a sustained Hard/Expert-quality solve.
+    if (id === XP_MINI_GAME_ID_CODE_FLOW) {
+      const activeSeconds = Math.max(0, Number(source.activeTimeMs || durationMs)) / 1000;
+      if (activeSeconds < 20) return 0;
+      if (activeSeconds < 45) return 1;
+      if (activeSeconds < 75) return 2;
+      if (activeSeconds < 120) return 3;
+      if (activeSeconds < 180) return 4;
+      return 5;
+    }
+
     // CODE FLY remains the reference arcade game and keeps a slightly more
     // generous long-run curve, while still blocking instant +1/+2 farming.
     if (id === XP_MINI_GAME_ID_CODE_FLY) {
@@ -42159,6 +42235,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       case XP_MINI_GAME_ID_RED_LIGHT_GREEN_LIGHT: tierReward = redLightGreenLightRewardForScore(score); break;
       case XP_MINI_GAME_ID_CODE_MAZE: tierReward = codeMazeRewardForScore(score); break;
       case XP_MINI_GAME_ID_PATTERN_LOCK: tierReward = patternLockRewardForScore(score); break;
+      case XP_MINI_GAME_ID_CODE_FLOW: tierReward = codeFlowRewardForScore(score); break;
       default: tierReward = 0;
     }
     return Math.min(tierReward, miniGameDurationRewardCap(id, metrics));
@@ -42299,6 +42376,30 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         roundsCompleted: Math.max(0, Math.min(99, Math.floor(Number(source.roundsCompleted || source.highestLevel || 0))))
       };
     }
+    if (id === XP_MINI_GAME_ID_CODE_FLOW) {
+      const level = Math.max(1, Math.min(50, Math.floor(Number(source.level || 1))));
+      const spec = codeFlowLevelSpec(level);
+      return {
+        completed: source.completed === true,
+        puzzleId: String(source.puzzleId || '').trim().slice(0, 24),
+        level,
+        difficulty: spec.difficulty,
+        size: spec.size,
+        pairs: spec.pairs,
+        connectedPairs: Math.max(0, Math.min(spec.pairs, Math.floor(Number(source.connectedPairs || 0)))),
+        filledCells: Math.max(0, Math.min(spec.size * spec.size, Math.floor(Number(source.filledCells || 0)))),
+        requiredCells: spec.size * spec.size,
+        moves: Math.max(0, Math.min(100000, Math.floor(Number(source.moves || 0)))),
+        mistakes: Math.max(0, Math.min(999, Math.floor(Number(source.mistakes || 0)))),
+        hints: Math.max(0, Math.min(99, Math.floor(Number(source.hints || 0)))),
+        resets: Math.max(0, Math.min(99, Math.floor(Number(source.resets || 0)))),
+        redraws: Math.max(0, Math.min(999, Math.floor(Number(source.redraws || 0)))),
+        activeTimeMs: Math.max(0, Math.min(60 * 60 * 1000, Math.floor(Number(source.activeTimeMs || 0)))),
+        targetTimeMs: spec.targetTimeMs,
+        perfectSolve: source.perfectSolve === true,
+        durationMs: Math.max(0, Math.min(60 * 60 * 1000, Math.floor(Number(source.durationMs || 0))))
+      };
+    }
     return {
       durationMs: Math.max(0, Math.min(60 * 60 * 1000, Math.floor(Number(source.durationMs || 0))))
     };
@@ -42361,6 +42462,18 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       if (nextTime > existingTime || Number(entry.xp || 0) > Number(existing.xp || 0)) left[id] = entry;
     });
     return trimMiniGameRewardLedger(left, limit);
+  }
+
+  function normalizeCodeFlowRewardedPuzzles(input = {}) {
+    const source = input && typeof input === 'object' && !Array.isArray(input) ? input : {};
+    const out = {};
+    Object.entries(source).slice(0, 64).forEach(([key, value]) => {
+      const id = String(key || '').trim();
+      if (!/^cf-[0-9]{3}$/.test(id)) return;
+      const xp = Math.max(0, Math.min(5, Math.floor(Number(value || 0))));
+      if (xp > 0) out[id] = xp;
+    });
+    return out;
   }
 
   function normalizeMiniGameRecord(gameId, input = {}) {
@@ -42469,6 +42582,17 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         bestScore: Math.max(0, Math.min(99, Math.floor(Number(source.bestScore || source.bestLevel || 0)))),
         bestLevel: Math.max(0, Math.min(99, Math.floor(Number(source.bestLevel || source.bestScore || 0)))),
         longestPattern: Math.max(0, Math.min(120, Math.floor(Number(source.longestPattern || 0))))
+      };
+    }
+    if (id === XP_MINI_GAME_ID_CODE_FLOW) {
+      return {
+        ...base,
+        bestScore: Math.max(0, Math.min(5000, Math.floor(Number(source.bestScore || 0)))),
+        highestCompletedLevel: Math.max(0, Math.min(50, Math.floor(Number(source.highestCompletedLevel || source.bestLevel || 0)))),
+        bestLevel: Math.max(0, Math.min(50, Math.floor(Number(source.bestLevel || source.highestCompletedLevel || 0)))),
+        fastestSolveMs: Math.max(0, Math.min(60 * 60 * 1000, Math.floor(Number(source.fastestSolveMs || 0)))),
+        bestPerfectLevel: Math.max(0, Math.min(50, Math.floor(Number(source.bestPerfectLevel || 0)))),
+        rewardedPuzzles: normalizeCodeFlowRewardedPuzzles(source.rewardedPuzzles || {})
       };
     }
     return {
@@ -42591,6 +42715,21 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         longestPattern: Math.max(Number(left.longestPattern || 0), Number(right.longestPattern || 0))
       };
     }
+    if (id === XP_MINI_GAME_ID_CODE_FLOW) {
+      const rewardedPuzzles = { ...normalizeCodeFlowRewardedPuzzles(left.rewardedPuzzles), ...normalizeCodeFlowRewardedPuzzles(right.rewardedPuzzles) };
+      Object.keys(rewardedPuzzles).forEach(key => {
+        rewardedPuzzles[key] = Math.max(Number(left.rewardedPuzzles?.[key] || 0), Number(right.rewardedPuzzles?.[key] || 0));
+      });
+      return {
+        lastPlayedAt,
+        bestScore: Math.max(Number(left.bestScore || 0), Number(right.bestScore || 0)),
+        highestCompletedLevel: Math.max(Number(left.highestCompletedLevel || 0), Number(right.highestCompletedLevel || 0)),
+        bestLevel: Math.max(Number(left.bestLevel || 0), Number(right.bestLevel || 0)),
+        fastestSolveMs: earlierPositiveMin(left.fastestSolveMs, right.fastestSolveMs),
+        bestPerfectLevel: Math.max(Number(left.bestPerfectLevel || 0), Number(right.bestPerfectLevel || 0)),
+        rewardedPuzzles
+      };
+    }
     return {
       lastPlayedAt,
       bestScore: Math.max(Number(left.bestScore || 0), Number(right.bestScore || 0))
@@ -42657,6 +42796,12 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     if (id === XP_MINI_GAME_ID_PATTERN_LOCK) {
       next.bestLevel = Math.max(Number(next.bestLevel || 0), Number(metrics.highestLevel || score));
       next.longestPattern = Math.max(Number(next.longestPattern || 0), Number(metrics.longestPattern || 0));
+    }
+    if (id === XP_MINI_GAME_ID_CODE_FLOW && metrics.completed) {
+      next.highestCompletedLevel = Math.max(Number(next.highestCompletedLevel || 0), Number(metrics.level || 0));
+      next.bestLevel = Math.max(Number(next.bestLevel || 0), Number(metrics.level || 0));
+      if (metrics.activeTimeMs > 0) next.fastestSolveMs = earlierPositiveMin(next.fastestSolveMs, metrics.activeTimeMs);
+      if (metrics.perfectSolve) next.bestPerfectLevel = Math.max(Number(next.bestPerfectLevel || 0), Number(metrics.level || 0));
     }
     return next;
   }
@@ -44975,7 +45120,8 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       codeHoops: normalizeMiniGameRecord(XP_MINI_GAME_ID_CODE_HOOPS, miniGames.games?.codeHoops),
       redLightGreenLight: normalizeMiniGameRecord(XP_MINI_GAME_ID_RED_LIGHT_GREEN_LIGHT, miniGames.games?.redLightGreenLight),
       codeMaze: normalizeMiniGameRecord(XP_MINI_GAME_ID_CODE_MAZE, miniGames.games?.codeMaze),
-      patternLock: normalizeMiniGameRecord(XP_MINI_GAME_ID_PATTERN_LOCK, miniGames.games?.patternLock)
+      patternLock: normalizeMiniGameRecord(XP_MINI_GAME_ID_PATTERN_LOCK, miniGames.games?.patternLock),
+      codeFlow: normalizeMiniGameRecord(XP_MINI_GAME_ID_CODE_FLOW, miniGames.games?.codeFlow)
     };
     return {
       loggedIn,
@@ -45004,7 +45150,8 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         codeHoops: Math.max(0, Number(gameRecords.codeHoops.bestScore || 0)),
         redLightGreenLight: Math.max(0, Number(gameRecords.redLightGreenLight.bestDistance || gameRecords.redLightGreenLight.bestScore || 0)),
         codeMaze: Math.max(0, Number(gameRecords.codeMaze.bestLevel || gameRecords.codeMaze.bestScore || 0)),
-        patternLock: Math.max(0, Number(gameRecords.patternLock.bestLevel || gameRecords.patternLock.bestScore || 0))
+        patternLock: Math.max(0, Number(gameRecords.patternLock.bestLevel || gameRecords.patternLock.bestScore || 0)),
+        codeFlow: Math.max(0, Number(gameRecords.codeFlow.bestScore || 0))
       },
       gameRecords,
       soundEnabled: miniGames.soundEnabled !== false
@@ -45345,6 +45492,29 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       metrics.longestPattern = Math.min(metrics.longestPattern || (metrics.highestLevel ? metrics.highestLevel + 2 : 0), metrics.highestLevel ? metrics.highestLevel + 2 : 0);
       maxPlausibleScore = levelCeiling;
       score = metrics.highestLevel;
+    } else if (gameId === XP_MINI_GAME_ID_CODE_FLOW) {
+      const spec = codeFlowLevelSpec(metrics.level || 1);
+      const expectedPuzzleId = `cf-${String(spec.level).padStart(3, '0')}`;
+      const requiredCells = spec.size * spec.size;
+      const optimalMoves = requiredCells - spec.pairs;
+      metrics.durationMs = durationMs;
+      metrics.puzzleId = String(metrics.puzzleId || '');
+      metrics.completed = Boolean(
+        metrics.completed
+        && metrics.puzzleId === expectedPuzzleId
+        && metrics.size === spec.size
+        && metrics.pairs === spec.pairs
+        && metrics.connectedPairs === spec.pairs
+        && metrics.filledCells === requiredCells
+        && durationMs >= Math.max(8000, requiredCells * 160)
+      );
+      metrics.requiredCells = requiredCells;
+      metrics.moves = Math.max(optimalMoves, Math.min(metrics.moves || optimalMoves, optimalMoves + Math.floor(durationMs / 45) + 300));
+      const minActiveTime = Math.max(8000, requiredCells * 180 + spec.pairs * 350);
+      metrics.activeTimeMs = Math.max(minActiveTime, Math.min(metrics.activeTimeMs || durationMs, Math.max(minActiveTime, durationMs)));
+      metrics.targetTimeMs = spec.targetTimeMs;
+      score = metrics.completed ? codeFlowScoreForMetrics(metrics) : 0;
+      maxPlausibleScore = 1200;
     }
 
     const requestedXp = miniGameRewardForResult(gameId, { score, metrics });
@@ -45679,7 +45849,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
 
     // Zero-XP rounds do not need an immediate cloud request. Their personal-best
     // record stays local and can merge into the next normal Explorer checkpoint.
-    if (verified.requestedXp <= 0) {
+    if (verified.requestedXp <= 0 && !(gameId === XP_MINI_GAME_ID_CODE_FLOW && verified.metrics?.completed === true)) {
       const snapshot = notifyXpMiniGamesProgress({ awardedXp: 0, requestedXp: 0, duplicate: false, gameId });
       const record = snapshot.gameRecords?.[stateKey] || localMiniGames.games[stateKey];
       return { ...baseResult, ...snapshot, gameRecord: record, bestScore: Math.max(0, Number(record?.bestScore || 0)) };
@@ -45692,7 +45862,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     const localTodayXp = localMiniGames.daily?.date === localDayKey
       ? Math.min(XP_MINI_GAMES_DAILY_CAP, Math.max(0, Number(localMiniGames.daily?.earned || 0)))
       : 0;
-    if (localTodayXp >= XP_MINI_GAMES_DAILY_CAP) {
+    if (localTodayXp >= XP_MINI_GAMES_DAILY_CAP && !(gameId === XP_MINI_GAME_ID_CODE_FLOW && verified.metrics?.completed === true)) {
       const snapshot = notifyXpMiniGamesProgress({ awardedXp: 0, requestedXp: verified.requestedXp, duplicate: false, gameId });
       const record = snapshot.gameRecords?.[stateKey] || localMiniGames.games[stateKey];
       return {
@@ -45770,13 +45940,16 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         capReached: todayXp >= XP_MINI_GAMES_DAILY_CAP,
         totalXp,
         pendingXp: Math.max(0, Number(server.pendingXp || 0)),
-        firestoreSynced: server.firestoreSynced === true
+        firestoreSynced: server.firestoreSynced === true,
+        replayNoXp: server.replayNoXp === true,
+        replayReduced: server.replayReduced === true,
+        progressionBlocked: server.progressionBlocked === true
       };
     } catch (error) {
       // During rollout only, an OLD Apps Script deployment can fall back to the
       // proven Firestore transaction. Network/quota errors do NOT cause a second
       // Firestore claim attempt, preventing double load and duplicate rewards.
-      if (miniGameBridgeNeedsLegacyFallback(error)) {
+      if (miniGameBridgeNeedsLegacyFallback(error) && gameId !== XP_MINI_GAME_ID_CODE_FLOW) {
         console.warn('Mini-game Apps Script route is not deployed yet; using temporary legacy reward path.', error);
         return performXpMiniGameClaimLegacyFirestore(sessionId, round, reportedResult);
       }

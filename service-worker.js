@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ict8-connect-v465-read-guard';
+const CACHE_NAME = 'ict8-connect-v466-code-flow';
 
 self.addEventListener('install', event => {
   event.waitUntil(self.skipWaiting());

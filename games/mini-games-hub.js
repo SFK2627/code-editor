@@ -206,6 +206,24 @@
       }
     },
     {
+      id: 'code-flow',
+      stateKey: 'codeFlow',
+      name: 'CODE FLOW',
+      icon: '🧩',
+      description: 'Connect matching logic nodes, fill the grid, and route every path without crossing.',
+      maxXp: 5,
+      category: 'LOGIC',
+      difficulty: '★★★☆☆',
+      globalName: 'ICT8CodeFlow',
+      script: 'games/code-flow/code-flow.js',
+      style: 'games/code-flow/code-flow.css',
+      bestText(record = {}) {
+        const level = Math.max(0, Number(record.highestCompletedLevel || record.bestLevel || 0));
+        const score = Math.max(0, Number(record.bestScore || 0));
+        return level > 0 ? `🏆 Level ${level} · Best ${score}` : '🏆 Level 1 ready';
+      }
+    },
+    {
       id: 'pattern-lock',
       stateKey: 'patternLock',
       name: 'PATTERN LOCK',
@@ -547,9 +565,10 @@
     const records = snapshot?.gameRecords || {};
     return GAME_REGISTRY.map(game => {
       const record = records[game.stateKey] || {};
+      const gameType = game.category ? `${game.category}${game.difficulty ? ` · ${game.difficulty}` : ''} · ` : '';
       const xpCopy = snapshot?.capReached
-        ? 'XP limit reached · play for records'
-        : `Up to +${game.maxXp} XP/run · ${cap} XP/day shared cap`;
+        ? `${gameType}XP limit reached · play for records`
+        : `${gameType}Up to +${game.maxXp} XP/run · ${cap} XP/day shared cap`;
       return `
         <article class="xp-games-card" data-xp-game-card="${game.id}">
           <div class="xp-games-card-art" aria-hidden="true">${game.icon}</div>
@@ -656,7 +675,7 @@
     if (document.querySelector(`link[data-xp-game-style="${game.id}"]`)) return;
     const link = document.createElement('link');
     link.rel = 'stylesheet';
-    link.href = `${game.style}?v=20260909-v447-weekly-arcade`;
+    link.href = `${game.style}?v=20260910-v466-code-flow`;
     link.dataset.xpGameStyle = game.id;
     document.head.appendChild(link);
   }
@@ -673,7 +692,7 @@
       // forever for a load event that already fired.
       if (existing) existing.remove();
       const script = document.createElement('script');
-      script.src = `${game.script}?v=20260909-v447-weekly-arcade`;
+      script.src = `${game.script}?v=20260910-v466-code-flow`;
       script.defer = true;
       script.dataset.xpGameScript = game.id;
       script.addEventListener('load', () => {
