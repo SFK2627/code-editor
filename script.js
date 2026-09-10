@@ -1571,13 +1571,21 @@ function withTimeout(promise, timeoutMs = APP_NETWORK_TIMEOUT_MS, message = 'Thi
   return Promise.race([promise, timeout]).finally(() => window.clearTimeout(timeoutId));
 }
 
-// STEP 241: selective Firestore cache for stable, non-live data only.
+// STEP 241 / v465 READ GUARD: selective Firestore cache for stable, non-live data only.
 // IMPORTANT: live collaboration/WebRTC paths are intentionally bypassed so
 // Share/Join, peers, cursor sync, and room signaling always use fresh data.
 const SELECTIVE_FIRESTORE_CACHE = new Map();
-const SELECTIVE_CACHE_SHORT_MS = 10 * 60 * 1000; // v461: student project/compliance/admin-list cache
+// v465 read guard: identical admin/viewer loads share one in-flight Firestore request.
+// This prevents two UI modules opened at nearly the same time from each scanning
+// the same 500-student collection before the first request has reached the cache.
+const SELECTIVE_FIRESTORE_INFLIGHT = new Map();
+const SELECTIVE_FIRESTORE_CACHE_EPOCH = new Map();
+const SELECTIVE_CACHE_SHORT_MS = 10 * 60 * 1000; // student project/status cache
 const SELECTIVE_CACHE_MEDIUM_MS = 30 * 60 * 1000; // root app document/profile cache within one page session
 const SELECTIVE_CACHE_LONG_MS = 60 * 60 * 1000; // stable settings/roster hint cache
+const SELECTIVE_CACHE_ADMIN_PROFILE_MS = 30 * 60 * 1000; // v465: admin student-profile scan; manual Refresh bypasses
+const SELECTIVE_CACHE_ADMIN_ROSTER_MS = 60 * 60 * 1000; // v465: roster changes rarely; keep the 500-row roster warm
+const SELECTIVE_CACHE_ADMIN_COMPLIANCE_MS = 30 * 60 * 1000; // v465: shared Compliance/Needs Attention snapshot
 
 function isLiveFirestoreCacheKey(key = '') {
   return /sharedSessions|peers|collab|webrtc|liveSync|cursor|roomSignal/i.test(String(key || ''));
@@ -1585,13 +1593,20 @@ function isLiveFirestoreCacheKey(key = '') {
 
 function clearSelectiveFirestoreCache(prefix = '') {
   const safePrefix = String(prefix || '');
+  const keys = new Set([
+    ...SELECTIVE_FIRESTORE_CACHE.keys(),
+    ...SELECTIVE_FIRESTORE_INFLIGHT.keys()
+  ]);
+  keys.forEach(key => {
+    if (safePrefix && !String(key).startsWith(safePrefix)) return;
+    SELECTIVE_FIRESTORE_CACHE_EPOCH.set(key, Number(SELECTIVE_FIRESTORE_CACHE_EPOCH.get(key) || 0) + 1);
+    SELECTIVE_FIRESTORE_CACHE.delete(key);
+    SELECTIVE_FIRESTORE_INFLIGHT.delete(key);
+  });
   if (!safePrefix) {
     SELECTIVE_FIRESTORE_CACHE.clear();
-    return;
+    SELECTIVE_FIRESTORE_INFLIGHT.clear();
   }
-  Array.from(SELECTIVE_FIRESTORE_CACHE.keys()).forEach(key => {
-    if (String(key).startsWith(safePrefix)) SELECTIVE_FIRESTORE_CACHE.delete(key);
-  });
 }
 
 function setSelectiveFirestoreCache(key, value, ttlMs = SELECTIVE_CACHE_SHORT_MS) {
@@ -1604,13 +1619,43 @@ function setSelectiveFirestoreCache(key, value, ttlMs = SELECTIVE_CACHE_SHORT_MS
 async function withSelectiveFirestoreCache(key, ttlMs, loader, options = {}) {
   const cacheKey = String(key || '');
   const ttl = Math.max(0, Number(ttlMs || 0));
-  if (!cacheKey || !ttl || options.force || isLiveFirestoreCacheKey(cacheKey)) return loader();
+  if (!cacheKey || !ttl || isLiveFirestoreCacheKey(cacheKey)) return loader();
+  const force = options.force === true;
   const now = Date.now();
-  const cached = SELECTIVE_FIRESTORE_CACHE.get(cacheKey);
-  if (cached && cached.expiresAt > now) return cached.value;
-  const value = await loader();
-  SELECTIVE_FIRESTORE_CACHE.set(cacheKey, { value, expiresAt: now + ttl });
-  return value;
+
+  if (!force) {
+    const cached = SELECTIVE_FIRESTORE_CACHE.get(cacheKey);
+    if (cached && cached.expiresAt > now) return cached.value;
+    const pending = SELECTIVE_FIRESTORE_INFLIGHT.get(cacheKey);
+    if (pending) return pending;
+  } else {
+    // A real user-triggered Refresh must replace the old cache, not merely bypass it.
+    SELECTIVE_FIRESTORE_CACHE.delete(cacheKey);
+  }
+
+  const epoch = Number(SELECTIVE_FIRESTORE_CACHE_EPOCH.get(cacheKey) || 0);
+  const request = Promise.resolve()
+    .then(loader)
+    .then(value => {
+      if (epoch === Number(SELECTIVE_FIRESTORE_CACHE_EPOCH.get(cacheKey) || 0)) {
+        SELECTIVE_FIRESTORE_CACHE.set(cacheKey, { value, expiresAt: Date.now() + ttl });
+      }
+      return value;
+    })
+    .finally(() => {
+      if (SELECTIVE_FIRESTORE_INFLIGHT.get(cacheKey) === request) {
+        SELECTIVE_FIRESTORE_INFLIGHT.delete(cacheKey);
+      }
+    });
+
+  SELECTIVE_FIRESTORE_INFLIGHT.set(cacheKey, request);
+  return request;
+}
+
+function clearAdminStudentSnapshotCache(options = {}) {
+  // Student profile activity/XP can change often; the roster itself is much more stable.
+  clearSelectiveFirestoreCache('admin:studentProfiles');
+  if (options.roster === true) clearSelectiveFirestoreCache('admin:studentRoster');
 }
 
 function isAutoRunControlAllowed() {
@@ -7762,7 +7807,7 @@ async function loadAdminComplianceViewer(options = {}) {
     const ready = await initFirebaseSync();
     if (!ready) throw new Error(firebaseSync.lastError || 'Firebase is not ready.');
     const { getDocs } = firebaseSync.modules;
-    const records = await withSelectiveFirestoreCache('compliance:viewerRecords', SELECTIVE_CACHE_SHORT_MS, async () => {
+    const records = await withSelectiveFirestoreCache('compliance:viewerRecords', SELECTIVE_CACHE_ADMIN_COMPLIANCE_MS, async () => {
       const snapshot = await withTimeout(
         getDocs(getComplianceCollectionRef()),
         APP_NETWORK_TIMEOUT_MS,
@@ -8149,9 +8194,24 @@ async function publishComplianceSync() {
     }
     const issueText = Array.isArray(payload.errors) && payload.errors.length ? ` ${payload.errors.length} sheet issue(s) were skipped; check preview.` : '';
     setComplianceSyncStatus(`Published ${saved} student status records for ${payload.selectedSection || 'checked section(s)'}. Students can refresh My Projects to see updates.${issueText}`, 'success');
-    loadAdminComplianceViewer({ silent: true }).catch(error => console.warn('Compliance viewer refresh failed.', error));
+
+    // v465: the exact records were just written, so reuse them locally instead of
+    // immediately paying for a full subjectCompliance collection read.
     clearSelectiveFirestoreCache('compliance:');
     clearSelectiveFirestoreCache('subjectCompliance:');
+    adminComplianceViewerRecords = payload.students
+      .map(student => sanitizeComplianceStudentRecord({
+        ...student,
+        studentIdOriginal: student.studentId,
+        studentId: student.studentIdNormalized,
+        studentAuthEmail: studentIdToAuthEmail(student.studentIdNormalized),
+        updatedAtMs: syncedAtMs,
+        updatedAt: new Date(syncedAtMs).toISOString()
+      }))
+      .filter(record => record.studentIdNormalized)
+      .sort((a, b) => String(a.section || '').localeCompare(String(b.section || '')) || String(a.studentName || '').localeCompare(String(b.studentName || '')));
+    setSelectiveFirestoreCache('compliance:viewerRecords', adminComplianceViewerRecords.map(record => ({ ...record })), SELECTIVE_CACHE_ADMIN_COMPLIANCE_MS);
+    renderAdminComplianceViewer();
     if (appSession.student) loadStudentComplianceStatus({ silent: true, force: true });
   } catch (error) {
     console.warn('Compliance publish failed.', error);
@@ -8745,7 +8805,7 @@ async function registerStudentRosterRecord(rawRecord) {
     activated: false,
     accountStatus: 'active'
   });
-  clearSelectiveFirestoreCache('admin:studentsAndRoster');
+  clearAdminStudentSnapshotCache({ roster: true });
   clearSelectiveFirestoreCache(`studentRoster:${record.studentId}`);
   const localRecord = {
     uid: '',
@@ -8877,25 +8937,44 @@ async function loadAdminStudents(options = {}) {
   try {
     setStudentAdminStatus('Loading student tracker...');
     const { getDocs } = firebaseSync.modules;
-    const adminData = await withSelectiveFirestoreCache('admin:studentsAndRoster', SELECTIVE_CACHE_SHORT_MS, async () => {
-      const [studentSnapshot, rosterSnapshot] = await Promise.all([
-        getDocs(getStudentsCollectionRef()),
-        getDocs(getStudentRosterCollectionRef()).catch(() => ({ docs: [] }))
-      ]);
-      return {
-        studentDocs: Array.from(studentSnapshot.docs || []),
-        rosterDocs: Array.from(rosterSnapshot.docs || [])
-      };
-    }, options);
+    const forceAll = options.force === true;
+    const forceProfiles = forceAll || options.forceProfiles === true;
+    const forceRoster = forceAll || options.forceRoster === true;
 
-    const activeProfiles = (adminData.studentDocs || []).map(docSnapshot => ({
+    // v465: do NOT bind the 500-row roster to every profile refresh. Student
+    // profile activity can refresh every 30 minutes, while the enrollment roster
+    // stays cached for one hour. Explicit Refresh still forces both datasets.
+    const [studentDocs, rosterDocs] = await Promise.all([
+      withSelectiveFirestoreCache('admin:studentProfiles', SELECTIVE_CACHE_ADMIN_PROFILE_MS, async () => {
+        const snapshot = await withTimeout(
+          getDocs(getStudentsCollectionRef()),
+          APP_NETWORK_TIMEOUT_MS,
+          'Loading student profiles is taking too long. Check the connection and try again.'
+        );
+        return Array.from(snapshot?.docs || []);
+      }, { force: forceProfiles }),
+      withSelectiveFirestoreCache('admin:studentRoster', SELECTIVE_CACHE_ADMIN_ROSTER_MS, async () => {
+        try {
+          const snapshot = await withTimeout(
+            getDocs(getStudentRosterCollectionRef()),
+            APP_NETWORK_TIMEOUT_MS,
+            'Loading the student roster is taking too long. Check the connection and try again.'
+          );
+          return Array.from(snapshot?.docs || []);
+        } catch (error) {
+          console.warn('Student roster snapshot unavailable; continuing with student profiles.', error);
+          return [];
+        }
+      }, { force: forceRoster })
+    ]);
+
+    const activeProfiles = (studentDocs || []).map(docSnapshot => ({
       uid: docSnapshot.id,
       isRosterOnly: false,
       sourceType: 'studentProfile',
       ...snapshotData(docSnapshot)
     }));
-    const activeIdSet = new Set(activeProfiles.map(student => normalizeStudentId(student.studentId || student.studentIdNormalized)).filter(Boolean));
-    const rosterProfiles = (adminData.rosterDocs || []).map(docSnapshot => {
+    const rosterProfiles = (rosterDocs || []).map(docSnapshot => {
       const data = snapshotData(docSnapshot);
       const studentId = normalizeStudentId(data.studentId || data.studentIdNormalized || docSnapshot.id);
       return {
@@ -9049,7 +9128,7 @@ async function repairMissingRosterInternal(student = {}) {
     activated: true,
     accountStatus: rosterRecord.accountStatus || 'active'
   });
-  clearSelectiveFirestoreCache('admin:studentsAndRoster');
+  clearAdminStudentSnapshotCache({ roster: true });
   clearSelectiveFirestoreCache(`studentRoster:${studentId}`);
 
   return {
@@ -9066,7 +9145,7 @@ async function repairAdminStudentRoster(studentId = '', uid = '', triggerButton 
     return;
   }
 
-  if (!adminStudentsCache.length) await loadAdminStudents({ force: true });
+  if (!adminStudentsCache.length) await loadAdminStudents();
 
   const normalizedId = normalizeStudentId(studentId);
   const student = findAdminStudentByIdOrUid(normalizedId, uid);
@@ -10126,7 +10205,7 @@ async function runAdminStudentLoginDiagnostic(studentId = '', uid = '') {
   }
 
   if (!adminStudentsCache.length) {
-    await loadAdminStudents({ force: true });
+    await loadAdminStudents();
   }
 
   const normalizedId = normalizeStudentId(studentId);
@@ -10289,7 +10368,7 @@ async function resetAdminStudentLoginAccess(studentId = '', uid = '', triggerBut
 
   const normalizedId = normalizeStudentId(studentId);
   if (!adminStudentsCache.length) {
-    await loadAdminStudents({ force: true });
+    await loadAdminStudents();
   }
 
   const student = findAdminStudentByIdOrUid(normalizedId, uid);
@@ -10423,9 +10502,9 @@ async function resetAdminStudentLoginAccess(studentId = '', uid = '', triggerBut
       console.warn('Password reset succeeded, but roster reset marker was not updated.', rosterError);
     }
 
-    clearSelectiveFirestoreCache('admin:studentsAndRoster');
+    clearAdminStudentSnapshotCache({ roster: true });
     clearSelectiveFirestoreCache(`studentRoster:${resolvedId}`);
-    await loadAdminStudents({ force: true });
+    await loadAdminStudents({ forceRoster: true });
     const copied = await copyTextSafely(temporaryPassword);
     setStudentAdminStatus(`Password reset for ${displayName}. Give the temporary password to the student.`, 'success');
     await appAlert([
@@ -19230,7 +19309,7 @@ async function writeStudentEngagementEntry(mapKey = '', itemId = '', record = {}
         [`${safeMapKey}UpdatedAt`]: serverTimestamp()
       }, { merge: true });
     }
-    clearSelectiveFirestoreCache('admin:studentsAndRoster');
+    clearAdminStudentSnapshotCache();
     return true;
   } catch (error) {
     console.warn(`Could not sync ${safeMapKey} engagement.`, error);
@@ -21343,7 +21422,7 @@ async function openEngagementAnalytics(kind = '', itemId = '', options = {}) {
   engagementAnalyticsOverlay.classList.remove('hidden');
   document.body.classList.add('engagement-analytics-open');
   try {
-    await loadAdminStudents({ force: true });
+    await loadAdminStudents({ force: options.force === true });
     engagementAnalyticsState.rows = buildEngagementAnalyticsRows(kind, item);
     renderEngagementAnalytics();
   } catch (error) {
@@ -22037,7 +22116,7 @@ function getStoredAdminTab() {
   return localStorage.getItem(ADMIN_TAB_STORAGE_KEY) || 'students';
 }
 
-function setAdminTab(tabName = 'students') {
+function setAdminTab(tabName = 'students', options = {}) {
   const allowed = new Set(['students', 'needs-attention', 'online', 'assistance', 'compliance', 'lessons', 'given-activities', 'activities', 'code-explorer', 'device-qa']);
   const nextTab = allowed.has(tabName) ? tabName : 'students';
   localStorage.setItem(ADMIN_TAB_STORAGE_KEY, nextTab);
@@ -22053,6 +22132,13 @@ function setAdminTab(tabName = 'students') {
     panel.classList.toggle('active', isActive);
   });
 
+  // v465: closing/re-applying the stored tab is UI-only and must never start
+  // a Firestore collection load behind a hidden Admin panel.
+  if (options.skipLoad === true) return;
+
+  if (nextTab === 'students' && isTeacherAuthenticated() && !adminStudentsCache.length) {
+    loadAdminStudents().catch(error => console.warn('Student tracker load failed.', error));
+  }
   if (nextTab === 'compliance' && isTeacherAuthenticated() && adminComplianceViewerRecords.length === 0) {
     loadAdminComplianceViewer({ silent: true }).catch(error => console.warn('Compliance viewer auto-load failed.', error));
   }
@@ -22063,7 +22149,7 @@ function setAdminTab(tabName = 'students') {
   }
   if (nextTab === 'lessons' && isTeacherAuthenticated()) initializeLessonManager();
   if (nextTab === 'needs-attention' && isTeacherAuthenticated()) {
-    loadNeedsAttentionDashboard({ force: !needsAttentionState.loaded }).catch(error => console.warn('Needs Attention auto-load failed.', error));
+    loadNeedsAttentionDashboard({ force: false }).catch(error => console.warn('Needs Attention auto-load failed.', error));
   }
   if (nextTab === 'given-activities' && isTeacherAuthenticated()) {
     initializeGivenActivitiesManager().catch(error => console.warn('Activities Given manager load failed.', error));
@@ -22086,7 +22172,8 @@ function initAdminTabs() {
 async function openAdminPanel() {
   document.body.classList.add('admin-open');
   adminOverlay.classList.remove('hidden');
-  initAdminTabs();
+  // v465: tab data is initialized only after the Admin panel is actually unlocked.
+  // This avoids hidden 500-row reads behind the PIN screen.
   syncAssistanceSettingsControls();
   syncComplianceSettingsControls();
   updateAssistancePublishUI();
@@ -22125,7 +22212,7 @@ function closeAdminPanel() {
   adminOverlay.classList.add('hidden');
   window.clearTimeout(adminOnlinePresenceTimer);
   adminOnlinePresenceTimer = null;
-  setAdminTab(getStoredAdminTab());
+  setAdminTab(getStoredAdminTab(), { skipLoad: true });
   document.body.classList.remove('admin-open');
 }
 
@@ -22143,8 +22230,10 @@ function showAdminForm(activityId = adminEditingActivityId) {
   adminForm.classList.remove('hidden');
   adminForm.classList.add('visible');
   initAdminTabs();
+  const activeAdminTab = getStoredAdminTab();
+  const tabNeedsStudentSnapshot = ['students', 'needs-attention', 'given-activities', 'code-explorer'].includes(activeAdminTab);
   if (adminStudentsCache.length) renderAdminStudentTracker();
-  else loadAdminStudents().catch(error => console.warn('Student tracker load failed.', error));
+  else if (tabNeedsStudentSnapshot) loadAdminStudents().catch(error => console.warn('Student tracker load failed.', error));
   initializeLessonManager();
   if (isTeacherAuthenticated()) loadAiRubricSettingsFromCloud({ silent: true }).catch(error => console.warn('Smart Review settings load failed.', error));
   const viewTerm = getAdminRubricViewTerm();
@@ -44143,7 +44232,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         }
 
         clearSelectiveFirestoreCache(`studentProfile:${uid}`);
-        clearSelectiveFirestoreCache('admin:studentsAndRoster');
+        clearAdminStudentSnapshotCache();
         leaderboardState.loadedAt = 0;
         return true;
       } catch (error) {
@@ -45503,7 +45592,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       if (appSession.lastStudentProfile) appSession.lastStudentProfile.codeExplorerXp = masteryXp;
       saveLocalProgress(state.progress);
       clearSelectiveFirestoreCache(`studentProfile:${uid}`);
-      clearSelectiveFirestoreCache('admin:studentsAndRoster');
+      clearAdminStudentSnapshotCache();
       leaderboardState.loadedAt = 0;
       renderTopProgress();
       const snapshot = notifyXpMiniGamesProgress({ awardedXp, requestedXp, duplicate, gameId });
@@ -45647,7 +45736,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         state.lastCloudSyncAt = Date.now();
         state.profileUpdateTime = String(server.profileUpdateTime || state.profileUpdateTime || '');
         clearSelectiveFirestoreCache(`studentProfile:${appSession.student.uid}`);
-        clearSelectiveFirestoreCache('admin:studentsAndRoster');
+        clearAdminStudentSnapshotCache();
         leaderboardState.loadedAt = 0;
       }
       if (appSession.student) appSession.student.codeExplorerXp = totalXp;
@@ -48151,13 +48240,12 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     const ready = await initFirebaseSync();
     if (!ready) return { loaded: false, error: true, settings: leaderboardSectionSettings };
     const { getDoc } = firebaseSync.modules;
-    // Primary source: the existing root Firestore document. It is already
-    // readable by student clients and writable by the authenticated teacher in
-    // this app, so leaderboard visibility does not require a new rules path.
+    // v465: reuse the same cached root document already used by lessons,
+    // activities, assistance settings, and the public leaderboard snapshot.
     try {
-      const rootSnapshot = await getDoc(getCloudActivitiesDocRef());
-      if (snapshotExists(rootSnapshot)) {
-        const rootData = snapshotData(rootSnapshot) || {};
+      const rootDoc = await readCloudActivitiesDocument();
+      if (rootDoc.exists) {
+        const rootData = rootDoc.data || {};
         const rootSettings = rootData.codeExplorerLeaderboardSettings || rootData.codeExplorerLeaderboardPublic?.settings;
         if (rootSettings && typeof rootSettings === 'object') {
           leaderboardSectionSettings = normalizeLeaderboardSectionSettings(rootSettings);
@@ -48453,9 +48541,11 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   async function loadGlobalLeaderboard(options = {}) {
     if (leaderboardState.loading) return;
     const teacherMode = isTeacherAuthenticated();
-    // v463: students reuse the teacher-published root snapshot for 15 minutes.
-    // A manual Refresh still bypasses this cache. Admin keeps the shorter cache.
-    const maxAge = teacherMode ? 90 * 1000 : 15 * 60 * 1000;
+    // v465: both student and teacher read the single teacher-published root
+    // snapshot first. Admin no longer scans studentRoster + leaderboard on every
+    // leaderboard open. If the public snapshot is missing, Admin reuses the shared
+    // admin student snapshot (which itself has split 30m/60m caches).
+    const maxAge = teacherMode ? 5 * 60 * 1000 : 15 * 60 * 1000;
     if (!options.force && leaderboardState.records.length && Date.now() - leaderboardState.loadedAt < maxAge) {
       renderGlobalLeaderboard();
       return;
@@ -48466,123 +48556,46 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     try {
       const ready = await initFirebaseSync();
       if (!ready) throw new Error('Cloud ranking is not available right now.');
-      const { getDocs, getDoc } = firebaseSync.modules;
+      const { getDoc } = firebaseSync.modules;
 
-      // v463 quota guard:
-      // - Student: ONE root-document read only. No studentRoster scan and no
-      //   codeExplorerLeaderboard collection scan.
-      // - Teacher/Admin: retains the existing full-data fallback because admin
-      //   is the publisher of the safe root snapshot.
-      let rootResult;
-      let rosterResult = { status: 'rejected', reason: new Error('Student snapshot-only mode') };
-      let quickResult = { status: 'rejected', reason: new Error('Student snapshot-only mode') };
-      let settingsResult = { status: 'rejected', reason: new Error('Student snapshot-only mode') };
-      if (teacherMode) {
-        [rootResult, rosterResult, quickResult, settingsResult] = await Promise.allSettled([
-          getDoc(getCloudActivitiesDocRef()),
-          getDocs(getStudentRosterCollectionRef()),
-          getDocs(getCodeExplorerLeaderboardCollectionRef()),
-          getDoc(getCodeExplorerLeaderboardSettingsDocRef())
-        ]);
-      } else {
-        [rootResult] = await Promise.allSettled([
-          getDoc(getCloudActivitiesDocRef())
-        ]);
-      }
-
-      const rootData = rootResult.status === 'fulfilled' && snapshotExists(rootResult.value) ? (snapshotData(rootResult.value) || {}) : {};
+      const rootDoc = await readCloudActivitiesDocument({ force: options.force === true });
+      const rootData = rootDoc.exists ? (rootDoc.data || {}) : {};
       const rootPublic = normalizePublicLeaderboardSnapshot(rootData.codeExplorerLeaderboardPublic || {});
       const rootSettingsRaw = rootData.codeExplorerLeaderboardSettings || rootData.codeExplorerLeaderboardPublic?.settings || null;
-      const rosterDocs = teacherMode && rosterResult.status === 'fulfilled' ? Array.from(rosterResult.value.docs || []) : [];
-      const quickDocs = teacherMode && quickResult.status === 'fulfilled' ? Array.from(quickResult.value.docs || []) : [];
 
-      leaderboardState.settingsLoaded = Boolean(rootSettingsRaw) || (teacherMode && settingsResult.status === 'fulfilled');
+      leaderboardState.settingsLoaded = Boolean(rootSettingsRaw);
       leaderboardState.settingsError = !leaderboardState.settingsLoaded;
       if (rootSettingsRaw) {
         leaderboardSectionSettings = normalizeLeaderboardSectionSettings(rootSettingsRaw);
-      } else if (teacherMode && settingsResult.status === 'fulfilled') {
-        leaderboardSectionSettings = snapshotExists(settingsResult.value)
-          ? normalizeLeaderboardSectionSettings(snapshotData(settingsResult.value))
-          : normalizeLeaderboardSectionSettings({ configured: false });
+      } else if (teacherMode) {
+        // One-document compatibility fallback only; never a collection scan.
+        try {
+          const settingsSnapshot = await withSelectiveFirestoreCache(
+            'adminSettings:codeExplorerLeaderboard',
+            SELECTIVE_CACHE_LONG_MS,
+            () => getDoc(getCodeExplorerLeaderboardSettingsDocRef()),
+            { force: options.force === true }
+          );
+          leaderboardSectionSettings = snapshotExists(settingsSnapshot)
+            ? normalizeLeaderboardSectionSettings(snapshotData(settingsSnapshot))
+            : normalizeLeaderboardSectionSettings({ configured: false });
+          leaderboardState.settingsLoaded = snapshotExists(settingsSnapshot);
+          leaderboardState.settingsError = !leaderboardState.settingsLoaded;
+        } catch (_) {
+          leaderboardSectionSettings = normalizeLeaderboardSectionSettings({ configured: false });
+        }
       } else {
-        // Student clients intentionally do not read the adminSettings document.
-        // If a public snapshot has not been published yet, show their own XP.
         leaderboardSectionSettings = normalizeLeaderboardSectionSettings({ configured: false });
       }
 
-      const allQuickRows = quickDocs.map(snapshot => ({ id: snapshot.id, ...snapshotData(snapshot) }));
-      const safeSettingsRow = allQuickRows.find(row => row.id === CODE_EXPLORER_LEADERBOARD_SETTINGS_ROW_ID || row.recordType === 'settings') || null;
-      if (teacherMode && !leaderboardState.settingsLoaded && safeSettingsRow) {
-        leaderboardSectionSettings = normalizeLeaderboardSectionSettings(safeSettingsRow);
-        leaderboardState.settingsLoaded = true;
-        leaderboardState.settingsError = false;
-      }
-
-      // Teacher-published public snapshot is the ONLY global ranking source for
-      // student clients. It contains no Student IDs/passwords/project data.
       let records = rootPublic.records
         .filter(row => !leaderboardState.settingsLoaded || isLeaderboardSectionIncluded(row.section || '', leaderboardSectionSettings))
         .map(row => ({ ...row, current: isCurrentLeaderboardStudent(row) }));
 
-      const quickRows = allQuickRows.filter(row => row.id !== CODE_EXPLORER_LEADERBOARD_SETTINGS_ROW_ID && row.recordType !== 'settings');
-      const visibleQuickRows = quickRows.filter(row => leaderboardState.settingsLoaded
-        ? isLeaderboardSectionIncluded(row.section || '', leaderboardSectionSettings)
-        : row.leaderboardIncluded !== false);
-
-      // Admin-only compatibility fallback. Student clients must never enter this
-      // path because a 500-student roster + leaderboard scan is too expensive.
-      if (teacherMode && !records.length && rosterDocs.length) {
-        const rosterProfiles = rosterDocs.map(snapshot => {
-          const data = snapshotData(snapshot);
-          const studentId = normalizeStudentId(data.studentId || data.studentIdNormalized || snapshot.id);
-          return { uid: data.authUid || '', rosterId: studentId, isRosterOnly: true, sourceType: 'studentRoster', ...data, studentId, studentIdNormalized: studentId || data.studentIdNormalized || data.studentId };
-        });
-        const quickByUid = new Map();
-        const quickByStudentId = new Map();
-        visibleQuickRows.forEach(row => {
-          const uid = String(row.uid || '').trim();
-          const sid = normalizeStudentId(row.studentId || row.studentIdNormalized || '');
-          if (uid) quickByUid.set(uid, row);
-          if (sid) {
-            const existing = quickByStudentId.get(sid);
-            if (!existing || Number(row.xp || 0) >= Number(existing.xp || 0)) quickByStudentId.set(sid, row);
-          }
-        });
-        records = rosterProfiles
-          .filter(student => String(student.accountStatus || 'active') !== 'disabled')
-          .filter(student => !leaderboardState.settingsLoaded || isLeaderboardSectionIncluded(student.section || '', leaderboardSectionSettings))
-          .map(student => {
-            const uid = String(student.uid || student.authUid || '').trim();
-            const sid = normalizeStudentId(student.studentId || student.studentIdNormalized || student.rosterId || '');
-            const quick = (uid ? quickByUid.get(uid) : null) || (sid ? quickByStudentId.get(sid) : null);
-            return {
-              uid: uid || String(quick?.uid || '').trim(),
-              studentId: sid || normalizeStudentId(quick?.studentId || ''),
-              name: String(student.name || quick?.name || 'Unnamed Student').trim(),
-              section: String(student.section || quick?.section || '').trim(),
-              xp: Number(quick?.xp || 0),
-              current: isCurrentLeaderboardStudent(student),
-              accountStatus: String(student.accountStatus || quick?.accountStatus || 'active')
-            };
-          });
-      }
-
-      // Admin may merge current quick rows before publishing. Students skip this
-      // collection entirely and overlay only their already-loaded local/profile XP.
-      if (teacherMode) {
-        visibleQuickRows.forEach(row => {
-          if (String(row.accountStatus || 'active') === 'disabled') return;
-          const candidate = { uid: String(row.uid || '').trim(), studentId: normalizeStudentId(row.studentId || ''), name: String(row.name || 'Student').trim(), section: String(row.section || '').trim(), xp: Number(row.xp || 0), accountStatus: String(row.accountStatus || 'active') };
-          if (leaderboardState.settingsLoaded && !isLeaderboardSectionIncluded(candidate.section, leaderboardSectionSettings)) return;
-          const existingIndex = records.findIndex(record => leaderboardStudentIdentity(record) === leaderboardStudentIdentity(candidate) || isCurrentLeaderboardStudent(record) && isCurrentLeaderboardStudent(candidate));
-          if (existingIndex >= 0) {
-            records[existingIndex].xp = Math.max(Number(records[existingIndex].xp || 0), Number(candidate.xp || 0));
-            records[existingIndex].current = records[existingIndex].current || isCurrentLeaderboardStudent(candidate);
-          } else {
-            candidate.current = isCurrentLeaderboardStudent(candidate);
-            records.push(candidate);
-          }
-        });
+      if (teacherMode && !records.length) {
+        if (!adminStudentsCache.length) await loadAdminStudents();
+        records = buildAdminPublicLeaderboardRecords(leaderboardSectionSettings)
+          .map(row => ({ ...row, current: isCurrentLeaderboardStudent(row) }));
       }
 
       const currentRecord = records.find(record => record.current || isCurrentLeaderboardStudent(record)) || null;
@@ -48610,10 +48623,10 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       ranked.forEach(record => { record.current = record.current || isCurrentLeaderboardStudent(record); });
       leaderboardState.records = ranked;
       leaderboardState.loadedAt = Date.now();
-      leaderboardState.rosterLoaded = Boolean(rootPublic.records.length || (teacherMode && rosterDocs.length));
+      leaderboardState.rosterLoaded = Boolean(rootPublic.records.length || (teacherMode && adminStudentsCache.length));
       leaderboardState.source = rootPublic.records.length
         ? 'teacher-published enrolled students'
-        : (teacherMode && rosterDocs.length ? 'included enrolled students' : 'your saved progress');
+        : (teacherMode && adminStudentsCache.length ? 'cached enrolled students' : 'your saved progress');
       renderGlobalLeaderboard();
     } catch (error) {
       console.warn('Global Code Explorer leaderboard could not be loaded.', error);
@@ -48905,8 +48918,8 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         await Promise.all(students.slice(index, index + concurrency).map(normalizeOne));
       }
 
-      clearSelectiveFirestoreCache('admin:studentsAndRoster');
-      await loadAdminStudents({ force: true });
+      clearAdminStudentSnapshotCache();
+      await loadAdminStudents({ forceProfiles: true });
       renderAdminExplorerProgress();
       publishSafeCodeExplorerLeaderboardFromAdmin({ force: true }).catch(() => {});
       renderLegacyXpMigrationAudit(auditRows);
@@ -48985,7 +48998,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     if (button) button.textContent = 'Syncing…';
     if (status) status.textContent = 'Scanning enrolled student progress for existing certificates…';
     try {
-      if (!adminStudentsCache.length) await loadAdminStudents({ force: true });
+      if (!adminStudentsCache.length) await loadAdminStudents();
       const { candidates, skipped } = collectLegacyCertificateBackfillCandidates();
       if (!candidates.length) {
         if (status) status.textContent = skipped
@@ -49313,8 +49326,8 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         }, { merge: true });
       }
       clearSelectiveFirestoreCache(`studentProfile:${targetUid}`);
-      clearSelectiveFirestoreCache('admin:studentsAndRoster');
-      await loadAdminStudents({ force: true });
+      clearAdminStudentSnapshotCache();
+      await loadAdminStudents({ forceProfiles: true });
       renderAdminExplorerProgress();
       renderCodeExplorerAdminStudentDetail();
       await appAlert(`${student.name || 'Student'} now has ${nextBalance}/${HEARTS_MAX} hearts.`, { title: 'Heart Refill', icon: '\u2764\ufe0f' });

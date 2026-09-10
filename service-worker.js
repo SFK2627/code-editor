@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ict8-connect-v464-xp-balance';
+const CACHE_NAME = 'ict8-connect-v465-read-guard';
 
 self.addEventListener('install', event => {
   event.waitUntil(self.skipWaiting());
