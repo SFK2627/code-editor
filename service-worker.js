@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ict8-connect-v415-mobile-editor-popover-fix';
+const CACHE_NAME = 'ict8-connect-v464-xp-balance';
 
 self.addEventListener('install', event => {
   event.waitUntil(self.skipWaiting());

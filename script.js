@@ -1488,7 +1488,7 @@ let adminLatestAiReview = null;
 let adminAiRubricController = null;
 let aiRubricConnectionState = { status: 'untested', code: '', message: '' };
 
-const MCS_APP_BUILD = 'v461-quota-hardened';
+const MCS_APP_BUILD = 'v463-quota-audit-fix';
 window.MCS_APP_BUILD = MCS_APP_BUILD;
 console.info(`[MCSian Code Editor] ${MCS_APP_BUILD} loaded`);
 
@@ -8667,7 +8667,10 @@ function markStudentProjectRun() {
   if (!isStudentProjectActive()) return;
   appSession.currentProject = appSession.currentProject || {};
   appSession.currentProject.runCount = Number(appSession.currentProject.runCount || 0) + 1;
-  saveCurrentStudentProject({ immediate: true, reason: 'run' });
+  // v463: RUN remains instant in the editor, but its metadata joins the same
+  // local-recovery + batched autosave path as normal edits. This avoids one
+  // Firestore write for every Run click while preserving runCount exactly.
+  queueStudentProjectSave('run');
 }
 
 /* ---------------- Teacher student registration and tracker ---------------- */
@@ -16077,7 +16080,7 @@ function updateInstallButtonVisibility() {
 function registerPWAServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./service-worker.js?v=315-mobile-admin-students', {
+    navigator.serviceWorker.register('./service-worker.js?v=463-quota-audit-fix', {
       updateViaCache: 'none'
     }).then(registration => {
       registration.update().catch(() => {});
@@ -38368,6 +38371,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
 
   const RECITATION_SECTION_CACHE_MS = 24 * 60 * 60 * 1000;
   const RECITATION_STUDENT_CACHE_MS = 2 * 60 * 1000;
+  const RECITATION_SINGLE_STUDENT_CACHE_MS = 10 * 60 * 1000; // v463: login reminder lookup cache.
   const RECITATION_REFRESH_COOLDOWN_MS = 60 * 1000;
   const state = {
     sections: null,
@@ -38586,6 +38590,121 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     return students;
   }
 
+  function recitationSectionMatches(record = {}, sectionName = '') {
+    const left = normalizeRecitationCode(record.section || '');
+    const right = normalizeRecitationCode(sectionName || '');
+    return Boolean(left && right && left === right);
+  }
+
+  function cacheSingleRecitationStudent(cacheKey, record) {
+    try {
+      sessionStorage.setItem(cacheKey, JSON.stringify({ savedAt: Date.now(), record: record || null }));
+    } catch (_) {}
+  }
+
+  async function runRecitationStudentFieldQuery(fieldPath, value, limitCount = 5) {
+    const text = String(value || '').trim();
+    if (!text) return [];
+    const body = {
+      structuredQuery: {
+        from: [{ collectionId: 'students' }],
+        where: {
+          fieldFilter: {
+            field: { fieldPath },
+            op: 'EQUAL',
+            value: { stringValue: text }
+          }
+        },
+        limit: Math.max(1, Math.min(5, Number(limitCount) || 5))
+      }
+    };
+    const response = await fetch(recitationEndpoint(':runQuery'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      cache: 'no-store'
+    });
+    if (!response.ok) throw new Error(`Could not load recitation record (${response.status}).`);
+    const rows = await response.json();
+    return (Array.isArray(rows) ? rows : [])
+      .map(row => row.document)
+      .filter(Boolean)
+      .map(doc => normalizeRecitationStudent(recitationDocFromFirestore(doc)))
+      .filter(record => record.fullName || record.studentId);
+  }
+
+  // v463: the login reminder must never download an entire section just to
+  // show one student's recitation points. Try the student's exact document / ID
+  // first, then a very small exact-field query. The full-section reader remains
+  // untouched for the dedicated Recitation Status viewer.
+  async function fetchRecitationStudentForProfile(sectionName, student = {}) {
+    const rawStudentId = String(student.studentId || student.studentIdNormalized || student.id || '').trim();
+    const authKey = getStudentIdAuthKey(rawStudentId);
+    const normalizedStudentId = normalizeStudentId(rawStudentId);
+    const cacheKey = `mcsian.recitation.student.v463.${normalizeRecitationCode(sectionName)}.${authKey || recitationStudentNameKey(student.name || student.fullName || 'unknown')}`;
+    try {
+      const cached = JSON.parse(sessionStorage.getItem(cacheKey) || 'null');
+      if (cached && Date.now() - Number(cached.savedAt || 0) < RECITATION_SINGLE_STUDENT_CACHE_MS) {
+        return cached.record || null;
+      }
+    } catch (_) {}
+
+    const idCandidates = [...new Set([
+      rawStudentId,
+      normalizedStudentId,
+      authKey
+    ].map(value => String(value || '').trim()).filter(Boolean))];
+
+    // Fastest path when Recitation Central uses Student ID as the document ID.
+    for (const candidate of idCandidates.slice(0, 3)) {
+      try {
+        const response = await fetch(recitationEndpoint(`/students/${encodeURIComponent(candidate)}`), { cache: 'no-store' });
+        if (response.status === 404) continue;
+        if (!response.ok) continue;
+        const record = normalizeRecitationStudent(recitationDocFromFirestore(await response.json()));
+        if (areStudentIdsEquivalent(record.studentId, rawStudentId) && recitationSectionMatches(record, sectionName)) {
+          cacheSingleRecitationStudent(cacheKey, record);
+          return record;
+        }
+      } catch (_) {}
+    }
+
+    // Compatibility path for collections that use generated document IDs.
+    // Exact-ID queries return only the matching document(s), not the full class.
+    for (const candidate of idCandidates.slice(0, 3)) {
+      try {
+        const rows = await runRecitationStudentFieldQuery('studentId', candidate, 3);
+        const match = rows.find(record => areStudentIdsEquivalent(record.studentId, rawStudentId) && recitationSectionMatches(record, sectionName));
+        if (match) {
+          cacheSingleRecitationStudent(cacheKey, match);
+          return match;
+        }
+      } catch (error) {
+        console.info('Direct recitation Student ID lookup skipped.', error);
+      }
+    }
+
+    // Last small compatibility lookup for old records where the profile and
+    // recitation record share an exact full name but the stored Student ID has
+    // historical formatting. We still never fetch the whole section here.
+    const fullName = String(student.name || student.fullName || '').replace(/\s+/g, ' ').trim();
+    if (fullName) {
+      try {
+        const rows = await runRecitationStudentFieldQuery('fullName', fullName, 5);
+        const sameSection = rows.filter(record => recitationSectionMatches(record, sectionName));
+        if (sameSection.length === 1) {
+          cacheSingleRecitationStudent(cacheKey, sameSection[0]);
+          return sameSection[0];
+        }
+      } catch (error) {
+        console.info('Direct recitation name lookup skipped.', error);
+      }
+    }
+
+    cacheSingleRecitationStudent(cacheKey, null);
+    return null;
+  }
+
   function recitationTermIdFromAcademicTerm(term = currentAcademicTerm()) {
     if (term === 'TERM_2') return 'term2';
     if (term === 'TERM_3') return 'term3';
@@ -38713,8 +38832,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     if (!section) {
       return { status: 'section-not-found', points: 0, termId, academicTerm: requestedAcademicTerm, termLabel };
     }
-    const students = await fetchRecitationStudentsForSection(section.name);
-    const record = findRecitationStudentForProfile(students, student);
+    const record = await fetchRecitationStudentForProfile(section.name, student);
     if (!record) {
       return { status: 'no-record', points: 0, termId, academicTerm: requestedAcademicTerm, termLabel, section: section.name };
     }
@@ -41855,28 +41973,106 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     return 1;
   }
 
+  // v464 — XP pace balance. Score tiers still measure skill, but a second
+  // server-mirrored cap limits how much XP a very short round can produce.
+  // Missing duration means legacy stored data, so old already-earned XP is not
+  // retroactively reduced when reward ledgers are normalized.
+  function miniGameDurationRewardCap(gameId, metrics = {}) {
+    const id = normalizeXpMiniGameId(gameId);
+    const source = metrics && typeof metrics === 'object' ? metrics : {};
+    const durationMs = Math.max(0, Math.floor(Number(source.durationMs || 0)));
+    if (durationMs <= 0) return 15;
+    const seconds = durationMs / 1000;
+
+    // Fixed-duration arcade rounds: strong play matters, but one short round
+    // cannot award the old 8–10 XP bursts.
+    if (id === XP_MINI_GAME_ID_BUG_SMASH || id === XP_MINI_GAME_ID_PERFECT_SHOT) {
+      return seconds >= 27 ? 2 : 0;
+    }
+    if (id === XP_MINI_GAME_ID_CODE_HOOPS) {
+      return seconds >= 40 ? 3 : 0;
+    }
+    if (id === XP_MINI_GAME_ID_RED_LIGHT_GREEN_LIGHT) {
+      if (seconds < 18) return 0;
+      if (seconds < 30) return 1;
+      if (seconds < 45) return 2;
+      if (seconds < 58) return 3;
+      return 4;
+    }
+    if (id === XP_MINI_GAME_ID_MEMORY_CODE) {
+      if (seconds < 15) return 0;
+      if (seconds < 30) return 1;
+      if (seconds < 45) return 2;
+      if (seconds < 60) return 3;
+      return 4;
+    }
+
+    // Puzzle/progression games are intentionally slower to farm by deliberately
+    // ending a run immediately after the first low reward tier.
+    if (id === XP_MINI_GAME_ID_CODE_MAZE) {
+      if (seconds < 35) return 0;
+      if (seconds < 75) return 1;
+      if (seconds < 125) return 2;
+      if (seconds < 180) return 3;
+      return 4;
+    }
+    if (id === XP_MINI_GAME_ID_PATTERN_LOCK) {
+      if (seconds < 20) return 0;
+      if (seconds < 40) return 1;
+      if (seconds < 65) return 2;
+      if (seconds < 95) return 3;
+      return 4;
+    }
+
+    // CODE FLY remains the reference arcade game and keeps a slightly more
+    // generous long-run curve, while still blocking instant +1/+2 farming.
+    if (id === XP_MINI_GAME_ID_CODE_FLY) {
+      if (seconds < 10) return 0;
+      if (seconds < 20) return 1;
+      if (seconds < 35) return 2;
+      if (seconds < 50) return 3;
+      if (seconds < 70) return 5;
+      if (seconds < 100) return 6;
+      if (seconds < 130) return 8;
+      return 10;
+    }
+
+    // Fast endless/twitch games: roughly 3–4 XP per active minute at normal
+    // high-skill play, instead of several XP after only a few seconds.
+    if (seconds < 15) return 0;
+    if (seconds < 30) return 1;
+    if (seconds < 45) return 2;
+    if (seconds < 65) return 3;
+    if (seconds < 90) return 4;
+    if (seconds < 120) return 5;
+    return 6;
+  }
+
   function miniGameRewardForResult(gameId, result = {}) {
     const id = normalizeXpMiniGameId(gameId);
     const source = result && typeof result === 'object' ? result : { score: result };
     const score = Math.max(0, Math.floor(Number(source.score || 0)));
+    const metrics = source.metrics && typeof source.metrics === 'object' ? source.metrics : source;
+    let tierReward = 0;
     switch (id) {
-      case XP_MINI_GAME_ID_CODE_FLY: return miniGameRewardForScore(score);
-      case XP_MINI_GAME_ID_BUG_SMASH: return bugSmashRewardForScore(score);
-      case XP_MINI_GAME_ID_RUNNER_404: return runner404RewardForScore(score);
-      case XP_MINI_GAME_ID_MEMORY_CODE: return memoryCodeRewardForMetrics(source.metrics || source);
-      case XP_MINI_GAME_ID_CODE_SNAKE: return codeSnakeRewardForScore(score);
-      case XP_MINI_GAME_ID_CODE_STACK: return codeStackRewardForScore(score);
-      case XP_MINI_GAME_ID_BYTE_RUSH: return byteRushRewardForScore(score);
-      case XP_MINI_GAME_ID_ROCKET_BYTE: return rocketByteRewardForScore(score);
-      case XP_MINI_GAME_ID_FALLING_CODE: return fallingCodeRewardForScore(score);
-      case XP_MINI_GAME_ID_PERFECT_SHOT: return perfectShotRewardForScore(score);
-      case XP_MINI_GAME_ID_COLOR_SWITCH_BYTE: return colorSwitchByteRewardForScore(score);
-      case XP_MINI_GAME_ID_CODE_HOOPS: return codeHoopsRewardForScore(score);
-      case XP_MINI_GAME_ID_RED_LIGHT_GREEN_LIGHT: return redLightGreenLightRewardForScore(score);
-      case XP_MINI_GAME_ID_CODE_MAZE: return codeMazeRewardForScore(score);
-      case XP_MINI_GAME_ID_PATTERN_LOCK: return patternLockRewardForScore(score);
-      default: return 0;
+      case XP_MINI_GAME_ID_CODE_FLY: tierReward = miniGameRewardForScore(score); break;
+      case XP_MINI_GAME_ID_BUG_SMASH: tierReward = bugSmashRewardForScore(score); break;
+      case XP_MINI_GAME_ID_RUNNER_404: tierReward = runner404RewardForScore(score); break;
+      case XP_MINI_GAME_ID_MEMORY_CODE: tierReward = memoryCodeRewardForMetrics(metrics); break;
+      case XP_MINI_GAME_ID_CODE_SNAKE: tierReward = codeSnakeRewardForScore(score); break;
+      case XP_MINI_GAME_ID_CODE_STACK: tierReward = codeStackRewardForScore(score); break;
+      case XP_MINI_GAME_ID_BYTE_RUSH: tierReward = byteRushRewardForScore(score); break;
+      case XP_MINI_GAME_ID_ROCKET_BYTE: tierReward = rocketByteRewardForScore(score); break;
+      case XP_MINI_GAME_ID_FALLING_CODE: tierReward = fallingCodeRewardForScore(score); break;
+      case XP_MINI_GAME_ID_PERFECT_SHOT: tierReward = perfectShotRewardForScore(score); break;
+      case XP_MINI_GAME_ID_COLOR_SWITCH_BYTE: tierReward = colorSwitchByteRewardForScore(score); break;
+      case XP_MINI_GAME_ID_CODE_HOOPS: tierReward = codeHoopsRewardForScore(score); break;
+      case XP_MINI_GAME_ID_RED_LIGHT_GREEN_LIGHT: tierReward = redLightGreenLightRewardForScore(score); break;
+      case XP_MINI_GAME_ID_CODE_MAZE: tierReward = codeMazeRewardForScore(score); break;
+      case XP_MINI_GAME_ID_PATTERN_LOCK: tierReward = patternLockRewardForScore(score); break;
+      default: tierReward = 0;
     }
+    return Math.min(tierReward, miniGameDurationRewardCap(id, metrics));
   }
 
   function normalizeMiniGameMetrics(gameId, input = {}) {
@@ -44931,6 +45127,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       metrics.durationMs = durationMs;
     } else if (gameId === XP_MINI_GAME_ID_MEMORY_CODE) {
       metrics = normalizeMiniGameMetrics(gameId, reported.metrics);
+      metrics.durationMs = durationMs;
       metrics.completed = Boolean(metrics.completed && metrics.pairs >= 8 && metrics.moves >= 8 && durationMs >= 6000);
       if (metrics.completed && metrics.timeMs <= 0) metrics.timeMs = durationMs;
       // The Memory game automatically pauses when the app loses focus, so its
@@ -48255,7 +48452,10 @@ window.MCS_PHONE_MENU_STATUS = () => ({
 
   async function loadGlobalLeaderboard(options = {}) {
     if (leaderboardState.loading) return;
-    const maxAge = 90 * 1000;
+    const teacherMode = isTeacherAuthenticated();
+    // v463: students reuse the teacher-published root snapshot for 15 minutes.
+    // A manual Refresh still bypasses this cache. Admin keeps the shorter cache.
+    const maxAge = teacherMode ? 90 * 1000 : 15 * 60 * 1000;
     if (!options.force && leaderboardState.records.length && Date.now() - leaderboardState.loadedAt < maxAge) {
       renderGlobalLeaderboard();
       return;
@@ -48267,41 +48467,59 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       const ready = await initFirebaseSync();
       if (!ready) throw new Error('Cloud ranking is not available right now.');
       const { getDocs, getDoc } = firebaseSync.modules;
-      const [rootResult, rosterResult, quickResult, settingsResult] = await Promise.allSettled([
-        getDoc(getCloudActivitiesDocRef()),
-        getDocs(getStudentRosterCollectionRef()),
-        getDocs(getCodeExplorerLeaderboardCollectionRef()),
-        getDoc(getCodeExplorerLeaderboardSettingsDocRef())
-      ]);
+
+      // v463 quota guard:
+      // - Student: ONE root-document read only. No studentRoster scan and no
+      //   codeExplorerLeaderboard collection scan.
+      // - Teacher/Admin: retains the existing full-data fallback because admin
+      //   is the publisher of the safe root snapshot.
+      let rootResult;
+      let rosterResult = { status: 'rejected', reason: new Error('Student snapshot-only mode') };
+      let quickResult = { status: 'rejected', reason: new Error('Student snapshot-only mode') };
+      let settingsResult = { status: 'rejected', reason: new Error('Student snapshot-only mode') };
+      if (teacherMode) {
+        [rootResult, rosterResult, quickResult, settingsResult] = await Promise.allSettled([
+          getDoc(getCloudActivitiesDocRef()),
+          getDocs(getStudentRosterCollectionRef()),
+          getDocs(getCodeExplorerLeaderboardCollectionRef()),
+          getDoc(getCodeExplorerLeaderboardSettingsDocRef())
+        ]);
+      } else {
+        [rootResult] = await Promise.allSettled([
+          getDoc(getCloudActivitiesDocRef())
+        ]);
+      }
 
       const rootData = rootResult.status === 'fulfilled' && snapshotExists(rootResult.value) ? (snapshotData(rootResult.value) || {}) : {};
       const rootPublic = normalizePublicLeaderboardSnapshot(rootData.codeExplorerLeaderboardPublic || {});
       const rootSettingsRaw = rootData.codeExplorerLeaderboardSettings || rootData.codeExplorerLeaderboardPublic?.settings || null;
-      const rosterDocs = rosterResult.status === 'fulfilled' ? Array.from(rosterResult.value.docs || []) : [];
-      const quickDocs = quickResult.status === 'fulfilled' ? Array.from(quickResult.value.docs || []) : [];
+      const rosterDocs = teacherMode && rosterResult.status === 'fulfilled' ? Array.from(rosterResult.value.docs || []) : [];
+      const quickDocs = teacherMode && quickResult.status === 'fulfilled' ? Array.from(quickResult.value.docs || []) : [];
 
-      leaderboardState.settingsLoaded = Boolean(rootSettingsRaw) || settingsResult.status === 'fulfilled';
+      leaderboardState.settingsLoaded = Boolean(rootSettingsRaw) || (teacherMode && settingsResult.status === 'fulfilled');
       leaderboardState.settingsError = !leaderboardState.settingsLoaded;
       if (rootSettingsRaw) {
         leaderboardSectionSettings = normalizeLeaderboardSectionSettings(rootSettingsRaw);
-      } else if (settingsResult.status === 'fulfilled') {
+      } else if (teacherMode && settingsResult.status === 'fulfilled') {
         leaderboardSectionSettings = snapshotExists(settingsResult.value)
           ? normalizeLeaderboardSectionSettings(snapshotData(settingsResult.value))
           : normalizeLeaderboardSectionSettings({ configured: false });
       } else {
+        // Student clients intentionally do not read the adminSettings document.
+        // If a public snapshot has not been published yet, show their own XP.
         leaderboardSectionSettings = normalizeLeaderboardSectionSettings({ configured: false });
       }
 
       const allQuickRows = quickDocs.map(snapshot => ({ id: snapshot.id, ...snapshotData(snapshot) }));
       const safeSettingsRow = allQuickRows.find(row => row.id === CODE_EXPLORER_LEADERBOARD_SETTINGS_ROW_ID || row.recordType === 'settings') || null;
-      if (!leaderboardState.settingsLoaded && safeSettingsRow) {
+      if (teacherMode && !leaderboardState.settingsLoaded && safeSettingsRow) {
         leaderboardSectionSettings = normalizeLeaderboardSectionSettings(safeSettingsRow);
         leaderboardState.settingsLoaded = true;
         leaderboardState.settingsError = false;
       }
 
-      // Prefer the teacher-published root snapshot because it is intentionally
-      // student-readable under the app's existing root-document rules.
+      // Teacher-published public snapshot is the ONLY global ranking source for
+      // student clients. It contains no Student IDs/passwords/project data.
       let records = rootPublic.records
         .filter(row => !leaderboardState.settingsLoaded || isLeaderboardSectionIncluded(row.section || '', leaderboardSectionSettings))
         .map(row => ({ ...row, current: isCurrentLeaderboardStudent(row) }));
@@ -48311,9 +48529,9 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         ? isLeaderboardSectionIncluded(row.section || '', leaderboardSectionSettings)
         : row.leaderboardIncluded !== false);
 
-      // If the root snapshot has not been published yet, fall back to the old
-      // roster + quick-row pipeline when those collections are readable.
-      if (!records.length && rosterDocs.length) {
+      // Admin-only compatibility fallback. Student clients must never enter this
+      // path because a 500-student roster + leaderboard scan is too expensive.
+      if (teacherMode && !records.length && rosterDocs.length) {
         const rosterProfiles = rosterDocs.map(snapshot => {
           const data = snapshotData(snapshot);
           const studentId = normalizeStudentId(data.studentId || data.studentIdNormalized || snapshot.id);
@@ -48349,21 +48567,23 @@ window.MCS_PHONE_MENU_STATUS = () => ({
           });
       }
 
-      // Merge any readable quick rows so recent XP can be fresher than the last
-      // teacher-published snapshot. This is optional; permission denial is safe.
-      visibleQuickRows.forEach(row => {
-        if (String(row.accountStatus || 'active') === 'disabled') return;
-        const candidate = { uid: String(row.uid || '').trim(), studentId: normalizeStudentId(row.studentId || ''), name: String(row.name || 'Student').trim(), section: String(row.section || '').trim(), xp: Number(row.xp || 0), accountStatus: String(row.accountStatus || 'active') };
-        if (leaderboardState.settingsLoaded && !isLeaderboardSectionIncluded(candidate.section, leaderboardSectionSettings)) return;
-        const existingIndex = records.findIndex(record => leaderboardStudentIdentity(record) === leaderboardStudentIdentity(candidate) || isCurrentLeaderboardStudent(record) && isCurrentLeaderboardStudent(candidate));
-        if (existingIndex >= 0) {
-          records[existingIndex].xp = Math.max(Number(records[existingIndex].xp || 0), Number(candidate.xp || 0));
-          records[existingIndex].current = records[existingIndex].current || isCurrentLeaderboardStudent(candidate);
-        } else {
-          candidate.current = isCurrentLeaderboardStudent(candidate);
-          records.push(candidate);
-        }
-      });
+      // Admin may merge current quick rows before publishing. Students skip this
+      // collection entirely and overlay only their already-loaded local/profile XP.
+      if (teacherMode) {
+        visibleQuickRows.forEach(row => {
+          if (String(row.accountStatus || 'active') === 'disabled') return;
+          const candidate = { uid: String(row.uid || '').trim(), studentId: normalizeStudentId(row.studentId || ''), name: String(row.name || 'Student').trim(), section: String(row.section || '').trim(), xp: Number(row.xp || 0), accountStatus: String(row.accountStatus || 'active') };
+          if (leaderboardState.settingsLoaded && !isLeaderboardSectionIncluded(candidate.section, leaderboardSectionSettings)) return;
+          const existingIndex = records.findIndex(record => leaderboardStudentIdentity(record) === leaderboardStudentIdentity(candidate) || isCurrentLeaderboardStudent(record) && isCurrentLeaderboardStudent(candidate));
+          if (existingIndex >= 0) {
+            records[existingIndex].xp = Math.max(Number(records[existingIndex].xp || 0), Number(candidate.xp || 0));
+            records[existingIndex].current = records[existingIndex].current || isCurrentLeaderboardStudent(candidate);
+          } else {
+            candidate.current = isCurrentLeaderboardStudent(candidate);
+            records.push(candidate);
+          }
+        });
+      }
 
       const currentRecord = records.find(record => record.current || isCurrentLeaderboardStudent(record)) || null;
       const profileSection = currentLeaderboardSectionName();
@@ -48372,8 +48592,6 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       if (leaderboardState.settingsLoaded && effectiveKey && effectiveKey !== 'no section') {
         leaderboardState.currentSectionIncluded = isLeaderboardSectionIncluded(effectiveCurrentSection, leaderboardSectionSettings);
       } else {
-        // A settings/permission failure must never falsely label a student as
-        // excluded. Default to visible until an actual configured filter says no.
         leaderboardState.currentSectionIncluded = true;
       }
 
@@ -48392,8 +48610,10 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       ranked.forEach(record => { record.current = record.current || isCurrentLeaderboardStudent(record); });
       leaderboardState.records = ranked;
       leaderboardState.loadedAt = Date.now();
-      leaderboardState.rosterLoaded = Boolean(rootPublic.records.length || rosterDocs.length);
-      leaderboardState.source = rootPublic.records.length ? 'teacher-published enrolled students' : (rosterDocs.length ? 'included enrolled students' : 'synced leaderboard accounts');
+      leaderboardState.rosterLoaded = Boolean(rootPublic.records.length || (teacherMode && rosterDocs.length));
+      leaderboardState.source = rootPublic.records.length
+        ? 'teacher-published enrolled students'
+        : (teacherMode && rosterDocs.length ? 'included enrolled students' : 'your saved progress');
       renderGlobalLeaderboard();
     } catch (error) {
       console.warn('Global Code Explorer leaderboard could not be loaded.', error);
