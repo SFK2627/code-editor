@@ -608,16 +608,14 @@
   }
 
   function connectionSuccess(pair, endpointCell) {
-    const until = performance.now() + 260;
+    // V466B: clean snap effect. Avoid flickering/pulsing; use a short stable glow.
+    const until = performance.now() + 120;
     runtime.connectionPulses.set(pair, until);
     const center = cellCenter(endpointCell);
     const color = PALETTE[pair % PALETTE.length];
-    for (let i = 0; i < 5; i += 1) {
-      const angle = (Math.PI * 2 * i / 5) + pair * .3;
-      runtime.sparks.push({ x: center.x, y: center.y, vx: Math.cos(angle) * 34, vy: Math.sin(angle) * 34, color, born: performance.now(), ttl: 230 });
-    }
+    runtime.sparks.push({ x: center.x, y: center.y, vx: 0, vy: -18, color, born: performance.now(), ttl: 120 });
     tone('connect');
-    showStatus('CONNECTED ✓', 650);
+    showStatus('CONNECTED ✓', 450);
     startFxLoop();
   }
 
@@ -898,7 +896,7 @@
       ctx.lineWidth = Math.max(8, cell * .46);
       if (pulse || allCompletePulse) {
         ctx.shadowColor = color;
-        ctx.shadowBlur = Math.max(8, cell * .32);
+        ctx.shadowBlur = Math.max(5, cell * .18);
       }
       ctx.beginPath();
       path.forEach((cellIndex, idx) => {
@@ -938,8 +936,8 @@
         const pulse = runtime.connectionPulses.get(pair);
         let scale = 1;
         if (pulse) {
-          const remaining = clamp((pulse - now) / 260, 0, 1);
-          scale = 1 + Math.sin((1 - remaining) * Math.PI) * .16;
+          const remaining = clamp((pulse - now) / 120, 0, 1);
+          scale = 1 + Math.sin((1 - remaining) * Math.PI) * .06;
         }
         ctx.save();
         ctx.translate(p.x, p.y);
