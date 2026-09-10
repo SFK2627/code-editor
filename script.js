@@ -1488,7 +1488,7 @@ let adminLatestAiReview = null;
 let adminAiRubricController = null;
 let aiRubricConnectionState = { status: 'untested', code: '', message: '' };
 
-const MCS_APP_BUILD = 'v296';
+const MCS_APP_BUILD = 'v461-quota-hardened';
 window.MCS_APP_BUILD = MCS_APP_BUILD;
 console.info(`[MCSian Code Editor] ${MCS_APP_BUILD} loaded`);
 
@@ -1496,8 +1496,8 @@ const DEFAULT_STUDENT_PASSWORD = '123456';
 const STUDENT_EMAIL_DOMAIN = 'students.mcsian.app';
 const STUDENT_AUTH_RECOVERY_SLOTS = 12;
 const LAST_STUDENT_SESSION_KEY = 'studentCodeStudio.lastStudentSession.v1';
-const STUDENT_AUTOSAVE_DELAY = 1400;
-const PROFILE_ACTIVITY_WRITE_INTERVAL = 5 * 60 * 1000;
+const STUDENT_AUTOSAVE_DELAY = 8000; // v461: local recovery is immediate; cloud writes wait for an 8s idle window.
+const PROFILE_ACTIVITY_WRITE_INTERVAL = 30 * 60 * 1000; // v461: profile heartbeat is non-critical; project doc remains the real save.
 const AUTO_RUN_DELAY = 850;
 const PREVIEW_LOAD_TIMEOUT = 3200;
 const APP_NETWORK_TIMEOUT_MS = 12000;
@@ -1575,9 +1575,9 @@ function withTimeout(promise, timeoutMs = APP_NETWORK_TIMEOUT_MS, message = 'Thi
 // IMPORTANT: live collaboration/WebRTC paths are intentionally bypassed so
 // Share/Join, peers, cursor sync, and room signaling always use fresh data.
 const SELECTIVE_FIRESTORE_CACHE = new Map();
-const SELECTIVE_CACHE_SHORT_MS = 60 * 1000;
-const SELECTIVE_CACHE_MEDIUM_MS = 3 * 60 * 1000;
-const SELECTIVE_CACHE_LONG_MS = 5 * 60 * 1000;
+const SELECTIVE_CACHE_SHORT_MS = 10 * 60 * 1000; // v461: student project/compliance/admin-list cache
+const SELECTIVE_CACHE_MEDIUM_MS = 30 * 60 * 1000; // root app document/profile cache within one page session
+const SELECTIVE_CACHE_LONG_MS = 60 * 60 * 1000; // stable settings/roster hint cache
 
 function isLiveFirestoreCacheKey(key = '') {
   return /sharedSessions|peers|collab|webrtc|liveSync|cursor|roomSignal/i.test(String(key || ''));
@@ -1592,6 +1592,13 @@ function clearSelectiveFirestoreCache(prefix = '') {
   Array.from(SELECTIVE_FIRESTORE_CACHE.keys()).forEach(key => {
     if (String(key).startsWith(safePrefix)) SELECTIVE_FIRESTORE_CACHE.delete(key);
   });
+}
+
+function setSelectiveFirestoreCache(key, value, ttlMs = SELECTIVE_CACHE_SHORT_MS) {
+  const cacheKey = String(key || '');
+  const ttl = Math.max(0, Number(ttlMs || 0));
+  if (!cacheKey || !ttl || isLiveFirestoreCacheKey(cacheKey)) return;
+  SELECTIVE_FIRESTORE_CACHE.set(cacheKey, { value, expiresAt: Date.now() + ttl });
 }
 
 async function withSelectiveFirestoreCache(key, ttlMs, loader, options = {}) {
@@ -3660,7 +3667,7 @@ async function saveStudentAssistanceSettingsToCloud(settings = studentAssistance
       studentAssistanceUpdatedAt: serverTimestamp()
     }, { merge: true });
     clearSelectiveFirestoreCache('rootDocument:');
-    setAssistanceSettingsStatus('Published to all students. Open student pages will update automatically.', 'success');
+    setAssistanceSettingsStatus('Published. Students receive the update on refresh/reopen.', 'success');
     setStatus('Student assistance published');
     return true;
   } catch (error) {
@@ -4208,7 +4215,10 @@ async function startFirebaseMode() {
   }
   await initFirebaseSync();
   await loadActivitiesFromCloud();
-  await watchStudentAssistanceSettings();
+  // v461: do not attach a second, always-on Firestore listener to the same root
+  // document. The initial root read already loads assistance/login/term settings.
+  // Students receive teacher setting changes on refresh/reopen, which saves one
+  // listener read per client plus every subsequent broadcast update.
   await watchTeacherAuth();
 }
 
@@ -4265,9 +4275,23 @@ function shouldUseAppsScriptMiniGameRewards() {
   return window.MCS_MINI_GAME_REWARDS_VIA_APPS_SCRIPT !== false && Boolean(getMcsAppsScriptUrl());
 }
 
+// v460 Phase 3 — use the existing secure Apps Script bridge for infrequent,
+// merge-safe Code Explorer checkpoints. The learner UI remains local-first.
+function shouldUseAppsScriptCodeExplorerCheckpoints() {
+  return window.MCS_CODE_EXPLORER_CHECKPOINTS_VIA_APPS_SCRIPT !== false && Boolean(getMcsAppsScriptUrl());
+}
+
 
 function shouldUseRtdbWeeklyArcade() {
   return window.MCS_USE_RTDB_WEEKLY_ARCADE !== false && Boolean(getMcsRealtimeDatabaseUrl());
+}
+
+// v462 Phase 5 — Mini-Game reward ledger/pending XP lives in RTDB between
+// coalesced Firestore checkpoints. Short REST reads keep it socket-free.
+function shouldUseRtdbMiniGameLedger() {
+  return window.MCS_USE_RTDB_MINI_GAME_LEDGER !== false
+    && shouldUseAppsScriptMiniGameRewards()
+    && Boolean(getMcsRealtimeDatabaseUrl());
 }
 
 async function getActiveFirebaseIdToken(options = {}) {
@@ -5165,23 +5189,38 @@ function persistStudentProjectsCache() {
   const key = getStudentProjectCacheKey();
   if (!key) return;
   try {
-    const payload = JSON.stringify({ savedAt: Date.now(), projects: appSession.projects || [] });
+    const uid = appSession.student?.uid || '';
+    const projects = Array.isArray(appSession.projects) ? appSession.projects.map(project => ({ ...project })) : [];
+    const savedAt = Date.now();
+    const payload = JSON.stringify({ savedAt, projects });
     if (payload.length <= MAX_PROJECT_CACHE_BYTES) localStorage.setItem(key, payload);
+    // v461: after a create/save/rename/delete, the browser already owns the newest
+    // project list. Re-prime the in-memory Firestore cache instead of forcing a
+    // collection re-read merely because the student returned to My Projects.
+    if (uid) setSelectiveFirestoreCache(`studentProjects:${uid}`, projects, SELECTIVE_CACHE_SHORT_MS);
   } catch (error) {
     console.warn('Could not cache the project list locally.', error);
   }
 }
 
-function loadStudentProjectsCache() {
+function loadStudentProjectsCacheRecord() {
   const key = getStudentProjectCacheKey();
-  if (!key) return [];
+  if (!key) return null;
   try {
     const cached = JSON.parse(localStorage.getItem(key) || 'null');
-    return Array.isArray(cached?.projects) ? cached.projects : [];
+    if (!cached || !Array.isArray(cached.projects)) return null;
+    return {
+      savedAt: Math.max(0, Number(cached.savedAt || 0)),
+      projects: cached.projects
+    };
   } catch (error) {
     console.warn('Could not read the local project cache.', error);
-    return [];
+    return null;
   }
+}
+
+function loadStudentProjectsCache() {
+  return loadStudentProjectsCacheRecord()?.projects || [];
 }
 
 function clearStudentProjectRecovery(projectId = appSession.currentProjectId) {
@@ -5911,6 +5950,10 @@ async function activateStudentSession(profile, { showDashboard = true } = {}) {
   persistLastStudentSession('student-activated');
   updateAppHeaderForSession();
   startStudentPresenceHeartbeat();
+  // v462: hydrate any Mini-Game XP that is durably pending in RTDB. This keeps
+  // the displayed XP correct after refresh even before the next Firestore batch.
+  Promise.resolve(window.ICT8_XP_MINIGAMES_BRIDGE?.refreshServerState?.({ force: true }))
+    .catch(error => console.info('Mini-Game RTDB state will refresh when the hub opens.', error));
 
   const loginTracker = recordStudentLogin().catch(error => {
     console.warn('Could not record student login before showing the dashboard.', error);
@@ -6243,15 +6286,25 @@ async function loginStudent() {
         );
       }
 
-      // Successful accounts self-heal their one tiny login route.
-      try {
-        await writeStudentLoginRoute(studentId, {
-          authEmail: credential.user.email,
-          activated: true,
-          accountStatus: profile?.accountStatus || 'active'
-        });
-      } catch (routeError) {
-        console.info('Login route self-heal skipped.', routeError);
+      // v461: healthy login routes no longer receive an identical Firestore write
+      // on every login. Repair only when the route is missing or actually stale.
+      const desiredRouteEmail = String(credential.user.email || '').trim().toLowerCase();
+      const desiredRouteStatus = String(profile?.accountStatus || 'active');
+      const existingRoute = loginTarget?.route || null;
+      const routeNeedsRepair = !existingRoute
+        || String(existingRoute.authEmail || '').trim().toLowerCase() !== desiredRouteEmail
+        || existingRoute.activated !== true
+        || String(existingRoute.accountStatus || 'active') !== desiredRouteStatus;
+      if (routeNeedsRepair) {
+        try {
+          await writeStudentLoginRoute(studentId, {
+            authEmail: desiredRouteEmail,
+            activated: true,
+            accountStatus: desiredRouteStatus
+          });
+        } catch (routeError) {
+          console.info('Login route self-heal skipped.', routeError);
+        }
       }
     } catch (signInError) {
       // Do not try another email. One click already used its one Auth attempt.
@@ -6574,6 +6627,23 @@ async function loadStudentProjects(options = {}) {
     return [];
   }
   try {
+    // v461: a fresh local project cache is authoritative enough for dashboard
+    // painting. Cloud is revalidated after the cache window or an explicit force.
+    // This prevents every My Projects return/reload from listing all project docs.
+    if (!options.force) {
+      const localRecord = loadStudentProjectsCacheRecord();
+      if (localRecord && Date.now() - localRecord.savedAt < SELECTIVE_CACHE_SHORT_MS) {
+        appSession.projects = localRecord.projects.map(project => ({ ...project })).sort((a, b) => {
+          const aTime = timestampToDate(a.updatedAt)?.getTime() || 0;
+          const bTime = timestampToDate(b.updatedAt)?.getTime() || 0;
+          return bTime - aTime;
+        });
+        setSelectiveFirestoreCache(`studentProjects:${student.uid}`, appSession.projects.map(project => ({ ...project })), SELECTIVE_CACHE_SHORT_MS);
+        renderStudentProjects();
+        return appSession.projects;
+      }
+    }
+
     if (projectDashboardStatus) projectDashboardStatus.textContent = 'Loading projects...';
     const { getDocs } = firebaseSync.modules;
     const projectDocs = await withSelectiveFirestoreCache(`studentProjects:${student.uid}`, SELECTIVE_CACHE_SHORT_MS, async () => {
@@ -38980,7 +39050,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
    STEP 270: SEND CODE + CODE INBOX
    Optimized Firestore design:
    - 1 lightweight inbox metadata document + 1 full transfer document per send.
-   - Inbox listener reads metadata only (latest 20).
+   - Inbox metadata is fetched only when the receiver opens/refreshes Inbox.
    - Full source code is read only when the receiver opens one transfer.
    - Copy is local clipboard only: zero Firestore writes.
    - No automatic import/overwrite of the receiver's project.
@@ -39638,40 +39708,16 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   }
 
   async function startCodeInboxWatcher() {
+    // v461: Code Inbox is intentionally ON-DEMAND. A Firestore listener on the
+    // latest 20 inbox docs for every logged-in student is too expensive at
+    // 500-student scale. Dashboard/menu setup may call this function, but it
+    // performs zero reads unless the Inbox overlay is actually open.
     if (!isCodeTransferEnabled()) {
       stopCodeInboxWatcher();
       return;
     }
-    const inboxStudentKey = getCurrentCodeInboxStudentKey();
-    if (!inboxStudentKey || (codeTransferState.inboxUnsubscribe && codeTransferState.inboxUid === inboxStudentKey)) return;
-    stopCodeInboxWatcher();
-    const ready = await initFirebaseSync();
-    if (!ready || !isCodeTransferEnabled()) return;
-
-    try {
-      const { onSnapshot, query, orderBy, limit } = firebaseSync.modules;
-      const inboxQuery = query(
-        getCodeInboxCollectionRef(inboxStudentKey),
-        orderBy('createdAtMs', 'desc'),
-        limit(INBOX_LIMIT)
-      );
-      codeTransferState.inboxUid = inboxStudentKey;
-      codeTransferState.inboxUnsubscribe = onSnapshot(inboxQuery, snapshot => {
-        applyInboxSnapshot(normalizeInboxSnapshot(snapshot), { fromWatcher: true });
-        if (!codeInboxOverlay?.classList.contains('hidden')) {
-          setCodeTransferStatus(codeInboxStatus, codeTransferState.inboxItems.length
-            ? `Showing latest ${codeTransferState.inboxItems.length} received code item${codeTransferState.inboxItems.length === 1 ? '' : 's'}.`
-            : 'No received code yet.');
-        }
-      }, error => {
-        console.warn('Code Inbox listener failed.', error);
-        if (isFirestorePermissionError(error)) {
-          setCodeTransferStatus(codeInboxStatus, 'Firestore Rules are blocking Code Inbox. Publish the updated Code Inbox rules.', 'error');
-        }
-      });
-    } catch (error) {
-      console.warn('Could not start Code Inbox listener.', error);
-    }
+    if (!codeInboxOverlay || codeInboxOverlay.classList.contains('hidden')) return;
+    await refreshCodeInboxOnce();
   }
 
   async function refreshCodeInboxOnce() {
@@ -39813,7 +39859,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
 })();
 
 /* ================================================================
-   Code Explorer v359
+   Code Explorer v460 — local-first + Apps Script checkpoints
    Self-paced HTML/CSS/JavaScript learning paths with live practice,
    progress sync, final checkpoints, XP, and downloadable certificates.
    This is intentionally separate from teacher-published Lessons.
@@ -42430,7 +42476,14 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     return Math.max(0, Math.floor(Number(normalizeMiniGamesState(progress?.miniGames || {}).lifetimeXp || 0)));
   }
 
-  const state = { course: 'html', topicId: '', filter: 'all', progress: null, reader: '', cloudLoaded: false, cloudXpHint: 0, dashboardCloudLoading: false, saveTimer: null, cloudSavePromise: null, cloudSaveQueued: false, lastCloudSyncAt: 0, identityCheckedAt: 0, identityCanonical: true, heartTimer: null, heartPopoverTimer: null, profileUnsub: null, finalAnswers: {}, finalStartedAt: 0, quickQuiz: { topicId: '', index: 0, answers: [], results: [], submitted: false, questionStartedAt: [], responseMs: [], attemptStartedAt: 0 }, miniGame: { topicId: '', selected: '', result: '', correct: '', choices: [], before: '', after: '' }, miniGameResetTimer: null, quickAdvanceTimer: null, quickFeedbackTimer: null, justUnlockedTopicId: '', justUnlockedCourse: '', mobileStage: 'learn', mobileStageDirection: 'next', mobileSwipeStart: null, mobileView: 'roadmap' };
+  // v460 Phase 3 checkpoint policy. Ordinary interactions save to LocalStorage
+  // immediately. Durable cloud writes are coalesced to a low-frequency window
+  // while dirty, with a short checkpoint after major milestones.
+  const CODE_EXPLORER_CHECKPOINT_PERIODIC_BASE_MS = 8 * 60 * 1000;
+  const CODE_EXPLORER_CHECKPOINT_PERIODIC_JITTER_MS = 2 * 60 * 1000;
+  const CODE_EXPLORER_CHECKPOINT_MILESTONE_BASE_MS = 20 * 1000;
+  const CODE_EXPLORER_CHECKPOINT_MILESTONE_JITTER_MS = 25 * 1000;
+  const state = { course: 'html', topicId: '', filter: 'all', progress: null, reader: '', cloudLoaded: false, cloudXpHint: 0, dashboardCloudLoading: false, saveTimer: null, cloudSavePromise: null, cloudSaveQueued: false, checkpointDirty: false, checkpointDirtySince: 0, checkpointDueAt: 0, checkpointReason: '', checkpointRetryNotBefore: 0, lastCheckpointSignature: '', lastCheckpointMilestoneSignature: '', profileUpdateTime: '', lastCloudSyncAt: 0, identityCheckedAt: 0, identityCanonical: true, heartTimer: null, heartPopoverTimer: null, profileUnsub: null, finalAnswers: {}, finalStartedAt: 0, quickQuiz: { topicId: '', index: 0, answers: [], results: [], submitted: false, questionStartedAt: [], responseMs: [], attemptStartedAt: 0 }, miniGame: { topicId: '', selected: '', result: '', correct: '', choices: [], before: '', after: '' }, miniGameResetTimer: null, quickAdvanceTimer: null, quickFeedbackTimer: null, justUnlockedTopicId: '', justUnlockedCourse: '', mobileStage: 'learn', mobileStageDirection: 'next', mobileSwipeStart: null, mobileView: 'roadmap' };
   const miniGameProgressSubscribers = new Set();
   const activeXpMiniGameRounds = new Map();
   const xpMiniGameRoundClaims = new Map();
@@ -43429,6 +43482,10 @@ window.MCS_PHONE_MENU_STATUS = () => ({
 
   async function startExplorerProfileListener() {
     stopExplorerProfileListener();
+    // Phase 3 deliberately removes the always-on student document listener.
+    // Fresh profile data is already loaded by student login, and subsequent
+    // Explorer changes are merged by the checkpoint backend.
+    if (shouldUseAppsScriptCodeExplorerCheckpoints()) return;
     if (!appSession.student?.uid || appSession.mode !== 'student') return;
     try {
       const ready = await initFirebaseSync();
@@ -43515,6 +43572,62 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     }
   }
 
+  function explorerMilestoneSignature(progress = {}) {
+    const normalized = normalizeProgress(progress);
+    try {
+      return JSON.stringify(COURSE_KEYS.map(key => {
+        const course = COURSES[key];
+        const records = normalized.courses?.[key]?.topics || {};
+        return {
+          key,
+          completed: course.topics.filter(item => Boolean(records[item.id]?.completedAt)).map(item => item.id),
+          final: Boolean(normalized.courses?.[key]?.final?.passed),
+          certificate: String(normalized.courses?.[key]?.certificate?.issuedAt || '')
+        };
+      }));
+    } catch (_) {
+      return '';
+    }
+  }
+
+  function setExplorerCheckpointBaseline(progress = state.progress) {
+    const normalized = normalizeProgress(progress || {});
+    state.lastCheckpointSignature = progressSyncSignature(normalized);
+    state.lastCheckpointMilestoneSignature = explorerMilestoneSignature(normalized);
+    state.checkpointDirty = false;
+    state.checkpointDirtySince = 0;
+    state.checkpointDueAt = 0;
+    state.checkpointReason = '';
+    state.checkpointRetryNotBefore = 0;
+  }
+
+  function explorerCheckpointJitter(maxMs = 0) {
+    const max = Math.max(0, Math.floor(Number(maxMs || 0)));
+    if (!max) return 0;
+    const seed = String(readerKey() || 'student');
+    let hash = 2166136261;
+    for (let i = 0; i < seed.length; i += 1) {
+      hash ^= seed.charCodeAt(i);
+      hash = Math.imul(hash, 16777619);
+    }
+    return (hash >>> 0) % (max + 1);
+  }
+
+  function refreshExplorerCheckpointDirtyState(reason = 'progress') {
+    if (!state.progress) return false;
+    const currentSignature = progressSyncSignature(state.progress);
+    const changed = currentSignature !== state.lastCheckpointSignature;
+    state.checkpointDirty = changed;
+    if (!changed) {
+      state.checkpointDirtySince = 0;
+      state.checkpointReason = '';
+      return false;
+    }
+    if (!state.checkpointDirtySince) state.checkpointDirtySince = Date.now();
+    state.checkpointReason = String(reason || state.checkpointReason || 'progress').slice(0, 80);
+    return true;
+  }
+
   function readerKey() {
     const student = appSession.student || appSession.lastStudentProfile || {};
     return String(student.uid || student.studentIdNormalized || student.studentId || 'local').replace(/[^a-zA-Z0-9_-]/g, '-').slice(0, 96) || 'local';
@@ -43534,13 +43647,21 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     const currentReader = readerKey();
     if (!state.progress || state.reader !== currentReader) {
       state.reader = currentReader;
-      state.progress = loadLocalProgress();
-      state.cloudLoaded = false;
-      state.cloudXpHint = 0;
-      state.lastCloudSyncAt = 0;
+      const local = loadLocalProgress();
+      const profile = appSession.student || appSession.lastStudentProfile || {};
+      const hasSessionProfile = Boolean(appSession.mode === 'student' && profile?.uid && String(profile.uid) === String(appSession.student?.uid || profile.uid));
+      const remote = hasSessionProfile ? normalizeProgress(profile?.codeExplorerProgress || {}) : normalizeProgress({});
+      state.progress = hasSessionProfile ? mergeProgress(remote, local) : local;
+      state.cloudLoaded = hasSessionProfile;
+      state.cloudXpHint = hasSessionProfile ? Math.max(0, Number(profile?.codeExplorerXp || 0)) : 0;
+      state.lastCloudSyncAt = hasSessionProfile ? Date.now() : 0;
       state.cloudSaveQueued = false;
+      state.profileUpdateTime = '';
       state.identityCheckedAt = 0;
       state.identityCanonical = true;
+      setExplorerCheckpointBaseline(remote);
+      refreshExplorerCheckpointDirtyState('local-recovery');
+      saveLocalProgress(state.progress);
     }
     return state.progress;
   }
@@ -43622,6 +43743,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
           quizSpeedBonus: Math.max(0, Number(x.quizSpeedBonus || 0), Number(y.quizSpeedBonus || 0)),
           quizRewardXp: Math.max(0, Number(x.quizRewardXp || 0), Number(y.quizRewardXp || 0)),
           completedAt: x.completedAt || y.completedAt || '',
+          mobileStage: String(y.mobileStage || x.mobileStage || ''),
           attempts: Math.max(Number(x.attempts || 0), Number(y.attempts || 0)),
           legacyNormalized: Boolean(x.legacyNormalized || y.legacyNormalized),
           legacyNormalizedAt: [x.legacyNormalizedAt, y.legacyNormalizedAt].filter(Boolean).sort()[0] || '',
@@ -43693,9 +43815,18 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         state.identityCanonical = true;
         return true;
       }
+      // Student login already loaded this profile from Firestore. When its
+      // canonical authEmail matches the current Firebase user, another login-
+      // route read just to open Code Explorer is redundant.
+      const profileEmail = String(student.authEmail || student.email || '').trim().toLowerCase();
+      const activeEmail = String(activeUser.email || '').trim().toLowerCase();
+      if (profileEmail && profileEmail === activeEmail) {
+        state.identityCanonical = true;
+        state.identityCheckedAt = Date.now();
+        return true;
+      }
       const route = await loadStudentLoginRoute(studentId);
       const routeEmail = String(route?.authEmail || '').trim().toLowerCase();
-      const activeEmail = String(activeUser.email || '').trim().toLowerCase();
       state.identityCanonical = !routeEmail || routeEmail === activeEmail;
       return state.identityCanonical;
     } catch (error) {
@@ -43706,7 +43837,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     }
   }
 
-  async function loadCloudProgress() {
+  async function loadCloudProgressLegacyFirestore() {
     if (!appSession.student?.uid || appSession.mode !== 'student') return null;
     try {
       clearSelectiveFirestoreCache(`studentProfile:${appSession.student.uid}`);
@@ -43720,19 +43851,8 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     }
   }
 
-  function scheduleCloudSave() {
-    saveLocalProgress();
-    if (state.cloudSavePromise) {
-      state.cloudSaveQueued = true;
-      return;
-    }
-    clearTimeout(state.saveTimer);
-    state.saveTimer = window.setTimeout(() => {
-      saveCloudProgress().catch(() => false);
-    }, 700);
-  }
 
-  async function saveCloudProgress() {
+  async function saveCloudProgressLegacyFirestore() {
     clearTimeout(state.saveTimer);
     state.saveTimer = null;
     if (!appSession.student?.uid || appSession.mode !== 'student' || !state.progress) return false;
@@ -43845,10 +43965,180 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         state.cloudSaveQueued = false;
         clearTimeout(state.saveTimer);
         state.saveTimer = window.setTimeout(() => {
-          saveCloudProgress().catch(() => false);
+          saveCloudProgressLegacyFirestore().catch(() => false);
         }, 80);
       }
     }
+  }
+
+
+  function codeExplorerCheckpointNeedsLegacyFallback(error) {
+    const message = String(error?.message || error || '').toLowerCase();
+    return message.includes('unknown action')
+      || message.includes('teacher-only actions')
+      || message.includes('not allowed to use teacher-only')
+      || message.includes('savecodeexplorercheckpoint')
+      || message.includes('loadcodeexplorercheckpoint');
+  }
+
+  async function loadCloudProgress() {
+    if (!appSession.student?.uid || appSession.mode !== 'student') return null;
+    if (!shouldUseAppsScriptCodeExplorerCheckpoints()) return loadCloudProgressLegacyFirestore();
+    try {
+      const server = await callAppsScriptSecure({ action: 'loadCodeExplorerCheckpoint' }, { allowStudent: true });
+      const remote = normalizeProgress(server.progress || {});
+      state.cloudXpHint = Math.max(state.cloudXpHint || 0, Math.max(0, Number(server.totalXp || 0)));
+      state.profileUpdateTime = String(server.profileUpdateTime || '');
+      state.lastCloudSyncAt = Date.now();
+      state.cloudLoaded = true;
+      setExplorerCheckpointBaseline(remote);
+      return remote;
+    } catch (error) {
+      if (codeExplorerCheckpointNeedsLegacyFallback(error)) {
+        console.warn('Code Explorer checkpoint backend is not deployed yet; using temporary Firestore load path.', error);
+        return loadCloudProgressLegacyFirestore();
+      }
+      console.warn('Code Explorer checkpoint could not be loaded. Local progress remains available.', error);
+      return null;
+    }
+  }
+
+  function scheduleCloudSave(reason = 'progress') {
+    saveLocalProgress();
+
+    // Keep the legacy behavior only when Phase 3 is explicitly disabled or the
+    // secure bridge is not configured.
+    if (!shouldUseAppsScriptCodeExplorerCheckpoints()) {
+      if (state.cloudSavePromise) {
+        state.cloudSaveQueued = true;
+        return;
+      }
+      clearTimeout(state.saveTimer);
+      state.saveTimer = window.setTimeout(() => {
+        saveCloudProgressLegacyFirestore().catch(() => false);
+      }, 700);
+      return;
+    }
+
+    if (!appSession.student?.uid || appSession.mode !== 'student' || !state.progress) return;
+    if (!refreshExplorerCheckpointDirtyState(reason)) return;
+
+    const now = Date.now();
+    const milestoneChanged = explorerMilestoneSignature(state.progress) !== state.lastCheckpointMilestoneSignature;
+    const normalDue = Number(state.checkpointDirtySince || now)
+      + CODE_EXPLORER_CHECKPOINT_PERIODIC_BASE_MS
+      + explorerCheckpointJitter(CODE_EXPLORER_CHECKPOINT_PERIODIC_JITTER_MS);
+    const milestoneDue = now
+      + CODE_EXPLORER_CHECKPOINT_MILESTONE_BASE_MS
+      + explorerCheckpointJitter(CODE_EXPLORER_CHECKPOINT_MILESTONE_JITTER_MS);
+    const desiredDue = milestoneChanged ? Math.min(normalDue, milestoneDue) : normalDue;
+    const dueAt = Math.max(desiredDue, Number(state.checkpointRetryNotBefore || 0));
+
+    // Never push an already-scheduled checkpoint later. Continuous typing/taps
+    // cannot postpone the durable save forever.
+    if (state.saveTimer && state.checkpointDueAt && state.checkpointDueAt <= dueAt) return;
+    clearTimeout(state.saveTimer);
+    state.checkpointDueAt = dueAt;
+    state.saveTimer = window.setTimeout(() => {
+      state.saveTimer = null;
+      state.checkpointDueAt = 0;
+      saveCloudProgress({ reason: state.checkpointReason || (milestoneChanged ? 'milestone' : 'periodic') }).catch(() => false);
+    }, Math.max(0, dueAt - now));
+  }
+
+  async function saveCodeExplorerCheckpointViaAppsScript(options = {}) {
+    clearTimeout(state.saveTimer);
+    state.saveTimer = null;
+    state.checkpointDueAt = 0;
+    if (!appSession.student?.uid || appSession.mode !== 'student' || !state.progress) return false;
+
+    const currentSignature = progressSyncSignature(state.progress);
+    if (!options.force && Number(state.checkpointRetryNotBefore || 0) > Date.now()) return false;
+    if (currentSignature === state.lastCheckpointSignature) {
+      state.checkpointDirty = false;
+      state.checkpointDirtySince = 0;
+      return true;
+    }
+    refreshExplorerCheckpointDirtyState(options.reason || 'checkpoint');
+
+    if (state.cloudSavePromise) {
+      state.cloudSaveQueued = true;
+      return state.cloudSavePromise;
+    }
+
+    const localSnapshot = normalizeProgress(state.progress);
+    const reason = String(options.reason || state.checkpointReason || 'checkpoint').slice(0, 80);
+    const saveJob = (async () => {
+      try {
+        const canonicalIdentity = await validateExplorerStudentIdentity();
+        if (!canonicalIdentity) {
+          console.warn('Code Explorer checkpoint blocked because this browser is signed into an older student login route.');
+          return false;
+        }
+        const server = await callAppsScriptSecure({
+          action: 'saveCodeExplorerCheckpoint',
+          reason,
+          progress: localSnapshot
+        }, { allowStudent: true });
+
+        const committed = normalizeProgress(server.progress || localSnapshot);
+        const committedSignature = progressSyncSignature(committed);
+        const liveBeforeMerge = normalizeProgress(state.progress);
+        state.progress = mergeProgress(committed, liveBeforeMerge);
+        const totalXp = Math.max(0, Math.floor(Number(server.totalXp || explorerXpFor(committed))));
+        state.cloudXpHint = Math.max(state.cloudXpHint || 0, totalXp, explorerXpFor(state.progress));
+        state.profileUpdateTime = String(server.profileUpdateTime || '');
+        state.cloudLoaded = true;
+        state.lastCloudSyncAt = Date.now();
+        state.lastCheckpointSignature = committedSignature;
+        state.lastCheckpointMilestoneSignature = explorerMilestoneSignature(committed);
+        state.checkpointRetryNotBefore = 0;
+        state.checkpointDirty = progressSyncSignature(state.progress) !== committedSignature;
+        state.checkpointDirtySince = state.checkpointDirty ? (state.checkpointDirtySince || Date.now()) : 0;
+        state.checkpointReason = state.checkpointDirty ? 'changes-during-checkpoint' : '';
+
+        if (appSession.student) {
+          appSession.student.codeExplorerProgress = normalizeProgress(committed);
+          appSession.student.codeExplorerXp = totalXp;
+        }
+        if (appSession.lastStudentProfile) {
+          appSession.lastStudentProfile.codeExplorerProgress = normalizeProgress(committed);
+          appSession.lastStudentProfile.codeExplorerXp = totalXp;
+        }
+        saveLocalProgress(state.progress);
+        clearSelectiveFirestoreCache(`studentProfile:${appSession.student.uid}`);
+        leaderboardState.loadedAt = 0;
+        return true;
+      } catch (error) {
+        if (codeExplorerCheckpointNeedsLegacyFallback(error)) {
+          console.warn('Code Explorer checkpoint route is not deployed yet. Local progress is safe; deploy the v460 Apps Script before enabling Phase 3.', error);
+        } else {
+          console.warn('Code Explorer checkpoint save failed. Local progress is safe on this device.', error);
+        }
+        state.checkpointDirty = true;
+        state.checkpointDirtySince = Date.now();
+        state.checkpointRetryNotBefore = Date.now() + 60000;
+        return false;
+      }
+    })();
+
+    state.cloudSavePromise = saveJob;
+    try {
+      return await saveJob;
+    } finally {
+      if (state.cloudSavePromise === saveJob) state.cloudSavePromise = null;
+      if (state.cloudSaveQueued || state.checkpointDirty) {
+        state.cloudSaveQueued = false;
+        // If new work arrived while the request was in flight, re-enter the
+        // coalescing scheduler instead of immediately creating another write.
+        scheduleCloudSave('changes-after-checkpoint');
+      }
+    }
+  }
+
+  async function saveCloudProgress(options = {}) {
+    if (!shouldUseAppsScriptCodeExplorerCheckpoints()) return saveCloudProgressLegacyFirestore();
+    return saveCodeExplorerCheckpointViaAppsScript(options);
   }
 
   function courseProgressFor(progress, key) {
@@ -44784,6 +45074,55 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     };
   }
 
+
+  let miniGameRtdbHydratePromise = null;
+  let miniGameRtdbHydratedAt = 0;
+
+  async function refreshXpMiniGamesFromRtdb(options = {}) {
+    if (!shouldUseRtdbMiniGameLedger()) return currentXpMiniGamesSnapshot();
+    if (!(appSession.mode === 'student' && appSession.student?.uid)) return currentXpMiniGamesSnapshot();
+    const force = options.force === true;
+    if (!force && Date.now() - miniGameRtdbHydratedAt < 5 * 60 * 1000) return currentXpMiniGamesSnapshot();
+    if (miniGameRtdbHydratePromise) return miniGameRtdbHydratePromise;
+
+    const uid = String(appSession.student.uid || '');
+    miniGameRtdbHydratePromise = (async () => {
+      try {
+        const raw = await rtdbRestRequest(`miniGameAccounts/${uid}`);
+        if (!raw || typeof raw !== 'object' || !raw.miniGames) return currentXpMiniGamesSnapshot();
+        ensureReaderProgress();
+        state.progress.miniGames = mergeMiniGamesState(state.progress.miniGames || {}, raw.miniGames || {});
+        state.progress.updatedAt = new Date().toISOString();
+        const derivedXp = Math.max(0, Math.floor(Number(explorerXpFor(state.progress) || 0)));
+        const serverEffective = Math.max(0,
+          Math.floor(Number(raw.canonicalXpAtLastFlush || 0)) + Math.max(0, Math.floor(Number(raw.pendingXp || 0)))
+        );
+        const visibleXp = Math.max(derivedXp, serverEffective);
+        state.cloudXpHint = Math.max(Number(state.cloudXpHint || 0), visibleXp);
+        if (appSession.student) appSession.student.codeExplorerXp = visibleXp;
+        if (appSession.lastStudentProfile) appSession.lastStudentProfile.codeExplorerXp = visibleXp;
+        miniGameRtdbHydratedAt = Date.now();
+        saveLocalProgress(state.progress);
+        renderTopProgress();
+        updateAppHeaderForSession();
+        return notifyXpMiniGamesProgress({ pendingXp: Math.max(0, Number(raw.pendingXp || 0)) });
+      } catch (error) {
+        console.info('Mini-Game RTDB state refresh skipped.', error);
+        return currentXpMiniGamesSnapshot();
+      } finally {
+        miniGameRtdbHydratePromise = null;
+      }
+    })();
+    return miniGameRtdbHydratePromise;
+  }
+
+  // Prime a fresh RTDB read when the XP launcher is touched. If the hub opens
+  // before the REST request finishes, its existing subscription rerenders as
+  // soon as notifyXpMiniGamesProgress() publishes the hydrated state.
+  dom.xpBadge?.addEventListener('pointerdown', () => {
+    refreshXpMiniGamesFromRtdb().catch(() => {});
+  }, { passive: true });
+
   async function performXpMiniGameClaimLegacyFirestore(sessionId, round, reportedResult) {
     ensureReaderProgress();
     const verified = verifiedXpMiniGameResult(round, reportedResult);
@@ -45098,17 +45437,27 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       const serverMiniGames = normalizeMiniGamesState(server.miniGames || {});
       state.progress.miniGames = mergeMiniGamesState(state.progress.miniGames || {}, serverMiniGames);
       state.progress.updatedAt = nowIso;
-      const totalXp = Math.max(0, Math.floor(Number(server.totalXp || appSession.student?.codeExplorerXp || 0)));
+      // v462: account XP may be pending in RTDB and intentionally not written to
+      // Firestore yet. Derive the visible total from the merged progress, then
+      // use the server effective total only as an additional lower bound.
+      const derivedTotalXp = Math.max(0, Math.floor(Number(explorerXpFor(state.progress) || 0)));
+      const serverEffectiveTotalXp = Math.max(0, Math.floor(Number(server.totalXp || 0)));
+      const totalXp = Math.max(derivedTotalXp, serverEffectiveTotalXp);
       state.cloudXpHint = Math.max(state.cloudXpHint || 0, totalXp);
       state.cloudLoaded = true;
-      state.lastCloudSyncAt = Date.now();
+      miniGameRtdbHydratedAt = Date.now();
+      if (server.firestoreSynced === true) {
+        state.lastCloudSyncAt = Date.now();
+        state.profileUpdateTime = String(server.profileUpdateTime || state.profileUpdateTime || '');
+        clearSelectiveFirestoreCache(`studentProfile:${appSession.student.uid}`);
+        clearSelectiveFirestoreCache('admin:studentsAndRoster');
+        leaderboardState.loadedAt = 0;
+      }
       if (appSession.student) appSession.student.codeExplorerXp = totalXp;
       if (appSession.lastStudentProfile) appSession.lastStudentProfile.codeExplorerXp = totalXp;
       saveLocalProgress(state.progress);
-      clearSelectiveFirestoreCache(`studentProfile:${appSession.student.uid}`);
-      clearSelectiveFirestoreCache('admin:studentsAndRoster');
-      leaderboardState.loadedAt = 0;
       renderTopProgress();
+      updateAppHeaderForSession();
 
       const awardedXp = Math.max(0, Math.floor(Number(server.awardedXp || 0)));
       const requestedXp = Math.max(0, Math.floor(Number(server.requestedXp ?? verified.requestedXp)));
@@ -45133,7 +45482,9 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         gameRecord,
         bestScore: Math.max(0, Number(gameRecord?.bestScore || 0)),
         capReached: todayXp >= XP_MINI_GAMES_DAILY_CAP,
-        totalXp
+        totalXp,
+        pendingXp: Math.max(0, Number(server.pendingXp || 0)),
+        firestoreSynced: server.firestoreSynced === true
       };
     } catch (error) {
       // During rollout only, an OLD Apps Script deployment can fall back to the
@@ -45243,6 +45594,9 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     const currentReader = readerKey();
     ensureReaderProgress();
     updateDashboardExplorerCard();
+    // Phase 3: student login already loaded the profile once. Dashboard renders
+    // from that profile + LocalStorage and does not issue another progress read.
+    if (shouldUseAppsScriptCodeExplorerCheckpoints()) return;
     const explorerScreenHidden = Boolean(screen?.classList.contains('hidden'));
     const dashboardCloudStale = !state.cloudLoaded || (explorerScreenHidden && Date.now() - Number(state.lastCloudSyncAt || 0) > 15000);
     if (appSession.mode === 'student' && appSession.student?.uid && dashboardCloudStale && !state.dashboardCloudLoading) {
@@ -46411,7 +46765,9 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     // Load the teacher's current music source/volume. Audio still obeys browser
     // autoplay policy; if the async cloud read loses the original gesture, the
     // next tap/click inside Code Explorer retries playback automatically.
-    loadCodeExplorerMusicSettings({ force: true }).then(() => {
+    // Reuse the music setting already loaded in this page session; reopening
+    // Explorer should not create another Firestore root-document read.
+    loadCodeExplorerMusicSettings().then(() => {
       unlockExplorerAudio().then(ok => { if (ok) startExplorerMusic(); }).catch(() => false);
     }).catch(() => false);
     // Resume/unlock the Web Audio context synchronously for SFX on strict
@@ -46419,15 +46775,19 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     const audioContext = ensureExplorerAudioContext();
     if (audioContext?.state === 'suspended') audioContext.resume?.().catch?.(() => false);
     ensureReaderProgress();
-    // Always refresh from Firestore when Code Explorer opens. The old one-load-
-    // per-session behavior let a second browser keep stale progress for the
-    // entire session and later overwrite the newer XP/progress.
-    const cloud = await loadCloudProgress();
-    if (cloud) state.progress = mergeProgress(state.progress, cloud);
+    // Phase 3 normally reuses the fresh profile already loaded during student
+    // login, avoiding a duplicate Firestore read just because Explorer opened.
+    // Only unusual sessions without a seeded profile use the checkpoint loader.
+    if (!state.cloudLoaded) {
+      const cloud = await loadCloudProgress();
+      if (cloud) state.progress = mergeProgress(state.progress, cloud);
+    }
     normalizeCurrentStudentLegacyXp({ source: 'student-open', cloudSave: false });
     state.cloudLoaded = true;
     state.lastCloudSyncAt = Date.now();
     saveLocalProgress();
+    refreshExplorerCheckpointDirtyState('explorer-open-reconcile');
+    if (state.checkpointDirty) scheduleCloudSave('explorer-open-reconcile');
     startHeartTicker();
     await startExplorerProfileListener();
     const preferredCourse = COURSE_KEYS.find(key => isCourseUnlocked(key) && state.progress.courses[key]?.lastTopicId) || (isCourseUnlocked(state.course) ? state.course : 'html');
@@ -46436,10 +46796,8 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     renderCertificates();
     renderCourseRoadmap();
     syncExplorerMobileChrome();
-    // Publish only the safe leaderboard fields for this student, even if they only opened Code Explorer.
-    saveCloudProgress().then(saved => {
-      if (saved) syncIssuedCertificatesToCloud({ ensureProgress: false }).catch(() => []);
-    }).catch(() => false);
+    // No cloud write merely for opening Code Explorer. Certificates are
+    // published when they are actually earned; ordinary progress is checkpointed.
     window.scrollTo({ top: 0, behavior: 'auto' });
     queueStudentPresenceUpdate?.({ currentView: 'code-explorer', activityGroup: 'Code Explorer', activityLabel: 'Exploring code lessons' }, { force: true });
   }
@@ -46465,7 +46823,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     // Give the browser one paint, then sync Code Explorer progress quietly in
     // the background. A slow connection no longer delays navigation.
     window.setTimeout(() => {
-      saveCloudProgress().catch(() => false);
+      saveCloudProgress({ reason: 'explorer-exit', force: true }).catch(() => false);
     }, 60);
   }
 
@@ -49109,12 +49467,13 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   // Reward tiers, daily cap, duplicate protection, total XP integration, and
   // Firestore transaction logic stay inside the existing Code Explorer system.
   window.ICT8_XP_MINIGAMES_BRIDGE = Object.freeze({
-    version: 3,
+    version: 4,
     dailyCap: XP_MINI_GAMES_DAILY_CAP,
     weeklyMax: XP_MINI_GAMES_WEEKLY_MAX,
     getSnapshot: currentXpMiniGamesSnapshot,
     getWeekInfo: xpMiniGamesWeekInfo,
     loadWeeklyLeaderboard: loadXpMiniGamesWeeklyLeaderboard,
+    refreshServerState: refreshXpMiniGamesFromRtdb,
     rewardForScore: miniGameRewardForScore,
     rewardForGame: miniGameRewardForResult,
     beginRound: beginXpMiniGameRound,
