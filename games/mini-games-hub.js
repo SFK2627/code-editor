@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const ASSET_VERSION = '20260911-v474-gameplay-polish';
+  const ASSET_VERSION = '20260911-v475-code-tiles';
 
   const GAME_REGISTRY = Object.freeze([
     {
@@ -313,6 +313,24 @@
         const score = Math.max(0, Number(record.bestScore || 0));
         const round = Math.max(0, Number(record.bestRound || 0));
         return score > 0 ? `🏆 Best ${score} · ${round >= 7 ? 'Final' : `R${round}`}` : '🏆 Vault room ready';
+      }
+    },
+    {
+      id: 'code-tiles',
+      stateKey: 'codeTiles',
+      name: 'CODE TILES',
+      icon: '🎹',
+      description: 'Tap four rhythm lanes from 75 to 140 BPM, hit PERFECT timing, survive hold notes, and keep the code beat synced.',
+      maxXp: 3,
+      category: 'RHYTHM / TIMING',
+      difficulty: '★★★★☆',
+      globalName: 'ICT8CodeTiles',
+      script: 'games/code-tiles/code-tiles.js',
+      style: 'games/code-tiles/code-tiles.css',
+      bestText(record = {}) {
+        const score = Math.max(0, Number(record.bestRunScore || record.bestScore || 0));
+        const accuracy = Math.max(0, Number(record.bestAccuracy || 0));
+        return score > 0 ? `🏆 Best ${score} · ${accuracy.toFixed(1)}%` : '🏆 Track ready';
       }
     },
     {

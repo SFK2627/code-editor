@@ -41860,6 +41860,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   const XP_MINI_GAME_ID_CODE_SLICE = 'code-slice';
   const XP_MINI_GAME_ID_MILLION_BYTE = 'million-byte';
   const XP_MINI_GAME_ID_CODE_VAULT = 'code-vault';
+  const XP_MINI_GAME_ID_CODE_TILES = 'code-tiles';
 
   const XP_MINI_GAME_DEFINITIONS = Object.freeze({
     [XP_MINI_GAME_ID_CODE_FLY]: Object.freeze({ stateKey: 'codeFly', maxReward: 15 }),
@@ -41882,7 +41883,8 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     [XP_MINI_GAME_ID_CODE_BRIDGE]: Object.freeze({ stateKey: 'codeBridge', maxReward: 3 }),
     [XP_MINI_GAME_ID_CODE_SLICE]: Object.freeze({ stateKey: 'codeSlice', maxReward: 3 }),
     [XP_MINI_GAME_ID_MILLION_BYTE]: Object.freeze({ stateKey: 'millionByte', maxReward: 3 }),
-    [XP_MINI_GAME_ID_CODE_VAULT]: Object.freeze({ stateKey: 'codeVault', maxReward: 2 })
+    [XP_MINI_GAME_ID_CODE_VAULT]: Object.freeze({ stateKey: 'codeVault', maxReward: 2 }),
+    [XP_MINI_GAME_ID_CODE_TILES]: Object.freeze({ stateKey: 'codeTiles', maxReward: 3 })
   });
 
   function normalizeXpMiniGameId(gameId = XP_MINI_GAME_ID_CODE_FLY) {
@@ -42382,6 +42384,59 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     return 1;
   }
 
+  // V475 — CODE TILES is one complete five-phase rhythm track. Note movement,
+  // timing judgements, audio, and input stay local; only the compact finish
+  // summary reaches the secured Mini-Game reward bridge.
+  function codeTilesScoreDetails(metrics = {}) {
+    const source = metrics && typeof metrics === 'object' ? metrics : {};
+    const totalNotes = 127;
+    const perfect = Math.max(0, Math.min(totalNotes, Math.floor(Number(source.perfect || 0))));
+    const great = Math.max(0, Math.min(totalNotes - perfect, Math.floor(Number(source.great || 0))));
+    const good = Math.max(0, Math.min(totalNotes - perfect - great, Math.floor(Number(source.good || 0))));
+    const holdsTotal = 9;
+    const holdsCompleted = Math.max(0, Math.min(holdsTotal, Math.floor(Number(source.holdsCompleted || 0))));
+    const counted = perfect + great + good;
+    const misses = Math.max(0, Math.min(totalNotes, totalNotes - counted));
+    const maxCombo = Math.max(0, Math.min(totalNotes, Math.floor(Number(source.maxCombo || 0))));
+    const syncRemaining = Math.max(0, Math.min(100, Number(source.syncRemaining || 0)));
+    const activeTimeMs = Math.max(0, Math.min(2 * 60 * 1000, Math.floor(Number(source.activeTimeMs || source.durationMs || 0))));
+    const completed = source.completedRun === true
+      && Math.floor(Number(source.phasesCompleted || 0)) === 5
+      && Math.floor(Number(source.totalNotes || 0)) === totalNotes
+      && activeTimeMs >= 55000
+      && activeTimeMs <= 80000
+      && counted + misses === totalNotes
+      && syncRemaining > 0;
+    if (!completed) return { score: 0, completed: false, accuracy: 0, perfect, great, good, misses, maxCombo, holdsCompleted, holdsTotal, syncRemaining, activeTimeMs };
+    const weighted = perfect * 100 + great * 85 + good * 65;
+    const accuracy = Math.max(0, Math.min(100, weighted / totalNotes));
+    const comboBonus = Math.round(Math.max(0, Math.min(1, maxCombo / 70)) * 120);
+    const syncBonus = Math.round((syncRemaining / 100) * 80);
+    const score = Math.max(0, Math.min(1000, Math.round(500 + accuracy * 3 + comboBonus + syncBonus)));
+    return {
+      score,
+      completed: true,
+      accuracy: Math.round(accuracy * 10) / 10,
+      perfect,
+      great,
+      good,
+      misses,
+      maxCombo,
+      holdsCompleted,
+      holdsTotal,
+      syncRemaining: Math.round(syncRemaining * 10) / 10,
+      activeTimeMs
+    };
+  }
+
+  function codeTilesRewardForMetrics(metrics = {}) {
+    const details = codeTilesScoreDetails(metrics);
+    if (!details.completed || details.accuracy < 80) return 0;
+    if (details.accuracy >= 96 && details.maxCombo >= 60 && details.misses <= 3 && details.holdsCompleted >= details.holdsTotal) return 3;
+    if (details.accuracy >= 90 && details.maxCombo >= 35) return 2;
+    return 1;
+  }
+
   // V472 — MILLION BYTE is one 15-question knowledge ladder. The browser
   // receives a reserved unseen question set once, then all answering stays local.
   function millionByteScoreDetails(metrics = {}) {
@@ -42588,6 +42643,13 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       return 2;
     }
 
+    // CODE TILES is a fixed ~59 second five-phase rhythm track. Duration is
+    // only a plausibility gate; waiting longer never upgrades its XP tier.
+    if (id === XP_MINI_GAME_ID_CODE_TILES) {
+      const activeSeconds = Math.max(0, Number(source.activeTimeMs || durationMs)) / 1000;
+      return activeSeconds >= 55 && activeSeconds <= 80 ? 3 : 0;
+    }
+
     // CODE SLICE evaluates a complete five-wave stream. Time is only a
     // plausibility floor; waiting longer never raises the reward tier.
     if (id === XP_MINI_GAME_ID_CODE_SLICE) {
@@ -42673,6 +42735,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       case XP_MINI_GAME_ID_CODE_SLICE: tierReward = codeSliceRewardForMetrics(metrics); break;
       case XP_MINI_GAME_ID_MILLION_BYTE: tierReward = millionByteRewardForMetrics(metrics); break;
       case XP_MINI_GAME_ID_CODE_VAULT: tierReward = codeVaultRewardForMetrics(metrics); break;
+      case XP_MINI_GAME_ID_CODE_TILES: tierReward = codeTilesRewardForMetrics(metrics); break;
       default: tierReward = 0;
     }
     return Math.min(tierReward, miniGameDurationRewardCap(id, metrics));
@@ -42904,6 +42967,26 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         crashHit: source.crashHit === true,
         activeTimeMs: Math.max(0, Math.min(10 * 60 * 1000, Math.floor(Number(source.activeTimeMs || 0)))),
         durationMs: Math.max(0, Math.min(10 * 60 * 1000, Math.floor(Number(source.durationMs || 0))))
+      };
+    }
+
+    if (id === XP_MINI_GAME_ID_CODE_TILES) {
+      return {
+        completedRun: source.completedRun === true,
+        phasesCompleted: Math.max(0, Math.min(5, Math.floor(Number(source.phasesCompleted || 0)))),
+        totalNotes: Math.max(0, Math.min(127, Math.floor(Number(source.totalNotes || 0)))),
+        perfect: Math.max(0, Math.min(127, Math.floor(Number(source.perfect || 0)))),
+        great: Math.max(0, Math.min(127, Math.floor(Number(source.great || 0)))),
+        good: Math.max(0, Math.min(127, Math.floor(Number(source.good || 0)))),
+        misses: Math.max(0, Math.min(127, Math.floor(Number(source.misses || 0)))),
+        badTaps: Math.max(0, Math.min(999, Math.floor(Number(source.badTaps || 0)))),
+        maxCombo: Math.max(0, Math.min(127, Math.floor(Number(source.maxCombo || 0)))),
+        holdsCompleted: Math.max(0, Math.min(9, Math.floor(Number(source.holdsCompleted || 0)))),
+        holdsTotal: Math.max(0, Math.min(9, Math.floor(Number(source.holdsTotal || 0)))),
+        accuracy: Math.max(0, Math.min(100, Number(source.accuracy || 0))),
+        syncRemaining: Math.max(0, Math.min(100, Number(source.syncRemaining || 0))),
+        activeTimeMs: Math.max(0, Math.min(2 * 60 * 1000, Math.floor(Number(source.activeTimeMs || 0)))),
+        durationMs: Math.max(0, Math.min(2 * 60 * 1000, Math.floor(Number(source.durationMs || 0))))
       };
     }
 
@@ -43188,6 +43271,19 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       };
     }
 
+    if (id === XP_MINI_GAME_ID_CODE_TILES) {
+      return {
+        ...base,
+        bestScore: Math.max(0, Math.min(1000, Math.floor(Number(source.bestScore || source.bestRunScore || 0)))),
+        bestRunScore: Math.max(0, Math.min(1000, Math.floor(Number(source.bestRunScore || source.bestScore || 0)))),
+        bestCombo: Math.max(0, Math.min(127, Math.floor(Number(source.bestCombo || 0)))),
+        bestAccuracy: Math.max(0, Math.min(100, Number(source.bestAccuracy || 0))),
+        fewestMisses: Math.max(0, Math.min(127, Math.floor(Number(source.fewestMisses == null ? 127 : source.fewestMisses)))),
+        lastRewardDay: /^\d{4}-\d{2}-\d{2}$/.test(String(source.lastRewardDay || '')) ? String(source.lastRewardDay) : '',
+        lastRewardXp: Math.max(0, Math.min(3, Math.floor(Number(source.lastRewardXp || 0))))
+      };
+    }
+
     if (id === XP_MINI_GAME_ID_MILLION_BYTE) {
       return {
         ...base,
@@ -43419,6 +43515,22 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         lastRewardXp: Math.max(0, Math.min(2, Math.floor(lastRewardXp || 0)))
       };
     }
+    if (id === XP_MINI_GAME_ID_CODE_TILES) {
+      const leftDay = String(left.lastRewardDay || '');
+      const rightDay = String(right.lastRewardDay || '');
+      const newestDay = [leftDay, rightDay].filter(Boolean).sort().pop() || '';
+      const lastRewardXp = newestDay === rightDay ? Number(right.lastRewardXp || 0) : Number(left.lastRewardXp || 0);
+      return {
+        lastPlayedAt,
+        bestScore: Math.max(Number(left.bestScore || 0), Number(right.bestScore || 0)),
+        bestRunScore: Math.max(Number(left.bestRunScore || 0), Number(right.bestRunScore || 0)),
+        bestCombo: Math.max(Number(left.bestCombo || 0), Number(right.bestCombo || 0)),
+        bestAccuracy: Math.max(Number(left.bestAccuracy || 0), Number(right.bestAccuracy || 0)),
+        fewestMisses: Math.min(Number(left.fewestMisses ?? 127), Number(right.fewestMisses ?? 127)),
+        lastRewardDay: newestDay,
+        lastRewardXp: Math.max(0, Math.min(3, Math.floor(lastRewardXp || 0)))
+      };
+    }
     return {
       lastPlayedAt,
       bestScore: Math.max(Number(left.bestScore || 0), Number(right.bestScore || 0))
@@ -43509,6 +43621,16 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       next.bestRunScore = Math.max(Number(next.bestRunScore || 0), Number(details.score || score || 0));
       next.bestCombo = Math.max(Number(next.bestCombo || 0), Number(details.maxCombo || metrics.maxCombo || 0));
       next.bestAccuracy = Math.max(Number(next.bestAccuracy || 0), Number(details.accuracy || 0));
+    }
+    if (id === XP_MINI_GAME_ID_CODE_TILES && metrics.completedRun) {
+      const details = codeTilesScoreDetails(metrics);
+      if (details.completed) {
+        next.bestScore = Math.max(Number(next.bestScore || 0), Number(details.score || score || 0));
+        next.bestRunScore = Math.max(Number(next.bestRunScore || 0), Number(details.score || score || 0));
+        next.bestCombo = Math.max(Number(next.bestCombo || 0), Number(details.maxCombo || metrics.maxCombo || 0));
+        next.bestAccuracy = Math.max(Number(next.bestAccuracy || 0), Number(details.accuracy || 0));
+        next.fewestMisses = Math.min(Number(next.fewestMisses ?? 127), Number(details.misses || 0));
+      }
     }
     if (id === XP_MINI_GAME_ID_MILLION_BYTE) {
       next.bestReached = Math.max(Number(next.bestReached || 0), Number(metrics.reachedQuestion || metrics.correctCount || 0));
@@ -45897,7 +46019,8 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       codeBridge: normalizeMiniGameRecord(XP_MINI_GAME_ID_CODE_BRIDGE, miniGames.games?.codeBridge),
       codeSlice: normalizeMiniGameRecord(XP_MINI_GAME_ID_CODE_SLICE, miniGames.games?.codeSlice),
       millionByte: normalizeMiniGameRecord(XP_MINI_GAME_ID_MILLION_BYTE, miniGames.games?.millionByte),
-      codeVault: normalizeMiniGameRecord(XP_MINI_GAME_ID_CODE_VAULT, miniGames.games?.codeVault)
+      codeVault: normalizeMiniGameRecord(XP_MINI_GAME_ID_CODE_VAULT, miniGames.games?.codeVault),
+      codeTiles: normalizeMiniGameRecord(XP_MINI_GAME_ID_CODE_TILES, miniGames.games?.codeTiles)
     };
     return {
       loggedIn,
@@ -46365,6 +46488,24 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       metrics.offerRatio = vaultDetails.offerRatio || 0;
       metrics.payout = vaultDetails.payout || 0;
       score = vaultDetails.completed ? vaultDetails.score : 0;
+      maxPlausibleScore = 1000;
+    } else if (gameId === XP_MINI_GAME_ID_CODE_TILES) {
+      metrics.durationMs = durationMs;
+      metrics.activeTimeMs = Math.max(0, Math.min(Number(metrics.activeTimeMs || durationMs), durationMs));
+      const tilesDetails = codeTilesScoreDetails(metrics);
+      metrics.completedRun = tilesDetails.completed;
+      metrics.phasesCompleted = tilesDetails.completed ? 5 : Math.max(0, Math.min(5, metrics.phasesCompleted || 0));
+      metrics.totalNotes = 127;
+      metrics.perfect = tilesDetails.perfect;
+      metrics.great = tilesDetails.great;
+      metrics.good = tilesDetails.good;
+      metrics.misses = tilesDetails.misses;
+      metrics.maxCombo = tilesDetails.maxCombo;
+      metrics.holdsCompleted = tilesDetails.holdsCompleted;
+      metrics.holdsTotal = 9;
+      metrics.accuracy = tilesDetails.accuracy;
+      metrics.syncRemaining = tilesDetails.syncRemaining;
+      score = tilesDetails.completed ? tilesDetails.score : 0;
       maxPlausibleScore = 1000;
     } else if (gameId === XP_MINI_GAME_ID_BYTE_SLING) {
       metrics.durationMs = durationMs;
@@ -46885,7 +47026,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       // During rollout only, an OLD Apps Script deployment can fall back to the
       // proven Firestore transaction. Network/quota errors do NOT cause a second
       // Firestore claim attempt, preventing double load and duplicate rewards.
-      if (miniGameBridgeNeedsLegacyFallback(error) && gameId !== XP_MINI_GAME_ID_CODE_FLOW && gameId !== XP_MINI_GAME_ID_BYTE_SLING && gameId !== XP_MINI_GAME_ID_CODE_BRIDGE && gameId !== XP_MINI_GAME_ID_CODE_SLICE && gameId !== XP_MINI_GAME_ID_MILLION_BYTE && gameId !== XP_MINI_GAME_ID_CODE_VAULT) {
+      if (miniGameBridgeNeedsLegacyFallback(error) && gameId !== XP_MINI_GAME_ID_CODE_FLOW && gameId !== XP_MINI_GAME_ID_BYTE_SLING && gameId !== XP_MINI_GAME_ID_CODE_BRIDGE && gameId !== XP_MINI_GAME_ID_CODE_SLICE && gameId !== XP_MINI_GAME_ID_MILLION_BYTE && gameId !== XP_MINI_GAME_ID_CODE_VAULT && gameId !== XP_MINI_GAME_ID_CODE_TILES) {
         console.warn('Mini-game Apps Script route is not deployed yet; using temporary legacy reward path.', error);
         return performXpMiniGameClaimLegacyFirestore(sessionId, round, reportedResult);
       }

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ict8-connect-v474b-code-vault-polish';
+const CACHE_NAME = 'ict8-connect-v476a-code-vault-phone-layout';
 
 self.addEventListener('install', event => {
   event.waitUntil(self.skipWaiting());

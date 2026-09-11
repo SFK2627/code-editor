@@ -3,14 +3,15 @@
 
   const GAME_ID = 'million-byte';
   const GLOBAL_NAME = 'ICT8MillionByte';
-  const BANK_URL = 'games/million-byte/million-byte-questions.js?v=20260910-v472-million-byte';
-  const BANK_VERSION = 1;
+  const BANK_URL = 'games/million-byte/million-byte-questions.js?v=20260911-v476-million-byte-1700';
+  const BANK_VERSION = 2;
   const QUESTION_COUNT = 15;
   const LETTERS = ['A', 'B', 'C', 'D'];
   const VALUES = ['100','200','300','500','1K','2K','4K','8K','16K','32K','64K','125K','250K','500K','1M'];
   const TIER_NAMES = ['EASY','MODERATE','CHALLENGING','DIFFICULT','EXPERT'];
+  const TIER_COUNTS = [0, 460, 460, 244, 244, 292];
   const QUESTION_SECONDS = [35,35,35,32,32,32,30,30,30,28,28,28,25,25,25];
-  const LOCAL_STATE_KEY = 'ict8.millionByte.questionCursor.v1';
+  const LOCAL_STATE_KEY = 'ict8.millionByte.questionCursor.v2';
 
   const runtime = {
     built: false,
@@ -92,7 +93,7 @@
         <header class="million-byte-topbar">
           <button type="button" data-mb-back aria-label="Back to Mini-Games">←</button>
           <div class="million-byte-brand"><strong>🧠 MILLION BYTE</strong><small>General Knowledge Challenge</small></div>
-          <span class="million-byte-bank">500 QUESTION POOL · NO REPEATS UNTIL ALL ARE USED</span>
+          <span class="million-byte-bank">1,700 QUESTION POOL · NO REPEATS UNTIL ALL ARE USED</span>
           <button type="button" data-mb-sound aria-label="Toggle sound">🔊</button>
           <button type="button" data-mb-close aria-label="Close">×</button>
         </header>
@@ -129,7 +130,7 @@
             <h2>MILLION BYTE</h2>
             <p>Answer 15 general-knowledge questions from Easy to Expert. One wrong answer ends the run unless you activated Second Chance.</p>
             <div class="million-byte-rule-row">
-              <div><small>QUESTION POOL</small><strong>500</strong></div>
+              <div><small>QUESTION POOL</small><strong>1,700</strong></div>
               <div><small>LIFELINES</small><strong>50:50 + 2X</strong></div>
               <div><small>XP</small><strong>Finish only</strong></div>
             </div>
@@ -238,7 +239,7 @@
   }
 
   function ensureBank() {
-    if (window.ICT8_MILLION_BYTE_BANK?.count >= 500) {
+    if (window.ICT8_MILLION_BYTE_BANK?.version === BANK_VERSION && window.ICT8_MILLION_BYTE_BANK?.count >= 1700) {
       runtime.bank = window.ICT8_MILLION_BYTE_BANK;
       return Promise.resolve(runtime.bank);
     }
@@ -251,7 +252,7 @@
       script.defer = true;
       script.dataset.millionByteBank = 'true';
       script.onload = () => {
-        if (window.ICT8_MILLION_BYTE_BANK?.count >= 500) {
+        if (window.ICT8_MILLION_BYTE_BANK?.version === BANK_VERSION && window.ICT8_MILLION_BYTE_BANK?.count >= 1700) {
           runtime.bank = window.ICT8_MILLION_BYTE_BANK;
           resolve(runtime.bank);
         } else reject(new Error('Million Byte question bank did not initialize.'));
@@ -278,7 +279,8 @@
       state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
       return state / 4294967296;
     };
-    const arr = Array.from({ length: 100 }, (_, i) => i + 1);
+    const tierCount = TIER_COUNTS[tier] || 0;
+    const arr = Array.from({ length: tierCount }, (_, i) => i + 1);
     for (let i = arr.length - 1; i > 0; i -= 1) {
       const j = Math.floor(random() * (i + 1));
       [arr[i], arr[j]] = [arr[j], arr[i]];
@@ -287,21 +289,32 @@
   }
 
   function localQuestionIds() {
-    let state = { version: 1, tiers: {} };
+    let state = { version: BANK_VERSION, tiers: {} };
     try {
       const parsed = JSON.parse(localStorage.getItem(LOCAL_STATE_KEY) || 'null');
-      if (parsed && parsed.version === 1 && parsed.tiers) state = parsed;
+      if (parsed && parsed.version === BANK_VERSION && parsed.tiers) state = parsed;
     } catch (_) {}
     const ids = [];
+    const selected = new Set();
     for (let tier = 1; tier <= 5; tier += 1) {
       let row = state.tiers[tier] || { cycle: 0, cursor: 0 };
+      const tierCount = TIER_COUNTS[tier] || 0;
       let cycle = Math.max(0, Number(row.cycle || 0) | 0);
-      let cursor = Math.max(0, Math.min(100, Number(row.cursor || 0) | 0));
+      let cursor = Math.max(0, Math.min(tierCount, Number(row.cursor || 0) | 0));
       for (let take = 0; take < 3; take += 1) {
-        if (cursor >= 100) { cycle += 1; cursor = 0; }
-        const perm = permutation(tier, cycle);
-        const n = perm[cursor++];
-        ids.push(`mb${tier}-${String(n).padStart(3, '0')}`);
+        let id = '';
+        let guard = 0;
+        while (guard < tierCount + 2) {
+          if (cursor >= tierCount) { cycle += 1; cursor = 0; }
+          const perm = permutation(tier, cycle);
+          const n = perm[cursor++];
+          id = `mb${tier}-${String(n).padStart(3, '0')}`;
+          guard += 1;
+          if (!selected.has(id)) break;
+        }
+        if (!id || selected.has(id)) throw new Error('Could not build a unique local Million Byte question set.');
+        selected.add(id);
+        ids.push(id);
       }
       state.tiers[tier] = { cycle, cursor };
     }
