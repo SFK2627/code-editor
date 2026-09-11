@@ -480,7 +480,11 @@
     const low = runtime.sync < 35 ? '1' : '';
     if (runtime.hudCache.low !== low) { runtime.hudCache.low = low; runtime.syncEl.dataset.low = low; }
     const progress = clamp(trackMs / Math.max(1, runtime.totalTrackMs), 0, 1);
-    runtime.progressEl.style.transform = `scaleX(${progress.toFixed(4)})`;
+    const progressStep = Math.round(progress * 400) / 400;
+    if (runtime.hudCache.progress !== progressStep) {
+      runtime.hudCache.progress = progressStep;
+      runtime.progressEl.style.transform = `scaleX(${progressStep})`;
+    }
   }
 
   function startRun() {
@@ -597,9 +601,17 @@
     while (cursor < chart.length) {
       const note = chart[cursor];
       const endTime = note.targetTime + note.holdDuration;
-      const visualExitDelay = note.holdDuration > 0 ? 360 : 460;
-      if ((note.state === 'hit' || note.state === 'miss') && trackMs > endTime + visualExitDelay) cursor += 1;
-      else break;
+      if (note.state === 'hit') {
+        // Successful notes disappear immediately after input/completion.
+        cursor += 1;
+        continue;
+      }
+      if (note.state === 'miss' && trackMs > endTime + 520) {
+        // Misses are the only notes allowed to visibly travel below the line.
+        cursor += 1;
+        continue;
+      }
+      break;
     }
     runtime.updateCursor = cursor;
 
@@ -635,7 +647,7 @@
     const chart = runtime.chart;
     let earliest = null;
     const group = [];
-    for (let i = Math.max(0, runtime.updateCursor - 2); i < chart.length; i += 1) {
+    for (let i = runtime.updateCursor; i < chart.length; i += 1) {
       const note = chart[i];
       if (note.state !== 'pending') continue;
       if (earliest == null) earliest = note.targetTime;
@@ -918,20 +930,22 @@
   function showJudgement(text, kind) {
     runtime.judgementEl.textContent = text;
     runtime.judgementEl.dataset.kind = kind || '';
+    if (runtime.lowPower) return;
     if (runtime.judgementEl.animate && !window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches) {
+      try { runtime.judgementEl.getAnimations?.().forEach(animation => animation.cancel()); } catch (_) {}
       runtime.judgementEl.animate([
         { opacity: 0, transform: 'translateX(-50%) translateY(7px) scale(.86)' },
-        { opacity: 1, transform: 'translateX(-50%) translateY(0) scale(1.08)', offset: .48 },
+        { opacity: 1, transform: 'translateX(-50%) translateY(0) scale(1.06)', offset: .48 },
         { opacity: .9, transform: 'translateX(-50%) scale(1)' }
-      ], { duration: 260, easing: 'cubic-bezier(.2,.8,.2,1)' });
+      ], { duration: 210, easing: 'cubic-bezier(.2,.8,.2,1)' });
     }
   }
 
   function spawnHitBurst(lane, kind, y = TARGET_Y) {
     const x = BOARD_X + lane * LANE_W + LANE_W / 2;
     const hue = LANE_META[lane].hue;
-    const maxParticles = runtime.lowPower ? 18 : 36;
-    const wanted = kind === 'PERFECT' ? (runtime.lowPower ? 4 : 7) : (runtime.lowPower ? 3 : 5);
+    const maxParticles = runtime.lowPower ? 8 : 28;
+    const wanted = kind === 'PERFECT' ? (runtime.lowPower ? 2 : 6) : (runtime.lowPower ? 1 : 4);
     const count = Math.max(0, Math.min(wanted, maxParticles - runtime.particles.length));
     const now = performance.now();
     for (let i = 0; i < count; i += 1) {
@@ -948,7 +962,11 @@
     for (let i = runtime.particles.length - 1; i >= 0; i -= 1) {
       const p = runtime.particles[i];
       const age = now - p.born;
-      if (age >= p.ttl) { runtime.particles.splice(i, 1); continue; }
+      if (age >= p.ttl) {
+        const last = runtime.particles.pop();
+        if (i < runtime.particles.length && last) runtime.particles[i] = last;
+        continue;
+      }
       const previous = Number.isFinite(p.lastUpdate) ? p.lastUpdate : p.born;
       const dt = clamp((now - previous) / 1000, 0, .04);
       p.lastUpdate = now;
@@ -1094,6 +1112,12 @@
 
   function playLaneTone(lane, strength = 1) {
     const freq = LANE_META[lane]?.freq || 330;
+    if (runtime.lowPower) {
+      // One crisp voice is enough on phones; extra harmonics were a major source
+      // of stutter during chords and rapid taps.
+      synth(freq, .095, .12 * strength, 'triangle', freq * 1.012);
+      return;
+    }
     synth(freq, .12, .13 * strength, 'triangle', freq * 1.015);
     synth(freq * 2, .07, .034 * strength, 'sine');
     synth(freq * 3, .026, .016 * strength, 'square');
@@ -1101,7 +1125,8 @@
 
   function playBeat(accent, beatIndex = 0, phaseIndex = 0) {
     if (!runtime.soundEnabled) return;
-    synth(accent ? 88 : 66, accent ? .105 : .06, accent ? .075 : .035, 'sine', 44);
+    synth(accent ? 88 : 66, accent ? .095 : .055, accent ? .065 : .030, 'sine', 44);
+    if (runtime.lowPower) return;
     synth(accent ? 980 : 1320, .025, accent ? .024 : .015, 'square');
     if (beatIndex % 2 === 0) {
       const roots = [130.81, 146.83, 164.81, 196.0, 174.61];
@@ -1155,9 +1180,9 @@
     else if (kind === 'fail') synth(190, .24, .085, 'sawtooth', 78);
   }
 
-  function vibrate(pattern) {
-    try { if (navigator.vibrate) navigator.vibrate(pattern); } catch (_) {}
-  }
+  // CODE TILES intentionally has no phone vibration/haptic feedback.
+  // Keep this no-op so legacy call sites cannot trigger navigator.vibrate().
+  function vibrate() {}
 
   function toggleSound() {
     runtime.soundEnabled = !runtime.soundEnabled;
@@ -1258,7 +1283,7 @@
 
     const trackMs = ['playing', 'result', 'failed', 'paused'].includes(runtime.state) ? nowInTrack(now) : 0;
     const chart = runtime.chart;
-    const start = Math.max(0, runtime.updateCursor - 5);
+    const start = runtime.updateCursor;
     for (let i = start; i < chart.length; i += 1) {
       const note = chart[i];
       if (note.targetTime - note.travelMs > trackMs + 220) break;
@@ -1299,52 +1324,27 @@
     const completedHold = note.state === 'hit' && note.holdDuration > 0;
     const brokenHold = note.state === 'miss' && note.holdDuration > 0;
 
-    // A completed/missed note is still rendered for a short exit window so it
-    // visibly travels below the sync line instead of disappearing on contact.
-    if (shortHit || shortMiss) {
+    // A correct tap/hold is consumed immediately, Piano-Tiles style.
+    // Only missed notes continue travelling below the deadline line.
+    if (shortHit || completedHold) return;
+
+    if (shortMiss) {
       const y = noteY(note, trackMs);
       if (y < BOARD_TOP - 90 || y > BOARD_BOTTOM + 150) return;
       const x = BOARD_X + note.lane * LANE_W + 2;
       const w = LANE_W - 4;
       const travel = clamp((y - TARGET_Y) / Math.max(1, BOARD_BOTTOM - TARGET_Y + 80), 0, 1);
-      const fadeStart = .68;
-      const alpha = travel <= fadeStart ? 1 : clamp(1 - (travel - fadeStart) / (1 - fadeStart), 0, 1);
-
+      const alpha = travel <= .72 ? 1 : clamp(1 - (travel - .72) / .28, 0, 1);
       ctx.save();
-      ctx.globalAlpha = clamp(alpha, 0, 1);
-      if (shortHit) {
-        const meta = LANE_META[note.lane];
-        const fxAge = Math.max(0, trackMs - Number(note.pressFxAt || note.visualHitAt || trackMs));
-        const pressGlow = clamp(1 - fxAge / 260, 0, 1);
-        // The pressed tile visibly changes color first, then returns toward black
-        // while continuing below the line. This makes the touch feel physical.
-        ctx.fillStyle = 'rgba(255,255,255,.14)';
-        ctx.fillRect(x + 8, y - 104, w - 16, 34);
-        ctx.fillStyle = '#050505';
-        ctx.fillRect(x + 1, y - 72, w - 2, 144);
-        if (pressGlow > 0) {
-          ctx.fillStyle = `hsla(${meta.hue}, 88%, 55%, ${.68 * pressGlow})`;
-          ctx.fillRect(x + 1, y - 72, w - 2, 144);
-          ctx.strokeStyle = `hsla(${meta.hue}, 96%, 78%, ${.90 * pressGlow})`;
-          ctx.lineWidth = 3;
-          ctx.strokeRect(x + 2.5, y - 70.5, w - 5, 141);
-        }
-      } else {
-        ctx.fillStyle = 'rgba(127,29,29,.92)';
-        ctx.fillRect(x + 1, y - 72, w - 2, 144);
-      }
-      if (shortHit && !runtime.lowPower) {
-        ctx.fillStyle = 'rgba(255,255,255,.035)';
-        ctx.fillRect(x + 8, y - 68, w - 16, 14);
-      }
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = 'rgba(127,29,29,.92)';
+      ctx.fillRect(x + 1, y - TILE_H * .5, w - 2, TILE_H);
       ctx.restore();
       return;
     }
 
-    // Once a long tile is successfully released, let the last piece continue
-    // below the line for a fraction of a second before fading out.
-    if (completedHold || brokenHold) {
-      const doneAt = Number(completedHold ? note.holdCompleteAt : note.missAt) || trackMs;
+    if (brokenHold) {
+      const doneAt = Number(note.missAt) || trackMs;
       const elapsed = Math.max(0, trackMs - doneAt);
       const exitDuration = 430;
       if (elapsed > exitDuration) return;
@@ -1353,15 +1353,10 @@
       const w = LANE_W - 4;
       const y = TARGET_Y + 34 + t * 150;
       const h = Math.max(32, 138 * (1 - t * .42));
-
       ctx.save();
       ctx.globalAlpha = t < .48 ? 1 : clamp(1 - (t - .48) / .52, 0, 1);
-      ctx.fillStyle = completedHold ? '#050505' : 'rgba(127,29,29,.92)';
+      ctx.fillStyle = 'rgba(127,29,29,.92)';
       ctx.fillRect(x + 1, y - h * .5, w - 2, h);
-      if (completedHold) {
-        ctx.fillStyle = 'rgba(255,255,255,.12)';
-        ctx.fillRect(x + 8, y - h * .5 - 24, w - 16, 24);
-      }
       ctx.restore();
       return;
     }
@@ -1519,6 +1514,7 @@
     }
     stopAllHoldVoices();
     runtime.round = null;
+    try { navigator.vibrate?.(0); } catch (_) {}
     runtime.open = false;
     runtime.state = 'closed';
     runtime.overlay.hidden = true;
@@ -1549,6 +1545,7 @@
     runtime.lastRewardXp = clamp(Number(record.lastRewardXp || 0), 0, 3);
     runtime.soundEnabled = snap.soundEnabled !== false;
     runtime.soundBtn.textContent = runtime.soundEnabled ? '🔊' : '🔇';
+    try { navigator.vibrate?.(0); } catch (_) {}
     runtime.open = true;
     runtime.state = 'ready';
     runtime.updateCursor = 0;

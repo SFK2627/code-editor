@@ -317,3 +317,17 @@ body.code-tiles-active{overflow:hidden!important;overscroll-behavior:none!import
   .code-tiles-topbar button{width:26px !important;height:26px !important;font-size:12px !important}
   .code-tiles-hud{top:39px !important}.code-tiles-progress{top:65px !important;height:3px !important}
 }
+
+
+/* Code Tiles v5.4 — no native haptic/callout + phone performance polish */
+.code-tiles-canvas{
+  -webkit-touch-callout:none!important;
+  -webkit-tap-highlight-color:transparent!important;
+  user-select:none!important;
+  -webkit-user-select:none!important;
+  touch-action:none!important;
+}
+@media(max-width:900px){
+  .code-tiles-judge{transition:none!important;will-change:auto!important}
+  .code-tiles-shell,.code-tiles-canvas{contain:strict}
+}
