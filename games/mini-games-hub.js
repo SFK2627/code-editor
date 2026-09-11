@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const ASSET_VERSION = '20260912-v4761-gameplay-polish-v1';
+  const ASSET_VERSION = '20260912-v4761-byte-runner-motion-v2';
 
   const GAME_REGISTRY = Object.freeze([
     {

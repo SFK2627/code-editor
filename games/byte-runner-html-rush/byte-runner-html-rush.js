@@ -11,6 +11,9 @@
   const Z_MAX = 122;
   const GATE_TRIGGER_Z = 8.2;
   const PLAYER_GROUND_Y = 0;
+  const SLIDE_DURATION = .86;
+  const JUMP_LAUNCH_VELOCITY = 6.45;
+  const JUMP_GRAVITY = 16.0;
   const PARTICLE_LIMIT = 72;
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
   const lerp = (a, b, t) => a + (b - a) * t;
@@ -650,12 +653,12 @@
 
   function jump() {
     if (runtime.state !== 'RUNNING' || runtime.jumpY > .015 || runtime.jumpVy > .01 || runtime.slideTime > .05) return;
-    runtime.jumpVy=6.35; runtime.jumpY=.02; tone('jump');
+    runtime.jumpVy=JUMP_LAUNCH_VELOCITY; runtime.jumpY=.02; tone('jump');
   }
 
   function slide() {
     if (runtime.state !== 'RUNNING' || runtime.jumpY > .06 || runtime.jumpVy > .1 || runtime.slideTime > .05) return;
-    runtime.slideTime=.72; tone('slide');
+    runtime.slideTime=SLIDE_DURATION; tone('slide');
   }
 
   function onKeyDown(event) {
@@ -927,8 +930,8 @@
         const laneHit=Math.abs(runtime.lanePos-obstacle.lane)<.43;
         if (laneHit) {
           let cleared=false;
-          if (obstacle.type==='crate') cleared=runtime.jumpY>.46;
-          else if (obstacle.type==='beam') cleared=runtime.slideTime>.04 && runtime.jumpY<.22;
+          if (obstacle.type==='crate') cleared=runtime.jumpY>.40;
+          else if (obstacle.type==='beam') cleared=runtime.slideTime>.08 && runtime.jumpY<.20;
           if (!cleared) {
             obstacle.outcome='hit'; runtime.obstacleHits+=1; runtime.combo=0;
             const lost=consumeDamage('obstacle'); burstAtGate(obstacle.lane,'bad',10);
@@ -959,7 +962,7 @@
     runtime.laneShiftCooldown=Math.max(0,runtime.laneShiftCooldown-dt);
     const smooth=1-Math.exp(-12*dt); runtime.lanePos += (runtime.lane-runtime.lanePos)*smooth;
     if (runtime.jumpY>0 || runtime.jumpVy>0) {
-      runtime.jumpVy-=16.4*dt; runtime.jumpY+=runtime.jumpVy*dt;
+      runtime.jumpVy-=JUMP_GRAVITY*dt; runtime.jumpY+=runtime.jumpVy*dt;
       if (runtime.jumpY<=PLAYER_GROUND_Y) { runtime.jumpY=0; if (runtime.jumpVy<-.5) { runtime.landingKick=.18; tone('land'); } runtime.jumpVy=0; }
     }
     runtime.slideTime=Math.max(0,runtime.slideTime-dt); runtime.stumbleTime=Math.max(0,runtime.stumbleTime-dt); runtime.invulnerable=Math.max(0,runtime.invulnerable-dt); runtime.landingKick=Math.max(0,runtime.landingKick-dt); runtime.cameraKick=Math.max(0,runtime.cameraKick-dt*4.8);
@@ -1224,32 +1227,96 @@
 
   function drawObstacle(ctx,item) {
     const p=projectLane(item.lane,item.z); if(p.p<=.004)return;
-    const scale=p.scale; const w=76*scale; const age=item.postResolveAge||0;
+    const scale=p.scale;
+    const laneW=Math.max(42,92*scale);
+    const age=item.postResolveAge||0;
     let alpha=1;
     if(item.outcome==='hit') alpha=clamp(1-age/.30,0,1);
     else if(item.resolved) alpha=clamp(1-age/.68,0,1);
     ctx.save(); ctx.globalAlpha=alpha; ctx.translate(p.x,p.y);
-    ctx.fillStyle=`rgba(0,0,0,${.12+.20*p.p})`; ctx.beginPath(); ctx.ellipse(0,3*scale,w*.52,8*scale,0,0,Math.PI*2); ctx.fill();
+
+    // Ground shadow keeps every obstacle visually planted on the lane.
+    ctx.fillStyle=`rgba(0,0,0,${.13+.22*p.p})`;
+    ctx.beginPath(); ctx.ellipse(0,4*scale,laneW*.47,8*scale,0,0,Math.PI*2); ctx.fill();
 
     if(item.type==='crate') {
-      const hh=62*scale;
-      ctx.fillStyle='#5b2030'; ctx.strokeStyle=item.outcome==='hit'?'#fecdd3':'#fb7185'; ctx.lineWidth=Math.max(1,2*scale);
-      drawRounded(ctx,-w/2,-hh,w,hh,8*scale); ctx.fill(); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(-w/2,-hh); ctx.lineTo(-w*.30,-hh-12*scale); ctx.lineTo(w*.58,-hh-12*scale); ctx.lineTo(w/2,-hh); ctx.closePath(); ctx.fillStyle='#7f1d3a'; ctx.fill();
-      ctx.fillStyle='#fecdd3'; ctx.font=`950 ${clamp(13*scale,6,15)}px system-ui`; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('BUG',0,-hh*.49);
-      ctx.strokeStyle='rgba(254,205,211,.35)'; ctx.beginPath(); ctx.moveTo(-w*.30,-hh*.78); ctx.lineTo(w*.30,-hh*.22); ctx.stroke();
+      // LOW obstacle: deliberately knee/waist height so JUMP is immediately obvious.
+      const w=laneW*.80;
+      const hh=50*scale;
+      ctx.fillStyle=item.outcome==='hit'?'#6f1f32':'#581b2b';
+      ctx.strokeStyle=item.outcome==='hit'?'#fecdd3':'#fb7185';
+      ctx.lineWidth=Math.max(1,2.1*scale);
+      drawRounded(ctx,-w/2,-hh,w,hh,7*scale); ctx.fill(); ctx.stroke();
+      ctx.fillStyle='#7f1d3a';
+      ctx.beginPath(); ctx.moveTo(-w/2,-hh); ctx.lineTo(-w*.34,-hh-10*scale); ctx.lineTo(w*.55,-hh-10*scale); ctx.lineTo(w/2,-hh); ctx.closePath(); ctx.fill();
+
+      // Up chevrons communicate "jump over this" without relying on text alone.
+      ctx.strokeStyle='#fef3c7'; ctx.lineWidth=Math.max(1.5,2.2*scale); ctx.lineCap='round';
+      for(const ox of [-13,13]){
+        ctx.beginPath(); ctx.moveTo((ox-7)*scale,-23*scale); ctx.lineTo(ox*scale,-31*scale); ctx.lineTo((ox+7)*scale,-23*scale); ctx.stroke();
+      }
+      ctx.fillStyle='#fecdd3'; ctx.font=`950 ${clamp(10*scale,6,13)}px system-ui`; ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText('JUMP',0,-hh*.58);
     } else if(item.type==='beam') {
-      const postH=92*scale,beamY=-52*scale;
-      ctx.fillStyle='#173b60'; drawRounded(ctx,-w*.58,-postH,w*.15,postH,3*scale); ctx.fill(); drawRounded(ctx,w*.43,-postH,w*.15,postH,3*scale); ctx.fill();
-      ctx.shadowColor='rgba(248,113,113,.85)'; ctx.shadowBlur=15*scale; ctx.fillStyle='#ef4444'; drawRounded(ctx,-w*.56,beamY,w*1.12,10*scale,5*scale); ctx.fill(); ctx.shadowBlur=0;
-      ctx.fillStyle='#fee2e2'; ctx.font=`950 ${clamp(8*scale,5,10)}px system-ui`; ctx.textAlign='center'; ctx.fillText('FIREWALL',0,beamY-7*scale);
+      // OVERHEAD obstacle: tall posts + low hanging firewall bar with a clear crawl/slide gap.
+      const w=laneW*.98;
+      const postH=110*scale;
+      const beamY=-58*scale;
+      const postW=Math.max(7,10*scale);
+      ctx.fillStyle='#173b60';
+      drawRounded(ctx,-w*.52,-postH,postW,postH,3*scale); ctx.fill();
+      drawRounded(ctx,w*.52-postW,-postH,postW,postH,3*scale); ctx.fill();
+
+      ctx.shadowColor='rgba(248,113,113,.82)'; ctx.shadowBlur=12*scale;
+      ctx.fillStyle='#ef4444';
+      drawRounded(ctx,-w*.50,beamY,w,15*scale,5*scale); ctx.fill();
+      ctx.shadowBlur=0;
+
+      // Down arrows plus open gap make the required SLIDE motion unmistakable.
+      ctx.strokeStyle='#fee2e2'; ctx.lineWidth=Math.max(1.4,2*scale); ctx.lineCap='round';
+      for(const ox of [-15,15]){
+        ctx.beginPath(); ctx.moveTo(ox*scale,-82*scale); ctx.lineTo(ox*scale,-72*scale); ctx.moveTo((ox-6)*scale,-77*scale); ctx.lineTo(ox*scale,-71*scale); ctx.lineTo((ox+6)*scale,-77*scale); ctx.stroke();
+      }
+      ctx.fillStyle='#fee2e2'; ctx.font=`950 ${clamp(9*scale,5,12)}px system-ui`; ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText('SLIDE',0,beamY-10*scale);
+
+      // Floor-level opening outline emphasizes that the way through is underneath the bar.
+      ctx.strokeStyle='rgba(103,232,249,.42)'; ctx.lineWidth=Math.max(1,1.4*scale);
+      ctx.strokeRect(-w*.38,-32*scale,w*.76,30*scale);
     } else {
-      const hh=102*scale;
-      ctx.fillStyle=item.outcome==='hit'?'rgba(127,29,29,.92)':'#402160'; ctx.strokeStyle=item.outcome==='hit'?'#fb7185':'#c084fc'; ctx.lineWidth=Math.max(1,2*scale);
-      drawRounded(ctx,-w*.64,-hh,w*1.28,hh,8*scale); ctx.fill(); ctx.stroke();
-      ctx.fillStyle='#e9d5ff'; ctx.font=`950 ${clamp(9*scale,5,12)}px system-ui`; ctx.textAlign='center'; ctx.fillText('SYNTAX',0,-hh*.58); ctx.fillText('WALL',0,-hh*.40);
+      // FULL BLOCKING WALL: intentionally much taller than the runner and fills the lane.
+      // This is NOT jumpable/slidable; the silhouette should immediately communicate DODGE.
+      const w=laneW*1.08;
+      const hh=154*scale;
+      ctx.fillStyle=item.outcome==='hit'?'rgba(127,29,29,.96)':'#3b1859';
+      ctx.strokeStyle=item.outcome==='hit'?'#fb7185':'#c084fc';
+      ctx.lineWidth=Math.max(1.2,2.4*scale);
+      drawRounded(ctx,-w*.5,-hh,w,hh,8*scale); ctx.fill(); ctx.stroke();
+
+      // Solid side rails remove any false "slide under" opening.
+      ctx.fillStyle='rgba(216,180,254,.14)';
+      ctx.fillRect(-w*.43,-hh+8*scale,6*scale,hh-14*scale);
+      ctx.fillRect(w*.43-6*scale,-hh+8*scale,6*scale,hh-14*scale);
+
+      ctx.strokeStyle='#f5d0fe'; ctx.lineWidth=Math.max(2,3*scale); ctx.lineCap='round';
+      ctx.beginPath();
+      ctx.moveTo(-18*scale,-105*scale); ctx.lineTo(18*scale,-69*scale);
+      ctx.moveTo(18*scale,-105*scale); ctx.lineTo(-18*scale,-69*scale);
+      ctx.stroke();
+
+      ctx.fillStyle='#f3e8ff'; ctx.font=`950 ${clamp(10*scale,6,13)}px system-ui`; ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText('DODGE',0,-126*scale);
+      ctx.fillStyle='#d8b4fe'; ctx.font=`900 ${clamp(7*scale,5,10)}px system-ui`;
+      ctx.fillText('FULL WALL',0,-47*scale);
+
+      // L/R arrows hint that lane change is the only safe response.
+      ctx.strokeStyle='rgba(233,213,255,.75)'; ctx.lineWidth=Math.max(1.2,1.8*scale);
+      ctx.beginPath(); ctx.moveTo(-30*scale,-25*scale); ctx.lineTo(-42*scale,-25*scale); ctx.lineTo(-36*scale,-31*scale); ctx.moveTo(-42*scale,-25*scale); ctx.lineTo(-36*scale,-19*scale); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(30*scale,-25*scale); ctx.lineTo(42*scale,-25*scale); ctx.lineTo(36*scale,-31*scale); ctx.moveTo(42*scale,-25*scale); ctx.lineTo(36*scale,-19*scale); ctx.stroke();
+
       if(item.outcome==='hit'){
-        ctx.strokeStyle='#fecdd3'; ctx.lineWidth=Math.max(1,1.5*scale); ctx.beginPath(); ctx.moveTo(-10*scale,-85*scale); ctx.lineTo(4*scale,-67*scale); ctx.lineTo(-7*scale,-49*scale); ctx.lineTo(12*scale,-31*scale); ctx.stroke();
+        ctx.strokeStyle='#fecdd3'; ctx.lineWidth=Math.max(1,1.5*scale);
+        ctx.beginPath(); ctx.moveTo(-9*scale,-80*scale); ctx.lineTo(5*scale,-63*scale); ctx.lineTo(-6*scale,-46*scale); ctx.lineTo(12*scale,-29*scale); ctx.stroke();
       }
     }
     ctx.restore();
@@ -1325,17 +1392,25 @@
     const runPhase=time*.0087*runRate;
     const swing=Math.sin(runPhase);
     const opposite=Math.sin(runPhase+Math.PI);
+
+    // Pose envelopes: smooth transition in/out instead of instantly snapping into a slide.
+    const slideElapsed=slide?clamp((SLIDE_DURATION-runtime.slideTime)/SLIDE_DURATION,0,1):0;
+    const slidePose=slide?Math.pow(Math.sin(Math.PI*slideElapsed),.42):0;
+    const jumpAir=clamp(runtime.jumpY/1.18,0,1);
+    const jumpRise=jumping?clamp((runtime.jumpVy+2.4)/8.9,0,1):0;
+    const jumpFall=jumping?clamp((-runtime.jumpVy)/7.5,0,1):0;
+
     const bob=jumping||slide||idle?0:(.65+.45*Math.abs(Math.sin(runPhase*2)))*scale;
     const idleBob=idle?Math.sin(time*.0028)*.7*scale:0;
     const celebrationBob=celebrating?Math.abs(Math.sin(time*.006))*5*scale:0;
     const landingAmount=runtime.landingKick>0?clamp(runtime.landingKick/.18,0,1):0;
-    const baseY=h*.958-runtime.jumpY*78-celebrationBob;
+    const baseY=h*.958-runtime.jumpY*78-celebrationBob+slidePose*16*scale;
     const laneLean=clamp((runtime.lane-runtime.lanePos)*-.085,-.065,.065);
 
     ctx.save();
     const air=clamp(runtime.jumpY/1.25,0,.78);
     ctx.globalAlpha=.26*(1-air*.58); ctx.fillStyle='#020617'; ctx.beginPath();
-    ctx.ellipse(x,h*.963,28*scale*(1-air*.18),7*scale*(1-air*.25),0,0,Math.PI*2); ctx.fill();
+    ctx.ellipse(x,h*.963,28*scale*(1-air*.18+slidePose*.22),7*scale*(1-air*.25),0,0,Math.PI*2); ctx.fill();
     if(landingAmount>0){
       ctx.globalAlpha=.18*landingAmount; ctx.strokeStyle='#a5f3fc'; ctx.lineWidth=1.2*scale;
       ctx.beginPath(); ctx.arc(x,h*.961,24*scale+18*scale*(1-landingAmount),0,Math.PI*2); ctx.stroke();
@@ -1344,27 +1419,35 @@
 
     ctx.save();
     ctx.translate(x,baseY+bob+idleBob+landingAmount*2.5*scale);
-    ctx.rotate(hit?Math.sin(time*.045)*.08:laneLean);
-    ctx.scale(1+landingAmount*.045,1-landingAmount*.075);
+    // Slide should crouch, not simply tip sideways. Lane lean remains tiny for direction feedback.
+    ctx.rotate(hit?Math.sin(time*.045)*.08:laneLean*(slide?0.38:1));
+    ctx.scale(1+landingAmount*.045+slidePose*.08,1-landingAmount*.075-slidePose*.10);
     if(runtime.invulnerable>0&&Math.floor(runtime.invulnerable*12)%2===0)ctx.globalAlpha=.56;
 
     if(runtime.shield){
       ctx.strokeStyle='rgba(190,242,100,.72)'; ctx.lineWidth=2.2*scale; ctx.beginPath(); ctx.arc(0,-45*scale,43*scale,0,Math.PI*2); ctx.stroke();
     }
 
-    const hipY=-22*scale;
-    const shoulderY=-57*scale;
+    const hipY=lerp(-22,-9,slidePose)*scale;
+    const shoulderY=lerp(-57,-34,slidePose)*scale;
     const leftHipX=-9*scale, rightHipX=9*scale;
 
     ctx.lineCap='round'; ctx.lineJoin='round';
+
+    // LEGS
     ctx.strokeStyle='#173c59'; ctx.lineWidth=8*scale;
     ctx.beginPath();
     if(slide){
-      ctx.moveTo(leftHipX,hipY); ctx.lineTo(-18*scale,-8*scale); ctx.lineTo(-30*scale,0);
-      ctx.moveTo(rightHipX,hipY); ctx.lineTo(18*scale,-6*scale); ctx.lineTo(30*scale,-2*scale);
+      // One leg folds under the hips while the other extends low and forward.
+      // Combined with the lowered torso/head this reads as a real slide/crouch pose.
+      const fold=slidePose;
+      ctx.moveTo(leftHipX,hipY); ctx.lineTo(lerp(-10,-4,fold)*scale,lerp(-8,-1,fold)*scale); ctx.lineTo(lerp(-20,-31,fold)*scale,lerp(1,4,fold)*scale);
+      ctx.moveTo(rightHipX,hipY); ctx.lineTo(lerp(13,21,fold)*scale,lerp(-7,-2,fold)*scale); ctx.lineTo(lerp(23,38,fold)*scale,lerp(0,2,fold)*scale);
     }else if(jumping){
-      ctx.moveTo(leftHipX,hipY); ctx.lineTo(-16*scale,-8*scale); ctx.lineTo(-6*scale,1*scale);
-      ctx.moveTo(rightHipX,hipY); ctx.lineTo(16*scale,-8*scale); ctx.lineTo(6*scale,1*scale);
+      // Tucked knees on ascent/apex; legs extend progressively on descent for a readable landing.
+      const tuck=clamp(.46+jumpAir*.48-jumpFall*.22,0,1);
+      ctx.moveTo(leftHipX,hipY); ctx.lineTo((-13-5*tuck)*scale,(-8+2*tuck)*scale); ctx.lineTo((-5-4*tuck)*scale,(1+3*jumpFall)*scale);
+      ctx.moveTo(rightHipX,hipY); ctx.lineTo((13+5*tuck)*scale,(-8+2*tuck)*scale); ctx.lineTo((5+4*tuck)*scale,(1+3*jumpFall)*scale);
     }else{
       const lKneeX=(-8+swing*8)*scale, rKneeX=(8+opposite*8)*scale;
       const lKneeY=(-8+Math.max(0,-swing)*3)*scale, rKneeY=(-8+Math.max(0,-opposite)*3)*scale;
@@ -1375,22 +1458,33 @@
     }
     ctx.stroke();
 
+    // FEET
     ctx.strokeStyle='#dbeafe'; ctx.lineWidth=4.2*scale; ctx.beginPath();
-    if(slide){ctx.moveTo(-31*scale,0);ctx.lineTo(-38*scale,1*scale);ctx.moveTo(30*scale,-2*scale);ctx.lineTo(37*scale,-1*scale);}
-    else if(jumping){ctx.moveTo(-6*scale,1*scale);ctx.lineTo(-13*scale,3*scale);ctx.moveTo(6*scale,1*scale);ctx.lineTo(13*scale,3*scale);}
-    else{ctx.moveTo((-12+swing*15)*scale,(2-Math.max(0,swing)*4)*scale);ctx.lineTo((-19+swing*15)*scale,(3-Math.max(0,swing)*4)*scale);ctx.moveTo((12+opposite*15)*scale,(2-Math.max(0,opposite)*4)*scale);ctx.lineTo((19+opposite*15)*scale,(3-Math.max(0,opposite)*4)*scale);}
+    if(slide){
+      ctx.moveTo(-31*scale,4*scale);ctx.lineTo(-39*scale,5*scale);
+      ctx.moveTo(38*scale,2*scale);ctx.lineTo(46*scale,2*scale);
+    }else if(jumping){
+      ctx.moveTo((-5-4*jumpAir)*scale,(1+3*jumpFall)*scale);ctx.lineTo((-13-4*jumpAir)*scale,(3+3*jumpFall)*scale);
+      ctx.moveTo((5+4*jumpAir)*scale,(1+3*jumpFall)*scale);ctx.lineTo((13+4*jumpAir)*scale,(3+3*jumpFall)*scale);
+    }else{
+      ctx.moveTo((-12+swing*15)*scale,(2-Math.max(0,swing)*4)*scale);ctx.lineTo((-19+swing*15)*scale,(3-Math.max(0,swing)*4)*scale);
+      ctx.moveTo((12+opposite*15)*scale,(2-Math.max(0,opposite)*4)*scale);ctx.lineTo((19+opposite*15)*scale,(3-Math.max(0,opposite)*4)*scale);
+    }
     ctx.stroke();
 
+    // ARMS
     ctx.strokeStyle='#1d4f73'; ctx.lineWidth=7*scale; ctx.beginPath();
     if(celebrating){
       ctx.moveTo(-20*scale,shoulderY); ctx.lineTo(-27*scale,-74*scale); ctx.lineTo(-19*scale,-84*scale);
       ctx.moveTo(20*scale,shoulderY); ctx.lineTo(27*scale,-74*scale); ctx.lineTo(19*scale,-84*scale);
     }else if(slide){
-      ctx.moveTo(-20*scale,shoulderY); ctx.lineTo(-28*scale,-38*scale); ctx.lineTo(-17*scale,-28*scale);
-      ctx.moveTo(20*scale,shoulderY); ctx.lineTo(28*scale,-38*scale); ctx.lineTo(17*scale,-28*scale);
+      // Arms move backward/forward close to the body, reinforcing the low slide instead of a sideways tilt.
+      ctx.moveTo(-20*scale,shoulderY); ctx.lineTo(-29*scale,-24*scale); ctx.lineTo(-21*scale,-13*scale);
+      ctx.moveTo(20*scale,shoulderY); ctx.lineTo(30*scale,-27*scale); ctx.lineTo(19*scale,-16*scale);
     }else if(jumping){
-      ctx.moveTo(-20*scale,shoulderY); ctx.lineTo(-27*scale,-70*scale); ctx.lineTo(-21*scale,-77*scale);
-      ctx.moveTo(20*scale,shoulderY); ctx.lineTo(27*scale,-70*scale); ctx.lineTo(21*scale,-77*scale);
+      const armLift=clamp(.55+jumpRise*.30,0,1);
+      ctx.moveTo(-20*scale,shoulderY); ctx.lineTo((-25-5*armLift)*scale,(-63-9*armLift)*scale); ctx.lineTo((-18-4*armLift)*scale,(-70-9*armLift)*scale);
+      ctx.moveTo(20*scale,shoulderY); ctx.lineTo((25+5*armLift)*scale,(-63-9*armLift)*scale); ctx.lineTo((18+4*armLift)*scale,(-70-9*armLift)*scale);
     }else{
       const arm=swing*8*scale;
       ctx.moveTo(-20*scale,shoulderY); ctx.lineTo(-25*scale-arm,-38*scale); ctx.lineTo(-18*scale-arm*.55,-29*scale);
@@ -1398,18 +1492,34 @@
     }
     ctx.stroke();
 
+    // TORSO / BACKPACK. During slide, the whole upper body actually lowers and shortens.
+    const torsoTop=lerp(-70,-50,slidePose)*scale;
+    const torsoH=lerp(50,37,slidePose)*scale;
+    const torsoW=lerp(46,50,slidePose)*scale;
     ctx.fillStyle=hit?'#4b1d2a':'#0b2d46'; ctx.strokeStyle=hit?'#fb7185':'#67e8f9'; ctx.lineWidth=2.5*scale;
-    drawRounded(ctx,-23*scale,-70*scale,46*scale,50*scale,12*scale); ctx.fill(); ctx.stroke();
-    ctx.fillStyle='#164e63'; drawRounded(ctx,-19*scale,-62*scale,38*scale,31*scale,9*scale); ctx.fill();
+    drawRounded(ctx,-torsoW*.5,torsoTop,torsoW,torsoH,lerp(12,10,slidePose)*scale); ctx.fill(); ctx.stroke();
 
+    const packW=lerp(38,40,slidePose)*scale;
+    const packH=lerp(31,25,slidePose)*scale;
+    ctx.fillStyle='#164e63'; drawRounded(ctx,-packW*.5,torsoTop+8*scale,packW,packH,8*scale); ctx.fill();
+
+    const badgeY=torsoTop+torsoH*.49;
     ctx.fillStyle='#071a2b'; ctx.strokeStyle=celebrating?'#bef264':'#22d3ee'; ctx.lineWidth=1.8*scale;
-    drawRounded(ctx,-15*scale,-57*scale,30*scale,27*scale,6*scale); ctx.fill(); ctx.stroke();
-    ctx.fillStyle='#a3e635'; ctx.font=`950 ${8*scale}px ui-monospace,monospace`; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('</>',0,-45*scale);
-    ctx.fillStyle='#7dd3fc'; ctx.font=`900 ${6*scale}px system-ui`; ctx.fillText('BYTE',0,-35*scale);
+    drawRounded(ctx,-15*scale,badgeY-13.5*scale,30*scale,27*scale,6*scale); ctx.fill(); ctx.stroke();
+    ctx.fillStyle='#a3e635'; ctx.font=`950 ${8*scale}px ui-monospace,monospace`; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('</>',0,badgeY-2*scale);
+    ctx.fillStyle='#7dd3fc'; ctx.font=`900 ${6*scale}px system-ui`; ctx.fillText('BYTE',0,badgeY+8*scale);
 
-    ctx.fillStyle='#f2c6a8'; ctx.beginPath(); ctx.arc(0,-81*scale,13.5*scale,0,Math.PI*2); ctx.fill();
-    ctx.fillStyle='#071827'; ctx.beginPath(); ctx.arc(0,-85*scale,14*scale,Math.PI,Math.PI*2); ctx.lineTo(12*scale,-79*scale); ctx.quadraticCurveTo(1*scale,-73*scale,-12*scale,-79*scale); ctx.closePath(); ctx.fill();
-    ctx.strokeStyle='#22d3ee'; ctx.lineWidth=1.7*scale; ctx.beginPath(); ctx.moveTo(-10*scale,-82*scale); ctx.quadraticCurveTo(0,-87*scale,10*scale,-82*scale); ctx.stroke();
+    // HEAD follows the crouch so a slide never looks like an upright runner with sideways legs.
+    const headY=lerp(-81,-53,slidePose)*scale;
+    ctx.fillStyle='#f2c6a8'; ctx.beginPath(); ctx.arc(0,headY,13.5*scale,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#071827'; ctx.beginPath(); ctx.arc(0,headY-4*scale,14*scale,Math.PI,Math.PI*2); ctx.lineTo(12*scale,headY+2*scale); ctx.quadraticCurveTo(1*scale,headY+8*scale,-12*scale,headY+2*scale); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle='#22d3ee'; ctx.lineWidth=1.7*scale; ctx.beginPath(); ctx.moveTo(-10*scale,headY-1*scale); ctx.quadraticCurveTo(0,headY-6*scale,10*scale,headY-1*scale); ctx.stroke();
+
+    // Small movement streak while sliding adds speed without shaking the camera.
+    if(slidePose>.45){
+      ctx.globalAlpha=.22*slidePose; ctx.strokeStyle='#67e8f9'; ctx.lineWidth=1.3*scale;
+      ctx.beginPath(); ctx.moveTo(-34*scale,-28*scale); ctx.lineTo(-49*scale,-24*scale); ctx.moveTo(33*scale,-17*scale); ctx.lineTo(48*scale,-14*scale); ctx.stroke();
+    }
     ctx.restore();
   }
 
