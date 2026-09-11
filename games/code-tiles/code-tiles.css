@@ -337,3 +337,32 @@ body.code-tiles-active{overflow:hidden!important;overscroll-behavior:none!import
 .code-tiles-canvas{touch-action:none!important;-webkit-touch-callout:none!important;-webkit-tap-highlight-color:transparent!important;contain:strict;will-change:auto}
 body.code-tiles-active{touch-action:none;overscroll-behavior:none}
 @media(max-width:700px){.code-tiles-shell{contain:strict}.code-tiles-judge{will-change:auto}}
+
+
+/* CODE TILES v5.6 — readable results + low-paint mobile polish */
+.code-tiles-result.result-card,.code-tiles-card.result-card{color:#0f172a;background:#ffffff;border-color:rgba(148,163,184,.26);box-shadow:0 20px 60px rgba(58,72,120,.20)}
+.code-tiles-result-head h2,.code-tiles-card.result-card h2{color:#0f172a}
+.code-tiles-card.result-card .code-tiles-kicker.success{color:#15803d!important}
+.code-tiles-card.result-card .code-tiles-grade{color:#0369a1;background:#e0f2fe;border-color:#7dd3fc}
+.code-tiles-card.result-card .code-tiles-result-grid>div{background:#f1f5f9;border-color:#cbd5e1;box-shadow:none}
+.code-tiles-card.result-card .code-tiles-result-grid small{color:#475569!important;font-size:9px;font-weight:950}
+.code-tiles-card.result-card .code-tiles-result-grid strong{color:#0f172a!important;font-size:21px}
+.code-tiles-card.result-card .code-tiles-result-grid>div.xp{background:#fffbeb;border-color:#facc15}
+.code-tiles-card.result-card .code-tiles-result-grid>div.xp small{color:#854d0e!important}
+.code-tiles-card.result-card .code-tiles-result-grid>div.xp strong{color:#ca8a04!important}
+.code-tiles-card.result-card .code-tiles-reward-note{background:#e2e8f0!important;color:#0f172a!important;border:1px solid #cbd5e1;font-size:11px!important;font-weight:800}
+.code-tiles-card.result-card .code-tiles-reward-note.success{background:#dcfce7!important;color:#166534!important;border-color:#86efac}
+.code-tiles-card.result-card .code-tiles-reward-note.warn{background:#fef3c7!important;color:#92400e!important;border-color:#fcd34d}
+.code-tiles-card.result-card .code-tiles-actions button{box-shadow:none}
+.code-tiles-card.result-card .code-tiles-actions button:not(.primary){background:#1e293b;color:#fff;border-color:#334155}
+
+@media (max-width:700px){
+  .code-tiles-card.result-card{width:calc(100vw - 28px)!important;max-height:calc(100dvh - 112px)!important;padding:18px 14px!important;border-radius:22px!important}
+  .code-tiles-card.result-card h2{font-size:32px!important;letter-spacing:.02em}
+  .code-tiles-card.result-card .code-tiles-result-grid{gap:8px;margin:12px 0 14px}
+  .code-tiles-card.result-card .code-tiles-result-grid>div{padding:12px 7px;border-radius:14px}
+  .code-tiles-card.result-card .code-tiles-result-grid strong{font-size:20px!important}
+  .code-tiles-card.result-card .code-tiles-actions{gap:8px}
+  .code-tiles-card.result-card .code-tiles-actions button{min-height:48px;font-size:12px}
+  .code-tiles-panel[data-code-tiles-result]{backdrop-filter:none!important;-webkit-backdrop-filter:none!important;background:rgba(216,218,248,.72)!important}
+}
