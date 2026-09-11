@@ -32,6 +32,8 @@
     Object.freeze([410, 88, 9]), Object.freeze([145, 693, 6]), Object.freeze([381, 767, 7]),
     Object.freeze([72, 595, 5]), Object.freeze([322, 920, 5])
   ]);
+  const LANE_FILLS = Object.freeze(['rgba(255,255,255,.18)', 'rgba(255,255,255,.12)', 'rgba(255,255,255,.16)', 'rgba(82,183,255,.28)']);
+  const SYNC_ACCENTS = Object.freeze([.33, .5, .79]);
 
   const LANE_META = Object.freeze([
     Object.freeze({ key: 'D', label: 'HTML', glyph: '</>', hue: 190, freq: 261.63 }),
@@ -88,6 +90,7 @@
     view: { cssW: WORLD_W, cssH: WORLD_H, dpr: 1, scale: 1, scaleX: 1, scaleY: 1, ox: 0, oy: 0, rect: null },
     raf: 0,
     lastFrameNow: 0,
+    lastRenderNow: 0,
     runStartNow: 0,
     pauseStartedNow: 0,
     pausedAccumMs: 0,
@@ -115,6 +118,7 @@
     pointers: new Map(),
     keyboardDown: new Set(),
     particles: [],
+    hitEffects: [],
     laneFlashes: [0, 0, 0, 0],
     targetPulse: 0,
     phaseBanner: null,
@@ -325,21 +329,26 @@
 
       let previousLane = -1;
       let sameLaneRun = 0;
+      let previousEventLanes = [];
       steps.forEach((step, eventIndex) => {
         const targetTime = phaseStart + step * halfBeat;
         const needed = doubleIndices.has(eventIndex) ? 2 : 1;
         const available = [0, 1, 2, 3].filter(lane => laneBlockedUntil[lane] <= targetTime - HIT_WINDOWS.good - 40);
         const pool = available.length >= needed ? available : [0, 1, 2, 3];
-        let firstLane = pool[Math.floor(rng() * pool.length)] ?? (eventIndex % 4);
+        const preferredPool = pool.filter(lane => !previousEventLanes.includes(lane));
+        const firstPool = preferredPool.length ? preferredPool : pool;
+        let firstLane = firstPool[Math.floor(rng() * firstPool.length)] ?? (eventIndex % 4);
         if (firstLane === previousLane && sameLaneRun >= 1) {
-          const alternate = pool.find(lane => lane !== previousLane);
+          const alternate = firstPool.find(lane => lane !== previousLane) ?? pool.find(lane => lane !== previousLane);
           if (alternate != null) firstLane = alternate;
         }
         const lanes = [firstLane];
         if (needed === 2) {
           const secondCandidates = pool.filter(lane => lane !== firstLane);
-          let secondLane = secondCandidates.find(lane => Math.abs(lane - firstLane) >= 2);
-          if (secondLane == null) secondLane = secondCandidates[Math.floor(rng() * Math.max(1, secondCandidates.length))] ?? ((firstLane + 2) % 4);
+          const secondPreferred = secondCandidates.filter(lane => !previousEventLanes.includes(lane));
+          const secondPool = secondPreferred.length ? secondPreferred : secondCandidates;
+          let secondLane = secondPool.find(lane => Math.abs(lane - firstLane) >= 2);
+          if (secondLane == null) secondLane = secondPool[Math.floor(rng() * Math.max(1, secondPool.length))] ?? ((firstLane + 2) % 4);
           lanes.push(secondLane);
         }
 
@@ -356,6 +365,9 @@
               )
             : 0;
           const holdDuration = isHold ? Math.max(beatMs * 2.45, Math.min(requestedHold, phaseEnd - targetTime - 220)) : 0;
+          const pxPerMs = (TARGET_Y - ENTRY_Y) / phase.travelMs;
+          const eventSpacingPx = halfBeat * pxPerMs;
+          const visualHeight = isHold ? TILE_H : clamp(eventSpacingPx * .70, 78, 112);
           chart.push({
             id: `ct-${String(++id).padStart(3, '0')}`,
             phaseIndex,
@@ -363,6 +375,7 @@
             targetTime,
             travelMs: phase.travelMs,
             holdDuration,
+            visualHeight,
             state: 'pending',
             judgement: '',
             errorMs: 0,
@@ -377,6 +390,7 @@
         if (firstLane === previousLane) sameLaneRun += 1;
         else sameLaneRun = 1;
         previousLane = firstLane;
+        previousEventLanes = lanes.slice();
       });
     });
 
@@ -513,6 +527,7 @@
     runtime.hudCache = Object.create(null);
     stopAllHoldVoices();
     runtime.particles.length = 0;
+    runtime.hitEffects.length = 0;
     runtime.laneFlashes.fill(0);
     runtime.laneSources.forEach(set => set.clear());
     runtime.activeHoldByLane.fill(null);
@@ -520,6 +535,7 @@
     runtime.keyboardDown.clear();
     runtime.currentPhase = 0;
     runtime.currentBeatIndex = -1;
+    runtime.lastRenderNow = 0;
     runtime.targetPulse = 0;
     runtime.phaseBanner = { index: 0, startedAt: performance.now() + 300 };
     runtime.finalData = null;
@@ -559,8 +575,14 @@
     } else if (runtime.state === 'playing') {
       updateGame(now);
     }
-    updateParticles(now);
-    renderFrame(now);
+    const renderInterval = runtime.lowPower ? 22 : 0;
+    const shouldRender = !renderInterval || !runtime.lastRenderNow || (now - runtime.lastRenderNow >= renderInterval) || runtime.state !== 'playing';
+    if (shouldRender) {
+      updateParticles(now);
+      updateHitEffects(now);
+      renderFrame(now);
+      runtime.lastRenderNow = now;
+    }
     if (runtime.open && ['countdown', 'playing', 'paused'].includes(runtime.state)) {
       runtime.raf = requestAnimationFrame(loop);
     }
@@ -640,7 +662,8 @@
   function noteHeadVisible(note, trackMs) {
     if (!note || note.state !== 'pending') return false;
     const y = noteY(note, trackMs);
-    return y + TILE_H * .5 >= BOARD_TOP + 2 && y - TILE_H * .5 <= TARGET_Y + TILE_H * .68;
+    const h = Number(note.visualHeight || TILE_H);
+    return y + h * .5 >= BOARD_TOP + 2 && y - h * .5 <= TARGET_Y + h * .68;
   }
 
   function currentInputGroup(trackMs) {
@@ -656,6 +679,14 @@
     }
     if (!group.length) return [];
     return group.some(note => noteHeadVisible(note, trackMs)) ? group.filter(note => noteHeadVisible(note, trackMs)) : [];
+  }
+
+  function nextPendingTargetTime() {
+    const chart = runtime.chart;
+    for (let i = runtime.updateCursor; i < chart.length; i += 1) {
+      if (chart[i].state === 'pending') return chart[i].targetTime;
+    }
+    return null;
   }
 
   function judgementForEarlyTap(note, trackMs) {
@@ -721,6 +752,21 @@
     }
   }
 
+  function spawnTapEffect(note, judgement, y) {
+    const now = performance.now();
+    const maxFx = runtime.lowPower ? 5 : 10;
+    if (runtime.hitEffects.length >= maxFx) runtime.hitEffects.shift();
+    runtime.hitEffects.push({
+      lane: note.lane,
+      y,
+      height: Number(note.visualHeight || TILE_H),
+      hue: LANE_META[note.lane]?.hue || 190,
+      judgement,
+      born: now,
+      duration: runtime.lowPower ? 125 : 145
+    });
+  }
+
   function registerHit(note, judgement, errorMs) {
     if (note.state !== 'pending') return;
     note.judgement = judgement;
@@ -738,7 +784,8 @@
     runtime.score += Math.min(5, Math.floor(runtime.combo / 12));
     runtime.targetPulse = 1;
     const hitY = clamp(noteY(note, note.headHitAt), BOARD_TOP + 8, BOARD_BOTTOM - 8);
-    spawnHitBurst(note.lane, judgement, hitY);
+    if (note.holdDuration <= 0) spawnTapEffect(note, judgement, hitY);
+    if (!runtime.lowPower) spawnHitBurst(note.lane, judgement, hitY);
     showJudgement(note.holdDuration > 0 ? `${judgement} · HOLD` : judgement, judgement.toLowerCase());
     playLaneTone(note.lane, judgement === 'PERFECT' ? 1 : judgement === 'GREAT' ? .88 : .76);
     if (note.holdDuration > 0) {
@@ -759,7 +806,8 @@
     runtime.score += 12;
     runtime.sync = Math.min(100, runtime.sync + 1.5);
     showJudgement('HOLD ✓', 'perfect');
-    spawnHitBurst(note.lane, 'HOLD');
+    spawnTapEffect(note, 'PERFECT', TARGET_Y);
+    if (!runtime.lowPower) spawnHitBurst(note.lane, 'HOLD');
     playLaneTone(note.lane, 1.12);
     vibrate(12);
   }
@@ -942,6 +990,7 @@
   }
 
   function spawnHitBurst(lane, kind, y = TARGET_Y) {
+    if (runtime.lowPower) return;
     const x = BOARD_X + lane * LANE_W + LANE_W / 2;
     const hue = LANE_META[lane].hue;
     const maxParticles = runtime.lowPower ? 8 : 28;
@@ -974,6 +1023,15 @@
       p.y += p.vy * dt;
       p.vy += 145 * dt;
       p.vx *= Math.pow(.98, dt * 60);
+    }
+  }
+
+  function updateHitEffects(now) {
+    for (let i = runtime.hitEffects.length - 1; i >= 0; i -= 1) {
+      const fx = runtime.hitEffects[i];
+      if (now - fx.born >= fx.duration) {
+        runtime.hitEffects.splice(i, 1);
+      }
     }
   }
 
@@ -1125,8 +1183,11 @@
 
   function playBeat(accent, beatIndex = 0, phaseIndex = 0) {
     if (!runtime.soundEnabled) return;
+    if (runtime.lowPower) {
+      if (accent) synth(88, .07, .032, 'sine', 48);
+      return;
+    }
     synth(accent ? 88 : 66, accent ? .095 : .055, accent ? .065 : .030, 'sine', 44);
-    if (runtime.lowPower) return;
     synth(accent ? 980 : 1320, .025, accent ? .024 : .015, 'square');
     if (beatIndex % 2 === 0) {
       const roots = [130.81, 146.83, 164.81, 196.0, 174.61];
@@ -1218,25 +1279,30 @@
     ctx.fillStyle = runtime.backdropGradient || '#d9dbf8';
     ctx.fillRect(0, 0, WORLD_W, WORLD_H);
 
-    BACKDROP_GLOWS.forEach(([x, y, r, color], idx) => {
-      const drift = runtime.lowPower ? 0 : Math.sin(now * 0.00055 + idx) * 5;
-      ctx.fillStyle = color;
-      ctx.beginPath();
-      ctx.arc(x, y + drift, r, 0, Math.PI * 2);
-      ctx.fill();
-    });
+    if (!runtime.lowPower) {
+      BACKDROP_GLOWS.forEach(([x, y, r, color], idx) => {
+        const drift = Math.sin(now * 0.00055 + idx) * 5;
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.arc(x, y + drift, r, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    }
 
-    ctx.save();
-    ctx.globalAlpha = runtime.lowPower ? 0.48 : 0.76;
-    ctx.fillStyle = 'rgba(255,255,255,.78)';
-    BACKDROP_STARS.forEach(([x, y, s]) => {
-      ctx.beginPath();
-      ctx.moveTo(x, y - s); ctx.lineTo(x + s * .34, y - s * .34); ctx.lineTo(x + s, y); ctx.lineTo(x + s * .34, y + s * .34);
-      ctx.lineTo(x, y + s); ctx.lineTo(x - s * .34, y + s * .34); ctx.lineTo(x - s, y); ctx.lineTo(x - s * .34, y - s * .34);
-      ctx.closePath();
-      ctx.fill();
-    });
-    ctx.restore();
+    if (!runtime.lowPower) {
+      ctx.save();
+      ctx.globalAlpha = 0.76;
+      ctx.fillStyle = 'rgba(255,255,255,.78)';
+      for (let i = 0; i < BACKDROP_STARS.length; i += 1) {
+        const [x, y, s] = BACKDROP_STARS[i];
+        ctx.beginPath();
+        ctx.moveTo(x, y - s); ctx.lineTo(x + s * .34, y - s * .34); ctx.lineTo(x + s, y); ctx.lineTo(x + s * .34, y + s * .34);
+        ctx.lineTo(x, y + s); ctx.lineTo(x - s * .34, y + s * .34); ctx.lineTo(x - s, y); ctx.lineTo(x - s * .34, y - s * .34);
+        ctx.closePath();
+        ctx.fill();
+      }
+      ctx.restore();
+    }
   }
 
   function drawBoard(ctx, now) {
@@ -1244,10 +1310,9 @@
     roundRect(ctx, BOARD_X, BOARD_TOP, BOARD_W, BOARD_BOTTOM - BOARD_TOP, 16);
     ctx.clip();
 
-    const laneFills = ['rgba(255,255,255,.18)', 'rgba(255,255,255,.12)', 'rgba(255,255,255,.16)', 'rgba(82,183,255,.28)'];
     for (let lane = 0; lane < 4; lane += 1) {
       const x = BOARD_X + lane * LANE_W;
-      ctx.fillStyle = laneFills[lane];
+      ctx.fillStyle = LANE_FILLS[lane];
       ctx.fillRect(x, BOARD_TOP, LANE_W, BOARD_BOTTOM - BOARD_TOP);
       if (lane > 0) {
         ctx.strokeStyle = 'rgba(255,255,255,.34)';
@@ -1268,8 +1333,8 @@
     ctx.moveTo(BOARD_X + 4, TARGET_Y);
     ctx.lineTo(BOARD_X + BOARD_W - 4, TARGET_Y);
     ctx.stroke();
-    const accents = [BOARD_X + BOARD_W * .33, BOARD_X + BOARD_W * .5, BOARD_X + BOARD_W * .79];
-    accents.forEach((cx, i) => {
+    SYNC_ACCENTS.forEach((ratio, i) => {
+      const cx = BOARD_X + BOARD_W * ratio;
       const size = i === 2 ? 9 : 11;
       ctx.fillStyle = i === 2 ? 'rgba(30,64,175,.95)' : 'rgba(250,204,21,.96)';
       ctx.beginPath();
@@ -1284,12 +1349,14 @@
     const trackMs = ['playing', 'result', 'failed', 'paused'].includes(runtime.state) ? nowInTrack(now) : 0;
     const chart = runtime.chart;
     const start = runtime.updateCursor;
+    const nextTime = nextPendingTargetTime();
     for (let i = start; i < chart.length; i += 1) {
       const note = chart[i];
-      if (note.targetTime - note.travelMs > trackMs + 220) break;
+      if (note.targetTime - note.travelMs > trackMs + 180) break;
       if (note.targetTime + note.holdDuration < trackMs - 520 && (note.state === 'hit' || note.state === 'miss')) continue;
-      drawNote(ctx, note, trackMs, now);
+      drawNote(ctx, note, trackMs, now, nextTime != null && Math.abs(note.targetTime - nextTime) <= 1);
     }
+    drawHitEffects(ctx, now);
 
     if (!isPhoneLayout()) drawLanePads(ctx, trackMs);
 
@@ -1318,7 +1385,7 @@
     return TARGET_Y - delta * pixelsPerMs;
   }
 
-  function drawNote(ctx, note, trackMs, now) {
+  function drawNote(ctx, note, trackMs, now, isNext = false) {
     const shortHit = note.state === 'hit' && note.holdDuration <= 0;
     const shortMiss = note.state === 'miss' && note.holdDuration <= 0;
     const completedHold = note.state === 'hit' && note.holdDuration > 0;
@@ -1333,12 +1400,13 @@
       if (y < BOARD_TOP - 90 || y > BOARD_BOTTOM + 150) return;
       const x = BOARD_X + note.lane * LANE_W + 2;
       const w = LANE_W - 4;
+      const shortH = Number(note.visualHeight || TILE_H);
       const travel = clamp((y - TARGET_Y) / Math.max(1, BOARD_BOTTOM - TARGET_Y + 80), 0, 1);
       const alpha = travel <= .72 ? 1 : clamp(1 - (travel - .72) / .28, 0, 1);
       ctx.save();
       ctx.globalAlpha = alpha;
       ctx.fillStyle = 'rgba(127,29,29,.92)';
-      ctx.fillRect(x + 1, y - TILE_H * .5, w - 2, TILE_H);
+      ctx.fillRect(x + 1, y - shortH * .5, w - 2, shortH);
       ctx.restore();
       return;
     }
@@ -1380,39 +1448,70 @@
       const h = Math.max(1, drawBottom - top);
 
       ctx.save();
-      ctx.fillStyle = held ? `hsla(${meta.hue}, 54%, 18%, .98)` : '#050505';
+      ctx.fillStyle = '#050505';
       ctx.fillRect(x + 1, top, w - 2, h);
       if (held) {
-        ctx.strokeStyle = `hsla(${meta.hue}, 94%, 74%, .78)`;
-        ctx.lineWidth = 3;
+        const progress = clamp((trackMs - note.targetTime) / Math.max(1, note.holdDuration), 0, 1);
+        const fillH = Math.max(0, h * progress);
+        const fillY = drawBottom - fillH;
+        ctx.fillStyle = `hsla(${meta.hue}, 78%, 52%, .78)`;
+        ctx.fillRect(x + 2, fillY, w - 4, fillH);
+        ctx.fillStyle = `hsla(${meta.hue}, 98%, 82%, .92)`;
+        ctx.fillRect(x + 2, Math.max(top, fillY - 4), w - 4, 4);
+        ctx.strokeStyle = `hsla(${meta.hue}, 96%, 76%, .90)`;
+        ctx.lineWidth = 2.5;
         ctx.strokeRect(x + 2.5, top + 1.5, w - 5, Math.max(1, h - 3));
+      } else if (isNext) {
+        ctx.strokeStyle = 'rgba(255,255,255,.78)';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(x + 3, top + 2, w - 6, Math.max(1, h - 4));
       }
       // Tail cap makes the end of a long note easy to read while it approaches.
-      ctx.fillStyle = held ? 'rgba(191,219,254,.92)' : 'rgba(255,255,255,.22)';
+      ctx.fillStyle = held ? 'rgba(255,255,255,.92)' : 'rgba(255,255,255,.20)';
       ctx.fillRect(x + 8, top + 2, w - 16, 4);
-      if (held) {
-        const progress = clamp((trackMs - note.targetTime) / Math.max(1, note.holdDuration), 0, 1);
-        ctx.fillStyle = `hsla(${meta.hue}, 90%, 64%, .18)`;
-        ctx.fillRect(x + 2, top, 5, h);
-        ctx.fillRect(x + w - 7, top, 5, h);
-        ctx.fillStyle = `hsla(${meta.hue}, 95%, 70%, .92)`;
-        ctx.fillRect(x + 1, Math.min(drawBottom - 8, TARGET_Y - 6), (w - 2) * progress, 6);
-        ctx.fillStyle = `hsla(${meta.hue}, 96%, 74%, .24)`;
-        ctx.fillRect(x + 1, TARGET_Y - 4, w - 2, 8);
-      }
       ctx.restore();
       return;
     }
 
-    if (headY + TILE_H * .5 < BOARD_TOP || headY - TILE_H * .5 > BOARD_BOTTOM + 12) return;
+    const shortH = Number(note.visualHeight || TILE_H);
+    if (headY + shortH * .5 < BOARD_TOP || headY - shortH * .5 > BOARD_BOTTOM + 12) return;
     ctx.save();
     ctx.fillStyle = '#050505';
-    ctx.fillRect(x + 1, headY - TILE_H * .5, w - 2, TILE_H);
+    ctx.fillRect(x + 1, headY - shortH * .5, w - 2, shortH);
+    if (isNext) {
+      ctx.strokeStyle = 'rgba(255,255,255,.74)';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(x + 2, headY - shortH * .5 + 1, w - 4, shortH - 2);
+    }
     if (!runtime.lowPower) {
       ctx.fillStyle = 'rgba(255,255,255,.03)';
-      ctx.fillRect(x + 8, headY - TILE_H * .5 + 4, w - 16, 14);
+      ctx.fillRect(x + 8, headY - shortH * .5 + 4, w - 16, Math.min(12, shortH * .12));
     }
     ctx.restore();
+  }
+
+  function drawHitEffects(ctx, now) {
+    for (let i = 0; i < runtime.hitEffects.length; i += 1) {
+      const fx = runtime.hitEffects[i];
+      const t = clamp((now - fx.born) / fx.duration, 0, 1);
+      const x = BOARD_X + fx.lane * LANE_W + 2;
+      const w = LANE_W - 4;
+      const press = t < .28 ? t / .28 : 1;
+      const fade = t < .58 ? 1 : clamp(1 - (t - .58) / .42, 0, 1);
+      const scaleY = t < .28 ? lerp(1, .88, press) : lerp(.88, .56, (t - .28) / .72);
+      const h = Math.max(16, fx.height * scaleY);
+      ctx.save();
+      ctx.globalAlpha = fade;
+      ctx.fillStyle = `hsla(${fx.hue}, 86%, ${fx.judgement === 'PERFECT' ? 60 : 54}%, .94)`;
+      ctx.fillRect(x + 2, fx.y - h * .5, w - 4, h);
+      ctx.strokeStyle = 'rgba(255,255,255,.88)';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(x + 3, fx.y - h * .5 + 1, w - 6, Math.max(1, h - 2));
+      const sweep = w * clamp(t / .45, 0, 1);
+      ctx.fillStyle = 'rgba(255,255,255,.25)';
+      ctx.fillRect(x + 4, fx.y - 2, Math.max(0, sweep - 8), 4);
+      ctx.restore();
+    }
   }
 
   function drawLanePads(ctx, trackMs) {
@@ -1472,6 +1571,7 @@
 
   function drawPhaseBanner(ctx, now) {
     if (!runtime.phaseBanner) return;
+    if (runtime.lowPower && runtime.state === 'playing' && runtime.phaseBanner.index > 0) return;
     const age = now - runtime.phaseBanner.startedAt;
     if (age < 0 || age > 1150) return;
     const t = clamp(age / 1150, 0, 1);

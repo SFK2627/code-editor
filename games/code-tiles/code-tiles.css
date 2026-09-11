@@ -331,3 +331,9 @@ body.code-tiles-active{overflow:hidden!important;overscroll-behavior:none!import
   .code-tiles-judge{transition:none!important;will-change:auto!important}
   .code-tiles-shell,.code-tiles-canvas{contain:strict}
 }
+
+
+/* CODE TILES v5.5 — input/performance polish only */
+.code-tiles-canvas{touch-action:none!important;-webkit-touch-callout:none!important;-webkit-tap-highlight-color:transparent!important;contain:strict;will-change:auto}
+body.code-tiles-active{touch-action:none;overscroll-behavior:none}
+@media(max-width:700px){.code-tiles-shell{contain:strict}.code-tiles-judge{will-change:auto}}

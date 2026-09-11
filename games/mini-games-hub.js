@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const ASSET_VERSION = '20260912-v4761-code-tiles-v54-perf';
+  const ASSET_VERSION = '20260912-v4761-code-tiles-v55-ultra';
 
   const GAME_REGISTRY = Object.freeze([
     {
