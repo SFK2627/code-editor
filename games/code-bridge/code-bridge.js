@@ -99,7 +99,8 @@
     waitingToStart: true,
     cleanRun: true,
     failReason: '',
-    finalData: null
+    finalData: null,
+    layoutToken: 0
   };
 
   function hashSeed(value) {
@@ -346,10 +347,16 @@
   }
 
   function resizeCanvas() {
-    if (!runtime.open || !runtime.canvas || !runtime.ctx) return;
+    if (!runtime.open || !runtime.canvas || !runtime.ctx) return false;
     const rect = runtime.canvas.getBoundingClientRect();
-    const cssW = Math.max(280, rect.width || WORLD_W);
-    const cssH = Math.max(420, rect.height || WORLD_H);
+
+    // Never lock in the browser's default 300x150 canvas size. On a first
+    // launch the stylesheet can still be settling for a frame, and measuring
+    // that temporary size was the cause of the broken first-open layout.
+    if (rect.width < 260 || rect.height < 360) return false;
+
+    const cssW = Math.max(280, rect.width);
+    const cssH = Math.max(420, rect.height);
     const dpr = clamp(Number(devicePixelRatio || 1), 1, MAX_DPR);
     runtime.canvas.width = Math.round(cssW * dpr);
     runtime.canvas.height = Math.round(cssH * dpr);
@@ -364,6 +371,28 @@
       oy: (cssH - WORLD_H * scale) / 2
     };
     requestRender();
+    return true;
+  }
+
+  function stabilizeInitialLayout(token, attempt = 0) {
+    if (!runtime.open || token !== runtime.layoutToken) return;
+    const ready = resizeCanvas();
+    if (!ready && attempt < 10) {
+      window.setTimeout(() => stabilizeInitialLayout(token, attempt + 1), 34);
+      return;
+    }
+
+    if (ready) {
+      resetRunWorld();
+      render(performance.now());
+      // One more measurement after paint catches browser UI / safe-area changes
+      // on phones and desktop modal transitions without requiring a back/reopen.
+      requestAnimationFrame(() => {
+        if (!runtime.open || token !== runtime.layoutToken) return;
+        resizeCanvas();
+        render(performance.now());
+      });
+    }
   }
 
   function requestRender() {
@@ -443,6 +472,7 @@
 
   function startNewSession() {
     if (runtime.rewardSubmitting) return;
+    resizeCanvas();
     try {
       if (runtime.round?.sessionId) runtime.bridge?.cancelRound?.(runtime.round.sessionId);
     } catch (_) {}
@@ -1189,6 +1219,7 @@
     runtime.state = 'closed';
     runtime.pointerId = null;
     runtime.rewardSubmitting = false;
+    runtime.layoutToken += 1;
     runtime.overlay.hidden = true;
     document.body.classList.remove('code-bridge-active');
     if (runtime.raf) cancelAnimationFrame(runtime.raf);
@@ -1221,11 +1252,9 @@
     document.body.classList.add('code-bridge-active');
     updateHud();
     runtime.lastFrame = performance.now();
-    requestAnimationFrame(() => {
-      resizeCanvas();
-      resetRunWorld();
-      render(performance.now());
-    });
+    runtime.layoutToken += 1;
+    const layoutToken = runtime.layoutToken;
+    requestAnimationFrame(() => requestAnimationFrame(() => stabilizeInitialLayout(layoutToken)));
   }
 
   window.ICT8CodeBridge = Object.freeze({

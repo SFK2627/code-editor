@@ -40,6 +40,9 @@
     resultXp: null,
     resultNote: null,
     soundBtn: null,
+    revealToast: null,
+    revealToastTimer: 0,
+    offerAnimFrame: 0,
     round: null,
     state: 'closed',
     caseValues: [],
@@ -170,6 +173,13 @@
             </div>
           </div>
         </div>
+
+        <div class="code-vault-reveal-toast" data-cv-reveal-toast hidden aria-live="polite">
+          <span class="code-vault-reveal-case">VAULT 00</span>
+          <small>REVEALED VALUE</small>
+          <strong>0 BYTE</strong>
+          <em>REMOVED FROM THE BOARD</em>
+        </div>
       </section>`;
     document.body.appendChild(overlay);
 
@@ -199,6 +209,7 @@
     runtime.resultXp = overlay.querySelector('[data-cv-result-xp]');
     runtime.resultNote = overlay.querySelector('[data-cv-result-note]');
     runtime.soundBtn = overlay.querySelector('[data-cv-sound]');
+    runtime.revealToast = overlay.querySelector('[data-cv-reveal-toast]');
 
     overlay.querySelector('[data-cv-play]').addEventListener('click', startGame);
     overlay.querySelector('[data-cv-deal]').addEventListener('click', takeDeal);
@@ -292,6 +303,68 @@
     return { score, tier, roundReached };
   }
 
+  function clearRevealToast() {
+    if (runtime.revealToastTimer) {
+      window.clearTimeout(runtime.revealToastTimer);
+      runtime.revealToastTimer = 0;
+    }
+    if (runtime.revealToast) {
+      runtime.revealToast.hidden = true;
+      runtime.revealToast.classList.remove('is-high', 'is-top', 'is-showing');
+    }
+  }
+
+  function showRevealToast(index, value) {
+    if (!runtime.revealToast) return;
+    clearRevealToast();
+    const n = Math.max(0, Math.floor(Number(value || 0)));
+    runtime.revealToast.querySelector('.code-vault-reveal-case').textContent = `VAULT ${String(index + 1).padStart(2, '0')}`;
+    runtime.revealToast.querySelector('strong').textContent = formatByte(n);
+    runtime.revealToast.classList.toggle('is-high', n >= 100000);
+    runtime.revealToast.classList.toggle('is-top', n >= 500000);
+    runtime.revealToast.hidden = false;
+    // Force a fresh animation even if two reveals happen quickly.
+    void runtime.revealToast.offsetWidth;
+    runtime.revealToast.classList.add('is-showing');
+    runtime.revealToastTimer = window.setTimeout(clearRevealToast, n >= 100000 ? 1280 : 1050);
+  }
+
+  function pulseEliminatedValue(value) {
+    const chip = runtime.overlay?.querySelector(`.code-vault-value-chip[data-value="${Number(value)}"]`);
+    if (!chip) return;
+    chip.classList.add('just-eliminated');
+    window.setTimeout(() => chip.classList.remove('just-eliminated'), 620);
+  }
+
+  function animateOfferValue(target) {
+    if (!runtime.offerValueEl) return;
+    if (runtime.offerAnimFrame) cancelAnimationFrame(runtime.offerAnimFrame);
+    const end = Math.max(0, Math.floor(Number(target || 0)));
+    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+    if (reduce) {
+      runtime.offerValueEl.textContent = formatByte(end);
+      return;
+    }
+    const duration = 720;
+    const started = performance.now();
+    const tick = now => {
+      const t = Math.min(1, (now - started) / duration);
+      const eased = 1 - Math.pow(1 - t, 4);
+      runtime.offerValueEl.textContent = formatByte(Math.round(end * eased));
+      if (t < 1) runtime.offerAnimFrame = requestAnimationFrame(tick);
+      else { runtime.offerAnimFrame = 0; runtime.offerValueEl.textContent = formatByte(end); }
+    };
+    runtime.offerAnimFrame = requestAnimationFrame(tick);
+  }
+
+  function animatePanelIn(panel) {
+    if (!panel) return;
+    panel.classList.remove('is-entering');
+    void panel.offsetWidth;
+    panel.classList.add('is-entering');
+    window.setTimeout(() => panel.classList.remove('is-entering'), 520);
+  }
+
   function renderValues() {
     const openedSet = new Set(runtime.openedCases.map(index => runtime.caseValues[index]));
     const low = CASE_VALUES.slice(0, 8);
@@ -317,11 +390,22 @@
       if (isOwn) classes.push('is-yours');
       if (isOpen) classes.push('is-open');
       const disabled = runtime.interactionLocked || isOwn || isOpen || (runtime.state !== 'choose' && runtime.state !== 'opening');
+      const dealStyle = runtime.state === 'choose' ? ` style="--cv-case-i:${index}"` : '';
       return `
-        <button type="button" class="${classes.join(' ')}" data-case-index="${index}" ${disabled ? 'disabled' : ''} aria-label="Vault ${index + 1}${isOwn ? ', your vault' : ''}">
+        <button type="button" class="${classes.join(' ')}" data-case-index="${index}"${dealStyle} ${disabled ? 'disabled' : ''} aria-label="Vault ${index + 1}${isOwn ? ', your vault' : ''}">
           <span class="code-vault-case-inner">
-            <span class="code-vault-case-front"><i></i><b>${String(index + 1).padStart(2, '0')}</b><small>${isOwn ? 'YOUR VAULT' : 'DATA VAULT'}</small></span>
-            <span class="code-vault-case-back"><small>CONTAINED</small><b>${formatCompact(value)}</b><em>BYTE</em></span>
+            <span class="code-vault-case-front">
+              <i class="code-vault-lock"></i>
+              <span class="code-vault-front-label">VAULT</span>
+              <b>${String(index + 1).padStart(2, '0')}</b>
+              <small>${isOwn ? 'YOUR SEALED VAULT' : 'TAP TO OPEN'}</small>
+            </span>
+            <span class="code-vault-case-back">
+              <span class="code-vault-back-case">VAULT ${String(index + 1).padStart(2, '0')}</span>
+              <small>REVEALED VALUE</small>
+              <b>${Number(value).toLocaleString('en-US')}</b>
+              <em>BYTE</em>
+            </span>
           </span>
         </button>`;
     }).join('');
@@ -367,11 +451,16 @@
     runtime.startedAt = Date.now();
     runtime.interactionLocked = false;
     runtime.rewardSubmitting = false;
+    clearRevealToast();
     try { runtime.round = runtime.bridge?.beginRound?.(GAME_ID) || null; } catch (_) { runtime.round = null; }
     const roundId = String(runtime.round?.sessionId || `code-vault-local-${Date.now()}`);
     runtime.caseValues = shuffledValues(roundId);
     renderValues();
     renderCases();
+    runtime.casesEl.classList.remove('is-dealing');
+    void runtime.casesEl.offsetWidth;
+    runtime.casesEl.classList.add('is-dealing');
+    window.setTimeout(() => runtime.casesEl?.classList.remove('is-dealing'), 900);
     renderHud();
     playTone(320, .04, .04);
   }
@@ -385,7 +474,11 @@
       runtime.openedThisRound = 0;
       renderCases();
       renderHud();
-      setStatus(`VAULT ${String(index + 1).padStart(2, '0')} is yours. Open ${OPEN_COUNTS[0]} vaults.`, 'good');
+      setStatus(`VAULT ${String(index + 1).padStart(2, '0')} locked as YOUR VAULT. Open ${OPEN_COUNTS[0]} other vaults.`, 'good');
+      runtime.stageBadge.classList.remove('is-pulse');
+      void runtime.stageBadge.offsetWidth;
+      runtime.stageBadge.classList.add('is-pulse');
+      window.setTimeout(() => runtime.stageBadge?.classList.remove('is-pulse'), 620);
       playTone(520, .05, .05);
       return;
     }
@@ -406,8 +499,11 @@
       runtime.openedThisRound += 1;
       button.classList.remove('is-opening');
       button.classList.add('is-open');
-      playTone(runtime.caseValues[index] >= 100000 ? 230 : 440, .06, .06);
+      const revealedValue = runtime.caseValues[index];
+      playTone(revealedValue >= 100000 ? 230 : 440, .06, .06);
+      showRevealToast(index, revealedValue);
       renderValues();
+      pulseEliminatedValue(revealedValue);
       const required = OPEN_COUNTS[runtime.roundIndex] || 0;
       const left = Math.max(0, required - runtime.openedThisRound);
       if (left > 0) {
@@ -437,11 +533,13 @@
     runtime.state = 'offer';
     runtime.interactionLocked = true;
     runtime.offerRoundEl.textContent = `SYSTEM BANKER · ROUND ${roundNumber}`;
-    runtime.offerValueEl.textContent = formatByte(offer.offer);
+    runtime.offerValueEl.textContent = '0 BYTE';
     runtime.offerCopyEl.textContent = roundNumber < 5
       ? 'Early offer. Taking it ends the run, but late rounds are required for XP.'
       : (roundNumber < 7 ? 'You reached the XP zone. Lock the offer or push deeper?' : 'Final banker offer. Deal now or risk the last two vaults?');
     runtime.offerPanel.hidden = false;
+    animatePanelIn(runtime.offerPanel);
+    animateOfferValue(offer.offer);
     renderHud();
     playBankerTone();
   }
@@ -483,6 +581,7 @@
       <div class="code-vault-final-vs">VS</div>
       <div class="code-vault-final-case"><span>OTHER VAULT</span><strong>${String((other ?? 0) + 1).padStart(2, '0')}</strong></div>`;
     runtime.finalPanel.hidden = false;
+    animatePanelIn(runtime.finalPanel);
     runtime.roundEl.textContent = 'FINAL';
     runtime.openLeftEl.textContent = '0';
     runtime.stageBadge.textContent = 'FINAL TWO';
@@ -529,6 +628,7 @@
     runtime.state = 'result';
     runtime.interactionLocked = true;
     runtime.resultPanel.hidden = false;
+    animatePanelIn(runtime.resultPanel);
     const metrics = buildMetrics();
     const details = scoreDetails(metrics);
     const ownValue = runtime.caseValues[runtime.personalCase] || 0;
@@ -601,6 +701,8 @@
 
   function hidePanels() {
     [runtime.readyPanel, runtime.offerPanel, runtime.finalPanel, runtime.resultPanel].forEach(panel => { if (panel) panel.hidden = true; });
+    clearRevealToast();
+    if (runtime.offerAnimFrame) { cancelAnimationFrame(runtime.offerAnimFrame); runtime.offerAnimFrame = 0; }
   }
 
   function cancelCurrentRound() {
@@ -625,6 +727,8 @@
   function closeUiOnly() {
     runtime.open = false;
     runtime.state = 'closed';
+    clearRevealToast();
+    if (runtime.offerAnimFrame) { cancelAnimationFrame(runtime.offerAnimFrame); runtime.offerAnimFrame = 0; }
     if (runtime.overlay) runtime.overlay.hidden = true;
     document.body.classList.remove('code-vault-active');
   }
@@ -647,6 +751,7 @@
     runtime.state = 'ready';
     runtime.overlay.hidden = false;
     runtime.readyPanel.hidden = false;
+    animatePanelIn(runtime.readyPanel);
     runtime.offerPanel.hidden = true;
     runtime.finalPanel.hidden = true;
     runtime.resultPanel.hidden = true;

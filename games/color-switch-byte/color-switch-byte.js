@@ -36,7 +36,7 @@
     raf: 0,
     lastFrame: 0,
     resizeTimer: 0,
-    ball: { x: 0, worldY: 0, vy: 0, radius: 11, colorIndex: 0 },
+    ball: { x: 0, worldY: 0, vy: 0, radius: 15, colorIndex: 0 },
     cameraY: 0,
     rings: [],
     score: 0,
@@ -47,6 +47,10 @@
     soundEnabled: true,
     audioContext: null,
     startedAt: 0,
+    deathParticles: [],
+    deathRing: null,
+    deathTimer: 0,
+    deathFinalizing: false,
     input: {
       pressed: false,
       pointerId: null,
@@ -54,7 +58,8 @@
       holdSeconds: 0,
       power: 0,
       hasStartedMotion: false,
-      keyboardHeld: false
+      keyboardHeld: false,
+      lastLiftAt: 0
     }
   };
 
@@ -250,7 +255,13 @@
     runtime.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     runtime.view = { w, h, dpr };
     runtime.ball.x = w / 2;
-    runtime.ball.radius = clamp(w * 0.022, 9, 12);
+    runtime.ball.radius = clamp(w * 0.030, 14, 18);
+    // Keep obstacle geometry readable after a phone/desktop resize.
+    for (const ring of runtime.rings) {
+      ring.radius = ringRadiusForView();
+      ring.width = ringWidthForView();
+      ring.switchGap = ringSwitchGapForView();
+    }
   }
 
   function colorName(index) {
@@ -276,6 +287,7 @@
     runtime.cameraY = 0;
     runtime.round = null;
     runtime.startedAt = 0;
+    clearDeathFx();
     resetLiftInput();
     runtime.readyPanel.hidden = false;
     runtime.pausePanel.hidden = true;
@@ -296,6 +308,7 @@
     runtime.cameraY = 0;
     runtime.rings = [];
     runtime.startedAt = performance.now();
+    clearDeathFx();
     resetLiftInput();
     seedRings();
     runtime.round = null;
@@ -313,11 +326,42 @@
     try { runtime.canvas.focus({ preventScroll: true }); } catch (_) {}
   }
 
+  function ringRadiusForView() {
+    return clamp(runtime.view.w * 0.14, 58, 86);
+  }
+
+  function ringWidthForView() {
+    return clamp(runtime.view.w * 0.031, 14, 20);
+  }
+
+  function ringSwitchGapForView() {
+    // Distance from the bottom edge of a ring to its color-switch orb.
+    return clamp(runtime.view.w * 0.15, 72, 88);
+  }
+
+  function ringClearTravelForScore(score = runtime.score) {
+    // The old build could shrink the free travel between obstacles to only a
+    // few dozen pixels on wider screens. Keep a real breathing zone even late
+    // in a run, while still making progression gradually tighter.
+    return clamp(136 - Math.max(0, score) * 0.55, 104, 136);
+  }
+
+  function ringCenterSpacingForScore(score = runtime.score) {
+    const radius = ringRadiusForView();
+    return radius * 2 + ringSwitchGapForView() + ringClearTravelForScore(score);
+  }
+
+  function firstRingWorldY() {
+    const radius = ringRadiusForView();
+    const approach = clamp(runtime.view.h * 0.13, 94, 118);
+    return radius + ringSwitchGapForView() + approach;
+  }
+
   function seedRings() {
-    let y = 235;
+    let y = firstRingWorldY();
     for (let i = 0; i < 4; i += 1) {
       runtime.rings.push(makeRing(y, i));
-      y += 255;
+      y += ringCenterSpacingForScore(0);
     }
   }
 
@@ -329,10 +373,11 @@
     const scoreFactor = Math.min(1.3, runtime.score * 0.018);
     return {
       worldY,
-      radius: clamp(runtime.view.w * 0.105, 42, 62),
-      width: clamp(runtime.view.w * 0.026, 12, 17),
+      radius: ringRadiusForView(),
+      width: ringWidthForView(),
+      switchGap: ringSwitchGapForView(),
       rotation: Math.random() * Math.PI * 2,
-      speed: direction * (0.62 + scoreFactor + Math.random() * 0.28),
+      speed: direction * (0.54 + scoreFactor * 0.86 + Math.random() * 0.24),
       required,
       other,
       switched: false,
@@ -344,12 +389,13 @@
 
   function ensureRingsAhead() {
     const highest = runtime.rings.reduce((max, ring) => Math.max(max, ring.worldY), 0);
-    let next = highest || 235;
-    while (next < runtime.ball.worldY + 1050) {
-      next += clamp(255 - runtime.score * 1.5, 205, 255);
+    let next = highest || firstRingWorldY();
+    const lookAhead = Math.max(1260, runtime.view.h * 1.65);
+    while (next < runtime.ball.worldY + lookAhead) {
+      next += ringCenterSpacingForScore(runtime.score);
       runtime.rings.push(makeRing(next, runtime.rings.length));
     }
-    runtime.rings = runtime.rings.filter(ring => ring.worldY > runtime.cameraY - 260);
+    runtime.rings = runtime.rings.filter(ring => ring.worldY > runtime.cameraY - 320);
   }
 
   function resetLiftInput() {
@@ -360,24 +406,31 @@
     runtime.input.power = 0;
     runtime.input.hasStartedMotion = false;
     runtime.input.keyboardHeld = false;
+    runtime.input.lastLiftAt = 0;
   }
 
-  // Variable-height lift: a quick tap makes a small, precise hop while a
-  // short hold sustains upward momentum. This is duration-based rather than
-  // device pressure because touch-pressure data is not reliable across phones.
+  // Balanced lift: every press gives a predictable impulse, but repeated taps
+  // cannot stack unlimited upward velocity. A short hold adds only a controlled
+  // amount of extra lift so phone taps feel responsive without instant deaths.
   function beginLift(pointerId) {
     if (runtime.state !== 'playing') return;
     if (runtime.input.pressed) return;
+    const now = performance.now();
+    if (runtime.input.lastLiftAt && now - runtime.input.lastLiftAt < 52) return;
+    runtime.input.lastLiftAt = now;
     runtime.input.pressed = true;
     runtime.input.pointerId = pointerId;
-    runtime.input.pressStartedAt = performance.now();
+    runtime.input.pressStartedAt = now;
     runtime.input.holdSeconds = 0;
-    runtime.input.power = 0.16;
+    runtime.input.power = 0.18;
     runtime.input.hasStartedMotion = true;
 
-    // Immediate response, but deliberately much softer than the old fixed 440+.
-    // If already moving upward, do not stack an absurd amount of velocity.
-    runtime.ball.vy = Math.max(runtime.ball.vy, 320);
+    const vy = runtime.ball.vy;
+    let nextVy;
+    if (vy < -150) nextVy = 305;          // recover cleanly from a real fall
+    else if (vy < 90) nextVy = 285;       // normal hop
+    else nextVy = vy + 64;                // repeat tap, but still bounded
+    runtime.ball.vy = clamp(nextVy, 265, 355);
     tone('flap');
   }
 
@@ -389,12 +442,10 @@
     runtime.input.pointerId = null;
 
     if (!cancelled && runtime.state === 'playing' && runtime.ball.vy > 0) {
-      // Classic variable-jump "cut": releasing early removes more upward
-      // momentum; a longer hold preserves it. This creates HOP/LIFT/BOOST.
       let releaseFactor = 1;
-      if (held < 0.07) releaseFactor = 0.65;
-      else if (held < 0.14) releaseFactor = 0.82;
-      else if (held < 0.22) releaseFactor = 0.94;
+      if (held < 0.065) releaseFactor = 0.82;
+      else if (held < 0.125) releaseFactor = 0.91;
+      else if (held < 0.19) releaseFactor = 0.97;
       runtime.ball.vy *= releaseFactor;
     }
     runtime.input.power = 0;
@@ -402,15 +453,14 @@
 
   function updateLift(dt) {
     if (!runtime.input.pressed || runtime.state !== 'playing') return;
-    const MAX_HOLD = 0.23;
+    const MAX_HOLD = 0.19;
     runtime.input.holdSeconds += dt;
     const activeHold = Math.min(runtime.input.holdSeconds, MAX_HOLD);
-    runtime.input.power = clamp(activeHold / MAX_HOLD, 0.16, 1);
+    runtime.input.power = clamp(activeHold / MAX_HOLD, 0.18, 1);
 
-    // Sustained lift only during the first ~230ms. Holding forever cannot float.
     if (runtime.input.holdSeconds <= MAX_HOLD) {
-      const liftAcceleration = 620;
-      runtime.ball.vy = Math.min(470, runtime.ball.vy + liftAcceleration * dt);
+      const liftAcceleration = 340;
+      runtime.ball.vy = Math.min(390, runtime.ball.vy + liftAcceleration * dt);
     }
   }
 
@@ -455,7 +505,7 @@
     const ringMidRadius = ring.radius;
     // Treat the ring stroke as physical thickness and give ~1px forgiveness so
     // a barely-visible anti-aliased touch does not feel unfair on phones.
-    const effectiveReach = Math.max(1, runtime.ball.radius + ring.width * 0.5 - 1.15);
+    const effectiveReach = Math.max(1, runtime.ball.radius * 0.82 + ring.width * 0.5 - 2.2);
     const penetration = effectiveReach - Math.abs(radialDistance - ringMidRadius);
     if (penetration <= 0 || radialDistance <= 0.001) {
       return { touching: false, unsafe: false, penetration: 0 };
@@ -489,15 +539,16 @@
 
     // A meaningful collision with a wrong center OR a clearly overlapping wrong
     // arc is fatal. Re-evaluated every frame so rotating colors cannot ghost through.
-    const meaningfulContact = penetration > 0.9;
-    const unsafe = meaningfulContact && (centerWrong || wrongSamples >= 2);
+    const meaningfulContact = penetration > 1.6;
+    const deepContact = penetration > 2.35;
+    const unsafe = meaningfulContact && ((deepContact && centerWrong && wrongSamples >= 2) || wrongSamples >= 4);
     return { touching: true, unsafe, penetration };
   }
 
   function updateRings(dt) {
     for (const ring of runtime.rings) {
       ring.rotation += ring.speed * dt;
-      const switchY = ring.worldY - ring.radius - 78;
+      const switchY = ring.worldY - ring.radius - ring.switchGap;
       if (!ring.switched && runtime.ball.worldY >= switchY) {
         ring.switched = true;
         runtime.ball.colorIndex = ring.required;
@@ -518,7 +569,7 @@
           runtime.combo = 0;
           updateHud();
           showFx('WRONG COLOR!', 'hot');
-          finishRound();
+          startDeath('wrong-color');
           return;
         }
       } else if (ring.entered) {
@@ -541,28 +592,81 @@
   }
 
   function update(dt) {
+    if (runtime.state === 'dying') {
+      updateDeathFx(dt);
+      return;
+    }
     if (runtime.state !== 'playing') return;
 
-    // Do not auto-launch or auto-drop before the player's first press. The old
-    // version started with vy=390, which made every round feel overpowered.
     if (!runtime.input.hasStartedMotion) return;
 
     updateLift(dt);
-    // Keep the core feel consistent as score rises; difficulty should come
-    // mostly from faster rings / tighter spacing, not wildly changing gravity.
-    const gravity = clamp(960 + runtime.score * 0.6, 960, 1020);
+    const gravity = clamp(910 + runtime.score * 0.55, 910, 975);
     runtime.ball.vy -= gravity * dt;
     runtime.ball.worldY += runtime.ball.vy * dt;
 
     const cameraTarget = runtime.ball.worldY - runtime.view.h * 0.30;
-    if (cameraTarget > runtime.cameraY) runtime.cameraY += (cameraTarget - runtime.cameraY) * clamp(dt * 5.5, 0, 1);
+    if (cameraTarget > runtime.cameraY) runtime.cameraY += (cameraTarget - runtime.cameraY) * clamp(dt * 5.2, 0, 1);
 
     ensureRingsAhead();
     updateRings(dt);
     if (runtime.state !== 'playing') return;
 
     if (runtime.ball.worldY < runtime.cameraY - runtime.view.h * 0.32) {
-      finishRound();
+      startDeath('fall');
+    }
+  }
+
+  function clearDeathFx() {
+    runtime.deathParticles = [];
+    runtime.deathRing = null;
+    runtime.deathTimer = 0;
+    runtime.deathFinalizing = false;
+  }
+
+  function startDeath(reason = 'hit') {
+    if (runtime.state !== 'playing') return;
+    endLift(runtime.input.pointerId, true);
+    runtime.state = 'dying';
+    runtime.deathTimer = 0;
+    runtime.deathFinalizing = false;
+    const x = runtime.view.w / 2;
+    const y = clamp(screenY(runtime.ball.worldY), 44, runtime.view.h - 44);
+    const color = COLORS[runtime.ball.colorIndex];
+    runtime.deathRing = { x, y, age: 0, ttl: 0.46, color };
+    runtime.deathParticles = [];
+    const count = 30;
+    for (let i = 0; i < count; i += 1) {
+      const angle = Math.PI * 2 * (i / count) + (Math.random() - 0.5) * 0.26;
+      const speed = 85 + Math.random() * 175;
+      runtime.deathParticles.push({
+        x, y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed - 22,
+        radius: 2.2 + Math.random() * 3.8,
+        age: 0,
+        ttl: 0.34 + Math.random() * 0.24,
+        color: Math.random() < 0.76 ? color : COLORS[(runtime.ball.colorIndex + 1 + (i % 3)) % COLORS.length]
+      });
+    }
+    tone('over');
+    try { if (navigator.vibrate) navigator.vibrate([18, 24, 28]); } catch (_) {}
+    if (reason === 'fall') showFx('BYTE LOST!', 'hot');
+  }
+
+  function updateDeathFx(dt) {
+    runtime.deathTimer += dt;
+    if (runtime.deathRing) runtime.deathRing.age += dt;
+    runtime.deathParticles = runtime.deathParticles.filter(particle => {
+      particle.age += dt;
+      particle.vy += 520 * dt;
+      particle.x += particle.vx * dt;
+      particle.y += particle.vy * dt;
+      return particle.age < particle.ttl;
+    });
+    if (runtime.deathTimer >= 0.48 && !runtime.deathFinalizing) {
+      runtime.deathFinalizing = true;
+      finishRound(true);
     }
   }
 
@@ -617,7 +721,7 @@
     ctx.fillText('MATCH', x, y + 3);
     ctx.restore();
 
-    const switchY = screenY(ring.worldY - ring.radius - 78);
+    const switchY = screenY(ring.worldY - ring.radius - ring.switchGap);
     if (!ring.switched && switchY > -30 && switchY < runtime.view.h + 30) {
       ctx.save();
       ctx.fillStyle = COLORS[ring.required];
@@ -671,6 +775,36 @@
     ctx.restore();
   }
 
+  function drawDeathFx() {
+    const ctx = runtime.ctx;
+    if (runtime.deathRing) {
+      const ring = runtime.deathRing;
+      const t = clamp(ring.age / ring.ttl, 0, 1);
+      ctx.save();
+      ctx.globalAlpha = 1 - t;
+      ctx.strokeStyle = ring.color;
+      ctx.lineWidth = 3 * (1 - t * 0.45);
+      ctx.shadowColor = ring.color;
+      ctx.shadowBlur = 14;
+      ctx.beginPath();
+      ctx.arc(ring.x, ring.y, 12 + t * 54, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+    runtime.deathParticles.forEach(particle => {
+      const alpha = clamp(1 - particle.age / particle.ttl, 0, 1);
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = particle.color;
+      ctx.shadowColor = particle.color;
+      ctx.shadowBlur = 7;
+      ctx.beginPath();
+      ctx.arc(particle.x, particle.y, particle.radius * (0.7 + alpha * 0.3), 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    });
+  }
+
   function drawBall() {
     const ctx = runtime.ctx;
     const x = runtime.view.w / 2;
@@ -695,7 +829,8 @@
   function render(now) {
     drawBackground(now);
     runtime.rings.forEach(drawRing);
-    drawBall();
+    if (runtime.state !== 'dying') drawBall();
+    drawDeathFx();
     drawLiftMeter();
   }
 
@@ -709,11 +844,11 @@
     runtime.raf = requestAnimationFrame(frame);
   }
 
-  async function finishRound() {
-    if (runtime.state !== 'playing') return;
+  async function finishRound(fromDeath = false) {
+    if (runtime.state !== 'playing' && runtime.state !== 'dying') return;
     endLift(runtime.input.pointerId, true);
     runtime.state = 'gameover';
-    tone('over');
+    if (!fromDeath) tone('over');
     runtime.finalScore.textContent = String(runtime.score);
     runtime.finalBest.textContent = String(Math.max(runtime.bestVisible, runtime.score));
     runtime.finalCombo.textContent = `x${runtime.bestCombo}`;
@@ -779,6 +914,7 @@
     runtime.raf = 0;
     runtime.state = 'ready';
     runtime.round = null;
+    clearDeathFx();
     resetLiftInput();
     runtime.pausePanel.hidden = true;
     runtime.overPanel.hidden = true;

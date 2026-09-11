@@ -4,6 +4,7 @@
   const GAME_ID = 'code-stack';
   const MAX_DPR = 2;
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+  const lerp = (a, b, t) => a + (b - a) * t;
   const runtime = {
     built: false, open: false, state: 'ready', bridge: null, onBack: null, onClose: null, onReward: null,
     overlay: null, shell: null, canvas: null, ctx: null, scoreEl: null, towerEl: null, comboEl: null,
@@ -12,7 +13,8 @@
     view: { w: 620, h: 680, dpr: 1 }, raf: 0, lastFrame: 0, resizeTimer: 0,
     blocks: [], moving: null, direction: 1, score: 0, placements: 0, perfects: 0, combo: 0, bestCombo: 0,
     bestVisible: 0, towerVisible: 0, round: null, soundEnabled: true, audioContext: null,
-    fragments: [], sliceEffects: [], impactShake: 0, impactStrength: 0
+    fragments: [], sliceEffects: [], stackParticles: [], landingFx: null, impactShake: 0, impactStrength: 0,
+    cameraScale: 1, cameraOffsetY: 0
   };
 
   function build() {
@@ -186,6 +188,7 @@
     runtime.canvas.height = Math.round(h * dpr);
     runtime.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     runtime.view = { w, h, dpr };
+    if (!runtime.blocks.length) { runtime.cameraScale = 1; runtime.cameraOffsetY = 0; }
     if (runtime.state === 'ready' && !runtime.blocks.length) seedBase();
   }
 
@@ -198,6 +201,10 @@
   function resetEffects() {
     runtime.fragments = [];
     runtime.sliceEffects = [];
+    runtime.stackParticles = [];
+    runtime.landingFx = null;
+    runtime.cameraScale = 1;
+    runtime.cameraOffsetY = 0;
     runtime.impactShake = 0;
     runtime.impactStrength = 0;
   }
@@ -239,7 +246,8 @@
   }
 
   function moveSpeed() {
-    return clamp(runtime.view.w * .42 + runtime.placements * 9, 145, 470);
+    const screenStableFactor = 1 / Math.max(.74, runtime.cameraScale || 1);
+    return clamp((runtime.view.w * .42 + runtime.placements * 9) * screenStableFactor, 145, 610);
   }
 
   function updateHud() {
@@ -259,6 +267,51 @@
   function triggerImpact(strength = .5) {
     runtime.impactShake = clamp(runtime.impactShake + .18 + strength * .28, 0, .52);
     runtime.impactStrength = Math.max(runtime.impactStrength, strength);
+  }
+
+  function cameraTarget() {
+    const count = Math.max(1, runtime.blocks.length + (runtime.moving ? 1 : 0));
+    const targetScale = clamp(1 - Math.max(0, count - 10) * 0.018, 0.74, 1);
+    const topIndex = Math.max(0, runtime.blocks.length - 1);
+    const rawTop = blockY(topIndex);
+    const safeTop = Math.max(155, runtime.view.h * 0.23);
+    const movingClearance = blockHeight() + 12;
+    const topWithMoving = rawTop - movingClearance;
+    const scaledTop = topWithMoving * targetScale;
+    const targetOffsetY = scaledTop < safeTop ? safeTop - scaledTop : 0;
+    return { scale: targetScale, y: targetOffsetY };
+  }
+
+  function updateCamera(dt) {
+    const target = cameraTarget();
+    const follow = 1 - Math.exp(-7.2 * dt);
+    runtime.cameraScale = lerp(runtime.cameraScale, target.scale, follow);
+    runtime.cameraOffsetY = lerp(runtime.cameraOffsetY, target.y, follow);
+  }
+
+  function spawnLandingFx(block, index, perfect, points) {
+    const bh = blockHeight();
+    const y = blockY(index);
+    runtime.landingFx = {
+      index, x: block.x, y, w: block.w, h: bh - 3,
+      age: 0, ttl: perfect ? 0.62 : 0.38, perfect, points
+    };
+    const count = perfect ? 18 : points === 2 ? 9 : 6;
+    const color = perfect ? '#fde68a' : getBlockColor(index, false);
+    for (let i = 0; i < count; i += 1) {
+      const spread = (i / Math.max(1, count - 1)) - 0.5;
+      runtime.stackParticles.push({
+        x: block.x + block.w * (0.5 + spread * 0.88),
+        y: y + bh * 0.38,
+        vx: spread * (perfect ? 125 : 70) + (Math.random() - 0.5) * 24,
+        vy: -(perfect ? 62 : 36) - Math.random() * (perfect ? 65 : 36),
+        gravity: 250,
+        radius: perfect ? 2.4 + Math.random() * 2.8 : 1.8 + Math.random() * 2,
+        age: 0,
+        ttl: perfect ? 0.58 + Math.random() * 0.18 : 0.34 + Math.random() * 0.12,
+        color
+      });
+    }
   }
 
   function getDrawYForIndex(index) {
@@ -341,7 +394,7 @@
     if (perfect) {
       left = top.x; overlap = top.w; points = 3; runtime.combo += 1; runtime.perfects += 1;
       runtime.bestCombo = Math.max(runtime.bestCombo, runtime.combo);
-      triggerImpact(.18);
+      triggerImpact(.28);
       tone('perfect');
       const milestone = runtime.combo >= 10 ? `🔥 PERFECT x${runtime.combo}` : runtime.combo >= 3 ? `PERFECT x${runtime.combo}` : 'PERFECT! +3';
       showFx(milestone, true);
@@ -362,6 +415,7 @@
     }
 
     runtime.blocks.push({ x: left, w: overlap });
+    spawnLandingFx(runtime.blocks[runtime.blocks.length - 1], runtime.blocks.length - 1, perfect, points);
     runtime.moving = null;
     runtime.placements += 1;
     runtime.score += points;
@@ -391,6 +445,23 @@
   }
 
   function update(dt) {
+    updateCamera(dt);
+
+    if (runtime.landingFx) {
+      runtime.landingFx.age += dt;
+      if (runtime.landingFx.age >= runtime.landingFx.ttl) runtime.landingFx = null;
+    }
+
+    if (runtime.stackParticles.length) {
+      runtime.stackParticles = runtime.stackParticles.filter(particle => {
+        particle.age += dt;
+        particle.vy += particle.gravity * dt;
+        particle.x += particle.vx * dt;
+        particle.y += particle.vy * dt;
+        return particle.age < particle.ttl;
+      });
+    }
+
     if (runtime.state === 'playing' && runtime.moving) {
       const speed = moveSpeed();
       runtime.moving.x += runtime.direction * speed * dt;
@@ -441,24 +512,55 @@
 
   function blockY(index) {
     const bh = blockHeight();
-    const visible = Math.max(9, Math.floor((runtime.view.h * .64) / bh));
-    const extra = Math.max(0, runtime.blocks.length - 1 - visible);
-    return runtime.view.h * .88 - (index - extra + 1) * bh;
+    // Keep a stable world stack and let the smooth camera handle tall towers.
+    // This avoids the old sudden scroll/crowding near the fixed scoreboard.
+    return runtime.view.h * .88 - (index + 1) * bh;
   }
 
   function drawBlock(block, index, moving = false) {
-    const { ctx } = runtime; const bh = blockHeight();
+    const { ctx } = runtime;
+    const bh = blockHeight();
+    const h = bh - 3;
     const y = moving ? getMovingY() : getDrawYForIndex(index);
+    const landing = !moving && runtime.landingFx?.index === index ? runtime.landingFx : null;
+    let sx = 1;
+    let sy = 1;
+    let lift = 0;
+    let glowBoost = 0;
+    if (landing) {
+      const t = clamp(landing.age / landing.ttl, 0, 1);
+      const pulse = Math.sin(Math.PI * clamp(t * 1.18, 0, 1));
+      sx = 1 + pulse * (landing.perfect ? 0.055 : 0.025);
+      sy = 1 - pulse * (landing.perfect ? 0.10 : 0.055);
+      lift = -Math.sin(Math.PI * t) * (landing.perfect ? 3.4 : 1.7);
+      glowBoost = (1 - t) * (landing.perfect ? 16 : 7);
+    }
+
     ctx.save();
-    ctx.shadowColor = getBlockShadow(index, moving); ctx.shadowBlur = moving ? 16 : 8;
+    ctx.translate(block.x + block.w / 2, y + h / 2 + lift);
+    ctx.scale(sx, sy);
+    ctx.shadowColor = landing?.perfect ? 'rgba(253,230,138,.72)' : getBlockShadow(index, moving);
+    ctx.shadowBlur = (moving ? 16 : 8) + glowBoost;
     ctx.fillStyle = getBlockColor(index, moving);
-    rounded(ctx, block.x, y, block.w, bh - 3, 7); ctx.fill();
+    rounded(ctx, -block.w / 2, -h / 2, block.w, h, 7);
+    ctx.fill();
     ctx.shadowBlur = 0;
+
+    if (landing?.perfect) {
+      const t = clamp(landing.age / landing.ttl, 0, 1);
+      ctx.globalAlpha = Math.max(0, 0.72 * (1 - t));
+      ctx.strokeStyle = '#fde68a';
+      ctx.lineWidth = 2.2;
+      rounded(ctx, -block.w / 2 - 4 - t * 8, -h / 2 - 4 - t * 4, block.w + 8 + t * 16, h + 8 + t * 8, 10);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+
     if (block.w > 54) {
       ctx.fillStyle = moving ? '#042f3e' : 'rgba(255,255,255,.9)';
       ctx.font = `900 ${clamp(bh * .39, 9, 12)}px system-ui`;
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(getBlockLabel(index), block.x + block.w / 2, y + (bh - 3) / 2);
+      ctx.fillText(getBlockLabel(index), 0, 0);
     }
     ctx.restore();
   }
@@ -485,6 +587,23 @@
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
         ctx.fillText(piece.label, 0, 0);
       }
+      ctx.restore();
+    });
+  }
+
+  function drawStackParticles() {
+    if (!runtime.stackParticles.length) return;
+    const { ctx } = runtime;
+    runtime.stackParticles.forEach(particle => {
+      const alpha = clamp(1 - particle.age / particle.ttl, 0, 1);
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = particle.color;
+      ctx.shadowColor = particle.color;
+      ctx.shadowBlur = 7;
+      ctx.beginPath();
+      ctx.arc(particle.x, particle.y, particle.radius, 0, Math.PI * 2);
+      ctx.fill();
       ctx.restore();
     });
   }
@@ -531,10 +650,15 @@
   function render(time) {
     const { ctx } = runtime;
     const shake = getShakeOffset();
-    ctx.save();
-    ctx.translate(shake.x, shake.y);
     drawBackground(time);
+
+    ctx.save();
+    const scale = runtime.cameraScale || 1;
+    ctx.translate(runtime.view.w / 2, runtime.cameraOffsetY);
+    ctx.scale(scale, scale);
+    ctx.translate(-runtime.view.w / 2 + shake.x / scale, shake.y / scale);
     runtime.blocks.forEach((block, index) => drawBlock(block, index, false));
+    drawStackParticles();
     drawFragments();
     drawSliceEffects();
     if (runtime.moving && (runtime.state === 'playing' || runtime.state === 'paused')) drawBlock(runtime.moving, runtime.blocks.length, true);

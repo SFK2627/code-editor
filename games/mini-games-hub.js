@@ -1,6 +1,8 @@
 (() => {
   'use strict';
 
+  const ASSET_VERSION = '20260911-v474-gameplay-polish';
+
   const GAME_REGISTRY = Object.freeze([
     {
       id: 'code-fly',
@@ -765,28 +767,53 @@
   }
 
   function ensureStylesheet(game) {
-    if (!game.style) return;
-    if (document.querySelector(`link[data-xp-game-style="${game.id}"]`)) return;
-    const link = document.createElement('link');
-    link.rel = 'stylesheet';
-    link.href = `${game.style}?v=20260911-v473-code-vault`;
-    link.dataset.xpGameStyle = game.id;
-    document.head.appendChild(link);
+    if (!game.style) return Promise.resolve();
+    const selector = `link[data-xp-game-style="${game.id}"]`;
+    let link = document.querySelector(selector);
+    if (link?.dataset.xpStyleLoaded === '1' || link?.sheet) return Promise.resolve();
+
+    if (!link) {
+      link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = `${game.style}?v=${ASSET_VERSION}`;
+      link.dataset.xpGameStyle = game.id;
+      document.head.appendChild(link);
+    }
+
+    // The old loader started the game module immediately after appending the
+    // stylesheet. On a first launch the module could open and measure its canvas
+    // before CSS had applied, which is why CODE BRIDGE could look broken until
+    // the user backed out and opened it a second time. Wait for CSS first.
+    return new Promise(resolve => {
+      let settled = false;
+      const done = () => {
+        if (settled) return;
+        settled = true;
+        link.dataset.xpStyleLoaded = '1';
+        resolve();
+      };
+      link.addEventListener('load', done, { once: true });
+      link.addEventListener('error', done, { once: true });
+      // A cached stylesheet can become ready between appendChild and listener
+      // registration, so re-check it on the next paint before using the timeout.
+      requestAnimationFrame(() => { if (link.sheet) done(); });
+      window.setTimeout(done, 1800);
+    });
   }
 
   function ensureGameModule(game) {
     const current = window[game.globalName];
     if (current?.open) return Promise.resolve(current);
     if (state.assetPromises.has(game.id)) return state.assetPromises.get(game.id);
-    ensureStylesheet(game);
-    const promise = new Promise((resolve, reject) => {
+
+    const promise = ensureStylesheet(game).then(() => new Promise((resolve, reject) => {
       const existing = document.querySelector(`script[data-xp-game-script="${game.id}"]`);
       // If a previous attempt loaded a broken/stale module without registering
       // its API, remove that script so PLAY can retry cleanly instead of waiting
       // forever for a load event that already fired.
       if (existing) existing.remove();
       const script = document.createElement('script');
-      script.src = `${game.script}?v=20260911-v473-code-vault`;
+      script.src = `${game.script}?v=${ASSET_VERSION}`;
       script.defer = true;
       script.dataset.xpGameScript = game.id;
       script.addEventListener('load', () => {
@@ -796,7 +823,7 @@
       }, { once: true });
       script.addEventListener('error', () => reject(new Error(`${game.name} failed to load.`)), { once: true });
       document.body.appendChild(script);
-    }).finally(() => state.assetPromises.delete(game.id));
+    })).finally(() => state.assetPromises.delete(game.id));
     state.assetPromises.set(game.id, promise);
     return promise;
   }
