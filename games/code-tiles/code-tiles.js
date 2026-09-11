@@ -3,23 +3,36 @@
 
   const GAME_ID = 'code-tiles';
   const GLOBAL_NAME = 'ICT8CodeTiles';
-  const WORLD_W = 720;
+  const WORLD_W = 600;
   const WORLD_H = 1040;
-  const MAX_DPR = 2;
+  const MAX_DPR = 1.35;
   const TARGET_Y = 850;
   const BOARD_TOP = 154;
+  const TILE_H = 144;
+  const ENTRY_Y = BOARD_TOP - TILE_H * 0.95;
   const BOARD_BOTTOM = 980;
-  const BOARD_X = 48;
-  const BOARD_W = 624;
+  const BOARD_X = 20;
+  const BOARD_W = 560;
   const LANE_W = BOARD_W / 4;
-  const HIT_WINDOWS = Object.freeze({ perfect: 60, great: 115, good: 180 });
+  const HIT_WINDOWS = Object.freeze({ perfect: 72, great: 132, good: 200 });
   const PHASES = Object.freeze([
-    Object.freeze({ bpm: 75, bars: 5, events: 18, doubles: 0, holds: 0, travelMs: 2250, label: 'WARM UP' }),
-    Object.freeze({ bpm: 90, bars: 5, events: 21, doubles: 0, holds: 0, travelMs: 2050, label: 'LOCK IN' }),
+    Object.freeze({ bpm: 75, bars: 5, events: 18, doubles: 0, holds: 1, travelMs: 2250, label: 'WARM UP' }),
+    Object.freeze({ bpm: 90, bars: 5, events: 21, doubles: 0, holds: 1, travelMs: 2050, label: 'LOCK IN' }),
     Object.freeze({ bpm: 105, bars: 5, events: 23, doubles: 2, holds: 2, travelMs: 1840, label: 'BUILD FLOW' }),
-    Object.freeze({ bpm: 120, bars: 5, events: 26, doubles: 3, holds: 3, travelMs: 1650, label: 'FAST LANE' }),
-    Object.freeze({ bpm: 140, bars: 5, events: 30, doubles: 4, holds: 4, travelMs: 1460, label: 'FINAL SYNC' })
+    Object.freeze({ bpm: 120, bars: 5, events: 26, doubles: 3, holds: 2, travelMs: 1650, label: 'FAST LANE' }),
+    Object.freeze({ bpm: 140, bars: 5, events: 30, doubles: 4, holds: 3, travelMs: 1460, label: 'FINAL SYNC' })
   ]);
+  const BACKDROP_GLOWS = Object.freeze([
+    Object.freeze([58, 130, 112, 'rgba(255,255,255,.055)']),
+    Object.freeze([470, 170, 128, 'rgba(255,255,255,.045)']),
+    Object.freeze([524, 680, 132, 'rgba(56,189,248,.055)']),
+    Object.freeze([150, 900, 84, 'rgba(255,255,255,.035)'])
+  ]);
+  const BACKDROP_STARS = Object.freeze([
+    Object.freeze([410, 88, 9]), Object.freeze([145, 693, 6]), Object.freeze([381, 767, 7]),
+    Object.freeze([72, 595, 5]), Object.freeze([322, 920, 5])
+  ]);
+
   const LANE_META = Object.freeze([
     Object.freeze({ key: 'D', label: 'HTML', glyph: '</>', hue: 190, freq: 261.63 }),
     Object.freeze({ key: 'F', label: 'CSS', glyph: '#', hue: 267, freq: 329.63 }),
@@ -66,7 +79,13 @@
     soundEnabled: true,
     audioContext: null,
     masterGain: null,
-    view: { cssW: WORLD_W, cssH: WORLD_H, dpr: 1, scale: 1, ox: 0, oy: 0, rect: null },
+    compressor: null,
+    backdropGradient: null,
+    updateCursor: 0,
+    hudCache: Object.create(null),
+    lowPower: false,
+    pausedHoldLanes: new Set(),
+    view: { cssW: WORLD_W, cssH: WORLD_H, dpr: 1, scale: 1, scaleX: 1, scaleY: 1, ox: 0, oy: 0, rect: null },
     raf: 0,
     lastFrameNow: 0,
     runStartNow: 0,
@@ -92,6 +111,7 @@
     totalNotes: 0,
     judgedNotes: 0,
     laneSources: [new Set(), new Set(), new Set(), new Set()],
+    activeHoldByLane: [null, null, null, null],
     pointers: new Map(),
     keyboardDown: new Set(),
     particles: [],
@@ -163,11 +183,15 @@
             <div class="code-tiles-hero" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
             <p class="code-tiles-kicker">60-SECOND RHYTHM RUN</p>
             <h2>CODE TILES</h2>
-            <p>Tap each code tile as it reaches the SYNC LINE. Later phases add double notes and hold tiles — speed rises gradually, never all at once.</p>
+            <p>Play it like a real four-lane rhythm game. Hit the tile at the SYNC LINE, keep the beat, and release cleanly before the next short tile.</p>
+            <div class="code-tiles-how">
+              <span><i class="short"></i><b>SHORT TILE</b><small>Tap once as it reaches the line.</small></span>
+              <span><i class="long"></i><b>LONG TILE</b><small>Press and keep holding. Do not release until the long tail reaches the line.</small></span>
+            </div>
             <div class="code-tiles-key-row"><span><b>D</b> HTML</span><span><b>F</b> CSS</span><span><b>J</b> JS</span><span><b>K</b> 01</span></div>
             <div class="code-tiles-phase-strip"><span>75</span><span>90</span><span>105</span><span>120</span><span>140 BPM</span></div>
             <button type="button" class="primary" data-code-tiles-play>PLAY TRACK</button>
-            <small class="code-tiles-tip">Phone: tap the lanes · Desktop: mouse or D F J K</small>
+            <small class="code-tiles-tip">🔊 Sound recommended · Phone: tap/hold lanes · Desktop: mouse or D F J K</small>
           </div>
         </div>
 
@@ -237,6 +261,7 @@
     runtime.canvas.addEventListener('pointerdown', onPointerDown);
     runtime.canvas.addEventListener('pointerup', onPointerUp);
     runtime.canvas.addEventListener('pointercancel', onPointerUp);
+    runtime.canvas.addEventListener('lostpointercapture', onPointerUp);
     runtime.canvas.addEventListener('contextmenu', event => event.preventDefault());
     window.addEventListener('keydown', onKeyDown, { passive: false });
     window.addEventListener('keyup', onKeyUp, { passive: false });
@@ -320,7 +345,17 @@
 
         lanes.forEach((lane, chordIndex) => {
           const isHold = chordIndex === 0 && holdIndices.has(eventIndex);
-          const holdDuration = isHold ? halfBeat * (phaseIndex >= 4 && rng() > .5 ? 3 : 2) : 0;
+          const phaseEnd = phaseStart + beatMs * 4 * phase.bars;
+          const requestedHold = isHold
+            ? beatMs * (
+                phaseIndex === 0 ? 2.55 :
+                phaseIndex === 1 ? 2.9 :
+                phaseIndex === 2 ? (rng() > .5 ? 3.65 : 3.15) :
+                phaseIndex === 3 ? (rng() > .5 ? 4.35 : 3.8) :
+                (rng() > .5 ? 5.1 : 4.45)
+              )
+            : 0;
+          const holdDuration = isHold ? Math.max(beatMs * 2.45, Math.min(requestedHold, phaseEnd - targetTime - 220)) : 0;
           chart.push({
             id: `ct-${String(++id).padStart(3, '0')}`,
             phaseIndex,
@@ -333,6 +368,8 @@
             errorMs: 0,
             headHitAt: 0,
             holdReleasedEarly: false,
+            holdVoice: null,
+            resumeGraceUntil: 0,
             spawnedBurst: false
           });
           if (holdDuration > 0) laneBlockedUntil[lane] = targetTime + holdDuration + HIT_WINDOWS.good + 70;
@@ -355,21 +392,52 @@
     if (!runtime.open || !runtime.canvas || !runtime.shell) return;
     const rect = runtime.shell.getBoundingClientRect();
     if (rect.width < 20 || rect.height < 20) return;
-    const dpr = clamp(window.devicePixelRatio || 1, 1, MAX_DPR);
+    const memory = Number(navigator.deviceMemory || 0);
+    const cores = Number(navigator.hardwareConcurrency || 0);
+    runtime.lowPower = rect.width <= 900 || (memory > 0 && memory <= 6) || (cores > 0 && cores <= 6);
+    const dprCap = runtime.lowPower ? 1.0 : MAX_DPR;
+    const dpr = clamp(window.devicePixelRatio || 1, 1, dprCap);
     runtime.canvas.width = Math.max(1, Math.round(rect.width * dpr));
     runtime.canvas.height = Math.max(1, Math.round(rect.height * dpr));
     runtime.canvas.style.width = `${rect.width}px`;
     runtime.canvas.style.height = `${rect.height}px`;
-    const scale = Math.min(rect.width / WORLD_W, rect.height / WORLD_H);
+    const portrait = rect.height > rect.width * 1.12;
+    let scaleX;
+    let scaleY;
+    let ox;
+    let oy;
+    if (portrait) {
+      // Use the phone's vertical space instead of letterboxing the whole 600x1040 world.
+      // X and Y scales are independent visually; hit timing remains time-based and lane
+      // input uses scaleX, so gameplay rules are unchanged.
+      scaleX = rect.width / WORLD_W;
+      scaleY = Math.min(rect.height / WORLD_H, scaleX * 1.45);
+      const desiredBoardTopPx = rect.width <= 700 ? 82 : 96;
+      ox = (rect.width - WORLD_W * scaleX) / 2;
+      oy = desiredBoardTopPx - BOARD_TOP * scaleY;
+    } else {
+      scaleY = Math.min(rect.width / WORLD_W, rect.height / WORLD_H);
+      const wideBoost = rect.width > rect.height ? 1.32 : 1;
+      scaleX = Math.min(rect.width / WORLD_W, scaleY * wideBoost);
+      ox = (rect.width - WORLD_W * scaleX) / 2;
+      oy = (rect.height - WORLD_H * scaleY) / 2;
+    }
     runtime.view = {
       cssW: rect.width,
       cssH: rect.height,
       dpr,
-      scale,
-      ox: (rect.width - WORLD_W * scale) / 2,
-      oy: (rect.height - WORLD_H * scale) / 2,
+      scale: scaleY,
+      scaleX,
+      scaleY,
+      ox,
+      oy,
       rect: runtime.canvas.getBoundingClientRect()
     };
+    const g = runtime.ctx.createLinearGradient(0, 0, 0, WORLD_H);
+    g.addColorStop(0, '#efd7f2');
+    g.addColorStop(.52, '#d9dbf8');
+    g.addColorStop(1, '#92bcff');
+    runtime.backdropGradient = g;
   }
 
   function queueResize() {
@@ -397,13 +465,22 @@
 
   function updateHud(trackMs = 0) {
     const phase = PHASES[runtime.currentPhase] || PHASES[0];
-    runtime.phaseEl.textContent = `${runtime.currentPhase + 1}/${PHASES.length}`;
-    runtime.bpmEl.textContent = String(phase.bpm);
-    runtime.comboEl.textContent = `x${runtime.combo}`;
-    runtime.syncEl.textContent = `${Math.round(runtime.sync)}%`;
-    runtime.syncEl.dataset.low = runtime.sync < 35 ? '1' : '';
-    runtime.scoreEl.textContent = String(Math.round(runtime.score));
-    runtime.progressEl.style.transform = `scaleX(${clamp(trackMs / Math.max(1, runtime.totalTrackMs), 0, 1)})`;
+    const values = {
+      phase: `${runtime.currentPhase + 1}/${PHASES.length}`,
+      bpm: String(phase.bpm),
+      combo: `x${runtime.combo}`,
+      sync: `${Math.round(runtime.sync)}%`,
+      score: String(Math.round(runtime.score))
+    };
+    if (runtime.hudCache.phase !== values.phase) { runtime.hudCache.phase = values.phase; runtime.phaseEl.textContent = values.phase; }
+    if (runtime.hudCache.bpm !== values.bpm) { runtime.hudCache.bpm = values.bpm; runtime.bpmEl.textContent = values.bpm; }
+    if (runtime.hudCache.combo !== values.combo) { runtime.hudCache.combo = values.combo; runtime.comboEl.textContent = values.combo; }
+    if (runtime.hudCache.sync !== values.sync) { runtime.hudCache.sync = values.sync; runtime.syncEl.textContent = values.sync; }
+    if (runtime.hudCache.score !== values.score) { runtime.hudCache.score = values.score; runtime.scoreEl.textContent = values.score; }
+    const low = runtime.sync < 35 ? '1' : '';
+    if (runtime.hudCache.low !== low) { runtime.hudCache.low = low; runtime.syncEl.dataset.low = low; }
+    const progress = clamp(trackMs / Math.max(1, runtime.totalTrackMs), 0, 1);
+    runtime.progressEl.style.transform = `scaleX(${progress.toFixed(4)})`;
   }
 
   function startRun() {
@@ -428,9 +505,13 @@
     runtime.badTaps = 0;
     runtime.holdsCompleted = 0;
     runtime.judgedNotes = 0;
+    runtime.updateCursor = 0;
+    runtime.hudCache = Object.create(null);
+    stopAllHoldVoices();
     runtime.particles.length = 0;
     runtime.laneFlashes.fill(0);
     runtime.laneSources.forEach(set => set.clear());
+    runtime.activeHoldByLane.fill(null);
     runtime.pointers.clear();
     runtime.keyboardDown.clear();
     runtime.currentPhase = 0;
@@ -476,7 +557,7 @@
     }
     updateParticles(now);
     renderFrame(now);
-    if (runtime.open && ['countdown', 'playing', 'paused', 'ready', 'result', 'failed'].includes(runtime.state)) {
+    if (runtime.open && ['countdown', 'playing', 'paused'].includes(runtime.state)) {
       runtime.raf = requestAnimationFrame(loop);
     }
   }
@@ -492,22 +573,38 @@
     }
     playBeatIfNeeded(trackMs);
 
-    runtime.chart.forEach(note => {
+    const chart = runtime.chart;
+    const scanStart = runtime.updateCursor;
+    for (let i = scanStart; i < chart.length; i += 1) {
+      const note = chart[i];
+      if (note.state === 'pending' && note.targetTime > trackMs + HIT_WINDOWS.good) break;
       if (note.state === 'pending' && trackMs - note.targetTime > HIT_WINDOWS.good) registerMiss(note, 'MISS');
       if (note.state === 'holding') {
         const laneHeld = runtime.laneSources[note.lane].size > 0;
         const tailTime = note.targetTime + note.holdDuration;
-        if (!laneHeld && trackMs < tailTime - 120) {
+        const grace = Number(note.resumeGraceUntil || 0);
+        if (!laneHeld && trackMs < tailTime - 105 && trackMs >= grace) {
           note.holdReleasedEarly = true;
           registerHoldBreak(note);
-        } else if (trackMs >= tailTime - 35) {
-          if (laneHeld || trackMs >= tailTime + 80) completeHold(note);
+        } else if (trackMs >= tailTime - 28 && laneHeld) {
+          completeHold(note);
+        } else if (trackMs > tailTime + 115 && !laneHeld) {
+          registerHoldBreak(note);
         }
       }
-    });
+    }
+    let cursor = runtime.updateCursor;
+    while (cursor < chart.length) {
+      const note = chart[cursor];
+      const endTime = note.targetTime + note.holdDuration;
+      const visualExitDelay = note.holdDuration > 0 ? 360 : 460;
+      if ((note.state === 'hit' || note.state === 'miss') && trackMs > endTime + visualExitDelay) cursor += 1;
+      else break;
+    }
+    runtime.updateCursor = cursor;
 
-    runtime.laneFlashes = runtime.laneFlashes.map(value => Math.max(0, value - 0.045));
-    runtime.targetPulse = Math.max(0, runtime.targetPulse - 0.035);
+    for (let i = 0; i < runtime.laneFlashes.length; i += 1) runtime.laneFlashes[i] = Math.max(0, runtime.laneFlashes[i] - 0.052);
+    runtime.targetPulse = Math.max(0, runtime.targetPulse - 0.045);
     updateHud(trackMs);
 
     if (runtime.sync <= 0) {
@@ -525,7 +622,7 @@
     const key = runtime.currentPhase * 1000 + localBeat;
     if (key === runtime.currentBeatIndex) return;
     runtime.currentBeatIndex = key;
-    playBeat(localBeat % 4 === 0);
+    playBeat(localBeat % 4 === 0, localBeat, runtime.currentPhase);
   }
 
   function noteForLane(lane, trackMs) {
@@ -554,7 +651,7 @@
     const note = noteForLane(lane, trackMs);
     if (!note) {
       runtime.badTaps += 1;
-      runtime.sync = Math.max(0, runtime.sync - 3.5);
+      runtime.sync = Math.max(0, runtime.sync - 2.0);
       runtime.combo = 0;
       showJudgement('EMPTY', 'bad');
       playUiTone('bad');
@@ -573,14 +670,18 @@
     runtime.laneSources[lane].delete(sourceId);
     if (runtime.state !== 'playing') return;
     const trackMs = nowInTrack(performance.now());
-    runtime.notesByLane[lane].forEach(note => {
-      if (note.state !== 'holding') return;
+    const notes = runtime.notesByLane[lane];
+    for (let i = 0; i < notes.length; i += 1) {
+      const note = notes[i];
+      if (note.state !== 'holding') continue;
       const tailTime = note.targetTime + note.holdDuration;
-      if (trackMs < tailTime - 120 && runtime.laneSources[lane].size === 0) {
+      if (runtime.laneSources[lane].size > 0) continue;
+      if (trackMs >= tailTime - 105) completeHold(note);
+      else if (trackMs >= Number(note.resumeGraceUntil || 0)) {
         note.holdReleasedEarly = true;
         registerHoldBreak(note);
       }
-    });
+    }
   }
 
   function registerHit(note, judgement, errorMs) {
@@ -588,6 +689,7 @@
     note.judgement = judgement;
     note.errorMs = Math.round(errorMs);
     note.headHitAt = nowInTrack(performance.now());
+    note.visualHitAt = note.headHitAt;
     note.state = note.holdDuration > 0 ? 'holding' : 'hit';
     runtime.judgedNotes += note.holdDuration > 0 ? 0 : 1;
     runtime.combo += 1;
@@ -598,14 +700,21 @@
     runtime.score += Math.min(5, Math.floor(runtime.combo / 12));
     runtime.targetPulse = 1;
     spawnHitBurst(note.lane, judgement);
-    showJudgement(judgement, judgement.toLowerCase());
-    playLaneTone(note.lane, judgement === 'PERFECT' ? 1 : judgement === 'GREAT' ? .86 : .72);
+    showJudgement(note.holdDuration > 0 ? `${judgement} · HOLD` : judgement, judgement.toLowerCase());
+    playLaneTone(note.lane, judgement === 'PERFECT' ? 1 : judgement === 'GREAT' ? .88 : .76);
+    if (note.holdDuration > 0) {
+      runtime.activeHoldByLane[note.lane] = note;
+      startHoldVoice(note);
+    }
     vibrate(judgement === 'PERFECT' ? 10 : 6);
   }
 
   function completeHold(note) {
     if (note.state !== 'holding') return;
     note.state = 'hit';
+    note.holdCompleteAt = nowInTrack(performance.now());
+    stopHoldVoice(note, true);
+    if (runtime.activeHoldByLane[note.lane] === note) runtime.activeHoldByLane[note.lane] = null;
     runtime.judgedNotes += 1;
     runtime.holdsCompleted += 1;
     runtime.score += 12;
@@ -613,11 +722,13 @@
     showJudgement('HOLD ✓', 'perfect');
     spawnHitBurst(note.lane, 'HOLD');
     playLaneTone(note.lane, 1.12);
+    vibrate(12);
   }
 
   function registerHoldBreak(note) {
     if (note.state !== 'holding') return;
     note.state = 'miss';
+    note.missAt = nowInTrack(performance.now());
     // A hold is one scored note. If the head was hit but the tail was released
     // early, convert that head judgement into a MISS instead of double-counting.
     if (note.judgement === 'PERFECT') runtime.perfect = Math.max(0, runtime.perfect - 1);
@@ -626,7 +737,9 @@
     runtime.judgedNotes += 1;
     runtime.misses += 1;
     runtime.combo = 0;
-    runtime.sync = Math.max(0, runtime.sync - 12);
+    stopHoldVoice(note, false);
+    if (runtime.activeHoldByLane[note.lane] === note) runtime.activeHoldByLane[note.lane] = null;
+    runtime.sync = Math.max(0, runtime.sync - 9);
     showJudgement('HOLD LOST', 'miss');
     playUiTone('miss');
   }
@@ -634,11 +747,12 @@
   function registerMiss(note, label) {
     if (note.state !== 'pending') return;
     note.state = 'miss';
+    note.missAt = nowInTrack(performance.now());
     note.judgement = 'MISS';
     runtime.judgedNotes += 1;
     runtime.misses += 1;
     runtime.combo = 0;
-    runtime.sync = Math.max(0, runtime.sync - 12);
+    runtime.sync = Math.max(0, runtime.sync - 9);
     showJudgement(label || 'MISS', 'miss');
     playUiTone('miss');
   }
@@ -668,6 +782,7 @@
   async function finishRun() {
     if (runtime.state !== 'playing') return;
     runtime.state = 'result';
+    stopAllHoldVoices();
     runtime.chart.forEach(note => {
       if (note.state === 'pending') registerMiss(note, 'MISS');
       if (note.state === 'holding') completeHold(note);
@@ -761,6 +876,7 @@
   function failRun(copy) {
     if (runtime.state !== 'playing' && runtime.state !== 'countdown') return;
     runtime.state = 'failed';
+    stopAllHoldVoices();
     runtime.failedReason = String(copy || 'The rhythm link was interrupted.');
     if (runtime.round?.sessionId) {
       try { runtime.bridge?.cancelRound?.(runtime.round.sessionId); } catch (_) {}
@@ -775,46 +891,56 @@
   function showJudgement(text, kind) {
     runtime.judgementEl.textContent = text;
     runtime.judgementEl.dataset.kind = kind || '';
-    runtime.judgementEl.classList.remove('pop');
-    void runtime.judgementEl.offsetWidth;
-    runtime.judgementEl.classList.add('pop');
+    if (runtime.judgementEl.animate && !window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches) {
+      runtime.judgementEl.animate([
+        { opacity: 0, transform: 'translateX(-50%) translateY(7px) scale(.86)' },
+        { opacity: 1, transform: 'translateX(-50%) translateY(0) scale(1.08)', offset: .48 },
+        { opacity: .9, transform: 'translateX(-50%) scale(1)' }
+      ], { duration: 260, easing: 'cubic-bezier(.2,.8,.2,1)' });
+    }
   }
 
   function spawnHitBurst(lane, kind) {
     const x = BOARD_X + lane * LANE_W + LANE_W / 2;
     const hue = LANE_META[lane].hue;
-    const count = kind === 'PERFECT' ? 14 : 9;
+    const maxParticles = runtime.lowPower ? 18 : 36;
+    const wanted = kind === 'PERFECT' ? (runtime.lowPower ? 4 : 7) : (runtime.lowPower ? 3 : 5);
+    const count = Math.max(0, Math.min(wanted, maxParticles - runtime.particles.length));
     const now = performance.now();
     for (let i = 0; i < count; i += 1) {
       const angle = Math.PI * (1.1 + Math.random() * .8);
-      const speed = 45 + Math.random() * 95;
+      const speed = 42 + Math.random() * 82;
       runtime.particles.push({
         x, y: TARGET_Y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
-        born: now, lastUpdate: now, ttl: 360 + Math.random() * 220, size: 2 + Math.random() * 4, hue
+        born: now, lastUpdate: now, ttl: 300 + Math.random() * 180, size: 2 + Math.random() * 3, hue
       });
     }
   }
 
   function updateParticles(now) {
-    runtime.particles = runtime.particles.filter(p => {
+    for (let i = runtime.particles.length - 1; i >= 0; i -= 1) {
+      const p = runtime.particles[i];
       const age = now - p.born;
-      if (age >= p.ttl) return false;
+      if (age >= p.ttl) { runtime.particles.splice(i, 1); continue; }
       const previous = Number.isFinite(p.lastUpdate) ? p.lastUpdate : p.born;
       const dt = clamp((now - previous) / 1000, 0, .04);
       p.lastUpdate = now;
       p.x += p.vx * dt;
       p.y += p.vy * dt;
-      p.vy += 150 * dt;
+      p.vy += 145 * dt;
       p.vx *= Math.pow(.98, dt * 60);
-      return true;
-    });
+    }
   }
 
   function laneFromClientX(clientX) {
     const rect = runtime.view.rect || runtime.canvas.getBoundingClientRect();
-    const worldX = (clientX - rect.left - runtime.view.ox) / Math.max(.001, runtime.view.scale);
+    const worldX = (clientX - rect.left - runtime.view.ox) / Math.max(.001, runtime.view.scaleX || runtime.view.scale);
     if (worldX < BOARD_X || worldX > BOARD_X + BOARD_W) return -1;
     return clamp(Math.floor((worldX - BOARD_X) / LANE_W), 0, 3);
+  }
+
+  function isPhoneLayout() {
+    return runtime.view.cssW <= 700;
   }
 
   function onPointerDown(event) {
@@ -874,6 +1000,8 @@
     runtime.pausedFrom = runtime.state;
     runtime.state = 'paused';
     runtime.pauseStartedNow = performance.now();
+    runtime.pausedHoldLanes.clear();
+    runtime.chart.forEach(note => { if (note.state === 'holding') runtime.pausedHoldLanes.add(note.lane); });
     runtime.laneSources.forEach(set => set.clear());
     runtime.pointers.clear();
     runtime.keyboardDown.clear();
@@ -888,6 +1016,11 @@
     else runtime.pausedAccumMs += pausedFor;
     runtime.state = runtime.pausedFrom || 'playing';
     runtime.pauseStartedNow = 0;
+    const trackMs = nowInTrack(now);
+    runtime.chart.forEach(note => {
+      if (note.state === 'holding') note.resumeGraceUntil = trackMs + 520;
+    });
+    runtime.pausedHoldLanes.clear();
     try { runtime.audioContext?.resume?.(); } catch (_) {}
   }
 
@@ -899,49 +1032,100 @@
         if (!AC) return null;
         runtime.audioContext = new AC({ latencyHint: 'interactive' });
         runtime.masterGain = runtime.audioContext.createGain();
-        runtime.masterGain.gain.value = .22;
-        runtime.masterGain.connect(runtime.audioContext.destination);
+        runtime.compressor = runtime.audioContext.createDynamicsCompressor();
+        runtime.compressor.threshold.value = -14;
+        runtime.compressor.knee.value = 10;
+        runtime.compressor.ratio.value = 5;
+        runtime.compressor.attack.value = .004;
+        runtime.compressor.release.value = .12;
+        runtime.masterGain.gain.value = .38;
+        runtime.masterGain.connect(runtime.compressor);
+        runtime.compressor.connect(runtime.audioContext.destination);
       }
       if (runtime.audioContext.state === 'suspended') runtime.audioContext.resume().catch(() => {});
       return runtime.audioContext;
     } catch (_) { return null; }
   }
 
-  function synth(freq, duration = .09, volume = .09, type = 'sine', slideTo = 0) {
+  function synth(freq, duration = .09, volume = .09, type = 'sine', slideTo = 0, delay = 0) {
     if (!runtime.soundEnabled) return;
     const ctx = ensureAudio();
     if (!ctx || !runtime.masterGain) return;
-    const now = ctx.currentTime;
+    const start = ctx.currentTime + Math.max(0, Number(delay || 0));
+    const end = start + Math.max(.02, duration);
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.type = type;
-    osc.frequency.setValueAtTime(freq, now);
-    if (slideTo > 0) osc.frequency.exponentialRampToValueAtTime(slideTo, now + duration);
-    gain.gain.setValueAtTime(.0001, now);
-    gain.gain.exponentialRampToValueAtTime(Math.max(.001, volume), now + .008);
-    gain.gain.exponentialRampToValueAtTime(.0001, now + duration);
+    osc.frequency.setValueAtTime(Math.max(30, freq), start);
+    if (slideTo > 0) osc.frequency.exponentialRampToValueAtTime(Math.max(30, slideTo), end);
+    gain.gain.setValueAtTime(.0001, start);
+    gain.gain.exponentialRampToValueAtTime(Math.max(.001, volume), start + Math.min(.012, duration * .2));
+    gain.gain.exponentialRampToValueAtTime(.0001, end);
     osc.connect(gain); gain.connect(runtime.masterGain);
-    osc.start(now); osc.stop(now + duration + .02);
+    osc.start(start); osc.stop(end + .025);
   }
 
   function playLaneTone(lane, strength = 1) {
     const freq = LANE_META[lane]?.freq || 330;
-    synth(freq, .11, .10 * strength, 'triangle', freq * 1.02);
-    synth(freq * 2, .06, .028 * strength, 'sine');
+    synth(freq, .12, .13 * strength, 'triangle', freq * 1.015);
+    synth(freq * 2, .07, .034 * strength, 'sine');
+    synth(freq * 3, .026, .016 * strength, 'square');
   }
 
-  function playBeat(accent) {
+  function playBeat(accent, beatIndex = 0, phaseIndex = 0) {
     if (!runtime.soundEnabled) return;
-    synth(accent ? 82 : 62, accent ? .09 : .055, accent ? .06 : .025, 'sine', 45);
+    synth(accent ? 88 : 66, accent ? .105 : .06, accent ? .075 : .035, 'sine', 44);
+    synth(accent ? 980 : 1320, .025, accent ? .024 : .015, 'square');
+    if (beatIndex % 2 === 0) {
+      const roots = [130.81, 146.83, 164.81, 196.0, 174.61];
+      const root = roots[phaseIndex % roots.length];
+      synth(root * 2, .075, .020, 'triangle');
+    }
+  }
+
+  function startHoldVoice(note) {
+    if (!runtime.soundEnabled || !note || note.holdVoice) return;
+    const ctx = ensureAudio();
+    if (!ctx || !runtime.masterGain) return;
+    try {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const freq = LANE_META[note.lane]?.freq || 330;
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(freq, ctx.currentTime);
+      gain.gain.setValueAtTime(.0001, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(.052, ctx.currentTime + .025);
+      osc.connect(gain); gain.connect(runtime.masterGain);
+      osc.start();
+      note.holdVoice = { osc, gain };
+    } catch (_) { note.holdVoice = null; }
+  }
+
+  function stopHoldVoice(note, success = false) {
+    const voice = note?.holdVoice;
+    if (!voice || !runtime.audioContext) return;
+    note.holdVoice = null;
+    try {
+      const now = runtime.audioContext.currentTime;
+      voice.gain.gain.cancelScheduledValues(now);
+      voice.gain.gain.setValueAtTime(Math.max(.0001, voice.gain.gain.value || .03), now);
+      voice.gain.gain.exponentialRampToValueAtTime(.0001, now + .045);
+      voice.osc.stop(now + .06);
+    } catch (_) {}
+    if (success) playLaneTone(note.lane, 1.05);
+  }
+
+  function stopAllHoldVoices() {
+    runtime.chart.forEach(note => stopHoldVoice(note, false));
   }
 
   function playUiTone(kind) {
     if (!runtime.soundEnabled) return;
-    if (kind === 'start') { synth(330, .08, .07, 'triangle'); setTimeout(() => synth(440, .09, .07, 'triangle'), 90); }
-    else if (kind === 'phase') { synth(523, .08, .06, 'triangle'); setTimeout(() => synth(659, .09, .06, 'triangle'), 70); }
-    else if (kind === 'miss' || kind === 'bad') synth(130, .10, .05, 'sawtooth', 95);
-    else if (kind === 'win') { synth(523, .12, .08, 'triangle'); setTimeout(() => synth(659, .12, .08, 'triangle'), 100); setTimeout(() => synth(784, .16, .08, 'triangle'), 200); }
-    else if (kind === 'fail') synth(180, .22, .07, 'sawtooth', 80);
+    if (kind === 'start') { synth(330, .08, .09, 'triangle'); synth(440, .09, .09, 'triangle', 0, .085); synth(554, .10, .075, 'triangle', 0, .17); }
+    else if (kind === 'phase') { synth(523, .08, .075, 'triangle'); synth(659, .09, .07, 'triangle', 0, .07); }
+    else if (kind === 'miss' || kind === 'bad') synth(138, .12, .07, 'sawtooth', 92);
+    else if (kind === 'win') { synth(523, .12, .09, 'triangle'); synth(659, .12, .085, 'triangle', 0, .095); synth(784, .17, .09, 'triangle', 0, .19); }
+    else if (kind === 'fail') synth(190, .24, .085, 'sawtooth', 78);
   }
 
   function vibrate(pattern) {
@@ -952,19 +1136,23 @@
     runtime.soundEnabled = !runtime.soundEnabled;
     runtime.soundBtn.textContent = runtime.soundEnabled ? '🔊' : '🔇';
     try { runtime.bridge?.setSoundEnabled?.(runtime.soundEnabled); } catch (_) {}
-    if (runtime.soundEnabled) { ensureAudio(); playUiTone('start'); }
+    if (runtime.soundEnabled) {
+      ensureAudio();
+      playUiTone('start');
+      runtime.chart.forEach(note => { if (note.state === 'holding') startHoldVoice(note); });
+    } else stopAllHoldVoices();
   }
 
   function renderFrame(now) {
     const ctx = runtime.ctx;
     if (!ctx || !runtime.canvas) return;
-    const { dpr, scale, ox, oy, cssW, cssH } = runtime.view;
+    const { dpr, scale, scaleX, scaleY, ox, oy, cssW, cssH } = runtime.view;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.fillStyle = '#050713';
+    ctx.fillStyle = '#a9c8fb';
     ctx.fillRect(0, 0, cssW, cssH);
     ctx.save();
     ctx.translate(ox, oy);
-    ctx.scale(scale, scale);
+    ctx.scale(scaleX || scale, scaleY || scale);
     drawBackdrop(ctx, now);
     drawBoard(ctx, now);
     if (runtime.state === 'countdown') drawCountdown(ctx, now);
@@ -975,111 +1163,242 @@
   }
 
   function drawBackdrop(ctx, now) {
-    const g = ctx.createLinearGradient(0, 0, 0, WORLD_H);
-    g.addColorStop(0, '#070b1d'); g.addColorStop(.55, '#090d22'); g.addColorStop(1, '#040611');
-    ctx.fillStyle = g; ctx.fillRect(0, 0, WORLD_W, WORLD_H);
+    ctx.fillStyle = runtime.backdropGradient || '#d9dbf8';
+    ctx.fillRect(0, 0, WORLD_W, WORLD_H);
+
+    BACKDROP_GLOWS.forEach(([x, y, r, color], idx) => {
+      const drift = runtime.lowPower ? 0 : Math.sin(now * 0.00055 + idx) * 5;
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(x, y + drift, r, 0, Math.PI * 2);
+      ctx.fill();
+    });
+
     ctx.save();
-    ctx.globalAlpha = .12;
-    ctx.strokeStyle = '#67e8f9'; ctx.lineWidth = 1;
-    const drift = (now * .015) % 40;
-    for (let y = BOARD_TOP + drift; y < BOARD_BOTTOM; y += 40) { ctx.beginPath(); ctx.moveTo(BOARD_X, y); ctx.lineTo(BOARD_X + BOARD_W, y); ctx.stroke(); }
-    ctx.globalAlpha = .08;
-    for (let x = BOARD_X; x <= BOARD_X + BOARD_W; x += 52) { ctx.beginPath(); ctx.moveTo(x, BOARD_TOP); ctx.lineTo(x, BOARD_BOTTOM); ctx.stroke(); }
+    ctx.globalAlpha = runtime.lowPower ? 0.48 : 0.76;
+    ctx.fillStyle = 'rgba(255,255,255,.78)';
+    BACKDROP_STARS.forEach(([x, y, s]) => {
+      ctx.beginPath();
+      ctx.moveTo(x, y - s); ctx.lineTo(x + s * .34, y - s * .34); ctx.lineTo(x + s, y); ctx.lineTo(x + s * .34, y + s * .34);
+      ctx.lineTo(x, y + s); ctx.lineTo(x - s * .34, y + s * .34); ctx.lineTo(x - s, y); ctx.lineTo(x - s * .34, y - s * .34);
+      ctx.closePath();
+      ctx.fill();
+    });
     ctx.restore();
   }
 
   function drawBoard(ctx, now) {
     ctx.save();
-    roundRect(ctx, BOARD_X, BOARD_TOP, BOARD_W, BOARD_BOTTOM - BOARD_TOP, 28);
-    ctx.fillStyle = 'rgba(7,11,29,.82)'; ctx.fill();
-    ctx.strokeStyle = 'rgba(148,163,184,.18)'; ctx.lineWidth = 2; ctx.stroke();
+    roundRect(ctx, BOARD_X, BOARD_TOP, BOARD_W, BOARD_BOTTOM - BOARD_TOP, 16);
+    ctx.clip();
 
+    const laneFills = ['rgba(255,255,255,.18)', 'rgba(255,255,255,.12)', 'rgba(255,255,255,.16)', 'rgba(82,183,255,.28)'];
     for (let lane = 0; lane < 4; lane += 1) {
       const x = BOARD_X + lane * LANE_W;
-      const meta = LANE_META[lane];
-      const flash = clamp(runtime.laneFlashes[lane], 0, 1);
-      ctx.fillStyle = `hsla(${meta.hue}, 82%, 58%, ${.035 + flash * .11})`;
-      ctx.fillRect(x + 2, BOARD_TOP + 2, LANE_W - 4, BOARD_BOTTOM - BOARD_TOP - 4);
-      if (lane > 0) { ctx.strokeStyle = 'rgba(148,163,184,.16)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x, BOARD_TOP + 8); ctx.lineTo(x, BOARD_BOTTOM - 8); ctx.stroke(); }
-      drawLaneLabel(ctx, lane);
+      ctx.fillStyle = laneFills[lane];
+      ctx.fillRect(x, BOARD_TOP, LANE_W, BOARD_BOTTOM - BOARD_TOP);
+      if (lane > 0) {
+        ctx.strokeStyle = 'rgba(255,255,255,.34)';
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.moveTo(x, BOARD_TOP);
+        ctx.lineTo(x, BOARD_BOTTOM);
+        ctx.stroke();
+      }
     }
 
-    const targetAlpha = .72 + runtime.targetPulse * .28;
-    ctx.shadowColor = 'rgba(34,211,238,.55)'; ctx.shadowBlur = 12 + runtime.targetPulse * 12;
-    ctx.strokeStyle = `rgba(103,232,249,${targetAlpha})`; ctx.lineWidth = 5;
-    ctx.beginPath(); ctx.moveTo(BOARD_X + 8, TARGET_Y); ctx.lineTo(BOARD_X + BOARD_W - 8, TARGET_Y); ctx.stroke();
-    ctx.shadowBlur = 0;
-    ctx.fillStyle = 'rgba(207,250,254,.8)'; ctx.font = '900 12px system-ui'; ctx.textAlign = 'left'; ctx.fillText('SYNC LINE', BOARD_X + 14, TARGET_Y + 27);
+    if (!isPhoneLayout()) for (let lane = 0; lane < 4; lane += 1) drawLaneLabel(ctx, lane);
 
-    const trackMs = ['playing','result','failed','paused'].includes(runtime.state) ? nowInTrack(now) : 0;
-    runtime.chart.forEach(note => drawNote(ctx, note, trackMs, now));
-    drawLanePads(ctx);
+    const targetAlpha = .88 + runtime.targetPulse * .12;
+    ctx.strokeStyle = `rgba(244,147,38,${targetAlpha})`;
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.moveTo(BOARD_X + 4, TARGET_Y);
+    ctx.lineTo(BOARD_X + BOARD_W - 4, TARGET_Y);
+    ctx.stroke();
+    const accents = [BOARD_X + BOARD_W * .33, BOARD_X + BOARD_W * .5, BOARD_X + BOARD_W * .79];
+    accents.forEach((cx, i) => {
+      const size = i === 2 ? 9 : 11;
+      ctx.fillStyle = i === 2 ? 'rgba(30,64,175,.95)' : 'rgba(250,204,21,.96)';
+      ctx.beginPath();
+      ctx.moveTo(cx, TARGET_Y - size); ctx.lineTo(cx + size, TARGET_Y); ctx.lineTo(cx, TARGET_Y + size); ctx.lineTo(cx - size, TARGET_Y);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,.58)';
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+    });
+
+    const trackMs = ['playing', 'result', 'failed', 'paused'].includes(runtime.state) ? nowInTrack(now) : 0;
+    const chart = runtime.chart;
+    const start = Math.max(0, runtime.updateCursor - 5);
+    for (let i = start; i < chart.length; i += 1) {
+      const note = chart[i];
+      if (note.targetTime - note.travelMs > trackMs + 220) break;
+      if (note.targetTime + note.holdDuration < trackMs - 520 && (note.state === 'hit' || note.state === 'miss')) continue;
+      drawNote(ctx, note, trackMs, now);
+    }
+
+    if (!isPhoneLayout()) drawLanePads(ctx, trackMs);
+
+    ctx.restore();
+    ctx.save();
+    roundRect(ctx, BOARD_X, BOARD_TOP, BOARD_W, BOARD_BOTTOM - BOARD_TOP, 16);
+    ctx.strokeStyle = 'rgba(255,255,255,.22)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
     ctx.restore();
   }
 
   function drawLaneLabel(ctx, lane) {
+    if (isPhoneLayout()) return;
     const x = BOARD_X + lane * LANE_W + LANE_W / 2;
     const meta = LANE_META[lane];
     ctx.textAlign = 'center';
-    ctx.fillStyle = `hsla(${meta.hue}, 90%, 75%, .95)`;
-    ctx.font = '950 17px system-ui'; ctx.fillText(meta.glyph, x, BOARD_TOP + 31);
-    ctx.fillStyle = 'rgba(226,232,240,.7)'; ctx.font = '800 10px system-ui'; ctx.fillText(meta.label, x, BOARD_TOP + 50);
+    ctx.fillStyle = 'rgba(31,41,55,.62)';
+    ctx.font = '900 10px system-ui';
+    ctx.fillText(meta.label, x, BOARD_TOP + 20);
   }
 
   function noteY(note, trackMs) {
     const delta = note.targetTime - trackMs;
-    const pixelsPerMs = (TARGET_Y - (BOARD_TOP + 76)) / note.travelMs;
+    const pixelsPerMs = (TARGET_Y - ENTRY_Y) / note.travelMs;
     return TARGET_Y - delta * pixelsPerMs;
   }
 
   function drawNote(ctx, note, trackMs, now) {
-    if (note.state === 'miss') return;
-    if (note.state === 'hit' && note.holdDuration <= 0) return;
+    const shortHit = note.state === 'hit' && note.holdDuration <= 0;
+    const shortMiss = note.state === 'miss' && note.holdDuration <= 0;
+    const completedHold = note.state === 'hit' && note.holdDuration > 0;
+    const brokenHold = note.state === 'miss' && note.holdDuration > 0;
+
+    // A completed/missed note is still rendered for a short exit window so it
+    // visibly travels below the sync line instead of disappearing on contact.
+    if (shortHit || shortMiss) {
+      const y = noteY(note, trackMs);
+      if (y < BOARD_TOP - 90 || y > BOARD_BOTTOM + 150) return;
+      const x = BOARD_X + note.lane * LANE_W + 2;
+      const w = LANE_W - 4;
+      const travel = clamp((y - TARGET_Y) / Math.max(1, BOARD_BOTTOM - TARGET_Y + 80), 0, 1);
+      const fadeStart = .68;
+      const alpha = travel <= fadeStart ? 1 : clamp(1 - (travel - fadeStart) / (1 - fadeStart), 0, 1);
+
+      ctx.save();
+      ctx.globalAlpha = clamp(alpha, 0, 1);
+      if (shortHit) {
+        // Small downward streak sells the "passed through" motion without
+        // adding expensive blur/filter effects.
+        ctx.fillStyle = 'rgba(255,255,255,.14)';
+        ctx.fillRect(x + 8, y - 104, w - 16, 34);
+        ctx.fillStyle = '#050505';
+      } else {
+        ctx.fillStyle = 'rgba(127,29,29,.92)';
+      }
+      ctx.fillRect(x + 1, y - 72, w - 2, 144);
+      if (shortHit && !runtime.lowPower) {
+        ctx.fillStyle = 'rgba(255,255,255,.035)';
+        ctx.fillRect(x + 8, y - 68, w - 16, 14);
+      }
+      ctx.restore();
+      return;
+    }
+
+    // Once a long tile is successfully released, let the last piece continue
+    // below the line for a fraction of a second before fading out.
+    if (completedHold || brokenHold) {
+      const doneAt = Number(completedHold ? note.holdCompleteAt : note.missAt) || trackMs;
+      const elapsed = Math.max(0, trackMs - doneAt);
+      const exitDuration = 430;
+      if (elapsed > exitDuration) return;
+      const t = clamp(elapsed / exitDuration, 0, 1);
+      const x = BOARD_X + note.lane * LANE_W + 2;
+      const w = LANE_W - 4;
+      const y = TARGET_Y + 34 + t * 150;
+      const h = Math.max(32, 138 * (1 - t * .42));
+
+      ctx.save();
+      ctx.globalAlpha = t < .48 ? 1 : clamp(1 - (t - .48) / .52, 0, 1);
+      ctx.fillStyle = completedHold ? '#050505' : 'rgba(127,29,29,.92)';
+      ctx.fillRect(x + 1, y - h * .5, w - 2, h);
+      if (completedHold) {
+        ctx.fillStyle = 'rgba(255,255,255,.12)';
+        ctx.fillRect(x + 8, y - h * .5 - 24, w - 16, 24);
+      }
+      ctx.restore();
+      return;
+    }
+
     const headY = note.state === 'holding' ? TARGET_Y : noteY(note, trackMs);
-    if (headY < BOARD_TOP + 52 || headY > BOARD_BOTTOM + 90) return;
-    const x = BOARD_X + note.lane * LANE_W + 14;
-    const w = LANE_W - 28;
+    const x = BOARD_X + note.lane * LANE_W + 2;
+    const w = LANE_W - 4;
     const meta = LANE_META[note.lane];
     const held = note.state === 'holding';
 
     if (note.holdDuration > 0 && (note.state === 'pending' || held)) {
       const tailTime = note.targetTime + note.holdDuration;
-      const tailY = TARGET_Y - (tailTime - trackMs) * ((TARGET_Y - (BOARD_TOP + 76)) / note.travelMs);
-      const top = clamp(Math.min(tailY, headY), BOARD_TOP + 58, TARGET_Y);
-      const bottom = clamp(Math.max(tailY, headY), BOARD_TOP + 58, TARGET_Y);
-      ctx.fillStyle = `hsla(${meta.hue}, 88%, 54%, ${held ? .34 : .22})`;
-      roundRect(ctx, x + w * .32, top, w * .36, Math.max(20, bottom - top), 16); ctx.fill();
-      ctx.strokeStyle = `hsla(${meta.hue}, 92%, 72%, .55)`; ctx.lineWidth = 2; ctx.stroke();
+      const pxPerMs = (TARGET_Y - ENTRY_Y) / note.travelMs;
+      const tailY = TARGET_Y - (tailTime - trackMs) * pxPerMs;
+      const rawTop = Math.min(tailY, headY - 62);
+      const rawBottom = headY + 68;
+      if (rawBottom < BOARD_TOP || rawTop > BOARD_BOTTOM + 20) return;
+      const top = Math.max(BOARD_TOP, rawTop);
+      const bottom = Math.min(BOARD_BOTTOM, rawBottom);
+      const drawBottom = Math.min(BOARD_BOTTOM, Math.max(bottom, top + TILE_H));
+      const h = Math.max(1, drawBottom - top);
+
+      ctx.save();
+      ctx.fillStyle = '#050505';
+      ctx.fillRect(x + 1, top, w - 2, h);
+      // Tail cap makes the end of a long note easy to read while it approaches.
+      ctx.fillStyle = held ? 'rgba(147,197,253,.78)' : 'rgba(255,255,255,.22)';
+      ctx.fillRect(x + 8, top + 2, w - 16, 4);
+      if (held) {
+        const progress = clamp((trackMs - note.targetTime) / Math.max(1, note.holdDuration), 0, 1);
+        ctx.fillStyle = `hsla(${meta.hue}, 90%, 64%, .18)`;
+        ctx.fillRect(x + 2, top, 5, h);
+        ctx.fillRect(x + w - 7, top, 5, h);
+        ctx.fillStyle = `hsla(${meta.hue}, 95%, 70%, .92)`;
+        ctx.fillRect(x + 1, Math.min(drawBottom - 8, TARGET_Y - 6), (w - 2) * progress, 6);
+        ctx.fillStyle = `hsla(${meta.hue}, 96%, 74%, .24)`;
+        ctx.fillRect(x + 1, TARGET_Y - 4, w - 2, 8);
+      }
+      ctx.restore();
+      return;
     }
 
-    const pulse = .5 + .5 * Math.sin(now * .008 + note.lane);
+    if (headY + TILE_H * .5 < BOARD_TOP || headY - TILE_H * .5 > BOARD_BOTTOM + 12) return;
     ctx.save();
-    ctx.shadowColor = `hsla(${meta.hue}, 90%, 58%, .55)`;
-    ctx.shadowBlur = held ? 20 : 10 + pulse * 4;
-    roundRect(ctx, x, headY - 31, w, 62, 17);
-    const grad = ctx.createLinearGradient(x, headY - 31, x + w, headY + 31);
-    grad.addColorStop(0, `hsla(${meta.hue}, 88%, 58%, .92)`);
-    grad.addColorStop(1, `hsla(${meta.hue}, 80%, 38%, .94)`);
-    ctx.fillStyle = grad; ctx.fill();
-    ctx.shadowBlur = 0;
-    ctx.strokeStyle = 'rgba(255,255,255,.34)'; ctx.lineWidth = 2; ctx.stroke();
-    ctx.fillStyle = '#f8fafc'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.font = '950 22px system-ui'; ctx.fillText(meta.glyph, x + w / 2, headY - 4);
-    ctx.font = '850 9px system-ui'; ctx.fillStyle = 'rgba(248,250,252,.82)'; ctx.fillText(note.holdDuration > 0 ? 'HOLD' : meta.label, x + w / 2, headY + 18);
+    ctx.fillStyle = '#050505';
+    ctx.fillRect(x + 1, headY - TILE_H * .5, w - 2, TILE_H);
+    if (!runtime.lowPower) {
+      ctx.fillStyle = 'rgba(255,255,255,.03)';
+      ctx.fillRect(x + 8, headY - TILE_H * .5 + 4, w - 16, 14);
+    }
     ctx.restore();
   }
 
-  function drawLanePads(ctx) {
+  function drawLanePads(ctx, trackMs) {
     for (let lane = 0; lane < 4; lane += 1) {
-      const x = BOARD_X + lane * LANE_W + 10;
+      const x = BOARD_X + lane * LANE_W + 14;
       const meta = LANE_META[lane];
       const active = runtime.laneSources[lane].size > 0;
-      roundRect(ctx, x, TARGET_Y + 47, LANE_W - 20, 72, 17);
-      ctx.fillStyle = active ? `hsla(${meta.hue}, 86%, 55%, .34)` : 'rgba(15,23,42,.8)'; ctx.fill();
-      ctx.strokeStyle = active ? `hsla(${meta.hue}, 95%, 72%, .8)` : 'rgba(148,163,184,.22)'; ctx.lineWidth = active ? 3 : 2; ctx.stroke();
-      ctx.textAlign = 'center'; ctx.fillStyle = active ? '#f8fafc' : 'rgba(226,232,240,.82)'; ctx.font = '950 18px system-ui';
-      ctx.fillText(LANE_META[lane].key, x + (LANE_W - 20) / 2, TARGET_Y + 77);
-      ctx.font = '800 9px system-ui'; ctx.fillText(LANE_META[lane].label, x + (LANE_W - 20) / 2, TARGET_Y + 99);
+      const hold = runtime.activeHoldByLane[lane];
+      const holding = Boolean(hold && hold.state === 'holding');
+      roundRect(ctx, x, TARGET_Y + 36, LANE_W - 28, 52, 12);
+      ctx.fillStyle = holding ? 'rgba(37,99,235,.35)' : active ? 'rgba(17,24,39,.54)' : 'rgba(255,255,255,.12)';
+      ctx.fill();
+      ctx.strokeStyle = active || holding ? 'rgba(255,255,255,.56)' : 'rgba(255,255,255,.20)';
+      ctx.lineWidth = 1.4;
+      ctx.stroke();
+      ctx.textAlign = 'center';
+      ctx.fillStyle = 'rgba(17,24,39,.88)';
+      ctx.font = '900 17px system-ui';
+      ctx.fillText(meta.key, x + (LANE_W - 28) / 2, TARGET_Y + 60);
+      if (holding) {
+        const progress = clamp((trackMs - hold.targetTime) / Math.max(1, hold.holdDuration), 0, 1);
+        ctx.font = '900 9px system-ui';
+        ctx.fillText(`HOLD ${Math.round(progress * 100)}%`, x + (LANE_W - 28) / 2, TARGET_Y + 78);
+      }
     }
   }
 
@@ -1155,6 +1474,7 @@
     if (runtime.round?.sessionId && !runtime.rewardSubmitting) {
       try { runtime.bridge?.cancelRound?.(runtime.round.sessionId); } catch (_) {}
     }
+    stopAllHoldVoices();
     runtime.round = null;
     runtime.open = false;
     runtime.state = 'closed';
@@ -1188,6 +1508,8 @@
     runtime.soundBtn.textContent = runtime.soundEnabled ? '🔊' : '🔇';
     runtime.open = true;
     runtime.state = 'ready';
+    runtime.updateCursor = 0;
+    runtime.hudCache = Object.create(null);
     runtime.overlay.hidden = false;
     document.body.classList.add('code-tiles-active');
     runtime.readyPanel.hidden = false;

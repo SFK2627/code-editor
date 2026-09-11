@@ -25,3 +25,243 @@ body.code-tiles-active{overflow:hidden!important;overscroll-behavior:none!import
 @media (max-width:560px){.code-tiles-topbar{left:7px;right:7px;grid-template-columns:40px 1fr 40px 40px;height:52px;padding:5px;border-radius:15px}.code-tiles-topbar button{width:40px;height:40px;border-radius:11px}.code-tiles-brand strong{font-size:13px}.code-tiles-brand small{font-size:8px}.code-tiles-hud{top:max(68px,calc(env(safe-area-inset-top) + 64px));width:96vw;gap:3px}.code-tiles-hud>div{padding:6px 2px;border-radius:10px}.code-tiles-hud small{font-size:7px}.code-tiles-hud strong{font-size:11px}.code-tiles-progress{top:max(108px,calc(env(safe-area-inset-top) + 104px));width:94vw}.code-tiles-judge{bottom:max(104px,calc(env(safe-area-inset-bottom) + 96px));font-size:15px}.code-tiles-panel{padding:max(70px,calc(env(safe-area-inset-top) + 64px)) 11px max(12px,env(safe-area-inset-bottom))}.code-tiles-card{width:94vw;padding:19px 15px;border-radius:22px}.code-tiles-card h2{font-size:32px}.code-tiles-card p{font-size:12px}.code-tiles-hero{height:76px}.code-tiles-hero i{width:40px}.code-tiles-hero i:nth-child(1){height:58px}.code-tiles-hero i:nth-child(2){height:74px}.code-tiles-hero i:nth-child(3){height:48px}.code-tiles-hero i:nth-child(4){height:66px}.code-tiles-key-row span{padding:7px 2px;font-size:8px}.code-tiles-key-row b{font-size:14px}.code-tiles-actions{grid-template-columns:1fr}}
 @media (max-height:520px) and (orientation:landscape){.code-tiles-topbar{top:5px;height:44px;left:7px;right:7px;grid-template-columns:34px 1fr 34px 34px;padding:4px}.code-tiles-topbar button{width:34px;height:34px;font-size:17px}.code-tiles-brand strong{font-size:11px}.code-tiles-brand small{display:none}.code-tiles-hud{top:55px;width:min(72vw,570px)}.code-tiles-hud>div{padding:4px 2px}.code-tiles-progress{top:89px;width:min(70vw,550px)}.code-tiles-panel{padding:52px 8px 8px}.code-tiles-card{max-height:84vh;width:min(72vw,560px);padding:14px 18px}.code-tiles-hero{display:none}.code-tiles-card h2{font-size:26px}.code-tiles-card p{margin-bottom:10px;font-size:10px}.code-tiles-key-row{margin:8px 0 6px}.code-tiles-phase-strip{margin:6px 0 10px}.code-tiles-card button{min-height:38px}.code-tiles-judge{bottom:12px}}
 @media (prefers-reduced-motion:reduce){.code-tiles-hero i,.code-tiles-judge.pop{animation:none!important}.code-tiles-card button{transition:none!important}}
+
+
+/* CODE TILES v2 — Piano-style long tiles, clearer hit area, and low-lag compositing. */
+.code-tiles-shell{background:linear-gradient(180deg,#07101f,#02050d)}
+.code-tiles-topbar{background:rgba(5,10,25,.94);backdrop-filter:none;-webkit-backdrop-filter:none;box-shadow:0 8px 24px rgba(0,0,0,.24)}
+.code-tiles-hud{width:min(94vw,560px)}
+.code-tiles-hud>div{background:rgba(7,13,30,.92);backdrop-filter:none;-webkit-backdrop-filter:none}
+.code-tiles-progress{width:min(92vw,548px)}
+.code-tiles-judge{background:rgba(2,6,23,.64);box-shadow:0 7px 20px rgba(0,0,0,.2)}
+.code-tiles-panel{backdrop-filter:none;-webkit-backdrop-filter:none;background:rgba(3,6,18,.72)}
+.code-tiles-how{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:14px 0 11px;text-align:left}
+.code-tiles-how span{position:relative;min-height:76px;padding:10px 10px 9px 52px;border:1px solid rgba(148,163,184,.16);border-radius:14px;background:rgba(15,23,42,.66)}
+.code-tiles-how i{position:absolute;left:12px;top:11px;width:27px;border-radius:6px;background:linear-gradient(180deg,#67e8f9,#0e7490);box-shadow:0 0 13px rgba(34,211,238,.28)}
+.code-tiles-how i.short{height:42px}.code-tiles-how i.long{height:58px;background:linear-gradient(180deg,#c4b5fd,#6d28d9)}
+.code-tiles-how b{display:block;color:#f8fafc;font-size:10px;letter-spacing:.06em}.code-tiles-how small{display:block;margin-top:4px;color:#a8b7c9;font-size:9px;line-height:1.3}
+.code-tiles-tip{color:#8fa4bb;font-size:10px}
+.code-tiles-canvas{contain:strict}
+@media (max-width:560px){
+  .code-tiles-hud{width:97vw}.code-tiles-progress{width:95vw}
+  .code-tiles-topbar{background:rgba(5,10,25,.97)}
+  .code-tiles-how{gap:6px;margin:10px 0 9px}
+  .code-tiles-how span{min-height:68px;padding:8px 7px 8px 43px;border-radius:11px}
+  .code-tiles-how i{left:9px;top:9px;width:23px}.code-tiles-how i.short{height:38px}.code-tiles-how i.long{height:50px}
+  .code-tiles-how b{font-size:9px}.code-tiles-how small{font-size:8px}
+  .code-tiles-card p{line-height:1.42}
+}
+@media (max-height:520px) and (orientation:landscape){
+  .code-tiles-how{display:none}
+  .code-tiles-hud{width:min(68vw,520px)}
+  .code-tiles-progress{width:min(66vw,510px)}
+}
+
+
+/* CODE TILES v3 — simpler piano-tiles visual, better phone feel, no bottom pads on phone */
+.code-tiles-shell{background:linear-gradient(180deg,#edd4f2 0%,#d8daf8 56%,#91bbff 100%)}
+.code-tiles-topbar{background:rgba(255,255,255,.38);border:1px solid rgba(255,255,255,.45);box-shadow:0 8px 22px rgba(54,65,110,.14)}
+.code-tiles-topbar button{background:rgba(255,255,255,.54);color:#172033;border-color:rgba(255,255,255,.58)}
+.code-tiles-brand strong,.code-tiles-brand small{color:#111827}
+.code-tiles-hud{width:min(94vw,560px);top:max(80px,calc(env(safe-area-inset-top) + 76px))}
+.code-tiles-hud>div{background:rgba(255,255,255,.48);border-color:rgba(255,255,255,.46);color:#172033;box-shadow:0 6px 16px rgba(50,64,108,.08)}
+.code-tiles-hud small{color:#334155}.code-tiles-hud strong{color:#111827}
+.code-tiles-progress{top:max(123px,calc(env(safe-area-inset-top) + 119px));height:10px;background:rgba(255,255,255,.35);border-color:rgba(255,255,255,.5)}
+.code-tiles-progress i{background:linear-gradient(90deg,#f59e0b,#1d4ed8)}
+.code-tiles-judge{background:rgba(255,255,255,.38);color:#111827;border-color:rgba(255,255,255,.48);box-shadow:0 6px 18px rgba(50,64,108,.08)}
+.code-tiles-panel{background:rgba(138,160,229,.22)}
+.code-tiles-card{background:linear-gradient(155deg,rgba(255,255,255,.94),rgba(245,247,255,.92));border-color:rgba(255,255,255,.58);box-shadow:0 20px 60px rgba(78,87,130,.18);color:#111827}.code-tiles-card p{color:#334155}.code-tiles-kicker{color:#2563eb!important}
+@media (max-width:700px){.code-tiles-hud{width:96vw}.code-tiles-progress{width:94vw}.code-tiles-judge{bottom:max(18px,calc(env(safe-area-inset-bottom) + 10px))}}
+
+
+/* CODE TILES v5.1 — top-only phone fix. Keeps v5 gameplay/visuals untouched. */
+@media (max-width:700px){
+  .code-tiles-topbar{
+    top:max(4px,env(safe-area-inset-top));
+    left:6px;right:6px;height:42px;
+    grid-template-columns:34px 1fr 34px 34px;
+    gap:5px;padding:4px;border-radius:12px;
+  }
+  .code-tiles-topbar button{width:34px;height:34px;border-radius:9px;font-size:17px}
+  .code-tiles-brand strong{font-size:11px}
+  .code-tiles-brand small{font-size:7px;margin-top:2px}
+  .code-tiles-hud{
+    top:max(50px,calc(env(safe-area-inset-top) + 46px));
+    width:calc(100vw - 10px);gap:3px;
+  }
+  .code-tiles-hud>div{padding:4px 2px;border-radius:9px}
+  .code-tiles-hud small{font-size:6px;letter-spacing:.06em}
+  .code-tiles-hud strong{font-size:10px;margin-top:1px}
+  .code-tiles-progress{
+    top:max(80px,calc(env(safe-area-inset-top) + 76px));
+    width:calc(100vw - 14px);height:5px;
+  }
+  .code-tiles-judge{bottom:max(18px,calc(env(safe-area-inset-bottom) + 10px))}
+}
+@media (max-height:580px) and (orientation:landscape){
+  .code-tiles-topbar{
+    top:3px;left:5px;right:5px;height:34px;
+    grid-template-columns:28px 1fr 28px 28px;
+    gap:4px;padding:3px;border-radius:10px;
+  }
+  .code-tiles-topbar button{width:28px;height:28px;border-radius:8px;font-size:14px}
+  .code-tiles-brand strong{font-size:9px}
+  .code-tiles-brand small{display:none}
+  .code-tiles-hud{top:40px;width:calc(100vw - 10px);gap:3px}
+  .code-tiles-hud>div{padding:3px 1px;border-radius:8px}
+  .code-tiles-hud small{font-size:5px}.code-tiles-hud strong{font-size:9px}
+  .code-tiles-progress{top:66px;width:calc(100vw - 14px);height:4px}
+}
+
+
+/* CODE TILES v5.2 — CLEAN v5 top-area fix only (keeps v5 gameplay/visuals) */
+@media (max-width:700px){
+  .code-tiles-topbar{
+    position:fixed !important;
+    z-index:30 !important;
+    top:6px !important;
+    left:8px !important;
+    right:8px !important;
+    height:34px !important;
+    grid-template-columns:28px 1fr 28px 28px !important;
+    gap:4px !important;
+    padding:3px !important;
+    border-radius:10px !important;
+    background:rgba(255,255,255,.56) !important;
+    border:1px solid rgba(255,255,255,.54) !important;
+    box-shadow:0 4px 14px rgba(54,65,110,.12) !important;
+    backdrop-filter:none !important;
+    -webkit-backdrop-filter:none !important;
+  }
+  .code-tiles-topbar button{
+    width:28px !important;height:28px !important;border-radius:8px !important;font-size:14px !important;
+    background:rgba(255,255,255,.74) !important;border-color:rgba(255,255,255,.46) !important;color:#111827 !important;
+  }
+  .code-tiles-brand strong{font-size:10px !important;letter-spacing:.05em !important;color:#111827 !important}
+  .code-tiles-brand small{display:none !important}
+
+  .code-tiles-hud{
+    position:fixed !important;
+    z-index:29 !important;
+    left:8px !important; right:8px !important; width:auto !important;
+    top:44px !important;
+    transform:none !important;
+    gap:4px !important;
+  }
+  .code-tiles-hud>div{
+    padding:4px 1px !important;border-radius:9px !important;
+    background:rgba(255,255,255,.56) !important;
+    border:1px solid rgba(255,255,255,.48) !important;
+    box-shadow:0 3px 10px rgba(50,64,108,.06) !important;
+    backdrop-filter:none !important;
+    -webkit-backdrop-filter:none !important;
+  }
+  .code-tiles-hud small{font-size:6px !important;letter-spacing:.05em !important;color:#475569 !important}
+  .code-tiles-hud strong{font-size:10px !important;margin-top:1px !important;color:#111827 !important}
+
+  .code-tiles-progress{
+    position:fixed !important;
+    z-index:28 !important;
+    left:8px !important; right:8px !important; width:auto !important;
+    top:74px !important;
+    transform:none !important;
+    height:5px !important;
+    background:rgba(255,255,255,.36) !important;
+  }
+  .code-tiles-progress i{background:linear-gradient(90deg,#f59e0b,#2563eb) !important;box-shadow:none !important}
+  .code-tiles-judge{bottom:max(18px,calc(env(safe-area-inset-bottom) + 10px)) !important}
+}
+
+@media (max-height:580px) and (orientation:landscape){
+  .code-tiles-topbar{
+    position:fixed !important;
+    top:4px !important; left:6px !important; right:6px !important;
+    height:30px !important; grid-template-columns:24px 1fr 24px 24px !important;
+    gap:3px !important; padding:3px !important; border-radius:9px !important;
+  }
+  .code-tiles-topbar button{width:24px !important;height:24px !important;font-size:12px !important;border-radius:7px !important}
+  .code-tiles-brand strong{font-size:8px !important}
+  .code-tiles-hud{position:fixed !important;left:6px !important;right:6px !important;width:auto !important;top:38px !important;gap:3px !important;transform:none !important}
+  .code-tiles-hud>div{padding:3px 1px !important;border-radius:8px !important}
+  .code-tiles-hud small{font-size:5px !important}.code-tiles-hud strong{font-size:9px !important}
+  .code-tiles-progress{position:fixed !important;left:6px !important;right:6px !important;width:auto !important;top:64px !important;height:4px !important;transform:none !important}
+}
+
+
+/* CODE TILES v5.3 — v5 polish: compact readable HUD + fuller phone playfield. */
+.code-tiles-overlay{background:linear-gradient(180deg,#ead8f2,#a9c8fb)}
+.code-tiles-shell{background:linear-gradient(180deg,#efd7f2 0%,#d9dcf8 52%,#94bdff 100%)}
+
+@media (max-width:700px){
+  .code-tiles-topbar{
+    position:absolute !important;z-index:30 !important;
+    top:max(4px,env(safe-area-inset-top)) !important;
+    left:7px !important;right:7px !important;height:34px !important;
+    grid-template-columns:28px 1fr 28px 28px !important;gap:4px !important;
+    padding:3px !important;border-radius:11px !important;
+    background:rgba(255,255,255,.62) !important;
+    border:1px solid rgba(255,255,255,.60) !important;
+    box-shadow:0 5px 14px rgba(68,78,120,.10) !important;
+    backdrop-filter:none !important;-webkit-backdrop-filter:none !important;
+  }
+  .code-tiles-topbar button{
+    width:28px !important;height:28px !important;padding:0 !important;
+    border-radius:8px !important;font-size:14px !important;
+    background:rgba(255,255,255,.76) !important;
+    border-color:rgba(148,163,184,.22) !important;color:#111827 !important;
+    box-shadow:none !important;
+  }
+  .code-tiles-brand strong{font-size:10px !important;letter-spacing:.055em !important;color:#172033 !important}
+  .code-tiles-brand small{display:none !important}
+
+  .code-tiles-hud{
+    position:absolute !important;z-index:29 !important;
+    top:max(42px,calc(env(safe-area-inset-top) + 38px)) !important;
+    left:7px !important;right:7px !important;width:auto !important;
+    transform:none !important;gap:4px !important;
+  }
+  .code-tiles-hud>div{
+    padding:4px 1px 3px !important;border-radius:9px !important;
+    background:rgba(255,255,255,.62) !important;
+    border:1px solid rgba(255,255,255,.58) !important;
+    box-shadow:0 3px 9px rgba(68,78,120,.055) !important;
+    backdrop-filter:none !important;-webkit-backdrop-filter:none !important;
+  }
+  .code-tiles-hud small{font-size:5.5px !important;line-height:1 !important;letter-spacing:.055em !important;color:#475569 !important}
+  .code-tiles-hud strong{font-size:10px !important;line-height:1.05 !important;margin-top:2px !important;color:#111827 !important}
+
+  .code-tiles-progress{
+    position:absolute !important;z-index:28 !important;
+    top:max(72px,calc(env(safe-area-inset-top) + 68px)) !important;
+    left:9px !important;right:9px !important;width:auto !important;
+    transform:none !important;height:4px !important;border-radius:999px !important;
+    background:rgba(255,255,255,.40) !important;border:0 !important;
+  }
+  .code-tiles-progress i{background:linear-gradient(90deg,#f59e0b,#fbbf24 48%,#1d4ed8) !important;box-shadow:none !important}
+  .code-tiles-judge{
+    bottom:max(18px,calc(env(safe-area-inset-bottom) + 10px)) !important;
+    min-height:24px !important;padding:3px 11px !important;font-size:15px !important;
+    background:rgba(255,255,255,.74) !important;border:1px solid rgba(255,255,255,.55) !important;
+    color:#172033;text-shadow:none !important;box-shadow:0 4px 12px rgba(68,78,120,.08) !important;
+  }
+}
+
+@media (max-width:380px){
+  .code-tiles-hud{gap:3px !important;left:5px !important;right:5px !important}
+  .code-tiles-hud small{font-size:5px !important}.code-tiles-hud strong{font-size:9px !important}
+  .code-tiles-brand strong{font-size:9px !important}
+}
+
+@media (max-height:580px) and (orientation:landscape){
+  .code-tiles-topbar{
+    top:3px !important;left:5px !important;right:5px !important;height:30px !important;
+    grid-template-columns:24px 1fr 24px 24px !important;gap:3px !important;padding:3px !important;border-radius:9px !important;
+  }
+  .code-tiles-topbar button{width:24px !important;height:24px !important;font-size:12px !important;border-radius:7px !important}
+  .code-tiles-brand strong{font-size:8px !important}
+  .code-tiles-hud{top:36px !important;left:5px !important;right:5px !important;width:auto !important;gap:3px !important;transform:none !important}
+  .code-tiles-hud>div{padding:3px 1px !important;border-radius:8px !important}
+  .code-tiles-hud small{font-size:5px !important}.code-tiles-hud strong{font-size:9px !important}
+  .code-tiles-progress{top:61px !important;left:7px !important;right:7px !important;width:auto !important;height:3px !important;transform:none !important}
+  .code-tiles-judge{bottom:7px !important;font-size:13px !important}
+}

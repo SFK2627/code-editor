@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const ASSET_VERSION = '20260912-v4761-byte-runner-v3';
+  const ASSET_VERSION = '20260912-v4761-byte-runner-v4-polished';
 
   const GAME_REGISTRY = Object.freeze([
     {
@@ -320,7 +320,7 @@
       stateKey: 'codeTiles',
       name: 'CODE TILES',
       icon: '🎹',
-      description: 'Tap four rhythm lanes from 75 to 140 BPM, hit PERFECT timing, survive hold notes, and keep the code beat synced.',
+      description: 'Tap short code tiles, press-and-hold long tiles through the SYNC LINE, build combos, and keep the four-lane rhythm synced.',
       maxXp: 3,
       category: 'RHYTHM / TIMING',
       difficulty: '★★★★☆',
