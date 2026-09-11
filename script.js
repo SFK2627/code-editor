@@ -41861,6 +41861,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   const XP_MINI_GAME_ID_MILLION_BYTE = 'million-byte';
   const XP_MINI_GAME_ID_CODE_VAULT = 'code-vault';
   const XP_MINI_GAME_ID_CODE_TILES = 'code-tiles';
+  const XP_MINI_GAME_ID_BYTE_RUNNER_HTML_RUSH = 'byte-runner-html-rush';
 
   const XP_MINI_GAME_DEFINITIONS = Object.freeze({
     [XP_MINI_GAME_ID_CODE_FLY]: Object.freeze({ stateKey: 'codeFly', maxReward: 15 }),
@@ -41884,7 +41885,8 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     [XP_MINI_GAME_ID_CODE_SLICE]: Object.freeze({ stateKey: 'codeSlice', maxReward: 3 }),
     [XP_MINI_GAME_ID_MILLION_BYTE]: Object.freeze({ stateKey: 'millionByte', maxReward: 3 }),
     [XP_MINI_GAME_ID_CODE_VAULT]: Object.freeze({ stateKey: 'codeVault', maxReward: 2 }),
-    [XP_MINI_GAME_ID_CODE_TILES]: Object.freeze({ stateKey: 'codeTiles', maxReward: 3 })
+    [XP_MINI_GAME_ID_CODE_TILES]: Object.freeze({ stateKey: 'codeTiles', maxReward: 3 }),
+    [XP_MINI_GAME_ID_BYTE_RUNNER_HTML_RUSH]: Object.freeze({ stateKey: 'byteRunnerHtmlRush', maxReward: 12 })
   });
 
   function normalizeXpMiniGameId(gameId = XP_MINI_GAME_ID_CODE_FLY) {
@@ -42576,6 +42578,76 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     return codeVaultScoreDetails(metrics).tier;
   }
 
+  // v4761 — BYTE RUNNER: HTML RUSH is completion + difficulty based. Waiting
+  // never raises the tier: the selected difficulty sets the ceiling while
+  // accuracy, combo, hearts, obstacle hits, and a perfect run determine quality.
+  function byteRunnerHtmlScoreDetails(metrics = {}) {
+    const source = metrics && typeof metrics === 'object' ? metrics : {};
+    const difficulty = ['easy','medium','hard','difficult'].includes(String(source.difficulty || '').toLowerCase())
+      ? String(source.difficulty || '').toLowerCase() : 'easy';
+    const requiredByDifficulty = { easy: 8, medium: 10, hard: 12, difficult: 14 };
+    const heartsByDifficulty = { easy: 3, medium: 3, hard: 2, difficult: 2 };
+    const minActiveByDifficulty = { easy: 46000, medium: 56000, hard: 66000, difficult: 76000 };
+    const requiredSteps = requiredByDifficulty[difficulty];
+    const completedSteps = Math.max(0, Math.min(requiredSteps, Math.floor(Number(source.completedSteps || 0))));
+    const correctAnswers = Math.max(0, Math.min(requiredSteps, Math.floor(Number(source.correctAnswers || 0))));
+    const wrongAnswers = Math.max(0, Math.min(30, Math.floor(Number(source.wrongAnswers || 0))));
+    const answers = Math.max(correctAnswers + wrongAnswers, Math.min(60, Math.floor(Number(source.answers || 0))));
+    const longestCombo = Math.max(0, Math.min(requiredSteps, Math.floor(Number(source.longestCombo || 0))));
+    const heartsRemaining = Math.max(0, Math.min(heartsByDifficulty[difficulty], Math.floor(Number(source.heartsRemaining || 0))));
+    const obstacleHits = Math.max(0, Math.min(30, Math.floor(Number(source.obstacleHits || 0))));
+    const distance = Math.max(0, Math.min(100000, Math.floor(Number(source.distance || 0))));
+    const arcadeScore = Math.max(0, Math.min(10000000, Math.floor(Number(source.arcadeScore || 0))));
+    const collectibles = Math.max(0, Math.min(1000, Math.floor(Number(source.collectibles || 0))));
+    const activeTimeMs = Math.max(0, Math.min(30 * 60 * 1000, Math.floor(Number(source.activeTimeMs || source.durationMs || 0))));
+    const accuracy = answers > 0 ? Math.max(0, Math.min(100, correctAnswers / answers * 100)) : 0;
+    const perfectRun = source.perfectRun === true && wrongAnswers === 0 && obstacleHits === 0 && correctAnswers === requiredSteps;
+    const completed = source.completedRun === true
+      && Math.floor(Number(source.requiredSteps || 0)) === requiredSteps
+      && completedSteps === requiredSteps
+      && correctAnswers === requiredSteps
+      && answers >= requiredSteps
+      && heartsRemaining > 0
+      && activeTimeMs >= minActiveByDifficulty[difficulty];
+    if (!completed) return { score: 0, completed: false, difficulty, requiredSteps, completedSteps, correctAnswers, wrongAnswers, answers, accuracy: Math.round(accuracy * 10) / 10, longestCombo, heartsRemaining, obstacleHits, perfectRun: false, distance, arcadeScore, collectibles, activeTimeMs };
+    const comboRatio = requiredSteps ? longestCombo / requiredSteps : 0;
+    const heartRatio = heartsRemaining / heartsByDifficulty[difficulty];
+    const cleanMovement = obstacleHits === 0 ? 1 : (obstacleHits === 1 ? .45 : 0);
+    const score = Math.max(0, Math.min(1000, Math.round(420 + accuracy * 3 + comboRatio * 120 + heartRatio * 65 + cleanMovement * 45 + (perfectRun ? 50 : 0))));
+    return { score, completed: true, difficulty, requiredSteps, completedSteps, correctAnswers, wrongAnswers, answers, accuracy: Math.round(accuracy * 10) / 10, longestCombo, heartsRemaining, obstacleHits, perfectRun, distance, arcadeScore, collectibles, activeTimeMs };
+  }
+
+  function byteRunnerHtmlRewardForMetrics(metrics = {}) {
+    const details = byteRunnerHtmlScoreDetails(metrics);
+    if (!details.completed) return 0;
+    const { difficulty, accuracy, longestCombo, requiredSteps, obstacleHits, perfectRun } = details;
+    if (difficulty === 'easy') {
+      if (perfectRun && longestCombo >= requiredSteps) return 3;
+      if (accuracy >= 88 && obstacleHits <= 1) return 2;
+      return 1;
+    }
+    if (difficulty === 'medium') {
+      if (perfectRun && longestCombo >= requiredSteps) return 5;
+      if (accuracy >= 92 && longestCombo >= 6) return 4;
+      if (accuracy >= 85) return 3;
+      return 2;
+    }
+    if (difficulty === 'hard') {
+      if (perfectRun && longestCombo >= requiredSteps) return 8;
+      if (accuracy >= 96 && obstacleHits === 0 && longestCombo >= 8) return 7;
+      if (accuracy >= 93) return 6;
+      if (accuracy >= 88) return 5;
+      return 4;
+    }
+    if (perfectRun && longestCombo >= requiredSteps) return 12;
+    if (accuracy >= 99 && obstacleHits === 0 && longestCombo >= 12) return 11;
+    if (accuracy >= 96 && obstacleHits === 0) return 10;
+    if (accuracy >= 94 && longestCombo >= 8) return 9;
+    if (accuracy >= 92) return 8;
+    if (accuracy >= 88) return 7;
+    return 6;
+  }
+
   // v464 — XP pace balance. Score tiers still measure skill, but a second
   // server-mirrored cap limits how much XP a very short round can produce.
   // Missing duration means legacy stored data, so old already-earned XP is not
@@ -42641,6 +42713,16 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       if (activeSeconds < 7) return 0;
       if (activeSeconds < 10) return 1;
       return 2;
+    }
+
+    // BYTE RUNNER uses a difficulty-specific plausibility floor. Once a full
+    // mission is valid, extra waiting never raises the reward ceiling.
+    if (id === XP_MINI_GAME_ID_BYTE_RUNNER_HTML_RUSH) {
+      const difficulty = ['easy','medium','hard','difficult'].includes(String(source.difficulty || '').toLowerCase()) ? String(source.difficulty || '').toLowerCase() : 'easy';
+      const activeMs = Math.max(0, Number(source.activeTimeMs || durationMs));
+      const floor = { easy: 46000, medium: 56000, hard: 66000, difficult: 76000 }[difficulty];
+      const ceiling = { easy: 3, medium: 5, hard: 8, difficult: 12 }[difficulty];
+      return activeMs >= floor ? ceiling : 0;
     }
 
     // CODE TILES is a fixed ~59 second five-phase rhythm track. Duration is
@@ -42736,6 +42818,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       case XP_MINI_GAME_ID_MILLION_BYTE: tierReward = millionByteRewardForMetrics(metrics); break;
       case XP_MINI_GAME_ID_CODE_VAULT: tierReward = codeVaultRewardForMetrics(metrics); break;
       case XP_MINI_GAME_ID_CODE_TILES: tierReward = codeTilesRewardForMetrics(metrics); break;
+      case XP_MINI_GAME_ID_BYTE_RUNNER_HTML_RUSH: tierReward = byteRunnerHtmlRewardForMetrics(metrics); break;
       default: tierReward = 0;
     }
     return Math.min(tierReward, miniGameDurationRewardCap(id, metrics));
@@ -42967,6 +43050,33 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         crashHit: source.crashHit === true,
         activeTimeMs: Math.max(0, Math.min(10 * 60 * 1000, Math.floor(Number(source.activeTimeMs || 0)))),
         durationMs: Math.max(0, Math.min(10 * 60 * 1000, Math.floor(Number(source.durationMs || 0))))
+      };
+    }
+
+    if (id === XP_MINI_GAME_ID_BYTE_RUNNER_HTML_RUSH) {
+      const difficulty = ['easy','medium','hard','difficult'].includes(String(source.difficulty || '').toLowerCase()) ? String(source.difficulty || '').toLowerCase() : 'easy';
+      const required = { easy:8, medium:10, hard:12, difficult:14 }[difficulty];
+      const correctAnswers = Math.max(0, Math.min(required, Math.floor(Number(source.correctAnswers || 0))));
+      const wrongAnswers = Math.max(0, Math.min(30, Math.floor(Number(source.wrongAnswers || 0))));
+      const answers = Math.max(correctAnswers + wrongAnswers, Math.min(60, Math.floor(Number(source.answers || 0))));
+      return {
+        completedRun: source.completedRun === true,
+        difficulty,
+        requiredSteps: Math.max(0, Math.min(14, Math.floor(Number(source.requiredSteps || 0)))),
+        completedSteps: Math.max(0, Math.min(required, Math.floor(Number(source.completedSteps || 0)))),
+        correctAnswers,
+        wrongAnswers,
+        answers,
+        accuracy: answers ? Math.round(correctAnswers / answers * 1000) / 10 : 0,
+        longestCombo: Math.max(0, Math.min(required, Math.floor(Number(source.longestCombo || 0)))),
+        heartsRemaining: Math.max(0, Math.min(3, Math.floor(Number(source.heartsRemaining || 0)))),
+        obstacleHits: Math.max(0, Math.min(30, Math.floor(Number(source.obstacleHits || 0)))),
+        perfectRun: source.perfectRun === true,
+        distance: Math.max(0, Math.min(100000, Math.floor(Number(source.distance || 0)))),
+        arcadeScore: Math.max(0, Math.min(10000000, Math.floor(Number(source.arcadeScore || 0)))),
+        collectibles: Math.max(0, Math.min(1000, Math.floor(Number(source.collectibles || 0)))),
+        activeTimeMs: Math.max(0, Math.min(30 * 60 * 1000, Math.floor(Number(source.activeTimeMs || 0)))),
+        durationMs: Math.max(0, Math.min(30 * 60 * 1000, Math.floor(Number(source.durationMs || 0))))
       };
     }
 
@@ -43271,6 +43381,18 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       };
     }
 
+    if (id === XP_MINI_GAME_ID_BYTE_RUNNER_HTML_RUSH) {
+      return {
+        ...base,
+        bestScore: Math.max(0, Math.min(1000, Math.floor(Number(source.bestScore || 0)))),
+        bestArcadeScore: Math.max(0, Math.min(10000000, Math.floor(Number(source.bestArcadeScore || 0)))),
+        bestAccuracy: Math.max(0, Math.min(100, Number(source.bestAccuracy || 0))),
+        bestCombo: Math.max(0, Math.min(14, Math.floor(Number(source.bestCombo || 0)))),
+        bestDistance: Math.max(0, Math.min(100000, Math.floor(Number(source.bestDistance || 0)))),
+        bestDifficultyRank: Math.max(0, Math.min(4, Math.floor(Number(source.bestDifficultyRank || 0))))
+      };
+    }
+
     if (id === XP_MINI_GAME_ID_CODE_TILES) {
       return {
         ...base,
@@ -43515,6 +43637,18 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         lastRewardXp: Math.max(0, Math.min(2, Math.floor(lastRewardXp || 0)))
       };
     }
+    if (id === XP_MINI_GAME_ID_BYTE_RUNNER_HTML_RUSH) {
+      return {
+        lastPlayedAt,
+        bestScore: Math.max(Number(left.bestScore || 0), Number(right.bestScore || 0)),
+        bestArcadeScore: Math.max(Number(left.bestArcadeScore || 0), Number(right.bestArcadeScore || 0)),
+        bestAccuracy: Math.max(Number(left.bestAccuracy || 0), Number(right.bestAccuracy || 0)),
+        bestCombo: Math.max(Number(left.bestCombo || 0), Number(right.bestCombo || 0)),
+        bestDistance: Math.max(Number(left.bestDistance || 0), Number(right.bestDistance || 0)),
+        bestDifficultyRank: Math.max(Number(left.bestDifficultyRank || 0), Number(right.bestDifficultyRank || 0))
+      };
+    }
+
     if (id === XP_MINI_GAME_ID_CODE_TILES) {
       const leftDay = String(left.lastRewardDay || '');
       const rightDay = String(right.lastRewardDay || '');
@@ -43622,6 +43756,18 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       next.bestCombo = Math.max(Number(next.bestCombo || 0), Number(details.maxCombo || metrics.maxCombo || 0));
       next.bestAccuracy = Math.max(Number(next.bestAccuracy || 0), Number(details.accuracy || 0));
     }
+    if (id === XP_MINI_GAME_ID_BYTE_RUNNER_HTML_RUSH && metrics.completedRun) {
+      const details = byteRunnerHtmlScoreDetails(metrics);
+      if (details.completed) {
+        next.bestScore = Math.max(Number(next.bestScore || 0), Number(details.score || score || 0));
+        next.bestArcadeScore = Math.max(Number(next.bestArcadeScore || 0), Number(details.arcadeScore || 0));
+        next.bestAccuracy = Math.max(Number(next.bestAccuracy || 0), Number(details.accuracy || 0));
+        next.bestCombo = Math.max(Number(next.bestCombo || 0), Number(details.longestCombo || 0));
+        next.bestDistance = Math.max(Number(next.bestDistance || 0), Number(details.distance || 0));
+        next.bestDifficultyRank = Math.max(Number(next.bestDifficultyRank || 0), ({easy:1,medium:2,hard:3,difficult:4}[details.difficulty] || 1));
+      }
+    }
+
     if (id === XP_MINI_GAME_ID_CODE_TILES && metrics.completedRun) {
       const details = codeTilesScoreDetails(metrics);
       if (details.completed) {
@@ -46020,7 +46166,8 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       codeSlice: normalizeMiniGameRecord(XP_MINI_GAME_ID_CODE_SLICE, miniGames.games?.codeSlice),
       millionByte: normalizeMiniGameRecord(XP_MINI_GAME_ID_MILLION_BYTE, miniGames.games?.millionByte),
       codeVault: normalizeMiniGameRecord(XP_MINI_GAME_ID_CODE_VAULT, miniGames.games?.codeVault),
-      codeTiles: normalizeMiniGameRecord(XP_MINI_GAME_ID_CODE_TILES, miniGames.games?.codeTiles)
+      codeTiles: normalizeMiniGameRecord(XP_MINI_GAME_ID_CODE_TILES, miniGames.games?.codeTiles),
+      byteRunnerHtmlRush: normalizeMiniGameRecord(XP_MINI_GAME_ID_BYTE_RUNNER_HTML_RUSH, miniGames.games?.byteRunnerHtmlRush)
     };
     return {
       loggedIn,
@@ -46055,7 +46202,8 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         codeBridge: Math.max(0, Number(gameRecords.codeBridge.bestRunScore || gameRecords.codeBridge.bestScore || 0)),
         codeSlice: Math.max(0, Number(gameRecords.codeSlice.bestRunScore || gameRecords.codeSlice.bestScore || 0)),
         millionByte: Math.max(0, Number(gameRecords.millionByte.bestScore || 0)),
-        codeVault: Math.max(0, Number(gameRecords.codeVault.bestScore || 0))
+        codeVault: Math.max(0, Number(gameRecords.codeVault.bestScore || 0)),
+        byteRunnerHtmlRush: Math.max(0, Number(gameRecords.byteRunnerHtmlRush.bestArcadeScore || gameRecords.byteRunnerHtmlRush.bestScore || 0))
       },
       gameRecords,
       soundEnabled: miniGames.soundEnabled !== false
@@ -46488,6 +46636,29 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       metrics.offerRatio = vaultDetails.offerRatio || 0;
       metrics.payout = vaultDetails.payout || 0;
       score = vaultDetails.completed ? vaultDetails.score : 0;
+      maxPlausibleScore = 1000;
+    } else if (gameId === XP_MINI_GAME_ID_BYTE_RUNNER_HTML_RUSH) {
+      metrics.durationMs = durationMs;
+      metrics.activeTimeMs = Math.max(0, Math.min(Number(metrics.activeTimeMs || durationMs), durationMs));
+      const activeSeconds = metrics.activeTimeMs / 1000;
+      metrics.distance = Math.min(Number(metrics.distance || 0), Math.floor(activeSeconds * 46) + 220);
+      metrics.arcadeScore = Math.min(Number(metrics.arcadeScore || 0), Math.floor(activeSeconds * 260) + Number(metrics.correctAnswers || 0) * 900 + 2500);
+      const details = byteRunnerHtmlScoreDetails(metrics);
+      metrics.completedRun = details.completed;
+      metrics.requiredSteps = details.requiredSteps;
+      metrics.completedSteps = details.completedSteps;
+      metrics.correctAnswers = details.correctAnswers;
+      metrics.wrongAnswers = details.wrongAnswers;
+      metrics.answers = details.answers;
+      metrics.accuracy = details.accuracy;
+      metrics.longestCombo = details.longestCombo;
+      metrics.heartsRemaining = details.heartsRemaining;
+      metrics.obstacleHits = details.obstacleHits;
+      metrics.perfectRun = details.perfectRun;
+      metrics.distance = details.distance;
+      metrics.arcadeScore = details.arcadeScore;
+      metrics.collectibles = details.collectibles;
+      score = details.completed ? details.score : 0;
       maxPlausibleScore = 1000;
     } else if (gameId === XP_MINI_GAME_ID_CODE_TILES) {
       metrics.durationMs = durationMs;
@@ -46953,6 +47124,20 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     }
 
     if (!shouldUseAppsScriptMiniGameRewards()) {
+      // BYTE RUNNER ships secure-server-only: never fall back to the legacy
+      // browser Firestore reward path for this higher-ceiling educational run.
+      if (gameId === XP_MINI_GAME_ID_BYTE_RUNNER_HTML_RUSH) {
+        const snapshot = notifyXpMiniGamesProgress({ awardedXp: 0, requestedXp: verified.requestedXp, duplicate: false, gameId });
+        const record = snapshot.gameRecords?.[stateKey] || localMiniGames.games[stateKey];
+        return {
+          ...baseResult,
+          ...snapshot,
+          syncFailed: true,
+          error: 'Secure Mini-Game reward bridge is unavailable.',
+          gameRecord: record,
+          bestScore: Math.max(0, Number(record?.bestScore || 0))
+        };
+      }
       return performXpMiniGameClaimLegacyFirestore(sessionId, round, reportedResult);
     }
 
@@ -47026,7 +47211,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       // During rollout only, an OLD Apps Script deployment can fall back to the
       // proven Firestore transaction. Network/quota errors do NOT cause a second
       // Firestore claim attempt, preventing double load and duplicate rewards.
-      if (miniGameBridgeNeedsLegacyFallback(error) && gameId !== XP_MINI_GAME_ID_CODE_FLOW && gameId !== XP_MINI_GAME_ID_BYTE_SLING && gameId !== XP_MINI_GAME_ID_CODE_BRIDGE && gameId !== XP_MINI_GAME_ID_CODE_SLICE && gameId !== XP_MINI_GAME_ID_MILLION_BYTE && gameId !== XP_MINI_GAME_ID_CODE_VAULT && gameId !== XP_MINI_GAME_ID_CODE_TILES) {
+      if (miniGameBridgeNeedsLegacyFallback(error) && gameId !== XP_MINI_GAME_ID_CODE_FLOW && gameId !== XP_MINI_GAME_ID_BYTE_SLING && gameId !== XP_MINI_GAME_ID_CODE_BRIDGE && gameId !== XP_MINI_GAME_ID_CODE_SLICE && gameId !== XP_MINI_GAME_ID_MILLION_BYTE && gameId !== XP_MINI_GAME_ID_CODE_VAULT && gameId !== XP_MINI_GAME_ID_CODE_TILES && gameId !== XP_MINI_GAME_ID_BYTE_RUNNER_HTML_RUSH) {
         console.warn('Mini-game Apps Script route is not deployed yet; using temporary legacy reward path.', error);
         return performXpMiniGameClaimLegacyFirestore(sessionId, round, reportedResult);
       }

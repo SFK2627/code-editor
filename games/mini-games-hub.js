@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const ASSET_VERSION = '20260911-v475-code-tiles';
+  const ASSET_VERSION = '20260912-v4761-byte-runner-v3';
 
   const GAME_REGISTRY = Object.freeze([
     {
@@ -331,6 +331,26 @@
         const score = Math.max(0, Number(record.bestRunScore || record.bestScore || 0));
         const accuracy = Math.max(0, Number(record.bestAccuracy || 0));
         return score > 0 ? `🏆 Best ${score} · ${accuracy.toFixed(1)}%` : '🏆 Track ready';
+      }
+    },
+    {
+      id: 'byte-runner-html-rush',
+      stateKey: 'byteRunnerHtmlRush',
+      name: 'BYTE RUNNER: HTML RUSH',
+      icon: '⚡',
+      description: 'Read HTML challenges, dodge cyber hazards, and run through the correct code gates to build a complete webpage.',
+      maxXp: 12,
+      category: 'EDUCATIONAL / RUNNER',
+      difficulty: '★★★★☆',
+      globalName: 'ICT8ByteRunnerHtmlRush',
+      script: 'games/byte-runner-html-rush/byte-runner-html-rush.js',
+      style: 'games/byte-runner-html-rush/byte-runner-html-rush.css',
+      bestText(record = {}) {
+        const score = Math.max(0, Number(record.bestArcadeScore || record.bestScore || 0));
+        const accuracy = Math.max(0, Number(record.bestAccuracy || 0));
+        const rank = Math.max(0, Math.min(4, Number(record.bestDifficultyRank || 0)));
+        const label = ['', 'Easy', 'Medium', 'Hard', 'Difficult'][rank] || '';
+        return score > 0 ? `🏆 Best ${Math.floor(score).toLocaleString()} · ${accuracy.toFixed(1)}%${label ? ` · ${label}` : ''}` : '🏆 HTML mission ready';
       }
     },
     {
