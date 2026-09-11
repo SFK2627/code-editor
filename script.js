@@ -41859,6 +41859,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   const XP_MINI_GAME_ID_CODE_BRIDGE = 'code-bridge';
   const XP_MINI_GAME_ID_CODE_SLICE = 'code-slice';
   const XP_MINI_GAME_ID_MILLION_BYTE = 'million-byte';
+  const XP_MINI_GAME_ID_CODE_VAULT = 'code-vault';
 
   const XP_MINI_GAME_DEFINITIONS = Object.freeze({
     [XP_MINI_GAME_ID_CODE_FLY]: Object.freeze({ stateKey: 'codeFly', maxReward: 15 }),
@@ -41880,7 +41881,8 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     [XP_MINI_GAME_ID_BYTE_SLING]: Object.freeze({ stateKey: 'byteSling', maxReward: 3 }),
     [XP_MINI_GAME_ID_CODE_BRIDGE]: Object.freeze({ stateKey: 'codeBridge', maxReward: 3 }),
     [XP_MINI_GAME_ID_CODE_SLICE]: Object.freeze({ stateKey: 'codeSlice', maxReward: 3 }),
-    [XP_MINI_GAME_ID_MILLION_BYTE]: Object.freeze({ stateKey: 'millionByte', maxReward: 3 })
+    [XP_MINI_GAME_ID_MILLION_BYTE]: Object.freeze({ stateKey: 'millionByte', maxReward: 3 }),
+    [XP_MINI_GAME_ID_CODE_VAULT]: Object.freeze({ stateKey: 'codeVault', maxReward: 2 })
   });
 
   function normalizeXpMiniGameId(gameId = XP_MINI_GAME_ID_CODE_FLY) {
@@ -42408,6 +42410,117 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     return millionByteScoreDetails(metrics).tier;
   }
 
+  // V473 — CODE VAULT is a deterministic Deal-or-No-Deal style run.
+  // Case assignment and banker offers are derived from the bridge round ID so
+  // the browser cannot choose a lucky layout or fabricate a stronger offer.
+  const CODE_VAULT_CASE_VALUES = Object.freeze([10,25,50,100,250,500,1000,2500,5000,10000,25000,50000,100000,250000,500000,1000000]);
+  const CODE_VAULT_OPEN_COUNTS = Object.freeze([4,3,2,2,1,1,1]);
+  const CODE_VAULT_OFFER_FACTORS = Object.freeze([.55,.63,.70,.78,.85,.91,.96]);
+
+  function codeVaultHash(value = '') {
+    const text = String(value || 'code-vault');
+    let hash = 2166136261 >>> 0;
+    for (let index = 0; index < text.length; index += 1) {
+      hash = (((hash * 31) >>> 0) + text.charCodeAt(index)) >>> 0;
+    }
+    return hash >>> 0;
+  }
+
+  function codeVaultRunValues(roundId = '') {
+    const values = CODE_VAULT_CASE_VALUES.slice();
+    let stateValue = codeVaultHash(`${String(roundId || '')}:cases`) || 1;
+    const nextRandom = () => {
+      stateValue = (stateValue * 1664525 + 1013904223) >>> 0;
+      return stateValue / 4294967296;
+    };
+    for (let index = values.length - 1; index > 0; index -= 1) {
+      const swapIndex = Math.floor(nextRandom() * (index + 1));
+      [values[index], values[swapIndex]] = [values[swapIndex], values[index]];
+    }
+    return values;
+  }
+
+  function codeVaultRoundOffer(amount = 0) {
+    const value = Math.max(0, Number(amount || 0));
+    let step = 5;
+    if (value >= 100000) step = 5000;
+    else if (value >= 10000) step = 500;
+    else if (value >= 1000) step = 50;
+    else if (value >= 100) step = 10;
+    return Math.max(5, Math.round(value / step) * step);
+  }
+
+  function codeVaultBankerOffer(roundNumber = 1, remainingValues = [], roundId = '') {
+    const safeRound = Math.max(1, Math.min(7, Math.floor(Number(roundNumber || 1))));
+    const rows = Array.isArray(remainingValues) && remainingValues.length ? remainingValues : [0];
+    const expected = rows.reduce((sum, value) => sum + Number(value || 0), 0) / rows.length;
+    const jitter = ((codeVaultHash(`${String(roundId || '')}:offer:${safeRound}`) % 61) - 30) / 1000;
+    const ratio = Math.max(.48, Math.min(.99, CODE_VAULT_OFFER_FACTORS[safeRound - 1] + jitter));
+    return { offer: codeVaultRoundOffer(expected * ratio), expected, ratio };
+  }
+
+  function codeVaultScoreDetails(metrics = {}) {
+    const source = metrics && typeof metrics === 'object' ? metrics : {};
+    const runToken = String(source.runToken || '').slice(0, 118);
+    const chosenCase = Math.max(-1, Math.min(15, Math.floor(Number(source.chosenCase ?? -1))));
+    const acceptedRound = Math.max(0, Math.min(7, Math.floor(Number(source.acceptedRound || 0))));
+    const finalChoice = String(source.finalChoice || '').toLowerCase();
+    const openedCases = Array.isArray(source.openedCases)
+      ? source.openedCases.slice(0, 14).map(value => Math.floor(Number(value))).filter(value => value >= 0 && value < 16)
+      : [];
+    const uniqueOpened = new Set(openedCases);
+    const requiredOpens = acceptedRound > 0
+      ? CODE_VAULT_OPEN_COUNTS.slice(0, acceptedRound).reduce((sum, count) => sum + count, 0)
+      : 14;
+    const roundReached = acceptedRound || 7;
+    const activeTimeMs = Math.max(0, Math.min(30 * 60 * 1000, Math.floor(Number(source.activeTimeMs || source.durationMs || 0))));
+    const minTimeMs = roundReached >= 7 ? 10000 : (roundReached === 6 ? 8500 : (roundReached === 5 ? 7000 : Math.max(1800, roundReached * 1200)));
+    const terminalOk = acceptedRound > 0 ? finalChoice === 'deal' : (finalChoice === 'keep' || finalChoice === 'swap');
+    let valid = source.completedRun === true
+      && runToken.length > 0
+      && chosenCase >= 0
+      && openedCases.length === requiredOpens
+      && uniqueOpened.size === requiredOpens
+      && !uniqueOpened.has(chosenCase)
+      && terminalOk
+      && activeTimeMs >= minTimeMs;
+    if (!valid) return { score: 0, tier: 0, completed: false, roundReached, payout: 0, offerRatio: 0 };
+
+    const values = codeVaultRunValues(runToken);
+    const remainingIndices = values.map((_, index) => index).filter(index => !uniqueOpened.has(index));
+    let payout = 0;
+    let offerRatio = 0;
+    if (acceptedRound > 0) {
+      const offer = codeVaultBankerOffer(acceptedRound, remainingIndices.map(index => values[index]), runToken);
+      const reportedOffer = Math.max(0, Math.floor(Number(source.acceptedOffer || 0)));
+      if (reportedOffer !== offer.offer) valid = false;
+      payout = offer.offer;
+      offerRatio = offer.expected > 0 ? offer.offer / offer.expected : 0;
+    } else {
+      if (remainingIndices.length !== 2 || !remainingIndices.includes(chosenCase)) valid = false;
+      const other = remainingIndices.find(index => index !== chosenCase);
+      const finalIndex = finalChoice === 'swap' ? other : chosenCase;
+      if (!Number.isInteger(finalIndex)) valid = false;
+      payout = valid ? values[finalIndex] : 0;
+    }
+    if (!valid) return { score: 0, tier: 0, completed: false, roundReached, payout: 0, offerRatio: 0 };
+
+    let score = [0,270,350,440,560,690,820,930][roundReached] || 0;
+    if (acceptedRound === 0) score = 1000;
+    else {
+      score += Math.round(Math.max(0, Math.min(1, (offerRatio - .5) / .5)) * 60);
+      score = Math.min(990, score);
+    }
+    let tier = 0;
+    if (roundReached >= 5) tier = 1;
+    if (roundReached >= 7) tier = 2;
+    return { score, tier, completed: true, roundReached, payout, offerRatio: Math.round(offerRatio * 10000) / 10000, activeTimeMs };
+  }
+
+  function codeVaultRewardForMetrics(metrics = {}) {
+    return codeVaultScoreDetails(metrics).tier;
+  }
+
   // v464 — XP pace balance. Score tiers still measure skill, but a second
   // server-mirrored cap limits how much XP a very short round can produce.
   // Missing duration means legacy stored data, so old already-earned XP is not
@@ -42464,6 +42577,15 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     if (id === XP_MINI_GAME_ID_MILLION_BYTE) {
       const activeSeconds = Math.max(0, Number(source.activeTimeMs || durationMs)) / 1000;
       return activeSeconds >= 45 ? 3 : 0;
+    }
+
+    // CODE VAULT is decision-depth based, not payout/luck based. Time is only
+    // a plausibility floor; waiting by itself never upgrades the reward tier.
+    if (id === XP_MINI_GAME_ID_CODE_VAULT) {
+      const activeSeconds = Math.max(0, Number(source.activeTimeMs || durationMs)) / 1000;
+      if (activeSeconds < 7) return 0;
+      if (activeSeconds < 10) return 1;
+      return 2;
     }
 
     // CODE SLICE evaluates a complete five-wave stream. Time is only a
@@ -42550,6 +42672,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       case XP_MINI_GAME_ID_CODE_BRIDGE: tierReward = codeBridgeRewardForMetrics(metrics); break;
       case XP_MINI_GAME_ID_CODE_SLICE: tierReward = codeSliceRewardForMetrics(metrics); break;
       case XP_MINI_GAME_ID_MILLION_BYTE: tierReward = millionByteRewardForMetrics(metrics); break;
+      case XP_MINI_GAME_ID_CODE_VAULT: tierReward = codeVaultRewardForMetrics(metrics); break;
       default: tierReward = 0;
     }
     return Math.min(tierReward, miniGameDurationRewardCap(id, metrics));
@@ -42807,6 +42930,24 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       };
     }
 
+    if (id === XP_MINI_GAME_ID_CODE_VAULT) {
+      return {
+        completedRun: source.completedRun === true,
+        runToken: String(source.runToken || '').trim().slice(0, 118),
+        chosenCase: Math.max(-1, Math.min(15, Math.floor(Number(source.chosenCase ?? -1)))),
+        openedCases: Array.isArray(source.openedCases)
+          ? source.openedCases.slice(0, 14).map(value => Number(value)).filter(value => Number.isInteger(value) && value >= 0 && value < 16)
+          : [],
+        acceptedRound: Math.max(0, Math.min(7, Math.floor(Number(source.acceptedRound || 0)))),
+        acceptedOffer: Math.max(0, Math.min(1000000, Math.floor(Number(source.acceptedOffer || 0)))),
+        finalChoice: ['deal','keep','swap'].includes(String(source.finalChoice || '').toLowerCase()) ? String(source.finalChoice || '').toLowerCase() : '',
+        payout: Math.max(0, Math.min(1000000, Math.floor(Number(source.payout || 0)))),
+        offerRatio: Math.max(0, Math.min(1.1, Number(source.offerRatio || 0))),
+        activeTimeMs: Math.max(0, Math.min(30 * 60 * 1000, Math.floor(Number(source.activeTimeMs || 0)))),
+        durationMs: Math.max(0, Math.min(30 * 60 * 1000, Math.floor(Number(source.durationMs || 0))))
+      };
+    }
+
     return {
       durationMs: Math.max(0, Math.min(60 * 60 * 1000, Math.floor(Number(source.durationMs || 0))))
     };
@@ -43058,6 +43199,18 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       };
     }
 
+    if (id === XP_MINI_GAME_ID_CODE_VAULT) {
+      return {
+        ...base,
+        bestScore: Math.max(0, Math.min(1000, Math.floor(Number(source.bestScore || 0)))),
+        bestRound: Math.max(0, Math.min(7, Math.floor(Number(source.bestRound || 0)))),
+        bestPayout: Math.max(0, Math.min(1000000, Math.floor(Number(source.bestPayout || 0)))),
+        bestOfferRatio: Math.max(0, Math.min(1.1, Number(source.bestOfferRatio || 0))),
+        lastRewardDay: /^\d{4}-\d{2}-\d{2}$/.test(String(source.lastRewardDay || '')) ? String(source.lastRewardDay) : '',
+        lastRewardXp: Math.max(0, Math.min(2, Math.floor(Number(source.lastRewardXp || 0))))
+      };
+    }
+
     return {
       ...base,
       bestScore: Math.max(0, Math.min(100000, Math.floor(Number(source.bestScore || 0))))
@@ -43251,6 +43404,21 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         lastRewardXp: Math.max(0, Math.min(3, Math.floor(lastRewardXp || 0)))
       };
     }
+    if (id === XP_MINI_GAME_ID_CODE_VAULT) {
+      const leftDay = String(left.lastRewardDay || '');
+      const rightDay = String(right.lastRewardDay || '');
+      const newestDay = [leftDay, rightDay].filter(Boolean).sort().pop() || '';
+      const lastRewardXp = newestDay === rightDay ? Number(right.lastRewardXp || 0) : Number(left.lastRewardXp || 0);
+      return {
+        lastPlayedAt,
+        bestScore: Math.max(Number(left.bestScore || 0), Number(right.bestScore || 0)),
+        bestRound: Math.max(Number(left.bestRound || 0), Number(right.bestRound || 0)),
+        bestPayout: Math.max(Number(left.bestPayout || 0), Number(right.bestPayout || 0)),
+        bestOfferRatio: Math.max(Number(left.bestOfferRatio || 0), Number(right.bestOfferRatio || 0)),
+        lastRewardDay: newestDay,
+        lastRewardXp: Math.max(0, Math.min(2, Math.floor(lastRewardXp || 0)))
+      };
+    }
     return {
       lastPlayedAt,
       bestScore: Math.max(Number(left.bestScore || 0), Number(right.bestScore || 0))
@@ -43348,6 +43516,15 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         const details = millionByteScoreDetails(metrics);
         next.bestScore = Math.max(Number(next.bestScore || 0), Number(details.score || score || 0));
         if (metrics.activeTimeMs > 0) next.fastestWinMs = earlierPositiveMin(next.fastestWinMs, metrics.activeTimeMs);
+      }
+    }
+    if (id === XP_MINI_GAME_ID_CODE_VAULT && metrics.completedRun) {
+      const details = codeVaultScoreDetails(metrics);
+      if (details.completed) {
+        next.bestScore = Math.max(Number(next.bestScore || 0), Number(details.score || score || 0));
+        next.bestRound = Math.max(Number(next.bestRound || 0), Number(details.roundReached || 0));
+        next.bestPayout = Math.max(Number(next.bestPayout || 0), Number(details.payout || 0));
+        next.bestOfferRatio = Math.max(Number(next.bestOfferRatio || 0), Number(details.offerRatio || 0));
       }
     }
     return next;
@@ -45719,7 +45896,8 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       byteSling: normalizeMiniGameRecord(XP_MINI_GAME_ID_BYTE_SLING, miniGames.games?.byteSling),
       codeBridge: normalizeMiniGameRecord(XP_MINI_GAME_ID_CODE_BRIDGE, miniGames.games?.codeBridge),
       codeSlice: normalizeMiniGameRecord(XP_MINI_GAME_ID_CODE_SLICE, miniGames.games?.codeSlice),
-      millionByte: normalizeMiniGameRecord(XP_MINI_GAME_ID_MILLION_BYTE, miniGames.games?.millionByte)
+      millionByte: normalizeMiniGameRecord(XP_MINI_GAME_ID_MILLION_BYTE, miniGames.games?.millionByte),
+      codeVault: normalizeMiniGameRecord(XP_MINI_GAME_ID_CODE_VAULT, miniGames.games?.codeVault)
     };
     return {
       loggedIn,
@@ -45753,7 +45931,8 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         byteSling: Math.max(0, Number(gameRecords.byteSling.bestRunScore || gameRecords.byteSling.bestScore || 0)),
         codeBridge: Math.max(0, Number(gameRecords.codeBridge.bestRunScore || gameRecords.codeBridge.bestScore || 0)),
         codeSlice: Math.max(0, Number(gameRecords.codeSlice.bestRunScore || gameRecords.codeSlice.bestScore || 0)),
-        millionByte: Math.max(0, Number(gameRecords.millionByte.bestScore || 0))
+        millionByte: Math.max(0, Number(gameRecords.millionByte.bestScore || 0)),
+        codeVault: Math.max(0, Number(gameRecords.codeVault.bestScore || 0))
       },
       gameRecords,
       soundEnabled: miniGames.soundEnabled !== false
@@ -46176,6 +46355,16 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       metrics.completedRun = Boolean(metrics.completedRun && idsValid && answers.length === 15 && metrics.correctCount === 15 && metrics.activeTimeMs >= 45000);
       const millionDetails = millionByteScoreDetails(metrics);
       score = millionDetails.completed ? millionDetails.score : 0;
+      maxPlausibleScore = 1000;
+    } else if (gameId === XP_MINI_GAME_ID_CODE_VAULT) {
+      metrics.durationMs = durationMs;
+      metrics.runToken = String(sessionId || metrics.runToken || '').slice(0, 118);
+      metrics.activeTimeMs = Math.max(0, Math.min(Number(metrics.activeTimeMs || durationMs), durationMs));
+      const vaultDetails = codeVaultScoreDetails(metrics);
+      metrics.completedRun = vaultDetails.completed;
+      metrics.offerRatio = vaultDetails.offerRatio || 0;
+      metrics.payout = vaultDetails.payout || 0;
+      score = vaultDetails.completed ? vaultDetails.score : 0;
       maxPlausibleScore = 1000;
     } else if (gameId === XP_MINI_GAME_ID_BYTE_SLING) {
       metrics.durationMs = durationMs;
@@ -46696,7 +46885,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       // During rollout only, an OLD Apps Script deployment can fall back to the
       // proven Firestore transaction. Network/quota errors do NOT cause a second
       // Firestore claim attempt, preventing double load and duplicate rewards.
-      if (miniGameBridgeNeedsLegacyFallback(error) && gameId !== XP_MINI_GAME_ID_CODE_FLOW && gameId !== XP_MINI_GAME_ID_BYTE_SLING && gameId !== XP_MINI_GAME_ID_CODE_BRIDGE && gameId !== XP_MINI_GAME_ID_CODE_SLICE && gameId !== XP_MINI_GAME_ID_MILLION_BYTE) {
+      if (miniGameBridgeNeedsLegacyFallback(error) && gameId !== XP_MINI_GAME_ID_CODE_FLOW && gameId !== XP_MINI_GAME_ID_BYTE_SLING && gameId !== XP_MINI_GAME_ID_CODE_BRIDGE && gameId !== XP_MINI_GAME_ID_CODE_SLICE && gameId !== XP_MINI_GAME_ID_MILLION_BYTE && gameId !== XP_MINI_GAME_ID_CODE_VAULT) {
         console.warn('Mini-game Apps Script route is not deployed yet; using temporary legacy reward path.', error);
         return performXpMiniGameClaimLegacyFirestore(sessionId, round, reportedResult);
       }

@@ -296,6 +296,24 @@
       }
     },
     {
+      id: 'code-vault',
+      stateKey: 'codeVault',
+      name: 'CODE VAULT',
+      icon: '💼',
+      description: 'Choose a sealed data vault, open cases, face seven banker offers, and decide when to take the deal.',
+      maxXp: 2,
+      category: 'STRATEGY / LUCK',
+      difficulty: '★★★☆☆',
+      globalName: 'ICT8CodeVault',
+      script: 'games/code-vault/code-vault.js',
+      style: 'games/code-vault/code-vault.css',
+      bestText(record = {}) {
+        const score = Math.max(0, Number(record.bestScore || 0));
+        const round = Math.max(0, Number(record.bestRound || 0));
+        return score > 0 ? `🏆 Best ${score} · ${round >= 7 ? 'Final' : `R${round}`}` : '🏆 Vault room ready';
+      }
+    },
+    {
       id: 'pattern-lock',
       stateKey: 'patternLock',
       name: 'PATTERN LOCK',
@@ -751,7 +769,7 @@
     if (document.querySelector(`link[data-xp-game-style="${game.id}"]`)) return;
     const link = document.createElement('link');
     link.rel = 'stylesheet';
-    link.href = `${game.style}?v=20260910-v472-million-byte`;
+    link.href = `${game.style}?v=20260911-v473-code-vault`;
     link.dataset.xpGameStyle = game.id;
     document.head.appendChild(link);
   }
@@ -768,7 +786,7 @@
       // forever for a load event that already fired.
       if (existing) existing.remove();
       const script = document.createElement('script');
-      script.src = `${game.script}?v=20260910-v472-million-byte`;
+      script.src = `${game.script}?v=20260911-v473-code-vault`;
       script.defer = true;
       script.dataset.xpGameScript = game.id;
       script.addEventListener('load', () => {
