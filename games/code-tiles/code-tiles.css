@@ -265,3 +265,55 @@ body.code-tiles-active{overflow:hidden!important;overscroll-behavior:none!import
   .code-tiles-progress{top:61px !important;left:7px !important;right:7px !important;width:auto !important;height:3px !important;transform:none !important}
   .code-tiles-judge{bottom:7px !important;font-size:13px !important}
 }
+
+
+/* CODE TILES v5.4 — true Piano-Tiles input + cohesive mobile chrome */
+@media (max-width:700px){
+  .code-tiles-topbar{
+    top:max(5px,env(safe-area-inset-top)) !important;
+    left:8px !important;right:8px !important;height:38px !important;
+    grid-template-columns:30px 1fr 30px 30px !important;gap:4px !important;
+    padding:3px 5px !important;border-radius:13px !important;
+    background:rgba(255,255,255,.70) !important;
+    border:1px solid rgba(255,255,255,.66) !important;
+    box-shadow:0 4px 14px rgba(70,81,125,.10) !important;
+  }
+  .code-tiles-topbar button{
+    width:30px !important;height:30px !important;padding:0 !important;
+    border:0 !important;border-radius:9px !important;font-size:14px !important;
+    background:rgba(255,255,255,.18) !important;color:#172033 !important;
+    box-shadow:none !important;
+  }
+  .code-tiles-topbar button:active{background:rgba(37,99,235,.13) !important;transform:scale(.94)}
+  .code-tiles-brand strong{font-size:10.5px !important;letter-spacing:.055em !important;color:#172033 !important}
+  .code-tiles-brand small{display:none !important}
+
+  .code-tiles-hud{
+    top:max(47px,calc(env(safe-area-inset-top) + 43px)) !important;
+    left:8px !important;right:8px !important;width:auto !important;gap:4px !important;
+  }
+  .code-tiles-hud>div{
+    padding:4px 1px 3px !important;border-radius:9px !important;
+    background:rgba(255,255,255,.52) !important;
+    border:1px solid rgba(255,255,255,.50) !important;
+    box-shadow:none !important;
+  }
+  .code-tiles-hud small{font-size:5.5px !important;color:#526071 !important}
+  .code-tiles-hud strong{font-size:10px !important;color:#111827 !important}
+  .code-tiles-progress{
+    top:max(78px,calc(env(safe-area-inset-top) + 74px)) !important;
+    left:10px !important;right:10px !important;width:auto !important;height:4px !important;
+    background:rgba(255,255,255,.46) !important;
+  }
+  .code-tiles-judge{
+    bottom:max(16px,calc(env(safe-area-inset-bottom) + 9px)) !important;
+    padding:3px 10px !important;font-size:13px !important;
+    background:rgba(255,255,255,.70) !important;
+  }
+}
+
+@media (max-height:580px) and (orientation:landscape){
+  .code-tiles-topbar{height:32px !important;grid-template-columns:26px 1fr 26px 26px !important;padding:2px 4px !important}
+  .code-tiles-topbar button{width:26px !important;height:26px !important;font-size:12px !important}
+  .code-tiles-hud{top:39px !important}.code-tiles-progress{top:65px !important;height:3px !important}
+}

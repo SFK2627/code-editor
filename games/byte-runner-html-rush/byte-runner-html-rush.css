@@ -97,3 +97,33 @@ body.byte-runner-html-active{overflow:hidden!important;overscroll-behavior:none!
   .byte-runner-html-stats{top:36px;left:5px;width:286px;right:auto;grid-template-columns:repeat(5,54px);gap:3px}.byte-runner-html-stat{padding:3px 1px}.byte-runner-html-stat small{font-size:.31rem}.byte-runner-html-stat strong{font-size:.53rem}
   .byte-runner-html-question{top:36px;right:5px;left:auto;transform:none;width:min(510px,calc(100% - 302px));padding:6px 7px}.byte-runner-html-question h3{font-size:.66rem;margin:3px 0}.byte-runner-html-codeprompt{max-height:31px;font-size:.49rem}.byte-runner-html-choice{min-height:30px;font-size:.45rem;padding:3px}.byte-runner-html-choice b{font-size:.50rem}
 }
+
+
+/* BYTE RUNNER v4.1 — cohesive controls instead of floating/stacked button cards */
+@media(max-width:700px){
+  .byte-runner-html-topbar{
+    top:max(4px,env(safe-area-inset-top,0px));
+    left:6px;right:6px;height:40px;padding:4px 6px;
+    gap:4px;border:1px solid rgba(103,232,249,.14);border-radius:13px;
+    background:rgba(3,18,31,.93);box-shadow:0 5px 16px rgba(0,0,0,.16);
+  }
+  .byte-runner-html-topbar button{
+    height:30px;min-width:30px;width:30px;padding:0;border:0;border-radius:9px;
+    background:rgba(255,255,255,.045);color:#e8f7ff;font-size:.64rem;box-shadow:none;
+  }
+  .byte-runner-html-topbar button:active{background:rgba(103,232,249,.13);transform:scale(.94)}
+  .byte-runner-html-topbar [data-brh-back]{font-size:.72rem}
+  .byte-runner-html-topbar [data-brh-close]{margin-left:0;background:rgba(251,113,133,.08);color:#ffe4e6}
+  .byte-runner-html-brand{flex:1;min-width:0;margin:0 2px}
+  .byte-runner-html-brand strong{font-size:.66rem;letter-spacing:.035em}
+  .byte-runner-html-stats{top:max(48px,calc(env(safe-area-inset-top,0px) + 44px));left:6px;right:6px;gap:3px}
+  .byte-runner-html-stat{padding:4px 1px;border-radius:8px;background:rgba(3,19,32,.86)}
+  .byte-runner-html-question{top:max(82px,calc(env(safe-area-inset-top,0px) + 78px))}
+}
+
+@media(max-height:580px) and (orientation:landscape){
+  .byte-runner-html-topbar{top:3px;left:5px;right:5px;height:32px;padding:2px 5px;border-radius:10px}
+  .byte-runner-html-topbar button{height:26px;min-width:26px;width:26px;border-radius:7px}
+  .byte-runner-html-stats{top:38px}
+  .byte-runner-html-question{top:38px}
+}

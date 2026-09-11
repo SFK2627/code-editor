@@ -183,9 +183,9 @@
             <div class="code-tiles-hero" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
             <p class="code-tiles-kicker">60-SECOND RHYTHM RUN</p>
             <h2>CODE TILES</h2>
-            <p>Play it like a real four-lane rhythm game. Hit the tile at the SYNC LINE, keep the beat, and release cleanly before the next short tile.</p>
+            <p>Follow the black tiles in order. Tap the NEXT tile as soon as it enters the board — you do not have to wait for the line. Long tiles must be held until their tail reaches the line.</p>
             <div class="code-tiles-how">
-              <span><i class="short"></i><b>SHORT TILE</b><small>Tap once as it reaches the line.</small></span>
+              <span><i class="short"></i><b>SHORT TILE</b><small>Tap the next tile once it appears. Only the earliest tile(s) count.</small></span>
               <span><i class="long"></i><b>LONG TILE</b><small>Press and keep holding. Do not release until the long tail reaches the line.</small></span>
             </div>
             <div class="code-tiles-key-row"><span><b>D</b> HTML</span><span><b>F</b> CSS</span><span><b>J</b> JS</span><span><b>K</b> 01</span></div>
@@ -625,21 +625,33 @@
     playBeat(localBeat % 4 === 0, localBeat, runtime.currentPhase);
   }
 
-  function noteForLane(lane, trackMs) {
-    const notes = runtime.notesByLane[lane] || [];
-    let best = null;
-    let bestAbs = Infinity;
-    for (const note of notes) {
+  function noteHeadVisible(note, trackMs) {
+    if (!note || note.state !== 'pending') return false;
+    const y = noteY(note, trackMs);
+    return y + TILE_H * .5 >= BOARD_TOP + 2 && y - TILE_H * .5 <= TARGET_Y + TILE_H * .68;
+  }
+
+  function currentInputGroup(trackMs) {
+    const chart = runtime.chart;
+    let earliest = null;
+    const group = [];
+    for (let i = Math.max(0, runtime.updateCursor - 2); i < chart.length; i += 1) {
+      const note = chart[i];
       if (note.state !== 'pending') continue;
-      const error = trackMs - note.targetTime;
-      const abs = Math.abs(error);
-      if (abs <= HIT_WINDOWS.good && abs < bestAbs) {
-        best = note;
-        bestAbs = abs;
-      }
-      if (note.targetTime > trackMs + HIT_WINDOWS.good) break;
+      if (earliest == null) earliest = note.targetTime;
+      if (Math.abs(note.targetTime - earliest) > 1) break;
+      group.push(note);
     }
-    return best;
+    if (!group.length) return [];
+    return group.some(note => noteHeadVisible(note, trackMs)) ? group.filter(note => noteHeadVisible(note, trackMs)) : [];
+  }
+
+  function judgementForEarlyTap(note, trackMs) {
+    const y = noteY(note, trackMs);
+    const progress = clamp((y - BOARD_TOP) / Math.max(1, TARGET_Y - BOARD_TOP), 0, 1.2);
+    if (progress >= .58) return 'PERFECT';
+    if (progress >= .18) return 'GREAT';
+    return 'GOOD';
   }
 
   function pressLane(lane, sourceId) {
@@ -647,21 +659,34 @@
     runtime.laneSources[lane].add(sourceId);
     runtime.laneFlashes[lane] = 1;
     if (runtime.state !== 'playing') return;
+
     const trackMs = nowInTrack(performance.now());
-    const note = noteForLane(lane, trackMs);
-    if (!note) {
+    const group = currentInputGroup(trackMs);
+    if (!group.length) {
+      // The next note has not entered the board yet. Do not punish a light
+      // exploratory touch as harshly as a wrong Piano-Tiles choice.
       runtime.badTaps += 1;
-      runtime.sync = Math.max(0, runtime.sync - 2.0);
-      runtime.combo = 0;
-      showJudgement('EMPTY', 'bad');
+      runtime.sync = Math.max(0, runtime.sync - .6);
+      showJudgement('WAIT FOR NEXT TILE', 'bad');
       playUiTone('bad');
+      vibrate(4);
       return;
     }
+
+    const note = group.find(item => item.lane === lane);
+    if (!note) {
+      // Strict Piano Tiles order: only the earliest visible note/chord is valid.
+      runtime.badTaps += 1;
+      runtime.sync = Math.max(0, runtime.sync - 4.0);
+      runtime.combo = 0;
+      showJudgement('WRONG TILE', 'bad');
+      playUiTone('bad');
+      vibrate(8);
+      return;
+    }
+
+    const judgement = judgementForEarlyTap(note, trackMs);
     const error = trackMs - note.targetTime;
-    const abs = Math.abs(error);
-    let judgement = 'GOOD';
-    if (abs <= HIT_WINDOWS.perfect) judgement = 'PERFECT';
-    else if (abs <= HIT_WINDOWS.great) judgement = 'GREAT';
     registerHit(note, judgement, error);
   }
 
@@ -690,6 +715,7 @@
     note.errorMs = Math.round(errorMs);
     note.headHitAt = nowInTrack(performance.now());
     note.visualHitAt = note.headHitAt;
+    note.pressFxAt = note.headHitAt;
     note.state = note.holdDuration > 0 ? 'holding' : 'hit';
     runtime.judgedNotes += note.holdDuration > 0 ? 0 : 1;
     runtime.combo += 1;
@@ -699,7 +725,8 @@
     else { runtime.good += 1; runtime.score += 6; runtime.sync = Math.min(100, runtime.sync + .4); }
     runtime.score += Math.min(5, Math.floor(runtime.combo / 12));
     runtime.targetPulse = 1;
-    spawnHitBurst(note.lane, judgement);
+    const hitY = clamp(noteY(note, note.headHitAt), BOARD_TOP + 8, BOARD_BOTTOM - 8);
+    spawnHitBurst(note.lane, judgement, hitY);
     showJudgement(note.holdDuration > 0 ? `${judgement} · HOLD` : judgement, judgement.toLowerCase());
     playLaneTone(note.lane, judgement === 'PERFECT' ? 1 : judgement === 'GREAT' ? .88 : .76);
     if (note.holdDuration > 0) {
@@ -900,7 +927,7 @@
     }
   }
 
-  function spawnHitBurst(lane, kind) {
+  function spawnHitBurst(lane, kind, y = TARGET_Y) {
     const x = BOARD_X + lane * LANE_W + LANE_W / 2;
     const hue = LANE_META[lane].hue;
     const maxParticles = runtime.lowPower ? 18 : 36;
@@ -911,7 +938,7 @@
       const angle = Math.PI * (1.1 + Math.random() * .8);
       const speed = 42 + Math.random() * 82;
       runtime.particles.push({
-        x, y: TARGET_Y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
+        x, y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
         born: now, lastUpdate: now, ttl: 300 + Math.random() * 180, size: 2 + Math.random() * 3, hue
       });
     }
@@ -1286,15 +1313,26 @@
       ctx.save();
       ctx.globalAlpha = clamp(alpha, 0, 1);
       if (shortHit) {
-        // Small downward streak sells the "passed through" motion without
-        // adding expensive blur/filter effects.
+        const meta = LANE_META[note.lane];
+        const fxAge = Math.max(0, trackMs - Number(note.pressFxAt || note.visualHitAt || trackMs));
+        const pressGlow = clamp(1 - fxAge / 260, 0, 1);
+        // The pressed tile visibly changes color first, then returns toward black
+        // while continuing below the line. This makes the touch feel physical.
         ctx.fillStyle = 'rgba(255,255,255,.14)';
         ctx.fillRect(x + 8, y - 104, w - 16, 34);
         ctx.fillStyle = '#050505';
+        ctx.fillRect(x + 1, y - 72, w - 2, 144);
+        if (pressGlow > 0) {
+          ctx.fillStyle = `hsla(${meta.hue}, 88%, 55%, ${.68 * pressGlow})`;
+          ctx.fillRect(x + 1, y - 72, w - 2, 144);
+          ctx.strokeStyle = `hsla(${meta.hue}, 96%, 78%, ${.90 * pressGlow})`;
+          ctx.lineWidth = 3;
+          ctx.strokeRect(x + 2.5, y - 70.5, w - 5, 141);
+        }
       } else {
         ctx.fillStyle = 'rgba(127,29,29,.92)';
+        ctx.fillRect(x + 1, y - 72, w - 2, 144);
       }
-      ctx.fillRect(x + 1, y - 72, w - 2, 144);
       if (shortHit && !runtime.lowPower) {
         ctx.fillStyle = 'rgba(255,255,255,.035)';
         ctx.fillRect(x + 8, y - 68, w - 16, 14);
@@ -1347,10 +1385,15 @@
       const h = Math.max(1, drawBottom - top);
 
       ctx.save();
-      ctx.fillStyle = '#050505';
+      ctx.fillStyle = held ? `hsla(${meta.hue}, 54%, 18%, .98)` : '#050505';
       ctx.fillRect(x + 1, top, w - 2, h);
+      if (held) {
+        ctx.strokeStyle = `hsla(${meta.hue}, 94%, 74%, .78)`;
+        ctx.lineWidth = 3;
+        ctx.strokeRect(x + 2.5, top + 1.5, w - 5, Math.max(1, h - 3));
+      }
       // Tail cap makes the end of a long note easy to read while it approaches.
-      ctx.fillStyle = held ? 'rgba(147,197,253,.78)' : 'rgba(255,255,255,.22)';
+      ctx.fillStyle = held ? 'rgba(191,219,254,.92)' : 'rgba(255,255,255,.22)';
       ctx.fillRect(x + 8, top + 2, w - 16, 4);
       if (held) {
         const progress = clamp((trackMs - note.targetTime) / Math.max(1, note.holdDuration), 0, 1);
@@ -1439,10 +1482,10 @@
     const t = clamp(age / 1150, 0, 1);
     const alpha = Math.sin(Math.PI * t);
     const phase = PHASES[runtime.phaseBanner.index] || PHASES[0];
-    ctx.save(); ctx.globalAlpha = alpha;
-    ctx.textAlign = 'center'; ctx.fillStyle = '#f8fafc'; ctx.font = '950 30px system-ui';
-    ctx.fillText(`PHASE ${runtime.phaseBanner.index + 1}`, WORLD_W / 2, 350);
-    ctx.fillStyle = '#67e8f9'; ctx.font = '900 14px system-ui'; ctx.fillText(`${phase.label} · ${phase.bpm} BPM`, WORLD_W / 2, 380);
+    ctx.save(); ctx.globalAlpha = alpha * (isPhoneLayout() ? .72 : 1);
+    ctx.textAlign = 'center'; ctx.fillStyle = '#ffffff'; ctx.font = isPhoneLayout() ? '950 22px system-ui' : '950 30px system-ui';
+    ctx.fillText(`PHASE ${runtime.phaseBanner.index + 1}`, WORLD_W / 2, isPhoneLayout() ? 310 : 350);
+    ctx.fillStyle = '#67e8f9'; ctx.font = isPhoneLayout() ? '900 11px system-ui' : '900 14px system-ui'; ctx.fillText(`${phase.label} · ${phase.bpm} BPM`, WORLD_W / 2, isPhoneLayout() ? 336 : 380);
     ctx.restore();
   }
 
