@@ -83,6 +83,14 @@
     masterGain: null,
     compressor: null,
     backdropGradient: null,
+    staticScene: null,
+    staticSceneReady: false,
+    laneTonePool: [null, null, null, null],
+    uiVoice: null,
+    inputGroupScratch: [],
+    lastHudUpdateAt: 0,
+    lastJudgeAt: 0,
+    lastJudgeText: '',
     updateCursor: 0,
     hudCache: Object.create(null),
     lowPower: false,
@@ -453,6 +461,79 @@
     g.addColorStop(.52, '#d9dbf8');
     g.addColorStop(1, '#92bcff');
     runtime.backdropGradient = g;
+    buildStaticScene();
+  }
+
+  function buildStaticScene() {
+    try {
+      const canvas = runtime.staticScene || document.createElement('canvas');
+      canvas.width = WORLD_W;
+      canvas.height = WORLD_H;
+      const sctx = canvas.getContext('2d', { alpha: false });
+      if (!sctx) return;
+
+      const bg = sctx.createLinearGradient(0, 0, 0, WORLD_H);
+      bg.addColorStop(0, '#efd7f2');
+      bg.addColorStop(.52, '#d9dbf8');
+      bg.addColorStop(1, '#92bcff');
+      sctx.fillStyle = bg;
+      sctx.fillRect(0, 0, WORLD_W, WORLD_H);
+
+      // Static glow spots: same pastel identity, zero per-frame animation cost.
+      for (let i = 0; i < BACKDROP_GLOWS.length; i += 1) {
+        const [x, y, r, color] = BACKDROP_GLOWS[i];
+        sctx.fillStyle = color;
+        sctx.beginPath();
+        sctx.arc(x, y, r, 0, Math.PI * 2);
+        sctx.fill();
+      }
+      if (!runtime.lowPower) {
+        sctx.save();
+        sctx.globalAlpha = .66;
+        sctx.fillStyle = 'rgba(255,255,255,.72)';
+        for (let i = 0; i < BACKDROP_STARS.length; i += 1) {
+          const [x, y, s] = BACKDROP_STARS[i];
+          sctx.beginPath();
+          sctx.moveTo(x, y - s); sctx.lineTo(x + s*.34, y - s*.34); sctx.lineTo(x + s, y); sctx.lineTo(x + s*.34, y + s*.34);
+          sctx.lineTo(x, y + s); sctx.lineTo(x - s*.34, y + s*.34); sctx.lineTo(x - s, y); sctx.lineTo(x - s*.34, y - s*.34);
+          sctx.closePath();
+          sctx.fill();
+        }
+        sctx.restore();
+      }
+
+      sctx.save();
+      roundRect(sctx, BOARD_X, BOARD_TOP, BOARD_W, BOARD_BOTTOM - BOARD_TOP, 16);
+      sctx.clip();
+      for (let lane = 0; lane < 4; lane += 1) {
+        const x = BOARD_X + lane * LANE_W;
+        sctx.fillStyle = LANE_FILLS[lane];
+        sctx.fillRect(x, BOARD_TOP, LANE_W, BOARD_BOTTOM - BOARD_TOP);
+        if (lane > 0) {
+          sctx.strokeStyle = 'rgba(255,255,255,.30)';
+          sctx.lineWidth = 1;
+          sctx.beginPath();
+          sctx.moveTo(x, BOARD_TOP);
+          sctx.lineTo(x, BOARD_BOTTOM);
+          sctx.stroke();
+        }
+      }
+      if (!isPhoneLayout()) {
+        for (let lane = 0; lane < 4; lane += 1) drawLaneLabel(sctx, lane);
+      }
+      sctx.restore();
+      sctx.save();
+      roundRect(sctx, BOARD_X, BOARD_TOP, BOARD_W, BOARD_BOTTOM - BOARD_TOP, 16);
+      sctx.strokeStyle = 'rgba(255,255,255,.22)';
+      sctx.lineWidth = 1.5;
+      sctx.stroke();
+      sctx.restore();
+
+      runtime.staticScene = canvas;
+      runtime.staticSceneReady = true;
+    } catch (_) {
+      runtime.staticSceneReady = false;
+    }
   }
 
   function queueResize() {
@@ -538,6 +619,9 @@
     runtime.currentBeatIndex = -1;
     runtime.lastUpdateNow = 0;
     runtime.lastRenderNow = 0;
+    runtime.lastHudUpdateAt = 0;
+    runtime.lastJudgeAt = 0;
+    runtime.lastJudgeText = '';
     runtime.targetPulse = 0;
     runtime.phaseBanner = { index: 0, startedAt: performance.now() + 300 };
     runtime.finalData = null;
@@ -569,36 +653,29 @@
   function loop(now) {
     runtime.raf = 0;
     if (!runtime.open) return;
+    const previous = runtime.lastFrameNow || now;
+    const dtMs = clamp(now - previous, 0, 50);
     runtime.lastFrameNow = now;
 
-    const lowPowerFrameMs = 33.333; // Stable ~30 FPS is smoother than an unstable 45/60 on phones.
-    const updateDue = !runtime.lowPower || !runtime.lastUpdateNow || (now - runtime.lastUpdateNow >= lowPowerFrameMs);
-
     if (runtime.state === 'countdown') {
-      if (updateDue) {
-        const elapsed = now - runtime.startCountdownAt;
-        runtime.startCountdownValue = elapsed < 700 ? 3 : elapsed < 1400 ? 2 : elapsed < 2100 ? 1 : 0;
-        if (elapsed >= 2500) beginTrack(now);
-        runtime.lastUpdateNow = now;
-      }
-    } else if (runtime.state === 'playing' && updateDue) {
-      updateGame(now);
-      runtime.lastUpdateNow = now;
+      const elapsed = now - runtime.startCountdownAt;
+      runtime.startCountdownValue = elapsed < 700 ? 3 : elapsed < 1400 ? 2 : elapsed < 2100 ? 1 : 0;
+      if (elapsed >= 2500) beginTrack(now);
+    } else if (runtime.state === 'playing') {
+      updateGame(now, dtMs);
     }
 
-    const renderDue = !runtime.lowPower || !runtime.lastRenderNow || (now - runtime.lastRenderNow >= lowPowerFrameMs) || runtime.state !== 'playing';
-    if (renderDue) {
-      if (!runtime.lowPower) updateParticles(now);
-      updateHitEffects(now);
-      renderFrame(now);
-      runtime.lastRenderNow = now;
-    }
+    updateHitEffects(now);
+    if (!runtime.lowPower) updateParticles(now);
+    renderFrame(now);
+    runtime.lastRenderNow = now;
+
     if (runtime.open && ['countdown', 'playing', 'paused'].includes(runtime.state)) {
       runtime.raf = requestAnimationFrame(loop);
     }
   }
 
-  function updateGame(now) {
+  function updateGame(now, dtMs = 16.67) {
     const trackMs = nowInTrack(now);
     const nextPhase = phaseAt(trackMs);
     if (nextPhase !== runtime.currentPhase) {
@@ -607,7 +684,7 @@
       playUiTone('phase');
       vibrate(10);
     }
-    if (!runtime.lowPower || runtime.currentPhase < 2) playBeatIfNeeded(trackMs);
+    if (!runtime.lowPower) playBeatIfNeeded(trackMs);
 
     const chart = runtime.chart;
     const scanStart = runtime.updateCursor;
@@ -647,10 +724,13 @@
     }
     runtime.updateCursor = cursor;
 
-    const fadeStep = runtime.lowPower ? .095 : .052;
+    const fadeStep = dtMs * (runtime.lowPower ? .0058 : .0032);
     for (let i = 0; i < runtime.laneFlashes.length; i += 1) runtime.laneFlashes[i] = Math.max(0, runtime.laneFlashes[i] - fadeStep);
-    runtime.targetPulse = Math.max(0, runtime.targetPulse - (runtime.lowPower ? .08 : .045));
-    updateHud(trackMs);
+    runtime.targetPulse = Math.max(0, runtime.targetPulse - dtMs * (runtime.lowPower ? .0048 : .0028));
+    if (!runtime.lastHudUpdateAt || now - runtime.lastHudUpdateAt >= 100) {
+      updateHud(trackMs);
+      runtime.lastHudUpdateAt = now;
+    }
 
     if (runtime.sync <= 0) {
       failRun('SYNC meter reached zero. Keep a steadier beat and avoid empty-lane taps.');
@@ -679,17 +759,22 @@
 
   function currentInputGroup(trackMs) {
     const chart = runtime.chart;
+    const group = runtime.inputGroupScratch;
+    group.length = 0;
     let earliest = null;
-    const group = [];
+    let anyVisible = false;
     for (let i = runtime.updateCursor; i < chart.length; i += 1) {
       const note = chart[i];
       if (note.state !== 'pending') continue;
       if (earliest == null) earliest = note.targetTime;
       if (Math.abs(note.targetTime - earliest) > 1) break;
-      group.push(note);
+      if (noteHeadVisible(note, trackMs)) {
+        group.push(note);
+        anyVisible = true;
+      }
     }
-    if (!group.length) return [];
-    return group.some(note => noteHeadVisible(note, trackMs)) ? group.filter(note => noteHeadVisible(note, trackMs)) : [];
+    if (!anyVisible) group.length = 0;
+    return group;
   }
 
   function nextPendingTargetTime() {
@@ -803,10 +888,9 @@
     if (note.holdDuration > 0) {
       runtime.activeHoldByLane[note.lane] = note;
       startHoldVoice(note);
-      // Immediate first-frame feedback: no waiting for the next throttled phone frame.
-      if (runtime.lowPower) { try { renderFrame(performance.now()); runtime.lastRenderNow = performance.now(); } catch (_) {} }
     }
-    vibrate(judgement === 'PERFECT' ? 10 : 6);
+    updateHud(note.headHitAt);
+    runtime.lastHudUpdateAt = performance.now();
   }
 
   function completeHold(note) {
@@ -990,6 +1074,10 @@
   }
 
   function showJudgement(text, kind) {
+    const now = performance.now();
+    if (runtime.lowPower && runtime.lastJudgeText === text && now - runtime.lastJudgeAt < 70) return;
+    runtime.lastJudgeText = text;
+    runtime.lastJudgeAt = now;
     runtime.judgementEl.textContent = text;
     runtime.judgementEl.dataset.kind = kind || '';
     if (runtime.lowPower) return;
@@ -1159,9 +1247,57 @@
         runtime.masterGain.connect(runtime.compressor);
         runtime.compressor.connect(runtime.audioContext.destination);
       }
+      if (runtime.lowPower && runtime.audioContext && runtime.masterGain) ensurePooledAudioVoices();
       if (runtime.audioContext.state === 'suspended') runtime.audioContext.resume().catch(() => {});
       return runtime.audioContext;
     } catch (_) { return null; }
+  }
+
+  function ensurePooledAudioVoices() {
+    const ctx = runtime.audioContext;
+    if (!ctx || !runtime.masterGain) return;
+    for (let lane = 0; lane < 4; lane += 1) {
+      if (runtime.laneTonePool[lane]) continue;
+      try {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.value = LANE_META[lane]?.freq || 330;
+        gain.gain.value = .0001;
+        osc.connect(gain);
+        gain.connect(runtime.masterGain);
+        osc.start();
+        runtime.laneTonePool[lane] = { osc, gain };
+      } catch (_) {}
+    }
+    if (!runtime.uiVoice) {
+      try {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = 220;
+        gain.gain.value = .0001;
+        osc.connect(gain);
+        gain.connect(runtime.masterGain);
+        osc.start();
+        runtime.uiVoice = { osc, gain };
+      } catch (_) {}
+    }
+  }
+
+  function triggerPooledVoice(voice, freq, volume = .10, duration = .085) {
+    if (!voice || !runtime.audioContext) return false;
+    try {
+      const ctx = runtime.audioContext;
+      const now = ctx.currentTime;
+      voice.osc.frequency.cancelScheduledValues(now);
+      voice.osc.frequency.setValueAtTime(Math.max(30, freq), now);
+      voice.gain.gain.cancelScheduledValues(now);
+      voice.gain.gain.setValueAtTime(.0001, now);
+      voice.gain.gain.linearRampToValueAtTime(Math.max(.001, volume), now + .004);
+      voice.gain.gain.exponentialRampToValueAtTime(.0001, now + Math.max(.035, duration));
+      return true;
+    } catch (_) { return false; }
   }
 
   function synth(freq, duration = .09, volume = .09, type = 'sine', slideTo = 0, delay = 0) {
@@ -1185,9 +1321,9 @@
   function playLaneTone(lane, strength = 1) {
     const freq = LANE_META[lane]?.freq || 330;
     if (runtime.lowPower) {
-      // One crisp voice is enough on phones; extra harmonics were a major source
-      // of stutter during chords and rapid taps.
-      synth(freq, .095, .12 * strength, 'triangle', freq * 1.012);
+      ensurePooledAudioVoices();
+      if (triggerPooledVoice(runtime.laneTonePool[lane], freq, .105 * strength, .080)) return;
+      synth(freq, .075, .09 * strength, 'triangle');
       return;
     }
     synth(freq, .12, .13 * strength, 'triangle', freq * 1.015);
@@ -1197,10 +1333,7 @@
 
   function playBeat(accent, beatIndex = 0, phaseIndex = 0) {
     if (!runtime.soundEnabled) return;
-    if (runtime.lowPower) {
-      if (accent) synth(88, .07, .032, 'sine', 48);
-      return;
-    }
+    if (runtime.lowPower) return;
     synth(accent ? 88 : 66, accent ? .095 : .055, accent ? .065 : .030, 'sine', 44);
     synth(accent ? 980 : 1320, .025, accent ? .024 : .015, 'square');
     if (beatIndex % 2 === 0) {
@@ -1250,7 +1383,12 @@
     if (!runtime.soundEnabled) return;
     if (kind === 'start') { synth(330, .08, .09, 'triangle'); synth(440, .09, .09, 'triangle', 0, .085); synth(554, .10, .075, 'triangle', 0, .17); }
     else if (kind === 'phase') { synth(523, .08, .075, 'triangle'); synth(659, .09, .07, 'triangle', 0, .07); }
-    else if (kind === 'miss' || kind === 'bad') synth(138, .12, .07, 'sawtooth', 92);
+    else if (kind === 'miss' || kind === 'bad') {
+      if (runtime.lowPower) {
+        ensurePooledAudioVoices();
+        if (!triggerPooledVoice(runtime.uiVoice, 138, .055, .085)) synth(138, .08, .05, 'sine');
+      } else synth(138, .12, .07, 'sawtooth', 92);
+    }
     else if (kind === 'win') { synth(523, .12, .09, 'triangle'); synth(659, .12, .085, 'triangle', 0, .095); synth(784, .17, .09, 'triangle', 0, .19); }
     else if (kind === 'fail') synth(190, .24, .085, 'sawtooth', 78);
   }
@@ -1280,7 +1418,8 @@
     ctx.save();
     ctx.translate(ox, oy);
     ctx.scale(scaleX || scale, scaleY || scale);
-    drawBackdrop(ctx, now);
+    if (runtime.staticSceneReady && runtime.staticScene) ctx.drawImage(runtime.staticScene, 0, 0);
+    else drawBackdrop(ctx, now);
     drawBoard(ctx, now);
     if (runtime.state === 'countdown') drawCountdown(ctx, now);
     if (runtime.state === 'paused') drawPause(ctx);
@@ -1324,21 +1463,22 @@
     roundRect(ctx, BOARD_X, BOARD_TOP, BOARD_W, BOARD_BOTTOM - BOARD_TOP, 16);
     ctx.clip();
 
-    for (let lane = 0; lane < 4; lane += 1) {
-      const x = BOARD_X + lane * LANE_W;
-      ctx.fillStyle = LANE_FILLS[lane];
-      ctx.fillRect(x, BOARD_TOP, LANE_W, BOARD_BOTTOM - BOARD_TOP);
-      if (lane > 0) {
-        ctx.strokeStyle = 'rgba(255,255,255,.34)';
-        ctx.lineWidth = 1.2;
-        ctx.beginPath();
-        ctx.moveTo(x, BOARD_TOP);
-        ctx.lineTo(x, BOARD_BOTTOM);
-        ctx.stroke();
+    if (!runtime.staticSceneReady) {
+      for (let lane = 0; lane < 4; lane += 1) {
+        const x = BOARD_X + lane * LANE_W;
+        ctx.fillStyle = LANE_FILLS[lane];
+        ctx.fillRect(x, BOARD_TOP, LANE_W, BOARD_BOTTOM - BOARD_TOP);
+        if (lane > 0) {
+          ctx.strokeStyle = 'rgba(255,255,255,.34)';
+          ctx.lineWidth = 1.2;
+          ctx.beginPath();
+          ctx.moveTo(x, BOARD_TOP);
+          ctx.lineTo(x, BOARD_BOTTOM);
+          ctx.stroke();
+        }
       }
+      if (!isPhoneLayout()) for (let lane = 0; lane < 4; lane += 1) drawLaneLabel(ctx, lane);
     }
-
-    if (!isPhoneLayout()) for (let lane = 0; lane < 4; lane += 1) drawLaneLabel(ctx, lane);
 
     const targetAlpha = .88 + runtime.targetPulse * .12;
     ctx.strokeStyle = `rgba(244,147,38,${targetAlpha})`;
@@ -1375,12 +1515,14 @@
     if (!isPhoneLayout()) drawLanePads(ctx, trackMs);
 
     ctx.restore();
-    ctx.save();
-    roundRect(ctx, BOARD_X, BOARD_TOP, BOARD_W, BOARD_BOTTOM - BOARD_TOP, 16);
-    ctx.strokeStyle = 'rgba(255,255,255,.22)';
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-    ctx.restore();
+    if (!runtime.staticSceneReady) {
+      ctx.save();
+      roundRect(ctx, BOARD_X, BOARD_TOP, BOARD_W, BOARD_BOTTOM - BOARD_TOP, 16);
+      ctx.strokeStyle = 'rgba(255,255,255,.22)';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.restore();
+    }
   }
 
   function drawLaneLabel(ctx, lane) {
@@ -1634,7 +1776,6 @@
     }
     stopAllHoldVoices();
     runtime.round = null;
-    try { navigator.vibrate?.(0); } catch (_) {}
     runtime.open = false;
     runtime.state = 'closed';
     runtime.overlay.hidden = true;
@@ -1665,7 +1806,6 @@
     runtime.lastRewardXp = clamp(Number(record.lastRewardXp || 0), 0, 3);
     runtime.soundEnabled = snap.soundEnabled !== false;
     runtime.soundBtn.textContent = runtime.soundEnabled ? '🔊' : '🔇';
-    try { navigator.vibrate?.(0); } catch (_) {}
     runtime.open = true;
     runtime.state = 'ready';
     runtime.updateCursor = 0;
