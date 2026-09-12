@@ -4554,9 +4554,15 @@ async function rtdbRestRequest(path = '', options = {}) {
     try { data = JSON.parse(text); } catch (_) { data = text; }
   }
   if (!response.ok) {
-    const message = data?.error || data?.message || `Realtime Database request failed (${response.status}).`;
+    let message = data?.error || data?.message || `Realtime Database request failed (${response.status}).`;
+    const isTwoPlayerSignal = String(path || '').startsWith('codeDuelSignals');
+    const denied = response.status === 401 || response.status === 403 || /permission denied|unauthorized|permission-denied/i.test(String(message || ''));
+    if (isTwoPlayerSignal && denied) {
+      message = 'Student ID pairing is blocked by Realtime Database rules. Publish the updated codeDuelSignals rules, then reopen the 2-player game and try again.';
+    }
     const error = new Error(String(message));
     error.status = response.status;
+    error.code = isTwoPlayerSignal && denied ? 'two-player-rtdb-permission-denied' : '';
     throw error;
   }
   return data;
