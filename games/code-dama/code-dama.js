@@ -284,12 +284,34 @@
     });
   }
 
+  function applySideThemeClasses() {
+    const me = localSide(), them = remoteSide();
+    const localHud = $('.dama-player-hud.local'), remoteHud = $('.dama-player-hud.remote');
+    const localLobby = $('[data-local-player]'), remoteLobby = $('[data-remote-player]');
+    const centerHud = $('.dama-center-hud');
+    const setSide = (el, side) => {
+      if (!el) return;
+      el.classList.toggle('team-blue', side === 'h');
+      el.classList.toggle('team-red', side === 'g');
+    };
+    setSide(localHud, me); setSide(remoteHud, them); setSide(localLobby, me); setSide(remoteLobby, them);
+    const turn = r.game?.turn || '';
+    [localHud, remoteHud].forEach(el => el?.classList.remove('is-turn'));
+    localHud?.classList.toggle('is-turn', !!turn && turn === me && !r.game?.roundOver);
+    remoteHud?.classList.toggle('is-turn', !!turn && turn === them && !r.game?.roundOver);
+    if (centerHud) {
+      centerHud.classList.toggle('turn-blue', !!turn && turn === 'h' && !r.game?.roundOver);
+      centerHud.classList.toggle('turn-red', !!turn && turn === 'g' && !r.game?.roundOver);
+    }
+  }
+
   function syncNames() {
     const pairs = [
       ['[data-local-name]', r.localName], ['[data-remote-name]', r.remoteName],
       ['[data-local-hud-name]', r.localName], ['[data-remote-hud-name]', r.remoteName]
     ];
     pairs.forEach(([selector, value]) => { const el = $(selector); if (el) el.textContent = value; });
+    applySideThemeClasses();
   }
 
   async function prepareStudentHostOffer() {
@@ -824,6 +846,8 @@
       let pieceHtml = '';
       if (piece) {
         const pieceClasses = ['dama-piece', piece.side === 'h' ? 'host-piece' : 'guest-piece'];
+        if (piece.side === r.game.turn && !r.game.roundOver) pieceClasses.push('turn-piece');
+        if (piece.side === side && r.game.turn === side && !r.game.roundOver) pieceClasses.push('your-turn-piece');
         if (piece.king) pieceClasses.push('king'); if (piece.shield) pieceClasses.push('shielded'); if (piece.frozen) pieceClasses.push('frozen');
         pieceHtml = `<span class="${pieceClasses.join(' ')}" aria-label="${piece.side === side ? 'Your' : 'Opponent'} ${piece.king ? 'King' : 'piece'}"><i>${piece.king ? '♛' : ''}</i>${piece.shield ? '<em>🛡️</em>' : ''}${piece.frozen ? '<b>❄</b>' : ''}</span>`;
       }
@@ -845,6 +869,7 @@
   function renderHud() {
     if (!r.game) return;
     const me = localSide(), them = remoteSide(), mode = MODES[r.game.mode] || MODES.classic;
+    applySideThemeClasses();
     $('[data-mode-chip]').textContent = mode.label;
     $('[data-turn-label]').textContent = r.game.roundOver ? 'ROUND COMPLETE' : r.game.turn === me ? (r.game.mustContinueFrom >= 0 ? 'CAPTURE AGAIN' : 'YOUR TURN') : 'OPPONENT TURN';
     $('[data-series-label]').textContent = r.game.seriesLength === 1 ? `GAME ${r.game.roundNo}` : `GAME ${r.game.roundNo} · BEST OF ${r.game.seriesLength}`;

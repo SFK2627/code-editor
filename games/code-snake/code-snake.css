@@ -7,3 +7,6 @@
 
 /* v10 instant swipe input */
 .code-snake-canvas{touch-action:none;overscroll-behavior:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+
+/* v12 solo wrap + responsive sizing */
+.code-snake-shell,.code-snake-canvas{box-sizing:border-box}

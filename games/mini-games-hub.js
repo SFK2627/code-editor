@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const ASSET_VERSION = '20260913-v4761-snake-instant-swipe-v10';
+  const ASSET_VERSION = '20260913-v4761-solo-snake-wrap-smooth-v12';
 
   const GAME_REGISTRY = Object.freeze([
     {
