@@ -274,7 +274,10 @@
       onRemoteName: name => { r.remoteName = name; syncNames(); },
       onDisconnected: () => { if (r.open && r.state === 'game') pauseGame('Opponent disconnected.'); },
       onState: state => {
-        if (state === 'timeout') status(r.role === 'host' ? '[data-host-status]' : '[data-guest-status]', 'Connection timed out. Try same Wi-Fi or QR / Share again.', true);
+        const target = r.role === 'host' ? '[data-host-status]' : '[data-guest-status]';
+        if (state === 'ice-checking') status(target, 'Checking the direct device-to-device route…');
+        if (state === 'ice-failed' || state === 'failed') status(target, 'Direct connection failed. Send a fresh invite or try the same Wi-Fi / QR pairing.', true);
+        if (state === 'timeout') status(target, 'Connection timed out. Send a fresh invite or try the same Wi-Fi / QR pairing.', true);
       }
     });
   }

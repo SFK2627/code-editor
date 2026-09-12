@@ -51365,7 +51365,8 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     'code-tower-race': Object.freeze({ id: 'code-tower-race', name: 'CODE TOWER RACE', prefix: 'CTR1' }),
     'code-snake-duel': Object.freeze({ id: 'code-snake-duel', name: 'CODE SNAKE DUEL', prefix: 'CSD1' }),
     'byte-space-battle': Object.freeze({ id: 'byte-space-battle', name: 'BYTE SPACE BATTLE', prefix: 'BSB1' }),
-    'code-escape-coop': Object.freeze({ id: 'code-escape-coop', name: 'CODE ESCAPE', prefix: 'CEC1' })
+    'code-escape-coop': Object.freeze({ id: 'code-escape-coop', name: 'CODE ESCAPE', prefix: 'CEC1' }),
+    'code-dama': Object.freeze({ id: 'code-dama', name: 'CODE DAMA', prefix: 'CDM1' })
   });
   let twoPlayerDirectoryRegisteredAt = 0;
   let twoPlayerDirectoryRegisteredKey = '';
@@ -51565,6 +51566,15 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       body.answerCode = answerCode;
     }
     await rtdbRestRequest(`codeDuelSignals/replies/${hostUid}/${inviteId}`, { method: 'PUT', body });
+    // Best-effort consume the recipient inbox entry so an accepted/declined invite
+    // cannot be selected again during rapid re-tests. The reply above remains the
+    // authoritative signal the Host polls.
+    try {
+      await rtdbRestRequest(`codeDuelSignals/inbox/${twoPlayerSafeUid(identity.uid)}/${inviteId}`, {
+        method: 'PATCH',
+        body: { status, updatedAtMs: body.updatedAtMs }
+      });
+    } catch (_) {}
     return { ok: true, status };
   }
 

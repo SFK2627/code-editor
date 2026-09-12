@@ -315,7 +315,7 @@
     return data;
   }
 
-  async function waitForIce(pc,timeout=5500){
+  async function waitForIce(pc,timeout=14000){
     if(pc.iceGatheringState==='complete') return;
     await new Promise(resolve=>{
       let done=false;
@@ -329,8 +329,11 @@
   function createPeer(){
     disconnectPeer();
     const pc=new RTCPeerConnection({
-      iceServers:[{urls:['stun:stun.l.google.com:19302','stun:stun1.l.google.com:19302']}],
-      bundlePolicy:'max-bundle', iceCandidatePoolSize:2
+      iceServers:[
+        {urls:['stun:stun.l.google.com:19302','stun:stun1.l.google.com:19302','stun:stun2.l.google.com:19302','stun:stun3.l.google.com:19302']},
+        {urls:['stun:stun.cloudflare.com:3478']}
+      ],
+      iceTransportPolicy:'all', bundlePolicy:'max-bundle', rtcpMuxPolicy:'require', iceCandidatePoolSize:4
     });
     runtime.pc=pc;
     pc.addEventListener('connectionstatechange',()=>{

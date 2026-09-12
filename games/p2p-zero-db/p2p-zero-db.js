@@ -4,7 +4,8 @@
   if (window.ICT8ZeroDbP2P) return;
 
   const VERSION = 1;
-  const DEFAULT_TIMEOUT = 16000;
+  const DEFAULT_TIMEOUT = 24000;
+  const ICE_GATHER_TIMEOUT = 14000;
 
   const cleanName = (value, fallback = 'PLAYER') => {
     const text = String(value || '').replace(/[<>]/g, '').trim().slice(0, 20);
@@ -75,7 +76,8 @@
     return data;
   }
 
-  async function waitForIce(pc, timeout = 5500) {
+  async function waitForIce(pc, timeout = ICE_GATHER_TIMEOUT) {
+    if (!pc) throw new Error('Direct connection could not be prepared.');
     if (pc.iceGatheringState === 'complete') return;
     await new Promise(resolve => {
       let settled = false;
@@ -83,13 +85,21 @@
         if (settled) return;
         settled = true;
         pc.removeEventListener('icegatheringstatechange', onChange);
+        pc.removeEventListener('icecandidate', onCandidate);
         clearTimeout(timer);
         resolve();
       };
       const onChange = () => { if (pc.iceGatheringState === 'complete') done(); };
-      const timer = setTimeout(done, timeout);
+      const onCandidate = event => { if (!event.candidate) done(); };
+      const timer = setTimeout(done, Math.max(6500, Number(timeout || ICE_GATHER_TIMEOUT)));
       pc.addEventListener('icegatheringstatechange', onChange);
+      pc.addEventListener('icecandidate', onCandidate);
     });
+  }
+
+  function localDescriptionHasIce(pc) {
+    const sdp = String(pc?.localDescription?.sdp || '');
+    return /a=candidate:/i.test(sdp) || /a=end-of-candidates/i.test(sdp);
   }
 
   function createSession(options = {}) {
@@ -171,16 +181,25 @@
       if (!window.RTCPeerConnection) throw new Error('WebRTC is not supported by this browser.');
       pc = new RTCPeerConnection({
         iceServers: [
-          { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] }
+          { urls: [
+            'stun:stun.l.google.com:19302',
+            'stun:stun1.l.google.com:19302',
+            'stun:stun2.l.google.com:19302',
+            'stun:stun3.l.google.com:19302'
+          ] },
+          { urls: ['stun:stun.cloudflare.com:3478'] }
         ],
+        iceTransportPolicy: 'all',
         bundlePolicy: 'max-bundle',
-        iceCandidatePoolSize: 1
+        rtcpMuxPolicy: 'require',
+        iceCandidatePoolSize: 4
       });
       pc.addEventListener('connectionstatechange', () => {
         const state = pc?.connectionState || 'closed';
         if (state === 'connected') {
           connected = true;
           clearTimeout(connectionTimer);
+          notifyState('connected');
         }
         if (state === 'failed' || state === 'disconnected') {
           const wasConnected = connected;
@@ -191,6 +210,12 @@
           }
         }
         if (state === 'closed') connected = false;
+      });
+      pc.addEventListener('iceconnectionstatechange', () => {
+        const iceState = pc?.iceConnectionState || '';
+        if (iceState === 'checking') notifyState('ice-checking');
+        if (iceState === 'connected' || iceState === 'completed') notifyState('ice-connected');
+        if (iceState === 'failed') notifyState('ice-failed');
       });
       return pc;
     }
@@ -210,6 +235,7 @@
       bindChannel(peer.createDataChannel(channelLabel, { ordered: true }));
       await peer.setLocalDescription(await peer.createOffer());
       await waitForIce(peer);
+      notifyState(localDescriptionHasIce(peer) ? 'offer-ice-ready' : 'offer-ice-limited');
       const code = encode(prefix, {
         v: VERSION,
         g: gameId,
@@ -235,6 +261,7 @@
       await peer.setRemoteDescription(offer.desc);
       await peer.setLocalDescription(await peer.createAnswer());
       await waitForIce(peer);
+      notifyState(localDescriptionHasIce(peer) ? 'answer-ice-ready' : 'answer-ice-limited');
       const answer = encode(prefix, {
         v: VERSION,
         g: gameId,
@@ -632,7 +659,7 @@
           status: 'accepted',
           answerCode
         });
-        options.setGuestStatus?.(`Accepted ${invite.fromName || 'Player 1'}'s invite. Connecting…`, false, true);
+        options.setGuestStatus?.(`Accepted ${invite.fromName || 'Player 1'}'s invite. Waiting for the Host to finish the direct handshake…`, false, true);
         pendingInvites = pendingInvites.filter(item => item.inviteId !== inviteId);
         renderInvites();
       } catch (error) {
