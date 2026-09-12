@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const ASSET_VERSION = '20260912-v4761-color-switch-v4-progressive';
+  const ASSET_VERSION = '20260912-v4761-multiplayer-v1';
 
   const GAME_REGISTRY = Object.freeze([
     {
@@ -354,6 +354,22 @@
       }
     },
     {
+      id: 'code-duel',
+      stateKey: 'codeDuel',
+      name: 'CODE DUEL',
+      icon: '⚔️',
+      description: 'Challenge another device live in a head-to-head coding race. Pair directly, answer the same challenges, and reach the finish first.',
+      maxXp: 0,
+      multiplayer: true,
+      noXp: true,
+      category: 'LIVE 2 PLAYER / CODING',
+      difficulty: '★★★☆☆',
+      globalName: 'ICT8CodeDuel',
+      script: 'games/code-duel/code-duel.js',
+      style: 'games/code-duel/code-duel.css',
+      bestText() { return '👥 LIVE 1v1 · 0 XP'; }
+    },
+    {
       id: 'pattern-lock',
       stateKey: 'patternLock',
       name: 'PATTERN LOCK',
@@ -408,6 +424,7 @@
     'code-vault':             { bpm:88,  root:52, scale:'minor',     lead:'bell',   melody:[0,null,3,null,2,null,5,null,4,null,2,null,1,null,0,null], bass:[0,5,3,4], drums:'suspense', gain:.25 },
     'code-tiles':             { bpm:138, root:57, scale:'minorPent', lead:'pluck',  melody:[0,null,2,null,3,null,4,null,3,null,2,null,4,null,5,null], bass:[0,3,4,3], drums:'dance',  gain:.20 },
     'byte-runner-html-rush':  { bpm:144, root:50, scale:'minor',     lead:'pulse',  melody:[0,2,4,null,5,4,2,null,0,3,5,null,6,5,3,null], bass:[0,0,5,4], drums:'drive',  gain:.31 },
+    'code-duel':              { bpm:148, root:50, scale:'minorPent', lead:'pulse',  melody:[0,2,3,5,3,2,0,null,0,3,4,5,4,3,2,null], bass:[0,0,3,4], drums:'drive',  gain:.32 },
     'pattern-lock':           { bpm:102, root:60, scale:'minorPent', lead:'bell',   melody:[0,null,2,null,4,null,3,null,1,null,3,null,5,4,2,null], bass:[0,3,4,3], drums:'soft',   gain:.27 }
   });
 
@@ -838,6 +855,7 @@
     limitMessage: null,
     loginMessage: null,
     gameList: null,
+    twoPlayerList: null,
     tabs: [],
     panels: [],
     activeTab: 'games',
@@ -901,14 +919,15 @@
             <span class="xp-games-modal-icon" aria-hidden="true">🎮</span>
             <div>
               <small>ICT 8 Connect</small>
-              <h2 id="xpMiniGamesTitle">XP MINI-GAMES</h2>
+              <h2 id="xpMiniGamesTitle">MINI-GAMES</h2>
             </div>
           </div>
           <button class="xp-games-close" type="button" data-xp-games-close aria-label="Close XP Mini-Games">×</button>
         </header>
 
-        <nav class="xp-games-tabs" role="tablist" aria-label="XP Mini-Games views">
-          <button class="xp-games-tab active" type="button" role="tab" aria-selected="true" data-xp-games-tab="games">🎮 GAMES</button>
+        <nav class="xp-games-tabs" role="tablist" aria-label="Mini-Games views">
+          <button class="xp-games-tab active" type="button" role="tab" aria-selected="true" data-xp-games-tab="games">🎮 SOLO XP</button>
+          <button class="xp-games-tab" type="button" role="tab" aria-selected="false" data-xp-games-tab="multiplayer">👥 2P / NO XP</button>
           <button class="xp-games-tab" type="button" role="tab" aria-selected="false" data-xp-games-tab="weekly">🏆 WEEKLY</button>
         </nav>
 
@@ -938,6 +957,21 @@
                 Log in as a student to earn account XP. Mini-games remain playable in practice mode.
               </div>
               <div data-xp-games-cards></div>
+            </section>
+          </section>
+
+          <section class="xp-games-panel xp-games-panel-multiplayer" role="tabpanel" data-xp-games-panel="multiplayer" hidden>
+            <section class="xp-games-2p-summary">
+              <div>
+                <small>👥 DIRECT DEVICE-TO-DEVICE</small>
+                <h3>2 PLAYER · NO XP</h3>
+                <p>Live games stay separate from XP games. No XP, no Weekly Arcade points, and no Firestore/RTDB gameplay reads or writes.</p>
+              </div>
+              <span class="xp-games-2p-zero">0 XP</span>
+            </section>
+            <section class="xp-games-game-list xp-games-2p-list" aria-label="Two-player no-XP games">
+              <div class="xp-games-2p-note">Pair the two devices directly. CODE DUEL uses WebRTC peer-to-peer; pairing codes are copied/shared between players instead of saving a room in the database.</div>
+              <div data-xp-games-2p-cards></div>
             </section>
           </section>
 
@@ -974,6 +1008,7 @@
     state.limitMessage = overlay.querySelector('[data-xp-games-limit]');
     state.loginMessage = overlay.querySelector('[data-xp-games-login]');
     state.gameList = overlay.querySelector('[data-xp-games-cards]');
+    state.twoPlayerList = overlay.querySelector('[data-xp-games-2p-cards]');
     state.tabs = Array.from(overlay.querySelectorAll('[data-xp-games-tab]'));
     state.panels = Array.from(overlay.querySelectorAll('[data-xp-games-panel]'));
     state.weeklyRefreshBtn = overlay.querySelector('[data-xp-games-weekly-refresh]');
@@ -987,6 +1022,12 @@
     state.tabs.forEach(button => button.addEventListener('click', () => switchTab(button.dataset.xpGamesTab || 'games')));
     state.weeklyRefreshBtn?.addEventListener('click', () => loadWeeklyLeaderboard({ force: true }));
     state.gameList.addEventListener('click', event => {
+      const button = event.target.closest('[data-xp-game-play]');
+      if (!button || button.disabled) return;
+      const gameId = String(button.dataset.xpGamePlay || '');
+      launchGame(gameId, button);
+    });
+    state.twoPlayerList?.addEventListener('click', event => {
       const button = event.target.closest('[data-xp-game-play]');
       if (!button || button.disabled) return;
       const gameId = String(button.dataset.xpGamePlay || '');
@@ -1130,7 +1171,7 @@
   }
 
   function switchTab(tab = 'games', options = {}) {
-    const next = tab === 'weekly' ? 'weekly' : 'games';
+    const next = tab === 'weekly' ? 'weekly' : (tab === 'multiplayer' ? 'multiplayer' : 'games');
     state.activeTab = next;
     state.tabs.forEach(button => {
       const selected = button.dataset.xpGamesTab === next;
@@ -1151,7 +1192,7 @@
   function gameCardsHtml(snapshot) {
     const cap = Math.max(1, Number(snapshot?.dailyCap || 50));
     const records = snapshot?.gameRecords || {};
-    return GAME_REGISTRY.map(game => {
+    return GAME_REGISTRY.filter(game => !game.multiplayer && !game.noXp).map(game => {
       const record = records[game.stateKey] || {};
       const gameType = game.category ? `${game.category}${game.difficulty ? ` · ${game.difficulty}` : ''} · ` : '';
       const xpCopy = snapshot?.capReached
@@ -1169,6 +1210,25 @@
             <span class="xp-games-xp-note">${xpCopy}</span>
           </div>
           <button class="xp-games-play" type="button" data-xp-game-play="${game.id}">PLAY</button>
+        </article>`;
+    }).join('');
+  }
+
+  function twoPlayerCardsHtml() {
+    return GAME_REGISTRY.filter(game => game.multiplayer || game.noXp).map(game => {
+      const type = game.category ? `${game.category}${game.difficulty ? ` · ${game.difficulty}` : ''}` : 'LIVE MULTIPLAYER';
+      return `
+        <article class="xp-games-card xp-games-card-2p" data-xp-game-card="${game.id}">
+          <div class="xp-games-card-art" aria-hidden="true">${game.icon}</div>
+          <div class="xp-games-card-copy">
+            <h4>${game.name}</h4>
+            <p>${game.description}</p>
+          </div>
+          <div class="xp-games-card-meta">
+            <span class="xp-games-best">${game.bestText({})}</span>
+            <span class="xp-games-xp-note">${type} · NO XP · P2P</span>
+          </div>
+          <button class="xp-games-play xp-games-play-2p" type="button" data-xp-game-play="${game.id}">PLAY 1v1</button>
         </article>`;
     }).join('');
   }
@@ -1195,6 +1255,7 @@
     state.limitMessage.classList.toggle('show', Boolean(next.capReached));
     state.loginMessage.classList.toggle('show', !next.loggedIn);
     state.gameList.innerHTML = gameCardsHtml(next);
+    if (state.twoPlayerList) state.twoPlayerList.innerHTML = twoPlayerCardsHtml();
   }
 
   function lockAppBehindHub() {
@@ -1244,7 +1305,7 @@
     setMiniGameAudioFocus(false);
     const api = state.activeGameApi;
     const closingGameId = state.activeGameId;
-    try { if (closingGameId) state.bridge?.cancelGame?.(closingGameId); } catch (_) {}
+    try { if (closingGameId && !gameById(closingGameId)?.multiplayer) state.bridge?.cancelGame?.(closingGameId); } catch (_) {}
     state.gameOpen = false;
     state.open = false;
     state.activeGameId = '';
@@ -1267,14 +1328,15 @@
     MINI_GAME_SOUNDTRACK.stop();
     setMiniGameAudioFocus(false);
     const closingGameId = state.activeGameId;
-    try { if (closingGameId) state.bridge?.cancelGame?.(closingGameId); } catch (_) {}
+    const returnTab = gameById(closingGameId)?.multiplayer ? 'multiplayer' : 'games';
+    try { if (closingGameId && !gameById(closingGameId)?.multiplayer) state.bridge?.cancelGame?.(closingGameId); } catch (_) {}
     state.open = true;
     state.gameOpen = false;
     state.activeGameId = '';
     state.activeGameApi = null;
     render();
     state.overlay.hidden = false;
-    switchTab('games', { load: false });
+    switchTab(returnTab, { load: false });
     window.requestAnimationFrame(() => {
       try { state.closeBtn.focus({ preventScroll: true }); } catch (_) {}
     });
@@ -1349,6 +1411,7 @@
     // loading. This keeps soundtrack startup reliable on iOS/Android browsers.
     MINI_GAME_SOUNDTRACK.unlock();
     state.loadingGameId = game.id;
+    const originalButtonLabel = button?.textContent || 'PLAY';
     if (button) {
       button.disabled = true;
       button.textContent = 'LOADING…';
@@ -1395,7 +1458,7 @@
       state.loadingGameId = '';
       if (button && document.contains(button)) {
         button.disabled = false;
-        button.textContent = 'PLAY';
+        button.textContent = originalButtonLabel;
       }
     }
   }
@@ -1534,6 +1597,6 @@
     isGameOpen,
     pauseActiveGameForExitGuard,
     resumeActiveGameFromExitGuard,
-    games: GAME_REGISTRY.map(game => ({ id: game.id, name: game.name }))
+    games: GAME_REGISTRY.map(game => ({ id: game.id, name: game.name, mode: game.multiplayer ? '2p-no-xp' : 'solo-xp' }))
   });
 })();

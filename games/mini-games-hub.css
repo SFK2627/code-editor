@@ -945,3 +945,125 @@ html[data-theme="dark"] .xp-games-weekly-you strong { color: #c4b5fd; }
   .xp-games-daily-track { margin: 4px 0 3px; }
   .xp-games-card { padding: 8px; }
 }
+
+/* ================================================================
+   v4761 Multiplayer v1 — separate 2P / NO XP chooser
+   Scope: Mini-Games Hub only. Desktop/editor geometry untouched.
+   ================================================================ */
+.xp-games-tabs {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.xp-games-panel-multiplayer {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 0;
+}
+
+.xp-games-2p-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 16px 18px 12px;
+}
+.xp-games-2p-summary > div { min-width: 0; }
+.xp-games-2p-summary small {
+  display: block;
+  margin-bottom: 3px;
+  color: #0f766e;
+  font-size: .64rem;
+  font-weight: 950;
+  letter-spacing: .075em;
+}
+.xp-games-2p-summary h3 {
+  margin: 0;
+  font-size: clamp(1.15rem, 3.4vw, 1.48rem);
+  letter-spacing: -.025em;
+}
+.xp-games-2p-summary p {
+  margin: 6px 0 0;
+  color: #64748b;
+  font-size: .78rem;
+  line-height: 1.4;
+}
+.xp-games-2p-zero {
+  flex: none;
+  display: grid;
+  place-items: center;
+  min-width: 68px;
+  min-height: 38px;
+  padding: 0 12px;
+  border: 1px solid rgba(13, 148, 136, .28);
+  border-radius: 999px;
+  background: linear-gradient(135deg, #ecfeff, #ecfdf5);
+  color: #0f766e;
+  font-size: .72rem;
+  font-weight: 950;
+  letter-spacing: .04em;
+}
+.xp-games-2p-list { padding-top: 2px; }
+.xp-games-2p-list [data-xp-games-2p-cards] {
+  display: grid;
+  gap: 12px;
+}
+.xp-games-2p-note {
+  padding: 10px 12px;
+  border: 1px solid rgba(45, 212, 191, .32);
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(236, 254, 255, .95), rgba(240, 253, 250, .95));
+  color: #115e59;
+  font-size: .69rem;
+  font-weight: 760;
+  line-height: 1.42;
+}
+.xp-games-card-2p {
+  border-color: rgba(45, 212, 191, .58);
+  background: linear-gradient(135deg, #ecfeff, #fff 54%, #ecfdf5);
+  box-shadow: 0 10px 24px rgba(13, 148, 136, .08);
+}
+.xp-games-card-2p .xp-games-card-art {
+  background: linear-gradient(135deg, rgba(20, 184, 166, .18), rgba(14, 165, 233, .16)), #fff;
+  box-shadow: inset 0 0 0 1px rgba(13, 148, 136, .16);
+}
+.xp-games-play-2p {
+  background: linear-gradient(135deg, #0f766e, #0284c7);
+  box-shadow: 0 8px 18px rgba(13, 148, 136, .22);
+}
+
+html[data-theme="dark"] .xp-games-2p-summary p { color: #94a3b8; }
+html[data-theme="dark"] .xp-games-2p-summary small,
+html[data-theme="dark"] .xp-games-2p-zero { color: #5eead4; }
+html[data-theme="dark"] .xp-games-2p-zero {
+  border-color: rgba(45, 212, 191, .28);
+  background: linear-gradient(135deg, rgba(15, 118, 110, .20), rgba(8, 47, 73, .30));
+}
+html[data-theme="dark"] .xp-games-2p-note {
+  border-color: rgba(45, 212, 191, .24);
+  background: linear-gradient(135deg, rgba(15, 118, 110, .15), rgba(8, 47, 73, .24));
+  color: #99f6e4;
+}
+html[data-theme="dark"] .xp-games-card-2p {
+  border-color: rgba(45, 212, 191, .28);
+  background: linear-gradient(135deg, #0c2328, #101827 54%, #10233a);
+}
+html[data-theme="dark"] .xp-games-card-2p .xp-games-card-art {
+  background: linear-gradient(135deg, rgba(20, 184, 166, .17), rgba(14, 165, 233, .15)), #142231;
+}
+
+@media (max-width: 600px) {
+  .xp-games-tabs { gap: 4px; padding: 5px 7px; }
+  .xp-games-tab { min-height: 32px; padding: 0 5px; font-size: .55rem; letter-spacing: .025em; }
+  .xp-games-2p-summary { padding: 8px 10px 7px; gap: 8px; }
+  .xp-games-2p-summary small { font-size: .49rem; margin-bottom: 2px; }
+  .xp-games-2p-summary h3 { font-size: .86rem; line-height: 1.08; }
+  .xp-games-2p-summary p { display: none; }
+  .xp-games-2p-zero { min-width: 52px; min-height: 30px; padding: 0 8px; font-size: .58rem; }
+  .xp-games-2p-list { gap: 8px; padding: 2px 9px calc(9px + env(safe-area-inset-bottom, 0px)); }
+  .xp-games-2p-list [data-xp-games-2p-cards] { gap: 8px; }
+  .xp-games-2p-note { padding: 7px 8px; border-radius: 10px; font-size: .58rem; line-height: 1.3; }
+}
+
+@media (max-width: 390px) {
+  .xp-games-tab { font-size: .51rem; padding: 0 3px; }
+}
