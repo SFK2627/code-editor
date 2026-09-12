@@ -17,6 +17,13 @@
   const TIER_COUNTS = [0, 460, 460, 244, 244, 292];
   const QUESTION_SECONDS = [35,35,35,40,40,40,45,45,45,50,50,50,55,55,55];
   const LOCAL_STATE_KEY = 'ict8.millionByte.questionCursor.v2';
+  const LIFELINE_IDS = ['fifty','double','audience','switch'];
+  const LIFELINE_META = {
+    fifty: { title: '50:50', detail: 'Remove 2' },
+    double: { title: '2X', detail: 'Second Chance' },
+    audience: { title: 'AUDIENCE', detail: 'Vote' },
+    switch: { title: 'SWITCH', detail: 'New Question' }
+  };
 
   const runtime = {
     built: false,
@@ -44,8 +51,8 @@
     ladder: null,
     timerWrap: null,
     timerEl: null,
-    fiftyBtn: null,
-    doubleBtn: null,
+    lifelineHost: null,
+    lifelineButtons: {},
     soundBtn: null,
     resultTitle: null,
     resultCopy: null,
@@ -64,6 +71,13 @@
     correctCount: 0,
     fiftyUsed: false,
     doubleUsed: false,
+    audienceUsed: false,
+    switchUsed: false,
+    switchIndex: -1,
+    selectedLifelines: [],
+    lastExcludedLifeline: '',
+    originalQuestionIds: [],
+    localSwitchSeed: '',
     doubleActive: false,
     doubleWrongThisQuestion: false,
     rescuedWrong: 0,
@@ -118,8 +132,7 @@
                 ${LETTERS.map((letter, index) => `<button type="button" class="million-byte-answer" data-answer="${index}"><span class="letter">${letter}</span><span data-answer-text>—</span></button>`).join('')}
               </div>
               <div class="million-byte-controls">
-                <button type="button" class="million-byte-life" data-mb-fifty><strong>50:50</strong> · Remove 2</button>
-                <button type="button" class="million-byte-life" data-mb-double><strong>2X</strong> · Second Chance</button>
+                <div class="million-byte-lifelines" data-mb-lifelines></div>
                 <div class="million-byte-timer" data-mb-timer-wrap><span>ANSWER TIME</span><strong data-mb-timer>35s</strong></div>
               </div>
               <div class="million-byte-status" data-mb-status>Choose carefully. The questions get harder.</div>
@@ -133,10 +146,10 @@
             <div class="million-byte-logo">🧠</div>
             <p class="million-byte-kicker">15 QUESTIONS · 5 DIFFICULTY TIERS</p>
             <h2>MILLION BYTE</h2>
-            <p>Answer 15 general-knowledge questions from Easy to Expert. One wrong answer ends the run unless you activated Second Chance.</p>
+            <p>Answer 15 general-knowledge questions from Easy to Expert. Each run gives you 3 random lifelines from a pool of 4.</p>
             <div class="million-byte-rule-row">
               <div><small>QUESTION POOL</small><strong>1,700</strong></div>
-              <div><small>LIFELINES</small><strong>50:50 + 2X</strong></div>
+              <div><small>LIFELINES</small><strong>Random 3 of 4</strong></div>
               <div><small>XP</small><strong>Perfect 15/15 = 15 XP</strong></div>
             </div>
             <div class="million-byte-actions"><button type="button" class="million-byte-primary" data-mb-play>START CHALLENGE</button></div>
@@ -205,8 +218,7 @@
     runtime.ladder = overlay.querySelector('[data-mb-ladder]');
     runtime.timerWrap = overlay.querySelector('[data-mb-timer-wrap]');
     runtime.timerEl = overlay.querySelector('[data-mb-timer]');
-    runtime.fiftyBtn = overlay.querySelector('[data-mb-fifty]');
-    runtime.doubleBtn = overlay.querySelector('[data-mb-double]');
+    runtime.lifelineHost = overlay.querySelector('[data-mb-lifelines]');
     runtime.soundBtn = overlay.querySelector('[data-mb-sound]');
     runtime.resultTitle = overlay.querySelector('[data-mb-result-title]');
     runtime.resultCopy = overlay.querySelector('[data-mb-result-copy]');
@@ -224,13 +236,56 @@
     overlay.querySelector('[data-mb-fail-hub]').addEventListener('click', returnToHub);
     overlay.querySelector('[data-mb-result-hub]').addEventListener('click', returnToHub);
     runtime.soundBtn.addEventListener('click', toggleSound);
-    runtime.fiftyBtn.addEventListener('click', useFifty);
-    runtime.doubleBtn.addEventListener('click', useDouble);
     runtime.answerButtons.forEach(btn => btn.addEventListener('click', () => chooseAnswer(Number(btn.dataset.answer))));
     document.addEventListener('keydown', onKeyDown);
 
     buildLadder();
     runtime.built = true;
+  }
+
+  function pickLifelinesForRun() {
+    const pool = LIFELINE_IDS.slice();
+    let excludeChoices = pool.filter(id => id !== runtime.lastExcludedLifeline);
+    if (!excludeChoices.length) excludeChoices = pool;
+    const excluded = excludeChoices[Math.floor(Math.random() * excludeChoices.length)];
+    runtime.lastExcludedLifeline = excluded;
+    runtime.selectedLifelines = pool.filter(id => id !== excluded);
+  }
+
+  function lifelineIsUsed(id) {
+    if (id === 'fifty') return runtime.fiftyUsed;
+    if (id === 'double') return runtime.doubleUsed;
+    if (id === 'audience') return runtime.audienceUsed;
+    if (id === 'switch') return runtime.switchUsed;
+    return true;
+  }
+
+  function renderLifelines() {
+    if (!runtime.lifelineHost) return;
+    runtime.lifelineHost.innerHTML = '';
+    runtime.lifelineButtons = {};
+    runtime.selectedLifelines.forEach(id => {
+      const meta = LIFELINE_META[id];
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'million-byte-life';
+      btn.dataset.mbLifeline = id;
+      btn.innerHTML = `<strong>${meta.title}</strong><span>${meta.detail}</span>`;
+      btn.disabled = lifelineIsUsed(id);
+      if (lifelineIsUsed(id)) btn.classList.add('used');
+      if (id === 'double' && runtime.doubleActive) btn.classList.add('active');
+      btn.addEventListener('click', () => useLifeline(id));
+      runtime.lifelineButtons[id] = btn;
+      runtime.lifelineHost.appendChild(btn);
+    });
+  }
+
+  function useLifeline(id) {
+    if (!runtime.selectedLifelines.includes(id)) return;
+    if (id === 'fifty') useFifty();
+    else if (id === 'double') useDouble();
+    else if (id === 'audience') useAudience();
+    else if (id === 'switch') useSwitch();
   }
 
   function buildLadder() {
@@ -383,56 +438,64 @@
       return;
     }
 
-    runtime.questionIds = ids;
-    runtime.questions = questions;
+    runtime.questionIds = ids.slice();
+    runtime.originalQuestionIds = ids.slice();
+    runtime.questions = questions.slice();
     runtime.answers = [];
     runtime.index = 0;
     runtime.correctCount = 0;
     runtime.fiftyUsed = false;
     runtime.doubleUsed = false;
+    runtime.audienceUsed = false;
+    runtime.switchUsed = false;
+    runtime.switchIndex = -1;
     runtime.doubleActive = false;
     runtime.doubleWrongThisQuestion = false;
     runtime.rescuedWrong = 0;
     runtime.lifelinesUsed = 0;
     runtime.startedAt = performance.now();
+    runtime.localSwitchSeed = `local-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
     runtime.rewardSubmitting = false;
     runtime.locked = false;
     runtime.loadingPanel.hidden = true;
     runtime.state = 'question';
+    pickLifelinesForRun();
     resetLifelines();
     showQuestion();
     tone('start');
   }
 
   function resetLifelines() {
-    runtime.fiftyBtn.classList.remove('used','active');
-    runtime.doubleBtn.classList.remove('used','active');
-    runtime.fiftyBtn.disabled = false;
-    runtime.doubleBtn.disabled = false;
+    runtime.doubleActive = false;
+    runtime.doubleWrongThisQuestion = false;
+    renderLifelines();
   }
 
   function tierForIndex(index) { return Math.min(5, Math.floor(index / 3) + 1); }
 
-  function showQuestion() {
+  function showQuestion(options = {}) {
     const q = runtime.questions[runtime.index];
     if (!q) return;
     runtime.locked = false;
-    runtime.doubleActive = false;
-    runtime.doubleWrongThisQuestion = false;
+    const keepDouble = options.preserveDouble === true && runtime.doubleActive;
+    if (!keepDouble) {
+      runtime.doubleActive = false;
+      runtime.doubleWrongThisQuestion = false;
+    }
     runtime.answerButtons.forEach((btn, i) => {
       btn.disabled = false;
       btn.className = 'million-byte-answer';
       btn.querySelector('[data-answer-text]').textContent = q.options[i];
       btn.setAttribute('aria-label', `${LETTERS[i]}. ${q.options[i]}`);
     });
-    runtime.doubleBtn.classList.remove('active');
+    renderLifelines();
     runtime.categoryEl.textContent = q.category || 'GENERAL';
     const tier = tierForIndex(runtime.index);
     runtime.tierEl.textContent = `${TIER_NAMES[tier - 1]} · Q${runtime.index + 1}/15`;
     runtime.valueEl.textContent = `${VALUES[runtime.index]} BYTE`;
     runtime.questionEl.textContent = q.q;
     runtime.statusEl.dataset.kind = '';
-    runtime.statusEl.textContent = runtime.practiceReason || 'Lock in one answer. Harder tiers give you more answer time.';
+    runtime.statusEl.textContent = options.switched ? 'SWITCH used · New question, same value and difficulty.' : (runtime.practiceReason || 'Lock in one answer. Harder tiers give you more answer time.');
     runtime.progressBar.style.width = `${(runtime.index / QUESTION_COUNT) * 100}%`;
     updateLadder();
     startTimer();
@@ -496,8 +559,7 @@
     });
     runtime.fiftyUsed = true;
     runtime.lifelinesUsed += 1;
-    runtime.fiftyBtn.classList.add('used');
-    runtime.fiftyBtn.disabled = true;
+    renderLifelines();
     runtime.statusEl.dataset.kind = 'gold';
     runtime.statusEl.textContent = '50:50 used · Two incorrect options removed.';
     tone('life');
@@ -508,10 +570,112 @@
     runtime.doubleUsed = true;
     runtime.doubleActive = true;
     runtime.lifelinesUsed += 1;
-    runtime.doubleBtn.classList.add('used','active');
-    runtime.doubleBtn.disabled = true;
+    renderLifelines();
     runtime.statusEl.dataset.kind = 'gold';
     runtime.statusEl.textContent = 'SECOND CHANCE armed · If the first pick is wrong, choose once more.';
+    tone('life');
+  }
+
+  function buildAudiencePercentages(correctIndex, tier, availableIndices) {
+    const available = Array.isArray(availableIndices) && availableIndices.length
+      ? availableIndices.slice()
+      : [0,1,2,3];
+    const correctTopChance = [0, .92, .84, .74, .64, .56][tier] || .7;
+    const scores = [0,0,0,0];
+    available.forEach(i => { scores[i] = .45 + Math.random() * .85; });
+    const correctBoost = [0, 3.6, 3.0, 2.4, 1.9, 1.55][tier] || 2.2;
+    if (available.includes(correctIndex)) scores[correctIndex] += correctBoost;
+    if (Math.random() > correctTopChance) {
+      const wrong = available.filter(i => i !== correctIndex);
+      if (wrong.length) {
+        const leader = wrong[Math.floor(Math.random() * wrong.length)];
+        scores[leader] = Math.max(scores[leader], scores[correctIndex] + .35 + Math.random() * 1.0);
+      }
+    }
+    const total = available.reduce((sum, i) => sum + scores[i], 0) || 1;
+    const raw = scores.map((n, i) => available.includes(i) ? (n / total * 100) : 0);
+    const pct = raw.map(Math.floor);
+    let remaining = 100 - pct.reduce((sum, n) => sum + n, 0);
+    const order = available.map(i => ({ i, r: raw[i] - Math.floor(raw[i]) })).sort((a,b) => b.r - a.r);
+    for (let i = 0; i < remaining && order.length; i += 1) pct[order[i % order.length].i] += 1;
+    return pct;
+  }
+
+  function useAudience() {
+    if (runtime.state !== 'question' || runtime.locked || runtime.audienceUsed) return;
+    const q = runtime.questions[runtime.index];
+    if (!q) return;
+    const tier = tierForIndex(runtime.index);
+    const available = runtime.answerButtons.map((btn, i) => btn.classList.contains('eliminated') ? -1 : i).filter(i => i >= 0);
+    const pct = buildAudiencePercentages(q.answer, tier, available);
+    runtime.answerButtons.forEach((btn, i) => {
+      let badge = btn.querySelector('.audience-pct');
+      if (!badge) {
+        badge = document.createElement('span');
+        badge.className = 'audience-pct';
+        btn.appendChild(badge);
+      }
+      badge.textContent = `${pct[i]}%`;
+      badge.style.setProperty('--audience', `${pct[i]}%`);
+      btn.classList.add('audience-shown');
+    });
+    runtime.audienceUsed = true;
+    runtime.lifelinesUsed += 1;
+    renderLifelines();
+    runtime.statusEl.dataset.kind = 'gold';
+    runtime.statusEl.textContent = 'AUDIENCE VOTE · Results are guidance, not a guaranteed answer.';
+    tone('life');
+  }
+
+  function parseQuestionId(id) {
+    const match = /^mb([1-5])-([0-9]{3})$/.exec(String(id || ''));
+    if (!match) return null;
+    const tier = Number(match[1]);
+    const number = Number(match[2]);
+    const count = TIER_COUNTS[tier] || 0;
+    if (number < 1 || number > count) return null;
+    return { tier, number };
+  }
+
+  function deterministicSwitchQuestionId(roundId, originalId, excludedIds) {
+    const parsed = parseQuestionId(originalId);
+    if (!parsed) return '';
+    const count = TIER_COUNTS[parsed.tier] || 0;
+    const excluded = new Set(Array.isArray(excludedIds) ? excludedIds : []);
+    excluded.add(originalId);
+    let state = hashSeed(`${String(roundId || '')}:million-byte-switch:${originalId}`) || 1;
+    for (let guard = 0; guard < count + 4; guard += 1) {
+      state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+      const n = (state % count) + 1;
+      const id = `mb${parsed.tier}-${String(n).padStart(3, '0')}`;
+      if (!excluded.has(id)) return id;
+    }
+    for (let n = 1; n <= count; n += 1) {
+      const id = `mb${parsed.tier}-${String(n).padStart(3, '0')}`;
+      if (!excluded.has(id)) return id;
+    }
+    return '';
+  }
+
+  function useSwitch() {
+    if (runtime.state !== 'question' || runtime.locked || runtime.switchUsed) return;
+    const originalId = runtime.questionIds[runtime.index];
+    const seed = runtime.round?.sessionId || runtime.localSwitchSeed;
+    const replacementId = deterministicSwitchQuestionId(seed, originalId, runtime.originalQuestionIds);
+    const replacement = replacementId && runtime.bank?.byId?.[replacementId];
+    if (!replacement) {
+      runtime.statusEl.dataset.kind = 'bad';
+      runtime.statusEl.textContent = 'Could not switch this question. Try another lifeline.';
+      return;
+    }
+    const preserveDouble = runtime.doubleActive === true;
+    runtime.questionIds[runtime.index] = replacementId;
+    runtime.questions[runtime.index] = replacement;
+    runtime.switchUsed = true;
+    runtime.switchIndex = runtime.index;
+    runtime.lifelinesUsed += 1;
+    showQuestion({ switched: true, preserveDouble });
+    renderLifelines();
     tone('life');
   }
 
@@ -603,8 +767,8 @@
     const speedBonus = sec <= 150 ? 100 : sec <= 240 ? 60 : sec <= 360 ? 30 : 0;
     const score = Math.min(1000, 650 + lifelineBonus + cleanBonus + speedBonus);
     // A true 15/15 clear with no rescued wrong answer earns the special
-    // 15 XP Million Byte reward. 50:50 is still allowed because every locked
-    // answer was correct; Second Chance after a wrong first pick is not perfect.
+    // 15 XP Million Byte reward. 50:50, Audience, and Switch are allowed because
+    // every locked answer is still correct; a 2X rescue after a wrong pick is not perfect.
     let tier = runtime.correctCount === QUESTION_COUNT && runtime.rescuedWrong === 0 ? 15 : (score >= 650 ? 1 : 0);
     if (tier < 15 && score >= 825 && runtime.lifelinesUsed <= 1 && runtime.rescuedWrong === 0) tier = 2;
     if (tier < 15 && score >= 950 && runtime.lifelinesUsed === 0 && runtime.rescuedWrong === 0 && sec >= 45) tier = 3;
@@ -622,6 +786,9 @@
       lifelinesUsed: runtime.lifelinesUsed,
       fiftyUsed: runtime.fiftyUsed,
       doubleUsed: runtime.doubleUsed,
+      audienceUsed: runtime.audienceUsed,
+      switchUsed: runtime.switchUsed,
+      switchIndex: runtime.switchIndex,
       rescuedWrong: runtime.rescuedWrong,
       activeTimeMs: durationMs,
       durationMs
