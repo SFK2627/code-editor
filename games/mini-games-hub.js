@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const ASSET_VERSION = '20260913-v4761-code-dama-v1';
+  const ASSET_VERSION = '20260913-v4761-mb-explanations-v2';
 
   const GAME_REGISTRY = Object.freeze([
     {
