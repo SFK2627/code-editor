@@ -216,7 +216,7 @@
         </main>
 
         <div class="code-duel-countdown" data-cd-countdown hidden><strong data-cd-countdown-value>3</strong><small>GET READY</small></div>
-        <div class="code-duel-pause" data-cd-pause hidden><div><span>Ⅱ</span><h2>DUEL PAUSED</h2><p data-cd-pause-text>Waiting…</p><button type="button" data-cd-resume hidden>RESUME</button></div></div>
+        <div class="code-duel-pause" data-cd-pause hidden><div><span>Ⅱ</span><h2 data-cd-pause-title>DUEL PAUSED</h2><p data-cd-pause-text>Waiting…</p><button type="button" data-cd-resume hidden>RESUME</button><div class="code-duel-disconnect-actions" data-cd-disconnect-actions hidden><button type="button" data-cd-disconnect-exit>EXIT MATCH</button><button type="button" class="secondary" data-cd-disconnect-close>CLOSE GAME</button></div></div></div>
         <div class="code-duel-scanner" data-cd-scanner hidden>
           <div class="code-duel-scanner-card">
             <div class="code-duel-scan-head"><div><small>CODE DUEL</small><strong data-cd-scan-title>SCAN QR</strong></div><button type="button" data-cd-scan-close>×</button></div>
@@ -261,6 +261,8 @@
     $('[data-cd-rematch]').addEventListener('click',requestRematch);
     $('[data-cd-result-hub]').addEventListener('click',returnToHub);
     $('[data-cd-resume]').addEventListener('click',resumeLocalPause);
+    $('[data-cd-disconnect-exit]').addEventListener('click',exitDisconnectedDuel);
+    $('[data-cd-disconnect-close]').addEventListener('click',closeDisconnectedDuel);
 
     overlay.addEventListener('touchmove',e=>{if(runtime.open && e.target.closest('.code-duel-main')===null)e.preventDefault();},{passive:false});
     document.addEventListener('visibilitychange',handleVisibility);
@@ -591,10 +593,26 @@
   }
   function setHostStatus(text,error=false){const el=$('[data-cd-host-status]');if(el){el.textContent=text;el.classList.toggle('error',error);}}
   function setGuestStatus(text,error=false){const el=$('[data-cd-guest-status]');if(el){el.textContent=text;el.classList.toggle('error',error);}}
-  function setConnectionNotice(text){
-    if(runtime.state==='lobby'){const el=$('[data-cd-lobby-status]');if(el){el.textContent=text;el.classList.add('error');}}
-    else if(runtime.state==='game'){showFeedback(text,'bad');pauseGame('connection');}
+  function clearDisconnectUi(){
+    const actions=$('[data-cd-disconnect-actions]');if(actions)actions.hidden=true;
+    const title=$('[data-cd-pause-title]');if(title)title.textContent='DUEL PAUSED';
   }
+  function showDisconnectedNotice(text){
+    if(!runtime.open)return;
+    const message=String(text||'Opponent left the duel.');
+    if(runtime.state==='home')return;
+    if(runtime.state==='host'){setHostStatus(message,true);return;}
+    if(runtime.state==='guest'){setGuestStatus(message,true);return;}
+    if(runtime.state==='game'){showFeedback(message,'bad');pauseGame('connection',message);}
+    else{runtime.music?.pause?.();const panel=$('[data-cd-pause]');if(panel)panel.hidden=false;const copy=$('[data-cd-pause-text]');if(copy)copy.textContent=message;}
+    const title=$('[data-cd-pause-title]');if(title)title.textContent='OPPONENT LEFT';
+    const resume=$('[data-cd-resume]');if(resume)resume.hidden=true;
+    const actions=$('[data-cd-disconnect-actions]');if(actions)actions.hidden=false;
+  }
+  function setConnectionNotice(text){showDisconnectedNotice(text);}
+  function exitDisconnectedDuel(){runtime.state='home';const pause=$('[data-cd-pause]');if(pause)pause.hidden=true;clearDisconnectUi();resetHome();if(runtime.soundEnabled)runtime.music?.resume?.();}
+  function closeDisconnectedDuel(){runtime.state='home';clearDisconnectUi();closeAll();}
+
 
   async function copyText(text,success){
     if(!text)return;
@@ -892,6 +910,7 @@
 
   function pauseGame(reason,text='Duel paused.'){
     if(runtime.state!=='game')return false;
+    if(reason!=='connection')clearDisconnectUi();
     const before=runtime.pauseReasons.size;
     runtime.pauseReasons.add(reason);
     if(!before){runtime.pauseStartedAt=performance.now();$$('[data-cd-answer]').forEach(b=>b.disabled=true);runtime.music?.pause?.();}
@@ -963,14 +982,15 @@
   function resetHome(){
     closeQrScanner();
     stopHostInvitePolling();
+    runtime.state='home';
     disconnectPeer();
-    runtime.state='home';runtime.localReady=false;runtime.remoteReady=false;runtime.remoteProgress=0;runtime.result=null;runtime.activeInvite=null;
+    runtime.localReady=false;runtime.remoteReady=false;runtime.remoteProgress=0;runtime.result=null;runtime.activeInvite=null;
     const hostQr=$('[data-cd-host-qr-block]');if(hostQr)hostQr.hidden=true;
     const guestQr=$('[data-cd-guest-answer-block]');if(guestQr)guestQr.hidden=true;
     const waiting=$('[data-cd-host-waiting]');if(waiting)waiting.hidden=true;
     const answer=$('[data-cd-answer-input]');if(answer)answer.value='';
     const offer=$('[data-cd-offer-input]');if(offer)offer.value='';
-    $('[data-cd-countdown]').hidden=true;$('[data-cd-pause]').hidden=true;
+    $('[data-cd-countdown]').hidden=true;$('[data-cd-pause]').hidden=true;clearDisconnectUi();
     renderIdentity();showPanel('home');
   }
 

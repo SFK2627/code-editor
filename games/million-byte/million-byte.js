@@ -1056,6 +1056,8 @@
       return;
     }
     runtime.learnPanel.hidden = false;
+    const learningModal = runtime.learnPanel.querySelector('.million-byte-learning-modal');
+    if (learningModal) learningModal.scrollTop = 0;
   }
 
   function continueAfterLearning() {

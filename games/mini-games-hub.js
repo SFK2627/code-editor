@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const ASSET_VERSION = '20260913-v4761-2p-fast-invite-v4';
+  const ASSET_VERSION = '20260913-v4761-dama-turn-colors-v7';
 
   const GAME_REGISTRY = Object.freeze([
     {

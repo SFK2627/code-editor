@@ -177,7 +177,7 @@
           </section>
 
           <div class="p2p0-countdown" data-countdown hidden><strong data-countdown-value>3</strong></div>
-          <div class="p2p0-pause" data-pause hidden><div><h2>MATCH PAUSED</h2><p data-pause-text>Waiting…</p><button class="p2p0-btn primary" type="button" data-resume hidden>CONTINUE</button></div></div>
+          <div class="p2p0-pause" data-pause hidden><div><h2 data-pause-title>MATCH PAUSED</h2><p data-pause-text>Waiting…</p><button class="p2p0-btn primary" type="button" data-resume hidden>CONTINUE</button><div class="p2p0-disconnect-actions" data-disconnect-actions hidden><button class="p2p0-btn primary" type="button" data-disconnect-exit>EXIT MATCH</button><button class="p2p0-btn ghost" type="button" data-disconnect-close>CLOSE GAME</button></div></div></div>
           <div class="p2p0-scanner" data-scanner hidden><div class="p2p0-scanner-card"><div class="p2p0-scan-head"><strong data-scan-title>SCAN QR</strong><button type="button" data-scan-close>×</button></div><div class="p2p0-camera"><video data-scan-video playsinline muted></video></div><p class="p2p0-scan-status" data-scan-status>Point camera at QR.</p></div></div>
           <div class="dama-toast" data-toast hidden></div>
         </main>
@@ -210,6 +210,8 @@
     $('[data-next-round]').onclick = nextRoundReady;
     $('[data-result-hub]').onclick = returnHub;
     $('[data-resume]').onclick = resumeLocal;
+    $('[data-disconnect-exit]').onclick = exitDisconnectedMatch;
+    $('[data-disconnect-close]').onclick = closeDisconnectedGame;
     document.addEventListener('visibilitychange', visibilityChanged);
     renderModeHelp();
     r.built = true;
@@ -272,7 +274,7 @@
       onMessage: message,
       onConnected: connected,
       onRemoteName: name => { r.remoteName = name; syncNames(); },
-      onDisconnected: () => { if (r.open && r.state === 'game') pauseGame('Opponent disconnected.'); },
+      onDisconnected: () => { if (r.open && ['game', 'lobby', 'result'].includes(r.state)) showDisconnectedNotice('Opponent left the match.'); },
       onState: state => {
         const target = r.role === 'host' ? '[data-host-status]' : '[data-guest-status]';
         if (state === 'ice-checking') status(target, 'Checking the direct device-to-device route…');
@@ -830,6 +832,8 @@
     }).join('');
     board.classList.toggle('your-turn', r.game.turn === side && !r.game.roundOver);
     board.classList.toggle('mandatory-capture', mandatory);
+    board.classList.toggle('turn-blue', r.game.turn === 'h');
+    board.classList.toggle('turn-red', r.game.turn === 'g');
   }
 
   function formatClock(ms) {
@@ -992,6 +996,23 @@
     }
   }
 
+  function clearDisconnectNotice() {
+    const actions = $('[data-disconnect-actions]'); if (actions) actions.hidden = true;
+    const title = $('[data-pause-title]'); if (title) title.textContent = 'MATCH PAUSED';
+  }
+  function showDisconnectedNotice(text) {
+    if (!r.open || !['game', 'lobby', 'result'].includes(r.state)) return;
+    r.remotePaused = true; pauseGame(text || 'Opponent left the match.');
+    const title = $('[data-pause-title]'); if (title) title.textContent = 'OPPONENT LEFT';
+    const resume = $('[data-resume]'); if (resume) resume.hidden = true;
+    const actions = $('[data-disconnect-actions]'); if (actions) actions.hidden = false;
+  }
+  function exitDisconnectedMatch() {
+    r.state = 'home'; const pause = $('[data-pause]'); if (pause) pause.hidden = true; clearDisconnectNotice(); reset();
+    if (r.bridge?.getSnapshot?.()?.soundEnabled !== false) r.music?.resume?.();
+  }
+  function closeDisconnectedGame() { r.state = 'home'; clearDisconnectNotice(); close(true); }
+
   function pauseGame(text) {
     r.paused = true; const panel = $('[data-pause]'); if (panel) panel.hidden = false; $('[data-pause-text]').textContent = text || 'Paused.'; r.music?.pause?.();
   }
@@ -1041,7 +1062,7 @@
     try { r.session?.close?.(); } catch (_) {}
     r.session = null; r.role = ''; r.localReady = r.remoteReady = false; r.localNextReady = r.remoteNextReady = false;
     r.game = null; r.selected = -1; r.selectedPower = ''; r.actionPending = false; r.paused = r.remotePaused = r.exitPaused = false; r.hostCode = r.answerCode = ''; r.configReceived = false;
-    const pause = $('[data-pause]'); if (pause) pause.hidden = true; show('home');
+    const pause = $('[data-pause]'); if (pause) pause.hidden = true; clearDisconnectNotice(); show('home');
   }
 
   function returnHub() { const callback = r.onBack; close(false); callback?.(); }

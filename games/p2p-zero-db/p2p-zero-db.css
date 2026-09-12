@@ -102,3 +102,11 @@ body.p2p0-active{overflow:hidden;overscroll-behavior:none}
 .p2p0-overlay,.p2p0-overlay *{box-sizing:border-box}
 /* Match CODE DUEL button box metrics inside Home / Pairing screens. */
 .p2p0-home-actions .p2p0-btn,.p2p0-pair-card .p2p0-btn{display:inline-block;padding:1px 6px}
+
+
+/* P2P disconnect escape actions */
+.p2p0-disconnect-actions{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:10px}
+.p2p0-disconnect-actions[hidden]{display:none!important}
+.p2p0-disconnect-actions .p2p0-btn{min-height:46px}
+.p2p0-disconnect-actions .p2p0-btn.ghost{background:rgba(15,23,42,.82);border-color:rgba(148,163,184,.2);color:#e2e8f0}
+@media(max-width:600px){.p2p0-disconnect-actions{grid-template-columns:1fr}.p2p0-disconnect-actions .p2p0-btn{min-height:48px}}

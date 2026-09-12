@@ -42,3 +42,11 @@ body.code-duel-active{overflow:hidden;overscroll-behavior:none}.code-duel-active
   .code-duel-invite-card{grid-template-columns:1fr}.code-duel-invite-card>div:last-child{grid-template-columns:1fr 1fr}.code-duel-method-card{padding:9px}.code-duel-qr-block{padding:10px}.code-duel-qr-block img{width:min(230px,68vw)}.code-duel-scanner{padding:10px}.code-duel-scanner-card{padding:11px;border-radius:17px}.code-duel-camera{max-height:62dvh}.code-duel-identity{font-size:.56rem}
 }
 @media(prefers-reduced-motion:reduce){.code-duel-pulse-dot{animation:none!important}}
+
+
+/* Code Duel disconnect escape actions */
+.code-duel-disconnect-actions{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:10px}
+.code-duel-disconnect-actions[hidden]{display:none!important}
+.code-duel-pause .code-duel-disconnect-actions button{min-height:44px}
+.code-duel-pause .code-duel-disconnect-actions button.secondary{background:#1e293b;border:1px solid rgba(148,163,184,.2);color:#e2e8f0}
+@media(max-width:600px){.code-duel-disconnect-actions{grid-template-columns:1fr}.code-duel-pause .code-duel-disconnect-actions button{min-height:46px}}
