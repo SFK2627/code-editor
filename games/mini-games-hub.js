@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const ASSET_VERSION = '20260913-v4761-solo-snake-wrap-smooth-v12';
+  const ASSET_VERSION = '20260913-v4761-code-climb-v1';
 
   const GAME_REGISTRY = Object.freeze([
     {
@@ -479,6 +479,24 @@
       bestText() { return '♟️ LIVE DAMA · 0 XP'; }
     },
     {
+      id: 'code-climb',
+      stateKey: 'codeClimb',
+      name: 'CODE CLIMB',
+      icon: '🐍🪜',
+      description: 'Play Snakes & Ladders solo against bots or create a live 2–4 player room with Student ID invites, a reusable QR, or a room code.',
+      maxXp: 0,
+      multiplayer: true,
+      noXp: true,
+      category: '1–4 PLAYER / BOARD',
+      difficulty: '★★☆☆☆',
+      globalName: 'ICT8CodeClimb',
+      dependencies: ['games/p2p-zero-db/p2p-zero-db.js'],
+      script: 'games/code-climb/code-climb.js',
+      style: 'games/code-climb/code-climb.css',
+      playLabel: 'PLAY 1–4P',
+      bestText() { return '🐍🪜 SOLO / LIVE 2–4P · 0 XP'; }
+    },
+    {
       id: 'pattern-lock',
       stateKey: 'patternLock',
       name: 'PATTERN LOCK',
@@ -540,6 +558,7 @@
     'byte-space-battle':      { bpm:152, root:45, scale:'dorian', lead:'saw', melody:[0,2,4,5,6,4,2,null,0,3,5,6,5,4,2,null], bass:[0,5,0,4], drums:'drive', gain:.33 },
     'code-escape-coop':       { bpm:98, root:55, scale:'minor', lead:'bell', melody:[0,null,2,null,3,5,null,4,2,null,1,3,null,2,0,null], bass:[0,3,5,4], drums:'suspense', gain:.29 },
     'code-dama':              { bpm:106, root:50, scale:'dorian', lead:'pluck', melody:[0,null,2,3,null,4,3,2,0,null,3,5,4,3,2,null], bass:[0,3,4,3], drums:'soft', gain:.27 },
+    'code-climb':             { bpm:112, root:55, scale:'majorPent', lead:'pluck', melody:[0,2,4,3,5,4,2,null,1,3,5,4,3,2,0,null], bass:[0,3,4,3], drums:'groove', gain:.27 },
     'pattern-lock':           { bpm:102, root:60, scale:'minorPent', lead:'bell',   melody:[0,null,2,null,4,null,3,null,1,null,3,null,5,4,2,null], bass:[0,3,4,3], drums:'soft',   gain:.27 }
   });
 
@@ -1041,7 +1060,7 @@
 
         <nav class="xp-games-tabs" role="tablist" aria-label="Mini-Games views">
           <button class="xp-games-tab active" type="button" role="tab" aria-selected="true" data-xp-games-tab="games">🎮 SOLO XP</button>
-          <button class="xp-games-tab" type="button" role="tab" aria-selected="false" data-xp-games-tab="multiplayer">👥 2P / NO XP</button>
+          <button class="xp-games-tab" type="button" role="tab" aria-selected="false" data-xp-games-tab="multiplayer">👥 MULTI / NO XP</button>
           <button class="xp-games-tab" type="button" role="tab" aria-selected="false" data-xp-games-tab="weekly">🏆 WEEKLY</button>
         </nav>
 
@@ -1079,7 +1098,7 @@
               <div>
                 <small>👥 PLAY WITH A FRIEND</small>
                 <h3>2 PLAYER · NO XP</h3>
-                <p>Invite a classmate by Student ID or connect with QR/Share. These multiplayer games are separate from Solo XP and Weekly Arcade.</p>
+                <p>Play live multiplayer with Student ID, QR/Share, or supported room codes. These games are separate from Solo XP and Weekly Arcade.</p>
               </div>
               <span class="xp-games-2p-zero">0 XP</span>
             </section>

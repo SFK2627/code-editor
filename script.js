@@ -51372,7 +51372,8 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     'code-snake-duel': Object.freeze({ id: 'code-snake-duel', name: 'CODE SNAKE DUEL', prefix: 'CSD1' }),
     'byte-space-battle': Object.freeze({ id: 'byte-space-battle', name: 'BYTE SPACE BATTLE', prefix: 'BSB1' }),
     'code-escape-coop': Object.freeze({ id: 'code-escape-coop', name: 'CODE ESCAPE', prefix: 'CEC1' }),
-    'code-dama': Object.freeze({ id: 'code-dama', name: 'CODE DAMA', prefix: 'CDM1' })
+    'code-dama': Object.freeze({ id: 'code-dama', name: 'CODE DAMA', prefix: 'CDM1' }),
+    'code-climb': Object.freeze({ id: 'code-climb', name: 'CODE CLIMB', prefix: 'CCL1' })
   });
   let twoPlayerDirectoryRegisteredAt = 0;
   let twoPlayerDirectoryRegisteredKey = '';
@@ -51623,6 +51624,180 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   }
 
   // Backward-compatible CODE DUEL aliases.
+
+
+  // CODE CLIMB temporary 2-4 player room signaling. Realtime Database is used
+  // only to discover/join the room and exchange WebRTC offer/answer payloads.
+  // Live gameplay runs over direct host-star DataChannels.
+  const CODE_CLIMB_ROOM_TTL_MS = 45 * 60 * 1000;
+
+  function normalizeCodeClimbRoomCode(value = '') {
+    const code = String(value || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
+    if (!/^[A-Z0-9]{6}$/.test(code)) throw new Error('Enter a valid 6-character room code.');
+    return code;
+  }
+
+  async function createCodeClimbRoom(options = {}) {
+    if (!canUseTwoPlayerStudentInvites()) throw new Error('Live rooms require a logged-in student account.');
+    const identity = getTwoPlayerPlayerIdentity();
+    const roomCode = normalizeCodeClimbRoomCode(options.roomCode || '');
+    const maxPlayers = Math.max(2, Math.min(4, Math.round(Number(options.maxPlayers || 4))));
+    const existing = await rtdbRestRequest(`codeClimbSignals/rooms/${roomCode}/meta`).catch(() => null);
+    if (existing && Number(existing.expiresAtMs || 0) > Date.now() && existing.hostUid !== identity.uid) {
+      throw new Error('That room code is already in use. Try again.');
+    }
+    const now = Date.now();
+    const meta = {
+      version: 1,
+      roomCode,
+      hostUid: twoPlayerSafeUid(identity.uid),
+      hostName: String(options.hostName || identity.name || 'HOST').trim().slice(0, 24) || 'HOST',
+      hostStudentId: identity.studentId,
+      maxPlayers,
+      status: 'lobby',
+      createdAtMs: now,
+      updatedAtMs: now,
+      expiresAtMs: now + CODE_CLIMB_ROOM_TTL_MS
+    };
+    await rtdbRestRequest(`codeClimbSignals/rooms/${roomCode}/meta`, { method: 'PUT', body: meta });
+    return meta;
+  }
+
+  async function getCodeClimbRoom(options = {}) {
+    if (!canUseTwoPlayerStudentInvites()) throw new Error('Live rooms require a logged-in student account.');
+    const roomCode = normalizeCodeClimbRoomCode(options.roomCode || '');
+    const meta = await rtdbRestRequest(`codeClimbSignals/rooms/${roomCode}/meta`);
+    if (!meta || Number(meta.expiresAtMs || 0) <= Date.now()) throw new Error('Room not found or already expired.');
+    return meta;
+  }
+
+  async function touchCodeClimbRoom(options = {}) {
+    const identity = getTwoPlayerPlayerIdentity();
+    const roomCode = normalizeCodeClimbRoomCode(options.roomCode || '');
+    const meta = await getCodeClimbRoom({ roomCode });
+    if (meta.hostUid !== identity.uid) return meta;
+    const now = Date.now();
+    const patch = {
+      status: String(options.status || meta.status || 'lobby').slice(0, 16),
+      updatedAtMs: now,
+      expiresAtMs: now + CODE_CLIMB_ROOM_TTL_MS
+    };
+    await rtdbRestRequest(`codeClimbSignals/rooms/${roomCode}/meta`, { method: 'PATCH', body: patch });
+    return { ...meta, ...patch };
+  }
+
+  async function requestCodeClimbJoin(options = {}) {
+    if (!canUseTwoPlayerStudentInvites()) throw new Error('Joining a live room requires a logged-in student account.');
+    const identity = getTwoPlayerPlayerIdentity();
+    const roomCode = normalizeCodeClimbRoomCode(options.roomCode || '');
+    const meta = await getCodeClimbRoom({ roomCode });
+    if (meta.hostUid === identity.uid) throw new Error('You are already the Host of this room.');
+    const now = Date.now();
+    const record = {
+      version: 1,
+      roomCode,
+      uid: twoPlayerSafeUid(identity.uid),
+      name: String(options.name || identity.name || 'PLAYER').trim().slice(0, 24) || 'PLAYER',
+      studentId: identity.studentId,
+      section: identity.section || '',
+      status: 'waiting',
+      createdAtMs: now,
+      updatedAtMs: now,
+      expiresAtMs: Math.min(Number(meta.expiresAtMs || now + CODE_CLIMB_ROOM_TTL_MS), now + CODE_CLIMB_ROOM_TTL_MS)
+    };
+    await rtdbRestRequest(`codeClimbSignals/rooms/${roomCode}/joins/${identity.uid}`, { method: 'PUT', body: record });
+    return { meta, join: record };
+  }
+
+  async function listCodeClimbJoins(options = {}) {
+    const identity = getTwoPlayerPlayerIdentity();
+    const roomCode = normalizeCodeClimbRoomCode(options.roomCode || '');
+    const meta = await getCodeClimbRoom({ roomCode });
+    if (meta.hostUid !== identity.uid) throw new Error('Only the room Host can read join requests.');
+    const raw = await rtdbRestRequest(`codeClimbSignals/rooms/${roomCode}/joins`).catch(() => null);
+    const now = Date.now();
+    return Object.entries(raw || {}).map(([uid, value]) => ({ uid, ...(value || {}) }))
+      .filter(item => item.uid && Number(item.expiresAtMs || 0) > now);
+  }
+
+  async function setCodeClimbOffer(options = {}) {
+    const identity = getTwoPlayerPlayerIdentity();
+    const roomCode = normalizeCodeClimbRoomCode(options.roomCode || '');
+    const targetUid = twoPlayerSafeUid(options.targetUid || '');
+    const meta = await getCodeClimbRoom({ roomCode });
+    if (meta.hostUid !== identity.uid) throw new Error('Only the room Host can create connection offers.');
+    const now = Date.now();
+    const body = {
+      version: 1,
+      roomCode,
+      targetUid,
+      hostUid: identity.uid,
+      status: String(options.status || 'offer').slice(0, 16),
+      seat: Math.max(1, Math.min(3, Math.round(Number(options.seat || 1)))),
+      color: String(options.color || '').slice(0, 16),
+      offerCode: String(options.offerCode || ''),
+      updatedAtMs: now,
+      expiresAtMs: Math.min(Number(meta.expiresAtMs || now + CODE_CLIMB_ROOM_TTL_MS), now + CODE_CLIMB_ROOM_TTL_MS)
+    };
+    await rtdbRestRequest(`codeClimbSignals/rooms/${roomCode}/offers/${targetUid}`, { method: 'PUT', body });
+    return body;
+  }
+
+  async function getCodeClimbOffer(options = {}) {
+    const identity = getTwoPlayerPlayerIdentity();
+    const roomCode = normalizeCodeClimbRoomCode(options.roomCode || '');
+    const offer = await rtdbRestRequest(`codeClimbSignals/rooms/${roomCode}/offers/${identity.uid}`);
+    if (!offer || Number(offer.expiresAtMs || 0) <= Date.now()) return null;
+    return offer;
+  }
+
+  async function setCodeClimbAnswer(options = {}) {
+    const identity = getTwoPlayerPlayerIdentity();
+    const roomCode = normalizeCodeClimbRoomCode(options.roomCode || '');
+    const meta = await getCodeClimbRoom({ roomCode });
+    const now = Date.now();
+    const body = {
+      version: 1,
+      roomCode,
+      uid: identity.uid,
+      hostUid: meta.hostUid,
+      answerCode: String(options.answerCode || ''),
+      updatedAtMs: now,
+      expiresAtMs: Math.min(Number(meta.expiresAtMs || now + CODE_CLIMB_ROOM_TTL_MS), now + CODE_CLIMB_ROOM_TTL_MS)
+    };
+    await rtdbRestRequest(`codeClimbSignals/rooms/${roomCode}/answers/${identity.uid}`, { method: 'PUT', body });
+    return body;
+  }
+
+  async function listCodeClimbAnswers(options = {}) {
+    const identity = getTwoPlayerPlayerIdentity();
+    const roomCode = normalizeCodeClimbRoomCode(options.roomCode || '');
+    const meta = await getCodeClimbRoom({ roomCode });
+    if (meta.hostUid !== identity.uid) throw new Error('Only the room Host can read connection answers.');
+    const raw = await rtdbRestRequest(`codeClimbSignals/rooms/${roomCode}/answers`).catch(() => null);
+    const now = Date.now();
+    return Object.entries(raw || {}).map(([uid, value]) => ({ uid, ...(value || {}) }))
+      .filter(item => item.uid && Number(item.expiresAtMs || 0) > now);
+  }
+
+  async function leaveCodeClimbRoom(options = {}) {
+    if (!canUseTwoPlayerStudentInvites()) return false;
+    const identity = getTwoPlayerPlayerIdentity();
+    const roomCode = normalizeCodeClimbRoomCode(options.roomCode || '');
+    let meta = null;
+    try { meta = await rtdbRestRequest(`codeClimbSignals/rooms/${roomCode}/meta`); } catch (_) {}
+    if (!meta) return true;
+    if (meta.hostUid === identity.uid || options.closeRoom) {
+      await rtdbRestRequest(`codeClimbSignals/rooms/${roomCode}`, { method: 'DELETE' }).catch(() => null);
+      return true;
+    }
+    await Promise.allSettled([
+      rtdbRestRequest(`codeClimbSignals/rooms/${roomCode}/joins/${identity.uid}`, { method: 'DELETE' }),
+      rtdbRestRequest(`codeClimbSignals/rooms/${roomCode}/answers/${identity.uid}`, { method: 'DELETE' })
+    ]);
+    return true;
+  }
+
   function getCodeDuelPlayerIdentity() { return getTwoPlayerPlayerIdentity(); }
   function canUseCodeDuelStudentInvites() { return canUseTwoPlayerStudentInvites(); }
   function ensureCodeDuelDirectoryRegistration(options = {}) { return ensureTwoPlayerDirectoryRegistration(options); }
@@ -51654,7 +51829,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   // Reward tiers, daily cap, duplicate protection, total XP integration, and
   // Firestore transaction logic stay inside the existing Code Explorer system.
   window.ICT8_XP_MINIGAMES_BRIDGE = Object.freeze({
-    version: 6,
+    version: 7,
     dailyCap: XP_MINI_GAMES_DAILY_CAP,
     weeklyMax: XP_MINI_GAMES_WEEKLY_MAX,
     getSnapshot: currentXpMiniGamesSnapshot,
@@ -51680,6 +51855,16 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     respondTwoPlayerInvite,
     getTwoPlayerInviteStatus,
     removeTwoPlayerInvite,
+    createCodeClimbRoom,
+    getCodeClimbRoom,
+    touchCodeClimbRoom,
+    requestCodeClimbJoin,
+    listCodeClimbJoins,
+    setCodeClimbOffer,
+    getCodeClimbOffer,
+    setCodeClimbAnswer,
+    listCodeClimbAnswers,
+    leaveCodeClimbRoom,
     canUseDuelStudentInvites: canUseCodeDuelStudentInvites,
     createDuelInvite: createCodeDuelInvite,
     listDuelInvites: listCodeDuelInvites,
