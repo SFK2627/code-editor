@@ -1,112 +1,194 @@
-
 body.dial-in-active{overflow:hidden}
-.dial-in-overlay{position:fixed;inset:0;z-index:10140;background:radial-gradient(circle at 50% 0%,rgba(99,102,241,.14),transparent 32%),rgba(2,6,23,.94);color:#f8fafc;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;overflow:hidden;overscroll-behavior:none}
+.dial-in-overlay,.dial-in-overlay *{box-sizing:border-box}
+.dial-in-overlay{position:fixed;inset:0;z-index:10140;background:rgba(2,6,23,.94);color:#f8fafc;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;overflow:hidden;overscroll-behavior:none;-webkit-tap-highlight-color:transparent}
 .dial-in-overlay[hidden]{display:none!important}
 .dial-in-shell{position:absolute;inset:0;overflow:hidden}
-.dial-in-main{position:absolute;inset:0;display:grid;place-items:center;padding:max(12px,env(safe-area-inset-top)) max(10px,env(safe-area-inset-right)) max(12px,env(safe-area-inset-bottom)) max(10px,env(safe-area-inset-left));overflow:hidden}
-.dial-in-utility-bar{position:absolute;z-index:40;top:max(10px,env(safe-area-inset-top));left:50%;transform:translateX(-50%);display:flex;gap:8px;padding:6px 8px;border-radius:999px;background:rgba(2,6,23,.4);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.08)}
-.dial-in-icon-btn{width:38px;height:38px;border-radius:999px;border:1px solid rgba(255,255,255,.08);background:rgba(15,23,42,.75);color:#fff;font-size:18px;font-weight:900;cursor:pointer;box-shadow:0 10px 26px rgba(0,0,0,.18)}.dial-in-icon-btn:active{transform:scale(.96)}
-.dial-in-home,.dial-in-tutorial,.dial-in-play,.dial-in-result,.dial-in-final,.dial-in-round-transition{width:min(94vw,780px)}
-.dial-in-home-card,.dial-in-card{position:relative;min-height:min(92dvh,920px);height:min(92dvh,920px);border-radius:30px;overflow:hidden;box-shadow:0 32px 80px rgba(0,0,0,.32),0 1px 0 rgba(255,255,255,.05) inset}
-.dial-in-home-card{padding:86px 26px 28px;background:linear-gradient(180deg,#091120 0%,#060a14 100%)}
-.dial-in-card{background:#090d16}
-.dial-in-stage-meta{position:absolute;z-index:5;top:18px;left:18px;right:18px;display:flex;align-items:center;justify-content:space-between;gap:12px;pointer-events:none}.dial-in-stage-caption-top{position:absolute;left:0;right:0;top:34px;text-align:center;color:rgba(255,255,255,.74);font-size:12px;font-weight:700;letter-spacing:.02em;text-transform:uppercase}.dial-in-stage-step,.dial-in-stage-brand{font-size:12px;font-weight:800;letter-spacing:.04em;color:rgba(255,255,255,.76)}.dial-in-stage-brand{opacity:.75}
-.dial-in-kicker{margin:0;color:#88e3ff;font-size:11px;font-weight:900;letter-spacing:.22em;text-transform:uppercase}
-.dial-in-home-hero{text-align:center}.dial-in-home-hero h1{margin:10px 0 8px;font-size:clamp(42px,12vw,84px);line-height:.94;letter-spacing:-.07em}.dial-in-home-hero p:last-child{margin:0 auto;color:#cbd5e1;max-width:480px;font-size:15px}
-.dial-in-home-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:22px 0 18px}.dial-in-home-stats>div,.dial-in-final-stats>div{padding:14px 10px;border-radius:18px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.06);text-align:center}.dial-in-home-stats small,.dial-in-final-stats small{display:block;color:#8897ad;font-size:10px;font-weight:900;letter-spacing:.08em}.dial-in-home-stats strong,.dial-in-final-stats strong{display:block;margin-top:6px;font-size:20px}
-.dial-in-mode-grid{display:grid;gap:10px}.dial-in-mode-card{position:relative;display:grid;grid-template-columns:64px 1fr auto;gap:14px;align-items:center;padding:16px 18px;border-radius:22px;border:1px solid rgba(255,255,255,.08);background:linear-gradient(135deg,rgba(15,23,42,.92),rgba(15,23,42,.68));color:#fff;text-align:left;cursor:pointer;overflow:hidden}.dial-in-mode-card:before{content:"";position:absolute;inset:auto -10% -80% 40%;height:180%;border-radius:50%;opacity:.2;filter:blur(24px)}.dial-in-mode-color:before{background:#f472b6}.dial-in-mode-sound:before{background:#22d3ee}.dial-in-mode-time:before{background:#a5b4fc}.dial-in-mode-icon{display:grid;place-items:center;width:60px;height:60px;border-radius:18px;background:rgba(255,255,255,.06);font-size:28px}.dial-in-mode-copy strong{display:block;font-size:18px;letter-spacing:.12em}.dial-in-mode-copy small{display:block;margin-top:4px;color:#cbd5e1;font-size:12px}.dial-in-mode-best{padding:8px 10px;border-radius:999px;background:rgba(2,6,23,.46);font-size:10px;font-weight:900;color:#cbd5e1;white-space:nowrap}.dial-in-arcade-back{display:block;margin:16px auto 0;padding:11px 16px;background:transparent;border:0;color:#9db0c6;font-size:12px;font-weight:900;cursor:pointer}
-.dial-in-tutorial-body,.dial-in-transition-center,.dial-in-final-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:80px 28px 30px}
-.dial-in-card-color,.dial-in-card-sound,.dial-in-card-time,.dial-in-card-final{background:#0a0d14}
-.dial-in-card-color-target{background:#111827}.dial-in-card-color-guess{background:#16080d}.dial-in-card-sound{background:#000}.dial-in-card-time-ready,.dial-in-card-time-running{background:#90a6e8;color:#0f172a}.dial-in-card-final.dial-in-card-time{background:#90a6e8;color:#111827}.dial-in-card-final.dial-in-card-color{background:linear-gradient(180deg,#aee9de 0%,#8fa8ee 100%);color:#111827}.dial-in-card-final.dial-in-card-sound{background:#05070b}
-.dial-in-tutorial-icon{display:grid;place-items:center;width:92px;height:92px;border-radius:28px;background:rgba(255,255,255,.08);font-size:42px;border:1px solid rgba(255,255,255,.1);margin-bottom:16px}.dial-in-tutorial-body h2{max-width:540px;margin:0 0 12px;font-size:clamp(28px,6.5vw,48px);line-height:1.06;letter-spacing:-.05em}.dial-in-tutorial-body p{max-width:440px;margin:0 0 20px;color:#d2d8e2;font-size:15px;line-height:1.5}
-.dial-in-actions,.dial-in-final-actions{display:flex;justify-content:center;gap:10px;flex-wrap:wrap}.dial-in-primary,.dial-in-secondary{min-height:48px;padding:0 22px;border-radius:16px;border:0;font-weight:900;letter-spacing:.02em;cursor:pointer}.dial-in-primary{background:#fff;color:#05070b}.dial-in-secondary{background:rgba(255,255,255,.06);color:#f8fafc;border:1px solid rgba(255,255,255,.09)}.dial-in-card-time-ready .dial-in-secondary,.dial-in-card-time-running .dial-in-secondary,.dial-in-card-final.dial-in-card-time .dial-in-secondary,.dial-in-card-final.dial-in-card-color .dial-in-secondary{color:#111827;background:rgba(255,255,255,.35)}.dial-in-card-time-ready .dial-in-primary,.dial-in-card-time-running .dial-in-primary,.dial-in-card-final.dial-in-card-time .dial-in-primary,.dial-in-card-final.dial-in-card-color .dial-in-primary{background:#111827;color:#fff}
-.dial-in-transition-center span{font-size:62px;margin-bottom:8px}.dial-in-transition-center strong{font-size:clamp(44px,10vw,76px);line-height:.95;letter-spacing:-.06em}.dial-in-transition-center small{margin-top:10px;color:#cad4e2;font-size:14px}.dial-in-card-time-ready .dial-in-transition-center small,.dial-in-card-time-running .dial-in-transition-center small{color:#27395e}
-.dial-in-color-full{position:absolute;inset:0;display:flex;align-items:flex-end;justify-content:center;padding:80px 24px 26px}.dial-in-color-full p{margin:0;padding:8px 14px;border-radius:999px;background:rgba(0,0,0,.22);color:rgba(255,255,255,.86);font-size:12px;font-weight:800;letter-spacing:.04em;text-transform:lowercase}
-.dial-in-memory-bar{position:absolute;left:16px;right:16px;bottom:12px;height:5px;border-radius:99px;background:rgba(255,255,255,.14);overflow:hidden}.dial-in-memory-bar i{display:block;width:100%;height:100%;background:linear-gradient(90deg,#22d3ee,#8b5cf6,#f472b6);transform-origin:left;animation:dialMemory var(--memory-ms) linear forwards}
-.dial-in-color-layout{position:absolute;inset:0;display:grid;grid-template-columns:138px 1fr;gap:0}.dial-in-color-rails{display:flex;align-items:stretch;gap:0;padding:0;background:linear-gradient(180deg,rgba(255,255,255,.08),rgba(255,255,255,.03));border-right:1px solid rgba(255,255,255,.08)}.dial-in-color-rail{position:relative;display:flex;align-items:flex-end;justify-content:center;flex:1;min-width:0;padding-bottom:26px;overflow:hidden}.dial-in-color-rail small{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);font-size:10px;font-weight:900;letter-spacing:.08em;color:rgba(255,255,255,.8)}.dial-in-color-rail input{position:absolute;left:50%;top:50%;width:330px;height:38px;transform:translate(-50%,-50%) rotate(-90deg);transform-origin:center;appearance:none;background:transparent;touch-action:none}.dial-in-color-rail input::-webkit-slider-runnable-track{height:38px;border-radius:999px}.dial-in-color-rail input::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:28px;height:28px;border-radius:50%;background:#fff;border:3px solid rgba(0,0,0,.14);margin-top:5px;box-shadow:0 5px 18px rgba(0,0,0,.28)}.dial-in-color-rail input::-moz-range-track{height:38px;border:none;border-radius:999px}.dial-in-color-rail input::-moz-range-thumb{width:28px;height:28px;border-radius:50%;background:#fff;border:3px solid rgba(0,0,0,.14);box-shadow:0 5px 18px rgba(0,0,0,.28)}
-.rail-hue input::-webkit-slider-runnable-track,.rail-hue input::-moz-range-track{background:linear-gradient(90deg,#ff0033,#ff9900,#fbff00,#00ff55,#00d5ff,#3551ff,#c000ff,#ff0033)}.rail-sat input::-webkit-slider-runnable-track,.rail-sat input::-moz-range-track{background:linear-gradient(90deg,#6b7280,#7f1d1d)}.rail-lit input::-webkit-slider-runnable-track,.rail-lit input::-moz-range-track{background:linear-gradient(90deg,#000,#ef4444)}
-.dial-in-color-field{position:relative}.dial-in-color-values{position:absolute;left:152px;bottom:18px;color:rgba(255,255,255,.84);font-size:12px;font-weight:800;letter-spacing:.04em}
-.dial-in-fab{position:absolute;right:22px;bottom:22px;z-index:5;width:66px;height:66px;border-radius:50%;border:0;background:#fff;color:#111827;font-size:32px;line-height:1;display:grid;place-items:center;box-shadow:0 16px 42px rgba(0,0,0,.28);cursor:pointer}.dial-in-fab:active{transform:scale(.97)}.dial-in-fab-stop{font-size:24px}
-.dial-in-sound-art{position:absolute;inset:0;overflow:hidden;background:radial-gradient(circle at 50% 48%,rgba(34,211,238,.08),transparent 18%),#000}.dial-in-sound-art:before{content:"";position:absolute;left:50%;top:-10%;width:2px;height:120%;transform:translateX(-50%);background:linear-gradient(180deg,rgba(34,211,238,0),rgba(34,211,238,.9),rgba(139,92,246,.82),rgba(34,211,238,0));filter:blur(.25px);opacity:.9}.dial-in-sound-art i{position:absolute;left:50%;top:50%;width:calc(16px + var(--i) * 36px);height:calc(40px + var(--i) * 58px);transform:translate(-50%,-50%) rotate(calc((var(--i) - 5) * 4deg));border-radius:999px;border:1.4px solid rgba(34,211,238,.45);border-top-color:rgba(139,92,246,.78);border-bottom-color:rgba(139,92,246,.5);opacity:calc(.98 - var(--i) * .07);filter:drop-shadow(0 0 16px rgba(34,211,238,.18))}.dial-in-sound-art.guess i{width:calc(18px + var(--i) * 14px);height:calc(90px + var(--i) * 72px);transform:translate(-50%,-50%) rotate(calc((var(--i) - 5) * 7deg))}
-.dial-in-sound-listen-copy{position:absolute;left:0;right:0;bottom:38px;text-align:center;padding:0 20px}.dial-in-sound-listen-copy strong{display:block;font-size:16px;letter-spacing:.12em}.dial-in-sound-listen-copy p{margin:8px 0 0;color:rgba(255,255,255,.68);font-size:13px}
-.dial-in-sound-bottom{position:absolute;left:24px;right:24px;bottom:22px;z-index:4}.dial-in-sound-number{font-size:clamp(42px,13vw,78px);font-weight:800;letter-spacing:-.08em;line-height:.9;color:#fff}.dial-in-sound-number span{font-size:.34em;letter-spacing:0;margin-left:3px}.dial-in-sound-slider-wrap{margin-top:12px;padding-right:88px}.dial-in-sound-slider{width:100%;height:34px;appearance:none;background:transparent;touch-action:none}.dial-in-sound-slider::-webkit-slider-runnable-track{height:4px;border-radius:99px;background:linear-gradient(90deg,rgba(255,255,255,.18),rgba(34,211,238,.68),rgba(139,92,246,.72),rgba(255,255,255,.18))}.dial-in-sound-slider::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:22px;height:22px;border-radius:50%;margin-top:-9px;background:#fff;box-shadow:0 0 0 5px rgba(255,255,255,.09),0 10px 18px rgba(0,0,0,.3)}.dial-in-sound-slider::-moz-range-track{height:4px;border:none;border-radius:99px;background:linear-gradient(90deg,rgba(255,255,255,.18),rgba(34,211,238,.68),rgba(139,92,246,.72),rgba(255,255,255,.18))}.dial-in-sound-slider::-moz-range-thumb{width:22px;height:22px;border-radius:50%;background:#fff;border:none;box-shadow:0 0 0 5px rgba(255,255,255,.09),0 10px 18px rgba(0,0,0,.3)}
-.dial-in-sound-pills{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.dial-in-sound-pills button{padding:9px 14px;border-radius:999px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:#fff;font-size:12px;font-weight:800;cursor:pointer}
-.dial-in-time-target-stage{position:absolute;right:28px;top:60px;display:flex;flex-direction:column;align-items:flex-end;text-align:right}.dial-in-time-target-stage strong{font-size:clamp(62px,18vw,128px);line-height:.85;letter-spacing:-.08em}.dial-in-time-target-stage span{margin-top:10px;font-size:16px;font-weight:600;opacity:.92}.dial-in-time-brand-corner{position:absolute;left:26px;bottom:26px;font-size:14px;font-weight:700;opacity:.55}.dial-in-time-live-stage{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:80px 26px 30px}.dial-in-time-live-stage strong,.dial-in-time-live-stage span{font-size:clamp(72px,24vw,160px);line-height:.85;letter-spacing:-.08em;font-weight:800}.dial-in-time-live-stage small{margin-top:12px;font-size:15px;font-weight:600;opacity:.68}
-.dial-in-card-result{background:#05070b}.dial-in-result-overlay{position:absolute;inset:0;z-index:4;display:flex;flex-direction:column;justify-content:flex-start;padding:18px;pointer-events:none}.dial-in-result-scorebox{margin-top:70px;display:flex;flex-direction:column;align-items:center;text-align:center;color:#111827}.dial-in-card-result:not(.dial-in-color-result-card) .dial-in-result-scorebox{color:#fff}.dial-in-result-scorebox strong{font-size:clamp(56px,18vw,112px);line-height:.85;letter-spacing:-.08em}.dial-in-result-scorebox small{margin-top:8px;font-size:14px;font-weight:700;opacity:.7}.dial-in-result-scorebox p{max-width:430px;margin:10px 0 0;font-size:clamp(18px,4vw,22px);font-weight:700}
-.dial-in-color-result-split{position:absolute;inset:0;display:grid;grid-template-rows:1fr 1fr}.dial-in-color-result-pane{position:relative;padding:24px 24px 18px;display:flex;align-items:flex-end}.dial-in-color-result-pane div{font-size:13px;color:rgba(0,0,0,.65);font-weight:700}.dial-in-color-result-pane small{display:block;opacity:.45;font-size:12px;margin-bottom:4px}.dial-in-color-result-pane strong{font-size:24px;letter-spacing:-.04em}
-.dial-in-metric-stage{position:absolute;inset:0}.dial-in-metric-bg.sound,.dial-in-time-surface{position:absolute;inset:0}.dial-in-metric-bg.sound{background:radial-gradient(circle at 50% 50%,rgba(34,211,238,.08),transparent 24%),#000}.dial-in-metric-bg.sound:before{content:"";position:absolute;left:50%;top:50%;width:76%;height:54%;transform:translate(-50%,-50%);border-radius:50%;border:1px solid rgba(139,92,246,.48);box-shadow:0 0 0 24px rgba(139,92,246,.08),0 0 0 48px rgba(34,211,238,.06),0 0 0 72px rgba(139,92,246,.05)}.dial-in-time-surface{background:linear-gradient(180deg,#aee9de 0%,#8fa8ee 100%)}
-.dial-in-metric-compare{position:absolute;left:18px;right:18px;bottom:104px;display:grid;gap:10px}.sound-grid,.time-grid{grid-template-columns:repeat(3,1fr)}.dial-in-metric-compare>div{padding:14px 12px;border-radius:18px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.08);backdrop-filter:blur(10px);text-align:center;color:#fff}.time-grid>div{background:rgba(255,255,255,.42);color:#111827;border-color:rgba(17,24,39,.08)}.dial-in-metric-compare small{display:block;font-size:10px;font-weight:900;letter-spacing:.08em;opacity:.65}.dial-in-metric-compare strong{display:block;margin-top:8px;font-size:20px;letter-spacing:-.03em}
-.dial-in-card-final{padding:100px 26px 28px;display:flex;flex-direction:column;justify-content:flex-end}.dial-in-final-center{position:static;padding:0 0 18px}.dial-in-final-score{font-size:clamp(70px,18vw,130px);line-height:.86;letter-spacing:-.08em}.dial-in-final-line{margin:10px auto 0;max-width:440px;font-size:clamp(18px,4.3vw,24px);font-weight:700}.dial-in-final-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.dial-in-reward-note{margin:16px auto 16px;max-width:520px;text-align:center;color:inherit;opacity:.72;font-size:13px;line-height:1.5}
-.dial-in-audio-warning{max-width:430px;margin:10px auto 0;color:#fbbf24;font-size:12px;line-height:1.45}
-.dial-in-pause{position:absolute;inset:0;z-index:50;display:grid;place-items:center;padding:18px;background:rgba(2,6,23,.84);backdrop-filter:blur(10px)}.dial-in-pause[hidden]{display:none!important}.dial-in-pause>div{width:min(360px,100%);padding:24px;border:1px solid rgba(103,232,249,.25);border-radius:25px;background:#0b132b;text-align:center}.dial-in-pause span{font-size:34px}.dial-in-pause strong{display:block;margin-top:7px;font-size:27px}.dial-in-pause p{color:#94a3b8;font-size:12px}.dial-in-pause button{width:100%;height:50px;border:0;border-radius:15px;background:linear-gradient(135deg,#22d3ee,#6366f1);color:white;font-weight:950}
+.dial-in-main{position:absolute;inset:0;display:grid;place-items:center;padding:max(10px,env(safe-area-inset-top)) max(10px,env(safe-area-inset-right)) max(10px,env(safe-area-inset-bottom)) max(10px,env(safe-area-inset-left));overflow:hidden}
+
+/* utilities stay out of the middle of gameplay */
+.dial-in-utility-bar{position:absolute;z-index:60;top:max(16px,calc(env(safe-area-inset-top) + 8px));right:max(18px,calc((100vw - min(94vw,820px))/2 + 16px));display:flex;gap:6px;padding:4px;border-radius:999px;background:rgba(2,6,23,.26);backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,.07)}
+.dial-in-icon-btn{width:34px;height:34px;border-radius:50%;border:1px solid rgba(255,255,255,.08);background:rgba(15,23,42,.74);color:#fff;font-size:16px;font-weight:900;cursor:pointer;display:grid;place-items:center;box-shadow:0 8px 22px rgba(0,0,0,.16)}
+.dial-in-icon-btn:active{transform:scale(.95)}
+
+.dial-in-home,.dial-in-tutorial,.dial-in-play,.dial-in-result,.dial-in-final,.dial-in-round-transition{width:min(94vw,820px)}
+.dial-in-home-card,.dial-in-card{position:relative;height:min(94dvh,920px);min-height:0;border-radius:28px;overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,.34),inset 0 0 0 1px rgba(255,255,255,.045)}
+.dial-in-card{background:#05070b}
+.dial-in-screen-enter{animation:dialInEnter .24s cubic-bezier(.2,.8,.2,1) both}
+
+/* meta */
+.dial-in-stage-meta{position:absolute;z-index:30;top:20px;left:22px;right:132px;min-height:32px;display:flex;align-items:flex-start;pointer-events:none}
+.dial-in-stage-step{font-size:12px;font-weight:900;letter-spacing:.07em;color:rgba(255,255,255,.94)}
+.dial-in-stage-caption-top{position:absolute;left:0;right:0;top:2px;text-align:center;color:rgba(255,255,255,.54);font-size:10px;font-weight:900;letter-spacing:.13em;text-transform:uppercase}
+
+/* home */
+.dial-in-home-card{display:flex;flex-direction:column;gap:10px;padding:clamp(60px,9vh,82px) 22px 18px;background:linear-gradient(180deg,#07101f 0%,#050914 100%)}
+.dial-in-home-hero{text-align:center}
+.dial-in-kicker{margin:0;color:#70ddff;font-size:10px;font-weight:950;letter-spacing:.22em;text-transform:uppercase}
+.dial-in-home-hero h1{margin:6px 0 5px;font-size:clamp(38px,7vw,78px);line-height:.92;letter-spacing:-.065em}
+.dial-in-home-hero p:last-child{margin:0;color:#cbd5e1;font-size:13px}
+.dial-in-home-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:2px 0 0}
+.dial-in-home-stats>div,.dial-in-final-stats>div{min-height:58px;padding:9px 7px;border-radius:17px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.06);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
+.dial-in-home-stats small,.dial-in-final-stats small{font-size:8px;font-weight:950;letter-spacing:.1em;color:#8290a5}
+.dial-in-home-stats strong,.dial-in-final-stats strong{margin-top:4px;font-size:17px}
+.dial-in-mode-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;min-height:0;flex:1;align-items:stretch}
+.dial-in-mode-card{position:relative;display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;gap:9px;min-width:0;padding:15px;border-radius:20px;border:1px solid rgba(255,255,255,.07);background:linear-gradient(150deg,rgba(15,23,42,.96),rgba(15,23,42,.68));color:#fff;text-align:left;overflow:hidden;cursor:pointer}
+.dial-in-mode-card:before{content:"";position:absolute;inset:auto -25% -55% 15%;height:120%;border-radius:50%;filter:blur(28px);opacity:.2;pointer-events:none}
+.dial-in-mode-color:before{background:#f472b6}.dial-in-mode-sound:before{background:#22d3ee}.dial-in-mode-time:before{background:#818cf8}
+.dial-in-mode-card:active{transform:scale(.99)}
+.dial-in-mode-icon{display:grid;place-items:center;width:48px;height:48px;border-radius:15px;background:rgba(255,255,255,.055);font-size:23px}
+.dial-in-mode-copy{position:relative;z-index:1}.dial-in-mode-copy strong{display:block;font-size:15px;letter-spacing:.11em}.dial-in-mode-copy small{display:block;margin-top:3px;color:#cbd5e1;font-size:10px;line-height:1.3}
+.dial-in-mode-best{position:relative;z-index:1;margin-top:auto;padding:6px 8px;border-radius:999px;background:rgba(2,6,23,.36);font-size:8px;font-weight:950;color:#cbd5e1}
+
+/* tutorial / transition */
+.dial-in-card-color{background:linear-gradient(160deg,#35121f,#10131c 70%)}
+.dial-in-card-sound{background:#000}
+.dial-in-card-time{background:#8fa7df;color:#0e172b}
+.dial-in-tutorial-body,.dial-in-transition-center,.dial-in-final-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:78px 28px 30px}
+.dial-in-tutorial-icon{display:grid;place-items:center;width:84px;height:84px;border-radius:25px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.09);font-size:38px;margin-bottom:15px}
+.dial-in-tutorial-body h2{max-width:530px;margin:0 0 10px;font-size:clamp(26px,5.2vw,46px);line-height:1.05;letter-spacing:-.05em}
+.dial-in-tutorial-body p{max-width:440px;margin:0 0 20px;color:#d5dbe5;font-size:14px;line-height:1.48}
+.dial-in-card-time .dial-in-tutorial-body p,.dial-in-card-time .dial-in-transition-center small{color:#293a5a}
+.dial-in-actions,.dial-in-final-actions{display:flex;justify-content:center;gap:9px;flex-wrap:wrap}
+.dial-in-primary,.dial-in-secondary{min-height:46px;padding:0 20px;border-radius:15px;font-size:12px;font-weight:950;letter-spacing:.03em;cursor:pointer}
+.dial-in-primary{border:0;background:#fff;color:#05070b}.dial-in-secondary{border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.06);color:#fff}
+.dial-in-card-time .dial-in-primary{background:#111827;color:#fff}.dial-in-card-time .dial-in-secondary{color:#111827;background:rgba(255,255,255,.32);border-color:rgba(17,24,39,.07)}
+.dial-in-transition-center>span{font-size:58px;margin-bottom:7px}.dial-in-transition-center>strong{font-size:clamp(42px,9vw,72px);line-height:.92;letter-spacing:-.06em}.dial-in-transition-center>small{margin-top:10px;color:#aeb9c8;font-size:13px}
+
+/* color target */
+.dial-in-card-color-target{background:#111827}
+.dial-in-color-full{position:absolute;inset:0;display:flex;align-items:flex-end;justify-content:center;padding:76px 22px 28px}
+.dial-in-color-full p{margin:0;padding:7px 12px;border-radius:999px;background:rgba(0,0,0,.2);color:rgba(255,255,255,.86);font-size:11px;font-weight:850}
+.dial-in-memory-bar{position:absolute;z-index:5;left:16px;right:16px;bottom:12px;height:4px;border-radius:99px;background:rgba(255,255,255,.16);overflow:hidden}.dial-in-memory-bar i{display:block;width:100%;height:100%;transform-origin:left;background:rgba(255,255,255,.9);animation:dialMemory var(--memory-ms) linear forwards}
+
+/* custom color controls - no rotated native ranges */
+.dial-in-card-color-guess{background:#1d0b11}
+.dial-in-color-layout{position:absolute;inset:0;display:grid;grid-template-columns:156px 1fr}
+.dial-in-color-controls{display:grid;grid-template-columns:repeat(3,1fr);padding:64px 8px 14px;background:rgba(10,5,9,.86);border-right:1px solid rgba(255,255,255,.06)}
+.dial-in-color-control{position:relative;display:flex;flex-direction:column;align-items:center;min-width:0;touch-action:none;user-select:none;cursor:ns-resize}
+.dial-in-color-track{position:relative;width:28px;flex:1;min-height:180px;border-radius:999px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.12),0 8px 22px rgba(0,0,0,.14)}
+.dial-in-color-thumb{position:absolute;left:50%;width:30px;height:30px;border-radius:50%;background:#fff;border:3px solid rgba(17,24,39,.18);box-shadow:0 5px 16px rgba(0,0,0,.26);transform:translate(-50%,50%);pointer-events:none}
+.dial-in-color-control small{margin-top:10px;color:#fff;font-size:8px;font-weight:950;letter-spacing:.06em}
+.dial-in-color-field{position:relative;min-width:0}
+.dial-in-color-values{position:absolute;z-index:4;left:170px;bottom:18px;padding:6px 9px;border-radius:999px;background:rgba(0,0,0,.2);color:rgba(255,255,255,.92);font-size:10px;font-weight:900;letter-spacing:.04em}
+
+/* sound */
+.dial-in-card-sound{background:#000}
+.dial-in-sound-pad{position:absolute;inset:0;overflow:hidden;touch-action:none;user-select:none;cursor:ns-resize;background:radial-gradient(circle at 50% 47%,rgba(36,211,238,.05),transparent 22%),#000}
+.dial-in-sound-visual{position:absolute;inset:0;pointer-events:none}
+.dial-in-sound-visual svg{position:absolute;inset:-5% 15%;width:70%;height:110%;overflow:visible;filter:drop-shadow(0 0 10px rgba(34,211,238,.12))}
+.dial-in-sound-visual path{fill:none;stroke-width:.26;vector-effect:non-scaling-stroke;stroke:rgba(34,211,238,.62);transform-box:fill-box;transform-origin:center;opacity:calc(.98 - var(--i)*.045)}
+.dial-in-sound-visual path:nth-child(2n){stroke:rgba(139,92,246,.72)}
+.dial-in-sound-spine{position:absolute;left:50%;top:-4%;width:1.5px;height:108%;transform:translateX(-50%);background:linear-gradient(180deg,transparent,rgba(34,211,238,.9),rgba(139,92,246,.85),transparent);filter:drop-shadow(0 0 6px rgba(34,211,238,.5))}
+.dial-in-sound-pad.is-listening .dial-in-sound-visual path,.dial-in-sound-pad.is-previewing .dial-in-sound-visual path,.dial-in-sound-pad.is-dragging .dial-in-sound-visual path{animation:dialWavePulse .48s ease-in-out infinite alternate;animation-delay:calc(var(--i)*-32ms)}
+.dial-in-sound-pad.is-listening .dial-in-sound-spine,.dial-in-sound-pad.is-previewing .dial-in-sound-spine,.dial-in-sound-pad.is-dragging .dial-in-sound-spine{animation:dialSpineGlow .42s ease-in-out infinite alternate}
+.dial-in-sound-pad.is-dragging .dial-in-sound-visual{filter:brightness(1.2)}
+.dial-in-sound-listen-copy{position:absolute;z-index:4;left:0;right:0;bottom:32px;text-align:center}.dial-in-sound-listen-copy strong{display:block;font-size:15px;letter-spacing:.12em}.dial-in-sound-listen-copy p{margin:6px 0 0;color:rgba(255,255,255,.62);font-size:12px}
+.dial-in-sound-drag-guide{position:absolute;z-index:5;right:18px;top:82px;bottom:160px;display:flex;flex-direction:column;align-items:center;justify-content:space-between;pointer-events:none}.dial-in-sound-drag-guide span{font-size:8px;font-weight:950;letter-spacing:.12em;color:rgba(255,255,255,.45)}.dial-in-sound-drag-guide i{position:absolute;top:24px;bottom:24px;width:1px;background:linear-gradient(180deg,rgba(255,255,255,.34),rgba(255,255,255,.05))}.dial-in-sound-drag-guide:after{content:"";position:absolute;top:var(--dial-y,50%);width:12px;height:12px;border-radius:50%;background:#fff;box-shadow:0 0 0 5px rgba(255,255,255,.08);transform:translateY(-50%)}
+.dial-in-sound-bottom{position:absolute;z-index:8;left:24px;right:88px;bottom:20px;pointer-events:none}.dial-in-sound-number{font-size:clamp(46px,9.5vw,86px);font-weight:760;line-height:.86;letter-spacing:-.07em;color:#fff}.dial-in-sound-number span{font-size:.3em;letter-spacing:0;margin-left:3px}.dial-in-sound-instruction{display:block;margin-top:8px;color:rgba(255,255,255,.52);font-size:10px;font-weight:700}.dial-in-sound-pills{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px;pointer-events:auto}.dial-in-sound-pills button{min-height:34px;padding:0 12px;border-radius:999px;border:1px solid rgba(255,255,255,.11);background:rgba(255,255,255,.07);color:#fff;font-size:9px;font-weight:900;letter-spacing:.04em;cursor:pointer}
+
+/* time - intentionally minimal */
+.dial-in-card-time-ready,.dial-in-card-time-running{background:#8fa7df;color:#101827}
+.dial-in-card-time-ready .dial-in-stage-step,.dial-in-card-time-running .dial-in-stage-step{color:rgba(15,23,42,.74)}
+.dial-in-time-target-stage{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:72px 24px 84px}
+.dial-in-time-target-stage strong{font-size:clamp(76px,15vw,132px);line-height:.84;letter-spacing:-.08em;font-weight:650}.dial-in-time-target-stage span{margin-top:12px;font-size:14px;font-weight:650}
+.dial-in-time-tip{position:absolute;left:20px;bottom:24px;margin:0;font-size:11px;font-weight:700;opacity:.58}
+.dial-in-time-live-stage{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:72px 24px 84px}.dial-in-time-live-stage strong,.dial-in-time-live-stage>span{font-size:clamp(86px,18vw,160px);line-height:.82;letter-spacing:-.08em;font-weight:650}.dial-in-time-live-stage small{margin-top:14px;font-size:13px;font-weight:700;opacity:.56}.dial-in-fab-stop{font-size:20px}
+
+/* shared action */
+.dial-in-fab{position:absolute;z-index:40;right:22px;bottom:22px;width:62px;height:62px;border:0;border-radius:50%;background:#fff;color:#111827;font-size:28px;font-weight:700;display:grid;place-items:center;box-shadow:0 14px 34px rgba(0,0,0,.24);cursor:pointer}.dial-in-fab:active{transform:scale(.96)}
+
+/* results */
+.dial-in-card-result{background:#05070b}
+.dial-in-result-overlay{position:absolute;z-index:10;inset:0;pointer-events:none;padding:18px}.dial-in-result-scorebox{display:flex;flex-direction:column;align-items:center;text-align:center;margin-top:74px;color:#fff}.dial-in-result-scorebox strong{font-size:clamp(58px,11vw,108px);line-height:.84;letter-spacing:-.075em}.dial-in-result-scorebox small{margin-top:8px;font-size:11px;font-weight:850;opacity:.58}.dial-in-result-scorebox p{max-width:430px;margin:9px 0 0;font-size:clamp(16px,2.3vw,21px);font-weight:750}
+.dial-in-color-result-split{position:absolute;inset:0;display:grid;grid-template-rows:1fr 1fr}.dial-in-color-result-pane{display:flex;align-items:flex-end;padding:20px}.dial-in-color-result-pane div{color:rgba(0,0,0,.67)}.dial-in-color-result-pane small{display:block;font-size:10px;opacity:.5;margin-bottom:3px}.dial-in-color-result-pane strong{font-size:17px}.dial-in-color-result-card .dial-in-result-scorebox{color:#111827}
+.dial-in-metric-stage{position:absolute;inset:0;background:#000}.dial-in-metric-stage .dial-in-sound-visual{opacity:.7}
+.dial-in-metric-compare{position:absolute;z-index:4;left:18px;right:18px;bottom:96px;display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.dial-in-metric-compare>div{padding:12px 8px;border-radius:15px;background:rgba(255,255,255,.075);border:1px solid rgba(255,255,255,.07);text-align:center;color:#fff;backdrop-filter:blur(8px)}.dial-in-metric-compare small,.dial-in-time-result-bottom small{display:block;font-size:8px;font-weight:950;letter-spacing:.09em;opacity:.58}.dial-in-metric-compare strong,.dial-in-time-result-bottom strong{display:block;margin-top:6px;font-size:16px}
+.dial-in-time-result-split{position:absolute;inset:0;display:grid;grid-template-rows:52% 48%}.dial-in-time-result-top{background:#a9ded7}.dial-in-time-result-bottom{background:#8fa7df;display:grid;grid-template-columns:repeat(3,1fr);gap:8px;align-items:end;padding:0 18px 22px}.dial-in-time-result-bottom>div{padding:12px 8px;border-radius:15px;background:rgba(255,255,255,.28);text-align:center;color:#101827}.dial-in-time-result-card .dial-in-result-scorebox{color:#101827}
+
+/* final */
+.dial-in-card-final{display:flex;flex-direction:column;justify-content:flex-end;padding:92px 24px 24px;background:#070b13}.dial-in-card-final.dial-in-card-time{background:#8fa7df;color:#101827}.dial-in-card-final.dial-in-card-color{background:linear-gradient(180deg,#a7ddd7,#8fa7df);color:#101827}
+.dial-in-final-center{position:static;padding:0 0 16px}.dial-in-final-score{font-size:clamp(68px,12vw,124px);line-height:.84;letter-spacing:-.08em}.dial-in-final-line{margin:9px auto 0;max-width:430px;font-size:clamp(16px,2.4vw,22px);font-weight:750}.dial-in-final-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.dial-in-reward-note{margin:13px auto 13px;text-align:center;font-size:11px;line-height:1.4;opacity:.7;max-width:520px}.dial-in-card-time .dial-in-final-stats small,.dial-in-card-color .dial-in-final-stats small{color:rgba(17,24,39,.55)}
+
+.dial-in-audio-warning{max-width:430px;margin:8px auto 0;color:#fbbf24;font-size:11px;line-height:1.4}
+
+/* pause */
+.dial-in-pause{position:absolute;inset:0;z-index:90;display:grid;place-items:center;padding:18px;background:rgba(2,6,23,.84);backdrop-filter:blur(10px)}.dial-in-pause[hidden]{display:none!important}.dial-in-pause>div{width:min(340px,100%);padding:22px;border-radius:23px;background:#0b132b;border:1px solid rgba(103,232,249,.18);text-align:center}.dial-in-pause span{font-size:32px}.dial-in-pause strong{display:block;margin-top:6px;font-size:25px}.dial-in-pause p{font-size:11px;color:#94a3b8}.dial-in-pause button{width:100%;height:46px;border:0;border-radius:14px;background:#fff;color:#0f172a;font-weight:950}
+
 .dial-in-confetti{position:absolute;inset:0;pointer-events:none;overflow:hidden}.dial-in-confetti i{position:absolute;left:var(--x);top:-12px;width:7px;height:16px;border-radius:3px;background:#67e8f9;animation:dialConfetti var(--d) ease-in forwards;transform:rotate(var(--r))}.dial-in-confetti i:nth-child(3n+1){background:#facc15}.dial-in-confetti i:nth-child(3n+2){background:#c084fc}
-.dial-in-screen-enter{animation:dialInEnter .26s cubic-bezier(.2,.8,.2,1) both}
-@keyframes dialInEnter{from{opacity:0;transform:translateY(8px) scale(.992)}to{opacity:1;transform:none}}@keyframes dialMemory{to{transform:scaleX(0)}}@keyframes dialConfetti{to{transform:translateY(520px) rotate(calc(var(--r) + 300deg));opacity:0}}
-@media (max-width:760px){.dial-in-home-card,.dial-in-card{min-height:min(94dvh,860px);height:min(94dvh,860px);border-radius:22px}.dial-in-main{padding:max(8px,env(safe-area-inset-top)) max(6px,env(safe-area-inset-right)) max(8px,env(safe-area-inset-bottom)) max(6px,env(safe-area-inset-left))}.dial-in-utility-bar{top:max(6px,env(safe-area-inset-top));gap:6px;padding:4px 6px}.dial-in-icon-btn{width:34px;height:34px;font-size:16px}.dial-in-stage-meta{top:14px;left:14px;right:14px}.dial-in-stage-step,.dial-in-stage-brand{font-size:11px}.dial-in-home-card{padding:70px 16px 20px}.dial-in-home-stats,.dial-in-final-stats{gap:8px}.dial-in-home-stats strong,.dial-in-final-stats strong{font-size:17px}.dial-in-mode-card{grid-template-columns:52px 1fr;grid-template-areas:"icon copy" "best best";padding:13px 14px}.dial-in-mode-icon{grid-area:icon;width:52px;height:52px;font-size:24px}.dial-in-mode-copy{grid-area:copy}.dial-in-mode-best{grid-area:best;justify-self:start;margin-top:2px}.dial-in-tutorial-body h2{font-size:clamp(24px,8.4vw,36px)}.dial-in-color-layout{grid-template-columns:78px 1fr}.dial-in-color-rail input{width:250px}.dial-in-color-values{left:92px;bottom:16px;font-size:11px}.dial-in-fab{right:18px;bottom:18px;width:62px;height:62px;font-size:28px}.dial-in-sound-bottom{left:18px;right:18px;bottom:18px}.dial-in-sound-slider-wrap{padding-right:76px}.dial-in-sound-pills button{font-size:11px;padding:8px 12px}.dial-in-time-target-stage{right:18px;top:58px}.dial-in-time-target-stage span{font-size:14px;max-width:160px}.sound-grid,.time-grid{grid-template-columns:1fr;bottom:96px}.dial-in-metric-compare strong{font-size:18px}.dial-in-final-actions{gap:8px}.dial-in-primary,.dial-in-secondary{min-height:44px;padding:0 16px;font-size:12px}}
-@media (max-height:720px){.dial-in-home-card,.dial-in-card{height:min(96dvh,760px);min-height:min(96dvh,760px)}.dial-in-stage-meta{top:12px}.dial-in-result-scorebox{margin-top:54px}.dial-in-result-scorebox p{font-size:18px}.dial-in-sound-number{font-size:clamp(38px,12vw,68px)}.dial-in-metric-compare{bottom:90px}.dial-in-fab{width:58px;height:58px}.dial-in-final-score{font-size:clamp(62px,15vw,110px)}}
 
+@keyframes dialInEnter{from{opacity:0;transform:translateY(7px) scale(.993)}to{opacity:1;transform:none}}
+@keyframes dialMemory{to{transform:scaleX(0)}}
+@keyframes dialWavePulse{from{transform:scaleX(.96);opacity:.52}to{transform:scaleX(1.08);opacity:.98}}
+@keyframes dialSpineGlow{from{opacity:.55;filter:drop-shadow(0 0 3px rgba(34,211,238,.25))}to{opacity:1;filter:drop-shadow(0 0 12px rgba(34,211,238,.75))}}
+@keyframes dialConfetti{to{transform:translateY(520px) rotate(calc(var(--r) + 300deg));opacity:0}}
 
-/* v4 fit-to-screen compact tuning */
-.dial-in-home-card{display:flex;flex-direction:column;gap:12px;padding:clamp(58px,9vh,82px) 18px 16px;justify-content:flex-start}
-.dial-in-home-hero h1{margin:6px 0 6px;font-size:clamp(34px,10vw,84px)}
-.dial-in-home-hero p:last-child{font-size:clamp(12px,2.2vw,15px)}
-.dial-in-home-stats{margin:2px 0 0;gap:8px}
-.dial-in-home-stats>div{padding:10px 8px;min-height:62px;display:flex;flex-direction:column;justify-content:center}
-.dial-in-mode-grid{flex:1;gap:8px;align-content:start;grid-auto-rows:minmax(0,1fr)}
-.dial-in-mode-card{min-height:clamp(72px,10.5vh,96px);padding:12px 14px;gap:12px}
-.dial-in-mode-icon{width:52px;height:52px;font-size:24px}
-.dial-in-mode-copy strong{font-size:16px;letter-spacing:.1em}
-.dial-in-mode-copy small{font-size:11px;margin-top:2px}
-.dial-in-mode-best{font-size:9px;padding:7px 9px}
-.dial-in-home .dial-in-arcade-back{display:none}
-
-@media (min-width:900px) and (min-height:580px){
-  .dial-in-home,.dial-in-tutorial,.dial-in-play,.dial-in-result,.dial-in-final,.dial-in-round-transition{width:min(92vw,820px)}
-  .dial-in-home-card{padding-left:22px;padding-right:22px}
-  .dial-in-home-hero h1{font-size:clamp(52px,8vw,86px)}
-  .dial-in-mode-grid{grid-template-columns:repeat(3,1fr);gap:10px;flex:0 0 auto}
-  .dial-in-mode-card{grid-template-columns:1fr;grid-template-areas:'icon' 'copy' 'best';align-items:start;align-content:start;min-height:150px;padding:16px}
-  .dial-in-mode-icon{grid-area:icon}
-  .dial-in-mode-copy{grid-area:copy}
-  .dial-in-mode-best{grid-area:best;justify-self:start;margin-top:8px}
-}
-
+/* phone */
 @media (max-width:760px){
-  .dial-in-home-card{gap:10px;padding:56px 14px 12px}
-  .dial-in-home-hero h1{font-size:clamp(32px,9vw,54px)}
-  .dial-in-home-hero p:last-child{max-width:none}
-  .dial-in-home-stats{gap:7px}
-  .dial-in-home-stats>div{padding:8px 6px;min-height:54px}
-  .dial-in-home-stats small{font-size:9px}
-  .dial-in-home-stats strong{font-size:16px;margin-top:4px}
-  .dial-in-mode-grid{gap:7px}
-  .dial-in-mode-card{min-height:68px;padding:11px 12px;gap:10px}
-  .dial-in-mode-icon{width:46px;height:46px;font-size:22px;border-radius:16px}
-  .dial-in-mode-copy strong{font-size:14px}
-  .dial-in-mode-copy small{font-size:10.5px}
+  .dial-in-main{padding:max(7px,env(safe-area-inset-top)) max(6px,env(safe-area-inset-right)) max(7px,env(safe-area-inset-bottom)) max(6px,env(safe-area-inset-left))}
+  .dial-in-home,.dial-in-tutorial,.dial-in-play,.dial-in-result,.dial-in-final,.dial-in-round-transition{width:calc(100vw - 12px)}
+  .dial-in-home-card,.dial-in-card{height:calc(100dvh - 14px);border-radius:20px}
+  .dial-in-utility-bar{top:max(11px,calc(env(safe-area-inset-top) + 5px));right:max(10px,calc(env(safe-area-inset-right) + 6px));gap:4px;padding:3px;background:rgba(2,6,23,.24)}
+  .dial-in-icon-btn{width:31px;height:31px;font-size:14px}
+  .dial-in-stage-meta{top:17px;left:16px;right:116px}.dial-in-stage-step{font-size:10px}.dial-in-stage-caption-top{display:none}
+  .dial-in-home-card{gap:8px;padding:54px 13px 12px}
+  .dial-in-home-hero h1{font-size:clamp(34px,11vw,54px)}.dial-in-home-hero p:last-child{font-size:11px}
+  .dial-in-home-stats{gap:6px}.dial-in-home-stats>div{min-height:48px;padding:6px 4px}.dial-in-home-stats small{font-size:7px}.dial-in-home-stats strong{font-size:14px}
+  .dial-in-mode-grid{grid-template-columns:1fr;gap:6px;grid-template-rows:repeat(3,minmax(0,1fr))}
+  .dial-in-mode-card{display:grid;grid-template-columns:44px 1fr auto;grid-template-areas:"icon copy best";align-items:center;gap:9px;padding:9px 11px;min-height:0}
+  .dial-in-mode-icon{grid-area:icon;width:40px;height:40px;border-radius:13px;font-size:19px}.dial-in-mode-copy{grid-area:copy}.dial-in-mode-copy strong{font-size:13px}.dial-in-mode-copy small{font-size:9px}.dial-in-mode-best{grid-area:best;margin:0;font-size:7px;padding:5px 6px}
+  .dial-in-tutorial-body,.dial-in-transition-center{padding:68px 18px 22px}.dial-in-tutorial-icon{width:70px;height:70px;font-size:31px;border-radius:21px}.dial-in-tutorial-body h2{font-size:clamp(24px,8vw,36px)}.dial-in-tutorial-body p{font-size:12px}
+  .dial-in-primary,.dial-in-secondary{min-height:42px;padding:0 16px;font-size:11px}
+  .dial-in-transition-center>span{font-size:48px}.dial-in-transition-center>strong{font-size:clamp(38px,12vw,58px)}
+  .dial-in-color-layout{grid-template-columns:126px 1fr}.dial-in-color-controls{padding:54px 5px 10px}.dial-in-color-track{width:24px;min-height:150px}.dial-in-color-thumb{width:28px;height:28px}.dial-in-color-control small{font-size:7px;margin-top:8px}.dial-in-color-values{left:136px;bottom:14px;font-size:9px}
+  .dial-in-sound-visual svg{inset:-4% 5%;width:90%;height:108%}.dial-in-sound-drag-guide{right:12px;top:62px;bottom:146px}.dial-in-sound-bottom{left:16px;right:76px;bottom:14px}.dial-in-sound-number{font-size:clamp(44px,14vw,70px)}.dial-in-sound-instruction{font-size:9px;max-width:220px}.dial-in-sound-pills{margin-top:8px}.dial-in-sound-pills button{min-height:31px;padding:0 10px;font-size:8px}
+  .dial-in-fab{right:16px;bottom:16px;width:56px;height:56px;font-size:25px}
+  .dial-in-time-target-stage strong{font-size:clamp(72px,23vw,112px)}.dial-in-time-target-stage span{font-size:13px}.dial-in-time-tip{left:16px;bottom:18px;font-size:9px}.dial-in-time-live-stage strong,.dial-in-time-live-stage>span{font-size:clamp(82px,26vw,126px)}
+  .dial-in-result-scorebox{margin-top:70px}.dial-in-result-scorebox strong{font-size:clamp(60px,19vw,94px)}.dial-in-result-scorebox p{font-size:16px}.dial-in-metric-compare{left:12px;right:12px;bottom:84px;grid-template-columns:1fr;gap:5px}.dial-in-metric-compare>div{padding:8px 7px}.dial-in-metric-compare strong{font-size:14px;margin-top:3px}.dial-in-time-result-bottom{grid-template-columns:1fr;gap:5px;padding:0 12px 82px;align-content:end}.dial-in-time-result-bottom>div{padding:8px 6px}.dial-in-time-result-bottom strong{font-size:14px;margin-top:3px}
+  .dial-in-card-final{padding:76px 14px 14px}.dial-in-final-score{font-size:clamp(64px,21vw,102px)}.dial-in-final-stats{gap:5px}.dial-in-final-stats>div{min-height:48px;padding:6px 4px}.dial-in-final-stats strong{font-size:14px}.dial-in-final-actions{gap:6px}.dial-in-final-actions .dial-in-primary,.dial-in-final-actions .dial-in-secondary{min-height:38px;padding:0 12px;font-size:9px}
 }
 
-@media (max-height:760px){
-  .dial-in-home-card{gap:8px;padding-top:52px;padding-bottom:10px}
-  .dial-in-home-hero h1{font-size:clamp(30px,8vw,56px)}
-  .dial-in-home-hero p:last-child{font-size:12px}
-  .dial-in-home-stats>div{min-height:48px;padding:7px 6px}
-  .dial-in-home-stats strong{font-size:15px}
-  .dial-in-home-stats small{font-size:8px}
-  .dial-in-mode-grid{gap:6px}
-  .dial-in-mode-card{min-height:60px;padding:9px 10px;gap:9px;border-radius:18px}
-  .dial-in-mode-icon{width:40px;height:40px;font-size:19px;border-radius:14px}
-  .dial-in-mode-copy strong{font-size:13px}
-  .dial-in-mode-copy small{font-size:10px}
-  .dial-in-mode-best{font-size:8px;padding:6px 8px}
-}
-
+/* very short screens: compress rather than scroll */
 @media (max-height:680px){
-  .dial-in-home-card{padding-top:48px;padding-bottom:8px}
-  .dial-in-home-stats{gap:6px}
-  .dial-in-home-stats>div{min-height:44px;padding:6px 5px}
-  .dial-in-mode-card{min-height:56px;padding:8px 10px}
-  .dial-in-mode-icon{width:36px;height:36px;font-size:17px}
-  .dial-in-mode-copy strong{font-size:12px}
-  .dial-in-mode-copy small{font-size:9px}
+  .dial-in-home-card{padding-top:48px;gap:6px}.dial-in-home-hero h1{font-size:34px}.dial-in-home-hero p:last-child{font-size:10px}.dial-in-home-stats>div{min-height:42px}.dial-in-mode-card{padding-top:7px;padding-bottom:7px}
+  .dial-in-tutorial-body,.dial-in-transition-center{padding-top:58px}.dial-in-tutorial-icon{width:62px;height:62px;font-size:28px;margin-bottom:10px}.dial-in-tutorial-body h2{font-size:26px;margin-bottom:7px}.dial-in-tutorial-body p{margin-bottom:12px}
+  .dial-in-sound-bottom{bottom:10px}.dial-in-sound-pills{margin-top:6px}.dial-in-sound-drag-guide{bottom:130px}.dial-in-fab{bottom:12px;right:12px;width:52px;height:52px}
+  .dial-in-result-scorebox{margin-top:56px}.dial-in-card-final{padding-top:66px}
 }
+
+@media (orientation:landscape) and (max-height:520px){
+  .dial-in-home-card,.dial-in-card{height:calc(100dvh - 10px);border-radius:16px}.dial-in-main{padding:5px}
+  .dial-in-home-card{padding:46px 12px 9px}.dial-in-home-hero h1{font-size:30px}.dial-in-home-stats>div{min-height:38px}.dial-in-mode-grid{grid-template-columns:repeat(3,1fr);grid-template-rows:1fr}.dial-in-mode-card{display:flex;flex-direction:column;align-items:flex-start;padding:8px}.dial-in-mode-icon{width:34px;height:34px;font-size:16px}.dial-in-mode-best{margin-top:auto}
+  .dial-in-color-layout{grid-template-columns:142px 1fr}.dial-in-color-controls{padding-top:46px}.dial-in-color-track{min-height:100px}
+  .dial-in-sound-visual svg{inset:-8% 17%;width:66%;height:116%}.dial-in-sound-bottom{left:16px;right:70px;bottom:9px}.dial-in-sound-number{font-size:42px}.dial-in-sound-instruction{display:none}.dial-in-sound-pills{margin-top:5px}.dial-in-sound-drag-guide{top:50px;bottom:102px}.dial-in-time-target-stage,.dial-in-time-live-stage{padding-top:48px;padding-bottom:58px}.dial-in-time-target-stage strong,.dial-in-time-live-stage strong,.dial-in-time-live-stage>span{font-size:64px}
+}
+
+
+/* v8 TIME — watch, hold, release */
+.dial-in-card-time-preview,.dial-in-card-time-waiting,.dial-in-card-time-holding,.dial-in-time-result-card{background:#000;color:#fff;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+.dial-in-card-time-preview .dial-in-stage-step,.dial-in-card-time-waiting .dial-in-stage-step,.dial-in-card-time-holding .dial-in-stage-step,.dial-in-time-result-card .dial-in-stage-step{color:rgba(255,255,255,.92)}
+.dial-in-time-rings{position:absolute;inset:-2%;overflow:hidden;pointer-events:none;background:#000}
+.dial-in-time-rings svg{width:104%;height:104%;margin:-2%;overflow:visible;filter:drop-shadow(0 0 7px rgba(105,175,255,.08))}
+.dial-in-time-ring{fill:none;stroke:url(#dialTimeGradient);stroke-width:1.65;opacity:.78;vector-effect:non-scaling-stroke;transform-box:fill-box;transform-origin:center;animation:dialTimeRingDrift calc(3.7s + var(--ring)*.16s) ease-in-out var(--ring-delay) infinite alternate;stroke-linecap:round;stroke-linejoin:round}
+.dial-in-time-ring:nth-child(3n+1){opacity:.58;stroke-width:1.35}.dial-in-time-ring:nth-child(3n+2){opacity:.9;stroke-width:1.8}.dial-in-time-ring:nth-child(3n){opacity:.68}
+.dial-in-time-rings.is-preview .dial-in-time-ring{animation-duration:3.3s}
+.dial-in-time-rings.is-holding .dial-in-time-ring{animation-duration:2.55s;filter:drop-shadow(0 0 3px rgba(165,120,255,.18))}
+.dial-in-time-rings.is-result{opacity:.72}.dial-in-time-rings.is-result .dial-in-time-ring{animation-duration:4.5s}
+.dial-in-time-preview-copy{position:absolute;z-index:3;left:20px;right:20px;bottom:27px;text-align:center;text-shadow:0 2px 16px rgba(0,0,0,.92)}
+.dial-in-time-preview-copy>strong{display:block;font-size:clamp(46px,12vw,78px);line-height:.88;letter-spacing:-.065em;font-weight:560;color:rgba(255,255,255,.78)}
+.dial-in-time-preview-copy>strong span{font-size:.45em;letter-spacing:0;margin-left:2px}.dial-in-time-preview-copy>strong.text-only{font-size:clamp(15px,4vw,20px);letter-spacing:-.02em;font-weight:750;color:rgba(255,255,255,.6)}
+.dial-in-time-preview-copy small{display:block;margin-top:8px;color:rgba(255,255,255,.48);font-size:11px;font-weight:650}
+.dial-in-time-wait-copy{position:absolute;left:18px;right:18px;bottom:26px;text-align:center;color:rgba(255,255,255,.5)}
+.dial-in-time-wait-copy strong{display:block;font-size:16px;font-weight:780;letter-spacing:-.025em}.dial-in-time-wait-copy small{display:block;margin-top:4px;font-size:13px;font-weight:650}
+.dial-in-time-hold-hint{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:10px;color:rgba(255,255,255,.28);animation:dialTimeHint 1.45s ease-in-out infinite}
+.dial-in-time-hold-hint i{width:56px;height:56px;border-radius:50%;border:1px solid rgba(255,255,255,.15);box-shadow:0 0 0 12px rgba(255,255,255,.025),0 0 0 24px rgba(255,255,255,.015)}.dial-in-time-hold-hint span{font-size:9px;font-weight:900;letter-spacing:.16em}
+.dial-in-time-holding-copy{position:absolute;z-index:3;left:18px;right:18px;bottom:27px;text-align:center;text-shadow:0 2px 18px #000}
+.dial-in-time-holding-copy strong{display:block;font-size:clamp(48px,12vw,78px);line-height:.86;letter-spacing:-.065em;font-weight:540;color:rgba(255,255,255,.72)}.dial-in-time-holding-copy strong span{font-size:.44em;letter-spacing:0;margin-left:2px}.dial-in-time-holding-copy small{display:block;margin-top:8px;color:rgba(255,255,255,.48);font-size:11px;font-weight:650}
+.dial-in-time-result-score{position:absolute;z-index:5;right:24px;top:62px;width:min(68%,430px);text-align:right;text-shadow:0 2px 20px #000}
+.dial-in-time-result-score>strong{display:block;font-size:clamp(72px,17vw,126px);line-height:.78;letter-spacing:-.08em;font-weight:560}.dial-in-time-result-score>strong span{font-size:.28em;letter-spacing:0;margin-left:3px}.dial-in-time-result-score p{margin:18px 0 0 auto;max-width:390px;font-size:clamp(17px,3.2vw,25px);line-height:1.15;font-weight:720;color:rgba(255,255,255,.68)}
+.dial-in-time-result-values{position:absolute;z-index:5;left:22px;right:100px;bottom:24px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;text-shadow:0 2px 14px #000}
+.dial-in-time-result-values>div{min-width:0}.dial-in-time-result-values small{display:block;color:rgba(255,255,255,.42);font-size:10px;font-weight:900;letter-spacing:.08em}.dial-in-time-result-values strong{display:block;margin-top:3px;font-size:clamp(28px,5vw,48px);line-height:.96;letter-spacing:-.055em;font-weight:590}.dial-in-time-result-values strong span{font-size:.42em;letter-spacing:0}
+@keyframes dialTimeRingDrift{0%{transform:translate3d(-1.8%,-1.2%,0) rotate(-3deg) scale(.985)}45%{transform:translate3d(1.4%,1.9%,0) rotate(2.4deg) scale(1.018)}100%{transform:translate3d(-.3%,2.5%,0) rotate(5deg) scale(.997)}}
+@keyframes dialTimeRingDash{to{stroke-dashoffset:42}}
+@keyframes dialTimeHint{0%,100%{opacity:.52;transform:translate(-50%,-50%) scale(.98)}50%{opacity:.9;transform:translate(-50%,-50%) scale(1.04)}}
+@media (max-width:760px){.dial-in-time-result-score{right:18px;top:58px;width:74%}.dial-in-time-result-score p{font-size:16px;max-width:290px;margin-top:14px}.dial-in-time-result-values{left:18px;right:84px;bottom:18px;grid-template-columns:1fr;gap:8px}.dial-in-time-result-values>div{display:flex;align-items:baseline;justify-content:space-between;gap:10px}.dial-in-time-result-values strong{font-size:19px}.dial-in-time-result-values small{font-size:9px}.dial-in-time-preview-copy,.dial-in-time-holding-copy{bottom:21px}.dial-in-time-wait-copy{bottom:22px}}
+@media (max-height:700px){.dial-in-time-result-score{top:52px}.dial-in-time-result-score>strong{font-size:68px}.dial-in-time-result-score p{font-size:14px;margin-top:10px}.dial-in-time-result-values{bottom:12px;gap:5px}.dial-in-time-preview-copy,.dial-in-time-holding-copy{bottom:16px}.dial-in-time-wait-copy{bottom:16px}.dial-in-time-hold-hint{top:47%}}

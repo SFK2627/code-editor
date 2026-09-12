@@ -11,7 +11,7 @@
   const MODES = Object.freeze({
     color: { icon: '🎨', label: 'COLOR', short: 'Match what you saw.', tutorial: 'Memorize the color. Recreate it after it disappears.' },
     sound: { icon: '🔊', label: 'SOUND', short: 'Match what you heard.', tutorial: 'Remember the tone. Match its pitch.' },
-    time:  { icon: '⏱', label: 'TIME',  short: 'Trust your internal clock.', tutorial: 'Start the timer. Stop it as close to the target as possible.' }
+    time:  { icon: '⏱', label: 'TIME',  short: 'Hold to match the timing.', tutorial: 'Watch the timing. Then press and hold to match it as closely as you can.' }
   });
   const ROUND_COUNT = 5;
   const COLOR_VIEW_MS = [4000, 3500, 3000, 2500, 2000];
@@ -50,6 +50,8 @@
     timePausedMs: 0,
     timePauseStartedAt: 0,
     timeRaf: 0,
+    timeHoldPointerId: null,
+    timeKeyboardHolding: false,
     paused: false,
     visibilityPaused: false,
     pauseReason: '',
@@ -58,8 +60,14 @@
     audioCtx: null,
     activeAudioNodes: new Set(),
     previewCooldownUntil: 0,
+    liveToneOsc: null,
+    liveToneGain: null,
+    liveToneActive: false,
     soundTargetToken: 0,
     autoAdvanceTask: null,
+    dragKind: '',
+    dragKey: '',
+    dragPointerId: null,
     confettiTimer: 0,
     unsub: null
   };
@@ -184,6 +192,7 @@
   }
 
   function stopTransientAudio() {
+    stopLiveTone(true);
     runtime.activeAudioNodes.forEach(node => {
       try { node.stop?.(); } catch (_) {}
       try { node.disconnect?.(); } catch (_) {}
@@ -248,6 +257,62 @@
     return new Promise(resolve => schedule(() => resolve(true), duration * 1000 + 30));
   }
 
+  function stopLiveTone(immediate = false) {
+    const osc = runtime.liveToneOsc;
+    const gain = runtime.liveToneGain;
+    runtime.liveToneOsc = null;
+    runtime.liveToneGain = null;
+    runtime.liveToneActive = false;
+    if (!osc) return;
+    try {
+      const ctx = runtime.audioCtx;
+      const now = ctx?.currentTime || 0;
+      if (gain && ctx && !immediate) {
+        gain.gain.cancelScheduledValues(now);
+        gain.gain.setValueAtTime(Math.max(.0001, gain.gain.value || .0001), now);
+        gain.gain.exponentialRampToValueAtTime(.0001, now + .035);
+        osc.stop(now + .045);
+      } else {
+        osc.stop();
+      }
+    } catch (_) {
+      try { osc.stop(); } catch (_) {}
+    }
+    try { osc.disconnect?.(); } catch (_) {}
+    try { gain?.disconnect?.(); } catch (_) {}
+  }
+
+  function startLiveTone() {
+    if (!soundOn() || runtime.stage !== 'sound-guess') return false;
+    const ctx = ensureAudio();
+    if (!ctx) return false;
+    stopLiveTone(true);
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(clamp(selectedFrequency(), 100, 1600), now);
+    gain.gain.setValueAtTime(.0001, now);
+    gain.gain.exponentialRampToValueAtTime(Math.max(.0002, __ict8SfxGain(.055)), now + .018);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start(now);
+    runtime.liveToneOsc = osc;
+    runtime.liveToneGain = gain;
+    runtime.liveToneActive = true;
+    return true;
+  }
+
+  function updateLiveTone() {
+    if (!runtime.liveToneActive || !runtime.liveToneOsc || !runtime.audioCtx) return;
+    try {
+      const now = runtime.audioCtx.currentTime;
+      const hz = clamp(selectedFrequency(), 100, 1600);
+      runtime.liveToneOsc.frequency.cancelScheduledValues(now);
+      runtime.liveToneOsc.frequency.setTargetAtTime(hz, now, .018);
+    } catch (_) {}
+  }
+
+
   function vibrate(pattern) {
     try { if (navigator.vibrate) navigator.vibrate(pattern); } catch (_) {}
   }
@@ -301,8 +366,15 @@
     overlay.addEventListener('click', handleClick);
     overlay.addEventListener('input', handleInput);
     overlay.addEventListener('change', handleChange);
+    overlay.addEventListener('pointerdown', handlePointerDown);
+    overlay.addEventListener('pointermove', handlePointerMove);
+    overlay.addEventListener('pointerup', handlePointerUp);
+    overlay.addEventListener('pointercancel', handlePointerUp);
+    overlay.addEventListener('keydown', handleKeyDown);
+    overlay.addEventListener('keyup', handleKeyUp);
+    overlay.addEventListener('wheel', handleWheel, { passive: false });
     overlay.addEventListener('contextmenu', event => {
-      if (event.target.closest('.dial-in-control-card,.dial-in-color-rail')) event.preventDefault();
+      if (event.target.closest('[data-dial-color-control],[data-dial-sound-pad],[data-dial-time-hold]')) event.preventDefault();
     });
     runtime.built = true;
   }
@@ -310,7 +382,7 @@
 
   function uiStageMeta(mode = runtime.mode, caption = '') {
     const roundText = runtime.mode ? `${runtime.roundIndex + 1} / ${ROUND_COUNT}` : 'DIAL IN';
-    return `<div class="dial-in-stage-meta"><span class="dial-in-stage-step">${roundText}</span><span class="dial-in-stage-brand">Dialed.gg</span>${caption ? `<small class="dial-in-stage-caption-top">${caption}</small>` : ''}</div>`;
+    return `<div class="dial-in-stage-meta"><span class="dial-in-stage-step">${roundText}</span>${caption ? `<small class="dial-in-stage-caption-top">${caption}</small>` : ''}</div>`;
   }
 
   function homeHtml() {
@@ -332,93 +404,136 @@
         </div>
         <div class="dial-in-mode-grid">
           ${Object.entries(MODES).map(([id, meta]) => {
-            const explicitKey = id === 'color' ? 'bestColorAccuracy' : id === 'sound' ? 'bestSoundAccuracy' : 'bestTimeAccuracy';
-            const best = Number(record[explicitKey] || 0);
+            const key = id === 'color' ? 'bestColorAccuracy' : id === 'sound' ? 'bestSoundAccuracy' : 'bestTimeAccuracy';
             return `<button type="button" class="dial-in-mode-card dial-in-mode-${id}" data-dial-mode="${id}">
               <span class="dial-in-mode-icon">${meta.icon}</span>
               <span class="dial-in-mode-copy"><strong>${meta.label}</strong><small>${meta.short}</small></span>
-              <span class="dial-in-mode-best">BEST ${formatBest(best)}</span>
+              <span class="dial-in-mode-best">BEST ${formatBest(Number(record[key] || 0))}</span>
             </button>`;
           }).join('')}
         </div>
-        <button type="button" class="dial-in-arcade-back" data-dial-hub>← BACK TO MINI-GAMES</button>
       </section>`;
   }
 
   function tutorialHtml(mode) {
     const meta = modeMeta(mode);
-    return `
-      <section class="dial-in-tutorial dial-in-card dial-in-screen-enter dial-in-card-${mode}">
-        ${uiStageMeta(mode, `${meta.label} MODE`)}
-        <div class="dial-in-tutorial-body">
-          <div class="dial-in-tutorial-icon">${meta.icon}</div>
-          <h2>${meta.tutorial}</h2>
-          <p>${mode === 'color' ? 'The color vanishes. Rebuild it from memory.' : mode === 'sound' ? 'Hear the tone once, then match the pitch.' : 'See the target time, then stop as close as you can.'}</p>
-          <div class="dial-in-actions">
-            <button type="button" class="dial-in-primary" data-dial-tutorial-start>START</button>
-            <button type="button" class="dial-in-secondary" data-dial-tutorial-skip>SKIP</button>
-          </div>
-        </div>
-      </section>`;
+    const copy = mode === 'color'
+      ? 'Memorize the color, then drag the three vertical dials to rebuild it.'
+      : mode === 'sound'
+        ? 'Listen once, then drag up or down on the waveform to tune your pitch.'
+        : 'Remember the target time. Start, trust your internal clock, then stop.';
+    return `<section class="dial-in-tutorial dial-in-card dial-in-screen-enter dial-in-card-${mode}">
+      ${uiStageMeta(mode, `${meta.label} MODE`)}
+      <div class="dial-in-tutorial-body">
+        <div class="dial-in-tutorial-icon">${meta.icon}</div>
+        <h2>${meta.tutorial}</h2>
+        <p>${copy}</p>
+        <div class="dial-in-actions"><button type="button" class="dial-in-primary" data-dial-tutorial-start>START</button><button type="button" class="dial-in-secondary" data-dial-tutorial-skip>SKIP</button></div>
+      </div>
+    </section>`;
   }
 
   function transitionHtml() {
     const meta = modeMeta();
     return `<section class="dial-in-round-transition dial-in-card dial-in-screen-enter dial-in-card-${runtime.mode}">
       ${uiStageMeta(runtime.mode, `${meta.label} MODE`)}
-      <div class="dial-in-transition-center">
-        <span>${meta.icon}</span>
-        <strong>ROUND ${runtime.roundIndex + 1}</strong>
-        <small>Get ready to dial in.</small>
-      </div>
+      <div class="dial-in-transition-center"><span>${meta.icon}</span><strong>ROUND ${runtime.roundIndex + 1}</strong><small>Get ready.</small></div>
     </section>`;
   }
 
   function colorTargetHtml(challenge) {
     return `<section class="dial-in-play dial-in-card dial-in-screen-enter dial-in-card-color-target">
       ${uiStageMeta('color')}
-      <div class="dial-in-color-full" style="background:hsl(${challenge.h} ${challenge.s}% ${challenge.l}%);">
-        <p>remember the color</p>
-      </div>
+      <div class="dial-in-color-full" style="background:hsl(${challenge.h} ${challenge.s}% ${challenge.l}%);"><p>remember the color</p></div>
       <div class="dial-in-memory-bar"><i style="--memory-ms:${challenge.viewMs}ms"></i></div>
     </section>`;
   }
 
-  function vSliderHtml(label, key, min, max, value, railClass) {
-    return `<label class="dial-in-color-rail ${railClass}"><input type="range" min="${min}" max="${max}" value="${value}" step="1" data-dial-color="${key}" aria-label="${label}"><small>${label}</small></label>`;
+  function colorPercent(key, value) {
+    const max = key === 'h' ? 360 : 100;
+    return clamp(Number(value || 0) / max, 0, 1) * 100;
+  }
+
+  function colorControlHtml(label, key, value, trackStyle) {
+    const max = key === 'h' ? 360 : 100;
+    const p = colorPercent(key, value);
+    return `<div class="dial-in-color-control" data-dial-color-control="${key}" data-min="0" data-max="${max}" role="slider" aria-label="${label}" aria-valuemin="0" aria-valuemax="${max}" aria-valuenow="${Math.round(value)}">
+      <div class="dial-in-color-track" data-dial-color-track="${key}" style="${trackStyle}"><i class="dial-in-color-thumb" style="bottom:${p}%"></i></div>
+      <small>${label}</small>
+    </div>`;
+  }
+
+  function colorTrackStyles(g = runtime.colorGuess) {
+    return {
+      h: 'background:linear-gradient(to top,#ff2d55 0%,#ff9500 16%,#ffe600 28%,#25d366 44%,#00d9ff 59%,#3157ff 73%,#9b32ff 86%,#ff2d8d 100%)',
+      s: `background:linear-gradient(to top,hsl(${g.h} 0% ${g.l}%),hsl(${g.h} 100% ${g.l}%))`,
+      l: `background:linear-gradient(to top,#050505 0%,hsl(${g.h} ${g.s}% 50%) 50%,#ffffff 100%)`
+    };
   }
 
   function colorGuessHtml() {
     const g = runtime.colorGuess;
+    const tracks = colorTrackStyles(g);
     return `<section class="dial-in-play dial-in-card dial-in-screen-enter dial-in-card-color-guess">
       ${uiStageMeta('color')}
       <div class="dial-in-color-layout">
-        <div class="dial-in-color-rails">
-          ${vSliderHtml('HUE', 'h', 0, 360, g.h, 'rail-hue')}
-          ${vSliderHtml('SAT', 's', 0, 100, g.s, 'rail-sat')}
-          ${vSliderHtml('LIT', 'l', 0, 100, g.l, 'rail-lit')}
+        <div class="dial-in-color-controls">
+          ${colorControlHtml('HUE', 'h', g.h, tracks.h)}
+          ${colorControlHtml('SAT', 's', g.s, tracks.s)}
+          ${colorControlHtml('LIGHT', 'l', g.l, tracks.l)}
         </div>
         <div class="dial-in-color-field" data-dial-color-preview style="background:hsl(${g.h} ${g.s}% ${g.l}%);"></div>
       </div>
-      <div class="dial-in-color-values">H${Math.round(g.h)} S${Math.round(g.s)} B${Math.round(g.l)}</div>
-      <button type="button" class="dial-in-fab" data-dial-lock aria-label="Lock in">↗</button>
+      <div class="dial-in-color-values">H${Math.round(g.h)} S${Math.round(g.s)} L${Math.round(g.l)}</div>
+      <button type="button" class="dial-in-fab" data-dial-lock aria-label="Lock in">→</button>
     </section>`;
   }
 
-  function soundArtHtml(mode = 'target') {
-    const items = Array.from({ length: 10 }, (_, index) => `<i style="--i:${index};"></i>`).join('');
-    return `<div class="dial-in-sound-art ${mode}" aria-hidden="true">${items}</div>`;
+  function soundLevelForHz(hz, challenge = currentChallenge()) {
+    if (!challenge) return .5;
+    const minHz = Math.max(1, Number(challenge.minHz || SOUND_MIN_HZ));
+    const maxHz = Math.max(minHz + 1, Number(challenge.maxHz || 1000));
+    return clamp(Math.log(Math.max(minHz, Number(hz || minHz)) / minHz) / Math.log(maxHz / minHz), 0, 1);
+  }
+
+  function makeWavePath(level, band = 0) {
+    const points = 48;
+    const cycles = 1.25 + level * 4.4;
+    const amp = 3.1 + band * 2.15;
+    const phase = band * .37;
+    const out = [];
+    for (let i = 0; i <= points; i += 1) {
+      const t = i / points;
+      const envelope = .18 + .82 * Math.pow(Math.sin(Math.PI * t), .72);
+      const wobble = Math.sin(t * Math.PI * 2 * cycles + phase) + .28 * Math.sin(t * Math.PI * 2 * (cycles * .48) - phase * .7);
+      const x = 50 + wobble * amp * envelope;
+      const y = t * 100;
+      out.push(`${i ? 'L' : 'M'}${x.toFixed(2)},${y.toFixed(2)}`);
+    }
+    return out.join(' ');
+  }
+
+  function soundWaveHtml(level, state = 'guess') {
+    const paths = Array.from({ length: 11 }, (_, index) => `<path data-dial-wave="${index}" d="${makeWavePath(level, index)}" style="--i:${index}"></path>`).join('');
+    return `<div class="dial-in-sound-visual ${state}" data-dial-sound-visual style="--tone:${level.toFixed(3)}"><svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">${paths}</svg><i class="dial-in-sound-spine"></i></div>`;
   }
 
   function soundTargetHtml(challenge) {
+    const level = soundLevelForHz(challenge.hz, challenge);
     return `<section class="dial-in-play dial-in-card dial-in-screen-enter dial-in-card-sound">
       ${uiStageMeta('sound')}
-      ${soundArtHtml('target')}
-      <div class="dial-in-sound-listen-copy">
-        <strong>LISTEN</strong>
-        <p>${soundOn() ? 'remember the tone' : 'turn on sound to play this mode'}</p>
+      <div class="dial-in-sound-pad is-listening" data-dial-sound-pad style="--dial-y:${(100 - level * 70 - 15).toFixed(1)}%">
+        ${soundWaveHtml(level, 'listening')}
+        <div class="dial-in-sound-listen-copy"><strong>LISTEN</strong><p>${soundOn() ? 'remember the tone' : 'turn on sound to play'}</p></div>
       </div>
     </section>`;
+  }
+
+  function selectedFrequency() {
+    const challenge = currentChallenge();
+    if (!challenge) return 440;
+    const t = clamp(runtime.soundSlider, 0, 1000) / 1000;
+    return challenge.minHz * Math.pow(challenge.maxHz / challenge.minHz, t);
   }
 
   function selectedFrequencyLabel() {
@@ -427,17 +542,16 @@
 
   function soundGuessHtml() {
     const ch = currentChallenge();
+    const level = clamp(runtime.soundSlider / 1000, 0, 1);
     return `<section class="dial-in-play dial-in-card dial-in-screen-enter dial-in-card-sound">
       ${uiStageMeta('sound')}
-      ${soundArtHtml('guess')}
-      <div class="dial-in-sound-bottom">
-        <div class="dial-in-sound-number" data-dial-frequency-number>${selectedFrequencyLabel()}</div>
-        <div class="dial-in-sound-slider-wrap">
-          <input type="range" min="0" max="1000" step="1" value="${runtime.soundSlider}" data-dial-frequency class="dial-in-sound-slider" aria-label="Frequency guess">
-        </div>
-        <div class="dial-in-sound-pills">
-          <button type="button" data-dial-preview>Preview tone</button>
-          ${ch?.replayAllowed && !runtime.soundReplayUsed ? '<button type="button" data-dial-replay>Replay target · 1</button>' : ''}
+      <div class="dial-in-sound-pad is-guessing" data-dial-sound-pad style="--dial-y:${(100 - level * 70 - 15).toFixed(1)}%">
+        ${soundWaveHtml(level, 'guess')}
+        <div class="dial-in-sound-drag-guide"><span>HIGH</span><i></i><span>LOW</span></div>
+        <div class="dial-in-sound-bottom">
+          <div class="dial-in-sound-number" data-dial-frequency-number>${selectedFrequencyLabel()}</div>
+          <small class="dial-in-sound-instruction">Drag up/down to tune · sound plays live</small>
+          <div class="dial-in-sound-pills"><button type="button" data-dial-preview>▶ PREVIEW</button>${ch?.replayAllowed && !runtime.soundReplayUsed ? '<button type="button" data-dial-replay>↻ TARGET · 1</button>' : ''}</div>
         </div>
       </div>
       <button type="button" class="dial-in-fab" data-dial-lock aria-label="Lock in">→</button>
@@ -452,81 +566,105 @@
     if (a >= 80) return 'Sharp memory. Nice dial-in.';
     if (a >= 70) return 'Pretty close.';
     if (a >= 60) return 'Not bad, not brilliant.';
-    if (a >= 45) return 'Right in the fat middle of mediocrity.';
+    if (a >= 45) return 'Right in the middle.';
     return 'A beautiful miss. Try again.';
   }
 
-  function scoreDisplay(value) {
-    return round1(value).toFixed(1);
-  }
+  function scoreDisplay(value) { return round1(value).toFixed(1); }
 
   function resultShellHtml(result, inner, extraClass = '') {
     return `<section class="dial-in-result dial-in-card dial-in-screen-enter dial-in-card-result ${extraClass}">
       ${inner}
-      <div class="dial-in-result-overlay">
-        ${uiStageMeta(runtime.mode)}
-        <div class="dial-in-result-scorebox">
-          <strong>${scoreDisplay(result.accuracy)}</strong>
-          <small>Accuracy</small>
-          <p>${flavorForAccuracy(result.accuracy)}</p>
-        </div>
-      </div>
+      <div class="dial-in-result-overlay">${uiStageMeta(runtime.mode)}<div class="dial-in-result-scorebox"><strong>${scoreDisplay(result.accuracy)}</strong><small>Accuracy</small><p>${flavorForAccuracy(result.accuracy)}</p></div></div>
       <button type="button" class="dial-in-fab" data-dial-next aria-label="${runtime.roundIndex >= 4 ? 'See results' : 'Next round'}">→</button>
     </section>`;
   }
 
   function colorResultHtml(result) {
-    return resultShellHtml(result, `<div class="dial-in-color-result-split">
-      <div class="dial-in-color-result-pane guess" style="background:hsl(${result.guess.h} ${result.guess.s}% ${result.guess.l}%);"><div><small>Your selection</small><strong>H${result.guess.h} S${result.guess.s} B${result.guess.l}</strong></div></div>
-      <div class="dial-in-color-result-pane target" style="background:hsl(${result.target.h} ${result.target.s}% ${result.target.l}%);"><div><small>Original</small><strong>H${result.target.h} S${result.target.s} B${result.target.l}</strong></div></div>
-    </div>`, 'dial-in-color-result-card');
+    return resultShellHtml(result, `<div class="dial-in-color-result-split"><div class="dial-in-color-result-pane guess" style="background:hsl(${result.guess.h} ${result.guess.s}% ${result.guess.l}%);"><div><small>Your selection</small><strong>H${result.guess.h} S${result.guess.s} L${result.guess.l}</strong></div></div><div class="dial-in-color-result-pane target" style="background:hsl(${result.target.h} ${result.target.s}% ${result.target.l}%);"><div><small>Original</small><strong>H${result.target.h} S${result.target.s} L${result.target.l}</strong></div></div></div>`, 'dial-in-color-result-card');
   }
 
   function soundResultHtml(result) {
-    return resultShellHtml(result, `<div class="dial-in-metric-stage dial-in-metric-stage-sound">
-      <div class="dial-in-metric-bg sound"></div>
-      <div class="dial-in-metric-compare sound-grid">
-        <div><small>TARGET</small><strong>${Math.round(result.targetHz)} Hz</strong></div>
-        <div><small>YOUR GUESS</small><strong>${Math.round(result.guessHz)} Hz</strong></div>
-        <div><small>DIFFERENCE</small><strong>${Math.round(result.diffHz)} Hz</strong></div>
-      </div>
-    </div>`);
+    return resultShellHtml(result, `<div class="dial-in-metric-stage dial-in-metric-stage-sound">${soundWaveHtml(soundLevelForHz(result.targetHz), 'result')}<div class="dial-in-metric-compare sound-grid"><div><small>TARGET</small><strong>${Math.round(result.targetHz)} Hz</strong></div><div><small>YOUR GUESS</small><strong>${Math.round(result.guessHz)} Hz</strong></div><div><small>DIFFERENCE</small><strong>${Math.round(result.diffHz)} Hz</strong></div></div></div>`);
+  }
+
+  function makeTimeRingPath(radius, index) {
+    const cx = 300;
+    const cy = 300;
+    const phase = index * 0.57;
+    const pts = [];
+    for (let deg = 0; deg <= 360; deg += 4) {
+      const a = deg * Math.PI / 180;
+      const wobble = 1
+        + 0.052 * Math.sin(a * 2 + phase)
+        + 0.032 * Math.sin(a * 4 - phase * .8)
+        + 0.018 * Math.cos(a * 6 + phase * 1.3);
+      const skewX = 1 + 0.065 * Math.sin(a + phase);
+      const skewY = 1 - 0.052 * Math.cos(a - phase * .7);
+      const x = cx + Math.cos(a) * radius * wobble * skewX;
+      const y = cy + Math.sin(a) * radius * wobble * skewY;
+      pts.push(`${deg === 0 ? 'M' : 'L'}${x.toFixed(1)} ${y.toFixed(1)}`);
+    }
+    return `${pts.join(' ')} Z`;
+  }
+
+  function timeRingsHtml(state = 'preview') {
+    const rings = Array.from({ length: 11 }, (_, index) => {
+      const radius = 24 + index * 23.2;
+      return `<path class="dial-in-time-ring ring-${index + 1}" d="${makeTimeRingPath(radius, index)}" style="--ring:${index};--ring-delay:${(-index * .16).toFixed(2)}s"></path>`;
+    }).join('');
+    return `<div class="dial-in-time-rings is-${state}" data-dial-time-rings aria-hidden="true"><svg viewBox="0 0 600 600" preserveAspectRatio="xMidYMid slice"><defs><linearGradient id="dialTimeGradient" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#77c7ff"></stop><stop offset=".48" stop-color="#89a8ff"></stop><stop offset="1" stop-color="#d394ff"></stop></linearGradient></defs><g>${rings}</g></svg></div>`;
   }
 
   function timeReadyHtml(challenge) {
-    return `<section class="dial-in-play dial-in-card dial-in-screen-enter dial-in-card-time-ready">
+    const showNumber = runtime.roundIndex <= 1;
+    return `<section class="dial-in-play dial-in-card dial-in-screen-enter dial-in-card-time-preview">
       ${uiStageMeta('time')}
-      <div class="dial-in-time-target-stage">
-        <strong>${(challenge.targetMs / 1000).toFixed(2)}</strong>
-        <span>Seconds to remember</span>
+      ${timeRingsHtml('preview')}
+      <div class="dial-in-time-preview-copy">
+        ${showNumber ? `<strong>${(challenge.targetMs / 1000).toFixed(2)}<span>s</span></strong>` : '<strong class="text-only">remember the timing</strong>'}
+        ${showNumber ? '<small>remember this duration</small>' : '<small>watch how long the rings stay alive</small>'}
       </div>
-      <div class="dial-in-time-brand-corner">Dialed.gg</div>
-      <button type="button" class="dial-in-fab" data-dial-time-start aria-label="Start timer">→</button>
+    </section>`;
+  }
+
+  function timeWaitingHtml() {
+    return `<section class="dial-in-play dial-in-card dial-in-screen-enter dial-in-card-time-waiting" data-dial-time-hold tabindex="0" role="button" aria-label="Press and hold to match the timing">
+      ${uiStageMeta('time')}
+      <div class="dial-in-time-wait-copy"><strong>your turn</strong><small>press & hold to match</small></div>
+      <div class="dial-in-time-hold-hint"><i></i><span>HOLD ANYWHERE</span></div>
     </section>`;
   }
 
   function timeRunningHtml() {
-    return `<section class="dial-in-play dial-in-card dial-in-screen-enter dial-in-card-time-running">
+    return `<section class="dial-in-play dial-in-card dial-in-screen-enter dial-in-card-time-holding" data-dial-time-hold tabindex="0" role="button" aria-label="Release to stop">
       ${uiStageMeta('time')}
-      <div class="dial-in-time-live-stage" data-dial-time-live>
-        <strong data-dial-time-number>0.00</strong>
-        <span data-dial-time-dots hidden>•••</span>
-        <small>Trust your internal clock</small>
-      </div>
-      <button type="button" class="dial-in-fab dial-in-fab-stop" data-dial-time-stop aria-label="Stop timer">■</button>
+      ${timeRingsHtml('holding')}
+      <div class="dial-in-time-holding-copy"><strong data-dial-time-number>0.00<span>s</span></strong><small>release when it feels right</small></div>
     </section>`;
+  }
+
+  function timeResultFlavor(diffMs) {
+    const d = Math.abs(Number(diffMs || 0));
+    if (d <= 50) return 'Basically psychic.';
+    if (d <= 120) return 'Your internal clock is scary good.';
+    if (d <= 250) return 'That was seriously close.';
+    if (d <= 500) return 'Pretty close.';
+    if (d <= 1000) return 'Close enough to make it interesting.';
+    if (d <= 2000) return 'Your internal clock took the scenic route.';
+    return 'Your internal clock filed a missing persons report.';
   }
 
   function timeResultHtml(result) {
     const sign = result.deltaMs >= 0 ? '+' : '−';
-    return resultShellHtml(result, `<div class="dial-in-metric-stage dial-in-metric-stage-time">
-      <div class="dial-in-time-surface"></div>
-      <div class="dial-in-metric-compare time-grid">
-        <div><small>TARGET</small><strong>${(result.targetMs / 1000).toFixed(3)} s</strong></div>
-        <div><small>YOU</small><strong>${(result.actualMs / 1000).toFixed(3)} s</strong></div>
-        <div><small>OFF BY</small><strong>${sign}${(Math.abs(result.deltaMs) / 1000).toFixed(3)} s</strong></div>
-      </div>
-    </div>`);
+    const off = Math.abs(result.deltaMs) / 1000;
+    return `<section class="dial-in-result dial-in-card dial-in-screen-enter dial-in-time-result-card">
+      ${uiStageMeta('time')}
+      ${timeRingsHtml('result')}
+      <div class="dial-in-time-result-score"><strong>${off.toFixed(2)}<span>s</span></strong><p>${timeResultFlavor(result.deltaMs)}</p></div>
+      <div class="dial-in-time-result-values"><div><small>TARGET</small><strong>${(result.targetMs / 1000).toFixed(2)}<span> sec</span></strong></div><div><small>YOU</small><strong>${(result.actualMs / 1000).toFixed(2)}<span> sec</span></strong></div><div><small>OFF BY</small><strong>${sign}${off.toFixed(2)}<span> sec</span></strong></div></div>
+      <button type="button" class="dial-in-fab" data-dial-next aria-label="${runtime.roundIndex >= 4 ? 'See results' : 'Next round'}">→</button>
+    </section>`;
   }
 
   function finalHtml() {
@@ -534,22 +672,15 @@
     const avg = values.length ? values.reduce((a, b) => a + b, 0) / values.length : 0;
     const best = values.length ? Math.max(...values) : 0;
     const meta = modeMeta();
-    return `<section class="dial-in-final dial-in-card dial-in-screen-enter dial-in-card-final ${runtime.mode ? `dial-in-card-${runtime.mode}` : ''}">
+    return `<section class="dial-in-final dial-in-card dial-in-screen-enter dial-in-card-final dial-in-card-${runtime.mode}">
       ${uiStageMeta(runtime.mode, `${meta.label} COMPLETE`)}
-      <div class="dial-in-final-center">
-        <p class="dial-in-kicker">AVERAGE ACCURACY</p>
-        <strong class="dial-in-final-score">${scoreDisplay(avg)}</strong>
-        <p class="dial-in-final-line">${flavorForAccuracy(avg)}</p>
-      </div>
-      <div class="dial-in-final-stats">
-        <div><small>BEST ROUND</small><strong>${scoreDisplay(best)}</strong></div>
-        <div><small>ROUNDS</small><strong>${runtime.roundResults.length}/${ROUND_COUNT}</strong></div>
-        <div><small>XP</small><strong data-dial-final-xp>…</strong></div>
-      </div>
+      <div class="dial-in-final-center"><p class="dial-in-kicker">AVERAGE ACCURACY</p><strong class="dial-in-final-score">${scoreDisplay(avg)}</strong><p class="dial-in-final-line">${flavorForAccuracy(avg)}</p></div>
+      <div class="dial-in-final-stats"><div><small>BEST ROUND</small><strong>${scoreDisplay(best)}</strong></div><div><small>ROUNDS</small><strong>${runtime.roundResults.length}/${ROUND_COUNT}</strong></div><div><small>XP</small><strong data-dial-final-xp>…</strong></div></div>
       <p class="dial-in-reward-note" data-dial-reward-note>Submitting this completed 5-round session…</p>
       <div class="dial-in-final-actions"><button type="button" class="dial-in-primary" data-dial-play-again>PLAY AGAIN</button><button type="button" class="dial-in-secondary" data-dial-change-mode>CHANGE MODE</button><button type="button" class="dial-in-secondary" data-dial-hub>BACK TO ARCADE</button></div>
     </section>`;
   }
+
   function render() {
     if (!runtime.main) return;
     let html = '';
@@ -563,6 +694,7 @@
     else if (runtime.stage === 'sound-guess') html = soundGuessHtml();
     else if (runtime.stage === 'sound-result') html = soundResultHtml(runtime.roundResults[runtime.roundResults.length - 1]);
     else if (runtime.stage === 'time-ready') html = timeReadyHtml(currentChallenge());
+    else if (runtime.stage === 'time-waiting') html = timeWaitingHtml();
     else if (runtime.stage === 'time-running') html = timeRunningHtml();
     else if (runtime.stage === 'time-result') html = timeResultHtml(runtime.roundResults[runtime.roundResults.length - 1]);
     else if (runtime.stage === 'final') html = finalHtml();
@@ -660,6 +792,9 @@
     runtime.roundIndex = 0;
     runtime.timeStartedAt = 0;
     runtime.timePausedMs = 0;
+    runtime.dragKind = '';
+    runtime.dragKey = '';
+    runtime.dragPointerId = null;
     runtime.paused = false;
     hidePause();
   }
@@ -696,6 +831,12 @@
     }
     runtime.stage = 'time-ready';
     render();
+    schedule(() => {
+      if (!runtime.open || runtime.paused || runtime.visibilityPaused || runtime.stage !== 'time-ready') return;
+      runtime.stage = 'time-waiting';
+      render();
+      sfx('vanish');
+    }, ch.targetMs);
   }
 
   function playSoundTarget() {
@@ -705,12 +846,13 @@
       schedule(() => { runtime.stage = 'sound-guess'; render(); }, 600);
       return;
     }
-    const token = ++runtime.soundTargetToken;
     stopTransientAudio();
-    playToneFrequency(ch.hz, ch.durationMs, .11).then(() => {
-      if (!runtime.open || runtime.paused || runtime.visibilityPaused || token !== runtime.soundTargetToken || runtime.stage !== 'sound-target') return;
-      schedule(() => { if (runtime.stage === 'sound-target') { runtime.stage = 'sound-guess'; render(); } }, 230);
-    });
+    playToneFrequency(ch.hz, ch.durationMs, .11).catch?.(() => {});
+    schedule(() => {
+      if (!runtime.open || runtime.paused || runtime.visibilityPaused || runtime.stage !== 'sound-target') return;
+      runtime.stage = 'sound-guess';
+      render();
+    }, ch.durationMs + 230);
   }
 
   function hslToRgb(h, s, l) {
@@ -798,15 +940,18 @@
     transitionToRound();
   }
 
-  function startTimeRound() {
-    if (runtime.stage !== 'time-ready') return;
+  function startTimeRound(pointerId = null) {
+    if (runtime.stage !== 'time-waiting' || runtime.paused || runtime.visibilityPaused) return false;
     clearTasks();
     runtime.stage = 'time-running';
     runtime.timeStartedAt = performance.now();
     runtime.timePausedMs = 0;
     runtime.timePauseStartedAt = 0;
+    runtime.timeHoldPointerId = pointerId;
     render();
     sfx('start');
+    vibrate(12);
+    return true;
   }
 
   function currentTimeElapsed() {
@@ -822,18 +967,8 @@
       if (!runtime.open || runtime.stage !== 'time-running') { runtime.timeRaf = 0; return; }
       if (!runtime.paused && !runtime.visibilityPaused) {
         const elapsed = currentTimeElapsed();
-        const number = runtime.overlay.querySelector('[data-dial-time-number]');
-        const dots = runtime.overlay.querySelector('[data-dial-time-dots]');
-        if (number && dots) {
-          if (elapsed <= 900) {
-            number.hidden = false;
-            dots.hidden = true;
-            number.textContent = (elapsed / 1000).toFixed(2);
-          } else {
-            number.hidden = true;
-            dots.hidden = false;
-          }
-        }
+        const number = runtime.overlay?.querySelector('[data-dial-time-number]');
+        if (number) number.innerHTML = `${(elapsed / 1000).toFixed(2)}<span>s</span>`;
       }
       runtime.timeRaf = requestAnimationFrame(loop);
     };
@@ -846,16 +981,19 @@
   }
 
   function stopTimeRound() {
-    if (runtime.stage !== 'time-running' || runtime.paused || runtime.visibilityPaused) return;
+    if (runtime.stage !== 'time-running' || runtime.paused || runtime.visibilityPaused) return false;
     const ch = currentChallenge();
     const actualMs = currentTimeElapsed();
     stopTimeRaf();
     runtime.timeStartedAt = 0;
+    runtime.timeHoldPointerId = null;
+    runtime.timeKeyboardHolding = false;
     sfx('stop');
     vibrate(18);
     const result = { mode: 'time', targetMs: ch.targetMs, actualMs, deltaMs: actualMs - ch.targetMs, accuracy: round1(timeAccuracy(ch.targetMs, actualMs)) };
     runtime.stage = 'time-result';
     completeRound(result);
+    return true;
   }
 
   function expectedXpForAverage(avg) {
@@ -950,27 +1088,168 @@
     runtime.confettiTimer = setTimeout(() => wrap.remove(), 1600);
   }
 
-  function handleInput(event) {
-    const colorInput = event.target.closest('[data-dial-color]');
-    if (colorInput) {
-      const key = colorInput.dataset.dialColor;
-      runtime.colorGuess[key] = Number(colorInput.value || 0);
-      const preview = runtime.overlay.querySelector('[data-dial-color-preview]');
-      if (preview) preview.style.background = `hsl(${runtime.colorGuess.h} ${runtime.colorGuess.s}% ${runtime.colorGuess.l}%)`;
-      const values = runtime.overlay.querySelector('.dial-in-color-values');
-      if (values) values.textContent = `H${Math.round(runtime.colorGuess.h)} S${Math.round(runtime.colorGuess.s)} B${Math.round(runtime.colorGuess.l)}`;
+  function updateColorUi() {
+    const g = runtime.colorGuess;
+    const preview = runtime.overlay?.querySelector('[data-dial-color-preview]');
+    if (preview) preview.style.background = `hsl(${g.h} ${g.s}% ${g.l}%)`;
+    const values = runtime.overlay?.querySelector('.dial-in-color-values');
+    if (values) values.textContent = `H${Math.round(g.h)} S${Math.round(g.s)} L${Math.round(g.l)}`;
+    const tracks = colorTrackStyles(g);
+    ['h','s','l'].forEach(key => {
+      const control = runtime.overlay?.querySelector(`[data-dial-color-control="${key}"]`);
+      const track = runtime.overlay?.querySelector(`[data-dial-color-track="${key}"]`);
+      const thumb = control?.querySelector('.dial-in-color-thumb');
+      if (thumb) thumb.style.bottom = `${colorPercent(key, g[key])}%`;
+      if (track) track.setAttribute('style', tracks[key]);
+      if (control) control.setAttribute('aria-valuenow', String(Math.round(g[key])));
+    });
+  }
+
+  function updateColorFromPointer(control, clientY) {
+    if (!control) return;
+    const key = String(control.dataset.dialColorControl || '');
+    if (!['h','s','l'].includes(key)) return;
+    const track = control.querySelector('.dial-in-color-track');
+    const rect = track?.getBoundingClientRect();
+    if (!rect || rect.height <= 1) return;
+    const min = Number(control.dataset.min || 0);
+    const max = Number(control.dataset.max || (key === 'h' ? 360 : 100));
+    const p = 1 - clamp((clientY - rect.top) / rect.height, 0, 1);
+    runtime.colorGuess[key] = Math.round(min + p * (max - min));
+    updateColorUi();
+  }
+
+  function updateSoundWaveUi() {
+    const level = clamp(runtime.soundSlider / 1000, 0, 1);
+    runtime.overlay?.querySelectorAll('[data-dial-wave]').forEach(path => {
+      const band = Number(path.dataset.dialWave || 0);
+      path.setAttribute('d', makeWavePath(level, band));
+    });
+    const visual = runtime.overlay?.querySelector('[data-dial-sound-visual]');
+    if (visual) visual.style.setProperty('--tone', level.toFixed(3));
+    const pad = runtime.overlay?.querySelector('[data-dial-sound-pad]');
+    if (pad) pad.style.setProperty('--dial-y', `${(100 - level * 70 - 15).toFixed(1)}%`);
+    const label = runtime.overlay?.querySelector('[data-dial-frequency-number]');
+    if (label) label.innerHTML = selectedFrequencyLabel();
+  }
+
+  function updateSoundFromPointer(pad, clientY) {
+    const rect = pad?.getBoundingClientRect();
+    if (!rect || rect.height <= 1) return;
+    const top = rect.top + Math.min(78, rect.height * .13);
+    const bottom = rect.bottom - Math.min(145, rect.height * .24);
+    const p = 1 - clamp((clientY - top) / Math.max(40, bottom - top), 0, 1);
+    runtime.soundSlider = Math.round(p * 1000);
+    updateSoundWaveUi();
+    updateLiveTone();
+  }
+
+  function handlePointerDown(event) {
+    if (event.button != null && event.button !== 0) return;
+    const timeHold = event.target.closest('[data-dial-time-hold]');
+    if (timeHold && runtime.stage === 'time-waiting' && !event.target.closest('button')) {
+      event.preventDefault();
+      runtime.dragKind = 'time';
+      runtime.dragKey = '';
+      runtime.dragPointerId = event.pointerId;
+      try { runtime.overlay?.setPointerCapture(event.pointerId); } catch (_) {}
+      return startTimeRound(event.pointerId);
+    }
+    const color = event.target.closest('[data-dial-color-control]');
+    if (color && runtime.stage === 'color-guess') {
+      event.preventDefault();
+      runtime.dragKind = 'color';
+      runtime.dragKey = String(color.dataset.dialColorControl || '');
+      runtime.dragPointerId = event.pointerId;
+      try { color.setPointerCapture(event.pointerId); } catch (_) {}
+      updateColorFromPointer(color, event.clientY);
       return;
     }
+    const pad = event.target.closest('[data-dial-sound-pad]');
+    if (pad && runtime.stage === 'sound-guess' && !event.target.closest('button')) {
+      event.preventDefault();
+      runtime.dragKind = 'sound';
+      runtime.dragKey = '';
+      runtime.dragPointerId = event.pointerId;
+      try { pad.setPointerCapture(event.pointerId); } catch (_) {}
+      pad.classList.add('is-dragging');
+      updateSoundFromPointer(pad, event.clientY);
+      startLiveTone();
+      updateLiveTone();
+    }
+  }
+
+  function handlePointerMove(event) {
+    if (runtime.dragPointerId == null || event.pointerId !== runtime.dragPointerId) return;
+    if (runtime.dragKind === 'color') {
+      const control = runtime.overlay?.querySelector(`[data-dial-color-control="${runtime.dragKey}"]`);
+      if (control) { event.preventDefault(); updateColorFromPointer(control, event.clientY); }
+    } else if (runtime.dragKind === 'sound') {
+      const pad = runtime.overlay?.querySelector('[data-dial-sound-pad]');
+      if (pad) { event.preventDefault(); updateSoundFromPointer(pad, event.clientY); }
+    }
+  }
+
+  function handlePointerUp(event) {
+    if (runtime.dragPointerId == null || event.pointerId !== runtime.dragPointerId) return;
+    if (runtime.dragKind === 'time') {
+      event.preventDefault();
+      runtime.dragKind = '';
+      runtime.dragKey = '';
+      runtime.dragPointerId = null;
+      runtime.timeHoldPointerId = null;
+      try { runtime.overlay?.releasePointerCapture(event.pointerId); } catch (_) {}
+      stopTimeRound();
+      return;
+    }
+    const pad = runtime.overlay?.querySelector('[data-dial-sound-pad]');
+    if (pad) pad.classList.remove('is-dragging');
+    if (runtime.dragKind === 'sound') stopLiveTone(false);
+    runtime.dragKind = '';
+    runtime.dragKey = '';
+    runtime.dragPointerId = null;
+    sfx('tick');
+  }
+
+  function handleKeyDown(event) {
+    if (event.repeat) return;
+    if (runtime.stage !== 'time-waiting') return;
+    if (event.key !== ' ' && event.key !== 'Enter') return;
+    const hold = event.target.closest?.('[data-dial-time-hold]') || runtime.overlay?.querySelector('[data-dial-time-hold]');
+    if (!hold) return;
+    event.preventDefault();
+    runtime.timeKeyboardHolding = true;
+    runtime.dragKind = 'time-key';
+    startTimeRound(null);
+  }
+
+  function handleKeyUp(event) {
+    if (!runtime.timeKeyboardHolding || runtime.stage !== 'time-running') return;
+    if (event.key !== ' ' && event.key !== 'Enter') return;
+    event.preventDefault();
+    runtime.timeKeyboardHolding = false;
+    runtime.dragKind = '';
+    stopTimeRound();
+  }
+
+  function handleWheel(event) {
+    if (runtime.stage !== 'sound-guess' || !event.target.closest('[data-dial-sound-pad]')) return;
+    event.preventDefault();
+    const delta = event.deltaY < 0 ? 28 : -28;
+    runtime.soundSlider = clamp(runtime.soundSlider + delta, 0, 1000);
+    updateSoundWaveUi();
+  }
+
+  function handleInput(event) {
     const freq = event.target.closest('[data-dial-frequency]');
     if (freq) {
       runtime.soundSlider = Number(freq.value || 0);
-      const label = runtime.overlay.querySelector('[data-dial-frequency-number]');
-      if (label) label.innerHTML = selectedFrequencyLabel();
+      updateSoundWaveUi();
     }
   }
 
   function handleChange(event) {
-    if (event.target.closest('[data-dial-color],[data-dial-frequency]')) sfx('tick');
+    if (event.target.closest('[data-dial-frequency]')) sfx('tick');
   }
 
   function handleClick(event) {
@@ -985,17 +1264,20 @@
     if (event.target.closest('[data-dial-preview]')) {
       const now = performance.now();
       if (now < runtime.previewCooldownUntil) return;
-      runtime.previewCooldownUntil = now + 350;
+      runtime.previewCooldownUntil = now + 700;
+      stopLiveTone(true);
+      const pad = runtime.overlay?.querySelector('[data-dial-sound-pad]');
+      if (pad) pad.classList.add('is-previewing');
+      schedule(() => pad?.classList.remove('is-previewing'), 680);
       return playToneFrequency(selectedFrequency(), 650, .095);
     }
     if (event.target.closest('[data-dial-replay]')) {
       if (runtime.roundIndex !== 0 || runtime.soundReplayUsed) return;
       runtime.soundReplayUsed = true;
+      stopLiveTone(true);
       render();
       return playToneFrequency(currentChallenge().hz, currentChallenge().durationMs, .11);
     }
-    if (event.target.closest('[data-dial-time-start]')) return startTimeRound();
-    if (event.target.closest('[data-dial-time-stop]')) return stopTimeRound();
     if (event.target.closest('[data-dial-play-again]')) return startSession(runtime.mode);
     if (event.target.closest('[data-dial-change-mode]')) return showHome();
     if (event.target.closest('[data-dial-hub],[data-dial-back]')) {
