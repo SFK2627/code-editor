@@ -11,7 +11,7 @@
   const Z_MAX = 122;
   const GATE_TRIGGER_Z = 8.2;
   const PLAYER_GROUND_Y = 0;
-  const SLIDE_DURATION = .86;
+  const SLIDE_DURATION = 1.50;
   const JUMP_LAUNCH_VELOCITY = 6.45;
   const JUMP_GRAVITY = 16.0;
   const PARTICLE_LIMIT = 72;
@@ -26,25 +26,25 @@
     easy: Object.freeze({
       key: 'easy', label: 'EASY', stars: '★☆☆☆', hearts: 3, steps: 8,
       startSpeed: 18.2, acceleration: .122, maxSpeed: 23.0, obstacleGap: 2.20,
-      preview: 3.05, betweenQuestions: 1.85, actionChance: .44, maxXp: 3,
+      preview: 3.05, betweenQuestions: 1.45, actionChance: .44, maxXp: 3,
       minActiveMs: 46000, description: 'Beginner HTML · more reading time · forgiving pace'
     }),
     medium: Object.freeze({
       key: 'medium', label: 'MEDIUM', stars: '★★☆☆', hearts: 3, steps: 10,
       startSpeed: 20.9, acceleration: .154, maxSpeed: 26.9, obstacleGap: 1.84,
-      preview: 2.65, betweenQuestions: 1.68, actionChance: .56, maxXp: 5,
+      preview: 2.65, betweenQuestions: 1.30, actionChance: .56, maxXp: 5,
       minActiveMs: 56000, description: 'Attributes + nesting · moderate reaction window'
     }),
     hard: Object.freeze({
       key: 'hard', label: 'HARD', stars: '★★★☆', hearts: 2, steps: 12,
       startSpeed: 23.3, acceleration: .182, maxSpeed: 30.4, obstacleGap: 1.50,
-      preview: 2.28, betweenQuestions: 1.46, actionChance: .67, maxXp: 8,
+      preview: 2.28, betweenQuestions: 1.15, actionChance: .67, maxXp: 8,
       minActiveMs: 66000, description: 'Semantic HTML + forms · tighter runner patterns'
     }),
     difficult: Object.freeze({
       key: 'difficult', label: 'DIFFICULT', stars: '★★★★', hearts: 2, steps: 14,
       startSpeed: 25.4, acceleration: .205, maxSpeed: 33.0, obstacleGap: 1.20,
-      preview: 2.02, betweenQuestions: 1.24, actionChance: .78, maxXp: 12,
+      preview: 2.02, betweenQuestions: 1.05, actionChance: .78, maxXp: 12,
       minActiveMs: 76000, description: 'Mixed debugging + accessibility · highest reward ceiling'
     })
   });
@@ -1242,7 +1242,7 @@
     if(item.type==='crate') {
       // LOW obstacle: deliberately knee/waist height so JUMP is immediately obvious.
       const w=laneW*.80;
-      const hh=50*scale;
+      const hh=42*scale;
       ctx.fillStyle=item.outcome==='hit'?'#6f1f32':'#581b2b';
       ctx.strokeStyle=item.outcome==='hit'?'#fecdd3':'#fb7185';
       ctx.lineWidth=Math.max(1,2.1*scale);
@@ -1260,8 +1260,8 @@
     } else if(item.type==='beam') {
       // OVERHEAD obstacle: tall posts + low hanging firewall bar with a clear crawl/slide gap.
       const w=laneW*.98;
-      const postH=110*scale;
-      const beamY=-58*scale;
+      const postH=132*scale;
+      const beamY=-62*scale;
       const postW=Math.max(7,10*scale);
       ctx.fillStyle='#173b60';
       drawRounded(ctx,-w*.52,-postH,postW,postH,3*scale); ctx.fill();
@@ -1287,7 +1287,7 @@
       // FULL BLOCKING WALL: intentionally much taller than the runner and fills the lane.
       // This is NOT jumpable/slidable; the silhouette should immediately communicate DODGE.
       const w=laneW*1.08;
-      const hh=154*scale;
+      const hh=184*scale;
       ctx.fillStyle=item.outcome==='hit'?'rgba(127,29,29,.96)':'#3b1859';
       ctx.strokeStyle=item.outcome==='hit'?'#fb7185':'#c084fc';
       ctx.lineWidth=Math.max(1.2,2.4*scale);
@@ -1300,14 +1300,14 @@
 
       ctx.strokeStyle='#f5d0fe'; ctx.lineWidth=Math.max(2,3*scale); ctx.lineCap='round';
       ctx.beginPath();
-      ctx.moveTo(-18*scale,-105*scale); ctx.lineTo(18*scale,-69*scale);
-      ctx.moveTo(18*scale,-105*scale); ctx.lineTo(-18*scale,-69*scale);
+      ctx.moveTo(-20*scale,-126*scale); ctx.lineTo(20*scale,-82*scale);
+      ctx.moveTo(20*scale,-126*scale); ctx.lineTo(-20*scale,-82*scale);
       ctx.stroke();
 
       ctx.fillStyle='#f3e8ff'; ctx.font=`950 ${clamp(10*scale,6,13)}px system-ui`; ctx.textAlign='center'; ctx.textBaseline='middle';
-      ctx.fillText('DODGE',0,-126*scale);
+      ctx.fillText('DODGE',0,-154*scale);
       ctx.fillStyle='#d8b4fe'; ctx.font=`900 ${clamp(7*scale,5,10)}px system-ui`;
-      ctx.fillText('FULL WALL',0,-47*scale);
+      ctx.fillText('FULL WALL',0,-55*scale);
 
       // L/R arrows hint that lane change is the only safe response.
       ctx.strokeStyle='rgba(233,213,255,.75)'; ctx.lineWidth=Math.max(1.2,1.8*scale);
@@ -1332,48 +1332,96 @@
     const scale=Math.max(p.scale,.20); const action=group.motion;
     const resolved=group.resolved===true; const selected=lane===group.selectedLane; const isCorrect=lane===group.correctLane;
     const resolution=group.resolution||'';
-    const alpha=(group.alpha==null?1:group.alpha)*clamp(.58+p.p*.58,0,1);
+    const alpha=(group.alpha==null?1:group.alpha)*clamp(.60+p.p*.55,0,1);
     const good=resolved && resolution==='correct' && isCorrect;
     const bad=resolved && resolution==='wrong' && selected;
     const muted=resolved && !good && !bad;
-    const laneSpan=Math.max(28,p.half*geo.laneFactor);
-    const frameW=clamp(laneSpan*.68,26,68);
-    const cardW=clamp(laneSpan*.84,32,82);
-    const postH=clamp((action==='jump'?84:action==='slide'?98:90)*scale,24,96);
-    const cardH=clamp(42*scale,24,46);
-    const cardY=p.y-postH-clamp(9*scale,3,10);
+    const laneSpan=Math.max(30,p.half*geo.laneFactor);
+    const frameW=clamp(laneSpan*.74,28,72);
+    const cardW=clamp(laneSpan*.90,36,86);
+    const actionTop=(action==='slide'?106:action==='run'?94:70)*scale;
+    const cardH=clamp(44*scale,25,48);
+    const cardY=p.y-actionTop-clamp(10*scale,3,11);
 
-    ctx.save(); ctx.globalAlpha=alpha*(muted?(resolution==='correct'?.10:.26):1); ctx.translate(p.x,0);
-    const frameColor=good?'#bef264':bad?'#fb7185':'#67e8f9';
-    const fillColor=good?'rgba(20,83,45,.92)':bad?'rgba(127,29,29,.94)':'rgba(5,31,49,.96)';
-    ctx.strokeStyle=frameColor; ctx.lineWidth=Math.max(1.1,1.8*scale); ctx.shadowColor=good?'rgba(190,242,100,.40)':bad?'rgba(251,113,133,.40)':'rgba(34,211,238,.26)'; ctx.shadowBlur=7*scale;
-    ctx.beginPath(); ctx.moveTo(-frameW*.5,p.y); ctx.lineTo(-frameW*.5,p.y-postH); ctx.lineTo(frameW*.5,p.y-postH); ctx.lineTo(frameW*.5,p.y); ctx.stroke(); ctx.shadowBlur=0;
+    ctx.save();
+    ctx.globalAlpha=alpha*(muted?(resolution==='correct'?.10:.24):1);
+    ctx.translate(p.x,0);
 
-    ctx.fillStyle=fillColor; ctx.strokeStyle=frameColor; ctx.lineWidth=Math.max(1,1.3*scale);
+    const frameColor=good?'#bef264':bad?'#fb7185':action==='jump'?'#facc15':action==='slide'?'#fb7185':'#22d3ee';
+    const fillColor=good?'rgba(20,83,45,.94)':bad?'rgba(127,29,29,.95)':'rgba(4,24,39,.96)';
+
+    // ANSWER CARD: always sits above the action silhouette, never inside it.
+    ctx.fillStyle=fillColor; ctx.strokeStyle=frameColor; ctx.lineWidth=Math.max(1,1.4*scale);
     drawRounded(ctx,-cardW*.5,cardY-cardH,cardW,cardH,clamp(7*scale,4,8)); ctx.fill(); ctx.stroke();
-
-    const laneLabel=humanLane(lane);
-    ctx.fillStyle=action!=='run'?'#d9f99d':'#a5f3fc'; ctx.font=`950 ${clamp(7.5*scale,6,9)}px system-ui`; ctx.textAlign='center'; ctx.textBaseline='middle';
-    ctx.fillText(`${laneLabel} · ${action==='jump'?'↑':action==='slide'?'↓':'•'}`,0,cardY-6*scale);
-
-    ctx.fillStyle=good?'#ecfccb':bad?'#ffe4e6':'#f8fafc'; ctx.font=`900 ${clamp(10.5*scale,7,11.5)}px ui-monospace,monospace`;
-    const text=String(label||'').replace(/\s+/g,' ').trim();
-    const maxChars=cardW>70?12:cardW>54?10:8;
-    const words=text.split(' '); const lines=[]; let line='';
+    ctx.fillStyle=good?'#ecfccb':bad?'#ffe4e6':'#f8fafc';
+    ctx.font=`900 ${clamp(10.5*scale,7,11.5)}px ui-monospace,monospace`; ctx.textAlign='center'; ctx.textBaseline='middle';
+    const answer=String(label||'').replace(/\s+/g,' ').trim();
+    const maxChars=cardW>72?12:cardW>56?10:8;
+    const words=answer.split(' '); const lines=[]; let line='';
     for(const word of words){const next=line?`${line} ${word}`:word;if(next.length>maxChars&&line){lines.push(line);line=word;}else line=next;}
-    if(line)lines.push(line); if(!lines.length)lines.push(text.slice(0,maxChars));
+    if(line)lines.push(line); if(!lines.length)lines.push(answer.slice(0,maxChars));
     const visible=lines.slice(0,2);
     visible.forEach((part,index)=>ctx.fillText(part.slice(0,maxChars+2),0,cardY-cardH*.57+(index-(visible.length-1)/2)*11*scale));
 
+    ctx.shadowColor=frameColor; ctx.shadowBlur=7*scale; ctx.strokeStyle=frameColor; ctx.fillStyle=frameColor;
+
     if(action==='jump'){
-      ctx.strokeStyle=frameColor; ctx.lineWidth=Math.max(1.6,2.2*scale); ctx.beginPath(); ctx.ellipse(0,p.y-35*scale,frameW*.28,clamp(15*scale,6,16),0,0,Math.PI*2); ctx.stroke();
+      // LOW HURDLE: ground-level obstruction with a completely open upper half.
+      // Shape alone says JUMP, even when the text is too far away to read.
+      const hurdleH=clamp(27*scale,9,30);
+      const hurdleW=frameW*.88;
+      ctx.globalAlpha*=.98;
+      drawRounded(ctx,-hurdleW*.5,p.y-hurdleH,hurdleW,hurdleH,5*scale);
+      ctx.fillStyle=bad?'#7f1d1d':good?'#3f6212':'#a16207'; ctx.fill();
+      ctx.strokeStyle=frameColor; ctx.lineWidth=Math.max(1.5,2.2*scale); ctx.stroke();
+      ctx.shadowBlur=0;
+      // oversized up chevrons floating over the hurdle
+      ctx.strokeStyle=good?'#ecfccb':'#fef3c7'; ctx.lineWidth=Math.max(1.6,2.2*scale); ctx.lineCap='round';
+      for(const ox of [-12,12]){
+        ctx.beginPath(); ctx.moveTo((ox-6)*scale,p.y-46*scale); ctx.lineTo(ox*scale,p.y-56*scale); ctx.lineTo((ox+6)*scale,p.y-46*scale); ctx.stroke();
+      }
+      ctx.fillStyle='#fef9c3'; ctx.font=`950 ${clamp(8.5*scale,6,10)}px system-ui`; ctx.fillText('JUMP',0,p.y-34*scale);
     }else if(action==='slide'){
-      ctx.fillStyle=good?'#bef264':bad?'#fb7185':'#a3e635'; drawRounded(ctx,-frameW*.36,p.y-40*scale,frameW*.72,clamp(5*scale,2.5,6),3*scale); ctx.fill();
+      // OVERHEAD BAR: tall side posts + bright bar, leaving a large obvious opening underneath.
+      const postH=94*scale; const barY=p.y-58*scale; const postW=Math.max(5,8*scale);
+      ctx.fillStyle='rgba(71,85,105,.88)';
+      drawRounded(ctx,-frameW*.5,p.y-postH,postW,postH,2*scale); ctx.fill();
+      drawRounded(ctx,frameW*.5-postW,p.y-postH,postW,postH,2*scale); ctx.fill();
+      ctx.fillStyle=bad?'#be123c':good?'#65a30d':'#ef4444';
+      drawRounded(ctx,-frameW*.48,barY,frameW*.96,clamp(11*scale,4,12),4*scale); ctx.fill();
+      ctx.shadowBlur=0;
+      ctx.strokeStyle='#fee2e2'; ctx.lineWidth=Math.max(1.4,2*scale); ctx.lineCap='round';
+      for(const ox of [-13,13]){
+        ctx.beginPath(); ctx.moveTo(ox*scale,p.y-84*scale); ctx.lineTo(ox*scale,p.y-72*scale); ctx.moveTo((ox-6)*scale,p.y-78*scale); ctx.lineTo(ox*scale,p.y-71*scale); ctx.lineTo((ox+6)*scale,p.y-78*scale); ctx.stroke();
+      }
+      ctx.fillStyle='#fee2e2'; ctx.font=`950 ${clamp(8.5*scale,6,10)}px system-ui`; ctx.fillText('SLIDE',0,p.y-68*scale);
+    }else{
+      // OPEN PORTAL: no hurdle and no overhead bar. Just run straight through.
+      const postH=82*scale; const postW=Math.max(4.5,7*scale);
+      ctx.fillStyle=bad?'rgba(127,29,29,.90)':good?'rgba(63,98,18,.82)':'rgba(8,145,178,.45)';
+      drawRounded(ctx,-frameW*.5,p.y-postH,postW,postH,3*scale); ctx.fill();
+      drawRounded(ctx,frameW*.5-postW,p.y-postH,postW,postH,3*scale); ctx.fill();
+      ctx.strokeStyle=frameColor; ctx.lineWidth=Math.max(1.2,1.8*scale); ctx.beginPath();
+      ctx.moveTo(-frameW*.5,p.y-postH); ctx.lineTo(frameW*.5,p.y-postH); ctx.stroke();
+      ctx.shadowBlur=0;
+      ctx.fillStyle='#cffafe'; ctx.font=`950 ${clamp(8.5*scale,6,10)}px system-ui`; ctx.fillText('RUN',0,p.y-50*scale);
+      // forward chevrons on the ground reinforce that the route is OPEN.
+      ctx.strokeStyle='rgba(103,232,249,.80)'; ctx.lineWidth=Math.max(1,1.5*scale);
+      for(let i=0;i<2;i+=1){const yy=p.y-(17-i*11)*scale;ctx.beginPath();ctx.moveTo(-9*scale,yy-5*scale);ctx.lineTo(0,yy);ctx.lineTo(9*scale,yy-5*scale);ctx.stroke();}
     }
 
+    ctx.shadowBlur=0;
+    // Small lane tag separated from the answer text.
+    ctx.fillStyle=action==='jump'?'#fde68a':action==='slide'?'#fecdd3':'#a5f3fc';
+    ctx.font=`950 ${clamp(7*scale,5.5,8.5)}px system-ui`;
+    ctx.fillText(`${humanLane(lane)} · ${action.toUpperCase()}`,0,cardY-5*scale);
+
     if(bad){
-      ctx.fillStyle='rgba(127,29,29,.58)'; drawRounded(ctx,-frameW*.43,p.y-postH*.73,frameW*.86,postH*.56,6*scale); ctx.fill();
-      ctx.strokeStyle='#fecdd3'; ctx.lineWidth=Math.max(1.5,2*scale); ctx.beginPath(); ctx.moveTo(-10*scale,p.y-postH*.56); ctx.lineTo(10*scale,p.y-postH*.36); ctx.moveTo(10*scale,p.y-postH*.56); ctx.lineTo(-10*scale,p.y-postH*.36); ctx.stroke();
+      // Wrong answer briefly becomes a solid blocker so the mistake reads clearly.
+      ctx.fillStyle='rgba(127,29,29,.62)';
+      drawRounded(ctx,-frameW*.43,p.y-actionTop*.68,frameW*.86,actionTop*.48,6*scale); ctx.fill();
+      ctx.strokeStyle='#fecdd3'; ctx.lineWidth=Math.max(1.5,2*scale);
+      ctx.beginPath(); ctx.moveTo(-10*scale,p.y-actionTop*.50); ctx.lineTo(10*scale,p.y-actionTop*.32); ctx.moveTo(10*scale,p.y-actionTop*.50); ctx.lineTo(-10*scale,p.y-actionTop*.32); ctx.stroke();
     }
     ctx.restore();
   }
@@ -1387,24 +1435,26 @@
     const hit=runtime.stumbleTime>0;
     const celebrating=runtime.state==='ROUND_COMPLETE';
     const idle=runtime.state!=='RUNNING'&&runtime.state!=='COUNTDOWN'&&!celebrating;
-    const scale=clamp(h/690,.82,1.22);
-    const runRate=clamp(runtime.speed/22,.78,1.32);
-    const runPhase=time*.0087*runRate;
+    const phoneBoost=w<=520?1.11:1;
+    const scale=clamp(h/690,.82,1.22)*phoneBoost;
+    const runRate=clamp(runtime.speed/22,.82,1.38);
+    const runPhase=time*.0102*runRate;
     const swing=Math.sin(runPhase);
     const opposite=Math.sin(runPhase+Math.PI);
 
     // Pose envelopes: smooth transition in/out instead of instantly snapping into a slide.
     const slideElapsed=slide?clamp((SLIDE_DURATION-runtime.slideTime)/SLIDE_DURATION,0,1):0;
-    const slidePose=slide?Math.pow(Math.sin(Math.PI*slideElapsed),.42):0;
+    // 1.5s slide: quick drop, a long readable low hold, then a smooth recovery.
+    const slidePose=slide?(slideElapsed<.18?easeOutCubic(slideElapsed/.18):slideElapsed>.82?easeOutCubic((1-slideElapsed)/.18):1):0;
     const jumpAir=clamp(runtime.jumpY/1.18,0,1);
     const jumpRise=jumping?clamp((runtime.jumpVy+2.4)/8.9,0,1):0;
     const jumpFall=jumping?clamp((-runtime.jumpVy)/7.5,0,1):0;
 
-    const bob=jumping||slide||idle?0:(.65+.45*Math.abs(Math.sin(runPhase*2)))*scale;
+    const bob=jumping||slide||idle?0:(1.05+.72*Math.abs(Math.sin(runPhase*2)))*scale;
     const idleBob=idle?Math.sin(time*.0028)*.7*scale:0;
     const celebrationBob=celebrating?Math.abs(Math.sin(time*.006))*5*scale:0;
     const landingAmount=runtime.landingKick>0?clamp(runtime.landingKick/.18,0,1):0;
-    const baseY=h*.958-runtime.jumpY*78-celebrationBob+slidePose*16*scale;
+    const baseY=h*.958-runtime.jumpY*78-celebrationBob+slidePose*26*scale;
     const laneLean=clamp((runtime.lane-runtime.lanePos)*-.085,-.065,.065);
 
     ctx.save();
@@ -1420,16 +1470,17 @@
     ctx.save();
     ctx.translate(x,baseY+bob+idleBob+landingAmount*2.5*scale);
     // Slide should crouch, not simply tip sideways. Lane lean remains tiny for direction feedback.
-    ctx.rotate(hit?Math.sin(time*.045)*.08:laneLean*(slide?0.38:1));
-    ctx.scale(1+landingAmount*.045+slidePose*.08,1-landingAmount*.075-slidePose*.10);
+    const runShoulderSway=(!jumping&&!slide&&!idle)?Math.sin(runPhase)*.008:0;
+    ctx.rotate(hit?Math.sin(time*.045)*.08:laneLean*(slide?0.22:1)+runShoulderSway);
+    ctx.scale(1+landingAmount*.045+slidePose*.12,1-landingAmount*.075-slidePose*.18);
     if(runtime.invulnerable>0&&Math.floor(runtime.invulnerable*12)%2===0)ctx.globalAlpha=.56;
 
     if(runtime.shield){
       ctx.strokeStyle='rgba(190,242,100,.72)'; ctx.lineWidth=2.2*scale; ctx.beginPath(); ctx.arc(0,-45*scale,43*scale,0,Math.PI*2); ctx.stroke();
     }
 
-    const hipY=lerp(-22,-9,slidePose)*scale;
-    const shoulderY=lerp(-57,-34,slidePose)*scale;
+    const hipY=lerp(-22,-4,slidePose)*scale;
+    const shoulderY=lerp(-57,-24,slidePose)*scale;
     const leftHipX=-9*scale, rightHipX=9*scale;
 
     ctx.lineCap='round'; ctx.lineJoin='round';
@@ -1441,18 +1492,21 @@
       // One leg folds under the hips while the other extends low and forward.
       // Combined with the lowered torso/head this reads as a real slide/crouch pose.
       const fold=slidePose;
-      ctx.moveTo(leftHipX,hipY); ctx.lineTo(lerp(-10,-4,fold)*scale,lerp(-8,-1,fold)*scale); ctx.lineTo(lerp(-20,-31,fold)*scale,lerp(1,4,fold)*scale);
-      ctx.moveTo(rightHipX,hipY); ctx.lineTo(lerp(13,21,fold)*scale,lerp(-7,-2,fold)*scale); ctx.lineTo(lerp(23,38,fold)*scale,lerp(0,2,fold)*scale);
+      // Full crouch: hips almost at ground level, one leg tucked and the other extended forward.
+      ctx.moveTo(leftHipX,hipY); ctx.lineTo(lerp(-10,-7,fold)*scale,lerp(-8,1,fold)*scale); ctx.lineTo(lerp(-20,-34,fold)*scale,lerp(1,5,fold)*scale);
+      ctx.moveTo(rightHipX,hipY); ctx.lineTo(lerp(13,24,fold)*scale,lerp(-7,0,fold)*scale); ctx.lineTo(lerp(23,44,fold)*scale,lerp(0,4,fold)*scale);
     }else if(jumping){
       // Tucked knees on ascent/apex; legs extend progressively on descent for a readable landing.
       const tuck=clamp(.46+jumpAir*.48-jumpFall*.22,0,1);
       ctx.moveTo(leftHipX,hipY); ctx.lineTo((-13-5*tuck)*scale,(-8+2*tuck)*scale); ctx.lineTo((-5-4*tuck)*scale,(1+3*jumpFall)*scale);
       ctx.moveTo(rightHipX,hipY); ctx.lineTo((13+5*tuck)*scale,(-8+2*tuck)*scale); ctx.lineTo((5+4*tuck)*scale,(1+3*jumpFall)*scale);
     }else{
-      const lKneeX=(-8+swing*8)*scale, rKneeX=(8+opposite*8)*scale;
-      const lKneeY=(-8+Math.max(0,-swing)*3)*scale, rKneeY=(-8+Math.max(0,-opposite)*3)*scale;
-      const lFootX=(-12+swing*15)*scale, rFootX=(12+opposite*15)*scale;
-      const lFootY=(2-Math.max(0,swing)*4)*scale, rFootY=(2-Math.max(0,opposite)*4)*scale;
+      // Stronger readable run cycle: knee drive, foot lift, and opposite planted stride.
+      const lLift=Math.max(0,swing), rLift=Math.max(0,opposite);
+      const lKneeX=(-8+swing*11)*scale, rKneeX=(8+opposite*11)*scale;
+      const lKneeY=(-8-lLift*7+rLift*1.5)*scale, rKneeY=(-8-rLift*7+lLift*1.5)*scale;
+      const lFootX=(-12+swing*20)*scale, rFootX=(12+opposite*20)*scale;
+      const lFootY=(3-lLift*8)*scale, rFootY=(3-rLift*8)*scale;
       ctx.moveTo(leftHipX,hipY); ctx.lineTo(lKneeX,lKneeY); ctx.lineTo(lFootX,lFootY);
       ctx.moveTo(rightHipX,hipY); ctx.lineTo(rKneeX,rKneeY); ctx.lineTo(rFootX,rFootY);
     }
@@ -1461,14 +1515,15 @@
     // FEET
     ctx.strokeStyle='#dbeafe'; ctx.lineWidth=4.2*scale; ctx.beginPath();
     if(slide){
-      ctx.moveTo(-31*scale,4*scale);ctx.lineTo(-39*scale,5*scale);
-      ctx.moveTo(38*scale,2*scale);ctx.lineTo(46*scale,2*scale);
+      ctx.moveTo(-34*scale,5*scale);ctx.lineTo(-43*scale,6*scale);
+      ctx.moveTo(44*scale,4*scale);ctx.lineTo(53*scale,4*scale);
     }else if(jumping){
       ctx.moveTo((-5-4*jumpAir)*scale,(1+3*jumpFall)*scale);ctx.lineTo((-13-4*jumpAir)*scale,(3+3*jumpFall)*scale);
       ctx.moveTo((5+4*jumpAir)*scale,(1+3*jumpFall)*scale);ctx.lineTo((13+4*jumpAir)*scale,(3+3*jumpFall)*scale);
     }else{
-      ctx.moveTo((-12+swing*15)*scale,(2-Math.max(0,swing)*4)*scale);ctx.lineTo((-19+swing*15)*scale,(3-Math.max(0,swing)*4)*scale);
-      ctx.moveTo((12+opposite*15)*scale,(2-Math.max(0,opposite)*4)*scale);ctx.lineTo((19+opposite*15)*scale,(3-Math.max(0,opposite)*4)*scale);
+      const lLift=Math.max(0,swing), rLift=Math.max(0,opposite);
+      ctx.moveTo((-12+swing*20)*scale,(3-lLift*8)*scale);ctx.lineTo((-20+swing*20)*scale,(4-lLift*8)*scale);
+      ctx.moveTo((12+opposite*20)*scale,(3-rLift*8)*scale);ctx.lineTo((20+opposite*20)*scale,(4-rLift*8)*scale);
     }
     ctx.stroke();
 
@@ -1479,23 +1534,23 @@
       ctx.moveTo(20*scale,shoulderY); ctx.lineTo(27*scale,-74*scale); ctx.lineTo(19*scale,-84*scale);
     }else if(slide){
       // Arms move backward/forward close to the body, reinforcing the low slide instead of a sideways tilt.
-      ctx.moveTo(-20*scale,shoulderY); ctx.lineTo(-29*scale,-24*scale); ctx.lineTo(-21*scale,-13*scale);
-      ctx.moveTo(20*scale,shoulderY); ctx.lineTo(30*scale,-27*scale); ctx.lineTo(19*scale,-16*scale);
+      ctx.moveTo(-20*scale,shoulderY); ctx.lineTo(-31*scale,-18*scale); ctx.lineTo(-24*scale,-8*scale);
+      ctx.moveTo(20*scale,shoulderY); ctx.lineTo(33*scale,-20*scale); ctx.lineTo(23*scale,-10*scale);
     }else if(jumping){
       const armLift=clamp(.55+jumpRise*.30,0,1);
       ctx.moveTo(-20*scale,shoulderY); ctx.lineTo((-25-5*armLift)*scale,(-63-9*armLift)*scale); ctx.lineTo((-18-4*armLift)*scale,(-70-9*armLift)*scale);
       ctx.moveTo(20*scale,shoulderY); ctx.lineTo((25+5*armLift)*scale,(-63-9*armLift)*scale); ctx.lineTo((18+4*armLift)*scale,(-70-9*armLift)*scale);
     }else{
-      const arm=swing*8*scale;
-      ctx.moveTo(-20*scale,shoulderY); ctx.lineTo(-25*scale-arm,-38*scale); ctx.lineTo(-18*scale-arm*.55,-29*scale);
-      ctx.moveTo(20*scale,shoulderY); ctx.lineTo(25*scale+arm,-38*scale); ctx.lineTo(18*scale+arm*.55,-29*scale);
+      const arm=swing*11*scale;
+      ctx.moveTo(-20*scale,shoulderY); ctx.lineTo(-25*scale-arm,-38*scale); ctx.lineTo(-18*scale-arm*.58,-28*scale);
+      ctx.moveTo(20*scale,shoulderY); ctx.lineTo(25*scale+arm,-38*scale); ctx.lineTo(18*scale+arm*.58,-28*scale);
     }
     ctx.stroke();
 
     // TORSO / BACKPACK. During slide, the whole upper body actually lowers and shortens.
-    const torsoTop=lerp(-70,-50,slidePose)*scale;
-    const torsoH=lerp(50,37,slidePose)*scale;
-    const torsoW=lerp(46,50,slidePose)*scale;
+    const torsoTop=lerp(-70,-42,slidePose)*scale;
+    const torsoH=lerp(50,30,slidePose)*scale;
+    const torsoW=lerp(46,54,slidePose)*scale;
     ctx.fillStyle=hit?'#4b1d2a':'#0b2d46'; ctx.strokeStyle=hit?'#fb7185':'#67e8f9'; ctx.lineWidth=2.5*scale;
     drawRounded(ctx,-torsoW*.5,torsoTop,torsoW,torsoH,lerp(12,10,slidePose)*scale); ctx.fill(); ctx.stroke();
 
@@ -1510,7 +1565,7 @@
     ctx.fillStyle='#7dd3fc'; ctx.font=`900 ${6*scale}px system-ui`; ctx.fillText('BYTE',0,badgeY+8*scale);
 
     // HEAD follows the crouch so a slide never looks like an upright runner with sideways legs.
-    const headY=lerp(-81,-53,slidePose)*scale;
+    const headY=lerp(-81,-36,slidePose)*scale;
     ctx.fillStyle='#f2c6a8'; ctx.beginPath(); ctx.arc(0,headY,13.5*scale,0,Math.PI*2); ctx.fill();
     ctx.fillStyle='#071827'; ctx.beginPath(); ctx.arc(0,headY-4*scale,14*scale,Math.PI,Math.PI*2); ctx.lineTo(12*scale,headY+2*scale); ctx.quadraticCurveTo(1*scale,headY+8*scale,-12*scale,headY+2*scale); ctx.closePath(); ctx.fill();
     ctx.strokeStyle='#22d3ee'; ctx.lineWidth=1.7*scale; ctx.beginPath(); ctx.moveTo(-10*scale,headY-1*scale); ctx.quadraticCurveTo(0,headY-6*scale,10*scale,headY-1*scale); ctx.stroke();
@@ -1556,5 +1611,5 @@
     const snap=runtime.bridge?.getSnapshot?.()||{};const record=snap.gameRecords?.[STATE_KEY]||{};runtime.soundEnabled=snap.soundEnabled!==false;runtime.soundBtn.textContent=runtime.soundEnabled?'🔊':'🔇';runtime.bestScore=Math.max(0,Number(record.bestArcadeScore||record.bestScore||0));runtime.bestAccuracy=Math.max(0,Number(record.bestAccuracy||0));runtime.bestCombo=Math.max(0,Number(record.bestCombo||0));runtime.bestDifficultyRank=Math.max(0,Number(record.bestDifficultyRank||0));runtime.open=true;runtime.overlay.hidden=false;document.body.classList.add('byte-runner-html-active');runtime.difficulty=DIFFICULTIES.easy;runtime.mission=null;resetRunData(true);showDifficultySelect();requestAnimationFrame(()=>{resizeCanvas();startLoop();});
   }
 
-  window.ICT8ByteRunnerHtmlRush=Object.freeze({open,close:closeInternal,isOpen:()=>runtime.open});
+  window.ICT8ByteRunnerHtmlRush=Object.freeze({open,close:closeInternal,isOpen:()=>runtime.open,pauseForExitGuard:()=>{if(runtime.state==='RUNNING'){pauseGame('exit-guard');return true;}return false;},resumeFromExitGuard:()=>{if(runtime.state==='PAUSED'){resumeGame();return true;}return false;}});
 })();

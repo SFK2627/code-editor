@@ -3,7 +3,17 @@
 
   const GAME_ID = 'color-switch-byte';
   const MAX_DPR = 2;
-  const COLORS = ['#22d3ee', '#f43f5e', '#facc15', '#a78bfa'];
+  const COLOR_META = Object.freeze([
+    Object.freeze({ name: 'CYAN', hex: '#22d3ee' }),
+    Object.freeze({ name: 'CORAL', hex: '#fb7185' }),
+    Object.freeze({ name: 'GOLD', hex: '#facc15' }),
+    Object.freeze({ name: 'VIOLET', hex: '#a78bfa' }),
+    Object.freeze({ name: 'LIME', hex: '#4ade80' }),
+    Object.freeze({ name: 'ORANGE', hex: '#fb923c' }),
+    Object.freeze({ name: 'BLUE', hex: '#60a5fa' }),
+    Object.freeze({ name: 'PINK', hex: '#f472b6' })
+  ]);
+  const COLORS = Object.freeze(COLOR_META.map(item => item.hex));
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
   const runtime = {
@@ -43,6 +53,9 @@
     combo: 0,
     bestCombo: 0,
     bestVisible: 0,
+    colorPlanHistory: [],
+    lastOtherColor: -1,
+    lastRoundStartColor: -1,
     round: null,
     soundEnabled: true,
     audioContext: null,
@@ -93,7 +106,7 @@
             <span class="color-switch-byte-hero">&#128993;</span>
             <h2>COLOR SWITCH BYTE</h2>
             <p>Control the lift: quick tap for a small hop, hold briefly for a stronger boost. Pass only through your matching color.</p>
-            <div class="color-switch-byte-help">Quick Tap = HOP &middot; Hold = BOOST</div>
+            <div class="color-switch-byte-help">8 COLORS &middot; NO QUICK REPEATS &middot; Quick Tap = HOP &middot; Hold = BOOST</div>
             <button class="primary" type="button" data-color-switch-byte-start>START</button>
           </div>
         </div>
@@ -265,7 +278,41 @@
   }
 
   function colorName(index) {
-    return ['CYAN', 'RED', 'YELLOW', 'VIOLET'][index % COLORS.length];
+    const safeIndex = ((Number(index) || 0) % COLOR_META.length + COLOR_META.length) % COLOR_META.length;
+    return COLOR_META[safeIndex].name;
+  }
+
+  function chooseRoundStartColor() {
+    const candidates = COLOR_META.map((_, index) => index).filter(index => index !== runtime.lastRoundStartColor);
+    const chosen = candidates[Math.floor(Math.random() * candidates.length)] ?? 0;
+    runtime.lastRoundStartColor = chosen;
+    return chosen;
+  }
+
+  function chooseNextRequiredColor() {
+    // Avoid the current color and the previous two planned colors. This blocks
+    // immediate repeats and short A-B-A / A-B-A-B loops while keeping variety.
+    const recent = runtime.colorPlanHistory.slice(-3);
+    let candidates = COLOR_META.map((_, index) => index).filter(index => !recent.includes(index));
+    if (!candidates.length) {
+      const current = recent[recent.length - 1] ?? runtime.ball.colorIndex;
+      candidates = COLOR_META.map((_, index) => index).filter(index => index !== current);
+    }
+    const chosen = candidates[Math.floor(Math.random() * candidates.length)] ?? 0;
+    runtime.colorPlanHistory.push(chosen);
+    if (runtime.colorPlanHistory.length > 6) runtime.colorPlanHistory.splice(0, runtime.colorPlanHistory.length - 6);
+    return chosen;
+  }
+
+  function chooseRingOtherColor(required) {
+    const previousRequired = runtime.colorPlanHistory[runtime.colorPlanHistory.length - 2];
+    let candidates = COLOR_META.map((_, index) => index).filter(index => (
+      index !== required && index !== runtime.lastOtherColor && index !== previousRequired
+    ));
+    if (!candidates.length) candidates = COLOR_META.map((_, index) => index).filter(index => index !== required);
+    const chosen = candidates[Math.floor(Math.random() * candidates.length)] ?? ((required + 1) % COLORS.length);
+    runtime.lastOtherColor = chosen;
+    return chosen;
   }
 
   function updateHud() {
@@ -284,6 +331,8 @@
     runtime.ball.worldY = 0;
     runtime.ball.vy = 0;
     runtime.ball.colorIndex = 0;
+    runtime.colorPlanHistory = [runtime.ball.colorIndex];
+    runtime.lastOtherColor = -1;
     runtime.cameraY = 0;
     runtime.round = null;
     runtime.startedAt = 0;
@@ -304,7 +353,9 @@
     runtime.bestCombo = 0;
     runtime.ball.worldY = 0;
     runtime.ball.vy = 0;
-    runtime.ball.colorIndex = Math.floor(Math.random() * COLORS.length);
+    runtime.ball.colorIndex = chooseRoundStartColor();
+    runtime.colorPlanHistory = [runtime.ball.colorIndex];
+    runtime.lastOtherColor = -1;
     runtime.cameraY = 0;
     runtime.rings = [];
     runtime.startedAt = performance.now();
@@ -366,9 +417,8 @@
   }
 
   function makeRing(worldY, indexSeed = 0) {
-    const required = (runtime.ball.colorIndex + indexSeed + 1 + Math.floor(Math.random() * 3)) % COLORS.length;
-    let other = Math.floor(Math.random() * COLORS.length);
-    if (other === required) other = (other + 1) % COLORS.length;
+    const required = chooseNextRequiredColor();
+    const other = chooseRingOtherColor(required);
     const direction = Math.random() < 0.5 ? -1 : 1;
     const scoreFactor = Math.min(1.3, runtime.score * 0.018);
     return {

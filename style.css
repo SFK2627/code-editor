@@ -65514,3 +65514,9 @@ html[data-theme="dark"] .code-explorer-admin-music-pill.off {
   .code-explorer-admin-music-actions .ghost-btn,
   .code-explorer-admin-music-actions .primary-btn { width: 100%; }
 }
+
+
+/* v4761 Exit Guard: confirmation must appear above full-screen Mini-Games. */
+.app-dialog-overlay {
+  z-index: 2147483600 !important;
+}

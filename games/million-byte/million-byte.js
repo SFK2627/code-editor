@@ -755,6 +755,32 @@
     if (pick >= 0) { event.preventDefault(); chooseAnswer(pick); }
   }
 
+  function pauseForExitGuard() {
+    if (!runtime.open || runtime.exitGuardPause) return false;
+    if (runtime.state !== 'question' || runtime.locked || !runtime.deadlineAt) return false;
+    runtime.exitGuardPause = {
+      pausedAt: performance.now(),
+      remainingMs: Math.max(0, runtime.deadlineAt - performance.now())
+    };
+    stopTimer();
+    return true;
+  }
+
+  function resumeFromExitGuard() {
+    const paused = runtime.exitGuardPause;
+    if (!runtime.open || !paused) return false;
+    runtime.exitGuardPause = null;
+    const now = performance.now();
+    const pauseDuration = Math.max(0, now - Number(paused.pausedAt || now));
+    if (runtime.startedAt) runtime.startedAt += pauseDuration;
+    runtime.questionStartedAt = now;
+    runtime.deadlineAt = now + Math.max(250, Number(paused.remainingMs || 0));
+    stopTimer();
+    runtime.timerHandle = window.setInterval(renderTimer, 100);
+    renderTimer();
+    return true;
+  }
+
   function returnToHub() {
     const cb = runtime.onBack;
     closeInternal();
@@ -813,5 +839,5 @@
     updateLadder();
   }
 
-  window[GLOBAL_NAME] = Object.freeze({ open, close: closeInternal, isOpen: () => runtime.open });
+  window[GLOBAL_NAME] = Object.freeze({ open, close: closeInternal, isOpen: () => runtime.open, pauseForExitGuard, resumeFromExitGuard });
 })();

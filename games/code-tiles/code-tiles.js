@@ -342,6 +342,10 @@
       steps.forEach((step, eventIndex) => {
         const targetTime = phaseStart + step * halfBeat;
         const needed = doubleIndices.has(eventIndex) ? 2 : 1;
+        // Former simultaneous double notes are intentionally micro-staggered.
+        // This keeps the server-safe 127-note chart but prevents two tiles from
+        // sitting on the exact same horizontal row and confusing the next-tile order.
+        const pairOffsetMs = needed === 2 ? Math.min(135, halfBeat * .46) : 0;
         const available = [0, 1, 2, 3].filter(lane => laneBlockedUntil[lane] <= targetTime - HIT_WINDOWS.good - 40);
         const pool = available.length >= needed ? available : [0, 1, 2, 3];
         const preferredPool = pool.filter(lane => !previousEventLanes.includes(lane));
@@ -363,6 +367,7 @@
 
         lanes.forEach((lane, chordIndex) => {
           const isHold = chordIndex === 0 && holdIndices.has(eventIndex);
+          const noteTargetTime = targetTime + (chordIndex === 1 ? pairOffsetMs : 0);
           const phaseEnd = phaseStart + beatMs * 4 * phase.bars;
           const requestedHold = isHold
             ? beatMs * (
@@ -373,7 +378,7 @@
                 (rng() > .5 ? 5.1 : 4.45)
               )
             : 0;
-          const holdDuration = isHold ? Math.max(beatMs * 2.45, Math.min(requestedHold, phaseEnd - targetTime - 220)) : 0;
+          const holdDuration = isHold ? Math.max(beatMs * 2.45, Math.min(requestedHold, phaseEnd - noteTargetTime - 220)) : 0;
           const pxPerMs = (TARGET_Y - ENTRY_Y) / phase.travelMs;
           const eventSpacingPx = halfBeat * pxPerMs;
           const visualHeight = isHold ? TILE_H : clamp(eventSpacingPx * .95, 108, 132);
@@ -381,7 +386,7 @@
             id: `ct-${String(++id).padStart(3, '0')}`,
             phaseIndex,
             lane,
-            targetTime,
+            targetTime: noteTargetTime,
             travelMs: phase.travelMs,
             holdDuration,
             visualHeight,
@@ -394,7 +399,7 @@
             resumeGraceUntil: 0,
             spawnedBurst: false
           });
-          if (holdDuration > 0) laneBlockedUntil[lane] = targetTime + holdDuration + HIT_WINDOWS.good + 70;
+          if (holdDuration > 0) laneBlockedUntil[lane] = noteTargetTime + holdDuration + HIT_WINDOWS.good + 70;
         });
         if (firstLane === previousLane) sameLaneRun += 1;
         else sameLaneRun = 1;
@@ -682,7 +687,6 @@
       runtime.currentPhase = nextPhase;
       runtime.phaseBanner = { index: nextPhase, startedAt: now };
       playUiTone('phase');
-      vibrate(10);
     }
     if (!runtime.lowPower) playBeatIfNeeded(trackMs);
 
@@ -808,7 +812,6 @@
       runtime.sync = Math.max(0, runtime.sync - .6);
       showJudgement('WAIT FOR NEXT TILE', 'bad');
       playUiTone('bad');
-      vibrate(4);
       return;
     }
 
@@ -820,7 +823,6 @@
       runtime.combo = 0;
       showJudgement('WRONG TILE', 'bad');
       playUiTone('bad');
-      vibrate(8);
       return;
     }
 
@@ -907,7 +909,6 @@
     spawnTapEffect(note, 'PERFECT', TARGET_Y);
     if (!runtime.lowPower) spawnHitBurst(note.lane, 'HOLD');
     playLaneTone(note.lane, 1.12);
-    vibrate(12);
   }
 
   function registerHoldBreak(note) {
@@ -986,8 +987,6 @@
     runtime.rewardNoteEl.textContent = runtime.round ? 'Checking secure reward…' : 'Practice run — log in to earn account XP.';
     runtime.resultPanel.hidden = false;
     playUiTone('win');
-    vibrate([14, 35, 18]);
-
     if (!runtime.round?.sessionId || !runtime.bridge?.claimRound) return;
     const snap = runtime.bridge?.getSnapshot?.() || {};
     const claimedTierToday = snap.dayKey && runtime.lastRewardDay === snap.dayKey
@@ -1070,7 +1069,6 @@
     runtime.failCopyEl.textContent = runtime.failedReason;
     runtime.failPanel.hidden = false;
     playUiTone('fail');
-    vibrate([20, 30, 25]);
   }
 
   function showJudgement(text, kind) {
@@ -1148,6 +1146,7 @@
     return runtime.view.cssW <= 700;
   }
 
+  // Pointer interactions are intentionally visual/audio only: no vibration or haptic API.
   function onPointerDown(event) {
     if (!runtime.open) return;
     if (runtime.state !== 'playing') return;
@@ -1392,10 +1391,6 @@
     else if (kind === 'win') { synth(523, .12, .09, 'triangle'); synth(659, .12, .085, 'triangle', 0, .095); synth(784, .17, .09, 'triangle', 0, .19); }
     else if (kind === 'fail') synth(190, .24, .085, 'sawtooth', 78);
   }
-
-  // CODE TILES intentionally has no phone vibration/haptic feedback.
-  // Keep this no-op so legacy call sites cannot trigger navigator.vibrate().
-  function vibrate() {}
 
   function toggleSound() {
     runtime.soundEnabled = !runtime.soundEnabled;

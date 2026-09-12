@@ -1712,6 +1712,30 @@
     try { cb?.(); } catch (_) {}
   }
 
+  function pauseForExitGuard() {
+    if (!runtime.open || runtime.exitGuardPaused) return false;
+    runtime.exitGuardPaused = true;
+    if (runtime.activeSegmentAt) {
+      runtime.activePlayMs += Math.max(0, performance.now() - runtime.activeSegmentAt);
+      runtime.activeSegmentAt = 0;
+    }
+    runtime.pausedAt = performance.now();
+    if (runtime.raf) cancelAnimationFrame(runtime.raf);
+    runtime.raf = 0;
+    return true;
+  }
+
+  function resumeFromExitGuard() {
+    if (!runtime.open || !runtime.exitGuardPaused) return false;
+    runtime.exitGuardPaused = false;
+    runtime.activeSegmentAt = performance.now();
+    runtime.lastFrame = performance.now();
+    runtime.accumulator = 0;
+    requestRender();
+    if (runtime.state === 'flying') ensureLoop();
+    return true;
+  }
+
   function closeInternal() {
     if (!runtime.open) return;
     runtime.open = false;
@@ -1756,5 +1780,5 @@
     requestAnimationFrame(() => { resizeCanvas(); render(performance.now()); });
   }
 
-  window.ICT8ByteSling = Object.freeze({ open, close: closeInternal, isOpen: () => runtime.open });
+  window.ICT8ByteSling = Object.freeze({ open, close: closeInternal, isOpen: () => runtime.open, pauseForExitGuard, resumeFromExitGuard });
 })();

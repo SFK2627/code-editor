@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const ASSET_VERSION = '20260912-v4761-code-tiles-v57-loop';
+  const ASSET_VERSION = '20260912-v4761-code-tiles-v58-nohaptic-stagger';
 
   const GAME_REGISTRY = Object.freeze([
     {
