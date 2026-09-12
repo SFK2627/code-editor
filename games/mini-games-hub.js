@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const ASSET_VERSION = '20260912-v4761-byte-runner-v7-audio-focus';
+  const ASSET_VERSION = '20260912-v4761-game-audio-v1';
 
   const GAME_REGISTRY = Object.freeze([
     {
@@ -369,6 +369,453 @@
       }
     }
   ]);
+
+
+  /* =========================================================
+     GAME AUDIO v1 — lightweight procedural soundtrack engine
+     ---------------------------------------------------------
+     Goals:
+     - every current Mini-Game gets its own original loop/profile;
+     - future games still receive a deterministic fallback track;
+     - no copyrighted audio files or network fetches;
+     - one looping AudioBufferSource only during gameplay, so the
+       soundtrack adds almost no per-frame CPU load on phones;
+     - the existing shared Mini-Game sound toggle controls both the
+       game module SFX and this background soundtrack;
+     - BGM ducks briefly on input so in-game SFX remain easy to hear.
+     ========================================================= */
+
+  const MINI_GAME_SOUNDTRACK_PROFILES = Object.freeze({
+    'code-fly':               { bpm:132, root:57, scale:'minorPent', lead:'pulse',  melody:[0,null,2,3,4,null,3,2,0,null,4,5,4,3,2,null], bass:[0,0,3,4], drums:'drive',  gain:.31 },
+    'bug-smash':              { bpm:142, root:52, scale:'minorPent', lead:'square', melody:[0,2,null,3,0,4,null,3,2,null,4,5,3,2,0,null], bass:[0,3,0,4], drums:'punch',  gain:.30 },
+    'runner-404':             { bpm:154, root:50, scale:'minor',     lead:'pulse',  melody:[0,2,4,null,5,4,2,null,0,2,5,6,5,4,2,null], bass:[0,0,5,4], drums:'drive',  gain:.31 },
+    'memory-code':            { bpm:92,  root:60, scale:'majorPent', lead:'bell',   melody:[0,null,2,null,4,null,3,null,1,null,3,null,4,2,1,null], bass:[0,3,4,3], drums:'soft',   gain:.27 },
+    'code-snake':             { bpm:118, root:55, scale:'minorPent', lead:'pluck',  melody:[0,1,2,null,3,2,1,null,0,2,3,4,3,2,1,null], bass:[0,0,3,4], drums:'groove', gain:.30 },
+    'code-stack':             { bpm:108, root:48, scale:'majorPent', lead:'pluck',  melody:[0,null,1,2,3,null,2,1,0,null,2,3,4,3,2,null], bass:[0,3,4,3], drums:'groove', gain:.29 },
+    'byte-rush':              { bpm:158, root:45, scale:'minor',     lead:'saw',    melody:[0,2,4,5,4,2,0,null,0,3,5,6,5,3,2,null], bass:[0,5,0,4], drums:'drive',  gain:.31 },
+    'rocket-byte':            { bpm:126, root:50, scale:'dorian',    lead:'pulse',  melody:[0,null,2,4,5,4,2,null,0,2,4,6,5,4,2,null], bass:[0,4,5,4], drums:'drive',  gain:.30 },
+    'falling-code':           { bpm:112, root:47, scale:'minor',     lead:'bell',   melody:[4,null,3,2,1,null,0,null,5,null,4,3,2,1,0,null], bass:[0,5,3,4], drums:'soft',   gain:.28 },
+    'perfect-shot':           { bpm:120, root:57, scale:'majorPent', lead:'pluck',  melody:[0,null,2,null,4,3,2,null,0,null,3,null,4,5,4,null], bass:[0,3,4,3], drums:'groove', gain:.29 },
+    'color-switch-byte':      { bpm:128, root:60, scale:'majorPent', lead:'bell',   melody:[0,2,4,3,1,3,4,5,4,2,0,2,3,4,2,null], bass:[0,4,3,4], drums:'dance',  gain:.30 },
+    'code-hoops':             { bpm:104, root:50, scale:'minorPent', lead:'pluck',  melody:[0,null,2,3,null,2,0,null,3,null,4,3,2,0,null,null], bass:[0,3,4,3], drums:'groove', gain:.30 },
+    'red-light-green-light':  { bpm:116, root:52, scale:'minor',     lead:'pulse',  melody:[0,null,0,2,null,2,3,null,0,null,4,3,2,null,0,null], bass:[0,0,3,4], drums:'pulse',  gain:.28 },
+    'code-maze':              { bpm:110, root:53, scale:'minor',     lead:'bell',   melody:[0,null,2,3,5,null,3,2,0,null,4,5,4,2,1,null], bass:[0,3,5,4], drums:'soft',   gain:.27 },
+    'code-flow':              { bpm:96,  root:60, scale:'majorPent', lead:'bell',   melody:[0,null,1,null,2,3,null,4,3,null,2,1,0,null,2,null], bass:[0,3,4,3], drums:'soft',   gain:.26 },
+    'byte-sling':             { bpm:106, root:50, scale:'minorPent', lead:'pluck',  melody:[0,null,3,null,4,3,2,null,0,2,null,4,5,4,2,null], bass:[0,3,4,3], drums:'punch',  gain:.29 },
+    'code-bridge':            { bpm:100, root:57, scale:'minorPent', lead:'pluck',  melody:[0,null,1,2,null,3,2,null,0,null,3,4,3,2,1,null], bass:[0,3,4,3], drums:'soft',   gain:.28 },
+    'code-slice':             { bpm:150, root:45, scale:'minorPent', lead:'saw',    melody:[0,2,3,4,3,2,0,null,0,3,4,5,4,3,2,null], bass:[0,0,3,4], drums:'drive',  gain:.30 },
+    'million-byte':           { bpm:94,  root:55, scale:'minor',     lead:'bell',   melody:[0,null,2,null,3,null,5,null,4,null,3,2,1,null,0,null], bass:[0,3,5,4], drums:'suspense', gain:.25 },
+    'code-vault':             { bpm:88,  root:52, scale:'minor',     lead:'bell',   melody:[0,null,3,null,2,null,5,null,4,null,2,null,1,null,0,null], bass:[0,5,3,4], drums:'suspense', gain:.25 },
+    'code-tiles':             { bpm:138, root:57, scale:'minorPent', lead:'pluck',  melody:[0,null,2,null,3,null,4,null,3,null,2,null,4,null,5,null], bass:[0,3,4,3], drums:'dance',  gain:.20 },
+    'byte-runner-html-rush':  { bpm:144, root:50, scale:'minor',     lead:'pulse',  melody:[0,2,4,null,5,4,2,null,0,3,5,null,6,5,3,null], bass:[0,0,5,4], drums:'drive',  gain:.31 },
+    'pattern-lock':           { bpm:102, root:60, scale:'minorPent', lead:'bell',   melody:[0,null,2,null,4,null,3,null,1,null,3,null,5,4,2,null], bass:[0,3,4,3], drums:'soft',   gain:.27 }
+  });
+
+  const MINI_GAME_SCALES = Object.freeze({
+    major:     [0,2,4,5,7,9,11],
+    minor:     [0,2,3,5,7,8,10],
+    dorian:    [0,2,3,5,7,9,10],
+    majorPent: [0,2,4,7,9],
+    minorPent: [0,3,5,7,10]
+  });
+
+  function miniGameHash(value = '') {
+    let hash = 2166136261 >>> 0;
+    for (const char of String(value)) {
+      hash ^= char.charCodeAt(0);
+      hash = Math.imul(hash, 16777619) >>> 0;
+    }
+    return hash >>> 0;
+  }
+
+  function fallbackSoundtrackProfile(gameId = '') {
+    const h = miniGameHash(gameId || 'mini-game');
+    const scales = ['minorPent', 'majorPent', 'minor', 'dorian'];
+    const roots = [48, 50, 52, 53, 55, 57, 60];
+    const lead = ['pluck', 'pulse', 'bell'][h % 3];
+    const drums = ['groove', 'drive', 'soft', 'dance'][(h >>> 3) % 4];
+    const melody = Array.from({ length: 16 }, (_, i) => {
+      if ((h + i * 13) % 5 === 0) return null;
+      return ((h >>> (i % 16)) + i * 3) % 6;
+    });
+    return {
+      bpm: 104 + (h % 45),
+      root: roots[(h >>> 6) % roots.length],
+      scale: scales[(h >>> 10) % scales.length],
+      lead,
+      melody,
+      bass: [0, 3, 4, 3],
+      drums,
+      gain: .28
+    };
+  }
+
+  function midiToHz(midi) {
+    return 440 * Math.pow(2, (Number(midi || 69) - 69) / 12);
+  }
+
+  function degreeToMidi(root, degree, scaleName) {
+    const scale = MINI_GAME_SCALES[scaleName] || MINI_GAME_SCALES.minorPent;
+    const d = Math.trunc(Number(degree || 0));
+    const size = scale.length;
+    const octave = Math.floor(d / size);
+    const index = ((d % size) + size) % size;
+    return Number(root || 57) + scale[index] + octave * 12;
+  }
+
+  function buildMiniGameLoopBuffer(ctx, gameId, profile) {
+    const sampleRate = Math.min(22050, Math.max(16000, Math.floor(ctx.sampleRate / 2)));
+    const bpm = Math.max(72, Math.min(170, Number(profile.bpm || 120)));
+    const beatsPerBar = 4;
+    const bars = 4;
+    const stepsPerBeat = 4;
+    const totalSteps = bars * beatsPerBar * stepsPerBeat;
+    const beatSeconds = 60 / bpm;
+    const stepSeconds = beatSeconds / stepsPerBeat;
+    const duration = bars * beatsPerBar * beatSeconds;
+    const length = Math.max(1, Math.floor(duration * sampleRate));
+    const buffer = ctx.createBuffer(1, length, sampleRate);
+    const data = buffer.getChannelData(0);
+    const seedBase = miniGameHash(gameId);
+    let noiseSeed = seedBase || 1;
+
+    const rand = () => {
+      noiseSeed = (Math.imul(noiseSeed, 1664525) + 1013904223) >>> 0;
+      return (noiseSeed / 4294967296) * 2 - 1;
+    };
+
+    const addTone = (startSec, freq, durSec, amp, kind = 'pluck') => {
+      const start = Math.max(0, Math.floor(startSec * sampleRate));
+      const frames = Math.min(length - start, Math.max(1, Math.floor(durSec * sampleRate)));
+      const attack = Math.max(1, Math.floor(Math.min(.012, durSec * .14) * sampleRate));
+      const decayRate = kind === 'bell' ? 4.4 : kind === 'saw' ? 6.2 : kind === 'pulse' ? 7.4 : 8.8;
+      for (let i = 0; i < frames; i++) {
+        const t = i / sampleRate;
+        const phase = Math.PI * 2 * freq * t;
+        let wave;
+        if (kind === 'bell') {
+          wave = Math.sin(phase) * .74 + Math.sin(phase * 2.01) * .18 + Math.sin(phase * 3.99) * .08;
+        } else if (kind === 'saw') {
+          const x = (freq * t) % 1;
+          wave = (2 * x - 1) * .62 + Math.sin(phase) * .38;
+        } else if (kind === 'pulse') {
+          wave = (Math.sin(phase) >= .28 ? 1 : -1) * .48 + Math.sin(phase) * .52;
+        } else {
+          const tri = (2 / Math.PI) * Math.asin(Math.sin(phase));
+          wave = tri * .72 + Math.sin(phase * 2) * .20 + Math.sin(phase * 3) * .08;
+        }
+        const env = Math.min(1, i / attack) * Math.exp(-decayRate * t / Math.max(.12, durSec));
+        data[start + i] += wave * env * amp;
+      }
+    };
+
+    const addKick = (startSec, amp = .18) => {
+      const start = Math.floor(startSec * sampleRate);
+      const frames = Math.min(length - start, Math.floor(.18 * sampleRate));
+      for (let i = 0; i < frames; i++) {
+        const t = i / sampleRate;
+        const f = 96 * Math.exp(-10 * t) + 42;
+        const env = Math.exp(-18 * t);
+        data[start + i] += Math.sin(Math.PI * 2 * f * t) * env * amp;
+      }
+    };
+
+    const addSnare = (startSec, amp = .10) => {
+      const start = Math.floor(startSec * sampleRate);
+      const frames = Math.min(length - start, Math.floor(.11 * sampleRate));
+      for (let i = 0; i < frames; i++) {
+        const t = i / sampleRate;
+        const env = Math.exp(-24 * t);
+        const body = Math.sin(Math.PI * 2 * 180 * t) * .32;
+        data[start + i] += (rand() * .68 + body) * env * amp;
+      }
+    };
+
+    const addHat = (startSec, amp = .035) => {
+      const start = Math.floor(startSec * sampleRate);
+      const frames = Math.min(length - start, Math.floor(.035 * sampleRate));
+      for (let i = 0; i < frames; i++) {
+        const t = i / sampleRate;
+        const env = Math.exp(-55 * t);
+        const bright = rand() - rand() * .55;
+        data[start + i] += bright * env * amp;
+      }
+    };
+
+    const drumStyle = String(profile.drums || 'groove');
+    for (let step = 0; step < totalSteps; step++) {
+      const t = step * stepSeconds;
+      const beatIndex = Math.floor(step / stepsPerBeat);
+      const onBeat = step % stepsPerBeat === 0;
+      const eighth = step % 2 === 0;
+
+      if (onBeat) {
+        const beatInBar = beatIndex % 4;
+        const kick = drumStyle === 'soft' ? (beatInBar === 0 || beatInBar === 2)
+          : drumStyle === 'suspense' ? (beatInBar === 0)
+          : drumStyle === 'pulse' ? (beatInBar === 0 || beatInBar === 2)
+          : true;
+        if (kick) addKick(t, drumStyle === 'drive' ? .21 : drumStyle === 'punch' ? .22 : .16);
+        if (beatInBar === 1 || beatInBar === 3) addSnare(t, drumStyle === 'soft' ? .065 : .105);
+      }
+
+      if (drumStyle === 'drive' || drumStyle === 'dance') {
+        if (eighth) addHat(t, .035);
+      } else if (drumStyle === 'groove' || drumStyle === 'punch') {
+        if (step % 4 === 2) addHat(t, .032);
+      } else if (drumStyle === 'pulse') {
+        if (step % 8 === 6) addHat(t, .025);
+      } else if (drumStyle === 'soft') {
+        if (step % 8 === 4) addHat(t, .018);
+      } else if (drumStyle === 'suspense') {
+        if (step % 8 === 6) addHat(t, .016);
+      }
+    }
+
+    const bass = Array.isArray(profile.bass) && profile.bass.length ? profile.bass : [0,3,4,3];
+    for (let beat = 0; beat < bars * beatsPerBar; beat++) {
+      const degree = bass[beat % bass.length];
+      if (degree == null) continue;
+      const freq = midiToHz(degreeToMidi(Number(profile.root || 57) - 12, degree, profile.scale));
+      addTone(beat * beatSeconds, freq, Math.min(.44, beatSeconds * .72), drumStyle === 'soft' ? .07 : .095, 'pulse');
+    }
+
+    const melody = Array.isArray(profile.melody) && profile.melody.length ? profile.melody : [0,null,2,null,3,null,4,null,3,null,2,null,4,null,5,null];
+    for (let step = 0; step < totalSteps; step++) {
+      let degree = melody[step % melody.length];
+      if (degree == null) continue;
+      // Small bar-4 lift keeps a four-bar loop from sounding like one repeated bar.
+      const bar = Math.floor(step / 16);
+      if (bar === 3 && step % 4 === 0) degree += 1;
+      const freq = midiToHz(degreeToMidi(profile.root, degree, profile.scale));
+      const leadKind = profile.lead || 'pluck';
+      const dur = leadKind === 'bell' ? Math.min(.34, stepSeconds * 1.9) : Math.min(.24, stepSeconds * 1.45);
+      addTone(step * stepSeconds, freq, dur, leadKind === 'saw' ? .055 : .062, leadKind);
+    }
+
+    // A very light chord bed makes puzzle/quiz tracks feel musical without
+    // consuming extra real-time nodes during gameplay.
+    if (drumStyle === 'soft' || drumStyle === 'suspense') {
+      for (let bar = 0; bar < bars; bar++) {
+        const degree = [0, 3, 4, 3][bar % 4];
+        const start = bar * 4 * beatSeconds;
+        [degree, degree + 2, degree + 4].forEach((d, i) => {
+          addTone(start, midiToHz(degreeToMidi(profile.root - 12, d, profile.scale)), Math.min(1.25, beatSeconds * 2.8), .018 - i * .002, 'bell');
+        });
+      }
+    }
+
+    let peak = 0;
+    for (let i = 0; i < data.length; i++) peak = Math.max(peak, Math.abs(data[i]));
+    const scale = peak > .88 ? .88 / peak : 1;
+    const edge = Math.min(160, Math.floor(data.length / 4));
+    for (let i = 0; i < data.length; i++) {
+      let edgeGain = 1;
+      if (i < edge) edgeGain *= i / Math.max(1, edge);
+      if (i > data.length - edge) edgeGain *= (data.length - i) / Math.max(1, edge);
+      const x = data[i] * scale * edgeGain;
+      data[i] = Math.tanh(x * 1.15) / 1.15;
+    }
+    return buffer;
+  }
+
+  const MINI_GAME_SOUNDTRACK = (() => {
+    let ctx = null;
+    let master = null;
+    let compressor = null;
+    let source = null;
+    let activeGameId = '';
+    let activeProfile = null;
+    let currentBuffer = null;
+    let startedAt = 0;
+    let offset = 0;
+    let enabled = true;
+    let paused = false;
+    let duckTimer = 0;
+
+    function ensureAudio() {
+      try {
+        if (!ctx) {
+          const AudioCtor = window.AudioContext || window.webkitAudioContext;
+          if (!AudioCtor) return null;
+          ctx = new AudioCtor({ latencyHint: 'interactive' });
+          compressor = ctx.createDynamicsCompressor();
+          compressor.threshold.value = -18;
+          compressor.knee.value = 16;
+          compressor.ratio.value = 3;
+          compressor.attack.value = .004;
+          compressor.release.value = .16;
+          master = ctx.createGain();
+          master.gain.value = 0;
+          master.connect(compressor);
+          compressor.connect(ctx.destination);
+        }
+        return ctx;
+      } catch (_) {
+        return null;
+      }
+    }
+
+    function targetGain() {
+      if (!enabled || paused || !activeGameId || !activeProfile) return 0;
+      return Math.max(.16, Math.min(.38, Number(activeProfile.gain || .28)));
+    }
+
+    function rampGain(value, seconds = .06) {
+      if (!master || !ctx) return;
+      try {
+        const now = ctx.currentTime;
+        master.gain.cancelScheduledValues(now);
+        master.gain.setTargetAtTime(Math.max(0, Number(value || 0)), now, Math.max(.012, Number(seconds || .06)));
+      } catch (_) {}
+    }
+
+    function stopSource() {
+      if (!source) return;
+      try { source.stop(); } catch (_) {}
+      try { source.disconnect(); } catch (_) {}
+      source = null;
+    }
+
+    function playFromOffset(nextOffset = 0) {
+      if (!ctx || !currentBuffer || !enabled || paused || !activeGameId) return false;
+      stopSource();
+      try {
+        source = ctx.createBufferSource();
+        source.buffer = currentBuffer;
+        source.loop = true;
+        source.connect(master);
+        const duration = Math.max(.001, currentBuffer.duration || 1);
+        offset = ((Number(nextOffset || 0) % duration) + duration) % duration;
+        source.start(0, offset);
+        startedAt = ctx.currentTime;
+        rampGain(targetGain(), .045);
+        return true;
+      } catch (_) {
+        source = null;
+        return false;
+      }
+    }
+
+    function unlock() {
+      const audio = ensureAudio();
+      if (!audio) return false;
+      try { audio.resume?.().catch?.(() => {}); } catch (_) {}
+      return true;
+    }
+
+    function start(gameId, options = {}) {
+      const id = String(gameId || '').trim();
+      if (!id) return false;
+      enabled = options.enabled !== false;
+      activeGameId = id;
+      activeProfile = MINI_GAME_SOUNDTRACK_PROFILES[id] || fallbackSoundtrackProfile(id);
+      offset = 0;
+      paused = false;
+      const audio = ensureAudio();
+      if (!audio) return false;
+      try { audio.resume?.().catch?.(() => {}); } catch (_) {}
+      try { currentBuffer = buildMiniGameLoopBuffer(audio, id, activeProfile); } catch (_) { currentBuffer = null; }
+      if (!currentBuffer || !enabled) {
+        rampGain(0, .02);
+        return Boolean(currentBuffer);
+      }
+      return playFromOffset(0);
+    }
+
+    function stop() {
+      rampGain(0, .025);
+      stopSource();
+      activeGameId = '';
+      activeProfile = null;
+      currentBuffer = null;
+      offset = 0;
+      startedAt = 0;
+      paused = false;
+      if (duckTimer) clearTimeout(duckTimer);
+      duckTimer = 0;
+    }
+
+    function pause() {
+      if (paused || !activeGameId) return false;
+      paused = true;
+      if (ctx && currentBuffer && source) {
+        const elapsed = Math.max(0, ctx.currentTime - startedAt);
+        offset = (offset + elapsed) % Math.max(.001, currentBuffer.duration || 1);
+      }
+      rampGain(0, .02);
+      stopSource();
+      return true;
+    }
+
+    function resume() {
+      if (!paused || !activeGameId) return false;
+      paused = false;
+      if (!enabled) return false;
+      const audio = ensureAudio();
+      if (!audio) return false;
+      try { audio.resume?.().catch?.(() => {}); } catch (_) {}
+      return playFromOffset(offset);
+    }
+
+    function setEnabled(next) {
+      enabled = Boolean(next);
+      if (!enabled) {
+        rampGain(0, .025);
+        stopSource();
+        return;
+      }
+      if (!activeGameId || paused) return;
+      const audio = ensureAudio();
+      if (!audio) return;
+      try { audio.resume?.().catch?.(() => {}); } catch (_) {}
+      if (!currentBuffer) {
+        try { currentBuffer = buildMiniGameLoopBuffer(audio, activeGameId, activeProfile || fallbackSoundtrackProfile(activeGameId)); } catch (_) {}
+      }
+      if (currentBuffer && !source) playFromOffset(offset);
+      else rampGain(targetGain(), .04);
+    }
+
+    function duck(amount = .56, holdMs = 145) {
+      if (!enabled || paused || !activeGameId || !master || !ctx) return;
+      if (duckTimer) clearTimeout(duckTimer);
+      rampGain(targetGain() * Math.max(.22, Math.min(.85, Number(amount || .56))), .012);
+      duckTimer = window.setTimeout(() => {
+        duckTimer = 0;
+        rampGain(targetGain(), .045);
+      }, Math.max(70, Number(holdMs || 145)));
+    }
+
+    function isActive() { return Boolean(activeGameId); }
+    function getActiveGameId() { return activeGameId; }
+
+    return Object.freeze({ unlock, start, stop, pause, resume, setEnabled, duck, isActive, getActiveGameId });
+  })();
+
+  // Public hook for current and future game modules. Future games can call
+  // pause()/resume()/duck() during their own pause panels or important SFX.
+  try { window.ICT8MiniGameSoundtrack = MINI_GAME_SOUNDTRACK; } catch (_) {}
+
+  window.addEventListener('ict8:xp-mini-games-progress', event => {
+    const soundEnabled = event?.detail?.soundEnabled;
+    if (typeof soundEnabled === 'boolean') MINI_GAME_SOUNDTRACK.setEnabled(soundEnabled);
+  });
+
+  // Brief BGM ducking on actions leaves headroom for each game's own SFX.
+  // These listeners do not synthesize extra SFX, so they stay very cheap.
+  window.addEventListener('pointerdown', () => {
+    if (MINI_GAME_SOUNDTRACK.isActive()) MINI_GAME_SOUNDTRACK.duck(.54, 150);
+  }, { capture: true, passive: true });
+  window.addEventListener('keydown', event => {
+    if (!event.repeat && MINI_GAME_SOUNDTRACK.isActive()) MINI_GAME_SOUNDTRACK.duck(.60, 130);
+  }, { capture: true });
+
+  document.addEventListener('visibilitychange', () => {
+    if (!MINI_GAME_SOUNDTRACK.isActive()) return;
+    if (document.hidden) MINI_GAME_SOUNDTRACK.pause();
+    else if (state?.gameOpen && !state.exitGuardPauseRequested && !state.exitGuardWasAlreadyPaused) MINI_GAME_SOUNDTRACK.resume();
+  });
+
 
   const state = {
     built: false,
@@ -763,6 +1210,7 @@
 
   function openHub() {
     build();
+    MINI_GAME_SOUNDTRACK.stop();
     setMiniGameAudioFocus(false);
     try { window.ICT8AppExitGuard?.arm?.(); } catch (_) {}
     state.bridge = getBridge();
@@ -784,6 +1232,7 @@
 
   function closeHub() {
     if (!state.open && !state.gameOpen) return;
+    MINI_GAME_SOUNDTRACK.stop();
     setMiniGameAudioFocus(false);
     const api = state.activeGameApi;
     const closingGameId = state.activeGameId;
@@ -807,6 +1256,7 @@
   }
 
   function showHubAfterGame() {
+    MINI_GAME_SOUNDTRACK.stop();
     setMiniGameAudioFocus(false);
     const closingGameId = state.activeGameId;
     try { if (closingGameId) state.bridge?.cancelGame?.(closingGameId); } catch (_) {}
@@ -887,6 +1337,9 @@
   async function launchGame(gameId, button = null) {
     const game = gameById(gameId);
     if (!game || state.loadingGameId) return;
+    // Unlock WebAudio directly inside the PLAY gesture before any async asset
+    // loading. This keeps soundtrack startup reliable on iOS/Android browsers.
+    MINI_GAME_SOUNDTRACK.unlock();
     state.loadingGameId = game.id;
     if (button) {
       button.disabled = true;
@@ -903,8 +1356,11 @@
       // Audio focus changes before game.open() so the first game beat/SFX is
       // never masked by the Code Explorer background track.
       setMiniGameAudioFocus(true, game.id);
+      const soundEnabled = state.bridge?.getSnapshot?.()?.soundEnabled !== false;
+      MINI_GAME_SOUNDTRACK.start(game.id, { enabled: soundEnabled });
       api.open({
         bridge: state.bridge,
+        music: MINI_GAME_SOUNDTRACK,
         onBack: showHubAfterGame,
         onClose: closeHub,
         onReward: result => {
@@ -918,6 +1374,7 @@
         }
       });
     } catch (error) {
+      MINI_GAME_SOUNDTRACK.stop();
       setMiniGameAudioFocus(false);
       console.warn(`${game.name} could not initialize.`, error);
       state.open = true;
@@ -946,6 +1403,7 @@
 
   function pauseActiveGameForExitGuard() {
     if (!state.gameOpen || !state.activeGameApi?.isOpen?.()) return false;
+    MINI_GAME_SOUNDTRACK.pause();
     const api = state.activeGameApi;
     state.exitGuardWasAlreadyPaused = Boolean(findVisibleResumeButton());
     state.exitGuardPauseRequested = false;
@@ -977,6 +1435,7 @@
 
     const api = state.activeGameApi;
     state.exitGuardPauseRequested = false;
+    MINI_GAME_SOUNDTRACK.resume();
     try {
       if (typeof api.resumeFromExitGuard === 'function') {
         api.resumeFromExitGuard();
