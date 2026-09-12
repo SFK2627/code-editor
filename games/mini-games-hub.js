@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const ASSET_VERSION = '20260912-v4761-byte-runner-v81-build-hud';
+  const ASSET_VERSION = '20260912-v4761-code-tiles-v60-15phase';
 
   const GAME_REGISTRY = Object.freeze([
     {
@@ -320,10 +320,10 @@
       stateKey: 'codeTiles',
       name: 'CODE TILES',
       icon: '🎹',
-      description: 'Tap short code tiles, press-and-hold long tiles through the SYNC LINE, build combos, and keep the four-lane rhythm synced.',
-      maxXp: 3,
+      description: 'Survive 15 progressively longer phases from 75 to 240 BPM. Tap the next tile, master varied long holds, and chase a perfect overdrive run.',
+      maxXp: 20,
       category: 'RHYTHM / TIMING',
-      difficulty: '★★★★☆',
+      difficulty: '★★★★★',
       globalName: 'ICT8CodeTiles',
       script: 'games/code-tiles/code-tiles.js',
       style: 'games/code-tiles/code-tiles.css',

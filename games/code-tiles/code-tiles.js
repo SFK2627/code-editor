@@ -16,16 +16,26 @@
   const BOARD_W = 560;
   const LANE_W = BOARD_W / 4;
   const HIT_WINDOWS = Object.freeze({ perfect: 72, great: 132, good: 200 });
-  // v5.9 chart design: the old "double" notes are now extra sequential notes.
-  // Nothing spawns at the exact same target time, so phone input always has one
-  // unambiguous NEXT tile. Phase 5 gets one extra bar so 140 BPM stays fast
-  // without becoming a burst of near-simultaneous taps.
+  // v6.0 — 15-PHASE OVERDRIVE. The stream stays strictly sequential: no
+  // simultaneous/chord tile heads, so even the fastest phases keep one clear
+  // NEXT tile. Higher phases use more bars and more notes, creating longer,
+  // faster endurance sections instead of a single chaotic final burst.
   const PHASES = Object.freeze([
-    Object.freeze({ bpm: 75, bars: 5, events: 18, extraNotes: 0, holds: 1, holdMs: Object.freeze([800]), travelMs: 2250, label: 'WARM UP' }),
-    Object.freeze({ bpm: 90, bars: 5, events: 21, extraNotes: 0, holds: 1, holdMs: Object.freeze([950]), travelMs: 2050, label: 'LOCK IN' }),
-    Object.freeze({ bpm: 105, bars: 5, events: 23, extraNotes: 2, holds: 2, holdMs: Object.freeze([800, 1100]), travelMs: 1840, label: 'BUILD FLOW' }),
-    Object.freeze({ bpm: 120, bars: 5, events: 26, extraNotes: 3, holds: 2, holdMs: Object.freeze([850, 1200]), travelMs: 1650, label: 'FAST LANE' }),
-    Object.freeze({ bpm: 140, bars: 6, events: 30, extraNotes: 4, holds: 3, holdMs: Object.freeze([750, 1000, 1250]), travelMs: 1460, label: 'FINAL SYNC' })
+    Object.freeze({ bpm: 75,  bars: 5,  events: 18, holds: 1, holdMs: Object.freeze([900]), travelMs: 2250, label: 'WARM UP' }),
+    Object.freeze({ bpm: 90,  bars: 5,  events: 20, holds: 1, holdMs: Object.freeze([1000]), travelMs: 2150, label: 'FIND THE BEAT' }),
+    Object.freeze({ bpm: 105, bars: 6,  events: 22, holds: 2, holdMs: Object.freeze([800, 1150]), travelMs: 2050, label: 'LOCK IN' }),
+    Object.freeze({ bpm: 120, bars: 6,  events: 24, holds: 2, holdMs: Object.freeze([900, 1250]), travelMs: 1950, label: 'STEADY FLOW' }),
+    Object.freeze({ bpm: 140, bars: 7,  events: 26, holds: 3, holdMs: Object.freeze([750, 1050, 1350]), travelMs: 1850, label: 'FAST LANE' }),
+    Object.freeze({ bpm: 150, bars: 7,  events: 28, holds: 2, holdMs: Object.freeze([850, 1200]), travelMs: 1750, label: 'BUILD SPEED' }),
+    Object.freeze({ bpm: 160, bars: 8,  events: 30, holds: 3, holdMs: Object.freeze([700, 950, 1300]), travelMs: 1650, label: 'QUICK STEP' }),
+    Object.freeze({ bpm: 170, bars: 8,  events: 32, holds: 3, holdMs: Object.freeze([800, 1100, 1450]), travelMs: 1570, label: 'BYTE RUSH' }),
+    Object.freeze({ bpm: 180, bars: 9,  events: 34, holds: 3, holdMs: Object.freeze([650, 900, 1250]), travelMs: 1500, label: 'TURBO FLOW' }),
+    Object.freeze({ bpm: 190, bars: 9,  events: 36, holds: 3, holdMs: Object.freeze([700, 1000, 1400]), travelMs: 1430, label: 'OVERCLOCK' }),
+    Object.freeze({ bpm: 200, bars: 10, events: 40, holds: 4, holdMs: Object.freeze([650, 850, 1100, 1500]), travelMs: 1360, label: 'HYPER SYNC' }),
+    Object.freeze({ bpm: 210, bars: 10, events: 44, holds: 4, holdMs: Object.freeze([700, 950, 1250, 1600]), travelMs: 1300, label: 'RAPID FIRE' }),
+    Object.freeze({ bpm: 220, bars: 11, events: 48, holds: 4, holdMs: Object.freeze([600, 800, 1050, 1400]), travelMs: 1240, label: 'REDLINE' }),
+    Object.freeze({ bpm: 230, bars: 11, events: 52, holds: 4, holdMs: Object.freeze([650, 900, 1200, 1550]), travelMs: 1180, label: 'MAX DRIVE' }),
+    Object.freeze({ bpm: 240, bars: 12, events: 58, holds: 5, holdMs: Object.freeze([600, 800, 1000, 1250, 1650]), travelMs: 1120, label: 'FINAL OVERDRIVE' })
   ]);
   const BACKDROP_GLOWS = Object.freeze([
     Object.freeze([58, 130, 112, 'rgba(255,255,255,.055)']),
@@ -181,13 +191,13 @@
 
         <header class="code-tiles-topbar">
           <button type="button" data-code-tiles-back aria-label="Back to Mini-Games">←</button>
-          <div class="code-tiles-brand"><strong>🎹 CODE TILES</strong><small>Keep the Beat</small></div>
+          <div class="code-tiles-brand"><strong>🎹 CODE TILES</strong><small>15-Phase Overdrive</small></div>
           <button type="button" data-code-tiles-sound aria-label="Toggle sound">🔊</button>
           <button type="button" data-code-tiles-close aria-label="Close Code Tiles">×</button>
         </header>
 
         <div class="code-tiles-hud">
-          <div><small>PHASE</small><strong data-code-tiles-phase>1/5</strong></div>
+          <div><small>PHASE</small><strong data-code-tiles-phase>1/15</strong></div>
           <div><small>BPM</small><strong data-code-tiles-bpm>75</strong></div>
           <div><small>COMBO</small><strong data-code-tiles-combo>x0</strong></div>
           <div><small>SYNC</small><strong data-code-tiles-sync>100%</strong></div>
@@ -199,17 +209,17 @@
         <div class="code-tiles-panel" data-code-tiles-ready>
           <div class="code-tiles-card">
             <div class="code-tiles-hero" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
-            <p class="code-tiles-kicker">60-SECOND RHYTHM RUN</p>
+            <p class="code-tiles-kicker">15-PHASE RHYTHM RUN</p>
             <h2>CODE TILES</h2>
-            <p>Follow the black tiles in order. Tap the NEXT tile as soon as it enters the board — you do not have to wait for the line. Long tiles must be held until their tail reaches the line.</p>
+            <p>Clear all 15 phases. The track gets longer and faster until the 240 BPM FINAL OVERDRIVE. Tap only the NEXT black tile; hold long tiles until their color fill reaches the tail.</p>
             <div class="code-tiles-how">
               <span><i class="short"></i><b>SHORT TILE</b><small>Tap the next tile once it appears. Only the earliest tile(s) count.</small></span>
               <span><i class="long"></i><b>LONG TILE</b><small>Press and keep holding. Do not release until the long tail reaches the line.</small></span>
             </div>
             <div class="code-tiles-key-row"><span><b>D</b> HTML</span><span><b>F</b> CSS</span><span><b>J</b> JS</span><span><b>K</b> 01</span></div>
-            <div class="code-tiles-phase-strip"><span>75</span><span>90</span><span>105</span><span>120</span><span>140 BPM</span></div>
+            <div class="code-tiles-phase-strip"><span>75</span><span>140</span><span>180</span><span>220</span><span>240 BPM</span></div>
             <button type="button" class="primary" data-code-tiles-play>PLAY TRACK</button>
-            <small class="code-tiles-tip">🔊 Sound recommended · Phone: tap/hold lanes · Desktop: mouse or D F J K</small>
+            <small class="code-tiles-tip">🏆 Perfect 15-phase clear = 20 XP · 🔊 Sound recommended · Phone: tap/hold lanes</small>
           </div>
         </div>
 
@@ -319,7 +329,7 @@
     // Keep a steady Piano-Tiles stream instead of injecting 90-130ms bursts.
     // A tiny deterministic swing prevents the chart from feeling mechanical,
     // while the clamp below guarantees generous phone-tap spacing.
-    const minGap = phase.bpm >= 140 ? 270 : phase.bpm >= 120 ? 295 : phase.bpm >= 105 ? 330 : 380;
+    const minGap = phase.bpm >= 235 ? 165 : phase.bpm >= 225 ? 175 : phase.bpm >= 215 ? 185 : phase.bpm >= 205 ? 195 : phase.bpm >= 195 ? 205 : phase.bpm >= 185 ? 215 : phase.bpm >= 175 ? 225 : phase.bpm >= 165 ? 235 : phase.bpm >= 155 ? 245 : phase.bpm >= 145 ? 255 : phase.bpm >= 130 ? 270 : phase.bpm >= 115 ? 290 : phase.bpm >= 100 ? 315 : phase.bpm >= 90 ? 340 : 380;
     const swing = Math.min(18, spacing * .055);
     for (let i = 0; i < noteCount; i += 1) {
       const pattern = i % 4 === 1 ? swing : i % 4 === 3 ? -swing : 0;
@@ -341,13 +351,18 @@
 
   function generateHoldIndices(noteCount, holdCount) {
     if (!holdCount) return [];
-    const fractions = holdCount === 1 ? [.52] : holdCount === 2 ? [.32, .70] : [.22, .50, .77];
     const result = [];
-    fractions.slice(0, holdCount).forEach(fraction => {
+    // Evenly spread long holds through the middle ~70% of each phase so the
+    // player never gets a cluster of long tiles near the intro or phase exit.
+    const first = .16;
+    const last = .84;
+    for (let slot = 0; slot < holdCount; slot += 1) {
+      const fraction = holdCount === 1 ? .52 : first + (last - first) * (slot / (holdCount - 1));
       let index = clamp(Math.round((noteCount - 1) * fraction), 2, noteCount - 3);
       while (result.includes(index) && index < noteCount - 3) index += 1;
+      while (result.includes(index) && index > 2) index -= 1;
       result.push(index);
-    });
+    }
     return result.sort((a, b) => a - b);
   }
 
@@ -395,7 +410,8 @@
         const prevTime = noteTimes[noteIndex - 1];
         const localGapMs = nextTime != null ? nextTime - targetTime : prevTime != null ? targetTime - prevTime : beatMs;
         const eventSpacingPx = Math.max(1, localGapMs) * pxPerMs;
-        const visualHeight = holdDuration > 0 ? TILE_H : clamp(eventSpacingPx * .78, 112, 136);
+        const shortMinH = phase.bpm >= 205 ? 104 : phase.bpm >= 175 ? 108 : 112;
+        const visualHeight = holdDuration > 0 ? TILE_H : clamp(eventSpacingPx * .80, shortMinH, 136);
 
         chart.push({
           id: `ct-${String(++id).padStart(3, '0')}`,
@@ -968,19 +984,29 @@
 
   function scoreSummary() {
     const accuracy = accuracyPercent();
-    const comboBonus = Math.round(clamp(runtime.maxCombo / 70, 0, 1) * 120);
+    const comboBonus = Math.round(clamp(runtime.maxCombo / 180, 0, 1) * 120);
     const syncBonus = Math.round(clamp(runtime.sync / 100, 0, 1) * 80);
     const finalScore = Math.round(clamp(500 + accuracy * 3 + comboBonus + syncBonus, 0, 1000));
+    const truePerfect = runtime.totalNotes > 0
+      && runtime.perfect === runtime.totalNotes
+      && runtime.great === 0
+      && runtime.good === 0
+      && runtime.misses === 0
+      && runtime.badTaps === 0
+      && runtime.maxCombo === runtime.totalNotes
+      && runtime.holdsCompleted === runtime.holdsTotal;
     let tier = 0;
-    if (accuracy >= 80) tier = 1;
-    if (accuracy >= 90 && runtime.maxCombo >= 35) tier = 2;
-    if (accuracy >= 96 && runtime.maxCombo >= 60 && runtime.misses <= 3 && runtime.holdsCompleted >= runtime.holdsTotal) tier = 3;
+    if (accuracy >= 80) tier = 5;
+    if (accuracy >= 90 && runtime.maxCombo >= 120) tier = 10;
+    if (accuracy >= 96 && runtime.maxCombo >= 230 && runtime.misses <= 5 && runtime.holdsCompleted >= runtime.holdsTotal) tier = 15;
+    if (truePerfect) tier = 20;
     let grade = 'CLEAR';
-    if (accuracy >= 96) grade = 'MASTER SYNC';
-    else if (accuracy >= 90) grade = 'EXCELLENT';
-    else if (accuracy >= 80) grade = 'GREAT';
-    else if (accuracy >= 70) grade = 'GOOD';
-    return { score: finalScore, accuracy: Math.round(accuracy * 10) / 10, tier, grade };
+    if (truePerfect) grade = 'PERFECT OVERDRIVE';
+    else if (accuracy >= 97) grade = 'MASTER SYNC';
+    else if (accuracy >= 92) grade = 'EXCELLENT';
+    else if (accuracy >= 85) grade = 'GREAT';
+    else if (accuracy >= 80) grade = 'GOOD';
+    return { score: finalScore, accuracy: Math.round(accuracy * 10) / 10, tier, grade, truePerfect };
   }
 
   async function finishRun() {
@@ -1008,15 +1034,15 @@
     if (!runtime.round?.sessionId || !runtime.bridge?.claimRound) return;
     const snap = runtime.bridge?.getSnapshot?.() || {};
     const claimedTierToday = snap.dayKey && runtime.lastRewardDay === snap.dayKey
-      ? clamp(Number(runtime.lastRewardXp || 0), 0, 3)
+      ? clamp(Number(runtime.lastRewardXp || 0), 0, 20)
       : 0;
     if (summary.tier <= claimedTierToday) {
       try { runtime.bridge?.cancelRound?.(runtime.round.sessionId); } catch (_) {}
       runtime.round = null;
       runtime.rewardNoteEl.className = 'code-tiles-reward-note warn';
-      runtime.rewardNoteEl.textContent = claimedTierToday >= 3
-        ? 'Master reward already secured today. Replay for a higher score and accuracy.'
-        : `Today’s CODE TILES tier is ${claimedTierToday}/3. Beat it to earn only the difference.`;
+      runtime.rewardNoteEl.textContent = claimedTierToday >= 20
+        ? 'Perfect 20 XP CODE TILES reward already secured today. Replay for score and accuracy.'
+        : `Today’s CODE TILES reward is ${claimedTierToday}/20 XP. Beat it to earn only the difference.`;
       return;
     }
 
@@ -1026,7 +1052,7 @@
         score: summary.score,
         metrics: {
           completedRun: true,
-          phasesCompleted: 5,
+          phasesCompleted: 15,
           totalNotes: runtime.totalNotes,
           perfect: runtime.perfect,
           great: runtime.great,
@@ -1056,7 +1082,7 @@
         runtime.rewardNoteEl.textContent = 'XP could not sync. No account XP was added.';
       } else if (result?.replayNoXp) {
         runtime.rewardNoteEl.className = 'code-tiles-reward-note warn';
-        runtime.rewardNoteEl.textContent = 'No higher CODE TILES reward tier this run. Best record still counts.';
+        runtime.rewardNoteEl.textContent = 'No higher CODE TILES XP tier this run. Best record still counts.';
       } else if (result?.capReached && Number(result?.awardedXp || 0) === 0) {
         runtime.rewardNoteEl.className = 'code-tiles-reward-note warn';
         runtime.rewardNoteEl.textContent = 'Daily Mini-Game XP cap reached. You can still improve your rhythm record.';
@@ -1816,7 +1842,7 @@
     runtime.bestScore = Math.max(0, Number(record.bestRunScore || record.bestScore || 0));
     runtime.bestAccuracy = Math.max(0, Number(record.bestAccuracy || 0));
     runtime.lastRewardDay = String(record.lastRewardDay || '');
-    runtime.lastRewardXp = clamp(Number(record.lastRewardXp || 0), 0, 3);
+    runtime.lastRewardXp = clamp(Number(record.lastRewardXp || 0), 0, 20);
     runtime.soundEnabled = snap.soundEnabled !== false;
     runtime.soundBtn.textContent = runtime.soundEnabled ? '🔊' : '🔇';
     runtime.open = true;
