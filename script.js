@@ -51213,12 +51213,243 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     bestStage: record => bestMobileStageForRecord(record || {})
   };
 
+  // CODE DUEL v2 — temporary RTDB signaling only. The actual match remains
+  // WebRTC peer-to-peer and awards 0 XP. REST is used instead of a persistent
+  // realtime socket so invite setup stays light even with many student accounts.
+  // Student ID is resolved only against the existing RTDB presence index; no
+  // Firestore lookup is used for pairing.
+  const CODE_DUEL_SIGNAL_TTL_MS = 3 * 60 * 1000;
+  const CODE_DUEL_DIRECTORY_ACTIVE_MS = 8 * 60 * 1000;
+  let codeDuelDirectoryRegisteredAt = 0;
+  let codeDuelDirectoryRegisteredKey = '';
+
+  function getCodeDuelPlayerIdentity() {
+    const student = appSession.mode === 'student' ? appSession.student : null;
+    const studentId = normalizeStudentId(student?.studentId || student?.studentIdNormalized || student?.id || '');
+    const uid = String(student?.uid || getFirebaseActiveUser()?.uid || '').trim();
+    return {
+      loggedIn: Boolean(student && studentId && uid),
+      uid,
+      studentId,
+      studentKey: getStudentIdAuthKey(studentId),
+      name: String(student?.name || student?.displayName || 'Student').trim() || 'Student',
+      section: String(student?.section || '').trim()
+    };
+  }
+
+  function canUseCodeDuelStudentInvites() {
+    const identity = getCodeDuelPlayerIdentity();
+    return Boolean(identity.loggedIn && getMcsRealtimeDatabaseUrl());
+  }
+
+  function newCodeDuelInviteId() {
+    const bytes = new Uint8Array(9);
+    try { crypto.getRandomValues(bytes); } catch (_) {
+      for (let i = 0; i < bytes.length; i += 1) bytes[i] = Math.floor(Math.random() * 256);
+    }
+    return Array.from(bytes, value => value.toString(16).padStart(2, '0')).join('');
+  }
+
+  function codeDuelSafeUid(value = '') {
+    const uid = String(value || '').trim();
+    if (!uid || /[.#$\[\]/]/.test(uid)) throw new Error('Invalid student session. Sign in again.');
+    return uid;
+  }
+
+  async function ensureCodeDuelDirectoryRegistration(options = {}) {
+    if (!canUseCodeDuelStudentInvites()) return false;
+    const identity = getCodeDuelPlayerIdentity();
+    const now = Date.now();
+    if (!options.force && codeDuelDirectoryRegisteredKey === identity.studentKey && now - codeDuelDirectoryRegisteredAt < 5 * 60 * 1000) return true;
+    await rtdbRestRequest(`codeDuelSignals/directory/${identity.studentKey}`, {
+      method: 'PUT',
+      body: {
+        uid: identity.uid,
+        studentId: identity.studentId,
+        studentKey: identity.studentKey,
+        name: identity.name,
+        section: identity.section,
+        updatedAtMs: now,
+        expiresAtMs: now + CODE_DUEL_DIRECTORY_ACTIVE_MS
+      }
+    });
+    codeDuelDirectoryRegisteredKey = identity.studentKey;
+    codeDuelDirectoryRegisteredAt = now;
+    return true;
+  }
+
+  async function resolveCodeDuelTargetByStudentId(studentId = '') {
+    const normalized = normalizeStudentId(studentId);
+    const targetKey = getStudentIdAuthKey(normalized);
+    if (!targetKey) throw new Error('Enter Player 2 Student ID.');
+    const identity = getCodeDuelPlayerIdentity();
+    if (targetKey === identity.studentKey) throw new Error('Choose another student. You cannot invite your own account.');
+    const target = await rtdbRestRequest(`codeDuelSignals/directory/${targetKey}`);
+    if (!target || typeof target !== 'object' || !target.uid) {
+      throw new Error('Player 2 is not ready for Student ID invites. Ask them to open CODE DUEL first.');
+    }
+    if (Number(target.expiresAtMs || 0) <= Date.now()) {
+      throw new Error('Player 2 CODE DUEL session expired. Ask them to reopen CODE DUEL, then send the invite again.');
+    }
+    if (getStudentIdAuthKey(target.studentId || target.studentKey || '') !== targetKey) {
+      throw new Error('Player 2 invite directory is invalid. Use QR pairing instead.');
+    }
+    return {
+      uid: codeDuelSafeUid(target.uid),
+      studentId: normalizeStudentId(target.studentId || normalized),
+      name: String(target.name || 'Student').trim() || 'Student',
+      section: String(target.section || '').trim(),
+      updatedAtMs: Number(target.updatedAtMs || 0)
+    };
+  }
+
+  async function createCodeDuelInvite(options = {}) {
+    if (!canUseCodeDuelStudentInvites()) throw new Error('Student ID invites require a logged-in student account and Realtime Database connection.');
+    const identity = getCodeDuelPlayerIdentity();
+    await ensureCodeDuelDirectoryRegistration();
+    const target = await resolveCodeDuelTargetByStudentId(options.targetStudentId || '');
+    const offerCode = String(options.offerCode || '').trim();
+    if (!offerCode.startsWith('CD1.')) throw new Error('The duel offer is not ready yet.');
+    const now = Date.now();
+    const inviteId = newCodeDuelInviteId();
+    const record = {
+      version: 2,
+      inviteId,
+      gameId: 'code-duel',
+      status: 'pending',
+      fromUid: identity.uid,
+      fromStudentId: identity.studentId,
+      fromName: String(options.hostName || identity.name || 'Student').trim().slice(0, 40),
+      fromSection: identity.section,
+      toUid: target.uid,
+      toStudentId: target.studentId,
+      offerCode,
+      createdAtMs: now,
+      expiresAtMs: now + CODE_DUEL_SIGNAL_TTL_MS
+    };
+    await rtdbRestRequest(`codeDuelSignals/inbox/${target.uid}/${inviteId}`, { method: 'PUT', body: record });
+    return { ok: true, inviteId, targetUid: target.uid, targetStudentId: target.studentId, targetName: target.name, expiresAtMs: record.expiresAtMs };
+  }
+
+  async function listCodeDuelInvites() {
+    if (!canUseCodeDuelStudentInvites()) return { ok: false, loggedIn: false, invites: [] };
+    const identity = getCodeDuelPlayerIdentity();
+    await ensureCodeDuelDirectoryRegistration();
+    const ownUid = codeDuelSafeUid(identity.uid);
+    const raw = await rtdbRestRequest(`codeDuelSignals/inbox/${ownUid}`);
+    const now = Date.now();
+    const invites = [];
+    const expired = [];
+    Object.entries(raw && typeof raw === 'object' ? raw : {}).forEach(([inviteId, value]) => {
+      if (!value || typeof value !== 'object') return;
+      const expiry = Number(value.expiresAtMs || 0);
+      if (!expiry || expiry <= now) { expired.push(inviteId); return; }
+      if (String(value.status || 'pending') !== 'pending') return;
+      if (String(value.toUid || '') !== ownUid) return;
+      invites.push({
+        inviteId,
+        fromUid: String(value.fromUid || ''),
+        fromStudentId: normalizeStudentId(value.fromStudentId || ''),
+        fromName: String(value.fromName || 'Student').trim() || 'Student',
+        fromSection: String(value.fromSection || '').trim(),
+        offerCode: String(value.offerCode || ''),
+        createdAtMs: Number(value.createdAtMs || 0),
+        expiresAtMs: expiry
+      });
+    });
+    if (expired.length) Promise.all(expired.slice(0, 8).map(inviteId =>
+      rtdbRestRequest(`codeDuelSignals/inbox/${ownUid}/${inviteId}`, { method: 'DELETE' }).catch(() => null)
+    )).catch(() => null);
+    invites.sort((a, b) => b.createdAtMs - a.createdAtMs);
+    return { ok: true, loggedIn: true, identity, invites: invites.slice(0, 6) };
+  }
+
+  async function respondCodeDuelInvite(options = {}) {
+    if (!canUseCodeDuelStudentInvites()) throw new Error('Student ID invites are unavailable in this session.');
+    const identity = getCodeDuelPlayerIdentity();
+    const hostUid = codeDuelSafeUid(options.hostUid || '');
+    const inviteId = String(options.inviteId || '').replace(/[^a-fA-F0-9]/g, '').slice(0, 40);
+    if (!inviteId) throw new Error('Invite ID is missing.');
+    const status = options.status === 'declined' ? 'declined' : 'accepted';
+    const body = {
+      version: 2,
+      inviteId,
+      status,
+      fromUid: identity.uid,
+      fromStudentId: identity.studentId,
+      fromName: identity.name,
+      toUid: hostUid,
+      updatedAtMs: Date.now(),
+      expiresAtMs: Date.now() + CODE_DUEL_SIGNAL_TTL_MS
+    };
+    if (status === 'accepted') {
+      const answerCode = String(options.answerCode || '').trim();
+      if (!answerCode.startsWith('CD1.')) throw new Error('The WebRTC response is not ready.');
+      body.answerCode = answerCode;
+    }
+    await rtdbRestRequest(`codeDuelSignals/replies/${hostUid}/${inviteId}`, { method: 'PUT', body });
+    return { ok: true, status };
+  }
+
+  async function getCodeDuelInviteStatus(options = {}) {
+    if (!canUseCodeDuelStudentInvites()) throw new Error('Student ID invites are unavailable in this session.');
+    const identity = getCodeDuelPlayerIdentity();
+    const inviteId = String(options.inviteId || '').replace(/[^a-fA-F0-9]/g, '').slice(0, 40);
+    if (!inviteId) throw new Error('Invite ID is missing.');
+    const record = await rtdbRestRequest(`codeDuelSignals/replies/${codeDuelSafeUid(identity.uid)}/${inviteId}`);
+    if (!record || typeof record !== 'object') return { ok: true, status: 'pending' };
+    if (Number(record.expiresAtMs || 0) <= Date.now()) return { ok: false, status: 'expired' };
+    return {
+      ok: true,
+      status: String(record.status || 'pending'),
+      answerCode: String(record.answerCode || ''),
+      acceptedByName: String(record.fromName || ''),
+      acceptedByStudentId: normalizeStudentId(record.fromStudentId || ''),
+      expiresAtMs: Number(record.expiresAtMs || 0)
+    };
+  }
+
+  async function removeCodeDuelInvite(options = {}) {
+    if (!canUseCodeDuelStudentInvites()) return false;
+    const identity = getCodeDuelPlayerIdentity();
+    const targetUid = codeDuelSafeUid(options.targetUid || '');
+    const inviteId = String(options.inviteId || '').replace(/[^a-fA-F0-9]/g, '').slice(0, 40);
+    if (!targetUid || !inviteId) return false;
+    // One multi-location PATCH removes both the target inbox item and the
+    // host's reply item after connect/cancel.
+    await rtdbRestRequest('codeDuelSignals', {
+      method: 'PATCH',
+      body: {
+        [`inbox/${targetUid}/${inviteId}`]: null,
+        [`replies/${codeDuelSafeUid(identity.uid)}/${inviteId}`]: null
+      }
+    });
+    return true;
+  }
+
+  function createMiniGameQrDataUrl(payload = '', size = 360) {
+    const text = String(payload || '').trim();
+    if (!text) return '';
+    try {
+      const safeSize = Math.max(180, Math.min(720, Math.floor(Number(size || 360))));
+      const canvas = document.createElement('canvas');
+      canvas.width = safeSize;
+      canvas.height = safeSize;
+      const ctx = canvas.getContext('2d');
+      if (!ctx || !drawLocalQr(ctx, 0, 0, safeSize, text)) return '';
+      return canvas.toDataURL('image/png');
+    } catch (error) {
+      console.info('Mini-Game QR generation skipped.', error);
+      return '';
+    }
+  }
+
   // Small, explicit bridge for the isolated games/ modules. The game code can
   // request a round and submit a score, but it cannot choose an XP amount.
   // Reward tiers, daily cap, duplicate protection, total XP integration, and
   // Firestore transaction logic stay inside the existing Code Explorer system.
   window.ICT8_XP_MINIGAMES_BRIDGE = Object.freeze({
-    version: 5,
+    version: 6,
     dailyCap: XP_MINI_GAMES_DAILY_CAP,
     weeklyMax: XP_MINI_GAMES_WEEKLY_MAX,
     getSnapshot: currentXpMiniGamesSnapshot,
@@ -51234,7 +51465,15 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     cancelGame: cancelXpMiniGameRoundsForGame,
     isGameplayActive: () => miniGameNetworkQuietRounds.size > 0,
     setSoundEnabled: setXpMiniGamesSoundEnabled,
-    subscribe: subscribeXpMiniGamesProgress
+    subscribe: subscribeXpMiniGamesProgress,
+    getPlayerIdentity: getCodeDuelPlayerIdentity,
+    canUseDuelStudentInvites: canUseCodeDuelStudentInvites,
+    createDuelInvite: createCodeDuelInvite,
+    listDuelInvites: listCodeDuelInvites,
+    respondDuelInvite: respondCodeDuelInvite,
+    getDuelInviteStatus: getCodeDuelInviteStatus,
+    removeDuelInvite: removeCodeDuelInvite,
+    createQrDataUrl: createMiniGameQrDataUrl
   });
 })();
 

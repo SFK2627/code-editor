@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const ASSET_VERSION = '20260912-v4761-multiplayer-v1';
+  const ASSET_VERSION = '20260912-v4761-multiplayer-v2-student-invite';
 
   const GAME_REGISTRY = Object.freeze([
     {
@@ -358,7 +358,7 @@
       stateKey: 'codeDuel',
       name: 'CODE DUEL',
       icon: '⚔️',
-      description: 'Challenge another device live in a head-to-head coding race. Pair directly, answer the same challenges, and reach the finish first.',
+      description: 'Challenge another student live. Send an invite by Student ID or pair by QR, then race through the same coding challenges with 0 XP.',
       maxXp: 0,
       multiplayer: true,
       noXp: true,
@@ -970,7 +970,7 @@
               <span class="xp-games-2p-zero">0 XP</span>
             </section>
             <section class="xp-games-game-list xp-games-2p-list" aria-label="Two-player no-XP games">
-              <div class="xp-games-2p-note">Pair the two devices directly. CODE DUEL uses WebRTC peer-to-peer; pairing codes are copied/shared between players instead of saving a room in the database.</div>
+              <div class="xp-games-2p-note">CODE DUEL uses temporary RTDB only for Student ID invite/signaling, then switches to WebRTC peer-to-peer. QR pairing remains a zero-RTDB fallback. 2P games award 0 XP.</div>
               <div data-xp-games-2p-cards></div>
             </section>
           </section>

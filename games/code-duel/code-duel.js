@@ -58,7 +58,10 @@
     startedAt:0, pausedTotal:0, pauseStartedAt:0, pauseReasons:new Set(), finishTimer:0,
     finishRecords:{host:null,guest:null}, result:null, connectionTimer:0, frame:0,
     soundEnabled:true, audioContext:null, hostCode:'', answerCode:'', connected:false,
-    localFinished:false, remoteFinished:false, lastFocusPause:false
+    localFinished:false, remoteFinished:false, lastFocusPause:false,
+    identity:null, pendingInvites:[], invitePollTimer:0, invitePollBusy:false,
+    hostInvite:null, hostInvitePollTimer:0, hostInvitePollBusy:false,
+    activeInvite:null, scanStream:null, scanRaf:0, scanBusy:false, scanMode:''
   };
 
   const $ = (sel) => runtime.overlay?.querySelector(sel) || null;
@@ -91,13 +94,18 @@
               <span class="code-duel-hero">⚔️</span>
               <h1>CODE DUEL</h1>
               <p>Two devices. Same coding challenge sequence. First player to clear all ${QUESTION_COUNT} questions wins.</p>
-              <div class="code-duel-badges"><span>👥 2 PLAYERS</span><span>⚡ LIVE P2P</span><span>0 XP</span></div>
-              <div class="code-duel-zero-note"><b>Zero database gameplay.</b> Pairing and match events travel directly between the two devices using WebRTC. No Firestore or RTDB room is created.</div>
-              <div class="code-duel-home-actions">
-                <button class="primary" type="button" data-cd-create>CREATE MATCH</button>
-                <button type="button" data-cd-join>JOIN MATCH</button>
+              <div class="code-duel-badges"><span>👥 2 PLAYERS</span><span>⚡ WEBRTC P2P</span><span>0 XP</span></div>
+              <div class="code-duel-zero-note"><b>Gameplay stays database-free.</b> Student ID mode uses RTDB only for a tiny temporary invite/offer/answer, then the live match switches to direct WebRTC. QR pairing remains the zero-RTDB fallback.</div>
+              <div class="code-duel-identity" data-cd-identity hidden></div>
+              <div class="code-duel-inbox" data-cd-inbox hidden>
+                <div class="code-duel-inbox-head"><strong>⚔️ DUEL INVITES</strong><button type="button" data-cd-refresh-invites>REFRESH</button></div>
+                <div data-cd-invite-list></div>
               </div>
-              <small class="code-duel-network-note">For zero database reads/writes, v1 uses copy/share pairing codes instead of a 6-digit online room code.</small>
+              <div class="code-duel-home-actions">
+                <button class="primary" type="button" data-cd-create>CREATE / INVITE</button>
+                <button type="button" data-cd-join>JOIN / SCAN QR</button>
+              </div>
+              <small class="code-duel-network-note">Student ID invite is easiest for logged-in students. QR mode works without RTDB signaling and hides the long WebRTC code.</small>
             </div>
           </section>
 
@@ -105,15 +113,30 @@
             <div class="code-duel-pair-card">
               <div class="code-duel-step-head"><span>HOST</span><strong>Create a direct match</strong></div>
               <label>Your display name<input maxlength="18" autocomplete="nickname" data-cd-host-name value="PLAYER 1"></label>
-              <button class="primary" type="button" data-cd-make-offer>1 · CREATE PAIR CODE</button>
-              <div class="code-duel-signal-block" data-cd-host-offer-block hidden>
-                <div class="code-duel-signal-head"><b>HOST PAIR CODE</b><small>Send this to Player 2. Do not type it manually.</small></div>
-                <textarea readonly spellcheck="false" data-cd-host-code></textarea>
-                <div class="code-duel-inline-actions"><button type="button" data-cd-copy-host>COPY</button><button type="button" data-cd-share-host>SHARE</button></div>
-                <label>2 · Paste Player 2's response code<textarea spellcheck="false" data-cd-answer-input placeholder="Paste the RESPONSE CODE here"></textarea></label>
-                <button class="primary" type="button" data-cd-apply-answer>CONNECT PLAYER 2</button>
+
+              <div class="code-duel-method-card primary-method">
+                <span class="code-duel-method-icon">🆔</span>
+                <div><strong>SEND TO STUDENT ID</strong><small>Fast setup · temporary RTDB signaling only</small></div>
               </div>
-              <div class="code-duel-status" data-cd-host-status>Ready to create a peer-to-peer match.</div>
+              <label>Player 2 Student ID<input maxlength="30" autocomplete="off" autocapitalize="characters" data-cd-target-student placeholder="Example: 2026-001"></label>
+              <button class="primary" type="button" data-cd-send-invite>SEND DUEL INVITE</button>
+              <div class="code-duel-waiting" data-cd-host-waiting hidden><span class="code-duel-pulse-dot"></span><div><strong data-cd-host-waiting-title>Waiting for Player 2…</strong><small data-cd-host-waiting-sub>They can accept inside CODE DUEL.</small></div></div>
+
+              <div class="code-duel-or"><span>OR</span></div>
+              <div class="code-duel-method-card">
+                <span class="code-duel-method-icon">📷</span>
+                <div><strong>QR / SHARE PAIRING</strong><small>Zero RTDB fallback</small></div>
+              </div>
+              <button type="button" data-cd-make-offer>CREATE HOST QR</button>
+              <div class="code-duel-qr-block" data-cd-host-qr-block hidden>
+                <img data-cd-host-qr alt="CODE DUEL Host QR Code">
+                <strong>PLAYER 2: SCAN THIS QR</strong>
+                <small>Then scan Player 2's response QR.</small>
+                <div class="code-duel-inline-actions"><button type="button" data-cd-share-host>SHARE INVITE</button><button type="button" data-cd-copy-host>COPY CODE</button></div>
+                <button class="primary" type="button" data-cd-scan-answer>SCAN RESPONSE QR</button>
+                <details class="code-duel-advanced"><summary>Manual paste fallback</summary><label>Player 2 Response Code<textarea spellcheck="false" data-cd-answer-input placeholder="Paste the RESPONSE CODE here"></textarea></label><button type="button" data-cd-apply-answer>CONNECT PLAYER 2</button></details>
+              </div>
+              <div class="code-duel-status" data-cd-host-status>Choose Student ID invite or QR pairing.</div>
               <button class="ghost" type="button" data-cd-pair-cancel>CANCEL</button>
             </div>
           </section>
@@ -122,14 +145,19 @@
             <div class="code-duel-pair-card">
               <div class="code-duel-step-head"><span>PLAYER 2</span><strong>Join a direct match</strong></div>
               <label>Your display name<input maxlength="18" autocomplete="nickname" data-cd-guest-name value="PLAYER 2"></label>
-              <label>1 · Paste the Host Pair Code<textarea spellcheck="false" data-cd-offer-input placeholder="Paste the HOST PAIR CODE here"></textarea></label>
-              <button class="primary" type="button" data-cd-make-answer>2 · CREATE RESPONSE CODE</button>
-              <div class="code-duel-signal-block" data-cd-guest-answer-block hidden>
-                <div class="code-duel-signal-head"><b>RESPONSE CODE</b><small>Send this code back to the Host.</small></div>
-                <textarea readonly spellcheck="false" data-cd-guest-code></textarea>
-                <div class="code-duel-inline-actions"><button type="button" data-cd-copy-guest>COPY</button><button type="button" data-cd-share-guest>SHARE</button></div>
+              <div class="code-duel-method-card primary-method">
+                <span class="code-duel-method-icon">📷</span>
+                <div><strong>SCAN HOST QR</strong><small>Zero RTDB pairing</small></div>
               </div>
-              <div class="code-duel-status" data-cd-guest-status>Waiting for the Host Pair Code.</div>
+              <button class="primary" type="button" data-cd-scan-offer>SCAN HOST QR</button>
+              <details class="code-duel-advanced"><summary>Paste shared Host Code instead</summary><label>Host Pair Code<textarea spellcheck="false" data-cd-offer-input placeholder="Paste the HOST PAIR CODE here"></textarea></label><button type="button" data-cd-make-answer>CREATE RESPONSE</button></details>
+              <div class="code-duel-qr-block" data-cd-guest-answer-block hidden>
+                <img data-cd-guest-qr alt="CODE DUEL Response QR Code">
+                <strong>HOST: SCAN THIS RESPONSE</strong>
+                <small>Keep this screen open while the Host connects.</small>
+                <div class="code-duel-inline-actions"><button type="button" data-cd-share-guest>SHARE RESPONSE</button><button type="button" data-cd-copy-guest>COPY CODE</button></div>
+              </div>
+              <div class="code-duel-status" data-cd-guest-status>Scan the Host QR or accept a Student ID invite from the CODE DUEL home screen.</div>
               <button class="ghost" type="button" data-cd-pair-cancel>CANCEL</button>
             </div>
           </section>
@@ -184,6 +212,14 @@
 
         <div class="code-duel-countdown" data-cd-countdown hidden><strong data-cd-countdown-value>3</strong><small>GET READY</small></div>
         <div class="code-duel-pause" data-cd-pause hidden><div><span>Ⅱ</span><h2>DUEL PAUSED</h2><p data-cd-pause-text>Waiting…</p><button type="button" data-cd-resume hidden>RESUME</button></div></div>
+        <div class="code-duel-scanner" data-cd-scanner hidden>
+          <div class="code-duel-scanner-card">
+            <div class="code-duel-scan-head"><div><small>CODE DUEL</small><strong data-cd-scan-title>SCAN QR</strong></div><button type="button" data-cd-scan-close>×</button></div>
+            <div class="code-duel-camera"><video data-cd-scan-video playsinline muted></video><div class="code-duel-scan-frame"></div></div>
+            <p data-cd-scan-status>Point the camera at the QR code on the other device.</p>
+            <button type="button" data-cd-scan-close-bottom>CANCEL SCAN</button>
+          </div>
+        </div>
       </section>`;
     document.body.appendChild(overlay);
     runtime.overlay=overlay;
@@ -195,14 +231,26 @@
     $('[data-cd-sound]').addEventListener('click',toggleSound);
     $('[data-cd-create]').addEventListener('click',()=>showPanel('host'));
     $('[data-cd-join]').addEventListener('click',()=>showPanel('guest'));
-    $$('[data-cd-pair-cancel]').forEach(btn=>btn.addEventListener('click',()=>{disconnectPeer();showPanel('home');}));
-    $('[data-cd-make-offer]').addEventListener('click',createHostOffer);
-    $('[data-cd-apply-answer]').addEventListener('click',applyGuestAnswer);
-    $('[data-cd-make-answer]').addEventListener('click',createGuestAnswer);
+    $$('[data-cd-pair-cancel]').forEach(btn=>btn.addEventListener('click',cancelPairing));
+    $('[data-cd-send-invite]').addEventListener('click',sendStudentInvite);
+    $('[data-cd-make-offer]').addEventListener('click',createHostQrOffer);
+    $('[data-cd-apply-answer]').addEventListener('click',()=>applyGuestAnswerCode($('[data-cd-answer-input]').value));
+    $('[data-cd-make-answer]').addEventListener('click',()=>createGuestAnswerFromCode($('[data-cd-offer-input]').value,{showQr:true}));
     $('[data-cd-copy-host]').addEventListener('click',()=>copyText(runtime.hostCode,'Host Pair Code copied.'));
     $('[data-cd-share-host]').addEventListener('click',()=>shareText(runtime.hostCode,'CODE DUEL Host Pair Code'));
     $('[data-cd-copy-guest]').addEventListener('click',()=>copyText(runtime.answerCode,'Response Code copied.'));
     $('[data-cd-share-guest]').addEventListener('click',()=>shareText(runtime.answerCode,'CODE DUEL Response Code'));
+    $('[data-cd-scan-offer]').addEventListener('click',()=>openQrScanner('offer'));
+    $('[data-cd-scan-answer]').addEventListener('click',()=>openQrScanner('answer'));
+    $('[data-cd-scan-close]').addEventListener('click',closeQrScanner);
+    $('[data-cd-scan-close-bottom]').addEventListener('click',closeQrScanner);
+    $('[data-cd-refresh-invites]').addEventListener('click',()=>refreshPendingInvites(true));
+    $('[data-cd-invite-list]').addEventListener('click',event=>{
+      const accept=event.target.closest('[data-cd-accept-invite]');
+      const decline=event.target.closest('[data-cd-decline-invite]');
+      if(accept) acceptStudentInvite(accept.dataset.cdAcceptInvite||'');
+      if(decline) declineStudentInvite(decline.dataset.cdDeclineInvite||'');
+    });
     $('[data-cd-ready]').addEventListener('click',toggleReady);
     $('[data-cd-options]').addEventListener('click',event=>{const btn=event.target.closest('[data-cd-answer]');if(btn)answerQuestion(Number(btn.dataset.cdAnswer));});
     $('[data-cd-rematch]').addEventListener('click',requestRematch);
@@ -217,6 +265,7 @@
   function showPanel(name){
     Object.entries(runtime.panels).forEach(([key,panel])=>panel.classList.toggle('is-active',key===name));
     runtime.state=name;
+    if(name==='home') refreshPendingInvites(false).catch(()=>{});
   }
 
   function safeName(value,fallback){
@@ -281,12 +330,15 @@
     runtime.pc=pc;
     pc.addEventListener('connectionstatechange',()=>{
       const st=pc.connectionState;
-      if(st==='connected'){runtime.connected=true;clearTimeout(runtime.connectionTimer);setPairStatus('connected');sound('connect');}
-      if(st==='failed'||st==='disconnected'){runtime.connected=false;if(runtime.open)setConnectionNotice(st==='failed'?'Direct connection failed. Create a new match and try again.':'Opponent connection interrupted.');}
+      if(st==='connected'){
+        runtime.connected=true;clearTimeout(runtime.connectionTimer);setPairStatus('connected');sound('connect');
+        cleanupHostInvite().catch(()=>{});
+      }
+      if(st==='failed'||st==='disconnected'){runtime.connected=false;if(runtime.open)setConnectionNotice(st==='failed'?'Direct connection failed. Try QR pairing or a different network.':'Opponent connection interrupted.');}
       if(st==='closed')runtime.connected=false;
     });
     pc.addEventListener('iceconnectionstatechange',()=>{
-      if(pc.iceConnectionState==='failed')setConnectionNotice('Peer-to-peer connection failed. Strict school/mobile networks can block serverless WebRTC.');
+      if(pc.iceConnectionState==='failed')setConnectionNotice('Peer-to-peer connection failed. Strict school/mobile networks can block direct WebRTC.');
     });
     return pc;
   }
@@ -298,6 +350,7 @@
       clearTimeout(runtime.connectionTimer);
       send({t:'hello',name:runtime.localName,seed:runtime.signalSeed,role:runtime.role});
       sound('connect');
+      cleanupHostInvite().catch(()=>{});
       showLobby();
     });
     dc.addEventListener('message',event=>{try{handleMessage(JSON.parse(event.data));}catch(_){}});
@@ -305,74 +358,215 @@
     dc.addEventListener('error',()=>setConnectionNotice('Data channel error. Re-pair the devices.'));
   }
 
-  async function createHostOffer(){
-    if(!window.RTCPeerConnection){setHostStatus('WebRTC is not supported by this browser.',true);return;}
-    const button=$('[data-cd-make-offer]'); button.disabled=true; button.textContent='CREATING…';
-    try{
-      runtime.localName=safeName($('[data-cd-host-name]').value,'PLAYER 1');
-      runtime.remoteName='PLAYER 2';
-      runtime.signalSeed=randomSeed();
-      const pc=createPeer();
-      runtime.role='host';
-      const dc=pc.createDataChannel('code-duel',{ordered:true});
-      bindDataChannel(dc);
-      setHostStatus('Gathering a direct connection code…');
-      await pc.setLocalDescription(await pc.createOffer());
-      await waitForIce(pc);
-      runtime.hostCode=encodeSignal({v:SIGNAL_VERSION,kind:'offer',desc:pc.localDescription,seed:runtime.signalSeed,name:runtime.localName});
-      $('[data-cd-host-code]').value=runtime.hostCode;
-      $('[data-cd-host-offer-block]').hidden=false;
-      setHostStatus('Pair Code ready. Send it to Player 2, then paste their Response Code below.');
-      sound('ready');
-    }catch(error){setHostStatus(error?.message||'Could not create the match.',true);disconnectPeer();}
-    finally{button.disabled=false;button.textContent='1 · CREATE PAIR CODE';}
+  function renderIdentity(){
+    runtime.identity=runtime.bridge?.getPlayerIdentity?.()||null;
+    const el=$('[data-cd-identity]');
+    if(!el)return;
+    if(runtime.identity?.loggedIn){
+      el.hidden=false;
+      el.innerHTML=`<span>SIGNED IN</span><strong>${escapeText(runtime.identity.name||'Student')}</strong><small>${escapeText(runtime.identity.studentId||'')}</small>`;
+    }else{
+      el.hidden=false;
+      el.innerHTML='<span>QR MODE</span><strong>Practice / guest session</strong><small>Log in as a student to send or receive Student ID invites.</small>';
+    }
   }
 
-  async function createGuestAnswer(){
-    if(!window.RTCPeerConnection){setGuestStatus('WebRTC is not supported by this browser.',true);return;}
-    const button=$('[data-cd-make-answer]'); button.disabled=true; button.textContent='PREPARING…';
-    try{
-      const offer=decodeSignal($('[data-cd-offer-input]').value);
-      if(offer.kind!=='offer'||!offer.desc)throw new Error('The Host Pair Code is invalid.');
-      runtime.localName=safeName($('[data-cd-guest-name]').value,'PLAYER 2');
-      runtime.remoteName=safeName(offer.name,'PLAYER 1');
-      runtime.signalSeed=Number(offer.seed||1)>>>0;
-      const pc=createPeer();
-      runtime.role='guest';
-      pc.addEventListener('datachannel',event=>bindDataChannel(event.channel),{once:true});
-      setGuestStatus('Reading Host Pair Code…');
-      await pc.setRemoteDescription(offer.desc);
-      await pc.setLocalDescription(await pc.createAnswer());
-      await waitForIce(pc);
-      runtime.answerCode=encodeSignal({v:SIGNAL_VERSION,kind:'answer',desc:pc.localDescription,name:runtime.localName});
-      $('[data-cd-guest-code]').value=runtime.answerCode;
-      $('[data-cd-guest-answer-block]').hidden=false;
-      setGuestStatus('Response Code ready. Send it back to the Host. This device will connect automatically when the Host applies it.');
-      startConnectionTimeout();
-      sound('ready');
-    }catch(error){setGuestStatus(error?.message||'Could not create the response code.',true);disconnectPeer();}
-    finally{button.disabled=false;button.textContent='2 · CREATE RESPONSE CODE';}
+  function escapeText(value=''){
+    return String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   }
 
-  async function applyGuestAnswer(){
-    const button=$('[data-cd-apply-answer]'); button.disabled=true; button.textContent='CONNECTING…';
+  async function refreshPendingInvites(force=false){
+    if(!runtime.open||runtime.invitePollBusy)return;
+    const can=runtime.bridge?.canUseDuelStudentInvites?.();
+    const wrap=$('[data-cd-inbox]'),list=$('[data-cd-invite-list]');
+    if(!can){ if(wrap)wrap.hidden=true; return; }
+    runtime.invitePollBusy=true;
     try{
-      if(!runtime.pc||runtime.role!=='host')throw new Error('Create a Host Pair Code first.');
-      const answer=decodeSignal($('[data-cd-answer-input]').value);
+      const result=await runtime.bridge.listDuelInvites?.();
+      runtime.pendingInvites=Array.isArray(result?.invites)?result.invites:[];
+      if(!wrap||!list)return;
+      wrap.hidden=false;
+      if(!runtime.pendingInvites.length){
+        list.innerHTML='<div class="code-duel-empty-invite">No pending invites right now.</div>';
+      }else{
+        list.innerHTML=runtime.pendingInvites.map(invite=>{
+          const section=invite.fromSection?` · ${escapeText(invite.fromSection)}`:'';
+          return `<article class="code-duel-invite-card"><div><strong>⚔️ ${escapeText(invite.fromName||'Student')}</strong><small>${escapeText(invite.fromStudentId||'')}${section}</small><p>wants to play CODE DUEL</p></div><div><button class="accept" type="button" data-cd-accept-invite="${escapeText(invite.inviteId)}">ACCEPT</button><button type="button" data-cd-decline-invite="${escapeText(invite.inviteId)}">DECLINE</button></div></article>`;
+        }).join('');
+      }
+    }catch(error){
+      if(force&&list){wrap.hidden=false;list.innerHTML=`<div class="code-duel-empty-invite error">${escapeText(error?.message||'Could not check invites.')}</div>`;}
+    }finally{runtime.invitePollBusy=false;}
+  }
+
+  function startInvitePolling(){
+    stopInvitePolling();
+    refreshPendingInvites(false).catch(()=>{});
+    runtime.invitePollTimer=setInterval(()=>{
+      if(runtime.open && runtime.state==='home')refreshPendingInvites(false).catch(()=>{});
+    },6000);
+  }
+  function stopInvitePolling(){clearInterval(runtime.invitePollTimer);runtime.invitePollTimer=0;runtime.invitePollBusy=false;}
+
+  async function createHostOfferBase(){
+    if(!window.RTCPeerConnection)throw new Error('WebRTC is not supported by this browser.');
+    runtime.localName=safeName($('[data-cd-host-name]').value,runtime.identity?.name||'PLAYER 1');
+    runtime.remoteName='PLAYER 2';
+    runtime.signalSeed=randomSeed();
+    const pc=createPeer();
+    runtime.role='host';
+    const dc=pc.createDataChannel('code-duel',{ordered:true});
+    bindDataChannel(dc);
+    await pc.setLocalDescription(await pc.createOffer());
+    await waitForIce(pc);
+    runtime.hostCode=encodeSignal({v:SIGNAL_VERSION,kind:'offer',desc:pc.localDescription,seed:runtime.signalSeed,name:runtime.localName});
+    return runtime.hostCode;
+  }
+
+  async function sendStudentInvite(){
+    const button=$('[data-cd-send-invite]');
+    const target=String($('[data-cd-target-student]').value||'').trim();
+    if(!runtime.bridge?.canUseDuelStudentInvites?.()){
+      setHostStatus('Student ID invites require both players to be logged in. Use QR pairing instead.',true);return;
+    }
+    button.disabled=true;button.textContent='CREATING INVITE…';
+    try{
+      await cancelHostInvite(true);
+      setHostStatus('Creating a direct WebRTC offer…');
+      const code=await createHostOfferBase();
+      setHostStatus('Sending temporary invite to the Student ID…');
+      const sent=await runtime.bridge.createDuelInvite({targetStudentId:target,offerCode:code,hostName:runtime.localName});
+      runtime.hostInvite={inviteId:sent.inviteId,targetUid:sent.targetUid,targetStudentId:sent.targetStudentId,expiresAtMs:sent.expiresAtMs};
+      const waiting=$('[data-cd-host-waiting]');if(waiting)waiting.hidden=false;
+      $('[data-cd-host-waiting-title]').textContent=`Invite sent to ${sent.targetStudentId}`;
+      $('[data-cd-host-waiting-sub]').textContent='Waiting for Player 2 to accept inside CODE DUEL…';
+      setHostStatus('Invite sent. Keep this screen open — the direct connection will finish automatically.');
+      sound('ready');startHostInvitePolling();
+    }catch(error){setHostStatus(error?.message||'Could not send the duel invite.',true);disconnectPeer();}
+    finally{button.disabled=false;button.textContent='SEND DUEL INVITE';}
+  }
+
+  function startHostInvitePolling(){
+    stopHostInvitePolling();
+    const started=Date.now();
+    const poll=async()=>{
+      if(!runtime.open||!runtime.hostInvite||runtime.connected)return;
+      if(runtime.hostInvitePollBusy)return;
+      if(Date.now()-started>90000){setHostStatus('Invite timed out. Send a new invite or use QR pairing.',true);return;}
+      runtime.hostInvitePollBusy=true;
+      try{
+        const result=await runtime.bridge.getDuelInviteStatus?.(runtime.hostInvite);
+        if(result?.status==='accepted'&&result.answerCode){
+          runtime.remoteName=safeName(result.acceptedByName,'PLAYER 2');
+          $('[data-cd-host-waiting-sub]').textContent=`${runtime.remoteName} accepted. Connecting directly…`;
+          stopHostInvitePolling();
+          await applyGuestAnswerCode(result.answerCode,{fromInvite:true});
+          return;
+        }
+        if(result?.status==='declined'){
+          stopHostInvitePolling();setHostStatus('Player 2 declined the invite.',true);await cleanupHostInvite();return;
+        }
+        if(result?.status==='expired'||result?.status==='missing'){
+          stopHostInvitePolling();setHostStatus('Invite expired. Send a new one.',true);return;
+        }
+      }catch(error){console.info('Code Duel invite poll skipped.',error);}
+      finally{runtime.hostInvitePollBusy=false;}
+      if(runtime.open&&runtime.hostInvite&&!runtime.connected)runtime.hostInvitePollTimer=setTimeout(poll,2500);
+    };
+    runtime.hostInvitePollTimer=setTimeout(poll,900);
+  }
+  function stopHostInvitePolling(){clearTimeout(runtime.hostInvitePollTimer);runtime.hostInvitePollTimer=0;runtime.hostInvitePollBusy=false;}
+
+  async function acceptStudentInvite(inviteId){
+    const invite=runtime.pendingInvites.find(item=>item.inviteId===inviteId);
+    if(!invite)return;
+    showPanel('guest');
+    runtime.localName=safeName(runtime.identity?.name,'PLAYER 2');
+    $('[data-cd-guest-name]').value=runtime.localName;
+    setGuestStatus(`Accepting ${invite.fromName}'s invite…`);
+    try{
+      runtime.activeInvite=invite;
+      const answer=await createGuestAnswerFromCode(invite.offerCode,{showQr:false,autoInvite:true});
+      await runtime.bridge.respondDuelInvite({inviteId:invite.inviteId,hostUid:invite.fromUid,status:'accepted',answerCode:answer});
+      setGuestStatus(`Accepted ${invite.fromName}'s invite. Connecting directly…`);
+      startConnectionTimeout();sound('ready');
+    }catch(error){setGuestStatus(error?.message||'Could not accept the invite.',true);disconnectPeer();}
+  }
+
+  async function declineStudentInvite(inviteId){
+    const invite=runtime.pendingInvites.find(item=>item.inviteId===inviteId);
+    if(!invite)return;
+    try{await runtime.bridge.respondDuelInvite({inviteId:invite.inviteId,hostUid:invite.fromUid,status:'declined'});sound('tap');}catch(_){}
+    runtime.pendingInvites=runtime.pendingInvites.filter(item=>item.inviteId!==inviteId);
+    refreshPendingInvites(true).catch(()=>{});
+  }
+
+  async function createHostQrOffer(){
+    const button=$('[data-cd-make-offer]');button.disabled=true;button.textContent='CREATING QR…';
+    try{
+      await cancelHostInvite(true);
+      setHostStatus('Creating a zero-RTDB direct pairing QR…');
+      const code=await createHostOfferBase();
+      const dataUrl=runtime.bridge?.createQrDataUrl?.(code,360)||'';
+      const block=$('[data-cd-host-qr-block]'),img=$('[data-cd-host-qr]');
+      if(dataUrl&&img){img.src=dataUrl;block.hidden=false;setHostStatus('Host QR ready. Player 2 scans it, then you scan their Response QR.');}
+      else{block.hidden=false;setHostStatus('QR could not be generated on this device. Use Share Invite or Copy Code.',true);}
+      sound('ready');
+    }catch(error){setHostStatus(error?.message||'Could not create the Host QR.',true);disconnectPeer();}
+    finally{button.disabled=false;button.textContent='CREATE HOST QR';}
+  }
+
+  async function createGuestAnswerFromCode(rawCode,options={}){
+    if(!window.RTCPeerConnection)throw new Error('WebRTC is not supported by this browser.');
+    const offer=decodeSignal(rawCode);
+    if(offer.kind!=='offer'||!offer.desc)throw new Error('The Host Pair Code is invalid.');
+    runtime.localName=safeName($('[data-cd-guest-name]').value,runtime.identity?.name||'PLAYER 2');
+    runtime.remoteName=safeName(offer.name,'PLAYER 1');
+    runtime.signalSeed=Number(offer.seed||1)>>>0;
+    const pc=createPeer();
+    runtime.role='guest';
+    pc.addEventListener('datachannel',event=>bindDataChannel(event.channel),{once:true});
+    await pc.setRemoteDescription(offer.desc);
+    await pc.setLocalDescription(await pc.createAnswer());
+    await waitForIce(pc);
+    runtime.answerCode=encodeSignal({v:SIGNAL_VERSION,kind:'answer',desc:pc.localDescription,name:runtime.localName});
+    if(options.showQr!==false){
+      const block=$('[data-cd-guest-answer-block]'),img=$('[data-cd-guest-qr]');
+      const dataUrl=runtime.bridge?.createQrDataUrl?.(runtime.answerCode,360)||'';
+      if(img&&dataUrl)img.src=dataUrl;
+      if(block)block.hidden=false;
+      setGuestStatus(dataUrl?'Response QR ready. Let the Host scan it.':'Response ready. Use Share Response or Copy Code.');
+    }
+    startConnectionTimeout();sound('ready');
+    return runtime.answerCode;
+  }
+
+  async function applyGuestAnswerCode(rawCode,options={}){
+    const button=$('[data-cd-apply-answer]');if(button){button.disabled=true;button.textContent='CONNECTING…';}
+    try{
+      if(!runtime.pc||runtime.role!=='host')throw new Error('Create a Host invite or QR first.');
+      const answer=decodeSignal(rawCode);
       if(answer.kind!=='answer'||!answer.desc)throw new Error('The Response Code is invalid.');
-      runtime.remoteName=safeName(answer.name,'PLAYER 2');
+      runtime.remoteName=safeName(answer.name,runtime.remoteName||'PLAYER 2');
       await runtime.pc.setRemoteDescription(answer.desc);
       setHostStatus('Connecting directly to Player 2…');
       startConnectionTimeout();
-    }catch(error){setHostStatus(error?.message||'Could not connect Player 2.',true);}
-    finally{button.disabled=false;button.textContent='CONNECT PLAYER 2';}
+    }catch(error){setHostStatus(error?.message||'Could not connect Player 2.',true);throw error;}
+    finally{if(button){button.disabled=false;button.textContent='CONNECT PLAYER 2';}}
+  }
+
+  async function createGuestAnswer(){
+    const button=$('[data-cd-make-answer]');button.disabled=true;button.textContent='PREPARING…';
+    try{await createGuestAnswerFromCode($('[data-cd-offer-input]').value,{showQr:true});}
+    catch(error){setGuestStatus(error?.message||'Could not create the response.',true);disconnectPeer();}
+    finally{button.disabled=false;button.textContent='CREATE RESPONSE';}
   }
 
   function startConnectionTimeout(){
     clearTimeout(runtime.connectionTimer);
     runtime.connectionTimer=setTimeout(()=>{
       if(runtime.connected)return;
-      const msg='Still not connected. Both devices must stay online. Some strict networks can block zero-server WebRTC; try the same Wi-Fi or a different network.';
+      const msg='Still not connected. Both devices must stay online. If the network blocks WebRTC, try the same Wi-Fi or another network.';
       if(runtime.role==='host')setHostStatus(msg,true);else setGuestStatus(msg,true);
     },CONNECTION_TIMEOUT_MS);
   }
@@ -396,7 +590,7 @@
     try{await navigator.clipboard.writeText(text);ok=true;}catch(_){
       const ta=document.createElement('textarea');ta.value=text;ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.select();try{ok=document.execCommand('copy');}catch(_){}ta.remove();
     }
-    const message=ok?success:'Copy failed — select the code manually.';
+    const message=ok?success:'Copy failed — use Share instead.';
     if(runtime.role==='host')setHostStatus(message,!ok);else setGuestStatus(message,!ok);
     if(ok)sound('copy');
   }
@@ -407,6 +601,71 @@
       try{await navigator.share({title,text});sound('copy');return;}catch(error){if(error?.name==='AbortError')return;}
     }
     await copyText(text,`${title} copied.`);
+  }
+
+  async function openQrScanner(mode){
+    closeQrScanner();
+    const scanner=$('[data-cd-scanner]'),status=$('[data-cd-scan-status]'),title=$('[data-cd-scan-title]'),video=$('[data-cd-scan-video]');
+    if(!scanner||!video)return;
+    runtime.scanMode=mode;
+    title.textContent=mode==='answer'?'SCAN RESPONSE QR':'SCAN HOST QR';
+    status.textContent='Starting camera…';scanner.hidden=false;
+    if(!('BarcodeDetector' in window)||!navigator.mediaDevices?.getUserMedia){
+      status.textContent='Camera QR scanning is not supported by this browser. Use Share / Copy / Paste fallback.';return;
+    }
+    try{
+      const supported=typeof BarcodeDetector.getSupportedFormats==='function' ? await BarcodeDetector.getSupportedFormats().catch(()=>[]) : ['qr_code'];
+      if(supported.length&&!supported.includes('qr_code'))throw new Error('QR detection is not available.');
+      const detector=new BarcodeDetector({formats:['qr_code']});
+      const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}},audio:false});
+      runtime.scanStream=stream;video.srcObject=stream;await video.play();status.textContent='Point the camera at the QR code on the other device.';
+      const scan=async()=>{
+        if(!runtime.open||!runtime.scanStream||runtime.scanBusy)return;
+        runtime.scanBusy=true;
+        try{
+          const results=await detector.detect(video);
+          const value=String(results?.[0]?.rawValue||'').trim();
+          if(value.startsWith('CD1.')){
+            const kind=runtime.scanMode;closeQrScanner();sound('ready');
+            if(kind==='offer'){
+              $('[data-cd-offer-input]').value=value;
+              try{await createGuestAnswerFromCode(value,{showQr:true});}catch(error){setGuestStatus(error?.message||'Could not read Host QR.',true);}
+            }else{
+              $('[data-cd-answer-input]').value=value;
+              try{await applyGuestAnswerCode(value);}catch(_){}
+            }
+            return;
+          }
+        }catch(_){}finally{runtime.scanBusy=false;}
+        if(runtime.scanStream)runtime.scanRaf=setTimeout(scan,180);
+      };
+      runtime.scanRaf=setTimeout(scan,120);
+    }catch(error){status.textContent=error?.message||'Camera permission was not granted. Use Share / Copy / Paste fallback.';}
+  }
+
+  function closeQrScanner(){
+    clearTimeout(runtime.scanRaf);runtime.scanRaf=0;runtime.scanBusy=false;
+    if(runtime.scanStream){runtime.scanStream.getTracks().forEach(track=>{try{track.stop();}catch(_){}});runtime.scanStream=null;}
+    const video=$('[data-cd-scan-video]');if(video){try{video.pause();}catch(_){}video.srcObject=null;}
+    const scanner=$('[data-cd-scanner]');if(scanner)scanner.hidden=true;runtime.scanMode='';
+  }
+
+  async function cleanupHostInvite(){
+    stopHostInvitePolling();
+    const invite=runtime.hostInvite;runtime.hostInvite=null;
+    const waiting=$('[data-cd-host-waiting]');if(waiting)waiting.hidden=true;
+    if(invite&&runtime.bridge?.removeDuelInvite){try{await runtime.bridge.removeDuelInvite(invite);}catch(_){}}
+  }
+
+  async function cancelHostInvite(remove=true){
+    stopHostInvitePolling();
+    const invite=runtime.hostInvite;runtime.hostInvite=null;
+    const waiting=$('[data-cd-host-waiting]');if(waiting)waiting.hidden=true;
+    if(remove&&invite&&runtime.bridge?.removeDuelInvite){try{await runtime.bridge.removeDuelInvite(invite);}catch(_){}}
+  }
+
+  function cancelPairing(){
+    cancelHostInvite(true).catch(()=>{});closeQrScanner();disconnectPeer();showPanel('home');
   }
 
   function send(payload){
@@ -690,20 +949,37 @@
   }
 
   function resetHome(){
-    disconnectPeer();runtime.state='home';runtime.localReady=false;runtime.remoteReady=false;runtime.remoteProgress=0;runtime.result=null;
-    $('[data-cd-host-offer-block]').hidden=true;$('[data-cd-guest-answer-block]').hidden=true;$('[data-cd-host-code]').value='';$('[data-cd-answer-input]').value='';$('[data-cd-offer-input]').value='';$('[data-cd-guest-code]').value='';
-    $('[data-cd-countdown]').hidden=true;$('[data-cd-pause]').hidden=true;showPanel('home');
+    closeQrScanner();
+    stopHostInvitePolling();
+    disconnectPeer();
+    runtime.state='home';runtime.localReady=false;runtime.remoteReady=false;runtime.remoteProgress=0;runtime.result=null;runtime.activeInvite=null;
+    const hostQr=$('[data-cd-host-qr-block]');if(hostQr)hostQr.hidden=true;
+    const guestQr=$('[data-cd-guest-answer-block]');if(guestQr)guestQr.hidden=true;
+    const waiting=$('[data-cd-host-waiting]');if(waiting)waiting.hidden=true;
+    const answer=$('[data-cd-answer-input]');if(answer)answer.value='';
+    const offer=$('[data-cd-offer-input]');if(offer)offer.value='';
+    $('[data-cd-countdown]').hidden=true;$('[data-cd-pause]').hidden=true;
+    renderIdentity();showPanel('home');
   }
 
   function returnToHub(){const cb=runtime.onBack;closeInternal();try{cb?.();}catch(_){} }
   function closeAll(){const cb=runtime.onClose;closeInternal();try{cb?.();}catch(_){} }
   function closeInternal(){
-    if(!runtime.open)return;runtime.open=false;disconnectPeer();runtime.overlay.hidden=true;document.body.classList.remove('code-duel-active');runtime.music=null;runtime.bridge=null;runtime.onBack=null;runtime.onClose=null;
+    if(!runtime.open)return;
+    const bridge=runtime.bridge, pendingHostInvite=runtime.hostInvite;
+    runtime.open=false;stopInvitePolling();stopHostInvitePolling();closeQrScanner();disconnectPeer();
+    runtime.hostInvite=null;runtime.activeInvite=null;runtime.pendingInvites=[];
+    if(pendingHostInvite&&bridge?.removeDuelInvite){bridge.removeDuelInvite(pendingHostInvite).catch(()=>{});}
+    runtime.overlay.hidden=true;document.body.classList.remove('code-duel-active');runtime.music=null;runtime.bridge=null;runtime.onBack=null;runtime.onClose=null;
   }
 
   function open(options={}){
     build();runtime.bridge=options.bridge||window.ICT8_XP_MINIGAMES_BRIDGE||null;runtime.music=options.music||null;runtime.onBack=typeof options.onBack==='function'?options.onBack:null;runtime.onClose=typeof options.onClose==='function'?options.onClose:null;
-    const snap=runtime.bridge?.getSnapshot?.()||{};runtime.soundEnabled=snap.soundEnabled!==false;$('[data-cd-sound]').textContent=runtime.soundEnabled?'🔊':'🔇';runtime.open=true;runtime.overlay.hidden=false;document.body.classList.add('code-duel-active');resetHome();
+    const snap=runtime.bridge?.getSnapshot?.()||{};runtime.soundEnabled=snap.soundEnabled!==false;$('[data-cd-sound]').textContent=runtime.soundEnabled?'🔊':'🔇';
+    runtime.identity=runtime.bridge?.getPlayerIdentity?.()||null;
+    const defaultName=safeName(runtime.identity?.name,'PLAYER 1');
+    const hostName=$('[data-cd-host-name]'),guestName=$('[data-cd-guest-name]');if(hostName)hostName.value=defaultName;if(guestName)guestName.value=defaultName;
+    runtime.open=true;runtime.overlay.hidden=false;document.body.classList.add('code-duel-active');resetHome();startInvitePolling();
   }
 
   window.ICT8CodeDuel=Object.freeze({
