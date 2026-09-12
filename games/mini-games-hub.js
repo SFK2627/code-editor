@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const ASSET_VERSION = '20260912-v4761-million-byte-v3-lifelines';
+  const ASSET_VERSION = '20260912-v4761-million-byte-v52-better-explanations';
 
   const GAME_REGISTRY = Object.freeze([
     {
