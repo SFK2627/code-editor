@@ -1,5 +1,10 @@
 (() => {
   'use strict';
+  // Global Mini-Game audio mix: +50% SFX, safely capped to avoid clipping.
+  function __ict8SfxGain(value) {
+    return Math.min(1, Math.max(0, Number(value) || 0) * 1.5);
+  }
+
 
   const GAME_ID = 'code-vault';
   const GLOBAL_NAME = 'ICT8CodeVault';
@@ -794,7 +799,7 @@
       const gain = ctx.createGain();
       osc.type = 'sine';
       osc.frequency.value = Math.max(60, Number(freq || 320));
-      gain.gain.setValueAtTime(Math.max(.001, volume), ctx.currentTime);
+      gain.gain.setValueAtTime(__ict8SfxGain(Math.max(.001, volume)), ctx.currentTime);
       gain.gain.exponentialRampToValueAtTime(.001, ctx.currentTime + duration);
       osc.connect(gain).connect(ctx.destination);
       osc.start();

@@ -1,5 +1,10 @@
 (() => {
   'use strict';
+  // Global Mini-Game audio mix: +50% SFX, safely capped to avoid clipping.
+  function __ict8SfxGain(value) {
+    return Math.min(1, Math.max(0, Number(value) || 0) * 1.5);
+  }
+
 
   const GAME_ID = 'runner-404';
   const MAX_DPR = 2;
@@ -83,7 +88,7 @@
   function placePlayer(){ runtime.player.w=clamp(runtime.view.h*.07,30,40); runtime.player.h=runtime.player.w*1.2; runtime.player.x=clamp(runtime.view.w*.16,70,130); if(runtime.state==='ready'||runtime.player.onGround) runtime.player.y=groundY()-runtime.player.h; }
 
   function getAudio(){ if(!runtime.soundEnabled)return null; try{ if(!runtime.audioContext)runtime.audioContext=new (window.AudioContext || window.webkitAudioContext)(); if(runtime.audioContext.state==='suspended')runtime.audioContext.resume().catch(()=>{}); return runtime.audioContext;}catch(_){return null;} }
-  function tone(kind){ const ctx=getAudio(); if(!ctx)return; const o=ctx.createOscillator(),g=ctx.createGain(),now=ctx.currentTime; const t=kind==='jump'?[430,620,.07,.05]:kind==='pass'?[650,900,.06,.045]:[180,70,.18,.07]; o.type=kind==='crash'?'sawtooth':'square'; o.frequency.setValueAtTime(t[0],now); o.frequency.exponentialRampToValueAtTime(t[1],now+t[2]); g.gain.setValueAtTime(t[3],now); g.gain.exponentialRampToValueAtTime(.001,now+t[2]); o.connect(g).connect(ctx.destination); o.start(); o.stop(now+t[2]+.02); }
+  function tone(kind){ const ctx=getAudio(); if(!ctx)return; const o=ctx.createOscillator(),g=ctx.createGain(),now=ctx.currentTime; const t=kind==='jump'?[430,620,.07,.05]:kind==='pass'?[650,900,.06,.045]:[180,70,.18,.07]; o.type=kind==='crash'?'sawtooth':'square'; o.frequency.setValueAtTime(t[0],now); o.frequency.exponentialRampToValueAtTime(t[1],now+t[2]); g.gain.setValueAtTime(__ict8SfxGain(t[3]),now); g.gain.exponentialRampToValueAtTime(.001,now+t[2]); o.connect(g).connect(ctx.destination); o.start(); o.stop(now+t[2]+.02); }
   function toggleSound(){runtime.soundEnabled=!runtime.soundEnabled;runtime.soundBtn.textContent=runtime.soundEnabled?'🔊':'🔇';runtime.bridge?.setSoundEnabled?.(runtime.soundEnabled);}
 
   function resetReady(){ runtime.state='ready'; runtime.obstacles=[]; runtime.particles=[]; runtime.score=0;runtime.elapsed=0;runtime.distance=0;runtime.passed=0;runtime.spawnClock=0;runtime.round=null;runtime.overPanel.hidden=true;runtime.pausePanel.hidden=true;runtime.pauseBtn.textContent='Ⅱ';runtime.scoreEl.textContent='0'; placePlayer(); runtime.lastFrame=performance.now(); }

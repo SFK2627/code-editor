@@ -1,5 +1,10 @@
 (() => {
   'use strict';
+  // Global Mini-Game audio mix: +50% SFX, safely capped to avoid clipping.
+  function __ict8SfxGain(value) {
+    return Math.min(1, Math.max(0, Number(value) || 0) * 1.5);
+  }
+
   const GAME_ID='code-snake-duel',PREFIX='CSD1',COLS=22,ROWS=30,WIN_SCORE=12;
   const P=()=>window.ICT8ZeroDbP2P;
   const r={built:false,open:false,bridge:null,music:null,onBack:null,onClose:null,overlay:null,panels:{},session:null,role:'',seed:1,localName:'PLAYER 1',remoteName:'PLAYER 2',hostCode:'',answerCode:'',scannerStop:null,state:'home',localReady:false,remoteReady:false,world:null,tickTimer:0,paused:false,remotePaused:false,exitPaused:false,swipeStart:null,audio:null,lastSnapshot:null};
@@ -40,7 +45,7 @@
   function pauseGame(text){r.paused=true;$('[data-pause]').hidden=false;$('[data-pause-text]').textContent=text;r.music?.pause?.();}function resumeGame(){r.paused=false;$('[data-pause]').hidden=true;r.music?.resume?.();}
   function pauseLocal(){if(r.state!=='game'||r.exitPaused)return false;r.exitPaused=true;pauseGame('Game paused safely.');$('[data-resume]').hidden=false;r.session?.send({t:'pause'});return true;}function resumeLocal(){if(!r.exitPaused)return false;r.exitPaused=false;$('[data-resume]').hidden=true;if(!r.remotePaused)resumeGame();r.session?.send({t:'resume'});return true;}
   function toggleSound(){const next=!(r.bridge?.getSnapshot?.()?.soundEnabled!==false);r.bridge?.setSoundEnabled?.(next);$('[data-sound]').textContent=next?'🔊':'🔇';if(next)r.music?.resume?.();else r.music?.pause?.();}
-  function ac(){if(r.audio)return r.audio;try{r.audio=new (window.AudioContext||window.webkitAudioContext)();}catch(_){}return r.audio;}function sfx(k){if(r.bridge?.getSnapshot?.()?.soundEnabled===false)return;const a=ac();if(!a)return;try{if(a.state==='suspended')a.resume();const o=a.createOscillator(),g=a.createGain(),f={ready:470,connect:650,count:390,go:760,tap:250,byte:810,win:900,lose:130}[k]||430;o.type=k==='lose'?'sawtooth':'square';o.frequency.setValueAtTime(f,a.currentTime);g.gain.setValueAtTime(.0001,a.currentTime);g.gain.exponentialRampToValueAtTime(.105,a.currentTime+.008);g.gain.exponentialRampToValueAtTime(.0001,a.currentTime+.12);o.connect(g).connect(a.destination);o.start();o.stop(a.currentTime+.14);}catch(_){} }
+  function ac(){if(r.audio)return r.audio;try{r.audio=new (window.AudioContext||window.webkitAudioContext)();}catch(_){}return r.audio;}function sfx(k){if(r.bridge?.getSnapshot?.()?.soundEnabled===false)return;const a=ac();if(!a)return;try{if(a.state==='suspended')a.resume();const o=a.createOscillator(),g=a.createGain(),f={ready:470,connect:650,count:390,go:760,tap:250,byte:810,win:900,lose:130}[k]||430;o.type=k==='lose'?'sawtooth':'square';o.frequency.setValueAtTime(f,a.currentTime);g.gain.setValueAtTime(.0001,a.currentTime);g.gain.exponentialRampToValueAtTime(__ict8SfxGain(.105),a.currentTime+.008);g.gain.exponentialRampToValueAtTime(.0001,a.currentTime+.12);o.connect(g).connect(a.destination);o.start();o.stop(a.currentTime+.14);}catch(_){} }
   function reset(){clearTimeout(r.tickTimer);closeScanner();r.session?.close();r.session=null;r.role='';r.localReady=r.remoteReady=false;r.world=null;r.paused=r.remotePaused=r.exitPaused=false;r.hostCode=r.answerCode='';show('home');}function returnHub(){const cb=r.onBack;close(false);cb?.();}function close(call=true){if(!r.open)return;reset();r.open=false;r.overlay.hidden=true;if(call)r.onClose?.();}function open(opts={}){build();r.bridge=opts.bridge||null;r.music=opts.music||null;r.onBack=opts.onBack||null;r.onClose=opts.onClose||null;r.open=true;r.overlay.hidden=false;reset();$('[data-sound]').textContent=r.bridge?.getSnapshot?.()?.soundEnabled===false?'🔇':'🔊';}
   window.ICT8CodeSnakeDuel=Object.freeze({open,close:()=>close(true),isOpen:()=>r.open,pauseForExitGuard:pauseLocal,resumeFromExitGuard:resumeLocal});
 })();

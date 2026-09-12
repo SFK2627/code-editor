@@ -1,5 +1,10 @@
 (() => {
   'use strict';
+  // Global Mini-Game audio mix: +50% SFX, safely capped to avoid clipping.
+  function __ict8SfxGain(value) {
+    return Math.min(1, Math.max(0, Number(value) || 0) * 1.5);
+  }
+
 
   const GAME_ID = 'code-duel';
   const SIGNAL_VERSION = 1;
@@ -921,7 +926,7 @@
     try{if(!runtime.audioContext)runtime.audioContext=new (window.AudioContext||window.webkitAudioContext)();if(runtime.audioContext.state==='suspended')runtime.audioContext.resume().catch(()=>{});return runtime.audioContext;}catch(_){return null;}
   }
   function playTone(freq=440,dur=.1,type='sine',gain=.09,slide=0){
-    const ctx=getAudio();if(!ctx)return;const o=ctx.createOscillator(),g=ctx.createGain(),now=ctx.currentTime;o.type=type;o.frequency.setValueAtTime(freq,now);if(slide)o.frequency.exponentialRampToValueAtTime(Math.max(40,slide),now+dur);g.gain.setValueAtTime(gain,now);g.gain.exponentialRampToValueAtTime(.001,now+dur);o.connect(g).connect(ctx.destination);o.start(now);o.stop(now+dur+.02);
+    const ctx=getAudio();if(!ctx)return;const o=ctx.createOscillator(),g=ctx.createGain(),now=ctx.currentTime;o.type=type;o.frequency.setValueAtTime(freq,now);if(slide)o.frequency.exponentialRampToValueAtTime(Math.max(40,slide),now+dur);g.gain.setValueAtTime(__ict8SfxGain(gain),now);g.gain.exponentialRampToValueAtTime(.001,now+dur);o.connect(g).connect(ctx.destination);o.start(now);o.stop(now+dur+.02);
   }
   function sound(kind){
     if(!runtime.soundEnabled)return;runtime.music?.duck?.(.45,170);

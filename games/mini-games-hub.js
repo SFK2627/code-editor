@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const ASSET_VERSION = '20260912-v4761-zero-db-2p-pack-v1';
+  const ASSET_VERSION = '20260912-v4761-all-games-audio-plus50-v1';
 
   const GAME_REGISTRY = Object.freeze([
     {
@@ -717,10 +717,9 @@
     return buffer;
   }
 
-  // Overall soundtrack lift requested for phone speakers. Individual game
-  // profiles still keep their relative balance; input ducking preserves SFX
-  // clarity during taps/jumps/hits.
-  const MINI_GAME_BGM_GAIN_BOOST = 1.42;
+  // Global Mini-Game mix: +50% BGM over Audio v2 for Solo XP and 2P games.
+  // Profiles keep their relative balance; input ducking still preserves SFX clarity.
+  const MINI_GAME_BGM_GAIN_BOOST = 2.13;
 
   const MINI_GAME_SOUNDTRACK = (() => {
     let ctx = null;
@@ -764,7 +763,7 @@
       const profileGain = Number(activeProfile.gain || .28);
       // Louder master mix for mobile speakers without allowing the BGM to
       // saturate the output bus. SFX still gets temporary headroom via duck().
-      return Math.max(.24, Math.min(.50, profileGain * MINI_GAME_BGM_GAIN_BOOST));
+      return Math.max(.36, Math.min(.75, profileGain * MINI_GAME_BGM_GAIN_BOOST));
     }
 
     function rampGain(value, seconds = .06) {

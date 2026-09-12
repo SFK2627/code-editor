@@ -1,5 +1,10 @@
 (() => {
   'use strict';
+  // Global Mini-Game audio mix: +50% SFX, safely capped to avoid clipping.
+  function __ict8SfxGain(value) {
+    return Math.min(1, Math.max(0, Number(value) || 0) * 1.5);
+  }
+
 
   const GAME_ID='pattern-lock';
   const TILES=Object.freeze([
@@ -87,7 +92,7 @@
 
   function delay(ms){return new Promise(resolve=>setTimeout(resolve,ms));}
   function getAudio(){if(!runtime.soundEnabled)return null;try{if(!runtime.audioContext)runtime.audioContext=new (window.AudioContext||window.webkitAudioContext)();if(runtime.audioContext.state==='suspended')runtime.audioContext.resume().catch(()=>{});return runtime.audioContext}catch(_){return null}}
-  function tone(kind,index=0){const ctx=getAudio();if(!ctx)return;const o=ctx.createOscillator(),g=ctx.createGain(),n=ctx.currentTime;const base=[330,390,460,540,630,740][index%6];const f=kind==='bad'?150:kind==='good'?880:base;o.type=kind==='bad'?'sawtooth':'sine';o.frequency.setValueAtTime(f,n);if(kind==='good')o.frequency.exponentialRampToValueAtTime(1200,n+.1);if(kind==='bad')o.frequency.exponentialRampToValueAtTime(70,n+.16);g.gain.setValueAtTime(kind==='show'?.035:.045,n);g.gain.exponentialRampToValueAtTime(.001,n+(kind==='bad'?.17:.09));o.connect(g).connect(ctx.destination);o.start(n);o.stop(n+.2)}
+  function tone(kind,index=0){const ctx=getAudio();if(!ctx)return;const o=ctx.createOscillator(),g=ctx.createGain(),n=ctx.currentTime;const base=[330,390,460,540,630,740][index%6];const f=kind==='bad'?150:kind==='good'?880:base;o.type=kind==='bad'?'sawtooth':'sine';o.frequency.setValueAtTime(f,n);if(kind==='good')o.frequency.exponentialRampToValueAtTime(1200,n+.1);if(kind==='bad')o.frequency.exponentialRampToValueAtTime(70,n+.16);g.gain.setValueAtTime(__ict8SfxGain(kind==='show'?.035:.045),n);g.gain.exponentialRampToValueAtTime(.001,n+(kind==='bad'?.17:.09));o.connect(g).connect(ctx.destination);o.start(n);o.stop(n+.2)}
   function toggleSound(){runtime.soundEnabled=!runtime.soundEnabled;runtime.soundBtn.textContent=runtime.soundEnabled?'🔊':'🔇';runtime.bridge?.setSoundEnabled?.(runtime.soundEnabled)}
   function updateHud(){runtime.levelEl.textContent=String(runtime.level);runtime.patternEl.textContent=String(runtime.sequence.length||3)}
   function showFx(text,kind=''){runtime.fxEl.textContent=text;runtime.fxEl.className=`pattern-lock-fx show ${kind}`;clearTimeout(runtime.fxTimer);runtime.fxTimer=setTimeout(()=>runtime.fxEl.className='pattern-lock-fx',720)}

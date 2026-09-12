@@ -1,5 +1,10 @@
 (() => {
   'use strict';
+  // Global Mini-Game audio mix: +50% SFX, safely capped to avoid clipping.
+  function __ict8SfxGain(value) {
+    return Math.min(1, Math.max(0, Number(value) || 0) * 1.5);
+  }
+
 
   const GAME_ID = 'byte-sling';
   // V469B: stable pre-impact structures + oriented rigid-body collisions.
@@ -420,7 +425,7 @@
     osc.type = kind === 'boom' || kind === 'lose' ? 'sawtooth' : 'sine';
     osc.frequency.setValueAtTime(from, now);
     osc.frequency.exponentialRampToValueAtTime(Math.max(45, to), now + dur);
-    gain.gain.setValueAtTime(volume, now);
+    gain.gain.setValueAtTime(__ict8SfxGain(volume), now);
     gain.gain.exponentialRampToValueAtTime(.001, now + dur);
     osc.connect(gain).connect(ctx.destination);
     osc.start(now); osc.stop(now + dur + .02);

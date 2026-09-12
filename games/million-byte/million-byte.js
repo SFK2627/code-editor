@@ -1,5 +1,10 @@
 (() => {
   'use strict';
+  // Global Mini-Game audio mix: +50% SFX, safely capped to avoid clipping.
+  function __ict8SfxGain(value) {
+    return Math.min(1, Math.max(0, Number(value) || 0) * 1.5);
+  }
+
 
   const GAME_ID = 'million-byte';
   const GLOBAL_NAME = 'ICT8MillionByte';
@@ -731,7 +736,7 @@
         osc.type = kind === 'wrong' ? 'sawtooth' : 'sine';
         osc.frequency.value = freq;
         gain.gain.setValueAtTime(.0001, now + i * .07);
-        gain.gain.exponentialRampToValueAtTime(.055, now + i * .07 + .012);
+        gain.gain.exponentialRampToValueAtTime(__ict8SfxGain(.055), now + i * .07 + .012);
         gain.gain.exponentialRampToValueAtTime(.0001, now + i * .07 + .13);
         osc.connect(gain).connect(ctx.destination);
         osc.start(now + i * .07);

@@ -1,5 +1,10 @@
 (() => {
   'use strict';
+  // Global Mini-Game audio mix: +50% SFX, safely capped to avoid clipping.
+  function __ict8SfxGain(value) {
+    return Math.min(1, Math.max(0, Number(value) || 0) * 1.5);
+  }
+
 
   const GAME_ID = 'code-hoops';
   const ROUND_MS = 45000;
@@ -179,7 +184,7 @@
     const t={shoot:[250,430,.07,.035],score:[520,820,.11,.05],perfect:[680,1180,.13,.055],miss:[170,100,.09,.035],over:[150,70,.2,.05]}[kind]||[300,450,.08,.04];
     osc.type=kind==='miss'||kind==='over'?'sawtooth':'sine';
     osc.frequency.setValueAtTime(t[0],now); osc.frequency.exponentialRampToValueAtTime(Math.max(40,t[1]),now+t[2]);
-    gain.gain.setValueAtTime(t[3],now); gain.gain.exponentialRampToValueAtTime(.001,now+t[2]);
+    gain.gain.setValueAtTime(__ict8SfxGain(t[3]),now); gain.gain.exponentialRampToValueAtTime(.001,now+t[2]);
     osc.connect(gain).connect(ctx.destination); osc.start(now); osc.stop(now+t[2]+.02);
   }
 

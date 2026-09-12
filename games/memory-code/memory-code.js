@@ -1,5 +1,10 @@
 (() => {
   'use strict';
+  // Global Mini-Game audio mix: +50% SFX, safely capped to avoid clipping.
+  function __ict8SfxGain(value) {
+    return Math.min(1, Math.max(0, Number(value) || 0) * 1.5);
+  }
+
 
   const GAME_ID='memory-code';
   const PAIRS=Object.freeze([
@@ -67,7 +72,7 @@
   function makeDeck(){return shuffle(PAIRS.flatMap(pair=>[{...pair,id:`${pair.key}-a`},{...pair,id:`${pair.key}-b`}])).map((c,index)=>({...c,index,revealed:false,matched:false}));}
   function renderDeck(){runtime.grid.innerHTML=runtime.cards.map((card,index)=>`<button type="button" class="memory-code-card ${card.revealed||card.matched?'is-flipped':''} ${card.matched?'is-matched':''}" data-memory-card="${index}" aria-label="${card.matched?'Matched '+card.label:'Hidden memory card'}" ${card.matched?'disabled':''}><span class="memory-code-card-inner"><span class="memory-code-card-back">&lt;/&gt;</span><span class="memory-code-card-front"><b>${card.face}</b><small>${card.label}</small></span></span></button>`).join('');}
   function getAudio(){if(!runtime.soundEnabled)return null;try{if(!runtime.audioContext)runtime.audioContext=new (window.AudioContext || window.webkitAudioContext)();if(runtime.audioContext.state==='suspended')runtime.audioContext.resume().catch(()=>{});return runtime.audioContext;}catch(_){return null;}}
-  function tone(kind){const ctx=getAudio();if(!ctx)return;const o=ctx.createOscillator(),g=ctx.createGain(),now=ctx.currentTime;const t=kind==='match'?[560,840,.10,.055]:kind==='complete'?[520,1040,.22,.06]:[250,180,.08,.035];o.type=kind==='miss'?'triangle':'sine';o.frequency.setValueAtTime(t[0],now);o.frequency.exponentialRampToValueAtTime(t[1],now+t[2]);g.gain.setValueAtTime(t[3],now);g.gain.exponentialRampToValueAtTime(.001,now+t[2]);o.connect(g).connect(ctx.destination);o.start();o.stop(now+t[2]+.02);}
+  function tone(kind){const ctx=getAudio();if(!ctx)return;const o=ctx.createOscillator(),g=ctx.createGain(),now=ctx.currentTime;const t=kind==='match'?[560,840,.10,.055]:kind==='complete'?[520,1040,.22,.06]:[250,180,.08,.035];o.type=kind==='miss'?'triangle':'sine';o.frequency.setValueAtTime(t[0],now);o.frequency.exponentialRampToValueAtTime(t[1],now+t[2]);g.gain.setValueAtTime(__ict8SfxGain(t[3]),now);g.gain.exponentialRampToValueAtTime(.001,now+t[2]);o.connect(g).connect(ctx.destination);o.start();o.stop(now+t[2]+.02);}
   function toggleSound(){runtime.soundEnabled=!runtime.soundEnabled;runtime.soundBtn.textContent=runtime.soundEnabled?'🔊':'🔇';runtime.bridge?.setSoundEnabled?.(runtime.soundEnabled);}
 
   function resetReady(){runtime.state='ready';runtime.cards=makeDeck();runtime.first=null;runtime.second=null;runtime.inputLocked=false;runtime.moves=0;runtime.matches=0;runtime.startedAt=0;runtime.elapsedBeforePause=0;runtime.round=null;runtime.readyPanel.hidden=false;runtime.pausePanel.hidden=true;runtime.overPanel.hidden=true;runtime.timeEl.textContent='0.0';runtime.movesEl.textContent='0';runtime.matchEl.textContent='0/8';renderDeck();stopTimer();}

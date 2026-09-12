@@ -1,5 +1,10 @@
 (() => {
   'use strict';
+  // Global Mini-Game audio mix: +50% SFX, safely capped to avoid clipping.
+  function __ict8SfxGain(value) {
+    return Math.min(1, Math.max(0, Number(value) || 0) * 1.5);
+  }
+
 
   const GAME_ID = 'code-maze';
   const MAX_DPR = 2;
@@ -136,7 +141,7 @@
     const t = {move:[360,520,.035,.025], key:[580,980,.09,.04], clear:[660,1220,.14,.055], over:[170,70,.2,.05]}[kind] || [330,440,.05,.03];
     o.type = kind === 'over' ? 'sawtooth' : 'sine';
     o.frequency.setValueAtTime(t[0],n); o.frequency.exponentialRampToValueAtTime(Math.max(40,t[1]),n+t[2]);
-    g.gain.setValueAtTime(t[3],n); g.gain.exponentialRampToValueAtTime(.001,n+t[2]);
+    g.gain.setValueAtTime(__ict8SfxGain(t[3]),n); g.gain.exponentialRampToValueAtTime(.001,n+t[2]);
     o.connect(g).connect(ctx.destination); o.start(n); o.stop(n+t[2]+.02);
   }
   function toggleSound(){ runtime.soundEnabled = !runtime.soundEnabled; runtime.soundBtn.textContent = runtime.soundEnabled ? '🔊' : '🔇'; runtime.bridge?.setSoundEnabled?.(runtime.soundEnabled); }

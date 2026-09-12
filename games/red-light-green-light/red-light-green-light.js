@@ -1,5 +1,10 @@
 (() => {
   'use strict';
+  // Global Mini-Game audio mix: +50% SFX, safely capped to avoid clipping.
+  function __ict8SfxGain(value) {
+    return Math.min(1, Math.max(0, Number(value) || 0) * 1.5);
+  }
+
 
   const GAME_ID = 'red-light-green-light';
   const ROUND_MS = 60000;
@@ -172,7 +177,7 @@
     const t={green:[520,880,.13,.045],red:[250,105,.18,.055],warn:[120,62,.22,.065],shot:[980,72,.16,.085],finish:[620,1250,.27,.07],over:[150,58,.25,.055],count:[420,520,.08,.035],go:[660,980,.12,.05]}[kind]||[330,440,.08,.04];
     o.type=(kind==='red'||kind==='warn'||kind==='shot'||kind==='over')?'sawtooth':'sine';
     o.frequency.setValueAtTime(t[0],n);o.frequency.exponentialRampToValueAtTime(Math.max(40,t[1]),n+t[2]);
-    g.gain.setValueAtTime(t[3],n);g.gain.exponentialRampToValueAtTime(.001,n+t[2]);
+    g.gain.setValueAtTime(__ict8SfxGain(t[3]),n);g.gain.exponentialRampToValueAtTime(.001,n+t[2]);
     o.connect(g).connect(ctx.destination);o.start(n);o.stop(n+t[2]+.02);
   }
 

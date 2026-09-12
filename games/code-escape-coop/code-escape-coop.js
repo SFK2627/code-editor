@@ -1,5 +1,10 @@
 (() => {
   'use strict';
+  // Global Mini-Game audio mix: +50% SFX, safely capped to avoid clipping.
+  function __ict8SfxGain(value) {
+    return Math.min(1, Math.max(0, Number(value) || 0) * 1.5);
+  }
+
   const GAME_ID='code-escape-coop',PREFIX='CEC1',MATCH_MS=5*60*1000,SYNC_MS=1500;
   const P=()=>window.ICT8ZeroDbP2P;
   const PUZZLES=Object.freeze([
@@ -45,7 +50,7 @@
   function pauseGame(text){if(!r.paused&&r.role==='host'&&r.state==='game')r.pauseStartedAt=Date.now();r.paused=true;$('[data-pause]').hidden=false;$('[data-pause-text]').textContent=text;r.music?.pause?.();}function resumeGame(){if(r.paused&&r.role==='host'&&r.pauseStartedAt){r.pausedTotal+=Date.now()-r.pauseStartedAt;r.pauseStartedAt=0;}r.paused=false;$('[data-pause]').hidden=true;r.music?.resume?.();}
   function pauseLocal(){if(r.state!=='game'||r.exitPaused)return false;r.exitPaused=true;pauseGame('Escape paused safely.');$('[data-resume]').hidden=false;r.session?.send({t:'pause'});return true;}function resumeLocal(){if(!r.exitPaused)return false;r.exitPaused=false;$('[data-resume]').hidden=true;if(!r.remotePaused)resumeGame();r.session?.send({t:'resume'});return true;}
   function toggleSound(){const next=!(r.bridge?.getSnapshot?.()?.soundEnabled!==false);r.bridge?.setSoundEnabled?.(next);$('[data-sound]').textContent=next?'🔊':'🔇';if(next)r.music?.resume?.();else r.music?.pause?.();}
-  function ac(){if(r.audio)return r.audio;try{r.audio=new (window.AudioContext||window.webkitAudioContext)();}catch(_){}return r.audio;}function sfx(k){if(r.bridge?.getSnapshot?.()?.soundEnabled===false)return;const a=ac();if(!a)return;try{if(a.state==='suspended')a.resume();const o=a.createOscillator(),g=a.createGain(),f={ready:480,connect:640,count:390,go:760,lock:520,correct:840,wrong:150,win:930,lose:120}[k]||430;o.type=k==='wrong'||k==='lose'?'sawtooth':'triangle';o.frequency.setValueAtTime(f,a.currentTime);g.gain.setValueAtTime(.0001,a.currentTime);g.gain.exponentialRampToValueAtTime(.12,a.currentTime+.008);g.gain.exponentialRampToValueAtTime(.0001,a.currentTime+.16);o.connect(g).connect(a.destination);o.start();o.stop(a.currentTime+.18);}catch(_){} }
+  function ac(){if(r.audio)return r.audio;try{r.audio=new (window.AudioContext||window.webkitAudioContext)();}catch(_){}return r.audio;}function sfx(k){if(r.bridge?.getSnapshot?.()?.soundEnabled===false)return;const a=ac();if(!a)return;try{if(a.state==='suspended')a.resume();const o=a.createOscillator(),g=a.createGain(),f={ready:480,connect:640,count:390,go:760,lock:520,correct:840,wrong:150,win:930,lose:120}[k]||430;o.type=k==='wrong'||k==='lose'?'sawtooth':'triangle';o.frequency.setValueAtTime(f,a.currentTime);g.gain.setValueAtTime(.0001,a.currentTime);g.gain.exponentialRampToValueAtTime(__ict8SfxGain(.12),a.currentTime+.008);g.gain.exponentialRampToValueAtTime(.0001,a.currentTime+.16);o.connect(g).connect(a.destination);o.start();o.stop(a.currentTime+.18);}catch(_){} }
   function reset(){clearInterval(r.timerId);clearInterval(r.syncTimer);closeScanner();r.session?.close();r.session=null;r.role='';r.localReady=r.remoteReady=false;r.paused=r.remotePaused=r.exitPaused=false;r.stage=0;r.strikes=0;r.hostCode=r.answerCode='';show('home');}function returnHub(){const cb=r.onBack;close(false);cb?.();}function close(call=true){if(!r.open)return;reset();r.open=false;r.overlay.hidden=true;if(call)r.onClose?.();}function open(opts={}){build();r.bridge=opts.bridge||null;r.music=opts.music||null;r.onBack=opts.onBack||null;r.onClose=opts.onClose||null;r.open=true;r.overlay.hidden=false;reset();$('[data-sound]').textContent=r.bridge?.getSnapshot?.()?.soundEnabled===false?'🔇':'🔊';}
   window.ICT8CodeEscapeCoop=Object.freeze({open,close:()=>close(true),isOpen:()=>r.open,pauseForExitGuard:pauseLocal,resumeFromExitGuard:resumeLocal});
 })();

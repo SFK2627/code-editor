@@ -1,5 +1,10 @@
 (() => {
   'use strict';
+  // Global Mini-Game audio mix: +50% SFX, safely capped to avoid clipping.
+  function __ict8SfxGain(value) {
+    return Math.min(1, Math.max(0, Number(value) || 0) * 1.5);
+  }
+
 
   const GAME_ID = 'color-switch-byte';
   const MAX_DPR = 2;
@@ -256,7 +261,7 @@
     osc.type = kind === 'over' ? 'sawtooth' : 'sine';
     osc.frequency.setValueAtTime(item[0], now);
     osc.frequency.exponentialRampToValueAtTime(Math.max(40, item[1]), now + item[2]);
-    gain.gain.setValueAtTime(item[3], now);
+    gain.gain.setValueAtTime(__ict8SfxGain(item[3]), now);
     gain.gain.exponentialRampToValueAtTime(0.001, now + item[2]);
     osc.connect(gain).connect(ctx.destination);
     osc.start(now);

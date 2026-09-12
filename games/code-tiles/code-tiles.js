@@ -1,6 +1,7 @@
 (() => {
   'use strict';
 
+
   const GAME_ID = 'code-tiles';
   const GLOBAL_NAME = 'ICT8CodeTiles';
   const WORLD_W = 600;
@@ -1259,7 +1260,7 @@
         runtime.compressor.ratio.value = 5;
         runtime.compressor.attack.value = .004;
         runtime.compressor.release.value = .12;
-        runtime.masterGain.gain.value = .38;
+        runtime.masterGain.gain.value = .57;
         runtime.masterGain.connect(runtime.compressor);
         runtime.compressor.connect(runtime.audioContext.destination);
       }

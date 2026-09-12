@@ -1,5 +1,10 @@
 (() => {
   'use strict';
+  // Global Mini-Game audio mix: +50% SFX, safely capped to avoid clipping.
+  function __ict8SfxGain(value) {
+    return Math.min(1, Math.max(0, Number(value) || 0) * 1.5);
+  }
+
 
   const GAME_ID = 'code-flow';
   const STORAGE_TUTORIAL = 'ict8.codeFlowTutorialSeen.v1';
@@ -251,7 +256,7 @@
     osc.type = type;
     osc.frequency.setValueAtTime(from, now);
     osc.frequency.exponentialRampToValueAtTime(Math.max(40, to), now + dur);
-    gain.gain.setValueAtTime(vol, now);
+    gain.gain.setValueAtTime(__ict8SfxGain(vol), now);
     gain.gain.exponentialRampToValueAtTime(.001, now + dur);
     osc.connect(gain).connect(ctx.destination);
     osc.start(now);

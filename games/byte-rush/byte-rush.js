@@ -1,5 +1,10 @@
 (() => {
   'use strict';
+  // Global Mini-Game audio mix: +50% SFX, safely capped to avoid clipping.
+  function __ict8SfxGain(value) {
+    return Math.min(1, Math.max(0, Number(value) || 0) * 1.5);
+  }
+
 
   const GAME_ID = 'byte-rush';
   const MAX_DPR = 2;
@@ -102,7 +107,7 @@
   }
 
   function getAudio(){if(!runtime.soundEnabled)return null;try{if(!runtime.audioContext)runtime.audioContext=new(window.AudioContext||window.webkitAudioContext)();if(runtime.audioContext.state==='suspended')runtime.audioContext.resume().catch(()=>{});return runtime.audioContext}catch(_){return null}}
-  function tone(kind){const ctx=getAudio();if(!ctx)return;const osc=ctx.createOscillator(),gain=ctx.createGain(),now=ctx.currentTime;const table={lane:[310,420,.045,.025],chip:[650,1150,.10,.055],crash:[150,60,.22,.075],near:[430,680,.07,.035]};const [from,to,dur,vol]=table[kind]||table.lane;osc.type=kind==='crash'?'sawtooth':'sine';osc.frequency.setValueAtTime(from,now);osc.frequency.exponentialRampToValueAtTime(Math.max(40,to),now+dur);gain.gain.setValueAtTime(vol,now);gain.gain.exponentialRampToValueAtTime(.001,now+dur);osc.connect(gain).connect(ctx.destination);osc.start(now);osc.stop(now+dur+.02)}
+  function tone(kind){const ctx=getAudio();if(!ctx)return;const osc=ctx.createOscillator(),gain=ctx.createGain(),now=ctx.currentTime;const table={lane:[310,420,.045,.025],chip:[650,1150,.10,.055],crash:[150,60,.22,.075],near:[430,680,.07,.035]};const [from,to,dur,vol]=table[kind]||table.lane;osc.type=kind==='crash'?'sawtooth':'sine';osc.frequency.setValueAtTime(from,now);osc.frequency.exponentialRampToValueAtTime(Math.max(40,to),now+dur);gain.gain.setValueAtTime(__ict8SfxGain(vol),now);gain.gain.exponentialRampToValueAtTime(.001,now+dur);osc.connect(gain).connect(ctx.destination);osc.start(now);osc.stop(now+dur+.02)}
   function toggleSound(){runtime.soundEnabled=!runtime.soundEnabled;runtime.soundBtn.textContent=runtime.soundEnabled?'🔊':'🔇';runtime.bridge?.setSoundEnabled?.(runtime.soundEnabled)}
   function queueResize(){if(!runtime.open)return;clearTimeout(runtime.resizeTimer);runtime.resizeTimer=setTimeout(resizeCanvas,70)}
   function resizeCanvas(){if(!runtime.open||!runtime.ctx)return;const rect=runtime.canvas.getBoundingClientRect();const w=Math.max(300,rect.width||720),h=Math.max(400,rect.height||640),dpr=Math.max(1,Math.min(MAX_DPR,Number(devicePixelRatio||1)));runtime.canvas.width=Math.round(w*dpr);runtime.canvas.height=Math.round(h*dpr);runtime.ctx.setTransform(dpr,0,0,dpr,0,0);runtime.view={w,h,dpr};runtime.carX=laneX(runtime.lane);runtime.carTargetX=runtime.carX}

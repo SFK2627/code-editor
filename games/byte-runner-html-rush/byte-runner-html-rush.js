@@ -1,5 +1,10 @@
 (() => {
   'use strict';
+  // Global Mini-Game audio mix: +50% SFX, safely capped to avoid clipping.
+  function __ict8SfxGain(value) {
+    return Math.min(1, Math.max(0, Number(value) || 0) * 1.5);
+  }
+
 
   // v4761 Byte Runner visual/physics correction: rear-view runner, forward
   // perspective motion, pass-through answer portals, and fast collision cleanup.
@@ -563,7 +568,7 @@
     const osc = audio.createOscillator(), gain = audio.createGain();
     osc.type=type; osc.frequency.setValueAtTime(freq,audio.currentTime);
     if (kind==='good' || kind==='complete') osc.frequency.exponentialRampToValueAtTime(freq*1.35,audio.currentTime+dur);
-    gain.gain.setValueAtTime(.0001,audio.currentTime); gain.gain.exponentialRampToValueAtTime(vol,audio.currentTime+.008); gain.gain.exponentialRampToValueAtTime(.0001,audio.currentTime+dur);
+    gain.gain.setValueAtTime(.0001,audio.currentTime); gain.gain.exponentialRampToValueAtTime(__ict8SfxGain(vol),audio.currentTime+.008); gain.gain.exponentialRampToValueAtTime(.0001,audio.currentTime+dur);
     osc.connect(gain); gain.connect(audio.destination); osc.start(); osc.stop(audio.currentTime+dur+.02);
   }
 

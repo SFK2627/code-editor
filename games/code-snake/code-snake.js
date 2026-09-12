@@ -1,5 +1,10 @@
 (() => {
   'use strict';
+  // Global Mini-Game audio mix: +50% SFX, safely capped to avoid clipping.
+  function __ict8SfxGain(value) {
+    return Math.min(1, Math.max(0, Number(value) || 0) * 1.5);
+  }
+
 
   const GAME_ID='code-snake';
   const GRID=20;
@@ -33,7 +38,7 @@
   function queueResize(){if(!runtime.open)return;clearTimeout(runtime.resizeTimer);runtime.resizeTimer=setTimeout(resizeCanvas,70)}
   function resizeCanvas(){const rect=runtime.canvas.getBoundingClientRect();const w=Math.max(260,rect.width||520),h=Math.max(260,rect.height||520),dpr=Math.max(1,Math.min(MAX_DPR,Number(window.devicePixelRatio || 1)));runtime.canvas.width=Math.round(w*dpr);runtime.canvas.height=Math.round(h*dpr);runtime.ctx.setTransform(dpr,0,0,dpr,0,0);runtime.view={w,h,dpr}}
   function getAudio(){if(!runtime.soundEnabled)return null;try{if(!runtime.audioContext)runtime.audioContext=new (window.AudioContext || window.webkitAudioContext)();if(runtime.audioContext.state==='suspended')runtime.audioContext.resume().catch(()=>{});return runtime.audioContext}catch(_){return null}}
-  function tone(kind){const ctx=getAudio();if(!ctx)return;const o=ctx.createOscillator(),g=ctx.createGain(),now=ctx.currentTime;const t=kind==='eat'?[520,860,.07,.05]:kind==='bonus'?[700,1400,.12,.06]:[180,70,.2,.07];o.type=kind==='crash'?'sawtooth':'square';o.frequency.setValueAtTime(t[0],now);o.frequency.exponentialRampToValueAtTime(t[1],now+t[2]);g.gain.setValueAtTime(t[3],now);g.gain.exponentialRampToValueAtTime(.001,now+t[2]);o.connect(g).connect(ctx.destination);o.start();o.stop(now+t[2]+.02)}
+  function tone(kind){const ctx=getAudio();if(!ctx)return;const o=ctx.createOscillator(),g=ctx.createGain(),now=ctx.currentTime;const t=kind==='eat'?[520,860,.07,.05]:kind==='bonus'?[700,1400,.12,.06]:[180,70,.2,.07];o.type=kind==='crash'?'sawtooth':'square';o.frequency.setValueAtTime(t[0],now);o.frequency.exponentialRampToValueAtTime(t[1],now+t[2]);g.gain.setValueAtTime(__ict8SfxGain(t[3]),now);g.gain.exponentialRampToValueAtTime(.001,now+t[2]);o.connect(g).connect(ctx.destination);o.start();o.stop(now+t[2]+.02)}
   function toggleSound(){runtime.soundEnabled=!runtime.soundEnabled;runtime.soundBtn.textContent=runtime.soundEnabled?'🔊':'🔇';runtime.bridge?.setSoundEnabled?.(runtime.soundEnabled)}
 
   function initialSnake(){return[{x:9,y:10},{x:8,y:10},{x:7,y:10},{x:6,y:10}]}

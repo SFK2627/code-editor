@@ -1,5 +1,10 @@
 (() => {
   'use strict';
+  // Global Mini-Game audio mix: +50% SFX, safely capped to avoid clipping.
+  function __ict8SfxGain(value) {
+    return Math.min(1, Math.max(0, Number(value) || 0) * 1.5);
+  }
+
   const GAME_ID='code-tower-race', PREFIX='CTR1';
   const P=()=>window.ICT8ZeroDbP2P;
   const LEVELS=Object.freeze([
@@ -68,7 +73,7 @@
   function resumeLocal(){if(!r.exitPaused)return false;r.exitPaused=false;$('[data-resume]').hidden=true;resumeGame();r.session?.send({t:'resume'});return true;}
   function toggleSound(){const next=!(r.bridge?.getSnapshot?.()?.soundEnabled!==false);r.bridge?.setSoundEnabled?.(next);$('[data-sound]').textContent=next?'🔊':'🔇';if(next)r.music?.resume?.();else r.music?.pause?.();}
   function audio(){if(r.audio)return r.audio;try{r.audio=new (window.AudioContext||window.webkitAudioContext)();}catch(_){}return r.audio;}
-  function sfx(kind){if(r.bridge?.getSnapshot?.()?.soundEnabled===false)return;const a=audio();if(!a)return;try{if(a.state==='suspended')a.resume();const o=a.createOscillator(),g=a.createGain();o.type=kind==='wrong'?'sawtooth':'triangle';const f={ready:520,connect:660,count:420,go:760,build:690,wrong:150,win:880,lose:180}[kind]||440;o.frequency.setValueAtTime(f,a.currentTime);g.gain.setValueAtTime(.0001,a.currentTime);g.gain.exponentialRampToValueAtTime(kind==='wrong'?0.15:0.11,a.currentTime+.01);g.gain.exponentialRampToValueAtTime(.0001,a.currentTime+.16);o.connect(g).connect(a.destination);o.start();o.stop(a.currentTime+.18);}catch(_){} }
+  function sfx(kind){if(r.bridge?.getSnapshot?.()?.soundEnabled===false)return;const a=audio();if(!a)return;try{if(a.state==='suspended')a.resume();const o=a.createOscillator(),g=a.createGain();o.type=kind==='wrong'?'sawtooth':'triangle';const f={ready:520,connect:660,count:420,go:760,build:690,wrong:150,win:880,lose:180}[kind]||440;o.frequency.setValueAtTime(f,a.currentTime);g.gain.setValueAtTime(.0001,a.currentTime);g.gain.exponentialRampToValueAtTime(__ict8SfxGain(kind==='wrong'?0.15:0.11),a.currentTime+.01);g.gain.exponentialRampToValueAtTime(.0001,a.currentTime+.16);o.connect(g).connect(a.destination);o.start();o.stop(a.currentTime+.18);}catch(_){} }
   function reset(){closeScanner();r.session?.close();r.session=null;r.role='';r.localReady=r.remoteReady=false;r.level=r.slot=r.remoteLevel=r.remoteSlot=0;r.wrong=r.remoteWrong=0;r.paused=r.exitPaused=false;r.hostCode=r.answerCode='';show('home');}
   function returnHub(){const cb=r.onBack;close(false);cb?.();}function close(call=true){if(!r.open)return;reset();r.open=false;r.overlay.hidden=true;if(call)r.onClose?.();}
   function open(opts={}){build();r.bridge=opts.bridge||null;r.music=opts.music||null;r.onBack=opts.onBack||null;r.onClose=opts.onClose||null;r.open=true;r.overlay.hidden=false;reset();$('[data-sound]').textContent=r.bridge?.getSnapshot?.()?.soundEnabled===false?'🔇':'🔊';}
