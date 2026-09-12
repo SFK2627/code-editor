@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const ASSET_VERSION = '20260912-v4761-multiplayer-v2-student-invite';
+  const ASSET_VERSION = '20260912-v4761-million-byte-perfect15';
 
   const GAME_REGISTRY = Object.freeze([
     {

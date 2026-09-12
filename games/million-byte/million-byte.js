@@ -10,7 +10,7 @@
   const VALUES = ['100','200','300','500','1K','2K','4K','8K','16K','32K','64K','125K','250K','500K','1M'];
   const TIER_NAMES = ['EASY','MODERATE','CHALLENGING','DIFFICULT','EXPERT'];
   const TIER_COUNTS = [0, 460, 460, 244, 244, 292];
-  const QUESTION_SECONDS = [35,35,35,32,32,32,30,30,30,28,28,28,25,25,25];
+  const QUESTION_SECONDS = [35,35,35,40,40,40,45,45,45,50,50,50,55,55,55];
   const LOCAL_STATE_KEY = 'ict8.millionByte.questionCursor.v2';
 
   const runtime = {
@@ -132,7 +132,7 @@
             <div class="million-byte-rule-row">
               <div><small>QUESTION POOL</small><strong>1,700</strong></div>
               <div><small>LIFELINES</small><strong>50:50 + 2X</strong></div>
-              <div><small>XP</small><strong>Finish only</strong></div>
+              <div><small>XP</small><strong>Perfect 15/15 = 15 XP</strong></div>
             </div>
             <div class="million-byte-actions"><button type="button" class="million-byte-primary" data-mb-play>START CHALLENGE</button></div>
           </div>
@@ -427,7 +427,7 @@
     runtime.valueEl.textContent = `${VALUES[runtime.index]} BYTE`;
     runtime.questionEl.textContent = q.q;
     runtime.statusEl.dataset.kind = '';
-    runtime.statusEl.textContent = runtime.practiceReason || 'Lock in one answer. Questions become harder every three steps.';
+    runtime.statusEl.textContent = runtime.practiceReason || 'Lock in one answer. Harder tiers give you more answer time.';
     runtime.progressBar.style.width = `${(runtime.index / QUESTION_COUNT) * 100}%`;
     updateLadder();
     startTimer();
@@ -597,9 +597,12 @@
     const sec = durationMs / 1000;
     const speedBonus = sec <= 150 ? 100 : sec <= 240 ? 60 : sec <= 360 ? 30 : 0;
     const score = Math.min(1000, 650 + lifelineBonus + cleanBonus + speedBonus);
-    let tier = score >= 650 ? 1 : 0;
-    if (score >= 825 && runtime.lifelinesUsed <= 1 && runtime.rescuedWrong === 0) tier = 2;
-    if (score >= 950 && runtime.lifelinesUsed === 0 && runtime.rescuedWrong === 0 && sec >= 45) tier = 3;
+    // A true 15/15 clear with no rescued wrong answer earns the special
+    // 15 XP Million Byte reward. 50:50 is still allowed because every locked
+    // answer was correct; Second Chance after a wrong first pick is not perfect.
+    let tier = runtime.correctCount === QUESTION_COUNT && runtime.rescuedWrong === 0 ? 15 : (score >= 650 ? 1 : 0);
+    if (tier < 15 && score >= 825 && runtime.lifelinesUsed <= 1 && runtime.rescuedWrong === 0) tier = 2;
+    if (tier < 15 && score >= 950 && runtime.lifelinesUsed === 0 && runtime.rescuedWrong === 0 && sec >= 45) tier = 3;
     return { score, tier };
   }
 
@@ -660,7 +663,7 @@
     runtime.resultTitle.textContent = '1,000,000 BYTE!';
     runtime.resultCopy.textContent = runtime.lifelinesUsed === 0 ? 'Flawless ladder. No lifelines used.' : `Challenge cleared with ${runtime.lifelinesUsed} lifeline${runtime.lifelinesUsed === 1 ? '' : 's'} used.`;
     runtime.rewardNote.className = 'million-byte-reward-note';
-    runtime.rewardNote.textContent = runtime.rewardEligible ? 'Checking secure reward…' : (runtime.practiceReason || 'Practice run — no account XP.');
+    runtime.rewardNote.textContent = runtime.rewardEligible ? (details.tier === 15 ? 'Perfect 15/15 · verifying 15 XP reward…' : 'Checking secure reward…') : (runtime.practiceReason || 'Practice run — no account XP.');
     runtime.resultPanel.hidden = false;
     tone('win');
 
