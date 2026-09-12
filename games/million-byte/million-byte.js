@@ -14,7 +14,7 @@
     ? new URL(document.currentScript.src, document.baseURI)
     : new URL('games/million-byte/million-byte.js', document.baseURI);
   const GAME_DIR_URL = new URL('./', GAME_SCRIPT_URL);
-  const BANK_ASSET_VERSION = '20260912-v4761-million-byte-v53-github-safe';
+  const BANK_ASSET_VERSION = '20260912-v4761-million-byte-v55-true-learning-final';
   const BANK_URL = new URL(`million-byte-questions.js?v=${BANK_ASSET_VERSION}`, GAME_DIR_URL).href;
   const BANK_VERSION = 3;
   const QUESTION_COUNT = 15;
@@ -22,8 +22,10 @@
   const VALUES = ['100','200','300','500','1K','2K','4K','8K','16K','32K','64K','125K','250K','500K','1M'];
   const TIER_NAMES = ['EASY','MODERATE','CHALLENGING','DIFFICULT','EXPERT'];
   const TIER_COUNTS = [0, 520, 520, 304, 304, 352];
-  const QUESTION_SECONDS = [35,35,35,40,40,40,45,45,45,50,50,50,55,55,55];
-  const LOCAL_STATE_KEY = 'ict8.millionByte.questionCursor.v3';
+  const QUESTION_SECONDS_BY_TIER = [0,35,40,45,50,55];
+  const LOCAL_STATE_KEY = 'ict8.millionByte.globalQuestionCycle.v1';
+  const LEGACY_LOCAL_STATE_KEY = 'ict8.millionByte.questionCursor.v3';
+  const QUESTION_CYCLE_MODE = 'global-no-repeat-v1';
   const LIFELINE_IDS = ['fifty','double','audience','switch'];
   const LIFELINE_META = {
     fifty: { title: '50:50', detail: 'Remove 2' },
@@ -51,6 +53,7 @@
     learnTitle: null,
     learnQuestion: null,
     learnCorrect: null,
+    learnLabel: null,
     learnNote: null,
     pendingFailReason: '',
     loadingPanel: null,
@@ -161,7 +164,7 @@
             <div class="million-byte-logo">🧠</div>
             <p class="million-byte-kicker">15 QUESTIONS · 5 DIFFICULTY TIERS</p>
             <h2>MILLION BYTE</h2>
-            <p>Answer 15 general-knowledge questions from Easy to Expert. Each run gives you 3 random lifelines from a pool of 4.</p>
+            <p>Answer 15 general-knowledge questions from Easy to Expert. Questions rotate through the full 2,000-question bank before repeating. Each run gives you 3 random lifelines from a pool of 4.</p>
             <div class="million-byte-rule-row">
               <div><small>QUESTION POOL</small><strong>2,000</strong></div>
               <div><small>LIFELINES</small><strong>Random 3 of 4</strong></div>
@@ -193,7 +196,7 @@
               <strong data-mb-learn-correct></strong>
             </div>
             <div class="million-byte-learn-note">
-              <small>WHY THIS IS CORRECT</small>
+              <small data-mb-learn-label>WHY THIS IS CORRECT</small>
               <p data-mb-learn-note></p>
             </div>
             <div class="million-byte-actions"><button type="button" class="million-byte-primary" data-mb-learn-continue>GOT IT</button></div>
@@ -245,6 +248,7 @@
     runtime.learnTitle = overlay.querySelector('[data-mb-learn-title]');
     runtime.learnQuestion = overlay.querySelector('[data-mb-learn-question]');
     runtime.learnCorrect = overlay.querySelector('[data-mb-learn-correct]');
+    runtime.learnLabel = overlay.querySelector('[data-mb-learn-label]');
     runtime.learnNote = overlay.querySelector('[data-mb-learn-note]');
     runtime.resultPanel = overlay.querySelector('[data-mb-result]');
     runtime.questionEl = overlay.querySelector('[data-mb-question]');
@@ -341,7 +345,7 @@
   }
 
   function validBank(bank = window.ICT8_MILLION_BYTE_BANK) {
-    return !!(bank && bank.version === BANK_VERSION && bank.count >= 2000 && bank.byId);
+    return !!(bank && bank.version === BANK_VERSION && bank.count >= 2000 && bank.byId && Array.isArray(bank.questions) && bank.questions.every(q => q && typeof q.explanation === 'string' && q.explanation.trim()));
   }
 
   function setReadyStatus(message = '', kind = '') {
@@ -422,7 +426,7 @@
     return h >>> 0;
   }
 
-  function permutation(tier, cycle) {
+  function rawPermutation(tier, cycle) {
     let state = hashSeed(`million-byte-local:${tier}:${cycle}`) || 1;
     const random = () => {
       state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
@@ -437,38 +441,159 @@
     return arr;
   }
 
-  function localQuestionIds() {
-    let state = { version: BANK_VERSION, tiers: {} };
+  // Keep the first questions of a new full-bank cycle away from the tail of the
+  // previous cycle. This prevents an ugly immediate duplicate in the one run
+  // that crosses the 2,000-question boundary, while preserving a true
+  // permutation (nothing is skipped or retired unseen).
+  function permutation(tier, cycle) {
+    const arr = rawPermutation(tier, cycle);
+    if (cycle <= 0 || arr.length < 40) return arr;
+    const previous = rawPermutation(tier, cycle - 1);
+    const blocked = new Set(previous.slice(-15));
+    const head = Math.min(15, arr.length);
+    for (let i = 0; i < head; i += 1) {
+      if (!blocked.has(arr[i])) continue;
+      let swapAt = -1;
+      for (let j = head; j < Math.max(head, arr.length - 15); j += 1) {
+        if (!blocked.has(arr[j])) { swapAt = j; break; }
+      }
+      if (swapAt >= 0) [arr[i], arr[swapAt]] = [arr[swapAt], arr[i]];
+    }
+    return arr;
+  }
+
+  function defaultLocalCycleState() {
+    return {
+      version: BANK_VERSION,
+      mode: QUESTION_CYCLE_MODE,
+      cycle: 0,
+      cursors: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }
+    };
+  }
+
+  function readLocalCycleState() {
+    let state = defaultLocalCycleState();
     try {
       const parsed = JSON.parse(localStorage.getItem(LOCAL_STATE_KEY) || 'null');
-      if (parsed && parsed.version === BANK_VERSION && parsed.tiers) state = parsed;
-    } catch (_) {}
-    const ids = [];
-    const selected = new Set();
-    for (let tier = 1; tier <= 5; tier += 1) {
-      let row = state.tiers[tier] || { cycle: 0, cursor: 0 };
-      const tierCount = TIER_COUNTS[tier] || 0;
-      let cycle = Math.max(0, Number(row.cycle || 0) | 0);
-      let cursor = Math.max(0, Math.min(tierCount, Number(row.cursor || 0) | 0));
-      for (let take = 0; take < 3; take += 1) {
-        let id = '';
-        let guard = 0;
-        while (guard < tierCount + 2) {
-          if (cursor >= tierCount) { cycle += 1; cursor = 0; }
-          const perm = permutation(tier, cycle);
-          const n = perm[cursor++];
-          id = `mb${tier}-${String(n).padStart(3, '0')}`;
-          guard += 1;
-          if (!selected.has(id)) break;
+      if (parsed && parsed.version === BANK_VERSION && parsed.mode === QUESTION_CYCLE_MODE) {
+        state.cycle = Math.max(0, Number(parsed.cycle || 0) | 0);
+        for (let tier = 1; tier <= 5; tier += 1) {
+          state.cursors[tier] = Math.max(0, Math.min(TIER_COUNTS[tier] || 0, Number(parsed.cursors?.[tier] || 0) | 0));
         }
-        if (!id || selected.has(id)) throw new Error('Could not build a unique local Million Byte question set.');
-        selected.add(id);
-        ids.push(id);
+        return state;
       }
-      state.tiers[tier] = { cycle, cursor };
-    }
+      // One-time safe migration from the old per-tier cursor format is possible
+      // while every tier is still in its first cycle. This preserves already
+      // retired questions for normal users instead of restarting their deck.
+      const legacy = JSON.parse(localStorage.getItem(LEGACY_LOCAL_STATE_KEY) || 'null');
+      if (legacy && legacy.version === BANK_VERSION && legacy.tiers) {
+        let migratable = true;
+        for (let tier = 1; tier <= 5; tier += 1) {
+          if (Number(legacy.tiers[tier]?.cycle || 0) !== 0) migratable = false;
+        }
+        if (migratable) {
+          for (let tier = 1; tier <= 5; tier += 1) {
+            state.cursors[tier] = Math.max(0, Math.min(TIER_COUNTS[tier] || 0, Number(legacy.tiers[tier]?.cursor || 0) | 0));
+          }
+          saveLocalCycleState(state);
+        }
+      }
+    } catch (_) {}
+    return state;
+  }
+
+  function saveLocalCycleState(state) {
     try { localStorage.setItem(LOCAL_STATE_KEY, JSON.stringify(state)); } catch (_) {}
+  }
+
+  function localRemaining(state, tier) {
+    return Math.max(0, (TIER_COUNTS[tier] || 0) - Number(state.cursors?.[tier] || 0));
+  }
+
+  function totalLocalRemaining(state) {
+    let total = 0;
+    for (let tier = 1; tier <= 5; tier += 1) total += localRemaining(state, tier);
+    return total;
+  }
+
+  function resetLocalCycle(state) {
+    state.cycle = Math.max(0, Number(state.cycle || 0) | 0) + 1;
+    for (let tier = 1; tier <= 5; tier += 1) state.cursors[tier] = 0;
+  }
+
+  function allocateTierCounts(remaining, requested) {
+    const allocation = [0, 0, 0, 0, 0, 0];
+    const total = [1,2,3,4,5].reduce((sum, tier) => sum + Math.max(0, Number(remaining[tier] || 0)), 0);
+    let slots = Math.max(0, Math.min(Number(requested || 0) | 0, total));
+    const requestedTotal = slots;
+    const active = [1,2,3,4,5].filter(tier => Number(remaining[tier] || 0) > 0);
+    if (slots >= active.length) {
+      active.forEach(tier => { allocation[tier] = 1; slots -= 1; });
+    }
+    while (slots > 0) {
+      let bestTier = 0;
+      let bestScore = -Infinity;
+      for (let tier = 1; tier <= 5; tier += 1) {
+        const available = Math.max(0, Number(remaining[tier] || 0) - allocation[tier]);
+        if (!available) continue;
+        const ideal = total > 0 ? (Number(remaining[tier] || 0) / total) * requestedTotal : 0;
+        const score = (ideal - allocation[tier]) + available * 1e-9;
+        if (score > bestScore) { bestScore = score; bestTier = tier; }
+      }
+      if (!bestTier) break;
+      allocation[bestTier] += 1;
+      slots -= 1;
+    }
+    return allocation;
+  }
+
+  function drawLocalTier(state, tier, count) {
+    const ids = [];
+    const perm = permutation(tier, state.cycle);
+    for (let i = 0; i < count; i += 1) {
+      const cursor = Number(state.cursors[tier] || 0);
+      if (cursor >= perm.length) break;
+      ids.push(`mb${tier}-${String(perm[cursor]).padStart(3, '0')}`);
+      state.cursors[tier] = cursor + 1;
+    }
     return ids;
+  }
+
+  function localQuestionIds() {
+    const state = readLocalCycleState();
+    const ids = [];
+    while (ids.length < QUESTION_COUNT) {
+      let remainingTotal = totalLocalRemaining(state);
+      if (remainingTotal <= 0) {
+        resetLocalCycle(state);
+        remainingTotal = totalLocalRemaining(state);
+      }
+      const takeNow = Math.min(QUESTION_COUNT - ids.length, remainingTotal);
+      const remaining = [0,1,2,3,4,5].map(tier => tier ? localRemaining(state, tier) : 0);
+      const allocation = allocateTierCounts(remaining, takeNow);
+      for (let tier = 1; tier <= 5; tier += 1) ids.push(...drawLocalTier(state, tier, allocation[tier]));
+    }
+    saveLocalCycleState(state);
+    if (ids.length !== QUESTION_COUNT || new Set(ids).size !== QUESTION_COUNT) {
+      throw new Error('Could not build a unique local Million Byte question set.');
+    }
+    return ids;
+  }
+
+  function reserveLocalSwitchQuestion(originalId, excludedIds) {
+    const parsed = parseQuestionId(originalId);
+    if (!parsed) return '';
+    const state = readLocalCycleState();
+    if (totalLocalRemaining(state) <= 0) resetLocalCycle(state);
+    if (localRemaining(state, parsed.tier) <= 0) return '';
+    const perm = permutation(parsed.tier, state.cycle);
+    const cursor = Number(state.cursors[parsed.tier] || 0);
+    if (cursor >= perm.length) return '';
+    const id = `mb${parsed.tier}-${String(perm[cursor]).padStart(3, '0')}`;
+    if (new Set(Array.isArray(excludedIds) ? excludedIds : []).has(id)) return '';
+    state.cursors[parsed.tier] = cursor + 1;
+    saveLocalCycleState(state);
+    return id;
   }
 
   async function startChallenge() {
@@ -582,7 +707,10 @@
     renderLifelines();
   }
 
-  function tierForIndex(index) { return Math.min(5, Math.floor(index / 3) + 1); }
+  function tierForQuestion(question, index = runtime.index) {
+    const parsedTier = Number(question?.tier || parseQuestionId(runtime.questionIds?.[index] || '')?.tier || 0);
+    return Math.max(1, Math.min(5, parsedTier || Math.floor(index / 3) + 1));
+  }
 
   function showQuestion(options = {}) {
     const q = runtime.questions[runtime.index];
@@ -601,7 +729,7 @@
     });
     renderLifelines();
     runtime.categoryEl.textContent = q.category || 'GENERAL';
-    const tier = tierForIndex(runtime.index);
+    const tier = tierForQuestion(q);
     runtime.tierEl.textContent = `${TIER_NAMES[tier - 1]} · Q${runtime.index + 1}/15`;
     runtime.valueEl.textContent = `${VALUES[runtime.index]} BYTE`;
     runtime.questionEl.textContent = q.q;
@@ -627,7 +755,7 @@
 
   function startTimer() {
     stopTimer();
-    const seconds = QUESTION_SECONDS[runtime.index] || 25;
+    const seconds = QUESTION_SECONDS_BY_TIER[tierForQuestion(runtime.questions[runtime.index])] || 35;
     runtime.questionStartedAt = performance.now();
     runtime.deadlineAt = runtime.questionStartedAt + seconds * 1000;
     renderTimer();
@@ -716,7 +844,7 @@
     if (runtime.state !== 'question' || runtime.locked || runtime.audienceUsed) return;
     const q = runtime.questions[runtime.index];
     if (!q) return;
-    const tier = tierForIndex(runtime.index);
+    const tier = tierForQuestion(q);
     const available = runtime.answerButtons.map((btn, i) => btn.classList.contains('eliminated') ? -1 : i).filter(i => i >= 0);
     const pct = buildAudiencePercentages(q.answer, tier, available);
     runtime.answerButtons.forEach((btn, i) => {
@@ -748,37 +876,42 @@
     return { tier, number };
   }
 
-  function deterministicSwitchQuestionId(roundId, originalId, excludedIds) {
-    const parsed = parseQuestionId(originalId);
-    if (!parsed) return '';
-    const count = TIER_COUNTS[parsed.tier] || 0;
-    const excluded = new Set(Array.isArray(excludedIds) ? excludedIds : []);
-    excluded.add(originalId);
-    let state = hashSeed(`${String(roundId || '')}:million-byte-switch:${originalId}`) || 1;
-    for (let guard = 0; guard < count + 4; guard += 1) {
-      state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
-      const n = (state % count) + 1;
-      const id = `mb${parsed.tier}-${String(n).padStart(3, '0')}`;
-      if (!excluded.has(id)) return id;
-    }
-    for (let n = 1; n <= count; n += 1) {
-      const id = `mb${parsed.tier}-${String(n).padStart(3, '0')}`;
-      if (!excluded.has(id)) return id;
-    }
-    return '';
-  }
-
-  function useSwitch() {
+  async function useSwitch() {
     if (runtime.state !== 'question' || runtime.locked || runtime.switchUsed) return;
     const originalId = runtime.questionIds[runtime.index];
-    const seed = runtime.round?.sessionId || runtime.localSwitchSeed;
-    const replacementId = deterministicSwitchQuestionId(seed, originalId, runtime.originalQuestionIds);
+    if (!originalId) return;
+    runtime.locked = true;
+    runtime.statusEl.dataset.kind = 'gold';
+    runtime.statusEl.textContent = 'SWITCHING · Reserving a fresh unseen question…';
+    renderLifelines();
+
+    let replacementId = '';
+    try {
+      if (runtime.rewardEligible && runtime.round?.sessionId && runtime.bridge?.switchMillionByteQuestion) {
+        const response = await withTimeout(runtime.bridge.switchMillionByteQuestion({
+          sessionId: runtime.round.sessionId,
+          bankVersion: BANK_VERSION,
+          questionIndex: runtime.index,
+          originalQuestionId: originalId
+        }), 7000, null);
+        replacementId = String(response?.replacementId || '');
+      } else {
+        replacementId = reserveLocalSwitchQuestion(originalId, runtime.questionIds);
+      }
+    } catch (error) {
+      console.warn('[Million Byte] switch reservation failed:', error);
+    }
+
     const replacement = replacementId && runtime.bank?.byId?.[replacementId];
     if (!replacement) {
+      runtime.locked = false;
       runtime.statusEl.dataset.kind = 'bad';
-      runtime.statusEl.textContent = 'Could not switch this question. Try another lifeline.';
+      runtime.statusEl.textContent = 'No unseen replacement is available in this difficulty right now. Keep this question or use another lifeline.';
+      renderLifelines();
+      renderTimer();
       return;
     }
+
     const preserveDouble = runtime.doubleActive === true;
     runtime.questionIds[runtime.index] = replacementId;
     runtime.questions[runtime.index] = replacement;
@@ -830,7 +963,7 @@
         });
         runtime.statusEl.dataset.kind = 'gold';
         runtime.statusEl.textContent = 'SECOND CHANCE · One final answer.';
-        const seconds = Math.max(8, Math.min(15, QUESTION_SECONDS[runtime.index] || 15));
+        const seconds = Math.max(8, Math.min(15, QUESTION_SECONDS_BY_TIER[tierForQuestion(q)] || 15));
         runtime.deadlineAt = performance.now() + seconds * 1000;
         runtime.timerHandle = window.setInterval(renderTimer, 100);
         renderTimer();
@@ -1495,18 +1628,26 @@
   }
 
   function buildLearningNote(q) {
-    if (!q) return 'Review the idea behind the correct answer before trying a new challenge.';
-    if (typeof q.info === 'string' && q.info.trim()) return q.info.trim();
+    if (!q) return 'A learning note is not available for this item yet.';
     if (typeof q.explanation === 'string' && q.explanation.trim()) return q.explanation.trim();
+    if (typeof q.info === 'string' && q.info.trim()) return q.info.trim();
     if (q.id && LEARNING_BY_ID[q.id]) return LEARNING_BY_ID[q.id];
 
     const answer = String(q.options?.[q.answer] ?? '').trim();
     const specific = learningFactFor(q, answer);
     if (specific) return specific;
 
-    const relation = declarativeAnswer(q, answer);
-    if (!/ is the correct answer\.$/i.test(relation)) return relation;
-    return `${relation} ${categoryContext(q, answer)}`;
+    // Do not manufacture a fake explanation by merely inserting the answer
+    // into the wording of the question. New bank items are expected to carry
+    // their own explanation field. This honest fallback is only for legacy or
+    // malformed items that somehow bypass bank validation.
+    return 'This item does not have a verified learning explanation yet. Review the correct answer before starting a new challenge.';
+  }
+
+  function learningLabelFor(q) {
+    const label = String(q?.explanationLabel || '').trim().toUpperCase();
+    if (label === 'QUICK CONTEXT' || label === 'KEY IDEA' || label === 'WHY THIS IS CORRECT') return label;
+    return 'WHY THIS IS CORRECT';
   }
 
   function showLearningFeedback(reason) {
@@ -1521,6 +1662,7 @@
     runtime.learnTitle.textContent = reason === 'TIME OUT' ? "TIME'S UP — LEARN THIS" : 'NOT QUITE — LEARN THIS';
     runtime.learnQuestion.textContent = q.q;
     runtime.learnCorrect.textContent = `${LETTERS[q.answer]}. ${q.options[q.answer]}`;
+    if (runtime.learnLabel) runtime.learnLabel.textContent = learningLabelFor(q);
     runtime.learnNote.textContent = buildLearningNote(q);
     runtime.learnPanel.hidden = false;
   }
@@ -1546,12 +1688,17 @@
       finishWon();
       return;
     }
+    const previousTier = tierForQuestion(runtime.questions[runtime.index], runtime.index);
     runtime.index += 1;
-    if (runtime.index === 5 || runtime.index === 10) {
-      runtime.statusEl.dataset.kind = 'gold';
-      runtime.statusEl.textContent = 'SAFE NODE REACHED · Next difficulty tier unlocked.';
-    }
+    const nextTier = tierForQuestion(runtime.questions[runtime.index], runtime.index);
     showQuestion();
+    if (nextTier > previousTier) {
+      runtime.statusEl.dataset.kind = 'gold';
+      runtime.statusEl.textContent = `NEXT TIER · ${TIER_NAMES[nextTier - 1]}`;
+    } else if (nextTier < previousTier) {
+      runtime.statusEl.dataset.kind = 'gold';
+      runtime.statusEl.textContent = 'FULL 2,000-QUESTION CYCLE COMPLETED · Fresh cycle started.';
+    }
   }
 
   function runDurationMs() {
