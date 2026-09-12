@@ -1,6 +1,8 @@
 (() => {
   'use strict';
 
+  const ASSET_VERSION = '20260912-v4761-million-byte-v53-github-safe';
+
   const GAME_REGISTRY = Object.freeze([
     {
       id: 'code-fly',
@@ -224,6 +226,223 @@
       }
     },
     {
+      id: 'byte-sling',
+      stateKey: 'byteSling',
+      name: 'BYTE SLING',
+      icon: '🚀',
+      description: 'Pull, aim, and launch code packets to collapse corrupted structures and debug every BUG.',
+      maxXp: 3,
+      category: 'PHYSICS / PUZZLE',
+      difficulty: '★★★★☆',
+      globalName: 'ICT8ByteSling',
+      script: 'games/byte-sling/byte-sling.js',
+      style: 'games/byte-sling/byte-sling.css',
+      bestText(record = {}) {
+        const run = Math.max(0, Number(record.highestRunIndex || 0));
+        const score = Math.max(0, Number(record.bestRunScore || record.bestScore || 0));
+        return run > 0 ? `🏆 Run ${run} · Best ${score}` : '🏆 Run 1 ready';
+      }
+    },
+    {
+      id: 'code-bridge',
+      stateKey: 'codeBridge',
+      name: 'CODE BRIDGE',
+      icon: '🌉',
+      description: 'Hold to extend a DATA LINK, release to bridge the gap, and reach the ENDPOINT without falling.',
+      maxXp: 3,
+      category: 'TIMING / LOGIC',
+      difficulty: '★★★☆☆',
+      globalName: 'ICT8CodeBridge',
+      script: 'games/code-bridge/code-bridge.js',
+      style: 'games/code-bridge/code-bridge.css',
+      bestText(record = {}) {
+        const score = Math.max(0, Number(record.bestRunScore || record.bestScore || 0));
+        const perfects = Math.max(0, Number(record.bestPerfects || 0));
+        return score > 0 ? `🏆 Best ${score} · ${perfects} Perfect` : '🏆 Endpoint ready';
+      }
+    },
+    {
+      id: 'code-slice',
+      stateKey: 'codeSlice',
+      name: 'CODE SLICE',
+      icon: '⚔️',
+      description: 'Swipe through flying code tokens, build combos, and avoid the CRASH CORE through five rising-speed waves.',
+      maxXp: 3,
+      category: 'ARCADE / REFLEX',
+      difficulty: '★★★☆☆',
+      globalName: 'ICT8CodeSlice',
+      script: 'games/code-slice/code-slice.js',
+      style: 'games/code-slice/code-slice.css',
+      bestText(record = {}) {
+        const score = Math.max(0, Number(record.bestRunScore || record.bestScore || 0));
+        const combo = Math.max(0, Number(record.bestCombo || 0));
+        return score > 0 ? `🏆 Best ${score} · Combo x${combo}` : '🏆 Stream ready';
+      }
+    },
+    {
+      id: 'million-byte',
+      stateKey: 'millionByte',
+      name: 'MILLION BYTE',
+      icon: '🧠',
+      description: 'Climb a 15-question general-knowledge ladder from Easy to Expert. Fresh questions retire as you play.',
+      maxXp: 3,
+      category: 'QUIZ / GENERAL KNOWLEDGE',
+      difficulty: '★★★★☆',
+      globalName: 'ICT8MillionByte',
+      script: 'games/million-byte/million-byte.js',
+      style: 'games/million-byte/million-byte.css',
+      bestText(record = {}) {
+        const reached = Math.max(0, Number(record.bestReached || 0));
+        const score = Math.max(0, Number(record.bestScore || 0));
+        return reached >= 15 ? `🏆 1M BYTE · Best ${score}` : (reached > 0 ? `🏆 Best Q${reached}/15` : '🏆 Fresh ladder ready');
+      }
+    },
+    {
+      id: 'code-vault',
+      stateKey: 'codeVault',
+      name: 'CODE VAULT',
+      icon: '💼',
+      description: 'Choose a sealed data vault, open cases, face seven banker offers, and decide when to take the deal.',
+      maxXp: 2,
+      category: 'STRATEGY / LUCK',
+      difficulty: '★★★☆☆',
+      globalName: 'ICT8CodeVault',
+      script: 'games/code-vault/code-vault.js',
+      style: 'games/code-vault/code-vault.css',
+      bestText(record = {}) {
+        const score = Math.max(0, Number(record.bestScore || 0));
+        const round = Math.max(0, Number(record.bestRound || 0));
+        return score > 0 ? `🏆 Best ${score} · ${round >= 7 ? 'Final' : `R${round}`}` : '🏆 Vault room ready';
+      }
+    },
+    {
+      id: 'code-tiles',
+      stateKey: 'codeTiles',
+      name: 'CODE TILES',
+      icon: '🎹',
+      description: 'Tap short code tiles, press-and-hold long tiles through the SYNC LINE, build combos, and keep the four-lane rhythm synced.',
+      maxXp: 3,
+      category: 'RHYTHM / TIMING',
+      difficulty: '★★★★☆',
+      globalName: 'ICT8CodeTiles',
+      script: 'games/code-tiles/code-tiles.js',
+      style: 'games/code-tiles/code-tiles.css',
+      bestText(record = {}) {
+        const score = Math.max(0, Number(record.bestRunScore || record.bestScore || 0));
+        const accuracy = Math.max(0, Number(record.bestAccuracy || 0));
+        return score > 0 ? `🏆 Best ${score} · ${accuracy.toFixed(1)}%` : '🏆 Track ready';
+      }
+    },
+    {
+      id: 'byte-runner-html-rush',
+      stateKey: 'byteRunnerHtmlRush',
+      name: 'BYTE RUNNER: HTML RUSH',
+      icon: '⚡',
+      description: 'Read HTML challenges, dodge cyber hazards, and run through the correct code gates to build a complete webpage.',
+      maxXp: 12,
+      category: 'EDUCATIONAL / RUNNER',
+      difficulty: '★★★★☆',
+      globalName: 'ICT8ByteRunnerHtmlRush',
+      script: 'games/byte-runner-html-rush/byte-runner-html-rush.js',
+      style: 'games/byte-runner-html-rush/byte-runner-html-rush.css',
+      bestText(record = {}) {
+        const score = Math.max(0, Number(record.bestArcadeScore || record.bestScore || 0));
+        const accuracy = Math.max(0, Number(record.bestAccuracy || 0));
+        const rank = Math.max(0, Math.min(4, Number(record.bestDifficultyRank || 0)));
+        const label = ['', 'Easy', 'Medium', 'Hard', 'Difficult'][rank] || '';
+        return score > 0 ? `🏆 Best ${Math.floor(score).toLocaleString()} · ${accuracy.toFixed(1)}%${label ? ` · ${label}` : ''}` : '🏆 HTML mission ready';
+      }
+    },
+    {
+      id: 'code-duel',
+      stateKey: 'codeDuel',
+      name: 'CODE DUEL',
+      icon: '⚔️',
+      description: 'Challenge another student live. Send an invite by Student ID or pair by QR, then race through the same coding challenges with 0 XP.',
+      maxXp: 0,
+      multiplayer: true,
+      noXp: true,
+      category: 'LIVE 2 PLAYER / CODING',
+      difficulty: '★★★☆☆',
+      globalName: 'ICT8CodeDuel',
+      script: 'games/code-duel/code-duel.js',
+      style: 'games/code-duel/code-duel.css',
+      bestText() { return '👥 LIVE 1v1 · 0 XP'; }
+    },
+    {
+      id: 'code-tower-race',
+      stateKey: 'codeTowerRace',
+      name: 'CODE TOWER RACE',
+      icon: '🧱',
+      description: 'Race another player to assemble HTML, CSS, and JavaScript blocks in the correct order. Correct blocks build your tower; mistakes fall away.',
+      maxXp: 0,
+      multiplayer: true,
+      noXp: true,
+      category: '2P RACE / CODING',
+      difficulty: '★★★☆☆',
+      globalName: 'ICT8CodeTowerRace',
+      dependencies: ['games/p2p-zero-db/p2p-zero-db.js'],
+      script: 'games/code-tower-race/code-tower-race.js',
+      style: 'games/code-tower-race/code-tower-race.css',
+      playLabel: 'PLAY 2P',
+      bestText() { return '🧱 LIVE RACE · 0 XP'; }
+    },
+    {
+      id: 'code-snake-duel',
+      stateKey: 'codeSnakeDuel',
+      name: 'CODE SNAKE DUEL',
+      icon: '🐍',
+      description: 'Two snakes share one live arena. Collect BYTE tokens, grow longer, cut off your opponent, and survive the grid.',
+      maxXp: 0,
+      multiplayer: true,
+      noXp: true,
+      category: '2P ARCADE / PVP',
+      difficulty: '★★★★☆',
+      globalName: 'ICT8CodeSnakeDuel',
+      dependencies: ['games/p2p-zero-db/p2p-zero-db.js'],
+      script: 'games/code-snake-duel/code-snake-duel.js',
+      style: 'games/code-snake-duel/code-snake-duel.css',
+      playLabel: 'PLAY 2P',
+      bestText() { return '🐍 SHARED ARENA · 0 XP'; }
+    },
+    {
+      id: 'byte-space-battle',
+      stateKey: 'byteSpaceBattle',
+      name: 'BYTE SPACE BATTLE',
+      icon: '🚀',
+      description: 'Pilot two ships in one cyber-space arena. Dodge asteroids, fire at your rival, collect power-ups, and unlock boosts from code terminals.',
+      maxXp: 0,
+      multiplayer: true,
+      noXp: true,
+      category: '2P ACTION / PVP',
+      difficulty: '★★★★☆',
+      globalName: 'ICT8ByteSpaceBattle',
+      dependencies: ['games/p2p-zero-db/p2p-zero-db.js'],
+      script: 'games/byte-space-battle/byte-space-battle.js',
+      style: 'games/byte-space-battle/byte-space-battle.css',
+      playLabel: 'PLAY 2P',
+      bestText() { return '🚀 SPACE BATTLE · 0 XP'; }
+    },
+    {
+      id: 'code-escape-coop',
+      stateKey: 'codeEscapeCoop',
+      name: 'CODE ESCAPE — CO-OP',
+      icon: '🧩',
+      description: 'Escape together. Each device sees different clues, so both players must communicate, solve code locks, and synchronize the final core.',
+      maxXp: 0,
+      multiplayer: true,
+      noXp: true,
+      coop: true,
+      category: '2P CO-OP / PUZZLE',
+      difficulty: '★★★★☆',
+      globalName: 'ICT8CodeEscapeCoop',
+      dependencies: ['games/p2p-zero-db/p2p-zero-db.js'],
+      script: 'games/code-escape-coop/code-escape-coop.js',
+      style: 'games/code-escape-coop/code-escape-coop.css',
+      playLabel: 'PLAY CO-OP',
+      bestText() { return '🧩 CO-OP ESCAPE · 0 XP'; }
+    },
+    {
       id: 'pattern-lock',
       stateKey: 'patternLock',
       name: 'PATTERN LOCK',
@@ -240,6 +459,465 @@
     }
   ]);
 
+
+  /* =========================================================
+     GAME AUDIO v1 — lightweight procedural soundtrack engine
+     ---------------------------------------------------------
+     Goals:
+     - every current Mini-Game gets its own original loop/profile;
+     - future games still receive a deterministic fallback track;
+     - no copyrighted audio files or network fetches;
+     - one looping AudioBufferSource only during gameplay, so the
+       soundtrack adds almost no per-frame CPU load on phones;
+     - the existing shared Mini-Game sound toggle controls both the
+       game module SFX and this background soundtrack;
+     - BGM ducks briefly on input so in-game SFX remain easy to hear.
+     ========================================================= */
+
+  const MINI_GAME_SOUNDTRACK_PROFILES = Object.freeze({
+    'code-fly':               { bpm:132, root:57, scale:'minorPent', lead:'pulse',  melody:[0,null,2,3,4,null,3,2,0,null,4,5,4,3,2,null], bass:[0,0,3,4], drums:'drive',  gain:.31 },
+    'bug-smash':              { bpm:142, root:52, scale:'minorPent', lead:'square', melody:[0,2,null,3,0,4,null,3,2,null,4,5,3,2,0,null], bass:[0,3,0,4], drums:'punch',  gain:.30 },
+    'runner-404':             { bpm:154, root:50, scale:'minor',     lead:'pulse',  melody:[0,2,4,null,5,4,2,null,0,2,5,6,5,4,2,null], bass:[0,0,5,4], drums:'drive',  gain:.31 },
+    'memory-code':            { bpm:92,  root:60, scale:'majorPent', lead:'bell',   melody:[0,null,2,null,4,null,3,null,1,null,3,null,4,2,1,null], bass:[0,3,4,3], drums:'soft',   gain:.27 },
+    'code-snake':             { bpm:118, root:55, scale:'minorPent', lead:'pluck',  melody:[0,1,2,null,3,2,1,null,0,2,3,4,3,2,1,null], bass:[0,0,3,4], drums:'groove', gain:.30 },
+    'code-stack':             { bpm:108, root:48, scale:'majorPent', lead:'pluck',  melody:[0,null,1,2,3,null,2,1,0,null,2,3,4,3,2,null], bass:[0,3,4,3], drums:'groove', gain:.29 },
+    'byte-rush':              { bpm:158, root:45, scale:'minor',     lead:'saw',    melody:[0,2,4,5,4,2,0,null,0,3,5,6,5,3,2,null], bass:[0,5,0,4], drums:'drive',  gain:.31 },
+    'rocket-byte':            { bpm:126, root:50, scale:'dorian',    lead:'pulse',  melody:[0,null,2,4,5,4,2,null,0,2,4,6,5,4,2,null], bass:[0,4,5,4], drums:'drive',  gain:.30 },
+    'falling-code':           { bpm:112, root:47, scale:'minor',     lead:'bell',   melody:[4,null,3,2,1,null,0,null,5,null,4,3,2,1,0,null], bass:[0,5,3,4], drums:'soft',   gain:.28 },
+    'perfect-shot':           { bpm:120, root:57, scale:'majorPent', lead:'pluck',  melody:[0,null,2,null,4,3,2,null,0,null,3,null,4,5,4,null], bass:[0,3,4,3], drums:'groove', gain:.29 },
+    'color-switch-byte':      { bpm:128, root:60, scale:'majorPent', lead:'bell',   melody:[0,2,4,3,1,3,4,5,4,2,0,2,3,4,2,null], bass:[0,4,3,4], drums:'dance',  gain:.30 },
+    'code-hoops':             { bpm:104, root:50, scale:'minorPent', lead:'pluck',  melody:[0,null,2,3,null,2,0,null,3,null,4,3,2,0,null,null], bass:[0,3,4,3], drums:'groove', gain:.30 },
+    'red-light-green-light':  { bpm:116, root:52, scale:'minor',     lead:'pulse',  melody:[0,null,0,2,null,2,3,null,0,null,4,3,2,null,0,null], bass:[0,0,3,4], drums:'pulse',  gain:.28 },
+    'code-maze':              { bpm:110, root:53, scale:'minor',     lead:'bell',   melody:[0,null,2,3,5,null,3,2,0,null,4,5,4,2,1,null], bass:[0,3,5,4], drums:'soft',   gain:.27 },
+    'code-flow':              { bpm:96,  root:60, scale:'majorPent', lead:'bell',   melody:[0,null,1,null,2,3,null,4,3,null,2,1,0,null,2,null], bass:[0,3,4,3], drums:'soft',   gain:.26 },
+    'byte-sling':             { bpm:106, root:50, scale:'minorPent', lead:'pluck',  melody:[0,null,3,null,4,3,2,null,0,2,null,4,5,4,2,null], bass:[0,3,4,3], drums:'punch',  gain:.29 },
+    'code-bridge':            { bpm:100, root:57, scale:'minorPent', lead:'pluck',  melody:[0,null,1,2,null,3,2,null,0,null,3,4,3,2,1,null], bass:[0,3,4,3], drums:'soft',   gain:.28 },
+    'code-slice':             { bpm:150, root:45, scale:'minorPent', lead:'saw',    melody:[0,2,3,4,3,2,0,null,0,3,4,5,4,3,2,null], bass:[0,0,3,4], drums:'drive',  gain:.30 },
+    'million-byte':           { bpm:94,  root:55, scale:'minor',     lead:'bell',   melody:[0,null,2,null,3,null,5,null,4,null,3,2,1,null,0,null], bass:[0,3,5,4], drums:'suspense', gain:.25 },
+    'code-vault':             { bpm:88,  root:52, scale:'minor',     lead:'bell',   melody:[0,null,3,null,2,null,5,null,4,null,2,null,1,null,0,null], bass:[0,5,3,4], drums:'suspense', gain:.25 },
+    'code-tiles':             { bpm:138, root:57, scale:'minorPent', lead:'pluck',  melody:[0,null,2,null,3,null,4,null,3,null,2,null,4,null,5,null], bass:[0,3,4,3], drums:'dance',  gain:.20 },
+    'byte-runner-html-rush':  { bpm:144, root:50, scale:'minor',     lead:'pulse',  melody:[0,2,4,null,5,4,2,null,0,3,5,null,6,5,3,null], bass:[0,0,5,4], drums:'drive',  gain:.31 },
+    'code-duel':              { bpm:148, root:50, scale:'minorPent', lead:'pulse',  melody:[0,2,3,5,3,2,0,null,0,3,4,5,4,3,2,null], bass:[0,0,3,4], drums:'drive',  gain:.32 },
+    'code-tower-race':        { bpm:124, root:52, scale:'majorPent', lead:'pluck', melody:[0,2,3,4,3,2,1,null,0,3,4,5,4,3,2,null], bass:[0,3,4,3], drums:'groove', gain:.31 },
+    'code-snake-duel':        { bpm:136, root:50, scale:'minorPent', lead:'pulse', melody:[0,1,3,2,4,3,2,null,0,2,4,5,4,3,1,null], bass:[0,0,3,4], drums:'drive', gain:.32 },
+    'byte-space-battle':      { bpm:152, root:45, scale:'dorian', lead:'saw', melody:[0,2,4,5,6,4,2,null,0,3,5,6,5,4,2,null], bass:[0,5,0,4], drums:'drive', gain:.33 },
+    'code-escape-coop':       { bpm:98, root:55, scale:'minor', lead:'bell', melody:[0,null,2,null,3,5,null,4,2,null,1,3,null,2,0,null], bass:[0,3,5,4], drums:'suspense', gain:.29 },
+    'pattern-lock':           { bpm:102, root:60, scale:'minorPent', lead:'bell',   melody:[0,null,2,null,4,null,3,null,1,null,3,null,5,4,2,null], bass:[0,3,4,3], drums:'soft',   gain:.27 }
+  });
+
+  const MINI_GAME_SCALES = Object.freeze({
+    major:     [0,2,4,5,7,9,11],
+    minor:     [0,2,3,5,7,8,10],
+    dorian:    [0,2,3,5,7,9,10],
+    majorPent: [0,2,4,7,9],
+    minorPent: [0,3,5,7,10]
+  });
+
+  function miniGameHash(value = '') {
+    let hash = 2166136261 >>> 0;
+    for (const char of String(value)) {
+      hash ^= char.charCodeAt(0);
+      hash = Math.imul(hash, 16777619) >>> 0;
+    }
+    return hash >>> 0;
+  }
+
+  function fallbackSoundtrackProfile(gameId = '') {
+    const h = miniGameHash(gameId || 'mini-game');
+    const scales = ['minorPent', 'majorPent', 'minor', 'dorian'];
+    const roots = [48, 50, 52, 53, 55, 57, 60];
+    const lead = ['pluck', 'pulse', 'bell'][h % 3];
+    const drums = ['groove', 'drive', 'soft', 'dance'][(h >>> 3) % 4];
+    const melody = Array.from({ length: 16 }, (_, i) => {
+      if ((h + i * 13) % 5 === 0) return null;
+      return ((h >>> (i % 16)) + i * 3) % 6;
+    });
+    return {
+      bpm: 104 + (h % 45),
+      root: roots[(h >>> 6) % roots.length],
+      scale: scales[(h >>> 10) % scales.length],
+      lead,
+      melody,
+      bass: [0, 3, 4, 3],
+      drums,
+      gain: .28
+    };
+  }
+
+  function midiToHz(midi) {
+    return 440 * Math.pow(2, (Number(midi || 69) - 69) / 12);
+  }
+
+  function degreeToMidi(root, degree, scaleName) {
+    const scale = MINI_GAME_SCALES[scaleName] || MINI_GAME_SCALES.minorPent;
+    const d = Math.trunc(Number(degree || 0));
+    const size = scale.length;
+    const octave = Math.floor(d / size);
+    const index = ((d % size) + size) % size;
+    return Number(root || 57) + scale[index] + octave * 12;
+  }
+
+  function buildMiniGameLoopBuffer(ctx, gameId, profile) {
+    const sampleRate = Math.min(22050, Math.max(16000, Math.floor(ctx.sampleRate / 2)));
+    const bpm = Math.max(72, Math.min(170, Number(profile.bpm || 120)));
+    const beatsPerBar = 4;
+    const bars = 4;
+    const stepsPerBeat = 4;
+    const totalSteps = bars * beatsPerBar * stepsPerBeat;
+    const beatSeconds = 60 / bpm;
+    const stepSeconds = beatSeconds / stepsPerBeat;
+    const duration = bars * beatsPerBar * beatSeconds;
+    const length = Math.max(1, Math.floor(duration * sampleRate));
+    const buffer = ctx.createBuffer(1, length, sampleRate);
+    const data = buffer.getChannelData(0);
+    const seedBase = miniGameHash(gameId);
+    let noiseSeed = seedBase || 1;
+
+    const rand = () => {
+      noiseSeed = (Math.imul(noiseSeed, 1664525) + 1013904223) >>> 0;
+      return (noiseSeed / 4294967296) * 2 - 1;
+    };
+
+    const addTone = (startSec, freq, durSec, amp, kind = 'pluck') => {
+      const start = Math.max(0, Math.floor(startSec * sampleRate));
+      const frames = Math.min(length - start, Math.max(1, Math.floor(durSec * sampleRate)));
+      const attack = Math.max(1, Math.floor(Math.min(.012, durSec * .14) * sampleRate));
+      const decayRate = kind === 'bell' ? 4.4 : kind === 'saw' ? 6.2 : kind === 'pulse' ? 7.4 : 8.8;
+      for (let i = 0; i < frames; i++) {
+        const t = i / sampleRate;
+        const phase = Math.PI * 2 * freq * t;
+        let wave;
+        if (kind === 'bell') {
+          wave = Math.sin(phase) * .74 + Math.sin(phase * 2.01) * .18 + Math.sin(phase * 3.99) * .08;
+        } else if (kind === 'saw') {
+          const x = (freq * t) % 1;
+          wave = (2 * x - 1) * .62 + Math.sin(phase) * .38;
+        } else if (kind === 'pulse') {
+          wave = (Math.sin(phase) >= .28 ? 1 : -1) * .48 + Math.sin(phase) * .52;
+        } else {
+          const tri = (2 / Math.PI) * Math.asin(Math.sin(phase));
+          wave = tri * .72 + Math.sin(phase * 2) * .20 + Math.sin(phase * 3) * .08;
+        }
+        const env = Math.min(1, i / attack) * Math.exp(-decayRate * t / Math.max(.12, durSec));
+        data[start + i] += wave * env * amp;
+      }
+    };
+
+    const addKick = (startSec, amp = .18) => {
+      const start = Math.floor(startSec * sampleRate);
+      const frames = Math.min(length - start, Math.floor(.18 * sampleRate));
+      for (let i = 0; i < frames; i++) {
+        const t = i / sampleRate;
+        const f = 96 * Math.exp(-10 * t) + 42;
+        const env = Math.exp(-18 * t);
+        data[start + i] += Math.sin(Math.PI * 2 * f * t) * env * amp;
+      }
+    };
+
+    const addSnare = (startSec, amp = .10) => {
+      const start = Math.floor(startSec * sampleRate);
+      const frames = Math.min(length - start, Math.floor(.11 * sampleRate));
+      for (let i = 0; i < frames; i++) {
+        const t = i / sampleRate;
+        const env = Math.exp(-24 * t);
+        const body = Math.sin(Math.PI * 2 * 180 * t) * .32;
+        data[start + i] += (rand() * .68 + body) * env * amp;
+      }
+    };
+
+    const addHat = (startSec, amp = .035) => {
+      const start = Math.floor(startSec * sampleRate);
+      const frames = Math.min(length - start, Math.floor(.035 * sampleRate));
+      for (let i = 0; i < frames; i++) {
+        const t = i / sampleRate;
+        const env = Math.exp(-55 * t);
+        const bright = rand() - rand() * .55;
+        data[start + i] += bright * env * amp;
+      }
+    };
+
+    const drumStyle = String(profile.drums || 'groove');
+    for (let step = 0; step < totalSteps; step++) {
+      const t = step * stepSeconds;
+      const beatIndex = Math.floor(step / stepsPerBeat);
+      const onBeat = step % stepsPerBeat === 0;
+      const eighth = step % 2 === 0;
+
+      if (onBeat) {
+        const beatInBar = beatIndex % 4;
+        const kick = drumStyle === 'soft' ? (beatInBar === 0 || beatInBar === 2)
+          : drumStyle === 'suspense' ? (beatInBar === 0)
+          : drumStyle === 'pulse' ? (beatInBar === 0 || beatInBar === 2)
+          : true;
+        if (kick) addKick(t, drumStyle === 'drive' ? .21 : drumStyle === 'punch' ? .22 : .16);
+        if (beatInBar === 1 || beatInBar === 3) addSnare(t, drumStyle === 'soft' ? .065 : .105);
+      }
+
+      if (drumStyle === 'drive' || drumStyle === 'dance') {
+        if (eighth) addHat(t, .035);
+      } else if (drumStyle === 'groove' || drumStyle === 'punch') {
+        if (step % 4 === 2) addHat(t, .032);
+      } else if (drumStyle === 'pulse') {
+        if (step % 8 === 6) addHat(t, .025);
+      } else if (drumStyle === 'soft') {
+        if (step % 8 === 4) addHat(t, .018);
+      } else if (drumStyle === 'suspense') {
+        if (step % 8 === 6) addHat(t, .016);
+      }
+    }
+
+    const bass = Array.isArray(profile.bass) && profile.bass.length ? profile.bass : [0,3,4,3];
+    for (let beat = 0; beat < bars * beatsPerBar; beat++) {
+      const degree = bass[beat % bass.length];
+      if (degree == null) continue;
+      const freq = midiToHz(degreeToMidi(Number(profile.root || 57) - 12, degree, profile.scale));
+      addTone(beat * beatSeconds, freq, Math.min(.44, beatSeconds * .72), drumStyle === 'soft' ? .07 : .095, 'pulse');
+    }
+
+    const melody = Array.isArray(profile.melody) && profile.melody.length ? profile.melody : [0,null,2,null,3,null,4,null,3,null,2,null,4,null,5,null];
+    for (let step = 0; step < totalSteps; step++) {
+      let degree = melody[step % melody.length];
+      if (degree == null) continue;
+      // Small bar-4 lift keeps a four-bar loop from sounding like one repeated bar.
+      const bar = Math.floor(step / 16);
+      if (bar === 3 && step % 4 === 0) degree += 1;
+      const freq = midiToHz(degreeToMidi(profile.root, degree, profile.scale));
+      const leadKind = profile.lead || 'pluck';
+      const dur = leadKind === 'bell' ? Math.min(.34, stepSeconds * 1.9) : Math.min(.24, stepSeconds * 1.45);
+      addTone(step * stepSeconds, freq, dur, leadKind === 'saw' ? .055 : .062, leadKind);
+    }
+
+    // A very light chord bed makes puzzle/quiz tracks feel musical without
+    // consuming extra real-time nodes during gameplay.
+    if (drumStyle === 'soft' || drumStyle === 'suspense') {
+      for (let bar = 0; bar < bars; bar++) {
+        const degree = [0, 3, 4, 3][bar % 4];
+        const start = bar * 4 * beatSeconds;
+        [degree, degree + 2, degree + 4].forEach((d, i) => {
+          addTone(start, midiToHz(degreeToMidi(profile.root - 12, d, profile.scale)), Math.min(1.25, beatSeconds * 2.8), .018 - i * .002, 'bell');
+        });
+      }
+    }
+
+    let peak = 0;
+    for (let i = 0; i < data.length; i++) peak = Math.max(peak, Math.abs(data[i]));
+    const scale = peak > .88 ? .88 / peak : 1;
+    const edge = Math.min(160, Math.floor(data.length / 4));
+    for (let i = 0; i < data.length; i++) {
+      let edgeGain = 1;
+      if (i < edge) edgeGain *= i / Math.max(1, edge);
+      if (i > data.length - edge) edgeGain *= (data.length - i) / Math.max(1, edge);
+      const x = data[i] * scale * edgeGain;
+      data[i] = Math.tanh(x * 1.15) / 1.15;
+    }
+    return buffer;
+  }
+
+  // Global Mini-Game mix: +50% BGM over Audio v2 for Solo XP and 2P games.
+  // Profiles keep their relative balance; input ducking still preserves SFX clarity.
+  const MINI_GAME_BGM_GAIN_BOOST = 2.13;
+
+  const MINI_GAME_SOUNDTRACK = (() => {
+    let ctx = null;
+    let master = null;
+    let compressor = null;
+    let source = null;
+    let activeGameId = '';
+    let activeProfile = null;
+    let currentBuffer = null;
+    let startedAt = 0;
+    let offset = 0;
+    let enabled = true;
+    let paused = false;
+    let duckTimer = 0;
+
+    function ensureAudio() {
+      try {
+        if (!ctx) {
+          const AudioCtor = window.AudioContext || window.webkitAudioContext;
+          if (!AudioCtor) return null;
+          ctx = new AudioCtor({ latencyHint: 'interactive' });
+          compressor = ctx.createDynamicsCompressor();
+          compressor.threshold.value = -18;
+          compressor.knee.value = 16;
+          compressor.ratio.value = 3;
+          compressor.attack.value = .004;
+          compressor.release.value = .16;
+          master = ctx.createGain();
+          master.gain.value = 0;
+          master.connect(compressor);
+          compressor.connect(ctx.destination);
+        }
+        return ctx;
+      } catch (_) {
+        return null;
+      }
+    }
+
+    function targetGain() {
+      if (!enabled || paused || !activeGameId || !activeProfile) return 0;
+      const profileGain = Number(activeProfile.gain || .28);
+      // Louder master mix for mobile speakers without allowing the BGM to
+      // saturate the output bus. SFX still gets temporary headroom via duck().
+      return Math.max(.36, Math.min(.75, profileGain * MINI_GAME_BGM_GAIN_BOOST));
+    }
+
+    function rampGain(value, seconds = .06) {
+      if (!master || !ctx) return;
+      try {
+        const now = ctx.currentTime;
+        master.gain.cancelScheduledValues(now);
+        master.gain.setTargetAtTime(Math.max(0, Number(value || 0)), now, Math.max(.012, Number(seconds || .06)));
+      } catch (_) {}
+    }
+
+    function stopSource() {
+      if (!source) return;
+      try { source.stop(); } catch (_) {}
+      try { source.disconnect(); } catch (_) {}
+      source = null;
+    }
+
+    function playFromOffset(nextOffset = 0) {
+      if (!ctx || !currentBuffer || !enabled || paused || !activeGameId) return false;
+      stopSource();
+      try {
+        source = ctx.createBufferSource();
+        source.buffer = currentBuffer;
+        source.loop = true;
+        source.connect(master);
+        const duration = Math.max(.001, currentBuffer.duration || 1);
+        offset = ((Number(nextOffset || 0) % duration) + duration) % duration;
+        source.start(0, offset);
+        startedAt = ctx.currentTime;
+        rampGain(targetGain(), .045);
+        return true;
+      } catch (_) {
+        source = null;
+        return false;
+      }
+    }
+
+    function unlock() {
+      const audio = ensureAudio();
+      if (!audio) return false;
+      try { audio.resume?.().catch?.(() => {}); } catch (_) {}
+      return true;
+    }
+
+    function start(gameId, options = {}) {
+      const id = String(gameId || '').trim();
+      if (!id) return false;
+      enabled = options.enabled !== false;
+      activeGameId = id;
+      activeProfile = MINI_GAME_SOUNDTRACK_PROFILES[id] || fallbackSoundtrackProfile(id);
+      offset = 0;
+      paused = false;
+      const audio = ensureAudio();
+      if (!audio) return false;
+      try { audio.resume?.().catch?.(() => {}); } catch (_) {}
+      try { currentBuffer = buildMiniGameLoopBuffer(audio, id, activeProfile); } catch (_) { currentBuffer = null; }
+      if (!currentBuffer || !enabled) {
+        rampGain(0, .02);
+        return Boolean(currentBuffer);
+      }
+      return playFromOffset(0);
+    }
+
+    function stop() {
+      rampGain(0, .025);
+      stopSource();
+      activeGameId = '';
+      activeProfile = null;
+      currentBuffer = null;
+      offset = 0;
+      startedAt = 0;
+      paused = false;
+      if (duckTimer) clearTimeout(duckTimer);
+      duckTimer = 0;
+    }
+
+    function pause() {
+      if (paused || !activeGameId) return false;
+      paused = true;
+      if (ctx && currentBuffer && source) {
+        const elapsed = Math.max(0, ctx.currentTime - startedAt);
+        offset = (offset + elapsed) % Math.max(.001, currentBuffer.duration || 1);
+      }
+      rampGain(0, .02);
+      stopSource();
+      return true;
+    }
+
+    function resume() {
+      if (!paused || !activeGameId) return false;
+      paused = false;
+      if (!enabled) return false;
+      const audio = ensureAudio();
+      if (!audio) return false;
+      try { audio.resume?.().catch?.(() => {}); } catch (_) {}
+      return playFromOffset(offset);
+    }
+
+    function setEnabled(next) {
+      enabled = Boolean(next);
+      if (!enabled) {
+        rampGain(0, .025);
+        stopSource();
+        return;
+      }
+      if (!activeGameId || paused) return;
+      const audio = ensureAudio();
+      if (!audio) return;
+      try { audio.resume?.().catch?.(() => {}); } catch (_) {}
+      if (!currentBuffer) {
+        try { currentBuffer = buildMiniGameLoopBuffer(audio, activeGameId, activeProfile || fallbackSoundtrackProfile(activeGameId)); } catch (_) {}
+      }
+      if (currentBuffer && !source) playFromOffset(offset);
+      else rampGain(targetGain(), .04);
+    }
+
+    function duck(amount = .56, holdMs = 145) {
+      if (!enabled || paused || !activeGameId || !master || !ctx) return;
+      if (duckTimer) clearTimeout(duckTimer);
+      rampGain(targetGain() * Math.max(.22, Math.min(.85, Number(amount || .56))), .012);
+      duckTimer = window.setTimeout(() => {
+        duckTimer = 0;
+        rampGain(targetGain(), .045);
+      }, Math.max(70, Number(holdMs || 145)));
+    }
+
+    function isActive() { return Boolean(activeGameId); }
+    function getActiveGameId() { return activeGameId; }
+
+    return Object.freeze({ unlock, start, stop, pause, resume, setEnabled, duck, isActive, getActiveGameId });
+  })();
+
+  // Public hook for current and future game modules. Future games can call
+  // pause()/resume()/duck() during their own pause panels or important SFX.
+  try { window.ICT8MiniGameSoundtrack = MINI_GAME_SOUNDTRACK; } catch (_) {}
+
+  window.addEventListener('ict8:xp-mini-games-progress', event => {
+    const soundEnabled = event?.detail?.soundEnabled;
+    if (typeof soundEnabled === 'boolean') MINI_GAME_SOUNDTRACK.setEnabled(soundEnabled);
+  });
+
+  // Brief BGM ducking on actions leaves headroom for each game's own SFX.
+  // These listeners do not synthesize extra SFX, so they stay very cheap.
+  window.addEventListener('pointerdown', () => {
+    if (MINI_GAME_SOUNDTRACK.isActive()) MINI_GAME_SOUNDTRACK.duck(.48, 155);
+  }, { capture: true, passive: true });
+  window.addEventListener('keydown', event => {
+    if (!event.repeat && MINI_GAME_SOUNDTRACK.isActive()) MINI_GAME_SOUNDTRACK.duck(.54, 135);
+  }, { capture: true });
+
+  document.addEventListener('visibilitychange', () => {
+    if (!MINI_GAME_SOUNDTRACK.isActive()) return;
+    if (document.hidden) MINI_GAME_SOUNDTRACK.pause();
+    else if (state?.gameOpen && !state.exitGuardPauseRequested && !state.exitGuardWasAlreadyPaused) MINI_GAME_SOUNDTRACK.resume();
+  });
+
+
   const state = {
     built: false,
     open: false,
@@ -253,6 +931,7 @@
     limitMessage: null,
     loginMessage: null,
     gameList: null,
+    twoPlayerList: null,
     tabs: [],
     panels: [],
     activeTab: 'games',
@@ -272,7 +951,10 @@
     activeGameId: '',
     activeGameApi: null,
     loadingGameId: '',
-    assetPromises: new Map()
+    assetPromises: new Map(),
+    exitGuardWasAlreadyPaused: false,
+    exitGuardPauseRequested: false,
+    gameAudioFocus: false
   };
 
   function getBridge() {
@@ -313,14 +995,15 @@
             <span class="xp-games-modal-icon" aria-hidden="true">🎮</span>
             <div>
               <small>ICT 8 Connect</small>
-              <h2 id="xpMiniGamesTitle">XP MINI-GAMES</h2>
+              <h2 id="xpMiniGamesTitle">MINI-GAMES</h2>
             </div>
           </div>
           <button class="xp-games-close" type="button" data-xp-games-close aria-label="Close XP Mini-Games">×</button>
         </header>
 
-        <nav class="xp-games-tabs" role="tablist" aria-label="XP Mini-Games views">
-          <button class="xp-games-tab active" type="button" role="tab" aria-selected="true" data-xp-games-tab="games">🎮 GAMES</button>
+        <nav class="xp-games-tabs" role="tablist" aria-label="Mini-Games views">
+          <button class="xp-games-tab active" type="button" role="tab" aria-selected="true" data-xp-games-tab="games">🎮 SOLO XP</button>
+          <button class="xp-games-tab" type="button" role="tab" aria-selected="false" data-xp-games-tab="multiplayer">👥 2P / NO XP</button>
           <button class="xp-games-tab" type="button" role="tab" aria-selected="false" data-xp-games-tab="weekly">🏆 WEEKLY</button>
         </nav>
 
@@ -350,6 +1033,20 @@
                 Log in as a student to earn account XP. Mini-games remain playable in practice mode.
               </div>
               <div data-xp-games-cards></div>
+            </section>
+          </section>
+
+          <section class="xp-games-panel xp-games-panel-multiplayer" role="tabpanel" data-xp-games-panel="multiplayer" hidden>
+            <section class="xp-games-2p-summary">
+              <div>
+                <small>👥 PLAY WITH A FRIEND</small>
+                <h3>2 PLAYER · NO XP</h3>
+                <p>Invite a classmate by Student ID or connect with QR/Share. These multiplayer games are separate from Solo XP and Weekly Arcade.</p>
+              </div>
+              <span class="xp-games-2p-zero">0 XP</span>
+            </section>
+            <section class="xp-games-game-list xp-games-2p-list" aria-label="Two-player no-XP games">
+              <div data-xp-games-2p-cards></div>
             </section>
           </section>
 
@@ -386,6 +1083,7 @@
     state.limitMessage = overlay.querySelector('[data-xp-games-limit]');
     state.loginMessage = overlay.querySelector('[data-xp-games-login]');
     state.gameList = overlay.querySelector('[data-xp-games-cards]');
+    state.twoPlayerList = overlay.querySelector('[data-xp-games-2p-cards]');
     state.tabs = Array.from(overlay.querySelectorAll('[data-xp-games-tab]'));
     state.panels = Array.from(overlay.querySelectorAll('[data-xp-games-panel]'));
     state.weeklyRefreshBtn = overlay.querySelector('[data-xp-games-weekly-refresh]');
@@ -399,6 +1097,12 @@
     state.tabs.forEach(button => button.addEventListener('click', () => switchTab(button.dataset.xpGamesTab || 'games')));
     state.weeklyRefreshBtn?.addEventListener('click', () => loadWeeklyLeaderboard({ force: true }));
     state.gameList.addEventListener('click', event => {
+      const button = event.target.closest('[data-xp-game-play]');
+      if (!button || button.disabled) return;
+      const gameId = String(button.dataset.xpGamePlay || '');
+      launchGame(gameId, button);
+    });
+    state.twoPlayerList?.addEventListener('click', event => {
       const button = event.target.closest('[data-xp-game-play]');
       if (!button || button.disabled) return;
       const gameId = String(button.dataset.xpGamePlay || '');
@@ -542,7 +1246,7 @@
   }
 
   function switchTab(tab = 'games', options = {}) {
-    const next = tab === 'weekly' ? 'weekly' : 'games';
+    const next = tab === 'weekly' ? 'weekly' : (tab === 'multiplayer' ? 'multiplayer' : 'games');
     state.activeTab = next;
     state.tabs.forEach(button => {
       const selected = button.dataset.xpGamesTab === next;
@@ -563,7 +1267,7 @@
   function gameCardsHtml(snapshot) {
     const cap = Math.max(1, Number(snapshot?.dailyCap || 50));
     const records = snapshot?.gameRecords || {};
-    return GAME_REGISTRY.map(game => {
+    return GAME_REGISTRY.filter(game => !game.multiplayer && !game.noXp).map(game => {
       const record = records[game.stateKey] || {};
       const gameType = game.category ? `${game.category}${game.difficulty ? ` · ${game.difficulty}` : ''} · ` : '';
       const xpCopy = snapshot?.capReached
@@ -581,6 +1285,25 @@
             <span class="xp-games-xp-note">${xpCopy}</span>
           </div>
           <button class="xp-games-play" type="button" data-xp-game-play="${game.id}">PLAY</button>
+        </article>`;
+    }).join('');
+  }
+
+  function twoPlayerCardsHtml() {
+    return GAME_REGISTRY.filter(game => game.multiplayer || game.noXp).map(game => {
+      const type = game.category ? `${game.category}${game.difficulty ? ` · ${game.difficulty}` : ''}` : 'LIVE MULTIPLAYER';
+      return `
+        <article class="xp-games-card xp-games-card-2p" data-xp-game-card="${game.id}">
+          <div class="xp-games-card-art" aria-hidden="true">${game.icon}</div>
+          <div class="xp-games-card-copy">
+            <h4>${game.name}</h4>
+            <p>${game.description}</p>
+          </div>
+          <div class="xp-games-card-meta">
+            <span class="xp-games-best">${game.bestText({})}</span>
+            <span class="xp-games-xp-note">${type} · NO XP</span>
+          </div>
+          <button class="xp-games-play xp-games-play-2p" type="button" data-xp-game-play="${game.id}">${game.playLabel || (game.coop ? 'PLAY CO-OP' : 'PLAY 1v1')}</button>
         </article>`;
     }).join('');
   }
@@ -607,6 +1330,7 @@
     state.limitMessage.classList.toggle('show', Boolean(next.capReached));
     state.loginMessage.classList.toggle('show', !next.loggedIn);
     state.gameList.innerHTML = gameCardsHtml(next);
+    if (state.twoPlayerList) state.twoPlayerList.innerHTML = twoPlayerCardsHtml();
   }
 
   function lockAppBehindHub() {
@@ -617,8 +1341,22 @@
     document.body.classList.remove('xp-games-modal-open');
   }
 
+  function setMiniGameAudioFocus(active, gameId = '') {
+    const next = Boolean(active);
+    if (state.gameAudioFocus === next) return;
+    state.gameAudioFocus = next;
+    try {
+      window.dispatchEvent(new CustomEvent('ict8:mini-game-audio-focus', {
+        detail: { active: next, gameId: next ? String(gameId || state.activeGameId || '') : '' }
+      }));
+    } catch (_) {}
+  }
+
   function openHub() {
     build();
+    MINI_GAME_SOUNDTRACK.stop();
+    setMiniGameAudioFocus(false);
+    try { window.ICT8AppExitGuard?.arm?.(); } catch (_) {}
     state.bridge = getBridge();
     if (!state.bridge) {
       console.warn('XP Mini-Games bridge is unavailable. The rest of ICT 8 Connect remains active.');
@@ -638,7 +1376,11 @@
 
   function closeHub() {
     if (!state.open && !state.gameOpen) return;
+    MINI_GAME_SOUNDTRACK.stop();
+    setMiniGameAudioFocus(false);
     const api = state.activeGameApi;
+    const closingGameId = state.activeGameId;
+    try { if (closingGameId && !gameById(closingGameId)?.multiplayer) state.bridge?.cancelGame?.(closingGameId); } catch (_) {}
     state.gameOpen = false;
     state.open = false;
     state.activeGameId = '';
@@ -658,41 +1400,100 @@
   }
 
   function showHubAfterGame() {
+    MINI_GAME_SOUNDTRACK.stop();
+    setMiniGameAudioFocus(false);
+    const closingGameId = state.activeGameId;
+    const returnTab = gameById(closingGameId)?.multiplayer ? 'multiplayer' : 'games';
+    try { if (closingGameId && !gameById(closingGameId)?.multiplayer) state.bridge?.cancelGame?.(closingGameId); } catch (_) {}
     state.open = true;
     state.gameOpen = false;
     state.activeGameId = '';
     state.activeGameApi = null;
     render();
     state.overlay.hidden = false;
-    switchTab('games', { load: false });
+    switchTab(returnTab, { load: false });
     window.requestAnimationFrame(() => {
       try { state.closeBtn.focus({ preventScroll: true }); } catch (_) {}
     });
   }
 
   function ensureStylesheet(game) {
-    if (!game.style) return;
-    if (document.querySelector(`link[data-xp-game-style="${game.id}"]`)) return;
-    const link = document.createElement('link');
-    link.rel = 'stylesheet';
-    link.href = `${game.style}?v=20260910-v466-code-flow`;
-    link.dataset.xpGameStyle = game.id;
-    document.head.appendChild(link);
+    if (!game.style) return Promise.resolve();
+    const selector = `link[data-xp-game-style="${game.id}"]`;
+    let link = document.querySelector(selector);
+    if (link?.dataset.xpStyleLoaded === '1' || link?.sheet) return Promise.resolve();
+
+    if (!link) {
+      link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = `${game.style}?v=${ASSET_VERSION}`;
+      link.dataset.xpGameStyle = game.id;
+      document.head.appendChild(link);
+    }
+
+    // The old loader started the game module immediately after appending the
+    // stylesheet. On a first launch the module could open and measure its canvas
+    // before CSS had applied, which is why CODE BRIDGE could look broken until
+    // the user backed out and opened it a second time. Wait for CSS first.
+    return new Promise(resolve => {
+      let settled = false;
+      const done = () => {
+        if (settled) return;
+        settled = true;
+        link.dataset.xpStyleLoaded = '1';
+        resolve();
+      };
+      link.addEventListener('load', done, { once: true });
+      link.addEventListener('error', done, { once: true });
+      // A cached stylesheet can become ready between appendChild and listener
+      // registration, so re-check it on the next paint before using the timeout.
+      requestAnimationFrame(() => { if (link.sheet) done(); });
+      window.setTimeout(done, 1800);
+    });
+  }
+
+  function ensureDependencyScript(src) {
+    if (!src) return Promise.resolve();
+    const key = `dep:${src}`;
+    if (state.assetPromises.has(key)) return state.assetPromises.get(key);
+    const existing = Array.from(document.querySelectorAll('script[data-xp-game-dependency]'))
+      .find(node => node.dataset.xpGameDependency === src) || null;
+    if (existing?.dataset.xpDependencyLoaded === '1') return Promise.resolve();
+    const promise = new Promise((resolve, reject) => {
+      const script = existing || document.createElement('script');
+      const done = () => { script.dataset.xpDependencyLoaded = '1'; resolve(); };
+      if (existing && existing.dataset.xpDependencyLoaded === '1') return done();
+      script.addEventListener('load', done, { once: true });
+      script.addEventListener('error', () => reject(new Error(`Game dependency failed to load: ${src}`)), { once: true });
+      if (!existing) {
+        script.src = `${src}?v=${ASSET_VERSION}`;
+        script.defer = true;
+        script.dataset.xpGameDependency = src;
+        document.body.appendChild(script);
+      }
+    }).finally(() => state.assetPromises.delete(key));
+    state.assetPromises.set(key, promise);
+    return promise;
+  }
+
+  async function ensureGameDependencies(game) {
+    const deps = Array.isArray(game.dependencies) ? game.dependencies : [];
+    for (const src of deps) await ensureDependencyScript(src);
   }
 
   function ensureGameModule(game) {
     const current = window[game.globalName];
     if (current?.open) return Promise.resolve(current);
     if (state.assetPromises.has(game.id)) return state.assetPromises.get(game.id);
-    ensureStylesheet(game);
-    const promise = new Promise((resolve, reject) => {
+
+    const promise = Promise.all([ensureStylesheet(game), ensureGameDependencies(game)]).then(() => new Promise((resolve, reject) => {
       const existing = document.querySelector(`script[data-xp-game-script="${game.id}"]`);
       // If a previous attempt loaded a broken/stale module without registering
       // its API, remove that script so PLAY can retry cleanly instead of waiting
       // forever for a load event that already fired.
       if (existing) existing.remove();
       const script = document.createElement('script');
-      script.src = `${game.script}?v=20260910-v466-code-flow`;
+      script.src = `${game.script}?v=${ASSET_VERSION}`;
       script.defer = true;
       script.dataset.xpGameScript = game.id;
       script.addEventListener('load', () => {
@@ -702,7 +1503,7 @@
       }, { once: true });
       script.addEventListener('error', () => reject(new Error(`${game.name} failed to load.`)), { once: true });
       document.body.appendChild(script);
-    }).finally(() => state.assetPromises.delete(game.id));
+    })).finally(() => state.assetPromises.delete(game.id));
     state.assetPromises.set(game.id, promise);
     return promise;
   }
@@ -710,7 +1511,11 @@
   async function launchGame(gameId, button = null) {
     const game = gameById(gameId);
     if (!game || state.loadingGameId) return;
+    // Unlock WebAudio directly inside the PLAY gesture before any async asset
+    // loading. This keeps soundtrack startup reliable on iOS/Android browsers.
+    MINI_GAME_SOUNDTRACK.unlock();
     state.loadingGameId = game.id;
+    const originalButtonLabel = button?.textContent || 'PLAY';
     if (button) {
       button.disabled = true;
       button.textContent = 'LOADING…';
@@ -723,8 +1528,14 @@
       state.gameOpen = true;
       state.activeGameId = game.id;
       state.activeGameApi = api;
+      // Audio focus changes before game.open() so the first game beat/SFX is
+      // never masked by the Code Explorer background track.
+      setMiniGameAudioFocus(true, game.id);
+      const soundEnabled = state.bridge?.getSnapshot?.()?.soundEnabled !== false;
+      MINI_GAME_SOUNDTRACK.start(game.id, { enabled: soundEnabled });
       api.open({
         bridge: state.bridge,
+        music: MINI_GAME_SOUNDTRACK,
         onBack: showHubAfterGame,
         onClose: closeHub,
         onReward: result => {
@@ -738,6 +1549,8 @@
         }
       });
     } catch (error) {
+      MINI_GAME_SOUNDTRACK.stop();
+      setMiniGameAudioFocus(false);
       console.warn(`${game.name} could not initialize.`, error);
       state.open = true;
       state.gameOpen = false;
@@ -749,9 +1562,76 @@
       state.loadingGameId = '';
       if (button && document.contains(button)) {
         button.disabled = false;
-        button.textContent = 'PLAY';
+        button.textContent = originalButtonLabel;
       }
     }
+  }
+
+
+  function findVisibleResumeButton() {
+    const buttons = Array.from(document.querySelectorAll('button'));
+    return buttons.find(button => {
+      if (button.hidden || button.disabled || button.getClientRects().length === 0) return false;
+      return button.getAttributeNames().some(name => /^data-.*-resume$/i.test(name));
+    }) || null;
+  }
+
+  function pauseActiveGameForExitGuard() {
+    if (!state.gameOpen || !state.activeGameApi?.isOpen?.()) return false;
+    MINI_GAME_SOUNDTRACK.pause();
+    const api = state.activeGameApi;
+    state.exitGuardWasAlreadyPaused = Boolean(findVisibleResumeButton());
+    state.exitGuardPauseRequested = false;
+    if (state.exitGuardWasAlreadyPaused) return false;
+
+    try {
+      if (typeof api.pauseForExitGuard === 'function') {
+        state.exitGuardPauseRequested = api.pauseForExitGuard() !== false;
+        return state.exitGuardPauseRequested;
+      }
+    } catch (_) {}
+
+    try {
+      window.dispatchEvent(new Event('blur'));
+      state.exitGuardPauseRequested = true;
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function resumeActiveGameFromExitGuard() {
+    if (!state.gameOpen || !state.activeGameApi?.isOpen?.()) return false;
+    if (state.exitGuardWasAlreadyPaused || !state.exitGuardPauseRequested) {
+      state.exitGuardWasAlreadyPaused = false;
+      state.exitGuardPauseRequested = false;
+      return false;
+    }
+
+    const api = state.activeGameApi;
+    state.exitGuardPauseRequested = false;
+    MINI_GAME_SOUNDTRACK.resume();
+    try {
+      if (typeof api.resumeFromExitGuard === 'function') {
+        api.resumeFromExitGuard();
+        state.exitGuardWasAlreadyPaused = false;
+        return true;
+      }
+    } catch (_) {}
+
+    try { window.dispatchEvent(new Event('focus')); } catch (_) {}
+    window.setTimeout(() => {
+      const resumeButton = findVisibleResumeButton();
+      if (resumeButton) {
+        try { resumeButton.click(); } catch (_) {}
+      }
+    }, 40);
+    state.exitGuardWasAlreadyPaused = false;
+    return true;
+  }
+
+  function isGameOpen() {
+    return Boolean(state.gameOpen && state.activeGameApi?.isOpen?.());
   }
 
   function animateXpAward(amount) {
@@ -817,6 +1697,10 @@
     close: closeHub,
     render: () => render(),
     showWeekly: () => { openHub(); switchTab('weekly', { force: true }); },
-    games: GAME_REGISTRY.map(game => ({ id: game.id, name: game.name }))
+    isOpen: () => state.open,
+    isGameOpen,
+    pauseActiveGameForExitGuard,
+    resumeActiveGameFromExitGuard,
+    games: GAME_REGISTRY.map(game => ({ id: game.id, name: game.name, mode: game.multiplayer ? '2p-no-xp' : 'solo-xp' }))
   });
 })();
