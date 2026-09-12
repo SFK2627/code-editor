@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const ASSET_VERSION = '20260912-v4761-dial-in-v10-time-reference-soundfocus';
+  const ASSET_VERSION = '20260913-v4761-2p-code-duel-parity-v5';
 
   const GAME_REGISTRY = Object.freeze([
     {

@@ -390,6 +390,16 @@
 
     function mount() {
       const homeCard = overlay.querySelector('[data-panel="home"] .p2p0-card');
+      if (homeCard && !homeCard.querySelector('[data-p2p-identity]')) {
+        const identity = document.createElement('div');
+        identity.className = 'p2p0-identity';
+        identity.dataset.p2pIdentity = '';
+        identity.hidden = true;
+        identity.innerHTML = '<span>SIGNED IN</span><strong data-p2p-identity-name>Student</strong><small data-p2p-identity-id></small>';
+        const actions = homeCard.querySelector('.p2p0-actions');
+        if (actions) homeCard.insertBefore(identity, actions);
+        else homeCard.appendChild(identity);
+      }
       if (homeCard && !homeCard.querySelector('[data-p2p-student-inbox]')) {
         const inbox = document.createElement('section');
         inbox.className = 'p2p0-student-inbox';
@@ -397,8 +407,8 @@
         inbox.hidden = true;
         inbox.innerHTML = `
           <div class="p2p0-student-head">
-            <div><small>STUDENT INVITES</small><strong>${escapeHtml(gameName)}</strong></div>
-            <button class="p2p0-icon-btn" type="button" data-p2p-refresh-invites aria-label="Refresh invites">↻</button>
+            <strong>🎮 GAME INVITES</strong>
+            <button class="p2p0-icon-btn" type="button" data-p2p-refresh-invites aria-label="Refresh invites">REFRESH</button>
           </div>
           <div class="p2p0-student-list" data-p2p-invite-list><div class="p2p0-student-empty">No pending invites right now.</div></div>`;
         const actions = homeCard.querySelector('.p2p0-actions');
@@ -413,11 +423,14 @@
         box.dataset.p2pStudentConnect = '';
         box.hidden = true;
         box.innerHTML = `
-          <div class="p2p0-student-head"><div><small>QUICK CONNECT</small><strong>INVITE BY STUDENT ID</strong></div><span>🆔</span></div>
+          <div class="p2p0-method-card primary-method">
+            <span class="p2p0-method-icon">🆔</span>
+            <div><strong>SEND TO STUDENT ID</strong><small>Quick invite for logged-in students</small></div>
+          </div>
           <label class="p2p0-field"><span>PLAYER 2 STUDENT ID</span><input data-p2p-target-student maxlength="30" autocomplete="off" autocapitalize="characters" placeholder="Example: 2026-001"></label>
-          <button class="p2p0-btn primary p2p0-student-send" type="button" data-p2p-send-student>SEND INVITE</button>
-          <div class="p2p0-student-status" data-p2p-student-status>Player 2 should open this same game first.</div>
-          <div class="p2p0-divider">OR USE QR / SHARE</div>`;
+          <button class="p2p0-btn primary p2p0-student-send" type="button" data-p2p-send-student>SEND MATCH INVITE</button>
+          <div class="p2p0-waiting" data-p2p-waiting hidden><span class="p2p0-pulse-dot"></span><div><strong data-p2p-waiting-title>Waiting for Player 2…</strong><small data-p2p-waiting-sub>They can accept inside ${escapeHtml(gameName)}.</small></div></div>
+          <div class="p2p0-or"><span>OR</span></div>`;
         const nameField = hostCard.querySelector('[data-host-name]')?.closest('label');
         if (nameField) nameField.insertAdjacentElement('afterend', box);
         else hostCard.prepend(box);
@@ -435,21 +448,49 @@
       q('[data-p2p-send-student]')?.addEventListener('click', sendInvite);
     }
 
+    function setWaiting(show, title = 'Waiting for Player 2…', sub = '') {
+      const wrap = q('[data-p2p-waiting]');
+      if (!wrap) return;
+      wrap.hidden = !show;
+      const t = q('[data-p2p-waiting-title]');
+      const d = q('[data-p2p-waiting-sub]');
+      if (t) t.textContent = title;
+      if (d && sub) d.textContent = sub;
+    }
+
     function setStudentStatus(text, error = false, ok = false) {
-      const el = q('[data-p2p-student-status]');
-      if (!el) return;
-      el.textContent = String(text || '');
-      el.classList.toggle('error', !!error);
-      el.classList.toggle('ok', !!ok);
+      const hostStatus = q('[data-host-status]');
+      const legacyStatus = q('[data-p2p-student-status]');
+      [hostStatus, legacyStatus].filter(Boolean).forEach(el => {
+        el.textContent = String(text || '');
+        el.classList.toggle('error', !!error);
+        el.classList.toggle('ok', !!ok);
+      });
     }
 
     function renderAvailability() {
       const available = canUse();
       const inbox = q('[data-p2p-student-inbox]');
       const connect = q('[data-p2p-student-connect]');
+      const badge = q('[data-p2p-identity]');
       if (inbox) inbox.hidden = !available;
       if (connect) connect.hidden = !available;
       const identity = bridge()?.getPlayerIdentity?.();
+      if (badge) {
+        badge.hidden = false;
+        const chip = badge.querySelector('span');
+        const name = q('[data-p2p-identity-name]');
+        const studentId = q('[data-p2p-identity-id]');
+        if (available && identity?.name) {
+          if (chip) chip.textContent = 'SIGNED IN';
+          if (name) name.textContent = identity.name;
+          if (studentId) studentId.textContent = identity.studentId || '';
+        } else {
+          if (chip) chip.textContent = 'QR MODE';
+          if (name) name.textContent = 'Practice / guest session';
+          if (studentId) studentId.textContent = 'Log in as a student to send or receive Student ID invites.';
+        }
+      }
       if (available && identity?.name) {
         const hostName = q('[data-host-name]');
         const guestName = q('[data-guest-name]');
@@ -506,6 +547,7 @@
       if (!canUse()) { setStudentStatus('Sign in as a student to use Student ID invites.', true); return; }
       if (!target) { setStudentStatus('Enter Player 2 Student ID.', true); return; }
       if (btn) { btn.disabled = true; btn.textContent = 'SENDING…'; }
+      setWaiting(true, 'Preparing direct invite…', 'Creating a private pairing offer.');
       try {
         await cancelHostInvite(true);
         setStudentStatus('Preparing invite…');
@@ -521,12 +563,14 @@
         });
         hostInvite = sent || null;
         setStudentStatus(`Invite sent to ${sent?.targetStudentId || target}. Waiting for Player 2…`, false, true);
+        setWaiting(true, 'Waiting for Player 2…', `Student ${sent?.targetStudentId || target} can accept inside ${gameName}.`);
         startHostPolling();
         options.onInviteSent?.(sent);
       } catch (error) {
+        setWaiting(false);
         setStudentStatus(error?.message || 'Could not send the invite.', true);
       } finally {
-        if (btn) { btn.disabled = false; btn.textContent = 'SEND INVITE'; }
+        if (btn) { btn.disabled = false; btn.textContent = 'SEND MATCH INVITE'; }
       }
     }
 
@@ -537,7 +581,7 @@
         if (!active || !hostInvite || options.isConnected?.()) return;
         if (hostPollBusy) return;
         if (Date.now() - started > 90000) {
-          setStudentStatus('Invite timed out. Send a new invite or use QR.', true);
+          setWaiting(false); setStudentStatus('Invite timed out. Send a new invite or use QR.', true);
           return;
         }
         hostPollBusy = true;
@@ -545,19 +589,19 @@
           const result = await bridge()?.getTwoPlayerInviteStatus?.({ gameId, ...hostInvite });
           if (result?.status === 'accepted' && result.answerCode) {
             clearTimeout(hostPollTimer);
-            setStudentStatus(`${result.acceptedByName || 'Player 2'} accepted. Connecting…`, false, true);
+            setWaiting(true, `${result.acceptedByName || 'Player 2'} accepted`, 'Connecting directly…'); setStudentStatus(`${result.acceptedByName || 'Player 2'} accepted. Connecting…`, false, true);
             await options.applyHostAnswer?.(result.answerCode, result);
             return;
           }
           if (result?.status === 'declined') {
             clearTimeout(hostPollTimer);
-            setStudentStatus('Player 2 declined the invite.', true);
+            setWaiting(false); setStudentStatus('Player 2 declined the invite.', true);
             await cancelHostInvite(true);
             return;
           }
           if (result?.status === 'expired' || result?.status === 'missing') {
             clearTimeout(hostPollTimer);
-            setStudentStatus('Invite expired. Send a new one.', true);
+            setWaiting(false); setStudentStatus('Invite expired. Send a new one.', true);
             return;
           }
         } catch (_) {
@@ -615,10 +659,11 @@
       const current = hostInvite;
       hostInvite = null;
       try { await bridge()?.removeTwoPlayerInvite?.({ gameId, ...current }); } catch (_) {}
-      if (!silent) setStudentStatus('Invite cancelled.');
+      setWaiting(false); if (!silent) setStudentStatus('Invite cancelled.');
     }
 
     function onConnected() {
+      setWaiting(false);
       clearTimeout(hostPollTimer);
       hostPollTimer = 0;
       if (hostInvite) cancelHostInvite(true);

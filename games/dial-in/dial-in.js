@@ -451,7 +451,7 @@
       ? 'Memorize the color, then drag the three vertical dials to rebuild it.'
       : mode === 'sound'
         ? 'Listen once, then drag up or down on the waveform to tune your pitch.'
-        : 'Remember the target time. Start, trust your internal clock, then stop.';
+        : 'Watch the ring motion. Then press and hold to replay it, and release when the timing feels matched.';
     return `<section class="dial-in-tutorial dial-in-card dial-in-screen-enter dial-in-card-${mode}">
       ${uiStageMeta(mode, `${meta.label} MODE`)}
       <div class="dial-in-tutorial-body">
@@ -618,87 +618,152 @@
     return resultShellHtml(result, `<div class="dial-in-metric-stage dial-in-metric-stage-sound">${soundWaveHtml(soundLevelForHz(result.targetHz), 'result')}<div class="dial-in-metric-compare sound-grid"><div><small>TARGET</small><strong>${Math.round(result.targetHz)} Hz</strong></div><div><small>YOUR GUESS</small><strong>${Math.round(result.guessHz)} Hz</strong></div><div><small>DIFFERENCE</small><strong>${Math.round(result.diffHz)} Hz</strong></div></div></div>`);
   }
 
-  function makeTimeRingPath(radius, index) {
-    const cx = 300;
-    const cy = 300;
-    const phase = index * 0.57;
-    const pts = [];
-    for (let deg = 0; deg <= 360; deg += 4) {
-      const a = deg * Math.PI / 180;
-      const wobble = 1
-        + 0.052 * Math.sin(a * 2 + phase)
-        + 0.032 * Math.sin(a * 4 - phase * .8)
-        + 0.018 * Math.cos(a * 6 + phase * 1.3);
-      const skewX = 1 + 0.065 * Math.sin(a + phase);
-      const skewY = 1 - 0.052 * Math.cos(a - phase * .7);
-      const x = cx + Math.cos(a) * radius * wobble * skewX;
-      const y = cy + Math.sin(a) * radius * wobble * skewY;
-      pts.push(`${deg === 0 ? 'M' : 'L'}${x.toFixed(1)} ${y.toFixed(1)}`);
+  function timeVisualHtml(state = 'preview') {
+    return `<div class="dial-in-time-visual is-${state}" data-dial-time-visual aria-hidden="true"><canvas class="dial-in-time-canvas" data-dial-time-canvas></canvas></div>`;
+  }
+
+  function timeCanvasMetrics(canvas) {
+    if (!canvas) return null;
+    const rect = canvas.getBoundingClientRect();
+    const cssW = Math.max(1, rect.width || canvas.clientWidth || 1);
+    const cssH = Math.max(1, rect.height || canvas.clientHeight || 1);
+    const dpr = Math.min(1.8, Math.max(1, window.devicePixelRatio || 1));
+    const pxW = Math.max(1, Math.round(cssW * dpr));
+    const pxH = Math.max(1, Math.round(cssH * dpr));
+    if (canvas.width !== pxW || canvas.height !== pxH) {
+      canvas.width = pxW;
+      canvas.height = pxH;
     }
-    return `${pts.join(' ')} Z`;
+    const ctx = canvas.getContext('2d', { alpha: false, desynchronized: true });
+    if (!ctx) return null;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return { ctx, w: cssW, h: cssH, dpr };
   }
 
-  function timeRingsHtml(state = 'preview') {
-    const rings = Array.from({ length: 12 }, (_, index) => {
-      const radius = 20 + index * 22.2;
-      return `<path class="dial-in-time-ring ring-${index + 1}" d="${makeTimeRingPath(radius, index)}" style="--ring:${index}"></path>`;
-    }).join('');
-    return `<div class="dial-in-time-rings is-${state}" data-dial-time-rings aria-hidden="true"><svg viewBox="0 0 600 600" preserveAspectRatio="xMidYMid slice"><defs><linearGradient id="dialTimeGradient" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#6cc7ff"></stop><stop offset=".5" stop-color="#8f9cff"></stop><stop offset="1" stop-color="#d489ff"></stop></linearGradient><radialGradient id="dialTimeCore"><stop offset="0" stop-color="#ffffff" stop-opacity=".95"></stop><stop offset=".3" stop-color="#a7c8ff" stop-opacity=".75"></stop><stop offset="1" stop-color="#9966ff" stop-opacity="0"></stop></radialGradient></defs><g>${rings}</g><circle class="dial-in-time-core" data-dial-time-core cx="300" cy="300" r="24" fill="url(#dialTimeCore)"></circle></svg></div>`;
+  function timePulseAt(t) {
+    const period = 2.55;
+    const phase = ((t % period) + period) % period / period;
+    const distance = Math.min(phase, 1 - phase);
+    const main = Math.exp(-Math.pow(distance / .075, 2));
+    const echoPhase = ((phase - .12 + 1) % 1);
+    const echoDistance = Math.min(echoPhase, 1 - echoPhase);
+    const echo = Math.exp(-Math.pow(echoDistance / .085, 2)) * .28;
+    return clamp(main + echo, 0, 1);
   }
 
-  function updateTimeRings(elapsedMs) {
+  function drawTimeVisual(elapsedMs, state = 'preview') {
+    const canvas = runtime.overlay?.querySelector('[data-dial-time-canvas]');
+    const metrics = timeCanvasMetrics(canvas);
+    if (!metrics) return;
+    const { ctx, w, h } = metrics;
     const t = Math.max(0, Number(elapsedMs || 0)) / 1000;
-    const pulseA = Math.pow((Math.sin(t * 3.05 - .35) + 1) / 2, 8);
-    const pulseB = Math.pow((Math.sin(t * 1.62 + 1.1) + 1) / 2, 12);
-    const bloom = clamp(pulseA * .78 + pulseB * .36, 0, 1);
-    runtime.overlay?.querySelectorAll('.dial-in-time-ring').forEach((ring, index) => {
-      const phase = index * .47;
-      const depth = index / 11;
-      const driftX = Math.sin(t * .71 + phase) * (2 + index * .5) + Math.sin(t * .23 + phase * .5) * (1.4 + index * .18);
-      const driftY = Math.cos(t * .63 + phase * .84) * (1.8 + index * .42) + Math.sin(t * .31 - phase * .42) * (1.1 + index * .14);
-      const rotate = Math.sin(t * .43 + phase) * (4 + index * .82) + Math.sin(t * .17 + phase * .34) * 3.1;
-      const breathe = Math.sin(t * .92 + phase * .72) * (.018 + depth * .028);
-      const ripple = Math.sin(t * 1.48 - phase * .58) * (.012 + depth * .018);
-      const bloomScale = bloom * (.035 + (1 - depth) * .09);
-      const sx = 1 + breathe + ripple + bloomScale;
-      const sy = 1 - breathe * .62 + ripple * .72 + bloomScale * .76;
-      ring.style.transform = `translate(${driftX.toFixed(2)}px,${driftY.toFixed(2)}px) rotate(${rotate.toFixed(2)}deg) scale(${sx.toFixed(4)},${sy.toFixed(4)})`;
-      ring.style.opacity = String(clamp(.48 + depth * .22 + .22 * Math.sin(t * .52 + phase) + bloom * .22, .28, .98));
-      ring.style.strokeWidth = String((1.15 + depth * .72 + bloom * (1.45 - depth * .6)).toFixed(2));
-    });
-    const core = runtime.overlay?.querySelector('[data-dial-time-core]');
-    if (core) {
-      core.setAttribute('r', String((14 + bloom * 30 + 4 * Math.sin(t * 1.2)).toFixed(2)));
-      core.style.opacity = String(clamp(.12 + bloom * .92, .08, 1));
+    const pulse = timePulseAt(t);
+    const minDim = Math.min(w, h);
+    const centerX = w * .5 + Math.sin(t * .31) * minDim * .006;
+    const centerY = h * .49 + Math.cos(t * .27 + .4) * minDim * .005;
+    const outer = Math.min(w * .515, h * .485);
+    const slowBreath = Math.sin(t * .82 - .5) * .018;
+    const mediumBreath = Math.sin(t * 1.47 + .35) * .012;
+    const overallScale = 1 + slowBreath + mediumBreath + pulse * .045;
+    const rotation = t * .095 + Math.sin(t * .24) * .055;
+
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, w, h);
+
+    ctx.save();
+    ctx.translate(centerX, centerY);
+    ctx.rotate(rotation);
+    const gradient = ctx.createLinearGradient(-outer, -outer * .58, outer, outer * .58);
+    gradient.addColorStop(0, '#68caff');
+    gradient.addColorStop(.44, '#819eff');
+    gradient.addColorStop(.72, '#9f86ff');
+    gradient.addColorStop(1, '#d47cff');
+    ctx.globalCompositeOperation = 'screen';
+    const ringCount = 12;
+    for (let i = ringCount - 1; i >= 0; i -= 1) {
+      const depth = i / (ringCount - 1);
+      const baseRadius = outer * (.095 + depth * .905) * overallScale;
+      const phase = i * .09;
+      ctx.beginPath();
+      const steps = 88;
+      for (let s = 0; s <= steps; s += 1) {
+        const a = (s / steps) * Math.PI * 2;
+        const coherent = .043 * Math.sin(a * 3 + t * .44 + phase)
+          + .019 * Math.sin(a * 2 - t * .23 + .7)
+          + .012 * Math.cos(a * 5 + t * .15 - phase * .6);
+        const softRipple = .007 * Math.sin(a * 7 - t * .12 + i * .17);
+        const r = baseRadius * (1 + coherent + softRipple);
+        const anisX = 1 + .024 * Math.sin(t * .37 + .5);
+        const anisY = 1 - .018 * Math.cos(t * .33 - .2);
+        const x = Math.cos(a) * r * anisX;
+        const y = Math.sin(a) * r * anisY;
+        if (s === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.closePath();
+      ctx.strokeStyle = gradient;
+      ctx.lineWidth = .9 + depth * .7 + pulse * .52;
+      ctx.globalAlpha = clamp(.34 + depth * .42 + pulse * .18, .25, .96);
+      ctx.shadowColor = pulse > .1 ? 'rgba(154,122,255,.58)' : 'rgba(102,180,255,.24)';
+      ctx.shadowBlur = 1.2 + pulse * 7.5;
+      ctx.stroke();
     }
+    ctx.restore();
+
+    const coreRadius = 12 + pulse * 24 + (Math.sin(t * 1.25) + 1) * 2.4;
+    const glow = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, coreRadius * 2.9);
+    glow.addColorStop(0, `rgba(255,255,255,${.66 + pulse * .25})`);
+    glow.addColorStop(.18, `rgba(165,198,255,${.45 + pulse * .28})`);
+    glow.addColorStop(.48, `rgba(139,112,255,${.22 + pulse * .26})`);
+    glow.addColorStop(1, 'rgba(100,70,255,0)');
+    ctx.globalCompositeOperation = 'screen';
+    ctx.globalAlpha = state === 'result' ? .82 : 1;
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, coreRadius * 2.9, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = 'source-over';
+  }
+
+  function setTimeCueWord(word = '', visible = false) {
+    const el = runtime.overlay?.querySelector('[data-dial-time-cue]');
+    if (!el) return;
+    if (word) {
+      el.textContent = word;
+      el.dataset.word = word;
+    }
+    el.classList.toggle('is-visible', !!visible);
   }
 
   function timeCueHtml() {
-    return `<section class="dial-in-play dial-in-card dial-in-screen-enter dial-in-card-time-cue">
+    return `<section class="dial-in-play dial-in-card dial-in-card-time-cue">
       ${uiStageMeta('time')}
-      <div class="dial-in-time-cue-word" data-dial-time-cue>${runtime.timeCueText || 'ready'}</div>
+      <div class="dial-in-time-cue-word"><span data-dial-time-cue></span></div>
     </section>`;
   }
 
   function timeReadyHtml() {
-    return `<section class="dial-in-play dial-in-card dial-in-screen-enter dial-in-card-time-preview">
+    return `<section class="dial-in-play dial-in-card dial-in-card-time-preview dial-in-time-soft-enter">
       ${uiStageMeta('time')}
-      ${timeRingsHtml('preview')}
+      ${timeVisualHtml('preview')}
       <div class="dial-in-time-preview-copy"><strong class="text-only">remember the timing</strong></div>
     </section>`;
   }
 
   function timeWaitingHtml() {
-    return `<section class="dial-in-play dial-in-card dial-in-screen-enter dial-in-card-time-waiting" data-dial-time-hold tabindex="0" role="button" aria-label="Press and hold to match the timing">
+    return `<section class="dial-in-play dial-in-card dial-in-card-time-waiting dial-in-time-soft-enter" data-dial-time-hold tabindex="0" role="button" aria-label="Press and hold to match the timing">
       ${uiStageMeta('time')}
       <div class="dial-in-time-wait-copy"><strong>your turn — hold to match</strong></div>
     </section>`;
   }
 
   function timeRunningHtml() {
-    return `<section class="dial-in-play dial-in-card dial-in-screen-enter dial-in-card-time-holding" data-dial-time-hold tabindex="0" role="button" aria-label="Release to stop">
+    return `<section class="dial-in-play dial-in-card dial-in-card-time-holding dial-in-time-hold-enter" data-dial-time-hold tabindex="0" role="button" aria-label="Release to stop">
       ${uiStageMeta('time')}
-      ${timeRingsHtml('holding')}
+      ${timeVisualHtml('holding')}
       <div class="dial-in-time-user-value" data-dial-time-user-value>0.00<span>s</span></div>
     </section>`;
   }
@@ -718,7 +783,7 @@
     const score10 = clamp(Number(result.accuracy || 0) / 10, 0, 10);
     return `<section class="dial-in-result dial-in-card dial-in-screen-enter dial-in-time-result-card">
       ${uiStageMeta('time')}
-      ${timeRingsHtml('result')}
+      ${timeVisualHtml('result')}
       <div class="dial-in-time-result-score"><strong data-dial-time-result-score data-score="${score10.toFixed(2)}">0.00</strong><p>${timeResultFlavor(result.deltaMs)}</p></div>
       <div class="dial-in-time-result-values"><div><small>target</small><strong>${(result.targetMs / 1000).toFixed(2)}<span> sec</span></strong></div><div><small>you</small><strong>${(result.actualMs / 1000).toFixed(2)}<span> sec</span></strong></div></div>
       <button type="button" class="dial-in-fab" data-dial-next aria-label="${runtime.roundIndex >= 4 ? 'See results' : 'Next round'}">→</button>
@@ -784,7 +849,7 @@
     syncModeMusicFocus();
     if (runtime.stage === 'time-ready' || runtime.stage === 'time-running') startTimeRaf();
     else if (runtime.stage === 'time-result') {
-      updateTimeRings(runtime.roundResults[runtime.roundResults.length - 1]?.actualMs || 0);
+      drawTimeVisual(runtime.roundResults[runtime.roundResults.length - 1]?.actualMs || 0, 'result');
       animateTimeResultScore();
     }
   }
@@ -894,7 +959,7 @@
     if (runtime.mode === 'sound') runtime.soundSlider = Number(currentChallenge()?.startSlider ?? 500);
     render();
     sfx('round');
-    schedule(beginCurrentRound, 720);
+    schedule(beginCurrentRound, runtime.mode === 'time' ? 1120 : 720);
   }
 
   function beginCurrentRound() {
@@ -925,21 +990,36 @@
     runtime.timeStartedAt = 0;
     runtime.timePausedMs = 0;
     runtime.timePauseStartedAt = 0;
-    runtime.timeCueText = 'ready';
+    runtime.timeCueText = '';
     runtime.stage = 'time-cue';
     render();
+
+    schedule(() => { if (runtime.stage === 'time-cue') { setTimeCueWord('ready', true); sfx('tick'); } }, 180);
+    schedule(() => { if (runtime.stage === 'time-cue') setTimeCueWord('ready', false); }, 690);
+    schedule(() => { if (runtime.stage === 'time-cue') { setTimeCueWord('set', true); sfx('tick'); } }, 900);
+    schedule(() => { if (runtime.stage === 'time-cue') setTimeCueWord('set', false); }, 1410);
+    schedule(() => { if (runtime.stage === 'time-cue') { setTimeCueWord('go', true); sfx('start'); } }, 1620);
+    schedule(() => { if (runtime.stage === 'time-cue') setTimeCueWord('go', false); }, 2070);
+    schedule(startTimePreview, 2290);
+  }
+
+  function finishTimePreview() {
+    if (runtime.stage !== 'time-ready') return;
+    stopTimeRaf();
+    drawTimeVisual(currentChallenge()?.targetMs || currentTimeElapsed(), 'preview');
+    const visual = runtime.overlay?.querySelector('[data-dial-time-visual]');
+    const copy = runtime.overlay?.querySelector('.dial-in-time-preview-copy');
+    visual?.classList.add('is-exiting');
+    copy?.classList.add('is-exiting');
     schedule(() => {
-      if (runtime.stage !== 'time-cue') return;
-      runtime.timeCueText = 'set';
+      if (runtime.stage !== 'time-ready') return;
+      runtime.timeStartedAt = 0;
+      runtime.timePausedMs = 0;
+      runtime.timePauseStartedAt = 0;
+      runtime.stage = 'time-waiting';
       render();
-    }, 460);
-    schedule(() => {
-      if (runtime.stage !== 'time-cue') return;
-      runtime.timeCueText = 'go';
-      render();
-      sfx('start');
-    }, 900);
-    schedule(startTimePreview, 1240);
+      sfx('vanish');
+    }, 300);
   }
 
   function startTimePreview() {
@@ -952,13 +1032,7 @@
     render();
     schedule(() => {
       if (!runtime.open || runtime.paused || runtime.visibilityPaused || runtime.stage !== 'time-ready') return;
-      stopTimeRaf();
-      runtime.timeStartedAt = 0;
-      runtime.timePausedMs = 0;
-      runtime.timePauseStartedAt = 0;
-      runtime.stage = 'time-waiting';
-      render();
-      sfx('vanish');
+      finishTimePreview();
     }, ch.targetMs);
   }
 
@@ -1052,7 +1126,7 @@
     if (result.accuracy >= 95) { sfx('high'); vibrate([20, 28, 20]); }
     else sfx('average');
     render();
-    runtime.autoAdvanceTask = schedule(nextRoundOrFinish, 2100);
+    runtime.autoAdvanceTask = runtime.mode === 'time' ? null : schedule(nextRoundOrFinish, 2100);
   }
 
   function nextRoundOrFinish() {
@@ -1090,7 +1164,7 @@
       if (!runtime.open || (runtime.stage !== 'time-ready' && runtime.stage !== 'time-running')) { runtime.timeRaf = 0; return; }
       if (!runtime.paused && !runtime.visibilityPaused) {
         const elapsed = currentTimeElapsed();
-        updateTimeRings(elapsed);
+        drawTimeVisual(elapsed, runtime.stage === 'time-running' ? 'holding' : 'preview');
         if (runtime.stage === 'time-running') {
           const own = runtime.overlay?.querySelector('[data-dial-time-user-value]');
           if (own) own.innerHTML = `${(elapsed / 1000).toFixed(2)}<span>s</span>`;
@@ -1098,7 +1172,7 @@
       }
       runtime.timeRaf = requestAnimationFrame(loop);
     };
-    updateTimeRings(currentTimeElapsed());
+    drawTimeVisual(currentTimeElapsed(), runtime.stage === 'time-running' ? 'holding' : 'preview');
     runtime.timeRaf = requestAnimationFrame(loop);
   }
 
