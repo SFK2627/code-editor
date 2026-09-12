@@ -168,11 +168,11 @@ body.dial-in-active{overflow:hidden}
 .dial-in-card-time-preview .dial-in-stage-step,.dial-in-card-time-waiting .dial-in-stage-step,.dial-in-card-time-holding .dial-in-stage-step,.dial-in-time-result-card .dial-in-stage-step{color:rgba(255,255,255,.92)}
 .dial-in-time-rings{position:absolute;inset:-2%;overflow:hidden;pointer-events:none;background:#000}
 .dial-in-time-rings svg{width:104%;height:104%;margin:-2%;overflow:visible;filter:drop-shadow(0 0 7px rgba(105,175,255,.08))}
-.dial-in-time-ring{fill:none;stroke:url(#dialTimeGradient);stroke-width:1.65;opacity:.78;vector-effect:non-scaling-stroke;transform-box:fill-box;transform-origin:center;animation:dialTimeRingDrift calc(3.7s + var(--ring)*.16s) ease-in-out var(--ring-delay) infinite alternate;stroke-linecap:round;stroke-linejoin:round}
+.dial-in-time-ring{fill:none;stroke:url(#dialTimeGradient);stroke-width:1.65;opacity:.78;vector-effect:non-scaling-stroke;transform-box:fill-box;transform-origin:center;animation:none;stroke-linecap:round;stroke-linejoin:round}
 .dial-in-time-ring:nth-child(3n+1){opacity:.58;stroke-width:1.35}.dial-in-time-ring:nth-child(3n+2){opacity:.9;stroke-width:1.8}.dial-in-time-ring:nth-child(3n){opacity:.68}
-.dial-in-time-rings.is-preview .dial-in-time-ring{animation-duration:3.3s}
-.dial-in-time-rings.is-holding .dial-in-time-ring{animation-duration:2.55s;filter:drop-shadow(0 0 3px rgba(165,120,255,.18))}
-.dial-in-time-rings.is-result{opacity:.72}.dial-in-time-rings.is-result .dial-in-time-ring{animation-duration:4.5s}
+.dial-in-time-rings.is-preview .dial-in-time-ring{filter:drop-shadow(0 0 2px rgba(119,199,255,.14))}
+.dial-in-time-rings.is-holding .dial-in-time-ring{filter:drop-shadow(0 0 3px rgba(165,120,255,.18))}
+.dial-in-time-rings.is-result{opacity:.72}.dial-in-time-rings.is-result .dial-in-time-ring{filter:drop-shadow(0 0 3px rgba(165,120,255,.15))}
 .dial-in-time-preview-copy{position:absolute;z-index:3;left:20px;right:20px;bottom:27px;text-align:center;text-shadow:0 2px 16px rgba(0,0,0,.92)}
 .dial-in-time-preview-copy>strong{display:block;font-size:clamp(46px,12vw,78px);line-height:.88;letter-spacing:-.065em;font-weight:560;color:rgba(255,255,255,.78)}
 .dial-in-time-preview-copy>strong span{font-size:.45em;letter-spacing:0;margin-left:2px}.dial-in-time-preview-copy>strong.text-only{font-size:clamp(15px,4vw,20px);letter-spacing:-.02em;font-weight:750;color:rgba(255,255,255,.6)}
@@ -182,7 +182,7 @@ body.dial-in-active{overflow:hidden}
 .dial-in-time-hold-hint{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:10px;color:rgba(255,255,255,.28);animation:dialTimeHint 1.45s ease-in-out infinite}
 .dial-in-time-hold-hint i{width:56px;height:56px;border-radius:50%;border:1px solid rgba(255,255,255,.15);box-shadow:0 0 0 12px rgba(255,255,255,.025),0 0 0 24px rgba(255,255,255,.015)}.dial-in-time-hold-hint span{font-size:9px;font-weight:900;letter-spacing:.16em}
 .dial-in-time-holding-copy{position:absolute;z-index:3;left:18px;right:18px;bottom:27px;text-align:center;text-shadow:0 2px 18px #000}
-.dial-in-time-holding-copy strong{display:block;font-size:clamp(48px,12vw,78px);line-height:.86;letter-spacing:-.065em;font-weight:540;color:rgba(255,255,255,.72)}.dial-in-time-holding-copy strong span{font-size:.44em;letter-spacing:0;margin-left:2px}.dial-in-time-holding-copy small{display:block;margin-top:8px;color:rgba(255,255,255,.48);font-size:11px;font-weight:650}
+.dial-in-time-holding-copy strong{display:block;font-size:clamp(15px,4vw,20px);line-height:1.1;letter-spacing:-.02em;font-weight:760;color:rgba(255,255,255,.64)}.dial-in-time-holding-copy small{display:block;margin-top:7px;color:rgba(255,255,255,.46);font-size:11px;font-weight:650}
 .dial-in-time-result-score{position:absolute;z-index:5;right:24px;top:62px;width:min(68%,430px);text-align:right;text-shadow:0 2px 20px #000}
 .dial-in-time-result-score>strong{display:block;font-size:clamp(72px,17vw,126px);line-height:.78;letter-spacing:-.08em;font-weight:560}.dial-in-time-result-score>strong span{font-size:.28em;letter-spacing:0;margin-left:3px}.dial-in-time-result-score p{margin:18px 0 0 auto;max-width:390px;font-size:clamp(17px,3.2vw,25px);line-height:1.15;font-weight:720;color:rgba(255,255,255,.68)}
 .dial-in-time-result-values{position:absolute;z-index:5;left:22px;right:100px;bottom:24px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;text-shadow:0 2px 14px #000}
@@ -192,3 +192,22 @@ body.dial-in-active{overflow:hidden}
 @keyframes dialTimeHint{0%,100%{opacity:.52;transform:translate(-50%,-50%) scale(.98)}50%{opacity:.9;transform:translate(-50%,-50%) scale(1.04)}}
 @media (max-width:760px){.dial-in-time-result-score{right:18px;top:58px;width:74%}.dial-in-time-result-score p{font-size:16px;max-width:290px;margin-top:14px}.dial-in-time-result-values{left:18px;right:84px;bottom:18px;grid-template-columns:1fr;gap:8px}.dial-in-time-result-values>div{display:flex;align-items:baseline;justify-content:space-between;gap:10px}.dial-in-time-result-values strong{font-size:19px}.dial-in-time-result-values small{font-size:9px}.dial-in-time-preview-copy,.dial-in-time-holding-copy{bottom:21px}.dial-in-time-wait-copy{bottom:22px}}
 @media (max-height:700px){.dial-in-time-result-score{top:52px}.dial-in-time-result-score>strong{font-size:68px}.dial-in-time-result-score p{font-size:14px;margin-top:10px}.dial-in-time-result-values{bottom:12px;gap:5px}.dial-in-time-preview-copy,.dial-in-time-holding-copy{bottom:16px}.dial-in-time-wait-copy{bottom:16px}.dial-in-time-hold-hint{top:47%}}
+
+
+/* v10: reference-faithful TIME visual clock */
+.dial-in-card-time-cue{background:#000;color:#fff;touch-action:none;user-select:none}
+.dial-in-card-time-cue .dial-in-stage-step{color:rgba(255,255,255,.92)}
+.dial-in-time-cue-word{position:absolute;right:22px;top:28px;font-size:clamp(30px,7vw,54px);font-weight:560;letter-spacing:-.06em;text-transform:lowercase;color:rgba(255,255,255,.82)}
+.dial-in-time-rings{background:#000}
+.dial-in-time-rings svg{filter:drop-shadow(0 0 5px rgba(112,163,255,.16))}
+.dial-in-time-ring{stroke:url(#dialTimeGradient);stroke-width:1.5;will-change:transform,opacity,stroke-width;filter:drop-shadow(0 0 1px rgba(137,173,255,.16))}
+.dial-in-time-core{will-change:r,opacity;filter:blur(.2px) drop-shadow(0 0 15px rgba(137,132,255,.58));opacity:.2}
+.dial-in-time-preview-copy{bottom:20px}.dial-in-time-preview-copy>strong.text-only{font-size:clamp(12px,3vw,16px);font-weight:620;color:rgba(255,255,255,.48);text-transform:lowercase}
+.dial-in-time-wait-copy{bottom:22px}.dial-in-time-wait-copy strong{font-size:clamp(12px,3vw,16px);font-weight:620;color:rgba(255,255,255,.46);text-transform:lowercase}
+.dial-in-time-hold-hint{display:none}
+.dial-in-time-user-value{position:absolute;z-index:5;left:0;right:0;bottom:22px;text-align:center;font-size:clamp(48px,13vw,84px);line-height:.9;letter-spacing:-.065em;font-weight:500;color:rgba(255,255,255,.78);text-shadow:0 2px 18px #000}.dial-in-time-user-value span{font-size:.45em;letter-spacing:0;margin-left:2px}
+.dial-in-time-holding-copy{display:none}
+.dial-in-time-result-score{right:24px;top:56px;width:min(70%,440px)}.dial-in-time-result-score>strong{font-size:clamp(78px,19vw,138px);line-height:.78;letter-spacing:-.08em;font-weight:540}.dial-in-time-result-score p{margin:16px 0 0 auto;font-size:clamp(16px,3.1vw,24px);line-height:1.1;color:rgba(255,255,255,.62)}
+.dial-in-time-result-values{left:24px;right:110px;bottom:24px;grid-template-columns:1fr;gap:2px}.dial-in-time-result-values>div{display:block}.dial-in-time-result-values small{font-size:12px;text-transform:lowercase;color:rgba(255,255,255,.38)}.dial-in-time-result-values strong{font-size:clamp(46px,9vw,78px);font-weight:540;color:rgba(255,255,255,.92)}.dial-in-time-result-values strong span{font-size:.34em}
+@media (max-width:760px){.dial-in-time-cue-word{right:18px;top:24px;font-size:36px}.dial-in-time-user-value{bottom:20px;font-size:58px}.dial-in-time-result-score{right:18px;top:54px;width:72%}.dial-in-time-result-score>strong{font-size:84px}.dial-in-time-result-score p{font-size:15px;max-width:280px}.dial-in-time-result-values{left:18px;right:84px;bottom:18px;gap:2px}.dial-in-time-result-values>div{display:block}.dial-in-time-result-values small{font-size:10px}.dial-in-time-result-values strong{font-size:40px}}
+@media (max-height:680px){.dial-in-time-cue-word{top:18px}.dial-in-time-user-value{bottom:14px;font-size:46px}.dial-in-time-result-score{top:46px}.dial-in-time-result-score>strong{font-size:66px}.dial-in-time-result-score p{font-size:13px;margin-top:8px}.dial-in-time-result-values{bottom:12px}.dial-in-time-result-values strong{font-size:31px}}

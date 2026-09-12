@@ -16,8 +16,8 @@
   const ROUND_COUNT = 5;
   const COLOR_VIEW_MS = [4000, 3500, 3000, 2500, 2000];
   const SOUND_DURATION_MS = [1600, 1500, 1450, 1375, 1300];
-  const SOUND_MAX_HZ = [640, 720, 820, 920, 1000];
-  const SOUND_MIN_HZ = 220;
+  const SOUND_MAX_HZ = 1200;
+  const SOUND_MIN_HZ = 80;
   const TUTORIAL_KEY_PREFIX = 'ict8_dial_in_tutorial_v1_';
 
   const runtime = {
@@ -52,6 +52,8 @@
     timeRaf: 0,
     timeHoldPointerId: null,
     timeKeyboardHolding: false,
+    timeCueText: '',
+    soundModeMusicPaused: false,
     paused: false,
     visibilityPaused: false,
     pauseReason: '',
@@ -78,6 +80,27 @@
   function modeMeta(mode = runtime.mode) { return MODES[mode] || MODES.color; }
   function currentChallenge() { return runtime.challenges[runtime.roundIndex] || null; }
   function soundOn() { return runtime.bridge?.getSnapshot?.()?.soundEnabled !== false && runtime.soundEnabled !== false; }
+
+
+  function pauseMusicForSoundMode() {
+    if (runtime.mode !== 'sound') return;
+    try {
+      const pausedNow = runtime.music?.pause?.();
+      if (pausedNow !== false) runtime.soundModeMusicPaused = true;
+    } catch (_) {}
+  }
+
+  function restoreMusicAfterSoundMode() {
+    if (!runtime.soundModeMusicPaused) return;
+    runtime.soundModeMusicPaused = false;
+    if (!soundOn()) return;
+    try { runtime.music?.resume?.(); } catch (_) {}
+  }
+
+  function syncModeMusicFocus() {
+    if (runtime.mode === 'sound') pauseMusicForSoundMode();
+    else restoreMusicAfterSoundMode();
+  }
 
   function hash32(value = '') {
     let h = 2166136261 >>> 0;
@@ -110,12 +133,19 @@
         };
       }
       if (mode === 'sound') {
-        const maxHz = SOUND_MAX_HZ[index];
+        const maxHz = SOUND_MAX_HZ;
         const ratio = maxHz / SOUND_MIN_HZ;
+        const targetLevel = clamp(a, 0, 1);
+        let startLevel;
+        if (targetLevel < .45) startLevel = .80 + b * .16;
+        else if (targetLevel > .55) startLevel = .04 + b * .16;
+        else startLevel = b < .5 ? (.04 + c * .16) : (.80 + c * .16);
+        if (Math.abs(startLevel - targetLevel) < .34) startLevel = targetLevel < .5 ? .94 : .06;
         return {
-          hz: Math.round(SOUND_MIN_HZ * Math.pow(ratio, a)),
+          hz: Math.round(SOUND_MIN_HZ * Math.pow(ratio, targetLevel)),
           minHz: SOUND_MIN_HZ,
           maxHz,
+          startSlider: Math.round(clamp(startLevel, .02, .98) * 1000),
           durationMs: SOUND_DURATION_MS[index],
           replayAllowed: index === 0
         };
@@ -492,7 +522,7 @@
   function soundLevelForHz(hz, challenge = currentChallenge()) {
     if (!challenge) return .5;
     const minHz = Math.max(1, Number(challenge.minHz || SOUND_MIN_HZ));
-    const maxHz = Math.max(minHz + 1, Number(challenge.maxHz || 1000));
+    const maxHz = Math.max(minHz + 1, Number(challenge.maxHz || SOUND_MAX_HZ));
     return clamp(Math.log(Math.max(minHz, Number(hz || minHz)) / minHz) / Math.log(maxHz / minHz), 0, 1);
   }
 
@@ -609,30 +639,59 @@
   }
 
   function timeRingsHtml(state = 'preview') {
-    const rings = Array.from({ length: 11 }, (_, index) => {
-      const radius = 24 + index * 23.2;
-      return `<path class="dial-in-time-ring ring-${index + 1}" d="${makeTimeRingPath(radius, index)}" style="--ring:${index};--ring-delay:${(-index * .16).toFixed(2)}s"></path>`;
+    const rings = Array.from({ length: 12 }, (_, index) => {
+      const radius = 20 + index * 22.2;
+      return `<path class="dial-in-time-ring ring-${index + 1}" d="${makeTimeRingPath(radius, index)}" style="--ring:${index}"></path>`;
     }).join('');
-    return `<div class="dial-in-time-rings is-${state}" data-dial-time-rings aria-hidden="true"><svg viewBox="0 0 600 600" preserveAspectRatio="xMidYMid slice"><defs><linearGradient id="dialTimeGradient" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#77c7ff"></stop><stop offset=".48" stop-color="#89a8ff"></stop><stop offset="1" stop-color="#d394ff"></stop></linearGradient></defs><g>${rings}</g></svg></div>`;
+    return `<div class="dial-in-time-rings is-${state}" data-dial-time-rings aria-hidden="true"><svg viewBox="0 0 600 600" preserveAspectRatio="xMidYMid slice"><defs><linearGradient id="dialTimeGradient" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#6cc7ff"></stop><stop offset=".5" stop-color="#8f9cff"></stop><stop offset="1" stop-color="#d489ff"></stop></linearGradient><radialGradient id="dialTimeCore"><stop offset="0" stop-color="#ffffff" stop-opacity=".95"></stop><stop offset=".3" stop-color="#a7c8ff" stop-opacity=".75"></stop><stop offset="1" stop-color="#9966ff" stop-opacity="0"></stop></radialGradient></defs><g>${rings}</g><circle class="dial-in-time-core" data-dial-time-core cx="300" cy="300" r="24" fill="url(#dialTimeCore)"></circle></svg></div>`;
   }
 
-  function timeReadyHtml(challenge) {
-    const showNumber = runtime.roundIndex <= 1;
+  function updateTimeRings(elapsedMs) {
+    const t = Math.max(0, Number(elapsedMs || 0)) / 1000;
+    const pulseA = Math.pow((Math.sin(t * 3.05 - .35) + 1) / 2, 8);
+    const pulseB = Math.pow((Math.sin(t * 1.62 + 1.1) + 1) / 2, 12);
+    const bloom = clamp(pulseA * .78 + pulseB * .36, 0, 1);
+    runtime.overlay?.querySelectorAll('.dial-in-time-ring').forEach((ring, index) => {
+      const phase = index * .47;
+      const depth = index / 11;
+      const driftX = Math.sin(t * .71 + phase) * (2 + index * .5) + Math.sin(t * .23 + phase * .5) * (1.4 + index * .18);
+      const driftY = Math.cos(t * .63 + phase * .84) * (1.8 + index * .42) + Math.sin(t * .31 - phase * .42) * (1.1 + index * .14);
+      const rotate = Math.sin(t * .43 + phase) * (4 + index * .82) + Math.sin(t * .17 + phase * .34) * 3.1;
+      const breathe = Math.sin(t * .92 + phase * .72) * (.018 + depth * .028);
+      const ripple = Math.sin(t * 1.48 - phase * .58) * (.012 + depth * .018);
+      const bloomScale = bloom * (.035 + (1 - depth) * .09);
+      const sx = 1 + breathe + ripple + bloomScale;
+      const sy = 1 - breathe * .62 + ripple * .72 + bloomScale * .76;
+      ring.style.transform = `translate(${driftX.toFixed(2)}px,${driftY.toFixed(2)}px) rotate(${rotate.toFixed(2)}deg) scale(${sx.toFixed(4)},${sy.toFixed(4)})`;
+      ring.style.opacity = String(clamp(.48 + depth * .22 + .22 * Math.sin(t * .52 + phase) + bloom * .22, .28, .98));
+      ring.style.strokeWidth = String((1.15 + depth * .72 + bloom * (1.45 - depth * .6)).toFixed(2));
+    });
+    const core = runtime.overlay?.querySelector('[data-dial-time-core]');
+    if (core) {
+      core.setAttribute('r', String((14 + bloom * 30 + 4 * Math.sin(t * 1.2)).toFixed(2)));
+      core.style.opacity = String(clamp(.12 + bloom * .92, .08, 1));
+    }
+  }
+
+  function timeCueHtml() {
+    return `<section class="dial-in-play dial-in-card dial-in-screen-enter dial-in-card-time-cue">
+      ${uiStageMeta('time')}
+      <div class="dial-in-time-cue-word" data-dial-time-cue>${runtime.timeCueText || 'ready'}</div>
+    </section>`;
+  }
+
+  function timeReadyHtml() {
     return `<section class="dial-in-play dial-in-card dial-in-screen-enter dial-in-card-time-preview">
       ${uiStageMeta('time')}
       ${timeRingsHtml('preview')}
-      <div class="dial-in-time-preview-copy">
-        ${showNumber ? `<strong>${(challenge.targetMs / 1000).toFixed(2)}<span>s</span></strong>` : '<strong class="text-only">remember the timing</strong>'}
-        ${showNumber ? '<small>remember this duration</small>' : '<small>watch how long the rings stay alive</small>'}
-      </div>
+      <div class="dial-in-time-preview-copy"><strong class="text-only">remember the timing</strong></div>
     </section>`;
   }
 
   function timeWaitingHtml() {
     return `<section class="dial-in-play dial-in-card dial-in-screen-enter dial-in-card-time-waiting" data-dial-time-hold tabindex="0" role="button" aria-label="Press and hold to match the timing">
       ${uiStageMeta('time')}
-      <div class="dial-in-time-wait-copy"><strong>your turn</strong><small>press & hold to match</small></div>
-      <div class="dial-in-time-hold-hint"><i></i><span>HOLD ANYWHERE</span></div>
+      <div class="dial-in-time-wait-copy"><strong>your turn — hold to match</strong></div>
     </section>`;
   }
 
@@ -640,7 +699,7 @@
     return `<section class="dial-in-play dial-in-card dial-in-screen-enter dial-in-card-time-holding" data-dial-time-hold tabindex="0" role="button" aria-label="Release to stop">
       ${uiStageMeta('time')}
       ${timeRingsHtml('holding')}
-      <div class="dial-in-time-holding-copy"><strong data-dial-time-number>0.00<span>s</span></strong><small>release when it feels right</small></div>
+      <div class="dial-in-time-user-value" data-dial-time-user-value>0.00<span>s</span></div>
     </section>`;
   }
 
@@ -656,15 +715,30 @@
   }
 
   function timeResultHtml(result) {
-    const sign = result.deltaMs >= 0 ? '+' : '−';
-    const off = Math.abs(result.deltaMs) / 1000;
+    const score10 = clamp(Number(result.accuracy || 0) / 10, 0, 10);
     return `<section class="dial-in-result dial-in-card dial-in-screen-enter dial-in-time-result-card">
       ${uiStageMeta('time')}
       ${timeRingsHtml('result')}
-      <div class="dial-in-time-result-score"><strong>${off.toFixed(2)}<span>s</span></strong><p>${timeResultFlavor(result.deltaMs)}</p></div>
-      <div class="dial-in-time-result-values"><div><small>TARGET</small><strong>${(result.targetMs / 1000).toFixed(2)}<span> sec</span></strong></div><div><small>YOU</small><strong>${(result.actualMs / 1000).toFixed(2)}<span> sec</span></strong></div><div><small>OFF BY</small><strong>${sign}${off.toFixed(2)}<span> sec</span></strong></div></div>
+      <div class="dial-in-time-result-score"><strong data-dial-time-result-score data-score="${score10.toFixed(2)}">0.00</strong><p>${timeResultFlavor(result.deltaMs)}</p></div>
+      <div class="dial-in-time-result-values"><div><small>target</small><strong>${(result.targetMs / 1000).toFixed(2)}<span> sec</span></strong></div><div><small>you</small><strong>${(result.actualMs / 1000).toFixed(2)}<span> sec</span></strong></div></div>
       <button type="button" class="dial-in-fab" data-dial-next aria-label="${runtime.roundIndex >= 4 ? 'See results' : 'Next round'}">→</button>
     </section>`;
+  }
+
+  function animateTimeResultScore() {
+    const el = runtime.overlay?.querySelector('[data-dial-time-result-score]');
+    if (!el) return;
+    const target = clamp(Number(el.dataset.score || 0), 0, 10);
+    const start = performance.now();
+    const duration = 780;
+    const tick = now => {
+      if (!runtime.open || runtime.stage !== 'time-result' || !document.contains(el)) return;
+      const p = clamp((now - start) / duration, 0, 1);
+      const eased = 1 - Math.pow(1 - p, 3);
+      el.textContent = (target * eased).toFixed(2);
+      if (p < 1) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
   }
 
   function finalHtml() {
@@ -693,7 +767,8 @@
     else if (runtime.stage === 'sound-target') html = soundTargetHtml(currentChallenge());
     else if (runtime.stage === 'sound-guess') html = soundGuessHtml();
     else if (runtime.stage === 'sound-result') html = soundResultHtml(runtime.roundResults[runtime.roundResults.length - 1]);
-    else if (runtime.stage === 'time-ready') html = timeReadyHtml(currentChallenge());
+    else if (runtime.stage === 'time-cue') html = timeCueHtml();
+    else if (runtime.stage === 'time-ready') html = timeReadyHtml();
     else if (runtime.stage === 'time-waiting') html = timeWaitingHtml();
     else if (runtime.stage === 'time-running') html = timeRunningHtml();
     else if (runtime.stage === 'time-result') html = timeResultHtml(runtime.roundResults[runtime.roundResults.length - 1]);
@@ -706,7 +781,12 @@
       runtime.overlay.dataset.mode = runtime.mode || '';
       runtime.overlay.dataset.view = /^(home|tutorial)$/.test(runtime.stage) ? 'menu' : 'immersive';
     }
-    if (runtime.stage === 'time-running') startTimeRaf();
+    syncModeMusicFocus();
+    if (runtime.stage === 'time-ready' || runtime.stage === 'time-running') startTimeRaf();
+    else if (runtime.stage === 'time-result') {
+      updateTimeRings(runtime.roundResults[runtime.roundResults.length - 1]?.actualMs || 0);
+      animateTimeResultScore();
+    }
   }
 
   function ratingFor(accuracy) {
@@ -728,6 +808,7 @@
 
   function showHome() {
     abandonSession();
+    restoreMusicAfterSoundMode();
     runtime.stage = 'home';
     runtime.mode = '';
     snapshotRecord();
@@ -736,8 +817,10 @@
 
   function selectMode(mode) {
     if (!MODES[mode]) return;
+    if (mode !== 'sound') restoreMusicAfterSoundMode();
     if (mode === 'sound' && !soundOn()) {
       runtime.mode = mode;
+      syncModeMusicFocus();
       runtime.stage = 'tutorial';
       render();
       const h = runtime.main.querySelector('h2');
@@ -746,6 +829,7 @@
       return;
     }
     runtime.mode = mode;
+    syncModeMusicFocus();
     sfx('mode');
     if (!tutorialSeen(mode)) {
       runtime.stage = 'tutorial';
@@ -759,6 +843,7 @@
     if (!MODES[mode]) return;
     if (mode === 'sound' && !soundOn()) {
       runtime.mode = mode;
+      syncModeMusicFocus();
       runtime.stage = 'tutorial';
       render();
       const h = runtime.main.querySelector('h2');
@@ -767,6 +852,7 @@
     }
     abandonSession();
     runtime.mode = mode;
+    syncModeMusicFocus();
     runtime.roundIndex = 0;
     runtime.roundResults = [];
     runtime.soundReplayUsed = false;
@@ -792,6 +878,7 @@
     runtime.roundIndex = 0;
     runtime.timeStartedAt = 0;
     runtime.timePausedMs = 0;
+    runtime.timeCueText = '';
     runtime.dragKind = '';
     runtime.dragKey = '';
     runtime.dragPointerId = null;
@@ -804,7 +891,7 @@
     runtime.stage = 'transition';
     runtime.soundReplayUsed = false;
     if (runtime.mode === 'color') runtime.colorGuess = { h: 180, s: 60, l: 50 };
-    if (runtime.mode === 'sound') runtime.soundSlider = 500;
+    if (runtime.mode === 'sound') runtime.soundSlider = Number(currentChallenge()?.startSlider ?? 500);
     render();
     sfx('round');
     schedule(beginCurrentRound, 720);
@@ -829,10 +916,46 @@
       playSoundTarget();
       return;
     }
+    startTimeCueSequence();
+  }
+
+  function startTimeCueSequence() {
+    clearTasks();
+    stopTimeRaf();
+    runtime.timeStartedAt = 0;
+    runtime.timePausedMs = 0;
+    runtime.timePauseStartedAt = 0;
+    runtime.timeCueText = 'ready';
+    runtime.stage = 'time-cue';
+    render();
+    schedule(() => {
+      if (runtime.stage !== 'time-cue') return;
+      runtime.timeCueText = 'set';
+      render();
+    }, 460);
+    schedule(() => {
+      if (runtime.stage !== 'time-cue') return;
+      runtime.timeCueText = 'go';
+      render();
+      sfx('start');
+    }, 900);
+    schedule(startTimePreview, 1240);
+  }
+
+  function startTimePreview() {
+    const ch = currentChallenge();
+    if (!ch || runtime.stage !== 'time-cue') return;
     runtime.stage = 'time-ready';
+    runtime.timeStartedAt = performance.now();
+    runtime.timePausedMs = 0;
+    runtime.timePauseStartedAt = 0;
     render();
     schedule(() => {
       if (!runtime.open || runtime.paused || runtime.visibilityPaused || runtime.stage !== 'time-ready') return;
+      stopTimeRaf();
+      runtime.timeStartedAt = 0;
+      runtime.timePausedMs = 0;
+      runtime.timePauseStartedAt = 0;
       runtime.stage = 'time-waiting';
       render();
       sfx('vanish');
@@ -964,14 +1087,18 @@
   function startTimeRaf() {
     stopTimeRaf();
     const loop = () => {
-      if (!runtime.open || runtime.stage !== 'time-running') { runtime.timeRaf = 0; return; }
+      if (!runtime.open || (runtime.stage !== 'time-ready' && runtime.stage !== 'time-running')) { runtime.timeRaf = 0; return; }
       if (!runtime.paused && !runtime.visibilityPaused) {
         const elapsed = currentTimeElapsed();
-        const number = runtime.overlay?.querySelector('[data-dial-time-number]');
-        if (number) number.innerHTML = `${(elapsed / 1000).toFixed(2)}<span>s</span>`;
+        updateTimeRings(elapsed);
+        if (runtime.stage === 'time-running') {
+          const own = runtime.overlay?.querySelector('[data-dial-time-user-value]');
+          if (own) own.innerHTML = `${(elapsed / 1000).toFixed(2)}<span>s</span>`;
+        }
       }
       runtime.timeRaf = requestAnimationFrame(loop);
     };
+    updateTimeRings(currentTimeElapsed());
     runtime.timeRaf = requestAnimationFrame(loop);
   }
 
@@ -987,6 +1114,7 @@
     stopTimeRaf();
     runtime.timeStartedAt = 0;
     runtime.timeHoldPointerId = null;
+    runtime.timeCueText = '';
     runtime.timeKeyboardHolding = false;
     sfx('stop');
     vibrate(18);
@@ -1295,7 +1423,8 @@
     runtime.bridge?.setSoundEnabled?.(next);
     updateSoundButton();
     if (next) {
-      try { runtime.music?.resume?.(); } catch (_) {}
+      if (runtime.mode !== 'sound') { try { runtime.music?.resume?.(); } catch (_) {} }
+      else pauseMusicForSoundMode();
       ensureAudio();
       sfx('mode');
     } else {
@@ -1318,7 +1447,7 @@
     runtime.paused = true;
     runtime.pauseReason = reason || 'pause';
     pauseTasks();
-    if (runtime.stage === 'time-running' && !runtime.timePauseStartedAt) runtime.timePauseStartedAt = performance.now();
+    if ((runtime.stage === 'time-ready' || runtime.stage === 'time-running') && !runtime.timePauseStartedAt) runtime.timePauseStartedAt = performance.now();
     stopTransientAudio();
     if (show) showPause();
     return true;
@@ -1326,7 +1455,7 @@
 
   function resumeCore() {
     if (!runtime.open || !runtime.paused) return false;
-    if (runtime.stage === 'time-running' && runtime.timePauseStartedAt) {
+    if ((runtime.stage === 'time-ready' || runtime.stage === 'time-running') && runtime.timePauseStartedAt) {
       runtime.timePausedMs += performance.now() - runtime.timePauseStartedAt;
       runtime.timePauseStartedAt = 0;
     }
@@ -1334,6 +1463,7 @@
     runtime.pauseReason = '';
     hidePause();
     resumeTasks();
+    if (runtime.mode === 'sound') pauseMusicForSoundMode();
     if (runtime.stage === 'sound-target') playSoundTarget();
     return true;
   }
@@ -1346,15 +1476,16 @@
     if (document.hidden) {
       runtime.visibilityPaused = true;
       pauseTasks();
-      if (runtime.stage === 'time-running' && !runtime.timePauseStartedAt) runtime.timePauseStartedAt = performance.now();
+      if ((runtime.stage === 'time-ready' || runtime.stage === 'time-running') && !runtime.timePauseStartedAt) runtime.timePauseStartedAt = performance.now();
       stopTransientAudio();
     } else if (runtime.visibilityPaused) {
       runtime.visibilityPaused = false;
-      if (runtime.stage === 'time-running' && runtime.timePauseStartedAt) {
+      if ((runtime.stage === 'time-ready' || runtime.stage === 'time-running') && runtime.timePauseStartedAt) {
         runtime.timePausedMs += performance.now() - runtime.timePauseStartedAt;
         runtime.timePauseStartedAt = 0;
       }
       if (!runtime.paused) resumeTasks();
+      if (runtime.mode === 'sound') pauseMusicForSoundMode();
       if (!runtime.paused && runtime.stage === 'sound-target') playSoundTarget();
     }
   }

@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const ASSET_VERSION = '20260912-v4761-dial-in-v8-time-hold';
+  const ASSET_VERSION = '20260912-v4761-dial-in-v10-time-reference-soundfocus';
 
   const GAME_REGISTRY = Object.freeze([
     {
