@@ -1435,145 +1435,211 @@
     const hit=runtime.stumbleTime>0;
     const celebrating=runtime.state==='ROUND_COMPLETE';
     const idle=runtime.state!=='RUNNING'&&runtime.state!=='COUNTDOWN'&&!celebrating;
-    const phoneBoost=w<=520?1.11:1;
+    const running=!jumping&&!slide&&!idle&&!celebrating;
+    const phoneBoost=w<=520?1.15:1;
     const scale=clamp(h/690,.82,1.22)*phoneBoost;
-    const runRate=clamp(runtime.speed/22,.82,1.38);
-    const runPhase=time*.0102*runRate;
-    const swing=Math.sin(runPhase);
-    const opposite=Math.sin(runPhase+Math.PI);
 
-    // Pose envelopes: smooth transition in/out instead of instantly snapping into a slide.
+    // Rear-view gait: forward/back stride is represented mostly through leg
+    // compression and foot lift, not giant sideways sweeps. The old horizontal
+    // leg motion is what made BYTE read like an octopus sliding across the road.
+    const runRate=clamp(runtime.speed/22,.84,1.36);
+    const runPhase=time*.00945*runRate;
+    const stride=Math.sin(runPhase);
+    const leftLift=Math.max(0,stride);
+    const rightLift=Math.max(0,-stride);
+    const leftPlant=Math.max(0,-stride);
+    const rightPlant=Math.max(0,stride);
+
+    // Pose envelopes.
     const slideElapsed=slide?clamp((SLIDE_DURATION-runtime.slideTime)/SLIDE_DURATION,0,1):0;
-    // 1.5s slide: quick drop, a long readable low hold, then a smooth recovery.
+    // 1.5 s total: fast crouch, long readable low phase, smooth recovery.
     const slidePose=slide?(slideElapsed<.18?easeOutCubic(slideElapsed/.18):slideElapsed>.82?easeOutCubic((1-slideElapsed)/.18):1):0;
     const jumpAir=clamp(runtime.jumpY/1.18,0,1);
     const jumpRise=jumping?clamp((runtime.jumpVy+2.4)/8.9,0,1):0;
     const jumpFall=jumping?clamp((-runtime.jumpVy)/7.5,0,1):0;
 
-    const bob=jumping||slide||idle?0:(1.05+.72*Math.abs(Math.sin(runPhase*2)))*scale;
+    const bob=running?(0.55+1.15*Math.abs(Math.sin(runPhase*2)))*scale:0;
     const idleBob=idle?Math.sin(time*.0028)*.7*scale:0;
     const celebrationBob=celebrating?Math.abs(Math.sin(time*.006))*5*scale:0;
     const landingAmount=runtime.landingKick>0?clamp(runtime.landingKick/.18,0,1):0;
-    const baseY=h*.958-runtime.jumpY*78-celebrationBob+slidePose*26*scale;
-    const laneLean=clamp((runtime.lane-runtime.lanePos)*-.085,-.065,.065);
+    const baseY=h*.958-runtime.jumpY*78-celebrationBob+slidePose*25*scale;
+    const laneLean=clamp((runtime.lane-runtime.lanePos)*-.07,-.05,.05);
 
+    // Ground shadow stays centered under the character so lane movement reads as
+    // running instead of the body drifting independently from its feet.
     ctx.save();
     const air=clamp(runtime.jumpY/1.25,0,.78);
-    ctx.globalAlpha=.26*(1-air*.58); ctx.fillStyle='#020617'; ctx.beginPath();
-    ctx.ellipse(x,h*.963,28*scale*(1-air*.18+slidePose*.22),7*scale*(1-air*.25),0,0,Math.PI*2); ctx.fill();
+    ctx.globalAlpha=.25*(1-air*.58); ctx.fillStyle='#020617'; ctx.beginPath();
+    ctx.ellipse(x,h*.963,27*scale*(1-air*.16+slidePose*.16),6.4*scale*(1-air*.25),0,0,Math.PI*2); ctx.fill();
     if(landingAmount>0){
       ctx.globalAlpha=.18*landingAmount; ctx.strokeStyle='#a5f3fc'; ctx.lineWidth=1.2*scale;
-      ctx.beginPath(); ctx.arc(x,h*.961,24*scale+18*scale*(1-landingAmount),0,Math.PI*2); ctx.stroke();
+      ctx.beginPath(); ctx.arc(x,h*.961,23*scale+17*scale*(1-landingAmount),0,Math.PI*2); ctx.stroke();
     }
     ctx.restore();
 
     ctx.save();
-    ctx.translate(x,baseY+bob+idleBob+landingAmount*2.5*scale);
-    // Slide should crouch, not simply tip sideways. Lane lean remains tiny for direction feedback.
-    const runShoulderSway=(!jumping&&!slide&&!idle)?Math.sin(runPhase)*.008:0;
-    ctx.rotate(hit?Math.sin(time*.045)*.08:laneLean*(slide?0.22:1)+runShoulderSway);
-    ctx.scale(1+landingAmount*.045+slidePose*.12,1-landingAmount*.075-slidePose*.18);
+    ctx.translate(x,baseY+bob+idleBob+landingAmount*2.2*scale);
+    // Only lane changes tilt the runner. No sinusoidal body rotation during the
+    // normal gait; that sideways rocking was another source of the sliding feel.
+    ctx.rotate(hit?Math.sin(time*.045)*.07:laneLean*(slide?.18:.58));
+    ctx.scale(1+landingAmount*.035,1-landingAmount*.055);
     if(runtime.invulnerable>0&&Math.floor(runtime.invulnerable*12)%2===0)ctx.globalAlpha=.56;
 
     if(runtime.shield){
       ctx.strokeStyle='rgba(190,242,100,.72)'; ctx.lineWidth=2.2*scale; ctx.beginPath(); ctx.arc(0,-45*scale,43*scale,0,Math.PI*2); ctx.stroke();
     }
 
+    const hipSway=running?stride*1.15*scale:0;
+    const shoulderCounter=running?-stride*.55*scale:0;
     const hipY=lerp(-22,-4,slidePose)*scale;
     const shoulderY=lerp(-57,-24,slidePose)*scale;
-    const leftHipX=-9*scale, rightHipX=9*scale;
+    const leftHipX=-8.5*scale+hipSway;
+    const rightHipX=8.5*scale+hipSway;
+    const leftShoulderX=-20*scale+shoulderCounter;
+    const rightShoulderX=20*scale+shoulderCounter;
 
     ctx.lineCap='round'; ctx.lineJoin='round';
 
-    // LEGS
-    ctx.strokeStyle='#173c59'; ctx.lineWidth=8*scale;
-    ctx.beginPath();
+    // LEGS — separate articulated limbs with restrained lateral travel.
     if(slide){
-      // One leg folds under the hips while the other extends low and forward.
-      // Combined with the lowered torso/head this reads as a real slide/crouch pose.
-      const fold=slidePose;
-      // Full crouch: hips almost at ground level, one leg tucked and the other extended forward.
-      ctx.moveTo(leftHipX,hipY); ctx.lineTo(lerp(-10,-7,fold)*scale,lerp(-8,1,fold)*scale); ctx.lineTo(lerp(-20,-34,fold)*scale,lerp(1,5,fold)*scale);
-      ctx.moveTo(rightHipX,hipY); ctx.lineTo(lerp(13,24,fold)*scale,lerp(-7,0,fold)*scale); ctx.lineTo(lerp(23,44,fold)*scale,lerp(0,4,fold)*scale);
+      ctx.strokeStyle='#173c59'; ctx.lineWidth=8*scale;
+      ctx.beginPath(); ctx.moveTo(leftHipX,hipY); ctx.lineTo(-9*scale,0); ctx.lineTo(-22*scale,4*scale); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(rightHipX,hipY); ctx.lineTo(12*scale,-1*scale); ctx.lineTo(28*scale,3*scale); ctx.stroke();
+      ctx.fillStyle='#1f5577';
+      ctx.beginPath(); ctx.arc(-9*scale,0,4.1*scale,0,Math.PI*2); ctx.arc(12*scale,-1*scale,4.1*scale,0,Math.PI*2); ctx.fill();
     }else if(jumping){
-      // Tucked knees on ascent/apex; legs extend progressively on descent for a readable landing.
-      const tuck=clamp(.46+jumpAir*.48-jumpFall*.22,0,1);
-      ctx.moveTo(leftHipX,hipY); ctx.lineTo((-13-5*tuck)*scale,(-8+2*tuck)*scale); ctx.lineTo((-5-4*tuck)*scale,(1+3*jumpFall)*scale);
-      ctx.moveTo(rightHipX,hipY); ctx.lineTo((13+5*tuck)*scale,(-8+2*tuck)*scale); ctx.lineTo((5+4*tuck)*scale,(1+3*jumpFall)*scale);
+      const tuck=clamp(.42+jumpAir*.48-jumpFall*.18,0,1);
+      const lkx=(-9-2.5*tuck)*scale, rkx=(9+2.5*tuck)*scale;
+      const lky=(-9-5.5*tuck+2*jumpFall)*scale, rky=(-9-5.5*tuck+2*jumpFall)*scale;
+      const lfx=(-8-2*tuck)*scale, rfx=(8+2*tuck)*scale;
+      const lfy=(1+4*jumpFall-5*tuck)*scale, rfy=(1+4*jumpFall-5*tuck)*scale;
+      ctx.strokeStyle='#173c59'; ctx.lineWidth=8*scale;
+      ctx.beginPath(); ctx.moveTo(leftHipX,hipY);ctx.lineTo(lkx,lky);ctx.lineTo(lfx,lfy);ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(rightHipX,hipY);ctx.lineTo(rkx,rky);ctx.lineTo(rfx,rfy);ctx.stroke();
     }else{
-      // Stronger readable run cycle: knee drive, foot lift, and opposite planted stride.
-      const lLift=Math.max(0,swing), rLift=Math.max(0,opposite);
-      const lKneeX=(-8+swing*11)*scale, rKneeX=(8+opposite*11)*scale;
-      const lKneeY=(-8-lLift*7+rLift*1.5)*scale, rKneeY=(-8-rLift*7+lLift*1.5)*scale;
-      const lFootX=(-12+swing*20)*scale, rFootX=(12+opposite*20)*scale;
-      const lFootY=(3-lLift*8)*scale, rFootY=(3-rLift*8)*scale;
-      ctx.moveTo(leftHipX,hipY); ctx.lineTo(lKneeX,lKneeY); ctx.lineTo(lFootX,lFootY);
-      ctx.moveTo(rightHipX,hipY); ctx.lineTo(rKneeX,rKneeY); ctx.lineTo(rFootX,rFootY);
-    }
-    ctx.stroke();
+      // The planted leg stays long and almost vertical. The recovery leg bends
+      // and lifts behind the runner. Horizontal motion is only a few pixels.
+      const lKneeX=(-8.5+stride*1.7)*scale+hipSway*.22;
+      const rKneeX=(8.5-stride*1.7)*scale+hipSway*.22;
+      const lKneeY=(-7.5-leftLift*8.5+leftPlant*1.3)*scale;
+      const rKneeY=(-7.5-rightLift*8.5+rightPlant*1.3)*scale;
+      const lFootX=(-10.5+stride*2.4)*scale+hipSway*.15;
+      const rFootX=(10.5-stride*2.4)*scale+hipSway*.15;
+      const lFootY=(3.2-leftLift*12.5)*scale;
+      const rFootY=(3.2-rightLift*12.5)*scale;
 
-    // FEET
-    ctx.strokeStyle='#dbeafe'; ctx.lineWidth=4.2*scale; ctx.beginPath();
+      // Raised/recovery leg is slightly darker and is drawn first for depth.
+      if(leftLift>=rightLift){
+        ctx.strokeStyle='#12344e'; ctx.lineWidth=7.6*scale; ctx.beginPath();ctx.moveTo(leftHipX,hipY);ctx.lineTo(lKneeX,lKneeY);ctx.lineTo(lFootX,lFootY);ctx.stroke();
+        ctx.strokeStyle='#1d4f73'; ctx.lineWidth=8.3*scale; ctx.beginPath();ctx.moveTo(rightHipX,hipY);ctx.lineTo(rKneeX,rKneeY);ctx.lineTo(rFootX,rFootY);ctx.stroke();
+      }else{
+        ctx.strokeStyle='#12344e'; ctx.lineWidth=7.6*scale; ctx.beginPath();ctx.moveTo(rightHipX,hipY);ctx.lineTo(rKneeX,rKneeY);ctx.lineTo(rFootX,rFootY);ctx.stroke();
+        ctx.strokeStyle='#1d4f73'; ctx.lineWidth=8.3*scale; ctx.beginPath();ctx.moveTo(leftHipX,hipY);ctx.lineTo(lKneeX,lKneeY);ctx.lineTo(lFootX,lFootY);ctx.stroke();
+      }
+
+      // Knee joints make the bend readable on a small phone screen.
+      ctx.fillStyle='#2a6c91';
+      ctx.beginPath();ctx.arc(lKneeX,lKneeY,3.6*scale,0,Math.PI*2);ctx.fill();
+      ctx.beginPath();ctx.arc(rKneeX,rKneeY,3.6*scale,0,Math.PI*2);ctx.fill();
+    }
+
+    // SHOES — short, grounded silhouettes; never sweeping sideways.
+    ctx.strokeStyle='#dbeafe'; ctx.lineWidth=4.2*scale;
     if(slide){
-      ctx.moveTo(-34*scale,5*scale);ctx.lineTo(-43*scale,6*scale);
-      ctx.moveTo(44*scale,4*scale);ctx.lineTo(53*scale,4*scale);
+      ctx.beginPath();ctx.moveTo(-22*scale,4*scale);ctx.lineTo(-30*scale,4.8*scale);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(28*scale,3*scale);ctx.lineTo(36*scale,3.3*scale);ctx.stroke();
     }else if(jumping){
-      ctx.moveTo((-5-4*jumpAir)*scale,(1+3*jumpFall)*scale);ctx.lineTo((-13-4*jumpAir)*scale,(3+3*jumpFall)*scale);
-      ctx.moveTo((5+4*jumpAir)*scale,(1+3*jumpFall)*scale);ctx.lineTo((13+4*jumpAir)*scale,(3+3*jumpFall)*scale);
+      const tuck=clamp(.42+jumpAir*.48-jumpFall*.18,0,1);
+      const lfx=(-8-2*tuck)*scale, rfx=(8+2*tuck)*scale;
+      const fy=(1+4*jumpFall-5*tuck)*scale;
+      ctx.beginPath();ctx.moveTo(lfx,fy);ctx.lineTo(lfx-7*scale,fy+1.2*scale);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(rfx,fy);ctx.lineTo(rfx+7*scale,fy+1.2*scale);ctx.stroke();
     }else{
-      const lLift=Math.max(0,swing), rLift=Math.max(0,opposite);
-      ctx.moveTo((-12+swing*20)*scale,(3-lLift*8)*scale);ctx.lineTo((-20+swing*20)*scale,(4-lLift*8)*scale);
-      ctx.moveTo((12+opposite*20)*scale,(3-rLift*8)*scale);ctx.lineTo((20+opposite*20)*scale,(4-rLift*8)*scale);
+      const lFootX=(-10.5+stride*2.4)*scale+hipSway*.15;
+      const rFootX=(10.5-stride*2.4)*scale+hipSway*.15;
+      const lFootY=(3.2-leftLift*12.5)*scale;
+      const rFootY=(3.2-rightLift*12.5)*scale;
+      ctx.beginPath();ctx.moveTo(lFootX,lFootY);ctx.lineTo(lFootX-6.8*scale,lFootY+(leftLift>.1?.6:1.2)*scale);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(rFootX,rFootY);ctx.lineTo(rFootX+6.8*scale,rFootY+(rightLift>.1?.6:1.2)*scale);ctx.stroke();
     }
-    ctx.stroke();
 
-    // ARMS
-    ctx.strokeStyle='#1d4f73'; ctx.lineWidth=7*scale; ctx.beginPath();
+    // ARMS — fore/aft pump, kept on their own side of the torso.
+    ctx.lineWidth=6.8*scale;
     if(celebrating){
-      ctx.moveTo(-20*scale,shoulderY); ctx.lineTo(-27*scale,-74*scale); ctx.lineTo(-19*scale,-84*scale);
-      ctx.moveTo(20*scale,shoulderY); ctx.lineTo(27*scale,-74*scale); ctx.lineTo(19*scale,-84*scale);
+      ctx.strokeStyle='#1d4f73';
+      ctx.beginPath();ctx.moveTo(leftShoulderX,shoulderY);ctx.lineTo(-27*scale,-74*scale);ctx.lineTo(-19*scale,-84*scale);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(rightShoulderX,shoulderY);ctx.lineTo(27*scale,-74*scale);ctx.lineTo(19*scale,-84*scale);ctx.stroke();
     }else if(slide){
-      // Arms move backward/forward close to the body, reinforcing the low slide instead of a sideways tilt.
-      ctx.moveTo(-20*scale,shoulderY); ctx.lineTo(-31*scale,-18*scale); ctx.lineTo(-24*scale,-8*scale);
-      ctx.moveTo(20*scale,shoulderY); ctx.lineTo(33*scale,-20*scale); ctx.lineTo(23*scale,-10*scale);
+      ctx.strokeStyle='#1d4f73';
+      ctx.beginPath();ctx.moveTo(leftShoulderX,shoulderY);ctx.lineTo(-24*scale,-17*scale);ctx.lineTo(-19*scale,-8*scale);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(rightShoulderX,shoulderY);ctx.lineTo(25*scale,-18*scale);ctx.lineTo(20*scale,-9*scale);ctx.stroke();
     }else if(jumping){
-      const armLift=clamp(.55+jumpRise*.30,0,1);
-      ctx.moveTo(-20*scale,shoulderY); ctx.lineTo((-25-5*armLift)*scale,(-63-9*armLift)*scale); ctx.lineTo((-18-4*armLift)*scale,(-70-9*armLift)*scale);
-      ctx.moveTo(20*scale,shoulderY); ctx.lineTo((25+5*armLift)*scale,(-63-9*armLift)*scale); ctx.lineTo((18+4*armLift)*scale,(-70-9*armLift)*scale);
+      const armLift=clamp(.52+jumpRise*.30,0,1);
+      ctx.strokeStyle='#1d4f73';
+      ctx.beginPath();ctx.moveTo(leftShoulderX,shoulderY);ctx.lineTo((-23-3*armLift)*scale,(-62-7*armLift)*scale);ctx.lineTo((-17-2*armLift)*scale,(-69-8*armLift)*scale);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(rightShoulderX,shoulderY);ctx.lineTo((23+3*armLift)*scale,(-62-7*armLift)*scale);ctx.lineTo((17+2*armLift)*scale,(-69-8*armLift)*scale);ctx.stroke();
     }else{
-      const arm=swing*11*scale;
-      ctx.moveTo(-20*scale,shoulderY); ctx.lineTo(-25*scale-arm,-38*scale); ctx.lineTo(-18*scale-arm*.58,-28*scale);
-      ctx.moveTo(20*scale,shoulderY); ctx.lineTo(25*scale+arm,-38*scale); ctx.lineTo(18*scale+arm*.58,-28*scale);
+      const leftArm=-stride, rightArm=stride;
+      const lElbowX=(-23.5-leftArm*.9)*scale+shoulderCounter*.18;
+      const rElbowX=(23.5-rightArm*.9)*scale+shoulderCounter*.18;
+      const lElbowY=(-43+leftArm*4.2)*scale;
+      const rElbowY=(-43+rightArm*4.2)*scale;
+      const lHandX=(-19.5-leftArm*1.4)*scale;
+      const rHandX=(19.5-rightArm*1.4)*scale;
+      const lHandY=(-29+leftArm*8.2)*scale;
+      const rHandY=(-29+rightArm*8.2)*scale;
+      ctx.strokeStyle='#163f5e';ctx.beginPath();ctx.moveTo(leftShoulderX,shoulderY);ctx.lineTo(lElbowX,lElbowY);ctx.lineTo(lHandX,lHandY);ctx.stroke();
+      ctx.strokeStyle='#1f5b80';ctx.beginPath();ctx.moveTo(rightShoulderX,shoulderY);ctx.lineTo(rElbowX,rElbowY);ctx.lineTo(rHandX,rHandY);ctx.stroke();
+      ctx.fillStyle='#f2c6a8';ctx.beginPath();ctx.arc(lHandX,lHandY,3.1*scale,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.arc(rHandX,rHandY,3.1*scale,0,Math.PI*2);ctx.fill();
     }
-    ctx.stroke();
 
-    // TORSO / BACKPACK. During slide, the whole upper body actually lowers and shortens.
-    const torsoTop=lerp(-70,-42,slidePose)*scale;
-    const torsoH=lerp(50,30,slidePose)*scale;
-    const torsoW=lerp(46,54,slidePose)*scale;
-    ctx.fillStyle=hit?'#4b1d2a':'#0b2d46'; ctx.strokeStyle=hit?'#fb7185':'#67e8f9'; ctx.lineWidth=2.5*scale;
-    drawRounded(ctx,-torsoW*.5,torsoTop,torsoW,torsoH,lerp(12,10,slidePose)*scale); ctx.fill(); ctx.stroke();
+    // Waist / hip anchor gives the legs a clear origin instead of appearing to
+    // sprout independently from the torso.
+    const waistY=lerp(-24,-7,slidePose)*scale;
+    ctx.fillStyle='#0b2237';
+    drawRounded(ctx,-16*scale+hipSway*.25,waistY,32*scale,11*scale,5*scale);ctx.fill();
 
-    const packW=lerp(38,40,slidePose)*scale;
-    const packH=lerp(31,25,slidePose)*scale;
-    ctx.fillStyle='#164e63'; drawRounded(ctx,-packW*.5,torsoTop+8*scale,packW,packH,8*scale); ctx.fill();
+    // TORSO — tapered jacket instead of a square floating block.
+    const torsoTop=lerp(-70,-41,slidePose)*scale;
+    const torsoH=lerp(49,29,slidePose)*scale;
+    const shoulderHalf=lerp(23,24,slidePose)*scale;
+    const waistHalf=lerp(17,21,slidePose)*scale;
+    ctx.fillStyle=hit?'#4b1d2a':'#0b2d46';ctx.strokeStyle=hit?'#fb7185':'#67e8f9';ctx.lineWidth=2.4*scale;
+    ctx.beginPath();
+    ctx.moveTo(-shoulderHalf+shoulderCounter*.15,torsoTop+5*scale);
+    ctx.quadraticCurveTo(-shoulderHalf-2*scale,torsoTop+11*scale,-waistHalf+hipSway*.18,torsoTop+torsoH);
+    ctx.lineTo(waistHalf+hipSway*.18,torsoTop+torsoH);
+    ctx.quadraticCurveTo(shoulderHalf+2*scale,torsoTop+11*scale,shoulderHalf+shoulderCounter*.15,torsoTop+5*scale);
+    ctx.quadraticCurveTo(0,torsoTop-2*scale,-shoulderHalf+shoulderCounter*.15,torsoTop+5*scale);
+    ctx.closePath();ctx.fill();ctx.stroke();
 
-    const badgeY=torsoTop+torsoH*.49;
-    ctx.fillStyle='#071a2b'; ctx.strokeStyle=celebrating?'#bef264':'#22d3ee'; ctx.lineWidth=1.8*scale;
-    drawRounded(ctx,-15*scale,badgeY-13.5*scale,30*scale,27*scale,6*scale); ctx.fill(); ctx.stroke();
-    ctx.fillStyle='#a3e635'; ctx.font=`950 ${8*scale}px ui-monospace,monospace`; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('</>',0,badgeY-2*scale);
-    ctx.fillStyle='#7dd3fc'; ctx.font=`900 ${6*scale}px system-ui`; ctx.fillText('BYTE',0,badgeY+8*scale);
+    // Backpack stays centered with a subtle gait counter-shift.
+    const packW=lerp(34,37,slidePose)*scale;
+    const packH=lerp(31,23,slidePose)*scale;
+    const packX=shoulderCounter*.18;
+    ctx.fillStyle='#164e63';drawRounded(ctx,packX-packW*.5,torsoTop+8*scale,packW,packH,8*scale);ctx.fill();
+    ctx.strokeStyle='rgba(125,211,252,.35)';ctx.lineWidth=1.1*scale;
+    ctx.beginPath();ctx.moveTo(packX-packW*.31,torsoTop+11*scale);ctx.lineTo(packX-packW*.39,torsoTop+torsoH-5*scale);ctx.moveTo(packX+packW*.31,torsoTop+11*scale);ctx.lineTo(packX+packW*.39,torsoTop+torsoH-5*scale);ctx.stroke();
 
-    // HEAD follows the crouch so a slide never looks like an upright runner with sideways legs.
-    const headY=lerp(-81,-36,slidePose)*scale;
-    ctx.fillStyle='#f2c6a8'; ctx.beginPath(); ctx.arc(0,headY,13.5*scale,0,Math.PI*2); ctx.fill();
-    ctx.fillStyle='#071827'; ctx.beginPath(); ctx.arc(0,headY-4*scale,14*scale,Math.PI,Math.PI*2); ctx.lineTo(12*scale,headY+2*scale); ctx.quadraticCurveTo(1*scale,headY+8*scale,-12*scale,headY+2*scale); ctx.closePath(); ctx.fill();
-    ctx.strokeStyle='#22d3ee'; ctx.lineWidth=1.7*scale; ctx.beginPath(); ctx.moveTo(-10*scale,headY-1*scale); ctx.quadraticCurveTo(0,headY-6*scale,10*scale,headY-1*scale); ctx.stroke();
+    const badgeY=torsoTop+torsoH*.50;
+    ctx.fillStyle='#071a2b';ctx.strokeStyle=celebrating?'#bef264':'#22d3ee';ctx.lineWidth=1.7*scale;
+    drawRounded(ctx,packX-14*scale,badgeY-12.5*scale,28*scale,25*scale,6*scale);ctx.fill();ctx.stroke();
+    ctx.fillStyle='#a3e635';ctx.font=`950 ${7.7*scale}px ui-monospace,monospace`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('</>',packX,badgeY-2*scale);
+    ctx.fillStyle='#7dd3fc';ctx.font=`900 ${5.8*scale}px system-ui`;ctx.fillText('BYTE',packX,badgeY+7.4*scale);
 
-    // Small movement streak while sliding adds speed without shaking the camera.
+    // Neck/head. Tiny counter-motion keeps the face stable while the body runs.
+    const headCounter=running?-stride*.28*scale:0;
+    const headY=lerp(-82,-35,slidePose)*scale;
+    ctx.fillStyle='#e8b996';drawRounded(ctx,-5*scale+headCounter,headY+8*scale,10*scale,10*scale,4*scale);ctx.fill();
+    ctx.fillStyle='#f2c6a8';ctx.beginPath();ctx.arc(headCounter,headY,13.2*scale,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#071827';ctx.beginPath();ctx.arc(headCounter,headY-4*scale,13.8*scale,Math.PI,Math.PI*2);ctx.lineTo(headCounter+12*scale,headY+2*scale);ctx.quadraticCurveTo(headCounter,headY+7*scale,headCounter-12*scale,headY+2*scale);ctx.closePath();ctx.fill();
+    ctx.strokeStyle='#22d3ee';ctx.lineWidth=1.6*scale;ctx.beginPath();ctx.moveTo(headCounter-10*scale,headY-1*scale);ctx.quadraticCurveTo(headCounter,headY-5.5*scale,headCounter+10*scale,headY-1*scale);ctx.stroke();
+
+    // Very restrained slide streaks: enough speed cue without making the body
+    // itself look like it is being dragged sideways.
     if(slidePose>.45){
-      ctx.globalAlpha=.22*slidePose; ctx.strokeStyle='#67e8f9'; ctx.lineWidth=1.3*scale;
-      ctx.beginPath(); ctx.moveTo(-34*scale,-28*scale); ctx.lineTo(-49*scale,-24*scale); ctx.moveTo(33*scale,-17*scale); ctx.lineTo(48*scale,-14*scale); ctx.stroke();
+      ctx.globalAlpha=.18*slidePose;ctx.strokeStyle='#67e8f9';ctx.lineWidth=1.2*scale;
+      ctx.beginPath();ctx.moveTo(-25*scale,-24*scale);ctx.lineTo(-38*scale,-21*scale);ctx.moveTo(25*scale,-18*scale);ctx.lineTo(38*scale,-16*scale);ctx.stroke();
     }
     ctx.restore();
   }

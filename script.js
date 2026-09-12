@@ -44198,7 +44198,13 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     unlocked: false,
     externalMusic: null,
     externalMusicUrl: '',
-    externalFailedUrl: ''
+    externalFailedUrl: '',
+    // Mini-games own the foreground audio while a run is active. Keep this
+    // flag inside the main Code Explorer audio controller so every path that
+    // might restart background music (visibility, pointer unlock, settings)
+    // obeys the same rule.
+    gameAudioFocus: false,
+    resumeMusicAfterGame: false
   };
 
   function explorerAudioSupported() {
@@ -44548,7 +44554,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       if (explorerAudio.externalMusicUrl !== safeUrl) return;
       explorerAudio.externalFailedUrl = safeUrl;
       console.info('Custom Code Explorer music could not be loaded. Falling back to the built-in track.');
-      if (document.body.classList.contains('code-explorer-active') && explorerAudio.prefs.music && codeExplorerMusicAdminEnabled()) {
+      if (!explorerAudio.gameAudioFocus && document.body.classList.contains('code-explorer-active') && explorerAudio.prefs.music && codeExplorerMusicAdminEnabled()) {
         startExplorerSyntheticMusic();
       }
     });
@@ -44560,7 +44566,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   function scheduleExplorerMusicPhrase() {
     const customUrl = codeExplorerCustomMusicUrl();
     const customSourceAvailable = customUrl && explorerAudio.externalFailedUrl !== customUrl;
-    if (!codeExplorerMusicSettingsLoaded || !codeExplorerMusicAdminEnabled() || customSourceAvailable || !explorerAudio.prefs.music || document.hidden || !document.body.classList.contains('code-explorer-active')) {
+    if (explorerAudio.gameAudioFocus || !codeExplorerMusicSettingsLoaded || !codeExplorerMusicAdminEnabled() || customSourceAvailable || !explorerAudio.prefs.music || document.hidden || !document.body.classList.contains('code-explorer-active')) {
       stopExplorerSyntheticMusic();
       return;
     }
@@ -44597,7 +44603,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   }
 
   function startExplorerSyntheticMusic() {
-    if (!codeExplorerMusicAdminEnabled() || !explorerAudio.prefs.music || document.hidden || !document.body.classList.contains('code-explorer-active')) return;
+    if (explorerAudio.gameAudioFocus || !codeExplorerMusicAdminEnabled() || !explorerAudio.prefs.music || document.hidden || !document.body.classList.contains('code-explorer-active')) return;
     const context = ensureExplorerAudioContext();
     if (!context || context.state !== 'running' || explorerAudio.musicTimer) return;
     stopExplorerExternalMusic();
@@ -44606,7 +44612,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   }
 
   function startExplorerMusic() {
-    if (!codeExplorerMusicSettingsLoaded || !codeExplorerMusicAdminEnabled() || !explorerAudio.prefs.music || document.hidden || !document.body.classList.contains('code-explorer-active')) return;
+    if (explorerAudio.gameAudioFocus || !codeExplorerMusicSettingsLoaded || !codeExplorerMusicAdminEnabled() || !explorerAudio.prefs.music || document.hidden || !document.body.classList.contains('code-explorer-active')) return;
     applyExplorerMusicVolume();
     const customUrl = codeExplorerCustomMusicUrl();
     if (customUrl && explorerAudio.externalFailedUrl !== customUrl) {
@@ -44634,12 +44640,53 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     stopExplorerExternalMusic();
   }
 
+  function setExplorerMiniGameAudioFocus(active) {
+    const next = Boolean(active);
+    if (explorerAudio.gameAudioFocus === next) return;
+
+    if (next) {
+      // Remember whether the learner actually had Explorer music enabled. We
+      // restore only that prior intent when the game closes; we never force
+      // music on for someone who had muted it.
+      explorerAudio.resumeMusicAfterGame = Boolean(
+        explorerAudio.prefs.music
+        && codeExplorerMusicAdminEnabled()
+        && !document.hidden
+        && document.body.classList.contains('code-explorer-active')
+      );
+      explorerAudio.gameAudioFocus = true;
+
+      // Stop every currently sounding Explorer layer immediately so the game's
+      // own music/SFX gets a clean foreground mix. This includes already
+      // scheduled synthetic notes and delayed lesson SFX, not only the timer.
+      stopExplorerMusic();
+      clearQueuedExplorerSfx();
+      stopExplorerNodeSet(explorerAudio.sfxNodes);
+      return;
+    }
+
+    explorerAudio.gameAudioFocus = false;
+    const shouldResume = explorerAudio.resumeMusicAfterGame;
+    explorerAudio.resumeMusicAfterGame = false;
+    if (shouldResume
+      && explorerAudio.prefs.music
+      && codeExplorerMusicAdminEnabled()
+      && !document.hidden
+      && document.body.classList.contains('code-explorer-active')) {
+      unlockExplorerAudio().then(ok => { if (ok) startExplorerMusic(); }).catch(() => false);
+    }
+  }
+
+  window.addEventListener('ict8:mini-game-audio-focus', event => {
+    setExplorerMiniGameAudioFocus(event?.detail?.active === true);
+  });
+
   function applyCodeExplorerMusicSettingsLive() {
     applyExplorerMusicVolume();
     syncExplorerAudioControls();
     if (!document.body.classList.contains('code-explorer-active')) return;
     stopExplorerMusic();
-    if (codeExplorerMusicAdminEnabled() && explorerAudio.prefs.music && !document.hidden) startExplorerMusic();
+    if (!explorerAudio.gameAudioFocus && codeExplorerMusicAdminEnabled() && explorerAudio.prefs.music && !document.hidden) startExplorerMusic();
   }
 
   function primeExplorerAudioForLaunchGesture() {
@@ -44659,7 +44706,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         window.setTimeout(() => {
           audio.muted = wasMuted;
           applyExplorerMusicVolume();
-          if (document.body.classList.contains('code-explorer-active') && explorerAudio.prefs.music && !document.hidden) {
+          if (!explorerAudio.gameAudioFocus && document.body.classList.contains('code-explorer-active') && explorerAudio.prefs.music && !document.hidden) {
             startExplorerMusic();
           } else {
             try { audio.pause(); } catch (_) {}

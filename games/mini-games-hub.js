@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const ASSET_VERSION = '20260912-v4761-code-tiles-v58-nohaptic-stagger';
+  const ASSET_VERSION = '20260912-v4761-byte-runner-v7-audio-focus';
 
   const GAME_REGISTRY = Object.freeze([
     {
@@ -402,7 +402,10 @@
     activeGameId: '',
     activeGameApi: null,
     loadingGameId: '',
-    assetPromises: new Map()
+    assetPromises: new Map(),
+    exitGuardWasAlreadyPaused: false,
+    exitGuardPauseRequested: false,
+    gameAudioFocus: false
   };
 
   function getBridge() {
@@ -747,8 +750,21 @@
     document.body.classList.remove('xp-games-modal-open');
   }
 
+  function setMiniGameAudioFocus(active, gameId = '') {
+    const next = Boolean(active);
+    if (state.gameAudioFocus === next) return;
+    state.gameAudioFocus = next;
+    try {
+      window.dispatchEvent(new CustomEvent('ict8:mini-game-audio-focus', {
+        detail: { active: next, gameId: next ? String(gameId || state.activeGameId || '') : '' }
+      }));
+    } catch (_) {}
+  }
+
   function openHub() {
     build();
+    setMiniGameAudioFocus(false);
+    try { window.ICT8AppExitGuard?.arm?.(); } catch (_) {}
     state.bridge = getBridge();
     if (!state.bridge) {
       console.warn('XP Mini-Games bridge is unavailable. The rest of ICT 8 Connect remains active.');
@@ -768,6 +784,7 @@
 
   function closeHub() {
     if (!state.open && !state.gameOpen) return;
+    setMiniGameAudioFocus(false);
     const api = state.activeGameApi;
     const closingGameId = state.activeGameId;
     try { if (closingGameId) state.bridge?.cancelGame?.(closingGameId); } catch (_) {}
@@ -790,6 +807,7 @@
   }
 
   function showHubAfterGame() {
+    setMiniGameAudioFocus(false);
     const closingGameId = state.activeGameId;
     try { if (closingGameId) state.bridge?.cancelGame?.(closingGameId); } catch (_) {}
     state.open = true;
@@ -882,6 +900,9 @@
       state.gameOpen = true;
       state.activeGameId = game.id;
       state.activeGameApi = api;
+      // Audio focus changes before game.open() so the first game beat/SFX is
+      // never masked by the Code Explorer background track.
+      setMiniGameAudioFocus(true, game.id);
       api.open({
         bridge: state.bridge,
         onBack: showHubAfterGame,
@@ -897,6 +918,7 @@
         }
       });
     } catch (error) {
+      setMiniGameAudioFocus(false);
       console.warn(`${game.name} could not initialize.`, error);
       state.open = true;
       state.gameOpen = false;
@@ -911,6 +933,71 @@
         button.textContent = 'PLAY';
       }
     }
+  }
+
+
+  function findVisibleResumeButton() {
+    const buttons = Array.from(document.querySelectorAll('button'));
+    return buttons.find(button => {
+      if (button.hidden || button.disabled || button.getClientRects().length === 0) return false;
+      return button.getAttributeNames().some(name => /^data-.*-resume$/i.test(name));
+    }) || null;
+  }
+
+  function pauseActiveGameForExitGuard() {
+    if (!state.gameOpen || !state.activeGameApi?.isOpen?.()) return false;
+    const api = state.activeGameApi;
+    state.exitGuardWasAlreadyPaused = Boolean(findVisibleResumeButton());
+    state.exitGuardPauseRequested = false;
+    if (state.exitGuardWasAlreadyPaused) return false;
+
+    try {
+      if (typeof api.pauseForExitGuard === 'function') {
+        state.exitGuardPauseRequested = api.pauseForExitGuard() !== false;
+        return state.exitGuardPauseRequested;
+      }
+    } catch (_) {}
+
+    try {
+      window.dispatchEvent(new Event('blur'));
+      state.exitGuardPauseRequested = true;
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function resumeActiveGameFromExitGuard() {
+    if (!state.gameOpen || !state.activeGameApi?.isOpen?.()) return false;
+    if (state.exitGuardWasAlreadyPaused || !state.exitGuardPauseRequested) {
+      state.exitGuardWasAlreadyPaused = false;
+      state.exitGuardPauseRequested = false;
+      return false;
+    }
+
+    const api = state.activeGameApi;
+    state.exitGuardPauseRequested = false;
+    try {
+      if (typeof api.resumeFromExitGuard === 'function') {
+        api.resumeFromExitGuard();
+        state.exitGuardWasAlreadyPaused = false;
+        return true;
+      }
+    } catch (_) {}
+
+    try { window.dispatchEvent(new Event('focus')); } catch (_) {}
+    window.setTimeout(() => {
+      const resumeButton = findVisibleResumeButton();
+      if (resumeButton) {
+        try { resumeButton.click(); } catch (_) {}
+      }
+    }, 40);
+    state.exitGuardWasAlreadyPaused = false;
+    return true;
+  }
+
+  function isGameOpen() {
+    return Boolean(state.gameOpen && state.activeGameApi?.isOpen?.());
   }
 
   function animateXpAward(amount) {
@@ -976,6 +1063,10 @@
     close: closeHub,
     render: () => render(),
     showWeekly: () => { openHub(); switchTab('weekly', { force: true }); },
+    isOpen: () => state.open,
+    isGameOpen,
+    pauseActiveGameForExitGuard,
+    resumeActiveGameFromExitGuard,
     games: GAME_REGISTRY.map(game => ({ id: game.id, name: game.name }))
   });
 })();
