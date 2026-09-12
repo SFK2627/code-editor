@@ -110,3 +110,12 @@ body.p2p0-active{overflow:hidden;overscroll-behavior:none}
 .p2p0-disconnect-actions .p2p0-btn{min-height:46px}
 .p2p0-disconnect-actions .p2p0-btn.ghost{background:rgba(15,23,42,.82);border-color:rgba(148,163,184,.2);color:#e2e8f0}
 @media(max-width:600px){.p2p0-disconnect-actions{grid-template-columns:1fr}.p2p0-disconnect-actions .p2p0-btn{min-height:48px}}
+
+
+/* P2P gameplay viewport contract v8 */
+body.p2p0-active{overflow:hidden;overscroll-behavior:none}
+.p2p0-panel[data-panel="game"]{overflow:hidden;padding:8px;overscroll-behavior:none;touch-action:manipulation}
+.p2p0-panel[data-panel="game"].active{display:block;place-items:initial}
+.p2p0-panel[data-panel="game"]>*{max-width:100%;max-height:100%}
+@media(max-width:600px){.p2p0-panel[data-panel="game"]{padding:6px max(6px,env(safe-area-inset-right,0px)) max(6px,env(safe-area-inset-bottom,0px)) max(6px,env(safe-area-inset-left,0px))}}
+@media(max-height:620px) and (orientation:landscape){.p2p0-panel[data-panel="game"]{padding:4px}}
