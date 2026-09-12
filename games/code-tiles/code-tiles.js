@@ -15,12 +15,16 @@
   const BOARD_W = 560;
   const LANE_W = BOARD_W / 4;
   const HIT_WINDOWS = Object.freeze({ perfect: 72, great: 132, good: 200 });
+  // v5.9 chart design: the old "double" notes are now extra sequential notes.
+  // Nothing spawns at the exact same target time, so phone input always has one
+  // unambiguous NEXT tile. Phase 5 gets one extra bar so 140 BPM stays fast
+  // without becoming a burst of near-simultaneous taps.
   const PHASES = Object.freeze([
-    Object.freeze({ bpm: 75, bars: 5, events: 18, doubles: 0, holds: 1, travelMs: 2250, label: 'WARM UP' }),
-    Object.freeze({ bpm: 90, bars: 5, events: 21, doubles: 0, holds: 1, travelMs: 2050, label: 'LOCK IN' }),
-    Object.freeze({ bpm: 105, bars: 5, events: 23, doubles: 2, holds: 2, travelMs: 1840, label: 'BUILD FLOW' }),
-    Object.freeze({ bpm: 120, bars: 5, events: 26, doubles: 3, holds: 2, travelMs: 1650, label: 'FAST LANE' }),
-    Object.freeze({ bpm: 140, bars: 5, events: 30, doubles: 4, holds: 3, travelMs: 1460, label: 'FINAL SYNC' })
+    Object.freeze({ bpm: 75, bars: 5, events: 18, extraNotes: 0, holds: 1, holdMs: Object.freeze([800]), travelMs: 2250, label: 'WARM UP' }),
+    Object.freeze({ bpm: 90, bars: 5, events: 21, extraNotes: 0, holds: 1, holdMs: Object.freeze([950]), travelMs: 2050, label: 'LOCK IN' }),
+    Object.freeze({ bpm: 105, bars: 5, events: 23, extraNotes: 2, holds: 2, holdMs: Object.freeze([800, 1100]), travelMs: 1840, label: 'BUILD FLOW' }),
+    Object.freeze({ bpm: 120, bars: 5, events: 26, extraNotes: 3, holds: 2, holdMs: Object.freeze([850, 1200]), travelMs: 1650, label: 'FAST LANE' }),
+    Object.freeze({ bpm: 140, bars: 6, events: 30, extraNotes: 4, holds: 3, holdMs: Object.freeze([750, 1000, 1250]), travelMs: 1460, label: 'FINAL SYNC' })
   ]);
   const BACKDROP_GLOWS = Object.freeze([
     Object.freeze([58, 130, 112, 'rgba(255,255,255,.055)']),
@@ -301,110 +305,123 @@
     runtime.totalTrackMs = cursor;
   }
 
-  function generateEventSteps(eventCount) {
-    const maxStep = 39;
-    const result = [];
-    for (let i = 0; i < eventCount; i += 1) {
-      let step = 1 + Math.round(i * (maxStep - 2) / Math.max(1, eventCount - 1));
-      while (result.includes(step) && step < maxStep) step += 1;
-      while (result.includes(step) && step > 1) step -= 1;
-      result.push(step);
+  function generateNoteTimes(phase, phaseStart) {
+    const beatMs = 60000 / phase.bpm;
+    const phaseDuration = beatMs * 4 * phase.bars;
+    const noteCount = phase.events + Number(phase.extraNotes || 0);
+    const startPad = Math.max(beatMs * .62, 260);
+    const endPad = Math.max(beatMs * .62, 260);
+    const usable = Math.max(beatMs * 2, phaseDuration - startPad - endPad);
+    const spacing = noteCount > 1 ? usable / (noteCount - 1) : usable;
+    const times = [];
+
+    // Keep a steady Piano-Tiles stream instead of injecting 90-130ms bursts.
+    // A tiny deterministic swing prevents the chart from feeling mechanical,
+    // while the clamp below guarantees generous phone-tap spacing.
+    const minGap = phase.bpm >= 140 ? 270 : phase.bpm >= 120 ? 295 : phase.bpm >= 105 ? 330 : 380;
+    const swing = Math.min(18, spacing * .055);
+    for (let i = 0; i < noteCount; i += 1) {
+      const pattern = i % 4 === 1 ? swing : i % 4 === 3 ? -swing : 0;
+      let time = phaseStart + startPad + i * spacing + pattern;
+      if (times.length) time = Math.max(time, times[times.length - 1] + minGap);
+      times.push(time);
     }
+
+    // If a minimum-gap correction pushed the tail too far, compress the whole
+    // sequence evenly back inside the phase while still keeping it sequential.
+    const latestAllowed = phaseStart + phaseDuration - endPad;
+    if (times.length > 1 && times[times.length - 1] > latestAllowed) {
+      const first = times[0];
+      const correctedSpacing = (latestAllowed - first) / (times.length - 1);
+      for (let i = 1; i < times.length; i += 1) times[i] = first + correctedSpacing * i;
+    }
+    return times;
+  }
+
+  function generateHoldIndices(noteCount, holdCount) {
+    if (!holdCount) return [];
+    const fractions = holdCount === 1 ? [.52] : holdCount === 2 ? [.32, .70] : [.22, .50, .77];
+    const result = [];
+    fractions.slice(0, holdCount).forEach(fraction => {
+      let index = clamp(Math.round((noteCount - 1) * fraction), 2, noteCount - 3);
+      while (result.includes(index) && index < noteCount - 3) index += 1;
+      result.push(index);
+    });
     return result.sort((a, b) => a - b);
   }
 
   function buildChart(roundToken) {
     buildPhaseStarts();
-    const rng = makeRng(`${roundToken || 'practice'}:code-tiles:v1`);
+    const rng = makeRng(`${roundToken || 'practice'}:code-tiles:v2-readable`);
     const chart = [];
     const laneBlockedUntil = [0, 0, 0, 0];
     let id = 0;
 
     PHASES.forEach((phase, phaseIndex) => {
       const beatMs = 60000 / phase.bpm;
-      const halfBeat = beatMs / 2;
       const phaseStart = runtime.phaseStarts[phaseIndex];
-      const steps = generateEventSteps(phase.events);
-      const doubleIndices = new Set();
-      const holdIndices = new Set();
-      for (let d = 0; d < phase.doubles; d += 1) {
-        doubleIndices.add(Math.min(phase.events - 2, Math.max(3, Math.round((d + 1) * phase.events / (phase.doubles + 1)))));
-      }
-      for (let h = 0; h < phase.holds; h += 1) {
-        let candidate = Math.min(phase.events - 3, Math.max(2, Math.round((h + .65) * phase.events / (phase.holds + .4))));
-        while (doubleIndices.has(candidate) && candidate < phase.events - 3) candidate += 1;
-        holdIndices.add(candidate);
-      }
-
+      const phaseEnd = phaseStart + beatMs * 4 * phase.bars;
+      const noteTimes = generateNoteTimes(phase, phaseStart);
+      const holdIndices = generateHoldIndices(noteTimes.length, phase.holds);
       let previousLane = -1;
       let sameLaneRun = 0;
-      let previousEventLanes = [];
-      steps.forEach((step, eventIndex) => {
-        const targetTime = phaseStart + step * halfBeat;
-        const needed = doubleIndices.has(eventIndex) ? 2 : 1;
-        // Former simultaneous double notes are intentionally micro-staggered.
-        // This keeps the server-safe 127-note chart but prevents two tiles from
-        // sitting on the exact same horizontal row and confusing the next-tile order.
-        const pairOffsetMs = needed === 2 ? Math.min(135, halfBeat * .46) : 0;
+      let previousEventLane = -1;
+      let previousHoldEnd = -Infinity;
+
+      noteTimes.forEach((targetTime, noteIndex) => {
+        const holdSlot = holdIndices.indexOf(noteIndex);
+        const isHold = holdSlot >= 0;
+        const requestedHold = isHold ? Number(phase.holdMs?.[holdSlot] || phase.holdMs?.[0] || 900) : 0;
+        // Long notes are deliberately non-overlapping. A later long tile can
+        // never begin while the previous one is still being held.
+        const canStartHold = !isHold || targetTime >= previousHoldEnd + 180;
+        const holdDuration = isHold && canStartHold
+          ? Math.max(520, Math.min(requestedHold, phaseEnd - targetTime - 220))
+          : 0;
+
         const available = [0, 1, 2, 3].filter(lane => laneBlockedUntil[lane] <= targetTime - HIT_WINDOWS.good - 40);
-        const pool = available.length >= needed ? available : [0, 1, 2, 3];
-        const preferredPool = pool.filter(lane => !previousEventLanes.includes(lane));
-        const firstPool = preferredPool.length ? preferredPool : pool;
-        let firstLane = firstPool[Math.floor(rng() * firstPool.length)] ?? (eventIndex % 4);
-        if (firstLane === previousLane && sameLaneRun >= 1) {
-          const alternate = firstPool.find(lane => lane !== previousLane) ?? pool.find(lane => lane !== previousLane);
-          if (alternate != null) firstLane = alternate;
-        }
-        const lanes = [firstLane];
-        if (needed === 2) {
-          const secondCandidates = pool.filter(lane => lane !== firstLane);
-          const secondPreferred = secondCandidates.filter(lane => !previousEventLanes.includes(lane));
-          const secondPool = secondPreferred.length ? secondPreferred : secondCandidates;
-          let secondLane = secondPool.find(lane => Math.abs(lane - firstLane) >= 2);
-          if (secondLane == null) secondLane = secondPool[Math.floor(rng() * Math.max(1, secondPool.length))] ?? ((firstLane + 2) % 4);
-          lanes.push(secondLane);
+        const pool = available.length ? available : [0, 1, 2, 3];
+        const freshPool = pool.filter(lane => lane !== previousEventLane);
+        const firstPool = freshPool.length ? freshPool : pool;
+        let lane = firstPool[Math.floor(rng() * firstPool.length)] ?? (noteIndex % 4);
+        if (lane === previousLane && sameLaneRun >= 1) {
+          const alternate = firstPool.find(candidate => candidate !== previousLane) ?? pool.find(candidate => candidate !== previousLane);
+          if (alternate != null) lane = alternate;
         }
 
-        lanes.forEach((lane, chordIndex) => {
-          const isHold = chordIndex === 0 && holdIndices.has(eventIndex);
-          const noteTargetTime = targetTime + (chordIndex === 1 ? pairOffsetMs : 0);
-          const phaseEnd = phaseStart + beatMs * 4 * phase.bars;
-          const requestedHold = isHold
-            ? beatMs * (
-                phaseIndex === 0 ? 2.55 :
-                phaseIndex === 1 ? 2.9 :
-                phaseIndex === 2 ? (rng() > .5 ? 3.65 : 3.15) :
-                phaseIndex === 3 ? (rng() > .5 ? 4.35 : 3.8) :
-                (rng() > .5 ? 5.1 : 4.45)
-              )
-            : 0;
-          const holdDuration = isHold ? Math.max(beatMs * 2.45, Math.min(requestedHold, phaseEnd - noteTargetTime - 220)) : 0;
-          const pxPerMs = (TARGET_Y - ENTRY_Y) / phase.travelMs;
-          const eventSpacingPx = halfBeat * pxPerMs;
-          const visualHeight = isHold ? TILE_H : clamp(eventSpacingPx * .95, 108, 132);
-          chart.push({
-            id: `ct-${String(++id).padStart(3, '0')}`,
-            phaseIndex,
-            lane,
-            targetTime: noteTargetTime,
-            travelMs: phase.travelMs,
-            holdDuration,
-            visualHeight,
-            state: 'pending',
-            judgement: '',
-            errorMs: 0,
-            headHitAt: 0,
-            holdReleasedEarly: false,
-            holdVoice: null,
-            resumeGraceUntil: 0,
-            spawnedBurst: false
-          });
-          if (holdDuration > 0) laneBlockedUntil[lane] = noteTargetTime + holdDuration + HIT_WINDOWS.good + 70;
+        const pxPerMs = (TARGET_Y - ENTRY_Y) / phase.travelMs;
+        const nextTime = noteTimes[noteIndex + 1];
+        const prevTime = noteTimes[noteIndex - 1];
+        const localGapMs = nextTime != null ? nextTime - targetTime : prevTime != null ? targetTime - prevTime : beatMs;
+        const eventSpacingPx = Math.max(1, localGapMs) * pxPerMs;
+        const visualHeight = holdDuration > 0 ? TILE_H : clamp(eventSpacingPx * .78, 112, 136);
+
+        chart.push({
+          id: `ct-${String(++id).padStart(3, '0')}`,
+          phaseIndex,
+          lane,
+          targetTime,
+          travelMs: phase.travelMs,
+          holdDuration,
+          visualHeight,
+          state: 'pending',
+          judgement: '',
+          errorMs: 0,
+          headHitAt: 0,
+          holdReleasedEarly: false,
+          holdVoice: null,
+          resumeGraceUntil: 0,
+          spawnedBurst: false
         });
-        if (firstLane === previousLane) sameLaneRun += 1;
+
+        if (holdDuration > 0) {
+          laneBlockedUntil[lane] = targetTime + holdDuration + HIT_WINDOWS.good + 70;
+          previousHoldEnd = targetTime + holdDuration;
+        }
+        if (lane === previousLane) sameLaneRun += 1;
         else sameLaneRun = 1;
-        previousLane = firstLane;
-        previousEventLanes = lanes.slice();
+        previousLane = lane;
+        previousEventLane = lane;
       });
     });
 
