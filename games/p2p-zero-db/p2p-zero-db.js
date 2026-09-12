@@ -81,16 +81,27 @@
     if (pc.iceGatheringState === 'complete') return;
     await new Promise(resolve => {
       let settled = false;
+      let fastTimer = 0;
       const done = () => {
         if (settled) return;
         settled = true;
         pc.removeEventListener('icegatheringstatechange', onChange);
         pc.removeEventListener('icecandidate', onCandidate);
         clearTimeout(timer);
+        clearTimeout(fastTimer);
         resolve();
       };
+      const hasUsableRoute = () => /\btyp\s+(srflx|relay)\b/i.test(String(pc?.localDescription?.sdp || ''));
+      const armFastFinish = () => {
+        clearTimeout(fastTimer);
+        fastTimer = setTimeout(() => { if (hasUsableRoute()) done(); }, 240);
+      };
       const onChange = () => { if (pc.iceGatheringState === 'complete') done(); };
-      const onCandidate = event => { if (!event.candidate) done(); };
+      const onCandidate = event => {
+        if (!event.candidate) { done(); return; }
+        const line = String(event.candidate.candidate || '');
+        if (/\btyp\s+(srflx|relay)\b/i.test(line)) armFastFinish();
+      };
       const timer = setTimeout(done, Math.max(6500, Number(timeout || ICE_GATHER_TIMEOUT)));
       pc.addEventListener('icegatheringstatechange', onChange);
       pc.addEventListener('icecandidate', onCandidate);
@@ -563,8 +574,8 @@
       inboxTimer = setTimeout(async function poll() {
         if (!active) return;
         if (getState() === 'home') await refreshInvites(false);
-        if (active) inboxTimer = setTimeout(poll, 5000);
-      }, 900);
+        if (active) inboxTimer = setTimeout(poll, 2500);
+      }, 350);
     }
 
     async function sendInvite() {
@@ -635,9 +646,9 @@
         } finally {
           hostPollBusy = false;
         }
-        if (active && hostInvite && !options.isConnected?.()) hostPollTimer = setTimeout(poll, 2200);
+        if (active && hostInvite && !options.isConnected?.()) hostPollTimer = setTimeout(poll, 900);
       };
-      hostPollTimer = setTimeout(poll, 900);
+      hostPollTimer = setTimeout(poll, 350);
     }
 
     async function acceptInvite(inviteId) {

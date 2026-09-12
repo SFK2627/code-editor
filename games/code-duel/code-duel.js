@@ -318,11 +318,15 @@
   async function waitForIce(pc,timeout=14000){
     if(pc.iceGatheringState==='complete') return;
     await new Promise(resolve=>{
-      let done=false;
-      const finish=()=>{if(done)return;done=true;pc.removeEventListener('icegatheringstatechange',onchange);clearTimeout(timer);resolve();};
+      let done=false,fastTimer=0;
+      const finish=()=>{if(done)return;done=true;pc.removeEventListener('icegatheringstatechange',onchange);pc.removeEventListener('icecandidate',oncandidate);clearTimeout(timer);clearTimeout(fastTimer);resolve();};
+      const hasUsableRoute=()=>/\btyp\s+(srflx|relay)\b/i.test(String(pc?.localDescription?.sdp||''));
+      const armFastFinish=()=>{clearTimeout(fastTimer);fastTimer=setTimeout(()=>{if(hasUsableRoute())finish();},240);};
       const onchange=()=>{if(pc.iceGatheringState==='complete')finish();};
-      const timer=setTimeout(finish,timeout);
+      const oncandidate=event=>{if(!event.candidate){finish();return;}if(/\btyp\s+(srflx|relay)\b/i.test(String(event.candidate.candidate||'')))armFastFinish();};
+      const timer=setTimeout(finish,Math.max(6500,Number(timeout||14000)));
       pc.addEventListener('icegatheringstatechange',onchange);
+      pc.addEventListener('icecandidate',oncandidate);
     });
   }
 
@@ -412,7 +416,7 @@
     refreshPendingInvites(false).catch(()=>{});
     runtime.invitePollTimer=setInterval(()=>{
       if(runtime.open && runtime.state==='home')refreshPendingInvites(false).catch(()=>{});
-    },6000);
+    },2500);
   }
   function stopInvitePolling(){clearInterval(runtime.invitePollTimer);runtime.invitePollTimer=0;runtime.invitePollBusy=false;}
 
@@ -479,9 +483,9 @@
         }
       }catch(error){console.info('Code Duel invite poll skipped.',error);}
       finally{runtime.hostInvitePollBusy=false;}
-      if(runtime.open&&runtime.hostInvite&&!runtime.connected)runtime.hostInvitePollTimer=setTimeout(poll,2500);
+      if(runtime.open&&runtime.hostInvite&&!runtime.connected)runtime.hostInvitePollTimer=setTimeout(poll,900);
     };
-    runtime.hostInvitePollTimer=setTimeout(poll,900);
+    runtime.hostInvitePollTimer=setTimeout(poll,350);
   }
   function stopHostInvitePolling(){clearTimeout(runtime.hostInvitePollTimer);runtime.hostInvitePollTimer=0;runtime.hostInvitePollBusy=false;}
 
