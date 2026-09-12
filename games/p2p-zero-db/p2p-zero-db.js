@@ -364,6 +364,291 @@
     return stop;
   }
 
+
+  function escapeHtml(value = '') {
+    return String(value ?? '').replace(/[&<>"']/g, ch => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[ch]));
+  }
+
+  function createStudentInviteController(options = {}) {
+    const overlay = options.overlay;
+    if (!overlay) return null;
+    const gameId = String(options.gameId || '').trim();
+    const gameName = String(options.gameName || '2 PLAYER GAME').trim();
+    let active = false;
+    let inboxTimer = 0;
+    let hostPollTimer = 0;
+    let hostPollBusy = false;
+    let pendingInvites = [];
+    let hostInvite = null;
+
+    const bridge = () => options.getBridge?.() || options.bridge || null;
+    const canUse = () => Boolean(bridge()?.canUseTwoPlayerStudentInvites?.());
+    const getState = () => String(options.getState?.() || 'home');
+    const q = sel => overlay.querySelector(sel);
+
+    function mount() {
+      const homeCard = overlay.querySelector('[data-panel="home"] .p2p0-card');
+      if (homeCard && !homeCard.querySelector('[data-p2p-student-inbox]')) {
+        const inbox = document.createElement('section');
+        inbox.className = 'p2p0-student-inbox';
+        inbox.dataset.p2pStudentInbox = '';
+        inbox.hidden = true;
+        inbox.innerHTML = `
+          <div class="p2p0-student-head">
+            <div><small>STUDENT INVITES</small><strong>${escapeHtml(gameName)}</strong></div>
+            <button class="p2p0-icon-btn" type="button" data-p2p-refresh-invites aria-label="Refresh invites">↻</button>
+          </div>
+          <div class="p2p0-student-list" data-p2p-invite-list><div class="p2p0-student-empty">No pending invites right now.</div></div>`;
+        const actions = homeCard.querySelector('.p2p0-actions');
+        if (actions) homeCard.insertBefore(inbox, actions);
+        else homeCard.appendChild(inbox);
+      }
+
+      const hostCard = overlay.querySelector('[data-panel="host"] .p2p0-card');
+      if (hostCard && !hostCard.querySelector('[data-p2p-student-connect]')) {
+        const box = document.createElement('section');
+        box.className = 'p2p0-student-connect';
+        box.dataset.p2pStudentConnect = '';
+        box.hidden = true;
+        box.innerHTML = `
+          <div class="p2p0-student-head"><div><small>QUICK CONNECT</small><strong>INVITE BY STUDENT ID</strong></div><span>🆔</span></div>
+          <label class="p2p0-field"><span>PLAYER 2 STUDENT ID</span><input data-p2p-target-student maxlength="30" autocomplete="off" autocapitalize="characters" placeholder="Example: 2026-001"></label>
+          <button class="p2p0-btn primary p2p0-student-send" type="button" data-p2p-send-student>SEND INVITE</button>
+          <div class="p2p0-student-status" data-p2p-student-status>Player 2 should open this same game first.</div>
+          <div class="p2p0-divider">OR USE QR / SHARE</div>`;
+        const nameField = hostCard.querySelector('[data-host-name]')?.closest('label');
+        if (nameField) nameField.insertAdjacentElement('afterend', box);
+        else hostCard.prepend(box);
+      }
+
+      const inbox = q('[data-p2p-student-inbox]');
+      inbox?.addEventListener('click', event => {
+        const refresh = event.target.closest('[data-p2p-refresh-invites]');
+        if (refresh) { refreshInvites(true); return; }
+        const accept = event.target.closest('[data-p2p-accept-invite]');
+        if (accept) { acceptInvite(accept.dataset.p2pAcceptInvite); return; }
+        const decline = event.target.closest('[data-p2p-decline-invite]');
+        if (decline) declineInvite(decline.dataset.p2pDeclineInvite);
+      });
+      q('[data-p2p-send-student]')?.addEventListener('click', sendInvite);
+    }
+
+    function setStudentStatus(text, error = false, ok = false) {
+      const el = q('[data-p2p-student-status]');
+      if (!el) return;
+      el.textContent = String(text || '');
+      el.classList.toggle('error', !!error);
+      el.classList.toggle('ok', !!ok);
+    }
+
+    function renderAvailability() {
+      const available = canUse();
+      const inbox = q('[data-p2p-student-inbox]');
+      const connect = q('[data-p2p-student-connect]');
+      if (inbox) inbox.hidden = !available;
+      if (connect) connect.hidden = !available;
+      const identity = bridge()?.getPlayerIdentity?.();
+      if (available && identity?.name) {
+        const hostName = q('[data-host-name]');
+        const guestName = q('[data-guest-name]');
+        if (hostName && (!hostName.value || /^PLAYER\s*1$/i.test(hostName.value))) hostName.value = identity.name;
+        if (guestName && (!guestName.value || /^PLAYER\s*2$/i.test(guestName.value))) guestName.value = identity.name;
+      }
+    }
+
+    function renderInvites() {
+      const list = q('[data-p2p-invite-list]');
+      if (!list) return;
+      if (!pendingInvites.length) {
+        list.innerHTML = '<div class="p2p0-student-empty">No pending invites right now.</div>';
+        return;
+      }
+      list.innerHTML = pendingInvites.map(invite => {
+        const section = invite.fromSection ? ` · ${escapeHtml(invite.fromSection)}` : '';
+        return `<article class="p2p0-student-invite-card">
+          <div><strong>${escapeHtml(invite.fromName || 'Student')}</strong><small>${escapeHtml(invite.fromStudentId || '')}${section}</small><p>wants to play ${escapeHtml(gameName)}</p></div>
+          <div><button class="p2p0-btn primary" type="button" data-p2p-accept-invite="${escapeHtml(invite.inviteId)}">ACCEPT</button><button class="p2p0-btn" type="button" data-p2p-decline-invite="${escapeHtml(invite.inviteId)}">DECLINE</button></div>
+        </article>`;
+      }).join('');
+    }
+
+    async function refreshInvites(force = false) {
+      if (!active || !canUse()) return;
+      if (!force && getState() !== 'home') return;
+      try {
+        const result = await bridge()?.listTwoPlayerInvites?.({ gameId });
+        pendingInvites = Array.isArray(result?.invites) ? result.invites : [];
+        renderInvites();
+      } catch (error) {
+        if (force) {
+          const list = q('[data-p2p-invite-list]');
+          if (list) list.innerHTML = `<div class="p2p0-student-empty error">${escapeHtml(error?.message || 'Could not check invites.')}</div>`;
+        }
+      }
+    }
+
+    function scheduleInboxPoll() {
+      clearTimeout(inboxTimer);
+      if (!active || !canUse()) return;
+      inboxTimer = setTimeout(async function poll() {
+        if (!active) return;
+        if (getState() === 'home') await refreshInvites(false);
+        if (active) inboxTimer = setTimeout(poll, 5000);
+      }, 900);
+    }
+
+    async function sendInvite() {
+      if (!active) return;
+      const btn = q('[data-p2p-send-student]');
+      const target = String(q('[data-p2p-target-student]')?.value || '').trim();
+      if (!canUse()) { setStudentStatus('Sign in as a student to use Student ID invites.', true); return; }
+      if (!target) { setStudentStatus('Enter Player 2 Student ID.', true); return; }
+      if (btn) { btn.disabled = true; btn.textContent = 'SENDING…'; }
+      try {
+        await cancelHostInvite(true);
+        setStudentStatus('Preparing invite…');
+        options.showHost?.();
+        const offerCode = await options.createHostOffer?.();
+        if (!offerCode) throw new Error('Could not prepare the match invite.');
+        const identity = bridge()?.getPlayerIdentity?.();
+        const sent = await bridge()?.createTwoPlayerInvite?.({
+          gameId,
+          targetStudentId: target,
+          offerCode,
+          hostName: options.getLocalName?.() || identity?.name || 'Student'
+        });
+        hostInvite = sent || null;
+        setStudentStatus(`Invite sent to ${sent?.targetStudentId || target}. Waiting for Player 2…`, false, true);
+        startHostPolling();
+        options.onInviteSent?.(sent);
+      } catch (error) {
+        setStudentStatus(error?.message || 'Could not send the invite.', true);
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = 'SEND INVITE'; }
+      }
+    }
+
+    function startHostPolling() {
+      clearTimeout(hostPollTimer);
+      const started = Date.now();
+      const poll = async () => {
+        if (!active || !hostInvite || options.isConnected?.()) return;
+        if (hostPollBusy) return;
+        if (Date.now() - started > 90000) {
+          setStudentStatus('Invite timed out. Send a new invite or use QR.', true);
+          return;
+        }
+        hostPollBusy = true;
+        try {
+          const result = await bridge()?.getTwoPlayerInviteStatus?.({ gameId, ...hostInvite });
+          if (result?.status === 'accepted' && result.answerCode) {
+            clearTimeout(hostPollTimer);
+            setStudentStatus(`${result.acceptedByName || 'Player 2'} accepted. Connecting…`, false, true);
+            await options.applyHostAnswer?.(result.answerCode, result);
+            return;
+          }
+          if (result?.status === 'declined') {
+            clearTimeout(hostPollTimer);
+            setStudentStatus('Player 2 declined the invite.', true);
+            await cancelHostInvite(true);
+            return;
+          }
+          if (result?.status === 'expired' || result?.status === 'missing') {
+            clearTimeout(hostPollTimer);
+            setStudentStatus('Invite expired. Send a new one.', true);
+            return;
+          }
+        } catch (_) {
+        } finally {
+          hostPollBusy = false;
+        }
+        if (active && hostInvite && !options.isConnected?.()) hostPollTimer = setTimeout(poll, 2200);
+      };
+      hostPollTimer = setTimeout(poll, 900);
+    }
+
+    async function acceptInvite(inviteId) {
+      const invite = pendingInvites.find(item => item.inviteId === inviteId);
+      if (!invite || !active) return;
+      const buttons = Array.from(overlay.querySelectorAll('[data-p2p-accept-invite],[data-p2p-decline-invite]')).filter(button =>
+        button.dataset.p2pAcceptInvite === inviteId || button.dataset.p2pDeclineInvite === inviteId
+      );
+      buttons.forEach(button => { button.disabled = true; });
+      try {
+        options.showGuest?.();
+        options.setGuestStatus?.(`Accepting ${invite.fromName || 'Player 1'}'s invite…`);
+        const answerCode = await options.createGuestAnswer?.(invite.offerCode, invite);
+        if (!answerCode) throw new Error('Could not prepare the response.');
+        await bridge()?.respondTwoPlayerInvite?.({
+          gameId,
+          inviteId: invite.inviteId,
+          hostUid: invite.fromUid,
+          status: 'accepted',
+          answerCode
+        });
+        options.setGuestStatus?.(`Accepted ${invite.fromName || 'Player 1'}'s invite. Connecting…`, false, true);
+        pendingInvites = pendingInvites.filter(item => item.inviteId !== inviteId);
+        renderInvites();
+      } catch (error) {
+        options.setGuestStatus?.(error?.message || 'Could not accept the invite.', true);
+        buttons.forEach(button => { button.disabled = false; });
+      }
+    }
+
+    async function declineInvite(inviteId) {
+      const invite = pendingInvites.find(item => item.inviteId === inviteId);
+      if (!invite) return;
+      try {
+        await bridge()?.respondTwoPlayerInvite?.({ gameId, inviteId: invite.inviteId, hostUid: invite.fromUid, status: 'declined' });
+      } catch (_) {}
+      pendingInvites = pendingInvites.filter(item => item.inviteId !== inviteId);
+      renderInvites();
+    }
+
+    async function cancelHostInvite(silent = false) {
+      clearTimeout(hostPollTimer);
+      hostPollTimer = 0;
+      hostPollBusy = false;
+      if (!hostInvite) return;
+      const current = hostInvite;
+      hostInvite = null;
+      try { await bridge()?.removeTwoPlayerInvite?.({ gameId, ...current }); } catch (_) {}
+      if (!silent) setStudentStatus('Invite cancelled.');
+    }
+
+    function onConnected() {
+      clearTimeout(hostPollTimer);
+      hostPollTimer = 0;
+      if (hostInvite) cancelHostInvite(true);
+    }
+
+    function start() {
+      active = true;
+      renderAvailability();
+      if (canUse()) {
+        const registration = bridge()?.ensureTwoPlayerInviteDirectory?.();
+        if (registration && typeof registration.catch === 'function') registration.catch(() => {});
+        refreshInvites(false);
+        scheduleInboxPoll();
+      }
+    }
+
+    function stop({ cleanup = true } = {}) {
+      active = false;
+      clearTimeout(inboxTimer);
+      clearTimeout(hostPollTimer);
+      inboxTimer = hostPollTimer = 0;
+      hostPollBusy = false;
+      if (cleanup && hostInvite) cancelHostInvite(true);
+    }
+
+    mount();
+    renderAvailability();
+    return Object.freeze({ start, stop, refresh: () => refreshInvites(true), onConnected, cancelHostInvite });
+  }
+
   window.ICT8ZeroDbP2P = Object.freeze({
     version: VERSION,
     createSession,
@@ -375,6 +660,7 @@
     copyText,
     shareText,
     openScanner,
+    createStudentInviteController,
     cleanName
   });
 })();

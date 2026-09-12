@@ -99,8 +99,8 @@
               <span class="code-duel-hero">⚔️</span>
               <h1>CODE DUEL</h1>
               <p>Two devices. Same coding challenge sequence. First player to clear all ${QUESTION_COUNT} questions wins.</p>
-              <div class="code-duel-badges"><span>👥 2 PLAYERS</span><span>⚡ WEBRTC P2P</span><span>0 XP</span></div>
-              <div class="code-duel-zero-note"><b>Gameplay stays database-free.</b> Student ID mode uses RTDB only for a tiny temporary invite/offer/answer, then the live match switches to direct WebRTC. QR pairing remains the zero-RTDB fallback.</div>
+              <div class="code-duel-badges"><span>👥 2 PLAYERS</span><span>🆔 STUDENT ID</span><span>📷 QR</span><span>0 XP</span></div>
+              
               <div class="code-duel-identity" data-cd-identity hidden></div>
               <div class="code-duel-inbox" data-cd-inbox hidden>
                 <div class="code-duel-inbox-head"><strong>⚔️ DUEL INVITES</strong><button type="button" data-cd-refresh-invites>REFRESH</button></div>
@@ -110,7 +110,7 @@
                 <button class="primary" type="button" data-cd-create>CREATE / INVITE</button>
                 <button type="button" data-cd-join>JOIN / SCAN QR</button>
               </div>
-              <small class="code-duel-network-note">Student ID invite is easiest for logged-in students. QR mode works without RTDB signaling and hides the long WebRTC code.</small>
+              <small class="code-duel-network-note">Invite a classmate by Student ID, or use QR / Share pairing.</small>
             </div>
           </section>
 
@@ -121,7 +121,7 @@
 
               <div class="code-duel-method-card primary-method">
                 <span class="code-duel-method-icon">🆔</span>
-                <div><strong>SEND TO STUDENT ID</strong><small>Fast setup · temporary RTDB signaling only</small></div>
+                <div><strong>SEND TO STUDENT ID</strong><small>Quick invite for logged-in students</small></div>
               </div>
               <label>Player 2 Student ID<input maxlength="30" autocomplete="off" autocapitalize="characters" data-cd-target-student placeholder="Example: 2026-001"></label>
               <button class="primary" type="button" data-cd-send-invite>SEND DUEL INVITE</button>
@@ -130,7 +130,7 @@
               <div class="code-duel-or"><span>OR</span></div>
               <div class="code-duel-method-card">
                 <span class="code-duel-method-icon">📷</span>
-                <div><strong>QR / SHARE PAIRING</strong><small>Zero RTDB fallback</small></div>
+                <div><strong>QR / SHARE PAIRING</strong><small>Scan or share with Player 2</small></div>
               </div>
               <button type="button" data-cd-make-offer>CREATE HOST QR</button>
               <div class="code-duel-qr-block" data-cd-host-qr-block hidden>
@@ -152,7 +152,7 @@
               <label>Your display name<input maxlength="18" autocomplete="nickname" data-cd-guest-name value="PLAYER 2"></label>
               <div class="code-duel-method-card primary-method">
                 <span class="code-duel-method-icon">📷</span>
-                <div><strong>SCAN HOST QR</strong><small>Zero RTDB pairing</small></div>
+                <div><strong>SCAN HOST QR</strong><small>Scan the code shown by Player 1</small></div>
               </div>
               <button class="primary" type="button" data-cd-scan-offer>SCAN HOST QR</button>
               <details class="code-duel-advanced"><summary>Paste shared Host Code instead</summary><label>Host Pair Code<textarea spellcheck="false" data-cd-offer-input placeholder="Paste the HOST PAIR CODE here"></textarea></label><button type="button" data-cd-make-answer>CREATE RESPONSE</button></details>
@@ -343,7 +343,7 @@
       if(st==='closed')runtime.connected=false;
     });
     pc.addEventListener('iceconnectionstatechange',()=>{
-      if(pc.iceConnectionState==='failed')setConnectionNotice('Peer-to-peer connection failed. Strict school/mobile networks can block direct WebRTC.');
+      if(pc.iceConnectionState==='failed')setConnectionNotice('Live connection failed. Try the same Wi-Fi or another network.');
     });
     return pc;
   }
@@ -414,7 +414,7 @@
   function stopInvitePolling(){clearInterval(runtime.invitePollTimer);runtime.invitePollTimer=0;runtime.invitePollBusy=false;}
 
   async function createHostOfferBase(){
-    if(!window.RTCPeerConnection)throw new Error('WebRTC is not supported by this browser.');
+    if(!window.RTCPeerConnection)throw new Error('Live 2-player connection is not supported by this browser.');
     runtime.localName=safeName($('[data-cd-host-name]').value,runtime.identity?.name||'PLAYER 1');
     runtime.remoteName='PLAYER 2';
     runtime.signalSeed=randomSeed();
@@ -437,7 +437,7 @@
     button.disabled=true;button.textContent='CREATING INVITE…';
     try{
       await cancelHostInvite(true);
-      setHostStatus('Creating a direct WebRTC offer…');
+      setHostStatus('Preparing the match invite…');
       const code=await createHostOfferBase();
       setHostStatus('Sending temporary invite to the Student ID…');
       const sent=await runtime.bridge.createDuelInvite({targetStudentId:target,offerCode:code,hostName:runtime.localName});
@@ -510,7 +510,7 @@
     const button=$('[data-cd-make-offer]');button.disabled=true;button.textContent='CREATING QR…';
     try{
       await cancelHostInvite(true);
-      setHostStatus('Creating a zero-RTDB direct pairing QR…');
+      setHostStatus('Creating the Host QR…');
       const code=await createHostOfferBase();
       const dataUrl=runtime.bridge?.createQrDataUrl?.(code,360)||'';
       const block=$('[data-cd-host-qr-block]'),img=$('[data-cd-host-qr]');
@@ -522,7 +522,7 @@
   }
 
   async function createGuestAnswerFromCode(rawCode,options={}){
-    if(!window.RTCPeerConnection)throw new Error('WebRTC is not supported by this browser.');
+    if(!window.RTCPeerConnection)throw new Error('Live 2-player connection is not supported by this browser.');
     const offer=decodeSignal(rawCode);
     if(offer.kind!=='offer'||!offer.desc)throw new Error('The Host Pair Code is invalid.');
     runtime.localName=safeName($('[data-cd-guest-name]').value,runtime.identity?.name||'PLAYER 2');
@@ -571,7 +571,7 @@
     clearTimeout(runtime.connectionTimer);
     runtime.connectionTimer=setTimeout(()=>{
       if(runtime.connected)return;
-      const msg='Still not connected. Both devices must stay online. If the network blocks WebRTC, try the same Wi-Fi or another network.';
+      const msg='Still not connected. Keep both devices online, or try the same Wi-Fi / another network.';
       if(runtime.role==='host')setHostStatus(msg,true);else setGuestStatus(msg,true);
     },CONNECTION_TIMEOUT_MS);
   }

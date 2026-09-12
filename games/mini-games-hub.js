@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const ASSET_VERSION = '20260912-v4761-all-games-audio-plus50-v1';
+  const ASSET_VERSION = '20260912-v4761-2p-student-invites-v4';
 
   const GAME_REGISTRY = Object.freeze([
     {
@@ -378,7 +378,6 @@
       maxXp: 0,
       multiplayer: true,
       noXp: true,
-      zeroDb: true,
       category: '2P RACE / CODING',
       difficulty: '★★★☆☆',
       globalName: 'ICT8CodeTowerRace',
@@ -386,7 +385,7 @@
       script: 'games/code-tower-race/code-tower-race.js',
       style: 'games/code-tower-race/code-tower-race.css',
       playLabel: 'PLAY 2P',
-      bestText() { return '🧱 LIVE RACE · 0 DB · 0 XP'; }
+      bestText() { return '🧱 LIVE RACE · 0 XP'; }
     },
     {
       id: 'code-snake-duel',
@@ -397,7 +396,6 @@
       maxXp: 0,
       multiplayer: true,
       noXp: true,
-      zeroDb: true,
       category: '2P ARCADE / PVP',
       difficulty: '★★★★☆',
       globalName: 'ICT8CodeSnakeDuel',
@@ -405,7 +403,7 @@
       script: 'games/code-snake-duel/code-snake-duel.js',
       style: 'games/code-snake-duel/code-snake-duel.css',
       playLabel: 'PLAY 2P',
-      bestText() { return '🐍 SHARED ARENA · 0 DB · 0 XP'; }
+      bestText() { return '🐍 SHARED ARENA · 0 XP'; }
     },
     {
       id: 'byte-space-battle',
@@ -416,7 +414,6 @@
       maxXp: 0,
       multiplayer: true,
       noXp: true,
-      zeroDb: true,
       category: '2P ACTION / PVP',
       difficulty: '★★★★☆',
       globalName: 'ICT8ByteSpaceBattle',
@@ -424,7 +421,7 @@
       script: 'games/byte-space-battle/byte-space-battle.js',
       style: 'games/byte-space-battle/byte-space-battle.css',
       playLabel: 'PLAY 2P',
-      bestText() { return '🚀 SPACE PVP · 0 DB · 0 XP'; }
+      bestText() { return '🚀 SPACE BATTLE · 0 XP'; }
     },
     {
       id: 'code-escape-coop',
@@ -435,7 +432,6 @@
       maxXp: 0,
       multiplayer: true,
       noXp: true,
-      zeroDb: true,
       coop: true,
       category: '2P CO-OP / PUZZLE',
       difficulty: '★★★★☆',
@@ -444,7 +440,7 @@
       script: 'games/code-escape-coop/code-escape-coop.js',
       style: 'games/code-escape-coop/code-escape-coop.css',
       playLabel: 'PLAY CO-OP',
-      bestText() { return '🧩 CO-OP ESCAPE · 0 DB · 0 XP'; }
+      bestText() { return '🧩 CO-OP ESCAPE · 0 XP'; }
     },
     {
       id: 'pattern-lock',
@@ -1043,14 +1039,13 @@
           <section class="xp-games-panel xp-games-panel-multiplayer" role="tabpanel" data-xp-games-panel="multiplayer" hidden>
             <section class="xp-games-2p-summary">
               <div>
-                <small>👥 DIRECT DEVICE-TO-DEVICE</small>
+                <small>👥 PLAY WITH A FRIEND</small>
                 <h3>2 PLAYER · NO XP</h3>
-                <p>Live games stay separate from XP games. No XP, no Weekly Arcade points, and no Firestore/RTDB gameplay reads or writes.</p>
+                <p>Invite a classmate by Student ID or connect with QR/Share. These multiplayer games are separate from Solo XP and Weekly Arcade.</p>
               </div>
               <span class="xp-games-2p-zero">0 XP</span>
             </section>
             <section class="xp-games-game-list xp-games-2p-list" aria-label="Two-player no-XP games">
-              <div class="xp-games-2p-note"><b>ZERO-DB GAMES:</b> Code Tower Race, Code Snake Duel, Byte Space Battle, and Code Escape use QR/Share WebRTC pairing only — 0 Firestore reads/writes and 0 RTDB reads/writes during setup and gameplay. CODE DUEL still keeps its optional Student ID invite mode. All 2P games award 0 XP.</div>
               <div data-xp-games-2p-cards></div>
             </section>
           </section>
@@ -1306,7 +1301,7 @@
           </div>
           <div class="xp-games-card-meta">
             <span class="xp-games-best">${game.bestText({})}</span>
-            <span class="xp-games-xp-note">${type} · NO XP · ${game.zeroDb ? '0 DB · ' : ''}P2P</span>
+            <span class="xp-games-xp-note">${type} · NO XP</span>
           </div>
           <button class="xp-games-play xp-games-play-2p" type="button" data-xp-game-play="${game.id}">${game.playLabel || (game.coop ? 'PLAY CO-OP' : 'PLAY 1v1')}</button>
         </article>`;
