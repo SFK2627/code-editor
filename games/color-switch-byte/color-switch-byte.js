@@ -390,6 +390,12 @@
     return clamp(runtime.view.w * 0.15, 72, 88);
   }
 
+  function switchOrbRadiusForView() {
+    // Slightly larger than the old fixed 9px orb so the upcoming color change
+    // is easier to read on phones without making the obstacle feel oversized.
+    return clamp(runtime.view.w * 0.022, 10.5, 13);
+  }
+
   function ringClearTravelForScore(score = runtime.score) {
     // The old build could shrink the free travel between obstacles to only a
     // few dozen pixels on wider screens. Keep a real breathing zone even late
@@ -420,14 +426,16 @@
     const required = chooseNextRequiredColor();
     const other = chooseRingOtherColor(required);
     const direction = Math.random() < 0.5 ? -1 : 1;
-    const scoreFactor = Math.min(1.3, runtime.score * 0.018);
+    // Keep difficulty progression, but soften rotation speed by about 10-12%
+    // so higher-score rings remain readable and responsive on phones.
+    const scoreFactor = Math.min(1.3, runtime.score * 0.016);
     return {
       worldY,
       radius: ringRadiusForView(),
       width: ringWidthForView(),
       switchGap: ringSwitchGapForView(),
       rotation: Math.random() * Math.PI * 2,
-      speed: direction * (0.54 + scoreFactor * 0.86 + Math.random() * 0.24),
+      speed: direction * (0.50 + scoreFactor * 0.76 + Math.random() * 0.20),
       required,
       other,
       switched: false,
@@ -777,12 +785,13 @@
       ctx.fillStyle = COLORS[ring.required];
       ctx.shadowColor = COLORS[ring.required];
       ctx.shadowBlur = 12;
+      const orbRadius = switchOrbRadiusForView();
       ctx.beginPath();
-      ctx.arc(x, switchY, 9, 0, Math.PI * 2);
+      ctx.arc(x, switchY, orbRadius, 0, Math.PI * 2);
       ctx.fill();
       ctx.shadowBlur = 0;
       ctx.strokeStyle = '#fff';
-      ctx.lineWidth = 2;
+      ctx.lineWidth = 2.4;
       ctx.stroke();
       ctx.restore();
     }

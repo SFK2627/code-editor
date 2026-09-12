@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const ASSET_VERSION = '20260912-v4761-game-audio-v2-louder-restart';
+  const ASSET_VERSION = '20260912-v4761-color-switch-v3-tuning';
 
   const GAME_REGISTRY = Object.freeze([
     {
