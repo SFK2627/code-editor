@@ -8,7 +8,14 @@
 
   const GAME_ID = 'million-byte';
   const GLOBAL_NAME = 'ICT8MillionByte';
-  const BANK_URL = 'games/million-byte/million-byte-questions.js?v=20260912-v4761-million-byte-v52-better-explanations';
+  // Resolve the question bank relative to this game script itself. This keeps
+  // GitHub Pages repo/subpath deployments working even when the app URL changes.
+  const GAME_SCRIPT_URL = document.currentScript && document.currentScript.src
+    ? new URL(document.currentScript.src, document.baseURI)
+    : new URL('games/million-byte/million-byte.js', document.baseURI);
+  const GAME_DIR_URL = new URL('./', GAME_SCRIPT_URL);
+  const BANK_ASSET_VERSION = '20260912-v4761-million-byte-v53-github-safe';
+  const BANK_URL = new URL(`million-byte-questions.js?v=${BANK_ASSET_VERSION}`, GAME_DIR_URL).href;
   const BANK_VERSION = 3;
   const QUESTION_COUNT = 15;
   const LETTERS = ['A', 'B', 'C', 'D'];
@@ -382,7 +389,8 @@
     runtime.bankPromise = (async () => {
       const attempts = [
         BANK_URL,
-        `games/million-byte/million-byte-questions.js?v=${Date.now()}`
+        new URL(`million-byte-questions.js?v=${Date.now()}`, GAME_DIR_URL).href,
+        new URL('million-byte-questions.js', GAME_DIR_URL).href
       ];
       let lastError = null;
       for (const src of attempts) {
