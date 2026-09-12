@@ -6,8 +6,8 @@
   }
 
 
-  // v4761 Byte Runner visual/physics correction: rear-view runner, forward
-  // perspective motion, pass-through answer portals, and fast collision cleanup.
+  // BYTE RUNNER v8 — bright rail-city runner environment, strict action silhouettes,
+  // readable question HUD, visible obstacle clearance, and validated fixed XP by difficulty.
 
   const GAME_ID = 'byte-runner-html-rush';
   const STATE_KEY = 'byteRunnerHtmlRush';
@@ -31,25 +31,25 @@
     easy: Object.freeze({
       key: 'easy', label: 'EASY', stars: '★☆☆☆', hearts: 3, steps: 8,
       startSpeed: 18.2, acceleration: .122, maxSpeed: 23.0, obstacleGap: 2.20,
-      preview: 3.05, betweenQuestions: 1.45, actionChance: .44, maxXp: 3,
+      preview: 3.05, betweenQuestions: 1.45, actionChance: .44, maxXp: 5,
       minActiveMs: 46000, description: 'Beginner HTML · more reading time · forgiving pace'
     }),
     medium: Object.freeze({
       key: 'medium', label: 'MEDIUM', stars: '★★☆☆', hearts: 3, steps: 10,
       startSpeed: 20.9, acceleration: .154, maxSpeed: 26.9, obstacleGap: 1.84,
-      preview: 2.65, betweenQuestions: 1.30, actionChance: .56, maxXp: 5,
+      preview: 2.65, betweenQuestions: 1.30, actionChance: .56, maxXp: 10,
       minActiveMs: 56000, description: 'Attributes + nesting · moderate reaction window'
     }),
     hard: Object.freeze({
       key: 'hard', label: 'HARD', stars: '★★★☆', hearts: 2, steps: 12,
       startSpeed: 23.3, acceleration: .182, maxSpeed: 30.4, obstacleGap: 1.50,
-      preview: 2.28, betweenQuestions: 1.15, actionChance: .67, maxXp: 8,
+      preview: 2.28, betweenQuestions: 1.15, actionChance: .67, maxXp: 15,
       minActiveMs: 66000, description: 'Semantic HTML + forms · tighter runner patterns'
     }),
     difficult: Object.freeze({
       key: 'difficult', label: 'DIFFICULT', stars: '★★★★', hearts: 2, steps: 14,
       startSpeed: 25.4, acceleration: .205, maxSpeed: 33.0, obstacleGap: 1.20,
-      preview: 2.02, betweenQuestions: 1.05, actionChance: .78, maxXp: 12,
+      preview: 2.02, betweenQuestions: 1.05, actionChance: .78, maxXp: 20,
       minActiveMs: 76000, description: 'Mixed debugging + accessibility · highest reward ceiling'
     })
   });
@@ -106,7 +106,7 @@
     obstacles:[], pickups:[], particles:[], laneHistory:[], motionHistory:[], challengeHistory:new Set(), mistakes:[],
     lastObstaclePattern:'', visualTime:0, audioContext:null, soundEnabled:true, musicClock:0,
     pointer:null, pauseFrom:'', countdownClock:0, countdownStage:3, toastClock:0, toastKind:'',
-    bestScore:0, bestAccuracy:0, bestCombo:0, bestDifficultyRank:0
+    bestScore:0, bestAccuracy:0, bestCombo:0, bestDifficultyRank:0, clearFxTime:0, clearFxKind:''
   };
 
   for (let i = 0; i < PARTICLE_LIMIT; i += 1) runtime.particles.push({ active:false, x:0, y:0, vx:0, vy:0, age:0, ttl:0, size:0, kind:'code' });
@@ -418,15 +418,15 @@
           <div class="byte-runner-html-card">
             <div class="byte-runner-html-logo">&lt;/&gt;</div><p class="byte-runner-html-kicker">G8CODE ARCADE · ORIGINAL RUNNER</p>
             <h2>BYTE RUNNER: HTML RUSH</h2>
-            <p>Read the HTML challenge, pick the correct lane, then dodge, jump, or slide through the answer while building a complete webpage.</p>
+            <p>Read the HTML challenge, pick the correct lane, then run, jump, or slide through the answer in a bright three-track city rush.</p>
             <div class="byte-runner-html-controls"><span>← → / A D · LANES</span><span>↑ / W / SPACE · JUMP</span><span>↓ / S · SLIDE</span><span>PHONE · SWIPE</span></div>
             <div class="byte-runner-html-difficulties">
-              <button class="byte-runner-html-difficulty easy" data-brh-difficulty-key="easy"><strong>EASY · 1–3 XP</strong><span>3 hearts · Beginner HTML</span><small>Slower runner, longer reading window, clear distractors.</small></button>
-              <button class="byte-runner-html-difficulty medium" data-brh-difficulty-key="medium"><strong>MEDIUM · 2–5 XP</strong><span>3 hearts · Attributes + nesting</span><small>More obstacles and shorter reaction time.</small></button>
-              <button class="byte-runner-html-difficulty hard" data-brh-difficulty-key="hard"><strong>HARD · 4–8 XP</strong><span>2 hearts · Semantic HTML</span><small>Faster patterns, similar distractors, longer page.</small></button>
-              <button class="byte-runner-html-difficulty difficult" data-brh-difficulty-key="difficult"><strong>DIFFICULT · 6–12 XP</strong><span>2 hearts · Mixed advanced challenges</span><small>Fastest fair speed and the highest performance ceiling.</small></button>
+              <button class="byte-runner-html-difficulty easy" data-brh-difficulty-key="easy"><strong>EASY · COMPLETE = 5 XP</strong><span>3 hearts · Beginner HTML</span><small>Slower runner, longer reading window, clear distractors.</small></button>
+              <button class="byte-runner-html-difficulty medium" data-brh-difficulty-key="medium"><strong>MEDIUM · COMPLETE = 10 XP</strong><span>3 hearts · Attributes + nesting</span><small>More obstacles and shorter reaction time.</small></button>
+              <button class="byte-runner-html-difficulty hard" data-brh-difficulty-key="hard"><strong>HARD · COMPLETE = 15 XP</strong><span>2 hearts · Semantic HTML</span><small>Faster patterns, similar distractors, longer page.</small></button>
+              <button class="byte-runner-html-difficulty difficult" data-brh-difficulty-key="difficult"><strong>DIFFICULT · COMPLETE = 20 XP</strong><span>2 hearts · Mixed advanced challenges</span><small>Fastest fair speed and the highest performance ceiling.</small></button>
             </div>
-            <p>All Mini-Game XP still shares the existing daily account cap. Difficulty alone never guarantees maximum XP.</p>
+            <p>Complete the validated mission to earn the listed XP. All Mini-Game XP still shares the existing 50 XP daily account cap.</p>
           </div>
         </div>
 
@@ -435,7 +435,7 @@
             <div class="byte-runner-html-logo">01</div><p class="byte-runner-html-kicker">NEW HTML MISSION</p>
             <h2 data-brh-mission-name>Build a Personal Profile</h2>
             <div class="byte-runner-html-mission-box"><strong data-brh-mission-difficulty>EASY · 8 decisions</strong><small>Correct answers insert real HTML into your page.</small></div>
-            <p>Answer gates appear only after a readable preview. When a gate says JUMP or SLIDE, perform that action while crossing the correct lane.</p>
+            <p>Action rule: RUN accepts running, jumping, or sliding. JUMP requires a jump. SLIDE requires an active slide. The gate shape always shows the required move.</p>
             <div class="byte-runner-html-actions"><button type="button" class="secondary" data-brh-change-difficulty>CHANGE DIFFICULTY</button><button type="button" class="primary" data-brh-begin>START MISSION</button></div>
           </div>
         </div>
@@ -533,12 +533,12 @@
     runtime.canvas.style.width = `${w}px`; runtime.canvas.style.height = `${h}px`;
     runtime.ctx.setTransform(dpr,0,0,dpr,0,0);
     runtime.skyGradient = runtime.ctx.createLinearGradient(0,0,0,h);
-    runtime.skyGradient.addColorStop(0,'#03101e'); runtime.skyGradient.addColorStop(.50,'#071a2b'); runtime.skyGradient.addColorStop(1,'#081522');
+    runtime.skyGradient.addColorStop(0,'#58b9f3'); runtime.skyGradient.addColorStop(.48,'#9edcf6'); runtime.skyGradient.addColorStop(1,'#e8f7fb');
     const horizon=h*(w <= 700 ? .365 : .315);
     runtime.roadGradient = runtime.ctx.createLinearGradient(0,horizon,0,h);
-    runtime.roadGradient.addColorStop(0,'#0d2534'); runtime.roadGradient.addColorStop(.55,'#142f3e'); runtime.roadGradient.addColorStop(1,'#193846');
-    runtime.horizonGlow = runtime.ctx.createRadialGradient(w*.5,horizon,2,w*.5,horizon,w*.34);
-    runtime.horizonGlow.addColorStop(0,'rgba(103,232,249,.22)'); runtime.horizonGlow.addColorStop(.42,'rgba(34,211,238,.08)'); runtime.horizonGlow.addColorStop(1,'rgba(2,6,23,0)');
+    runtime.roadGradient.addColorStop(0,'#5e6c72'); runtime.roadGradient.addColorStop(.55,'#46545b'); runtime.roadGradient.addColorStop(1,'#303c42');
+    runtime.horizonGlow = runtime.ctx.createRadialGradient(w*.5,horizon,2,w*.5,horizon,w*.42);
+    runtime.horizonGlow.addColorStop(0,'rgba(255,248,196,.46)'); runtime.horizonGlow.addColorStop(.48,'rgba(255,255,255,.12)'); runtime.horizonGlow.addColorStop(1,'rgba(255,255,255,0)');
   }
 
   function scheduleResize() {
@@ -593,7 +593,7 @@
     runtime.state='MISSION_INTRO';
     runtime.difficultyPanel.hidden=true; runtime.missionPanel.hidden=false; runtime.resultPanel.hidden=true; runtime.gameOverPanel.hidden=true; runtime.questionBox.hidden=true;
     setText(runtime.missionName, `Build: ${runtime.mission.title}`);
-    setText(runtime.missionDifficulty, `${difficulty.label} · ${difficulty.steps} coding decisions · up to ${difficulty.maxXp} XP`);
+    setText(runtime.missionDifficulty, `${difficulty.label} · ${difficulty.steps} coding decisions · ${difficulty.maxXp} XP on completion`);
     resetRunData(false);
     updateHud(true); updateBuildDock();
   }
@@ -604,7 +604,7 @@
     runtime.state='MISSION_INTRO';
     runtime.resultPanel.hidden=true; runtime.gameOverPanel.hidden=true; runtime.missionPanel.hidden=false; runtime.questionBox.hidden=true;
     setText(runtime.missionName, `Build: ${runtime.mission.title}`);
-    setText(runtime.missionDifficulty, `${runtime.difficulty.label} · ${runtime.difficulty.steps} coding decisions · up to ${runtime.difficulty.maxXp} XP`);
+    setText(runtime.missionDifficulty, `${runtime.difficulty.label} · ${runtime.difficulty.steps} coding decisions · ${runtime.difficulty.maxXp} XP on completion`);
     resetRunData(false); updateHud(true);
   }
 
@@ -617,7 +617,7 @@
   function resetRunData(clearMission=false) {
     if (clearMission) runtime.mission=null;
     const d=runtime.difficulty || DIFFICULTIES.easy;
-    runtime.round=null; runtime.rewardSubmitting=false; runtime.speed=d.startSpeed; runtime.distance=0; runtime.arcadeScore=0; runtime.performanceScore=0; runtime.activeTimeMs=0; runtime.hearts=d.hearts; runtime.shield=0; runtime.invulnerable=0; runtime.combo=0; runtime.longestCombo=0; runtime.correctAnswers=0; runtime.wrongAnswers=0; runtime.obstacleHits=0; runtime.collectibles=0; runtime.completedSteps=0; runtime.stepAttempt=0; runtime.currentChallenge=null; runtime.questionPhase='none'; runtime.questionTimer=0; runtime.questionWait=2.15; runtime.questionPending=false; runtime.feedbackClock=0; runtime.gateGroup=null; runtime.lane=1; runtime.lanePos=1; runtime.laneShiftCooldown=0; runtime.jumpY=0; runtime.jumpVy=0; runtime.slideTime=0; runtime.stumbleTime=0; runtime.landingKick=0; runtime.cameraKick=0; runtime.obstacleClock=1.1; runtime.collectibleClock=2.4; runtime.obstacles.length=0; runtime.pickups.length=0; runtime.laneHistory.length=0; runtime.motionHistory.length=0; runtime.challengeHistory.clear(); runtime.mistakes.length=0; runtime.pointer=null; runtime.countdownClock=0; runtime.countdownStage=3; runtime.musicClock=.35; runtime.toastClock=0;
+    runtime.round=null; runtime.rewardSubmitting=false; runtime.speed=d.startSpeed; runtime.distance=0; runtime.arcadeScore=0; runtime.performanceScore=0; runtime.activeTimeMs=0; runtime.hearts=d.hearts; runtime.shield=0; runtime.invulnerable=0; runtime.combo=0; runtime.longestCombo=0; runtime.correctAnswers=0; runtime.wrongAnswers=0; runtime.obstacleHits=0; runtime.collectibles=0; runtime.completedSteps=0; runtime.stepAttempt=0; runtime.currentChallenge=null; runtime.questionPhase='none'; runtime.questionTimer=0; runtime.questionWait=2.15; runtime.questionPending=false; runtime.feedbackClock=0; runtime.gateGroup=null; runtime.lane=1; runtime.lanePos=1; runtime.laneShiftCooldown=0; runtime.jumpY=0; runtime.jumpVy=0; runtime.slideTime=0; runtime.stumbleTime=0; runtime.landingKick=0; runtime.cameraKick=0; runtime.obstacleClock=1.1; runtime.collectibleClock=2.4; runtime.obstacles.length=0; runtime.pickups.length=0; runtime.laneHistory.length=0; runtime.motionHistory.length=0; runtime.challengeHistory.clear(); runtime.mistakes.length=0; runtime.pointer=null; runtime.countdownClock=0; runtime.countdownStage=3; runtime.musicClock=.35; runtime.toastClock=0; runtime.clearFxTime=0; runtime.clearFxKind='';
     for (const p of runtime.particles) p.active=false;
     updateBuildHud();
   }
@@ -717,9 +717,16 @@
     runtime.currentChallenge=nextChallenge(); if (!runtime.currentChallenge) return;
     runtime.questionPhase='preview'; runtime.questionTimer=runtime.difficulty.preview; runtime.questionPending=false; runtime.gateGroup=null;
     runtime.questionBox.hidden=false; setText(runtime.qType,runtime.currentChallenge.type); setText(runtime.qPrompt,runtime.currentChallenge.prompt); setText(runtime.qCode,runtime.currentChallenge.code);
-    const actionText = runtime.currentChallenge.motion==='jump' ? '↑ JUMP' : runtime.currentChallenge.motion==='slide' ? '↓ SLIDE' : 'RUN';
+    const actionText = runtime.currentChallenge.motion==='jump' ? '↑ JUMP' : runtime.currentChallenge.motion==='slide' ? '↓ SLIDE' : 'RUN · ANY MOVE';
+    runtime.questionBox.dataset.motion=runtime.currentChallenge.motion; runtime.qAction.dataset.motion=runtime.currentChallenge.motion;
     setText(runtime.qAction,actionText);
     runtime.qChoices.innerHTML='<span class="byte-runner-html-choice wait">READ FIRST · ANSWER GATES INCOMING…</span>';
+  }
+
+  function currentRunnerAction() {
+    if (runtime.slideTime > .055 && runtime.jumpY < .08) return 'slide';
+    if (runtime.jumpY > .12 || (runtime.jumpY >= .015 && Math.abs(runtime.jumpVy) > .55)) return 'jump';
+    return 'run';
   }
 
   function launchAnswerGates() {
@@ -750,9 +757,12 @@
     group.postResolveAge=0;
     const playerLane=clamp(Math.round(runtime.lanePos),0,2);
     const laneLocked=Math.abs(runtime.lanePos-playerLane)<.50;
-    const actionOk = challenge.motion==='jump' ? runtime.jumpY>.31 : challenge.motion==='slide' ? runtime.slideTime>.05 && runtime.jumpY<.20 : true;
+    const playerAction=currentRunnerAction();
+    // RUN is intentionally permissive: running, jumping, or sliding through the
+    // correct open portal is safe. JUMP and SLIDE are strict action checks.
+    const actionOk = challenge.motion==='run' ? true : playerAction===challenge.motion;
     const correct = laneLocked && playerLane===group.correctLane && actionOk;
-    group.selectedLane=playerLane;
+    group.selectedLane=playerLane; group.playerAction=playerAction;
     group.resolution=correct?'correct':'wrong';
     group.impactHold=correct?0:.12;
     if (correct) handleCorrectAnswer(group); else handleWrongAnswer(group, playerLane, actionOk);
@@ -762,7 +772,7 @@
     runtime.correctAnswers+=1; runtime.completedSteps+=1; runtime.combo+=1; runtime.longestCombo=Math.max(runtime.longestCombo,runtime.combo); runtime.stepAttempt=0;
     runtime.arcadeScore += 650 + runtime.combo*55 + Math.round(runtime.speed*7);
     group.flash='good'; group.resolution='correct'; runtime.feedbackClock=.60; runtime.questionPhase='feedback'; tone('good');
-    burstAtGate(group.correctLane,'good',18); animateInsertion(runtime.currentChallenge.codeInsertion); showToast(runtime.combo>=10?'PERFECT SYNTAX!':runtime.combo>=5?'CODE FLOW!':runtime.combo>=3?'COMBO x2':'CODE ACCEPTED ✓',runtime.combo>=3?'combo':'good',.70);
+    burstAtGate(group.correctLane,'good',18); animateInsertion(runtime.currentChallenge.codeInsertion); const passMove=runtime.currentChallenge.motion==='run'?(group.playerAction==='jump'?'JUMP THROUGH ✓':group.playerAction==='slide'?'SLIDE THROUGH ✓':'RUN THROUGH ✓'):(runtime.currentChallenge.motion==='jump'?'CLEAN JUMP ✓':'CLEAN SLIDE ✓'); showToast(runtime.combo>=5?'CODE FLOW!':passMove,runtime.combo>=3?'combo':'good',.78);
     updateBuildHud();
   }
 
@@ -775,7 +785,7 @@
 
   function handleWrongAnswer(group, playerLane, actionOk) {
     runtime.wrongAnswers+=1; runtime.combo=0; runtime.stepAttempt+=1; group.flash='bad'; group.resolution='wrong'; group.selectedLane=playerLane; runtime.feedbackClock=.72; runtime.questionPhase='feedback';
-    const chosen=group.lanes[playerLane] || 'No gate'; const reason=playerLane===group.correctLane&&!actionOk?`Correct lane, but ${runtime.currentChallenge.motion.toUpperCase()} was required.`:`${chosen} was not the correct answer.`;
+    const chosen=group.lanes[playerLane] || 'No gate'; const reason=playerLane===group.correctLane&&!actionOk?`Correct lane, but ${runtime.currentChallenge.motion.toUpperCase()} was required. ${group.playerAction.toUpperCase()} is not safe for this gate.`:`${chosen} was not the correct answer.`;
     runtime.mistakes.push({prompt:runtime.currentChallenge.prompt,chosen,correct:runtime.currentChallenge.correct,reason:runtime.currentChallenge.explanation,actionReason:reason});
     consumeDamage('answer'); burstAtGate(playerLane,'bad',15); showToast('CODE ERROR!','bad',.72);
     if (runtime.hearts<=0) runtime.feedbackClock=.40;
@@ -804,15 +814,15 @@
           group.impactHold=Math.max(0,group.impactHold-dt);
           group.z-=runtime.speed*dt*.12;
         } else {
-          group.z-=runtime.speed*dt*(group.resolution==='correct'?3.10:1.72);
+          group.z-=runtime.speed*dt*(group.resolution==='correct'?1.34:1.72);
         }
-        const fadeWindow=group.resolution==='correct'?.28:.56;
+        const fadeWindow=group.resolution==='correct'?.48:.56;
         group.alpha=clamp(1-group.postResolveAge/fadeWindow,0,1);
-        if (group.z<(group.resolution==='correct'?1:-4) || group.alpha<=.02) runtime.gateGroup=null;
+        if (group.z<(group.resolution==='correct'?-5:-4) || group.alpha<=.02) runtime.gateGroup=null;
       }
       runtime.feedbackClock-=dt;
       if (runtime.feedbackClock<=0) {
-        runtime.gateGroup=null; runtime.currentChallenge=null; runtime.questionBox.hidden=true; runtime.questionPhase='none'; runtime.questionWait=runtime.difficulty.betweenQuestions; runtime.questionPending=false;
+        runtime.gateGroup=null; runtime.currentChallenge=null; runtime.questionBox.hidden=true; runtime.questionBox.removeAttribute('data-motion'); runtime.questionPhase='none'; runtime.questionWait=runtime.difficulty.betweenQuestions; runtime.questionPending=false;
         if (runtime.hearts<=0) { endRun(false); return; }
         if (runtime.completedSteps>=runtime.difficulty.steps) { endRun(true); return; }
       }
@@ -927,28 +937,29 @@
 
   function updateWorldObjects(dt) {
     for (const obstacle of runtime.obstacles) {
-      const moveScale=obstacle.resolved ? (obstacle.outcome==='hit'?2.55:1.55) : 1;
+      const moveScale=obstacle.resolved ? (obstacle.outcome==='hit'?2.25:1.18) : 1;
       obstacle.z-=runtime.speed*dt*moveScale;
       if (obstacle.resolved) obstacle.postResolveAge=(obstacle.postResolveAge||0)+dt;
       if (!obstacle.resolved && obstacle.z<=7.8) {
         obstacle.resolved=true; obstacle.postResolveAge=0;
         const laneHit=Math.abs(runtime.lanePos-obstacle.lane)<.43;
         if (laneHit) {
-          let cleared=false;
-          if (obstacle.type==='crate') cleared=runtime.jumpY>.40;
-          else if (obstacle.type==='beam') cleared=runtime.slideTime>.08 && runtime.jumpY<.20;
+          const action=currentRunnerAction();
+          const required=obstacle.type==='crate'?'jump':obstacle.type==='beam'?'slide':'dodge';
+          const cleared=(required==='jump'&&action==='jump')||(required==='slide'&&action==='slide');
+          obstacle.requiredAction=required; obstacle.playerAction=action;
           if (!cleared) {
             obstacle.outcome='hit'; runtime.obstacleHits+=1; runtime.combo=0;
             const lost=consumeDamage('obstacle'); burstAtGate(obstacle.lane,'bad',10);
-            if (lost) showToast(obstacle.type==='crate'?'BUG CRATE HIT!':obstacle.type==='beam'?'FIREWALL BEAM HIT!':'SYNTAX WALL HIT!','bad',.62);
+            if (lost) showToast(obstacle.type==='crate'?'JUMP REQUIRED!':obstacle.type==='beam'?'SLIDE REQUIRED!':'CHANGE LANE!','bad',.72);
           } else {
-            obstacle.outcome='cleared'; runtime.arcadeScore+=80;
-            if (Math.random()<.32) showToast(obstacle.type==='crate'?'CLEAN JUMP!':'CLEAN SLIDE!','good',.40);
+            obstacle.outcome='cleared'; obstacle.clearAction=action; runtime.arcadeScore+=95; runtime.clearFxTime=.52; runtime.clearFxKind=action; burstAtGate(obstacle.lane,'good',6);
+            showToast(action==='jump'?'CLEAN JUMP ✓':'SMOOTH SLIDE ✓','good',.52);
           }
         } else { obstacle.outcome='passed'; runtime.arcadeScore+=45; }
       }
     }
-    runtime.obstacles=runtime.obstacles.filter(item=>item.z>-8 && !(item.resolved && item.postResolveAge>.28));
+    runtime.obstacles=runtime.obstacles.filter(item=>item.z>-12 && !(item.resolved && item.postResolveAge>(item.outcome==='cleared'?.58:.32)));
     for (const item of runtime.pickups) {
       item.z-=runtime.speed*dt*(item.resolved?1.7:1);
       if (item.resolved) item.postResolveAge=(item.postResolveAge||0)+dt;
@@ -970,7 +981,7 @@
       runtime.jumpVy-=JUMP_GRAVITY*dt; runtime.jumpY+=runtime.jumpVy*dt;
       if (runtime.jumpY<=PLAYER_GROUND_Y) { runtime.jumpY=0; if (runtime.jumpVy<-.5) { runtime.landingKick=.18; tone('land'); } runtime.jumpVy=0; }
     }
-    runtime.slideTime=Math.max(0,runtime.slideTime-dt); runtime.stumbleTime=Math.max(0,runtime.stumbleTime-dt); runtime.invulnerable=Math.max(0,runtime.invulnerable-dt); runtime.landingKick=Math.max(0,runtime.landingKick-dt); runtime.cameraKick=Math.max(0,runtime.cameraKick-dt*4.8);
+    runtime.slideTime=Math.max(0,runtime.slideTime-dt); runtime.clearFxTime=Math.max(0,runtime.clearFxTime-dt); runtime.stumbleTime=Math.max(0,runtime.stumbleTime-dt); runtime.invulnerable=Math.max(0,runtime.invulnerable-dt); runtime.landingKick=Math.max(0,runtime.landingKick-dt); runtime.cameraKick=Math.max(0,runtime.cameraKick-dt*4.8);
   }
 
   function updateParticles(dt) {
@@ -1105,9 +1116,26 @@
     return [runtime.mission.initialCode,...runtime.mission.steps.slice(0,runtime.completedSteps).map(step=>step.insertion)].join('\n');
   }
 
+  function buildHudDisplayText() {
+    // The build HUD is a learning preview, not the exported source. Keep meaningful
+    // tags readable on small screens instead of letting long data URIs consume the box.
+    return builtCodeText()
+      .replace(/src="data:image\/[^"]+"/gi, 'src="image.svg"')
+      .replace(/\s+$/gm, '');
+  }
+
   function updateBuildHud() {
-    const total=runtime.difficulty?.steps||8, done=runtime.completedSteps; setText(runtime.buildCount,`${done} / ${total}`); runtime.buildProgress.style.width=`${total?done/total*100:0}%`;
-    const lines=builtCodeText().split('\n'); runtime.buildCode.textContent=lines.slice(-5).join('\n');
+    const total=runtime.difficulty?.steps||8, done=runtime.completedSteps;
+    setText(runtime.buildCount,`${done} / ${total}`);
+    runtime.buildProgress.style.width=`${total?done/total*100:0}%`;
+    if (!runtime.buildCode) return;
+    const lines=buildHudDisplayText().split('\n');
+    // Keep a little history above, but always prioritize the newest lines at the bottom.
+    runtime.buildCode.textContent=lines.slice(-7).join('\n');
+    runtime.buildCode.classList.toggle('has-history', lines.length > 4);
+    requestAnimationFrame(() => {
+      if (runtime.buildCode) runtime.buildCode.scrollTop = runtime.buildCode.scrollHeight;
+    });
   }
 
   function updateHud(force=false) {
@@ -1154,79 +1182,126 @@
     const phone=w<=700;
     const geo=roadGeometry();
     const kick=runtime.cameraKick>0?Math.sin(runtime.visualTime*42)*1.35*runtime.cameraKick:0;
-    const laneParallax=(runtime.lanePos-1)*-w*.0035;
+    const laneParallax=(runtime.lanePos-1)*-w*.004;
     ctx.save(); ctx.translate(kick+laneParallax,0);
 
-    ctx.fillStyle=runtime.skyGradient||'#061625'; ctx.fillRect(-16,0,w+32,h);
-    ctx.fillStyle=runtime.horizonGlow||'rgba(34,211,238,.08)'; ctx.fillRect(0,0,w,geo.horizon*1.75);
+    // Bright daytime city / rail corridor. Everything is procedurally drawn so
+    // the game keeps its own visual identity while getting the lively depth of
+    // a modern endless runner.
+    ctx.fillStyle=runtime.skyGradient||'#8dd8f6'; ctx.fillRect(-18,0,w+36,h);
+    ctx.fillStyle=runtime.horizonGlow||'rgba(255,255,255,.14)'; ctx.fillRect(0,0,w,geo.horizon*1.85);
 
-    const buildingCount=phone?6:9;
+    // Sun + slow parallax clouds.
+    ctx.globalAlpha=.86; ctx.fillStyle='#fff3a8'; ctx.beginPath(); ctx.arc(w*.79,h*.105,phone?22:31,0,Math.PI*2); ctx.fill();
+    ctx.globalAlpha=.34;
+    for(let i=0;i<(phone?3:5);i+=1){
+      const cx=positiveMod(i*w*.31+runtime.visualTime*(4+i*.7),w+170)-85;
+      const cy=h*(.08+.055*(i%3)); const cw=phone?46:66;
+      ctx.fillStyle='#ffffff';
+      ctx.beginPath();ctx.ellipse(cx,cy,cw*.42,cw*.16,0,0,Math.PI*2);ctx.ellipse(cx+cw*.25,cy-5,cw*.29,cw*.19,0,0,Math.PI*2);ctx.ellipse(cx-cw*.22,cy-3,cw*.25,cw*.16,0,0,Math.PI*2);ctx.fill();
+    }
+    ctx.globalAlpha=1;
+
+    // Distant hills and colorful city blocks.
+    ctx.fillStyle='#7bbf91'; ctx.beginPath(); ctx.moveTo(0,geo.horizon+4); for(let x=0;x<=w;x+=w/8){ctx.lineTo(x,geo.horizon-16-Math.sin(x*.018)*10);} ctx.lineTo(w,geo.horizon+28);ctx.lineTo(0,geo.horizon+28);ctx.closePath();ctx.fill();
+    const buildingCount=phone?7:11;
+    const cityColors=['#5c7fa3','#6b8fb2','#54728f','#7597ac','#526f82'];
     for(let side=0;side<2;side+=1){
       for(let i=0;i<buildingCount;i+=1){
-        const bw=20+(i%3)*9, bh=38+((i*29+side*13)%90);
-        const step=phone?24:30;
-        const base=side===0?w*.018+i*step:w-w*.018-i*step-bw;
-        const y=geo.horizon-bh+((i%2)*5);
-        ctx.fillStyle=(i+side)%2?'#082033':'#09182a'; ctx.fillRect(base,y,bw,bh);
-        if(!phone){
-          ctx.fillStyle='rgba(103,232,249,.16)';
-          for(let yy=y+11;yy<geo.horizon-5;yy+=17) for(let xx=base+6;xx<base+bw-4;xx+=12) ctx.fillRect(xx,yy,2.5,3);
-        }
+        const bw=18+(i%4)*7, bh=30+((i*31+side*17)%74);
+        const step=phone?22:28;
+        const base=side===0?w*.01+i*step:w-w*.01-i*step-bw;
+        const y=geo.horizon-bh+6+(i%2)*4;
+        ctx.fillStyle=cityColors[(i+side)%cityColors.length]; ctx.fillRect(base,y,bw,bh);
+        ctx.fillStyle='rgba(255,247,201,.46)';
+        for(let yy=y+9;yy<geo.horizon-4;yy+=15) for(let xx=base+5;xx<base+bw-3;xx+=10) ctx.fillRect(xx,yy,2.5,3);
       }
     }
-    ctx.fillStyle='rgba(103,232,249,.22)'; ctx.fillRect(0,geo.horizon-1,w,1.5);
 
-    ctx.beginPath(); ctx.moveTo(0,geo.horizon); ctx.lineTo(w*.5-geo.farHalf,geo.horizon); ctx.lineTo(w*.5-geo.nearHalf,h); ctx.lineTo(0,h); ctx.closePath();
-    ctx.fillStyle='#071722'; ctx.fill();
-    ctx.beginPath(); ctx.moveTo(w*.5+geo.farHalf,geo.horizon); ctx.lineTo(w,geo.horizon); ctx.lineTo(w,h); ctx.lineTo(w*.5+geo.nearHalf,h); ctx.closePath();
-    ctx.fillStyle='#071722'; ctx.fill();
+    // Side platforms / green verge.
+    ctx.beginPath();ctx.moveTo(0,geo.horizon);ctx.lineTo(w*.5-geo.farHalf,geo.horizon);ctx.lineTo(w*.5-geo.nearHalf,h);ctx.lineTo(0,h);ctx.closePath();ctx.fillStyle='#3b6e58';ctx.fill();
+    ctx.beginPath();ctx.moveTo(w*.5+geo.farHalf,geo.horizon);ctx.lineTo(w,geo.horizon);ctx.lineTo(w,h);ctx.lineTo(w*.5+geo.nearHalf,h);ctx.closePath();ctx.fillStyle='#3b6e58';ctx.fill();
 
-    ctx.beginPath(); ctx.moveTo(w*.5-geo.farHalf,geo.horizon); ctx.lineTo(w*.5+geo.farHalf,geo.horizon); ctx.lineTo(w*.5+geo.nearHalf,h); ctx.lineTo(w*.5-geo.nearHalf,h); ctx.closePath();
-    ctx.fillStyle=runtime.roadGradient||'#142f3e'; ctx.fill();
+    // Main ballast / track bed.
+    ctx.beginPath();ctx.moveTo(w*.5-geo.farHalf,geo.horizon);ctx.lineTo(w*.5+geo.farHalf,geo.horizon);ctx.lineTo(w*.5+geo.nearHalf,h);ctx.lineTo(w*.5-geo.nearHalf,h);ctx.closePath();ctx.fillStyle=runtime.roadGradient||'#46545b';ctx.fill();
 
-    const dividerFar=geo.farHalf*geo.laneFactor*.5;
-    const dividerNear=geo.nearHalf*geo.laneFactor*.5;
-    ctx.fillStyle='rgba(2,6,23,.055)';
-    ctx.beginPath(); ctx.moveTo(w*.5-geo.farHalf,geo.horizon); ctx.lineTo(w*.5-dividerFar,geo.horizon); ctx.lineTo(w*.5-dividerNear,h); ctx.lineTo(w*.5-geo.nearHalf,h); ctx.closePath(); ctx.fill();
-    ctx.beginPath(); ctx.moveTo(w*.5+dividerFar,geo.horizon); ctx.lineTo(w*.5+geo.farHalf,geo.horizon); ctx.lineTo(w*.5+geo.nearHalf,h); ctx.lineTo(w*.5+dividerNear,h); ctx.closePath(); ctx.fill();
-
-    ctx.strokeStyle='rgba(125,211,252,.54)'; ctx.lineWidth=1.7;
-    ctx.beginPath(); ctx.moveTo(w*.5-geo.farHalf,geo.horizon); ctx.lineTo(w*.5-geo.nearHalf,h); ctx.moveTo(w*.5+geo.farHalf,geo.horizon); ctx.lineTo(w*.5+geo.nearHalf,h); ctx.stroke();
-    for(const divider of [-.5,.5]){
-      ctx.beginPath(); ctx.moveTo(w*.5+divider*geo.farHalf*geo.laneFactor,geo.horizon); ctx.lineTo(w*.5+divider*geo.nearHalf*geo.laneFactor,h);
-      ctx.strokeStyle='rgba(103,232,249,.16)'; ctx.lineWidth=1.2; ctx.stroke();
+    // Three separate rail tracks: sleepers move toward the player to sell speed.
+    const railOffset=.145;
+    ctx.lineCap='round';
+    for(let lane=0;lane<3;lane+=1){
+      const farC=w*.5+(lane-1)*geo.farHalf*geo.laneFactor;
+      const nearC=w*.5+(lane-1)*geo.nearHalf*geo.laneFactor;
+      const farGap=geo.farHalf*railOffset, nearGap=geo.nearHalf*railOffset;
+      ctx.strokeStyle='rgba(226,232,240,.84)';ctx.lineWidth=phone?1.7:2.1;
+      ctx.beginPath();ctx.moveTo(farC-farGap,geo.horizon);ctx.lineTo(nearC-nearGap,h);ctx.moveTo(farC+farGap,geo.horizon);ctx.lineTo(nearC+nearGap,h);ctx.stroke();
+    }
+    const tieCount=phone?10:13;
+    for(let i=0;i<tieCount;i+=1){
+      const z=positiveMod(i*(Z_MAX/tieCount)-runtime.roadPulse*.78,Z_MAX);
+      for(let lane=0;lane<3;lane+=1){
+        const p=projectLane(lane,z); if(p.p<.015)continue;
+        const half=clamp((22+50*p.p)*p.scale,5,66);
+        ctx.strokeStyle=`rgba(55,65,81,${.36+.42*p.p})`;ctx.lineWidth=1.2+3.2*p.p;
+        ctx.beginPath();ctx.moveTo(p.x-half,p.y);ctx.lineTo(p.x+half,p.y);ctx.stroke();
+      }
     }
 
-    const markerCount=phone?8:10;
-    for(let i=0;i<markerCount;i+=1){
-      const z=positiveMod(i*(Z_MAX/markerCount)-runtime.roadPulse*.52,Z_MAX);
-      const p=projectLane(1,z); const half=lerp(geo.farHalf,geo.nearHalf,p.p);
-      ctx.strokeStyle=`rgba(186,230,253,${.025+.085*p.p})`; ctx.lineWidth=.7+.65*p.p;
-      ctx.beginPath(); ctx.moveTo(w*.5-half,p.y); ctx.lineTo(w*.5+half,p.y); ctx.stroke();
-    }
+    // Yellow safety edges keep the lanes legible even under dense obstacles.
+    ctx.strokeStyle='rgba(250,204,21,.66)';ctx.lineWidth=1.2;
+    ctx.beginPath();ctx.moveTo(w*.5-geo.farHalf,geo.horizon);ctx.lineTo(w*.5-geo.nearHalf,h);ctx.moveTo(w*.5+geo.farHalf,geo.horizon);ctx.lineTo(w*.5+geo.nearHalf,h);ctx.stroke();
 
-    const lampCount=phone?5:7;
-    for(let i=0;i<lampCount;i+=1){
-      const z=positiveMod(i*(Z_MAX/lampCount)+12-runtime.roadPulse*.48,Z_MAX);
-      for(const lane of [-1.78,3.78]){
-        const p=projectLane(lane,z); if(p.p<.02) continue;
-        const postH=clamp(44*p.scale,7,48), postW=clamp(5*p.scale,1.5,6);
-        ctx.globalAlpha=.16+.46*p.p;
-        ctx.fillStyle='#0a2c3d'; ctx.fillRect(p.x-postW/2,p.y-postH,postW,postH);
-        ctx.fillStyle='#67e8f9'; ctx.fillRect(p.x-postW*.75,p.y-postH,postW*1.5,clamp(3.5*p.scale,1.5,5));
+    // Moving side scenery: trees, lamps, signs, and occasional parked train cars.
+    const propCount=phone?5:7;
+    for(let i=0;i<propCount;i+=1){
+      const z=positiveMod(i*(Z_MAX/propCount)+9-runtime.roadPulse*.50,Z_MAX);
+      for(const side of [-1,1]){
+        const sideLane=side<0?-1.82:3.82; const p=projectLane(sideLane,z); if(p.p<.025)continue;
+        const sc=p.scale;
+        if((i+side+3)%3===0){
+          // tree
+          ctx.globalAlpha=.35+.58*p.p; ctx.fillStyle='#76543c';ctx.fillRect(p.x-2.5*sc,p.y-38*sc,5*sc,38*sc);
+          ctx.fillStyle='#2f855a';ctx.beginPath();ctx.arc(p.x,p.y-45*sc,16*sc,0,Math.PI*2);ctx.arc(p.x-9*sc,p.y-38*sc,10*sc,0,Math.PI*2);ctx.arc(p.x+10*sc,p.y-38*sc,11*sc,0,Math.PI*2);ctx.fill();
+        }else if((i+side+3)%3===1){
+          // lamp / overhead utility pole
+          ctx.globalAlpha=.35+.55*p.p;ctx.fillStyle='#334155';ctx.fillRect(p.x-2*sc,p.y-55*sc,4*sc,55*sc);ctx.fillStyle='#fef3c7';ctx.fillRect(p.x-6*sc,p.y-56*sc,12*sc,4*sc);
+        }else{
+          // colorful code billboard
+          const bw=36*sc,bh=24*sc;ctx.globalAlpha=.38+.58*p.p;ctx.fillStyle=side<0?'#2563eb':'#e11d48';drawRounded(ctx,p.x-bw/2,p.y-46*sc,bw,bh,4*sc);ctx.fill();ctx.fillStyle='#fff';ctx.font=`900 ${clamp(7*sc,5,10)}px ui-monospace,monospace`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(CODE_SIGNS[(i+(side>0?2:0))%CODE_SIGNS.length],p.x,p.y-34*sc);
+        }
       }
     }
     ctx.globalAlpha=1;
 
-    if(!phone){
-      for(let i=0;i<4;i+=1){
-        const z=positiveMod(i*29+20-runtime.roadPulse*.40,Z_MAX);
-        const p=projectLane(i%2?-1.92:3.92,z); if(p.p<.03) continue;
-        ctx.globalAlpha=.16+.32*p.p; ctx.fillStyle='#8be9f4'; ctx.font=`800 ${clamp(8*p.scale,6,11)}px ui-monospace,monospace`; ctx.textAlign='center';
-        ctx.fillText(CODE_SIGNS[i],p.x,p.y-27*p.scale);
+    // Original BYTE LINE commuter cars on the outer service tracks. These are
+    // intentionally simple side scenery (not collision objects) so the rail
+    // corridor feels inhabited without adding gameplay clutter or frame-heavy
+    // sprites. One car drifts through each side at a different phase.
+    for(const side of [-1,1]){
+      const cycle=positiveMod(runtime.roadPulse*(side<0?.22:.17)+(side<0?17:42),Z_MAX+28)-7;
+      const sideLane=side<0?-1.58:3.58;
+      const p=projectLane(sideLane,cycle); if(p.p>.025&&p.p<.82){
+        const sc=p.scale; const carW=clamp(74*sc,18,86); const carH=clamp(35*sc,11,44);
+        ctx.save();ctx.translate(p.x,p.y);
+        ctx.globalAlpha=.34+.55*p.p;
+        ctx.fillStyle=side<0?'#2563eb':'#e11d48';ctx.strokeStyle='rgba(255,255,255,.74)';ctx.lineWidth=Math.max(1,1.3*sc);
+        drawRounded(ctx,-carW*.5,-carH,carW,carH,5*sc);ctx.fill();ctx.stroke();
+        ctx.fillStyle='#dff6ff';
+        const windows=4;for(let j=0;j<windows;j+=1){const wx=-carW*.36+j*carW*.24;drawRounded(ctx,wx,-carH*.77,carW*.16,carH*.28,2*sc);ctx.fill();}
+        ctx.fillStyle='#1e293b';ctx.fillRect(-carW*.5,-carH*.18,carW,carH*.18);
+        ctx.fillStyle='#fef3c7';ctx.beginPath();ctx.arc(-carW*.31,1.5*sc,3.3*sc,0,Math.PI*2);ctx.arc(carW*.31,1.5*sc,3.3*sc,0,Math.PI*2);ctx.fill();
+        if(!phone||p.p>.20){ctx.fillStyle='#ffffff';ctx.font=`900 ${clamp(6.2*sc,4.6,8)}px system-ui`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('BYTE LINE',0,-carH*.41);}
+        ctx.restore();
       }
-      ctx.globalAlpha=1;
     }
+
+    // Catenary frames / overhead wires. Sparse on phones for performance.
+    const frameCount=phone?3:5;
+    for(let i=0;i<frameCount;i+=1){
+      const z=positiveMod(i*(Z_MAX/frameCount)+18-runtime.roadPulse*.44,Z_MAX);const p=projectLane(1,z);if(p.p<.04)continue;
+      const width=lerp(geo.farHalf*1.75,geo.nearHalf*1.75,p.p), top=p.y-(48+62*p.p);
+      ctx.globalAlpha=.15+.35*p.p;ctx.strokeStyle='#475569';ctx.lineWidth=1+1.3*p.p;ctx.beginPath();ctx.moveTo(w*.5-width, p.y);ctx.lineTo(w*.5-width,top);ctx.lineTo(w*.5+width,top);ctx.lineTo(w*.5+width,p.y);ctx.stroke();
+    }
+    ctx.globalAlpha=1;
     ctx.restore();
   }
 
@@ -1237,8 +1312,9 @@
     const age=item.postResolveAge||0;
     let alpha=1;
     if(item.outcome==='hit') alpha=clamp(1-age/.30,0,1);
-    else if(item.resolved) alpha=clamp(1-age/.68,0,1);
-    ctx.save(); ctx.globalAlpha=alpha; ctx.translate(p.x,p.y);
+    else if(item.resolved) alpha=clamp(1-age/(item.outcome==='cleared'?.58:.48),0,1);
+    const passDrop=item.outcome==='cleared'?Math.min(36*scale,age*78*scale):0;
+    ctx.save(); ctx.globalAlpha=alpha; ctx.translate(p.x,p.y+passDrop);
 
     // Ground shadow keeps every obstacle visually planted on the lane.
     ctx.fillStyle=`rgba(0,0,0,${.13+.22*p.p})`;
@@ -1246,14 +1322,14 @@
 
     if(item.type==='crate') {
       // LOW obstacle: deliberately knee/waist height so JUMP is immediately obvious.
-      const w=laneW*.80;
-      const hh=42*scale;
+      const w=laneW*.90;
+      const hh=34*scale;
       ctx.fillStyle=item.outcome==='hit'?'#6f1f32':'#581b2b';
       ctx.strokeStyle=item.outcome==='hit'?'#fecdd3':'#fb7185';
       ctx.lineWidth=Math.max(1,2.1*scale);
       drawRounded(ctx,-w/2,-hh,w,hh,7*scale); ctx.fill(); ctx.stroke();
-      ctx.fillStyle='#7f1d3a';
-      ctx.beginPath(); ctx.moveTo(-w/2,-hh); ctx.lineTo(-w*.34,-hh-10*scale); ctx.lineTo(w*.55,-hh-10*scale); ctx.lineTo(w/2,-hh); ctx.closePath(); ctx.fill();
+      ctx.fillStyle='#f59e0b';
+      for(let stripe=-2;stripe<=2;stripe+=1){const sx=stripe*w*.18;ctx.save();ctx.translate(sx,-hh*.52);ctx.rotate(-.28);ctx.fillRect(-4*scale,-hh*.38,8*scale,hh*.76);ctx.restore();}
 
       // Up chevrons communicate "jump over this" without relying on text alone.
       ctx.strokeStyle='#fef3c7'; ctx.lineWidth=Math.max(1.5,2.2*scale); ctx.lineCap='round';
@@ -1263,31 +1339,32 @@
       ctx.fillStyle='#fecdd3'; ctx.font=`950 ${clamp(10*scale,6,13)}px system-ui`; ctx.textAlign='center'; ctx.textBaseline='middle';
       ctx.fillText('JUMP',0,-hh*.58);
     } else if(item.type==='beam') {
-      // OVERHEAD obstacle: tall posts + low hanging firewall bar with a clear crawl/slide gap.
-      const w=laneW*.98;
-      const postH=132*scale;
-      const beamY=-62*scale;
-      const postW=Math.max(7,10*scale);
+      // SLIDE TUNNEL: the upper half is visibly SOLID, while the lower half is
+      // one large clean opening. Running or jumping hits the canopy; sliding fits.
+      const w=laneW*1.02;
+      const topY=-138*scale;
+      const openingTop=-48*scale;
+      const postW=Math.max(6,9*scale);
       ctx.fillStyle='#173b60';
-      drawRounded(ctx,-w*.52,-postH,postW,postH,3*scale); ctx.fill();
-      drawRounded(ctx,w*.52-postW,-postH,postW,postH,3*scale); ctx.fill();
+      drawRounded(ctx,-w*.52,topY,postW,-topY,3*scale);ctx.fill();
+      drawRounded(ctx,w*.52-postW,topY,postW,-topY,3*scale);ctx.fill();
 
-      ctx.shadowColor='rgba(248,113,113,.82)'; ctx.shadowBlur=12*scale;
-      ctx.fillStyle='#ef4444';
-      drawRounded(ctx,-w*.50,beamY,w,15*scale,5*scale); ctx.fill();
+      ctx.shadowColor='rgba(248,113,113,.7)';ctx.shadowBlur=10*scale;
+      ctx.fillStyle=item.outcome==='hit'?'#991b1b':'#b91c1c';
+      drawRounded(ctx,-w*.5,topY,w,topY*-1+openingTop,6*scale);ctx.fill();
       ctx.shadowBlur=0;
+      // hazard lip exactly at the top of the slide opening
+      ctx.fillStyle='#ef4444';drawRounded(ctx,-w*.50,openingTop-10*scale,w,12*scale,3*scale);ctx.fill();
+      ctx.fillStyle='#facc15';
+      for(let x=-w*.40;x<w*.40;x+=18*scale){ctx.save();ctx.translate(x,openingTop-4*scale);ctx.rotate(-.45);ctx.fillRect(-3*scale,-5*scale,6*scale,10*scale);ctx.restore();}
 
-      // Down arrows plus open gap make the required SLIDE motion unmistakable.
-      ctx.strokeStyle='#fee2e2'; ctx.lineWidth=Math.max(1.4,2*scale); ctx.lineCap='round';
-      for(const ox of [-15,15]){
-        ctx.beginPath(); ctx.moveTo(ox*scale,-82*scale); ctx.lineTo(ox*scale,-72*scale); ctx.moveTo((ox-6)*scale,-77*scale); ctx.lineTo(ox*scale,-71*scale); ctx.lineTo((ox+6)*scale,-77*scale); ctx.stroke();
-      }
-      ctx.fillStyle='#fee2e2'; ctx.font=`950 ${clamp(9*scale,5,12)}px system-ui`; ctx.textAlign='center'; ctx.textBaseline='middle';
-      ctx.fillText('SLIDE',0,beamY-10*scale);
-
-      // Floor-level opening outline emphasizes that the way through is underneath the bar.
-      ctx.strokeStyle='rgba(103,232,249,.42)'; ctx.lineWidth=Math.max(1,1.4*scale);
-      ctx.strokeRect(-w*.38,-32*scale,w*.76,30*scale);
+      ctx.strokeStyle='rgba(207,250,254,.68)';ctx.lineWidth=Math.max(1,1.6*scale);
+      drawRounded(ctx,-w*.38,openingTop,w*.76,-openingTop-2*scale,7*scale);ctx.stroke();
+      ctx.fillStyle='#fee2e2';ctx.font=`950 ${clamp(10*scale,6,13)}px system-ui`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('SLIDE',0,topY+24*scale);
+      ctx.fillStyle='#cffafe';ctx.font=`850 ${clamp(6.7*scale,5,9)}px system-ui`;ctx.fillText('BIG OPENING BELOW',0,openingTop+19*scale);
+      // clear downward cue inside the opening
+      ctx.strokeStyle='#ecfeff';ctx.lineWidth=Math.max(1.4,2*scale);ctx.lineCap='round';
+      for(const ox of [-14,14]){ctx.beginPath();ctx.moveTo(ox*scale,openingTop+5*scale);ctx.lineTo(ox*scale,openingTop+17*scale);ctx.moveTo((ox-6)*scale,openingTop+11*scale);ctx.lineTo(ox*scale,openingTop+18*scale);ctx.lineTo((ox+6)*scale,openingTop+11*scale);ctx.stroke();}
     } else {
       // FULL BLOCKING WALL: intentionally much taller than the runner and fills the lane.
       // This is NOT jumpable/slidable; the silhouette should immediately communicate DODGE.
@@ -1387,19 +1464,15 @@
       }
       ctx.fillStyle='#fef9c3'; ctx.font=`950 ${clamp(8.5*scale,6,10)}px system-ui`; ctx.fillText('JUMP',0,p.y-34*scale);
     }else if(action==='slide'){
-      // OVERHEAD BAR: tall side posts + bright bar, leaving a large obvious opening underneath.
-      const postH=94*scale; const barY=p.y-58*scale; const postW=Math.max(5,8*scale);
-      ctx.fillStyle='rgba(71,85,105,.88)';
-      drawRounded(ctx,-frameW*.5,p.y-postH,postW,postH,2*scale); ctx.fill();
-      drawRounded(ctx,frameW*.5-postW,p.y-postH,postW,postH,2*scale); ctx.fill();
-      ctx.fillStyle=bad?'#be123c':good?'#65a30d':'#ef4444';
-      drawRounded(ctx,-frameW*.48,barY,frameW*.96,clamp(11*scale,4,12),4*scale); ctx.fill();
-      ctx.shadowBlur=0;
-      ctx.strokeStyle='#fee2e2'; ctx.lineWidth=Math.max(1.4,2*scale); ctx.lineCap='round';
-      for(const ox of [-13,13]){
-        ctx.beginPath(); ctx.moveTo(ox*scale,p.y-84*scale); ctx.lineTo(ox*scale,p.y-72*scale); ctx.moveTo((ox-6)*scale,p.y-78*scale); ctx.lineTo(ox*scale,p.y-71*scale); ctx.lineTo((ox+6)*scale,p.y-78*scale); ctx.stroke();
-      }
-      ctx.fillStyle='#fee2e2'; ctx.font=`950 ${clamp(8.5*scale,6,10)}px system-ui`; ctx.fillText('SLIDE',0,p.y-68*scale);
+      // SOLID CANOPY + LARGE LOWER OPENING: unmistakably a slide gate.
+      const w=frameW*.98; const topY=p.y-108*scale; const openingTop=p.y-45*scale; const postW=Math.max(4.5,7*scale);
+      ctx.fillStyle='rgba(71,85,105,.92)';
+      drawRounded(ctx,-w*.50,topY,postW,p.y-topY,2*scale);ctx.fill();drawRounded(ctx,w*.50-postW,topY,postW,p.y-topY,2*scale);ctx.fill();
+      ctx.fillStyle=bad?'#be123c':good?'#65a30d':'#b91c1c';drawRounded(ctx,-w*.48,topY,w*.96,63*scale,5*scale);ctx.fill();
+      ctx.fillStyle='#ef4444';drawRounded(ctx,-w*.48,openingTop-8*scale,w*.96,10*scale,3*scale);ctx.fill();ctx.shadowBlur=0;
+      ctx.strokeStyle='rgba(207,250,254,.72)';ctx.lineWidth=Math.max(1,1.5*scale);drawRounded(ctx,-w*.36,openingTop,w*.72,p.y-openingTop-2*scale,5*scale);ctx.stroke();
+      ctx.fillStyle='#fee2e2';ctx.font=`950 ${clamp(8.5*scale,6,10)}px system-ui`;ctx.fillText('SLIDE',0,topY+20*scale);
+      ctx.strokeStyle='#ecfeff';ctx.lineWidth=Math.max(1.2,1.8*scale);for(const ox of [-12,12]){ctx.beginPath();ctx.moveTo(ox*scale,openingTop+5*scale);ctx.lineTo(ox*scale,openingTop+15*scale);ctx.moveTo((ox-5)*scale,openingTop+10*scale);ctx.lineTo(ox*scale,openingTop+16*scale);ctx.lineTo((ox+5)*scale,openingTop+10*scale);ctx.stroke();}
     }else{
       // OPEN PORTAL: no hurdle and no overhead bar. Just run straight through.
       const postH=82*scale; const postW=Math.max(4.5,7*scale);
@@ -1645,6 +1718,25 @@
     if(slidePose>.45){
       ctx.globalAlpha=.18*slidePose;ctx.strokeStyle='#67e8f9';ctx.lineWidth=1.2*scale;
       ctx.beginPath();ctx.moveTo(-25*scale,-24*scale);ctx.lineTo(-38*scale,-21*scale);ctx.moveTo(25*scale,-18*scale);ctx.lineTo(38*scale,-16*scale);ctx.stroke();
+    }
+
+    // Clear feedback stays attached to BYTE for a fraction of a second. This
+    // makes the successful interaction readable: a jump visibly clears OVER a
+    // hurdle, while a slide leaves a low tunnel streak as BYTE passes UNDER it.
+    if(runtime.clearFxTime>0){
+      const fx=clamp(runtime.clearFxTime/.52,0,1);
+      ctx.save();
+      if(runtime.clearFxKind==='jump'){
+        ctx.globalAlpha=.34*fx;
+        ctx.strokeStyle='#cffafe';ctx.lineWidth=1.7*scale;
+        ctx.beginPath();ctx.ellipse(0,4*scale,(22+(1-fx)*19)*scale,(5+(1-fx)*3)*scale,0,0,Math.PI*2);ctx.stroke();
+        ctx.globalAlpha=.24*fx;ctx.strokeStyle='#a3e635';ctx.lineWidth=1.3*scale;
+        ctx.beginPath();ctx.moveTo(-21*scale,-8*scale);ctx.quadraticCurveTo(0,-19*scale,21*scale,-8*scale);ctx.stroke();
+      }else if(runtime.clearFxKind==='slide'){
+        ctx.globalAlpha=.28*fx;ctx.strokeStyle='#67e8f9';ctx.lineWidth=1.45*scale;ctx.lineCap='round';
+        for(const yy of [-1,5,11]){ctx.beginPath();ctx.moveTo(-34*scale,yy*scale);ctx.lineTo((-13+(1-fx)*8)*scale,yy*scale);ctx.stroke();ctx.beginPath();ctx.moveTo(13*scale,yy*scale);ctx.lineTo((38+(1-fx)*8)*scale,yy*scale);ctx.stroke();}
+      }
+      ctx.restore();
     }
     ctx.restore();
   }

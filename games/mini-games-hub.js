@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const ASSET_VERSION = '20260912-v4761-million-byte-v55-true-learning-final';
+  const ASSET_VERSION = '20260912-v4761-byte-runner-v81-build-hud';
 
   const GAME_REGISTRY = Object.freeze([
     {
@@ -338,8 +338,8 @@
       stateKey: 'byteRunnerHtmlRush',
       name: 'BYTE RUNNER: HTML RUSH',
       icon: '⚡',
-      description: 'Read HTML challenges, dodge cyber hazards, and run through the correct code gates to build a complete webpage.',
-      maxXp: 12,
+      description: 'Race through a bright rail city, read HTML challenges, and use the correct run, jump, or slide action to build a complete webpage.',
+      maxXp: 20,
       category: 'EDUCATIONAL / RUNNER',
       difficulty: '★★★★☆',
       globalName: 'ICT8ByteRunnerHtmlRush',
