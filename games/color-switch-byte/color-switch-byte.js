@@ -14,6 +14,23 @@
     Object.freeze({ name: 'PINK', hex: '#f472b6' })
   ]);
   const COLORS = Object.freeze(COLOR_META.map(item => item.hex));
+  const SIMILAR_COLOR_MAP = Object.freeze({
+    0: Object.freeze([6]),       // CYAN / BLUE
+    1: Object.freeze([5, 7]),    // CORAL / ORANGE / PINK
+    2: Object.freeze([4, 5]),    // GOLD / LIME / ORANGE
+    3: Object.freeze([6, 7]),    // VIOLET / BLUE / PINK
+    4: Object.freeze([0, 2]),    // LIME / CYAN / GOLD
+    5: Object.freeze([1, 2]),    // ORANGE / CORAL / GOLD
+    6: Object.freeze([0, 3]),    // BLUE / CYAN / VIOLET
+    7: Object.freeze([1, 3])     // PINK / CORAL / VIOLET
+  });
+  const DIFFICULTY_STAGES = Object.freeze([
+    Object.freeze({ name: 'EASY',   minScore: 0,  speedMin: 0.46, speedMax: 0.60, clearTravel: 140, gravity: 910 }),
+    Object.freeze({ name: 'MEDIUM', minScore: 5,  speedMin: 0.56, speedMax: 0.72, clearTravel: 130, gravity: 922 }),
+    Object.freeze({ name: 'HARD',   minScore: 10, speedMin: 0.67, speedMax: 0.85, clearTravel: 119, gravity: 934 }),
+    Object.freeze({ name: 'EXPERT', minScore: 15, speedMin: 0.78, speedMax: 0.98, clearTravel: 109, gravity: 946 }),
+    Object.freeze({ name: 'INSANE', minScore: 20, speedMin: 0.90, speedMax: 1.10, clearTravel: 101, gravity: 958 })
+  ]);
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
   const runtime = {
@@ -49,6 +66,7 @@
     ball: { x: 0, worldY: 0, vy: 0, radius: 15, colorIndex: 0 },
     cameraY: 0,
     rings: [],
+    ringSequence: 0,
     score: 0,
     combo: 0,
     bestCombo: 0,
@@ -106,7 +124,7 @@
             <span class="color-switch-byte-hero">&#128993;</span>
             <h2>COLOR SWITCH BYTE</h2>
             <p>Control the lift: quick tap for a small hop, hold briefly for a stronger boost. Pass only through your matching color.</p>
-            <div class="color-switch-byte-help">8 COLORS &middot; NO QUICK REPEATS &middot; Quick Tap = HOP &middot; Hold = BOOST</div>
+            <div class="color-switch-byte-help">8 COLORS &middot; 5 DIFFICULTY STAGES &middot; CONTRAST RINGS &middot; Tap = HOP &middot; Hold = BOOST</div>
             <button class="primary" type="button" data-color-switch-byte-start>START</button>
           </div>
         </div>
@@ -268,7 +286,9 @@
     runtime.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     runtime.view = { w, h, dpr };
     runtime.ball.x = w / 2;
-    runtime.ball.radius = clamp(w * 0.030, 14, 18);
+    // Keep the playable byte smaller than before so the ring timing reads more
+    // clearly on phones. The color-switch orb remains larger and easy to see.
+    runtime.ball.radius = clamp(w * 0.0265, 11.5, 16);
     // Keep obstacle geometry readable after a phone/desktop resize.
     for (const ring of runtime.rings) {
       ring.radius = ringRadiusForView();
@@ -304,15 +324,45 @@
     return chosen;
   }
 
+  function colorsLookSimilar(a, b) {
+    return a === b || Boolean(SIMILAR_COLOR_MAP[a]?.includes(b)) || Boolean(SIMILAR_COLOR_MAP[b]?.includes(a));
+  }
+
   function chooseRingOtherColor(required) {
     const previousRequired = runtime.colorPlanHistory[runtime.colorPlanHistory.length - 2];
     let candidates = COLOR_META.map((_, index) => index).filter(index => (
-      index !== required && index !== runtime.lastOtherColor && index !== previousRequired
+      index !== required &&
+      index !== runtime.lastOtherColor &&
+      index !== previousRequired &&
+      !colorsLookSimilar(required, index)
     ));
+
+    // If history restrictions leave no option, keep the contrast rule first.
+    if (!candidates.length) {
+      candidates = COLOR_META.map((_, index) => index).filter(index => (
+        index !== required && !colorsLookSimilar(required, index)
+      ));
+    }
     if (!candidates.length) candidates = COLOR_META.map((_, index) => index).filter(index => index !== required);
+
     const chosen = candidates[Math.floor(Math.random() * candidates.length)] ?? ((required + 1) % COLORS.length);
     runtime.lastOtherColor = chosen;
     return chosen;
+  }
+
+  function difficultyForScore(score = runtime.score) {
+    const safeScore = Math.max(0, Number(score) || 0);
+    let stage = DIFFICULTY_STAGES[0];
+    for (const candidate of DIFFICULTY_STAGES) {
+      if (safeScore >= candidate.minScore) stage = candidate;
+      else break;
+    }
+    return stage;
+  }
+
+  function difficultyIndexForScore(score = runtime.score) {
+    const safeScore = Math.max(0, Number(score) || 0);
+    return clamp(Math.floor(safeScore / 5), 0, DIFFICULTY_STAGES.length - 1);
   }
 
   function updateHud() {
@@ -328,6 +378,7 @@
     runtime.combo = 0;
     runtime.bestCombo = 0;
     runtime.rings = [];
+    runtime.ringSequence = 0;
     runtime.ball.worldY = 0;
     runtime.ball.vy = 0;
     runtime.ball.colorIndex = 0;
@@ -358,6 +409,7 @@
     runtime.lastOtherColor = -1;
     runtime.cameraY = 0;
     runtime.rings = [];
+    runtime.ringSequence = 0;
     runtime.startedAt = performance.now();
     clearDeathFx();
     resetLiftInput();
@@ -397,10 +449,9 @@
   }
 
   function ringClearTravelForScore(score = runtime.score) {
-    // The old build could shrink the free travel between obstacles to only a
-    // few dozen pixels on wider screens. Keep a real breathing zone even late
-    // in a run, while still making progression gradually tighter.
-    return clamp(136 - Math.max(0, score) * 0.55, 104, 136);
+    // Five explicit difficulty bands: obstacle spacing tightens in controlled
+    // steps instead of endlessly accelerating into an unfair wall.
+    return difficultyForScore(score).clearTravel;
   }
 
   function ringCenterSpacingForScore(score = runtime.score) {
@@ -417,25 +468,43 @@
   function seedRings() {
     let y = firstRingWorldY();
     for (let i = 0; i < 4; i += 1) {
-      runtime.rings.push(makeRing(y, i));
-      y += ringCenterSpacingForScore(0);
+      const ordinal = runtime.ringSequence++;
+      runtime.rings.push(makeRing(y, ordinal));
+      y += ringCenterSpacingForScore(ordinal);
     }
   }
 
   function makeRing(worldY, indexSeed = 0) {
     const required = chooseNextRequiredColor();
     const other = chooseRingOtherColor(required);
-    const direction = Math.random() < 0.5 ? -1 : 1;
-    // Keep difficulty progression, but soften rotation speed by about 10-12%
-    // so higher-score rings remain readable and responsive on phones.
-    const scoreFactor = Math.min(1.3, runtime.score * 0.016);
+    // indexSeed maps to the score the player will have before reaching this
+    // ring, so the five bands activate exactly after 5/10/15/20 successful rings
+    // even though several future obstacles are pre-generated off-screen.
+    const projectedScore = Math.max(runtime.score, indexSeed);
+    const difficulty = difficultyForScore(projectedScore);
+    const difficultyIndex = difficultyIndexForScore(projectedScore);
+
+    // Easy/Medium stay forgiving and varied. From Hard onward, alternating
+    // directions make the next ring demand fresh timing instead of letting the
+    // player settle into one repeated rotation rhythm.
+    let direction;
+    if (difficultyIndex >= 2) {
+      const patternOffset = difficultyIndex >= 4 ? Math.floor(indexSeed / 3) : 0;
+      direction = ((indexSeed + patternOffset) % 2 === 0) ? 1 : -1;
+    } else {
+      direction = Math.random() < 0.5 ? -1 : 1;
+    }
+
+    const speedRange = difficulty.speedMax - difficulty.speedMin;
+    const speed = difficulty.speedMin + Math.random() * speedRange;
     return {
       worldY,
       radius: ringRadiusForView(),
       width: ringWidthForView(),
       switchGap: ringSwitchGapForView(),
       rotation: Math.random() * Math.PI * 2,
-      speed: direction * (0.50 + scoreFactor * 0.76 + Math.random() * 0.20),
+      speed: direction * speed,
+      difficultyIndex,
       required,
       other,
       switched: false,
@@ -450,8 +519,9 @@
     let next = highest || firstRingWorldY();
     const lookAhead = Math.max(1260, runtime.view.h * 1.65);
     while (next < runtime.ball.worldY + lookAhead) {
-      next += ringCenterSpacingForScore(runtime.score);
-      runtime.rings.push(makeRing(next, runtime.rings.length));
+      const ordinal = runtime.ringSequence++;
+      next += ringCenterSpacingForScore(ordinal);
+      runtime.rings.push(makeRing(next, ordinal));
     }
     runtime.rings = runtime.rings.filter(ring => ring.worldY > runtime.cameraY - 320);
   }
@@ -637,11 +707,15 @@
 
       if (!ring.passed && runtime.ball.worldY > ring.worldY + ring.radius + runtime.ball.radius + 10) {
         ring.passed = true;
+        const previousDifficultyIndex = difficultyIndexForScore(runtime.score);
         runtime.score += 1;
         runtime.combo += 1;
         runtime.bestCombo = Math.max(runtime.bestCombo, runtime.combo);
         tone('pass');
-        if (runtime.combo % 10 === 0) showFx(`BYTE COMBO x${runtime.combo}`, 'hot');
+        const nextDifficultyIndex = difficultyIndexForScore(runtime.score);
+        if (nextDifficultyIndex > previousDifficultyIndex) {
+          showFx(`${DIFFICULTY_STAGES[nextDifficultyIndex].name} MODE`, 'hot');
+        } else if (runtime.combo % 10 === 0) showFx(`BYTE COMBO x${runtime.combo}`, 'hot');
         else if (runtime.combo % 5 === 0) showFx(`COMBO x${runtime.combo}`, 'pass');
         else showFx('+1', 'pass');
         updateHud();
@@ -659,7 +733,10 @@
     if (!runtime.input.hasStartedMotion) return;
 
     updateLift(dt);
-    const gravity = clamp(910 + runtime.score * 0.55, 910, 975);
+    // Difficulty rises through both obstacle timing and a modest vertical pace
+    // increase, while staying capped so late-game runs remain skill-based.
+    const difficulty = difficultyForScore(runtime.score);
+    const gravity = difficulty.gravity;
     runtime.ball.vy -= gravity * dt;
     runtime.ball.worldY += runtime.ball.vy * dt;
 

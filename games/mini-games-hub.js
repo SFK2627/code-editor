@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const ASSET_VERSION = '20260912-v4761-color-switch-v3-tuning';
+  const ASSET_VERSION = '20260912-v4761-color-switch-v4-progressive';
 
   const GAME_REGISTRY = Object.freeze([
     {
