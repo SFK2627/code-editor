@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const ASSET_VERSION = '20260912-v4761-million-byte-perfect15';
+  const ASSET_VERSION = '20260912-v4761-zero-db-2p-pack-v1';
 
   const GAME_REGISTRY = Object.freeze([
     {
@@ -370,6 +370,83 @@
       bestText() { return '👥 LIVE 1v1 · 0 XP'; }
     },
     {
+      id: 'code-tower-race',
+      stateKey: 'codeTowerRace',
+      name: 'CODE TOWER RACE',
+      icon: '🧱',
+      description: 'Race another player to assemble HTML, CSS, and JavaScript blocks in the correct order. Correct blocks build your tower; mistakes fall away.',
+      maxXp: 0,
+      multiplayer: true,
+      noXp: true,
+      zeroDb: true,
+      category: '2P RACE / CODING',
+      difficulty: '★★★☆☆',
+      globalName: 'ICT8CodeTowerRace',
+      dependencies: ['games/p2p-zero-db/p2p-zero-db.js'],
+      script: 'games/code-tower-race/code-tower-race.js',
+      style: 'games/code-tower-race/code-tower-race.css',
+      playLabel: 'PLAY 2P',
+      bestText() { return '🧱 LIVE RACE · 0 DB · 0 XP'; }
+    },
+    {
+      id: 'code-snake-duel',
+      stateKey: 'codeSnakeDuel',
+      name: 'CODE SNAKE DUEL',
+      icon: '🐍',
+      description: 'Two snakes share one live arena. Collect BYTE tokens, grow longer, cut off your opponent, and survive the grid.',
+      maxXp: 0,
+      multiplayer: true,
+      noXp: true,
+      zeroDb: true,
+      category: '2P ARCADE / PVP',
+      difficulty: '★★★★☆',
+      globalName: 'ICT8CodeSnakeDuel',
+      dependencies: ['games/p2p-zero-db/p2p-zero-db.js'],
+      script: 'games/code-snake-duel/code-snake-duel.js',
+      style: 'games/code-snake-duel/code-snake-duel.css',
+      playLabel: 'PLAY 2P',
+      bestText() { return '🐍 SHARED ARENA · 0 DB · 0 XP'; }
+    },
+    {
+      id: 'byte-space-battle',
+      stateKey: 'byteSpaceBattle',
+      name: 'BYTE SPACE BATTLE',
+      icon: '🚀',
+      description: 'Pilot two ships in one cyber-space arena. Dodge asteroids, fire at your rival, collect power-ups, and unlock boosts from code terminals.',
+      maxXp: 0,
+      multiplayer: true,
+      noXp: true,
+      zeroDb: true,
+      category: '2P ACTION / PVP',
+      difficulty: '★★★★☆',
+      globalName: 'ICT8ByteSpaceBattle',
+      dependencies: ['games/p2p-zero-db/p2p-zero-db.js'],
+      script: 'games/byte-space-battle/byte-space-battle.js',
+      style: 'games/byte-space-battle/byte-space-battle.css',
+      playLabel: 'PLAY 2P',
+      bestText() { return '🚀 SPACE PVP · 0 DB · 0 XP'; }
+    },
+    {
+      id: 'code-escape-coop',
+      stateKey: 'codeEscapeCoop',
+      name: 'CODE ESCAPE — CO-OP',
+      icon: '🧩',
+      description: 'Escape together. Each device sees different clues, so both players must communicate, solve code locks, and synchronize the final core.',
+      maxXp: 0,
+      multiplayer: true,
+      noXp: true,
+      zeroDb: true,
+      coop: true,
+      category: '2P CO-OP / PUZZLE',
+      difficulty: '★★★★☆',
+      globalName: 'ICT8CodeEscapeCoop',
+      dependencies: ['games/p2p-zero-db/p2p-zero-db.js'],
+      script: 'games/code-escape-coop/code-escape-coop.js',
+      style: 'games/code-escape-coop/code-escape-coop.css',
+      playLabel: 'PLAY CO-OP',
+      bestText() { return '🧩 CO-OP ESCAPE · 0 DB · 0 XP'; }
+    },
+    {
       id: 'pattern-lock',
       stateKey: 'patternLock',
       name: 'PATTERN LOCK',
@@ -425,6 +502,10 @@
     'code-tiles':             { bpm:138, root:57, scale:'minorPent', lead:'pluck',  melody:[0,null,2,null,3,null,4,null,3,null,2,null,4,null,5,null], bass:[0,3,4,3], drums:'dance',  gain:.20 },
     'byte-runner-html-rush':  { bpm:144, root:50, scale:'minor',     lead:'pulse',  melody:[0,2,4,null,5,4,2,null,0,3,5,null,6,5,3,null], bass:[0,0,5,4], drums:'drive',  gain:.31 },
     'code-duel':              { bpm:148, root:50, scale:'minorPent', lead:'pulse',  melody:[0,2,3,5,3,2,0,null,0,3,4,5,4,3,2,null], bass:[0,0,3,4], drums:'drive',  gain:.32 },
+    'code-tower-race':        { bpm:124, root:52, scale:'majorPent', lead:'pluck', melody:[0,2,3,4,3,2,1,null,0,3,4,5,4,3,2,null], bass:[0,3,4,3], drums:'groove', gain:.31 },
+    'code-snake-duel':        { bpm:136, root:50, scale:'minorPent', lead:'pulse', melody:[0,1,3,2,4,3,2,null,0,2,4,5,4,3,1,null], bass:[0,0,3,4], drums:'drive', gain:.32 },
+    'byte-space-battle':      { bpm:152, root:45, scale:'dorian', lead:'saw', melody:[0,2,4,5,6,4,2,null,0,3,5,6,5,4,2,null], bass:[0,5,0,4], drums:'drive', gain:.33 },
+    'code-escape-coop':       { bpm:98, root:55, scale:'minor', lead:'bell', melody:[0,null,2,null,3,5,null,4,2,null,1,3,null,2,0,null], bass:[0,3,5,4], drums:'suspense', gain:.29 },
     'pattern-lock':           { bpm:102, root:60, scale:'minorPent', lead:'bell',   melody:[0,null,2,null,4,null,3,null,1,null,3,null,5,4,2,null], bass:[0,3,4,3], drums:'soft',   gain:.27 }
   });
 
@@ -970,7 +1051,7 @@
               <span class="xp-games-2p-zero">0 XP</span>
             </section>
             <section class="xp-games-game-list xp-games-2p-list" aria-label="Two-player no-XP games">
-              <div class="xp-games-2p-note">CODE DUEL uses temporary RTDB only for Student ID invite/signaling, then switches to WebRTC peer-to-peer. QR pairing remains a zero-RTDB fallback. 2P games award 0 XP.</div>
+              <div class="xp-games-2p-note"><b>ZERO-DB GAMES:</b> Code Tower Race, Code Snake Duel, Byte Space Battle, and Code Escape use QR/Share WebRTC pairing only — 0 Firestore reads/writes and 0 RTDB reads/writes during setup and gameplay. CODE DUEL still keeps its optional Student ID invite mode. All 2P games award 0 XP.</div>
               <div data-xp-games-2p-cards></div>
             </section>
           </section>
@@ -1226,9 +1307,9 @@
           </div>
           <div class="xp-games-card-meta">
             <span class="xp-games-best">${game.bestText({})}</span>
-            <span class="xp-games-xp-note">${type} · NO XP · P2P</span>
+            <span class="xp-games-xp-note">${type} · NO XP · ${game.zeroDb ? '0 DB · ' : ''}P2P</span>
           </div>
-          <button class="xp-games-play xp-games-play-2p" type="button" data-xp-game-play="${game.id}">PLAY 1v1</button>
+          <button class="xp-games-play xp-games-play-2p" type="button" data-xp-game-play="${game.id}">${game.playLabel || (game.coop ? 'PLAY CO-OP' : 'PLAY 1v1')}</button>
         </article>`;
     }).join('');
   }
@@ -1377,12 +1458,41 @@
     });
   }
 
+  function ensureDependencyScript(src) {
+    if (!src) return Promise.resolve();
+    const key = `dep:${src}`;
+    if (state.assetPromises.has(key)) return state.assetPromises.get(key);
+    const existing = Array.from(document.querySelectorAll('script[data-xp-game-dependency]'))
+      .find(node => node.dataset.xpGameDependency === src) || null;
+    if (existing?.dataset.xpDependencyLoaded === '1') return Promise.resolve();
+    const promise = new Promise((resolve, reject) => {
+      const script = existing || document.createElement('script');
+      const done = () => { script.dataset.xpDependencyLoaded = '1'; resolve(); };
+      if (existing && existing.dataset.xpDependencyLoaded === '1') return done();
+      script.addEventListener('load', done, { once: true });
+      script.addEventListener('error', () => reject(new Error(`Game dependency failed to load: ${src}`)), { once: true });
+      if (!existing) {
+        script.src = `${src}?v=${ASSET_VERSION}`;
+        script.defer = true;
+        script.dataset.xpGameDependency = src;
+        document.body.appendChild(script);
+      }
+    }).finally(() => state.assetPromises.delete(key));
+    state.assetPromises.set(key, promise);
+    return promise;
+  }
+
+  async function ensureGameDependencies(game) {
+    const deps = Array.isArray(game.dependencies) ? game.dependencies : [];
+    for (const src of deps) await ensureDependencyScript(src);
+  }
+
   function ensureGameModule(game) {
     const current = window[game.globalName];
     if (current?.open) return Promise.resolve(current);
     if (state.assetPromises.has(game.id)) return state.assetPromises.get(game.id);
 
-    const promise = ensureStylesheet(game).then(() => new Promise((resolve, reject) => {
+    const promise = Promise.all([ensureStylesheet(game), ensureGameDependencies(game)]).then(() => new Promise((resolve, reject) => {
       const existing = document.querySelector(`script[data-xp-game-script="${game.id}"]`);
       // If a previous attempt loaded a broken/stale module without registering
       // its API, remove that script so PLAY can retry cleanly instead of waiting

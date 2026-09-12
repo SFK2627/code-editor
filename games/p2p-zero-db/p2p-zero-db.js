@@ -1,0 +1,380 @@
+(() => {
+  'use strict';
+
+  if (window.ICT8ZeroDbP2P) return;
+
+  const VERSION = 1;
+  const DEFAULT_TIMEOUT = 16000;
+
+  const cleanName = (value, fallback = 'PLAYER') => {
+    const text = String(value || '').replace(/[<>]/g, '').trim().slice(0, 20);
+    return text || fallback;
+  };
+
+  function randomSeed() {
+    try {
+      const a = new Uint32Array(1);
+      crypto.getRandomValues(a);
+      return a[0] >>> 0;
+    } catch (_) {
+      return (Date.now() ^ Math.floor(Math.random() * 0xffffffff)) >>> 0;
+    }
+  }
+
+  function mulberry32(seed) {
+    let a = Number(seed || 1) >>> 0;
+    return () => {
+      a |= 0;
+      a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  function shuffle(list, seed) {
+    const out = Array.from(list || []);
+    const rnd = mulberry32(seed || 1);
+    for (let i = out.length - 1; i > 0; i--) {
+      const j = Math.floor(rnd() * (i + 1));
+      [out[i], out[j]] = [out[j], out[i]];
+    }
+    return out;
+  }
+
+  function bytesToB64(bytes) {
+    let out = '';
+    const chunk = 0x8000;
+    for (let i = 0; i < bytes.length; i += chunk) {
+      out += String.fromCharCode(...bytes.subarray(i, i + chunk));
+    }
+    return btoa(out).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+  }
+
+  function b64ToBytes(text) {
+    let s = String(text || '').trim().replace(/-/g, '+').replace(/_/g, '/');
+    while (s.length % 4) s += '=';
+    const bin = atob(s);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return bytes;
+  }
+
+  function encode(prefix, payload) {
+    const safePrefix = String(prefix || 'P2P').replace(/[^A-Z0-9_-]/gi, '').slice(0, 14) || 'P2P';
+    const body = bytesToB64(new TextEncoder().encode(JSON.stringify(payload)));
+    return `${safePrefix}.${body}`;
+  }
+
+  function decode(prefix, code) {
+    const safePrefix = String(prefix || 'P2P').replace(/[^A-Z0-9_-]/gi, '').slice(0, 14) || 'P2P';
+    const raw = String(code || '').trim();
+    if (!raw.startsWith(`${safePrefix}.`)) throw new Error('This pairing code belongs to a different game.');
+    const data = JSON.parse(new TextDecoder().decode(b64ToBytes(raw.slice(safePrefix.length + 1))));
+    if (Number(data.v || 0) !== VERSION) throw new Error('Pairing code version does not match this build.');
+    return data;
+  }
+
+  async function waitForIce(pc, timeout = 5500) {
+    if (pc.iceGatheringState === 'complete') return;
+    await new Promise(resolve => {
+      let settled = false;
+      const done = () => {
+        if (settled) return;
+        settled = true;
+        pc.removeEventListener('icegatheringstatechange', onChange);
+        clearTimeout(timer);
+        resolve();
+      };
+      const onChange = () => { if (pc.iceGatheringState === 'complete') done(); };
+      const timer = setTimeout(done, timeout);
+      pc.addEventListener('icegatheringstatechange', onChange);
+    });
+  }
+
+  function createSession(options = {}) {
+    const gameId = String(options.gameId || 'p2p-game');
+    const prefix = String(options.prefix || 'P2P1').toUpperCase();
+    const channelLabel = String(options.channelLabel || gameId).slice(0, 40);
+    let pc = null;
+    let dc = null;
+    let role = '';
+    let localName = 'PLAYER';
+    let remoteName = 'OPPONENT';
+    let seed = 0;
+    let connected = false;
+    let connectionTimer = 0;
+    let messageHandler = typeof options.onMessage === 'function' ? options.onMessage : null;
+
+    function notifyState(state, extra = {}) {
+      try { options.onState?.(state, { role, localName, remoteName, seed, connected, ...extra }); } catch (_) {}
+    }
+
+    function notifyRemoteName() {
+      try { options.onRemoteName?.(remoteName); } catch (_) {}
+    }
+
+    function send(payload) {
+      if (!dc || dc.readyState !== 'open') return false;
+      try {
+        dc.send(JSON.stringify(payload));
+        return true;
+      } catch (_) {
+        return false;
+      }
+    }
+
+    function bindChannel(channel) {
+      dc = channel;
+      dc.binaryType = 'arraybuffer';
+      dc.addEventListener('open', () => {
+        connected = true;
+        clearTimeout(connectionTimer);
+        send({ t: '__hello', n: localName, g: gameId });
+        notifyState('connected');
+        try { options.onConnected?.({ role, seed, localName, remoteName }); } catch (_) {}
+      });
+      dc.addEventListener('close', () => {
+        const wasConnected = connected;
+        connected = false;
+        notifyState('closed');
+        if (wasConnected) {
+          try { options.onDisconnected?.('channel-closed'); } catch (_) {}
+        }
+      });
+      dc.addEventListener('error', () => notifyState('channel-error'));
+      dc.addEventListener('message', event => {
+        let msg = null;
+        try { msg = JSON.parse(String(event.data || '')); } catch (_) { return; }
+        if (!msg || typeof msg !== 'object') return;
+        if (msg.t === '__hello') {
+          remoteName = cleanName(msg.n, 'OPPONENT');
+          notifyRemoteName();
+          return;
+        }
+        try { messageHandler?.(msg); } catch (error) { console.warn(`${gameId} P2P message error`, error); }
+      });
+    }
+
+    function closePeer() {
+      clearTimeout(connectionTimer);
+      connectionTimer = 0;
+      connected = false;
+      try { dc?.close(); } catch (_) {}
+      try { pc?.close(); } catch (_) {}
+      dc = null;
+      pc = null;
+    }
+
+    function buildPeer() {
+      closePeer();
+      if (!window.RTCPeerConnection) throw new Error('WebRTC is not supported by this browser.');
+      pc = new RTCPeerConnection({
+        iceServers: [
+          { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] }
+        ],
+        bundlePolicy: 'max-bundle',
+        iceCandidatePoolSize: 1
+      });
+      pc.addEventListener('connectionstatechange', () => {
+        const state = pc?.connectionState || 'closed';
+        if (state === 'connected') {
+          connected = true;
+          clearTimeout(connectionTimer);
+        }
+        if (state === 'failed' || state === 'disconnected') {
+          const wasConnected = connected;
+          connected = false;
+          notifyState(state);
+          if (wasConnected || state === 'failed') {
+            try { options.onDisconnected?.(state); } catch (_) {}
+          }
+        }
+        if (state === 'closed') connected = false;
+      });
+      return pc;
+    }
+
+    function startTimeout() {
+      clearTimeout(connectionTimer);
+      connectionTimer = setTimeout(() => {
+        if (!connected) notifyState('timeout');
+      }, Math.max(5000, Number(options.timeoutMs || DEFAULT_TIMEOUT)));
+    }
+
+    async function createOffer(name = 'PLAYER 1') {
+      localName = cleanName(name, 'PLAYER 1');
+      role = 'host';
+      seed = randomSeed();
+      const peer = buildPeer();
+      bindChannel(peer.createDataChannel(channelLabel, { ordered: true }));
+      await peer.setLocalDescription(await peer.createOffer());
+      await waitForIce(peer);
+      const code = encode(prefix, {
+        v: VERSION,
+        g: gameId,
+        kind: 'offer',
+        desc: peer.localDescription,
+        name: localName,
+        seed
+      });
+      startTimeout();
+      notifyState('offer-ready');
+      return code;
+    }
+
+    async function createAnswer(offerCode, name = 'PLAYER 2') {
+      const offer = decode(prefix, offerCode);
+      if (offer.kind !== 'offer' || !offer.desc || offer.g !== gameId) throw new Error('Invalid Host QR for this game.');
+      localName = cleanName(name, 'PLAYER 2');
+      remoteName = cleanName(offer.name, 'PLAYER 1');
+      role = 'guest';
+      seed = Number(offer.seed || 1) >>> 0;
+      const peer = buildPeer();
+      peer.addEventListener('datachannel', event => bindChannel(event.channel), { once: true });
+      await peer.setRemoteDescription(offer.desc);
+      await peer.setLocalDescription(await peer.createAnswer());
+      await waitForIce(peer);
+      const answer = encode(prefix, {
+        v: VERSION,
+        g: gameId,
+        kind: 'answer',
+        desc: peer.localDescription,
+        name: localName
+      });
+      startTimeout();
+      notifyRemoteName();
+      notifyState('answer-ready');
+      return answer;
+    }
+
+    async function applyAnswer(answerCode) {
+      if (!pc || role !== 'host') throw new Error('Create a Host QR first.');
+      const answer = decode(prefix, answerCode);
+      if (answer.kind !== 'answer' || !answer.desc || answer.g !== gameId) throw new Error('Invalid Response QR for this game.');
+      remoteName = cleanName(answer.name, 'PLAYER 2');
+      notifyRemoteName();
+      await pc.setRemoteDescription(answer.desc);
+      startTimeout();
+      notifyState('connecting');
+      return true;
+    }
+
+    return {
+      createOffer,
+      createAnswer,
+      applyAnswer,
+      send,
+      close: closePeer,
+      setMessageHandler(handler) { messageHandler = typeof handler === 'function' ? handler : null; },
+      get role() { return role; },
+      get seed() { return seed; },
+      get connected() { return connected; },
+      get localName() { return localName; },
+      get remoteName() { return remoteName; },
+      get dataChannel() { return dc; }
+    };
+  }
+
+  async function copyText(text) {
+    const value = String(text || '');
+    if (!value) return false;
+    try {
+      await navigator.clipboard.writeText(value);
+      return true;
+    } catch (_) {
+      const ta = document.createElement('textarea');
+      ta.value = value;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      let ok = false;
+      try { ok = document.execCommand('copy'); } catch (_) {}
+      ta.remove();
+      return ok;
+    }
+  }
+
+  async function shareText(text, title = '2P Pairing') {
+    const value = String(text || '');
+    if (!value) return false;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title, text: value });
+        return true;
+      } catch (error) {
+        if (error?.name === 'AbortError') return false;
+      }
+    }
+    return copyText(value);
+  }
+
+  async function openScanner(options = {}) {
+    const video = options.video;
+    if (!video) throw new Error('Scanner video element is missing.');
+    if (!('BarcodeDetector' in window) || !navigator.mediaDevices?.getUserMedia) {
+      throw new Error('Camera QR scanning is not supported by this browser. Use Share / Copy / Paste fallback.');
+    }
+    const acceptPrefix = String(options.acceptPrefix || 'P2P1.');
+    const supported = typeof BarcodeDetector.getSupportedFormats === 'function'
+      ? await BarcodeDetector.getSupportedFormats().catch(() => [])
+      : ['qr_code'];
+    if (supported.length && !supported.includes('qr_code')) throw new Error('QR detection is not available on this browser.');
+
+    const detector = new BarcodeDetector({ formats: ['qr_code'] });
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
+      audio: false
+    });
+    video.srcObject = stream;
+    await video.play();
+    let stopped = false;
+    let busy = false;
+    let timer = 0;
+
+    const stop = () => {
+      if (stopped) return;
+      stopped = true;
+      clearTimeout(timer);
+      try { video.pause(); } catch (_) {}
+      try { stream.getTracks().forEach(track => track.stop()); } catch (_) {}
+      video.srcObject = null;
+    };
+
+    const scan = async () => {
+      if (stopped || busy) return;
+      busy = true;
+      try {
+        const results = await detector.detect(video);
+        const value = String(results?.[0]?.rawValue || '').trim();
+        if (value.startsWith(acceptPrefix)) {
+          stop();
+          options.onCode?.(value);
+          return;
+        }
+      } catch (_) {
+      } finally {
+        busy = false;
+      }
+      if (!stopped) timer = setTimeout(scan, 160);
+    };
+
+    timer = setTimeout(scan, 120);
+    return stop;
+  }
+
+  window.ICT8ZeroDbP2P = Object.freeze({
+    version: VERSION,
+    createSession,
+    encode,
+    decode,
+    randomSeed,
+    mulberry32,
+    shuffle,
+    copyText,
+    shareText,
+    openScanner,
+    cleanName
+  });
+})();
