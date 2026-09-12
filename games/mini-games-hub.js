@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const ASSET_VERSION = '20260913-v4761-2p-code-duel-parity-v5';
+  const ASSET_VERSION = '20260913-v4761-code-dama-v1';
 
   const GAME_REGISTRY = Object.freeze([
     {
@@ -459,6 +459,25 @@
       playLabel: 'PLAY CO-OP',
       bestText() { return '🧩 CO-OP ESCAPE · 0 XP'; }
     },
+
+    {
+      id: 'code-dama',
+      stateKey: 'codeDama',
+      name: 'CODE DAMA',
+      icon: '♟️',
+      description: 'Challenge a classmate to live Dama. Play Classic, Speed, Blitz, King Rush, or Power Dama with direct Student ID / QR pairing.',
+      maxXp: 0,
+      multiplayer: true,
+      noXp: true,
+      category: '2P STRATEGY / DAMA',
+      difficulty: '★★★★☆',
+      globalName: 'ICT8CodeDama',
+      dependencies: ['games/p2p-zero-db/p2p-zero-db.js'],
+      script: 'games/code-dama/code-dama.js',
+      style: 'games/code-dama/code-dama.css',
+      playLabel: 'PLAY 2P',
+      bestText() { return '♟️ LIVE DAMA · 0 XP'; }
+    },
     {
       id: 'pattern-lock',
       stateKey: 'patternLock',
@@ -520,6 +539,7 @@
     'code-snake-duel':        { bpm:136, root:50, scale:'minorPent', lead:'pulse', melody:[0,1,3,2,4,3,2,null,0,2,4,5,4,3,1,null], bass:[0,0,3,4], drums:'drive', gain:.32 },
     'byte-space-battle':      { bpm:152, root:45, scale:'dorian', lead:'saw', melody:[0,2,4,5,6,4,2,null,0,3,5,6,5,4,2,null], bass:[0,5,0,4], drums:'drive', gain:.33 },
     'code-escape-coop':       { bpm:98, root:55, scale:'minor', lead:'bell', melody:[0,null,2,null,3,5,null,4,2,null,1,3,null,2,0,null], bass:[0,3,5,4], drums:'suspense', gain:.29 },
+    'code-dama':              { bpm:106, root:50, scale:'dorian', lead:'pluck', melody:[0,null,2,3,null,4,3,2,0,null,3,5,4,3,2,null], bass:[0,3,4,3], drums:'soft', gain:.27 },
     'pattern-lock':           { bpm:102, root:60, scale:'minorPent', lead:'bell',   melody:[0,null,2,null,4,null,3,null,1,null,3,null,5,4,2,null], bass:[0,3,4,3], drums:'soft',   gain:.27 }
   });
 
