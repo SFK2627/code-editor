@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const ASSET_VERSION = '20260912-v4761-code-tiles-v60-15phase';
+  const ASSET_VERSION = '20260912-v4761-dial-in-v4-fit-home';
 
   const GAME_REGISTRY = Object.freeze([
     {
@@ -142,6 +142,23 @@
         const score = Math.max(0, Number(record.bestScore || 0));
         const combo = Math.max(0, Number(record.bestCombo || 0));
         return combo > 0 ? `\u{1F3C6} Best: ${score} \u00b7 Combo x${combo}` : `\u{1F3C6} Best: ${score}`;
+      }
+    },
+    {
+      id: 'dial-in',
+      stateKey: 'dialIn',
+      name: 'DIAL IN',
+      icon: '🎯',
+      description: 'Memory. Precision. Timing. Match a color, pitch, or hidden timer across five fast accuracy rounds.',
+      maxXp: 5,
+      category: 'PRECISION / MEMORY',
+      difficulty: '★★★★☆',
+      globalName: 'ICT8DialIn',
+      script: 'games/dial-in/dial-in.js',
+      style: 'games/dial-in/dial-in.css',
+      bestText(record = {}) {
+        const best = Math.max(0, Number(record.bestColorAccuracy || 0), Number(record.bestSoundAccuracy || 0), Number(record.bestTimeAccuracy || 0));
+        return best > 0 ? `🎯 Best: ${best.toFixed(1)}%` : '🎯 Precision ready';
       }
     },
     {
@@ -320,10 +337,10 @@
       stateKey: 'codeTiles',
       name: 'CODE TILES',
       icon: '🎹',
-      description: 'Survive 15 progressively longer phases from 75 to 240 BPM. Tap the next tile, master varied long holds, and chase a perfect overdrive run.',
-      maxXp: 20,
+      description: 'Tap short code tiles, press-and-hold long tiles through the SYNC LINE, build combos, and keep the four-lane rhythm synced.',
+      maxXp: 3,
       category: 'RHYTHM / TIMING',
-      difficulty: '★★★★★',
+      difficulty: '★★★★☆',
       globalName: 'ICT8CodeTiles',
       script: 'games/code-tiles/code-tiles.js',
       style: 'games/code-tiles/code-tiles.css',
@@ -486,6 +503,7 @@
     'falling-code':           { bpm:112, root:47, scale:'minor',     lead:'bell',   melody:[4,null,3,2,1,null,0,null,5,null,4,3,2,1,0,null], bass:[0,5,3,4], drums:'soft',   gain:.28 },
     'perfect-shot':           { bpm:120, root:57, scale:'majorPent', lead:'pluck',  melody:[0,null,2,null,4,3,2,null,0,null,3,null,4,5,4,null], bass:[0,3,4,3], drums:'groove', gain:.29 },
     'color-switch-byte':      { bpm:128, root:60, scale:'majorPent', lead:'bell',   melody:[0,2,4,3,1,3,4,5,4,2,0,2,3,4,2,null], bass:[0,4,3,4], drums:'dance',  gain:.30 },
+    'dial-in':                { bpm:100, root:57, scale:'dorian',    lead:'bell',   melody:[0,null,2,null,4,3,null,2,0,null,3,null,5,4,2,null], bass:[0,3,4,3], drums:'soft',   gain:.29 },
     'code-hoops':             { bpm:104, root:50, scale:'minorPent', lead:'pluck',  melody:[0,null,2,3,null,2,0,null,3,null,4,3,2,0,null,null], bass:[0,3,4,3], drums:'groove', gain:.30 },
     'red-light-green-light':  { bpm:116, root:52, scale:'minor',     lead:'pulse',  melody:[0,null,0,2,null,2,3,null,0,null,4,3,2,null,0,null], bass:[0,0,3,4], drums:'pulse',  gain:.28 },
     'code-maze':              { bpm:110, root:53, scale:'minor',     lead:'bell',   melody:[0,null,2,3,5,null,3,2,0,null,4,5,4,2,1,null], bass:[0,3,5,4], drums:'soft',   gain:.27 },

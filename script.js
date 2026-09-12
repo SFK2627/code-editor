@@ -42032,6 +42032,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   const XP_MINI_GAME_ID_MILLION_BYTE = 'million-byte';
   const XP_MINI_GAME_ID_CODE_VAULT = 'code-vault';
   const XP_MINI_GAME_ID_CODE_TILES = 'code-tiles';
+  const XP_MINI_GAME_ID_DIAL_IN = 'dial-in';
 
   const XP_MINI_GAME_DEFINITIONS = Object.freeze({
     [XP_MINI_GAME_ID_CODE_FLY]: Object.freeze({ stateKey: 'codeFly', maxReward: 15 }),
@@ -42055,7 +42056,8 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     [XP_MINI_GAME_ID_CODE_SLICE]: Object.freeze({ stateKey: 'codeSlice', maxReward: 3 }),
     [XP_MINI_GAME_ID_MILLION_BYTE]: Object.freeze({ stateKey: 'millionByte', maxReward: 3 }),
     [XP_MINI_GAME_ID_CODE_VAULT]: Object.freeze({ stateKey: 'codeVault', maxReward: 2 }),
-    [XP_MINI_GAME_ID_CODE_TILES]: Object.freeze({ stateKey: 'codeTiles', maxReward: 3 })
+    [XP_MINI_GAME_ID_CODE_TILES]: Object.freeze({ stateKey: 'codeTiles', maxReward: 3 }),
+    [XP_MINI_GAME_ID_DIAL_IN]: Object.freeze({ stateKey: 'dialIn', maxReward: 5 })
   });
 
   function normalizeXpMiniGameId(gameId = XP_MINI_GAME_ID_CODE_FLY) {
@@ -42608,6 +42610,44 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     return 1;
   }
 
+  // DIAL IN — one five-round local precision session. The server/client bridge
+  // recomputes the average from the five submitted round accuracies; the game
+  // cannot choose its own XP tier.
+  function dialInScoreDetails(metrics = {}) {
+    const source = metrics && typeof metrics === 'object' ? metrics : {};
+    const modeRaw = String(source.mode || '').trim().toLowerCase();
+    const mode = ['color','sound','time'].includes(modeRaw) ? modeRaw : '';
+    const roundAccuracies = Array.isArray(source.roundAccuracies)
+      ? source.roundAccuracies.slice(0, 5).map(value => Math.round(Math.max(0, Math.min(100, Number(value || 0))) * 10) / 10)
+      : [];
+    const roundsCompleted = Math.max(0, Math.min(5, Math.floor(Number(source.roundsCompleted || 0))));
+    const activeTimeMs = Math.max(0, Math.min(30 * 60 * 1000, Math.floor(Number(source.activeTimeMs || source.durationMs || 0))));
+    const minimumMs = mode === 'color' ? 18000 : mode === 'sound' ? 12000 : mode === 'time' ? 24000 : Number.POSITIVE_INFINITY;
+    const completed = source.completedRun === true && mode && roundsCompleted === 5 && roundAccuracies.length === 5 && activeTimeMs >= minimumMs;
+    const averageAccuracy = roundAccuracies.length === 5 ? roundAccuracies.reduce((sum, value) => sum + value, 0) / 5 : 0;
+    const bestRoundAccuracy = roundAccuracies.length ? Math.max(...roundAccuracies) : 0;
+    const cleanAverage = Math.round(Math.max(0, Math.min(100, averageAccuracy)) * 10) / 10;
+    return {
+      completed: Boolean(completed), mode, roundsCompleted, roundAccuracies,
+      averageAccuracy: cleanAverage,
+      bestRoundAccuracy: Math.round(Math.max(0, Math.min(100, bestRoundAccuracy)) * 10) / 10,
+      activeTimeMs,
+      score: completed ? Math.round(cleanAverage * 10) : 0
+    };
+  }
+
+  function dialInRewardForMetrics(metrics = {}) {
+    const details = dialInScoreDetails(metrics);
+    if (!details.completed) return 0;
+    const avg = details.averageAccuracy;
+    if (avg >= 98.5) return 5;
+    if (avg >= 96) return 4;
+    if (avg >= 92) return 3;
+    if (avg >= 85) return 2;
+    if (avg >= 75) return 1;
+    return 0;
+  }
+
   // V472 — MILLION BYTE is one 15-question knowledge ladder. The browser
   // receives a reserved unseen question set once, then all answering stays local.
   function millionByteScoreDetails(metrics = {}) {
@@ -42814,6 +42854,15 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       return 2;
     }
 
+    // DIAL IN runs locally for five precision rounds. These are only
+    // anti-fabrication floors; the average accuracy determines the reward.
+    if (id === XP_MINI_GAME_ID_DIAL_IN) {
+      const activeSeconds = Math.max(0, Number(source.activeTimeMs || durationMs)) / 1000;
+      const mode = String(source.mode || '').toLowerCase();
+      const floor = mode === 'color' ? 18 : mode === 'sound' ? 12 : mode === 'time' ? 24 : Infinity;
+      return activeSeconds >= floor ? 5 : 0;
+    }
+
     // CODE TILES is a fixed ~59 second five-phase rhythm track. Duration is
     // only a plausibility gate; waiting longer never upgrades its XP tier.
     if (id === XP_MINI_GAME_ID_CODE_TILES) {
@@ -42907,6 +42956,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       case XP_MINI_GAME_ID_MILLION_BYTE: tierReward = millionByteRewardForMetrics(metrics); break;
       case XP_MINI_GAME_ID_CODE_VAULT: tierReward = codeVaultRewardForMetrics(metrics); break;
       case XP_MINI_GAME_ID_CODE_TILES: tierReward = codeTilesRewardForMetrics(metrics); break;
+      case XP_MINI_GAME_ID_DIAL_IN: tierReward = dialInRewardForMetrics(metrics); break;
       default: tierReward = 0;
     }
     return Math.min(tierReward, miniGameDurationRewardCap(id, metrics));
@@ -43138,6 +43188,20 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         crashHit: source.crashHit === true,
         activeTimeMs: Math.max(0, Math.min(10 * 60 * 1000, Math.floor(Number(source.activeTimeMs || 0)))),
         durationMs: Math.max(0, Math.min(10 * 60 * 1000, Math.floor(Number(source.durationMs || 0))))
+      };
+    }
+
+    if (id === XP_MINI_GAME_ID_DIAL_IN) {
+      const details = dialInScoreDetails(source);
+      return {
+        completedRun: source.completedRun === true,
+        mode: details.mode,
+        roundsCompleted: Math.max(0, Math.min(5, Math.floor(Number(source.roundsCompleted || 0)))),
+        roundAccuracies: Array.isArray(source.roundAccuracies) ? source.roundAccuracies.slice(0, 5).map(value => Math.round(Math.max(0, Math.min(100, Number(value || 0))) * 10) / 10) : [],
+        averageAccuracy: details.averageAccuracy,
+        bestRoundAccuracy: details.bestRoundAccuracy,
+        activeTimeMs: Math.max(0, Math.min(30 * 60 * 1000, Math.floor(Number(source.activeTimeMs || 0)))),
+        durationMs: Math.max(0, Math.min(30 * 60 * 1000, Math.floor(Number(source.durationMs || 0))))
       };
     }
 
@@ -43442,6 +43506,19 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       };
     }
 
+    if (id === XP_MINI_GAME_ID_DIAL_IN) {
+      const latestModeRaw = String(source.latestMode || '').toLowerCase();
+      return {
+        ...base,
+        bestScore: Math.max(0, Math.min(1000, Math.floor(Number(source.bestScore || 0)))),
+        bestColorAccuracy: Math.max(0, Math.min(100, Number(source.bestColorAccuracy || 0))),
+        bestSoundAccuracy: Math.max(0, Math.min(100, Number(source.bestSoundAccuracy || 0))),
+        bestTimeAccuracy: Math.max(0, Math.min(100, Number(source.bestTimeAccuracy || 0))),
+        bestRoundAccuracy: Math.max(0, Math.min(100, Number(source.bestRoundAccuracy || 0))),
+        latestAccuracy: Math.max(0, Math.min(100, Number(source.latestAccuracy || 0))),
+        latestMode: ['color','sound','time'].includes(latestModeRaw) ? latestModeRaw : ''
+      };
+    }
     if (id === XP_MINI_GAME_ID_CODE_TILES) {
       return {
         ...base,
@@ -43686,6 +43763,21 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         lastRewardXp: Math.max(0, Math.min(2, Math.floor(lastRewardXp || 0)))
       };
     }
+    if (id === XP_MINI_GAME_ID_DIAL_IN) {
+      const leftAt = Date.parse(left.lastPlayedAt || '') || 0;
+      const rightAt = Date.parse(right.lastPlayedAt || '') || 0;
+      const latest = rightAt >= leftAt ? right : left;
+      return {
+        lastPlayedAt,
+        bestScore: Math.max(Number(left.bestScore || 0), Number(right.bestScore || 0)),
+        bestColorAccuracy: Math.max(Number(left.bestColorAccuracy || 0), Number(right.bestColorAccuracy || 0)),
+        bestSoundAccuracy: Math.max(Number(left.bestSoundAccuracy || 0), Number(right.bestSoundAccuracy || 0)),
+        bestTimeAccuracy: Math.max(Number(left.bestTimeAccuracy || 0), Number(right.bestTimeAccuracy || 0)),
+        bestRoundAccuracy: Math.max(Number(left.bestRoundAccuracy || 0), Number(right.bestRoundAccuracy || 0)),
+        latestAccuracy: Math.max(0, Math.min(100, Number(latest.latestAccuracy || 0))),
+        latestMode: ['color','sound','time'].includes(String(latest.latestMode || '')) ? String(latest.latestMode) : ''
+      };
+    }
     if (id === XP_MINI_GAME_ID_CODE_TILES) {
       const leftDay = String(left.lastRewardDay || '');
       const rightDay = String(right.lastRewardDay || '');
@@ -43792,6 +43884,17 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       next.bestRunScore = Math.max(Number(next.bestRunScore || 0), Number(details.score || score || 0));
       next.bestCombo = Math.max(Number(next.bestCombo || 0), Number(details.maxCombo || metrics.maxCombo || 0));
       next.bestAccuracy = Math.max(Number(next.bestAccuracy || 0), Number(details.accuracy || 0));
+    }
+    if (id === XP_MINI_GAME_ID_DIAL_IN && metrics.completedRun) {
+      const details = dialInScoreDetails(metrics);
+      if (details.completed) {
+        next.bestScore = Math.max(Number(next.bestScore || 0), Number(details.score || score || 0));
+        next.bestRoundAccuracy = Math.max(Number(next.bestRoundAccuracy || 0), Number(details.bestRoundAccuracy || 0));
+        next.latestAccuracy = details.averageAccuracy;
+        next.latestMode = details.mode;
+        const bestKey = details.mode === 'color' ? 'bestColorAccuracy' : details.mode === 'sound' ? 'bestSoundAccuracy' : 'bestTimeAccuracy';
+        next[bestKey] = Math.max(Number(next[bestKey] || 0), Number(details.averageAccuracy || 0));
+      }
     }
     if (id === XP_MINI_GAME_ID_CODE_TILES && metrics.completedRun) {
       const details = codeTilesScoreDetails(metrics);
@@ -46249,7 +46352,8 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       codeSlice: normalizeMiniGameRecord(XP_MINI_GAME_ID_CODE_SLICE, miniGames.games?.codeSlice),
       millionByte: normalizeMiniGameRecord(XP_MINI_GAME_ID_MILLION_BYTE, miniGames.games?.millionByte),
       codeVault: normalizeMiniGameRecord(XP_MINI_GAME_ID_CODE_VAULT, miniGames.games?.codeVault),
-      codeTiles: normalizeMiniGameRecord(XP_MINI_GAME_ID_CODE_TILES, miniGames.games?.codeTiles)
+      codeTiles: normalizeMiniGameRecord(XP_MINI_GAME_ID_CODE_TILES, miniGames.games?.codeTiles),
+      dialIn: normalizeMiniGameRecord(XP_MINI_GAME_ID_DIAL_IN, miniGames.games?.dialIn)
     };
     return {
       loggedIn,
@@ -46284,7 +46388,8 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         codeBridge: Math.max(0, Number(gameRecords.codeBridge.bestRunScore || gameRecords.codeBridge.bestScore || 0)),
         codeSlice: Math.max(0, Number(gameRecords.codeSlice.bestRunScore || gameRecords.codeSlice.bestScore || 0)),
         millionByte: Math.max(0, Number(gameRecords.millionByte.bestScore || 0)),
-        codeVault: Math.max(0, Number(gameRecords.codeVault.bestScore || 0))
+        codeVault: Math.max(0, Number(gameRecords.codeVault.bestScore || 0)),
+        dialIn: Math.max(0, Number(gameRecords.dialIn.bestScore || 0))
       },
       gameRecords,
       soundEnabled: miniGames.soundEnabled !== false
@@ -46743,6 +46848,18 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       metrics.offerRatio = vaultDetails.offerRatio || 0;
       metrics.payout = vaultDetails.payout || 0;
       score = vaultDetails.completed ? vaultDetails.score : 0;
+      maxPlausibleScore = 1000;
+    } else if (gameId === XP_MINI_GAME_ID_DIAL_IN) {
+      metrics.durationMs = durationMs;
+      metrics.activeTimeMs = Math.max(0, Math.min(Number(metrics.activeTimeMs || durationMs), durationMs));
+      const dialDetails = dialInScoreDetails(metrics);
+      metrics.completedRun = dialDetails.completed;
+      metrics.mode = dialDetails.mode;
+      metrics.roundsCompleted = dialDetails.completed ? 5 : Math.max(0, Math.min(5, metrics.roundsCompleted || 0));
+      metrics.roundAccuracies = dialDetails.roundAccuracies;
+      metrics.averageAccuracy = dialDetails.averageAccuracy;
+      metrics.bestRoundAccuracy = dialDetails.bestRoundAccuracy;
+      score = dialDetails.completed ? dialDetails.score : 0;
       maxPlausibleScore = 1000;
     } else if (gameId === XP_MINI_GAME_ID_CODE_TILES) {
       metrics.durationMs = durationMs;
@@ -47281,7 +47398,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       // During rollout only, an OLD Apps Script deployment can fall back to the
       // proven Firestore transaction. Network/quota errors do NOT cause a second
       // Firestore claim attempt, preventing double load and duplicate rewards.
-      if (miniGameBridgeNeedsLegacyFallback(error) && gameId !== XP_MINI_GAME_ID_CODE_FLOW && gameId !== XP_MINI_GAME_ID_BYTE_SLING && gameId !== XP_MINI_GAME_ID_CODE_BRIDGE && gameId !== XP_MINI_GAME_ID_CODE_SLICE && gameId !== XP_MINI_GAME_ID_MILLION_BYTE && gameId !== XP_MINI_GAME_ID_CODE_VAULT && gameId !== XP_MINI_GAME_ID_CODE_TILES) {
+      if (miniGameBridgeNeedsLegacyFallback(error) && gameId !== XP_MINI_GAME_ID_CODE_FLOW && gameId !== XP_MINI_GAME_ID_BYTE_SLING && gameId !== XP_MINI_GAME_ID_CODE_BRIDGE && gameId !== XP_MINI_GAME_ID_CODE_SLICE && gameId !== XP_MINI_GAME_ID_MILLION_BYTE && gameId !== XP_MINI_GAME_ID_CODE_VAULT && gameId !== XP_MINI_GAME_ID_CODE_TILES && gameId !== XP_MINI_GAME_ID_DIAL_IN) {
         console.warn('Mini-game Apps Script route is not deployed yet; using temporary legacy reward path.', error);
         return performXpMiniGameClaimLegacyFirestore(sessionId, round, reportedResult);
       }
