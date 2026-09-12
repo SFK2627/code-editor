@@ -46498,6 +46498,32 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     };
   }
 
+
+  async function switchMillionByteQuestion(options = {}) {
+    const sessionId = String(options.sessionId || '').trim();
+    const round = activeXpMiniGameRounds.get(sessionId);
+    if (!round || round.gameId !== XP_MINI_GAME_ID_MILLION_BYTE) {
+      return { ok: false, error: 'Million Byte round is not active.', replacementId: '' };
+    }
+    if (!(appSession.mode === 'student' && appSession.student?.uid) || !shouldUseAppsScriptMiniGameRewards()) {
+      return { ok: false, practiceOnly: true, replacementId: '' };
+    }
+    const server = await callAppsScriptSecure({
+      action: 'switchMillionByteQuestion',
+      roundId: sessionId,
+      gameId: XP_MINI_GAME_ID_MILLION_BYTE,
+      bankVersion: Math.max(1, Math.min(99, Math.floor(Number(options.bankVersion || 1)))),
+      questionIndex: Math.max(0, Math.min(14, Math.floor(Number(options.questionIndex || 0)))),
+      originalQuestionId: String(options.originalQuestionId || '')
+    }, { allowStudent: true });
+    return {
+      ok: server?.ok === true,
+      replacementId: String(server?.replacementId || ''),
+      cycleInfo: server?.cycleInfo || null,
+      practiceOnly: false
+    };
+  }
+
   function reportedXpMiniGameResult(input = 0) {
     const source = input && typeof input === 'object' && !Array.isArray(input) ? input : { score: input };
     return {
@@ -51506,6 +51532,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     rewardForGame: miniGameRewardForResult,
     beginRound: beginXpMiniGameRound,
     prepareMillionByteRound,
+    switchMillionByteQuestion,
     claimRound: claimXpMiniGameRound,
     cancelRound: cancelXpMiniGameRound,
     cancelGame: cancelXpMiniGameRoundsForGame,
