@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const ASSET_VERSION = '20260912-v4761-code-tiles-v59-readable';
+  const ASSET_VERSION = '20260912-v4761-game-audio-v2-louder-restart';
 
   const GAME_REGISTRY = Object.freeze([
     {
@@ -619,6 +619,11 @@
     return buffer;
   }
 
+  // Overall soundtrack lift requested for phone speakers. Individual game
+  // profiles still keep their relative balance; input ducking preserves SFX
+  // clarity during taps/jumps/hits.
+  const MINI_GAME_BGM_GAIN_BOOST = 1.42;
+
   const MINI_GAME_SOUNDTRACK = (() => {
     let ctx = null;
     let master = null;
@@ -658,7 +663,10 @@
 
     function targetGain() {
       if (!enabled || paused || !activeGameId || !activeProfile) return 0;
-      return Math.max(.16, Math.min(.38, Number(activeProfile.gain || .28)));
+      const profileGain = Number(activeProfile.gain || .28);
+      // Louder master mix for mobile speakers without allowing the BGM to
+      // saturate the output bus. SFX still gets temporary headroom via duck().
+      return Math.max(.24, Math.min(.50, profileGain * MINI_GAME_BGM_GAIN_BOOST));
     }
 
     function rampGain(value, seconds = .06) {
@@ -804,10 +812,10 @@
   // Brief BGM ducking on actions leaves headroom for each game's own SFX.
   // These listeners do not synthesize extra SFX, so they stay very cheap.
   window.addEventListener('pointerdown', () => {
-    if (MINI_GAME_SOUNDTRACK.isActive()) MINI_GAME_SOUNDTRACK.duck(.54, 150);
+    if (MINI_GAME_SOUNDTRACK.isActive()) MINI_GAME_SOUNDTRACK.duck(.48, 155);
   }, { capture: true, passive: true });
   window.addEventListener('keydown', event => {
-    if (!event.repeat && MINI_GAME_SOUNDTRACK.isActive()) MINI_GAME_SOUNDTRACK.duck(.60, 130);
+    if (!event.repeat && MINI_GAME_SOUNDTRACK.isActive()) MINI_GAME_SOUNDTRACK.duck(.54, 135);
   }, { capture: true });
 
   document.addEventListener('visibilitychange', () => {

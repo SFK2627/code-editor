@@ -44635,9 +44635,18 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     startExplorerSyntheticMusic();
   }
 
-  function stopExplorerMusic() {
+  function stopExplorerMusic(options = {}) {
     stopExplorerSyntheticMusic();
-    stopExplorerExternalMusic();
+    stopExplorerExternalMusic({ reset: options.reset === true });
+    if (options.reset === true) explorerAudio.phraseIndex = 0;
+  }
+
+  function restartExplorerMusicFromBeginning() {
+    // Leaving a Mini-Game should feel like returning to a fresh app soundtrack,
+    // not resuming halfway through the previous Explorer loop.
+    stopExplorerMusic({ reset: true });
+    explorerAudio.phraseIndex = 0;
+    startExplorerMusic();
   }
 
   function setExplorerMiniGameAudioFocus(active) {
@@ -44673,7 +44682,9 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       && codeExplorerMusicAdminEnabled()
       && !document.hidden
       && document.body.classList.contains('code-explorer-active')) {
-      unlockExplorerAudio().then(ok => { if (ok) startExplorerMusic(); }).catch(() => false);
+      unlockExplorerAudio().then(ok => {
+        if (ok) restartExplorerMusicFromBeginning();
+      }).catch(() => false);
     }
   }
 
