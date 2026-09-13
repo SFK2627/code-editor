@@ -8,20 +8,35 @@
   const BOARD_TOP = 76;
   const BOARD_BOTTOM = 1040;
   const LANE_W = WORLD_W / 4;
-  const SHORT_H = 150;
-  const SHORT_GAP = 18;
-  const LONG_H_SMALL = 330;
-  const LONG_H_LARGE = 410;
-  const FIRST_HEAD_Y = 820;
+  // v485 game-feel tune: taller Piano-Tiles proportions, tighter flow, clearer first note.
+  const SHORT_H = 270;
+  const SHORT_GAP = 6;
+  // Give the player breathing room after a long tile instead of placing the
+  // next note almost directly on top of it.
+  const HOLD_EXIT_GAP = 120;
+  const LONG_H_SMALL = 540;
+  const LONG_H_LARGE = 690;
+  const FIRST_HEAD_Y = 1010;
   const TOTAL_NOTES = 127;
   const HOLD_COUNT = 9;
   const HOLD_INDICES = Object.freeze([10, 23, 38, 52, 67, 82, 96, 111, 122]);
   const PHASE_ENDS = Object.freeze([25, 51, 76, 102, 127]);
-  const SPEED_START = 330;
-  const SPEED_END = 390;
-  const MISS_Y = BOARD_BOTTOM + 8;
-  const HOLD_RELEASE_Y = BOARD_BOTTOM - 72;
-  const COUNTDOWN_MS = 2100;
+  // The old 330→390 range looked like a slow conveyor in the reference comparison.
+  // This starts lively, then ramps smoothly to a high-intensity finish.
+  const SPEED_START = 610;
+  const SPEED_END = 980;
+  const MISS_Y = BOARD_BOTTOM + 12;
+  // Long-note fill is intentionally time-based instead of waiting for the
+  // entire long tile to travel to the bottom. This keeps one-finger play
+  // responsive and much closer to the reference game's quick hold cadence.
+  const HOLD_FILL_MS_SMALL = 620;
+  const HOLD_FILL_MS_LARGE = 780;
+  const HOLD_SPEED_SCALE_MIN = 0.74;
+  // A long tile is already a successful note once its head is pressed.
+  // Holding to 100% is now optional mastery/bonus, not a survival requirement.
+  const HIT_SLOP_Y = 16;
+  const FAILURE_ANIM_MS = 680;
+  const COUNTDOWN_MS = 1350;
   const MAX_DPR_DESKTOP = 1.4;
   const MAX_DPR_PHONE = 1.15;
   const MELODY = Object.freeze([0,2,4,5,7,9,7,5,4,2,0,2,5,7,9,12,9,7,5,4,2,4,7,11,9,7,4,2,0,4,5,7]);
@@ -52,6 +67,7 @@
     progressEl: null,
     checkpointEls: [],
     bestEl: null,
+    failTitleEl: null,
     failCopyEl: null,
     failScoreEl: null,
     finalScoreEl: null,
@@ -102,6 +118,7 @@
     lastRewardDay: '',
     lastRewardXp: 0,
     failedReason: '',
+    failureFx: null,
     lowPower: false,
     reducedMotion: false,
     testSpeed: 1
@@ -156,7 +173,7 @@
             <div class="code-tiles-mode-row"><div><small>MODE</small><strong>CLASSIC</strong></div><div><small>BEST</small><strong data-code-tiles-best>0</strong></div></div>
             <div class="code-tiles-how">
               <span><b>TAP</b><small>Tap the next black tile itself before it passes the bottom.</small></span>
-              <span><b>HOLD</b><small>Keep long tiles pressed until the blue fill reaches the tail.</small></span>
+              <span><b>HOLD</b><small>Tap long tiles to clear them. Keep holding to fill farther and earn the hold bonus.</small></span>
             </div>
             <div class="code-tiles-keys"><span>D</span><span>F</span><span>J</span><span>K</span></div>
             <button class="code-tiles-primary" type="button" data-code-tiles-play>START</button>
@@ -169,7 +186,7 @@
         </div>
 
         <div class="code-tiles-panel" data-code-tiles-fail hidden>
-          <div class="code-tiles-card compact"><div class="code-tiles-result-icon fail">×</div><p class="code-tiles-kicker danger">RUN ENDED</p><h2>MISSED TILE</h2><p data-code-tiles-fail-copy>The next black tile was missed.</p><div class="code-tiles-fail-score"><small>SCORE</small><strong data-code-tiles-fail-score>0</strong></div><div class="code-tiles-actions"><button class="code-tiles-primary" type="button" data-code-tiles-retry>RETRY</button><button type="button" data-code-tiles-fail-hub>MINI-GAMES</button></div></div>
+          <div class="code-tiles-card compact"><div class="code-tiles-result-icon fail">×</div><p class="code-tiles-kicker danger">RUN ENDED</p><h2 data-code-tiles-fail-title>MISSED TILE</h2><p data-code-tiles-fail-copy>The next black tile was missed.</p><div class="code-tiles-fail-score"><small>SCORE</small><strong data-code-tiles-fail-score>0</strong></div><div class="code-tiles-actions"><button class="code-tiles-primary" type="button" data-code-tiles-retry>RETRY</button><button type="button" data-code-tiles-fail-hub>MINI-GAMES</button></div></div>
         </div>
 
         <div class="code-tiles-panel" data-code-tiles-result hidden>
@@ -192,6 +209,7 @@
     runtime.progressEl = overlay.querySelector('[data-code-tiles-progress]');
     runtime.checkpointEls = Array.from(overlay.querySelectorAll('[data-code-tiles-cp]'));
     runtime.bestEl = overlay.querySelector('[data-code-tiles-best]');
+    runtime.failTitleEl = overlay.querySelector('[data-code-tiles-fail-title]');
     runtime.failCopyEl = overlay.querySelector('[data-code-tiles-fail-copy]');
     runtime.failScoreEl = overlay.querySelector('[data-code-tiles-fail-score]');
     runtime.finalScoreEl = overlay.querySelector('[data-code-tiles-final-score]');
@@ -251,7 +269,8 @@
   }
 
   function canvasPoint(event) {
-    const rect = runtime.canvas.getBoundingClientRect();
+    // Reuse the rect cached by resizeCanvas so taps do not force a layout read.
+    const rect = runtime.view.rect || runtime.canvas.getBoundingClientRect();
     return {
       x: (event.clientX - rect.left) * WORLD_W / Math.max(1, rect.width),
       y: (event.clientY - rect.top) * WORLD_H / Math.max(1, rect.height)
@@ -264,14 +283,12 @@
     const chart = [];
     let cumulative = 0;
     let prevLane = -1;
-    let repeatCount = 0;
     for (let i = 0; i < TOTAL_NOTES; i += 1) {
       let lane = Math.floor(rng() * 4);
-      if (lane === prevLane) repeatCount += 1; else repeatCount = 1;
-      if (repeatCount > 2) {
-        lane = (lane + 1 + Math.floor(rng() * 3)) % 4;
-        repeatCount = 1;
-      }
+      // Avoid immediate same-lane stacking such as one normal tile sitting
+      // directly on top of the previous one. The next note should visibly move
+      // to another lane instead of forming a vertical "double block" column.
+      if (lane === prevLane) lane = (lane + 1 + Math.floor(rng() * 3)) % 4;
       prevLane = lane;
       const isHold = holds.has(i);
       const longH = isHold ? (i % 2 ? LONG_H_LARGE : LONG_H_SMALL) : SHORT_H;
@@ -287,10 +304,14 @@
         pointerId: null,
         holdProgress: 0,
         holdAwarded: 0,
+        holdStartActiveMs: 0,
+        holdDurationMs: 0,
+        holdReleasedEarly: false,
+        holdVisualProgress: 0,
         freq: SCALE[MELODY[i % MELODY.length] % SCALE.length]
       };
       chart.push(note);
-      cumulative += isHold ? longH + SHORT_GAP + 20 : SHORT_H + SHORT_GAP;
+      cumulative += isHold ? longH + HOLD_EXIT_GAP : SHORT_H + SHORT_GAP;
     }
     runtime.chart = chart;
     runtime.trackLength = Math.max(1, cumulative - FIRST_HEAD_Y + 720);
@@ -349,6 +370,7 @@
     runtime.activeHolds.clear();
     runtime.pointerOwners.clear();
     runtime.keyboardOwners.clear();
+    runtime.failureFx = null;
     runtime.effects.length = 0;
     runtime.failedReason = '';
     runtime.state = 'countdown';
@@ -381,10 +403,13 @@
       if (now - runtime.startCountdownAt >= COUNTDOWN_MS) beginPlay();
     } else if (runtime.state === 'playing') {
       update(dtMs, now);
+    } else if (runtime.state === 'failing') {
+      const fx = runtime.failureFx;
+      if (fx && now - fx.born >= FAILURE_ANIM_MS) completeFailureAnimation();
     }
     updateEffects(now);
     render(now);
-    if (runtime.open && ['countdown', 'playing', 'paused'].includes(runtime.state)) runtime.raf = requestAnimationFrame(loop);
+    if (runtime.open && ['countdown', 'playing', 'paused', 'failing'].includes(runtime.state)) runtime.raf = requestAnimationFrame(loop);
   }
 
   function update(dtMs, now) {
@@ -395,10 +420,12 @@
     }
 
     for (const tile of runtime.activeHolds.values()) {
-      const r = tileRect(tile);
-      const holdStart = Number(tile.holdStartScroll || runtime.scroll);
-      const holdEnd = Math.max(holdStart + 1, Number(tile.holdReleaseScroll || holdStart + tile.height));
-      tile.holdProgress = clamp((runtime.scroll - holdStart) / (holdEnd - holdStart), 0, 1);
+      // Fill by ACTIVE hold time, not by how far the whole tile has travelled.
+      // Pausing does not advance activeTimeMs, so holds also freeze correctly.
+      const holdStartMs = Number(tile.holdStartActiveMs ?? runtime.activeTimeMs);
+      const holdDurationMs = Math.max(1, Number(tile.holdDurationMs || HOLD_FILL_MS_SMALL));
+      tile.holdProgress = clamp((runtime.activeTimeMs - holdStartMs) / holdDurationMs, 0, 1);
+      tile.holdVisualProgress = tile.holdProgress;
       const earned = Math.min(tile.bonusTicks, Math.floor(tile.holdProgress * tile.bonusTicks + 0.0001));
       if (earned > tile.holdAwarded) {
         const delta = earned - tile.holdAwarded;
@@ -407,7 +434,7 @@
         runtime.score += delta;
         updateHud();
       }
-      if (runtime.scroll >= Number(tile.holdReleaseScroll || Infinity) || r.top >= HOLD_RELEASE_Y) completeHold(tile, now);
+      if (tile.holdProgress >= 1) completeHold(tile, now);
     }
 
     const next = currentTile();
@@ -415,7 +442,7 @@
       const r = tileRect(next);
       if (runtime.motionStarted && r.head > MISS_Y) {
         runtime.misses += 1;
-        failRun('The next black tile passed the bottom.');
+        failRun('The next black tile passed the bottom.', { kind: 'miss', tileId: next.id });
         return;
       }
     }
@@ -429,12 +456,19 @@
     if (!tile) return false;
     const r = tileRect(tile);
     const lane = laneOnly == null ? Math.floor(clamp(point.x, 0, WORLD_W - .001) / LANE_W) : laneOnly;
-    const inside = lane === tile.lane && (laneOnly != null || (point.y >= r.top && point.y <= r.bottom));
-    const visible = r.bottom > BOARD_TOP + 14 && r.top < BOARD_BOTTOM - 4;
+    // Small vertical forgiveness keeps fast taps fair without allowing lane-wide blind tapping.
+    const withinY = point.y >= r.top - HIT_SLOP_Y && point.y <= r.bottom + HIT_SLOP_Y;
+    const inside = lane === tile.lane && (laneOnly != null || withinY);
+    const visible = r.bottom > BOARD_TOP + 8 && r.top < BOARD_BOTTOM + 4;
     if (!inside || !visible) {
       runtime.badTaps += 1;
       runtime.streak = 0;
-      failRun('Wrong tile. Tap only the next black tile.');
+      failRun('Wrong tile. Tap only the next black tile.', {
+        kind: 'wrong',
+        tileId: tile.id,
+        lane,
+        point: { x: Number(point.x), y: Number(point.y) }
+      });
       return false;
     }
 
@@ -453,9 +487,15 @@
     if (tile.isHold) {
       tile.pointerId = sourceId;
       tile.holdProgress = 0;
+      tile.holdVisualProgress = 0;
+      tile.holdReleasedEarly = false;
       tile.holdAwarded = 0;
-      tile.holdStartScroll = runtime.scroll;
-      tile.holdReleaseScroll = runtime.scroll + Math.max(100, HOLD_RELEASE_Y - r.top);
+      tile.holdStartActiveMs = runtime.activeTimeMs;
+      const baseHoldMs = tile.height >= LONG_H_LARGE ? HOLD_FILL_MS_LARGE : HOLD_FILL_MS_SMALL;
+      // As the track gets faster, long notes also finish sooner instead of
+      // becoming a bottleneck. Clamp the scaling so they still feel like holds.
+      const speedScale = clamp(SPEED_START / Math.max(1, speedNow()), HOLD_SPEED_SCALE_MIN, 1);
+      tile.holdDurationMs = Math.round(baseHoldMs * speedScale);
       runtime.activeHolds.set(tile.id, tile);
     }
     updateHud();
@@ -466,6 +506,8 @@
     if (!tile || tile.state !== 'holding') return;
     tile.state = 'hit';
     tile.holdProgress = 1;
+    tile.holdVisualProgress = 1;
+    tile.holdReleasedEarly = false;
     if (tile.holdAwarded < tile.bonusTicks) {
       const delta = tile.bonusTicks - tile.holdAwarded;
       tile.holdAwarded = tile.bonusTicks;
@@ -488,11 +530,31 @@
     if (tileId == null) return;
     const tile = runtime.chart[tileId];
     if (!tile || tile.state !== 'holding') return;
-    runtime.misses += 1;
-    runtime.streak = 0;
-    stopVoice(tile.id, false);
+
+    // FAIR-HOLD RULE: pressing the long tile already clears the note.
+    // Keeping it held only earns the remaining hold bonus / completed-hold stat.
+    // Early release therefore never kills the run.
+    if (tile.holdProgress >= 1) {
+      completeHold(tile, performance.now());
+      return;
+    }
+
+    // Preserve exactly how far the player actually filled the long tile.
+    // The tap already cleared the note, but an early release must NOT visually
+    // pretend that the remaining portion was filled.
+    tile.holdVisualProgress = clamp(tile.holdProgress, 0, 1);
+    tile.holdReleasedEarly = tile.holdVisualProgress < 1;
+    tile.state = 'hit';
     runtime.activeHolds.delete(tile.id);
-    failRun('Long tile released too early. Keep holding until the blue fill reaches the tail.');
+    stopVoice(tile.id, true);
+    runtime.effects.push({
+      type: 'holdRelease',
+      lane: tile.lane,
+      value: tile.holdAwarded,
+      born: performance.now(),
+      ttl: 360
+    });
+    updateHud();
   }
 
   function onPointerDown(event) {
@@ -656,23 +718,64 @@
     }
   }
 
-  function failRun(copy) {
+  function failRun(copy, detail = {}) {
     if (!['playing', 'countdown'].includes(runtime.state)) return;
-    runtime.state = 'failed';
+    const now = performance.now();
+    const kind = detail.kind === 'wrong' ? 'wrong' : 'miss';
+    runtime.state = 'failing';
     runtime.motionStarted = false;
     runtime.failedReason = String(copy || 'The run ended.');
+    runtime.failureFx = {
+      kind,
+      tileId: Number.isInteger(detail.tileId) ? detail.tileId : runtime.nextIndex,
+      lane: Number.isFinite(detail.lane) ? detail.lane : null,
+      point: detail.point ? { x: Number(detail.point.x), y: Number(detail.point.y) } : null,
+      born: now
+    };
+
+    // Keep the board visible for the impact animation. The result panel is
+    // deliberately delayed so the player can SEE what caused the failure.
+    runtime.failPanel.hidden = true;
     stopAllVoices(false);
     runtime.activeHolds.clear();
     runtime.pointerOwners.clear();
     runtime.keyboardOwners.clear();
+
+    if (kind === 'wrong' && runtime.failureFx.point) {
+      runtime.effects.push({
+        type: 'wrongTap',
+        lane: runtime.failureFx.lane,
+        x: runtime.failureFx.point.x,
+        y: runtime.failureFx.point.y,
+        born: now,
+        ttl: FAILURE_ANIM_MS
+      });
+    } else {
+      const tile = runtime.chart[runtime.failureFx.tileId];
+      runtime.effects.push({
+        type: 'crash',
+        lane: tile?.lane ?? runtime.failureFx.lane ?? 0,
+        born: now,
+        ttl: FAILURE_ANIM_MS
+      });
+    }
+
+    playUiTone('fail');
+    if (!runtime.raf) runtime.raf = requestAnimationFrame(loop);
+  }
+
+  function completeFailureAnimation() {
+    if (runtime.state !== 'failing') return;
+    const kind = runtime.failureFx?.kind || 'miss';
+    runtime.state = 'failed';
     if (runtime.round?.sessionId) {
       try { runtime.bridge?.cancelRound?.(runtime.round.sessionId); } catch (_) {}
     }
     runtime.round = null;
+    if (runtime.failTitleEl) runtime.failTitleEl.textContent = kind === 'wrong' ? 'WRONG TAP' : 'MISSED TILE';
     runtime.failCopyEl.textContent = runtime.failedReason;
     runtime.failScoreEl.textContent = String(runtime.score);
     runtime.failPanel.hidden = false;
-    playUiTone('fail');
   }
 
   function spawnTapEffect(tile, point) {
@@ -737,11 +840,23 @@
     const h = tile.height;
     const isDone = tile.state === 'hit';
     const holding = tile.state === 'holding';
+    const isCurrent = tile.state === 'pending' && tile.id === runtime.nextIndex;
     const alpha = r.top > BOARD_BOTTOM ? 0 : 1;
     ctx.save();
     ctx.globalAlpha = alpha;
 
-    if (isDone) {
+    const failFx = runtime.failureFx;
+    const isCrashTile = runtime.state === 'failing' && failFx?.kind === 'miss' && failFx.tileId === tile.id;
+    if (isCrashTile) {
+      const ft = clamp((now - failFx.born) / FAILURE_ANIM_MS, 0, 1);
+      // Quick downward impact + small recoil gives a physical "hit the floor" feel.
+      const impactY = ft < .28 ? 18 * ease(ft / .28) : 18 * (1 - ease((ft - .28) / .72));
+      const shakeX = Math.sin(ft * Math.PI * 10) * (1 - ft) * 5;
+      ctx.translate(shakeX, impactY);
+    }
+
+    const partialReleasedHold = isDone && tile.isHold && tile.holdReleasedEarly;
+    if (isDone && !partialReleasedHold) {
       const blue = ctx.createLinearGradient(0, r.top, 0, r.bottom);
       blue.addColorStop(0, '#0c79d5');
       blue.addColorStop(.58, '#25a8ef');
@@ -757,6 +872,51 @@
         ctx.fillStyle = 'rgba(255,255,255,.025)';
         ctx.fillRect(x + 4, r.top + 4, w - 8, Math.min(12, h * .08));
       }
+      // A very small leading-edge cue makes the required lowest tile obvious
+      // without adding arrows or changing the classic four-lane look.
+      if (isCurrent) {
+        const pulse = .28 + .12 * Math.sin(now * .012);
+        ctx.fillStyle = `rgba(88,220,255,${pulse})`;
+        ctx.fillRect(x + 4, r.bottom - 4, w - 8, 4);
+      }
+    }
+
+    // If a long tile was released early, keep only the amount that was actually
+    // filled blue. The untouched remainder stays black as visual proof of how
+    // far the player really held it.
+    if (partialReleasedHold) {
+      const p = clamp(tile.holdVisualProgress, 0, 1);
+      if (p > 0) {
+        const fillH = h * p;
+        const fillY = r.bottom - fillH;
+        const partialFill = ctx.createLinearGradient(0, fillY, 0, r.bottom);
+        partialFill.addColorStop(0, '#0a7fd9');
+        partialFill.addColorStop(.62, '#18a9ef');
+        partialFill.addColorStop(1, '#5bd6ff');
+        ctx.fillStyle = partialFill;
+        ctx.fillRect(x, fillY, w, fillH);
+        ctx.fillStyle = 'rgba(255,255,255,.10)';
+        ctx.fillRect(x + 4, fillY + 2, w - 8, 2);
+      }
+    }
+
+    // Instant contact flash: visual response happens on the same pointerdown frame.
+    if (isDone && tile.hitAt) {
+      const hitAge = now - tile.hitAt;
+      if (hitAge >= 0 && hitAge < 120) {
+        const flash = (1 - hitAge / 120) * .30;
+        ctx.fillStyle = `rgba(255,255,255,${flash})`;
+        ctx.fillRect(x, r.top, w, h);
+      }
+    }
+
+    if (isCrashTile) {
+      const ft = clamp((now - failFx.born) / FAILURE_ANIM_MS, 0, 1);
+      ctx.fillStyle = `rgba(239,35,60,${0.88 - 0.18 * ft})`;
+      ctx.fillRect(x, r.top, w, h);
+      ctx.strokeStyle = `rgba(255,235,235,${0.95 - .45 * ft})`;
+      ctx.lineWidth = 5;
+      ctx.strokeRect(x + 2.5, r.top + 2.5, w - 5, h - 5);
     }
 
     if (holding) {
@@ -797,6 +957,59 @@
         ctx.arc(x, fx.y, 10 + 28 * t, 0, Math.PI * 2);
         ctx.stroke();
         ctx.restore();
+      } else if (fx.type === 'wrongTap') {
+        const lane = Number.isFinite(fx.lane) ? fx.lane : Math.floor(clamp(fx.x || 0, 0, WORLD_W - .001) / LANE_W);
+        const laneX = lane * LANE_W;
+        const pulse = 1 - t;
+        const redH = SHORT_H;
+        const boxY = clamp(fx.y - redH * 0.56, BOARD_TOP, BOARD_BOTTOM - redH);
+        ctx.save();
+        ctx.globalAlpha = Math.max(.12, pulse);
+        ctx.fillStyle = `rgba(239,35,60,${.22 + .46 * pulse})`;
+        ctx.fillRect(laneX + 2, boxY, LANE_W - 4, redH);
+        ctx.strokeStyle = `rgba(255,235,235,${.92 - .38 * t})`;
+        ctx.lineWidth = 4;
+        ctx.strokeRect(laneX + 4, boxY + 4, LANE_W - 8, redH - 8);
+        ctx.strokeStyle = '#ff304f';
+        ctx.lineWidth = 5;
+        ctx.beginPath();
+        ctx.arc(fx.x, fx.y, 18 + 48 * t, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.fillStyle = `rgba(255,45,70,${.30 * pulse})`;
+        ctx.beginPath();
+        ctx.arc(fx.x, fx.y, 34 + 38 * t, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      } else if (fx.type === 'crash') {
+        const x = fx.lane * LANE_W + LANE_W / 2;
+        const pulse = 1 - t;
+        ctx.save();
+        ctx.globalAlpha = pulse;
+        ctx.strokeStyle = '#ff304f';
+        ctx.lineWidth = 6;
+        ctx.beginPath();
+        ctx.moveTo(x - 62 - 24 * t, BOARD_BOTTOM - 5);
+        ctx.lineTo(x + 62 + 24 * t, BOARD_BOTTOM - 5);
+        ctx.stroke();
+        for (let i = 0; i < 6; i += 1) {
+          const a = (-Math.PI * .85) + i * (Math.PI * .7 / 5);
+          const d = 18 + 58 * t;
+          ctx.beginPath();
+          ctx.moveTo(x, BOARD_BOTTOM - 6);
+          ctx.lineTo(x + Math.cos(a) * d, BOARD_BOTTOM - 6 + Math.sin(a) * d);
+          ctx.stroke();
+        }
+        ctx.restore();
+      } else if (fx.type === 'holdRelease') {
+        if (fx.value > 0) {
+          ctx.save();
+          ctx.globalAlpha = 1 - t;
+          ctx.textAlign = 'center';
+          ctx.fillStyle = '#ffffff';
+          ctx.font = '800 18px system-ui';
+          ctx.fillText(`+${fx.value} HOLD`, fx.lane * LANE_W + LANE_W / 2, 760 - 30 * t);
+          ctx.restore();
+        }
       } else if (fx.type === 'bonus') {
         ctx.save();
         ctx.globalAlpha = 1 - t;
@@ -819,7 +1032,7 @@
 
   function drawCountdown(ctx, now) {
     const elapsed = now - runtime.startCountdownAt;
-    const value = elapsed < 650 ? '3' : elapsed < 1300 ? '2' : elapsed < 1950 ? '1' : 'GO';
+    const value = elapsed < 340 ? '3' : elapsed < 680 ? '2' : elapsed < 1020 ? '1' : 'GO';
     ctx.save();
     ctx.fillStyle = 'rgba(15,40,82,.18)';
     ctx.fillRect(0, BOARD_TOP, WORLD_W, BOARD_BOTTOM - BOARD_TOP);
@@ -968,6 +1181,7 @@
     runtime.pointerOwners.clear();
     runtime.keyboardOwners.clear();
     runtime.activeHolds.clear();
+    runtime.failureFx = null;
     stopAllVoices(false);
     if (runtime.raf) cancelAnimationFrame(runtime.raf);
     runtime.raf = 0;

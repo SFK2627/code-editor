@@ -808,6 +808,7 @@ const STORAGE_KEYS = {
   givenActivityEngagement: 'studentCodeStudio.givenActivityEngagement.v1',
   aiRubricSettings: 'studentCodeStudio.aiRubricSettings.v1',
   loginReminderSettings: 'studentCodeStudio.loginReminderSettings.v1',
+  loginReminderTrimCache: 'studentCodeStudio.loginReminderTrimCache.v3-silence-only',
   codeExplorerProgress: 'studentCodeStudio.codeExplorerProgress.v1'
 };
 
@@ -1059,6 +1060,24 @@ let loginReminderSettings = normalizeLoginReminderSettings(
 );
 let loginReminderPendingAfterPasswordLogin = false;
 let loginReminderAudio = null;
+// Student Reminder only: trim ONLY genuine leading silence in the SAME song.
+// Quiet music, ambience, speech, fade-ins, or any detectable waveform must play
+// from 0:00. These thresholds are intentionally very conservative so a soft
+// artistic intro is preserved instead of being mistaken for silence.
+const LOGIN_REMINDER_LEADING_SILENCE_SCAN_MAX_SECONDS = 20;
+const LOGIN_REMINDER_LEADING_SILENCE_PREROLL_SECONDS = 0.055;
+const LOGIN_REMINDER_TRUE_SILENCE_RMS_MAX = 0.00008;
+const LOGIN_REMINDER_TRUE_SILENCE_PEAK_MAX = 0.00055;
+const LOGIN_REMINDER_PRESERVE_OPENING_SECONDS = 0.72;
+const LOGIN_REMINDER_TRIM_CACHE_MAX = 120;
+let loginReminderAudibilityCheckToken = 0;
+const loginReminderAudibleStartCache = new Map(
+  Object.entries(loadJSON(STORAGE_KEYS.loginReminderTrimCache, {}))
+    .filter(([, value]) => Number.isFinite(Number(value)) && Number(value) >= 0 && Number(value) <= LOGIN_REMINDER_LEADING_SILENCE_SCAN_MAX_SECONDS)
+    .slice(-LOGIN_REMINDER_TRIM_CACHE_MAX)
+    .map(([url, value]) => [String(url), Number(value)])
+);
+const loginReminderAudibleStartPromises = new Map();
 const loginReminderPlayback = {
   order: [], position: 0, signature: '', lastUrl: '', failedUrls: new Set(), blockedUrl: ''
 };
@@ -1287,13 +1306,281 @@ function ensureLoginReminderPlaybackCycle(settings = loginReminderSettings, targ
   return target.order;
 }
 
-function stopLoginReminderMusic() {
+function cancelLoginReminderAudibilityCheck() {
+  loginReminderAudibilityCheckToken += 1;
+}
+
+function waitLoginReminderMs(ms) {
+  return new Promise(resolve => window.setTimeout(resolve, Math.max(0, Number(ms) || 0)));
+}
+
+function waitLoginReminderMediaEvent(target, eventName, timeoutMs = 900) {
+  return new Promise(resolve => {
+    if (!target) return resolve(false);
+    let settled = false;
+    const finish = value => {
+      if (settled) return;
+      settled = true;
+      try { target.removeEventListener(eventName, onEvent); } catch (_) {}
+      window.clearTimeout(timer);
+      resolve(value);
+    };
+    const onEvent = () => finish(true);
+    const timer = window.setTimeout(() => finish(false), Math.max(80, Number(timeoutMs) || 0));
+    try { target.addEventListener(eventName, onEvent, { once: true }); } catch (_) { finish(false); }
+  });
+}
+
+function rememberLoginReminderAudibleStart(url, seconds) {
+  const key = String(url || '');
+  const value = Number(seconds);
+  if (!key || !Number.isFinite(value) || value < 0) return;
+  if (loginReminderAudibleStartCache.has(key)) loginReminderAudibleStartCache.delete(key);
+  loginReminderAudibleStartCache.set(key, Math.round(value * 1000) / 1000);
+  while (loginReminderAudibleStartCache.size > LOGIN_REMINDER_TRIM_CACHE_MAX) {
+    const oldest = loginReminderAudibleStartCache.keys().next().value;
+    loginReminderAudibleStartCache.delete(oldest);
+  }
+  const persisted = {};
+  loginReminderAudibleStartCache.forEach((start, trackUrl) => { persisted[trackUrl] = start; });
+  saveJSON(STORAGE_KEYS.loginReminderTrimCache, persisted);
+}
+
+async function measureLoginReminderProbeAt(probe, analyser, seconds, samplesBuffer) {
+  if (!probe || !analyser) return null;
+  const duration = Number(probe.duration);
+  let target = Math.max(0, Number(seconds) || 0);
+  if (Number.isFinite(duration) && duration > 0) target = Math.min(target, Math.max(0, duration - 0.05));
+
+  try {
+    if (Math.abs(Number(probe.currentTime || 0) - target) > 0.025) {
+      probe.currentTime = target;
+      await waitLoginReminderMediaEvent(probe, 'seeked', 520);
+    }
+    if (probe.paused) await probe.play();
+  } catch (_) {
+    return null;
+  }
+
+  // Short settle + multiple windows prevents stale seek data or one isolated
+  // click/pop from becoming the start point.
+  await waitLoginReminderMs(32);
+  const rmsRows = [];
+  let strongestPeak = 0;
+  for (let pass = 0; pass < 3; pass += 1) {
+    analyser.getFloatTimeDomainData(samplesBuffer);
+    let peak = 0;
+    let sumSq = 0;
+    for (let i = 0; i < samplesBuffer.length; i += 1) {
+      const value = Number(samplesBuffer[i] || 0);
+      const magnitude = Math.abs(value);
+      if (magnitude > peak) peak = magnitude;
+      sumSq += value * value;
+    }
+    strongestPeak = Math.max(strongestPeak, peak);
+    rmsRows.push(Math.sqrt(sumSq / Math.max(1, samplesBuffer.length)));
+    if (pass < 2) await waitLoginReminderMs(24);
+  }
+  rmsRows.sort((a, b) => a - b);
+  return {
+    at: target,
+    peak: strongestPeak,
+    rms: rmsRows[Math.floor(rmsRows.length / 2)] || 0
+  };
+}
+
+function loginReminderMetricHasAnySignal(metric) {
+  if (!metric) return false;
+  // Silence must be below BOTH limits. Any tiny but real musical/voice/ambience
+  // signal is enough to preserve the intro from 0:00.
+  return Number(metric.rms || 0) > LOGIN_REMINDER_TRUE_SILENCE_RMS_MAX
+    || Number(metric.peak || 0) > LOGIN_REMINDER_TRUE_SILENCE_PEAK_MAX;
+}
+
+async function loginReminderHasAnySignalAt(probe, analyser, samples, seconds) {
+  const metric = await measureLoginReminderProbeAt(probe, analyser, seconds, samples);
+  if (!metric) return null;
+  return loginReminderMetricHasAnySignal(metric);
+}
+
+async function probeLoginReminderAudibleStart(url) {
+  const cached = loginReminderAudibleStartCache.get(String(url || ''));
+  if (Number.isFinite(cached)) return cached;
+
+  const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContextCtor || !url) return null;
+
+  let context = null;
+  let probe = null;
+  try {
+    context = new AudioContextCtor();
+    probe = new Audio();
+    probe.preload = 'auto';
+    probe.playsInline = true;
+    // Analysis is attempted only when the host permits CORS. If not, playback
+    // remains normal from 0:00; we never guess or trim a song blindly.
+    probe.crossOrigin = 'anonymous';
+    probe.src = url;
+
+    const source = context.createMediaElementSource(probe);
+    const analyser = context.createAnalyser();
+    const silentGain = context.createGain();
+    analyser.fftSize = 1024;
+    analyser.smoothingTimeConstant = 0;
+    silentGain.gain.value = 0;
+    source.connect(analyser);
+    analyser.connect(silentGain);
+    silentGain.connect(context.destination);
+
+    try { await context.resume(); } catch (_) {}
+    if (probe.readyState < 1) await waitLoginReminderMediaEvent(probe, 'loadedmetadata', 1700);
+    if (probe.readyState < 2) await waitLoginReminderMediaEvent(probe, 'canplay', 1700);
+    try { await probe.play(); } catch (_) { return null; }
+
+    const duration = Number(probe.duration);
+    const scanLimit = Math.max(0.2, Math.min(
+      LOGIN_REMINDER_LEADING_SILENCE_SCAN_MAX_SECONDS,
+      Number.isFinite(duration) && duration > 0 ? Math.max(0.2, duration - 0.08) : LOGIN_REMINDER_LEADING_SILENCE_SCAN_MAX_SECONDS
+    ));
+    const samples = new Float32Array(analyser.fftSize);
+
+    // Protect soft/fade-in intros. If ANY waveform is detected during the first
+    // ~0.7 s, cache 0:00 and never trim this track, regardless of how quiet it is.
+    const openingChecks = [0, 0.18, 0.42, LOGIN_REMINDER_PRESERVE_OPENING_SECONDS]
+      .filter((value, index, list) => value <= scanLimit + 0.001 && list.indexOf(value) === index);
+    for (let i = 0; i < openingChecks.length; i += 1) {
+      const hasSignal = await loginReminderHasAnySignalAt(probe, analyser, samples, openingChecks[i]);
+      if (hasSignal === null) return null;
+      if (hasSignal) {
+        rememberLoginReminderAudibleStart(url, 0);
+        return 0;
+      }
+    }
+
+    // The opening is confirmed truly silent. Walk forward with a small number
+    // of seeks until the first detectable waveform appears. We intentionally
+    // use absolute silence thresholds only; later loudness never influences the
+    // boundary, so a quiet intro cannot be chopped in favor of a louder chorus.
+    const planned = [1.0, 1.35, 1.75, 2.2, 2.7, 3.25, 3.85, 4.5, 5.2, 6.0, 6.9, 7.9, 9.0, 10.3, 11.8, 13.5, 15.4, 17.5, 19.8]
+      .filter(value => value <= scanLimit + 0.001);
+    if (!planned.length || planned[planned.length - 1] < scanLimit - 0.3) planned.push(scanLimit);
+
+    let low = openingChecks.length ? openingChecks[openingChecks.length - 1] : 0;
+    let high = -1;
+    for (let i = 0; i < planned.length; i += 1) {
+      const at = planned[i];
+      const hasSignal = await loginReminderHasAnySignalAt(probe, analyser, samples, at);
+      if (hasSignal === null) return null;
+      if (hasSignal) {
+        high = at;
+        break;
+      }
+      low = at;
+    }
+    if (high < 0) return null;
+
+    // Fine boundary search. The first detectable waveform wins—even a soft
+    // piano pickup or breath—because only true zero/near-zero silence is trimmed.
+    for (let pass = 0; pass < 7 && high - low > 0.025; pass += 1) {
+      const mid = (low + high) / 2;
+      const hasSignal = await loginReminderHasAnySignalAt(probe, analyser, samples, mid);
+      if (hasSignal === null) return null;
+      if (hasSignal) high = mid;
+      else low = mid;
+    }
+
+    // If the boundary is still close to the beginning, preserve the original
+    // intro entirely. Trimming is intended for multi-second dead air only.
+    if (high <= LOGIN_REMINDER_PRESERVE_OPENING_SECONDS + 0.12) {
+      rememberLoginReminderAudibleStart(url, 0);
+      return 0;
+    }
+
+    const trimmedStart = Math.max(0, high - LOGIN_REMINDER_LEADING_SILENCE_PREROLL_SECONDS);
+    rememberLoginReminderAudibleStart(url, trimmedStart);
+    return trimmedStart;
+  } catch (_) {
+    return null;
+  } finally {
+    if (probe) {
+      try { probe.pause(); } catch (_) {}
+      try { probe.removeAttribute('src'); probe.load(); } catch (_) {}
+    }
+    if (context) {
+      try { await context.close(); } catch (_) {}
+    }
+  }
+}
+
+function getLoginReminderAudibleStart(url) {
+  const key = String(url || '');
+  const cached = loginReminderAudibleStartCache.get(key);
+  if (Number.isFinite(cached)) return Promise.resolve(cached);
+  if (!key) return Promise.resolve(null);
+  if (loginReminderAudibleStartPromises.has(key)) return loginReminderAudibleStartPromises.get(key);
+  const pending = probeLoginReminderAudibleStart(key)
+    .catch(() => null)
+    .finally(() => loginReminderAudibleStartPromises.delete(key));
+  loginReminderAudibleStartPromises.set(key, pending);
+  return pending;
+}
+
+function scheduleCachedLoginReminderTrim(audio, url) {
+  const cached = loginReminderAudibleStartCache.get(String(url || ''));
+  if (!audio || !Number.isFinite(cached) || cached <= 0.06) return;
+  const apply = () => {
+    if (loginReminderAudio !== audio) return;
+    const current = Number(audio.currentTime || 0);
+    if (current + 0.12 >= cached) return;
+    try { audio.currentTime = cached; } catch (_) {}
+  };
+  if (audio.readyState >= 1) apply();
+  else audio.addEventListener('loadedmetadata', apply, { once: true });
+}
+
+function armLoginReminderLeadingSilenceTrim(audio, url) {
+  const token = ++loginReminderAudibilityCheckToken;
+  const cached = loginReminderAudibleStartCache.get(String(url || ''));
+  if (Number.isFinite(cached)) {
+    scheduleCachedLoginReminderTrim(audio, url);
+    return;
+  }
+
+  getLoginReminderAudibleStart(url).then(startSeconds => {
+    if (token !== loginReminderAudibilityCheckToken || loginReminderAudio !== audio || audio.ended) return;
+    if (!Number.isFinite(startSeconds) || startSeconds <= 0.06) return;
+    if (Number(audio.currentTime || 0) + 0.12 < startSeconds) {
+      try { audio.currentTime = startSeconds; } catch (_) {}
+    }
+  }).catch(() => {});
+}
+
+function prewarmLoginReminderTrack(url) {
+  if (!url || loginReminderAudibleStartCache.has(String(url))) return Promise.resolve(null);
+  return getLoginReminderAudibleStart(url);
+}
+
+function prewarmLoginReminderCurrentAndNext(settings = loginReminderSettings) {
+  const safe = normalizeLoginReminderSettings(settings);
+  const order = ensureLoginReminderPlaybackCycle(safe, loginReminderPlayback);
+  if (!order.length) return;
+  const currentIndex = Math.max(0, Math.min(order.length - 1, Number(loginReminderPlayback.position || 0)));
+  const currentUrl = order[currentIndex] || '';
+  const nextUrl = order.length > 1 ? (order[(currentIndex + 1) % order.length] || '') : '';
+  if (currentUrl) prewarmLoginReminderTrack(currentUrl).catch(() => {});
+  // One-track look-ahead means playlist transitions can jump directly to the
+  // next song's first meaningful sound instead of discovering it after "ended".
+  if (nextUrl && nextUrl !== currentUrl) prewarmLoginReminderTrack(nextUrl).catch(() => {});
+}
+
+function stopLoginReminderMusic(options = {}) {
+  cancelLoginReminderAudibilityCheck();
   if (loginReminderAudio) {
     try { loginReminderAudio.pause(); } catch (_) {}
     try { loginReminderAudio.removeAttribute('src'); loginReminderAudio.load(); } catch (_) {}
   }
   loginReminderAudio = null;
-  resetLoginReminderPlaybackState(loginReminderPlayback);
+  if (options.preservePlaybackState !== true) resetLoginReminderPlaybackState(loginReminderPlayback);
 }
 
 function showLoginReminderManualPlayButton(label = '▶ Play Music') {
@@ -1339,17 +1626,68 @@ async function playLoginReminderUrl(url, settings = loginReminderSettings, optio
   const tracks = loginReminderSelectedResolvedTracks(safe);
   if (!url || !tracks.length) return false;
   const loop = safe.musicMode === 'single' || tracks.length <= 1;
+  const targetVolume = Math.max(0, Math.min(1, safe.musicVolume / 100));
+  cancelLoginReminderAudibilityCheck();
   if (loginReminderAudio) {
     try { loginReminderAudio.pause(); } catch (_) {}
   }
+
   loginReminderAudio = createLoginReminderAudio(url, safe, { loop });
+  const activeAudio = loginReminderAudio;
+  // Never mute a track just to analyze it. If the intro already contains even
+  // quiet music/ambience/voice, the student hears it immediately from 0:00.
+  // For truly silent padding, the parallel probe seeks this SAME audio forward
+  // as soon as the first detectable waveform is found.
+  activeAudio.volume = targetVolume;
+  const startPromise = getLoginReminderAudibleStart(url);
+
+  // Apply a previously learned true-silence offset before playback whenever
+  // possible, making repeat plays and playlist cycles effectively instant.
+  const cachedStart = loginReminderAudibleStartCache.get(String(url || ''));
+  if (Number.isFinite(cachedStart) && cachedStart > 0.045) {
+    const applyCached = () => {
+      if (loginReminderAudio !== activeAudio) return;
+      try { activeAudio.currentTime = cachedStart; } catch (_) {}
+    };
+    if (activeAudio.readyState >= 1) applyCached();
+    else activeAudio.addEventListener('loadedmetadata', applyCached, { once: true });
+  }
+
   try {
-    await loginReminderAudio.play();
+    await activeAudio.play();
+    if (loginReminderAudio !== activeAudio) return false;
     loginReminderPlayback.blockedUrl = '';
     hideLoginReminderMusicUi();
+
+    // Do not await analysis: audible intros continue immediately. A seek happens
+    // only if the detector proves that the opening was genuine near-zero silence.
+    startPromise.then(startSeconds => {
+      if (loginReminderAudio !== activeAudio || activeAudio.ended) return;
+      if (!Number.isFinite(startSeconds) || startSeconds <= 0.045) return;
+      if (Number(activeAudio.currentTime || 0) + 0.10 >= startSeconds) return;
+      const apply = () => {
+        if (loginReminderAudio !== activeAudio || activeAudio.ended) return;
+        try { activeAudio.currentTime = startSeconds; } catch (_) {}
+      };
+      if (activeAudio.readyState >= 1) apply();
+      else activeAudio.addEventListener('loadedmetadata', apply, { once: true });
+    }).catch(() => {});
+
+    prewarmLoginReminderCurrentAndNext(safe);
     return true;
   } catch (error) {
     if (String(error?.name || '').toLowerCase() === 'notallowederror') {
+      // The analysis can still finish while waiting for the student's manual tap,
+      // so the manual Play button will also start at the trimmed point.
+      startPromise.then(startSeconds => {
+        if (loginReminderAudio !== activeAudio || !Number.isFinite(startSeconds) || startSeconds <= 0.045) return;
+        const apply = () => {
+          try { activeAudio.currentTime = startSeconds; } catch (_) {}
+        };
+        if (activeAudio.readyState >= 1) apply();
+        else activeAudio.addEventListener('loadedmetadata', apply, { once: true });
+      }).catch(() => {});
+      activeAudio.volume = targetVolume;
       loginReminderPlayback.blockedUrl = url;
       showLoginReminderManualPlayButton('▶ Play Music');
       return false;
@@ -1403,13 +1741,16 @@ async function advanceLoginReminderTrack(direction = 1, settings = loginReminder
 }
 
 async function startLoginReminderMusic(settings = loginReminderSettings) {
-  stopLoginReminderMusic();
-  hideLoginReminderMusicUi();
   const safe = normalizeLoginReminderSettings(settings);
   const tracks = loginReminderSelectedResolvedTracks(safe);
+  const signature = loginReminderPlaylistSignature(safe);
+  const hasPreparedCycle = loginReminderPlayback.signature === signature && loginReminderPlayback.order.length > 0;
+  stopLoginReminderMusic({ preservePlaybackState: hasPreparedCycle });
+  hideLoginReminderMusicUi();
   if (!safe.musicEnabled || !tracks.length) return false;
-  buildLoginReminderPlaybackCycle(safe, loginReminderPlayback);
+  if (!hasPreparedCycle) buildLoginReminderPlaybackCycle(safe, loginReminderPlayback);
   loginReminderPlayback.position = 0;
+  prewarmLoginReminderCurrentAndNext(safe);
   return playLoginReminderUrl(loginReminderPlayback.order[0], safe, { allowSkip: true });
 }
 
@@ -1419,10 +1760,12 @@ async function playLoginReminderMusicManually() {
   if (!settings.musicEnabled || !tracks.length) return;
   try {
     if (loginReminderAudio && loginReminderPlayback.blockedUrl) {
+      scheduleCachedLoginReminderTrim(loginReminderAudio, loginReminderPlayback.blockedUrl);
       loginReminderAudio.volume = Math.max(0, Math.min(1, settings.musicVolume / 100));
       await loginReminderAudio.play();
       loginReminderPlayback.blockedUrl = '';
       hideLoginReminderMusicUi();
+      prewarmLoginReminderCurrentAndNext(settings);
       return;
     }
     if (!loginReminderPlayback.order.length) buildLoginReminderPlaybackCycle(settings, loginReminderPlayback);
@@ -1818,6 +2161,18 @@ async function showLoginLackingReminderAfterLogin() {
 
   const settings = normalizeLoginReminderSettings(loginReminderSettings);
   if (!settings.enabled) return false;
+
+  // Start analyzing the first reminder track before the modal finishes opening.
+  // If the compliance record is already in memory this still runs in parallel;
+  // if a lookup is needed, that network time becomes free pre-analysis time.
+  if (settings.musicEnabled && loginReminderSelectedResolvedTracks(settings).length) {
+    const signature = loginReminderPlaylistSignature(settings);
+    if (loginReminderPlayback.signature !== signature || !loginReminderPlayback.order.length) {
+      buildLoginReminderPlaybackCycle(settings, loginReminderPlayback);
+      loginReminderPlayback.position = 0;
+    }
+    prewarmLoginReminderCurrentAndNext(settings);
+  }
 
   // showStudentDashboard() has already loaded Subject Status. Reuse that record
   // when available so the popup does not add another Firestore read.
