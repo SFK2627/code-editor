@@ -24,11 +24,11 @@
   // The old 330→390 range looked like a slow conveyor in the reference comparison.
   // This starts lively, then ramps smoothly to a high-intensity finish.
   const LEVELS = Object.freeze([
-    Object.freeze({ id: 1, name: 'CLASSIC', speedStart: 610, speedEnd: 980, holdScale: 1.00 }),
-    Object.freeze({ id: 2, name: 'FLOW',    speedStart: 680, speedEnd: 1080, holdScale: 0.97 }),
-    Object.freeze({ id: 3, name: 'RUSH',    speedStart: 760, speedEnd: 1200, holdScale: 0.94 }),
-    Object.freeze({ id: 4, name: 'TURBO',   speedStart: 850, speedEnd: 1330, holdScale: 0.91 }),
-    Object.freeze({ id: 5, name: 'MASTER',  speedStart: 950, speedEnd: 1480, holdScale: 0.88 })
+    Object.freeze({ id: 1, name: 'ODE TO JOY', shortName: 'Ode to Joy', composer: 'Beethoven', speedStart: 610, speedEnd: 980, holdScale: 1.00 }),
+    Object.freeze({ id: 2, name: 'PRELUDE IN C', shortName: 'Prelude in C', composer: 'J. S. Bach', speedStart: 680, speedEnd: 1080, holdScale: 0.97 }),
+    Object.freeze({ id: 3, name: 'FÜR ELISE', shortName: 'Für Elise', composer: 'Beethoven', speedStart: 760, speedEnd: 1200, holdScale: 0.94 }),
+    Object.freeze({ id: 4, name: 'TURKISH MARCH', shortName: 'Turkish March', composer: 'Mozart', speedStart: 850, speedEnd: 1330, holdScale: 0.91 }),
+    Object.freeze({ id: 5, name: 'THE ENTERTAINER', shortName: 'The Entertainer', composer: 'Scott Joplin', speedStart: 950, speedEnd: 1480, holdScale: 0.88 })
   ]);
   const LEVEL_COUNT = LEVELS.length;
   const MISS_Y = BOARD_BOTTOM + 12;
@@ -49,64 +49,72 @@
   const RELEASE_PATTERN = Object.freeze([.36, .28, .30, .28, .34, .28, .30, .28, .38, .30, .32, .28, .40, .30, .34, .30]);
   const SONG_LIBRARY = Object.freeze([
     Object.freeze({
-      motifs: Object.freeze([
-        Object.freeze([72,74,76,79,76,74,72,74,76,79,81,79,76,74,72,67]),
-        Object.freeze([72,76,79,84,81,79,76,74,72,74,76,79,76,74,72,67]),
-        Object.freeze([67,72,74,76,79,76,74,72,74,76,79,81,79,76,74,72]),
-        Object.freeze([72,74,76,79,84,81,79,76,74,72,71,72,74,76,74,72])
+      title: 'Ode to Joy',
+      composer: 'Ludwig van Beethoven',
+      // Famous theme, shifted up an octave for a bright phone-speaker register.
+      sequence: Object.freeze([
+        76,76,77,79,79,77,76,74,72,72,74,76,76,74,74,
+        76,76,77,79,79,77,76,74,72,72,74,76,74,72,72,
+        74,74,76,72,74,76,77,76,72,74,76,77,76,74,72,74,67,
+        76,76,77,79,79,77,76,74,72,72,74,76,74,72,72
       ]),
-      order: Object.freeze([0,1,0,2,0,1,3,2]),
-      harmonyMode: 'warm',
-      brightness: 1.00,
-      baseGain: .98
+      harmonyMode: 'warm', brightness: .98, baseGain: .98
     }),
     Object.freeze({
-      motifs: Object.freeze([
-        Object.freeze([74,76,78,81,78,76,74,76,78,81,83,81,78,76,74,71]),
-        Object.freeze([74,78,81,86,83,81,78,76,74,76,78,81,78,76,74,71]),
-        Object.freeze([71,74,76,78,81,78,76,74,76,78,81,83,81,78,76,74]),
-        Object.freeze([74,76,78,81,86,83,81,78,76,74,73,74,76,78,76,74])
+      title: 'Prelude in C Major',
+      composer: 'Johann Sebastian Bach',
+      // Broken-chord keyboard texture inspired by BWV 846's opening progression.
+      sequence: Object.freeze([
+        60,64,67,72,76,72,67,64,
+        59,62,67,71,74,71,67,62,
+        60,64,69,72,76,72,69,64,
+        62,65,69,74,77,74,69,65,
+        59,62,67,71,74,71,67,62,
+        60,64,67,72,76,72,67,64,
+        60,64,69,72,76,72,69,64,
+        62,66,69,74,78,74,69,66,
+        59,62,67,71,74,71,67,62,
+        60,64,67,72,76,72,67,64
       ]),
-      order: Object.freeze([0,1,2,1,0,3,1,2]),
-      harmonyMode: 'flow',
-      brightness: 1.06,
-      baseGain: 1.00
+      harmonyMode: 'flow', brightness: 1.02, baseGain: .94
     }),
     Object.freeze({
-      motifs: Object.freeze([
-        Object.freeze([69,72,76,81,76,72,69,72,76,81,84,81,76,72,69,72]),
-        Object.freeze([71,74,77,83,77,74,71,74,77,83,86,83,77,74,71,74]),
-        Object.freeze([72,76,79,84,79,76,72,76,79,84,88,84,79,76,72,76]),
-        Object.freeze([69,72,76,81,84,81,76,72,71,74,77,83,77,74,71,69])
+      title: 'Für Elise',
+      composer: 'Ludwig van Beethoven',
+      sequence: Object.freeze([
+        76,75,76,75,76,71,74,72,69,60,64,69,71,64,68,71,72,64,
+        76,75,76,75,76,71,74,72,69,60,64,69,71,64,72,71,69,
+        71,72,74,76,67,65,64,62,64,65,69,72,76,77,76,74,72,71,69,
+        71,72,74,76,79,77,76,74,72,71,69,68,69,
+        76,75,76,75,76,71,74,72,69
       ]),
-      order: Object.freeze([0,1,0,2,1,3,2,0]),
-      harmonyMode: 'drive',
-      brightness: 1.10,
-      baseGain: 1.02
+      harmonyMode: 'drive', brightness: 1.08, baseGain: 1.00
     }),
     Object.freeze({
-      motifs: Object.freeze([
-        Object.freeze([76,79,83,88,83,79,76,79,83,88,91,88,83,79,76,79]),
-        Object.freeze([74,78,81,86,81,78,74,78,81,86,90,86,81,78,74,78]),
-        Object.freeze([72,76,79,84,79,76,72,76,79,84,88,84,79,76,72,76]),
-        Object.freeze([71,74,78,83,86,83,78,74,72,76,79,84,79,76,72,71])
+      title: 'Turkish March',
+      composer: 'Wolfgang Amadeus Mozart',
+      sequence: Object.freeze([
+        73,71,69,68,69,72,76,72,76,72,71,72,69,76,77,76,75,76,
+        71,69,68,69,71,69,68,69,72,76,69,72,67,69,66,67,71,
+        69,68,69,72,76,72,76,72,71,72,69,76,77,76,75,76,
+        71,69,68,69,71,69,68,69,72,76,69,72,67,69,
+        76,77,79,81,79,77,76,74,76,77,79,81,79,77,76,74
       ]),
-      order: Object.freeze([0,1,0,2,0,3,1,2]),
-      harmonyMode: 'bright',
-      brightness: 1.15,
-      baseGain: 1.04
+      harmonyMode: 'bright', brightness: 1.14, baseGain: 1.04
     }),
     Object.freeze({
-      motifs: Object.freeze([
-        Object.freeze([74,77,81,86,81,77,74,77,81,86,89,86,81,77,74,77]),
-        Object.freeze([72,76,79,84,79,76,72,76,79,84,88,84,79,76,72,76]),
-        Object.freeze([69,74,77,81,77,74,69,74,77,81,84,81,77,74,69,74]),
-        Object.freeze([74,77,81,86,89,86,81,77,76,79,84,88,84,79,76,74])
+      title: 'The Entertainer',
+      composer: 'Scott Joplin',
+      // Simplified ragtime theme anchored by the iconic chromatic pickup.
+      sequence: Object.freeze([
+        70,69,70,72,74,67,66,67,69,
+        75,76,72,69,71,67,74,76,72,69,71,67,
+        74,76,72,69,71,69,67,68,67,
+        67,62,63,64,60,64,64,60,67,64,60,65,69,64,60,62,63,64,
+        60,62,64,67,71,74,72,64,60,64,60,71,75,76,72,64,64,60,
+        67,64,60,65,69,64,62,63,64,67,71,74,72,71,69,67
       ]),
-      order: Object.freeze([0,1,0,2,0,3,1,0]),
-      harmonyMode: 'master',
-      brightness: 1.20,
-      baseGain: 1.06
+      harmonyMode: 'master', brightness: 1.18, baseGain: 1.06
     })
   ]);
 
@@ -245,16 +253,14 @@
 
   function buildSongNotes(level, totalNotes) {
     const profile = songProfile(level);
+    const source = Array.isArray(profile.sequence) ? profile.sequence : [];
     const sequence = [];
-    while (sequence.length < totalNotes) {
-      profile.order.forEach(index => {
-        if (sequence.length >= totalNotes) return;
-        const motif = profile.motifs[index] || profile.motifs[0];
-        motif.forEach(midi => {
-          if (sequence.length < totalNotes) sequence.push(midi);
-        });
+    while (sequence.length < totalNotes && source.length) {
+      source.forEach(midi => {
+        if (sequence.length < totalNotes) sequence.push(midi);
       });
     }
+    if (!sequence.length) sequence.push(72);
     return sequence.slice(0, totalNotes).map((midi, i) => {
       const phrasePos = i % 16;
       const velocity = clamp(profile.baseGain * ACCENT_PATTERN[phrasePos], .72, 1.18);
@@ -301,11 +307,11 @@
             <div class="code-tiles-demo" aria-hidden="true"><span></span><span class="black long"></span><span></span><span class="black"></span></div>
             <div class="code-tiles-mode-row"><div><small>SELECTED LEVEL</small><strong data-code-tiles-level-name>1 · CLASSIC</strong></div><div><small>BEST</small><strong data-code-tiles-best>0</strong></div></div>
             <div class="code-tiles-level-picker" role="group" aria-label="Choose Code Tiles level">
-              <button type="button" data-code-tiles-level="1"><b>1</b><small>Classic</small></button>
-              <button type="button" data-code-tiles-level="2"><b>2</b><small>Flow</small></button>
-              <button type="button" data-code-tiles-level="3"><b>3</b><small>Rush</small></button>
-              <button type="button" data-code-tiles-level="4"><b>4</b><small>Turbo</small></button>
-              <button type="button" data-code-tiles-level="5"><b>5</b><small>Master</small></button>
+              <button type="button" data-code-tiles-level="1"><b>1</b><small>Ode to Joy</small></button>
+              <button type="button" data-code-tiles-level="2"><b>2</b><small>Prelude in C</small></button>
+              <button type="button" data-code-tiles-level="3"><b>3</b><small>Für Elise</small></button>
+              <button type="button" data-code-tiles-level="4"><b>4</b><small>Turkish March</small></button>
+              <button type="button" data-code-tiles-level="5"><b>5</b><small>Entertainer</small></button>
             </div>
             <div class="code-tiles-how">
               <span><b>TAP</b><small>Tap the next black tile itself before it passes the bottom.</small></span>
@@ -428,7 +434,7 @@
 
   function updateLevelUi() {
     const config = levelConfig();
-    if (runtime.levelNameEl) runtime.levelNameEl.textContent = `${config.id} · ${config.name}`;
+    if (runtime.levelNameEl) runtime.levelNameEl.textContent = `${config.id} · ${config.shortName} · ${config.composer}`;
     if (runtime.startBtn) runtime.startBtn.textContent = `START LEVEL ${config.id}`;
     runtime.levelButtons.forEach(button => {
       const selected = Number(button.dataset.codeTilesLevel || 0) === config.id;
@@ -866,7 +872,7 @@
     runtime.finalStreakEl.textContent = String(runtime.maxStreak);
     runtime.finalXpEl.textContent = '+0';
     const clearedLevel = levelConfig();
-    if (runtime.resultTitleEl) runtime.resultTitleEl.textContent = `LEVEL ${clearedLevel.id} · ${clearedLevel.name} CLEAR`;
+    if (runtime.resultTitleEl) runtime.resultTitleEl.textContent = `${clearedLevel.shortName.toUpperCase()} CLEAR`;
     if (runtime.nextLevelBtn) runtime.nextLevelBtn.textContent = clearedLevel.id < LEVEL_COUNT ? `NEXT LEVEL · ${clearedLevel.id + 1}` : 'LEVEL SELECT';
     if (runtime.replayLevelBtn) runtime.replayLevelBtn.textContent = `REPLAY LEVEL ${clearedLevel.id}`;
     runtime.rewardNoteEl.className = 'code-tiles-reward-note';
