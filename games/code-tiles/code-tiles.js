@@ -49,6 +49,16 @@
   // A long tile is already a successful note once its head is pressed.
   // Holding to 100% is now optional mastery/bonus, not a survival requirement.
   const HIT_SLOP_Y = 16;
+  // v499 input fairness: touch hardware reports a contact area, not a perfect pixel.
+  // These short presentation-latency cushions keep a visually-correct tap from
+  // being rejected just because the tile moved between the last paint and the
+  // pointer event. They scale with the current song speed, so higher levels stay fair.
+  const INPUT_GRACE_MS_PHONE = 44;
+  const INPUT_GRACE_MS_DESKTOP = 28;
+  const TOUCH_FALLBACK_DIAMETER_CSS = 18;
+  const PEN_FALLBACK_DIAMETER_CSS = 8;
+  const MAX_TOUCH_RADIUS_X_WORLD = 30;
+  const MAX_TOUCH_RADIUS_Y_WORLD = 36;
   const FAILURE_ANIM_MS = 680;
   const COUNTDOWN_MS = 1350;
   const MAX_DPR_DESKTOP = 1.4;
@@ -498,12 +508,37 @@
   }
 
   function canvasPoint(event) {
-    // Reuse the rect cached by resizeCanvas so taps do not force a layout read.
-    const rect = runtime.view.rect || runtime.canvas.getBoundingClientRect();
+    // v499: read the live canvas rect on the actual press. On phones the visual
+    // viewport/browser bars can shift the canvas without a useful ResizeObserver
+    // size change, leaving the old cached top/left stale and producing a false
+    // WRONG TAP even when the finger is visibly on the black tile. One layout
+    // read per press is cheap and much safer than reusing stale geometry.
+    const rect = runtime.canvas.getBoundingClientRect();
+    runtime.view.rect = rect;
+    const worldPerCssX = WORLD_W / Math.max(1, rect.width);
+    const worldPerCssY = WORLD_H / Math.max(1, rect.height);
+    const pointerType = String(event.pointerType || 'mouse').toLowerCase();
+    const fallbackDiameter = pointerType === 'touch'
+      ? TOUCH_FALLBACK_DIAMETER_CSS
+      : (pointerType === 'pen' ? PEN_FALLBACK_DIAMETER_CSS : 0);
+    const contactCssW = Math.max(Number(event.width || 0), fallbackDiameter);
+    const contactCssH = Math.max(Number(event.height || 0), fallbackDiameter);
     return {
-      x: (event.clientX - rect.left) * WORLD_W / Math.max(1, rect.width),
-      y: (event.clientY - rect.top) * WORLD_H / Math.max(1, rect.height)
+      x: (event.clientX - rect.left) * worldPerCssX,
+      y: (event.clientY - rect.top) * worldPerCssY,
+      pointerType,
+      radiusX: pointerType === 'mouse' ? 0 : Math.min(MAX_TOUCH_RADIUS_X_WORLD, contactCssW * worldPerCssX * .5),
+      radiusY: pointerType === 'mouse' ? 0 : Math.min(MAX_TOUCH_RADIUS_Y_WORLD, contactCssH * worldPerCssY * .5)
     };
+  }
+
+  function inputGraceMs() {
+    return isPhone() ? INPUT_GRACE_MS_PHONE : INPUT_GRACE_MS_DESKTOP;
+  }
+
+  function motionHitGraceY() {
+    if (!runtime.motionStarted || runtime.state !== 'playing') return 0;
+    return speedNow() * inputGraceMs() / 1000;
   }
 
   function levelConfig(level = runtime.level) {
@@ -772,7 +807,11 @@
     const next = currentTile();
     if (next && next.state === 'pending') {
       const r = tileRect(next);
-      if (runtime.motionStarted && r.head > MISS_Y) {
+      // v499: do not declare a miss on the exact frame the tile barely crosses
+      // the bottom. A small speed-scaled deadline cushion covers display/input
+      // latency only; it does not create a large extra reaction window.
+      const missGraceY = runtime.motionStarted ? speedNow() * inputGraceMs() / 1000 : 0;
+      if (runtime.motionStarted && r.head > MISS_Y + missGraceY) {
         runtime.misses += 1;
         failRun('The next black tile passed the bottom.', { kind: 'miss', tileId: next.id });
         return;
@@ -788,10 +827,32 @@
     if (!tile) return false;
     const r = tileRect(tile);
     const lane = laneOnly == null ? Math.floor(clamp(point.x, 0, WORLD_W - .001) / LANE_W) : laneOnly;
-    // Small vertical forgiveness keeps fast taps fair without allowing lane-wide blind tapping.
-    const withinY = point.y >= r.top - HIT_SLOP_Y && point.y <= r.bottom + HIT_SLOP_Y;
-    const inside = lane === tile.lane && (laneOnly != null || withinY);
-    const visible = r.bottom > BOARD_TOP + 8 && r.top < BOARD_BOTTOM + 4;
+    const laneLeft = tile.lane * LANE_W;
+    const laneRight = laneLeft + LANE_W;
+    const touchRadiusX = laneOnly == null ? Math.max(0, Number(point.radiusX || 0)) : 0;
+    const touchRadiusY = laneOnly == null ? Math.max(0, Number(point.radiusY || 0)) : 0;
+    const movingGraceY = laneOnly == null ? motionHitGraceY() : 0;
+
+    // A finger is an area, not a one-pixel cursor. If its contact patch still
+    // overlaps the current black lane, an edge tap counts even when the reported
+    // pointer center lands a few pixels across the lane divider. Mouse/keyboard
+    // remain pixel/explicit-lane precise.
+    const centerLaneMatches = lane === tile.lane;
+    const contactOverlapsTileX = point.x + touchRadiusX >= laneLeft && point.x - touchRadiusX <= laneRight;
+    const contactOverlapsTileY = point.y + touchRadiusY >= r.top - 4 && point.y - touchRadiusY <= r.bottom + 4;
+    const withinX = laneOnly != null
+      ? centerLaneMatches
+      : (centerLaneMatches || (touchRadiusX > 0 && contactOverlapsTileX && contactOverlapsTileY));
+
+    // Tiles move downward. Presentation latency therefore mainly makes a valid
+    // finger appear slightly ABOVE the tile's latest logical rectangle. Give the
+    // leading/top edge the full motion cushion and keep the trailing/bottom edge
+    // much tighter so blind early tapping is still punished.
+    const topGrace = HIT_SLOP_Y + touchRadiusY + movingGraceY;
+    const bottomGrace = HIT_SLOP_Y + touchRadiusY + Math.min(22, movingGraceY * .30);
+    const withinY = point.y >= r.top - topGrace && point.y <= r.bottom + bottomGrace;
+    const inside = withinX && (laneOnly != null || withinY);
+    const visible = r.bottom > BOARD_TOP + 8 && r.top < BOARD_BOTTOM + 4 + bottomGrace;
     if (!inside || !visible) {
       runtime.badTaps += 1;
       runtime.streak = 0;
