@@ -115,7 +115,7 @@
               <div><small>Best Streak</small><strong data-code-hoops-final-streak>x0</strong></div>
               <div class="xp"><small>XP Earned</small><strong data-code-hoops-final-xp>+0</strong></div>
             </div>
-            <p class="code-hoops-reward-note" data-code-hoops-reward-note>Checking reward...</p>
+            <p class="code-hoops-reward-note" data-code-hoops-reward-note>Securing reward...</p>
             <div class="code-hoops-actions">
               <button class="primary" type="button" data-code-hoops-again>PLAY AGAIN</button>
               <button type="button" data-code-hoops-hub>MINI-GAMES</button>
@@ -452,14 +452,14 @@
     const accuracy=runtime.attempts?runtime.made/runtime.attempts*100:0;
     runtime.finalScore.textContent=String(runtime.score); runtime.finalBest.textContent=String(Math.max(runtime.bestVisible,runtime.score)); runtime.finalMade.textContent=String(runtime.made);
     runtime.finalAccuracy.textContent=`${Math.round(accuracy)}%`; runtime.finalStreak.textContent=`x${runtime.bestStreak}`; runtime.finalXp.textContent='+0';
-    runtime.rewardNote.className='code-hoops-reward-note'; runtime.rewardNote.textContent=runtime.round?'Checking reward...':'Practice run - account reward unavailable.'; runtime.overPanel.hidden=false;
+    runtime.rewardNote.className='code-hoops-reward-note'; runtime.rewardNote.textContent=runtime.round?'Securing reward...':'Practice run - account reward unavailable.'; runtime.overPanel.hidden=false;
     if(!runtime.round?.sessionId||!runtime.bridge?.claimRound) return;
     try{
       const result=await runtime.bridge.claimRound(runtime.round.sessionId,{score:runtime.score,metrics:{attempts:runtime.attempts,made:runtime.made,perfects:runtime.perfects,accuracy,bestStreak:runtime.bestStreak,durationMs:ROUND_MS}});
       const rec=result?.gameRecord||result?.gameRecords?.codeHoops||{}; runtime.bestVisible=Math.max(runtime.bestVisible,Number(rec.bestScore||0),Number(result?.bestScore||0)); runtime.finalBest.textContent=String(runtime.bestVisible);
       runtime.finalXp.textContent=`+${Math.max(0,Number(result?.awardedXp||0))}`;
       if(result?.loginRequired){runtime.rewardNote.className='code-hoops-reward-note warn';runtime.rewardNote.textContent='Practice mode - log in as a student to earn account XP.';}
-      else if(result?.syncFailed){runtime.rewardNote.className='code-hoops-reward-note warn';runtime.rewardNote.textContent='XP could not sync. No account XP was added.';}
+      else if(result?.syncFailed){runtime.rewardNote.className='code-hoops-reward-note warn';runtime.rewardNote.textContent='Reward saved for sync. XP will update automatically once confirmed.';}
       else if(result?.capReached&&Number(result.awardedXp||0)===0){runtime.rewardNote.className='code-hoops-reward-note warn';runtime.rewardNote.textContent='Daily Mini-Game XP limit reached. Keep shooting for records!';}
       else{runtime.rewardNote.className='code-hoops-reward-note success';runtime.rewardNote.textContent=Number(result?.awardedXp||0)>0?`Reward added safely - Today's Game XP: ${result.todayXp}/${result.dailyCap}`:'No XP tier reached this round yet.';}
       try{runtime.onReward?.(result);}catch(_){}

@@ -158,7 +158,7 @@
             </div>
             <div class="code-flow-score-line"><span>Score</span><strong data-code-flow-result-score>0</strong></div>
             <div class="code-flow-xp-line"><span>XP Earned</span><strong data-code-flow-result-xp>+0 XP</strong></div>
-            <p class="code-flow-result-note" data-code-flow-result-note>Checking reward…</p>
+            <p class="code-flow-result-note" data-code-flow-result-note>Securing reward…</p>
             <div class="code-flow-result-actions">
               <button class="primary" type="button" data-code-flow-next>NEXT PUZZLE</button>
               <button type="button" data-code-flow-retry>RETRY</button>
@@ -763,7 +763,7 @@
     runtime.resultScore.textContent = String(scored.score);
     runtime.resultXp.textContent = '+0 XP';
     runtime.resultNote.className = 'code-flow-result-note';
-    runtime.resultNote.textContent = runtime.round ? 'Checking reward…' : 'Practice run — account reward unavailable.';
+    runtime.resultNote.textContent = runtime.round ? 'Securing reward…' : 'Practice run — account reward unavailable.';
     runtime.nextBtn.textContent = runtime.level < MAX_LEVEL ? 'NEXT PUZZLE' : 'EXPERT REPLAY';
 
     tone(scored.perfect ? 'perfect' : 'complete');

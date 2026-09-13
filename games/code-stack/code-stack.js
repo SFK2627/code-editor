@@ -74,7 +74,7 @@
               <div><small>Tower</small><strong data-code-stack-final-tower>0</strong></div>
               <div class="xp"><small>XP Earned</small><strong data-code-stack-final-xp>+0</strong></div>
             </div>
-            <p class="code-stack-reward-note" data-code-stack-reward-note>Checking reward…</p>
+            <p class="code-stack-reward-note" data-code-stack-reward-note>Securing reward…</p>
             <div class="code-stack-actions">
               <button class="primary" type="button" data-code-stack-again>PLAY AGAIN</button>
               <button type="button" data-code-stack-hub>MINI-GAMES</button>
@@ -690,7 +690,7 @@
     runtime.finalTower.textContent = String(tower);
     runtime.finalXp.textContent = '+0';
     runtime.rewardNote.className = 'code-stack-reward-note';
-    runtime.rewardNote.textContent = runtime.round ? 'Checking reward…' : 'Practice run — account reward unavailable.';
+    runtime.rewardNote.textContent = runtime.round ? 'Securing reward…' : 'Practice run — account reward unavailable.';
     runtime.overPanel.hidden = false;
     if (!runtime.round?.sessionId || !runtime.bridge?.claimRound) return;
     try {
@@ -706,7 +706,7 @@
       if (result?.loginRequired) {
         runtime.rewardNote.className = 'code-stack-reward-note warn'; runtime.rewardNote.textContent = 'Practice mode — log in as a student to earn account XP.';
       } else if (result?.syncFailed) {
-        runtime.rewardNote.className = 'code-stack-reward-note warn'; runtime.rewardNote.textContent = 'XP could not sync. No account XP was added.';
+        runtime.rewardNote.className = 'code-stack-reward-note warn'; runtime.rewardNote.textContent = 'Reward saved for sync. XP will update automatically once confirmed.';
       } else if (result?.capReached && Number(result.awardedXp || 0) === 0) {
         runtime.rewardNote.className = 'code-stack-reward-note warn'; runtime.rewardNote.textContent = 'Daily Mini-Game XP limit reached. Keep stacking for records!';
       } else {

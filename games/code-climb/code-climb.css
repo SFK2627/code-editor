@@ -23,3 +23,168 @@ body.code-climb-active{overflow:hidden;overscroll-behavior:none}.climb-main{over
 @media(max-height:620px) and (orientation:landscape){.climb-game-panel{padding:4px!important}.climb-game{display:grid;grid-template-columns:minmax(0,1fr) 190px;grid-template-rows:auto minmax(0,1fr);gap:5px}.climb-player-strip{grid-column:1/-1;grid-template-columns:repeat(4,1fr)}.climb-play-layout{grid-column:1/-1;display:grid;grid-template-columns:minmax(0,1fr) 190px;gap:6px;height:100%;min-height:0}.climb-board-wrap{width:auto;height:100%;max-width:calc(100dvh - 58px);justify-self:center}.climb-control-card{width:190px;height:100%;display:flex;flex-direction:column;justify-content:center;padding:7px}.climb-turn-banner{width:100%;text-align:center}.climb-dice-scene{width:64px;height:64px;margin:6px auto}.climb-die,.climb-die-face{width:44px;height:44px}.climb-die{margin:10px}.climb-die-face{font-size:30px}.face-1{transform:rotateY(0deg) translateZ(22px)}.face-2{transform:rotateY(90deg) translateZ(22px)}.face-3{transform:rotateY(180deg) translateZ(22px)}.face-4{transform:rotateY(-90deg) translateZ(22px)}.face-5{transform:rotateX(90deg) translateZ(22px)}.face-6{transform:rotateX(-90deg) translateZ(22px)}.climb-roll-btn{min-height:42px}.climb-event{min-height:38px;margin-top:5px;font-size:.52rem}.climb-rule-chips{display:none}.climb-player-chip{min-height:34px}.climb-player-chip small{display:none}}
 
 @media(prefers-reduced-motion:reduce){.climb-token,.climb-player-chip,.climb-die{transition:none!important}.climb-token.active,.climb-die.rolling,.climb-cell.flash,.climb-cell.flash:after{animation-duration:.01ms!important;animation-iteration-count:1!important}}
+
+/* CODE CLIMB v2 — gameplay clarity, board dice, premium paths, smooth pawn motion */
+.climb-board-wrap{--turn:#38bdf8;transition:border-color .22s ease,box-shadow .22s ease}.climb-board-wrap:after{content:"";position:absolute;inset:0;z-index:11;border:2px solid color-mix(in srgb,var(--turn) 24%,transparent);border-radius:inherit;pointer-events:none;transition:border-color .2s ease,box-shadow .2s ease}.climb-board-wrap.is-my-turn{border-color:color-mix(in srgb,var(--turn) 72%,white 8%);box-shadow:0 18px 60px rgba(0,0,0,.38),0 0 0 2px color-mix(in srgb,var(--turn) 22%,transparent),0 0 28px color-mix(in srgb,var(--turn) 18%,transparent)}.climb-board-wrap.is-my-turn:after{border-color:color-mix(in srgb,var(--turn) 68%,transparent);box-shadow:inset 0 0 30px color-mix(in srgb,var(--turn) 10%,transparent)}
+.climb-board-turn-cue{position:absolute;z-index:12;left:50%;top:7px;transform:translateX(-50%);width:max-content;max-width:72%;padding:6px 12px;border:1px solid color-mix(in srgb,var(--turn) 55%,rgba(255,255,255,.18));border-radius:999px;background:linear-gradient(135deg,color-mix(in srgb,var(--turn) 28%,rgba(2,8,23,.9)),rgba(2,8,23,.82));box-shadow:0 5px 18px rgba(0,0,0,.28);backdrop-filter:blur(8px);pointer-events:none;text-align:center}.climb-board-turn-cue small{display:block;color:color-mix(in srgb,var(--turn) 82%,white);font:1000 clamp(.42rem,.72vw,.6rem)/1 system-ui;letter-spacing:.12em}.climb-board-turn-cue strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px;color:#fff;font:950 clamp(.52rem,.95vw,.78rem)/1.1 system-ui}.climb-board-turn-cue.turn-enter{animation:climbTurnCue .62s cubic-bezier(.2,.85,.25,1)}.climb-board-wrap.is-my-turn .climb-board-turn-cue{box-shadow:0 5px 18px rgba(0,0,0,.3),0 0 20px color-mix(in srgb,var(--turn) 28%,transparent);animation:climbTurnPulse 1.6s ease-in-out infinite}
+
+.climb-player-chip{position:relative;overflow:hidden}.climb-player-chip:before{content:"";position:absolute;inset:0;background:linear-gradient(110deg,transparent 20%,color-mix(in srgb,var(--player) 14%,transparent) 50%,transparent 80%);transform:translateX(-120%);pointer-events:none}.climb-player-chip.active{opacity:1;transform:translateY(-2px) scale(1.015);border-color:color-mix(in srgb,var(--player) 78%,white 5%);background:linear-gradient(135deg,color-mix(in srgb,var(--player) 28%,#071221),color-mix(in srgb,var(--player) 10%,#050f1f));box-shadow:0 0 0 1px color-mix(in srgb,var(--player) 30%,transparent),0 9px 30px color-mix(in srgb,var(--player) 24%,transparent)}.climb-player-chip.active:before{animation:climbChipSweep 1.55s ease-in-out infinite}.climb-player-chip em{display:block;min-height:.55rem;margin-top:1px;color:var(--player);font:1000 .43rem/1 system-ui;letter-spacing:.08em;font-style:normal}.climb-player-chip.active>span{animation:climbDotPulse 1s ease-in-out infinite}.climb-player-chip.you:not(.active){border-style:solid;border-color:color-mix(in srgb,var(--player) 42%,transparent)}
+
+/* Real pawn silhouette instead of a flat circle. */
+.climb-token{width:clamp(22px,4.7%,38px);height:clamp(27px,5.8%,47px);aspect-ratio:auto;border:0;border-radius:0;background:none;box-shadow:none;display:block;filter:drop-shadow(0 5px 5px rgba(0,0,0,.42));transition:transform .11s cubic-bezier(.2,.82,.25,1),filter .18s ease;transform-origin:center bottom;will-change:transform;z-index:7}.climb-token:before{content:"";position:absolute;left:8%;right:8%;bottom:1%;height:69%;clip-path:polygon(35% 0,65% 0,70% 19%,67% 34%,91% 79%,88% 100%,12% 100%,9% 79%,33% 34%,30% 19%);background:linear-gradient(110deg,color-mix(in srgb,var(--player) 62%,#07111f),var(--player) 48%,color-mix(in srgb,var(--player) 66%,white));border-radius:35% 35% 18% 18%;box-shadow:inset 1px 1px 2px rgba(255,255,255,.55),inset -2px -3px 4px rgba(2,8,23,.38)}.climb-token i{position:absolute;z-index:2;left:50%;top:0;transform:translateX(-50%);width:44%;aspect-ratio:1;border:1.5px solid rgba(255,255,255,.9);border-radius:50%;background:radial-gradient(circle at 33% 28%,#fff 0 8%,color-mix(in srgb,var(--player) 72%,white) 12%,var(--player) 56%,color-mix(in srgb,var(--player) 72%,#06111f) 100%);box-shadow:inset -2px -3px 4px rgba(2,8,23,.26)}.climb-token span{position:absolute;z-index:3;left:50%;bottom:4%;transform:translateX(-50%);font:1000 clamp(6px,.72vw,9px)/1 system-ui;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.82)}.climb-token.active{animation:climbPawnGlow 1.05s ease-in-out infinite;z-index:9}.climb-token.you{filter:drop-shadow(0 5px 5px rgba(0,0,0,.42)) drop-shadow(0 0 3px #fff)}.climb-token.stepping{transition:none!important;animation:none!important;z-index:12}.climb-token.special{z-index:13;filter:drop-shadow(0 0 14px var(--player)) drop-shadow(0 5px 5px rgba(0,0,0,.4))}
+
+/* Premium ladders and recognizable snakes. */
+.climb-ladder .rail.shadow{stroke:rgba(3,46,27,.55);stroke-width:16}.climb-ladder .rail{stroke:#a16207;stroke-width:10;stroke-linecap:round}.climb-ladder .rung{stroke:#fde68a;stroke-width:7;stroke-linecap:round;filter:drop-shadow(0 2px 1px rgba(0,0,0,.2))}.climb-snake .snake-outline{fill:none;stroke:rgba(3,12,18,.62);stroke-width:30;stroke-linecap:round;stroke-linejoin:round;opacity:1}.climb-snake .snake-body{fill:none;stroke:var(--snake);stroke-width:23;stroke-linecap:round;stroke-linejoin:round;opacity:.96}.climb-snake .snake-markings{fill:none;stroke:rgba(255,255,255,.42);stroke-width:6;stroke-linecap:round;stroke-dasharray:3 23;opacity:.9}.climb-snake .snake-tail{fill:var(--snake);stroke:rgba(3,12,18,.6);stroke-width:4}.climb-snake .snake-head ellipse{fill:var(--snake);stroke:rgba(3,12,18,.72);stroke-width:4}.climb-snake .snake-eye{fill:#fff;stroke:#111827;stroke-width:1}.climb-snake .snake-pupil{fill:#111827;stroke:none}.climb-snake .snake-mouth{fill:none;stroke:#111827;stroke-width:3;stroke-linecap:round}.climb-snake .snake-tongue{fill:none;stroke:#fb7185;stroke-width:3;stroke-linecap:round}.climb-paths{filter:drop-shadow(0 4px 4px rgba(0,0,0,.22))}
+
+/* Dice now rolls over the board itself. */
+.climb-board-dice-overlay{--turn:#38bdf8;position:absolute;z-index:25;inset:0;display:grid;place-items:center;pointer-events:none;opacity:0;transition:opacity .14s ease}.climb-board-dice-overlay[hidden]{display:none!important}.climb-board-dice-overlay.show{opacity:1}.climb-board-dice-overlay.hiding{opacity:0}.climb-board-dice-backdrop{position:absolute;inset:0;background:radial-gradient(circle at center,color-mix(in srgb,var(--turn) 16%,rgba(2,8,23,.26)),rgba(2,8,23,.48) 58%,rgba(2,8,23,.18));backdrop-filter:blur(1px)}.climb-dice-stage{position:relative;display:grid;justify-items:center;gap:7px;min-width:156px;padding:14px 18px;border:1px solid color-mix(in srgb,var(--turn) 48%,rgba(255,255,255,.16));border-radius:24px;background:linear-gradient(155deg,color-mix(in srgb,var(--turn) 13%,rgba(3,12,26,.94)),rgba(3,12,26,.9));box-shadow:0 20px 55px rgba(0,0,0,.44),0 0 32px color-mix(in srgb,var(--turn) 24%,transparent);perspective:760px}.climb-dice-stage small{color:color-mix(in srgb,var(--turn) 78%,white);font:1000 .58rem/1 system-ui;letter-spacing:.12em}.climb-dice-stage>strong{min-height:1.1em;color:#fff;font:1000 1.05rem/1 system-ui;letter-spacing:.05em}.climb-die{position:relative;width:88px;height:88px;margin:5px;transform-style:preserve-3d;transition:transform .34s cubic-bezier(.2,.9,.25,1);will-change:transform}.climb-die-face{position:absolute;width:88px;height:88px;border:2px solid rgba(15,23,42,.14);border-radius:20px;background:linear-gradient(145deg,#ffffff,#dcecff);color:#07111f;box-shadow:inset -8px -10px 18px rgba(15,23,42,.09),inset 5px 5px 10px rgba(255,255,255,.85)}.climb-pip{position:absolute;width:14px;height:14px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#334155,#07111f 72%);box-shadow:inset 1px 1px 2px rgba(255,255,255,.25)}.pip-1{left:20%;top:20%}.pip-2{left:50%;top:20%;transform:translateX(-50%)}.pip-3{right:20%;top:20%}.pip-4{left:20%;top:50%;transform:translateY(-50%)}.pip-5{left:50%;top:50%;transform:translate(-50%,-50%)}.pip-6{right:20%;top:50%;transform:translateY(-50%)}.pip-7{left:20%;bottom:20%}.pip-8{left:50%;bottom:20%;transform:translateX(-50%)}.pip-9{right:20%;bottom:20%}.face-1{transform:rotateY(0deg) translateZ(44px)}.face-2{transform:rotateY(90deg) translateZ(44px)}.face-3{transform:rotateY(180deg) translateZ(44px)}.face-4{transform:rotateY(-90deg) translateZ(44px)}.face-5{transform:rotateX(90deg) translateZ(44px)}.face-6{transform:rotateX(-90deg) translateZ(44px)}.climb-die.rolling{animation:none;filter:drop-shadow(0 7px 9px rgba(0,0,0,.24))}.climb-die.anticipating{animation:climbDiceSpinV2 .65s linear infinite}.climb-board-dice-overlay.landed .climb-dice-stage{animation:climbDiceImpactV2 .22s ease-out}.climb-board-dice-overlay.landed .climb-die{filter:drop-shadow(0 8px 8px rgba(0,0,0,.28))}.climb-last-roll{display:grid;place-items:center;min-height:58px;padding:7px;border:1px solid color-mix(in srgb,var(--turn) 20%,rgba(148,163,184,.12));border-radius:15px;background:rgba(15,23,42,.56)}.climb-last-roll small{display:block;color:#64748b;font:950 .5rem/1 system-ui;letter-spacing:.08em}.climb-last-roll strong{display:block;margin-top:4px;color:#fff;font:1000 1.18rem/1 system-ui}.climb-control-card{display:grid;grid-template-columns:1fr;gap:9px}.climb-turn-banner.mine{border-color:color-mix(in srgb,var(--turn) 58%,transparent);box-shadow:0 0 18px color-mix(in srgb,var(--turn) 16%,transparent)}.climb-roll-btn.ready{animation:climbRollReady 1.25s ease-in-out infinite}.climb-roll-btn:disabled{opacity:.3;filter:saturate(.55)}
+
+@keyframes climbTurnCue{0%{transform:translateX(-50%) scale(.82);opacity:0}55%{transform:translateX(-50%) scale(1.07);opacity:1}100%{transform:translateX(-50%) scale(1)}}
+@keyframes climbTurnPulse{50%{box-shadow:0 5px 18px rgba(0,0,0,.3),0 0 28px color-mix(in srgb,var(--turn) 42%,transparent)}}
+@keyframes climbChipSweep{0%,42%{transform:translateX(-120%)}72%,100%{transform:translateX(120%)}}
+@keyframes climbDotPulse{50%{transform:scale(1.35);box-shadow:0 0 18px var(--player)}}
+@keyframes climbPawnGlow{50%{filter:drop-shadow(0 5px 5px rgba(0,0,0,.42)) drop-shadow(0 0 9px var(--player)) drop-shadow(0 0 4px #fff);transform:translateZ(0) scale(1.08)}}
+@keyframes climbRollReady{50%{box-shadow:0 11px 28px color-mix(in srgb,var(--turn) 32%,transparent),0 0 0 4px color-mix(in srgb,var(--turn) 12%,transparent)}}
+@keyframes climbDiceRollV2{0%{transform:rotateX(12deg) rotateY(18deg) rotateZ(0) translateY(8px) scale(.86)}20%{transform:rotateX(185deg) rotateY(125deg) rotateZ(72deg) translateY(-18px) scale(1.05)}50%{transform:rotateX(390deg) rotateY(315deg) rotateZ(184deg) translateY(-7px) scale(1.02)}78%{transform:rotateX(575deg) rotateY(505deg) rotateZ(298deg) translateY(-11px) scale(1.03)}100%{transform:rotateX(720deg) rotateY(720deg) rotateZ(360deg) translateY(0) scale(1)}}
+@keyframes climbDiceSpinV2{0%{transform:rotateX(0) rotateY(0) rotateZ(0) translateY(0)}50%{transform:rotateX(180deg) rotateY(240deg) rotateZ(90deg) translateY(-13px)}100%{transform:rotateX(360deg) rotateY(480deg) rotateZ(180deg) translateY(0)}}
+@keyframes climbDiceImpactV2{40%{transform:translateY(4px) scale(.96)}75%{transform:translateY(-2px) scale(1.02)}100%{transform:none}}
+
+@media(max-width:760px){.climb-board-turn-cue{top:5px;max-width:76%;padding:4px 9px}.climb-board-turn-cue small{font-size:.38rem}.climb-board-turn-cue strong{font-size:.5rem}.climb-control-card{grid-template-columns:minmax(0,1fr) 70px 100px;grid-template-rows:auto auto;gap:5px}.climb-turn-banner{grid-column:1;grid-row:1;padding:5px 7px}.climb-last-roll{grid-column:2;grid-row:1/3;min-height:54px;padding:4px}.climb-last-roll small{font-size:.36rem}.climb-last-roll strong{font-size:.82rem}.climb-roll-btn{grid-column:3;grid-row:1/3;min-height:54px}.climb-event{grid-column:1;grid-row:2}.climb-player-chip em{font-size:.35rem;min-height:.42rem}.climb-dice-stage{min-width:132px;padding:11px 14px;border-radius:20px}.climb-die,.climb-die-face{width:66px;height:66px}.climb-die{margin:4px}.climb-die-face{border-radius:15px}.climb-pip{width:10px;height:10px}.face-1{transform:rotateY(0deg) translateZ(33px)}.face-2{transform:rotateY(90deg) translateZ(33px)}.face-3{transform:rotateY(180deg) translateZ(33px)}.face-4{transform:rotateY(-90deg) translateZ(33px)}.face-5{transform:rotateX(90deg) translateZ(33px)}.face-6{transform:rotateX(-90deg) translateZ(33px)}.climb-snake .snake-outline{stroke-width:27}.climb-snake .snake-body{stroke-width:20}.climb-snake .snake-markings{stroke-width:5}.climb-token{width:5.4%;height:6.6%}}
+@media(max-width:420px){.climb-control-card{grid-template-columns:minmax(0,1fr) 58px 88px}.climb-last-roll strong{font-size:.72rem}.climb-roll-btn{font-size:.62rem}.climb-player-chip em{display:none}.climb-board-turn-cue{max-width:80%}}
+@media(max-height:680px) and (orientation:portrait){.climb-control-card{grid-template-columns:minmax(0,1fr) 54px 82px}.climb-last-roll{min-height:43px}.climb-roll-btn{min-height:43px}.climb-board-turn-cue{padding:3px 8px}.climb-dice-stage{padding:9px 12px;gap:5px}.climb-die,.climb-die-face{width:58px;height:58px}.climb-pip{width:9px;height:9px}.face-1{transform:rotateY(0deg) translateZ(29px)}.face-2{transform:rotateY(90deg) translateZ(29px)}.face-3{transform:rotateY(180deg) translateZ(29px)}.face-4{transform:rotateY(-90deg) translateZ(29px)}.face-5{transform:rotateX(90deg) translateZ(29px)}.face-6{transform:rotateX(-90deg) translateZ(29px)}}
+@media(max-height:620px) and (orientation:landscape){.climb-control-card{display:flex;flex-direction:column;justify-content:center}.climb-last-roll{width:100%;min-height:43px}.climb-board-turn-cue{top:4px}.climb-dice-stage{padding:9px 12px}.climb-die,.climb-die-face{width:58px;height:58px}.climb-pip{width:9px;height:9px}.face-1{transform:rotateY(0deg) translateZ(29px)}.face-2{transform:rotateY(90deg) translateZ(29px)}.face-3{transform:rotateY(180deg) translateZ(29px)}.face-4{transform:rotateY(-90deg) translateZ(29px)}.face-5{transform:rotateX(90deg) translateZ(29px)}.face-6{transform:rotateX(-90deg) translateZ(29px)}}
+@media(prefers-reduced-motion:reduce){.climb-board-wrap,.climb-board-turn-cue,.climb-player-chip,.climb-token,.climb-roll-btn,.climb-board-dice-overlay,.climb-die{animation:none!important;transition:none!important}}
+
+/* v2 viewport lock: active board must fit without clipping or page scrolling. */
+.climb-overlay.climb-game-open .climb-main{padding:8px 10px!important;overflow:hidden!important}.climb-game-panel{height:100%;min-height:0!important;box-sizing:border-box}.climb-overlay.climb-game-open .climb-game-panel{padding:0!important}.climb-overlay.climb-game-open .climb-board-wrap{width:min(100%,calc(100dvh - 158px))}
+@media(max-width:760px){.climb-overlay.climb-game-open .climb-main{padding:5px!important}.climb-overlay.climb-game-open .climb-board-wrap{width:min(96vw,calc(100dvh - 230px))}}
+@media(max-width:420px){.climb-overlay.climb-game-open .climb-board-wrap{width:min(96vw,calc(100dvh - 260px))}}
+@media(max-height:680px) and (orientation:portrait){.climb-overlay.climb-game-open .climb-board-wrap{width:min(94vw,calc(100dvh - 214px))}}
+@media(max-height:620px) and (orientation:landscape){.climb-overlay.climb-game-open .climb-top{height:44px;padding:4px 8px}.climb-overlay.climb-game-open .climb-top button{min-height:34px;padding:5px 9px}.climb-overlay.climb-game-open .climb-main{padding:3px 5px!important}.climb-overlay.climb-game-open .climb-game{gap:3px}.climb-overlay.climb-game-open .climb-player-strip{gap:3px}.climb-overlay.climb-game-open .climb-player-chip{min-height:31px;padding:3px 5px}.climb-overlay.climb-game-open .climb-play-layout{gap:5px}.climb-overlay.climb-game-open .climb-board-wrap{width:auto;height:auto;max-width:calc(100dvh - 94px);max-height:calc(100dvh - 94px);aspect-ratio:1}.climb-overlay.climb-game-open .climb-control-card{height:auto;max-height:calc(100dvh - 94px);padding:5px}}
+@media(max-height:620px) and (orientation:landscape){.climb-overlay.climb-game-open .climb-play-layout{grid-template-columns:minmax(0,1fr) 180px}.climb-overlay.climb-game-open .climb-board-wrap{width:min(calc(100dvh - 105px),calc(100vw - 205px));height:auto;max-width:none;max-height:none;aspect-ratio:1}.climb-overlay.climb-game-open .climb-control-card{width:180px}}
+@media(max-height:620px) and (orientation:landscape){.climb-overlay.climb-game-open .climb-play-layout{width:calc(100% - 6px);justify-self:start}}
+
+/* CODE CLIMB v5 - restored realistic tumble + verified result face */
+.climb-die-shell{position:relative;width:98px;height:98px;display:grid;place-items:center;perspective:760px;transform-style:preserve-3d}
+.climb-die-shell .climb-die{margin:0;--die-final-x:0deg;--die-final-y:0deg}
+.climb-die-face{-webkit-backface-visibility:hidden;backface-visibility:hidden}
+.climb-die.rolling{animation:climbDiceRollV3 var(--dice-roll-ms,1800ms) cubic-bezier(.14,.68,.18,1) both;transition:none!important;filter:drop-shadow(0 9px 10px rgba(0,0,0,.28))}
+.climb-die.anticipating{animation:climbDiceSpinV2 .72s cubic-bezier(.45,.05,.55,.95) infinite;transition:none!important}
+.climb-die-final{position:absolute;left:50%;top:50%;width:88px;height:88px;transform:translate(-50%,-50%) scale(.88);border:2px solid rgba(15,23,42,.14);border-radius:20px;background:linear-gradient(145deg,#fff,#dcecff);color:#07111f;box-shadow:inset -8px -10px 18px rgba(15,23,42,.09),inset 5px 5px 10px rgba(255,255,255,.85),0 10px 15px rgba(0,0,0,.25);opacity:0;pointer-events:none;z-index:4}
+.climb-die-final.visible{opacity:1;animation:climbVerifiedDieLand .26s cubic-bezier(.18,.9,.25,1) both}
+.climb-board-dice-overlay.landed .climb-die{opacity:0}
+.climb-board-dice-overlay:not(.landed) .climb-die{opacity:1}
+@keyframes climbDiceRollV3{
+  0%{transform:rotateX(calc(var(--die-final-x) + 12deg)) rotateY(calc(var(--die-final-y) + 18deg)) rotateZ(0deg) translateY(8px) scale(.86)}
+  20%{transform:rotateX(calc(var(--die-final-x) + 185deg)) rotateY(calc(var(--die-final-y) + 125deg)) rotateZ(72deg) translateY(-18px) scale(1.05)}
+  50%{transform:rotateX(calc(var(--die-final-x) + 390deg)) rotateY(calc(var(--die-final-y) + 315deg)) rotateZ(184deg) translateY(-7px) scale(1.02)}
+  78%{transform:rotateX(calc(var(--die-final-x) + 575deg)) rotateY(calc(var(--die-final-y) + 505deg)) rotateZ(298deg) translateY(-11px) scale(1.03)}
+  100%{transform:rotateX(calc(var(--die-final-x) + 720deg)) rotateY(calc(var(--die-final-y) + 720deg)) rotateZ(360deg) translateY(0) scale(1)}
+}
+@keyframes climbVerifiedDieLand{0%{transform:translate(-50%,-50%) scale(.86) translateY(-7px)}45%{transform:translate(-50%,-50%) scale(1.055) translateY(3px)}75%{transform:translate(-50%,-50%) scale(.985) translateY(-1px)}100%{transform:translate(-50%,-50%) scale(1) translateY(0)}}
+@media(max-width:760px){.climb-die-shell{width:74px;height:74px}.climb-die-final{width:66px;height:66px;border-radius:15px}}
+@media(max-height:680px) and (orientation:portrait){.climb-die-shell{width:66px;height:66px}.climb-die-final{width:58px;height:58px;border-radius:14px}}
+@media(max-height:620px) and (orientation:landscape){.climb-die-shell{width:66px;height:66px}.climb-die-final{width:58px;height:58px;border-radius:14px}}
+@media(prefers-reduced-motion:reduce){.climb-die-final.visible{animation:none!important;transform:translate(-50%,-50%) scale(1)}}
+
+/* CODE CLIMB v6 - true cube tumble: keep the physical 3D die visible through landing */
+.climb-die-shell{perspective:560px;perspective-origin:50% 42%;isolation:isolate}
+.climb-die-shell:after{content:"";position:absolute;left:50%;bottom:0;width:68%;height:16%;transform:translateX(-50%);border-radius:50%;background:rgba(0,0,0,.28);filter:blur(7px);opacity:.42;z-index:-1;pointer-events:none}
+.climb-die.tumbling-3d{animation:none!important;transition:none!important;transform-style:preserve-3d!important;will-change:transform;filter:drop-shadow(0 12px 12px rgba(0,0,0,.30))}
+.climb-die.tumbling-3d .climb-die-face,.climb-die.show-1 .climb-die-face,.climb-die.show-2 .climb-die-face,.climb-die.show-3 .climb-die-face,.climb-die.show-4 .climb-die-face,.climb-die.show-5 .climb-die-face,.climb-die.show-6 .climb-die-face{-webkit-backface-visibility:hidden;backface-visibility:hidden}
+.climb-board-dice-overlay.landed .climb-die{opacity:1!important;filter:drop-shadow(0 10px 10px rgba(0,0,0,.30))}
+.climb-die-final{display:none!important}
+.climb-board-dice-overlay.landed .climb-die-shell:after{animation:climbDiceShadowSettle .28s ease-out both}
+@keyframes climbDiceShadowSettle{0%{transform:translateX(-50%) scale(.72);opacity:.24}55%{transform:translateX(-50%) scale(1.08);opacity:.5}100%{transform:translateX(-50%) scale(1);opacity:.42}}
+@media(prefers-reduced-motion:reduce){.climb-die.tumbling-3d{animation:none!important;transition:none!important}}
+
+/* Keep a subtle physical-cube angle during the result hold so the landing
+   still reads as a real 3D die instead of flattening into a square card. */
+.climb-die.show-1.landed-3d{transform:rotateX(-8deg) rotateY(10deg) rotateZ(-1deg)!important;transform-style:preserve-3d!important;filter:drop-shadow(0 12px 12px rgba(0,0,0,.30))}
+
+
+/* CODE CLIMB v7 - reference-style cinematic 3D dice tumble */
+.climb-die-shell{
+  perspective:700px!important;
+  perspective-origin:50% 44%!important;
+  overflow:visible;
+}
+.climb-die-shell .climb-die{
+  transform-origin:50% 50%;
+}
+.climb-die-face{
+  background:
+    linear-gradient(145deg,rgba(255,255,255,.98),rgba(229,240,252,.98))!important;
+  border:1px solid rgba(71,85,105,.18)!important;
+  box-shadow:
+    inset 7px 7px 12px rgba(255,255,255,.78),
+    inset -8px -10px 17px rgba(15,23,42,.10),
+    0 0 0 1px rgba(255,255,255,.20)!important;
+  -webkit-backface-visibility:hidden;
+  backface-visibility:hidden;
+}
+.climb-die-face:after{
+  content:"";
+  position:absolute;
+  inset:4px;
+  border-radius:inherit;
+  background:linear-gradient(135deg,rgba(255,255,255,.26),transparent 42%,rgba(148,163,184,.06));
+  pointer-events:none;
+}
+.climb-pip{z-index:1}
+.climb-die.tumbling-3d{
+  animation:none!important;
+  transition:none!important;
+  transform-style:preserve-3d!important;
+  will-change:transform;
+  filter:drop-shadow(0 14px 12px rgba(0,0,0,.30));
+}
+.climb-die.anticipating{
+  animation:climbDiceReadyFloat .72s ease-in-out infinite!important;
+  transition:none!important;
+}
+.climb-die.landed-3d{
+  animation:none!important;
+  transition:none!important;
+  transform-style:preserve-3d!important;
+  filter:drop-shadow(0 10px 9px rgba(0,0,0,.29));
+}
+.climb-board-dice-overlay.landed .climb-die{
+  opacity:1!important;
+}
+.climb-die-shell:after{
+  bottom:-3px!important;
+  width:72%!important;
+  height:14%!important;
+  filter:blur(8px)!important;
+  opacity:.36!important;
+  transform:translateX(-50%) scale(1)!important;
+}
+.climb-die-shell.is-rolling:after{
+  animation:climbDiceShadowFlight var(--dice-roll-ms,2100ms) cubic-bezier(.14,.72,.16,1) both!important;
+}
+.climb-board-dice-overlay.landed .climb-die-shell:after{
+  animation:climbDiceShadowSettleV7 .30s ease-out both!important;
+}
+@keyframes climbDiceReadyFloat{
+  0%,100%{transform:translate3d(0,2px,0) rotateX(10deg) rotateY(-13deg) rotateZ(0deg) scale(.96)}
+  50%{transform:translate3d(0,-5px,0) rotateX(20deg) rotateY(17deg) rotateZ(5deg) scale(1)}
+}
+@keyframes climbDiceShadowFlight{
+  0%{transform:translateX(-50%) scale(1);opacity:.38}
+  27%{transform:translateX(-50%) scale(.52);opacity:.18}
+  47%{transform:translateX(-50%) scale(.62);opacity:.21}
+  65%{transform:translateX(-50%) scale(.78);opacity:.28}
+  77%{transform:translateX(-50%) scale(1.08);opacity:.48}
+  86%{transform:translateX(-50%) scale(.84);opacity:.31}
+  94%{transform:translateX(-50%) scale(1.03);opacity:.43}
+  100%{transform:translateX(-50%) scale(1);opacity:.38}
+}
+@keyframes climbDiceShadowSettleV7{
+  0%{transform:translateX(-50%) scale(1.08);opacity:.48}
+  45%{transform:translateX(-50%) scale(.91);opacity:.34}
+  100%{transform:translateX(-50%) scale(1);opacity:.38}
+}
+@media(prefers-reduced-motion:reduce){
+  .climb-die.anticipating,.climb-die.tumbling-3d,.climb-die.landed-3d,.climb-die-shell.is-rolling:after{animation:none!important;transition:none!important}
+}

@@ -4751,19 +4751,38 @@ async function callAppsScriptSecure(payload = {}, options = {}) {
   }
 
   const idToken = await user.getIdToken(options.forceTokenRefresh === true);
-  const response = await fetch(url, {
-    method: 'POST',
-    redirect: 'follow',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({
-      ...payload,
-      idToken,
-      authUid: user.uid || '',
-      projectId: firebaseSync.config?.projectId || window.MCS_FIREBASE_CONFIG?.projectId || '',
-      collectionName: firebaseSync.collectionName || window.MCS_FIREBASE_COLLECTION || 'webCodeEditor',
-      documentId: firebaseSync.documentId || window.MCS_FIREBASE_DOCUMENT_ID || 'grade8-mcsian'
-    })
-  });
+  const timeoutMs = Math.max(0, Math.floor(Number(options.timeoutMs || 0)));
+  const controller = timeoutMs > 0 && typeof AbortController === 'function' ? new AbortController() : null;
+  let timeoutId = null;
+  if (controller) timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  let response;
+  try {
+    response = await fetch(url, {
+      method: 'POST',
+      redirect: 'follow',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({
+        ...payload,
+        idToken,
+        authUid: user.uid || '',
+        projectId: firebaseSync.config?.projectId || window.MCS_FIREBASE_CONFIG?.projectId || '',
+        collectionName: firebaseSync.collectionName || window.MCS_FIREBASE_COLLECTION || 'webCodeEditor',
+        documentId: firebaseSync.documentId || window.MCS_FIREBASE_DOCUMENT_ID || 'grade8-mcsian'
+      }),
+      signal: controller?.signal
+    });
+  } catch (error) {
+    if (controller?.signal?.aborted) {
+      const timeoutError = new Error('Secure reward service timed out. The reward is saved for automatic retry.');
+      timeoutError.status = 408;
+      timeoutError.code = 'secure-service-timeout';
+      throw timeoutError;
+    }
+    throw error;
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
 
   let result = null;
   try {
@@ -42853,6 +42872,14 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   const XP_MINI_GAMES_WEEKLY_MAX = XP_MINI_GAMES_DAILY_CAP * 7;
   const XP_MINI_GAMES_TIME_ZONE = 'Asia/Manila';
   const XP_MINI_GAMES_RECENT_REWARD_LIMIT = 96;
+  // v477: reward claims must never leave the learner staring at an endless
+  // "Checking XP" state. The secured RTDB ledger stays authoritative, while
+  // a short browser timeout stores the exact idempotent round for later retry.
+  const XP_MINI_GAME_CLAIM_TIMEOUT_MS = 7000;
+  const XP_MINI_GAME_RETRY_TIMEOUT_MS = 6000;
+  const XP_MINI_GAME_PENDING_CLAIM_LIMIT = 24;
+  const XP_MINI_GAME_PENDING_CLAIM_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+  const XP_MINI_GAME_PENDING_STORAGE_PREFIX = 'ict8.xp.pending.v1';
 
   const XP_MINI_GAME_ID_CODE_FLY = 'code-fly';
   const XP_MINI_GAME_ID_BUG_SMASH = 'bug-smash';
@@ -44889,6 +44916,8 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   const activeXpMiniGameRounds = new Map();
   const xpMiniGameRoundClaims = new Map();
   const miniGameNetworkQuietRounds = new Set();
+  let xpMiniGamePendingRetryPromise = null;
+  let xpMiniGamePendingRetryTimer = null;
 
   function syncMiniGameNetworkQuietState() {
     const active = miniGameNetworkQuietRounds.size > 0;
@@ -47737,10 +47766,177 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   }
 
   // Prime a fresh RTDB read when the XP launcher is touched. If the hub opens
+  function xpMiniGamePendingStorageKey() {
+    const uid = String(appSession.student?.uid || '').trim();
+    return uid ? `${XP_MINI_GAME_PENDING_STORAGE_PREFIX}:${uid}` : '';
+  }
+
+  function loadPendingXpMiniGameClaims() {
+    const key = xpMiniGamePendingStorageKey();
+    if (!key) return [];
+    try {
+      const parsed = JSON.parse(localStorage.getItem(key) || '[]');
+      if (!Array.isArray(parsed)) return [];
+      const now = Date.now();
+      return parsed
+        .filter(entry => entry && typeof entry === 'object' && entry.payload && String(entry.payload.roundId || ''))
+        .filter(entry => now - Math.max(0, Number(entry.queuedAt || 0)) <= XP_MINI_GAME_PENDING_CLAIM_MAX_AGE_MS)
+        .slice(-XP_MINI_GAME_PENDING_CLAIM_LIMIT);
+    } catch (_) {
+      return [];
+    }
+  }
+
+  function savePendingXpMiniGameClaims(entries = []) {
+    const key = xpMiniGamePendingStorageKey();
+    if (!key) return;
+    const clean = Array.isArray(entries) ? entries.slice(-XP_MINI_GAME_PENDING_CLAIM_LIMIT) : [];
+    try {
+      if (clean.length) localStorage.setItem(key, JSON.stringify(clean));
+      else localStorage.removeItem(key);
+    } catch (_) {}
+  }
+
+  function rememberPendingXpMiniGameClaim(payload = {}) {
+    const roundId = String(payload.roundId || '').trim();
+    if (!roundId) return;
+    const entries = loadPendingXpMiniGameClaims();
+    const existing = entries.find(entry => String(entry?.payload?.roundId || '') === roundId);
+    const next = {
+      payload: JSON.parse(JSON.stringify(payload)),
+      queuedAt: existing?.queuedAt || Date.now(),
+      attempts: Math.max(0, Number(existing?.attempts || 0)),
+      lastAttemptAt: Math.max(0, Number(existing?.lastAttemptAt || 0))
+    };
+    savePendingXpMiniGameClaims([
+      ...entries.filter(entry => String(entry?.payload?.roundId || '') !== roundId),
+      next
+    ]);
+  }
+
+  function forgetPendingXpMiniGameClaim(roundId = '') {
+    const id = String(roundId || '').trim();
+    if (!id) return;
+    savePendingXpMiniGameClaims(loadPendingXpMiniGameClaims().filter(entry => String(entry?.payload?.roundId || '') !== id));
+  }
+
+  function markPendingXpMiniGameAttempt(roundId = '') {
+    const id = String(roundId || '').trim();
+    if (!id) return;
+    const now = Date.now();
+    savePendingXpMiniGameClaims(loadPendingXpMiniGameClaims().map(entry => {
+      if (String(entry?.payload?.roundId || '') !== id) return entry;
+      return { ...entry, attempts: Math.max(0, Number(entry.attempts || 0)) + 1, lastAttemptAt: now };
+    }));
+  }
+
+  function applyXpMiniGameServerState(server = {}, reason = 'mini-game-reward') {
+    ensureReaderProgress();
+    const serverMiniGames = normalizeMiniGamesState(server.miniGames || {});
+    state.progress.miniGames = mergeMiniGamesState(state.progress.miniGames || {}, serverMiniGames);
+    state.progress.updatedAt = new Date().toISOString();
+    const derivedTotalXp = Math.max(0, Math.floor(Number(explorerXpFor(state.progress) || 0)));
+    const serverEffectiveTotalXp = Math.max(0, Math.floor(Number(server.totalXp || 0)));
+    const totalXp = Math.max(derivedTotalXp, serverEffectiveTotalXp);
+    state.cloudXpHint = Math.max(state.cloudXpHint || 0, totalXp);
+    state.cloudLoaded = true;
+    miniGameRtdbHydratedAt = Date.now();
+    if (server.firestoreSynced === true) {
+      state.lastCloudSyncAt = Date.now();
+      state.profileUpdateTime = String(server.profileUpdateTime || state.profileUpdateTime || '');
+      clearSelectiveFirestoreCache(`studentProfile:${appSession.student?.uid || ''}`);
+      clearAdminStudentSnapshotCache();
+      leaderboardState.loadedAt = 0;
+    }
+    if (appSession.student) appSession.student.codeExplorerXp = totalXp;
+    if (appSession.lastStudentProfile) appSession.lastStudentProfile.codeExplorerXp = totalXp;
+    saveLocalProgress(state.progress);
+    // The RTDB reward is already durable. Mark the Explorer checkpoint dirty so
+    // the existing low-frequency checkpoint later coalesces pending XP into
+    // Firestore without making the learner wait at the game-over screen.
+    refreshExplorerCheckpointDirtyState(reason);
+    renderTopProgress();
+    updateAppHeaderForSession();
+    return totalXp;
+  }
+
+  function schedulePendingXpMiniGameRetry(delayMs = 2500) {
+    if (xpMiniGamePendingRetryTimer) clearTimeout(xpMiniGamePendingRetryTimer);
+    if (!loadPendingXpMiniGameClaims().length) {
+      xpMiniGamePendingRetryTimer = null;
+      return;
+    }
+    xpMiniGamePendingRetryTimer = setTimeout(() => {
+      xpMiniGamePendingRetryTimer = null;
+      retryPendingXpMiniGameClaims().catch(() => {});
+    }, Math.max(250, Number(delayMs || 0)));
+  }
+
+  async function retryPendingXpMiniGameClaims() {
+    if (xpMiniGamePendingRetryPromise) return xpMiniGamePendingRetryPromise;
+    if (navigator.onLine === false || isMiniGameNetworkQuiet()) return false;
+    if (!(appSession.mode === 'student' && appSession.student?.uid) || !shouldUseAppsScriptMiniGameRewards()) return false;
+    const pending = loadPendingXpMiniGameClaims();
+    if (!pending.length) return true;
+
+    xpMiniGamePendingRetryPromise = (async () => {
+      // Keep retries deliberately small. One successful round usually refreshes
+      // the same RTDB account and subsequent duplicates resolve quickly.
+      for (const entry of pending.slice(0, 3)) {
+        const payload = entry?.payload || {};
+        const roundId = String(payload.roundId || '').trim();
+        if (!roundId) continue;
+        markPendingXpMiniGameAttempt(roundId);
+        try {
+          const server = await callAppsScriptSecure(payload, {
+            allowStudent: true,
+            timeoutMs: XP_MINI_GAME_RETRY_TIMEOUT_MS
+          });
+          forgetPendingXpMiniGameClaim(roundId);
+          applyXpMiniGameServerState(server, 'mini-game-retry');
+          const gameId = normalizeXpMiniGameId(payload.gameId);
+          notifyXpMiniGamesProgress({
+            awardedXp: Math.max(0, Math.floor(Number(server.awardedXp || 0))),
+            requestedXp: Math.max(0, Math.floor(Number(server.requestedXp || 0))),
+            duplicate: server.duplicate === true,
+            gameId,
+            recoveredReward: true
+          });
+        } catch (error) {
+          console.info('Queued Mini-Game XP reward is still waiting to sync.', error);
+          // A newly added game can temporarily be unknown to an older Apps
+          // Script deployment. Keep that one queued but do not let it block
+          // other valid rewards behind it. Authentication/network failures stop
+          // this retry pass and wait for the next online/focus wake-up.
+          const unknownGame = Number(error?.status || 0) === 400 && /unknown mini-game/i.test(String(error?.message || ''));
+          if (unknownGame) continue;
+          break;
+        }
+      }
+      const remaining = loadPendingXpMiniGameClaims();
+      if (remaining.length) {
+        const maxAttempts = Math.max(...remaining.map(entry => Math.max(0, Number(entry?.attempts || 0))), 0);
+        schedulePendingXpMiniGameRetry(maxAttempts >= 5 ? 5 * 60 * 1000 : 15000);
+      } else if (state.checkpointDirty) scheduleCloudSave('mini-game-reward');
+      return true;
+    })().finally(() => {
+      xpMiniGamePendingRetryPromise = null;
+    });
+    return xpMiniGamePendingRetryPromise;
+  }
+
   // before the REST request finishes, its existing subscription rerenders as
-  // soon as notifyXpMiniGamesProgress() publishes the hydrated state.
+  // soon as notifyXpMiniGamesProgress() publishes the hydrated state. A pending
+  // idempotent reward is also retried when the learner opens the XP area.
   dom.xpBadge?.addEventListener('pointerdown', () => {
     refreshXpMiniGamesFromRtdb().catch(() => {});
+    schedulePendingXpMiniGameRetry(300);
+  }, { passive: true });
+
+  window.addEventListener('online', () => schedulePendingXpMiniGameRetry(600), { passive: true });
+  window.addEventListener('focus', () => schedulePendingXpMiniGameRetry(900), { passive: true });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') schedulePendingXpMiniGameRetry(1000);
   }, { passive: true });
 
   async function performXpMiniGameClaimLegacyFirestore(sessionId, round, reportedResult) {
@@ -47843,54 +48039,49 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     }
 
     if (!shouldUseAppsScriptMiniGameRewards()) {
-      // v469: rewarded Mini-Games never fall back to one Firestore transaction per round.
-      // Keep the verified record local and wait for the secure RTDB/Apps Script reward route.
-      const snapshot = notifyXpMiniGamesProgress();
-      const gameRecord = snapshot.gameRecords?.[stateKey] || localMiniGames.games[stateKey];
-      return {
-        ...baseResult,
-        ...snapshot,
-        syncFailed: true,
-        error: 'Secure Mini-Game reward sync is unavailable. Your score is safe locally, but XP was not credited.',
-        gameRecord,
-        bestScore: Math.max(0, Number(gameRecord?.bestScore || 0))
-      };
-    }
-
-    try {
-      const server = await callAppsScriptSecure({
+      // v477: preserve the exact claim locally even when the secure bridge URL
+      // is temporarily unavailable. Once the bridge is restored, the same
+      // roundId can be retried without creating duplicate XP.
+      rememberPendingXpMiniGameClaim({
         action: 'claimMiniGameReward',
         roundId: sessionId,
         gameId,
         startedAtMs: Math.max(0, Number(round?.startedAt || 0)),
         finishedAtMs: Date.now(),
         result: reportedXpMiniGameResult(reportedResult)
-      }, { allowStudent: true });
+      });
+      const snapshot = notifyXpMiniGamesProgress({ gameId, rewardSyncPending: true });
+      const gameRecord = snapshot.gameRecords?.[stateKey] || localMiniGames.games[stateKey];
+      return {
+        ...baseResult,
+        ...snapshot,
+        syncFailed: true,
+        syncPending: true,
+        error: 'Reward saved for sync. XP will update automatically once the secure reward service is restored.',
+        gameRecord,
+        bestScore: Math.max(0, Number(gameRecord?.bestScore || 0))
+      };
+    }
 
-      const serverMiniGames = normalizeMiniGamesState(server.miniGames || {});
-      state.progress.miniGames = mergeMiniGamesState(state.progress.miniGames || {}, serverMiniGames);
-      state.progress.updatedAt = nowIso;
-      // v462: account XP may be pending in RTDB and intentionally not written to
-      // Firestore yet. Derive the visible total from the merged progress, then
-      // use the server effective total only as an additional lower bound.
-      const derivedTotalXp = Math.max(0, Math.floor(Number(explorerXpFor(state.progress) || 0)));
-      const serverEffectiveTotalXp = Math.max(0, Math.floor(Number(server.totalXp || 0)));
-      const totalXp = Math.max(derivedTotalXp, serverEffectiveTotalXp);
-      state.cloudXpHint = Math.max(state.cloudXpHint || 0, totalXp);
-      state.cloudLoaded = true;
-      miniGameRtdbHydratedAt = Date.now();
-      if (server.firestoreSynced === true) {
-        state.lastCloudSyncAt = Date.now();
-        state.profileUpdateTime = String(server.profileUpdateTime || state.profileUpdateTime || '');
-        clearSelectiveFirestoreCache(`studentProfile:${appSession.student.uid}`);
-        clearAdminStudentSnapshotCache();
-        leaderboardState.loadedAt = 0;
-      }
-      if (appSession.student) appSession.student.codeExplorerXp = totalXp;
-      if (appSession.lastStudentProfile) appSession.lastStudentProfile.codeExplorerXp = totalXp;
-      saveLocalProgress(state.progress);
-      renderTopProgress();
-      updateAppHeaderForSession();
+    const claimPayload = {
+      action: 'claimMiniGameReward',
+      roundId: sessionId,
+      gameId,
+      startedAtMs: Math.max(0, Number(round?.startedAt || 0)),
+      finishedAtMs: Date.now(),
+      result: reportedXpMiniGameResult(reportedResult)
+    };
+    // Store BEFORE the request. If the browser loses the response after RTDB
+    // committed the reward, retrying the same roundId is safe and deduplicated.
+    rememberPendingXpMiniGameClaim(claimPayload);
+
+    try {
+      const server = await callAppsScriptSecure(claimPayload, {
+        allowStudent: true,
+        timeoutMs: XP_MINI_GAME_CLAIM_TIMEOUT_MS
+      });
+      forgetPendingXpMiniGameClaim(sessionId);
+      const totalXp = applyXpMiniGameServerState(server, 'mini-game-reward');
 
       const awardedXp = Math.max(0, Math.floor(Number(server.awardedXp || 0)));
       const requestedXp = Math.max(0, Math.floor(Number(server.requestedXp ?? verified.requestedXp)));
@@ -47924,20 +48115,20 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         reservationMismatch: server.reservationMismatch === true
       };
     } catch (error) {
-      // During rollout only, an OLD Apps Script deployment can fall back to the
-      // proven Firestore transaction. Network/quota errors do NOT cause a second
-      // Firestore claim attempt, preventing double load and duplicate rewards.
-      if (miniGameBridgeNeedsLegacyFallback(error)) {
-        console.warn('Mini-game secure reward route is not deployed yet. Legacy per-round Firestore fallback is disabled to protect quotas and XP integrity.', error);
-      }
-      console.warn(`XP Mini-Games Apps Script claim for ${gameId} failed.`, error);
-      const snapshot = notifyXpMiniGamesProgress();
+      // Never launch a second Firestore claim. The exact secured request remains
+      // in LocalStorage and retries with the SAME roundId, so a response lost
+      // after an RTDB commit cannot double-award XP.
+      console.warn(`XP Mini-Games Apps Script claim for ${gameId} is queued for retry.`, error);
+      schedulePendingXpMiniGameRetry(3500);
+      const snapshot = notifyXpMiniGamesProgress({ gameId, rewardSyncPending: true });
       const gameRecord = snapshot.gameRecords?.[stateKey] || localMiniGames.games[stateKey];
       return {
         ...baseResult,
         ...snapshot,
         syncFailed: true,
-        error: String(error?.message || error || 'Could not sync XP reward.'),
+        syncPending: true,
+        error: 'Reward saved for sync. XP will update automatically once the secure reward service confirms it.',
+        technicalError: String(error?.message || error || 'Could not sync XP reward.'),
         gameRecord,
         bestScore: Math.max(0, Number(gameRecord?.bestScore || 0))
       };
@@ -47999,6 +48190,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
 
   window.addEventListener('ict8:mini-game-network-quiet', event => {
     if (event?.detail?.active === true) return;
+    if (loadPendingXpMiniGameClaims().length) schedulePendingXpMiniGameRetry(800);
     if (state.checkpointDirty && appSession.mode === 'student' && appSession.student?.uid) {
       scheduleCloudSave('post-mini-game');
     }

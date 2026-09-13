@@ -222,7 +222,7 @@
               <div><small>Accuracy</small><strong data-code-bridge-final-accuracy>0%</strong></div>
               <div class="xp"><small>XP Earned</small><strong data-code-bridge-final-xp>+0</strong></div>
             </div>
-            <p class="code-bridge-reward-note" data-code-bridge-reward-note>Checking reward…</p>
+            <p class="code-bridge-reward-note" data-code-bridge-reward-note>Securing reward…</p>
             <div class="code-bridge-actions">
               <button type="button" class="primary" data-code-bridge-again>PLAY AGAIN</button>
               <button type="button" data-code-bridge-result-hub>MINI-GAMES</button>
@@ -827,7 +827,7 @@
     runtime.finalAccuracy.textContent = `${summary.accuracyPercent}%`;
     runtime.finalXp.textContent = '+0';
     runtime.rewardNote.className = 'code-bridge-reward-note';
-    runtime.rewardNote.textContent = runtime.round ? 'Checking reward…' : 'Practice run — log in to earn account XP.';
+    runtime.rewardNote.textContent = runtime.round ? 'Securing reward…' : 'Practice run — log in to earn account XP.';
     runtime.resultPanel.hidden = false;
     updateHud();
 
@@ -874,7 +874,7 @@
         runtime.rewardNote.textContent = 'Practice mode — log in as a student to earn account XP.';
       } else if (result?.syncFailed) {
         runtime.rewardNote.className = 'code-bridge-reward-note warn';
-        runtime.rewardNote.textContent = 'XP could not sync. No account XP was added.';
+        runtime.rewardNote.textContent = 'Reward saved for sync. XP will update automatically once confirmed.';
       } else if (result?.replayNoXp) {
         runtime.rewardNote.className = 'code-bridge-reward-note warn';
         runtime.rewardNote.textContent = 'No higher CODE BRIDGE reward tier this time. Best score still counts.';

@@ -106,7 +106,7 @@
               <div><small>Accuracy</small><strong data-bug-smash-final-accuracy>0%</strong></div>
               <div class="xp"><small>XP Earned</small><strong data-bug-smash-final-xp>+0</strong></div>
             </div>
-            <p class="bug-smash-reward-note" data-bug-smash-reward-note>Checking reward…</p>
+            <p class="bug-smash-reward-note" data-bug-smash-reward-note>Securing reward…</p>
             <div class="bug-smash-actions">
               <button class="primary" type="button" data-bug-smash-again>PLAY AGAIN</button>
               <button type="button" data-bug-smash-hub>MINI-GAMES</button>
@@ -401,7 +401,7 @@
     runtime.finalAccuracy.textContent = `${accuracy}%`;
     runtime.finalXp.textContent = '+0';
     runtime.rewardNote.className = 'bug-smash-reward-note';
-    runtime.rewardNote.textContent = runtime.round ? 'Checking reward…' : 'Practice run — account reward unavailable.';
+    runtime.rewardNote.textContent = runtime.round ? 'Securing reward…' : 'Practice run — account reward unavailable.';
     runtime.overPanel.hidden = false;
 
     if (!runtime.round?.sessionId || !runtime.bridge?.claimRound) return;
@@ -426,7 +426,7 @@
         runtime.rewardNote.textContent = 'Practice mode — log in as a student to earn account XP.';
       } else if (result?.syncFailed) {
         runtime.rewardNote.className = 'bug-smash-reward-note warn';
-        runtime.rewardNote.textContent = 'Score saved locally, but XP could not sync. No XP was added.';
+        runtime.rewardNote.textContent = 'Score saved locally, but Reward saved for sync. XP will update automatically once confirmed.';
       } else if (result?.duplicate) {
         runtime.rewardNote.className = 'bug-smash-reward-note';
         runtime.rewardNote.textContent = 'This round was already processed. No duplicate XP added.';

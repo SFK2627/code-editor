@@ -27,6 +27,14 @@
     power: { label: 'POWER DAMA', short: 'Dama with Freeze, Extra Move, Bomb, and Shield.', powers: true }
   });
 
+  const AI_LEVELS = Object.freeze({
+    'very-easy': { label: 'VERY EASY', short: 'Relaxed bot. Mostly random legal moves.', depth: 0, budgetMs: 0, thinkMin: 420, thinkMax: 650, randomChance: 1, topChoices: 99, powerChance: .10 },
+    easy: { label: 'EASY', short: 'Notices captures and simple promotions, but still makes mistakes.', depth: 1, budgetMs: 55, thinkMin: 480, thinkMax: 720, randomChance: .42, topChoices: 3, powerChance: .30 },
+    medium: { label: 'MEDIUM', short: 'Balanced tactical play with short look-ahead.', depth: 2, budgetMs: 140, thinkMin: 520, thinkMax: 760, randomChance: .14, topChoices: 2, powerChance: .55 },
+    hard: { label: 'HARD', short: 'Stronger board evaluation and deeper tactical search.', depth: 4, budgetMs: 280, thinkMin: 560, thinkMax: 820, randomChance: .035, topChoices: 1, powerChance: .76 },
+    'very-hard': { label: 'VERY HARD', short: 'Deepest search, strongest evaluation, almost no intentional mistakes.', depth: 6, budgetMs: 430, thinkMin: 600, thinkMax: 880, randomChance: 0, topChoices: 1, powerChance: .92 }
+  });
+
   const P = () => window.ICT8ZeroDbP2P;
   const r = {
     built: false, open: false, bridge: null, music: null, onBack: null, onClose: null,
@@ -37,7 +45,8 @@
     game: null, selected: -1, selectedPower: '', actionPending: false,
     paused: false, remotePaused: false, exitPaused: false,
     timerId: 0, lastClockAt: 0, lastTimerBroadcast: 0,
-    audio: null, powerToastTimer: 0
+    audio: null, powerToastTimer: 0,
+    aiDifficulty: 'medium', aiTimer: 0, aiThinking: false
   };
 
   const $ = sel => r.overlay?.querySelector(sel) || null;
@@ -46,6 +55,9 @@
   const sideOther = side => side === 'h' ? 'g' : 'h';
   const localSide = () => r.role === 'guest' ? 'g' : 'h';
   const remoteSide = () => sideOther(localSide());
+  const isSolo = () => r.role === 'solo';
+  const isAuthority = () => r.role === 'host' || r.role === 'solo';
+  const aiLevel = () => AI_LEVELS[r.aiDifficulty] || AI_LEVELS.medium;
   const idx = (row, col) => row * BOARD_SIZE + col;
   const rowOf = index => Math.floor(index / BOARD_SIZE);
   const colOf = index => index % BOARD_SIZE;
@@ -80,12 +92,12 @@
     o.hidden = true;
     o.setAttribute('role', 'dialog');
     o.setAttribute('aria-modal', 'true');
-    o.setAttribute('aria-label', 'Code Dama live two-player game');
+    o.setAttribute('aria-label', 'Code Dama solo or live two-player game');
     o.innerHTML = `
       <section class="p2p0-shell">
         <header class="p2p0-top">
           <button type="button" data-back>← MINI-GAMES</button>
-          <div class="p2p0-brand"><span>♟️</span><div><small>LIVE 2 PLAYER · NO XP</small><strong>CODE DAMA</strong></div></div>
+          <div class="p2p0-brand"><span>♟️</span><div><small>SOLO / 1V1 · NO XP</small><strong>CODE DAMA</strong></div></div>
           <div class="p2p0-top-actions"><button type="button" data-sound aria-label="Toggle game sound">🔊</button><button type="button" data-close aria-label="Close Code Dama">×</button></div>
         </header>
         <main class="p2p0-main dama-main">
@@ -93,10 +105,41 @@
             <div class="p2p0-card p2p0-home-card dama-home">
               <span class="dama-hero">♟️</span>
               <h1>CODE DAMA</h1>
-              <p>Classic Dama, speed clocks, King Rush, or strategic power-ups — played live on two devices.</p>
-              <div class="p2p0-badges"><span>👥 2 PLAYERS</span><span>🆔 STUDENT ID</span><span>📷 QR</span><span>0 XP</span></div>
+              <p>Play against the Code Bot on one device, or challenge a classmate in a direct 1v1 match.</p>
+              <div class="p2p0-badges"><span>🤖 SOLO</span><span>👥 1V1</span><span>♛ KINGS</span><span>0 XP</span></div>
+              <div class="dama-play-choice"><button class="dama-choice primary" type="button" data-solo><span>🤖</span><div><strong>PLAY SOLO</strong><small>Choose AI level from Very Easy to Very Hard.</small></div></button><button class="dama-choice" type="button" data-multiplayer><span>⚔️</span><div><strong>1V1 MULTIPLAYER</strong><small>Create an invite or join another player.</small></div></button></div>
+              <small class="p2p0-note">Mandatory captures · multi-capture chains · Kings · direct WebRTC for 1v1.</small>
+            </div>
+          </section>
+
+          <section class="p2p0-panel" data-panel="solo">
+            <div class="p2p0-card p2p0-pair-card dama-solo-card">
+              <div class="p2p0-step-head"><span>SOLO</span><strong>Play against the Code Bot</strong></div>
+              <div class="dama-match-settings">
+                <div class="dama-settings-title"><span>🤖</span><div><strong>BOT CHALLENGE</strong><small>Choose the difficulty and Dama rules before starting.</small></div></div>
+                <label class="dama-select-field"><span>AI DIFFICULTY</span><select data-ai-difficulty>
+                  <option value="very-easy">Very Easy</option><option value="easy">Easy</option><option value="medium" selected>Medium</option><option value="hard">Hard</option><option value="very-hard">Very Hard</option>
+                </select></label>
+                <div class="dama-ai-help" data-ai-help></div>
+                <label class="dama-select-field"><span>GAME MODE</span><select data-solo-mode-select>
+                  <option value="classic">Classic Dama</option><option value="speed">Speed Dama · 30s / turn</option><option value="blitz">Blitz · 3:00 each</option><option value="king">King Rush · first to 3 Kings</option><option value="power">Power Dama</option>
+                </select></label>
+                <label class="dama-select-field"><span>MATCH SERIES</span><select data-solo-series-select><option value="1">Single Game</option><option value="3">Best of 3</option><option value="5">Best of 5</option></select></label>
+              </div>
+              <label class="p2p0-field"><span>YOUR DISPLAY NAME</span><input data-solo-name maxlength="20" value="PLAYER 1"></label>
+              <button class="p2p0-btn primary" type="button" data-start-solo>START SOLO MATCH</button>
+              <div class="p2p0-status dama-solo-note">The bot runs locally on this device. No room, QR, or second player is required.</div>
+              <button class="p2p0-btn dama-cancel" type="button" data-pair-cancel>CANCEL</button>
+            </div>
+          </section>
+
+          <section class="p2p0-panel" data-panel="multi">
+            <div class="p2p0-card p2p0-home-card dama-multi-card">
+              <span class="dama-lobby-icon">⚔️</span><h2>1V1 MULTIPLAYER</h2>
+              <p>One player creates the match; the other joins by QR, share code, or Student ID invite.</p>
               <div class="p2p0-actions p2p0-home-actions"><button class="p2p0-btn primary" type="button" data-host>CREATE / INVITE</button><button class="p2p0-btn" type="button" data-join>JOIN / SCAN QR</button></div>
-              <small class="p2p0-note">Mandatory captures · multi-capture chains · Kings · direct WebRTC gameplay.</small>
+              <small class="p2p0-note">Direct WebRTC gameplay · same existing 1v1 flow.</small>
+              <button class="p2p0-btn dama-cancel" type="button" data-pair-cancel>BACK</button>
             </div>
           </section>
 
@@ -189,8 +232,12 @@
     $('[data-back]').onclick = returnHub;
     $('[data-close]').onclick = () => close(true);
     $$('[data-pair-cancel]').forEach(button => { button.onclick = cancelPairing; });
+    $('[data-solo]').onclick = () => { show('solo'); renderSoloDifficultyHelp(); };
+    $('[data-multiplayer]').onclick = () => show('multi');
     $('[data-host]').onclick = () => show('host');
     $('[data-join]').onclick = () => show('guest');
+    $('[data-start-solo]').onclick = startSoloMatch;
+    $('[data-ai-difficulty]').onchange = renderSoloDifficultyHelp;
     $('[data-sound]').onclick = toggleSound;
     $('[data-mode-select]').onchange = () => { r.config = readHostConfig(); renderModeHelp(); };
     $('[data-series-select]').onchange = () => { r.config = readHostConfig(); };
@@ -214,6 +261,7 @@
     $('[data-disconnect-close]').onclick = closeDisconnectedGame;
     document.addEventListener('visibilitychange', visibilityChanged);
     renderModeHelp();
+    renderSoloDifficultyHelp();
     r.built = true;
   }
 
@@ -257,6 +305,38 @@
       ? '<div class="dama-power-preview"><span>🧊 Freeze</span><span>⚡ Extra Move</span><span>💣 Bomb</span><span>🛡️ Shield</span></div>'
       : '';
     el.innerHTML = `<strong>${escapeHtml(mode.label)}</strong><p>${escapeHtml(mode.short)}</p>${extras}`;
+  }
+
+  function renderSoloDifficultyHelp() {
+    const key = String($('[data-ai-difficulty]')?.value || r.aiDifficulty || 'medium');
+    const level = AI_LEVELS[key] || AI_LEVELS.medium;
+    const el = $('[data-ai-help]');
+    if (!el) return;
+    el.innerHTML = `<strong>${escapeHtml(level.label)}</strong><p>${escapeHtml(level.short)}</p>`;
+  }
+
+  function readSoloConfig() {
+    const mode = String($('[data-solo-mode-select]')?.value || 'classic');
+    const seriesRaw = Number($('[data-solo-series-select]')?.value || 1);
+    return { mode: MODES[mode] ? mode : 'classic', series: [1, 3, 5].includes(seriesRaw) ? seriesRaw : 1 };
+  }
+
+  function startSoloMatch() {
+    clearTimeout(r.aiTimer); r.aiTimer = 0; r.aiThinking = false;
+    try { r.session?.close?.(); } catch (_) {}
+    r.session = null; r.role = 'solo'; r.configReceived = true;
+    const identity = r.bridge?.getPlayerIdentity?.();
+    const input = $('[data-solo-name]');
+    if (identity?.loggedIn && identity.name && input && (!input.value || input.value === 'PLAYER 1')) input.value = identity.name;
+    r.localName = P()?.cleanName ? P().cleanName(input?.value || identity?.name, 'PLAYER 1') : String(input?.value || identity?.name || 'PLAYER 1').slice(0, 20);
+    r.aiDifficulty = AI_LEVELS[String($('[data-ai-difficulty]')?.value || '')] ? String($('[data-ai-difficulty]').value) : 'medium';
+    r.remoteName = `CODE BOT · ${aiLevel().label}`;
+    r.config = readSoloConfig();
+    const randomSeed = Math.floor(Math.random() * 0x7fffffff);
+    r.seed = (Date.now() ^ randomSeed) >>> 0;
+    r.localReady = r.remoteReady = true; r.localNextReady = r.remoteNextReady = false;
+    syncNames();
+    countdown(() => startNewSeries());
   }
 
   function renderConfigSummary() {
@@ -447,8 +527,8 @@
   }
 
   function beginCountdown(nextRound) {
-    if (r.role !== 'host') return;
-    r.session?.send({ t: 'countdown', nextRound: !!nextRound });
+    if (!isAuthority()) return;
+    if (r.role === 'host') r.session?.send({ t: 'countdown', nextRound: !!nextRound });
     countdown(() => {
       if (nextRound) startNextRound(); else startNewSeries();
     });
@@ -728,22 +808,225 @@
     return { ok: false, error: 'Unknown power.' };
   }
 
+  function pieceStrategicValue(piece, index) {
+    if (!piece) return 0;
+    const row = rowOf(index), col = colOf(index);
+    const base = piece.king ? 188 : 100;
+    const advance = piece.king ? 0 : (piece.side === 'g' ? row : 7 - row) * 5.5;
+    const center = (3.5 - Math.abs(3.5 - col)) * 3 + (3.5 - Math.abs(3.5 - row)) * 1.4;
+    const edge = (col === 0 || col === 7) ? 5 : 0;
+    const shield = piece.shield ? 16 : 0;
+    const frozen = piece.frozen ? -13 : 0;
+    return base + advance + center + edge + shield + frozen;
+  }
+
+  function evaluateAiState(state, aiSide = 'g') {
+    if (!state) return 0;
+    if (state.roundOver) {
+      if (state.roundWinner === aiSide) return 100000 + countPieces(state, aiSide) * 250;
+      if (state.roundWinner === sideOther(aiSide)) return -100000 - countPieces(state, sideOther(aiSide)) * 250;
+      return 0;
+    }
+    let score = 0;
+    for (let i = 0; i < 64; i += 1) {
+      const piece = state.board[i]; if (!piece) continue;
+      const value = pieceStrategicValue(piece, i);
+      score += piece.side === aiSide ? value : -value;
+    }
+    if (state.mode === 'king') score += (countKings(state, aiSide) - countKings(state, sideOther(aiSide))) * 92;
+    if (state.mode === 'power') {
+      score += ((state.powerHands[aiSide]?.length || 0) - (state.powerHands[sideOther(aiSide)]?.length || 0)) * 11;
+      score += ((state.captureMeter[aiSide] || 0) - (state.captureMeter[sideOther(aiSide)] || 0)) * 5;
+    }
+    if (state.mustContinueFrom < 0) {
+      const mine = legalMovesForSide(state, aiSide).length;
+      const theirs = legalMovesForSide(state, sideOther(aiSide)).length;
+      score += (mine - theirs) * 2.2;
+    }
+    score += state.turn === aiSide ? 4 : -4;
+    return score;
+  }
+
+  function moveOrderScore(state, move, side) {
+    let score = 0;
+    const moving = state.board[move.from];
+    if (move.capture >= 0) {
+      const captured = state.board[move.capture];
+      score += 520 + (captured?.king ? 230 : 0) + (captured?.shield ? 35 : 0);
+    }
+    const toRow = rowOf(move.to), toCol = colOf(move.to);
+    if (moving && !moving.king && ((side === 'g' && toRow === 7) || (side === 'h' && toRow === 0))) score += 340;
+    score += (3.5 - Math.abs(3.5 - toCol)) * 7;
+    if (moving?.king) score += 22;
+    return score;
+  }
+
+  function orderedMovesForSearch(state, side) {
+    return legalMovesForSide(state, side).slice().sort((a, b) => moveOrderScore(state, b, side) - moveOrderScore(state, a, side));
+  }
+
+  const AI_SEARCH_TIMEOUT = Object.freeze({ timeout: true });
+
+  function alphaBetaAi(state, depth, alpha, beta, aiSide, deadline) {
+    if (performance.now() >= deadline) throw AI_SEARCH_TIMEOUT;
+    if (state.roundOver || depth <= 0) return evaluateAiState(state, aiSide);
+    const side = state.turn;
+    const moves = orderedMovesForSearch(state, side);
+    if (!moves.length) return evaluateAiState(state, aiSide);
+    const maximizing = side === aiSide;
+    let best = maximizing ? -Infinity : Infinity;
+    for (const move of moves) {
+      if (performance.now() >= deadline) throw AI_SEARCH_TIMEOUT;
+      const child = deepClone(state);
+      const result = applyMove(child, side, move.from, move.to);
+      if (!result.ok) continue;
+      const sameSideContinues = !child.roundOver && child.turn === side;
+      const nextDepth = sameSideContinues ? depth : depth - 1;
+      const value = alphaBetaAi(child, nextDepth, alpha, beta, aiSide, deadline);
+      if (maximizing) {
+        if (value > best) best = value;
+        if (best > alpha) alpha = best;
+      } else {
+        if (value < best) best = value;
+        if (best < beta) beta = best;
+      }
+      if (beta <= alpha) break;
+    }
+    return Number.isFinite(best) ? best : evaluateAiState(state, aiSide);
+  }
+
+  function scoreAiRootMove(state, move, depth, deadline) {
+    const child = deepClone(state);
+    const result = applyMove(child, 'g', move.from, move.to);
+    if (!result.ok) return -Infinity;
+    const sameSideContinues = !child.roundOver && child.turn === 'g';
+    const nextDepth = sameSideContinues ? depth : Math.max(0, depth - 1);
+    return alphaBetaAi(child, nextDepth, -Infinity, Infinity, 'g', deadline);
+  }
+
+  function chooseAiMove() {
+    const moves = orderedMovesForSearch(r.game, 'g');
+    if (!moves.length) return null;
+    const level = aiLevel();
+    if (level.depth <= 0) return moves[Math.floor(Math.random() * moves.length)] || moves[0];
+
+    const deadline = performance.now() + Math.max(20, level.budgetMs);
+    let ranking = moves.map(move => ({ move, score: moveOrderScore(r.game, move, 'g') }));
+    for (let depth = 1; depth <= level.depth; depth += 1) {
+      const iteration = [];
+      try {
+        for (const move of moves) iteration.push({ move, score: scoreAiRootMove(r.game, move, depth, deadline) });
+      } catch (error) {
+        if (error !== AI_SEARCH_TIMEOUT) throw error;
+        break;
+      }
+      if (iteration.length === moves.length) ranking = iteration.sort((a, b) => b.score - a.score || moveOrderScore(r.game, b.move, 'g') - moveOrderScore(r.game, a.move, 'g'));
+      if (performance.now() >= deadline) break;
+    }
+
+    if (level.randomChance > 0 && Math.random() < level.randomChance) {
+      const pool = ranking.slice(0, Math.min(ranking.length, Math.max(1, level.topChoices)));
+      return pool[Math.floor(Math.random() * pool.length)]?.move || ranking[0].move;
+    }
+    return ranking[0]?.move || moves[0];
+  }
+
+  function botPowerTargetWeight(state, key, index) {
+    const target = state.board[index];
+    if (!target) return -9999;
+    let score = pieceStrategicValue(target, index);
+    if (key === 'freeze') {
+      if (target.king) score += 85;
+      if (capturesFrom(state, index).length) score += 70;
+      return score;
+    }
+    if (key === 'shield') {
+      if (target.king) score += 80;
+      const threatened = legalMovesForSide(state, 'h').some(move => move.capture === index);
+      if (threatened) score += 120;
+      return score;
+    }
+    if (key === 'bomb') return score + 90;
+    return score;
+  }
+
+  function chooseAiPowerAction() {
+    const state = r.game, level = aiLevel();
+    if (!state || state.mode !== 'power' || state.turn !== 'g' || state.powerUsedThisTurn || state.bonusMove) return null;
+    const hand = state.powerHands.g || [];
+    if (!hand.length || Math.random() > level.powerChance) return null;
+    const mandatoryCapture = legalMovesForSide(state, 'g').some(move => move.capture >= 0);
+    const candidates = [];
+
+    hand.forEach(key => {
+      if (key === 'extra') {
+        if (!mandatoryCapture) candidates.push({ action: { kind: 'power', power: 'extra', target: -1 }, score: 36 + (level.depth * 7) });
+        return;
+      }
+      const targets = powerTargets(state, 'g', key);
+      targets.forEach(target => {
+        const child = deepClone(state);
+        const result = applyPower(child, 'g', key, target);
+        if (!result.ok) return;
+        let score = evaluateAiState(child, 'g') - evaluateAiState(state, 'g');
+        score += botPowerTargetWeight(state, key, target) * (key === 'bomb' ? .28 : .13);
+        if (key === 'bomb' && child.roundOver && child.roundWinner === 'g') score += 100000;
+        candidates.push({ action: { kind: 'power', power: key, target }, score });
+      });
+    });
+
+    candidates.sort((a, b) => b.score - a.score);
+    if (!candidates.length) return null;
+    const best = candidates[0];
+    if (level.depth <= 1 && candidates.length > 1 && Math.random() < .35) return candidates[Math.floor(Math.random() * Math.min(3, candidates.length))].action;
+    return best.action;
+  }
+
+  async function runSoloBotTurn() {
+    if (!isSolo() || !r.game || r.game.roundOver || r.state !== 'game' || r.paused || r.game.turn !== 'g') { r.aiThinking = false; return; }
+    r.aiThinking = true; renderHud(); renderGameStatus();
+    await new Promise(resolve => requestAnimationFrame(() => resolve()));
+    if (!isSolo() || !r.game || r.game.roundOver || r.game.turn !== 'g') { r.aiThinking = false; return; }
+
+    const powerAction = chooseAiPowerAction();
+    if (powerAction) { processHostAction(powerAction, 'g'); return; }
+    const move = chooseAiMove();
+    if (!move) {
+      r.aiThinking = false;
+      if (!r.game.roundOver) finishRound(r.game, 'h', 'Code Bot has no legal moves.');
+      renderGame(); showRoundResultSoon(); return;
+    }
+    processHostAction({ kind: 'move', from: move.from, to: move.to }, 'g');
+  }
+
+  function maybeScheduleSoloBot(delayOverride = -1) {
+    if (!isSolo() || !r.game || r.game.roundOver || r.state !== 'game' || r.paused || r.game.turn !== 'g') {
+      clearTimeout(r.aiTimer); r.aiTimer = 0; r.aiThinking = false; return;
+    }
+    if (r.aiTimer) return;
+    r.aiThinking = true; renderHud(); renderGameStatus();
+    const level = aiLevel();
+    const naturalDelay = level.thinkMin + Math.random() * Math.max(0, level.thinkMax - level.thinkMin);
+    const delay = delayOverride >= 0 ? Math.max(220, delayOverride) : naturalDelay;
+    r.aiTimer = setTimeout(() => { r.aiTimer = 0; runSoloBotTurn(); }, delay);
+  }
+
   function startNewSeries() {
-    if (r.role !== 'host') return;
-    r.config = readHostConfig();
+    if (!isAuthority()) return;
+    if (!isSolo()) r.config = readHostConfig();
     r.game = baseState({ roundNo: 1, seriesScore: { h: 0, g: 0 } });
     r.localReady = r.remoteReady = false; r.localNextReady = r.remoteNextReady = false;
-    show('game'); startHostClock(); broadcastState('start'); renderGame();
+    show('game'); startHostClock(); broadcastState('start'); renderGame(); maybeScheduleSoloBot(720);
   }
 
   function startNextRound() {
-    if (r.role !== 'host' || !r.game) return;
+    if (!isAuthority() || !r.game) return;
     const resetSeries = !!r.game.seriesComplete;
     const nextRound = resetSeries ? 1 : r.game.roundNo + 1;
     const scores = resetSeries ? { h: 0, g: 0 } : deepClone(r.game.seriesScore);
     r.game = baseState({ roundNo: nextRound, seriesScore: scores });
     r.localNextReady = r.remoteNextReady = false;
-    show('game'); startHostClock(); broadcastState('next-round'); renderGame();
+    show('game'); startHostClock(); broadcastState('next-round'); renderGame(); maybeScheduleSoloBot(720);
   }
 
   function broadcastState(reason = '') {
@@ -752,7 +1035,7 @@
   }
 
   function processHostAction(action, side) {
-    if (r.role !== 'host' || !r.game || r.game.roundOver) return;
+    if (!isAuthority() || !r.game || r.game.roundOver) return;
     syncClockNow();
     if (r.game.roundOver) { broadcastState('timer-finish'); renderGame(); return; }
     let result;
@@ -760,13 +1043,16 @@
     else if (action.kind === 'power') result = applyPower(r.game, side, String(action.power || ''), Number(action.target));
     else result = { ok: false, error: 'Unknown action.' };
     if (!result.ok) {
-      if (side === 'h') toast(result.error, 'error');
+      if (side === 'h' || isSolo()) toast(result.error, 'error');
       else r.session?.send({ t: 'reject', message: result.error });
-      renderGame(); return;
+      r.aiThinking = false; renderGame(); return;
     }
     handleActionEvent(result);
-    broadcastState(result.event || action.kind); renderGame();
+    broadcastState(result.event || action.kind);
+    r.aiThinking = isSolo() && !r.game.roundOver && r.game.turn === 'g';
+    renderGame();
     if (r.game.roundOver) showRoundResultSoon();
+    else maybeScheduleSoloBot(result.event === 'capture-chain' || result.event === 'extra-move' ? 320 : 560);
   }
 
   function submitAction(action) {
@@ -774,7 +1060,7 @@
     const side = localSide();
     if (r.game.turn !== side) { toast('Wait for your turn.'); return; }
     r.selectedPower = '';
-    if (r.role === 'host') processHostAction(action, side);
+    if (isAuthority()) processHostAction(action, side);
     else { r.actionPending = true; r.session?.send({ t: 'action', action }); }
   }
 
@@ -871,7 +1157,8 @@
     const me = localSide(), them = remoteSide(), mode = MODES[r.game.mode] || MODES.classic;
     applySideThemeClasses();
     $('[data-mode-chip]').textContent = mode.label;
-    $('[data-turn-label]').textContent = r.game.roundOver ? 'ROUND COMPLETE' : r.game.turn === me ? (r.game.mustContinueFrom >= 0 ? 'CAPTURE AGAIN' : 'YOUR TURN') : 'OPPONENT TURN';
+    $('[data-turn-label]').textContent = r.game.roundOver ? 'ROUND COMPLETE' : r.game.turn === me ? (r.game.mustContinueFrom >= 0 ? 'CAPTURE AGAIN' : 'YOUR TURN') : (isSolo() ? 'BOT THINKING' : 'OPPONENT TURN');
+    const remoteLabel = $('[data-remote-hud-label]'); if (remoteLabel) remoteLabel.textContent = isSolo() ? `CODE BOT · ${aiLevel().label}` : 'OPPONENT';
     $('[data-series-label]').textContent = r.game.seriesLength === 1 ? `GAME ${r.game.roundNo}` : `GAME ${r.game.roundNo} · BEST OF ${r.game.seriesLength}`;
     $('[data-round-label]').textContent = `Round ${r.game.roundNo}`;
     $('[data-local-piece-count]').textContent = `${countPieces(r.game, me)} pieces · 👑 ${countKings(r.game, me)}`;
@@ -915,7 +1202,7 @@
     const me = localSide();
     if (r.game.roundOver) el.textContent = r.game.winReason;
     else if (r.selectedPower) el.textContent = `${POWER_META[r.selectedPower].icon} ${POWER_META[r.selectedPower].name}: choose a highlighted target.`;
-    else if (r.game.turn !== me) el.textContent = r.game.lastAction || 'Opponent is thinking…';
+    else if (r.game.turn !== me) el.textContent = isSolo() ? `${r.remoteName} is thinking…` : (r.game.lastAction || 'Opponent is thinking…');
     else if (r.game.mustContinueFrom >= 0) el.textContent = 'CAPTURE AGAIN — continue with the same piece.';
     else if (legalMovesForSide(r.game, me).some(move => move.capture >= 0)) el.textContent = 'MANDATORY CAPTURE — choose a highlighted piece.';
     else el.textContent = r.game.lastAction || 'Select a piece to move.';
@@ -928,7 +1215,7 @@
   }
 
   function showRoundResultSoon() {
-    clearInterval(r.timerId); r.timerId = 0;
+    clearInterval(r.timerId); r.timerId = 0; clearTimeout(r.aiTimer); r.aiTimer = 0; r.aiThinking = false;
     setTimeout(() => { if (r.game?.roundOver && r.open) showResult(); }, 260);
   }
 
@@ -938,7 +1225,7 @@
     show('result');
     const won = winner === me, draw = winner !== 'h' && winner !== 'g';
     $('[data-result-icon]').textContent = draw ? '🤝' : won ? '🏆' : '🏁';
-    $('[data-result-title]').textContent = draw ? 'ROUND DRAW' : won ? 'YOU WIN!' : 'OPPONENT WINS';
+    $('[data-result-title]').textContent = draw ? 'ROUND DRAW' : won ? 'YOU WIN!' : (isSolo() ? 'CODE BOT WINS' : 'OPPONENT WINS');
     $('[data-result-sub]').textContent = r.game.winReason;
     $('[data-result-local-series]').textContent = r.game.seriesScore[me];
     $('[data-result-remote-series]').textContent = r.game.seriesScore[them];
@@ -951,39 +1238,46 @@
 
   function nextRoundReady() {
     if (!r.game?.roundOver) return;
+    if (isSolo()) { beginCountdown(true); return; }
     r.localNextReady = !r.localNextReady;
     r.session?.send({ t: 'nextReady', v: r.localNextReady }); updateResultReady();
     if (r.role === 'host' && r.localNextReady && r.remoteNextReady) beginCountdown(true);
   }
 
   function updateResultReady() {
-    const button = $('[data-next-round]'); if (button) button.textContent = r.localNextReady ? 'READY ✓' : (r.game?.seriesComplete ? 'NEW SERIES READY' : (r.game?.seriesLength === 1 ? 'REMATCH READY' : 'NEXT ROUND READY'));
+    const button = $('[data-next-round]');
+    if (isSolo()) {
+      if (button) button.textContent = r.game?.seriesComplete ? 'START NEW SERIES' : (r.game?.seriesLength === 1 ? 'REMATCH BOT' : 'NEXT ROUND');
+      status('[data-result-status]', `Solo · ${aiLevel().label} Code Bot`, false, true);
+      return;
+    }
+    if (button) button.textContent = r.localNextReady ? 'READY ✓' : (r.game?.seriesComplete ? 'NEW SERIES READY' : (r.game?.seriesLength === 1 ? 'REMATCH READY' : 'NEXT ROUND READY'));
     status('[data-result-status]', r.localNextReady && r.remoteNextReady ? 'Both ready — starting…' : r.localNextReady ? 'Waiting for opponent…' : r.remoteNextReady ? 'Opponent is ready.' : 'Both players press ready to continue.', false, r.localNextReady && r.remoteNextReady);
   }
 
   function startHostClock() {
     clearInterval(r.timerId); r.timerId = 0;
-    if (r.role !== 'host' || !r.game || !['speed', 'blitz'].includes(r.game.mode)) return;
+    if (!isAuthority() || !r.game || !['speed', 'blitz'].includes(r.game.mode)) return;
     r.lastClockAt = performance.now(); r.lastTimerBroadcast = 0;
     r.timerId = setInterval(() => {
       if (!r.game || r.game.roundOver || r.state !== 'game' || r.paused || r.remotePaused) { r.lastClockAt = performance.now(); return; }
       syncClockNow();
       const now = performance.now();
-      if (now - r.lastTimerBroadcast > 240) { r.lastTimerBroadcast = now; r.session?.send({ t: 'timer', turn: r.game.turn, turnRemainingMs: r.game.turnRemainingMs, blitz: r.game.blitz }); }
+      if (r.role === 'host' && now - r.lastTimerBroadcast > 240) { r.lastTimerBroadcast = now; r.session?.send({ t: 'timer', turn: r.game.turn, turnRemainingMs: r.game.turnRemainingMs, blitz: r.game.blitz }); }
       renderHud();
       if (r.game.roundOver) { broadcastState('timer-finish'); renderGame(); showRoundResultSoon(); }
     }, 100);
   }
 
   function syncClockNow() {
-    if (r.role !== 'host' || !r.game || r.game.roundOver || r.paused || r.remotePaused) { r.lastClockAt = performance.now(); return; }
+    if (!isAuthority() || !r.game || r.game.roundOver || r.paused || r.remotePaused) { r.lastClockAt = performance.now(); return; }
     const now = performance.now(), dt = Math.max(0, now - (r.lastClockAt || now)); r.lastClockAt = now;
     if (r.game.mode === 'speed') {
       r.game.turnRemainingMs = Math.max(0, r.game.turnRemainingMs - dt);
       if (r.game.turnRemainingMs <= 0) {
         const timedOut = r.game.turn; r.game.mustContinueFrom = -1; r.game.extraMoveArmed = false; r.game.bonusMove = false;
         switchTurn(r.game, timedOut, '⏱ Turn forfeited — 30 seconds expired.');
-        sfx('timeout'); broadcastState('speed-timeout'); renderGame();
+        sfx('timeout'); broadcastState('speed-timeout'); r.aiThinking = isSolo() && r.game.turn === 'g'; renderGame(); maybeScheduleSoloBot(420);
       }
     } else if (r.game.mode === 'blitz') {
       const side = r.game.turn; r.game.blitz[side] = Math.max(0, r.game.blitz[side] - dt);
@@ -1039,10 +1333,12 @@
   function closeDisconnectedGame() { r.state = 'home'; clearDisconnectNotice(); close(true); }
 
   function pauseGame(text) {
-    r.paused = true; const panel = $('[data-pause]'); if (panel) panel.hidden = false; $('[data-pause-text]').textContent = text || 'Paused.'; r.music?.pause?.();
+    r.paused = true; if (isSolo()) { clearTimeout(r.aiTimer); r.aiTimer = 0; r.aiThinking = false; }
+    const panel = $('[data-pause]'); if (panel) panel.hidden = false; $('[data-pause-text]').textContent = text || 'Paused.'; r.music?.pause?.();
   }
   function resumeGame() {
     r.paused = false; const panel = $('[data-pause]'); if (panel) panel.hidden = true; r.lastClockAt = performance.now(); if (r.bridge?.getSnapshot?.()?.soundEnabled !== false) r.music?.resume?.();
+    maybeScheduleSoloBot(360);
   }
   function pauseLocal(reason = 'pause') {
     if (r.state !== 'game' || r.paused) return false;
@@ -1083,7 +1379,7 @@
   }
 
   function reset() {
-    clearInterval(r.timerId); r.timerId = 0; closeScanner();
+    clearInterval(r.timerId); r.timerId = 0; clearTimeout(r.aiTimer); r.aiTimer = 0; r.aiThinking = false; closeScanner();
     try { r.session?.close?.(); } catch (_) {}
     r.session = null; r.role = ''; r.localReady = r.remoteReady = false; r.localNextReady = r.remoteNextReady = false;
     r.game = null; r.selected = -1; r.selectedPower = ''; r.actionPending = false; r.paused = r.remotePaused = r.exitPaused = false; r.hostCode = r.answerCode = ''; r.configReceived = false;
@@ -1099,6 +1395,7 @@
   function open(options = {}) {
     build(); r.bridge = options.bridge || null; r.music = options.music || null; r.onBack = options.onBack || null; r.onClose = options.onClose || null;
     r.open = true; r.overlay.hidden = false; document.body.classList.add('p2p0-active'); reset(); ensureStudentInvites(); r.invites?.start?.();
+    const identity = r.bridge?.getPlayerIdentity?.(); if (identity?.name && $('[data-solo-name]')) $('[data-solo-name]').value = identity.name;
     $('[data-sound]').textContent = r.bridge?.getSnapshot?.()?.soundEnabled === false ? '🔇' : '🔊';
   }
 

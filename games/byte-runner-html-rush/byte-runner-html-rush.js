@@ -461,7 +461,7 @@
               <div><small>Arcade Score</small><strong data-brh-result-score>0</strong></div>
               <div class="xp"><small>Performance XP</small><strong data-brh-result-xp>+0 XP</strong></div>
             </div>
-            <p class="byte-runner-html-reward-note" data-brh-result-note>Checking reward…</p>
+            <p class="byte-runner-html-reward-note" data-brh-result-note>Securing reward…</p>
             <div class="byte-runner-html-output">
               <section><h3>COMPLETED SOURCE</h3><pre class="byte-runner-html-source" data-brh-result-source></pre></section>
               <section><h3>RENDERED PAGE PREVIEW</h3><iframe class="byte-runner-html-preview" data-brh-result-preview sandbox="" title="Completed HTML page preview"></iframe></section>
@@ -1097,7 +1097,7 @@
       const record=result?.gameRecord||result?.gameRecords?.[STATE_KEY]||{};
       runtime.bestScore=Math.max(runtime.bestScore,Number(record.bestArcadeScore||record.bestScore||0),runArcadeScore); runtime.bestAccuracy=Math.max(runtime.bestAccuracy,Number(record.bestAccuracy||0),runAccuracy); runtime.bestCombo=Math.max(runtime.bestCombo,Number(record.bestCombo||0),runCombo); runtime.bestDifficultyRank=Math.max(runtime.bestDifficultyRank,Number(record.bestDifficultyRank||0),runDifficultyRank);
       if (result?.loginRequired) { runtime.resultRewardNote.className='byte-runner-html-reward-note warn'; runtime.resultRewardNote.textContent='Practice mode — log in as a student to earn account XP.'; }
-      else if (result?.syncFailed) { runtime.resultRewardNote.className='byte-runner-html-reward-note warn'; runtime.resultRewardNote.textContent='XP could not sync. No account XP was added for this run.'; }
+      else if (result?.syncFailed) { runtime.resultRewardNote.className='byte-runner-html-reward-note warn'; runtime.resultRewardNote.textContent='Reward saved for sync. XP will update automatically once confirmed.'; }
       else if (result?.capReached && awarded===0) { runtime.resultRewardNote.className='byte-runner-html-reward-note warn'; runtime.resultRewardNote.textContent='Daily Mini-Game XP limit reached. You can keep playing for records.'; }
       else { runtime.resultRewardNote.className='byte-runner-html-reward-note success'; runtime.resultRewardNote.textContent=awarded>0?`Reward added safely · Today's Game XP: ${result.todayXp}/${result.dailyCap}`:'Mission complete, but this run did not reach an XP tier.'; }
       try { runtime.onReward?.(result); } catch (_) {}

@@ -674,7 +674,7 @@
       runtime.resultXp.textContent = `+${awarded}`;
       runtime.resultNote.classList.toggle('success', awarded > 0);
       if (result?.loginRequired) runtime.resultNote.textContent = 'Practice result only — log in to earn XP.';
-      else if (result?.syncFailed) runtime.resultNote.textContent = 'Run saved locally, but XP could not sync. Try again later.';
+      else if (result?.syncFailed) runtime.resultNote.textContent = 'Reward saved for sync. XP will update automatically once confirmed.';
       else if (result?.capReached && awarded <= 0) runtime.resultNote.textContent = 'Daily Mini-Game XP cap reached. You can still play for a better score.';
       else if (result?.replayNoXp && awarded <= 0) runtime.resultNote.textContent = 'Today’s CODE VAULT XP tier is already secured. Replay is score-only.';
       else if (awarded > 0) runtime.resultNote.textContent = `Reward verified: +${awarded} XP. CODE VAULT contributes at most 2 XP/day.`;

@@ -38,3 +38,16 @@
 .dama-cell.movable .dama-piece.guest-piece{box-shadow:inset 0 -7px 0 rgba(0,0,0,.22),inset 0 5px 0 rgba(255,255,255,.18),0 6px 12px rgba(0,0,0,.32),0 0 14px rgba(251,79,112,.54)}
 @keyframes damaPieceTurnGlow{from{opacity:.42;transform:scale(.96)}to{opacity:.92;transform:scale(1.08)}}
 @media(prefers-reduced-motion:reduce){.dama-piece.turn-piece:after{animation:none!important;opacity:.72!important;transform:scale(1.02)!important}}
+
+/* CODE DAMA solo + 1v1 mode chooser */
+.dama-play-choice{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px}
+.dama-choice{display:flex;align-items:center;gap:12px;width:100%;min-height:88px;padding:13px 14px;border:1px solid rgba(148,163,184,.15);border-radius:17px;background:linear-gradient(145deg,#0c1a2d,#10233b);color:#fff;text-align:left;cursor:pointer;box-shadow:0 12px 28px rgba(0,0,0,.18);transition:transform .16s ease,border-color .16s ease,box-shadow .16s ease}
+.dama-choice:hover{transform:translateY(-2px);border-color:rgba(94,234,212,.38);box-shadow:0 15px 32px rgba(0,0,0,.24)}
+.dama-choice.primary{background:linear-gradient(145deg,rgba(13,148,136,.28),rgba(2,132,199,.22));border-color:rgba(94,234,212,.30)}
+.dama-choice>span{display:grid;place-items:center;flex:0 0 44px;width:44px;height:44px;border-radius:14px;background:rgba(255,255,255,.07);font-size:1.55rem}
+.dama-choice strong{display:block;font-size:.78rem;letter-spacing:.02em}.dama-choice small{display:block;margin-top:4px;color:#94a3b8;font-size:.57rem;line-height:1.35}
+.dama-ai-help{margin:-1px 0 9px;padding:9px 10px;border:1px solid rgba(56,189,248,.14);border-radius:12px;background:rgba(2,132,199,.07);text-align:left}
+.dama-ai-help strong{display:block;color:#7dd3fc;font-size:.66rem;letter-spacing:.05em}.dama-ai-help p{margin:3px 0 0;color:#94a3b8;font-size:.59rem;line-height:1.35}
+.dama-solo-note{margin-top:10px}.dama-multi-card{text-align:center}.dama-multi-card h2{margin:7px 0 8px;color:#fff}.dama-multi-card>p{margin:0 auto 16px;max-width:440px;color:#94a3b8;font-size:.72rem;line-height:1.45}
+@media(max-width:600px){.dama-play-choice{grid-template-columns:1fr}.dama-choice{min-height:76px}.dama-choice>span{flex-basis:40px;width:40px;height:40px;font-size:1.35rem}.dama-choice strong{font-size:.75rem}.dama-choice small{font-size:.55rem}}
+@media(max-height:620px) and (orientation:landscape){.dama-play-choice{grid-template-columns:1fr 1fr;margin-top:10px}.dama-choice{min-height:68px;padding:9px 11px}.dama-choice>span{flex-basis:36px;width:36px;height:36px;font-size:1.2rem}.dama-choice small{font-size:.51rem}.dama-ai-help{padding:7px 9px}.dama-solo-card .dama-match-settings{padding:9px;margin-bottom:9px}.dama-solo-card .dama-select-field{margin:6px 0}.dama-solo-card .dama-select-field select{min-height:39px}}

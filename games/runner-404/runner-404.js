@@ -48,7 +48,7 @@
               <div><small>Best</small><strong data-runner404-final-best>0</strong></div>
               <div class="xp"><small>XP Earned</small><strong data-runner404-final-xp>+0</strong></div>
             </div>
-            <p class="runner404-reward-note" data-runner404-reward-note>Checking reward…</p>
+            <p class="runner404-reward-note" data-runner404-reward-note>Securing reward…</p>
             <div class="runner404-actions">
               <button class="primary" type="button" data-runner404-again>PLAY AGAIN</button>
               <button type="button" data-runner404-hub>MINI-GAMES</button>
@@ -122,11 +122,11 @@
   function showFx(text){runtime.fxEl.textContent=text;runtime.fxEl.classList.remove('show');void runtime.fxEl.offsetWidth;runtime.fxEl.classList.add('show');}
   async function finishRound(){
     if(runtime.state!=='playing')return;runtime.state='gameover';tone('crash');runtime.shell.classList.remove('impact');void runtime.shell.offsetWidth;runtime.shell.classList.add('impact');
-    runtime.finalScore.textContent=String(runtime.score);runtime.finalBest.textContent=String(Math.max(runtime.bestVisible,runtime.score));runtime.finalXp.textContent='+0';runtime.rewardNote.className='runner404-reward-note';runtime.rewardNote.textContent=runtime.round?'Checking reward…':'Practice run — account reward unavailable.';runtime.overPanel.hidden=false;
+    runtime.finalScore.textContent=String(runtime.score);runtime.finalBest.textContent=String(Math.max(runtime.bestVisible,runtime.score));runtime.finalXp.textContent='+0';runtime.rewardNote.className='runner404-reward-note';runtime.rewardNote.textContent=runtime.round?'Securing reward…':'Practice run — account reward unavailable.';runtime.overPanel.hidden=false;
     if(!runtime.round?.sessionId||!runtime.bridge?.claimRound)return;
     try{const result=await runtime.bridge.claimRound(runtime.round.sessionId,{score:runtime.score,metrics:{obstaclesPassed:runtime.passed}});const rec=result?.gameRecord||result?.gameRecords?.runner404||{};runtime.bestVisible=Math.max(runtime.bestVisible,Number(rec.bestScore||0),Number(result?.bestScore||0));runtime.finalBest.textContent=String(runtime.bestVisible);runtime.finalXp.textContent=`+${Math.max(0,Number(result?.awardedXp||0))}`;
       if(result?.loginRequired){runtime.rewardNote.className='runner404-reward-note warn';runtime.rewardNote.textContent='Practice mode — log in as a student to earn account XP.';}
-      else if(result?.syncFailed){runtime.rewardNote.className='runner404-reward-note warn';runtime.rewardNote.textContent='XP could not sync. No account XP was added.';}
+      else if(result?.syncFailed){runtime.rewardNote.className='runner404-reward-note warn';runtime.rewardNote.textContent='Reward saved for sync. XP will update automatically once confirmed.';}
       else if(result?.capReached&&Number(result.awardedXp||0)===0){runtime.rewardNote.className='runner404-reward-note warn';runtime.rewardNote.textContent='Daily Mini-Game XP limit reached. Keep running for records!';}
       else{runtime.rewardNote.className='runner404-reward-note success';runtime.rewardNote.textContent=Number(result?.awardedXp||0)>0?`Reward added safely · Today's Game XP: ${result.todayXp}/${result.dailyCap}`:'No XP tier reached this run yet.';}
       try{runtime.onReward?.(result);}catch(_){}}

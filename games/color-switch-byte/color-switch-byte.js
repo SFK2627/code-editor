@@ -151,7 +151,7 @@
               <div><small>Highest Combo</small><strong data-color-switch-byte-final-combo>x0</strong></div>
               <div class="xp"><small>XP Earned</small><strong data-color-switch-byte-final-xp>+0</strong></div>
             </div>
-            <p class="color-switch-byte-reward-note" data-color-switch-byte-reward-note>Checking reward...</p>
+            <p class="color-switch-byte-reward-note" data-color-switch-byte-reward-note>Securing reward...</p>
             <div class="color-switch-byte-actions">
               <button class="primary" type="button" data-color-switch-byte-again>PLAY AGAIN</button>
               <button type="button" data-color-switch-byte-hub>MINI-GAMES</button>
@@ -995,7 +995,7 @@
     runtime.finalCombo.textContent = `x${runtime.bestCombo}`;
     runtime.finalXp.textContent = '+0';
     runtime.rewardNote.className = 'color-switch-byte-reward-note';
-    runtime.rewardNote.textContent = runtime.round ? 'Checking reward...' : 'Practice run - account reward unavailable.';
+    runtime.rewardNote.textContent = runtime.round ? 'Securing reward...' : 'Practice run - account reward unavailable.';
     runtime.overPanel.hidden = false;
 
     if (!runtime.round?.sessionId || !runtime.bridge?.claimRound) return;
@@ -1017,7 +1017,7 @@
         runtime.rewardNote.textContent = 'Practice mode - log in as a student to earn account XP.';
       } else if (result?.syncFailed) {
         runtime.rewardNote.className = 'color-switch-byte-reward-note warn';
-        runtime.rewardNote.textContent = 'XP could not sync. No account XP was added.';
+        runtime.rewardNote.textContent = 'Reward saved for sync. XP will update automatically once confirmed.';
       } else if (result?.capReached && Number(result.awardedXp || 0) === 0) {
         runtime.rewardNote.className = 'color-switch-byte-reward-note warn';
         runtime.rewardNote.textContent = 'Daily Mini-Game XP limit reached. Keep switching for records!';

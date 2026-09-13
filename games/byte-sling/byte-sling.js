@@ -306,7 +306,7 @@
               <div><small>Shots</small><strong data-byte-sling-run-shots>0</strong></div>
               <div class="xp"><small>XP Earned</small><strong data-byte-sling-run-xp>+0 XP</strong></div>
             </div>
-            <p class="byte-sling-reward-note" data-byte-sling-run-note>Checking reward…</p>
+            <p class="byte-sling-reward-note" data-byte-sling-run-note>Securing reward…</p>
             <div class="byte-sling-actions">
               <button class="primary" type="button" data-byte-sling-next-run>NEXT RUN</button>
               <button type="button" data-byte-sling-replay-run>REPLAY RUN</button>
@@ -1490,7 +1490,7 @@
         note.textContent = 'Practice mode — log in as a student to earn XP.';
       } else if (result?.syncFailed) {
         note.className = 'byte-sling-reward-note warn';
-        note.textContent = 'XP could not sync. No account XP was added.';
+        note.textContent = 'Reward saved for sync. XP will update automatically once confirmed.';
       } else if (result?.replayNoXp) {
         note.className = 'byte-sling-reward-note warn';
         note.textContent = 'This run already earned XP. Replay is for score/stars only.';

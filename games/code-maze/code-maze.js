@@ -76,7 +76,7 @@
               <div><small>Fastest Clear</small><strong data-code-maze-final-fastest>—</strong></div>
               <div class="xp"><small>XP Earned</small><strong data-code-maze-final-xp>+0</strong></div>
             </div>
-            <p class="code-maze-reward-note" data-code-maze-reward-note>Checking reward...</p>
+            <p class="code-maze-reward-note" data-code-maze-reward-note>Securing reward...</p>
             <div class="code-maze-actions">
               <button class="primary" type="button" data-code-maze-again>PLAY AGAIN</button>
               <button type="button" data-code-maze-hub>MINI-GAMES</button>
@@ -251,7 +251,7 @@
   async function finishRound(){
     if(runtime.state!=='playing') return; runtime.state='gameover'; tone('over');
     const fastest=runtime.fastestLevelMs; runtime.finalLevels.textContent=String(runtime.completedLevels); runtime.finalBest.textContent=String(Math.max(runtime.bestLevelVisible,runtime.completedLevels)); runtime.finalFastest.textContent=fastest>0?`${(fastest/1000).toFixed(1)}s`:(runtime.fastestVisible>0?`${(runtime.fastestVisible/1000).toFixed(1)}s`:'—'); runtime.finalXp.textContent='+0';
-    runtime.rewardNote.className='code-maze-reward-note'; runtime.rewardNote.textContent=runtime.round?'Checking reward…':'Practice run — account reward unavailable.'; runtime.overPanel.hidden=false;
+    runtime.rewardNote.className='code-maze-reward-note'; runtime.rewardNote.textContent=runtime.round?'Securing reward…':'Practice run — account reward unavailable.'; runtime.overPanel.hidden=false;
     if(!runtime.round?.sessionId || !runtime.bridge?.claimRound) return;
     try{
       const result=await runtime.bridge.claimRound(runtime.round.sessionId,{score:runtime.completedLevels,metrics:{completedLevels:runtime.completedLevels,level:runtime.level,moves:runtime.moves,keys:runtime.keysCollected,fastestLevelMs:fastest}});
@@ -259,7 +259,7 @@
       runtime.bestLevelVisible=Math.max(runtime.bestLevelVisible,Number(rec.bestLevel||rec.bestScore||0),Number(result?.bestScore||0)); runtime.fastestVisible=Number(rec.fastestLevelMs||runtime.fastestVisible||0);
       runtime.finalBest.textContent=String(runtime.bestLevelVisible); runtime.finalFastest.textContent=runtime.fastestVisible>0?`${(runtime.fastestVisible/1000).toFixed(1)}s`:'—'; runtime.finalXp.textContent=`+${Math.max(0,Number(result?.awardedXp||0))}`;
       if(result?.loginRequired){ runtime.rewardNote.className='code-maze-reward-note warn'; runtime.rewardNote.textContent='Practice mode — log in as a student to earn account XP.'; }
-      else if(result?.syncFailed){ runtime.rewardNote.className='code-maze-reward-note warn'; runtime.rewardNote.textContent='XP could not sync. No account XP was added.'; }
+      else if(result?.syncFailed){ runtime.rewardNote.className='code-maze-reward-note warn'; runtime.rewardNote.textContent='Reward saved for sync. XP will update automatically once confirmed.'; }
       else if(result?.capReached && Number(result.awardedXp||0)===0){ runtime.rewardNote.className='code-maze-reward-note warn'; runtime.rewardNote.textContent='Daily Mini-Game XP limit reached. Keep solving for records!'; }
       else { runtime.rewardNote.className='code-maze-reward-note success'; runtime.rewardNote.textContent=Number(result?.awardedXp||0)>0?`Reward added safely · Today's Game XP: ${result.todayXp}/${result.dailyCap}`:'Clear at least one maze level to reach an XP tier.'; }
       try{ runtime.onReward?.(result); }catch(_){ }

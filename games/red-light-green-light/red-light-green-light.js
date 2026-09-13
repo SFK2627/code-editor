@@ -102,7 +102,7 @@
               <div><small>Warnings</small><strong data-red-light-final-strikes>0</strong></div>
               <div class="xp"><small>XP Earned</small><strong data-red-light-final-xp>+0</strong></div>
             </div>
-            <p class="red-light-green-light-reward-note" data-red-light-reward-note>Checking reward...</p>
+            <p class="red-light-green-light-reward-note" data-red-light-reward-note>Securing reward...</p>
             <div class="red-light-green-light-actions">
               <button class="primary" type="button" data-red-light-again>PLAY AGAIN</button>
               <button type="button" data-red-light-hub>MINI-GAMES</button>
@@ -635,7 +635,7 @@
     runtime.finalTime.textContent=`${(elapsed/1000).toFixed(1)}s`;
     runtime.finalStrikes.textContent=String(runtime.strikes);runtime.finalXp.textContent='+0';
     runtime.overlay.querySelector('[data-red-light-over-title]').textContent=runtime.finished?'CHECKPOINT CLEARED!':runtime.strikes>=3?'ELIMINATED':'TIME UP';
-    runtime.rewardNote.className='red-light-green-light-reward-note';runtime.rewardNote.textContent=runtime.round?'Checking reward...':'Practice run - account reward unavailable.';runtime.overPanel.hidden=false;
+    runtime.rewardNote.className='red-light-green-light-reward-note';runtime.rewardNote.textContent=runtime.round?'Securing reward...':'Practice run - account reward unavailable.';runtime.overPanel.hidden=false;
     if(!runtime.round?.sessionId||!runtime.bridge?.claimRound)return;
     try{
       const result=await runtime.bridge.claimRound(runtime.round.sessionId,{score,metrics:{distance:score,strikes:runtime.strikes,completed:runtime.finished,timeMs:elapsed,durationMs:elapsed}});
@@ -643,7 +643,7 @@
       runtime.bestVisible=Math.max(runtime.bestVisible,Number(rec.bestDistance||rec.bestScore||0),Number(result?.bestScore||0));
       runtime.bestFinishVisible=Math.max(0,Number(rec.fastestFinishMs||0));runtime.finalBest.textContent=String(runtime.bestVisible);runtime.finalXp.textContent=`+${Math.max(0,Number(result?.awardedXp||0))}`;
       if(result?.loginRequired){runtime.rewardNote.className='red-light-green-light-reward-note warn';runtime.rewardNote.textContent='Practice mode - log in as a student to earn account XP.';}
-      else if(result?.syncFailed){runtime.rewardNote.className='red-light-green-light-reward-note warn';runtime.rewardNote.textContent='XP could not sync. No account XP was added.';}
+      else if(result?.syncFailed){runtime.rewardNote.className='red-light-green-light-reward-note warn';runtime.rewardNote.textContent='Reward saved for sync. XP will update automatically once confirmed.';}
       else if(result?.capReached&&Number(result.awardedXp||0)===0){runtime.rewardNote.className='red-light-green-light-reward-note warn';runtime.rewardNote.textContent='Daily Mini-Game XP limit reached. Keep racing for records!';}
       else{runtime.rewardNote.className='red-light-green-light-reward-note success';runtime.rewardNote.textContent=Number(result?.awardedXp||0)>0?`Reward added safely - Today's Game XP: ${result.todayXp}/${result.dailyCap}`:'No XP tier reached this run yet.';}
       try{runtime.onReward?.(result);}catch(_){}

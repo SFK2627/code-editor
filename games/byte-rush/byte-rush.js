@@ -64,7 +64,7 @@
               <div><small>XP Chips</small><strong data-byte-rush-final-chips>0</strong></div>
               <div class="xp"><small>XP Earned</small><strong data-byte-rush-final-xp>+0</strong></div>
             </div>
-            <p class="byte-rush-reward-note" data-byte-rush-reward-note>Checking reward…</p>
+            <p class="byte-rush-reward-note" data-byte-rush-reward-note>Securing reward…</p>
             <div class="byte-rush-actions">
               <button class="primary" type="button" data-byte-rush-again>PLAY AGAIN</button>
               <button type="button" data-byte-rush-hub>MINI-GAMES</button>
@@ -148,10 +148,10 @@
   function render(time){drawRoad(time);runtime.items.forEach(drawItem);drawCar()}
   function frame(time){runtime.raf=0;if(!runtime.open)return;const dt=clamp((time-(runtime.lastFrame||time))/1000,0,.034);runtime.lastFrame=time;update(dt);render(time);runtime.raf=requestAnimationFrame(frame)}
 
-  async function finishRound(){if(runtime.state!=='playing')return;runtime.state='gameover';tone('crash');runtime.shell.classList.remove('impact');void runtime.shell.offsetWidth;runtime.shell.classList.add('impact');const distance=Math.floor(runtime.distance);runtime.finalDistance.textContent=String(distance);runtime.finalBest.textContent=String(Math.max(runtime.bestVisible,distance));runtime.finalChips.textContent=String(runtime.chips);runtime.finalXp.textContent='+0';runtime.rewardNote.className='byte-rush-reward-note';runtime.rewardNote.textContent=runtime.round?'Checking reward…':'Practice run — account reward unavailable.';runtime.overPanel.hidden=false;if(!runtime.round?.sessionId||!runtime.bridge?.claimRound)return;
+  async function finishRound(){if(runtime.state!=='playing')return;runtime.state='gameover';tone('crash');runtime.shell.classList.remove('impact');void runtime.shell.offsetWidth;runtime.shell.classList.add('impact');const distance=Math.floor(runtime.distance);runtime.finalDistance.textContent=String(distance);runtime.finalBest.textContent=String(Math.max(runtime.bestVisible,distance));runtime.finalChips.textContent=String(runtime.chips);runtime.finalXp.textContent='+0';runtime.rewardNote.className='byte-rush-reward-note';runtime.rewardNote.textContent=runtime.round?'Securing reward…':'Practice run — account reward unavailable.';runtime.overPanel.hidden=false;if(!runtime.round?.sessionId||!runtime.bridge?.claimRound)return;
     try{const result=await runtime.bridge.claimRound(runtime.round.sessionId,{score:runtime.score,metrics:{distance,chips:runtime.chips,obstaclesPassed:runtime.obstaclesPassed}});const rec=result?.gameRecord||result?.gameRecords?.byteRush||{};runtime.bestVisible=Math.max(runtime.bestVisible,Number(rec.bestDistance||0),distance);runtime.finalBest.textContent=String(runtime.bestVisible);runtime.finalXp.textContent=`+${Math.max(0,Number(result?.awardedXp||0))}`;
       if(result?.loginRequired){runtime.rewardNote.className='byte-rush-reward-note warn';runtime.rewardNote.textContent='Practice mode — log in as a student to earn account XP.'}
-      else if(result?.syncFailed){runtime.rewardNote.className='byte-rush-reward-note warn';runtime.rewardNote.textContent='XP could not sync. No account XP was added.'}
+      else if(result?.syncFailed){runtime.rewardNote.className='byte-rush-reward-note warn';runtime.rewardNote.textContent='Reward saved for sync. XP will update automatically once confirmed.'}
       else if(result?.capReached&&Number(result.awardedXp||0)===0){runtime.rewardNote.className='byte-rush-reward-note warn';runtime.rewardNote.textContent='Daily Mini-Game XP limit reached. Keep racing for records!'}
       else{runtime.rewardNote.className='byte-rush-reward-note success';runtime.rewardNote.textContent=Number(result?.awardedXp||0)>0?`Reward added safely · Today's Game XP: ${result.todayXp}/${result.dailyCap}`:'No XP tier reached this run yet.'}
       try{runtime.onReward?.(result)}catch(_){}}

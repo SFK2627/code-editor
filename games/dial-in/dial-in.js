@@ -1254,7 +1254,7 @@
       if (result?.loginRequired) {
         if (note) note.textContent = 'Practice mode — log in as a student to earn account XP.';
       } else if (result?.syncFailed) {
-        if (note) note.textContent = 'Score saved locally. XP could not sync right now.';
+        if (note) note.textContent = 'Reward saved for sync. XP will update automatically once confirmed.';
       } else if (result?.capReached && awarded === 0) {
         if (note) note.textContent = 'Daily Mini-Game XP limit reached. Your score still counts for your personal best.';
       } else {

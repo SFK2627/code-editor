@@ -92,7 +92,7 @@
               <div><small>Best</small><strong data-code-fly-final-best>0</strong></div>
               <div class="xp"><small>XP Earned</small><strong data-code-fly-final-xp>+0</strong></div>
             </div>
-            <p class="code-fly-reward-note" data-code-fly-reward-note>Checking reward…</p>
+            <p class="code-fly-reward-note" data-code-fly-reward-note>Securing reward…</p>
             <div class="code-fly-actions">
               <button class="primary" type="button" data-code-fly-again>PLAY AGAIN</button>
               <button type="button" data-code-fly-hub>MINI-GAMES</button>
@@ -495,7 +495,7 @@
     runtime.gameOverBest.textContent = String(runtime.bestVisible);
     runtime.gameOverXp.textContent = '+0';
     runtime.rewardNote.className = 'code-fly-reward-note';
-    runtime.rewardNote.textContent = runtime.round ? 'Checking XP reward…' : 'Score saved locally. XP sync is unavailable.';
+    runtime.rewardNote.textContent = runtime.round ? 'Securing XP reward…' : 'Score saved locally. XP sync is unavailable.';
     const caption = runtime.overlay.querySelector('[data-code-fly-result-caption]');
     if (caption) caption.textContent = isNewBest ? '🏆 NEW HIGH SCORE!' : 'Nice run. Try again and beat your best.';
     runtime.gameOverPanel.hidden = false;
@@ -520,7 +520,7 @@
         runtime.rewardNote.textContent = 'Log in to earn bonus XP. You can still play for a high score.';
       } else if (result?.syncFailed) {
         runtime.rewardNote.classList.add('warn');
-        runtime.rewardNote.textContent = 'XP could not sync. Check your connection; no XP was added.';
+        runtime.rewardNote.textContent = 'Reward saved for sync. XP will update automatically once confirmed.';
       } else if (result?.capReached && awarded <= 0) {
         runtime.rewardNote.classList.add('success');
         runtime.rewardNote.textContent = 'Daily XP limit reached — keep playing for your high score!';
@@ -536,7 +536,7 @@
     }).catch(error => {
       if (!runtime.open) return null;
       runtime.rewardNote.className = 'code-fly-reward-note warn';
-      runtime.rewardNote.textContent = 'XP could not sync. No XP was added.';
+      runtime.rewardNote.textContent = 'Reward saved for sync. XP will update automatically once confirmed.';
       console.warn('CODE FLY reward display failed.', error);
       return null;
     });

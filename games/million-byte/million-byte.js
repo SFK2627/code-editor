@@ -234,7 +234,7 @@
               <div><small>Time</small><strong data-mb-result-time>0:00</strong></div>
               <div><small>XP Earned</small><strong class="million-byte-xp" data-mb-result-xp>+0</strong></div>
             </div>
-            <p class="million-byte-reward-note" data-mb-reward-note>Checking reward…</p>
+            <p class="million-byte-reward-note" data-mb-reward-note>Securing reward…</p>
             <div class="million-byte-actions"><button type="button" class="million-byte-primary" data-mb-again>PLAY AGAIN</button><button type="button" class="million-byte-secondary" data-mb-result-hub>MINI-GAMES</button></div>
           </div>
         </div>
@@ -1176,7 +1176,7 @@
     runtime.resultTitle.textContent = '1,000,000 BYTE!';
     runtime.resultCopy.textContent = runtime.lifelinesUsed === 0 ? 'Flawless ladder. No lifelines used.' : `Challenge cleared with ${runtime.lifelinesUsed} lifeline${runtime.lifelinesUsed === 1 ? '' : 's'} used.`;
     runtime.rewardNote.className = 'million-byte-reward-note';
-    runtime.rewardNote.textContent = runtime.rewardEligible ? (details.tier === 15 ? 'Perfect 15/15 · verifying 15 XP reward…' : 'Checking secure reward…') : (runtime.practiceReason || 'Practice run — no account XP.');
+    runtime.rewardNote.textContent = runtime.rewardEligible ? (details.tier === 15 ? 'Perfect 15/15 · verifying 15 XP reward…' : 'Securing reward…') : (runtime.practiceReason || 'Practice run — no account XP.');
     runtime.resultPanel.hidden = false;
     tone('win');
 
@@ -1198,7 +1198,7 @@
         runtime.rewardNote.textContent = 'Practice mode — sign in as a student to earn XP.';
       } else if (result?.syncFailed) {
         runtime.rewardNote.className = 'million-byte-reward-note warn';
-        runtime.rewardNote.textContent = 'XP could not sync. No account XP was added.';
+        runtime.rewardNote.textContent = 'Reward saved for sync. XP will update automatically once confirmed.';
       } else if (result?.reservationMismatch) {
         runtime.rewardNote.className = 'million-byte-reward-note warn';
         runtime.rewardNote.textContent = 'Question set could not be verified, so no XP was added.';

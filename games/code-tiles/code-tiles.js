@@ -246,7 +246,7 @@
               <div><small>Misses</small><strong data-code-tiles-final-misses>0</strong></div>
               <div class="xp"><small>XP Earned</small><strong data-code-tiles-final-xp>+0</strong></div>
             </div>
-            <p class="code-tiles-reward-note" data-code-tiles-reward-note>Checking reward…</p>
+            <p class="code-tiles-reward-note" data-code-tiles-reward-note>Securing reward…</p>
             <div class="code-tiles-actions"><button type="button" class="primary" data-code-tiles-again>PLAY AGAIN</button><button type="button" data-code-tiles-result-hub>MINI-GAMES</button></div>
           </div>
         </div>
@@ -1028,7 +1028,7 @@
     runtime.finalXpEl.textContent = '+0';
     runtime.gradeEl.textContent = summary.grade;
     runtime.rewardNoteEl.className = 'code-tiles-reward-note';
-    runtime.rewardNoteEl.textContent = runtime.round ? 'Checking secure reward…' : 'Practice run — log in to earn account XP.';
+    runtime.rewardNoteEl.textContent = runtime.round ? 'Securing reward…' : 'Practice run — log in to earn account XP.';
     runtime.resultPanel.hidden = false;
     playUiTone('win');
     if (!runtime.round?.sessionId || !runtime.bridge?.claimRound) return;
@@ -1079,7 +1079,7 @@
         runtime.rewardNoteEl.textContent = 'Practice mode — log in as a student to earn account XP.';
       } else if (result?.syncFailed) {
         runtime.rewardNoteEl.className = 'code-tiles-reward-note warn';
-        runtime.rewardNoteEl.textContent = 'XP could not sync. No account XP was added.';
+        runtime.rewardNoteEl.textContent = 'Reward saved for sync. XP will update automatically once confirmed.';
       } else if (result?.replayNoXp) {
         runtime.rewardNoteEl.className = 'code-tiles-reward-note warn';
         runtime.rewardNoteEl.textContent = 'No higher CODE TILES XP tier this run. Best record still counts.';
@@ -1095,7 +1095,7 @@
       try { runtime.onReward?.(result); } catch (_) {}
     } catch (error) {
       runtime.rewardNoteEl.className = 'code-tiles-reward-note warn';
-      runtime.rewardNoteEl.textContent = 'XP could not sync. No account XP was added.';
+      runtime.rewardNoteEl.textContent = 'Reward saved for sync. XP will update automatically once confirmed.';
     } finally {
       runtime.rewardSubmitting = false;
     }

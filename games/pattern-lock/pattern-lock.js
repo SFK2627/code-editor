@@ -70,7 +70,7 @@
               <div><small>Longest Pattern</small><strong data-pattern-lock-final-pattern>0</strong></div>
               <div class="xp"><small>XP Earned</small><strong data-pattern-lock-final-xp>+0</strong></div>
             </div>
-            <p class="pattern-lock-reward-note" data-pattern-lock-reward-note>Checking reward...</p>
+            <p class="pattern-lock-reward-note" data-pattern-lock-reward-note>Securing reward...</p>
             <div class="pattern-lock-actions">
               <button class="primary" type="button" data-pattern-lock-again>PLAY AGAIN</button>
               <button type="button" data-pattern-lock-hub>MINI-GAMES</button>
@@ -119,11 +119,11 @@
   }
 
   async function finishRound(){
-    if(runtime.state!=='playing')return;runtime.state='gameover';runtime.playToken++;runtime.inputLocked=true;setTilesDisabled(true);tone('bad');const longest=runtime.completedLevels>0?runtime.completedLevels+2:0;runtime.finalLevel.textContent=String(runtime.completedLevels);runtime.finalBest.textContent=String(Math.max(runtime.bestVisible,runtime.completedLevels));runtime.finalPattern.textContent=String(Math.max(runtime.longestVisible,longest));runtime.finalXp.textContent='+0';runtime.rewardNote.className='pattern-lock-reward-note';runtime.rewardNote.textContent=runtime.round?'Checking reward…':'Practice run — account reward unavailable.';runtime.overPanel.hidden=false;
+    if(runtime.state!=='playing')return;runtime.state='gameover';runtime.playToken++;runtime.inputLocked=true;setTilesDisabled(true);tone('bad');const longest=runtime.completedLevels>0?runtime.completedLevels+2:0;runtime.finalLevel.textContent=String(runtime.completedLevels);runtime.finalBest.textContent=String(Math.max(runtime.bestVisible,runtime.completedLevels));runtime.finalPattern.textContent=String(Math.max(runtime.longestVisible,longest));runtime.finalXp.textContent='+0';runtime.rewardNote.className='pattern-lock-reward-note';runtime.rewardNote.textContent=runtime.round?'Securing reward…':'Practice run — account reward unavailable.';runtime.overPanel.hidden=false;
     if(!runtime.round?.sessionId||!runtime.bridge?.claimRound)return;
     try{const result=await runtime.bridge.claimRound(runtime.round.sessionId,{score:runtime.completedLevels,metrics:{highestLevel:runtime.completedLevels,longestPattern:longest,roundsCompleted:runtime.completedLevels}});const rec=result?.gameRecord||result?.gameRecords?.patternLock||{};runtime.bestVisible=Math.max(runtime.bestVisible,Number(rec.bestLevel||rec.bestScore||0),Number(result?.bestScore||0));runtime.longestVisible=Math.max(runtime.longestVisible,Number(rec.longestPattern||0));runtime.finalBest.textContent=String(runtime.bestVisible);runtime.finalPattern.textContent=String(Math.max(runtime.longestVisible,longest));runtime.finalXp.textContent=`+${Math.max(0,Number(result?.awardedXp||0))}`;
       if(result?.loginRequired){runtime.rewardNote.className='pattern-lock-reward-note warn';runtime.rewardNote.textContent='Practice mode — log in as a student to earn account XP.'}
-      else if(result?.syncFailed){runtime.rewardNote.className='pattern-lock-reward-note warn';runtime.rewardNote.textContent='XP could not sync. No account XP was added.'}
+      else if(result?.syncFailed){runtime.rewardNote.className='pattern-lock-reward-note warn';runtime.rewardNote.textContent='Reward saved for sync. XP will update automatically once confirmed.'}
       else if(result?.capReached&&Number(result.awardedXp||0)===0){runtime.rewardNote.className='pattern-lock-reward-note warn';runtime.rewardNote.textContent='Daily Mini-Game XP limit reached. Keep pushing your memory record!'}
       else{runtime.rewardNote.className='pattern-lock-reward-note success';runtime.rewardNote.textContent=Number(result?.awardedXp||0)>0?`Reward added safely · Today's Game XP: ${result.todayXp}/${result.dailyCap}`:'Reach Pattern Level 3 to earn the first XP tier.'}
       try{runtime.onReward?.(result)}catch(_){}}

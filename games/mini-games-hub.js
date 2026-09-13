@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const ASSET_VERSION = '20260913-v4761-code-climb-v1';
+  const ASSET_VERSION = '20260913-v4761-climb-dice-reference-v7';
 
   const GAME_REGISTRY = Object.freeze([
     {
@@ -465,18 +465,18 @@
       stateKey: 'codeDama',
       name: 'CODE DAMA',
       icon: '♟️',
-      description: 'Challenge a classmate to live Dama. Play Classic, Speed, Blitz, King Rush, or Power Dama with direct Student ID / QR pairing.',
+      description: 'Play Code Dama solo against a selectable AI difficulty, or challenge a classmate in live 1v1 Classic, Speed, Blitz, King Rush, or Power Dama.',
       maxXp: 0,
       multiplayer: true,
       noXp: true,
-      category: '2P STRATEGY / DAMA',
+      category: 'SOLO / 2P STRATEGY',
       difficulty: '★★★★☆',
       globalName: 'ICT8CodeDama',
       dependencies: ['games/p2p-zero-db/p2p-zero-db.js'],
       script: 'games/code-dama/code-dama.js',
       style: 'games/code-dama/code-dama.css',
-      playLabel: 'PLAY 2P',
-      bestText() { return '♟️ LIVE DAMA · 0 XP'; }
+      playLabel: 'PLAY SOLO / 1V1',
+      bestText() { return '♟️ SOLO / LIVE 1V1 · 0 XP'; }
     },
     {
       id: 'code-climb',
