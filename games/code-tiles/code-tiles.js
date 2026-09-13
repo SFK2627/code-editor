@@ -24,16 +24,19 @@
   // The old 330→390 range looked like a slow conveyor in the reference comparison.
   // This starts lively, then ramps smoothly to a high-intensity finish.
   const LEVELS = Object.freeze([
-    Object.freeze({ id: 1,  name: 'CLASSIC',   speedStart: 690,  speedEnd: 1110, holdScale: 1.000 }),
-    Object.freeze({ id: 2,  name: 'FLOW',      speedStart: 740,  speedEnd: 1190, holdScale: 0.985 }),
-    Object.freeze({ id: 3,  name: 'RHYTHM',    speedStart: 800,  speedEnd: 1290, holdScale: 0.970 }),
-    Object.freeze({ id: 4,  name: 'RUSH',      speedStart: 870,  speedEnd: 1400, holdScale: 0.955 }),
-    Object.freeze({ id: 5,  name: 'BRAVO',     speedStart: 950,  speedEnd: 1530, holdScale: 0.940 }),
-    Object.freeze({ id: 6,  name: 'TEMPEST',   speedStart: 1020, speedEnd: 1630, holdScale: 0.925 }),
-    Object.freeze({ id: 7,  name: 'VIRTUOSO',  speedStart: 1070, speedEnd: 1720, holdScale: 0.910 }),
-    Object.freeze({ id: 8,  name: 'TURBO',     speedStart: 1130, speedEnd: 1810, holdScale: 0.895 }),
-    Object.freeze({ id: 9,  name: 'CONCERT',   speedStart: 1200, speedEnd: 1920, holdScale: 0.880 }),
-    Object.freeze({ id: 10, name: 'MASTER',    speedStart: 1270, speedEnd: 2040, holdScale: 0.865 })
+    // Hold timing now scales strongly with difficulty. Level 1 keeps the original
+    // Piano-Tiles-style hold cadence, while higher levels require progressively
+    // quicker full holds so the fill speed matches the faster tile stream.
+    Object.freeze({ id: 1,  name: 'CLASSIC',   speedStart: 690,  speedEnd: 1110, holdScale: 1.00 }),
+    Object.freeze({ id: 2,  name: 'FLOW',      speedStart: 740,  speedEnd: 1190, holdScale: 0.96 }),
+    Object.freeze({ id: 3,  name: 'RHYTHM',    speedStart: 800,  speedEnd: 1290, holdScale: 0.90 }),
+    Object.freeze({ id: 4,  name: 'RUSH',      speedStart: 870,  speedEnd: 1400, holdScale: 0.85 }),
+    Object.freeze({ id: 5,  name: 'BRAVO',     speedStart: 950,  speedEnd: 1530, holdScale: 0.79 }),
+    Object.freeze({ id: 6,  name: 'TEMPEST',   speedStart: 1020, speedEnd: 1630, holdScale: 0.74 }),
+    Object.freeze({ id: 7,  name: 'VIRTUOSO',  speedStart: 1070, speedEnd: 1720, holdScale: 0.69 }),
+    Object.freeze({ id: 8,  name: 'TURBO',     speedStart: 1130, speedEnd: 1810, holdScale: 0.64 }),
+    Object.freeze({ id: 9,  name: 'CONCERT',   speedStart: 1200, speedEnd: 1920, holdScale: 0.60 }),
+    Object.freeze({ id: 10, name: 'MASTER',    speedStart: 1270, speedEnd: 2040, holdScale: 0.56 })
   ]);
   const LEVEL_COUNT = LEVELS.length;
   const MISS_Y = BOARD_BOTTOM + 12;
@@ -821,8 +824,9 @@
       tile.holdAwarded = 0;
       tile.holdStartActiveMs = runtime.activeTimeMs;
       const baseHoldMs = tile.height >= LONG_H_LARGE ? HOLD_FILL_MS_LARGE : HOLD_FILL_MS_SMALL;
-      // Higher levels shorten the optional hold slightly, but keep it close to
-      // the OG cadence instead of making the fill race with the scroll speed.
+      // v498: the required full-hold time now scales clearly by level. Higher
+      // levels fill faster in proportion to their faster stream instead of
+      // feeling like Level 1 with faster scrolling. Early release remains safe.
       tile.holdDurationMs = Math.round(baseHoldMs * levelConfig().holdScale);
       runtime.activeHolds.set(tile.id, tile);
     }
