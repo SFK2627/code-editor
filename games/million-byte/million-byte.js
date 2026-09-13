@@ -14,7 +14,7 @@
     ? new URL(document.currentScript.src, document.baseURI)
     : new URL('games/million-byte/million-byte.js', document.baseURI);
   const GAME_DIR_URL = new URL('./', GAME_SCRIPT_URL);
-  const BANK_ASSET_VERSION = '20260913-v4761-million-byte-explanations-v2';
+  const BANK_ASSET_VERSION = '20260913-million-byte-3000q-explanations-v1';
   const BANK_URL = new URL(`million-byte-questions.js?v=${BANK_ASSET_VERSION}`, GAME_DIR_URL).href;
   const BANK_VERSION = 3;
   const EXPLANATION_QUALITY_VERSION = 1;
@@ -25,11 +25,11 @@
   const LETTERS = ['A', 'B', 'C', 'D'];
   const VALUES = ['100','200','300','500','1K','2K','4K','8K','16K','32K','64K','125K','250K','500K','1M'];
   const TIER_NAMES = ['EASY','MODERATE','CHALLENGING','DIFFICULT','EXPERT'];
-  const TIER_COUNTS = [0, 520, 520, 304, 304, 352];
+  const TIER_COUNTS = [0, 720, 720, 504, 504, 552];
   const QUESTION_SECONDS_BY_TIER = [0,35,40,45,50,55];
-  const LOCAL_STATE_KEY = 'ict8.millionByte.globalQuestionCycle.v1';
+  const LOCAL_STATE_KEY = 'ict8.millionByte.globalQuestionCycle.3000.v1';
   const LEGACY_LOCAL_STATE_KEY = 'ict8.millionByte.questionCursor.v3';
-  const QUESTION_CYCLE_MODE = 'global-no-repeat-v1';
+  const QUESTION_CYCLE_MODE = 'global-no-repeat-3000-v1';
   const LIFELINE_IDS = ['fifty','double','audience','switch'];
   const LIFELINE_META = {
     fifty: { title: '50:50', detail: 'Remove 2' },
@@ -134,7 +134,7 @@
         <header class="million-byte-topbar">
           <button type="button" data-mb-back aria-label="Back to Mini-Games">←</button>
           <div class="million-byte-brand"><strong>🧠 MILLION BYTE</strong><small>General Knowledge Challenge</small></div>
-          <span class="million-byte-bank">2,000 QUESTION POOL · NO REPEATS UNTIL ALL ARE USED</span>
+          <span class="million-byte-bank">3,000 QUESTION POOL · NO REPEATS UNTIL ALL ARE USED</span>
           <button type="button" data-mb-sound aria-label="Toggle sound">🔊</button>
           <button type="button" data-mb-close aria-label="Close">×</button>
         </header>
@@ -168,9 +168,9 @@
             <div class="million-byte-logo">🧠</div>
             <p class="million-byte-kicker">15 QUESTIONS · 5 DIFFICULTY TIERS</p>
             <h2>MILLION BYTE</h2>
-            <p>Answer 15 general-knowledge questions from Easy to Expert. Questions rotate through the full 2,000-question bank before repeating. Each run gives you 3 random lifelines from a pool of 4.</p>
+            <p>Answer 15 general-knowledge questions from Easy to Expert. Questions rotate through the full 3,000-question bank before repeating. Each run gives you 3 random lifelines from a pool of 4.</p>
             <div class="million-byte-rule-row">
-              <div><small>QUESTION POOL</small><strong>2,000</strong></div>
+              <div><small>QUESTION POOL</small><strong>3,000</strong></div>
               <div><small>LIFELINES</small><strong>Random 3 of 4</strong></div>
               <div><small>XP</small><strong>Perfect 15/15 = 15 XP</strong></div>
             </div>
@@ -371,7 +371,7 @@
     const issues = [];
     if (!bank || bank.version !== BANK_VERSION) issues.push('bank-version');
     if (!bank || bank.explanationQualityVersion !== EXPLANATION_QUALITY_VERSION) issues.push('explanation-quality-version');
-    if (!bank || bank.count !== 2000 || !Array.isArray(bank.questions) || bank.questions.length !== 2000) issues.push('question-count');
+    if (!bank || bank.count !== 3000 || !Array.isArray(bank.questions) || bank.questions.length !== 3000) issues.push('question-count');
     if (!bank?.byId) issues.push('question-index');
     if (!Array.isArray(bank?.questions)) return issues;
     const seenIds = new Set();
@@ -487,7 +487,7 @@
 
   // Keep the first questions of a new full-bank cycle away from the tail of the
   // previous cycle. This prevents an ugly immediate duplicate in the one run
-  // that crosses the 2,000-question boundary, while preserving a true
+  // that crosses the 3,000-question boundary, while preserving a true
   // permutation (nothing is skipped or retired unseen).
   function permutation(tier, cycle) {
     const arr = rawPermutation(tier, cycle);
@@ -655,7 +655,7 @@
     runtime.pendingFailReason = '';
     runtime.resultPanel.hidden = true;
     runtime.loadingPanel.hidden = false;
-    runtime.loadingPanel.querySelector('[data-mb-loading-copy]').textContent = 'Preparing the 2,000-question bank…';
+    runtime.loadingPanel.querySelector('[data-mb-loading-copy]').textContent = 'Preparing the 3,000-question bank…';
 
     try {
       await ensureBank();
@@ -1090,7 +1090,7 @@
       runtime.statusEl.textContent = `NEXT TIER · ${TIER_NAMES[nextTier - 1]}`;
     } else if (nextTier < previousTier) {
       runtime.statusEl.dataset.kind = 'gold';
-      runtime.statusEl.textContent = 'FULL 2,000-QUESTION CYCLE COMPLETED · Fresh cycle started.';
+      runtime.statusEl.textContent = 'FULL 3,000-QUESTION CYCLE COMPLETED · Fresh cycle started.';
     }
   }
 
