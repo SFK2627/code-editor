@@ -23,8 +23,14 @@
   const PHASE_ENDS = Object.freeze([25, 51, 76, 102, 127]);
   // The old 330→390 range looked like a slow conveyor in the reference comparison.
   // This starts lively, then ramps smoothly to a high-intensity finish.
-  const SPEED_START = 610;
-  const SPEED_END = 980;
+  const LEVELS = Object.freeze([
+    Object.freeze({ id: 1, name: 'CLASSIC', speedStart: 610, speedEnd: 980, holdScale: 1.00 }),
+    Object.freeze({ id: 2, name: 'FLOW',    speedStart: 680, speedEnd: 1080, holdScale: 0.97 }),
+    Object.freeze({ id: 3, name: 'RUSH',    speedStart: 760, speedEnd: 1200, holdScale: 0.94 }),
+    Object.freeze({ id: 4, name: 'TURBO',   speedStart: 850, speedEnd: 1330, holdScale: 0.91 }),
+    Object.freeze({ id: 5, name: 'MASTER',  speedStart: 950, speedEnd: 1480, holdScale: 0.88 })
+  ]);
+  const LEVEL_COUNT = LEVELS.length;
   const MISS_Y = BOARD_BOTTOM + 12;
   // Long-note fill is intentionally time-based instead of waiting for the
   // entire long tile to travel to the bottom. This keeps one-finger play
@@ -76,6 +82,13 @@
     finalStreakEl: null,
     finalXpEl: null,
     rewardNoteEl: null,
+    levelNameEl: null,
+    levelButtons: [],
+    startBtn: null,
+    resultTitleEl: null,
+    nextLevelBtn: null,
+    replayLevelBtn: null,
+    level: 1,
     bridge: null,
     onBack: null,
     onClose: null,
@@ -166,17 +179,24 @@
 
         <div class="code-tiles-panel" data-code-tiles-ready>
           <div class="code-tiles-card ready-card">
-            <p class="code-tiles-kicker">CLASSIC RUN</p>
+            <p class="code-tiles-kicker">ALL 5 LEVELS OPEN</p>
             <h2>CODE TILES</h2>
             <p class="code-tiles-subtitle">Tap the lowest next black tile. Do not touch the empty lanes.</p>
             <div class="code-tiles-demo" aria-hidden="true"><span></span><span class="black long"></span><span></span><span class="black"></span></div>
-            <div class="code-tiles-mode-row"><div><small>MODE</small><strong>CLASSIC</strong></div><div><small>BEST</small><strong data-code-tiles-best>0</strong></div></div>
+            <div class="code-tiles-mode-row"><div><small>SELECTED LEVEL</small><strong data-code-tiles-level-name>1 · CLASSIC</strong></div><div><small>BEST</small><strong data-code-tiles-best>0</strong></div></div>
+            <div class="code-tiles-level-picker" role="group" aria-label="Choose Code Tiles level">
+              <button type="button" data-code-tiles-level="1"><b>1</b><small>Classic</small></button>
+              <button type="button" data-code-tiles-level="2"><b>2</b><small>Flow</small></button>
+              <button type="button" data-code-tiles-level="3"><b>3</b><small>Rush</small></button>
+              <button type="button" data-code-tiles-level="4"><b>4</b><small>Turbo</small></button>
+              <button type="button" data-code-tiles-level="5"><b>5</b><small>Master</small></button>
+            </div>
             <div class="code-tiles-how">
               <span><b>TAP</b><small>Tap the next black tile itself before it passes the bottom.</small></span>
               <span><b>HOLD</b><small>Tap long tiles to clear them. Keep holding to fill farther and earn the hold bonus.</small></span>
             </div>
             <div class="code-tiles-keys"><span>D</span><span>F</span><span>J</span><span>K</span></div>
-            <button class="code-tiles-primary" type="button" data-code-tiles-play>START</button>
+            <button class="code-tiles-primary" type="button" data-code-tiles-play>START LEVEL 1</button>
             <small class="code-tiles-tip">Phone: tap the tiles. Desktop: D / F / J / K. A clean full run can earn up to 3 XP.</small>
           </div>
         </div>
@@ -190,7 +210,7 @@
         </div>
 
         <div class="code-tiles-panel" data-code-tiles-result hidden>
-          <div class="code-tiles-card compact result-card"><div class="code-tiles-result-icon success">✓</div><p class="code-tiles-kicker success">TRACK COMPLETE</p><h2>CLASSIC CLEAR</h2><div class="code-tiles-result-grid"><div><small>Score</small><strong data-code-tiles-final-score>0</strong></div><div><small>Accuracy</small><strong data-code-tiles-final-accuracy>100%</strong></div><div><small>Long Holds</small><strong data-code-tiles-final-holds>0/9</strong></div><div><small>Best Streak</small><strong data-code-tiles-final-streak>0</strong></div><div class="xp"><small>XP Earned</small><strong data-code-tiles-final-xp>+0</strong></div></div><p class="code-tiles-reward-note" data-code-tiles-reward-note>Securing reward…</p><div class="code-tiles-actions"><button class="code-tiles-primary" type="button" data-code-tiles-again>PLAY AGAIN</button><button type="button" data-code-tiles-result-hub>MINI-GAMES</button></div></div>
+          <div class="code-tiles-card compact result-card"><div class="code-tiles-result-icon success">✓</div><p class="code-tiles-kicker success">LEVEL COMPLETE</p><h2 data-code-tiles-result-title>LEVEL 1 CLEAR</h2><div class="code-tiles-result-grid"><div><small>Score</small><strong data-code-tiles-final-score>0</strong></div><div><small>Accuracy</small><strong data-code-tiles-final-accuracy>100%</strong></div><div><small>Long Holds</small><strong data-code-tiles-final-holds>0/9</strong></div><div><small>Best Streak</small><strong data-code-tiles-final-streak>0</strong></div><div class="xp"><small>XP Earned</small><strong data-code-tiles-final-xp>+0</strong></div></div><p class="code-tiles-reward-note" data-code-tiles-reward-note>Securing reward…</p><div class="code-tiles-actions code-tiles-result-actions"><button class="code-tiles-primary" type="button" data-code-tiles-next-level>NEXT LEVEL</button><button type="button" data-code-tiles-replay-level>REPLAY LEVEL</button><button type="button" data-code-tiles-result-hub>MINI-GAMES</button></div></div>
         </div>
       </section>`;
     document.body.appendChild(overlay);
@@ -218,10 +238,18 @@
     runtime.finalStreakEl = overlay.querySelector('[data-code-tiles-final-streak]');
     runtime.finalXpEl = overlay.querySelector('[data-code-tiles-final-xp]');
     runtime.rewardNoteEl = overlay.querySelector('[data-code-tiles-reward-note]');
+    runtime.levelNameEl = overlay.querySelector('[data-code-tiles-level-name]');
+    runtime.levelButtons = Array.from(overlay.querySelectorAll('[data-code-tiles-level]'));
+    runtime.startBtn = overlay.querySelector('[data-code-tiles-play]');
+    runtime.resultTitleEl = overlay.querySelector('[data-code-tiles-result-title]');
+    runtime.nextLevelBtn = overlay.querySelector('[data-code-tiles-next-level]');
+    runtime.replayLevelBtn = overlay.querySelector('[data-code-tiles-replay-level]');
 
-    overlay.querySelector('[data-code-tiles-play]')?.addEventListener('click', startRun);
+    runtime.startBtn?.addEventListener('click', startRun);
     overlay.querySelector('[data-code-tiles-retry]')?.addEventListener('click', startRun);
-    overlay.querySelector('[data-code-tiles-again]')?.addEventListener('click', startRun);
+    runtime.replayLevelBtn?.addEventListener('click', startRun);
+    runtime.nextLevelBtn?.addEventListener('click', startNextLevel);
+    runtime.levelButtons.forEach(button => button.addEventListener('click', () => selectLevel(Number(button.dataset.codeTilesLevel || 1))));
     overlay.querySelector('[data-code-tiles-resume]')?.addEventListener('click', resumeRun);
     overlay.querySelector('[data-code-tiles-pause-hub]')?.addEventListener('click', returnToHub);
     overlay.querySelector('[data-code-tiles-fail-hub]')?.addEventListener('click', returnToHub);
@@ -275,6 +303,60 @@
       x: (event.clientX - rect.left) * WORLD_W / Math.max(1, rect.width),
       y: (event.clientY - rect.top) * WORLD_H / Math.max(1, rect.height)
     };
+  }
+
+  function levelConfig(level = runtime.level) {
+    const id = clamp(Math.floor(Number(level || 1)), 1, LEVEL_COUNT);
+    return LEVELS[id - 1] || LEVELS[0];
+  }
+
+  function updateLevelUi() {
+    const config = levelConfig();
+    if (runtime.levelNameEl) runtime.levelNameEl.textContent = `${config.id} · ${config.name}`;
+    if (runtime.startBtn) runtime.startBtn.textContent = `START LEVEL ${config.id}`;
+    runtime.levelButtons.forEach(button => {
+      const selected = Number(button.dataset.codeTilesLevel || 0) === config.id;
+      button.classList.toggle('selected', selected);
+      button.setAttribute('aria-pressed', selected ? 'true' : 'false');
+    });
+  }
+
+  function selectLevel(level) {
+    if (runtime.state !== 'ready') return;
+    runtime.level = clamp(Math.floor(Number(level || 1)), 1, LEVEL_COUNT);
+    updateLevelUi();
+    buildChart(`preview-level-${runtime.level}`);
+    runtime.nextIndex = 0;
+    runtime.scroll = 0;
+    runtime.score = 0;
+    updateHud();
+    render(performance.now());
+  }
+
+  function showLevelSelect() {
+    runtime.state = 'ready';
+    runtime.resultPanel.hidden = true;
+    runtime.failPanel.hidden = true;
+    runtime.pausePanel.hidden = true;
+    runtime.readyPanel.hidden = false;
+    updateLevelUi();
+    buildChart(`preview-level-${runtime.level}`);
+    runtime.nextIndex = 0;
+    runtime.scroll = 0;
+    runtime.score = 0;
+    updateHud();
+    render(performance.now());
+  }
+
+  function startNextLevel() {
+    if (runtime.rewardSubmitting) return;
+    if (runtime.level >= LEVEL_COUNT) {
+      showLevelSelect();
+      return;
+    }
+    runtime.level += 1;
+    updateLevelUi();
+    startRun();
   }
 
   function buildChart(seed) {
@@ -342,8 +424,9 @@
   }
 
   function speedNow() {
+    const config = levelConfig();
     const p = clamp(runtime.scroll / Math.max(1, runtime.trackLength), 0, 1);
-    return lerp(SPEED_START, SPEED_END, ease(p));
+    return lerp(config.speedStart, config.speedEnd, ease(p));
   }
 
   function startRun() {
@@ -352,7 +435,8 @@
       try { runtime.bridge?.cancelRound?.(runtime.round.sessionId); } catch (_) {}
     }
     try { runtime.round = runtime.bridge?.beginRound?.(GAME_ID) || null; } catch (_) { runtime.round = null; }
-    buildChart(runtime.round?.sessionId || `${Date.now()}-${Math.random()}`);
+    const runSeed = runtime.round?.sessionId || `${Date.now()}-${Math.random()}`;
+    buildChart(`${runSeed}-level-${runtime.level}`);
     runtime.nextIndex = 0;
     runtime.scroll = 0;
     runtime.motionStarted = false;
@@ -492,10 +576,9 @@
       tile.holdAwarded = 0;
       tile.holdStartActiveMs = runtime.activeTimeMs;
       const baseHoldMs = tile.height >= LONG_H_LARGE ? HOLD_FILL_MS_LARGE : HOLD_FILL_MS_SMALL;
-      // As the track gets faster, long notes also finish sooner instead of
-      // becoming a bottleneck. Clamp the scaling so they still feel like holds.
-      const speedScale = clamp(SPEED_START / Math.max(1, speedNow()), HOLD_SPEED_SCALE_MIN, 1);
-      tile.holdDurationMs = Math.round(baseHoldMs * speedScale);
+      // Higher levels shorten the optional hold slightly, but keep it close to
+      // the OG cadence instead of making the fill race with the scroll speed.
+      tile.holdDurationMs = Math.round(baseHoldMs * levelConfig().holdScale);
       runtime.activeHolds.set(tile.id, tile);
     }
     updateHud();
@@ -658,6 +741,10 @@
     runtime.finalHoldsEl.textContent = `${runtime.holdsCompleted}/${HOLD_COUNT}`;
     runtime.finalStreakEl.textContent = String(runtime.maxStreak);
     runtime.finalXpEl.textContent = '+0';
+    const clearedLevel = levelConfig();
+    if (runtime.resultTitleEl) runtime.resultTitleEl.textContent = `LEVEL ${clearedLevel.id} · ${clearedLevel.name} CLEAR`;
+    if (runtime.nextLevelBtn) runtime.nextLevelBtn.textContent = clearedLevel.id < LEVEL_COUNT ? `NEXT LEVEL · ${clearedLevel.id + 1}` : 'LEVEL SELECT';
+    if (runtime.replayLevelBtn) runtime.replayLevelBtn.textContent = `REPLAY LEVEL ${clearedLevel.id}`;
     runtime.rewardNoteEl.className = 'code-tiles-reward-note';
     runtime.rewardNoteEl.textContent = runtime.round ? 'Securing reward…' : 'Practice run — log in to earn account XP.';
     runtime.resultPanel.hidden = false;
@@ -682,7 +769,9 @@
           holdsTotal: HOLD_COUNT,
           accuracy: Math.round(accuracy * 10) / 10,
           syncRemaining: 100,
-          activeTimeMs: Math.round(runtime.activeTimeMs)
+          activeTimeMs: Math.round(runtime.activeTimeMs),
+          level: runtime.level,
+          levelName: levelConfig().name
         }
       });
       runtime.round = null;
@@ -760,7 +849,7 @@
       });
     }
 
-    playUiTone('fail');
+    playFailureTone(kind);
     if (!runtime.raf) runtime.raf = requestAnimationFrame(loop);
   }
 
@@ -1131,6 +1220,35 @@
     Array.from(runtime.voices.keys()).forEach(id => stopVoice(id, soft));
   }
 
+  function playFailureTone(kind) {
+    if (!runtime.soundEnabled) return;
+    const context = ensureAudio();
+    if (!context || !runtime.masterGain) return;
+    resumeAudio();
+    const now = context.currentTime;
+    const isWrong = kind === 'wrong';
+    const freqs = isWrong ? [261.63, 277.18, 369.99] : [146.83, 110.00, 82.41];
+    try {
+      const bus = context.createGain();
+      const filter = context.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(isWrong ? 1900 : 1200, now);
+      bus.gain.setValueAtTime(.0001, now);
+      bus.gain.exponentialRampToValueAtTime(isWrong ? .18 : .22, now + .008);
+      bus.gain.exponentialRampToValueAtTime(.0001, now + (isWrong ? .34 : .48));
+      filter.connect(bus); bus.connect(runtime.masterGain);
+      freqs.forEach((freq, index) => {
+        const osc = context.createOscillator();
+        osc.type = index === 0 ? 'triangle' : 'sine';
+        osc.frequency.setValueAtTime(freq, now);
+        osc.frequency.exponentialRampToValueAtTime(Math.max(45, freq * (isWrong ? .84 : .58)), now + (isWrong ? .26 : .42));
+        osc.connect(filter);
+        osc.start(now);
+        osc.stop(now + (isWrong ? .38 : .52));
+      });
+    } catch (_) {}
+  }
+
   function playUiTone(kind) {
     if (!runtime.soundEnabled) return;
     const context = ensureAudio();
@@ -1204,6 +1322,8 @@
     runtime.soundEnabled = snap.soundEnabled !== false;
     runtime.soundBtn.textContent = runtime.soundEnabled ? '♪' : '×♪';
     runtime.bestEl.textContent = runtime.bestScore ? String(runtime.bestScore) : '0';
+    runtime.level = 1;
+    updateLevelUi();
     runtime.open = true;
     runtime.state = 'ready';
     runtime.overlay.hidden = false;
@@ -1212,7 +1332,7 @@
     runtime.pausePanel.hidden = true;
     runtime.failPanel.hidden = true;
     runtime.resultPanel.hidden = true;
-    buildChart('preview');
+    buildChart(`preview-level-${runtime.level}`);
     runtime.nextIndex = 0;
     runtime.scroll = 0;
     runtime.score = 0;
@@ -1225,6 +1345,8 @@
     publicApi.__debug = Object.freeze({
       snapshot: () => ({
         state: runtime.state,
+        level: runtime.level,
+        levelName: levelConfig().name,
         nextIndex: runtime.nextIndex,
         score: runtime.score,
         scroll: runtime.scroll,

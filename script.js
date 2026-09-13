@@ -44244,6 +44244,20 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   // V475 — CODE TILES is one complete five-phase rhythm track. Note movement,
   // timing judgements, audio, and input stay local; only the compact finish
   // summary reaches the secured Mini-Game reward bridge.
+  // v491: all five Code Tiles levels are playable immediately, so secured XP
+  // validation uses a level-specific legitimate active-time window.
+  function codeTilesTimingWindow(level = 1) {
+    const safeLevel = Math.max(1, Math.min(5, Math.floor(Number(level || 1))));
+    const windows = {
+      1: { minMs: 42000, maxMs: 72000 },
+      2: { minMs: 38000, maxMs: 68000 },
+      3: { minMs: 34000, maxMs: 62000 },
+      4: { minMs: 30000, maxMs: 58000 },
+      5: { minMs: 27000, maxMs: 54000 }
+    };
+    return windows[safeLevel] || windows[1];
+  }
+
   function codeTilesScoreDetails(metrics = {}) {
     const source = metrics && typeof metrics === 'object' ? metrics : {};
     const totalNotes = 127;
@@ -44257,14 +44271,16 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     const maxCombo = Math.max(0, Math.min(totalNotes, Math.floor(Number(source.maxCombo || 0))));
     const syncRemaining = Math.max(0, Math.min(100, Number(source.syncRemaining || 0)));
     const activeTimeMs = Math.max(0, Math.min(2 * 60 * 1000, Math.floor(Number(source.activeTimeMs || source.durationMs || 0))));
+    const level = Math.max(1, Math.min(5, Math.floor(Number(source.level || 1))));
+    const timing = codeTilesTimingWindow(level);
     const completed = source.completedRun === true
       && Math.floor(Number(source.phasesCompleted || 0)) === 5
       && Math.floor(Number(source.totalNotes || 0)) === totalNotes
-      && activeTimeMs >= 55000
-      && activeTimeMs <= 80000
+      && activeTimeMs >= timing.minMs
+      && activeTimeMs <= timing.maxMs
       && counted + misses === totalNotes
       && syncRemaining > 0;
-    if (!completed) return { score: 0, completed: false, accuracy: 0, perfect, great, good, misses, maxCombo, holdsCompleted, holdsTotal, syncRemaining, activeTimeMs };
+    if (!completed) return { score: 0, completed: false, accuracy: 0, perfect, great, good, misses, maxCombo, holdsCompleted, holdsTotal, syncRemaining, activeTimeMs, level };
     const weighted = perfect * 100 + great * 85 + good * 65;
     const accuracy = Math.max(0, Math.min(100, weighted / totalNotes));
     const comboBonus = Math.round(Math.max(0, Math.min(1, maxCombo / 70)) * 120);
@@ -44282,7 +44298,8 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       holdsCompleted,
       holdsTotal,
       syncRemaining: Math.round(syncRemaining * 10) / 10,
-      activeTimeMs
+      activeTimeMs,
+      level
     };
   }
 
@@ -44904,6 +44921,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         holdsTotal: Math.max(0, Math.min(9, Math.floor(Number(source.holdsTotal || 0)))),
         accuracy: Math.max(0, Math.min(100, Number(source.accuracy || 0))),
         syncRemaining: Math.max(0, Math.min(100, Number(source.syncRemaining || 0))),
+        level: Math.max(1, Math.min(5, Math.floor(Number(source.level || 1)))),
         activeTimeMs: Math.max(0, Math.min(2 * 60 * 1000, Math.floor(Number(source.activeTimeMs || 0)))),
         durationMs: Math.max(0, Math.min(2 * 60 * 1000, Math.floor(Number(source.durationMs || 0))))
       };
@@ -48767,6 +48785,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       metrics.holdsTotal = 9;
       metrics.accuracy = tilesDetails.accuracy;
       metrics.syncRemaining = tilesDetails.syncRemaining;
+      metrics.level = tilesDetails.level;
       score = tilesDetails.completed ? tilesDetails.score : 0;
       maxPlausibleScore = 1000;
     } else if (gameId === XP_MINI_GAME_ID_BYTE_SLING) {
