@@ -11,8 +11,49 @@
     { key: 'green', label: 'GREEN', hex: '#34d399', soft: 'rgba(52,211,153,.22)' },
     { key: 'yellow', label: 'YELLOW', hex: '#facc15', soft: 'rgba(250,204,21,.22)' }
   ]);
-  const LADDERS = Object.freeze({ 4: 14, 9: 31, 20: 38, 28: 84, 40: 59, 51: 67, 63: 81, 71: 91 });
-  const SNAKES = Object.freeze({ 17: 7, 54: 34, 62: 19, 64: 60, 87: 24, 93: 73, 95: 75, 99: 78 });
+  const MAPS = Object.freeze({
+    classic: Object.freeze({
+      id: 'classic', name: 'CLASSIC CIRCUIT', icon: '🎮', description: 'The original balanced Code Climb board.',
+      ladders: Object.freeze({ 4: 14, 9: 31, 20: 38, 28: 84, 40: 59, 51: 67, 63: 81, 71: 91 }),
+      snakes: Object.freeze({ 17: 7, 54: 34, 62: 19, 64: 60, 87: 24, 93: 73, 95: 75, 99: 78 }),
+      cells: ['#d7e3df','#b7cad0','#93abb8','#e5ece7'], text:'#0f172a', board:'#081527',
+      ladderRail:'#a16207', ladderRung:'#fde68a', ladderShadow:'rgba(3,46,27,.55)',
+      snakesPalette:['#22c55e','#8b5cf6','#f97316','#06b6d4','#ec4899','#84cc16','#a855f7','#14b8a6'], snakeMarking:'rgba(255,255,255,.42)'
+    }),
+    jungle: Object.freeze({
+      id: 'jungle', name: 'NEON JUNGLE', icon: '🌿', description: 'Lush greens, bamboo ladders, and new jungle hazards.',
+      ladders: Object.freeze({ 3: 22, 8: 26, 21: 42, 36: 58, 49: 69, 57: 76, 66: 88, 79: 96 }),
+      snakes: Object.freeze({ 18: 5, 33: 14, 47: 27, 61: 39, 74: 52, 86: 63, 92: 71, 98: 82 }),
+      cells: ['#dcfce7','#bbf7d0','#86efac','#ecfccb'], text:'#14532d', board:'#052e16',
+      ladderRail:'#92400e', ladderRung:'#fef3c7', ladderShadow:'rgba(69,26,3,.56)',
+      snakesPalette:['#16a34a','#65a30d','#0d9488','#22c55e','#84cc16','#059669','#14b8a6','#4d7c0f'], snakeMarking:'rgba(236,253,245,.55)'
+    }),
+    sunset: Object.freeze({
+      id: 'sunset', name: 'SUNSET DRIVE', icon: '🌅', description: 'Hot neon lanes with a totally different climb route.',
+      ladders: Object.freeze({ 6: 24, 13: 35, 25: 46, 32: 68, 44: 63, 55: 74, 70: 89, 82: 97 }),
+      snakes: Object.freeze({ 19: 9, 38: 16, 48: 29, 60: 41, 73: 54, 85: 65, 94: 72, 99: 81 }),
+      cells: ['#fed7aa','#f9a8d4','#c4b5fd','#fef3c7'], text:'#581c87', board:'#3b0764',
+      ladderRail:'#0891b2', ladderRung:'#67e8f9', ladderShadow:'rgba(8,47,73,.60)',
+      snakesPalette:['#ec4899','#f97316','#e11d48','#a855f7','#fb7185','#f59e0b','#d946ef','#7c3aed'], snakeMarking:'rgba(255,255,255,.52)'
+    }),
+    frost: Object.freeze({
+      id: 'frost', name: 'FROSTBYTE PEAK', icon: '❄️', description: 'Cold blue tiles, ice ladders, and slippery new routes.',
+      ladders: Object.freeze({ 2: 18, 11: 30, 23: 45, 34: 56, 46: 72, 59: 77, 67: 90, 80: 98 }),
+      snakes: Object.freeze({ 16: 6, 29: 10, 43: 22, 58: 37, 71: 50, 84: 64, 93: 75, 97: 83 }),
+      cells: ['#e0f2fe','#bae6fd','#bfdbfe','#f0f9ff'], text:'#0c4a6e', board:'#082f49',
+      ladderRail:'#cbd5e1', ladderRung:'#67e8f9', ladderShadow:'rgba(8,47,73,.62)',
+      snakesPalette:['#0284c7','#06b6d4','#2563eb','#6366f1','#0ea5e9','#0891b2','#4f46e5','#38bdf8'], snakeMarking:'rgba(240,249,255,.72)'
+    }),
+    lava: Object.freeze({
+      id: 'lava', name: 'LAVA CORE', icon: '🌋', description: 'Dark volcanic tiles with fiery snakes and steel ladders.',
+      ladders: Object.freeze({ 5: 27, 12: 33, 26: 49, 39: 61, 52: 70, 64: 82, 73: 92, 88: 99 }),
+      snakes: Object.freeze({ 20: 8, 35: 15, 50: 28, 63: 43, 76: 54, 86: 67, 95: 74, 98: 79 }),
+      cells: ['#57534e','#78716c','#a8a29e','#d6d3d1'], text:'#fff7ed', board:'#1c1917',
+      ladderRail:'#f59e0b', ladderRung:'#fde047', ladderShadow:'rgba(69,10,10,.72)',
+      snakesPalette:['#ef4444','#f97316','#dc2626','#fb923c','#b91c1c','#f59e0b','#e11d48','#ea580c'], snakeMarking:'rgba(254,215,170,.60)'
+    })
+  });
+  const DEFAULT_MAP_ID = 'classic';
   const SIGNAL_POLL_MS = 650;
   const ROOM_TOUCH_MS = 90000;
 
@@ -24,7 +65,7 @@
     rollQueue: [], processingRollQueue: false, lastAppliedRollSeq: 0, localRollPending: false, rollRequestTimer: 0, diceAnticipationAt: 0, turnCueSeat: -1,
     peers: new Map(), guestSession: null, seatByUid: new Map(), signalTimer: 0, roomTouchTimer: 0,
     inviteTimer: 0, pendingInvites: [], scannerStop: null, audio: null, botTimer: 0,
-    soloPace: 'balanced', disconnectedSeat: -1, closing: false
+    soloPace: 'balanced', mapId: DEFAULT_MAP_ID, disconnectedSeat: -1, closing: false
   };
 
   const $ = sel => r.overlay?.querySelector(sel) || null;
@@ -37,6 +78,11 @@
   const playerAt = seat => r.players.find(p => p.seat === seat) || null;
   const isHost = () => r.role === 'host';
   const isSolo = () => r.role === 'solo';
+  const mapById = id => MAPS[String(id || '').toLowerCase()] || MAPS[DEFAULT_MAP_ID];
+  const activeMap = () => mapById(r.game?.mapId || r.mapId);
+  const activeLadders = () => activeMap().ladders;
+  const activeSnakes = () => activeMap().snakes;
+  const mapOptionsHtml = () => Object.values(MAPS).map(m => `<option value="${m.id}">${m.icon} ${m.name}</option>`).join('');
   const DIE_PIPS = Object.freeze({1:[5],2:[1,9],3:[1,5,9],4:[1,3,7,9],5:[1,3,5,7,9],6:[1,3,4,6,7,9]});
   const PACE_PROFILES = Object.freeze({
     relaxed: Object.freeze({ diceRollMs:2550, diceHoldMs:1450, diceFadeMs:240, afterDiceMs:190, stepMs:340, stepSettleMs:70, snakeMs:1150, ladderMs:1000, specialPauseMs:180, botMinMs:1250, botMaxMs:1650 }),
@@ -318,6 +364,8 @@
               <label class="p2p0-field"><span>YOUR DISPLAY NAME</span><input data-solo-name maxlength="20" value="PLAYER 1"></label>
               <label class="climb-select-field"><span>OPPONENTS</span><select data-bot-count><option value="1">1 Bot · 2 players</option><option value="2">2 Bots · 3 players</option><option value="3" selected>3 Bots · 4 players</option></select></label>
               <label class="climb-select-field"><span>GAME PACE</span><select data-solo-pace><option value="relaxed">Relaxed · slow and easy to follow</option><option value="balanced" selected>Balanced · smooth and graceful</option><option value="quick">Quick · faster turns</option></select></label>
+              <label class="climb-select-field"><span>MAP</span><select data-solo-map>${mapOptionsHtml()}</select></label>
+              <div class="climb-map-preview" data-solo-map-preview></div>
               <div class="climb-rule-summary"><span>🎯</span><div><strong>CLASSIC RULES</strong><small>Exact roll to reach 100. Roll a 6 and you roll again.</small></div></div>
               <button class="p2p0-btn primary" type="button" data-start-solo>START SOLO MATCH</button><button class="p2p0-btn" type="button" data-cancel-setup>CANCEL</button>
             </div>
@@ -328,7 +376,9 @@
               <div class="p2p0-step-head"><span>HOST</span><strong>Create a live room</strong></div>
               <label class="p2p0-field"><span>YOUR DISPLAY NAME</span><input data-host-name maxlength="20" value="PLAYER 1"></label>
               <label class="climb-select-field"><span>LIVE PLAYERS</span><select data-live-count><option value="2">2 Players</option><option value="3">3 Players</option><option value="4" selected>4 Players</option></select></label>
-              <div class="climb-rule-summary"><span>🌐</span><div><strong>HOST-STAR ROOM</strong><small>Guests pair with the Host, then gameplay runs directly between devices.</small></div></div>
+              <label class="climb-select-field"><span>MAP</span><select data-host-map>${mapOptionsHtml()}</select></label>
+              <div class="climb-map-preview" data-host-map-preview></div>
+              <div class="climb-rule-summary"><span>🌐</span><div><strong>HOST-STAR ROOM</strong><small>Host chooses the map. Every connected player sees the same board.</small></div></div>
               <button class="p2p0-btn primary" type="button" data-create-room>CREATE ROOM</button><div class="p2p0-status" data-create-status>Choose the room size, then invite classmates.</div><button class="p2p0-btn" type="button" data-cancel-setup>CANCEL</button>
             </div>
           </section>
@@ -348,7 +398,7 @@
 
           <section class="p2p0-panel" data-panel="lobby">
             <div class="p2p0-card climb-lobby-card">
-              <div class="climb-room-head"><div><small>LIVE ROOM</small><strong data-room-code-label>------</strong></div><span data-room-count>1 / 4</span></div>
+              <div class="climb-room-head"><div><small>LIVE ROOM</small><strong data-room-code-label>------</strong><em data-room-map>🎮 CLASSIC CIRCUIT</em></div><span data-room-count>1 / 4</span></div>
               <div class="climb-room-grid"><div class="climb-room-qr" data-room-qr-wrap hidden><img data-room-qr alt="Code Climb room QR"><small>Same QR for Players 2–4</small></div><div class="climb-roster" data-roster></div></div>
               <div class="climb-host-tools" data-host-tools hidden>
                 <div class="p2p0-method-card primary-method"><span class="p2p0-method-icon">🆔</span><div><strong>INVITE BY STUDENT ID</strong><small>Invite classmates one at a time. Everyone joins this same room.</small></div></div>
@@ -379,7 +429,7 @@
                   <button class="climb-roll-btn" type="button" data-roll>🎲 ROLL NOW</button>
                   <div class="climb-board-turn-cue" data-board-turn-cue><small data-board-turn-kicker>YOUR TURN</small><strong data-board-turn-name>ROLL THE DICE</strong></div>
                   <div class="climb-event" data-event>First player to reach 100 wins.</div>
-                  <div class="climb-rule-chips"><span>🎯 EXACT FINISH</span><span>🎲 6 = ROLL AGAIN</span></div>
+                  <div class="climb-rule-chips"><span>🎯 EXACT FINISH</span><span>🎲 6 = ROLL AGAIN</span><span data-map-chip>🎮 CLASSIC CIRCUIT</span></div>
                 </aside>
               </div>
             </div>
@@ -405,6 +455,8 @@
     $('[data-host]').onclick = () => show('host-setup');
     $('[data-join]').onclick = () => { show('join'); refreshInvites(true); startInvitePolling(); };
     $$('[data-cancel-setup]').forEach(b => { b.onclick = () => show('home'); });
+    $('[data-solo-map]').onchange = () => renderMapPreview('solo');
+    $('[data-host-map]').onchange = () => renderMapPreview('host');
     $('[data-start-solo]').onclick = startSolo;
     $('[data-create-room]').onclick = createRoom;
     $('[data-scan-room]').onclick = scanRoom;
@@ -434,9 +486,49 @@
     if (name === 'game') requestAnimationFrame(() => { renderGame(); placeTokens(); });
   }
 
-  function buildBoard() {
+  function setMapCssVariables(map) {
+    const wrap = $('[data-board-wrap]');
+    if (!wrap || !map) return;
+    wrap.dataset.map = map.id;
+    wrap.style.setProperty('--map-board', map.board);
+    wrap.style.setProperty('--map-cell-a', map.cells[0]);
+    wrap.style.setProperty('--map-cell-b', map.cells[1]);
+    wrap.style.setProperty('--map-cell-c', map.cells[2]);
+    wrap.style.setProperty('--map-cell-d', map.cells[3]);
+    wrap.style.setProperty('--map-cell-text', map.text);
+  }
+
+  function renderMapPreview(kind) {
+    const select = $(`[data-${kind}-map]`);
+    const preview = $(`[data-${kind}-map-preview]`);
+    if (!select || !preview) return;
+    const map = mapById(select.value);
+    preview.style.setProperty('--preview-a', map.cells[0]);
+    preview.style.setProperty('--preview-b', map.cells[1]);
+    preview.style.setProperty('--preview-c', map.cells[2]);
+    preview.style.setProperty('--preview-d', map.cells[3]);
+    preview.style.setProperty('--preview-board', map.board);
+    preview.innerHTML = `<span class="climb-map-swatch" aria-hidden="true"><i></i><i></i><i></i><i></i></span><div><strong>${map.icon} ${map.name}</strong><small>${map.description}</small></div>`;
+  }
+
+  function applyMap(mapId, rebuild = true) {
+    const map = mapById(mapId);
+    r.mapId = map.id;
+    setMapCssVariables(map);
+    const roomMap = $('[data-room-map]');
+    if (roomMap) roomMap.textContent = `${map.icon} ${map.name}`;
+    const mapChip = $('[data-map-chip]');
+    if (mapChip) mapChip.textContent = `${map.icon} ${map.name}`;
+    if (rebuild) buildBoard(true);
+    return map;
+  }
+
+  function buildBoard(force = false) {
     const board = $('[data-board]');
-    if (!board || board.children.length) return;
+    if (!board || (board.children.length && !force)) return;
+    const map = activeMap();
+    setMapCssVariables(map);
+    const ladders = map.ladders, snakes = map.snakes;
     const visual = [];
     for (let row = 9; row >= 0; row--) {
       const nums = Array.from({ length: 10 }, (_, i) => row * 10 + i + 1);
@@ -444,7 +536,7 @@
       visual.push(...nums);
     }
     board.innerHTML = visual.map(n => {
-      const type = LADDERS[n] ? ' ladder-start' : SNAKES[n] ? ' snake-start' : '';
+      const type = ladders[n] ? ' ladder-start' : snakes[n] ? ' snake-start' : '';
       return `<div class="climb-cell${type}" data-square="${n}"><span>${n}</span></div>`;
     }).join('');
     renderPaths();
@@ -475,19 +567,20 @@
     const svg = $('[data-paths]');
     if (!svg) return;
     const parts = [];
-    Object.entries(LADDERS).forEach(([a, b], index) => {
+    const map = activeMap();
+    Object.entries(map.ladders).forEach(([a, b], index) => {
       const p1 = cellCenter(+a), p2 = cellCenter(+b);
       const x1 = p1.x * 10, y1 = p1.y * 10, x2 = p2.x * 10, y2 = p2.y * 10;
       const dx = x2 - x1, dy = y2 - y1, len = Math.hypot(dx, dy) || 1;
       const ox = -dy / len * 12, oy = dx / len * 12;
-      parts.push(`<g class="climb-ladder ladder-${index}"><line class="rail shadow" x1="${x1+ox}" y1="${y1+oy}" x2="${x2+ox}" y2="${y2+oy}"/><line class="rail shadow" x1="${x1-ox}" y1="${y1-oy}" x2="${x2-ox}" y2="${y2-oy}"/><line class="rail" x1="${x1+ox}" y1="${y1+oy}" x2="${x2+ox}" y2="${y2+oy}"/><line class="rail" x1="${x1-ox}" y1="${y1-oy}" x2="${x2-ox}" y2="${y2-oy}"/>`);
+      parts.push(`<g class="climb-ladder ladder-${index}" style="--ladder-rail:${map.ladderRail};--ladder-rung:${map.ladderRung};--ladder-shadow:${map.ladderShadow}"><line class="rail shadow" x1="${x1+ox}" y1="${y1+oy}" x2="${x2+ox}" y2="${y2+oy}"/><line class="rail shadow" x1="${x1-ox}" y1="${y1-oy}" x2="${x2-ox}" y2="${y2-oy}"/><line class="rail" x1="${x1+ox}" y1="${y1+oy}" x2="${x2+ox}" y2="${y2+oy}"/><line class="rail" x1="${x1-ox}" y1="${y1-oy}" x2="${x2-ox}" y2="${y2-oy}"/>`);
       for (let i=1;i<8;i++){ const t=i/8, cx=x1+dx*t, cy=y1+dy*t; parts.push(`<line class="rung" x1="${cx+ox}" y1="${cy+oy}" x2="${cx-ox}" y2="${cy-oy}"/>`); }
       parts.push('</g>');
     });
-    const palette=['#22c55e','#8b5cf6','#f97316','#06b6d4','#ec4899','#84cc16','#a855f7','#14b8a6'];
-    Object.entries(SNAKES).forEach(([a,b],index)=>{
+    const palette=map.snakesPalette;
+    Object.entries(map.snakes).forEach(([a,b],index)=>{
       const g=snakeGeometry(+a,+b,index),color=palette[index%palette.length];
-      parts.push(`<g class="climb-snake snake-${index}" style="--snake:${color}"><path class="snake-outline" d="${g.d}"/><path class="snake-body" d="${g.d}"/><path class="snake-markings" d="${g.d}"/><circle class="snake-tail" cx="${g.x2}" cy="${g.y2}" r="7"/><g class="snake-head" transform="translate(${g.x1} ${g.y1}) rotate(${g.headAngle})"><ellipse rx="26" ry="18"/><circle class="snake-eye" cx="9" cy="-7" r="5"/><circle class="snake-eye" cx="9" cy="7" r="5"/><circle class="snake-pupil" cx="12" cy="-7" r="2.2"/><circle class="snake-pupil" cx="12" cy="7" r="2.2"/><path class="snake-mouth" d="M 12 0 Q 18 3 22 0"/><path class="snake-tongue" d="M 22 0 L 35 0 M 34 0 L 41 -5 M 34 0 L 41 5"/></g></g>`);
+      parts.push(`<g class="climb-snake snake-${index}" style="--snake:${color};--snake-marking:${map.snakeMarking}"><path class="snake-outline" d="${g.d}"/><path class="snake-body" d="${g.d}"/><path class="snake-markings" d="${g.d}"/><circle class="snake-tail" cx="${g.x2}" cy="${g.y2}" r="7"/><g class="snake-head" transform="translate(${g.x1} ${g.y1}) rotate(${g.headAngle})"><ellipse rx="26" ry="18"/><circle class="snake-eye" cx="9" cy="-7" r="5"/><circle class="snake-eye" cx="9" cy="7" r="5"/><circle class="snake-pupil" cx="12" cy="-7" r="2.2"/><circle class="snake-pupil" cx="12" cy="7" r="2.2"/><path class="snake-mouth" d="M 12 0 Q 18 3 22 0"/><path class="snake-tongue" d="M 22 0 L 35 0 M 34 0 L 41 -5 M 34 0 L 41 5"/></g></g>`);
     });
     svg.innerHTML = parts.join('');
   }
@@ -500,13 +593,14 @@
     resetRollPipeline();
     r.visualPositions = [0,0,0,0];
     r.players.forEach(p => { p.position = 0; });
-    r.game = { status: 'playing', turnSeat: 0, winnerSeat: -1, rollSeq: 0 };
+    r.game = { status: 'playing', turnSeat: 0, winnerSeat: -1, rollSeq: 0, mapId: r.mapId };
   }
 
   function startSolo() {
     clearNetwork();
     r.role = 'solo'; r.localSeat = 0; r.roomCode = ''; r.maxPlayers = clamp($('[data-bot-count]').value, 1, 3) + 1;
     r.soloPace = String($('[data-solo-pace]')?.value || 'balanced');
+    applyMap($('[data-solo-map]')?.value || DEFAULT_MAP_ID);
     const name = String($('[data-solo-name]').value || identity().name || 'PLAYER 1').trim().slice(0,20) || 'PLAYER 1';
     const botNames = ['BYTE BOT', 'PIXEL BOT', 'LOGIC BOT'];
     r.players = [createPlayer(0, name, { ready: true })];
@@ -530,6 +624,7 @@
     try {
       clearNetwork();
       r.role = 'host'; r.localSeat = 0; r.maxPlayers = clamp($('[data-live-count]').value, 2, 4);
+      applyMap($('[data-host-map]')?.value || DEFAULT_MAP_ID);
       const name = String($('[data-host-name]').value || identity().name || 'HOST').trim().slice(0,20) || 'HOST';
       let meta = null, attempts = 0;
       while (!meta && attempts++ < 5) {
@@ -544,6 +639,7 @@
   }
 
   function enterLobby() {
+    applyMap(r.mapId, false);
     $('[data-room-code-label]').textContent = r.roomCode || '------';
     $('[data-host-tools]').hidden = !isHost();
     $('[data-start-live]').hidden = !isHost();
@@ -631,7 +727,7 @@
     const p=playerAt(peer.seat); if(p){p.connected=true;p.name=peer.name;}
     renderLobby(); broadcastLobby();
     if (r.disconnectedSeat === peer.seat) hideDisconnect();
-    peer.session.send({t:'welcome',roomCode:r.roomCode,seat:peer.seat,maxPlayers:r.maxPlayers,players:publicPlayers(),game:r.game});
+    peer.session.send({t:'welcome',roomCode:r.roomCode,seat:peer.seat,maxPlayers:r.maxPlayers,players:publicPlayers(),game:r.game,mapId:r.mapId});
     toast(`${peer.name} joined the room.`); sfx('join');
   }
 
@@ -645,7 +741,7 @@
 
   function publicPlayers(){return r.players.slice().sort((a,b)=>a.seat-b.seat).map(p=>({seat:p.seat,uid:p.uid,name:p.name,color:p.color,ready:!!p.ready,connected:!!p.connected,bot:!!p.bot,position:Number(p.position||0)}));}
   function broadcast(payload){for(const peer of r.peers.values())if(peer.connected)peer.session.send(payload);}
-  function broadcastLobby(){broadcast({t:'lobby',maxPlayers:r.maxPlayers,players:publicPlayers()});}
+  function broadcastLobby(){broadcast({t:'lobby',maxPlayers:r.maxPlayers,players:publicPlayers(),mapId:r.mapId});}
 
   function handleGuestMessage(uid,msg){
     const peer=r.peers.get(uid); if(!peer||!msg)return;
@@ -694,10 +790,10 @@
   function handleHostMessage(msg){
     if(!msg)return;
     if(msg.t==='welcome'){
-      r.localSeat=Number(msg.seat||r.localSeat);r.maxPlayers=Number(msg.maxPlayers||r.maxPlayers);r.players=(msg.players||[]).map(p=>({...p}));if(msg.game)r.game={...msg.game};
+      r.localSeat=Number(msg.seat||r.localSeat);r.maxPlayers=Number(msg.maxPlayers||r.maxPlayers);r.players=(msg.players||[]).map(p=>({...p}));if(msg.game)r.game={...msg.game};applyMap(msg.mapId||r.game?.mapId||DEFAULT_MAP_ID);
       if(r.game?.status==='playing'){const resumeSeq=Number(r.game.rollSeq||0);resetRollPipeline();r.lastAppliedRollSeq=resumeSeq;r.visualPositions=r.players.map(p=>p.position||0);hideDisconnect();show('game');renderGame();}else{enterLobby();renderLobby();}
-    }else if(msg.t==='lobby'){r.maxPlayers=Number(msg.maxPlayers||r.maxPlayers);r.players=(msg.players||[]).map(p=>({...p}));renderLobby();}
-    else if(msg.t==='start'){resetRollPipeline();r.players=(msg.players||[]).map(p=>({...p}));r.game={...msg.game};r.visualPositions=r.players.map(p=>p.position||0);show('game');renderGame();sfx('start');}
+    }else if(msg.t==='lobby'){r.maxPlayers=Number(msg.maxPlayers||r.maxPlayers);r.players=(msg.players||[]).map(p=>({...p}));applyMap(msg.mapId||r.mapId);renderLobby();}
+    else if(msg.t==='start'){resetRollPipeline();r.players=(msg.players||[]).map(p=>({...p}));r.game={...msg.game};applyMap(r.game?.mapId||msg.mapId||r.mapId);r.visualPositions=r.players.map(p=>p.position||0);show('game');renderGame();sfx('start');}
     else if(msg.t==='roll'){enqueueRollEvent(msg.event);}
     else if(msg.t==='convertBot'){const p=playerAt(Number(msg.seat));if(p){p.bot=true;p.connected=true;}hideDisconnect();renderGame();}
     else if(msg.t==='exit'){showDisconnect(-1,'The Host ended the room.');}
@@ -735,7 +831,7 @@
   function makeRollEvent(seat,value){
     const p=playerAt(seat);if(!p||!r.game||r.game.status!=='playing')return null;
     const from=Number(p.position||0),path=[];let landing=from,special=null;
-    if(from+value<=100){for(let n=from+1;n<=from+value;n++)path.push(n);landing=from+value;if(LADDERS[landing])special={type:'ladder',from:landing,to:LADDERS[landing]};else if(SNAKES[landing])special={type:'snake',from:landing,to:SNAKES[landing]};}
+    if(from+value<=100){for(let n=from+1;n<=from+value;n++)path.push(n);landing=from+value;const ladders=activeLadders(),snakes=activeSnakes();if(ladders[landing])special={type:'ladder',from:landing,to:ladders[landing]};else if(snakes[landing])special={type:'snake',from:landing,to:snakes[landing]};}
     const finalPos=special?special.to:landing,winner=finalPos===100,extra=!winner&&value===6;
     const state={...r.game,rollSeq:Number(r.game.rollSeq||0)+1,winnerSeat:winner?seat:-1,status:winner?'finished':'playing',turnSeat:winner?seat:(extra?seat:nextSeat(seat))};
     const players=publicPlayers().map(x=>({...x,position:x.seat===seat?finalPos:x.position}));
@@ -797,6 +893,7 @@
     if(r.turnCueSeat!==turn.seat){r.turnCueSeat=turn.seat;cue.classList.remove('turn-enter');void cue.offsetWidth;cue.classList.add('turn-enter');}
   }
   function renderGame(){
+    if (r.game?.mapId && r.game.mapId !== r.mapId) applyMap(r.game.mapId);
     if(!r.game)return;renderPlayerStrip();renderTokens();const turn=playerAt(r.game.turnSeat),mine=r.game.turnSeat===r.localSeat;setTurnAccent(r.game.turnSeat);announceTurn(turn,mine);
     const banner=$('[data-turn-banner]');if(banner){banner.style.setProperty('--turn',COLORS[r.game.turnSeat]?.hex||'#38bdf8');banner.classList.toggle('mine',mine);banner.querySelector('small').textContent=mine?'YOUR TURN':`${String(turn?.name||'PLAYER').toUpperCase()}'S TURN`;banner.querySelector('strong').textContent=mine?(r.localRollPending?'ROLLING…':'ROLL THE DICE'):`WAITING FOR ${String(turn?.name||'PLAYER').toUpperCase()}`;}
     const roll=$('[data-roll]');if(roll){roll.disabled=!mine||r.animationBusy||r.localRollPending||r.game.status!=='playing';roll.textContent=mine?(r.localRollPending?'ROLLING…':'🎲 ROLL NOW'):'WAITING';roll.style.setProperty('--turn',COLORS[r.game.turnSeat]?.hex||'#38bdf8');roll.classList.toggle('ready',mine&&!r.animationBusy&&!r.localRollPending);}
@@ -835,7 +932,7 @@
   async function animateSpecial(seat,special){
     const pace=paceProfile(),token=$(`[data-token-layer] [data-seat="${seat}"]`),wrap=$('[data-board-wrap]');if(!token||!wrap)return;const rect=wrap.getBoundingClientRect(),from=cellCenter(special.from),to=cellCenter(special.to),sx=rect.width*from.x/100,sy=rect.height*from.y/100,ex=rect.width*to.x/100,ey=rect.height*to.y/100;token.classList.add('special');
     const duration=special.type==='snake'?pace.snakeMs:pace.ladderMs;
-    if(token.animate&&!matchMedia('(prefers-reduced-motion: reduce)').matches){const frames=[];if(special.type==='snake'){const index=Math.max(0,Object.keys(SNAKES).map(Number).indexOf(Number(special.from)));for(let i=0;i<=18;i++){const t=i/18,p=snakePoint(special.from,special.to,index,t);frames.push({transform:`translate3d(${rect.width*p.x/1000}px,${rect.height*p.y/1000}px,0) translate(-50%,-50%) scale(${1+Math.sin(t*Math.PI)*.12})`});}}else{for(let i=0;i<=12;i++){const t=i/12,ease=t*t*(3-2*t),wobble=Math.sin(t*Math.PI*6)*2.2;frames.push({transform:`translate3d(${sx+(ex-sx)*ease+wobble}px,${sy+(ey-sy)*ease}px,0) translate(-50%,-50%) scale(${1+Math.sin(t*Math.PI)*.1})`});}}await token.animate(frames,{duration,easing:'linear',fill:'forwards'}).finished.catch(()=>{});}else await sleep(Math.min(120,duration));token.classList.remove('special');
+    if(token.animate&&!matchMedia('(prefers-reduced-motion: reduce)').matches){const frames=[];if(special.type==='snake'){const index=Math.max(0,Object.keys(activeSnakes()).map(Number).indexOf(Number(special.from)));for(let i=0;i<=18;i++){const t=i/18,p=snakePoint(special.from,special.to,index,t);frames.push({transform:`translate3d(${rect.width*p.x/1000}px,${rect.height*p.y/1000}px,0) translate(-50%,-50%) scale(${1+Math.sin(t*Math.PI)*.12})`});}}else{for(let i=0;i<=12;i++){const t=i/12,ease=t*t*(3-2*t),wobble=Math.sin(t*Math.PI*6)*2.2;frames.push({transform:`translate3d(${sx+(ex-sx)*ease+wobble}px,${sy+(ey-sy)*ease}px,0) translate(-50%,-50%) scale(${1+Math.sin(t*Math.PI)*.1})`});}}await token.animate(frames,{duration,easing:'linear',fill:'forwards'}).finished.catch(()=>{});}else await sleep(Math.min(120,duration));token.classList.remove('special');
   }
 
   async function animateDie(value,seat){
@@ -880,9 +977,9 @@
   async function leaveRoomToHome(){const room=r.roomCode,host=isHost();if(host)broadcast({t:'exit'});else r.guestSession?.send({t:'leave'});clearNetwork();if(room&&r.bridge?.leaveCodeClimbRoom)r.bridge.leaveCodeClimbRoom({roomCode:room,closeRoom:host}).catch(()=>{});r.role='';r.roomCode='';r.roomMeta=null;r.players=[];r.game=null;r.visualPositions=[0,0,0,0];r.lastAppliedRollSeq=0;r.turnCueSeat=-1;show('home');}
   function returnHub(){const cb=r.onBack;close(false);cb?.();}
   function close(call=true){if(!r.open)return;r.closing=true;const room=r.roomCode,host=isHost();if(host)broadcast({t:'exit'});else r.guestSession?.send({t:'leave'});clearNetwork();if(room&&r.bridge?.leaveCodeClimbRoom)r.bridge.leaveCodeClimbRoom({roomCode:room,closeRoom:host}).catch(()=>{});r.open=false;r.overlay.hidden=true;document.body.classList.remove('code-climb-active');r.role='';r.roomCode='';r.players=[];r.game=null;r.lastAppliedRollSeq=0;r.turnCueSeat=-1;r.closing=false;if(call)r.onClose?.();}
-  function open(options={}){build();r.bridge=options.bridge||null;r.music=options.music||null;r.onBack=options.onBack||null;r.onClose=options.onClose||null;r.open=true;r.overlay.hidden=false;document.body.classList.add('code-climb-active');clearNetwork();r.role='';r.roomCode='';r.players=[];r.game=null;r.visualPositions=[0,0,0,0];r.lastAppliedRollSeq=0;r.turnCueSeat=-1;const id=identity();if(id.name){$('[data-solo-name]').value=id.name;$('[data-host-name]').value=id.name;$('[data-guest-name]').value=id.name;}$('[data-sound]').textContent=r.bridge?.getSnapshot?.()?.soundEnabled===false?'🔇':'🔊';show('home');}
+  function open(options={}){build();r.bridge=options.bridge||null;r.music=options.music||null;r.onBack=options.onBack||null;r.onClose=options.onClose||null;r.open=true;r.overlay.hidden=false;document.body.classList.add('code-climb-active');clearNetwork();r.role='';r.roomCode='';r.players=[];r.game=null;r.mapId=DEFAULT_MAP_ID;r.visualPositions=[0,0,0,0];r.lastAppliedRollSeq=0;r.turnCueSeat=-1;const id=identity();if(id.name){$('[data-solo-name]').value=id.name;$('[data-host-name]').value=id.name;$('[data-guest-name]').value=id.name;}$('[data-sound]').textContent=r.bridge?.getSnapshot?.()?.soundEnabled===false?'🔇':'🔊';if($('[data-solo-map]'))$('[data-solo-map]').value=DEFAULT_MAP_ID;if($('[data-host-map]'))$('[data-host-map]').value=DEFAULT_MAP_ID;renderMapPreview('solo');renderMapPreview('host');applyMap(DEFAULT_MAP_ID);show('home');}
 
   // Small deterministic helpers exposed for regression tests.
-  const debug=Object.freeze({cellCenter,snakeGeometry,snakePoint,diePips:value=>[...(DIE_PIPS[Math.max(1,Math.min(6,Number(value)||1))]||[])],dieRotation:value=>({...DIE_ROTATIONS[Math.max(1,Math.min(6,Number(value)||1))]}),renderDicePreview:(canvas,value,progress=1)=>{const t=Math.max(0,Math.min(1,Number(progress)));renderDiceCanvas(canvas,t>=1?diceFinalState(value):diceTumbleState(value,t));return String(Math.max(1,Math.min(6,Number(value)||1)));},makeRollEvent:(players,game,seat,value)=>{const saveP=r.players,saveG=r.game;r.players=JSON.parse(JSON.stringify(players));r.game={...game};const out=makeRollEvent(seat,value);r.players=saveP;r.game=saveG;return out;},enqueueRollEvent,snapshot:()=>({players:JSON.parse(JSON.stringify(r.players)),game:r.game?{...r.game}:null,visualPositions:[...r.visualPositions],animationBusy:r.animationBusy,lastAppliedRollSeq:r.lastAppliedRollSeq,queued:r.rollQueue.map(x=>Number(x.seq||0)),localRollPending:r.localRollPending}),ladders:LADDERS,snakes:SNAKES});
+  const debug=Object.freeze({cellCenter,snakeGeometry,snakePoint,diePips:value=>[...(DIE_PIPS[Math.max(1,Math.min(6,Number(value)||1))]||[])],dieRotation:value=>({...DIE_ROTATIONS[Math.max(1,Math.min(6,Number(value)||1))]}),renderDicePreview:(canvas,value,progress=1)=>{const t=Math.max(0,Math.min(1,Number(progress)));renderDiceCanvas(canvas,t>=1?diceFinalState(value):diceTumbleState(value,t));return String(Math.max(1,Math.min(6,Number(value)||1)));},makeRollEvent:(players,game,seat,value)=>{const saveP=r.players,saveG=r.game;r.players=JSON.parse(JSON.stringify(players));r.game={...game};const out=makeRollEvent(seat,value);r.players=saveP;r.game=saveG;return out;},enqueueRollEvent,snapshot:()=>({players:JSON.parse(JSON.stringify(r.players)),game:r.game?{...r.game}:null,visualPositions:[...r.visualPositions],animationBusy:r.animationBusy,lastAppliedRollSeq:r.lastAppliedRollSeq,queued:r.rollQueue.map(x=>Number(x.seq||0)),localRollPending:r.localRollPending}),ladders:MAPS.classic.ladders,snakes:MAPS.classic.snakes,maps:MAPS,setMapForTest:id=>applyMap(id)});
   window[GLOBAL_NAME]=Object.freeze({open,close:()=>close(true),isOpen:()=>r.open,_debug:debug});
 })();
