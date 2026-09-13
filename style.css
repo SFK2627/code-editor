@@ -54621,6 +54621,8 @@ body.code-explorer-active #givenActivitiesScreen { display: none !important; }
 .code-explorer-certificate-card strong { display: block; }
 .code-explorer-certificate-card p { margin: 3px 0; color: #526174; }
 .code-explorer-certificate-card small { color: #64748b; }
+.code-explorer-certificate-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+.code-explorer-certificate-actions .ghost-btn, .code-explorer-certificate-actions .primary-btn { min-width: 92px; }
 .code-explorer-dashboard-card { display: grid; grid-template-columns: minmax(0,1fr) minmax(270px,.7fr) auto; gap: 18px; align-items: center; margin: 14px 0; padding: 18px 20px; border: 1px solid #c7d2fe; border-radius: 20px; background: linear-gradient(135deg,#eef2ff,#fff 55%,#eff6ff); box-shadow: 0 10px 30px rgba(37,99,235,.06); }
 .code-explorer-dashboard-copy { display: flex; align-items: center; gap: 13px; min-width: 0; }
 .code-explorer-dashboard-icon { display: grid; place-items: center; flex: none; width: 48px; height: 48px; border-radius: 16px; background: #fff; font-size: 26px; box-shadow: 0 4px 14px rgba(37,99,235,.12); }
@@ -54683,7 +54685,8 @@ body.code-explorer-active #givenActivitiesScreen { display: none !important; }
   .code-explorer-dashboard-progress { grid-column: auto; grid-row: auto; }
   .code-explorer-dashboard-btn { width: 100%; }
   .code-explorer-certificate-card { grid-template-columns: auto minmax(0,1fr); }
-  .code-explorer-certificate-card .primary-btn { grid-column: 1 / -1; width: 100%; }
+  .code-explorer-certificate-actions { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr; width: 100%; }
+  .code-explorer-certificate-actions .ghost-btn, .code-explorer-certificate-actions .primary-btn { width: 100%; min-width: 0; }
   .code-explorer-modal { width: min(96vw,860px); max-height: 92vh; border-radius: 18px; }
   .code-explorer-final-questions { padding: 12px; }
 }
@@ -65599,3 +65602,6 @@ html[data-theme="dark"] .code-explorer-admin-music-pill.off {
     max-height: calc(100dvh - 20px) !important;
   }
 }
+
+/* v469 Admin project cache refresh control */
+.admin-student-projects-header-actions{display:flex;align-items:center;gap:8px;flex:0 0 auto}

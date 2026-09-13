@@ -591,6 +591,7 @@ const adminStudentProjectsTitle = document.getElementById('adminStudentProjectsT
 const adminStudentProjectsSubtitle = document.getElementById('adminStudentProjectsSubtitle');
 const adminStudentProjectsList = document.getElementById('adminStudentProjectsList');
 const closeAdminStudentProjectsBtn = document.getElementById('closeAdminStudentProjectsBtn');
+const refreshAdminStudentProjectsBtn = document.getElementById('refreshAdminStudentProjectsBtn');
 const adminProjectViewerOverlay = document.getElementById('adminProjectViewerOverlay');
 const adminProjectViewerTitle = document.getElementById('adminProjectViewerTitle');
 const adminProjectViewerSubtitle = document.getElementById('adminProjectViewerSubtitle');
@@ -1488,7 +1489,7 @@ let adminLatestAiReview = null;
 let adminAiRubricController = null;
 let aiRubricConnectionState = { status: 'untested', code: '', message: '' };
 
-const MCS_APP_BUILD = 'v468-mini-game-network-quiet';
+const MCS_APP_BUILD = 'v469-firebase-local-first';
 window.MCS_APP_BUILD = MCS_APP_BUILD;
 console.info(`[MCSian Code Editor] ${MCS_APP_BUILD} loaded`);
 
@@ -1496,7 +1497,9 @@ const DEFAULT_STUDENT_PASSWORD = '123456';
 const STUDENT_EMAIL_DOMAIN = 'students.mcsian.app';
 const STUDENT_AUTH_RECOVERY_SLOTS = 12;
 const LAST_STUDENT_SESSION_KEY = 'studentCodeStudio.lastStudentSession.v1';
-const STUDENT_AUTOSAVE_DELAY = 8000; // v461: local recovery is immediate; cloud writes wait for an 8s idle window.
+const STUDENT_CLOUD_CHECKPOINT_MIN_MS = 3 * 60 * 1000; // v469: cap normal continuous editing near 20 cloud checkpoints/hour.
+const STUDENT_CLOUD_DIRTY_MAX_MS = 3 * 60 * 1000; // v469: online dirty work should not stay cloud-pending beyond ~3 minutes.
+const STUDENT_AUTOSAVE_DELAY = STUDENT_CLOUD_CHECKPOINT_MIN_MS; // backward-compatible alias for diagnostics/UI text.
 const PROFILE_ACTIVITY_WRITE_INTERVAL = 30 * 60 * 1000; // v461: profile heartbeat is non-critical; project doc remains the real save.
 const AUTO_RUN_DELAY = 850;
 const PREVIEW_LOAD_TIMEOUT = 3200;
@@ -1535,9 +1538,14 @@ const appSession = {
 let studentProjectSaveTimer = null;
 let studentProjectSaveInFlight = false;
 let studentProjectSaveQueued = false;
+let studentProjectSaveQueuedReason = '';
 let studentProjectDirty = false;
 let studentProjectRevision = 0;
 let studentProjectLastSavedRevision = 0;
+let studentProjectDirtySince = 0;
+let studentProjectLastEditAt = 0;
+let studentProjectLastCloudSaveAt = 0;
+let studentProjectLastSavedSignature = '';
 let studentProjectSavePromise = Promise.resolve(false);
 let studentProjectRetryCount = 0;
 let studentProjectRetryTimer = null;
@@ -1572,12 +1580,144 @@ let latestPreviewConsoleMessage = '';
 const STARTER_CODE_VERSION_KEY = 'studentCodeStudio.starterCodeVersion';
 const CURRENT_STARTER_CODE_VERSION = 'clean-uploaded-base-2026-07-09-v2';
 
+function lightweightValueSignature(value) {
+  let text = '';
+  try { text = JSON.stringify(value ?? null); } catch (_) { text = String(value ?? ''); }
+  let hash = 2166136261;
+  for (let index = 0; index < text.length; index += 1) {
+    hash ^= text.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return `${text.length.toString(36)}-${(hash >>> 0).toString(36)}`;
+}
+
 function withTimeout(promise, timeoutMs = APP_NETWORK_TIMEOUT_MS, message = 'This is taking too long. Please check the connection and try again.') {
   let timeoutId = null;
   const timeout = new Promise((_, reject) => {
     timeoutId = window.setTimeout(() => reject(new Error(message)), timeoutMs);
   });
   return Promise.race([promise, timeout]).finally(() => window.clearTimeout(timeoutId));
+}
+
+// v469 Firebase QA monitor — development-only operation counters.
+// Enable with ?firebaseMonitor=1 or localStorage['ict8.firebaseMonitor.enabled']='1'.
+const FIREBASE_OP_MONITOR = (() => {
+  const enabled = (() => {
+    try {
+      const queryEnabled = new URLSearchParams(location.search).get('firebaseMonitor') === '1';
+      const localEnabled = localStorage.getItem('ict8.firebaseMonitor.enabled') === '1';
+      return queryEnabled || localEnabled;
+    } catch (_) { return false; }
+  })();
+  const counters = {
+    firestoreDocumentReads: 0,
+    firestoreQueryReads: 0,
+    firestoreDocumentsReturned: 0,
+    firestoreWrites: 0,
+    rtdbReads: 0,
+    rtdbWrites: 0,
+    cacheHits: 0,
+    preventedDuplicateReads: 0,
+    preventedDuplicateWrites: 0,
+    projectCheckpoints: 0,
+    wireframeCheckpoints: 0,
+    codeExplorerCheckpoints: 0,
+    engagementFlushes: 0
+  };
+  const bump = (key, amount = 1) => {
+    if (!enabled || !Object.prototype.hasOwnProperty.call(counters, key)) return;
+    counters[key] += Math.max(0, Number(amount || 0));
+  };
+  const api = Object.freeze({
+    enabled,
+    bump,
+    snapshot: () => ({ ...counters }),
+    reset: () => { Object.keys(counters).forEach(key => { counters[key] = 0; }); },
+    log: () => console.table({ ...counters })
+  });
+  if (typeof window !== 'undefined') window.__ICT8_FIREBASE_MONITOR__ = api;
+  return api;
+})();
+
+function installFirebaseOperationMonitor(modules) {
+  if (!modules || modules.__ict8OperationMonitorWrapped) return modules;
+  const wrapped = { ...modules };
+  Object.defineProperty(wrapped, '__ict8OperationMonitorWrapped', { value: true, enumerable: false });
+
+  if (typeof modules.getDoc === 'function') {
+    wrapped.getDoc = async (...args) => {
+      FIREBASE_OP_MONITOR.bump('firestoreDocumentReads');
+      const snapshot = await modules.getDoc(...args);
+      if (snapshotExists(snapshot)) FIREBASE_OP_MONITOR.bump('firestoreDocumentsReturned');
+      return snapshot;
+    };
+  }
+  if (typeof modules.getDocs === 'function') {
+    wrapped.getDocs = async (...args) => {
+      FIREBASE_OP_MONITOR.bump('firestoreQueryReads');
+      const snapshot = await modules.getDocs(...args);
+      FIREBASE_OP_MONITOR.bump('firestoreDocumentsReturned', Number(snapshot?.size ?? snapshot?.docs?.length ?? 0));
+      return snapshot;
+    };
+  }
+  ['setDoc', 'updateDoc', 'deleteDoc', 'addDoc'].forEach(name => {
+    if (typeof modules[name] !== 'function') return;
+    wrapped[name] = (...args) => {
+      FIREBASE_OP_MONITOR.bump('firestoreWrites');
+      return modules[name](...args);
+    };
+  });
+  if (typeof modules.onSnapshot === 'function') {
+    wrapped.onSnapshot = (ref, callback, errorCallback, ...rest) => modules.onSnapshot(ref, snapshot => {
+      if (Array.isArray(snapshot?.docs)) {
+        FIREBASE_OP_MONITOR.bump('firestoreQueryReads');
+        FIREBASE_OP_MONITOR.bump('firestoreDocumentsReturned', Number(snapshot.size ?? snapshot.docs.length ?? 0));
+      } else {
+        FIREBASE_OP_MONITOR.bump('firestoreDocumentReads');
+        if (snapshotExists(snapshot)) FIREBASE_OP_MONITOR.bump('firestoreDocumentsReturned');
+      }
+      callback(snapshot);
+    }, errorCallback, ...rest);
+  }
+  if (typeof modules.writeBatch === 'function') {
+    wrapped.writeBatch = (...args) => {
+      const batch = modules.writeBatch(...args);
+      if (!batch || batch.__ict8OperationMonitorWrapped) return batch;
+      const proxy = Object.create(batch);
+      Object.defineProperty(proxy, '__ict8OperationMonitorWrapped', { value: true });
+      ['set', 'update', 'delete'].forEach(method => {
+        if (typeof batch[method] !== 'function') return;
+        proxy[method] = (...methodArgs) => {
+          FIREBASE_OP_MONITOR.bump('firestoreWrites');
+          const result = batch[method](...methodArgs);
+          return result === batch ? proxy : result;
+        };
+      });
+      if (typeof batch.commit === 'function') proxy.commit = (...commitArgs) => batch.commit(...commitArgs);
+      return proxy;
+    };
+  }
+  if (typeof modules.runTransaction === 'function') {
+    wrapped.runTransaction = (db, updateFunction, ...rest) => modules.runTransaction(db, async transaction => {
+      const tx = Object.create(transaction);
+      if (typeof transaction.get === 'function') tx.get = async (...args) => {
+        FIREBASE_OP_MONITOR.bump('firestoreDocumentReads');
+        const snapshot = await transaction.get(...args);
+        if (snapshotExists(snapshot)) FIREBASE_OP_MONITOR.bump('firestoreDocumentsReturned');
+        return snapshot;
+      };
+      ['set', 'update', 'delete'].forEach(method => {
+        if (typeof transaction[method] !== 'function') return;
+        tx[method] = (...args) => {
+          FIREBASE_OP_MONITOR.bump('firestoreWrites');
+          const result = transaction[method](...args);
+          return result === transaction ? tx : result;
+        };
+      });
+      return updateFunction(tx);
+    }, ...rest);
+  }
+  return wrapped;
 }
 
 // STEP 241 / v465 READ GUARD: selective Firestore cache for stable, non-live data only.
@@ -1634,9 +1774,15 @@ async function withSelectiveFirestoreCache(key, ttlMs, loader, options = {}) {
 
   if (!force) {
     const cached = SELECTIVE_FIRESTORE_CACHE.get(cacheKey);
-    if (cached && cached.expiresAt > now) return cached.value;
+    if (cached && cached.expiresAt > now) {
+      FIREBASE_OP_MONITOR.bump('cacheHits');
+      return cached.value;
+    }
     const pending = SELECTIVE_FIRESTORE_INFLIGHT.get(cacheKey);
-    if (pending) return pending;
+    if (pending) {
+      FIREBASE_OP_MONITOR.bump('preventedDuplicateReads');
+      return pending;
+    }
   } else {
     // A real user-triggered Refresh must replace the old cache, not merely bypass it.
     SELECTIVE_FIRESTORE_CACHE.delete(cacheKey);
@@ -2275,6 +2421,16 @@ function applyStudentAssistanceSettings(nextSettings, options = {}) {
   }
   document.body.classList.toggle('auto-run-control-disabled', !autoRunControlEnabled);
   document.body.classList.toggle('student-autosave-disabled', !autoSaveEnabled);
+  if (!autoSaveEnabled) {
+    window.clearTimeout(studentProjectSaveTimer);
+    studentProjectSaveTimer = null;
+    window.clearTimeout(studentProjectRetryTimer);
+    studentProjectRetryTimer = null;
+    if (studentProjectDirty && isStudentProjectActive()) {
+      persistStudentProjectRecoverySnapshot('autosave-disabled');
+      setStudentSaveState('Unsaved · press Save', 'unsaved');
+    }
+  }
   if (!autoRunControlEnabled) {
     window.clearTimeout(autoRunTimer);
     autoRunEnabled = false;
@@ -3389,7 +3545,7 @@ async function preserveWorkBeforeConfirmedExit() {
     saveActiveEditor?.();
     if (studentProjectDirty || studentProjectSaveTimer || studentProjectSaveInFlight || studentProjectSaveQueued) {
       persistStudentProjectRecoverySnapshot?.('confirmed-exit');
-      await flushStudentProjectSave('confirmed-exit');
+      if (isStudentAutoSaveAllowed()) await flushStudentProjectSave('confirmed-exit');
     }
   } catch (error) {
     console.warn('Final save before app exit did not fully finish.', error);
@@ -3659,6 +3815,7 @@ function initFirebaseWithCompatSDK() {
         return updateFunction(wrapped);
       })
     };
+    firebaseSync.modules = installFirebaseOperationMonitor(firebaseSync.modules);
     firebaseSync.authModule = {
       onAuthStateChanged: (authInstance, callback) => authInstance.onAuthStateChanged(callback),
       signInWithEmailAndPassword: (authInstance, email, password) => authInstance.signInWithEmailAndPassword(email, password),
@@ -3721,7 +3878,7 @@ async function initFirebaseSync() {
         : appModule.initializeApp(window.MCS_FIREBASE_CONFIG);
       firebaseSync.db = firestoreModule.getFirestore(app);
       firebaseSync.auth = authModule.getAuth(app);
-      firebaseSync.modules = firestoreModule;
+      firebaseSync.modules = installFirebaseOperationMonitor(firestoreModule);
       firebaseSync.authModule = authModule;
       firebaseSync.enabled = true;
       firebaseSync.initialized = true;
@@ -4541,8 +4698,10 @@ async function rtdbRestRequest(path = '', options = {}) {
     query.set(key, String(value));
   });
   const url = `${baseUrl}/${encodedPath ? `${encodedPath}.json` : '.json'}?${query.toString()}`;
+  const requestMethod = String(options.method || 'GET').toUpperCase();
+  FIREBASE_OP_MONITOR.bump(requestMethod === 'GET' ? 'rtdbReads' : 'rtdbWrites');
   const response = await fetch(url, {
-    method: options.method || 'GET',
+    method: requestMethod,
     headers: options.body === undefined ? undefined : { 'Content-Type': 'application/json' },
     body: options.body === undefined ? undefined : JSON.stringify(options.body),
     cache: 'no-store',
@@ -4673,7 +4832,8 @@ async function protectActiveStudentWorkBeforeAuthSwitch(reason = 'auth-switch') 
   try {
     saveActiveEditor?.();
     if (studentProjectDirty || studentProjectSaveTimer || studentProjectSaveInFlight || studentProjectSaveQueued) {
-      await flushStudentProjectSave(reason);
+      if (isStudentAutoSaveAllowed()) await flushStudentProjectSave(reason);
+      else persistStudentProjectRecoverySnapshot('auth-switch-manual-save-mode');
     }
   } catch (error) {
     console.warn('Student work was preserved locally before account switch, but cloud save did not finish.', error);
@@ -5402,6 +5562,99 @@ const PROJECT_RECOVERY_VERSION = 1;
 const PROJECT_CACHE_VERSION = 1;
 const MAX_PROJECT_CACHE_BYTES = 4_000_000;
 
+const PROJECT_INDEX_VERSION = 1;
+
+function projectIndexTimeValue(value) {
+  const date = timestampToDate(value);
+  return date ? date.toISOString() : (typeof value === 'string' ? value : '');
+}
+
+function buildProjectIndexEntry(project = {}) {
+  const latestComment = typeof getLatestTeacherCommentRecord === 'function' ? getLatestTeacherCommentRecord(project) : null;
+  const result = project?.lastResult && typeof project.lastResult === 'object' ? project.lastResult : null;
+  return {
+    id: String(project.id || ''),
+    name: String(project.name || 'Untitled Project').slice(0, 140),
+    nameLower: String(project.nameLower || project.name || '').toLowerCase().slice(0, 140),
+    projectType: String(project.projectType || 'code').toLowerCase() === 'wireframe' ? 'wireframe' : 'code',
+    status: String(project.status || (result?.passed === true ? 'passed' : result ? 'checked' : 'in-progress')),
+    activityTitle: String(project.activityTitle || '').slice(0, 160),
+    selectedActivityId: String(project.selectedActivityId || '').slice(0, 120),
+    runCount: Math.max(0, Number(project.runCount || 0)),
+    lastResult: result ? {
+      score: Number(result.score || 0),
+      possible: Number(result.possible || 0),
+      percent: Number(result.percent || 0),
+      passed: result.passed === true,
+      activityId: String(result.activityId || '').slice(0, 120),
+      activityTitle: String(result.activityTitle || '').slice(0, 160),
+      submittedAt: projectIndexTimeValue(result.submittedAt || result.updatedAt)
+    } : null,
+    teacherComment: latestComment ? String(latestComment.text || '').slice(0, 500) : '',
+    teacherCommentUpdatedAt: latestComment ? projectIndexTimeValue(latestComment.updatedAt) : '',
+    createdAt: projectIndexTimeValue(project.createdAt),
+    updatedAt: projectIndexTimeValue(project.updatedAt) || new Date().toISOString()
+  };
+}
+
+function buildProjectIndex(projects = appSession.projects) {
+  return (Array.isArray(projects) ? projects : [])
+    .map(buildProjectIndexEntry)
+    .filter(entry => entry.id)
+    .sort((a, b) => (Date.parse(b.updatedAt || '') || 0) - (Date.parse(a.updatedAt || '') || 0));
+}
+
+function getUsableStudentProjectIndex(profile = appSession.student) {
+  if (!profile || Number(profile.projectIndexVersion || 0) !== PROJECT_INDEX_VERSION || !Array.isArray(profile.projectIndex)) return null;
+  const entries = profile.projectIndex.filter(entry => entry && typeof entry === 'object' && String(entry.id || '').trim());
+  const profileCount = Math.max(0, Number(profile.projectCount || 0));
+  if (Number.isFinite(profileCount) && profileCount !== entries.length) return null;
+  const indexUpdatedMs = timestampToDate(profile.projectIndexUpdatedAt)?.getTime?.() || Date.parse(profile.projectIndexUpdatedAt || '') || 0;
+  const invalidatedMs = Math.max(0, Number(profile.projectIndexInvalidatedAtMs || 0));
+  if (invalidatedMs && invalidatedMs > indexUpdatedMs) return null;
+  return entries.map(entry => ({ ...entry }));
+}
+
+function setLocalStudentProjectIndex(projects = appSession.projects) {
+  if (!appSession.student) return [];
+  const index = buildProjectIndex(projects);
+  appSession.student.projectCount = index.length;
+  appSession.student.projectIndexVersion = PROJECT_INDEX_VERSION;
+  appSession.student.projectIndex = index;
+  appSession.student.projectIndexUpdatedAt = new Date().toISOString();
+  appSession.student.projectIndexInvalidatedAtMs = 0;
+  return index;
+}
+
+async function persistStudentProjectIndex(options = {}) {
+  if (!appSession.student?.uid || appSession.mode !== 'student') return false;
+  const index = setLocalStudentProjectIndex();
+  const signature = lightweightValueSignature(index);
+  if (!options.force && appSession.student.__projectIndexCloudSignature === signature) {
+    FIREBASE_OP_MONITOR.bump('preventedDuplicateWrites');
+    return true;
+  }
+  try {
+    const ready = await initFirebaseSync();
+    if (!ready || navigator.onLine === false) return false;
+    const { setDoc, serverTimestamp } = firebaseSync.modules;
+    await setDoc(getStudentDocRef(appSession.student.uid), {
+      projectCount: index.length,
+      projectIndexVersion: PROJECT_INDEX_VERSION,
+      projectIndex: index,
+      projectIndexUpdatedAt: serverTimestamp(),
+      projectIndexInvalidatedAtMs: 0
+    }, { merge: true });
+    appSession.student.__projectIndexCloudSignature = signature;
+    clearSelectiveFirestoreCache(`studentProfile:${appSession.student.uid}`);
+    clearAdminStudentSnapshotCache();
+    return true;
+  } catch (error) {
+    console.warn('Could not update lightweight project index.', error);
+    return false;
+  }
+}
+
 function getStudentProjectCacheKey(uid = appSession.student?.uid) {
   return uid ? `studentCodeStudio.projectCache.v${PROJECT_CACHE_VERSION}.${uid}` : '';
 }
@@ -5546,8 +5799,14 @@ function updateConnectionStatusUI() {
   const banner = ensureConnectionStatusBanner();
   document.body.classList.toggle('app-offline', !online);
   banner.classList.toggle('hidden', online);
-  banner.textContent = online ? '' : 'Offline — your latest edits are protected on this device and will sync after reconnecting.';
-  if (!online && isStudentProjectActive() && studentProjectDirty) setStudentSaveState('Offline · pending', 'unsaved');
+  banner.textContent = online
+    ? ''
+    : (isStudentAutoSaveAllowed()
+      ? 'Offline — your latest edits are protected on this device and will sync after reconnecting.'
+      : 'Offline — your latest edits are protected on this device. Autosave is OFF; press Save after reconnecting.');
+  if (!online && isStudentProjectActive() && studentProjectDirty) {
+    setStudentSaveState(isStudentAutoSaveAllowed() ? 'Offline · pending' : 'Offline · press Save', 'unsaved');
+  }
   return online;
 }
 
@@ -5555,6 +5814,12 @@ async function flushStudentProjectSave(reason = 'manual') {
   window.clearTimeout(studentProjectSaveTimer);
   window.clearTimeout(studentProjectRetryTimer);
   if (!isStudentProjectActive() || !studentProjectDirty) return true;
+  if (!isStudentAutoSaveAllowed() && !isStudentProjectSaveAllowedWhenAutosaveOff(reason)) {
+    persistStudentProjectRecoverySnapshot(reason || 'manual-save-mode');
+    setStudentSaveState('Unsaved · press Save', 'unsaved');
+    updateManualSaveControls();
+    return false;
+  }
   if (navigator.onLine === false) {
     persistStudentProjectRecoverySnapshot('offline');
     setStudentSaveState('Offline · pending', 'unsaved');
@@ -6725,7 +6990,8 @@ async function resumeExistingStudentSession() {
 async function logoutStudent() {
   loginReminderPendingAfterPasswordLogin = false;
   closeLoginLackingReminder();
-  const hasPendingSave = Boolean(studentProjectDirty || studentProjectSaveTimer || studentProjectSaveInFlight || studentProjectSaveQueued);
+  const hasWireframePendingSave = Boolean(document.body.classList.contains('wireframe-maker-active') && wireframeMakerState?.dirty);
+  const hasPendingSave = Boolean(studentProjectDirty || studentProjectSaveTimer || studentProjectSaveInFlight || studentProjectSaveQueued || hasWireframePendingSave);
   if (hasPendingSave && appSession.mode === 'student' && appSession.currentProjectId) {
     const shouldContinue = await appConfirm('Some recent changes may still be saving. Save now and log out?', {
       title: 'Log out safely',
@@ -6736,7 +7002,9 @@ async function logoutStudent() {
   try {
     clearTimeout(studentProjectSaveTimer);
     if (appSession.mode === 'student' && appSession.currentProjectId) {
-      const saved = await flushStudentProjectSave('logout');
+      const saved = hasWireframePendingSave
+        ? await saveWireframeProject({ silent: true, immediate: true, reason: 'logout' })
+        : await flushStudentProjectSave('logout');
       if (!saved && navigator.onLine !== false) {
         const leaveAnyway = await appConfirm('The cloud save did not finish. A recovery copy is safe on this device. Log out anyway?', {
           title: 'Cloud save incomplete',
@@ -6748,6 +7016,13 @@ async function logoutStudent() {
     }
   } catch (error) {
     console.warn('Final student save skipped.', error);
+  }
+  try {
+    if (appSession.mode === 'student' && appSession.student?.uid && studentEngagementQueue.size) {
+      await flushStudentEngagementQueue({ reason: 'logout' });
+    }
+  } catch (error) {
+    console.warn('Final engagement flush skipped; local queue remains safe.', error);
   }
   try {
     if (appSession.mode === 'student' && appSession.student?.uid) {
@@ -6780,6 +7055,23 @@ async function showStudentDashboard(options = {}) {
   if (!appSession.student) {
     openStudentLogin();
     return;
+  }
+  if (options.skipProjectFlush !== true && appSession.currentProjectId && navigator.onLine !== false) {
+    try {
+      if (document.body.classList.contains('wireframe-maker-active') && wireframeMakerState?.dirty && isWireframeAutosaveEnabled()) {
+        await saveWireframeProject({ silent: true, immediate: true, reason: 'dashboard' });
+      } else if (studentProjectDirty && isStudentProjectActive()) {
+        if (isStudentAutoSaveAllowed()) {
+          await flushStudentProjectSave('dashboard');
+        } else {
+          persistStudentProjectRecoverySnapshot('dashboard-manual-save-mode');
+          setStudentSaveState('Unsaved · press Save', 'unsaved');
+          updateManualSaveControls();
+        }
+      }
+    } catch (error) {
+      console.warn('Project dashboard transition kept the local recovery copy because cloud flush did not finish.', error);
+    }
   }
   const returningFromLessonOrActivities = Boolean(
     document.body.classList.contains('lesson-viewer-active') ||
@@ -6871,6 +7163,18 @@ async function loadStudentProjects(options = {}) {
       }
     }
 
+    if (!options.force) {
+      const profileIndex = getUsableStudentProjectIndex(student);
+      if (profileIndex) {
+        appSession.projects = profileIndex;
+        setSelectiveFirestoreCache(`studentProjects:${student.uid}`, appSession.projects.map(project => ({ ...project })), SELECTIVE_CACHE_MEDIUM_MS);
+        persistStudentProjectsCache();
+        renderStudentProjects();
+        if (projectDashboardStatus) projectDashboardStatus.textContent = `${appSession.projects.length} project${appSession.projects.length === 1 ? '' : 's'} · lightweight index`;
+        return appSession.projects;
+      }
+    }
+
     if (projectDashboardStatus) projectDashboardStatus.textContent = 'Loading projects...';
     const { getDocs } = firebaseSync.modules;
     const projectDocs = await withSelectiveFirestoreCache(`studentProjects:${student.uid}`, SELECTIVE_CACHE_SHORT_MS, async () => {
@@ -6890,6 +7194,8 @@ async function loadStudentProjects(options = {}) {
       return bTime - aTime;
     });
     persistStudentProjectsCache();
+    setLocalStudentProjectIndex(appSession.projects);
+    if (navigator.onLine !== false) void persistStudentProjectIndex({ force: true });
     renderStudentProjects();
     return appSession.projects;
   } catch (error) {
@@ -8552,17 +8858,24 @@ async function saveProjectNameDialog() {
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     });
+    appSession.projects.unshift({ id: projectId, ...data });
+    appSession.student.projectCount = Number(appSession.student.projectCount || 0) + 1;
+    const projectIndex = setLocalStudentProjectIndex(appSession.projects);
     await setDoc(getStudentDocRef(appSession.student.uid), {
       projectCount: increment(1),
       lastProjectId: projectId,
       lastProjectName: name,
+      projectIndexVersion: PROJECT_INDEX_VERSION,
+      projectIndex,
+      projectIndexUpdatedAt: serverTimestamp(),
+      projectIndexInvalidatedAtMs: 0,
       lastActivityAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     }, { merge: true });
+    appSession.student.__projectIndexCloudSignature = lightweightValueSignature(projectIndex);
     clearSelectiveFirestoreCache(`studentProjects:${appSession.student.uid}`);
+    invalidateAdminProjectsCache(appSession.student.uid);
     clearSelectiveFirestoreCache(`studentProfile:${appSession.student.uid}`);
-    appSession.projects.unshift({ id: projectId, ...data });
-    appSession.student.projectCount = Number(appSession.student.projectCount || 0) + 1;
     persistStudentProjectsCache();
     closeProjectNameDialog();
     await openStudentProject(projectId);
@@ -8577,14 +8890,23 @@ async function saveProjectNameDialog() {
 
 async function getStudentProject(projectId) {
   const cached = appSession.projects.find(project => project.id === projectId);
-  if (cached?.codeByActivity || String(cached?.projectType || '').toLowerCase() === 'wireframe') return cached;
+  if (cached?.codeByActivity || String(cached?.projectType || '').toLowerCase() === 'wireframe' && cached?.wireframeData) return cached;
   const { getDoc } = firebaseSync.modules;
-  const snapshot = await withTimeout(
-    getDoc(getStudentProjectDocRef(appSession.student.uid, projectId)),
-    APP_NETWORK_TIMEOUT_MS,
-    'Opening project is taking too long. Please check the internet connection, then try again.'
-  );
-  return snapshotExists(snapshot) ? { id: projectId, ...snapshotData(snapshot) } : null;
+  const loaded = await withSelectiveFirestoreCache(`studentProjectDoc:${appSession.student.uid}:${projectId}`, SELECTIVE_CACHE_MEDIUM_MS, async () => {
+    const snapshot = await withTimeout(
+      getDoc(getStudentProjectDocRef(appSession.student.uid, projectId)),
+      APP_NETWORK_TIMEOUT_MS,
+      'Opening project is taking too long. Please check the internet connection, then try again.'
+    );
+    return snapshotExists(snapshot) ? { id: projectId, ...snapshotData(snapshot) } : null;
+  });
+  if (loaded) {
+    const index = appSession.projects.findIndex(project => project.id === projectId);
+    if (index >= 0) appSession.projects[index] = { ...appSession.projects[index], ...loaded };
+    else appSession.projects.unshift(loaded);
+    persistStudentProjectsCache();
+  }
+  return loaded;
 }
 
 async function openStudentProject(projectId) {
@@ -8600,6 +8922,10 @@ async function openStudentProject(projectId) {
       studentProjectDirty = false;
       studentProjectRevision = 0;
       studentProjectLastSavedRevision = 0;
+      studentProjectDirtySince = 0;
+      studentProjectLastEditAt = 0;
+      studentProjectLastCloudSaveAt = getProjectUpdatedAtMs(project);
+      studentProjectLastSavedSignature = '';
       closeStudentDashboard();
       await openWireframeMaker(project);
       queueStudentPresenceUpdate({
@@ -8613,6 +8939,10 @@ async function openStudentProject(projectId) {
     }
     studentProjectRevision = 0;
     studentProjectLastSavedRevision = 0;
+    studentProjectDirtySince = 0;
+    studentProjectLastEditAt = 0;
+    studentProjectLastCloudSaveAt = getProjectUpdatedAtMs(project);
+    studentProjectLastSavedSignature = '';
     const recovered = await offerStudentProjectRecovery(project);
     const projectToOpen = recovered ? appSession.currentProject : project;
     codeByActivity = normalizeProjectCodeByActivity(projectToOpen.codeByActivity);
@@ -8672,6 +9002,8 @@ async function renameStudentProject(projectId, name) {
     updatedAt: serverTimestamp()
   }, { merge: true });
   clearSelectiveFirestoreCache(`studentProjects:${appSession.student.uid}`);
+  clearSelectiveFirestoreCache(`studentProjectDoc:${appSession.student.uid}:${projectId}`);
+  invalidateAdminProjectsCache(appSession.student.uid);
   const cached = appSession.projects.find(project => project.id === projectId);
   if (cached) {
     cached.name = name;
@@ -8686,6 +9018,8 @@ async function renameStudentProject(projectId, name) {
     if (wireframeProjectTitle) wireframeProjectTitle.textContent = name;
   }
   persistStudentProjectsCache();
+  setLocalStudentProjectIndex(appSession.projects);
+  void persistStudentProjectIndex({ force: true });
   renderStudentProjects();
   setStatus('Project renamed');
 }
@@ -8707,12 +9041,21 @@ async function deleteStudentProject(projectId) {
       APP_NETWORK_TIMEOUT_MS,
       'Deleting project is taking too long. Please check the internet connection, then try again.'
     );
+    invalidateAdminProjectsCache(appSession.student.uid);
+    clearSelectiveFirestoreCache(`studentProjectDoc:${appSession.student.uid}:${projectId}`);
+    appSession.projects = appSession.projects.filter(item => item.id !== projectId);
+    appSession.student.projectCount = Math.max(0, Number(appSession.student.projectCount || 0) - 1);
+    const projectIndex = setLocalStudentProjectIndex(appSession.projects);
     await setDoc(getStudentDocRef(appSession.student.uid), {
       projectCount: increment(-1),
+      projectIndexVersion: PROJECT_INDEX_VERSION,
+      projectIndex,
+      projectIndexUpdatedAt: serverTimestamp(),
+      projectIndexInvalidatedAtMs: 0,
       lastActivityAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     }, { merge: true });
-    appSession.projects = appSession.projects.filter(item => item.id !== projectId);
+    appSession.student.__projectIndexCloudSignature = lightweightValueSignature(projectIndex);
     clearStudentProjectRecovery(projectId);
     clearWireframeRecovery(projectId);
     persistStudentProjectsCache();
@@ -8738,10 +9081,7 @@ function isStudentProjectActive() {
 window.addEventListener('ict8:mini-game-network-quiet', event => {
   if (event?.detail?.active === true) return;
   if (studentProjectDirty && isStudentProjectActive() && isStudentAutoSaveAllowed() && navigator.onLine !== false) {
-    window.clearTimeout(studentProjectSaveTimer);
-    studentProjectSaveTimer = window.setTimeout(() => {
-      saveCurrentStudentProject({ reason: 'post-mini-game' }).catch(error => console.warn('Deferred autosave failed', error));
-    }, 1200);
+    scheduleStudentProjectCloudCheckpoint('post-mini-game');
   }
   if (studentPresenceStarted && appSession.mode === 'student' && appSession.student?.uid) {
     scheduleStudentPresenceHeartbeat();
@@ -8782,38 +9122,74 @@ function buildProjectSavePayload(result = null) {
   };
 }
 
+function isStudentProjectImmediateSaveReason(reason = '') {
+  return /^(manual|logout|reconnect|visibility|confirmed-exit|auth-switch|dashboard|project-switch|activity-submit|destructive|collab-finalize|result|result-cooldown|result-fallback|result-limit-fallback|rubric-result|rubric-result-cache|smart-result-cache)$/i.test(String(reason || ''));
+}
+
+// Admin "Code Editor Autosave" is authoritative. When it is OFF, routine
+// lifecycle events must protect work locally but must not silently write the
+// project to Firestore. Only an explicit/manual or genuinely durable action is
+// allowed to bypass manual-save mode.
+function isStudentProjectSaveAllowedWhenAutosaveOff(reason = '') {
+  return /^(manual|logout|activity-submit|destructive|collab-finalize|result|result-cooldown|result-fallback|result-limit-fallback|rubric-result|rubric-result-cache|smart-result-cache)$/i.test(String(reason || ''));
+}
+
+function scheduleStudentProjectCloudCheckpoint(reason = 'edit') {
+  if (!isStudentProjectActive() || !studentProjectDirty || !isStudentAutoSaveAllowed()) return;
+  if (navigator.onLine === false || isMiniGameNetworkQuiet()) return;
+  const now = Date.now();
+  const dirtySince = studentProjectDirtySince || now;
+  const earliestBySpacing = Math.max(dirtySince + STUDENT_CLOUD_CHECKPOINT_MIN_MS, studentProjectLastCloudSaveAt + STUDENT_CLOUD_CHECKPOINT_MIN_MS);
+  const latestByDirtyAge = dirtySince + STUDENT_CLOUD_DIRTY_MAX_MS;
+  const dueAt = Math.min(earliestBySpacing, latestByDirtyAge);
+  window.clearTimeout(studentProjectSaveTimer);
+  studentProjectSaveTimer = window.setTimeout(() => {
+    studentProjectSaveTimer = null;
+    saveCurrentStudentProject({ reason: reason || 'checkpoint' }).catch(error => console.warn('Autosave checkpoint failed', error));
+  }, Math.max(0, dueAt - now));
+}
+
 function queueStudentProjectSave(reason = 'edit') {
   if (reason === 'edit' && shouldSpinDesktopLogoForEditorEdit()) triggerDesktopHeaderLogoSaveSpin();
   if (!isStudentProjectActive()) return;
   studentProjectRevision += 1;
   studentProjectDirty = true;
+  studentProjectLastEditAt = Date.now();
+  if (!studentProjectDirtySince) studentProjectDirtySince = studentProjectLastEditAt;
   persistStudentProjectRecoverySnapshot(reason);
   updateManualSaveControls();
-  window.clearTimeout(studentProjectSaveTimer);
   window.clearTimeout(studentProjectRetryTimer);
+
   if (isMiniGameNetworkQuiet()) {
+    window.clearTimeout(studentProjectSaveTimer);
     studentProjectSaveTimer = null;
     setStudentSaveState('Local copy · game active', 'unsaved');
     return;
   }
   if (!isStudentAutoSaveAllowed()) {
+    window.clearTimeout(studentProjectSaveTimer);
     setStudentSaveState('Unsaved', 'unsaved');
     return;
   }
   if (navigator.onLine === false) {
+    window.clearTimeout(studentProjectSaveTimer);
     setStudentSaveState('Offline · pending', 'unsaved');
     updateConnectionStatusUI();
     return;
   }
-  setStudentSaveState('Saving...', 'saving');
-  studentProjectSaveTimer = window.setTimeout(() => {
-    saveCurrentStudentProject({ reason }).catch(error => console.warn('Autosave failed', error));
-  }, STUDENT_AUTOSAVE_DELAY);
+  setStudentSaveState('Local copy · cloud pending', 'unsaved');
+  if (isStudentProjectImmediateSaveReason(reason)) {
+    window.clearTimeout(studentProjectSaveTimer);
+    saveCurrentStudentProject({ immediate: true, reason }).catch(error => console.warn('Immediate project save failed', error));
+    return;
+  }
+  scheduleStudentProjectCloudCheckpoint(reason);
 }
 
 async function saveCurrentStudentProject({ result = null, immediate = false, reason = 'edit' } = {}) {
   if (!isStudentProjectActive()) return false;
-  const manualReason = reason === 'manual' || reason === 'logout' || reason === 'reconnect' || reason === 'visibility';
+  const manualReason = isStudentProjectImmediateSaveReason(reason) || reason === 'retry';
+  const allowedWithAutosaveOff = isStudentProjectSaveAllowedWhenAutosaveOff(reason);
   if (isMiniGameNetworkQuiet() && !manualReason) {
     studentProjectDirty = true;
     window.clearTimeout(studentProjectSaveTimer);
@@ -8822,11 +9198,13 @@ async function saveCurrentStudentProject({ result = null, immediate = false, rea
     setStudentSaveState('Local copy · game active', 'unsaved');
     return false;
   }
-  if (!isStudentAutoSaveAllowed() && !manualReason) {
+  if (!isStudentAutoSaveAllowed() && !allowedWithAutosaveOff) {
     studentProjectDirty = true;
     window.clearTimeout(studentProjectSaveTimer);
-    persistStudentProjectRecoverySnapshot(reason);
-    setStudentSaveState('Unsaved', 'unsaved');
+    studentProjectSaveTimer = null;
+    persistStudentProjectRecoverySnapshot(reason || 'manual-save-mode');
+    setStudentSaveState('Unsaved · press Save', 'unsaved');
+    updateManualSaveControls();
     return false;
   }
   if (navigator.onLine === false) {
@@ -8842,8 +9220,20 @@ async function saveCurrentStudentProject({ result = null, immediate = false, rea
     setStudentSaveState('Saved');
     return true;
   }
+  const payloadForSave = buildProjectSavePayload(result);
+  const signatureBeingSaved = lightweightValueSignature(payloadForSave);
+  if (!hasResultUpdate && signatureBeingSaved === studentProjectLastSavedSignature) {
+    FIREBASE_OP_MONITOR.bump('preventedDuplicateWrites');
+    studentProjectLastSavedRevision = Math.max(studentProjectLastSavedRevision, studentProjectRevision);
+    studentProjectDirty = false;
+    studentProjectDirtySince = 0;
+    clearStudentProjectRecovery();
+    setStudentSaveState('Saved');
+    return true;
+  }
   if (studentProjectSaveInFlight) {
     studentProjectSaveQueued = true;
+    if (manualReason) studentProjectSaveQueuedReason = reason;
     return studentProjectSavePromise;
   }
 
@@ -8856,7 +9246,7 @@ async function saveCurrentStudentProject({ result = null, immediate = false, rea
   studentProjectSavePromise = (async () => {
     try {
       const { setDoc, serverTimestamp } = firebaseSync.modules;
-      const payload = buildProjectSavePayload(result);
+      const payload = payloadForSave;
       await withTimeout(
         setDoc(getStudentProjectDocRef(studentUidBeingSaved, projectIdBeingSaved), {
           ...payload,
@@ -8866,6 +9256,7 @@ async function saveCurrentStudentProject({ result = null, immediate = false, rea
         'Saving is taking too long. Your recovery copy is safe on this device.'
       );
       clearSelectiveFirestoreCache(`studentProjects:${studentUidBeingSaved}`);
+      clearSelectiveFirestoreCache(`studentProjectDoc:${studentUidBeingSaved}:${projectIdBeingSaved}`);
 
       // Do not overwrite state if the student switched projects while this request was running.
       if (appSession.currentProjectId === projectIdBeingSaved && appSession.student?.uid === studentUidBeingSaved) {
@@ -8879,21 +9270,27 @@ async function saveCurrentStudentProject({ result = null, immediate = false, rea
         if (index >= 0) appSession.projects[index] = { ...appSession.projects[index], ...appSession.currentProject };
         else appSession.projects.unshift(appSession.currentProject);
         studentProjectLastSavedRevision = Math.max(studentProjectLastSavedRevision, revisionBeingSaved);
+        studentProjectLastSavedSignature = signatureBeingSaved;
+        studentProjectLastCloudSaveAt = Date.now();
+        FIREBASE_OP_MONITOR.bump('projectCheckpoints');
         studentProjectDirty = studentProjectRevision > revisionBeingSaved;
+        studentProjectDirtySince = studentProjectDirty ? (studentProjectLastEditAt || Date.now()) : 0;
         studentProjectRetryCount = 0;
         persistStudentProjectsCache();
+        setLocalStudentProjectIndex(appSession.projects);
+        invalidateAdminProjectsCache(studentUidBeingSaved);
         persistLastStudentSession('student-project-saved');
         if (!studentProjectDirty) {
           clearStudentProjectRecovery(projectIdBeingSaved);
           setStudentSaveState('Saved');
         } else {
-          setStudentSaveState('Saving...', 'saving');
+          setStudentSaveState('Local copy · cloud pending', 'unsaved');
           studentProjectSaveQueued = true;
         }
       }
 
       const now = Date.now();
-      if (reason !== 'edit' || now - lastProfileActivityWriteAt >= PROFILE_ACTIVITY_WRITE_INTERVAL) {
+      if (isStudentProjectImmediateSaveReason(reason) || now - lastProfileActivityWriteAt >= PROFILE_ACTIVITY_WRITE_INTERVAL) {
         lastProfileActivityWriteAt = now;
         clearSelectiveFirestoreCache(`studentProjects:${studentUidBeingSaved}`);
         clearSelectiveFirestoreCache(`studentProfile:${studentUidBeingSaved}`);
@@ -8902,6 +9299,10 @@ async function saveCurrentStudentProject({ result = null, immediate = false, rea
             lastActivityAt: serverTimestamp(),
             lastProjectId: projectIdBeingSaved,
             lastProjectName: payload.name,
+            projectIndexVersion: PROJECT_INDEX_VERSION,
+            projectIndex: setLocalStudentProjectIndex(appSession.projects),
+            projectIndexUpdatedAt: serverTimestamp(),
+            projectIndexInvalidatedAtMs: 0,
             updatedAt: serverTimestamp()
           }, { merge: true }),
           APP_NETWORK_TIMEOUT_MS,
@@ -8916,7 +9317,7 @@ async function saveCurrentStudentProject({ result = null, immediate = false, rea
       setStudentSaveState(navigator.onLine === false ? 'Offline · pending' : 'Save failed · retrying', 'error');
       if (isStudentAutoSaveAllowed() && navigator.onLine !== false && studentProjectRetryCount < 3) {
         studentProjectRetryCount += 1;
-        const retryDelay = [1800, 5000, 12000][studentProjectRetryCount - 1] || 12000;
+        const retryDelay = [15000, 60000, 180000][studentProjectRetryCount - 1] || 180000;
         window.clearTimeout(studentProjectRetryTimer);
         studentProjectRetryTimer = window.setTimeout(() => saveCurrentStudentProject({ reason: 'retry' }), retryDelay);
       }
@@ -8925,8 +9326,16 @@ async function saveCurrentStudentProject({ result = null, immediate = false, rea
       studentProjectSaveInFlight = false;
       updateManualSaveControls();
       if (studentProjectSaveQueued && isStudentProjectActive()) {
+        const queuedReason = studentProjectSaveQueuedReason;
         studentProjectSaveQueued = false;
-        window.setTimeout(() => saveCurrentStudentProject({ reason: 'queued' }), 80);
+        studentProjectSaveQueuedReason = '';
+        if (studentProjectDirty) {
+          if (isStudentProjectImmediateSaveReason(queuedReason)) {
+            window.setTimeout(() => saveCurrentStudentProject({ immediate: true, reason: queuedReason }), 80);
+          } else {
+            scheduleStudentProjectCloudCheckpoint('changes-after-checkpoint');
+          }
+        }
       }
     }
   })();
@@ -10203,12 +10612,83 @@ function formatDiagnosticStatusLine(label, status, detail = '') {
   return `${icon} ${label}${detail ? ` — ${detail}` : ''}`;
 }
 
+function getAdminProfileRecordForUid(uid = '') {
+  const target = String(uid || '').trim();
+  if (!target) return null;
+  for (const student of (adminStudentsCache || [])) {
+    const records = Array.isArray(student?.sourceRecords) ? student.sourceRecords : [student];
+    const match = records.find(record => String(record?.uid || record?.authUid || '').trim() === target);
+    if (match) return match;
+  }
+  return null;
+}
+
+function getAdminProjectIndexForUid(uid = '') {
+  const record = getAdminProfileRecordForUid(uid);
+  if (!record || Number(record.projectIndexVersion || 0) !== PROJECT_INDEX_VERSION || !Array.isArray(record.projectIndex)) return null;
+  const entries = record.projectIndex.filter(entry => entry && String(entry.id || '').trim());
+  const count = Math.max(0, Number(record.projectCount || 0));
+  if (count !== entries.length) return null;
+  const indexUpdatedMs = timestampToDate(record.projectIndexUpdatedAt)?.getTime?.() || Date.parse(record.projectIndexUpdatedAt || '') || 0;
+  const invalidatedMs = Math.max(0, Number(record.projectIndexInvalidatedAtMs || 0));
+  if (invalidatedMs && invalidatedMs > indexUpdatedMs) return null;
+  return entries.map(entry => ({ ...entry }));
+}
+
+async function loadAdminProjectsForUid(uid = '', options = {}) {
+  const safeUid = String(uid || '').trim();
+  if (!safeUid) return [];
+  const key = `adminProjects:${safeUid}`;
+  if (options.force) clearSelectiveFirestoreCache(key);
+  return withSelectiveFirestoreCache(key, SELECTIVE_CACHE_MEDIUM_MS, async () => {
+    const { getDocs } = firebaseSync.modules;
+    const snapshot = await getDocs(getStudentProjectsCollectionRef(safeUid));
+    return (snapshot.docs || []).map(docSnapshot => ({ id: docSnapshot.id, ...snapshotData(docSnapshot) }));
+  }, options);
+}
+
+function invalidateAdminProjectsCache(uid = '') {
+  const safeUid = String(uid || '').trim();
+  if (safeUid) clearSelectiveFirestoreCache(`adminProjects:${safeUid}`);
+}
+
+async function invalidateStudentProjectIndexAfterAdminWrite(uid = '') {
+  const safeUid = String(uid || '').trim();
+  if (!safeUid) return false;
+  const invalidatedAtMs = Date.now();
+  try {
+    const { setDoc, serverTimestamp } = firebaseSync.modules;
+    await setDoc(getStudentDocRef(safeUid), {
+      projectIndexInvalidatedAt: serverTimestamp(),
+      projectIndexInvalidatedAtMs: invalidatedAtMs
+    }, { merge: true });
+    // Keep the current Admin-session mirror honest too. Otherwise a known Admin
+    // project write could invalidate Firestore but the cached roster/profile row
+    // could still advertise the now-stale lightweight index until the next refresh.
+    (adminStudentsCache || []).forEach(student => {
+      const records = Array.isArray(student?.sourceRecords) ? student.sourceRecords : [student];
+      records.forEach(record => {
+        const recordUid = String(record?.uid || record?.authUid || '').trim();
+        if (recordUid === safeUid) record.projectIndexInvalidatedAtMs = invalidatedAtMs;
+      });
+    });
+    clearSelectiveFirestoreCache(`studentProfile:${safeUid}`);
+    return true;
+  } catch (error) {
+    console.info('Project index invalidation marker could not be written.', error);
+    return false;
+  }
+}
+
 async function loadAdminStudentProjectsCountForUid(uid = '') {
   if (!uid) return 0;
+  const indexed = getAdminProjectIndexForUid(uid);
+  if (indexed) {
+    FIREBASE_OP_MONITOR.bump('cacheHits');
+    return indexed.length;
+  }
   try {
-    const { getDocs } = firebaseSync.modules;
-    const snapshot = await getDocs(getStudentProjectsCollectionRef(uid));
-    return Array.isArray(snapshot.docs) ? snapshot.docs.length : 0;
+    return (await loadAdminProjectsForUid(uid)).length;
   } catch (error) {
     console.warn('Login Doctor could not count projects for one profile.', error);
     return 0;
@@ -10219,10 +10699,10 @@ async function loadAdminStudentProjectsCountForUid(uid = '') {
 async function loadAdminStudentProfileProjectSummary(uid = '') {
   if (!uid) return { projectCount: 0, lastProjectName: '', lastProjectUpdatedAt: '', sampleProjectNames: [] };
   try {
-    const { getDocs } = firebaseSync.modules;
-    const snapshot = await getDocs(getStudentProjectsCollectionRef(uid));
-    const projects = (snapshot.docs || []).map(docSnapshot => ({ id: docSnapshot.id, ...snapshotData(docSnapshot) }));
-    const sorted = projects.slice().sort((a, b) => (timestampToDate(b.updatedAt)?.getTime() || 0) - (timestampToDate(a.updatedAt)?.getTime() || 0));
+    const indexed = getAdminProjectIndexForUid(uid);
+    const projects = indexed || await loadAdminProjectsForUid(uid);
+    if (indexed) FIREBASE_OP_MONITOR.bump('cacheHits');
+    const sorted = projects.slice().sort((a, b) => (timestampToDate(b.updatedAt)?.getTime() || Date.parse(b.updatedAt || '') || 0) - (timestampToDate(a.updatedAt)?.getTime() || Date.parse(a.updatedAt || '') || 0));
     return {
       projectCount: projects.length,
       lastProjectName: sorted[0]?.name || sorted[0]?.title || '',
@@ -10786,10 +11266,11 @@ This student has ${profileUids.length} linked app profiles because of earlier du
     const { getDocs, deleteDoc } = firebaseSync.modules;
     for (const activeUid of profileUids) {
       try {
-        const projectSnapshot = await getDocs(getStudentProjectsCollectionRef(activeUid));
-        for (const docSnapshot of (projectSnapshot.docs || [])) {
-          await deleteDoc(docSnapshot.ref || getStudentProjectDocRef(activeUid, docSnapshot.id));
+        const projects = await loadAdminProjectsForUid(activeUid);
+        for (const project of projects) {
+          await deleteDoc(getStudentProjectDocRef(activeUid, project.id));
         }
+        invalidateAdminProjectsCache(activeUid);
       } catch (projectError) {
         console.warn('Could not delete one or more student projects.', projectError);
       }
@@ -11857,6 +12338,8 @@ async function saveAdminProjectRecheckAsOfficialScore() {
       adminScoreSource: 'built-in-rubric-recheck'
     }, { merge: true });
 
+    invalidateAdminProjectsCache(ownerUid);
+    void invalidateStudentProjectIndexAfterAdminWrite(ownerUid);
     project.lastResult = result;
     const projectRef = project.adminProjectRef || makeAdminProjectReference(getAdminProjectOwnerUid(project), project.id);
     const listProject = (adminProjectViewerState.projects || []).find(item => (item.adminProjectRef || makeAdminProjectReference(getAdminProjectOwnerUid(item), item.id)) === projectRef);
@@ -12454,6 +12937,8 @@ async function applyAdminAiReviewAsScore() {
       aiScoreAppliedAt: serverTimestamp(),
       aiScoreAppliedBy: firebaseSync.auth?.currentUser?.email || firebaseSync.currentUser?.email || 'teacher'
     }, { merge: true });
+    invalidateAdminProjectsCache(getAdminProjectOwnerUid(project));
+    void invalidateStudentProjectIndexAfterAdminWrite(getAdminProjectOwnerUid(project));
     project.lastResult = result;
     refreshAdminProjectListRowAfterScoreSave(project);
     renderAdminProjectScoreComparison();
@@ -12489,6 +12974,7 @@ async function saveAdminAiRubricReview() {
       aiRubricReviewUpdatedAt: serverTimestamp(),
       aiRubricReviewUpdatedBy: teacherEmail
     }, { merge: true });
+    invalidateAdminProjectsCache(getAdminProjectOwnerUid(project));
     project.aiRubricReviews = {
       ...(project.aiRubricReviews && typeof project.aiRubricReviews === 'object' ? project.aiRubricReviews : {}),
       [key]: { ...adminLatestAiReview, reviewedAt: new Date(), reviewedBy: teacherEmail, activityKey: key }
@@ -12630,6 +13116,8 @@ async function saveAdminProjectTeacherComment({ clear = false } = {}) {
       teacherCommentUpdatedBy: teacherEmail
     }, { merge: true });
 
+    invalidateAdminProjectsCache(getAdminProjectOwnerUid(project));
+    void invalidateStudentProjectIndexAfterAdminWrite(getAdminProjectOwnerUid(project));
     const localRecord = {
       ...commentRecord,
       updatedAt: new Date()
@@ -12756,27 +13244,27 @@ function closeAdminProjectViewer() {
   document.body.classList.toggle('student-auth-open', Boolean(adminStudentProjectsOverlay && !adminStudentProjectsOverlay.classList.contains('hidden')));
 }
 
-async function showAdminStudentProjects(uid) {
+async function showAdminStudentProjects(uid, options = {}) {
   const student = adminStudentsCache.find(item => getAdminStudentProfileUids(item).includes(uid) || item.uid === uid);
   if (!student) return;
   const profileUids = getAdminStudentProfileUids(student);
   adminStudentProjectsTitle.textContent = `${student.name}'s Projects`;
   adminStudentProjectsSubtitle.textContent = `${student.studentId} · ${student.section}${profileUids.length > 1 ? ` · ${profileUids.length} linked profiles merged` : ''}`;
   adminStudentProjectsList.innerHTML = '<div class="dashboard-status">Loading projects...</div>';
+  adminProjectViewerState.student = student;
   adminStudentProjectsOverlay.classList.remove('hidden');
   document.body.classList.add('student-auth-open');
   try {
-    const { getDocs } = firebaseSync.modules;
     const projectGroups = await Promise.all(profileUids.map(async profileUid => {
-      const snapshot = await getDocs(getStudentProjectsCollectionRef(profileUid));
-      return (snapshot.docs || []).map(docSnapshot => {
-        const projectId = docSnapshot.id;
+      const projects = await loadAdminProjectsForUid(profileUid, { force: options.force === true });
+      return projects.map(project => {
+        const projectId = project.id;
         return {
+          ...project,
           id: projectId,
           ownerUid: profileUid,
           sourceUid: profileUid,
-          adminProjectRef: makeAdminProjectReference(profileUid, projectId),
-          ...snapshotData(docSnapshot)
+          adminProjectRef: makeAdminProjectReference(profileUid, projectId)
         };
       });
     }));
@@ -16374,7 +16862,7 @@ function updateInstallButtonVisibility() {
 function registerPWAServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./service-worker.js?v=463-quota-audit-fix', {
+    navigator.serviceWorker.register('./service-worker.js?v=469-firebase-local-first', {
       updateViaCache: 'none'
     }).then(registration => {
       registration.update().catch(() => {});
@@ -19503,34 +19991,163 @@ function getStudentEngagementProfileRef() {
   return uid ? getStudentDocRef(uid) : null;
 }
 
-async function writeStudentEngagementEntry(mapKey = '', itemId = '', record = {}) {
-  const safeMapKey = String(mapKey || '').trim();
-  const safeItemId = String(itemId || '').trim();
-  const profileRef = getStudentEngagementProfileRef();
-  if (!profileRef || appSession.mode !== 'student' || !safeMapKey || !safeItemId) return false;
-  try {
-    const ready = await initFirebaseSync();
-    if (!ready) return false;
-    const { updateDoc, setDoc, serverTimestamp } = firebaseSync.modules;
-    const dottedField = `${safeMapKey}.${safeItemId}`;
-    try {
-      await updateDoc(profileRef, {
-        [dottedField]: record,
-        [`${safeMapKey}UpdatedAt`]: serverTimestamp()
-      });
-    } catch (updateError) {
-      await setDoc(profileRef, {
-        [safeMapKey]: { [safeItemId]: record },
-        [`${safeMapKey}UpdatedAt`]: serverTimestamp()
-      }, { merge: true });
-    }
-    clearAdminStudentSnapshotCache();
-    return true;
-  } catch (error) {
-    console.warn(`Could not sync ${safeMapKey} engagement.`, error);
+const STUDENT_ENGAGEMENT_QUEUE_DELAY_MS = 45 * 1000;
+const STUDENT_ENGAGEMENT_IMMEDIATE_COALESCE_MS = 280;
+const STUDENT_ENGAGEMENT_RETRY_MS = 60 * 1000;
+let studentEngagementQueueUid = '';
+let studentEngagementQueue = new Map();
+let studentEngagementQueueTimer = null;
+let studentEngagementQueueRetryTimer = null;
+let studentEngagementFlushPromise = null;
+let studentEngagementFlushQueued = false;
+const studentEngagementLastSyncedSignatures = new Map();
+
+function getStudentEngagementQueueStorageKey(uid = '') {
+  return `studentCodeStudio.engagementQueue.v1.${String(uid || '').replace(/[^a-zA-Z0-9_-]/g, '-').slice(0, 90)}`;
+}
+
+function ensureStudentEngagementQueueLoaded() {
+  const uid = String(appSession.student?.uid || '').trim();
+  if (!uid) {
+    studentEngagementQueueUid = '';
+    studentEngagementQueue.clear();
     return false;
   }
+  if (studentEngagementQueueUid === uid) return true;
+  studentEngagementQueueUid = uid;
+  studentEngagementQueue.clear();
+  studentEngagementLastSyncedSignatures.clear();
+  try {
+    const raw = loadJSON(getStudentEngagementQueueStorageKey(uid), {});
+    Object.entries(raw && typeof raw === 'object' ? raw : {}).forEach(([key, entry]) => {
+      if (!entry || typeof entry !== 'object') return;
+      if (!entry.mapKey || !entry.itemId || !entry.record) return;
+      studentEngagementQueue.set(key, entry);
+    });
+  } catch (_) {}
+  return true;
 }
+
+function persistStudentEngagementQueue() {
+  if (!studentEngagementQueueUid) return;
+  const payload = {};
+  studentEngagementQueue.forEach((entry, key) => { payload[key] = entry; });
+  saveJSON(getStudentEngagementQueueStorageKey(studentEngagementQueueUid), payload);
+}
+
+function scheduleStudentEngagementFlush(delayMs = STUDENT_ENGAGEMENT_QUEUE_DELAY_MS) {
+  window.clearTimeout(studentEngagementQueueTimer);
+  if (!studentEngagementQueue.size || appSession.mode !== 'student') return;
+  studentEngagementQueueTimer = window.setTimeout(() => {
+    studentEngagementQueueTimer = null;
+    void flushStudentEngagementQueue({ reason: 'scheduled' });
+  }, Math.max(100, Number(delayMs || 0)));
+}
+
+function queueStudentEngagementEntry(mapKey = '', itemId = '', record = {}, options = {}) {
+  const safeMapKey = String(mapKey || '').trim();
+  const safeItemId = String(itemId || '').trim();
+  if (!safeMapKey || !safeItemId || appSession.mode !== 'student' || !appSession.student?.uid) return false;
+  if (!ensureStudentEngagementQueueLoaded()) return false;
+  const key = `${safeMapKey}:${safeItemId}`;
+  const signature = lightweightValueSignature(record);
+  const existing = studentEngagementQueue.get(key);
+  if (existing?.signature === signature || studentEngagementLastSyncedSignatures.get(key) === signature) {
+    FIREBASE_OP_MONITOR.bump('preventedDuplicateWrites');
+    return true;
+  }
+  studentEngagementQueue.set(key, {
+    mapKey: safeMapKey,
+    itemId: safeItemId,
+    record,
+    signature,
+    queuedAt: Date.now()
+  });
+  persistStudentEngagementQueue();
+  scheduleStudentEngagementFlush(options.immediate ? STUDENT_ENGAGEMENT_IMMEDIATE_COALESCE_MS : STUDENT_ENGAGEMENT_QUEUE_DELAY_MS);
+  return true;
+}
+
+async function flushStudentEngagementQueue(options = {}) {
+  if (studentEngagementFlushPromise) {
+    studentEngagementFlushQueued = true;
+    return studentEngagementFlushPromise;
+  }
+  if (appSession.mode !== 'student' || !ensureStudentEngagementQueueLoaded() || !studentEngagementQueue.size) return false;
+  const uidAtStart = studentEngagementQueueUid;
+  const entries = [...studentEngagementQueue.entries()].map(([key, value]) => ({ key, ...value }));
+  const profileRef = getStudentEngagementProfileRef();
+  if (!profileRef) return false;
+
+  studentEngagementFlushPromise = (async () => {
+    try {
+      const ready = await initFirebaseSync();
+      if (!ready || !navigator.onLine) throw new Error('Cloud sync is unavailable.');
+      const { updateDoc, setDoc, serverTimestamp } = firebaseSync.modules;
+      const dottedPayload = {};
+      const nestedPayload = {};
+      const touchedMaps = new Set();
+      entries.forEach(entry => {
+        dottedPayload[`${entry.mapKey}.${entry.itemId}`] = entry.record;
+        touchedMaps.add(entry.mapKey);
+        nestedPayload[entry.mapKey] ||= {};
+        nestedPayload[entry.mapKey][entry.itemId] = entry.record;
+      });
+      touchedMaps.forEach(mapKey => {
+        dottedPayload[`${mapKey}UpdatedAt`] = serverTimestamp();
+        nestedPayload[`${mapKey}UpdatedAt`] = serverTimestamp();
+      });
+      try {
+        await updateDoc(profileRef, dottedPayload);
+      } catch (updateError) {
+        const errorCode = String(updateError?.code || '').toLowerCase();
+        const errorMessage = String(updateError?.message || '').toLowerCase();
+        const profileMissing = errorCode.includes('not-found') || errorMessage.includes('no document to update') || errorMessage.includes('document does not exist');
+        if (!profileMissing) throw updateError;
+        await setDoc(profileRef, nestedPayload, { merge: true });
+      }
+      if (studentEngagementQueueUid === uidAtStart) {
+        entries.forEach(entry => {
+          const current = studentEngagementQueue.get(entry.key);
+          if (current?.signature === entry.signature) studentEngagementQueue.delete(entry.key);
+          studentEngagementLastSyncedSignatures.set(entry.key, entry.signature);
+        });
+        persistStudentEngagementQueue();
+      }
+      FIREBASE_OP_MONITOR.bump('engagementFlushes');
+      clearAdminStudentSnapshotCache();
+      clearSelectiveFirestoreCache?.(`studentProfile:${uidAtStart}`);
+      return true;
+    } catch (error) {
+      console.warn('Could not flush student engagement queue.', error);
+      window.clearTimeout(studentEngagementQueueRetryTimer);
+      studentEngagementQueueRetryTimer = window.setTimeout(() => {
+        studentEngagementQueueRetryTimer = null;
+        if (navigator.onLine) void flushStudentEngagementQueue({ reason: 'retry' });
+      }, STUDENT_ENGAGEMENT_RETRY_MS);
+      return false;
+    } finally {
+      studentEngagementFlushPromise = null;
+      if (studentEngagementFlushQueued) {
+        studentEngagementFlushQueued = false;
+        if (studentEngagementQueue.size) scheduleStudentEngagementFlush(STUDENT_ENGAGEMENT_IMMEDIATE_COALESCE_MS);
+      }
+    }
+  })();
+  return studentEngagementFlushPromise;
+}
+
+async function writeStudentEngagementEntry(mapKey = '', itemId = '', record = {}, options = {}) {
+  return queueStudentEngagementEntry(mapKey, itemId, record, options);
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden || !studentEngagementQueue.size || navigator.onLine === false) return;
+  void flushStudentEngagementQueue({ reason: 'visibility-hidden' });
+});
+window.addEventListener('online', () => {
+  if (studentEngagementQueue.size) void flushStudentEngagementQueue({ reason: 'reconnect' });
+});
 
 function buildLessonCloudEngagement(lesson = {}, progress = {}) {
   const normalized = normalizeLessonProgress(progress);
@@ -19548,11 +20165,11 @@ function buildLessonCloudEngagement(lesson = {}, progress = {}) {
   };
 }
 
-function syncLessonEngagementToCloud(lessonId = '') {
+function syncLessonEngagementToCloud(lessonId = '', options = {}) {
   const lesson = lessonLibraryState.lessons.find(item => item.id === String(lessonId || ''));
   if (!lesson || !appSession.student) return;
   const progress = getLessonProgress(lesson.id);
-  void writeStudentEngagementEntry('lessonEngagement', lesson.id, buildLessonCloudEngagement(lesson, progress));
+  void writeStudentEngagementEntry('lessonEngagement', lesson.id, buildLessonCloudEngagement(lesson, progress), options);
 }
 
 function normalizeLessonProgress(record = {}) {
@@ -19695,6 +20312,7 @@ function finishCurrentLessonReadingSession() {
     totalSeconds: Math.max(0, Number(current.totalSeconds || 0)) + elapsed,
     lastOpenedAt: Date.now()
   });
+  syncLessonEngagementToCloud(id);
   lessonLibraryState.currentLessonOpenedAt = 0;
   renderStudentLessonLibrary();
   renderLessonContinueReading();
@@ -20742,11 +21360,11 @@ function buildGivenActivityCloudEngagement(item = {}, engagement = {}) {
   };
 }
 
-function syncGivenActivityEngagementToCloud(activityId = '') {
+function syncGivenActivityEngagementToCloud(activityId = '', options = {}) {
   const item = givenActivityState.items.find(entry => entry.id === String(activityId || ''));
   if (!item || !appSession.student) return;
   const engagement = getGivenActivityEngagement(item.id);
-  void writeStudentEngagementEntry('activityEngagement', item.id, buildGivenActivityCloudEngagement(item, engagement));
+  void writeStudentEngagementEntry('activityEngagement', item.id, buildGivenActivityCloudEngagement(item, engagement), options);
 }
 
 function syncGivenActivityViewerEngagementUi(activityId = givenActivityState.viewerActivityId) {
@@ -22200,7 +22818,7 @@ function bindTeacherToolsV295() {
     if (!current.readAt) updateGivenActivityEngagement(activityId, { readAt: Date.now(), lastOpenedAt: Date.now() });
     syncGivenActivityViewerEngagementUi(activityId);
     renderStudentGivenActivities();
-    syncGivenActivityEngagementToCloud(activityId);
+    syncGivenActivityEngagementToCloud(activityId, { immediate: true });
   });
   givenActivityViewerHeartBtn?.addEventListener('click', () => {
     const activityId = givenActivityState.viewerActivityId;
@@ -22215,7 +22833,7 @@ function bindTeacherToolsV295() {
     });
     syncGivenActivityViewerEngagementUi(activityId);
     renderStudentGivenActivities();
-    syncGivenActivityEngagementToCloud(activityId);
+    syncGivenActivityEngagementToCloud(activityId, { immediate: true });
   });
   givenActivityViewerInstructionsBtn?.addEventListener('click', () => {
     const isOpen = !givenActivityViewerInstructions?.classList.contains('hidden');
@@ -27882,7 +28500,7 @@ lessonPdfMarkDoneBtn?.addEventListener('click', () => {
   syncLessonPdfProgressUi(lessonId);
   renderStudentLessonLibrary();
   renderLessonContinueReading();
-  syncLessonEngagementToCloud(lessonId);
+  syncLessonEngagementToCloud(lessonId, { immediate: true });
 });
 lessonPdfHeartBtn?.addEventListener('click', () => {
   const lessonId = lessonLibraryState.currentLessonId;
@@ -27897,7 +28515,7 @@ lessonPdfHeartBtn?.addEventListener('click', () => {
   });
   syncLessonPdfProgressUi(lessonId);
   renderStudentLessonLibrary();
-  syncLessonEngagementToCloud(lessonId);
+  syncLessonEngagementToCloud(lessonId, { immediate: true });
 });
 lessonPdfFullscreenBtn?.addEventListener('click', toggleLessonPdfFullscreen);
 lessonPdfCard?.addEventListener('pointermove', () => showLessonPdfFullscreenControls());
@@ -27972,8 +28590,20 @@ const wireframeMakerState = {
   zoom: 'fit',
   scale: 1,
   dirty: false,
+  revision: 0,
+  lastSavedRevision: 0,
   saving: false,
   saveTimer: null,
+  savePromise: null,
+  saveQueued: false,
+  saveQueuedReason: '',
+  dirtySince: 0,
+  lastEditAt: 0,
+  lastCloudSaveAt: 0,
+  lastSavedSignature: '',
+  recoveryTimer: null,
+  retryTimer: null,
+  retryCount: 0,
   drag: null,
   snapEnabled: true,
   clipboard: [],
@@ -27998,6 +28628,9 @@ const adminWireframeViewerState = {
 };
 
 const WIREFRAME_WORKSPACE_PREFS_KEY = 'ict8-wireframe-workspace-v1';
+const WIREFRAME_CLOUD_CHECKPOINT_MIN_MS = 3 * 60 * 1000;
+const WIREFRAME_CLOUD_DIRTY_MAX_MS = 3 * 60 * 1000;
+const WIREFRAME_RECOVERY_DEBOUNCE_MS = 220;
 
 function readWireframeWorkspacePrefs() {
   try {
@@ -28321,14 +28954,21 @@ function wireframeRecoveryKey(projectId = wireframeMakerState.projectId) {
   return `ict8.wireframeRecovery.v1:${uid}:${projectId}`;
 }
 
-function persistWireframeRecovery() {
+function persistWireframeRecovery(options = {}) {
   if (!wireframeMakerState.projectId || !wireframeMakerState.data) return;
-  try {
-    localStorage.setItem(wireframeRecoveryKey(), JSON.stringify({
-      savedAt: Date.now(),
-      data: normalizeWireframeData(wireframeMakerState.data)
-    }));
-  } catch (_) {}
+  const writeNow = () => {
+    window.clearTimeout(wireframeMakerState.recoveryTimer);
+    wireframeMakerState.recoveryTimer = null;
+    try {
+      localStorage.setItem(wireframeRecoveryKey(), JSON.stringify({
+        savedAt: Date.now(),
+        data: normalizeWireframeData(wireframeMakerState.data)
+      }));
+    } catch (_) {}
+  };
+  window.clearTimeout(wireframeMakerState.recoveryTimer);
+  if (options.urgent === true) writeNow();
+  else wireframeMakerState.recoveryTimer = window.setTimeout(writeNow, WIREFRAME_RECOVERY_DEBOUNCE_MS);
 }
 
 function clearWireframeRecovery(projectId = wireframeMakerState.projectId) {
@@ -28391,7 +29031,7 @@ function syncWireframeAutosaveUi({ queueIfEnabled = false } = {}) {
     } else if (enabled) {
       setWireframeSaveState('Unsaved · autosave', 'unsaved');
       if (queueIfEnabled && wireframeMakerState.projectId && wireframeMakerScreen && !wireframeMakerScreen.classList.contains('hidden')) {
-        wireframeMakerState.saveTimer = window.setTimeout(() => saveWireframeProject({ silent: true }), 350);
+        scheduleWireframeCloudCheckpoint('autosave-ui');
       }
     } else {
       setWireframeSaveState('Unsaved · press Save', 'unsaved');
@@ -29520,76 +30160,199 @@ function snapWireframeResize(element, rawW, rawH) {
   return { w, h, guides };
 }
 
-function markWireframeDirty() {
-  wireframeMakerState.dirty = true;
-  persistWireframeRecovery();
+function isWireframeImmediateSaveReason(reason = '') {
+  return /^(manual|dashboard|logout|reconnect|visibility|beforeunload|destructive|convert|project-switch)$/i.test(String(reason || ''));
+}
+
+function wireframeCloudPayload(cleanData = normalizeWireframeData(wireframeMakerState.data)) {
+  return {
+    projectType: 'wireframe',
+    status: 'in-progress',
+    wireframeData: cleanData,
+    runCount: Number(appSession.currentProject?.runCount || 0)
+  };
+}
+
+function scheduleWireframeCloudCheckpoint(reason = 'edit') {
+  if (!wireframeMakerState.projectId || !wireframeMakerState.dirty || !isWireframeAutosaveEnabled()) return;
+  if (navigator.onLine === false || isMiniGameNetworkQuiet()) return;
+  const now = Date.now();
+  const dirtySince = wireframeMakerState.dirtySince || now;
+  const earliestBySpacing = Math.max(dirtySince + WIREFRAME_CLOUD_CHECKPOINT_MIN_MS, Number(wireframeMakerState.lastCloudSaveAt || 0) + WIREFRAME_CLOUD_CHECKPOINT_MIN_MS);
+  const latestByDirtyAge = dirtySince + WIREFRAME_CLOUD_DIRTY_MAX_MS;
+  const dueAt = Math.min(earliestBySpacing, latestByDirtyAge);
   window.clearTimeout(wireframeMakerState.saveTimer);
+  wireframeMakerState.saveTimer = window.setTimeout(() => {
+    wireframeMakerState.saveTimer = null;
+    // Never create a cloud write while a pointer gesture is still active.
+    // The in-memory canvas/recovery copy remains authoritative until pointerup.
+    if (wireframeMakerState.drag) {
+      wireframeMakerState.saveTimer = window.setTimeout(() => {
+        wireframeMakerState.saveTimer = null;
+        if (wireframeMakerState.dirty && !wireframeMakerState.drag) scheduleWireframeCloudCheckpoint('after-gesture');
+        else if (wireframeMakerState.dirty) scheduleWireframeCloudCheckpoint(reason || 'checkpoint');
+      }, 800);
+      return;
+    }
+    saveWireframeProject({ silent: true, reason: reason || 'checkpoint' }).catch(error => console.warn('Wireframe checkpoint failed', error));
+  }, Math.max(0, dueAt - now));
+}
+
+function markWireframeDirty(reason = 'edit') {
+  const now = Date.now();
+  wireframeMakerState.revision += 1;
+  wireframeMakerState.dirty = true;
+  wireframeMakerState.lastEditAt = now;
+  if (!wireframeMakerState.dirtySince) wireframeMakerState.dirtySince = now;
+  persistWireframeRecovery();
+  window.clearTimeout(wireframeMakerState.retryTimer);
   if (navigator.onLine === false) {
+    window.clearTimeout(wireframeMakerState.saveTimer);
     setWireframeSaveState('Offline · pending', 'unsaved');
     return;
   }
   if (isWireframeAutosaveEnabled()) {
-    setWireframeSaveState('Unsaved · autosave', 'unsaved');
-    wireframeMakerState.saveTimer = window.setTimeout(() => saveWireframeProject({ silent: true }), 850);
+    setWireframeSaveState('Local copy · cloud pending', 'unsaved');
+    if (isWireframeImmediateSaveReason(reason)) {
+      saveWireframeProject({ silent: true, immediate: true, reason }).catch(error => console.warn('Immediate wireframe save failed', error));
+    } else {
+      scheduleWireframeCloudCheckpoint(reason);
+    }
   } else {
+    window.clearTimeout(wireframeMakerState.saveTimer);
     setWireframeSaveState('Unsaved · press Save', 'unsaved');
   }
 }
 
-async function saveWireframeProject({ silent = false } = {}) {
+async function saveWireframeProject({ silent = false, immediate = false, reason = 'checkpoint' } = {}) {
   if (!wireframeMakerState.projectId || !wireframeMakerState.data || !appSession.student?.uid) return false;
-  if (wireframeMakerState.saving) return false;
+  // Normal autosave/checkpoint requests must never hit Firestore during drag/resize.
+  // Explicit lifecycle/manual saves are allowed to bypass this guard.
+  if (wireframeMakerState.drag && !immediate && !isWireframeImmediateSaveReason(reason)) {
+    FIREBASE_OP_MONITOR.bump('preventedDuplicateWrites');
+    scheduleWireframeCloudCheckpoint('after-gesture');
+    return false;
+  }
   if (navigator.onLine === false) {
     setWireframeSaveState('Offline · pending', 'unsaved');
-    persistWireframeRecovery();
+    persistWireframeRecovery({ urgent: true });
     return false;
   }
+  if (immediate) window.clearTimeout(wireframeMakerState.saveTimer);
+
+  const cleanData = normalizeWireframeData(wireframeMakerState.data);
+  const payload = wireframeCloudPayload(cleanData);
+  const signature = lightweightValueSignature(payload);
+  if (signature === wireframeMakerState.lastSavedSignature) {
+    FIREBASE_OP_MONITOR.bump('preventedDuplicateWrites');
+    wireframeMakerState.dirty = false;
+    wireframeMakerState.dirtySince = 0;
+    wireframeMakerState.lastSavedRevision = Math.max(wireframeMakerState.lastSavedRevision, wireframeMakerState.revision);
+    clearWireframeRecovery();
+    setWireframeSaveState(isWireframeAutosaveEnabled() ? 'Saved' : 'Saved · manual', 'saved');
+    return true;
+  }
+
+  if (wireframeMakerState.saving) {
+    wireframeMakerState.saveQueued = true;
+    if (isWireframeImmediateSaveReason(reason)) wireframeMakerState.saveQueuedReason = reason;
+    return wireframeMakerState.savePromise || false;
+  }
+
+  const revisionBeingSaved = wireframeMakerState.revision;
+  const projectIdBeingSaved = wireframeMakerState.projectId;
+  const uidBeingSaved = appSession.student.uid;
   wireframeMakerState.saving = true;
-  window.clearTimeout(wireframeMakerState.saveTimer);
   setWireframeSaveState('Saving...', 'saving');
   if (wireframeSaveBtn) wireframeSaveBtn.disabled = true;
-  try {
-    const { setDoc, serverTimestamp } = firebaseSync.modules;
-    const cleanData = normalizeWireframeData(wireframeMakerState.data);
-    await withTimeout(setDoc(getStudentProjectDocRef(appSession.student.uid, wireframeMakerState.projectId), {
-      projectType: 'wireframe',
-      status: 'in-progress',
-      wireframeData: cleanData,
-      runCount: Number(appSession.currentProject?.runCount || 0),
-      updatedAt: serverTimestamp()
-    }, { merge: true }), APP_NETWORK_TIMEOUT_MS, 'Saving the wireframe is taking too long. Your local recovery copy is safe.');
-    wireframeMakerState.data = cleanData;
-    if (!cleanData.pages.some(page => page.id === wireframeMakerState.pageId)) wireframeMakerState.pageId = cleanData.startPageId;
-    wireframeMakerState.dirty = false;
-    clearWireframeRecovery();
-    clearSelectiveFirestoreCache(`studentProjects:${appSession.student.uid}`);
-    if (appSession.currentProject) {
-      appSession.currentProject.projectType = 'wireframe';
-      appSession.currentProject.wireframeData = cleanData;
-      appSession.currentProject.updatedAt = new Date();
+
+  const saveJob = (async () => {
+    try {
+      const { setDoc, serverTimestamp } = firebaseSync.modules;
+      await withTimeout(setDoc(getStudentProjectDocRef(uidBeingSaved, projectIdBeingSaved), {
+        ...payload,
+        updatedAt: serverTimestamp()
+      }, { merge: true }), APP_NETWORK_TIMEOUT_MS, 'Saving the wireframe is taking too long. Your local recovery copy is safe.');
+
+      wireframeMakerState.lastSavedSignature = signature;
+      wireframeMakerState.lastSavedRevision = Math.max(wireframeMakerState.lastSavedRevision, revisionBeingSaved);
+      wireframeMakerState.lastCloudSaveAt = Date.now();
+      FIREBASE_OP_MONITOR.bump('wireframeCheckpoints');
+      wireframeMakerState.retryCount = 0;
+
+      const changedDuringSave = wireframeMakerState.revision > revisionBeingSaved;
+      if (!changedDuringSave && wireframeMakerState.projectId === projectIdBeingSaved) {
+        wireframeMakerState.data = cleanData;
+        if (!cleanData.pages.some(page => page.id === wireframeMakerState.pageId)) wireframeMakerState.pageId = cleanData.startPageId;
+        wireframeMakerState.dirty = false;
+        wireframeMakerState.dirtySince = 0;
+        clearWireframeRecovery();
+      } else {
+        wireframeMakerState.dirty = true;
+        wireframeMakerState.dirtySince = wireframeMakerState.lastEditAt || Date.now();
+        persistWireframeRecovery();
+      }
+
+      clearSelectiveFirestoreCache(`studentProjects:${uidBeingSaved}`);
+      clearSelectiveFirestoreCache(`studentProjectDoc:${uidBeingSaved}:${projectIdBeingSaved}`);
+      if (appSession.currentProject && appSession.currentProjectId === projectIdBeingSaved) {
+        appSession.currentProject.projectType = 'wireframe';
+        if (!changedDuringSave) appSession.currentProject.wireframeData = cleanData;
+        appSession.currentProject.updatedAt = new Date();
+      }
+      const cached = appSession.projects.find(item => item.id === projectIdBeingSaved);
+      if (cached) {
+        cached.projectType = 'wireframe';
+        if (!changedDuringSave) cached.wireframeData = cleanData;
+        cached.updatedAt = new Date();
+      }
+      persistStudentProjectsCache();
+      setLocalStudentProjectIndex(appSession.projects);
+      invalidateAdminProjectsCache(uidBeingSaved);
+      if (isWireframeImmediateSaveReason(reason) && appSession.student?.uid === uidBeingSaved) {
+        void persistStudentProjectIndex({ force: true });
+      }
+      if (wireframeMakerState.dirty) {
+        setWireframeSaveState('Local copy · cloud pending', 'unsaved');
+      } else {
+        setWireframeSaveState(isWireframeAutosaveEnabled() ? 'Saved' : 'Saved · manual', 'saved');
+      }
+      if (!silent) setStatus(wireframeMakerState.dirty ? 'Wireframe checkpoint saved · newer local changes pending' : 'Wireframe saved');
+      return true;
+    } catch (error) {
+      console.error('Could not save wireframe project', error);
+      wireframeMakerState.dirty = true;
+      wireframeMakerState.dirtySince = wireframeMakerState.dirtySince || Date.now();
+      persistWireframeRecovery({ urgent: true });
+      setWireframeSaveState(navigator.onLine === false ? 'Offline · pending' : 'Save failed · retrying', 'error');
+      if (isWireframeAutosaveEnabled() && navigator.onLine !== false && wireframeMakerState.retryCount < 3) {
+        wireframeMakerState.retryCount += 1;
+        const retryDelay = [15000, 60000, 180000][wireframeMakerState.retryCount - 1] || 180000;
+        window.clearTimeout(wireframeMakerState.retryTimer);
+        wireframeMakerState.retryTimer = window.setTimeout(() => saveWireframeProject({ silent: true, reason: 'retry' }), retryDelay);
+      }
+      if (!silent) appAlert(error?.message || 'Could not save the wireframe. Try again.', { title: 'Wireframe save failed', danger: true });
+      return false;
+    } finally {
+      wireframeMakerState.saving = false;
+      if (wireframeSaveBtn) wireframeSaveBtn.disabled = false;
+      if (wireframeMakerState.saveQueued && wireframeMakerState.projectId) {
+        const queuedReason = wireframeMakerState.saveQueuedReason;
+        wireframeMakerState.saveQueued = false;
+        wireframeMakerState.saveQueuedReason = '';
+        if (wireframeMakerState.dirty) {
+          if (isWireframeImmediateSaveReason(queuedReason)) {
+            window.setTimeout(() => saveWireframeProject({ silent: true, immediate: true, reason: queuedReason }), 80);
+          } else {
+            scheduleWireframeCloudCheckpoint('changes-after-checkpoint');
+          }
+        }
+      }
     }
-    const cached = appSession.projects.find(item => item.id === wireframeMakerState.projectId);
-    if (cached) {
-      cached.projectType = 'wireframe';
-      cached.wireframeData = cleanData;
-      cached.updatedAt = new Date();
-    }
-    persistStudentProjectsCache();
-    setWireframeSaveState(isWireframeAutosaveEnabled() ? 'Saved' : 'Saved · manual', 'saved');
-    syncWireframeAutosaveUi();
-    if (!silent) setStatus('Wireframe saved');
-    return true;
-  } catch (error) {
-    console.error('Could not save wireframe project', error);
-    wireframeMakerState.dirty = true;
-    persistWireframeRecovery();
-    setWireframeSaveState('Save failed', 'error');
-    if (!silent) appAlert(error?.message || 'Could not save the wireframe. Try again.', { title: 'Wireframe save failed', danger: true });
-    return false;
-  } finally {
-    wireframeMakerState.saving = false;
-    if (wireframeSaveBtn) wireframeSaveBtn.disabled = false;
-  }
+  })();
+  wireframeMakerState.savePromise = saveJob;
+  try { return await saveJob; }
+  finally { if (wireframeMakerState.savePromise === saveJob) wireframeMakerState.savePromise = null; }
 }
 
 
@@ -30406,18 +31169,24 @@ async function convertCurrentWireframeToStarterCode() {
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     }), APP_NETWORK_TIMEOUT_MS, 'Creating the starter code project is taking too long. Please check the internet connection, then try again.');
+    appSession.projects.unshift(localProject);
+    appSession.student.projectCount = Number(appSession.student.projectCount || 0) + 1;
+    const projectIndex = setLocalStudentProjectIndex(appSession.projects);
     await setDoc(getStudentDocRef(appSession.student.uid), {
       projectCount: increment(1),
       lastProjectId: projectId,
       lastProjectName: projectName,
+      projectIndexVersion: PROJECT_INDEX_VERSION,
+      projectIndex,
+      projectIndexUpdatedAt: serverTimestamp(),
+      projectIndexInvalidatedAtMs: 0,
       lastActivityAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     }, { merge: true });
+    appSession.student.__projectIndexCloudSignature = lightweightValueSignature(projectIndex);
 
     clearSelectiveFirestoreCache(`studentProjects:${appSession.student.uid}`);
     clearSelectiveFirestoreCache(`studentProfile:${appSession.student.uid}`);
-    appSession.projects.unshift(localProject);
-    appSession.student.projectCount = Number(appSession.student.projectCount || 0) + 1;
     persistStudentProjectsCache();
 
     wireframeMakerScreen?.classList.add('hidden');
@@ -30448,6 +31217,16 @@ async function openWireframeMaker(project) {
   wireframeExportOverlay?.classList.add('hidden');
   wireframeMakerState.zoom = 'fit';
   wireframeMakerState.dirty = false;
+  wireframeMakerState.revision = 0;
+  wireframeMakerState.lastSavedRevision = 0;
+  wireframeMakerState.dirtySince = 0;
+  wireframeMakerState.lastEditAt = 0;
+  wireframeMakerState.lastCloudSaveAt = getProjectUpdatedAtMs(project);
+  wireframeMakerState.lastSavedSignature = '';
+  wireframeMakerState.saveQueued = false;
+  wireframeMakerState.saveQueuedReason = '';
+  wireframeMakerState.retryCount = 0;
+  window.clearTimeout(wireframeMakerState.retryTimer);
   wireframeMakerState.drag = null;
   wireframeMakerState.snapEnabled = true;
   wireframeMakerState.clipboard = [];
@@ -30456,6 +31235,7 @@ async function openWireframeMaker(project) {
   wireframeMakerState.propertiesCollapsed = isCompactWireframeWorkspace() ? true : workspacePrefs.propertiesCollapsed;
   wireframeMakerState.focusMode = false;
   wireframeMakerState.data = normalizeWireframeData(project.wireframeData);
+  wireframeMakerState.lastSavedSignature = lightweightValueSignature(wireframeCloudPayload(wireframeMakerState.data));
   wireframeMakerState.pageId = wireframeMakerState.data.startPageId;
   resetWireframeHistory();
 
@@ -30498,7 +31278,7 @@ async function closeWireframeMakerToDashboard() {
   closeWireframePageDialog();
   if (wireframeMakerState.dirty) {
     if (isWireframeAutosaveEnabled()) {
-      const saved = await saveWireframeProject({ silent: false });
+      const saved = await saveWireframeProject({ silent: false, immediate: true, reason: 'manual' });
       if (!saved && navigator.onLine !== false) return;
     } else {
       const saveBeforeLeaving = await appConfirm(
@@ -30506,7 +31286,7 @@ async function closeWireframeMakerToDashboard() {
         { title: 'Unsaved Wireframe', confirmText: 'Save & Leave', cancelText: 'More Options', icon: '💾' }
       );
       if (saveBeforeLeaving) {
-        const saved = await saveWireframeProject({ silent: false });
+        const saved = await saveWireframeProject({ silent: false, immediate: true, reason: 'manual' });
         if (!saved) return;
       } else {
         const leaveWithoutSaving = await appConfirm(
@@ -31038,7 +31818,7 @@ function installWireframeMakerEvents() {
     setWireframeExportStatus(`PDF will export ${scope}. PNG always exports the current page.`);
   });
   wireframeConvertBtn?.addEventListener('click', convertCurrentWireframeToStarterCode);
-  wireframeSaveBtn?.addEventListener('click', () => saveWireframeProject({ silent: false }));
+  wireframeSaveBtn?.addEventListener('click', () => saveWireframeProject({ silent: false, immediate: true, reason: 'manual' }));
   wireframePageTabs?.addEventListener('click', event => {
     const button = event.target.closest('[data-wireframe-page-id]');
     if (button) switchWireframePage(button.dataset.wireframePageId);
@@ -31152,7 +31932,7 @@ function installWireframeMakerEvents() {
 
       if (mod && key === 's') {
         event.preventDefault();
-        saveWireframeProject({ silent: false });
+        saveWireframeProject({ silent: false, immediate: true, reason: 'manual' });
         return;
       }
       if (!editingText && !wireframeMakerState.preview && mod && key === 'z') {
@@ -31228,15 +32008,22 @@ function installWireframeMakerEvents() {
 
   window.addEventListener('online', () => {
     if (!wireframeMakerState.dirty || !wireframeMakerScreen || wireframeMakerScreen.classList.contains('hidden')) return;
-    if (isWireframeAutosaveEnabled()) saveWireframeProject({ silent: true });
+    if (isWireframeAutosaveEnabled()) saveWireframeProject({ silent: true, immediate: true, reason: 'reconnect' });
     else syncWireframeAutosaveUi();
   });
   window.addEventListener('offline', () => {
     if (wireframeMakerState.dirty) setWireframeSaveState('Offline · pending', 'unsaved');
   });
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden || !wireframeMakerState.dirty || !wireframeMakerScreen || wireframeMakerScreen.classList.contains('hidden')) return;
+    persistWireframeRecovery({ urgent: true });
+    if (isWireframeAutosaveEnabled() && navigator.onLine !== false) {
+      saveWireframeProject({ silent: true, immediate: true, reason: 'visibility' }).catch(error => console.info('Wireframe hidden-state checkpoint skipped.', error));
+    }
+  });
   window.addEventListener('beforeunload', event => {
     if (!wireframeMakerState.dirty) return;
-    persistWireframeRecovery();
+    persistWireframeRecovery({ urgent: true });
     event.preventDefault();
     event.returnValue = '';
   });
@@ -31434,6 +32221,14 @@ adminStudentsTableBody?.addEventListener('click', event => {
   const button = event.target.closest('.view-student-projects-btn');
   if (!button) return;
   if (button.dataset.studentUid) showAdminStudentProjects(button.dataset.studentUid);
+});
+refreshAdminStudentProjectsBtn?.addEventListener('click', async () => {
+  const student = adminProjectViewerState.student;
+  const uid = getAdminStudentProfileUids(student || {})[0] || student?.uid || '';
+  if (!uid) return;
+  refreshAdminStudentProjectsBtn.disabled = true;
+  try { await showAdminStudentProjects(uid, { force: true }); }
+  finally { refreshAdminStudentProjectsBtn.disabled = false; }
 });
 closeAdminStudentProjectsBtn?.addEventListener('click', closeAdminStudentProjects);
 adminStudentProjectsOverlay?.addEventListener('click', event => {
@@ -35756,6 +36551,10 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
       const index = appSession.projects?.findIndex?.(project => project.id === projectId) ?? -1;
       if (index >= 0) appSession.projects[index] = { ...appSession.projects[index], ...cached };
       else appSession.projects?.unshift?.(cached);
+      if (appSession.student?.uid === authUser.uid) {
+        setLocalStudentProjectIndex(appSession.projects);
+        if (isNewCopy) void persistStudentProjectIndex({ force: true });
+      }
       persistStudentProjectsCache?.();
       setStudentSaveState?.('Saved shared copy', 'saved');
       syncCollabSaveButtonVisibility();
@@ -36308,7 +37107,13 @@ They can join again later using the same share code.`,
     updateConnectionStatusUI();
     if (studentProjectDirty && isStudentProjectActive()) {
       window.clearTimeout(studentProjectRetryTimer);
-      window.setTimeout(() => flushStudentProjectSave('reconnect'), 500);
+      if (isStudentAutoSaveAllowed()) {
+        window.setTimeout(() => flushStudentProjectSave('reconnect'), 500);
+      } else {
+        persistStudentProjectRecoverySnapshot('reconnect-manual-save-mode');
+        setStudentSaveState('Unsaved · press Save', 'unsaved');
+        updateManualSaveControls();
+      }
     }
     if (appSession.mode === 'student' && !document.body.classList.contains('student-dashboard-active')) setStatus('Back online');
   };
@@ -36323,7 +37128,11 @@ They can join again later using the same share code.`,
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden' && studentProjectDirty && isStudentProjectActive()) {
       persistStudentProjectRecoverySnapshot('visibility');
-      if (navigator.onLine !== false) saveCurrentStudentProject({ immediate: true, reason: 'visibility' });
+      if (navigator.onLine !== false && isStudentAutoSaveAllowed()) {
+        saveCurrentStudentProject({ immediate: true, reason: 'visibility' });
+      } else if (!isStudentAutoSaveAllowed()) {
+        setStudentSaveState('Unsaved · press Save', 'unsaved');
+      }
     }
   });
   window.addEventListener('pagehide', () => {
@@ -39476,9 +40285,10 @@ window.MCS_PHONE_MENU_STATUS = () => ({
    STEP 270: SEND CODE + CODE INBOX
    Optimized Firestore design:
    - 1 lightweight inbox metadata document + 1 full transfer document per send.
-   - Inbox metadata is fetched only when the receiver opens/refreshes Inbox.
+   - One lightweight limited metadata listener stays alive per logged-in student for instant notification.
    - Full source code is read only when the receiver opens one transfer.
    - Copy is local clipboard only: zero Firestore writes.
+   - Listener is reused and unsubscribed on logout/account switch; full source remains lazy-loaded.
    - No automatic import/overwrite of the receiver's project.
    ========================================================= */
 (() => {
@@ -40134,16 +40944,44 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   }
 
   async function startCodeInboxWatcher() {
-    // v461: Code Inbox is intentionally ON-DEMAND. A Firestore listener on the
-    // latest 20 inbox docs for every logged-in student is too expensive at
-    // 500-student scale. Dashboard/menu setup may call this function, but it
-    // performs zero reads unless the Inbox overlay is actually open.
     if (!isCodeTransferEnabled()) {
       stopCodeInboxWatcher();
       return;
     }
-    if (!codeInboxOverlay || codeInboxOverlay.classList.contains('hidden')) return;
-    await refreshCodeInboxOnce();
+    const ready = await initFirebaseSync();
+    if (!ready) return;
+    const inboxStudentKey = getCurrentCodeInboxStudentKey();
+    if (!inboxStudentKey) return;
+    if (codeTransferState.inboxUnsubscribe && codeTransferState.inboxUid === inboxStudentKey) return;
+    if (codeTransferState.inboxUnsubscribe) stopCodeInboxWatcher();
+    try {
+      const { onSnapshot, query, orderBy, limit } = firebaseSync.modules;
+      const inboxQuery = query(
+        getCodeInboxCollectionRef(inboxStudentKey),
+        orderBy('createdAtMs', 'desc'),
+        limit(INBOX_LIMIT)
+      );
+      codeTransferState.inboxUid = inboxStudentKey;
+      codeTransferState.inboxUnsubscribe = onSnapshot(inboxQuery, snapshot => {
+        applyInboxSnapshot(normalizeInboxSnapshot(snapshot), { fromWatcher: true });
+        if (codeInboxOverlay && !codeInboxOverlay.classList.contains('hidden')) {
+          setCodeTransferStatus(codeInboxStatus, codeTransferState.inboxItems.length
+            ? `Showing latest ${codeTransferState.inboxItems.length} received code item${codeTransferState.inboxItems.length === 1 ? '' : 's'}.`
+            : 'No received code yet.', 'success');
+        }
+      }, error => {
+        console.warn('Code Inbox listener stopped.', error);
+        try { codeTransferState.inboxUnsubscribe?.(); } catch (_) {}
+        codeTransferState.inboxUnsubscribe = null;
+        codeTransferState.inboxUid = '';
+        if (codeInboxOverlay && !codeInboxOverlay.classList.contains('hidden')) {
+          setCodeTransferStatus(codeInboxStatus, error?.message || 'Code Inbox live updates are unavailable. Use Refresh.', 'error');
+        }
+      });
+    } catch (error) {
+      console.warn('Could not start Code Inbox listener.', error);
+      codeTransferState.inboxUid = '';
+    }
   }
 
   async function refreshCodeInboxOnce() {
@@ -44035,10 +44873,17 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   // v460 Phase 3 checkpoint policy. Ordinary interactions save to LocalStorage
   // immediately. Durable cloud writes are coalesced to a low-frequency window
   // while dirty, with a short checkpoint after major milestones.
-  const CODE_EXPLORER_CHECKPOINT_PERIODIC_BASE_MS = 8 * 60 * 1000;
-  const CODE_EXPLORER_CHECKPOINT_PERIODIC_JITTER_MS = 2 * 60 * 1000;
-  const CODE_EXPLORER_CHECKPOINT_MILESTONE_BASE_MS = 20 * 1000;
-  const CODE_EXPLORER_CHECKPOINT_MILESTONE_JITTER_MS = 25 * 1000;
+  // v471 quota pass: ordinary Explorer activity stays local-first longer.
+  // Normal durable checkpoints have a 2-minute floor, typically land around
+  // 2.5-3 minutes, while real milestones can still flush promptly.
+  const CODE_EXPLORER_CHECKPOINT_MIN_SPACING_MS = 2 * 60 * 1000;
+  const CODE_EXPLORER_CHECKPOINT_PERIODIC_BASE_MS = 150 * 1000;
+  const CODE_EXPLORER_CHECKPOINT_PERIODIC_JITTER_MS = 30 * 1000;
+  const CODE_EXPLORER_CHECKPOINT_DIRTY_MAX_MS = 3 * 60 * 1000;
+  const CODE_EXPLORER_CHECKPOINT_MILESTONE_MIN_SPACING_MS = 15 * 1000;
+  const CODE_EXPLORER_CHECKPOINT_MILESTONE_BASE_MS = 8 * 1000;
+  const CODE_EXPLORER_CHECKPOINT_MILESTONE_JITTER_MS = 4 * 1000;
+  const CODE_EXPLORER_FOREGROUND_REFRESH_MS = 5 * 60 * 1000;
   const state = { course: 'html', topicId: '', filter: 'all', progress: null, reader: '', cloudLoaded: false, cloudXpHint: 0, dashboardCloudLoading: false, saveTimer: null, cloudSavePromise: null, cloudSaveQueued: false, checkpointDirty: false, checkpointDirtySince: 0, checkpointDueAt: 0, checkpointReason: '', checkpointRetryNotBefore: 0, lastCheckpointSignature: '', lastCheckpointMilestoneSignature: '', profileUpdateTime: '', lastCloudSyncAt: 0, identityCheckedAt: 0, identityCanonical: true, heartTimer: null, heartPopoverTimer: null, profileUnsub: null, finalAnswers: {}, finalStartedAt: 0, quickQuiz: { topicId: '', index: 0, answers: [], results: [], submitted: false, questionStartedAt: [], responseMs: [], attemptStartedAt: 0 }, miniGame: { topicId: '', selected: '', result: '', correct: '', choices: [], before: '', after: '' }, miniGameResetTimer: null, quickAdvanceTimer: null, quickFeedbackTimer: null, justUnlockedTopicId: '', justUnlockedCourse: '', mobileStage: 'learn', mobileStageDirection: 'next', mobileSwipeStart: null, mobileView: 'roadmap' };
   const miniGameProgressSubscribers = new Set();
   const activeXpMiniGameRounds = new Map();
@@ -45121,54 +45966,11 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   }
 
   async function startExplorerProfileListener() {
+    // v469: no always-on whole-profile Firestore listener. Explorer opens from
+    // the login-seeded profile, merges secure checkpoint responses, and performs
+    // an occasional foreground refresh instead.
     stopExplorerProfileListener();
-    // Phase 3 deliberately removes the always-on student document listener.
-    // Fresh profile data is already loaded by student login, and subsequent
-    // Explorer changes are merged by the checkpoint backend.
-    if (shouldUseAppsScriptCodeExplorerCheckpoints()) return;
-    if (!appSession.student?.uid || appSession.mode !== 'student') return;
-    try {
-      const ready = await initFirebaseSync();
-      if (!ready) return;
-      const { onSnapshot } = firebaseSync.modules;
-      state.profileUnsub = onSnapshot(getStudentDocRef(appSession.student.uid), snapshot => {
-        if (!snapshotExists(snapshot) || !state.progress) return;
-        const profile = snapshotData(snapshot);
-        const remote = normalizeProgress(profile?.codeExplorerProgress || {});
-        const beforeSignature = progressSyncSignature(state.progress);
-        const remoteSignature = progressSyncSignature(remote);
-        state.cloudXpHint = Math.max(state.cloudXpHint || 0, Math.max(0, Number(profile?.codeExplorerXp || 0)));
-
-        const merged = mergeProgress(state.progress, remote);
-        migrateLegacyXpProgress(merged, state.cloudXpHint, { source: 'live-cross-device-sync' });
-        const mergedSignature = progressSyncSignature(merged);
-        const localChanged = mergedSignature !== beforeSignature;
-        const remoteMissingLocalProgress = mergedSignature !== remoteSignature;
-
-        state.progress = merged;
-        state.cloudLoaded = true;
-        state.lastCloudSyncAt = Date.now();
-        saveLocalProgress(state.progress);
-
-        if (localChanged) {
-          renderHeartStatus();
-          renderTopProgress();
-          renderCourseCards();
-          renderTopicList();
-          renderFinalCard();
-          renderCertificates();
-          if (state.mobileView === 'roadmap') renderCourseRoadmap();
-          else renderMobileJourney();
-        }
-
-        // If this browser has legitimate progress that an older/stale browser
-        // just overwrote, immediately merge it back through the transaction-safe
-        // cloud writer. This keeps all browsers converging on one progress record.
-        if (remoteMissingLocalProgress) scheduleCloudSave();
-      }, error => console.info('Code Explorer live progress sync unavailable.', error));
-    } catch (error) {
-      console.info('Code Explorer live progress sync skipped.', error);
-    }
+    return false;
   }
 
   function normalizeProgress(input = {}) {
@@ -45266,6 +46068,13 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     if (!state.checkpointDirtySince) state.checkpointDirtySince = Date.now();
     state.checkpointReason = String(reason || state.checkpointReason || 'progress').slice(0, 80);
     return true;
+  }
+
+  function saveExplorerLocalOnly(reason = 'local-navigation') {
+    saveLocalProgress();
+    if (appSession.student?.uid && appSession.mode === 'student' && state.progress) {
+      refreshExplorerCheckpointDirtyState(reason);
+    }
   }
 
   function readerKey() {
@@ -45478,137 +46287,19 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   }
 
   async function loadCloudProgressLegacyFirestore() {
-    if (!appSession.student?.uid || appSession.mode !== 'student') return null;
-    try {
-      clearSelectiveFirestoreCache(`studentProfile:${appSession.student.uid}`);
-      const profile = await loadStudentProfile(appSession.student.uid);
-      state.cloudXpHint = Math.max(state.cloudXpHint || 0, Math.max(0, Number(profile?.codeExplorerXp || 0)));
-      state.lastCloudSyncAt = Date.now();
-      return profile?.codeExplorerProgress ? normalizeProgress(profile.codeExplorerProgress) : null;
-    } catch (error) {
-      console.warn('Code Explorer cloud progress could not be loaded.', error);
-      return null;
-    }
+    // v469+: legacy direct Firestore progress loading is intentionally disabled.
+    // Student login/profile seeding + the secure Apps Script checkpoint route are canonical.
+    const seeded = appSession.student?.codeExplorerProgress || appSession.lastStudentProfile?.codeExplorerProgress || null;
+    return seeded ? normalizeProgress(seeded) : null;
   }
 
-
   async function saveCloudProgressLegacyFirestore() {
-    clearTimeout(state.saveTimer);
-    state.saveTimer = null;
-    if (!appSession.student?.uid || appSession.mode !== 'student' || !state.progress) return false;
-
-    // Never let two saves from the same browser race each other. If another
-    // activity changes progress while a cloud save is running, queue one more
-    // merge-save immediately after the current transaction finishes.
-    if (state.cloudSavePromise) {
-      state.cloudSaveQueued = true;
-      return state.cloudSavePromise;
-    }
-
-    const saveJob = (async () => {
-      try {
-        const canonicalIdentity = await validateExplorerStudentIdentity();
-        if (!canonicalIdentity) {
-          console.warn('Code Explorer save blocked because this browser is signed into an older student login route.');
-          return false;
-        }
-        const ready = await initFirebaseSync();
-        if (!ready) return false;
-        const { setDoc, getDoc, runTransaction, serverTimestamp } = firebaseSync.modules;
-        const uid = appSession.student.uid;
-        const studentRef = getStudentDocRef(uid);
-        const localSnapshot = normalizeProgress(state.progress);
-        let committedProgress = localSnapshot;
-        let masteryXp = explorerXpFor(localSnapshot);
-
-        const mergeWithRemoteProfile = profile => {
-          const remote = normalizeProgress(profile?.codeExplorerProgress || {});
-          const merged = mergeProgress(remote, localSnapshot);
-          const protectedXp = Math.max(
-            state.cloudXpHint || 0,
-            Math.max(0, Number(profile?.codeExplorerXp || 0)),
-            explorerXpFor(localSnapshot)
-          );
-          migrateLegacyXpProgress(merged, protectedXp, { source: 'v397-cross-device-save' });
-          merged.updatedAt = new Date().toISOString();
-          return merged;
-        };
-
-        if (typeof runTransaction === 'function') {
-          await runTransaction(firebaseSync.db, async transaction => {
-            const snapshot = await transaction.get(studentRef);
-            const profile = snapshotExists(snapshot) ? snapshotData(snapshot) : {};
-            committedProgress = mergeWithRemoteProfile(profile);
-            masteryXp = explorerXpFor(committedProgress);
-            transaction.set(studentRef, {
-              codeExplorerProgress: normalizeProgress(committedProgress),
-              codeExplorerXp: masteryXp,
-              codeExplorerXpMigrationVersion: Math.max(0, Number(committedProgress.xpMigrationVersion || 0)),
-              codeExplorerUpdatedAt: serverTimestamp()
-            }, { merge: true });
-          });
-        } else {
-          // Fallback for unusual builds without transaction support. We still
-          // read and merge the newest remote copy immediately before writing.
-          const snapshot = await getDoc(studentRef);
-          const profile = snapshotExists(snapshot) ? snapshotData(snapshot) : {};
-          committedProgress = mergeWithRemoteProfile(profile);
-          masteryXp = explorerXpFor(committedProgress);
-          await setDoc(studentRef, {
-            codeExplorerProgress: normalizeProgress(committedProgress),
-            codeExplorerXp: masteryXp,
-            codeExplorerXpMigrationVersion: Math.max(0, Number(committedProgress.xpMigrationVersion || 0)),
-            codeExplorerUpdatedAt: serverTimestamp()
-          }, { merge: true });
-        }
-
-        // The student may have answered another item while the transaction was
-        // running. Merge the committed cloud copy back into the live state so
-        // nothing disappears locally; a queued save will publish newer work.
-        state.progress = mergeProgress(committedProgress, state.progress);
-        state.cloudXpHint = Math.max(state.cloudXpHint || 0, masteryXp, explorerXpFor(state.progress));
-        state.cloudLoaded = true;
-        state.lastCloudSyncAt = Date.now();
-        saveLocalProgress(state.progress);
-
-        try {
-          const profile = appSession.student || appSession.lastStudentProfile || {};
-          await setDoc(getCodeExplorerLeaderboardDocRef(uid), {
-            uid,
-            studentId: normalizeStudentId(profile.studentId || profile.studentIdNormalized || ''),
-            name: String(profile.name || profile.fullName || 'Student').trim(),
-            section: String(profile.section || '').trim(),
-            xp: masteryXp,
-            accountStatus: String(profile.accountStatus || 'active'),
-            updatedAt: serverTimestamp()
-          }, { merge: true });
-        } catch (leaderboardSyncError) {
-          console.info('Code Explorer leaderboard quick-sync unavailable; rankings can still use student progress.', leaderboardSyncError);
-        }
-
-        clearSelectiveFirestoreCache(`studentProfile:${uid}`);
-        clearAdminStudentSnapshotCache();
-        leaderboardState.loadedAt = 0;
-        return true;
-      } catch (error) {
-        console.warn('Code Explorer progress cloud save skipped.', error);
-        return false;
-      }
-    })();
-
-    state.cloudSavePromise = saveJob;
-    try {
-      return await saveJob;
-    } finally {
-      if (state.cloudSavePromise === saveJob) state.cloudSavePromise = null;
-      if (state.cloudSaveQueued) {
-        state.cloudSaveQueued = false;
-        clearTimeout(state.saveTimer);
-        state.saveTimer = window.setTimeout(() => {
-          saveCloudProgressLegacyFirestore().catch(() => false);
-        }, 80);
-      }
-    }
+    // v469+: never direct-write Code Explorer progress from the browser.
+    // Keep local progress dirty until saveCodeExplorerCheckpoint is available.
+    saveLocalProgress();
+    state.checkpointDirty = true;
+    state.checkpointDirtySince ||= Date.now();
+    return false;
   }
 
 
@@ -45623,7 +46314,13 @@ window.MCS_PHONE_MENU_STATUS = () => ({
 
   async function loadCloudProgress() {
     if (!appSession.student?.uid || appSession.mode !== 'student') return null;
-    if (!shouldUseAppsScriptCodeExplorerCheckpoints()) return loadCloudProgressLegacyFirestore();
+    if (!shouldUseAppsScriptCodeExplorerCheckpoints()) {
+      // v469: never fall back to an extra direct Firestore profile read just to
+      // open Explorer. Student login already seeded the newest profile available
+      // to this browser; keep working locally until the secure checkpoint route is configured.
+      const seeded = appSession.student?.codeExplorerProgress || appSession.lastStudentProfile?.codeExplorerProgress || null;
+      return seeded ? normalizeProgress(seeded) : null;
+    }
     try {
       const server = await callAppsScriptSecure({ action: 'loadCodeExplorerCheckpoint' }, { allowStudent: true });
       const remote = normalizeProgress(server.progress || {});
@@ -45635,10 +46332,10 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       return remote;
     } catch (error) {
       if (codeExplorerCheckpointNeedsLegacyFallback(error)) {
-        console.warn('Code Explorer checkpoint backend is not deployed yet; using temporary Firestore load path.', error);
-        return loadCloudProgressLegacyFirestore();
+        console.warn('Code Explorer secure checkpoint route is unavailable. Progress remains local/pending; direct per-interaction Firestore fallback is disabled.', error);
+      } else {
+        console.warn('Code Explorer checkpoint could not be loaded. Local progress remains available.', error);
       }
-      console.warn('Code Explorer checkpoint could not be loaded. Local progress remains available.', error);
       return null;
     }
   }
@@ -45656,17 +46353,16 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       return;
     }
 
-    // Keep the legacy behavior only when Phase 3 is explicitly disabled or the
-    // secure bridge is not configured.
+    // v469: ordinary Explorer interaction never falls back to a 700ms direct
+    // Firestore profile write. Without the secure checkpoint bridge, progress
+    // remains protected locally and visibly pending until the backend is available.
     if (!shouldUseAppsScriptCodeExplorerCheckpoints()) {
-      if (state.cloudSavePromise) {
-        state.cloudSaveQueued = true;
-        return;
+      if (appSession.student?.uid && appSession.mode === 'student' && state.progress) {
+        refreshExplorerCheckpointDirtyState(reason);
       }
       clearTimeout(state.saveTimer);
-      state.saveTimer = window.setTimeout(() => {
-        saveCloudProgressLegacyFirestore().catch(() => false);
-      }, 700);
+      state.saveTimer = null;
+      state.checkpointDueAt = 0;
       return;
     }
 
@@ -45675,13 +46371,21 @@ window.MCS_PHONE_MENU_STATUS = () => ({
 
     const now = Date.now();
     const milestoneChanged = explorerMilestoneSignature(state.progress) !== state.lastCheckpointMilestoneSignature;
-    const normalDue = Number(state.checkpointDirtySince || now)
-      + CODE_EXPLORER_CHECKPOINT_PERIODIC_BASE_MS
-      + explorerCheckpointJitter(CODE_EXPLORER_CHECKPOINT_PERIODIC_JITTER_MS);
-    const milestoneDue = now
-      + CODE_EXPLORER_CHECKPOINT_MILESTONE_BASE_MS
-      + explorerCheckpointJitter(CODE_EXPLORER_CHECKPOINT_MILESTONE_JITTER_MS);
-    const desiredDue = milestoneChanged ? Math.min(normalDue, milestoneDue) : normalDue;
+    const dirtySince = Number(state.checkpointDirtySince || now);
+    const spacingWindow = milestoneChanged
+      ? CODE_EXPLORER_CHECKPOINT_MILESTONE_MIN_SPACING_MS
+      : CODE_EXPLORER_CHECKPOINT_MIN_SPACING_MS;
+    const spacingFloor = Math.max(now, Number(state.lastCloudSyncAt || 0) + spacingWindow);
+    const normalDue = Math.max(
+      spacingFloor,
+      dirtySince + CODE_EXPLORER_CHECKPOINT_PERIODIC_BASE_MS + explorerCheckpointJitter(CODE_EXPLORER_CHECKPOINT_PERIODIC_JITTER_MS)
+    );
+    const milestoneDue = Math.max(
+      spacingFloor,
+      now + CODE_EXPLORER_CHECKPOINT_MILESTONE_BASE_MS + explorerCheckpointJitter(CODE_EXPLORER_CHECKPOINT_MILESTONE_JITTER_MS)
+    );
+    const dirtyDeadline = dirtySince + CODE_EXPLORER_CHECKPOINT_DIRTY_MAX_MS;
+    const desiredDue = Math.min(dirtyDeadline, milestoneChanged ? Math.min(normalDue, milestoneDue) : normalDue);
     const dueAt = Math.max(desiredDue, Number(state.checkpointRetryNotBefore || 0));
 
     // Never push an already-scheduled checkpoint later. Continuous typing/taps
@@ -45716,6 +46420,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     const currentSignature = progressSyncSignature(state.progress);
     if (!options.force && Number(state.checkpointRetryNotBefore || 0) > Date.now()) return false;
     if (currentSignature === state.lastCheckpointSignature) {
+      FIREBASE_OP_MONITOR.bump('preventedDuplicateWrites');
       state.checkpointDirty = false;
       state.checkpointDirtySince = 0;
       return true;
@@ -45751,6 +46456,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         state.profileUpdateTime = String(server.profileUpdateTime || '');
         state.cloudLoaded = true;
         state.lastCloudSyncAt = Date.now();
+        FIREBASE_OP_MONITOR.bump('codeExplorerCheckpoints');
         state.lastCheckpointSignature = committedSignature;
         state.lastCheckpointMilestoneSignature = explorerMilestoneSignature(committed);
         state.checkpointRetryNotBefore = 0;
@@ -45798,7 +46504,11 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   }
 
   async function saveCloudProgress(options = {}) {
-    if (!shouldUseAppsScriptCodeExplorerCheckpoints()) return saveCloudProgressLegacyFirestore();
+    if (!shouldUseAppsScriptCodeExplorerCheckpoints()) {
+      saveLocalProgress();
+      refreshExplorerCheckpointDirtyState(options.reason || 'secure-checkpoint-unavailable');
+      return false;
+    }
     return saveCodeExplorerCheckpointViaAppsScript(options);
   }
 
@@ -47034,25 +47744,24 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   }, { passive: true });
 
   async function performXpMiniGameClaimLegacyFirestore(sessionId, round, reportedResult) {
+    // v469+: permanently disabled. Rewarded Mini-Games must never fall back to
+    // a per-round Firestore transaction. The secure RTDB/App Script reward
+    // ledger remains authoritative; verified score/best records stay local if
+    // that route is temporarily unavailable.
     ensureReaderProgress();
     const verified = verifiedXpMiniGameResult(round, reportedResult, sessionId);
-    const gameId = verified.gameId;
-    const definition = XP_MINI_GAME_DEFINITIONS[gameId];
+    const definition = XP_MINI_GAME_DEFINITIONS[verified.gameId];
     const stateKey = definition?.stateKey;
-    if (!stateKey) return { awardedXp: 0, invalidSession: true, error: 'Unknown mini-game.' };
-    const nowIso = new Date().toISOString();
-
-    // Best records may be cached locally even if the network is unavailable.
-    // Account XP itself is NEVER credited by this local path.
-    const localMiniGames = normalizeMiniGamesState(state.progress.miniGames || {});
-    localMiniGames.games[stateKey] = applyMiniGameResultToRecord(gameId, localMiniGames.games[stateKey], verified, nowIso);
-    localMiniGames.updatedAt = nowIso;
-    state.progress.miniGames = localMiniGames;
-    saveLocalProgress();
-
-    const baseResult = {
+    if (stateKey) {
+      const miniGames = normalizeMiniGamesState(state.progress.miniGames || {});
+      miniGames.games[stateKey] = applyMiniGameResultToRecord(verified.gameId, miniGames.games[stateKey], verified, new Date().toISOString());
+      miniGames.updatedAt = new Date().toISOString();
+      state.progress.miniGames = miniGames;
+      saveLocalProgress();
+    }
+    return {
       sessionId,
-      gameId,
+      gameId: verified.gameId,
       score: verified.score,
       reportedScore: verified.reportedScore,
       scoreAdjusted: verified.scoreAdjusted,
@@ -47061,208 +47770,11 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       requestedXp: verified.requestedXp,
       awardedXp: 0,
       duplicate: false,
-      loginRequired: false,
-      syncFailed: false
+      syncFailed: true,
+      legacyFirestoreFallbackDisabled: true,
+      error: 'Secure Mini-Game reward sync is unavailable. No XP was written to Firestore.'
     };
-
-    if (!(appSession.mode === 'student' && appSession.student?.uid)) {
-      const snapshot = notifyXpMiniGamesProgress();
-      const record = snapshot.gameRecords?.[stateKey] || localMiniGames.games[stateKey];
-      return {
-        ...baseResult,
-        ...snapshot,
-        loginRequired: true,
-        gameRecord: record,
-        bestScore: Math.max(0, Number(record?.bestScore || 0))
-      };
-    }
-
-    try {
-      const canonicalIdentity = await validateExplorerStudentIdentity({ force: true });
-      if (!canonicalIdentity) throw new Error('Student identity could not be validated.');
-      if (state.cloudSavePromise) {
-        try { await state.cloudSavePromise; } catch (_) {}
-      }
-      const ready = await initFirebaseSync();
-      if (!ready) throw new Error(firebaseSync.lastError || 'Firebase is unavailable.');
-      const { runTransaction, serverTimestamp } = firebaseSync.modules;
-      if (typeof runTransaction !== 'function') throw new Error('Transaction-safe XP rewards are unavailable in this build.');
-
-      const uid = appSession.student.uid;
-      const studentRef = getStudentDocRef(uid);
-      let committedProgress = normalizeProgress(state.progress);
-      let masteryXp = explorerXpFor(committedProgress);
-      let awardedXp = 0;
-      let requestedXp = verified.requestedXp;
-      let duplicate = false;
-      let todayXp = 0;
-      let committedWeeklyXp = 0;
-      let committedRecord = normalizeMiniGameRecord(gameId, localMiniGames.games[stateKey]);
-      const weeklyInfo = xpMiniGamesWeekInfo(Date.parse(nowIso));
-      const profileIdentity = appSession.student || appSession.lastStudentProfile || {};
-
-      await runTransaction(firebaseSync.db, async transaction => {
-        const snapshot = await transaction.get(studentRef);
-        const profile = snapshotExists(snapshot) ? snapshotData(snapshot) : {};
-        committedProgress = mergeProgress(normalizeProgress(profile?.codeExplorerProgress || {}), state.progress);
-        // v432 guard inside migrateLegacyXpProgress prevents any migrated
-        // profile from ratcheting legacyXpAdjustment during game claims.
-        migrateLegacyXpProgress(committedProgress, Math.max(0, Number(profile?.codeExplorerXp || 0)), { source: 'v434-mini-game-claim' });
-
-        const miniGames = normalizeMiniGamesState(committedProgress.miniGames || {});
-        const today = miniGamesDayKey();
-        if (miniGames.daily.date !== today) {
-          miniGames.daily = { date: today, earned: 0, sessions: {} };
-        }
-
-        const priorReward = miniGames.recentRewards?.[sessionId]
-          || miniGames.daily.sessions?.[sessionId]
-          || null;
-        duplicate = Boolean(priorReward);
-        if (priorReward) {
-          // A completed round is an immutable one-shot reward event. Reopening,
-          // double-clicking, stale listeners, or repeated claims always return +0.
-          awardedXp = 0;
-          requestedXp = miniGameRewardForResult(priorReward.gameId, {
-            score: priorReward.score,
-            metrics: priorReward.metrics || {}
-          });
-        } else {
-          const remaining = Math.max(0, XP_MINI_GAMES_DAILY_CAP - Math.max(0, Number(miniGames.daily.earned || 0)));
-          awardedXp = Math.min(verified.requestedXp, remaining);
-          const rewardEntry = {
-            gameId,
-            score: verified.score,
-            metrics: verified.metrics,
-            xp: awardedXp,
-            day: today,
-            at: nowIso
-          };
-          miniGames.recentRewards = trimMiniGameRewardLedger({ ...miniGames.recentRewards, [sessionId]: rewardEntry });
-          if (awardedXp > 0) {
-            miniGames.daily.sessions = { ...miniGames.daily.sessions, [sessionId]: rewardEntry };
-            miniGames.daily.earned = Math.min(
-              XP_MINI_GAMES_DAILY_CAP,
-              Math.max(0, Number(miniGames.daily.earned || 0)) + awardedXp
-            );
-            // Total account XP derives from this lifetime ledger total only.
-            // Never add score or today's cumulative XP to lifetimeXp.
-            miniGames.lifetimeXp = Math.max(0, Number(miniGames.lifetimeXp || 0)) + awardedXp;
-          }
-        }
-
-        let weeklyWrite = null;
-        if (!duplicate && awardedXp > 0) {
-          const weeklyRef = getXpMiniGameWeeklyLeaderboardDocRef(weeklyInfo.key, uid);
-          const weeklySnapshot = await transaction.get(weeklyRef);
-          const priorWeekly = snapshotExists(weeklySnapshot) ? snapshotData(weeklySnapshot) : {};
-          const priorWeeklyXp = Math.max(0, Math.min(XP_MINI_GAMES_WEEKLY_MAX, Math.floor(Number(priorWeekly?.weeklyXp || 0))));
-          const priorSessions = Math.max(0, Math.floor(Number(priorWeekly?.rewardedSessions || 0)));
-          committedWeeklyXp = Math.min(XP_MINI_GAMES_WEEKLY_MAX, priorWeeklyXp + awardedXp);
-          weeklyWrite = {
-            ref: weeklyRef,
-            data: {
-              uid,
-              name: String(profileIdentity.name || profileIdentity.fullName || 'Student').trim() || 'Student',
-              section: String(profileIdentity.section || '').trim(),
-              weekKey: weeklyInfo.key,
-              weeklyXp: committedWeeklyXp,
-              rewardedSessions: priorSessions + 1,
-              lastRewardGameId: gameId,
-              lastRewardXp: awardedXp,
-              accountStatus: String(profileIdentity.accountStatus || 'active'),
-              lastRewardAt: serverTimestamp(),
-              updatedAt: serverTimestamp()
-            }
-          };
-        }
-
-        miniGames.games[stateKey] = applyMiniGameResultToRecord(gameId, miniGames.games[stateKey], verified, nowIso);
-        committedRecord = miniGames.games[stateKey];
-        miniGames.updatedAt = nowIso;
-        committedProgress.miniGames = miniGames;
-        committedProgress.updatedAt = nowIso;
-        todayXp = Math.min(XP_MINI_GAMES_DAILY_CAP, Math.max(0, Number(miniGames.daily.earned || 0)));
-        masteryXp = explorerXpFor(committedProgress);
-
-        transaction.set(studentRef, {
-          codeExplorerProgress: normalizeProgress(committedProgress),
-          codeExplorerXp: masteryXp,
-          codeExplorerXpMigrationVersion: Math.max(0, Number(committedProgress.xpMigrationVersion || 0)),
-          codeExplorerUpdatedAt: serverTimestamp()
-        }, { merge: true });
-
-        // Keep the existing leaderboard XP mirror in the SAME atomic claim.
-        transaction.set(getCodeExplorerLeaderboardDocRef(uid), {
-          uid,
-          studentId: normalizeStudentId(profileIdentity.studentId || profileIdentity.studentIdNormalized || ''),
-          name: String(profileIdentity.name || profileIdentity.fullName || 'Student').trim(),
-          section: String(profileIdentity.section || '').trim(),
-          xp: masteryXp,
-          accountStatus: String(profileIdentity.accountStatus || 'active'),
-          updatedAt: serverTimestamp()
-        }, { merge: true });
-
-        // Weekly Arcade uses the ACTUAL XP awarded by this one completed round.
-        // It never copies game score, today's cumulative XP, or total account XP.
-        if (weeklyWrite) transaction.set(weeklyWrite.ref, weeklyWrite.data, { merge: true });
-      });
-
-      state.progress = mergeProgress(state.progress, committedProgress);
-      state.cloudXpHint = Math.max(state.cloudXpHint || 0, masteryXp, explorerXpFor(state.progress));
-      state.cloudLoaded = true;
-      state.lastCloudSyncAt = Date.now();
-      if (appSession.student) appSession.student.codeExplorerXp = masteryXp;
-      if (appSession.lastStudentProfile) appSession.lastStudentProfile.codeExplorerXp = masteryXp;
-      saveLocalProgress(state.progress);
-      clearSelectiveFirestoreCache(`studentProfile:${uid}`);
-      clearAdminStudentSnapshotCache();
-      leaderboardState.loadedAt = 0;
-      renderTopProgress();
-      const snapshot = notifyXpMiniGamesProgress({ awardedXp, requestedXp, duplicate, gameId });
-      const gameRecord = snapshot.gameRecords?.[stateKey] || committedRecord;
-      return {
-        ...baseResult,
-        ...snapshot,
-        awardedXp,
-        requestedXp,
-        duplicate,
-        todayXp,
-        weeklyXp: committedWeeklyXp,
-        weekKey: weeklyInfo.key,
-        gameRecord,
-        bestScore: Math.max(0, Number(gameRecord?.bestScore || 0)),
-        capReached: todayXp >= XP_MINI_GAMES_DAILY_CAP,
-        totalXp: masteryXp
-      };
-    } catch (error) {
-      console.warn(`XP Mini-Games reward for ${gameId} was not credited because the secure sync failed.`, error);
-      // Save only non-XP records through the ordinary merge-safe path. A failed
-      // claim never becomes a frontend-only XP gain.
-      scheduleCloudSave();
-      const snapshot = notifyXpMiniGamesProgress();
-      const gameRecord = snapshot.gameRecords?.[stateKey] || localMiniGames.games[stateKey];
-      return {
-        ...baseResult,
-        ...snapshot,
-        syncFailed: true,
-        error: String(error?.message || error || 'Could not sync XP reward.'),
-        gameRecord,
-        bestScore: Math.max(0, Number(gameRecord?.bestScore || 0))
-      };
-    }
   }
-
-  function miniGameBridgeNeedsLegacyFallback(error) {
-    const message = String(error?.message || error || '').toLowerCase();
-    return message.includes('unknown action')
-      || message.includes('teacher-only actions')
-      || message.includes('not allowed to use teacher-only')
-      || message.includes('claimminigamereward is not available');
-  }
-
-  // Phase 2: Weekly Arcade writes are server-only through Apps Script + RTDB.
-
 
   async function performXpMiniGameClaim(sessionId, round, reportedResult) {
     ensureReaderProgress();
@@ -47331,7 +47843,18 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     }
 
     if (!shouldUseAppsScriptMiniGameRewards()) {
-      return performXpMiniGameClaimLegacyFirestore(sessionId, round, reportedResult);
+      // v469: rewarded Mini-Games never fall back to one Firestore transaction per round.
+      // Keep the verified record local and wait for the secure RTDB/Apps Script reward route.
+      const snapshot = notifyXpMiniGamesProgress();
+      const gameRecord = snapshot.gameRecords?.[stateKey] || localMiniGames.games[stateKey];
+      return {
+        ...baseResult,
+        ...snapshot,
+        syncFailed: true,
+        error: 'Secure Mini-Game reward sync is unavailable. Your score is safe locally, but XP was not credited.',
+        gameRecord,
+        bestScore: Math.max(0, Number(gameRecord?.bestScore || 0))
+      };
     }
 
     try {
@@ -47404,9 +47927,8 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       // During rollout only, an OLD Apps Script deployment can fall back to the
       // proven Firestore transaction. Network/quota errors do NOT cause a second
       // Firestore claim attempt, preventing double load and duplicate rewards.
-      if (miniGameBridgeNeedsLegacyFallback(error) && gameId !== XP_MINI_GAME_ID_CODE_FLOW && gameId !== XP_MINI_GAME_ID_BYTE_SLING && gameId !== XP_MINI_GAME_ID_CODE_BRIDGE && gameId !== XP_MINI_GAME_ID_CODE_SLICE && gameId !== XP_MINI_GAME_ID_MILLION_BYTE && gameId !== XP_MINI_GAME_ID_CODE_VAULT && gameId !== XP_MINI_GAME_ID_CODE_TILES && gameId !== XP_MINI_GAME_ID_DIAL_IN) {
-        console.warn('Mini-game Apps Script route is not deployed yet; using temporary legacy reward path.', error);
-        return performXpMiniGameClaimLegacyFirestore(sessionId, round, reportedResult);
+      if (miniGameBridgeNeedsLegacyFallback(error)) {
+        console.warn('Mini-game secure reward route is not deployed yet. Legacy per-round Firestore fallback is disabled to protect quotas and XP integrity.', error);
       }
       console.warn(`XP Mini-Games Apps Script claim for ${gameId} failed.`, error);
       const snapshot = notifyXpMiniGamesProgress();
@@ -47546,6 +48068,9 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   function renderDashboardSummary() {
     const currentReader = readerKey();
     ensureReaderProgress();
+    // Self-heal legitimate legacy completions where the final was already
+    // passed but older builds never created the certificate object.
+    repairEarnedCertificatesFromProgress({ scheduleCloud: false });
     updateDashboardExplorerCard();
     // Phase 3: student login already loaded the profile once. Dashboard renders
     // from that profile + LocalStorage and does not issue another progress read.
@@ -48503,7 +49028,9 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     state.mobileStageDirection = options.direction || (nextIndex < currentIndex ? 'prev' : 'next');
     state.mobileStage = stage;
     record.mobileStage = stage;
-    scheduleCloudSave();
+    // UI navigation is protected locally immediately; it does not start a
+    // Firestore checkpoint timer by itself. Exit/visibility/milestones still flush.
+    saveExplorerLocalOnly('mobile-stage');
     renderMobileJourney({ animate: options.animate !== false });
     if (options.scroll !== false) dom.lessonPanel?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
     return true;
@@ -48566,7 +49093,9 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     const now = new Date().toISOString();
     if (!record.openedAt) record.openedAt = now;
     record.lastOpenedAt = now;
-    scheduleCloudSave();
+    // Opening/reading a topic is non-critical engagement. Keep it local-first
+    // until a meaningful checkpoint or lifecycle flush.
+    saveExplorerLocalOnly('topic-open');
     const index = course.topics.findIndex(t => t.id === item.id);
     dom.topicNumber.textContent = `Topic ${index + 1} of ${course.topics.length}`;
     dom.topicLevel.textContent = item.level;
@@ -48632,7 +49161,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     if (openLesson) {
       state.mobileView = 'lesson';
       state.progress.courses[key].lastTopicId = item.id;
-      scheduleCloudSave();
+      saveExplorerLocalOnly('course-navigation');
       renderTopic();
       syncExplorerMobileChrome();
     } else {
@@ -48655,7 +49184,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     state.topicId = id;
     state.mobileView = 'lesson';
     state.progress.courses[state.course].lastTopicId = id;
-    scheduleCloudSave();
+    saveExplorerLocalOnly('topic-navigation');
     renderTopicList();
     renderTopic();
     syncExplorerMobileChrome();
@@ -48693,6 +49222,30 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       dom.finalBtn.disabled = true;
       dom.finalBtn.textContent = '🔒 Complete topics first';
       dom.finalBtn.dataset.mode = 'locked';
+    }
+  }
+
+  async function refreshExplorerFromCloudIfStale() {
+    if (!document.body.classList.contains('code-explorer-active')) return false;
+    if (appSession.mode !== 'student' || !appSession.student?.uid) return false;
+    if (Date.now() - Number(state.lastCloudSyncAt || 0) < CODE_EXPLORER_FOREGROUND_REFRESH_MS) return false;
+    try {
+      const cloud = await loadCloudProgress();
+      if (cloud) state.progress = mergeProgress(state.progress, cloud);
+      state.cloudLoaded = true;
+      state.lastCloudSyncAt = Date.now();
+      saveLocalProgress();
+      renderTopProgress();
+      renderCourseCards();
+      renderTopicList();
+      renderFinalCard();
+      renderCertificates();
+      if (state.mobileView === 'roadmap') renderCourseRoadmap();
+      else renderMobileJourney();
+      return true;
+    } catch (error) {
+      console.info('Code Explorer foreground checkpoint refresh skipped.', error);
+      return false;
     }
   }
 
@@ -48738,6 +49291,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     normalizeCurrentStudentLegacyXp({ source: 'student-open', cloudSave: false });
     state.cloudLoaded = true;
     state.lastCloudSyncAt = Date.now();
+    repairEarnedCertificatesFromProgress({ scheduleCloud: false });
     saveLocalProgress();
     refreshExplorerCheckpointDirtyState('explorer-open-reconcile');
     if (state.checkpointDirty) scheduleCloudSave('explorer-open-reconcile');
@@ -48887,14 +49441,66 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     return `ICT8-${courseKey.toUpperCase()}-${new Date(issuedAt).getFullYear()}-${(hash >>> 0).toString(36).toUpperCase().padStart(7, '0').slice(0, 7)}`;
   }
 
+  function normalizeCertificateIso(value = '') {
+    const stamp = Date.parse(String(value || ''));
+    return Number.isFinite(stamp) ? new Date(stamp).toISOString() : '';
+  }
+
+  function stableCertificateIssuedAt(courseKey) {
+    const courseData = state.progress?.courses?.[courseKey] || {};
+    const final = courseData.final || {};
+    const direct = normalizeCertificateIso(final.passedAt) || normalizeCertificateIso(final.lastAttemptAt);
+    if (direct) return direct;
+    const topicDates = Object.values(courseData.topics || {})
+      .map(record => normalizeCertificateIso(record?.completedAt || record?.quizPassedAt || record?.lastOpenedAt || record?.openedAt))
+      .filter(Boolean)
+      .sort();
+    if (topicDates.length) return topicDates[topicDates.length - 1];
+    return normalizeCertificateIso(state.progress?.updatedAt) || new Date().toISOString();
+  }
+
+  function repairEarnedCertificatesFromProgress(options = {}) {
+    if (!state.progress?.courses) return { changed: false, repaired: [] };
+    const repaired = [];
+    COURSE_KEYS.forEach(courseKey => {
+      const courseData = state.progress.courses[courseKey];
+      if (!courseData?.final?.passed) return;
+      const current = courseData.certificate && typeof courseData.certificate === 'object' ? courseData.certificate : {};
+      const issuedAt = normalizeCertificateIso(current.issuedAt) || stableCertificateIssuedAt(courseKey);
+      const number = String(current.number || '').trim() || certificateId(courseKey, issuedAt);
+      const normalized = { ...current, issuedAt, number, courseKey: current.courseKey || courseKey };
+      const changed = current.issuedAt !== normalized.issuedAt || current.number !== normalized.number || current.courseKey !== normalized.courseKey;
+      courseData.certificate = normalized;
+      registerCertificateRecord(courseKey, normalized);
+      if (changed) repaired.push(courseKey);
+    });
+    if (repaired.length) {
+      saveLocalProgress();
+      refreshExplorerCheckpointDirtyState('certificate-repair');
+      if (options.scheduleCloud === true) scheduleCloudSave('certificate-repair');
+    }
+    return { changed: repaired.length > 0, repaired };
+  }
+
   function ensureCertificate(courseKey) {
     const courseProgressData = state.progress.courses[courseKey];
     if (!courseProgressData.final?.passed) return null;
-    if (!courseProgressData.certificate?.issuedAt) {
-      const issuedAt = courseProgressData.final.passedAt || new Date().toISOString();
-      courseProgressData.certificate = { issuedAt, number: certificateId(courseKey, issuedAt), courseKey };
+    const hadCompleteCertificate = Boolean(courseProgressData.certificate?.issuedAt && courseProgressData.certificate?.number);
+    const repaired = repairEarnedCertificatesFromProgress({ scheduleCloud: false });
+    if (!courseProgressData.certificate?.issuedAt || !courseProgressData.certificate?.number) {
+      const issuedAt = normalizeCertificateIso(courseProgressData.certificate?.issuedAt) || stableCertificateIssuedAt(courseKey);
+      courseProgressData.certificate = {
+        ...(courseProgressData.certificate || {}),
+        issuedAt,
+        number: String(courseProgressData.certificate?.number || '').trim() || certificateId(courseKey, issuedAt),
+        courseKey
+      };
       registerCertificateRecord(courseKey, courseProgressData.certificate);
-      scheduleCloudSave();
+      saveLocalProgress();
+      refreshExplorerCheckpointDirtyState('certificate-earned');
+    }
+    if (!hadCompleteCertificate || repaired.changed) {
+      scheduleCloudSave(repaired.changed ? 'certificate-repair' : 'certificate-earned');
       window.setTimeout(() => {
         publishCertificateRecordCloud(courseKey, courseProgressData.certificate, {}, { ensureProgress: true }).catch(() => false);
       }, 950);
@@ -49175,7 +49781,12 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     try {
       const ready = await initFirebaseSync();
       if (!ready) return { ok: false, reason: 'firebase-unavailable', error: firebaseSync.lastError || '', record: localRecord };
-      if (options.ensureProgress !== false) await saveCloudProgress();
+      if (options.ensureProgress !== false) {
+        const progressSaved = await saveCloudProgress({ reason: 'certificate-publication', force: true });
+        if (!progressSaved) {
+          return { ok: false, reason: 'progress-sync-pending', record: localRecord };
+        }
+      }
       const { getDoc, setDoc, serverTimestamp } = firebaseSync.modules;
       const ref = getPublicCertificateDocRef(localRecord.number);
       const existing = await getDoc(ref);
@@ -49203,7 +49814,10 @@ window.MCS_PHONE_MENU_STATUS = () => ({
 
   async function syncIssuedCertificatesToCloud(options = {}) {
     if (!appSession.student?.uid || appSession.mode !== 'student' || !state.progress) return [];
-    if (options.ensureProgress !== false) await saveCloudProgress();
+    if (options.ensureProgress !== false) {
+      const progressSaved = await saveCloudProgress({ reason: 'certificate-sync', force: true });
+      if (!progressSaved) return [];
+    }
     const results = [];
     for (const courseKey of COURSE_KEYS) {
       const cert = state.progress?.courses?.[courseKey]?.certificate || {};
@@ -49565,26 +50179,91 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     }
   }
 
-  async function downloadCertificate(courseKey) {
+  function shouldUseCertificateViewerFallback() {
+    const ua = String(navigator.userAgent || '');
+    const iOS = /iPhone|iPad|iPod/i.test(ua) || (/Macintosh/i.test(ua) && Number(navigator.maxTouchPoints || 0) > 1);
+    return iOS;
+  }
+
+  function openCertificateViewerWindow() {
+    try {
+      const popup = window.open('', '_blank');
+      if (!popup) return null;
+      popup.document.open();
+      popup.document.write('<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>Preparing Certificate…</title><style>body{margin:0;display:grid;place-items:center;min-height:100vh;font-family:system-ui,-apple-system,sans-serif;background:#f8fafc;color:#0f172a}main{text-align:center;padding:24px}.spin{width:42px;height:42px;border:4px solid #cbd5e1;border-top-color:#2563eb;border-radius:50%;margin:0 auto 16px;animation:s 0.8s linear infinite}@keyframes s{to{transform:rotate(360deg)}}</style></head><body><main><div class="spin"></div><strong>Preparing your certificate…</strong><p>Please keep this tab open.</p></main></body></html>');
+      popup.document.close();
+      return popup;
+    } catch (_) { return null; }
+  }
+
+  function showCertificatePdfInWindow(pdfBlob, popup) {
+    const url = URL.createObjectURL(pdfBlob);
+    if (popup && !popup.closed) {
+      try { popup.location.replace(url); }
+      catch (_) { popup.location.href = url; }
+    } else {
+      const link = document.createElement('a');
+      link.href = url;
+      link.target = '_blank';
+      link.rel = 'noopener';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    }
+    window.setTimeout(() => URL.revokeObjectURL(url), 5 * 60 * 1000);
+  }
+
+  async function viewCertificate(courseKey, preparedWindow = null) {
+    const popup = preparedWindow || openCertificateViewerWindow();
+    try {
+      const cert = ensureCertificate(courseKey);
+      if (!cert) throw new Error('Certificate is not unlocked yet.');
+      const canvas = await renderCertificateCanvas(courseKey);
+      const pdfBlob = await buildCertificatePdfBlob(canvas);
+      showCertificatePdfInWindow(pdfBlob, popup);
+      playExplorerSfx('certificate', { force: true });
+      publishCertificateRecordCloud(courseKey, cert, {}, { ensureProgress: true }).catch(() => false);
+      return true;
+    } catch (error) {
+      try { popup?.close?.(); } catch (_) {}
+      console.error('Certificate PDF preview failed.', error);
+      await appAlert(error?.message || 'Could not open the certificate PDF.', { title: 'View certificate', danger: true });
+      return false;
+    }
+  }
+
+  async function downloadCertificate(courseKey, preparedWindow = null) {
+    const useViewerFallback = shouldUseCertificateViewerFallback();
+    const popup = preparedWindow || (useViewerFallback ? openCertificateViewerWindow() : null);
     try {
       const course = COURSES[courseKey];
       const cert = ensureCertificate(courseKey);
       if (!cert) throw new Error('Certificate is not unlocked yet.');
-      const publishResult = await publishCertificateRecordCloud(courseKey, cert, {}, { ensureProgress: true });
+
+      // Create/deliver the PDF first. QR cloud publication is intentionally
+      // secondary so a rules/network problem can never block the certificate.
       const canvas = await renderCertificateCanvas(courseKey);
       const pdfBlob = await buildCertificatePdfBlob(canvas);
       const name = String(appSession.student?.name || 'Student').trim().replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '') || 'Student';
-      downloadBlob(pdfBlob, `${name}-${course.short}-Certificate.pdf`);
+      if (useViewerFallback) showCertificatePdfInWindow(pdfBlob, popup);
+      else downloadBlob(pdfBlob, `${name}-${course.short}-Certificate.pdf`);
       playExplorerSfx('certificate', { force: true });
+
+      const publishResult = await publishCertificateRecordCloud(courseKey, cert, {}, { ensureProgress: true });
       if (!publishResult.ok) {
         window.setTimeout(() => appAlert(
-          'Your certificate PDF was created, but its QR record could not be published to online verification yet. Ask your teacher/admin to enable the v390 Firestore certificate rule, then open Code Explorer again or download the certificate again.',
-          { title: 'QR verification not published', icon: '⚠️' }
+          useViewerFallback
+            ? 'Your certificate PDF is open and can be saved/shared from the browser. Online QR verification is still pending. Ask your teacher/admin to publish the current Firestore certificate verification rule, then open My Certificates again.'
+            : 'Your certificate PDF was created. Online QR verification is still pending, but this does not block the PDF. Ask your teacher/admin to publish the current Firestore certificate verification rule, then open My Certificates again.',
+          { title: 'Certificate ready · QR pending', icon: '⚠️' }
         ), 250);
       }
+      return true;
     } catch (error) {
+      try { popup?.close?.(); } catch (_) {}
       console.error('Certificate PDF download failed.', error);
       await appAlert(error?.message || 'Could not create the certificate PDF.', { title: 'Certificate download', danger: true });
+      return false;
     }
   }
 
@@ -49595,7 +50274,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       const stats = courseProgress(key);
       const final = state.progress.courses[key].final || {};
       const cert = state.progress.courses[key].certificate || {};
-      if (cert.issuedAt) return `<article class="code-explorer-certificate-card unlocked" style="--course-accent:${course.accent}"><span>${course.icon}</span><div><strong>${escapeHTML(course.title)}</strong><p>Completed ${escapeHTML(formatCertificateDate(cert.issuedAt))}</p><small>${escapeHTML(cert.number || '')}</small></div><button class="primary-btn" type="button" data-download-explorer-cert="${key}">⬇ PDF</button></article>`;
+      if (cert.issuedAt) return `<article class="code-explorer-certificate-card unlocked" style="--course-accent:${course.accent}"><span>${course.icon}</span><div><strong>${escapeHTML(course.title)}</strong><p>Completed ${escapeHTML(formatCertificateDate(cert.issuedAt))}</p><small>${escapeHTML(cert.number || '')}</small></div><div class="code-explorer-certificate-actions"><button class="ghost-btn" type="button" data-view-explorer-cert="${key}">👁 View</button><button class="primary-btn" type="button" data-download-explorer-cert="${key}">⬇ PDF</button></div></article>`;
       return `<article class="code-explorer-certificate-card locked" style="--course-accent:${course.accent}"><span>🔒</span><div><strong>${escapeHTML(course.title)}</strong><p>${stats.completed}/${stats.total} topics · ${final.passed ? 'Final passed' : 'Certificate locked'}</p><small>${final.passed ? 'Open the course to issue your certificate.' : 'Complete the course and pass the final challenge.'}</small></div></article>`;
     }).join('');
   }
@@ -49687,7 +50366,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     dom.publicVerifyBody.innerHTML = `
       <article class="certificate-public-status-card unavailable">
         <div class="certificate-public-status-icon" aria-hidden="true">⚠</div>
-        <div class="certificate-public-status-copy"><span>TRY AGAIN</span><strong>${permissionProblem ? 'Online certificate access is not enabled yet' : 'Could not reach the verification service'}</strong><p>${permissionProblem ? 'The site administrator needs to publish the v390 Firestore certificate verification rule.' : 'Check your internet connection, then try again.'}</p></div>
+        <div class="certificate-public-status-copy"><span>TRY AGAIN</span><strong>${permissionProblem ? 'Online certificate access is not enabled yet' : 'Could not reach the verification service'}</strong><p>${permissionProblem ? 'The site administrator needs to publish the current Firestore certificate verification rule.' : 'Check your internet connection, then try again.'}</p></div>
       </article>`;
   }
 
@@ -49717,7 +50396,9 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   }
 
   function openCertificates() {
+    repairEarnedCertificatesFromProgress({ scheduleCloud: false });
     renderCertificates();
+    renderTopProgress();
     dom.certOverlay.classList.remove('hidden');
     document.body.classList.add('code-explorer-modal-open');
     syncIssuedCertificatesToCloud({ ensureProgress: true }).catch(() => []);
@@ -50985,6 +51666,10 @@ window.MCS_PHONE_MENU_STATUS = () => ({
           codeExplorerUpdatedAt: serverTimestamp()
         });
       } catch (updateError) {
+        const errorCode = String(updateError?.code || '').toLowerCase();
+        const errorMessage = String(updateError?.message || '').toLowerCase();
+        const profileMissing = errorCode.includes('not-found') || errorMessage.includes('no document to update') || errorMessage.includes('document does not exist');
+        if (!profileMissing) throw updateError;
         progress.hearts = nextHearts;
         progress.updatedAt = nowIso;
         await setDoc(profileRef, {
@@ -51169,13 +51854,20 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     unlockExplorerAudio().then(ok => { if (ok) startExplorerMusic(); }).catch(() => false);
   }, { passive: true });
   document.addEventListener('visibilitychange', () => {
+    const explorerActive = document.body.classList.contains('code-explorer-active');
     if (document.hidden) {
       stopExplorerMusic();
+      if (explorerActive && state.checkpointDirty) {
+        saveLocalProgress();
+        // Lifecycle durability: one secure merged checkpoint, never a direct Firestore write.
+        saveCloudProgress({ reason: 'visibility-hidden', force: true }).catch(() => false);
+      }
       return;
     }
-    if (document.body.classList.contains('code-explorer-active') && explorerAudio.prefs.music) {
+    if (explorerActive && explorerAudio.prefs.music) {
       unlockExplorerAudio().then(started => { if (started) startExplorerMusic(); }).catch(() => false);
     }
+    if (explorerActive) refreshExplorerFromCloudIfStale().catch(() => false);
   });
 
   dom.quickThemeToggle?.addEventListener('click', () => {
@@ -51329,8 +52021,17 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     await submitFinal();
   });
   dom.certList?.addEventListener('click', event => {
+    const viewButton = event.target.closest('[data-view-explorer-cert]');
+    if (viewButton) {
+      const popup = openCertificateViewerWindow();
+      viewCertificate(viewButton.dataset.viewExplorerCert, popup);
+      return;
+    }
     const button = event.target.closest('[data-download-explorer-cert]');
-    if (button) downloadCertificate(button.dataset.downloadExplorerCert);
+    if (button) {
+      const popup = shouldUseCertificateViewerFallback() ? openCertificateViewerWindow() : null;
+      downloadCertificate(button.dataset.downloadExplorerCert, popup);
+    }
   });
   [dom.finalOverlay, dom.certOverlay, dom.verifyOverlay].forEach(overlay => overlay?.addEventListener('click', event => {
     if (event.target !== overlay) return;

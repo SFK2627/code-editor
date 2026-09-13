@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ict8-connect-v476a-code-vault-phone-layout';
+const CACHE_NAME = 'ict8-connect-v472-certificate-repair';
 
 self.addEventListener('install', event => {
   event.waitUntil(self.skipWaiting());
