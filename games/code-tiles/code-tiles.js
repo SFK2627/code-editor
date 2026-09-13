@@ -1299,14 +1299,13 @@
       const master = context.createGain();
       const backing = context.createGain();
       const compressor = context.createDynamicsCompressor();
-      // Foreground tile notes stay strong. The backing track uses its own lower
-      // bus so it sounds like the classical piece underneath the taps instead
-      // of overpowering the player's piano accents.
-      master.gain.value = .48;
-      backing.gain.value = .24;
-      compressor.threshold.value = -14;
+      // v496 loudness tune: make the classical backing clearly audible on phone
+      // speakers while keeping tapped notes and fail feedback in the foreground.
+      master.gain.value = .58;
+      backing.gain.value = .36;
+      compressor.threshold.value = -12;
       compressor.knee.value = 12;
-      compressor.ratio.value = 4;
+      compressor.ratio.value = 3.5;
       compressor.attack.value = .003;
       compressor.release.value = .18;
       master.connect(compressor);
@@ -1355,8 +1354,8 @@
       filter.frequency.setValueAtTime(2050 * clamp(Number(tile.brightness || 1), .85, 1.3), now);
       filter.Q.value = .38;
       noteBus.gain.setValueAtTime(.0001, now);
-      noteBus.gain.linearRampToValueAtTime(.20, now + .010);
-      noteBus.gain.exponentialRampToValueAtTime(.115, now + .09);
+      noteBus.gain.linearRampToValueAtTime(.25, now + .010);
+      noteBus.gain.exponentialRampToValueAtTime(.145, now + .09);
       noteBus.gain.exponentialRampToValueAtTime(.0001, now + duration);
       filter.connect(noteBus);
       noteBus.connect(runtime.backingGain);
@@ -1416,7 +1415,7 @@
       const now = runtime.audioContext.currentTime;
       try {
         runtime.backingGain.gain.cancelScheduledValues(now);
-        runtime.backingGain.gain.setValueAtTime(Math.max(.0001, runtime.backingGain.gain.value || .24), now);
+        runtime.backingGain.gain.setValueAtTime(Math.max(.0001, runtime.backingGain.gain.value || .36), now);
         if (immediate) runtime.backingGain.gain.setValueAtTime(.0001, now);
         else runtime.backingGain.gain.exponentialRampToValueAtTime(.0001, now + .08);
       } catch (_) {}
@@ -1435,7 +1434,7 @@
     const now = runtime.audioContext.currentTime;
     try {
       runtime.backingGain.gain.cancelScheduledValues(now);
-      runtime.backingGain.gain.setTargetAtTime(runtime.soundEnabled ? .24 : .0001, now, .025);
+      runtime.backingGain.gain.setTargetAtTime(runtime.soundEnabled ? .36 : .0001, now, .025);
     } catch (_) {}
   }
 
