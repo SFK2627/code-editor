@@ -541,6 +541,32 @@
     return speedNow() * inputGraceMs() / 1000;
   }
 
+  function clearedTileAtPoint(point) {
+    if (!point || !Array.isArray(runtime.chart) || !runtime.chart.length) return null;
+    const radiusX = Math.max(0, Number(point.radiusX || 0));
+    const radiusY = Math.max(0, Number(point.radiusY || 0));
+
+    // v500: Piano Tiles-style retouch rule. Once a tile has already been cleared,
+    // touching that SAME visible tile again is harmless. This applies to normal
+    // tiles and to long tiles that are holding, fully filled, or safely released.
+    // We use the tile's real visible rectangle (plus the finger contact patch),
+    // not the generous moving hit-window, so this cannot be used to forgive a
+    // genuinely blank/wrong-lane tap. The still-pending current tile always gets
+    // first priority in hitCurrent().
+    for (let i = runtime.chart.length - 1; i >= 0; i -= 1) {
+      const tile = runtime.chart[i];
+      if (!tile || (tile.state !== 'hit' && tile.state !== 'holding')) continue;
+      const r = tileRect(tile);
+      if (r.bottom < BOARD_TOP || r.top > BOARD_BOTTOM + 8) continue;
+      const left = tile.lane * LANE_W;
+      const right = left + LANE_W;
+      const overlapsX = point.x + radiusX >= left && point.x - radiusX <= right;
+      const overlapsY = point.y + radiusY >= r.top && point.y - radiusY <= r.bottom;
+      if (overlapsX && overlapsY) return tile;
+    }
+    return null;
+  }
+
   function levelConfig(level = runtime.level) {
     const id = clamp(Math.floor(Number(level || 1)), 1, LEVEL_COUNT);
     return LEVELS[id - 1] || LEVELS[0];
@@ -854,6 +880,12 @@
     const inside = withinX && (laneOnly != null || withinY);
     const visible = r.bottom > BOARD_TOP + 8 && r.top < BOARD_BOTTOM + 4 + bottomGrace;
     if (!inside || !visible) {
+      // v500: re-tapping an already-cleared visible tile must never cause a
+      // WRONG TAP. Normal tiles become safe immediately after the first hit.
+      // Long tiles are also safe while holding and after fill/early release.
+      // This retouch gives no score, no extra note, and does not advance the chart.
+      if (laneOnly == null && clearedTileAtPoint(point)) return false;
+
       runtime.badTaps += 1;
       runtime.streak = 0;
       failRun('Wrong tile. Tap only the next black tile.', {
