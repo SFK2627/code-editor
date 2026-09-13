@@ -90,6 +90,8 @@
     replayLevelBtn: null,
     level: 1,
     bridge: null,
+    music: null,
+    compressor: null,
     onBack: null,
     onClose: null,
     onReward: null,
@@ -431,6 +433,7 @@
 
   function startRun() {
     if (!runtime.open || runtime.rewardSubmitting) return;
+    try { runtime.music?.stop?.(); } catch (_) {}
     if (runtime.round?.sessionId) {
       try { runtime.bridge?.cancelRound?.(runtime.round.sessionId); } catch (_) {}
     }
@@ -468,7 +471,6 @@
     runtime.progressEl.style.transform = 'scaleX(0)';
     runtime.checkpointEls.forEach(el => el.classList.remove('reached'));
     ensureAudio();
-    playUiTone('start');
     if (!runtime.raf) runtime.raf = requestAnimationFrame(loop);
   }
 
@@ -748,7 +750,6 @@
     runtime.rewardNoteEl.className = 'code-tiles-reward-note';
     runtime.rewardNoteEl.textContent = runtime.round ? 'Securing reward…' : 'Practice run — log in to earn account XP.';
     runtime.resultPanel.hidden = false;
-    playUiTone('win');
 
     if (!runtime.round?.sessionId || !runtime.bridge?.claimRound) return;
     runtime.rewardSubmitting = true;
@@ -850,6 +851,7 @@
     }
 
     playFailureTone(kind);
+    vibrateFailure(kind);
     if (!runtime.raf) runtime.raf = requestAnimationFrame(loop);
   }
 
@@ -1154,10 +1156,20 @@
       if (!AudioCtx) return null;
       const context = new AudioCtx();
       const master = context.createGain();
-      master.gain.value = .28;
-      master.connect(context.destination);
+      const compressor = context.createDynamicsCompressor();
+      // Code Tiles is intentionally louder than before for phone speakers.
+      // The compressor preserves headroom when fast notes overlap.
+      master.gain.value = .48;
+      compressor.threshold.value = -14;
+      compressor.knee.value = 12;
+      compressor.ratio.value = 4;
+      compressor.attack.value = .003;
+      compressor.release.value = .18;
+      master.connect(compressor);
+      compressor.connect(context.destination);
       runtime.audioContext = context;
       runtime.masterGain = master;
+      runtime.compressor = compressor;
       return context;
     } catch (_) {
       return null;
@@ -1190,11 +1202,11 @@
       filter.type = 'lowpass';
       filter.frequency.setValueAtTime(2600, now);
       gain.gain.setValueAtTime(.0001, now);
-      gain.gain.exponentialRampToValueAtTime(.19, now + .012);
+      gain.gain.exponentialRampToValueAtTime(.30, now + .010);
       osc.connect(filter); overtone.connect(filter); filter.connect(gain); gain.connect(runtime.masterGain);
       osc.start(now); overtone.start(now);
       if (sustain) {
-        gain.gain.exponentialRampToValueAtTime(.11, now + .18);
+        gain.gain.exponentialRampToValueAtTime(.18, now + .18);
         runtime.voices.set(tile.id, { osc, overtone, gain });
       } else {
         gain.gain.exponentialRampToValueAtTime(.0001, now + .34);
@@ -1220,6 +1232,14 @@
     Array.from(runtime.voices.keys()).forEach(id => stopVoice(id, soft));
   }
 
+  function vibrateFailure(kind) {
+    // Explicit fail haptics only. This does NOT re-enable long-press/browser haptics.
+    try {
+      if (typeof navigator?.vibrate !== 'function') return;
+      navigator.vibrate(kind === 'wrong' ? [55, 32, 85] : [95, 45, 135]);
+    } catch (_) {}
+  }
+
   function playFailureTone(kind) {
     if (!runtime.soundEnabled) return;
     const context = ensureAudio();
@@ -1234,7 +1254,7 @@
       filter.type = 'lowpass';
       filter.frequency.setValueAtTime(isWrong ? 1900 : 1200, now);
       bus.gain.setValueAtTime(.0001, now);
-      bus.gain.exponentialRampToValueAtTime(isWrong ? .18 : .22, now + .008);
+      bus.gain.exponentialRampToValueAtTime(isWrong ? .48 : .56, now + .006);
       bus.gain.exponentialRampToValueAtTime(.0001, now + (isWrong ? .34 : .48));
       filter.connect(bus); bus.connect(runtime.masterGain);
       freqs.forEach((freq, index) => {
@@ -1310,6 +1330,10 @@
   function open(options = {}) {
     build();
     runtime.bridge = options.bridge || window.ICT8_XP_MINIGAMES_BRIDGE || null;
+    runtime.music = options.music || null;
+    // Code Tiles uses the piano keys themselves as the soundtrack. Disable the
+    // shared Mini-Game BGM so only tile notes and dedicated fail sounds are heard.
+    try { runtime.music?.stop?.(); } catch (_) {}
     runtime.onBack = typeof options.onBack === 'function' ? options.onBack : null;
     runtime.onClose = typeof options.onClose === 'function' ? options.onClose : null;
     runtime.onReward = typeof options.onReward === 'function' ? options.onReward : null;
