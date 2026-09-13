@@ -18,6 +18,11 @@
   const SOUND_DURATION_MS = [1600, 1500, 1450, 1375, 1300];
   const SOUND_MAX_HZ = 1200;
   const SOUND_MIN_HZ = 80;
+  const SOUND_MODE_VOLUME_BOOST = 1.5;
+
+  function dialSoundVolume(base) {
+    return Math.min(.22, Math.max(0, Number(base) || 0) * SOUND_MODE_VOLUME_BOOST);
+  }
   const TUTORIAL_KEY_PREFIX = 'ict8_dial_in_tutorial_v1_';
 
   const runtime = {
@@ -323,7 +328,7 @@
     osc.type = 'sine';
     osc.frequency.setValueAtTime(clamp(selectedFrequency(), 100, 1600), now);
     gain.gain.setValueAtTime(.0001, now);
-    gain.gain.exponentialRampToValueAtTime(Math.max(.0002, __ict8SfxGain(.055)), now + .018);
+    gain.gain.exponentialRampToValueAtTime(Math.max(.0002, __ict8SfxGain(dialSoundVolume(.055))), now + .018);
     osc.connect(gain).connect(ctx.destination);
     osc.start(now);
     runtime.liveToneOsc = osc;
@@ -1044,7 +1049,7 @@
       return;
     }
     stopTransientAudio();
-    playToneFrequency(ch.hz, ch.durationMs, .11).catch?.(() => {});
+    playToneFrequency(ch.hz, ch.durationMs, dialSoundVolume(.11)).catch?.(() => {});
     schedule(() => {
       if (!runtime.open || runtime.paused || runtime.visibilityPaused || runtime.stage !== 'sound-target') return;
       runtime.stage = 'sound-guess';
@@ -1254,7 +1259,7 @@
       if (result?.loginRequired) {
         if (note) note.textContent = 'Practice mode — log in as a student to earn account XP.';
       } else if (result?.syncFailed) {
-        if (note) note.textContent = 'Reward saved for sync. XP will update automatically once confirmed.';
+        if (note) note.textContent = 'Score saved locally. XP could not sync right now.';
       } else if (result?.capReached && awarded === 0) {
         if (note) note.textContent = 'Daily Mini-Game XP limit reached. Your score still counts for your personal best.';
       } else {
@@ -1471,14 +1476,14 @@
       const pad = runtime.overlay?.querySelector('[data-dial-sound-pad]');
       if (pad) pad.classList.add('is-previewing');
       schedule(() => pad?.classList.remove('is-previewing'), 680);
-      return playToneFrequency(selectedFrequency(), 650, .095);
+      return playToneFrequency(selectedFrequency(), 650, dialSoundVolume(.095));
     }
     if (event.target.closest('[data-dial-replay]')) {
       if (runtime.roundIndex !== 0 || runtime.soundReplayUsed) return;
       runtime.soundReplayUsed = true;
       stopLiveTone(true);
       render();
-      return playToneFrequency(currentChallenge().hz, currentChallenge().durationMs, .11);
+      return playToneFrequency(currentChallenge().hz, currentChallenge().durationMs, dialSoundVolume(.11));
     }
     if (event.target.closest('[data-dial-play-again]')) return startSession(runtime.mode);
     if (event.target.closest('[data-dial-change-mode]')) return showHome();

@@ -45,7 +45,7 @@
   </script>
   <link rel="preconnect" href="https://drive.google.com" crossorigin>
   <link rel="preconnect" href="https://lh3.googleusercontent.com" crossorigin>
-  <link rel="stylesheet" href="style.css?v=20260913-v478-desktop-collab-fix" />
+  <link rel="stylesheet" href="style.css?v=20260913-v481-piano-reminder-playlist" />
   <link rel="stylesheet" href="games/mini-games-hub.css?v=20260912-v4761-byte-runner-v81-build-hud" />
   <link rel="stylesheet" href="games/code-fly/code-fly.css?v=20260909-v429-xp-mini-games" />
   <style>
@@ -2029,11 +2029,65 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
               <span class="admin-switch"><input id="loginReminderMusicEnabledToggle" type="checkbox" /><span class="admin-switch-track"><span class="admin-switch-thumb"></span></span></span>
             </label>
 
-            <label class="login-reminder-field login-reminder-field-wide">
-              <span>Music URL</span>
-              <input id="loginReminderMusicUrlInput" type="url" autocomplete="off" placeholder="Paste a direct JukeHost/audio URL" />
-              <small>Use a direct playable audio link. Leave blank when music is off.</small>
+            <label class="login-reminder-field">
+              <span>Music Mode</span>
+              <select id="loginReminderMusicModeSelect">
+                <option value="single">Single Song</option>
+                <option value="playlist">Playlist</option>
+              </select>
+              <small>Loop one song, or automatically continue through a playlist.</small>
             </label>
+
+            <label class="login-reminder-field">
+              <span>Music Volume <strong id="loginReminderMusicVolumeValue">55%</strong></span>
+              <input id="loginReminderMusicVolumeInput" type="range" min="0" max="100" step="1" value="55" />
+              <small>Controls only the Student Login Reminder background music.</small>
+            </label>
+
+            <label id="loginReminderMusicSingleField" class="login-reminder-field login-reminder-field-wide">
+              <span>Single Song URL</span>
+              <input id="loginReminderMusicUrlInput" type="url" autocomplete="off" placeholder="Paste a direct JukeHost/audio URL" />
+              <small>Use a direct browser-playable MP3, M4A, OGG, WAV, or compatible audio stream.</small>
+            </label>
+
+            <div id="loginReminderMusicPlaylistPanel" class="login-reminder-playlist-panel login-reminder-field-wide hidden">
+              <label class="login-reminder-field login-reminder-field-wide" for="loginReminderMusicPlaylistText">
+                <span>Playlist Audio Links <strong id="loginReminderMusicDetected">0 detected</strong></span>
+                <textarea id="loginReminderMusicPlaylistText" rows="7" spellcheck="false" autocomplete="off" placeholder="Paste audio links here — new lines, spaces, commas, semicolons, or even directly beside another http link are accepted.
+
+https://example.com/song1.mp3
+https://example.com/song2.mp3"></textarea>
+                <small>Links are auto-detected and de-duplicated. Up to 120 tracks can be saved.</small>
+              </label>
+              <div class="login-reminder-playlist-options">
+                <label class="login-reminder-field" for="loginReminderMusicTrackLimit">
+                  <span>Tracks to Use</span>
+                  <input id="loginReminderMusicTrackLimit" type="number" min="1" max="120" step="1" inputmode="numeric" placeholder="All" />
+                  <small>Leave blank for every detected song, or choose any number such as 1, 10, 20, or more.</small>
+                </label>
+                <label class="login-reminder-field" for="loginReminderMusicPlayback">
+                  <span>Playback Order</span>
+                  <select id="loginReminderMusicPlayback">
+                    <option value="in-order">Continuous · In order</option>
+                    <option value="shuffle">Shuffle · Play all before repeating</option>
+                  </select>
+                  <small>Shuffle never repeats a track until the current cycle has played every selected song.</small>
+                </label>
+              </div>
+              <div class="login-reminder-playlist-summary">
+                <strong id="loginReminderMusicPlaylistSummary">Paste one or more direct audio links.</strong>
+                <div id="loginReminderMusicTrackList" class="login-reminder-track-list" aria-live="polite"></div>
+              </div>
+            </div>
+
+            <div id="loginReminderMusicPreviewRow" class="login-reminder-music-preview login-reminder-field-wide">
+              <div class="login-reminder-music-preview-actions">
+                <button id="loginReminderMusicPrevBtn" class="ghost-btn mini hidden" type="button">◀ Previous</button>
+                <button id="loginReminderMusicTestBtn" class="ghost-btn" type="button">▶ Test Music</button>
+                <button id="loginReminderMusicNextBtn" class="ghost-btn mini hidden" type="button">Next ▶</button>
+              </div>
+              <small id="loginReminderMusicPreviewTrack">No reminder music preview playing.</small>
+            </div>
 
             <label class="login-reminder-field">
               <span>Popup Theme</span>
@@ -2887,8 +2941,8 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
             <div class="code-explorer-admin-music-head">
               <div>
                 <span class="code-explorer-admin-setting-kicker">🎵 Background Music</span>
-                <h4 id="codeExplorerAdminMusicTitle">Code Explorer Music</h4>
-                <p>Paste a direct browser-playable audio link, set the volume, then save. Students hear it only inside Code Explorer and only after the browser allows audio. Leave the URL blank to keep the built-in Code Explorer music.</p>
+                <h4 id="codeExplorerAdminMusicTitle">Code Explorer Music & Playlist</h4>
+                <p>Use one looping track or paste a whole playlist. Playlist links are detected automatically even when separated by spaces, commas, new lines, or pasted directly beside another <code>http</code> link.</p>
               </div>
               <span id="codeExplorerAdminMusicPill" class="code-explorer-admin-music-pill">Loading…</span>
             </div>
@@ -2899,10 +2953,13 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
                 <span class="admin-switch"><input id="codeExplorerAdminMusicEnabled" type="checkbox" checked /><span class="admin-switch-track"><span class="admin-switch-thumb"></span></span></span>
               </label>
 
-              <label class="code-explorer-admin-music-field code-explorer-admin-music-url" for="codeExplorerAdminMusicUrl">
-                <span>Music URL</span>
-                <input id="codeExplorerAdminMusicUrl" type="url" inputmode="url" autocomplete="off" placeholder="https://example.com/background-music.mp3" />
-                <small>Use a direct audio file/stream URL such as MP3, M4A, OGG, or WAV. A normal YouTube/Spotify webpage link will not play as an HTML audio source.</small>
+              <label class="code-explorer-admin-music-field code-explorer-admin-music-mode" for="codeExplorerAdminMusicMode">
+                <span>Music Mode</span>
+                <select id="codeExplorerAdminMusicMode">
+                  <option value="single">Single Song</option>
+                  <option value="playlist">Playlist</option>
+                </select>
+                <small>Single Song loops one track. Playlist automatically advances through multiple tracks.</small>
               </label>
 
               <label class="code-explorer-admin-music-field code-explorer-admin-music-volume" for="codeExplorerAdminMusicVolume">
@@ -2910,10 +2967,55 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
                 <input id="codeExplorerAdminMusicVolume" type="range" min="0" max="100" step="1" value="100" />
                 <small>This controls only background music. Code Explorer sound effects keep their existing volume.</small>
               </label>
+
+              <label id="codeExplorerAdminMusicSingleField" class="code-explorer-admin-music-field code-explorer-admin-music-url" for="codeExplorerAdminMusicUrl">
+                <span>Single Song URL</span>
+                <input id="codeExplorerAdminMusicUrl" type="url" inputmode="url" autocomplete="off" placeholder="https://example.com/background-music.mp3" />
+                <small>Use a direct browser-playable MP3, M4A, OGG, WAV, or compatible audio stream. Leave blank to use the built-in Code Explorer music.</small>
+              </label>
+
+              <div id="codeExplorerAdminMusicPlaylistPanel" class="code-explorer-admin-playlist-panel hidden">
+                <label class="code-explorer-admin-music-field code-explorer-admin-playlist-field" for="codeExplorerAdminMusicPlaylistText">
+                  <span>Playlist Audio Links <strong id="codeExplorerAdminMusicDetected">0 detected</strong></span>
+                  <textarea id="codeExplorerAdminMusicPlaylistText" rows="8" spellcheck="false" autocomplete="off" placeholder="Paste audio links here — one per line, separated by spaces/commas, or even directly beside each other.
+
+https://example.com/song1.mp3
+https://example.com/song2.mp3
+https://example.com/song3.mp3"></textarea>
+                  <small>Links are auto-detected and de-duplicated. Up to 120 tracks are kept in one playlist.</small>
+                </label>
+
+                <div class="code-explorer-admin-playlist-options">
+                  <label class="code-explorer-admin-music-field" for="codeExplorerAdminMusicTrackLimit">
+                    <span>Tracks to Use</span>
+                    <input id="codeExplorerAdminMusicTrackLimit" type="number" min="1" max="120" step="1" inputmode="numeric" placeholder="All" />
+                    <small>Leave blank to use every detected track, or enter a number such as 1, 10, 20, or more.</small>
+                  </label>
+
+                  <label class="code-explorer-admin-music-field" for="codeExplorerAdminMusicPlayback">
+                    <span>Playback Order</span>
+                    <select id="codeExplorerAdminMusicPlayback">
+                      <option value="in-order">Continuous · In order</option>
+                      <option value="shuffle">Shuffle · Play all before repeating</option>
+                    </select>
+                    <small>Shuffle makes a fresh random cycle only after every selected track has played once.</small>
+                  </label>
+                </div>
+
+                <div class="code-explorer-admin-playlist-summary">
+                  <div>
+                    <strong id="codeExplorerAdminMusicPlaylistSummary">Paste two or more direct audio links.</strong>
+                    <small id="codeExplorerAdminMusicPreviewTrack">No playlist preview playing.</small>
+                  </div>
+                  <div id="codeExplorerAdminMusicTrackList" class="code-explorer-admin-track-list" aria-live="polite"></div>
+                </div>
+              </div>
             </div>
 
             <div class="code-explorer-admin-music-actions">
+              <button id="codeExplorerAdminMusicPrevBtn" class="ghost-btn mini hidden" type="button">◀ Previous</button>
               <button id="codeExplorerAdminMusicTestBtn" class="ghost-btn" type="button">▶ Test Music</button>
+              <button id="codeExplorerAdminMusicNextBtn" class="ghost-btn mini hidden" type="button">Next ▶</button>
               <button id="codeExplorerAdminMusicSaveBtn" class="primary-btn" type="button">Save Music Settings</button>
             </div>
             <p id="codeExplorerAdminMusicStatus" class="helper-note" role="status">Loading the current Code Explorer music setting…</p>
@@ -4373,7 +4475,7 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
     })();
   </script>
 
-  <script src="script.js?v=20260913-v478-desktop-collab-fix"></script>
+  <script src="script.js?v=20260913-v481-piano-reminder-playlist"></script>
   <script>
     // v410 fallback: keep the desktop editor settings popover working even if older cached
     // toolbar code fails before binding the click handler.
@@ -4585,6 +4687,6 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
 
   <!-- v429 XP Mini-Games: isolated modules loaded after the main app bridge. -->
   <script src="games/code-fly/code-fly.js?v=20260909-v429-xp-mini-games"></script>
-  <script src="games/mini-games-hub.js?v=20260913-v477-xp-fast-retry"></script>
+  <script src="games/mini-games-hub.js?v=20260913-v481-piano-reminder-playlist"></script>
 </body>
 </html>

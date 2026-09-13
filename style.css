@@ -65633,3 +65633,269 @@ html[data-theme="dark"] .code-explorer-admin-music-pill.off {
     pointer-events: auto !important;
   }
 }
+
+/* ================================================================
+   v480 — Code Explorer Music Playlist Manager
+   Extends the existing admin music card without changing student UI.
+   ================================================================ */
+.code-explorer-admin-music-mode select,
+.code-explorer-admin-playlist-options select,
+.code-explorer-admin-playlist-options input[type="number"],
+.code-explorer-admin-playlist-field textarea {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid #cbd8e8;
+  border-radius: 11px;
+  background: #fbfdff;
+  color: #172033;
+  font: inherit;
+  font-size: .78rem;
+}
+.code-explorer-admin-music-mode select,
+.code-explorer-admin-playlist-options select,
+.code-explorer-admin-playlist-options input[type="number"] {
+  min-height: 42px;
+  padding: 9px 11px;
+}
+.code-explorer-admin-playlist-field textarea {
+  min-height: 168px;
+  padding: 11px 12px;
+  line-height: 1.5;
+  resize: vertical;
+  overflow-wrap: anywhere;
+}
+.code-explorer-admin-music-mode select:focus,
+.code-explorer-admin-playlist-options select:focus,
+.code-explorer-admin-playlist-options input[type="number"]:focus,
+.code-explorer-admin-playlist-field textarea:focus {
+  outline: 2px solid rgba(37, 99, 235, .16);
+  outline-offset: 1px;
+  border-color: #6ea3ec;
+}
+.code-explorer-admin-music-mode select:disabled,
+.code-explorer-admin-playlist-options select:disabled,
+.code-explorer-admin-playlist-options input[type="number"]:disabled,
+.code-explorer-admin-playlist-field textarea:disabled {
+  opacity: .56;
+  cursor: not-allowed;
+}
+.code-explorer-admin-music-url {
+  grid-column: 1 / -1;
+}
+.code-explorer-admin-playlist-panel {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid #cfe0f4;
+  border-radius: 16px;
+  background: #f7fbff;
+}
+.code-explorer-admin-playlist-panel.hidden { display: none !important; }
+.code-explorer-admin-playlist-panel .code-explorer-admin-music-field {
+  background: #fff;
+}
+.code-explorer-admin-playlist-field > span strong {
+  color: #2563eb;
+  font-size: .72rem;
+  white-space: nowrap;
+}
+.code-explorer-admin-playlist-options {
+  display: grid;
+  grid-template-columns: minmax(180px, .6fr) minmax(260px, 1fr);
+  gap: 10px;
+}
+.code-explorer-admin-playlist-summary {
+  display: grid;
+  grid-template-columns: minmax(220px, .65fr) minmax(0, 1.35fr);
+  gap: 12px;
+  align-items: start;
+  padding: 11px 12px;
+  border: 1px dashed #bfd4ec;
+  border-radius: 13px;
+  background: rgba(255,255,255,.74);
+}
+.code-explorer-admin-playlist-summary > div:first-child {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.code-explorer-admin-playlist-summary strong {
+  color: #172033;
+  font-size: .76rem;
+  line-height: 1.35;
+}
+.code-explorer-admin-playlist-summary small {
+  color: #64748b;
+  font-size: .68rem;
+  line-height: 1.4;
+}
+.code-explorer-admin-track-list {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.code-explorer-admin-track-chip,
+.code-explorer-admin-track-more {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 190px;
+  min-height: 28px;
+  padding: 5px 8px;
+  border: 1px solid #d8e3f0;
+  border-radius: 999px;
+  background: #f8fafc;
+  color: #64748b;
+  font-size: .65rem;
+  font-weight: 750;
+  line-height: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.code-explorer-admin-track-chip.selected {
+  border-color: #93c5fd;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+.code-explorer-admin-track-chip b {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(37,99,235,.11);
+  font-size: .61rem;
+}
+.code-explorer-admin-track-more {
+  max-width: none;
+  color: #475569;
+}
+.code-explorer-admin-music-actions .ghost-btn.mini {
+  min-width: 94px;
+}
+html[data-theme="dark"] .code-explorer-admin-music-mode select,
+html[data-theme="dark"] .code-explorer-admin-playlist-options select,
+html[data-theme="dark"] .code-explorer-admin-playlist-options input[type="number"],
+html[data-theme="dark"] .code-explorer-admin-playlist-field textarea {
+  border-color: #355071;
+  background: #0c1728;
+  color: #eef5ff;
+}
+html[data-theme="dark"] .code-explorer-admin-playlist-panel {
+  border-color: #2e4769;
+  background: #0c1728;
+}
+html[data-theme="dark"] .code-explorer-admin-playlist-panel .code-explorer-admin-music-field {
+  border-color: #2e4769;
+  background: #101c31;
+}
+html[data-theme="dark"] .code-explorer-admin-playlist-summary {
+  border-color: #355071;
+  background: rgba(12,23,40,.72);
+}
+html[data-theme="dark"] .code-explorer-admin-playlist-summary strong { color: #eef5ff; }
+html[data-theme="dark"] .code-explorer-admin-playlist-summary small { color: #9fb2ce; }
+html[data-theme="dark"] .code-explorer-admin-track-chip,
+html[data-theme="dark"] .code-explorer-admin-track-more {
+  border-color: #2e4769;
+  background: #111f35;
+  color: #9fb2ce;
+}
+html[data-theme="dark"] .code-explorer-admin-track-chip.selected {
+  border-color: #315f99;
+  background: #132b4f;
+  color: #b9d8ff;
+}
+@media (max-width: 760px) {
+  .code-explorer-admin-playlist-options,
+  .code-explorer-admin-playlist-summary {
+    grid-template-columns: 1fr;
+  }
+  .code-explorer-admin-playlist-field textarea { min-height: 190px; }
+}
+@media (max-width: 600px) {
+  .code-explorer-admin-music-actions {
+    grid-template-columns: 1fr 1fr;
+  }
+  .code-explorer-admin-music-actions .ghost-btn.mini { min-width: 0; }
+  .code-explorer-admin-track-chip { max-width: 100%; }
+}
+
+/* V481: Login Reminder music playlist manager ---------------------------- */
+.login-reminder-playlist-panel{
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+  min-width:0;
+  padding:13px;
+  border:1px solid rgba(148,163,184,.22);
+  border-radius:14px;
+  background:rgba(148,163,184,.045);
+}
+.login-reminder-playlist-panel.hidden{display:none!important}
+.login-reminder-playlist-options{
+  display:grid;
+  grid-template-columns:minmax(0,.78fr) minmax(0,1.22fr);
+  gap:12px;
+}
+.login-reminder-playlist-summary{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  min-width:0;
+  padding:11px 12px;
+  border-radius:12px;
+  border:1px dashed rgba(148,163,184,.32);
+  background:rgba(255,255,255,.035);
+}
+.login-reminder-playlist-summary>strong{font-size:.82rem;line-height:1.4}
+.login-reminder-track-list{display:flex;flex-wrap:wrap;gap:6px;min-width:0}
+.login-reminder-track-chip,
+.login-reminder-track-more{
+  display:inline-flex;
+  align-items:center;
+  gap:5px;
+  min-width:0;
+  max-width:100%;
+  padding:5px 8px;
+  border-radius:999px;
+  border:1px solid rgba(148,163,184,.28);
+  background:rgba(148,163,184,.10);
+  color:inherit;
+  font-size:.7rem;
+  font-weight:700;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.login-reminder-track-chip.selected{border-color:rgba(34,197,94,.34);background:rgba(34,197,94,.10)}
+.login-reminder-track-chip b{flex:0 0 auto;opacity:.65}
+.login-reminder-music-preview{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  min-width:0;
+  padding:11px 12px;
+  border:1px solid rgba(148,163,184,.20);
+  border-radius:14px;
+  background:rgba(148,163,184,.04);
+}
+.login-reminder-music-preview.disabled{opacity:.58}
+.login-reminder-music-preview-actions{display:flex;flex-wrap:wrap;gap:8px}
+.login-reminder-music-preview>small{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;opacity:.72;text-align:right}
+#loginReminderMusicPlaylistText{min-height:132px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.78rem;line-height:1.45}
+#loginReminderMusicVolumeValue{float:right;font-size:.75rem;opacity:.72}
+@media(max-width:700px){
+  .login-reminder-playlist-options{grid-template-columns:1fr}
+  .login-reminder-music-preview{align-items:stretch;flex-direction:column}
+  .login-reminder-music-preview-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));width:100%}
+  .login-reminder-music-preview-actions .ghost-btn{min-height:42px;padding-inline:8px}
+  .login-reminder-music-preview>small{white-space:normal;text-align:left}
+}

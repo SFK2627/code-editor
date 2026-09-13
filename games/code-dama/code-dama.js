@@ -46,7 +46,8 @@
     paused: false, remotePaused: false, exitPaused: false,
     timerId: 0, lastClockAt: 0, lastTimerBroadcast: 0,
     audio: null, powerToastTimer: 0,
-    aiDifficulty: 'medium', aiTimer: 0, aiThinking: false
+    aiDifficulty: 'medium', aiTimer: 0, aiThinking: false,
+    moveAnimating: false, motionToken: 0, lastAnimatedMoveKey: ''
   };
 
   const $ = sel => r.overlay?.querySelector(sel) || null;
@@ -568,7 +569,7 @@
       extraMoveArmed: false, bonusMove: false,
       turnRemainingMs: SPEED_TURN_MS, blitz: { h: BLITZ_CLOCK_MS, g: BLITZ_CLOCK_MS },
       roundOver: false, roundWinner: '', winReason: '', seriesComplete: false,
-      lastAction: 'Match started.', actionSeq: 0
+      lastAction: 'Match started.', actionSeq: 0, lastMove: null
     };
     if (state.mode === 'power') {
       for (const side of ['h', 'g']) { drawPower(state, side, true); drawPower(state, side, true); }
@@ -706,6 +707,8 @@
     const move = legal.find(item => item.to === to);
     if (!move) return { ok: false, error: 'That move is not legal.' };
     const piece = state.board[from]; if (!piece || piece.side !== side) return { ok: false, error: 'Choose your own piece.' };
+    const pieceBeforeMove = deepClone(piece);
+    const capturedBeforeMove = move.capture >= 0 && state.board[move.capture] ? deepClone(state.board[move.capture]) : null;
 
     if (move.capture >= 0 && state.board[move.capture]?.shield) {
       state.board[move.capture].shield = false;
@@ -721,6 +724,11 @@
     }
     crowned = promoteIfNeeded(state, to);
     state.actionSeq += 1;
+    state.lastMove = {
+      key: `${state.roundNo}:${state.actionSeq}`, seq: state.actionSeq, roundNo: state.roundNo,
+      from, to, capture: captured ? move.capture : -1, captured, crowned,
+      piece: pieceBeforeMove, capturedPiece: captured ? capturedBeforeMove : null, atMs: Date.now()
+    };
 
     if (checkWinAfterAction(state, side)) return { ok: true, event: crowned ? 'king-win' : 'capture-win', crowned, captured, earnedPower };
 
@@ -1007,7 +1015,7 @@
     r.aiThinking = true; renderHud(); renderGameStatus();
     const level = aiLevel();
     const naturalDelay = level.thinkMin + Math.random() * Math.max(0, level.thinkMax - level.thinkMin);
-    const delay = delayOverride >= 0 ? Math.max(220, delayOverride) : naturalDelay;
+    const delay = delayOverride >= 0 ? Math.max(r.moveAnimating ? 440 : 220, delayOverride) : Math.max(r.moveAnimating ? 440 : 0, naturalDelay);
     r.aiTimer = setTimeout(() => { r.aiTimer = 0; runSoloBotTurn(); }, delay);
   }
 
@@ -1056,7 +1064,7 @@
   }
 
   function submitAction(action) {
-    if (!r.game || r.game.roundOver || r.paused || r.remotePaused || r.actionPending) return;
+    if (!r.game || r.game.roundOver || r.paused || r.remotePaused || r.actionPending || r.moveAnimating) return;
     const side = localSide();
     if (r.game.turn !== side) { toast('Wait for your turn.'); return; }
     r.selectedPower = '';
@@ -1080,7 +1088,7 @@
     const cell = event.target.closest('[data-cell]');
     if (!cell || !r.game || r.state !== 'game' || r.game.roundOver) return;
     const index = Number(cell.dataset.cell), side = localSide();
-    if (r.game.turn !== side || r.paused || r.remotePaused || r.actionPending) return;
+    if (r.game.turn !== side || r.paused || r.remotePaused || r.actionPending || r.moveAnimating) return;
 
     if (r.selectedPower) {
       submitAction({ kind: 'power', power: r.selectedPower, target: index });
@@ -1101,7 +1109,7 @@
 
   function handlePowerClick(event) {
     const button = event.target.closest('[data-power]');
-    if (!button || !r.game || r.game.turn !== localSide() || r.game.roundOver || r.actionPending) return;
+    if (!button || !r.game || r.game.turn !== localSide() || r.game.roundOver || r.actionPending || r.moveAnimating) return;
     const key = button.dataset.power;
     if (button.disabled) return;
     if (key === 'extra') { submitAction({ kind: 'power', power: key, target: -1 }); return; }
@@ -1113,8 +1121,145 @@
     return localSide() === 'g' ? base.reverse() : base;
   }
 
+  function pieceVisualClasses(piece, interactive = false) {
+    if (!piece) return [];
+    const classes = ['dama-piece', piece.side === 'h' ? 'host-piece' : 'guest-piece'];
+    if (interactive && piece.side === r.game?.turn && !r.game?.roundOver) classes.push('turn-piece');
+    if (interactive && piece.side === localSide() && r.game?.turn === localSide() && !r.game?.roundOver) classes.push('your-turn-piece');
+    if (piece.king) classes.push('king');
+    if (piece.shield) classes.push('shielded');
+    if (piece.frozen) classes.push('frozen');
+    return classes;
+  }
+
+  function pieceVisualContent(piece) {
+    if (!piece) return '';
+    return `<i>${piece.king ? '♛' : ''}</i>${piece.shield ? '<em>🛡️</em>' : ''}${piece.frozen ? '<b>❄</b>' : ''}`;
+  }
+
+  function clearBoardMotion(board) {
+    r.motionToken += 1;
+    r.moveAnimating = false;
+    board?.classList.remove('is-animating');
+    board?.querySelectorAll('.dama-piece-motion,.dama-captured-motion').forEach(node => node.remove());
+    board?.querySelectorAll('.dama-arrival-hidden').forEach(node => node.classList.remove('dama-arrival-hidden'));
+  }
+
+  function makeMotionPiece(piece, extraClass = '') {
+    const node = document.createElement('span');
+    node.className = `${pieceVisualClasses(piece, false).join(' ')} ${extraClass}`.trim();
+    node.innerHTML = pieceVisualContent(piece);
+    node.setAttribute('aria-hidden', 'true');
+    return node;
+  }
+
+  function maybeAnimateLastMove(board) {
+    const move = r.game?.lastMove;
+    if (!move || !Number.isInteger(Number(move.from)) || !Number.isInteger(Number(move.to))) return;
+    const key = String(move.key || `${move.roundNo || r.game.roundNo}:${move.seq || r.game.actionSeq}`);
+    if (!key || key === r.lastAnimatedMoveKey) return;
+    r.lastAnimatedMoveKey = key;
+
+    const destinationCell = board.querySelector(`[data-cell="${Number(move.to)}"]`);
+    const sourceCell = board.querySelector(`[data-cell="${Number(move.from)}"]`);
+    const destinationPiece = destinationCell?.querySelector('.dama-piece');
+    if (!destinationCell || !sourceCell || !destinationPiece) return;
+
+    const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+    if (reducedMotion || typeof destinationPiece.animate !== 'function') {
+      if (move.crowned) {
+        destinationPiece.classList.add('dama-piece-crowned');
+        setTimeout(() => destinationPiece.classList.remove('dama-piece-crowned'), 420);
+      }
+      return;
+    }
+
+    clearBoardMotion(board);
+    // clearBoardMotion changes the token only; this move remains marked as animated.
+    const token = ++r.motionToken;
+    r.moveAnimating = true;
+    board.classList.add('is-animating');
+    destinationPiece.classList.add('dama-arrival-hidden');
+
+    const boardRect = board.getBoundingClientRect();
+    const fromRect = sourceCell.getBoundingClientRect();
+    const toRect = destinationCell.getBoundingClientRect();
+    const sourcePiece = move.piece && typeof move.piece === 'object'
+      ? deepClone(move.piece)
+      : { side: r.game.board[Number(move.to)]?.side || localSide(), king: false, shield: false, frozen: false };
+    if (move.crowned && sourcePiece.king !== true) sourcePiece.king = false;
+
+    const ghost = makeMotionPiece(sourcePiece, 'dama-piece-motion');
+    const pieceSize = Math.max(18, Math.min(fromRect.width, fromRect.height) * .72);
+    const startX = fromRect.left - boardRect.left + fromRect.width / 2;
+    const startY = fromRect.top - boardRect.top + fromRect.height / 2;
+    const endX = toRect.left - boardRect.left + toRect.width / 2;
+    const endY = toRect.top - boardRect.top + toRect.height / 2;
+    const dx = endX - startX, dy = endY - startY;
+    ghost.style.width = `${pieceSize}px`;
+    ghost.style.height = `${pieceSize}px`;
+    ghost.style.left = `${startX}px`;
+    ghost.style.top = `${startY}px`;
+    board.appendChild(ghost);
+
+    let capturedGhost = null;
+    if (move.captured && Number(move.capture) >= 0 && move.capturedPiece) {
+      const captureCell = board.querySelector(`[data-cell="${Number(move.capture)}"]`);
+      if (captureCell) {
+        const capRect = captureCell.getBoundingClientRect();
+        capturedGhost = makeMotionPiece(move.capturedPiece, 'dama-captured-motion');
+        const capSize = Math.max(18, Math.min(capRect.width, capRect.height) * .72);
+        capturedGhost.style.width = `${capSize}px`;
+        capturedGhost.style.height = `${capSize}px`;
+        capturedGhost.style.left = `${capRect.left - boardRect.left + capRect.width / 2}px`;
+        capturedGhost.style.top = `${capRect.top - boardRect.top + capRect.height / 2}px`;
+        board.appendChild(capturedGhost);
+      }
+    }
+
+    const capture = !!move.captured;
+    const duration = capture ? 340 : 260;
+    const cell = Math.min(fromRect.width, fromRect.height);
+    const lift = capture ? Math.max(14, cell * .50) : Math.max(8, cell * .18);
+    const overshoot = capture ? 1.07 : 1.045;
+    const easing = capture ? 'cubic-bezier(.18,.72,.18,1)' : 'cubic-bezier(.2,.72,.25,1)';
+    const mover = ghost.animate([
+      { offset: 0, transform: 'translate(-50%,-50%) translate3d(0,0,0) scale(1)', filter: 'brightness(1)' },
+      { offset: .48, transform: `translate(-50%,-50%) translate3d(${dx * .50}px,${dy * .50 - lift}px,0) scale(${overshoot})`, filter: 'brightness(1.08)' },
+      { offset: .88, transform: `translate(-50%,-50%) translate3d(${dx * .92}px,${dy * .92 - Math.max(2, lift * .12)}px,0) scale(1.025)`, filter: 'brightness(1.04)' },
+      { offset: 1, transform: `translate(-50%,-50%) translate3d(${dx}px,${dy}px,0) scale(1)`, filter: 'brightness(1)' }
+    ], { duration, easing, fill: 'forwards' });
+
+    if (capturedGhost) {
+      capturedGhost.animate([
+        { offset: 0, opacity: 1, transform: 'translate(-50%,-50%) scale(1)' },
+        { offset: .48, opacity: 1, transform: 'translate(-50%,-50%) scale(1)' },
+        { offset: .72, opacity: .42, transform: 'translate(-50%,-50%) scale(.82) rotate(7deg)' },
+        { offset: 1, opacity: 0, transform: 'translate(-50%,-50%) scale(.42) rotate(14deg)' }
+      ], { duration, easing: 'ease-out', fill: 'forwards' });
+    }
+
+    const finish = () => {
+      if (token !== r.motionToken) return;
+      ghost.remove(); capturedGhost?.remove();
+      destinationPiece.classList.remove('dama-arrival-hidden');
+      destinationPiece.classList.add('dama-piece-landed');
+      if (move.crowned) destinationPiece.classList.add('dama-piece-crowned');
+      board.classList.remove('is-animating');
+      r.moveAnimating = false;
+      setTimeout(() => {
+        destinationPiece.classList.remove('dama-piece-landed', 'dama-piece-crowned');
+      }, move.crowned ? 520 : 280);
+    };
+    mover.addEventListener('finish', finish, { once: true });
+    mover.addEventListener('cancel', finish, { once: true });
+    setTimeout(finish, duration + 80);
+  }
+
   function renderBoard() {
     const board = $('[data-board]'); if (!board || !r.game) return;
+    // A fresh render owns the board. Remove any stale overlay from an interrupted move.
+    if (board.querySelector('.dama-piece-motion,.dama-captured-motion')) clearBoardMotion(board);
     const side = localSide();
     const legalForSelected = r.selected >= 0 ? legalMovesFrom(r.game, r.selected, side) : [];
     const destinations = new Map(legalForSelected.map(move => [move.to, move]));
@@ -1131,11 +1276,8 @@
       if (piece && piece.side === side && movableSources.has(index) && r.game.turn === side) classes.push('movable');
       let pieceHtml = '';
       if (piece) {
-        const pieceClasses = ['dama-piece', piece.side === 'h' ? 'host-piece' : 'guest-piece'];
-        if (piece.side === r.game.turn && !r.game.roundOver) pieceClasses.push('turn-piece');
-        if (piece.side === side && r.game.turn === side && !r.game.roundOver) pieceClasses.push('your-turn-piece');
-        if (piece.king) pieceClasses.push('king'); if (piece.shield) pieceClasses.push('shielded'); if (piece.frozen) pieceClasses.push('frozen');
-        pieceHtml = `<span class="${pieceClasses.join(' ')}" aria-label="${piece.side === side ? 'Your' : 'Opponent'} ${piece.king ? 'King' : 'piece'}"><i>${piece.king ? '♛' : ''}</i>${piece.shield ? '<em>🛡️</em>' : ''}${piece.frozen ? '<b>❄</b>' : ''}</span>`;
+        const pieceClasses = pieceVisualClasses(piece, true);
+        pieceHtml = `<span class="${pieceClasses.join(' ')}" aria-label="${piece.side === side ? 'Your' : 'Opponent'} ${piece.king ? 'King' : 'piece'}">${pieceVisualContent(piece)}</span>`;
       }
       const marker = move ? `<span class="dama-target-dot">${move.capture >= 0 ? '×' : ''}</span>` : powerTargetSet.has(index) ? '<span class="dama-power-ring"></span>' : '';
       return `<button type="button" class="${classes.join(' ')}" data-cell="${index}" role="gridcell" aria-label="Board square ${row + 1}, ${col + 1}">${pieceHtml}${marker}</button>`;
@@ -1144,6 +1286,7 @@
     board.classList.toggle('mandatory-capture', mandatory);
     board.classList.toggle('turn-blue', r.game.turn === 'h');
     board.classList.toggle('turn-red', r.game.turn === 'g');
+    requestAnimationFrame(() => { if (r.open && r.game && r.state === 'game') maybeAnimateLastMove(board); });
   }
 
   function formatClock(ms) {
@@ -1383,6 +1526,7 @@
     try { r.session?.close?.(); } catch (_) {}
     r.session = null; r.role = ''; r.localReady = r.remoteReady = false; r.localNextReady = r.remoteNextReady = false;
     r.game = null; r.selected = -1; r.selectedPower = ''; r.actionPending = false; r.paused = r.remotePaused = r.exitPaused = false; r.hostCode = r.answerCode = ''; r.configReceived = false;
+    r.moveAnimating = false; r.motionToken += 1; r.lastAnimatedMoveKey = '';
     const pause = $('[data-pause]'); if (pause) pause.hidden = true; clearDisconnectNotice(); show('home');
   }
 

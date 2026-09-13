@@ -185,3 +185,70 @@ body.code-climb-active{overflow:hidden;overscroll-behavior:none}.climb-main{over
 @media(prefers-reduced-motion:reduce){
   .climb-board-dice-overlay,.climb-die-canvas{transition:none!important;animation:none!important}
 }
+
+
+/* CODE CLIMB v9 — turn status docked outside the board.
+   The cue stays visible, but never covers squares 91–100. */
+.climb-control-card .climb-board-turn-cue{
+  position:relative;
+  z-index:1;
+  left:auto;
+  top:auto;
+  transform:none;
+  width:100%;
+  max-width:none;
+  box-sizing:border-box;
+  margin:0;
+  padding:8px 10px;
+  border-radius:14px;
+  pointer-events:none;
+  text-align:center;
+  background:linear-gradient(135deg,color-mix(in srgb,var(--turn) 20%,rgba(2,8,23,.94)),rgba(2,8,23,.88));
+  box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--turn) 10%,transparent),0 6px 16px rgba(0,0,0,.20);
+  backdrop-filter:blur(7px);
+}
+.climb-control-card .climb-board-turn-cue small{
+  font-size:.48rem;
+  letter-spacing:.11em;
+}
+.climb-control-card .climb-board-turn-cue strong{
+  margin-top:3px;
+  font-size:.68rem;
+}
+.climb-control-card .climb-board-turn-cue.turn-enter{
+  animation:climbTurnCueDocked .5s cubic-bezier(.2,.85,.25,1);
+}
+.climb-control-card .climb-turn-banner.mine ~ .climb-board-turn-cue{
+  box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--turn) 18%,transparent),0 6px 16px rgba(0,0,0,.22),0 0 18px color-mix(in srgb,var(--turn) 18%,transparent);
+}
+@keyframes climbTurnCueDocked{
+  0%{transform:translateY(-4px) scale(.97);opacity:0}
+  58%{transform:translateY(1px) scale(1.015);opacity:1}
+  100%{transform:none;opacity:1}
+}
+
+@media(max-width:760px){
+  .climb-control-card .climb-board-turn-cue{
+    grid-column:1/-1;
+    grid-row:3;
+    min-height:38px;
+    padding:6px 9px;
+    border-radius:12px;
+  }
+  .climb-control-card .climb-board-turn-cue small{font-size:.38rem}
+  .climb-control-card .climb-board-turn-cue strong{font-size:.52rem;margin-top:2px}
+}
+@media(max-width:420px){
+  .climb-control-card .climb-board-turn-cue{min-height:34px;padding:5px 7px}
+  .climb-control-card .climb-board-turn-cue strong{font-size:.48rem}
+}
+@media(max-height:680px) and (orientation:portrait){
+  .climb-control-card .climb-board-turn-cue{min-height:31px;padding:4px 7px}
+}
+@media(max-height:620px) and (orientation:landscape){
+  .climb-control-card .climb-board-turn-cue{
+    order:4;
+    min-height:34px;
+    padding:5px 7px;
+  }
+}

@@ -368,7 +368,6 @@
                   <svg class="climb-paths" data-paths viewBox="0 0 1000 1000" preserveAspectRatio="none" aria-hidden="true"></svg>
                   <div class="climb-token-layer" data-token-layer></div>
                   <div class="climb-square-flash" data-square-flash></div>
-                  <div class="climb-board-turn-cue" data-board-turn-cue><small data-board-turn-kicker>YOUR TURN</small><strong data-board-turn-name>ROLL THE DICE</strong></div>
                   <div class="climb-board-dice-overlay" data-board-dice hidden>
                     <div class="climb-board-dice-backdrop"></div>
                     <div class="climb-dice-stage"><small data-dice-player>YOUR ROLL</small><div class="climb-die-shell"><canvas class="climb-die-canvas" data-die aria-label="Rolling dice"></canvas></div><strong data-dice-result>ROLLING…</strong></div>
@@ -378,6 +377,7 @@
                   <div class="climb-turn-banner" data-turn-banner><small>YOUR TURN</small><strong>ROLL THE DICE</strong></div>
                   <div class="climb-last-roll" data-last-roll><small>LAST ROLL</small><strong>🎲 —</strong></div>
                   <button class="climb-roll-btn" type="button" data-roll>🎲 ROLL NOW</button>
+                  <div class="climb-board-turn-cue" data-board-turn-cue><small data-board-turn-kicker>YOUR TURN</small><strong data-board-turn-name>ROLL THE DICE</strong></div>
                   <div class="climb-event" data-event>First player to reach 100 wins.</div>
                   <div class="climb-rule-chips"><span>🎯 EXACT FINISH</span><span>🎲 6 = ROLL AGAIN</span></div>
                 </aside>

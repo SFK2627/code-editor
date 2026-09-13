@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const ASSET_VERSION = '20260913-v477-climb-cinematic-dice-v8';
+  const ASSET_VERSION = '20260913-v485-climb-turn-dock';
 
   const GAME_REGISTRY = Object.freeze([
     {
@@ -337,9 +337,9 @@
       stateKey: 'codeTiles',
       name: 'CODE TILES',
       icon: '🎹',
-      description: 'Tap short code tiles, press-and-hold long tiles through the SYNC LINE, build combos, and keep the four-lane rhythm synced.',
+      description: 'Classic Piano Tiles-style run: tap only the next black tile, hold long tiles until they finish, and never touch an empty lane.',
       maxXp: 3,
-      category: 'RHYTHM / TIMING',
+      category: 'PIANO / CLASSIC TILES',
       difficulty: '★★★★☆',
       globalName: 'ICT8CodeTiles',
       script: 'games/code-tiles/code-tiles.js',

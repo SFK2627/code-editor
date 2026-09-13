@@ -225,6 +225,22 @@ const codeTransferToggle = document.getElementById('codeTransferToggle');
 const loginReminderEnabledToggle = document.getElementById('loginReminderEnabledToggle');
 const loginReminderMusicEnabledToggle = document.getElementById('loginReminderMusicEnabledToggle');
 const loginReminderMusicUrlInput = document.getElementById('loginReminderMusicUrlInput');
+const loginReminderMusicModeSelect = document.getElementById('loginReminderMusicModeSelect');
+const loginReminderMusicVolumeInput = document.getElementById('loginReminderMusicVolumeInput');
+const loginReminderMusicVolumeValue = document.getElementById('loginReminderMusicVolumeValue');
+const loginReminderMusicSingleField = document.getElementById('loginReminderMusicSingleField');
+const loginReminderMusicPlaylistPanel = document.getElementById('loginReminderMusicPlaylistPanel');
+const loginReminderMusicPlaylistText = document.getElementById('loginReminderMusicPlaylistText');
+const loginReminderMusicDetected = document.getElementById('loginReminderMusicDetected');
+const loginReminderMusicTrackLimit = document.getElementById('loginReminderMusicTrackLimit');
+const loginReminderMusicPlayback = document.getElementById('loginReminderMusicPlayback');
+const loginReminderMusicPlaylistSummary = document.getElementById('loginReminderMusicPlaylistSummary');
+const loginReminderMusicTrackList = document.getElementById('loginReminderMusicTrackList');
+const loginReminderMusicPreviewRow = document.getElementById('loginReminderMusicPreviewRow');
+const loginReminderMusicPrevBtn = document.getElementById('loginReminderMusicPrevBtn');
+const loginReminderMusicTestBtn = document.getElementById('loginReminderMusicTestBtn');
+const loginReminderMusicNextBtn = document.getElementById('loginReminderMusicNextBtn');
+const loginReminderMusicPreviewTrack = document.getElementById('loginReminderMusicPreviewTrack');
 const loginReminderPositiveMessageInput = document.getElementById('loginReminderPositiveMessageInput');
 const loginReminderWarningMessageInput = document.getElementById('loginReminderWarningMessageInput');
 const loginReminderThemeSelect = document.getElementById('loginReminderThemeSelect');
@@ -891,15 +907,82 @@ const LOGIN_REMINDER_THEME_LABELS = Object.freeze({
   forest: 'Nature / Forest'
 });
 
+const LOGIN_REMINDER_MUSIC_MAX_TRACKS = 120;
 const DEFAULT_LOGIN_REMINDER_SETTINGS = Object.freeze({
   enabled: true,
   musicEnabled: false,
+  musicMode: 'single',
   musicUrl: '',
+  musicPlaylist: [],
+  musicPlayback: 'in-order',
+  musicTrackLimit: 0,
+  musicVolume: 55,
   theme: 'classic',
   animation: 'subtle',
   positiveMessage: 'Great! You have no lacking requirements. Keep up the good work and continue maintaining your performance.',
   warningMessage: 'The {term} is nearing its end. Please complete the following missing requirements as soon as possible to avoid delays in your subject completion.'
 });
+
+function resolveLoginReminderMusicUrl(rawUrl = '') {
+  const value = String(rawUrl || '').trim();
+  if (!value) return '';
+  try {
+    const parsed = new URL(value, window.location.href);
+    if (!['https:', 'http:'].includes(parsed.protocol)) return '';
+    if (/^(www\.)?dropbox\.com$/i.test(parsed.hostname)) {
+      parsed.searchParams.delete('dl');
+      parsed.searchParams.set('raw', '1');
+      return parsed.href;
+    }
+    if (/^(drive\.)?google\.com$/i.test(parsed.hostname)) {
+      const driveMatch = parsed.pathname.match(/\/file\/d\/([^/]+)/i);
+      if (driveMatch?.[1]) return `https://drive.google.com/uc?export=download&id=${encodeURIComponent(driveMatch[1])}`;
+    }
+    if (/^(www\.)?github\.com$/i.test(parsed.hostname)) {
+      const parts = parsed.pathname.split('/').filter(Boolean);
+      const blobIndex = parts.indexOf('blob');
+      if (parts.length >= 5 && blobIndex === 2) {
+        const [owner, repo] = parts;
+        const branch = parts[3];
+        const filePath = parts.slice(4).join('/');
+        return `https://raw.githubusercontent.com/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/${encodeURIComponent(branch)}/${filePath.split('/').map(encodeURIComponent).join('/')}`;
+      }
+    }
+    return parsed.href;
+  } catch (_) {
+    return '';
+  }
+}
+
+function extractLoginReminderMusicUrls(rawText = '') {
+  const raw = String(rawText || '').replace(/\r/g, '\n').trim();
+  if (!raw) return [];
+  const matches = raw.match(/https?:\/\/.*?(?=(?:https?:\/\/)|\s|$)/gi) || [];
+  const seen = new Set();
+  const urls = [];
+  for (const match of matches) {
+    const candidate = String(match || '').trim().replace(/^[,;]+|[,;]+$/g, '');
+    if (!candidate || !resolveLoginReminderMusicUrl(candidate) || seen.has(candidate)) continue;
+    seen.add(candidate);
+    urls.push(candidate);
+    if (urls.length >= LOGIN_REMINDER_MUSIC_MAX_TRACKS) break;
+  }
+  return urls;
+}
+
+function normalizeLoginReminderMusicPlaylist(input) {
+  const rawItems = Array.isArray(input) ? input : extractLoginReminderMusicUrls(String(input || ''));
+  const seen = new Set();
+  const out = [];
+  for (const item of rawItems) {
+    const value = String(item || '').trim().slice(0, 1800);
+    if (!value || !resolveLoginReminderMusicUrl(value) || seen.has(value)) continue;
+    seen.add(value);
+    out.push(value);
+    if (out.length >= LOGIN_REMINDER_MUSIC_MAX_TRACKS) break;
+  }
+  return out;
+}
 
 function normalizeLoginReminderSettings(value = {}) {
   const source = value && typeof value === 'object' ? value : {};
@@ -913,10 +996,25 @@ function normalizeLoginReminderSettings(value = {}) {
   const animation = LOGIN_REMINDER_ANIMATIONS.includes(String(source.animation || '').trim())
     ? String(source.animation).trim()
     : DEFAULT_LOGIN_REMINDER_SETTINGS.animation;
+  const playlist = normalizeLoginReminderMusicPlaylist(
+    Array.isArray(source.musicPlaylist) ? source.musicPlaylist : (source.musicPlaylistText || source.playlist || [])
+  );
+  const explicitMode = String(source.musicMode || source.mode || '').toLowerCase();
+  const musicMode = explicitMode === 'playlist' ? 'playlist' : 'single';
+  const musicPlayback = String(source.musicPlayback || source.playback || '').toLowerCase() === 'shuffle' ? 'shuffle' : 'in-order';
+  const rawLimit = Math.floor(Number(source.musicTrackLimit || source.trackLimit || 0));
+  const maxLimit = playlist.length || LOGIN_REMINDER_MUSIC_MAX_TRACKS;
+  const musicTrackLimit = rawLimit > 0 ? Math.max(1, Math.min(maxLimit, LOGIN_REMINDER_MUSIC_MAX_TRACKS, rawLimit)) : 0;
+  const rawVolume = Number(source.musicVolume);
   return {
     enabled: source.enabled !== false,
     musicEnabled: source.musicEnabled === true,
-    musicUrl: String(source.musicUrl || '').trim().slice(0, 1200),
+    musicMode,
+    musicUrl: String(source.musicUrl || '').trim().slice(0, 1800),
+    musicPlaylist: playlist,
+    musicPlayback,
+    musicTrackLimit,
+    musicVolume: Number.isFinite(rawVolume) ? Math.max(0, Math.min(100, Math.round(rawVolume))) : DEFAULT_LOGIN_REMINDER_SETTINGS.musicVolume,
     theme,
     animation,
     positiveMessage: cleanText(source.positiveMessage, DEFAULT_LOGIN_REMINDER_SETTINGS.positiveMessage),
@@ -924,11 +1022,48 @@ function normalizeLoginReminderSettings(value = {}) {
   };
 }
 
+function loginReminderSelectedRawTracks(settings = loginReminderSettings) {
+  const safe = normalizeLoginReminderSettings(settings);
+  if (!safe.musicEnabled) return [];
+  if (safe.musicMode === 'playlist') {
+    const limit = safe.musicTrackLimit > 0 ? Math.min(safe.musicTrackLimit, safe.musicPlaylist.length) : safe.musicPlaylist.length;
+    return safe.musicPlaylist.slice(0, limit);
+  }
+  return safe.musicUrl ? [safe.musicUrl] : [];
+}
+
+function loginReminderSelectedResolvedTracks(settings = loginReminderSettings) {
+  const seen = new Set();
+  return loginReminderSelectedRawTracks(settings).map(resolveLoginReminderMusicUrl).filter(url => {
+    if (!url || seen.has(url)) return false;
+    seen.add(url);
+    return true;
+  });
+}
+
+function loginReminderMusicTrackLabel(rawUrl = '', index = 0) {
+  try {
+    const parsed = new URL(resolveLoginReminderMusicUrl(rawUrl) || rawUrl, window.location.href);
+    let name = decodeURIComponent(parsed.pathname.split('/').filter(Boolean).pop() || '')
+      .replace(/\.(mp3|m4a|aac|ogg|oga|wav|webm|flac)$/i, '')
+      .replace(/[-_]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (name) return name.replace(/\b\w/g, char => char.toUpperCase()).slice(0, 70);
+  } catch (_) {}
+  return `Track ${index + 1}`;
+}
+
 let loginReminderSettings = normalizeLoginReminderSettings(
   loadJSON(STORAGE_KEYS.loginReminderSettings, DEFAULT_LOGIN_REMINDER_SETTINGS)
 );
 let loginReminderPendingAfterPasswordLogin = false;
 let loginReminderAudio = null;
+const loginReminderPlayback = {
+  order: [], position: 0, signature: '', lastUrl: '', failedUrls: new Set(), blockedUrl: ''
+};
+let loginReminderAdminPreviewAudio = null;
+const loginReminderAdminPreview = { order: [], position: 0, signature: '', lastUrl: '', failedUrls: new Set() };
 
 function persistLoginReminderSettings(settings = loginReminderSettings) {
   loginReminderSettings = normalizeLoginReminderSettings(settings);
@@ -938,10 +1073,16 @@ function persistLoginReminderSettings(settings = loginReminderSettings) {
 }
 
 function getLoginReminderSettingsFromControls() {
+  const rawLimitText = String(loginReminderMusicTrackLimit?.value || '').trim();
   return normalizeLoginReminderSettings({
     enabled: loginReminderEnabledToggle?.checked !== false,
     musicEnabled: loginReminderMusicEnabledToggle?.checked === true,
+    musicMode: loginReminderMusicModeSelect?.value || 'single',
     musicUrl: loginReminderMusicUrlInput?.value,
+    musicPlaylist: extractLoginReminderMusicUrls(loginReminderMusicPlaylistText?.value || ''),
+    musicPlayback: loginReminderMusicPlayback?.value || 'in-order',
+    musicTrackLimit: rawLimitText ? Number(rawLimitText) : 0,
+    musicVolume: loginReminderMusicVolumeInput?.value,
     theme: loginReminderThemeSelect?.value,
     animation: loginReminderAnimationSelect?.value,
     positiveMessage: loginReminderPositiveMessageInput?.value,
@@ -960,14 +1101,69 @@ function syncLoginReminderThemeSample(settings = loginReminderSettings) {
   }
 }
 
+function renderLoginReminderPlaylistSummary(settings = loginReminderSettings) {
+  const safe = normalizeLoginReminderSettings(settings);
+  const detected = safe.musicPlaylist.length;
+  const selected = safe.musicMode === 'playlist' ? loginReminderSelectedRawTracks(safe) : [];
+  if (loginReminderMusicDetected) loginReminderMusicDetected.textContent = `${detected} detected`;
+  if (loginReminderMusicTrackLimit) {
+    loginReminderMusicTrackLimit.max = String(Math.max(1, detected || LOGIN_REMINDER_MUSIC_MAX_TRACKS));
+    loginReminderMusicTrackLimit.placeholder = detected ? `All ${detected}` : 'All';
+  }
+  if (loginReminderMusicPlaylistSummary) {
+    if (!detected) loginReminderMusicPlaylistSummary.textContent = 'Paste one or more direct audio links.';
+    else {
+      const order = safe.musicPlayback === 'shuffle' ? 'shuffle · all songs before repeat' : 'continuous · in order';
+      loginReminderMusicPlaylistSummary.textContent = `${selected.length} of ${detected} track${detected === 1 ? '' : 's'} selected · ${order}`;
+    }
+  }
+  if (loginReminderMusicTrackList) {
+    const shown = safe.musicPlaylist.slice(0, 8);
+    const selectedCount = selected.length;
+    loginReminderMusicTrackList.innerHTML = shown.map((url, index) => {
+      const active = index < selectedCount ? ' selected' : '';
+      return `<span class="login-reminder-track-chip${active}" title="${escapeHTML(url)}"><b>${index + 1}</b>${escapeHTML(loginReminderMusicTrackLabel(url, index))}</span>`;
+    }).join('') + (detected > shown.length ? `<span class="login-reminder-track-more">+${detected - shown.length} more</span>` : '');
+  }
+}
+
 function syncLoginReminderSettingsControls() {
   const settings = normalizeLoginReminderSettings(loginReminderSettings);
+  const playlistMode = settings.musicMode === 'playlist';
   if (loginReminderEnabledToggle) loginReminderEnabledToggle.checked = settings.enabled;
   if (loginReminderMusicEnabledToggle) loginReminderMusicEnabledToggle.checked = settings.musicEnabled;
+  if (loginReminderMusicModeSelect) {
+    loginReminderMusicModeSelect.value = settings.musicMode;
+    loginReminderMusicModeSelect.disabled = !settings.musicEnabled;
+  }
+  if (loginReminderMusicVolumeInput) {
+    loginReminderMusicVolumeInput.value = String(settings.musicVolume);
+    loginReminderMusicVolumeInput.disabled = !settings.musicEnabled;
+  }
+  if (loginReminderMusicVolumeValue) loginReminderMusicVolumeValue.textContent = `${settings.musicVolume}%`;
+  if (loginReminderMusicSingleField) loginReminderMusicSingleField.classList.toggle('hidden', playlistMode);
+  if (loginReminderMusicPlaylistPanel) loginReminderMusicPlaylistPanel.classList.toggle('hidden', !playlistMode);
+  if (loginReminderMusicPreviewRow) loginReminderMusicPreviewRow.classList.toggle('disabled', !settings.musicEnabled);
   if (loginReminderMusicUrlInput) {
     loginReminderMusicUrlInput.value = settings.musicUrl;
-    loginReminderMusicUrlInput.disabled = !settings.musicEnabled;
+    loginReminderMusicUrlInput.disabled = !settings.musicEnabled || playlistMode;
   }
+  if (loginReminderMusicPlaylistText) {
+    if (document.activeElement !== loginReminderMusicPlaylistText) loginReminderMusicPlaylistText.value = settings.musicPlaylist.join('\n');
+    loginReminderMusicPlaylistText.disabled = !settings.musicEnabled || !playlistMode;
+  }
+  if (loginReminderMusicTrackLimit) {
+    loginReminderMusicTrackLimit.value = settings.musicTrackLimit > 0 ? String(settings.musicTrackLimit) : '';
+    loginReminderMusicTrackLimit.disabled = !settings.musicEnabled || !playlistMode;
+  }
+  if (loginReminderMusicPlayback) {
+    loginReminderMusicPlayback.value = settings.musicPlayback;
+    loginReminderMusicPlayback.disabled = !settings.musicEnabled || !playlistMode;
+  }
+  const multi = settings.musicEnabled && playlistMode && loginReminderSelectedRawTracks(settings).length > 1;
+  loginReminderMusicPrevBtn?.classList.toggle('hidden', !multi);
+  loginReminderMusicNextBtn?.classList.toggle('hidden', !multi);
+  if (loginReminderMusicTestBtn) loginReminderMusicTestBtn.disabled = !settings.musicEnabled || !loginReminderSelectedResolvedTracks(settings).length;
   if (loginReminderThemeSelect) loginReminderThemeSelect.value = settings.theme;
   if (loginReminderAnimationSelect) loginReminderAnimationSelect.value = settings.animation;
   syncLoginReminderThemeSample(settings);
@@ -977,6 +1173,7 @@ function syncLoginReminderSettingsControls() {
     loginReminderSettingsPill.textContent = settings.enabled ? 'REMINDER ON' : 'REMINDER OFF';
     loginReminderSettingsPill.classList.toggle('off', !settings.enabled);
   }
+  renderLoginReminderPlaylistSummary(settings);
 }
 
 function setLoginReminderSettingsStatus(message, tone = '') {
@@ -1041,82 +1238,280 @@ function formatLoginReminderTermMessage(message = '', term = '') {
   return text;
 }
 
+function loginReminderPlaylistSignature(settings = loginReminderSettings) {
+  const safe = normalizeLoginReminderSettings(settings);
+  return JSON.stringify({ mode: safe.musicMode, playback: safe.musicPlayback, limit: safe.musicTrackLimit, tracks: loginReminderSelectedResolvedTracks(safe) });
+}
+
+function shuffleLoginReminderTracks(input, avoidFirst = '') {
+  const arr = input.slice();
+  for (let i = arr.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  if (arr.length > 1 && avoidFirst && arr[0] === avoidFirst) {
+    const swapIndex = 1 + Math.floor(Math.random() * (arr.length - 1));
+    [arr[0], arr[swapIndex]] = [arr[swapIndex], arr[0]];
+  }
+  return arr;
+}
+
+function resetLoginReminderPlaybackState(target = loginReminderPlayback) {
+  target.order = [];
+  target.position = 0;
+  target.signature = '';
+  target.lastUrl = '';
+  target.blockedUrl = '';
+  target.failedUrls = new Set();
+}
+
+function buildLoginReminderPlaybackCycle(settings = loginReminderSettings, target = loginReminderPlayback, options = {}) {
+  const safe = normalizeLoginReminderSettings(settings);
+  const tracks = loginReminderSelectedResolvedTracks(safe).filter(url => !target.failedUrls.has(url));
+  target.signature = loginReminderPlaylistSignature(safe);
+  if (!tracks.length) {
+    target.order = [];
+    target.position = 0;
+    return [];
+  }
+  target.order = safe.musicMode === 'playlist' && safe.musicPlayback === 'shuffle'
+    ? shuffleLoginReminderTracks(tracks, String(options.avoidFirst || target.lastUrl || ''))
+    : tracks.slice();
+  target.position = 0;
+  return target.order;
+}
+
+function ensureLoginReminderPlaybackCycle(settings = loginReminderSettings, target = loginReminderPlayback) {
+  const signature = loginReminderPlaylistSignature(settings);
+  if (target.signature !== signature || !target.order.length) return buildLoginReminderPlaybackCycle(settings, target);
+  return target.order;
+}
+
 function stopLoginReminderMusic() {
-  if (!loginReminderAudio) return;
-  try {
-    loginReminderAudio.pause();
-    loginReminderAudio.currentTime = 0;
-  } catch (_) {}
+  if (loginReminderAudio) {
+    try { loginReminderAudio.pause(); } catch (_) {}
+    try { loginReminderAudio.removeAttribute('src'); loginReminderAudio.load(); } catch (_) {}
+  }
   loginReminderAudio = null;
+  resetLoginReminderPlaybackState(loginReminderPlayback);
+}
+
+function showLoginReminderManualPlayButton(label = '▶ Play Music') {
+  if (playLoginLackingReminderMusicBtn) {
+    playLoginLackingReminderMusicBtn.textContent = label;
+    playLoginLackingReminderMusicBtn.classList.remove('hidden');
+  }
+  loginLackingReminderMusicRow?.classList.remove('hidden', 'music-playing');
+}
+
+function hideLoginReminderMusicUi() {
+  loginLackingReminderMusicStatus?.classList.add('hidden');
+  if (loginLackingReminderMusicStatus) loginLackingReminderMusicStatus.textContent = '';
+  loginLackingReminderMusicRow?.classList.add('hidden');
+  loginLackingReminderMusicRow?.classList.remove('music-playing');
+  playLoginLackingReminderMusicBtn?.classList.add('hidden');
+}
+
+function createLoginReminderAudio(url, settings, options = {}) {
+  const safe = normalizeLoginReminderSettings(settings);
+  const audio = new Audio(url);
+  audio.preload = 'auto';
+  audio.playsInline = true;
+  audio.loop = options.loop === true;
+  audio.volume = Math.max(0, Math.min(1, safe.musicVolume / 100));
+  audio.addEventListener('ended', () => {
+    if (loginReminderAudio !== audio || audio.loop) return;
+    loginReminderPlayback.lastUrl = url;
+    advanceLoginReminderTrack(1, safe, { autoplay: true, fromEnded: true }).catch(() => {});
+  });
+  audio.addEventListener('error', () => {
+    if (loginReminderAudio !== audio || loginReminderPlayback.failedUrls.has(url)) return;
+    loginReminderPlayback.failedUrls.add(url);
+    advanceLoginReminderTrack(1, safe, { autoplay: true, fromError: true, failedUrl: url }).catch(() => {
+      showLoginReminderManualPlayButton('▶ Try Music Again');
+    });
+  });
+  return audio;
+}
+
+async function playLoginReminderUrl(url, settings = loginReminderSettings, options = {}) {
+  const safe = normalizeLoginReminderSettings(settings);
+  const tracks = loginReminderSelectedResolvedTracks(safe);
+  if (!url || !tracks.length) return false;
+  const loop = safe.musicMode === 'single' || tracks.length <= 1;
+  if (loginReminderAudio) {
+    try { loginReminderAudio.pause(); } catch (_) {}
+  }
+  loginReminderAudio = createLoginReminderAudio(url, safe, { loop });
+  try {
+    await loginReminderAudio.play();
+    loginReminderPlayback.blockedUrl = '';
+    hideLoginReminderMusicUi();
+    return true;
+  } catch (error) {
+    if (String(error?.name || '').toLowerCase() === 'notallowederror') {
+      loginReminderPlayback.blockedUrl = url;
+      showLoginReminderManualPlayButton('▶ Play Music');
+      return false;
+    }
+    const firstFailure = !loginReminderPlayback.failedUrls.has(url);
+    loginReminderPlayback.failedUrls.add(url);
+    if (options.allowSkip !== false && firstFailure) {
+      return advanceLoginReminderTrack(1, safe, { autoplay: true, fromError: true, failedUrl: url });
+    }
+    showLoginReminderManualPlayButton('▶ Try Music Again');
+    return false;
+  }
+}
+
+async function advanceLoginReminderTrack(direction = 1, settings = loginReminderSettings, options = {}) {
+  const safe = normalizeLoginReminderSettings(settings);
+  const priorOrder = ensureLoginReminderPlaybackCycle(safe, loginReminderPlayback);
+  if (options.fromError === true) {
+    // The failed track is removed below. Step back once so the normal +1 move
+    // lands on the track that originally followed it instead of skipping a song.
+    loginReminderPlayback.position = Math.max(-1, loginReminderPlayback.position - 1);
+  }
+  let order = priorOrder.filter(url => !loginReminderPlayback.failedUrls.has(url));
+  loginReminderPlayback.order = order;
+  if (!order.length) {
+    hideLoginReminderMusicUi();
+    return false;
+  }
+  if (safe.musicMode === 'single' || order.length === 1) {
+    loginReminderPlayback.position = 0;
+    return options.autoplay === false ? true : playLoginReminderUrl(order[0], safe, { allowSkip: false });
+  }
+  const step = direction < 0 ? -1 : 1;
+  let nextPosition = loginReminderPlayback.position + step;
+  if (options.initial === true) nextPosition = 0;
+  if (nextPosition >= order.length) {
+    const previousLast = order[order.length - 1] || loginReminderPlayback.lastUrl;
+    loginReminderPlayback.lastUrl = previousLast;
+    order = safe.musicPlayback === 'shuffle'
+      ? buildLoginReminderPlaybackCycle(safe, loginReminderPlayback, { avoidFirst: previousLast })
+      : loginReminderSelectedResolvedTracks(safe).filter(url => !loginReminderPlayback.failedUrls.has(url));
+    loginReminderPlayback.order = order;
+    nextPosition = 0;
+  } else if (nextPosition < 0) {
+    nextPosition = order.length - 1;
+  }
+  loginReminderPlayback.position = Math.max(0, Math.min(order.length - 1, nextPosition));
+  const url = order[loginReminderPlayback.position] || '';
+  if (!url) return false;
+  return options.autoplay === false ? true : playLoginReminderUrl(url, safe, { allowSkip: true });
 }
 
 async function startLoginReminderMusic(settings = loginReminderSettings) {
   stopLoginReminderMusic();
+  hideLoginReminderMusicUi();
   const safe = normalizeLoginReminderSettings(settings);
-
-  // Keep the music UI invisible during successful playback. The only time
-  // students should see a music control is when browser autoplay is blocked.
-  loginLackingReminderMusicStatus?.classList.add('hidden');
-  if (loginLackingReminderMusicStatus) loginLackingReminderMusicStatus.textContent = '';
-  loginLackingReminderMusicRow?.classList.remove('music-playing');
-  playLoginLackingReminderMusicBtn?.classList.add('hidden');
-
-  if (!safe.musicEnabled || !safe.musicUrl) {
-    loginLackingReminderMusicRow?.classList.add('hidden');
-    return false;
-  }
-
-  try {
-    loginReminderAudio = new Audio(safe.musicUrl);
-    loginReminderAudio.preload = 'none';
-    loginReminderAudio.loop = true;
-    loginReminderAudio.volume = 0.55;
-    const playResult = loginReminderAudio.play();
-    if (playResult && typeof playResult.then === 'function') await playResult;
-
-    // Music is playing, but do not show a "Music playing" badge/label.
-    loginLackingReminderMusicRow?.classList.add('hidden');
-    playLoginLackingReminderMusicBtn?.classList.add('hidden');
-    return true;
-  } catch (error) {
-    console.info('Login reminder autoplay was blocked or audio could not start.', error);
-
-    // Only expose a simple Play Music button when autoplay is blocked.
-    if (playLoginLackingReminderMusicBtn) {
-      playLoginLackingReminderMusicBtn.textContent = '▶ Play Music';
-      playLoginLackingReminderMusicBtn.classList.remove('hidden');
-    }
-    loginLackingReminderMusicRow?.classList.remove('hidden', 'music-playing');
-    return false;
-  }
+  const tracks = loginReminderSelectedResolvedTracks(safe);
+  if (!safe.musicEnabled || !tracks.length) return false;
+  buildLoginReminderPlaybackCycle(safe, loginReminderPlayback);
+  loginReminderPlayback.position = 0;
+  return playLoginReminderUrl(loginReminderPlayback.order[0], safe, { allowSkip: true });
 }
 
 async function playLoginReminderMusicManually() {
   const settings = normalizeLoginReminderSettings(loginReminderSettings);
-  if (!settings.musicEnabled || !settings.musicUrl) return;
-
+  const tracks = loginReminderSelectedResolvedTracks(settings);
+  if (!settings.musicEnabled || !tracks.length) return;
   try {
-    stopLoginReminderMusic();
-    loginReminderAudio = new Audio(settings.musicUrl);
-    loginReminderAudio.loop = true;
-    loginReminderAudio.volume = 0.55;
-    await loginReminderAudio.play();
-
-    // Successful manual playback should also stay visually quiet.
-    loginLackingReminderMusicStatus?.classList.add('hidden');
-    if (loginLackingReminderMusicStatus) loginLackingReminderMusicStatus.textContent = '';
-    loginLackingReminderMusicRow?.classList.add('hidden');
-    loginLackingReminderMusicRow?.classList.remove('music-playing');
-    playLoginLackingReminderMusicBtn?.classList.add('hidden');
-  } catch (error) {
-    loginLackingReminderMusicStatus?.classList.add('hidden');
-    if (loginLackingReminderMusicStatus) loginLackingReminderMusicStatus.textContent = '';
-    if (playLoginLackingReminderMusicBtn) {
-      playLoginLackingReminderMusicBtn.textContent = '▶ Try Play Music Again';
-      playLoginLackingReminderMusicBtn.classList.remove('hidden');
+    if (loginReminderAudio && loginReminderPlayback.blockedUrl) {
+      loginReminderAudio.volume = Math.max(0, Math.min(1, settings.musicVolume / 100));
+      await loginReminderAudio.play();
+      loginReminderPlayback.blockedUrl = '';
+      hideLoginReminderMusicUi();
+      return;
     }
-    loginLackingReminderMusicRow?.classList.remove('hidden', 'music-playing');
+    if (!loginReminderPlayback.order.length) buildLoginReminderPlaybackCycle(settings, loginReminderPlayback);
+    const url = loginReminderPlayback.order[loginReminderPlayback.position] || tracks[0];
+    await playLoginReminderUrl(url, settings, { allowSkip: true });
+  } catch (_) {
+    showLoginReminderManualPlayButton('▶ Try Play Music Again');
   }
+}
+
+function stopLoginReminderAdminPreview() {
+  if (loginReminderAdminPreviewAudio) {
+    try { loginReminderAdminPreviewAudio.pause(); } catch (_) {}
+    try { loginReminderAdminPreviewAudio.removeAttribute('src'); loginReminderAdminPreviewAudio.load(); } catch (_) {}
+  }
+  loginReminderAdminPreviewAudio = null;
+  resetLoginReminderPlaybackState(loginReminderAdminPreview);
+  if (loginReminderMusicPreviewTrack) loginReminderMusicPreviewTrack.textContent = 'No reminder music preview playing.';
+  if (loginReminderMusicTestBtn) loginReminderMusicTestBtn.textContent = '▶ Test Music';
+}
+
+function ensureLoginReminderAdminPreviewCycle(settings) {
+  const signature = loginReminderPlaylistSignature(settings);
+  if (loginReminderAdminPreview.signature !== signature || !loginReminderAdminPreview.order.length) {
+    buildLoginReminderPlaybackCycle(settings, loginReminderAdminPreview);
+  }
+  return loginReminderAdminPreview.order;
+}
+
+async function playLoginReminderAdminPreview(options = {}) {
+  const settings = getLoginReminderSettingsFromControls();
+  const tracks = loginReminderSelectedResolvedTracks(settings);
+  if (!settings.musicEnabled || !tracks.length) {
+    setLoginReminderSettingsStatus('Add a playable reminder music URL or playlist first.', 'warning');
+    return false;
+  }
+  let order = ensureLoginReminderAdminPreviewCycle(settings);
+  if (!order.length) return false;
+  if (Number.isFinite(Number(options.move))) {
+    const step = Number(options.move) < 0 ? -1 : 1;
+    let next = loginReminderAdminPreview.position + step;
+    if (next >= order.length) {
+      const previousLast = order[order.length - 1] || loginReminderAdminPreview.lastUrl;
+      loginReminderAdminPreview.lastUrl = previousLast;
+      order = settings.musicPlayback === 'shuffle'
+        ? buildLoginReminderPlaybackCycle(settings, loginReminderAdminPreview, { avoidFirst: previousLast })
+        : loginReminderSelectedResolvedTracks(settings);
+      loginReminderAdminPreview.order = order;
+      next = 0;
+    } else if (next < 0) next = order.length - 1;
+    loginReminderAdminPreview.position = next;
+  }
+  const index = Math.max(0, Math.min(order.length - 1, loginReminderAdminPreview.position));
+  const url = order[index];
+  if (!url) return false;
+  if (loginReminderAdminPreviewAudio) {
+    try { loginReminderAdminPreviewAudio.pause(); } catch (_) {}
+  }
+  const audio = new Audio(url);
+  audio.preload = 'auto';
+  audio.loop = settings.musicMode === 'single' || order.length <= 1;
+  audio.volume = Math.max(0, Math.min(1, settings.musicVolume / 100));
+  audio.addEventListener('ended', () => {
+    if (loginReminderAdminPreviewAudio !== audio || audio.loop) return;
+    playLoginReminderAdminPreview({ move: 1 }).catch(() => {});
+  });
+  audio.addEventListener('error', () => {
+    if (loginReminderAdminPreviewAudio !== audio) return;
+    loginReminderAdminPreview.failedUrls.add(url);
+    playLoginReminderAdminPreview({ move: 1 }).catch(() => {});
+  });
+  loginReminderAdminPreviewAudio = audio;
+  try {
+    await audio.play();
+    if (loginReminderMusicTestBtn) loginReminderMusicTestBtn.textContent = '■ Stop Test';
+    if (loginReminderMusicPreviewTrack) loginReminderMusicPreviewTrack.textContent = `Preview: ${loginReminderMusicTrackLabel(url, index)} · ${index + 1}/${order.length}`;
+    return true;
+  } catch (error) {
+    setLoginReminderSettingsStatus(error?.message || 'This reminder audio could not play in the browser.', 'warning');
+    return false;
+  }
+}
+
+function toggleLoginReminderAdminPreview() {
+  if (loginReminderAdminPreviewAudio && !loginReminderAdminPreviewAudio.paused) {
+    stopLoginReminderAdminPreview();
+    return;
+  }
+  playLoginReminderAdminPreview().catch(() => {});
 }
 
 function closeLoginLackingReminder() {
@@ -27914,13 +28309,38 @@ loginReminderEnabledToggle?.addEventListener('change', () => {
   persistLoginReminderSettings(getLoginReminderSettingsFromControls());
 });
 loginReminderMusicEnabledToggle?.addEventListener('change', () => {
-  const settings = getLoginReminderSettingsFromControls();
-  persistLoginReminderSettings(settings);
-  if (loginReminderMusicUrlInput) loginReminderMusicUrlInput.disabled = !settings.musicEnabled;
+  stopLoginReminderAdminPreview();
+  persistLoginReminderSettings(getLoginReminderSettingsFromControls());
+});
+loginReminderMusicModeSelect?.addEventListener('change', () => {
+  stopLoginReminderAdminPreview();
+  persistLoginReminderSettings(getLoginReminderSettingsFromControls());
+});
+loginReminderMusicPlayback?.addEventListener('change', () => {
+  stopLoginReminderAdminPreview();
+  persistLoginReminderSettings(getLoginReminderSettingsFromControls());
+});
+loginReminderMusicVolumeInput?.addEventListener('input', () => {
+  const settings = persistLoginReminderSettings(getLoginReminderSettingsFromControls());
+  if (loginReminderAdminPreviewAudio) loginReminderAdminPreviewAudio.volume = settings.musicVolume / 100;
+});
+loginReminderMusicTrackLimit?.addEventListener('input', () => {
+  stopLoginReminderAdminPreview();
+  persistLoginReminderSettings(getLoginReminderSettingsFromControls());
+});
+loginReminderMusicPlaylistText?.addEventListener('input', () => {
+  stopLoginReminderAdminPreview();
+  persistLoginReminderSettings(getLoginReminderSettingsFromControls());
 });
 [loginReminderMusicUrlInput, loginReminderPositiveMessageInput, loginReminderWarningMessageInput].forEach(control => {
-  control?.addEventListener('input', () => persistLoginReminderSettings(getLoginReminderSettingsFromControls()));
+  control?.addEventListener('input', () => {
+    if (control === loginReminderMusicUrlInput) stopLoginReminderAdminPreview();
+    persistLoginReminderSettings(getLoginReminderSettingsFromControls());
+  });
 });
+loginReminderMusicTestBtn?.addEventListener('click', toggleLoginReminderAdminPreview);
+loginReminderMusicPrevBtn?.addEventListener('click', () => playLoginReminderAdminPreview({ move: -1 }).catch(() => {}));
+loginReminderMusicNextBtn?.addEventListener('click', () => playLoginReminderAdminPreview({ move: 1 }).catch(() => {}));
 [loginReminderThemeSelect, loginReminderAnimationSelect].forEach(control => {
   control?.addEventListener('change', () => {
     const settings = persistLoginReminderSettings(getLoginReminderSettingsFromControls());
@@ -42601,11 +43021,23 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     adminLeaderboardClearBtn: $('codeExplorerAdminLeaderboardClearBtn'),
     adminLeaderboardSaveBtn: $('codeExplorerAdminLeaderboardSaveBtn'),
     adminMusicEnabled: $('codeExplorerAdminMusicEnabled'),
+    adminMusicMode: $('codeExplorerAdminMusicMode'),
+    adminMusicSingleField: $('codeExplorerAdminMusicSingleField'),
     adminMusicUrl: $('codeExplorerAdminMusicUrl'),
+    adminMusicPlaylistPanel: $('codeExplorerAdminMusicPlaylistPanel'),
+    adminMusicPlaylistText: $('codeExplorerAdminMusicPlaylistText'),
+    adminMusicDetected: $('codeExplorerAdminMusicDetected'),
+    adminMusicTrackLimit: $('codeExplorerAdminMusicTrackLimit'),
+    adminMusicPlayback: $('codeExplorerAdminMusicPlayback'),
+    adminMusicPlaylistSummary: $('codeExplorerAdminMusicPlaylistSummary'),
+    adminMusicPreviewTrack: $('codeExplorerAdminMusicPreviewTrack'),
+    adminMusicTrackList: $('codeExplorerAdminMusicTrackList'),
     adminMusicVolume: $('codeExplorerAdminMusicVolume'),
     adminMusicVolumeValue: $('codeExplorerAdminMusicVolumeValue'),
     adminMusicPill: $('codeExplorerAdminMusicPill'),
+    adminMusicPrevBtn: $('codeExplorerAdminMusicPrevBtn'),
     adminMusicTestBtn: $('codeExplorerAdminMusicTestBtn'),
+    adminMusicNextBtn: $('codeExplorerAdminMusicNextBtn'),
     adminMusicSaveBtn: $('codeExplorerAdminMusicSaveBtn'),
     adminMusicStatus: $('codeExplorerAdminMusicStatus'),
     verifyOverlay: $('codeExplorerVerifyOverlay'),
@@ -44973,33 +45405,32 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   const leaderboardState = { records: [], loadedAt: 0, loading: false, source: '', rosterLoaded: false, mode: 'students', settingsLoaded: false, settingsError: false, currentSectionIncluded: true };
   let leaderboardSectionSettings = { configured: false, includedSections: [], includedSectionKeys: [] };
 
-  // v451 — Teacher-configurable Code Explorer background music.
-  // Stored on the existing root webCodeEditor document so students can read it
-  // with the app's current public-root read rule; only the teacher can update
-  // that root document. A blank URL preserves the built-in procedural track.
-  const CODE_EXPLORER_MUSIC_DEFAULTS = Object.freeze({ enabled: true, url: '', volume: 100 });
-  let codeExplorerMusicSettings = { ...CODE_EXPLORER_MUSIC_DEFAULTS };
+  // v480 — Teacher-configurable Code Explorer background music + playlists.
+  // Backward compatible with the original { enabled, url, volume } setting.
+  // Playlist mode stores parsed direct audio URLs on the existing root document;
+  // students still perform zero extra Firestore writes for playback.
+  const CODE_EXPLORER_MUSIC_MAX_TRACKS = 120;
+  const CODE_EXPLORER_MUSIC_DEFAULTS = Object.freeze({
+    enabled: true,
+    mode: 'single',
+    url: '',
+    playlist: [],
+    playback: 'in-order',
+    trackLimit: 0,
+    volume: 100
+  });
+  let codeExplorerMusicSettings = { ...CODE_EXPLORER_MUSIC_DEFAULTS, playlist: [] };
   let codeExplorerMusicSettingsLoaded = false;
   let codeExplorerMusicSettingsPromise = null;
   let codeExplorerAdminTestAudio = null;
-  // v452 — Music settings save UX is optimistic. Firestore can take a few
-  // seconds to acknowledge writes on weak school/mobile connections, so the
-  // admin UI applies the setting immediately while cloud writes are serialized
-  // in the background. The latest save alone owns the visible sync status.
+  let codeExplorerAdminTestState = null;
+  // Music settings save UX is optimistic. Firestore can take a few seconds to
+  // acknowledge writes on weak school/mobile connections, so the admin UI
+  // applies the setting immediately while cloud writes are serialized.
   let codeExplorerMusicSaveGeneration = 0;
   let codeExplorerMusicSaveQueue = Promise.resolve();
   let codeExplorerMusicSaveButtonTimer = 0;
   const CODE_EXPLORER_MUSIC_ADMIN_DRAFT_KEY = 'studentCodeStudio.codeExplorerMusicAdminDraft.v2';
-
-  function normalizeCodeExplorerMusicSettings(value = {}) {
-    const source = value && typeof value === 'object' ? value : {};
-    const rawVolume = Number(source.volume);
-    return {
-      enabled: source.enabled !== false,
-      url: String(source.url || '').trim().slice(0, 1600),
-      volume: Number.isFinite(rawVolume) ? Math.max(0, Math.min(100, Math.round(rawVolume))) : CODE_EXPLORER_MUSIC_DEFAULTS.volume
-    };
-  }
 
   function resolveCodeExplorerMusicUrl(rawUrl = '') {
     const value = String(rawUrl || '').trim();
@@ -45036,6 +45467,83 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     }
   }
 
+  function extractCodeExplorerMusicUrls(rawText = '') {
+    const raw = String(rawText || '').replace(/\r/g, '\n').trim();
+    if (!raw) return [];
+    // The look-ahead for the next http(s) lets the parser separate links even
+    // when the admin pasted them directly beside one another with no spaces.
+    const matches = raw.match(/https?:\/\/.*?(?=(?:https?:\/\/)|\s|$)/gi) || [];
+    const seen = new Set();
+    const urls = [];
+    for (const match of matches) {
+      const candidate = String(match || '').trim().replace(/^[,;]+|[,;]+$/g, '');
+      if (!candidate || !resolveCodeExplorerMusicUrl(candidate)) continue;
+      if (seen.has(candidate)) continue;
+      seen.add(candidate);
+      urls.push(candidate);
+      if (urls.length >= CODE_EXPLORER_MUSIC_MAX_TRACKS) break;
+    }
+    return urls;
+  }
+
+  function normalizeCodeExplorerMusicPlaylist(input) {
+    const rawItems = Array.isArray(input)
+      ? input
+      : extractCodeExplorerMusicUrls(String(input || ''));
+    const seen = new Set();
+    const out = [];
+    for (const item of rawItems) {
+      const value = String(item || '').trim().slice(0, 1800);
+      if (!value || !resolveCodeExplorerMusicUrl(value) || seen.has(value)) continue;
+      seen.add(value);
+      out.push(value);
+      if (out.length >= CODE_EXPLORER_MUSIC_MAX_TRACKS) break;
+    }
+    return out;
+  }
+
+  function normalizeCodeExplorerMusicSettings(value = {}) {
+    const source = value && typeof value === 'object' ? value : {};
+    const rawVolume = Number(source.volume);
+    const playlist = normalizeCodeExplorerMusicPlaylist(
+      Array.isArray(source.playlist) ? source.playlist : (source.playlistText || source.urls || [])
+    );
+    const explicitMode = String(source.mode || '').toLowerCase();
+    const mode = explicitMode === 'playlist' ? 'playlist' : 'single';
+    const playback = String(source.playback || source.order || '').toLowerCase() === 'shuffle' ? 'shuffle' : 'in-order';
+    const rawLimit = Math.floor(Number(source.trackLimit || 0));
+    const maxLimit = playlist.length || CODE_EXPLORER_MUSIC_MAX_TRACKS;
+    const trackLimit = rawLimit > 0 ? Math.max(1, Math.min(maxLimit, CODE_EXPLORER_MUSIC_MAX_TRACKS, rawLimit)) : 0;
+    return {
+      enabled: source.enabled !== false,
+      mode: mode,
+      url: String(source.url || '').trim().slice(0, 1800),
+      playlist: playlist,
+      playback: playback,
+      trackLimit: trackLimit,
+      volume: Number.isFinite(rawVolume) ? Math.max(0, Math.min(100, Math.round(rawVolume))) : CODE_EXPLORER_MUSIC_DEFAULTS.volume
+    };
+  }
+
+  function codeExplorerMusicSelectedRawTracks(settings = codeExplorerMusicSettings) {
+    const safe = normalizeCodeExplorerMusicSettings(settings);
+    if (!safe.enabled) return [];
+    if (safe.mode === 'playlist') {
+      const limit = safe.trackLimit > 0 ? Math.min(safe.trackLimit, safe.playlist.length) : safe.playlist.length;
+      return safe.playlist.slice(0, limit);
+    }
+    return safe.url ? [safe.url] : [];
+  }
+
+  function codeExplorerMusicSelectedResolvedTracks(settings = codeExplorerMusicSettings) {
+    const seen = new Set();
+    return codeExplorerMusicSelectedRawTracks(settings).map(resolveCodeExplorerMusicUrl).filter(url => {
+      if (!url || seen.has(url)) return false;
+      seen.add(url);
+      return true;
+    });
+  }
+
   function codeExplorerMusicUrlIsUsable(rawUrl = '') {
     const value = String(rawUrl || '').trim();
     return !value || Boolean(resolveCodeExplorerMusicUrl(value));
@@ -45044,7 +45552,24 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   function codeExplorerMusicSettingsEqual(left = {}, right = {}) {
     const a = normalizeCodeExplorerMusicSettings(left);
     const b = normalizeCodeExplorerMusicSettings(right);
-    return a.enabled === b.enabled && a.url === b.url && a.volume === b.volume;
+    return a.enabled === b.enabled
+      && a.mode === b.mode
+      && a.url === b.url
+      && a.playback === b.playback
+      && a.trackLimit === b.trackLimit
+      && a.volume === b.volume
+      && a.playlist.length === b.playlist.length
+      && a.playlist.every((url, index) => url === b.playlist[index]);
+  }
+
+  function codeExplorerMusicTrackLabel(rawUrl = '', index = 0) {
+    try {
+      const parsed = new URL(resolveCodeExplorerMusicUrl(rawUrl) || rawUrl, window.location.href);
+      let name = decodeURIComponent(parsed.pathname.split('/').filter(Boolean).pop() || '').replace(/\.(mp3|m4a|aac|ogg|oga|wav|webm|flac)$/i, '');
+      name = name.replace(/[-_]+/g, ' ').replace(/\s+/g, ' ').trim();
+      if (name) return name.replace(/\b\w/g, char => char.toUpperCase()).slice(0, 70);
+    } catch (_) {}
+    return `Track ${index + 1}`;
   }
 
   function readCodeExplorerMusicAdminDraft() {
@@ -45074,29 +45599,94 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   }
 
   function codeExplorerMusicSettingsFromAdminControls() {
+    const rawPlaylist = extractCodeExplorerMusicUrls(dom.adminMusicPlaylistText?.value || '');
+    const rawLimitText = String(dom.adminMusicTrackLimit?.value || '').trim();
     return normalizeCodeExplorerMusicSettings({
       enabled: dom.adminMusicEnabled?.checked !== false,
+      mode: dom.adminMusicMode?.value || 'single',
       url: dom.adminMusicUrl?.value,
+      playlist: rawPlaylist,
+      playback: dom.adminMusicPlayback?.value || 'in-order',
+      trackLimit: rawLimitText ? Number(rawLimitText) : 0,
       volume: dom.adminMusicVolume?.value
     });
   }
 
-  function syncCodeExplorerAdminMusicControls(settings = codeExplorerMusicSettings) {
+  function renderCodeExplorerAdminPlaylistSummary(settings = codeExplorerMusicSettings) {
     const safe = normalizeCodeExplorerMusicSettings(settings);
-    if (dom.adminMusicEnabled) dom.adminMusicEnabled.checked = safe.enabled;
+    const detected = safe.playlist.length;
+    const selected = safe.mode === 'playlist' ? codeExplorerMusicSelectedRawTracks(safe) : [];
+    if (dom.adminMusicDetected) dom.adminMusicDetected.textContent = `${detected} detected`;
+    if (dom.adminMusicTrackLimit) {
+      dom.adminMusicTrackLimit.max = String(Math.max(1, detected || CODE_EXPLORER_MUSIC_MAX_TRACKS));
+      dom.adminMusicTrackLimit.placeholder = detected ? `All ${detected}` : 'All';
+    }
+    if (dom.adminMusicPlaylistSummary) {
+      if (!detected) dom.adminMusicPlaylistSummary.textContent = 'Paste one or more direct audio links.';
+      else {
+        const order = safe.playback === 'shuffle' ? 'shuffle · no repeats until all play' : 'continuous · in order';
+        dom.adminMusicPlaylistSummary.textContent = `${selected.length} of ${detected} track${detected === 1 ? '' : 's'} selected · ${order}`;
+      }
+    }
+    if (dom.adminMusicTrackList) {
+      if (!detected) {
+        dom.adminMusicTrackList.innerHTML = '';
+      } else {
+        const shown = safe.playlist.slice(0, 8);
+        const selectedCount = selected.length;
+        dom.adminMusicTrackList.innerHTML = shown.map((url, index) => {
+          const active = index < selectedCount ? ' selected' : '';
+          return `<span class="code-explorer-admin-track-chip${active}" title="${escapeHTML(url)}"><b>${index + 1}</b>${escapeHTML(codeExplorerMusicTrackLabel(url, index))}</span>`;
+        }).join('') + (detected > shown.length ? `<span class="code-explorer-admin-track-more">+${detected - shown.length} more</span>` : '');
+      }
+    }
+  }
+
+  function syncCodeExplorerAdminMusicControls(settings = codeExplorerMusicSettings, options = {}) {
+    const safe = normalizeCodeExplorerMusicSettings(settings);
+    const enabled = safe.enabled;
+    const playlistMode = safe.mode === 'playlist';
+    if (dom.adminMusicEnabled) dom.adminMusicEnabled.checked = enabled;
+    if (dom.adminMusicMode) {
+      dom.adminMusicMode.value = safe.mode;
+      dom.adminMusicMode.disabled = !enabled;
+    }
+    if (dom.adminMusicSingleField) dom.adminMusicSingleField.classList.toggle('hidden', playlistMode);
+    if (dom.adminMusicPlaylistPanel) dom.adminMusicPlaylistPanel.classList.toggle('hidden', !playlistMode);
     if (dom.adminMusicUrl) {
-      dom.adminMusicUrl.value = safe.url;
-      dom.adminMusicUrl.disabled = !safe.enabled;
+      if (options.preserveFocused !== true || document.activeElement !== dom.adminMusicUrl) dom.adminMusicUrl.value = safe.url;
+      dom.adminMusicUrl.disabled = !enabled || playlistMode;
+    }
+    if (dom.adminMusicPlaylistText) {
+      if (options.preserveFocused !== true || document.activeElement !== dom.adminMusicPlaylistText) dom.adminMusicPlaylistText.value = safe.playlist.join('\n');
+      dom.adminMusicPlaylistText.disabled = !enabled || !playlistMode;
+    }
+    if (dom.adminMusicTrackLimit) {
+      if (options.preserveFocused !== true || document.activeElement !== dom.adminMusicTrackLimit) dom.adminMusicTrackLimit.value = safe.trackLimit > 0 ? String(safe.trackLimit) : '';
+      dom.adminMusicTrackLimit.disabled = !enabled || !playlistMode;
+    }
+    if (dom.adminMusicPlayback) {
+      dom.adminMusicPlayback.value = safe.playback;
+      dom.adminMusicPlayback.disabled = !enabled || !playlistMode;
     }
     if (dom.adminMusicVolume) {
       dom.adminMusicVolume.value = String(safe.volume);
-      dom.adminMusicVolume.disabled = !safe.enabled;
+      dom.adminMusicVolume.disabled = !enabled;
     }
     if (dom.adminMusicVolumeValue) dom.adminMusicVolumeValue.textContent = `${safe.volume}%`;
+    const selectedCount = codeExplorerMusicSelectedRawTracks(safe).length;
     if (dom.adminMusicPill) {
-      dom.adminMusicPill.textContent = !safe.enabled ? 'MUSIC OFF' : (safe.url ? 'CUSTOM URL' : 'BUILT-IN');
-      dom.adminMusicPill.classList.toggle('off', !safe.enabled);
+      dom.adminMusicPill.textContent = !enabled
+        ? 'MUSIC OFF'
+        : (playlistMode
+          ? (selectedCount ? `PLAYLIST · ${selectedCount}` : 'PLAYLIST · EMPTY')
+          : (safe.url ? 'SINGLE SONG' : 'BUILT-IN'));
+      dom.adminMusicPill.classList.toggle('off', !enabled);
     }
+    renderCodeExplorerAdminPlaylistSummary(safe);
+    const showPlaylistTransport = enabled && playlistMode && selectedCount > 1 && Boolean(codeExplorerAdminTestAudio);
+    dom.adminMusicPrevBtn?.classList.toggle('hidden', !showPlaylistTransport);
+    dom.adminMusicNextBtn?.classList.toggle('hidden', !showPlaylistTransport);
   }
 
   async function loadCodeExplorerMusicSettings(options = {}) {
@@ -45208,6 +45798,11 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     externalMusic: null,
     externalMusicUrl: '',
     externalFailedUrl: '',
+    externalFailedUrls: new Set(),
+    playlistSignature: '',
+    playlistOrder: [],
+    playlistPosition: -1,
+    playlistLastUrl: '',
     // Mini-games own the foreground audio while a run is active. Keep this
     // flag inside the main Code Explorer audio controller so every path that
     // might restart background music (visibility, pointer unlock, settings)
@@ -45498,9 +46093,71 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     return normalizeCodeExplorerMusicSettings(codeExplorerMusicSettings).enabled !== false;
   }
 
-  function codeExplorerCustomMusicUrl() {
-    const settings = normalizeCodeExplorerMusicSettings(codeExplorerMusicSettings);
-    return settings.enabled && settings.url ? resolveCodeExplorerMusicUrl(settings.url) : '';
+  function codeExplorerCustomMusicTracks(options = {}) {
+    const tracks = codeExplorerMusicSelectedResolvedTracks(codeExplorerMusicSettings);
+    if (options.includeFailed === true) return tracks;
+    return tracks.filter(url => !explorerAudio.externalFailedUrls.has(url));
+  }
+
+  function codeExplorerMusicPlaylistSignature(settings = codeExplorerMusicSettings) {
+    const safe = normalizeCodeExplorerMusicSettings(settings);
+    return JSON.stringify([
+      safe.mode,
+      safe.playback,
+      codeExplorerMusicSelectedResolvedTracks(safe)
+    ]);
+  }
+
+  function shuffleCodeExplorerTracks(tracks = [], avoidFirst = '') {
+    const out = Array.isArray(tracks) ? tracks.slice() : [];
+    for (let index = out.length - 1; index > 0; index -= 1) {
+      const swap = Math.floor(Math.random() * (index + 1));
+      [out[index], out[swap]] = [out[swap], out[index]];
+    }
+    if (out.length > 1 && avoidFirst && out[0] === avoidFirst) {
+      const swap = 1 + Math.floor(Math.random() * (out.length - 1));
+      [out[0], out[swap]] = [out[swap], out[0]];
+    }
+    return out;
+  }
+
+  function resetExplorerPlaylistState(options = {}) {
+    explorerAudio.playlistSignature = '';
+    explorerAudio.playlistOrder = [];
+    explorerAudio.playlistPosition = -1;
+    if (options.keepLast !== true) explorerAudio.playlistLastUrl = '';
+  }
+
+  function buildExplorerPlaylistCycle(settings = codeExplorerMusicSettings, options = {}) {
+    const safe = normalizeCodeExplorerMusicSettings(settings);
+    const tracks = codeExplorerMusicSelectedResolvedTracks(safe).filter(url => !explorerAudio.externalFailedUrls.has(url));
+    explorerAudio.playlistSignature = codeExplorerMusicPlaylistSignature(safe);
+    if (!tracks.length) {
+      explorerAudio.playlistOrder = [];
+      explorerAudio.playlistPosition = -1;
+      return [];
+    }
+    explorerAudio.playlistOrder = safe.mode === 'playlist' && safe.playback === 'shuffle'
+      ? shuffleCodeExplorerTracks(tracks, options.avoidFirst || explorerAudio.playlistLastUrl)
+      : tracks.slice();
+    explorerAudio.playlistPosition = 0;
+    return explorerAudio.playlistOrder;
+  }
+
+  function ensureExplorerPlaylistCycle(settings = codeExplorerMusicSettings) {
+    const signature = codeExplorerMusicPlaylistSignature(settings);
+    if (explorerAudio.playlistSignature !== signature || !explorerAudio.playlistOrder.length) {
+      return buildExplorerPlaylistCycle(settings);
+    }
+    return explorerAudio.playlistOrder;
+  }
+
+  function currentExplorerPlaylistUrl(settings = codeExplorerMusicSettings) {
+    const order = ensureExplorerPlaylistCycle(settings);
+    if (!order.length) return '';
+    const position = Math.max(0, Math.min(order.length - 1, explorerAudio.playlistPosition));
+    explorerAudio.playlistPosition = position;
+    return order[position] || '';
   }
 
   function applyExplorerMusicVolume() {
@@ -45526,14 +46183,18 @@ window.MCS_PHONE_MENU_STATUS = () => ({
 
   function stopExplorerExternalMusic(options = {}) {
     const audio = explorerAudio.externalMusic;
-    if (!audio) return;
+    if (!audio) {
+      if (options.reset) resetExplorerPlaylistState();
+      return;
+    }
     try { audio.pause(); } catch (_) {}
     if (options.reset) {
       try { audio.currentTime = 0; } catch (_) {}
+      resetExplorerPlaylistState();
     }
   }
 
-  function disposeExplorerExternalMusic() {
+  function disposeExplorerExternalMusic(options = {}) {
     const audio = explorerAudio.externalMusic;
     if (audio) {
       try { audio.pause(); } catch (_) {}
@@ -45541,40 +46202,149 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     }
     explorerAudio.externalMusic = null;
     explorerAudio.externalMusicUrl = '';
+    if (options.resetPlaylist === true) resetExplorerPlaylistState();
   }
 
-  function ensureExplorerExternalMusic(url = '') {
+  function startExplorerSyntheticFallbackIfNeeded() {
+    if (explorerAudio.gameAudioFocus || !document.body.classList.contains('code-explorer-active') || !explorerAudio.prefs.music || !codeExplorerMusicAdminEnabled() || document.hidden) return;
+    if (codeExplorerCustomMusicTracks().length) return;
+    startExplorerSyntheticMusic();
+  }
+
+  function ensureExplorerExternalMusic(url = '', options = {}) {
     const safeUrl = String(url || '').trim();
     if (!safeUrl) return null;
+    const shouldLoop = options.loop === true;
     if (explorerAudio.externalMusic && explorerAudio.externalMusicUrl === safeUrl) {
+      explorerAudio.externalMusic.loop = shouldLoop;
       applyExplorerMusicVolume();
       return explorerAudio.externalMusic;
     }
     disposeExplorerExternalMusic();
     const audio = new Audio(safeUrl);
-    audio.loop = true;
+    audio.loop = shouldLoop;
     audio.preload = 'auto';
     audio.playsInline = true;
     audio.volume = Math.max(0, Math.min(1, normalizeCodeExplorerMusicSettings(codeExplorerMusicSettings).volume / 100));
     audio.addEventListener('canplay', () => {
-      if (explorerAudio.externalMusicUrl === safeUrl) explorerAudio.externalFailedUrl = '';
+      if (explorerAudio.externalMusicUrl !== safeUrl) return;
+      explorerAudio.externalFailedUrl = '';
+      explorerAudio.externalFailedUrls.delete(safeUrl);
+    });
+    audio.addEventListener('ended', () => {
+      if (explorerAudio.externalMusicUrl !== safeUrl || audio.loop) return;
+      explorerAudio.playlistLastUrl = safeUrl;
+      window.setTimeout(() => advanceExplorerPlaylistTrack(1, { autoplay: true, fromEnded: true }), 0);
     });
     audio.addEventListener('error', () => {
       if (explorerAudio.externalMusicUrl !== safeUrl) return;
       explorerAudio.externalFailedUrl = safeUrl;
-      console.info('Custom Code Explorer music could not be loaded. Falling back to the built-in track.');
-      if (!explorerAudio.gameAudioFocus && document.body.classList.contains('code-explorer-active') && explorerAudio.prefs.music && codeExplorerMusicAdminEnabled()) {
-        startExplorerSyntheticMusic();
-      }
+      explorerAudio.externalFailedUrls.add(safeUrl);
+      console.info('A Code Explorer playlist track could not be loaded; skipping it.', safeUrl);
+      window.setTimeout(() => {
+        if (codeExplorerCustomMusicTracks().length) advanceExplorerPlaylistTrack(1, { autoplay: true, fromError: true });
+        else {
+          disposeExplorerExternalMusic();
+          startExplorerSyntheticFallbackIfNeeded();
+        }
+      }, 0);
     });
     explorerAudio.externalMusic = audio;
     explorerAudio.externalMusicUrl = safeUrl;
     return audio;
   }
 
+  function playExplorerExternalUrl(url = '', options = {}) {
+    const safe = normalizeCodeExplorerMusicSettings(codeExplorerMusicSettings);
+    const loop = safe.mode === 'single' || codeExplorerMusicSelectedResolvedTracks(safe).length <= 1;
+    const audio = ensureExplorerExternalMusic(url, { loop: loop });
+    if (!audio) return false;
+    const playResult = audio.play();
+    if (playResult && typeof playResult.catch === 'function') {
+      playResult.catch(error => {
+        // Autoplay rejection is normal on strict mobile browsers. Do not mark
+        // a valid URL as broken; the next user gesture retries it.
+        if (String(error?.name || '').toLowerCase() === 'notallowederror') return;
+        if (explorerAudio.externalMusicUrl !== url) return;
+        explorerAudio.externalFailedUrl = url;
+        explorerAudio.externalFailedUrls.add(url);
+        console.info('Code Explorer playlist playback failed; skipping track.', error);
+        if (codeExplorerCustomMusicTracks().length) advanceExplorerPlaylistTrack(1, { autoplay: true, fromError: true });
+        else startExplorerSyntheticFallbackIfNeeded();
+      });
+    }
+    return true;
+  }
+
+  function advanceExplorerPlaylistTrack(direction = 1, options = {}) {
+    const safe = normalizeCodeExplorerMusicSettings(codeExplorerMusicSettings);
+    const allSelected = codeExplorerMusicSelectedResolvedTracks(safe);
+    const selected = allSelected.filter(url => !explorerAudio.externalFailedUrls.has(url));
+    if (!selected.length) {
+      disposeExplorerExternalMusic();
+      startExplorerSyntheticFallbackIfNeeded();
+      return false;
+    }
+    if (safe.mode === 'single' || selected.length === 1) {
+      explorerAudio.playlistOrder = selected.slice();
+      explorerAudio.playlistPosition = 0;
+      explorerAudio.playlistSignature = codeExplorerMusicPlaylistSignature(safe);
+      return options.autoplay === false ? true : playExplorerExternalUrl(selected[0]);
+    }
+
+    if (options.fromError === true && explorerAudio.externalMusicUrl) {
+      const originalOrder = explorerAudio.playlistOrder.length ? explorerAudio.playlistOrder.slice() : allSelected.slice();
+      const failedIndex = originalOrder.indexOf(explorerAudio.externalMusicUrl);
+      if (failedIndex >= 0) {
+        let nextUrl = '';
+        const step = direction < 0 ? -1 : 1;
+        for (let offset = 1; offset <= originalOrder.length; offset += 1) {
+          const index = (failedIndex + step * offset + originalOrder.length * 2) % originalOrder.length;
+          const candidate = originalOrder[index];
+          if (candidate && !explorerAudio.externalFailedUrls.has(candidate)) {
+            nextUrl = candidate;
+            break;
+          }
+        }
+        explorerAudio.playlistOrder = originalOrder.filter(url => !explorerAudio.externalFailedUrls.has(url));
+        explorerAudio.playlistPosition = Math.max(0, explorerAudio.playlistOrder.indexOf(nextUrl));
+        if (nextUrl) return options.autoplay === false ? true : playExplorerExternalUrl(nextUrl);
+      }
+    }
+
+    let order = ensureExplorerPlaylistCycle(safe);
+    // Remove tracks that failed during the current cycle while preserving the
+    // order of the remaining songs.
+    order = order.filter(url => !explorerAudio.externalFailedUrls.has(url));
+    explorerAudio.playlistOrder = order;
+    if (!order.length) {
+      order = buildExplorerPlaylistCycle(safe, { avoidFirst: explorerAudio.playlistLastUrl });
+      if (!order.length) return false;
+    }
+
+    const step = direction < 0 ? -1 : 1;
+    let nextPosition = explorerAudio.playlistPosition + step;
+    if (nextPosition >= order.length) {
+      const previousLast = order[order.length - 1] || explorerAudio.playlistLastUrl;
+      explorerAudio.playlistLastUrl = previousLast;
+      if (safe.playback === 'shuffle') {
+        order = buildExplorerPlaylistCycle(safe, { avoidFirst: previousLast });
+        nextPosition = 0;
+      } else {
+        nextPosition = 0;
+      }
+    } else if (nextPosition < 0) {
+      nextPosition = order.length - 1;
+    }
+    explorerAudio.playlistPosition = nextPosition;
+    const nextUrl = order[nextPosition] || '';
+    if (!nextUrl) return false;
+    return options.autoplay === false ? true : playExplorerExternalUrl(nextUrl);
+  }
+
   function scheduleExplorerMusicPhrase() {
-    const customUrl = codeExplorerCustomMusicUrl();
-    const customSourceAvailable = customUrl && explorerAudio.externalFailedUrl !== customUrl;
+    const customTracks = codeExplorerCustomMusicTracks();
+    const customSourceAvailable = customTracks.length > 0;
     if (explorerAudio.gameAudioFocus || !codeExplorerMusicSettingsLoaded || !codeExplorerMusicAdminEnabled() || customSourceAvailable || !explorerAudio.prefs.music || document.hidden || !document.body.classList.contains('code-explorer-active')) {
       stopExplorerSyntheticMusic();
       return;
@@ -45583,8 +46353,8 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     if (!context || context.state !== 'running') return;
     applyExplorerMusicVolume();
     // More energetic 100-BPM style coding loop: warm pad + pulse bass +
-    // light arpeggio. Used as the safe built-in fallback when no custom URL
-    // is configured or when a custom audio source cannot load.
+    // light arpeggio. Used as the safe built-in fallback when no custom audio
+    // source is configured or when every custom track fails to load.
     const progression = [
       { chord: [261.63, 329.63, 392.00], bass: 130.81, arp: [523.25, 659.25, 783.99, 659.25, 1046.50, 783.99, 659.25, 523.25] },
       { chord: [220.00, 261.63, 329.63], bass: 110.00, arp: [440.00, 523.25, 659.25, 523.25, 880.00, 659.25, 523.25, 440.00] },
@@ -45623,22 +46393,12 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   function startExplorerMusic() {
     if (explorerAudio.gameAudioFocus || !codeExplorerMusicSettingsLoaded || !codeExplorerMusicAdminEnabled() || !explorerAudio.prefs.music || document.hidden || !document.body.classList.contains('code-explorer-active')) return;
     applyExplorerMusicVolume();
-    const customUrl = codeExplorerCustomMusicUrl();
-    if (customUrl && explorerAudio.externalFailedUrl !== customUrl) {
+    const customTracks = codeExplorerCustomMusicTracks();
+    if (customTracks.length) {
       stopExplorerSyntheticMusic();
-      const audio = ensureExplorerExternalMusic(customUrl);
-      if (!audio) return;
-      const playResult = audio.play();
-      if (playResult && typeof playResult.catch === 'function') {
-        playResult.catch(error => {
-          // Autoplay rejection is normal on strict mobile browsers. Do not mark
-          // the URL as broken; the next tap inside Code Explorer retries it.
-          if (String(error?.name || '').toLowerCase() === 'notallowederror') return;
-          explorerAudio.externalFailedUrl = customUrl;
-          console.info('Custom Code Explorer music playback failed; using built-in fallback.', error);
-          startExplorerSyntheticMusic();
-        });
-      }
+      ensureExplorerPlaylistCycle(codeExplorerMusicSettings);
+      const currentUrl = currentExplorerPlaylistUrl(codeExplorerMusicSettings) || customTracks[0];
+      playExplorerExternalUrl(currentUrl);
       return;
     }
     startExplorerSyntheticMusic();
@@ -45714,9 +46474,13 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     const context = ensureExplorerAudioContext();
     if (context?.state === 'suspended') context.resume?.().catch?.(() => false);
     if (!codeExplorerMusicSettingsLoaded || !explorerAudio.prefs.music || !codeExplorerMusicAdminEnabled()) return;
-    const customUrl = codeExplorerCustomMusicUrl();
-    if (!customUrl || explorerAudio.externalFailedUrl === customUrl) return;
-    const audio = ensureExplorerExternalMusic(customUrl);
+    const customTracks = codeExplorerCustomMusicTracks();
+    if (!customTracks.length) return;
+    ensureExplorerPlaylistCycle(codeExplorerMusicSettings);
+    const customUrl = currentExplorerPlaylistUrl(codeExplorerMusicSettings) || customTracks[0];
+    if (!customUrl) return;
+    const safeSettings = normalizeCodeExplorerMusicSettings(codeExplorerMusicSettings);
+    const audio = ensureExplorerExternalMusic(customUrl, { loop: safeSettings.mode === 'single' || customTracks.length <= 1 });
     if (!audio) return;
     const wasMuted = audio.muted;
     audio.muted = true;
@@ -51652,15 +52416,105 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   }
 
   function stopCodeExplorerAdminMusicTest() {
-    if (!codeExplorerAdminTestAudio) return;
-    try { codeExplorerAdminTestAudio.pause(); } catch (_) {}
-    try { codeExplorerAdminTestAudio.currentTime = 0; } catch (_) {}
+    const audio = codeExplorerAdminTestAudio;
+    if (audio) {
+      try { audio.pause(); } catch (_) {}
+      try { audio.removeAttribute('src'); audio.load(); } catch (_) {}
+    }
     codeExplorerAdminTestAudio = null;
+    codeExplorerAdminTestState = null;
     if (dom.adminMusicTestBtn) dom.adminMusicTestBtn.textContent = '▶ Test Music';
+    dom.adminMusicPrevBtn?.classList.add('hidden');
+    dom.adminMusicNextBtn?.classList.add('hidden');
+    if (dom.adminMusicPreviewTrack) dom.adminMusicPreviewTrack.textContent = 'No playlist preview playing.';
+  }
+
+  function buildCodeExplorerAdminTestOrder(settings) {
+    const safe = normalizeCodeExplorerMusicSettings(settings);
+    const tracks = codeExplorerMusicSelectedResolvedTracks(safe);
+    return safe.mode === 'playlist' && safe.playback === 'shuffle'
+      ? shuffleCodeExplorerTracks(tracks)
+      : tracks.slice();
+  }
+
+  async function playCodeExplorerAdminTestPosition(position = 0, options = {}) {
+    const state = codeExplorerAdminTestState;
+    if (!state || !state.order.length) return false;
+    const count = state.order.length;
+    let nextPosition = Number(position);
+    if (!Number.isFinite(nextPosition)) nextPosition = 0;
+    nextPosition = ((Math.floor(nextPosition) % count) + count) % count;
+
+    // Skip links that failed during this preview session. If every track fails,
+    // stop cleanly instead of looping errors forever.
+    let guard = 0;
+    while (state.failed.has(state.order[nextPosition]) && guard < count) {
+      nextPosition = (nextPosition + 1) % count;
+      guard += 1;
+    }
+    if (guard >= count) {
+      stopCodeExplorerAdminMusicTest();
+      setCodeExplorerAdminMusicStatus('None of the selected playlist links could be played as direct audio.', 'error');
+      return false;
+    }
+
+    const url = state.order[nextPosition];
+    state.position = nextPosition;
+    if (codeExplorerAdminTestAudio) {
+      try { codeExplorerAdminTestAudio.pause(); } catch (_) {}
+      try { codeExplorerAdminTestAudio.removeAttribute('src'); codeExplorerAdminTestAudio.load(); } catch (_) {}
+    }
+
+    const audio = new Audio(url);
+    const loop = state.settings.mode === 'single' || state.order.length <= 1;
+    audio.loop = loop;
+    audio.preload = 'auto';
+    audio.playsInline = true;
+    audio.volume = Math.max(0, Math.min(1, state.settings.volume / 100));
+    codeExplorerAdminTestAudio = audio;
+
+    audio.addEventListener('ended', () => {
+      if (codeExplorerAdminTestAudio !== audio || audio.loop) return;
+      const isCycleEnd = state.position >= state.order.length - 1;
+      if (isCycleEnd && state.settings.playback === 'shuffle') {
+        const last = state.order[state.order.length - 1] || '';
+        state.order = shuffleCodeExplorerTracks(codeExplorerMusicSelectedResolvedTracks(state.settings).filter(item => !state.failed.has(item)), last);
+        state.position = -1;
+      }
+      playCodeExplorerAdminTestPosition(state.position + 1, { automatic: true }).catch(() => false);
+    });
+    audio.addEventListener('error', () => {
+      if (codeExplorerAdminTestAudio !== audio) return;
+      state.failed.add(url);
+      setCodeExplorerAdminMusicStatus(`Could not play ${codeExplorerMusicTrackLabel(url, state.position)}. Skipping to the next track…`, 'warning');
+      playCodeExplorerAdminTestPosition(state.position + 1, { automatic: true }).catch(() => false);
+    }, { once: true });
+
+    if (dom.adminMusicTestBtn) dom.adminMusicTestBtn.textContent = '■ Stop Test';
+    const multi = state.order.length > 1;
+    dom.adminMusicPrevBtn?.classList.toggle('hidden', !multi);
+    dom.adminMusicNextBtn?.classList.toggle('hidden', !multi);
+    const label = codeExplorerMusicTrackLabel(url, nextPosition);
+    if (dom.adminMusicPreviewTrack) dom.adminMusicPreviewTrack.textContent = `Preview: ${label} · ${nextPosition + 1}/${state.order.length}`;
+    setCodeExplorerAdminMusicStatus(`Previewing ${label} at ${state.settings.volume}% volume${state.settings.mode === 'playlist' ? ` · ${state.settings.playback === 'shuffle' ? 'shuffle cycle' : 'in order'}` : ''}.`, 'success');
+    try {
+      await audio.play();
+      return true;
+    } catch (error) {
+      if (String(error?.name || '').toLowerCase() === 'notallowederror') {
+        stopCodeExplorerAdminMusicTest();
+        setCodeExplorerAdminMusicStatus('The browser blocked audio preview. Tap Test Music again.', 'warning');
+      } else {
+        state.failed.add(url);
+        console.info('Code Explorer admin music preview failed.', error);
+        return playCodeExplorerAdminTestPosition(nextPosition + 1, { automatic: true });
+      }
+      return false;
+    }
   }
 
   async function testCodeExplorerAdminMusic() {
-    if (codeExplorerAdminTestAudio) {
+    if (codeExplorerAdminTestAudio || codeExplorerAdminTestState) {
       stopCodeExplorerAdminMusicTest();
       setCodeExplorerAdminMusicStatus('Music preview stopped.');
       return;
@@ -51670,45 +52524,51 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       setCodeExplorerAdminMusicStatus('Turn Background Music ON before testing.', 'warning');
       return;
     }
-    if (!settings.url) {
-      setCodeExplorerAdminMusicStatus('URL is blank, so students will use the built-in Code Explorer music. Save if that is what you want.', 'warning');
+    if (settings.mode === 'single') {
+      if (!settings.url) {
+        setCodeExplorerAdminMusicStatus('Single Song URL is blank, so students will use the built-in Code Explorer music.', 'warning');
+        return;
+      }
+      if (!codeExplorerMusicUrlIsUsable(settings.url)) {
+        setCodeExplorerAdminMusicStatus('Enter a valid http/https direct audio URL.', 'error');
+        return;
+      }
+    } else if (!codeExplorerMusicSelectedResolvedTracks(settings).length) {
+      setCodeExplorerAdminMusicStatus('Paste at least one valid direct audio link into the playlist box.', 'error');
       return;
     }
-    if (!codeExplorerMusicUrlIsUsable(settings.url)) {
-      setCodeExplorerAdminMusicStatus('Enter a valid http/https direct audio URL.', 'error');
+
+    const order = buildCodeExplorerAdminTestOrder(settings);
+    if (!order.length) {
+      setCodeExplorerAdminMusicStatus('No playable direct audio links were detected.', 'error');
       return;
     }
-    try {
-      const resolvedUrl = resolveCodeExplorerMusicUrl(settings.url);
-      const audio = new Audio(resolvedUrl);
-      audio.loop = true;
-      audio.preload = 'auto';
-      audio.playsInline = true;
-      audio.volume = Math.max(0, Math.min(1, settings.volume / 100));
-      audio.addEventListener('error', () => {
-        if (codeExplorerAdminTestAudio !== audio) return;
-        stopCodeExplorerAdminMusicTest();
-        setCodeExplorerAdminMusicStatus('That link could not be played as direct audio. Try a direct MP3/M4A/OGG/WAV file or compatible audio stream.', 'error');
-      }, { once: true });
-      codeExplorerAdminTestAudio = audio;
-      if (dom.adminMusicTestBtn) dom.adminMusicTestBtn.textContent = '■ Stop Test';
-      setCodeExplorerAdminMusicStatus(`Testing at ${settings.volume}% volume…`);
-      await audio.play();
-      setCodeExplorerAdminMusicStatus(`Playing preview at ${settings.volume}% volume. Press Stop Test when finished.`, 'success');
-    } catch (error) {
-      stopCodeExplorerAdminMusicTest();
-      console.info('Code Explorer admin music preview failed.', error);
-      setCodeExplorerAdminMusicStatus('The browser could not play that link. Use a direct browser-playable audio URL.', 'error');
-    }
+    codeExplorerAdminTestState = {
+      settings: settings,
+      order: order,
+      position: -1,
+      failed: new Set()
+    };
+    await playCodeExplorerAdminTestPosition(0);
+  }
+
+  function stepCodeExplorerAdminMusicTest(direction = 1) {
+    if (!codeExplorerAdminTestState?.order?.length) return;
+    playCodeExplorerAdminTestPosition(codeExplorerAdminTestState.position + (direction < 0 ? -1 : 1)).catch(() => false);
   }
 
   function getCodeExplorerMusicSavedMessage(settings = codeExplorerMusicSettings) {
     const safe = normalizeCodeExplorerMusicSettings(settings);
-    return safe.enabled
-      ? (safe.url
-        ? `Custom Code Explorer music is ON at ${safe.volume}%.`
-        : `Built-in Code Explorer music is ON at ${safe.volume}%.`)
-      : 'Code Explorer background music is OFF for students.';
+    if (!safe.enabled) return 'Code Explorer background music is OFF for students.';
+    if (safe.mode === 'playlist') {
+      const count = codeExplorerMusicSelectedRawTracks(safe).length;
+      return count
+        ? `Playlist is ON with ${count} track${count === 1 ? '' : 's'} at ${safe.volume}% · ${safe.playback === 'shuffle' ? 'shuffle without repeats' : 'continuous in order'}.`
+        : 'Playlist mode is ON but no valid tracks are selected.';
+    }
+    return safe.url
+      ? `Single-song Code Explorer music is ON at ${safe.volume}%.`
+      : `Built-in Code Explorer music is ON at ${safe.volume}%.`;
   }
 
   function setCodeExplorerMusicSaveButton(label = 'Save Music Settings', options = {}) {
@@ -51778,8 +52638,12 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       return false;
     }
     const settings = codeExplorerMusicSettingsFromAdminControls();
-    if (settings.url && !codeExplorerMusicUrlIsUsable(settings.url)) {
+    if (settings.mode === 'single' && settings.url && !codeExplorerMusicUrlIsUsable(settings.url)) {
       setCodeExplorerAdminMusicStatus('Enter a valid http/https audio URL, or leave the URL blank for the built-in music.', 'error');
+      return false;
+    }
+    if (settings.mode === 'playlist' && !codeExplorerMusicSelectedResolvedTracks(settings).length) {
+      setCodeExplorerAdminMusicStatus('Playlist mode needs at least one valid direct audio link before saving.', 'error');
       return false;
     }
 
@@ -51791,8 +52655,8 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     codeExplorerMusicSettings = settings;
     codeExplorerMusicSettingsLoaded = true;
     explorerAudio.externalFailedUrl = '';
-    const resolvedNextUrl = settings.url ? resolveCodeExplorerMusicUrl(settings.url) : '';
-    if (explorerAudio.externalMusicUrl && explorerAudio.externalMusicUrl !== resolvedNextUrl) disposeExplorerExternalMusic();
+    explorerAudio.externalFailedUrls.clear();
+    disposeExplorerExternalMusic({ resetPlaylist: true });
     syncCodeExplorerAdminMusicControls(settings);
     applyCodeExplorerMusicSettingsLive();
 
@@ -51962,23 +52826,57 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   }
 
   dom.adminMusicEnabled?.addEventListener('change', () => {
+    stopCodeExplorerAdminMusicTest();
     const settings = codeExplorerMusicSettingsFromAdminControls();
-    if (dom.adminMusicUrl) dom.adminMusicUrl.disabled = !settings.enabled;
-    if (dom.adminMusicVolume) dom.adminMusicVolume.disabled = !settings.enabled;
-    syncCodeExplorerAdminMusicControls(settings);
+    syncCodeExplorerAdminMusicControls(settings, { preserveFocused: true });
     setCodeExplorerAdminMusicStatus(settings.enabled ? 'Music is enabled in this draft. Press Save Music Settings to publish.' : 'Music is disabled in this draft. Press Save Music Settings to publish.');
   });
-  dom.adminMusicUrl?.addEventListener('input', () => {
+  dom.adminMusicMode?.addEventListener('change', () => {
+    stopCodeExplorerAdminMusicTest();
     const settings = codeExplorerMusicSettingsFromAdminControls();
-    syncCodeExplorerAdminMusicControls(settings);
-    setCodeExplorerAdminMusicStatus('Music link changed. Test it, then press Save Music Settings.');
+    syncCodeExplorerAdminMusicControls(settings, { preserveFocused: true });
+    setCodeExplorerAdminMusicStatus(settings.mode === 'playlist'
+      ? 'Playlist mode selected. Paste your audio links, choose playback order, then Test and Save.'
+      : 'Single Song mode selected. Paste one direct audio URL or leave it blank for built-in music.');
+  });
+  dom.adminMusicUrl?.addEventListener('input', () => {
+    stopCodeExplorerAdminMusicTest();
+    const settings = codeExplorerMusicSettingsFromAdminControls();
+    syncCodeExplorerAdminMusicControls(settings, { preserveFocused: true });
+    setCodeExplorerAdminMusicStatus('Single-song link changed. Test it, then press Save Music Settings.');
+  });
+  dom.adminMusicPlaylistText?.addEventListener('input', () => {
+    stopCodeExplorerAdminMusicTest();
+    const settings = codeExplorerMusicSettingsFromAdminControls();
+    syncCodeExplorerAdminMusicControls(settings, { preserveFocused: true });
+    const detected = settings.playlist.length;
+    setCodeExplorerAdminMusicStatus(detected
+      ? `${detected} valid playlist link${detected === 1 ? '' : 's'} detected. Choose how many to use, then Test and Save.`
+      : 'No valid http/https audio links detected yet.', detected ? '' : 'warning');
+  });
+  dom.adminMusicTrackLimit?.addEventListener('input', () => {
+    stopCodeExplorerAdminMusicTest();
+    const settings = codeExplorerMusicSettingsFromAdminControls();
+    syncCodeExplorerAdminMusicControls(settings, { preserveFocused: true });
+    const count = codeExplorerMusicSelectedRawTracks(settings).length;
+    setCodeExplorerAdminMusicStatus(`${count} playlist track${count === 1 ? '' : 's'} will be used after you save.`);
+  });
+  dom.adminMusicPlayback?.addEventListener('change', () => {
+    stopCodeExplorerAdminMusicTest();
+    const settings = codeExplorerMusicSettingsFromAdminControls();
+    syncCodeExplorerAdminMusicControls(settings, { preserveFocused: true });
+    setCodeExplorerAdminMusicStatus(settings.playback === 'shuffle'
+      ? 'Shuffle selected: every selected track plays once before a new random cycle starts.'
+      : 'Continuous selected: tracks play in the pasted order, then repeat from the first track.');
   });
   dom.adminMusicVolume?.addEventListener('input', () => {
     const settings = codeExplorerMusicSettingsFromAdminControls();
     if (dom.adminMusicVolumeValue) dom.adminMusicVolumeValue.textContent = `${settings.volume}%`;
     if (codeExplorerAdminTestAudio) codeExplorerAdminTestAudio.volume = Math.max(0, Math.min(1, settings.volume / 100));
   });
+  dom.adminMusicPrevBtn?.addEventListener('click', () => stepCodeExplorerAdminMusicTest(-1));
   dom.adminMusicTestBtn?.addEventListener('click', testCodeExplorerAdminMusic);
+  dom.adminMusicNextBtn?.addEventListener('click', () => stepCodeExplorerAdminMusicTest(1));
   dom.adminMusicSaveBtn?.addEventListener('click', saveCodeExplorerAdminMusicSettings);
 
   dom.adminRefreshBtn?.addEventListener('click', () => initializeCodeExplorerAdmin({ force: true }));

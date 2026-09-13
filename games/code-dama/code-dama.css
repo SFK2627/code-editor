@@ -51,3 +51,84 @@
 .dama-solo-note{margin-top:10px}.dama-multi-card{text-align:center}.dama-multi-card h2{margin:7px 0 8px;color:#fff}.dama-multi-card>p{margin:0 auto 16px;max-width:440px;color:#94a3b8;font-size:.72rem;line-height:1.45}
 @media(max-width:600px){.dama-play-choice{grid-template-columns:1fr}.dama-choice{min-height:76px}.dama-choice>span{flex-basis:40px;width:40px;height:40px;font-size:1.35rem}.dama-choice strong{font-size:.75rem}.dama-choice small{font-size:.55rem}}
 @media(max-height:620px) and (orientation:landscape){.dama-play-choice{grid-template-columns:1fr 1fr;margin-top:10px}.dama-choice{min-height:68px;padding:9px 11px}.dama-choice>span{flex-basis:36px;width:36px;height:36px;font-size:1.2rem}.dama-choice small{font-size:.51rem}.dama-ai-help{padding:7px 9px}.dama-solo-card .dama-match-settings{padding:9px;margin-bottom:9px}.dama-solo-card .dama-select-field{margin:6px 0}.dama-solo-card .dama-select-field select{min-height:39px}}
+
+/* CODE DAMA v483 — stable 8×8 board geometry + graceful piece travel */
+.dama-board{
+  position:relative;
+  grid-template-columns:repeat(8,minmax(0,1fr))!important;
+  grid-template-rows:repeat(8,minmax(0,1fr))!important;
+  aspect-ratio:1/1;
+  align-content:stretch;
+  justify-content:stretch;
+  box-sizing:border-box;
+  contain:layout style;
+}
+.dama-cell{
+  width:100%;
+  height:100%;
+  min-width:0!important;
+  min-height:0!important;
+  max-width:none;
+  max-height:none;
+  overflow:visible;
+  box-sizing:border-box;
+  contain:layout style;
+}
+.dama-piece{
+  width:72%;
+  height:auto!important;
+  aspect-ratio:1/1;
+  max-width:76%;
+  max-height:76%;
+  box-sizing:border-box;
+  flex:none;
+  line-height:1;
+}
+.dama-piece.king{
+  width:72%;
+  max-width:76%;
+  aspect-ratio:1/1;
+}
+.dama-piece i{
+  display:grid;
+  place-items:center;
+  width:68%;
+  height:68%;
+  line-height:1;
+  font-size:clamp(12px,calc(var(--board-size) / 27),25px);
+  overflow:visible;
+  pointer-events:none;
+}
+.dama-piece em,.dama-piece b{pointer-events:none}
+.dama-board.is-animating .dama-cell{pointer-events:none!important;cursor:default}
+.dama-arrival-hidden{opacity:0!important}
+.dama-piece-motion,.dama-captured-motion{
+  position:absolute!important;
+  z-index:30!important;
+  margin:0!important;
+  pointer-events:none!important;
+  will-change:transform,filter,opacity;
+  transform:translate(-50%,-50%);
+  transform-origin:center;
+}
+.dama-captured-motion{z-index:18!important}
+.dama-piece-landed{animation:damaPieceLand .26s cubic-bezier(.18,.72,.28,1)}
+.dama-piece-crowned{animation:damaKingCrown .48s cubic-bezier(.18,.82,.24,1)!important}
+@keyframes damaPieceLand{
+  0%{transform:scale(.93) translateY(-2px)}
+  58%{transform:scale(1.07) translateY(0)}
+  100%{transform:scale(1) translateY(0)}
+}
+@keyframes damaKingCrown{
+  0%{transform:scale(.92);filter:brightness(1)}
+  42%{transform:scale(1.14);filter:brightness(1.22)}
+  72%{transform:scale(1.04);filter:brightness(1.1)}
+  100%{transform:scale(1);filter:brightness(1)}
+}
+@media(max-width:760px){
+  .dama-piece,.dama-piece.king{width:72%;max-width:74%}
+  .dama-piece i{font-size:clamp(11px,calc(var(--board-size) / 26),22px)}
+}
+@media(prefers-reduced-motion:reduce){
+  .dama-piece-landed,.dama-piece-crowned{animation:none!important}
+}
