@@ -461,6 +461,24 @@
     },
 
     {
+      id: 'code-smash',
+      stateKey: 'codeSmash',
+      name: 'CODE SMASH',
+      icon: '🏓',
+      description: 'Play polished table tennis solo against the Code Bot or challenge a classmate live. Follow the landing guide, line up the paddle, and use fast movement for sharper smashes.',
+      maxXp: 0,
+      multiplayer: true,
+      noXp: true,
+      category: 'SOLO / 2P SPORTS',
+      difficulty: '★★★☆☆',
+      globalName: 'ICT8CodeSmash',
+      dependencies: ['games/p2p-zero-db/p2p-zero-db.js'],
+      script: 'games/code-smash/code-smash.js',
+      style: 'games/code-smash/code-smash.css',
+      playLabel: 'PLAY SOLO / 1V1',
+      bestText() { return '🏓 SOLO / LIVE 1v1 · 0 XP'; }
+    },
+    {
       id: 'code-dama',
       stateKey: 'codeDama',
       name: 'CODE DAMA',
@@ -557,6 +575,7 @@
     'code-snake-duel':        { bpm:136, root:50, scale:'minorPent', lead:'pulse', melody:[0,1,3,2,4,3,2,null,0,2,4,5,4,3,1,null], bass:[0,0,3,4], drums:'drive', gain:.32 },
     'byte-space-battle':      { bpm:152, root:45, scale:'dorian', lead:'saw', melody:[0,2,4,5,6,4,2,null,0,3,5,6,5,4,2,null], bass:[0,5,0,4], drums:'drive', gain:.33 },
     'code-escape-coop':       { bpm:98, root:55, scale:'minor', lead:'bell', melody:[0,null,2,null,3,5,null,4,2,null,1,3,null,2,0,null], bass:[0,3,5,4], drums:'suspense', gain:.29 },
+    'code-smash':             { bpm:132, root:55, scale:'majorPent', lead:'pluck', melody:[0,2,4,3,2,4,5,null,0,3,4,5,4,2,1,null], bass:[0,3,4,3], drums:'groove', gain:.29 },
     'code-dama':              { bpm:106, root:50, scale:'dorian', lead:'pluck', melody:[0,null,2,3,null,4,3,2,0,null,3,5,4,3,2,null], bass:[0,3,4,3], drums:'soft', gain:.27 },
     'code-climb':             { bpm:112, root:55, scale:'majorPent', lead:'pluck', melody:[0,2,4,3,5,4,2,null,1,3,5,4,3,2,0,null], bass:[0,3,4,3], drums:'groove', gain:.27 },
     'pattern-lock':           { bpm:102, root:60, scale:'minorPent', lead:'bell',   melody:[0,null,2,null,4,null,3,null,1,null,3,null,5,4,2,null], bass:[0,3,4,3], drums:'soft',   gain:.27 }

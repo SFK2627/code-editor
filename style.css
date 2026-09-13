@@ -65899,3 +65899,342 @@ html[data-theme="dark"] .code-explorer-admin-track-chip.selected {
   .login-reminder-music-preview-actions .ghost-btn{min-height:42px;padding-inline:8px}
   .login-reminder-music-preview>small{white-space:normal;text-align:left}
 }
+
+
+/* v490 — Student Login Reminder: 80s Synthwave theme -----------------------
+   Presentation-only. Uses the existing reminder data, actions, music and
+   theme-animation controls from Admin > Assistance. */
+.login-lacking-reminder-overlay[data-theme="synthwave-80s"] {
+  --ds-accent: #35f6ff;
+  --ds-accent-2: #ff48bd;
+  --ds-muted: #9db7d8;
+  --ds-card: linear-gradient(135deg, rgba(8,16,48,.94), rgba(24,10,54,.93));
+  --ds-card-text: #f4fbff;
+  --ds-card-border: 1px solid rgba(53,246,255,.48);
+  --ds-card-radius: 14px;
+  --ds-card-shadow: inset 0 1px 0 rgba(255,255,255,.07), 0 0 18px rgba(53,246,255,.08);
+  --ds-button-text: #06111f;
+  background:
+    radial-gradient(circle at 18% 14%, rgba(32,220,255,.18), transparent 26%),
+    radial-gradient(circle at 82% 10%, rgba(255,53,184,.20), transparent 30%),
+    radial-gradient(circle at 50% 112%, rgba(113,38,255,.20), transparent 34%),
+    linear-gradient(180deg, rgba(3,5,19,.94), rgba(10,3,31,.96));
+  backdrop-filter: blur(10px) saturate(115%);
+  -webkit-backdrop-filter: blur(10px) saturate(115%);
+}
+
+.login-lacking-reminder-overlay[data-theme="synthwave-80s"] .login-lacking-reminder-panel {
+  width: min(720px, 100%);
+  color: #f4fbff;
+  background:
+    linear-gradient(180deg, rgba(8,9,34,.98) 0%, rgba(14,8,43,.985) 44%, rgba(4,10,31,.99) 100%);
+  border: 2px solid rgba(53,246,255,.92);
+  border-top: 2px solid rgba(255,72,189,.96) !important;
+  border-radius: 24px;
+  box-shadow:
+    0 0 0 1px rgba(255,72,189,.28),
+    0 0 30px rgba(53,246,255,.17),
+    0 0 52px rgba(255,72,189,.11),
+    0 30px 80px rgba(0,0,0,.62);
+  font-family: "Trebuchet MS", "Segoe UI", Arial, sans-serif;
+}
+
+.login-lacking-reminder-overlay[data-theme="synthwave-80s"] .login-lacking-reminder-panel::before {
+  background:
+    radial-gradient(circle at 11% 10%, rgba(255,255,255,.72) 0 1px, transparent 1.5px) 0 0 / 56px 48px,
+    radial-gradient(circle at 72% 8%, rgba(53,246,255,.60) 0 1px, transparent 1.6px) 12px 8px / 72px 58px,
+    radial-gradient(circle at 84% 13%, rgba(255,224,98,.94) 0 38px, rgba(255,95,172,.82) 39px 52px, transparent 53px),
+    repeating-linear-gradient(0deg, transparent 0 27px, rgba(53,246,255,.065) 28px 29px),
+    repeating-linear-gradient(90deg, transparent 0 48px, rgba(255,72,189,.055) 49px 50px);
+  opacity: .86;
+  background-position: 0 0, 12px 8px, 0 0, 0 0, 0 0;
+}
+
+.login-lacking-reminder-overlay[data-theme="synthwave-80s"] .login-lacking-reminder-panel::after {
+  content: "";
+  inset: auto 18px 16px auto;
+  width: 118px;
+  height: 14px;
+  border: 0;
+  border-radius: 2px;
+  background:
+    linear-gradient(105deg,
+      #ff3daf 0 27%, transparent 27% 34%,
+      #35f6ff 34% 61%, transparent 61% 68%,
+      #8b5cff 68% 100%);
+  opacity: .72;
+  transform: skewX(-24deg);
+  box-shadow: 0 0 16px rgba(255,61,175,.22);
+}
+
+.login-lacking-reminder-overlay[data-theme="synthwave-80s"] .login-lacking-reminder-close {
+  background: rgba(5,10,31,.92);
+  color: #fff;
+  border: 1px solid #ff48bd;
+  box-shadow: 0 0 0 1px rgba(53,246,255,.28), 0 0 16px rgba(255,72,189,.25);
+}
+.login-lacking-reminder-overlay[data-theme="synthwave-80s"] .login-lacking-reminder-close:hover,
+.login-lacking-reminder-overlay[data-theme="synthwave-80s"] .login-lacking-reminder-close:focus-visible {
+  color: #07111f;
+  background: #35f6ff;
+  border-color: #35f6ff;
+}
+
+.login-lacking-reminder-overlay[data-theme="synthwave-80s"] .login-lacking-reminder-hero {
+  min-height: 76px;
+}
+.login-lacking-reminder-overlay[data-theme="synthwave-80s"] .section-kicker {
+  color: #35f6ff;
+  font-family: "Courier New", monospace;
+  font-weight: 900;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  text-shadow: 0 0 10px rgba(53,246,255,.40);
+}
+.login-lacking-reminder-overlay[data-theme="synthwave-80s"] .login-lacking-reminder-hero h2 {
+  color: #fff;
+  font-family: "Arial Black", "Trebuchet MS", sans-serif;
+  font-weight: 1000;
+  letter-spacing: .015em;
+  text-transform: uppercase;
+  background: linear-gradient(180deg, #ffffff 0%, #94f7ff 31%, #55a7ff 49%, #ff48bd 72%, #ffffff 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: 0 0 18px rgba(53,246,255,.14);
+}
+.login-lacking-reminder-overlay[data-theme="synthwave-80s"] .login-lacking-reminder-student {
+  color: #ff8fd6;
+  font-weight: 850;
+  text-shadow: 0 0 10px rgba(255,72,189,.16);
+}
+.login-lacking-reminder-overlay[data-theme="synthwave-80s"] .login-lacking-reminder-icon {
+  color: #fff;
+  background: linear-gradient(145deg, rgba(16,43,83,.96), rgba(32,10,71,.96));
+  border: 2px solid #35f6ff;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.08), 0 0 18px rgba(53,246,255,.28), 5px 5px 0 rgba(255,72,189,.36);
+}
+
+.login-lacking-reminder-overlay[data-theme="synthwave-80s"] .login-lacking-reminder-meta span {
+  color: #dffbff;
+  background: rgba(7,17,46,.88);
+  border: 1px solid rgba(53,246,255,.42);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.05);
+}
+.login-lacking-reminder-overlay[data-theme="synthwave-80s"] .login-lacking-reminder-meta .success {
+  color: #a7ffdc;
+  border-color: rgba(52,255,179,.52);
+  background: rgba(4,58,49,.48);
+}
+.login-lacking-reminder-overlay[data-theme="synthwave-80s"] .login-lacking-reminder-meta .warning {
+  color: #ffe48a;
+  border-color: rgba(255,194,56,.56);
+  background: rgba(91,49,7,.54);
+}
+.login-lacking-reminder-overlay[data-theme="synthwave-80s"] .login-lacking-reminder-meta .neutral {
+  color: #d8cfff;
+  border-color: rgba(154,112,255,.44);
+  background: rgba(45,27,91,.48);
+}
+
+.login-lacking-reminder-overlay[data-theme="synthwave-80s"] .login-lacking-reminder-recitation {
+  color: #f3fbff;
+  background: linear-gradient(100deg, rgba(8,33,69,.94), rgba(32,8,64,.94));
+  border: 1px solid rgba(53,246,255,.58);
+  box-shadow: inset 3px 0 0 #35f6ff, inset -3px 0 0 #ff48bd, 0 0 18px rgba(53,246,255,.08);
+}
+.login-lacking-reminder-overlay[data-theme="synthwave-80s"] .login-lacking-reminder-recitation-icon {
+  color: #06111f;
+  background: linear-gradient(135deg, #35f6ff, #73b8ff);
+  box-shadow: 0 0 16px rgba(53,246,255,.28);
+}
+.login-lacking-reminder-overlay[data-theme="synthwave-80s"] .login-lacking-reminder-recitation-label small {
+  color: #9db7d8;
+}
+.login-lacking-reminder-overlay[data-theme="synthwave-80s"] .login-lacking-reminder-recitation-score {
+  color: #ffe25f;
+  text-shadow: 0 0 12px rgba(255,226,95,.32);
+}
+
+.login-lacking-reminder-overlay[data-theme="synthwave-80s"] .login-lacking-reminder-message,
+.login-lacking-reminder-overlay[data-theme="synthwave-80s"] .login-lacking-reminder-empty {
+  color: #eaf7ff !important;
+  background: linear-gradient(135deg, rgba(8,20,49,.95), rgba(24,10,53,.94)) !important;
+  border: 1px solid rgba(93,210,255,.38) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.04), 0 0 15px rgba(53,246,255,.055);
+}
+.login-lacking-reminder-overlay[data-theme="synthwave-80s"][data-state="complete"] .login-lacking-reminder-message,
+.login-lacking-reminder-overlay[data-theme="synthwave-80s"] .login-lacking-reminder-empty.success {
+  border-color: rgba(52,255,179,.46) !important;
+  background: linear-gradient(135deg, rgba(5,49,49,.92), rgba(18,13,57,.95)) !important;
+  color: #caffec !important;
+}
+.login-lacking-reminder-overlay[data-theme="synthwave-80s"][data-state="missing"] .login-lacking-reminder-message,
+.login-lacking-reminder-overlay[data-theme="synthwave-80s"] .login-lacking-reminder-empty.warning {
+  border-color: rgba(255,162,64,.52) !important;
+  background: linear-gradient(135deg, rgba(71,38,10,.92), rgba(42,11,50,.95)) !important;
+  color: #fff0c2 !important;
+}
+
+.login-lacking-reminder-overlay[data-theme="synthwave-80s"] .login-lacking-reminder-list-title {
+  color: #35f6ff;
+  font-family: "Courier New", monospace;
+  font-weight: 900;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.login-lacking-reminder-overlay[data-theme="synthwave-80s"] .login-lacking-reminder-list li {
+  color: #f3f8ff;
+  background: rgba(7,16,43,.94);
+  border: 1px solid rgba(255,72,189,.44);
+  box-shadow: inset 3px 0 0 rgba(255,72,189,.88), 0 8px 20px rgba(0,0,0,.18);
+}
+.login-lacking-reminder-overlay[data-theme="synthwave-80s"] .login-lacking-reminder-list li::before {
+  color: #07111f;
+  background: #35f6ff;
+  box-shadow: 0 0 0 2px rgba(255,72,189,.40), 0 0 12px rgba(53,246,255,.24);
+}
+.login-lacking-reminder-overlay[data-theme="synthwave-80s"] .login-lacking-reminder-list li span { color: #ffffff; }
+.login-lacking-reminder-overlay[data-theme="synthwave-80s"] .login-lacking-reminder-list li small { color: #a9bfdc; }
+
+.login-lacking-reminder-overlay[data-theme="synthwave-80s"] .login-lacking-reminder-music-row {
+  color: #e8fbff;
+  background: rgba(5,16,42,.90);
+  border-color: rgba(53,246,255,.40);
+}
+.login-lacking-reminder-overlay[data-theme="synthwave-80s"] .login-lacking-reminder-music-row.music-playing {
+  background: rgba(8,47,54,.90);
+  border-color: rgba(52,255,179,.48);
+}
+.login-lacking-reminder-overlay[data-theme="synthwave-80s"] .login-lacking-reminder-music-row .muted-text { color: #a9bfdc; }
+.login-lacking-reminder-overlay[data-theme="synthwave-80s"] .login-lacking-reminder-music-row .ghost-btn {
+  color: #f4fbff;
+  background: rgba(34,13,72,.88);
+  border-color: rgba(255,72,189,.56);
+}
+
+.login-lacking-reminder-overlay[data-theme="synthwave-80s"] .login-lacking-reminder-actions {
+  border-top-color: rgba(53,246,255,.20);
+}
+.login-lacking-reminder-overlay[data-theme="synthwave-80s"] .login-lacking-reminder-nav-head > span {
+  color: #ff73ca;
+  font-family: "Courier New", monospace;
+  letter-spacing: .11em;
+  text-shadow: 0 0 10px rgba(255,72,189,.20);
+}
+.login-lacking-reminder-overlay[data-theme="synthwave-80s"] .login-lacking-reminder-nav-head > small { color: #8fa9c9; }
+.login-lacking-reminder-overlay[data-theme="synthwave-80s"] .login-lacking-reminder-nav-card {
+  color: #f6fbff;
+  background: linear-gradient(145deg, rgba(7,21,53,.96), rgba(27,10,58,.95));
+  border: 1px solid rgba(53,246,255,.35);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
+}
+.login-lacking-reminder-overlay[data-theme="synthwave-80s"] .login-lacking-reminder-nav-card.is-primary {
+  border-color: rgba(255,72,189,.70);
+  box-shadow: inset 0 0 0 1px rgba(53,246,255,.24), 0 0 16px rgba(255,72,189,.08);
+}
+.login-lacking-reminder-overlay[data-theme="synthwave-80s"] .login-lacking-reminder-nav-card:hover,
+.login-lacking-reminder-overlay[data-theme="synthwave-80s"] .login-lacking-reminder-nav-card:focus-visible {
+  transform: translateY(-2px);
+  background: linear-gradient(145deg, rgba(10,37,73,.98), rgba(43,13,75,.98));
+  border-color: #35f6ff;
+  box-shadow: 0 0 18px rgba(53,246,255,.14), 0 0 14px rgba(255,72,189,.10);
+}
+.login-lacking-reminder-overlay[data-theme="synthwave-80s"] .login-lacking-reminder-nav-icon {
+  background: linear-gradient(145deg, rgba(7,28,60,.98), rgba(37,11,72,.98));
+  box-shadow: inset 0 0 0 1px rgba(53,246,255,.34), 0 0 11px rgba(53,246,255,.10);
+}
+.login-lacking-reminder-overlay[data-theme="synthwave-80s"] .login-lacking-reminder-nav-card strong { color: #fff; }
+.login-lacking-reminder-overlay[data-theme="synthwave-80s"] .login-lacking-reminder-nav-card small { color: #9db7d8; }
+
+/* Theme preview inside Admin > Assistance. */
+.login-reminder-theme-sample[data-theme="synthwave-80s"] {
+  color: #eafdff;
+  background:
+    radial-gradient(circle at 83% 18%, rgba(255,221,82,.96) 0 20px, rgba(255,70,181,.85) 21px 30px, transparent 31px),
+    linear-gradient(180deg, #07071e, #170837 62%, #06122a);
+  border: 1px solid #35f6ff;
+  border-radius: 18px;
+  box-shadow: 0 0 18px rgba(53,246,255,.14), inset 0 0 0 1px rgba(255,72,189,.18);
+  font-family: "Trebuchet MS", Arial, sans-serif;
+}
+.login-reminder-theme-sample[data-theme="synthwave-80s"]::before {
+  background:
+    radial-gradient(circle at 10% 15%, rgba(255,255,255,.75) 0 1px, transparent 1.5px) 0 0/38px 31px,
+    repeating-linear-gradient(0deg, transparent 0 15px, rgba(53,246,255,.10) 16px 17px),
+    repeating-linear-gradient(90deg, transparent 0 26px, rgba(255,72,189,.09) 27px 28px);
+  opacity: .74;
+}
+.login-reminder-theme-sample[data-theme="synthwave-80s"] .login-reminder-theme-sample-art {
+  background: linear-gradient(180deg, #ffe252 0 42%, #ff48bd 43% 68%, #6f4dff 69% 100%);
+  border: 2px solid #35f6ff;
+  border-radius: 50%;
+  box-shadow: 0 0 14px rgba(255,72,189,.26);
+}
+.login-reminder-theme-sample[data-theme="synthwave-80s"] .login-reminder-theme-sample-copy small { color: #8fddec; }
+.login-reminder-theme-sample[data-theme="synthwave-80s"] .login-reminder-theme-sample-copy strong {
+  color: #fff;
+  text-transform: uppercase;
+  letter-spacing: .045em;
+  text-shadow: 0 0 10px rgba(53,246,255,.28);
+}
+.login-reminder-theme-sample[data-theme="synthwave-80s"] .login-reminder-theme-sample-copy span { color: #c5d8ee; }
+
+@keyframes reminderSynthwaveGridShift {
+  0%   { background-position: 0 0, 12px 8px, 0 0, 0 0, 0 0; filter: brightness(1); }
+  50%  { background-position: 16px 8px, 2px 18px, 0 0, 0 14px, 24px 0; filter: brightness(1.08); }
+  100% { background-position: 32px 16px, -8px 28px, 0 0, 0 28px, 48px 0; filter: brightness(1); }
+}
+@keyframes reminderSynthwaveSampleShift {
+  from { background-position: 0 0, 0 0, 0 0; }
+  to   { background-position: 18px 8px, 0 17px, 28px 0; }
+}
+.login-lacking-reminder-overlay[data-theme="synthwave-80s"][data-animation="subtle"] .login-lacking-reminder-panel::before {
+  animation: reminderSynthwaveGridShift 14s linear infinite;
+}
+.login-lacking-reminder-overlay[data-theme="synthwave-80s"][data-animation="normal"] .login-lacking-reminder-panel::before {
+  animation: reminderSynthwaveGridShift 7s linear infinite;
+}
+.login-reminder-theme-sample[data-theme="synthwave-80s"][data-animation="subtle"]::before {
+  animation: reminderSynthwaveSampleShift 12s linear infinite;
+}
+.login-reminder-theme-sample[data-theme="synthwave-80s"][data-animation="normal"]::before {
+  animation: reminderSynthwaveSampleShift 6s linear infinite;
+}
+.login-lacking-reminder-overlay[data-theme="synthwave-80s"][data-animation="off"] .login-lacking-reminder-panel::before,
+.login-reminder-theme-sample[data-theme="synthwave-80s"][data-animation="off"]::before {
+  animation: none !important;
+}
+
+@media (max-width: 700px) {
+  .login-lacking-reminder-overlay[data-theme="synthwave-80s"] .login-lacking-reminder-panel {
+    border-radius: 24px 24px 16px 16px;
+    padding: 18px 14px max(15px, env(safe-area-inset-bottom));
+  }
+  .login-lacking-reminder-overlay[data-theme="synthwave-80s"] .login-lacking-reminder-panel::before {
+    background:
+      radial-gradient(circle at 10% 8%, rgba(255,255,255,.70) 0 1px, transparent 1.5px) 0 0/48px 42px,
+      radial-gradient(circle at 82% 8%, rgba(255,224,98,.90) 0 27px, rgba(255,95,172,.78) 28px 38px, transparent 39px),
+      repeating-linear-gradient(0deg, transparent 0 24px, rgba(53,246,255,.055) 25px 26px),
+      repeating-linear-gradient(90deg, transparent 0 38px, rgba(255,72,189,.05) 39px 40px);
+  }
+  .login-lacking-reminder-overlay[data-theme="synthwave-80s"] .login-lacking-reminder-hero h2 {
+    font-size: clamp(1.15rem, 6vw, 1.55rem);
+  }
+  .login-lacking-reminder-overlay[data-theme="synthwave-80s"] .login-lacking-reminder-nav-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .login-lacking-reminder-overlay[data-theme="synthwave-80s"] .login-lacking-reminder-panel::after {
+    width: 82px;
+    height: 10px;
+    right: 12px;
+    bottom: 10px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-lacking-reminder-overlay[data-theme="synthwave-80s"] .login-lacking-reminder-panel::before,
+  .login-reminder-theme-sample[data-theme="synthwave-80s"]::before {
+    animation: none !important;
+  }
+}

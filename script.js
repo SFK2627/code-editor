@@ -869,7 +869,7 @@ let studentAssistanceSettings = normalizeAssistanceSettings(
 );
 let unsubscribeCloudAssistanceSettings = null;
 
-const LOGIN_REMINDER_THEMES = Object.freeze(['minimalism', 'maximalism', 'futuristic', 'vector-art', 'collage-art', 'retro', 'cyberpunk', 'pop-art', 'glassmorphism', 'clay-style', 'pixel-art', 'editorial', 'y2k', 'swiss-design', 'surreal-design', 'bohemian', 'victorian-style', 'graffiti', 'aurora', 'handwritten', 'classic', 'christmas', 'spider-comic', 'halloween', 'valentine', 'graduation', 'galaxy', 'cyber-neon', 'ocean', 'sakura', 'retro-arcade', 'birthday', 'fiesta', 'forest']);
+const LOGIN_REMINDER_THEMES = Object.freeze(['minimalism', 'maximalism', 'futuristic', 'vector-art', 'collage-art', 'retro', 'synthwave-80s', 'cyberpunk', 'pop-art', 'glassmorphism', 'clay-style', 'pixel-art', 'editorial', 'y2k', 'swiss-design', 'surreal-design', 'bohemian', 'victorian-style', 'graffiti', 'aurora', 'handwritten', 'classic', 'christmas', 'spider-comic', 'halloween', 'valentine', 'graduation', 'galaxy', 'cyber-neon', 'ocean', 'sakura', 'retro-arcade', 'birthday', 'fiesta', 'forest']);
 const LOGIN_REMINDER_ANIMATIONS = Object.freeze(['off', 'subtle', 'normal']);
 const LOGIN_REMINDER_THEME_LABELS = Object.freeze({
   minimalism: 'Minimalism',
@@ -878,6 +878,7 @@ const LOGIN_REMINDER_THEME_LABELS = Object.freeze({
   'vector-art': 'Vector Art',
   'collage-art': 'Collage Art',
   retro: 'Retro',
+  'synthwave-80s': '80s Synthwave',
   cyberpunk: 'Cyberpunk',
   'pop-art': 'Pop Art',
   glassmorphism: 'Glassmorphism',
@@ -44241,26 +44242,9 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     return 1;
   }
 
-  // CODE TILES stays a complete five-phase rhythm track. v497 expands the
-  // game to ten immediately playable levels with progressively faster runs.
-  // These windows are anti-fabrication bounds only; speed itself never raises XP.
-  function codeTilesTimingWindow(level = 1) {
-    const safeLevel = Math.max(1, Math.min(10, Math.floor(Number(level || 1))));
-    const windows = {
-      1: { minMs: 35000, maxMs: 56000 },
-      2: { minMs: 32000, maxMs: 53000 },
-      3: { minMs: 29000, maxMs: 50000 },
-      4: { minMs: 26000, maxMs: 47000 },
-      5: { minMs: 23000, maxMs: 44000 },
-      6: { minMs: 21000, maxMs: 42000 },
-      7: { minMs: 20000, maxMs: 40000 },
-      8: { minMs: 19000, maxMs: 38000 },
-      9: { minMs: 18000, maxMs: 36000 },
-      10: { minMs: 17000, maxMs: 35000 }
-    };
-    return windows[safeLevel] || windows[1];
-  }
-
+  // V475 — CODE TILES is one complete five-phase rhythm track. Note movement,
+  // timing judgements, audio, and input stay local; only the compact finish
+  // summary reaches the secured Mini-Game reward bridge.
   function codeTilesScoreDetails(metrics = {}) {
     const source = metrics && typeof metrics === 'object' ? metrics : {};
     const totalNotes = 127;
@@ -44274,16 +44258,14 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     const maxCombo = Math.max(0, Math.min(totalNotes, Math.floor(Number(source.maxCombo || 0))));
     const syncRemaining = Math.max(0, Math.min(100, Number(source.syncRemaining || 0)));
     const activeTimeMs = Math.max(0, Math.min(2 * 60 * 1000, Math.floor(Number(source.activeTimeMs || source.durationMs || 0))));
-    const level = Math.max(1, Math.min(10, Math.floor(Number(source.level || 1))));
-    const timing = codeTilesTimingWindow(level);
     const completed = source.completedRun === true
       && Math.floor(Number(source.phasesCompleted || 0)) === 5
       && Math.floor(Number(source.totalNotes || 0)) === totalNotes
-      && activeTimeMs >= timing.minMs
-      && activeTimeMs <= timing.maxMs
+      && activeTimeMs >= 55000
+      && activeTimeMs <= 80000
       && counted + misses === totalNotes
       && syncRemaining > 0;
-    if (!completed) return { score: 0, completed: false, accuracy: 0, perfect, great, good, misses, maxCombo, holdsCompleted, holdsTotal, syncRemaining, activeTimeMs, level };
+    if (!completed) return { score: 0, completed: false, accuracy: 0, perfect, great, good, misses, maxCombo, holdsCompleted, holdsTotal, syncRemaining, activeTimeMs };
     const weighted = perfect * 100 + great * 85 + good * 65;
     const accuracy = Math.max(0, Math.min(100, weighted / totalNotes));
     const comboBonus = Math.round(Math.max(0, Math.min(1, maxCombo / 70)) * 120);
@@ -44301,8 +44283,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       holdsCompleted,
       holdsTotal,
       syncRemaining: Math.round(syncRemaining * 10) / 10,
-      activeTimeMs,
-      level
+      activeTimeMs
     };
   }
 
@@ -44567,12 +44548,11 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       return activeSeconds >= floor ? 5 : 0;
     }
 
-    // CODE TILES uses ten speed levels. Duration remains only a plausibility
-    // gate; the selected level chooses the legitimate timing window.
+    // CODE TILES is a fixed ~59 second five-phase rhythm track. Duration is
+    // only a plausibility gate; waiting longer never upgrades its XP tier.
     if (id === XP_MINI_GAME_ID_CODE_TILES) {
-      const activeMs = Math.max(0, Number(source.activeTimeMs || durationMs));
-      const timing = codeTilesTimingWindow(source.level || 1);
-      return activeMs >= timing.minMs && activeMs <= timing.maxMs ? 3 : 0;
+      const activeSeconds = Math.max(0, Number(source.activeTimeMs || durationMs)) / 1000;
+      return activeSeconds >= 55 && activeSeconds <= 80 ? 3 : 0;
     }
 
     // CODE SLICE evaluates a complete five-wave stream. Time is only a
@@ -44925,7 +44905,6 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         holdsTotal: Math.max(0, Math.min(9, Math.floor(Number(source.holdsTotal || 0)))),
         accuracy: Math.max(0, Math.min(100, Number(source.accuracy || 0))),
         syncRemaining: Math.max(0, Math.min(100, Number(source.syncRemaining || 0))),
-        level: Math.max(1, Math.min(10, Math.floor(Number(source.level || 1)))),
         activeTimeMs: Math.max(0, Math.min(2 * 60 * 1000, Math.floor(Number(source.activeTimeMs || 0)))),
         durationMs: Math.max(0, Math.min(2 * 60 * 1000, Math.floor(Number(source.durationMs || 0))))
       };
@@ -48789,7 +48768,6 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       metrics.holdsTotal = 9;
       metrics.accuracy = tilesDetails.accuracy;
       metrics.syncRemaining = tilesDetails.syncRemaining;
-      metrics.level = tilesDetails.level;
       score = tilesDetails.completed ? tilesDetails.score : 0;
       maxPlausibleScore = 1000;
     } else if (gameId === XP_MINI_GAME_ID_BYTE_SLING) {
@@ -53567,6 +53545,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     'code-snake-duel': Object.freeze({ id: 'code-snake-duel', name: 'CODE SNAKE DUEL', prefix: 'CSD1' }),
     'byte-space-battle': Object.freeze({ id: 'byte-space-battle', name: 'BYTE SPACE BATTLE', prefix: 'BSB1' }),
     'code-escape-coop': Object.freeze({ id: 'code-escape-coop', name: 'CODE ESCAPE', prefix: 'CEC1' }),
+    'code-smash': Object.freeze({ id: 'code-smash', name: 'CODE SMASH', prefix: 'CSM1' }),
     'code-dama': Object.freeze({ id: 'code-dama', name: 'CODE DAMA', prefix: 'CDM1' }),
     'code-climb': Object.freeze({ id: 'code-climb', name: 'CODE CLIMB', prefix: 'CCL1' })
   });
