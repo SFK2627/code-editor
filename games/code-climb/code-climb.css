@@ -64,127 +64,124 @@ body.code-climb-active{overflow:hidden;overscroll-behavior:none}.climb-main{over
 @media(max-height:620px) and (orientation:landscape){.climb-overlay.climb-game-open .climb-play-layout{grid-template-columns:minmax(0,1fr) 180px}.climb-overlay.climb-game-open .climb-board-wrap{width:min(calc(100dvh - 105px),calc(100vw - 205px));height:auto;max-width:none;max-height:none;aspect-ratio:1}.climb-overlay.climb-game-open .climb-control-card{width:180px}}
 @media(max-height:620px) and (orientation:landscape){.climb-overlay.climb-game-open .climb-play-layout{width:calc(100% - 6px);justify-self:start}}
 
-/* CODE CLIMB v5 - restored realistic tumble + verified result face */
-.climb-die-shell{position:relative;width:98px;height:98px;display:grid;place-items:center;perspective:760px;transform-style:preserve-3d}
-.climb-die-shell .climb-die{margin:0;--die-final-x:0deg;--die-final-y:0deg}
-.climb-die-face{-webkit-backface-visibility:hidden;backface-visibility:hidden}
-.climb-die.rolling{animation:climbDiceRollV3 var(--dice-roll-ms,1800ms) cubic-bezier(.14,.68,.18,1) both;transition:none!important;filter:drop-shadow(0 9px 10px rgba(0,0,0,.28))}
-.climb-die.anticipating{animation:climbDiceSpinV2 .72s cubic-bezier(.45,.05,.55,.95) infinite;transition:none!important}
-.climb-die-final{position:absolute;left:50%;top:50%;width:88px;height:88px;transform:translate(-50%,-50%) scale(.88);border:2px solid rgba(15,23,42,.14);border-radius:20px;background:linear-gradient(145deg,#fff,#dcecff);color:#07111f;box-shadow:inset -8px -10px 18px rgba(15,23,42,.09),inset 5px 5px 10px rgba(255,255,255,.85),0 10px 15px rgba(0,0,0,.25);opacity:0;pointer-events:none;z-index:4}
-.climb-die-final.visible{opacity:1;animation:climbVerifiedDieLand .26s cubic-bezier(.18,.9,.25,1) both}
-.climb-board-dice-overlay.landed .climb-die{opacity:0}
-.climb-board-dice-overlay:not(.landed) .climb-die{opacity:1}
-@keyframes climbDiceRollV3{
-  0%{transform:rotateX(calc(var(--die-final-x) + 12deg)) rotateY(calc(var(--die-final-y) + 18deg)) rotateZ(0deg) translateY(8px) scale(.86)}
-  20%{transform:rotateX(calc(var(--die-final-x) + 185deg)) rotateY(calc(var(--die-final-y) + 125deg)) rotateZ(72deg) translateY(-18px) scale(1.05)}
-  50%{transform:rotateX(calc(var(--die-final-x) + 390deg)) rotateY(calc(var(--die-final-y) + 315deg)) rotateZ(184deg) translateY(-7px) scale(1.02)}
-  78%{transform:rotateX(calc(var(--die-final-x) + 575deg)) rotateY(calc(var(--die-final-y) + 505deg)) rotateZ(298deg) translateY(-11px) scale(1.03)}
-  100%{transform:rotateX(calc(var(--die-final-x) + 720deg)) rotateY(calc(var(--die-final-y) + 720deg)) rotateZ(360deg) translateY(0) scale(1)}
-}
-@keyframes climbVerifiedDieLand{0%{transform:translate(-50%,-50%) scale(.86) translateY(-7px)}45%{transform:translate(-50%,-50%) scale(1.055) translateY(3px)}75%{transform:translate(-50%,-50%) scale(.985) translateY(-1px)}100%{transform:translate(-50%,-50%) scale(1) translateY(0)}}
-@media(max-width:760px){.climb-die-shell{width:74px;height:74px}.climb-die-final{width:66px;height:66px;border-radius:15px}}
-@media(max-height:680px) and (orientation:portrait){.climb-die-shell{width:66px;height:66px}.climb-die-final{width:58px;height:58px;border-radius:14px}}
-@media(max-height:620px) and (orientation:landscape){.climb-die-shell{width:66px;height:66px}.climb-die-final{width:58px;height:58px;border-radius:14px}}
-@media(prefers-reduced-motion:reduce){.climb-die-final.visible{animation:none!important;transform:translate(-50%,-50%) scale(1)}}
-
-/* CODE CLIMB v6 - true cube tumble: keep the physical 3D die visible through landing */
-.climb-die-shell{perspective:560px;perspective-origin:50% 42%;isolation:isolate}
-.climb-die-shell:after{content:"";position:absolute;left:50%;bottom:0;width:68%;height:16%;transform:translateX(-50%);border-radius:50%;background:rgba(0,0,0,.28);filter:blur(7px);opacity:.42;z-index:-1;pointer-events:none}
-.climb-die.tumbling-3d{animation:none!important;transition:none!important;transform-style:preserve-3d!important;will-change:transform;filter:drop-shadow(0 12px 12px rgba(0,0,0,.30))}
-.climb-die.tumbling-3d .climb-die-face,.climb-die.show-1 .climb-die-face,.climb-die.show-2 .climb-die-face,.climb-die.show-3 .climb-die-face,.climb-die.show-4 .climb-die-face,.climb-die.show-5 .climb-die-face,.climb-die.show-6 .climb-die-face{-webkit-backface-visibility:hidden;backface-visibility:hidden}
-.climb-board-dice-overlay.landed .climb-die{opacity:1!important;filter:drop-shadow(0 10px 10px rgba(0,0,0,.30))}
-.climb-die-final{display:none!important}
-.climb-board-dice-overlay.landed .climb-die-shell:after{animation:climbDiceShadowSettle .28s ease-out both}
-@keyframes climbDiceShadowSettle{0%{transform:translateX(-50%) scale(.72);opacity:.24}55%{transform:translateX(-50%) scale(1.08);opacity:.5}100%{transform:translateX(-50%) scale(1);opacity:.42}}
-@media(prefers-reduced-motion:reduce){.climb-die.tumbling-3d{animation:none!important;transition:none!important}}
-
-/* Keep a subtle physical-cube angle during the result hold so the landing
-   still reads as a real 3D die instead of flattening into a square card. */
-.climb-die.show-1.landed-3d{transform:rotateX(-8deg) rotateY(10deg) rotateZ(-1deg)!important;transform-style:preserve-3d!important;filter:drop-shadow(0 12px 12px rgba(0,0,0,.30))}
-
-
-/* CODE CLIMB v7 - reference-style cinematic 3D dice tumble */
-.climb-die-shell{
-  perspective:700px!important;
-  perspective-origin:50% 44%!important;
-  overflow:visible;
-}
-.climb-die-shell .climb-die{
-  transform-origin:50% 50%;
-}
-.climb-die-face{
+/* CODE CLIMB v8 — cinematic canvas dice rebuild.
+   One renderer only: no stacked V5/V6/V7 cube rules, no face swapping. */
+.climb-board-dice-backdrop{
   background:
-    linear-gradient(145deg,rgba(255,255,255,.98),rgba(229,240,252,.98))!important;
-  border:1px solid rgba(71,85,105,.18)!important;
-  box-shadow:
-    inset 7px 7px 12px rgba(255,255,255,.78),
-    inset -8px -10px 17px rgba(15,23,42,.10),
-    0 0 0 1px rgba(255,255,255,.20)!important;
-  -webkit-backface-visibility:hidden;
-  backface-visibility:hidden;
+    radial-gradient(circle at 50% 46%,color-mix(in srgb,var(--turn) 22%,rgba(12,26,48,.32)) 0 22%,rgba(3,10,25,.48) 58%,rgba(2,7,18,.68) 100%)!important;
+  backdrop-filter:blur(1.5px) saturate(.82);
 }
-.climb-die-face:after{
+.climb-dice-stage{
+  position:absolute!important;
+  inset:0!important;
+  min-width:0!important;
+  width:100%!important;
+  height:100%!important;
+  padding:0!important;
+  border:0!important;
+  border-radius:0!important;
+  background:transparent!important;
+  box-shadow:none!important;
+  display:grid!important;
+  place-items:center!important;
+  overflow:hidden!important;
+  perspective:none!important;
+}
+.climb-board-dice-overlay.landed .climb-dice-stage{animation:none!important}
+.climb-dice-stage small,
+.climb-dice-stage>strong{
+  position:absolute;
+  z-index:4;
+  left:50%;
+  transform:translateX(-50%);
+  width:max-content;
+  max-width:88%;
+  text-align:center;
+  pointer-events:none;
+  text-shadow:0 3px 12px rgba(0,0,0,.75),0 0 18px color-mix(in srgb,var(--turn) 26%,transparent);
+}
+.climb-dice-stage small{
+  top:5.8%;
+  padding:6px 12px;
+  border:1px solid color-mix(in srgb,var(--turn) 42%,rgba(255,255,255,.16));
+  border-radius:999px;
+  background:rgba(2,8,23,.54);
+  backdrop-filter:blur(7px);
+  color:color-mix(in srgb,var(--turn) 76%,white)!important;
+  font:1000 clamp(.5rem,1.25vw,.76rem)/1 system-ui!important;
+  letter-spacing:.13em!important;
+}
+.climb-dice-stage>strong{
+  bottom:5.2%;
+  min-height:0!important;
+  padding:8px 15px;
+  border-radius:14px;
+  background:rgba(2,8,23,.60);
+  color:#fff!important;
+  font:1000 clamp(.78rem,2.2vw,1.35rem)/1 system-ui!important;
+  letter-spacing:.08em!important;
+  box-shadow:0 8px 24px rgba(0,0,0,.28);
+}
+.climb-die-shell{
+  position:relative;
+  z-index:2;
+  width:90%;
+  max-width:90%;
+  aspect-ratio:1;
+  display:grid;
+  place-items:center;
+  overflow:visible;
+  isolation:isolate;
+}
+.climb-die-shell:before{
   content:"";
   position:absolute;
-  inset:4px;
-  border-radius:inherit;
-  background:linear-gradient(135deg,rgba(255,255,255,.26),transparent 42%,rgba(148,163,184,.06));
+  z-index:-1;
+  left:50%;
+  top:50%;
+  width:74%;
+  aspect-ratio:1;
+  transform:translate(-50%,-50%);
+  border-radius:50%;
+  background:radial-gradient(circle,color-mix(in srgb,var(--turn) 17%,rgba(255,255,255,.05)),transparent 68%);
+  filter:blur(10px);
+  opacity:.66;
   pointer-events:none;
 }
-.climb-pip{z-index:1}
-.climb-die.tumbling-3d{
-  animation:none!important;
-  transition:none!important;
-  transform-style:preserve-3d!important;
-  will-change:transform;
-  filter:drop-shadow(0 14px 12px rgba(0,0,0,.30));
+.climb-board-dice-overlay.landed .climb-die-shell:before{
+  opacity:.86;
+  filter:blur(12px);
 }
-.climb-die.anticipating{
-  animation:climbDiceReadyFloat .72s ease-in-out infinite!important;
-  transition:none!important;
+.climb-die-canvas{
+  display:block;
+  width:100%;
+  height:100%;
+  max-width:none;
+  max-height:none;
+  margin:0;
+  background:transparent;
+  image-rendering:auto;
+  filter:none;
+  transform:translateZ(0);
 }
-.climb-die.landed-3d{
-  animation:none!important;
-  transition:none!important;
-  transform-style:preserve-3d!important;
-  filter:drop-shadow(0 10px 9px rgba(0,0,0,.29));
+.climb-board-dice-overlay.landed .climb-die-canvas{
+  filter:drop-shadow(0 8px 14px rgba(0,0,0,.10));
 }
-.climb-board-dice-overlay.landed .climb-die{
-  opacity:1!important;
+@media(max-width:760px){
+  .climb-die-shell{width:92%;max-width:92%}
+  .climb-dice-stage small{top:4.8%;padding:5px 10px}
+  .climb-dice-stage>strong{bottom:4.4%;padding:7px 12px;border-radius:12px}
 }
-.climb-die-shell:after{
-  bottom:-3px!important;
-  width:72%!important;
-  height:14%!important;
-  filter:blur(8px)!important;
-  opacity:.36!important;
-  transform:translateX(-50%) scale(1)!important;
+@media(max-height:680px) and (orientation:portrait){
+  .climb-die-shell{width:91%;max-width:91%}
+  .climb-dice-stage small{top:3.8%}
+  .climb-dice-stage>strong{bottom:3.4%}
 }
-.climb-die-shell.is-rolling:after{
-  animation:climbDiceShadowFlight var(--dice-roll-ms,2100ms) cubic-bezier(.14,.72,.16,1) both!important;
-}
-.climb-board-dice-overlay.landed .climb-die-shell:after{
-  animation:climbDiceShadowSettleV7 .30s ease-out both!important;
-}
-@keyframes climbDiceReadyFloat{
-  0%,100%{transform:translate3d(0,2px,0) rotateX(10deg) rotateY(-13deg) rotateZ(0deg) scale(.96)}
-  50%{transform:translate3d(0,-5px,0) rotateX(20deg) rotateY(17deg) rotateZ(5deg) scale(1)}
-}
-@keyframes climbDiceShadowFlight{
-  0%{transform:translateX(-50%) scale(1);opacity:.38}
-  27%{transform:translateX(-50%) scale(.52);opacity:.18}
-  47%{transform:translateX(-50%) scale(.62);opacity:.21}
-  65%{transform:translateX(-50%) scale(.78);opacity:.28}
-  77%{transform:translateX(-50%) scale(1.08);opacity:.48}
-  86%{transform:translateX(-50%) scale(.84);opacity:.31}
-  94%{transform:translateX(-50%) scale(1.03);opacity:.43}
-  100%{transform:translateX(-50%) scale(1);opacity:.38}
-}
-@keyframes climbDiceShadowSettleV7{
-  0%{transform:translateX(-50%) scale(1.08);opacity:.48}
-  45%{transform:translateX(-50%) scale(.91);opacity:.34}
-  100%{transform:translateX(-50%) scale(1);opacity:.38}
+@media(max-height:620px) and (orientation:landscape){
+  .climb-die-shell{width:90%;max-width:90%}
+  .climb-dice-stage small{top:3.5%;font-size:.48rem!important}
+  .climb-dice-stage>strong{bottom:3.2%;font-size:.72rem!important;padding:6px 10px}
 }
 @media(prefers-reduced-motion:reduce){
-  .climb-die.anticipating,.climb-die.tumbling-3d,.climb-die.landed-3d,.climb-die-shell.is-rolling:after{animation:none!important;transition:none!important}
+  .climb-board-dice-overlay,.climb-die-canvas{transition:none!important;animation:none!important}
 }

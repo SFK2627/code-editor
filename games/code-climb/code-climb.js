@@ -44,103 +44,245 @@
     quick: Object.freeze({ diceRollMs:1600, diceHoldMs:900, diceFadeMs:190, afterDiceMs:120, stepMs:195, stepSettleMs:36, snakeMs:800, ladderMs:660, specialPauseMs:110, botMinMs:580, botMaxMs:820 })
   });
   const paceProfile = () => isSolo() ? (PACE_PROFILES[r.soloPace] || PACE_PROFILES.balanced) : PACE_PROFILES.balanced;
-  // A single fixed, standard die is used for every roll. Physical face order:
-  // front, right, back, left, top, bottom. Opposite faces sum to seven.
-  const DIE_PHYSICAL_VALUES = Object.freeze([1,3,6,4,2,5]);
+
+  // CODE CLIMB v8 — one large canvas-rendered physical die. This replaces the
+  // stacked CSS-card cube used by earlier versions. The canvas renderer keeps a
+  // solid cube silhouette at every angle, gives each face real perspective and
+  // shading, and lands on the exact same authoritative value used for movement.
   const DIE_ROTATIONS = Object.freeze({
-    1: Object.freeze({x:0,y:0}),
-    2: Object.freeze({x:-90,y:0}),
-    3: Object.freeze({x:0,y:-90}),
-    4: Object.freeze({x:0,y:90}),
-    5: Object.freeze({x:90,y:0}),
-    6: Object.freeze({x:0,y:-180})
+    1: Object.freeze({x:0,y:0,z:0}),
+    2: Object.freeze({x:90,y:0,z:0}),
+    3: Object.freeze({x:0,y:-90,z:0}),
+    4: Object.freeze({x:0,y:90,z:0}),
+    5: Object.freeze({x:-90,y:0,z:0}),
+    6: Object.freeze({x:0,y:180,z:0})
   });
-  const pipMarkup = value => (DIE_PIPS[Math.max(1,Math.min(6,Number(value)||1))]||[]).map(pos=>`<i class="climb-pip pip-${pos}"></i>`).join('');
-  const dieFaceHtml = faceIndex => {
-    const value=DIE_PHYSICAL_VALUES[faceIndex-1]||1;
-    return `<div class="climb-die-face face-${faceIndex}" data-value="${value}">${pipMarkup(value)}</div>`;
-  };
-  const flatDieHtml = n => `<div class="climb-die-final" data-die-final data-value="${n}">${DIE_PIPS[n].map(pos=>`<i class="climb-pip pip-${pos}"></i>`).join('')}</div>`;
-  function restoreCubeFaces(die){
-    if(!die)return;
-    DIE_PHYSICAL_VALUES.forEach((value,index)=>{
-      const face=die.querySelector(`.face-${index+1}`);
-      if(!face)return;
-      face.dataset.value=String(value);
-      face.innerHTML=pipMarkup(value);
-    });
-    die.dataset.dieValue='';
-  }
-  function setDieTarget(die,value){
-    const target=DIE_ROTATIONS[Number(value)]||DIE_ROTATIONS[1];
-    die.style.setProperty('--die-final-x',`${target.x}deg`);
-    die.style.setProperty('--die-final-y',`${target.y}deg`);
-  }
-  function setVerifiedDieFace(finalFace,value){
-    if(!finalFace)return;
-    const roll=Math.max(1,Math.min(6,Number(value)||1));
-    finalFace.dataset.value=String(roll);
-    finalFace.innerHTML=DIE_PIPS[roll].map(pos=>`<i class="climb-pip pip-${pos}"></i>`).join('');
-  }
-  function dieTransform(value, extraX = 0, extraY = 0, extraZ = 0, lift = 0, scale = 1){
-    const target=DIE_ROTATIONS[Number(value)]||DIE_ROTATIONS[1];
-    return `translate3d(0,${lift}px,0) rotateX(${target.x+extraX}deg) rotateY(${target.y+extraY}deg) rotateZ(${extraZ}deg) scale(${scale})`;
-  }
+  const DEG = Math.PI / 180;
+  const DICE_FACES = Object.freeze([
+    Object.freeze({value:1,normal:[0,0,1],u:[1,0,0],v:[0,1,0],corners:[[-1,1,1],[1,1,1],[1,-1,1],[-1,-1,1]]}),
+    Object.freeze({value:3,normal:[1,0,0],u:[0,0,-1],v:[0,1,0],corners:[[1,1,-1],[1,1,1],[1,-1,1],[1,-1,-1]]}),
+    Object.freeze({value:6,normal:[0,0,-1],u:[-1,0,0],v:[0,1,0],corners:[[1,1,-1],[-1,1,-1],[-1,-1,-1],[1,-1,-1]]}),
+    Object.freeze({value:4,normal:[-1,0,0],u:[0,0,1],v:[0,1,0],corners:[[-1,1,1],[-1,1,-1],[-1,-1,-1],[-1,-1,1]]}),
+    Object.freeze({value:2,normal:[0,1,0],u:[1,0,0],v:[0,0,-1],corners:[[-1,1,-1],[1,1,-1],[1,1,1],[-1,1,1]]}),
+    Object.freeze({value:5,normal:[0,-1,0],u:[1,0,0],v:[0,0,1],corners:[[-1,-1,1],[1,-1,1],[1,-1,-1],[-1,-1,-1]]})
+  ]);
+  const DICE_GRID = Object.freeze([-0.52,0,0.52]);
+  let diceAnimationSerial = 0;
+  let diceRaf = 0;
 
-  async function playDiceTumble3D(die,value,duration){
-    const roll=Math.max(1,Math.min(6,Number(value)||1));
-    const target=DIE_ROTATIONS[roll]||DIE_ROTATIONS[1];
-    restoreCubeFaces(die);
-    die.dataset.dieValue=String(roll);
+  function stopDiceCanvasAnimation(){
+    diceAnimationSerial += 1;
+    if(diceRaf){cancelAnimationFrame(diceRaf);diceRaf=0;}
+  }
+  function clearDiceCanvas(canvas){
+    stopDiceCanvasAnimation();
+    if(!canvas)return;
+    const ctx=canvas.getContext?.('2d');
+    if(ctx){ctx.setTransform(1,0,0,1,0,0);ctx.clearRect(0,0,canvas.width||1,canvas.height||1);}
+  }
+  function fitDiceCanvas(canvas){
+    const rect=canvas.getBoundingClientRect();
+    const cssW=Math.max(2,rect.width||canvas.clientWidth||320);
+    const cssH=Math.max(2,rect.height||canvas.clientHeight||cssW);
+    const dpr=Math.min(2.25,Math.max(1,window.devicePixelRatio||1));
+    const pxW=Math.max(2,Math.round(cssW*dpr)),pxH=Math.max(2,Math.round(cssH*dpr));
+    if(canvas.width!==pxW||canvas.height!==pxH){canvas.width=pxW;canvas.height=pxH;}
+    const ctx=canvas.getContext('2d',{alpha:true});
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    ctx.clearRect(0,0,cssW,cssH);
+    return {ctx,w:cssW,h:cssH,dpr};
+  }
+  function rotate3(p,rx,ry,rz){
+    let [x,y,z]=p;
+    const cx=Math.cos(rx),sx=Math.sin(rx);let y1=y*cx-z*sx,z1=y*sx+z*cx;y=y1;z=z1;
+    const cy=Math.cos(ry),sy=Math.sin(ry);let x1=x*cy+z*sy,z2=-x*sy+z*cy;x=x1;z=z2;
+    const cz=Math.cos(rz),sz=Math.sin(rz);let x2=x*cz-y*sz,y2=x*sz+y*cz;
+    return [x2,y2,z];
+  }
+  function projectDicePoint(p,w,h,state){
+    const q=rotate3(p,state.rx,state.ry,state.rz);
+    const camera=5.0;
+    const perspective=camera/Math.max(2.35,camera-q[2]);
+    const unit=Math.min(w,h)*0.258*state.scale;
+    return {
+      x:w*.5+state.shiftX*w+q[0]*unit*perspective,
+      y:h*.5+state.lift*h-q[1]*unit*perspective,
+      z:q[2],k:perspective
+    };
+  }
+  function roundedQuadPath(ctx,pts,radius){
+    const n=pts.length;if(n<3)return;
+    const pair=(p,a,d)=>({x:p.x+(a.x-p.x)*d,y:p.y+(a.y-p.y)*d});
+    const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y)||1;
+    const points=[];
+    for(let i=0;i<n;i++){
+      const p=pts[i],prev=pts[(i+n-1)%n],next=pts[(i+1)%n];
+      const r=Math.min(radius,dist(p,prev)*.22,dist(p,next)*.22);
+      points.push({p,start:pair(p,prev,r/dist(p,prev)),end:pair(p,next,r/dist(p,next))});
+    }
+    ctx.beginPath();ctx.moveTo(points[0].start.x,points[0].start.y);
+    for(let i=0;i<n;i++){
+      const item=points[i];ctx.quadraticCurveTo(item.p.x,item.p.y,item.end.x,item.end.y);
+      const next=points[(i+1)%n];ctx.lineTo(next.start.x,next.start.y);
+    }
+    ctx.closePath();
+  }
+  function pipWorld(face,pos){
+    const index=Math.max(1,Math.min(9,Number(pos)||5))-1;
+    const gx=DICE_GRID[index%3],gy=DICE_GRID[Math.floor(index/3)];
+    const n=face.normal,u=face.u,v=face.v;
+    return [
+      n[0]*1.012+u[0]*gx+v[0]*gy,
+      n[1]*1.012+u[1]*gx+v[1]*gy,
+      n[2]*1.012+u[2]*gx+v[2]*gy
+    ];
+  }
+  function renderDiceCanvas(canvas,state){
+    if(!canvas)return;
+    const {ctx,w,h}=fitDiceCanvas(canvas);
+    const s=Object.assign({rx:.42,ry:-.58,rz:.12,lift:0,shiftX:0,scale:1,shadowScale:1,shadowAlpha:.33},state||{});
 
-    const reduced=window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
-    if(reduced||!die.animate){
-      die.className='climb-die landed-3d';
-      die.style.transform=`rotateX(${target.x}deg) rotateY(${target.y}deg) rotateZ(0deg)`;
-      await sleep(Math.min(180,Math.max(0,Number(duration)||0)));
-      return;
+    // Ground shadow: independent from the cube, so the die visibly leaves and
+    // returns to a surface instead of looking like a flat icon spinning in place.
+    const shadowX=w*.5+s.shiftX*w*.55,shadowY=h*.765;
+    const shadowW=w*.29*s.scale*Math.max(.48,s.shadowScale),shadowH=h*.052*s.scale*Math.max(.56,s.shadowScale);
+    ctx.save();ctx.globalAlpha=Math.max(0,Math.min(.5,s.shadowAlpha));ctx.filter=`blur(${Math.max(3,w*.014)}px)`;
+    const sg=ctx.createRadialGradient(shadowX,shadowY,0,shadowX,shadowY,shadowW*.54);
+    sg.addColorStop(0,'rgba(2,6,23,.72)');sg.addColorStop(.68,'rgba(2,6,23,.34)');sg.addColorStop(1,'rgba(2,6,23,0)');
+    ctx.fillStyle=sg;ctx.beginPath();ctx.ellipse(shadowX,shadowY,shadowW,shadowH,0,0,Math.PI*2);ctx.fill();ctx.restore();
+
+    const light=[-.36,.52,.78];
+    const faces=DICE_FACES.map(face=>{
+      const normal=rotate3(face.normal,s.rx,s.ry,s.rz);
+      const points=face.corners.map(p=>projectDicePoint(p,w,h,s));
+      const avgZ=points.reduce((sum,p)=>sum+p.z,0)/points.length;
+      return {face,normal,points,avgZ};
+    }).filter(row=>row.normal[2]>.015).sort((a,b)=>a.avgZ-b.avgZ);
+
+    for(const row of faces){
+      const pts=row.points;
+      const xs=pts.map(p=>p.x),ys=pts.map(p=>p.y),minX=Math.min(...xs),maxX=Math.max(...xs),minY=Math.min(...ys),maxY=Math.max(...ys);
+      const dot=Math.max(-1,Math.min(1,row.normal[0]*light[0]+row.normal[1]*light[1]+row.normal[2]*light[2]));
+      const shade=Math.max(.76,Math.min(1.04,.89+dot*.12));
+      const lo=Math.round(224*shade),mid=Math.round(240*shade),hi=Math.round(252*Math.min(1.02,shade+.06));
+      const grad=ctx.createLinearGradient(minX,minY,maxX,maxY);
+      grad.addColorStop(0,`rgb(${Math.min(255,hi)},${Math.min(255,hi)},255)`);
+      grad.addColorStop(.48,`rgb(${Math.min(255,mid)},${Math.min(255,mid+4)},${Math.min(255,mid+10)})`);
+      grad.addColorStop(1,`rgb(${Math.min(255,lo)},${Math.min(255,lo+8)},${Math.min(255,lo+17)})`);
+      const edge=Math.max(4,Math.min(w,h)*.018);
+      roundedQuadPath(ctx,pts,edge);
+      ctx.save();ctx.fillStyle=grad;ctx.shadowColor='rgba(15,23,42,.16)';ctx.shadowBlur=Math.max(3,w*.012);ctx.fill();ctx.restore();
+      roundedQuadPath(ctx,pts,edge);
+      ctx.lineJoin='round';ctx.lineWidth=Math.max(1.1,w*.0042);ctx.strokeStyle='rgba(255,255,255,.82)';ctx.stroke();
+      roundedQuadPath(ctx,pts,edge*.75);
+      const gloss=ctx.createLinearGradient(minX,minY,maxX,maxY);
+      gloss.addColorStop(0,'rgba(255,255,255,.28)');gloss.addColorStop(.42,'rgba(255,255,255,.06)');gloss.addColorStop(1,'rgba(125,160,195,.05)');
+      ctx.fillStyle=gloss;ctx.fill();
+
+      // Perspective-aware pips: project the center plus both local face axes so
+      // circles gently compress when a face turns away from the camera.
+      const value=row.face.value;
+      for(const pos of (DIE_PIPS[value]||[])){
+        const world=pipWorld(row.face,pos),center=projectDicePoint(world,w,h,s);
+        const uWorld=[world[0]+row.face.u[0]*.112,world[1]+row.face.u[1]*.112,world[2]+row.face.u[2]*.112];
+        const vWorld=[world[0]+row.face.v[0]*.112,world[1]+row.face.v[1]*.112,world[2]+row.face.v[2]*.112];
+        const pu=projectDicePoint(uWorld,w,h,s),pv=projectDicePoint(vWorld,w,h,s);
+        const rx=Math.max(2.2,Math.hypot(pu.x-center.x,pu.y-center.y));
+        const ry=Math.max(2.0,Math.hypot(pv.x-center.x,pv.y-center.y));
+        const angle=Math.atan2(pu.y-center.y,pu.x-center.x);
+        ctx.save();ctx.translate(center.x,center.y);ctx.rotate(angle);
+        ctx.shadowColor='rgba(15,23,42,.25)';ctx.shadowBlur=Math.max(1.5,w*.004);ctx.shadowOffsetY=Math.max(1,w*.0025);
+        const pg=ctx.createRadialGradient(-rx*.25,-ry*.28,Math.min(rx,ry)*.08,0,0,Math.max(rx,ry));
+        pg.addColorStop(0,'#475569');pg.addColorStop(.34,'#1e293b');pg.addColorStop(1,'#020617');
+        ctx.fillStyle=pg;ctx.beginPath();ctx.ellipse(0,0,rx,ry,0,0,Math.PI*2);ctx.fill();ctx.restore();
+      }
     }
 
-    try{die.getAnimations?.().forEach(a=>a.cancel());}catch(_){}
-    const shell=die.closest('.climb-die-shell');
-    const rollMs=Math.max(900,Number(duration)||2100);
-    if(shell){shell.classList.add('is-rolling');shell.style.setProperty('--dice-roll-ms',`${rollMs}ms`);}
-    die.className='climb-die tumbling-3d';
-    die.style.transform='';
-    void die.offsetWidth;
-
-    // Reference-style throw: one high floating tumble, a soft first impact,
-    // a small rebound, then a slow exact-face settle. Rotation only controls
-    // presentation; the authoritative roll value above controls the landing.
-    const dirX=roll%2===0?-1:1;
-    const dirY=roll%3===0?1:-1;
-    const dirZ=(roll===2||roll===5)?-1:1;
-    const spinX=(3+(roll%2))*360*dirX;
-    const spinY=(3+(roll%3===0?1:0))*360*dirY;
-    const spinZ=2*360*dirZ;
-    const frame=(offset,progress,lift,xShift,scale)=>({
-      offset,
-      transform:`translate3d(${xShift}px,${lift}px,0) rotateX(${18+(spinX+target.x-18)*progress}deg) rotateY(${-24+(spinY+target.y+24)*progress}deg) rotateZ(${spinZ*progress}deg) scale(${scale})`
+    // A soft highlight across the whole die makes the large render read as one
+    // glossy physical object rather than several independent CSS cards.
+    ctx.save();ctx.globalCompositeOperation='screen';ctx.globalAlpha=.12;
+    const glow=ctx.createRadialGradient(w*.38,h*.31,0,w*.45,h*.42,w*.38);
+    glow.addColorStop(0,'rgba(255,255,255,.75)');glow.addColorStop(.55,'rgba(255,255,255,.08)');glow.addColorStop(1,'rgba(255,255,255,0)');
+    ctx.fillStyle=glow;ctx.fillRect(0,0,w,h);ctx.restore();
+  }
+  function diceFinalState(value){
+    const target=DIE_ROTATIONS[Math.max(1,Math.min(6,Number(value)||1))]||DIE_ROTATIONS[1];
+    return {rx:target.x*DEG,ry:target.y*DEG,rz:0,lift:0,shiftX:0,scale:1,shadowScale:1,shadowAlpha:.34};
+  }
+  function sampleMotion(points,t){
+    if(t<=points[0][0])return points[0][1];
+    for(let i=1;i<points.length;i++){
+      if(t<=points[i][0]){
+        const a=points[i-1],b=points[i],span=Math.max(.0001,b[0]-a[0]),u=(t-a[0])/span,e=u*u*(3-2*u);
+        return a[1]+(b[1]-a[1])*e;
+      }
+    }
+    return points[points.length-1][1];
+  }
+  function diceTumbleState(value,t){
+    const roll=Math.max(1,Math.min(6,Number(value)||1));
+    const target=DIE_ROTATIONS[roll]||DIE_ROTATIONS[1];
+    const dirX=roll%2===0?-1:1,dirY=roll%3===0?1:-1,dirZ=(roll===2||roll===5)?-1:1;
+    const remain=Math.pow(Math.max(0,1-t),1.48),settle=Math.pow(Math.max(0,1-t),2.25);
+    const turnsX=(3+(roll%2))*Math.PI*2*dirX,turnsY=(4+(roll%3===0?1:0))*Math.PI*2*dirY,turnsZ=2*Math.PI*2*dirZ;
+    const rx=target.x*DEG+(turnsX+.62*dirX)*remain;
+    const ry=target.y*DEG+(turnsY-.78*dirY)*remain;
+    const rz=target.z*DEG+(turnsZ+.28*dirZ)*remain*.88+.05*dirZ*settle;
+    const lift=sampleMotion([[0,.045],[.11,-.01],[.29,-.175],[.50,-.12],[.68,-.038],[.775,.012],[.855,-.048],[.94,.006],[1,0]],t);
+    const shiftX=sampleMotion([[0,-.018*dirX],[.26,.018*dirX],[.50,-.014*dirX],[.76,.009*dirX],[1,0]],t);
+    const scale=sampleMotion([[0,.88],[.14,.96],[.31,1.035],[.57,1.015],[.775,.965],[.855,1.018],[.94,.994],[1,1]],t);
+    const air=Math.max(0,Math.min(1,-lift/.175));
+    let shadowScale=1-air*.48,shadowAlpha=.34-air*.18;
+    if(t>.73&&t<.82){const impact=1-Math.abs(.775-t)/.045;shadowScale+=Math.max(0,impact)*.10;shadowAlpha+=Math.max(0,impact)*.09;}
+    return {rx,ry,rz,lift,shiftX,scale,shadowScale,shadowAlpha};
+  }
+  function renderDiceFinal(canvas,value){
+    stopDiceCanvasAnimation();
+    renderDiceCanvas(canvas,diceFinalState(value));
+    canvas.dataset.dieValue=String(Math.max(1,Math.min(6,Number(value)||1)));
+  }
+  function startDiceAnticipationCanvas(canvas){
+    if(!canvas)return;
+    stopDiceCanvasAnimation();
+    const serial=diceAnimationSerial;
+    const started=performance.now();
+    const loop=now=>{
+      if(serial!==diceAnimationSerial)return;
+      const sec=(now-started)/1000;
+      renderDiceCanvas(canvas,{
+        rx:.48+sec*2.25,
+        ry:-.62+sec*2.85,
+        rz:.12+Math.sin(sec*2.4)*.16,
+        lift:-.022-Math.sin(sec*3.1)*.012,
+        shiftX:Math.sin(sec*1.7)*.008,
+        scale:.94+Math.sin(sec*3.1)*.018,
+        shadowScale:.78+Math.sin(sec*3.1)*.05,
+        shadowAlpha:.25
+      });
+      diceRaf=requestAnimationFrame(loop);
+    };
+    diceRaf=requestAnimationFrame(loop);
+  }
+  async function playDiceTumbleCanvas(canvas,value,duration){
+    const roll=Math.max(1,Math.min(6,Number(value)||1));
+    if(!canvas)return;
+    stopDiceCanvasAnimation();
+    const reduced=window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+    if(reduced){renderDiceFinal(canvas,roll);await sleep(Math.min(140,Math.max(0,Number(duration)||0)));return;}
+    const serial=diceAnimationSerial;
+    const rollMs=Math.max(1000,Number(duration)||2100);
+    await new Promise(resolve=>{
+      const started=performance.now();
+      const frame=now=>{
+        if(serial!==diceAnimationSerial){resolve();return;}
+        const t=Math.max(0,Math.min(1,(now-started)/rollMs));
+        renderDiceCanvas(canvas,diceTumbleState(roll,t));
+        if(t>=1){diceRaf=0;canvas.dataset.dieValue=String(roll);resolve();return;}
+        diceRaf=requestAnimationFrame(frame);
+      };
+      diceRaf=requestAnimationFrame(frame);
     });
-    const frames=[
-      frame(0,0,7,0,.90),
-      frame(.10,.16,-7,-2,.96),
-      frame(.27,.40,-29,4,1.055),
-      frame(.47,.67,-19,-3,1.04),
-      frame(.65,.86,-7,2,1.018),
-      frame(.77,.955,2,0,.985),
-      frame(.86,.982,-6,-1,1.012),
-      frame(.94,.995,1,0,.997),
-      frame(1,1,0,0,1)
-    ];
-    const animation=die.animate(frames,{duration:rollMs,easing:'cubic-bezier(.14,.72,.16,1)',fill:'forwards'});
-    try{await animation.finished;}catch(_){}
-
-    const finalTransform=`rotateX(${target.x}deg) rotateY(${target.y}deg) rotateZ(0deg)`;
-    die.className='climb-die landed-3d';
-    die.style.transform=finalTransform;
-    try{animation.cancel();}catch(_){}
-    if(shell){shell.classList.remove('is-rolling');shell.style.removeProperty('--dice-roll-ms');}
+    if(serial===diceAnimationSerial)renderDiceCanvas(canvas,diceFinalState(roll));
   }
 
 
@@ -229,7 +371,7 @@
                   <div class="climb-board-turn-cue" data-board-turn-cue><small data-board-turn-kicker>YOUR TURN</small><strong data-board-turn-name>ROLL THE DICE</strong></div>
                   <div class="climb-board-dice-overlay" data-board-dice hidden>
                     <div class="climb-board-dice-backdrop"></div>
-                    <div class="climb-dice-stage"><small data-dice-player>YOUR ROLL</small><div class="climb-die-shell"><div class="climb-die show-1" data-die>${[1,2,3,4,5,6].map(dieFaceHtml).join('')}</div></div><strong data-dice-result>ROLLING…</strong></div>
+                    <div class="climb-dice-stage"><small data-dice-player>YOUR ROLL</small><div class="climb-die-shell"><canvas class="climb-die-canvas" data-die aria-label="Rolling dice"></canvas></div><strong data-dice-result>ROLLING…</strong></div>
                   </div>
                 </div>
                 <aside class="climb-control-card" data-control-card>
@@ -602,16 +744,16 @@
 
   function resetRollPipeline(){
     clearTimeout(r.rollRequestTimer);r.rollRequestTimer=0;r.rollQueue=[];r.processingRollQueue=false;r.lastAppliedRollSeq=0;r.localRollPending=false;r.diceAnticipationAt=0;r.animationBusy=false;r.turnCueSeat=-1;
-    const overlay=$('[data-board-dice]'),die=$('[data-die]'),finalFace=$('[data-die-final]');if(overlay){overlay.hidden=true;overlay.classList.remove('show','landed','hiding','anticipating');}if(die){die.className='climb-die';die.style.animationDuration='';die.style.removeProperty('--dice-roll-ms');restoreCubeFaces(die);die.style.transform='rotateX(0deg) rotateY(0deg) rotateZ(0deg)';}if(finalFace){setVerifiedDieFace(finalFace,1);finalFace.classList.remove('visible');}
+    const overlay=$('[data-board-dice]'),die=$('[data-die]');if(overlay){overlay.hidden=true;overlay.classList.remove('show','landed','hiding','anticipating');}if(die)clearDiceCanvas(die);
   }
   function cancelLocalRollPending(message=''){
     clearTimeout(r.rollRequestTimer);r.rollRequestTimer=0;r.localRollPending=false;r.diceAnticipationAt=0;
-    const overlay=$('[data-board-dice]'),die=$('[data-die]'),finalFace=$('[data-die-final]');if(overlay){overlay.classList.add('hiding');setTimeout(()=>{if(!r.localRollPending){overlay.hidden=true;overlay.classList.remove('show','landed','hiding','anticipating');if(die){die.className='climb-die';die.style.animationDuration='';die.style.removeProperty('--dice-roll-ms');restoreCubeFaces(die);die.style.transform='rotateX(0deg) rotateY(0deg) rotateZ(0deg)';}if(finalFace){setVerifiedDieFace(finalFace,1);finalFace.classList.remove('visible');}}},170);}
+    const overlay=$('[data-board-dice]'),die=$('[data-die]');stopDiceCanvasAnimation();if(overlay){overlay.classList.add('hiding');setTimeout(()=>{if(!r.localRollPending){overlay.hidden=true;overlay.classList.remove('show','landed','hiding','anticipating');if(die)clearDiceCanvas(die);}},170);}
     if(message)toast(message);renderGame();
   }
   function startDiceAnticipation(seat){
-    const overlay=$('[data-board-dice]'),die=$('[data-die]'),finalFace=$('[data-die-final]'),label=$('[data-dice-player]'),result=$('[data-dice-result]');if(!overlay||!die)return;
-    const p=playerAt(seat),mine=seat===r.localSeat,color=COLORS[seat]?.hex||'#38bdf8';overlay.hidden=false;overlay.style.setProperty('--turn',color);overlay.classList.remove('hiding','landed');overlay.classList.add('show','anticipating');if(finalFace)finalFace.classList.remove('visible');restoreCubeFaces(die);die.style.animationDuration='';die.style.removeProperty('--dice-roll-ms');die.className='climb-die anticipating';if(label)label.textContent=mine?'YOUR ROLL':`${String(p?.name||'PLAYER').toUpperCase()} ROLLS`;if(result)result.textContent='ROLLING…';r.diceAnticipationAt=performance.now();sfx('dice');
+    const overlay=$('[data-board-dice]'),die=$('[data-die]'),label=$('[data-dice-player]'),result=$('[data-dice-result]');if(!overlay||!die)return;
+    const p=playerAt(seat),mine=seat===r.localSeat,color=COLORS[seat]?.hex||'#38bdf8';overlay.hidden=false;overlay.style.setProperty('--turn',color);overlay.classList.remove('hiding','landed');overlay.classList.add('show','anticipating');startDiceAnticipationCanvas(die);if(label)label.textContent=mine?'YOUR ROLL':`${String(p?.name||'PLAYER').toUpperCase()} ROLLS`;if(result)result.textContent='ROLLING…';r.diceAnticipationAt=performance.now();sfx('dice');
   }
   function requestRoll(){
     if(r.animationBusy||r.localRollPending||!r.game||r.game.status!=='playing')return;if(r.game.turnSeat!==r.localSeat)return;
@@ -705,7 +847,7 @@
     if(result)result.textContent='ROLLING…';
     if(!hadAnticipation)sfx('dice');
 
-    await playDiceTumble3D(die,roll,pace.diceRollMs);
+    await playDiceTumbleCanvas(die,roll,pace.diceRollMs);
 
     // One authoritative value drives the final cube orientation, result text,
     // LAST ROLL, and movement event. The cube is never repainted at landing.
@@ -734,13 +876,13 @@
   function ac(){if(r.audio)return r.audio;try{r.audio=new (window.AudioContext||window.webkitAudioContext)();}catch(_){}return r.audio;}
   function sfx(kind){if(r.bridge?.getSnapshot?.()?.soundEnabled===false)return;const a=ac();if(!a)return;try{if(a.state==='suspended')a.resume();const map={dice:[190,310,.18],land:[120,90,.12],step:[520,610,.055],ladder:[520,880,.28],snake:[220,90,.35],win:[660,990,.5],join:[520,740,.22],start:[440,780,.28],blocked:[180,150,.16]},m=map[kind]||[420,520,.12],o=a.createOscillator(),g=a.createGain();o.type=kind==='snake'?'sawtooth':'triangle';o.frequency.setValueAtTime(m[0],a.currentTime);o.frequency.exponentialRampToValueAtTime(Math.max(40,m[1]),a.currentTime+m[2]);g.gain.setValueAtTime(.0001,a.currentTime);g.gain.exponentialRampToValueAtTime(.13,a.currentTime+.008);g.gain.exponentialRampToValueAtTime(.0001,a.currentTime+m[2]);o.connect(g).connect(a.destination);o.start();o.stop(a.currentTime+m[2]+.03);}catch(_){} }
 
-  function clearNetwork(){clearTimeout(r.signalTimer);clearInterval(r.roomTouchTimer);clearTimeout(r.inviteTimer);clearTimeout(r.botTimer);clearTimeout(r.rollRequestTimer);r.signalTimer=r.roomTouchTimer=r.inviteTimer=r.botTimer=r.rollRequestTimer=0;r.rollQueue=[];r.processingRollQueue=false;r.localRollPending=false;r.diceAnticipationAt=0;for(const peer of r.peers.values())try{peer.session?.close();}catch(_){}r.peers.clear();try{r.guestSession?.close();}catch(_){}r.guestSession=null;r.seatByUid.clear();closeScanner();hideDisconnect();}
+  function clearNetwork(){stopDiceCanvasAnimation();clearTimeout(r.signalTimer);clearInterval(r.roomTouchTimer);clearTimeout(r.inviteTimer);clearTimeout(r.botTimer);clearTimeout(r.rollRequestTimer);r.signalTimer=r.roomTouchTimer=r.inviteTimer=r.botTimer=r.rollRequestTimer=0;r.rollQueue=[];r.processingRollQueue=false;r.localRollPending=false;r.diceAnticipationAt=0;for(const peer of r.peers.values())try{peer.session?.close();}catch(_){}r.peers.clear();try{r.guestSession?.close();}catch(_){}r.guestSession=null;r.seatByUid.clear();closeScanner();hideDisconnect();}
   async function leaveRoomToHome(){const room=r.roomCode,host=isHost();if(host)broadcast({t:'exit'});else r.guestSession?.send({t:'leave'});clearNetwork();if(room&&r.bridge?.leaveCodeClimbRoom)r.bridge.leaveCodeClimbRoom({roomCode:room,closeRoom:host}).catch(()=>{});r.role='';r.roomCode='';r.roomMeta=null;r.players=[];r.game=null;r.visualPositions=[0,0,0,0];r.lastAppliedRollSeq=0;r.turnCueSeat=-1;show('home');}
   function returnHub(){const cb=r.onBack;close(false);cb?.();}
   function close(call=true){if(!r.open)return;r.closing=true;const room=r.roomCode,host=isHost();if(host)broadcast({t:'exit'});else r.guestSession?.send({t:'leave'});clearNetwork();if(room&&r.bridge?.leaveCodeClimbRoom)r.bridge.leaveCodeClimbRoom({roomCode:room,closeRoom:host}).catch(()=>{});r.open=false;r.overlay.hidden=true;document.body.classList.remove('code-climb-active');r.role='';r.roomCode='';r.players=[];r.game=null;r.lastAppliedRollSeq=0;r.turnCueSeat=-1;r.closing=false;if(call)r.onClose?.();}
   function open(options={}){build();r.bridge=options.bridge||null;r.music=options.music||null;r.onBack=options.onBack||null;r.onClose=options.onClose||null;r.open=true;r.overlay.hidden=false;document.body.classList.add('code-climb-active');clearNetwork();r.role='';r.roomCode='';r.players=[];r.game=null;r.visualPositions=[0,0,0,0];r.lastAppliedRollSeq=0;r.turnCueSeat=-1;const id=identity();if(id.name){$('[data-solo-name]').value=id.name;$('[data-host-name]').value=id.name;$('[data-guest-name]').value=id.name;}$('[data-sound]').textContent=r.bridge?.getSnapshot?.()?.soundEnabled===false?'🔇':'🔊';show('home');}
 
   // Small deterministic helpers exposed for regression tests.
-  const debug=Object.freeze({cellCenter,snakeGeometry,snakePoint,diePips:value=>[...(DIE_PIPS[Math.max(1,Math.min(6,Number(value)||1))]||[])],dieRotation:value=>({...DIE_ROTATIONS[Math.max(1,Math.min(6,Number(value)||1))]}),makeRollEvent:(players,game,seat,value)=>{const saveP=r.players,saveG=r.game;r.players=JSON.parse(JSON.stringify(players));r.game={...game};const out=makeRollEvent(seat,value);r.players=saveP;r.game=saveG;return out;},enqueueRollEvent,snapshot:()=>({players:JSON.parse(JSON.stringify(r.players)),game:r.game?{...r.game}:null,visualPositions:[...r.visualPositions],animationBusy:r.animationBusy,lastAppliedRollSeq:r.lastAppliedRollSeq,queued:r.rollQueue.map(x=>Number(x.seq||0)),localRollPending:r.localRollPending}),ladders:LADDERS,snakes:SNAKES});
+  const debug=Object.freeze({cellCenter,snakeGeometry,snakePoint,diePips:value=>[...(DIE_PIPS[Math.max(1,Math.min(6,Number(value)||1))]||[])],dieRotation:value=>({...DIE_ROTATIONS[Math.max(1,Math.min(6,Number(value)||1))]}),renderDicePreview:(canvas,value,progress=1)=>{const t=Math.max(0,Math.min(1,Number(progress)));renderDiceCanvas(canvas,t>=1?diceFinalState(value):diceTumbleState(value,t));return String(Math.max(1,Math.min(6,Number(value)||1)));},makeRollEvent:(players,game,seat,value)=>{const saveP=r.players,saveG=r.game;r.players=JSON.parse(JSON.stringify(players));r.game={...game};const out=makeRollEvent(seat,value);r.players=saveP;r.game=saveG;return out;},enqueueRollEvent,snapshot:()=>({players:JSON.parse(JSON.stringify(r.players)),game:r.game?{...r.game}:null,visualPositions:[...r.visualPositions],animationBusy:r.animationBusy,lastAppliedRollSeq:r.lastAppliedRollSeq,queued:r.rollQueue.map(x=>Number(x.seq||0)),localRollPending:r.localRollPending}),ladders:LADDERS,snakes:SNAKES});
   window[GLOBAL_NAME]=Object.freeze({open,close:()=>close(true),isOpen:()=>r.open,_debug:debug});
 })();

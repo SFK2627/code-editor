@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const ASSET_VERSION = '20260913-v4761-climb-dice-reference-v7';
+  const ASSET_VERSION = '20260913-v477-climb-cinematic-dice-v8';
 
   const GAME_REGISTRY = Object.freeze([
     {

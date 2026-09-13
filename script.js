@@ -35603,16 +35603,11 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
       document.webkitFullscreenElement === editorPanel
     ));
 
-    // On phones, keep collaboration dialogs attached to <body> unless the
-    // browser is in real fullscreen. The phone editor also uses the
-    // editor-fullscreen-active class for layout, which can otherwise trap or
-    // clip the Share/Join dialog inside the editor panel.
-    if (isCollabPhoneUi()) return realFullscreen;
-
-    return Boolean(editorPanel && (
-      realFullscreen ||
-      document.body.classList.contains('editor-fullscreen-active')
-    ));
+    // Only native fullscreen needs the dialog mounted inside #editorPanel.
+    // CSS-only Full Editor modes (phone OR desktop) must keep overlays on
+    // <body>; otherwise an overflow/stacking context on the editor can make a
+    // correctly-opened Share/Join dialog look like nothing happened.
+    return realFullscreen;
   }
 
   function getCollabOverlayHost() {
@@ -35755,6 +35750,13 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
       button.title = 'Share or join this project';
       button.style.touchAction = 'manipulation';
       button.style.pointerEvents = 'auto';
+    }
+
+    // Re-bind safely even when another responsive/layout pass preserved or
+    // replaced the visible button. Phone already had a delegated fallback;
+    // desktop previously depended on this one listener surviving forever.
+    if (button.dataset.collabOpenBound !== 'true') {
+      button.dataset.collabOpenBound = 'true';
       button.addEventListener('click', openCollabOverlay);
     }
 
@@ -36915,6 +36917,30 @@ They can join again later using the same share code.`,
   }
 
   document.addEventListener('click', openPhoneCollabFromButton, true);
+
+  // Desktop reliability counterpart to the phone hardening above. The editor
+  // toolbar is dynamically reconciled/repositioned, so own the desktop click
+  // from capture phase as a final fallback. This does not change Share/Join
+  // permissions or session logic; it only guarantees that a visible enabled
+  // button reaches openCollabOverlay().
+  let lastDesktopCollabOpenAt = 0;
+  function openDesktopCollabFromButton(event) {
+    const button = event.target?.closest?.('#collabShareBtn');
+    if (!button || isCollabPhoneUi()) return;
+    if (button.disabled || button.classList.contains('hidden') || !isCollaborationEnabled() || !getCollabStudent()) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation?.();
+
+    const now = Date.now();
+    if (now - lastDesktopCollabOpenAt < 280) return;
+    lastDesktopCollabOpenAt = now;
+
+    openCollabOverlay();
+  }
+
+  document.addEventListener('click', openDesktopCollabFromButton, true);
 
   function rerenderCollabCursorsAfterLocalFileFocusChange() {
     window.setTimeout(() => renderCollabCursors(collabState.latestSession), 30);

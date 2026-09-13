@@ -65605,3 +65605,31 @@ html[data-theme="dark"] .code-explorer-admin-music-pill.off {
 
 /* v469 Admin project cache refresh control */
 .admin-student-projects-header-actions{display:flex;align-items:center;gap:8px;flex:0 0 auto}
+
+
+/* =========================================================
+   v478 DESKTOP SHARE/JOIN RELIABILITY
+   Keep the editor Share/Join control above non-interactive toolbar layers and
+   make nested label/icon clicks resolve to the button itself. Phone keeps its
+   existing dedicated hardening rules.
+   ========================================================= */
+@media (min-width: 821px) {
+  html:not([data-device-mode="phone"]) body.student-session-active #collabShareBtn.collab-share-btn:not(.hidden) {
+    position: relative !important;
+    z-index: 120 !important;
+    pointer-events: auto !important;
+    touch-action: manipulation !important;
+    cursor: pointer !important;
+  }
+
+  html:not([data-device-mode="phone"]) body.student-session-active #collabShareBtn.collab-share-btn:not(.hidden) > * {
+    pointer-events: none !important;
+  }
+
+  html:not([data-device-mode="phone"]) .collab-overlay:not(.hidden),
+  html:not([data-device-mode="phone"]) .collab-members-overlay:not(.hidden) {
+    visibility: visible !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+  }
+}
