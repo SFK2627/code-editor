@@ -171,6 +171,10 @@
     soundEnabled: true,
     audioContext: null,
     masterGain: null,
+    backingGain: null,
+    backingIndex: 0,
+    backingStarted: false,
+    backingVoices: new Set(),
     voices: new Map(),
     raf: 0,
     resizeObserver: null,
@@ -499,6 +503,7 @@
       const longH = isHold ? (i % 2 ? LONG_H_LARGE : LONG_H_SMALL) : SHORT_H;
       const bonusTicks = isHold ? (longH >= LONG_H_LARGE ? 4 : 3) : 0;
       const songNote = song[i] || song[0] || { midi:72, freq:midiToFreq(72), harmonyFreqs:[], gainScale:1, releaseSec:.32, brightness:1, phrasePos:0 };
+      const bgTriggerScroll = cumulative;
       const note = {
         id: i,
         lane,
@@ -520,7 +525,8 @@
         gainScale: songNote.gainScale,
         releaseSec: songNote.releaseSec,
         brightness: songNote.brightness,
-        phrasePos: songNote.phrasePos
+        phrasePos: songNote.phrasePos,
+        bgTriggerScroll
       };
       chart.push(note);
       cumulative += isHold ? longH + HOLD_EXIT_GAP : SHORT_H + SHORT_GAP;
@@ -568,6 +574,9 @@
     try { runtime.round = runtime.bridge?.beginRound?.(GAME_ID) || null; } catch (_) { runtime.round = null; }
     const runSeed = runtime.round?.sessionId || `${Date.now()}-${Math.random()}`;
     buildChart(`${runSeed}-level-${runtime.level}`);
+    stopBackingTrack(true);
+    runtime.backingIndex = 0;
+    runtime.backingStarted = false;
     runtime.nextIndex = 0;
     runtime.scroll = 0;
     runtime.motionStarted = false;
@@ -599,6 +608,7 @@
     runtime.progressEl.style.transform = 'scaleX(0)';
     runtime.checkpointEls.forEach(el => el.classList.remove('reached'));
     ensureAudio();
+    restoreBackingGain();
     if (!runtime.raf) runtime.raf = requestAnimationFrame(loop);
   }
 
@@ -631,6 +641,7 @@
     if (runtime.motionStarted) {
       runtime.activeTimeMs += logicalDtMs;
       runtime.scroll += speedNow() * logicalDtMs / 1000;
+      updateBackingTrack();
     }
 
     for (const tile of runtime.activeHolds.values()) {
@@ -860,6 +871,7 @@
   async function finishRun() {
     if (runtime.state !== 'playing') return;
     runtime.state = 'result';
+    stopBackingTrack(false);
     stopAllVoices(true);
     runtime.motionStarted = false;
     const accuracy = accuracyPercent();
@@ -954,6 +966,7 @@
     // Keep the board visible for the impact animation. The result panel is
     // deliberately delayed so the player can SEE what caused the failure.
     runtime.failPanel.hidden = true;
+    stopBackingTrack(false);
     stopAllVoices(false);
     runtime.activeHolds.clear();
     runtime.pointerOwners.clear();
@@ -1284,19 +1297,24 @@
       if (!AudioCtx) return null;
       const context = new AudioCtx();
       const master = context.createGain();
+      const backing = context.createGain();
       const compressor = context.createDynamicsCompressor();
-      // Code Tiles is intentionally louder than before for phone speakers.
-      // The compressor preserves headroom when fast notes overlap.
+      // Foreground tile notes stay strong. The backing track uses its own lower
+      // bus so it sounds like the classical piece underneath the taps instead
+      // of overpowering the player's piano accents.
       master.gain.value = .48;
+      backing.gain.value = .24;
       compressor.threshold.value = -14;
       compressor.knee.value = 12;
       compressor.ratio.value = 4;
       compressor.attack.value = .003;
       compressor.release.value = .18;
       master.connect(compressor);
+      backing.connect(compressor);
       compressor.connect(context.destination);
       runtime.audioContext = context;
       runtime.masterGain = master;
+      runtime.backingGain = backing;
       runtime.compressor = compressor;
       return context;
     } catch (_) {
@@ -1310,6 +1328,115 @@
 
   function suspendAudio() {
     try { runtime.audioContext?.suspend?.(); } catch (_) {}
+  }
+
+  function backingDurationFor(tile, index) {
+    const next = runtime.chart[index + 1];
+    if (!next) return tile?.isHold ? .72 : .42;
+    const distance = Math.max(80, Number(next.bgTriggerScroll || 0) - Number(tile.bgTriggerScroll || 0));
+    const seconds = distance / Math.max(1, speedNow());
+    return clamp(seconds * .96, tile?.isHold ? .48 : .18, tile?.isHold ? 1.15 : .62);
+  }
+
+  function playBackingPianoNote(tile, index) {
+    if (!runtime.soundEnabled || !tile) return;
+    const context = ensureAudio();
+    if (!context || !runtime.backingGain) return;
+    resumeAudio();
+    const now = context.currentTime;
+    const duration = backingDurationFor(tile, index);
+    const baseFreq = Number(tile.freq || midiToFreq(72));
+    const profile = songProfile();
+    const phrasePos = Number(tile.phrasePos || 0);
+    try {
+      const noteBus = context.createGain();
+      const filter = context.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(2050 * clamp(Number(tile.brightness || 1), .85, 1.3), now);
+      filter.Q.value = .38;
+      noteBus.gain.setValueAtTime(.0001, now);
+      noteBus.gain.linearRampToValueAtTime(.20, now + .010);
+      noteBus.gain.exponentialRampToValueAtTime(.115, now + .09);
+      noteBus.gain.exponentialRampToValueAtTime(.0001, now + duration);
+      filter.connect(noteBus);
+      noteBus.connect(runtime.backingGain);
+
+      const nodes = [];
+      const add = (freq, type, gainValue, detune = 0) => {
+        const osc = context.createOscillator();
+        const gain = context.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, now);
+        if (detune) osc.detune.setValueAtTime(detune, now);
+        gain.gain.setValueAtTime(gainValue, now);
+        osc.connect(gain);
+        gain.connect(filter);
+        osc.start(now);
+        osc.stop(now + duration + .08);
+        nodes.push({ osc, gain });
+      };
+
+      // Soft right-hand melody: this is the continuous recognizable piece.
+      add(baseFreq, 'triangle', .62);
+      add(baseFreq * 2, 'sine', .12, -2);
+
+      // Light left-hand/accompaniment accents make the backing feel like an
+      // actual piano rendition while keeping the tapped note as the foreground.
+      if (phrasePos % 4 === 0) {
+        const bassMidi = clamp(Number(tile.midi || 72) - (profile.harmonyMode === 'master' ? 24 : 12), 43, 67);
+        add(midiToFreq(bassMidi), 'triangle', phrasePos % 8 === 0 ? .34 : .26, 0);
+      }
+      if (phrasePos === 4 || phrasePos === 12) {
+        const fifthMidi = clamp(Number(tile.midi || 72) - 5, 48, 76);
+        add(midiToFreq(fifthMidi), 'sine', .16, 2);
+      }
+
+      const voice = { noteBus, nodes };
+      runtime.backingVoices.add(voice);
+      window.setTimeout(() => runtime.backingVoices.delete(voice), Math.ceil((duration + .15) * 1000));
+    } catch (_) {}
+  }
+
+  function updateBackingTrack() {
+    if (!runtime.motionStarted || runtime.state !== 'playing') return;
+    runtime.backingStarted = true;
+    // Trigger the background rendition from track progress, not from taps.
+    // That keeps the classical piece continuous while the player's tile notes
+    // sit on top as stronger accents.
+    while (runtime.backingIndex < runtime.chart.length) {
+      const tile = runtime.chart[runtime.backingIndex];
+      if (!tile || runtime.scroll + 1 < Number(tile.bgTriggerScroll || 0)) break;
+      playBackingPianoNote(tile, runtime.backingIndex);
+      runtime.backingIndex += 1;
+    }
+  }
+
+  function stopBackingTrack(immediate = false) {
+    if (runtime.backingGain && runtime.audioContext) {
+      const now = runtime.audioContext.currentTime;
+      try {
+        runtime.backingGain.gain.cancelScheduledValues(now);
+        runtime.backingGain.gain.setValueAtTime(Math.max(.0001, runtime.backingGain.gain.value || .24), now);
+        if (immediate) runtime.backingGain.gain.setValueAtTime(.0001, now);
+        else runtime.backingGain.gain.exponentialRampToValueAtTime(.0001, now + .08);
+      } catch (_) {}
+    }
+    runtime.backingVoices.forEach(voice => {
+      try {
+        (voice.nodes || []).forEach(node => node.osc.stop(runtime.audioContext ? runtime.audioContext.currentTime + (immediate ? .01 : .10) : 0));
+      } catch (_) {}
+    });
+    runtime.backingVoices.clear();
+    runtime.backingStarted = false;
+  }
+
+  function restoreBackingGain() {
+    if (!runtime.backingGain || !runtime.audioContext) return;
+    const now = runtime.audioContext.currentTime;
+    try {
+      runtime.backingGain.gain.cancelScheduledValues(now);
+      runtime.backingGain.gain.setTargetAtTime(runtime.soundEnabled ? .24 : .0001, now, .025);
+    } catch (_) {}
   }
 
   function playTileTone(tile, sustain = false) {
@@ -1454,7 +1581,14 @@
   function toggleSound() {
     runtime.soundEnabled = !runtime.soundEnabled;
     runtime.soundBtn.textContent = runtime.soundEnabled ? '♪' : '×♪';
-    if (!runtime.soundEnabled) stopAllVoices(false);
+    if (!runtime.soundEnabled) {
+      stopAllVoices(false);
+      stopBackingTrack(true);
+    } else {
+      restoreBackingGain();
+      // Resume from the current song position rather than restarting the piece.
+      runtime.backingIndex = Math.max(runtime.backingIndex, 0);
+    }
     try { runtime.bridge?.setSoundEnabled?.(runtime.soundEnabled); } catch (_) {}
   }
 
@@ -1483,6 +1617,7 @@
     runtime.pointerOwners.clear();
     runtime.keyboardOwners.clear();
     runtime.activeHolds.clear();
+    stopBackingTrack(true);
     runtime.failureFx = null;
     stopAllVoices(false);
     if (runtime.raf) cancelAnimationFrame(runtime.raf);
@@ -1495,8 +1630,9 @@
     build();
     runtime.bridge = options.bridge || window.ICT8_XP_MINIGAMES_BRIDGE || null;
     runtime.music = options.music || null;
-    // Code Tiles uses the piano keys themselves as the soundtrack. Disable the
-    // shared Mini-Game BGM so only tile notes and dedicated fail sounds are heard.
+    // Code Tiles owns its soundtrack: each level now has a synthesized
+    // classical-piano backing rendition plus stronger matching tile accents.
+    // Disable the generic shared Mini-Game BGM so the two soundtracks never clash.
     try { runtime.music?.stop?.(); } catch (_) {}
     runtime.onBack = typeof options.onBack === 'function' ? options.onBack : null;
     runtime.onClose = typeof options.onClose === 'function' ? options.onClose : null;
