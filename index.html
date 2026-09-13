@@ -2170,7 +2170,7 @@ https://example.com/song2.mp3"></textarea>
             <button id="previewLoginReminderMissingBtn" class="ghost-btn" type="button">Preview With Lackings</button>
             <button id="saveLoginReminderSettingsBtn" class="primary-btn" type="button">Save Reminder to Students</button>
           </div>
-          <p id="loginReminderSettingsStatus" class="helper-note" role="status">Music is OFF by default. Preview does not read or write Firebase.</p>
+          <p id="loginReminderSettingsStatus" class="helper-note" role="status">Music is OFF by default. Preview does not change saved student data.</p>
         </section>
 
         <section class="ai-rubric-settings-card" aria-label="Smart rubric review settings">
@@ -2260,11 +2260,11 @@ https://example.com/song2.mp3"></textarea>
             <div class="teacher-login-icon">🔐</div>
             <p class="section-kicker">Teacher Login</p>
             <h3>Manage Activities & Rubrics</h3>
-            <p>Login using the teacher account you created in Firebase Authentication. Students can still use the editor without logging in.</p>
+            <p>Login using your authorized teacher account. Students can still use the editor without teacher access.</p>
             <div class="login-checklist">
-              <span>✓ Firebase Authentication enabled</span>
-              <span>✓ Email/Password sign-in method enabled</span>
-              <span>✓ Teacher user added in Authentication &gt; Users</span>
+              <span>✓ Teacher account ready</span>
+              <span>✓ Password sign-in ready</span>
+              <span>✓ Authorized teacher access</span>
             </div>
           </div>
 
@@ -2399,7 +2399,7 @@ https://example.com/song2.mp3"></textarea>
             <div>
               <p class="section-kicker">Lightweight Presence</p>
               <h3 id="onlinePresenceTitle">Online Students</h3>
-              <p class="muted-text">Shows students who recently opened the app. Student devices update at a slow heartbeat only while active, so it stays light on Firebase.</p>
+              <p class="muted-text">Shows students who recently opened the app. Student devices update lightly in the background only while active.</p>
             </div>
             <div class="online-presence-actions">
               <button id="refreshOnlinePresenceBtn" class="ghost-btn" type="button">↻ Refresh</button>
@@ -2439,21 +2439,21 @@ https://example.com/song2.mp3"></textarea>
             <summary class="compliance-setup-summary">
               <span>
                 <strong>Advanced Connection Setup</strong>
-                <small>Hidden by default. Open only when you need to edit the Apps Script URL or Sync Key.</small>
+                <small>Hidden by default. Open only when you need to update advanced sync settings.</small>
               </span>
               <span class="compliance-summary-action">Show connection</span>
             </summary>
             <div class="compliance-admin-grid compliance-admin-grid-inner">
               <label>
-                Apps Script Web App URL
-                <input id="complianceScriptUrlInput" type="url" placeholder="Paste the deployed Apps Script /exec URL" autocomplete="off" />
+                Secure Service URL
+                <input id="complianceScriptUrlInput" type="url" placeholder="Paste the secure service URL" autocomplete="off" />
               </label>
               <label>
-                Sync Key
+                Access Key
                 <input id="complianceSyncKeyInput" type="password" placeholder="Default: 052400" autocomplete="off" />
               </label>
             </div>
-            <p class="helper-note">These are saved in Firebase for the teacher account. Students cannot view this setup.</p>
+            <p class="helper-note">These settings are protected for the teacher account. Students cannot view this setup.</p>
           </details>
 
 
@@ -2541,7 +2541,7 @@ https://example.com/song2.mp3"></textarea>
             <div class="compliance-setup-head compliance-setup-head-inner">
               <div>
                 <strong>Section Google Sheet Links</strong>
-                <p>Paste each section's Google Sheet link here once. Click Save Settings to store them in Firebase for your teacher account, so another device can load them automatically.</p>
+                <p>Paste each section's Google Sheet link here once. Click Save Settings so your teacher account can reuse them on other devices.</p>
               </div>
               <span class="compliance-mini-pill">Checked sections only</span>
             </div>
@@ -2573,7 +2573,7 @@ https://example.com/song2.mp3"></textarea>
           </details>
 
           <div class="compliance-admin-actions">
-            <button id="saveComplianceSettingsBtn" class="ghost-btn" type="button">Save Settings to Firebase</button>
+            <button id="saveComplianceSettingsBtn" class="ghost-btn" type="button">Save Settings</button>
             <button id="previewComplianceSyncBtn" class="ghost-btn" type="button">Preview Checked Sections</button>
             <button id="publishComplianceSyncBtn" class="primary-btn" type="button">Sync Checked Sections &amp; Publish</button>
           </div>
@@ -2585,7 +2585,7 @@ https://example.com/song2.mp3"></textarea>
               <div>
                 <p class="section-kicker">Published Status Viewer</p>
                 <h3 id="adminComplianceViewerTitle">Student Compliance Viewer</h3>
-                <p class="muted-text">View each student's lacking list from the latest published Firebase records. This does not sync Google Sheets again.</p>
+                <p class="muted-text">View each student's lacking list from the latest published records. This does not sync Google Sheets again.</p>
               </div>
               <button id="refreshAdminComplianceViewerBtn" class="ghost-btn" type="button">Refresh Viewer</button>
             </div>
@@ -2626,7 +2626,7 @@ https://example.com/song2.mp3"></textarea>
             <div>
               <p class="section-kicker">PDF Lesson Library</p>
               <h3 id="lessonManagerTitle">Upload and Organize Lessons</h3>
-              <p class="muted-text">Store PDFs in your own Google Drive and publish only the lesson details in Firebase. No Firebase Storage, billing account, or card is required.</p>
+              <p class="muted-text">Store PDFs in your own Google Drive and publish only the lesson details needed by the app.</p>
             </div>
             <button id="lessonAdminRefreshBtn" class="ghost-btn" type="button">↻ Refresh Lessons</button>
           </div>
@@ -2635,7 +2635,7 @@ https://example.com/song2.mp3"></textarea>
             <div class="lesson-drive-notice-icon" aria-hidden="true">☁️</div>
             <div>
               <strong>Free Google Drive connection</strong>
-              <p id="lessonDriveSetupText">Add a free Google OAuth Client ID in firebase-config.js to enable direct PDF upload. You can already use Paste PDF/Drive Link below.</p>
+              <p id="lessonDriveSetupText">Connect Google Drive to enable direct PDF upload. You can also use Paste PDF/Drive Link below.</p>
             </div>
             <button id="lessonDriveConnectBtn" class="primary-btn" type="button">Connect Google Drive</button>
           </div>
@@ -2763,7 +2763,7 @@ https://example.com/song2.mp3"></textarea>
                   <input id="givenActivityFileInput" type="file" accept="application/pdf,image/png,image/jpeg,image/webp,.pdf,.png,.jpg,.jpeg,.webp" multiple />
                   <span class="lesson-file-drop-icon" aria-hidden="true">📎</span>
                   <strong id="givenActivityFileName">Choose one or more PDFs / images</strong>
-                  <small>Select up to 20 files. Images and PDFs may be mixed. Files upload to your connected Google Drive; Firebase stores only small attachment metadata/links.</small>
+                  <small>Select up to 20 files. Images and PDFs may be mixed. Files upload to your connected Google Drive; the app saves only the information needed to display them.</small>
                 </label>
                 <div id="givenActivitySelectedFiles" class="given-activity-selected-files" aria-live="polite"></div>
               </div>
@@ -3463,7 +3463,7 @@ https://example.com/song3.mp3"></textarea>
           <div class="code-inbox-empty-detail">
             <span aria-hidden="true">🧾</span>
             <strong>Select a received code item</strong>
-            <p>Full source code is loaded only when you open an item, which keeps Firestore reads and data usage low.</p>
+            <p>Full source code is loaded only when you open an item, which keeps the inbox fast and lightweight.</p>
           </div>
         </section>
       </div>

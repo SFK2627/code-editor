@@ -788,6 +788,78 @@ function ensureFirebaseFrontendConfig() {
 
 ensureFirebaseFrontendConfig();
 
+
+/* =========================================================
+   User-facing system message privacy layer
+   - Keep implementation/database/provider details in console logs only.
+   - Students/teachers see action-oriented, non-technical messages.
+   ========================================================= */
+const INTERNAL_SYSTEM_DETAIL_RE = /(?:firebase|firestore|\brtdb\b|realtime\s+database|database\s+(?:url|rules?)|permission-denied|missing\s+or\s+insufficient\s+permissions?|firestore\s+rules?|firebase\s+rules?|apps\s+script|firebase-config\.js|backend|sdk\b|cdn\b|auth\s+uid|authentication\s*>|quota|rate\s+limit)/i;
+const INTERNAL_SYSTEM_INSTRUCTION_RE = /(?:console\s*>|go\s+to\s+.*(?:authentication|database|rules)|publish\s+.*rules?|paste\s+.*(?:url|key).*config|enable\s+.*api|authorized\s+domains?|firebase-config\.js|apps\s+script|sdk\s+did\s+not\s+load|check\s+.*rules?)/i;
+
+function userFacingSystemMessage(message = '', fallback = '') {
+  const raw = String(message ?? '').trim();
+  if (!raw) return String(fallback || '');
+  if (!INTERNAL_SYSTEM_DETAIL_RE.test(raw)) return raw;
+
+  const lower = raw.toLowerCase();
+  const technicalFailure = /(?:not ready|rejected|failed|unavailable|could not|blocked|denied|permission|insufficient|quota|rate\s+limit|not configured|missing|timed?\s*out|too long|error)/i.test(raw);
+  const instructionHeavy = INTERNAL_SYSTEM_INSTRUCTION_RE.test(raw);
+
+  // Keep normal teacher-facing directions useful, but strip the provider name.
+  if (/teacher\s+.*login.*required|login\s+as\s+teacher/i.test(raw) && !instructionHeavy) {
+    return raw
+      .replace(/Firebase\s*/gi, '')
+      .replace(/Firestore\s*/gi, '')
+      .replace(/\s{2,}/g, ' ')
+      .trim();
+  }
+
+  // Technical failures become simple action-oriented messages. Detailed causes
+  // stay in console logs for maintenance/debugging only.
+  if (technicalFailure || instructionHeavy) {
+    if (/pair|2-player|invite|room|join/.test(lower)) return 'Could not connect to the other player. Please try pairing again.';
+    if (/certificate|verification/.test(lower)) return 'Online verification is temporarily unavailable. Please try again later.';
+    if (/reset\s+pass|password\s+reset|reset\s+password/.test(lower)) return 'Password reset is temporarily unavailable. Please try again later.';
+    if (/quota|rate limit|busy/.test(lower)) return 'The service is busy right now. Please try again in a moment.';
+    if (/\b(?:save|publish|write|update|sync|store|upload|record|records|saving|publishing|updated)\b/.test(lower)) return 'Could not save or publish the changes right now. Please try again.';
+    if (/\b(?:load|loading|read|fetch|refresh|viewer|list|project|projects)\b/.test(lower)) return 'Could not load the latest information right now. Please try again.';
+    if (/login|sign[ -]?in|teacher account|authentication|auth/.test(lower)) return 'Login could not be completed. Check your account details and try again.';
+    if (/connection|connect|network|offline|not ready|unavailable/.test(lower)) return 'The service is temporarily unavailable. Check your connection and try again.';
+    return String(fallback || 'Something went wrong. Please try again.');
+  }
+
+  // Non-error informational copy can keep its meaning while hiding provider and
+  // implementation names.
+  return raw
+    .replace(/Firebase\s+Authentication/gi, 'account service')
+    .replace(/Firebase\s+Auth\s+accounts?/gi, 'accounts')
+    .replace(/Firebase\s+Auth/gi, 'account service')
+    .replace(/Firebase\s+profiles?/gi, 'account profiles')
+    .replace(/Firestore\s+Rules?/gi, 'access settings')
+    .replace(/Firebase\s+Rules?/gi, 'access settings')
+    .replace(/Firestore\s+permissions?/gi, 'service access')
+    .replace(/(?:Realtime\s+Database|\bRTDB\b)/gi, 'live service')
+    .replace(/Firestore/gi, 'online service')
+    .replace(/Firebase/gi, 'online service')
+    .replace(/Apps\s+Script/gi, 'secure service')
+    .replace(/firebase-config\.js/gi, 'app configuration')
+    .replace(/\bbackend\b/gi, 'secure service')
+    .replace(/\bUIDs?\b/g, 'account IDs')
+    .replace(/\bquota\b/gi, 'service limit')
+    .replace(/\brate\s+limit\b/gi, 'service limit');
+}
+
+function userFacingSystemTitle(title = '') {
+  const raw = String(title || '').trim();
+  if (!INTERNAL_SYSTEM_DETAIL_RE.test(raw)) return raw;
+  if (/save/i.test(raw)) return 'Save issue';
+  if (/login|auth/i.test(raw)) return 'Login issue';
+  if (/certificate|verification/i.test(raw)) return 'Verification issue';
+  if (/pair|join|room|2-player/i.test(raw)) return 'Connection issue';
+  return 'App notice';
+}
+
 const STORAGE_KEYS = {
   codeByActivity: 'studentCodeStudio.codeByActivity.blankFresh.v1',
   activities: 'studentCodeStudio.activities.blankFresh.v1',
@@ -1198,7 +1270,8 @@ function syncLoginReminderSettingsControls() {
 
 function setLoginReminderSettingsStatus(message, tone = '') {
   if (!loginReminderSettingsStatus) return;
-  loginReminderSettingsStatus.textContent = message || '';
+  const safeMessage = userFacingSystemMessage(message);
+  loginReminderSettingsStatus.textContent = safeMessage || '';
   loginReminderSettingsStatus.dataset.tone = tone || '';
 }
 
@@ -3089,8 +3162,9 @@ function getAssistanceSettingsFromControls() {
 
 function setAssistanceSettingsStatus(message, type = '') {
   if (!assistanceSettingsStatus) return;
+  const safeMessage = userFacingSystemMessage(message);
   const stamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  assistanceSettingsStatus.textContent = `${message} (${stamp})`;
+  assistanceSettingsStatus.textContent = `${safeMessage} (${stamp})`;
   assistanceSettingsStatus.classList.remove('success', 'warning', 'error', 'attention');
   if (type) assistanceSettingsStatus.classList.add(type);
   assistanceSettingsStatus.classList.add('attention');
@@ -3138,7 +3212,7 @@ function updateAssistancePublishUI() {
   publishAssistanceBtn.textContent = canPublish ? 'Publish to All Students' : 'Login to Publish Globally';
   publishAssistanceBtn.classList.toggle('requires-login', !canPublish);
   publishAssistanceBtn.title = canPublish
-    ? 'Save these controls to Firebase so every student device receives them.'
+    ? 'Publish these controls so every student device receives them.'
     : 'Local controls already work. Teacher login is required only for all student devices.';
 }
 
@@ -4182,6 +4256,8 @@ function showAppDialog({
   danger = false,
   icon = '!'
 } = {}) {
+  title = userFacingSystemTitle(title);
+  message = userFacingSystemMessage(message);
   if (!appDialogOverlay || !appDialogCard) {
     console.warn('App dialog unavailable:', message);
     return Promise.resolve(true);
@@ -4410,6 +4486,7 @@ window.ICT8AppExitGuard = Object.freeze({
 });
 
 function showTeacherLoginError(message) {
+  message = userFacingSystemMessage(message, 'Login could not be completed. Please try again.');
   const errorBox = document.getElementById('teacherLoginError');
   if (!errorBox) {
     if (message) appAlert(message, { title: 'Teacher Login' });
@@ -4578,7 +4655,7 @@ function initFirebaseWithCompatSDK() {
     firebaseSync.enabled = true;
     firebaseSync.initialized = true;
     firebaseSync.lastError = '';
-    setStatus('Firebase connected');
+    setStatus('Connected');
     return true;
   } catch (error) {
     console.warn('Firebase compat SDK initialization failed.', error);
@@ -4634,7 +4711,7 @@ async function initFirebaseSync() {
       firebaseSync.enabled = true;
       firebaseSync.initialized = true;
       firebaseSync.lastError = '';
-      setStatus('Firebase connected');
+      setStatus('Connected');
       return true;
     } catch (error) {
       console.warn('Firebase connection failed. Guest/local mode will continue.', error);
@@ -4689,7 +4766,7 @@ async function loadActivitiesFromCloud() {
     let loadedCloudSettings = false;
     if (data.studentAssistanceSettings && typeof data.studentAssistanceSettings === 'object') {
       applyStudentAssistanceSettings(data.studentAssistanceSettings);
-      setAssistanceSettingsStatus('Global student assistance settings loaded from Firebase.', 'success');
+      setAssistanceSettingsStatus('Global student assistance settings loaded.', 'success');
       loadedCloudSettings = true;
     }
 
@@ -4765,11 +4842,11 @@ async function saveActivitiesToCloud() {
       academicTermSettings: normalizeAcademicTermSettings(academicTermSettings)
     }, { merge: true });
     clearSelectiveFirestoreCache('rootDocument:');
-    setStatus('Saved to Firebase');
+    setStatus('Saved');
     return true;
   } catch (error) {
     console.warn('Could not save activities to Firebase.', error);
-    setStatus('Firebase save failed');
+    setStatus('Save failed');
     return false;
   }
 }
@@ -4839,7 +4916,7 @@ function getAiRubricSettingsFromControls() {
 
 function setAiRubricSettingsStatus(message, tone = '') {
   if (!aiRubricSettingsStatus) return;
-  aiRubricSettingsStatus.textContent = message || '';
+  aiRubricSettingsStatus.textContent = userFacingSystemMessage(message) || '';
   aiRubricSettingsStatus.classList.remove('success', 'warning', 'error', 'attention');
   if (tone) aiRubricSettingsStatus.classList.add(tone);
   aiRubricSettingsStatus.classList.add('attention');
@@ -4932,7 +5009,7 @@ async function loadAiRubricSettingsFromCloud({ silent = false } = {}) {
   const ready = await initFirebaseSync();
   if (!ready || !isTeacherAuthenticated()) {
     syncAiRubricSettingsControls(aiRubricSettings);
-    if (!silent) setAiRubricSettingsStatus('Login as teacher to load Smart Review settings from Firebase.', 'warning');
+    if (!silent) setAiRubricSettingsStatus('Login as teacher to load Smart Review settings.', 'warning');
     return false;
   }
   try {
@@ -4953,7 +5030,7 @@ async function loadAiRubricSettingsFromCloud({ silent = false } = {}) {
   } catch (error) {
     console.warn('Could not load Smart Review settings.', error);
     syncAiRubricSettingsControls(aiRubricSettings);
-    if (!silent) setAiRubricSettingsStatus('Could not load Smart Review settings. Check rules and login.', 'error');
+    if (!silent) setAiRubricSettingsStatus('Could not load Smart Review settings. Please check your login and try again.', 'error');
     return false;
   }
 }
@@ -5204,7 +5281,7 @@ async function watchStudentAssistanceSettings() {
         if (data.studentAssistanceSettings) {
           applyStudentAssistanceSettings(data.studentAssistanceSettings);
           if (adminOverlay && !adminOverlay.classList.contains('hidden')) {
-            setAssistanceSettingsStatus('Live global settings synced from Firebase.', 'success');
+            setAssistanceSettingsStatus('Live global settings updated.', 'success');
           }
         }
         if (data.loginReminderSettings) {
@@ -6239,12 +6316,14 @@ async function findStudentRosterRecordById(studentId) {
 
 function setStudentLoginError(message = '') {
   if (!studentLoginError) return;
+  message = userFacingSystemMessage(message, 'Login could not be completed. Please try again.');
   studentLoginError.textContent = message;
   studentLoginError.classList.toggle('hidden', !message);
 }
 
 function setChangePasswordError(message = '') {
   if (!changePasswordError) return;
+  message = userFacingSystemMessage(message, 'Could not update the password right now. Please try again.');
   changePasswordError.textContent = message;
   changePasswordError.classList.toggle('hidden', !message);
 }
@@ -6316,6 +6395,7 @@ function setProjectNameError(message = '') {
 }
 
 function setStudentSaveState(text, state = '') {
+  text = userFacingSystemMessage(text);
   [studentSaveState, menuStudentSaveState].forEach(saveEl => {
     if (!saveEl) return;
     saveEl.textContent = text;
@@ -8483,7 +8563,7 @@ function getComplianceCloudSettingsSource(data = {}) {
 
 async function loadComplianceSettingsFromCloud(options = {}) {
   if (!isTeacherAuthenticated()) {
-    if (!options.silent) setComplianceSyncStatus('Login as teacher to load saved Compliance settings from Firebase.', 'warning');
+    if (!options.silent) setComplianceSyncStatus('Login as teacher to load saved Compliance settings.', 'warning');
     return null;
   }
   const ready = await initFirebaseSync();
@@ -8501,14 +8581,14 @@ async function loadComplianceSettingsFromCloud(options = {}) {
   const settings = saveComplianceSettings(getComplianceCloudSettingsSource(data));
   await loadAcademicTermSettingsFromCloud({ silent: true }).catch(() => academicTermSettings);
   syncComplianceSettingsControls();
-  if (!options.silent) setComplianceSyncStatus('Compliance settings loaded from Firebase. These links and task names are now available on this device.', 'success');
+  if (!options.silent) setComplianceSyncStatus('Compliance settings loaded. These links and task names are now available on this device.', 'success');
   return settings;
 }
 
 async function saveComplianceSettingsToCloud(settings = {}) {
   const normalized = saveComplianceSettings(settings);
   if (!isTeacherAuthenticated()) {
-    throw new Error('Login as teacher first so Compliance settings can be saved to Firebase and reused on other devices.');
+    throw new Error('Login as teacher first so Compliance settings can be saved and reused on other devices.');
   }
   const ready = await initFirebaseSync();
   if (!ready) throw new Error(firebaseSync.lastError || 'Firebase is not ready.');
@@ -8729,7 +8809,7 @@ function getCurrentComplianceTaskPayload(settings = loadComplianceSettings()) {
 
 function setComplianceSyncStatus(message, tone = '') {
   if (!complianceSyncStatus) return;
-  complianceSyncStatus.textContent = message || '';
+  complianceSyncStatus.textContent = userFacingSystemMessage(message) || '';
   complianceSyncStatus.dataset.tone = tone || '';
 }
 
@@ -8918,7 +8998,7 @@ function renderAdminComplianceViewerSectionOptions(settings = loadComplianceSett
 
 function setAdminComplianceViewerStatus(message = '', tone = '') {
   if (!adminComplianceViewerStatus) return;
-  adminComplianceViewerStatus.textContent = message || '';
+  adminComplianceViewerStatus.textContent = userFacingSystemMessage(message) || '';
   adminComplianceViewerStatus.dataset.tone = tone || '';
 }
 
@@ -9059,7 +9139,7 @@ async function loadAdminComplianceViewer(options = {}) {
     setAdminComplianceViewerStatus('Login as teacher to view student compliance records.', 'warning');
     return [];
   }
-  setAdminComplianceViewerStatus('Loading published compliance records from Firebase...', '');
+  setAdminComplianceViewerStatus('Loading published compliance records...', '');
   if (refreshAdminComplianceViewerBtn) refreshAdminComplianceViewerBtn.disabled = true;
   try {
     const ready = await initFirebaseSync();
@@ -10126,7 +10206,7 @@ function markStudentProjectRun() {
 /* ---------------- Teacher student registration and tracker ---------------- */
 function setStudentAdminStatus(message, state = '') {
   if (!studentAccountAdminStatus) return;
-  studentAccountAdminStatus.textContent = message;
+  studentAccountAdminStatus.textContent = userFacingSystemMessage(message);
   studentAccountAdminStatus.dataset.state = state;
 }
 
@@ -10223,7 +10303,7 @@ async function addStudentAccountFromForm() {
   try {
     addStudentAccountBtn.disabled = true;
     addStudentAccountBtn.textContent = 'Saving Student...';
-    setStudentAdminStatus('Saving student record. The Firebase Auth account will activate on first student login...');
+    setStudentAdminStatus('Saving student record. The account will activate on first student login...');
     const student = await registerStudentRosterRecord(record);
     if (adminStudentId) adminStudentId.value = '';
     if (adminStudentName) adminStudentName.value = '';
@@ -11116,7 +11196,7 @@ function queueStudentPresenceUpdate(activityOverride = {}, options = {}) {
 
 function setOnlinePresenceStatus(message = '', type = '') {
   if (!onlinePresenceStatus) return;
-  onlinePresenceStatus.textContent = message;
+  onlinePresenceStatus.textContent = userFacingSystemMessage(message);
   onlinePresenceStatus.dataset.type = type;
 }
 
@@ -11265,10 +11345,9 @@ async function loadAdminOnlinePresence(options = {}) {
 
     renderAdminOnlinePresence();
     const online = adminOnlinePresenceRecords.filter(record => getOnlinePresenceStatus(record) === 'online').length;
-    const sourceLabel = shouldUseRtdbPresence() ? 'RTDB' : 'Firestore fallback';
     const message = adminOnlinePresenceRecords.length
-      ? `${online} online now · ${adminOnlinePresenceRecords.length} active recently · ${sourceLabel}. Auto refresh is ${adminOnlinePresenceAutoRefresh ? 'on (5 min)' : 'off'}.`
-      : `No students reported active recently · ${sourceLabel}.`;
+      ? `${online} online now · ${adminOnlinePresenceRecords.length} active recently. Auto refresh is ${adminOnlinePresenceAutoRefresh ? 'on (5 min)' : 'off'}.`
+      : 'No students reported active recently.';
     setOnlinePresenceStatus(message, adminOnlinePresenceRecords.length ? 'success' : 'warning');
     return adminOnlinePresenceRecords;
   } catch (error) {
@@ -11898,7 +11977,7 @@ async function resetAdminStudentLoginAccess(studentId = '', uid = '', triggerBut
   }
 
   if (!targetUid) {
-    setStudentAdminStatus('No Firebase Auth UID was found for this student.', 'error');
+    setStudentAdminStatus('No active account was found for this student.', 'error');
     return;
   }
 
@@ -12062,7 +12141,7 @@ This student has ${profileUids.length} linked app profiles because of earlier du
     });
     populateAdminSectionFilter();
     renderAdminStudentTracker();
-    setStudentAdminStatus(`${displayName} was deleted from this app. If the student already had a Firebase Auth login, the Auth user may still exist but cannot open projects without a registered profile.`, 'success');
+    setStudentAdminStatus(`${displayName} was deleted from this app. Any previous sign-in record can no longer open projects without a registered profile.`, 'success');
   } catch (error) {
     console.error('Student account deletion failed', error);
     setStudentAdminStatus(error?.message || 'Could not delete the student account.', 'error');
@@ -12806,6 +12885,7 @@ function getAdminProjectRecordedScoreText(result = adminProjectViewerState.proje
 
 function setAdminProjectResultCheckStatus(message = '', tone = '') {
   if (!adminProjectResultCheckStatus) return;
+  message = userFacingSystemMessage(message);
   adminProjectResultCheckStatus.textContent = message || '';
   adminProjectResultCheckStatus.classList.remove('running', 'ready', 'saved', 'error');
   if (tone) adminProjectResultCheckStatus.classList.add(tone);
@@ -13150,6 +13230,7 @@ function getAdminProjectCommentUpdatedText(record) {
 
 function setAdminProjectCommentStatus(message, tone = '') {
   if (!adminProjectCommentStatus) return;
+  message = userFacingSystemMessage(message);
   adminProjectCommentStatus.textContent = message || '';
   adminProjectCommentStatus.classList.toggle('saving', tone === 'saving');
   adminProjectCommentStatus.classList.toggle('saved', tone === 'saved');
@@ -13164,6 +13245,7 @@ function renderAdminProjectTeacherComment() {
 
 function setAdminAiReviewStatus(message, tone = '') {
   if (!adminAiReviewStatus) return;
+  message = userFacingSystemMessage(message);
   adminAiReviewStatus.textContent = message || '';
   adminAiReviewStatus.classList.remove('running', 'ready', 'error');
   if (tone) adminAiReviewStatus.classList.add(tone);
@@ -13646,7 +13728,7 @@ async function runAdminAiRubricReview() {
     console.error('Smart rubric review failed.', error);
     setAdminAiReviewStatus('Review failed', 'error');
     if (adminAiReviewOutput) {
-      adminAiReviewOutput.innerHTML = `<div class="admin-ai-error"><strong>Smart review failed.</strong><p>${escapeHTML(error?.message || 'Check API key, model, internet connection, and quota.')}</p></div>`;
+      adminAiReviewOutput.innerHTML = `<div class="admin-ai-error"><strong>Smart review failed.</strong><p>${escapeHTML(userFacingSystemMessage(error?.message || 'Smart review could not be completed right now. Please try again.'))}</p></div>`;
     }
   } finally {
     syncAiRubricSettingsControls(aiRubricSettings);
@@ -14062,7 +14144,7 @@ async function showAdminStudentProjects(uid, options = {}) {
     }).join('');
   } catch (error) {
     console.error('Could not load student projects for admin', error);
-    adminStudentProjectsList.innerHTML = '<div class="empty-projects-card"><h3>Could not load projects</h3><p>Check the internet connection and Firestore rules.</p></div>';
+    adminStudentProjectsList.innerHTML = '<div class="empty-projects-card"><h3>Could not load projects</h3><p>Check your internet connection, then try again.</p></div>';
   }
 }
 
@@ -20639,18 +20721,21 @@ function formatLessonFileSize(bytes = 0) {
 
 function setLessonLibraryStatus(message = '', type = '') {
   if (!lessonLibraryStatus) return;
+  message = userFacingSystemMessage(message);
   lessonLibraryStatus.textContent = message;
   lessonLibraryStatus.dataset.type = type;
 }
 
 function setLessonAdminStatus(message = '', type = '') {
   if (!lessonAdminStatus) return;
+  message = userFacingSystemMessage(message);
   lessonAdminStatus.textContent = message;
   lessonAdminStatus.dataset.type = type;
 }
 
 function setLessonDriveStatus(message = '', type = '') {
   if (!lessonDriveStatus) return;
+  message = userFacingSystemMessage(message);
   lessonDriveStatus.textContent = message;
   lessonDriveStatus.dataset.type = type;
 }
@@ -21762,7 +21847,7 @@ async function publishLessonFromAdmin() {
     });
     if (existing) lessonLibraryState.lessons = lessonLibraryState.lessons.map(lesson => lesson.id === existing.id ? record : lesson);
     else lessonLibraryState.lessons.push(record);
-    setLessonAdminStatus('Publishing lesson list to Firebase...', 'loading');
+    setLessonAdminStatus('Publishing lesson list...', 'loading');
     await saveLessonLibraryToCloud();
     if (existing?.fileId && newlyUploadedFileId && existing.fileId !== newlyUploadedFileId) {
       deleteLessonDriveFile(existing.fileId).catch(error => console.warn('Old Drive lesson file was not deleted.', error));
@@ -22046,18 +22131,21 @@ function loadGivenActivitiesCache() {
 
 function setGivenActivitiesStatus(message = '', tone = '') {
   if (!givenActivitiesStatus) return;
+  message = userFacingSystemMessage(message);
   givenActivitiesStatus.textContent = message;
   givenActivitiesStatus.dataset.type = tone;
 }
 
 function setGivenActivityAdminStatus(message = '', tone = '') {
   if (!givenActivityAdminStatus) return;
+  message = userFacingSystemMessage(message);
   givenActivityAdminStatus.textContent = message;
   givenActivityAdminStatus.dataset.type = tone;
 }
 
 function setGivenActivityDriveStatus(message = '', tone = '') {
   if (!givenActivityDriveStatus) return;
+  message = userFacingSystemMessage(message);
   givenActivityDriveStatus.textContent = message;
   givenActivityDriveStatus.dataset.type = tone;
 }
@@ -23055,7 +23143,7 @@ async function refreshEngagementAnalytics() {
 
 async function publishGivenActivityFromAdmin() {
   if (!isTeacherAuthenticated()) {
-    setGivenActivityAdminStatus('Teacher Firebase login is required before publishing activities.', 'error');
+    setGivenActivityAdminStatus('Teacher login is required before publishing activities.', 'error');
     return;
   }
   const title = String(givenActivityTitleInput?.value || '').trim();
@@ -23133,7 +23221,7 @@ async function publishGivenActivityFromAdmin() {
     });
     if (existing) givenActivityState.items = givenActivityState.items.map(item => item.id === existing.id ? record : item);
     else givenActivityState.items.push(record);
-    setGivenActivityAdminStatus('Publishing activity list to Firebase...', 'loading');
+    setGivenActivityAdminStatus('Publishing activity list...', 'loading');
     await saveGivenActivitiesToCloud();
     resetGivenActivityAdminEditor({ keepTerm: true });
     renderAdminGivenActivityList();
@@ -23222,6 +23310,7 @@ async function initializeGivenActivitiesManager() {
 
 function setNeedsAttentionStatus(message = '', tone = '') {
   if (!needsAttentionStatus) return;
+  message = userFacingSystemMessage(message);
   needsAttentionStatus.textContent = message;
   needsAttentionStatus.dataset.tone = tone;
 }
@@ -23321,7 +23410,7 @@ function renderNeedsAttentionDashboard() {
 
 async function loadNeedsAttentionDashboard(options = {}) {
   if (!needsAttentionList || !isTeacherAuthenticated()) {
-    setNeedsAttentionStatus('Teacher Firebase login is required to build the Needs Attention dashboard.', 'warning');
+    setNeedsAttentionStatus('Teacher login is required to build the Needs Attention dashboard.', 'warning');
     return [];
   }
   if (refreshNeedsAttentionBtn) refreshNeedsAttentionBtn.disabled = true;
@@ -24270,6 +24359,7 @@ function isRubricImageImportEnabled() {
 
 function setRubricImportStatus(message, type = '') {
   if (!rubricImageStatus) return;
+  message = userFacingSystemMessage(message);
   rubricImageStatus.textContent = message || '';
   rubricImageStatus.className = `helper-note rubric-import-status ${type}`.trim();
 }
@@ -25045,7 +25135,7 @@ async function runLocalRubricOCR(file) {
 
 async function importRubricImage() {
   if (!isRubricImageImportEnabled()) {
-    setRubricImportStatus('Rubric image import is disabled in firebase-config.js.', 'error');
+    setRubricImportStatus('Rubric image import is currently unavailable.', 'error');
     return;
   }
 
@@ -25110,6 +25200,7 @@ async function importRubricImage() {
 
 function setManualRubricStatus(message, type = '') {
   if (!manualRubricStatus) return;
+  message = userFacingSystemMessage(message);
   manualRubricStatus.textContent = message || '';
   manualRubricStatus.className = `helper-note manual-rubric-status ${type}`.trim();
 }
@@ -25295,6 +25386,7 @@ function applyManualRubricTableToActualRubric() {
 
 
 function setAiRubricGeneratorStatus(message, type = '') {
+  message = userFacingSystemMessage(message);
   if (aiRubricGeneratorStatus) {
     aiRubricGeneratorStatus.textContent = message || '';
     aiRubricGeneratorStatus.className = `helper-note ai-rubric-generator-status ${type}`.trim();
@@ -25594,7 +25686,7 @@ function getCompactStatusLabel(text) {
 }
 
 function setStatus(text) {
-  const fullText = String(text || 'Ready');
+  const fullText = userFacingSystemMessage(text, 'Ready') || 'Ready';
   statusBadge.textContent = getCompactStatusLabel(fullText);
   statusBadge.title = fullText;
   clearTimeout(setStatus.timer);
@@ -28830,12 +28922,12 @@ saveComplianceSettingsBtn?.addEventListener('click', async () => {
   saveComplianceSettings(settings);
   renderComplianceSectionSyncSelect(settings);
   if (saveComplianceSettingsBtn) saveComplianceSettingsBtn.disabled = true;
-  setComplianceSyncStatus('Saving Compliance settings to Firebase...', '');
+  setComplianceSyncStatus('Saving Compliance settings...', '');
   try {
     await saveComplianceSettingsToCloud(settings);
     await saveAcademicTermSettingsToCloud(termSchedule);
     const info = resolveAcademicTermInfo(termSchedule);
-    setComplianceSyncStatus(`Compliance settings and Academic Term Schedule saved to Firebase. ${info.label} is currently active.`, 'success');
+    setComplianceSyncStatus(`Compliance settings and Academic Term Schedule saved. ${info.label} is currently active.`, 'success');
   } catch (error) {
     console.warn('Could not save Compliance settings to Firebase.', error);
     const message = /permission|insufficient/i.test(error?.message || '')
@@ -31456,6 +31548,7 @@ function buildWireframeStarterCodeProject(project, data) {
 
 function setWireframeExportStatus(message = '', tone = '') {
   if (!wireframeExportStatus) return;
+  message = userFacingSystemMessage(message);
   wireframeExportStatus.textContent = message;
   if (tone) wireframeExportStatus.dataset.tone = tone;
   else delete wireframeExportStatus.dataset.tone;
@@ -35862,7 +35955,7 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
         flushPendingLiveMessages(remoteUid);
       }
       setStatus('Direct live sync connected');
-      setCollabStatus('Direct live sync connected. Firebase usage stays low.', 'success');
+      setCollabStatus('Direct live sync connected.', 'success');
       renderCollabMembers(collabState.latestSession);
     };
     channel.onmessage = event => {
@@ -36647,6 +36740,7 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
   function setCollabStatus(message = '', type = '') {
     const status = document.getElementById('collabStatus');
     if (!status) return;
+    message = userFacingSystemMessage(message);
     status.textContent = message;
     status.className = `helper-note collab-status ${type || ''}`.trim();
   }
@@ -41200,6 +41294,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
 
   function setCodeTransferStatus(element, message = '', type = '') {
     if (!element) return;
+    message = userFacingSystemMessage(message);
     element.textContent = message;
     element.classList.remove('error', 'success', 'warning');
     if (type) element.classList.add(type);
@@ -51591,8 +51686,8 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       if (!publishResult.ok) {
         window.setTimeout(() => appAlert(
           useViewerFallback
-            ? 'Your certificate PDF is open and can be saved/shared from the browser. Online QR verification is still pending. Ask your teacher/admin to publish the current Firestore certificate verification rule, then open My Certificates again.'
-            : 'Your certificate PDF was created. Online QR verification is still pending, but this does not block the PDF. Ask your teacher/admin to publish the current Firestore certificate verification rule, then open My Certificates again.',
+            ? 'Your certificate PDF is open and can be saved/shared from the browser. Online QR verification is temporarily unavailable. You can try again later from My Certificates.'
+            : 'Your certificate PDF was created. Online QR verification is temporarily unavailable, but this does not block the PDF. You can try again later from My Certificates.',
           { title: 'Certificate ready · QR pending', icon: '⚠️' }
         ), 250);
       }
@@ -51704,7 +51799,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     dom.publicVerifyBody.innerHTML = `
       <article class="certificate-public-status-card unavailable">
         <div class="certificate-public-status-icon" aria-hidden="true">⚠</div>
-        <div class="certificate-public-status-copy"><span>TRY AGAIN</span><strong>${permissionProblem ? 'Online certificate access is not enabled yet' : 'Could not reach the verification service'}</strong><p>${permissionProblem ? 'The site administrator needs to publish the current Firestore certificate verification rule.' : 'Check your internet connection, then try again.'}</p></div>
+        <div class="certificate-public-status-copy"><span>TRY AGAIN</span><strong>${permissionProblem ? 'Online certificate access is not enabled yet' : 'Could not reach the verification service'}</strong><p>${permissionProblem ? 'Online verification is temporarily unavailable. Please try again later.' : 'Check your internet connection, then try again.'}</p></div>
       </article>`;
   }
 
