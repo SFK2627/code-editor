@@ -24,11 +24,16 @@
   // The old 330→390 range looked like a slow conveyor in the reference comparison.
   // This starts lively, then ramps smoothly to a high-intensity finish.
   const LEVELS = Object.freeze([
-    Object.freeze({ id: 1, name: 'ODE TO JOY', shortName: 'Ode to Joy', composer: 'Beethoven', speedStart: 610, speedEnd: 980, holdScale: 1.00 }),
-    Object.freeze({ id: 2, name: 'PRELUDE IN C', shortName: 'Prelude in C', composer: 'J. S. Bach', speedStart: 680, speedEnd: 1080, holdScale: 0.97 }),
-    Object.freeze({ id: 3, name: 'FÜR ELISE', shortName: 'Für Elise', composer: 'Beethoven', speedStart: 760, speedEnd: 1200, holdScale: 0.94 }),
-    Object.freeze({ id: 4, name: 'TURKISH MARCH', shortName: 'Turkish March', composer: 'Mozart', speedStart: 850, speedEnd: 1330, holdScale: 0.91 }),
-    Object.freeze({ id: 5, name: 'THE ENTERTAINER', shortName: 'The Entertainer', composer: 'Scott Joplin', speedStart: 950, speedEnd: 1480, holdScale: 0.88 })
+    Object.freeze({ id: 1,  name: 'CLASSIC',   speedStart: 690,  speedEnd: 1110, holdScale: 1.000 }),
+    Object.freeze({ id: 2,  name: 'FLOW',      speedStart: 740,  speedEnd: 1190, holdScale: 0.985 }),
+    Object.freeze({ id: 3,  name: 'RHYTHM',    speedStart: 800,  speedEnd: 1290, holdScale: 0.970 }),
+    Object.freeze({ id: 4,  name: 'RUSH',      speedStart: 870,  speedEnd: 1400, holdScale: 0.955 }),
+    Object.freeze({ id: 5,  name: 'BRAVO',     speedStart: 950,  speedEnd: 1530, holdScale: 0.940 }),
+    Object.freeze({ id: 6,  name: 'TEMPEST',   speedStart: 1020, speedEnd: 1630, holdScale: 0.925 }),
+    Object.freeze({ id: 7,  name: 'VIRTUOSO',  speedStart: 1070, speedEnd: 1720, holdScale: 0.910 }),
+    Object.freeze({ id: 8,  name: 'TURBO',     speedStart: 1130, speedEnd: 1810, holdScale: 0.895 }),
+    Object.freeze({ id: 9,  name: 'CONCERT',   speedStart: 1200, speedEnd: 1920, holdScale: 0.880 }),
+    Object.freeze({ id: 10, name: 'MASTER',    speedStart: 1270, speedEnd: 2040, holdScale: 0.865 })
   ]);
   const LEVEL_COUNT = LEVELS.length;
   const MISS_Y = BOARD_BOTTOM + 12;
@@ -45,77 +50,135 @@
   const COUNTDOWN_MS = 1350;
   const MAX_DPR_DESKTOP = 1.4;
   const MAX_DPR_PHONE = 1.15;
+  const BACKING_GAIN_NORMAL = .40;
+  const BACKING_GAIN_DUCK = .19;
   const ACCENT_PATTERN = Object.freeze([1.00, .90, .95, .88, .98, .90, .94, .86, 1.00, .92, .96, .88, 1.04, .94, .98, .90]);
   const RELEASE_PATTERN = Object.freeze([.36, .28, .30, .28, .34, .28, .30, .28, .38, .30, .32, .28, .40, .30, .34, .30]);
-  const SONG_LIBRARY = Object.freeze([
-    Object.freeze({
-      title: 'Ode to Joy',
-      composer: 'Ludwig van Beethoven',
-      // Famous theme, shifted up an octave for a bright phone-speaker register.
-      sequence: Object.freeze([
-        76,76,77,79,79,77,76,74,72,72,74,76,76,74,74,
-        76,76,77,79,79,77,76,74,72,72,74,76,74,72,72,
-        74,74,76,72,74,76,77,76,72,74,76,77,76,74,72,74,67,
-        76,76,77,79,79,77,76,74,72,72,74,76,74,72,72
-      ]),
-      harmonyMode: 'warm', brightness: .98, baseGain: .98
-    }),
-    Object.freeze({
-      title: 'Prelude in C Major',
-      composer: 'Johann Sebastian Bach',
-      // Broken-chord keyboard texture inspired by BWV 846's opening progression.
-      sequence: Object.freeze([
-        60,64,67,72,76,72,67,64,
-        59,62,67,71,74,71,67,62,
-        60,64,69,72,76,72,69,64,
-        62,65,69,74,77,74,69,65,
-        59,62,67,71,74,71,67,62,
-        60,64,67,72,76,72,67,64,
-        60,64,69,72,76,72,69,64,
-        62,66,69,74,78,74,69,66,
-        59,62,67,71,74,71,67,62,
-        60,64,67,72,76,72,67,64
-      ]),
-      harmonyMode: 'flow', brightness: 1.02, baseGain: .94
-    }),
-    Object.freeze({
-      title: 'Für Elise',
-      composer: 'Ludwig van Beethoven',
-      sequence: Object.freeze([
-        76,75,76,75,76,71,74,72,69,60,64,69,71,64,68,71,72,64,
-        76,75,76,75,76,71,74,72,69,60,64,69,71,64,72,71,69,
-        71,72,74,76,67,65,64,62,64,65,69,72,76,77,76,74,72,71,69,
-        71,72,74,76,79,77,76,74,72,71,69,68,69,
-        76,75,76,75,76,71,74,72,69
-      ]),
-      harmonyMode: 'drive', brightness: 1.08, baseGain: 1.00
-    }),
-    Object.freeze({
-      title: 'Turkish March',
-      composer: 'Wolfgang Amadeus Mozart',
-      sequence: Object.freeze([
-        73,71,69,68,69,72,76,72,76,72,71,72,69,76,77,76,75,76,
-        71,69,68,69,71,69,68,69,72,76,69,72,67,69,66,67,71,
-        69,68,69,72,76,72,76,72,71,72,69,76,77,76,75,76,
-        71,69,68,69,71,69,68,69,72,76,69,72,67,69,
-        76,77,79,81,79,77,76,74,76,77,79,81,79,77,76,74
-      ]),
-      harmonyMode: 'bright', brightness: 1.14, baseGain: 1.04
-    }),
-    Object.freeze({
-      title: 'The Entertainer',
-      composer: 'Scott Joplin',
-      // Simplified ragtime theme anchored by the iconic chromatic pickup.
-      sequence: Object.freeze([
-        70,69,70,72,74,67,66,67,69,
-        75,76,72,69,71,67,74,76,72,69,71,67,
-        74,76,72,69,71,69,67,68,67,
-        67,62,63,64,60,64,64,60,67,64,60,65,69,64,60,62,63,64,
-        60,62,64,67,71,74,72,64,60,64,60,71,75,76,72,64,64,60,
-        67,64,60,65,69,64,62,63,64,67,71,74,72,71,69,67
-      ]),
-      harmonyMode: 'master', brightness: 1.18, baseGain: 1.06
-    })
+
+  const M = root => Object.freeze([root, root + 4, root + 7]);
+  const m = root => Object.freeze([root, root + 3, root + 7]);
+  const D = root => Object.freeze([root, root + 3, root + 6]);
+  const piece = (id, title, composer, sequence, chords, style = 'flow', brightness = 1, baseGain = 1) => Object.freeze({
+    id, title, composer,
+    sequence: Object.freeze(sequence),
+    chords: Object.freeze(chords),
+    style, brightness, baseGain
+  });
+
+  // v497: every level has three selectable public-domain classical pieces.
+  // The tile stream carries the lead melody. The background uses ONLY a sparse
+  // accompaniment progression so it never doubles the lead and becomes muddy.
+  const PIECE_LIBRARY = Object.freeze([
+    Object.freeze([
+      piece('ode-to-joy', 'Ode to Joy', 'Beethoven',
+        [76,76,77,79,79,77,76,74,72,72,74,76,76,74,74,76,76,77,79,79,77,76,74,72,72,74,76,74,72,72,74,74,76,72,74,76,77,76,72,74,76,77,76,74,72,74,67],
+        [M(48),M(53),M(55),M(48)], 'march', .98, .98),
+      piece('minuet-g', 'Minuet in G', 'J. S. Bach / Petzold',
+        [79,74,76,77,79,74,74,81,77,79,81,83,84,79,81,83,84,79,79,77,76,74,76,77,76,74,72,71,72,74,76,72,74,76,77,74,72,71,69,67],
+        [M(55),M(50),M(52),M(55)], 'waltz', 1.00, .96),
+      piece('twinkle', 'Twinkle Variations', 'Traditional / Mozart variations',
+        [72,72,79,79,81,81,79,77,77,76,76,74,74,72,79,79,77,77,76,76,74,79,79,77,77,76,76,74,72,72,79,79,81,81,79,77,77,76,76,74,74,72],
+        [M(48),M(53),M(55),M(48)], 'flow', .97, .94)
+    ]),
+    Object.freeze([
+      piece('canon-d', 'Canon in D', 'Pachelbel',
+        [78,76,74,73,71,69,71,73,74,73,71,69,67,66,67,69,71,69,71,73,74,76,78,81,79,78,76,74,73,71,69,67],
+        [M(50),M(57),m(59),M(54),M(55),M(50),M(55),M(57)], 'flow', 1.00, .96),
+      piece('prelude-c', 'Prelude in C Major', 'J. S. Bach',
+        [60,64,67,72,76,72,67,64,59,62,67,71,74,71,67,62,60,64,69,72,76,72,69,64,62,65,69,74,77,74,69,65,59,62,67,71,74,71,67,62],
+        [M(48),m(47),m(45),M(53),M(55),M(48)], 'arpeggio', 1.01, .93),
+      piece('jesu-joy', 'Jesu, Joy of Man’s Desiring', 'J. S. Bach',
+        [71,69,67,66,67,69,71,74,72,71,69,67,66,64,66,67,69,71,72,74,76,74,72,71,69,67,66,67,69,71,69,67],
+        [M(55),M(50),m(52),M(48),M(55),M(50)], 'flow', .99, .95)
+    ]),
+    Object.freeze([
+      piece('fur-elise', 'Für Elise', 'Beethoven',
+        [76,75,76,75,76,71,74,72,69,60,64,69,71,64,68,71,72,64,76,75,76,75,76,71,74,72,69,60,64,69,71,64,72,71,69,71,72,74,76,67,65,64,62,64,65,69,72,76,77,76,74,72,71,69],
+        [m(45),M(52),m(45),M(48),M(52),m(45)], 'arpeggio', 1.08, 1.00),
+      piece('swan-lake', 'Swan Lake Theme', 'Tchaikovsky',
+        [69,74,76,77,76,74,73,74,76,77,79,77,76,74,73,74,69,72,74,76,74,72,71,72,74,76,77,76,74,72,71,69],
+        [m(45),D(47),m(50),M(52),m(45)], 'dramatic', 1.02, .98),
+      piece('blue-danube', 'The Blue Danube', 'Johann Strauss II',
+        [66,69,74,74,76,81,81,78,74,74,76,83,83,79,76,74,69,71,76,76,78,83,83,80,76,76,78,85,85,81,78,76],
+        [M(50),M(57),M(55),M(50)], 'waltz', 1.01, .96)
+    ]),
+    Object.freeze([
+      piece('turkish-march', 'Turkish March', 'Mozart',
+        [73,71,69,68,69,72,76,72,76,72,71,72,69,76,77,76,75,76,71,69,68,69,71,69,68,69,72,76,69,72,67,69,66,67,71,69,68,69,72,76,72,76,72,71,72,69],
+        [m(45),M(52),m(45),M(50),M(52),m(45)], 'march', 1.14, 1.04),
+      piece('eine-kleine', 'Eine kleine Nachtmusik', 'Mozart',
+        [67,67,67,74,71,72,72,72,79,76,74,74,72,71,69,67,74,74,74,81,78,79,79,79,83,81,79,77,76,74,72,71],
+        [M(55),M(50),M(48),M(50),M(55)], 'march', 1.08, 1.00),
+      piece('radetzky', 'Radetzky March', 'Johann Strauss I',
+        [67,71,74,79,79,78,76,74,71,74,76,78,79,76,74,71,67,71,74,79,81,79,78,76,74,76,78,79,76,74,71,67],
+        [M(55),M(50),M(55),M(48),M(50),M(55)], 'march', 1.10, 1.02)
+    ]),
+    Object.freeze([
+      piece('entertainer', 'The Entertainer', 'Scott Joplin',
+        [70,69,70,72,74,67,66,67,69,75,76,72,69,71,67,74,76,72,69,71,67,74,76,72,69,71,69,67,68,67,67,62,63,64,60,64,64,60,67,64,60,65,69,64,60,62,63,64],
+        [M(48),M(55),M(53),M(55),M(48)], 'rag', 1.18, 1.06),
+      piece('maple-leaf-rag', 'Maple Leaf Rag', 'Scott Joplin',
+        [76,75,76,72,74,71,72,69,71,67,69,64,67,69,71,72,74,72,71,69,67,64,67,69,71,74,76,74,72,71,69,67],
+        [M(48),M(55),M(53),M(50),M(55),M(48)], 'rag', 1.16, 1.05),
+      piece('vivaldi-spring', 'Spring', 'Antonio Vivaldi',
+        [76,78,80,81,83,81,80,78,76,78,80,81,83,85,83,81,80,78,76,74,76,78,80,81,83,81,80,78,76,74,72,71],
+        [M(52),M(57),M(59),M(52)], 'bright', 1.13, 1.03)
+    ]),
+    Object.freeze([
+      piece('moonlight', 'Moonlight Sonata', 'Beethoven',
+        [61,68,73,64,68,73,61,68,73,64,68,73,59,68,71,64,68,71,59,66,71,62,66,71,59,66,71,62,66,71,57,64,69,61,64,69],
+        [m(49),M(52),m(54),m(49)], 'nocturne', .92, .90),
+      piece('nocturne-op9', 'Nocturne Op. 9 No. 2', 'Chopin',
+        [75,77,79,82,80,79,77,75,74,75,77,79,82,84,82,79,77,75,74,72,74,75,77,80,79,77,75,74,72,70,72,74],
+        [M(51),m(55),M(56),M(51),m(53),M(58)], 'nocturne', 1.00, .94),
+      piece('gymnopedie', 'Gymnopédie No. 1', 'Erik Satie',
+        [66,69,71,74,73,71,69,66,64,66,69,71,69,66,64,62,66,69,71,74,76,74,71,69,66,64,62,61,62,64,66,69],
+        [M(50),M(55),M(50),M(57)], 'nocturne', .90, .89)
+    ]),
+    Object.freeze([
+      piece('william-tell', 'William Tell Overture', 'Rossini',
+        [76,76,76,76,76,79,81,83,81,79,76,74,72,72,72,72,74,74,74,74,74,77,79,81,79,77,74,72,71,71,71,71],
+        [M(48),M(55),M(53),M(55),M(48)], 'gallop', 1.14, 1.04),
+      piece('habanera', 'Habanera', 'Bizet',
+        [74,73,72,71,70,69,68,67,69,71,72,74,72,71,69,67,66,67,69,71,72,71,69,67,66,64,66,67,69,71,69,67],
+        [m(50),M(55),m(50),M(57)], 'habanera', 1.04, .99),
+      piece('sugar-plum', 'Dance of the Sugar Plum Fairy', 'Tchaikovsky',
+        [76,75,76,72,76,79,78,79,75,79,82,81,82,78,82,85,84,85,81,85,88,87,88,84,88,91,90,88,87,85,84,82],
+        [m(48),M(55),m(53),M(55),m(48)], 'staccato', 1.20, 1.02)
+    ]),
+    Object.freeze([
+      piece('bumblebee', 'Flight of the Bumblebee', 'Rimsky-Korsakov',
+        [84,83,82,81,80,79,78,77,76,75,74,73,72,73,74,75,76,77,78,79,80,81,82,83,84,82,80,78,76,74,72,71],
+        [m(45),m(50),M(52),m(45)], 'pulse', 1.22, 1.06),
+      piece('beethoven-5', 'Symphony No. 5 Theme', 'Beethoven',
+        [67,67,67,63,65,65,65,62,67,67,67,63,68,68,68,67,70,70,70,67,72,72,72,71,74,74,74,72,71,69,67,65],
+        [m(48),M(55),m(48),M(53),M(55),m(48)], 'dramatic', 1.12, 1.04),
+      piece('can-can', 'Can-Can', 'Offenbach',
+        [79,76,77,74,76,72,74,71,72,69,71,67,79,76,77,74,76,72,74,71,72,74,76,77,79,81,79,77,76,74,72,71],
+        [M(48),M(55),M(53),M(55),M(48)], 'gallop', 1.18, 1.05)
+    ]),
+    Object.freeze([
+      piece('fantaisie', 'Fantaisie-Impromptu', 'Chopin',
+        [73,76,80,85,80,76,73,76,80,85,88,85,80,76,73,76,75,78,82,87,82,78,75,78,82,87,90,87,82,78,75,78],
+        [m(49),M(56),m(54),M(57),m(49)], 'arpeggio', 1.18, 1.06),
+      piece('liebestraum', 'Liebestraum No. 3', 'Liszt',
+        [72,76,79,84,83,81,79,76,74,76,79,81,84,83,81,79,77,81,84,89,88,86,84,81,79,81,84,86,89,88,86,84],
+        [M(48),m(52),M(53),M(55),M(48)], 'romantic', 1.10, 1.02),
+      piece('hungarian-dance-5', 'Hungarian Dance No. 5', 'Brahms',
+        [71,74,76,78,79,78,76,74,71,74,76,78,79,83,81,79,78,76,74,71,69,71,74,76,78,79,81,83,81,79,78,76],
+        [m(47),M(54),m(47),M(52),M(54),m(47)], 'dramatic', 1.17, 1.05)
+    ]),
+    Object.freeze([
+      piece('la-campanella', 'La Campanella', 'Liszt',
+        [86,74,86,76,86,78,86,79,86,81,86,83,86,84,83,81,86,76,86,78,86,79,86,81,86,83,88,86,84,83,81,79],
+        [m(47),M(54),m(52),M(54),m(47)], 'bell', 1.24, 1.08),
+      piece('hungarian-rhapsody-2', 'Hungarian Rhapsody No. 2', 'Liszt',
+        [69,72,76,81,80,81,83,81,80,78,76,74,72,71,69,68,69,72,76,81,83,81,80,78,76,79,83,88,86,83,81,79],
+        [m(45),M(52),m(50),M(52),m(45)], 'virtuoso', 1.22, 1.08),
+      piece('revolutionary', 'Revolutionary Étude', 'Chopin',
+        [84,83,81,79,77,76,74,72,71,69,67,65,64,62,60,59,60,62,64,65,67,69,71,72,74,76,77,79,81,83,84,86],
+        [m(48),M(55),m(53),M(55),m(48)], 'pulse', 1.20, 1.07)
+    ])
   ]);
 
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -155,11 +218,17 @@
     rewardNoteEl: null,
     levelNameEl: null,
     levelButtons: [],
+    piecePicker: null,
+    pieceTitleEl: null,
+    pieceButtons: [],
+    choosePieceBtn: null,
     startBtn: null,
     resultTitleEl: null,
     nextLevelBtn: null,
     replayLevelBtn: null,
     level: 1,
+    pieceIndex: 0,
+    selectedPieces: Array(10).fill(0),
     bridge: null,
     music: null,
     compressor: null,
@@ -233,31 +302,21 @@
   }
 
 
-  function songProfile(level = runtime.level) {
-    return SONG_LIBRARY[clamp(Math.floor(Number(level || 1)) - 1, 0, SONG_LIBRARY.length - 1)] || SONG_LIBRARY[0];
+  function piecesForLevel(level = runtime.level) {
+    const id = clamp(Math.floor(Number(level || 1)), 1, LEVEL_COUNT);
+    return PIECE_LIBRARY[id - 1] || PIECE_LIBRARY[0];
   }
 
-  function chordMidi(root, mode, phrasePos, isHold = false) {
-    const out = [];
-    if (isHold) {
-      if (mode === 'master' || mode === 'bright') out.push(root + 7, root + 12);
-      else out.push(root + 7);
-      return out.filter(v => v >= 52 && v <= 98);
-    }
-    if (phrasePos === 0 || phrasePos === 8) {
-      out.push(root - 12);
-      if (mode === 'bright' || mode === 'master') out.push(root + 7);
-    } else if (phrasePos === 4 || phrasePos === 12) {
-      out.push(root + 7);
-    } else if ((mode === 'flow' || mode === 'drive') && (phrasePos === 2 || phrasePos === 10)) {
-      out.push(root - 12);
-    }
-    return out.filter(v => v >= 48 && v <= 98);
+  function songProfile(level = runtime.level, pieceIndex = runtime.pieceIndex) {
+    const list = piecesForLevel(level);
+    const index = clamp(Math.floor(Number(pieceIndex || 0)), 0, Math.max(0, list.length - 1));
+    return list[index] || list[0];
   }
 
-  function buildSongNotes(level, totalNotes) {
-    const profile = songProfile(level);
+  function buildSongNotes(level, totalNotes, pieceIndex = runtime.pieceIndex) {
+    const profile = songProfile(level, pieceIndex);
     const source = Array.isArray(profile.sequence) ? profile.sequence : [];
+    const chords = Array.isArray(profile.chords) && profile.chords.length ? profile.chords : [M(48)];
     const sequence = [];
     while (sequence.length < totalNotes && source.length) {
       source.forEach(midi => {
@@ -267,16 +326,18 @@
     if (!sequence.length) sequence.push(72);
     return sequence.slice(0, totalNotes).map((midi, i) => {
       const phrasePos = i % 16;
-      const velocity = clamp(profile.baseGain * ACCENT_PATTERN[phrasePos], .72, 1.18);
-      const harmonyMidis = chordMidi(midi, profile.harmonyMode, phrasePos, HOLD_INDICES.includes(i));
+      const velocity = clamp(profile.baseGain * ACCENT_PATTERN[phrasePos], .72, 1.20);
+      const chordIndex = Math.floor(i / 4) % chords.length;
+      const bgChord = i % 4 === 0 ? chords[chordIndex].slice() : null;
       return {
         midi,
         freq: midiToFreq(midi),
-        harmonyFreqs: harmonyMidis.map(midiToFreq),
         gainScale: velocity,
         releaseSec: RELEASE_PATTERN[phrasePos],
         brightness: profile.brightness,
-        phrasePos
+        phrasePos,
+        bgChord,
+        backingStyle: profile.style
       };
     });
   }
@@ -305,25 +366,32 @@
 
         <div class="code-tiles-panel" data-code-tiles-ready>
           <div class="code-tiles-card ready-card">
-            <p class="code-tiles-kicker">ALL 5 LEVELS OPEN</p>
+            <p class="code-tiles-kicker">ALL 10 LEVELS OPEN · 30 FAMOUS PIECES</p>
             <h2>CODE TILES</h2>
-            <p class="code-tiles-subtitle">Tap the lowest next black tile. Do not touch the empty lanes.</p>
+            <p class="code-tiles-subtitle">Choose a level and a classical piece, then play its lead melody over a clean piano accompaniment.</p>
             <div class="code-tiles-demo" aria-hidden="true"><span></span><span class="black long"></span><span></span><span class="black"></span></div>
             <div class="code-tiles-mode-row"><div><small>SELECTED LEVEL</small><strong data-code-tiles-level-name>1 · CLASSIC</strong></div><div><small>BEST</small><strong data-code-tiles-best>0</strong></div></div>
             <div class="code-tiles-level-picker" role="group" aria-label="Choose Code Tiles level">
-              <button type="button" data-code-tiles-level="1"><b>1</b><small>Ode to Joy</small></button>
-              <button type="button" data-code-tiles-level="2"><b>2</b><small>Prelude in C</small></button>
-              <button type="button" data-code-tiles-level="3"><b>3</b><small>Für Elise</small></button>
-              <button type="button" data-code-tiles-level="4"><b>4</b><small>Turkish March</small></button>
-              <button type="button" data-code-tiles-level="5"><b>5</b><small>Entertainer</small></button>
+              <button type="button" data-code-tiles-level="1"><b>1</b><small>Classic</small></button>
+              <button type="button" data-code-tiles-level="2"><b>2</b><small>Flow</small></button>
+              <button type="button" data-code-tiles-level="3"><b>3</b><small>Rhythm</small></button>
+              <button type="button" data-code-tiles-level="4"><b>4</b><small>Rush</small></button>
+              <button type="button" data-code-tiles-level="5"><b>5</b><small>Bravo</small></button>
+              <button type="button" data-code-tiles-level="6"><b>6</b><small>Tempest</small></button>
+              <button type="button" data-code-tiles-level="7"><b>7</b><small>Virtuoso</small></button>
+              <button type="button" data-code-tiles-level="8"><b>8</b><small>Turbo</small></button>
+              <button type="button" data-code-tiles-level="9"><b>9</b><small>Concert</small></button>
+              <button type="button" data-code-tiles-level="10"><b>10</b><small>Master</small></button>
             </div>
+            <div class="code-tiles-piece-head"><small>CHOOSE A PIECE</small><strong data-code-tiles-piece-title>Ode to Joy · Beethoven</strong></div>
+            <div class="code-tiles-piece-picker" data-code-tiles-piece-picker role="group" aria-label="Choose a classical piece"></div>
             <div class="code-tiles-how">
               <span><b>TAP</b><small>Tap the next black tile itself before it passes the bottom.</small></span>
               <span><b>HOLD</b><small>Tap long tiles to clear them. Keep holding to fill farther and earn the hold bonus.</small></span>
             </div>
             <div class="code-tiles-keys"><span>D</span><span>F</span><span>J</span><span>K</span></div>
-            <button class="code-tiles-primary" type="button" data-code-tiles-play>START LEVEL 1</button>
-            <small class="code-tiles-tip">Phone: tap the tiles. Desktop: D / F / J / K. A clean full run can earn up to 3 XP.</small>
+            <button class="code-tiles-primary" type="button" data-code-tiles-play>PLAY ODE TO JOY</button>
+            <small class="code-tiles-tip">Phone: tap the tiles. Desktop: D / F / J / K. The backing is accompaniment only; your taps play the lead melody.</small>
           </div>
         </div>
 
@@ -336,7 +404,7 @@
         </div>
 
         <div class="code-tiles-panel" data-code-tiles-result hidden>
-          <div class="code-tiles-card compact result-card"><div class="code-tiles-result-icon success">✓</div><p class="code-tiles-kicker success">LEVEL COMPLETE</p><h2 data-code-tiles-result-title>LEVEL 1 CLEAR</h2><div class="code-tiles-result-grid"><div><small>Score</small><strong data-code-tiles-final-score>0</strong></div><div><small>Accuracy</small><strong data-code-tiles-final-accuracy>100%</strong></div><div><small>Long Holds</small><strong data-code-tiles-final-holds>0/9</strong></div><div><small>Best Streak</small><strong data-code-tiles-final-streak>0</strong></div><div class="xp"><small>XP Earned</small><strong data-code-tiles-final-xp>+0</strong></div></div><p class="code-tiles-reward-note" data-code-tiles-reward-note>Securing reward…</p><div class="code-tiles-actions code-tiles-result-actions"><button class="code-tiles-primary" type="button" data-code-tiles-next-level>NEXT LEVEL</button><button type="button" data-code-tiles-replay-level>REPLAY LEVEL</button><button type="button" data-code-tiles-result-hub>MINI-GAMES</button></div></div>
+          <div class="code-tiles-card compact result-card"><div class="code-tiles-result-icon success">✓</div><p class="code-tiles-kicker success">LEVEL COMPLETE</p><h2 data-code-tiles-result-title>LEVEL 1 CLEAR</h2><div class="code-tiles-result-grid"><div><small>Score</small><strong data-code-tiles-final-score>0</strong></div><div><small>Accuracy</small><strong data-code-tiles-final-accuracy>100%</strong></div><div><small>Long Holds</small><strong data-code-tiles-final-holds>0/9</strong></div><div><small>Best Streak</small><strong data-code-tiles-final-streak>0</strong></div><div class="xp"><small>XP Earned</small><strong data-code-tiles-final-xp>+0</strong></div></div><p class="code-tiles-reward-note" data-code-tiles-reward-note>Securing reward…</p><div class="code-tiles-actions code-tiles-result-actions"><button class="code-tiles-primary" type="button" data-code-tiles-next-level>NEXT LEVEL</button><button type="button" data-code-tiles-replay-level>REPLAY PIECE</button><button type="button" data-code-tiles-choose-piece>CHOOSE PIECE</button><button type="button" data-code-tiles-result-hub>MINI-GAMES</button></div></div>
         </div>
       </section>`;
     document.body.appendChild(overlay);
@@ -366,6 +434,9 @@
     runtime.rewardNoteEl = overlay.querySelector('[data-code-tiles-reward-note]');
     runtime.levelNameEl = overlay.querySelector('[data-code-tiles-level-name]');
     runtime.levelButtons = Array.from(overlay.querySelectorAll('[data-code-tiles-level]'));
+    runtime.piecePicker = overlay.querySelector('[data-code-tiles-piece-picker]');
+    runtime.pieceTitleEl = overlay.querySelector('[data-code-tiles-piece-title]');
+    runtime.choosePieceBtn = overlay.querySelector('[data-code-tiles-choose-piece]');
     runtime.startBtn = overlay.querySelector('[data-code-tiles-play]');
     runtime.resultTitleEl = overlay.querySelector('[data-code-tiles-result-title]');
     runtime.nextLevelBtn = overlay.querySelector('[data-code-tiles-next-level]');
@@ -375,6 +446,7 @@
     overlay.querySelector('[data-code-tiles-retry]')?.addEventListener('click', startRun);
     runtime.replayLevelBtn?.addEventListener('click', startRun);
     runtime.nextLevelBtn?.addEventListener('click', startNextLevel);
+    runtime.choosePieceBtn?.addEventListener('click', showLevelSelect);
     runtime.levelButtons.forEach(button => button.addEventListener('click', () => selectLevel(Number(button.dataset.codeTilesLevel || 1))));
     overlay.querySelector('[data-code-tiles-resume]')?.addEventListener('click', resumeRun);
     overlay.querySelector('[data-code-tiles-pause-hub]')?.addEventListener('click', returnToHub);
@@ -436,22 +508,53 @@
     return LEVELS[id - 1] || LEVELS[0];
   }
 
+  function renderPiecePicker() {
+    if (!runtime.piecePicker) return;
+    const pieces = piecesForLevel(runtime.level);
+    const safeIndex = clamp(Math.floor(Number(runtime.pieceIndex || 0)), 0, Math.max(0, pieces.length - 1));
+    runtime.pieceIndex = safeIndex;
+    runtime.selectedPieces[runtime.level - 1] = safeIndex;
+    runtime.piecePicker.innerHTML = pieces.map((item, index) => `
+      <button type="button" data-code-tiles-piece="${index}" aria-pressed="${index === safeIndex ? 'true' : 'false'}" class="${index === safeIndex ? 'selected' : ''}">
+        <b>${item.title}</b><small>${item.composer}</small>
+      </button>`).join('');
+    runtime.pieceButtons = Array.from(runtime.piecePicker.querySelectorAll('[data-code-tiles-piece]'));
+    runtime.pieceButtons.forEach(button => button.addEventListener('click', () => selectPiece(Number(button.dataset.codeTilesPiece || 0))));
+  }
+
   function updateLevelUi() {
     const config = levelConfig();
-    if (runtime.levelNameEl) runtime.levelNameEl.textContent = `${config.id} · ${config.shortName} · ${config.composer}`;
-    if (runtime.startBtn) runtime.startBtn.textContent = `START LEVEL ${config.id}`;
+    const selectedPiece = songProfile();
+    if (runtime.levelNameEl) runtime.levelNameEl.textContent = `${config.id} · ${config.name}`;
+    if (runtime.pieceTitleEl) runtime.pieceTitleEl.textContent = `${selectedPiece.title} · ${selectedPiece.composer}`;
+    if (runtime.startBtn) runtime.startBtn.textContent = `PLAY · ${selectedPiece.title.toUpperCase()}`;
     runtime.levelButtons.forEach(button => {
       const selected = Number(button.dataset.codeTilesLevel || 0) === config.id;
       button.classList.toggle('selected', selected);
       button.setAttribute('aria-pressed', selected ? 'true' : 'false');
     });
+    renderPiecePicker();
   }
 
   function selectLevel(level) {
     if (runtime.state !== 'ready') return;
     runtime.level = clamp(Math.floor(Number(level || 1)), 1, LEVEL_COUNT);
+    runtime.pieceIndex = clamp(Number(runtime.selectedPieces[runtime.level - 1] || 0), 0, piecesForLevel(runtime.level).length - 1);
     updateLevelUi();
-    buildChart(`preview-level-${runtime.level}`);
+    buildChart(`preview-level-${runtime.level}-piece-${songProfile().id}`);
+    runtime.nextIndex = 0;
+    runtime.scroll = 0;
+    runtime.score = 0;
+    updateHud();
+    render(performance.now());
+  }
+
+  function selectPiece(index) {
+    if (runtime.state !== 'ready') return;
+    runtime.pieceIndex = clamp(Math.floor(Number(index || 0)), 0, piecesForLevel().length - 1);
+    runtime.selectedPieces[runtime.level - 1] = runtime.pieceIndex;
+    updateLevelUi();
+    buildChart(`preview-level-${runtime.level}-piece-${songProfile().id}`);
     runtime.nextIndex = 0;
     runtime.scroll = 0;
     runtime.score = 0;
@@ -466,7 +569,7 @@
     runtime.pausePanel.hidden = true;
     runtime.readyPanel.hidden = false;
     updateLevelUi();
-    buildChart(`preview-level-${runtime.level}`);
+    buildChart(`preview-level-${runtime.level}-piece-${songProfile().id}`);
     runtime.nextIndex = 0;
     runtime.scroll = 0;
     runtime.score = 0;
@@ -476,19 +579,19 @@
 
   function startNextLevel() {
     if (runtime.rewardSubmitting) return;
-    if (runtime.level >= LEVEL_COUNT) {
-      showLevelSelect();
-      return;
+    if (runtime.level < LEVEL_COUNT) {
+      runtime.level += 1;
+      runtime.pieceIndex = clamp(Number(runtime.selectedPieces[runtime.level - 1] || 0), 0, piecesForLevel(runtime.level).length - 1);
     }
-    runtime.level += 1;
-    updateLevelUi();
-    startRun();
+    // v497: next level always returns to the song picker instead of auto-starting,
+    // because every level has three pieces and the player chooses before playing.
+    showLevelSelect();
   }
 
   function buildChart(seed) {
     const rng = makeRng(seed);
     const holds = new Set(HOLD_INDICES);
-    const song = buildSongNotes(runtime.level, TOTAL_NOTES);
+    const song = buildSongNotes(runtime.level, TOTAL_NOTES, runtime.pieceIndex);
     const chart = [];
     let cumulative = 0;
     let prevLane = -1;
@@ -502,7 +605,7 @@
       const isHold = holds.has(i);
       const longH = isHold ? (i % 2 ? LONG_H_LARGE : LONG_H_SMALL) : SHORT_H;
       const bonusTicks = isHold ? (longH >= LONG_H_LARGE ? 4 : 3) : 0;
-      const songNote = song[i] || song[0] || { midi:72, freq:midiToFreq(72), harmonyFreqs:[], gainScale:1, releaseSec:.32, brightness:1, phrasePos:0 };
+      const songNote = song[i] || song[0] || { midi:72, freq:midiToFreq(72), gainScale:1, releaseSec:.32, brightness:1, phrasePos:0, bgChord:null, backingStyle:'flow' };
       const bgTriggerScroll = cumulative;
       const note = {
         id: i,
@@ -521,7 +624,8 @@
         holdVisualProgress: 0,
         midi: songNote.midi,
         freq: songNote.freq,
-        harmonyFreqs: songNote.harmonyFreqs,
+        bgChord: songNote.bgChord,
+        backingStyle: songNote.backingStyle,
         gainScale: songNote.gainScale,
         releaseSec: songNote.releaseSec,
         brightness: songNote.brightness,
@@ -573,7 +677,7 @@
     }
     try { runtime.round = runtime.bridge?.beginRound?.(GAME_ID) || null; } catch (_) { runtime.round = null; }
     const runSeed = runtime.round?.sessionId || `${Date.now()}-${Math.random()}`;
-    buildChart(`${runSeed}-level-${runtime.level}`);
+    buildChart(`${runSeed}-level-${runtime.level}-piece-${songProfile().id}`);
     stopBackingTrack(true);
     runtime.backingIndex = 0;
     runtime.backingStarted = false;
@@ -884,9 +988,10 @@
     runtime.finalStreakEl.textContent = String(runtime.maxStreak);
     runtime.finalXpEl.textContent = '+0';
     const clearedLevel = levelConfig();
-    if (runtime.resultTitleEl) runtime.resultTitleEl.textContent = `${clearedLevel.shortName.toUpperCase()} CLEAR`;
+    const clearedPiece = songProfile();
+    if (runtime.resultTitleEl) runtime.resultTitleEl.textContent = `${clearedPiece.title.toUpperCase()} · LEVEL ${clearedLevel.id} CLEAR`;
     if (runtime.nextLevelBtn) runtime.nextLevelBtn.textContent = clearedLevel.id < LEVEL_COUNT ? `NEXT LEVEL · ${clearedLevel.id + 1}` : 'LEVEL SELECT';
-    if (runtime.replayLevelBtn) runtime.replayLevelBtn.textContent = `REPLAY LEVEL ${clearedLevel.id}`;
+    if (runtime.replayLevelBtn) runtime.replayLevelBtn.textContent = 'REPLAY PIECE';
     runtime.rewardNoteEl.className = 'code-tiles-reward-note';
     runtime.rewardNoteEl.textContent = runtime.round ? 'Securing reward…' : 'Practice run — log in to earn account XP.';
     runtime.resultPanel.hidden = false;
@@ -912,7 +1017,9 @@
           syncRemaining: 100,
           activeTimeMs: Math.round(runtime.activeTimeMs),
           level: runtime.level,
-          levelName: levelConfig().name
+          levelName: levelConfig().name,
+          pieceId: songProfile().id,
+          pieceName: songProfile().title
         }
       });
       runtime.round = null;
@@ -1299,13 +1406,13 @@
       const master = context.createGain();
       const backing = context.createGain();
       const compressor = context.createDynamicsCompressor();
-      // v496 loudness tune: make the classical backing clearly audible on phone
-      // speakers while keeping tapped notes and fail feedback in the foreground.
-      master.gain.value = .58;
-      backing.gain.value = .36;
-      compressor.threshold.value = -12;
-      compressor.knee.value = 12;
-      compressor.ratio.value = 3.5;
+      // v497 mix: the player owns the lead melody; backing is a clean, sparse
+      // accompaniment bus with headroom and temporary ducking on every tap.
+      master.gain.value = .62;
+      backing.gain.value = BACKING_GAIN_NORMAL;
+      compressor.threshold.value = -10;
+      compressor.knee.value = 10;
+      compressor.ratio.value = 3.2;
       compressor.attack.value = .003;
       compressor.release.value = .18;
       master.connect(compressor);
@@ -1329,83 +1436,101 @@
     try { runtime.audioContext?.suspend?.(); } catch (_) {}
   }
 
-  function backingDurationFor(tile, index) {
-    const next = runtime.chart[index + 1];
-    if (!next) return tile?.isHold ? .72 : .42;
-    const distance = Math.max(80, Number(next.bgTriggerScroll || 0) - Number(tile.bgTriggerScroll || 0));
-    const seconds = distance / Math.max(1, speedNow());
-    return clamp(seconds * .96, tile?.isHold ? .48 : .18, tile?.isHold ? 1.15 : .62);
+  function nextBackingIndex(afterIndex) {
+    for (let i = Math.max(0, afterIndex + 1); i < runtime.chart.length; i += 1) {
+      if (Array.isArray(runtime.chart[i]?.bgChord) && runtime.chart[i].bgChord.length) return i;
+    }
+    return -1;
   }
 
-  function playBackingPianoNote(tile, index) {
-    if (!runtime.soundEnabled || !tile) return;
+  function backingDurationFor(tile, index) {
+    const nextIndex = nextBackingIndex(index);
+    if (nextIndex < 0) return .90;
+    const next = runtime.chart[nextIndex];
+    const distance = Math.max(120, Number(next.bgTriggerScroll || 0) - Number(tile.bgTriggerScroll || 0));
+    return clamp((distance / Math.max(1, speedNow())) * .92, .34, 1.35);
+  }
+
+  function scheduleBackingTone(context, bus, freq, startAt, duration, gainValue, type = 'triangle', detune = 0, nodes = []) {
+    const osc = context.createOscillator();
+    const gain = context.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, startAt);
+    if (detune) osc.detune.setValueAtTime(detune, startAt);
+    gain.gain.setValueAtTime(.0001, startAt);
+    gain.gain.linearRampToValueAtTime(gainValue, startAt + .012);
+    gain.gain.exponentialRampToValueAtTime(Math.max(.0001, gainValue * .54), startAt + Math.min(.10, duration * .28));
+    gain.gain.exponentialRampToValueAtTime(.0001, startAt + duration);
+    osc.connect(gain);
+    gain.connect(bus);
+    osc.start(startAt);
+    osc.stop(startAt + duration + .06);
+    nodes.push({ osc, gain });
+  }
+
+  function playBackingAccompaniment(tile, index) {
+    if (!runtime.soundEnabled || !tile || !Array.isArray(tile.bgChord) || !tile.bgChord.length) return;
     const context = ensureAudio();
     if (!context || !runtime.backingGain) return;
     resumeAudio();
     const now = context.currentTime;
     const duration = backingDurationFor(tile, index);
-    const baseFreq = Number(tile.freq || midiToFreq(72));
-    const profile = songProfile();
-    const phrasePos = Number(tile.phrasePos || 0);
+    const style = String(tile.backingStyle || songProfile().style || 'flow');
     try {
       const noteBus = context.createGain();
       const filter = context.createBiquadFilter();
       filter.type = 'lowpass';
-      filter.frequency.setValueAtTime(2050 * clamp(Number(tile.brightness || 1), .85, 1.3), now);
-      filter.Q.value = .38;
-      noteBus.gain.setValueAtTime(.0001, now);
-      noteBus.gain.linearRampToValueAtTime(.25, now + .010);
-      noteBus.gain.exponentialRampToValueAtTime(.145, now + .09);
-      noteBus.gain.exponentialRampToValueAtTime(.0001, now + duration);
+      filter.frequency.setValueAtTime(style === 'bell' ? 2350 : style === 'nocturne' ? 1700 : 1950, now);
+      filter.Q.value = .32;
+      noteBus.gain.value = 1;
       filter.connect(noteBus);
       noteBus.connect(runtime.backingGain);
-
       const nodes = [];
-      const add = (freq, type, gainValue, detune = 0) => {
-        const osc = context.createOscillator();
-        const gain = context.createGain();
-        osc.type = type;
-        osc.frequency.setValueAtTime(freq, now);
-        if (detune) osc.detune.setValueAtTime(detune, now);
-        gain.gain.setValueAtTime(gainValue, now);
-        osc.connect(gain);
-        gain.connect(filter);
-        osc.start(now);
-        osc.stop(now + duration + .08);
-        nodes.push({ osc, gain });
-      };
+      const chord = tile.bgChord.map(Number).filter(Number.isFinite);
+      const root = chord[0] || 48;
+      const third = chord[1] || root + 4;
+      const fifth = chord[2] || root + 7;
+      const step = Math.max(.055, duration / 4);
 
-      // Soft right-hand melody: this is the continuous recognizable piece.
-      add(baseFreq, 'triangle', .62);
-      add(baseFreq * 2, 'sine', .12, -2);
-
-      // Light left-hand/accompaniment accents make the backing feel like an
-      // actual piano rendition while keeping the tapped note as the foreground.
-      if (phrasePos % 4 === 0) {
-        const bassMidi = clamp(Number(tile.midi || 72) - (profile.harmonyMode === 'master' ? 24 : 12), 43, 67);
-        add(midiToFreq(bassMidi), 'triangle', phrasePos % 8 === 0 ? .34 : .26, 0);
-      }
-      if (phrasePos === 4 || phrasePos === 12) {
-        const fifthMidi = clamp(Number(tile.midi || 72) - 5, 48, 76);
-        add(midiToFreq(fifthMidi), 'sine', .16, 2);
+      // Accompaniment-only patterns. No lead-melody frequency is used here.
+      if (style === 'waltz') {
+        scheduleBackingTone(context, filter, midiToFreq(root), now, Math.min(duration * .62, .52), .26, 'triangle', 0, nodes);
+        scheduleBackingTone(context, filter, midiToFreq(third + 12), now + step * 1.35, Math.min(step * 1.25, .34), .12, 'sine', -2, nodes);
+        scheduleBackingTone(context, filter, midiToFreq(fifth + 12), now + step * 2.65, Math.min(step * 1.15, .32), .11, 'sine', 2, nodes);
+      } else if (['arpeggio','nocturne','romantic'].includes(style)) {
+        [root, fifth, third + 12, fifth + 12].forEach((midi, n) => {
+          scheduleBackingTone(context, filter, midiToFreq(midi), now + n * step * .72, Math.min(step * 1.65, .42), n === 0 ? .23 : .105, n === 0 ? 'triangle' : 'sine', n % 2 ? -2 : 2, nodes);
+        });
+      } else if (style === 'rag') {
+        scheduleBackingTone(context, filter, midiToFreq(root), now, Math.min(step * 1.2, .30), .25, 'triangle', 0, nodes);
+        [third + 12, fifth + 12].forEach((midi, n) => scheduleBackingTone(context, filter, midiToFreq(midi), now + step * 1.45, Math.min(step * 1.25, .30), .115, 'sine', n ? 2 : -2, nodes));
+        scheduleBackingTone(context, filter, midiToFreq(fifth), now + step * 2.75, Math.min(step, .26), .18, 'triangle', 0, nodes);
+      } else if (['gallop','march','dramatic','pulse','virtuoso'].includes(style)) {
+        scheduleBackingTone(context, filter, midiToFreq(root), now, Math.min(step * 1.35, .34), .27, 'triangle', 0, nodes);
+        [third + 12, fifth + 12].forEach((midi, n) => scheduleBackingTone(context, filter, midiToFreq(midi), now + step * 1.55, Math.min(step * 1.15, .28), .105, 'sine', n ? 2 : -2, nodes));
+        if (style === 'gallop' || style === 'pulse') scheduleBackingTone(context, filter, midiToFreq(root + 12), now + step * 2.85, Math.min(step * .9, .22), .12, 'sine', 0, nodes);
+      } else if (style === 'staccato' || style === 'bell') {
+        scheduleBackingTone(context, filter, midiToFreq(root), now, Math.min(step, .24), .19, 'triangle', 0, nodes);
+        scheduleBackingTone(context, filter, midiToFreq(fifth + 12), now + step * 1.8, Math.min(step * .8, .20), .095, 'sine', 3, nodes);
+      } else {
+        scheduleBackingTone(context, filter, midiToFreq(root), now, Math.min(duration * .52, .45), .24, 'triangle', 0, nodes);
+        scheduleBackingTone(context, filter, midiToFreq(fifth + 12), now + step * 1.25, Math.min(duration * .42, .36), .105, 'sine', 2, nodes);
+        scheduleBackingTone(context, filter, midiToFreq(third + 12), now + step * 2.35, Math.min(duration * .34, .31), .09, 'sine', -2, nodes);
       }
 
       const voice = { noteBus, nodes };
       runtime.backingVoices.add(voice);
-      window.setTimeout(() => runtime.backingVoices.delete(voice), Math.ceil((duration + .15) * 1000));
+      window.setTimeout(() => runtime.backingVoices.delete(voice), Math.ceil((duration + .25) * 1000));
     } catch (_) {}
   }
 
   function updateBackingTrack() {
     if (!runtime.motionStarted || runtime.state !== 'playing') return;
     runtime.backingStarted = true;
-    // Trigger the background rendition from track progress, not from taps.
-    // That keeps the classical piece continuous while the player's tile notes
-    // sit on top as stronger accents.
     while (runtime.backingIndex < runtime.chart.length) {
       const tile = runtime.chart[runtime.backingIndex];
       if (!tile || runtime.scroll + 1 < Number(tile.bgTriggerScroll || 0)) break;
-      playBackingPianoNote(tile, runtime.backingIndex);
+      if (Array.isArray(tile.bgChord) && tile.bgChord.length) playBackingAccompaniment(tile, runtime.backingIndex);
       runtime.backingIndex += 1;
     }
   }
@@ -1415,7 +1540,7 @@
       const now = runtime.audioContext.currentTime;
       try {
         runtime.backingGain.gain.cancelScheduledValues(now);
-        runtime.backingGain.gain.setValueAtTime(Math.max(.0001, runtime.backingGain.gain.value || .36), now);
+        runtime.backingGain.gain.setValueAtTime(Math.max(.0001, runtime.backingGain.gain.value || BACKING_GAIN_NORMAL), now);
         if (immediate) runtime.backingGain.gain.setValueAtTime(.0001, now);
         else runtime.backingGain.gain.exponentialRampToValueAtTime(.0001, now + .08);
       } catch (_) {}
@@ -1434,7 +1559,17 @@
     const now = runtime.audioContext.currentTime;
     try {
       runtime.backingGain.gain.cancelScheduledValues(now);
-      runtime.backingGain.gain.setTargetAtTime(runtime.soundEnabled ? .36 : .0001, now, .025);
+      runtime.backingGain.gain.setTargetAtTime(runtime.soundEnabled ? BACKING_GAIN_NORMAL : .0001, now, .025);
+    } catch (_) {}
+  }
+
+  function duckBackingForTap() {
+    if (!runtime.backingGain || !runtime.audioContext || !runtime.soundEnabled) return;
+    const now = runtime.audioContext.currentTime;
+    try {
+      runtime.backingGain.gain.cancelScheduledValues(now);
+      runtime.backingGain.gain.setTargetAtTime(BACKING_GAIN_DUCK, now, .010);
+      runtime.backingGain.gain.setTargetAtTime(BACKING_GAIN_NORMAL, now + .075, .055);
     } catch (_) {}
   }
 
@@ -1445,10 +1580,10 @@
     resumeAudio();
     const now = context.currentTime;
     const baseFreq = Number(tile.freq || midiToFreq(72));
-    const harmonies = Array.isArray(tile.harmonyFreqs) ? tile.harmonyFreqs : [];
     const brightness = clamp(Number(tile.brightness || 1), 0.85, 1.3);
     const noteGain = clamp(Number(tile.gainScale || 1), 0.65, 1.2);
     const releaseSec = clamp(Number(tile.releaseSec || .32), .20, .55);
+    duckBackingForTap();
     try {
       const body = context.createGain();
       const toneFilter = context.createBiquadFilter();
@@ -1486,9 +1621,6 @@
       addOsc(baseFreq * 2, 'sine', 0.22, 0, toneFilter);
       addOsc(baseFreq * 3, 'sine', 0.10, 0, toneFilter);
       addOsc(baseFreq * 4, 'sine', 0.07, 0, attackFilter, now + .05);
-      harmonies.slice(0, sustain ? 2 : 1).forEach((freq, idx) => {
-        addOsc(freq, idx === 0 ? 'sine' : 'triangle', idx === 0 ? 0.18 : 0.11, idx === 0 ? -3 : 2, toneFilter);
-      });
 
       if (sustain) {
         runtime.voices.set(tile.id, { body, voices });
@@ -1629,9 +1761,8 @@
     build();
     runtime.bridge = options.bridge || window.ICT8_XP_MINIGAMES_BRIDGE || null;
     runtime.music = options.music || null;
-    // Code Tiles owns its soundtrack: each level now has a synthesized
-    // classical-piano backing rendition plus stronger matching tile accents.
-    // Disable the generic shared Mini-Game BGM so the two soundtracks never clash.
+    // Code Tiles owns its soundtrack. The shared hub BGM stays off; each selected
+    // piece uses a sparse in-game accompaniment plus the player's lead tile notes.
     try { runtime.music?.stop?.(); } catch (_) {}
     runtime.onBack = typeof options.onBack === 'function' ? options.onBack : null;
     runtime.onClose = typeof options.onClose === 'function' ? options.onClose : null;
@@ -1646,6 +1777,7 @@
     runtime.soundBtn.textContent = runtime.soundEnabled ? '♪' : '×♪';
     runtime.bestEl.textContent = runtime.bestScore ? String(runtime.bestScore) : '0';
     runtime.level = 1;
+    runtime.pieceIndex = clamp(Number(runtime.selectedPieces[0] || 0), 0, piecesForLevel(1).length - 1);
     updateLevelUi();
     runtime.open = true;
     runtime.state = 'ready';
@@ -1655,7 +1787,7 @@
     runtime.pausePanel.hidden = true;
     runtime.failPanel.hidden = true;
     runtime.resultPanel.hidden = true;
-    buildChart(`preview-level-${runtime.level}`);
+    buildChart(`preview-level-${runtime.level}-piece-${songProfile().id}`);
     runtime.nextIndex = 0;
     runtime.scroll = 0;
     runtime.score = 0;
@@ -1670,6 +1802,8 @@
         state: runtime.state,
         level: runtime.level,
         levelName: levelConfig().name,
+        pieceId: songProfile().id,
+        pieceName: songProfile().title,
         nextIndex: runtime.nextIndex,
         score: runtime.score,
         scroll: runtime.scroll,

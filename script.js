@@ -44241,19 +44241,22 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     return 1;
   }
 
-  // V475 — CODE TILES is one complete five-phase rhythm track. Note movement,
-  // timing judgements, audio, and input stay local; only the compact finish
-  // summary reaches the secured Mini-Game reward bridge.
-  // v491: all five Code Tiles levels are playable immediately, so secured XP
-  // validation uses a level-specific legitimate active-time window.
+  // CODE TILES stays a complete five-phase rhythm track. v497 expands the
+  // game to ten immediately playable levels with progressively faster runs.
+  // These windows are anti-fabrication bounds only; speed itself never raises XP.
   function codeTilesTimingWindow(level = 1) {
-    const safeLevel = Math.max(1, Math.min(5, Math.floor(Number(level || 1))));
+    const safeLevel = Math.max(1, Math.min(10, Math.floor(Number(level || 1))));
     const windows = {
-      1: { minMs: 42000, maxMs: 72000 },
-      2: { minMs: 38000, maxMs: 68000 },
-      3: { minMs: 34000, maxMs: 62000 },
-      4: { minMs: 30000, maxMs: 58000 },
-      5: { minMs: 27000, maxMs: 54000 }
+      1: { minMs: 35000, maxMs: 56000 },
+      2: { minMs: 32000, maxMs: 53000 },
+      3: { minMs: 29000, maxMs: 50000 },
+      4: { minMs: 26000, maxMs: 47000 },
+      5: { minMs: 23000, maxMs: 44000 },
+      6: { minMs: 21000, maxMs: 42000 },
+      7: { minMs: 20000, maxMs: 40000 },
+      8: { minMs: 19000, maxMs: 38000 },
+      9: { minMs: 18000, maxMs: 36000 },
+      10: { minMs: 17000, maxMs: 35000 }
     };
     return windows[safeLevel] || windows[1];
   }
@@ -44271,7 +44274,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     const maxCombo = Math.max(0, Math.min(totalNotes, Math.floor(Number(source.maxCombo || 0))));
     const syncRemaining = Math.max(0, Math.min(100, Number(source.syncRemaining || 0)));
     const activeTimeMs = Math.max(0, Math.min(2 * 60 * 1000, Math.floor(Number(source.activeTimeMs || source.durationMs || 0))));
-    const level = Math.max(1, Math.min(5, Math.floor(Number(source.level || 1))));
+    const level = Math.max(1, Math.min(10, Math.floor(Number(source.level || 1))));
     const timing = codeTilesTimingWindow(level);
     const completed = source.completedRun === true
       && Math.floor(Number(source.phasesCompleted || 0)) === 5
@@ -44564,11 +44567,12 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       return activeSeconds >= floor ? 5 : 0;
     }
 
-    // CODE TILES is a fixed ~59 second five-phase rhythm track. Duration is
-    // only a plausibility gate; waiting longer never upgrades its XP tier.
+    // CODE TILES uses ten speed levels. Duration remains only a plausibility
+    // gate; the selected level chooses the legitimate timing window.
     if (id === XP_MINI_GAME_ID_CODE_TILES) {
-      const activeSeconds = Math.max(0, Number(source.activeTimeMs || durationMs)) / 1000;
-      return activeSeconds >= 55 && activeSeconds <= 80 ? 3 : 0;
+      const activeMs = Math.max(0, Number(source.activeTimeMs || durationMs));
+      const timing = codeTilesTimingWindow(source.level || 1);
+      return activeMs >= timing.minMs && activeMs <= timing.maxMs ? 3 : 0;
     }
 
     // CODE SLICE evaluates a complete five-wave stream. Time is only a
@@ -44921,7 +44925,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         holdsTotal: Math.max(0, Math.min(9, Math.floor(Number(source.holdsTotal || 0)))),
         accuracy: Math.max(0, Math.min(100, Number(source.accuracy || 0))),
         syncRemaining: Math.max(0, Math.min(100, Number(source.syncRemaining || 0))),
-        level: Math.max(1, Math.min(5, Math.floor(Number(source.level || 1)))),
+        level: Math.max(1, Math.min(10, Math.floor(Number(source.level || 1)))),
         activeTimeMs: Math.max(0, Math.min(2 * 60 * 1000, Math.floor(Number(source.activeTimeMs || 0)))),
         durationMs: Math.max(0, Math.min(2 * 60 * 1000, Math.floor(Number(source.durationMs || 0))))
       };
