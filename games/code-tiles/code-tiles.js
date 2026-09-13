@@ -45,11 +45,74 @@
   const COUNTDOWN_MS = 1350;
   const MAX_DPR_DESKTOP = 1.4;
   const MAX_DPR_PHONE = 1.15;
-  const MELODY = Object.freeze([0,2,4,5,7,9,7,5,4,2,0,2,5,7,9,12,9,7,5,4,2,4,7,11,9,7,4,2,0,4,5,7]);
-  const SCALE = Object.freeze([261.63,293.66,329.63,349.23,392,440,493.88,523.25,587.33,659.25,698.46,783.99,880]);
+  const ACCENT_PATTERN = Object.freeze([1.00, .90, .95, .88, .98, .90, .94, .86, 1.00, .92, .96, .88, 1.04, .94, .98, .90]);
+  const RELEASE_PATTERN = Object.freeze([.36, .28, .30, .28, .34, .28, .30, .28, .38, .30, .32, .28, .40, .30, .34, .30]);
+  const SONG_LIBRARY = Object.freeze([
+    Object.freeze({
+      motifs: Object.freeze([
+        Object.freeze([72,74,76,79,76,74,72,74,76,79,81,79,76,74,72,67]),
+        Object.freeze([72,76,79,84,81,79,76,74,72,74,76,79,76,74,72,67]),
+        Object.freeze([67,72,74,76,79,76,74,72,74,76,79,81,79,76,74,72]),
+        Object.freeze([72,74,76,79,84,81,79,76,74,72,71,72,74,76,74,72])
+      ]),
+      order: Object.freeze([0,1,0,2,0,1,3,2]),
+      harmonyMode: 'warm',
+      brightness: 1.00,
+      baseGain: .98
+    }),
+    Object.freeze({
+      motifs: Object.freeze([
+        Object.freeze([74,76,78,81,78,76,74,76,78,81,83,81,78,76,74,71]),
+        Object.freeze([74,78,81,86,83,81,78,76,74,76,78,81,78,76,74,71]),
+        Object.freeze([71,74,76,78,81,78,76,74,76,78,81,83,81,78,76,74]),
+        Object.freeze([74,76,78,81,86,83,81,78,76,74,73,74,76,78,76,74])
+      ]),
+      order: Object.freeze([0,1,2,1,0,3,1,2]),
+      harmonyMode: 'flow',
+      brightness: 1.06,
+      baseGain: 1.00
+    }),
+    Object.freeze({
+      motifs: Object.freeze([
+        Object.freeze([69,72,76,81,76,72,69,72,76,81,84,81,76,72,69,72]),
+        Object.freeze([71,74,77,83,77,74,71,74,77,83,86,83,77,74,71,74]),
+        Object.freeze([72,76,79,84,79,76,72,76,79,84,88,84,79,76,72,76]),
+        Object.freeze([69,72,76,81,84,81,76,72,71,74,77,83,77,74,71,69])
+      ]),
+      order: Object.freeze([0,1,0,2,1,3,2,0]),
+      harmonyMode: 'drive',
+      brightness: 1.10,
+      baseGain: 1.02
+    }),
+    Object.freeze({
+      motifs: Object.freeze([
+        Object.freeze([76,79,83,88,83,79,76,79,83,88,91,88,83,79,76,79]),
+        Object.freeze([74,78,81,86,81,78,74,78,81,86,90,86,81,78,74,78]),
+        Object.freeze([72,76,79,84,79,76,72,76,79,84,88,84,79,76,72,76]),
+        Object.freeze([71,74,78,83,86,83,78,74,72,76,79,84,79,76,72,71])
+      ]),
+      order: Object.freeze([0,1,0,2,0,3,1,2]),
+      harmonyMode: 'bright',
+      brightness: 1.15,
+      baseGain: 1.04
+    }),
+    Object.freeze({
+      motifs: Object.freeze([
+        Object.freeze([74,77,81,86,81,77,74,77,81,86,89,86,81,77,74,77]),
+        Object.freeze([72,76,79,84,79,76,72,76,79,84,88,84,79,76,72,76]),
+        Object.freeze([69,74,77,81,77,74,69,74,77,81,84,81,77,74,69,74]),
+        Object.freeze([74,77,81,86,89,86,81,77,76,79,84,88,84,79,76,74])
+      ]),
+      order: Object.freeze([0,1,0,2,0,3,1,0]),
+      harmonyMode: 'master',
+      brightness: 1.20,
+      baseGain: 1.06
+    })
+  ]);
 
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const lerp = (a, b, t) => a + (b - a) * t;
+  const midiToFreq = midi => 440 * Math.pow(2, (midi - 69) / 12);
   const ease = t => {
     const x = clamp(t, 0, 1);
     return x * x * (3 - 2 * x);
@@ -155,6 +218,57 @@
       state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
       return state / 4294967296;
     };
+  }
+
+
+  function songProfile(level = runtime.level) {
+    return SONG_LIBRARY[clamp(Math.floor(Number(level || 1)) - 1, 0, SONG_LIBRARY.length - 1)] || SONG_LIBRARY[0];
+  }
+
+  function chordMidi(root, mode, phrasePos, isHold = false) {
+    const out = [];
+    if (isHold) {
+      if (mode === 'master' || mode === 'bright') out.push(root + 7, root + 12);
+      else out.push(root + 7);
+      return out.filter(v => v >= 52 && v <= 98);
+    }
+    if (phrasePos === 0 || phrasePos === 8) {
+      out.push(root - 12);
+      if (mode === 'bright' || mode === 'master') out.push(root + 7);
+    } else if (phrasePos === 4 || phrasePos === 12) {
+      out.push(root + 7);
+    } else if ((mode === 'flow' || mode === 'drive') && (phrasePos === 2 || phrasePos === 10)) {
+      out.push(root - 12);
+    }
+    return out.filter(v => v >= 48 && v <= 98);
+  }
+
+  function buildSongNotes(level, totalNotes) {
+    const profile = songProfile(level);
+    const sequence = [];
+    while (sequence.length < totalNotes) {
+      profile.order.forEach(index => {
+        if (sequence.length >= totalNotes) return;
+        const motif = profile.motifs[index] || profile.motifs[0];
+        motif.forEach(midi => {
+          if (sequence.length < totalNotes) sequence.push(midi);
+        });
+      });
+    }
+    return sequence.slice(0, totalNotes).map((midi, i) => {
+      const phrasePos = i % 16;
+      const velocity = clamp(profile.baseGain * ACCENT_PATTERN[phrasePos], .72, 1.18);
+      const harmonyMidis = chordMidi(midi, profile.harmonyMode, phrasePos, HOLD_INDICES.includes(i));
+      return {
+        midi,
+        freq: midiToFreq(midi),
+        harmonyFreqs: harmonyMidis.map(midiToFreq),
+        gainScale: velocity,
+        releaseSec: RELEASE_PATTERN[phrasePos],
+        brightness: profile.brightness,
+        phrasePos
+      };
+    });
   }
 
   function build() {
@@ -364,6 +478,7 @@
   function buildChart(seed) {
     const rng = makeRng(seed);
     const holds = new Set(HOLD_INDICES);
+    const song = buildSongNotes(runtime.level, TOTAL_NOTES);
     const chart = [];
     let cumulative = 0;
     let prevLane = -1;
@@ -377,6 +492,7 @@
       const isHold = holds.has(i);
       const longH = isHold ? (i % 2 ? LONG_H_LARGE : LONG_H_SMALL) : SHORT_H;
       const bonusTicks = isHold ? (longH >= LONG_H_LARGE ? 4 : 3) : 0;
+      const songNote = song[i] || song[0] || { midi:72, freq:midiToFreq(72), harmonyFreqs:[], gainScale:1, releaseSec:.32, brightness:1, phrasePos:0 };
       const note = {
         id: i,
         lane,
@@ -392,7 +508,13 @@
         holdDurationMs: 0,
         holdReleasedEarly: false,
         holdVisualProgress: 0,
-        freq: SCALE[MELODY[i % MELODY.length] % SCALE.length]
+        midi: songNote.midi,
+        freq: songNote.freq,
+        harmonyFreqs: songNote.harmonyFreqs,
+        gainScale: songNote.gainScale,
+        releaseSec: songNote.releaseSec,
+        brightness: songNote.brightness,
+        phrasePos: songNote.phrasePos
       };
       chart.push(note);
       cumulative += isHold ? longH + HOLD_EXIT_GAP : SHORT_H + SHORT_GAP;
@@ -1190,27 +1312,62 @@
     if (!context || !runtime.masterGain) return;
     resumeAudio();
     const now = context.currentTime;
+    const baseFreq = Number(tile.freq || midiToFreq(72));
+    const harmonies = Array.isArray(tile.harmonyFreqs) ? tile.harmonyFreqs : [];
+    const brightness = clamp(Number(tile.brightness || 1), 0.85, 1.3);
+    const noteGain = clamp(Number(tile.gainScale || 1), 0.65, 1.2);
+    const releaseSec = clamp(Number(tile.releaseSec || .32), .20, .55);
     try {
-      const osc = context.createOscillator();
-      const overtone = context.createOscillator();
-      const gain = context.createGain();
-      const filter = context.createBiquadFilter();
-      osc.type = 'triangle';
-      overtone.type = 'sine';
-      osc.frequency.setValueAtTime(tile.freq, now);
-      overtone.frequency.setValueAtTime(tile.freq * 2, now);
-      filter.type = 'lowpass';
-      filter.frequency.setValueAtTime(2600, now);
-      gain.gain.setValueAtTime(.0001, now);
-      gain.gain.exponentialRampToValueAtTime(.30, now + .010);
-      osc.connect(filter); overtone.connect(filter); filter.connect(gain); gain.connect(runtime.masterGain);
-      osc.start(now); overtone.start(now);
+      const body = context.createGain();
+      const toneFilter = context.createBiquadFilter();
+      const attackFilter = context.createBiquadFilter();
+      toneFilter.type = 'lowpass';
+      toneFilter.frequency.setValueAtTime(2200 * brightness, now);
+      toneFilter.Q.value = 0.45;
+      attackFilter.type = 'lowpass';
+      attackFilter.frequency.setValueAtTime(3400 * brightness, now);
+      attackFilter.Q.value = 0.3;
+      body.gain.setValueAtTime(.0001, now);
+      const peak = sustain ? 0.30 * noteGain : 0.34 * noteGain;
+      const sustainLevel = sustain ? 0.18 * noteGain : 0.10 * noteGain;
+      body.gain.linearRampToValueAtTime(peak, now + .008);
+      body.gain.exponentialRampToValueAtTime(sustainLevel, now + .085);
+      toneFilter.connect(body);
+      attackFilter.connect(body);
+      body.connect(runtime.masterGain);
+      const voices = [];
+
+      function addOsc(freq, type, gainTarget, detune = 0, target = toneFilter, stopAt = null) {
+        const osc = context.createOscillator();
+        const gain = context.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, now);
+        if (detune) osc.detune.setValueAtTime(detune, now);
+        gain.gain.setValueAtTime(gainTarget, now);
+        osc.connect(gain);
+        gain.connect(target);
+        osc.start(now);
+        voices.push({ osc, gain, stopAt });
+      }
+
+      addOsc(baseFreq, 'triangle', 0.9);
+      addOsc(baseFreq * 2, 'sine', 0.22, 0, toneFilter);
+      addOsc(baseFreq * 3, 'sine', 0.10, 0, toneFilter);
+      addOsc(baseFreq * 4, 'sine', 0.07, 0, attackFilter, now + .05);
+      harmonies.slice(0, sustain ? 2 : 1).forEach((freq, idx) => {
+        addOsc(freq, idx === 0 ? 'sine' : 'triangle', idx === 0 ? 0.18 : 0.11, idx === 0 ? -3 : 2, toneFilter);
+      });
+
       if (sustain) {
-        gain.gain.exponentialRampToValueAtTime(.18, now + .18);
-        runtime.voices.set(tile.id, { osc, overtone, gain });
+        runtime.voices.set(tile.id, { body, voices });
       } else {
-        gain.gain.exponentialRampToValueAtTime(.0001, now + .34);
-        osc.stop(now + .38); overtone.stop(now + .38);
+        const stopAt = now + releaseSec + .10;
+        body.gain.exponentialRampToValueAtTime(.0001, now + releaseSec);
+        voices.forEach(v => {
+          try {
+            v.osc.stop(v.stopAt || stopAt);
+          } catch (_) {}
+        });
       }
     } catch (_) {}
   }
@@ -1221,10 +1378,11 @@
     runtime.voices.delete(tileId);
     const now = runtime.audioContext.currentTime;
     try {
-      voice.gain.gain.cancelScheduledValues(now);
-      voice.gain.gain.setTargetAtTime(.0001, now, soft ? .06 : .018);
-      voice.osc.stop(now + (soft ? .28 : .1));
-      voice.overtone.stop(now + (soft ? .28 : .1));
+      voice.body.gain.cancelScheduledValues(now);
+      voice.body.gain.setTargetAtTime(.0001, now, soft ? .07 : .022);
+      (voice.voices || []).forEach(v => {
+        try { v.osc.stop(now + (soft ? .30 : .12)); } catch (_) {}
+      });
     } catch (_) {}
   }
 
