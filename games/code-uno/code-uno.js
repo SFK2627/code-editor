@@ -508,13 +508,19 @@
   }
 
   function compactLobbySeats() {
-    // The Host is the authority for lobby seats. Guests must never locally
-    // compact/filter the roster because a pre-welcome `connected:false` copy
-    // can delete their own seat and make I'M READY a silent no-op.
+    // Host owns seat assignment, but IMPORTANT: keep negotiating players.
+    // A newly discovered join is intentionally `connected:false` until the
+    // DataChannel opens. Filtering by `connected` here used to delete that
+    // player immediately, so the Host stayed at 1/N and the Guest received a
+    // welcome roster without its own seat (READY remained stuck on SYNCING).
     if(r.state==='game'||!isHost())return;
-    const sorted=r.players.filter(p=>p.connected||p.seat===0).sort((a,b)=>a.seat-b.seat);
+    const sorted=r.players.slice().sort((a,b)=>Number(a.seat)-Number(b.seat));
     r.seatByUid.clear();
-    sorted.forEach((p,index)=>{p.seat=index;r.seatByUid.set(p.uid,index);const peer=r.peers.get(p.uid);if(peer)peer.seat=index;});
+    sorted.forEach((p,index)=>{
+      p.seat=index;
+      r.seatByUid.set(p.uid,index);
+      const peer=r.peers.get(p.uid);if(peer)peer.seat=index;
+    });
     r.players=sorted;
   }
 
@@ -526,7 +532,8 @@
       const p=bySeat.get(seat);
       if(!p)return `<div class="uno-roster-row empty"><span class="uno-avatar">${seat+1}</span><div><strong>OPEN SEAT</strong><small>Waiting for player…</small></div><b>OPEN</b></div>`;
       const you=p.uid===identity().uid||seat===r.localSeat?' · YOU':'';
-      return `<div class="uno-roster-row ${p.ready?'ready':''} ${p.connected?'':'offline'}"><span class="uno-avatar">${esc((p.name||'?').charAt(0).toUpperCase())}</span><div><strong>${esc(p.name)}${you}</strong><small>${p.studentId?esc(p.studentId):'LIVE PLAYER'}</small></div><b>${p.connected?(p.ready?'READY ✓':'NOT READY'):'OFFLINE'}</b></div>`;
+      const connecting=!p.connected&&((isHost()&&!!r.peers.get(p.uid)?.connecting)||(isGuest()&&String(p.uid||'')===String(identity().uid||'')&&!!r.guestSession));
+      return `<div class="uno-roster-row ${p.ready?'ready':''} ${p.connected?'':'offline'}"><span class="uno-avatar">${esc((p.name||'?').charAt(0).toUpperCase())}</span><div><strong>${esc(p.name)}${you}</strong><small>${p.studentId?esc(p.studentId):'LIVE PLAYER'}</small></div><b>${p.connected?(p.ready?'READY ✓':'NOT READY'):(connecting?'CONNECTING…':'OFFLINE')}</b></div>`;
     }).join('');
     const connected=r.players.filter(p=>p.connected).length;
     $('[data-room-count]').textContent=`${connected} / ${r.maxPlayers}`;
@@ -584,7 +591,9 @@
     try{existing?.session?.close();}catch(_){}
     const peer={uid:join.uid,seat,name:String(join.name||`PLAYER ${seat+1}`),studentId:String(join.studentId||''),connected:false,connecting:true,answerApplied:false,session:null,offerAt:Date.now()};
     r.peers.set(join.uid,peer);r.seatByUid.set(join.uid,seat);
-    let p=lobbyPlayerAt(seat);if(!p){p=createLobbyPlayer(seat,peer.name,{uid:join.uid,studentId:peer.studentId,ready:false,connected:false});r.players.push(p);}else{p.name=peer.name;p.uid=join.uid;p.studentId=peer.studentId;p.connected=false;}
+    let p=r.players.find(item=>String(item.uid||'')===String(join.uid||''))||lobbyPlayerAt(seat);
+    if(!p){p=createLobbyPlayer(seat,peer.name,{uid:join.uid,studentId:peer.studentId,ready:false,connected:false});r.players.push(p);}
+    else{p.seat=seat;p.name=peer.name;p.uid=join.uid;p.studentId=peer.studentId;p.connected=false;}
     if(r.state==='lobby')renderLobby();
     let session=null;
     session=P().createSession({
@@ -602,7 +611,13 @@
 
   function hostPeerConnected(uid) {
     const peer=r.peers.get(uid);if(!peer)return;peer.connected=true;peer.connecting=false;peer.answerApplied=true;
-    const p=lobbyPlayerAt(peer.seat);if(p){p.connected=true;p.name=peer.name;p.studentId=peer.studentId;}
+    // Defensive upsert: even if an older/stale lobby render lost a pending row,
+    // a successfully opened DataChannel must always materialize that player in
+    // the authoritative Host roster before welcome/broadcast is sent.
+    let p=r.players.find(item=>String(item.uid||'')===String(uid||''))||lobbyPlayerAt(peer.seat);
+    if(!p){p=createLobbyPlayer(peer.seat,peer.name,{uid,studentId:peer.studentId,ready:false,connected:true});r.players.push(p);}
+    p.seat=peer.seat;p.uid=uid;p.connected=true;p.name=peer.name;p.studentId=peer.studentId;
+    r.seatByUid.set(uid,peer.seat);
     clearDisconnectTimer(peer.seat);
     if(r.game){E().setConnection(r.game,peer.seat,true,false);const gp=r.game.players.find(x=>x.seat===peer.seat);if(gp){gp.bot=false;gp.botTakeover=false;gp.connected=true;}if(![...r.peers.values()].some(item=>!item.connected))hideDisconnect();}
     if(r.state==='lobby'){
