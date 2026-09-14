@@ -16,9 +16,11 @@
   const Z_MAX = 122;
   const GATE_TRIGGER_Z = 8.2;
   const PLAYER_GROUND_Y = 0;
-  const SLIDE_DURATION = 1.50;
+  const SLIDE_DURATION = .82;
   const JUMP_LAUNCH_VELOCITY = 6.45;
   const JUMP_GRAVITY = 16.0;
+  const FAST_DROP_VELOCITY = -9.4;
+  const ROOF_HEIGHT = 1.08;
   const PARTICLE_LIMIT = 72;
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
   const lerp = (a, b, t) => a + (b - a) * t;
@@ -88,7 +90,7 @@
     overlay:null, shell:null, canvas:null, ctx:null, soundBtn:null, pauseBtn:null,
     statScore:null, statDistance:null, statCombo:null, statHearts:null, statHtml:null,
     questionBox:null, qType:null, qAction:null, qPrompt:null, qCode:null, qChoices:null,
-    buildProgress:null, buildCount:null, buildCode:null, insertion:null, toast:null,
+    buildPanel:null, buildProgress:null, buildCount:null, buildCode:null, insertion:null, toast:null,
     difficultyPanel:null, missionPanel:null, missionName:null, missionDifficulty:null, countdownEl:null,
     pausePanel:null, resultPanel:null, gameOverPanel:null, resultMission:null, resultDifficulty:null,
     resultChallenges:null, resultCorrect:null, resultAccuracy:null, resultCombo:null, resultHearts:null,
@@ -101,7 +103,9 @@
     hearts:3, shield:0, invulnerable:0, combo:0, longestCombo:0, correctAnswers:0, wrongAnswers:0,
     obstacleHits:0, collectibles:0, completedSteps:0, stepAttempt:0, currentChallenge:null,
     questionPhase:'none', questionTimer:0, questionWait:0, questionPending:false, feedbackClock:0,
-    gateGroup:null, lane:1, lanePos:1, laneShiftCooldown:0, jumpY:0, jumpVy:0, slideTime:0,
+    gateGroup:null, lane:1, lanePos:1, laneShiftCooldown:0, jumpY:0, jumpVy:0, slideTime:0, bufferedJump:0, fastDrop:false, landingSlideQueued:false,
+    roofTime:0, roofHeight:0, roofLane:1, magnetTime:0, multiplierTime:0, boostTime:0, pickupStreak:0, pickupStreakClock:0,
+    chaserPressure:.14, chaserFlash:0, finishPortal:null, chunkIndex:0, musicBeatIndex:0,
     stumbleTime:0, landingKick:0, cameraKick:0, roadPulse:0, obstacleClock:0, collectibleClock:0,
     obstacles:[], pickups:[], particles:[], laneHistory:[], motionHistory:[], challengeHistory:new Set(), mistakes:[],
     lastObstaclePattern:'', visualTime:0, audioContext:null, soundEnabled:true, musicClock:0,
@@ -419,7 +423,7 @@
             <div class="byte-runner-html-logo">&lt;/&gt;</div><p class="byte-runner-html-kicker">G8CODE ARCADE · ORIGINAL RUNNER</p>
             <h2>BYTE RUNNER: HTML RUSH</h2>
             <p>Read the HTML challenge, pick the correct lane, then run, jump, or slide through the answer in a bright three-track city rush.</p>
-            <div class="byte-runner-html-controls"><span>← → / A D · LANES</span><span>↑ / W / SPACE · JUMP</span><span>↓ / S · SLIDE</span><span>PHONE · SWIPE</span></div>
+            <div class="byte-runner-html-controls"><span>← → / A D · LANES</span><span>↑ / W / SPACE · JUMP</span><span>↓ / S · SLIDE / FAST DROP</span><span>PHONE · CHAIN SWIPES</span></div>
             <div class="byte-runner-html-difficulties">
               <button class="byte-runner-html-difficulty easy" data-brh-difficulty-key="easy"><strong>EASY · COMPLETE = 5 XP</strong><span>3 hearts · Beginner HTML</span><small>Slower runner, longer reading window, clear distractors.</small></button>
               <button class="byte-runner-html-difficulty medium" data-brh-difficulty-key="medium"><strong>MEDIUM · COMPLETE = 10 XP</strong><span>3 hearts · Attributes + nesting</span><small>More obstacles and shorter reaction time.</small></button>
@@ -435,7 +439,7 @@
             <div class="byte-runner-html-logo">01</div><p class="byte-runner-html-kicker">NEW HTML MISSION</p>
             <h2 data-brh-mission-name>Build a Personal Profile</h2>
             <div class="byte-runner-html-mission-box"><strong data-brh-mission-difficulty>EASY · 8 decisions</strong><small>Correct answers insert real HTML into your page.</small></div>
-            <p>Action rule: RUN accepts running, jumping, or sliding. JUMP requires a jump. SLIDE requires an active slide. The gate shape always shows the required move.</p>
+            <p>Action rule: RUN accepts any safe movement. JUMP and SLIDE are strict. Chain swipes quickly, swipe down in the air to fast-drop, collect BYTE trails, and use ramps to reach BYTE LINE train roofs.</p>
             <div class="byte-runner-html-actions"><button type="button" class="secondary" data-brh-change-difficulty>CHANGE DIFFICULTY</button><button type="button" class="primary" data-brh-begin>START MISSION</button></div>
           </div>
         </div>
@@ -488,7 +492,7 @@
     runtime.pauseBtn = overlay.querySelector('[data-brh-pause]');
     runtime.statScore = overlay.querySelector('[data-brh-score]'); runtime.statDistance = overlay.querySelector('[data-brh-distance]'); runtime.statCombo = overlay.querySelector('[data-brh-combo]'); runtime.statHearts = overlay.querySelector('[data-brh-hearts]'); runtime.statHtml = overlay.querySelector('[data-brh-html]');
     runtime.questionBox = overlay.querySelector('[data-brh-question]'); runtime.qType = overlay.querySelector('[data-brh-qtype]'); runtime.qAction = overlay.querySelector('[data-brh-qaction]'); runtime.qPrompt = overlay.querySelector('[data-brh-qprompt]'); runtime.qCode = overlay.querySelector('[data-brh-qcode]'); runtime.qChoices = overlay.querySelector('[data-brh-qchoices]');
-    runtime.buildProgress = overlay.querySelector('[data-brh-build-progress]'); runtime.buildCount = overlay.querySelector('[data-brh-build-count]'); runtime.buildCode = overlay.querySelector('[data-brh-build-code]'); runtime.insertion = overlay.querySelector('[data-brh-insertion]'); runtime.toast = overlay.querySelector('[data-brh-toast]');
+    runtime.buildPanel = overlay.querySelector('.byte-runner-html-build'); runtime.buildProgress = overlay.querySelector('[data-brh-build-progress]'); runtime.buildCount = overlay.querySelector('[data-brh-build-count]'); runtime.buildCode = overlay.querySelector('[data-brh-build-code]'); runtime.insertion = overlay.querySelector('[data-brh-insertion]'); runtime.toast = overlay.querySelector('[data-brh-toast]');
     runtime.difficultyPanel = overlay.querySelector('[data-brh-difficulty]'); runtime.missionPanel = overlay.querySelector('[data-brh-mission]'); runtime.missionName = overlay.querySelector('[data-brh-mission-name]'); runtime.missionDifficulty = overlay.querySelector('[data-brh-mission-difficulty]'); runtime.countdownEl = overlay.querySelector('[data-brh-countdown]'); runtime.pausePanel = overlay.querySelector('[data-brh-pause-panel]'); runtime.resultPanel = overlay.querySelector('[data-brh-result]'); runtime.gameOverPanel = overlay.querySelector('[data-brh-gameover]');
     runtime.resultMission = overlay.querySelector('[data-brh-result-mission]'); runtime.resultDifficulty = overlay.querySelector('[data-brh-result-difficulty]'); runtime.resultChallenges = overlay.querySelector('[data-brh-result-challenges]'); runtime.resultAccuracy = overlay.querySelector('[data-brh-result-accuracy]'); runtime.resultCombo = overlay.querySelector('[data-brh-result-combo]'); runtime.resultHearts = overlay.querySelector('[data-brh-result-hearts]'); runtime.resultDistance = overlay.querySelector('[data-brh-result-distance]'); runtime.resultScore = overlay.querySelector('[data-brh-result-score]'); runtime.resultXp = overlay.querySelector('[data-brh-result-xp]'); runtime.resultRewardNote = overlay.querySelector('[data-brh-result-note]'); runtime.resultSource = overlay.querySelector('[data-brh-result-source]'); runtime.resultPreview = overlay.querySelector('[data-brh-result-preview]'); runtime.resultPerfect = overlay.querySelector('[data-brh-perfect]'); runtime.mistakesList = overlay.querySelector('[data-brh-mistakes]');
     runtime.overProgress = overlay.querySelector('[data-brh-over-progress]'); runtime.overAccuracy = overlay.querySelector('[data-brh-over-accuracy]'); runtime.overScore = overlay.querySelector('[data-brh-over-score]'); runtime.overDistance = overlay.querySelector('[data-brh-over-distance]'); runtime.overCombo = overlay.querySelector('[data-brh-over-combo]'); runtime.overXp = overlay.querySelector('[data-brh-over-xp]'); runtime.overNote = overlay.querySelector('[data-brh-over-note]');
@@ -560,18 +564,19 @@
   function tone(kind='move') {
     const audio = ensureAudio(); if (!audio) return;
     const map = {
-      move:[260,.035,.020,'square'], jump:[480,.08,.035,'sine'], land:[150,.05,.026,'triangle'], slide:[190,.06,.022,'sawtooth'],
-      good:[760,.10,.045,'sine'], bad:[115,.16,.045,'sawtooth'], pickup:[920,.07,.032,'sine'], shield:[560,.15,.035,'triangle'],
-      combo:[1040,.10,.032,'sine'], complete:[880,.22,.055,'triangle'], beat:[82,.035,.008,'sine']
+      move:[275,.032,.020,'square'], jump:[500,.075,.035,'sine'], land:[145,.045,.026,'triangle'], slide:[185,.055,.024,'sawtooth'],
+      good:[780,.10,.045,'sine'], bad:[112,.16,.047,'sawtooth'], pickup:[920,.065,.030,'sine'], pickup2:[1180,.065,.028,'sine'], shield:[560,.15,.035,'triangle'],
+      combo:[1060,.10,.032,'sine'], complete:[880,.22,.055,'triangle'], beat:[82,.035,.008,'sine'], beat2:[110,.038,.007,'triangle'],
+      train:[92,.16,.030,'sawtooth'], whoosh:[340,.050,.024,'triangle'], power:[640,.16,.038,'sine'], glitch:[138,.10,.024,'square']
     };
     const [freq,dur,vol,type] = map[kind] || map.move;
     const osc = audio.createOscillator(), gain = audio.createGain();
     osc.type=type; osc.frequency.setValueAtTime(freq,audio.currentTime);
-    if (kind==='good' || kind==='complete') osc.frequency.exponentialRampToValueAtTime(freq*1.35,audio.currentTime+dur);
+    if (kind==='good' || kind==='complete' || kind==='power') osc.frequency.exponentialRampToValueAtTime(freq*1.35,audio.currentTime+dur);
+    if (kind==='whoosh') osc.frequency.exponentialRampToValueAtTime(freq*.62,audio.currentTime+dur);
     gain.gain.setValueAtTime(.0001,audio.currentTime); gain.gain.exponentialRampToValueAtTime(__ict8SfxGain(vol),audio.currentTime+.008); gain.gain.exponentialRampToValueAtTime(.0001,audio.currentTime+dur);
     osc.connect(gain); gain.connect(audio.destination); osc.start(); osc.stop(audio.currentTime+dur+.02);
   }
-
   function toggleSound() {
     runtime.soundEnabled = !runtime.soundEnabled;
     runtime.soundBtn.textContent = runtime.soundEnabled ? '🔊' : '🔇';
@@ -617,11 +622,10 @@
   function resetRunData(clearMission=false) {
     if (clearMission) runtime.mission=null;
     const d=runtime.difficulty || DIFFICULTIES.easy;
-    runtime.round=null; runtime.rewardSubmitting=false; runtime.speed=d.startSpeed; runtime.distance=0; runtime.arcadeScore=0; runtime.performanceScore=0; runtime.activeTimeMs=0; runtime.hearts=d.hearts; runtime.shield=0; runtime.invulnerable=0; runtime.combo=0; runtime.longestCombo=0; runtime.correctAnswers=0; runtime.wrongAnswers=0; runtime.obstacleHits=0; runtime.collectibles=0; runtime.completedSteps=0; runtime.stepAttempt=0; runtime.currentChallenge=null; runtime.questionPhase='none'; runtime.questionTimer=0; runtime.questionWait=2.15; runtime.questionPending=false; runtime.feedbackClock=0; runtime.gateGroup=null; runtime.lane=1; runtime.lanePos=1; runtime.laneShiftCooldown=0; runtime.jumpY=0; runtime.jumpVy=0; runtime.slideTime=0; runtime.stumbleTime=0; runtime.landingKick=0; runtime.cameraKick=0; runtime.obstacleClock=1.1; runtime.collectibleClock=2.4; runtime.obstacles.length=0; runtime.pickups.length=0; runtime.laneHistory.length=0; runtime.motionHistory.length=0; runtime.challengeHistory.clear(); runtime.mistakes.length=0; runtime.pointer=null; runtime.countdownClock=0; runtime.countdownStage=3; runtime.musicClock=.35; runtime.toastClock=0; runtime.clearFxTime=0; runtime.clearFxKind='';
+    runtime.round=null; runtime.rewardSubmitting=false; runtime.speed=d.startSpeed; runtime.distance=0; runtime.arcadeScore=0; runtime.performanceScore=0; runtime.activeTimeMs=0; runtime.hearts=d.hearts; runtime.shield=0; runtime.invulnerable=0; runtime.combo=0; runtime.longestCombo=0; runtime.correctAnswers=0; runtime.wrongAnswers=0; runtime.obstacleHits=0; runtime.collectibles=0; runtime.completedSteps=0; runtime.stepAttempt=0; runtime.currentChallenge=null; runtime.questionPhase='none'; runtime.questionTimer=0; runtime.questionWait=2.15; runtime.questionPending=false; runtime.feedbackClock=0; runtime.gateGroup=null; runtime.lane=1; runtime.lanePos=1; runtime.laneShiftCooldown=0; runtime.jumpY=0; runtime.jumpVy=0; runtime.slideTime=0; runtime.bufferedJump=0; runtime.fastDrop=false; runtime.landingSlideQueued=false; runtime.roofTime=0; runtime.roofHeight=0; runtime.roofLane=1; runtime.magnetTime=0; runtime.multiplierTime=0; runtime.boostTime=0; runtime.pickupStreak=0; runtime.pickupStreakClock=0; runtime.chaserPressure=.14; runtime.chaserFlash=0; runtime.finishPortal=null; runtime.chunkIndex=0; runtime.musicBeatIndex=0; runtime.stumbleTime=0; runtime.landingKick=0; runtime.cameraKick=0; runtime.obstacleClock=.85; runtime.collectibleClock=1.35; runtime.obstacles.length=0; runtime.pickups.length=0; runtime.laneHistory.length=0; runtime.motionHistory.length=0; runtime.challengeHistory.clear(); runtime.mistakes.length=0; runtime.pointer=null; runtime.countdownClock=0; runtime.countdownStage=3; runtime.musicClock=.18; runtime.toastClock=0; runtime.clearFxTime=0; runtime.clearFxKind='';
     for (const p of runtime.particles) p.active=false;
     updateBuildHud();
   }
-
   function beginCountdown() {
     if (!runtime.mission) runtime.mission = buildMission(runtime.difficulty.key);
     resetRunData(false);
@@ -653,19 +657,23 @@
     if (runtime.state !== 'RUNNING' || runtime.laneShiftCooldown > 0) return;
     const next = clamp(runtime.lane + (direction < 0 ? -1 : 1), 0, 2);
     if (next === runtime.lane) return;
-    runtime.lane=next; runtime.laneShiftCooldown=.09; tone('move');
+    runtime.lane=next; runtime.laneShiftCooldown=.052; runtime.cameraKick=Math.max(runtime.cameraKick,.08); tone('move');
   }
-
   function jump() {
-    if (runtime.state !== 'RUNNING' || runtime.jumpY > .015 || runtime.jumpVy > .01 || runtime.slideTime > .05) return;
+    if (runtime.state !== 'RUNNING') return;
+    if (runtime.jumpY > .025 || runtime.jumpVy > .02) { runtime.bufferedJump=.12; return; }
+    if (runtime.slideTime > .04) runtime.slideTime=0;
+    runtime.bufferedJump=0; runtime.fastDrop=false; runtime.landingSlideQueued=false;
     runtime.jumpVy=JUMP_LAUNCH_VELOCITY; runtime.jumpY=.02; tone('jump');
   }
-
   function slide() {
-    if (runtime.state !== 'RUNNING' || runtime.jumpY > .06 || runtime.jumpVy > .1 || runtime.slideTime > .05) return;
+    if (runtime.state !== 'RUNNING') return;
+    if (runtime.jumpY > .10 || runtime.jumpVy > .12) {
+      runtime.jumpVy=Math.min(runtime.jumpVy,FAST_DROP_VELOCITY); runtime.fastDrop=true; runtime.landingSlideQueued=true; runtime.bufferedJump=0; tone('whoosh'); return;
+    }
+    if (runtime.slideTime > .04) return;
     runtime.slideTime=SLIDE_DURATION; tone('slide');
   }
-
   function onKeyDown(event) {
     if (!runtime.open) return;
     if (event.target && /INPUT|TEXTAREA|SELECT/.test(event.target.tagName)) return;
@@ -684,20 +692,19 @@
 
   function onPointerDown(event) {
     if (!runtime.open || runtime.state!=='RUNNING') return;
-    runtime.pointer={id:event.pointerId,x:event.clientX,y:event.clientY,triggered:false};
+    runtime.pointer={id:event.pointerId,x:event.clientX,y:event.clientY,lastActionAt:0};
     try { runtime.canvas.setPointerCapture(event.pointerId); } catch (_) {}
     event.preventDefault();
   }
-
   function onPointerMove(event) {
-    const p=runtime.pointer; if (!p || p.id!==event.pointerId || p.triggered || runtime.state!=='RUNNING') return;
-    const dx=event.clientX-p.x, dy=event.clientY-p.y; const ax=Math.abs(dx), ay=Math.abs(dy); const threshold=26;
+    const p=runtime.pointer; if (!p || p.id!==event.pointerId || runtime.state!=='RUNNING') return;
+    const dx=event.clientX-p.x, dy=event.clientY-p.y; const ax=Math.abs(dx), ay=Math.abs(dy); const threshold=runtime.view.w<=700?18:22;
     if (Math.max(ax,ay)<threshold) { event.preventDefault(); return; }
-    p.triggered=true;
-    if (ax>ay*1.12) shiftLane(dx<0?-1:1); else if (ay>ax*.82) { if (dy<0) jump(); else slide(); }
+    const now=performance.now(); if (now-(p.lastActionAt||0)<58) { event.preventDefault(); return; }
+    if (ax>ay*1.08) shiftLane(dx<0?-1:1); else if (ay>ax*.78) { if (dy<0) jump(); else slide(); } else { event.preventDefault(); return; }
+    p.x=event.clientX; p.y=event.clientY; p.lastActionAt=now;
     event.preventDefault();
   }
-
   function onPointerUp(event) { if (runtime.pointer?.id===event.pointerId) runtime.pointer=null; if (runtime.state==='RUNNING') event.preventDefault(); }
   function onPointerCancel(event) { if (runtime.pointer?.id===event.pointerId) runtime.pointer=null; }
 
@@ -715,14 +722,32 @@
 
   function startQuestionPreview() {
     runtime.currentChallenge=nextChallenge(); if (!runtime.currentChallenge) return;
-    runtime.questionPhase='preview'; runtime.questionTimer=runtime.difficulty.preview; runtime.questionPending=false; runtime.gateGroup=null;
-    runtime.questionBox.hidden=false; setText(runtime.qType,runtime.currentChallenge.type); setText(runtime.qPrompt,runtime.currentChallenge.prompt); setText(runtime.qCode,runtime.currentChallenge.code);
+    runtime.questionPhase='preview'; runtime.questionTimer=runtime.difficulty.preview*.78; runtime.questionPending=false;
+    const assigned=assignChoiceLanes(runtime.currentChallenge);
+    runtime.gateGroup={
+      z:Z_MAX+10,
+      correctLane:assigned.correctLane,
+      lanes:assigned.lanes,
+      resolved:false,
+      flash:'',
+      motion:runtime.currentChallenge.motion,
+      resolution:'',
+      selectedLane:-1,
+      postResolveAge:0,
+      impactHold:0,
+      alpha:1,
+      armed:false
+    };
+    // Keep nearby action alive, but clear only far blockers so the HTML gate owns
+    // the upcoming reaction zone. There is no longer an empty-track waiting phase.
+    runtime.obstacles=runtime.obstacles.filter(item=>item.resolved || item.z<58);
+    runtime.obstacleClock=Math.max(runtime.obstacleClock,1.05);
+    runtime.questionBox.hidden=false; runtime.questionBox.dataset.phase='preview'; setText(runtime.qType,runtime.currentChallenge.type); setText(runtime.qPrompt,runtime.currentChallenge.prompt); setText(runtime.qCode,runtime.currentChallenge.code);
     const actionText = runtime.currentChallenge.motion==='jump' ? '↑ JUMP' : runtime.currentChallenge.motion==='slide' ? '↓ SLIDE' : 'RUN · ANY MOVE';
     runtime.questionBox.dataset.motion=runtime.currentChallenge.motion; runtime.qAction.dataset.motion=runtime.currentChallenge.motion;
     setText(runtime.qAction,actionText);
-    runtime.qChoices.innerHTML='<span class="byte-runner-html-choice wait">READ FIRST · ANSWER GATES INCOMING…</span>';
+    runtime.qChoices.innerHTML='<span class="byte-runner-html-choice wait">READ WHILE RUNNING · ANSWER GATES APPROACHING…</span>';
   }
-
   function currentRunnerAction() {
     if (runtime.slideTime > .055 && runtime.jumpY < .08) return 'slide';
     if (runtime.jumpY > .12 || (runtime.jumpY >= .015 && Math.abs(runtime.jumpVy) > .55)) return 'jump';
@@ -731,25 +756,14 @@
 
   function launchAnswerGates() {
     const challenge=runtime.currentChallenge; if (!challenge) return;
-    const assigned=assignChoiceLanes(challenge);
-    runtime.gateGroup={
-      z:Z_MAX,
-      correctLane:assigned.correctLane,
-      lanes:assigned.lanes,
-      resolved:false,
-      flash:'',
-      motion:challenge.motion,
-      resolution:'',
-      selectedLane:-1,
-      postResolveAge:0,
-      impactHold:0,
-      alpha:1
-    };
-    runtime.questionPhase='approach'; runtime.questionTimer=0;
-    runtime.qChoices.innerHTML=assigned.lanes.map((answer,lane)=>`<span class="byte-runner-html-choice"><b>${['L','C','R'][lane]}</b>${escapeText(answer)}</span>`).join('');
+    if (!runtime.gateGroup) {
+      const assigned=assignChoiceLanes(challenge);
+      runtime.gateGroup={z:Z_MAX,correctLane:assigned.correctLane,lanes:assigned.lanes,resolved:false,flash:'',motion:challenge.motion,resolution:'',selectedLane:-1,postResolveAge:0,impactHold:0,alpha:1,armed:true};
+    } else runtime.gateGroup.armed=true;
+    runtime.questionPhase='approach'; runtime.questionTimer=0; runtime.questionBox.dataset.phase='approach';
+    runtime.qChoices.innerHTML=runtime.gateGroup.lanes.map((answer,lane)=>`<span class="byte-runner-html-choice"><b>${['L','C','R'][lane]}</b>${escapeText(answer)}</span>`).join('');
     tone('pickup');
   }
-
   function resolveAnswer() {
     const group=runtime.gateGroup, challenge=runtime.currentChallenge;
     if (!group || group.resolved || !challenge) return;
@@ -770,19 +784,17 @@
 
   function handleCorrectAnswer(group) {
     runtime.correctAnswers+=1; runtime.completedSteps+=1; runtime.combo+=1; runtime.longestCombo=Math.max(runtime.longestCombo,runtime.combo); runtime.stepAttempt=0;
-    runtime.arcadeScore += 650 + runtime.combo*55 + Math.round(runtime.speed*7);
-    group.flash='good'; group.resolution='correct'; runtime.feedbackClock=.60; runtime.questionPhase='feedback'; tone('good');
+    runtime.arcadeScore += 650 + runtime.combo*55 + Math.round(runtime.speed*7); runtime.chaserPressure=Math.max(.08,runtime.chaserPressure-.095);
+    group.flash='good'; group.resolution='correct'; runtime.feedbackClock=.60; runtime.questionPhase='feedback'; runtime.questionBox.dataset.phase='feedback'; tone('good');
     burstAtGate(group.correctLane,'good',18); animateInsertion(runtime.currentChallenge.codeInsertion); const passMove=runtime.currentChallenge.motion==='run'?(group.playerAction==='jump'?'JUMP THROUGH ✓':group.playerAction==='slide'?'SLIDE THROUGH ✓':'RUN THROUGH ✓'):(runtime.currentChallenge.motion==='jump'?'CLEAN JUMP ✓':'CLEAN SLIDE ✓'); showToast(runtime.combo>=5?'CODE FLOW!':passMove,runtime.combo>=3?'combo':'good',.78);
     updateBuildHud();
   }
-
   function consumeDamage(kind='obstacle') {
     if (runtime.invulnerable>0) return false;
-    runtime.invulnerable=1.05; runtime.stumbleTime=.42; runtime.cameraKick=1;
-    if (runtime.shield>0) { runtime.shield=0; tone('shield'); showToast('DEBUGGER SHIELD BLOCKED DAMAGE','combo',.95); return false; }
-    runtime.hearts=Math.max(0,runtime.hearts-1); tone('bad'); return true;
+    runtime.invulnerable=1.02; runtime.stumbleTime=.40; runtime.cameraKick=1; runtime.chaserFlash=.45; runtime.chaserPressure=clamp(runtime.chaserPressure+(kind==='answer'?.30:.25),.08,1);
+    if (runtime.shield>0) { runtime.shield=0; runtime.chaserPressure=Math.max(.08,runtime.chaserPressure-.10); tone('shield'); showToast('DEBUGGER SHIELD BLOCKED DAMAGE','combo',.95); return false; }
+    runtime.hearts=Math.max(0,runtime.hearts-1); tone('bad'); tone('glitch'); return true;
   }
-
   function handleWrongAnswer(group, playerLane, actionOk) {
     runtime.wrongAnswers+=1; runtime.combo=0; runtime.stepAttempt+=1; group.flash='bad'; group.resolution='wrong'; group.selectedLane=playerLane; runtime.feedbackClock=.72; runtime.questionPhase='feedback';
     const chosen=group.lanes[playerLane] || 'No gate'; const reason=playerLane===group.correctLane&&!actionOk?`Correct lane, but ${runtime.currentChallenge.motion.toUpperCase()} was required. ${group.playerAction.toUpperCase()} is not safe for this gate.`:`${chosen} was not the correct answer.`;
@@ -798,7 +810,9 @@
   }
 
   function updateQuestion(dt) {
+    if (runtime.questionPhase==='finish') { updateFinishPortal(dt); return; }
     if (runtime.questionPhase==='preview') {
+      if (runtime.gateGroup) runtime.gateGroup.z-=runtime.speed*dt*.55;
       runtime.questionTimer-=dt; if (runtime.questionTimer<=0) launchAnswerGates(); return;
     }
     if (runtime.questionPhase==='approach' && runtime.gateGroup) {
@@ -822,152 +836,163 @@
       }
       runtime.feedbackClock-=dt;
       if (runtime.feedbackClock<=0) {
-        runtime.gateGroup=null; runtime.currentChallenge=null; runtime.questionBox.hidden=true; runtime.questionBox.removeAttribute('data-motion'); runtime.questionPhase='none'; runtime.questionWait=runtime.difficulty.betweenQuestions; runtime.questionPending=false;
+        runtime.gateGroup=null; runtime.currentChallenge=null; runtime.questionBox.hidden=true; runtime.questionBox.removeAttribute('data-motion'); runtime.questionBox.removeAttribute('data-phase'); runtime.questionPending=false;
         if (runtime.hearts<=0) { endRun(false); return; }
-        if (runtime.completedSteps>=runtime.difficulty.steps) { endRun(true); return; }
+        if (runtime.completedSteps>=runtime.difficulty.steps) { startFinishPortal(); return; }
+        runtime.questionPhase='none'; runtime.questionWait=runtime.difficulty.betweenQuestions;
       }
     }
   }
+  function playerIsOnRoof() { return runtime.roofHeight>.48; }
 
   function chooseObstacleType(preferJump = false) {
     const r = Math.random();
-    if (preferJump) return r < .48 ? 'crate' : r < .75 ? 'wall' : 'beam';
-    return r < .40 ? 'crate' : r < .68 ? 'wall' : 'beam';
+    if (preferJump) return r < .50 ? 'crate' : r < .77 ? 'wall' : 'beam';
+    return r < .39 ? 'crate' : r < .67 ? 'wall' : 'beam';
   }
 
-  function pushObstacle(lane, z, type) {
-    runtime.obstacles.push({ lane, z, type, resolved:false, outcome:'', postResolveAge:0 });
+  function pushObstacle(lane,z,type,extra={}) {
+    runtime.obstacles.push({lane,z,type,level:extra.level||'ground',moving:extra.moving===true,resolved:false,outcome:'',postResolveAge:0,warned:false,nearMiss:false});
+  }
+
+  function spawnPickupTrail(options={}) {
+    const level=options.level || (playerIsOnRoof()?'roof':'ground');
+    const count=clamp(Number(options.count)||6,3,9); const spacing=Number(options.spacing)||7.2; const baseZ=Number(options.z)||Z_MAX+4;
+    const startLane=Number.isFinite(options.lane)?clamp(options.lane,0,2):Math.floor(Math.random()*3);
+    const pattern=options.pattern || pick(['line','line','zigzag','sweep','arc']);
+    for(let i=0;i<count;i+=1){
+      let lane=startLane, height=.13;
+      if(pattern==='zigzag') lane=clamp(startLane+(i%2===0?0:(startLane===0?1:startLane===2?-1:(Math.random()<.5?-1:1))),0,2);
+      else if(pattern==='sweep') lane=clamp(startLane+(i<Math.ceil(count/2)?0:(startLane===0?1:startLane===2?-1:(i%2?1:-1))),0,2);
+      else if(pattern==='arc') height=.12+Math.sin((i/Math.max(1,count-1))*Math.PI)*.72;
+      runtime.pickups.push({lane,z:baseZ+i*spacing,type:'code',label:pick(['</>','01','HTML','{}']),level,height,resolved:false,postResolveAge:0});
+    }
+  }
+
+  function spawnPowerUp(level) {
+    const choices=[];
+    if(runtime.shield===0) choices.push('shield');
+    if(runtime.magnetTime<1) choices.push('magnet');
+    if(runtime.multiplierTime<1) choices.push('multiplier');
+    if(runtime.boostTime<1) choices.push('boost');
+    const power=pick(choices.length?choices:['magnet','multiplier','boost']);
+    const labels={shield:'DBG',magnet:'MAG',multiplier:'2X',boost:'BOOST'};
+    runtime.pickups.push({lane:Math.floor(Math.random()*3),z:Z_MAX+8,type:'power',power,label:labels[power],level,height:.20,resolved:false,postResolveAge:0});
+  }
+
+  function applyPowerUp(power,lane) {
+    if(power==='shield') { runtime.shield=1; showToast('VALIDATOR SHIELD READY','combo',.80); }
+    else if(power==='magnet') { runtime.magnetTime=7.5; showToast('TAG MAGNET · 7s','combo',.80); }
+    else if(power==='multiplier') { runtime.multiplierTime=8.0; showToast('2× SYNTAX SCORE · 8s','combo',.80); }
+    else { runtime.boostTime=4.2; runtime.chaserPressure=Math.max(.08,runtime.chaserPressure-.18); showToast('BYTE BOOST!','combo',.80); }
+    runtime.arcadeScore+=140; tone(power==='shield'?'shield':'power'); burstAtGate(lane,power==='shield'?'shield':'good',14);
+  }
+
+  function activateRoofMode(lane) {
+    runtime.roofLane=lane; runtime.roofTime=Math.max(runtime.roofTime,6.4); runtime.obstacleClock=.72; runtime.collectibleClock=.65; runtime.chaserPressure=Math.max(.08,runtime.chaserPressure-.08); runtime.arcadeScore+=180; tone('power'); showToast('BYTE LINE ROOF RUN!','combo',.92);
+  }
+
+  function spawnRoofPattern() {
+    const d=runtime.difficulty;
+    if(runtime.roofTime<2.45){runtime.obstacleClock=Math.max(runtime.obstacleClock,.85);return;}
+    const safeLane=Math.floor(Math.random()*3); const tier=d.key==='easy'?0:d.key==='medium'?1:d.key==='hard'?2:3; const roll=Math.random();
+    if(roll<.44){
+      let lane=Math.floor(Math.random()*3); const type=pick(['roofCrate','roofBeam','roofGap']); pushObstacle(lane,Z_MAX,type,{level:'roof'});
+    }else if(roll<.78){
+      for(let lane=0;lane<3;lane+=1) if(lane!==safeLane) pushObstacle(lane,Z_MAX+(lane*.5),pick(['roofCrate','roofBeam']),{level:'roof'});
+      spawnPickupTrail({lane:safeLane,z:Z_MAX+5,count:5,spacing:6.6,level:'roof',pattern:'line'});
+    }else{
+      const order=[0,1,2].sort(()=>Math.random()-.5); pushObstacle(order[0],Z_MAX,pick(['roofCrate','roofGap']),{level:'roof'}); pushObstacle(order[1],Z_MAX+18,pick(['roofBeam','roofCrate']),{level:'roof'}); if(tier>1) pushObstacle(order[2],Z_MAX+36,pick(['roofGap','roofCrate']),{level:'roof'});
+    }
+    runtime.lastObstaclePattern='roof-chunk'; runtime.chunkIndex+=1; runtime.obstacleClock=d.obstacleGap*(.82+Math.random()*.22);
   }
 
   function spawnObstaclePattern() {
-    const d = runtime.difficulty;
-    const tier = d.key === 'easy' ? 0 : d.key === 'medium' ? 1 : d.key === 'hard' ? 2 : 3;
-    const roll = Math.random();
-
-    if (tier === 0) {
-      if (roll < .58) {
-        pushObstacle(Math.floor(Math.random()*3), Z_MAX, chooseObstacleType(true));
-        if (Math.random() < .18) {
-          let lane2 = Math.floor(Math.random()*3);
-          const lane1 = runtime.obstacles[runtime.obstacles.length - 1].lane;
-          if (lane2 === lane1) lane2 = (lane2 + 1) % 3;
-          pushObstacle(lane2, Z_MAX + 18, chooseObstacleType(false));
-        }
-      } else if (roll < .84) {
-        const openLane = Math.floor(Math.random()*3);
-        const type = Math.random() < .52 ? 'wall' : chooseObstacleType(false);
-        for (let lane = 0; lane < 3; lane += 1) if (lane !== openLane) pushObstacle(lane, Z_MAX + (lane === 2 ? 1.2 : 0), type);
-      } else {
-        const order = [0,1,2].sort(() => Math.random() - .5);
-        pushObstacle(order[0], Z_MAX, 'crate');
-        pushObstacle(order[1], Z_MAX + 20, 'beam');
-      }
-    } else if (tier === 1) {
-      if (roll < .42) {
-        pushObstacle(Math.floor(Math.random()*3), Z_MAX, chooseObstacleType(true));
-        if (Math.random() < .34) {
-          let lane2 = Math.floor(Math.random()*3); const lane1 = runtime.obstacles[runtime.obstacles.length - 1].lane;
-          if (lane2 === lane1) lane2 = (lane2 + 1) % 3;
-          pushObstacle(lane2, Z_MAX + 17, chooseObstacleType(false));
-        }
-      } else if (roll < .74) {
-        const openLane = Math.floor(Math.random()*3);
-        const type = chooseObstacleType(false);
-        for (let lane = 0; lane < 3; lane += 1) if (lane !== openLane) pushObstacle(lane, Z_MAX + lane * .9, type);
-      } else {
-        const order = [0,1,2].sort(() => Math.random() - .5);
-        pushObstacle(order[0], Z_MAX, chooseObstacleType(true));
-        pushObstacle(order[1], Z_MAX + 16, chooseObstacleType(false));
-        pushObstacle(order[2], Z_MAX + 32, chooseObstacleType(true));
-      }
-    } else if (tier === 2) {
-      if (roll < .32) {
-        pushObstacle(Math.floor(Math.random()*3), Z_MAX, chooseObstacleType(true));
-        if (Math.random() < .44) {
-          let lane2 = Math.floor(Math.random()*3);
-          const lane1 = runtime.obstacles[runtime.obstacles.length - 1].lane;
-          if (lane2 === lane1) lane2 = (lane2 + 1) % 3;
-          pushObstacle(lane2, Z_MAX + 15, chooseObstacleType(false));
-        }
-      } else if (roll < .63) {
-        const openLane = Math.floor(Math.random()*3);
-        const type = Math.random() < .48 ? 'wall' : chooseObstacleType(false);
-        for (let lane = 0; lane < 3; lane += 1) if (lane !== openLane) pushObstacle(lane, Z_MAX + lane * .8, type);
-        if (Math.random() < .40) pushObstacle(openLane, Z_MAX + 24, type === 'beam' ? 'crate' : 'beam');
-      } else {
-        const sequence = [0,1,2].sort(() => Math.random() - .5);
-        pushObstacle(sequence[0], Z_MAX, chooseObstacleType(true));
-        pushObstacle(sequence[1], Z_MAX + 14, chooseObstacleType(false));
-        pushObstacle(sequence[2], Z_MAX + 28, chooseObstacleType(true));
-      }
-    } else {
-      if (roll < .24) {
-        pushObstacle(Math.floor(Math.random()*3), Z_MAX, chooseObstacleType(true));
-        let lane2 = Math.floor(Math.random()*3);
-        const lane1 = runtime.obstacles[runtime.obstacles.length - 1].lane;
-        if (lane2 === lane1) lane2 = (lane2 + 1) % 3;
-        pushObstacle(lane2, Z_MAX + 14, chooseObstacleType(false));
-        if (Math.random() < .30) {
-          let lane3 = Math.floor(Math.random()*3);
-          if (lane3 === lane2) lane3 = (lane3 + 1) % 3;
-          pushObstacle(lane3, Z_MAX + 28, chooseObstacleType(true));
-        }
-      } else if (roll < .56) {
-        const openLane = Math.floor(Math.random()*3);
-        const type = Math.random() < .5 ? 'wall' : chooseObstacleType(false);
-        for (let lane = 0; lane < 3; lane += 1) if (lane !== openLane) pushObstacle(lane, Z_MAX + lane * .8, type);
-        if (Math.random() < .45) pushObstacle(openLane, Z_MAX + 22, type === 'beam' ? 'crate' : 'beam');
-      } else {
-        const sequence = [0,1,2].sort(() => Math.random() - .5);
-        pushObstacle(sequence[0], Z_MAX, chooseObstacleType(true));
-        pushObstacle(sequence[1], Z_MAX + 13, chooseObstacleType(false));
-        pushObstacle(sequence[2], Z_MAX + 25, chooseObstacleType(true));
-      }
+    const d=runtime.difficulty;
+    if(playerIsOnRoof() || runtime.roofTime>.18){spawnRoofPattern();return;}
+    const tier=d.key==='easy'?0:d.key==='medium'?1:d.key==='hard'?2:3; const elapsed=runtime.activeTimeMs/1000; const roll=Math.random();
+    const trainChance=elapsed>8?[.12,.18,.25,.31][tier]:0;
+    const rampChance=elapsed>12?[.08,.11,.14,.17][tier]:0;
+    if(roll<trainChance){
+      const openLane=Math.floor(Math.random()*3); const twoTrains=tier>0&&Math.random()<(.45+tier*.10);
+      const blocked=[0,1,2].filter(l=>l!==openLane).sort(()=>Math.random()-.5);
+      pushObstacle(blocked[0],Z_MAX,'train',{moving:Math.random()<.48});
+      if(twoTrains) pushObstacle(blocked[1],Z_MAX+1.4,'train',{moving:Math.random()<.58});
+      spawnPickupTrail({lane:openLane,z:Z_MAX+4,count:6,spacing:6.5,pattern:'line'});
+      runtime.lastObstaclePattern='train-corridor';
+    }else if(roll<trainChance+rampChance){
+      const rampLane=Math.floor(Math.random()*3); pushObstacle(rampLane,Z_MAX,'ramp');
+      const other=[0,1,2].filter(l=>l!==rampLane); if(tier>0) pushObstacle(pick(other),Z_MAX+4,Math.random()<.55?'wall':'train',{moving:false});
+      spawnPickupTrail({lane:rampLane,z:Z_MAX+3,count:5,spacing:6.3,pattern:'arc'}); runtime.lastObstaclePattern='roof-ramp';
+    }else if(roll<.56){
+      const safeLane=Math.floor(Math.random()*3); const blockerType=(tier>1&&Math.random()<.28)?'train':chooseObstacleType(false);
+      for(let lane=0;lane<3;lane+=1) if(lane!==safeLane) pushObstacle(lane,Z_MAX+(lane*.65),blockerType,{moving:blockerType==='train'&&Math.random()<.35});
+      spawnPickupTrail({lane:safeLane,z:Z_MAX+5,count:5,spacing:6.8,pattern:'line'}); runtime.lastObstaclePattern='safe-corridor';
+    }else{
+      const order=[0,1,2].sort(()=>Math.random()-.5); pushObstacle(order[0],Z_MAX,chooseObstacleType(true));
+      if(tier>0||Math.random()<.62) pushObstacle(order[1],Z_MAX+(tier>1?15:18),chooseObstacleType(false));
+      if(tier>1||Math.random()<.30) pushObstacle(order[2],Z_MAX+(tier>1?29:36),chooseObstacleType(true));
+      runtime.lastObstaclePattern='weave';
     }
-
-    runtime.lastObstaclePattern = `tier-${tier}`;
-    runtime.obstacleClock = d.obstacleGap * (.80 + Math.random() * .24);
+    runtime.chunkIndex+=1; runtime.obstacleClock=d.obstacleGap*(.82+Math.random()*.24);
   }
 
   function spawnPickup() {
-    const lane=Math.floor(Math.random()*3); const shieldChance=runtime.activeTimeMs>18000&&runtime.shield===0&&Math.random()<.12;
-    runtime.pickups.push({lane,z:Z_MAX+4,type:shieldChance?'shield':'code',label:shieldChance?'DBG':pick(['</>','01','HTML','{}']),resolved:false,postResolveAge:0});
-    runtime.collectibleClock=(shieldChance?13:3.8)+Math.random()*(shieldChance?6:3.2);
+    const level=playerIsOnRoof()?'roof':'ground';
+    if(runtime.activeTimeMs>11000 && Math.random()<.17) spawnPowerUp(level);
+    else spawnPickupTrail({level,count:5+Math.floor(Math.random()*3),spacing:6.5+Math.random()*1.8});
+    runtime.collectibleClock=3.0+Math.random()*2.2;
   }
 
   function updateWorldObjects(dt) {
+    const onRoof=playerIsOnRoof();
     for (const obstacle of runtime.obstacles) {
-      const moveScale=obstacle.resolved ? (obstacle.outcome==='hit'?2.25:1.18) : 1;
-      obstacle.z-=runtime.speed*dt*moveScale;
+      const resolvedScale=obstacle.resolved ? (obstacle.outcome==='hit'?2.25:1.18) : 1;
+      const trainScale=obstacle.type==='train'&&obstacle.moving?1.24:1;
+      obstacle.z-=runtime.speed*dt*resolvedScale*trainScale;
+      if(obstacle.type==='train'&&!obstacle.warned&&obstacle.z<34&&obstacle.z>22){obstacle.warned=true;tone('train');}
       if (obstacle.resolved) obstacle.postResolveAge=(obstacle.postResolveAge||0)+dt;
       if (!obstacle.resolved && obstacle.z<=7.8) {
         obstacle.resolved=true; obstacle.postResolveAge=0;
         const laneHit=Math.abs(runtime.lanePos-obstacle.lane)<.43;
+        const sameLevel=obstacle.level==='roof'?onRoof:!onRoof;
+        if(obstacle.type==='ramp'){
+          if(laneHit&&!onRoof){obstacle.outcome='cleared';activateRoofMode(obstacle.lane);}else obstacle.outcome='passed';
+          continue;
+        }
+        if(!sameLevel){obstacle.outcome='passed';runtime.arcadeScore+=25;continue;}
         if (laneHit) {
           const action=currentRunnerAction();
-          const required=obstacle.type==='crate'?'jump':obstacle.type==='beam'?'slide':'dodge';
-          const cleared=(required==='jump'&&action==='jump')||(required==='slide'&&action==='slide');
+          const required=(obstacle.type==='crate'||obstacle.type==='roofCrate'||obstacle.type==='roofGap')?'jump':(obstacle.type==='beam'||obstacle.type==='roofBeam')?'slide':'dodge';
+          const cleared=runtime.boostTime>0||(required==='jump'&&action==='jump')||(required==='slide'&&action==='slide');
           obstacle.requiredAction=required; obstacle.playerAction=action;
           if (!cleared) {
             obstacle.outcome='hit'; runtime.obstacleHits+=1; runtime.combo=0;
             const lost=consumeDamage('obstacle'); burstAtGate(obstacle.lane,'bad',10);
-            if (lost) showToast(obstacle.type==='crate'?'JUMP REQUIRED!':obstacle.type==='beam'?'SLIDE REQUIRED!':'CHANGE LANE!','bad',.72);
+            if (lost) showToast(required==='jump'?'JUMP REQUIRED!':required==='slide'?'SLIDE REQUIRED!':obstacle.type==='train'?'TRAIN! CHANGE LANE!':'CHANGE LANE!','bad',.72);
           } else {
-            obstacle.outcome='cleared'; obstacle.clearAction=action; runtime.arcadeScore+=95; runtime.clearFxTime=.52; runtime.clearFxKind=action; burstAtGate(obstacle.lane,'good',6);
-            showToast(action==='jump'?'CLEAN JUMP ✓':'SMOOTH SLIDE ✓','good',.52);
+            obstacle.outcome='cleared'; obstacle.clearAction=runtime.boostTime>0?'boost':action; runtime.arcadeScore+=(runtime.boostTime>0?145:95); runtime.clearFxTime=.48; runtime.clearFxKind=runtime.boostTime>0?'boost':action; runtime.chaserPressure=Math.max(.08,runtime.chaserPressure-.012); burstAtGate(obstacle.lane,'good',6);
+            if(runtime.boostTime<=0) showToast(action==='jump'?'CLEAN JUMP ✓':action==='slide'?'SMOOTH SLIDE ✓':'BOOST CLEAR ✓','good',.46);
           }
-        } else { obstacle.outcome='passed'; runtime.arcadeScore+=45; }
+        } else {
+          obstacle.outcome='passed'; runtime.arcadeScore+=45;
+          if(obstacle.type==='train'&&Math.abs(runtime.lanePos-obstacle.lane)<1.25&&!obstacle.nearMiss){obstacle.nearMiss=true;runtime.arcadeScore+=65;runtime.cameraKick=Math.max(runtime.cameraKick,.26);tone('whoosh');showToast('TRAIN NEAR MISS +65','combo',.38);}
+        }
       }
     }
-    runtime.obstacles=runtime.obstacles.filter(item=>item.z>-12 && !(item.resolved && item.postResolveAge>(item.outcome==='cleared'?.58:.32)));
+    runtime.obstacles=runtime.obstacles.filter(item=>item.z>-12 && !(item.resolved && item.postResolveAge>(item.outcome==='cleared'?.58:.34)));
     for (const item of runtime.pickups) {
       item.z-=runtime.speed*dt*(item.resolved?1.7:1);
+      const itemRoof=item.level==='roof'; const sameLevel=itemRoof===onRoof;
+      if(runtime.magnetTime>0&&sameLevel&&!item.resolved&&item.z<32&&item.z>6){item.lane+=(runtime.lanePos-item.lane)*clamp(dt*5.8,0,1);}
       if (item.resolved) item.postResolveAge=(item.postResolveAge||0)+dt;
-      if (!item.resolved && item.z<=7.6) {
+      if (!item.resolved && item.z<=7.9) {
         item.resolved=true; item.postResolveAge=0;
-        if (Math.abs(runtime.lanePos-item.lane)<.45) {
-          if (item.type==='shield') { runtime.shield=1; runtime.arcadeScore+=120; tone('shield'); showToast('DEBUGGER SHIELD READY','combo',.72); burstAtGate(item.lane,'shield',12); }
-          else { runtime.collectibles+=1; runtime.arcadeScore+=35; tone('pickup'); burstAtGate(item.lane,'pickup',7); }
+        if (sameLevel&&Math.abs(runtime.lanePos-item.lane)<(runtime.magnetTime>0?.82:.45)) {
+          if(item.type==='power') applyPowerUp(item.power,item.lane);
+          else {
+            runtime.collectibles+=1; runtime.pickupStreak+=1; runtime.pickupStreakClock=.95; const mult=runtime.multiplierTime>0?2:1; runtime.arcadeScore+=35*mult; tone(runtime.pickupStreak%4===0?'pickup2':'pickup'); burstAtGate(item.lane,'pickup',5);
+          }
         }
       }
     }
@@ -975,15 +1000,21 @@
   }
 
   function updatePlayer(dt) {
-    runtime.laneShiftCooldown=Math.max(0,runtime.laneShiftCooldown-dt);
-    const smooth=1-Math.exp(-12*dt); runtime.lanePos += (runtime.lane-runtime.lanePos)*smooth;
+    runtime.laneShiftCooldown=Math.max(0,runtime.laneShiftCooldown-dt); runtime.bufferedJump=Math.max(0,runtime.bufferedJump-dt);
+    const smooth=1-Math.exp(-16*dt); runtime.lanePos += (runtime.lane-runtime.lanePos)*smooth;
     if (runtime.jumpY>0 || runtime.jumpVy>0) {
       runtime.jumpVy-=JUMP_GRAVITY*dt; runtime.jumpY+=runtime.jumpVy*dt;
-      if (runtime.jumpY<=PLAYER_GROUND_Y) { runtime.jumpY=0; if (runtime.jumpVy<-.5) { runtime.landingKick=.18; tone('land'); } runtime.jumpVy=0; }
+      if (runtime.jumpY<=PLAYER_GROUND_Y) {
+        runtime.jumpY=0; if (runtime.jumpVy<-.5) { runtime.landingKick=.18; tone('land'); } runtime.jumpVy=0; runtime.fastDrop=false;
+        if(runtime.landingSlideQueued){runtime.slideTime=Math.max(runtime.slideTime,.34);runtime.landingSlideQueued=false;}
+      }
     }
+    if(runtime.bufferedJump>0&&runtime.jumpY<=.001&&runtime.jumpVy===0&&runtime.slideTime<=.04){runtime.bufferedJump=0;jump();}
     runtime.slideTime=Math.max(0,runtime.slideTime-dt); runtime.clearFxTime=Math.max(0,runtime.clearFxTime-dt); runtime.stumbleTime=Math.max(0,runtime.stumbleTime-dt); runtime.invulnerable=Math.max(0,runtime.invulnerable-dt); runtime.landingKick=Math.max(0,runtime.landingKick-dt); runtime.cameraKick=Math.max(0,runtime.cameraKick-dt*4.8);
+    runtime.roofTime=Math.max(0,runtime.roofTime-dt); const roofTarget=runtime.roofTime>0?ROOF_HEIGHT:0; runtime.roofHeight+=(roofTarget-runtime.roofHeight)*(1-Math.exp(-6.8*dt)); if(runtime.roofTime<=0&&runtime.roofHeight<.012)runtime.roofHeight=0;
+    runtime.magnetTime=Math.max(0,runtime.magnetTime-dt); runtime.multiplierTime=Math.max(0,runtime.multiplierTime-dt); runtime.boostTime=Math.max(0,runtime.boostTime-dt); runtime.pickupStreakClock=Math.max(0,runtime.pickupStreakClock-dt); if(runtime.pickupStreakClock<=0)runtime.pickupStreak=0;
+    runtime.chaserFlash=Math.max(0,runtime.chaserFlash-dt); const chaseDecay=runtime.boostTime>0?.045:.014; runtime.chaserPressure=Math.max(.08,runtime.chaserPressure-dt*chaseDecay);
   }
-
   function updateParticles(dt) {
     for (const p of runtime.particles) if (p.active) { p.age+=dt; if (p.age>=p.ttl) {p.active=false;continue;} p.x+=p.vx*dt; p.y+=p.vy*dt; p.vy+=45*dt; }
   }
@@ -993,32 +1024,48 @@
     const point=projectLane(lane,8,0); const actualCount=runtime.view.w<=700?Math.max(4,Math.ceil(count*.62)):count; for(let i=0;i<actualCount;i+=1){const p=allocParticle();if(!p)break;p.x=point.x+(Math.random()-.5)*35;p.y=point.y+(Math.random()-.5)*30;p.vx=(Math.random()-.5)*125;p.vy=-40-Math.random()*100;p.ttl=.45+Math.random()*.45;p.size=2+Math.random()*4;p.kind=kind;}
   }
 
+  function startFinishPortal() {
+    runtime.questionPhase='finish'; runtime.currentChallenge=null; runtime.gateGroup=null; runtime.questionBox.hidden=true; runtime.questionBox.removeAttribute('data-motion'); runtime.questionBox.removeAttribute('data-phase');
+    runtime.obstacles.length=0; runtime.pickups.length=0; runtime.finishPortal={z:Z_MAX+18,pulse:0}; runtime.roofTime=0; runtime.boostTime=0; runtime.chaserPressure=Math.max(.08,runtime.chaserPressure-.18); tone('power'); showToast('PAGE COMPLETE · VALIDATION PORTAL AHEAD','combo',1.05);
+  }
+
+  function updateFinishPortal(dt) {
+    if(!runtime.finishPortal)return;
+    runtime.finishPortal.pulse+=dt; runtime.finishPortal.z-=runtime.speed*dt*1.12;
+    if(runtime.finishPortal.z<=GATE_TRIGGER_Z){runtime.finishPortal=null;tone('complete');endRun(true);}
+  }
+
   function updateRun(dt) {
     runtime.activeTimeMs += dt*1000; runtime.visualTime += dt; runtime.roadPulse += runtime.speed*dt;
-    const accelScale=runtime.questionPhase==='approach'?.32:1; runtime.speed=Math.min(runtime.difficulty.maxSpeed,runtime.speed+runtime.difficulty.acceleration*accelScale*dt);
-    runtime.distance += runtime.speed*dt*1.13; runtime.arcadeScore += runtime.speed*dt*1.35;
+    const boostMax=runtime.difficulty.maxSpeed*(runtime.boostTime>0?1.16:1); const accelScale=runtime.questionPhase==='approach'?.58:1;
+    runtime.speed=Math.min(boostMax,runtime.speed+runtime.difficulty.acceleration*accelScale*dt+(runtime.boostTime>0?.62*dt:0));
+    if(runtime.boostTime<=0&&runtime.speed>runtime.difficulty.maxSpeed)runtime.speed=Math.max(runtime.difficulty.maxSpeed,runtime.speed-dt*2.2);
+    runtime.distance += runtime.speed*dt*(runtime.boostTime>0?1.24:1.13); runtime.arcadeScore += runtime.speed*dt*(runtime.multiplierTime>0?2.25:1.35);
     updatePlayer(dt); updateParticles(dt); updateQuestion(dt);
     if (runtime.state!=='RUNNING') return;
-    if (runtime.questionPhase==='none') {
+
+    if(runtime.questionPhase==='none'){
       runtime.questionWait-=dt;
-      if (runtime.questionWait<=0) runtime.questionPending=true;
-      if (!runtime.questionPending) {
+      if(runtime.questionWait<=0){runtime.questionPending=true;startQuestionPreview();}
+      if(runtime.questionPhase==='none'){
         runtime.obstacleClock-=dt; runtime.collectibleClock-=dt;
-        if (runtime.obstacleClock<=0) spawnObstaclePattern();
-        if (runtime.collectibleClock<=0) spawnPickup();
-      } else if (runtime.obstacles.length===0) startQuestionPreview();
-      updateWorldObjects(dt);
-    } else {
-      // Existing runner objects finish clearing, but no new obstacles spawn near questions.
-      updateWorldObjects(dt);
+        if(runtime.obstacleClock<=0)spawnObstaclePattern();
+        if(runtime.collectibleClock<=0)spawnPickup();
+      }
+    }else if(runtime.questionPhase==='preview'){
+      // Reading no longer freezes the world. Existing hazards continue and BYTE
+      // trails can still appear, while new blockers are withheld from the gate zone.
+      runtime.collectibleClock-=dt;
+      if(runtime.collectibleClock<=0){spawnPickupTrail({count:4,spacing:7.4,level:playerIsOnRoof()?'roof':'ground'});runtime.collectibleClock=2.7+Math.random()*1.3;}
     }
+    updateWorldObjects(dt);
+
     runtime.musicClock-=dt;
-    if (runtime.musicClock<=0) { tone('beat'); const pace=clamp(runtime.speed/runtime.difficulty.maxSpeed,.65,1); runtime.musicClock=.72-.22*pace; }
+    if (runtime.musicClock<=0) { runtime.musicBeatIndex=(runtime.musicBeatIndex+1)%8; tone(runtime.musicBeatIndex%4===0?'beat2':'beat'); const pace=clamp(runtime.speed/runtime.difficulty.maxSpeed,.65,1.16); runtime.musicClock=.66-.20*Math.min(1,pace); }
     if (runtime.toastClock>0) { runtime.toastClock-=dt; if(runtime.toastClock<=0) runtime.toast.classList.remove('show','good','bad','combo'); }
     updateBuildDock();
     updateHud();
   }
-
   function showToast(text,kind='',seconds=.7) {
     if (!runtime.toast) return; setText(runtime.toast,text); runtime.toast.className=`byte-runner-html-toast show${kind?` ${kind}`:''}`; runtime.toastClock=Math.max(.2,seconds);
   }
@@ -1056,7 +1103,7 @@
 
   async function endRun(completed) {
     if (runtime.state!=='RUNNING') return;
-    runtime.questionBox.hidden=true; runtime.gateGroup=null; runtime.obstacles.length=0; runtime.pickups.length=0; runtime.performanceScore=completed?calculatePerformanceScore():0;
+    runtime.questionBox.hidden=true; runtime.gateGroup=null; runtime.finishPortal=null; runtime.obstacles.length=0; runtime.pickups.length=0; runtime.performanceScore=completed?calculatePerformanceScore():0;
     if (completed) {
       runtime.state='ROUND_COMPLETE'; burstAtGate(runtime.lane,'good',24); runtime.resultPanel.hidden=false; tone('complete'); fillResultPanel();
       await claimReward(true);
@@ -1139,9 +1186,9 @@
   }
 
   function updateHud(force=false) {
-    const total=runtime.difficulty?.steps||8; setText(runtime.statScore,Math.floor(runtime.arcadeScore).toLocaleString()); setText(runtime.statDistance,`${Math.floor(runtime.distance)}m`); setText(runtime.statCombo,`x${runtime.combo}`); setText(runtime.statHearts,`${'♥'.repeat(runtime.hearts)}${runtime.shield?' 🛡':''}`||'—'); setText(runtime.statHtml,`${runtime.completedSteps}/${total}`); if(force)updateBuildHud();
+    const total=runtime.difficulty?.steps||8; const buffs=[runtime.shield?'🛡':'',runtime.magnetTime>0?'🧲':'',runtime.multiplierTime>0?'2×':'',runtime.boostTime>0?'⚡':''].filter(Boolean).join(' ');
+    setText(runtime.statScore,Math.floor(runtime.arcadeScore).toLocaleString()); setText(runtime.statDistance,`${Math.floor(runtime.distance)}m`); setText(runtime.statCombo,`x${runtime.combo}`); setText(runtime.statHearts,`${'♥'.repeat(runtime.hearts)}${buffs?` ${buffs}`:''}`||'—'); setText(runtime.statHtml,`${runtime.completedSteps}/${total}`); if(force)updateBuildHud();
   }
-
   function updateBuildDock() {
     const panel = runtime.buildPanel;
     if (!panel) return;
@@ -1182,8 +1229,9 @@
     const phone=w<=700;
     const geo=roadGeometry();
     const kick=runtime.cameraKick>0?Math.sin(runtime.visualTime*42)*1.35*runtime.cameraKick:0;
-    const laneParallax=(runtime.lanePos-1)*-w*.004;
-    ctx.save(); ctx.translate(kick+laneParallax,0);
+    const laneParallax=(runtime.lanePos-1)*-w*.004; const pace=clamp(runtime.speed/Math.max(1,runtime.difficulty.maxSpeed),.55,1.18);
+    const runBob=runtime.state==='RUNNING'&&runtime.jumpY<.03&&runtime.slideTime<=0?Math.sin(runtime.visualTime*(17+pace*3))*(.45+pace*1.1):0;
+    ctx.save(); ctx.translate(kick+laneParallax,runBob+runtime.landingKick*3.2);
 
     // Bright daytime city / rail corridor. Everything is procedurally drawn so
     // the game keeps its own visual identity while getting the lively depth of
@@ -1305,109 +1353,62 @@
     ctx.restore();
   }
 
-  function drawObstacle(ctx,item) {
-    const p=projectLane(item.lane,item.z); if(p.p<=.004)return;
-    const scale=p.scale;
-    const laneW=Math.max(42,92*scale);
-    const age=item.postResolveAge||0;
-    let alpha=1;
-    if(item.outcome==='hit') alpha=clamp(1-age/.30,0,1);
-    else if(item.resolved) alpha=clamp(1-age/(item.outcome==='cleared'?.58:.48),0,1);
-    const passDrop=item.outcome==='cleared'?Math.min(36*scale,age*78*scale):0;
-    ctx.save(); ctx.globalAlpha=alpha; ctx.translate(p.x,p.y+passDrop);
-
-    // Ground shadow keeps every obstacle visually planted on the lane.
-    ctx.fillStyle=`rgba(0,0,0,${.13+.22*p.p})`;
-    ctx.beginPath(); ctx.ellipse(0,4*scale,laneW*.47,8*scale,0,0,Math.PI*2); ctx.fill();
-
-    if(item.type==='crate') {
-      // LOW obstacle: deliberately knee/waist height so JUMP is immediately obvious.
-      const w=laneW*.90;
-      const hh=34*scale;
-      ctx.fillStyle=item.outcome==='hit'?'#6f1f32':'#581b2b';
-      ctx.strokeStyle=item.outcome==='hit'?'#fecdd3':'#fb7185';
-      ctx.lineWidth=Math.max(1,2.1*scale);
-      drawRounded(ctx,-w/2,-hh,w,hh,7*scale); ctx.fill(); ctx.stroke();
-      ctx.fillStyle='#f59e0b';
-      for(let stripe=-2;stripe<=2;stripe+=1){const sx=stripe*w*.18;ctx.save();ctx.translate(sx,-hh*.52);ctx.rotate(-.28);ctx.fillRect(-4*scale,-hh*.38,8*scale,hh*.76);ctx.restore();}
-
-      // Up chevrons communicate "jump over this" without relying on text alone.
-      ctx.strokeStyle='#fef3c7'; ctx.lineWidth=Math.max(1.5,2.2*scale); ctx.lineCap='round';
-      for(const ox of [-13,13]){
-        ctx.beginPath(); ctx.moveTo((ox-7)*scale,-23*scale); ctx.lineTo(ox*scale,-31*scale); ctx.lineTo((ox+7)*scale,-23*scale); ctx.stroke();
-      }
-      ctx.fillStyle='#fecdd3'; ctx.font=`950 ${clamp(10*scale,6,13)}px system-ui`; ctx.textAlign='center'; ctx.textBaseline='middle';
-      ctx.fillText('JUMP',0,-hh*.58);
-    } else if(item.type==='beam') {
-      // SLIDE TUNNEL: the upper half is visibly SOLID, while the lower half is
-      // one large clean opening. Running or jumping hits the canopy; sliding fits.
-      const w=laneW*1.02;
-      const topY=-138*scale;
-      const openingTop=-48*scale;
-      const postW=Math.max(6,9*scale);
-      ctx.fillStyle='#173b60';
-      drawRounded(ctx,-w*.52,topY,postW,-topY,3*scale);ctx.fill();
-      drawRounded(ctx,w*.52-postW,topY,postW,-topY,3*scale);ctx.fill();
-
-      ctx.shadowColor='rgba(248,113,113,.7)';ctx.shadowBlur=10*scale;
-      ctx.fillStyle=item.outcome==='hit'?'#991b1b':'#b91c1c';
-      drawRounded(ctx,-w*.5,topY,w,topY*-1+openingTop,6*scale);ctx.fill();
-      ctx.shadowBlur=0;
-      // hazard lip exactly at the top of the slide opening
-      ctx.fillStyle='#ef4444';drawRounded(ctx,-w*.50,openingTop-10*scale,w,12*scale,3*scale);ctx.fill();
-      ctx.fillStyle='#facc15';
-      for(let x=-w*.40;x<w*.40;x+=18*scale){ctx.save();ctx.translate(x,openingTop-4*scale);ctx.rotate(-.45);ctx.fillRect(-3*scale,-5*scale,6*scale,10*scale);ctx.restore();}
-
-      ctx.strokeStyle='rgba(207,250,254,.68)';ctx.lineWidth=Math.max(1,1.6*scale);
-      drawRounded(ctx,-w*.38,openingTop,w*.76,-openingTop-2*scale,7*scale);ctx.stroke();
-      ctx.fillStyle='#fee2e2';ctx.font=`950 ${clamp(10*scale,6,13)}px system-ui`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('SLIDE',0,topY+24*scale);
-      ctx.fillStyle='#cffafe';ctx.font=`850 ${clamp(6.7*scale,5,9)}px system-ui`;ctx.fillText('BIG OPENING BELOW',0,openingTop+19*scale);
-      // clear downward cue inside the opening
-      ctx.strokeStyle='#ecfeff';ctx.lineWidth=Math.max(1.4,2*scale);ctx.lineCap='round';
-      for(const ox of [-14,14]){ctx.beginPath();ctx.moveTo(ox*scale,openingTop+5*scale);ctx.lineTo(ox*scale,openingTop+17*scale);ctx.moveTo((ox-6)*scale,openingTop+11*scale);ctx.lineTo(ox*scale,openingTop+18*scale);ctx.lineTo((ox+6)*scale,openingTop+11*scale);ctx.stroke();}
-    } else {
-      // FULL BLOCKING WALL: intentionally much taller than the runner and fills the lane.
-      // This is NOT jumpable/slidable; the silhouette should immediately communicate DODGE.
-      const w=laneW*1.08;
-      const hh=184*scale;
-      ctx.fillStyle=item.outcome==='hit'?'rgba(127,29,29,.96)':'#3b1859';
-      ctx.strokeStyle=item.outcome==='hit'?'#fb7185':'#c084fc';
-      ctx.lineWidth=Math.max(1.2,2.4*scale);
-      drawRounded(ctx,-w*.5,-hh,w,hh,8*scale); ctx.fill(); ctx.stroke();
-
-      // Solid side rails remove any false "slide under" opening.
-      ctx.fillStyle='rgba(216,180,254,.14)';
-      ctx.fillRect(-w*.43,-hh+8*scale,6*scale,hh-14*scale);
-      ctx.fillRect(w*.43-6*scale,-hh+8*scale,6*scale,hh-14*scale);
-
-      ctx.strokeStyle='#f5d0fe'; ctx.lineWidth=Math.max(2,3*scale); ctx.lineCap='round';
-      ctx.beginPath();
-      ctx.moveTo(-20*scale,-126*scale); ctx.lineTo(20*scale,-82*scale);
-      ctx.moveTo(20*scale,-126*scale); ctx.lineTo(-20*scale,-82*scale);
-      ctx.stroke();
-
-      ctx.fillStyle='#f3e8ff'; ctx.font=`950 ${clamp(10*scale,6,13)}px system-ui`; ctx.textAlign='center'; ctx.textBaseline='middle';
-      ctx.fillText('DODGE',0,-154*scale);
-      ctx.fillStyle='#d8b4fe'; ctx.font=`900 ${clamp(7*scale,5,10)}px system-ui`;
-      ctx.fillText('FULL WALL',0,-55*scale);
-
-      // L/R arrows hint that lane change is the only safe response.
-      ctx.strokeStyle='rgba(233,213,255,.75)'; ctx.lineWidth=Math.max(1.2,1.8*scale);
-      ctx.beginPath(); ctx.moveTo(-30*scale,-25*scale); ctx.lineTo(-42*scale,-25*scale); ctx.lineTo(-36*scale,-31*scale); ctx.moveTo(-42*scale,-25*scale); ctx.lineTo(-36*scale,-19*scale); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(30*scale,-25*scale); ctx.lineTo(42*scale,-25*scale); ctx.lineTo(36*scale,-31*scale); ctx.moveTo(42*scale,-25*scale); ctx.lineTo(36*scale,-19*scale); ctx.stroke();
-
-      if(item.outcome==='hit'){
-        ctx.strokeStyle='#fecdd3'; ctx.lineWidth=Math.max(1,1.5*scale);
-        ctx.beginPath(); ctx.moveTo(-9*scale,-80*scale); ctx.lineTo(5*scale,-63*scale); ctx.lineTo(-6*scale,-46*scale); ctx.lineTo(12*scale,-29*scale); ctx.stroke();
-      }
+  function drawActiveTrainRoofs(ctx) {
+    if(runtime.roofHeight<=.015)return;
+    const geo=roadGeometry(); const alpha=clamp(runtime.roofHeight/ROOF_HEIGHT,0,1); ctx.save(); ctx.globalAlpha=.92*alpha;
+    for(let lane=0;lane<3;lane+=1){
+      const near=projectLane(lane,0,runtime.roofHeight), far=projectLane(lane,72,runtime.roofHeight); const nearSpan=near.half*geo.laneFactor*.31, farSpan=far.half*geo.laneFactor*.31;
+      ctx.fillStyle=lane===Math.round(runtime.lanePos)?'#28607a':'#234b61'; ctx.strokeStyle='rgba(207,250,254,.72)'; ctx.lineWidth=1.2;
+      ctx.beginPath();ctx.moveTo(far.x-farSpan,far.y);ctx.lineTo(far.x+farSpan,far.y);ctx.lineTo(near.x+nearSpan,near.y+7);ctx.lineTo(near.x-nearSpan,near.y+7);ctx.closePath();ctx.fill();ctx.stroke();
+      ctx.strokeStyle='rgba(103,232,249,.46)';ctx.beginPath();ctx.moveTo(far.x,far.y);ctx.lineTo(near.x,near.y+5);ctx.stroke();
+      for(let i=0;i<5;i+=1){const z=positiveMod(i*15-runtime.roadPulse*.7,72);const p=projectLane(lane,z,runtime.roofHeight);const span=p.half*geo.laneFactor*.22;ctx.strokeStyle='rgba(226,232,240,.42)';ctx.beginPath();ctx.moveTo(p.x-span,p.y+2);ctx.lineTo(p.x+span,p.y+2);ctx.stroke();}
     }
     ctx.restore();
   }
 
-  function drawPickup(ctx,item) {
-    const p=projectLane(item.lane,item.z,.12); if(p.p<=.005)return; const s=34*p.scale;ctx.save();ctx.translate(p.x,p.y-s*.8);ctx.rotate(runtime.visualTime*1.7);ctx.shadowColor=item.type==='shield'?'rgba(190,242,100,.7)':'rgba(34,211,238,.65)';ctx.shadowBlur=14*p.scale;ctx.fillStyle=item.type==='shield'?'#365314':'#164e63';ctx.strokeStyle=item.type==='shield'?'#bef264':'#67e8f9';ctx.lineWidth=Math.max(1,2*p.scale);drawRounded(ctx,-s/2,-s/2,s,s,8*p.scale);ctx.fill();ctx.stroke();ctx.rotate(-runtime.visualTime*1.7);ctx.shadowBlur=0;ctx.fillStyle='#ecfeff';ctx.font=`900 ${clamp(9*p.scale,5,11)}px ui-monospace,monospace`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(item.label,0,0);ctx.restore();
+  function drawSpeedFx(ctx) {
+    if(runtime.state!=='RUNNING')return; const pace=clamp(runtime.speed/runtime.difficulty.maxSpeed,0,1.18); if(pace<.74)return;
+    const {w,h}=runtime.view; const strength=clamp((pace-.74)/.38,0,1); ctx.save();ctx.globalAlpha=.12+.20*strength;ctx.strokeStyle='#dff9ff';ctx.lineWidth=1;
+    const count=runtime.view.w<=700?7:11; for(let i=0;i<count;i+=1){const phase=positiveMod(runtime.visualTime*(180+18*i)+i*97,h*.72);const side=i%2===0?-1:1;const x=w*.5+side*(w*(.18+.025*(i%5)));const y=h*.25+phase;ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x+side*12*strength,y+26+30*strength);ctx.stroke();}
+    ctx.restore();
   }
 
+  function drawGlitchChaser(ctx) {
+    if(runtime.state!=='RUNNING'||runtime.questionPhase==='finish')return; const p=clamp(runtime.chaserPressure,.08,1); const {w,h}=runtime.view; const laneX=w*.5+(runtime.lanePos-1)*roadGeometry().nearHalf*roadGeometry().laneFactor; const sc=.48+p*.56; const y=h*(1.055-p*.085);
+    ctx.save();ctx.translate(laneX+(Math.sin(runtime.visualTime*8)*9*(.3+p)),y);ctx.scale(sc,sc);ctx.globalAlpha=.18+.58*p;ctx.fillStyle=runtime.chaserFlash>0?'#fb7185':'#5b21b6';ctx.strokeStyle='#c4b5fd';ctx.lineWidth=2;
+    drawRounded(ctx,-22,-58,44,38,8);ctx.fill();ctx.stroke();ctx.fillStyle='#0f172a';ctx.fillRect(-14,-47,9,7);ctx.fillRect(5,-47,9,7);ctx.fillStyle='#f0abfc';ctx.fillRect(-11,-45,5,3);ctx.fillRect(7,-45,5,3);ctx.strokeStyle='#a78bfa';ctx.beginPath();ctx.moveTo(-13,-18);ctx.lineTo(-25,7);ctx.moveTo(13,-18);ctx.lineTo(25,7);ctx.moveTo(-9,-20);ctx.lineTo(-13,14);ctx.moveTo(9,-20);ctx.lineTo(13,14);ctx.stroke();ctx.fillStyle='#ede9fe';ctx.font='900 10px ui-monospace,monospace';ctx.textAlign='center';ctx.fillText('GLITCH',0,-65);ctx.restore();
+  }
+
+  function drawFinishPortal(ctx) {
+    const portal=runtime.finishPortal;if(!portal)return;const p=projectLane(1,portal.z);if(p.p<=.003)return;const s=p.scale;const w=Math.max(82,178*s),hh=Math.max(90,205*s);ctx.save();ctx.translate(p.x,p.y);ctx.globalAlpha=clamp(.48+p.p*.62,0,1);ctx.shadowColor='rgba(190,242,100,.75)';ctx.shadowBlur=18*s;ctx.strokeStyle='#bef264';ctx.lineWidth=Math.max(2,4*s);drawRounded(ctx,-w/2,-hh,w,hh,16*s);ctx.stroke();ctx.shadowBlur=0;ctx.fillStyle='rgba(20,83,45,.38)';drawRounded(ctx,-w*.45,-hh*.90,w*.90,hh*.80,12*s);ctx.fill();ctx.fillStyle='#ecfccb';ctx.font=`950 ${clamp(18*s,10,24)}px ui-monospace,monospace`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('</HTML>',0,-hh*.58);ctx.font=`900 ${clamp(9*s,6,12)}px system-ui`;ctx.fillText('VALIDATE PAGE',0,-hh*.28);ctx.restore();
+  }
+
+  function drawObstacle(ctx,item) {
+    const elevation=item.level==='roof'?ROOF_HEIGHT:0; const p=projectLane(item.lane,item.z,elevation); if(p.p<=.004)return;
+    const scale=p.scale; const laneW=Math.max(42,92*scale); const age=item.postResolveAge||0; let alpha=1;
+    if(item.outcome==='hit') alpha=clamp(1-age/.30,0,1); else if(item.resolved) alpha=clamp(1-age/(item.outcome==='cleared'?.58:.48),0,1);
+    const passDrop=item.outcome==='cleared'?Math.min(36*scale,age*78*scale):0; ctx.save(); ctx.globalAlpha=alpha; ctx.translate(p.x,p.y+passDrop);
+    ctx.fillStyle=`rgba(0,0,0,${.13+.22*p.p})`;ctx.beginPath();ctx.ellipse(0,4*scale,laneW*.47,8*scale,0,0,Math.PI*2);ctx.fill();
+
+    const crate=item.type==='crate'||item.type==='roofCrate'; const beam=item.type==='beam'||item.type==='roofBeam';
+    if(item.type==='ramp'){
+      const w=laneW*.96,hh=48*scale;ctx.fillStyle='#0e7490';ctx.strokeStyle='#67e8f9';ctx.lineWidth=Math.max(1.2,2*scale);ctx.beginPath();ctx.moveTo(-w*.48,0);ctx.lineTo(w*.48,0);ctx.lineTo(w*.30,-hh);ctx.lineTo(-w*.30,-hh);ctx.closePath();ctx.fill();ctx.stroke();ctx.fillStyle='#ecfeff';ctx.font=`950 ${clamp(8*scale,6,11)}px system-ui`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('ROOF RAMP',0,-hh*.46);ctx.strokeStyle='#bef264';ctx.beginPath();ctx.moveTo(-15*scale,-12*scale);ctx.lineTo(0,-28*scale);ctx.lineTo(15*scale,-12*scale);ctx.stroke();
+    }else if(item.type==='train'){
+      const w=laneW*1.10,hh=205*scale;ctx.shadowColor='rgba(15,23,42,.35)';ctx.shadowBlur=8*scale;ctx.fillStyle=item.outcome==='hit'?'#7f1d1d':'#1d4f6b';ctx.strokeStyle=item.outcome==='hit'?'#fecdd3':'#bae6fd';ctx.lineWidth=Math.max(1.2,2.2*scale);drawRounded(ctx,-w*.5,-hh,w,hh,11*scale);ctx.fill();ctx.stroke();ctx.shadowBlur=0;ctx.fillStyle='#dff6ff';for(let j=0;j<3;j+=1){drawRounded(ctx,-w*.35+j*w*.25,-hh*.74,w*.18,hh*.20,3*scale);ctx.fill();}ctx.fillStyle='#0f172a';ctx.fillRect(-w*.5,-hh*.32,w,hh*.18);ctx.fillStyle='#fde68a';ctx.beginPath();ctx.arc(-w*.30,-hh*.12,5*scale,0,Math.PI*2);ctx.arc(w*.30,-hh*.12,5*scale,0,Math.PI*2);ctx.fill();ctx.fillStyle='#fff';ctx.font=`950 ${clamp(9*scale,6,12)}px system-ui`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(item.moving?'BYTE EXPRESS':'BYTE LINE',0,-hh*.43);ctx.fillStyle='#fecaca';ctx.font=`900 ${clamp(7*scale,5,10)}px system-ui`;ctx.fillText('DODGE',0,-hh*.18);
+    }else if(item.type==='roofGap'){
+      const w=laneW*.96,hh=24*scale;ctx.fillStyle='#020617';ctx.strokeStyle='#facc15';ctx.lineWidth=Math.max(1.3,2*scale);drawRounded(ctx,-w*.5,-hh,w,hh,4*scale);ctx.fill();ctx.stroke();ctx.strokeStyle='#fef3c7';ctx.beginPath();ctx.moveTo(-14*scale,-33*scale);ctx.lineTo(0,-45*scale);ctx.lineTo(14*scale,-33*scale);ctx.stroke();ctx.fillStyle='#fde68a';ctx.font=`950 ${clamp(8*scale,6,10)}px system-ui`;ctx.textAlign='center';ctx.fillText('JUMP GAP',0,-11*scale);
+    }else if(crate) {
+      const w=laneW*.90; const hh=34*scale;ctx.fillStyle=item.outcome==='hit'?'#6f1f32':item.level==='roof'?'#78350f':'#581b2b';ctx.strokeStyle=item.outcome==='hit'?'#fecdd3':item.level==='roof'?'#fde68a':'#fb7185';ctx.lineWidth=Math.max(1,2.1*scale);drawRounded(ctx,-w/2,-hh,w,hh,7*scale);ctx.fill();ctx.stroke();ctx.fillStyle='#f59e0b';for(let stripe=-2;stripe<=2;stripe+=1){const sx=stripe*w*.18;ctx.save();ctx.translate(sx,-hh*.52);ctx.rotate(-.28);ctx.fillRect(-4*scale,-hh*.38,8*scale,hh*.76);ctx.restore();}ctx.strokeStyle='#fef3c7';ctx.lineWidth=Math.max(1.5,2.2*scale);ctx.lineCap='round';for(const ox of [-13,13]){ctx.beginPath();ctx.moveTo((ox-7)*scale,-23*scale);ctx.lineTo(ox*scale,-31*scale);ctx.lineTo((ox+7)*scale,-23*scale);ctx.stroke();}ctx.fillStyle='#fecdd3';ctx.font=`950 ${clamp(10*scale,6,13)}px system-ui`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('JUMP',0,-hh*.58);
+    } else if(beam) {
+      const w=laneW*1.02; const topY=-138*scale; const openingTop=-48*scale; const postW=Math.max(6,9*scale);ctx.fillStyle=item.level==='roof'?'#334155':'#173b60';drawRounded(ctx,-w*.52,topY,postW,-topY,3*scale);ctx.fill();drawRounded(ctx,w*.52-postW,topY,postW,-topY,3*scale);ctx.fill();ctx.shadowColor='rgba(248,113,113,.7)';ctx.shadowBlur=10*scale;ctx.fillStyle=item.outcome==='hit'?'#991b1b':'#b91c1c';drawRounded(ctx,-w*.5,topY,w,topY*-1+openingTop,6*scale);ctx.fill();ctx.shadowBlur=0;ctx.fillStyle='#ef4444';drawRounded(ctx,-w*.50,openingTop-10*scale,w,12*scale,3*scale);ctx.fill();ctx.fillStyle='#facc15';for(let x=-w*.40;x<w*.40;x+=18*scale){ctx.save();ctx.translate(x,openingTop-4*scale);ctx.rotate(-.45);ctx.fillRect(-3*scale,-5*scale,6*scale,10*scale);ctx.restore();}ctx.strokeStyle='rgba(207,250,254,.68)';ctx.lineWidth=Math.max(1,1.6*scale);drawRounded(ctx,-w*.38,openingTop,w*.76,-openingTop-2*scale,7*scale);ctx.stroke();ctx.fillStyle='#fee2e2';ctx.font=`950 ${clamp(10*scale,6,13)}px system-ui`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('SLIDE',0,topY+24*scale);ctx.strokeStyle='#ecfeff';ctx.lineWidth=Math.max(1.4,2*scale);for(const ox of [-14,14]){ctx.beginPath();ctx.moveTo(ox*scale,openingTop+5*scale);ctx.lineTo(ox*scale,openingTop+17*scale);ctx.moveTo((ox-6)*scale,openingTop+11*scale);ctx.lineTo(ox*scale,openingTop+18*scale);ctx.lineTo((ox+6)*scale,openingTop+11*scale);ctx.stroke();}
+    } else {
+      const w=laneW*1.08; const hh=184*scale;ctx.fillStyle=item.outcome==='hit'?'rgba(127,29,29,.96)':'#3b1859';ctx.strokeStyle=item.outcome==='hit'?'#fb7185':'#c084fc';ctx.lineWidth=Math.max(1.2,2.4*scale);drawRounded(ctx,-w*.5,-hh,w,hh,8*scale);ctx.fill();ctx.stroke();ctx.fillStyle='rgba(216,180,254,.14)';ctx.fillRect(-w*.43,-hh+8*scale,6*scale,hh-14*scale);ctx.fillRect(w*.43-6*scale,-hh+8*scale,6*scale,hh-14*scale);ctx.strokeStyle='#f5d0fe';ctx.lineWidth=Math.max(2,3*scale);ctx.lineCap='round';ctx.beginPath();ctx.moveTo(-20*scale,-126*scale);ctx.lineTo(20*scale,-82*scale);ctx.moveTo(20*scale,-126*scale);ctx.lineTo(-20*scale,-82*scale);ctx.stroke();ctx.fillStyle='#f3e8ff';ctx.font=`950 ${clamp(10*scale,6,13)}px system-ui`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('DODGE',0,-154*scale);ctx.fillStyle='#d8b4fe';ctx.font=`900 ${clamp(7*scale,5,10)}px system-ui`;ctx.fillText('FULL WALL',0,-55*scale);
+    }
+    ctx.restore();
+  }
+  function drawPickup(ctx,item) {
+    const vertical=(item.level==='roof'?ROOF_HEIGHT:0)+(Number(item.height)||.12); const p=projectLane(item.lane,item.z,vertical); if(p.p<=.005)return; const s=(item.type==='power'?40:32)*p.scale;ctx.save();ctx.translate(p.x,p.y-s*.8);ctx.rotate(runtime.visualTime*(item.type==='power'?1.25:1.8));const shield=item.power==='shield';const power=item.type==='power';ctx.shadowColor=shield?'rgba(190,242,100,.75)':power?'rgba(250,204,21,.72)':'rgba(34,211,238,.65)';ctx.shadowBlur=(power?18:13)*p.scale;ctx.fillStyle=shield?'#365314':power?'#713f12':'#164e63';ctx.strokeStyle=shield?'#bef264':power?'#fde047':'#67e8f9';ctx.lineWidth=Math.max(1,2*p.scale);drawRounded(ctx,-s/2,-s/2,s,s,8*p.scale);ctx.fill();ctx.stroke();ctx.rotate(-runtime.visualTime*(item.type==='power'?1.25:1.8));ctx.shadowBlur=0;ctx.fillStyle='#ecfeff';ctx.font=`900 ${clamp((item.label&&item.label.length>3?7.5:9)*p.scale,5,11)}px ui-monospace,monospace`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(item.label,0,0);ctx.restore();
+  }
   function drawGate(ctx,lane,label,group) {
     const p=projectLane(lane,group.z); if(p.p<=.003)return;
     const geo=roadGeometry();
@@ -1530,7 +1531,7 @@
 
     // Pose envelopes.
     const slideElapsed=slide?clamp((SLIDE_DURATION-runtime.slideTime)/SLIDE_DURATION,0,1):0;
-    // 1.5 s total: fast crouch, long readable low phase, smooth recovery.
+    // Short arcade roll: fast crouch, readable low phase, quick recovery.
     const slidePose=slide?(slideElapsed<.18?easeOutCubic(slideElapsed/.18):slideElapsed>.82?easeOutCubic((1-slideElapsed)/.18):1):0;
     const jumpAir=clamp(runtime.jumpY/1.18,0,1);
     const jumpRise=jumping?clamp((runtime.jumpVy+2.4)/8.9,0,1):0;
@@ -1540,7 +1541,7 @@
     const idleBob=idle?Math.sin(time*.0028)*.7*scale:0;
     const celebrationBob=celebrating?Math.abs(Math.sin(time*.006))*5*scale:0;
     const landingAmount=runtime.landingKick>0?clamp(runtime.landingKick/.18,0,1):0;
-    const baseY=h*.958-runtime.jumpY*78-celebrationBob+slidePose*25*scale;
+    const baseY=h*.958-runtime.jumpY*78-runtime.roofHeight*92-celebrationBob+slidePose*25*scale;
     const laneLean=clamp((runtime.lane-runtime.lanePos)*-.07,-.05,.05);
 
     // Ground shadow stays centered under the character so lane movement reads as
@@ -1548,10 +1549,10 @@
     ctx.save();
     const air=clamp(runtime.jumpY/1.25,0,.78);
     ctx.globalAlpha=.25*(1-air*.58); ctx.fillStyle='#020617'; ctx.beginPath();
-    ctx.ellipse(x,h*.963,27*scale*(1-air*.16+slidePose*.16),6.4*scale*(1-air*.25),0,0,Math.PI*2); ctx.fill();
+    const shadowY=h*.963-runtime.roofHeight*92; ctx.ellipse(x,shadowY,27*scale*(1-air*.16+slidePose*.16),6.4*scale*(1-air*.25),0,0,Math.PI*2); ctx.fill();
     if(landingAmount>0){
       ctx.globalAlpha=.18*landingAmount; ctx.strokeStyle='#a5f3fc'; ctx.lineWidth=1.2*scale;
-      ctx.beginPath(); ctx.arc(x,h*.961,23*scale+17*scale*(1-landingAmount),0,Math.PI*2); ctx.stroke();
+      ctx.beginPath(); ctx.arc(x,shadowY-2,23*scale+17*scale*(1-landingAmount),0,Math.PI*2); ctx.stroke();
     }
     ctx.restore();
 
@@ -1566,6 +1567,9 @@
     if(runtime.shield){
       ctx.strokeStyle='rgba(190,242,100,.72)'; ctx.lineWidth=2.2*scale; ctx.beginPath(); ctx.arc(0,-45*scale,43*scale,0,Math.PI*2); ctx.stroke();
     }
+    if(runtime.magnetTime>0){ctx.strokeStyle='rgba(103,232,249,.48)';ctx.lineWidth=1.4*scale;ctx.beginPath();ctx.arc(0,-45*scale,49*scale+Math.sin(runtime.visualTime*7)*3*scale,0,Math.PI*2);ctx.stroke();}
+    if(runtime.multiplierTime>0){ctx.fillStyle='#fde68a';ctx.font=`950 ${10*scale}px system-ui`;ctx.textAlign='center';ctx.fillText('2×',0,-112*scale);}
+    if(runtime.boostTime>0){ctx.globalAlpha*=.96;ctx.strokeStyle='#67e8f9';ctx.lineWidth=2*scale;for(const ox of [-21,21]){ctx.beginPath();ctx.moveTo(ox*scale,-10*scale);ctx.lineTo((ox*1.5)*scale,26*scale);ctx.stroke();}}
 
     const hipSway=running?stride*1.15*scale:0;
     const shoulderCounter=running?-stride*.55*scale:0;
@@ -1746,16 +1750,15 @@
   }
 
   function render(time) {
-    const ctx=runtime.ctx;if(!ctx)return;drawBackground(ctx,time);
+    const ctx=runtime.ctx;if(!ctx)return;drawBackground(ctx,time);drawSpeedFx(ctx);drawActiveTrainRoofs(ctx);
     // Spawn arrays are chronological (older objects are closer). Drawing in
     // reverse gives correct back-to-front perspective without allocating/sorting.
     for(let i=runtime.pickups.length-1;i>=0;i-=1)drawPickup(ctx,runtime.pickups[i]);
     for(let i=runtime.obstacles.length-1;i>=0;i-=1)drawObstacle(ctx,runtime.obstacles[i]);
     if(runtime.gateGroup){for(let lane=0;lane<3;lane+=1)drawGate(ctx,lane,runtime.gateGroup.lanes[lane],runtime.gateGroup);}
-    drawPlayer(ctx,time);drawParticles(ctx);
+    drawFinishPortal(ctx); drawGlitchChaser(ctx); drawPlayer(ctx,time);drawParticles(ctx);
     if(runtime.state==='DIFFICULTY_SELECT'||runtime.state==='MISSION_INTRO'||runtime.state==='ROUND_COMPLETE'||runtime.state==='GAME_OVER'){ctx.fillStyle='rgba(2,6,23,.16)';ctx.fillRect(0,0,runtime.view.w,runtime.view.h);}
   }
-
   function frame(time) {
     runtime.raf=0;if(!runtime.open)return;const dt=clamp((time-(runtime.lastFrame||time))/1000,0,.034);runtime.lastFrame=time;
     if(runtime.state==='COUNTDOWN')updateCountdown(dt);else if(runtime.state==='RUNNING')updateRun(dt);else updateParticles(dt);

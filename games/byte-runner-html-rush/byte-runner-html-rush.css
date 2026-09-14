@@ -169,3 +169,39 @@ body.byte-runner-html-active{overflow:hidden!important;overscroll-behavior:none!
 @media(max-height:580px) and (orientation:landscape){
   .byte-runner-html-code{max-height:50px;padding-bottom:5px}
 }
+
+
+/* BYTE RUNNER v9 — continuous runner challenge HUD */
+.byte-runner-html-question[data-phase="preview"] .byte-runner-html-choices{opacity:.72}
+.byte-runner-html-question[data-phase="approach"]{box-shadow:0 12px 32px rgba(2,132,199,.20),0 12px 30px rgba(0,0,0,.25)}
+.byte-runner-html-choice.wait{grid-column:1/-1;letter-spacing:.035em;color:#bae6fd}
+@media(max-width:700px){
+  .byte-runner-html-question[data-phase="preview"]{padding-top:6px;padding-bottom:7px}
+  .byte-runner-html-question[data-phase="preview"] .byte-runner-html-codeprompt{max-height:38px}
+  .byte-runner-html-question[data-phase="preview"] .byte-runner-html-choice.wait{min-height:28px}
+}
+
+
+/* v9.1 — keep the learning HUD readable without covering the runner horizon. */
+@media(min-width:701px){
+  .byte-runner-html-question[data-phase]{width:min(630px,calc(100% - 28px));padding:8px 10px 9px}
+  .byte-runner-html-question[data-phase] h3{font-size:.86rem;margin:4px 0}
+  .byte-runner-html-question[data-phase] .byte-runner-html-codeprompt{max-height:43px;padding:5px 7px;font-size:.64rem}
+  .byte-runner-html-question[data-phase] .byte-runner-html-choice{min-height:36px;padding:4px 5px;font-size:.59rem}
+}
+@media(max-width:700px){
+  .byte-runner-html-question[data-phase]{padding:7px 7px 8px}
+  .byte-runner-html-question[data-phase] h3{font-size:.75rem;line-height:1.17;margin:4px 0}
+  .byte-runner-html-question[data-phase] .byte-runner-html-codeprompt{max-height:37px;padding:4px 6px;font-size:.54rem}
+  .byte-runner-html-question[data-phase] .byte-runner-html-choice{min-height:34px;padding:4px 3px;font-size:.50rem}
+}
+
+/* v9.2 — short landscape phones: keep the runner visible beside the lesson HUD. */
+@media(max-height:580px) and (orientation:landscape){
+  .byte-runner-html-question[data-phase]{top:36px;right:5px;left:auto;transform:none;width:min(535px,calc(100% - 305px));padding:5px 7px 6px;border-radius:10px}
+  .byte-runner-html-question[data-phase] h3{font-size:.66rem;line-height:1.14;margin:2px 0 3px}
+  .byte-runner-html-question[data-phase] .byte-runner-html-codeprompt{max-height:29px;padding:3px 5px;font-size:.49rem;line-height:1.20}
+  .byte-runner-html-question[data-phase] .byte-runner-html-choices{gap:3px;margin-top:4px}
+  .byte-runner-html-question[data-phase] .byte-runner-html-choice{min-height:29px;padding:3px;font-size:.45rem;line-height:1.08}
+  .byte-runner-html-question[data-phase] .byte-runner-html-choice b{font-size:.50rem;margin-bottom:1px}
+}
