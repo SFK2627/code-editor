@@ -2440,6 +2440,8 @@ const FIREBASE_OP_MONITOR = (() => {
     firestoreWrites: 0,
     rtdbReads: 0,
     rtdbWrites: 0,
+    rtdbDownloadBytes: 0,
+    rtdbUploadBytes: 0,
     cacheHits: 0,
     preventedDuplicateReads: 0,
     preventedDuplicateWrites: 0,
@@ -2448,16 +2450,59 @@ const FIREBASE_OP_MONITOR = (() => {
     codeExplorerCheckpoints: 0,
     engagementFlushes: 0
   };
+  const rtdbByFeature = new Map();
   const bump = (key, amount = 1) => {
     if (!enabled || !Object.prototype.hasOwnProperty.call(counters, key)) return;
     counters[key] += Math.max(0, Number(amount || 0));
   };
+  const rtdbFeatureKey = (path = '') => {
+    const top = String(path || '').split('/').filter(Boolean)[0] || 'root';
+    if (top === 'codeDuelSignals') return 'twoPlayerSignals';
+    if (top === 'codeClimbSignals') return 'codeClimbSignals';
+    if (top === 'arcadeWeekly') return 'arcadeWeekly';
+    if (top === 'miniGameAccounts') return 'miniGameAccounts';
+    if (top === 'presence') return 'presence';
+    return top;
+  };
+  const ensureRtdbFeature = (path = '') => {
+    const key = rtdbFeatureKey(path);
+    if (!rtdbByFeature.has(key)) {
+      rtdbByFeature.set(key, { reads: 0, writes: 0, downloadBytes: 0, uploadBytes: 0 });
+    }
+    return rtdbByFeature.get(key);
+  };
+  const recordRtdbRequest = (path = '', method = 'GET', uploadBytes = 0) => {
+    if (!enabled) return;
+    const isRead = String(method || 'GET').toUpperCase() === 'GET';
+    bump(isRead ? 'rtdbReads' : 'rtdbWrites');
+    bump('rtdbUploadBytes', uploadBytes);
+    const row = ensureRtdbFeature(path);
+    if (isRead) row.reads += 1;
+    else row.writes += 1;
+    row.uploadBytes += Math.max(0, Number(uploadBytes || 0));
+  };
+  const recordRtdbResponse = (path = '', downloadBytes = 0) => {
+    if (!enabled) return;
+    const bytes = Math.max(0, Number(downloadBytes || 0));
+    bump('rtdbDownloadBytes', bytes);
+    ensureRtdbFeature(path).downloadBytes += bytes;
+  };
+  const snapshotRtdbFeatures = () => Object.fromEntries([...rtdbByFeature.entries()].map(([key, value]) => [key, { ...value }]));
   const api = Object.freeze({
     enabled,
     bump,
-    snapshot: () => ({ ...counters }),
-    reset: () => { Object.keys(counters).forEach(key => { counters[key] = 0; }); },
-    log: () => console.table({ ...counters })
+    recordRtdbRequest,
+    recordRtdbResponse,
+    snapshot: () => ({ ...counters, rtdbByFeature: snapshotRtdbFeatures() }),
+    reset: () => {
+      Object.keys(counters).forEach(key => { counters[key] = 0; });
+      rtdbByFeature.clear();
+    },
+    log: () => {
+      console.table({ ...counters });
+      const features = snapshotRtdbFeatures();
+      if (Object.keys(features).length) console.table(features);
+    }
   });
   if (typeof window !== 'undefined') window.__ICT8_FIREBASE_MONITOR__ = api;
   return api;
@@ -2556,12 +2601,58 @@ const SELECTIVE_FIRESTORE_CACHE_EPOCH = new Map();
 const SELECTIVE_CACHE_SHORT_MS = 10 * 60 * 1000; // student project/status cache
 const SELECTIVE_CACHE_MEDIUM_MS = 30 * 60 * 1000; // root app document/profile cache within one page session
 const SELECTIVE_CACHE_LONG_MS = 60 * 60 * 1000; // stable settings/roster hint cache
-const SELECTIVE_CACHE_ADMIN_PROFILE_MS = 30 * 60 * 1000; // v465: admin student-profile scan; manual Refresh bypasses
-const SELECTIVE_CACHE_ADMIN_ROSTER_MS = 60 * 60 * 1000; // v465: roster changes rarely; keep the 500-row roster warm
-const SELECTIVE_CACHE_ADMIN_COMPLIANCE_MS = 30 * 60 * 1000; // v465: shared Compliance/Needs Attention snapshot
+const SELECTIVE_CACHE_ADMIN_PROFILE_MS = 45 * 60 * 1000; // admin student-profile scan; manual Refresh still bypasses
+const SELECTIVE_CACHE_ADMIN_ROSTER_MS = 2 * 60 * 60 * 1000; // roster changes rarely; app mutations invalidate this immediately
+const SELECTIVE_CACHE_ADMIN_COMPLIANCE_MS = 45 * 60 * 1000; // shared Compliance/Needs Attention snapshot
+const SELECTIVE_SESSION_CACHE_PREFIX = 'ict8.firestoreSnapshot.v1.';
+const SELECTIVE_SESSION_CACHE_MAX_BYTES = 1400 * 1024;
+const SELECTIVE_SESSION_CACHE_KEYS = new Set([
+  'admin:studentProfiles',
+  'admin:studentRoster',
+  'compliance:viewerRecords'
+]);
 
 function isLiveFirestoreCacheKey(key = '') {
   return /sharedSessions|peers|collab|webrtc|liveSync|cursor|roomSignal/i.test(String(key || ''));
+}
+
+function getSelectiveSessionCacheStorageKey(key = '') {
+  return `${SELECTIVE_SESSION_CACHE_PREFIX}${String(key || '')}`;
+}
+
+function readSelectiveSessionCache(key = '') {
+  const cacheKey = String(key || '');
+  if (!SELECTIVE_SESSION_CACHE_KEYS.has(cacheKey)) return null;
+  try {
+    const raw = sessionStorage.getItem(getSelectiveSessionCacheStorageKey(cacheKey));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || Number(parsed.expiresAt || 0) <= Date.now()) {
+      sessionStorage.removeItem(getSelectiveSessionCacheStorageKey(cacheKey));
+      return null;
+    }
+    return parsed;
+  } catch (_) {
+    return null;
+  }
+}
+
+function writeSelectiveSessionCache(key = '', value = null, expiresAt = 0) {
+  const cacheKey = String(key || '');
+  if (!SELECTIVE_SESSION_CACHE_KEYS.has(cacheKey)) return;
+  try {
+    const serialized = JSON.stringify({ expiresAt: Number(expiresAt || 0), value });
+    if (utf8PayloadByteLength(serialized) > SELECTIVE_SESSION_CACHE_MAX_BYTES) return;
+    sessionStorage.setItem(getSelectiveSessionCacheStorageKey(cacheKey), serialized);
+  } catch (_) {}
+}
+
+function clearSelectiveSessionCache(prefix = '') {
+  const safePrefix = String(prefix || '');
+  SELECTIVE_SESSION_CACHE_KEYS.forEach(key => {
+    if (safePrefix && !key.startsWith(safePrefix)) return;
+    try { sessionStorage.removeItem(getSelectiveSessionCacheStorageKey(key)); } catch (_) {}
+  });
 }
 
 function clearSelectiveFirestoreCache(prefix = '') {
@@ -2576,6 +2667,7 @@ function clearSelectiveFirestoreCache(prefix = '') {
     SELECTIVE_FIRESTORE_CACHE.delete(key);
     SELECTIVE_FIRESTORE_INFLIGHT.delete(key);
   });
+  clearSelectiveSessionCache(safePrefix);
   if (!safePrefix) {
     SELECTIVE_FIRESTORE_CACHE.clear();
     SELECTIVE_FIRESTORE_INFLIGHT.clear();
@@ -2586,7 +2678,9 @@ function setSelectiveFirestoreCache(key, value, ttlMs = SELECTIVE_CACHE_SHORT_MS
   const cacheKey = String(key || '');
   const ttl = Math.max(0, Number(ttlMs || 0));
   if (!cacheKey || !ttl || isLiveFirestoreCacheKey(cacheKey)) return;
-  SELECTIVE_FIRESTORE_CACHE.set(cacheKey, { value, expiresAt: Date.now() + ttl });
+  const expiresAt = Date.now() + ttl;
+  SELECTIVE_FIRESTORE_CACHE.set(cacheKey, { value, expiresAt });
+  writeSelectiveSessionCache(cacheKey, value, expiresAt);
 }
 
 async function withSelectiveFirestoreCache(key, ttlMs, loader, options = {}) {
@@ -2602,6 +2696,12 @@ async function withSelectiveFirestoreCache(key, ttlMs, loader, options = {}) {
       FIREBASE_OP_MONITOR.bump('cacheHits');
       return cached.value;
     }
+    const persisted = readSelectiveSessionCache(cacheKey);
+    if (persisted) {
+      SELECTIVE_FIRESTORE_CACHE.set(cacheKey, { value: persisted.value, expiresAt: Number(persisted.expiresAt || now) });
+      FIREBASE_OP_MONITOR.bump('cacheHits');
+      return persisted.value;
+    }
     const pending = SELECTIVE_FIRESTORE_INFLIGHT.get(cacheKey);
     if (pending) {
       FIREBASE_OP_MONITOR.bump('preventedDuplicateReads');
@@ -2610,6 +2710,7 @@ async function withSelectiveFirestoreCache(key, ttlMs, loader, options = {}) {
   } else {
     // A real user-triggered Refresh must replace the old cache, not merely bypass it.
     SELECTIVE_FIRESTORE_CACHE.delete(cacheKey);
+    clearSelectiveSessionCache(cacheKey);
   }
 
   const epoch = Number(SELECTIVE_FIRESTORE_CACHE_EPOCH.get(cacheKey) || 0);
@@ -2617,7 +2718,7 @@ async function withSelectiveFirestoreCache(key, ttlMs, loader, options = {}) {
     .then(loader)
     .then(value => {
       if (epoch === Number(SELECTIVE_FIRESTORE_CACHE_EPOCH.get(cacheKey) || 0)) {
-        SELECTIVE_FIRESTORE_CACHE.set(cacheKey, { value, expiresAt: Date.now() + ttl });
+        setSelectiveFirestoreCache(cacheKey, value, ttl);
       }
       return value;
     })
@@ -5514,6 +5615,15 @@ function encodeRtdbPath(path = '') {
     .join('/');
 }
 
+function utf8PayloadByteLength(value = '') {
+  const text = String(value ?? '');
+  try { return new TextEncoder().encode(text).byteLength; }
+  catch (_) {
+    try { return new Blob([text]).size; }
+    catch (_) { return text.length; }
+  }
+}
+
 async function rtdbRestRequest(path = '', options = {}) {
   const baseUrl = getMcsRealtimeDatabaseUrl();
   if (!baseUrl) throw new Error('Realtime Database URL is not configured.');
@@ -5527,16 +5637,18 @@ async function rtdbRestRequest(path = '', options = {}) {
   });
   const url = `${baseUrl}/${encodedPath ? `${encodedPath}.json` : '.json'}?${query.toString()}`;
   const requestMethod = String(options.method || 'GET').toUpperCase();
-  FIREBASE_OP_MONITOR.bump(requestMethod === 'GET' ? 'rtdbReads' : 'rtdbWrites');
+  const requestBodyText = options.body === undefined ? undefined : JSON.stringify(options.body);
+  FIREBASE_OP_MONITOR.recordRtdbRequest?.(path, requestMethod, requestBodyText ? utf8PayloadByteLength(requestBodyText) : 0);
   const response = await fetch(url, {
     method: requestMethod,
-    headers: options.body === undefined ? undefined : { 'Content-Type': 'application/json' },
-    body: options.body === undefined ? undefined : JSON.stringify(options.body),
+    headers: requestBodyText === undefined ? undefined : { 'Content-Type': 'application/json' },
+    body: requestBodyText,
     cache: 'no-store',
     keepalive: options.keepalive === true
   });
   let data = null;
   const text = await response.text();
+  FIREBASE_OP_MONITOR.recordRtdbResponse?.(path, utf8PayloadByteLength(text));
   if (text) {
     try { data = JSON.parse(text); } catch (_) { data = text; }
   }
@@ -7938,7 +8050,9 @@ async function showStudentDashboard(options = {}) {
   document.body.classList.remove('student-auth-open', 'wireframe-maker-active');
   studentDashboard?.classList.remove('hidden');
   document.body.classList.add('student-dashboard-active');
-  if (typeof window.startCodeInboxWatcher === 'function') window.startCodeInboxWatcher();
+  if (typeof window.refreshCodeInboxSnapshot === 'function') {
+    window.refreshCodeInboxSnapshot().catch(() => {});
+  }
   const firstName = getStudentFirstName(appSession.student.name);
   if (dashboardGreeting) dashboardGreeting.textContent = `Hi, ${firstName}! Your saved work is ready.`;
   queueStudentPresenceUpdate({ currentView: 'dashboard', activityGroup: 'My Projects', activityLabel: 'On My Projects' }, { force: true });
@@ -10414,14 +10528,19 @@ async function loadAdminStudents(options = {}) {
     // v465: do NOT bind the 500-row roster to every profile refresh. Student
     // profile activity can refresh every 30 minutes, while the enrollment roster
     // stays cached for one hour. Explicit Refresh still forces both datasets.
-    const [studentDocs, rosterDocs] = await Promise.all([
+    const [activeProfiles, rosterProfiles] = await Promise.all([
       withSelectiveFirestoreCache('admin:studentProfiles', SELECTIVE_CACHE_ADMIN_PROFILE_MS, async () => {
         const snapshot = await withTimeout(
           getDocs(getStudentsCollectionRef()),
           APP_NETWORK_TIMEOUT_MS,
           'Loading student profiles is taking too long. Check the connection and try again.'
         );
-        return Array.from(snapshot?.docs || []);
+        return Array.from(snapshot?.docs || []).map(docSnapshot => ({
+          uid: docSnapshot.id,
+          isRosterOnly: false,
+          sourceType: 'studentProfile',
+          ...snapshotData(docSnapshot)
+        }));
       }, { force: forceProfiles }),
       withSelectiveFirestoreCache('admin:studentRoster', SELECTIVE_CACHE_ADMIN_ROSTER_MS, async () => {
         try {
@@ -10430,36 +10549,28 @@ async function loadAdminStudents(options = {}) {
             APP_NETWORK_TIMEOUT_MS,
             'Loading the student roster is taking too long. Check the connection and try again.'
           );
-          return Array.from(snapshot?.docs || []);
+          return Array.from(snapshot?.docs || []).map(docSnapshot => {
+            const data = snapshotData(docSnapshot);
+            const studentId = normalizeStudentId(data.studentId || data.studentIdNormalized || docSnapshot.id);
+            return {
+              uid: data.authUid || '',
+              rosterId: studentId,
+              isRosterOnly: true,
+              sourceType: 'studentRoster',
+              mustChangePassword: true,
+              loginCount: 0,
+              projectCount: 0,
+              ...data,
+              studentId,
+              studentIdNormalized: studentId || data.studentIdNormalized || data.studentId
+            };
+          });
         } catch (error) {
           console.warn('Student roster snapshot unavailable; continuing with student profiles.', error);
           return [];
         }
       }, { force: forceRoster })
     ]);
-
-    const activeProfiles = (studentDocs || []).map(docSnapshot => ({
-      uid: docSnapshot.id,
-      isRosterOnly: false,
-      sourceType: 'studentProfile',
-      ...snapshotData(docSnapshot)
-    }));
-    const rosterProfiles = (rosterDocs || []).map(docSnapshot => {
-      const data = snapshotData(docSnapshot);
-      const studentId = normalizeStudentId(data.studentId || data.studentIdNormalized || docSnapshot.id);
-      return {
-        uid: data.authUid || '',
-        rosterId: studentId,
-        isRosterOnly: true,
-        sourceType: 'studentRoster',
-        mustChangePassword: true,
-        loginCount: 0,
-        projectCount: 0,
-        ...data,
-        studentId,
-        studentIdNormalized: studentId || data.studentIdNormalized || data.studentId
-      };
-    });
 
     const rawRecords = [...activeProfiles, ...rosterProfiles];
     const rawCount = rawRecords.length;
@@ -41200,16 +41311,17 @@ window.MCS_PHONE_MENU_STATUS = () => ({
    STEP 270: SEND CODE + CODE INBOX
    Optimized Firestore design:
    - 1 lightweight inbox metadata document + 1 full transfer document per send.
-   - One lightweight limited metadata listener stays alive per logged-in student for instant notification.
+   - Dashboard uses a throttled one-shot metadata refresh for the unread badge.
+   - The live listener exists only while Code Inbox is actually open.
    - Full source code is read only when the receiver opens one transfer.
    - Copy is local clipboard only: zero Firestore writes.
-   - Listener is reused and unsubscribed on logout/account switch; full source remains lazy-loaded.
    - No automatic import/overwrite of the receiver's project.
    ========================================================= */
 (() => {
   const MAX_TRANSFER_FILES = 20;
   const MAX_TRANSFER_BYTES = 300 * 1024;
   const INBOX_LIMIT = 20;
+  const INBOX_BADGE_REFRESH_MS = 2 * 60 * 1000;
   const CODE_TRANSFER_SCHEMA_VERSION = 1;
 
   const codeTransferState = {
@@ -41222,7 +41334,9 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     selectedFileIndex: 0,
     fullTransferCache: new Map(),
     lastUnreadCount: 0,
-    watcherInitialized: false
+    watcherInitialized: false,
+    lastSnapshotAt: 0,
+    snapshotPromise: null
   };
 
   function isCodeTransferEnabled() {
@@ -41841,19 +41955,24 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       if (newest) setStatus(`New code received from ${newest.senderName || newest.senderStudentId || 'a classmate'}`);
     }
     codeTransferState.lastUnreadCount = nextUnread;
+    codeTransferState.lastSnapshotAt = Date.now();
     if (options.fromWatcher) codeTransferState.watcherInitialized = true;
   }
 
-  function stopCodeInboxWatcher() {
+  function stopCodeInboxWatcher(options = {}) {
+    const clearState = options.clearState !== false;
     try { codeTransferState.inboxUnsubscribe?.(); } catch (_) {}
     codeTransferState.inboxUnsubscribe = null;
     codeTransferState.inboxUid = '';
+    codeTransferState.watcherInitialized = false;
+    if (!clearState) return;
     codeTransferState.inboxItems = [];
     codeTransferState.inboxLoaded = false;
     codeTransferState.selectedTransferId = '';
     codeTransferState.fullTransferCache.clear();
-    codeTransferState.watcherInitialized = false;
     codeTransferState.lastUnreadCount = 0;
+    codeTransferState.lastSnapshotAt = 0;
+    codeTransferState.snapshotPromise = null;
     updateCodeInboxBadges();
     renderCodeInboxList();
     renderCodeInboxEmptyDetail();
@@ -41900,35 +42019,57 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     }
   }
 
-  async function refreshCodeInboxOnce() {
-    if (!isCodeTransferEnabled()) return;
-    const ready = await initFirebaseSync();
-    if (!ready) {
-      setCodeTransferStatus(codeInboxStatus, firebaseSync.lastError || 'Could not connect to Firebase.', 'error');
-      return;
+  async function refreshCodeInboxOnce(options = {}) {
+    if (!isCodeTransferEnabled()) return [];
+    const minAgeMs = Math.max(0, Number(options.minAgeMs || 0));
+    if (minAgeMs && codeTransferState.inboxLoaded && Date.now() - codeTransferState.lastSnapshotAt < minAgeMs) {
+      FIREBASE_OP_MONITOR.bump('preventedDuplicateReads');
+      return codeTransferState.inboxItems;
     }
-    try {
-      setCodeTransferStatus(codeInboxStatus, 'Refreshing latest received code...', 'warning');
-      const { getDocs, query, orderBy, limit } = firebaseSync.modules;
-      const inboxStudentKey = getCurrentCodeInboxStudentKey();
-      if (!inboxStudentKey) throw new Error('Your Student ID is unavailable. Log in again.');
-      const inboxQuery = query(
-        getCodeInboxCollectionRef(inboxStudentKey),
-        orderBy('createdAtMs', 'desc'),
-        limit(INBOX_LIMIT)
-      );
-      const snapshot = await getDocs(inboxQuery);
-      applyInboxSnapshot(normalizeInboxSnapshot(snapshot));
-      setCodeTransferStatus(codeInboxStatus, codeTransferState.inboxItems.length
-        ? `Showing latest ${codeTransferState.inboxItems.length} received code item${codeTransferState.inboxItems.length === 1 ? '' : 's'}.`
-        : 'No received code yet.', 'success');
-    } catch (error) {
-      console.error('Could not refresh Code Inbox.', error);
-      const message = isFirestorePermissionError(error)
-        ? 'Firestore Rules are blocking Code Inbox. Publish the updated Code Inbox rules.'
-        : (error?.message || 'Could not refresh Code Inbox.');
-      setCodeTransferStatus(codeInboxStatus, message, 'error');
+    if (codeTransferState.inboxUnsubscribe && options.force !== true) return codeTransferState.inboxItems;
+    if (codeTransferState.snapshotPromise && options.force !== true) {
+      FIREBASE_OP_MONITOR.bump('preventedDuplicateReads');
+      return codeTransferState.snapshotPromise;
     }
+    const task = (async () => {
+      const ready = await initFirebaseSync();
+      if (!ready) {
+        if (!options.silent) setCodeTransferStatus(codeInboxStatus, userFacingSystemMessage(firebaseSync.lastError || 'The service is temporarily unavailable.'), 'error');
+        return [];
+      }
+      try {
+        if (!options.silent) setCodeTransferStatus(codeInboxStatus, 'Refreshing latest received code...', 'warning');
+        const { getDocs, query, orderBy, limit } = firebaseSync.modules;
+        const inboxStudentKey = getCurrentCodeInboxStudentKey();
+        if (!inboxStudentKey) throw new Error('Your Student ID is unavailable. Log in again.');
+        const inboxQuery = query(
+          getCodeInboxCollectionRef(inboxStudentKey),
+          orderBy('createdAtMs', 'desc'),
+          limit(INBOX_LIMIT)
+        );
+        const snapshot = await getDocs(inboxQuery);
+        applyInboxSnapshot(normalizeInboxSnapshot(snapshot));
+        if (!options.silent) {
+          setCodeTransferStatus(codeInboxStatus, codeTransferState.inboxItems.length
+            ? `Showing latest ${codeTransferState.inboxItems.length} received code item${codeTransferState.inboxItems.length === 1 ? '' : 's'}.`
+            : 'No received code yet.', 'success');
+        }
+        return codeTransferState.inboxItems;
+      } catch (error) {
+        console.error('Could not refresh Code Inbox.', error);
+        if (!options.silent) setCodeTransferStatus(codeInboxStatus, userFacingSystemMessage(error?.message || 'Could not refresh Code Inbox.'), 'error');
+        return [];
+      }
+    })();
+    codeTransferState.snapshotPromise = task;
+    try { return await task; }
+    finally { if (codeTransferState.snapshotPromise === task) codeTransferState.snapshotPromise = null; }
+  }
+
+  function refreshCodeInboxBadgeIfNeeded(options = {}) {
+    if (!isCodeTransferEnabled()) return Promise.resolve([]);
+    if (codeInboxOverlay && !codeInboxOverlay.classList.contains('hidden')) return Promise.resolve(codeTransferState.inboxItems);
+    return refreshCodeInboxOnce({ silent: true, minAgeMs: INBOX_BADGE_REFRESH_MS, ...options });
   }
 
   function openCodeInboxDialog() {
@@ -41953,6 +42094,8 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   function closeCodeInboxDialog() {
     codeInboxOverlay?.classList.add('hidden');
     document.body.classList.remove('code-transfer-open');
+    // Keep the last snapshot/badge, but release the live listener immediately.
+    stopCodeInboxWatcher({ clearState: false });
     window.setTimeout(() => restoreCodeTransferOverlay(codeInboxOverlay), 0);
   }
 
@@ -41976,7 +42119,9 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       closeCodeInboxDialog();
       stopCodeInboxWatcher();
     } else if (appSession.student?.uid) {
-      startCodeInboxWatcher();
+      const inboxOpen = codeInboxOverlay && !codeInboxOverlay.classList.contains('hidden');
+      if (inboxOpen) startCodeInboxWatcher();
+      else if (document.body.classList.contains('student-dashboard-active')) refreshCodeInboxBadgeIfNeeded().catch(() => {});
     }
     updateCodeInboxBadges();
   }
@@ -42029,9 +42174,16 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       if (codeInboxOverlay && !codeInboxOverlay.classList.contains('hidden')) placeCodeTransferOverlay(codeInboxOverlay);
     });
 
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState !== 'visible') return;
+      if (!document.body.classList.contains('student-dashboard-active')) return;
+      refreshCodeInboxBadgeIfNeeded().catch(() => {});
+    }, { passive: true });
+
     window.updateCodeTransferFeatureVisibility = updateCodeTransferFeatureVisibility;
     window.startCodeInboxWatcher = startCodeInboxWatcher;
     window.stopCodeInboxWatcher = stopCodeInboxWatcher;
+    window.refreshCodeInboxSnapshot = refreshCodeInboxBadgeIfNeeded;
     updateCodeTransferFeatureVisibility();
   }
 
@@ -53780,7 +53932,11 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     const identity = getTwoPlayerPlayerIdentity();
     await ensureTwoPlayerDirectoryRegistration();
     const ownUid = twoPlayerSafeUid(identity.uid);
-    const raw = await rtdbRestRequest(`codeDuelSignals/inbox/${ownUid}`);
+    const raw = await rtdbRestRequest(`codeDuelSignals/inbox/${ownUid}`, {
+      // Keep idle pairing lightweight: download only the newest invite records.
+      // The server-side index is declared in database.rules.json.
+      query: { orderBy: JSON.stringify('createdAtMs'), limitToLast: 16 }
+    });
     const now = Date.now();
     const invites = [];
     const expired = [];
@@ -53940,10 +54096,18 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     return meta;
   }
 
+  function getKnownCodeClimbMeta(options = {}, roomCode = '') {
+    const meta = options.meta && typeof options.meta === 'object' ? options.meta : null;
+    if (!meta) return null;
+    if (String(meta.roomCode || '') !== String(roomCode || '')) return null;
+    if (Number(meta.expiresAtMs || 0) <= Date.now()) return null;
+    return meta;
+  }
+
   async function touchCodeClimbRoom(options = {}) {
     const identity = getTwoPlayerPlayerIdentity();
     const roomCode = normalizeCodeClimbRoomCode(options.roomCode || '');
-    const meta = await getCodeClimbRoom({ roomCode });
+    const meta = getKnownCodeClimbMeta(options, roomCode) || await getCodeClimbRoom({ roomCode });
     if (meta.hostUid !== identity.uid) return meta;
     const now = Date.now();
     const patch = {
@@ -53981,7 +54145,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   async function listCodeClimbJoins(options = {}) {
     const identity = getTwoPlayerPlayerIdentity();
     const roomCode = normalizeCodeClimbRoomCode(options.roomCode || '');
-    const meta = await getCodeClimbRoom({ roomCode });
+    const meta = getKnownCodeClimbMeta(options, roomCode) || await getCodeClimbRoom({ roomCode });
     if (meta.hostUid !== identity.uid) throw new Error('Only the room Host can read join requests.');
     const raw = await rtdbRestRequest(`codeClimbSignals/rooms/${roomCode}/joins`).catch(() => null);
     const now = Date.now();
@@ -53993,7 +54157,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     const identity = getTwoPlayerPlayerIdentity();
     const roomCode = normalizeCodeClimbRoomCode(options.roomCode || '');
     const targetUid = twoPlayerSafeUid(options.targetUid || '');
-    const meta = await getCodeClimbRoom({ roomCode });
+    const meta = getKnownCodeClimbMeta(options, roomCode) || await getCodeClimbRoom({ roomCode });
     if (meta.hostUid !== identity.uid) throw new Error('Only the room Host can create connection offers.');
     const now = Date.now();
     const body = {
@@ -54023,7 +54187,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   async function setCodeClimbAnswer(options = {}) {
     const identity = getTwoPlayerPlayerIdentity();
     const roomCode = normalizeCodeClimbRoomCode(options.roomCode || '');
-    const meta = await getCodeClimbRoom({ roomCode });
+    const meta = getKnownCodeClimbMeta(options, roomCode) || await getCodeClimbRoom({ roomCode });
     const now = Date.now();
     const body = {
       version: 1,
@@ -54041,7 +54205,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   async function listCodeClimbAnswers(options = {}) {
     const identity = getTwoPlayerPlayerIdentity();
     const roomCode = normalizeCodeClimbRoomCode(options.roomCode || '');
-    const meta = await getCodeClimbRoom({ roomCode });
+    const meta = getKnownCodeClimbMeta(options, roomCode) || await getCodeClimbRoom({ roomCode });
     if (meta.hostUid !== identity.uid) throw new Error('Only the room Host can read connection answers.');
     const raw = await rtdbRestRequest(`codeClimbSignals/rooms/${roomCode}/answers`).catch(() => null);
     const now = Date.now();

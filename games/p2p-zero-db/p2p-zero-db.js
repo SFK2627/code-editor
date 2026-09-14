@@ -568,13 +568,18 @@
       }
     }
 
+    function inboxPollDelay() {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return 12000;
+      return pendingInvites.length ? 2500 : 5000;
+    }
+
     function scheduleInboxPoll() {
       clearTimeout(inboxTimer);
       if (!active || !canUse()) return;
       inboxTimer = setTimeout(async function poll() {
         if (!active) return;
         if (getState() === 'home') await refreshInvites(false);
-        if (active) inboxTimer = setTimeout(poll, 2500);
+        if (active) inboxTimer = setTimeout(poll, inboxPollDelay());
       }, 350);
     }
 
@@ -615,6 +620,12 @@
     function startHostPolling() {
       clearTimeout(hostPollTimer);
       const started = Date.now();
+      const nextDelay = () => {
+        const elapsed = Date.now() - started;
+        if (elapsed < 12000) return 900;
+        if (elapsed < 40000) return 1500;
+        return 2500;
+      };
       const poll = async () => {
         if (!active || !hostInvite || options.isConnected?.()) return;
         if (hostPollBusy) return;
@@ -646,7 +657,7 @@
         } finally {
           hostPollBusy = false;
         }
-        if (active && hostInvite && !options.isConnected?.()) hostPollTimer = setTimeout(poll, 900);
+        if (active && hostInvite && !options.isConnected?.()) hostPollTimer = setTimeout(poll, nextDelay());
       };
       hostPollTimer = setTimeout(poll, 350);
     }

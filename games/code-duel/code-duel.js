@@ -415,12 +415,19 @@
 
   function startInvitePolling(){
     stopInvitePolling();
+    const poll=async()=>{
+      if(!runtime.open)return;
+      if(runtime.state==='home')await refreshPendingInvites(false).catch(()=>{});
+      if(runtime.open){
+        const hidden=typeof document!=='undefined'&&document.visibilityState==='hidden';
+        const delay=hidden?12000:(runtime.pendingInvites.length?2500:5000);
+        runtime.invitePollTimer=setTimeout(poll,delay);
+      }
+    };
     refreshPendingInvites(false).catch(()=>{});
-    runtime.invitePollTimer=setInterval(()=>{
-      if(runtime.open && runtime.state==='home')refreshPendingInvites(false).catch(()=>{});
-    },2500);
+    runtime.invitePollTimer=setTimeout(poll,5000);
   }
-  function stopInvitePolling(){clearInterval(runtime.invitePollTimer);runtime.invitePollTimer=0;runtime.invitePollBusy=false;}
+  function stopInvitePolling(){clearTimeout(runtime.invitePollTimer);runtime.invitePollTimer=0;runtime.invitePollBusy=false;}
 
   async function createHostOfferBase(){
     if(!window.RTCPeerConnection)throw new Error('Live 2-player connection is not supported by this browser.');
@@ -463,6 +470,7 @@
   function startHostInvitePolling(){
     stopHostInvitePolling();
     const started=Date.now();
+    const nextDelay=()=>{const elapsed=Date.now()-started;return elapsed<12000?900:(elapsed<40000?1500:2500);};
     const poll=async()=>{
       if(!runtime.open||!runtime.hostInvite||runtime.connected)return;
       if(runtime.hostInvitePollBusy)return;
@@ -485,7 +493,7 @@
         }
       }catch(error){console.info('Code Duel invite poll skipped.',error);}
       finally{runtime.hostInvitePollBusy=false;}
-      if(runtime.open&&runtime.hostInvite&&!runtime.connected)runtime.hostInvitePollTimer=setTimeout(poll,900);
+      if(runtime.open&&runtime.hostInvite&&!runtime.connected)runtime.hostInvitePollTimer=setTimeout(poll,nextDelay());
     };
     runtime.hostInvitePollTimer=setTimeout(poll,350);
   }

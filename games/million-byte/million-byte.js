@@ -14,9 +14,9 @@
     ? new URL(document.currentScript.src, document.baseURI)
     : new URL('games/million-byte/million-byte.js', document.baseURI);
   const GAME_DIR_URL = new URL('./', GAME_SCRIPT_URL);
-  const BANK_ASSET_VERSION = '20260913-million-byte-3000q-explanations-v1';
+  const BANK_ASSET_VERSION = '20260914-million-byte-3000q-server-aligned-v2';
   const BANK_URL = new URL(`million-byte-questions.js?v=${BANK_ASSET_VERSION}`, GAME_DIR_URL).href;
-  const BANK_VERSION = 3;
+  const BANK_VERSION = 4;
   const EXPLANATION_QUALITY_VERSION = 1;
   const EXPLANATION_MIN_CHARS = 90;
   const EXPLANATION_BANNED_RE = /\bis the correct answer\b|\bcorrect answer\b|\bmatches? the (?:question|clue)\b|\bbased on the clue\b|\bconnect(?:s|ing)? the clue\b|\breview the correct answer\b|\b(?:the|this) question\b|\b(?:the|this) item\b|\bthe choices\b|\banswer list\b|\boption letter\b|\bremember(?:ing)?\b|\bmemor(?:ize|izing|ized)\b|\bmemory (?:link|anchor|cue)\b/i;

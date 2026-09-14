@@ -54,7 +54,9 @@
     })
   });
   const DEFAULT_MAP_ID = 'classic';
-  const SIGNAL_POLL_MS = 650;
+  const HOST_JOIN_POLL_MS = 1500;
+  const HOST_ANSWER_POLL_MS = 700;
+  const GUEST_OFFER_POLL_MS = 900;
   const ROOM_TOUCH_MS = 90000;
 
   const P = () => window.ICT8ZeroDbP2P;
@@ -670,26 +672,54 @@
     }
   }
 
+  function hostNeedsSignalPolling() {
+    if (!r.open || !isHost() || !r.roomCode || r.state === 'game') return false;
+    const connected = r.players.filter(p => p.connected && !p.bot).length;
+    const negotiating = [...r.peers.values()].some(peer => peer.connecting && !peer.connected);
+    return connected < r.maxPlayers || negotiating;
+  }
+
+  function stopHostSignalPolling() {
+    clearTimeout(r.signalTimer);
+    r.signalTimer = 0;
+  }
+
   function startHostSignalLoop() {
-    clearTimeout(r.signalTimer); clearInterval(r.roomTouchTimer);
+    stopHostSignalPolling(); clearInterval(r.roomTouchTimer);
+    let lastJoinPollAt = 0;
     const poll = async () => {
-      if (!r.open || !isHost() || !r.roomCode) return;
+      if (!hostNeedsSignalPolling()) return;
+      let waitingForAnswer = [...r.peers.values()].some(peer => peer.connecting && !peer.connected && !peer.answerApplied);
       try {
-        const joins = await r.bridge.listCodeClimbJoins({ roomCode:r.roomCode });
-        joins.forEach(join => prepareHostPeer(join));
-        const answers = await r.bridge.listCodeClimbAnswers({ roomCode:r.roomCode });
-        for (const answer of answers) {
-          const peer=r.peers.get(answer.uid);
-          if (peer && !peer.answerApplied && answer.answerCode && Number(answer.updatedAtMs || 0) >= Number(peer.offerAt || 0)) {
-            peer.answerApplied=true;
-            try { await peer.session.applyAnswer(answer.answerCode); } catch (e) { peer.answerApplied=false; peer.connecting=false; }
+        const now = Date.now();
+        if (!waitingForAnswer || now - lastJoinPollAt >= HOST_JOIN_POLL_MS) {
+          const joins = await r.bridge.listCodeClimbJoins({ roomCode:r.roomCode, meta:r.roomMeta });
+          lastJoinPollAt = Date.now();
+          for (const join of joins) await prepareHostPeer(join);
+          waitingForAnswer = [...r.peers.values()].some(peer => peer.connecting && !peer.connected && !peer.answerApplied);
+        }
+        if (waitingForAnswer) {
+          const answers = await r.bridge.listCodeClimbAnswers({ roomCode:r.roomCode, meta:r.roomMeta });
+          for (const answer of answers) {
+            const peer=r.peers.get(answer.uid);
+            if (peer && !peer.answerApplied && answer.answerCode && Number(answer.updatedAtMs || 0) >= Number(peer.offerAt || 0)) {
+              peer.answerApplied=true;
+              try { await peer.session.applyAnswer(answer.answerCode); } catch (e) { peer.answerApplied=false; peer.connecting=false; }
+            }
           }
         }
       } catch (_) {}
-      if (r.open && isHost() && r.roomCode) r.signalTimer=setTimeout(poll,SIGNAL_POLL_MS);
+      if (hostNeedsSignalPolling()) {
+        const negotiating = [...r.peers.values()].some(peer => peer.connecting && !peer.connected && !peer.answerApplied);
+        r.signalTimer=setTimeout(poll, negotiating ? HOST_ANSWER_POLL_MS : HOST_JOIN_POLL_MS);
+      }
     };
     r.signalTimer=setTimeout(poll,180);
-    r.roomTouchTimer=setInterval(()=>{ if(r.open&&isHost()&&r.roomCode)r.bridge.touchCodeClimbRoom({roomCode:r.roomCode,status:r.state==='game'?'playing':'lobby'}).catch(()=>{}); },ROOM_TOUCH_MS);
+    r.roomTouchTimer=setInterval(()=>{
+      if(!r.open||!isHost()||!r.roomCode)return;
+      r.bridge.touchCodeClimbRoom({roomCode:r.roomCode,status:r.state==='game'?'playing':'lobby',meta:r.roomMeta})
+        .then(meta=>{if(meta)r.roomMeta=meta;}).catch(()=>{});
+    },ROOM_TOUCH_MS);
   }
 
   function nextFreeSeat(uid='') {
@@ -705,7 +735,7 @@
     if (existing && (existing.connected || existing.connecting)) return;
     const seat=nextFreeSeat(join.uid);
     if (seat<0) {
-      r.bridge.setCodeClimbOffer({roomCode:r.roomCode,targetUid:join.uid,status:'full',seat:1,color:'red',offerCode:''}).catch(()=>{});
+      r.bridge.setCodeClimbOffer({roomCode:r.roomCode,targetUid:join.uid,status:'full',seat:1,color:'red',offerCode:'',meta:r.roomMeta}).catch(()=>{});
       return;
     }
     try { existing?.session?.close(); } catch (_) {}
@@ -717,7 +747,7 @@
     peer.session=session;
     try {
       const offer=await session.createOffer(localPlayer()?.name||'HOST');
-      await r.bridge.setCodeClimbOffer({roomCode:r.roomCode,targetUid:join.uid,status:'offer',seat,color:COLORS[seat].key,offerCode:offer});
+      await r.bridge.setCodeClimbOffer({roomCode:r.roomCode,targetUid:join.uid,status:'offer',seat,color:COLORS[seat].key,offerCode:offer,meta:r.roomMeta});
     } catch (e) { peer.connecting=false; }
   }
 
@@ -729,6 +759,7 @@
     if (r.disconnectedSeat === peer.seat) hideDisconnect();
     peer.session.send({t:'welcome',roomCode:r.roomCode,seat:peer.seat,maxPlayers:r.maxPlayers,players:publicPlayers(),game:r.game,mapId:r.mapId});
     toast(`${peer.name} joined the room.`); sfx('join');
+    if (!hostNeedsSignalPolling()) stopHostSignalPolling();
   }
 
   function hostPeerDisconnected(uid) {
@@ -737,6 +768,7 @@
     const p=playerAt(peer.seat); if(p){p.connected=false;p.ready=false;}
     renderLobby(); broadcastLobby();
     if(r.state==='game') showDisconnect(peer.seat,`${p?.name||'A player'} disconnected.`);
+    else if (!r.signalTimer) startHostSignalLoop();
   }
 
   function publicPlayers(){return r.players.slice().sort((a,b)=>a.seat-b.seat).map(p=>({seat:p.seat,uid:p.uid,name:p.name,color:p.color,ready:!!p.ready,connected:!!p.connected,bot:!!p.bot,position:Number(p.position||0)}));}
@@ -775,11 +807,11 @@
           r.localSeat=Number(offer.seat||1); const me=r.players.find(p=>p.uid===identity().uid);if(me){me.seat=r.localSeat;me.color=COLORS[r.localSeat].key;}
           const session=P().createSession({gameId:`code-climb-${r.roomCode}-${identity().uid}`,prefix:PREFIX,channelLabel:'climb',timeoutMs:30000,onMessage:handleHostMessage,onConnected:guestConnected,onDisconnected:guestDisconnected});
           r.guestSession=session;
-          const answer=await session.createAnswer(offer.offerCode,name); await r.bridge.setCodeClimbAnswer({roomCode:r.roomCode,answerCode:answer});
+          const answer=await session.createAnswer(offer.offerCode,name); await r.bridge.setCodeClimbAnswer({roomCode:r.roomCode,answerCode:answer,meta:r.roomMeta});
           setStatus($('[data-join-status]'),'Direct answer sent. Connecting…');
         }
       }catch(error){setStatus($('[data-join-status]'),error?.message||'Still waiting for the Host…',false);}
-      if(r.open&&r.role==='guest'&&!r.guestSession?.connected)r.signalTimer=setTimeout(poll,SIGNAL_POLL_MS);
+      if(r.open&&r.role==='guest'&&!r.guestSession?.connected)r.signalTimer=setTimeout(poll,GUEST_OFFER_POLL_MS);
     };
     r.signalTimer=setTimeout(poll,120);
   }
@@ -813,7 +845,7 @@
     catch(error){if(force){$('[data-invites-wrap]').hidden=false;$('[data-invite-list]').innerHTML=`<div class="climb-invite-empty error">${esc(error?.message||'Could not load invites.')}</div>`;}}
   }
   function renderInvites(){const wrap=$('[data-invites-wrap]'),list=$('[data-invite-list]');if(!wrap||!list)return;wrap.hidden=false;if(!r.pendingInvites.length){list.innerHTML='<div class="climb-invite-empty">No pending CODE CLIMB invites.</div>';return;}list.innerHTML=r.pendingInvites.map(inv=>`<article class="climb-invite-card"><div><strong>${esc(inv.fromName||'Student')}</strong><small>${esc(inv.fromStudentId||'')}</small><p>invited you to room <b>${esc(String(inv.offerCode||'').split('.').pop()||'')}</b></p></div><div><button type="button" data-accept-invite="${esc(inv.inviteId)}">ACCEPT</button><button type="button" data-decline-invite="${esc(inv.inviteId)}">DECLINE</button></div></article>`).join('');}
-  function startInvitePolling(){clearTimeout(r.inviteTimer);const poll=async()=>{if(!r.open||r.state!=='join')return;await refreshInvites(false);if(r.open&&r.state==='join')r.inviteTimer=setTimeout(poll,2500);};r.inviteTimer=setTimeout(poll,700);}
+  function startInvitePolling(){clearTimeout(r.inviteTimer);const poll=async()=>{if(!r.open||r.state!=='join')return;await refreshInvites(false);if(r.open&&r.state==='join'){const hidden=typeof document!=='undefined'&&document.visibilityState==='hidden';const delay=hidden?12000:(r.pendingInvites.length?2500:5000);r.inviteTimer=setTimeout(poll,delay);}};r.inviteTimer=setTimeout(poll,700);}
   async function handleInviteListClick(e){const a=e.target.closest('[data-accept-invite]'),d=e.target.closest('[data-decline-invite]');if(a){const inv=r.pendingInvites.find(x=>x.inviteId===a.dataset.acceptInvite);if(!inv)return;try{await r.bridge.respondTwoPlayerInvite({gameId:GAME_ID,inviteId:inv.inviteId,hostUid:inv.fromUid,status:'accepted',answerCode:`${PREFIX}.ROOM`});r.pendingInvites=r.pendingInvites.filter(x=>x!==inv);renderInvites();await joinRoom(String(inv.offerCode||'').split('.').pop());}catch(err){setStatus($('[data-join-status]'),err?.message||'Could not accept invite.',true);}}else if(d){const inv=r.pendingInvites.find(x=>x.inviteId===d.dataset.declineInvite);if(!inv)return;try{await r.bridge.respondTwoPlayerInvite({gameId:GAME_ID,inviteId:inv.inviteId,hostUid:inv.fromUid,status:'declined'});}catch(_){}r.pendingInvites=r.pendingInvites.filter(x=>x!==inv);renderInvites();}}
 
   function scanRoom(){
@@ -824,7 +856,7 @@
   function closeScanner(){try{r.scannerStop?.();}catch(_){}r.scannerStop=null;if($('[data-scanner]'))$('[data-scanner]').hidden=true;}
 
   function toggleReady(){const p=localPlayer();if(!p)return;p.ready=!p.ready;renderLobby();if(isHost()){broadcastLobby();}else r.guestSession?.send({t:'ready',value:p.ready});}
-  function startLiveGame(){if(!isHost())return;const connected=r.players.filter(p=>p.connected);if(connected.length!==r.maxPlayers||!connected.every(p=>p.ready))return;initializeGamePlayers();broadcast({t:'start',players:publicPlayers(),game:r.game});show('game');renderGame();sfx('start');r.bridge.touchCodeClimbRoom({roomCode:r.roomCode,status:'playing'}).catch(()=>{});}
+  function startLiveGame(){if(!isHost())return;const connected=r.players.filter(p=>p.connected);if(connected.length!==r.maxPlayers||!connected.every(p=>p.ready))return;initializeGamePlayers();stopHostSignalPolling();broadcast({t:'start',players:publicPlayers(),game:r.game});show('game');renderGame();sfx('start');r.bridge.touchCodeClimbRoom({roomCode:r.roomCode,status:'playing',meta:r.roomMeta}).then(meta=>{if(meta)r.roomMeta=meta;}).catch(()=>{});}
 
   function fairDie(){if(window.crypto?.getRandomValues){const a=new Uint32Array(1),limit=0xffffffff-(0xffffffff%6);do{crypto.getRandomValues(a);}while(a[0]>=limit);return a[0]%6+1;}return Math.floor(Math.random()*6)+1;}
   function nextSeat(current){const seats=r.players.filter(p=>p.connected||p.bot).map(p=>p.seat).sort((a,b)=>a-b);const i=seats.indexOf(current);return seats[(i+1)%seats.length];}
