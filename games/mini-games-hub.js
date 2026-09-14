@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const ASSET_VERSION = '20260913-v491-climb-five-maps';
+  const ASSET_VERSION = '20260914-v501-uno';
 
   const GAME_REGISTRY = Object.freeze([
     {
@@ -497,6 +497,24 @@
       bestText() { return '🐍🪜 SOLO / LIVE 2–4P · 0 XP'; }
     },
     {
+      id: 'code-uno',
+      stateKey: 'codeUno',
+      name: 'UNO!',
+      icon: '🃏',
+      description: 'Play a polished classic color-card match solo against 1–9 bots, or host a live 2–10 player room with room code, QR, and Student ID invites.',
+      maxXp: 0,
+      multiplayer: true,
+      noXp: true,
+      category: 'SOLO / LIVE 2–10 PLAYER',
+      difficulty: '★★★☆☆',
+      globalName: 'ICT8CodeUno',
+      dependencies: ['games/p2p-zero-db/p2p-zero-db.js', 'games/code-uno/code-uno-engine.js'],
+      script: 'games/code-uno/code-uno.js',
+      style: 'games/code-uno/code-uno.css',
+      playLabel: 'PLAY UNO!',
+      bestText() { return '🃏 SOLO / LIVE 2–10P · 0 XP'; }
+    },
+    {
       id: 'pattern-lock',
       stateKey: 'patternLock',
       name: 'PATTERN LOCK',
@@ -559,6 +577,7 @@
     'code-escape-coop':       { bpm:98, root:55, scale:'minor', lead:'bell', melody:[0,null,2,null,3,5,null,4,2,null,1,3,null,2,0,null], bass:[0,3,5,4], drums:'suspense', gain:.29 },
     'code-dama':              { bpm:106, root:50, scale:'dorian', lead:'pluck', melody:[0,null,2,3,null,4,3,2,0,null,3,5,4,3,2,null], bass:[0,3,4,3], drums:'soft', gain:.27 },
     'code-climb':             { bpm:112, root:55, scale:'majorPent', lead:'pluck', melody:[0,2,4,3,5,4,2,null,1,3,5,4,3,2,0,null], bass:[0,3,4,3], drums:'groove', gain:.27 },
+    'code-uno':               { bpm:118, root:57, scale:'majorPent', lead:'pluck', melody:[0,2,4,null,3,5,4,2,1,3,5,null,4,2,1,null], bass:[0,3,4,3], drums:'groove', gain:.27 },
     'pattern-lock':           { bpm:102, root:60, scale:'minorPent', lead:'bell',   melody:[0,null,2,null,4,null,3,null,1,null,3,null,5,4,2,null], bass:[0,3,4,3], drums:'soft',   gain:.27 }
   });
 
@@ -1097,8 +1116,8 @@
             <section class="xp-games-2p-summary">
               <div>
                 <small>👥 PLAY WITH A FRIEND</small>
-                <h3>2 PLAYER · NO XP</h3>
-                <p>Play live multiplayer with Student ID, QR/Share, or supported room codes. These games are separate from Solo XP and Weekly Arcade.</p>
+                <h3>MULTIPLAYER · NO XP</h3>
+                <p>Play live multiplayer with Student ID, QR/Share, or supported room codes. Some games also include Solo mode. These games are separate from Solo XP and Weekly Arcade.</p>
               </div>
               <span class="xp-games-2p-zero">0 XP</span>
             </section>

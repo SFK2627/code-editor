@@ -2459,6 +2459,7 @@ const FIREBASE_OP_MONITOR = (() => {
     const top = String(path || '').split('/').filter(Boolean)[0] || 'root';
     if (top === 'codeDuelSignals') return 'twoPlayerSignals';
     if (top === 'codeClimbSignals') return 'codeClimbSignals';
+    if (top === 'codeUnoSignals') return 'codeUnoSignals';
     if (top === 'arcadeWeekly') return 'arcadeWeekly';
     if (top === 'miniGameAccounts') return 'miniGameAccounts';
     if (top === 'presence') return 'presence';
@@ -53794,7 +53795,8 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     'code-escape-coop': Object.freeze({ id: 'code-escape-coop', name: 'CODE ESCAPE', prefix: 'CEC1' }),
     'code-smash': Object.freeze({ id: 'code-smash', name: 'CODE SMASH', prefix: 'CSM1' }),
     'code-dama': Object.freeze({ id: 'code-dama', name: 'CODE DAMA', prefix: 'CDM1' }),
-    'code-climb': Object.freeze({ id: 'code-climb', name: 'CODE CLIMB', prefix: 'CCL1' })
+    'code-climb': Object.freeze({ id: 'code-climb', name: 'CODE CLIMB', prefix: 'CCL1' }),
+    'code-uno': Object.freeze({ id: 'code-uno', name: 'UNO!', prefix: 'UNO1' })
   });
   let twoPlayerDirectoryRegisteredAt = 0;
   let twoPlayerDirectoryRegisteredKey = '';
@@ -54231,6 +54233,189 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     return true;
   }
 
+
+
+  // UNO temporary 2-10 player room signaling. RTDB is used only for room
+  // discovery and exchanging WebRTC offer/answer payloads. The authoritative
+  // card game state remains on the Host and travels only over DataChannels.
+  const CODE_UNO_ROOM_TTL_MS = 45 * 60 * 1000;
+
+  function normalizeCodeUnoRoomCode(value = '') {
+    const code = String(value || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
+    if (!/^[A-Z0-9]{6}$/.test(code)) throw new Error('Enter a valid 6-character room code.');
+    return code;
+  }
+
+  function getKnownCodeUnoMeta(options = {}, roomCode = '') {
+    const meta = options.meta && typeof options.meta === 'object' ? options.meta : null;
+    if (!meta) return null;
+    if (String(meta.roomCode || '') !== String(roomCode || '')) return null;
+    if (Number(meta.expiresAtMs || 0) <= Date.now()) return null;
+    return meta;
+  }
+
+  async function createCodeUnoRoom(options = {}) {
+    if (!canUseTwoPlayerStudentInvites()) throw new Error('Live rooms require a logged-in student account.');
+    const identity = getTwoPlayerPlayerIdentity();
+    const roomCode = normalizeCodeUnoRoomCode(options.roomCode || '');
+    const maxPlayers = Math.max(2, Math.min(10, Math.round(Number(options.maxPlayers || 10))));
+    const existing = await rtdbRestRequest(`codeUnoSignals/rooms/${roomCode}/meta`).catch(() => null);
+    if (existing && Number(existing.expiresAtMs || 0) > Date.now() && existing.hostUid !== identity.uid) {
+      throw new Error('That room code is already in use. Try again.');
+    }
+    const now = Date.now();
+    const meta = {
+      version: 1,
+      roomCode,
+      hostUid: twoPlayerSafeUid(identity.uid),
+      hostName: String(options.hostName || identity.name || 'HOST').trim().slice(0, 24) || 'HOST',
+      hostStudentId: identity.studentId,
+      maxPlayers,
+      status: 'lobby',
+      createdAtMs: now,
+      updatedAtMs: now,
+      expiresAtMs: now + CODE_UNO_ROOM_TTL_MS
+    };
+    await rtdbRestRequest(`codeUnoSignals/rooms/${roomCode}/meta`, { method: 'PUT', body: meta });
+    return meta;
+  }
+
+  async function getCodeUnoRoom(options = {}) {
+    if (!canUseTwoPlayerStudentInvites()) throw new Error('Live rooms require a logged-in student account.');
+    const roomCode = normalizeCodeUnoRoomCode(options.roomCode || '');
+    const meta = await rtdbRestRequest(`codeUnoSignals/rooms/${roomCode}/meta`);
+    if (!meta || Number(meta.expiresAtMs || 0) <= Date.now()) throw new Error('Room not found or already expired.');
+    return meta;
+  }
+
+  async function touchCodeUnoRoom(options = {}) {
+    const identity = getTwoPlayerPlayerIdentity();
+    const roomCode = normalizeCodeUnoRoomCode(options.roomCode || '');
+    const meta = getKnownCodeUnoMeta(options, roomCode) || await getCodeUnoRoom({ roomCode });
+    if (meta.hostUid !== identity.uid) return meta;
+    const now = Date.now();
+    const patch = {
+      status: String(options.status || meta.status || 'lobby').slice(0, 16),
+      updatedAtMs: now,
+      expiresAtMs: now + CODE_UNO_ROOM_TTL_MS
+    };
+    await rtdbRestRequest(`codeUnoSignals/rooms/${roomCode}/meta`, { method: 'PATCH', body: patch });
+    return { ...meta, ...patch };
+  }
+
+  async function requestCodeUnoJoin(options = {}) {
+    if (!canUseTwoPlayerStudentInvites()) throw new Error('Joining a live room requires a logged-in student account.');
+    const identity = getTwoPlayerPlayerIdentity();
+    const roomCode = normalizeCodeUnoRoomCode(options.roomCode || '');
+    const meta = await getCodeUnoRoom({ roomCode });
+    if (meta.hostUid === identity.uid) throw new Error('You are already the Host of this room.');
+    // Playing rooms remain discoverable for the same UID so a disconnected
+    // player can renegotiate its direct WebRTC channel during the grace window.
+    const now = Date.now();
+    const record = {
+      version: 1,
+      roomCode,
+      uid: twoPlayerSafeUid(identity.uid),
+      name: String(options.name || identity.name || 'PLAYER').trim().slice(0, 24) || 'PLAYER',
+      studentId: identity.studentId,
+      section: identity.section || '',
+      status: 'waiting',
+      createdAtMs: now,
+      updatedAtMs: now,
+      expiresAtMs: Math.min(Number(meta.expiresAtMs || now + CODE_UNO_ROOM_TTL_MS), now + CODE_UNO_ROOM_TTL_MS)
+    };
+    await rtdbRestRequest(`codeUnoSignals/rooms/${roomCode}/joins/${identity.uid}`, { method: 'PUT', body: record });
+    return { meta, join: record };
+  }
+
+  async function listCodeUnoJoins(options = {}) {
+    const identity = getTwoPlayerPlayerIdentity();
+    const roomCode = normalizeCodeUnoRoomCode(options.roomCode || '');
+    const meta = getKnownCodeUnoMeta(options, roomCode) || await getCodeUnoRoom({ roomCode });
+    if (meta.hostUid !== identity.uid) throw new Error('Only the room Host can read join requests.');
+    const raw = await rtdbRestRequest(`codeUnoSignals/rooms/${roomCode}/joins`).catch(() => null);
+    const now = Date.now();
+    return Object.entries(raw || {}).map(([uid, value]) => ({ uid, ...(value || {}) }))
+      .filter(item => item.uid && Number(item.expiresAtMs || 0) > now);
+  }
+
+  async function setCodeUnoOffer(options = {}) {
+    const identity = getTwoPlayerPlayerIdentity();
+    const roomCode = normalizeCodeUnoRoomCode(options.roomCode || '');
+    const targetUid = twoPlayerSafeUid(options.targetUid || '');
+    const meta = getKnownCodeUnoMeta(options, roomCode) || await getCodeUnoRoom({ roomCode });
+    if (meta.hostUid !== identity.uid) throw new Error('Only the room Host can create connection offers.');
+    const now = Date.now();
+    const body = {
+      version: 1,
+      roomCode,
+      targetUid,
+      hostUid: identity.uid,
+      status: String(options.status || 'offer').slice(0, 16),
+      seat: Math.max(1, Math.min(9, Math.round(Number(options.seat || 1)))),
+      color: String(options.color || '').slice(0, 16),
+      offerCode: String(options.offerCode || ''),
+      updatedAtMs: now,
+      expiresAtMs: Math.min(Number(meta.expiresAtMs || now + CODE_UNO_ROOM_TTL_MS), now + CODE_UNO_ROOM_TTL_MS)
+    };
+    await rtdbRestRequest(`codeUnoSignals/rooms/${roomCode}/offers/${targetUid}`, { method: 'PUT', body });
+    return body;
+  }
+
+  async function getCodeUnoOffer(options = {}) {
+    const identity = getTwoPlayerPlayerIdentity();
+    const roomCode = normalizeCodeUnoRoomCode(options.roomCode || '');
+    const offer = await rtdbRestRequest(`codeUnoSignals/rooms/${roomCode}/offers/${identity.uid}`);
+    if (!offer || Number(offer.expiresAtMs || 0) <= Date.now()) return null;
+    return offer;
+  }
+
+  async function setCodeUnoAnswer(options = {}) {
+    const identity = getTwoPlayerPlayerIdentity();
+    const roomCode = normalizeCodeUnoRoomCode(options.roomCode || '');
+    const meta = getKnownCodeUnoMeta(options, roomCode) || await getCodeUnoRoom({ roomCode });
+    const now = Date.now();
+    const body = {
+      version: 1,
+      roomCode,
+      uid: identity.uid,
+      hostUid: meta.hostUid,
+      answerCode: String(options.answerCode || ''),
+      updatedAtMs: now,
+      expiresAtMs: Math.min(Number(meta.expiresAtMs || now + CODE_UNO_ROOM_TTL_MS), now + CODE_UNO_ROOM_TTL_MS)
+    };
+    await rtdbRestRequest(`codeUnoSignals/rooms/${roomCode}/answers/${identity.uid}`, { method: 'PUT', body });
+    return body;
+  }
+
+  async function listCodeUnoAnswers(options = {}) {
+    const identity = getTwoPlayerPlayerIdentity();
+    const roomCode = normalizeCodeUnoRoomCode(options.roomCode || '');
+    const meta = getKnownCodeUnoMeta(options, roomCode) || await getCodeUnoRoom({ roomCode });
+    if (meta.hostUid !== identity.uid) throw new Error('Only the room Host can read connection answers.');
+    const raw = await rtdbRestRequest(`codeUnoSignals/rooms/${roomCode}/answers`).catch(() => null);
+    const now = Date.now();
+    return Object.entries(raw || {}).map(([uid, value]) => ({ uid, ...(value || {}) }))
+      .filter(item => item.uid && Number(item.expiresAtMs || 0) > now);
+  }
+
+  async function leaveCodeUnoRoom(options = {}) {
+    if (!canUseTwoPlayerStudentInvites()) return false;
+    const identity = getTwoPlayerPlayerIdentity();
+    const roomCode = normalizeCodeUnoRoomCode(options.roomCode || '');
+    let meta = null;
+    try { meta = await rtdbRestRequest(`codeUnoSignals/rooms/${roomCode}/meta`); } catch (_) {}
+    if (!meta) return true;
+    if (meta.hostUid === identity.uid || options.closeRoom) {
+      await rtdbRestRequest(`codeUnoSignals/rooms/${roomCode}`, { method: 'DELETE' }).catch(() => null);
+      return true;
+    }
+    await Promise.allSettled([
+      rtdbRestRequest(`codeUnoSignals/rooms/${roomCode}/joins/${identity.uid}`, { method: 'DELETE' }),
+      rtdbRestRequest(`codeUnoSignals/rooms/${roomCode}/answers/${identity.uid}`, { method: 'DELETE' })
+    ]);
+    return true;
+  }
   function getCodeDuelPlayerIdentity() { return getTwoPlayerPlayerIdentity(); }
   function canUseCodeDuelStudentInvites() { return canUseTwoPlayerStudentInvites(); }
   function ensureCodeDuelDirectoryRegistration(options = {}) { return ensureTwoPlayerDirectoryRegistration(options); }
@@ -54298,6 +54483,16 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     setCodeClimbAnswer,
     listCodeClimbAnswers,
     leaveCodeClimbRoom,
+    createCodeUnoRoom,
+    getCodeUnoRoom,
+    touchCodeUnoRoom,
+    requestCodeUnoJoin,
+    listCodeUnoJoins,
+    setCodeUnoOffer,
+    getCodeUnoOffer,
+    setCodeUnoAnswer,
+    listCodeUnoAnswers,
+    leaveCodeUnoRoom,
     canUseDuelStudentInvites: canUseCodeDuelStudentInvites,
     createDuelInvite: createCodeDuelInvite,
     listDuelInvites: listCodeDuelInvites,
