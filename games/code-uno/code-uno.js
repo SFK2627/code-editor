@@ -82,7 +82,15 @@
   const isHost = () => r.role === 'host';
   const isSolo = () => r.role === 'solo';
   const isGuest = () => r.role === 'guest';
-  const localLobbyPlayer = () => r.players.find(player => player.seat === r.localSeat) || null;
+  // Resolve the local lobby record by authenticated UID first. Seat numbers can
+  // change while the Host compacts/reassigns the lobby, so using only localSeat
+  // can make a freshly joined guest appear to have no clickable READY control.
+  const localLobbyPlayer = () => {
+    const uid = String(identity().uid || '');
+    return (uid && r.players.find(player => String(player.uid || '') === uid))
+      || r.players.find(player => player.seat === r.localSeat)
+      || null;
+  };
   const lobbyPlayerAt = seat => r.players.find(player => player.seat === Number(seat)) || null;
 
   function randomRoomCode() {
@@ -487,8 +495,23 @@
     show('lobby');renderLobby();
   }
 
+  function applyGuestLobbyPlayers(players=[], seatHint=null) {
+    if(!isGuest())return;
+    if(Array.isArray(players)&&players.length){
+      r.players=players.map(player=>({ ...player, seat:Number(player.seat) }));
+    }
+    const uid=String(identity().uid||'');
+    let mine=(uid&&r.players.find(player=>String(player.uid||'')===uid))||null;
+    const hinted=Number(seatHint);
+    if(!mine&&Number.isFinite(hinted))mine=r.players.find(player=>Number(player.seat)===hinted)||null;
+    if(mine){r.localSeat=Number(mine.seat);mine.connected=true;}
+  }
+
   function compactLobbySeats() {
-    if(r.state==='game')return;
+    // The Host is the authority for lobby seats. Guests must never locally
+    // compact/filter the roster because a pre-welcome `connected:false` copy
+    // can delete their own seat and make I'M READY a silent no-op.
+    if(r.state==='game'||!isHost())return;
     const sorted=r.players.filter(p=>p.connected||p.seat===0).sort((a,b)=>a.seat-b.seat);
     r.seatByUid.clear();
     sorted.forEach((p,index)=>{p.seat=index;r.seatByUid.set(p.uid,index);const peer=r.peers.get(p.uid);if(peer)peer.seat=index;});
@@ -507,7 +530,7 @@
     }).join('');
     const connected=r.players.filter(p=>p.connected).length;
     $('[data-room-count]').textContent=`${connected} / ${r.maxPlayers}`;
-    const me=localLobbyPlayer();if($('[data-ready]')){$('[data-ready]').textContent=me?.ready?'READY ✓':"I'M READY";$('[data-ready]').classList.toggle('active',!!me?.ready);}
+    const me=localLobbyPlayer();const readyButton=$('[data-ready]');if(readyButton){const syncing=isGuest()&&(!r.guestSession?.connected||!me);readyButton.disabled=syncing;readyButton.textContent=syncing?'SYNCING…':(me?.ready?'READY ✓':"I'M READY");readyButton.classList.toggle('active',!!me?.ready&&!syncing);}
     if(isHost()){
       const humans=r.players.filter(p=>p.connected);
       const enough=humans.length>=2;
@@ -582,8 +605,17 @@
     const p=lobbyPlayerAt(peer.seat);if(p){p.connected=true;p.name=peer.name;p.studentId=peer.studentId;}
     clearDisconnectTimer(peer.seat);
     if(r.game){E().setConnection(r.game,peer.seat,true,false);const gp=r.game.players.find(x=>x.seat===peer.seat);if(gp){gp.bot=false;gp.botTakeover=false;gp.connected=true;}if(![...r.peers.values()].some(item=>!item.connected))hideDisconnect();}
-    if(r.state==='lobby'){renderLobby();broadcastLobby();peer.session.send({t:'welcome',roomCode:r.roomCode,seat:peer.seat,maxPlayers:r.maxPlayers,mode:r.mode,players:publicLobbyPlayers(),state:'lobby'});}
+    if(r.state==='lobby'){
+      renderLobby();
+      // Make the direct welcome self-contained so the guest does not depend on
+      // receiving a separate lobby broadcast before it can press READY.
+      peer.session.send({t:'welcome',roomCode:r.roomCode,seat:peer.seat,maxPlayers:r.maxPlayers,mode:r.mode,players:publicLobbyPlayers(),state:'lobby'});
+      broadcastLobby();
+    }
     else if(r.state==='game'){peer.session.send({t:'welcome',roomCode:r.roomCode,seat:peer.seat,maxPlayers:r.maxPlayers,mode:r.mode,state:'game'});syncAll();}
+    // Once the DataChannel is open these SDP/join records are no longer needed.
+    // Clearing them keeps later lobby polling tiny, especially in 6-10 player rooms.
+    r.bridge.clearCodeUnoHandshake?.({roomCode:r.roomCode,targetUid:uid,meta:r.roomMeta}).catch(()=>{});
     toast(`${peer.name} connected.`);sfx('join');if(!hostNeedsSignalPolling())stopHostSignalPolling();
   }
 
@@ -606,7 +638,13 @@
 
   function handleGuestMessage(uid,msg) {
     const peer=r.peers.get(uid);if(!peer||!msg)return;
-    if(msg.t==='ready'&&r.state==='lobby'){const p=lobbyPlayerAt(peer.seat);if(p){p.ready=!!msg.value;renderLobby();broadcastLobby();}}
+    if(msg.t==='ready'&&r.state==='lobby'){
+      let p=lobbyPlayerAt(peer.seat);
+      if(!p){p=createLobbyPlayer(peer.seat,peer.name,{uid:peer.uid,studentId:peer.studentId,ready:false,connected:true});r.players.push(p);}
+      p.connected=true;p.ready=!!msg.value;renderLobby();broadcastLobby();
+      peer.session.send({t:'readyAck',ready:p.ready,seat:peer.seat});
+    }
+    else if(msg.t==='lobbyRequest'&&r.state==='lobby'){peer.session.send({t:'welcome',roomCode:r.roomCode,seat:peer.seat,maxPlayers:r.maxPlayers,mode:r.mode,players:publicLobbyPlayers(),state:'lobby'});}
     else if(msg.t==='action'&&r.state==='game'){processHostAction(peer.seat,msg.action,Number(msg.revision),peer);}
     else if(msg.t==='snapshotRequest'&&r.state==='game'){sendStateToPeer(peer);}
     else if(msg.t==='leave'){hostPeerDisconnected(uid);}
@@ -643,16 +681,28 @@
             onMessage:msg=>{if(r.guestSession===session)handleHostMessage(msg);},
             onConnected:()=>{if(r.guestSession===session)guestConnected();},
             onDisconnected:()=>{if(r.guestSession===session)guestDisconnected();},
-            onState:state=>{if(r.guestSession!==session)return;if(state==='timeout'||state==='ice-failed'||state==='channel-error'){try{session.close();}catch(_){}r.guestSession=null;}}
+            onState:state=>{if(r.guestSession!==session)return;if(state==='timeout'||state==='ice-failed'||state==='channel-error'){try{session.close();}catch(_){}r.guestSession=null;if(r.open&&isGuest()&&!r.closing){clearTimeout(r.signalTimer);r.signalTimer=setTimeout(()=>startGuestSignalLoop(name,reconnect),500);}}}
           });r.guestSession=session;
           const answer=await session.createAnswer(offer.offerCode,name);await r.bridge.setCodeUnoAnswer({roomCode:r.roomCode,answerCode:answer,meta:r.roomMeta});setStatus($('[data-join-status]'),'Connecting to Host…');
         }
       }catch(error){if(r.guestSession&&!r.guestSession.connected){try{r.guestSession.close();}catch(_){}r.guestSession=null;}if(!reconnect)setStatus($('[data-join-status]'),error?.message||'Still waiting for Host…');}
-      if(r.open&&r.role==='guest'&&!r.guestSession?.connected)r.signalTimer=setTimeout(poll,GUEST_OFFER_POLL_MS);
+      // After an answer is posted, wait on the direct WebRTC connection instead
+      // of re-downloading the same RTDB offer every 900 ms. A failed/timeout
+      // session restarts signaling from onState above.
+      if(r.open&&r.role==='guest'&&!r.guestSession)r.signalTimer=setTimeout(poll,GUEST_OFFER_POLL_MS);
     };r.signalTimer=setTimeout(poll,120);
   }
 
-  function guestConnected(){r.reconnecting=false;clearTimeout(r.reconnectTimer);hideDisconnect();setStatus($('[data-join-status]'),'Connected to Host ✓',false,true);sfx('join');}
+  function guestConnected(){
+    r.reconnecting=false;clearTimeout(r.reconnectTimer);clearTimeout(r.signalTimer);r.signalTimer=0;hideDisconnect();
+    const me=localLobbyPlayer();if(me)me.connected=true;
+    if(r.state==='lobby')renderLobby();
+    // Ask for an authoritative lobby/game snapshot immediately. This removes the
+    // race where the DataChannel is connected but the guest still has its local
+    // pre-connection roster (connected:false), which previously broke READY.
+    if(r.state==='game')r.guestSession?.send({t:'snapshotRequest'});else r.guestSession?.send({t:'lobbyRequest'});
+    setStatus($('[data-join-status]'),'Connected to Host ✓',false,true);sfx('join');
+  }
 
   function guestDisconnected(){if(r.closing||!r.open)return;if(r.state==='game'){showDisconnect('Host connection lost. Reconnecting…','Your seat and hand are reserved during the reconnect window.');scheduleGuestReconnect();}else setStatus($('[data-join-status]'),'Connection lost. Rejoin using the same room code.',true);}
 
@@ -672,9 +722,11 @@
     if(!msg)return;
     if(msg.t==='welcome'){
       r.localSeat=Number(msg.seat??r.localSeat);r.maxPlayers=Number(msg.maxPlayers||r.maxPlayers);r.mode=msg.mode==='classic'?'classic':'quick';
+      if(Array.isArray(msg.players))applyGuestLobbyPlayers(msg.players,r.localSeat);
       if(msg.state==='game'){show('game');}else{enterLobby();}
     }else if(msg.t==='lobby'){
-      r.maxPlayers=Number(msg.maxPlayers||r.maxPlayers);r.mode=msg.mode==='classic'?'classic':'quick';r.players=(msg.players||[]).map(p=>({...p}));const mine=r.players.find(p=>p.uid===identity().uid);if(mine)r.localSeat=mine.seat;renderLobby();
+      r.maxPlayers=Number(msg.maxPlayers||r.maxPlayers);r.mode=msg.mode==='classic'?'classic':'quick';applyGuestLobbyPlayers(msg.players,r.localSeat);renderLobby();
+    }else if(msg.t==='readyAck'){const me=localLobbyPlayer();if(me){me.ready=!!msg.ready;me.connected=true;}renderLobby();
     }else if(msg.t==='start'){r.guestPublic=msg.public||null;r.guestPrivate=msg.private||null;show('game');syncLocalRender(true);sfx('join');}
     else if(msg.t==='state'){applyGuestState(msg.public,msg.private);}
     else if(msg.t==='actionError'){r.busyAction=false;toast(msg.message||'That move is no longer available.',2200);sfx('error');if(msg.public)applyGuestState(msg.public,msg.private);}
@@ -705,7 +757,15 @@
   function scanRoom(){if(!P()?.openScanner){setStatus($('[data-join-status]'),'QR scanner is unavailable. Enter the room code instead.',true);return;}closeScanner();const modal=$('[data-scanner]'),video=$('[data-scan-video]');modal.hidden=false;$('[data-scan-status]').textContent='Point the camera at the Host QR.';P().openScanner({video,acceptPrefix:ROOM_QR_PREFIX,onCode:value=>{closeScanner();joinRoom(String(value).slice(ROOM_QR_PREFIX.length));}}).then(stop=>{r.scannerStop=stop;}).catch(error=>{$('[data-scan-status]').textContent=error?.message||'Could not open camera.';});}
   function closeScanner(){try{r.scannerStop?.();}catch(_){}r.scannerStop=null;if($('[data-scanner]'))$('[data-scanner]').hidden=true;}
 
-  function toggleReady(){const p=localLobbyPlayer();if(!p)return;p.ready=!p.ready;renderLobby();if(isHost())broadcastLobby();else r.guestSession?.send({t:'ready',value:p.ready});}
+  function toggleReady(){
+    if(isGuest()&&!r.guestSession?.connected){toast('Still connecting to the Host…',1800);return;}
+    const p=localLobbyPlayer();
+    if(!p){toast('Syncing your lobby seat…',1800);r.guestSession?.send({t:'lobbyRequest'});return;}
+    const previous=!!p.ready,next=!previous;p.ready=next;p.connected=true;renderLobby();
+    if(isHost()){broadcastLobby();return;}
+    const sent=r.guestSession?.send({t:'ready',value:next});
+    if(!sent){p.ready=previous;renderLobby();toast('Connection is not ready yet.',1800);sfx('error');}
+  }
 
   function startLiveGame(){if(!isHost())return;const connected=r.players.filter(p=>p.connected).sort((a,b)=>a.seat-b.seat);if(connected.length<2||!connected.every(p=>p.ready))return;compactLobbySeats();const gamePlayers=connected.map((p,index)=>({uid:p.uid,studentId:p.studentId,name:p.name,bot:false,connected:true}));r.game=E().createMatch({players:gamePlayers,mode:r.mode,targetScore:r.targetScore});r.players=connected.map((p,index)=>({...p,seat:index}));r.seatByUid.clear();r.players.forEach(p=>r.seatByUid.set(p.uid,p.seat));for(const peer of r.peers.values())peer.seat=r.seatByUid.get(peer.uid);stopHostSignalPolling();show('game');broadcast({t:'start'});syncAll(true);sfx('join');r.bridge.touchCodeUnoRoom({roomCode:r.roomCode,status:'playing',meta:r.roomMeta}).then(meta=>{if(meta)r.roomMeta=meta;}).catch(()=>{});scheduleAutomation();}
 

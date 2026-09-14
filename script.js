@@ -54399,6 +54399,26 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       .filter(item => item.uid && Number(item.expiresAtMs || 0) > now);
   }
 
+  async function clearCodeUnoHandshake(options = {}) {
+    const identity = getTwoPlayerPlayerIdentity();
+    const roomCode = normalizeCodeUnoRoomCode(options.roomCode || '');
+    const targetUid = twoPlayerSafeUid(options.targetUid || '');
+    const meta = getKnownCodeUnoMeta(options, roomCode) || await getCodeUnoRoom({ roomCode });
+    if (meta.hostUid !== identity.uid) throw new Error('Only the room Host can clear connection signals.');
+    // One multi-location PATCH removes the temporary join/offer/answer payloads
+    // after the direct channel opens. This is one tiny RTDB write instead of
+    // three DELETE requests and prevents those SDP strings from being re-read.
+    await rtdbRestRequest(`codeUnoSignals/rooms/${roomCode}`, {
+      method: 'PATCH',
+      body: {
+        [`joins/${targetUid}`]: null,
+        [`offers/${targetUid}`]: null,
+        [`answers/${targetUid}`]: null
+      }
+    });
+    return true;
+  }
+
   async function leaveCodeUnoRoom(options = {}) {
     if (!canUseTwoPlayerStudentInvites()) return false;
     const identity = getTwoPlayerPlayerIdentity();
@@ -54492,6 +54512,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     getCodeUnoOffer,
     setCodeUnoAnswer,
     listCodeUnoAnswers,
+    clearCodeUnoHandshake,
     leaveCodeUnoRoom,
     canUseDuelStudentInvites: canUseCodeDuelStudentInvites,
     createDuelInvite: createCodeDuelInvite,
