@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ict8-connect-v472-certificate-repair';
+const CACHE_NAME = 'ict8-connect-v483-peta-mac-large-controls';
 
 self.addEventListener('install', event => {
   event.waitUntil(self.skipWaiting());

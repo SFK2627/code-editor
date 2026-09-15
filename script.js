@@ -214,6 +214,7 @@ const subjectStatusToggle = document.getElementById('subjectStatusToggle');
 const superStudioToggle = document.getElementById('superStudioToggle');
 const autoRunControlToggle = document.getElementById('autoRunControlToggle');
 const autoSaveControlToggle = document.getElementById('autoSaveControlToggle');
+const saveSuccessOverlayToggle = document.getElementById('saveSuccessOverlayToggle');
 const wireframeAutoSaveToggle = document.getElementById('wireframeAutoSaveToggle');
 const wireframeStarterCodeToggle = document.getElementById('wireframeStarterCodeToggle');
 const externalLinksSamePreviewToggle = document.getElementById('externalLinksSamePreviewToggle');
@@ -348,6 +349,29 @@ const givenActivityViewerReadBtn = document.getElementById('givenActivityViewerR
 const givenActivityViewerHeartBtn = document.getElementById('givenActivityViewerHeartBtn');
 const givenActivityViewerCloseBtn = document.getElementById('givenActivityViewerCloseBtn');
 const givenActivityViewerBody = document.getElementById('givenActivityViewerBody');
+const petaActionOverlay = document.getElementById('petaActionOverlay');
+const closePetaActionBtn = document.getElementById('closePetaActionBtn');
+const cancelPetaActionBtn = document.getElementById('cancelPetaActionBtn');
+const petaActionTitle = document.getElementById('petaActionTitle');
+const petaActionMeta = document.getElementById('petaActionMeta');
+const petaReadOnlyBtn = document.getElementById('petaReadOnlyBtn');
+const petaDoActivityBtn = document.getElementById('petaDoActivityBtn');
+const petaReferenceDock = document.getElementById('petaReferenceDock');
+const petaReferenceDockHeader = document.getElementById('petaReferenceDockHeader');
+const petaReferenceTitle = document.getElementById('petaReferenceTitle');
+const petaReferenceMeta = document.getElementById('petaReferenceMeta');
+const petaReferenceDescription = document.getElementById('petaReferenceDescription');
+const petaReferenceInstructions = document.getElementById('petaReferenceInstructions');
+const petaReferenceInstructionsBtn = document.getElementById('petaReferenceInstructionsBtn');
+const petaReferenceSizeBtn = document.getElementById('petaReferenceSizeBtn');
+const petaReferenceMinimizeBtn = document.getElementById('petaReferenceMinimizeBtn');
+const petaReferenceFullscreenBtn = document.getElementById('petaReferenceFullscreenBtn');
+const petaReferenceCloseBtn = document.getElementById('petaReferenceCloseBtn');
+const petaReferenceToolbar = document.getElementById('petaReferenceToolbar');
+const petaReferenceBody = document.getElementById('petaReferenceBody');
+const studentSaveSuccessOverlay = document.getElementById('studentSaveSuccessOverlay');
+const studentSaveSuccessTitle = document.getElementById('studentSaveSuccessTitle');
+const studentSaveSuccessMeta = document.getElementById('studentSaveSuccessMeta');
 const lessonViewerScreen = document.getElementById('lessonViewerScreen');
 const lessonLibraryBackBtn = document.getElementById('lessonLibraryBackBtn');
 const lessonLibraryRefreshBtn = document.getElementById('lessonLibraryRefreshBtn');
@@ -720,6 +744,7 @@ const givenActivityOrderInput = document.getElementById('givenActivityOrderInput
 const givenActivityAudienceSelect = document.getElementById('givenActivityAudienceSelect');
 const givenActivityDueDateInput = document.getElementById('givenActivityDueDateInput');
 const givenActivityVisibilitySelect = document.getElementById('givenActivityVisibilitySelect');
+const givenActivityPetaToggle = document.getElementById('givenActivityPetaToggle');
 const givenActivityDescriptionInput = document.getElementById('givenActivityDescriptionInput');
 const givenActivityFileInput = document.getElementById('givenActivityFileInput');
 const givenActivityFileName = document.getElementById('givenActivityFileName');
@@ -925,6 +950,7 @@ const DEFAULT_ASSISTANCE_SETTINGS = Object.freeze({
   subjectStatus: true,
   superStudio: false,
   autoSave: true,
+  saveSuccessOverlay: true,
   wireframeAutoSave: true,
   wireframeStarterCode: true,
   autoRunControl: true,
@@ -1133,6 +1159,7 @@ let loginReminderSettings = normalizeLoginReminderSettings(
 );
 let loginReminderPendingAfterPasswordLogin = false;
 let loginReminderAudio = null;
+let loginReminderMusicSessionToken = 0;
 // Student Reminder only: trim ONLY genuine leading silence in the SAME song.
 // Quiet music, ambience, speech, fade-ins, or any detectable waveform must play
 // from 0:00. These thresholds are intentionally very conservative so a soft
@@ -1647,7 +1674,19 @@ function prewarmLoginReminderCurrentAndNext(settings = loginReminderSettings) {
   if (nextUrl && nextUrl !== currentUrl) prewarmLoginReminderTrack(nextUrl).catch(() => {});
 }
 
+function isLoginReminderMusicSessionActive(sessionToken = loginReminderMusicSessionToken) {
+  if (Number(sessionToken) !== Number(loginReminderMusicSessionToken)) return false;
+  if (!loginLackingReminderOverlay || loginLackingReminderOverlay.classList.contains('hidden')) return false;
+  return document.body.classList.contains('login-lacking-reminder-open');
+}
+
+function beginLoginReminderMusicSession() {
+  loginReminderMusicSessionToken += 1;
+  return loginReminderMusicSessionToken;
+}
+
 function stopLoginReminderMusic(options = {}) {
+  if (options.invalidateSession === true) loginReminderMusicSessionToken += 1;
   cancelLoginReminderAudibilityCheck();
   if (loginReminderAudio) {
     try { loginReminderAudio.pause(); } catch (_) {}
@@ -1657,11 +1696,12 @@ function stopLoginReminderMusic(options = {}) {
   if (options.preservePlaybackState !== true) resetLoginReminderPlaybackState(loginReminderPlayback);
 }
 
-function showLoginReminderManualPlayButton(label = '▶ Play Music') {
+function showLoginReminderManualPlayButton(label = '▶ Play Music', message = 'Tap Play Music to start the reminder song.') {
   if (playLoginLackingReminderMusicBtn) {
     playLoginLackingReminderMusicBtn.textContent = label;
     playLoginLackingReminderMusicBtn.classList.remove('hidden');
   }
+  if (loginLackingReminderMusicStatus) { loginLackingReminderMusicStatus.textContent = message; loginLackingReminderMusicStatus.classList.remove('hidden'); }
   loginLackingReminderMusicRow?.classList.remove('hidden', 'music-playing');
 }
 
@@ -1680,22 +1720,25 @@ function createLoginReminderAudio(url, settings, options = {}) {
   audio.playsInline = true;
   audio.loop = options.loop === true;
   audio.volume = Math.max(0, Math.min(1, safe.musicVolume / 100));
+  const sessionToken = Number(options.sessionToken || loginReminderMusicSessionToken);
   audio.addEventListener('ended', () => {
-    if (loginReminderAudio !== audio || audio.loop) return;
+    if (!isLoginReminderMusicSessionActive(sessionToken) || loginReminderAudio !== audio || audio.loop) return;
     loginReminderPlayback.lastUrl = url;
-    advanceLoginReminderTrack(1, safe, { autoplay: true, fromEnded: true }).catch(() => {});
+    advanceLoginReminderTrack(1, safe, { autoplay: true, fromEnded: true, sessionToken }).catch(() => {});
   });
   audio.addEventListener('error', () => {
-    if (loginReminderAudio !== audio || loginReminderPlayback.failedUrls.has(url)) return;
+    if (!isLoginReminderMusicSessionActive(sessionToken) || loginReminderAudio !== audio || loginReminderPlayback.failedUrls.has(url)) return;
     loginReminderPlayback.failedUrls.add(url);
-    advanceLoginReminderTrack(1, safe, { autoplay: true, fromError: true, failedUrl: url }).catch(() => {
-      showLoginReminderManualPlayButton('▶ Try Music Again');
+    advanceLoginReminderTrack(1, safe, { autoplay: true, fromError: true, failedUrl: url, sessionToken }).catch(() => {
+      if (isLoginReminderMusicSessionActive(sessionToken)) showLoginReminderManualPlayButton('▶ Try Music Again', 'The reminder song could not start. Tap to try again.');
     });
   });
   return audio;
 }
 
 async function playLoginReminderUrl(url, settings = loginReminderSettings, options = {}) {
+  const sessionToken = Number(options.sessionToken || loginReminderMusicSessionToken);
+  if (!isLoginReminderMusicSessionActive(sessionToken)) return false;
   const safe = normalizeLoginReminderSettings(settings);
   const tracks = loginReminderSelectedResolvedTracks(safe);
   if (!url || !tracks.length) return false;
@@ -1706,7 +1749,7 @@ async function playLoginReminderUrl(url, settings = loginReminderSettings, optio
     try { loginReminderAudio.pause(); } catch (_) {}
   }
 
-  loginReminderAudio = createLoginReminderAudio(url, safe, { loop });
+  loginReminderAudio = createLoginReminderAudio(url, safe, { loop, sessionToken });
   const activeAudio = loginReminderAudio;
   // Never mute a track just to analyze it. If the intro already contains even
   // quiet music/ambience/voice, the student hears it immediately from 0:00.
@@ -1729,7 +1772,7 @@ async function playLoginReminderUrl(url, settings = loginReminderSettings, optio
 
   try {
     await activeAudio.play();
-    if (loginReminderAudio !== activeAudio) return false;
+    if (!isLoginReminderMusicSessionActive(sessionToken) || loginReminderAudio !== activeAudio) { try { activeAudio.pause(); } catch (_) {} return false; }
     loginReminderPlayback.blockedUrl = '';
     hideLoginReminderMusicUi();
 
@@ -1750,6 +1793,7 @@ async function playLoginReminderUrl(url, settings = loginReminderSettings, optio
     prewarmLoginReminderCurrentAndNext(safe);
     return true;
   } catch (error) {
+    if (!isLoginReminderMusicSessionActive(sessionToken)) return false;
     if (String(error?.name || '').toLowerCase() === 'notallowederror') {
       // The analysis can still finish while waiting for the student's manual tap,
       // so the manual Play button will also start at the trimmed point.
@@ -1763,20 +1807,22 @@ async function playLoginReminderUrl(url, settings = loginReminderSettings, optio
       }).catch(() => {});
       activeAudio.volume = targetVolume;
       loginReminderPlayback.blockedUrl = url;
-      showLoginReminderManualPlayButton('▶ Play Music');
+      showLoginReminderManualPlayButton('▶ Play Music', 'Your browser blocked automatic audio. Tap Play Music once to start it.');
       return false;
     }
     const firstFailure = !loginReminderPlayback.failedUrls.has(url);
     loginReminderPlayback.failedUrls.add(url);
     if (options.allowSkip !== false && firstFailure) {
-      return advanceLoginReminderTrack(1, safe, { autoplay: true, fromError: true, failedUrl: url });
+      return advanceLoginReminderTrack(1, safe, { autoplay: true, fromError: true, failedUrl: url, sessionToken });
     }
-    showLoginReminderManualPlayButton('▶ Try Music Again');
+    if (isLoginReminderMusicSessionActive(sessionToken)) showLoginReminderManualPlayButton('▶ Try Music Again', 'The reminder song could not load. Tap to try again.');
     return false;
   }
 }
 
 async function advanceLoginReminderTrack(direction = 1, settings = loginReminderSettings, options = {}) {
+  const sessionToken = Number(options.sessionToken || loginReminderMusicSessionToken);
+  if (!isLoginReminderMusicSessionActive(sessionToken)) return false;
   const safe = normalizeLoginReminderSettings(settings);
   const priorOrder = ensureLoginReminderPlaybackCycle(safe, loginReminderPlayback);
   if (options.fromError === true) {
@@ -1792,7 +1838,7 @@ async function advanceLoginReminderTrack(direction = 1, settings = loginReminder
   }
   if (safe.musicMode === 'single' || order.length === 1) {
     loginReminderPlayback.position = 0;
-    return options.autoplay === false ? true : playLoginReminderUrl(order[0], safe, { allowSkip: false });
+    return options.autoplay === false ? true : playLoginReminderUrl(order[0], safe, { allowSkip: false, sessionToken });
   }
   const step = direction < 0 ? -1 : 1;
   let nextPosition = loginReminderPlayback.position + step;
@@ -1811,10 +1857,12 @@ async function advanceLoginReminderTrack(direction = 1, settings = loginReminder
   loginReminderPlayback.position = Math.max(0, Math.min(order.length - 1, nextPosition));
   const url = order[loginReminderPlayback.position] || '';
   if (!url) return false;
-  return options.autoplay === false ? true : playLoginReminderUrl(url, safe, { allowSkip: true });
+  return options.autoplay === false ? true : playLoginReminderUrl(url, safe, { allowSkip: true, sessionToken });
 }
 
-async function startLoginReminderMusic(settings = loginReminderSettings) {
+async function startLoginReminderMusic(settings = loginReminderSettings, options = {}) {
+  const sessionToken = Number(options.sessionToken || loginReminderMusicSessionToken);
+  if (!isLoginReminderMusicSessionActive(sessionToken)) return false;
   const safe = normalizeLoginReminderSettings(settings);
   const tracks = loginReminderSelectedResolvedTracks(safe);
   const signature = loginReminderPlaylistSignature(safe);
@@ -1825,18 +1873,27 @@ async function startLoginReminderMusic(settings = loginReminderSettings) {
   if (!hasPreparedCycle) buildLoginReminderPlaybackCycle(safe, loginReminderPlayback);
   loginReminderPlayback.position = 0;
   prewarmLoginReminderCurrentAndNext(safe);
-  return playLoginReminderUrl(loginReminderPlayback.order[0], safe, { allowSkip: true });
+  return playLoginReminderUrl(loginReminderPlayback.order[0], safe, { allowSkip: true, sessionToken });
 }
 
 async function playLoginReminderMusicManually() {
+  const sessionToken = loginReminderMusicSessionToken;
+  if (!isLoginReminderMusicSessionActive(sessionToken)) return;
   const settings = normalizeLoginReminderSettings(loginReminderSettings);
   const tracks = loginReminderSelectedResolvedTracks(settings);
   if (!settings.musicEnabled || !tracks.length) return;
   try {
     if (loginReminderAudio && loginReminderPlayback.blockedUrl) {
-      scheduleCachedLoginReminderTrim(loginReminderAudio, loginReminderPlayback.blockedUrl);
-      loginReminderAudio.volume = Math.max(0, Math.min(1, settings.musicVolume / 100));
-      await loginReminderAudio.play();
+      const targetAudio = loginReminderAudio;
+      scheduleCachedLoginReminderTrim(targetAudio, loginReminderPlayback.blockedUrl);
+      targetAudio.volume = Math.max(0, Math.min(1, settings.musicVolume / 100));
+      await targetAudio.play();
+      // The modal may have been closed while the browser's play() promise was
+      // pending. Never allow a late resolution to resurrect reminder audio.
+      if (!isLoginReminderMusicSessionActive(sessionToken) || loginReminderAudio !== targetAudio) {
+        try { targetAudio.pause(); } catch (_) {}
+        return;
+      }
       loginReminderPlayback.blockedUrl = '';
       hideLoginReminderMusicUi();
       prewarmLoginReminderCurrentAndNext(settings);
@@ -1844,7 +1901,7 @@ async function playLoginReminderMusicManually() {
     }
     if (!loginReminderPlayback.order.length) buildLoginReminderPlaybackCycle(settings, loginReminderPlayback);
     const url = loginReminderPlayback.order[loginReminderPlayback.position] || tracks[0];
-    await playLoginReminderUrl(url, settings, { allowSkip: true });
+    await playLoginReminderUrl(url, settings, { allowSkip: true, sessionToken });
   } catch (_) {
     showLoginReminderManualPlayButton('▶ Try Play Music Again');
   }
@@ -1933,11 +1990,20 @@ function toggleLoginReminderAdminPreview() {
 
 function closeLoginLackingReminder() {
   loginReminderRecitationRequestToken += 1;
-  stopLoginReminderMusic();
+  stopLoginReminderMusic({ invalidateSession: true });
   loginLackingReminderOverlay?.classList.remove('is-visible');
   loginLackingReminderOverlay?.classList.add('hidden');
   document.body.classList.remove('login-lacking-reminder-open');
 }
+
+if (loginLackingReminderOverlay && typeof MutationObserver !== 'undefined') {
+  new MutationObserver(() => {
+    if (loginLackingReminderOverlay.classList.contains('hidden') && loginReminderAudio) {
+      stopLoginReminderMusic({ invalidateSession: true });
+    }
+  }).observe(loginLackingReminderOverlay, { attributes: true, attributeFilter: ['class'] });
+}
+window.addEventListener('pagehide', () => stopLoginReminderMusic({ invalidateSession: true }));
 
 async function navigateFromLoginLackingReminder(destination = 'projects') {
   const target = String(destination || 'projects').toLowerCase();
@@ -2169,11 +2235,12 @@ function renderLoginLackingReminder(record = null, options = {}) {
 
   loginLackingReminderOverlay.classList.remove('hidden');
   document.body.classList.add('login-lacking-reminder-open');
+  const reminderMusicSessionToken = beginLoginReminderMusicSession();
   requestAnimationFrame(() => {
     loginLackingReminderOverlay.classList.add('is-visible');
     scheduleLoginLackingReminderViewportFit(0);
   });
-  startLoginReminderMusic(settings)
+  startLoginReminderMusic(settings, { sessionToken: reminderMusicSessionToken })
     .catch(() => {})
     .finally(() => scheduleLoginLackingReminderViewportFit(20));
   return true;
@@ -3223,6 +3290,7 @@ function normalizeAssistanceSettings(value = {}) {
     subjectStatus: source.subjectStatus !== false,
     superStudio: source.superStudio === true,
     autoSave: source.autoSave !== false,
+    saveSuccessOverlay: source.saveSuccessOverlay !== false,
     wireframeAutoSave: source.wireframeAutoSave !== false,
     wireframeStarterCode: source.wireframeStarterCode !== false,
     autoRunControl: source.autoRunControl !== false,
@@ -3250,6 +3318,7 @@ function getAssistanceSettingsFromControls() {
     subjectStatus: subjectStatusToggle?.checked !== false,
     superStudio: superStudioToggle?.checked === true,
     autoSave: autoSaveControlToggle?.checked !== false,
+    saveSuccessOverlay: saveSuccessOverlayToggle?.checked !== false,
     wireframeAutoSave: wireframeAutoSaveToggle?.checked !== false,
     wireframeStarterCode: wireframeStarterCodeToggle?.checked !== false,
     autoRunControl: autoRunControlToggle?.checked !== false,
@@ -3285,6 +3354,7 @@ function syncAssistanceSettingsControls() {
   if (subjectStatusToggle) subjectStatusToggle.checked = settings.subjectStatus !== false;
   if (superStudioToggle) superStudioToggle.checked = settings.superStudio;
   if (autoSaveControlToggle) autoSaveControlToggle.checked = settings.autoSave;
+  if (saveSuccessOverlayToggle) saveSuccessOverlayToggle.checked = settings.saveSuccessOverlay !== false;
   if (wireframeAutoSaveToggle) wireframeAutoSaveToggle.checked = settings.wireframeAutoSave;
   if (wireframeStarterCodeToggle) wireframeStarterCodeToggle.checked = settings.wireframeStarterCode !== false;
   if (autoRunControlToggle) autoRunControlToggle.checked = settings.autoRunControl;
@@ -3301,7 +3371,7 @@ function syncAssistanceSettingsControls() {
   });
 
   studentAssistanceSettingsCard?.classList.toggle('master-disabled', !settings.enabled);
-  const effectiveOn = settings.enabled && (settings.codeSuggestions || settings.codeHelper || settings.teacherFeedback || settings.subjectStatus || settings.superStudio || settings.autoSave || settings.wireframeAutoSave || settings.wireframeStarterCode || settings.autoRunControl || settings.collaboration || settings.collaborationEdit || settings.collaborationMembers || settings.codeTransfer);
+  const effectiveOn = settings.enabled && (settings.codeSuggestions || settings.codeHelper || settings.teacherFeedback || settings.subjectStatus || settings.superStudio || settings.autoSave || settings.saveSuccessOverlay || settings.wireframeAutoSave || settings.wireframeStarterCode || settings.autoRunControl || settings.collaboration || settings.collaborationEdit || settings.collaborationMembers || settings.codeTransfer);
   if (assistanceModeBadge) {
     assistanceModeBadge.textContent = effectiveOn ? 'Assistance ON' : 'Assistance OFF';
     assistanceModeBadge.classList.toggle('off', !effectiveOn);
@@ -4588,20 +4658,26 @@ window.ICT8AppExitGuard = Object.freeze({
 });
 
 function showTeacherLoginError(message) {
-  message = userFacingSystemMessage(message, 'Login could not be completed. Please try again.');
+  const rawMessage = String(message ?? '').trim();
   const errorBox = document.getElementById('teacherLoginError');
+
+  // An empty message means "clear the previous error". Do this BEFORE
+  // userFacingSystemMessage(), whose fallback is intentionally non-empty.
+  if (!rawMessage) {
+    if (errorBox) {
+      errorBox.textContent = '';
+      errorBox.classList.add('hidden');
+    }
+    return;
+  }
+
+  const safeMessage = userFacingSystemMessage(rawMessage, 'Login could not be completed. Please try again.');
   if (!errorBox) {
-    if (message) appAlert(message, { title: 'Teacher Login' });
+    appAlert(safeMessage, { title: 'Teacher Login' });
     return;
   }
 
-  if (!message) {
-    errorBox.textContent = '';
-    errorBox.classList.add('hidden');
-    return;
-  }
-
-  errorBox.textContent = message;
+  errorBox.textContent = safeMessage;
   errorBox.classList.remove('hidden');
 }
 
@@ -6429,16 +6505,34 @@ async function findStudentRosterRecordById(studentId) {
 
 function setStudentLoginError(message = '') {
   if (!studentLoginError) return;
-  message = userFacingSystemMessage(message, 'Login could not be completed. Please try again.');
-  studentLoginError.textContent = message;
-  studentLoginError.classList.toggle('hidden', !message);
+  const rawMessage = String(message ?? '').trim();
+  if (!rawMessage) {
+    studentLoginError.textContent = '';
+    studentLoginError.classList.add('hidden');
+    studentLoginError.setAttribute('aria-hidden', 'true');
+    return;
+  }
+
+  const safeMessage = userFacingSystemMessage(rawMessage, 'Login could not be completed. Please try again.');
+  studentLoginError.textContent = safeMessage;
+  studentLoginError.classList.remove('hidden');
+  studentLoginError.setAttribute('aria-hidden', 'false');
 }
 
 function setChangePasswordError(message = '') {
   if (!changePasswordError) return;
-  message = userFacingSystemMessage(message, 'Could not update the password right now. Please try again.');
-  changePasswordError.textContent = message;
-  changePasswordError.classList.toggle('hidden', !message);
+  const rawMessage = String(message ?? '').trim();
+  if (!rawMessage) {
+    changePasswordError.textContent = '';
+    changePasswordError.classList.add('hidden');
+    changePasswordError.setAttribute('aria-hidden', 'true');
+    return;
+  }
+
+  const safeMessage = userFacingSystemMessage(rawMessage, 'Could not update the password right now. Please try again.');
+  changePasswordError.textContent = safeMessage;
+  changePasswordError.classList.remove('hidden');
+  changePasswordError.setAttribute('aria-hidden', 'false');
 }
 
 function getCurrentProjectDisplayName() {
@@ -6543,6 +6637,9 @@ function buildProjectIndexEntry(project = {}) {
     status: String(project.status || (result?.passed === true ? 'passed' : result ? 'checked' : 'in-progress')),
     activityTitle: String(project.activityTitle || '').slice(0, 160),
     selectedActivityId: String(project.selectedActivityId || '').slice(0, 120),
+    petaActivityId: String(project.petaActivityId || '').slice(0, 120),
+    petaActivityTitle: String(project.petaActivityTitle || '').slice(0, 160),
+    isPetaProject: project.isPetaProject === true || Boolean(project.petaActivityId),
     runCount: Math.max(0, Number(project.runCount || 0)),
     lastResult: result ? {
       score: Number(result.score || 0),
@@ -6811,6 +6908,31 @@ function updateManualSaveControls() {
   });
 }
 
+function isLargeSaveConfirmationEnabled() {
+  return isStudentAssistanceFeatureEnabled('saveSuccessOverlay');
+}
+
+function showStudentSaveSuccessOverlay(options = {}) {
+  if (!studentSaveSuccessOverlay || !isLargeSaveConfirmationEnabled() || appSession.mode !== 'student') return;
+  const projectName = String(options.projectName || appSession.currentProject?.name || wireframeProjectTitle?.textContent || 'Your project').trim();
+  if (studentSaveSuccessTitle) studentSaveSuccessTitle.textContent = options.title || 'SAVED';
+  if (studentSaveSuccessMeta) studentSaveSuccessMeta.textContent = projectName ? `${projectName} · saved to your account` : 'Your latest work is saved to your account.';
+  window.clearTimeout(showStudentSaveSuccessOverlay.hideTimer);
+  window.clearTimeout(showStudentSaveSuccessOverlay.resetTimer);
+  studentSaveSuccessOverlay.classList.remove('hidden', 'is-leaving');
+  studentSaveSuccessOverlay.setAttribute('aria-hidden', 'false');
+  requestAnimationFrame(() => studentSaveSuccessOverlay.classList.add('is-visible'));
+  showStudentSaveSuccessOverlay.hideTimer = window.setTimeout(() => {
+    studentSaveSuccessOverlay.classList.add('is-leaving');
+    studentSaveSuccessOverlay.classList.remove('is-visible');
+    showStudentSaveSuccessOverlay.resetTimer = window.setTimeout(() => {
+      studentSaveSuccessOverlay.classList.add('hidden');
+      studentSaveSuccessOverlay.classList.remove('is-leaving');
+      studentSaveSuccessOverlay.setAttribute('aria-hidden', 'true');
+    }, 360);
+  }, Math.max(850, Number(options.duration || 1250)));
+}
+
 async function saveStudentProjectManually() {
   triggerDesktopHeaderLogoSaveSpin({ force: true });
   if (!isStudentProjectActive()) {
@@ -6822,6 +6944,7 @@ async function saveStudentProjectManually() {
   clearTimeout(studentProjectSaveTimer);
   const saved = await flushStudentProjectSave('manual');
   setStatus(saved ? 'Project saved' : (navigator.onLine === false ? 'Offline · saved on this device' : 'Save failed'));
+  if (saved) showStudentSaveSuccessOverlay({ projectName: appSession.currentProject?.name || '' });
   return saved;
 }
 
@@ -7282,6 +7405,7 @@ function openStudentLogin() {
 }
 
 function closeStudentLogin() {
+  setStudentLoginError('');
   studentLoginOverlay?.classList.add('hidden');
   document.body.classList.remove('student-auth-open');
 }
@@ -9709,6 +9833,8 @@ function renderStudentProjects() {
 
   studentProjectsGrid.innerHTML = projects.map(project => {
     const isWireframe = String(project.projectType || 'code').toLowerCase() === 'wireframe';
+    const isPetaProject = project.isPetaProject === true || Boolean(project.petaActivityId);
+    const petaProjectTitle = String(project.petaActivityTitle || project.activityTitle || '').trim();
     const status = getProjectStatus(project);
     const result = project.lastResult || null;
     const scoreText = result
@@ -9725,10 +9851,10 @@ function renderStudentProjects() {
       <article class="student-project-card" data-project-id="${escapeAttribute(project.id)}">
         <div class="project-card-top">
           <span class="project-card-icon ${isWireframe ? 'wireframe' : ''}">${isWireframe ? '▦' : '&lt;/&gt;'}</span>
-          <span class="project-status-pill ${escapeAttribute(status)}">${getProjectStatusLabel(status)}</span>
+          <span class="project-card-top-badges"><span class="project-status-pill ${escapeAttribute(status)}">${getProjectStatusLabel(status)}</span></span>
         </div>
         <h3>${escapeHTML(project.name || 'Untitled Project')}</h3>
-        <p class="project-card-activity">${escapeHTML(isWireframe ? 'Wireframe · Desktop + Phone' : (project.activityTitle || 'Practice project'))}</p>
+        <p class="project-card-activity">${escapeHTML(isPetaProject ? (petaProjectTitle || (isWireframe ? 'Wireframe project' : 'Code project')) : (isWireframe ? 'Wireframe · Desktop + Phone' : (project.activityTitle || 'Practice project')))}</p>
         ${projectAlerts ? `<div class="project-alert-row${projectAlertItems.length > 1 ? ' has-multiple-alerts' : ''}">${projectAlerts}</div>` : ''}
         <div class="project-card-meta-row">
           <span class="project-card-meta project-card-edited">Last edited: ${escapeHTML(formatStudentDate(project.updatedAt, 'Not edited yet'))}</span>
@@ -9744,14 +9870,81 @@ function renderStudentProjects() {
   }).join('');
 }
 
+const petaWorkflowState = {
+  choiceActivityId: '',
+  pendingActivityId: '',
+  referenceActivityId: '',
+  referenceAttachmentIndex: 0,
+  sizeMode: 'medium',
+  imageZoom: 1,
+  imagePan: null,
+  drag: null,
+  previousRect: null
+};
+
+function getPetaActivityById(activityId = '') {
+  return givenActivityState.items.find(item => item.id === String(activityId || '') && item.published && item.isPeta) || null;
+}
+
+function clearPendingPetaProjectLaunch() {
+  petaWorkflowState.pendingActivityId = '';
+}
+
+function openPetaActionChoice(activityId = '') {
+  const item = getPetaActivityById(activityId);
+  if (!item || !petaActionOverlay) {
+    openGivenActivityViewer(activityId);
+    return;
+  }
+  petaWorkflowState.choiceActivityId = item.id;
+  if (petaActionTitle) petaActionTitle.textContent = item.title;
+  if (petaActionMeta) {
+    const attachments = getGivenActivityAttachments(item).length;
+    petaActionMeta.textContent = `${lessonTermLabel(item.term)} · Activity ${item.order}${attachments ? ` · ${attachments} attachment${attachments === 1 ? '' : 's'}` : ''} · Choose Read or Do Activity.`;
+  }
+  petaActionOverlay.classList.remove('hidden');
+  document.body.classList.add('student-auth-open', 'peta-action-open');
+}
+
+function closePetaActionChoice() {
+  petaActionOverlay?.classList.add('hidden');
+  document.body.classList.remove('peta-action-open');
+  if (!projectTypeOverlay || projectTypeOverlay.classList.contains('hidden')) document.body.classList.remove('student-auth-open');
+  petaWorkflowState.choiceActivityId = '';
+}
+
+function beginPetaDoActivity(activityId = '') {
+  const item = getPetaActivityById(activityId);
+  if (!item) return;
+  if (!appSession.student) {
+    closePetaActionChoice();
+    openStudentLogin();
+    return;
+  }
+  petaWorkflowState.pendingActivityId = item.id;
+  closePetaActionChoice();
+  openProjectTypeDialog();
+}
+
+function openGivenActivityEntry(activityId = '') {
+  const item = givenActivityState.items.find(entry => entry.id === String(activityId || '') && entry.published);
+  if (!item) return;
+  if (item.isPeta) openPetaActionChoice(item.id);
+  else openGivenActivityViewer(item.id);
+}
+
 function openProjectNameDialog(mode = 'create', project = null) {
   appSession.projectDialogMode = mode;
   appSession.renameProjectId = project?.id || '';
   const creatingWireframe = mode === 'create' && appSession.pendingProjectType === 'wireframe';
-  if (projectNameKicker) projectNameKicker.textContent = mode === 'rename' ? 'Rename Project' : (creatingWireframe ? 'New Wireframe Project' : 'New Code Project');
-  if (projectNameTitle) projectNameTitle.textContent = mode === 'rename' ? 'Change Project Name' : (creatingWireframe ? 'Name Your Wireframe' : 'Name Your Project');
+  const petaItem = mode === 'create' ? getPetaActivityById(petaWorkflowState.pendingActivityId) : null;
+  if (projectNameKicker) projectNameKicker.textContent = mode === 'rename' ? 'Rename Project' : (petaItem ? 'PETA Project' : (creatingWireframe ? 'New Wireframe Project' : 'New Code Project'));
+  if (projectNameTitle) projectNameTitle.textContent = mode === 'rename' ? 'Change Project Name' : (petaItem ? `Name Your ${creatingWireframe ? 'Wireframe' : 'Code'} Project` : (creatingWireframe ? 'Name Your Wireframe' : 'Name Your Project'));
   if (saveProjectNameBtn) saveProjectNameBtn.textContent = mode === 'rename' ? 'Save Name' : 'Create Project';
-  if (projectNameInput) projectNameInput.value = mode === 'rename' ? String(project?.name || '') : '';
+  if (projectNameInput) {
+    projectNameInput.value = mode === 'rename' ? String(project?.name || '') : '';
+    projectNameInput.placeholder = petaItem ? `Example: ${petaItem.title}`.slice(0, 100) : 'Example: My Personal Webpage';
+  }
   setProjectNameError('');
   projectNameOverlay?.classList.remove('hidden');
   document.body.classList.add('student-auth-open');
@@ -9767,11 +9960,15 @@ function closeProjectNameDialog() {
   setProjectNameError('');
 }
 
-function buildNewProjectData(name, projectType = 'code') {
+function buildNewProjectData(name, projectType = 'code', options = {}) {
+  const petaActivityId = String(options.petaActivityId || '').trim();
+  const petaActivityTitle = String(options.petaActivityTitle || '').trim().slice(0, 160);
+  const petaMeta = petaActivityId ? { petaActivityId, petaActivityTitle, isPetaProject: true } : {};
   if (projectType === 'wireframe') {
     return {
       name,
       nameLower: name.toLowerCase(),
+      ...petaMeta,
       projectType: 'wireframe',
       status: 'in-progress',
       wireframeData: createDefaultWireframeData(),
@@ -9784,11 +9981,12 @@ function buildNewProjectData(name, projectType = 'code') {
   return {
     name,
     nameLower: name.toLowerCase(),
+    ...petaMeta,
     projectType: 'code',
     status: 'in-progress',
     codeByActivity: { scratch: normalizeCodeStore(starterCode) },
     selectedActivityId: '',
-    activityTitle: '',
+    activityTitle: petaActivityTitle || '',
     fileNames: normalizeCodeFileNames(DEFAULT_CODE_FILE_NAMES),
     runCount: 0,
     lastResult: null,
@@ -9816,7 +10014,11 @@ async function saveProjectNameDialog() {
     }
     saveProjectNameBtn.textContent = 'Creating...';
     const projectId = createId().replace(/[^a-zA-Z0-9_-]/g, '-');
-    const data = buildNewProjectData(name, appSession.pendingProjectType || 'code');
+    const petaItem = getPetaActivityById(petaWorkflowState.pendingActivityId);
+    const data = buildNewProjectData(name, appSession.pendingProjectType || 'code', {
+      petaActivityId: petaItem?.id || '',
+      petaActivityTitle: petaItem?.title || ''
+    });
     const { setDoc, serverTimestamp, increment } = firebaseSync.modules;
     await setDoc(getStudentProjectDocRef(appSession.student.uid, projectId), {
       ...data,
@@ -9843,6 +10045,7 @@ async function saveProjectNameDialog() {
     clearSelectiveFirestoreCache(`studentProfile:${appSession.student.uid}`);
     persistStudentProjectsCache();
     closeProjectNameDialog();
+    clearPendingPetaProjectLaunch();
     await openStudentProject(projectId);
   } catch (error) {
     console.error('Could not create project', error);
@@ -9852,6 +10055,437 @@ async function saveProjectNameDialog() {
     saveProjectNameBtn.textContent = appSession.projectDialogMode === 'rename' ? 'Save Name' : 'Create Project';
   }
 }
+
+
+function getPetaReferenceItem() {
+  return givenActivityState.items.find(item => item.id === petaWorkflowState.referenceActivityId && item.published) || null;
+}
+
+function petaReferenceAttachmentLabel(attachment = {}, index = 0) {
+  return attachment.fileName || `${givenActivityTypeLabel(attachment.materialType)} ${index + 1}`;
+}
+
+function clampPetaReferenceImageZoom(value = 1) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return 1;
+  return Math.max(1, Math.min(10, Math.round(numeric * 4) / 4));
+}
+
+function updatePetaReferenceImageZoomUI() {
+  const value = petaReferenceToolbar?.querySelector('[data-peta-reference-zoom-value]');
+  if (value) value.textContent = `${Math.round(clampPetaReferenceImageZoom(petaWorkflowState.imageZoom) * 100)}%`;
+  const zoomOut = petaReferenceToolbar?.querySelector('[data-peta-reference-zoom="out"]');
+  const zoomIn = petaReferenceToolbar?.querySelector('[data-peta-reference-zoom="in"]');
+  if (zoomOut) zoomOut.disabled = petaWorkflowState.imageZoom <= 1;
+  if (zoomIn) zoomIn.disabled = petaWorkflowState.imageZoom >= 10;
+}
+
+function applyPetaReferenceImageZoom(options = {}) {
+  const stage = petaReferenceBody?.querySelector('.peta-reference-image-stage');
+  const image = petaReferenceBody?.querySelector('[data-peta-reference-image]');
+  if (!stage || !image || !image.naturalWidth || !image.naturalHeight) {
+    updatePetaReferenceImageZoomUI();
+    return;
+  }
+
+  const previousScrollWidth = Math.max(1, stage.scrollWidth);
+  const previousScrollHeight = Math.max(1, stage.scrollHeight);
+  const centerRatioX = (stage.scrollLeft + stage.clientWidth / 2) / previousScrollWidth;
+  const centerRatioY = (stage.scrollTop + stage.clientHeight / 2) / previousScrollHeight;
+  const availableWidth = Math.max(80, stage.clientWidth - 24);
+  const availableHeight = Math.max(80, stage.clientHeight - 24);
+  const fitScale = Math.min(availableWidth / image.naturalWidth, availableHeight / image.naturalHeight, 1);
+  const zoom = clampPetaReferenceImageZoom(petaWorkflowState.imageZoom);
+  petaWorkflowState.imageZoom = zoom;
+
+  image.style.width = `${Math.max(1, Math.round(image.naturalWidth * fitScale * zoom))}px`;
+  image.style.height = `${Math.max(1, Math.round(image.naturalHeight * fitScale * zoom))}px`;
+  image.classList.toggle('is-zoomed', zoom > 1);
+  stage.classList.toggle('is-pannable', zoom > 1);
+  updatePetaReferenceImageZoomUI();
+
+  if (options.keepCenter === false) return;
+  requestAnimationFrame(() => {
+    stage.scrollLeft = Math.max(0, centerRatioX * stage.scrollWidth - stage.clientWidth / 2);
+    stage.scrollTop = Math.max(0, centerRatioY * stage.scrollHeight - stage.clientHeight / 2);
+  });
+}
+
+function setPetaReferenceImageZoom(value = 1, options = {}) {
+  petaWorkflowState.imageZoom = clampPetaReferenceImageZoom(value);
+  applyPetaReferenceImageZoom(options);
+}
+
+function resetPetaReferenceImageZoom() {
+  petaWorkflowState.imageZoom = 1;
+  applyPetaReferenceImageZoom({ keepCenter: false });
+  const stage = petaReferenceBody?.querySelector('.peta-reference-image-stage');
+  if (stage) {
+    stage.scrollLeft = 0;
+    stage.scrollTop = 0;
+  }
+}
+
+function getPetaReferenceShortcutLabel() {
+  const isMac = /Mac|iPhone|iPad|iPod/i.test(navigator.platform || navigator.userAgent || '');
+  return isMac ? '⌘ + Option + P' : 'Ctrl + Alt + P';
+}
+
+function isPetaReferenceShortcut(event) {
+  if (!event || String(event.key || '').toLowerCase() !== 'p' || !event.altKey) return false;
+  const isMac = /Mac|iPhone|iPad|iPod/i.test(navigator.platform || navigator.userAgent || '');
+  return isMac ? event.metaKey : event.ctrlKey;
+}
+
+async function restoreCurrentProjectPetaReference() {
+  const project = appSession.currentProject;
+  if (!project?.petaActivityId) {
+    setStatus('No PETA reference is linked to this project');
+    return false;
+  }
+  if (petaReferenceDock && !petaReferenceDock.classList.contains('hidden')) {
+    petaReferenceDock.classList.remove('is-minimized');
+    refreshPetaReferenceWindowControls();
+    petaReferenceDock.classList.remove('shortcut-focus');
+    void petaReferenceDock.offsetWidth;
+    petaReferenceDock.classList.add('shortcut-focus');
+    setTimeout(() => petaReferenceDock?.classList.remove('shortcut-focus'), 700);
+    setStatus(`PETA reference ready · ${getPetaReferenceShortcutLabel()}`);
+    return true;
+  }
+  const opened = await openProjectPetaReference(project);
+  if (opened) {
+    petaReferenceDock?.classList.add('shortcut-focus');
+    setTimeout(() => petaReferenceDock?.classList.remove('shortcut-focus'), 700);
+    setStatus(`PETA reference restored · ${getPetaReferenceShortcutLabel()}`);
+  }
+  return opened;
+}
+
+function renderPetaReferenceDock() {
+  if (!petaReferenceDock || !petaReferenceBody) return;
+  const item = getPetaReferenceItem();
+  if (!item) {
+    petaReferenceBody.innerHTML = '<div class="peta-reference-empty">This PETA reference is not available right now.</div>';
+    return;
+  }
+  const attachments = getGivenActivityAttachments(item);
+  petaWorkflowState.referenceAttachmentIndex = Math.max(0, Math.min(Math.max(0, attachments.length - 1), petaWorkflowState.referenceAttachmentIndex));
+  const index = petaWorkflowState.referenceAttachmentIndex;
+  const attachment = attachments[index] || null;
+  if (petaReferenceTitle) petaReferenceTitle.textContent = item.title;
+  if (petaReferenceMeta) {
+    const shortcutLabel = getPetaReferenceShortcutLabel();
+    petaReferenceMeta.textContent = `${lessonTermLabel(item.term)} · Activity ${item.order}${item.dueDate ? ` · Due ${formatGivenActivityDueDate(item.dueDate)}` : ''} · ${shortcutLabel}`;
+    petaReferenceMeta.title = `Reopen this PETA reference anytime with ${shortcutLabel}.`;
+  }
+  if (petaReferenceDescription) petaReferenceDescription.textContent = item.description || 'No additional instructions were provided.';
+
+  if (petaReferenceToolbar) {
+    const attachmentControls = attachments.length > 1 ? `
+      <button type="button" class="peta-reference-nav-btn" data-peta-reference-nav="prev" ${index <= 0 ? 'disabled' : ''} aria-label="Previous attachment">←</button>
+      <select data-peta-reference-select aria-label="Choose PETA attachment">${attachments.map((entry, entryIndex) => `<option value="${entryIndex}" ${entryIndex === index ? 'selected' : ''}>${entryIndex + 1}. ${escapeHTML(petaReferenceAttachmentLabel(entry, entryIndex))}</option>`).join('')}</select>
+      <button type="button" class="peta-reference-nav-btn" data-peta-reference-nav="next" ${index >= attachments.length - 1 ? 'disabled' : ''} aria-label="Next attachment">→</button>` : (attachment ? `<span class="peta-reference-file-label">${givenActivityTypeIcon(attachment.materialType)} ${escapeHTML(petaReferenceAttachmentLabel(attachment, 0))}</span>` : '<span class="peta-reference-file-label">📝 Instructions only</span>');
+    const imageZoomControls = attachment?.materialType === 'image' ? `
+      <div class="peta-reference-zoom-controls" role="group" aria-label="Image zoom controls">
+        <button type="button" class="peta-reference-zoom-btn" data-peta-reference-zoom="out" title="Zoom out" aria-label="Zoom out">−</button>
+        <button type="button" class="peta-reference-zoom-value" data-peta-reference-zoom="fit" title="Fit image" aria-label="Fit image to viewer"><span data-peta-reference-zoom-value>100%</span></button>
+        <button type="button" class="peta-reference-zoom-btn" data-peta-reference-zoom="in" title="Zoom in" aria-label="Zoom in">+</button>
+      </div>` : '';
+    petaReferenceToolbar.innerHTML = `${attachmentControls}${imageZoomControls}`;
+    petaReferenceToolbar.classList.toggle('has-image-zoom', attachment?.materialType === 'image');
+    updatePetaReferenceImageZoomUI();
+  }
+
+  if (!attachment) {
+    petaReferenceBody.innerHTML = `<div class="peta-reference-text"><span aria-hidden="true">📝</span><h3>Activity Instructions</h3><p>${escapeHTML(item.description || 'No additional instructions were provided.').replace(/\n/g, '<br>')}</p></div>`;
+    return;
+  }
+  if (attachment.materialType === 'pdf' && attachment.previewUrl) {
+    petaReferenceBody.innerHTML = `<iframe class="peta-reference-pdf" src="${escapeAttribute(attachment.previewUrl)}" title="${escapeAttribute(attachment.fileName || item.title)}" loading="eager"></iframe>`;
+    return;
+  }
+  if (attachment.materialType === 'image') {
+    const candidates = getGivenActivityImagePreviewCandidates(attachment);
+    const src = candidates[0] || attachment.previewUrl || attachment.openUrl || '';
+    petaReferenceBody.innerHTML = `<div class="peta-reference-image-stage" title="Zoom up to 1000%. Hold and drag the image to pan. Ctrl/Cmd + mouse wheel also zooms."><div class="peta-reference-image-pan"><img data-peta-reference-image draggable="false" src="${escapeAttribute(src)}" alt="${escapeAttribute(attachment.fileName || item.title)}" /></div></div>`;
+    const image = petaReferenceBody.querySelector('[data-peta-reference-image]');
+    if (image) {
+      const applyLoadedImageZoom = () => requestAnimationFrame(() => applyPetaReferenceImageZoom({ keepCenter: false }));
+      if (image.complete && image.naturalWidth) applyLoadedImageZoom();
+      else image.addEventListener('load', applyLoadedImageZoom, { once: true });
+      if (candidates.length > 1) {
+        let candidateIndex = 0;
+        image.addEventListener('error', () => {
+          candidateIndex += 1;
+          if (candidateIndex < candidates.length) image.src = candidates[candidateIndex];
+        });
+      }
+      image.addEventListener('dblclick', () => resetPetaReferenceImageZoom());
+    }
+    return;
+  }
+  if (attachment.openUrl) {
+    petaReferenceBody.innerHTML = `<div class="peta-reference-text"><span aria-hidden="true">🔗</span><h3>${escapeHTML(attachment.fileName || 'Activity Link')}</h3><p>Open the teacher-provided link in a new tab when needed.</p><a class="primary-btn" href="${escapeAttribute(attachment.openUrl)}" target="_blank" rel="noopener noreferrer">Open Link</a></div>`;
+    return;
+  }
+  petaReferenceBody.innerHTML = '<div class="peta-reference-empty">This attachment could not be previewed.</div>';
+}
+
+function initializePetaReferenceWindowControls() {
+  const actionRow = petaReferenceCloseBtn?.parentElement;
+  if (actionRow) actionRow.classList.add('mac-window-controls-ready');
+  const utilityButtons = [
+    [petaReferenceInstructionsBtn, 'info', 'i', 'Show activity instructions'],
+    [petaReferenceSizeBtn, 'size', '↕', 'Change activity reference size']
+  ];
+  utilityButtons.forEach(([button, utility, label, title]) => {
+    if (!button) return;
+    button.dataset.utilityControl = utility;
+    button.innerHTML = `<span aria-hidden="true">${label}</span>`;
+    button.setAttribute('title', title);
+  });
+  const trafficButtons = [
+    [petaReferenceCloseBtn, 'close', '×', `Close activity reference · reopen with ${getPetaReferenceShortcutLabel()}`],
+    [petaReferenceMinimizeBtn, 'minimize', '—', 'Minimize activity reference'],
+    [petaReferenceFullscreenBtn, 'maximize', '+', 'Show activity reference full screen']
+  ];
+  trafficButtons.forEach(([button, control, label, title]) => {
+    if (!button) return;
+    button.dataset.windowControl = control;
+    button.innerHTML = `<span aria-hidden="true">${label}</span>`;
+    button.setAttribute('title', title);
+  });
+  refreshPetaReferenceWindowControls();
+}
+
+function refreshPetaReferenceWindowControls() {
+  const isMinimized = petaReferenceDock?.classList.contains('is-minimized');
+  const isFullscreen = petaReferenceDock?.classList.contains('is-fullscreen');
+  if (petaReferenceMinimizeBtn) {
+    petaReferenceMinimizeBtn.classList.toggle('is-active', Boolean(isMinimized));
+    petaReferenceMinimizeBtn.setAttribute('aria-label', isMinimized ? 'Restore activity reference window' : 'Minimize activity reference');
+    petaReferenceMinimizeBtn.setAttribute('title', isMinimized ? 'Restore' : 'Minimize');
+  }
+  if (petaReferenceFullscreenBtn) {
+    petaReferenceFullscreenBtn.classList.toggle('is-active', Boolean(isFullscreen));
+    petaReferenceFullscreenBtn.setAttribute('aria-label', isFullscreen ? 'Exit activity reference full screen' : 'Show activity reference full screen');
+    petaReferenceFullscreenBtn.setAttribute('title', isFullscreen ? 'Exit full screen' : 'Full screen');
+  }
+  if (petaReferenceSizeBtn) {
+    const nextModeMap = { compact: 'medium', medium: 'large', large: 'compact' };
+    const nextMode = nextModeMap[petaWorkflowState.sizeMode] || 'medium';
+    petaReferenceSizeBtn.setAttribute('aria-label', `Change activity reference size. Next size: ${nextMode}.`);
+    petaReferenceSizeBtn.setAttribute('title', `Window size: ${petaWorkflowState.sizeMode}. Click for ${nextMode}.`);
+  }
+}
+
+function setPetaReferenceSize(mode = 'medium') {
+  const allowed = ['compact', 'medium', 'large'];
+  petaWorkflowState.sizeMode = allowed.includes(mode) ? mode : 'medium';
+  if (!petaReferenceDock) return;
+  allowed.forEach(name => petaReferenceDock.classList.toggle(`size-${name}`, name === petaWorkflowState.sizeMode));
+  petaReferenceDock.classList.remove('is-minimized');
+  refreshPetaReferenceWindowControls();
+}
+
+function cyclePetaReferenceSize() {
+  const order = ['compact', 'medium', 'large'];
+  const current = Math.max(0, order.indexOf(petaWorkflowState.sizeMode));
+  setPetaReferenceSize(order[(current + 1) % order.length]);
+}
+
+function togglePetaReferenceMinimized() {
+  if (!petaReferenceDock) return;
+  petaReferenceDock.classList.toggle('is-minimized');
+  petaReferenceDock.classList.remove('is-fullscreen');
+  refreshPetaReferenceWindowControls();
+}
+
+function togglePetaReferenceFullscreen() {
+  if (!petaReferenceDock) return;
+  const willFullscreen = !petaReferenceDock.classList.contains('is-fullscreen');
+  petaReferenceDock.classList.toggle('is-fullscreen', willFullscreen);
+  petaReferenceDock.classList.remove('is-minimized');
+  refreshPetaReferenceWindowControls();
+}
+
+function closePetaReferenceDock(options = {}) {
+  petaWorkflowState.referenceActivityId = '';
+  petaWorkflowState.referenceAttachmentIndex = 0;
+  petaWorkflowState.imageZoom = 1;
+  petaReferenceDock?.classList.add('hidden');
+  petaReferenceDock?.classList.remove('is-minimized', 'is-fullscreen', 'shortcut-focus');
+  document.body.classList.remove('peta-reference-open');
+  refreshPetaReferenceWindowControls();
+  if (options.userInitiated && appSession.currentProject?.petaActivityId) {
+    setStatus(`PETA reference closed · press ${getPetaReferenceShortcutLabel()} to reopen`);
+  }
+}
+
+async function openPetaReferenceDock(activityId = '', options = {}) {
+  let item = givenActivityState.items.find(entry => entry.id === String(activityId || '') && entry.published);
+  if (!item && appSession.student) {
+    try { await loadGivenActivities(); } catch (_) {}
+    item = givenActivityState.items.find(entry => entry.id === String(activityId || '') && entry.published);
+  }
+  if (!item || !petaReferenceDock) return false;
+  petaWorkflowState.referenceActivityId = item.id;
+  petaWorkflowState.referenceAttachmentIndex = 0;
+  petaWorkflowState.imageZoom = 1;
+  if (options.reset !== false) {
+    petaReferenceDock.style.removeProperty('left');
+    petaReferenceDock.style.removeProperty('top');
+    petaReferenceDock.style.removeProperty('right');
+    petaReferenceDock.style.removeProperty('bottom');
+    petaReferenceDock.style.removeProperty('width');
+    petaReferenceDock.style.removeProperty('height');
+    setPetaReferenceSize('medium');
+  }
+  petaReferenceDock.classList.remove('hidden', 'is-minimized', 'is-fullscreen');
+  document.body.classList.add('peta-reference-open');
+  initializePetaReferenceWindowControls();
+  renderPetaReferenceDock();
+  refreshPetaReferenceWindowControls();
+  return true;
+}
+
+async function openProjectPetaReference(project = appSession.currentProject) {
+  const activityId = String(project?.petaActivityId || '').trim();
+  if (!activityId) {
+    closePetaReferenceDock();
+    return false;
+  }
+  return openPetaReferenceDock(activityId, { reset: true });
+}
+
+function installPetaReferenceDockEvents() {
+  if (installPetaReferenceDockEvents.bound) return;
+  installPetaReferenceDockEvents.bound = true;
+  initializePetaReferenceWindowControls();
+  petaReferenceInstructionsBtn?.addEventListener('click', () => {
+    const open = petaReferenceInstructions?.classList.toggle('hidden') === false;
+    petaReferenceInstructionsBtn.classList.toggle('active', open);
+  });
+  petaReferenceSizeBtn?.addEventListener('click', cyclePetaReferenceSize);
+  petaReferenceMinimizeBtn?.addEventListener('click', togglePetaReferenceMinimized);
+  petaReferenceFullscreenBtn?.addEventListener('click', togglePetaReferenceFullscreen);
+  petaReferenceCloseBtn?.addEventListener('click', () => closePetaReferenceDock({ userInitiated: true }));
+  document.addEventListener('keydown', event => {
+    if (!isPetaReferenceShortcut(event)) return;
+    if (!appSession.currentProject?.petaActivityId) return;
+    event.preventDefault();
+    event.stopPropagation();
+    void restoreCurrentProjectPetaReference();
+  }, true);
+  petaReferenceToolbar?.addEventListener('click', event => {
+    const zoomButton = event.target.closest('[data-peta-reference-zoom]');
+    if (zoomButton) {
+      const action = zoomButton.dataset.petaReferenceZoom;
+      if (action === 'in') setPetaReferenceImageZoom(petaWorkflowState.imageZoom + 0.25);
+      else if (action === 'out') setPetaReferenceImageZoom(petaWorkflowState.imageZoom - 0.25);
+      else resetPetaReferenceImageZoom();
+      return;
+    }
+    const button = event.target.closest('[data-peta-reference-nav]');
+    if (!button) return;
+    const item = getPetaReferenceItem();
+    const attachments = item ? getGivenActivityAttachments(item) : [];
+    const delta = button.dataset.petaReferenceNav === 'prev' ? -1 : 1;
+    petaWorkflowState.referenceAttachmentIndex = Math.max(0, Math.min(Math.max(0, attachments.length - 1), petaWorkflowState.referenceAttachmentIndex + delta));
+    petaWorkflowState.imageZoom = 1;
+    renderPetaReferenceDock();
+  });
+  petaReferenceToolbar?.addEventListener('change', event => {
+    const select = event.target.closest('[data-peta-reference-select]');
+    if (!select) return;
+    petaWorkflowState.referenceAttachmentIndex = Math.max(0, Number.parseInt(select.value, 10) || 0);
+    petaWorkflowState.imageZoom = 1;
+    renderPetaReferenceDock();
+  });
+  petaReferenceBody?.addEventListener('wheel', event => {
+    if (!(event.ctrlKey || event.metaKey) || !event.target.closest('.peta-reference-image-stage')) return;
+    event.preventDefault();
+    const delta = event.deltaY < 0 ? 0.25 : -0.25;
+    setPetaReferenceImageZoom(petaWorkflowState.imageZoom + delta);
+  }, { passive: false });
+  petaReferenceBody?.addEventListener('pointerdown', event => {
+    const stage = event.target.closest('.peta-reference-image-stage');
+    if (!stage || event.pointerType === 'touch' || event.button !== 0) return;
+    const canPan = stage.scrollWidth > stage.clientWidth + 1 || stage.scrollHeight > stage.clientHeight + 1;
+    if (!canPan) return;
+    petaWorkflowState.imagePan = {
+      pointerId: event.pointerId,
+      stage,
+      startX: event.clientX,
+      startY: event.clientY,
+      scrollLeft: stage.scrollLeft,
+      scrollTop: stage.scrollTop
+    };
+    stage.setPointerCapture?.(event.pointerId);
+    stage.classList.add('is-panning');
+    event.preventDefault();
+  });
+  petaReferenceBody?.addEventListener('pointermove', event => {
+    const pan = petaWorkflowState.imagePan;
+    if (!pan || pan.pointerId !== event.pointerId || !pan.stage?.isConnected) return;
+    pan.stage.scrollLeft = pan.scrollLeft - (event.clientX - pan.startX);
+    pan.stage.scrollTop = pan.scrollTop - (event.clientY - pan.startY);
+    event.preventDefault();
+  });
+  const endPetaImagePan = event => {
+    const pan = petaWorkflowState.imagePan;
+    if (!pan || pan.pointerId !== event.pointerId) return;
+    try { pan.stage?.releasePointerCapture?.(event.pointerId); } catch (_) {}
+    pan.stage?.classList.remove('is-panning');
+    petaWorkflowState.imagePan = null;
+  };
+  petaReferenceBody?.addEventListener('pointerup', endPetaImagePan);
+  petaReferenceBody?.addEventListener('pointercancel', endPetaImagePan);
+  window.addEventListener('resize', () => {
+    if (!petaReferenceDock?.classList.contains('hidden') && petaReferenceBody?.querySelector('[data-peta-reference-image]')) {
+      requestAnimationFrame(() => applyPetaReferenceImageZoom({ keepCenter: false }));
+    }
+  });
+  if ('ResizeObserver' in window && petaReferenceDock) {
+    const resizeObserver = new ResizeObserver(() => {
+      if (!petaReferenceDock.classList.contains('hidden') && petaReferenceBody?.querySelector('[data-peta-reference-image]')) {
+        requestAnimationFrame(() => applyPetaReferenceImageZoom({ keepCenter: false }));
+      }
+    });
+    resizeObserver.observe(petaReferenceDock);
+    installPetaReferenceDockEvents.resizeObserver = resizeObserver;
+  }
+  petaReferenceDockHeader?.addEventListener('pointerdown', event => {
+    if (event.pointerType === 'touch' || event.target.closest('button') || petaReferenceDock?.classList.contains('is-fullscreen')) return;
+    const rect = petaReferenceDock.getBoundingClientRect();
+    petaWorkflowState.drag = { pointerId: event.pointerId, offsetX: event.clientX - rect.left, offsetY: event.clientY - rect.top };
+    petaReferenceDockHeader.setPointerCapture?.(event.pointerId);
+    petaReferenceDock.classList.add('is-dragging');
+    event.preventDefault();
+  });
+  petaReferenceDockHeader?.addEventListener('pointermove', event => {
+    const drag = petaWorkflowState.drag;
+    if (!drag || drag.pointerId !== event.pointerId || !petaReferenceDock) return;
+    const rect = petaReferenceDock.getBoundingClientRect();
+    const maxLeft = Math.max(8, window.innerWidth - rect.width - 8);
+    const maxTop = Math.max(8, window.innerHeight - Math.min(rect.height, window.innerHeight - 16) - 8);
+    const left = Math.max(8, Math.min(maxLeft, event.clientX - drag.offsetX));
+    const top = Math.max(8, Math.min(maxTop, event.clientY - drag.offsetY));
+    petaReferenceDock.style.left = `${left}px`;
+    petaReferenceDock.style.top = `${top}px`;
+    petaReferenceDock.style.right = 'auto';
+    petaReferenceDock.style.bottom = 'auto';
+  });
+  const endDrag = event => {
+    if (!petaWorkflowState.drag || petaWorkflowState.drag.pointerId !== event.pointerId) return;
+    petaWorkflowState.drag = null;
+    petaReferenceDock?.classList.remove('is-dragging');
+  };
+  petaReferenceDockHeader?.addEventListener('pointerup', endDrag);
+  petaReferenceDockHeader?.addEventListener('pointercancel', endDrag);
+}
+installPetaReferenceDockEvents();
 
 async function getStudentProject(projectId) {
   const cached = appSession.projects.find(project => project.id === projectId);
@@ -9883,6 +10517,12 @@ async function openStudentProject(projectId) {
     appSession.currentProjectId = projectId;
     appSession.currentProject = project;
     persistLastStudentSession('student-project-opened');
+    // A PETA can launch a project directly from Activities Given. Once the project
+    // opens, the full library must leave the viewport; its material is kept visible
+    // by the independent floating PETA reference dock instead.
+    closeGivenActivityViewer();
+    givenActivitiesScreen?.classList.add('hidden');
+    document.body.classList.remove('given-activities-active');
     if (String(project.projectType || 'code').toLowerCase() === 'wireframe') {
       studentProjectDirty = false;
       studentProjectRevision = 0;
@@ -9893,6 +10533,7 @@ async function openStudentProject(projectId) {
       studentProjectLastSavedSignature = '';
       closeStudentDashboard();
       await openWireframeMaker(project);
+      void openProjectPetaReference(project);
       queueStudentPresenceUpdate({
         currentView: 'wireframe',
         activityGroup: 'Wireframe',
@@ -9944,6 +10585,7 @@ async function openStudentProject(projectId) {
       setStudentSaveState('Saved');
       setStatus(`Project: ${project.name}`);
     }
+    void openProjectPetaReference(projectToOpen);
     queueStudentPresenceUpdate({
       currentView: 'editor',
       activityGroup: 'Coding',
@@ -22186,6 +22828,7 @@ function normalizeGivenActivity(raw = {}, index = 0) {
     dueDate: String(raw.dueDate || '').trim().slice(0, 10),
     visibility,
     published: visibility === 'published',
+    isPeta: raw.isPeta === true || raw.peta === true || String(raw.activityType || '').toLowerCase() === 'peta',
     attachments,
     attachmentCount: attachments.length,
     materialType,
@@ -22436,6 +23079,7 @@ function renderStudentGivenActivities() {
           <div class="given-activity-card-top">
             <span class="given-activity-order">${escapeHTML(String(item.order).padStart(2, '0'))}</span>
             <span class="given-activity-type">${materialSummary.icon} ${escapeHTML(materialSummary.label)}</span>
+            ${item.isPeta ? '<span class="given-activity-peta-badge">PETA</span>' : ''}
           </div>
           <div class="given-activity-card-body">
             <span class="given-activity-term">${escapeHTML(lessonTermLabel(item.term))} · Activity ${escapeHTML(String(item.order))}</span>
@@ -22446,7 +23090,7 @@ function renderStudentGivenActivities() {
               <span>${due ? `Due ${escapeHTML(due)}` : (updated ? `Posted ${escapeHTML(updated)}` : 'Ready')}</span>
             </div>
             ${(engagement.readAt || engagement.hearted) ? `<div class="student-engagement-badges">${engagement.readAt ? '<span class="student-engagement-badge read">✓ Read</span>' : ''}${engagement.hearted ? '<span class="student-engagement-badge hearted">♥ Hearted</span>' : ''}</div>` : ''}
-            <span class="given-activity-card-cta">Open activity <b aria-hidden="true">→</b></span>
+            <span class="given-activity-card-cta">${item.isPeta ? 'Open PETA' : 'Open activity'} <b aria-hidden="true">→</b></span>
           </div>
         </button>
       </article>`;
@@ -22942,6 +23586,7 @@ function resetGivenActivityAdminEditor(options = {}) {
   if (givenActivityDescriptionInput) givenActivityDescriptionInput.value = '';
   if (givenActivityDueDateInput) givenActivityDueDateInput.value = '';
   if (givenActivityVisibilitySelect) givenActivityVisibilitySelect.value = 'published';
+  if (givenActivityPetaToggle) givenActivityPetaToggle.checked = false;
   if (givenActivityUrlInput) givenActivityUrlInput.value = '';
   if (givenActivityLinkTypeSelect) givenActivityLinkTypeSelect.value = 'pdf';
   if (givenActivityFileInput) givenActivityFileInput.value = '';
@@ -22975,6 +23620,7 @@ function editGivenActivityAdmin(activityId = '') {
   }
   if (givenActivityDueDateInput) givenActivityDueDateInput.value = item.dueDate || '';
   if (givenActivityVisibilitySelect) givenActivityVisibilitySelect.value = item.visibility;
+  if (givenActivityPetaToggle) givenActivityPetaToggle.checked = item.isPeta === true;
   if (givenActivityUrlInput) givenActivityUrlInput.value = item.openUrl || item.previewUrl || '';
   if (givenActivityLinkTypeSelect) givenActivityLinkTypeSelect.value = item.materialType === 'text' ? 'link' : item.materialType;
   if (givenActivityFileInput) givenActivityFileInput.value = '';
@@ -23011,7 +23657,7 @@ function renderAdminGivenActivityList() {
       <article class="given-activity-admin-row" data-given-admin-id="${escapeAttribute(item.id)}">
         <div class="given-activity-admin-order">${escapeHTML(String(item.order).padStart(2, '0'))}</div>
         <div class="given-activity-admin-copy">
-          <div class="given-activity-admin-title-line"><strong>${escapeHTML(item.title)}</strong><span class="given-activity-visibility ${item.published ? 'published' : 'draft'}">${item.published ? 'Published' : 'Draft'}</span></div>
+          <div class="given-activity-admin-title-line"><strong>${escapeHTML(item.title)}</strong>${item.isPeta ? '<span class="given-activity-peta-badge admin">PETA</span>' : ''}<span class="given-activity-visibility ${item.published ? 'published' : 'draft'}">${item.published ? 'Published' : 'Draft'}</span></div>
           <small>${escapeHTML(lessonTermLabel(item.term))} · ${escapeHTML(materialSummary.label)} · ${escapeHTML(item.audienceSection === 'all' ? 'All Sections' : item.audienceSection)}${due ? ` · Due ${escapeHTML(due)}` : ''}</small>
         </div>
         <div class="given-activity-admin-actions">
@@ -23328,6 +23974,7 @@ async function publishGivenActivityFromAdmin() {
       audienceSection: givenActivityAudienceSelect?.value || 'all',
       dueDate: givenActivityDueDateInput?.value || '',
       visibility: givenActivityVisibilitySelect?.value || 'published',
+      isPeta: givenActivityPetaToggle?.checked === true,
       createdAt: existing?.createdAt || nowIso,
       updatedAt: nowIso
     });
@@ -23763,7 +24410,7 @@ function bindTeacherToolsV295() {
   });
   givenActivitiesGrid?.addEventListener('click', event => {
     const button = event.target.closest('[data-given-open]');
-    if (button) openGivenActivityViewer(button.dataset.givenOpen || '');
+    if (button) openGivenActivityEntry(button.dataset.givenOpen || '');
   });
   givenActivityViewerBody?.addEventListener('click', event => {
     const zoomButton = event.target.closest('[data-given-image-zoom]');
@@ -23782,6 +24429,17 @@ function bindTeacherToolsV295() {
       renderGivenActivityViewerAttachment();
     }
   });
+  petaReadOnlyBtn?.addEventListener('click', () => {
+    const activityId = petaWorkflowState.choiceActivityId;
+    closePetaActionChoice();
+    if (activityId) openGivenActivityViewer(activityId);
+  });
+  petaDoActivityBtn?.addEventListener('click', () => {
+    const activityId = petaWorkflowState.choiceActivityId;
+    if (activityId) beginPetaDoActivity(activityId);
+  });
+  [closePetaActionBtn, cancelPetaActionBtn].forEach(button => button?.addEventListener('click', closePetaActionChoice));
+  petaActionOverlay?.addEventListener('click', event => { if (event.target === petaActionOverlay) event.stopPropagation(); });
   givenActivityViewerReadBtn?.addEventListener('click', () => {
     const activityId = givenActivityState.viewerActivityId;
     if (!activityId) return;
@@ -23899,6 +24557,11 @@ function bindTeacherToolsV295() {
     if (engagementAnalyticsOverlay && !engagementAnalyticsOverlay.classList.contains('hidden')) {
       event.preventDefault();
       closeEngagementAnalytics();
+      return;
+    }
+    if (petaActionOverlay && !petaActionOverlay.classList.contains('hidden')) {
+      event.preventDefault();
+      closePetaActionChoice();
       return;
     }
     if (givenActivityViewerOverlay && !givenActivityViewerOverlay.classList.contains('hidden')) {
@@ -28858,7 +29521,7 @@ window.addEventListener('keydown', event => {
   }
 });
 
-[assistanceMasterToggle, codeSuggestionsToggle, codeHelperToggle, teacherFeedbackToggle, superStudioToggle, autoSaveControlToggle, wireframeAutoSaveToggle, wireframeStarterCodeToggle, autoRunControlToggle, externalLinksSamePreviewToggle, starterCodeToggle, collaborationToggle, collaborationEditToggle, collaborationMembersToggle, codeTransferToggle].forEach(toggle => {
+[assistanceMasterToggle, codeSuggestionsToggle, codeHelperToggle, teacherFeedbackToggle, superStudioToggle, autoSaveControlToggle, saveSuccessOverlayToggle, wireframeAutoSaveToggle, wireframeStarterCodeToggle, autoRunControlToggle, externalLinksSamePreviewToggle, starterCodeToggle, collaborationToggle, collaborationEditToggle, collaborationMembersToggle, codeTransferToggle].forEach(toggle => {
   toggle?.addEventListener('change', () => {
     applyAssistanceSettingsFromControls();
   });
@@ -29309,12 +29972,15 @@ toggleStudentPasswordBtn?.addEventListener('click', () => {
   studentLoginPassword.type = show ? 'text' : 'password';
   toggleStudentPasswordBtn.textContent = show ? 'Hide' : 'Show';
 });
-[studentLoginId, studentLoginPassword].forEach(input => input?.addEventListener('keydown', event => {
-  if (event.key === 'Enter') {
-    event.preventDefault();
-    loginStudent();
-  }
-}));
+[studentLoginId, studentLoginPassword].forEach(input => {
+  input?.addEventListener('input', () => setStudentLoginError(''));
+  input?.addEventListener('keydown', event => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      loginStudent();
+    }
+  });
+});
 studentLoginOverlay?.addEventListener('click', event => {
   if (event.target === studentLoginOverlay) event.stopPropagation();
 });
@@ -30045,6 +30711,13 @@ function openProjectTypeDialog() {
     openStudentLogin();
     return;
   }
+  const petaItem = getPetaActivityById(petaWorkflowState.pendingActivityId);
+  const projectTypeTitle = document.getElementById('projectTypeTitle');
+  const projectTypeCopy = projectTypeOverlay?.querySelector('.project-type-card > .muted-text');
+  if (projectTypeTitle) projectTypeTitle.textContent = petaItem ? 'How will you do this PETA?' : 'What do you want to create?';
+  if (projectTypeCopy) projectTypeCopy.textContent = petaItem
+    ? `Choose a project type for “${petaItem.title}”. The activity instructions will stay available in a movable reference window while you work.`
+    : 'Choose Code Editor for HTML/CSS/JavaScript, or Wireframe Maker to plan a website visually.';
   appSession.pendingProjectType = 'code';
   projectTypeOverlay?.classList.remove('hidden');
   document.body.classList.add('student-auth-open');
@@ -31249,6 +31922,7 @@ async function saveWireframeProject({ silent = false, immediate = false, reason 
     wireframeMakerState.lastSavedRevision = Math.max(wireframeMakerState.lastSavedRevision, wireframeMakerState.revision);
     clearWireframeRecovery();
     setWireframeSaveState(isWireframeAutosaveEnabled() ? 'Saved' : 'Saved · manual', 'saved');
+    if (reason === 'manual') showStudentSaveSuccessOverlay({ projectName: appSession.currentProject?.name || '' });
     return true;
   }
 
@@ -31317,6 +31991,7 @@ async function saveWireframeProject({ silent = false, immediate = false, reason 
         setWireframeSaveState(isWireframeAutosaveEnabled() ? 'Saved' : 'Saved · manual', 'saved');
       }
       if (!silent) setStatus(wireframeMakerState.dirty ? 'Wireframe checkpoint saved · newer local changes pending' : 'Wireframe saved');
+      if (reason === 'manual' && !wireframeMakerState.dirty) showStudentSaveSuccessOverlay({ projectName: appSession.currentProject?.name || '' });
       return true;
     } catch (error) {
       console.error('Could not save wireframe project', error);
@@ -32766,8 +33441,8 @@ function installWireframeMakerEvents() {
     const choice = event.target.closest('[data-project-type-choice]');
     if (choice) chooseProjectType(choice.dataset.projectTypeChoice);
   });
-  closeProjectTypeBtn?.addEventListener('click', closeProjectTypeDialog);
-  cancelProjectTypeBtn?.addEventListener('click', closeProjectTypeDialog);
+  closeProjectTypeBtn?.addEventListener('click', () => { closeProjectTypeDialog(); clearPendingPetaProjectLaunch(); });
+  cancelProjectTypeBtn?.addEventListener('click', () => { closeProjectTypeDialog(); clearPendingPetaProjectLaunch(); });
   wireframeBackBtn?.addEventListener('click', closeWireframeMakerToDashboard);
   wireframeDesktopBtn?.addEventListener('click', () => switchWireframeDevice('desktop'));
   wireframePhoneBtn?.addEventListener('click', () => switchWireframeDevice('phone'));
@@ -33090,8 +33765,8 @@ studentProjectsGrid?.addEventListener('click', async event => {
     }
   }
 });
-closeProjectNameBtn?.addEventListener('click', closeProjectNameDialog);
-cancelProjectNameBtn?.addEventListener('click', closeProjectNameDialog);
+closeProjectNameBtn?.addEventListener('click', () => { closeProjectNameDialog(); clearPendingPetaProjectLaunch(); });
+cancelProjectNameBtn?.addEventListener('click', () => { closeProjectNameDialog(); clearPendingPetaProjectLaunch(); });
 saveProjectNameBtn?.addEventListener('click', saveProjectNameDialog);
 projectNameInput?.addEventListener('keydown', event => {
   if (event.key === 'Enter') {

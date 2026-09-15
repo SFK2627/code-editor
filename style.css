@@ -66238,3 +66238,657 @@ html[data-theme="dark"] .code-explorer-admin-track-chip.selected {
     animation: none !important;
   }
 }
+
+
+/* ========================================================================== */
+/* PETA Read / Do workflow + live activity reference + large save confirmation */
+/* ========================================================================== */
+.given-activity-peta-setting {
+  grid-column: 1 / -1;
+  display: flex !important;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 15px;
+  border: 1px solid rgba(245, 158, 11, .34);
+  border-radius: 15px;
+  background: linear-gradient(135deg, rgba(245,158,11,.11), rgba(251,191,36,.04));
+}
+.given-activity-peta-setting > span:first-child { display: grid; gap: 4px; }
+.given-activity-peta-setting small { color: var(--muted, #64748b); font-weight: 500; line-height: 1.35; }
+.given-activity-peta-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 24px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: #f59e0b;
+  color: #111827;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .08em;
+  box-shadow: 0 5px 14px rgba(245,158,11,.22);
+}
+.given-activity-peta-badge.admin { min-height: 20px; padding: 2px 7px; font-size: 9px; }
+.given-activity-card:has(.given-activity-peta-badge) { border-color: rgba(245,158,11,.34); }
+
+.peta-action-overlay { z-index: 2750; }
+.peta-action-card { width: min(620px, calc(100vw - 28px)); text-align: center; }
+.peta-action-icon {
+  width: 68px; height: 68px; margin: 0 auto 10px; border-radius: 22px;
+  display: grid; place-items: center; font-size: 34px;
+  background: linear-gradient(135deg, #f59e0b, #facc15);
+  box-shadow: 0 18px 35px rgba(245,158,11,.28);
+}
+.peta-action-options { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 20px 0 14px; }
+.peta-action-option {
+  appearance: none; border: 1px solid rgba(148,163,184,.35); border-radius: 18px;
+  padding: 18px 16px; background: var(--panel, #fff); color: inherit; cursor: pointer;
+  display: grid; grid-template-columns: 48px 1fr; gap: 12px; text-align: left; align-items: center;
+  transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease;
+}
+.peta-action-option:hover { transform: translateY(-2px); border-color: rgba(59,130,246,.55); box-shadow: 0 15px 28px rgba(15,23,42,.12); }
+.peta-action-option.is-primary { border-color: rgba(245,158,11,.5); background: linear-gradient(135deg, rgba(245,158,11,.14), rgba(250,204,21,.06)); }
+.peta-action-option-icon { width: 48px; height: 48px; border-radius: 15px; display: grid; place-items: center; font-size: 24px; background: rgba(148,163,184,.12); }
+.peta-action-option span:last-child { display: grid; gap: 4px; }
+.peta-action-option strong { font-size: 16px; }
+.peta-action-option small { color: var(--muted, #64748b); line-height: 1.35; }
+
+.peta-reference-dock {
+  position: fixed;
+  z-index: 2380;
+  right: 16px;
+  bottom: 16px;
+  width: min(440px, calc(100vw - 32px));
+  height: min(62vh, 610px);
+  min-width: 300px;
+  min-height: 190px;
+  max-width: calc(100vw - 16px);
+  max-height: calc(100vh - 16px);
+  resize: both;
+  overflow: hidden;
+  border: 1px solid rgba(148,163,184,.35);
+  border-radius: 20px;
+  background: var(--panel, #fff);
+  color: var(--text, #0f172a);
+  box-shadow: 0 26px 70px rgba(15,23,42,.28), 0 4px 18px rgba(15,23,42,.14);
+  display: grid;
+  grid-template-rows: auto auto auto minmax(0,1fr);
+  animation: petaDockIn .28s cubic-bezier(.2,.8,.2,1) both;
+}
+.peta-reference-dock.size-compact { width: min(340px, calc(100vw - 24px)); height: min(42vh, 420px); }
+.peta-reference-dock.size-medium { width: min(440px, calc(100vw - 32px)); height: min(62vh, 610px); }
+.peta-reference-dock.size-large { width: min(660px, calc(100vw - 24px)); height: min(78vh, 760px); }
+.peta-reference-dock.is-fullscreen {
+  inset: 8px !important; width: auto !important; height: auto !important; max-width: none; max-height: none;
+  resize: none; border-radius: 16px; z-index: 2650;
+}
+.peta-reference-dock.is-minimized {
+  width: min(390px, calc(100vw - 24px)) !important; height: auto !important; min-height: 0; resize: none;
+  grid-template-rows: auto;
+}
+.peta-reference-dock.is-minimized .peta-reference-instructions,
+.peta-reference-dock.is-minimized .peta-reference-toolbar,
+.peta-reference-dock.is-minimized .peta-reference-body,
+.peta-reference-dock.is-minimized .peta-reference-resize-hint { display: none !important; }
+.peta-reference-dock.is-dragging { user-select: none; box-shadow: 0 30px 80px rgba(15,23,42,.34); }
+.peta-reference-dock-header {
+  min-height: 58px; padding: 9px 10px 9px 13px; display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  border-bottom: 1px solid rgba(148,163,184,.22); cursor: grab;
+  background: linear-gradient(135deg, rgba(245,158,11,.12), rgba(59,130,246,.05));
+  touch-action: none;
+}
+.peta-reference-dock.is-dragging .peta-reference-dock-header { cursor: grabbing; }
+.peta-reference-dock-heading { min-width: 0; display: flex; align-items: center; gap: 9px; }
+.peta-reference-dock-heading > div { min-width: 0; display: grid; gap: 1px; }
+.peta-reference-dock-heading strong, .peta-reference-dock-heading small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.peta-reference-dock-heading strong { font-size: 13px; }
+.peta-reference-dock-heading small { font-size: 10px; color: var(--muted, #64748b); }
+.peta-reference-badge { flex: 0 0 auto; padding: 5px 8px; border-radius: 9px; background: #f59e0b; color: #111827; font-size: 9px; font-weight: 950; letter-spacing: .08em; }
+.peta-reference-dock-actions { flex: 0 0 auto; display: flex; align-items: center; gap: 4px; }
+.peta-reference-icon-btn {
+  width: 30px; height: 30px; border: 1px solid rgba(148,163,184,.27); border-radius: 9px; background: rgba(255,255,255,.65);
+  color: inherit; display: grid; place-items: center; font: 800 13px/1 system-ui,sans-serif; cursor: pointer;
+}
+.peta-reference-icon-btn:hover, .peta-reference-icon-btn.active { background: rgba(59,130,246,.12); border-color: rgba(59,130,246,.4); }
+.peta-reference-icon-btn.danger:hover { background: rgba(239,68,68,.12); border-color: rgba(239,68,68,.4); color: #dc2626; }
+.peta-reference-instructions { padding: 10px 13px; border-bottom: 1px solid rgba(148,163,184,.2); background: rgba(148,163,184,.06); max-height: 145px; overflow: auto; }
+.peta-reference-instructions strong { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; }
+.peta-reference-instructions p { margin: 5px 0 0; font-size: 12px; line-height: 1.45; white-space: pre-wrap; }
+.peta-reference-toolbar { min-height: 36px; padding: 5px 8px; border-bottom: 1px solid rgba(148,163,184,.2); display: flex; align-items: center; gap: 6px; background: rgba(148,163,184,.045); }
+.peta-reference-toolbar > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; font-weight: 700; }
+.peta-reference-toolbar select { min-width: 0; flex: 1; height: 28px; border-radius: 8px; border: 1px solid rgba(148,163,184,.3); background: var(--panel, #fff); color: inherit; font-size: 11px; }
+.peta-reference-nav-btn { width: 30px; height: 28px; border-radius: 8px; border: 1px solid rgba(148,163,184,.3); background: transparent; color: inherit; cursor: pointer; }
+.peta-reference-nav-btn:disabled { opacity: .35; cursor: default; }
+.peta-reference-body { min-height: 0; overflow: auto; background: #f8fafc; position: relative; }
+.peta-reference-pdf { display: block; width: 100%; height: 100%; min-height: 100%; border: 0; background: #fff; }
+.peta-reference-image-stage { width: 100%; height: 100%; min-height: 100%; padding: 12px; overflow: auto; overscroll-behavior: contain; scrollbar-gutter: stable; touch-action: pan-x pan-y; -webkit-overflow-scrolling: touch; }
+.peta-reference-image-stage.is-pannable { cursor: grab; }
+.peta-reference-image-stage.is-panning { cursor: grabbing; scroll-behavior: auto; }
+.peta-reference-image-stage.is-panning img { pointer-events: none; transition: none; }
+.peta-reference-image-pan { min-width: 100%; min-height: 100%; width: max-content; height: max-content; display: grid; place-items: center; }
+.peta-reference-image-stage img { display: block; max-width: none; max-height: none; object-fit: contain; border-radius: 10px; box-shadow: 0 8px 24px rgba(15,23,42,.12); user-select: none; -webkit-user-drag: none; transition: width .16s ease, height .16s ease, box-shadow .16s ease; }
+.peta-reference-image-stage img.is-zoomed { box-shadow: 0 12px 34px rgba(15,23,42,.18); }
+.peta-reference-zoom-controls { margin-left: auto; flex: 0 0 auto; display: inline-flex; align-items: center; gap: 3px; padding-left: 6px; border-left: 1px solid rgba(148,163,184,.22); }
+.peta-reference-zoom-btn, .peta-reference-zoom-value { height: 28px; border: 1px solid rgba(148,163,184,.3); background: var(--panel, #fff); color: inherit; cursor: pointer; font: 800 12px/1 system-ui,sans-serif; }
+.peta-reference-zoom-btn { width: 29px; border-radius: 8px; font-size: 17px; }
+.peta-reference-zoom-value { min-width: 49px; padding: 0 6px; border-radius: 8px; font-size: 10px; }
+.peta-reference-zoom-btn:hover, .peta-reference-zoom-value:hover { border-color: rgba(59,130,246,.55); background: rgba(59,130,246,.09); }
+.peta-reference-zoom-btn:disabled { opacity: .38; cursor: default; }
+.peta-reference-text, .peta-reference-empty { min-height: 100%; padding: 24px; display: grid; place-items: center; align-content: center; text-align: center; gap: 8px; color: #334155; }
+.peta-reference-text > span { font-size: 32px; }
+.peta-reference-text h3 { margin: 0; }
+.peta-reference-text p { margin: 0; white-space: pre-wrap; line-height: 1.5; }
+.peta-reference-resize-hint { position: absolute; right: 4px; bottom: 1px; font-size: 18px; opacity: .4; pointer-events: none; }
+@keyframes petaDockIn { from { opacity: 0; transform: translateY(18px) scale(.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
+
+.student-save-success-overlay {
+  position: fixed; inset: 0; z-index: 4200; display: grid; place-items: center; pointer-events: none;
+  background: radial-gradient(circle at center, rgba(15,23,42,.18), rgba(15,23,42,.04) 46%, transparent 72%);
+  opacity: 0; transition: opacity .3s ease;
+}
+.student-save-success-overlay.is-visible { opacity: 1; }
+.student-save-success-overlay.is-leaving { opacity: 0; }
+.student-save-success-card {
+  width: min(430px, calc(100vw - 40px)); padding: 30px 24px 27px; border-radius: 28px; text-align: center;
+  background: rgba(15,23,42,.94); color: #fff; border: 1px solid rgba(255,255,255,.16);
+  box-shadow: 0 32px 90px rgba(15,23,42,.42); backdrop-filter: blur(18px);
+  transform: translateY(18px) scale(.88); opacity: 0;
+}
+.student-save-success-overlay.is-visible .student-save-success-card { animation: saveSuccessPop .5s cubic-bezier(.17,.89,.32,1.35) forwards; }
+.student-save-success-check {
+  width: 84px; height: 84px; margin: 0 auto 15px; border-radius: 50%; display: grid; place-items: center;
+  background: linear-gradient(135deg, #22c55e, #14b8a6); box-shadow: 0 18px 42px rgba(34,197,94,.34);
+}
+.student-save-success-check span { font: 900 46px/1 system-ui,sans-serif; transform: scale(.35) rotate(-15deg); opacity: 0; }
+.student-save-success-overlay.is-visible .student-save-success-check span { animation: saveCheckIn .34s .2s cubic-bezier(.2,.9,.25,1.35) forwards; }
+.student-save-success-card p { margin: 0 0 3px; font-size: 10px; font-weight: 850; letter-spacing: .2em; color: #94a3b8; }
+.student-save-success-card > strong { display: block; font-size: clamp(34px, 8vw, 54px); line-height: 1; letter-spacing: .04em; }
+.student-save-success-card > small { display: block; margin-top: 9px; color: #cbd5e1; font-size: 12px; }
+@keyframes saveSuccessPop { 0% { transform: translateY(18px) scale(.88); opacity: 0; } 65% { transform: translateY(-3px) scale(1.035); opacity: 1; } 100% { transform: translateY(0) scale(1); opacity: 1; } }
+@keyframes saveCheckIn { to { transform: scale(1) rotate(0); opacity: 1; } }
+
+/* PETA dark-mode contrast: keep chooser and floating reference fully readable. */
+body.dark-mode .peta-action-card, html[data-theme="dark"] .peta-action-card { background: #111827; color: #f8fafc; border-color: rgba(148,163,184,.28); }
+body.dark-mode .peta-action-option, html[data-theme="dark"] .peta-action-option { background: #0f172a; color: #f8fafc; border-color: rgba(148,163,184,.32); }
+body.dark-mode .peta-action-option:hover, html[data-theme="dark"] .peta-action-option:hover { background: #172033; border-color: rgba(96,165,250,.72); box-shadow: 0 15px 28px rgba(0,0,0,.24); }
+body.dark-mode .peta-action-option.is-primary, html[data-theme="dark"] .peta-action-option.is-primary { background: linear-gradient(135deg, rgba(245,158,11,.18), rgba(15,23,42,.96)); border-color: rgba(245,158,11,.64); }
+body.dark-mode .peta-action-option strong, html[data-theme="dark"] .peta-action-option strong { color: #f8fafc; }
+body.dark-mode .peta-action-option small, html[data-theme="dark"] .peta-action-option small { color: #cbd5e1; }
+body.dark-mode .peta-action-option-icon, html[data-theme="dark"] .peta-action-option-icon { background: #1e293b; color: #f8fafc; }
+body.dark-mode .peta-action-card .muted-text, html[data-theme="dark"] .peta-action-card .muted-text { color: #aebdd0; }
+body.dark-mode .peta-action-card .ghost-btn, html[data-theme="dark"] .peta-action-card .ghost-btn { color: #f8fafc; border-color: rgba(148,163,184,.28); background: rgba(15,23,42,.38); }
+
+body.dark-mode .peta-reference-dock, html[data-theme="dark"] .peta-reference-dock { background: #111827; color: #e5e7eb; border-color: rgba(148,163,184,.28); }
+body.dark-mode .peta-reference-dock-header, html[data-theme="dark"] .peta-reference-dock-header { background: linear-gradient(135deg, rgba(245,158,11,.14), rgba(30,41,59,.98)); border-color: rgba(148,163,184,.24); }
+body.dark-mode .peta-reference-dock-heading strong, html[data-theme="dark"] .peta-reference-dock-heading strong { color: #f8fafc; }
+body.dark-mode .peta-reference-dock-heading small, html[data-theme="dark"] .peta-reference-dock-heading small { color: #cbd5e1; }
+body.dark-mode .peta-reference-instructions, html[data-theme="dark"] .peta-reference-instructions { background: #0f172a; color: #e5e7eb; border-color: rgba(148,163,184,.22); }
+body.dark-mode .peta-reference-toolbar, html[data-theme="dark"] .peta-reference-toolbar { background: #0f172a; color: #e5e7eb; border-color: rgba(148,163,184,.22); }
+body.dark-mode .peta-reference-toolbar > span, html[data-theme="dark"] .peta-reference-toolbar > span, body.dark-mode .peta-reference-file-label, html[data-theme="dark"] .peta-reference-file-label { color: #e2e8f0; }
+body.dark-mode .peta-reference-body, html[data-theme="dark"] .peta-reference-body { background: #0b1220; }
+body.dark-mode .peta-reference-toolbar select, html[data-theme="dark"] .peta-reference-toolbar select { background: #111827; color: #e5e7eb; border-color: rgba(148,163,184,.35); }
+body.dark-mode .peta-reference-icon-btn, html[data-theme="dark"] .peta-reference-icon-btn,
+body.dark-mode .peta-reference-nav-btn, html[data-theme="dark"] .peta-reference-nav-btn,
+body.dark-mode .peta-reference-zoom-btn, html[data-theme="dark"] .peta-reference-zoom-btn,
+body.dark-mode .peta-reference-zoom-value, html[data-theme="dark"] .peta-reference-zoom-value { background: #111827; color: #f1f5f9; border-color: rgba(148,163,184,.32); }
+body.dark-mode .peta-reference-icon-btn:hover, html[data-theme="dark"] .peta-reference-icon-btn:hover,
+body.dark-mode .peta-reference-nav-btn:hover, html[data-theme="dark"] .peta-reference-nav-btn:hover,
+body.dark-mode .peta-reference-zoom-btn:hover, html[data-theme="dark"] .peta-reference-zoom-btn:hover,
+body.dark-mode .peta-reference-zoom-value:hover, html[data-theme="dark"] .peta-reference-zoom-value:hover { background: #1e293b; border-color: rgba(96,165,250,.64); }
+body.dark-mode .peta-reference-text, html[data-theme="dark"] .peta-reference-text,
+body.dark-mode .peta-reference-empty, html[data-theme="dark"] .peta-reference-empty { color: #cbd5e1; }
+
+@media (max-width: 700px) {
+  .peta-action-options { grid-template-columns: 1fr; }
+  .peta-action-option { padding: 14px; }
+  .peta-reference-dock,
+  .peta-reference-dock.size-compact,
+  .peta-reference-dock.size-medium,
+  .peta-reference-dock.size-large {
+    left: 8px !important; right: 8px !important; bottom: 8px; top: auto !important; width: auto !important;
+    min-width: 0; max-width: none; height: 44vh; min-height: 155px; max-height: calc(100vh - 16px); resize: vertical;
+    border-radius: 16px;
+  }
+  .peta-reference-dock.size-compact { height: 30vh; }
+  .peta-reference-dock.size-large { height: 68vh; }
+  .peta-reference-dock.is-fullscreen { inset: 5px !important; height: auto !important; }
+  .peta-reference-dock.is-minimized { left: 8px !important; right: 8px !important; width: auto !important; }
+  .peta-reference-dock-header { cursor: default; touch-action: auto; }
+  .peta-reference-dock-heading small { max-width: 150px; }
+  .peta-reference-icon-btn { width: 28px; height: 28px; }
+  .peta-reference-toolbar.has-image-zoom { flex-wrap: wrap; }
+  .peta-reference-toolbar.has-image-zoom .peta-reference-file-label { flex: 1 1 140px; }
+  .peta-reference-toolbar.has-image-zoom .peta-reference-zoom-controls { margin-left: auto; }
+  .peta-reference-zoom-btn { width: 28px; }
+  .peta-reference-zoom-value { min-width: 47px; }
+  .student-save-success-card { padding: 25px 18px 23px; }
+  .student-save-success-check { width: 72px; height: 72px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .peta-reference-dock, .student-save-success-overlay, .student-save-success-card, .student-save-success-check span { animation: none !important; transition: none !important; }
+  .student-save-success-overlay.is-visible .student-save-success-card, .student-save-success-overlay.is-visible .student-save-success-check span { opacity: 1; transform: none; }
+}
+
+
+/* PETA project marker in My Projects */
+.project-card-top-badges { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.project-peta-pill { display: inline-flex; align-items: center; min-height: 23px; padding: 3px 8px; border-radius: 999px; background: rgba(245,158,11,.14); border: 1px solid rgba(245,158,11,.34); color: #b45309; font-size: 9px; font-weight: 950; letter-spacing: .08em; }
+body.dark-mode .project-peta-pill, body[data-theme="dark"] .project-peta-pill { color: #fbbf24; background: rgba(245,158,11,.12); }
+
+/* PETA reference dock: Mac-style window controls */
+.peta-reference-dock-header {
+  gap: 12px;
+}
+.peta-reference-dock-actions {
+  gap: 8px;
+}
+.peta-reference-dock-actions.mac-window-controls-ready {
+  display: flex;
+  align-items: center;
+}
+.peta-reference-icon-btn[data-window-control],
+.peta-reference-icon-btn[data-utility-control] {
+  position: relative;
+  overflow: hidden;
+}
+.peta-reference-icon-btn[data-window-control] {
+  width: 15px;
+  height: 15px;
+  min-width: 15px;
+  border-radius: 999px;
+  padding: 0;
+  border: 0;
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, .16), 0 1px 2px rgba(15, 23, 42, .08);
+  background: #d1d5db;
+  font-size: 0;
+  line-height: 0;
+  transition: transform .16s ease, filter .16s ease, box-shadow .16s ease, opacity .16s ease;
+}
+.peta-reference-icon-btn[data-window-control] > span {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font: 900 10px/1 system-ui, sans-serif;
+  color: rgba(17, 24, 39, .72);
+  opacity: 0;
+  transform: scale(.9);
+  transition: opacity .14s ease, transform .14s ease;
+}
+.peta-reference-dock-header:hover .peta-reference-icon-btn[data-window-control] > span,
+.peta-reference-icon-btn[data-window-control]:focus-visible > span,
+.peta-reference-icon-btn[data-window-control].is-active > span {
+  opacity: .92;
+  transform: scale(1);
+}
+.peta-reference-icon-btn[data-window-control="close"] { order: 1; background: linear-gradient(180deg, #ff7b72, #ff5f57); }
+.peta-reference-icon-btn[data-window-control="minimize"] { order: 2; background: linear-gradient(180deg, #ffe07a, #febc2e); }
+.peta-reference-icon-btn[data-window-control="maximize"] { order: 3; background: linear-gradient(180deg, #61d96f, #28c840); }
+.peta-reference-icon-btn[data-window-control="close"]:hover { filter: brightness(.98) saturate(1.05); }
+.peta-reference-icon-btn[data-window-control="minimize"]:hover { filter: brightness(.99) saturate(1.05); }
+.peta-reference-icon-btn[data-window-control="maximize"]:hover { filter: brightness(.98) saturate(1.05); }
+.peta-reference-icon-btn[data-window-control]:hover,
+.peta-reference-icon-btn[data-window-control]:focus-visible {
+  transform: translateY(-1px) scale(1.03);
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, .18), 0 3px 10px rgba(15, 23, 42, .16);
+}
+.peta-reference-icon-btn[data-window-control].is-active {
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, .24), 0 0 0 3px rgba(59, 130, 246, .14);
+}
+.peta-reference-icon-btn[data-utility-control] {
+  height: 28px;
+  min-width: 28px;
+  border-radius: 10px;
+  padding: 0 8px;
+  border: 1px solid rgba(148, 163, 184, .28);
+  background: rgba(255, 255, 255, .74);
+  color: #334155;
+  font: 800 12px/1 system-ui, sans-serif;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, .06);
+  transition: transform .16s ease, background .16s ease, border-color .16s ease, box-shadow .16s ease;
+}
+.peta-reference-icon-btn[data-utility-control="info"] { order: 5; margin-left: 6px; }
+.peta-reference-icon-btn[data-utility-control="size"] { order: 4; }
+.peta-reference-icon-btn[data-utility-control]:hover,
+.peta-reference-icon-btn[data-utility-control]:focus-visible,
+.peta-reference-icon-btn[data-utility-control].active {
+  background: rgba(59, 130, 246, .12);
+  border-color: rgba(59, 130, 246, .42);
+  color: #0f172a;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 14px rgba(15, 23, 42, .1);
+}
+.peta-reference-icon-btn[data-utility-control] > span {
+  display: block;
+  transform: translateY(-.2px);
+}
+.peta-reference-icon-btn[data-utility-control="size"] > span {
+  font-size: 13px;
+}
+html[data-theme="dark"] .peta-reference-icon-btn[data-window-control],
+body.dark-mode .peta-reference-icon-btn[data-window-control] {
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, .36), 0 1px 2px rgba(0, 0, 0, .28);
+}
+html[data-theme="dark"] .peta-reference-icon-btn[data-window-control] > span,
+body.dark-mode .peta-reference-icon-btn[data-window-control] > span {
+  color: rgba(15, 23, 42, .72);
+}
+html[data-theme="dark"] .peta-reference-icon-btn[data-utility-control],
+body.dark-mode .peta-reference-icon-btn[data-utility-control] {
+  background: rgba(17, 24, 39, .92);
+  color: #e5e7eb;
+  border-color: rgba(148, 163, 184, .28);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .2);
+}
+html[data-theme="dark"] .peta-reference-icon-btn[data-utility-control]:hover,
+html[data-theme="dark"] .peta-reference-icon-btn[data-utility-control]:focus-visible,
+html[data-theme="dark"] .peta-reference-icon-btn[data-utility-control].active,
+body.dark-mode .peta-reference-icon-btn[data-utility-control]:hover,
+body.dark-mode .peta-reference-icon-btn[data-utility-control]:focus-visible,
+body.dark-mode .peta-reference-icon-btn[data-utility-control].active {
+  background: #1e293b;
+  color: #f8fafc;
+  border-color: rgba(96, 165, 250, .56);
+}
+@media (max-width: 700px) {
+  .peta-reference-dock-actions { gap: 6px; }
+  .peta-reference-icon-btn[data-window-control] {
+    width: 14px;
+    height: 14px;
+    min-width: 14px;
+  }
+  .peta-reference-icon-btn[data-utility-control] {
+    height: 26px;
+    min-width: 26px;
+    padding: 0 7px;
+    border-radius: 9px;
+  }
+}
+
+/* PETA keyboard-restore feedback */
+.peta-reference-dock.shortcut-focus {
+  animation: petaShortcutFocus .65s cubic-bezier(.2,.8,.2,1) both;
+}
+@keyframes petaShortcutFocus {
+  0% { box-shadow: 0 26px 70px rgba(15,23,42,.28), 0 0 0 0 rgba(59,130,246,0); }
+  40% { box-shadow: 0 30px 80px rgba(15,23,42,.34), 0 0 0 5px rgba(59,130,246,.24); }
+  100% { box-shadow: 0 26px 70px rgba(15,23,42,.28), 0 0 0 0 rgba(59,130,246,0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .peta-reference-dock.shortcut-focus { animation: none !important; }
+}
+
+/* Final PETA window-control polish: visible Mac traffic lights in dark mode + compact auxiliary controls. */
+.peta-reference-dock-actions.mac-window-controls-ready {
+  gap: 7px;
+  padding-inline: 2px;
+}
+.peta-reference-icon-btn[data-window-control] {
+  width: 18px;
+  height: 18px;
+  min-width: 18px;
+  flex: 0 0 18px;
+}
+.peta-reference-icon-btn[data-window-control] > span {
+  font-size: 11px;
+}
+.peta-reference-icon-btn[data-utility-control] {
+  width: 30px;
+  height: 30px;
+  min-width: 30px;
+  padding: 0;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: rgba(255,255,255,.68);
+  border: 1px solid rgba(148,163,184,.32);
+  color: #334155;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.5), 0 2px 8px rgba(15,23,42,.07);
+}
+.peta-reference-icon-btn[data-utility-control="info"] {
+  margin-left: 2px;
+}
+.peta-reference-icon-btn[data-utility-control="info"] > span {
+  font: 850 13px/1 system-ui,sans-serif;
+}
+.peta-reference-icon-btn[data-utility-control="size"] > span {
+  font: 850 15px/1 system-ui,sans-serif;
+}
+.peta-reference-icon-btn[data-utility-control]:hover,
+.peta-reference-icon-btn[data-utility-control]:focus-visible,
+.peta-reference-icon-btn[data-utility-control].active {
+  background: rgba(241,245,249,.96);
+  color: #0f172a;
+  border-color: rgba(100,116,139,.4);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.7), 0 4px 12px rgba(15,23,42,.12);
+}
+
+/* Explicit traffic-light colors must win over the generic dark-mode button rule. */
+html[data-theme="dark"] .peta-reference-icon-btn[data-window-control="close"],
+body.dark-mode .peta-reference-icon-btn[data-window-control="close"] {
+  background: linear-gradient(180deg, #ff8179 0%, #ff5f57 100%);
+  border-color: transparent;
+}
+html[data-theme="dark"] .peta-reference-icon-btn[data-window-control="minimize"],
+body.dark-mode .peta-reference-icon-btn[data-window-control="minimize"] {
+  background: linear-gradient(180deg, #ffe17f 0%, #febc2e 100%);
+  border-color: transparent;
+}
+html[data-theme="dark"] .peta-reference-icon-btn[data-window-control="maximize"],
+body.dark-mode .peta-reference-icon-btn[data-window-control="maximize"] {
+  background: linear-gradient(180deg, #6be078 0%, #28c840 100%);
+  border-color: transparent;
+}
+html[data-theme="dark"] .peta-reference-icon-btn[data-window-control],
+body.dark-mode .peta-reference-icon-btn[data-window-control] {
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,.24), 0 1px 4px rgba(0,0,0,.3);
+}
+html[data-theme="dark"] .peta-reference-icon-btn[data-utility-control],
+body.dark-mode .peta-reference-icon-btn[data-utility-control] {
+  background: rgba(30,41,59,.92);
+  border-color: rgba(148,163,184,.28);
+  color: #e5e7eb;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.04), 0 2px 8px rgba(0,0,0,.22);
+}
+html[data-theme="dark"] .peta-reference-icon-btn[data-utility-control]:hover,
+html[data-theme="dark"] .peta-reference-icon-btn[data-utility-control]:focus-visible,
+html[data-theme="dark"] .peta-reference-icon-btn[data-utility-control].active,
+body.dark-mode .peta-reference-icon-btn[data-utility-control]:hover,
+body.dark-mode .peta-reference-icon-btn[data-utility-control]:focus-visible,
+body.dark-mode .peta-reference-icon-btn[data-utility-control].active {
+  background: rgba(51,65,85,.98);
+  color: #fff;
+  border-color: rgba(148,163,184,.48);
+}
+
+/* My Projects: keep PETA linkage internal; do not show a PETA badge that crowds the card header. */
+.project-peta-pill { display: none !important; }
+.project-card-top-badges {
+  flex-wrap: nowrap;
+  min-width: 0;
+  max-width: 100%;
+}
+
+@media (max-width: 700px) {
+  .peta-reference-icon-btn[data-window-control] {
+    width: 17px;
+    height: 17px;
+    min-width: 17px;
+    flex-basis: 17px;
+  }
+  .peta-reference-icon-btn[data-utility-control] {
+    width: 28px;
+    height: 28px;
+    min-width: 28px;
+  }
+}
+
+/* PETA Mac traffic lights: smaller visuals, larger forgiving mouse targets. */
+.peta-reference-dock-actions.mac-window-controls-ready {
+  gap: 0;
+}
+.peta-reference-icon-btn[data-window-control] {
+  width: 24px !important;
+  height: 24px !important;
+  min-width: 24px !important;
+  flex: 0 0 24px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 999px !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  cursor: pointer;
+  overflow: visible;
+  display: grid;
+  place-items: center;
+  transform: none !important;
+}
+.peta-reference-icon-btn[data-window-control]::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  transform: translate(-50%, -50%);
+  box-shadow: inset 0 0 0 1px rgba(15,23,42,.16), 0 1px 2px rgba(15,23,42,.12);
+  transition: width .12s ease, height .12s ease, filter .12s ease, box-shadow .12s ease;
+}
+.peta-reference-icon-btn[data-window-control="close"]::before {
+  background: linear-gradient(180deg, #ff8179 0%, #ff5f57 100%);
+}
+.peta-reference-icon-btn[data-window-control="minimize"]::before {
+  background: linear-gradient(180deg, #ffe17f 0%, #febc2e 100%);
+}
+.peta-reference-icon-btn[data-window-control="maximize"]::before {
+  background: linear-gradient(180deg, #6be078 0%, #28c840 100%);
+}
+.peta-reference-icon-btn[data-window-control] > span {
+  z-index: 1;
+  inset: 0;
+  font-size: 8px;
+  color: rgba(17,24,39,.78);
+  opacity: 0 !important;
+  transform: scale(.82);
+  pointer-events: none;
+}
+/* Do not reveal all three icons just because the header is hovered. */
+.peta-reference-dock-header:hover .peta-reference-icon-btn[data-window-control] > span {
+  opacity: 0 !important;
+}
+/* The full 24x24 target reacts immediately, even though the visible dot is only 12px. */
+.peta-reference-icon-btn[data-window-control]:hover > span,
+.peta-reference-icon-btn[data-window-control]:focus-visible > span,
+.peta-reference-icon-btn[data-window-control].is-active > span {
+  opacity: .95 !important;
+  transform: scale(1);
+}
+.peta-reference-icon-btn[data-window-control]:hover::before,
+.peta-reference-icon-btn[data-window-control]:focus-visible::before {
+  width: 13px;
+  height: 13px;
+  filter: saturate(1.08) brightness(1.02);
+  box-shadow: inset 0 0 0 1px rgba(15,23,42,.2), 0 2px 5px rgba(15,23,42,.16);
+}
+.peta-reference-icon-btn[data-window-control]:focus-visible {
+  outline: 2px solid rgba(59,130,246,.52);
+  outline-offset: -2px;
+}
+html[data-theme="dark"] .peta-reference-icon-btn[data-window-control],
+body.dark-mode .peta-reference-icon-btn[data-window-control] {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+html[data-theme="dark"] .peta-reference-icon-btn[data-window-control]::before,
+body.dark-mode .peta-reference-icon-btn[data-window-control]::before {
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,.26), 0 1px 3px rgba(0,0,0,.32);
+}
+html[data-theme="dark"] .peta-reference-icon-btn[data-window-control="close"]::before,
+body.dark-mode .peta-reference-icon-btn[data-window-control="close"]::before {
+  background: linear-gradient(180deg, #ff8179 0%, #ff5f57 100%);
+}
+html[data-theme="dark"] .peta-reference-icon-btn[data-window-control="minimize"]::before,
+body.dark-mode .peta-reference-icon-btn[data-window-control="minimize"]::before {
+  background: linear-gradient(180deg, #ffe17f 0%, #febc2e 100%);
+}
+html[data-theme="dark"] .peta-reference-icon-btn[data-window-control="maximize"]::before,
+body.dark-mode .peta-reference-icon-btn[data-window-control="maximize"]::before {
+  background: linear-gradient(180deg, #6be078 0%, #28c840 100%);
+}
+@media (max-width: 700px) {
+  .peta-reference-icon-btn[data-window-control] {
+    width: 26px !important;
+    height: 26px !important;
+    min-width: 26px !important;
+    flex-basis: 26px !important;
+  }
+  .peta-reference-icon-btn[data-window-control]::before {
+    width: 12px;
+    height: 12px;
+  }
+}
+
+/* PETA Mac controls correction: BIGGER visible traffic lights + reliable hover glyphs. */
+.peta-reference-dock-actions.mac-window-controls-ready {
+  gap: 2px;
+}
+.peta-reference-icon-btn[data-window-control] {
+  width: 32px !important;
+  height: 32px !important;
+  min-width: 32px !important;
+  flex: 0 0 32px !important;
+}
+.peta-reference-icon-btn[data-window-control]::before {
+  width: 20px !important;
+  height: 20px !important;
+  box-shadow: inset 0 0 0 1px rgba(15,23,42,.18), 0 1px 3px rgba(15,23,42,.14) !important;
+}
+.peta-reference-icon-btn[data-window-control] > span {
+  font-size: 12px !important;
+  font-weight: 950 !important;
+  line-height: 1 !important;
+  opacity: 0 !important;
+  transform: scale(.92) !important;
+  color: rgba(17,24,39,.82) !important;
+  text-shadow: 0 1px 0 rgba(255,255,255,.22);
+}
+/* Override the older header-hover suppression. The glyph MUST appear on the hovered control. */
+.peta-reference-dock-header:hover .peta-reference-icon-btn[data-window-control]:hover > span,
+.peta-reference-dock-header:hover .peta-reference-icon-btn[data-window-control]:focus-visible > span,
+.peta-reference-icon-btn[data-window-control]:hover > span,
+.peta-reference-icon-btn[data-window-control]:focus-visible > span,
+.peta-reference-icon-btn[data-window-control].is-active > span {
+  opacity: 1 !important;
+  transform: scale(1) !important;
+}
+.peta-reference-icon-btn[data-window-control]:hover::before,
+.peta-reference-icon-btn[data-window-control]:focus-visible::before {
+  width: 21px !important;
+  height: 21px !important;
+  filter: saturate(1.08) brightness(1.03);
+  box-shadow: inset 0 0 0 1px rgba(15,23,42,.22), 0 3px 7px rgba(15,23,42,.18) !important;
+}
+html[data-theme="dark"] .peta-reference-icon-btn[data-window-control] > span,
+body.dark-mode .peta-reference-icon-btn[data-window-control] > span {
+  color: rgba(15,23,42,.86) !important;
+  text-shadow: 0 1px 0 rgba(255,255,255,.18);
+}
+@media (max-width: 700px) {
+  .peta-reference-icon-btn[data-window-control] {
+    width: 31px !important;
+    height: 31px !important;
+    min-width: 31px !important;
+    flex-basis: 31px !important;
+  }
+  .peta-reference-icon-btn[data-window-control]::before {
+    width: 19px !important;
+    height: 19px !important;
+  }
+  .peta-reference-icon-btn[data-window-control] > span {
+    font-size: 11px !important;
+  }
+}
