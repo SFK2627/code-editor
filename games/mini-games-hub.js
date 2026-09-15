@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const ASSET_VERSION = '20260915-v515-phone-camera-lane-fix';
+  const ASSET_VERSION = '20260915-v516-roof-auto-lift-fix';
 
   const GAME_REGISTRY = Object.freeze([
     {

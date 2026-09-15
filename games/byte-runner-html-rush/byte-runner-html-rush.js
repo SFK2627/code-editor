@@ -21,6 +21,7 @@
   const JUMP_GRAVITY = 16.0;
   const FAST_DROP_VELOCITY = -9.4;
   const ROOF_HEIGHT = 1.08;
+  const ROOF_RUN_ENABLED = false; // Disabled until explicit jump-to-train traversal is rebuilt safely.
   const PARTICLE_LIMIT = 72;
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
   const lerp = (a, b, t) => a + (b - a) * t;
@@ -440,7 +441,7 @@
             <div class="byte-runner-html-logo">01</div><p class="byte-runner-html-kicker">NEW HTML MISSION</p>
             <h2 data-brh-mission-name>Build a Personal Profile</h2>
             <div class="byte-runner-html-mission-box"><strong data-brh-mission-difficulty>EASY · 8 decisions</strong><small>Correct answers insert real HTML into your page.</small></div>
-            <p>Action rule: RUN accepts any safe movement. JUMP and SLIDE are strict. Chain swipes quickly, swipe down in the air to fast-drop, collect BYTE trails, and use ramps to reach BYTE LINE train roofs in the new 3D rail city.</p>
+            <p>Action rule: RUN accepts any safe movement. JUMP and SLIDE are strict. Chain swipes quickly, swipe down in the air to fast-drop, collect BYTE trails, dodge trains, and keep the HTML challenge gates readable while running through the 3D rail city.</p>
             <div class="byte-runner-html-actions"><button type="button" class="secondary" data-brh-change-difficulty>CHANGE DIFFICULTY</button><button type="button" class="primary" data-brh-begin>START MISSION</button></div>
           </div>
         </div>
@@ -894,7 +895,7 @@
       }
     }
   }
-  function playerIsOnRoof() { return runtime.roofHeight>.48; }
+  function playerIsOnRoof() { return ROOF_RUN_ENABLED && runtime.roofHeight>.48; }
 
   const OBSTACLE_FAMILIES = Object.freeze({
     ground: Object.freeze({
@@ -924,7 +925,7 @@
   }
 
   function obstacleRequiredAction(type = '') {
-    if (['crate','barrier','luggage','maintenanceCart','liftBarrier','roofCrate','roofGap','roofVent','roofHatch'].includes(type)) return 'jump';
+    if (['crate','barrier','luggage','maintenanceCart','liftBarrier','ramp','roofCrate','roofGap','roofVent','roofHatch'].includes(type)) return 'jump';
     if (['beam','lowSign','pipe','cableArch','swingSign','roofBeam','roofSign','roofPipe','roofSwingSign'].includes(type)) return 'slide';
     return 'dodge';
   }
@@ -989,6 +990,7 @@
   }
 
   function spawnRoofPattern() {
+    if (!ROOF_RUN_ENABLED) { runtime.roofTime=0; runtime.roofHeight=0; runtime.obstacleClock=Math.max(runtime.obstacleClock,.65); return; }
     const d=runtime.difficulty;
     if(runtime.roofTime<2.45){runtime.obstacleClock=Math.max(runtime.obstacleClock,.85);return;}
     const safeLane=Math.floor(Math.random()*3); const tier=d.key==='easy'?0:d.key==='medium'?1:d.key==='hard'?2:3; const roll=Math.random(); let roofPatternName='roof-chunk';
@@ -1012,7 +1014,7 @@
 
   function spawnObstaclePattern() {
     const d=runtime.difficulty;
-    if(playerIsOnRoof() || runtime.roofTime>.18){spawnRoofPattern();return;}
+    if(ROOF_RUN_ENABLED && (playerIsOnRoof() || runtime.roofTime>.18)){spawnRoofPattern();return;}
     const tier=d.key==='easy'?0:d.key==='medium'?1:d.key==='hard'?2:3;
     const elapsed=runtime.activeTimeMs/1000;
     const cycle=runtime.chunkIndex%7;
@@ -1052,12 +1054,15 @@
       spawnPickupTrail({lane:order[0],z:Z_MAX+2,count:7,spacing:5.9,pattern:'zigzag'});
       runtime.lastObstaclePattern='director-action-chain';
     }else if(cycle===5 && elapsed>11){
-      const rampLane=Math.floor(Math.random()*3);
-      pushObstacle(rampLane,Z_MAX,'ramp');
-      const other=lanes.filter(l=>l!==rampLane);
-      pushObstacle(pick(other),Z_MAX+8,Math.random()<.62?'train':pickObstacleForAction('dodge','ground'),{moving:true});
-      spawnPickupTrail({lane:rampLane,z:Z_MAX+2,count:6,spacing:5.7,pattern:'arc'});
-      runtime.lastObstaclePattern='director-roof-ramp';
+      // Stable ground-only beat: no automatic roof transition. The old ramp used to
+      // lift BYTE onto a train even without a jump, which caused sinking/clipping.
+      const safeLane=Math.floor(Math.random()*3);
+      const blocked=lanes.filter(l=>l!==safeLane);
+      pushObstacle(blocked[0],Z_MAX,pickObstacleForAction('jump','ground'));
+      pushObstacle(blocked[1],Z_MAX+16,pickObstacleForAction('slide','ground'));
+      if(tier>1) pushObstacle(blocked[0],Z_MAX+34,'train',{moving:true});
+      spawnPickupTrail({lane:safeLane,z:Z_MAX+2,count:7,spacing:5.7,pattern:'line'});
+      runtime.lastObstaclePattern='director-ground-mix';
     }else{
       // Final beat in the cadence: one large train threat plus a clearly readable safe route.
       const trainLane=Math.floor(Math.random()*3),safe=pick(lanes.filter(l=>l!==trainLane));
@@ -1107,7 +1112,16 @@
         const laneHit=Math.abs(runtime.lanePos-obstacle.lane)<.43;
         const sameLevel=obstacle.level==='roof'?onRoof:!onRoof;
         if(obstacle.type==='ramp'){
-          if(laneHit&&!onRoof){obstacle.outcome='cleared';activateRoofMode(obstacle.lane);}else obstacle.outcome='passed';
+          if(!ROOF_RUN_ENABLED){
+            if(laneHit){
+              const action=currentRunnerAction();
+              obstacle.requiredAction='jump'; obstacle.playerAction=action;
+              if(action==='jump'||runtime.boostTime>0){obstacle.outcome='cleared';runtime.arcadeScore+=90;showToast('CLEAN JUMP ✓','good',.42);}
+              else{obstacle.outcome='hit';runtime.obstacleHits+=1;runtime.combo=0;const lost=consumeDamage('obstacle');if(lost&&runtime.hearts>0)showToast('JUMP REQUIRED!','bad',.62);}
+            }else obstacle.outcome='passed';
+          }else if(laneHit&&!onRoof&&currentRunnerAction()==='jump'){
+            obstacle.outcome='cleared';activateRoofMode(obstacle.lane);
+          }else obstacle.outcome='passed';
           continue;
         }
         if(!sameLevel){obstacle.outcome='passed';runtime.arcadeScore+=25;continue;}
@@ -1161,7 +1175,8 @@
     }
     if(runtime.bufferedJump>0&&runtime.jumpY<=.001&&runtime.jumpVy===0&&runtime.slideTime<=.04){runtime.bufferedJump=0;jump();}
     runtime.slideTime=Math.max(0,runtime.slideTime-dt); runtime.clearFxTime=Math.max(0,runtime.clearFxTime-dt); runtime.stumbleTime=Math.max(0,runtime.stumbleTime-dt); runtime.invulnerable=Math.max(0,runtime.invulnerable-dt); runtime.landingKick=Math.max(0,runtime.landingKick-dt); runtime.cameraKick=Math.max(0,runtime.cameraKick-dt*4.8);
-    runtime.roofTime=Math.max(0,runtime.roofTime-dt); const roofTarget=runtime.roofTime>0?ROOF_HEIGHT:0; runtime.roofHeight+=(roofTarget-runtime.roofHeight)*(1-Math.exp(-6.8*dt)); if(runtime.roofTime<=0&&runtime.roofHeight<.012)runtime.roofHeight=0;
+    if(!ROOF_RUN_ENABLED){runtime.roofTime=0;runtime.roofHeight=0;runtime.roofLane=runtime.lane;runtime.transferCue=0;runtime.transferTargetLane=-1;runtime.transferSourceLane=-1;}
+    else {runtime.roofTime=Math.max(0,runtime.roofTime-dt); const roofTarget=runtime.roofTime>0?ROOF_HEIGHT:0; runtime.roofHeight+=(roofTarget-runtime.roofHeight)*(1-Math.exp(-6.8*dt)); if(runtime.roofTime<=0&&runtime.roofHeight<.012)runtime.roofHeight=0;}
     runtime.magnetTime=Math.max(0,runtime.magnetTime-dt); runtime.multiplierTime=Math.max(0,runtime.multiplierTime-dt); runtime.boostTime=Math.max(0,runtime.boostTime-dt); runtime.pickupStreakClock=Math.max(0,runtime.pickupStreakClock-dt); if(runtime.pickupStreakClock<=0)runtime.pickupStreak=0;
     runtime.transferCue=Math.max(0,runtime.transferCue-dt); if(runtime.transferCue<=0){runtime.transferTargetLane=-1;runtime.transferSourceLane=-1;}
     runtime.chaserFlash=Math.max(0,runtime.chaserFlash-dt); const chaseDecay=runtime.boostTime>0?.045:.014; runtime.chaserPressure=Math.max(.08,runtime.chaserPressure-dt*chaseDecay);
