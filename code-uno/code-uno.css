@@ -321,3 +321,99 @@
   .uno-opponent{transform:translate(-50%,-50%) scale(.80)!important}
   .uno-opponent.turn{transform:translate(-50%,-50%) scale(.86)!important}
 }
+
+/* Readable UNO card back / wordmark override */
+.uno-brand-mark{
+  position:relative;
+  overflow:hidden;
+  background:linear-gradient(145deg,#171b24,#0a0d14);
+  border:3px solid #f8fafc;
+  box-shadow:0 8px 20px #0008, inset 0 0 0 1px #00000033;
+}
+.uno-brand-mark::before{
+  content:"";
+  position:absolute;
+  inset:4px;
+  border-radius:999px;
+  background:#e32621;
+  transform:rotate(-18deg) scale(1.08,.9);
+  box-shadow:inset 0 -4px 8px rgba(0,0,0,.18), 0 0 0 1px rgba(255,255,255,.12);
+}
+.uno-brand-mark > span{
+  position:relative;
+  z-index:1;
+  display:block;
+  font-size:13px;
+  line-height:1;
+  font-weight:1000;
+  font-style:italic;
+  letter-spacing:-.08em;
+  color:#f6da47;
+  text-shadow:
+    -1px -1px 0 #fff,
+     1px -1px 0 #fff,
+    -1px  1px 0 #fff,
+     1px  1px 0 #fff,
+     0 0 0 #fff,
+    -3px 3px 0 #1a1a1a,
+     0 2px 6px rgba(0,0,0,.35);
+  transform:rotate(-12deg) translateY(-.5px);
+}
+
+.uno-card-back{
+  background:
+    radial-gradient(circle at 24% 18%, rgba(255,255,255,.09), transparent 20%),
+    repeating-linear-gradient(45deg,#151827 0 7px,#22283a 7px 14px);
+  overflow:hidden;
+}
+.uno-card-back::before{
+  content:"";
+  position:absolute;
+  inset:5px;
+  border-radius:inherit;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.08);
+  pointer-events:none;
+}
+.uno-card-back::after{
+  inset:8px 10px;
+  border-radius:50%;
+  background:
+    radial-gradient(circle at 36% 34%, rgba(255,255,255,.18), transparent 22%),
+    linear-gradient(135deg,#ff5a4f 0%, #ef2f27 46%, #d91618 100%);
+  transform:rotate(-20deg) scale(1.08,.88);
+  box-shadow:inset 0 -8px 16px rgba(0,0,0,.18), 0 0 0 1px rgba(255,255,255,.08);
+}
+.uno-card-back b{
+  position:relative;
+  z-index:1;
+  display:block;
+  font-size:22px;
+  line-height:1;
+  font-weight:1000;
+  font-style:italic;
+  letter-spacing:-.09em;
+  color:#f8de49;
+  transform:rotate(-14deg) translateY(-1px);
+  text-shadow:
+    -1px -1px 0 #fff,
+     1px -1px 0 #fff,
+    -1px  1px 0 #fff,
+     1px  1px 0 #fff,
+    -4px 4px 0 #151515,
+     0 2px 6px rgba(0,0,0,.4);
+}
+
+@media (max-width:820px){
+  .uno-brand-mark > span{font-size:11px}
+  .uno-card-back b{font-size:18px}
+}
+@media (max-width:520px){
+  .uno-card-back b{font-size:16px}
+}
+.uno-card-back{width:74px;height:108px}
+.uno-fly-back>.uno-card-back{width:74px;height:108px}
+@media (max-width:900px){
+  .uno-card-back{width:58px;height:84px}
+  .uno-fly-back,.uno-fly-back>.uno-card-back{width:58px;height:84px}
+}
+
