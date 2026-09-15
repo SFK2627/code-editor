@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ict8-connect-v502-peta-protected-viewer';
+const CACHE_NAME = 'ict8-connect-v503-stability-peta-phone';
 
 self.addEventListener('install', event => {
   event.waitUntil(self.skipWaiting());

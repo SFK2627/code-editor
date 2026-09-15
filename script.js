@@ -9878,7 +9878,10 @@ const petaWorkflowState = {
   sizeMode: 'medium',
   imageZoom: 1,
   imagePan: null,
+  imageTouchPointers: new Map(),
+  imagePinch: null,
   drag: null,
+  dragFrame: 0,
   previousRect: null
 };
 
@@ -10068,7 +10071,7 @@ function petaReferenceAttachmentLabel(attachment = {}, index = 0) {
 function clampPetaReferenceImageZoom(value = 1) {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) return 1;
-  return Math.max(1, Math.min(10, Math.round(numeric * 4) / 4));
+  return Math.max(1, Math.min(10, Math.round(numeric * 100) / 100));
 }
 
 function updatePetaReferenceImageZoomUI() {
@@ -10114,6 +10117,45 @@ function applyPetaReferenceImageZoom(options = {}) {
 function setPetaReferenceImageZoom(value = 1, options = {}) {
   petaWorkflowState.imageZoom = clampPetaReferenceImageZoom(value);
   applyPetaReferenceImageZoom(options);
+}
+
+function setPetaReferenceImageZoomAt(value = 1, clientX = 0, clientY = 0) {
+  const stage = petaReferenceBody?.querySelector('.peta-reference-image-stage');
+  if (!stage) {
+    setPetaReferenceImageZoom(value);
+    return;
+  }
+  const oldZoom = Math.max(1, Number(petaWorkflowState.imageZoom || 1));
+  const nextZoom = clampPetaReferenceImageZoom(value);
+  if (Math.abs(nextZoom - oldZoom) < 0.005) return;
+  const rect = stage.getBoundingClientRect();
+  const localX = Math.max(0, Math.min(stage.clientWidth, Number(clientX || 0) - rect.left));
+  const localY = Math.max(0, Math.min(stage.clientHeight, Number(clientY || 0) - rect.top));
+  const oldLeft = stage.scrollLeft;
+  const oldTop = stage.scrollTop;
+  const scale = nextZoom / oldZoom;
+  petaWorkflowState.imageZoom = nextZoom;
+  applyPetaReferenceImageZoom({ keepCenter: false });
+  requestAnimationFrame(() => {
+    stage.scrollLeft = Math.max(0, (oldLeft + localX) * scale - localX);
+    stage.scrollTop = Math.max(0, (oldTop + localY) * scale - localY);
+  });
+}
+
+function clampPetaReferenceDockToViewport() {
+  if (!petaReferenceDock || petaReferenceDock.classList.contains('hidden') || petaReferenceDock.classList.contains('is-fullscreen')) return;
+  const rect = petaReferenceDock.getBoundingClientRect();
+  const margin = 6;
+  const maxLeft = Math.max(margin, window.innerWidth - Math.min(rect.width, window.innerWidth - margin * 2) - margin);
+  const maxTop = Math.max(margin, window.innerHeight - Math.min(rect.height, window.innerHeight - margin * 2) - margin);
+  const hasPosition = petaReferenceDock.style.left || petaReferenceDock.style.top;
+  if (!hasPosition) return;
+  const left = Math.max(margin, Math.min(maxLeft, rect.left));
+  const top = Math.max(margin, Math.min(maxTop, rect.top));
+  petaReferenceDock.style.left = `${left}px`;
+  petaReferenceDock.style.top = `${top}px`;
+  petaReferenceDock.style.right = 'auto';
+  petaReferenceDock.style.bottom = 'auto';
 }
 
 function resetPetaReferenceImageZoom() {
@@ -10164,6 +10206,9 @@ async function restoreCurrentProjectPetaReference() {
 
 function renderPetaReferenceDock() {
   if (!petaReferenceDock || !petaReferenceBody) return;
+  petaWorkflowState.imageTouchPointers.clear();
+  petaWorkflowState.imagePinch = null;
+  petaWorkflowState.imagePan = null;
   const item = getPetaReferenceItem();
   if (!item) {
     petaReferenceBody.innerHTML = '<div class="peta-reference-empty">This PETA reference is not available right now.</div>';
@@ -10288,6 +10333,7 @@ function setPetaReferenceSize(mode = 'medium') {
   allowed.forEach(name => petaReferenceDock.classList.toggle(`size-${name}`, name === petaWorkflowState.sizeMode));
   petaReferenceDock.classList.remove('is-minimized');
   refreshPetaReferenceWindowControls();
+  requestAnimationFrame(clampPetaReferenceDockToViewport);
 }
 
 function cyclePetaReferenceSize() {
@@ -10301,6 +10347,7 @@ function togglePetaReferenceMinimized() {
   petaReferenceDock.classList.toggle('is-minimized');
   petaReferenceDock.classList.remove('is-fullscreen');
   refreshPetaReferenceWindowControls();
+  requestAnimationFrame(clampPetaReferenceDockToViewport);
 }
 
 function togglePetaReferenceFullscreen() {
@@ -10315,6 +10362,9 @@ function closePetaReferenceDock(options = {}) {
   petaWorkflowState.referenceActivityId = '';
   petaWorkflowState.referenceAttachmentIndex = 0;
   petaWorkflowState.imageZoom = 1;
+  petaWorkflowState.imageTouchPointers.clear();
+  petaWorkflowState.imagePinch = null;
+  petaWorkflowState.imagePan = null;
   petaReferenceDock?.classList.add('hidden');
   petaReferenceDock?.classList.remove('is-minimized', 'is-fullscreen', 'shortcut-focus');
   document.body.classList.remove('peta-reference-open');
@@ -10412,7 +10462,49 @@ function installPetaReferenceDockEvents() {
   }, { passive: false });
   petaReferenceBody?.addEventListener('pointerdown', event => {
     const stage = event.target.closest('.peta-reference-image-stage');
-    if (!stage || event.pointerType === 'touch' || event.button !== 0) return;
+    if (!stage) return;
+
+    if (event.pointerType === 'touch') {
+      const pointers = petaWorkflowState.imageTouchPointers;
+      pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      try { stage.setPointerCapture?.(event.pointerId); } catch (_) {}
+
+      if (pointers.size >= 2) {
+        const pair = [...pointers.entries()].slice(0, 2);
+        const a = pair[0][1];
+        const b = pair[1][1];
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        petaWorkflowState.imagePinch = {
+          ids: [pair[0][0], pair[1][0]],
+          distance: Math.max(1, Math.hypot(dx, dy)),
+          zoom: petaWorkflowState.imageZoom,
+          centerX: (a.x + b.x) / 2,
+          centerY: (a.y + b.y) / 2
+        };
+        petaWorkflowState.imagePan = null;
+        stage.classList.add('is-panning', 'is-pinching');
+        event.preventDefault();
+        return;
+      }
+
+      if (petaWorkflowState.imageZoom > 1) {
+        petaWorkflowState.imagePan = {
+          pointerId: event.pointerId,
+          stage,
+          startX: event.clientX,
+          startY: event.clientY,
+          scrollLeft: stage.scrollLeft,
+          scrollTop: stage.scrollTop,
+          touch: true
+        };
+        stage.classList.add('is-panning');
+        event.preventDefault();
+      }
+      return;
+    }
+
+    if (event.button !== 0) return;
     const canPan = stage.scrollWidth > stage.clientWidth + 1 || stage.scrollHeight > stage.clientHeight + 1;
     if (!canPan) return;
     petaWorkflowState.imagePan = {
@@ -10421,67 +10513,156 @@ function installPetaReferenceDockEvents() {
       startX: event.clientX,
       startY: event.clientY,
       scrollLeft: stage.scrollLeft,
-      scrollTop: stage.scrollTop
+      scrollTop: stage.scrollTop,
+      touch: false
     };
     stage.setPointerCapture?.(event.pointerId);
     stage.classList.add('is-panning');
     event.preventDefault();
   });
+
   petaReferenceBody?.addEventListener('pointermove', event => {
+    const stage = event.target.closest?.('.peta-reference-image-stage') || petaWorkflowState.imagePan?.stage;
+    if (event.pointerType === 'touch' && stage) {
+      const pointers = petaWorkflowState.imageTouchPointers;
+      if (pointers.has(event.pointerId)) pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+
+      const pinch = petaWorkflowState.imagePinch;
+      if (pinch && pinch.ids.every(id => pointers.has(id))) {
+        const a = pointers.get(pinch.ids[0]);
+        const b = pointers.get(pinch.ids[1]);
+        const distance = Math.max(1, Math.hypot(b.x - a.x, b.y - a.y));
+        const centerX = (a.x + b.x) / 2;
+        const centerY = (a.y + b.y) / 2;
+        const nextZoom = pinch.zoom * (distance / pinch.distance);
+        setPetaReferenceImageZoomAt(nextZoom, centerX, centerY);
+        stage.classList.add('is-panning', 'is-pinching');
+        event.preventDefault();
+        return;
+      }
+
+      const pan = petaWorkflowState.imagePan;
+      if (pan?.touch && pan.pointerId === event.pointerId && petaWorkflowState.imageZoom > 1) {
+        pan.stage.scrollLeft = pan.scrollLeft - (event.clientX - pan.startX);
+        pan.stage.scrollTop = pan.scrollTop - (event.clientY - pan.startY);
+        event.preventDefault();
+      }
+      return;
+    }
+
     const pan = petaWorkflowState.imagePan;
-    if (!pan || pan.pointerId !== event.pointerId || !pan.stage?.isConnected) return;
+    if (!pan || pan.touch || pan.pointerId !== event.pointerId || !pan.stage?.isConnected) return;
     pan.stage.scrollLeft = pan.scrollLeft - (event.clientX - pan.startX);
     pan.stage.scrollTop = pan.scrollTop - (event.clientY - pan.startY);
     event.preventDefault();
   });
+
   const endPetaImagePan = event => {
+    if (event.pointerType === 'touch') {
+      const pointers = petaWorkflowState.imageTouchPointers;
+      const currentStage = event.target.closest?.('.peta-reference-image-stage') || petaWorkflowState.imagePan?.stage;
+      pointers.delete(event.pointerId);
+      try { currentStage?.releasePointerCapture?.(event.pointerId); } catch (_) {}
+
+      if (pointers.size < 2) {
+        petaWorkflowState.imagePinch = null;
+        currentStage?.classList.remove('is-pinching');
+      }
+      if (pointers.size === 1 && petaWorkflowState.imageZoom > 1 && currentStage) {
+        const [pointerId, point] = [...pointers.entries()][0];
+        petaWorkflowState.imagePan = {
+          pointerId,
+          stage: currentStage,
+          startX: point.x,
+          startY: point.y,
+          scrollLeft: currentStage.scrollLeft,
+          scrollTop: currentStage.scrollTop,
+          touch: true
+        };
+        currentStage.classList.add('is-panning');
+      } else if (!pointers.size) {
+        petaWorkflowState.imagePan = null;
+        currentStage?.classList.remove('is-panning');
+      }
+      return;
+    }
+
     const pan = petaWorkflowState.imagePan;
-    if (!pan || pan.pointerId !== event.pointerId) return;
+    if (!pan || pan.touch || pan.pointerId !== event.pointerId) return;
     try { pan.stage?.releasePointerCapture?.(event.pointerId); } catch (_) {}
     pan.stage?.classList.remove('is-panning');
     petaWorkflowState.imagePan = null;
   };
   petaReferenceBody?.addEventListener('pointerup', endPetaImagePan);
   petaReferenceBody?.addEventListener('pointercancel', endPetaImagePan);
+
   window.addEventListener('resize', () => {
     if (!petaReferenceDock?.classList.contains('hidden') && petaReferenceBody?.querySelector('[data-peta-reference-image]')) {
       requestAnimationFrame(() => applyPetaReferenceImageZoom({ keepCenter: false }));
     }
+    requestAnimationFrame(clampPetaReferenceDockToViewport);
   });
   if ('ResizeObserver' in window && petaReferenceDock) {
     const resizeObserver = new ResizeObserver(() => {
       if (!petaReferenceDock.classList.contains('hidden') && petaReferenceBody?.querySelector('[data-peta-reference-image]')) {
         requestAnimationFrame(() => applyPetaReferenceImageZoom({ keepCenter: false }));
       }
+      requestAnimationFrame(clampPetaReferenceDockToViewport);
     });
     resizeObserver.observe(petaReferenceDock);
     installPetaReferenceDockEvents.resizeObserver = resizeObserver;
   }
+
   petaReferenceDockHeader?.addEventListener('pointerdown', event => {
-    if (event.pointerType === 'touch' || event.target.closest('button') || petaReferenceDock?.classList.contains('is-fullscreen')) return;
+    if (event.target.closest('button') || petaReferenceDock?.classList.contains('is-fullscreen')) return;
+    if (event.pointerType !== 'touch' && event.button !== 0) return;
     const rect = petaReferenceDock.getBoundingClientRect();
-    petaWorkflowState.drag = { pointerId: event.pointerId, offsetX: event.clientX - rect.left, offsetY: event.clientY - rect.top };
-    petaReferenceDockHeader.setPointerCapture?.(event.pointerId);
+    petaWorkflowState.drag = {
+      pointerId: event.pointerId,
+      offsetX: event.clientX - rect.left,
+      offsetY: event.clientY - rect.top,
+      clientX: event.clientX,
+      clientY: event.clientY
+    };
+    try { petaReferenceDockHeader.setPointerCapture?.(event.pointerId); } catch (_) {}
     petaReferenceDock.classList.add('is-dragging');
     event.preventDefault();
   });
+
   petaReferenceDockHeader?.addEventListener('pointermove', event => {
     const drag = petaWorkflowState.drag;
     if (!drag || drag.pointerId !== event.pointerId || !petaReferenceDock) return;
-    const rect = petaReferenceDock.getBoundingClientRect();
-    const maxLeft = Math.max(8, window.innerWidth - rect.width - 8);
-    const maxTop = Math.max(8, window.innerHeight - Math.min(rect.height, window.innerHeight - 16) - 8);
-    const left = Math.max(8, Math.min(maxLeft, event.clientX - drag.offsetX));
-    const top = Math.max(8, Math.min(maxTop, event.clientY - drag.offsetY));
-    petaReferenceDock.style.left = `${left}px`;
-    petaReferenceDock.style.top = `${top}px`;
-    petaReferenceDock.style.right = 'auto';
-    petaReferenceDock.style.bottom = 'auto';
+    drag.clientX = event.clientX;
+    drag.clientY = event.clientY;
+    if (petaWorkflowState.dragFrame) return;
+    petaWorkflowState.dragFrame = requestAnimationFrame(() => {
+      petaWorkflowState.dragFrame = 0;
+      const activeDrag = petaWorkflowState.drag;
+      if (!activeDrag || !petaReferenceDock) return;
+      const rect = petaReferenceDock.getBoundingClientRect();
+      const margin = 6;
+      const maxLeft = Math.max(margin, window.innerWidth - Math.min(rect.width, window.innerWidth - margin * 2) - margin);
+      const maxTop = Math.max(margin, window.innerHeight - Math.min(rect.height, window.innerHeight - margin * 2) - margin);
+      const left = Math.max(margin, Math.min(maxLeft, activeDrag.clientX - activeDrag.offsetX));
+      const top = Math.max(margin, Math.min(maxTop, activeDrag.clientY - activeDrag.offsetY));
+      petaReferenceDock.style.left = `${left}px`;
+      petaReferenceDock.style.top = `${top}px`;
+      petaReferenceDock.style.right = 'auto';
+      petaReferenceDock.style.bottom = 'auto';
+    });
+    event.preventDefault();
   });
+
   const endDrag = event => {
     if (!petaWorkflowState.drag || petaWorkflowState.drag.pointerId !== event.pointerId) return;
+    if (petaWorkflowState.dragFrame) {
+      cancelAnimationFrame(petaWorkflowState.dragFrame);
+      petaWorkflowState.dragFrame = 0;
+    }
     petaWorkflowState.drag = null;
     petaReferenceDock?.classList.remove('is-dragging');
+    try { petaReferenceDockHeader?.releasePointerCapture?.(event.pointerId); } catch (_) {}
+    clampPetaReferenceDockToViewport();
   };
   petaReferenceDockHeader?.addEventListener('pointerup', endDrag);
   petaReferenceDockHeader?.addEventListener('pointercancel', endDrag);
@@ -15566,6 +15747,7 @@ function restoreEditorState(state, statusText = '') {
 }
 
 function customUndo() {
+  cancelEditorTypingPendingWork();
   const history = ensureEditorHistory();
   const current = createEditorState();
   const last = history.undo[history.undo.length - 1];
@@ -15585,6 +15767,7 @@ function customUndo() {
 }
 
 function customRedo() {
+  cancelEditorTypingPendingWork();
   const history = ensureEditorHistory();
   if (!history.redo.length) {
     setStatus('Nothing to redo');
@@ -15629,6 +15812,79 @@ function loadActiveEditor() {
 }
 
 
+let editorTypingPersistTimer = 0;
+let editorTypingPersistStartedAt = 0;
+let editorTypingUiTimer = 0;
+let editorTypingUiStartedAt = 0;
+let editorTypingHistoryTimer = 0;
+let editorTypingHistoryStartedAt = 0;
+let editorLastRenderedLineCount = 0;
+
+function scheduleEditorTypingPersistence(delay = 180) {
+  const now = Date.now();
+  if (!editorTypingPersistStartedAt) editorTypingPersistStartedAt = now;
+  const maxWait = 1000;
+  const wait = Math.max(0, Math.min(Math.max(80, Number(delay) || 180), editorTypingPersistStartedAt + maxWait - now));
+  window.clearTimeout(editorTypingPersistTimer);
+  editorTypingPersistTimer = window.setTimeout(() => {
+    editorTypingPersistTimer = 0;
+    editorTypingPersistStartedAt = 0;
+    saveCodeFileNames();
+    saveCodeStoreForCurrentActivity();
+  }, wait);
+}
+
+function scheduleEditorTypingUiMaintenance(delay = 140) {
+  const now = Date.now();
+  if (!editorTypingUiStartedAt) editorTypingUiStartedAt = now;
+  const maxWait = 650;
+  const wait = Math.max(0, Math.min(Math.max(70, Number(delay) || 140), editorTypingUiStartedAt + maxWait - now));
+  window.clearTimeout(editorTypingUiTimer);
+  editorTypingUiTimer = window.setTimeout(() => {
+    editorTypingUiTimer = 0;
+    editorTypingUiStartedAt = 0;
+    renderHTMLPageManager();
+    renderStructureAlert();
+    fitEditorToContent();
+    updateTagMatching();
+    scheduleEditorHelperRefresh();
+  }, wait);
+}
+
+function scheduleEditorTypingHistory(delay = 220) {
+  const now = Date.now();
+  if (!editorTypingHistoryStartedAt) editorTypingHistoryStartedAt = now;
+  const maxWait = 900;
+  const wait = Math.max(0, Math.min(Math.max(90, Number(delay) || 220), editorTypingHistoryStartedAt + maxWait - now));
+  window.clearTimeout(editorTypingHistoryTimer);
+  editorTypingHistoryTimer = window.setTimeout(() => {
+    editorTypingHistoryTimer = 0;
+    editorTypingHistoryStartedAt = 0;
+    commitEditorHistory();
+  }, wait);
+}
+
+function cancelEditorTypingPendingWork(options = {}) {
+  const cancelPersistence = options.persistence !== false;
+  const cancelUi = options.ui !== false;
+  const cancelHistory = options.history !== false;
+  if (cancelPersistence) {
+    window.clearTimeout(editorTypingPersistTimer);
+    editorTypingPersistTimer = 0;
+    editorTypingPersistStartedAt = 0;
+  }
+  if (cancelUi) {
+    window.clearTimeout(editorTypingUiTimer);
+    editorTypingUiTimer = 0;
+    editorTypingUiStartedAt = 0;
+  }
+  if (cancelHistory) {
+    window.clearTimeout(editorTypingHistoryTimer);
+    editorTypingHistoryTimer = 0;
+    editorTypingHistoryStartedAt = 0;
+  }
+}
+
 let editorHelperRefreshTimer = 0;
 function scheduleEditorHelperRefresh(delay = 260) {
   window.clearTimeout(editorHelperRefreshTimer);
@@ -15638,11 +15894,19 @@ function scheduleEditorHelperRefresh(delay = 260) {
   }, Math.max(80, Number(delay) || 260));
 }
 
-function saveActiveEditor() {
+function saveActiveEditor(options = {}) {
   setLanguageFileContent(activeLanguage, getActiveLanguageFileName(activeLanguage), editor.value);
+  if (options.typing === true) {
+    scheduleEditorTypingPersistence();
+    scheduleEditorTypingUiMaintenance();
+    return;
+  }
+
+  const hadPendingHistory = Boolean(editorTypingHistoryTimer);
+  cancelEditorTypingPendingWork();
+  if (hadPendingHistory) commitEditorHistory();
   saveCodeFileNames();
   saveCodeStoreForCurrentActivity();
-
   renderHTMLPageManager();
   renderStructureAlert();
   fitEditorToContent();
@@ -15650,10 +15914,19 @@ function saveActiveEditor() {
   scheduleEditorHelperRefresh();
 }
 
-function updateLineNumbers() {
-  const lines = editor.value.split('\n').length || 1;
-  lineNumbers.textContent = Array.from({ length: lines }, (_, index) => index + 1).join('\n');
-  fitEditorToContent();
+function updateLineNumbers(options = {}) {
+  const value = String(editor.value || '');
+  let lines = 1;
+  for (let index = 0; index < value.length; index += 1) {
+    if (value.charCodeAt(index) === 10) lines += 1;
+  }
+  if (lines !== editorLastRenderedLineCount) {
+    editorLastRenderedLineCount = lines;
+    let output = '';
+    for (let index = 1; index <= lines; index += 1) output += `${index}\n`;
+    lineNumbers.textContent = output.trimEnd();
+  }
+  if (options.deferFit !== true) fitEditorToContent();
 }
 
 
@@ -29203,11 +29476,10 @@ function cancelCssJumpLongPress() {
 
 editor.addEventListener('input', event => {
   if (shouldSpinDesktopLogoForEditorEdit()) triggerDesktopHeaderLogoSaveSpin();
-  saveActiveEditor();
-  updateLineNumbers();
-  commitEditorHistory();
+  saveActiveEditor({ typing: true });
+  updateLineNumbers({ deferFit: true });
+  scheduleEditorTypingHistory();
   showSuggestions(event);
-  updateTagMatching();
   scheduleAutoRun({ reason: 'edit' });
 });
 

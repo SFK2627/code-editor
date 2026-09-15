@@ -66444,25 +66444,40 @@ body.dark-mode .peta-reference-empty, html[data-theme="dark"] .peta-reference-em
   .peta-action-options { grid-template-columns: 1fr; }
   .peta-action-option { padding: 14px; }
   .peta-reference-dock,
-  .peta-reference-dock.size-compact,
-  .peta-reference-dock.size-medium,
-  .peta-reference-dock.size-large {
-    left: 8px !important; right: 8px !important; bottom: 8px; top: auto !important; width: auto !important;
-    min-width: 0; max-width: none; height: 44vh; min-height: 155px; max-height: calc(100vh - 16px); resize: vertical;
-    border-radius: 16px;
+  .peta-reference-dock.size-medium {
+    left: auto; right: 8px; bottom: 8px; top: auto;
+    width: min(88vw, 380px) !important; height: 48vh; min-width: 0; min-height: 155px;
+    max-width: calc(100vw - 12px); max-height: calc(100vh - 12px); resize: none; border-radius: 16px;
+    will-change: left, top;
   }
-  .peta-reference-dock.size-compact { height: 30vh; }
-  .peta-reference-dock.size-large { height: 68vh; }
-  .peta-reference-dock.is-fullscreen { inset: 5px !important; height: auto !important; }
-  .peta-reference-dock.is-minimized { left: 8px !important; right: 8px !important; width: auto !important; }
-  .peta-reference-dock-header { cursor: default; touch-action: auto; }
-  .peta-reference-dock-heading small { max-width: 150px; }
+  .peta-reference-dock.size-compact { width: min(78vw, 320px) !important; height: 32vh; }
+  .peta-reference-dock.size-large { width: min(96vw, 460px) !important; height: 70vh; }
+  .peta-reference-dock.is-fullscreen { inset: 5px !important; width: auto !important; height: auto !important; }
+  .peta-reference-dock.is-minimized {
+    width: min(235px, calc(100vw - 18px)) !important; height: 44px !important; min-height: 44px; max-height: 44px;
+    border-radius: 999px; grid-template-rows: 44px; resize: none;
+  }
+  .peta-reference-dock-header { min-height: 54px; padding: 7px 8px 7px 10px; cursor: grab; touch-action: none; }
+  .peta-reference-dock.is-dragging .peta-reference-dock-header { cursor: grabbing; }
+  .peta-reference-dock.is-minimized .peta-reference-dock-header { min-height: 44px; height: 44px; padding: 4px 6px 4px 11px; border-bottom: 0; border-radius: inherit; }
+  .peta-reference-dock.is-minimized .peta-reference-badge,
+  .peta-reference-dock.is-minimized .peta-reference-dock-heading small,
+  .peta-reference-dock.is-minimized #petaReferenceInstructionsBtn,
+  .peta-reference-dock.is-minimized #petaReferenceSizeBtn,
+  .peta-reference-dock.is-minimized #petaReferenceFullscreenBtn { display: none !important; }
+  .peta-reference-dock.is-minimized .peta-reference-dock-heading strong { font-size: 11px; max-width: 125px; }
+  .peta-reference-dock.is-minimized .peta-reference-dock-actions { gap: 2px; }
+  .peta-reference-dock.is-minimized .peta-reference-icon-btn { width: 30px; height: 30px; }
+  .peta-reference-dock-heading small { max-width: 120px; }
   .peta-reference-icon-btn { width: 28px; height: 28px; }
   .peta-reference-toolbar.has-image-zoom { flex-wrap: wrap; }
-  .peta-reference-toolbar.has-image-zoom .peta-reference-file-label { flex: 1 1 140px; }
+  .peta-reference-toolbar.has-image-zoom .peta-reference-file-label { flex: 1 1 130px; }
   .peta-reference-toolbar.has-image-zoom .peta-reference-zoom-controls { margin-left: auto; }
   .peta-reference-zoom-btn { width: 28px; }
   .peta-reference-zoom-value { min-width: 47px; }
+  .peta-reference-image-stage { touch-action: none; -webkit-overflow-scrolling: auto; }
+  .peta-reference-image-stage.is-panning img, .peta-reference-image-stage.is-pinching img { transition: none; }
+  .peta-reference-pdf { touch-action: pan-x pan-y pinch-zoom; }
   .student-save-success-card { padding: 25px 18px 23px; }
   .student-save-success-check { width: 72px; height: 72px; }
 }
