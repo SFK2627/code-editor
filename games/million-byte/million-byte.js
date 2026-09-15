@@ -14,9 +14,9 @@
     ? new URL(document.currentScript.src, document.baseURI)
     : new URL('games/million-byte/million-byte.js', document.baseURI);
   const GAME_DIR_URL = new URL('./', GAME_SCRIPT_URL);
-  const BANK_ASSET_VERSION = '20260914-million-byte-3000q-server-aligned-v2';
+  const BANK_ASSET_VERSION = '20260916-million-byte-15000q-v1';
   const BANK_URL = new URL(`million-byte-questions.js?v=${BANK_ASSET_VERSION}`, GAME_DIR_URL).href;
-  const BANK_VERSION = 4;
+  const BANK_VERSION = 5;
   const EXPLANATION_QUALITY_VERSION = 1;
   const EXPLANATION_MIN_CHARS = 90;
   const EXPLANATION_BANNED_RE = /\bis the correct answer\b|\bcorrect answer\b|\bmatches? the (?:question|clue)\b|\bbased on the clue\b|\bconnect(?:s|ing)? the clue\b|\breview the correct answer\b|\b(?:the|this) question\b|\b(?:the|this) item\b|\bthe choices\b|\banswer list\b|\boption letter\b|\bremember(?:ing)?\b|\bmemor(?:ize|izing|ized)\b|\bmemory (?:link|anchor|cue)\b/i;
@@ -25,11 +25,11 @@
   const LETTERS = ['A', 'B', 'C', 'D'];
   const VALUES = ['100','200','300','500','1K','2K','4K','8K','16K','32K','64K','125K','250K','500K','1M'];
   const TIER_NAMES = ['EASY','MODERATE','CHALLENGING','DIFFICULT','EXPERT'];
-  const TIER_COUNTS = [0, 720, 720, 504, 504, 552];
+  const TIER_COUNTS = [0, 3120, 3120, 2904, 2904, 2952];
   const QUESTION_SECONDS_BY_TIER = [0,35,40,45,50,55];
-  const LOCAL_STATE_KEY = 'ict8.millionByte.globalQuestionCycle.3000.v1';
-  const LEGACY_LOCAL_STATE_KEY = 'ict8.millionByte.questionCursor.v3';
-  const QUESTION_CYCLE_MODE = 'global-no-repeat-3000-v1';
+  const LOCAL_STATE_KEY = 'ict8.millionByte.globalQuestionCycle.15000.v1';
+  const LEGACY_LOCAL_STATE_KEY = 'ict8.millionByte.globalQuestionCycle.3000.v1';
+  const QUESTION_CYCLE_MODE = 'global-no-repeat-15000-v1';
   const LIFELINE_IDS = ['fifty','double','audience','switch'];
   const LIFELINE_META = {
     fifty: { title: '50:50', detail: 'Remove 2' },
@@ -134,7 +134,7 @@
         <header class="million-byte-topbar">
           <button type="button" data-mb-back aria-label="Back to Mini-Games">←</button>
           <div class="million-byte-brand"><strong>🧠 MILLION BYTE</strong><small>General Knowledge Challenge</small></div>
-          <span class="million-byte-bank">3,000 QUESTION POOL · NO REPEATS UNTIL ALL ARE USED</span>
+          <span class="million-byte-bank">15,000 QUESTION POOL · NO REPEATS UNTIL ALL ARE USED</span>
           <button type="button" data-mb-sound aria-label="Toggle sound">🔊</button>
           <button type="button" data-mb-close aria-label="Close">×</button>
         </header>
@@ -168,9 +168,9 @@
             <div class="million-byte-logo">🧠</div>
             <p class="million-byte-kicker">15 QUESTIONS · 5 DIFFICULTY TIERS</p>
             <h2>MILLION BYTE</h2>
-            <p>Answer 15 general-knowledge questions from Easy to Expert. Questions rotate through the full 3,000-question bank before repeating. Each run gives you 3 random lifelines from a pool of 4.</p>
+            <p>Answer 15 general-knowledge questions from Easy to Expert. Questions rotate through the full 15,000-question bank before repeating. Each run gives you 3 random lifelines from a pool of 4.</p>
             <div class="million-byte-rule-row">
-              <div><small>QUESTION POOL</small><strong>3,000</strong></div>
+              <div><small>QUESTION POOL</small><strong>15,000</strong></div>
               <div><small>LIFELINES</small><strong>Random 3 of 4</strong></div>
               <div><small>XP</small><strong>Perfect 15/15 = 15 XP</strong></div>
             </div>
@@ -371,12 +371,22 @@
     const issues = [];
     if (!bank || bank.version !== BANK_VERSION) issues.push('bank-version');
     if (!bank || bank.explanationQualityVersion !== EXPLANATION_QUALITY_VERSION) issues.push('explanation-quality-version');
-    if (!bank || bank.count !== 3000 || !Array.isArray(bank.questions) || bank.questions.length !== 3000) issues.push('question-count');
+    if (!bank || bank.count !== 15000 || !Array.isArray(bank.questions) || bank.questions.length !== 15000) issues.push('question-count');
     if (!bank?.byId) issues.push('question-index');
     if (!Array.isArray(bank?.questions)) return issues;
     const seenIds = new Set();
+    const seenQuestions = new Set();
     const seenExplanations = new Set();
+    const tierCounts = [0, 0, 0, 0, 0, 0];
     for (const q of bank.questions) {
+      const parsedId = parseQuestionId(q?.id);
+      if (!parsedId || parsedId.tier !== Number(q?.tier || 0)) issues.push(`invalid-id-or-tier:${q?.id || 'unknown'}`);
+      else tierCounts[parsedId.tier] += 1;
+      if (!Array.isArray(q?.options) || q.options.length !== 4 || new Set(q.options.map(v => String(v).trim().toLowerCase())).size !== 4) issues.push(`invalid-options:${q?.id || 'unknown'}`);
+      if (!Number.isInteger(q?.answer) || q.answer < 0 || q.answer > 3) issues.push(`invalid-answer:${q?.id || 'unknown'}`);
+      const questionKey = String(q?.q || '').replace(/\s+/g, ' ').trim().toLowerCase();
+      if (!questionKey || seenQuestions.has(questionKey)) issues.push(`duplicate-or-missing-question:${q?.id || 'unknown'}`);
+      else seenQuestions.add(questionKey);
       if (!q?.id || seenIds.has(q.id)) issues.push(`duplicate-or-missing-id:${q?.id || 'unknown'}`);
       else seenIds.add(q.id);
       if (!verifiedExplanation(q)) issues.push(`weak-explanation:${q?.id || 'unknown'}`);
@@ -384,6 +394,9 @@
       if (!key) continue;
       if (seenExplanations.has(key)) issues.push(`duplicate-explanation:${q?.id || 'unknown'}`);
       else seenExplanations.add(key);
+    }
+    for (let tier = 1; tier <= 5; tier += 1) {
+      if (tierCounts[tier] !== TIER_COUNTS[tier]) issues.push(`tier-${tier}-count`);
     }
     return issues;
   }
@@ -410,7 +423,7 @@
       const timeout = window.setTimeout(() => {
         try { script.remove(); } catch (_) {}
         reject(new Error('Million Byte question bank load timed out.'));
-      }, 8000);
+      }, 20000);
       script.onload = () => {
         clearTimeout(timeout);
         if (validBank()) {
@@ -487,7 +500,7 @@
 
   // Keep the first questions of a new full-bank cycle away from the tail of the
   // previous cycle. This prevents an ugly immediate duplicate in the one run
-  // that crosses the 3,000-question boundary, while preserving a true
+  // that crosses the 15,000-question boundary, while preserving a true
   // permutation (nothing is skipped or retired unseen).
   function permutation(tier, cycle) {
     const arr = rawPermutation(tier, cycle);
@@ -526,22 +539,10 @@
         }
         return state;
       }
-      // One-time safe migration from the old per-tier cursor format is possible
-      // while every tier is still in its first cycle. This preserves already
-      // retired questions for normal users instead of restarting their deck.
-      const legacy = JSON.parse(localStorage.getItem(LEGACY_LOCAL_STATE_KEY) || 'null');
-      if (legacy && legacy.version === BANK_VERSION && legacy.tiers) {
-        let migratable = true;
-        for (let tier = 1; tier <= 5; tier += 1) {
-          if (Number(legacy.tiers[tier]?.cycle || 0) !== 0) migratable = false;
-        }
-        if (migratable) {
-          for (let tier = 1; tier <= 5; tier += 1) {
-            state.cursors[tier] = Math.max(0, Math.min(TIER_COUNTS[tier] || 0, Number(legacy.tiers[tier]?.cursor || 0) | 0));
-          }
-          saveLocalCycleState(state);
-        }
-      }
+      // The v4 pool had 3,000 questions. Its shuffle length differs from this
+      // 15,000-question pool, so carrying over an old cursor could accidentally
+      // mark unseen IDs as used or allow early repeats. Version 5 intentionally
+      // begins a fresh full-bank cycle while leaving the old local key untouched.
     } catch (_) {}
     return state;
   }
@@ -655,7 +656,7 @@
     runtime.pendingFailReason = '';
     runtime.resultPanel.hidden = true;
     runtime.loadingPanel.hidden = false;
-    runtime.loadingPanel.querySelector('[data-mb-loading-copy]').textContent = 'Preparing the 3,000-question bank…';
+    runtime.loadingPanel.querySelector('[data-mb-loading-copy]').textContent = 'Preparing the 15,000-question bank…';
 
     try {
       await ensureBank();
@@ -911,7 +912,7 @@
   }
 
   function parseQuestionId(id) {
-    const match = /^mb([1-5])-([0-9]{3})$/.exec(String(id || ''));
+    const match = /^mb([1-5])-([0-9]{3,4})$/.exec(String(id || ''));
     if (!match) return null;
     const tier = Number(match[1]);
     const number = Number(match[2]);
@@ -1090,7 +1091,7 @@
       runtime.statusEl.textContent = `NEXT TIER · ${TIER_NAMES[nextTier - 1]}`;
     } else if (nextTier < previousTier) {
       runtime.statusEl.dataset.kind = 'gold';
-      runtime.statusEl.textContent = 'FULL 3,000-QUESTION CYCLE COMPLETED · Fresh cycle started.';
+      runtime.statusEl.textContent = 'FULL 15,000-QUESTION CYCLE COMPLETED · Fresh cycle started.';
     }
   }
 
