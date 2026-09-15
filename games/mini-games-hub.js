@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const ASSET_VERSION = '20260914-v501-uno';
+  const ASSET_VERSION = '20260915-v514-train-heart-fix';
 
   const GAME_REGISTRY = Object.freeze([
     {
@@ -360,6 +360,7 @@
       category: 'EDUCATIONAL / RUNNER',
       difficulty: '★★★★☆',
       globalName: 'ICT8ByteRunnerHtmlRush',
+      dependencies: ['games/byte-runner-html-rush/byte-runner-3d.js'],
       script: 'games/byte-runner-html-rush/byte-runner-html-rush.js',
       style: 'games/byte-runner-html-rush/byte-runner-html-rush.css',
       bestText(record = {}) {

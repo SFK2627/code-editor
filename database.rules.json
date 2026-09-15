@@ -1,0 +1,135 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "presence": {
+      ".read": "auth != null && auth.token.email == 'sirjr.mcsian@gmail.com'",
+      ".indexOn": [
+        "lastSeenMs"
+      ],
+      "$uid": {
+        ".write": "auth != null && auth.uid == $uid",
+        ".validate": "newData.hasChildren(['uid','name','studentId','section','currentView','activityGroup','activityLabel','pageVisible','deviceType','lastSeenMs','updatedAtMs']) && newData.child('uid').val() == auth.uid && newData.child('lastSeenMs').isNumber() && newData.child('updatedAtMs').isNumber() && newData.child('lastSeenMs').val() <= now + 60000 && newData.child('updatedAtMs').val() <= now + 60000"
+      }
+    },
+    "arcadeWeekly": {
+      "$weekKey": {
+        "entries": {
+          ".read": "auth != null",
+          ".indexOn": [
+            "weeklyXp"
+          ],
+          "$uid": {
+            ".write": false
+          }
+        }
+      }
+    },
+    "miniGameAccounts": {
+      "$uid": {
+        ".read": "auth != null && (auth.uid == $uid || auth.token.email == 'sirjr.mcsian@gmail.com')",
+        ".write": false
+      }
+    },
+    "codeDuelSignals": {
+      "directory": {
+        "$studentKey": {
+          ".read": "auth != null",
+          ".write": "auth != null && ((newData.exists() && newData.child('uid').val() == auth.uid && (!data.exists() || data.child('uid').val() == auth.uid)) || (!newData.exists() && data.exists() && data.child('uid').val() == auth.uid))",
+          ".validate": "newData.hasChildren(['uid','studentId','studentKey','name','section','updatedAtMs','expiresAtMs']) && newData.child('uid').isString() && newData.child('uid').val() == auth.uid && newData.child('studentId').isString() && newData.child('studentKey').isString() && newData.child('studentKey').val() == $studentKey && newData.child('name').isString() && newData.child('section').isString() && newData.child('updatedAtMs').isNumber() && newData.child('expiresAtMs').isNumber() && newData.child('updatedAtMs').val() <= now + 120000 && newData.child('expiresAtMs').val() > now - 120000 && newData.child('expiresAtMs').val() <= now + 900000"
+        }
+      },
+      "inbox": {
+        "$targetUid": {
+          ".read": "auth != null && auth.uid == $targetUid",
+          ".indexOn": [
+            "createdAtMs"
+          ],
+          "$inviteId": {
+            ".write": "auth != null && ((newData.exists() && ((!data.exists() && newData.child('fromUid').val() == auth.uid && newData.child('toUid').val() == $targetUid) || (data.exists() && (auth.uid == $targetUid || data.child('fromUid').val() == auth.uid)))) || (!newData.exists() && data.exists() && (auth.uid == $targetUid || data.child('fromUid').val() == auth.uid)))",
+            ".validate": "newData.hasChildren(['version','inviteId','gameId','gameName','status','fromUid','fromStudentId','fromName','fromSection','toUid','toStudentId','offerCode','createdAtMs','expiresAtMs']) && newData.child('version').val() == 3 && newData.child('inviteId').isString() && newData.child('inviteId').val() == $inviteId && (newData.child('gameId').val() == 'code-duel' || newData.child('gameId').val() == 'code-tower-race' || newData.child('gameId').val() == 'code-snake-duel' || newData.child('gameId').val() == 'byte-space-battle' || newData.child('gameId').val() == 'code-escape-coop' || newData.child('gameId').val() == 'code-dama' || newData.child('gameId').val() == 'code-climb' || newData.child('gameId').val() == 'code-smash' || newData.child('gameId').val() == 'code-uno') && newData.child('gameName').isString() && (newData.child('status').val() == 'pending' || newData.child('status').val() == 'accepted' || newData.child('status').val() == 'declined') && newData.child('fromUid').isString() && newData.child('fromStudentId').isString() && newData.child('fromName').isString() && newData.child('fromSection').isString() && newData.child('toUid').isString() && newData.child('toUid').val() == $targetUid && newData.child('toStudentId').isString() && newData.child('offerCode').isString() && newData.child('createdAtMs').isNumber() && newData.child('expiresAtMs').isNumber() && newData.child('createdAtMs').val() <= now + 120000 && newData.child('expiresAtMs').val() > now - 120000 && newData.child('expiresAtMs').val() <= now + 600000"
+          }
+        }
+      },
+      "replies": {
+        "$hostUid": {
+          ".read": "auth != null && auth.uid == $hostUid",
+          "$inviteId": {
+            ".write": "auth != null && ((newData.exists() && newData.child('toUid').val() == $hostUid && (newData.child('fromUid').val() == auth.uid || auth.uid == $hostUid)) || (!newData.exists() && data.exists() && auth.uid == $hostUid))",
+            ".validate": "newData.hasChildren(['version','inviteId','gameId','status','fromUid','fromStudentId','fromName','toUid','updatedAtMs','expiresAtMs']) && newData.child('version').val() == 3 && newData.child('inviteId').isString() && newData.child('inviteId').val() == $inviteId && (newData.child('gameId').val() == 'code-duel' || newData.child('gameId').val() == 'code-tower-race' || newData.child('gameId').val() == 'code-snake-duel' || newData.child('gameId').val() == 'byte-space-battle' || newData.child('gameId').val() == 'code-escape-coop' || newData.child('gameId').val() == 'code-dama' || newData.child('gameId').val() == 'code-climb' || newData.child('gameId').val() == 'code-smash' || newData.child('gameId').val() == 'code-uno') && (newData.child('status').val() == 'accepted' || newData.child('status').val() == 'declined') && newData.child('fromUid').isString() && newData.child('fromStudentId').isString() && newData.child('fromName').isString() && newData.child('toUid').isString() && newData.child('toUid').val() == $hostUid && newData.child('updatedAtMs').isNumber() && newData.child('expiresAtMs').isNumber() && newData.child('updatedAtMs').val() <= now + 120000 && newData.child('expiresAtMs').val() > now - 120000 && newData.child('expiresAtMs').val() <= now + 600000 && (newData.child('status').val() == 'declined' || newData.child('answerCode').isString())"
+          }
+        }
+      }
+    },
+    "codeClimbSignals": {
+      "rooms": {
+        "$roomCode": {
+          ".write": "auth != null && ((!data.exists() && newData.child('meta/hostUid').val() == auth.uid) || (data.exists() && data.child('meta/hostUid').val() == auth.uid))",
+          "meta": {
+            ".read": "auth != null",
+            ".write": "auth != null && ((!data.exists() && newData.child('hostUid').val() == auth.uid) || (data.exists() && data.child('hostUid').val() == auth.uid))",
+            ".validate": "newData.hasChildren(['version','roomCode','hostUid','hostName','hostStudentId','maxPlayers','status','createdAtMs','updatedAtMs','expiresAtMs']) && newData.child('version').val() == 1 && newData.child('roomCode').isString() && newData.child('roomCode').val() == $roomCode && newData.child('hostUid').isString() && newData.child('hostUid').val() == auth.uid && newData.child('hostName').isString() && newData.child('hostStudentId').isString() && newData.child('maxPlayers').isNumber() && newData.child('maxPlayers').val() >= 2 && newData.child('maxPlayers').val() <= 4 && newData.child('status').isString() && newData.child('createdAtMs').isNumber() && newData.child('updatedAtMs').isNumber() && newData.child('expiresAtMs').isNumber() && newData.child('updatedAtMs').val() <= now + 120000 && newData.child('expiresAtMs').val() > now - 120000 && newData.child('expiresAtMs').val() <= now + 3600000"
+          },
+          "joins": {
+            ".read": "auth != null && auth.uid == root.child('codeClimbSignals/rooms/'+$roomCode+'/meta/hostUid').val()",
+            "$uid": {
+              ".read": "auth != null && (auth.uid == $uid || auth.uid == root.child('codeClimbSignals/rooms/'+$roomCode+'/meta/hostUid').val())",
+              ".write": "auth != null && auth.uid == $uid",
+              ".validate": "newData.hasChildren(['version','roomCode','uid','name','studentId','section','status','createdAtMs','updatedAtMs','expiresAtMs']) && newData.child('version').val() == 1 && newData.child('roomCode').val() == $roomCode && newData.child('uid').val() == auth.uid && newData.child('name').isString() && newData.child('studentId').isString() && newData.child('section').isString() && newData.child('status').isString() && newData.child('createdAtMs').isNumber() && newData.child('updatedAtMs').isNumber() && newData.child('expiresAtMs').isNumber() && newData.child('updatedAtMs').val() <= now + 120000 && newData.child('expiresAtMs').val() > now - 120000 && newData.child('expiresAtMs').val() <= now + 3600000"
+            }
+          },
+          "offers": {
+            "$uid": {
+              ".read": "auth != null && (auth.uid == $uid || auth.uid == root.child('codeClimbSignals/rooms/'+$roomCode+'/meta/hostUid').val())",
+              ".write": "auth != null && auth.uid == root.child('codeClimbSignals/rooms/'+$roomCode+'/meta/hostUid').val()",
+              ".validate": "newData.hasChildren(['version','roomCode','targetUid','hostUid','status','seat','color','offerCode','updatedAtMs','expiresAtMs']) && newData.child('version').val() == 1 && newData.child('roomCode').val() == $roomCode && newData.child('targetUid').val() == $uid && newData.child('hostUid').val() == auth.uid && newData.child('status').isString() && newData.child('seat').isNumber() && newData.child('seat').val() >= 1 && newData.child('seat').val() <= 3 && newData.child('color').isString() && newData.child('offerCode').isString() && newData.child('updatedAtMs').isNumber() && newData.child('expiresAtMs').isNumber() && newData.child('updatedAtMs').val() <= now + 120000 && newData.child('expiresAtMs').val() > now - 120000 && newData.child('expiresAtMs').val() <= now + 3600000"
+            }
+          },
+          "answers": {
+            ".read": "auth != null && auth.uid == root.child('codeClimbSignals/rooms/'+$roomCode+'/meta/hostUid').val()",
+            "$uid": {
+              ".read": "auth != null && (auth.uid == $uid || auth.uid == root.child('codeClimbSignals/rooms/'+$roomCode+'/meta/hostUid').val())",
+              ".write": "auth != null && auth.uid == $uid",
+              ".validate": "newData.hasChildren(['version','roomCode','uid','hostUid','answerCode','updatedAtMs','expiresAtMs']) && newData.child('version').val() == 1 && newData.child('roomCode').val() == $roomCode && newData.child('uid').val() == auth.uid && newData.child('hostUid').val() == root.child('codeClimbSignals/rooms/'+$roomCode+'/meta/hostUid').val() && newData.child('answerCode').isString() && newData.child('updatedAtMs').isNumber() && newData.child('expiresAtMs').isNumber() && newData.child('updatedAtMs').val() <= now + 120000 && newData.child('expiresAtMs').val() > now - 120000 && newData.child('expiresAtMs').val() <= now + 3600000"
+            }
+          }
+        }
+      }
+    },
+    "codeUnoSignals": {
+      "rooms": {
+        "$roomCode": {
+          ".write": "auth != null && ((!data.exists() && newData.child('meta/hostUid').val() == auth.uid) || (data.exists() && data.child('meta/hostUid').val() == auth.uid))",
+          "meta": {
+            ".read": "auth != null",
+            ".write": "auth != null && ((!data.exists() && newData.child('hostUid').val() == auth.uid) || (data.exists() && data.child('hostUid').val() == auth.uid))",
+            ".validate": "newData.hasChildren(['version','roomCode','hostUid','hostName','hostStudentId','maxPlayers','status','createdAtMs','updatedAtMs','expiresAtMs']) && newData.child('version').val() == 1 && newData.child('roomCode').isString() && newData.child('roomCode').val() == $roomCode && newData.child('hostUid').isString() && newData.child('hostUid').val() == auth.uid && newData.child('hostName').isString() && newData.child('hostStudentId').isString() && newData.child('maxPlayers').isNumber() && newData.child('maxPlayers').val() >= 2 && newData.child('maxPlayers').val() <= 10 && newData.child('status').isString() && newData.child('createdAtMs').isNumber() && newData.child('updatedAtMs').isNumber() && newData.child('expiresAtMs').isNumber() && newData.child('updatedAtMs').val() <= now + 120000 && newData.child('expiresAtMs').val() > now - 120000 && newData.child('expiresAtMs').val() <= now + 3600000"
+          },
+          "joins": {
+            ".read": "auth != null && auth.uid == root.child('codeUnoSignals/rooms/'+$roomCode+'/meta/hostUid').val()",
+            "$uid": {
+              ".read": "auth != null && (auth.uid == $uid || auth.uid == root.child('codeUnoSignals/rooms/'+$roomCode+'/meta/hostUid').val())",
+              ".write": "auth != null && auth.uid == $uid",
+              ".validate": "newData.hasChildren(['version','roomCode','uid','name','studentId','section','status','createdAtMs','updatedAtMs','expiresAtMs']) && newData.child('version').val() == 1 && newData.child('roomCode').val() == $roomCode && newData.child('uid').val() == auth.uid && newData.child('name').isString() && newData.child('studentId').isString() && newData.child('section').isString() && newData.child('status').isString() && newData.child('createdAtMs').isNumber() && newData.child('updatedAtMs').isNumber() && newData.child('expiresAtMs').isNumber() && newData.child('updatedAtMs').val() <= now + 120000 && newData.child('expiresAtMs').val() > now - 120000 && newData.child('expiresAtMs').val() <= now + 3600000"
+            }
+          },
+          "offers": {
+            "$uid": {
+              ".read": "auth != null && (auth.uid == $uid || auth.uid == root.child('codeUnoSignals/rooms/'+$roomCode+'/meta/hostUid').val())",
+              ".write": "auth != null && auth.uid == root.child('codeUnoSignals/rooms/'+$roomCode+'/meta/hostUid').val()",
+              ".validate": "newData.hasChildren(['version','roomCode','targetUid','hostUid','status','seat','color','offerCode','updatedAtMs','expiresAtMs']) && newData.child('version').val() == 1 && newData.child('roomCode').val() == $roomCode && newData.child('targetUid').val() == $uid && newData.child('hostUid').val() == auth.uid && newData.child('status').isString() && newData.child('seat').isNumber() && newData.child('seat').val() >= 1 && newData.child('seat').val() <= 9 && newData.child('color').isString() && newData.child('offerCode').isString() && newData.child('updatedAtMs').isNumber() && newData.child('expiresAtMs').isNumber() && newData.child('updatedAtMs').val() <= now + 120000 && newData.child('expiresAtMs').val() > now - 120000 && newData.child('expiresAtMs').val() <= now + 3600000"
+            }
+          },
+          "answers": {
+            ".read": "auth != null && auth.uid == root.child('codeUnoSignals/rooms/'+$roomCode+'/meta/hostUid').val()",
+            "$uid": {
+              ".read": "auth != null && (auth.uid == $uid || auth.uid == root.child('codeUnoSignals/rooms/'+$roomCode+'/meta/hostUid').val())",
+              ".write": "auth != null && auth.uid == $uid",
+              ".validate": "newData.hasChildren(['version','roomCode','uid','hostUid','answerCode','updatedAtMs','expiresAtMs']) && newData.child('version').val() == 1 && newData.child('roomCode').val() == $roomCode && newData.child('uid').val() == auth.uid && newData.child('hostUid').val() == root.child('codeUnoSignals/rooms/'+$roomCode+'/meta/hostUid').val() && newData.child('answerCode').isString() && newData.child('updatedAtMs').isNumber() && newData.child('expiresAtMs').isNumber() && newData.child('updatedAtMs').val() <= now + 120000 && newData.child('expiresAtMs').val() > now - 120000 && newData.child('expiresAtMs').val() <= now + 3600000"
+            }
+          }
+        }
+      }
+    }
+  }
+}

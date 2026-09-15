@@ -10197,18 +10197,19 @@ function renderPetaReferenceDock() {
     updatePetaReferenceImageZoomUI();
   }
 
+  const protectionMarkup = buildPetaProtectionWatermarkMarkup();
   if (!attachment) {
-    petaReferenceBody.innerHTML = `<div class="peta-reference-text"><span aria-hidden="true">📝</span><h3>Activity Instructions</h3><p>${escapeHTML(item.description || 'No additional instructions were provided.').replace(/\n/g, '<br>')}</p></div>`;
+    petaReferenceBody.innerHTML = `<div class="peta-reference-protected-stage"><div class="peta-reference-text"><span aria-hidden="true">📝</span><h3>Activity Instructions</h3><p>${escapeHTML(item.description || 'No additional instructions were provided.').replace(/\n/g, '<br>')}</p></div>${protectionMarkup}</div>`;
     return;
   }
   if (attachment.materialType === 'pdf' && attachment.previewUrl) {
-    petaReferenceBody.innerHTML = `<iframe class="peta-reference-pdf" src="${escapeAttribute(attachment.previewUrl)}" title="${escapeAttribute(attachment.fileName || item.title)}" loading="eager"></iframe>`;
+    petaReferenceBody.innerHTML = `<div class="peta-reference-protected-stage peta-protected-pdf"><iframe class="peta-reference-pdf" src="${escapeAttribute(attachment.previewUrl)}" title="${escapeAttribute(attachment.fileName || item.title)}" loading="eager" referrerpolicy="no-referrer" sandbox="allow-scripts allow-same-origin allow-forms"></iframe>${protectionMarkup}</div>`;
     return;
   }
   if (attachment.materialType === 'image') {
     const candidates = getGivenActivityImagePreviewCandidates(attachment);
     const src = candidates[0] || attachment.previewUrl || attachment.openUrl || '';
-    petaReferenceBody.innerHTML = `<div class="peta-reference-image-stage" title="Zoom up to 1000%. Hold and drag the image to pan. Ctrl/Cmd + mouse wheel also zooms."><div class="peta-reference-image-pan"><img data-peta-reference-image draggable="false" src="${escapeAttribute(src)}" alt="${escapeAttribute(attachment.fileName || item.title)}" /></div></div>`;
+    petaReferenceBody.innerHTML = `<div class="peta-reference-image-stage peta-protected-media" title="Zoom up to 1000%. Hold and drag the image to pan. Ctrl/Cmd + mouse wheel also zooms."><div class="peta-reference-image-pan"><img data-peta-reference-image draggable="false" src="${escapeAttribute(src)}" alt="${escapeAttribute(attachment.fileName || item.title)}" /></div>${protectionMarkup}</div>`;
     const image = petaReferenceBody.querySelector('[data-peta-reference-image]');
     if (image) {
       const applyLoadedImageZoom = () => requestAnimationFrame(() => applyPetaReferenceImageZoom({ keepCenter: false }));
@@ -10226,7 +10227,7 @@ function renderPetaReferenceDock() {
     return;
   }
   if (attachment.openUrl) {
-    petaReferenceBody.innerHTML = `<div class="peta-reference-text"><span aria-hidden="true">🔗</span><h3>${escapeHTML(attachment.fileName || 'Activity Link')}</h3><p>Open the teacher-provided link in a new tab when needed.</p><a class="primary-btn" href="${escapeAttribute(attachment.openUrl)}" target="_blank" rel="noopener noreferrer">Open Link</a></div>`;
+    petaReferenceBody.innerHTML = `<div class="peta-reference-protected-stage"><div class="peta-reference-text"><span aria-hidden="true">🔒</span><h3>${escapeHTML(attachment.fileName || 'Protected PETA Link')}</h3><p>External links are disabled while this PETA is protected. Ask your teacher to upload the material as a PDF or image for protected in-app viewing.</p></div>${protectionMarkup}</div>`;
     return;
   }
   petaReferenceBody.innerHTML = '<div class="peta-reference-empty">This attachment could not be previewed.</div>';
@@ -23202,15 +23203,56 @@ function closeGivenActivitiesLibrary() {
 }
 
 
-function updateGivenActivityViewerDownloadAction(attachment = null) {
+function getPetaProtectionIdentity() {
+  const student = appSession.student || appSession.lastStudentProfile || {};
+  const name = String(student.name || student.studentName || 'Student').replace(/\s+/g, ' ').trim() || 'Student';
+  const studentId = String(student.studentId || student.studentIdNormalized || student.id || '').trim();
+  const section = String(student.section || '').trim();
+  return [name, studentId, section].filter(Boolean).join(' · ');
+}
+
+function buildPetaProtectionWatermarkMarkup() {
+  const identity = getPetaProtectionIdentity();
+  const label = identity ? `${identity} · PROTECTED PETA` : 'PROTECTED PETA · VIEW ONLY';
+  const tiles = Array.from({ length: 12 }, () => `<span>${escapeHTML(label)}</span>`).join('');
+  return `<div class="peta-protection-watermark" aria-hidden="true">${tiles}</div><div class="peta-protection-shield" aria-hidden="true">🔒 PROTECTED PETA</div>`;
+}
+
+function blockProtectedPetaInteraction(event) {
+  if (!event) return;
+  event.preventDefault();
+  event.stopPropagation();
+}
+
+function installProtectedPetaGuards(container, isActive = () => true) {
+  if (!container || container.dataset.petaProtectionReady === 'true') return;
+  container.dataset.petaProtectionReady = 'true';
+  ['contextmenu', 'dragstart', 'copy', 'cut', 'selectstart'].forEach(type => {
+    container.addEventListener(type, event => {
+      if (isActive()) blockProtectedPetaInteraction(event);
+    }, true);
+  });
+  container.addEventListener('keydown', event => {
+    if (!isActive()) return;
+    const key = String(event.key || '').toLowerCase();
+    if ((event.ctrlKey || event.metaKey) && ['s', 'p', 'u', 'c', 'x'].includes(key)) {
+      blockProtectedPetaInteraction(event);
+    }
+  }, true);
+}
+
+function updateGivenActivityViewerDownloadAction(attachment = null, options = {}) {
   if (!givenActivityViewerDownloadBtn) return;
-  const showPdfDownload = attachment?.materialType === 'pdf' && Boolean(attachment.downloadUrl);
+  const protectedPeta = options.protectedPeta === true;
+  const showPdfDownload = !protectedPeta && attachment?.materialType === 'pdf' && Boolean(attachment.downloadUrl);
   givenActivityViewerDownloadBtn.classList.toggle('hidden', !showPdfDownload);
   givenActivityViewerDownloadBtn.href = showPdfDownload ? attachment.downloadUrl : '#';
   givenActivityViewerDownloadBtn.download = showPdfDownload ? String(attachment.fileName || 'activity.pdf') : '';
+  givenActivityViewerDownloadBtn.tabIndex = showPdfDownload ? 0 : -1;
+  givenActivityViewerDownloadBtn.setAttribute('aria-hidden', showPdfDownload ? 'false' : 'true');
   givenActivityViewerDownloadBtn.setAttribute('aria-label', showPdfDownload
     ? `Download ${attachment.fileName || 'PDF attachment'}`
-    : 'Download PDF attachment');
+    : (protectedPeta ? 'Download disabled for protected PETA' : 'Download PDF attachment'));
 }
 
 function getGivenActivityImageZoomParts() {
@@ -23302,11 +23344,20 @@ function renderGivenActivityViewerAttachment() {
   if (!givenActivityViewerBody) return;
   const item = givenActivityState.items.find(entry => entry.id === givenActivityState.viewerActivityId && entry.published);
   if (!item) return;
+  const protectedPeta = item.isPeta === true;
+  const protectionMarkup = protectedPeta ? buildPetaProtectionWatermarkMarkup() : '';
   const attachments = getGivenActivityAttachments(item);
   if (!attachments.length) {
-    if (givenActivityViewerOpenBtn) givenActivityViewerOpenBtn.classList.add('hidden');
-    updateGivenActivityViewerDownloadAction(null);
-    givenActivityViewerBody.innerHTML = `<div class="given-activity-text-card"><span aria-hidden="true">📝</span><h3>Activity Instructions</h3><p>${escapeHTML(item.description || 'No additional instructions were provided.').replace(/\n/g, '<br>')}</p></div>`;
+    if (givenActivityViewerOpenBtn) {
+      givenActivityViewerOpenBtn.classList.add('hidden');
+      givenActivityViewerOpenBtn.href = '#';
+      givenActivityViewerOpenBtn.tabIndex = -1;
+    }
+    updateGivenActivityViewerDownloadAction(null, { protectedPeta });
+    const textCard = `<div class="given-activity-text-card"><span aria-hidden="true">📝</span><h3>Activity Instructions</h3><p>${escapeHTML(item.description || 'No additional instructions were provided.').replace(/\n/g, '<br>')}</p></div>`;
+    givenActivityViewerBody.innerHTML = protectedPeta
+      ? `<div class="given-activity-protected-stage">${textCard}${protectionMarkup}</div>`
+      : textCard;
     return;
   }
   const maxIndex = attachments.length - 1;
@@ -23314,22 +23365,27 @@ function renderGivenActivityViewerAttachment() {
   const index = givenActivityState.viewerAttachmentIndex;
   const attachment = attachments[index];
   if (givenActivityViewerOpenBtn) {
-    givenActivityViewerOpenBtn.classList.toggle('hidden', !attachment.openUrl);
-    givenActivityViewerOpenBtn.href = attachment.openUrl || '#';
+    const canOpenExternally = !protectedPeta && Boolean(attachment.openUrl);
+    givenActivityViewerOpenBtn.classList.toggle('hidden', !canOpenExternally);
+    givenActivityViewerOpenBtn.href = canOpenExternally ? attachment.openUrl : '#';
+    givenActivityViewerOpenBtn.tabIndex = canOpenExternally ? 0 : -1;
+    givenActivityViewerOpenBtn.setAttribute('aria-hidden', canOpenExternally ? 'false' : 'true');
     givenActivityViewerOpenBtn.textContent = attachment.materialType === 'link'
       ? '↗ Link'
       : attachment.materialType === 'image'
         ? '↗ Image'
         : '↗ PDF';
   }
-  updateGivenActivityViewerDownloadAction(attachment);
+  updateGivenActivityViewerDownloadAction(attachment, { protectedPeta });
   let stage = '';
   if (attachment.materialType === 'pdf' && attachment.previewUrl) {
-    stage = `<iframe class="given-activity-pdf-frame" src="${escapeAttribute(attachment.previewUrl)}" title="${escapeAttribute(attachment.fileName || item.title)}" loading="lazy"></iframe>`;
+    const sandbox = protectedPeta ? ' sandbox="allow-scripts allow-same-origin allow-forms"' : '';
+    const frame = `<iframe class="given-activity-pdf-frame" src="${escapeAttribute(attachment.previewUrl)}" title="${escapeAttribute(attachment.fileName || item.title)}" loading="lazy" referrerpolicy="no-referrer"${sandbox}></iframe>`;
+    stage = protectedPeta ? `<div class="given-activity-protected-stage peta-protected-pdf">${frame}${protectionMarkup}</div>` : frame;
   } else if (attachment.materialType === 'image' && (attachment.previewUrl || attachment.fileId || attachment.openUrl)) {
     const imageCandidates = getGivenActivityImagePreviewCandidates(attachment);
     const initialImageUrl = imageCandidates[0] || attachment.previewUrl || attachment.openUrl || '';
-    stage = `<div class="given-activity-image-wrap" data-given-image-viewer>
+    stage = `<div class="given-activity-image-wrap ${protectedPeta ? 'peta-protected-media' : ''}" data-given-image-viewer>
       <div class="given-activity-image-zoom-controls" aria-label="Image zoom controls">
         <button type="button" class="given-activity-image-zoom-btn" data-given-image-zoom="out" aria-label="Zoom out">−</button>
         <span class="given-activity-image-zoom-value" data-given-image-zoom-value>Fit</span>
@@ -23338,14 +23394,17 @@ function renderGivenActivityViewerAttachment() {
       </div>
       <div class="given-activity-image-scroll" data-given-image-scroll>
         <div class="given-activity-image-canvas" data-given-image-canvas>
-          <img data-given-activity-image src="${escapeAttribute(initialImageUrl)}" alt="${escapeAttribute(attachment.fileName || item.title)}" loading="eager" decoding="async" referrerpolicy="no-referrer" />
+          <img data-given-activity-image draggable="false" src="${escapeAttribute(initialImageUrl)}" alt="${escapeAttribute(attachment.fileName || item.title)}" loading="eager" decoding="async" referrerpolicy="no-referrer" />
         </div>
       </div>
+      ${protectionMarkup}
     </div>`;
   } else if (attachment.materialType === 'link' && attachment.openUrl) {
-    stage = `<div class="given-activity-link-card"><span aria-hidden="true">🔗</span><strong>External activity link</strong><p>${escapeHTML(attachment.fileName || item.description || 'Open this activity link.')}</p><a class="primary-btn" href="${escapeAttribute(attachment.openUrl)}" target="_blank" rel="noopener noreferrer">Open Link</a></div>`;
+    stage = protectedPeta
+      ? `<div class="given-activity-link-card peta-protected-link"><span aria-hidden="true">🔒</span><strong>Protected PETA link</strong><p>External links are disabled in protected PETA mode. Ask your teacher to upload the material as a PDF or image if it must stay inside the protected viewer.</p>${protectionMarkup}</div>`
+      : `<div class="given-activity-link-card"><span aria-hidden="true">🔗</span><strong>External activity link</strong><p>${escapeHTML(attachment.fileName || item.description || 'Open this activity link.')}</p><a class="primary-btn" href="${escapeAttribute(attachment.openUrl)}" target="_blank" rel="noopener noreferrer">Open Link</a></div>`;
   } else {
-    stage = `<div class="given-activity-text-card"><span aria-hidden="true">📎</span><h3>Attachment unavailable</h3><p>This attachment could not be previewed. Use the Open button if available.</p></div>`;
+    stage = `<div class="given-activity-text-card"><span aria-hidden="true">📎</span><h3>Attachment unavailable</h3><p>This attachment could not be previewed.${protectedPeta ? ' Ask your teacher for a viewable protected copy.' : ' Use the Open button if available.'}</p></div>`;
   }
   const navigation = attachments.length > 1 ? `
     <div class="given-activity-attachment-toolbar" aria-label="Attachment navigation">
@@ -23360,7 +23419,7 @@ function renderGivenActivityViewerAttachment() {
       ${attachments.map((entry, attachmentIndex) => `<button type="button" class="given-activity-attachment-chip ${attachmentIndex === index ? 'active' : ''}" data-given-attachment-index="${attachmentIndex}" aria-pressed="${attachmentIndex === index ? 'true' : 'false'}"><span>${givenActivityTypeIcon(entry.materialType)}</span><b>${attachmentIndex + 1}</b><small>${escapeHTML(entry.fileName || givenActivityTypeLabel(entry.materialType))}</small></button>`).join('')}
     </div>` : `
     <div class="given-activity-single-attachment-label"><span>${givenActivityTypeIcon(attachment.materialType)}</span><strong>${escapeHTML(attachment.fileName || givenActivityTypeLabel(attachment.materialType))}</strong></div>`;
-  givenActivityViewerBody.innerHTML = `<div class="given-activity-attachment-viewer">${navigation}<div class="given-activity-attachment-stage">${stage}</div></div>`;
+  givenActivityViewerBody.innerHTML = `<div class="given-activity-attachment-viewer ${protectedPeta ? 'peta-protected-attachment' : ''}">${navigation}<div class="given-activity-attachment-stage">${stage}</div></div>`;
 
   if (attachment.materialType === 'image') {
     const image = givenActivityViewerBody.querySelector('[data-given-activity-image]');
@@ -23376,7 +23435,9 @@ function renderGivenActivityViewerAttachment() {
         }
         const wrap = image.closest('.given-activity-image-wrap');
         if (wrap) {
-          wrap.innerHTML = `<div class="given-activity-text-card given-activity-image-error"><span aria-hidden="true">🖼️</span><h3>Image preview unavailable</h3><p>The image could not be displayed inside the app. Use <strong>Open Image</strong> above to open the Google Drive copy.</p></div>`;
+          wrap.innerHTML = protectedPeta
+            ? `<div class="given-activity-text-card given-activity-image-error"><span aria-hidden="true">🖼️</span><h3>Protected image preview unavailable</h3><p>The image could not be displayed securely inside the app. Ask your teacher to check the uploaded file.</p></div>${protectionMarkup}`
+            : `<div class="given-activity-text-card given-activity-image-error"><span aria-hidden="true">🖼️</span><h3>Image preview unavailable</h3><p>The image could not be displayed inside the app. Use <strong>Open Image</strong> above to open the Google Drive copy.</p></div>`;
         }
       };
       image.addEventListener('error', tryNextCandidate);
@@ -23412,10 +23473,13 @@ function openGivenActivityViewer(activityId = '') {
     openCount: Math.max(0, Number(currentEngagement.openCount || 0)) + 1
   });
   syncGivenActivityEngagementToCloud(item.id);
+  const protectedPeta = item.isPeta === true;
+  givenActivityViewerOverlay.classList.toggle('peta-protected', protectedPeta);
+  document.body.classList.toggle('peta-protected-active', protectedPeta);
   if (givenActivityViewerMeta) {
     const due = formatGivenActivityDueDate(item.dueDate);
     const attachmentCount = getGivenActivityAttachments(item).length;
-    givenActivityViewerMeta.textContent = `${lessonTermLabel(item.term)} · Activity ${item.order}${attachmentCount > 1 ? ` · ${attachmentCount} attachments` : ''}${due ? ` · Due ${due}` : ''}`;
+    givenActivityViewerMeta.textContent = `${protectedPeta ? '🔒 Protected PETA · ' : ''}${lessonTermLabel(item.term)} · Activity ${item.order}${attachmentCount > 1 ? ` · ${attachmentCount} attachments` : ''}${due ? ` · Due ${due}` : ''}`;
   }
   if (givenActivityViewerTitle) givenActivityViewerTitle.textContent = item.title;
   if (givenActivityViewerDescription) givenActivityViewerDescription.textContent = item.description || 'No additional instructions were provided.';
@@ -23432,9 +23496,16 @@ function closeGivenActivityViewer() {
   givenActivityState.viewerAttachmentIndex = 0;
   if (givenActivityViewerBody) givenActivityViewerBody.innerHTML = '';
   updateGivenActivityViewerDownloadAction(null);
+  if (givenActivityViewerOpenBtn) {
+    givenActivityViewerOpenBtn.href = '#';
+    givenActivityViewerOpenBtn.classList.remove('hidden');
+    givenActivityViewerOpenBtn.tabIndex = 0;
+    givenActivityViewerOpenBtn.setAttribute('aria-hidden', 'false');
+  }
   setGivenActivityViewerInstructionsOpen(false);
   givenActivityViewerOverlay?.classList.add('hidden');
-  document.body.classList.remove('given-activity-viewer-open');
+  givenActivityViewerOverlay?.classList.remove('peta-protected');
+  document.body.classList.remove('given-activity-viewer-open', 'peta-protected-active');
 }
 
 function populateGivenActivityAudienceOptions() {
@@ -24429,6 +24500,15 @@ function bindTeacherToolsV295() {
       renderGivenActivityViewerAttachment();
     }
   });
+  installProtectedPetaGuards(givenActivityViewerOverlay, () => givenActivityViewerOverlay?.classList.contains('peta-protected') === true);
+  installProtectedPetaGuards(petaReferenceDock, () => petaReferenceDock?.classList.contains('hidden') === false);
+  document.addEventListener('keydown', event => {
+    const viewerProtected = givenActivityViewerOverlay?.classList.contains('hidden') === false
+      && givenActivityViewerOverlay.classList.contains('peta-protected');
+    if (!viewerProtected) return;
+    const key = String(event.key || '').toLowerCase();
+    if ((event.ctrlKey || event.metaKey) && ['s', 'p', 'u', 'c', 'x'].includes(key)) blockProtectedPetaInteraction(event);
+  }, true);
   petaReadOnlyBtn?.addEventListener('click', () => {
     const activityId = petaWorkflowState.choiceActivityId;
     closePetaActionChoice();
