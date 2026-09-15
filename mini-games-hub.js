@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const ASSET_VERSION = '20260912-v4761-million-byte-v53-github-safe';
+  const ASSET_VERSION = '20260915-v514-train-heart-fix';
 
   const GAME_REGISTRY = Object.freeze([
     {
@@ -142,6 +142,23 @@
         const score = Math.max(0, Number(record.bestScore || 0));
         const combo = Math.max(0, Number(record.bestCombo || 0));
         return combo > 0 ? `\u{1F3C6} Best: ${score} \u00b7 Combo x${combo}` : `\u{1F3C6} Best: ${score}`;
+      }
+    },
+    {
+      id: 'dial-in',
+      stateKey: 'dialIn',
+      name: 'DIAL IN',
+      icon: '🎯',
+      description: 'Memory. Precision. Timing. Match a color, pitch, or hidden timer across five fast accuracy rounds.',
+      maxXp: 5,
+      category: 'PRECISION / MEMORY',
+      difficulty: '★★★★☆',
+      globalName: 'ICT8DialIn',
+      script: 'games/dial-in/dial-in.js',
+      style: 'games/dial-in/dial-in.css',
+      bestText(record = {}) {
+        const best = Math.max(0, Number(record.bestColorAccuracy || 0), Number(record.bestSoundAccuracy || 0), Number(record.bestTimeAccuracy || 0));
+        return best > 0 ? `🎯 Best: ${best.toFixed(1)}%` : '🎯 Precision ready';
       }
     },
     {
@@ -320,9 +337,9 @@
       stateKey: 'codeTiles',
       name: 'CODE TILES',
       icon: '🎹',
-      description: 'Tap short code tiles, press-and-hold long tiles through the SYNC LINE, build combos, and keep the four-lane rhythm synced.',
+      description: 'Classic Piano Tiles-style run: tap only the next black tile, hold long tiles until they finish, and never touch an empty lane.',
       maxXp: 3,
-      category: 'RHYTHM / TIMING',
+      category: 'PIANO / CLASSIC TILES',
       difficulty: '★★★★☆',
       globalName: 'ICT8CodeTiles',
       script: 'games/code-tiles/code-tiles.js',
@@ -338,11 +355,12 @@
       stateKey: 'byteRunnerHtmlRush',
       name: 'BYTE RUNNER: HTML RUSH',
       icon: '⚡',
-      description: 'Read HTML challenges, dodge cyber hazards, and run through the correct code gates to build a complete webpage.',
-      maxXp: 12,
+      description: 'Race through a bright rail city, read HTML challenges, and use the correct run, jump, or slide action to build a complete webpage.',
+      maxXp: 20,
       category: 'EDUCATIONAL / RUNNER',
       difficulty: '★★★★☆',
       globalName: 'ICT8ByteRunnerHtmlRush',
+      dependencies: ['games/byte-runner-html-rush/byte-runner-3d.js'],
       script: 'games/byte-runner-html-rush/byte-runner-html-rush.js',
       style: 'games/byte-runner-html-rush/byte-runner-html-rush.css',
       bestText(record = {}) {
@@ -442,6 +460,61 @@
       playLabel: 'PLAY CO-OP',
       bestText() { return '🧩 CO-OP ESCAPE · 0 XP'; }
     },
+
+    {
+      id: 'code-dama',
+      stateKey: 'codeDama',
+      name: 'CODE DAMA',
+      icon: '♟️',
+      description: 'Play Code Dama solo against a selectable AI difficulty, or challenge a classmate in live 1v1 Classic, Speed, Blitz, King Rush, or Power Dama.',
+      maxXp: 0,
+      multiplayer: true,
+      noXp: true,
+      category: 'SOLO / 2P STRATEGY',
+      difficulty: '★★★★☆',
+      globalName: 'ICT8CodeDama',
+      dependencies: ['games/p2p-zero-db/p2p-zero-db.js'],
+      script: 'games/code-dama/code-dama.js',
+      style: 'games/code-dama/code-dama.css',
+      playLabel: 'PLAY SOLO / 1V1',
+      bestText() { return '♟️ SOLO / LIVE 1V1 · 0 XP'; }
+    },
+    {
+      id: 'code-climb',
+      stateKey: 'codeClimb',
+      name: 'CODE CLIMB',
+      icon: '🐍🪜',
+      description: 'Play Snakes & Ladders solo against bots or create a live 2–4 player room with Student ID invites, a reusable QR, or a room code.',
+      maxXp: 0,
+      multiplayer: true,
+      noXp: true,
+      category: '1–4 PLAYER / BOARD',
+      difficulty: '★★☆☆☆',
+      globalName: 'ICT8CodeClimb',
+      dependencies: ['games/p2p-zero-db/p2p-zero-db.js'],
+      script: 'games/code-climb/code-climb.js',
+      style: 'games/code-climb/code-climb.css',
+      playLabel: 'PLAY 1–4P',
+      bestText() { return '🐍🪜 SOLO / LIVE 2–4P · 0 XP'; }
+    },
+    {
+      id: 'code-uno',
+      stateKey: 'codeUno',
+      name: 'UNO!',
+      icon: '🃏',
+      description: 'Play a polished classic color-card match solo against 1–9 bots, or host a live 2–10 player room with room code, QR, and Student ID invites.',
+      maxXp: 0,
+      multiplayer: true,
+      noXp: true,
+      category: 'SOLO / LIVE 2–10 PLAYER',
+      difficulty: '★★★☆☆',
+      globalName: 'ICT8CodeUno',
+      dependencies: ['games/p2p-zero-db/p2p-zero-db.js', 'games/code-uno/code-uno-engine.js'],
+      script: 'games/code-uno/code-uno.js',
+      style: 'games/code-uno/code-uno.css',
+      playLabel: 'PLAY UNO!',
+      bestText() { return '🃏 SOLO / LIVE 2–10P · 0 XP'; }
+    },
     {
       id: 'pattern-lock',
       stateKey: 'patternLock',
@@ -486,6 +559,7 @@
     'falling-code':           { bpm:112, root:47, scale:'minor',     lead:'bell',   melody:[4,null,3,2,1,null,0,null,5,null,4,3,2,1,0,null], bass:[0,5,3,4], drums:'soft',   gain:.28 },
     'perfect-shot':           { bpm:120, root:57, scale:'majorPent', lead:'pluck',  melody:[0,null,2,null,4,3,2,null,0,null,3,null,4,5,4,null], bass:[0,3,4,3], drums:'groove', gain:.29 },
     'color-switch-byte':      { bpm:128, root:60, scale:'majorPent', lead:'bell',   melody:[0,2,4,3,1,3,4,5,4,2,0,2,3,4,2,null], bass:[0,4,3,4], drums:'dance',  gain:.30 },
+    'dial-in':                { bpm:100, root:57, scale:'dorian',    lead:'bell',   melody:[0,null,2,null,4,3,null,2,0,null,3,null,5,4,2,null], bass:[0,3,4,3], drums:'soft',   gain:.29 },
     'code-hoops':             { bpm:104, root:50, scale:'minorPent', lead:'pluck',  melody:[0,null,2,3,null,2,0,null,3,null,4,3,2,0,null,null], bass:[0,3,4,3], drums:'groove', gain:.30 },
     'red-light-green-light':  { bpm:116, root:52, scale:'minor',     lead:'pulse',  melody:[0,null,0,2,null,2,3,null,0,null,4,3,2,null,0,null], bass:[0,0,3,4], drums:'pulse',  gain:.28 },
     'code-maze':              { bpm:110, root:53, scale:'minor',     lead:'bell',   melody:[0,null,2,3,5,null,3,2,0,null,4,5,4,2,1,null], bass:[0,3,5,4], drums:'soft',   gain:.27 },
@@ -502,6 +576,9 @@
     'code-snake-duel':        { bpm:136, root:50, scale:'minorPent', lead:'pulse', melody:[0,1,3,2,4,3,2,null,0,2,4,5,4,3,1,null], bass:[0,0,3,4], drums:'drive', gain:.32 },
     'byte-space-battle':      { bpm:152, root:45, scale:'dorian', lead:'saw', melody:[0,2,4,5,6,4,2,null,0,3,5,6,5,4,2,null], bass:[0,5,0,4], drums:'drive', gain:.33 },
     'code-escape-coop':       { bpm:98, root:55, scale:'minor', lead:'bell', melody:[0,null,2,null,3,5,null,4,2,null,1,3,null,2,0,null], bass:[0,3,5,4], drums:'suspense', gain:.29 },
+    'code-dama':              { bpm:106, root:50, scale:'dorian', lead:'pluck', melody:[0,null,2,3,null,4,3,2,0,null,3,5,4,3,2,null], bass:[0,3,4,3], drums:'soft', gain:.27 },
+    'code-climb':             { bpm:112, root:55, scale:'majorPent', lead:'pluck', melody:[0,2,4,3,5,4,2,null,1,3,5,4,3,2,0,null], bass:[0,3,4,3], drums:'groove', gain:.27 },
+    'code-uno':               { bpm:118, root:57, scale:'majorPent', lead:'pluck', melody:[0,2,4,null,3,5,4,2,1,3,5,null,4,2,1,null], bass:[0,3,4,3], drums:'groove', gain:.27 },
     'pattern-lock':           { bpm:102, root:60, scale:'minorPent', lead:'bell',   melody:[0,null,2,null,4,null,3,null,1,null,3,null,5,4,2,null], bass:[0,3,4,3], drums:'soft',   gain:.27 }
   });
 
@@ -1003,7 +1080,7 @@
 
         <nav class="xp-games-tabs" role="tablist" aria-label="Mini-Games views">
           <button class="xp-games-tab active" type="button" role="tab" aria-selected="true" data-xp-games-tab="games">🎮 SOLO XP</button>
-          <button class="xp-games-tab" type="button" role="tab" aria-selected="false" data-xp-games-tab="multiplayer">👥 2P / NO XP</button>
+          <button class="xp-games-tab" type="button" role="tab" aria-selected="false" data-xp-games-tab="multiplayer">👥 MULTI / NO XP</button>
           <button class="xp-games-tab" type="button" role="tab" aria-selected="false" data-xp-games-tab="weekly">🏆 WEEKLY</button>
         </nav>
 
@@ -1040,8 +1117,8 @@
             <section class="xp-games-2p-summary">
               <div>
                 <small>👥 PLAY WITH A FRIEND</small>
-                <h3>2 PLAYER · NO XP</h3>
-                <p>Invite a classmate by Student ID or connect with QR/Share. These multiplayer games are separate from Solo XP and Weekly Arcade.</p>
+                <h3>MULTIPLAYER · NO XP</h3>
+                <p>Play live multiplayer with Student ID, QR/Share, or supported room codes. Some games also include Solo mode. These games are separate from Solo XP and Weekly Arcade.</p>
               </div>
               <span class="xp-games-2p-zero">0 XP</span>
             </section>
