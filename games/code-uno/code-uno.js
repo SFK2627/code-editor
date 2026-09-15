@@ -181,7 +181,7 @@
       <section class="uno-shell" role="dialog" aria-modal="true" aria-label="UNO game">
         <header class="uno-head">
           <button class="uno-icon-btn" type="button" data-back aria-label="Back">←</button>
-          <div class="uno-brand"><span class="uno-brand-mark"><span>UNO</span></span><div><strong>UNO!</strong><small>COLOR CARD ARENA · 0 XP</small></div></div>
+          <div class="uno-brand"><span class="uno-brand-mark">4C</span><div><strong>UNO!</strong><small>COLOR CARD ARENA · 0 XP</small></div></div>
           <div class="uno-head-actions">
             <span class="uno-zero-xp">0 XP</span>
             <button class="uno-icon-btn" type="button" data-sound aria-label="Toggle game sound">🔊</button>
@@ -309,7 +309,7 @@
               <div class="uno-table-glow"></div>
               <div class="uno-opponents" data-opponents></div>
               <div class="uno-center-zone">
-                <button class="uno-pile draw" type="button" data-draw-pile aria-label="Draw one card"><span class="uno-card-back"><b>UNO</b></span><small><b data-draw-count>0</b> DRAW</small></button>
+                <button class="uno-pile draw" type="button" data-draw-pile aria-label="Draw one card"><span class="uno-card-back"><b>4C</b></span><small><b data-draw-count>0</b> DRAW</small></button>
                 <div class="uno-discard" data-discard></div>
                 <div class="uno-center-status" data-center-status></div>
               </div>
@@ -326,7 +326,7 @@
                 <button class="uno-action uno" type="button" data-uno>UNO!</button>
               </div>
             </div>
-            <div class="uno-hand-shell"><div class="uno-hand" data-hand aria-label="Your cards"></div></div>
+            <div class="uno-hand-shell"><button class="uno-hand-nav prev" type="button" data-hand-prev aria-label="Scroll cards left" hidden>&lsaquo;</button><div class="uno-hand" data-hand aria-label="Your cards"></div><button class="uno-hand-nav next" type="button" data-hand-next aria-label="Scroll cards right" hidden>&rsaquo;</button></div>
           </section>
         </main>
 
@@ -378,17 +378,40 @@
       const view = currentView();
       if (view?.private?.actions?.catchableSeat != null) performLocalAction({ type:'catch-uno', targetSeat:view.private.actions.catchableSeat });
     });
-    $('[data-hand]')?.addEventListener('click', event => {
+    const handRail=$('[data-hand]');
+    handRail?.addEventListener('click', event => {
+      if(Date.now()<Number(handRail.dataset.suppressClickUntil||0))return;
       const card = event.target.closest('[data-card-id]');
-      if (!card || card.disabled) return;
+      if (!card || card.dataset.disabled==='1' || card.classList.contains('disabled')) return;
       performLocalAction({ type:'play', cardId:card.dataset.cardId });
     });
-    $('[data-hand]')?.addEventListener('wheel', event => {
-      const hand=$('[data-hand]');
-      if(!hand||hand.scrollWidth<=hand.clientWidth+4||Math.abs(event.deltaY)<=Math.abs(event.deltaX))return;
+    handRail?.addEventListener('wheel', event => {
+      if(!handRail||handRail.scrollWidth<=handRail.clientWidth+4||Math.abs(event.deltaY)<=Math.abs(event.deltaX))return;
       event.preventDefault();
-      hand.scrollLeft+=event.deltaY;
+      handRail.scrollLeft+=event.deltaY;
     },{passive:false});
+    handRail?.addEventListener('scroll',()=>updateHandRailControls(handRail),{passive:true});
+    $('[data-hand-prev]')?.addEventListener('click',()=>scrollHandRail(-1));
+    $('[data-hand-next]')?.addEventListener('click',()=>scrollHandRail(1));
+    let handMouseDrag=null;
+    handRail?.addEventListener('pointerdown',event=>{
+      if(event.pointerType!=='mouse'||handRail.scrollWidth<=handRail.clientWidth+4)return;
+      handMouseDrag={id:event.pointerId,x:event.clientX,left:handRail.scrollLeft,moved:false};
+      handRail.classList.add('dragging');
+      try{handRail.setPointerCapture(event.pointerId);}catch(_){}
+    });
+    handRail?.addEventListener('pointermove',event=>{
+      if(!handMouseDrag||event.pointerId!==handMouseDrag.id)return;
+      const dx=event.clientX-handMouseDrag.x;if(Math.abs(dx)>4)handMouseDrag.moved=true;
+      handRail.scrollLeft=handMouseDrag.left-dx;
+    });
+    const finishHandDrag=event=>{
+      if(!handMouseDrag||event.pointerId!==handMouseDrag.id)return;
+      if(handMouseDrag.moved)handRail.dataset.suppressClickUntil=String(Date.now()+220);
+      handMouseDrag=null;handRail.classList.remove('dragging');updateHandRailControls(handRail);
+    };
+    handRail?.addEventListener('pointerup',finishHandDrag);
+    handRail?.addEventListener('pointercancel',finishHandDrag);
     $$('[data-choose-color]').forEach(button => button.addEventListener('click', () => performLocalAction({ type:'color', color:button.dataset.chooseColor })));
     $('[data-wild4-accept]')?.addEventListener('click', () => performLocalAction({ type:'wild4-accept' }));
     $('[data-wild4-challenge]')?.addEventListener('click', () => performLocalAction({ type:'wild4-challenge' }));
@@ -400,7 +423,9 @@
     });
     $('[data-disconnect-home]')?.addEventListener('click', leaveRoomToHome);
     document.addEventListener('visibilitychange', onVisibilityChange);
-    window.addEventListener('resize', () => { if(r.open&&r.state==='game')requestAnimationFrame(()=>{const hand=$('[data-hand]'),view=currentView();updateHandLayout(hand,view?.private?.hand?.length||0);}); }, { passive:true });
+    const refreshResponsiveGame=()=>{if(r.open&&r.state==='game')requestAnimationFrame(()=>{const hand=$('[data-hand]'),view=currentView();updateHandLayout(hand,view?.private?.hand?.length||0);updateHandRailControls(hand);});};
+    window.addEventListener('resize',refreshResponsiveGame,{passive:true});
+    try{window.visualViewport?.addEventListener('resize',refreshResponsiveGame,{passive:true});}catch(_){}
   }
 
   function show(name) {
@@ -411,6 +436,9 @@
     if (next !== 'game') hideChoiceModals();
     if (next === 'home') hideDisconnect();
     updateVoiceUi();
+    const activePanel=$(`[data-panel="${next}"]`);
+    if(activePanel&&['solo','host','join'].includes(next))requestAnimationFrame(()=>{activePanel.scrollTop=0;});
+    if(next==='game')requestAnimationFrame(()=>{const hand=$('[data-hand]');const view=currentView();updateHandLayout(hand,view?.private?.hand?.length||0);updateHandRailControls(hand);});
   }
 
   function back() {
@@ -531,7 +559,7 @@
     const drawn = options.drawn === true;
     const button = options.button === true;
     const tag = button ? 'button' : 'div';
-    const attrs = button ? ` type="button" data-card-id="${esc(card.id)}" ${options.disabled?'disabled':''}` : '';
+    const attrs = button ? ` type="button" data-card-id="${esc(card.id)}" data-disabled="${options.disabled?'1':'0'}" aria-disabled="${options.disabled?'true':'false'}" tabindex="${options.disabled?'-1':'0'}"` : '';
     return `<${tag}${attrs} class="uno-card ${wild?'wild':`color-${card.color}`} type-${card.type}${playable?' playable':''}${drawn?' drawn':''}${options.disabled?' disabled':''}">
       <span class="uno-card-corner top">${esc(symbol)}</span>
       <span class="uno-card-oval"><b>${esc(symbol)}</b>${wild?'<i class="uno-wild-wheel"><em></em><em></em><em></em><em></em></i>':''}</span>
@@ -928,9 +956,11 @@
 
   function renderCenter(pub){const discard=$('[data-discard]');$('[data-draw-count]').textContent=String(pub.drawCount);if(discard){const pile=visualPileFor(pub.topCard);discard.innerHTML=pile.map((card,index)=>`<div class="uno-discard-layer ${index===pile.length-1?'top':''}" style="${pileTransform(card,index,pile.length)}">${cardHtml(card)}</div>`).join('');discard.dataset.cardId=String(pub.topCard?.id||'');}const status=$('[data-center-status]');if(pub.phase==='wild4-challenge'){const offender=pub.players.find(p=>p.seat===pub.pending?.offenderSeat);const target=pub.players.find(p=>p.seat===pub.pending?.targetSeat);status.innerHTML=`<b>+4 CHALLENGE</b><span>${esc(target?.name||'Player')} decides against ${esc(offender?.name||'Player')}</span>`;}else if(pub.phase==='draw2-stack'){const target=pub.players.find(p=>p.seat===pub.pending?.targetSeat);status.innerHTML=`<b>+${pub.pending?.total||2} STACK</b><span>${esc(target?.name||'Player')} can stack a +2 or take the cards</span>`;}else if(pub.phase==='choose-swap'){const actor=pub.players.find(p=>p.seat===pub.pending?.actorSeat);status.innerHTML=`<b>7–0 SWAP</b><span>${esc(actor?.name||'Player')} chooses a hand</span>`;}else if(pub.unoVulnerableSeat!=null){const p=pub.players.find(x=>x.seat===pub.unoVulnerableSeat);status.innerHTML=`<b>UNO WINDOW!</b><span>${esc(p?.name||'Player')} forgot to call UNO</span>`;}else{status.innerHTML=`<b>${(COLOR_META[pub.currentColor]||COLOR_META.red).label}</b><span>${pub.direction===-1?'Counter-clockwise':'Clockwise'} · ${pub.drawCount} in draw pile</span>`;}}
 
-  function updateHandLayout(hand,count){if(!hand)return;const cards=[...hand.querySelectorAll('.uno-card')];const n=Math.max(1,Number(count||cards.length||1));const mobile=window.matchMedia?.('(max-width: 820px)')?.matches===true;const shortLandscape=window.matchMedia?.('(orientation: landscape) and (max-height: 620px)')?.matches===true;const cardWidth=shortLandscape?62:(mobile?72:86);const usable=Math.max(220,(hand.clientWidth||window.innerWidth||760)-(mobile?18:42));const idealGap=mobile?6:9;const comfortableStep=cardWidth+idealGap;const fitStep=n<=1?cardWidth:(usable-cardWidth)/Math.max(1,n-1);const readableFloor=mobile?48:56;const step=Math.max(readableFloor,Math.min(comfortableStep,fitStep));const gap=Math.round(step-cardWidth);const total=cardWidth+(n-1)*step;const scrolling=total>usable+2;hand.style.setProperty('--uno-hand-card-width',`${cardWidth}px`);hand.style.setProperty('--uno-hand-gap',`${gap}px`);hand.classList.toggle('scrolling',scrolling);hand.classList.toggle('crowded',n>=12);const mid=(n-1)/2;cards.forEach((card,index)=>{const d=mid?((index-mid)/mid):0;const maxRot=scrolling?1.5:3.2;card.style.setProperty('--fan-rot',`${(d*maxRot).toFixed(2)}deg`);card.style.setProperty('--fan-lift',`${Math.round(Math.abs(d)*(scrolling?1.5:3))}px`);card.style.zIndex=String(index+1);card.style.scrollSnapAlign='center';});}
+  function updateHandRailControls(hand=$('[data-hand]')){if(!hand)return;const max=Math.max(0,hand.scrollWidth-hand.clientWidth),overflow=max>6;const prev=$('[data-hand-prev]'),next=$('[data-hand-next]');if(prev){prev.hidden=!overflow;prev.disabled=!overflow||hand.scrollLeft<=4;}if(next){next.hidden=!overflow;next.disabled=!overflow||hand.scrollLeft>=max-4;}hand.classList.toggle('has-overflow',overflow);}
+  function scrollHandRail(direction){const hand=$('[data-hand]');if(!hand)return;const amount=Math.max(130,Math.round(hand.clientWidth*.68));hand.scrollBy({left:(direction<0?-amount:amount),behavior:'smooth'});setTimeout(()=>updateHandRailControls(hand),260);}
+  function updateHandLayout(hand,count){if(!hand)return;const cards=[...hand.querySelectorAll('.uno-card')];const n=Math.max(1,Number(count||cards.length||1));const mobile=window.matchMedia?.('(max-width: 820px)')?.matches===true;const narrow=window.matchMedia?.('(max-width: 430px)')?.matches===true;const shortLandscape=window.matchMedia?.('(orientation: landscape) and (max-height: 620px)')?.matches===true;const cardWidth=shortLandscape?60:(narrow?68:(mobile?72:86));const railWidth=hand.clientWidth||window.visualViewport?.width||window.innerWidth||760;const usable=Math.max(210,railWidth-(mobile?24:42));const idealGap=mobile?6:9;const comfortableStep=cardWidth+idealGap;const fitStep=n<=1?cardWidth:(usable-cardWidth)/Math.max(1,n-1);const readableFloor=narrow?44:(mobile?48:56);const step=Math.max(readableFloor,Math.min(comfortableStep,fitStep));const gap=Math.round(step-cardWidth);const total=cardWidth+(n-1)*step;const scrolling=total>usable+2;hand.style.setProperty('--uno-hand-card-width',`${cardWidth}px`);hand.style.setProperty('--uno-hand-gap',`${gap}px`);hand.classList.toggle('scrolling',scrolling);hand.classList.toggle('crowded',n>=12);const mid=(n-1)/2;cards.forEach((card,index)=>{const d=mid?((index-mid)/mid):0;const maxRot=scrolling?1.2:3.0;card.style.setProperty('--fan-rot',`${(d*maxRot).toFixed(2)}deg`);card.style.setProperty('--fan-lift',`${Math.round(Math.abs(d)*(scrolling?1:3))}px`);card.style.zIndex=String(index+1);card.style.scrollSnapAlign=mobile?'none':'center';});requestAnimationFrame(()=>updateHandRailControls(hand));}
 
-  function renderHand(pub,priv){const hand=$('[data-hand]'),actions=priv.actions||{};const cards=sortedHand(priv.hand||[]);hand.innerHTML=cards.map(card=>{const playable=(actions.canPlayIds||[]).includes(card.id);const disabled=!playable||r.busyAction;return cardHtml(card,{button:true,playable,drawn:actions.drawnCardId===card.id,disabled})}).join('');hand.style.setProperty('--card-count',String(cards.length||1));updateHandLayout(hand,cards.length);const sort=$('[data-sort]');if(sort)sort.textContent=`SORT: ${handSortLabel()}`;}
+  function renderHand(pub,priv){const hand=$('[data-hand]'),actions=priv.actions||{};if(!hand)return;const oldMax=Math.max(0,hand.scrollWidth-hand.clientWidth),oldLeft=hand.scrollLeft,oldAtEnd=oldMax>0&&oldMax-oldLeft<18;const cards=sortedHand(priv.hand||[]);hand.innerHTML=cards.map(card=>{const playable=(actions.canPlayIds||[]).includes(card.id);const disabled=!playable||r.busyAction;return cardHtml(card,{button:true,playable,drawn:actions.drawnCardId===card.id,disabled})}).join('');hand.style.setProperty('--card-count',String(cards.length||1));updateHandLayout(hand,cards.length);requestAnimationFrame(()=>{const nextMax=Math.max(0,hand.scrollWidth-hand.clientWidth);if(oldMax>0)hand.scrollLeft=oldAtEnd?nextMax:Math.min(oldLeft,nextMax);updateHandRailControls(hand);});const sort=$('[data-sort]');if(sort)sort.textContent=`SORT: ${handSortLabel()}`;}
 
   function renderControls(view=currentView()){const pub=view.public,priv=view.private;if(!pub||!priv)return;const actions=priv.actions||{};const draw=$('[data-draw]'),keep=$('[data-keep]'),uno=$('[data-uno]'),catchBtn=$('[data-catch]'),pile=$('[data-draw-pile]'),sort=$('[data-sort]');draw.disabled=r.busyAction||!actions.canDraw;draw.textContent=actions.stackTotal?`TAKE +${actions.stackTotal}`:(pub.houseRules?.drawUntilPlayable?'DRAW UNTIL':'DRAW');pile.disabled=draw.disabled;keep.hidden=!actions.canPass;keep.disabled=r.busyAction||!actions.canPass;uno.disabled=r.busyAction||!actions.canCallUno;uno.classList.toggle('hot',!!actions.canCallUno);uno.textContent=actions.unoPrimed?'UNO ✓':'UNO!';catchBtn.hidden=actions.catchableSeat==null;catchBtn.disabled=r.busyAction||actions.catchableSeat==null;if(sort){sort.disabled=false;sort.textContent=`SORT: ${handSortLabel()}`;}}
 
@@ -972,7 +1002,7 @@
     animateDrawEvent(ev,pub,serial);
   }
 
-  function animateDrawEvent(ev,pub,serial){let target=null,count=0;if(ev.type==='drawOne'||ev.type==='drawPass'){target=ev.seat;count=Math.max(1,Number(ev.count||1));}else if(ev.type==='drawPenalty'||ev.type==='wild4Accepted'){target=ev.targetSeat;count=Number(ev.count||0);}else if(ev.type==='unoCaught'){target=ev.targetSeat;count=Number(ev.count||2);}else if(ev.type==='wild4Challenge'){target=ev.successful?ev.offenderSeat:ev.targetSeat;count=Number(ev.count||0);}if(target==null||!count)return;const deckEl=$('[data-draw-pile]'),deck=deckEl?.getBoundingClientRect();const targetEl=target===r.localSeat?$('[data-hand]'):$(`[data-seat-avatar="${target}"]`);const dst=targetEl?.getBoundingClientRect();if(!deck||!dst)return;targetEl?.classList.add('receiving-cards');const start=rectCenter(deck),end=rectCenter(dst),dx=end.x-start.x,dy=end.y-start.y;const shown=Math.min(count,6),stagger=count>=4?112:96;for(let i=0;i<shown;i++){setTimeout(()=>{if(serial!==r.transitionSerial)return;const fly=document.createElement('div');fly.className='uno-fly-back';fly.innerHTML='<span class="uno-card-back"><b>UNO</b></span>';fly.style.left=`${start.x}px`;fly.style.top=`${start.y}px`;document.body.appendChild(fly);const spread=(i-(shown-1)/2)*9;const lift=Math.min(110,Math.max(50,Math.abs(dy)*.24+30));const twist=(i-(shown-1)/2)*4;const frames=[{transform:'translate(-50%,-50%) scale(.94) rotate(0deg)',opacity:1},{transform:`translate(-50%,-50%) translate(${(dx*.46+spread*.45).toFixed(1)}px,${(dy*.46-lift).toFixed(1)}px) scale(1.08) rotate(${twist.toFixed(1)}deg)`,opacity:1,offset:.50},{transform:`translate(-50%,-50%) translate(${(dx+spread).toFixed(1)}px,${(dy-3).toFixed(1)}px) scale(.9) rotate(${(twist*1.35).toFixed(1)}deg)`,opacity:.72,offset:.88},{transform:`translate(-50%,-50%) translate(${(dx+spread).toFixed(1)}px,${dy.toFixed(1)}px) scale(.78) rotate(${(twist*1.5).toFixed(1)}deg)`,opacity:.08}];const done=()=>fly.remove();if(typeof fly.animate==='function'){const anim=fly.animate(frames,{duration:560,easing:'cubic-bezier(.18,.78,.23,1)',fill:'forwards'});anim.onfinish=done;anim.oncancel=done;}else{fly.style.transition='transform .54s cubic-bezier(.18,.78,.23,1),opacity .54s';requestAnimationFrame(()=>{fly.style.transform=`translate(-50%,-50%) translate(${dx+spread}px,${dy}px) rotate(${twist*1.5}deg) scale(.78)`;fly.style.opacity='.08';});setTimeout(done,580);}},i*stagger);}setTimeout(()=>targetEl?.classList.remove('receiving-cards'),shown*stagger+620);}
+  function animateDrawEvent(ev,pub,serial){let target=null,count=0;if(ev.type==='drawOne'||ev.type==='drawPass'){target=ev.seat;count=Math.max(1,Number(ev.count||1));}else if(ev.type==='drawPenalty'||ev.type==='wild4Accepted'){target=ev.targetSeat;count=Number(ev.count||0);}else if(ev.type==='unoCaught'){target=ev.targetSeat;count=Number(ev.count||2);}else if(ev.type==='wild4Challenge'){target=ev.successful?ev.offenderSeat:ev.targetSeat;count=Number(ev.count||0);}if(target==null||!count)return;const deckEl=$('[data-draw-pile]'),deck=deckEl?.getBoundingClientRect();const targetEl=target===r.localSeat?$('[data-hand]'):$(`[data-seat-avatar="${target}"]`);const dst=targetEl?.getBoundingClientRect();if(!deck||!dst)return;targetEl?.classList.add('receiving-cards');const start=rectCenter(deck),end=rectCenter(dst),dx=end.x-start.x,dy=end.y-start.y;const shown=Math.min(count,6),stagger=count>=4?112:96;for(let i=0;i<shown;i++){setTimeout(()=>{if(serial!==r.transitionSerial)return;const fly=document.createElement('div');fly.className='uno-fly-back';fly.innerHTML='<span class="uno-card-back"><b>4C</b></span>';fly.style.left=`${start.x}px`;fly.style.top=`${start.y}px`;document.body.appendChild(fly);const spread=(i-(shown-1)/2)*9;const lift=Math.min(110,Math.max(50,Math.abs(dy)*.24+30));const twist=(i-(shown-1)/2)*4;const frames=[{transform:'translate(-50%,-50%) scale(.94) rotate(0deg)',opacity:1},{transform:`translate(-50%,-50%) translate(${(dx*.46+spread*.45).toFixed(1)}px,${(dy*.46-lift).toFixed(1)}px) scale(1.08) rotate(${twist.toFixed(1)}deg)`,opacity:1,offset:.50},{transform:`translate(-50%,-50%) translate(${(dx+spread).toFixed(1)}px,${(dy-3).toFixed(1)}px) scale(.9) rotate(${(twist*1.35).toFixed(1)}deg)`,opacity:.72,offset:.88},{transform:`translate(-50%,-50%) translate(${(dx+spread).toFixed(1)}px,${dy.toFixed(1)}px) scale(.78) rotate(${(twist*1.5).toFixed(1)}deg)`,opacity:.08}];const done=()=>fly.remove();if(typeof fly.animate==='function'){const anim=fly.animate(frames,{duration:560,easing:'cubic-bezier(.18,.78,.23,1)',fill:'forwards'});anim.onfinish=done;anim.oncancel=done;}else{fly.style.transition='transform .54s cubic-bezier(.18,.78,.23,1),opacity .54s';requestAnimationFrame(()=>{fly.style.transform=`translate(-50%,-50%) translate(${dx+spread}px,${dy}px) rotate(${twist*1.5}deg) scale(.78)`;fly.style.opacity='.08';});setTimeout(done,580);}},i*stagger);}setTimeout(()=>targetEl?.classList.remove('receiving-cards'),shown*stagger+620);}
 
   function flashEffect(text,kind=''){const el=$('[data-effect]');if(!el)return;el.textContent=text;el.className=`uno-effect ${kind} show`;el.hidden=false;setTimeout(()=>{el.classList.remove('show');setTimeout(()=>{el.hidden=true;},180);},820);}
 
