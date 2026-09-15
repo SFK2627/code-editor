@@ -569,8 +569,8 @@
     }
 
     function inboxPollDelay() {
-      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return 12000;
-      return pendingInvites.length ? 2500 : 5000;
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return 20000;
+      return pendingInvites.length ? 3500 : 8000;
     }
 
     function scheduleInboxPoll() {
@@ -622,9 +622,9 @@
       const started = Date.now();
       const nextDelay = () => {
         const elapsed = Date.now() - started;
-        if (elapsed < 12000) return 900;
-        if (elapsed < 40000) return 1500;
-        return 2500;
+        if (elapsed < 12000) return 1200;
+        if (elapsed < 40000) return 2000;
+        return 3500;
       };
       const poll = async () => {
         if (!active || !hostInvite || options.isConnected?.()) return;

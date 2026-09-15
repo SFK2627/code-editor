@@ -420,7 +420,7 @@
       if(runtime.state==='home')await refreshPendingInvites(false).catch(()=>{});
       if(runtime.open){
         const hidden=typeof document!=='undefined'&&document.visibilityState==='hidden';
-        const delay=hidden?12000:(runtime.pendingInvites.length?2500:5000);
+        const delay=hidden?20000:(runtime.pendingInvites.length?3500:8000);
         runtime.invitePollTimer=setTimeout(poll,delay);
       }
     };
@@ -470,7 +470,7 @@
   function startHostInvitePolling(){
     stopHostInvitePolling();
     const started=Date.now();
-    const nextDelay=()=>{const elapsed=Date.now()-started;return elapsed<12000?900:(elapsed<40000?1500:2500);};
+    const nextDelay=()=>{const elapsed=Date.now()-started;return elapsed<12000?1200:(elapsed<40000?2000:3500);};
     const poll=async()=>{
       if(!runtime.open||!runtime.hostInvite||runtime.connected)return;
       if(runtime.hostInvitePollBusy)return;

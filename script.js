@@ -2380,7 +2380,7 @@ let adminLatestAiReview = null;
 let adminAiRubricController = null;
 let aiRubricConnectionState = { status: 'untested', code: '', message: '' };
 
-const MCS_APP_BUILD = 'v469-firebase-local-first';
+const MCS_APP_BUILD = 'v504-firebase-quota-optimized';
 window.MCS_APP_BUILD = MCS_APP_BUILD;
 console.info(`[MCSian Code Editor] ${MCS_APP_BUILD} loaded`);
 
@@ -2388,8 +2388,8 @@ const DEFAULT_STUDENT_PASSWORD = '123456';
 const STUDENT_EMAIL_DOMAIN = 'students.mcsian.app';
 const STUDENT_AUTH_RECOVERY_SLOTS = 12;
 const LAST_STUDENT_SESSION_KEY = 'studentCodeStudio.lastStudentSession.v1';
-const STUDENT_CLOUD_CHECKPOINT_MIN_MS = 3 * 60 * 1000; // v469: cap normal continuous editing near 20 cloud checkpoints/hour.
-const STUDENT_CLOUD_DIRTY_MAX_MS = 3 * 60 * 1000; // v469: online dirty work should not stay cloud-pending beyond ~3 minutes.
+const STUDENT_CLOUD_CHECKPOINT_MIN_MS = 5 * 60 * 1000; // v504: local recovery is immediate; routine cloud checkpoints are coalesced to ~12/hour.
+const STUDENT_CLOUD_DIRTY_MAX_MS = 6 * 60 * 1000; // v504: keep online dirty work durable without a write every few minutes.
 const STUDENT_AUTOSAVE_DELAY = STUDENT_CLOUD_CHECKPOINT_MIN_MS; // backward-compatible alias for diagnostics/UI text.
 const PROFILE_ACTIVITY_WRITE_INTERVAL = 30 * 60 * 1000; // v461: profile heartbeat is non-critical; project doc remains the real save.
 const AUTO_RUN_DELAY = 850;
@@ -2397,6 +2397,7 @@ const PREVIEW_LOAD_TIMEOUT = 3200;
 const APP_NETWORK_TIMEOUT_MS = 12000;
 const PRESENCE_HEARTBEAT_MS = 20 * 60 * 1000;
 const PRESENCE_MIN_WRITE_INTERVAL = 20 * 60 * 1000;
+const PRESENCE_VISIBILITY_MIN_WRITE_INTERVAL = 5 * 60 * 1000; // v504: suppress rapid phone/tab background churn; heartbeat remains authoritative.
 const PRESENCE_ONLINE_WINDOW_MS = 25 * 60 * 1000;
 const PRESENCE_RECENT_WINDOW_MS = 60 * 60 * 1000;
 const PRESENCE_ADMIN_WINDOW_MS = 90 * 60 * 1000;
@@ -10915,6 +10916,13 @@ function isStudentProjectImmediateSaveReason(reason = '') {
   return /^(manual|logout|reconnect|visibility|confirmed-exit|auth-switch|dashboard|project-switch|activity-submit|destructive|collab-finalize|result|result-cooldown|result-fallback|result-limit-fallback|rubric-result|rubric-result-cache|smart-result-cache)$/i.test(String(reason || ''));
 }
 
+// v504 quota guard: project durability and profile activity metadata are separate.
+// Visibility/reconnect may still flush the project itself, but they must not force
+// an extra student-profile Firestore write every time a phone/tab backgrounds.
+function isStudentProfileImmediateWriteReason(reason = '') {
+  return /^(manual|logout|confirmed-exit|auth-switch|dashboard|project-switch|activity-submit|destructive|collab-finalize|result|result-cooldown|result-fallback|result-limit-fallback|rubric-result|rubric-result-cache|smart-result-cache)$/i.test(String(reason || ''));
+}
+
 // Admin "Code Editor Autosave" is authoritative. When it is OFF, routine
 // lifecycle events must protect work locally but must not silently write the
 // project to Firestore. Only an explicit/manual or genuinely durable action is
@@ -11079,7 +11087,7 @@ async function saveCurrentStudentProject({ result = null, immediate = false, rea
       }
 
       const now = Date.now();
-      if (isStudentProjectImmediateSaveReason(reason) || now - lastProfileActivityWriteAt >= PROFILE_ACTIVITY_WRITE_INTERVAL) {
+      if (isStudentProfileImmediateWriteReason(reason) || now - lastProfileActivityWriteAt >= PROFILE_ACTIVITY_WRITE_INTERVAL) {
         lastProfileActivityWriteAt = now;
         clearSelectiveFirestoreCache(`studentProjects:${studentUidBeingSaved}`);
         clearSelectiveFirestoreCache(`studentProfile:${studentUidBeingSaved}`);
@@ -30645,8 +30653,8 @@ const adminWireframeViewerState = {
 };
 
 const WIREFRAME_WORKSPACE_PREFS_KEY = 'ict8-wireframe-workspace-v1';
-const WIREFRAME_CLOUD_CHECKPOINT_MIN_MS = 3 * 60 * 1000;
-const WIREFRAME_CLOUD_DIRTY_MAX_MS = 3 * 60 * 1000;
+const WIREFRAME_CLOUD_CHECKPOINT_MIN_MS = 5 * 60 * 1000;
+const WIREFRAME_CLOUD_DIRTY_MAX_MS = 6 * 60 * 1000;
 const WIREFRAME_RECOVERY_DEBOUNCE_MS = 220;
 
 function readWireframeWorkspacePrefs() {
@@ -34131,11 +34139,24 @@ projectNameOverlay?.addEventListener('click', event => {
 });
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden' && isStudentProjectActive() && isStudentAutoSaveAllowed()) {
+    // Keep the proven recovery behavior: dirty project content may still flush
+    // immediately before the browser is suspended. Local recovery is already
+    // written on each edit, and the profile sidecar write is now independently throttled.
     saveCurrentStudentProject({ immediate: true, reason: 'visibility' });
   }
   if (appSession.mode === 'student' && appSession.student?.uid) {
-    writeStudentPresence({}, { force: true, critical: document.visibilityState === 'hidden' }).catch(error => console.warn('Visibility presence update skipped.', error));
-    if (document.visibilityState !== 'hidden') scheduleStudentPresenceHeartbeat();
+    const hidden = document.visibilityState === 'hidden';
+    const visibilityPresenceDue = !studentPresenceLastWriteAt
+      || Date.now() - studentPresenceLastWriteAt >= PRESENCE_VISIBILITY_MIN_WRITE_INTERVAL;
+    // Rapid app/tab switching is common on phones. A hidden transition only
+    // spends an immediate RTDB write when the last presence sample is already
+    // several minutes old; visible transitions continue through the normal
+    // 20-minute presence throttle.
+    if (!hidden || visibilityPresenceDue) {
+      writeStudentPresence({}, { force: true, critical: hidden && visibilityPresenceDue })
+        .catch(error => console.warn('Visibility presence update skipped.', error));
+    }
+    if (!hidden) scheduleStudentPresenceHeartbeat();
   }
 });
 
@@ -46989,17 +47010,17 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   // v460 Phase 3 checkpoint policy. Ordinary interactions save to LocalStorage
   // immediately. Durable cloud writes are coalesced to a low-frequency window
   // while dirty, with a short checkpoint after major milestones.
-  // v471 quota pass: ordinary Explorer activity stays local-first longer.
-  // Normal durable checkpoints have a 2-minute floor, typically land around
-  // 2.5-3 minutes, while real milestones can still flush promptly.
-  const CODE_EXPLORER_CHECKPOINT_MIN_SPACING_MS = 2 * 60 * 1000;
-  const CODE_EXPLORER_CHECKPOINT_PERIODIC_BASE_MS = 150 * 1000;
-  const CODE_EXPLORER_CHECKPOINT_PERIODIC_JITTER_MS = 30 * 1000;
-  const CODE_EXPLORER_CHECKPOINT_DIRTY_MAX_MS = 3 * 60 * 1000;
-  const CODE_EXPLORER_CHECKPOINT_MILESTONE_MIN_SPACING_MS = 15 * 1000;
-  const CODE_EXPLORER_CHECKPOINT_MILESTONE_BASE_MS = 8 * 1000;
-  const CODE_EXPLORER_CHECKPOINT_MILESTONE_JITTER_MS = 4 * 1000;
-  const CODE_EXPLORER_FOREGROUND_REFRESH_MS = 5 * 60 * 1000;
+  // v504 quota pass: ordinary Explorer activity stays local-first longer.
+  // Normal durable checkpoints have a 5-minute floor and land around 5.5-7
+  // minutes, while real milestones still flush promptly after a short guard.
+  const CODE_EXPLORER_CHECKPOINT_MIN_SPACING_MS = 5 * 60 * 1000;
+  const CODE_EXPLORER_CHECKPOINT_PERIODIC_BASE_MS = 330 * 1000;
+  const CODE_EXPLORER_CHECKPOINT_PERIODIC_JITTER_MS = 60 * 1000;
+  const CODE_EXPLORER_CHECKPOINT_DIRTY_MAX_MS = 7 * 60 * 1000;
+  const CODE_EXPLORER_CHECKPOINT_MILESTONE_MIN_SPACING_MS = 30 * 1000;
+  const CODE_EXPLORER_CHECKPOINT_MILESTONE_BASE_MS = 12 * 1000;
+  const CODE_EXPLORER_CHECKPOINT_MILESTONE_JITTER_MS = 6 * 1000;
+  const CODE_EXPLORER_FOREGROUND_REFRESH_MS = 10 * 60 * 1000;
   const state = { course: 'html', topicId: '', filter: 'all', progress: null, reader: '', cloudLoaded: false, cloudXpHint: 0, dashboardCloudLoading: false, saveTimer: null, cloudSavePromise: null, cloudSaveQueued: false, checkpointDirty: false, checkpointDirtySince: 0, checkpointDueAt: 0, checkpointReason: '', checkpointRetryNotBefore: 0, lastCheckpointSignature: '', lastCheckpointMilestoneSignature: '', profileUpdateTime: '', lastCloudSyncAt: 0, identityCheckedAt: 0, identityCanonical: true, heartTimer: null, heartPopoverTimer: null, profileUnsub: null, finalAnswers: {}, finalStartedAt: 0, quickQuiz: { topicId: '', index: 0, answers: [], results: [], submitted: false, questionStartedAt: [], responseMs: [], attemptStartedAt: 0 }, miniGame: { topicId: '', selected: '', result: '', correct: '', choices: [], before: '', after: '' }, miniGameResetTimer: null, quickAdvanceTimer: null, quickFeedbackTimer: null, justUnlockedTopicId: '', justUnlockedCourse: '', mobileStage: 'learn', mobileStageDirection: 'next', mobileSwipeStart: null, mobileView: 'roadmap' };
   const miniGameProgressSubscribers = new Set();
   const activeXpMiniGameRounds = new Map();
@@ -50152,7 +50173,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     if (!shouldUseRtdbMiniGameLedger()) return currentXpMiniGamesSnapshot();
     if (!(appSession.mode === 'student' && appSession.student?.uid)) return currentXpMiniGamesSnapshot();
     const force = options.force === true;
-    if (!force && Date.now() - miniGameRtdbHydratedAt < 5 * 60 * 1000) return currentXpMiniGamesSnapshot();
+    if (!force && Date.now() - miniGameRtdbHydratedAt < 15 * 60 * 1000) return currentXpMiniGamesSnapshot();
     if (miniGameRtdbHydratePromise) return miniGameRtdbHydratePromise;
 
     const uid = String(appSession.student.uid || '');

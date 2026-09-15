@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ict8-connect-v503-stability-peta-phone';
+const CACHE_NAME = 'ict8-connect-v504-firebase-quota';
 
 self.addEventListener('install', event => {
   event.waitUntil(self.skipWaiting());

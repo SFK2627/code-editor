@@ -7,13 +7,13 @@
   const GLOBAL_NAME = 'ICT8CodeUno';
   const PREFIX = 'UNO1';
   const ROOM_QR_PREFIX = 'ICT8UNO:';
-  const HOST_JOIN_POLL_MS = 1500;
-  const HOST_ANSWER_POLL_MS = 700;
-  const GUEST_OFFER_POLL_MS = 900;
+  const HOST_JOIN_POLL_MS = 2500;
+  const HOST_ANSWER_POLL_MS = 1200;
+  const GUEST_OFFER_POLL_MS = 1500;
   const ROOM_TOUCH_MS = 90000;
   const RECONNECT_GRACE_MS = 30000;
-  const INVITE_IDLE_MS = 5000;
-  const INVITE_ACTIVE_MS = 2500;
+  const INVITE_IDLE_MS = 8000;
+  const INVITE_ACTIVE_MS = 3500;
   const COLORS = Object.freeze(['red', 'yellow', 'green', 'blue']);
   const COLOR_META = Object.freeze({
     red: { label: 'RED', icon: '●' },
@@ -894,7 +894,7 @@
 
   function renderInvites(){const wrap=$('[data-invites-wrap]'),list=$('[data-invite-list]');if(!wrap||!list)return;wrap.hidden=false;if(!r.pendingInvites.length){list.innerHTML='<div class="uno-invite-empty">No pending UNO invites.</div>';return;}list.innerHTML=r.pendingInvites.map(inv=>`<article class="uno-invite-card"><div><strong>${esc(inv.fromName||'Student')}</strong><small>${esc(inv.fromStudentId||'')}</small><p>invited you to room <b>${esc(String(inv.offerCode||'').split('.').pop()||'')}</b></p></div><div><button type="button" data-accept-invite="${esc(inv.inviteId)}">ACCEPT</button><button type="button" data-decline-invite="${esc(inv.inviteId)}">DECLINE</button></div></article>`).join('');}
 
-  function startInvitePolling(){clearTimeout(r.inviteTimer);const poll=async()=>{if(!r.open||r.state!=='join')return;await refreshInvites(false);if(r.open&&r.state==='join'){const hidden=document.visibilityState==='hidden';r.inviteTimer=setTimeout(poll,hidden?12000:(r.pendingInvites.length?INVITE_ACTIVE_MS:INVITE_IDLE_MS));}};r.inviteTimer=setTimeout(poll,650);}
+  function startInvitePolling(){clearTimeout(r.inviteTimer);const poll=async()=>{if(!r.open||r.state!=='join')return;await refreshInvites(false);if(r.open&&r.state==='join'){const hidden=document.visibilityState==='hidden';r.inviteTimer=setTimeout(poll,hidden?20000:(r.pendingInvites.length?INVITE_ACTIVE_MS:INVITE_IDLE_MS));}};r.inviteTimer=setTimeout(poll,650);}
 
   async function handleInviteListClick(event){const accept=event.target.closest('[data-accept-invite]'),decline=event.target.closest('[data-decline-invite]');if(accept){const inv=r.pendingInvites.find(x=>x.inviteId===accept.dataset.acceptInvite);if(!inv)return;try{await r.bridge.respondTwoPlayerInvite({gameId:GAME_ID,inviteId:inv.inviteId,hostUid:inv.fromUid,status:'accepted',answerCode:`${PREFIX}.ROOM`});r.pendingInvites=r.pendingInvites.filter(x=>x!==inv);renderInvites();await joinRoom(String(inv.offerCode||'').split('.').pop());}catch(error){setStatus($('[data-join-status]'),error?.message||'Could not accept invite.',true);}}else if(decline){const inv=r.pendingInvites.find(x=>x.inviteId===decline.dataset.declineInvite);if(!inv)return;try{await r.bridge.respondTwoPlayerInvite({gameId:GAME_ID,inviteId:inv.inviteId,hostUid:inv.fromUid,status:'declined'});}catch(_){}r.pendingInvites=r.pendingInvites.filter(x=>x!==inv);renderInvites();}}
 
