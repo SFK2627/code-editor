@@ -6191,6 +6191,19 @@ async function callAppsScriptSecure(payload = {}, options = {}) {
   }
 
   const idToken = await user.getIdToken(options.forceTokenRefresh === true);
+  // v511: student-safe RTDB services can reuse the identity already loaded by
+  // the signed-in app instead of performing a second Firestore profile read.
+  // This metadata is display-only; XP/reward amounts are still computed and
+  // validated by the secure Apps Script backend.
+  const secureStudentIdentity = options.allowStudent && appSession.student?.uid
+    ? {
+        uid: String(appSession.student.uid || ''),
+        studentId: String(appSession.student.studentId || appSession.student.studentIdNormalized || '').slice(0, 120),
+        name: String(appSession.student.name || appSession.student.fullName || 'Student').trim().slice(0, 100) || 'Student',
+        section: String(appSession.student.section || '').trim().slice(0, 80),
+        accountStatus: String(appSession.student.accountStatus || 'active').trim().slice(0, 32) || 'active'
+      }
+    : null;
   const timeoutMs = Math.max(0, Math.floor(Number(options.timeoutMs || 0)));
   const controller = timeoutMs > 0 && typeof AbortController === 'function' ? new AbortController() : null;
   let timeoutId = null;
@@ -6206,6 +6219,7 @@ async function callAppsScriptSecure(payload = {}, options = {}) {
         ...payload,
         idToken,
         authUid: user.uid || '',
+        studentIdentity: payload.studentIdentity || secureStudentIdentity || undefined,
         projectId: firebaseSync.config?.projectId || window.MCS_FIREBASE_CONFIG?.projectId || '',
         collectionName: firebaseSync.collectionName || window.MCS_FIREBASE_COLLECTION || 'webCodeEditor',
         documentId: firebaseSync.documentId || window.MCS_FIREBASE_DOCUMENT_ID || 'grade8-mcsian'
@@ -11497,14 +11511,12 @@ function isStudentProjectActive() {
   return canCurrentUserSaveActiveStudentProject();
 }
 
-// v468: if an editor autosave became due while a Mini-Game was active, keep
-// the recovery copy local during play and resume the ordinary delayed save only
-// after the game/reward transaction has settled.
+// v511: Mini-Game start/end must not initiate a Firestore project save. If an
+// editor project was already dirty before a game, its recovery copy stays local
+// and the normal editor/lifecycle/manual-save path will resume cloud durability.
+// Presence remains RTDB-only and may safely resume here.
 window.addEventListener('ict8:mini-game-network-quiet', event => {
   if (event?.detail?.active === true) return;
-  if (studentProjectDirty && isStudentProjectActive() && isStudentAutoSaveAllowed() && navigator.onLine !== false) {
-    scheduleStudentProjectCloudCheckpoint('post-mini-game');
-  }
   if (studentPresenceStarted && appSession.mode === 'student' && appSession.student?.uid) {
     scheduleStudentPresenceHeartbeat();
   }
@@ -49350,7 +49362,13 @@ window.MCS_PHONE_MENU_STATUS = () => ({
 
   function progressSyncSignature(progress = {}) {
     try {
-      return JSON.stringify(stableSyncValue(normalizeProgress(progress)));
+      // v511 FIRESTORE-ZERO MINI-GAMES: top-level XP Mini-Game state is
+      // authoritative in RTDB and must never make the Code Explorer Firestore
+      // checkpoint dirty. Course topic mini-game mastery remains inside
+      // courses.*.topics and is intentionally still part of this signature.
+      const normalized = normalizeProgress(progress);
+      delete normalized.miniGames;
+      return JSON.stringify(stableSyncValue(normalized));
     } catch (_) {
       return '';
     }
@@ -50457,7 +50475,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       yourRank: 0,
       yourEntry: null,
       partial: true,
-      source: shouldUseRtdbWeeklyArcade() ? 'rtdb' : 'firestore-legacy'
+      source: shouldUseRtdbWeeklyArcade() ? 'rtdb' : 'rtdb-unavailable'
     };
     if (!loggedIn) return { ...base, error: 'Log in as a student to view the Weekly Arcade leaderboard.' };
 
@@ -50520,40 +50538,14 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       }
     }
 
-    // Legacy rollout fallback only when RTDB Weekly Arcade is intentionally
-    // disabled or the database URL has not been configured yet.
-    try {
-      const ready = await initFirebaseSync();
-      if (!ready) throw new Error(firebaseSync.lastError || 'Firebase is unavailable.');
-      const { getDocs, getDoc, query, orderBy, limit } = firebaseSync.modules;
-      const [topSnapshot, yourSnapshot] = await Promise.all([
-        getDocs(query(
-          getXpMiniGameWeeklyLeaderboardCollectionRef(week.key),
-          orderBy('weeklyXp', 'desc'),
-          limit(topLimit)
-        )),
-        getDoc(getXpMiniGameWeeklyLeaderboardDocRef(week.key, uid))
-      ]);
-      const rows = sortRows((topSnapshot?.docs || []).map(docSnapshot => cleanEntry(snapshotData(docSnapshot) || {}, docSnapshot.id))
-        .filter(row => row.uid && row.weeklyXp > 0 && row.accountStatus !== 'disabled'));
-      let yourEntry = rows.find(row => row.uid === uid) || null;
-      if (!yourEntry && snapshotExists(yourSnapshot)) {
-        const candidate = cleanEntry(snapshotData(yourSnapshot) || {}, uid);
-        if (candidate.weeklyXp > 0 && candidate.accountStatus !== 'disabled') yourEntry = { ...candidate, rank: 0 };
-      }
-      return {
-        ...base,
-        ok: true,
-        source: 'firestore-legacy',
-        entries: rows,
-        totalPlayers: rows.length,
-        yourRank: yourEntry?.rank || 0,
-        yourEntry
-      };
-    } catch (error) {
-      console.warn('Legacy Firestore Weekly Arcade leaderboard could not be loaded.', error);
-      return { ...base, error: String(error?.message || error || 'Could not load Weekly Arcade leaderboard.') };
-    }
+    // v511: no Firestore fallback. Mini-Game leaderboards are RTDB-only. If
+    // RTDB is not configured/available, show a temporary unavailable state
+    // rather than consuming Firestore reads from the games area.
+    return {
+      ...base,
+      source: 'rtdb-unavailable',
+      error: 'Weekly Arcade is temporarily unavailable. Mini-Game data stays RTDB-only.'
+    };
   }
 
   function notifyXpMiniGamesProgress(extra = {}) {
@@ -50575,9 +50567,9 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     miniGames.soundUpdatedAt = new Date().toISOString();
     miniGames.updatedAt = miniGames.soundUpdatedAt;
     state.progress.miniGames = miniGames;
-    // v468: sound toggles are intentionally local-first. Do not spend a cloud
-    // write from inside a game just because the student tapped the speaker.
-    // The next normal Explorer checkpoint can persist the preference.
+    // v511: sound toggles are intentionally local-only. Do not spend any
+    // Firestore operation from inside a game just because the student tapped
+    // the speaker.
     saveLocalProgress();
     return notifyXpMiniGamesProgress();
   }
@@ -51037,7 +51029,9 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         state.progress.miniGames = mergeMiniGamesState(state.progress.miniGames || {}, raw.miniGames || {});
         state.progress.updatedAt = new Date().toISOString();
         const derivedXp = Math.max(0, Math.floor(Number(explorerXpFor(state.progress) || 0)));
-        const serverEffective = Math.max(0,
+        const serverEffective = Math.max(
+          0,
+          Math.floor(Number(raw.miniGames?.lifetimeXp || 0)),
           Math.floor(Number(raw.canonicalXpAtLastFlush || 0)) + Math.max(0, Math.floor(Number(raw.pendingXp || 0)))
         );
         const visibleXp = Math.max(derivedXp, serverEffective);
@@ -51145,10 +51139,10 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     if (appSession.student) appSession.student.codeExplorerXp = totalXp;
     if (appSession.lastStudentProfile) appSession.lastStudentProfile.codeExplorerXp = totalXp;
     saveLocalProgress(state.progress);
-    // The RTDB reward is already durable. Mark the Explorer checkpoint dirty so
-    // the existing low-frequency checkpoint later coalesces pending XP into
-    // Firestore without making the learner wait at the game-over screen.
-    refreshExplorerCheckpointDirtyState(reason);
+    // v511: the RTDB reward is the canonical Mini-Game record. Do NOT mark the
+    // Code Explorer Firestore checkpoint dirty. A student who only plays
+    // Mini-Games therefore causes zero Firestore reads/writes from gameplay.
+    // Any already-dirty learning progress keeps its existing scheduler state.
     renderTopProgress();
     updateAppHeaderForSession();
     return totalXp;
@@ -51211,7 +51205,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       if (remaining.length) {
         const maxAttempts = Math.max(...remaining.map(entry => Math.max(0, Number(entry?.attempts || 0))), 0);
         schedulePendingXpMiniGameRetry(maxAttempts >= 5 ? 5 * 60 * 1000 : 15000);
-      } else if (state.checkpointDirty) scheduleCloudSave('mini-game-reward');
+      }
       return true;
     })().finally(() => {
       xpMiniGamePendingRetryPromise = null;
@@ -51333,7 +51327,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     }
 
     if (!shouldUseAppsScriptMiniGameRewards()) {
-      // v477: preserve the exact claim locally even when the secure bridge URL
+      // v511: preserve the exact RTDB claim locally even when the secure bridge URL
       // is temporarily unavailable. Once the bridge is restored, the same
       // roundId can be retried without creating duplicate XP.
       rememberPendingXpMiniGameClaim({
@@ -51484,10 +51478,10 @@ window.MCS_PHONE_MENU_STATUS = () => ({
 
   window.addEventListener('ict8:mini-game-network-quiet', event => {
     if (event?.detail?.active === true) return;
+    // Retry only the RTDB reward ledger. Do not start/resume any Firestore
+    // checkpoint merely because a Mini-Game ended. Pre-existing Code Explorer
+    // learning remains safe locally and resumes on its next normal CE event.
     if (loadPendingXpMiniGameClaims().length) schedulePendingXpMiniGameRetry(800);
-    if (state.checkpointDirty && appSession.mode === 'student' && appSession.student?.uid) {
-      scheduleCloudSave('post-mini-game');
-    }
   });
 
   function normalizeCurrentStudentLegacyXp(options = {}) {
