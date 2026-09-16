@@ -2380,7 +2380,7 @@ let adminLatestAiReview = null;
 let adminAiRubricController = null;
 let aiRubricConnectionState = { status: 'untested', code: '', message: '' };
 
-const MCS_APP_BUILD = 'v506-super-cache-local-first';
+const MCS_APP_BUILD = 'v509-fast-cross-device-sync';
 window.MCS_APP_BUILD = MCS_APP_BUILD;
 console.info(`[MCSian Code Editor] ${MCS_APP_BUILD} loaded`);
 
@@ -2392,6 +2392,9 @@ const STUDENT_CLOUD_CHECKPOINT_MIN_MS = 20 * 60 * 1000; // v506: every edit is p
 const STUDENT_CLOUD_DIRTY_MAX_MS = 25 * 60 * 1000; // v506: local recovery is immediate, cloud durability is batched to avoid quota churn.
 const STUDENT_AUTOSAVE_DELAY = STUDENT_CLOUD_CHECKPOINT_MIN_MS; // backward-compatible alias for diagnostics/UI text.
 const PROFILE_ACTIVITY_WRITE_INTERVAL = 12 * 60 * 60 * 1000; // v506: project/profile metadata is non-critical and is heavily coalesced.
+const STUDENT_PROJECT_INDEX_REVALIDATE_MS = 5 * 60 * 1000; // v509: new device/session checks immediately; repeated My Projects visits reuse that result for 5 minutes.
+const STUDENT_PROJECT_OPEN_REVALIDATE_MS = 30 * 1000; // v509: opening a cached project rechecks that exact cloud document, never the whole collection.
+const STUDENT_DEVICE_HANDOFF_MIN_MS = 10 * 60 * 1000; // v509: at most one extra handoff cloud save per 10 minutes when a dirty editor is backgrounded.
 const AUTO_RUN_DELAY = 850;
 const PREVIEW_LOAD_TIMEOUT = 3200;
 const APP_NETWORK_TIMEOUT_MS = 12000;
@@ -2508,6 +2511,10 @@ let studentProjectRetryTimer = null;
 let studentProjectRecoveryTimer = null;
 let studentProjectIndexSyncTimer = null;
 let studentProjectIndexDirtySince = 0;
+const studentProjectIndexRevalidatedAt = new Map();
+let studentProjectIndexRevalidatePromise = null;
+const studentProjectCloudCheckedAt = new Map();
+const studentProjectLastHandoffSaveAt = new Map();
 let dailyLeaderboardPublishTimer = null;
 let lastProfileActivityWriteAt = 0;
 let editorStudentGreetingState = { key: '', text: '' };
@@ -2654,6 +2661,14 @@ function installFirebaseOperationMonitor(modules) {
     wrapped.getDoc = async (...args) => {
       FIREBASE_OP_MONITOR.bump('firestoreDocumentReads');
       const snapshot = await modules.getDoc(...args);
+      if (snapshotExists(snapshot)) FIREBASE_OP_MONITOR.bump('firestoreDocumentsReturned');
+      return snapshot;
+    };
+  }
+  if (typeof modules.getDocFromServer === 'function') {
+    wrapped.getDocFromServer = async (...args) => {
+      FIREBASE_OP_MONITOR.bump('firestoreDocumentReads');
+      const snapshot = await modules.getDocFromServer(...args);
       if (snapshotExists(snapshot)) FIREBASE_OP_MONITOR.bump('firestoreDocumentsReturned');
       return snapshot;
     };
@@ -4082,11 +4097,11 @@ function renderHTMLPageManager() {
   updateCodeFileManagerLabels();
 }
 
-function saveCodeStoreForCurrentActivity() {
+function saveCodeStoreForCurrentActivity(reason = 'edit') {
   const codeKey = activity?.id || selectedActivityId || 'scratch';
   codeByActivity[codeKey] = normalizeCodeStore(codeStore);
   saveCodeByActivity();
-  queueStudentProjectSave('edit');
+  queueStudentProjectSave(reason);
 }
 
 function switchHTMLPage(fileName) {
@@ -4217,7 +4232,7 @@ async function applyPageDialog() {
   syncActiveLanguageFileFromStore(pageDialogLanguage);
   if (pageDialogLanguage === 'html') syncActiveHTMLPageFromStore();
   saveCodeFileNames();
-  saveCodeStoreForCurrentActivity();
+  saveCodeStoreForCurrentActivity('structure');
 
   if (activeLanguage === pageDialogLanguage) {
     renderHTMLPageManager();
@@ -4248,7 +4263,7 @@ async function deleteCurrentHTMLPage() {
   codeStore[meta.activeKey] = files[meta.defaultName] ? meta.defaultName : Object.keys(files)[0] || meta.defaultName;
   syncActiveLanguageFileFromStore(activeLanguage);
   saveCodeFileNames();
-  saveCodeStoreForCurrentActivity();
+  saveCodeStoreForCurrentActivity('structure');
   renderHTMLPageManager();
   loadActiveEditor();
   runCode(false, { scroll: false });
@@ -5017,6 +5032,10 @@ function initFirebaseWithCompatSDK() {
       collection: compatCollection,
       getDoc: async ref => {
         const snap = await ref.get();
+        return { id: snap.id, exists: () => snap.exists, data: () => snap.data() || {}, ref: snap.ref };
+      },
+      getDocFromServer: async ref => {
+        const snap = await ref.get({ source: 'server' });
         return { id: snap.id, exists: () => snap.exists, data: () => snap.data() || {}, ref: snap.ref };
       },
       getDocs: ref => ref.get(),
@@ -7030,8 +7049,94 @@ function loadStudentProjectsCache() {
   return loadStudentProjectsCacheRecord()?.projects || [];
 }
 
+function studentProjectCloudFreshKey(projectId, uid = appSession.student?.uid) {
+  return `${String(uid || '')}:${String(projectId || '')}`;
+}
+
+function markStudentProjectCloudFresh(projectId, checkedAt = Date.now(), uid = appSession.student?.uid) {
+  const id = String(projectId || '');
+  const safeUid = String(uid || '');
+  if (!id || !safeUid) return;
+  studentProjectCloudCheckedAt.set(studentProjectCloudFreshKey(id, safeUid), Math.max(0, Number(checkedAt || Date.now())));
+}
+
+function mergeCloudProjectIndexIntoLocal(cloudIndex = []) {
+  const current = Array.isArray(appSession.projects) ? appSession.projects : [];
+  const localById = new Map(current.filter(item => item?.id).map(item => [String(item.id), item]));
+  const merged = (Array.isArray(cloudIndex) ? cloudIndex : []).map(entry => {
+    const id = String(entry?.id || '');
+    const cached = localById.get(id);
+    // Preserve already-cached source/wireframe payload locally, but cloud index
+    // metadata (name/status/timestamps) wins. Opening the project performs one
+    // exact-document freshness check before editing.
+    return cached ? { ...cached, ...entry, id } : { ...entry, id };
+  }).filter(item => item.id);
+  merged.sort((a, b) => (Date.parse(projectIndexTimeValue(b.updatedAt) || '') || 0) - (Date.parse(projectIndexTimeValue(a.updatedAt) || '') || 0));
+  return merged;
+}
+
+async function revalidateStudentProjectIndexFromCloud(options = {}) {
+  const uid = String(appSession.student?.uid || '');
+  if (!uid || appSession.mode !== 'student' || navigator.onLine === false) return false;
+  const now = Date.now();
+  const force = options.force === true;
+  const lastRevalidatedAt = Math.max(0, Number(studentProjectIndexRevalidatedAt.get(uid) || 0));
+  if (!force && now - lastRevalidatedAt < STUDENT_PROJECT_INDEX_REVALIDATE_MS) return false;
+  if (studentProjectIndexRevalidatePromise) return studentProjectIndexRevalidatePromise;
+  studentProjectIndexRevalidatedAt.set(uid, now);
+
+  studentProjectIndexRevalidatePromise = (async () => {
+    try {
+      const ready = await initFirebaseSync();
+      if (!ready || !firebaseSync.modules?.getDoc) return false;
+      const getFreshDoc = firebaseSync.modules.getDocFromServer || firebaseSync.modules.getDoc;
+      const snapshot = await getFreshDoc(getStudentDocRef(uid));
+      if (!snapshotExists(snapshot)) return false;
+      const cloudProfile = snapshotData(snapshot) || {};
+      const cloudIndex = getUsableStudentProjectIndex(cloudProfile);
+      if (!cloudIndex) return false;
+
+      const localIndex = buildProjectIndex(appSession.projects || []);
+      const localSignature = lightweightValueSignature(localIndex);
+      const cloudSignature = lightweightValueSignature(cloudIndex);
+
+      // Refresh only the lightweight list. Project source is fetched only when
+      // that exact project is opened, keeping cross-device sync fast and cheap.
+      appSession.student.projectCount = Math.max(0, Number(cloudProfile.projectCount || cloudIndex.length));
+      appSession.student.projectIndexVersion = Number(cloudProfile.projectIndexVersion || PROJECT_INDEX_VERSION);
+      appSession.student.projectIndex = cloudIndex.map(item => ({ ...item }));
+      appSession.student.projectIndexUpdatedAt = cloudProfile.projectIndexUpdatedAt || appSession.student.projectIndexUpdatedAt;
+      appSession.student.projectIndexInvalidatedAtMs = Math.max(0, Number(cloudProfile.projectIndexInvalidatedAtMs || 0));
+
+      if (cloudSignature !== localSignature) {
+        appSession.projects = mergeCloudProjectIndexIntoLocal(cloudIndex);
+        persistStudentProjectsCache();
+        renderStudentProjects();
+        updateStudentDashboardSaveFeedbackPanel();
+        if (projectDashboardStatus) projectDashboardStatus.textContent = `${appSession.projects.length} project${appSession.projects.length === 1 ? '' : 's'} · synced`;
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.info('Cross-device project index refresh skipped.', error);
+      return false;
+    } finally {
+      studentProjectIndexRevalidatePromise = null;
+    }
+  })();
+  return studentProjectIndexRevalidatePromise;
+}
+
 function clearStudentProjectRecovery(projectId = appSession.currentProjectId) {
-  const key = getStudentProjectRecoveryKey(projectId);
+  const targetId = String(projectId || '');
+  // v509: a successful cloud save must also cancel the delayed recovery writer.
+  // Otherwise a 220ms edit-recovery timer can recreate a backup just after Save
+  // succeeds, making My Projects incorrectly show “Recovery Backup Available”.
+  if (targetId && targetId === String(appSession.currentProjectId || '')) {
+    window.clearTimeout(studentProjectRecoveryTimer);
+    studentProjectRecoveryTimer = null;
+  }
+  const key = getStudentProjectRecoveryKey(targetId);
   if (!key) return;
   try { localStorage.removeItem(key); } catch (error) { console.warn('Could not clear the recovery copy.', error); }
 }
@@ -7041,6 +7146,7 @@ function persistStudentProjectRecoverySnapshot(reason = 'edit') {
   window.clearTimeout(studentProjectRecoveryTimer);
 
   const writeRecovery = () => {
+    studentProjectRecoveryTimer = null;
     const key = getStudentProjectRecoveryKey();
     if (!key) return;
     try {
@@ -8587,6 +8693,7 @@ async function loadStudentProjects(options = {}) {
         });
         setSelectiveFirestoreCache(`studentProjects:${student.uid}`, appSession.projects.map(project => ({ ...project })), SELECTIVE_CACHE_SHORT_MS);
         renderStudentProjects();
+        void revalidateStudentProjectIndexFromCloud();
         return appSession.projects;
       }
     }
@@ -8598,6 +8705,7 @@ async function loadStudentProjects(options = {}) {
         setSelectiveFirestoreCache(`studentProjects:${student.uid}`, appSession.projects.map(project => ({ ...project })), SELECTIVE_CACHE_MEDIUM_MS);
         persistStudentProjectsCache();
         renderStudentProjects();
+        void revalidateStudentProjectIndexFromCloud();
         if (projectDashboardStatus) projectDashboardStatus.textContent = `${appSession.projects.length} project${appSession.projects.length === 1 ? '' : 's'} · lightweight index`;
         return appSession.projects;
       }
@@ -8623,6 +8731,7 @@ async function loadStudentProjects(options = {}) {
     });
     persistStudentProjectsCache();
     setLocalStudentProjectIndex(appSession.projects);
+    studentProjectIndexRevalidatedAt.set(String(student.uid || ''), Date.now());
     if (navigator.onLine !== false) void persistStudentProjectIndex({ force: true });
     renderStudentProjects();
     return appSession.projects;
@@ -10386,6 +10495,8 @@ async function saveProjectNameDialog() {
     invalidateAdminProjectsCache(appSession.student.uid);
     clearSelectiveFirestoreCache(`studentProfile:${appSession.student.uid}`);
     persistStudentProjectsCache();
+    markStudentProjectCloudFresh(projectId);
+    studentProjectIndexRevalidatedAt.set(String(appSession.student.uid || ''), Date.now());
     closeProjectNameDialog();
     clearPendingPetaProjectLaunch();
     await openStudentProject(projectId);
@@ -11008,25 +11119,45 @@ function installPetaReferenceDockEvents() {
 }
 installPetaReferenceDockEvents();
 
-async function getStudentProject(projectId) {
-  const cached = appSession.projects.find(project => project.id === projectId);
-  if (cached?.codeByActivity || String(cached?.projectType || '').toLowerCase() === 'wireframe' && cached?.wireframeData) return cached;
-  const { getDoc } = firebaseSync.modules;
-  const loaded = await withSelectiveFirestoreCache(`studentProjectDoc:${appSession.student.uid}:${projectId}`, SELECTIVE_CACHE_MEDIUM_MS, async () => {
+async function getStudentProject(projectId, options = {}) {
+  const id = String(projectId || '');
+  const cached = appSession.projects.find(project => String(project.id || '') === id) || null;
+  const cachedHasPayload = Boolean(cached?.codeByActivity || (String(cached?.projectType || '').toLowerCase() === 'wireframe' && cached?.wireframeData));
+  if (!id) return null;
+  if (navigator.onLine === false) return cachedHasPayload ? cached : null;
+
+  const now = Date.now();
+  const lastChecked = Math.max(0, Number(studentProjectCloudCheckedAt.get(studentProjectCloudFreshKey(id, appSession.student?.uid)) || 0));
+  if (cachedHasPayload && options.force !== true && now - lastChecked < STUDENT_PROJECT_OPEN_REVALIDATE_MS) return cached;
+
+  try {
+    const ready = await initFirebaseSync();
+    if (!ready || !firebaseSync.modules?.getDoc) return cachedHasPayload ? cached : null;
     const snapshot = await withTimeout(
-      getDoc(getStudentProjectDocRef(appSession.student.uid, projectId)),
+      (firebaseSync.modules.getDocFromServer || firebaseSync.modules.getDoc)(getStudentProjectDocRef(appSession.student.uid, id)),
       APP_NETWORK_TIMEOUT_MS,
       'Opening project is taking too long. Please check the internet connection, then try again.'
     );
-    return snapshotExists(snapshot) ? { id: projectId, ...snapshotData(snapshot) } : null;
-  });
-  if (loaded) {
-    const index = appSession.projects.findIndex(project => project.id === projectId);
+    markStudentProjectCloudFresh(id);
+    if (!snapshotExists(snapshot)) {
+      // Another device may have deleted the project. Remove the stale local card.
+      appSession.projects = (appSession.projects || []).filter(project => String(project.id || '') !== id);
+      persistStudentProjectsCache();
+      renderStudentProjects();
+      return null;
+    }
+    const loaded = { id, ...snapshotData(snapshot) };
+    const index = appSession.projects.findIndex(project => String(project.id || '') === id);
     if (index >= 0) appSession.projects[index] = { ...appSession.projects[index], ...loaded };
     else appSession.projects.unshift(loaded);
     persistStudentProjectsCache();
+    return appSession.projects.find(project => String(project.id || '') === id) || loaded;
+  } catch (error) {
+    // Cross-device freshness must never make a previously cached project unusable
+    // on a weak connection. Fall back locally and retry next open.
+    console.info('Exact project freshness check skipped; using local copy.', error);
+    return cachedHasPayload ? cached : null;
   }
-  return loaded;
 }
 
 async function openStudentProject(projectId) {
@@ -11147,7 +11278,8 @@ async function renameStudentProject(projectId, name) {
   }
   persistStudentProjectsCache();
   setLocalStudentProjectIndex(appSession.projects);
-  void persistStudentProjectIndex({ force: true });
+  markStudentProjectCloudFresh(projectId);
+  void persistStudentProjectIndex({ critical: true });
   renderStudentProjects();
   setStatus('Project renamed');
 }
@@ -11186,6 +11318,8 @@ async function deleteStudentProject(projectId) {
     appSession.student.__projectIndexCloudSignature = lightweightValueSignature(projectIndex);
     clearStudentProjectRecovery(projectId);
     clearWireframeRecovery(projectId);
+    studentProjectCloudCheckedAt.delete(studentProjectCloudFreshKey(projectId, appSession.student.uid));
+    studentProjectIndexRevalidatedAt.set(String(appSession.student.uid || ''), Date.now());
     persistStudentProjectsCache();
     if (appSession.currentProjectId === projectId) {
       appSession.currentProjectId = '';
@@ -11251,7 +11385,7 @@ function buildProjectSavePayload(result = null) {
 }
 
 function isStudentProjectImmediateSaveReason(reason = '') {
-  return /^(manual|logout|confirmed-exit|auth-switch|activity-submit|destructive|collab-finalize|result|result-cooldown|result-fallback|result-limit-fallback|rubric-result|rubric-result-cache|smart-result-cache)$/i.test(String(reason || ''));
+  return /^(manual|logout|confirmed-exit|auth-switch|activity-submit|destructive|collab-finalize|structure|device-handoff|result|result-cooldown|result-fallback|result-limit-fallback|rubric-result|rubric-result-cache|smart-result-cache)$/i.test(String(reason || ''));
 }
 
 // v504 quota guard: project durability and profile activity metadata are separate.
@@ -11409,6 +11543,8 @@ async function saveCurrentStudentProject({ result = null, immediate = false, rea
         studentProjectLastSavedRevision = Math.max(studentProjectLastSavedRevision, revisionBeingSaved);
         studentProjectLastSavedSignature = signatureBeingSaved;
         studentProjectLastCloudSaveAt = Date.now();
+        markStudentProjectCloudFresh(projectIdBeingSaved, studentProjectLastCloudSaveAt, studentUidBeingSaved);
+        if (reason === 'device-handoff') studentProjectLastHandoffSaveAt.set(studentUidBeingSaved, studentProjectLastCloudSaveAt);
         FIREBASE_OP_MONITOR.bump('projectCheckpoints');
         studentProjectDirty = studentProjectRevision > revisionBeingSaved;
         studentProjectDirtySince = studentProjectDirty ? (studentProjectLastEditAt || Date.now()) : 0;
@@ -27265,7 +27401,7 @@ function applyFileNameDialogValues() {
   syncActiveLanguageFileFromStore('css');
   syncActiveLanguageFileFromStore('js');
   saveCodeFileNames();
-  saveCodeStoreForCurrentActivity();
+  saveCodeStoreForCurrentActivity('structure');
   renderHTMLPageManager();
   renderErrorChecker();
   loadActiveEditor();
@@ -32685,7 +32821,7 @@ function snapWireframeResize(element, rawW, rawH) {
 }
 
 function isWireframeImmediateSaveReason(reason = '') {
-  return /^(manual|logout|destructive|convert)$/i.test(String(reason || ''));
+  return /^(manual|logout|destructive|convert|device-handoff)$/i.test(String(reason || ''));
 }
 
 function wireframeCloudPayload(cleanData = normalizeWireframeData(wireframeMakerState.data)) {
@@ -32802,6 +32938,7 @@ async function saveWireframeProject({ silent = false, immediate = false, reason 
       wireframeMakerState.lastSavedSignature = signature;
       wireframeMakerState.lastSavedRevision = Math.max(wireframeMakerState.lastSavedRevision, revisionBeingSaved);
       wireframeMakerState.lastCloudSaveAt = Date.now();
+      markStudentProjectCloudFresh(projectIdBeingSaved, wireframeMakerState.lastCloudSaveAt, uidBeingSaved);
       FIREBASE_OP_MONITOR.bump('wireframeCheckpoints');
       wireframeMakerState.retryCount = 0;
 
@@ -34631,13 +34768,24 @@ projectNameOverlay?.addEventListener('click', event => {
 });
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden' && isStudentProjectActive()) {
-    // v506 SUPER CACHE: browser/app switching must never become a cloud-write
-    // trigger. Every edit already has a synchronous local recovery copy. If the
-    // normal cloud checkpoint is due it remains scheduled; explicit Save/logout/
-    // project switch still flushes immediately.
+    // v509 FAST HANDOFF: local recovery stays immediate. A dirty editor may also
+    // perform one bounded cloud handoff (max once / 10 min per student) so another
+    // signed-in device can pick up recent work quickly without restoring the old
+    // every-visibility Firestore write storm.
     persistStudentProjectRecoverySnapshot('visibility-local');
     if (studentProjectDirty && isStudentAutoSaveAllowed() && navigator.onLine !== false) {
-      scheduleStudentProjectCloudCheckpoint('visibility-deferred');
+      const handoffUid = String(appSession.student?.uid || '');
+      const lastHandoffAt = Math.max(0, Number(studentProjectLastHandoffSaveAt.get(handoffUid) || 0));
+      const handoffDue = Date.now() - lastHandoffAt >= STUDENT_DEVICE_HANDOFF_MIN_MS;
+      if (handoffDue && !studentProjectSaveInFlight && !isMiniGameNetworkQuiet()) {
+        // v509: one bounded cloud handoff makes the latest phone/desktop edits
+        // available to another device quickly, without restoring the old
+        // every-visibility write storm. Maximum extra handoff: once / 10 min.
+        studentProjectLastHandoffSaveAt.set(handoffUid, Date.now());
+        saveCurrentStudentProject({ immediate: true, reason: 'device-handoff' }).catch(error => console.warn('Device handoff save skipped.', error));
+      } else {
+        scheduleStudentProjectCloudCheckpoint('visibility-deferred');
+      }
     }
   }
   if (appSession.mode === 'student' && appSession.student?.uid) {
@@ -39704,15 +39852,24 @@ They can join again later using the same share code.`,
       // v506: app switching/backgrounding protects the project locally only.
       // This removes the largest lifecycle write amplifier on student phones.
       persistStudentProjectRecoverySnapshot('visibility-local');
-      if (navigator.onLine !== false && isStudentAutoSaveAllowed()) {
-        scheduleStudentProjectCloudCheckpoint('visibility-local');
-      } else if (!isStudentAutoSaveAllowed()) {
+      // v509: the primary visibility handler owns the bounded device-handoff
+      // cloud save. Do not schedule a second competing save here.
+      if (!isStudentAutoSaveAllowed()) {
         setStudentSaveState('Unsaved · press Save', 'unsaved');
       }
     }
     if (document.visibilityState === 'hidden' && document.body.classList.contains('wireframe-maker-active') && wireframeMakerState?.dirty) {
       persistWireframeRecovery({ urgent: true });
-      if (navigator.onLine !== false && isWireframeAutosaveEnabled()) scheduleWireframeCloudCheckpoint('visibility-local');
+      if (navigator.onLine !== false && isWireframeAutosaveEnabled()) {
+        const handoffUid = String(appSession.student?.uid || '');
+        const lastHandoffAt = Math.max(0, Number(studentProjectLastHandoffSaveAt.get(handoffUid) || 0));
+        if (Date.now() - lastHandoffAt >= STUDENT_DEVICE_HANDOFF_MIN_MS && !wireframeMakerState.saving && !isMiniGameNetworkQuiet()) {
+          studentProjectLastHandoffSaveAt.set(handoffUid, Date.now());
+          saveWireframeProject({ silent: true, immediate: true, reason: 'device-handoff' }).catch(error => console.warn('Wireframe device handoff skipped.', error));
+        } else {
+          scheduleWireframeCloudCheckpoint('visibility-local');
+        }
+      }
     }
   });
   window.addEventListener('pagehide', () => {

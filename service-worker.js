@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ict8-connect-v508-green-admin-cache';
+const CACHE_NAME = 'ict8-connect-v509-fast-device-sync';
 const APP_SHELL = [
   './',
   './index.html',
@@ -62,7 +62,7 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // v508: static app code/assets are cache-first for this deployment. The
+  // v509: static app code/assets are cache-first for this deployment. The
   // service-worker URL/cache version changes with each release, so a new build
   // receives fresh files once while large assets (including Million Byte 50K)
   // are not re-downloaded on every app launch.
