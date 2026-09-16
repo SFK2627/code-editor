@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const ASSET_VERSION = '20260915-v516-roof-auto-lift-fix';
+  const ASSET_VERSION = '20260916-v517-million-byte-50k';
 
   const GAME_REGISTRY = Object.freeze([
     {

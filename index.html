@@ -45,7 +45,7 @@
   </script>
   <link rel="preconnect" href="https://drive.google.com" crossorigin>
   <link rel="preconnect" href="https://lh3.googleusercontent.com" crossorigin>
-  <link rel="stylesheet" href="style.css?v=20260915-v503-stability-peta-phone" />
+  <link rel="stylesheet" href="style.css?v=20260916-v508-editor-zero-lag" />
   <link rel="stylesheet" href="games/mini-games-hub.css?v=20260912-v4761-byte-runner-v81-build-hud" />
   <link rel="stylesheet" href="games/code-fly/code-fly.css?v=20260909-v429-xp-mini-games" />
   <style>
@@ -2376,7 +2376,7 @@ https://example.com/song2.mp3"></textarea>
               <h3 id="studentAccountsTitle">Register and Monitor Students</h3>
               <p class="muted-text">Create free student accounts using Student ID, or import an Excel/CSV class list. New accounts use the default password <strong>123456</strong> and must change it on first login.</p>
             </div>
-            <button id="refreshStudentsBtn" class="ghost-btn" type="button">↻ Refresh Tracker</button>
+            <button id="refreshStudentsBtn" class="ghost-btn" type="button" title="Reload today's cached snapshot. The next full cloud snapshot rolls over after 8 PM.">↻ Refresh Cached Tracker</button>
           </div>
 
           <div class="student-admin-summary" aria-label="Student tracker summary">
@@ -2465,7 +2465,7 @@ https://example.com/song2.mp3"></textarea>
             </div>
             <div class="online-presence-actions">
               <button id="refreshOnlinePresenceBtn" class="ghost-btn" type="button">↻ Refresh</button>
-              <button id="onlinePresenceAutoBtn" class="ghost-btn" type="button" aria-pressed="true">Auto: 60s</button>
+              <button id="onlinePresenceAutoBtn" class="ghost-btn" type="button" aria-pressed="false">Auto: Off</button>
             </div>
           </div>
 
@@ -2649,7 +2649,7 @@ https://example.com/song2.mp3"></textarea>
                 <h3 id="adminComplianceViewerTitle">Student Compliance Viewer</h3>
                 <p class="muted-text">View each student's lacking list from the latest published records. This does not sync Google Sheets again.</p>
               </div>
-              <button id="refreshAdminComplianceViewerBtn" class="ghost-btn" type="button">Refresh Viewer</button>
+              <button id="refreshAdminComplianceViewerBtn" class="ghost-btn" type="button" title="Reload today's cached Compliance snapshot. The next full cloud snapshot rolls over after 8 PM.">Refresh Cached Viewer</button>
             </div>
 
             <div class="compliance-viewer-toolbar">
@@ -4542,7 +4542,7 @@ https://example.com/song3.mp3"></textarea>
     })();
   </script>
 
-  <script src="script.js?v=20260915-v503-stability-peta-phone"></script>
+  <script src="script.js?v=20260916-v508-editor-zero-lag"></script>
   <script>
     // v410 fallback: keep the desktop editor settings popover working even if older cached
     // toolbar code fails before binding the click handler.
@@ -4754,6 +4754,6 @@ https://example.com/song3.mp3"></textarea>
 
   <!-- v429 XP Mini-Games: isolated modules loaded after the main app bridge. -->
   <script src="games/code-fly/code-fly.js?v=20260909-v429-xp-mini-games"></script>
-  <script src="games/mini-games-hub.js?v=20260914-v501-uno"></script>
+  <script src="games/mini-games-hub.js?v=20260916-v507-green-admin-cache"></script>
 </body>
 </html>

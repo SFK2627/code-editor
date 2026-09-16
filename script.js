@@ -2380,7 +2380,7 @@ let adminLatestAiReview = null;
 let adminAiRubricController = null;
 let aiRubricConnectionState = { status: 'untested', code: '', message: '' };
 
-const MCS_APP_BUILD = 'v504-firebase-quota-optimized';
+const MCS_APP_BUILD = 'v506-super-cache-local-first';
 window.MCS_APP_BUILD = MCS_APP_BUILD;
 console.info(`[MCSian Code Editor] ${MCS_APP_BUILD} loaded`);
 
@@ -2388,21 +2388,85 @@ const DEFAULT_STUDENT_PASSWORD = '123456';
 const STUDENT_EMAIL_DOMAIN = 'students.mcsian.app';
 const STUDENT_AUTH_RECOVERY_SLOTS = 12;
 const LAST_STUDENT_SESSION_KEY = 'studentCodeStudio.lastStudentSession.v1';
-const STUDENT_CLOUD_CHECKPOINT_MIN_MS = 5 * 60 * 1000; // v504: local recovery is immediate; routine cloud checkpoints are coalesced to ~12/hour.
-const STUDENT_CLOUD_DIRTY_MAX_MS = 6 * 60 * 1000; // v504: keep online dirty work durable without a write every few minutes.
+const STUDENT_CLOUD_CHECKPOINT_MIN_MS = 20 * 60 * 1000; // v506: every edit is protected locally; routine cloud backup is a low-frequency safety checkpoint.
+const STUDENT_CLOUD_DIRTY_MAX_MS = 25 * 60 * 1000; // v506: local recovery is immediate, cloud durability is batched to avoid quota churn.
 const STUDENT_AUTOSAVE_DELAY = STUDENT_CLOUD_CHECKPOINT_MIN_MS; // backward-compatible alias for diagnostics/UI text.
-const PROFILE_ACTIVITY_WRITE_INTERVAL = 30 * 60 * 1000; // v461: profile heartbeat is non-critical; project doc remains the real save.
+const PROFILE_ACTIVITY_WRITE_INTERVAL = 12 * 60 * 60 * 1000; // v506: project/profile metadata is non-critical and is heavily coalesced.
 const AUTO_RUN_DELAY = 850;
 const PREVIEW_LOAD_TIMEOUT = 3200;
 const APP_NETWORK_TIMEOUT_MS = 12000;
-const PRESENCE_HEARTBEAT_MS = 20 * 60 * 1000;
-const PRESENCE_MIN_WRITE_INTERVAL = 20 * 60 * 1000;
-const PRESENCE_VISIBILITY_MIN_WRITE_INTERVAL = 5 * 60 * 1000; // v504: suppress rapid phone/tab background churn; heartbeat remains authoritative.
-const PRESENCE_ONLINE_WINDOW_MS = 25 * 60 * 1000;
+const PRESENCE_HEARTBEAT_MS = 30 * 60 * 1000;
+const PRESENCE_MIN_WRITE_INTERVAL = 30 * 60 * 1000;
+const PRESENCE_VISIBILITY_MIN_WRITE_INTERVAL = 30 * 60 * 1000; // v506: tab/app switching never becomes a high-frequency presence writer.
+const PRESENCE_ONLINE_WINDOW_MS = 40 * 60 * 1000;
 const PRESENCE_RECENT_WINDOW_MS = 60 * 60 * 1000;
 const PRESENCE_ADMIN_WINDOW_MS = 90 * 60 * 1000;
-const PRESENCE_ADMIN_AUTO_REFRESH_MS = 5 * 60 * 1000;
+const PRESENCE_ADMIN_AUTO_REFRESH_MS = 30 * 60 * 1000; // v507: aligns admin refresh with the 30-minute student heartbeat.
 const PRESENCE_ADMIN_LIMIT = 600;
+const PRESENCE_ADMIN_CACHE_MS = 5 * 60 * 1000; // v507: repeated manual clicks reuse one recent snapshot.
+const ADMIN_DAILY_SNAPSHOT_HOUR = 20; // 8 PM local time: one fresh admin snapshot per day.
+
+
+// v506 SUPER CACHE daily sync coordinator. Non-realtime features write locally
+// all day and are allowed one consolidated cloud sync around 8 PM local time.
+// If the app was closed at 8 PM, a pending item from a previous day syncs once
+// on the next session. Small deterministic jitter prevents a 500-student spike.
+const SUPER_CACHE_DAILY_SYNC_HOUR = 20;
+const SUPER_CACHE_DAILY_SYNC_JITTER_MS = 15 * 60 * 1000;
+
+function superCacheDayKey(value = Date.now()) {
+  const date = value instanceof Date ? value : new Date(Number(value || Date.now()));
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+function superCacheHash(value = '') {
+  const text = String(value || 'cache');
+  let hash = 2166136261 >>> 0;
+  for (let index = 0; index < text.length; index += 1) {
+    hash ^= text.charCodeAt(index);
+    hash = Math.imul(hash, 16777619) >>> 0;
+  }
+  return hash >>> 0;
+}
+
+function superCacheSyncStorageKey(scope = 'daily', uid = '') {
+  return `ict8.superCache.daily.v506.${String(scope || 'daily')}.${String(uid || 'local').replace(/[^a-zA-Z0-9_-]/g, '-').slice(0, 96)}`;
+}
+
+function superCacheLastSyncDay(scope = 'daily', uid = '') {
+  try { return String(localStorage.getItem(superCacheSyncStorageKey(scope, uid)) || ''); } catch (_) { return ''; }
+}
+
+function markSuperCacheDailySync(scope = 'daily', uid = '', dayKey = superCacheDayKey()) {
+  try { localStorage.setItem(superCacheSyncStorageKey(scope, uid), String(dayKey || superCacheDayKey())); } catch (_) {}
+}
+
+function superCacheDailySyncDue(scope = 'daily', uid = '', pendingSinceMs = 0) {
+  const today = superCacheDayKey();
+  if (superCacheLastSyncDay(scope, uid) === today) return false;
+  const now = new Date();
+  if (now.getHours() >= SUPER_CACHE_DAILY_SYNC_HOUR) return true;
+  const pendingDay = pendingSinceMs ? superCacheDayKey(pendingSinceMs) : today;
+  return Boolean(pendingSinceMs && pendingDay < today);
+}
+
+function superCacheDailySyncDelay(scope = 'daily', uid = '', pendingSinceMs = 0) {
+  if (superCacheDailySyncDue(scope, uid, pendingSinceMs)) {
+    return 1500 + (superCacheHash(`${scope}:${uid}:${superCacheDayKey()}`) % 12000);
+  }
+  const now = new Date();
+  const target = new Date(now);
+  target.setHours(SUPER_CACHE_DAILY_SYNC_HOUR, 0, 0, 0);
+  if (target.getTime() <= now.getTime()) target.setDate(target.getDate() + 1);
+  const jitter = superCacheHash(`${scope}:${uid}:${superCacheDayKey(target)}`) % (SUPER_CACHE_DAILY_SYNC_JITTER_MS + 1);
+  return Math.max(1000, target.getTime() + jitter - now.getTime());
+}
+
+function superCacheRankingEpochKey(value = Date.now()) {
+  const date = value instanceof Date ? new Date(value.getTime()) : new Date(Number(value || Date.now()));
+  if (date.getHours() < SUPER_CACHE_DAILY_SYNC_HOUR) date.setDate(date.getDate() - 1);
+  return superCacheDayKey(date);
+}
 
 // v468 — Mini-Game Network Quiet. Active game rounds are intentionally local-only.
 // Reward submission is allowed after the round, but background project autosave,
@@ -2442,6 +2506,9 @@ let studentProjectSavePromise = Promise.resolve(false);
 let studentProjectRetryCount = 0;
 let studentProjectRetryTimer = null;
 let studentProjectRecoveryTimer = null;
+let studentProjectIndexSyncTimer = null;
+let studentProjectIndexDirtySince = 0;
+let dailyLeaderboardPublishTimer = null;
 let lastProfileActivityWriteAt = 0;
 let editorStudentGreetingState = { key: '', text: '' };
 let adminStudentsCache = [];
@@ -2459,6 +2526,7 @@ let adminOnlinePresenceRecords = [];
 let adminOnlinePresenceTimer = null;
 let adminOnlinePresenceAutoRefresh = false;
 let adminOnlinePresenceLoading = false;
+let adminOnlinePresenceLoadedAt = 0;
 let pendingStudentImportRows = [];
 let studentImportRunning = false;
 let autoRunEnabled = loadJSON(STORAGE_KEYS.autoRun, true) !== false;
@@ -2667,19 +2735,178 @@ const SELECTIVE_FIRESTORE_CACHE = new Map();
 // the same 500-student collection before the first request has reached the cache.
 const SELECTIVE_FIRESTORE_INFLIGHT = new Map();
 const SELECTIVE_FIRESTORE_CACHE_EPOCH = new Map();
-const SELECTIVE_CACHE_SHORT_MS = 10 * 60 * 1000; // student project/status cache
-const SELECTIVE_CACHE_MEDIUM_MS = 30 * 60 * 1000; // root app document/profile cache within one page session
-const SELECTIVE_CACHE_LONG_MS = 60 * 60 * 1000; // stable settings/roster hint cache
-const SELECTIVE_CACHE_ADMIN_PROFILE_MS = 45 * 60 * 1000; // admin student-profile scan; manual Refresh still bypasses
-const SELECTIVE_CACHE_ADMIN_ROSTER_MS = 2 * 60 * 60 * 1000; // roster changes rarely; app mutations invalidate this immediately
-const SELECTIVE_CACHE_ADMIN_COMPLIANCE_MS = 45 * 60 * 1000; // shared Compliance/Needs Attention snapshot
-const SELECTIVE_SESSION_CACHE_PREFIX = 'ict8.firestoreSnapshot.v1.';
-const SELECTIVE_SESSION_CACHE_MAX_BYTES = 1400 * 1024;
-const SELECTIVE_SESSION_CACHE_KEYS = new Set([
-  'admin:studentProfiles',
-  'admin:studentRoster',
-  'compliance:viewerRecords'
-]);
+const SELECTIVE_CACHE_SHORT_MS = 6 * 60 * 60 * 1000; // v506 persistent student/project/status cache
+const SELECTIVE_CACHE_MEDIUM_MS = 12 * 60 * 60 * 1000; // v506 root/profile cache survives reloads
+const SELECTIVE_CACHE_LONG_MS = 24 * 60 * 60 * 1000; // v506 stable settings/roster cache
+const SELECTIVE_CACHE_ADMIN_PROFILE_MS = 24 * 60 * 60 * 1000; // v507 fallback; actual admin profile TTL rolls over at 8 PM.
+const SELECTIVE_CACHE_ADMIN_ROSTER_MS = 7 * 24 * 60 * 60 * 1000; // v507 roster is mutation-updated locally; weekly safety refresh only.
+const SELECTIVE_CACHE_ADMIN_COMPLIANCE_MS = 24 * 60 * 60 * 1000; // v507 fallback; actual Compliance TTL rolls over at 8 PM.
+const SELECTIVE_SESSION_CACHE_PREFIX = 'ict8.firestoreSnapshot.v506.';
+const SELECTIVE_SESSION_CACHE_MAX_BYTES = 1900 * 1024;
+const SELECTIVE_IDB_DB_NAME = 'ict8-firestore-cache-v507';
+const SELECTIVE_IDB_STORE_NAME = 'snapshots';
+
+function openSelectiveSnapshotDb() {
+  if (!('indexedDB' in window)) return Promise.resolve(null);
+  return new Promise(resolve => {
+    try {
+      const request = indexedDB.open(SELECTIVE_IDB_DB_NAME, 1);
+      request.onupgradeneeded = () => {
+        const db = request.result;
+        if (!db.objectStoreNames.contains(SELECTIVE_IDB_STORE_NAME)) db.createObjectStore(SELECTIVE_IDB_STORE_NAME, { keyPath: 'key' });
+      };
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => resolve(null);
+    } catch (_) { resolve(null); }
+  });
+}
+
+async function readSelectiveIndexedDbCache(key = '') {
+  const db = await openSelectiveSnapshotDb();
+  if (!db) return null;
+  return new Promise(resolve => {
+    try {
+      const tx = db.transaction(SELECTIVE_IDB_STORE_NAME, 'readonly');
+      const req = tx.objectStore(SELECTIVE_IDB_STORE_NAME).get(String(key || ''));
+      req.onsuccess = () => {
+        const row = req.result;
+        if (!row || !row.payload) return resolve(null);
+        try {
+          const parsed = JSON.parse(row.payload);
+          if (!parsed || Number(parsed.expiresAt || 0) <= Date.now()) return resolve(null);
+          resolve(parsed);
+        } catch (_) { resolve(null); }
+      };
+      req.onerror = () => resolve(null);
+    } catch (_) { resolve(null); }
+  });
+}
+
+async function writeSelectiveIndexedDbCache(key = '', serialized = '') {
+  const db = await openSelectiveSnapshotDb();
+  if (!db || !key || !serialized) return false;
+  return new Promise(resolve => {
+    try {
+      const tx = db.transaction(SELECTIVE_IDB_STORE_NAME, 'readwrite');
+      tx.objectStore(SELECTIVE_IDB_STORE_NAME).put({ key: String(key), payload: String(serialized), savedAt: Date.now() });
+      tx.oncomplete = () => resolve(true);
+      tx.onerror = () => resolve(false);
+    } catch (_) { resolve(false); }
+  });
+}
+
+async function clearSelectiveIndexedDbCache(prefix = '') {
+  const db = await openSelectiveSnapshotDb();
+  if (!db) return;
+  const safePrefix = String(prefix || '');
+  return new Promise(resolve => {
+    try {
+      const tx = db.transaction(SELECTIVE_IDB_STORE_NAME, 'readwrite');
+      const store = tx.objectStore(SELECTIVE_IDB_STORE_NAME);
+      const cursor = store.openCursor();
+      cursor.onsuccess = () => {
+        const current = cursor.result;
+        if (!current) return;
+        const key = String(current.key || '');
+        if (!safePrefix || key.startsWith(safePrefix)) current.delete();
+        current.continue();
+      };
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => resolve();
+    } catch (_) { resolve(); }
+  });
+}
+
+function getAdminDailySnapshotTtlMs(nowMs = Date.now()) {
+  const now = new Date(nowMs);
+  const next = new Date(nowMs);
+  next.setHours(ADMIN_DAILY_SNAPSHOT_HOUR, 0, 0, 0);
+  if (next.getTime() <= now.getTime()) next.setDate(next.getDate() + 1);
+  return Math.max(5 * 60 * 1000, next.getTime() - now.getTime());
+}
+
+function getSelectiveFirestoreCachedValue(key = '') {
+  const cacheKey = String(key || '');
+  const now = Date.now();
+  const memory = SELECTIVE_FIRESTORE_CACHE.get(cacheKey);
+  if (memory && memory.expiresAt > now) return memory.value;
+  const persisted = readSelectiveSessionCache(cacheKey);
+  return persisted ? persisted.value : null;
+}
+
+function mutateSelectiveFirestoreCachedArray(key, updater, ttlMs) {
+  const current = getSelectiveFirestoreCachedValue(key);
+  if (!Array.isArray(current)) return false;
+  const next = typeof updater === 'function' ? updater(current.slice()) : current.slice();
+  if (!Array.isArray(next)) return false;
+  setSelectiveFirestoreCache(key, next, ttlMs);
+  return true;
+}
+
+async function mutateSelectiveIndexedDbCachedArray(key, updater, ttlMs) {
+  const persisted = await readSelectiveIndexedDbCache(key);
+  const current = persisted?.value;
+  if (!Array.isArray(current)) return false;
+  const next = typeof updater === 'function' ? updater(current.slice()) : current.slice();
+  if (!Array.isArray(next)) return false;
+  setSelectiveFirestoreCache(key, next, ttlMs);
+  return true;
+}
+
+function upsertCachedAdminRosterRecord(record = {}) {
+  const studentId = normalizeStudentId(record.studentId || record.studentIdNormalized || record.rosterId || '');
+  if (!studentId) return false;
+  const updater = rows => {
+    const index = rows.findIndex(row => areStudentIdsEquivalent(row.studentId || row.studentIdNormalized || row.rosterId, studentId));
+    const next = {
+      uid: record.authUid || record.uid || '',
+      rosterId: studentId,
+      isRosterOnly: true,
+      sourceType: 'studentRoster',
+      mustChangePassword: record.mustChangePassword !== false,
+      loginCount: Number(record.loginCount || 0),
+      projectCount: Number(record.projectCount || 0),
+      ...record,
+      studentId,
+      studentIdNormalized: studentId
+    };
+    if (index >= 0) rows[index] = { ...rows[index], ...next };
+    else rows.push(next);
+    return rows;
+  };
+  const updated = mutateSelectiveFirestoreCachedArray('admin:studentRoster', updater, SELECTIVE_CACHE_ADMIN_ROSTER_MS);
+  if (!updated) void mutateSelectiveIndexedDbCachedArray('admin:studentRoster', updater, SELECTIVE_CACHE_ADMIN_ROSTER_MS);
+  return true;
+}
+
+function upsertCachedAdminProfileRecord(uid = '', patch = {}) {
+  const targetUid = String(uid || '').trim();
+  if (!targetUid) return false;
+  const updater = rows => {
+    const index = rows.findIndex(row => String(row.uid || row.authUid || '').trim() === targetUid);
+    if (index >= 0) rows[index] = { ...rows[index], ...patch, uid: targetUid, isRosterOnly: false, sourceType: 'studentProfile' };
+    return rows;
+  };
+  const ttl = getAdminDailySnapshotTtlMs();
+  const updated = mutateSelectiveFirestoreCachedArray('admin:studentProfiles', updater, ttl);
+  if (!updated) void mutateSelectiveIndexedDbCachedArray('admin:studentProfiles', updater, ttl);
+  return true;
+}
+
+// v506 SUPER CACHE: stable Firestore snapshots survive reloads in localStorage.
+// Live collaboration/signaling never enters this cache. Student-specific keys
+// include the UID/Student ID, so switching accounts cannot reuse another
+// student's snapshot. Explicit mutations still invalidate the matching keys.
+function isSelectivePersistentCacheKey(key = '') {
+  const cacheKey = String(key || '');
+  return cacheKey === 'rootDocument:activities-lessons-settings'
+    || cacheKey === 'admin:studentProfiles'
+    || cacheKey === 'admin:studentRoster'
+    || cacheKey === 'compliance:viewerRecords'
+    || cacheKey.startsWith('studentProfile:')
+    || cacheKey.startsWith('studentRoster:')
+    || cacheKey.startsWith('subjectCompliance:');
+}
 
 function isLiveFirestoreCacheKey(key = '') {
   return /sharedSessions|peers|collab|webrtc|liveSync|cursor|roomSignal/i.test(String(key || ''));
@@ -2691,13 +2918,13 @@ function getSelectiveSessionCacheStorageKey(key = '') {
 
 function readSelectiveSessionCache(key = '') {
   const cacheKey = String(key || '');
-  if (!SELECTIVE_SESSION_CACHE_KEYS.has(cacheKey)) return null;
+  if (!isSelectivePersistentCacheKey(cacheKey)) return null;
   try {
-    const raw = sessionStorage.getItem(getSelectiveSessionCacheStorageKey(cacheKey));
+    const raw = localStorage.getItem(getSelectiveSessionCacheStorageKey(cacheKey));
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     if (!parsed || Number(parsed.expiresAt || 0) <= Date.now()) {
-      sessionStorage.removeItem(getSelectiveSessionCacheStorageKey(cacheKey));
+      localStorage.removeItem(getSelectiveSessionCacheStorageKey(cacheKey));
       return null;
     }
     return parsed;
@@ -2708,20 +2935,33 @@ function readSelectiveSessionCache(key = '') {
 
 function writeSelectiveSessionCache(key = '', value = null, expiresAt = 0) {
   const cacheKey = String(key || '');
-  if (!SELECTIVE_SESSION_CACHE_KEYS.has(cacheKey)) return;
+  if (!isSelectivePersistentCacheKey(cacheKey)) return;
   try {
-    const serialized = JSON.stringify({ expiresAt: Number(expiresAt || 0), value });
-    if (utf8PayloadByteLength(serialized) > SELECTIVE_SESSION_CACHE_MAX_BYTES) return;
-    sessionStorage.setItem(getSelectiveSessionCacheStorageKey(cacheKey), serialized);
+    const serialized = JSON.stringify({ expiresAt: Number(expiresAt || 0), savedAt: Date.now(), value });
+    if (utf8PayloadByteLength(serialized) > SELECTIVE_SESSION_CACHE_MAX_BYTES) {
+      localStorage.removeItem(getSelectiveSessionCacheStorageKey(cacheKey));
+      void writeSelectiveIndexedDbCache(cacheKey, serialized);
+      return;
+    }
+    localStorage.setItem(getSelectiveSessionCacheStorageKey(cacheKey), serialized);
   } catch (_) {}
 }
 
 function clearSelectiveSessionCache(prefix = '') {
   const safePrefix = String(prefix || '');
-  SELECTIVE_SESSION_CACHE_KEYS.forEach(key => {
-    if (safePrefix && !key.startsWith(safePrefix)) return;
-    try { sessionStorage.removeItem(getSelectiveSessionCacheStorageKey(key)); } catch (_) {}
-  });
+  try {
+    const storagePrefix = SELECTIVE_SESSION_CACHE_PREFIX;
+    const keys = [];
+    for (let index = 0; index < localStorage.length; index += 1) {
+      const storageKey = localStorage.key(index);
+      if (!storageKey || !storageKey.startsWith(storagePrefix)) continue;
+      const cacheKey = storageKey.slice(storagePrefix.length);
+      if (safePrefix && !cacheKey.startsWith(safePrefix)) continue;
+      keys.push(storageKey);
+    }
+    keys.forEach(storageKey => localStorage.removeItem(storageKey));
+  } catch (_) {}
+  void clearSelectiveIndexedDbCache(safePrefix);
 }
 
 function clearSelectiveFirestoreCache(prefix = '') {
@@ -2771,13 +3011,18 @@ async function withSelectiveFirestoreCache(key, ttlMs, loader, options = {}) {
       FIREBASE_OP_MONITOR.bump('cacheHits');
       return persisted.value;
     }
+    const indexed = await readSelectiveIndexedDbCache(cacheKey);
+    if (indexed) {
+      SELECTIVE_FIRESTORE_CACHE.set(cacheKey, { value: indexed.value, expiresAt: Number(indexed.expiresAt || now) });
+      FIREBASE_OP_MONITOR.bump('cacheHits');
+      return indexed.value;
+    }
     const pending = SELECTIVE_FIRESTORE_INFLIGHT.get(cacheKey);
     if (pending) {
       FIREBASE_OP_MONITOR.bump('preventedDuplicateReads');
       return pending;
     }
   } else {
-    // A real user-triggered Refresh must replace the old cache, not merely bypass it.
     SELECTIVE_FIRESTORE_CACHE.delete(cacheKey);
     clearSelectiveSessionCache(cacheKey);
   }
@@ -6689,17 +6934,36 @@ function setLocalStudentProjectIndex(projects = appSession.projects) {
 
 async function persistStudentProjectIndex(options = {}) {
   if (!appSession.student?.uid || appSession.mode !== 'student') return false;
+  const uid = String(appSession.student.uid || '');
   const index = setLocalStudentProjectIndex();
   const signature = lightweightValueSignature(index);
-  if (!options.force && appSession.student.__projectIndexCloudSignature === signature) {
+  if (appSession.student.__projectIndexCloudSignature === signature) {
     FIREBASE_OP_MONITOR.bump('preventedDuplicateWrites');
+    studentProjectIndexDirtySince = 0;
+    window.clearTimeout(studentProjectIndexSyncTimer);
+    studentProjectIndexSyncTimer = null;
     return true;
   }
+
+  // v506 SUPER CACHE: the lightweight project index is a convenience cache,
+  // not the canonical project content. Keep it current locally and publish at
+  // most once per day; create/delete critical paths still update counts directly.
+  studentProjectIndexDirtySince ||= Date.now();
+  const critical = options.critical === true;
+  if (!critical && !superCacheDailySyncDue('projectIndex', uid, studentProjectIndexDirtySince)) {
+    window.clearTimeout(studentProjectIndexSyncTimer);
+    studentProjectIndexSyncTimer = window.setTimeout(() => {
+      studentProjectIndexSyncTimer = null;
+      persistStudentProjectIndex({ daily: true }).catch(() => false);
+    }, superCacheDailySyncDelay('projectIndex', uid, studentProjectIndexDirtySince));
+    return false;
+  }
+
   try {
     const ready = await initFirebaseSync();
     if (!ready || navigator.onLine === false) return false;
     const { setDoc, serverTimestamp } = firebaseSync.modules;
-    await setDoc(getStudentDocRef(appSession.student.uid), {
+    await setDoc(getStudentDocRef(uid), {
       projectCount: index.length,
       projectIndexVersion: PROJECT_INDEX_VERSION,
       projectIndex: index,
@@ -6707,7 +6971,11 @@ async function persistStudentProjectIndex(options = {}) {
       projectIndexInvalidatedAtMs: 0
     }, { merge: true });
     appSession.student.__projectIndexCloudSignature = signature;
-    clearSelectiveFirestoreCache(`studentProfile:${appSession.student.uid}`);
+    studentProjectIndexDirtySince = 0;
+    window.clearTimeout(studentProjectIndexSyncTimer);
+    studentProjectIndexSyncTimer = null;
+    if (!critical) markSuperCacheDailySync('projectIndex', uid);
+    clearSelectiveFirestoreCache(`studentProfile:${uid}`);
     clearAdminStudentSnapshotCache();
     return true;
   } catch (error) {
@@ -7490,12 +7758,76 @@ function continueAsGuest() {
   });
 }
 
+function dailyLeaderboardPublishStorageKey(uid = appSession.student?.uid) {
+  return uid ? `ict8.dailyLeaderboardPublished.v506.${uid}` : '';
+}
+
+function markDailyLeaderboardPublishEpoch(uid = appSession.student?.uid, epochKey = superCacheRankingEpochKey()) {
+  const key = dailyLeaderboardPublishStorageKey(uid);
+  if (!key) return;
+  try { localStorage.setItem(key, String(epochKey || superCacheRankingEpochKey())); } catch (_) {}
+}
+
+function hasDailyLeaderboardPublishEpoch(uid = appSession.student?.uid, epochKey = superCacheRankingEpochKey()) {
+  const key = dailyLeaderboardPublishStorageKey(uid);
+  if (!key) return false;
+  try { return String(localStorage.getItem(key) || '') === String(epochKey || ''); } catch (_) { return false; }
+}
+
+async function publishDailyLeaderboardEntryFromCache() {
+  if (appSession.mode !== 'student' || !appSession.student?.uid || navigator.onLine === false) return false;
+  const uid = String(appSession.student.uid || '');
+  const epochKey = superCacheRankingEpochKey();
+  if (hasDailyLeaderboardPublishEpoch(uid, epochKey)) return true;
+  try {
+    const result = await callAppsScriptSecure({ action: 'publishDailyLeaderboardEntry' }, { allowStudent: true });
+    if (result?.ok) {
+      markDailyLeaderboardPublishEpoch(uid, epochKey);
+      return true;
+    }
+  } catch (error) {
+    console.info('Daily cached leaderboard entry will retry later.', error);
+  }
+  return false;
+}
+
+function scheduleDailyLeaderboardPublish() {
+  window.clearTimeout(dailyLeaderboardPublishTimer);
+  dailyLeaderboardPublishTimer = null;
+  if (appSession.mode !== 'student' || !appSession.student?.uid) return;
+  const uid = String(appSession.student.uid || '');
+  const now = new Date();
+  const currentEpoch = superCacheRankingEpochKey(now);
+  if (now.getHours() >= SUPER_CACHE_DAILY_SYNC_HOUR && hasDailyLeaderboardPublishEpoch(uid, currentEpoch)) return;
+
+  // Let the Code Explorer 8 PM checkpoint (when dirty) land first. The ranking
+  // publish then reads one trusted canonical profile + RTDB ledger and writes one
+  // compact RTDB row. No live leaderboard polling is needed.
+  let target = new Date(now);
+  target.setHours(SUPER_CACHE_DAILY_SYNC_HOUR, 20, 0, 0);
+  if (now.getHours() >= SUPER_CACHE_DAILY_SYNC_HOUR) target = new Date(now.getTime() + 20 * 60 * 1000);
+  const jitter = superCacheHash(`leaderboard:${uid}:${superCacheDayKey(target)}`) % (10 * 60 * 1000 + 1);
+  const delay = Math.max(1500, target.getTime() + jitter - now.getTime());
+  dailyLeaderboardPublishTimer = window.setTimeout(async () => {
+    dailyLeaderboardPublishTimer = null;
+    await publishDailyLeaderboardEntryFromCache();
+  }, delay);
+}
+
 async function recordStudentLogin() {
   const user = firebaseSync.auth?.currentUser || firebaseSync.currentUser;
   const student = appSession.student;
   if (!user || !student || user.uid !== student.uid) return;
   const sessionKey = `mcsian.student.loginRecorded.${user.uid}`;
+  const dailyKey = `ict8.superCache.loginRecorded.v506.${user.uid}`;
+  const todayKey = superCacheDayKey();
   if (sessionStorage.getItem(sessionKey) === '1') return;
+  try {
+    if (localStorage.getItem(dailyKey) === todayKey) {
+      sessionStorage.setItem(sessionKey, '1');
+      return;
+    }
+  } catch (_) {}
   try {
     const { setDoc, serverTimestamp, increment } = firebaseSync.modules;
     await setDoc(getStudentDocRef(user.uid), {
@@ -7505,6 +7837,7 @@ async function recordStudentLogin() {
       updatedAt: serverTimestamp()
     }, { merge: true });
     sessionStorage.setItem(sessionKey, '1');
+    try { localStorage.setItem(dailyKey, todayKey); } catch (_) {}
     appSession.student.loginCount = Number(appSession.student.loginCount || 0) + 1;
     appSession.student.lastLoginAt = new Date();
     appSession.student.lastActivityAt = new Date();
@@ -7532,8 +7865,9 @@ async function activateStudentSession(profile, { showDashboard = true } = {}) {
   startStudentPresenceHeartbeat();
   // v462: hydrate any Mini-Game XP that is durably pending in RTDB. This keeps
   // the displayed XP correct after refresh even before the next Firestore batch.
-  Promise.resolve(window.ICT8_XP_MINIGAMES_BRIDGE?.refreshServerState?.({ force: true }))
+  Promise.resolve(window.ICT8_XP_MINIGAMES_BRIDGE?.refreshServerState?.({ force: false }))
     .catch(error => console.info('Mini-Game RTDB state will refresh when the hub opens.', error));
+  scheduleDailyLeaderboardPublish();
 
   const loginTracker = recordStudentLogin().catch(error => {
     console.warn('Could not record student login before showing the dashboard.', error);
@@ -8107,10 +8441,11 @@ async function logoutStudent() {
   }
   try {
     if (appSession.mode === 'student' && appSession.student?.uid && studentEngagementQueue.size) {
-      await flushStudentEngagementQueue({ reason: 'logout' });
+      persistStudentEngagementQueue();
+      scheduleStudentEngagementFlush();
     }
   } catch (error) {
-    console.warn('Final engagement flush skipped; local queue remains safe.', error);
+    console.warn('Engagement queue persistence skipped.', error);
   }
   try {
     if (appSession.mode === 'student' && appSession.student?.uid) {
@@ -8125,6 +8460,8 @@ async function logoutStudent() {
     console.warn('Student logout failed.', error);
   }
   stopStudentPresenceHeartbeat();
+  window.clearTimeout(dailyLeaderboardPublishTimer);
+  dailyLeaderboardPublishTimer = null;
   if (typeof window.stopCodeInboxWatcher === 'function') window.stopCodeInboxWatcher();
   appSession.mode = 'pending';
   appSession.student = null;
@@ -8144,21 +8481,22 @@ async function showStudentDashboard(options = {}) {
     openStudentLogin();
     return;
   }
-  if (options.skipProjectFlush !== true && appSession.currentProjectId && navigator.onLine !== false) {
+  if (options.skipProjectFlush !== true && appSession.currentProjectId) {
     try {
-      if (document.body.classList.contains('wireframe-maker-active') && wireframeMakerState?.dirty && isWireframeAutosaveEnabled()) {
-        await saveWireframeProject({ silent: true, immediate: true, reason: 'dashboard' });
+      if (document.body.classList.contains('wireframe-maker-active') && wireframeMakerState?.dirty) {
+        persistWireframeRecovery({ urgent: true });
+        if (navigator.onLine !== false && isWireframeAutosaveEnabled()) scheduleWireframeCloudCheckpoint('dashboard-local');
       } else if (studentProjectDirty && isStudentProjectActive()) {
-        if (isStudentAutoSaveAllowed()) {
-          await flushStudentProjectSave('dashboard');
-        } else {
-          persistStudentProjectRecoverySnapshot('dashboard-manual-save-mode');
+        persistStudentProjectRecoverySnapshot('dashboard-local');
+        if (isStudentAutoSaveAllowed() && navigator.onLine !== false) {
+          scheduleStudentProjectCloudCheckpoint('dashboard-local');
+        } else if (!isStudentAutoSaveAllowed()) {
           setStudentSaveState('Unsaved · press Save', 'unsaved');
           updateManualSaveControls();
         }
       }
     } catch (error) {
-      console.warn('Project dashboard transition kept the local recovery copy because cloud flush did not finish.', error);
+      console.warn('Project dashboard transition preserved the local recovery copy.', error);
     }
   }
   const returningFromLessonOrActivities = Boolean(
@@ -9385,7 +9723,7 @@ async function loadAdminComplianceViewer(options = {}) {
     const ready = await initFirebaseSync();
     if (!ready) throw new Error(firebaseSync.lastError || 'Firebase is not ready.');
     const { getDocs } = firebaseSync.modules;
-    const records = await withSelectiveFirestoreCache('compliance:viewerRecords', SELECTIVE_CACHE_ADMIN_COMPLIANCE_MS, async () => {
+    const records = await withSelectiveFirestoreCache('compliance:viewerRecords', getAdminDailySnapshotTtlMs(), async () => {
       const snapshot = await withTimeout(
         getDocs(getComplianceCollectionRef()),
         APP_NETWORK_TIMEOUT_MS,
@@ -9788,7 +10126,7 @@ async function publishComplianceSync() {
       }))
       .filter(record => record.studentIdNormalized)
       .sort((a, b) => String(a.section || '').localeCompare(String(b.section || '')) || String(a.studentName || '').localeCompare(String(b.studentName || '')));
-    setSelectiveFirestoreCache('compliance:viewerRecords', adminComplianceViewerRecords.map(record => ({ ...record })), SELECTIVE_CACHE_ADMIN_COMPLIANCE_MS);
+    setSelectiveFirestoreCache('compliance:viewerRecords', adminComplianceViewerRecords.map(record => ({ ...record })), getAdminDailySnapshotTtlMs());
     renderAdminComplianceViewer();
     if (appSession.student) loadStudentComplianceStatus({ silent: true, force: true });
   } catch (error) {
@@ -10913,14 +11251,14 @@ function buildProjectSavePayload(result = null) {
 }
 
 function isStudentProjectImmediateSaveReason(reason = '') {
-  return /^(manual|logout|reconnect|visibility|confirmed-exit|auth-switch|dashboard|project-switch|activity-submit|destructive|collab-finalize|result|result-cooldown|result-fallback|result-limit-fallback|rubric-result|rubric-result-cache|smart-result-cache)$/i.test(String(reason || ''));
+  return /^(manual|logout|confirmed-exit|auth-switch|activity-submit|destructive|collab-finalize|result|result-cooldown|result-fallback|result-limit-fallback|rubric-result|rubric-result-cache|smart-result-cache)$/i.test(String(reason || ''));
 }
 
 // v504 quota guard: project durability and profile activity metadata are separate.
 // Visibility/reconnect may still flush the project itself, but they must not force
 // an extra student-profile Firestore write every time a phone/tab backgrounds.
 function isStudentProfileImmediateWriteReason(reason = '') {
-  return /^(manual|logout|confirmed-exit|auth-switch|dashboard|project-switch|activity-submit|destructive|collab-finalize|result|result-cooldown|result-fallback|result-limit-fallback|rubric-result|rubric-result-cache|smart-result-cache)$/i.test(String(reason || ''));
+  return /^(activity-submit|destructive|collab-finalize|result|result-cooldown|result-fallback|result-limit-fallback|rubric-result|rubric-result-cache|smart-result-cache)$/i.test(String(reason || ''));
 }
 
 // Admin "Code Editor Autosave" is authoritative. When it is OFF, routine
@@ -10947,7 +11285,9 @@ function scheduleStudentProjectCloudCheckpoint(reason = 'edit') {
 }
 
 function queueStudentProjectSave(reason = 'edit') {
-  if (reason === 'edit' && shouldSpinDesktopLogoForEditorEdit()) triggerDesktopHeaderLogoSaveSpin();
+  // V508: do not restart the desktop logo animation for every typing checkpoint.
+  // Its old void offsetWidth restart forced synchronous layout on the hot path.
+  // Manual/real cloud saves can still use the save animation.
   if (!isStudentProjectActive()) return;
   studentProjectRevision += 1;
   studentProjectDirty = true;
@@ -11217,12 +11557,9 @@ async function registerStudentRosterRecord(rawRecord) {
     createdBy: firebaseSync.auth?.currentUser?.email || firebaseSync.currentUser?.email || 'teacher'
   };
   await setDoc(getStudentRosterDocRef(record.studentId), rosterRecord, { merge: false });
-  await writeStudentLoginRoute(record.studentId, {
-    authEmail: record.authEmail,
-    activated: false,
-    accountStatus: 'active'
-  });
-  clearAdminStudentSnapshotCache({ roster: true });
+  // v507: enrollment writes only the authoritative roster record. Login already
+  // falls back to this exact document and creates the tiny route only after the
+  // student actually activates, cutting unused enrollment writes in half.
   clearSelectiveFirestoreCache(`studentRoster:${record.studentId}`);
   const localRecord = {
     uid: '',
@@ -11236,6 +11573,7 @@ async function registerStudentRosterRecord(rawRecord) {
     updatedAt: new Date()
   };
   adminStudentsCache.push(localRecord);
+  upsertCachedAdminRosterRecord(localRecord);
   return localRecord;
 }
 
@@ -11359,10 +11697,11 @@ async function loadAdminStudents(options = {}) {
     const forceRoster = forceAll || options.forceRoster === true;
 
     // v465: do NOT bind the 500-row roster to every profile refresh. Student
-    // profile activity can refresh every 30 minutes, while the enrollment roster
-    // stays cached for one hour. Explicit Refresh still forces both datasets.
+    // profile activity is consolidated into one daily admin snapshot at 8 PM, while
+    // the enrollment roster is mutation-updated locally and safety-refreshes weekly.
+    // Normal Refresh never bypasses these caches; maintenance may target one record.
     const [activeProfiles, rosterProfiles] = await Promise.all([
-      withSelectiveFirestoreCache('admin:studentProfiles', SELECTIVE_CACHE_ADMIN_PROFILE_MS, async () => {
+      withSelectiveFirestoreCache('admin:studentProfiles', getAdminDailySnapshotTtlMs(), async () => {
         const snapshot = await withTimeout(
           getDocs(getStudentsCollectionRef()),
           APP_NETWORK_TIMEOUT_MS,
@@ -11537,13 +11876,10 @@ async function repairMissingRosterInternal(student = {}) {
   };
 
   await setDoc(rosterRef, rosterRecord, { merge: false });
-  await writeStudentLoginRoute(studentId, {
-    authEmail,
-    activated: true,
-    accountStatus: rosterRecord.accountStatus || 'active'
-  });
-  clearAdminStudentSnapshotCache({ roster: true });
+  // v507: roster fallback is enough for the next login; route mirror self-heals
+  // after successful authentication, so repair spends no extra route write.
   clearSelectiveFirestoreCache(`studentRoster:${studentId}`);
+  upsertCachedAdminRosterRecord({ ...rosterRecord, createdAt: new Date(), updatedAt: new Date() });
 
   return {
     status: 'created',
@@ -11609,7 +11945,7 @@ async function repairAdminStudentRoster(studentId = '', uid = '', triggerButton 
       throw new Error('This account cannot be auto-repaired because its profile link is ambiguous.');
     }
 
-    await loadAdminStudents({ force: true });
+    await loadAdminStudents();
 
     setStudentAdminStatus(
       result.status === 'created'
@@ -11664,7 +12000,7 @@ async function repairAllMissingRosterRecords() {
     return;
   }
 
-  await loadAdminStudents({ force: true });
+  await loadAdminStudents();
 
   const candidates = adminStudentsCache.filter(student => {
     if (adminStudentHasRosterRecord(student)) return false;
@@ -11731,7 +12067,7 @@ async function repairAllMissingRosterRecords() {
       setStudentAdminStatus(`Roster repair: ${Math.min(start + chunk.length, candidates.length)}/${candidates.length} checked...`);
     }
 
-    await loadAdminStudents({ force: true });
+    await loadAdminStudents();
 
     const summary = [
       `${created} roster record${created === 1 ? '' : 's'} repaired.`,
@@ -12241,6 +12577,15 @@ async function loadAdminOnlinePresence(options = {}) {
     return [];
   }
   if (adminOnlinePresenceLoading) return adminOnlinePresenceRecords;
+  const forceNetwork = options.force === true;
+  if (!forceNetwork && adminOnlinePresenceRecords.length && Date.now() - adminOnlinePresenceLoadedAt < PRESENCE_ADMIN_CACHE_MS) {
+    adminOnlinePresenceLoadedAt = Date.now();
+    renderAdminOnlinePresence();
+    const online = adminOnlinePresenceRecords.filter(record => getOnlinePresenceStatus(record) === 'online').length;
+    if (!options.silent) setOnlinePresenceStatus(`${online} online now · cached recent snapshot. Auto refresh is ${adminOnlinePresenceAutoRefresh ? 'on (30 min)' : 'off'}.`, 'success');
+    scheduleAdminOnlinePresenceRefresh();
+    return adminOnlinePresenceRecords;
+  }
   adminOnlinePresenceLoading = true;
   if (refreshOnlinePresenceBtn) refreshOnlinePresenceBtn.disabled = true;
   if (!options.silent) setOnlinePresenceStatus('Checking who is online...', 'loading');
@@ -12290,7 +12635,7 @@ async function loadAdminOnlinePresence(options = {}) {
     renderAdminOnlinePresence();
     const online = adminOnlinePresenceRecords.filter(record => getOnlinePresenceStatus(record) === 'online').length;
     const message = adminOnlinePresenceRecords.length
-      ? `${online} online now · ${adminOnlinePresenceRecords.length} active recently. Auto refresh is ${adminOnlinePresenceAutoRefresh ? 'on (5 min)' : 'off'}.`
+      ? `${online} online now · ${adminOnlinePresenceRecords.length} active recently. Auto refresh is ${adminOnlinePresenceAutoRefresh ? 'on (30 min)' : 'off'}.`
       : 'No students reported active recently.';
     setOnlinePresenceStatus(message, adminOnlinePresenceRecords.length ? 'success' : 'warning');
     return adminOnlinePresenceRecords;
@@ -12990,9 +13335,19 @@ async function resetAdminStudentLoginAccess(studentId = '', uid = '', triggerBut
       console.warn('Password reset succeeded, but roster reset marker was not updated.', rosterError);
     }
 
-    clearAdminStudentSnapshotCache({ roster: true });
+    // v507: patch the one affected cached roster row instead of re-reading the
+    // entire class roster after a password reset.
     clearSelectiveFirestoreCache(`studentRoster:${resolvedId}`);
-    await loadAdminStudents({ forceRoster: true });
+    upsertCachedAdminRosterRecord({
+      ...(student || {}),
+      studentId: resolvedId,
+      studentIdNormalized: resolvedId,
+      authUid: targetUid,
+      authEmail: String(result.email || selectedProfileChoice?.authEmail || student?.authEmail || studentIdToAuthEmail(resolvedId)).toLowerCase(),
+      mustChangePassword: true,
+      updatedAt: new Date()
+    });
+    await loadAdminStudents();
     const copied = await copyTextSafely(temporaryPassword);
     setStudentAdminStatus(`Password reset for ${displayName}. Give the temporary password to the student.`, 'success');
     await appAlert([
@@ -13202,23 +13557,82 @@ async function confirmStudentImport() {
   let created = 0;
   const failures = [];
   try {
-    for (let index = 0; index < validRows.length; index += 1) {
-      const row = validRows[index];
-      confirmStudentImportBtn.textContent = `Saving ${index + 1} of ${validRows.length}...`;
-      setStudentAdminStatus(`Saving student record ${index + 1} of ${validRows.length}: ${row.name}`);
-      try {
-        await registerStudentRosterRecord(row);
-        created += 1;
-      } catch (error) {
-        failures.push(`${row.studentId}: ${getRosterRegistrationErrorMessage(error)}`);
+    const ready = await initFirebaseSync();
+    if (!ready) throw new Error(firebaseSync.lastError || 'Firebase is not ready.');
+    const { writeBatch, serverTimestamp } = firebaseSync.modules;
+    if (!adminStudentsCache.length) await loadAdminStudents();
+    const existingIds = new Set(adminStudentsCache.map(student => normalizeStudentId(student.studentId || student.studentIdNormalized || student.rosterId || '')).filter(Boolean));
+    const safeValidRows = validRows.filter(row => {
+      const id = normalizeStudentId(row.studentId || row.studentIdNormalized || '');
+      if (!id || existingIds.has(id)) {
+        failures.push(`${id || 'Unknown ID'}: already registered in cached roster`);
+        return false;
       }
-      await wait(40);
+      existingIds.add(id);
+      return true;
+    });
+    if (!safeValidRows.length) throw new Error('No new student records remain after duplicate checking.');
+    if (typeof writeBatch !== 'function') {
+      for (let index = 0; index < safeValidRows.length; index += 1) {
+        const row = safeValidRows[index];
+        confirmStudentImportBtn.textContent = `Saving ${index + 1} of ${safeValidRows.length}...`;
+        try { await registerStudentRosterRecord(row); created += 1; }
+        catch (error) { failures.push(`${row.studentId}: ${getRosterRegistrationErrorMessage(error)}`); }
+      }
+    } else {
+      // v507 GREEN ADMIN: preview already checked duplicate IDs against the
+      // cached roster. Batch the authoritative roster writes and defer route
+      // mirrors until first activation. No per-row Firestore GET is needed.
+      const normalizedRows = safeValidRows.map(normalizeStudentRecord).filter(record => !record.errors.length);
+      const chunkSize = 400;
+      for (let startIndex = 0; startIndex < normalizedRows.length; startIndex += chunkSize) {
+        const chunk = normalizedRows.slice(startIndex, startIndex + chunkSize);
+        const batch = writeBatch(firebaseSync.db);
+        const localRows = [];
+        chunk.forEach(record => {
+          const rosterRecord = {
+            studentId: record.studentId,
+            studentIdNormalized: record.studentId,
+            authEmail: record.authEmail,
+            name: record.name,
+            nameLower: record.nameLower,
+            gender: record.gender,
+            section: record.section,
+            sectionLower: record.sectionLower,
+            accountStatus: 'active',
+            authUid: '',
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+            createdBy: firebaseSync.auth?.currentUser?.email || firebaseSync.currentUser?.email || 'teacher'
+          };
+          batch.set(getStudentRosterDocRef(record.studentId), rosterRecord, { merge: false });
+          localRows.push({
+            uid: '', rosterId: record.studentId, isRosterOnly: true, sourceType: 'studentRoster',
+            mustChangePassword: true, loginCount: 0, projectCount: 0, ...rosterRecord,
+            createdAt: new Date(), updatedAt: new Date()
+          });
+        });
+        const done = Math.min(startIndex + chunk.length, normalizedRows.length);
+        confirmStudentImportBtn.textContent = `Saving ${done} of ${normalizedRows.length}...`;
+        setStudentAdminStatus(`Saving ${done} of ${normalizedRows.length} roster records in a low-quota batch...`);
+        await batch.commit();
+        localRows.forEach(localRecord => {
+          adminStudentsCache.push(localRecord);
+          upsertCachedAdminRosterRecord(localRecord);
+          clearSelectiveFirestoreCache(`studentRoster:${localRecord.studentId}`);
+        });
+        created += localRows.length;
+      }
     }
     pendingStudentImportRows = [];
     studentImportPreview.classList.add('hidden');
+    adminStudentsCache = mergeAdminStudentList(adminStudentsCache);
     populateAdminSectionFilter();
     renderAdminStudentTracker();
-    setStudentAdminStatus(`${created} student record${created === 1 ? '' : 's'} imported. Students will activate their Auth account on first login with 123456.${failures.length ? ` ${failures.length} failed: ${failures.slice(0, 3).join(' | ')}` : ''}`, failures.length ? 'error' : 'success');
+    setStudentAdminStatus(`${created} student record${created === 1 ? '' : 's'} imported with low-quota batching. Login routes self-create only for students who actually activate with 123456.${failures.length ? ` ${failures.length} failed: ${failures.slice(0, 3).join(' | ')}` : ''}`, failures.length ? 'error' : 'success');
+  } catch (error) {
+    console.error('Student bulk import failed', error);
+    setStudentAdminStatus(getRosterRegistrationErrorMessage(error), 'error');
   } finally {
     studentImportRunning = false;
     confirmStudentImportBtn.disabled = false;
@@ -15052,7 +15466,7 @@ async function showAdminStudentProjects(uid, options = {}) {
   document.body.classList.add('student-auth-open');
   try {
     const projectGroups = await Promise.all(profileUids.map(async profileUid => {
-      const projects = await loadAdminProjectsForUid(profileUid, { force: options.force === true });
+      const projects = await loadAdminProjectsForUid(profileUid, { force: options.live === true });
       return projects.map(project => {
         const projectId = project.id;
         return {
@@ -15535,14 +15949,29 @@ function getMatchClassForSegment(spans, start, end) {
   return smallest ? `tag-match ${smallest.className}` : '';
 }
 
+function markEditorSyntaxDirty() {
+  if (!editorStack) return;
+  // V508: the native textarea is the live typing surface. Hide the heavier
+  // syntax overlay immediately so the browser can paint the new character and
+  // caret in the same frame. The overlay comes back only after a completed
+  // idle syntax render. This removes the old caret-ahead / text-catch-up effect.
+  editorStack.classList.add('editor-typing-live');
+  editorStack.classList.remove('editor-syntax-ready');
+}
+
 function renderCodeMatchLayer(spans = []) {
   if (!codeMatchLayer) return;
   if (MCS_NATIVE_TEXT_EDITOR_MODE) {
     codeMatchLayer.textContent = '';
+    editorStack?.classList.remove('editor-syntax-ready', 'editor-typing-live');
     syncEditorScroll();
     return;
   }
 
+  // Keep the old layer invisible while innerHTML is rebuilt. Replacing a
+  // complete highlighted document while it is visible was the source of the
+  // noticeable flash/flicker in both desktop and phone editors.
+  editorStack?.classList.remove('editor-syntax-ready');
   syncCodeHighlightLayerGeometry();
   const text = editor.value || '';
   const syntaxTokens = getSyntaxTokens(text);
@@ -15590,6 +16019,14 @@ function renderCodeMatchLayer(spans = []) {
 
   codeMatchLayer.innerHTML = (output || '&nbsp;') + '\n';
   syncEditorScroll();
+
+  // Only swap back to the highlighted visual layer when it represents the
+  // exact textarea value we just rendered. The native textarea remains the
+  // fallback/source of truth at all times.
+  if ((editor.value || '') === text) {
+    editorStack?.classList.remove('editor-typing-live');
+    editorStack?.classList.add('editor-syntax-ready');
+  }
 }
 
 function resetTagMatchInfo() {
@@ -15828,54 +16265,56 @@ let editorTypingHistoryTimer = 0;
 let editorTypingHistoryStartedAt = 0;
 let editorLastRenderedLineCount = 0;
 
-function scheduleEditorTypingPersistence(delay = 180) {
-  const now = Date.now();
-  if (!editorTypingPersistStartedAt) editorTypingPersistStartedAt = now;
-  const maxWait = 1000;
-  const wait = Math.max(0, Math.min(Math.max(80, Number(delay) || 180), editorTypingPersistStartedAt + maxWait - now));
+function scheduleEditorTypingPersistence(delay = 1100) {
+  // V508: persist after a typing pause instead of forcing JSON/localStorage work
+  // every ~1 second during a long burst. visibility/pagehide/beforeunload still
+  // write the urgent project recovery copy, so durability boundaries remain.
   window.clearTimeout(editorTypingPersistTimer);
+  editorTypingPersistStartedAt = Date.now();
   editorTypingPersistTimer = window.setTimeout(() => {
     editorTypingPersistTimer = 0;
     editorTypingPersistStartedAt = 0;
     saveCodeFileNames();
     saveCodeStoreForCurrentActivity();
-  }, wait);
+  }, Math.max(450, Number(delay) || 1100));
 }
 
-function scheduleEditorTypingUiMaintenance(delay = 140) {
-  const now = Date.now();
-  if (!editorTypingUiStartedAt) editorTypingUiStartedAt = now;
-  const maxWait = 650;
-  const wait = Math.max(0, Math.min(Math.max(70, Number(delay) || 140), editorTypingUiStartedAt + maxWait - now));
+function scheduleEditorTypingUiMaintenance(delay = 520) {
+  // Heavy structure/syntax/layout work is idle-debounced. The old max-wait
+  // forced a complete syntax-layer rebuild in the middle of continuous typing,
+  // which created the periodic editor flash seen in the supplied video.
   window.clearTimeout(editorTypingUiTimer);
+  editorTypingUiStartedAt = Date.now();
   editorTypingUiTimer = window.setTimeout(() => {
     editorTypingUiTimer = 0;
     editorTypingUiStartedAt = 0;
-    renderHTMLPageManager();
     renderStructureAlert();
     fitEditorToContent();
     updateTagMatching();
     scheduleEditorHelperRefresh();
-  }, wait);
+  }, Math.max(220, Number(delay) || 520));
 }
 
-function scheduleEditorTypingHistory(delay = 220) {
-  const now = Date.now();
-  if (!editorTypingHistoryStartedAt) editorTypingHistoryStartedAt = now;
-  const maxWait = 900;
-  const wait = Math.max(0, Math.min(Math.max(90, Number(delay) || 220), editorTypingHistoryStartedAt + maxWait - now));
+function scheduleEditorTypingHistory(delay = 720) {
+  // Group one continuous typing burst into one undo snapshot. This avoids full
+  // string snapshots being copied periodically while the student is still typing.
   window.clearTimeout(editorTypingHistoryTimer);
+  editorTypingHistoryStartedAt = Date.now();
   editorTypingHistoryTimer = window.setTimeout(() => {
     editorTypingHistoryTimer = 0;
     editorTypingHistoryStartedAt = 0;
     commitEditorHistory();
-  }, wait);
+  }, Math.max(260, Number(delay) || 720));
 }
 
 function cancelEditorTypingPendingWork(options = {}) {
   const cancelPersistence = options.persistence !== false;
   const cancelUi = options.ui !== false;
   const cancelHistory = options.history !== false;
+  window.clearTimeout(editorLineNumberTypingTimer);
+  editorLineNumberTypingTimer = 0;
+  window.clearTimeout(editorSuggestionTypingTimer);
+  editorSuggestionTypingTimer = 0;
   if (cancelPersistence) {
     window.clearTimeout(editorTypingPersistTimer);
     editorTypingPersistTimer = 0;
@@ -15935,6 +16374,31 @@ function updateLineNumbers(options = {}) {
     lineNumbers.textContent = output.trimEnd();
   }
   if (options.deferFit !== true) fitEditorToContent();
+}
+
+let editorLineNumberTypingTimer = 0;
+let editorSuggestionTypingTimer = 0;
+
+function scheduleEditorLineNumbersUpdate(delay = 44) {
+  window.clearTimeout(editorLineNumberTypingTimer);
+  editorLineNumberTypingTimer = window.setTimeout(() => {
+    editorLineNumberTypingTimer = 0;
+    updateLineNumbers({ deferFit: true });
+  }, Math.max(24, Number(delay) || 44));
+}
+
+function scheduleEditorSuggestions(event, delay = 70) {
+  const snapshot = {
+    inputType: String(event?.inputType || ''),
+    data: event?.data == null ? null : String(event.data),
+    isComposing: Boolean(event?.isComposing)
+  };
+  window.clearTimeout(editorSuggestionTypingTimer);
+  editorSuggestionTypingTimer = window.setTimeout(() => {
+    editorSuggestionTypingTimer = 0;
+    if (snapshot.isComposing) return;
+    showSuggestions(snapshot);
+  }, Math.max(40, Number(delay) || 70));
 }
 
 
@@ -18750,7 +19214,7 @@ function updateInstallButtonVisibility() {
 function registerPWAServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./service-worker.js?v=469-firebase-local-first', {
+    navigator.serviceWorker.register('./service-worker.js?v=506-super-cache-local-first', {
       updateViaCache: 'none'
     }).then(registration => {
       registration.update().catch(() => {});
@@ -21882,9 +22346,9 @@ function getStudentEngagementProfileRef() {
   return uid ? getStudentDocRef(uid) : null;
 }
 
-const STUDENT_ENGAGEMENT_QUEUE_DELAY_MS = 45 * 1000;
+const STUDENT_ENGAGEMENT_QUEUE_DELAY_MS = 0; // v506: local all day, one consolidated cloud flush around 8 PM.
 const STUDENT_ENGAGEMENT_IMMEDIATE_COALESCE_MS = 280;
-const STUDENT_ENGAGEMENT_RETRY_MS = 60 * 1000;
+const STUDENT_ENGAGEMENT_RETRY_MS = 15 * 60 * 1000;
 let studentEngagementQueueUid = '';
 let studentEngagementQueue = new Map();
 let studentEngagementQueueTimer = null;
@@ -21926,13 +22390,15 @@ function persistStudentEngagementQueue() {
   saveJSON(getStudentEngagementQueueStorageKey(studentEngagementQueueUid), payload);
 }
 
-function scheduleStudentEngagementFlush(delayMs = STUDENT_ENGAGEMENT_QUEUE_DELAY_MS) {
+function scheduleStudentEngagementFlush() {
   window.clearTimeout(studentEngagementQueueTimer);
-  if (!studentEngagementQueue.size || appSession.mode !== 'student') return;
+  if (!studentEngagementQueue.size || appSession.mode !== 'student' || !appSession.student?.uid) return;
+  const oldestQueuedAt = Math.min(...[...studentEngagementQueue.values()].map(entry => Math.max(0, Number(entry?.queuedAt || Date.now()))));
+  const delay = superCacheDailySyncDelay('engagement', appSession.student.uid, oldestQueuedAt);
   studentEngagementQueueTimer = window.setTimeout(() => {
     studentEngagementQueueTimer = null;
-    void flushStudentEngagementQueue({ reason: 'scheduled' });
-  }, Math.max(100, Number(delayMs || 0)));
+    void flushStudentEngagementQueue({ reason: 'daily-8pm' });
+  }, delay);
 }
 
 function queueStudentEngagementEntry(mapKey = '', itemId = '', record = {}, options = {}) {
@@ -21955,7 +22421,7 @@ function queueStudentEngagementEntry(mapKey = '', itemId = '', record = {}, opti
     queuedAt: Date.now()
   });
   persistStudentEngagementQueue();
-  scheduleStudentEngagementFlush(options.immediate ? STUDENT_ENGAGEMENT_IMMEDIATE_COALESCE_MS : STUDENT_ENGAGEMENT_QUEUE_DELAY_MS);
+  scheduleStudentEngagementFlush();
   return true;
 }
 
@@ -21965,6 +22431,11 @@ async function flushStudentEngagementQueue(options = {}) {
     return studentEngagementFlushPromise;
   }
   if (appSession.mode !== 'student' || !ensureStudentEngagementQueueLoaded() || !studentEngagementQueue.size) return false;
+  const oldestQueuedAt = Math.min(...[...studentEngagementQueue.values()].map(entry => Math.max(0, Number(entry?.queuedAt || Date.now()))));
+  if (options.force !== true && !superCacheDailySyncDue('engagement', studentEngagementQueueUid, oldestQueuedAt)) {
+    scheduleStudentEngagementFlush();
+    return false;
+  }
   const uidAtStart = studentEngagementQueueUid;
   const entries = [...studentEngagementQueue.entries()].map(([key, value]) => ({ key, ...value }));
   const profileRef = getStudentEngagementProfileRef();
@@ -22006,6 +22477,7 @@ async function flushStudentEngagementQueue(options = {}) {
         persistStudentEngagementQueue();
       }
       FIREBASE_OP_MONITOR.bump('engagementFlushes');
+      markSuperCacheDailySync('engagement', uidAtStart);
       clearAdminStudentSnapshotCache();
       clearSelectiveFirestoreCache?.(`studentProfile:${uidAtStart}`);
       return true;
@@ -22021,7 +22493,7 @@ async function flushStudentEngagementQueue(options = {}) {
       studentEngagementFlushPromise = null;
       if (studentEngagementFlushQueued) {
         studentEngagementFlushQueued = false;
-        if (studentEngagementQueue.size) scheduleStudentEngagementFlush(STUDENT_ENGAGEMENT_IMMEDIATE_COALESCE_MS);
+        if (studentEngagementQueue.size) scheduleStudentEngagementFlush();
       }
     }
   })();
@@ -22033,11 +22505,13 @@ async function writeStudentEngagementEntry(mapKey = '', itemId = '', record = {}
 }
 
 document.addEventListener('visibilitychange', () => {
-  if (!document.hidden || !studentEngagementQueue.size || navigator.onLine === false) return;
-  void flushStudentEngagementQueue({ reason: 'visibility-hidden' });
+  if (!studentEngagementQueue.size) return;
+  // v506: engagement is already durable in LocalStorage. Backgrounding a phone
+  // must not create a Firestore write; keep the one-per-day schedule instead.
+  scheduleStudentEngagementFlush();
 });
 window.addEventListener('online', () => {
-  if (studentEngagementQueue.size) void flushStudentEngagementQueue({ reason: 'reconnect' });
+  if (studentEngagementQueue.size) scheduleStudentEngagementFlush();
 });
 
 function buildLessonCloudEngagement(lesson = {}, progress = {}) {
@@ -24224,7 +24698,7 @@ async function openEngagementAnalytics(kind = '', itemId = '', options = {}) {
   engagementAnalyticsOverlay.classList.remove('hidden');
   document.body.classList.add('engagement-analytics-open');
   try {
-    await loadAdminStudents({ force: options.force === true });
+    await loadAdminStudents({ force: options.live === true });
     engagementAnalyticsState.rows = buildEngagementAnalyticsRows(kind, item);
     renderEngagementAnalytics();
   } catch (error) {
@@ -24839,7 +25313,7 @@ function bindTeacherToolsV295() {
     }
   }, { passive: true });
 
-  refreshNeedsAttentionBtn?.addEventListener('click', () => loadNeedsAttentionDashboard({ force: true }));
+  refreshNeedsAttentionBtn?.addEventListener('click', () => loadNeedsAttentionDashboard({ force: false }));
   [needsAttentionSearch, needsAttentionSection, needsAttentionReason].forEach(control => {
     control?.addEventListener('input', renderNeedsAttentionDashboard);
     control?.addEventListener('change', renderNeedsAttentionDashboard);
@@ -29483,11 +29957,29 @@ function cancelCssJumpLongPress() {
 }
 
 editor.addEventListener('input', event => {
-  if (shouldSpinDesktopLogoForEditorEdit()) triggerDesktopHeaderLogoSaveSpin();
+  // V508 fast path: make the browser-owned textarea visible first. Everything
+  // that can wait (syntax overlay, line gutter, suggestions, persistence) is
+  // deferred so the typed character and caret paint together on phone/desktop.
+  markEditorSyntaxDirty();
   saveActiveEditor({ typing: true });
-  updateLineNumbers({ deferFit: true });
+
+  // Mark an active student project dirty synchronously without doing any JSON,
+  // localStorage, Firestore, or layout work in the keystroke handler. This keeps
+  // pagehide/visibility recovery safe even before the idle persistence timer.
+  if (isStudentProjectActive()) {
+    const now = Date.now();
+    studentProjectRevision += 1;
+    studentProjectDirty = true;
+    studentProjectLastEditAt = now;
+    if (!studentProjectDirtySince) studentProjectDirtySince = now;
+    if (isStudentAutoSaveAllowed() && !studentProjectSaveTimer && navigator.onLine !== false && !isMiniGameNetworkQuiet()) {
+      scheduleStudentProjectCloudCheckpoint('edit-live');
+    }
+  }
+
+  scheduleEditorLineNumbersUpdate();
   scheduleEditorTypingHistory();
-  showSuggestions(event);
+  scheduleEditorSuggestions(event);
   scheduleAutoRun({ reason: 'edit' });
 });
 
@@ -30075,7 +30567,7 @@ saveComplianceSettingsBtn?.addEventListener('click', async () => {
 });
 previewComplianceSyncBtn?.addEventListener('click', previewComplianceSync);
 publishComplianceSyncBtn?.addEventListener('click', publishComplianceSync);
-refreshAdminComplianceViewerBtn?.addEventListener('click', () => loadAdminComplianceViewer({ force: true }));
+refreshAdminComplianceViewerBtn?.addEventListener('click', () => loadAdminComplianceViewer({ silent: false }));
 [adminComplianceViewerSectionSelect, adminComplianceViewerSearch, adminComplianceViewerFilter].forEach(control => {
   control?.addEventListener('input', renderAdminComplianceViewer);
   control?.addEventListener('change', renderAdminComplianceViewer);
@@ -30653,8 +31145,8 @@ const adminWireframeViewerState = {
 };
 
 const WIREFRAME_WORKSPACE_PREFS_KEY = 'ict8-wireframe-workspace-v1';
-const WIREFRAME_CLOUD_CHECKPOINT_MIN_MS = 5 * 60 * 1000;
-const WIREFRAME_CLOUD_DIRTY_MAX_MS = 6 * 60 * 1000;
+const WIREFRAME_CLOUD_CHECKPOINT_MIN_MS = 20 * 60 * 1000;
+const WIREFRAME_CLOUD_DIRTY_MAX_MS = 25 * 60 * 1000;
 const WIREFRAME_RECOVERY_DEBOUNCE_MS = 220;
 
 function readWireframeWorkspacePrefs() {
@@ -32193,7 +32685,7 @@ function snapWireframeResize(element, rawW, rawH) {
 }
 
 function isWireframeImmediateSaveReason(reason = '') {
-  return /^(manual|dashboard|logout|reconnect|visibility|beforeunload|destructive|convert|project-switch)$/i.test(String(reason || ''));
+  return /^(manual|logout|destructive|convert)$/i.test(String(reason || ''));
 }
 
 function wireframeCloudPayload(cleanData = normalizeWireframeData(wireframeMakerState.data)) {
@@ -34043,7 +34535,7 @@ function installWireframeMakerEvents() {
 
   window.addEventListener('online', () => {
     if (!wireframeMakerState.dirty || !wireframeMakerScreen || wireframeMakerScreen.classList.contains('hidden')) return;
-    if (isWireframeAutosaveEnabled()) saveWireframeProject({ silent: true, immediate: true, reason: 'reconnect' });
+    if (isWireframeAutosaveEnabled()) scheduleWireframeCloudCheckpoint('reconnect-deferred');
     else syncWireframeAutosaveUi();
   });
   window.addEventListener('offline', () => {
@@ -34053,7 +34545,7 @@ function installWireframeMakerEvents() {
     if (!document.hidden || !wireframeMakerState.dirty || !wireframeMakerScreen || wireframeMakerScreen.classList.contains('hidden')) return;
     persistWireframeRecovery({ urgent: true });
     if (isWireframeAutosaveEnabled() && navigator.onLine !== false) {
-      saveWireframeProject({ silent: true, immediate: true, reason: 'visibility' }).catch(error => console.info('Wireframe hidden-state checkpoint skipped.', error));
+      scheduleWireframeCloudCheckpoint('visibility-deferred');
     }
   });
   window.addEventListener('beforeunload', event => {
@@ -34138,22 +34630,24 @@ projectNameOverlay?.addEventListener('click', event => {
   if (event.target === projectNameOverlay) event.stopPropagation();
 });
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'hidden' && isStudentProjectActive() && isStudentAutoSaveAllowed()) {
-    // Keep the proven recovery behavior: dirty project content may still flush
-    // immediately before the browser is suspended. Local recovery is already
-    // written on each edit, and the profile sidecar write is now independently throttled.
-    saveCurrentStudentProject({ immediate: true, reason: 'visibility' });
+  if (document.visibilityState === 'hidden' && isStudentProjectActive()) {
+    // v506 SUPER CACHE: browser/app switching must never become a cloud-write
+    // trigger. Every edit already has a synchronous local recovery copy. If the
+    // normal cloud checkpoint is due it remains scheduled; explicit Save/logout/
+    // project switch still flushes immediately.
+    persistStudentProjectRecoverySnapshot('visibility-local');
+    if (studentProjectDirty && isStudentAutoSaveAllowed() && navigator.onLine !== false) {
+      scheduleStudentProjectCloudCheckpoint('visibility-deferred');
+    }
   }
   if (appSession.mode === 'student' && appSession.student?.uid) {
     const hidden = document.visibilityState === 'hidden';
     const visibilityPresenceDue = !studentPresenceLastWriteAt
       || Date.now() - studentPresenceLastWriteAt >= PRESENCE_VISIBILITY_MIN_WRITE_INTERVAL;
-    // Rapid app/tab switching is common on phones. A hidden transition only
-    // spends an immediate RTDB write when the last presence sample is already
-    // several minutes old; visible transitions continue through the normal
-    // 20-minute presence throttle.
-    if (!hidden || visibilityPresenceDue) {
-      writeStudentPresence({}, { force: true, critical: hidden && visibilityPresenceDue })
+    // Hidden/visible churn is cached locally. Only an already-due presence
+    // heartbeat may write; this avoids RTDB bursts on phones.
+    if (visibilityPresenceDue) {
+      writeStudentPresence({}, { force: true, critical: false })
         .catch(error => console.warn('Visibility presence update skipped.', error));
     }
     if (!hidden) scheduleStudentPresenceHeartbeat();
@@ -34164,7 +34658,7 @@ refreshOnlinePresenceBtn?.addEventListener('click', () => loadAdminOnlinePresenc
 onlinePresenceAutoBtn?.addEventListener('click', () => {
   adminOnlinePresenceAutoRefresh = !adminOnlinePresenceAutoRefresh;
   onlinePresenceAutoBtn.setAttribute('aria-pressed', adminOnlinePresenceAutoRefresh ? 'true' : 'false');
-  onlinePresenceAutoBtn.textContent = adminOnlinePresenceAutoRefresh ? 'Auto: 5m' : 'Auto: Off';
+  onlinePresenceAutoBtn.textContent = adminOnlinePresenceAutoRefresh ? 'Auto: 30m' : 'Auto: Off';
   setOnlinePresenceStatus(`Auto refresh is ${adminOnlinePresenceAutoRefresh ? 'on' : 'off'}.`, '');
   scheduleAdminOnlinePresenceRefresh();
 });
@@ -34187,7 +34681,7 @@ confirmStudentImportBtn?.addEventListener('click', confirmStudentImport);
 cancelStudentImportBtn?.addEventListener('click', cancelStudentImport);
 refreshStudentsBtn?.addEventListener('click', () => {
   resetAdminStudentMobileRenderLimit();
-  loadAdminStudents({ force: true });
+  loadAdminStudents();
 });
 toggleStudentRegisterBtn?.addEventListener('click', () => {
   const isOpen = studentAccountsAdmin?.classList.contains('student-register-mobile-open');
@@ -39183,12 +39677,17 @@ They can join again later using the same share code.`,
     if (studentProjectDirty && isStudentProjectActive()) {
       window.clearTimeout(studentProjectRetryTimer);
       if (isStudentAutoSaveAllowed()) {
-        window.setTimeout(() => flushStudentProjectSave('reconnect'), 500);
+        // v506: reconnect is not a reason to burst-write Firestore. The local
+        // recovery copy is already current; resume the ordinary checkpoint timer.
+        window.setTimeout(() => scheduleStudentProjectCloudCheckpoint('reconnect-local'), 500);
       } else {
         persistStudentProjectRecoverySnapshot('reconnect-manual-save-mode');
         setStudentSaveState('Unsaved · press Save', 'unsaved');
         updateManualSaveControls();
       }
+    }
+    if (document.body.classList.contains('wireframe-maker-active') && wireframeMakerState?.dirty && isWireframeAutosaveEnabled()) {
+      window.setTimeout(() => scheduleWireframeCloudCheckpoint('reconnect-local'), 650);
     }
     if (appSession.mode === 'student' && !document.body.classList.contains('student-dashboard-active')) setStatus('Back online');
   };
@@ -39202,12 +39701,18 @@ They can join again later using the same share code.`,
   window.addEventListener('load', updateConnectionStatusUI);
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden' && studentProjectDirty && isStudentProjectActive()) {
-      persistStudentProjectRecoverySnapshot('visibility');
+      // v506: app switching/backgrounding protects the project locally only.
+      // This removes the largest lifecycle write amplifier on student phones.
+      persistStudentProjectRecoverySnapshot('visibility-local');
       if (navigator.onLine !== false && isStudentAutoSaveAllowed()) {
-        saveCurrentStudentProject({ immediate: true, reason: 'visibility' });
+        scheduleStudentProjectCloudCheckpoint('visibility-local');
       } else if (!isStudentAutoSaveAllowed()) {
         setStudentSaveState('Unsaved · press Save', 'unsaved');
       }
+    }
+    if (document.visibilityState === 'hidden' && document.body.classList.contains('wireframe-maker-active') && wireframeMakerState?.dirty) {
+      persistWireframeRecovery({ urgent: true });
+      if (navigator.onLine !== false && isWireframeAutosaveEnabled()) scheduleWireframeCloudCheckpoint('visibility-local');
     }
   });
   window.addEventListener('pagehide', () => {
@@ -39480,7 +39985,6 @@ They can join again later using the same share code.`,
   }
 
   editor.addEventListener('focus', syncPhoneEditorWrapMode, { passive: true });
-  editor.addEventListener('input', syncPhoneEditorWrapMode, { passive: true });
   window.addEventListener('resize', syncPhoneEditorWrapMode, { passive: true });
   document.addEventListener('DOMContentLoaded', syncPhoneEditorWrapMode, { once: true });
   syncPhoneEditorWrapMode();
@@ -39778,7 +40282,6 @@ They can join again later using the same share code.`,
     resetTouchState();
   }, { passive: true });
   editor.addEventListener('focus', syncStep76Mode, { passive: true });
-  editor.addEventListener('input', syncStep76Mode, { passive: true });
   editor.addEventListener('scroll', () => {
     if (isStep76PhoneEditorActive()) syncEditorScroll();
   }, { passive: true });
@@ -39892,7 +40395,6 @@ They can join again later using the same share code.`,
     if (isPhoneEditorFontScrollMode()) syncEditorScroll();
   }, { passive: true });
   editor.addEventListener('focus', syncMobileFontControl, { passive: true });
-  editor.addEventListener('input', syncMobileFontControl, { passive: true });
 
   ['load', 'resize', 'orientationchange', 'fullscreenchange', 'webkitfullscreenchange'].forEach(type => {
     window.addEventListener(type, syncMobileFontControl, { passive: true });
@@ -47007,20 +47509,18 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     return Math.max(0, Math.floor(Number(normalizeMiniGamesState(progress?.miniGames || {}).lifetimeXp || 0)));
   }
 
-  // v460 Phase 3 checkpoint policy. Ordinary interactions save to LocalStorage
-  // immediately. Durable cloud writes are coalesced to a low-frequency window
-  // while dirty, with a short checkpoint after major milestones.
-  // v504 quota pass: ordinary Explorer activity stays local-first longer.
-  // Normal durable checkpoints have a 5-minute floor and land around 5.5-7
-  // minutes, while real milestones still flush promptly after a short guard.
-  const CODE_EXPLORER_CHECKPOINT_MIN_SPACING_MS = 5 * 60 * 1000;
-  const CODE_EXPLORER_CHECKPOINT_PERIODIC_BASE_MS = 330 * 1000;
-  const CODE_EXPLORER_CHECKPOINT_PERIODIC_JITTER_MS = 60 * 1000;
-  const CODE_EXPLORER_CHECKPOINT_DIRTY_MAX_MS = 7 * 60 * 1000;
-  const CODE_EXPLORER_CHECKPOINT_MILESTONE_MIN_SPACING_MS = 30 * 1000;
-  const CODE_EXPLORER_CHECKPOINT_MILESTONE_BASE_MS = 12 * 1000;
-  const CODE_EXPLORER_CHECKPOINT_MILESTONE_JITTER_MS = 6 * 1000;
-  const CODE_EXPLORER_FOREGROUND_REFRESH_MS = 10 * 60 * 1000;
+  // v506 SUPER CACHE: Code Explorer is now zero-routine-cloud during normal
+  // learning. Every interaction is persisted immediately to LocalStorage; one
+  // secure merged checkpoint is scheduled around 8 PM (with per-user jitter).
+  // Certificate publication/sync remain rare critical cloud events because the
+  // public certificate registry validates against the canonical student profile.
+  const CODE_EXPLORER_DAILY_SYNC_SCOPE = 'codeExplorer';
+  const CODE_EXPLORER_CRITICAL_CLOUD_REASONS = new Set([
+    'certificate-publication',
+    'certificate-sync',
+    'certificate-repair',
+    'admin-migration'
+  ]);
   const state = { course: 'html', topicId: '', filter: 'all', progress: null, reader: '', cloudLoaded: false, cloudXpHint: 0, dashboardCloudLoading: false, saveTimer: null, cloudSavePromise: null, cloudSaveQueued: false, checkpointDirty: false, checkpointDirtySince: 0, checkpointDueAt: 0, checkpointReason: '', checkpointRetryNotBefore: 0, lastCheckpointSignature: '', lastCheckpointMilestoneSignature: '', profileUpdateTime: '', lastCloudSyncAt: 0, identityCheckedAt: 0, identityCanonical: true, heartTimer: null, heartPopoverTimer: null, profileUnsub: null, finalAnswers: {}, finalStartedAt: 0, quickQuiz: { topicId: '', index: 0, answers: [], results: [], submitted: false, questionStartedAt: [], responseMs: [], attemptStartedAt: 0 }, miniGame: { topicId: '', selected: '', result: '', correct: '', choices: [], before: '', after: '' }, miniGameResetTimer: null, quickAdvanceTimer: null, quickFeedbackTimer: null, justUnlockedTopicId: '', justUnlockedCourse: '', mobileStage: 'learn', mobileStageDirection: 'next', mobileSwipeStart: null, mobileView: 'roadmap' };
   const miniGameProgressSubscribers = new Set();
   const activeXpMiniGameRounds = new Map();
@@ -47056,6 +47556,51 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   const CODE_EXPLORER_LEADERBOARD_SETTINGS_ROW_ID = 'leaderboard_settings';
   const leaderboardState = { records: [], loadedAt: 0, loading: false, source: '', rosterLoaded: false, mode: 'students', settingsLoaded: false, settingsError: false, currentSectionIncluded: true };
   let leaderboardSectionSettings = { configured: false, includedSections: [], includedSectionKeys: [] };
+
+  const DAILY_GLOBAL_LEADERBOARD_CACHE_PREFIX = 'ict8.dailyGlobalLeaderboard.v506';
+  const DAILY_WEEKLY_ARCADE_CACHE_PREFIX = 'ict8.dailyWeeklyArcade.v506';
+
+  function readDailyLeaderboardCache(key = '') {
+    if (!key) return null;
+    try {
+      const parsed = JSON.parse(localStorage.getItem(key) || 'null');
+      return parsed && typeof parsed === 'object' ? parsed : null;
+    } catch (_) { return null; }
+  }
+
+  function writeDailyLeaderboardCache(key = '', value = null) {
+    if (!key || value == null) return;
+    try { localStorage.setItem(key, JSON.stringify(value)); } catch (_) {}
+  }
+
+  async function loadDailyGlobalLeaderboardEntries(options = {}) {
+    if (!(appSession.mode === 'student' || isTeacherAuthenticated())) return [];
+    const identity = String(appSession.student?.uid || getFirebaseActiveUser()?.uid || 'teacher');
+    const epoch = superCacheRankingEpochKey();
+    const key = `${DAILY_GLOBAL_LEADERBOARD_CACHE_PREFIX}.${identity}.${epoch}`;
+    const cached = readDailyLeaderboardCache(key);
+    // The visible Refresh button intentionally reuses the frozen daily snapshot.
+    // Only an internal { live:true } diagnostic bypasses the 8 PM cache.
+    if (cached?.epoch === epoch && Array.isArray(cached.rows) && options.live !== true) return cached.rows;
+    if (!getFirebaseActiveUser()) return cached?.rows || [];
+    try {
+      const raw = await rtdbRestRequest('dailyLeaderboardEntries');
+      const rows = Object.entries(raw && typeof raw === 'object' ? raw : {}).map(([uid, row]) => ({
+        uid: String(row?.uid || uid || '').trim(),
+        name: String(row?.name || 'Student').replace(/\s+/g, ' ').trim() || 'Student',
+        section: String(row?.section || '').replace(/\s+/g, ' ').trim(),
+        xp: Math.max(0, Number(row?.xp || 0)),
+        accountStatus: String(row?.accountStatus || 'active').trim().toLowerCase(),
+        updatedAtMs: Math.max(0, Number(row?.updatedAtMs || 0)),
+        epochKey: String(row?.epochKey || '')
+      })).filter(row => row.uid && row.accountStatus !== 'disabled');
+      writeDailyLeaderboardCache(key, { epoch, savedAt: Date.now(), rows });
+      return rows;
+    } catch (error) {
+      console.info('Daily RTDB leaderboard snapshot unavailable; using cached/root fallback.', error);
+      return cached?.rows || [];
+    }
+  }
 
   // v480 — Teacher-configurable Code Explorer background music + playlists.
   // Backward compatible with the original { enabled, url, volume } setting.
@@ -48785,90 +49330,55 @@ window.MCS_PHONE_MENU_STATUS = () => ({
 
   async function loadCloudProgress() {
     if (!appSession.student?.uid || appSession.mode !== 'student') return null;
-    if (!shouldUseAppsScriptCodeExplorerCheckpoints()) {
-      // v469: never fall back to an extra direct Firestore profile read just to
-      // open Explorer. Student login already seeded the newest profile available
-      // to this browser; keep working locally until the secure checkpoint route is configured.
-      const seeded = appSession.student?.codeExplorerProgress || appSession.lastStudentProfile?.codeExplorerProgress || null;
-      return seeded ? normalizeProgress(seeded) : null;
-    }
-    try {
-      const server = await callAppsScriptSecure({ action: 'loadCodeExplorerCheckpoint' }, { allowStudent: true });
-      const remote = normalizeProgress(server.progress || {});
-      state.cloudXpHint = Math.max(state.cloudXpHint || 0, Math.max(0, Number(server.totalXp || 0)));
-      state.profileUpdateTime = String(server.profileUpdateTime || '');
-      state.lastCloudSyncAt = Date.now();
+    // v506 SUPER CACHE: opening/reopening Code Explorer must create ZERO extra
+    // Firebase reads. Student login already supplied the canonical profile and
+    // ensureReaderProgress() merges that seed with this device's newer local copy.
+    const seeded = appSession.student?.codeExplorerProgress || appSession.lastStudentProfile?.codeExplorerProgress || null;
+    const remote = seeded ? normalizeProgress(seeded) : null;
+    if (remote) {
+      state.cloudXpHint = Math.max(state.cloudXpHint || 0, Math.max(0, Number(appSession.student?.codeExplorerXp || appSession.lastStudentProfile?.codeExplorerXp || 0)));
       state.cloudLoaded = true;
-      setExplorerCheckpointBaseline(remote);
-      return remote;
-    } catch (error) {
-      if (codeExplorerCheckpointNeedsLegacyFallback(error)) {
-        console.warn('Code Explorer secure checkpoint route is unavailable. Progress remains local/pending; direct per-interaction Firestore fallback is disabled.', error);
-      } else {
-        console.warn('Code Explorer checkpoint could not be loaded. Local progress remains available.', error);
-      }
-      return null;
+      if (!state.lastCheckpointSignature) setExplorerCheckpointBaseline(remote);
     }
+    return remote;
   }
 
   function scheduleCloudSave(reason = 'progress') {
     saveLocalProgress();
-
-    if (isMiniGameNetworkQuiet()) {
-      if (appSession.student?.uid && appSession.mode === 'student' && state.progress) {
-        refreshExplorerCheckpointDirtyState(reason);
-      }
-      clearTimeout(state.saveTimer);
-      state.saveTimer = null;
-      state.checkpointDueAt = 0;
-      return;
-    }
-
-    // v469: ordinary Explorer interaction never falls back to a 700ms direct
-    // Firestore profile write. Without the secure checkpoint bridge, progress
-    // remains protected locally and visibly pending until the backend is available.
-    if (!shouldUseAppsScriptCodeExplorerCheckpoints()) {
-      if (appSession.student?.uid && appSession.mode === 'student' && state.progress) {
-        refreshExplorerCheckpointDirtyState(reason);
-      }
-      clearTimeout(state.saveTimer);
-      state.saveTimer = null;
-      state.checkpointDueAt = 0;
-      return;
-    }
-
     if (!appSession.student?.uid || appSession.mode !== 'student' || !state.progress) return;
     if (!refreshExplorerCheckpointDirtyState(reason)) return;
 
-    const now = Date.now();
-    const milestoneChanged = explorerMilestoneSignature(state.progress) !== state.lastCheckpointMilestoneSignature;
-    const dirtySince = Number(state.checkpointDirtySince || now);
-    const spacingWindow = milestoneChanged
-      ? CODE_EXPLORER_CHECKPOINT_MILESTONE_MIN_SPACING_MS
-      : CODE_EXPLORER_CHECKPOINT_MIN_SPACING_MS;
-    const spacingFloor = Math.max(now, Number(state.lastCloudSyncAt || 0) + spacingWindow);
-    const normalDue = Math.max(
-      spacingFloor,
-      dirtySince + CODE_EXPLORER_CHECKPOINT_PERIODIC_BASE_MS + explorerCheckpointJitter(CODE_EXPLORER_CHECKPOINT_PERIODIC_JITTER_MS)
-    );
-    const milestoneDue = Math.max(
-      spacingFloor,
-      now + CODE_EXPLORER_CHECKPOINT_MILESTONE_BASE_MS + explorerCheckpointJitter(CODE_EXPLORER_CHECKPOINT_MILESTONE_JITTER_MS)
-    );
-    const dirtyDeadline = dirtySince + CODE_EXPLORER_CHECKPOINT_DIRTY_MAX_MS;
-    const desiredDue = Math.min(dirtyDeadline, milestoneChanged ? Math.min(normalDue, milestoneDue) : normalDue);
-    const dueAt = Math.max(desiredDue, Number(state.checkpointRetryNotBefore || 0));
+    // Rare certificate/admin-critical repairs retain immediate canonical
+    // durability. Normal learning never takes this branch.
+    if (CODE_EXPLORER_CRITICAL_CLOUD_REASONS.has(String(reason || ''))) {
+      saveCloudProgress({ reason: String(reason || ''), force: true }).catch(() => false);
+      return;
+    }
 
-    // Never push an already-scheduled checkpoint later. Continuous typing/taps
-    // cannot postpone the durable save forever.
+    // Mini-games intentionally suppress background database traffic while a
+    // round is active. Local Explorer progress is already safe, so simply keep
+    // the daily checkpoint pending.
+    if (isMiniGameNetworkQuiet()) {
+      clearTimeout(state.saveTimer);
+      state.saveTimer = null;
+      state.checkpointDueAt = 0;
+      return;
+    }
+
+    // v506: one scheduled daily cloud checkpoint instead of a checkpoint for
+    // every milestone, lesson, quiz, visibility event, or Explorer exit.
+    const uid = String(appSession.student.uid || '');
+    const dirtySince = Number(state.checkpointDirtySince || Date.now());
+    const delay = superCacheDailySyncDelay(CODE_EXPLORER_DAILY_SYNC_SCOPE, uid, dirtySince);
+    const dueAt = Date.now() + delay;
     if (state.saveTimer && state.checkpointDueAt && state.checkpointDueAt <= dueAt) return;
     clearTimeout(state.saveTimer);
     state.checkpointDueAt = dueAt;
     state.saveTimer = window.setTimeout(() => {
       state.saveTimer = null;
       state.checkpointDueAt = 0;
-      saveCloudProgress({ reason: state.checkpointReason || (milestoneChanged ? 'milestone' : 'periodic') }).catch(() => false);
-    }, Math.max(0, dueAt - now));
+      saveCloudProgress({ reason: 'daily-8pm', daily: true, force: true }).catch(() => false);
+    }, Math.max(1000, delay));
   }
 
   async function saveCodeExplorerCheckpointViaAppsScript(options = {}) {
@@ -48975,12 +49485,30 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   }
 
   async function saveCloudProgress(options = {}) {
-    if (!shouldUseAppsScriptCodeExplorerCheckpoints()) {
-      saveLocalProgress();
-      refreshExplorerCheckpointDirtyState(options.reason || 'secure-checkpoint-unavailable');
+    saveLocalProgress();
+    const reason = String(options.reason || 'progress');
+    refreshExplorerCheckpointDirtyState(reason);
+
+    // Normal Explorer use is strictly local-first. Only the daily checkpoint
+    // and rare certificate/admin-critical flows are allowed to touch Firebase.
+    const critical = CODE_EXPLORER_CRITICAL_CLOUD_REASONS.has(reason);
+    const daily = options.daily === true || reason === 'daily-8pm';
+    if (!critical && !daily) {
+      scheduleCloudSave(reason);
       return false;
     }
-    return saveCodeExplorerCheckpointViaAppsScript(options);
+    if (daily && !superCacheDailySyncDue(CODE_EXPLORER_DAILY_SYNC_SCOPE, String(appSession.student?.uid || ''), Number(state.checkpointDirtySince || 0))) {
+      scheduleCloudSave(reason);
+      return false;
+    }
+    if (!shouldUseAppsScriptCodeExplorerCheckpoints()) return false;
+    const saved = await saveCodeExplorerCheckpointViaAppsScript({ ...options, reason, force: true });
+    if (saved && daily) {
+      const uid = String(appSession.student?.uid || '');
+      markSuperCacheDailySync(CODE_EXPLORER_DAILY_SYNC_SCOPE, uid);
+      markDailyLeaderboardPublishEpoch(uid, superCacheRankingEpochKey());
+    }
+    return saved;
   }
 
   function courseProgressFor(progress, key) {
@@ -49627,43 +50155,41 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       return rows;
     };
 
-    // Phase 2: once RTDB is configured, Weekly Arcade never touches Firestore.
-    // Students read only the Top N rows + their own row through short REST calls.
+    // v506 SUPER CACHE: Weekly Arcade becomes a frozen daily snapshot.
+    // One compact current-week RTDB read per device/day computes exact ranks
+    // locally; reopening or pressing Refresh reuses LocalStorage with zero RTDB
+    // traffic until the next ranking epoch.
     if (shouldUseRtdbWeeklyArcade()) {
+      const epoch = superCacheRankingEpochKey();
+      const cacheKey = `${DAILY_WEEKLY_ARCADE_CACHE_PREFIX}.${uid}.${week.key}.${epoch}`;
+      const cached = readDailyLeaderboardCache(cacheKey);
+      if (cached?.epoch === epoch && cached?.result && options.live !== true) return cached.result;
       try {
-        const [topRaw, yourRaw] = await Promise.all([
-          rtdbRestRequest(`arcadeWeekly/${week.key}/entries`, {
-            query: {
-              orderBy: JSON.stringify('weeklyXp'),
-              limitToLast: topLimit
-            }
-          }),
-          rtdbRestRequest(`arcadeWeekly/${week.key}/entries/${uid}`)
-        ]);
-        const rows = sortRows(Object.entries(topRaw && typeof topRaw === 'object' ? topRaw : {}).map(([rowUid, data]) => cleanEntry(data, rowUid))
+        const allRaw = await rtdbRestRequest(`arcadeWeekly/${week.key}/entries`);
+        const allRows = sortRows(Object.entries(allRaw && typeof allRaw === 'object' ? allRaw : {})
+          .map(([rowUid, data]) => cleanEntry(data, rowUid))
           .filter(row => row.uid && row.weeklyXp > 0 && row.accountStatus !== 'disabled'));
-        let yourEntry = rows.find(row => row.uid === uid) || null;
-        if (!yourEntry && yourRaw && typeof yourRaw === 'object') {
-          const candidate = cleanEntry(yourRaw, uid);
-          if (candidate.weeklyXp > 0 && candidate.accountStatus !== 'disabled') yourEntry = { ...candidate, rank: 0 };
-        }
-        return {
+        const yourEntry = allRows.find(row => row.uid === uid) || null;
+        const result = {
           ...base,
           ok: true,
-          source: 'rtdb',
-          entries: rows,
-          totalPlayers: rows.length,
+          source: 'rtdb-daily-cache',
+          entries: allRows.slice(0, topLimit),
+          totalPlayers: allRows.length,
           yourRank: yourEntry?.rank || 0,
-          yourEntry
+          yourEntry,
+          partial: false,
+          snapshotEpoch: epoch
         };
+        writeDailyLeaderboardCache(cacheKey, { epoch, savedAt: Date.now(), result });
+        return result;
       } catch (error) {
-        console.warn('RTDB Weekly Arcade leaderboard could not be loaded.', error);
-        // Deliberately DO NOT fall back to Firestore here. If RTDB is enabled,
-        // protecting Firestore quota is more important than a temporary ranking.
+        console.warn('RTDB Weekly Arcade daily snapshot could not be loaded.', error);
+        if (cached?.result) return cached.result;
         return {
           ...base,
-          source: 'rtdb',
-          error: String(error?.message || error || 'Could not load Weekly Arcade from Realtime Database.')
+          source: 'rtdb-daily-cache',
+          error: String(error?.message || error || 'Could not load the daily Weekly Arcade snapshot.')
         };
       }
     }
@@ -50173,7 +50699,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     if (!shouldUseRtdbMiniGameLedger()) return currentXpMiniGamesSnapshot();
     if (!(appSession.mode === 'student' && appSession.student?.uid)) return currentXpMiniGamesSnapshot();
     const force = options.force === true;
-    if (!force && Date.now() - miniGameRtdbHydratedAt < 15 * 60 * 1000) return currentXpMiniGamesSnapshot();
+    if (!force && Date.now() - miniGameRtdbHydratedAt < 60 * 60 * 1000) return currentXpMiniGamesSnapshot();
     if (miniGameRtdbHydratePromise) return miniGameRtdbHydratePromise;
 
     const uid = String(appSession.student.uid || '');
@@ -53325,12 +53851,8 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       renderAdminLeaderboardSectionSettings();
       if (dom.adminLeaderboardSettingsStatus) dom.adminLeaderboardSettingsStatus.textContent = `${includedSections.length} section${includedSections.length === 1 ? '' : 's'} included. Saved. Leaderboards will refresh automatically.`;
 
-      // Refresh the public ranking snapshot AFTER the settings save has
-      // completed. This is intentionally not awaited, so the admin button is
-      // responsive even with hundreds of enrolled students.
-      window.setTimeout(() => {
-        publishSafeCodeExplorerLeaderboardFromAdmin({ force: true }).catch?.(() => {});
-      }, 0);
+      // v507: ranking rows publish on the daily ~8 PM path. Saving visibility
+      // settings must not trigger an extra ranking write or student scan.
     } catch (error) {
       console.error('Could not save Code Explorer leaderboard section settings.', error);
       const rawMessage = String(error?.message || 'Could not save leaderboard section settings.');
@@ -53536,11 +54058,40 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     if (dom.leaderboardStatus) dom.leaderboardStatus.textContent = 'Loading included student rankings...';
     if (dom.leaderboardRefreshBtn) { dom.leaderboardRefreshBtn.disabled = true; dom.leaderboardRefreshBtn.textContent = 'Loading...'; }
     try {
+      // v506: rankings are read from one compact RTDB snapshot at most once per
+      // 8 PM epoch and cached in LocalStorage. This path avoids Firestore scans
+      // and repeated root-document reads when students reopen/refresh rankings.
+      const dailyRows = await loadDailyGlobalLeaderboardEntries(options);
+      if (dailyRows.length) {
+        const settingsLoad = await loadLeaderboardSectionSettings();
+        leaderboardState.settingsLoaded = settingsLoad.loaded === true;
+        leaderboardState.settingsError = settingsLoad.error === true;
+        let records = dailyRows
+          .filter(row => !leaderboardState.settingsLoaded || isLeaderboardSectionIncluded(row.section || '', leaderboardSectionSettings))
+          .map(row => ({ ...row, current: isCurrentLeaderboardStudent(row) }));
+
+        const currentRecord = records.find(record => record.current || isCurrentLeaderboardStudent(record)) || null;
+        const effectiveCurrentSection = currentRecord?.section || currentLeaderboardSectionName();
+        const effectiveKey = leaderboardSectionKey(effectiveCurrentSection);
+        leaderboardState.currentSectionIncluded = !(leaderboardState.settingsLoaded && effectiveKey && effectiveKey !== 'no section')
+          || isLeaderboardSectionIncluded(effectiveCurrentSection, leaderboardSectionSettings);
+        if (leaderboardState.currentSectionIncluded && appSession.mode === 'student' && !currentRecord) records.push(leaderboardCurrentFallback());
+
+        const ranked = assignLeaderboardRanks(records.filter(record => String(record.accountStatus || 'active') !== 'disabled'));
+        ranked.forEach(record => { record.current = record.current || isCurrentLeaderboardStudent(record); });
+        leaderboardState.records = ranked;
+        leaderboardState.loadedAt = Date.now();
+        leaderboardState.rosterLoaded = true;
+        leaderboardState.source = `daily 8 PM cached snapshot (${superCacheRankingEpochKey()})`;
+        renderGlobalLeaderboard();
+        return;
+      }
+
       const ready = await initFirebaseSync();
       if (!ready) throw new Error('Cloud ranking is not available right now.');
       const { getDoc } = firebaseSync.modules;
 
-      const rootDoc = await readCloudActivitiesDocument({ force: options.force === true });
+      const rootDoc = await readCloudActivitiesDocument({ force: options.live === true });
       const rootData = rootDoc.exists ? (rootDoc.data || {}) : {};
       const rootPublic = normalizePublicLeaderboardSnapshot(rootData.codeExplorerLeaderboardPublic || {});
       const rootSettingsRaw = rootData.codeExplorerLeaderboardSettings || rootData.codeExplorerLeaderboardPublic?.settings || null;
@@ -53783,15 +54334,25 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     renderLegacyXpMigrationAudit([]);
 
     try {
-      await loadAdminStudents({ force: true });
+      await loadAdminStudents();
       const ready = await initFirebaseSync();
       if (!ready) throw new Error(firebaseSync.lastError || 'Firebase is not ready.');
       const { setDoc, getDoc, runTransaction, serverTimestamp } = firebaseSync.modules;
-      const students = adminStudentsCache.slice();
+      const allStudents = adminStudentsCache.slice();
+      const students = allStudents.filter(student => {
+        const progress = studentExplorerProgress(student);
+        const storedXp = storedExplorerXpForAdminStudent(student);
+        const hasHistory = storedXp > 0 || explorerOverallFor(progress).explored > 0 || explorerCertificateCountFor(progress) > 0;
+        if (!hasHistory) return false;
+        const migrationVersion = Math.max(0, Number(progress?.xpMigrationVersion || 0));
+        return Number(student.duplicateProfileCount || 0) > 0
+          || migrationVersion < EXPLORER_XP_MIGRATION_VERSION
+          || storedXp !== explorerXpFor(progress);
+      });
       let checked = 0;
       let normalized = 0;
       let adjusted = 0;
-      let already = 0;
+      let already = Math.max(0, allStudents.length - students.length);
       let skipped = 0;
       let failed = 0;
       let totalCredit = 0;
@@ -53876,6 +54437,18 @@ window.MCS_PHONE_MENU_STATUS = () => ({
             return;
           }
 
+          const localPatch = {
+            codeExplorerProgress: normalizeProgress(progress),
+            codeExplorerXp: finalXp,
+            codeExplorerXpMigrationVersion: EXPLORER_XP_MIGRATION_VERSION,
+            codeExplorerUpdatedAt: new Date()
+          };
+          Object.assign(student, localPatch);
+          if (Array.isArray(student.sourceRecords)) {
+            student.sourceRecords = student.sourceRecords.map(record => String(record?.uid || record?.authUid || '') === targetUid ? { ...record, ...localPatch } : record);
+          }
+          upsertCachedAdminProfileRecord(targetUid, localPatch);
+
           normalized += 1;
           if (result.credit > 0) {
             adjusted += 1;
@@ -53892,7 +54465,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
           errors.push(error?.message || String(error));
         } finally {
           checked += 1;
-          if (status) status.textContent = `Repairing Code Explorer progress… ${checked}/${students.length}`;
+          if (status) status.textContent = `Repairing flagged Explorer profiles… ${checked}/${students.length} cloud checks · ${allStudents.length - students.length} served from cache`;
         }
       };
 
@@ -53900,10 +54473,10 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         await Promise.all(students.slice(index, index + concurrency).map(normalizeOne));
       }
 
-      clearAdminStudentSnapshotCache();
-      await loadAdminStudents({ forceProfiles: true });
+      // v507: affected cached profiles were patched in-place. Avoid a full
+      // post-repair student collection scan; 8 PM is the next full snapshot.
+      adminStudentsCache = mergeAdminStudentList(adminStudentsCache);
       renderAdminExplorerProgress();
-      publishSafeCodeExplorerLeaderboardFromAdmin({ force: true }).catch(() => {});
       renderLegacyXpMigrationAudit(auditRows);
 
       const summary = [
@@ -54320,16 +54893,17 @@ window.MCS_PHONE_MENU_STATUS = () => ({
 
   async function initializeCodeExplorerAdmin(options = {}) {
     if (!isTeacherAuthenticated()) return;
-    if (dom.adminStatus) dom.adminStatus.textContent = 'Loading Code Explorer progress...';
-    if (options.force || !adminStudentsCache.length) await loadAdminStudents({ force: options.force === true });
+    if (dom.adminStatus) dom.adminStatus.textContent = 'Loading cached Code Explorer progress...';
+    if (!adminStudentsCache.length) await loadAdminStudents();
     await Promise.all([
       loadLeaderboardSectionSettings(),
-      loadCodeExplorerMusicSettings({ force: options.force === true })
+      loadCodeExplorerMusicSettings({ force: false })
     ]);
     adminExplorerState.loaded = true;
     renderAdminExplorerProgress();
     renderAdminLeaderboardSectionSettings();
-    publishSafeCodeExplorerLeaderboardFromAdmin({ force: options.force === true });
+    // v507: no ranking publish on admin open/refresh. Student ranking rows are
+    // frozen for the day and published around 8 PM by the daily sync path.
   }
 
   function getAdminExplorerHeartTargetUid(student = {}) {
@@ -54412,8 +54986,9 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         }, { merge: true });
       }
       clearSelectiveFirestoreCache(`studentProfile:${targetUid}`);
-      clearAdminStudentSnapshotCache();
-      await loadAdminStudents({ forceProfiles: true });
+      // v507: affected cached profiles were patched in-place. Avoid a full
+      // post-repair student collection scan; 8 PM is the next full snapshot.
+      adminStudentsCache = mergeAdminStudentList(adminStudentsCache);
       renderAdminExplorerProgress();
       renderCodeExplorerAdminStudentDetail();
       await appAlert(`${student.name || 'Student'} now has ${nextBalance}/${HEARTS_MAX} hearts.`, { title: 'Heart Refill', icon: '\u2764\ufe0f' });
@@ -54531,7 +55106,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   dom.adminMusicNextBtn?.addEventListener('click', () => stepCodeExplorerAdminMusicTest(1));
   dom.adminMusicSaveBtn?.addEventListener('click', saveCodeExplorerAdminMusicSettings);
 
-  dom.adminRefreshBtn?.addEventListener('click', () => initializeCodeExplorerAdmin({ force: true }));
+  dom.adminRefreshBtn?.addEventListener('click', () => initializeCodeExplorerAdmin());
   dom.adminLeaderboardSectionList?.addEventListener('change', event => {
     if (event.target?.matches?.('[data-leaderboard-admin-section]')) updateAdminLeaderboardSelectionLabels();
   });
@@ -54627,8 +55202,9 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       stopExplorerMusic();
       if (explorerActive && state.checkpointDirty) {
         saveLocalProgress();
-        // Lifecycle durability: one secure merged checkpoint, never a direct Firestore write.
-        saveCloudProgress({ reason: 'visibility-hidden', force: true }).catch(() => false);
+        // Backgrounding a phone/tab is local-only; do not turn lifecycle noise
+        // into Firestore/RTDB traffic. The daily checkpoint remains scheduled.
+        scheduleCloudSave('visibility-local');
       }
       return;
     }

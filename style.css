@@ -67077,3 +67077,53 @@ body.dark-mode .peta-protected-pdf::after {
     z-index: 2147483647;
   }
 }
+
+/* =========================================================
+   V508 FINAL EDITOR PAINT OVERRIDE
+   Native textarea paints immediately during typing. The syntax layer is shown
+   only when JS has completed a current idle render. This final block must stay
+   after legacy v252/mobile overrides so no older transparent-text rule can win.
+   ========================================================= */
+#codeEditor {
+  color: var(--editor-text) !important;
+  -webkit-text-fill-color: var(--editor-text) !important;
+  caret-color: var(--editor-text) !important;
+}
+
+#codeEditor::selection {
+  color: var(--editor-text) !important;
+  -webkit-text-fill-color: var(--editor-text) !important;
+}
+
+.code-match-layer {
+  display: block !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+.editor-stack.editor-syntax-ready .code-match-layer {
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+.editor-stack.editor-syntax-ready #codeEditor {
+  color: transparent !important;
+  -webkit-text-fill-color: transparent !important;
+}
+
+.editor-stack.editor-syntax-ready #codeEditor::selection {
+  color: transparent !important;
+  -webkit-text-fill-color: transparent !important;
+}
+
+.editor-stack.editor-typing-live .code-match-layer {
+  opacity: 0 !important;
+  visibility: hidden !important;
+}
+
+.editor-stack.editor-typing-live #codeEditor,
+.editor-stack.editor-typing-live #codeEditor::selection {
+  color: var(--editor-text) !important;
+  -webkit-text-fill-color: var(--editor-text) !important;
+}
