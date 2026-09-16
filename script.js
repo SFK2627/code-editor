@@ -2380,7 +2380,7 @@ let adminLatestAiReview = null;
 let adminAiRubricController = null;
 let aiRubricConnectionState = { status: 'untested', code: '', message: '' };
 
-const MCS_APP_BUILD = 'v509-fast-cross-device-sync';
+const MCS_APP_BUILD = 'v510-admin-delta-cache';
 window.MCS_APP_BUILD = MCS_APP_BUILD;
 console.info(`[MCSian Code Editor] ${MCS_APP_BUILD} loaded`);
 
@@ -2407,7 +2407,12 @@ const PRESENCE_ADMIN_WINDOW_MS = 90 * 60 * 1000;
 const PRESENCE_ADMIN_AUTO_REFRESH_MS = 30 * 60 * 1000; // v507: aligns admin refresh with the 30-minute student heartbeat.
 const PRESENCE_ADMIN_LIMIT = 600;
 const PRESENCE_ADMIN_CACHE_MS = 5 * 60 * 1000; // v507: repeated manual clicks reuse one recent snapshot.
-const ADMIN_DAILY_SNAPSHOT_HOUR = 20; // 8 PM local time: one fresh admin snapshot per day.
+const ADMIN_DAILY_SNAPSHOT_HOUR = 20; // 8 PM local time: admin snapshots become eligible for a lightweight delta refresh.
+const ADMIN_SNAPSHOT_STALE_MAX_MS = 30 * 24 * 60 * 60 * 1000; // v510: keep a reusable base snapshot for 30 days; normal refreshes fetch only changed docs.
+const ADMIN_ROSTER_STALE_MAX_MS = 60 * 24 * 60 * 60 * 1000; // roster changes are rare; exact admin mutations patch the cache immediately.
+const ADMIN_DELTA_OVERLAP_MS = 5 * 60 * 1000; // overlap protects against clock/commit timing edges; rows are de-duplicated by document key.
+const ADMIN_DELTA_PAGE_SIZE = 120;
+const ADMIN_DELTA_MAX_PAGES = 12;
 
 
 // v506 SUPER CACHE daily sync coordinator. Non-realtime features write locally
@@ -2591,7 +2596,10 @@ const FIREBASE_OP_MONITOR = (() => {
     projectCheckpoints: 0,
     wireframeCheckpoints: 0,
     codeExplorerCheckpoints: 0,
-    engagementFlushes: 0
+    engagementFlushes: 0,
+    adminDeltaRefreshes: 0,
+    adminDeltaDocuments: 0,
+    adminFullSnapshotBootstraps: 0
   };
   const rtdbByFeature = new Map();
   const bump = (key, amount = 1) => {
@@ -2776,7 +2784,7 @@ function openSelectiveSnapshotDb() {
   });
 }
 
-async function readSelectiveIndexedDbCache(key = '') {
+async function readSelectiveIndexedDbCache(key = '', options = {}) {
   const db = await openSelectiveSnapshotDb();
   if (!db) return null;
   return new Promise(resolve => {
@@ -2788,7 +2796,13 @@ async function readSelectiveIndexedDbCache(key = '') {
         if (!row || !row.payload) return resolve(null);
         try {
           const parsed = JSON.parse(row.payload);
-          if (!parsed || Number(parsed.expiresAt || 0) <= Date.now()) return resolve(null);
+          if (!parsed) return resolve(null);
+          const now = Date.now();
+          const expired = Number(parsed.expiresAt || 0) <= now;
+          const savedAt = Math.max(0, Number(parsed.savedAt || 0));
+          const maxAgeMs = Math.max(0, Number(options.maxAgeMs || 0));
+          if (expired && options.allowExpired !== true) return resolve(null);
+          if (options.allowExpired === true && maxAgeMs && (!savedAt || now - savedAt > maxAgeMs)) return resolve(null);
           resolve(parsed);
         } catch (_) { resolve(null); }
       };
@@ -2931,17 +2945,23 @@ function getSelectiveSessionCacheStorageKey(key = '') {
   return `${SELECTIVE_SESSION_CACHE_PREFIX}${String(key || '')}`;
 }
 
-function readSelectiveSessionCache(key = '') {
+function readSelectiveSessionCache(key = '', options = {}) {
   const cacheKey = String(key || '');
   if (!isSelectivePersistentCacheKey(cacheKey)) return null;
   try {
     const raw = localStorage.getItem(getSelectiveSessionCacheStorageKey(cacheKey));
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    if (!parsed || Number(parsed.expiresAt || 0) <= Date.now()) {
+    if (!parsed) return null;
+    const now = Date.now();
+    const expired = Number(parsed.expiresAt || 0) <= now;
+    const savedAt = Math.max(0, Number(parsed.savedAt || 0));
+    const maxAgeMs = Math.max(0, Number(options.maxAgeMs || 0));
+    if (expired && options.allowExpired !== true) {
       localStorage.removeItem(getSelectiveSessionCacheStorageKey(cacheKey));
       return null;
     }
+    if (options.allowExpired === true && maxAgeMs && (!savedAt || now - savedAt > maxAgeMs)) return null;
     return parsed;
   } catch (_) {
     return null;
@@ -3002,8 +3022,9 @@ function setSelectiveFirestoreCache(key, value, ttlMs = SELECTIVE_CACHE_SHORT_MS
   const cacheKey = String(key || '');
   const ttl = Math.max(0, Number(ttlMs || 0));
   if (!cacheKey || !ttl || isLiveFirestoreCacheKey(cacheKey)) return;
-  const expiresAt = Date.now() + ttl;
-  SELECTIVE_FIRESTORE_CACHE.set(cacheKey, { value, expiresAt });
+  const savedAt = Date.now();
+  const expiresAt = savedAt + ttl;
+  SELECTIVE_FIRESTORE_CACHE.set(cacheKey, { value, expiresAt, savedAt });
   writeSelectiveSessionCache(cacheKey, value, expiresAt);
 }
 
@@ -3022,13 +3043,13 @@ async function withSelectiveFirestoreCache(key, ttlMs, loader, options = {}) {
     }
     const persisted = readSelectiveSessionCache(cacheKey);
     if (persisted) {
-      SELECTIVE_FIRESTORE_CACHE.set(cacheKey, { value: persisted.value, expiresAt: Number(persisted.expiresAt || now) });
+      SELECTIVE_FIRESTORE_CACHE.set(cacheKey, { value: persisted.value, expiresAt: Number(persisted.expiresAt || now), savedAt: Number(persisted.savedAt || now) });
       FIREBASE_OP_MONITOR.bump('cacheHits');
       return persisted.value;
     }
     const indexed = await readSelectiveIndexedDbCache(cacheKey);
     if (indexed) {
-      SELECTIVE_FIRESTORE_CACHE.set(cacheKey, { value: indexed.value, expiresAt: Number(indexed.expiresAt || now) });
+      SELECTIVE_FIRESTORE_CACHE.set(cacheKey, { value: indexed.value, expiresAt: Number(indexed.expiresAt || now), savedAt: Number(indexed.savedAt || now) });
       FIREBASE_OP_MONITOR.bump('cacheHits');
       return indexed.value;
     }
@@ -3059,6 +3080,141 @@ async function withSelectiveFirestoreCache(key, ttlMs, loader, options = {}) {
 
   SELECTIVE_FIRESTORE_INFLIGHT.set(cacheKey, request);
   return request;
+}
+
+
+async function getSelectiveFirestoreCacheEntry(key = '', options = {}) {
+  const cacheKey = String(key || '');
+  const now = Date.now();
+  const allowExpired = options.allowExpired === true;
+  const maxAgeMs = Math.max(0, Number(options.maxAgeMs || 0));
+  const memory = SELECTIVE_FIRESTORE_CACHE.get(cacheKey);
+  if (memory) {
+    const savedAt = Math.max(0, Number(memory.savedAt || 0));
+    const expired = Number(memory.expiresAt || 0) <= now;
+    const ageOkay = !maxAgeMs || (savedAt && now - savedAt <= maxAgeMs);
+    if ((!expired || allowExpired) && ageOkay) return { ...memory, savedAt: savedAt || now, source: 'memory' };
+  }
+  const persisted = readSelectiveSessionCache(cacheKey, { allowExpired, maxAgeMs });
+  if (persisted) return { ...persisted, source: 'localStorage' };
+  const indexed = await readSelectiveIndexedDbCache(cacheKey, { allowExpired, maxAgeMs });
+  if (indexed) return { ...indexed, source: 'indexedDB' };
+  return null;
+}
+
+function mergeAdminSnapshotRows(baseRows = [], changedRows = [], keyGetter = null) {
+  const getKey = typeof keyGetter === 'function' ? keyGetter : row => String(row?.id || row?.uid || row?.studentIdNormalized || row?.studentId || '');
+  const merged = new Map();
+  (Array.isArray(baseRows) ? baseRows : []).forEach(row => {
+    const key = String(getKey(row) || '').trim();
+    if (key) merged.set(key, row);
+  });
+  (Array.isArray(changedRows) ? changedRows : []).forEach(row => {
+    const key = String(getKey(row) || '').trim();
+    if (!key) return;
+    merged.set(key, { ...(merged.get(key) || {}), ...row });
+  });
+  return [...merged.values()];
+}
+
+async function loadAdminUpdatedRows(collectionRef, sinceMs = 0, mapDoc = null) {
+  const { getDocs, query, where, orderBy, limit, startAfter } = firebaseSync.modules;
+  if (typeof query !== 'function' || typeof where !== 'function' || typeof orderBy !== 'function' || typeof limit !== 'function') {
+    throw new Error('Incremental admin refresh is unavailable in this Firebase runtime.');
+  }
+  const safeSince = Math.max(0, Number(sinceMs || 0) - ADMIN_DELTA_OVERLAP_MS);
+  const rows = [];
+  let cursor = null;
+  for (let page = 0; page < ADMIN_DELTA_MAX_PAGES; page += 1) {
+    const constraints = [
+      where('updatedAt', '>', new Date(safeSince)),
+      orderBy('updatedAt', 'asc'),
+      limit(ADMIN_DELTA_PAGE_SIZE)
+    ];
+    if (cursor && typeof startAfter === 'function') constraints.push(startAfter(cursor));
+    const snapshot = await withTimeout(
+      getDocs(query(collectionRef, ...constraints)),
+      APP_NETWORK_TIMEOUT_MS,
+      'Refreshing changed Admin records is taking too long. Cached data is still available.'
+    );
+    const docs = Array.from(snapshot?.docs || []);
+    docs.forEach(docSnapshot => rows.push(typeof mapDoc === 'function' ? mapDoc(docSnapshot) : ({ id: docSnapshot.id, ...snapshotData(docSnapshot) })));
+    if (docs.length < ADMIN_DELTA_PAGE_SIZE || typeof startAfter !== 'function') break;
+    cursor = docs[docs.length - 1];
+  }
+  return rows.filter(Boolean);
+}
+
+async function loadAdminSnapshotRows(options = {}) {
+  const cacheKey = String(options.cacheKey || '');
+  const ttlMs = Math.max(5 * 60 * 1000, Number(options.ttlMs || getAdminDailySnapshotTtlMs()));
+  const staleMaxMs = Math.max(ttlMs, Number(options.staleMaxMs || ADMIN_SNAPSHOT_STALE_MAX_MS));
+  const keyGetter = options.keyGetter;
+  const mapDoc = options.mapDoc;
+  const forceRefresh = options.forceRefresh === true;
+  const deepRefresh = options.deepRefresh === true;
+  const now = Date.now();
+
+  const pendingKey = `v510:${cacheKey}`;
+  const existingPending = SELECTIVE_FIRESTORE_INFLIGHT.get(pendingKey);
+  if (existingPending) {
+    FIREBASE_OP_MONITOR.bump('preventedDuplicateReads');
+    return existingPending;
+  }
+
+  const task = (async () => {
+    const entry = await getSelectiveFirestoreCacheEntry(cacheKey, { allowExpired: true, maxAgeMs: staleMaxMs });
+    const baseRows = Array.isArray(entry?.value) ? entry.value : null;
+    const isFresh = Boolean(entry && Number(entry.expiresAt || 0) > now);
+
+    if (baseRows && !deepRefresh) {
+      if (isFresh && !forceRefresh) {
+        FIREBASE_OP_MONITOR.bump('cacheHits');
+        SELECTIVE_FIRESTORE_CACHE.set(cacheKey, {
+          value: baseRows,
+          expiresAt: Number(entry.expiresAt || now),
+          savedAt: Number(entry.savedAt || now)
+        });
+        return baseRows;
+      }
+      try {
+        const changedRows = await loadAdminUpdatedRows(options.collectionRef, Number(entry.savedAt || 0), mapDoc);
+        const mergedRows = mergeAdminSnapshotRows(baseRows, changedRows, keyGetter);
+        setSelectiveFirestoreCache(cacheKey, mergedRows, ttlMs);
+        FIREBASE_OP_MONITOR.bump('adminDeltaRefreshes');
+        FIREBASE_OP_MONITOR.bump('adminDeltaDocuments', changedRows.length);
+        return mergedRows;
+      } catch (error) {
+        // v510 spike shield: a failed delta refresh must never fall through into a
+        // surprise 500-row collection scan. Keep the last known snapshot instead.
+        console.warn(`Admin delta refresh skipped for ${cacheKey}; cached snapshot retained.`, error);
+        SELECTIVE_FIRESTORE_CACHE.set(cacheKey, {
+          value: baseRows,
+          expiresAt: Number(entry.expiresAt || 0),
+          savedAt: Number(entry.savedAt || 0)
+        });
+        return baseRows;
+      }
+    }
+
+    // Bootstrap / explicit deep maintenance only. This is the sole normal path
+    // that may read the full collection, and its result becomes the reusable base
+    // for future incremental refreshes.
+    const snapshot = await withTimeout(
+      firebaseSync.modules.getDocs(options.collectionRef),
+      APP_NETWORK_TIMEOUT_MS,
+      options.timeoutMessage || 'Loading the initial Admin snapshot is taking too long. Check the connection and try again.'
+    );
+    const rows = Array.from(snapshot?.docs || []).map(docSnapshot => typeof mapDoc === 'function' ? mapDoc(docSnapshot) : ({ id: docSnapshot.id, ...snapshotData(docSnapshot) })).filter(Boolean);
+    setSelectiveFirestoreCache(cacheKey, rows, ttlMs);
+    FIREBASE_OP_MONITOR.bump('adminFullSnapshotBootstraps');
+    return rows;
+  })().finally(() => {
+    if (SELECTIVE_FIRESTORE_INFLIGHT.get(pendingKey) === task) SELECTIVE_FIRESTORE_INFLIGHT.delete(pendingKey);
+  });
+
+  SELECTIVE_FIRESTORE_INFLIGHT.set(pendingKey, task);
+  return task;
 }
 
 function clearAdminStudentSnapshotCache(options = {}) {
@@ -5022,6 +5178,7 @@ function initFirebaseWithCompatSDK() {
       if (constraint.type === 'where') return queryRef.where(constraint.field, constraint.operator, constraint.value);
       if (constraint.type === 'orderBy') return queryRef.orderBy(constraint.field, constraint.direction);
       if (constraint.type === 'limit') return queryRef.limit(constraint.count);
+      if (constraint.type === 'startAfter') return queryRef.startAfter(...(constraint.values || []));
       return queryRef;
     }, reference);
 
@@ -5070,6 +5227,7 @@ function initFirebaseWithCompatSDK() {
       where: (field, operator, value) => ({ type: 'where', field, operator, value }),
       orderBy: (field, direction = 'asc') => ({ type: 'orderBy', field, direction }),
       limit: count => ({ type: 'limit', count }),
+      startAfter: (...values) => ({ type: 'startAfter', values }),
       serverTimestamp: () => firebase.firestore.FieldValue.serverTimestamp(),
       increment: amount => firebase.firestore.FieldValue.increment(amount),
       writeBatch: database => database.batch(),
@@ -9831,19 +9989,21 @@ async function loadAdminComplianceViewer(options = {}) {
   try {
     const ready = await initFirebaseSync();
     if (!ready) throw new Error(firebaseSync.lastError || 'Firebase is not ready.');
-    const { getDocs } = firebaseSync.modules;
-    const records = await withSelectiveFirestoreCache('compliance:viewerRecords', getAdminDailySnapshotTtlMs(), async () => {
-      const snapshot = await withTimeout(
-        getDocs(getComplianceCollectionRef()),
-        APP_NETWORK_TIMEOUT_MS,
-        'Loading compliance viewer is taking too long. Check the connection and try again.'
-      );
-      return Array.from(snapshot?.docs || [])
-        .map(docSnap => sanitizeComplianceStudentRecord({ id: docSnap.id, ...(typeof docSnap.data === 'function' ? docSnap.data() : {}) }))
-        .filter(record => record.studentIdNormalized)
-        .sort((a, b) => String(a.section || '').localeCompare(String(b.section || '')) || String(a.studentName || '').localeCompare(String(b.studentName || '')));
-    }, options);
-    adminComplianceViewerRecords = records.map(record => ({ ...record }));
+    const records = await loadAdminSnapshotRows({
+      cacheKey: 'compliance:viewerRecords',
+      ttlMs: getAdminDailySnapshotTtlMs(),
+      staleMaxMs: ADMIN_SNAPSHOT_STALE_MAX_MS,
+      collectionRef: getComplianceCollectionRef(),
+      forceRefresh: options.force === true,
+      deepRefresh: options.deep === true,
+      keyGetter: row => normalizeStudentId(row?.studentIdNormalized || row?.studentId || row?.id || ''),
+      mapDoc: docSnap => sanitizeComplianceStudentRecord({ id: docSnap.id, ...(typeof docSnap.data === 'function' ? docSnap.data() : {}) }),
+      timeoutMessage: 'Loading the initial compliance snapshot is taking too long. Check the connection and try again.'
+    });
+    adminComplianceViewerRecords = records
+      .filter(record => record?.studentIdNormalized)
+      .map(record => ({ ...record }))
+      .sort((a, b) => String(a.section || '').localeCompare(String(b.section || '')) || String(a.studentName || '').localeCompare(String(b.studentName || '')));
     renderAdminComplianceViewer();
     const lacking = adminComplianceViewerRecords.filter(record => Number((record.summary || {}).missing || 0) > 0).length;
     if (!options.silent) setAdminComplianceViewerStatus(`Loaded ${adminComplianceViewerRecords.length} student record(s). ${lacking} student(s) currently have lacking requirements.`, 'success');
@@ -11827,58 +11987,66 @@ async function loadAdminStudents(options = {}) {
   if (!isTeacherAuthenticated()) return [];
   try {
     setStudentAdminStatus('Loading student tracker...');
-    const { getDocs } = firebaseSync.modules;
     const forceAll = options.force === true;
+    const deepRefresh = options.deep === true;
     const forceProfiles = forceAll || options.forceProfiles === true;
     const forceRoster = forceAll || options.forceRoster === true;
 
-    // v465: do NOT bind the 500-row roster to every profile refresh. Student
-    // profile activity is consolidated into one daily admin snapshot at 8 PM, while
-    // the enrollment roster is mutation-updated locally and safety-refreshes weekly.
-    // Normal Refresh never bypasses these caches; maintenance may target one record.
-    const [activeProfiles, rosterProfiles] = await Promise.all([
-      withSelectiveFirestoreCache('admin:studentProfiles', getAdminDailySnapshotTtlMs(), async () => {
-        const snapshot = await withTimeout(
-          getDocs(getStudentsCollectionRef()),
-          APP_NETWORK_TIMEOUT_MS,
-          'Loading student profiles is taking too long. Check the connection and try again.'
-        );
-        return Array.from(snapshot?.docs || []).map(docSnapshot => ({
-          uid: docSnapshot.id,
-          isRosterOnly: false,
-          sourceType: 'studentProfile',
-          ...snapshotData(docSnapshot)
-        }));
-      }, { force: forceProfiles }),
-      withSelectiveFirestoreCache('admin:studentRoster', SELECTIVE_CACHE_ADMIN_ROSTER_MS, async () => {
-        try {
-          const snapshot = await withTimeout(
-            getDocs(getStudentRosterCollectionRef()),
-            APP_NETWORK_TIMEOUT_MS,
-            'Loading the student roster is taking too long. Check the connection and try again.'
-          );
-          return Array.from(snapshot?.docs || []).map(docSnapshot => {
-            const data = snapshotData(docSnapshot);
-            const studentId = normalizeStudentId(data.studentId || data.studentIdNormalized || docSnapshot.id);
-            return {
-              uid: data.authUid || '',
-              rosterId: studentId,
-              isRosterOnly: true,
-              sourceType: 'studentRoster',
-              mustChangePassword: true,
-              loginCount: 0,
-              projectCount: 0,
-              ...data,
-              studentId,
-              studentIdNormalized: studentId || data.studentIdNormalized || data.studentId
-            };
-          });
-        } catch (error) {
-          console.warn('Student roster snapshot unavailable; continuing with student profiles.', error);
-          return [];
-        }
-      }, { force: forceRoster })
-    ]);
+    // v510 ADMIN SPIKE SHIELD:
+    // - reuse even an expired local/IndexedDB base snapshot for up to 30 days;
+    // - when refresh is due, query only documents whose updatedAt changed;
+    // - a full collection scan is reserved for first bootstrap or explicit deep maintenance.
+    // Profiles and roster are loaded sequentially so two large bootstrap reads never
+    // launch in parallel from one Admin action.
+    const activeProfiles = await loadAdminSnapshotRows({
+      cacheKey: 'admin:studentProfiles',
+      ttlMs: getAdminDailySnapshotTtlMs(),
+      staleMaxMs: ADMIN_SNAPSHOT_STALE_MAX_MS,
+      collectionRef: getStudentsCollectionRef(),
+      forceRefresh: forceProfiles,
+      deepRefresh,
+      keyGetter: row => String(row?.uid || row?.authUid || ''),
+      mapDoc: docSnapshot => ({
+        uid: docSnapshot.id,
+        isRosterOnly: false,
+        sourceType: 'studentProfile',
+        ...snapshotData(docSnapshot)
+      }),
+      timeoutMessage: 'Loading the initial student profile snapshot is taking too long. Check the connection and try again.'
+    });
+
+    let rosterProfiles = [];
+    try {
+      rosterProfiles = await loadAdminSnapshotRows({
+        cacheKey: 'admin:studentRoster',
+        ttlMs: SELECTIVE_CACHE_ADMIN_ROSTER_MS,
+        staleMaxMs: ADMIN_ROSTER_STALE_MAX_MS,
+        collectionRef: getStudentRosterCollectionRef(),
+        forceRefresh: forceRoster,
+        deepRefresh,
+        keyGetter: row => normalizeStudentId(row?.studentId || row?.studentIdNormalized || row?.rosterId || ''),
+        mapDoc: docSnapshot => {
+          const data = snapshotData(docSnapshot);
+          const studentId = normalizeStudentId(data.studentId || data.studentIdNormalized || docSnapshot.id);
+          return {
+            uid: data.authUid || '',
+            rosterId: studentId,
+            isRosterOnly: true,
+            sourceType: 'studentRoster',
+            mustChangePassword: true,
+            loginCount: 0,
+            projectCount: 0,
+            ...data,
+            studentId,
+            studentIdNormalized: studentId || data.studentIdNormalized || data.studentId
+          };
+        },
+        timeoutMessage: 'Loading the initial student roster snapshot is taking too long. Check the connection and try again.'
+      });
+    } catch (error) {
+      console.warn('Student roster snapshot unavailable; continuing with student profiles.', error);
+      rosterProfiles = [];
+    }
 
     const rawRecords = [...activeProfiles, ...rosterProfiles];
     const rawCount = rawRecords.length;
@@ -24858,7 +25026,7 @@ function closeEngagementAnalytics() {
 
 async function refreshEngagementAnalytics() {
   if (!engagementAnalyticsState.kind || !engagementAnalyticsState.itemId || engagementAnalyticsState.loading) return;
-  await openEngagementAnalytics(engagementAnalyticsState.kind, engagementAnalyticsState.itemId, { force: true });
+  await openEngagementAnalytics(engagementAnalyticsState.kind, engagementAnalyticsState.itemId, { live: true });
 }
 
 async function publishGivenActivityFromAdmin() {
@@ -25138,10 +25306,11 @@ async function loadNeedsAttentionDashboard(options = {}) {
   setNeedsAttentionStatus('Checking students, projects, and current-term compliance...', '');
   try {
     await loadAcademicTermSettingsFromCloud({ silent: true });
-    await Promise.all([
-      loadAdminStudents({ force: options.force === true }),
-      loadAdminComplianceViewer({ force: options.force === true, silent: true })
-    ]);
+    // v510: keep Admin heavy reads serialized. With cached bases these are delta
+    // queries; serializing them also prevents one click from stacking two collection
+    // bursts in the same instant.
+    await loadAdminStudents({ force: options.force === true });
+    await loadAdminComplianceViewer({ force: options.force === true, silent: true });
     buildNeedsAttentionItems();
     renderNeedsAttentionDashboard();
     const currentLabel = complianceTermFriendlyLabel(currentAcademicTerm());
@@ -25449,7 +25618,7 @@ function bindTeacherToolsV295() {
     }
   }, { passive: true });
 
-  refreshNeedsAttentionBtn?.addEventListener('click', () => loadNeedsAttentionDashboard({ force: false }));
+  refreshNeedsAttentionBtn?.addEventListener('click', () => loadNeedsAttentionDashboard({ force: true }));
   [needsAttentionSearch, needsAttentionSection, needsAttentionReason].forEach(control => {
     control?.addEventListener('input', renderNeedsAttentionDashboard);
     control?.addEventListener('change', renderNeedsAttentionDashboard);
@@ -30703,7 +30872,7 @@ saveComplianceSettingsBtn?.addEventListener('click', async () => {
 });
 previewComplianceSyncBtn?.addEventListener('click', previewComplianceSync);
 publishComplianceSyncBtn?.addEventListener('click', publishComplianceSync);
-refreshAdminComplianceViewerBtn?.addEventListener('click', () => loadAdminComplianceViewer({ silent: false }));
+refreshAdminComplianceViewerBtn?.addEventListener('click', () => loadAdminComplianceViewer({ force: true, silent: false }));
 [adminComplianceViewerSectionSelect, adminComplianceViewerSearch, adminComplianceViewerFilter].forEach(control => {
   control?.addEventListener('input', renderAdminComplianceViewer);
   control?.addEventListener('change', renderAdminComplianceViewer);
@@ -34829,7 +34998,7 @@ confirmStudentImportBtn?.addEventListener('click', confirmStudentImport);
 cancelStudentImportBtn?.addEventListener('click', cancelStudentImport);
 refreshStudentsBtn?.addEventListener('click', () => {
   resetAdminStudentMobileRenderLimit();
-  loadAdminStudents();
+  loadAdminStudents({ force: true });
 });
 toggleStudentRegisterBtn?.addEventListener('click', () => {
   const isOpen = studentAccountsAdmin?.classList.contains('student-register-mobile-open');
