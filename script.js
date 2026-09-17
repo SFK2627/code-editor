@@ -6168,6 +6168,87 @@ async function rtdbRestRequest(path = '', options = {}) {
   return data;
 }
 
+
+// V513 Code UNO video-call feature flag. Stored only in RTDB so this feature
+// contributes ZERO Cloud Firestore reads/writes. The tiny RTDB setting is cached
+// locally; only the teacher can change it.
+const CODE_UNO_MEDIA_CACHE_KEY = 'ict8CodeUnoMediaSettingsV1';
+const CODE_UNO_MEDIA_CACHE_MS = 5 * 60 * 1000;
+let codeUnoMediaSettingsMemory = null;
+function normalizeCodeUnoMediaSettings(value = {}) {
+  return { version: 1, videoEnabled: value?.videoEnabled === true, updatedAtMs: Math.max(0, Number(value?.updatedAtMs || 0)) };
+}
+function readCodeUnoMediaSettingsCache() {
+  if (codeUnoMediaSettingsMemory && Date.now() - Number(codeUnoMediaSettingsMemory.loadedAtMs || 0) < CODE_UNO_MEDIA_CACHE_MS) return codeUnoMediaSettingsMemory;
+  try {
+    const raw = JSON.parse(localStorage.getItem(CODE_UNO_MEDIA_CACHE_KEY) || 'null');
+    if (raw && Date.now() - Number(raw.loadedAtMs || 0) < CODE_UNO_MEDIA_CACHE_MS) { codeUnoMediaSettingsMemory = raw; return raw; }
+  } catch (_) {}
+  return null;
+}
+function cacheCodeUnoMediaSettings(value = {}) {
+  const normalized = { ...normalizeCodeUnoMediaSettings(value), loadedAtMs: Date.now() };
+  codeUnoMediaSettingsMemory = normalized;
+  try { localStorage.setItem(CODE_UNO_MEDIA_CACHE_KEY, JSON.stringify(normalized)); } catch (_) {}
+  return normalized;
+}
+async function loadCodeUnoMediaSettings(options = {}) {
+  if (options.force !== true) {
+    const cached = readCodeUnoMediaSettingsCache();
+    if (cached) return cached;
+  }
+  try {
+    const raw = await rtdbRestRequest('codeUnoSettings');
+    return cacheCodeUnoMediaSettings(raw || { videoEnabled: false });
+  } catch (error) {
+    const cached = codeUnoMediaSettingsMemory || readCodeUnoMediaSettingsCache();
+    if (cached) return cached;
+    return cacheCodeUnoMediaSettings({ videoEnabled: false, updatedAtMs: 0 });
+  }
+}
+async function saveCodeUnoMediaSettings(options = {}) {
+  if (!isTeacherAuthenticated()) throw new Error('Teacher login is required to change Code UNO video settings.');
+  const body = { version: 1, videoEnabled: options.videoEnabled === true, updatedAtMs: Date.now() };
+  await rtdbRestRequest('codeUnoSettings', { method: 'PUT', body });
+  return cacheCodeUnoMediaSettings(body);
+}
+function syncCodeUnoAdminVideoControls(settings = codeUnoMediaSettingsMemory || { videoEnabled:false }) {
+  const input = document.getElementById('codeUnoAdminVideoEnabled');
+  const pill = document.getElementById('codeUnoAdminVideoPill');
+  if (input) input.checked = settings.videoEnabled === true;
+  if (pill) { pill.textContent = settings.videoEnabled ? 'Enabled' : 'Disabled'; pill.classList.toggle('off', !settings.videoEnabled); }
+}
+async function loadCodeUnoAdminVideoSetting(options = {}) {
+  const status = document.getElementById('codeUnoAdminVideoStatus');
+  if (!isTeacherAuthenticated()) { if (status) status.textContent = 'Login as teacher to load or change this setting.'; return null; }
+  if (status && options.silent !== true) status.textContent = 'Loading Code UNO video setting…';
+  const settings = await loadCodeUnoMediaSettings({ force: options.force === true });
+  syncCodeUnoAdminVideoControls(settings);
+  if (status) status.textContent = settings.videoEnabled
+    ? 'Video Call is enabled. Students can opt into camera video in supported Code UNO live rooms.'
+    : 'Video Call is disabled. Students will not see camera/video controls in Code UNO.';
+  return settings;
+}
+async function saveCodeUnoAdminVideoSetting() {
+  const input = document.getElementById('codeUnoAdminVideoEnabled');
+  const button = document.getElementById('codeUnoAdminVideoSaveBtn');
+  const status = document.getElementById('codeUnoAdminVideoStatus');
+  if (!input) return;
+  if (button) { button.disabled = true; button.textContent = 'Saving…'; }
+  if (status) status.textContent = 'Publishing Code UNO video setting…';
+  try {
+    const settings = await saveCodeUnoMediaSettings({ videoEnabled: input.checked });
+    syncCodeUnoAdminVideoControls(settings);
+    if (status) status.textContent = settings.videoEnabled
+      ? 'Saved ✓ Video Call is now available in Code UNO.'
+      : 'Saved ✓ Video Call is hidden and disabled for students.';
+  } catch (error) {
+    if (status) status.textContent = error?.message || 'Could not save Code UNO video setting.';
+  } finally {
+    if (button) { button.disabled = false; button.textContent = 'Save Video Setting'; }
+  }
+}
+
 async function callAppsScriptSecure(payload = {}, options = {}) {
   const url = getMcsAppsScriptUrl();
   if (!url) {
@@ -25807,6 +25888,7 @@ function setAdminTab(tabName = 'students', options = {}) {
   }
   if (nextTab === 'code-explorer' && isTeacherAuthenticated()) {
     window.initializeCodeExplorerAdmin?.({ force: false });
+    loadCodeUnoAdminVideoSetting({ silent: true, force: false }).catch(error => console.warn('Code UNO video setting load failed.', error));
   }
   if (nextTab === 'device-qa') initializeDeviceQaPanel();
 }
@@ -31009,6 +31091,14 @@ lessonAdminList?.addEventListener('click', event => {
 });
 
 initAdminTabs();
+document.getElementById('codeUnoAdminVideoSaveBtn')?.addEventListener('click', saveCodeUnoAdminVideoSetting);
+document.getElementById('codeUnoAdminVideoEnabled')?.addEventListener('change', event => {
+  const pill = document.getElementById('codeUnoAdminVideoPill');
+  if (pill) { pill.textContent = event.currentTarget.checked ? 'Enabled' : 'Disabled'; pill.classList.toggle('off', !event.currentTarget.checked); }
+  const status = document.getElementById('codeUnoAdminVideoStatus');
+  if (status) status.textContent = 'Unsaved change. Click Save Video Setting to publish.';
+});
+
 adminBtn?.addEventListener('click', openAdminPanel);
 adminBtn?.addEventListener('keydown', event => {
   if (event.key === 'Enter' || event.key === ' ') {
@@ -56150,6 +56240,8 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       throw new Error('That room code is already in use. Try again.');
     }
     const now = Date.now();
+    const requestedVideo = options.videoEnabled === true;
+    const mediaSettings = requestedVideo ? await loadCodeUnoMediaSettings({ force: true }) : { videoEnabled: false };
     const meta = {
       version: 1,
       roomCode,
@@ -56157,6 +56249,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       hostName: String(options.hostName || identity.name || 'HOST').trim().slice(0, 24) || 'HOST',
       hostStudentId: identity.studentId,
       maxPlayers,
+      videoEnabled: requestedVideo && mediaSettings.videoEnabled === true && maxPlayers <= 4,
       status: 'lobby',
       createdAtMs: now,
       updatedAtMs: now,
@@ -56579,6 +56672,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     setCodeClimbAnswer,
     listCodeClimbAnswers,
     leaveCodeClimbRoom,
+    getCodeUnoMediaSettings: loadCodeUnoMediaSettings,
     createCodeUnoRoom,
     getCodeUnoRoom,
     touchCodeUnoRoom,

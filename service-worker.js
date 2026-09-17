@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ict8-connect-v512-complete-leaderboard-admin-pages';
+const CACHE_NAME = 'ict8-connect-v513-uno-video-admin-gate';
 const APP_SHELL = [
   './',
   './index.html',

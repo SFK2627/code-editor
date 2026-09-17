@@ -12,6 +12,7 @@
   const GUEST_OFFER_POLL_MS = 1500;
   const ROOM_TOUCH_MS = 90000;
   const RECONNECT_GRACE_MS = 30000;
+  const VIDEO_MAX_PLAYERS = 4;
   const INVITE_IDLE_MS = 8000;
   const INVITE_ACTIVE_MS = 3500;
   const COLORS = Object.freeze(['red', 'yellow', 'green', 'blue']);
@@ -73,7 +74,9 @@
     turnVisualTimer: 0,
     houseRules: { stackDraw2:false, drawUntilPlayable:false, sevenZero:false },
     lastCelebratedResultKey: '',
-    voiceRoomEnabled: false
+    voiceRoomEnabled: false,
+    videoFeatureEnabled: false,
+    videoRoomEnabled: false
   };
 
   // UNO v8 duplex voice call: separate WebRTC audio plane signaled over the already-open
@@ -100,7 +103,14 @@
     lastLocalSpeaking: false,
     speakingBySeat: new Map(),
     micBySeat: new Map(),
-    playbackBlocked: false
+    playbackBlocked: false,
+    cameraStream: null,
+    cameraTrack: null,
+    cameraOn: false,
+    remoteVideoTrackBySeat: new Map(),
+    remoteVideoStreamBySeat: new Map(),
+    videoOnBySeat: new Map(),
+    videoDockCollapsed: false
   };
 
   const $ = sel => r.overlay?.querySelector(sel) || null;
@@ -187,6 +197,7 @@
             <button class="uno-icon-btn" type="button" data-sound aria-label="Toggle game sound">🔊</button>
             <button class="uno-icon-btn uno-voice-head" type="button" data-voice-mic hidden aria-label="Toggle microphone" title="Microphone">🎙️</button>
             <button class="uno-icon-btn uno-voice-head" type="button" data-voice-speaker hidden aria-label="Toggle voice speaker" title="Voice speaker">🎧</button>
+            <button class="uno-icon-btn uno-video-head" type="button" data-video-camera hidden aria-label="Toggle camera" title="Camera">📷</button>
             <button class="uno-icon-btn close" type="button" data-close aria-label="Close">×</button>
           </div>
         </header>
@@ -245,6 +256,7 @@
                 <label><span>MATCH MODE</span><select data-host-mode><option value="quick">Quick Round</option><option value="classic">Classic 500</option></select></label>
               </div>
               <label class="uno-voice-setting"><input type="checkbox" data-host-voice checked><span class="uno-voice-setting-icon">🎙️</span><span><b>VOICE CALL</b><small>Live group voice for 2–10 players. Mic starts muted. Audio is peer-to-peer and is not recorded.</small></span></label>
+              <label class="uno-voice-setting uno-video-setting" data-host-video-wrap hidden><input type="checkbox" data-host-video><span class="uno-voice-setting-icon">🎥</span><span><b>VIDEO CALL</b><small>Optional low-bandwidth camera video for rooms up to 4 players. Camera starts OFF and media is peer-to-peer.</small></span></label>
               <fieldset class="uno-house-rules"><legend>OPTIONAL HOUSE RULES</legend><div class="uno-house-grid">
                 <label><input type="checkbox" data-host-rule-stack2><span><b>STACK +2</b><small>+2 can be answered only by another +2.</small></span></label>
                 <label><input type="checkbox" data-host-rule-draw-until><span><b>DRAW UNTIL PLAYABLE</b><small>Draw until the first playable card appears.</small></span></label>
@@ -287,7 +299,7 @@
             </div>
             <div class="uno-voice-call-bar" data-voice-bar hidden>
               <div class="uno-voice-call-info"><i data-voice-dot></i><div><strong>VOICE CALL</strong><small data-voice-status>CONNECTING…</small></div></div>
-              <div class="uno-voice-call-actions"><button type="button" data-voice-mic>🎙️ MIC OFF</button><button type="button" data-voice-speaker>🎧 SPEAKER ON</button><button type="button" data-voice-mute-all hidden>🔇 MUTE GUESTS</button></div>
+              <div class="uno-voice-call-actions"><button type="button" data-voice-mic>🎙️ MIC OFF</button><button type="button" data-voice-speaker>🎧 SPEAKER ON</button><button type="button" data-video-camera hidden>📷 CAMERA OFF</button><button type="button" data-voice-mute-all hidden>🔇 MUTE GUESTS</button></div>
             </div>
             <div class="uno-lobby-actions"><button class="uno-btn danger" type="button" data-leave-room>LEAVE</button><button class="uno-btn ready" type="button" data-ready>I'M READY</button><button class="uno-btn primary" type="button" data-start-live hidden>START GAME</button></div>
           </section>
@@ -301,6 +313,7 @@
                 <span class="uno-hud-chip" data-round-chip>ROUND 1</span>
                 <span class="uno-hud-chip house" data-house-chip hidden>HOUSE</span>
                 <span class="uno-hud-chip voice" data-voice-game-chip hidden>🎙 VOICE</span>
+                <span class="uno-hud-chip video" data-video-game-chip hidden>🎥 VIDEO</span>
               </div>
               <button class="uno-exit-game" type="button" data-leave-room>EXIT</button>
             </div>
@@ -330,6 +343,12 @@
           </section>
         </main>
 
+        <aside class="uno-video-dock" data-video-dock hidden>
+          <div class="uno-video-dock-head"><strong>🎥 UNO VIDEO</strong><div><button type="button" data-video-camera>CAMERA OFF</button><button type="button" data-video-collapse aria-label="Minimize video">—</button></div></div>
+          <div class="uno-video-grid" data-video-grid></div>
+          <small class="uno-video-note">P2P low-bandwidth video · max 4 players · not recorded</small>
+        </aside>
+
         <div class="uno-choice-modal" data-color-modal hidden>
           <div><span>WILD CARD</span><strong>CHOOSE A COLOR</strong><div class="uno-color-grid">${COLORS.map(color=>`<button type="button" data-choose-color="${color}" class="${color}"><i></i>${COLOR_META[color].label}</button>`).join('')}</div></div>
         </div>
@@ -355,6 +374,10 @@
     $('[data-sound]')?.addEventListener('click', toggleSound);
     $$('[data-voice-mic]').forEach(button => button.addEventListener('click', toggleVoiceMic));
     $$('[data-voice-speaker]').forEach(button => button.addEventListener('click', toggleVoiceSpeaker));
+    $$('[data-video-camera]').forEach(button => button.addEventListener('click', toggleVideoCamera));
+    $('[data-video-collapse]')?.addEventListener('click', toggleVideoDock);
+    $('[data-host-capacity]')?.addEventListener('change', syncHostVideoOption);
+    $('[data-host-video]')?.addEventListener('change', event => { if (event.currentTarget.checked && $('[data-host-voice]')) $('[data-host-voice]').checked = true; syncHostVideoOption(); });
     $('[data-voice-mute-all]')?.addEventListener('click', toggleHostMuteAll);
     $$('[data-go]').forEach(button => button.addEventListener('click', () => show(button.dataset.go)));
     $('[data-start-solo]')?.addEventListener('click', startSolo);
@@ -436,6 +459,7 @@
     if (next !== 'game') hideChoiceModals();
     if (next === 'home') hideDisconnect();
     updateVoiceUi();
+    updateVideoUi();
     const activePanel=$(`[data-panel="${next}"]`);
     if(activePanel&&['solo','host','join'].includes(next))requestAnimationFrame(()=>{activePanel.scrollTop=0;});
     if(next==='game')requestAnimationFrame(()=>{const hand=$('[data-hand]');const view=currentView();updateHandLayout(hand,view?.private?.hand?.length||0);updateHandRailControls(hand);});
@@ -589,11 +613,11 @@
     if(!identity().loggedIn){setStatus(status,'Sign in as a student before hosting a live room.',true);return;}
     button.disabled=true;button.textContent='CREATING…';
     try{
-      clearNetwork(); r.role='host';r.localSeat=0;r.maxPlayers=clamp($('[data-host-capacity]')?.value||6,2,10);r.mode=String($('[data-host-mode]')?.value||'quick')==='classic'?'classic':'quick';r.houseRules=readHouseRules('host');r.voiceRoomEnabled=$('[data-host-voice]')?.checked!==false;if(r.voiceRoomEnabled)prepareVoicePlayback();
+      clearNetwork(); r.role='host';r.localSeat=0;r.maxPlayers=clamp($('[data-host-capacity]')?.value||6,2,10);r.mode=String($('[data-host-mode]')?.value||'quick')==='classic'?'classic':'quick';r.houseRules=readHouseRules('host');r.videoRoomEnabled=r.videoFeatureEnabled&&r.maxPlayers<=VIDEO_MAX_PLAYERS&&$('[data-host-video]')?.checked===true;r.voiceRoomEnabled=($('[data-host-voice]')?.checked!==false)||r.videoRoomEnabled;if(r.voiceRoomEnabled)prepareVoicePlayback();
       const name=String($('[data-host-name]')?.value||identity().name||'HOST').trim().slice(0,24)||'HOST';
       let meta=null,attempts=0;
-      while(!meta&&attempts++<6){try{meta=await r.bridge.createCodeUnoRoom({roomCode:randomRoomCode(),maxPlayers:r.maxPlayers,hostName:name});}catch(e){if(attempts>=6)throw e;}}
-      r.roomMeta=meta;r.roomCode=meta.roomCode;
+      while(!meta&&attempts++<6){try{meta=await r.bridge.createCodeUnoRoom({roomCode:randomRoomCode(),maxPlayers:r.maxPlayers,hostName:name,videoEnabled:r.videoRoomEnabled});}catch(e){if(attempts>=6)throw e;}}
+      r.roomMeta=meta;r.roomCode=meta.roomCode;r.videoRoomEnabled=meta.videoEnabled===true;r.voiceRoomEnabled=r.voiceRoomEnabled||r.videoRoomEnabled;
       r.players=[createLobbyPlayer(0,name,{uid:identity().uid,studentId:identity().studentId,ready:true,connected:true})];r.seatByUid.set(identity().uid,0);setVoiceMicState(0,false);
       enterLobby();startHostSignalLoop();
     }catch(error){r.role='';setStatus(status,error?.message||'Could not create the room.',true);}
@@ -608,7 +632,7 @@
     $('[data-start-live]').hidden=!isHost();
     const qrWrap=$('[data-room-qr-wrap]');
     if(isHost()&&r.roomCode){const url=r.bridge?.createQrDataUrl?.(`${ROOM_QR_PREFIX}${r.roomCode}`,360)||'';if(url){$('[data-room-qr]').src=url;qrWrap.hidden=false;}else qrWrap.hidden=true;}else if(qrWrap)qrWrap.hidden=true;
-    show('lobby');renderLobby();updateVoiceUi();
+    show('lobby');renderLobby();updateVoiceUi();updateVideoUi();
   }
 
   function applyGuestLobbyPlayers(players=[], seatHint=null) {
@@ -742,14 +766,14 @@
       renderLobby();
       // Make the direct welcome self-contained so the guest does not depend on
       // receiving a separate lobby broadcast before it can press READY.
-      peer.session.send({t:'welcome',roomCode:r.roomCode,seat:peer.seat,maxPlayers:r.maxPlayers,mode:r.mode,houseRules:r.houseRules,voiceEnabled:r.voiceRoomEnabled,players:publicLobbyPlayers(),state:'lobby'});
+      peer.session.send({t:'welcome',roomCode:r.roomCode,seat:peer.seat,maxPlayers:r.maxPlayers,mode:r.mode,houseRules:r.houseRules,voiceEnabled:r.voiceRoomEnabled,videoEnabled:r.videoRoomEnabled,players:publicLobbyPlayers(),state:'lobby'});
       broadcastLobby();
     }
-    else if(r.state==='game'){peer.session.send({t:'welcome',roomCode:r.roomCode,seat:peer.seat,maxPlayers:r.maxPlayers,mode:r.mode,houseRules:r.houseRules,voiceEnabled:r.voiceRoomEnabled,state:'game'});syncAll();}
+    else if(r.state==='game'){peer.session.send({t:'welcome',roomCode:r.roomCode,seat:peer.seat,maxPlayers:r.maxPlayers,mode:r.mode,houseRules:r.houseRules,voiceEnabled:r.voiceRoomEnabled,videoEnabled:r.videoRoomEnabled,state:'game'});syncAll();}
     // Once the DataChannel is open these SDP/join records are no longer needed.
     // Clearing them keeps later lobby polling tiny, especially in 6-10 player rooms.
     r.bridge.clearCodeUnoHandshake?.({roomCode:r.roomCode,targetUid:uid,meta:r.roomMeta}).catch(()=>{});
-    if(r.voiceRoomEnabled){peer.session.send({t:'voiceMicState',seat:0,on:voice.micOn});for(const [seat,on] of voice.micBySeat)peer.session.send({t:'voiceMicState',seat,on});peer.session.send({t:'voiceHostMute',on:voice.hostMuteAll});}
+    if(r.voiceRoomEnabled){peer.session.send({t:'voiceMicState',seat:0,on:voice.micOn});for(const [seat,on] of voice.micBySeat)peer.session.send({t:'voiceMicState',seat,on});peer.session.send({t:'voiceHostMute',on:voice.hostMuteAll});}if(r.videoRoomEnabled){peer.session.send({t:'videoState',seat:0,on:voice.cameraOn});for(const [seat,on] of voice.videoOnBySeat)peer.session.send({t:'videoState',seat,on});}
     toast(`${peer.name} connected.`);sfx('join');if(r.voiceRoomEnabled)setTimeout(()=>hostStartVoicePeer(uid),120);if(!hostNeedsSignalPolling())stopHostSignalPolling();
   }
 
@@ -769,7 +793,7 @@
 
   function publicLobbyPlayers(){return r.players.slice().sort((a,b)=>a.seat-b.seat).map(p=>({seat:p.seat,uid:p.uid,name:p.name,ready:!!p.ready,connected:!!p.connected}));}
   function broadcast(payload){for(const peer of r.peers.values())if(peer.connected)peer.session.send(payload);}
-  function broadcastLobby(){broadcast({t:'lobby',maxPlayers:r.maxPlayers,mode:r.mode,houseRules:r.houseRules,voiceEnabled:r.voiceRoomEnabled,players:publicLobbyPlayers()});}
+  function broadcastLobby(){broadcast({t:'lobby',maxPlayers:r.maxPlayers,mode:r.mode,houseRules:r.houseRules,voiceEnabled:r.voiceRoomEnabled,videoEnabled:r.videoRoomEnabled,players:publicLobbyPlayers()});}
 
   function handleGuestMessage(uid,msg) {
     const peer=r.peers.get(uid);if(!peer||!msg)return;
@@ -779,13 +803,14 @@
       p.connected=true;p.ready=!!msg.value;renderLobby();broadcastLobby();
       peer.session.send({t:'readyAck',ready:p.ready,seat:peer.seat});
     }
-    else if(msg.t==='lobbyRequest'&&r.state==='lobby'){peer.session.send({t:'welcome',roomCode:r.roomCode,seat:peer.seat,maxPlayers:r.maxPlayers,mode:r.mode,houseRules:r.houseRules,voiceEnabled:r.voiceRoomEnabled,players:publicLobbyPlayers(),state:'lobby'});}
+    else if(msg.t==='lobbyRequest'&&r.state==='lobby'){peer.session.send({t:'welcome',roomCode:r.roomCode,seat:peer.seat,maxPlayers:r.maxPlayers,mode:r.mode,houseRules:r.houseRules,voiceEnabled:r.voiceRoomEnabled,videoEnabled:r.videoRoomEnabled,players:publicLobbyPlayers(),state:'lobby'});}
     else if(msg.t==='action'&&r.state==='game'){processHostAction(peer.seat,msg.action,Number(msg.revision),peer);}
     else if(msg.t==='snapshotRequest'&&r.state==='game'){sendStateToPeer(peer);}
     else if(msg.t==='voiceNeedOffer'&&r.voiceRoomEnabled){hostStartVoicePeer(uid,msg.force===true);}
     else if(msg.t==='voiceAnswer'&&r.voiceRoomEnabled){hostApplyVoiceAnswer(uid,msg.desc);}
     else if(msg.t==='voiceSpeak'){handleRemoteVoiceSpeak(peer.seat,msg.speaking);}
     else if(msg.t==='voiceMicState'){handleRemoteVoiceMic(peer.seat,msg.on);}
+    else if(msg.t==='videoState'){handleRemoteVideoState(uid,peer.seat,msg.on);}
     else if(msg.t==='leave'){hostPeerDisconnected(uid);}
   }
 
@@ -799,7 +824,7 @@
       if(!reconnect)clearNetwork(false); else {try{r.guestSession?.close();}catch(_){}r.guestSession=null;clearTimeout(r.signalTimer);}
       r.role='guest';r.roomCode=code;
       const name=String($('[data-guest-name]')?.value||identity().name||'PLAYER').trim().slice(0,24)||'PLAYER';
-      const req=await r.bridge.requestCodeUnoJoin({roomCode:code,name});r.roomMeta=req.meta;r.maxPlayers=Number(req.meta.maxPlayers||10);
+      const req=await r.bridge.requestCodeUnoJoin({roomCode:code,name});r.roomMeta=req.meta;r.maxPlayers=Number(req.meta.maxPlayers||10);r.videoRoomEnabled=req.meta.videoEnabled===true;r.voiceRoomEnabled=r.videoRoomEnabled;
       if(!reconnect){r.players=[createLobbyPlayer(0,req.meta.hostName,{uid:req.meta.hostUid,ready:true,connected:true}),createLobbyPlayer(1,name,{uid:identity().uid,studentId:identity().studentId,ready:false,connected:false})];r.mode='quick';}
       setStatus(status,reconnect?'Reconnecting to Host…':'Room found. Connecting…');startGuestSignalLoop(name,reconnect);
     }catch(error){if(!reconnect){r.role='';setStatus(status,error?.message||'Could not join the room.',true);}else scheduleGuestReconnect(error?.message);}
@@ -861,18 +886,19 @@
   function handleHostMessage(msg) {
     if(!msg)return;
     if(msg.t==='welcome'){
-      r.localSeat=Number(msg.seat??r.localSeat);setVoiceMicState(r.localSeat,voice.micOn);r.maxPlayers=Number(msg.maxPlayers||r.maxPlayers);r.mode=msg.mode==='classic'?'classic':'quick';r.houseRules=normalizeHouseRules(msg.houseRules);r.voiceRoomEnabled=msg.voiceEnabled===true;
+      r.localSeat=Number(msg.seat??r.localSeat);setVoiceMicState(r.localSeat,voice.micOn);r.maxPlayers=Number(msg.maxPlayers||r.maxPlayers);r.mode=msg.mode==='classic'?'classic':'quick';r.houseRules=normalizeHouseRules(msg.houseRules);r.voiceRoomEnabled=msg.voiceEnabled===true;r.videoRoomEnabled=msg.videoEnabled===true;
       if(Array.isArray(msg.players))applyGuestLobbyPlayers(msg.players,r.localSeat);
       if(msg.state==='game'){show('game');}else{enterLobby();}if(r.voiceRoomEnabled){prepareVoicePlayback();r.guestSession?.send({t:'voiceNeedOffer'});}updateVoiceUi();
     }else if(msg.t==='lobby'){
-      r.maxPlayers=Number(msg.maxPlayers||r.maxPlayers);r.mode=msg.mode==='classic'?'classic':'quick';r.houseRules=normalizeHouseRules(msg.houseRules);r.voiceRoomEnabled=msg.voiceEnabled===true;applyGuestLobbyPlayers(msg.players,r.localSeat);renderLobby();if(r.voiceRoomEnabled)r.guestSession?.send({t:'voiceNeedOffer'});
+      r.maxPlayers=Number(msg.maxPlayers||r.maxPlayers);r.mode=msg.mode==='classic'?'classic':'quick';r.houseRules=normalizeHouseRules(msg.houseRules);r.voiceRoomEnabled=msg.voiceEnabled===true;r.videoRoomEnabled=msg.videoEnabled===true;applyGuestLobbyPlayers(msg.players,r.localSeat);renderLobby();if(r.voiceRoomEnabled)r.guestSession?.send({t:'voiceNeedOffer'});
     }else if(msg.t==='readyAck'){const me=localLobbyPlayer();if(me){me.ready=!!msg.ready;me.connected=true;}renderLobby();
     }else if(msg.t==='start'){r.guestPublic=msg.public||null;r.guestPrivate=msg.private||null;show('game');syncLocalRender(true);sfx('join');}
     else if(msg.t==='state'){applyGuestState(msg.public,msg.private);}
     else if(msg.t==='actionError'){r.busyAction=false;toast(msg.message||'That move is no longer available.',2200);sfx('error');if(msg.public)applyGuestState(msg.public,msg.private);}
-    else if(msg.t==='voiceOffer'&&r.voiceRoomEnabled){guestAcceptVoiceOffer(msg.desc);}
+    else if(msg.t==='voiceOffer'&&r.voiceRoomEnabled){guestAcceptVoiceOffer(msg.desc,msg.videoMap||[]);}
     else if(msg.t==='voiceSpeak'){setVoiceSpeaking(Number(msg.seat),msg.speaking===true);}
     else if(msg.t==='voiceMicState'){setVoiceMicState(Number(msg.seat),msg.on===true);}
+    else if(msg.t==='videoState'){setVideoState(Number(msg.seat),msg.on===true);}
     else if(msg.t==='voiceHostMute'){voice.hostMuteAll=msg.on===true;updateVoiceUi();}
     else if(msg.t==='exit'){showDisconnect('The Host ended the room.','This live match is closed.');}
   }
@@ -911,7 +937,7 @@
     if(!sent){p.ready=previous;renderLobby();toast('Connection is not ready yet.',1800);sfx('error');}
   }
 
-  function startLiveGame(){if(!isHost())return;const connected=r.players.filter(p=>p.connected).sort((a,b)=>a.seat-b.seat);if(connected.length<2||!connected.every(p=>p.ready))return;compactLobbySeats();const gamePlayers=connected.map((p,index)=>({uid:p.uid,studentId:p.studentId,name:p.name,bot:false,connected:true}));r.game=E().createMatch({players:gamePlayers,mode:r.mode,targetScore:r.targetScore,houseRules:r.houseRules});r.players=connected.map((p,index)=>({...p,seat:index}));r.seatByUid.clear();r.players.forEach(p=>r.seatByUid.set(p.uid,p.seat));for(const peer of r.peers.values())peer.seat=r.seatByUid.get(peer.uid);stopHostSignalPolling();show('game');broadcast({t:'start'});syncAll(true);updateVoiceUi();sfx('join');r.bridge.touchCodeUnoRoom({roomCode:r.roomCode,status:'playing',meta:r.roomMeta}).then(meta=>{if(meta)r.roomMeta=meta;}).catch(()=>{});scheduleAutomation();}
+  function startLiveGame(){if(!isHost())return;const connected=r.players.filter(p=>p.connected).sort((a,b)=>a.seat-b.seat);if(connected.length<2||!connected.every(p=>p.ready))return;compactLobbySeats();const gamePlayers=connected.map((p,index)=>({uid:p.uid,studentId:p.studentId,name:p.name,bot:false,connected:true}));r.game=E().createMatch({players:gamePlayers,mode:r.mode,targetScore:r.targetScore,houseRules:r.houseRules});r.players=connected.map((p,index)=>({...p,seat:index}));r.seatByUid.clear();r.players.forEach(p=>r.seatByUid.set(p.uid,p.seat));for(const peer of r.peers.values())peer.seat=r.seatByUid.get(peer.uid);stopHostSignalPolling();show('game');broadcast({t:'start'});syncAll(true);updateVoiceUi();if(r.videoRoomEnabled){for(const uid of r.peers.keys())setTimeout(()=>hostStartVoicePeer(uid,true),120);}sfx('join');r.bridge.touchCodeUnoRoom({roomCode:r.roomCode,status:'playing',meta:r.roomMeta}).then(meta=>{if(meta)r.roomMeta=meta;}).catch(()=>{});scheduleAutomation();}
 
   function sendStateToPeer(peer){if(!peer?.connected||!r.game)return;peer.session.send({t:'state',public:E().publicSnapshot(r.game),private:E().privateSnapshot(r.game,peer.seat)});}
 
@@ -1054,6 +1080,7 @@
     const dot=$('[data-voice-dot]');if(dot){const ok=live&&voiceConnectedCount()>0;dot.classList.toggle('connected',ok);dot.classList.toggle('speaking',voice.speakingBySeat.get(r.localSeat)===true);}
     const chip=$('[data-voice-game-chip]');if(chip){chip.hidden=!live;chip.classList.toggle('active',voice.micOn);}
     const localMic=$('[data-local-mic-state]');if(localMic){localMic.hidden=!live;localMic.textContent=voice.micOn?'🎙':'🔇';}
+    updateVideoUi();
   }
   function setVoiceSpeaking(seat,on){const s=Number(seat);if(!Number.isFinite(s))return;voice.speakingBySeat.set(s,on===true);updateVoiceIndicators();}
   function setVoiceMicState(seat,on){const s=Number(seat);if(!Number.isFinite(s))return;voice.micBySeat.set(s,on===true);updateVoiceIndicators();}
@@ -1133,7 +1160,7 @@
     if(!stream)return;closeHostMonitorAudio(uid);const audio=document.createElement('audio');audio.autoplay=true;audio.playsInline=true;audio.hidden=true;audio.dataset.unoVoiceHostAudio=String(uid||'');audio.srcObject=stream;audio.muted=!voice.speakerOn||voice.hostMuteAll;r.overlay?.appendChild(audio);voice.hostAudioByUid.set(uid,audio);
     if(!audio.muted)audio.play().then(()=>{voice.playbackBlocked=false;updateVoiceUi();}).catch(()=>{voice.playbackBlocked=true;updateVoiceUi();});
   }
-  function closeHostVoicePeer(uid){const item=voice.hostPeers.get(uid);if(!item){closeHostMonitorAudio(uid);return;}try{item.pc?.close();}catch(_){}try{item.relayGain?.disconnect();}catch(_){}try{item.source?.disconnect();}catch(_){}closeHostMonitorAudio(uid);voice.hostPeers.delete(uid);const peer=r.peers.get(uid);if(peer){setVoiceSpeaking(peer.seat,false);voice.micBySeat.delete(peer.seat);}updateVoiceUi();}
+  function closeHostVoicePeer(uid){const item=voice.hostPeers.get(uid);if(!item){closeHostMonitorAudio(uid);return;}try{item.pc?.close();}catch(_){}try{item.relayGain?.disconnect();}catch(_){}try{item.source?.disconnect();}catch(_){}closeHostMonitorAudio(uid);voice.hostPeers.delete(uid);const peer=r.peers.get(uid);if(peer){setVoiceSpeaking(peer.seat,false);voice.micBySeat.delete(peer.seat);voice.videoOnBySeat.set(peer.seat,false);voice.remoteVideoTrackBySeat.delete(peer.seat);voice.remoteVideoStreamBySeat.delete(peer.seat);hostForwardGuestVideo(peer.seat,null);}updateVoiceUi();}
   function hostAttachGuestVoice(uid,stream){
     const item=voice.hostPeers.get(uid);if(!item||!stream)return;const ctx=prepareVoicePlayback();if(!ctx)return;try{item.source?.disconnect();item.relayGain?.disconnect();}catch(_){}
     // Play each guest natively on the Host. This avoids depending on Web Audio's
@@ -1145,49 +1172,115 @@
   async function hostStartVoicePeer(uid,force=false){
     if(!r.voiceRoomEnabled||!isHost())return;const dataPeer=r.peers.get(uid);if(!dataPeer?.connected||!dataPeer.session?.send)return;const existing=voice.hostPeers.get(uid);if(!force&&existing&&existing.pc&&!['failed','closed'].includes(existing.pc.connectionState))return;closeHostVoicePeer(uid);const ctx=prepareVoicePlayback();if(!ctx)return;
     try{
-      const pc=createVoicePc(),mixDest=ctx.createMediaStreamDestination();const mixTrack=mixDest.stream.getAudioTracks()[0];const item={pc,mixDest,source:null,relayGain:null,connected:false,transceiver:null};voice.hostPeers.set(uid,item);
+      const pc=createVoicePc(),mixDest=ctx.createMediaStreamDestination();const mixTrack=mixDest.stream.getAudioTracks()[0];const item={pc,mixDest,source:null,relayGain:null,connected:false,transceiver:null,videoPrimary:null,videoRelayBySeat:new Map()};voice.hostPeers.set(uid,item);
       if(voice.hostMicGain)voice.hostMicGain.connect(mixDest);for(const [otherUid,other] of voice.hostPeers)if(otherUid!==uid&&other.relayGain)try{other.relayGain.connect(mixDest);}catch(_){};
       // Explicit sendrecv audio transceiver: Host sends this guest a group mix and
       // reserves the reverse direction for that guest's microphone.
       item.transceiver=pc.addTransceiver(mixTrack,{direction:'sendrecv',streams:[mixDest.stream]});
-      pc.addEventListener('track',event=>{const stream=event.streams?.[0]||new MediaStream([event.track]);hostAttachGuestVoice(uid,stream);});
+      if(r.videoRoomEnabled){
+        item.videoPrimary=pc.addTransceiver('video',{direction:'sendrecv'});await capVideoSender(item.videoPrimary.sender);if(voice.cameraOn&&voice.cameraTrack)await item.videoPrimary.sender.replaceTrack(voice.cameraTrack);
+        for(let seat=1;seat<Math.min(r.maxPlayers,VIDEO_MAX_PLAYERS);seat++){if(seat===Number(dataPeer.seat))continue;const relay=pc.addTransceiver('video',{direction:'sendonly'});await capVideoSender(relay.sender);item.videoRelayBySeat.set(seat,relay);const track=voice.remoteVideoTrackBySeat.get(seat);if(track&&voice.videoOnBySeat.get(seat)===true)await relay.sender.replaceTrack(track);}
+      }
+      pc.addEventListener('track',event=>{const stream=event.streams?.[0]||new MediaStream([event.track]);if(event.track.kind==='audio')hostAttachGuestVoice(uid,stream);else if(event.track.kind==='video'&&event.transceiver===item.videoPrimary){const seat=Number(dataPeer.seat);attachVideoTrackForSeat(seat,event.track,stream);hostForwardGuestVideo(seat,event.track);}});
       pc.addEventListener('connectionstatechange',()=>{item.connected=pc.connectionState==='connected';if(['failed','closed'].includes(pc.connectionState)){item.connected=false;}updateVoiceUi();});
-      await pc.setLocalDescription(await pc.createOffer());await waitVoiceIce(pc);if(voice.hostPeers.get(uid)!==item)return;dataPeer.session.send({t:'voiceOffer',desc:safeVoiceDesc(pc.localDescription)});updateVoiceUi();
+      await pc.setLocalDescription(await pc.createOffer());await waitVoiceIce(pc);if(voice.hostPeers.get(uid)!==item)return;const videoMap=[];if(r.videoRoomEnabled&&item.videoPrimary?.mid!=null)videoMap.push({mid:String(item.videoPrimary.mid),seat:0,primary:true});for(const [seat,tr] of item.videoRelayBySeat)if(tr.mid!=null)videoMap.push({mid:String(tr.mid),seat:Number(seat),primary:false});dataPeer.session.send({t:'voiceOffer',desc:safeVoiceDesc(pc.localDescription),videoEnabled:r.videoRoomEnabled,videoMap});updateVoiceUi();
     }catch(error){console.warn('UNO voice offer failed',error);closeHostVoicePeer(uid);}
   }
   async function hostApplyVoiceAnswer(uid,desc){const item=voice.hostPeers.get(uid);if(!item?.pc||!desc)return;try{await item.pc.setRemoteDescription(desc);updateVoiceUi();}catch(error){console.warn('UNO voice answer failed',error);closeHostVoicePeer(uid);setTimeout(()=>hostStartVoicePeer(uid),900);}}
   function closeGuestVoicePeer(){const item=voice.guestPeer;if(!item)return;try{item.pc?.close();}catch(_){}voice.guestPeer=null;try{if(voice.remoteAudio)voice.remoteAudio.srcObject=null;}catch(_){}updateVoiceUi();}
-  async function guestAcceptVoiceOffer(desc){
+  async function guestAcceptVoiceOffer(desc,videoMap=[]){
     if(!r.voiceRoomEnabled||!isGuest()||!desc)return;closeGuestVoicePeer();const ctx=prepareVoicePlayback();if(!ctx)return;
     try{
-      const pc=createVoicePc(),item={pc,sender:null,transceiver:null,connected:false,micNegotiated:false};voice.guestPeer=item;
-      pc.addEventListener('track',event=>attachGuestPlayback(event.streams?.[0]||new MediaStream([event.track])));
+      const pc=createVoicePc(),item={pc,sender:null,transceiver:null,connected:false,micNegotiated:false,videoSender:null,videoMapByMid:new Map((Array.isArray(videoMap)?videoMap:[]).map(entry=>[String(entry.mid),entry]))};voice.guestPeer=item;
+      pc.addEventListener('track',event=>{const stream=event.streams?.[0]||new MediaStream([event.track]);if(event.track.kind==='audio')attachGuestPlayback(stream);else if(event.track.kind==='video'){const map=item.videoMapByMid.get(String(event.transceiver?.mid||''));if(map)attachVideoTrackForSeat(Number(map.seat),event.track,stream);}});
       pc.addEventListener('connectionstatechange',()=>{item.connected=pc.connectionState==='connected';if(['failed','closed'].includes(pc.connectionState))item.connected=false;updateVoiceUi();});
       await pc.setRemoteDescription(desc);
       const trans=pc.getTransceivers().find(t=>t.receiver?.track?.kind==='audio'||t.sender?.track?.kind==='audio');if(!trans)throw new Error('Voice audio channel was not negotiated.');
       item.transceiver=trans;try{trans.direction='sendrecv';}catch(_){}
+      if(r.videoRoomEnabled){const primaryEntry=(Array.isArray(videoMap)?videoMap:[]).find(entry=>entry?.primary===true);const videoTrans=primaryEntry?pc.getTransceivers().find(t=>String(t.mid)===String(primaryEntry.mid)):pc.getTransceivers().find(t=>t.receiver?.track?.kind==='video');if(videoTrans){try{videoTrans.direction='sendrecv';}catch(_){}const camera=(voice.cameraOn&&voice.cameraTrack&&voice.cameraTrack.readyState==='live')?voice.cameraTrack:null;await capVideoSender(videoTrans.sender);await videoTrans.sender.replaceTrack(camera);item.videoSender=videoTrans.sender;}}
       // Do not negotiate a synthetic WebAudio track for muted guests. A real mic is
       // attached only when it exists; the first MIC ON can force a fresh voice-only
       // offer so mobile browsers negotiate the upstream direction with the mic live.
       const track=(voice.micOn&&voice.micTrack&&voice.micTrack.readyState==='live')?voice.micTrack:null;
       await trans.sender.replaceTrack(track);item.sender=trans.sender;item.micNegotiated=!!track;
       await pc.setLocalDescription(await pc.createAnswer());await waitVoiceIce(pc);if(voice.guestPeer!==item)return;
-      r.guestSession?.send({t:'voiceAnswer',desc:safeVoiceDesc(pc.localDescription)});r.guestSession?.send({t:'voiceMicState',on:voice.micOn});updateVoiceUi();
+      r.guestSession?.send({t:'voiceAnswer',desc:safeVoiceDesc(pc.localDescription)});r.guestSession?.send({t:'voiceMicState',on:voice.micOn});if(r.videoRoomEnabled)r.guestSession?.send({t:'videoState',on:voice.cameraOn});updateVoiceUi();
     }catch(error){console.warn('UNO voice answer failed',error);closeGuestVoicePeer();}
   }
   function handleRemoteVoiceSpeak(seat,on){if(!isHost())return;const speaking=on===true&&!voice.hostMuteAll;setVoiceSpeaking(seat,speaking);broadcast({t:'voiceSpeak',seat:Number(seat),speaking});}
   function handleRemoteVoiceMic(seat,on){if(!isHost())return;setVoiceMicState(seat,on===true);broadcast({t:'voiceMicState',seat:Number(seat),on:on===true});}
+
+  function videoSupported(){return !!(window.RTCPeerConnection&&navigator?.mediaDevices?.getUserMedia&&window.isSecureContext);}
+  async function capVideoSender(sender){if(!sender?.getParameters||!sender?.setParameters)return;try{const params=sender.getParameters()||{};params.encodings=Array.isArray(params.encodings)&&params.encodings.length?params.encodings:[{}];params.encodings[0]={...params.encodings[0],maxBitrate:180000,maxFramerate:12};await sender.setParameters(params);}catch(_){} }
+  function syncHostVideoOption(){
+    const wrap=$('[data-host-video-wrap]'),input=$('[data-host-video]'),capacity=clamp($('[data-host-capacity]')?.value||6,2,10);
+    if(!wrap||!input)return;
+    wrap.hidden=!r.videoFeatureEnabled;
+    input.disabled=!r.videoFeatureEnabled||capacity>VIDEO_MAX_PLAYERS;
+    if(input.disabled)input.checked=false;
+    const note=wrap.querySelector('small');if(note)note.textContent=capacity>VIDEO_MAX_PLAYERS
+      ? `Video is limited to ${VIDEO_MAX_PLAYERS} players for smooth phone performance. Choose a smaller room capacity.`
+      : 'Optional low-bandwidth camera video. Camera starts OFF and media is peer-to-peer.';
+  }
+  function setVideoState(seat,on){const s=Number(seat);if(!Number.isFinite(s))return;voice.videoOnBySeat.set(s,on===true);renderVideoGrid();updateVideoUi();}
+  async function ensureCamera(){
+    if(voice.cameraTrack&&voice.cameraTrack.readyState==='live')return voice.cameraTrack;
+    if(!videoSupported())throw new Error('Camera video needs HTTPS and a browser with camera support.');
+    const stream=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:'user',width:{ideal:320,max:480},height:{ideal:240,max:360},frameRate:{ideal:12,max:15}}});
+    const track=stream.getVideoTracks()[0];if(!track)throw new Error('No camera was found.');
+    voice.cameraStream=stream;voice.cameraTrack=track;track.enabled=voice.cameraOn;return track;
+  }
+  function attachVideoTrackForSeat(seat,track,stream){
+    const s=Number(seat);if(!Number.isFinite(s)||!track)return;
+    const media=stream&&stream.getVideoTracks?.().length?stream:new MediaStream([track]);
+    voice.remoteVideoTrackBySeat.set(s,track);voice.remoteVideoStreamBySeat.set(s,media);voice.videoOnBySeat.set(s,!track.muted);
+    track.onmute=()=>{voice.videoOnBySeat.set(s,false);renderVideoGrid();};track.onunmute=()=>{voice.videoOnBySeat.set(s,true);renderVideoGrid();};track.onended=()=>{voice.remoteVideoTrackBySeat.delete(s);voice.remoteVideoStreamBySeat.delete(s);voice.videoOnBySeat.set(s,false);renderVideoGrid();};
+    renderVideoGrid();
+  }
+  function renderVideoGrid(){
+    const grid=$('[data-video-grid]');if(!grid)return;
+    if(!r.videoRoomEnabled){grid.innerHTML='';return;}
+    const players=(r.players||[]).filter(p=>p.connected).slice(0,VIDEO_MAX_PLAYERS);
+    grid.innerHTML=players.map(p=>{const seat=Number(p.seat),mine=seat===r.localSeat,on=mine?voice.cameraOn:voice.videoOnBySeat.get(seat)===true;return `<article class="uno-video-tile ${on?'live':'off'} ${mine?'local':''}" data-video-seat="${seat}"><video playsinline autoplay ${mine?'muted':''}></video><div><strong>${esc(mine?'YOU':p.name||`PLAYER ${seat+1}`)}</strong><span>${on?'CAMERA ON':'CAMERA OFF'}</span></div></article>`;}).join('');
+    grid.querySelectorAll('[data-video-seat]').forEach(tile=>{const seat=Number(tile.dataset.videoSeat),videoEl=tile.querySelector('video');let stream=null;if(seat===r.localSeat&&voice.cameraTrack)stream=new MediaStream([voice.cameraTrack]);else stream=voice.remoteVideoStreamBySeat.get(seat)||null;if(stream&&videoEl){videoEl.srcObject=stream;videoEl.play().catch(()=>{});}});
+  }
+  function updateVideoUi(){
+    if(!r.overlay)return;const live=(isHost()||isGuest())&&r.videoRoomEnabled&&(r.state==='lobby'||r.state==='game');
+    $$('[data-video-camera]').forEach(button=>{button.hidden=!live;button.classList.toggle('active',voice.cameraOn);button.textContent=button.closest('.uno-video-dock-head')?(voice.cameraOn?'CAMERA ON':'CAMERA OFF'):(button.closest('.uno-voice-call-actions')?(voice.cameraOn?'📷 CAMERA ON':'📷 CAMERA OFF'):'📷');button.setAttribute('aria-pressed',voice.cameraOn?'true':'false');});
+    const dock=$('[data-video-dock]');if(dock){dock.hidden=!live;dock.classList.toggle('collapsed',voice.videoDockCollapsed);}
+    const chip=$('[data-video-game-chip]');if(chip){chip.hidden=!live;chip.classList.toggle('active',voice.cameraOn);}
+    renderVideoGrid();
+  }
+  function toggleVideoDock(){voice.videoDockCollapsed=!voice.videoDockCollapsed;const b=$('[data-video-collapse]');if(b)b.textContent=voice.videoDockCollapsed?'+':'—';updateVideoUi();}
+  async function setVideoCamera(on){
+    if(!r.videoRoomEnabled||!(isHost()||isGuest())){toast('Video call is not enabled for this room.',1800);return;}
+    try{
+      if(on){voice.cameraOn=true;const track=await ensureCamera();track.enabled=true;if(isHost()){for(const item of voice.hostPeers.values())if(item.videoPrimary?.sender)await item.videoPrimary.sender.replaceTrack(track);}else if(voice.guestPeer?.videoSender){await voice.guestPeer.videoSender.replaceTrack(track);}else r.guestSession?.send({t:'voiceNeedOffer',force:true,reason:'camera-ready'});}
+      else{voice.cameraOn=false;if(voice.cameraTrack)voice.cameraTrack.enabled=false;if(isHost()){for(const item of voice.hostPeers.values())if(item.videoPrimary?.sender)await item.videoPrimary.sender.replaceTrack(null);}else if(voice.guestPeer?.videoSender)await voice.guestPeer.videoSender.replaceTrack(null);}
+    }catch(error){voice.cameraOn=false;toast(error?.message||'Camera permission was not granted.',2600);}
+    voice.videoOnBySeat.set(r.localSeat,voice.cameraOn);if(isHost())broadcast({t:'videoState',seat:r.localSeat,on:voice.cameraOn});else r.guestSession?.send({t:'videoState',on:voice.cameraOn});updateVideoUi();
+  }
+  function toggleVideoCamera(){setVideoCamera(!voice.cameraOn);}
+  function hostForwardGuestVideo(seat,track){
+    for(const item of voice.hostPeers.values()){
+      const relay=item.videoRelayBySeat?.get(Number(seat));if(relay?.sender)relay.sender.replaceTrack(track||null).catch(()=>{});
+    }
+  }
+  function handleRemoteVideoState(uid,seat,on){
+    const s=Number(seat);setVideoState(s,on===true);hostForwardGuestVideo(s,on===true?(voice.remoteVideoTrackBySeat.get(s)||null):null);broadcast({t:'videoState',seat:s,on:on===true});
+  }
+
   function closeVoiceSystem(){
-    clearInterval(voice.meterTimer);voice.meterTimer=0;voice.lastLocalSpeaking=false;for(const uid of [...voice.hostPeers.keys()])closeHostVoicePeer(uid);for(const uid of [...voice.hostAudioByUid.keys()])closeHostMonitorAudio(uid);closeGuestVoicePeer();try{voice.localStream?.getTracks?.().forEach(track=>track.stop());}catch(_){}voice.localStream=null;voice.micTrack=null;voice.micOn=false;try{voice.silentOsc?.stop();}catch(_){}voice.silentOsc=null;try{voice.silentTrack?.stop();}catch(_){}voice.silentTrack=null;try{voice.hostMicSource?.disconnect();}catch(_){}try{voice.hostMicGain?.disconnect();}catch(_){}voice.hostMicSource=null;voice.hostMicGain=null;voice.analyser=null;voice.analyserData=null;voice.speakingBySeat.clear();voice.micBySeat.clear();voice.hostMuteAll=false;voice.playbackBlocked=false;if(voice.remoteAudio){try{voice.remoteAudio.remove();}catch(_){}voice.remoteAudio=null;}updateVoiceUi();
+    clearInterval(voice.meterTimer);voice.meterTimer=0;voice.lastLocalSpeaking=false;for(const uid of [...voice.hostPeers.keys()])closeHostVoicePeer(uid);for(const uid of [...voice.hostAudioByUid.keys()])closeHostMonitorAudio(uid);closeGuestVoicePeer();try{voice.localStream?.getTracks?.().forEach(track=>track.stop());}catch(_){}voice.localStream=null;voice.micTrack=null;voice.micOn=false;try{voice.silentOsc?.stop();}catch(_){}voice.silentOsc=null;try{voice.silentTrack?.stop();}catch(_){}voice.silentTrack=null;try{voice.hostMicSource?.disconnect();}catch(_){}try{voice.hostMicGain?.disconnect();}catch(_){}voice.hostMicSource=null;voice.hostMicGain=null;voice.analyser=null;voice.analyserData=null;voice.speakingBySeat.clear();voice.micBySeat.clear();voice.hostMuteAll=false;voice.playbackBlocked=false;try{voice.cameraStream?.getTracks?.().forEach(track=>track.stop());}catch(_){}voice.cameraStream=null;voice.cameraTrack=null;voice.cameraOn=false;voice.remoteVideoTrackBySeat.clear();voice.remoteVideoStreamBySeat.clear();voice.videoOnBySeat.clear();if(voice.remoteAudio){try{voice.remoteAudio.remove();}catch(_){}voice.remoteAudio=null;}updateVoiceUi();
   }
 
   function clearNetwork(resetRoleData=true){closeVoiceSystem();clearTimeout(r.signalTimer);clearInterval(r.roomTouchTimer);clearTimeout(r.inviteTimer);clearTimeout(r.botTimer);clearTimeout(r.reconnectTimer);r.signalTimer=r.roomTouchTimer=r.inviteTimer=r.botTimer=r.reconnectTimer=0;r.reconnecting=false;for(const timer of r.disconnectTimers.values())clearTimeout(timer);r.disconnectTimers.clear();for(const peer of r.peers.values())try{peer.session?.close();}catch(_){}r.peers.clear();try{r.guestSession?.close();}catch(_){}r.guestSession=null;r.seatByUid.clear();closeScanner();hideDisconnect();r.busyAction=false;if(resetRoleData){r.players=[];r.game=null;r.guestPublic=null;r.guestPrivate=null;}}
 
   function onVisibilityChange(){if(r.open&&r.state==='join'&&!r.inviteTimer)startInvitePolling();}
 
-  function close(call=true){if(!r.open)return;r.closing=true;const room=r.roomCode,host=isHost();if(host)broadcast({t:'exit'});else r.guestSession?.send({t:'leave'});clearNetwork();if(room&&r.bridge?.leaveCodeUnoRoom)r.bridge.leaveCodeUnoRoom({roomCode:room,closeRoom:host}).catch(()=>{});r.open=false;r.overlay.hidden=true;document.body.classList.remove('code-uno-active');r.role='';r.roomCode='';r.voiceRoomEnabled=false;r.players=[];r.game=null;r.guestPublic=null;r.guestPrivate=null;r.lastPublic=null;r.lastRenderedRevision=-1;r.discardHistory=[];r.closing=false;if(call)r.onClose?.();}
+  function close(call=true){if(!r.open)return;r.closing=true;const room=r.roomCode,host=isHost();if(host)broadcast({t:'exit'});else r.guestSession?.send({t:'leave'});clearNetwork();if(room&&r.bridge?.leaveCodeUnoRoom)r.bridge.leaveCodeUnoRoom({roomCode:room,closeRoom:host}).catch(()=>{});r.open=false;r.overlay.hidden=true;document.body.classList.remove('code-uno-active');r.role='';r.roomCode='';r.voiceRoomEnabled=false;r.videoRoomEnabled=false;r.players=[];r.game=null;r.guestPublic=null;r.guestPrivate=null;r.lastPublic=null;r.lastRenderedRevision=-1;r.discardHistory=[];r.closing=false;if(call)r.onClose?.();}
 
-  function open(options={}){build();r.bridge=options.bridge||null;r.music=options.music||null;r.onBack=options.onBack||null;r.onClose=options.onClose||null;r.open=true;r.overlay.hidden=false;document.body.classList.add('code-uno-active');clearNetwork();r.role='';r.roomCode='';r.players=[];r.game=null;r.guestPublic=null;r.guestPrivate=null;r.lastPublic=null;r.lastRenderedRevision=-1;r.discardHistory=[];r.lastCelebratedResultKey='';r.houseRules={stackDraw2:false,drawUntilPlayable:false,sevenZero:false};r.voiceRoomEnabled=false;r.soundEnabled=r.bridge?.getSnapshot?.()?.soundEnabled!==false;$('[data-sound]').textContent=r.soundEnabled?'🔊':'🔇';const id=identity();if(id.name){$('[data-solo-name]').value=id.name;$('[data-host-name]').value=id.name;$('[data-guest-name]').value=id.name;}show('home');}
+  function open(options={}){build();r.bridge=options.bridge||null;r.music=options.music||null;r.onBack=options.onBack||null;r.onClose=options.onClose||null;r.open=true;r.overlay.hidden=false;document.body.classList.add('code-uno-active');clearNetwork();r.role='';r.roomCode='';r.players=[];r.game=null;r.guestPublic=null;r.guestPrivate=null;r.lastPublic=null;r.lastRenderedRevision=-1;r.discardHistory=[];r.lastCelebratedResultKey='';r.houseRules={stackDraw2:false,drawUntilPlayable:false,sevenZero:false};r.voiceRoomEnabled=false;r.soundEnabled=r.bridge?.getSnapshot?.()?.soundEnabled!==false;$('[data-sound]').textContent=r.soundEnabled?'🔊':'🔇';const id=identity();if(id.name){$('[data-solo-name]').value=id.name;$('[data-host-name]').value=id.name;$('[data-guest-name]').value=id.name;}show('home');r.bridge?.getCodeUnoMediaSettings?.({force:true}).then(settings=>{if(!r.open)return;r.videoFeatureEnabled=settings?.videoEnabled===true;syncHostVideoOption();}).catch(()=>{r.videoFeatureEnabled=false;syncHostVideoOption();});}
 
   window[GLOBAL_NAME]=Object.freeze({open,close,isOpen:()=>r.open,_debug:Object.freeze({currentView:()=>currentView(),state:()=>({role:r.role,state:r.state,roomCode:r.roomCode,localSeat:r.localSeat,maxPlayers:r.maxPlayers})})});
 })();
