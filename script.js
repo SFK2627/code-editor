@@ -611,6 +611,7 @@ const adminStudentSearch = document.getElementById('adminStudentSearch');
 const adminSectionFilter = document.getElementById('adminSectionFilter');
 const adminActivityFilter = document.getElementById('adminActivityFilter');
 const adminStudentsTableBody = document.getElementById('adminStudentsTableBody');
+const adminStudentPagination = document.getElementById('adminStudentPagination');
 const adminStudentCount = document.getElementById('adminStudentCount');
 const adminLoggedInCount = document.getElementById('adminLoggedInCount');
 const adminProjectCount = document.getElementById('adminProjectCount');
@@ -2524,8 +2525,8 @@ let dailyLeaderboardPublishTimer = null;
 let lastProfileActivityWriteAt = 0;
 let editorStudentGreetingState = { key: '', text: '' };
 let adminStudentsCache = [];
-const ADMIN_STUDENT_MOBILE_BATCH_SIZE = 30;
-let adminStudentMobileRenderLimit = ADMIN_STUDENT_MOBILE_BATCH_SIZE;
+const ADMIN_STUDENT_PAGE_SIZE = 10;
+let adminStudentPage = 1;
 const adminStudentExpandedKeys = new Set();
 let studentPresenceTimer = null;
 let studentPresenceStarted = false;
@@ -11882,6 +11883,8 @@ async function registerStudentRosterRecord(rawRecord) {
   };
   adminStudentsCache.push(localRecord);
   upsertCachedAdminRosterRecord(localRecord);
+  window.__invalidateGlobalLeaderboardRosterPublishMarkerV512?.();
+  void window.__publishGlobalLeaderboardRosterFromAdminV512?.({ force: true });
   return localRecord;
 }
 
@@ -12068,6 +12071,10 @@ async function loadAdminStudents(options = {}) {
     renderAdminStudentTracker();
     const duplicateText = mergedDuplicates ? ` · ${mergedDuplicates} duplicate profile row${mergedDuplicates === 1 ? '' : 's'} merged` : '';
     setStudentAdminStatus(`${adminStudentsCache.length} student${adminStudentsCache.length === 1 ? '' : 's'} loaded${duplicateText}.`, 'success');
+    // v512: publish one compact RTDB roster snapshot/day from the already-cached
+    // Admin dataset. This fixes partial leaderboard populations without another
+    // Firestore scan or per-student Firestore leaderboard writes.
+    void window.__publishGlobalLeaderboardRosterFromAdminV512?.();
     return adminStudentsCache;
   } catch (error) {
     console.error('Could not load student tracker', error);
@@ -12418,7 +12425,8 @@ function isAdminStudentMobileLayout() {
 }
 
 function resetAdminStudentMobileRenderLimit() {
-  adminStudentMobileRenderLimit = ADMIN_STUDENT_MOBILE_BATCH_SIZE;
+  // v512: one pager for phone + desktop. Existing callers reset to page 1.
+  adminStudentPage = 1;
 }
 
 function setStudentRegisterMobileOpen(open = false) {
@@ -12449,13 +12457,14 @@ function renderAdminStudentTracker() {
 
   if (!filtered.length) {
     adminStudentsTableBody.innerHTML = '<tr><td colspan="6"><div class="empty-projects-card"><strong>No matching students.</strong><p>Register a student or change the filters.</p></div></td></tr>';
+    renderAdminStudentPagination(0);
     return;
   }
 
-  const mobileLayout = isAdminStudentMobileLayout();
-  const visibleStudents = mobileLayout
-    ? filtered.slice(0, Math.max(ADMIN_STUDENT_MOBILE_BATCH_SIZE, adminStudentMobileRenderLimit))
-    : filtered;
+  const totalPages = Math.max(1, Math.ceil(filtered.length / ADMIN_STUDENT_PAGE_SIZE));
+  adminStudentPage = Math.min(Math.max(1, adminStudentPage), totalPages);
+  const pageStart = (adminStudentPage - 1) * ADMIN_STUDENT_PAGE_SIZE;
+  const visibleStudents = filtered.slice(pageStart, pageStart + ADMIN_STUDENT_PAGE_SIZE);
 
   const rows = visibleStudents.map(student => {
     const loggedIn = Boolean(student.lastLoginAt || Number(student.loginCount || 0) > 0);
@@ -12511,20 +12520,38 @@ function renderAdminStudentTracker() {
       </tr>`;
   });
 
-  if (mobileLayout && visibleStudents.length < filtered.length) {
-    const remaining = filtered.length - visibleStudents.length;
-    const nextCount = Math.min(ADMIN_STUDENT_MOBILE_BATCH_SIZE, remaining);
-    rows.push(`
-      <tr class="student-load-more-row">
-        <td colspan="6">
-          <button class="ghost-btn student-load-more-btn" type="button" data-load-more-students>
-            Load ${nextCount} more <span>${remaining} remaining</span>
-          </button>
-        </td>
-      </tr>`);
-  }
+  renderAdminStudentPagination(filtered.length);
 
   adminStudentsTableBody.innerHTML = rows.join('');
+}
+
+function renderAdminStudentPagination(totalItems = 0) {
+  if (!adminStudentPagination) return;
+  const total = Math.max(0, Number(totalItems || 0));
+  if (!total) {
+    adminStudentPagination.innerHTML = '';
+    adminStudentPagination.classList.add('hidden');
+    return;
+  }
+  const pages = Math.max(1, Math.ceil(total / ADMIN_STUDENT_PAGE_SIZE));
+  adminStudentPage = Math.min(Math.max(1, adminStudentPage), pages);
+  const start = (adminStudentPage - 1) * ADMIN_STUDENT_PAGE_SIZE + 1;
+  const end = Math.min(total, adminStudentPage * ADMIN_STUDENT_PAGE_SIZE);
+  const first = Math.max(1, Math.min(adminStudentPage - 2, Math.max(1, pages - 4)));
+  const last = Math.min(pages, first + 4);
+  const buttons = [];
+  for (let page = first; page <= last; page += 1) {
+    buttons.push(`<button type="button" class="${page === adminStudentPage ? 'active' : ''}" data-admin-student-page="${page}" ${page === adminStudentPage ? 'aria-current="page"' : ''}>${page}</button>`);
+  }
+  adminStudentPagination.classList.remove('hidden');
+  adminStudentPagination.innerHTML = `
+    <span class="admin-student-page-summary">Showing ${start}-${end} of ${total}</span>
+    <div class="admin-student-page-buttons">
+      <button type="button" data-admin-student-page="${adminStudentPage - 1}" ${adminStudentPage <= 1 ? 'disabled' : ''}>‹ Prev</button>
+      ${buttons.join('')}
+      <button type="button" data-admin-student-page="${adminStudentPage + 1}" ${adminStudentPage >= pages ? 'disabled' : ''}>Next ›</button>
+    </div>
+    <span class="admin-student-page-summary">Page ${adminStudentPage} of ${pages}</span>`;
 }
 
 
@@ -13756,6 +13783,8 @@ This student has ${profileUids.length} linked app profiles because of earlier du
     });
     populateAdminSectionFilter();
     renderAdminStudentTracker();
+    window.__invalidateGlobalLeaderboardRosterPublishMarkerV512?.();
+    void window.__publishGlobalLeaderboardRosterFromAdminV512?.({ force: true });
     setStudentAdminStatus(`${displayName} was deleted from this app. Any previous sign-in record can no longer open projects without a registered profile.`, 'success');
   } catch (error) {
     console.error('Student account deletion failed', error);
@@ -13945,6 +13974,8 @@ async function confirmStudentImport() {
     adminStudentsCache = mergeAdminStudentList(adminStudentsCache);
     populateAdminSectionFilter();
     renderAdminStudentTracker();
+    window.__invalidateGlobalLeaderboardRosterPublishMarkerV512?.();
+    void window.__publishGlobalLeaderboardRosterFromAdminV512?.({ force: true });
     setStudentAdminStatus(`${created} student record${created === 1 ? '' : 's'} imported with low-quota batching. Login routes self-create only for students who actually activate with 123456.${failures.length ? ` ${failures.length} failed: ${failures.slice(0, 3).join(' | ')}` : ''}`, failures.length ? 'error' : 'success');
   } catch (error) {
     console.error('Student bulk import failed', error);
@@ -35038,13 +35069,16 @@ adminStudentMobileMediaQuery?.addEventListener?.('change', () => {
   renderAdminStudentTracker();
 });
 
+adminStudentPagination?.addEventListener('click', event => {
+  const button = event.target.closest('[data-admin-student-page]');
+  if (!button || button.disabled) return;
+  const page = Math.max(1, Number(button.dataset.adminStudentPage || 1));
+  adminStudentPage = page;
+  renderAdminStudentTracker();
+  document.querySelector('#studentAccountsAdmin .student-tracker-toolbar')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+});
+
 adminStudentsTableBody?.addEventListener('click', event => {
-  const loadMoreButton = event.target.closest('[data-load-more-students]');
-  if (loadMoreButton) {
-    adminStudentMobileRenderLimit += ADMIN_STUDENT_MOBILE_BATCH_SIZE;
-    renderAdminStudentTracker();
-    return;
-  }
   const expandButton = event.target.closest('.student-mobile-expand-btn');
   if (expandButton) {
     const row = expandButton.closest('.student-tracker-row');
@@ -47915,16 +47949,34 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     if (!(appSession.mode === 'student' || isTeacherAuthenticated())) return [];
     const identity = String(appSession.student?.uid || getFirebaseActiveUser()?.uid || 'teacher');
     const epoch = superCacheRankingEpochKey();
-    const key = `${DAILY_GLOBAL_LEADERBOARD_CACHE_PREFIX}.${identity}.${epoch}`;
+    const key = `ict8.globalLeaderboard.v512.${identity}.${epoch}`;
     const cached = readDailyLeaderboardCache(key);
-    // The visible Refresh button intentionally reuses the frozen daily snapshot.
-    // Only an internal { live:true } diagnostic bypasses the 8 PM cache.
-    if (cached?.epoch === epoch && Array.isArray(cached.rows) && options.live !== true) return cached.rows;
+    // v512: Refresh may revalidate RTDB because the full enrolled-roster snapshot
+    // can change independently of a student's daily XP row.
+    if (cached?.epoch === epoch && Array.isArray(cached.rows) && options.live !== true && options.force !== true) return cached.rows;
     if (!getFirebaseActiveUser()) return cached?.rows || [];
     try {
-      const raw = await rtdbRestRequest('dailyLeaderboardEntries');
-      const rows = Object.entries(raw && typeof raw === 'object' ? raw : {}).map(([uid, row]) => ({
+      const [rosterRaw, dailyRaw] = await Promise.all([
+        rtdbRestRequest('globalLeaderboardRoster').catch(() => null),
+        rtdbRestRequest('dailyLeaderboardEntries').catch(() => null)
+      ]);
+
+      const rosterRows = Object.entries(rosterRaw && typeof rosterRaw === 'object' ? rosterRaw : {}).map(([keyId, row]) => ({
+        uid: String(row?.uid || '').trim(),
+        studentId: normalizeStudentId(row?.studentId || ''),
+        rosterKey: String(keyId || '').trim(),
+        name: String(row?.name || 'Student').replace(/\s+/g, ' ').trim() || 'Student',
+        section: String(row?.section || '').replace(/\s+/g, ' ').trim(),
+        xp: Math.max(0, Number(row?.xp || 0)),
+        learningXp: Math.max(0, Number(row?.learningXp || 0)),
+        accountStatus: String(row?.accountStatus || 'active').trim().toLowerCase(),
+        updatedAtMs: Math.max(0, Number(row?.updatedAtMs || 0)),
+        epochKey: String(row?.epochKey || '')
+      })).filter(row => (row.uid || row.studentId || row.rosterKey) && row.accountStatus !== 'disabled');
+
+      const dailyRows = Object.entries(dailyRaw && typeof dailyRaw === 'object' ? dailyRaw : {}).map(([uid, row]) => ({
         uid: String(row?.uid || uid || '').trim(),
+        studentId: normalizeStudentId(row?.studentId || ''),
         name: String(row?.name || 'Student').replace(/\s+/g, ' ').trim() || 'Student',
         section: String(row?.section || '').replace(/\s+/g, ' ').trim(),
         xp: Math.max(0, Number(row?.xp || 0)),
@@ -47932,10 +47984,38 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         updatedAtMs: Math.max(0, Number(row?.updatedAtMs || 0)),
         epochKey: String(row?.epochKey || '')
       })).filter(row => row.uid && row.accountStatus !== 'disabled');
+
+      // A daily row list is intentionally NOT treated as the population. Before
+      // v512 it only contained students who had published recently, which is how
+      // a 500-student roster could incorrectly become a 77-student leaderboard.
+      // If the complete enrolled-roster base is not ready yet, return only a
+      // previously cached COMPLETE v512 snapshot (if any) and let the caller use
+      // the teacher-published/root compatibility source instead of partial rows.
+      if (!rosterRows.length) return cached?.rows || [];
+
+      const dailyByUid = new Map(dailyRows.filter(row => row.uid).map(row => [row.uid, row]));
+      const dailyByStudentId = new Map(dailyRows.filter(row => row.studentId).map(row => [row.studentId, row]));
+      const rows = rosterRows.map(base => {
+        const live = (base.uid && dailyByUid.get(base.uid)) || (base.studentId && dailyByStudentId.get(base.studentId)) || null;
+        const syntheticUid = base.uid || `sid-${String(base.studentId || base.rosterKey || '').replace(/[^a-zA-Z0-9_-]/g, '-')}`;
+        return {
+          ...base,
+          uid: syntheticUid,
+          // The roster snapshot defines WHO is enrolled; the daily row only
+          // overlays fresher identity/XP for that same enrolled student.
+          name: String(live?.name || base.name || 'Student'),
+          section: String(live?.section || base.section || ''),
+          xp: Math.max(Number(base.xp || 0), Number(live?.xp || 0)),
+          updatedAtMs: Math.max(Number(base.updatedAtMs || 0), Number(live?.updatedAtMs || 0)),
+          epochKey: String(live?.epochKey || base.epochKey || '')
+        };
+      });
+
+      // Only complete roster-based snapshots are cached.
       writeDailyLeaderboardCache(key, { epoch, savedAt: Date.now(), rows });
       return rows;
     } catch (error) {
-      console.info('Daily RTDB leaderboard snapshot unavailable; using cached/root fallback.', error);
+      console.info('RTDB global leaderboard snapshot unavailable; using cached/root fallback.', error);
       return cached?.rows || [];
     }
   }
@@ -54006,6 +54086,58 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       })
       .filter(row => row.name && row.section && leaderboardSectionKey(row.section) !== 'no section');
   }
+
+  function buildGlobalLeaderboardRosterRowsFromAdmin() {
+    return (adminStudentsCache || [])
+      .filter(student => String(student.accountStatus || 'active') !== 'disabled')
+      .map(student => {
+        const progress = studentExplorerProgress(student);
+        const total = Math.max(0, Number(explorerXpFor(progress) || 0));
+        const mini = Math.max(0, Number(miniGameLifetimeXpFor(progress) || 0));
+        return {
+          uid: String(student.uid || student.authUid || '').trim(),
+          studentId: normalizeStudentId(student.studentId || student.studentIdNormalized || student.rosterId || ''),
+          name: String(student.name || 'Unnamed Student').replace(/\s+/g, ' ').trim(),
+          section: String(student.section || '').replace(/\s+/g, ' ').trim(),
+          xp: Math.max(0, Math.floor(total)),
+          learningXp: Math.max(0, Math.floor(total - mini)),
+          accountStatus: String(student.accountStatus || 'active').trim().toLowerCase()
+        };
+      })
+      .filter(row => (row.uid || row.studentId) && row.name && row.section);
+  }
+
+  function globalLeaderboardRosterPublishKey() {
+    return `ict8.globalLeaderboardRosterPublished.v512.${superCacheRankingEpochKey()}`;
+  }
+
+  function invalidateGlobalLeaderboardRosterPublishMarker() {
+    try { localStorage.removeItem(globalLeaderboardRosterPublishKey()); } catch (_) {}
+    leaderboardState.loadedAt = 0;
+  }
+
+  async function publishGlobalLeaderboardRosterFromAdmin(options = {}) {
+    if (!isTeacherAuthenticated() || !adminStudentsCache.length || !getMcsAppsScriptUrl()) return false;
+    const markerKey = globalLeaderboardRosterPublishKey();
+    if (!options.force) {
+      try { if (localStorage.getItem(markerKey) === '1') return true; } catch (_) {}
+    }
+    const rows = buildGlobalLeaderboardRosterRowsFromAdmin();
+    if (!rows.length) return false;
+    try {
+      const result = await callAppsScriptSecure({ action: 'publishGlobalLeaderboardRoster', rows });
+      if (!result?.ok) throw new Error(result?.error || 'Leaderboard roster publish failed.');
+      try { localStorage.setItem(markerKey, '1'); } catch (_) {}
+      leaderboardState.loadedAt = 0;
+      return true;
+    } catch (error) {
+      console.info('Complete leaderboard roster snapshot publish skipped.', error);
+      return false;
+    }
+  }
+
+  window.__publishGlobalLeaderboardRosterFromAdminV512 = publishGlobalLeaderboardRosterFromAdmin;
+  window.__invalidateGlobalLeaderboardRosterPublishMarkerV512 = invalidateGlobalLeaderboardRosterPublishMarker;
 
   async function saveLeaderboardSettingsToRoot(settings = leaderboardSectionSettings) {
     const ready = await initFirebaseSync();

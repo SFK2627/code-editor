@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ict8-connect-v511-firestore-zero-mini-games';
+const CACHE_NAME = 'ict8-connect-v512-complete-leaderboard-admin-pages';
 const APP_SHELL = [
   './',
   './index.html',
