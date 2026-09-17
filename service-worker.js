@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ict8-connect-v513-uno-video-admin-gate';
+const CACHE_NAME = 'ict8-connect-v517-live-syntax-colors';
 const APP_SHELL = [
   './',
   './index.html',

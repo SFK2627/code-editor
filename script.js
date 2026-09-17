@@ -16377,12 +16377,110 @@ function getMatchClassForSegment(spans, start, end) {
   return smallest ? `tag-match ${smallest.className}` : '';
 }
 
+function getEditorSyntaxLineRanges(text = '') {
+  const source = String(text || '');
+  const ranges = [];
+  let start = 0;
+  while (start <= source.length) {
+    const newline = source.indexOf('\n', start);
+    if (newline === -1) {
+      ranges.push({ start, end: source.length });
+      break;
+    }
+    ranges.push({ start, end: newline });
+    start = newline + 1;
+    if (start === source.length) {
+      ranges.push({ start, end: start });
+      break;
+    }
+  }
+  return ranges.length ? ranges : [{ start: 0, end: 0 }];
+}
+
+function renderHighlightedSyntaxRangeHtml(text, syntaxTokens = [], sortedMatches = [], rangeStart = 0, rangeEnd = 0) {
+  const start = Math.max(0, Number(rangeStart) || 0);
+  const end = Math.max(start, Number(rangeEnd) || start);
+  const boundaries = new Set([start, end]);
+
+  syntaxTokens.forEach(token => {
+    if (token.end <= start || token.start >= end) return;
+    boundaries.add(Math.max(start, token.start));
+    boundaries.add(Math.min(end, token.end));
+  });
+  sortedMatches.forEach(span => {
+    if (span.end <= start || span.start >= end) return;
+    boundaries.add(Math.max(start, span.start));
+    boundaries.add(Math.min(end, span.end));
+  });
+
+  const points = [...boundaries].sort((a, b) => a - b);
+  let output = '';
+  for (let i = 0; i < points.length - 1; i += 1) {
+    const segmentStart = points[i];
+    const segmentEnd = points[i + 1];
+    if (segmentEnd <= segmentStart) continue;
+    const chunk = text.slice(segmentStart, segmentEnd);
+    const token = getBestTokenForSegment(syntaxTokens, segmentStart, segmentEnd);
+    const matchClass = getMatchClassForSegment(sortedMatches, segmentStart, segmentEnd);
+    const className = [token?.className || '', matchClass].filter(Boolean).join(' ');
+    output += className
+      ? `<span class="${escapeAttribute(className)}">${escapeHTML(chunk)}</span>`
+      : escapeHTML(chunk);
+  }
+  return output;
+}
+
+function renderLiveSyntaxLineHtml(lineText = '') {
+  const text = String(lineText || '');
+  const syntaxTokens = getSyntaxTokens(text);
+  return renderHighlightedSyntaxRangeHtml(text, syntaxTokens, [], 0, text.length);
+}
+
+function paintEditorLiveSyntaxLine(event = null) {
+  if (!editor || !codeMatchLayer || !editorStack || MCS_NATIVE_TEXT_EDITOR_MODE) return false;
+  if (!editorStack.classList.contains('editor-syntax-ready')) return false;
+
+  const text = String(editor.value || '');
+  const lineRanges = getEditorSyntaxLineRanges(text);
+  const renderedLines = codeMatchLayer.querySelectorAll('[data-syntax-live-line]');
+
+  // Enter/paste/delete across lines changes the overlay structure. Those events
+  // are uncommon compared with ordinary character typing, so let the existing
+  // idle full renderer rebuild safely instead of doing heavy work in the key path.
+  if (renderedLines.length !== lineRanges.length) return false;
+
+  const cursor = Math.max(0, Math.min(Number(editor.selectionStart) || 0, text.length));
+  let lineIndex = 0;
+  for (let index = 0; index < lineRanges.length; index += 1) {
+    const range = lineRanges[index];
+    if (cursor >= range.start && cursor <= range.end) {
+      lineIndex = index;
+      break;
+    }
+    if (cursor > range.end) lineIndex = index;
+  }
+
+  const range = lineRanges[lineIndex];
+  const lineElement = renderedLines[lineIndex];
+  if (!range || !lineElement) return false;
+
+  // A single-line syntax paint is deliberately tiny. The textarea value/caret
+  // and this DOM patch are committed in the same input task, so the browser
+  // paints colored code and the new caret position together without rebuilding
+  // the entire document on every keystroke.
+  const lineText = text.slice(range.start, range.end);
+  lineElement.innerHTML = renderLiveSyntaxLineHtml(lineText);
+  editorStack.classList.remove('editor-typing-live');
+  editorStack.classList.add('editor-syntax-ready');
+  syncEditorScroll();
+  return true;
+}
+
 function markEditorSyntaxDirty() {
   if (!editorStack) return;
-  // V508: the native textarea is the live typing surface. Hide the heavier
-  // syntax overlay immediately so the browser can paint the new character and
-  // caret in the same frame. The overlay comes back only after a completed
-  // idle syntax render. This removes the old caret-ahead / text-catch-up effect.
+  // Fallback only for structural edits (new lines, multi-line paste/delete, or
+  // an overlay that has not been initialized yet). Normal single-line typing is
+  // painted incrementally by paintEditorLiveSyntaxLine() and keeps its colors.
   editorStack.classList.add('editor-typing-live');
   editorStack.classList.remove('editor-syntax-ready');
 }
@@ -16415,37 +16513,15 @@ function renderCodeMatchLayer(spans = []) {
     .filter(span => Number.isFinite(span.start) && Number.isFinite(span.end) && span.end > span.start)
     .sort((a, b) => a.start - b.start);
 
-  const boundaries = new Set([0, text.length]);
-  syntaxTokens.forEach(token => {
-    boundaries.add(token.start);
-    boundaries.add(token.end);
-  });
-  sortedMatches.forEach(span => {
-    boundaries.add(span.start);
-    boundaries.add(span.end);
-  });
+  // V517: keep the full overlay addressable by logical line. Normal typing can
+  // now repaint only the active line instead of hiding/rebuilding all syntax.
+  const lineRanges = getEditorSyntaxLineRanges(text);
+  const output = lineRanges.map((range, index) => {
+    const html = renderHighlightedSyntaxRangeHtml(text, syntaxTokens, sortedMatches, range.start, range.end);
+    return `<span data-syntax-live-line="${index}">${html}</span>`;
+  }).join('\n');
 
-  const points = [...boundaries]
-    .filter(value => value >= 0 && value <= text.length)
-    .sort((a, b) => a - b);
-
-  let output = '';
-  for (let i = 0; i < points.length - 1; i += 1) {
-    const start = points[i];
-    const end = points[i + 1];
-    if (end <= start) continue;
-
-    const chunk = text.slice(start, end);
-    const token = getBestTokenForSegment(syntaxTokens, start, end);
-    const matchClass = getMatchClassForSegment(sortedMatches, start, end);
-    const className = [token?.className || '', matchClass].filter(Boolean).join(' ');
-
-    output += className
-      ? `<span class="${escapeAttribute(className)}">${escapeHTML(chunk)}</span>`
-      : escapeHTML(chunk);
-  }
-
-  codeMatchLayer.innerHTML = (output || '&nbsp;') + '\n';
+  codeMatchLayer.innerHTML = output || '<span data-syntax-live-line="0"></span>';
   syncEditorScroll();
 
   // Only swap back to the highlighted visual layer when it represents the
@@ -30387,10 +30463,11 @@ function cancelCssJumpLongPress() {
 }
 
 editor.addEventListener('input', event => {
-  // V508 fast path: make the browser-owned textarea visible first. Everything
-  // that can wait (syntax overlay, line gutter, suggestions, persistence) is
-  // deferred so the typed character and caret paint together on phone/desktop.
-  markEditorSyntaxDirty();
+  // V517 live-color path: ordinary typing updates only the active syntax line.
+  // This keeps HTML/CSS/JS colors visible while the user types without bringing
+  // back the old full-document overlay rebuild, cursor lag, or editor flicker.
+  const liveSyntaxPainted = paintEditorLiveSyntaxLine(event);
+  if (!liveSyntaxPainted) markEditorSyntaxDirty();
   saveActiveEditor({ typing: true });
 
   // Mark an active student project dirty synchronously without doing any JSON,
@@ -45636,6 +45713,25 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     adminLeaderboardSelectAllBtn: $('codeExplorerAdminLeaderboardSelectAllBtn'),
     adminLeaderboardClearBtn: $('codeExplorerAdminLeaderboardClearBtn'),
     adminLeaderboardSaveBtn: $('codeExplorerAdminLeaderboardSaveBtn'),
+    adminAwardsOfficialPill: $('codeExplorerAdminAwardsOfficialPill'),
+    adminAwardsSchoolYear: $('codeExplorerAdminAwardsSchoolYear'),
+    adminAwardsOfficialDate: $('codeExplorerAdminAwardsOfficialDate'),
+    adminAwardsSaveSettingsBtn: $('codeExplorerAdminAwardsSaveSettingsBtn'),
+    adminAwardsSectionPreview: $('codeExplorerAdminAwardsSectionPreview'),
+    adminAwardsStudentPreview: $('codeExplorerAdminAwardsStudentPreview'),
+    adminAwardsPreviewSectionsBtn: $('codeExplorerAdminAwardsPreviewSectionsBtn'),
+    adminAwardsDownloadSectionsBtn: $('codeExplorerAdminAwardsDownloadSectionsBtn'),
+    adminAwardsPreviewStudentsBtn: $('codeExplorerAdminAwardsPreviewStudentsBtn'),
+    adminAwardsDownloadStudentsBtn: $('codeExplorerAdminAwardsDownloadStudentsBtn'),
+    adminAwardsOfficialBox: $('codeExplorerAdminAwardsOfficialBox'),
+    adminAwardsOfficialTitle: $('codeExplorerAdminAwardsOfficialTitle'),
+    adminAwardsOfficialStatus: $('codeExplorerAdminAwardsOfficialStatus'),
+    adminAwardsOfficialActions: $('codeExplorerAdminAwardsOfficialActions'),
+    adminAwardsOfficialSectionsBtn: $('codeExplorerAdminAwardsOfficialSectionsBtn'),
+    adminAwardsOfficialStudentsBtn: $('codeExplorerAdminAwardsOfficialStudentsBtn'),
+    adminAwardsOfficialAllBtn: $('codeExplorerAdminAwardsOfficialAllBtn'),
+    adminAwardsStatus: $('codeExplorerAdminAwardsStatus'),
+    adminAwardsRefreshBtn: $('codeExplorerAdminAwardsRefreshBtn'),
     adminMusicEnabled: $('codeExplorerAdminMusicEnabled'),
     adminMusicMode: $('codeExplorerAdminMusicMode'),
     adminMusicSingleField: $('codeExplorerAdminMusicSingleField'),
@@ -54395,6 +54491,10 @@ window.MCS_PHONE_MENU_STATUS = () => ({
 
       // v507: ranking rows publish on the daily ~8 PM path. Saving visibility
       // settings must not trigger an extra ranking write or student scan.
+      // V514: mirror only the tiny award/section settings to RTDB so the
+      // October 1 server snapshot can honor the exact leaderboard scope without
+      // reading Firestore at midnight.
+      void saveLeaderboardAwardsSettings({ silent: true });
     } catch (error) {
       console.error('Could not save Code Explorer leaderboard section settings.', error);
       const rawMessage = String(error?.message || 'Could not save leaderboard section settings.');
@@ -54404,6 +54504,516 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       if (dom.adminLeaderboardSettingsStatus) dom.adminLeaderboardSettingsStatus.textContent = friendlyMessage;
     } finally {
       if (dom.adminLeaderboardSaveBtn) { dom.adminLeaderboardSaveBtn.disabled = false; dom.adminLeaderboardSaveBtn.textContent = 'Save Leaderboard Sections'; }
+    }
+  }
+
+
+  // ---------------------------------------------------------------------------
+  // V514 — G8Code Leaderboard Award Certificates
+  // Live certificates use the existing RTDB complete leaderboard. The official
+  // Oct 1 snapshot is frozen in RTDB by Apps Script, so certificate generation
+  // and PDF downloads do not scan or write Cloud Firestore.
+  // ---------------------------------------------------------------------------
+  const LEADERBOARD_AWARDS_TIME_ZONE = 'Asia/Manila';
+  const LEADERBOARD_AWARDS_SETTINGS_PATH = 'leaderboardAwards/settings';
+  const leaderboardAwardsState = {
+    settings: null,
+    official: null,
+    live: null,
+    loading: false,
+    lastLiveLoadedAt: 0
+  };
+
+  function defaultLeaderboardAwardsSchoolYear(date = new Date()) {
+    const current = date instanceof Date ? date : new Date(date);
+    const year = current.getFullYear();
+    const month = current.getMonth() + 1;
+    const start = month >= 6 ? year : year - 1;
+    return `${start}-${start + 1}`;
+  }
+
+  function normalizeLeaderboardAwardsSchoolYear(value = '', fallbackDate = new Date()) {
+    const match = String(value || '').match(/(20\d{2})\D+(20\d{2})/);
+    if (match) {
+      const start = Number(match[1]);
+      const end = Number(match[2]);
+      if (start >= 2020 && end === start + 1) return `${start}-${end}`;
+    }
+    return defaultLeaderboardAwardsSchoolYear(fallbackDate);
+  }
+
+  function leaderboardAwardsSchoolYearKey(value = '') {
+    return normalizeLeaderboardAwardsSchoolYear(value).replace(/[^0-9-]/g, '');
+  }
+
+  function leaderboardAwardsOfficialAtMs(schoolYear = '') {
+    const normalized = normalizeLeaderboardAwardsSchoolYear(schoolYear);
+    const startYear = Number(normalized.slice(0, 4));
+    // October 1, 12:00 AM Asia/Manila == September 30, 16:00 UTC.
+    return Date.UTC(startYear, 8, 30, 16, 0, 0, 0);
+  }
+
+  function formatLeaderboardAwardsDate(ms = 0, options = {}) {
+    const date = new Date(Number(ms || Date.now()));
+    try {
+      return new Intl.DateTimeFormat('en-US', {
+        timeZone: LEADERBOARD_AWARDS_TIME_ZONE,
+        month: 'long', day: 'numeric', year: 'numeric',
+        ...(options.time ? { hour: 'numeric', minute: '2-digit', hour12: true } : {})
+      }).format(date);
+    } catch (_) {
+      return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+    }
+  }
+
+  function smartAwardTitleCase(value = '') {
+    const minor = new Set(['of', 'the', 'and', 'in', 'on', 'at', 'for', 'to', 'a', 'an']);
+    const roman = new Set(['i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii', 'viii', 'ix', 'x']);
+    const acronyms = new Set(['SFK', 'ICT', 'STEM', 'MCS', 'TVL']);
+    const tokens = String(value || '').replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
+    return tokens.map((token, index) => {
+      const raw = token.trim();
+      const lower = raw.toLowerCase();
+      if (minor.has(lower)) return lower;
+      if (roman.has(lower)) return lower.toUpperCase();
+      if (acronyms.has(raw.toUpperCase())) return raw.toUpperCase();
+      if (/^st\.?$/i.test(raw)) return 'St.';
+      return lower.replace(/(^|[-'’])([a-z])/g, (_, lead, char) => `${lead}${char.toUpperCase()}`);
+    }).join(' ');
+  }
+
+  function awardSectionLabel(value = '') {
+    const raw = String(value || '').replace(/\s+/g, ' ').trim();
+    let cleaned = raw
+      .replace(/^Grade\s*8\s*(?:[-–—:|•]\s*)?/i, '')
+      .replace(/^G(?:rade)?\s*8\s*(?:[-–—:|•]\s*)?/i, '')
+      .replace(/^8\s*(?:[-–—:|•]\s*)?/i, '')
+      .trim();
+    if (!cleaned) return 'Grade 8';
+    return `Grade 8 ${smartAwardTitleCase(cleaned)}`;
+  }
+
+  function normalizeLeaderboardAwardsSettings(input = {}) {
+    const source = input && typeof input === 'object' ? input : {};
+    const schoolYear = normalizeLeaderboardAwardsSchoolYear(source.schoolYear || dom.adminAwardsSchoolYear?.value || '');
+    const sectionSettings = normalizeLeaderboardSectionSettings({
+      configured: source.configured === true,
+      includedSections: Array.isArray(source.includedSections) ? source.includedSections : leaderboardSectionSettings.includedSections,
+      includedSectionKeys: Array.isArray(source.includedSectionKeys) ? source.includedSectionKeys : leaderboardSectionSettings.includedSectionKeys
+    });
+    return {
+      version: 1,
+      schoolYear,
+      configured: sectionSettings.configured,
+      includedSections: sectionSettings.includedSections,
+      includedSectionKeys: sectionSettings.includedSectionKeys,
+      officialAtMs: leaderboardAwardsOfficialAtMs(schoolYear),
+      updatedAtMs: Math.max(0, Number(source.updatedAtMs || 0))
+    };
+  }
+
+  function setLeaderboardAwardsStatus(message = '', tone = '') {
+    if (!dom.adminAwardsStatus) return;
+    dom.adminAwardsStatus.textContent = String(message || '');
+    dom.adminAwardsStatus.dataset.tone = String(tone || '');
+  }
+
+  function setLeaderboardAwardsBusy(busy = false, label = '') {
+    [
+      dom.adminAwardsSaveSettingsBtn,
+      dom.adminAwardsPreviewSectionsBtn,
+      dom.adminAwardsDownloadSectionsBtn,
+      dom.adminAwardsPreviewStudentsBtn,
+      dom.adminAwardsDownloadStudentsBtn,
+      dom.adminAwardsRefreshBtn,
+      dom.adminAwardsOfficialSectionsBtn,
+      dom.adminAwardsOfficialStudentsBtn,
+      dom.adminAwardsOfficialAllBtn
+    ].forEach(button => { if (button) button.disabled = Boolean(busy); });
+    if (busy && label) setLeaderboardAwardsStatus(label, 'loading');
+  }
+
+  function renderLeaderboardAwardsCurrentPreview(snapshot = leaderboardAwardsState.live) {
+    const sections = Array.isArray(snapshot?.sectionAwards) ? snapshot.sectionAwards : [];
+    const students = Array.isArray(snapshot?.studentAwards) ? snapshot.studentAwards : [];
+    if (dom.adminAwardsSectionPreview) {
+      dom.adminAwardsSectionPreview.innerHTML = sections.length
+        ? sections.map(row => `<span><b>#${Number(row.rank || 0)}</b><strong>${escapeHTML(awardSectionLabel(row.name || row.section || 'Section'))}</strong><small>${Number(row.averageXp || 0).toLocaleString(undefined, { maximumFractionDigits: 1 })} avg XP</small></span>`).join('')
+        : 'No current section ranking is available yet.';
+    }
+    if (dom.adminAwardsStudentPreview) {
+      dom.adminAwardsStudentPreview.innerHTML = students.length
+        ? students.slice(0, 10).map(row => `<span><b>#${Number(row.rank || 0)}</b><strong>${escapeHTML(row.name || 'Student')}</strong><small>${Number(row.xp || 0).toLocaleString()} XP</small></span>`).join('')
+        : 'No current student ranking is available yet.';
+    }
+  }
+
+  function renderLeaderboardAwardsOfficialState() {
+    const settings = leaderboardAwardsState.settings || normalizeLeaderboardAwardsSettings({});
+    const official = leaderboardAwardsState.official;
+    const officialAtMs = Number(settings.officialAtMs || leaderboardAwardsOfficialAtMs(settings.schoolYear));
+    if (dom.adminAwardsSchoolYear && document.activeElement !== dom.adminAwardsSchoolYear) dom.adminAwardsSchoolYear.value = settings.schoolYear;
+    if (dom.adminAwardsOfficialDate) dom.adminAwardsOfficialDate.textContent = `${formatLeaderboardAwardsDate(officialAtMs)} · 12:00 AM`;
+    const ready = Boolean(official?.locked && Array.isArray(official.studentAwards) && Array.isArray(official.sectionAwards));
+    dom.adminAwardsOfficialPill?.classList.toggle('ready', ready);
+    dom.adminAwardsOfficialPill?.classList.toggle('pending', !ready);
+    if (dom.adminAwardsOfficialPill) dom.adminAwardsOfficialPill.textContent = ready ? 'Official · Locked' : 'Official · Pending';
+    dom.adminAwardsOfficialBox?.classList.toggle('ready', ready);
+    dom.adminAwardsOfficialBox?.classList.toggle('pending', !ready);
+    dom.adminAwardsOfficialActions?.classList.toggle('hidden', !ready);
+    if (ready) {
+      const lockedAt = Number(official.snapshotAtMs || officialAtMs);
+      if (dom.adminAwardsOfficialTitle) dom.adminAwardsOfficialTitle.textContent = `Official ${official.schoolYear || settings.schoolYear} awards are locked.`;
+      if (dom.adminAwardsOfficialStatus) dom.adminAwardsOfficialStatus.textContent = `Frozen ${formatLeaderboardAwardsDate(lockedAt, { time: true })} · ${Number(official.sourceStudentCount || 0)} included students · these ranks will not change.`;
+    } else {
+      if (dom.adminAwardsOfficialTitle) dom.adminAwardsOfficialTitle.textContent = 'Official awards are not locked yet.';
+      if (dom.adminAwardsOfficialStatus) dom.adminAwardsOfficialStatus.textContent = `The latest ranking stays printable anytime. The official ${settings.schoolYear} Top 3 Sections and Top 10 Students will freeze automatically on ${formatLeaderboardAwardsDate(officialAtMs)} at 12:00 AM.`;
+    }
+  }
+
+  async function fetchLeaderboardAwardsOfficialSnapshot(schoolYear = '') {
+    if (!getFirebaseActiveUser()) return null;
+    const key = leaderboardAwardsSchoolYearKey(schoolYear || leaderboardAwardsState.settings?.schoolYear || defaultLeaderboardAwardsSchoolYear());
+    try {
+      const data = await rtdbRestRequest(`leaderboardAwards/official/${key}`);
+      return data && typeof data === 'object' && data.locked === true ? data : null;
+    } catch (error) {
+      console.info('Official leaderboard awards snapshot unavailable.', error);
+      return null;
+    }
+  }
+
+  async function loadLeaderboardAwardsAdminPanel(options = {}) {
+    if (!isTeacherAuthenticated() || !dom.adminAwardsSchoolYear) return false;
+    if (leaderboardAwardsState.loading) return false;
+    leaderboardAwardsState.loading = true;
+    if (options.silent !== true) setLeaderboardAwardsStatus('Loading leaderboard award settings…', 'loading');
+    try {
+      let remoteSettings = null;
+      try { remoteSettings = await rtdbRestRequest(LEADERBOARD_AWARDS_SETTINGS_PATH); }
+      catch (error) { console.info('Leaderboard award settings are not published yet.', error); }
+      leaderboardAwardsState.settings = normalizeLeaderboardAwardsSettings(remoteSettings || {
+        schoolYear: dom.adminAwardsSchoolYear.value || defaultLeaderboardAwardsSchoolYear(),
+        configured: leaderboardSectionSettings.configured,
+        includedSections: leaderboardSectionSettings.includedSections,
+        includedSectionKeys: leaderboardSectionSettings.includedSectionKeys
+      });
+      // First V514 Admin open self-initializes the tiny RTDB award settings and
+      // arms the yearly Oct 1 trigger. No Firestore scan/write is involved.
+      if (!remoteSettings && getMcsAppsScriptUrl()) {
+        if (dom.adminAwardsSchoolYear) dom.adminAwardsSchoolYear.value = leaderboardAwardsState.settings.schoolYear;
+        await saveLeaderboardAwardsSettings({ silent: true });
+      }
+
+      // If the official deadline has passed, ask the trusted bridge to finalize
+      // the snapshot exactly once. The bridge reads/writes RTDB only.
+      if (Date.now() >= leaderboardAwardsState.settings.officialAtMs && getMcsAppsScriptUrl()) {
+        try {
+          await callAppsScriptSecure({ action: 'finalizeLeaderboardAwardsIfDue', schoolYear: leaderboardAwardsState.settings.schoolYear });
+        } catch (error) {
+          console.info('Automatic official awards finalization will retry later.', error);
+        }
+      }
+      leaderboardAwardsState.official = await fetchLeaderboardAwardsOfficialSnapshot(leaderboardAwardsState.settings.schoolYear);
+      renderLeaderboardAwardsOfficialState();
+      if (options.loadLive !== false) await refreshLeaderboardAwardsLive({ silent: true });
+      setLeaderboardAwardsStatus(
+        leaderboardAwardsState.official
+          ? `Official ${leaderboardAwardsState.settings.schoolYear} awards are ready. Latest live certificates are also available anytime.`
+          : 'Latest award rankings are ready. Official certificates will lock automatically on October 1 at 12:00 AM.',
+        'success'
+      );
+      return true;
+    } catch (error) {
+      console.error('Leaderboard awards admin panel failed to load.', error);
+      setLeaderboardAwardsStatus(error?.message || 'Could not load leaderboard awards.', 'error');
+      return false;
+    } finally {
+      leaderboardAwardsState.loading = false;
+    }
+  }
+
+  async function saveLeaderboardAwardsSettings(options = {}) {
+    if (!isTeacherAuthenticated()) return false;
+    const schoolYear = normalizeLeaderboardAwardsSchoolYear(dom.adminAwardsSchoolYear?.value || leaderboardAwardsState.settings?.schoolYear || '');
+    const sectionSettings = normalizeLeaderboardSectionSettings(leaderboardSectionSettings);
+    const payload = {
+      action: 'saveLeaderboardAwardSettings',
+      schoolYear,
+      configured: sectionSettings.configured,
+      includedSections: sectionSettings.includedSections,
+      includedSectionKeys: sectionSettings.includedSectionKeys
+    };
+    if (options.silent !== true) setLeaderboardAwardsBusy(true, 'Saving award settings and arming the official October 1 snapshot…');
+    try {
+      const result = await callAppsScriptSecure(payload);
+      if (!result?.ok) throw new Error(result?.error || 'Award settings could not be saved.');
+      leaderboardAwardsState.settings = normalizeLeaderboardAwardsSettings(result.settings || payload);
+      leaderboardAwardsState.official = await fetchLeaderboardAwardsOfficialSnapshot(schoolYear);
+      renderLeaderboardAwardsOfficialState();
+      if (options.silent !== true) setLeaderboardAwardsStatus(`Award settings saved for School Year ${schoolYear}. Official snapshot is armed for October 1 at 12:00 AM.`, 'success');
+      return true;
+    } catch (error) {
+      console.error('Could not save leaderboard award settings.', error);
+      if (options.silent !== true) setLeaderboardAwardsStatus(error?.message || 'Award settings could not be saved.', 'error');
+      return false;
+    } finally {
+      if (options.silent !== true) setLeaderboardAwardsBusy(false);
+    }
+  }
+
+  async function refreshLeaderboardAwardsLive(options = {}) {
+    if (!isTeacherAuthenticated()) return null;
+    if (options.silent !== true) setLeaderboardAwardsBusy(true, 'Refreshing current Top 3 Sections and Top 10 Students from RTDB…');
+    try {
+      // Award refresh stays RTDB-only. Use the mirrored award scope instead of
+      // re-reading Firestore leaderboard settings just to print certificates.
+      const awardSettings = leaderboardAwardsState.settings || normalizeLeaderboardAwardsSettings({
+        schoolYear: dom.adminAwardsSchoolYear?.value || defaultLeaderboardAwardsSchoolYear(),
+        configured: leaderboardSectionSettings.configured,
+        includedSections: leaderboardSectionSettings.includedSections,
+        includedSectionKeys: leaderboardSectionSettings.includedSectionKeys
+      });
+      const rows = await loadDailyGlobalLeaderboardEntries({ force: true, live: true });
+      const included = rows
+        .filter(row => String(row.accountStatus || 'active') !== 'disabled')
+        .filter(row => !awardSettings.configured || awardSettings.includedSectionKeys.includes(leaderboardSectionKey(row.section || '')));
+      const students = assignLeaderboardRanks(included.map(row => ({ ...row, current: false }))).slice(0, 10);
+      const allRanked = assignLeaderboardRanks(included.map(row => ({ ...row, current: false })));
+      const sections = buildSectionLeaderboard(allRanked).slice(0, 3);
+      const schoolYear = normalizeLeaderboardAwardsSchoolYear(dom.adminAwardsSchoolYear?.value || leaderboardAwardsState.settings?.schoolYear || '');
+      leaderboardAwardsState.live = {
+        version: 1,
+        official: false,
+        schoolYear,
+        generatedAtMs: Date.now(),
+        sourceStudentCount: included.length,
+        studentAwards: students.map(row => ({ rank: Number(row.rank || 0), name: String(row.name || 'Student'), section: String(row.section || ''), xp: Math.max(0, Number(row.xp || 0)) })),
+        sectionAwards: sections.map(row => ({ rank: Number(row.rank || 0), name: String(row.name || row.section || 'Section'), studentCount: Math.max(0, Number(row.studentCount || 0)), totalXp: Math.max(0, Number(row.xp || 0)), averageXp: Math.max(0, Number(row.averageXp || 0)) }))
+      };
+      leaderboardAwardsState.lastLiveLoadedAt = Date.now();
+      renderLeaderboardAwardsCurrentPreview(leaderboardAwardsState.live);
+      if (options.silent !== true) setLeaderboardAwardsStatus(`Current awards refreshed · ${included.length} included students · ${sections.length} ranked sections.`, 'success');
+      return leaderboardAwardsState.live;
+    } catch (error) {
+      console.error('Could not refresh live leaderboard awards.', error);
+      if (options.silent !== true) setLeaderboardAwardsStatus(error?.message || 'Could not refresh award rankings.', 'error');
+      return null;
+    } finally {
+      if (options.silent !== true) setLeaderboardAwardsBusy(false);
+    }
+  }
+
+  function drawAwardSeal(ctx, x, y, radius, rank, accent = '#d4af37') {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.fillStyle = 'rgba(15,23,42,0.10)';
+    ctx.beginPath(); ctx.arc(7, 10, radius + 8, 0, Math.PI * 2); ctx.fill();
+    const g = ctx.createRadialGradient(-radius * 0.25, -radius * 0.35, 8, 0, 0, radius);
+    g.addColorStop(0, '#fff8d9'); g.addColorStop(0.55, accent); g.addColorStop(1, '#7c5d12');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, radius, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.75)'; ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(0, 0, radius - 12, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = '#0f172a'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = `900 ${Math.round(radius * 0.62)}px Arial`;
+    ctx.fillText(`#${Number(rank || 0)}`, 0, -5);
+    ctx.font = `700 ${Math.round(radius * 0.20)}px Arial`; ctx.fillText('RANK', 0, radius * 0.42);
+    ctx.restore();
+  }
+
+  function awardAccentForRank(rank = 0) {
+    if (Number(rank) === 1) return '#d7ad32';
+    if (Number(rank) === 2) return '#aeb7c5';
+    if (Number(rank) === 3) return '#c78551';
+    return '#35a6a0';
+  }
+
+  async function renderLeaderboardAwardCertificateCanvas(kind, record = {}, snapshot = {}) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 1600; canvas.height = 1000;
+    const ctx = canvas.getContext('2d', { alpha: false });
+    const rank = Math.max(1, Number(record.rank || 1));
+    const accent = awardAccentForRank(rank);
+    const schoolYear = normalizeLeaderboardAwardsSchoolYear(snapshot.schoolYear || leaderboardAwardsState.settings?.schoolYear || '');
+    const official = snapshot.locked === true || snapshot.official === true;
+    const asOfMs = Number(snapshot.snapshotAtMs || snapshot.generatedAtMs || Date.now());
+    const logo = await loadCertificateAppLogo();
+
+    if (kind === 'sections') {
+      // Championship design: midnight navy, layered gold framing and a large
+      // podium seal. Intentionally distinct from the student honor design.
+      const bg = ctx.createLinearGradient(0, 0, 1600, 1000);
+      bg.addColorStop(0, '#061328'); bg.addColorStop(0.48, '#0b2344'); bg.addColorStop(1, '#071a31');
+      ctx.fillStyle = bg; ctx.fillRect(0, 0, 1600, 1000);
+      ctx.strokeStyle = accent; ctx.lineWidth = 10; ctx.strokeRect(38, 38, 1524, 924);
+      ctx.strokeStyle = 'rgba(255,255,255,0.34)'; ctx.lineWidth = 2; ctx.strokeRect(58, 58, 1484, 884);
+      for (let x = 90; x < 1530; x += 120) {
+        ctx.fillStyle = x % 240 === 90 ? 'rgba(215,173,50,0.08)' : 'rgba(255,255,255,0.025)';
+        ctx.beginPath(); ctx.moveTo(x, 70); ctx.lineTo(x + 260, 930); ctx.lineTo(x + 330, 930); ctx.lineTo(x + 70, 70); ctx.closePath(); ctx.fill();
+      }
+      if (logo) {
+        ctx.save(); ctx.beginPath(); ctx.arc(1410, 128, 52, 0, Math.PI * 2); ctx.clip(); ctx.drawImage(logo, 1358, 76, 104, 104); ctx.restore();
+        ctx.strokeStyle = accent; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(1410, 128, 56, 0, Math.PI * 2); ctx.stroke();
+      }
+      ctx.textAlign = 'center'; ctx.fillStyle = '#f8fafc'; ctx.font = '800 22px Arial'; ctx.fillText('G8CODE • ICT 8 CONNECT', 800, 198);
+      ctx.fillStyle = accent; ctx.font = '700 23px Arial'; ctx.fillText(official ? 'OFFICIAL SECTION RECOGNITION' : 'SECTION RECOGNITION', 800, 238);
+      const sectionCertificateTitle = 'CERTIFICATE OF SECTION EXCELLENCE';
+      let sectionTitleSize = 65;
+      ctx.font = `700 ${sectionTitleSize}px Georgia`;
+      while (ctx.measureText(sectionCertificateTitle).width > 1320 && sectionTitleSize > 46) {
+        sectionTitleSize -= 2;
+        ctx.font = `700 ${sectionTitleSize}px Georgia`;
+      }
+      ctx.fillStyle = '#ffffff'; ctx.fillText(sectionCertificateTitle, 800, 332);
+      ctx.fillStyle = 'rgba(226,232,240,0.90)'; ctx.font = '25px Arial'; ctx.fillText('Presented in recognition of outstanding collective mastery, consistency, and achievement', 800, 382);
+      ctx.fillStyle = 'rgba(226,232,240,0.92)'; ctx.font = '700 22px Arial'; ctx.fillText('Information and Communications Technology 8 – Second Term', 800, 420);
+
+      drawAwardSeal(ctx, 300, 605, 112, rank, accent);
+      ctx.textAlign = 'left';
+      const sectionName = awardSectionLabel(record.name || record.section || 'Section');
+      let size = 66; ctx.font = `700 ${size}px Georgia`;
+      while (ctx.measureText(sectionName).width > 940 && size > 40) { size -= 2; ctx.font = `700 ${size}px Georgia`; }
+      ctx.fillStyle = '#ffffff'; ctx.fillText(sectionName, 470, 555);
+      ctx.fillStyle = '#cbd5e1'; ctx.font = '24px Arial';
+      ctx.fillText(`Rank #${rank} in the G8Code Section Leaderboard • School Year ${schoolYear}`, 472, 608);
+
+      const stats = [
+        ['AVERAGE XP', Number(record.averageXp || 0).toLocaleString(undefined, { maximumFractionDigits: 1 })],
+        ['TOTAL XP', Number(record.totalXp ?? record.xp ?? 0).toLocaleString()],
+        ['STUDENTS', Number(record.studentCount || 0).toLocaleString()]
+      ];
+      stats.forEach((item, index) => {
+        const x = 470 + index * 315;
+        ctx.fillStyle = 'rgba(255,255,255,0.07)'; drawRoundRect(ctx, x, 655, 280, 116, 18, true, false);
+        ctx.strokeStyle = 'rgba(255,255,255,0.16)'; ctx.lineWidth = 2; drawRoundRect(ctx, x, 655, 280, 116, 18, false, true);
+        ctx.fillStyle = accent; ctx.font = '800 16px Arial'; ctx.fillText(item[0], x + 24, 692);
+        ctx.fillStyle = '#ffffff'; ctx.font = '800 34px Arial'; ctx.fillText(item[1], x + 24, 739);
+      });
+
+      // Keep the signing area practical on the dark premium Section design.
+      // Use a subtler glass-like plaque plus a slim light signing strip for contrast without a loud block.
+      ctx.textAlign = 'left';
+      ctx.fillStyle = '#e2e8f0'; ctx.font = '20px Arial';
+      ctx.fillText(`Awarded on: ${formatLeaderboardAwardsDate(asOfMs)}`, 112, 858);
+      ctx.fillStyle = '#94a3b8'; ctx.font = '17px Arial';
+      ctx.fillText(`School Year ${schoolYear}`, 112, 894);
+
+      ctx.fillStyle = 'rgba(15,23,42,0.34)'; drawRoundRect(ctx, 1000, 800, 472, 138, 22, true, false);
+      ctx.strokeStyle = 'rgba(215,173,50,0.72)'; ctx.lineWidth = 2.5; drawRoundRect(ctx, 1000, 800, 472, 138, 22, false, true);
+      ctx.fillStyle = 'rgba(255,248,231,0.92)'; drawRoundRect(ctx, 1070, 842, 332, 26, 10, true, false);
+      ctx.strokeStyle = 'rgba(255,255,255,0.26)'; ctx.lineWidth = 1.5; drawRoundRect(ctx, 1070, 842, 332, 26, 10, false, true);
+      ctx.strokeStyle = 'rgba(71,85,105,0.78)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(1084, 855); ctx.lineTo(1388, 855); ctx.stroke();
+      ctx.textAlign = 'center'; ctx.fillStyle = '#f8fafc'; ctx.font = '700 17px Arial'; ctx.fillText('Name & Signature', 1236, 892);
+      ctx.fillStyle = 'rgba(226,232,240,0.85)'; ctx.font = '700 16px Arial'; ctx.fillText('ICT 8 Teacher / G8Code Administrator', 1236, 920);
+    } else {
+      // Student design: warm ivory academic parchment with teal/navy geometry,
+      // laurels, and an individual rank badge. Deliberately different from the
+      // championship-style Section certificate.
+      const bg = ctx.createLinearGradient(0, 0, 1600, 1000);
+      bg.addColorStop(0, '#fffdf6'); bg.addColorStop(0.55, '#ffffff'); bg.addColorStop(1, '#eef8f7');
+      ctx.fillStyle = bg; ctx.fillRect(0, 0, 1600, 1000);
+      ctx.fillStyle = '#0f2745'; ctx.fillRect(0, 0, 165, 1000);
+      ctx.fillStyle = '#0f8f87'; ctx.fillRect(165, 0, 18, 1000);
+      ctx.fillStyle = '#0f2745'; ctx.fillRect(0, 0, 1600, 24);
+      ctx.fillStyle = accent; ctx.fillRect(183, 24, 1417, 8);
+      if (logo) {
+        ctx.save(); ctx.beginPath(); ctx.arc(98, 132, 48, 0, Math.PI * 2); ctx.clip(); ctx.drawImage(logo, 50, 84, 96, 96); ctx.restore();
+        ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(98, 132, 52, 0, Math.PI * 2); ctx.stroke();
+      }
+      ctx.save(); ctx.translate(106, 560); ctx.rotate(-Math.PI / 2); ctx.textAlign = 'center'; ctx.fillStyle = '#dbeafe'; ctx.font = '800 22px Arial'; ctx.fillText('G8CODE • TOP 10 MASTERY HONORS', 0, 0); ctx.restore();
+
+      ctx.textAlign = 'left'; ctx.fillStyle = '#0f8f87'; ctx.font = '800 21px Arial';
+      ctx.fillText(official ? 'OFFICIAL STUDENT RECOGNITION' : 'STUDENT RECOGNITION', 245, 118);
+      const studentCertificateTitle = 'CERTIFICATE OF ACHIEVEMENT';
+      let studentTitleSize = 60;
+      ctx.font = `700 ${studentTitleSize}px Georgia`;
+      while (ctx.measureText(studentCertificateTitle).width > 1040 && studentTitleSize > 44) {
+        studentTitleSize -= 2;
+        ctx.font = `700 ${studentTitleSize}px Georgia`;
+      }
+      ctx.fillStyle = '#0f2745'; ctx.fillText(studentCertificateTitle, 245, 198);
+      ctx.fillStyle = '#475569'; ctx.font = '700 21px Arial'; ctx.fillText('Information and Communications Technology 8 – Second Term', 245, 245);
+      ctx.fillStyle = '#64748b'; ctx.font = '25px Arial'; ctx.fillText('This certificate is proudly presented to', 245, 290);
+
+      const studentName = String(record.name || 'STUDENT').replace(/\s+/g, ' ').trim();
+      let size = 76; ctx.font = `700 ${size}px Georgia`;
+      while (ctx.measureText(studentName).width > 980 && size > 44) { size -= 2; ctx.font = `700 ${size}px Georgia`; }
+      ctx.fillStyle = '#0f172a'; ctx.fillText(studentName, 245, 400);
+      ctx.fillStyle = '#0f8f87'; ctx.fillRect(245, 432, Math.min(890, Math.max(330, ctx.measureText(studentName).width)), 5);
+
+      ctx.fillStyle = '#475569'; ctx.font = '24px Arial';
+      ctx.fillText(`for earning Rank #${rank} among G8Code students through demonstrated mastery and consistent learning`, 245, 505);
+      ctx.fillStyle = '#0f2745'; ctx.font = '700 27px Arial'; ctx.fillText(awardSectionLabel(record.section || ''), 245, 558);
+      ctx.fillStyle = '#64748b'; ctx.font = '22px Arial'; ctx.fillText(`School Year ${schoolYear}`, 245, 597);
+
+      drawAwardSeal(ctx, 1328, 346, 105, rank, accent);
+      ctx.fillStyle = '#f8fafc'; drawRoundRect(ctx, 1075, 515, 385, 160, 24, true, false);
+      ctx.strokeStyle = '#d8e4e3'; ctx.lineWidth = 2; drawRoundRect(ctx, 1075, 515, 385, 160, 24, false, true);
+      ctx.fillStyle = '#0f8f87'; ctx.font = '800 18px Arial'; ctx.textAlign = 'center'; ctx.fillText('MASTERY XP', 1267, 563);
+      ctx.fillStyle = '#0f2745'; ctx.font = '800 50px Arial'; ctx.fillText(Number(record.xp || 0).toLocaleString(), 1267, 625);
+
+      ctx.textAlign = 'left'; ctx.fillStyle = '#64748b'; ctx.font = '19px Arial';
+      ctx.fillText(`Awarded on: ${formatLeaderboardAwardsDate(asOfMs)}`, 245, 760);
+      ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(1040, 820); ctx.lineTo(1425, 820); ctx.stroke();
+      ctx.textAlign = 'center'; ctx.fillStyle = '#334155'; ctx.font = '700 18px Arial'; ctx.fillText('ICT 8 Teacher / G8Code Administrator', 1232, 852);
+      ctx.fillStyle = '#64748b'; ctx.font = '16px Arial'; ctx.fillText('Learn • Code • Connect', 1232, 881);
+      ctx.textAlign = 'left'; ctx.fillStyle = '#0f2745'; ctx.font = '800 16px Arial'; ctx.fillText('G8CODE LEADERBOARD AWARD', 245, 905);
+      ctx.fillStyle = '#64748b'; ctx.font = '15px Arial'; ctx.fillText(official ? 'OFFICIAL • LOCKED SCHOOL-YEAR RECORD' : 'LIVE LEADERBOARD RANKING', 245, 934);
+    }
+    return canvas;
+  }
+
+  async function buildLeaderboardAwardsPdfBlob(kind = 'students', snapshot = null) {
+    const source = snapshot || leaderboardAwardsState.live || await refreshLeaderboardAwardsLive({ silent: true });
+    if (!source) throw new Error('Award rankings are not available yet.');
+    let records = [];
+    if (kind === 'sections') records = Array.isArray(source.sectionAwards) ? source.sectionAwards.slice(0, 3) : [];
+    else if (kind === 'students') records = Array.isArray(source.studentAwards) ? source.studentAwards.slice(0, 10) : [];
+    else records = [
+      ...(Array.isArray(source.sectionAwards) ? source.sectionAwards.slice(0, 3).map(row => ({ ...row, __awardKind: 'sections' })) : []),
+      ...(Array.isArray(source.studentAwards) ? source.studentAwards.slice(0, 10).map(row => ({ ...row, __awardKind: 'students' })) : [])
+    ];
+    if (!records.length) throw new Error(kind === 'sections' ? 'No section awards are available yet.' : 'No student awards are available yet.');
+    const pages = [];
+    for (const record of records) {
+      const pageKind = record.__awardKind || kind;
+      const canvas = await renderLeaderboardAwardCertificateCanvas(pageKind, record, source);
+      const jpegBlob = await wireframeCanvasToBlob(canvas, 'image/jpeg', 0.95);
+      pages.push({ width: canvas.width, height: canvas.height, bytes: new Uint8Array(await jpegBlob.arrayBuffer()) });
+    }
+    return buildWireframePdfBlob(pages, 'desktop');
+  }
+
+  function leaderboardAwardsFileName(kind = 'students', snapshot = {}) {
+    const schoolYear = normalizeLeaderboardAwardsSchoolYear(snapshot.schoolYear || leaderboardAwardsState.settings?.schoolYear || '');
+    const official = snapshot.locked === true || snapshot.official === true;
+    const label = kind === 'sections' ? 'Top-3-Sections' : kind === 'all' ? 'All-Awards' : 'Top-10-Students';
+    return `G8Code-${official ? 'OFFICIAL-' : ''}${label}-${schoolYear}.pdf`;
+  }
+
+  async function deliverLeaderboardAwardsPdf(kind = 'students', options = {}) {
+    const official = options.official === true;
+    const preview = options.preview === true;
+    setLeaderboardAwardsBusy(true, official ? 'Preparing official award certificates…' : 'Preparing latest award certificates…');
+    let popup = null;
+    try {
+      let snapshot = official ? leaderboardAwardsState.official : leaderboardAwardsState.live;
+      if (!snapshot && official) snapshot = await fetchLeaderboardAwardsOfficialSnapshot(leaderboardAwardsState.settings?.schoolYear || '');
+      if (!snapshot && !official) snapshot = await refreshLeaderboardAwardsLive({ silent: true });
+      if (!snapshot) throw new Error(official ? 'Official awards are not available yet.' : 'Current leaderboard awards could not be loaded.');
+      if (preview) popup = openCertificateViewerWindow();
+      const pdfBlob = await buildLeaderboardAwardsPdfBlob(kind, snapshot);
+      if (preview) showCertificatePdfInWindow(pdfBlob, popup);
+      else downloadBlob(pdfBlob, leaderboardAwardsFileName(kind, snapshot));
+      setLeaderboardAwardsStatus(`${official ? 'Official' : 'Latest'} ${kind === 'sections' ? 'Top 3 Section' : kind === 'all' ? 'combined' : 'Top 10 Student'} certificate PDF is ready.`, 'success');
+      return true;
+    } catch (error) {
+      try { popup?.close?.(); } catch (_) {}
+      console.error('Leaderboard award PDF failed.', error);
+      setLeaderboardAwardsStatus(error?.message || 'Could not create the award PDF.', 'error');
+      await appAlert(error?.message || 'Could not create the award PDF.', { title: 'Leaderboard Awards', danger: true, icon: '🏅' });
+      return false;
+    } finally {
+      setLeaderboardAwardsBusy(false);
     }
   }
 
@@ -55444,6 +56054,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     adminExplorerState.loaded = true;
     renderAdminExplorerProgress();
     renderAdminLeaderboardSectionSettings();
+    void loadLeaderboardAwardsAdminPanel({ loadLive: true, silent: true });
     // v507: no ranking publish on admin open/refresh. Student ranking rows are
     // frozen for the day and published around 8 PM by the daily sync path.
   }
@@ -55661,6 +56272,21 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     updateAdminLeaderboardSelectionLabels();
   });
   dom.adminLeaderboardSaveBtn?.addEventListener('click', saveAdminLeaderboardSectionSettings);
+  dom.adminAwardsSaveSettingsBtn?.addEventListener('click', () => saveLeaderboardAwardsSettings());
+  dom.adminAwardsRefreshBtn?.addEventListener('click', () => refreshLeaderboardAwardsLive());
+  dom.adminAwardsPreviewSectionsBtn?.addEventListener('click', () => deliverLeaderboardAwardsPdf('sections', { preview: true }));
+  dom.adminAwardsDownloadSectionsBtn?.addEventListener('click', () => deliverLeaderboardAwardsPdf('sections'));
+  dom.adminAwardsPreviewStudentsBtn?.addEventListener('click', () => deliverLeaderboardAwardsPdf('students', { preview: true }));
+  dom.adminAwardsDownloadStudentsBtn?.addEventListener('click', () => deliverLeaderboardAwardsPdf('students'));
+  dom.adminAwardsOfficialSectionsBtn?.addEventListener('click', () => deliverLeaderboardAwardsPdf('sections', { official: true }));
+  dom.adminAwardsOfficialStudentsBtn?.addEventListener('click', () => deliverLeaderboardAwardsPdf('students', { official: true }));
+  dom.adminAwardsOfficialAllBtn?.addEventListener('click', () => deliverLeaderboardAwardsPdf('all', { official: true }));
+  dom.adminAwardsSchoolYear?.addEventListener('change', () => {
+    const normalized = normalizeLeaderboardAwardsSchoolYear(dom.adminAwardsSchoolYear?.value || '');
+    if (dom.adminAwardsSchoolYear) dom.adminAwardsSchoolYear.value = normalized;
+    leaderboardAwardsState.settings = normalizeLeaderboardAwardsSettings({ ...(leaderboardAwardsState.settings || {}), schoolYear: normalized });
+    renderLeaderboardAwardsOfficialState();
+  });
   dom.adminSampleViewBtn?.addEventListener('click', viewAdminSampleCertificate);
   dom.adminSampleDownloadBtn?.addEventListener('click', downloadAdminSampleCertificate);
   dom.adminCertificateBackfillBtn?.addEventListener('click', syncExistingCertificatesFromAdmin);

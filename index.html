@@ -3130,6 +3130,79 @@ https://example.com/song3.mp3"></textarea>
             </div>
           </section>
 
+          <section class="code-explorer-admin-awards" aria-labelledby="codeExplorerAdminAwardsTitle">
+            <div class="code-explorer-admin-awards-head">
+              <div>
+                <span class="code-explorer-admin-setting-kicker">🏅 Leaderboard Honors</span>
+                <h4 id="codeExplorerAdminAwardsTitle">G8Code Leaderboard Award Certificates</h4>
+                <p>Print the latest Top 3 Section and Top 10 Student awards anytime. On October 1 at 12:00 AM (Asia/Manila), the official leaderboard standing is frozen for the school year and becomes the permanent official certificate set.</p>
+              </div>
+              <span id="codeExplorerAdminAwardsOfficialPill" class="code-explorer-admin-awards-pill pending">Official · Pending</span>
+            </div>
+
+            <div class="code-explorer-admin-awards-config">
+              <label for="codeExplorerAdminAwardsSchoolYear">
+                <span>School Year</span>
+                <input id="codeExplorerAdminAwardsSchoolYear" type="text" inputmode="numeric" maxlength="9" placeholder="2026-2027" autocomplete="off" />
+                <small>Used on every award certificate. Example: 2026-2027.</small>
+              </label>
+              <div class="code-explorer-admin-awards-lock">
+                <span>Official Lock</span>
+                <strong id="codeExplorerAdminAwardsOfficialDate">October 1 · 12:00 AM</strong>
+                <small>Asia/Manila · official snapshot cannot change after it is locked.</small>
+              </div>
+              <button id="codeExplorerAdminAwardsSaveSettingsBtn" class="ghost-btn" type="button">Save Award Settings</button>
+            </div>
+
+            <div class="code-explorer-admin-awards-grid">
+              <article class="code-explorer-admin-award-card section-awards">
+                <div class="code-explorer-admin-award-card-icon">🏆</div>
+                <div>
+                  <span>Section Excellence</span>
+                  <strong>Top 3 Sections</strong>
+                  <p>Prestige Section Excellence certificates based on the latest Section Leaderboard rank by average XP.</p>
+                </div>
+                <div id="codeExplorerAdminAwardsSectionPreview" class="code-explorer-admin-awards-preview">Load rankings to preview the current Top 3.</div>
+                <div class="code-explorer-admin-award-actions">
+                  <button id="codeExplorerAdminAwardsPreviewSectionsBtn" class="ghost-btn" type="button">Preview Latest</button>
+                  <button id="codeExplorerAdminAwardsDownloadSectionsBtn" class="primary-btn" type="button">Download Latest PDF</button>
+                </div>
+              </article>
+
+              <article class="code-explorer-admin-award-card student-awards">
+                <div class="code-explorer-admin-award-card-icon">🎓</div>
+                <div>
+                  <span>Mastery Honors</span>
+                  <strong>Top 10 Students</strong>
+                  <p>Individual achievement certificates using the latest complete Student Leaderboard ranking.</p>
+                </div>
+                <div id="codeExplorerAdminAwardsStudentPreview" class="code-explorer-admin-awards-preview">Load rankings to preview the current Top 10.</div>
+                <div class="code-explorer-admin-award-actions">
+                  <button id="codeExplorerAdminAwardsPreviewStudentsBtn" class="ghost-btn" type="button">Preview Latest</button>
+                  <button id="codeExplorerAdminAwardsDownloadStudentsBtn" class="primary-btn" type="button">Download Latest PDF</button>
+                </div>
+              </article>
+            </div>
+
+            <div id="codeExplorerAdminAwardsOfficialBox" class="code-explorer-admin-awards-official pending">
+              <div>
+                <span>🔒 Official School-Year Awards</span>
+                <strong id="codeExplorerAdminAwardsOfficialTitle">Official awards are not locked yet.</strong>
+                <p id="codeExplorerAdminAwardsOfficialStatus" role="status">The current ranking remains live. The official Top 3 Sections and Top 10 Students will freeze automatically on October 1 at 12:00 AM.</p>
+              </div>
+              <div id="codeExplorerAdminAwardsOfficialActions" class="code-explorer-admin-awards-official-actions hidden">
+                <button id="codeExplorerAdminAwardsOfficialSectionsBtn" class="ghost-btn" type="button">Official Top 3 Sections PDF</button>
+                <button id="codeExplorerAdminAwardsOfficialStudentsBtn" class="ghost-btn" type="button">Official Top 10 Students PDF</button>
+                <button id="codeExplorerAdminAwardsOfficialAllBtn" class="primary-btn" type="button">Download All Official Awards</button>
+              </div>
+            </div>
+
+            <div class="code-explorer-admin-awards-foot">
+              <p id="codeExplorerAdminAwardsStatus" class="helper-note" role="status">Award certificates use the complete RTDB leaderboard snapshot and do not scan Firestore.</p>
+              <button id="codeExplorerAdminAwardsRefreshBtn" class="ghost-btn mini" type="button">↻ Refresh Award Rankings</button>
+            </div>
+          </section>
+
           <section class="code-explorer-admin-xp-migration" aria-labelledby="codeExplorerAdminXpMigrationTitle">
             <div class="code-explorer-admin-xp-migration-copy">
               <span>⚡ Progress Repair + Legacy XP</span>
