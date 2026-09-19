@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ict8-connect-v553-byte-strike-premium-combat';
+const CACHE_NAME = 'ict8-connect-v554-byte-strike-mobile-landscape';
 const APP_SHELL = [
   './',
   './index.html',

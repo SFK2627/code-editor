@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const ASSET_VERSION = '20260919-v553-byte-strike-premium-combat';
+  const ASSET_VERSION = '20260919-v554-byte-strike-mobile-landscape';
 
   const GAME_REGISTRY = Object.freeze([
     {
