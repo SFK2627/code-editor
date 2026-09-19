@@ -46091,6 +46091,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   const XP_MINI_GAME_ID_CODE_VAULT = 'code-vault';
   const XP_MINI_GAME_ID_CODE_TILES = 'code-tiles';
   const XP_MINI_GAME_ID_DIAL_IN = 'dial-in';
+  const XP_MINI_GAME_ID_BYTE_HANGMAN = 'byte-hangman';
 
   const XP_MINI_GAME_DEFINITIONS = Object.freeze({
     [XP_MINI_GAME_ID_CODE_FLY]: Object.freeze({ stateKey: 'codeFly', maxReward: 15 }),
@@ -46115,7 +46116,8 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     [XP_MINI_GAME_ID_MILLION_BYTE]: Object.freeze({ stateKey: 'millionByte', maxReward: 3 }),
     [XP_MINI_GAME_ID_CODE_VAULT]: Object.freeze({ stateKey: 'codeVault', maxReward: 2 }),
     [XP_MINI_GAME_ID_CODE_TILES]: Object.freeze({ stateKey: 'codeTiles', maxReward: 3 }),
-    [XP_MINI_GAME_ID_DIAL_IN]: Object.freeze({ stateKey: 'dialIn', maxReward: 5 })
+    [XP_MINI_GAME_ID_DIAL_IN]: Object.freeze({ stateKey: 'dialIn', maxReward: 5 }),
+    [XP_MINI_GAME_ID_BYTE_HANGMAN]: Object.freeze({ stateKey: 'byteHangman', maxReward: 20 })
   });
 
   function normalizeXpMiniGameId(gameId = XP_MINI_GAME_ID_CODE_FLY) {
@@ -46845,6 +46847,14 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     return codeVaultScoreDetails(metrics).tier;
   }
 
+  function byteHangmanRewardForMetrics(metrics = {}) {
+    const source = metrics && typeof metrics === 'object' ? metrics : {};
+    if (source.completed !== true || source.xpEligible === false) return 0;
+    const difficulty = String(source.difficulty || '').toLowerCase();
+    const rank = Math.max(1, Math.min(4, Math.floor(Number(source.difficultyRank || ({ easy: 1, medium: 2, hard: 3, difficult: 4 }[difficulty] || 1)))));
+    return [0, 5, 10, 15, 20][rank] || 0;
+  }
+
   // v464 — XP pace balance. Score tiers still measure skill, but a second
   // server-mirrored cap limits how much XP a very short round can produce.
   // Missing duration means legacy stored data, so old already-earned XP is not
@@ -46853,8 +46863,19 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     const id = normalizeXpMiniGameId(gameId);
     const source = metrics && typeof metrics === 'object' ? metrics : {};
     const durationMs = Math.max(0, Math.floor(Number(source.durationMs || 0)));
-    if (durationMs <= 0) return 15;
+    if (durationMs <= 0) return id === XP_MINI_GAME_ID_BYTE_HANGMAN ? 20 : 15;
     const seconds = durationMs / 1000;
+
+    // BYTE HANGMAN rewards a successful decode by selected difficulty. Time is
+    // only a plausibility floor so waiting longer never raises permanent XP.
+    if (id === XP_MINI_GAME_ID_BYTE_HANGMAN) {
+      if (source.completed !== true || source.xpEligible === false) return 0;
+      const rank = Math.max(1, Math.min(4, Math.floor(Number(source.difficultyRank || 1))));
+      const activeSeconds = Math.max(0, Number(source.activeTimeMs || durationMs)) / 1000;
+      const wordLength = Math.max(1, Math.min(50, Math.floor(Number(source.wordLength || 1))));
+      const floor = Math.max([0, 3, 4, 5, 6][rank], Math.min(9, wordLength * .24));
+      return activeSeconds >= floor ? 20 : 0;
+    }
 
     // Fixed-duration arcade rounds: strong play matters, but one short round
     // cannot award the old 8–10 XP bursts.
@@ -47015,6 +47036,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       case XP_MINI_GAME_ID_CODE_VAULT: tierReward = codeVaultRewardForMetrics(metrics); break;
       case XP_MINI_GAME_ID_CODE_TILES: tierReward = codeTilesRewardForMetrics(metrics); break;
       case XP_MINI_GAME_ID_DIAL_IN: tierReward = dialInRewardForMetrics(metrics); break;
+      case XP_MINI_GAME_ID_BYTE_HANGMAN: tierReward = byteHangmanRewardForMetrics(metrics); break;
       default: tierReward = 0;
     }
     return Math.min(tierReward, miniGameDurationRewardCap(id, metrics));
@@ -47023,6 +47045,30 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   function normalizeMiniGameMetrics(gameId, input = {}) {
     const id = normalizeXpMiniGameId(gameId);
     const source = input && typeof input === 'object' && !Array.isArray(input) ? input : {};
+    if (id === XP_MINI_GAME_ID_BYTE_HANGMAN) {
+      const difficultyRaw = String(source.difficulty || '').toLowerCase();
+      const difficulty = ['easy','medium','hard','difficult'].includes(difficultyRaw) ? difficultyRaw : 'easy';
+      const difficultyRank = Math.max(1, Math.min(4, Math.floor(Number(source.difficultyRank || ({ easy:1, medium:2, hard:3, difficult:4 }[difficulty])))));
+      const modeRaw = String(source.mode || '').toLowerCase();
+      const mode = ['classic','time','survival','daily','endless'].includes(modeRaw) ? modeRaw : 'classic';
+      return {
+        completed: source.completed === true,
+        wordId: String(source.wordId || '').trim().slice(0, 24),
+        wordHash: String(source.wordHash || '').trim().slice(0, 24),
+        mode,
+        difficulty,
+        difficultyRank,
+        mistakes: Math.max(0, Math.min(10, Math.floor(Number(source.mistakes || 0)))),
+        hintsUsed: Math.max(0, Math.min(10, Math.floor(Number(source.hintsUsed || 0)))),
+        perfect: source.perfect === true,
+        stabilityRemaining: Math.max(0, Math.min(100, Number(source.stabilityRemaining || 0))),
+        bestLetterStreak: Math.max(0, Math.min(50, Math.floor(Number(source.bestLetterStreak || 0)))),
+        wordLength: Math.max(1, Math.min(50, Math.floor(Number(source.wordLength || 1)))),
+        activeTimeMs: Math.max(0, Math.min(30 * 60 * 1000, Math.floor(Number(source.activeTimeMs || 0)))),
+        xpEligible: source.xpEligible !== false,
+        durationMs: Math.max(0, Math.min(30 * 60 * 1000, Math.floor(Number(source.durationMs || 0))))
+      };
+    }
     if (id === XP_MINI_GAME_ID_BUG_SMASH) {
       const attempts = Math.max(0, Math.min(1000, Math.floor(Number(source.attempts || 0))));
       const hits = Math.max(0, Math.min(attempts || 1000, Math.floor(Number(source.hits || 0))));
@@ -47416,6 +47462,17 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     const id = normalizeXpMiniGameId(gameId);
     const source = input && typeof input === 'object' && !Array.isArray(input) ? input : {};
     const base = { lastPlayedAt: String(source.lastPlayedAt || '').slice(0, 48) };
+    if (id === XP_MINI_GAME_ID_BYTE_HANGMAN) {
+      return {
+        ...base,
+        bestScore: Math.max(0, Math.min(100000, Math.floor(Number(source.bestScore || 0)))),
+        bestLetterStreak: Math.max(0, Math.min(50, Math.floor(Number(source.bestLetterStreak || 0)))),
+        bestStability: Math.max(0, Math.min(100, Number(source.bestStability || 0))),
+        highestDifficultyRank: Math.max(0, Math.min(4, Math.floor(Number(source.highestDifficultyRank || 0)))),
+        perfectSolves: Math.max(0, Math.min(100000, Math.floor(Number(source.perfectSolves || 0)))),
+        wordsSolved: Math.max(0, Math.min(1000000, Math.floor(Number(source.wordsSolved || 0))))
+      };
+    }
     if (id === XP_MINI_GAME_ID_MEMORY_CODE) {
       return {
         ...base,
@@ -47629,6 +47686,17 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     const left = normalizeMiniGameRecord(id, a);
     const right = normalizeMiniGameRecord(id, b);
     const lastPlayedAt = [left.lastPlayedAt, right.lastPlayedAt].filter(Boolean).sort().pop() || '';
+    if (id === XP_MINI_GAME_ID_BYTE_HANGMAN) {
+      return {
+        lastPlayedAt,
+        bestScore: Math.max(Number(left.bestScore || 0), Number(right.bestScore || 0)),
+        bestLetterStreak: Math.max(Number(left.bestLetterStreak || 0), Number(right.bestLetterStreak || 0)),
+        bestStability: Math.max(Number(left.bestStability || 0), Number(right.bestStability || 0)),
+        highestDifficultyRank: Math.max(Number(left.highestDifficultyRank || 0), Number(right.highestDifficultyRank || 0)),
+        perfectSolves: Math.max(Number(left.perfectSolves || 0), Number(right.perfectSolves || 0)),
+        wordsSolved: Math.max(Number(left.wordsSolved || 0), Number(right.wordsSolved || 0))
+      };
+    }
     if (id === XP_MINI_GAME_ID_MEMORY_CODE) {
       return {
         lastPlayedAt,
@@ -47871,6 +47939,13 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       return next;
     }
     next.bestScore = Math.max(Number(next.bestScore || 0), score);
+    if (id === XP_MINI_GAME_ID_BYTE_HANGMAN && metrics.completed) {
+      next.bestLetterStreak = Math.max(Number(next.bestLetterStreak || 0), Number(metrics.bestLetterStreak || 0));
+      next.bestStability = Math.max(Number(next.bestStability || 0), Number(metrics.stabilityRemaining || 0));
+      next.highestDifficultyRank = Math.max(Number(next.highestDifficultyRank || 0), Number(metrics.difficultyRank || 0));
+      next.wordsSolved = Math.max(0, Number(next.wordsSolved || 0)) + 1;
+      if (metrics.perfect) next.perfectSolves = Math.max(0, Number(next.perfectSolves || 0)) + 1;
+    }
     if (id === XP_MINI_GAME_ID_BUG_SMASH) {
       next.bestCombo = Math.max(Number(next.bestCombo || 0), Number(metrics.bestCombo || 0));
       next.bestAccuracy = Math.max(Number(next.bestAccuracy || 0), Number(metrics.accuracy || 0));
@@ -50695,7 +50770,8 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       millionByte: normalizeMiniGameRecord(XP_MINI_GAME_ID_MILLION_BYTE, miniGames.games?.millionByte),
       codeVault: normalizeMiniGameRecord(XP_MINI_GAME_ID_CODE_VAULT, miniGames.games?.codeVault),
       codeTiles: normalizeMiniGameRecord(XP_MINI_GAME_ID_CODE_TILES, miniGames.games?.codeTiles),
-      dialIn: normalizeMiniGameRecord(XP_MINI_GAME_ID_DIAL_IN, miniGames.games?.dialIn)
+      dialIn: normalizeMiniGameRecord(XP_MINI_GAME_ID_DIAL_IN, miniGames.games?.dialIn),
+      byteHangman: normalizeMiniGameRecord(XP_MINI_GAME_ID_BYTE_HANGMAN, miniGames.games?.byteHangman)
     };
     return {
       loggedIn,
@@ -51153,6 +51229,27 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       const millionDetails = millionByteScoreDetails(metrics);
       score = millionDetails.completed ? millionDetails.score : 0;
       maxPlausibleScore = 1000;
+    } else if (gameId === XP_MINI_GAME_ID_BYTE_HANGMAN) {
+      metrics.durationMs = durationMs;
+      metrics.activeTimeMs = Math.max(0, Math.min(Number(metrics.activeTimeMs || durationMs), durationMs));
+      const bankEntry = window.ICT8_BYTE_HANGMAN_BANK?.byId?.[metrics.wordId] || null;
+      const difficultyRanks = { easy: 1, medium: 2, hard: 3, difficult: 4 };
+      const bankDifficulty = String(bankEntry?.difficulty || '').toLowerCase();
+      const expectedRank = difficultyRanks[bankDifficulty] || 0;
+      const bankLength = bankEntry ? String(bankEntry.word || '').toUpperCase().replace(/[^A-Z]/g, '').length : 0;
+      const minActiveMs = Math.round(Math.max([0, 3000, 4000, 5000, 6000][expectedRank] || 6000, Math.min(9000, Math.max(1, bankLength) * 240)));
+      const identityOk = Boolean(
+        bankEntry
+        && expectedRank === metrics.difficultyRank
+        && bankDifficulty === metrics.difficulty
+        && bankLength === metrics.wordLength
+      );
+      metrics.completed = Boolean(metrics.completed && identityOk && metrics.activeTimeMs >= minActiveMs && metrics.stabilityRemaining > 0 && metrics.xpEligible !== false);
+      metrics.perfect = Boolean(metrics.completed && metrics.perfect && metrics.mistakes === 0 && metrics.hintsUsed === 0);
+      if (!metrics.completed) score = 0;
+      const completionCeiling = 2600 + metrics.wordLength * 240 + metrics.difficultyRank * 950 + metrics.bestLetterStreak * 120;
+      maxPlausibleScore = Math.max(3500, Math.min(16000, Math.floor(completionCeiling)));
+      score = metrics.completed ? Math.max(1, Math.min(score, maxPlausibleScore)) : 0;
     } else if (gameId === XP_MINI_GAME_ID_CODE_VAULT) {
       metrics.durationMs = durationMs;
       metrics.runToken = String(sessionId || metrics.runToken || '').slice(0, 118);

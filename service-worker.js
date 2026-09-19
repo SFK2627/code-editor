@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ict8-connect-v524-pinoy-feud-turn-score-scroll';
+const CACHE_NAME = 'ict8-connect-v525-byte-hangman';
 const APP_SHELL = [
   './',
   './index.html',

@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const ASSET_VERSION = '20260919-v524-pinoy-feud-turn-score-scroll';
+  const ASSET_VERSION = '20260919-v525-byte-hangman';
 
   const GAME_REGISTRY = Object.freeze([
     {
@@ -372,6 +372,25 @@
       }
     },
     {
+      id: 'byte-hangman',
+      stateKey: 'byteHangman',
+      name: 'BYTE HANGMAN',
+      icon: '◈',
+      description: 'Decode words and phrases before the Byte Core crashes. Five solo modes, broad learning topics, custom keyboard controls, and controlled XP.',
+      maxXp: 20,
+      category: 'WORD / EDUCATIONAL ARCADE',
+      difficulty: '★★★★☆',
+      globalName: 'ICT8ByteHangman',
+      dependencies: ['games/byte-hangman/byte-hangman-bank.js'],
+      script: 'games/byte-hangman/byte-hangman.js',
+      style: 'games/byte-hangman/byte-hangman.css',
+      bestText(record = {}) {
+        const score = Math.max(0, Number(record.bestScore || 0));
+        const streak = Math.max(0, Number(record.bestLetterStreak || 0));
+        return score > 0 ? `🏆 Best ${Math.floor(score).toLocaleString()} · Streak ×${streak}` : '🏆 Byte Core ready';
+      }
+    },
+    {
       id: 'code-duel',
       stateKey: 'codeDuel',
       name: 'CODE DUEL',
@@ -589,6 +608,7 @@
     'code-vault':             { bpm:88,  root:52, scale:'minor',     lead:'bell',   melody:[0,null,3,null,2,null,5,null,4,null,2,null,1,null,0,null], bass:[0,5,3,4], drums:'suspense', gain:.25 },
     'code-tiles':             { bpm:138, root:57, scale:'minorPent', lead:'pluck',  melody:[0,null,2,null,3,null,4,null,3,null,2,null,4,null,5,null], bass:[0,3,4,3], drums:'dance',  gain:.20 },
     'byte-runner-html-rush':  { bpm:144, root:50, scale:'minor',     lead:'pulse',  melody:[0,2,4,null,5,4,2,null,0,3,5,null,6,5,3,null], bass:[0,0,5,4], drums:'drive',  gain:.31 },
+    'byte-hangman':           { bpm:104, root:55, scale:'minorPent', lead:'bell', melody:[0,null,2,3,null,4,3,null,1,null,3,5,4,2,0,null], bass:[0,3,4,3], drums:'suspense', gain:.26 },
     'code-duel':              { bpm:148, root:50, scale:'minorPent', lead:'pulse',  melody:[0,2,3,5,3,2,0,null,0,3,4,5,4,3,2,null], bass:[0,0,3,4], drums:'drive',  gain:.32 },
     'code-tower-race':        { bpm:124, root:52, scale:'majorPent', lead:'pluck', melody:[0,2,3,4,3,2,1,null,0,3,4,5,4,3,2,null], bass:[0,3,4,3], drums:'groove', gain:.31 },
     'code-snake-duel':        { bpm:136, root:50, scale:'minorPent', lead:'pulse', melody:[0,1,3,2,4,3,2,null,0,2,4,5,4,3,1,null], bass:[0,0,3,4], drums:'drive', gain:.32 },
