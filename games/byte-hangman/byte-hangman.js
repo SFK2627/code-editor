@@ -2,6 +2,7 @@
   'use strict';
 
   const GAME_ID = 'byte-hangman';
+  const ASSET_VERSION = '20260919-v536-byte-hangman-slot-conflict-fix';
   const STORAGE_PREFIX = 'ict8.bytehangman.v1';
   const RECENT_LIMIT = 36;
   const REWARD_HISTORY_DAYS = 7;
@@ -14,11 +15,11 @@
     difficult: Object.freeze({ label: 'DIFFICULT', xp: 20, mistakes: 5, rank: 4, multiplier: 1.9 })
   });
   const MODES = Object.freeze({
-    classic: { label: 'CLASSIC', sub: 'One puzzle. Restore the Byte Core before stability reaches 0%.' },
-    time: { label: 'TIME ATTACK', sub: '90 seconds. Decode as many words as possible.' },
-    survival: { label: 'SURVIVAL', sub: 'One shared stability pool. Keep the system alive.' },
+    classic: { label: 'CLASSIC', sub: 'One puzzle. Solve it before the Hangman drawing is complete.' },
+    time: { label: 'TIME ATTACK', sub: '90 seconds. Solve as many Hangman words as possible.' },
+    survival: { label: 'SURVIVAL', sub: 'One shared chance pool. Keep solving before you run out.' },
     daily: { label: 'DAILY WORD', sub: 'One deterministic daily challenge with controlled XP.' },
-    endless: { label: 'ENDLESS', sub: 'Build a long streak. Perfect decodes restore some stability.' }
+    endless: { label: 'ENDLESS', sub: 'Build a long streak. Perfect solves restore some chances.' }
   });
 
   const r = {
@@ -69,7 +70,10 @@
     nextTimer: 0,
     feedbackTimer: 0,
     solveOpen: false,
-    clueExpanded: false
+    clueExpanded: false,
+    deathStage: 'none',
+    deathTimer: 0,
+    deathSecondTimer: 0
   };
 
   const $ = (sel, root = r.overlay) => root?.querySelector?.(sel) || null;
@@ -152,13 +156,40 @@
   function xpForDifficulty() { return difficultyConfig().xp; }
 
   function createCoreMarkup(prefix = 'game') {
-    return `<div class="bh-core" data-bh-core="${prefix}" aria-label="Byte Bot System Core">
-      <div class="bh-core-grid"></div>
-      <div class="bh-circuit c1"></div><div class="bh-circuit c2"></div><div class="bh-circuit c3"></div><div class="bh-circuit c4"></div>
-      <div class="bh-ring ring-a"></div><div class="bh-ring ring-b"></div><div class="bh-ring ring-c"></div>
-      <div class="bh-reactor"><div class="bh-reactor-glow"></div><div class="bh-bot-face"><i class="eye left"></i><i class="eye right"></i><i class="mouth"></i></div></div>
-      <div class="bh-core-spark s1"></div><div class="bh-core-spark s2"></div><div class="bh-core-spark s3"></div>
-      <span class="bh-core-tag">BYTE CORE</span>
+    const preview = prefix === 'setup';
+    return `<div class="bh-hangman-stage${preview ? ' preview' : ''}" data-bh-core="${prefix}" aria-label="Hangman drawing">
+      <svg class="bh-hangman-svg" viewBox="0 0 260 280" role="img" aria-label="Classic Hangman gallows and hanging figure">
+        <g class="bh-gallows">
+          <path class="wood base" d="M28 248 H220"/>
+          <path class="wood post" d="M63 248 V34"/>
+          <path class="wood beam" d="M63 34 H190"/>
+          <path class="wood brace" d="M64 84 L108 38"/>
+          <path class="rope" d="M188 35 V58 Q204 63 204 80 V98 Q204 104 198 107"/>
+          <ellipse class="noose" cx="188" cy="105" rx="11" ry="8"/>
+          <path class="knot" d="M196 104 q5 -3 7 2 q-5 4 -7 -2Z"/>
+        </g>
+        <g class="hang-figure">
+          <circle class="hang-part part-1${preview ? ' visible' : ''}" data-part="1" cx="188" cy="77" r="18"/>
+          <path class="hang-part neck${preview ? ' visible' : ''}" data-part="2" d="M188 95 V124"/>
+          <path class="hang-part torso${preview ? ' visible' : ''}" data-part="3" d="M188 124 V179"/>
+          <path class="hang-part arm-left${preview ? ' visible' : ''}" data-part="4" d="M188 140 L167 160"/>
+          <path class="hang-part arm-right${preview ? ' visible' : ''}" data-part="5" d="M188 140 L209 160"/>
+          <path class="hang-part leg-left${preview ? ' visible' : ''}" data-part="6" d="M188 179 Q181 197 173 218"/>
+          <path class="hang-part leg-right" data-part="7" d="M188 179 Q198 196 206 216"/>
+          <g class="face-alive">
+            <path class="face-line" d="M181 73 q2 -2 4 0"/>
+            <path class="face-line" d="M191 73 q2 -2 4 0"/>
+            <path class="face-line" d="M182 87 Q188 90 194 87"/>
+          </g>
+          <g class="face-dead" aria-hidden="true">
+            <path d="M180 71 l6 6 m0 -6 l-6 6"/>
+            <path d="M190 71 l6 6 m0 -6 l-6 6"/>
+            <path d="M181 89 Q188 83 195 89"/>
+          </g>
+        </g>
+      </svg>
+      <div class="bh-death-stamp" aria-hidden="true"><span>NO CHANCES LEFT</span><strong>HANGMAN COMPLETE</strong></div>
+      <div class="bh-hangman-caption"><strong>${preview ? 'CLASSIC HANGMAN' : 'HANGMAN'}</strong><small>${preview ? 'Wrong guesses draw the hanging figure.' : 'Every wrong guess brings the hanging figure closer to defeat.'}</small></div>
     </div>`;
   }
 
@@ -174,25 +205,25 @@
     overlay.innerHTML = `<section class="bh-shell">
       <header class="bh-topbar">
         <button type="button" class="bh-topbtn" data-bh-back aria-label="Back to Mini-Games">← MINI-GAMES</button>
-        <div class="bh-brand"><span>G8CODE SOLO ARCADE</span><strong>BYTE HANGMAN</strong><small>DECODE THE WORD BEFORE THE SYSTEM CRASHES</small></div>
+        <div class="bh-brand"><span>G8CODE SOLO ARCADE</span><strong>BYTE HANGMAN</strong><small>GUESS THE WORD BEFORE THE HANGMAN IS COMPLETE</small></div>
         <div class="bh-top-actions"><button type="button" class="bh-iconbtn" data-bh-sound aria-label="Toggle sound">🔊</button><button type="button" class="bh-iconbtn" data-bh-close aria-label="Close">×</button></div>
       </header>
       <main class="bh-main">
         <section class="bh-panel active" data-bh-panel="setup">
           <div class="bh-setup-wrap">
             <article class="bh-hero-card">
-              <div class="bh-hero-copy"><span class="bh-kicker">SYSTEM WORD DEFENSE</span><h1>BYTE HANGMAN</h1><p>Decode the hidden word before the Byte Core loses all stability. No gallows — just a digital system fighting to stay online.</p>
-                <div class="bh-hero-badges"><span>SOLO XP</span><span>810-WORD BANK</span><span>PHONE + DESKTOP</span><span>EDUCATIONAL</span></div>
+              <div class="bh-hero-copy"><span class="bh-kicker">CLASSIC WORD GUESSING</span><h1>BYTE HANGMAN</h1><p>A real Hangman-style word game for G8Code. Every wrong letter adds another part to the figure. Solve the word before the drawing is complete.</p>
+                <div class="bh-hero-badges"><span>SOLO XP</span><span>810-WORD BANK</span><span>PHONE + DESKTOP</span><span>CLASSIC HANGMAN</span></div>
               </div>
               ${createCoreMarkup('setup')}
             </article>
             <div class="bh-setup-grid">
-              <section class="bh-config-card"><div class="bh-section-head"><span>01</span><div><strong>CHOOSE MODE</strong><small>Different ways to decode.</small></div></div><div class="bh-mode-grid" data-bh-modes></div></section>
+              <section class="bh-config-card"><div class="bh-section-head"><span>01</span><div><strong>CHOOSE MODE</strong><small>Different ways to play Hangman.</small></div></div><div class="bh-mode-grid" data-bh-modes></div></section>
               <section class="bh-config-card"><div class="bh-section-head"><span>02</span><div><strong>DIFFICULTY</strong><small>Higher difficulty = higher eligible XP.</small></div></div><div class="bh-difficulty-grid" data-bh-difficulties></div></section>
               <section class="bh-config-card"><div class="bh-section-head"><span>03</span><div><strong>TOPIC</strong><small>Not coding-only. Mix school, science, culture, sports, web, and more.</small></div></div><label class="bh-select-wrap"><span>CATEGORY</span><select data-bh-category></select></label></section>
-              <section class="bh-config-card bh-stats-card"><div class="bh-section-head"><span>04</span><div><strong>YOUR DECODER STATS</strong><small>Stored lightly on this device; permanent XP uses the existing secure G8Code system.</small></div></div><div class="bh-stat-grid" data-bh-setup-stats></div></section>
+              <section class="bh-config-card bh-stats-card"><div class="bh-section-head"><span>04</span><div><strong>YOUR HANGMAN STATS</strong><small>Stored lightly on this device; permanent XP uses the existing secure G8Code system.</small></div></div><div class="bh-stat-grid" data-bh-setup-stats></div></section>
             </div>
-            <section class="bh-how-card"><div><strong>HOW TO PLAY</strong><p>Guess letters → protect System Stability → use hints carefully → decode the word before the core reaches 0%.</p></div><button type="button" class="bh-primary" data-bh-start>START DECODING</button></section>
+            <section class="bh-how-card"><div><strong>HOW TO PLAY</strong><p>Guess letters → wrong guesses draw the Hangman → use hints carefully → solve the word before the figure is complete.</p></div><button type="button" class="bh-primary" data-bh-start>START GUESSING</button></section>
           </div>
         </section>
 
@@ -208,36 +239,36 @@
             </div>
             <div class="bh-game-layout">
               <aside class="bh-core-panel">
-                <div class="bh-core-title"><span>SYSTEM STABILITY</span><strong data-bh-stability>100%</strong></div>
+                <div class="bh-core-title"><span>CHANCES LEFT</span><strong data-bh-stability>6 LEFT</strong></div>
                 ${createCoreMarkup('game')}
                 <div class="bh-stability-track"><i data-bh-stability-bar></i></div>
-                <div class="bh-stability-state" data-bh-stability-state>STABLE</div>
-                <div class="bh-error-row"><span>ERRORS</span><strong data-bh-errors>0 / 6</strong></div>
+                <div class="bh-stability-state" data-bh-stability-state>NO MISTAKES</div>
+                <div class="bh-error-row"><span>WRONG GUESSES</span><strong data-bh-errors>0 / 6</strong></div>
                 <div class="bh-run-mini"><div><small>SCORE</small><b data-bh-score>0</b></div><div><small>LETTER STREAK</small><b data-bh-letter-streak>×0</b></div><div><small data-bh-timer-label>TIME</small><b data-bh-time>0:00</b></div></div>
               </aside>
               <section class="bh-puzzle-panel">
                 <div class="bh-xp-status eligible" data-bh-xp-status><span></span><strong>XP ELIGIBLE</strong><small>New rotated puzzle</small></div>
                 <div class="bh-word-display" data-bh-word aria-live="polite"></div>
-                <div class="bh-feedback" data-bh-feedback aria-live="polite"><strong>TAP A LETTER TO BEGIN</strong><span>Protect the core and decode the word.</span></div>
-                <div class="bh-clue"><div class="bh-clue-head"><span>HINT / DEFINITION</span><button type="button" data-bh-clue-toggle>DETAILS</button></div><p data-bh-hint></p></div>
+                <div class="bh-feedback" data-bh-feedback aria-live="polite"><strong>TAP A LETTER TO BEGIN</strong><span>Guess the word before the Hangman drawing is complete.</span></div>
+                <div class="bh-clue"><div class="bh-clue-head"><span>HINT / DEFINITION</span><button type="button" data-bh-clue-toggle>DETAILS</button></div><p data-bh-hint></p><div class="bh-clue-meta" data-bh-hint-meta></div></div>
                 <div class="bh-tools"><button type="button" data-bh-reveal><strong>REVEAL LETTER</strong><small>Score penalty · breaks perfect</small></button><button type="button" data-bh-remove><strong>REMOVE LETTERS</strong><small>Disable 3 wrong keys</small></button><button type="button" data-bh-solve-toggle><strong>SOLVE WORD</strong><small>Risk 2 errors if wrong</small></button><button type="button" data-bh-pause><strong>PAUSE</strong><small>Timed modes only</small></button></div>
-                <form class="bh-solve-form" data-bh-solve-form hidden><label><span>FULL ANSWER</span><input data-bh-solve-input maxlength="80" autocomplete="off" spellcheck="false" placeholder="Type the complete word or phrase"></label><button type="submit">DECODE</button><button type="button" class="ghost" data-bh-solve-cancel>CANCEL</button></form>
+                <form class="bh-solve-form" data-bh-solve-form hidden><label><span>FULL ANSWER</span><input data-bh-solve-input maxlength="80" autocomplete="off" spellcheck="false" placeholder="Type the complete word or phrase"></label><button type="submit">SOLVE</button><button type="button" class="ghost" data-bh-solve-cancel>CANCEL</button></form>
               </section>
             </div>
-            <section class="bh-keyboard-card"><div class="bh-keyboard-head"><span>BYTE KEYBOARD</span><small>Tap or use A–Z on a physical keyboard</small></div><div class="bh-keyboard" data-bh-keyboard></div></section>
+            <section class="bh-keyboard-card"><div class="bh-keyboard-head"><span>LETTER BOARD</span><small>Tap or use A–Z on a physical keyboard</small></div><div class="bh-keyboard" data-bh-keyboard></div></section>
           </div>
         </section>
 
         <section class="bh-panel" data-bh-panel="result">
           <div class="bh-result-wrap"><article class="bh-result-card" data-bh-result-card>
-            <div class="bh-result-beam"></div><span class="bh-result-kicker" data-bh-result-kicker>SYSTEM RESTORED</span><h2 data-bh-result-title>PHOTOSYNTHESIS</h2><p class="bh-result-summary" data-bh-result-summary></p>
+            <div class="bh-result-beam"></div><span class="bh-result-kicker" data-bh-result-kicker>WORD SOLVED!</span><h2 data-bh-result-title>PHOTOSYNTHESIS</h2><p class="bh-result-summary" data-bh-result-summary></p>
             <div class="bh-result-grid"><div><small>DIFFICULTY</small><strong data-bh-result-difficulty>HARD</strong></div><div><small>TIME</small><strong data-bh-result-time>31.4 SEC</strong></div><div><small>MISTAKES</small><strong data-bh-result-mistakes>0</strong></div><div><small>HINTS USED</small><strong data-bh-result-hints>0</strong></div><div><small>BEST LETTER STREAK</small><strong data-bh-result-streak>0</strong></div><div><small>SCORE</small><strong data-bh-result-score>0</strong></div><div class="xp"><small>XP</small><strong data-bh-result-xp>+0 XP</strong></div><div><small>WORDS SOLVED</small><strong data-bh-result-words>1</strong></div></div>
             <div class="bh-learn"><span>LEARN SOMETHING</span><p data-bh-result-explanation></p></div><div class="bh-result-note" data-bh-result-note></div>
             <div class="bh-result-actions"><button type="button" class="bh-primary" data-bh-next>NEXT WORD</button><button type="button" data-bh-change>CHANGE MODE</button><button type="button" data-bh-exit>EXIT</button></div>
           </article></div>
         </section>
       </main>
-      <div class="bh-pause-layer" data-bh-pause-layer hidden><div class="bh-modal"><span>SYSTEM PAUSED</span><h2>BYTE CORE ON HOLD</h2><p>The timer is paused only because you chose Pause. Resume when ready.</p><button type="button" class="bh-primary" data-bh-resume>RESUME</button><button type="button" data-bh-pause-exit>EXIT RUN</button></div></div>
+      <div class="bh-pause-layer" data-bh-pause-layer hidden><div class="bh-modal"><span>GAME PAUSED</span><h2>HANGMAN ON HOLD</h2><p>The timer is paused. Resume when you are ready to keep guessing.</p><button type="button" class="bh-primary" data-bh-resume>RESUME</button><button type="button" data-bh-pause-exit>EXIT RUN</button></div></div>
       <div class="bh-confirm-layer" data-bh-confirm hidden><div class="bh-modal"><span>LEAVE CURRENT RUN?</span><h2>Progress for this active run will be lost.</h2><p>No XP is awarded for unfinished puzzles.</p><button type="button" class="bh-danger" data-bh-confirm-exit>LEAVE RUN</button><button type="button" data-bh-confirm-stay>KEEP PLAYING</button></div></div>
       <div class="bh-toast" data-bh-toast hidden></div>
     </section>`;
@@ -374,6 +405,9 @@
     r.letterStreak = 0;
     r.hintsUsed = 0;
     r.clueExpanded = false;
+    clearTimeout(r.deathTimer);
+    clearTimeout(r.deathSecondTimer);
+    r.deathStage = 'none';
     r.rewardClaimed = false;
     r.wordStartedAt = now();
     r.wordsAttempted += 1;
@@ -381,7 +415,7 @@
     try { r.round = r.bridge?.beginRound?.(GAME_ID) || null; } catch (_) { r.round = null; }
     r.phase = 'READY';
     renderAll();
-    feedback('TAP A LETTER TO BEGIN', 'Protect the core and decode the word.', 'neutral');
+    feedback('TAP A LETTER TO BEGIN', 'Every wrong guess adds another part to the Hangman.', 'neutral');
     announceFirstTime();
   }
 
@@ -415,59 +449,109 @@
     const xp = $('[data-bh-xp-status]');
     xp.className = `bh-xp-status ${r.wordXpEligible ? 'eligible' : 'practice'}`;
     xp.querySelector('strong').textContent = r.wordXpEligible ? 'XP ELIGIBLE' : 'PRACTICE ROUND';
-    xp.querySelector('small').textContent = r.wordXpEligible ? `Successful ${d.label} decode can earn +${d.xp} XP` : (r.mode === 'daily' ? 'Daily XP already claimed today' : 'Recent/repeat puzzle or run reward already used');
+    xp.querySelector('small').textContent = r.wordXpEligible ? `Successful ${d.label} solve can earn +${d.xp} XP` : (r.mode === 'daily' ? 'Daily XP already claimed today' : 'Recent/repeat puzzle or run reward already used');
   }
   function stabilityStatus(value = r.stability) {
-    const v = clamp(value, 0, 100);
-    if (v <= 0) return ['SYSTEM FAILURE', 'failure'];
-    if (v <= 17) return ['EMERGENCY', 'emergency'];
-    if (v <= 33) return ['CRITICAL', 'critical'];
-    if (v <= 50) return ['SYSTEM DAMAGE', 'damage'];
-    if (v <= 67) return ['WARNING', 'warning'];
-    if (v <= 83) return ['MINOR ERROR', 'minor'];
-    return ['STABLE', 'stable'];
+    const left = Math.max(0, r.maxMistakes - r.mistakes);
+    if (left <= 0) return ['HANGMAN COMPLETE', 'failure'];
+    if (left === 1) return ['LAST CHANCE', 'emergency'];
+    if (left === 2) return ['DANGER', 'critical'];
+    if (left <= Math.ceil(r.maxMistakes / 2)) return ['BE CAREFUL', 'damage'];
+    if (r.mistakes > 0) return ['KEEP GUESSING', 'warning'];
+    return ['NO MISTAKES', 'stable'];
   }
   function renderCore() {
     const v = Math.round(clamp(r.stability, 0, 100));
     const [label, state] = stabilityStatus(v);
+    const left = Math.max(0, r.maxMistakes - r.mistakes);
+    const stage = r.maxMistakes > 0 ? Math.min(7, Math.ceil((r.mistakes / r.maxMistakes) * 7)) : 0;
     const game = $('[data-bh-game]');
     game.dataset.coreState = state;
-    $('[data-bh-stability]').textContent = `${v}%`;
+    game.dataset.deathStage = r.deathStage || 'none';
+    $('[data-bh-stability]').textContent = `${left} LEFT`;
     $('[data-bh-stability-state]').textContent = label;
     $('[data-bh-stability-bar]').style.width = `${v}%`;
     $('[data-bh-errors]').textContent = `${r.mistakes} / ${r.maxMistakes}`;
     const core = $('[data-bh-core="game"]');
-    if (core) core.dataset.state = state;
+    if (core) {
+      core.dataset.state = state;
+      core.dataset.stage = String(stage);
+      core.classList.toggle('complete', left <= 0);
+      core.classList.toggle('drop', r.deathStage === 'drop');
+      core.classList.toggle('struggle', r.deathStage === 'struggle');
+      core.classList.toggle('dead', r.deathStage === 'dead');
+      core.querySelectorAll('[data-part]').forEach(part => {
+        const level = Number(part.dataset.part || 0);
+        let visible = level <= stage;
+        if (part.classList.contains('face-alive')) visible = visible && r.deathStage !== 'dead';
+        part.classList.toggle('visible', visible);
+      });
+      const aliveFace = core.querySelector('.face-alive');
+      if (aliveFace) aliveFace.classList.toggle('visible', stage >= 1 && r.deathStage !== 'dead');
+      const deadFace = core.querySelector('.face-dead');
+      if (deadFace) deadFace.classList.toggle('visible', r.deathStage === 'dead');
+    }
   }
   function answerChars() { return [...normalizeAnswer(r.current?.word || '')]; }
   function renderWord() {
     const wrap = $('[data-bh-word]');
-    const chars = answerChars();
-    const totalLetters = chars.filter(ch => /[A-Z]/.test(ch)).length;
-    wrap.dataset.length = totalLetters > 20 ? 'long' : totalLetters > 12 ? 'medium' : 'short';
-    const groups = [];
-    let current = [];
-    chars.forEach((ch, idx) => {
-      if (ch === ' ') { if (current.length) groups.push(current); current = []; groups.push([{ ch: ' ', idx }]); }
-      else current.push({ ch, idx });
-    });
-    if (current.length) groups.push(current);
-    wrap.innerHTML = groups.map(group => {
-      if (group.length === 1 && group[0].ch === ' ') return '<span class="bh-word-space" aria-hidden="true"></span>';
-      return `<span class="bh-word-group">${group.map(({ ch, idx }) => {
-        if (!/[A-Z]/.test(ch)) return `<span class="bh-char punctuation">${escapeHtml(ch)}</span>`;
+    if (!wrap) return;
+    const answer = normalizeAnswer(r.current?.word || '');
+    const words = answer.split(' ').filter(Boolean);
+    const totalLetters = [...answer].filter(ch => /[A-Z]/.test(ch)).length;
+    const maxWordLetters = words.reduce((max, word) => Math.max(max, [...word].filter(ch => /[A-Z]/.test(ch)).length), 0);
+    const density = totalLetters > 34 || maxWordLetters > 18 ? 'micro' : totalLetters > 26 || maxWordLetters > 15 ? 'ultra' : totalLetters > 20 || maxWordLetters > 12 ? 'long' : totalLetters > 12 || maxWordLetters > 9 ? 'medium' : 'short';
+    wrap.dataset.length = density;
+    wrap.dataset.words = String(Math.max(1, words.length));
+    wrap.dataset.maxWord = String(maxWordLetters);
+
+    let globalIndex = 0;
+    wrap.innerHTML = words.map((word, wordIndex) => {
+      const lettersInWord = [...word].filter(ch => /[A-Z]/.test(ch)).length;
+      const tokenClass = lettersInWord > 12 ? ' long-token' : '';
+      const slots = [...word].map(ch => {
+        const idx = globalIndex++;
+        if (!/[A-Z]/.test(ch)) {
+          return `<span class="bh-letter-slot punctuation" data-char-index="${idx}" aria-label="${escapeHtml(ch)}"><b>${escapeHtml(ch)}</b></span>`;
+        }
         const revealed = r.guessed.has(ch) || r.phase === 'ROUND_COMPLETE' || r.phase === 'ROUND_FAILED';
-        return `<span class="bh-char ${revealed ? 'revealed' : 'hidden'}" data-letter="${ch}" style="--reveal-index:${idx}"><b>${revealed ? ch : ''}</b></span>`;
-      }).join('')}</span>`;
+        return `<span class="bh-letter-slot ${revealed ? 'bh-slot-revealed' : 'bh-slot-hidden'}" data-letter="${ch}" data-char-index="${idx}" style="--reveal-index:${idx}" aria-label="${revealed ? `Letter ${ch}` : 'Hidden letter'}"><b>${revealed ? ch : ''}</b><i aria-hidden="true"></i></span>`;
+      }).join('');
+      const gap = wordIndex < words.length - 1 ? '<span class="bh-word-gap" aria-hidden="true"></span>' : '';
+      return `<span class="bh-word-token${tokenClass}" data-word-index="${wordIndex}" style="--word-slots:${Math.max(1, [...word].length)}">${slots}</span>${gap}`;
     }).join('');
   }
+  function getHintMeta(entry = r.current) {
+    if (!entry) return '';
+    const normalized = normalizeAnswer(entry.word || '');
+    const letters = [...normalized].filter(ch => /[A-Z]/.test(ch));
+    if (!letters.length) return '';
+    const words = normalized.split(/\s+/).filter(Boolean).length;
+    const parts = [`${letters.length} LETTERS`];
+    if (words > 1) parts.push(`${words} WORDS`);
+    parts.push(`STARTS WITH ${letters[0]}`);
+    if (r.difficulty === 'easy' || r.difficulty === 'medium') {
+      const last = letters[letters.length - 1];
+      if (last && last !== letters[0]) parts.push(`ENDS WITH ${last}`);
+    }
+    return parts.join(' · ');
+  }
+  function getHintDetail(entry = r.current) {
+    if (!entry) return '';
+    const pieces = [entry.explanation || '', getHintMeta(entry), entry.category ? `Category: ${entry.category}` : '', entry.difficulty ? `Difficulty: ${String(entry.difficulty).toUpperCase()}` : ''];
+    return pieces.filter(Boolean).join(' · ');
+  }
+
   function renderHint() {
-    $('[data-bh-hint]').textContent = r.current?.hint || 'Use the category and letter pattern to decode the answer.';
+    const mainHint = r.current?.hint || 'Use the category and letter pattern to solve the answer.';
+    $('[data-bh-hint]').textContent = mainHint;
+    const meta = $('[data-bh-hint-meta]');
+    if (meta) meta.textContent = getHintMeta(r.current);
     $('[data-bh-clue-toggle]').textContent = r.clueExpanded ? 'HIDE FACT' : 'DETAILS';
     let existing = $('.bh-clue-extra');
     if (r.clueExpanded) {
-      if (!existing) { existing = document.createElement('p'); existing.className = 'bh-clue-extra'; $('[data-bh-hint]').after(existing); }
-      existing.textContent = r.current?.explanation || '';
+      if (!existing) { existing = document.createElement('p'); existing.className = 'bh-clue-extra'; $('[data-bh-hint-meta]')?.after(existing); }
+      existing.textContent = getHintDetail(r.current);
     } else existing?.remove();
   }
   function renderKeyboard() {
@@ -523,7 +607,7 @@
       const gain = Math.round((100 * occurrences + Math.min(200, r.letterStreak * 18)) * difficultyConfig().multiplier);
       r.score += gain; r.wordScore += gain;
       sfx('correct'); haptic(12);
-      feedback(r.letterStreak >= 7 ? 'PERFECT STREAK!' : r.letterStreak >= 5 ? 'GREAT!' : r.letterStreak >= 3 ? 'GOOD!' : 'CORRECT!', `+${gain.toLocaleString()} SCORE · ${occurrences > 1 ? `${occurrences} letters revealed` : 'Letter decoded'}`, 'good');
+      feedback(r.letterStreak >= 7 ? 'PERFECT STREAK!' : r.letterStreak >= 5 ? 'GREAT!' : r.letterStreak >= 3 ? 'GOOD!' : 'CORRECT!', `+${gain.toLocaleString()} SCORE · ${occurrences > 1 ? `${occurrences} letters revealed` : 'Letter revealed'}`, 'good');
     } else {
       r.letterStreak = 0;
       applyMistakeUnits(1);
@@ -531,7 +615,7 @@
       feedback('WRONG LETTER', `${Math.max(0, r.maxMistakes - r.mistakes)} error${Math.max(0, r.maxMistakes - r.mistakes) === 1 ? '' : 's'} remaining`, 'bad');
     }
     renderAll();
-    if (r.stability <= 0) { r.phase = 'ROUND_FAILED'; renderAll(); scheduleRoundFailure(); return; }
+    if (r.stability <= 0) { r.phase = 'ROUND_FAILED'; r.deathStage = 'drop'; renderAll(); scheduleRoundFailure(); return; }
     if (isSolved()) { r.phase = 'ROUND_COMPLETE'; renderAll(); scheduleRoundComplete(); return; }
     clearTimeout(r.processingTimer);
     r.processingTimer = setTimeout(() => { if (r.phase === 'PROCESSING_GUESS') { r.phase = 'READY'; renderKeyboard(); renderTools(); } }, 135);
@@ -566,7 +650,7 @@
     r.guessed.add(letter);
     r.score = Math.max(0, r.score - 160); r.wordScore = Math.max(0, r.wordScore - 160);
     sfx('hint');
-    feedback('BYTE HINT USED', `${letter} revealed · score bonus reduced`, 'hint');
+    feedback('HINT USED', `${letter} revealed · score bonus reduced`, 'hint');
     renderAll();
     if (isSolved()) { r.phase = 'ROUND_COMPLETE'; renderAll(); scheduleRoundComplete(); }
   }
@@ -578,7 +662,7 @@
     r.hintsUsed += 1;
     r.score = Math.max(0, r.score - 100); r.wordScore = Math.max(0, r.wordScore - 100);
     sfx('hint');
-    feedback('DECOY KEYS REMOVED', `${pool.join(' · ')} disabled · score bonus reduced`, 'hint');
+    feedback('WRONG KEYS REMOVED', `${pool.join(' · ')} disabled · score bonus reduced`, 'hint');
     renderKeyboard(); renderTools(); renderHud();
   }
   function toggleClueDetail() {
@@ -607,15 +691,15 @@
       const bonus = Math.round((450 + Math.max(0, unrevealed.length - 1) * 60) * difficultyConfig().multiplier);
       r.score += bonus; r.wordScore += bonus;
       sfx('solve'); haptic([12, 35, 12]);
-      feedback('FULL DECODE!', `+${bonus.toLocaleString()} SCORE · answer accepted`, 'good');
+      feedback('WORD SOLVED!', `+${bonus.toLocaleString()} SCORE · answer accepted`, 'good');
       r.phase = 'ROUND_COMPLETE'; renderAll(); scheduleRoundComplete();
     } else {
       r.letterStreak = 0;
       applyMistakeUnits(2);
       sfx('wrong'); haptic([35, 35, 35]);
-      feedback('DECODE FAILED', 'Full-word attempt cost 2 error units.', 'bad');
+      feedback('WRONG FULL ANSWER', 'Full-word attempt cost 2 wrong-guess units.', 'bad');
       renderAll();
-      if (r.stability <= 0) { r.phase = 'ROUND_FAILED'; renderAll(); scheduleRoundFailure(); }
+      if (r.stability <= 0) { r.phase = 'ROUND_FAILED'; r.deathStage = 'drop'; renderAll(); scheduleRoundFailure(); }
     }
   }
 
@@ -642,12 +726,12 @@
     r.lastResult = { success: true, perfect, elapsed, resultInfo, entry: r.current, mistakes: r.mistakes, hintsUsed: r.hintsUsed, wordScore: r.wordScore };
 
     if (r.mode === 'time') {
-      feedback(perfect ? 'PERFECT DECODE!' : 'SYSTEM RESTORED', `${r.current.displayWord} · loading next word…`, 'good');
+      feedback(perfect ? 'PERFECT SOLVE!' : 'WORD SOLVED!', `${r.current.displayWord} · loading next word…`, 'good');
       r.nextTimer = setTimeout(() => { if (r.mode === 'time' && Math.max(0, r.runDeadline - now()) > 0) loadNextWord(); else endContinuousRun('time'); }, 520);
       return;
     }
     if (r.mode === 'survival' || r.mode === 'endless') {
-      feedback(perfect ? 'PERFECT DECODE!' : 'SYSTEM RESTORED', `${r.current.displayWord} · streak ×${r.wordStreak}`, 'good');
+      feedback(perfect ? 'PERFECT SOLVE!' : 'WORD SOLVED!', `${r.current.displayWord} · streak ×${r.wordStreak}`, 'good');
       r.nextTimer = setTimeout(() => loadNextWord(), 620);
       return;
     }
@@ -656,7 +740,27 @@
 
   function scheduleRoundFailure() {
     clearTimeout(r.nextTimer);
-    r.nextTimer = setTimeout(failWord, 360);
+    clearTimeout(r.deathTimer);
+    clearTimeout(r.deathSecondTimer);
+    r.deathStage = 'drop';
+    renderCore();
+    sfx('creak');
+    haptic([45, 60, 35]);
+    r.deathTimer = setTimeout(() => {
+      if (r.phase !== 'ROUND_FAILED') return;
+      r.deathStage = 'struggle';
+      renderCore();
+      sfx('tension');
+      haptic([25, 20, 25, 20, 25]);
+    }, 650);
+    r.deathSecondTimer = setTimeout(() => {
+      if (r.phase !== 'ROUND_FAILED') return;
+      r.deathStage = 'dead';
+      renderCore();
+      sfx('death');
+      haptic([38, 60, 38]);
+    }, 1850);
+    r.nextTimer = setTimeout(failWord, 3400);
   }
   function failWord() {
     if (!r.current || r.phase !== 'ROUND_FAILED') return;
@@ -666,7 +770,7 @@
     sfx('failure');
     r.lastResult = { success: false, perfect: false, elapsed, resultInfo: null, entry: r.current, mistakes: r.mistakes, hintsUsed: r.hintsUsed, wordScore: r.wordScore };
     if (r.mode === 'time') {
-      feedback('SYSTEM FAILURE', `${r.current.displayWord} · next puzzle incoming…`, 'bad');
+      feedback('HANGMAN COMPLETE', `${r.current.displayWord} · next puzzle incoming…`, 'bad');
       r.nextTimer = setTimeout(() => { if (Math.max(0, r.runDeadline - now()) > 0) loadNextWord(); else endContinuousRun('time'); }, 700);
       return;
     }
@@ -737,11 +841,11 @@
     const awarded = Math.max(0, Number(result.resultInfo?.awardedXp || 0));
     const entry = result.entry;
     $('[data-bh-result-card]').classList.toggle('failed', !result.success);
-    $('[data-bh-result-kicker]').textContent = result.success ? (result.perfect ? 'PERFECT DECODE!' : 'SYSTEM RESTORED') : 'SYSTEM FAILURE';
+    $('[data-bh-result-kicker]').textContent = result.success ? (result.perfect ? 'PERFECT SOLVE!' : 'WORD SOLVED!') : 'HANGMAN COMPLETE';
     $('[data-bh-result-title]').textContent = entry?.displayWord || entry?.word || 'UNKNOWN';
     $('[data-bh-result-summary]').textContent = result.success
-      ? (result.perfect ? 'No system errors. Clean decode confirmed.' : 'The Byte Core is stable and the word is restored.')
-      : 'The core shut down before the word was decoded. Study the answer and try another puzzle.';
+      ? (result.perfect ? 'No wrong guesses. Perfect Hangman solve.' : 'You solved the word before the Hangman drawing was completed.')
+      : 'The Hangman drawing was completed before the word was solved. Study the answer and try again.';
     $('[data-bh-result-difficulty]').textContent = difficultyConfig().label;
     $('[data-bh-result-time]').textContent = `${(result.elapsed / 1000).toFixed(1)} SEC`;
     $('[data-bh-result-mistakes]').textContent = String(result.mistakes);
@@ -779,7 +883,7 @@
     const result = r.lastResult;
     $('[data-bh-result-card]').classList.toggle('failed', mode !== 'time' && r.stability <= 0);
     $('[data-bh-result-kicker]').textContent = mode === 'time' ? 'TIME ATTACK COMPLETE' : 'RUN COMPLETE';
-    $('[data-bh-result-title]').textContent = `${r.wordsSolved} WORD${r.wordsSolved === 1 ? '' : 'S'} DECODED`;
+    $('[data-bh-result-title]').textContent = `${r.wordsSolved} WORD${r.wordsSolved === 1 ? '' : 'S'} SOLVED`;
     $('[data-bh-result-summary]').textContent = mode === 'time' ? '90-second decoding run complete.' : `Best run streak: ×${r.bestWordStreak}.`;
     $('[data-bh-result-difficulty]').textContent = difficultyConfig().label;
     $('[data-bh-result-time]').textContent = mode === 'time' ? '90.0 SEC' : `${((now() - r.runStartedAt) / 1000).toFixed(1)} SEC`;
@@ -851,7 +955,7 @@
     const seen = loadLocal('onboarded', false);
     if (seen) return;
     saveLocal('onboarded', true);
-    toast('Tap a letter to begin. Wrong guesses reduce System Stability.', 'tip');
+    toast('Tap a letter to begin. Every wrong guess adds another part to the Hangman.', 'tip');
   }
 
   function toggleSound() {
@@ -892,6 +996,9 @@
     else if (kind === 'solve') { tone(520,.08,.035,'triangle',180); setTimeout(() => tone(760,.12,.032,'triangle',180),70); }
     else if (kind === 'perfect') { [523,659,784,1047].forEach((f,i) => setTimeout(() => tone(f,.15,.035,'triangle',90),i*75)); }
     else if (kind === 'win') { [440,554,659].forEach((f,i) => setTimeout(() => tone(f,.14,.03,'triangle',80),i*80)); }
+    else if (kind === 'creak') { tone(145,.26,.03,'sawtooth',-38); setTimeout(() => tone(108,.22,.022,'triangle',-28),120); }
+    else if (kind === 'tension') { tone(122,.18,.026,'triangle',-18); setTimeout(() => tone(92,.24,.02,'sawtooth',-12),120); }
+    else if (kind === 'death') { tone(95,.34,.04,'square',-35); setTimeout(() => tone(64,.38,.028,'sawtooth',-12),170); }
     else if (kind === 'failure') { tone(210,.28,.045,'sawtooth',-120); setTimeout(() => tone(110,.32,.036,'square',-50),150); }
     else tone(500,.05,.02,'sine',40);
   }
@@ -956,5 +1063,5 @@
   }
   function escapeHtml(value) { return String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch])); }
 
-  window.ICT8ByteHangman = Object.freeze({ open, close, isOpen, pauseForExitGuard });
+  window.ICT8ByteHangman = Object.freeze({ assetVersion: ASSET_VERSION, open, close, isOpen, pauseForExitGuard });
 })();

@@ -26,3 +26,460 @@
 @media(max-height:650px) and (orientation:landscape){.bh-game{grid-template-rows:auto minmax(0,1fr) auto}.bh-hud{grid-template-columns:repeat(6,1fr)}.bh-game-layout{grid-template-columns:230px minmax(0,1fr)}.bh-core-panel .bh-core{width:118px}.bh-run-mini{grid-template-columns:repeat(3,1fr)}.bh-puzzle-panel{grid-template-rows:auto minmax(54px,1fr) auto auto auto}.bh-clue p{display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}.bh-tools button{min-height:38px}.bh-key{height:34px}.bh-keyboard-head{display:none}.bh-keyboard-card{padding:5px}.bh-word-display{min-height:58px}}
 
 @media(prefers-reduced-motion:reduce){.bh-ring,.bh-reactor-glow,.bh-core-spark,.bh-reactor,.bh-char.revealed b,.bh-core[data-state="failure"]{animation:none!important;transition:none!important}}
+
+
+/* v26 CLASSIC HANGMAN visual overhaul — traditional gallows + stick figure */
+.bh-overlay{--paper:#f4e7c8;--paper2:#e8d2a7;--ink:#2a2119;--chalk:#f6f1df;--board:#24352f;--board2:#172720;--wood:#8b5a2b;--wood2:#5d381c;--accent:#e3b75a;--good:#75c58f;--bad:#d76262;background:#17231f;color:var(--chalk)}
+.bh-shell{background:radial-gradient(circle at 50% -20%,rgba(238,214,163,.08),transparent 38%),linear-gradient(180deg,#263830 0%,#1e2e28 58%,#17241f 100%)}
+.bh-shell:before{opacity:.18;background-image:radial-gradient(circle at 12px 10px,rgba(255,255,255,.13) 0 1px,transparent 1.5px),radial-gradient(circle at 34px 24px,rgba(255,255,255,.06) 0 1px,transparent 1.5px);background-size:48px 38px;mask-image:none}
+.bh-topbar{border-bottom:1px solid rgba(232,210,167,.22);background:linear-gradient(180deg,#2e2118,#221810);box-shadow:0 6px 18px rgba(0,0,0,.25)}
+.bh-topbtn,.bh-iconbtn{border-color:rgba(244,231,200,.22);background:#47301e;color:#fff6df}.bh-topbtn:hover,.bh-iconbtn:hover{background:#5a3a22;border-color:#deb46a}
+.bh-brand span{color:#e7bc68}.bh-brand strong{color:#fff4dc}.bh-brand small{color:#bea985}
+.bh-hero-card,.bh-config-card,.bh-how-card,.bh-result-card{border-color:rgba(221,190,126,.28);background:linear-gradient(180deg,rgba(38,55,48,.97),rgba(26,42,35,.98));box-shadow:0 18px 48px rgba(0,0,0,.28),inset 0 1px 0 rgba(255,255,255,.04)}
+.bh-hero-card:before{background:radial-gradient(ellipse,rgba(218,176,91,.11),transparent 66%)}
+.bh-kicker{border-color:rgba(227,183,90,.4);background:rgba(117,77,34,.22);color:#f0c977}.bh-hero-copy h1{background:none;color:#fff1d1;text-shadow:0 3px 0 rgba(0,0,0,.18)}.bh-hero-copy p{color:#d8cdb4}.bh-hero-badges span{border-color:rgba(229,191,112,.24);background:rgba(84,59,34,.36);color:#f0d7a6}
+.bh-section-head>span{border-color:rgba(227,183,90,.28);background:#4b3522;color:#f3c96f}.bh-section-head small{color:#ad9c7c}.bh-mode-btn,.bh-diff-btn,.bh-tools button{border-color:rgba(224,199,151,.18);background:#273b33;color:#f7edd4}.bh-mode-btn>span{background:#4b3522;color:#e9bd68}.bh-mode-btn small,.bh-tools small{color:#a9a087}.bh-mode-btn.selected{border-color:#e1b55b;background:linear-gradient(180deg,#554225,#3f321f);box-shadow:0 0 0 2px rgba(225,181,91,.08)}.bh-diff-btn.selected{border-color:#e1b55b;background:#4b3a22}.bh-select-wrap select{border-color:rgba(225,194,133,.24);background:#203129;color:#fff1d4}.bh-stat-grid>div{background:#203029;border-color:rgba(222,196,145,.13)}.bh-how-card p{color:#b8a98b}.bh-primary{border-color:#f0c568;background:linear-gradient(180deg,#e2b456,#b77e2f);color:#2b1a0e;box-shadow:0 7px 0 #755020,0 12px 26px rgba(0,0,0,.24)}
+.bh-primary:active{transform:translateY(3px);box-shadow:0 4px 0 #755020,0 8px 20px rgba(0,0,0,.22)}
+
+/* Real Hangman artwork */
+.bh-hangman-stage{position:relative;width:min(250px,100%);aspect-ratio:260/300;margin:auto;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:4px 4px 30px;filter:drop-shadow(0 14px 18px rgba(0,0,0,.24))}
+.bh-hangman-svg{display:block;width:100%;height:auto;overflow:visible}.bh-hangman-svg .wood,.bh-hangman-svg .rope,.bh-hangman-svg .noose,.bh-hangman-svg .hang-part{fill:none;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke}
+.bh-hangman-svg .wood{stroke:#9a6733;stroke-width:9}.bh-hangman-svg .wood.beam,.bh-hangman-svg .wood.post{stroke:#8a5527}.bh-hangman-svg .wood.brace{stroke:#72451f;stroke-width:6}.bh-hangman-svg .rope{stroke:#d8c398;stroke-width:4}.bh-hangman-svg .noose{stroke:#d8c398;stroke-width:3.6}.bh-hangman-svg .hang-part{stroke:#f2ead9;stroke-width:6;opacity:0;transform-origin:188px 92px;transition:opacity .2s ease,transform .24s ease}.bh-hangman-svg circle.hang-part{fill:rgba(255,255,255,.02)}.bh-hangman-svg .hang-part.visible{opacity:1;animation:bhHangDraw .28s ease-out both}.bh-hangman-svg .face{stroke:#e6d8bf;stroke-width:3.8}.bh-hangman-stage.complete .hang-figure{transform-origin:188px 91px;animation:bhHangFinal 1.8s ease-in-out infinite}.bh-hangman-stage.complete .noose{stroke:#e8c38a}.bh-hangman-caption{position:absolute;left:0;right:0;bottom:0;text-align:center}.bh-hangman-caption strong{display:block;color:#f1c875;font-size:.58rem;letter-spacing:.12em}.bh-hangman-caption small{display:block;margin-top:2px;color:#b7aa90;font-size:.47rem}.bh-hangman-stage.preview .hang-part.visible{opacity:.72;animation:none}
+@keyframes bhHangDraw{0%{opacity:0;transform:scale(.82)}70%{opacity:1;transform:scale(1.04)}100%{opacity:1;transform:none}}@keyframes bhHangFinal{0%,100%{transform:rotate(-1deg)}50%{transform:rotate(1deg)}}
+
+.bh-core-panel,.bh-puzzle-panel,.bh-keyboard-card{border-color:rgba(224,198,144,.22);background:linear-gradient(180deg,rgba(35,52,45,.98),rgba(25,40,34,.98));box-shadow:0 14px 34px rgba(0,0,0,.2)}
+.bh-core-title span{color:#d6bd88}.bh-core-title strong{color:#fff0cf}.bh-stability-track{background:#13221c;border:1px solid rgba(221,191,130,.18)}.bh-stability-track i{background:linear-gradient(90deg,#bb4f4f,#d99d4d,#78bc82)}.bh-stability-state{color:#e8c978}.bh-error-row{background:rgba(72,46,29,.33);border-color:rgba(224,188,119,.16)}
+.bh-hud>div,.bh-run-mini>div{background:#24382f;border-color:rgba(224,198,144,.12)}.bh-hud small,.bh-run-mini small{color:#aa9d83}.bh-hud strong,.bh-run-mini b{color:#fff0d4}.bh-hud .xp strong{color:#edc76f}
+.bh-xp-status{border-color:rgba(224,196,135,.18);background:#2b3d32}.bh-xp-status.eligible span{background:#78c08e}.bh-xp-status.eligible strong{color:#bde0c7}
+.bh-word-display{border-color:rgba(236,214,169,.24);background:linear-gradient(180deg,#f2e2bd,#e6d1a4);box-shadow:inset 0 1px 0 rgba(255,255,255,.5)}.bh-char{color:#2b2117;border-bottom-color:#5b4630}.bh-char.revealed b{color:#24180f}.bh-char.hidden{border-bottom-color:#5b4630}
+.bh-feedback{border-color:rgba(218,194,145,.18);background:rgba(24,38,32,.86);color:#d8cdb5}.bh-feedback.good{border-color:rgba(117,197,143,.28);background:rgba(35,83,53,.32)}.bh-feedback.good strong{color:#9cdfaf}.bh-feedback.bad{border-color:rgba(215,98,98,.32);background:rgba(93,39,39,.31)}.bh-feedback.bad strong{color:#ff9999}.bh-feedback.hint{border-color:rgba(227,183,90,.3);background:rgba(91,65,27,.34)}.bh-feedback.hint strong{color:#f3cc79}
+.bh-clue{border-color:rgba(226,200,150,.15);background:rgba(28,43,36,.82)}.bh-clue-head span{color:#e7c374}.bh-clue-head button{color:#b8aa8f}.bh-clue p{color:#efe6d5}.bh-clue .bh-clue-extra{color:#c4b79e;border-top-color:rgba(225,198,147,.14)}
+.bh-solve-form{border-color:rgba(229,190,111,.32);background:#24362e}.bh-solve-form input{border-color:rgba(230,201,146,.26);background:#16271f;color:#fff1d5}.bh-solve-form button{border-color:#e3b75a;background:#a87331;color:#fff5df}.bh-solve-form .ghost{background:#2b3d34;color:#c7b99d}
+.bh-keyboard-head span{color:#e4bd6f}.bh-keyboard-head small{color:#a89c84}.bh-key{border-color:rgba(231,207,159,.24);background:linear-gradient(180deg,#f0dfba,#d9bf90);color:#2f2317;box-shadow:0 3px 0 #8b663e}.bh-key:not(:disabled):active{box-shadow:0 1px 0 #8b663e}.bh-key.correct{border-color:#68ad7d;background:linear-gradient(180deg,#b8ddb9,#83bb8e);color:#183821;box-shadow:0 2px 0 #4f805e}.bh-key.wrong{border-color:#c95f5f;background:linear-gradient(180deg,#e5aaa0,#c97970);color:#56201d;box-shadow:0 2px 0 #8d4640}.bh-key.removed{opacity:.34}
+.bh-result-kicker{color:#e5bd69}.bh-result-card.failed{border-color:rgba(211,93,93,.35)}.bh-learn{background:#24372f;border-color:rgba(224,196,141,.16)}.bh-learn span{color:#e4bf73}.bh-learn p{color:#e8dfcb}.bh-result-actions .bh-primary{background:linear-gradient(180deg,#e1b45b,#b77d31);border-color:#f1ca75;color:#2c1b0d}
+.bh-modal{border-color:rgba(227,192,123,.3);background:#2b3d34}.bh-modal>span{color:#e7c06f}.bh-modal p{color:#c6b9a1}.bh-toast{border-color:rgba(227,190,112,.3);background:#3d3020;color:#fff0ce}.bh-toast.tip{border-color:rgba(112,178,129,.28);background:#244632;color:#d8f1df}
+
+/* Desktop proportions: gallows is the focal visual, puzzle stays readable */
+@media(min-width:981px){.bh-game-layout{grid-template-columns:minmax(290px,340px) minmax(0,1fr)}.bh-core-panel .bh-hangman-stage{width:min(260px,82%)}.bh-hero-card .bh-hangman-stage{width:230px}.bh-word-display{min-height:126px}}
+
+/* Tablet */
+@media(max-width:980px){.bh-hero-card .bh-hangman-stage{width:190px}.bh-core-panel .bh-hangman-stage{width:min(180px,72%)}.bh-game-layout{grid-template-columns:250px minmax(0,1fr)}}
+
+/* Phone: real Hangman visual stays visible without overlapping the word/keyboard */
+@media(max-width:700px){
+ .bh-hero-card{grid-template-columns:minmax(0,1fr) 105px}.bh-hero-card .bh-hangman-stage{width:102px;padding-bottom:22px}.bh-hangman-caption strong{font-size:.42rem}.bh-hangman-caption small{display:none}
+ .bh-game-layout{grid-template-columns:112px minmax(0,1fr)}.bh-core-panel{padding:6px}.bh-core-panel .bh-hangman-stage{width:102px;max-height:166px;margin:0 auto;padding-bottom:20px}.bh-hangman-svg .wood{stroke-width:7}.bh-hangman-svg .rope{stroke-width:3.3}.bh-hangman-svg .hang-part{stroke-width:5}.bh-core-title strong{font-size:.72rem}.bh-stability-state{font-size:.42rem}.bh-error-row span{font-size:.34rem}.bh-error-row strong{font-size:.4rem}
+ .bh-word-display{background:linear-gradient(180deg,#f2e2bd,#e5cfa0)}
+}
+@media(max-width:370px){.bh-game-layout{grid-template-columns:94px minmax(0,1fr)}.bh-core-panel .bh-hangman-stage{width:84px;max-height:145px}.bh-hero-card{grid-template-columns:minmax(0,1fr) 86px}.bh-hero-card .bh-hangman-stage{width:82px}.bh-hangman-caption{display:none}}
+@media(max-height:650px) and (orientation:landscape){.bh-core-panel .bh-hangman-stage{width:128px;max-height:180px}.bh-game-layout{grid-template-columns:220px minmax(0,1fr)}}
+@media(prefers-reduced-motion:reduce){.bh-hangman-svg .hang-part.visible,.bh-hangman-stage.complete .hang-figure{animation:none!important}}
+
+
+/* v27 polish: clearer hanging pose + larger clue text */
+.bh-hangman-svg .knot{fill:#d8c398;stroke:none;opacity:.95}
+.bh-hangman-svg .hang-figure{transform:rotate(3.5deg);transform-origin:188px 84px}
+.bh-hangman-svg .hang-part{transform-origin:188px 84px}
+.bh-hangman-stage.complete .hang-figure{animation:bhHangFinalV27 1.9s ease-in-out infinite}
+@keyframes bhHangFinalV27{0%,100%{transform:rotate(1deg)}50%{transform:rotate(6deg)}}
+.bh-clue{padding:12px 14px;border-radius:15px}
+.bh-clue-head span{font-size:.68rem;letter-spacing:.11em}
+.bh-clue-head button{font-size:.62rem;font-weight:1000}
+.bh-clue p{margin-top:8px;font-size:1rem;line-height:1.52;font-weight:800;display:block!important;overflow:visible!important;-webkit-line-clamp:unset!important}
+.bh-clue .bh-clue-extra{margin-top:10px;padding-top:10px;font-size:.88rem;line-height:1.48}
+@media(min-width:981px){.bh-clue{padding:14px 16px}.bh-clue-head span{font-size:.74rem}.bh-clue-head button{font-size:.66rem}.bh-clue p{font-size:1.08rem;line-height:1.58}.bh-clue .bh-clue-extra{font-size:.96rem}}
+@media(max-width:700px){.bh-clue{padding:9px 10px;border-radius:10px}.bh-clue-head span{font-size:.5rem}.bh-clue-head button{font-size:.48rem}.bh-clue p{margin-top:5px;font-size:.72rem;line-height:1.4;font-weight:800}.bh-clue .bh-clue-extra{display:block;font-size:.64rem;line-height:1.35;margin-top:7px;padding-top:7px}}
+@media(max-width:370px){.bh-clue p{font-size:.66rem}.bh-clue .bh-clue-extra{font-size:.58rem}}
+
+
+/* v28: desktop overlap fix, true hanging pose, death sequence, clearer hints */
+.bh-feedback{display:grid!important;grid-template-columns:1fr;align-content:center;justify-items:start;min-height:54px;row-gap:3px}
+.bh-feedback strong,.bh-feedback span{display:block;max-width:100%;white-space:normal;overflow-wrap:anywhere;line-height:1.22}
+.bh-error-row{align-items:center;gap:10px;flex-wrap:wrap}
+.bh-clue-head{gap:10px;flex-wrap:wrap}.bh-clue-head button{margin-left:auto}
+.bh-clue p,.bh-clue .bh-clue-extra{overflow-wrap:anywhere}
+.bh-hangman-svg .rope{stroke-width:4.2}.bh-hangman-svg .noose{stroke-width:3.8}.bh-hangman-svg .knot{fill:#d8c398;stroke:none;opacity:.95}
+.bh-hangman-svg .hang-figure{transform-origin:188px 80px}
+.bh-hangman-svg .hang-part{transform-origin:188px 80px}
+.bh-hangman-svg .face-alive,.bh-hangman-svg .face-dead{opacity:0;transition:opacity .22s ease}.bh-hangman-svg .face-line,.bh-hangman-svg .face-dead path{fill:none;stroke:#eadfc9;stroke-width:3.2;stroke-linecap:round;stroke-linejoin:round}
+.bh-hangman-stage .face-alive.visible,.bh-hangman-stage .face-dead.visible{opacity:1}
+.bh-hangman-stage.dead .face-alive{opacity:0!important}.bh-hangman-stage.dead .face-dead{opacity:1!important}
+.bh-hangman-stage.struggle .hang-figure{animation:bhHangStruggleV28 .17s ease-in-out 6 alternate}.bh-hangman-stage.complete.dead .hang-figure{animation:bhHangAftermathV28 2.15s ease-in-out infinite}
+@keyframes bhHangStruggleV28{0%{transform:rotate(-7deg) translateY(-1px)}100%{transform:rotate(7deg) translateY(1px)}}
+@keyframes bhHangAftermathV28{0%,100%{transform:rotate(-2deg)}50%{transform:rotate(2deg)}}
+@media(min-width:981px){.bh-feedback strong{font-size:.66rem}.bh-feedback span{font-size:.6rem}.bh-clue p{font-size:1rem;line-height:1.55}.bh-clue .bh-clue-extra{font-size:.92rem}.bh-core-panel .bh-hangman-stage{width:min(276px,84%);padding-bottom:32px}}
+@media(max-width:700px){.bh-feedback{min-height:40px;row-gap:2px}.bh-feedback strong{font-size:.43rem}.bh-feedback span{font-size:.41rem}.bh-clue p{font-size:.76rem;line-height:1.42}.bh-clue .bh-clue-extra{display:block;font-size:.66rem}.bh-hangman-stage.struggle .hang-figure{animation:bhHangStruggleV28 .14s ease-in-out 6 alternate}}
+@media(prefers-reduced-motion:reduce){.bh-hangman-stage.struggle .hang-figure,.bh-hangman-stage.complete.dead .hang-figure{animation:none!important}}
+
+
+/* v29 CLASSROOM HANGMAN — darker chalkboard mood, clean spacing, stronger final sequence */
+.bh-shell{background:
+  radial-gradient(circle at 50% -12%,rgba(214,187,133,.09),transparent 28%),
+  radial-gradient(circle at 8% 90%,rgba(0,0,0,.26),transparent 34%),
+  linear-gradient(180deg,#1f3029 0%,#182821 58%,#111c18 100%)!important}
+.bh-shell:after{content:"";position:absolute;inset:64px 0 0;pointer-events:none;opacity:.18;background:
+  repeating-linear-gradient(0deg,transparent 0 18px,rgba(244,236,211,.018) 19px 20px),
+  repeating-linear-gradient(90deg,transparent 0 71px,rgba(244,236,211,.012) 72px 73px),
+  radial-gradient(circle at 22% 18%,rgba(255,255,255,.05) 0 1px,transparent 1.5px),
+  radial-gradient(circle at 74% 62%,rgba(255,255,255,.035) 0 1px,transparent 1.5px);background-size:auto,auto,46px 38px,58px 44px;mix-blend-mode:screen}
+.bh-core-panel,.bh-puzzle-panel,.bh-keyboard-card{border:1px solid rgba(224,198,144,.28);box-shadow:0 18px 42px rgba(0,0,0,.28),inset 0 0 0 1px rgba(255,255,255,.025),inset 0 -18px 45px rgba(0,0,0,.08)}
+.bh-core-panel:after{content:"";position:absolute;inset:9px;border-radius:14px;pointer-events:none;border:1px dashed rgba(238,221,181,.07)}
+.bh-hangman-stage{filter:drop-shadow(0 14px 18px rgba(0,0,0,.38))}
+.bh-hangman-svg .wood{stroke:#8b5429}.bh-hangman-svg .wood.beam,.bh-hangman-svg .wood.post{stroke:#76451f}.bh-hangman-svg .wood.brace{stroke:#603619}.bh-hangman-svg .rope,.bh-hangman-svg .noose{stroke:#d8c29c}
+.bh-hangman-svg .hang-part{stroke:#efe6d3;filter:drop-shadow(0 2px 2px rgba(0,0,0,.28))}
+.bh-hangman-svg .hang-figure{transform-origin:188px 78px}
+.bh-hangman-stage.drop .hang-figure{animation:bhDeathDropV29 .42s cubic-bezier(.18,.78,.2,1) both}
+.bh-hangman-stage.drop .noose{animation:bhNooseTightenV29 .42s ease-out both}
+.bh-hangman-stage.struggle .hang-figure{animation:bhHangStruggleV29 .16s ease-in-out 6 alternate}
+.bh-hangman-stage.dead .hang-figure{animation:bhHangAftermathV29 2.2s ease-in-out infinite}
+.bh-hangman-stage.dead .bh-hangman-svg{filter:brightness(.82) saturate(.82)}
+.bh-death-stamp{position:absolute;left:50%;bottom:34px;z-index:4;width:min(88%,210px);padding:7px 10px;opacity:0;transform:translate(-50%,10px) rotate(-2deg) scale(.94);border:2px solid rgba(202,76,76,.72);border-radius:5px;background:rgba(62,20,20,.78);color:#ffd4c9;text-align:center;box-shadow:0 7px 18px rgba(0,0,0,.25);transition:opacity .28s ease,transform .34s cubic-bezier(.2,.8,.2,1)}
+.bh-death-stamp span{display:block;font-size:.43rem;font-weight:1000;letter-spacing:.12em}.bh-death-stamp strong{display:block;margin-top:2px;font-size:.62rem;letter-spacing:.08em}
+.bh-hangman-stage.dead .bh-death-stamp{opacity:1;transform:translate(-50%,0) rotate(-2deg) scale(1)}
+@keyframes bhDeathDropV29{0%{transform:translateY(-18px) rotate(-1deg)}58%{transform:translateY(5px) rotate(5deg)}100%{transform:translateY(0) rotate(2deg)}}
+@keyframes bhNooseTightenV29{0%{transform:scaleX(1.18) scaleY(.9);transform-origin:188px 82px}100%{transform:scale(1);transform-origin:188px 82px}}
+@keyframes bhHangStruggleV29{0%{transform:rotate(-7deg) translateX(-2px)}100%{transform:rotate(7deg) translateX(2px)}}
+@keyframes bhHangAftermathV29{0%,100%{transform:rotate(-2.2deg)}50%{transform:rotate(2.2deg)}}
+
+/* no desktop overlap: every puzzle block owns its own row and scrolls if the screen is short */
+.bh-puzzle-panel{grid-template-rows:auto minmax(118px,auto) minmax(54px,auto) auto auto auto!important;align-content:start;overflow-y:auto!important;overflow-x:hidden!important}
+.bh-word-display{min-height:118px;flex:none;margin:0!important}
+.bh-feedback{position:relative!important;z-index:1;margin:0!important;transform:none!important;min-height:56px!important;padding:10px 12px!important;display:grid!important;grid-template-columns:1fr;align-content:center;row-gap:4px}
+.bh-feedback strong{font-size:.68rem!important}.bh-feedback span{font-size:.62rem!important;line-height:1.28!important}
+.bh-clue{position:relative;z-index:1;margin:0!important;padding:13px 15px!important}
+.bh-clue p{font-size:1rem!important;line-height:1.5!important}
+.bh-clue-meta{margin-top:8px;padding:7px 9px;border-radius:8px;background:rgba(219,191,137,.08);border:1px dashed rgba(231,204,151,.16);color:#d7c59f;font-size:.62rem;font-weight:950;letter-spacing:.05em;line-height:1.35}
+.bh-clue .bh-clue-extra{font-size:.9rem!important;line-height:1.48!important}
+
+/* small eerie classroom details without hurting readability */
+.bh-keyboard-card{background:linear-gradient(180deg,rgba(40,57,49,.98),rgba(25,39,34,.99))}
+.bh-keyboard-head:after{content:"CHALK KEYS";margin-left:auto;color:rgba(232,211,167,.35);font-size:.43rem;font-weight:1000;letter-spacing:.12em}
+.bh-word-display{background:
+  linear-gradient(180deg,rgba(247,230,190,.98),rgba(231,207,160,.98)),
+  repeating-linear-gradient(0deg,transparent 0 17px,rgba(88,61,34,.04) 18px 19px)!important}
+.bh-word-display:after{content:"";position:absolute;pointer-events:none}
+
+@media(max-width:980px){
+ .bh-puzzle-panel{grid-template-rows:auto minmax(88px,auto) minmax(44px,auto) auto auto auto!important}
+ .bh-word-display{min-height:88px}
+ .bh-clue p{font-size:.82rem!important;line-height:1.42!important}
+ .bh-clue .bh-clue-extra{font-size:.72rem!important}
+ .bh-clue-meta{font-size:.52rem}
+ .bh-feedback{min-height:44px!important;padding:7px 9px!important}
+ .bh-feedback strong{font-size:.5rem!important}.bh-feedback span{font-size:.46rem!important}
+}
+@media(max-width:700px){
+ .bh-puzzle-panel{grid-template-rows:auto minmax(70px,auto) minmax(40px,auto) auto auto auto!important}
+ .bh-word-display{min-height:70px}
+ .bh-clue{padding:8px 9px!important}
+ .bh-clue p{font-size:.74rem!important;line-height:1.38!important}
+ .bh-clue .bh-clue-extra{font-size:.64rem!important}
+ .bh-clue-meta{margin-top:6px;padding:5px 6px;font-size:.47rem;letter-spacing:.035em}
+ .bh-feedback{min-height:38px!important;padding:6px 7px!important;row-gap:2px}
+ .bh-feedback strong{font-size:.43rem!important}.bh-feedback span{font-size:.4rem!important}
+ .bh-death-stamp{bottom:24px;width:92%;padding:5px 6px}.bh-death-stamp span{font-size:.34rem}.bh-death-stamp strong{font-size:.46rem}
+}
+@media(max-width:370px){.bh-clue p{font-size:.68rem!important}.bh-clue-meta{font-size:.43rem}.bh-feedback span{font-size:.37rem!important}}
+@media(prefers-reduced-motion:reduce){.bh-hangman-stage.drop .hang-figure,.bh-hangman-stage.drop .noose,.bh-hangman-stage.struggle .hang-figure,.bh-hangman-stage.dead .hang-figure{animation:none!important}}
+
+
+/* v30: fix head-only noose issue — make the neck sit inside the loop */
+.bh-hangman-svg .hang-part{transform-origin:188px 108px}
+.bh-hangman-svg .hang-figure{transform-origin:188px 108px}
+.bh-hangman-stage.complete .hang-figure{transform-origin:188px 108px}
+.bh-hangman-stage.drop .hang-figure,.bh-hangman-stage.struggle .hang-figure,.bh-hangman-stage.dead .hang-figure{transform-origin:188px 108px}
+.bh-hangman-svg .rope{stroke-width:4.4}
+.bh-hangman-svg .noose{stroke-width:4.1}
+
+
+/* v31: tighter neck contact, more natural hanging pose, more dramatic death sequence */
+.bh-hangman-svg .hang-figure,
+.bh-hangman-svg .hang-part,
+.bh-hangman-stage.complete .hang-figure,
+.bh-hangman-stage.drop .hang-figure,
+.bh-hangman-stage.struggle .hang-figure,
+.bh-hangman-stage.dead .hang-figure{transform-origin:188px 111px}
+.bh-hangman-svg .rope{stroke-width:4.6}
+.bh-hangman-svg .noose{stroke-width:4.2}
+.bh-hangman-stage.drop .hang-figure{animation:bhDeathDropV31 .52s cubic-bezier(.18,.82,.18,1) both}
+.bh-hangman-stage.drop .noose{animation:bhNooseTightenV31 .52s ease-out both}
+.bh-hangman-stage.struggle .hang-figure{animation:bhHangStruggleV31 .22s ease-in-out 6 alternate}
+.bh-hangman-stage.dead .hang-figure{animation:bhHangAftermathV31 2.5s ease-in-out infinite}
+.bh-hangman-stage.drop .arm-left,.bh-hangman-stage.drop .arm-right,
+.bh-hangman-stage.struggle .arm-left,.bh-hangman-stage.struggle .arm-right,
+.bh-hangman-stage.dead .arm-left,.bh-hangman-stage.dead .arm-right,
+.bh-hangman-stage.drop .leg-left,.bh-hangman-stage.drop .leg-right,
+.bh-hangman-stage.struggle .leg-left,.bh-hangman-stage.struggle .leg-right,
+.bh-hangman-stage.dead .leg-left,.bh-hangman-stage.dead .leg-right{transform-box:fill-box}
+.bh-hangman-stage.drop .arm-left{transform-origin:188px 140px;animation:bhArmLeftDropV31 .52s ease-out both}
+.bh-hangman-stage.drop .arm-right{transform-origin:188px 140px;animation:bhArmRightDropV31 .52s ease-out both}
+.bh-hangman-stage.drop .leg-left{transform-origin:188px 179px;animation:bhLegLeftDropV31 .52s ease-out both}
+.bh-hangman-stage.drop .leg-right{transform-origin:188px 179px;animation:bhLegRightDropV31 .52s ease-out both}
+.bh-hangman-stage.struggle .arm-left{transform-origin:188px 140px;animation:bhArmLeftStruggleV31 .22s ease-in-out 6 alternate}
+.bh-hangman-stage.struggle .arm-right{transform-origin:188px 140px;animation:bhArmRightStruggleV31 .22s ease-in-out 6 alternate}
+.bh-hangman-stage.struggle .leg-left{transform-origin:188px 179px;animation:bhLegLeftStruggleV31 .22s ease-in-out 6 alternate}
+.bh-hangman-stage.struggle .leg-right{transform-origin:188px 179px;animation:bhLegRightStruggleV31 .22s ease-in-out 6 alternate}
+.bh-hangman-stage.dead .arm-left{transform-origin:188px 140px;transform:rotate(20deg) translate(-1px,1px)}
+.bh-hangman-stage.dead .arm-right{transform-origin:188px 140px;transform:rotate(-20deg) translate(1px,1px)}
+.bh-hangman-stage.dead .leg-left{transform-origin:188px 179px;transform:rotate(12deg) translate(-2px,2px)}
+.bh-hangman-stage.dead .leg-right{transform-origin:188px 179px;transform:rotate(-16deg) translate(2px,1px)}
+@keyframes bhDeathDropV31{0%{transform:translateY(-24px) rotate(-1deg)}55%{transform:translateY(10px) rotate(6deg)}78%{transform:translateY(2px) rotate(3deg)}100%{transform:translateY(0) rotate(2deg)}}
+@keyframes bhNooseTightenV31{0%{transform:scaleX(1.12) scaleY(.84);transform-origin:188px 111px}100%{transform:scaleX(1) scaleY(1);transform-origin:188px 111px}}
+@keyframes bhHangStruggleV31{0%{transform:rotate(-8deg) translateX(-3px)}100%{transform:rotate(8deg) translateX(3px)}}
+@keyframes bhHangAftermathV31{0%,100%{transform:rotate(-2.4deg)}50%{transform:rotate(2.4deg)}}
+@keyframes bhArmLeftDropV31{0%{transform:rotate(-18deg)}100%{transform:rotate(10deg)}}
+@keyframes bhArmRightDropV31{0%{transform:rotate(18deg)}100%{transform:rotate(-10deg)}}
+@keyframes bhLegLeftDropV31{0%{transform:rotate(4deg)}100%{transform:rotate(12deg) translate(-2px,1px)}}
+@keyframes bhLegRightDropV31{0%{transform:rotate(-4deg)}100%{transform:rotate(-14deg) translate(2px,1px)}}
+@keyframes bhArmLeftStruggleV31{0%{transform:rotate(12deg)}100%{transform:rotate(30deg) translate(-2px,1px)}}
+@keyframes bhArmRightStruggleV31{0%{transform:rotate(-12deg)}100%{transform:rotate(-30deg) translate(2px,1px)}}
+@keyframes bhLegLeftStruggleV31{0%{transform:rotate(8deg)}100%{transform:rotate(18deg) translate(-3px,1px)}}
+@keyframes bhLegRightStruggleV31{0%{transform:rotate(-10deg)}100%{transform:rotate(-20deg) translate(3px,1px)}}
+
+
+/* v32 — creepy classroom chalk atmosphere + cinematic rope/body physics */
+.bh-shell{
+  background:
+    radial-gradient(circle at 14% 10%,rgba(244,233,200,.055),transparent 21%),
+    radial-gradient(circle at 82% 18%,rgba(0,0,0,.22),transparent 34%),
+    radial-gradient(circle at 50% 110%,rgba(0,0,0,.32),transparent 45%),
+    linear-gradient(180deg,#20332b 0%,#17271f 62%,#111b17 100%)!important;
+}
+.bh-shell:before{
+  opacity:.24!important;
+  background-image:
+    radial-gradient(circle at 7px 11px,rgba(255,247,221,.12) 0 1px,transparent 1.6px),
+    radial-gradient(circle at 31px 27px,rgba(255,247,221,.07) 0 1px,transparent 1.5px),
+    repeating-linear-gradient(7deg,transparent 0 27px,rgba(244,236,211,.018) 28px 29px)!important;
+  background-size:43px 37px,59px 47px,auto!important;
+  mask-image:none!important;
+}
+.bh-shell:after{
+  content:"";position:absolute;inset:64px 0 0;pointer-events:none;z-index:1;opacity:.18;
+  background:
+    linear-gradient(102deg,transparent 0 12%,rgba(245,236,210,.025) 12.3% 12.7%,transparent 13% 100%),
+    linear-gradient(78deg,transparent 0 72%,rgba(245,236,210,.018) 72.2% 72.6%,transparent 73% 100%),
+    radial-gradient(ellipse at 18% 22%,rgba(255,248,225,.045),transparent 29%),
+    radial-gradient(ellipse at 80% 72%,rgba(0,0,0,.16),transparent 34%);
+  mix-blend-mode:screen;
+}
+.bh-game{position:relative;isolation:isolate}
+.bh-game:before{content:"";position:absolute;inset:0;z-index:30;pointer-events:none;opacity:0;border-radius:20px;background:radial-gradient(ellipse at center,transparent 32%,rgba(6,10,8,.72) 100%);transition:opacity .35s ease}
+.bh-game:after{content:"";position:absolute;inset:0;z-index:31;pointer-events:none;opacity:0;border-radius:20px;background:linear-gradient(180deg,rgba(255,244,215,.08),transparent 15%,transparent 82%,rgba(0,0,0,.2));transition:opacity .2s ease}
+.bh-game[data-death-stage="drop"]:before{opacity:.28;animation:bhVignetteDropV32 .7s ease-out both}
+.bh-game[data-death-stage="drop"]:after{opacity:.22;animation:bhChalkFlashV32 .32s steps(2,end) 1}
+.bh-game[data-death-stage="struggle"]:before{opacity:.4;animation:bhVignettePulseV32 .58s ease-in-out 2 alternate}
+.bh-game[data-death-stage="dead"]:before{opacity:.55}
+.bh-game[data-death-stage="dead"]:after{opacity:.12}
+.bh-game[data-death-stage="drop"] .bh-core-panel{animation:bhCameraDropV32 .7s cubic-bezier(.18,.82,.2,1) both}
+.bh-game[data-death-stage="struggle"] .bh-core-panel{animation:bhCameraStruggleV32 .2s ease-in-out 5 alternate}
+.bh-game[data-death-stage="dead"] .bh-core-panel{filter:saturate(.72) brightness(.84);transition:filter .55s ease}
+.bh-hangman-stage:before{content:"";position:absolute;inset:8% 6% 13%;pointer-events:none;opacity:.14;background:radial-gradient(circle at 20% 25%,rgba(255,247,219,.15) 0 1px,transparent 1.6px),radial-gradient(circle at 74% 58%,rgba(255,247,219,.1) 0 1px,transparent 1.4px);background-size:37px 31px,53px 47px}
+
+/* Rope stays visually taut from beam to the neck loop. */
+.bh-hangman-svg .rope,.bh-hangman-svg .noose{transform-box:fill-box;transform-origin:50% 0%}
+.bh-hangman-stage.drop .rope{animation:bhRopeSnapV32 .65s cubic-bezier(.2,.75,.2,1) both}
+.bh-hangman-stage.drop .noose{animation:bhNooseClampV32 .65s cubic-bezier(.2,.75,.2,1) both}
+.bh-hangman-stage.struggle .rope{animation:bhRopeTensionV32 .24s ease-in-out 5 alternate}
+.bh-hangman-stage.struggle .noose{animation:bhNooseTensionV32 .24s ease-in-out 5 alternate}
+.bh-hangman-stage.dead .rope{transform:scaleY(1.025)}
+.bh-hangman-stage.dead .noose{transform:scaleX(.94) scaleY(1.04)}
+
+/* Body movement pivots exactly where the noose meets the neck. */
+.bh-hangman-svg .hang-figure,
+.bh-hangman-svg .hang-part,
+.bh-hangman-stage.complete .hang-figure,
+.bh-hangman-stage.drop .hang-figure,
+.bh-hangman-stage.struggle .hang-figure,
+.bh-hangman-stage.dead .hang-figure{transform-origin:188px 111px!important}
+.bh-hangman-stage.drop .hang-figure{animation:bhBodyDropV32 .65s cubic-bezier(.12,.82,.16,1) both!important}
+.bh-hangman-stage.struggle .hang-figure{animation:bhBodyStruggleV32 .24s ease-in-out 5 alternate!important}
+.bh-hangman-stage.dead .hang-figure{animation:bhBodySettleV32 3.4s ease-in-out infinite!important}
+
+/* Limbs feel weighted instead of rigid during the sequence. */
+.bh-hangman-stage.drop .arm-left{transform-origin:100% 0%;animation:bhArmLeftV32 .65s ease-out both!important}
+.bh-hangman-stage.drop .arm-right{transform-origin:0% 0%;animation:bhArmRightV32 .65s ease-out both!important}
+.bh-hangman-stage.drop .leg-left{transform-origin:100% 0%;animation:bhLegLeftV32 .65s ease-out both!important}
+.bh-hangman-stage.drop .leg-right{transform-origin:0% 0%;animation:bhLegRightV32 .65s ease-out both!important}
+.bh-hangman-stage.struggle .arm-left{transform-origin:100% 0%;animation:bhArmLeftStruggleV32 .24s ease-in-out 5 alternate!important}
+.bh-hangman-stage.struggle .arm-right{transform-origin:0% 0%;animation:bhArmRightStruggleV32 .24s ease-in-out 5 alternate!important}
+.bh-hangman-stage.struggle .leg-left{transform-origin:100% 0%;animation:bhLegLeftStruggleV32 .24s ease-in-out 5 alternate!important}
+.bh-hangman-stage.struggle .leg-right{transform-origin:0% 0%;animation:bhLegRightStruggleV32 .24s ease-in-out 5 alternate!important}
+.bh-hangman-stage.dead .arm-left{transform:rotate(18deg) translate(-1px,1px)!important}
+.bh-hangman-stage.dead .arm-right{transform:rotate(-18deg) translate(1px,1px)!important}
+.bh-hangman-stage.dead .leg-left{transform:rotate(9deg) translate(-2px,2px)!important}
+.bh-hangman-stage.dead .leg-right{transform:rotate(-13deg) translate(2px,2px)!important}
+
+@keyframes bhRopeSnapV32{0%{transform:scaleY(.88)}48%{transform:scaleY(1.11)}72%{transform:scaleY(1.035)}100%{transform:scaleY(1)}}
+@keyframes bhNooseClampV32{0%{transform:scaleX(1.15) scaleY(.88)}54%{transform:scaleX(.9) scaleY(1.09)}100%{transform:scaleX(.96) scaleY(1.03)}}
+@keyframes bhRopeTensionV32{0%{transform:scaleY(1.018) rotate(-.35deg)}100%{transform:scaleY(1.032) rotate(.35deg)}}
+@keyframes bhNooseTensionV32{0%{transform:scaleX(.94) scaleY(1.035) rotate(-1deg)}100%{transform:scaleX(.92) scaleY(1.05) rotate(1deg)}}
+@keyframes bhBodyDropV32{0%{transform:translateY(-28px) rotate(-1deg)}45%{transform:translateY(12px) rotate(5.5deg)}67%{transform:translateY(3px) rotate(2.6deg)}100%{transform:translateY(0) rotate(1.8deg)}}
+@keyframes bhBodyStruggleV32{0%{transform:rotate(-7.5deg) translateX(-3px)}100%{transform:rotate(7.5deg) translateX(3px)}}
+@keyframes bhBodySettleV32{0%,100%{transform:rotate(-1.8deg)}50%{transform:rotate(1.8deg)}}
+@keyframes bhArmLeftV32{0%{transform:rotate(-14deg)}100%{transform:rotate(14deg)}}
+@keyframes bhArmRightV32{0%{transform:rotate(14deg)}100%{transform:rotate(-14deg)}}
+@keyframes bhLegLeftV32{0%{transform:rotate(-2deg)}100%{transform:rotate(10deg) translate(-2px,2px)}}
+@keyframes bhLegRightV32{0%{transform:rotate(2deg)}100%{transform:rotate(-14deg) translate(2px,2px)}}
+@keyframes bhArmLeftStruggleV32{0%{transform:rotate(12deg)}100%{transform:rotate(25deg) translate(-2px,1px)}}
+@keyframes bhArmRightStruggleV32{0%{transform:rotate(-12deg)}100%{transform:rotate(-25deg) translate(2px,1px)}}
+@keyframes bhLegLeftStruggleV32{0%{transform:rotate(7deg)}100%{transform:rotate(16deg) translate(-2px,1px)}}
+@keyframes bhLegRightStruggleV32{0%{transform:rotate(-9deg)}100%{transform:rotate(-18deg) translate(2px,1px)}}
+@keyframes bhCameraDropV32{0%{transform:scale(1)}55%{transform:scale(1.012)}100%{transform:scale(1)}}
+@keyframes bhCameraStruggleV32{0%{transform:translateX(-1.2px)}100%{transform:translateX(1.2px)}}
+@keyframes bhVignetteDropV32{0%{opacity:.08}100%{opacity:.28}}
+@keyframes bhVignettePulseV32{0%{opacity:.32}100%{opacity:.48}}
+@keyframes bhChalkFlashV32{0%{opacity:.02}50%{opacity:.26}100%{opacity:.1}}
+
+@media(max-width:700px){
+  .bh-shell:before{opacity:.17!important}
+  .bh-shell:after{opacity:.12}
+  .bh-game[data-death-stage="drop"] .bh-core-panel{animation-duration:.58s}
+  .bh-game[data-death-stage="struggle"] .bh-core-panel{animation-duration:.18s}
+}
+@media(prefers-reduced-motion:reduce){
+  .bh-game[data-death-stage] .bh-core-panel,.bh-game[data-death-stage]::before,.bh-game[data-death-stage]::after,
+  .bh-hangman-stage.drop .rope,.bh-hangman-stage.drop .noose,.bh-hangman-stage.struggle .rope,.bh-hangman-stage.struggle .noose,
+  .bh-hangman-stage.drop .hang-figure,.bh-hangman-stage.struggle .hang-figure,.bh-hangman-stage.dead .hang-figure,
+  .bh-hangman-stage.drop .arm-left,.bh-hangman-stage.drop .arm-right,.bh-hangman-stage.drop .leg-left,.bh-hangman-stage.drop .leg-right,
+  .bh-hangman-stage.struggle .arm-left,.bh-hangman-stage.struggle .arm-right,.bh-hangman-stage.struggle .leg-left,.bh-hangman-stage.struggle .leg-right{animation:none!important}
+}
+
+
+/* v33 — distinct rope + true per-letter blank slots */
+/* Rope/noose deliberately use a warmer brown-gold so they never read as part of the chalk-white body. */
+.bh-hangman-svg .rope,.bh-hangman-svg .noose{stroke:#b77a3d!important}
+.bh-hangman-svg .knot{fill:#9b5f2b!important}
+.bh-hangman-stage.complete .noose{stroke:#c88943!important}
+
+/* Every answer character owns a fixed visual slot. Hidden letters keep the line; correct guesses fill that exact slot. */
+.bh-word-display{position:relative;display:flex!important;align-items:center!important;align-content:center!important;justify-content:center!important;flex-wrap:wrap!important;column-gap:0!important;row-gap:14px!important;padding:15px 18px!important;overflow:visible!important}
+.bh-word-token{display:inline-flex;align-items:flex-end;justify-content:center;gap:6px;min-width:0;max-width:100%;flex:0 1 auto}
+.bh-word-token.long-token{flex-wrap:wrap;row-gap:10px}
+.bh-word-gap{display:block;flex:0 0 clamp(20px,2.8vw,38px);width:clamp(20px,2.8vw,38px);height:1px}
+.bh-letter-slot{--slot-w:42px;--slot-h:56px;position:relative;display:grid;place-items:center;width:var(--slot-w);min-width:var(--slot-w);height:var(--slot-h);flex:0 0 var(--slot-w);color:#281d14;font-weight:1000;font-size:1.45rem;line-height:1;text-align:center}
+.bh-letter-slot b{display:grid;place-items:center;width:100%;height:calc(100% - 7px);font:inherit;color:inherit;line-height:1}
+.bh-letter-slot i{position:absolute;left:2px;right:2px;bottom:0;height:3px;border-radius:999px;background:#5a432d;box-shadow:0 1px 0 rgba(255,255,255,.18)}
+.bh-letter-slot.bh-slot-hidden b{color:transparent;text-shadow:none}
+.bh-letter-slot.bh-slot-revealed b{color:#23170f;animation:bhLetterReveal .27s cubic-bezier(.2,.8,.2,1) both;animation-delay:calc(min(var(--reveal-index), 8) * 22ms)}
+.bh-letter-slot.bh-slot-revealed i{background:#3f2d1d}
+.bh-letter-slot.punctuation{width:22px;min-width:22px;flex-basis:22px;height:var(--slot-h);font-size:1.25rem}
+.bh-letter-slot.punctuation b{height:100%;color:#3a291b}
+
+.bh-word-display[data-length="medium"] .bh-word-token{gap:5px}
+.bh-word-display[data-length="medium"] .bh-letter-slot{--slot-w:36px;--slot-h:50px;font-size:1.25rem}
+.bh-word-display[data-length="long"] .bh-word-token{gap:4px}
+.bh-word-display[data-length="long"] .bh-letter-slot{--slot-w:30px;--slot-h:46px;font-size:1.08rem}
+.bh-word-display[data-length="ultra"] .bh-word-token{gap:3px}
+.bh-word-display[data-length="ultra"] .bh-letter-slot{--slot-w:26px;--slot-h:42px;font-size:.98rem}
+.bh-word-display[data-length="ultra"] .bh-word-gap{flex-basis:18px;width:18px}
+
+@media(max-width:980px){
+ .bh-word-display{row-gap:10px!important;padding:10px 12px!important}
+ .bh-word-token{gap:4px}
+ .bh-word-gap{flex-basis:18px;width:18px}
+ .bh-letter-slot{--slot-w:31px;--slot-h:43px;font-size:1rem}
+ .bh-word-display[data-length="medium"] .bh-letter-slot{--slot-w:28px;--slot-h:41px;font-size:.94rem}
+ .bh-word-display[data-length="long"] .bh-letter-slot{--slot-w:25px;--slot-h:39px;font-size:.86rem}
+ .bh-word-display[data-length="ultra"] .bh-letter-slot{--slot-w:22px;--slot-h:37px;font-size:.8rem}
+}
+@media(max-width:700px){
+ .bh-word-display{row-gap:8px!important;padding:8px!important}
+ .bh-word-token{gap:3px}
+ .bh-word-token.long-token{row-gap:7px}
+ .bh-word-gap{flex-basis:15px;width:15px}
+ .bh-letter-slot{--slot-w:26px;--slot-h:36px;font-size:.88rem}
+ .bh-letter-slot i{left:1px;right:1px;height:2px}
+ .bh-word-display[data-length="medium"] .bh-letter-slot{--slot-w:24px;--slot-h:35px;font-size:.84rem}
+ .bh-word-display[data-length="long"] .bh-letter-slot{--slot-w:21px;--slot-h:34px;font-size:.76rem}
+ .bh-word-display[data-length="ultra"] .bh-letter-slot{--slot-w:19px;--slot-h:32px;font-size:.72rem}
+ .bh-letter-slot.punctuation{width:14px;min-width:14px;flex-basis:14px;font-size:.82rem}
+}
+@media(max-width:370px){
+ .bh-word-token{gap:2px}
+ .bh-word-gap{flex-basis:12px;width:12px}
+ .bh-letter-slot{--slot-w:23px;--slot-h:33px;font-size:.82rem}
+ .bh-word-display[data-length="medium"] .bh-letter-slot{--slot-w:21px;--slot-h:32px;font-size:.78rem}
+ .bh-word-display[data-length="long"] .bh-letter-slot{--slot-w:19px;--slot-h:31px;font-size:.71rem}
+ .bh-word-display[data-length="ultra"] .bh-letter-slot{--slot-w:17px;--slot-h:30px;font-size:.66rem}
+}
+
+
+/* v34 — connected body animation + exact fixed answer slots */
+/* Keep the stick figure connected: animate the whole body only. Individual limbs never translate away from their joints. */
+.bh-hangman-stage.drop .arm-left,.bh-hangman-stage.drop .arm-right,
+.bh-hangman-stage.drop .leg-left,.bh-hangman-stage.drop .leg-right,
+.bh-hangman-stage.struggle .arm-left,.bh-hangman-stage.struggle .arm-right,
+.bh-hangman-stage.struggle .leg-left,.bh-hangman-stage.struggle .leg-right,
+.bh-hangman-stage.dead .arm-left,.bh-hangman-stage.dead .arm-right,
+.bh-hangman-stage.dead .leg-left,.bh-hangman-stage.dead .leg-right{
+  animation:none!important;transform:none!important;transform-origin:initial!important
+}
+/* The full connected body can still drop/struggle/sway as one unit. */
+.bh-hangman-stage.drop .hang-figure{animation:bhConnectedDropV34 .62s cubic-bezier(.16,.82,.18,1) both!important}
+.bh-hangman-stage.struggle .hang-figure{animation:bhConnectedStruggleV34 .26s ease-in-out 5 alternate!important}
+.bh-hangman-stage.dead .hang-figure{animation:bhConnectedSettleV34 3.4s ease-in-out infinite!important}
+@keyframes bhConnectedDropV34{0%{transform:translateY(-24px) rotate(-1deg)}52%{transform:translateY(8px) rotate(4deg)}76%{transform:translateY(2px) rotate(2deg)}100%{transform:translateY(0) rotate(1.4deg)}}
+@keyframes bhConnectedStruggleV34{0%{transform:rotate(-5deg) translateX(-2px)}100%{transform:rotate(5deg) translateX(2px)}}
+@keyframes bhConnectedSettleV34{0%,100%{transform:rotate(-1.4deg)}50%{transform:rotate(1.4deg)}}
+
+/* Fixed-position answer board: one permanent underline slot for every answer character. */
+.bh-word-display{--slot-w:42px;--slot-h:56px;--slot-gap:6px;gap:14px 0!important}
+.bh-word-token{
+  display:inline-grid!important;
+  grid-auto-flow:column!important;
+  grid-auto-columns:var(--slot-w)!important;
+  grid-template-columns:repeat(var(--word-slots),var(--slot-w))!important;
+  gap:var(--slot-gap)!important;
+  flex:0 0 auto!important;
+  flex-wrap:nowrap!important;
+  align-items:end!important;
+  min-width:max-content!important;
+  max-width:none!important
+}
+.bh-word-token.long-token{flex-wrap:nowrap!important;row-gap:0!important}
+.bh-letter-slot{width:var(--slot-w)!important;min-width:var(--slot-w)!important;height:var(--slot-h)!important;flex:none!important}
+.bh-letter-slot b{min-width:0!important;width:100%!important;text-align:center!important}
+.bh-letter-slot i{display:block!important}
+.bh-letter-slot.bh-slot-hidden i,.bh-letter-slot.bh-slot-revealed i{opacity:1!important}
+.bh-word-display[data-length="medium"]{--slot-w:36px;--slot-h:50px;--slot-gap:5px}
+.bh-word-display[data-length="long"]{--slot-w:30px;--slot-h:46px;--slot-gap:4px}
+.bh-word-display[data-length="ultra"]{--slot-w:26px;--slot-h:42px;--slot-gap:3px}
+.bh-word-display[data-length="micro"]{--slot-w:22px;--slot-h:39px;--slot-gap:2px}
+.bh-word-display[data-length="micro"] .bh-letter-slot{font-size:.86rem}
+@media(max-width:980px){
+ .bh-word-display{--slot-w:31px;--slot-h:43px;--slot-gap:4px}
+ .bh-word-display[data-length="medium"]{--slot-w:28px;--slot-h:41px;--slot-gap:4px}
+ .bh-word-display[data-length="long"]{--slot-w:25px;--slot-h:39px;--slot-gap:3px}
+ .bh-word-display[data-length="ultra"]{--slot-w:22px;--slot-h:37px;--slot-gap:2px}
+ .bh-word-display[data-length="micro"]{--slot-w:19px;--slot-h:35px;--slot-gap:2px}
+}
+@media(max-width:700px){
+ .bh-word-display{--slot-w:26px;--slot-h:36px;--slot-gap:3px}
+ .bh-word-display[data-length="medium"]{--slot-w:24px;--slot-h:35px;--slot-gap:3px}
+ .bh-word-display[data-length="long"]{--slot-w:21px;--slot-h:34px;--slot-gap:2px}
+ .bh-word-display[data-length="ultra"]{--slot-w:19px;--slot-h:32px;--slot-gap:2px}
+ .bh-word-display[data-length="micro"]{--slot-w:16px;--slot-h:30px;--slot-gap:1px}
+ .bh-word-display[data-length="micro"] .bh-letter-slot{font-size:.64rem}
+}
+@media(max-width:370px){
+ .bh-word-display{--slot-w:23px;--slot-h:33px;--slot-gap:2px}
+ .bh-word-display[data-length="medium"]{--slot-w:21px;--slot-h:32px;--slot-gap:2px}
+ .bh-word-display[data-length="long"]{--slot-w:19px;--slot-h:31px;--slot-gap:1px}
+ .bh-word-display[data-length="ultra"]{--slot-w:17px;--slot-h:30px;--slot-gap:1px}
+ .bh-word-display[data-length="micro"]{--slot-w:14px;--slot-h:28px;--slot-gap:1px}
+}
+
+
+/* v34 visual QA correction: rope runs beside the head and the loop visibly closes around the neck. */
+.bh-hangman-svg .hang-figure,.bh-hangman-svg .hang-part,.bh-hangman-stage.complete .hang-figure,.bh-hangman-stage.drop .hang-figure,.bh-hangman-stage.struggle .hang-figure,.bh-hangman-stage.dead .hang-figure{transform-origin:188px 105px!important}
+.bh-hangman-svg .rope{transform-box:fill-box;transform-origin:top center}
+.bh-hangman-svg .noose{transform-box:fill-box;transform-origin:center}
+
+
+/* v36 — actual-app slot conflict fix
+   IMPORTANT: never use the generic `.hidden` class for answer slots because main style.css hides it globally. */
+.bh-letter-slot.bh-slot-hidden{display:grid!important;visibility:visible!important;opacity:1!important}
+.bh-letter-slot.bh-slot-hidden b{visibility:hidden!important;color:transparent!important}
+.bh-letter-slot.bh-slot-hidden i,.bh-letter-slot.bh-slot-revealed i{display:block!important;visibility:visible!important;opacity:1!important}
+.bh-letter-slot.bh-slot-revealed{display:grid!important;visibility:visible!important;opacity:1!important}

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ict8-connect-v525-byte-hangman';
+const CACHE_NAME = 'ict8-connect-v536-byte-hangman-slot-conflict-fix';
 const APP_SHELL = [
   './',
   './index.html',
@@ -37,6 +37,18 @@ async function networkFirstNavigation(request) {
   }
 }
 
+
+async function networkFirstStatic(request) {
+  const cache = await caches.open(CACHE_NAME);
+  try {
+    const response = await fetch(new Request(request, { cache: 'no-store' }));
+    if (response && response.ok) cache.put(request, response.clone()).catch(() => undefined);
+    return response;
+  } catch (_) {
+    return (await cache.match(request)) || Response.error();
+  }
+}
+
 async function cacheFirstStatic(request) {
   const cache = await caches.open(CACHE_NAME);
   const cached = await cache.match(request);
@@ -68,5 +80,7 @@ self.addEventListener('fetch', event => {
   // are not re-downloaded on every app launch.
   const extension = url.pathname.split('.').pop().toLowerCase();
   const cacheable = ['html','js','css','webmanifest','json','csv','png','jpg','jpeg','webp','svg','gif','ico','mp3','wav','ogg','m4a','woff','woff2','ttf'].includes(extension);
+  const isVersionedGameCode = url.pathname.includes('/games/') && ['js','css'].includes(extension) && url.searchParams.has('v');
+  if (isVersionedGameCode) { event.respondWith(networkFirstStatic(request)); return; }
   if (cacheable) event.respondWith(cacheFirstStatic(request));
 });

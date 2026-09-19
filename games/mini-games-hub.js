@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const ASSET_VERSION = '20260919-v525-byte-hangman';
+  const ASSET_VERSION = '20260919-v536-byte-hangman-slot-conflict-fix';
 
   const GAME_REGISTRY = Object.freeze([
     {
@@ -376,7 +376,7 @@
       stateKey: 'byteHangman',
       name: 'BYTE HANGMAN',
       icon: '◈',
-      description: 'Decode words and phrases before the Byte Core crashes. Five solo modes, broad learning topics, custom keyboard controls, and controlled XP.',
+      description: 'Classic Hangman rebuilt for G8Code: guess letters before the hanging figure is completed. Five solo modes, broad learning topics, custom keyboard controls, and controlled XP.',
       maxXp: 20,
       category: 'WORD / EDUCATIONAL ARCADE',
       difficulty: '★★★★☆',
@@ -387,7 +387,7 @@
       bestText(record = {}) {
         const score = Math.max(0, Number(record.bestScore || 0));
         const streak = Math.max(0, Number(record.bestLetterStreak || 0));
-        return score > 0 ? `🏆 Best ${Math.floor(score).toLocaleString()} · Streak ×${streak}` : '🏆 Byte Core ready';
+        return score > 0 ? `🏆 Best ${Math.floor(score).toLocaleString()} · Streak ×${streak}` : '🏆 Hangman ready';
       }
     },
     {
@@ -1537,13 +1537,20 @@
     if (!game.style) return Promise.resolve();
     const selector = `link[data-xp-game-style="${game.id}"]`;
     let link = document.querySelector(selector);
+    const expectedHref = `${game.style}?v=${ASSET_VERSION}`;
+    const versionMatches = link && (link.dataset.xpAssetVersion === ASSET_VERSION || String(link.href || '').includes(`v=${ASSET_VERSION}`));
+    if (link && !versionMatches) {
+      try { link.remove(); } catch (_) {}
+      link = null;
+    }
     if (link?.dataset.xpStyleLoaded === '1' || link?.sheet) return Promise.resolve();
 
     if (!link) {
       link = document.createElement('link');
       link.rel = 'stylesheet';
-      link.href = `${game.style}?v=${ASSET_VERSION}`;
+      link.href = expectedHref;
       link.dataset.xpGameStyle = game.id;
+      link.dataset.xpAssetVersion = ASSET_VERSION;
       document.head.appendChild(link);
     }
 
@@ -1572,8 +1579,13 @@
     if (!src) return Promise.resolve();
     const key = `dep:${src}`;
     if (state.assetPromises.has(key)) return state.assetPromises.get(key);
-    const existing = Array.from(document.querySelectorAll('script[data-xp-game-dependency]'))
+    let existing = Array.from(document.querySelectorAll('script[data-xp-game-dependency]'))
       .find(node => node.dataset.xpGameDependency === src) || null;
+    const versionMatches = existing && (existing.dataset.xpAssetVersion === ASSET_VERSION || String(existing.src || '').includes(`v=${ASSET_VERSION}`));
+    if (existing && !versionMatches) {
+      try { existing.remove(); } catch (_) {}
+      existing = null;
+    }
     if (existing?.dataset.xpDependencyLoaded === '1') return Promise.resolve();
     const promise = new Promise((resolve, reject) => {
       const script = existing || document.createElement('script');
@@ -1585,6 +1597,7 @@
         script.src = `${src}?v=${ASSET_VERSION}`;
         script.defer = true;
         script.dataset.xpGameDependency = src;
+        script.dataset.xpAssetVersion = ASSET_VERSION;
         document.body.appendChild(script);
       }
     }).finally(() => state.assetPromises.delete(key));
@@ -1598,8 +1611,17 @@
   }
 
   function ensureGameModule(game) {
-    const current = window[game.globalName];
-    if (current?.open) return Promise.resolve(current);
+    let current = window[game.globalName];
+    if (current?.open) {
+      if (game.id !== 'byte-hangman' || current.assetVersion === ASSET_VERSION) return Promise.resolve(current);
+      // Byte Hangman is heavily iterated during this release cycle. If the SPA
+      // already loaded an older copy, remove its old overlay/API before loading
+      // the new version so the real app matches the standalone visual test.
+      try { current.close?.(true); } catch (_) {}
+      try { document.querySelectorAll('.bh-overlay').forEach(node => node.remove()); } catch (_) {}
+      try { window[game.globalName] = null; } catch (_) {}
+      current = null;
+    }
     if (state.assetPromises.has(game.id)) return state.assetPromises.get(game.id);
 
     const promise = Promise.all([ensureStylesheet(game), ensureGameDependencies(game)]).then(() => new Promise((resolve, reject) => {
@@ -1612,6 +1634,7 @@
       script.src = `${game.script}?v=${ASSET_VERSION}`;
       script.defer = true;
       script.dataset.xpGameScript = game.id;
+      script.dataset.xpAssetVersion = ASSET_VERSION;
       script.addEventListener('load', () => {
         const api = window[game.globalName];
         if (api?.open) resolve(api);
