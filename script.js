@@ -19718,7 +19718,7 @@ function updateInstallButtonVisibility() {
 function registerPWAServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./service-worker.js?v=506-super-cache-local-first', {
+    navigator.serviceWorker.register('./service-worker.js?v=519-pinoy-feud', {
       updateViaCache: 'none'
     }).then(registration => {
       registration.update().catch(() => {});
@@ -57437,7 +57437,8 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     'code-smash': Object.freeze({ id: 'code-smash', name: 'CODE SMASH', prefix: 'CSM1' }),
     'code-dama': Object.freeze({ id: 'code-dama', name: 'CODE DAMA', prefix: 'CDM1' }),
     'code-climb': Object.freeze({ id: 'code-climb', name: 'CODE CLIMB', prefix: 'CCL1' }),
-    'code-uno': Object.freeze({ id: 'code-uno', name: 'UNO!', prefix: 'UNO1' })
+    'code-uno': Object.freeze({ id: 'code-uno', name: 'UNO!', prefix: 'UNO1' }),
+    'pinoy-feud': Object.freeze({ id: 'pinoy-feud', name: 'PINOY FEUD', prefix: 'PF1' })
   });
   let twoPlayerDirectoryRegisteredAt = 0;
   let twoPlayerDirectoryRegisteredKey = '';

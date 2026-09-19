@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ict8-connect-v518-certificate-signature-refinement';
+const CACHE_NAME = 'ict8-connect-v524-pinoy-feud-turn-score-scroll';
 const APP_SHELL = [
   './',
   './index.html',
