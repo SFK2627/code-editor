@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ict8-connect-v517-live-syntax-colors';
+const CACHE_NAME = 'ict8-connect-v518-certificate-signature-refinement';
 const APP_SHELL = [
   './',
   './index.html',
