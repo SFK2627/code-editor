@@ -14,7 +14,7 @@
     ? new URL(document.currentScript.src, document.baseURI)
     : new URL('games/million-byte/million-byte.js', document.baseURI);
   const GAME_DIR_URL = new URL('./', GAME_SCRIPT_URL);
-  const BANK_ASSET_VERSION = '20260916-million-byte-50000q-v1';
+  const BANK_ASSET_VERSION = '20260919-million-byte-balanced-families-v1';
   const BANK_URL = new URL(`million-byte-questions.js?v=${BANK_ASSET_VERSION}`, GAME_DIR_URL).href;
   const BANK_VERSION = 6;
   const EXPLANATION_QUALITY_VERSION = 2;
@@ -27,9 +27,10 @@
   const TIER_NAMES = ['EASY','MODERATE','CHALLENGING','DIFFICULT','EXPERT'];
   const TIER_COUNTS = [0, 10000, 10000, 10000, 10000, 10000];
   const QUESTION_SECONDS_BY_TIER = [0,35,40,45,50,55];
-  const LOCAL_STATE_KEY = 'ict8.millionByte.globalQuestionCycle.50000.v1';
+  const LOCAL_STATE_KEY = 'ict8.millionByte.globalQuestionCycle.50000.balancedFamilies.v1';
   const LEGACY_LOCAL_STATE_KEY = 'ict8.millionByte.globalQuestionCycle.15000.v1';
-  const QUESTION_CYCLE_MODE = 'global-no-repeat-50000-v1';
+  const QUESTION_CYCLE_MODE = 'global-no-repeat-50000-balanced-families-v1';
+  const CATEGORY_BALANCE_MODE = 'balanced-families-v1';
   const LIFELINE_IDS = ['fifty','double','audience','switch'];
   const LIFELINE_META = {
     fifty: { title: '50:50', detail: 'Remove 2' },
@@ -168,9 +169,9 @@
             <div class="million-byte-logo">🧠</div>
             <p class="million-byte-kicker">15 QUESTIONS · 5 DIFFICULTY TIERS</p>
             <h2>MILLION BYTE</h2>
-            <p>Answer 15 general-knowledge questions from Easy to Expert. Questions rotate through the full 50,000-question bank before repeating. Each run gives you 3 random lifelines from a pool of 4.</p>
+            <p>Answer 15 general-knowledge questions from Easy to Expert. Questions rotate through the full 50,000-question bank before repeating, with broad subject families interleaved so every difficulty starts with varied coverage. Each run gives you 3 random lifelines from a pool of 4.</p>
             <div class="million-byte-rule-row">
-              <div><small>QUESTION POOL</small><strong>50,000</strong></div>
+              <div><small>QUESTION POOL</small><strong>50,000</strong></div><div><small>SUBJECT MIX</small><strong>BALANCED</strong></div>
               <div><small>LIFELINES</small><strong>Random 3 of 4</strong></div>
               <div><small>XP</small><strong>Perfect 15/15 = 15 XP</strong></div>
             </div>
@@ -483,14 +484,37 @@
     return h >>> 0;
   }
 
-  function rawPermutation(tier, cycle) {
-    let state = hashSeed(`million-byte-local:${tier}:${cycle}`) || 1;
+  function categoryFamily(category = '') {
+    const c = String(category || '').toLowerCase();
+    if (/current events/.test(c)) return 'CURRENT_EVENTS';
+    if (/philippine|filipino|philippines/.test(c)) return 'PHILIPPINES';
+    if (/math|algebra|geometry|statistics|quantitative|logic|number sense/.test(c)) return 'MATH_LOGIC';
+    if (/econom|money|financial|business|entrepreneur/.test(c)) return 'ECONOMICS';
+    if (/ict|computer|technology|javascript|programming|web|internet|css|html|cybersecurity|digital citizenship|media & information/.test(c)) return 'TECHNOLOGY';
+    if (/science|physics|chemistry|biology|human body|earth|environment|climate|weather|astronomy|space|plants|animals|agriculture|ocean|marine|inventions|discoveries/.test(c)) return 'SCIENCE_NATURE';
+    if (/history|civics/.test(c)) return 'HISTORY_CIVICS';
+    if (/geography|asean|world culture|symbols|flags|architecture|landmarks|transportation/.test(c)) return 'GEOGRAPHY_CULTURE';
+    if (/language|grammar|literature|books/.test(c)) return 'LANGUAGE_LITERATURE';
+    if (/art|music|movie|entertainment|cartoon|animation|comics|superheroes|pop culture|tv|showbiz/.test(c)) return 'ARTS_ENTERTAINMENT';
+    if (/sports|games|health/.test(c)) return 'SPORTS_GAMES';
+    if (/religion|mythology|legends|beliefs/.test(c)) return 'BELIEFS_MYTHOLOGY';
+    if (/food|cuisine|everyday|measurements/.test(c)) return 'EVERYDAY_LIFE';
+    if (/famous people|records|firsts|awards/.test(c)) return 'PEOPLE_RECORDS';
+    return 'GENERAL';
+  }
+
+  function questionFamilyByNumber(tier, number) {
+    const id = `mb${tier}-${String(number).padStart(3, '0')}`;
+    return categoryFamily(runtime.bank?.byId?.[id]?.category || 'General');
+  }
+
+  function shuffledCopy(items, seedText) {
+    const arr = Array.isArray(items) ? items.slice() : [];
+    let state = hashSeed(seedText) || 1;
     const random = () => {
       state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
       return state / 4294967296;
     };
-    const tierCount = TIER_COUNTS[tier] || 0;
-    const arr = Array.from({ length: tierCount }, (_, i) => i + 1);
     for (let i = arr.length - 1; i > 0; i -= 1) {
       const j = Math.floor(random() * (i + 1));
       [arr[i], arr[j]] = [arr[j], arr[i]];
@@ -498,10 +522,45 @@
     return arr;
   }
 
-  // Keep the first questions of a new full-bank cycle away from the tail of the
-  // previous cycle. This prevents an ugly immediate duplicate in the one run
-  // that crosses the 50,000-question boundary, while preserving a true
-  // permutation (nothing is skipped or retired unseen).
+  // Category-balanced permutation. Every question still appears exactly once
+  // per full tier cycle, but the order interleaves broad subject families so
+  // three questions in the same difficulty are not dominated by Math/Logic.
+  function rawPermutation(tier, cycle) {
+    const tierCount = TIER_COUNTS[tier] || 0;
+    if (!runtime.bank?.byId || tierCount <= 0) {
+      return shuffledCopy(Array.from({ length: tierCount }, (_, i) => i + 1), `million-byte-local-fallback:${tier}:${cycle}`);
+    }
+    const buckets = new Map();
+    for (let n = 1; n <= tierCount; n += 1) {
+      const family = questionFamilyByNumber(tier, n);
+      if (!buckets.has(family)) buckets.set(family, []);
+      buckets.get(family).push(n);
+    }
+    let families = shuffledCopy(Array.from(buckets.keys()).sort(), `million-byte-family-order:${tier}:${cycle}`);
+    const rows = new Map();
+    families.forEach(family => {
+      rows.set(family, shuffledCopy(buckets.get(family), `million-byte-family-items:${tier}:${cycle}:${family}`));
+    });
+    const cursors = new Map(families.map(family => [family, 0]));
+    const out = [];
+    while (families.length && out.length < tierCount) {
+      const nextActive = [];
+      for (const family of families) {
+        const row = rows.get(family) || [];
+        const cursor = cursors.get(family) || 0;
+        if (cursor < row.length) {
+          out.push(row[cursor]);
+          cursors.set(family, cursor + 1);
+        }
+        if ((cursors.get(family) || 0) < row.length) nextActive.push(family);
+      }
+      families = nextActive;
+    }
+    return out;
+  }
+
+  // Keep cycle-boundary duplicates away without disturbing family balance:
+  // a blocked head item is swapped only with another item from the same family.
   function permutation(tier, cycle) {
     const arr = rawPermutation(tier, cycle);
     if (cycle <= 0 || arr.length < 40) return arr;
@@ -510,9 +569,10 @@
     const head = Math.min(15, arr.length);
     for (let i = 0; i < head; i += 1) {
       if (!blocked.has(arr[i])) continue;
+      const wantedFamily = questionFamilyByNumber(tier, arr[i]);
       let swapAt = -1;
       for (let j = head; j < Math.max(head, arr.length - 15); j += 1) {
-        if (!blocked.has(arr[j])) { swapAt = j; break; }
+        if (!blocked.has(arr[j]) && questionFamilyByNumber(tier, arr[j]) === wantedFamily) { swapAt = j; break; }
       }
       if (swapAt >= 0) [arr[i], arr[swapAt]] = [arr[swapAt], arr[i]];
     }
@@ -684,10 +744,13 @@
             7000,
             null
           );
-          if (Array.isArray(prepared?.questionIds) && prepared.questionIds.length === QUESTION_COUNT) {
+          const balancedServer = prepared?.selectionMode === CATEGORY_BALANCE_MODE;
+          if (balancedServer && Array.isArray(prepared?.questionIds) && prepared.questionIds.length === QUESTION_COUNT) {
             ids = prepared.questionIds.slice();
             runtime.rewardEligible = prepared.loginRequired !== true && prepared.practiceOnly !== true;
             runtime.practiceReason = prepared.practiceOnly ? 'Question service unavailable — this run is practice only.' : '';
+          } else if (Array.isArray(prepared?.questionIds) && prepared.questionIds.length === QUESTION_COUNT) {
+            runtime.practiceReason = 'Balanced subject rotation needs the updated Code.gs bridge — using a balanced practice ladder for now.';
           } else if (prepared?.loginRequired) {
             runtime.practiceReason = 'Practice run — sign in as a student to earn XP.';
           } else if (!prepared) {
@@ -779,7 +842,7 @@
     runtime.valueEl.textContent = `${VALUES[runtime.index]} BYTE`;
     runtime.questionEl.textContent = q.q;
     runtime.statusEl.dataset.kind = '';
-    runtime.statusEl.textContent = options.switched ? 'SWITCH used · New question, same value and difficulty.' : (runtime.practiceReason || 'Lock in one answer. Harder tiers give you more answer time.');
+    runtime.statusEl.textContent = options.switched ? 'SWITCH used · New question, same value and difficulty.' : (runtime.practiceReason || 'Category-balanced rotation is active · Harder tiers give you more answer time.');
     runtime.progressBar.style.width = `${(runtime.index / QUESTION_COUNT) * 100}%`;
     updateLadder();
     startTimer();

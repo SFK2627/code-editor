@@ -102,3 +102,7 @@ body.million-byte-active{overflow:hidden!important;overscroll-behavior:none}.mil
     background:linear-gradient(180deg,rgba(8,13,32,0),rgba(8,13,32,.96) 34%,#080d20 100%);
   }
 }
+
+/* v541 Million Byte category-balanced selector */
+.million-byte-rule-row{grid-template-columns:repeat(4,minmax(0,1fr))}
+@media(max-width:560px){.million-byte-rule-row{grid-template-columns:repeat(2,minmax(0,1fr))}}

@@ -50981,13 +50981,16 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       action: 'startMillionByteRound',
       roundId: id,
       gameId: XP_MINI_GAME_ID_MILLION_BYTE,
-      bankVersion: Math.max(1, Math.min(99, Math.floor(Number(bankVersion || 1))))
+      bankVersion: Math.max(1, Math.min(99, Math.floor(Number(bankVersion || 1)))),
+      selectionMode: 'balanced-families-v1'
     }, { allowStudent: true });
     return {
       ok: server?.ok === true,
       questionIds: Array.isArray(server?.questionIds) ? server.questionIds.slice(0, 15) : [],
       bankVersion: Number(server?.bankVersion || bankVersion || 1),
       cycleInfo: server?.cycleInfo || null,
+      selectionMode: String(server?.selectionMode || ''),
+      serverVersion: String(server?.serverVersion || ''),
       practiceOnly: false,
       loginRequired: false
     };
@@ -51009,12 +51012,15 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       gameId: XP_MINI_GAME_ID_MILLION_BYTE,
       bankVersion: Math.max(1, Math.min(99, Math.floor(Number(options.bankVersion || 1)))),
       questionIndex: Math.max(0, Math.min(14, Math.floor(Number(options.questionIndex || 0)))),
-      originalQuestionId: String(options.originalQuestionId || '')
+      originalQuestionId: String(options.originalQuestionId || ''),
+      selectionMode: 'balanced-families-v1'
     }, { allowStudent: true });
     return {
       ok: server?.ok === true,
       replacementId: String(server?.replacementId || ''),
       cycleInfo: server?.cycleInfo || null,
+      selectionMode: String(server?.selectionMode || ''),
+      serverVersion: String(server?.serverVersion || ''),
       practiceOnly: false
     };
   }
@@ -58178,6 +58184,200 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     ]);
     return true;
   }
+
+
+  // CODE IMPOSTOR temporary 3-12 player room signaling. RTDB only handles
+  // discovery + WebRTC offer/answer exchange. Roles, secret words, clues,
+  // votes, scores, and the authoritative match state stay on the Host and are
+  // synchronized over direct DataChannels. Spectator joins are tagged so the
+  // game never sends them private role/word payloads.
+  const CODE_IMPOSTOR_ROOM_TTL_MS = 45 * 60 * 1000;
+
+  function normalizeCodeImpostorRoomCode(value = '') {
+    const code = String(value || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
+    if (!/^[A-Z0-9]{6}$/.test(code)) throw new Error('Enter a valid 6-character room code.');
+    return code;
+  }
+
+  function getKnownCodeImpostorMeta(options = {}, roomCode = '') {
+    const meta = options.meta && typeof options.meta === 'object' ? options.meta : null;
+    if (!meta) return null;
+    if (String(meta.roomCode || '') !== String(roomCode || '')) return null;
+    if (Number(meta.expiresAtMs || 0) <= Date.now()) return null;
+    return meta;
+  }
+
+  async function createCodeImpostorRoom(options = {}) {
+    if (!canUseTwoPlayerStudentInvites()) throw new Error('Live rooms require a logged-in student account.');
+    const identity = getTwoPlayerPlayerIdentity();
+    const roomCode = normalizeCodeImpostorRoomCode(options.roomCode || '');
+    const maxPlayers = Math.max(3, Math.min(12, Math.round(Number(options.maxPlayers || 8))));
+    const existing = await rtdbRestRequest(`codeImpostorSignals/rooms/${roomCode}/meta`).catch(() => null);
+    if (existing && Number(existing.expiresAtMs || 0) > Date.now() && existing.hostUid !== identity.uid) {
+      throw new Error('That room code is already in use. Try again.');
+    }
+    const now = Date.now();
+    const meta = {
+      version: 1,
+      roomCode,
+      hostUid: twoPlayerSafeUid(identity.uid),
+      hostName: String(options.hostName || identity.name || 'HOST').trim().slice(0, 24) || 'HOST',
+      hostStudentId: identity.studentId,
+      maxPlayers,
+      allowSpectators: options.allowSpectators !== false,
+      status: 'lobby',
+      createdAtMs: now,
+      updatedAtMs: now,
+      expiresAtMs: now + CODE_IMPOSTOR_ROOM_TTL_MS
+    };
+    await rtdbRestRequest(`codeImpostorSignals/rooms/${roomCode}/meta`, { method: 'PUT', body: meta });
+    return meta;
+  }
+
+  async function getCodeImpostorRoom(options = {}) {
+    if (!canUseTwoPlayerStudentInvites()) throw new Error('Live rooms require a logged-in student account.');
+    const roomCode = normalizeCodeImpostorRoomCode(options.roomCode || '');
+    const meta = await rtdbRestRequest(`codeImpostorSignals/rooms/${roomCode}/meta`);
+    if (!meta || Number(meta.expiresAtMs || 0) <= Date.now()) throw new Error('Room not found or already expired.');
+    return meta;
+  }
+
+  async function touchCodeImpostorRoom(options = {}) {
+    const identity = getTwoPlayerPlayerIdentity();
+    const roomCode = normalizeCodeImpostorRoomCode(options.roomCode || '');
+    const meta = getKnownCodeImpostorMeta(options, roomCode) || await getCodeImpostorRoom({ roomCode });
+    if (meta.hostUid !== identity.uid) return meta;
+    const now = Date.now();
+    const patch = { status:String(options.status || meta.status || 'lobby').slice(0,16), updatedAtMs:now, expiresAtMs:now + CODE_IMPOSTOR_ROOM_TTL_MS };
+    await rtdbRestRequest(`codeImpostorSignals/rooms/${roomCode}/meta`, { method:'PATCH', body:patch });
+    return { ...meta, ...patch };
+  }
+
+  async function requestCodeImpostorJoin(options = {}) {
+    if (!canUseTwoPlayerStudentInvites()) throw new Error('Joining a live room requires a logged-in student account.');
+    const identity = getTwoPlayerPlayerIdentity();
+    const roomCode = normalizeCodeImpostorRoomCode(options.roomCode || '');
+    const meta = await getCodeImpostorRoom({ roomCode });
+    if (meta.hostUid === identity.uid) throw new Error('You are already the Host of this room.');
+    const joinRole = String(options.joinRole || 'player') === 'spectator' ? 'spectator' : 'player';
+    if (joinRole === 'spectator' && meta.allowSpectators === false) throw new Error('Spectators are disabled for this room.');
+    const viewMode = String(options.viewMode || 'normal') === 'projector' ? 'projector' : 'normal';
+    const now = Date.now();
+    const record = {
+      version:1, roomCode, uid:twoPlayerSafeUid(identity.uid),
+      name:String(options.name || identity.name || 'PLAYER').trim().slice(0,24) || 'PLAYER',
+      studentId:identity.studentId, section:identity.section || '', joinRole, viewMode,
+      status:'waiting', createdAtMs:now, updatedAtMs:now,
+      expiresAtMs:Math.min(Number(meta.expiresAtMs || now + CODE_IMPOSTOR_ROOM_TTL_MS), now + CODE_IMPOSTOR_ROOM_TTL_MS)
+    };
+    await rtdbRestRequest(`codeImpostorSignals/rooms/${roomCode}/joins/${identity.uid}`, { method:'PUT', body:record });
+    return { meta, join:record };
+  }
+
+  async function listCodeImpostorJoins(options = {}) {
+    const identity = getTwoPlayerPlayerIdentity();
+    const roomCode = normalizeCodeImpostorRoomCode(options.roomCode || '');
+    const meta = getKnownCodeImpostorMeta(options, roomCode) || await getCodeImpostorRoom({ roomCode });
+    if (meta.hostUid !== identity.uid) throw new Error('Only the room Host can read join requests.');
+    const raw = await rtdbRestRequest(`codeImpostorSignals/rooms/${roomCode}/joins`).catch(() => null);
+    const now = Date.now();
+    return Object.entries(raw || {}).map(([uid,value]) => ({ uid, ...(value || {}) })).filter(item => item.uid && Number(item.expiresAtMs || 0) > now);
+  }
+
+  async function setCodeImpostorOffer(options = {}) {
+    const identity = getTwoPlayerPlayerIdentity();
+    const roomCode = normalizeCodeImpostorRoomCode(options.roomCode || '');
+    const targetUid = twoPlayerSafeUid(options.targetUid || '');
+    const meta = getKnownCodeImpostorMeta(options, roomCode) || await getCodeImpostorRoom({ roomCode });
+    if (meta.hostUid !== identity.uid) throw new Error('Only the room Host can create connection offers.');
+    const now = Date.now();
+    const body = {
+      version:1, roomCode, targetUid, hostUid:identity.uid,
+      status:String(options.status || 'offer').slice(0,24),
+      seat:Math.max(0,Math.min(11,Math.round(Number(options.seat || 0)))),
+      joinRole:String(options.joinRole || 'player') === 'spectator' ? 'spectator' : 'player',
+      offerCode:String(options.offerCode || ''), updatedAtMs:now,
+      expiresAtMs:Math.min(Number(meta.expiresAtMs || now + CODE_IMPOSTOR_ROOM_TTL_MS), now + CODE_IMPOSTOR_ROOM_TTL_MS)
+    };
+    await rtdbRestRequest(`codeImpostorSignals/rooms/${roomCode}/offers/${targetUid}`, { method:'PUT', body });
+    return body;
+  }
+
+  async function getCodeImpostorOffer(options = {}) {
+    const identity = getTwoPlayerPlayerIdentity();
+    const roomCode = normalizeCodeImpostorRoomCode(options.roomCode || '');
+    const offer = await rtdbRestRequest(`codeImpostorSignals/rooms/${roomCode}/offers/${identity.uid}`);
+    if (!offer || Number(offer.expiresAtMs || 0) <= Date.now()) return null;
+    return offer;
+  }
+
+  async function setCodeImpostorAnswer(options = {}) {
+    const identity = getTwoPlayerPlayerIdentity();
+    const roomCode = normalizeCodeImpostorRoomCode(options.roomCode || '');
+    const meta = getKnownCodeImpostorMeta(options, roomCode) || await getCodeImpostorRoom({ roomCode });
+    const now = Date.now();
+    const body = { version:1, roomCode, uid:identity.uid, hostUid:meta.hostUid, answerCode:String(options.answerCode || ''), updatedAtMs:now, expiresAtMs:Math.min(Number(meta.expiresAtMs || now + CODE_IMPOSTOR_ROOM_TTL_MS), now + CODE_IMPOSTOR_ROOM_TTL_MS) };
+    await rtdbRestRequest(`codeImpostorSignals/rooms/${roomCode}/answers/${identity.uid}`, { method:'PUT', body });
+    return body;
+  }
+
+  async function listCodeImpostorAnswers(options = {}) {
+    const identity = getTwoPlayerPlayerIdentity();
+    const roomCode = normalizeCodeImpostorRoomCode(options.roomCode || '');
+    const meta = getKnownCodeImpostorMeta(options, roomCode) || await getCodeImpostorRoom({ roomCode });
+    if (meta.hostUid !== identity.uid) throw new Error('Only the room Host can read connection answers.');
+    const raw = await rtdbRestRequest(`codeImpostorSignals/rooms/${roomCode}/answers`).catch(() => null);
+    const now = Date.now();
+    return Object.entries(raw || {}).map(([uid,value]) => ({ uid, ...(value || {}) })).filter(item => item.uid && Number(item.expiresAtMs || 0) > now);
+  }
+
+  async function clearCodeImpostorHandshake(options = {}) {
+    const identity = getTwoPlayerPlayerIdentity();
+    const roomCode = normalizeCodeImpostorRoomCode(options.roomCode || '');
+    const targetUid = twoPlayerSafeUid(options.targetUid || '');
+    const meta = getKnownCodeImpostorMeta(options, roomCode) || await getCodeImpostorRoom({ roomCode });
+    if (meta.hostUid !== identity.uid) throw new Error('Only the room Host can clear connection signals.');
+    await rtdbRestRequest(`codeImpostorSignals/rooms/${roomCode}`, { method:'PATCH', body:{ [`joins/${targetUid}`]:null, [`offers/${targetUid}`]:null, [`answers/${targetUid}`]:null } });
+    return true;
+  }
+
+  async function transferCodeImpostorHost(options = {}) {
+    const identity = getTwoPlayerPlayerIdentity();
+    const roomCode = normalizeCodeImpostorRoomCode(options.roomCode || '');
+    const meta = getKnownCodeImpostorMeta(options, roomCode) || await getCodeImpostorRoom({ roomCode });
+    if (meta.hostUid !== identity.uid) throw new Error('Only the current Host can transfer the room.');
+    const targetUid = twoPlayerSafeUid(options.targetUid || '');
+    if (!targetUid || targetUid === identity.uid) throw new Error('Choose another active player as Host.');
+    const now = Date.now();
+    const patch = {
+      hostUid: targetUid,
+      hostName: String(options.targetName || 'HOST').trim().slice(0,24) || 'HOST',
+      hostStudentId: String(options.targetStudentId || ''),
+      updatedAtMs: now,
+      expiresAtMs: now + CODE_IMPOSTOR_ROOM_TTL_MS
+    };
+    await rtdbRestRequest(`codeImpostorSignals/rooms/${roomCode}/meta`, { method:'PATCH', body:patch });
+    return { ...meta, ...patch };
+  }
+
+  async function leaveCodeImpostorRoom(options = {}) {
+    if (!canUseTwoPlayerStudentInvites()) return false;
+    const identity = getTwoPlayerPlayerIdentity();
+    const roomCode = normalizeCodeImpostorRoomCode(options.roomCode || '');
+    let meta = null;
+    try { meta = await rtdbRestRequest(`codeImpostorSignals/rooms/${roomCode}/meta`); } catch (_) {}
+    if (!meta) return true;
+    if (meta.hostUid === identity.uid || options.closeRoom) {
+      await rtdbRestRequest(`codeImpostorSignals/rooms/${roomCode}`, { method:'DELETE' }).catch(() => null);
+      return true;
+    }
+    await Promise.allSettled([
+      rtdbRestRequest(`codeImpostorSignals/rooms/${roomCode}/joins/${identity.uid}`, { method:'DELETE' }),
+      rtdbRestRequest(`codeImpostorSignals/rooms/${roomCode}/answers/${identity.uid}`, { method:'DELETE' })
+    ]);
+    return true;
+  }
+
   function getCodeDuelPlayerIdentity() { return getTwoPlayerPlayerIdentity(); }
   function canUseCodeDuelStudentInvites() { return canUseTwoPlayerStudentInvites(); }
   function ensureCodeDuelDirectoryRegistration(options = {}) { return ensureTwoPlayerDirectoryRegistration(options); }
@@ -58209,7 +58409,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   // Reward tiers, daily cap, duplicate protection, total XP integration, and
   // Firestore transaction logic stay inside the existing Code Explorer system.
   window.ICT8_XP_MINIGAMES_BRIDGE = Object.freeze({
-    version: 7,
+    version: 8,
     dailyCap: XP_MINI_GAMES_DAILY_CAP,
     weeklyMax: XP_MINI_GAMES_WEEKLY_MAX,
     getSnapshot: currentXpMiniGamesSnapshot,
@@ -58257,6 +58457,18 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     listCodeUnoAnswers,
     clearCodeUnoHandshake,
     leaveCodeUnoRoom,
+    createCodeImpostorRoom,
+    getCodeImpostorRoom,
+    touchCodeImpostorRoom,
+    requestCodeImpostorJoin,
+    listCodeImpostorJoins,
+    setCodeImpostorOffer,
+    getCodeImpostorOffer,
+    setCodeImpostorAnswer,
+    listCodeImpostorAnswers,
+    clearCodeImpostorHandshake,
+    transferCodeImpostorHost,
+    leaveCodeImpostorRoom,
     canUseDuelStudentInvites: canUseCodeDuelStudentInvites,
     createDuelInvite: createCodeDuelInvite,
     listDuelInvites: listCodeDuelInvites,

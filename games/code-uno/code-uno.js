@@ -468,7 +468,9 @@
   function back() {
     if (r.state === 'game' || r.state === 'lobby') { leaveRoomToHome(); return; }
     if (r.state !== 'home') { show('home'); return; }
-    r.onBack?.();
+    const cb = r.onBack;
+    close(false);
+    try { cb?.(); } catch (_) {}
   }
 
   function setStatus(el, text, error = false, ok = false) {

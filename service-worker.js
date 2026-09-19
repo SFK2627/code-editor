@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ict8-connect-v536-byte-hangman-slot-conflict-fix';
+const CACHE_NAME = 'ict8-connect-v541-million-byte-category-balance';
 const APP_SHELL = [
   './',
   './index.html',

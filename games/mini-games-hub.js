@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const ASSET_VERSION = '20260919-v536-byte-hangman-slot-conflict-fix';
+  const ASSET_VERSION = '20260919-v542-code-impostor-answer-text';
 
   const GAME_REGISTRY = Object.freeze([
     {
@@ -553,6 +553,24 @@
       bestText() { return '🎤 SOLO · LIVE 1V1 · AUDIENCE · 0 XP'; }
     },
     {
+      id: 'code-impostor',
+      stateKey: 'codeImpostor',
+      name: 'CODE IMPOSTOR',
+      icon: '🕵️',
+      description: 'A social deduction word game for any topic. Play solo vs bots, host a private 3–12 player room, run a classroom projector, or join as a view-only spectator.',
+      maxXp: 0,
+      multiplayer: true,
+      noXp: true,
+      category: 'SOLO / 3–12P / SOCIAL DEDUCTION',
+      difficulty: '★★★★☆',
+      globalName: 'ICT8CodeImpostor',
+      dependencies: ['games/p2p-zero-db/p2p-zero-db.js', 'games/code-impostor/code-impostor-bank.js'],
+      script: 'games/code-impostor/code-impostor.js',
+      style: 'games/code-impostor/code-impostor.css',
+      playLabel: 'PLAY IMPOSTOR',
+      bestText() { return '🕵️ SOLO · LIVE 3–12P · CLASSROOM · 0 XP'; }
+    },
+    {
       id: 'pattern-lock',
       stateKey: 'patternLock',
       name: 'PATTERN LOCK',
@@ -618,6 +636,7 @@
     'code-climb':             { bpm:112, root:55, scale:'majorPent', lead:'pluck', melody:[0,2,4,3,5,4,2,null,1,3,5,4,3,2,0,null], bass:[0,3,4,3], drums:'groove', gain:.27 },
     'code-uno':               { bpm:118, root:57, scale:'majorPent', lead:'pluck', melody:[0,2,4,null,3,5,4,2,1,3,5,null,4,2,1,null], bass:[0,3,4,3], drums:'groove', gain:.27 },
     'pinoy-feud':             { bpm:122, root:55, scale:'majorPent', lead:'pluck', melody:[0,null,2,4,3,null,5,4,2,null,4,5,4,2,1,null], bass:[0,3,4,3], drums:'groove', gain:.29 },
+    'code-impostor':          { bpm:96, root:50, scale:'minorPent', lead:'bell', melody:[0,null,3,null,2,4,null,1,0,null,5,4,null,2,1,null], bass:[0,0,3,2], drums:'suspense', gain:.25 },
     'pattern-lock':           { bpm:102, root:60, scale:'minorPent', lead:'bell',   melody:[0,null,2,null,4,null,3,null,1,null,3,null,5,4,2,null], bass:[0,3,4,3], drums:'soft',   gain:.27 }
   });
 
