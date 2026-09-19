@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ict8-connect-v555-byte-strike-orientation-fix';
+const CACHE_NAME = 'ict8-connect-v556-byte-strike-mobile-hud';
 const APP_SHELL = [
   './',
   './index.html',

@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const ASSET_VERSION = '20260919-v555-byte-strike-orientation-fix';
+  const ASSET_VERSION = '20260919-v556-byte-strike-mobile-hud';
 
   const GAME_REGISTRY = Object.freeze([
     {
