@@ -33,5 +33,5 @@
       "purpose": "maskable"
     }
   ],
-  "orientation": "portrait-primary"
+  "orientation": "any"
 }

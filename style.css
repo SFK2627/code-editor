@@ -41222,18 +41222,30 @@ html[data-device-mode="phone"] .entry-choice-grid > button.lessons-choice strong
 }
 
 @media (orientation: landscape) and (max-height: 560px) and (hover: none) and (pointer: coarse) {
-  html[data-device-mode="phone"] body > :not(#portraitLockOverlay) {
+  /* Normal ICT 8 Connect pages stay portrait-first. BYTE STRIKE is the one
+     intentional landscape combat experience, so it must bypass this global
+     portrait guard while the game overlay is open. */
+  html[data-device-mode="phone"] body:not(.byte-strike-active) > :not(#portraitLockOverlay) {
     display: none !important;
   }
 
-  html[data-device-mode="phone"] .portrait-lock-overlay {
+  html[data-device-mode="phone"] body:not(.byte-strike-active) .portrait-lock-overlay {
     display: flex !important;
   }
 
+  html[data-device-mode="phone"] body.byte-strike-active .portrait-lock-overlay {
+    display: none !important;
+  }
+
   html[data-device-mode="phone"],
-  html[data-device-mode="phone"] body {
+  html[data-device-mode="phone"] body:not(.byte-strike-active) {
     overflow: hidden !important;
     min-height: 100vh;
+  }
+
+  html[data-device-mode="phone"] body.byte-strike-active {
+    overflow: hidden !important;
+    min-height: 100dvh;
   }
 }
 

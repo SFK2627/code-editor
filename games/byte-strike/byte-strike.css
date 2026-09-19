@@ -126,3 +126,10 @@
   .bs-overlay.bs-playing.bs-portrait-blocked .bs-orientation-gate{display:grid!important}
 }
 @media(prefers-reduced-motion:reduce){.bs-rotate-phone{animation:none!important;transform:rotate(90deg)}}
+
+
+/* v4 mobile orientation conflict fix */
+body.byte-strike-active #portraitLockOverlay{display:none!important;pointer-events:none!important}
+.bs-orientation-retry{min-width:190px;margin-top:6px}
+@media(max-width:760px) and (orientation:portrait){.bs-orientation-retry{display:inline-flex!important;align-items:center;justify-content:center;min-height:48px;padding:0 18px;font-size:.68rem}}
+@media(max-height:760px) and (orientation:landscape){.bs-orientation-gate{display:none!important}.bs-overlay.bs-playing .bs-game-wrap{width:100%!important;height:100%!important;min-width:0!important;min-height:0!important}}

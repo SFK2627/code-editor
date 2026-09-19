@@ -43360,6 +43360,9 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     window.navigator.standalone === true;
   async function requestPortraitLock() {
     if (!isPhone() || !isStandalone()) return;
+    // BYTE STRIKE intentionally uses landscape during combat. Do not let the
+    // app-wide portrait guard immediately rotate it back after orientationchange.
+    if (document.body?.classList?.contains('byte-strike-active')) return;
     try {
       await screen.orientation?.lock?.('portrait-primary');
     } catch (error) {

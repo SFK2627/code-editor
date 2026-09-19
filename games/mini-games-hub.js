@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const ASSET_VERSION = '20260919-v554-byte-strike-mobile-landscape';
+  const ASSET_VERSION = '20260919-v555-byte-strike-orientation-fix';
 
   const GAME_REGISTRY = Object.freeze([
     {
@@ -1651,12 +1651,15 @@
   function ensureGameModule(game) {
     let current = window[game.globalName];
     if (current?.open) {
-      if (game.id !== 'byte-hangman' || current.assetVersion === ASSET_VERSION) return Promise.resolve(current);
-      // Byte Hangman is heavily iterated during this release cycle. If the SPA
-      // already loaded an older copy, remove its old overlay/API before loading
-      // the new version so the real app matches the standalone visual test.
+      if (!['byte-hangman','byte-strike'].includes(game.id) || current.assetVersion === ASSET_VERSION) return Promise.resolve(current);
+      // Byte Hangman and BYTE STRIKE are actively iterated. If the SPA already
+      // loaded an older copy, remove its overlay/API before loading the new
+      // version so stale game code cannot survive in a long-lived session.
       try { current.close?.(true); } catch (_) {}
-      try { document.querySelectorAll('.bh-overlay').forEach(node => node.remove()); } catch (_) {}
+      try {
+        const selector = game.id === 'byte-strike' ? '.bs-overlay' : '.bh-overlay';
+        document.querySelectorAll(selector).forEach(node => node.remove());
+      } catch (_) {}
       try { window[game.globalName] = null; } catch (_) {}
       current = null;
     }

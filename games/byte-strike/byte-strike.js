@@ -5,6 +5,7 @@
   if (window[GLOBAL_NAME]) return;
 
   const GAME_ID = 'byte-strike';
+  const ASSET_VERSION = '20260919-v555-byte-strike-orientation-fix';
   const ROOM_PREFIX = 'ICT8STRIKE:';
   const P2P_PREFIX = 'BSTRIKE1';
   const SNAPSHOT_HZ = 24;
@@ -96,7 +97,7 @@
           <section class="bs-panel" data-bs-panel="lobby"><div class="bs-wrap"><div class="bs-lobby-grid"><div class="bs-card"><div class="bs-room-code"><div><span>BYTE STRIKE ROOM</span><strong data-room-code>------</strong><small data-room-meta>Waiting for opponent...</small></div><div class="bs-inline-actions"><button class="bs-btn ghost" type="button" data-copy-room>COPY CODE</button><button class="bs-btn ghost" type="button" data-share-room>SHARE</button></div></div><div class="bs-room-qr"><img data-room-qr alt="Byte Strike room QR"><div><strong data-lobby-map-name>DATA VAULT</strong><p class="bs-status" data-lobby-map-info>Medium · Balanced</p><label class="bs-field"><span>INVITE BY STUDENT ID</span><input data-target-student placeholder="Student ID"></label><button class="bs-btn" type="button" data-send-invite>SEND INVITE</button><div class="bs-status" data-room-status></div></div></div></div><div class="bs-card"><div class="bs-section-title"><div><span>DUEL ROSTER</span><h2>READY CHECK</h2></div></div><div class="bs-roster" data-roster></div><div class="bs-inline-actions"><button class="bs-btn primary" type="button" data-ready>READY</button><button class="bs-btn danger" type="button" data-leave-room>LEAVE ROOM</button></div></div></div></div></section>
           <section class="bs-panel" data-bs-panel="how"><div class="bs-wrap"><div class="bs-section-title"><div><span>FIELD MANUAL</span><h2>HOW TO PLAY</h2><p>Movement and aim are independent. Darkness is information: walls block sight, but sound can warn you.</p></div></div><div class="bs-how-grid"><div class="bs-card"><h3>MOBILE</h3><div class="bs-control-diagram"><div><b>LEFT JOYSTICK</b><span>Move in any direction with analog control.</span></div><div><b>RIGHT JOYSTICK</b><span>Aim independently while moving.</span></div><div><b>FIRE</b><span>Shoot manually, or enable Auto Fire in Settings.</span></div><div><b>RELOAD / PICK UP</b><span>Use the compact action buttons near your aiming thumb.</span></div></div></div><div class="bs-card"><h3>DESKTOP</h3><div class="bs-control-diagram"><div><b>WASD</b><span>Move. Diagonal speed is normalized.</span></div><div><b>MOUSE</b><span>Aim toward the pointer in world space.</span></div><div><b>LEFT CLICK</b><span>Fire current weapon.</span></div><div><b>R / E</b><span>Reload / Pick up nearby weapon.</span></div></div></div></div><div class="bs-card" style="margin-top:12px"><h3>TACTICAL VISION</h3><p class="bs-status">You have a small awareness radius plus a larger aim-direction vision cone. Solid walls and crates cut line of sight. Hidden enemies lose their name/health/position immediately; gunshots only provide approximate directional information.</p></div><div class="bs-card" style="margin-top:12px"><h3>ARMORY · 10 WEAPONS</h3><div class="bs-armory"><span>PISTOL</span><span>REVOLVER</span><span>MACHINE PISTOL</span><span>SMG</span><span>PDW</span><span>CARBINE</span><span>SHOTGUN</span><span>RIFLE</span><span>DMR</span><span>LMG</span></div><p class="bs-status">Every weapon has its own damage, fire rate, spread, range, reload, sound, recoil, and movement trade-off.</p></div><div class="bs-inline-actions"><button class="bs-btn primary" type="button" data-go="home">BACK</button></div></div></section>
           <section class="bs-panel" data-bs-panel="settings"><div class="bs-wrap"><div class="bs-section-title"><div><span>TACTICAL SETTINGS</span><h2>CONTROLS & EFFECTS</h2></div></div><div class="bs-card"><div class="bs-field"><span>MOBILE FIRE MODE</span><div class="bs-firemode"><button type="button" data-firemode="manual">MANUAL FIRE</button><button type="button" data-firemode="auto">AUTO FIRE</button></div></div><label class="bs-field"><span>GAME AUDIO · SFX + MUSIC</span><select data-setting-sfx><option value="on">On</option><option value="off">Off</option></select></label><label class="bs-field"><span>REDUCED EFFECTS / MOTION</span><select data-setting-reduced><option value="off">Off</option><option value="on">On</option></select></label><div class="bs-inline-actions"><button class="bs-btn primary" type="button" data-save-settings>SAVE SETTINGS</button><button class="bs-btn ghost" type="button" data-go="home">BACK</button></div></div></div></section>
-          <section class="bs-panel bs-game-panel" data-bs-panel="game"><div class="bs-game-wrap" data-game-wrap><canvas class="bs-canvas" data-canvas></canvas><div class="bs-orientation-gate" data-orientation-gate hidden><div class="bs-rotate-phone" aria-hidden="true"><span></span></div><span>MOBILE COMBAT MODE</span><strong>ROTATE TO LANDSCAPE</strong><p>BYTE STRIKE uses a wide tactical view so your movement, aim, FIRE, reload, and pickup controls stay clear.</p><small>Menus work in portrait. The battle starts in landscape.</small></div><div class="bs-hud"><div class="bs-hud-top"><div class="bs-hud-box"><div class="bs-health-row"><span class="bs-health-icon">HP</span><div class="bs-health-main"><div class="bs-health-label"><span>BYTE AGENT</span><b data-hp>100</b></div><div class="bs-health-bar"><i data-hp-bar></i></div></div></div><div class="bs-weapon-line"><strong data-weapon>PISTOL</strong><div><b data-ammo>12</b><small> / <span data-reserve>60</span></small></div></div></div><div class="bs-hud-box bs-round-box"><span data-round-label>ROUND 1</span><strong data-score>0 — 0</strong><small data-timer>00:00</small></div><div class="bs-hud-box bs-net-box" data-net-box><strong data-ping>SOLO</strong><span data-net-status>TACTICAL LINK</span></div></div><div class="bs-crosshair-ui" data-crosshair></div><div class="bs-message" data-message><span data-message-kicker>BYTE STRIKE</span><strong data-message-title></strong><small data-message-sub></small></div><div class="bs-reload" data-reload><span><b>RELOADING</b><b data-reload-pct>0%</b></span><div><i data-reload-bar></i></div></div><div class="bs-pickup-prompt" data-pickup-prompt></div><div class="bs-damage-arrow" data-damage-arrow></div><div class="bs-sound-arrow" data-sound-arrow></div></div><div class="bs-mobile-controls"><div class="bs-stick-zone left" data-stick-zone="left"><div class="bs-stick" data-stick="left"><i></i></div></div><div class="bs-stick-zone right" data-stick-zone="right"><div class="bs-stick" data-stick="right"><i></i></div></div><div class="bs-touch-buttons"><button class="bs-touch-btn reload" type="button" data-touch-reload>RLD</button><button class="bs-touch-btn pickup" type="button" data-touch-pickup>PICK</button><button class="bs-touch-btn fire" type="button" data-touch-fire>FIRE</button></div></div><div class="bs-game-menu"><button class="bs-icon-btn" type="button" data-game-menu aria-label="Pause or menu">☰</button></div><div class="bs-pause-layer" data-pause hidden><div class="bs-modal"><span data-pause-kicker>TACTICAL PAUSE</span><h2 data-pause-title>PAUSED</h2><p data-pause-text>Solo match paused.</p><div class="bs-inline-actions" style="justify-content:center"><button class="bs-btn primary" type="button" data-resume>RESUME</button><button class="bs-btn" type="button" data-game-settings>SOUND</button><button class="bs-btn danger" type="button" data-quit-match>LEAVE MATCH</button></div></div></div><div class="bs-countdown-layer" data-countdown hidden><div class="bs-modal"><span data-count-kicker>ROUND START</span><h2 class="bs-count-number" data-count-number>3</h2><p data-count-sub>Stay behind cover. Watch your angles.</p></div></div><div class="bs-result-layer" data-result hidden><div class="bs-modal"><span data-result-kicker>MATCH COMPLETE</span><h2 data-result-title>YOU WIN</h2><p data-result-sub></p><div class="bs-result-stats"><div><span>ROUND SCORE</span><b data-result-score>0 — 0</b></div><div><span>DAMAGE</span><b data-result-damage>0</b></div><div><span>ACCURACY</span><b data-result-accuracy>0%</b></div></div><div class="bs-inline-actions" style="justify-content:center"><button class="bs-btn primary" type="button" data-rematch>REMATCH</button><button class="bs-btn" type="button" data-change-map>CHANGE MAP</button><button class="bs-btn danger" type="button" data-leave-result>LEAVE</button></div><div class="bs-status" data-rematch-status></div></div></div><div class="bs-scanner" data-scanner hidden><div class="bs-modal"><div class="bs-scanner-head"><strong>SCAN BYTE STRIKE ROOM</strong><button class="bs-icon-btn" type="button" data-close-scanner>×</button></div><video data-scan-video playsinline muted></video><p class="bs-status" data-scan-status>Point the camera at the Host QR.</p></div></div><div class="bs-debug" data-debug></div></div></section>
+          <section class="bs-panel bs-game-panel" data-bs-panel="game"><div class="bs-game-wrap" data-game-wrap><canvas class="bs-canvas" data-canvas></canvas><div class="bs-orientation-gate" data-orientation-gate hidden><div class="bs-rotate-phone" aria-hidden="true"><span></span></div><span>MOBILE COMBAT MODE</span><strong>ROTATE TO LANDSCAPE</strong><p>BYTE STRIKE uses a wide tactical view so your movement, aim, FIRE, reload, and pickup controls stay clear.</p><button class="bs-btn primary bs-orientation-retry" type="button" data-orientation-retry>ENTER LANDSCAPE</button><small>Rotate your phone sideways. If your browser does not rotate automatically, tap ENTER LANDSCAPE after turning the phone.</small></div><div class="bs-hud"><div class="bs-hud-top"><div class="bs-hud-box"><div class="bs-health-row"><span class="bs-health-icon">HP</span><div class="bs-health-main"><div class="bs-health-label"><span>BYTE AGENT</span><b data-hp>100</b></div><div class="bs-health-bar"><i data-hp-bar></i></div></div></div><div class="bs-weapon-line"><strong data-weapon>PISTOL</strong><div><b data-ammo>12</b><small> / <span data-reserve>60</span></small></div></div></div><div class="bs-hud-box bs-round-box"><span data-round-label>ROUND 1</span><strong data-score>0 — 0</strong><small data-timer>00:00</small></div><div class="bs-hud-box bs-net-box" data-net-box><strong data-ping>SOLO</strong><span data-net-status>TACTICAL LINK</span></div></div><div class="bs-crosshair-ui" data-crosshair></div><div class="bs-message" data-message><span data-message-kicker>BYTE STRIKE</span><strong data-message-title></strong><small data-message-sub></small></div><div class="bs-reload" data-reload><span><b>RELOADING</b><b data-reload-pct>0%</b></span><div><i data-reload-bar></i></div></div><div class="bs-pickup-prompt" data-pickup-prompt></div><div class="bs-damage-arrow" data-damage-arrow></div><div class="bs-sound-arrow" data-sound-arrow></div></div><div class="bs-mobile-controls"><div class="bs-stick-zone left" data-stick-zone="left"><div class="bs-stick" data-stick="left"><i></i></div></div><div class="bs-stick-zone right" data-stick-zone="right"><div class="bs-stick" data-stick="right"><i></i></div></div><div class="bs-touch-buttons"><button class="bs-touch-btn reload" type="button" data-touch-reload>RLD</button><button class="bs-touch-btn pickup" type="button" data-touch-pickup>PICK</button><button class="bs-touch-btn fire" type="button" data-touch-fire>FIRE</button></div></div><div class="bs-game-menu"><button class="bs-icon-btn" type="button" data-game-menu aria-label="Pause or menu">☰</button></div><div class="bs-pause-layer" data-pause hidden><div class="bs-modal"><span data-pause-kicker>TACTICAL PAUSE</span><h2 data-pause-title>PAUSED</h2><p data-pause-text>Solo match paused.</p><div class="bs-inline-actions" style="justify-content:center"><button class="bs-btn primary" type="button" data-resume>RESUME</button><button class="bs-btn" type="button" data-game-settings>SOUND</button><button class="bs-btn danger" type="button" data-quit-match>LEAVE MATCH</button></div></div></div><div class="bs-countdown-layer" data-countdown hidden><div class="bs-modal"><span data-count-kicker>ROUND START</span><h2 class="bs-count-number" data-count-number>3</h2><p data-count-sub>Stay behind cover. Watch your angles.</p></div></div><div class="bs-result-layer" data-result hidden><div class="bs-modal"><span data-result-kicker>MATCH COMPLETE</span><h2 data-result-title>YOU WIN</h2><p data-result-sub></p><div class="bs-result-stats"><div><span>ROUND SCORE</span><b data-result-score>0 — 0</b></div><div><span>DAMAGE</span><b data-result-damage>0</b></div><div><span>ACCURACY</span><b data-result-accuracy>0%</b></div></div><div class="bs-inline-actions" style="justify-content:center"><button class="bs-btn primary" type="button" data-rematch>REMATCH</button><button class="bs-btn" type="button" data-change-map>CHANGE MAP</button><button class="bs-btn danger" type="button" data-leave-result>LEAVE</button></div><div class="bs-status" data-rematch-status></div></div></div><div class="bs-scanner" data-scanner hidden><div class="bs-modal"><div class="bs-scanner-head"><strong>SCAN BYTE STRIKE ROOM</strong><button class="bs-icon-btn" type="button" data-close-scanner>×</button></div><video data-scan-video playsinline muted></video><p class="bs-status" data-scan-status>Point the camera at the Host QR.</p></div></div><div class="bs-debug" data-debug></div></div></section>
         </main>
       </div>`;
     document.body.appendChild(o);r.overlay=o;r.canvas=$('[data-canvas]',o);r.ctx=r.canvas.getContext('2d',{alpha:false});r.fogCanvas=document.createElement('canvas');r.fogCtx=r.fogCanvas.getContext('2d');
@@ -104,7 +105,9 @@
     bindUi();renderMapCards('solo');renderMapCards('host');loadSettings();syncSettingsUi();resizeCanvas();
     if(window.ResizeObserver){r.resizeObs=new ResizeObserver(()=>resizeCanvas());r.resizeObs.observe($('[data-game-wrap]',o));}
     window.addEventListener('resize',()=>{resizeCanvas();updateOrientationGate();},{passive:true});
-    window.addEventListener('orientationchange',()=>setTimeout(()=>{resizeCanvas();updateOrientationGate();},120),{passive:true});
+    window.addEventListener('orientationchange',()=>{updateOrientationGate();setTimeout(updateOrientationGate,80);setTimeout(updateOrientationGate,260);},{passive:true});
+    window.visualViewport?.addEventListener?.('resize',()=>{if(r.open)updateOrientationGate();},{passive:true});
+    screen.orientation?.addEventListener?.('change',()=>{if(r.open){updateOrientationGate();setTimeout(updateOrientationGate,120);}},{passive:true});
   }
 
   function show(name){
@@ -116,10 +119,33 @@
     updateOrientationGate();
     if(name!=='game') setTimeout(()=>resizeCanvas(),0);
   }
-  function mobileBattleDevice(){
-    try{return matchMedia('(pointer:coarse)').matches&&Math.min(window.innerWidth,window.innerHeight)<=700;}catch(_){return false;}
+  function battleViewport(){
+    const vv=window.visualViewport;
+    const iw=Math.max(1,Number(window.innerWidth)||0),ih=Math.max(1,Number(window.innerHeight)||0);
+    const vw=Math.max(1,Number(vv?.width)||0),vh=Math.max(1,Number(vv?.height)||0);
+    // visualViewport can briefly report the old orientation during the rotation
+    // animation, so prefer whichever viewport has the clearer landscape/portrait shape.
+    const innerLandscape=iw>ih,visualLandscape=vw>vh;
+    if(innerLandscape===visualLandscape)return {w:Math.max(iw,vw),h:Math.min(ih,vh)};
+    const screenType=String(screen.orientation?.type||'');
+    if(screenType.startsWith('landscape'))return {w:Math.max(iw,vw,ih,vh),h:Math.min(iw,vw,ih,vh)};
+    if(screenType.startsWith('portrait'))return {w:Math.min(iw,vw,ih,vh),h:Math.max(iw,vw,ih,vh)};
+    return {w:iw,h:ih};
   }
-  function mobilePortraitBattle(){return mobileBattleDevice()&&window.innerHeight>window.innerWidth;}
+  function mobileBattleDevice(){
+    try{
+      const vp=battleViewport();
+      return (matchMedia('(pointer:coarse)').matches||navigator.maxTouchPoints>0)&&Math.min(vp.w,vp.h)<=760;
+    }catch(_){return false;}
+  }
+  function mobilePortraitBattle(){
+    if(!mobileBattleDevice())return false;
+    const vp=battleViewport();
+    const type=String(screen.orientation?.type||'');
+    if(type.startsWith('landscape'))return false;
+    if(type.startsWith('portrait'))return true;
+    return vp.h>vp.w;
+  }
   function updateOrientationGate(){
     const gate=$('[data-orientation-gate]',r.overlay);if(!gate)return;
     const blocked=r.state==='game'&&mobilePortraitBattle();
@@ -130,21 +156,52 @@
       if(r.role==='host')r.hostPeer?.session?.send({t:'orientation',ready:!blocked});
       else if(r.role==='guest')r.guestSession?.send({t:'orientation',ready:!blocked});
     }
-    setTimeout(()=>resizeCanvas(),0);
+    requestAnimationFrame(()=>{resizeCanvas();requestAnimationFrame(resizeCanvas);});
+  }
+  async function requestLandscapeLock(){
+    if(!mobileBattleDevice())return false;
+    // The rest of ICT 8 Connect normally requests portrait. Explicitly release
+    // that lock before BYTE STRIKE asks for landscape.
+    try{screen.orientation?.unlock?.();}catch(_){}
+    if(!document.fullscreenElement&&r.overlay?.requestFullscreen){
+      try{
+        await r.overlay.requestFullscreen({navigationUI:'hide'});
+        r.mobileFullscreenOwned=true;
+      }catch(_){
+        try{await r.overlay.requestFullscreen();r.mobileFullscreenOwned=true;}catch(__){}
+      }
+    }
+    let locked=false;
+    if(screen.orientation?.lock){
+      try{await screen.orientation.lock('landscape-primary');locked=true;}
+      catch(_){try{await screen.orientation.lock('landscape');locked=true;}catch(__){}}
+    }
+    return locked;
   }
   async function prepareMobileBattleView(){
     if(!mobileBattleDevice())return;
-    try{
-      if(!document.fullscreenElement&&r.overlay?.requestFullscreen){await r.overlay.requestFullscreen({navigationUI:'hide'});r.mobileFullscreenOwned=true;}
-    }catch(_){}
-    try{if(screen.orientation?.lock)await screen.orientation.lock('landscape');}catch(_){}
+    await requestLandscapeLock();
+    // Some Android browsers update innerWidth/innerHeight one or two frames
+    // after fullscreen/orientation settles; recheck several times instead of
+    // freezing the portrait gate on stale dimensions.
     updateOrientationGate();
+    setTimeout(updateOrientationGate,80);
+    setTimeout(updateOrientationGate,260);
+    setTimeout(updateOrientationGate,520);
+  }
+  async function retryLandscape(){
+    await requestLandscapeLock();
+    updateOrientationGate();
+    setTimeout(updateOrientationGate,180);
+    setTimeout(updateOrientationGate,420);
   }
   function releaseMobileBattleView(){
     try{screen.orientation?.unlock?.();}catch(_){}
-    if(r.mobileFullscreenOwned&&document.fullscreenElement){try{document.exitFullscreen?.();}catch(_){}}
+    if(r.mobileFullscreenOwned&&document.fullscreenElement){try{document.exitFullscreen?.();}catch(_){} }
     r.mobileFullscreenOwned=false;r.orientationBlocked=false;r.overlay?.classList.remove('bs-portrait-blocked');
     const gate=$('[data-orientation-gate]',r.overlay);if(gate)gate.hidden=true;
+    // Restore the normal app's portrait preference when leaving BYTE STRIKE.
+    if(document.documentElement.dataset.deviceMode==='phone')setTimeout(()=>{try{screen.orientation?.lock?.('portrait-primary');}catch(_){}},80);
   }
   function syncSettingsUi(){
     $$('[data-firemode]',r.overlay).forEach(b=>b.classList.toggle('active',b.dataset.firemode===r.settings.fireMode));
@@ -157,6 +214,7 @@
       if(e.target.closest('[data-bs-back]')){returnHub();return;}
       if(e.target.closest('[data-bs-close]')){close(true);return;}
       if(e.target.closest('[data-bs-sound]')){toggleSound();return;}
+      if(e.target.closest('[data-orientation-retry]')){await retryLandscape();return;}
       const fm=e.target.closest('[data-firemode]');if(fm){r.settings.fireMode=fm.dataset.firemode==='auto'?'auto':'manual';saveSettings();syncSettingsUi();return;}
       const map=e.target.closest('[data-map-id]');if(map){selectMap(map.dataset.mapId,map.closest('[data-map-grid]')?.dataset.mapGrid||'solo');return;}
       const step=e.target.closest('[data-map-step]');if(step){stepMap(Number(step.dataset.mapStep)||1,step.dataset.mapScope||'solo');return;}
@@ -584,5 +642,5 @@
   function close(call=true){if(!r.open)return;releaseMobileBattleView();const room=r.roomCode,host=r.role==='host';if(host)r.hostPeer?.session?.send({t:'exit'});else r.guestSession?.send({t:'leave'});stopGameLoop();closeScanner();closeNetwork();if(room&&r.bridge?.leaveByteStrikeRoom)r.bridge.leaveByteStrikeRoom({roomCode:room,closeRoom:host}).catch(()=>{});r.open=false;r.overlay.hidden=true;document.body.classList.remove('byte-strike-active');r.role='';r.roomCode='';r.roomMeta=null;r.world=null;r.match=null;r.predicted=null;r.keys.clear();r.mouse.down=false;if(call)r.onClose?.();}
   function open(opts={}){build();r.bridge=opts.bridge||null;r.music=opts.music||null;r.onBack=opts.onBack||null;r.onClose=opts.onClose||null;r.open=true;r.overlay.hidden=false;document.body.classList.add('byte-strike-active');loadSettings();syncSettingsUi();r.role='';r.roomCode='';r.roomMeta=null;r.world=null;r.match=null;r.localReady=r.remoteReady=false;r.remoteOrientationReady=true;closeNetwork();const id=identity();if(id.name){$('[data-host-name]',r.overlay).value=id.name;$('[data-guest-name]',r.overlay).value=id.name;}$('[data-bs-sound]',r.overlay).textContent=soundEnabled()?'🔊':'🔇';show('home');resizeCanvas();}
 
-  window[GLOBAL_NAME]=Object.freeze({open,close:()=>close(true),isOpen:()=>r.open,pauseForExitGuard,resumeFromExitGuard,_debug:Object.freeze({state:()=>({state:r.state,role:r.role,map:r.match?.mapId||r.selectedMap,room:r.roomCode,fps:r.fps,ping:r.pingMs}),player:()=>{const p=localPlayer();return p?{x:Math.round(p.x),y:Math.round(p.y),hp:p.hp,weapon:p.weapon,mag:p.mag,reserve:p.reserve}:null;},opponent:()=>{const p=otherPlayer();return p?{x:Math.round(p.x),y:Math.round(p.y),hp:p.hp,weapon:p.weapon,hidden:!!p.netHidden,botState:p.brain?.state||''}:null;},maps:()=>M()?.maps?.map(x=>x.id)||[],weapons:()=>Object.keys(WEAPONS),visible:()=>r.world?isVisible(localPlayer(),otherPlayer(),gameMap()):false})});
+  window[GLOBAL_NAME]=Object.freeze({assetVersion:ASSET_VERSION,open,close:()=>close(true),isOpen:()=>r.open,pauseForExitGuard,resumeFromExitGuard,_debug:Object.freeze({state:()=>({state:r.state,role:r.role,map:r.match?.mapId||r.selectedMap,room:r.roomCode,fps:r.fps,ping:r.pingMs}),player:()=>{const p=localPlayer();return p?{x:Math.round(p.x),y:Math.round(p.y),hp:p.hp,weapon:p.weapon,mag:p.mag,reserve:p.reserve}:null;},opponent:()=>{const p=otherPlayer();return p?{x:Math.round(p.x),y:Math.round(p.y),hp:p.hp,weapon:p.weapon,hidden:!!p.netHidden,botState:p.brain?.state||''}:null;},maps:()=>M()?.maps?.map(x=>x.id)||[],weapons:()=>Object.keys(WEAPONS),visible:()=>r.world?isVisible(localPlayer(),otherPlayer(),gameMap()):false})});
 })();
