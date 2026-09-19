@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const ASSET_VERSION = '20260919-v542-code-impostor-answer-text';
+  const ASSET_VERSION = '20260919-v553-byte-strike-premium-combat';
 
   const GAME_REGISTRY = Object.freeze([
     {
@@ -571,6 +571,24 @@
       bestText() { return '🕵️ SOLO · LIVE 3–12P · CLASSROOM · 0 XP'; }
     },
     {
+      id: 'byte-strike',
+      stateKey: 'byteStrike',
+      name: 'BYTE STRIKE',
+      icon: '🎯',
+      description: 'Premium top-down tactical shooter with directional vision, wall occlusion, 8 arenas, VS Bot, and low-latency live 1v1 WebRTC duels.',
+      maxXp: 0,
+      multiplayer: true,
+      noXp: true,
+      category: 'SOLO VS BOT / LIVE 1V1 / TACTICAL SHOOTER',
+      difficulty: '★★★★★',
+      globalName: 'ICT8ByteStrike',
+      dependencies: ['games/p2p-zero-db/p2p-zero-db.js', 'games/byte-strike/byte-strike-maps.js'],
+      script: 'games/byte-strike/byte-strike.js',
+      style: 'games/byte-strike/byte-strike.css',
+      playLabel: 'PLAY BYTE STRIKE',
+      bestText() { return '🎯 VS BOT · LIVE 1V1 · 8 MAPS · 0 XP'; }
+    },
+    {
       id: 'pattern-lock',
       stateKey: 'patternLock',
       name: 'PATTERN LOCK',
@@ -637,6 +655,7 @@
     'code-uno':               { bpm:118, root:57, scale:'majorPent', lead:'pluck', melody:[0,2,4,null,3,5,4,2,1,3,5,null,4,2,1,null], bass:[0,3,4,3], drums:'groove', gain:.27 },
     'pinoy-feud':             { bpm:122, root:55, scale:'majorPent', lead:'pluck', melody:[0,null,2,4,3,null,5,4,2,null,4,5,4,2,1,null], bass:[0,3,4,3], drums:'groove', gain:.29 },
     'code-impostor':          { bpm:96, root:50, scale:'minorPent', lead:'bell', melody:[0,null,3,null,2,4,null,1,0,null,5,4,null,2,1,null], bass:[0,0,3,2], drums:'suspense', gain:.25 },
+    'byte-strike':            { bpm:136, root:41, scale:'minor', lead:'saw', melody:[0,null,2,3,5,3,2,null,0,3,5,6,5,3,2,null], bass:[0,0,5,3,0,5,3,4], drums:'drive', gain:.31 },
     'pattern-lock':           { bpm:102, root:60, scale:'minorPent', lead:'bell',   melody:[0,null,2,null,4,null,3,null,1,null,3,null,5,4,2,null], bass:[0,3,4,3], drums:'soft',   gain:.27 }
   });
 

@@ -2612,6 +2612,7 @@ const FIREBASE_OP_MONITOR = (() => {
     if (top === 'codeDuelSignals') return 'twoPlayerSignals';
     if (top === 'codeClimbSignals') return 'codeClimbSignals';
     if (top === 'codeUnoSignals') return 'codeUnoSignals';
+    if (top === 'byteStrikeSignals') return 'byteStrikeSignals';
     if (top === 'arcadeWeekly') return 'arcadeWeekly';
     if (top === 'miniGameAccounts') return 'miniGameAccounts';
     if (top === 'presence') return 'presence';
@@ -57983,6 +57984,172 @@ window.MCS_PHONE_MENU_STATUS = () => ({
 
 
 
+  // BYTE STRIKE temporary 1v1 room signaling. RTDB is used only for room
+  // discovery plus WebRTC offer/answer exchange. Live movement, aim, bullets,
+  // damage, ammo, and match state travel over the direct DataChannel.
+  const BYTE_STRIKE_ROOM_TTL_MS = 45 * 60 * 1000;
+
+  function normalizeByteStrikeRoomCode(value = '') {
+    const code = String(value || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
+    if (!/^[A-Z0-9]{6}$/.test(code)) throw new Error('Enter a valid 6-character room code.');
+    return code;
+  }
+
+  async function createByteStrikeRoom(options = {}) {
+    if (!canUseTwoPlayerStudentInvites()) throw new Error('Live BYTE STRIKE rooms require a logged-in student account.');
+    const identity = getTwoPlayerPlayerIdentity();
+    const roomCode = normalizeByteStrikeRoomCode(options.roomCode || '');
+    const existing = await rtdbRestRequest(`byteStrikeSignals/rooms/${roomCode}/meta`).catch(() => null);
+    if (existing && Number(existing.expiresAtMs || 0) > Date.now() && existing.hostUid !== identity.uid) {
+      throw new Error('That room code is already in use. Try again.');
+    }
+    const now = Date.now();
+    const allowedMaps = ['data-vault','firewall-lab','byte-yard','server-maze','neon-grid','core-reactor','shadow-terminal','cyber-depot'];
+    const mapId = allowedMaps.includes(String(options.mapId || '')) ? String(options.mapId) : 'data-vault';
+    const bestOf = [1,3,5].includes(Number(options.bestOf)) ? Number(options.bestOf) : 3;
+    const mapRotation = String(options.mapRotation || '') === 'random' ? 'random' : 'same';
+    const meta = {
+      version: 1,
+      roomCode,
+      hostUid: twoPlayerSafeUid(identity.uid),
+      hostName: String(options.hostName || identity.name || 'HOST').trim().slice(0, 24) || 'HOST',
+      hostStudentId: identity.studentId,
+      mapId,
+      bestOf,
+      mapRotation,
+      status: 'lobby',
+      createdAtMs: existing && existing.hostUid === identity.uid && options.resume === true ? Number(existing.createdAtMs || now) : now,
+      updatedAtMs: now,
+      expiresAtMs: now + BYTE_STRIKE_ROOM_TTL_MS
+    };
+    await rtdbRestRequest(`byteStrikeSignals/rooms/${roomCode}/meta`, { method: 'PUT', body: meta });
+    return meta;
+  }
+
+  async function getByteStrikeRoom(options = {}) {
+    if (!canUseTwoPlayerStudentInvites()) throw new Error('Live rooms require a logged-in student account.');
+    const roomCode = normalizeByteStrikeRoomCode(options.roomCode || '');
+    const meta = await rtdbRestRequest(`byteStrikeSignals/rooms/${roomCode}/meta`);
+    if (!meta || Number(meta.expiresAtMs || 0) <= Date.now()) throw new Error('Room not found or already expired.');
+    return meta;
+  }
+
+  function getKnownByteStrikeMeta(options = {}, roomCode = '') {
+    const meta = options.meta && typeof options.meta === 'object' ? options.meta : null;
+    if (!meta || String(meta.roomCode || '') !== String(roomCode || '') || Number(meta.expiresAtMs || 0) <= Date.now()) return null;
+    return meta;
+  }
+
+  async function touchByteStrikeRoom(options = {}) {
+    const identity = getTwoPlayerPlayerIdentity();
+    const roomCode = normalizeByteStrikeRoomCode(options.roomCode || '');
+    const meta = getKnownByteStrikeMeta(options, roomCode) || await getByteStrikeRoom({ roomCode });
+    if (meta.hostUid !== identity.uid) return meta;
+    const now = Date.now();
+    const patch = { status: String(options.status || meta.status || 'lobby').slice(0, 16), updatedAtMs: now, expiresAtMs: now + BYTE_STRIKE_ROOM_TTL_MS };
+    await rtdbRestRequest(`byteStrikeSignals/rooms/${roomCode}/meta`, { method: 'PATCH', body: patch });
+    return { ...meta, ...patch };
+  }
+
+  async function requestByteStrikeJoin(options = {}) {
+    if (!canUseTwoPlayerStudentInvites()) throw new Error('Joining BYTE STRIKE requires a logged-in student account.');
+    const identity = getTwoPlayerPlayerIdentity();
+    const roomCode = normalizeByteStrikeRoomCode(options.roomCode || '');
+    const meta = await getByteStrikeRoom({ roomCode });
+    if (meta.hostUid === identity.uid) throw new Error('You are already the Host of this room.');
+    const now = Date.now();
+    const record = {
+      version: 1, roomCode, uid: twoPlayerSafeUid(identity.uid),
+      name: String(options.name || identity.name || 'PLAYER').trim().slice(0, 24) || 'PLAYER',
+      studentId: identity.studentId, section: identity.section || '',
+      status: options.reconnect === true ? 'reconnect' : 'waiting',
+      createdAtMs: now, updatedAtMs: now,
+      expiresAtMs: Math.min(Number(meta.expiresAtMs || now + BYTE_STRIKE_ROOM_TTL_MS), now + BYTE_STRIKE_ROOM_TTL_MS)
+    };
+    await rtdbRestRequest(`byteStrikeSignals/rooms/${roomCode}/joins/${identity.uid}`, { method: 'PUT', body: record });
+    return { meta, join: record };
+  }
+
+  async function listByteStrikeJoins(options = {}) {
+    const identity = getTwoPlayerPlayerIdentity();
+    const roomCode = normalizeByteStrikeRoomCode(options.roomCode || '');
+    const meta = getKnownByteStrikeMeta(options, roomCode) || await getByteStrikeRoom({ roomCode });
+    if (meta.hostUid !== identity.uid) throw new Error('Only the room Host can read join requests.');
+    const raw = await rtdbRestRequest(`byteStrikeSignals/rooms/${roomCode}/joins`).catch(() => null);
+    const now = Date.now();
+    return Object.entries(raw || {}).map(([uid, value]) => ({ uid, ...(value || {}) }))
+      .filter(item => item.uid && Number(item.expiresAtMs || 0) > now);
+  }
+
+  async function setByteStrikeOffer(options = {}) {
+    const identity = getTwoPlayerPlayerIdentity();
+    const roomCode = normalizeByteStrikeRoomCode(options.roomCode || '');
+    const targetUid = twoPlayerSafeUid(options.targetUid || '');
+    const meta = getKnownByteStrikeMeta(options, roomCode) || await getByteStrikeRoom({ roomCode });
+    if (meta.hostUid !== identity.uid) throw new Error('Only the room Host can create connection offers.');
+    const now = Date.now();
+    const body = {
+      version:1, roomCode, targetUid, hostUid:identity.uid,
+      status:String(options.status || 'offer').slice(0,16), seat:1, color:'guest',
+      offerCode:String(options.offerCode || ''), updatedAtMs:now,
+      expiresAtMs:Math.min(Number(meta.expiresAtMs || now + BYTE_STRIKE_ROOM_TTL_MS), now + BYTE_STRIKE_ROOM_TTL_MS)
+    };
+    await rtdbRestRequest(`byteStrikeSignals/rooms/${roomCode}/offers/${targetUid}`, { method:'PUT', body });
+    return body;
+  }
+
+  async function getByteStrikeOffer(options = {}) {
+    const identity = getTwoPlayerPlayerIdentity();
+    const roomCode = normalizeByteStrikeRoomCode(options.roomCode || '');
+    const offer = await rtdbRestRequest(`byteStrikeSignals/rooms/${roomCode}/offers/${identity.uid}`);
+    if (!offer || Number(offer.expiresAtMs || 0) <= Date.now()) return null;
+    return offer;
+  }
+
+  async function setByteStrikeAnswer(options = {}) {
+    const identity = getTwoPlayerPlayerIdentity();
+    const roomCode = normalizeByteStrikeRoomCode(options.roomCode || '');
+    const meta = getKnownByteStrikeMeta(options, roomCode) || await getByteStrikeRoom({ roomCode });
+    const now = Date.now();
+    const body = {
+      version:1, roomCode, uid:identity.uid, hostUid:meta.hostUid,
+      answerCode:String(options.answerCode || ''), updatedAtMs:now,
+      expiresAtMs:Math.min(Number(meta.expiresAtMs || now + BYTE_STRIKE_ROOM_TTL_MS), now + BYTE_STRIKE_ROOM_TTL_MS)
+    };
+    await rtdbRestRequest(`byteStrikeSignals/rooms/${roomCode}/answers/${identity.uid}`, { method:'PUT', body });
+    return body;
+  }
+
+  async function listByteStrikeAnswers(options = {}) {
+    const identity = getTwoPlayerPlayerIdentity();
+    const roomCode = normalizeByteStrikeRoomCode(options.roomCode || '');
+    const meta = getKnownByteStrikeMeta(options, roomCode) || await getByteStrikeRoom({ roomCode });
+    if (meta.hostUid !== identity.uid) throw new Error('Only the room Host can read connection answers.');
+    const raw = await rtdbRestRequest(`byteStrikeSignals/rooms/${roomCode}/answers`).catch(() => null);
+    const now = Date.now();
+    return Object.entries(raw || {}).map(([uid, value]) => ({ uid, ...(value || {}) }))
+      .filter(item => item.uid && Number(item.expiresAtMs || 0) > now);
+  }
+
+  async function leaveByteStrikeRoom(options = {}) {
+    if (!canUseTwoPlayerStudentInvites()) return false;
+    const identity = getTwoPlayerPlayerIdentity();
+    const roomCode = normalizeByteStrikeRoomCode(options.roomCode || '');
+    let meta = null;
+    try { meta = await rtdbRestRequest(`byteStrikeSignals/rooms/${roomCode}/meta`); } catch (_) {}
+    if (!meta) return true;
+    if (meta.hostUid === identity.uid || options.closeRoom) {
+      await rtdbRestRequest(`byteStrikeSignals/rooms/${roomCode}`, { method:'DELETE' }).catch(() => null);
+      return true;
+    }
+    await Promise.allSettled([
+      rtdbRestRequest(`byteStrikeSignals/rooms/${roomCode}/joins/${identity.uid}`, { method:'DELETE' }),
+      rtdbRestRequest(`byteStrikeSignals/rooms/${roomCode}/answers/${identity.uid}`, { method:'DELETE' })
+    ]);
+    return true;
+  }
+
+
   // UNO temporary 2-10 player room signaling. RTDB is used only for room
   // discovery and exchanging WebRTC offer/answer payloads. The authoritative
   // card game state remains on the Host and travels only over DataChannels.
@@ -58445,6 +58612,16 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     setCodeClimbAnswer,
     listCodeClimbAnswers,
     leaveCodeClimbRoom,
+    createByteStrikeRoom,
+    getByteStrikeRoom,
+    touchByteStrikeRoom,
+    requestByteStrikeJoin,
+    listByteStrikeJoins,
+    setByteStrikeOffer,
+    getByteStrikeOffer,
+    setByteStrikeAnswer,
+    listByteStrikeAnswers,
+    leaveByteStrikeRoom,
     getCodeUnoMediaSettings: loadCodeUnoMediaSettings,
     createCodeUnoRoom,
     getCodeUnoRoom,

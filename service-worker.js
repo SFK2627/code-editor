@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ict8-connect-v541-million-byte-category-balance';
+const CACHE_NAME = 'ict8-connect-v553-byte-strike-premium-combat';
 const APP_SHELL = [
   './',
   './index.html',
