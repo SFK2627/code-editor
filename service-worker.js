@@ -1,9 +1,9 @@
-const CACHE_NAME = 'ict8-connect-v556-byte-strike-mobile-hud';
+const CACHE_NAME = 'ict8-connect-v610-titan-fortification-hud-safe';
 const APP_SHELL = [
   './',
   './index.html',
   './style.css',
-  './firebase-config.js'
+  './firebase-config.js',
 ];
 
 self.addEventListener('install', event => {

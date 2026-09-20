@@ -19719,7 +19719,7 @@ function updateInstallButtonVisibility() {
 function registerPWAServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./service-worker.js?v=519-pinoy-feud', {
+    navigator.serviceWorker.register('./service-worker.js?v=603-classic-smooth-controls', {
       updateViaCache: 'none'
     }).then(registration => {
       registration.update().catch(() => {});
@@ -46096,6 +46096,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   const XP_MINI_GAME_ID_CODE_TILES = 'code-tiles';
   const XP_MINI_GAME_ID_DIAL_IN = 'dial-in';
   const XP_MINI_GAME_ID_BYTE_HANGMAN = 'byte-hangman';
+  const XP_MINI_GAME_ID_BYTE_QUEST = 'byte-quest';
 
   const XP_MINI_GAME_DEFINITIONS = Object.freeze({
     [XP_MINI_GAME_ID_CODE_FLY]: Object.freeze({ stateKey: 'codeFly', maxReward: 15 }),
@@ -46121,7 +46122,8 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     [XP_MINI_GAME_ID_CODE_VAULT]: Object.freeze({ stateKey: 'codeVault', maxReward: 2 }),
     [XP_MINI_GAME_ID_CODE_TILES]: Object.freeze({ stateKey: 'codeTiles', maxReward: 3 }),
     [XP_MINI_GAME_ID_DIAL_IN]: Object.freeze({ stateKey: 'dialIn', maxReward: 5 }),
-    [XP_MINI_GAME_ID_BYTE_HANGMAN]: Object.freeze({ stateKey: 'byteHangman', maxReward: 20 })
+    [XP_MINI_GAME_ID_BYTE_HANGMAN]: Object.freeze({ stateKey: 'byteHangman', maxReward: 20 }),
+    [XP_MINI_GAME_ID_BYTE_QUEST]: Object.freeze({ stateKey: 'byteQuest', maxReward: 20 })
   });
 
   function normalizeXpMiniGameId(gameId = XP_MINI_GAME_ID_CODE_FLY) {
@@ -46859,6 +46861,29 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     return [0, 5, 10, 15, 20][rank] || 0;
   }
 
+  const BYTE_QUEST_LEVEL_XP = Object.freeze({
+    '1-1': 5, '1-2': 10, '1-3': 10, '1-4': 15, '1-B': 20,
+    '2-1': 10, '2-2': 15, '2-3': 15, '2-4': 15, '2-B': 20,
+    '3-1': 15, '3-2': 15, '3-3': 20, '3-4': 20, '3-B': 20,
+    '4-1': 15, '4-2': 20, '4-3': 20, '4-4': 20, '4-B': 20
+  });
+
+  function byteQuestLevelXpForId(levelId = '') {
+    return Math.max(0, Number(BYTE_QUEST_LEVEL_XP[String(levelId || '').toUpperCase()] || 0));
+  }
+
+  function byteQuestRewardForMetrics(metrics = {}) {
+    const source = metrics && typeof metrics === 'object' ? metrics : {};
+    if (source.completed !== true) return 0;
+    const expected = byteQuestLevelXpForId(source.levelId);
+    if (!expected || Number(source.targetXp || 0) !== expected) return 0;
+    const expectedBoss = /-B$/.test(String(source.levelId || '').toUpperCase());
+    if (expectedBoss && source.bossDefeated !== true) return 0;
+    const rank = Math.max(1, Math.min(4, Math.floor(Number(source.difficultyRank || 1))));
+    const rankReward = [0, 5, 10, 15, 20][rank] || 0;
+    return rankReward === expected ? expected : 0;
+  }
+
   // v464 — XP pace balance. Score tiers still measure skill, but a second
   // server-mirrored cap limits how much XP a very short round can produce.
   // Missing duration means legacy stored data, so old already-earned XP is not
@@ -46867,7 +46892,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     const id = normalizeXpMiniGameId(gameId);
     const source = metrics && typeof metrics === 'object' ? metrics : {};
     const durationMs = Math.max(0, Math.floor(Number(source.durationMs || 0)));
-    if (durationMs <= 0) return id === XP_MINI_GAME_ID_BYTE_HANGMAN ? 20 : 15;
+    if (durationMs <= 0) return (id === XP_MINI_GAME_ID_BYTE_HANGMAN || id === XP_MINI_GAME_ID_BYTE_QUEST) ? 20 : 15;
     const seconds = durationMs / 1000;
 
     // BYTE HANGMAN rewards a successful decode by selected difficulty. Time is
@@ -46879,6 +46904,17 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       const wordLength = Math.max(1, Math.min(50, Math.floor(Number(source.wordLength || 1))));
       const floor = Math.max([0, 3, 4, 5, 6][rank], Math.min(9, wordLength * .24));
       return activeSeconds >= floor ? 20 : 0;
+    }
+
+    // BYTE QUEST awards permanent XP only for a legitimate stage clear. The
+    // level determines the fixed XP tier; waiting longer never increases it.
+    if (id === XP_MINI_GAME_ID_BYTE_QUEST) {
+      if (source.completed !== true) return 0;
+      const expected = byteQuestLevelXpForId(source.levelId);
+      if (!expected) return 0;
+      const activeMs = Math.max(0, Number(source.activeTimeMs || durationMs));
+      const minMs = expected <= 5 ? 8000 : expected <= 10 ? 12000 : expected <= 15 ? 15000 : 18000;
+      return activeMs >= minMs ? expected : 0;
     }
 
     // Fixed-duration arcade rounds: strong play matters, but one short round
@@ -47041,6 +47077,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       case XP_MINI_GAME_ID_CODE_TILES: tierReward = codeTilesRewardForMetrics(metrics); break;
       case XP_MINI_GAME_ID_DIAL_IN: tierReward = dialInRewardForMetrics(metrics); break;
       case XP_MINI_GAME_ID_BYTE_HANGMAN: tierReward = byteHangmanRewardForMetrics(metrics); break;
+      case XP_MINI_GAME_ID_BYTE_QUEST: tierReward = byteQuestRewardForMetrics(metrics); break;
       default: tierReward = 0;
     }
     return Math.min(tierReward, miniGameDurationRewardCap(id, metrics));
@@ -47049,6 +47086,36 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   function normalizeMiniGameMetrics(gameId, input = {}) {
     const id = normalizeXpMiniGameId(gameId);
     const source = input && typeof input === 'object' && !Array.isArray(input) ? input : {};
+    if (id === XP_MINI_GAME_ID_BYTE_QUEST) {
+      const levelId = String(source.levelId || '').trim().toUpperCase().slice(0, 8);
+      const expectedXp = byteQuestLevelXpForId(levelId);
+      const worldFromId = Math.max(0, Math.min(4, Math.floor(Number((levelId.match(/^([1-4])-/) || [])[1] || 0))));
+      const orderRaw = /-B$/.test(levelId) ? 5 : Number((levelId.match(/^[1-4]-([1-4])$/) || [])[1] || 0);
+      return {
+        completed: source.completed === true,
+        levelId,
+        world: Math.max(0, Math.min(4, Math.floor(Number(source.world || 0)))),
+        order: Math.max(0, Math.min(5, Math.floor(Number(source.order || 0)))),
+        expectedWorld: worldFromId,
+        expectedOrder: Math.max(0, Math.min(5, Math.floor(orderRaw || 0))),
+        difficulty: String(source.difficulty || '').toLowerCase().slice(0, 16),
+        difficultyRank: Math.max(1, Math.min(4, Math.floor(Number(source.difficultyRank || 1)))),
+        targetXp: Math.max(0, Math.min(20, Math.floor(Number(source.targetXp || expectedXp || 0)))),
+        chips: Math.max(0, Math.min(3, Math.floor(Number(source.chips || 0)))),
+        stars: Math.max(0, Math.min(3, Math.floor(Number(source.stars || 0)))),
+        timeMs: Math.max(0, Math.min(30 * 60 * 1000, Math.floor(Number(source.timeMs || 0)))),
+        targetTimeMs: Math.max(0, Math.min(30 * 60 * 1000, Math.floor(Number(source.targetTimeMs || 0)))),
+        damageTaken: Math.max(0, Math.min(999, Math.floor(Number(source.damageTaken || 0)))),
+        enemiesDefeated: Math.max(0, Math.min(999, Math.floor(Number(source.enemiesDefeated || 0)))),
+        coins: Math.max(0, Math.min(9999, Math.floor(Number(source.coins || 0)))),
+        secrets: Math.max(0, Math.min(99, Math.floor(Number(source.secrets || 0)))),
+        boss: source.boss === true,
+        bossDefeated: source.bossDefeated === true,
+        activeTimeMs: Math.max(0, Math.min(30 * 60 * 1000, Math.floor(Number(source.activeTimeMs || 0)))),
+        durationMs: Math.max(0, Math.min(30 * 60 * 1000, Math.floor(Number(source.durationMs || 0)))),
+        perfect: source.perfect === true
+      };
+    }
     if (id === XP_MINI_GAME_ID_BYTE_HANGMAN) {
       const difficultyRaw = String(source.difficulty || '').toLowerCase();
       const difficulty = ['easy','medium','hard','difficult'].includes(difficultyRaw) ? difficultyRaw : 'easy';
@@ -47462,10 +47529,57 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     return out;
   }
 
+  function normalizeByteQuestLevelClaims(input = {}) {
+    const source = input && typeof input === 'object' && !Array.isArray(input) ? input : {};
+    const out = {};
+    Object.entries(source).slice(0, 20).forEach(([rawId, raw]) => {
+      const levelId = String(rawId || '').trim().toUpperCase();
+      const targetXp = byteQuestLevelXpForId(levelId);
+      if (!targetXp) return;
+      const row = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+      out[levelId] = {
+        completed: row.completed === true,
+        xpClaimed: Math.max(0, Math.min(targetXp, Math.floor(Number(row.xpClaimed || 0)))),
+        bestStars: Math.max(0, Math.min(3, Math.floor(Number(row.bestStars || row.stars || 0)))),
+        bestChips: Math.max(0, Math.min(3, Math.floor(Number(row.bestChips || row.chips || 0)))),
+        bestTimeMs: Math.max(0, Math.min(30 * 60 * 1000, Math.floor(Number(row.bestTimeMs || 0)))),
+        bestScore: Math.max(0, Math.min(1000000, Math.floor(Number(row.bestScore || 0)))),
+        perfect: row.perfect === true,
+        lastCompletedAt: String(row.lastCompletedAt || '').slice(0, 48)
+      };
+    });
+    return out;
+  }
+
+  function byteQuestRecordTotals(levelClaims = {}) {
+    const claims = normalizeByteQuestLevelClaims(levelClaims);
+    const rows = Object.values(claims);
+    return {
+      levelsCleared: rows.filter(row => row.completed).length,
+      totalStars: rows.reduce((sum, row) => sum + Math.max(0, Number(row.bestStars || 0)), 0),
+      totalChips: rows.reduce((sum, row) => sum + Math.max(0, Number(row.bestChips || 0)), 0),
+      perfectRuns: rows.filter(row => row.perfect).length
+    };
+  }
+
   function normalizeMiniGameRecord(gameId, input = {}) {
     const id = normalizeXpMiniGameId(gameId);
     const source = input && typeof input === 'object' && !Array.isArray(input) ? input : {};
     const base = { lastPlayedAt: String(source.lastPlayedAt || '').slice(0, 48) };
+    if (id === XP_MINI_GAME_ID_BYTE_QUEST) {
+      const levelClaims = normalizeByteQuestLevelClaims(source.levelClaims || {});
+      const totals = byteQuestRecordTotals(levelClaims);
+      return {
+        ...base,
+        bestScore: Math.max(0, Math.min(1000000, Math.floor(Number(source.bestScore || 0)))),
+        levelsCleared: Math.max(totals.levelsCleared, Math.max(0, Math.min(20, Math.floor(Number(source.levelsCleared || source.completedLevels || 0))))),
+        totalStars: Math.max(totals.totalStars, Math.max(0, Math.min(60, Math.floor(Number(source.totalStars || 0))))),
+        totalChips: Math.max(totals.totalChips, Math.max(0, Math.min(60, Math.floor(Number(source.totalChips || 0))))),
+        perfectRuns: Math.max(totals.perfectRuns, Math.max(0, Math.min(20, Math.floor(Number(source.perfectRuns || 0))))),
+        highestWorld: Math.max(0, Math.min(4, Math.floor(Number(source.highestWorld || 0)))),
+        levelClaims
+      };
+    }
     if (id === XP_MINI_GAME_ID_BYTE_HANGMAN) {
       return {
         ...base,
@@ -47690,6 +47804,38 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     const left = normalizeMiniGameRecord(id, a);
     const right = normalizeMiniGameRecord(id, b);
     const lastPlayedAt = [left.lastPlayedAt, right.lastPlayedAt].filter(Boolean).sort().pop() || '';
+    if (id === XP_MINI_GAME_ID_BYTE_QUEST) {
+      const levelClaims = {};
+      const ids = new Set([...Object.keys(left.levelClaims || {}), ...Object.keys(right.levelClaims || {})]);
+      ids.forEach(levelId => {
+        const targetXp = byteQuestLevelXpForId(levelId);
+        if (!targetXp) return;
+        const aRow = left.levelClaims?.[levelId] || {};
+        const bRow = right.levelClaims?.[levelId] || {};
+        const newestAt = [String(aRow.lastCompletedAt || ''), String(bRow.lastCompletedAt || '')].filter(Boolean).sort().pop() || '';
+        levelClaims[levelId] = {
+          completed: aRow.completed === true || bRow.completed === true,
+          xpClaimed: Math.max(0, Math.min(targetXp, Math.max(Number(aRow.xpClaimed || 0), Number(bRow.xpClaimed || 0)))),
+          bestStars: Math.max(Number(aRow.bestStars || 0), Number(bRow.bestStars || 0)),
+          bestChips: Math.max(Number(aRow.bestChips || 0), Number(bRow.bestChips || 0)),
+          bestTimeMs: earlierPositiveMin(aRow.bestTimeMs, bRow.bestTimeMs),
+          bestScore: Math.max(Number(aRow.bestScore || 0), Number(bRow.bestScore || 0)),
+          perfect: aRow.perfect === true || bRow.perfect === true,
+          lastCompletedAt: newestAt
+        };
+      });
+      const totals = byteQuestRecordTotals(levelClaims);
+      return {
+        lastPlayedAt,
+        bestScore: Math.max(Number(left.bestScore || 0), Number(right.bestScore || 0)),
+        levelsCleared: Math.max(totals.levelsCleared, Number(left.levelsCleared || 0), Number(right.levelsCleared || 0)),
+        totalStars: Math.max(totals.totalStars, Number(left.totalStars || 0), Number(right.totalStars || 0)),
+        totalChips: Math.max(totals.totalChips, Number(left.totalChips || 0), Number(right.totalChips || 0)),
+        perfectRuns: Math.max(totals.perfectRuns, Number(left.perfectRuns || 0), Number(right.perfectRuns || 0)),
+        highestWorld: Math.max(Number(left.highestWorld || 0), Number(right.highestWorld || 0)),
+        levelClaims
+      };
+    }
     if (id === XP_MINI_GAME_ID_BYTE_HANGMAN) {
       return {
         lastPlayedAt,
@@ -47943,6 +48089,28 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       return next;
     }
     next.bestScore = Math.max(Number(next.bestScore || 0), score);
+    if (id === XP_MINI_GAME_ID_BYTE_QUEST && metrics.completed && byteQuestLevelXpForId(metrics.levelId)) {
+      const levelId = String(metrics.levelId || '').toUpperCase();
+      const claims = normalizeByteQuestLevelClaims(next.levelClaims || {});
+      const previous = claims[levelId] || {};
+      claims[levelId] = {
+        completed: true,
+        xpClaimed: Math.max(0, Number(previous.xpClaimed || 0)),
+        bestStars: Math.max(Number(previous.bestStars || 0), Number(metrics.stars || 0)),
+        bestChips: Math.max(Number(previous.bestChips || 0), Number(metrics.chips || 0)),
+        bestTimeMs: earlierPositiveMin(previous.bestTimeMs, metrics.timeMs),
+        bestScore: Math.max(Number(previous.bestScore || 0), score),
+        perfect: previous.perfect === true || metrics.perfect === true,
+        lastCompletedAt: nowIso
+      };
+      const totals = byteQuestRecordTotals(claims);
+      next.levelClaims = claims;
+      next.levelsCleared = totals.levelsCleared;
+      next.totalStars = totals.totalStars;
+      next.totalChips = totals.totalChips;
+      next.perfectRuns = totals.perfectRuns;
+      next.highestWorld = Math.max(Number(next.highestWorld || 0), Number(metrics.world || 0));
+    }
     if (id === XP_MINI_GAME_ID_BYTE_HANGMAN && metrics.completed) {
       next.bestLetterStreak = Math.max(Number(next.bestLetterStreak || 0), Number(metrics.bestLetterStreak || 0));
       next.bestStability = Math.max(Number(next.bestStability || 0), Number(metrics.stabilityRemaining || 0));
@@ -50775,7 +50943,8 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       codeVault: normalizeMiniGameRecord(XP_MINI_GAME_ID_CODE_VAULT, miniGames.games?.codeVault),
       codeTiles: normalizeMiniGameRecord(XP_MINI_GAME_ID_CODE_TILES, miniGames.games?.codeTiles),
       dialIn: normalizeMiniGameRecord(XP_MINI_GAME_ID_DIAL_IN, miniGames.games?.dialIn),
-      byteHangman: normalizeMiniGameRecord(XP_MINI_GAME_ID_BYTE_HANGMAN, miniGames.games?.byteHangman)
+      byteHangman: normalizeMiniGameRecord(XP_MINI_GAME_ID_BYTE_HANGMAN, miniGames.games?.byteHangman),
+      byteQuest: normalizeMiniGameRecord(XP_MINI_GAME_ID_BYTE_QUEST, miniGames.games?.byteQuest)
     };
     return {
       loggedIn,
@@ -50811,7 +50980,8 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         codeSlice: Math.max(0, Number(gameRecords.codeSlice.bestRunScore || gameRecords.codeSlice.bestScore || 0)),
         millionByte: Math.max(0, Number(gameRecords.millionByte.bestScore || 0)),
         codeVault: Math.max(0, Number(gameRecords.codeVault.bestScore || 0)),
-        dialIn: Math.max(0, Number(gameRecords.dialIn.bestScore || 0))
+        dialIn: Math.max(0, Number(gameRecords.dialIn.bestScore || 0)),
+        byteQuest: Math.max(0, Number(gameRecords.byteQuest.bestScore || 0))
       },
       gameRecords,
       soundEnabled: miniGames.soundEnabled !== false
@@ -51239,6 +51409,38 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       const millionDetails = millionByteScoreDetails(metrics);
       score = millionDetails.completed ? millionDetails.score : 0;
       maxPlausibleScore = 1000;
+    } else if (gameId === XP_MINI_GAME_ID_BYTE_QUEST) {
+      metrics.durationMs = durationMs;
+      metrics.activeTimeMs = Math.max(0, Math.min(Number(metrics.activeTimeMs || durationMs), durationMs));
+      const expectedXp = byteQuestLevelXpForId(metrics.levelId);
+      const expectedWorld = Number((String(metrics.levelId || '').match(/^([1-4])-/) || [])[1] || 0);
+      const expectedOrder = /-B$/.test(String(metrics.levelId || ''))
+        ? 5
+        : Number((String(metrics.levelId || '').match(/^[1-4]-([1-4])$/) || [])[1] || 0);
+      const expectedBoss = /-B$/.test(String(metrics.levelId || ''));
+      const expectedRank = expectedXp <= 5 ? 1 : expectedXp <= 10 ? 2 : expectedXp <= 15 ? 3 : 4;
+      const minActiveMs = expectedXp <= 5 ? 8000 : expectedXp <= 10 ? 12000 : expectedXp <= 15 ? 15000 : 18000;
+      const identityOk = Boolean(
+        expectedXp > 0
+        && metrics.targetXp === expectedXp
+        && metrics.world === expectedWorld
+        && metrics.order === expectedOrder
+        && metrics.difficultyRank === expectedRank
+        && metrics.boss === expectedBoss
+      );
+      metrics.completed = Boolean(
+        metrics.completed
+        && identityOk
+        && metrics.activeTimeMs >= minActiveMs
+        && metrics.timeMs >= minActiveMs
+        && metrics.timeMs <= durationMs + 1000
+        && (!expectedBoss || metrics.bossDefeated === true)
+      );
+      metrics.perfect = Boolean(metrics.completed && metrics.perfect && metrics.chips === 3 && metrics.damageTaken === 0 && metrics.targetTimeMs > 0 && metrics.timeMs <= metrics.targetTimeMs);
+      maxPlausibleScore = Math.max(6000, Math.min(100000,
+        metrics.coins * 50 + metrics.chips * 1000 + metrics.enemiesDefeated * 250 + metrics.secrets * 500 + 6500
+      ));
+      score = metrics.completed ? Math.max(1, Math.min(score, maxPlausibleScore)) : 0;
     } else if (gameId === XP_MINI_GAME_ID_BYTE_HANGMAN) {
       metrics.durationMs = durationMs;
       metrics.activeTimeMs = Math.max(0, Math.min(Number(metrics.activeTimeMs || durationMs), durationMs));
@@ -51790,7 +51992,9 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         replayNoXp: server.replayNoXp === true,
         replayReduced: server.replayReduced === true,
         progressionBlocked: server.progressionBlocked === true,
-        reservationMismatch: server.reservationMismatch === true
+        reservationMismatch: server.reservationMismatch === true,
+        levelClaimedXp: Math.max(0, Math.floor(Number(server.levelClaimedXp || 0))),
+        levelFullyClaimed: server.levelFullyClaimed === true
       };
     } catch (error) {
       // Never launch a second Firestore claim. The exact secured request remains
