@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const ASSET_VERSION = '20260919-v556-byte-strike-mobile-hud';
+  const ASSET_VERSION = '20260920-v609-titan-fortification-hud-safe';
 
   const GAME_REGISTRY = Object.freeze([
     {
@@ -372,7 +372,29 @@
       }
     },
     {
+      id: 'byte-quest',
+      assetVersion: '20260920-v565-byte-quest-progression-safety',
+      stateKey: 'byteQuest',
+      name: 'BYTE QUEST',
+      icon: '◆',
+      description: 'Run, jump, crouch, smash Data Blocks, collect Data Chips, and defeat Guardians with BYTE’s visible Pulse Blaster combat form.',
+      maxXp: 20,
+      category: 'PLATFORM ADVENTURE / SOLO XP',
+      difficulty: '★★★★★',
+      globalName: 'ICT8ByteQuest',
+      dependencies: ['games/byte-quest/byte-quest-levels.js'],
+      script: 'games/byte-quest/byte-quest.js',
+      style: 'games/byte-quest/byte-quest.css',
+      playLabel: 'START QUEST',
+      bestText(record = {}) {
+        const score = Math.max(0, Number(record.bestScore || 0));
+        const cleared = Math.max(0, Number(record.levelsCleared || record.completedLevels || 0));
+        return cleared > 0 ? `◆ ${cleared}/20 stages · Best ${Math.floor(score).toLocaleString()}` : '◆ 4 worlds · 20 stages ready';
+      }
+    },
+    {
       id: 'byte-hangman',
+      assetVersion: '20260919-v536-byte-hangman-slot-conflict-fix',
       stateKey: 'byteHangman',
       name: 'BYTE HANGMAN',
       icon: '◈',
@@ -572,21 +594,22 @@
     },
     {
       id: 'byte-strike',
+      assetVersion: '20260920-v609-titan-fortification-hud-safe',
       stateKey: 'byteStrike',
       name: 'BYTE STRIKE',
       icon: '🎯',
-      description: 'Premium top-down tactical shooter with directional vision, wall occlusion, 8 arenas, VS Bot, and low-latency live 1v1 WebRTC duels.',
+      description: 'Premium top-down tactical shooter with 12 Classic arenas, 10 Core Siege maps, all 37 weapons in Classic and Siege, manual energy shields, the neutral Byte Lord Fortification objective, distinct Byte Agents, smarter 1V1–5V5 VS Bot teams, Call Backup, Health Cores, tactical vision, and live 1v1 WebRTC duels.',
       maxXp: 0,
       multiplayer: true,
       noXp: true,
-      category: 'SOLO VS BOT / LIVE 1V1 / TACTICAL SHOOTER',
+      category: 'SOLO VS BOT 1V1–5V5 / LIVE 1V1 / TACTICAL SHOOTER',
       difficulty: '★★★★★',
       globalName: 'ICT8ByteStrike',
       dependencies: ['games/p2p-zero-db/p2p-zero-db.js', 'games/byte-strike/byte-strike-maps.js'],
       script: 'games/byte-strike/byte-strike.js',
       style: 'games/byte-strike/byte-strike.css',
       playLabel: 'PLAY BYTE STRIKE',
-      bestText() { return '🎯 VS BOT · LIVE 1V1 · 8 MAPS · 0 XP'; }
+      bestText() { return '🎯 CLASSIC + CORE SIEGE · 37 WEAPONS · SHIELD · BYTE LORD · 0 XP'; }
     },
     {
       id: 'pattern-lock',
@@ -911,8 +934,9 @@
     function targetGain() {
       if (!enabled || paused || !activeGameId || !activeProfile) return 0;
       const profileGain = Number(activeProfile.gain || .28);
-      // Louder master mix for mobile speakers without allowing the BGM to
-      // saturate the output bus. SFX still gets temporary headroom via duck().
+      // BYTE STRIKE keeps music clearly behind weapons, battle SFX and the
+      // announcer. Other mini-games retain their existing louder music mix.
+      if(activeGameId==='byte-strike')return Math.max(.15,Math.min(.26,profileGain*MINI_GAME_BGM_GAIN_BOOST*.34));
       return Math.max(.36, Math.min(.75, profileGain * MINI_GAME_BGM_GAIN_BOOST));
     }
 
@@ -1651,13 +1675,14 @@
   function ensureGameModule(game) {
     let current = window[game.globalName];
     if (current?.open) {
-      if (!['byte-hangman','byte-strike'].includes(game.id) || current.assetVersion === ASSET_VERSION) return Promise.resolve(current);
+      const expectedModuleVersion = String(game.assetVersion || '');
+      if (!expectedModuleVersion || current.assetVersion === expectedModuleVersion) return Promise.resolve(current);
       // Byte Hangman and BYTE STRIKE are actively iterated. If the SPA already
       // loaded an older copy, remove its overlay/API before loading the new
       // version so stale game code cannot survive in a long-lived session.
       try { current.close?.(true); } catch (_) {}
       try {
-        const selector = game.id === 'byte-strike' ? '.bs-overlay' : '.bh-overlay';
+        const selector = game.id === 'byte-strike' ? '.bs-overlay' : game.id === 'byte-quest' ? '.bq-overlay' : '.bh-overlay';
         document.querySelectorAll(selector).forEach(node => node.remove());
       } catch (_) {}
       try { window[game.globalName] = null; } catch (_) {}
