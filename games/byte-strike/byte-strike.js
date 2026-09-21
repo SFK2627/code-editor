@@ -919,7 +919,24 @@
   function layoutBattleHud(force=false){
     if(!r.overlay||r.state!=='game')return;if(!force&&r.match?.mode!=='siege')return;const ts=now();if(!force&&ts-Number(r.hudLayoutAt||0)<160)return;r.hudLayoutAt=ts;
     const wrap=$('[data-game-wrap]',r.overlay),top=$('.bs-hud-top',r.overlay),round=$('.bs-round-box',r.overlay),objective=$('[data-siege-status]',r.overlay),lordHud=$('[data-lord-hud]',r.overlay),warning=$('[data-tower-warning]',r.overlay),mini=r.minimap;if(!wrap||!top)return;
-    const wr=wrap.getBoundingClientRect(),tr=top.getBoundingClientRect(),coarse=matchMedia('(pointer:coarse)').matches,gap=coarse?6:9;let objectiveTop=Math.max(4,Math.ceil(tr.bottom-wr.top+gap)),topRail=false;
+    const wr=wrap.getBoundingClientRect(),tr=top.getBoundingClientRect(),coarse=matchMedia('(pointer:coarse)').matches,gap=coarse?6:9;
+    // Desktop Siege has five CSS-owned slots. Only measure the occupied row;
+    // the legacy second-row placement below still handles touch/small screens.
+    if(r.match?.mode==='siege'&&matchMedia('(pointer:fine) and (min-width:800px)').matches){
+      wrap.classList.remove('siege-objective-toprail','siege-objective-secondrow');
+      wrap.classList.toggle('siege-lord-visible',!!lordHud&&!lordHud.hidden);
+      let reservedBottom=Math.ceil(tr.bottom-wr.top);
+      for(const panel of [lordHud,objective,mini]){
+        if(!panel||panel.hidden)continue;
+        const rect=panel.getBoundingClientRect();
+        reservedBottom=Math.max(reservedBottom,Math.ceil(rect.bottom-wr.top));
+        if(panel===mini)wrap.style.setProperty('--bs-minimap-bottom',`${Math.ceil(rect.bottom-wr.top)}px`);
+      }
+      wrap.style.setProperty('--bs-tower-warning-top',`${reservedBottom+gap}px`);
+      wrap.style.setProperty('--bs-hud-reserved-bottom',`${reservedBottom}px`);
+      return;
+    }
+    let objectiveTop=Math.max(4,Math.ceil(tr.bottom-wr.top+gap)),topRail=false;
     wrap.classList.remove('siege-objective-toprail');
     if(r.match?.mode==='siege'&&!coarse&&objective&&!objective.hidden&&round&&mini&&!mini.hidden){const rr=round.getBoundingClientRect(),mr=mini.getBoundingClientRect(),leftEdge=Math.ceil(rr.right-wr.left+10),rightEdge=Math.floor(mr.left-wr.left-10),available=rightEdge-leftEdge;if(available>=300){const width=Math.min(560,available),left=Math.ceil(leftEdge+(available-width)/2);wrap.style.setProperty('--bs-siege-objective-left',`${left}px`);wrap.style.setProperty('--bs-siege-objective-width',`${width}px`);objectiveTop=Math.max(4,Math.ceil(rr.top-wr.top));wrap.classList.add('siege-objective-toprail');topRail=true;}}
     wrap.style.setProperty('--bs-siege-objective-top',`${objectiveTop}px`);

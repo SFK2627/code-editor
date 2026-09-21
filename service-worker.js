@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ict8-connect-v610-titan-fortification-hud-safe';
+const CACHE_NAME = 'ict8-connect-v611-desktop-centered-siege-hud';
 const APP_SHELL = [
   './',
   './index.html',
