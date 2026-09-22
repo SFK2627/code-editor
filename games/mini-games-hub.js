@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const ASSET_VERSION = '20260920-v609-titan-fortification-hud-safe';
+  const ASSET_VERSION = '20260922-v618-siege-position-draft';
 
   const GAME_REGISTRY = Object.freeze([
     {
@@ -594,7 +594,7 @@
     },
     {
       id: 'byte-strike',
-      assetVersion: '20260920-v609-titan-fortification-hud-safe',
+      assetVersion: '20260922-v618-siege-position-draft',
       stateKey: 'byteStrike',
       name: 'BYTE STRIKE',
       icon: '🎯',

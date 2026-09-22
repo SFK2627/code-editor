@@ -478,6 +478,136 @@
     }
   ];
 
+
+
+  // v10 MOBA balance pass: every Core Siege arena is normalized to a true
+  // left/right competitive mirror. The neutral Lord sanctuary always sits on
+  // the world centerline, so both bases have exactly the same travel distance.
+  function balanceSiegeMaps(){
+    const rectCircleHit=(rect,cx,cy,r)=>{
+      const nx=Math.max(rect.x,Math.min(cx,rect.x+rect.w));
+      const ny=Math.max(rect.y,Math.min(cy,rect.y+rect.h));
+      const dx=cx-nx,dy=cy-ny;return dx*dx+dy*dy<r*r;
+    };
+    const rectOverlap=(a,b,pad=0)=>!(a.x+a.w+pad<=b.x||b.x+b.w+pad<=a.x||a.y+a.h+pad<=b.y||b.y+b.h+pad<=a.y);
+    const segRectHit=(a,b,rect,pad=0)=>{
+      const minX=Math.min(a.x,b.x)-pad,maxX=Math.max(a.x,b.x)+pad,minY=Math.min(a.y,b.y)-pad,maxY=Math.max(a.y,b.y)+pad;
+      return !(rect.x+rect.w<minX||rect.x>maxX||rect.y+rect.h<minY||rect.y>maxY);
+    };
+    const mirrorRect=(w,width)=>({...w,x:Math.round(width-(w.x+w.w))});
+    const clonePoint=(v)=>({...v});
+    const mirrorPoint=(v,width)=>({...v,x:Math.round(width-v.x)});
+
+    for(let mapIndex=0;mapIndex<SIEGE_MAPS.length;mapIndex++){
+      const map=SIEGE_MAPS[mapIndex],sg=map.siege||{},midX=map.width/2,midY=map.height/2;
+      const boundary=(w)=>w.x<=1||w.y<=1||w.x+w.w>=map.width-1||w.y+w.h>=map.height-1;
+
+      // 1) Make the solid arena geometry a strict left/right mirror. We use
+      // the left half as the source of truth, then regenerate the right half.
+      const borders=(map.walls||[]).filter(boundary).map(w=>({...w}));
+      const left=[],center=[];
+      for(const w0 of (map.walls||[])){
+        if(boundary(w0))continue;
+        const w={...w0},cx=w.x+w.w/2;
+        if(w.x<midX&&w.x+w.w>midX){w.x=Math.round(midX-w.w/2);center.push(w);}
+        else if(cx<midX-2)left.push(w);
+      }
+      let walls=[...borders,...left.map(w=>({...w})),...left.map(w=>mirrorRect(w,map.width)),...center.map(w=>({...w}))];
+
+      // 2) Exact mirror lanes. Team 1 always follows the geometric mirror of
+      // Team 0, eliminating curved-path or waypoint advantages.
+      for(const lane of (sg.lanes||[])){
+        const p0=(lane.paths?.[0]||[]).map(clonePoint);
+        lane.paths=[p0,p0.map(pt=>mirrorPoint(pt,map.width))];
+      }
+
+      // 3) Same base line and same spawn Y. This makes any point on the map
+      // centerline exactly equidistant from both teams.
+      const oldSp=sg.spawns||[{x:170,y:midY,a:0},{x:map.width-170,y:midY,a:Math.PI}];
+      const edgeX=Math.max(92,Math.min(95,Number(oldSp[0]?.x)||95,map.width-(Number(oldSp[1]?.x)||map.width-95)));
+      sg.spawns=[{x:edgeX,y:midY,a:0},{x:map.width-edgeX,y:midY,a:Math.PI}];
+      map.spawnPairs=[S(edgeX,midY,map.width-edgeX,midY,0,Math.PI)];
+
+      // 4) Mirror every defensive layer from Team 0 to Team 1 by tier/kind/lane.
+      // IDs/names stay untouched so save/network compatibility is preserved.
+      const blue=(sg.structures||[]).filter(st=>st.team===0);
+      const red=(sg.structures||[]).filter(st=>st.team===1);
+      const used=new Set();
+      for(const b of blue){
+        let ri=-1;
+        for(let i=0;i<red.length;i++)if(!used.has(i)&&red[i].kind===b.kind&&Number(red[i].tier)===Number(b.tier)&&String(red[i].lane||'')===String(b.lane||'')){ri=i;break;}
+        if(ri<0)for(let i=0;i<red.length;i++)if(!used.has(i)&&red[i].kind===b.kind&&Number(red[i].tier)===Number(b.tier)){ri=i;break;}
+        if(ri<0)continue;
+        used.add(ri);const rr=red[ri];
+        rr.x=Math.round(map.width-b.x);rr.y=b.y;rr.r=b.r;rr.maxHp=b.maxHp;
+      }
+
+      // 5) MOBA role metadata. Internal combat AI roles remain compatible;
+      // these fields define the strategic 5v5 positions and lane identity.
+      const lanes=sg.lanes||[],laneYs=lanes.map(l=>{
+        const pts=l.paths?.[0]||[];return pts.length?pts.reduce((a,p)=>a+p.y,0)/pts.length:midY;
+      });
+      const sorted=lanes.map((l,i)=>({id:l.id,y:laneYs[i]})).sort((a,b)=>a.y-b.y);
+      const top=sorted[0]?.id||'',bottom=sorted[sorted.length-1]?.id||top;
+      const midLane=(lanes.find(l=>/mid|main|avenue|rift/i.test(l.id+' '+(l.label||'')))||sorted[Math.floor(sorted.length/2)]||{}).id||top;
+
+      // 6) Pick a large neutral Lord sanctuary on the exact centerline and
+      // between active minion lanes whenever possible.
+      const desiredArenaR=Math.round(Math.max(225,Math.min(320,map.height*.145)));
+      const candidateYs=[];
+      if(sorted.length>1){for(let i=0;i<sorted.length-1;i++)candidateYs.push((sorted[i].y+sorted[i+1].y)/2);}
+      candidateYs.push(map.height*.26,map.height*.74,map.height*.34,map.height*.66);
+      const structures=sg.structures||[];
+      const laneClear=(y)=>sorted.length?Math.min(...sorted.map(l=>Math.abs(y-l.y))):9999;
+      const structureClear=(y)=>structures.length?Math.min(...structures.map(st=>Math.hypot(midX-st.x,y-st.y)-(Number(st.r)||45))):9999;
+      const wallClear=(y)=>walls.length?Math.min(...walls.filter(w=>!boundary(w)).map(w=>{
+        const nx=Math.max(w.x,Math.min(midX,w.x+w.w)),ny=Math.max(w.y,Math.min(y,w.y+w.h));return Math.hypot(midX-nx,y-ny);
+      })):9999;
+      let lordY=midY,best=-1e9;
+      for(const raw of candidateYs){
+        const y=Math.round(Math.max(desiredArenaR+90,Math.min(map.height-desiredArenaR-90,raw)));
+        const score=Math.min(laneClear(y),650)*2.2+Math.min(structureClear(y),800)*1.8+Math.min(wallClear(y),500)*.35-Math.abs(y-midY)*.05;
+        if(score>best){best=score;lordY=y;}
+      }
+      const arenaR=Math.round(Math.max(190,Math.min(desiredArenaR,laneClear(lordY)-58)));
+      const lordPit={x:midX,y:lordY,r:arenaR};
+      sg.lordPit=lordPit;
+      sg.moba={goldLane:bottom,expLane:top,midLane,junglerZone:'CENTER JUNGLE',roamerZone:'ALL LANES',lordPit:{...lordPit}};
+
+      // 7) Open the full Lord arena and lane corridors. No static wall can
+      // overlap the Lord sanctuary or block a minion waypoint segment.
+      walls=walls.filter(w=>{
+        if(boundary(w))return true;
+        if(rectCircleHit(w,lordPit.x,lordPit.y,arenaR+36))return false;
+        for(const lane of lanes){const pts=lane.paths?.[0]||[];for(let i=1;i<pts.length;i++)if(segRectHit(pts[i-1],pts[i],w,42))return false;}
+        return true;
+      });
+
+      // 8) Defensive structures get a hard-clear bubble from environment walls.
+      walls=walls.filter(w=>boundary(w)||!structures.some(st=>rectCircleHit(w,st.x,st.y,(Number(st.r)||45)+34)));
+      map.walls=walls;
+
+      // 9) Competitive pickups are also mirrored. This prevents one base from
+      // having a stronger weapon/health route than the other.
+      const mirrorItems=(items,kind)=>{
+        const out=[],seen=new Set();
+        const add=(it)=>{const key=`${Math.round(it.x)}:${Math.round(it.y)}:${kind==='weapon'?(it.weapon||''):Number(it.amount||0)}`;if(!seen.has(key)){seen.add(key);out.push({...it});}};
+        for(const it of (items||[])){
+          if(Math.hypot(it.x-lordPit.x,it.y-lordPit.y)<arenaR+58)continue;
+          if(Math.abs(it.x-midX)<=22){add({...it,x:midX});continue;}
+          if(it.x<midX){add(it);add(mirrorPoint(it,map.width));}
+        }
+        return out;
+      };
+      map.pickups=mirrorItems(map.pickups,'weapon');
+      map.healthPickups=mirrorItems(map.healthPickups,'health');
+
+      // Expose a small audit payload for tests/debugging without affecting play.
+      sg.balance={version:10,mirrorAxisX:midX,spawnDistanceToLord:Math.hypot(sg.spawns[0].x-lordPit.x,sg.spawns[0].y-lordPit.y),laneClearance:laneClear(lordY),lordArenaRadius:arenaR};
+    }
+  }
+  balanceSiegeMaps();
+
   const MAP_BY_ID = Object.freeze(Object.fromEntries(MAPS.map(map => [map.id, map])));
   const SIEGE_BY_ID = Object.freeze(Object.fromEntries(SIEGE_MAPS.map(map => [map.id, map])));
   const DEFAULT_MAP_ID = 'data-vault';
@@ -494,5 +624,5 @@
     return pool[Math.floor(Math.random() * Math.max(1,pool.length))] || SIEGE_MAPS[0];
   }
 
-  window.ICT8ByteStrikeMaps = Object.freeze({version:9, maps:Object.freeze(MAPS), get, random, defaultMapId:DEFAULT_MAP_ID, siegeMaps:Object.freeze(SIEGE_MAPS), getSiege, randomSiege, defaultSiegeMapId:DEFAULT_SIEGE_MAP_ID});
+  window.ICT8ByteStrikeMaps = Object.freeze({version:10, maps:Object.freeze(MAPS), get, random, defaultMapId:DEFAULT_MAP_ID, siegeMaps:Object.freeze(SIEGE_MAPS), getSiege, randomSiege, defaultSiegeMapId:DEFAULT_SIEGE_MAP_ID});
 })();
