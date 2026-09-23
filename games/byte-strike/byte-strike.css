@@ -1227,3 +1227,29 @@ body.byte-strike-active #portraitLockOverlay{display:none!important;pointer-even
   .bs-position-hud em{padding:2px 3px;font-size:.2rem}
   .bs-score-agent small>span{padding:2px 3px;font-size:.29rem}
 }
+
+/* v621 — MENU above the Siege scoreboard; alerts always clear the complete HUD stack. */
+.bs-overlay.bs-siege-playing .bs-round-box[data-scoreboard]{
+  margin-top:28px!important;
+}
+.bs-overlay.bs-siege-playing .bs-hud-menu-toggle{
+  top:var(--bs-hud-menu-top,6px)!important;
+}
+.bs-overlay.bs-siege-playing .bs-message{
+  top:var(--bs-message-top,148px)!important;
+  z-index:17;
+  overflow-wrap:anywhere;
+}
+@media(pointer:coarse) and (orientation:landscape){
+  .bs-overlay.bs-siege-playing .bs-round-box[data-scoreboard]{margin-top:24px!important}
+}
+@media(pointer:coarse) and (orientation:landscape) and (max-height:430px){
+  .bs-overlay.bs-siege-playing .bs-round-box[data-scoreboard]{margin-top:22px!important}
+  .bs-overlay.bs-siege-playing .bs-message{
+    max-width:min(520px,76vw)!important;
+    padding:7px 10px!important;
+    border-radius:13px!important;
+  }
+  .bs-overlay.bs-siege-playing .bs-message strong{font-size:.86rem!important}
+  .bs-overlay.bs-siege-playing .bs-message small{font-size:.36rem!important}
+}
