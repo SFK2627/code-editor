@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const ASSET_VERSION = '20260923-v621-hud-menu-alert-clearance';
+  const ASSET_VERSION = '20260926-v627-phone-only-hud-controls-camera';
 
   const GAME_REGISTRY = Object.freeze([
     {
@@ -594,11 +594,11 @@
     },
     {
       id: 'byte-strike',
-      assetVersion: '20260923-v621-hud-menu-alert-clearance',
+      assetVersion: '20260926-v627-phone-only-hud-controls-camera',
       stateKey: 'byteStrike',
       name: 'BYTE STRIKE',
       icon: '🎯',
-      description: 'Premium top-down tactical shooter with 12 Classic arenas, 10 Core Siege maps, all 37 weapons in Classic and Siege, manual energy shields, the neutral Byte Lord Fortification objective, distinct Byte Agents, smarter 1V1–5V5 VS Bot teams, Call Backup, Health Cores, tactical vision, and live 1v1 WebRTC duels.',
+      description: 'Premium top-down tactical shooter with 12 Classic arenas, 10 Core Siege maps, all 37 weapons, neutral jungle camps and buffs, coordinated 1V1–5V5 role AI, the marching Byte Lord, upgraded tower combat, manual shields, tactical vision, and live 1v1 WebRTC duels.',
       maxXp: 0,
       multiplayer: true,
       noXp: true,

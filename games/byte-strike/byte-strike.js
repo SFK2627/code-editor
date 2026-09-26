@@ -5,7 +5,7 @@
   if (window[GLOBAL_NAME]) return;
 
   const GAME_ID = 'byte-strike';
-  const ASSET_VERSION = '20260926-v625-responsive-camera-mobile-controls';
+  const ASSET_VERSION = '20260926-v627-phone-only-hud-controls-camera';
   const ROOM_PREFIX = 'ICT8STRIKE:';
   const P2P_PREFIX = 'BSTRIKE1';
   const SNAPSHOT_HZ = 20;
@@ -1052,9 +1052,9 @@
   }
   function resizeCanvas(){if(!r.canvas)return;const wrap=$('[data-game-wrap]',r.overlay);if(!wrap)return;const rect=wrap.getBoundingClientRect(),siege=r.match?.mode==='siege',coarse=matchMedia('(pointer:coarse)').matches,dprCap=siege?(coarse?1.35:1.75):(coarse?1.35:2),dpr=Math.min(dprCap,window.devicePixelRatio||1);r.coarsePointer=coarse;r.classicFastPath=!siege&&coarse;if(rect.width<10||rect.height<10)return;r.dpr=dpr;r.canvas.width=Math.max(1,Math.round(rect.width*dpr));r.canvas.height=Math.max(1,Math.round(rect.height*dpr));r.canvas.style.width=`${rect.width}px`;r.canvas.style.height=`${rect.height}px`;if(r.fogCanvas){r.fogCanvas.width=r.canvas.width;r.fogCanvas.height=r.canvas.height;}resizeMinimapCanvases();layoutBattleHud(true);}
   function canvasSize(){return{w:r.canvas.width/r.dpr,h:r.canvas.height/r.dpr};}
-  function cameraZoomFor(width,height,coarse=false,siege=false,teamSize=1){let zoom=coarse?(siege?.78:.80):(siege?.84:.86);if(siege)zoom-=Math.min(.025,Math.max(0,(Number(teamSize)||1)-1)*.00625);if(width/Math.max(1,height)>2.1)zoom-=.01;if(height<400)zoom-=coarse?.01:.005;return clamp(zoom,.73,.88);}
+  function cameraZoomFor(width,height,coarse=false,siege=false,teamSize=1){let zoom=coarse?(siege?.70:.74):(siege?.84:.86);if(siege)zoom-=Math.min(coarse?.028:.025,Math.max(0,(Number(teamSize)||1)-1)*(coarse?.007:.00625));if(width/Math.max(1,height)>2.1)zoom-=coarse?.012:.01;if(height<400)zoom-=coarse?.012:.005;return clamp(zoom,coarse?.64:.73,.88);}
   function cameraZoomTarget(){const size=canvasSize();return cameraZoomFor(size.w,size.h,!!r.coarsePointer,r.match?.mode==='siege',Number(r.match?.teamSize)||1);}
-  function cameraZoom(){return clamp(Number(r.camera.zoom)||cameraZoomTarget(),.7,1);}
+  function cameraZoom(){return clamp(Number(r.camera.zoom)||cameraZoomTarget(),r.coarsePointer?.62:.7,1);}
   function cameraViewSize(){const size=canvasSize(),zoom=cameraZoom();return{w:size.w/zoom,h:size.h/zoom,zoom,screenW:size.w,screenH:size.h};}
   function resizeMinimapCanvases(){
     const apply=(cv,maxDpr=2)=>{if(!cv)return;const rect=cv.getBoundingClientRect();if(rect.width<8||rect.height<8)return;const dpr=Math.min(maxDpr,window.devicePixelRatio||1,2);const w=Math.max(1,Math.round(rect.width*dpr)),h=Math.max(1,Math.round(rect.height*dpr));if(cv.width!==w||cv.height!==h){cv.width=w;cv.height=h;}cv.style.width=`${rect.width}px`;cv.style.height=`${rect.height}px`;};
