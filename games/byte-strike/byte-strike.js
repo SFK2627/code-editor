@@ -5,7 +5,7 @@
   if (window[GLOBAL_NAME]) return;
 
   const GAME_ID = 'byte-strike';
-  const ASSET_VERSION = '20260926-v627-phone-only-hud-controls-camera';
+  const ASSET_VERSION = '20260926-v628-phone-only-layout-announcer';
   const ROOM_PREFIX = 'ICT8STRIKE:';
   const P2P_PREFIX = 'BSTRIKE1';
   const SNAPSHOT_HZ = 20;
@@ -251,6 +251,9 @@
       const scoreFull=document.createElement('div');scoreFull.className='bs-scoreboard-full';scoreFull.dataset.scoreboardFull='';scoreFull.hidden=true;scoreFull.setAttribute('role','dialog');scoreFull.setAttribute('aria-modal','true');scoreFull.setAttribute('aria-label','Core Siege team scoreboard');scoreFull.innerHTML='<div class="bs-scoreboard-full-card"><div class="bs-scoreboard-full-head"><div><span>CORE SIEGE</span><strong>TEAM PERFORMANCE</strong><small>Live rankings, MVP, kills, assists, damage, and Lord control</small></div><button class="bs-icon-btn" type="button" data-close-scoreboard aria-label="Close team scoreboard">×</button></div><div class="bs-scoreboard-overview" data-scoreboard-overview></div><div class="bs-scoreboard-full-foot"><span>Rank #1 on each side is the current Team MVP.</span><small>Click outside or press ESC to close</small></div></div>';gameWrap.appendChild(scoreFull);r.scoreboardFull=scoreFull;r.scoreboardOverview=$('[data-scoreboard-overview]',scoreFull);
       const hudMenu=document.createElement('button');hudMenu.className='bs-hud-menu-toggle';hudMenu.type='button';hudMenu.dataset.hudMenuToggle='';hudMenu.setAttribute('aria-label','Show Byte Strike header controls');hudMenu.setAttribute('aria-expanded','false');hudMenu.innerHTML='<span>☰</span><small>MENU</small>';gameWrap.appendChild(hudMenu);r.hudMenu=hudMenu;
       const hudHint=document.createElement('div');hudHint.className='bs-hud-visibility-hint';hudHint.dataset.hudVisibilityHint='';hudHint.hidden=true;hudHint.setAttribute('role','status');hudHint.setAttribute('aria-live','polite');gameWrap.appendChild(hudHint);r.hudVisibilityHint=hudHint;
+      const restore=document.createElement('button');restore.className='bs-phone-restore';restore.type='button';restore.dataset.phoneRestoreHud='';restore.setAttribute('aria-label','Show combat HUD');restore.title='Show HUD';restore.textContent='👁';gameWrap.appendChild(restore);
+      const phoneCall=document.createElement('div');phoneCall.className='bs-phone-announcer';phoneCall.dataset.phoneAnnouncer='';phoneCall.hidden=true;phoneCall.setAttribute('role','status');phoneCall.setAttribute('aria-live','assertive');phoneCall.innerHTML='<span>BYTE STRIKE</span><strong data-phone-announcer-text></strong>';gameWrap.appendChild(phoneCall);
+      const pauseActions=$('[data-pause] .bs-inline-actions',o);pauseActions?.insertAdjacentHTML('beforeend','<button class="bs-btn bs-phone-hide-action" type="button" data-phone-hide-hud>👁 HIDE HUD</button>');
     }
     const minimapHead=$('.bs-minimap-full-head',o),minimapTitle=minimapHead?$('strong',minimapHead):null,minimapSub=minimapHead?$('small',minimapHead):null;
     if(minimapTitle)minimapTitle.textContent='CLEAR MAP';
@@ -310,6 +313,7 @@
     if(screenType.startsWith('portrait'))return {w:Math.min(iw,vw,ih,vh),h:Math.max(iw,vw,ih,vh)};
     return {w:iw,h:ih};
   }
+  function phoneCombatLayout(){return matchMedia('(pointer:coarse) and (orientation:landscape) and (max-height:600px)').matches;}
   function mobileBattleDevice(){
     try{
       const vp=battleViewport();
@@ -392,7 +396,9 @@
   function bindUi(){
     const o=r.overlay;
     o.addEventListener('click',async e=>{
-      const hudToggle=e.target.closest('[data-hud-menu-toggle]');if(hudToggle){e.preventDefault();e.stopPropagation();setHeaderPeek(!r.overlay?.classList.contains('bs-header-peek'));return;}
+      const hudToggle=e.target.closest('[data-hud-menu-toggle]');if(hudToggle){e.preventDefault();e.stopPropagation();if(phoneCombatLayout())openPause();else setHeaderPeek(!r.overlay?.classList.contains('bs-header-peek'));return;}
+      if(e.target.closest('[data-phone-hide-hud]')){if(phoneCombatLayout()){setHudHidden(true,true);layoutBattleHud(true);resumePause();}return;}
+      if(e.target.closest('[data-phone-restore-hud]')){if(phoneCombatLayout()){setHudHidden(false,true);layoutBattleHud(true);}return;}
       if(r.overlay?.classList.contains('bs-header-peek')&&!e.target.closest('.bs-head'))setHeaderPeek(false);
       const go=e.target.closest('[data-go]');if(go){show(go.dataset.go);return;}
       if(e.target.closest('[data-bs-back]')){returnHub();return;}
@@ -660,9 +666,26 @@
     r.announcerEpoch=(Number(r.announcerEpoch)||0)+1;r.announcerUtterance=null;
     try{window.speechSynthesis?.cancel?.();}catch(_){}
   }
-  function clearAnnouncer(cancelSpeech=true){r.announcerQueue.length=0;r.announcerBusy=false;r.announcerCurrent=null;r.killComboAt=0;r.killComboCount=0;if(cancelSpeech)stopAnnouncerPlayback();}
+  function clearPhoneAnnouncements(){clearTimeout(r.phoneCallTimer);r.phoneCallTimer=0;r.phoneCallQueue=[];r.phoneCallCurrent=null;const el=$('[data-phone-announcer]',r.overlay);if(el){el.hidden=true;el.classList.remove('show','critical');}}
+  function showNextPhoneAnnouncement(){
+    const el=$('[data-phone-announcer]',r.overlay),item=r.phoneCallQueue?.shift();if(!el||!item){if(el)el.hidden=true;r.phoneCallCurrent=null;return;}
+    r.phoneCallCurrent=item;el.hidden=false;el.classList.toggle('critical',item.priority>=5);
+    $('[data-phone-announcer-text]',el).textContent=item.text;
+    el.querySelector('span').textContent=item.priority>=5?'CRITICAL ALERT':'BYTE STRIKE';
+    el.classList.remove('show');void el.offsetWidth;el.classList.add('show');
+    r.phoneCallTimer=setTimeout(()=>{el.classList.remove('show');r.phoneCallTimer=setTimeout(showNextPhoneAnnouncement,180);},item.priority>=5?2350:1800);
+  }
+  function queuePhoneAnnouncement(item){
+    if(!phoneCombatLayout()||r.match?.mode!=='siege')return;
+    r.phoneCallQueue??=[];if(r.phoneCallCurrent?.key===item.key||r.phoneCallQueue.some(q=>q.key===item.key))return;
+    if(r.phoneCallCurrent&&item.priority>r.phoneCallCurrent.priority){clearTimeout(r.phoneCallTimer);r.phoneCallTimer=0;r.phoneCallCurrent=null;}
+    r.phoneCallQueue.push(item);r.phoneCallQueue.sort((a,b)=>b.priority-a.priority||a.seq-b.seq);r.phoneCallQueue.length=Math.min(r.phoneCallQueue.length,3);
+    if(!r.phoneCallCurrent)showNextPhoneAnnouncement();
+  }
+  function clearAnnouncer(cancelSpeech=true){r.announcerQueue.length=0;r.announcerBusy=false;r.announcerCurrent=null;r.killComboAt=0;r.killComboCount=0;clearPhoneAnnouncements();if(cancelSpeech)stopAnnouncerPlayback();}
   function announce(text,priority=2,key='',cooldownMs=2400){
-    if(!soundEnabled()||!text||r.state!=='game')return false;const ts=now(),id=String(key||text).toLowerCase();if(ts-Number(r.announcerLastByKey[id]||0)<cooldownMs)return false;r.announcerLastByKey[id]=ts;const item={text:String(text),priority:Number(priority)||1,key:id,at:ts,seq:++r.announcerSeq};
+    if(!text||r.state!=='game'||(!soundEnabled()&&!phoneCombatLayout()))return false;const ts=now(),id=String(key||text).toLowerCase();if(ts-Number(r.announcerLastByKey[id]||0)<cooldownMs)return false;r.announcerLastByKey[id]=ts;const item={text:String(text),priority:Number(priority)||1,key:id,at:ts,seq:++r.announcerSeq};
+    if(phoneCombatLayout()){queuePhoneAnnouncement(item);if(!soundEnabled())return true;}
     if(item.priority>=5&&r.announcerCurrent&&item.priority>Number(r.announcerCurrent.priority||0)){stopAnnouncerPlayback();r.announcerBusy=false;r.announcerCurrent=null;}
     // Keep only fresh, useful calls. A newer equal/higher-priority call replaces stale queued chatter.
     r.announcerQueue=r.announcerQueue.filter(q=>ts-q.at<3000&&q.key!==id&&!(item.priority>=q.priority&&ts-q.at>900));r.announcerQueue.push(item);r.announcerQueue.sort((a,b)=>b.priority-a.priority||a.seq-b.seq);if(r.announcerQueue.length>3)r.announcerQueue.length=3;playNextAnnouncement();return true;
@@ -670,10 +693,11 @@
   function playNaturalSpeech(item,done){
     const synth=window.speechSynthesis;if(!synth||typeof SpeechSynthesisUtterance==='undefined'){done();return;}const token=++r.announcerEpoch,key=String(item?.key||''),smoothCritical=/system-down|system-restored|ally-agent-down|core-under-attack|defense-under-attack|defense-lost|own-core-exposed|backup-requested|siege-welcome/.test(key),welcome=key==='siege-welcome';let tries=0,settled=false;
     const finish=()=>{if(settled||token!==r.announcerEpoch)return;settled=true;r.announcerUtterance=null;done();};
-    const attempt=()=>{if(settled||token!==r.announcerEpoch)return;const voices=synth.getVoices?.()||[],voice=announcerVoice(),maxTries=welcome?42:(smoothCritical?18:8);if((!voices.length||!voice)&&tries<maxTries){tries++;setTimeout(attempt,120);return;}if(!voice||announcerVoiceScore(voice)<90){finish();return;}
-      const prosody=announcerProsody(item),u=new SpeechSynthesisUtterance(item.text);r.announcerUtterance=u;u.voice=voice;u.lang=voice.lang||'en-US';u.rate=prosody.rate;u.pitch=prosody.pitch;u.volume=1;
+    const attempt=()=>{if(settled||token!==r.announcerEpoch)return;const voices=synth.getVoices?.()||[],voice=announcerVoice(),phone=phoneCombatLayout(),maxTries=phone?5:(welcome?42:(smoothCritical?18:8));if((!voices.length||!voice)&&tries<maxTries){tries++;setTimeout(attempt,120);return;}if(!phone&&(!voice||announcerVoiceScore(voice)<90)){finish();return;}
+      const prosody=announcerProsody(item),u=new SpeechSynthesisUtterance(item.text);r.announcerUtterance=u;if(voice&&(!phone||/^en([_-]|$)/i.test(voice.lang||'')))u.voice=voice;u.lang='en-US';u.rate=prosody.rate;u.pitch=prosody.pitch;u.volume=1;
       u.onstart=()=>{if(token!==r.announcerEpoch){try{synth.cancel?.();}catch(_){}}};
       u.onend=finish;u.onerror=finish;
+      if(phone)setTimeout(finish,Math.max(2600,Math.min(9200,item.text.length*115+1800)));
       try{try{synth.cancel?.();}catch(_){};setTimeout(()=>{if(settled||token!==r.announcerEpoch)return;try{synth.resume?.();synth.speak(u);}catch(_){finish();}},70);}catch(_){finish();}
     };attempt();
   }
@@ -1052,7 +1076,7 @@
   }
   function resizeCanvas(){if(!r.canvas)return;const wrap=$('[data-game-wrap]',r.overlay);if(!wrap)return;const rect=wrap.getBoundingClientRect(),siege=r.match?.mode==='siege',coarse=matchMedia('(pointer:coarse)').matches,dprCap=siege?(coarse?1.35:1.75):(coarse?1.35:2),dpr=Math.min(dprCap,window.devicePixelRatio||1);r.coarsePointer=coarse;r.classicFastPath=!siege&&coarse;if(rect.width<10||rect.height<10)return;r.dpr=dpr;r.canvas.width=Math.max(1,Math.round(rect.width*dpr));r.canvas.height=Math.max(1,Math.round(rect.height*dpr));r.canvas.style.width=`${rect.width}px`;r.canvas.style.height=`${rect.height}px`;if(r.fogCanvas){r.fogCanvas.width=r.canvas.width;r.fogCanvas.height=r.canvas.height;}resizeMinimapCanvases();layoutBattleHud(true);}
   function canvasSize(){return{w:r.canvas.width/r.dpr,h:r.canvas.height/r.dpr};}
-  function cameraZoomFor(width,height,coarse=false,siege=false,teamSize=1){let zoom=coarse?(siege?.70:.74):(siege?.84:.86);if(siege)zoom-=Math.min(coarse?.028:.025,Math.max(0,(Number(teamSize)||1)-1)*(coarse?.007:.00625));if(width/Math.max(1,height)>2.1)zoom-=coarse?.012:.01;if(height<400)zoom-=coarse?.012:.005;return clamp(zoom,coarse?.64:.73,.88);}
+  function cameraZoomFor(width,height,coarse=false,siege=false,teamSize=1){let zoom=coarse?(siege?.70:.74):(siege?.84:.86);if(siege)zoom-=Math.min(coarse?.028:.025,Math.max(0,(Number(teamSize)||1)-1)*(coarse?.007:.00625));if(width/Math.max(1,height)>2.1)zoom-=coarse?.012:.01;if(height<400)zoom-=coarse?.012:.005;if(coarse&&phoneCombatLayout())zoom-=.022;return clamp(zoom,coarse&&phoneCombatLayout()?.61:coarse?.64:.73,.88);}
   function cameraZoomTarget(){const size=canvasSize();return cameraZoomFor(size.w,size.h,!!r.coarsePointer,r.match?.mode==='siege',Number(r.match?.teamSize)||1);}
   function cameraZoom(){return clamp(Number(r.camera.zoom)||cameraZoomTarget(),r.coarsePointer?.62:.7,1);}
   function cameraViewSize(){const size=canvasSize(),zoom=cameraZoom();return{w:size.w/zoom,h:size.h/zoom,zoom,screenW:size.w,screenH:size.h};}
@@ -1064,6 +1088,24 @@
     if(!r.overlay||r.state!=='game')return;if(!force&&r.match?.mode!=='siege')return;const ts=now();if(!force&&ts-Number(r.hudLayoutAt||0)<160)return;r.hudLayoutAt=ts;
     const wrap=$('[data-game-wrap]',r.overlay),top=$('.bs-hud-top',r.overlay),round=$('.bs-round-box',r.overlay),objective=$('[data-siege-status]',r.overlay),lordHud=$('[data-lord-hud]',r.overlay),warning=$('[data-tower-warning]',r.overlay),mini=r.minimap;if(!wrap||!top)return;
     const wr=wrap.getBoundingClientRect(),tr=top.getBoundingClientRect(),coarse=matchMedia('(pointer:coarse)').matches,gap=coarse?6:9;
+    if(phoneCombatLayout()&&r.hudHidden){
+      wrap.style.setProperty('--bs-hud-reserved-bottom','42px');
+      wrap.style.setProperty('--bs-phone-alert-top','44px');
+      wrap.style.setProperty('--bs-message-top','88px');
+      return;
+    }
+    if(r.match?.mode==='siege'&&phoneCombatLayout()){
+      const hp=top.querySelector('.bs-hud-box:first-child');
+      const firstRowBottom=Math.max(...[hp,lordHud,objective,mini].filter(el=>el&&!el.hidden).map(el=>el.getBoundingClientRect().bottom-wr.top),0);
+      const menuTop=Math.ceil(firstRowBottom+5),scoreTop=menuTop+24,scoreBottom=scoreTop+48;
+      wrap.style.setProperty('--bs-hud-menu-left',`${Math.round(wr.width/2)}px`);
+      wrap.style.setProperty('--bs-hud-menu-top',`${menuTop}px`);
+      wrap.style.setProperty('--bs-phone-score-top',`${Math.ceil(scoreTop-(tr.top-wr.top))}px`);
+      wrap.style.setProperty('--bs-phone-alert-top',`${Math.ceil(scoreBottom+6)}px`);
+      wrap.style.setProperty('--bs-message-top',`${Math.ceil(scoreBottom+49)}px`);
+      wrap.style.setProperty('--bs-hud-reserved-bottom',`${Math.ceil(scoreBottom+6)}px`);
+      return;
+    }
     if(round){const rr=round.getBoundingClientRect(),menuH=Math.max(coarse?20:22,Math.ceil(r.hudMenu?.getBoundingClientRect?.().height||0)),menuAbove=r.match?.mode==='siege',menuTop=menuAbove?Math.max(3,Math.ceil(rr.top-wr.top-menuH-4)):Math.ceil(rr.bottom-wr.top+4);wrap.style.setProperty('--bs-hud-menu-left',`${Math.ceil((rr.left+rr.right)/2-wr.left)}px`);wrap.style.setProperty('--bs-hud-menu-top',`${menuTop}px`);}
     const reserveAlerts=(bottom)=>{const warningTop=Math.ceil(bottom+gap);wrap.style.setProperty('--bs-tower-warning-top',`${warningTop}px`);let messageTop=warningTop;if(warning&&!warning.hidden){const wh=Math.max(coarse?20:24,Math.ceil(warning.getBoundingClientRect().height||0));messageTop+=wh+gap;}wrap.style.setProperty('--bs-message-top',`${messageTop}px`);wrap.style.setProperty('--bs-hud-reserved-bottom',`${Math.max(0,Math.ceil(bottom))}px`);};
     // Desktop Siege has five CSS-owned slots. Only measure the occupied row;

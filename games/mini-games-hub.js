@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const ASSET_VERSION = '20260926-v627-phone-only-hud-controls-camera';
+  const ASSET_VERSION = '20260926-v628-phone-only-layout-announcer';
 
   const GAME_REGISTRY = Object.freeze([
     {
@@ -594,7 +594,7 @@
     },
     {
       id: 'byte-strike',
-      assetVersion: '20260926-v627-phone-only-hud-controls-camera',
+      assetVersion: '20260926-v628-phone-only-layout-announcer',
       stateKey: 'byteStrike',
       name: 'BYTE STRIKE',
       icon: '🎯',
