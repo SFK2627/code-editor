@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const ASSET_VERSION = '20260926-v630-voice-and-camera-zoom';
+  const ASSET_VERSION = '20260926-v631-announcer-restore-zoom';
 
   const GAME_REGISTRY = Object.freeze([
     {
@@ -594,7 +594,7 @@
     },
     {
       id: 'byte-strike',
-      assetVersion: '20260926-v630-voice-and-camera-zoom',
+      assetVersion: '20260926-v631-announcer-restore-zoom',
       stateKey: 'byteStrike',
       name: 'BYTE STRIKE',
       icon: '🎯',

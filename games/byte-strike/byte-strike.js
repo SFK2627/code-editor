@@ -5,7 +5,7 @@
   if (window[GLOBAL_NAME]) return;
 
   const GAME_ID = 'byte-strike';
-  const ASSET_VERSION = '20260926-v630-voice-and-camera-zoom';
+  const ASSET_VERSION = '20260926-v631-announcer-restore-zoom';
   const ROOM_PREFIX = 'ICT8STRIKE:';
   const P2P_PREFIX = 'BSTRIKE1';
   const SNAPSHOT_HZ = 20;
@@ -699,8 +699,8 @@
   function playNaturalSpeech(item,done){
     const synth=window.speechSynthesis;if(!synth||typeof SpeechSynthesisUtterance==='undefined'){done();return;}const token=++r.announcerEpoch,key=String(item?.key||''),smoothCritical=/system-down|system-restored|ally-agent-down|core-under-attack|defense-under-attack|defense-lost|own-core-exposed|backup-requested|siege-welcome/.test(key),welcome=key==='siege-welcome';let tries=0,settled=false;
     const finish=()=>{if(settled||token!==r.announcerEpoch)return;settled=true;r.announcerUtterance=null;done();};
-    const attempt=()=>{if(settled||token!==r.announcerEpoch)return;const voices=synth.getVoices?.()||[],voice=announcerVoice(),phone=phoneCombatLayout(),maxTries=welcome?42:(smoothCritical?18:8);if((!voices.length||!voice)&&tries<maxTries){tries++;setTimeout(attempt,120);return;}if(!voice||announcerVoiceScore(voice)<90){finish();return;}
-      const prosody=announcerProsody(item),u=new SpeechSynthesisUtterance(item.text);r.announcerUtterance=u;u.voice=voice;u.lang='en-US';u.rate=prosody.rate;u.pitch=prosody.pitch;u.volume=1;
+    const attempt=()=>{if(settled||token!==r.announcerEpoch)return;const voices=synth.getVoices?.()||[],voice=announcerVoice(),phone=phoneCombatLayout(),maxTries=phone?5:(welcome?42:(smoothCritical?18:8));if((!voices.length||!voice)&&tries<maxTries){tries++;setTimeout(attempt,120);return;}if(!phone&&(!voice||announcerVoiceScore(voice)<90)){finish();return;}
+      const prosody=announcerProsody(item),u=new SpeechSynthesisUtterance(item.text);r.announcerUtterance=u;if(voice&&(!phone||/^en([_-]|$)/i.test(voice.lang||'')))u.voice=voice;u.lang='en-US';u.rate=prosody.rate;u.pitch=prosody.pitch;u.volume=1;
       u.onstart=()=>{if(token!==r.announcerEpoch){try{synth.cancel?.();}catch(_){}}};
       u.onend=finish;u.onerror=finish;
       if(phone)setTimeout(finish,Math.max(2600,Math.min(9200,item.text.length*115+1800)));
