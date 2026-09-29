@@ -54838,7 +54838,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       // v507: ranking rows publish on the daily ~8 PM path. Saving visibility
       // settings must not trigger an extra ranking write or student scan.
       // V514: mirror only the tiny award/section settings to RTDB so the
-      // October 1 server snapshot can honor the exact leaderboard scope without
+      // October 5 server snapshot can honor the exact leaderboard scope without
       // reading Firestore at midnight.
       void saveLeaderboardAwardsSettings({ silent: true });
     } catch (error) {
@@ -54896,8 +54896,8 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   function leaderboardAwardsOfficialAtMs(schoolYear = '') {
     const normalized = normalizeLeaderboardAwardsSchoolYear(schoolYear);
     const startYear = Number(normalized.slice(0, 4));
-    // October 1, 12:00 AM Asia/Manila == September 30, 16:00 UTC.
-    return Date.UTC(startYear, 8, 30, 16, 0, 0, 0);
+    // October 5, 12:00 AM Asia/Manila == October 4, 16:00 UTC.
+    return Date.UTC(startYear, 9, 4, 16, 0, 0, 0);
   }
 
   function formatLeaderboardAwardsDate(ms = 0, options = {}) {
@@ -55113,7 +55113,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       setLeaderboardAwardsStatus(
         leaderboardAwardsState.official
           ? `Official ${leaderboardAwardsState.settings.schoolYear} awards are ready. Latest live certificates are also available anytime.`
-          : 'Latest award rankings are ready. Official certificates will lock automatically on October 1 at 12:00 AM.',
+          : 'Latest award rankings are ready. Official certificates will lock automatically on October 5 at 12:00 AM.',
         'success'
       );
       return true;
@@ -55144,7 +55144,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       leaderboardAwardsState.settings = normalizeLeaderboardAwardsSettings(result.settings || payload);
       leaderboardAwardsState.official = await fetchLeaderboardAwardsOfficialSnapshot(schoolYear);
       renderLeaderboardAwardsOfficialState();
-      if (options.silent !== true) setLeaderboardAwardsStatus(`Award settings saved for School Year ${schoolYear}. Official snapshot is armed for October 1 at 12:00 AM.`, 'success');
+      if (options.silent !== true) setLeaderboardAwardsStatus(`Award settings saved for School Year ${schoolYear}. Official snapshot is armed for October 5 at 12:00 AM.`, 'success');
       return true;
     } catch (error) {
       console.error('Could not save leaderboard award settings.', error);
