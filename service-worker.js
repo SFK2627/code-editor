@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ict8-connect-v613-leaderboard-section-alias-recovery';
+const CACHE_NAME = 'ict8-connect-v617-camillus-spelling-exact';
 const APP_SHELL = [
   './',
   './index.html',

@@ -6597,7 +6597,12 @@ function getStudentSectionNameOnly(student = null) {
   const rawSection = String(student?.section || student?.sectionName || '').replace(/\s+/g, ' ').trim();
   if (!rawSection) return 'Section';
   const match = rawSection.match(/^Grade\s*\d+\s*[-–—:]\s*(.+)$/i);
-  return smartTitleCaseStudentText(match ? match[1] : rawSection);
+  const titled = smartTitleCaseStudentText(match ? match[1] : rawSection);
+
+  // v616 display-only correction for the official section name.
+  // This does not change the stored section, ranking key, XP, student count,
+  // leaderboard inclusion, or roster data.
+  return titled.replace(/^St\.\s*Camillus\s+De\s+Lel(?:l)?is$/i, 'St. Camillus de Lellis');
 }
 
 function getStudentEditorIdentityText(student = null) {
@@ -54570,7 +54575,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       .replace(/\s+/g, ' ')
       .trim()
       .replace(/\bSt\.?\s*Faustina\s+(?:of\s+)?Kowalska\b/gi, 'St. Faustina Kowalska')
-      .replace(/\bSt\.?\s*Camillus\s+(?:(?:de|of)\s+)?Lellis\b/gi, 'St. Camillus de Lellis');
+      .replace(/\bSt\.?\s*Camillus\s+(?:(?:de|of)\s+)?Lel(?:l)?is\b/gi, 'St. Camillus de Lellis');
   }
 
   function leaderboardSectionDisplayName(value = '') {
@@ -56216,7 +56221,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     if (options.detached) classes.push('detached-you');
     return `<article class="${classes.join(' ')}" data-rank="${rank}">
       <span class="code-explorer-leaderboard-rank">${escapeHTML(leaderboardMedal(rank))}</span>
-      <span class="code-explorer-leaderboard-person"><strong>${escapeHTML(record.name || 'Section')}${current ? '<em>YOUR SECTION</em>' : ''}</strong><small>${Number(record.studentCount || 0)} ${Number(record.studentCount || 0) === 1 ? 'student' : 'students'} · Total ⚡ ${Number(record.xp || 0).toLocaleString()} XP</small></span>
+      <span class="code-explorer-leaderboard-person"><strong>${escapeHTML(String(record.name || 'Section').replace(/^St\.\s*Camillus\s+De\s+Lel(?:l)?is$/i, 'St. Camillus de Lellis'))}${current ? '<em>YOUR SECTION</em>' : ''}</strong><small>${Number(record.studentCount || 0)} ${Number(record.studentCount || 0) === 1 ? 'student' : 'students'} · Total ⚡ ${Number(record.xp || 0).toLocaleString()} XP</small></span>
       <span class="code-explorer-leaderboard-xp"><strong>⚡ ${Number(record.averageXp || 0).toLocaleString(undefined, { maximumFractionDigits: 1 })}</strong><small>AVG XP</small></span>
     </article>`;
   }
