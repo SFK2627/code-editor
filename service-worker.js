@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ict8-connect-v611-desktop-centered-siege-hud';
+const CACHE_NAME = 'ict8-connect-v613-leaderboard-section-alias-recovery';
 const APP_SHELL = [
   './',
   './index.html',

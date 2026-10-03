@@ -54561,14 +54561,27 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     };
   }
 
+  // v613 recovery: treat historical and corrected spellings as ONE section.
+  // This prevents students/sections from disappearing when stored RTDB rows and
+  // older leaderboard visibility settings use different spellings.
+  // It does not change XP, averages, ranking math, or student records.
+  function canonicalLeaderboardSectionName(value = '') {
+    return String(value || '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .replace(/\bSt\.?\s*Faustina\s+(?:of\s+)?Kowalska\b/gi, 'St. Faustina Kowalska')
+      .replace(/\bSt\.?\s*Camillus\s+(?:(?:de|of)\s+)?Lellis\b/gi, 'St. Camillus de Lellis');
+  }
+
   function leaderboardSectionDisplayName(value = '') {
-    const cleaned = String(value || '').replace(/\s+/g, ' ').trim();
+    const cleaned = canonicalLeaderboardSectionName(value);
     if (!cleaned) return 'No Section';
-    return getStudentSectionNameOnly({ section: cleaned }) || cleaned;
+    const titled = getStudentSectionNameOnly({ section: cleaned }) || cleaned;
+    return canonicalLeaderboardSectionName(titled);
   }
 
   function leaderboardSectionKey(value = '') {
-    return leaderboardSectionDisplayName(value)
+    return canonicalLeaderboardSectionName(leaderboardSectionDisplayName(value))
       .toLowerCase()
       .replace(/[–—]/g, '-')
       .replace(/\s+/g, ' ')
@@ -54582,7 +54595,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       ? [...new Set(source.includedSections.map(value => leaderboardSectionDisplayName(value)).filter(value => value && leaderboardSectionKey(value) !== 'no section'))]
       : [];
     const keys = Array.isArray(source.includedSectionKeys)
-      ? [...new Set(source.includedSectionKeys.map(value => String(value || '').trim().toLowerCase()).filter(Boolean))]
+      ? [...new Set(source.includedSectionKeys.map(value => leaderboardSectionKey(value)).filter(Boolean))]
       : names.map(leaderboardSectionKey).filter(Boolean);
     return { configured, includedSections: names, includedSectionKeys: keys };
   }
@@ -54930,14 +54943,14 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   }
 
   function awardSectionLabel(value = '') {
-    const raw = String(value || '').replace(/\s+/g, ' ').trim();
+    const raw = canonicalLeaderboardSectionName(String(value || '').replace(/\s+/g, ' ').trim());
     let cleaned = raw
       .replace(/^Grade\s*8\s*(?:[-–—:|•]\s*)?/i, '')
       .replace(/^G(?:rade)?\s*8\s*(?:[-–—:|•]\s*)?/i, '')
       .replace(/^8\s*(?:[-–—:|•]\s*)?/i, '')
       .trim();
     if (!cleaned) return 'Grade 8';
-    return `Grade 8 ${smartAwardTitleCase(cleaned)}`;
+    return `Grade 8 ${canonicalLeaderboardSectionName(smartAwardTitleCase(cleaned))}`;
   }
 
   function normalizeLeaderboardAwardsSettings(input = {}) {
@@ -56246,7 +56259,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     if (options.detached) classes.push('detached-you');
     return `<article class="${classes.join(' ')}" data-rank="${rank}">
       <span class="code-explorer-leaderboard-rank">${escapeHTML(leaderboardMedal(rank))}</span>
-      <span class="code-explorer-leaderboard-person"><strong>${escapeHTML(record.name || 'Unnamed Student')}${current ? '<em>YOU</em>' : ''}</strong><small>${escapeHTML(record.section || 'No section')}</small></span>
+      <span class="code-explorer-leaderboard-person"><strong>${escapeHTML(record.name || 'Unnamed Student')}${current ? '<em>YOU</em>' : ''}</strong><small>${escapeHTML(leaderboardSectionDisplayName(record.section || 'No section'))}</small></span>
       <span class="code-explorer-leaderboard-xp"><strong>⚡ ${Number(record.xp || 0).toLocaleString()}</strong><small>XP</small></span>
     </article>`;
   }
