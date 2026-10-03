@@ -20507,7 +20507,83 @@ function getSmartCriterionProgress(criterion) {
 }
 
 
+
+// =========================================================
+// STRICT HTML & CSS REQUIREMENT SCORING
+// Prevents "code exists = perfect" scoring.
+// Scores based on required implementation completeness.
+// =========================================================
+function getStrictHTMLCSSProgress(criterion) {
+  const rubric = `${criterion?.name || ''} ${criterion?.description || ''} ${getCriterionRubricText?.(criterion) || ''}`.toLowerCase();
+  const html = codeStore.html || '';
+  const css = codeStore.css || '';
+
+  // Only activate for HTML/CSS practical activities.
+  const htmlCssActivity = /html|css|webpage|website|structure|styling|design|header|navigation|footer|section/.test(rubric);
+  if (!htmlCssActivity) return null;
+
+  const checks = [];
+
+  const has = (pattern) => pattern.test(html);
+  const hasCss = (pattern) => pattern.test(css);
+
+  // HTML structure checks
+  if (/html/.test(rubric)) {
+    checks.push(has(/<!doctype\s+html>/i));
+    checks.push(has(/<html[^>]*lang\s*=\s*["']?en/i));
+    checks.push(has(/<head[\s>]/i));
+    checks.push(has(/<body[\s>]/i));
+  }
+
+  // Semantic structure
+  const requestedTags = [
+    {tag:'header', re:/<header[\s>]/i},
+    {tag:'nav', re:/<nav[\s>]/i},
+    {tag:'main', re:/<main[\s>]/i},
+    {tag:'section', re:/<section[\s>]/i},
+    {tag:'article', re:/<article[\s>]/i},
+    {tag:'footer', re:/<footer[\s>]/i}
+  ];
+
+  requestedTags.forEach(item => {
+    if (new RegExp(`\\b${item.tag}\\b`).test(rubric)) {
+      checks.push(item.re.test(html));
+    }
+  });
+
+  // CSS validation only if CSS is required
+  if (/css|style|design|background|padding|margin|color|font/.test(rubric)) {
+    const cssRequirements = [
+      /font-family\s*:\s*arial/i,
+      /margin\s*:\s*0px/i,
+      /background\s*:\s*navy/i,
+      /text-align\s*:\s*center/i,
+      /padding\s*:\s*25px/i,
+      /color\s*:\s*white/i,
+      /text-decoration\s*:\s*none/i,
+      /width\s*:\s*800px/i,
+      /margin\s*:\s*20px\s*auto/i,
+      /margin-bottom\s*:\s*20px/i,
+      /background\s*:\s*white/i,
+      /border-radius\s*:\s*10px/i,
+      /line-height\s*:\s*1\.6/i,
+      /padding\s*:\s*20px/i,
+      /margin-top\s*:\s*30px/i
+    ];
+
+    // Only count CSS if CSS exists. Do not reward empty/minimal CSS.
+    cssRequirements.forEach(rule => checks.push(rule.test(css)));
+  }
+
+  if (!checks.length) return null;
+
+  return checks.filter(Boolean).length / checks.length;
+}
+
 function getCriterionProgress(criterion) {
+  const strictProgress = getStrictHTMLCSSProgress(criterion);
+  if (strictProgress !== null) return clamp01(strictProgress);
+
   const smartProgress = getSmartCriterionProgress(criterion);
   if (smartProgress !== null) return clamp01(smartProgress);
 
@@ -20542,7 +20618,7 @@ function getCriterionProgress(criterion) {
     case 'uses_css_property': {
       if (!css.trim()) return 0;
       const properties = (css.match(/[a-z-]+\s*:/gi) || []).length;
-      return Math.min(0.85, properties / 4);
+      return Math.min(1, properties / 20);
     }
     case 'uses_event_listener':
       return js.trim() || /<button(\s|>|\/)/i.test(html) ? 0.5 : 0;
