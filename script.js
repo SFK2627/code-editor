@@ -6593,16 +6593,26 @@ function getStudentFullNameNameFirst(rawName = '') {
   return smartTitleCaseStudentText(cleaned);
 }
 
+
+function formatOfficialSectionDisplayName(value = '') {
+  const clean = String(value || '').replace(/\s+/g, ' ').trim();
+  if (!clean) return '';
+  const lowerWords = new Set(['of', 'the', 'de', 'del', 'la', 'da', 'do', 'dos', 'and']);
+  return clean.split(' ').map((word, index) => {
+    if (!word) return word;
+    const bare = word.replace(/[^A-Za-zÀ-ž]/g, '').toLowerCase();
+    if (index > 0 && lowerWords.has(bare)) return word.toLowerCase();
+    return word;
+  }).join(' ')
+    .replace(/^St\.\s*Camillus\s+de\s+Lel(?:l)?is$/i, 'St. Camillus de Lellis');
+}
+
 function getStudentSectionNameOnly(student = null) {
   const rawSection = String(student?.section || student?.sectionName || '').replace(/\s+/g, ' ').trim();
   if (!rawSection) return 'Section';
   const match = rawSection.match(/^Grade\s*\d+\s*[-–—:]\s*(.+)$/i);
   const titled = smartTitleCaseStudentText(match ? match[1] : rawSection);
-
-  // v616 display-only correction for the official section name.
-  // This does not change the stored section, ranking key, XP, student count,
-  // leaderboard inclusion, or roster data.
-  return titled.replace(/^St\.\s*Camillus\s+De\s+Lel(?:l)?is$/i, 'St. Camillus de Lellis');
+  return formatOfficialSectionDisplayName(titled);
 }
 
 function getStudentEditorIdentityText(student = null) {
@@ -19724,7 +19734,7 @@ function updateInstallButtonVisibility() {
 function registerPWAServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./service-worker.js?v=603-classic-smooth-controls', {
+    navigator.serviceWorker.register('./service-worker.js?v=627-prestige-shine', {
       updateViaCache: 'none'
     }).then(registration => {
       registration.update().catch(() => {});
@@ -45589,6 +45599,17 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     leaderboardOverlay: $('codeExplorerLeaderboardOverlay'),
     leaderboardCloseBtn: $('codeExplorerLeaderboardCloseBtn'),
     leaderboardRefreshBtn: $('codeExplorerLeaderboardRefreshBtn'),
+    leaderboardAwardsReplayBtn: $('codeExplorerLeaderboardAwardsReplayBtn'),
+    leaderboardRevealOverlay: $('codeExplorerLeaderboardRevealOverlay'),
+    leaderboardRevealCloseBtn: $('codeExplorerLeaderboardRevealCloseBtn'),
+    leaderboardRevealBadge: $('codeExplorerLeaderboardRevealBadge'),
+    leaderboardRevealTitle: $('codeExplorerLeaderboardRevealTitle'),
+    leaderboardRevealLead: $('codeExplorerLeaderboardRevealLead'),
+    leaderboardRevealStage: $('codeExplorerLeaderboardRevealStage'),
+    leaderboardRevealPodium: $('codeExplorerLeaderboardRevealPodium'),
+    leaderboardRevealSkipBtn: $('codeExplorerLeaderboardRevealSkipBtn'),
+    leaderboardRevealViewBtn: $('codeExplorerLeaderboardRevealViewBtn'),
+    leaderboardRevealConfetti: $('codeExplorerLeaderboardRevealConfetti'),
     leaderboardStudentsTab: $('codeExplorerLeaderboardStudentsTab'),
     leaderboardSectionsTab: $('codeExplorerLeaderboardSectionsTab'),
     leaderboardYourRankLabel: $('codeExplorerLeaderboardYourRankLabel'),
@@ -45741,6 +45762,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     adminAwardsOfficialAllBtn: $('codeExplorerAdminAwardsOfficialAllBtn'),
     adminAwardsStatus: $('codeExplorerAdminAwardsStatus'),
     adminAwardsRefreshBtn: $('codeExplorerAdminAwardsRefreshBtn'),
+    adminAwardsRevealPreviewBtn: $('codeExplorerAdminAwardsRevealPreviewBtn'),
     adminPubmatSectionPreview: $('codeExplorerAdminPubmatSectionPreview'),
     adminPubmatStudentPreview: $('codeExplorerAdminPubmatStudentPreview'),
     adminPubmatCombinedPreview: $('codeExplorerAdminPubmatCombinedPreview'),
@@ -53784,7 +53806,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
 
   function certificateVerificationUrl(details = {}) {
     const certNo = String(details.number || '').trim();
-    const productionBase = 'https://g8code.xyz/';
+    const productionBase = 'https://G8Code.xyz/';
     let base;
     try {
       const protocol = String(window.location.protocol || '');
@@ -54409,7 +54431,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       url.searchParams.delete('codeExplorerVerify');
       url.hash = '';
       return url.toString();
-    } catch (_) { return 'https://g8code.xyz/'; }
+    } catch (_) { return 'https://G8Code.xyz/'; }
   }
 
   function showPublicVerificationShell(certificateNumber) {
@@ -54889,6 +54911,1689 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     lastLiveLoadedAt: 0
   };
 
+
+  // v618 — cinematic Top 3 Section winner reveal.
+  // This is a presentation-only layer over existing leaderboard snapshots.
+  const leaderboardWinnerRevealState = {
+    timers: [],
+    snapshot: null,
+    preview: false,
+    openLeaderboardAfter: false,
+    finished: false,
+    stage: 'idle'
+  };
+
+  const leaderboardRevealAudioState = {
+    context: null,
+    master: null,
+    compressor: null,
+    nodes: [],
+    muted: false,
+    prepared: false
+  };
+
+  function clearLeaderboardWinnerRevealTimers() {
+    leaderboardWinnerRevealState.timers.forEach(timer => window.clearTimeout(timer));
+    leaderboardWinnerRevealState.timers = [];
+  }
+
+
+  function leaderboardRevealAudioContext() {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return null;
+    if (!leaderboardRevealAudioState.context) {
+      const ctx = new AudioCtx();
+      const master = ctx.createGain();
+      const compressor = ctx.createDynamicsCompressor();
+      master.gain.value = leaderboardRevealAudioState.muted ? 0 : 0.62;
+      compressor.threshold.value = -22;
+      compressor.knee.value = 18;
+      compressor.ratio.value = 5;
+      compressor.attack.value = 0.004;
+      compressor.release.value = 0.24;
+      master.connect(compressor);
+      compressor.connect(ctx.destination);
+      leaderboardRevealAudioState.context = ctx;
+      leaderboardRevealAudioState.master = master;
+      leaderboardRevealAudioState.compressor = compressor;
+    }
+    return leaderboardRevealAudioState.context;
+  }
+
+  function primeLeaderboardRevealAudio() {
+    try {
+      const ctx = leaderboardRevealAudioContext();
+      if (!ctx) return false;
+      if (ctx.state === 'suspended') ctx.resume().catch(() => false);
+      leaderboardRevealAudioState.prepared = true;
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function stopLeaderboardRevealMusic(fadeSeconds = 0.18) {
+    const ctx = leaderboardRevealAudioState.context;
+    const master = leaderboardRevealAudioState.master;
+    if (ctx && master) {
+      try {
+        const now = ctx.currentTime;
+        master.gain.cancelScheduledValues(now);
+        master.gain.setValueAtTime(master.gain.value, now);
+        master.gain.linearRampToValueAtTime(0, now + Math.max(0.03, Number(fadeSeconds || 0.18)));
+      } catch (_) {}
+    }
+    leaderboardRevealAudioState.nodes.forEach(node => {
+      try { node.stop?.(); } catch (_) {}
+      try { node.disconnect?.(); } catch (_) {}
+    });
+    leaderboardRevealAudioState.nodes = [];
+  }
+
+  function setLeaderboardRevealMuted(muted) {
+    leaderboardRevealAudioState.muted = muted === true;
+    const ctx = leaderboardRevealAudioState.context;
+    const master = leaderboardRevealAudioState.master;
+    if (ctx && master) {
+      try {
+        const now = ctx.currentTime;
+        master.gain.cancelScheduledValues(now);
+        master.gain.setValueAtTime(master.gain.value, now);
+        master.gain.linearRampToValueAtTime(leaderboardRevealAudioState.muted ? 0 : 0.62, now + 0.16);
+      } catch (_) {}
+    }
+    if (dom.leaderboardRevealAudioBtn) {
+      dom.leaderboardRevealAudioBtn.textContent = leaderboardRevealAudioState.muted ? '🔇' : '🔊';
+      dom.leaderboardRevealAudioBtn.setAttribute('aria-label', leaderboardRevealAudioState.muted ? 'Unmute ceremony music' : 'Mute ceremony music');
+      dom.leaderboardRevealAudioBtn.title = leaderboardRevealAudioState.muted ? 'Unmute ceremony music' : 'Mute ceremony music';
+    }
+  }
+
+  function toggleLeaderboardRevealAudio() {
+    primeLeaderboardRevealAudio();
+    setLeaderboardRevealMuted(!leaderboardRevealAudioState.muted);
+  }
+
+  function scheduleLeaderboardRevealTone(frequency, startOffset = 0, duration = 1, gainValue = 0.05, type = 'sine') {
+    const ctx = leaderboardRevealAudioContext();
+    const master = leaderboardRevealAudioState.master;
+    if (!ctx || !master) return;
+    const start = ctx.currentTime + Math.max(0, Number(startOffset || 0));
+    const end = start + Math.max(0.08, Number(duration || 1));
+    try {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(Number(frequency || 440), start);
+      gain.gain.setValueAtTime(0.0001, start);
+      gain.gain.exponentialRampToValueAtTime(Math.max(0.0002, gainValue), start + Math.min(0.28, duration * 0.28));
+      gain.gain.exponentialRampToValueAtTime(0.0001, end);
+      osc.connect(gain);
+      gain.connect(master);
+      osc.start(start);
+      osc.stop(end + 0.03);
+      leaderboardRevealAudioState.nodes.push(osc, gain);
+    } catch (_) {}
+  }
+
+
+
+  function scheduleLeaderboardRevealBrass(frequency, startOffset = 0, duration = 1.4, gainValue = 0.08) {
+    const ctx = leaderboardRevealAudioContext();
+    const master = leaderboardRevealAudioState.master;
+    if (!ctx || !master) return;
+    const start = ctx.currentTime + Math.max(0, Number(startOffset || 0));
+    const end = start + Math.max(0.15, Number(duration || 1.4));
+    try {
+      const osc1 = ctx.createOscillator();
+      const osc2 = ctx.createOscillator();
+      const filter = ctx.createBiquadFilter();
+      const gain = ctx.createGain();
+
+      osc1.type = 'sawtooth';
+      osc2.type = 'triangle';
+      osc1.frequency.setValueAtTime(Number(frequency || 220), start);
+      osc2.frequency.setValueAtTime(Number(frequency || 220) * 1.005, start);
+
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(1700, start);
+      filter.Q.value = 0.7;
+
+      gain.gain.setValueAtTime(0.0001, start);
+      gain.gain.exponentialRampToValueAtTime(Math.max(0.0002, gainValue), start + 0.08);
+      gain.gain.setValueAtTime(Math.max(0.0002, gainValue * 0.72), Math.max(start + 0.1, end - 0.3));
+      gain.gain.exponentialRampToValueAtTime(0.0001, end);
+
+      osc1.connect(filter);
+      osc2.connect(filter);
+      filter.connect(gain);
+      gain.connect(master);
+
+      osc1.start(start);
+      osc2.start(start);
+      osc1.stop(end + 0.03);
+      osc2.stop(end + 0.03);
+      leaderboardRevealAudioState.nodes.push(osc1, osc2, filter, gain);
+    } catch (_) {}
+  }
+
+
+
+  function scheduleLeaderboardRevealTimpani(startOffset = 0, strength = 1) {
+    const ctx = leaderboardRevealAudioContext();
+    const master = leaderboardRevealAudioState.master;
+    if (!ctx || !master) return;
+    const start = ctx.currentTime + Math.max(0, Number(startOffset || 0));
+    try {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const filter = ctx.createBiquadFilter();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(92, start);
+      osc.frequency.exponentialRampToValueAtTime(58, start + .34);
+      filter.type = 'lowpass';
+      filter.frequency.value = 420;
+      gain.gain.setValueAtTime(0.0001, start);
+      gain.gain.exponentialRampToValueAtTime(0.19 * Math.max(.55, strength), start + .015);
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + .78);
+      osc.connect(filter);
+      filter.connect(gain);
+      gain.connect(master);
+      osc.start(start);
+      osc.stop(start + .82);
+      leaderboardRevealAudioState.nodes.push(osc, filter, gain);
+    } catch (_) {}
+  }
+
+  function scheduleLeaderboardRevealBell(frequency = 880, startOffset = 0, duration = 2.4, strength = 1) {
+    const ctx = leaderboardRevealAudioContext();
+    const master = leaderboardRevealAudioState.master;
+    if (!ctx || !master) return;
+    const start = ctx.currentTime + Math.max(0, Number(startOffset || 0));
+    const end = start + Math.max(0.4, Number(duration || 2.4));
+    const partials = [1, 2.01, 3.98];
+    partials.forEach((multiple, index) => {
+      try {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(Number(frequency || 880) * multiple, start);
+        const peak = (0.045 / (index + 1)) * Math.max(.6, strength);
+        gain.gain.setValueAtTime(0.0001, start);
+        gain.gain.exponentialRampToValueAtTime(peak, start + 0.018);
+        gain.gain.exponentialRampToValueAtTime(0.0001, end);
+        osc.connect(gain);
+        gain.connect(master);
+        osc.start(start);
+        osc.stop(end + 0.03);
+        leaderboardRevealAudioState.nodes.push(osc, gain);
+      } catch (_) {}
+    });
+  }
+
+  function scheduleLeaderboardRevealRiser(startOffset = 0, duration = 1.25, strength = 1) {
+    const ctx = leaderboardRevealAudioContext();
+    const master = leaderboardRevealAudioState.master;
+    if (!ctx || !master) return;
+    const start = ctx.currentTime + Math.max(0, Number(startOffset || 0));
+    const end = start + Math.max(0.4, Number(duration || 1.25));
+    try {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const filter = ctx.createBiquadFilter();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(85, start);
+      osc.frequency.exponentialRampToValueAtTime(420, end);
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(500, start);
+      filter.frequency.exponentialRampToValueAtTime(2800, end);
+      gain.gain.setValueAtTime(0.0001, start);
+      gain.gain.exponentialRampToValueAtTime(0.055 * Math.max(.6, strength), start + duration * .65);
+      gain.gain.exponentialRampToValueAtTime(0.0001, end);
+      osc.connect(filter);
+      filter.connect(gain);
+      gain.connect(master);
+      osc.start(start);
+      osc.stop(end + 0.03);
+      leaderboardRevealAudioState.nodes.push(osc, filter, gain);
+    } catch (_) {}
+  }
+
+  function scheduleLeaderboardRevealDrum(startOffset = 0, strength = 1) {
+    const ctx = leaderboardRevealAudioContext();
+    const master = leaderboardRevealAudioState.master;
+    if (!ctx || !master) return;
+    const start = ctx.currentTime + Math.max(0, Number(startOffset || 0));
+    try {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(105, start);
+      osc.frequency.exponentialRampToValueAtTime(42, start + 0.42);
+      gain.gain.setValueAtTime(0.0001, start);
+      gain.gain.exponentialRampToValueAtTime(0.16 * Math.max(.5, strength), start + 0.018);
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.5);
+      osc.connect(gain);
+      gain.connect(master);
+      osc.start(start);
+      osc.stop(start + 0.55);
+      leaderboardRevealAudioState.nodes.push(osc, gain);
+    } catch (_) {}
+  }
+
+  function scheduleLeaderboardRevealCymbal(startOffset = 0, strength = 1) {
+    const ctx = leaderboardRevealAudioContext();
+    const master = leaderboardRevealAudioState.master;
+    if (!ctx || !master) return;
+    const start = ctx.currentTime + Math.max(0, Number(startOffset || 0));
+    try {
+      const length = Math.floor(ctx.sampleRate * 1.4);
+      const buffer = ctx.createBuffer(1, length, ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < length; i += 1) {
+        const env = Math.pow(1 - i / length, 3.2);
+        data[i] = (Math.random() * 2 - 1) * env;
+      }
+      const source = ctx.createBufferSource();
+      source.buffer = buffer;
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'highpass';
+      filter.frequency.value = 3200;
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0.11 * Math.max(.5, strength), start);
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + 1.35);
+      source.connect(filter);
+      filter.connect(gain);
+      gain.connect(master);
+      source.start(start);
+      source.stop(start + 1.42);
+      leaderboardRevealAudioState.nodes.push(source, filter, gain);
+    } catch (_) {}
+  }
+
+  function playLeaderboardRevealChord(notes = [], startOffset = 0, duration = 1.5, gainValue = 0.035) {
+    notes.forEach((frequency, index) => {
+      scheduleLeaderboardRevealTone(frequency, startOffset + index * 0.035, duration, gainValue, index % 2 ? 'triangle' : 'sine');
+    });
+  }
+
+
+
+
+  function startLeaderboardRevealCeremonyMusic() {
+    if (!primeLeaderboardRevealAudio()) return;
+    stopLeaderboardRevealMusic(0.05);
+
+    const ctx = leaderboardRevealAudioContext();
+    const master = leaderboardRevealAudioState.master;
+    if (ctx && master) {
+      try {
+        const now = ctx.currentTime;
+        master.gain.cancelScheduledValues(now);
+        master.gain.setValueAtTime(0, now);
+        master.gain.linearRampToValueAtTime(leaderboardRevealAudioState.muted ? 0 : 0.62, now + 0.35);
+      } catch (_) {}
+    }
+
+    // V626: original ceremonial score, more rhythmic and triumphant.
+    scheduleLeaderboardRevealDrum(0.05, 1.10);
+    scheduleLeaderboardRevealBell(523.25, 0.12, 2.0, 0.75);
+    playLeaderboardRevealChord([98.00,146.83,196.00,293.66], 0.12, 3.0, 0.070);
+
+    scheduleLeaderboardRevealDrum(2.55, 0.72);
+    playLeaderboardRevealChord([110.00,164.81,220.00,329.63], 2.70, 2.8, 0.068);
+
+    scheduleLeaderboardRevealRiser(5.10, 1.10, 0.8);
+    scheduleLeaderboardRevealDrum(6.05, 0.92);
+    scheduleLeaderboardRevealBrass(196.00, 6.08, 1.35, 0.072);
+    playLeaderboardRevealChord([123.47,185.00,246.94,369.99], 6.10, 3.0, 0.072);
+
+    scheduleLeaderboardRevealDrum(9.00, 0.72);
+    scheduleLeaderboardRevealBell(659.25, 9.10, 1.9, 0.62);
+    playLeaderboardRevealChord([130.81,196.00,261.63,392.00], 9.15, 3.1, 0.074);
+
+    scheduleLeaderboardRevealRiser(12.00, 1.20, 0.86);
+    scheduleLeaderboardRevealDrum(13.05, 1.0);
+    scheduleLeaderboardRevealBrass(220.00, 13.10, 1.45, 0.080);
+    playLeaderboardRevealChord([146.83,220.00,293.66,440.00], 13.10, 3.4, 0.078);
+
+    scheduleLeaderboardRevealDrum(16.30, 0.76);
+    scheduleLeaderboardRevealBell(783.99, 16.38, 2.0, 0.70);
+    playLeaderboardRevealChord([164.81,246.94,329.63,493.88], 16.40, 3.2, 0.080);
+
+    scheduleLeaderboardRevealRiser(19.40, 1.35, 0.94);
+    scheduleLeaderboardRevealDrum(20.55, 1.08);
+    playLeaderboardRevealChord([123.47,185.00,246.94,369.99], 20.60, 3.0, 0.082);
+
+    scheduleLeaderboardRevealDrum(23.65, 0.86);
+    scheduleLeaderboardRevealBell(880.00, 23.72, 2.2, 0.78);
+    playLeaderboardRevealChord([130.81,196.00,261.63,392.00], 23.75, 3.0, 0.084);
+
+    scheduleLeaderboardRevealRiser(26.45, 1.55, 1.05);
+    scheduleLeaderboardRevealDrum(27.75, 1.22);
+    scheduleLeaderboardRevealBrass(261.63, 27.80, 1.75, 0.092);
+    scheduleLeaderboardRevealBrass(329.63, 28.45, 2.10, 0.090);
+    playLeaderboardRevealChord([164.81,246.94,329.63,493.88], 27.82, 4.0, 0.094);
+
+    scheduleLeaderboardRevealDrum(31.50, 1.0);
+    scheduleLeaderboardRevealBell(1046.50, 31.58, 2.5, 0.88);
+    playLeaderboardRevealChord([196.00,293.66,392.00,587.33], 31.60, 4.2, 0.096);
+  }
+
+
+
+  function playLeaderboardRevealPlacementCue(rank = 3) {
+    primeLeaderboardRevealAudio();
+    const numericRank = Number(rank || 0);
+
+    if (numericRank === 3) {
+      scheduleLeaderboardRevealRiser(0, .65, .85);
+      scheduleLeaderboardRevealTimpani(.52, .95);
+      scheduleLeaderboardRevealBrass(196.00, .55, 1.5, .090);
+      scheduleLeaderboardRevealBell(659.25, .72, 2.0, .88);
+      playLeaderboardRevealChord([392.00,493.88,587.33], .58, 2.15, .108);
+      scheduleLeaderboardRevealCymbal(.70, .94);
+    } else if (numericRank === 2) {
+      scheduleLeaderboardRevealRiser(0, .72, .98);
+      scheduleLeaderboardRevealTimpani(.54, 1.05);
+      scheduleLeaderboardRevealTimpani(.92, .72);
+      scheduleLeaderboardRevealBrass(220.00, .57, 1.65, .100);
+      scheduleLeaderboardRevealBell(783.99, .78, 2.2, .98);
+      playLeaderboardRevealChord([440.00,554.37,659.25], .60, 2.35, .118);
+      scheduleLeaderboardRevealCymbal(.72, 1.06);
+    } else {
+      scheduleLeaderboardRevealRiser(0, .90, 1.18);
+      scheduleLeaderboardRevealTimpani(.62, 1.30);
+      scheduleLeaderboardRevealTimpani(1.02, .98);
+      scheduleLeaderboardRevealTimpani(1.42, .82);
+      scheduleLeaderboardRevealBrass(261.63, .64, 1.9, .118);
+      scheduleLeaderboardRevealBrass(329.63, 1.18, 2.35, .122);
+      scheduleLeaderboardRevealBell(1046.50, .88, 2.9, 1.15);
+      playLeaderboardRevealChord([261.63,392.00,523.25], .65, 2.2, .132);
+      playLeaderboardRevealChord([329.63,493.88,659.25,783.99], 1.32, 3.35, .140);
+      scheduleLeaderboardRevealCymbal(.84, 1.35);
+    }
+  }
+
+  function fadeLeaderboardRevealMusicForPodium() {
+    const ctx = leaderboardRevealAudioState.context;
+    const master = leaderboardRevealAudioState.master;
+    if (!ctx || !master) return;
+    try {
+      const now = ctx.currentTime;
+      master.gain.cancelScheduledValues(now);
+      master.gain.setValueAtTime(master.gain.value, now);
+      master.gain.linearRampToValueAtTime(leaderboardRevealAudioState.muted ? 0 : 0.14, now + 2.8);
+    } catch (_) {}
+  }
+
+  function leaderboardRevealMetal(rank = 0) {
+    return Number(rank) === 1 ? 'gold' : (Number(rank) === 2 ? 'silver' : 'bronze');
+  }
+
+  function renderLeaderboardRevealSuspense() {
+    return `<div class="code-explorer-awards-suspense">
+      <span class="ceremony-kicker">THE FINAL HONOR</span>
+      <i class="ceremony-rule"></i>
+      <h3>And the Section Champion is…</h3>
+      <p>One section stands at the summit of the G8Code Global Leaderboard.</p>
+    </div>`;
+  }
+
+  function leaderboardWinnerRevealSeenKey(snapshot = null) {
+    const user = getFirebaseActiveUser?.() || null;
+    const uid = String(appSession.student?.uid || user?.uid || 'guest').trim() || 'guest';
+    const schoolYear = String(snapshot?.schoolYear || defaultLeaderboardAwardsSchoolYear());
+    return `ict8.sectionAwardsRevealSeen.v627.${schoolYear}.${uid}`;
+  }
+
+  function hasSeenLeaderboardWinnerReveal(snapshot = null) {
+    try { return localStorage.getItem(leaderboardWinnerRevealSeenKey(snapshot)) === '1'; } catch (_) { return false; }
+  }
+
+  function markLeaderboardWinnerRevealSeen(snapshot = null) {
+    try { localStorage.setItem(leaderboardWinnerRevealSeenKey(snapshot), '1'); } catch (_) {}
+  }
+
+  function leaderboardRevealSectionName(row = {}) {
+    return leaderboardSectionDisplayName(row.name || row.section || 'Section');
+  }
+
+  function leaderboardRevealMedal(rank = 0) {
+    return Number(rank) === 1 ? '🏆' : (Number(rank) === 2 ? '🥈' : '🥉');
+  }
+
+  function leaderboardRevealRankLabel(rank = 0) {
+    if (Number(rank) === 1) return 'SECTION CHAMPION';
+    if (Number(rank) === 2) return '2ND PLACE';
+    return '3RD PLACE';
+  }
+
+  function normalizeLeaderboardRevealSections(snapshot = null) {
+    const rows = Array.isArray(snapshot?.sectionAwards) ? snapshot.sectionAwards : [];
+    return rows
+      .map(row => ({
+        ...row,
+        rank: Number(row?.rank || 0),
+        averageXp: Math.max(0, Number(row?.averageXp || 0)),
+        studentCount: Math.max(0, Number(row?.studentCount || 0))
+      }))
+      .filter(row => row.rank >= 1 && row.rank <= 3)
+      .sort((a, b) => a.rank - b.rank)
+      .slice(0, 3);
+  }
+
+
+  function renderLeaderboardRevealCard(row = {}) {
+    const rank = Number(row.rank || 0);
+    const champion = rank === 1;
+    const metal = leaderboardRevealMetal(rank);
+    return `<article class="code-explorer-awards-reveal-card rank-${rank} metal-${metal}${champion ? ' champion' : ''}">
+      <div class="ceremony-ornament" aria-hidden="true"><span></span><b>✦</b><span></span></div>
+      <span class="code-explorer-awards-reveal-rank">${escapeHTML(leaderboardRevealRankLabel(rank))}</span>
+      <span class="code-explorer-awards-medallion ${metal}" aria-hidden="true"><b>${rank}</b></span>
+      ${champion ? '<span class="champion-label">G8Code GLOBAL LEADERBOARD · OFFICIAL SECTION CHAMPION</span>' : ''}
+      <h3>${escapeHTML(leaderboardRevealSectionName(row))}</h3>
+      <i class="ceremony-rule"></i>
+      <p><strong>${Number(row.averageXp || 0).toLocaleString(undefined,{maximumFractionDigits:1})}</strong> average XP${row.studentCount ? ` <span>·</span> ${Number(row.studentCount).toLocaleString()} students` : ''}</p>
+    </article>`;
+  }
+
+
+  function renderLeaderboardRevealPodium(snapshot = leaderboardWinnerRevealState.snapshot) {
+    const rows = normalizeLeaderboardRevealSections(snapshot);
+    if (!dom.leaderboardRevealPodium || rows.length < 3) return;
+    const byRank = new Map(rows.map(row => [Number(row.rank || 0), row]));
+    const order = [byRank.get(2), byRank.get(1), byRank.get(3)].filter(Boolean);
+    dom.leaderboardRevealPodium.innerHTML = `
+      <div class="ceremony-podium-heading">
+        <span>G8Code GLOBAL LEADERBOARD · OFFICIAL TOP THREE</span>
+        <h3>Section Honors</h3>
+        <i class="ceremony-rule"></i>
+      </div>
+      <div class="ceremony-podium-grid">
+        ${order.map(row => {
+          const rank = Number(row.rank || 0);
+          const cls = rank === 1 ? 'first' : (rank === 2 ? 'second' : 'third');
+          const metal = leaderboardRevealMetal(rank);
+          return `<article class="code-explorer-awards-podium-card ${cls} metal-${metal}">
+            <span class="podium-rank">${rank}</span>
+            <strong>${escapeHTML(leaderboardRevealSectionName(row))}</strong>
+            <small>${Number(row.averageXp || 0).toLocaleString(undefined,{maximumFractionDigits:1})} AVG XP</small>
+          </article>`;
+        }).join('')}
+      </div>`;
+    dom.leaderboardRevealPodium.classList.remove('hidden');
+  }
+
+
+  function launchLeaderboardRevealConfetti() {
+    if (!dom.leaderboardRevealConfetti) return;
+    dom.leaderboardRevealConfetti.innerHTML = '';
+    const swatches = ['#d8b35b','#f2df9b','#f8fafc','#cbd5e1','#9fb7d5'];
+    for (let i = 0; i < 42; i += 1) {
+      const piece = document.createElement('i');
+      piece.className = 'code-explorer-awards-confetti-piece';
+      piece.style.left = `${Math.random()*100}%`;
+      piece.style.background = swatches[i % swatches.length];
+      piece.style.setProperty('--fall', `${3.2 + Math.random()*2.8}s`);
+      piece.style.setProperty('--drift', `${-70 + Math.random()*140}px`);
+      piece.style.setProperty('--rot', `${Math.random()*360}deg`);
+      piece.style.animationDelay = `${Math.random()*.8}s`;
+      dom.leaderboardRevealConfetti.appendChild(piece);
+    }
+  }
+
+
+
+
+  function finishLeaderboardWinnerReveal() {
+    clearLeaderboardWinnerRevealTimers();
+    leaderboardWinnerRevealState.finished = true;
+    leaderboardWinnerRevealState.stage = 'podium';
+
+    dom.leaderboardRevealOverlay?.classList.add('podium-mode');
+    dom.leaderboardRevealOverlay?.classList.remove('rank-1-mode','rank-2-mode','rank-3-mode');
+    dom.leaderboardRevealOverlay?.classList.remove('champion-mode');
+
+    if (dom.leaderboardRevealStage) {
+      dom.leaderboardRevealStage.innerHTML = '';
+      dom.leaderboardRevealStage.classList.add('hidden');
+    }
+
+    // Keep the top bar minimal. The actual final title lives with the centered podium.
+    if (dom.leaderboardRevealTitle) dom.leaderboardRevealTitle.textContent = '';
+    if (dom.leaderboardRevealLead) dom.leaderboardRevealLead.textContent = '';
+
+    renderLeaderboardRevealPodium();
+
+    dom.leaderboardRevealSkipBtn?.classList.add('hidden');
+    dom.leaderboardRevealViewBtn?.classList.remove('hidden');
+    launchLeaderboardRevealConfetti();
+    fadeLeaderboardRevealMusicForPodium();
+  }
+
+  function scheduleLeaderboardRevealStep(callback, delay) {
+    const timer = window.setTimeout(callback, delay);
+    leaderboardWinnerRevealState.timers.push(timer);
+    return timer;
+  }
+
+
+
+  function ensureLeaderboardWinnerRevealDom() {
+    let overlay = document.getElementById('codeExplorerLeaderboardRevealOverlay');
+
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = 'codeExplorerLeaderboardRevealOverlay';
+      overlay.className = 'code-explorer-awards-reveal-overlay hidden';
+      overlay.setAttribute('role', 'dialog');
+      overlay.setAttribute('aria-modal', 'true');
+      overlay.setAttribute('aria-labelledby', 'codeExplorerLeaderboardRevealTitle');
+      overlay.innerHTML = `
+        <section class="code-explorer-awards-reveal-shell">
+          <div class="code-explorer-awards-reveal-vignette" aria-hidden="true"></div>
+          <div class="code-explorer-awards-reveal-spotlight left" aria-hidden="true"></div>
+          <div class="code-explorer-awards-reveal-spotlight right" aria-hidden="true"></div>
+          <div id="codeExplorerLeaderboardRevealConfetti" class="code-explorer-awards-reveal-confetti" aria-hidden="true"></div>
+          <header class="code-explorer-awards-reveal-head">
+            <div class="ceremony-brand">
+              <span id="codeExplorerLeaderboardRevealBadge" class="code-explorer-awards-reveal-badge">G8Code Global Leaderboard</span>
+              <h2 id="codeExplorerLeaderboardRevealTitle">Official Section Honors</h2>
+              <p id="codeExplorerLeaderboardRevealLead">Recognizing this year’s highest-ranked sections.</p>
+            </div>
+            <div class="ceremony-controls">
+              <button id="codeExplorerLeaderboardRevealAudioBtn" class="code-explorer-awards-reveal-icon-btn" type="button" aria-label="Mute ceremony music" title="Mute ceremony music">🔊</button>
+              <button id="codeExplorerLeaderboardRevealCloseBtn" class="code-explorer-awards-reveal-icon-btn close" type="button" aria-label="Close winner reveal" title="Close">×</button>
+            </div>
+          </header>
+          <main class="code-explorer-awards-reveal-main">
+            <div id="codeExplorerLeaderboardRevealStage" class="code-explorer-awards-reveal-stage" aria-live="polite"></div>
+            <div id="codeExplorerLeaderboardRevealPodium" class="code-explorer-awards-reveal-podium hidden" aria-live="polite"></div>
+          </main>
+          <footer class="code-explorer-awards-reveal-actions">
+            <span class="ceremony-note">Official results are preserved from the locked leaderboard snapshot.</span>
+            <div>
+              <button id="codeExplorerLeaderboardRevealSkipBtn" class="ceremony-secondary-btn" type="button">Skip Ceremony</button>
+              <button id="codeExplorerLeaderboardRevealViewBtn" class="ceremony-primary-btn hidden" type="button">View Full Leaderboard</button>
+            </div>
+          </footer>
+        </section>`;
+      document.body.appendChild(overlay);
+    } else if (overlay.parentElement !== document.body) {
+      document.body.appendChild(overlay);
+    }
+
+    // If an older HTML version created the overlay, upgrade its controls in-place.
+    let controls = overlay.querySelector('.ceremony-controls');
+    const oldClose = overlay.querySelector('#codeExplorerLeaderboardRevealCloseBtn');
+    if (!controls) {
+      controls = document.createElement('div');
+      controls.className = 'ceremony-controls';
+      const audioButton = document.createElement('button');
+      audioButton.id = 'codeExplorerLeaderboardRevealAudioBtn';
+      audioButton.className = 'code-explorer-awards-reveal-icon-btn';
+      audioButton.type = 'button';
+      audioButton.textContent = '🔊';
+      audioButton.setAttribute('aria-label', 'Mute ceremony music');
+      if (oldClose) {
+        oldClose.classList.add('code-explorer-awards-reveal-icon-btn', 'close');
+        controls.append(audioButton, oldClose);
+      } else {
+        const closeButton = document.createElement('button');
+        closeButton.id = 'codeExplorerLeaderboardRevealCloseBtn';
+        closeButton.className = 'code-explorer-awards-reveal-icon-btn close';
+        closeButton.type = 'button';
+        closeButton.textContent = '×';
+        closeButton.setAttribute('aria-label', 'Close winner reveal');
+        controls.append(audioButton, closeButton);
+      }
+      const head = overlay.querySelector('.code-explorer-awards-reveal-head');
+      head?.appendChild(controls);
+    } else if (!overlay.querySelector('#codeExplorerLeaderboardRevealAudioBtn')) {
+      const audioButton = document.createElement('button');
+      audioButton.id = 'codeExplorerLeaderboardRevealAudioBtn';
+      audioButton.className = 'code-explorer-awards-reveal-icon-btn';
+      audioButton.type = 'button';
+      audioButton.textContent = '🔊';
+      audioButton.setAttribute('aria-label', 'Mute ceremony music');
+      controls.prepend(audioButton);
+    }
+
+
+    const shell = overlay.querySelector('.code-explorer-awards-reveal-shell');
+    if (shell && !shell.querySelector('.ceremony-stage-decor')) {
+      const decor = document.createElement('div');
+      decor.className = 'ceremony-stage-decor';
+      decor.setAttribute('aria-hidden', 'true');
+      decor.innerHTML = `
+        <div class="ceremony-gold-arch"></div>
+        <div class="ceremony-stage-stars">
+          ${Array.from({ length: 22 }, (_, i) => `<i style="--i:${i};--x:${8 + (i * 37) % 84}%;--y:${10 + (i * 23) % 72}%"></i>`).join('')}
+        </div>
+        <div class="ceremony-stage-beam beam-a"></div>
+        <div class="ceremony-stage-beam beam-b"></div>
+        <div class="ceremony-stage-beam beam-c"></div>
+        <div class="ceremony-stage-floor"></div>
+        <div class="ceremony-laurel left">❧</div>
+        <div class="ceremony-laurel right">❧</div>`;
+      shell.prepend(decor);
+    }
+
+
+    const revealStage = document.getElementById('codeExplorerLeaderboardRevealStage');
+    if (revealStage && !revealStage.querySelector('.ceremony-winner-halo')) {
+      const halo = document.createElement('div');
+      halo.className = 'ceremony-winner-halo';
+      halo.setAttribute('aria-hidden', 'true');
+
+      const rays = document.createElement('div');
+      rays.className = 'ceremony-winner-rays';
+      rays.setAttribute('aria-hidden', 'true');
+
+      const sparkles = document.createElement('div');
+      sparkles.className = 'ceremony-winner-sparkles';
+      sparkles.setAttribute('aria-hidden', 'true');
+      sparkles.innerHTML = Array.from({ length: 18 }, (_, i) => {
+        const x = 8 + ((i * 37) % 84);
+        const y = 12 + ((i * 29) % 72);
+        const delay = (i * .19).toFixed(2);
+        return `<i style="left:${x}%;top:${y}%;animation-delay:-${delay}s"></i>`;
+      }).join('');
+
+      revealStage.prepend(rays, halo, sparkles);
+    }
+
+    dom.leaderboardRevealOverlay = overlay;
+    dom.leaderboardRevealBadge = document.getElementById('codeExplorerLeaderboardRevealBadge');
+    dom.leaderboardRevealTitle = document.getElementById('codeExplorerLeaderboardRevealTitle');
+    dom.leaderboardRevealLead = document.getElementById('codeExplorerLeaderboardRevealLead');
+    dom.leaderboardRevealStage = document.getElementById('codeExplorerLeaderboardRevealStage');
+    dom.leaderboardRevealPodium = document.getElementById('codeExplorerLeaderboardRevealPodium');
+    dom.leaderboardRevealConfetti = document.getElementById('codeExplorerLeaderboardRevealConfetti');
+    dom.leaderboardRevealCloseBtn = document.getElementById('codeExplorerLeaderboardRevealCloseBtn');
+    dom.leaderboardRevealAudioBtn = document.getElementById('codeExplorerLeaderboardRevealAudioBtn');
+    dom.leaderboardRevealSkipBtn = document.getElementById('codeExplorerLeaderboardRevealSkipBtn');
+    dom.leaderboardRevealViewBtn = document.getElementById('codeExplorerLeaderboardRevealViewBtn');
+
+    let style = document.getElementById('codeExplorerAwardsRevealPrestigeStyle');
+    if (!style) {
+      style = document.createElement('style');
+      style.id = 'codeExplorerAwardsRevealPrestigeStyle';
+      document.head.appendChild(style);
+    }
+    style.textContent = `
+      .code-explorer-awards-reveal-overlay{
+        position:fixed!important; inset:0!important; z-index:2147483050!important;
+        width:100vw!important; height:100dvh!important; max-height:100dvh!important;
+        padding:0!important; margin:0!important; overflow:hidden!important;
+        display:block!important; background:#020812!important; color:#f8fafc!important;
+      }
+      .code-explorer-awards-reveal-overlay.hidden{display:none!important}
+      .code-explorer-awards-reveal-shell{
+        position:relative!important; isolation:isolate!important;
+        width:100vw!important; height:100dvh!important; min-height:0!important; max-height:100dvh!important;
+        border:0!important; border-radius:0!important; overflow:hidden!important;
+        display:grid!important; grid-template-rows:auto minmax(0,1fr) auto!important;
+        padding:clamp(16px,2.2vw,30px) clamp(18px,3vw,44px) clamp(14px,2vw,24px)!important;
+        background:
+          radial-gradient(circle at 50% 18%,rgba(202,169,91,.14),transparent 34%),
+          radial-gradient(circle at 50% 100%,rgba(33,72,120,.26),transparent 40%),
+          linear-gradient(145deg,#020713 0%,#071426 48%,#020711 100%)!important;
+        box-shadow:none!important;
+      }
+      .code-explorer-awards-reveal-vignette{position:absolute;inset:0;z-index:-1;pointer-events:none;background:radial-gradient(circle at 50% 45%,transparent 30%,rgba(0,0,0,.68) 100%)}
+      .code-explorer-awards-reveal-spotlight{position:absolute;top:-28vh;width:40vw;height:110vh;z-index:-1;opacity:.18;filter:blur(18px);pointer-events:none;background:linear-gradient(to bottom,rgba(231,203,132,.36),transparent 72%);transform-origin:top center}
+      .code-explorer-awards-reveal-spotlight.left{left:2vw;transform:rotate(18deg)} .code-explorer-awards-reveal-spotlight.right{right:2vw;transform:rotate(-18deg)}
+      .code-explorer-awards-reveal-head{
+        position:relative!important; z-index:4!important; display:flex!important; justify-content:space-between!important; align-items:flex-start!important;
+        min-height:0!important; gap:18px!important; padding:0!important; border:0!important;
+      }
+      .ceremony-brand{min-width:0}.code-explorer-awards-reveal-badge{
+        display:inline-flex!important; align-items:center!important; padding:6px 10px!important; border:1px solid rgba(216,179,91,.32)!important;
+        border-radius:999px!important; background:rgba(216,179,91,.07)!important; color:#e5c87b!important;
+        font:800 clamp(.58rem,1vw,.72rem)/1 system-ui,sans-serif!important; letter-spacing:.16em!important; text-transform:uppercase!important;
+      }
+      .code-explorer-awards-reveal-badge.preview{border-color:rgba(125,211,252,.32)!important;background:rgba(56,189,248,.08)!important;color:#bae6fd!important}
+      .code-explorer-awards-reveal-head h2{
+        margin:8px 0 2px!important; color:#fff!important; font-family:Georgia,'Times New Roman',serif!important;
+        font-size:clamp(1.35rem,3.2vw,2.65rem)!important; line-height:1!important; font-weight:600!important; letter-spacing:.01em!important;
+      }
+      .code-explorer-awards-reveal-head p{
+        margin:6px 0 0!important; max-width:70ch!important; color:#9eacc0!important;
+        font:500 clamp(.66rem,1.15vw,.86rem)/1.35 system-ui,sans-serif!important;
+      }
+      .ceremony-controls{display:flex!important;gap:8px!important;flex:0 0 auto!important}
+      .code-explorer-awards-reveal-icon-btn{
+        width:40px!important;height:40px!important;display:grid!important;place-items:center!important;border-radius:50%!important;
+        border:1px solid rgba(255,255,255,.14)!important;background:rgba(255,255,255,.055)!important;color:#f8fafc!important;
+        font-size:1rem!important;cursor:pointer!important;backdrop-filter:blur(12px)!important;transition:.2s ease!important;
+      }
+      .code-explorer-awards-reveal-icon-btn:hover{background:rgba(216,179,91,.13)!important;border-color:rgba(216,179,91,.42)!important;transform:translateY(-1px)}
+      .code-explorer-awards-reveal-icon-btn.close{font-size:1.45rem!important}
+      .code-explorer-awards-reveal-main{position:relative!important;min-height:0!important;overflow:hidden!important;display:grid!important;place-items:center!important}
+      .code-explorer-awards-reveal-stage,.code-explorer-awards-reveal-podium{
+        position:absolute!important;inset:0!important;min-height:0!important;overflow:hidden!important;
+        display:grid!important;place-items:center!important;padding:clamp(4px,1vh,12px) 0!important;
+      }
+      .code-explorer-awards-reveal-podium.hidden{display:none!important}
+      .code-explorer-awards-reveal-card{
+        position:relative!important;width:min(760px,88vw)!important;max-height:100%!important;overflow:hidden!important;
+        text-align:center!important;padding:clamp(18px,3.2vh,36px) clamp(20px,4vw,46px)!important;
+        border-radius:28px!important;border:1px solid rgba(255,255,255,.12)!important;
+        background:linear-gradient(155deg,rgba(255,255,255,.082),rgba(255,255,255,.026))!important;
+        box-shadow:0 28px 80px rgba(0,0,0,.38),inset 0 1px 0 rgba(255,255,255,.1)!important;
+        backdrop-filter:blur(22px)!important;animation:ceremonyCardEntrance 1.15s cubic-bezier(.16,1,.3,1) both!important;
+      }
+      .code-explorer-awards-reveal-card::before{content:'';position:absolute;inset:0;pointer-events:none;opacity:.55;background:radial-gradient(circle at 50% 0%,rgba(255,255,255,.08),transparent 42%)}
+      .code-explorer-awards-reveal-card.metal-bronze{border-color:rgba(184,115,51,.38)!important;box-shadow:0 30px 90px rgba(83,44,20,.24),inset 0 1px 0 rgba(255,255,255,.08)!important}
+      .code-explorer-awards-reveal-card.metal-silver{border-color:rgba(203,213,225,.38)!important;box-shadow:0 30px 90px rgba(148,163,184,.16),inset 0 1px 0 rgba(255,255,255,.1)!important}
+      .code-explorer-awards-reveal-card.metal-gold{border-color:rgba(216,179,91,.54)!important;box-shadow:0 34px 110px rgba(181,134,36,.25),0 0 80px rgba(216,179,91,.08),inset 0 1px 0 rgba(255,255,255,.12)!important}
+      .ceremony-ornament{display:flex!important;align-items:center!important;justify-content:center!important;gap:12px!important;color:#d8b35b!important;opacity:.85!important;margin-bottom:8px!important}
+      .ceremony-ornament span{width:52px!important;height:1px!important;background:linear-gradient(90deg,transparent,#d8b35b)!important}.ceremony-ornament span:last-child{transform:scaleX(-1)}
+      .code-explorer-awards-reveal-rank{
+        display:inline-block!important;margin:0 auto 8px!important;padding:0!important;background:none!important;
+        color:#c6d0de!important;font:800 clamp(.64rem,1.2vw,.82rem)/1 system-ui,sans-serif!important;letter-spacing:.2em!important;text-transform:uppercase!important;
+      }
+      .code-explorer-awards-medallion{
+        width:clamp(70px,11vh,112px)!important;height:clamp(70px,11vh,112px)!important;margin:4px auto clamp(10px,1.6vh,18px)!important;
+        display:grid!important;place-items:center!important;border-radius:50%!important;position:relative!important;
+        box-shadow:inset 0 1px 0 rgba(255,255,255,.55),0 14px 34px rgba(0,0,0,.3)!important;
+      }
+      .code-explorer-awards-medallion::before,.code-explorer-awards-medallion::after{content:'';position:absolute;inset:-8px;border:1px solid currentColor;border-radius:50%;opacity:.32}
+      .code-explorer-awards-medallion::after{inset:-14px;opacity:.12}
+      .code-explorer-awards-medallion b{font-family:Georgia,'Times New Roman',serif!important;font-size:clamp(2rem,5vh,3.5rem)!important;font-weight:500!important}
+      .code-explorer-awards-medallion.bronze{color:#f0b27c!important;background:radial-gradient(circle at 34% 28%,#f3c09a,#9a572d 70%,#5a2e17)!important}
+      .code-explorer-awards-medallion.silver{color:#f8fafc!important;background:radial-gradient(circle at 34% 28%,#fff,#aeb8c7 66%,#667085)!important}
+      .code-explorer-awards-medallion.gold{color:#fff8dd!important;background:radial-gradient(circle at 34% 28%,#fff0ad,#d8b35b 62%,#8e641b)!important;animation:ceremonyGoldPulse 2.4s ease-in-out infinite alternate!important}
+      .champion-label{
+        display:block!important;margin:0 auto 6px!important;color:#e9cf88!important;
+        font:800 clamp(.58rem,1vw,.76rem)/1.2 system-ui,sans-serif!important;letter-spacing:.13em!important;text-transform:uppercase!important;
+      }
+      .code-explorer-awards-reveal-card h3{
+        position:relative!important;margin:6px auto!important;max-width:20ch!important;color:#fff!important;
+        font-family:Georgia,'Times New Roman',serif!important;font-size:clamp(1.65rem,5.4vh,4rem)!important;line-height:1.02!important;font-weight:600!important;
+        text-wrap:balance!important;
+      }
+      .ceremony-rule{display:block!important;width:min(150px,26vw)!important;height:1px!important;margin:clamp(10px,1.6vh,16px) auto!important;background:linear-gradient(90deg,transparent,#d8b35b,transparent)!important}
+      .code-explorer-awards-reveal-card p{margin:0!important;color:#aebbd0!important;font:600 clamp(.72rem,1.4vw,.96rem)/1.35 system-ui,sans-serif!important}.code-explorer-awards-reveal-card p strong{color:#f3e4b5!important;font-size:1.12em!important}.code-explorer-awards-reveal-card p span{opacity:.55;padding:0 .25em}
+      .code-explorer-awards-suspense{text-align:center!important;animation:ceremonySuspenseIn 1.4s ease both!important}
+      .code-explorer-awards-suspense .ceremony-kicker{color:#d8b35b!important;font:800 clamp(.6rem,1.1vw,.78rem)/1 system-ui,sans-serif!important;letter-spacing:.22em!important}
+      .code-explorer-awards-suspense h3{margin:14px auto 8px!important;color:#fff!important;font-family:Georgia,'Times New Roman',serif!important;font-size:clamp(2rem,6vh,4.8rem)!important;font-weight:500!important;line-height:1.04!important}
+      .code-explorer-awards-suspense p{margin:0 auto!important;max-width:54ch!important;color:#9eacc0!important;font:500 clamp(.72rem,1.4vw,.98rem)/1.4 system-ui,sans-serif!important}
+      .ceremony-podium-heading{text-align:center!important;align-self:end!important}.ceremony-podium-heading span{color:#d8b35b!important;font:800 clamp(.56rem,1vw,.72rem)/1 system-ui,sans-serif!important;letter-spacing:.2em!important}.ceremony-podium-heading h3{margin:5px 0!important;color:#fff!important;font-family:Georgia,'Times New Roman',serif!important;font-size:clamp(1.55rem,4vh,2.8rem)!important;font-weight:500!important}
+      .code-explorer-awards-reveal-podium{grid-template-rows:auto minmax(0,1fr)!important;align-content:center!important;gap:clamp(8px,1.5vh,16px)!important}
+      .ceremony-podium-grid{width:min(980px,94vw)!important;display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;align-items:end!important;gap:clamp(8px,1.4vw,18px)!important}
+      .code-explorer-awards-podium-card{position:relative!important;display:flex!important;flex-direction:column!important;justify-content:center!important;align-items:center!important;text-align:center!important;min-height:clamp(120px,22vh,210px)!important;padding:18px 12px!important;border-radius:20px!important;border:1px solid rgba(255,255,255,.12)!important;background:rgba(255,255,255,.055)!important;animation:ceremonyPodiumRise .95s cubic-bezier(.16,1,.3,1) both!important}
+      .code-explorer-awards-podium-card.first{min-height:clamp(154px,28vh,260px)!important;border-color:rgba(216,179,91,.48)!important;background:linear-gradient(180deg,rgba(216,179,91,.13),rgba(255,255,255,.04))!important;animation-delay:.14s!important}
+      .code-explorer-awards-podium-card.second{animation-delay:.28s!important}.code-explorer-awards-podium-card.third{animation-delay:.4s!important}
+      .podium-rank{width:48px;height:48px;display:grid;place-items:center;border-radius:50%;margin-bottom:10px;border:1px solid currentColor;font-family:Georgia,'Times New Roman',serif;font-size:1.55rem}.metal-gold .podium-rank{color:#e7c66e}.metal-silver .podium-rank{color:#d6dee9}.metal-bronze .podium-rank{color:#d59b6b}
+      .code-explorer-awards-podium-card strong{color:#fff!important;font-family:Georgia,'Times New Roman',serif!important;font-size:clamp(.86rem,2.2vw,1.35rem)!important;line-height:1.08!important;text-wrap:balance!important}.code-explorer-awards-podium-card small{margin-top:8px!important;color:#9eacc0!important;font:800 clamp(.56rem,.9vw,.7rem)/1 system-ui,sans-serif!important;letter-spacing:.08em!important}
+      .code-explorer-awards-reveal-actions{
+        position:relative!important;z-index:5!important;display:flex!important;align-items:center!important;justify-content:space-between!important;gap:14px!important;
+        min-height:42px!important;padding-top:4px!important;border:0!important;background:none!important;
+      }
+      .code-explorer-awards-reveal-actions>div{display:flex!important;gap:8px!important}.ceremony-note{color:#64748b!important;font:600 clamp(.54rem,.9vw,.68rem)/1.25 system-ui,sans-serif!important}
+      .ceremony-secondary-btn,.ceremony-primary-btn{min-height:38px!important;border-radius:999px!important;padding:0 16px!important;font:800 .72rem/1 system-ui,sans-serif!important;letter-spacing:.03em!important;cursor:pointer!important}
+      .ceremony-secondary-btn{border:1px solid rgba(255,255,255,.14)!important;background:rgba(255,255,255,.055)!important;color:#d6dee9!important}.ceremony-primary-btn{border:1px solid rgba(216,179,91,.45)!important;background:linear-gradient(135deg,#c89f45,#e5c56f)!important;color:#15100a!important;box-shadow:0 10px 28px rgba(181,134,36,.2)!important}.ceremony-secondary-btn.hidden,.ceremony-primary-btn.hidden{display:none!important}
+      .code-explorer-awards-reveal-confetti{position:absolute!important;inset:0!important;z-index:3!important;overflow:hidden!important;pointer-events:none!important}.code-explorer-awards-confetti-piece{position:absolute!important;top:-4vh!important;width:5px!important;height:12px!important;border-radius:2px!important;animation:ceremonyConfetti var(--fall) linear forwards!important;opacity:.9!important}
+
+      .code-explorer-awards-reveal-card{
+        opacity:1!important;
+        animation-fill-mode:both!important;
+      }
+
+      @keyframes ceremonyCardEntrance{0%{opacity:0;transform:translateY(26px) scale(.975);filter:blur(7px)}65%{opacity:1;filter:blur(0)}100%{opacity:1;transform:none;filter:blur(0)}}
+      @keyframes ceremonySuspenseIn{from{opacity:0;letter-spacing:.02em;transform:scale(.975)}to{opacity:1;letter-spacing:0;transform:none}}
+      @keyframes ceremonyGoldPulse{from{box-shadow:inset 0 1px 0 rgba(255,255,255,.6),0 12px 38px rgba(181,134,36,.26)}to{box-shadow:inset 0 1px 0 rgba(255,255,255,.7),0 14px 48px rgba(216,179,91,.48),0 0 34px rgba(216,179,91,.18)}}
+      @keyframes ceremonyPodiumRise{from{opacity:0;transform:translateY(36px)}to{opacity:1;transform:none}}
+      @keyframes ceremonyConfetti{0%{transform:translate3d(0,-8vh,0) rotate(0);opacity:0}10%{opacity:.9}100%{transform:translate3d(var(--drift),108vh,0) rotate(var(--rot));opacity:.15}}
+      @media(max-width:720px){
+        .code-explorer-awards-reveal-shell{padding:14px 14px 12px!important}.code-explorer-awards-reveal-head p{display:none!important}.ceremony-note{display:none!important}.code-explorer-awards-reveal-actions{justify-content:center!important}.ceremony-podium-grid{width:96vw!important;gap:6px!important}.code-explorer-awards-podium-card{padding:12px 6px!important}.code-explorer-awards-reveal-card{width:94vw!important;border-radius:22px!important}
+      }
+      @media(max-height:720px){
+        .code-explorer-awards-reveal-shell{padding-top:12px!important;padding-bottom:10px!important}.code-explorer-awards-reveal-head h2{font-size:clamp(1.15rem,3vh,1.8rem)!important}.code-explorer-awards-reveal-head p{display:none!important}.code-explorer-awards-reveal-card{padding-top:14px!important;padding-bottom:14px!important}.code-explorer-awards-medallion{width:64px!important;height:64px!important}.code-explorer-awards-reveal-card h3{font-size:clamp(1.35rem,5vh,2.5rem)!important}.code-explorer-awards-suspense h3{font-size:clamp(1.6rem,6vh,3.1rem)!important}.ceremony-podium-heading h3{font-size:clamp(1.25rem,4vh,2rem)!important}.code-explorer-awards-podium-card{min-height:104px!important}.code-explorer-awards-podium-card.first{min-height:132px!important}.ceremony-note{display:none!important}
+      }
+
+      .code-explorer-awards-reveal-overlay.preview-mode .ceremony-note{display:none!important}
+      .code-explorer-awards-reveal-overlay.preview-mode #codeExplorerLeaderboardRevealSkipBtn{display:none!important}
+      .code-explorer-awards-reveal-overlay:not(.preview-mode) #codeExplorerLeaderboardRevealSkipBtn{
+        opacity:.72!important; font-size:.66rem!important; padding:0 12px!important; min-height:34px!important;
+      }
+      .code-explorer-awards-reveal-stage.hidden{display:none!important}
+      .code-explorer-awards-reveal-overlay.podium-mode .code-explorer-awards-reveal-shell{
+        grid-template-rows:42px minmax(0,1fr) 46px!important;
+        padding-top:12px!important;
+      }
+      .code-explorer-awards-reveal-overlay.podium-mode .code-explorer-awards-reveal-head{
+        align-items:center!important; min-height:42px!important;
+      }
+      .code-explorer-awards-reveal-overlay.podium-mode .ceremony-brand{
+        display:flex!important; align-items:center!important; gap:10px!important;
+      }
+      .code-explorer-awards-reveal-overlay.podium-mode .code-explorer-awards-reveal-head h2{
+        margin:0!important; font-size:clamp(1rem,2vw,1.45rem)!important; line-height:1!important;
+      }
+      .code-explorer-awards-reveal-overlay.podium-mode .code-explorer-awards-reveal-head p{display:none!important}
+      .code-explorer-awards-reveal-overlay.podium-mode .code-explorer-awards-reveal-badge{
+        padding:5px 9px!important; font-size:.58rem!important;
+      }
+      .code-explorer-awards-reveal-overlay.podium-mode .code-explorer-awards-reveal-main{
+        overflow:hidden!important; padding:0!important;
+      }
+      .code-explorer-awards-reveal-overlay.podium-mode .code-explorer-awards-reveal-podium{
+        position:relative!important; inset:auto!important; width:100%!important; height:100%!important;
+        display:grid!important; grid-template-rows:auto minmax(0,1fr)!important;
+        place-items:center!important; align-content:center!important;
+        padding:2px 0 4px!important; overflow:hidden!important;
+      }
+      .code-explorer-awards-reveal-overlay.podium-mode .ceremony-podium-heading{
+        align-self:center!important; margin:0!important; padding:0!important;
+      }
+      .code-explorer-awards-reveal-overlay.podium-mode .ceremony-podium-heading h3{
+        margin:3px 0!important; font-size:clamp(1.25rem,3.2vh,2.15rem)!important;
+      }
+      .code-explorer-awards-reveal-overlay.podium-mode .ceremony-podium-heading .ceremony-rule{
+        margin:7px auto 4px!important;
+      }
+      .code-explorer-awards-reveal-overlay.podium-mode .ceremony-podium-grid{
+        height:100%!important; max-height:48vh!important; align-self:center!important;
+      }
+      .code-explorer-awards-reveal-overlay.podium-mode .code-explorer-awards-podium-card{
+        min-height:clamp(118px,21vh,190px)!important;
+      }
+      .code-explorer-awards-reveal-overlay.podium-mode .code-explorer-awards-podium-card.first{
+        min-height:clamp(150px,27vh,240px)!important;
+      }
+      .code-explorer-awards-reveal-overlay.podium-mode .code-explorer-awards-reveal-actions{
+        min-height:42px!important; align-items:center!important; padding:0!important;
+      }
+      .code-explorer-awards-reveal-overlay.champion-mode .code-explorer-awards-reveal-shell{
+        background:
+          radial-gradient(circle at 50% 36%,rgba(227,188,91,.22),transparent 32%),
+          radial-gradient(circle at 50% 100%,rgba(70,52,16,.32),transparent 42%),
+          linear-gradient(145deg,#020713 0%,#0b1420 48%,#05060a 100%)!important;
+      }
+      .code-explorer-awards-reveal-overlay.champion-mode .code-explorer-awards-reveal-card.champion{
+        transform:scale(1.025);
+      }
+      @media(max-height:760px){
+        .code-explorer-awards-reveal-overlay.podium-mode .ceremony-podium-grid{max-height:45vh!important}
+        .code-explorer-awards-reveal-overlay.podium-mode .code-explorer-awards-podium-card{min-height:104px!important}
+        .code-explorer-awards-reveal-overlay.podium-mode .code-explorer-awards-podium-card.first{min-height:132px!important}
+      }
+
+
+      /* V623: final podium is one centered composition, never a multi-column parent. */
+      .code-explorer-awards-reveal-overlay.podium-mode .code-explorer-awards-reveal-shell{
+        grid-template-rows:42px minmax(0,1fr) 48px!important;
+        padding:12px clamp(18px,3vw,42px) 12px!important;
+      }
+      .code-explorer-awards-reveal-overlay.podium-mode .code-explorer-awards-reveal-head{
+        min-height:42px!important;
+        align-items:center!important;
+      }
+      .code-explorer-awards-reveal-overlay.podium-mode .ceremony-brand{
+        display:flex!important;
+        align-items:center!important;
+        gap:10px!important;
+      }
+      .code-explorer-awards-reveal-overlay.podium-mode .ceremony-brand h2,
+      .code-explorer-awards-reveal-overlay.podium-mode .ceremony-brand p{
+        display:none!important;
+      }
+      .code-explorer-awards-reveal-overlay.podium-mode .code-explorer-awards-reveal-main{
+        display:grid!important;
+        place-items:center!important;
+        min-height:0!important;
+        overflow:hidden!important;
+        padding:0!important;
+      }
+      .code-explorer-awards-reveal-overlay.podium-mode .code-explorer-awards-reveal-podium{
+        position:relative!important;
+        inset:auto!important;
+        width:min(1000px,92vw)!important;
+        height:auto!important;
+        max-height:none!important;
+        min-height:0!important;
+        display:grid!important;
+        grid-template-columns:1fr!important;
+        grid-template-rows:auto auto!important;
+        align-content:center!important;
+        justify-items:center!important;
+        gap:clamp(16px,2.6vh,26px)!important;
+        padding:0!important;
+        margin:0 auto!important;
+        overflow:visible!important;
+      }
+      .code-explorer-awards-reveal-overlay.podium-mode .ceremony-podium-heading{
+        grid-column:1!important;
+        grid-row:1!important;
+        width:100%!important;
+        align-self:center!important;
+        justify-self:center!important;
+        text-align:center!important;
+        margin:0!important;
+        padding:0!important;
+      }
+      .code-explorer-awards-reveal-overlay.podium-mode .ceremony-podium-heading span{
+        display:block!important;
+        max-width:none!important;
+        margin:0 auto!important;
+      }
+      .code-explorer-awards-reveal-overlay.podium-mode .ceremony-podium-heading h3{
+        margin:7px 0 4px!important;
+        font-size:clamp(1.55rem,3.8vh,2.65rem)!important;
+        line-height:1!important;
+      }
+      .code-explorer-awards-reveal-overlay.podium-mode .ceremony-podium-heading .ceremony-rule{
+        margin:10px auto 0!important;
+      }
+      .code-explorer-awards-reveal-overlay.podium-mode .ceremony-podium-grid{
+        grid-column:1!important;
+        grid-row:2!important;
+        width:100%!important;
+        height:auto!important;
+        max-height:none!important;
+        display:grid!important;
+        grid-template-columns:repeat(3,minmax(0,1fr))!important;
+        align-items:end!important;
+        justify-items:stretch!important;
+        gap:clamp(12px,1.8vw,22px)!important;
+        margin:0!important;
+        padding:0!important;
+      }
+      .code-explorer-awards-reveal-overlay.podium-mode .code-explorer-awards-podium-card{
+        width:100%!important;
+        min-height:clamp(150px,24vh,215px)!important;
+        max-height:none!important;
+      }
+      .code-explorer-awards-reveal-overlay.podium-mode .code-explorer-awards-podium-card.first{
+        min-height:clamp(195px,31vh,285px)!important;
+      }
+      .code-explorer-awards-reveal-overlay.podium-mode .code-explorer-awards-reveal-actions{
+        min-height:48px!important;
+        justify-content:center!important;
+        padding:0!important;
+      }
+      .code-explorer-awards-reveal-overlay.podium-mode .code-explorer-awards-reveal-actions>div{
+        margin:0 auto!important;
+      }
+      .code-explorer-awards-reveal-overlay.preview-mode .code-explorer-awards-reveal-actions{
+        justify-content:center!important;
+      }
+      .code-explorer-awards-reveal-overlay.preview-mode .code-explorer-awards-reveal-actions>div{
+        margin:0 auto!important;
+      }
+      @media(max-height:760px){
+        .code-explorer-awards-reveal-overlay.podium-mode .code-explorer-awards-reveal-podium{
+          gap:10px!important;
+          transform:translateY(-4px);
+        }
+        .code-explorer-awards-reveal-overlay.podium-mode .code-explorer-awards-podium-card{
+          min-height:120px!important;
+        }
+        .code-explorer-awards-reveal-overlay.podium-mode .code-explorer-awards-podium-card.first{
+          min-height:158px!important;
+        }
+        .code-explorer-awards-reveal-overlay.podium-mode .ceremony-podium-heading h3{
+          font-size:clamp(1.25rem,3.4vh,2rem)!important;
+        }
+      }
+
+
+      /* V625: winner cards stay alive during their hold, without becoming distracting. */
+      .code-explorer-awards-reveal-card{
+        animation:
+          ceremonyCardEntrance 1.05s cubic-bezier(.16,1,.3,1) both,
+          ceremonyCardFloat 4.6s ease-in-out 1.05s infinite alternate!important;
+      }
+      .code-explorer-awards-reveal-card::after{
+        content:''!important;
+        position:absolute!important;
+        top:-20%!important;
+        left:-45%!important;
+        width:32%!important;
+        height:140%!important;
+        pointer-events:none!important;
+        opacity:.0!important;
+        transform:rotate(15deg)!important;
+        background:linear-gradient(90deg,transparent,rgba(255,255,255,.11),transparent)!important;
+        animation:ceremonyCardSweep 5.2s ease-in-out 1.8s infinite!important;
+      }
+      .code-explorer-awards-reveal-card .ceremony-ornament b{
+        display:inline-block!important;
+        animation:ceremonyOrnamentPulse 2.6s ease-in-out infinite!important;
+      }
+      .code-explorer-awards-reveal-card .code-explorer-awards-medallion{
+        animation:ceremonyMedalBreathe 3.2s ease-in-out infinite alternate!important;
+      }
+      .code-explorer-awards-reveal-card.champion{
+        animation:
+          ceremonyCardEntrance 1.15s cubic-bezier(.16,1,.3,1) both,
+          ceremonyChampionFloat 3.2s ease-in-out 1.15s infinite alternate!important;
+      }
+      .code-explorer-awards-reveal-card.champion .code-explorer-awards-medallion{
+        animation:ceremonyGoldPulse 1.8s ease-in-out infinite alternate!important;
+      }
+      @keyframes ceremonyCardFloat{
+        from{transform:translateY(0) scale(1)}
+        to{transform:translateY(-7px) scale(1.006)}
+      }
+      @keyframes ceremonyChampionFloat{
+        from{transform:translateY(0) scale(1.018)}
+        to{transform:translateY(-9px) scale(1.032)}
+      }
+      @keyframes ceremonyCardSweep{
+        0%,35%{left:-45%;opacity:0}
+        48%{opacity:.18}
+        63%{left:118%;opacity:0}
+        100%{left:118%;opacity:0}
+      }
+      @keyframes ceremonyOrnamentPulse{
+        0%,100%{opacity:.55;transform:scale(.9)}
+        50%{opacity:1;transform:scale(1.18)}
+      }
+      @keyframes ceremonyMedalBreathe{
+        from{transform:scale(1);filter:brightness(1)}
+        to{transform:scale(1.045);filter:brightness(1.10)}
+      }
+
+
+
+      /* V627: rank numerals must remain readable on every medal metal. */
+      .code-explorer-awards-medallion b{
+        position:relative!important;
+        z-index:3!important;
+        font-weight:900!important;
+        line-height:1!important;
+        letter-spacing:-.04em!important;
+        text-shadow:0 2px 2px rgba(0,0,0,.28),0 0 1px rgba(255,255,255,.55)!important;
+      }
+      .code-explorer-awards-medallion.bronze b{color:#2b160b!important}
+      .code-explorer-awards-medallion.silver b{color:#172033!important;text-shadow:0 1px 1px rgba(255,255,255,.55),0 2px 3px rgba(0,0,0,.16)!important}
+      .code-explorer-awards-medallion.gold b{color:#3b2605!important;text-shadow:0 1px 1px rgba(255,255,255,.60),0 2px 3px rgba(0,0,0,.18)!important}
+      .code-explorer-awards-medallion::before{
+        box-shadow:0 0 0 5px rgba(255,255,255,.025),0 0 28px currentColor!important;
+      }
+      .podium-rank{
+        font-weight:900!important;
+        background:rgba(2,8,18,.58)!important;
+        text-shadow:0 1px 2px rgba(0,0,0,.65)!important;
+      }
+
+      /* V626: award-stage atmosphere */
+      .ceremony-stage-decor{position:absolute!important;inset:0!important;z-index:-1!important;overflow:hidden!important;pointer-events:none!important}
+      .ceremony-gold-arch{
+        position:absolute!important;left:50%!important;top:8%!important;width:min(980px,78vw)!important;height:min(560px,66vh)!important;
+        transform:translateX(-50%)!important;border:1px solid rgba(216,179,91,.18)!important;border-bottom:0!important;
+        border-radius:50% 50% 0 0 / 45% 45% 0 0!important;box-shadow:0 -20px 80px rgba(216,179,91,.05)!important;
+      }
+      .ceremony-gold-arch::before,.ceremony-gold-arch::after{
+        content:'';position:absolute;inset:18px;border:1px solid rgba(216,179,91,.08);border-bottom:0;border-radius:inherit;
+      }
+      .ceremony-gold-arch::after{inset:42px;opacity:.65}
+      .ceremony-stage-stars i{
+        position:absolute!important;left:var(--x)!important;top:var(--y)!important;width:3px!important;height:3px!important;border-radius:50%!important;
+        background:#f6e7b0!important;box-shadow:0 0 12px rgba(246,231,176,.65)!important;
+        animation:ceremonyStarTwinkle calc(2.4s + (var(--i) % 5)*.45s) ease-in-out infinite alternate!important;
+        animation-delay:calc(var(--i)*-.17s)!important;
+      }
+      .ceremony-stage-beam{
+        position:absolute!important;top:-24vh!important;width:18vw!important;height:120vh!important;opacity:.10!important;filter:blur(16px)!important;
+        background:linear-gradient(to bottom,rgba(242,223,155,.72),rgba(242,223,155,.12) 46%,transparent 76%)!important;
+        transform-origin:top center!important;
+      }
+      .ceremony-stage-beam.beam-a{left:9vw!important;transform:rotate(17deg)!important;animation:ceremonyBeamA 8s ease-in-out infinite alternate!important}
+      .ceremony-stage-beam.beam-b{left:41vw!important;opacity:.07!important;transform:rotate(-2deg)!important;animation:ceremonyBeamB 10s ease-in-out infinite alternate!important}
+      .ceremony-stage-beam.beam-c{right:9vw!important;transform:rotate(-17deg)!important;animation:ceremonyBeamC 8s ease-in-out infinite alternate!important}
+      .ceremony-stage-floor{
+        position:absolute!important;left:50%!important;bottom:-14vh!important;width:min(1150px,94vw)!important;height:36vh!important;transform:translateX(-50%) perspective(500px) rotateX(62deg)!important;
+        border-radius:50%!important;background:
+          radial-gradient(ellipse at center,rgba(216,179,91,.16),rgba(15,23,42,.04) 44%,transparent 70%),
+          repeating-radial-gradient(ellipse at center,rgba(216,179,91,.045) 0 1px,transparent 1px 36px)!important;
+        filter:blur(.2px)!important;
+      }
+      .ceremony-laurel{position:absolute!important;top:50%!important;color:rgba(216,179,91,.09)!important;font-size:clamp(8rem,18vw,18rem)!important;font-family:Georgia,serif!important}
+      .ceremony-laurel.left{left:-2vw!important;transform:translateY(-50%) rotate(-28deg)!important}
+      .ceremony-laurel.right{right:-2vw!important;transform:translateY(-50%) scaleX(-1) rotate(-28deg)!important}
+
+      /* Each winning section visibly shines while it holds center stage. */
+      .code-explorer-awards-reveal-card{
+        overflow:visible!important;
+      }
+      .code-explorer-awards-reveal-card::before{
+        animation:ceremonyCardAura 3.4s ease-in-out infinite alternate!important;
+      }
+      .code-explorer-awards-reveal-card h3{
+        background:linear-gradient(95deg,#ffffff 0%,#ffffff 35%,#ffe7a1 50%,#ffffff 65%,#ffffff 100%)!important;
+        background-size:240% 100%!important;
+        -webkit-background-clip:text!important;background-clip:text!important;color:transparent!important;
+        animation:ceremonyNameShine 4.1s ease-in-out infinite!important;
+        text-shadow:0 0 28px rgba(255,255,255,.05)!important;
+      }
+      .code-explorer-awards-reveal-card.metal-bronze h3{filter:drop-shadow(0 0 18px rgba(184,115,51,.10))}
+      .code-explorer-awards-reveal-card.metal-silver h3{filter:drop-shadow(0 0 18px rgba(203,213,225,.12))}
+      .code-explorer-awards-reveal-card.metal-gold h3{filter:drop-shadow(0 0 22px rgba(216,179,91,.22))}
+      .code-explorer-awards-reveal-card .code-explorer-awards-medallion::after{
+        animation:ceremonyMedalRing 2.8s ease-in-out infinite!important;
+      }
+
+      /* Smooth transitions: the previous winner exits with light, never a sudden cut. */
+      .code-explorer-awards-reveal-card.ceremony-exit{
+        animation:ceremonyCardExit .92s cubic-bezier(.4,0,.2,1) forwards!important;
+      }
+      .ceremony-transition-flare{
+        position:absolute!important;inset:0!important;display:grid!important;place-items:center!important;pointer-events:none!important;
+        opacity:0!important;z-index:8!important;
+        background:radial-gradient(circle at center,rgba(216,179,91,.16),transparent 34%)!important;
+        animation:ceremonyTransitionFlare 1s ease both!important;
+      }
+      .ceremony-transition-flare span{
+        color:#e9cf88!important;font:800 clamp(.62rem,1.2vw,.82rem)/1 system-ui,sans-serif!important;
+        letter-spacing:.22em!important;text-transform:uppercase!important;
+      }
+
+      @keyframes ceremonyStarTwinkle{from{opacity:.18;transform:scale(.7)}to{opacity:.95;transform:scale(1.5)}}
+      @keyframes ceremonyBeamA{from{transform:rotate(13deg)}to{transform:rotate(22deg)}}
+      @keyframes ceremonyBeamB{from{transform:rotate(-5deg)}to{transform:rotate(5deg)}}
+      @keyframes ceremonyBeamC{from{transform:rotate(-13deg)}to{transform:rotate(-22deg)}}
+      @keyframes ceremonyCardAura{from{opacity:.25;filter:brightness(.9)}to{opacity:.72;filter:brightness(1.22)}}
+      @keyframes ceremonyNameShine{0%,24%{background-position:115% 0}55%{background-position:40% 0}78%,100%{background-position:-35% 0}}
+      @keyframes ceremonyMedalRing{0%,100%{opacity:.10;transform:scale(.96)}50%{opacity:.52;transform:scale(1.08)}}
+      @keyframes ceremonyCardExit{
+        0%{opacity:1;transform:translateY(-4px) scale(1.005);filter:blur(0)}
+        55%{opacity:.65;transform:translateY(-10px) scale(.985);filter:blur(1px)}
+        100%{opacity:0;transform:translateY(-24px) scale(.96);filter:blur(5px)}
+      }
+      @keyframes ceremonyTransitionFlare{0%{opacity:0;transform:scale(.96)}45%{opacity:1;transform:scale(1)}100%{opacity:0;transform:scale(1.03)}}
+
+
+      /* V627: rank-specific award-stage lighting */
+      .ceremony-winner-halo{
+        position:absolute!important;
+        left:50%!important;
+        top:50%!important;
+        width:min(720px,66vw)!important;
+        height:min(720px,66vw)!important;
+        transform:translate(-50%,-50%)!important;
+        border-radius:50%!important;
+        pointer-events:none!important;
+        opacity:.0!important;
+        z-index:0!important;
+        animation:ceremonyHaloAwaken 1.2s ease .25s forwards,ceremonyHaloBreathe 3.8s ease-in-out 1.4s infinite alternate!important;
+      }
+      .ceremony-winner-halo::before,.ceremony-winner-halo::after{
+        content:''!important;
+        position:absolute!important;
+        inset:10%!important;
+        border-radius:50%!important;
+        border:1px solid rgba(255,255,255,.11)!important;
+      }
+      .ceremony-winner-halo::after{inset:23%!important;opacity:.62!important}
+      .ceremony-winner-rays{
+        position:absolute!important;
+        left:50%!important;
+        top:50%!important;
+        width:min(920px,82vw)!important;
+        height:min(920px,82vw)!important;
+        transform:translate(-50%,-50%) rotate(0deg)!important;
+        border-radius:50%!important;
+        opacity:.14!important;
+        pointer-events:none!important;
+        z-index:-1!important;
+        background:repeating-conic-gradient(from 0deg,rgba(255,255,255,.22) 0deg 1.2deg,transparent 1.2deg 10deg)!important;
+        -webkit-mask:radial-gradient(circle,transparent 0 22%,#000 34% 66%,transparent 78%)!important;
+        mask:radial-gradient(circle,transparent 0 22%,#000 34% 66%,transparent 78%)!important;
+        animation:ceremonyRaysRotate 34s linear infinite!important;
+      }
+      .ceremony-winner-sparkles{
+        position:absolute!important;inset:0!important;pointer-events:none!important;z-index:2!important;
+      }
+      .ceremony-winner-sparkles i{
+        position:absolute!important;
+        width:4px!important;height:4px!important;border-radius:50%!important;
+        background:#fff7cf!important;
+        box-shadow:0 0 10px currentColor!important;
+        animation:ceremonyWinnerSparkle 2.8s ease-in-out infinite!important;
+      }
+
+      .code-explorer-awards-reveal-overlay.rank-3-mode .ceremony-winner-halo{
+        background:radial-gradient(circle,rgba(210,132,78,.24),rgba(115,57,25,.08) 42%,transparent 70%)!important;
+        box-shadow:0 0 120px rgba(184,115,51,.20)!important;
+      }
+      .code-explorer-awards-reveal-overlay.rank-2-mode .ceremony-winner-halo{
+        background:radial-gradient(circle,rgba(236,242,248,.22),rgba(148,163,184,.08) 42%,transparent 70%)!important;
+        box-shadow:0 0 125px rgba(203,213,225,.18)!important;
+      }
+      .code-explorer-awards-reveal-overlay.rank-1-mode .ceremony-winner-halo{
+        background:radial-gradient(circle,rgba(255,222,122,.34),rgba(181,134,36,.11) 42%,transparent 72%)!important;
+        box-shadow:0 0 155px rgba(216,179,91,.30)!important;
+      }
+      .code-explorer-awards-reveal-overlay.rank-1-mode .ceremony-winner-rays{
+        opacity:.24!important;
+        animation-duration:24s!important;
+      }
+
+      /* Stronger "shining section" movement while staying elegant. */
+      .code-explorer-awards-reveal-card{
+        z-index:3!important;
+        box-shadow:
+          0 30px 90px rgba(0,0,0,.40),
+          0 0 0 1px rgba(255,255,255,.035),
+          inset 0 1px 0 rgba(255,255,255,.12)!important;
+      }
+      .code-explorer-awards-reveal-card h3{
+        animation:ceremonyNameShine 3.4s ease-in-out infinite!important;
+      }
+      .code-explorer-awards-reveal-card.champion h3{
+        animation:ceremonyChampionNameShine 2.4s ease-in-out infinite!important;
+      }
+      .code-explorer-awards-reveal-card .champion-label{
+        animation:ceremonyChampionLabelGlow 2.2s ease-in-out infinite alternate!important;
+      }
+      .code-explorer-awards-reveal-card .ceremony-rule{
+        position:relative!important;
+        overflow:visible!important;
+      }
+      .code-explorer-awards-reveal-card .ceremony-rule::after{
+        content:''!important;
+        position:absolute!important;
+        left:50%!important;top:50%!important;
+        width:10px!important;height:10px!important;border-radius:50%!important;
+        transform:translate(-50%,-50%)!important;
+        background:#f2d98b!important;
+        box-shadow:0 0 18px #f2d98b!important;
+        animation:ceremonyRuleSpark 2.6s ease-in-out infinite!important;
+      }
+
+      @keyframes ceremonyHaloAwaken{from{opacity:0;transform:translate(-50%,-50%) scale(.82)}to{opacity:1;transform:translate(-50%,-50%) scale(1)}}
+      @keyframes ceremonyHaloBreathe{from{filter:brightness(.88);transform:translate(-50%,-50%) scale(.98)}to{filter:brightness(1.18);transform:translate(-50%,-50%) scale(1.05)}}
+      @keyframes ceremonyRaysRotate{to{transform:translate(-50%,-50%) rotate(360deg)}}
+      @keyframes ceremonyWinnerSparkle{0%,100%{opacity:.18;transform:translateY(3px) scale(.7)}50%{opacity:1;transform:translateY(-5px) scale(1.35)}}
+      @keyframes ceremonyChampionNameShine{0%,20%{background-position:120% 0;filter:drop-shadow(0 0 6px rgba(216,179,91,.12))}50%{background-position:45% 0;filter:drop-shadow(0 0 25px rgba(216,179,91,.42))}80%,100%{background-position:-35% 0;filter:drop-shadow(0 0 10px rgba(216,179,91,.18))}}
+      @keyframes ceremonyChampionLabelGlow{from{opacity:.66;text-shadow:0 0 0 rgba(216,179,91,0)}to{opacity:1;text-shadow:0 0 18px rgba(216,179,91,.38)}}
+      @keyframes ceremonyRuleSpark{0%,100%{opacity:.38;transform:translate(-50%,-50%) scale(.7)}50%{opacity:1;transform:translate(-50%,-50%) scale(1.15)}}
+
+      @media(prefers-reduced-motion:reduce){.code-explorer-awards-reveal-card,.code-explorer-awards-podium-card,.code-explorer-awards-medallion.gold{animation-duration:.01ms!important;animation-iteration-count:1!important}}
+    `;
+
+    if (dom.leaderboardRevealCloseBtn && !dom.leaderboardRevealCloseBtn.dataset.revealBound) {
+      dom.leaderboardRevealCloseBtn.dataset.revealBound = '1';
+      dom.leaderboardRevealCloseBtn.addEventListener('click', () => closeLeaderboardWinnerReveal({ openLeaderboard: false }));
+    }
+    if (dom.leaderboardRevealAudioBtn && !dom.leaderboardRevealAudioBtn.dataset.revealBound) {
+      dom.leaderboardRevealAudioBtn.dataset.revealBound = '1';
+      dom.leaderboardRevealAudioBtn.addEventListener('click', toggleLeaderboardRevealAudio);
+    }
+    if (dom.leaderboardRevealSkipBtn && !dom.leaderboardRevealSkipBtn.dataset.revealBound) {
+      dom.leaderboardRevealSkipBtn.dataset.revealBound = '1';
+      dom.leaderboardRevealSkipBtn.addEventListener('click', finishLeaderboardWinnerReveal);
+    }
+    if (dom.leaderboardRevealViewBtn && !dom.leaderboardRevealViewBtn.dataset.revealBound) {
+      dom.leaderboardRevealViewBtn.dataset.revealBound = '1';
+      dom.leaderboardRevealViewBtn.addEventListener('click', () => closeLeaderboardWinnerReveal({ openLeaderboard: true }));
+    }
+    if (!overlay.dataset.revealBackdropBound) {
+      overlay.dataset.revealBackdropBound = '1';
+      overlay.addEventListener('click', event => {
+        if (event.target === overlay) closeLeaderboardWinnerReveal({ openLeaderboard: false });
+      });
+    }
+
+    setLeaderboardRevealMuted(leaderboardRevealAudioState.muted);
+    return true;
+  }
+
+
+
+
+
+
+  function transitionLeaderboardRevealStage(label = '', nextRenderer = null, cue = null) {
+    const stage = dom.leaderboardRevealStage;
+    if (!stage) {
+      if (typeof nextRenderer === 'function') nextRenderer();
+      if (typeof cue === 'function') cue();
+      return;
+    }
+
+    const currentCard = stage.querySelector('.code-explorer-awards-reveal-card');
+    if (currentCard) currentCard.classList.add('ceremony-exit');
+
+    const flare = document.createElement('div');
+    flare.className = 'ceremony-transition-flare';
+    flare.innerHTML = `<span>${escapeHTML(label || '')}</span>`;
+    stage.appendChild(flare);
+
+    scheduleLeaderboardRevealRiser(0, 0.9, 0.72);
+
+    window.setTimeout(() => {
+      if (typeof nextRenderer === 'function') nextRenderer();
+      if (typeof cue === 'function') cue();
+    }, 780);
+  }
+
+
+  function showLeaderboardWinnerReveal(snapshot, options = {}) {
+    ensureLeaderboardWinnerRevealDom();
+    const sections = normalizeLeaderboardRevealSections(snapshot);
+    if (sections.length < 3 || !dom.leaderboardRevealOverlay) return false;
+
+    clearLeaderboardWinnerRevealTimers();
+    stopLeaderboardRevealMusic(0.05);
+
+    leaderboardWinnerRevealState.snapshot = snapshot;
+    leaderboardWinnerRevealState.preview = options.preview === true;
+    leaderboardWinnerRevealState.openLeaderboardAfter = options.openLeaderboardAfter === true;
+    leaderboardWinnerRevealState.finished = false;
+    leaderboardWinnerRevealState.stage = 'intro';
+
+    dom.leaderboardRevealOverlay.classList.remove('podium-mode', 'champion-mode', 'rank-1-mode', 'rank-2-mode', 'rank-3-mode');
+    dom.leaderboardRevealOverlay.classList.toggle('preview-mode', leaderboardWinnerRevealState.preview);
+
+    dom.leaderboardRevealBadge?.classList.toggle('preview', leaderboardWinnerRevealState.preview);
+    if (dom.leaderboardRevealBadge) {
+      dom.leaderboardRevealBadge.textContent = leaderboardWinnerRevealState.preview
+        ? 'ADMIN PREVIEW · CURRENT LIVE RANKING'
+        : `G8Code GLOBAL LEADERBOARD · ${snapshot.schoolYear || 'OFFICIAL RESULTS'}`;
+    }
+    if (dom.leaderboardRevealTitle) {
+      dom.leaderboardRevealTitle.textContent = leaderboardWinnerRevealState.preview
+        ? 'Awards Ceremony Preview'
+        : 'Official Section Awards';
+    }
+    if (dom.leaderboardRevealLead) {
+      dom.leaderboardRevealLead.textContent = leaderboardWinnerRevealState.preview
+        ? 'Preview only. The latest live Top 3 is used. No ranking is locked or changed.'
+        : 'Official results are locked. The highest-ranked sections are about to be honored.';
+    }
+
+    if (dom.leaderboardRevealStage) {
+      dom.leaderboardRevealStage.classList.remove('hidden');
+      dom.leaderboardRevealStage.innerHTML = `<div class="code-explorer-awards-suspense">
+        <span class="ceremony-kicker">${leaderboardWinnerRevealState.preview ? 'CEREMONY PREVIEW' : 'OFFICIAL RESULTS · OCTOBER 5'}</span>
+        <i class="ceremony-rule"></i>
+        <h3>G8Code Global Leaderboard</h3>
+        <p>Today, we honor the Top Three Sections. The reveal begins with Third Place.</p>
+      </div>`;
+    }
+
+    if (dom.leaderboardRevealPodium) {
+      dom.leaderboardRevealPodium.innerHTML = '';
+      dom.leaderboardRevealPodium.classList.add('hidden');
+    }
+    if (dom.leaderboardRevealConfetti) dom.leaderboardRevealConfetti.innerHTML = '';
+
+    dom.leaderboardRevealSkipBtn?.classList.add('hidden');
+    dom.leaderboardRevealViewBtn?.classList.add('hidden');
+    if (dom.leaderboardRevealViewBtn) {
+      dom.leaderboardRevealViewBtn.textContent = leaderboardWinnerRevealState.preview
+        ? 'Close Preview'
+        : 'View Full Leaderboard';
+    }
+
+    dom.leaderboardRevealOverlay.classList.remove('hidden');
+    document.body.classList.add('code-explorer-modal-open');
+    document.documentElement.style.overflow = 'hidden';
+    document.body.style.overflow = 'hidden';
+
+    startLeaderboardRevealCeremonyMusic();
+
+    const rank3 = sections.find(row => Number(row.rank) === 3) || sections[2];
+    const rank2 = sections.find(row => Number(row.rank) === 2) || sections[1];
+    const rank1 = sections.find(row => Number(row.rank) === 1) || sections[0];
+
+    // V626: no abrupt cuts. Each change gets a short light/riser transition.
+    scheduleLeaderboardRevealStep(() => {
+      leaderboardWinnerRevealState.stage = 'third';
+      dom.leaderboardRevealOverlay.classList.remove('rank-1-mode','rank-2-mode');
+      dom.leaderboardRevealOverlay.classList.add('rank-3-mode');
+      if (dom.leaderboardRevealStage) {
+        const preserved = Array.from(dom.leaderboardRevealStage.querySelectorAll('.ceremony-winner-halo,.ceremony-winner-rays,.ceremony-winner-sparkles'));
+        dom.leaderboardRevealStage.innerHTML = renderLeaderboardRevealCard(rank3);
+        preserved.reverse().forEach(node => dom.leaderboardRevealStage.prepend(node));
+      }
+      playLeaderboardRevealPlacementCue(3);
+    }, 3000);
+
+    scheduleLeaderboardRevealStep(() => {
+      leaderboardWinnerRevealState.stage = 'second-transition';
+      transitionLeaderboardRevealStage(
+        'SECOND PLACE',
+        () => {
+          leaderboardWinnerRevealState.stage = 'second';
+          dom.leaderboardRevealOverlay.classList.remove('rank-1-mode','rank-3-mode');
+          dom.leaderboardRevealOverlay.classList.add('rank-2-mode');
+          if (dom.leaderboardRevealStage) {
+            const preserved = Array.from(dom.leaderboardRevealStage.querySelectorAll('.ceremony-winner-halo,.ceremony-winner-rays,.ceremony-winner-sparkles'));
+            dom.leaderboardRevealStage.innerHTML = renderLeaderboardRevealCard(rank2);
+            preserved.reverse().forEach(node => dom.leaderboardRevealStage.prepend(node));
+          }
+        },
+        () => playLeaderboardRevealPlacementCue(2)
+      );
+    }, 10200);
+
+    if (!leaderboardWinnerRevealState.preview) {
+      scheduleLeaderboardRevealStep(() => {
+        if (!leaderboardWinnerRevealState.finished) {
+          dom.leaderboardRevealSkipBtn?.classList.remove('hidden');
+          if (dom.leaderboardRevealSkipBtn) dom.leaderboardRevealSkipBtn.textContent = 'Skip Ceremony';
+        }
+      }, 14200);
+    }
+
+    scheduleLeaderboardRevealStep(() => {
+      leaderboardWinnerRevealState.stage = 'champion-transition';
+      transitionLeaderboardRevealStage(
+        'THE FINAL HONOR',
+        () => {
+          leaderboardWinnerRevealState.stage = 'champion-suspense';
+          dom.leaderboardRevealOverlay.classList.remove('rank-2-mode','rank-3-mode');
+          dom.leaderboardRevealOverlay.classList.add('champion-mode');
+          if (dom.leaderboardRevealStage) dom.leaderboardRevealStage.innerHTML = renderLeaderboardRevealSuspense();
+          scheduleLeaderboardRevealDrum(0.15, 0.9);
+          scheduleLeaderboardRevealDrum(1.8, 1.08);
+          scheduleLeaderboardRevealDrum(3.6, 1.25);
+        }
+      );
+    }, 19400);
+
+    scheduleLeaderboardRevealStep(() => {
+      leaderboardWinnerRevealState.stage = 'champion';
+      transitionLeaderboardRevealStage(
+        'SECTION CHAMPION',
+        () => {
+          dom.leaderboardRevealOverlay.classList.add('rank-1-mode');
+          if (dom.leaderboardRevealStage) {
+            const preserved = Array.from(dom.leaderboardRevealStage.querySelectorAll('.ceremony-winner-halo,.ceremony-winner-rays,.ceremony-winner-sparkles'));
+            dom.leaderboardRevealStage.innerHTML = renderLeaderboardRevealCard(rank1);
+            preserved.reverse().forEach(node => dom.leaderboardRevealStage.prepend(node));
+          }
+        },
+        () => {
+          playLeaderboardRevealPlacementCue(1);
+          launchLeaderboardRevealConfetti();
+        }
+      );
+    }, 24900);
+
+    scheduleLeaderboardRevealStep(finishLeaderboardWinnerReveal, 36500);
+    return true;
+  }
+
+  function closeLeaderboardWinnerReveal(options = {}) {
+    const snapshot = leaderboardWinnerRevealState.snapshot;
+    const preview = leaderboardWinnerRevealState.preview;
+    const openAfter = leaderboardWinnerRevealState.openLeaderboardAfter;
+    clearLeaderboardWinnerRevealTimers();
+    stopLeaderboardRevealMusic(0.22);
+    dom.leaderboardRevealOverlay?.classList.add('hidden');
+    dom.leaderboardRevealOverlay?.classList.remove('preview-mode', 'podium-mode', 'champion-mode', 'rank-1-mode', 'rank-2-mode', 'rank-3-mode');
+    if (!preview && snapshot) markLeaderboardWinnerRevealSeen(snapshot);
+    leaderboardWinnerRevealState.snapshot = null;
+    leaderboardWinnerRevealState.preview = false;
+    leaderboardWinnerRevealState.openLeaderboardAfter = false;
+    leaderboardWinnerRevealState.finished = false;
+    leaderboardWinnerRevealState.stage = 'idle';
+    if (dom.leaderboardRevealConfetti) dom.leaderboardRevealConfetti.innerHTML = '';
+    document.documentElement.style.overflow = '';
+    document.body.style.overflow = '';
+
+    if (!preview && (openAfter || options.openLeaderboard === true)) {
+      openGlobalLeaderboardDirect();
+      return;
+    }
+    if (dom.leaderboardOverlay?.classList.contains('hidden') && dom.finalOverlay?.classList.contains('hidden') && dom.certOverlay?.classList.contains('hidden')) {
+      document.body.classList.remove('code-explorer-modal-open');
+    }
+  }
+
+  async function fetchOfficialLeaderboardRevealSnapshot() {
+    if (!getFirebaseActiveUser?.()) return null;
+    let settings = null;
+    try { settings = await rtdbRestRequest(LEADERBOARD_AWARDS_SETTINGS_PATH); } catch (_) {}
+    const normalized = normalizeLeaderboardAwardsSettings(settings || { schoolYear: defaultLeaderboardAwardsSchoolYear() });
+    if (Date.now() < Number(normalized.officialAtMs || 0)) return null;
+    const official = await fetchLeaderboardAwardsOfficialSnapshot(normalized.schoolYear);
+    return official && normalizeLeaderboardRevealSections(official).length >= 3 ? official : null;
+  }
+
+  function buildLeaderboardRevealPreviewFromAdminDom() {
+    const container = dom.adminAwardsSectionPreview;
+    if (!container) return null;
+    const rows = Array.from(container.querySelectorAll(':scope > span')).map(item => {
+      const rankText = String(item.querySelector('b')?.textContent || '');
+      const rank = Number((rankText.match(/(\d+)/) || [])[1] || 0);
+      const name = String(item.querySelector('strong')?.textContent || '').trim();
+      const stats = String(item.querySelector('small')?.textContent || '');
+      const averageXp = Number((stats.replace(/,/g, '').match(/([0-9]+(?:\.[0-9]+)?)/) || [])[1] || 0);
+      return { rank, name, averageXp, studentCount: 0, totalXp: 0 };
+    }).filter(row => row.rank >= 1 && row.rank <= 3 && row.name);
+
+    if (rows.length < 3) return null;
+    return {
+      version: 1,
+      official: false,
+      preview: true,
+      schoolYear: normalizeLeaderboardAwardsSchoolYear(dom.adminAwardsSchoolYear?.value || leaderboardAwardsState.settings?.schoolYear || ''),
+      generatedAtMs: Date.now(),
+      sectionAwards: rows
+    };
+  }
+
+  function buildLeaderboardRevealPreviewFromCurrentRecords() {
+    const rows = Array.isArray(leaderboardState.records) ? leaderboardState.records : [];
+    if (!rows.length) return null;
+    const awardSettings = leaderboardAwardsState.settings || normalizeLeaderboardAwardsSettings({
+      schoolYear: dom.adminAwardsSchoolYear?.value || defaultLeaderboardAwardsSchoolYear(),
+      configured: leaderboardSectionSettings.configured,
+      includedSections: leaderboardSectionSettings.includedSections,
+      includedSectionKeys: leaderboardSectionSettings.includedSectionKeys
+    });
+    const included = rows
+      .filter(row => String(row?.accountStatus || 'active') !== 'disabled')
+      .filter(row => !awardSettings.configured || awardSettings.includedSectionKeys.includes(leaderboardSectionKey(row.section || '')));
+    if (!included.length) return null;
+
+    const ranked = assignLeaderboardRanks(included.map(row => ({ ...row, current: false })));
+    const sections = buildSectionLeaderboard(ranked).slice(0, 3);
+    if (sections.length < 3) return null;
+
+    return {
+      version: 1,
+      official: false,
+      preview: true,
+      schoolYear: normalizeLeaderboardAwardsSchoolYear(dom.adminAwardsSchoolYear?.value || leaderboardAwardsState.settings?.schoolYear || ''),
+      generatedAtMs: Date.now(),
+      sourceStudentCount: included.length,
+      sectionAwards: sections.map(row => ({
+        rank: Number(row.rank || 0),
+        name: String(row.name || row.section || 'Section'),
+        studentCount: Math.max(0, Number(row.studentCount || 0)),
+        totalXp: Math.max(0, Number(row.xp || row.totalXp || 0)),
+        averageXp: Math.max(0, Number(row.averageXp || 0))
+      }))
+    };
+  }
+
+  async function previewLeaderboardWinnerRevealFromAdmin() {
+    primeLeaderboardRevealAudio();
+    ensureLeaderboardWinnerRevealDom();
+    if (dom.adminAwardsRevealPreviewBtn) {
+      dom.adminAwardsRevealPreviewBtn.disabled = true;
+      dom.adminAwardsRevealPreviewBtn.textContent = 'Loading Preview…';
+    }
+
+    // Immediate visible feedback so the button can never appear "dead".
+    if (dom.leaderboardRevealOverlay) {
+      leaderboardWinnerRevealState.preview = true;
+      if (dom.leaderboardRevealBadge) {
+        dom.leaderboardRevealBadge.classList.add('preview');
+        dom.leaderboardRevealBadge.textContent = 'Admin Preview · Live Ranking';
+      }
+      if (dom.leaderboardRevealTitle) dom.leaderboardRevealTitle.textContent = 'Preparing Winner Reveal';
+      if (dom.leaderboardRevealLead) dom.leaderboardRevealLead.textContent = 'Loading the latest available Top 3 Section ranking for preview only.';
+      if (dom.leaderboardRevealStage) dom.leaderboardRevealStage.innerHTML = '<div class="code-explorer-awards-reveal-card"><span class="code-explorer-awards-reveal-rank">LOADING</span><span class="code-explorer-awards-reveal-medal">🏆</span><h3>Preparing Top 3</h3><p>This preview does not change or lock any ranking.</p></div>';
+      dom.leaderboardRevealPodium?.classList.add('hidden');
+      dom.leaderboardRevealSkipBtn?.classList.add('hidden');
+      dom.leaderboardRevealViewBtn?.classList.add('hidden');
+      dom.leaderboardRevealOverlay.classList.remove('hidden');
+      document.body.classList.add('code-explorer-modal-open');
+    }
+
+    try {
+      // Prefer the already-rendered/current data first so preview works instantly.
+      let snapshot = leaderboardAwardsState.live;
+      if (!snapshot || normalizeLeaderboardRevealSections(snapshot).length < 3) {
+        snapshot = buildLeaderboardRevealPreviewFromAdminDom();
+      }
+      if (!snapshot || normalizeLeaderboardRevealSections(snapshot).length < 3) {
+        snapshot = buildLeaderboardRevealPreviewFromCurrentRecords();
+      }
+
+      // If teacher auth is active, try a fresh RTDB refresh and prefer that result.
+      if (isTeacherAuthenticated()) {
+        const live = await refreshLeaderboardAwardsLive({ silent: true });
+        if (live && normalizeLeaderboardRevealSections(live).length >= 3) snapshot = live;
+      }
+
+      if (!snapshot || normalizeLeaderboardRevealSections(snapshot).length < 3) {
+        throw new Error('Top 3 Section ranking is not available yet. Click Refresh Award Rankings once, then try Preview Winner Reveal again.');
+      }
+
+      if (!showLeaderboardWinnerReveal(snapshot, { preview: true, openLeaderboardAfter: false })) {
+        throw new Error('The Winner Reveal overlay could not be opened.');
+      }
+    } catch (error) {
+      console.error('Winner reveal preview could not be loaded.', error);
+      setLeaderboardAwardsStatus(error?.message || 'Winner reveal preview could not be loaded.', 'error');
+      if (dom.leaderboardRevealStage) {
+        dom.leaderboardRevealStage.innerHTML = `<div class="code-explorer-awards-reveal-card"><span class="code-explorer-awards-reveal-rank">PREVIEW UNAVAILABLE</span><span class="code-explorer-awards-reveal-medal">⚠️</span><h3>Could not load Top 3</h3><p>${escapeHTML(error?.message || 'Refresh the award rankings and try again.')}</p></div>`;
+      }
+      dom.leaderboardRevealSkipBtn?.classList.add('hidden');
+      dom.leaderboardRevealViewBtn?.classList.remove('hidden');
+      if (dom.leaderboardRevealViewBtn) dom.leaderboardRevealViewBtn.textContent = 'Close Preview';
+    } finally {
+      if (dom.adminAwardsRevealPreviewBtn) {
+        dom.adminAwardsRevealPreviewBtn.disabled = false;
+        dom.adminAwardsRevealPreviewBtn.textContent = '▶ Preview Winner Reveal';
+      }
+    }
+  }
+
+  async function replayOfficialLeaderboardWinnerReveal() {
+    primeLeaderboardRevealAudio();
+    try {
+      const official = await fetchOfficialLeaderboardRevealSnapshot();
+      if (!official) return false;
+      dom.leaderboardOverlay?.classList.add('hidden');
+      return showLeaderboardWinnerReveal(official, { preview: false, openLeaderboardAfter: true });
+    } catch (_) { return false; }
+  }
+
   function defaultLeaderboardAwardsSchoolYear(date = new Date()) {
     const current = date instanceof Date ? date : new Date(date);
     const year = current.getFullYear();
@@ -54991,6 +56696,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       dom.adminAwardsPreviewStudentsBtn,
       dom.adminAwardsDownloadStudentsBtn,
       dom.adminAwardsRefreshBtn,
+      dom.adminAwardsRevealPreviewBtn,
       dom.adminAwardsOfficialSectionsBtn,
       dom.adminAwardsOfficialStudentsBtn,
       dom.adminAwardsOfficialAllBtn
@@ -56496,10 +58202,38 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     }
   }
 
-  function openGlobalLeaderboard() {
+  function openGlobalLeaderboardDirect() {
     dom.leaderboardOverlay?.classList.remove('hidden');
     document.body.classList.add('code-explorer-modal-open');
     loadGlobalLeaderboard();
+    void syncLeaderboardAwardsReplayAvailability();
+  }
+
+  async function syncLeaderboardAwardsReplayAvailability() {
+    if (!dom.leaderboardAwardsReplayBtn) return false;
+    try {
+      const official = await fetchOfficialLeaderboardRevealSnapshot();
+      dom.leaderboardAwardsReplayBtn.classList.toggle('hidden', !official);
+      return Boolean(official);
+    } catch (_) {
+      dom.leaderboardAwardsReplayBtn.classList.add('hidden');
+      return false;
+    }
+  }
+
+  async function openGlobalLeaderboard() {
+    primeLeaderboardRevealAudio();
+    // After the Oct 5 official lock, the first leaderboard open on this account/device
+    // becomes a one-time awards ceremony. The normal leaderboard remains unchanged.
+    try {
+      const official = await fetchOfficialLeaderboardRevealSnapshot();
+      if (official && !hasSeenLeaderboardWinnerReveal(official)) {
+        if (showLeaderboardWinnerReveal(official, { preview: false, openLeaderboardAfter: true })) return;
+      }
+    } catch (error) {
+      console.info('Official awards reveal is not available; opening the normal leaderboard.', error);
+    }
+    openGlobalLeaderboardDirect();
   }
 
   function closeGlobalLeaderboard() {
@@ -57438,6 +59172,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   });
   dom.adminLeaderboardSaveBtn?.addEventListener('click', saveAdminLeaderboardSectionSettings);
   dom.adminAwardsSaveSettingsBtn?.addEventListener('click', () => saveLeaderboardAwardsSettings());
+  dom.adminAwardsRevealPreviewBtn?.addEventListener('click', previewLeaderboardWinnerRevealFromAdmin);
   dom.adminAwardsRefreshBtn?.addEventListener('click', () => refreshLeaderboardAwardsLive());
   dom.adminAwardsPreviewSectionsBtn?.addEventListener('click', () => deliverLeaderboardAwardsPdf('sections', { preview: true }));
   dom.adminAwardsDownloadSectionsBtn?.addEventListener('click', () => deliverLeaderboardAwardsPdf('sections'));
@@ -57566,6 +59301,11 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     syncExplorerMobileChrome();
   });
   dom.leaderboardBtn?.addEventListener('click', openGlobalLeaderboard);
+  dom.leaderboardAwardsReplayBtn?.addEventListener('click', replayOfficialLeaderboardWinnerReveal);
+  dom.leaderboardRevealCloseBtn?.addEventListener('click', () => closeLeaderboardWinnerReveal({ openLeaderboard: true }));
+  dom.leaderboardRevealSkipBtn?.addEventListener('click', finishLeaderboardWinnerReveal);
+  dom.leaderboardRevealViewBtn?.addEventListener('click', () => closeLeaderboardWinnerReveal({ openLeaderboard: true }));
+  dom.leaderboardRevealOverlay?.addEventListener('click', event => { if (event.target === dom.leaderboardRevealOverlay) closeLeaderboardWinnerReveal({ openLeaderboard: true }); });
   dom.leaderboardStudentsTab?.addEventListener('click', () => setLeaderboardMode('students'));
   dom.leaderboardSectionsTab?.addEventListener('click', () => setLeaderboardMode('sections'));
   dom.leaderboardCloseBtn?.addEventListener('click', closeGlobalLeaderboard);

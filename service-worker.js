@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ict8-connect-v617-camillus-spelling-exact';
+const CACHE_NAME = 'ict8-connect-v627-prestige-shine';
 const APP_SHELL = [
   './',
   './index.html',

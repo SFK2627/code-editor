@@ -45,7 +45,7 @@
   </script>
   <link rel="preconnect" href="https://drive.google.com" crossorigin>
   <link rel="preconnect" href="https://lh3.googleusercontent.com" crossorigin>
-  <link rel="stylesheet" href="style.css?v=20260916-v509-fast-device-sync" />
+  <link rel="stylesheet" href="style.css?v=20261003-v618-awards-reveal" />
   <link rel="stylesheet" href="games/mini-games-hub.css?v=20260912-v4761-byte-runner-v81-build-hud" />
   <link rel="stylesheet" href="games/code-fly/code-fly.css?v=20260909-v429-xp-mini-games" />
   <style>
@@ -710,6 +710,7 @@
             <p>Top 10 are highlighted. Student ranks use XP; section ranks use average XP per student. Ties share the same rank.</p>
           </div>
           <div class="code-explorer-leaderboard-head-actions">
+            <button id="codeExplorerLeaderboardAwardsReplayBtn" class="ghost-btn mini hidden" type="button">🏆 Replay Awards</button>
             <button id="codeExplorerLeaderboardRefreshBtn" class="ghost-btn mini" type="button">↻ Refresh</button>
             <button id="codeExplorerLeaderboardCloseBtn" class="icon-btn" type="button" aria-label="Close leaderboard">×</button>
           </div>
@@ -728,6 +729,27 @@
         <div id="codeExplorerLeaderboardStatus" class="code-explorer-leaderboard-status" role="status">Loading rankings...</div>
         <div id="codeExplorerLeaderboardList" class="code-explorer-leaderboard-list" aria-live="polite"></div>
         <p class="code-explorer-leaderboard-note">Mastery XP is earned from first-time learning milestones such as the code puzzle, coding practice, Quick Check, topic completion, final challenge, and certificate. Repeating completed work does not farm XP.</p>
+      </section>
+    </div>
+
+    <div id="codeExplorerLeaderboardRevealOverlay" class="code-explorer-awards-reveal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="codeExplorerLeaderboardRevealTitle">
+      <section class="code-explorer-awards-reveal-shell">
+        <div class="code-explorer-awards-reveal-glow" aria-hidden="true"></div>
+        <div id="codeExplorerLeaderboardRevealConfetti" class="code-explorer-awards-reveal-confetti" aria-hidden="true"></div>
+        <header class="code-explorer-awards-reveal-head">
+          <div>
+            <span id="codeExplorerLeaderboardRevealBadge" class="code-explorer-awards-reveal-badge">Official Section Awards</span>
+            <h2 id="codeExplorerLeaderboardRevealTitle">The Results Are In</h2>
+            <p id="codeExplorerLeaderboardRevealLead">Revealing the Top 3 Sections, one rank at a time.</p>
+          </div>
+          <button id="codeExplorerLeaderboardRevealCloseBtn" class="code-explorer-awards-reveal-close" type="button" aria-label="Close winner reveal">×</button>
+        </header>
+        <div id="codeExplorerLeaderboardRevealStage" class="code-explorer-awards-reveal-stage" aria-live="polite"></div>
+        <div id="codeExplorerLeaderboardRevealPodium" class="code-explorer-awards-reveal-podium hidden" aria-live="polite"></div>
+        <footer class="code-explorer-awards-reveal-actions">
+          <button id="codeExplorerLeaderboardRevealSkipBtn" class="ghost-btn" type="button">Skip to Podium</button>
+          <button id="codeExplorerLeaderboardRevealViewBtn" class="primary-btn hidden" type="button">View Full Leaderboard</button>
+        </footer>
       </section>
     </div>
 
@@ -3199,7 +3221,10 @@ https://example.com/song3.mp3"></textarea>
 
             <div class="code-explorer-admin-awards-foot">
               <p id="codeExplorerAdminAwardsStatus" class="helper-note" role="status">Award certificates use the complete RTDB leaderboard snapshot and do not scan Firestore.</p>
-              <button id="codeExplorerAdminAwardsRefreshBtn" class="ghost-btn mini" type="button">↻ Refresh Award Rankings</button>
+              <div class="code-explorer-admin-awards-foot-actions">
+                <button id="codeExplorerAdminAwardsRevealPreviewBtn" class="primary-btn mini" type="button">▶ Preview Winner Reveal</button>
+                <button id="codeExplorerAdminAwardsRefreshBtn" class="ghost-btn mini" type="button">↻ Refresh Award Rankings</button>
+              </div>
             </div>
           </section>
 
@@ -4701,7 +4726,7 @@ https://example.com/song3.mp3"></textarea>
     })();
   </script>
 
-  <script src="script.js?v=20261003-v617-camillus-spelling-exact"></script>
+  <script src="script.js?v=20261003-v627-prestige-shine"></script>
   <script>
     // v410 fallback: keep the desktop editor settings popover working even if older cached
     // toolbar code fails before binding the click handler.
