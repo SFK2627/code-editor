@@ -17496,6 +17496,54 @@ function getCriterionIntent(criterion) {
   return { text, title, explicitCss, explicitJs, structure, content, htmlElements, semantic };
 }
 
+
+function getStrictHTMLCSSRequirementAudit() {
+  const html = codeStore.html || '';
+  const css = codeStore.css || '';
+  const htmlLower = html.toLowerCase();
+  const cssLower = css.toLowerCase();
+
+  const htmlChecks = [
+    ['DOCTYPE declaration', /<!doctype\s+html/i],
+    ['html language attribute', /<html[^>]*lang\s*=\s*["']en["']/i],
+    ['head section', /<head[\s>]/i],
+    ['body section', /<body[\s>]/i],
+    ['header element', /<header[\s>]/i],
+    ['navigation element', /<nav[\s>]/i],
+    ['main element', /<main[\s>]/i],
+    ['section elements', (html.match(/<section\b/gi)||[]).length >= 5],
+    ['article elements', (html.match(/<article\b/gi)||[]).length >= 5],
+    ['footer element', /<footer[\s>]/i],
+    ['school logo image source', /src\s*=\s*["']https:\/\/rb\.gy\/tb4zmy["']/i],
+    ['navigation anchor links', /href\s*=\s*["']#(vision|mission|commitment|identity|values)["']/i]
+  ];
+
+  const cssChecks = [
+    ['body font family', /body[\s\S]*?font-family\s*:\s*arial/i],
+    ['body margin', /body[\s\S]*?margin\s*:\s*0px/i],
+    ['body background', /body[\s\S]*?background\s*:\s*navy/i],
+    ['header alignment', /header[\s\S]*?text-align\s*:\s*center/i],
+    ['header padding', /header[\s\S]*?padding\s*:\s*25px/i],
+    ['header color', /header[\s\S]*?color\s*:\s*white/i],
+    ['image sizing', /header\s+img[\s\S]*?width\s*:\s*100px[\s\S]*?height\s*:\s*100px/i],
+    ['navigation styling', /nav[\s\S]*?text-align\s*:\s*center/i],
+    ['navigation links', /nav\s+a[\s\S]*?text-decoration\s*:\s*none/i],
+    ['main layout', /main[\s\S]*?width\s*:\s*800px/i],
+    ['article design', /article[\s\S]*?background\s*:\s*white[\s\S]*?padding\s*:\s*20px/i],
+    ['footer styling', /footer[\s\S]*?text-align\s*:\s*center/i]
+  ];
+
+  const run = (checks, source) => checks.map(([label, rule]) => ({
+    label,
+    pass: rule instanceof RegExp ? rule.test(source) : Boolean(rule)
+  }));
+
+  return {
+    html: run(htmlChecks, html),
+    css: run(cssChecks, css)
+  };
+}
+
 function getLocalCriterionEvidence(criterion, progress) {
   const intent = getCriterionIntent(criterion);
   const html = codeStore.html || '';
@@ -17524,6 +17572,15 @@ function getLocalCriterionEvidence(criterion, progress) {
   // Only apply global HTML structure penalties to criteria that actually ask for HTML/source structure.
   // Content and element criteria may mention a specific element without requiring full document structure.
   if (intent.structure || intent.semantic) {
+    const strictAudit = getStrictHTMLCSSRequirementAudit().html;
+    const htmlPassed = strictAudit.filter(item => item.pass).length;
+    const htmlTotal = strictAudit.length;
+    if (htmlPassed < htmlTotal) {
+      const missing = strictAudit.filter(item => !item.pass).slice(0, 4).map(item => item.label);
+      issues.push(`HTML requirements missing or incorrect: ${missing.join(', ')}.`);
+    } else {
+      evidence.push(`HTML requirement checks passed: ${htmlPassed}/${htmlTotal}.`);
+    }
     if (sourceQuality.issues.length) issues.push(...sourceQuality.issues.slice(0, 2));
     const report = getHTMLStructureReport();
     const missing = report.missing.map(item => item.label);
@@ -17569,9 +17626,15 @@ function getLocalCriterionEvidence(criterion, progress) {
   }
 
   if (intent.explicitCss) {
-    if (css.trim()) evidence.push(`CSS is present with ${cssProperties} detected propert${cssProperties === 1 ? 'y' : 'ies'}.`);
-    else issues.push('This rubric item asks for styling/design, but no CSS styling was found.');
-    if (css.trim() && cssProperties > 0 && cssProperties < 3) issues.push('The styling is still limited; add more meaningful CSS properties.');
+    const cssAudit = getStrictHTMLCSSRequirementAudit().css;
+    const passed = cssAudit.filter(item => item.pass).length;
+    const total = cssAudit.length;
+    if (passed) evidence.push(`CSS requirement checks passed: ${passed}/${total}.`);
+    if (!passed) issues.push('No required CSS styling evidence was verified.');
+    if (passed < total) {
+      const missing = cssAudit.filter(item => !item.pass).slice(0, 4).map(item => item.label);
+      issues.push(`Missing or incorrect CSS requirements: ${missing.join(', ')}.`);
+    }
   }
 
   if (intent.explicitJs) {
@@ -20507,83 +20570,7 @@ function getSmartCriterionProgress(criterion) {
 }
 
 
-
-// =========================================================
-// STRICT HTML & CSS REQUIREMENT SCORING
-// Prevents "code exists = perfect" scoring.
-// Scores based on required implementation completeness.
-// =========================================================
-function getStrictHTMLCSSProgress(criterion) {
-  const rubric = `${criterion?.name || ''} ${criterion?.description || ''} ${getCriterionRubricText?.(criterion) || ''}`.toLowerCase();
-  const html = codeStore.html || '';
-  const css = codeStore.css || '';
-
-  // Only activate for HTML/CSS practical activities.
-  const htmlCssActivity = /html|css|webpage|website|structure|styling|design|header|navigation|footer|section/.test(rubric);
-  if (!htmlCssActivity) return null;
-
-  const checks = [];
-
-  const has = (pattern) => pattern.test(html);
-  const hasCss = (pattern) => pattern.test(css);
-
-  // HTML structure checks
-  if (/html/.test(rubric)) {
-    checks.push(has(/<!doctype\s+html>/i));
-    checks.push(has(/<html[^>]*lang\s*=\s*["']?en/i));
-    checks.push(has(/<head[\s>]/i));
-    checks.push(has(/<body[\s>]/i));
-  }
-
-  // Semantic structure
-  const requestedTags = [
-    {tag:'header', re:/<header[\s>]/i},
-    {tag:'nav', re:/<nav[\s>]/i},
-    {tag:'main', re:/<main[\s>]/i},
-    {tag:'section', re:/<section[\s>]/i},
-    {tag:'article', re:/<article[\s>]/i},
-    {tag:'footer', re:/<footer[\s>]/i}
-  ];
-
-  requestedTags.forEach(item => {
-    if (new RegExp(`\\b${item.tag}\\b`).test(rubric)) {
-      checks.push(item.re.test(html));
-    }
-  });
-
-  // CSS validation only if CSS is required
-  if (/css|style|design|background|padding|margin|color|font/.test(rubric)) {
-    const cssRequirements = [
-      /font-family\s*:\s*arial/i,
-      /margin\s*:\s*0px/i,
-      /background\s*:\s*navy/i,
-      /text-align\s*:\s*center/i,
-      /padding\s*:\s*25px/i,
-      /color\s*:\s*white/i,
-      /text-decoration\s*:\s*none/i,
-      /width\s*:\s*800px/i,
-      /margin\s*:\s*20px\s*auto/i,
-      /margin-bottom\s*:\s*20px/i,
-      /background\s*:\s*white/i,
-      /border-radius\s*:\s*10px/i,
-      /line-height\s*:\s*1\.6/i,
-      /padding\s*:\s*20px/i,
-      /margin-top\s*:\s*30px/i
-    ];
-
-    // Only count CSS if CSS exists. Do not reward empty/minimal CSS.
-    cssRequirements.forEach(rule => checks.push(rule.test(css)));
-  }
-
-  if (!checks.length) return null;
-
-  return checks.filter(Boolean).length / checks.length;
-}
-
 function getCriterionProgress(criterion) {
-  const strictProgress = getStrictHTMLCSSProgress(criterion);
-  if (strictProgress !== null) return clamp01(strictProgress);
-
   const smartProgress = getSmartCriterionProgress(criterion);
   if (smartProgress !== null) return clamp01(smartProgress);
 
@@ -20618,7 +20605,7 @@ function getCriterionProgress(criterion) {
     case 'uses_css_property': {
       if (!css.trim()) return 0;
       const properties = (css.match(/[a-z-]+\s*:/gi) || []).length;
-      return Math.min(1, properties / 20);
+      return Math.min(0.85, properties / 4);
     }
     case 'uses_event_listener':
       return js.trim() || /<button(\s|>|\/)/i.test(html) ? 0.5 : 0;
@@ -21391,20 +21378,10 @@ function buildResultFromAiRubricReview(raw, localResult = null) {
       reason: evidence || level.description || ''
     };
   });
-  // Smart scoring safeguard: the selected rubric remains the authority.
-  // Do not allow the review layer to award more points than the evidence-based
-  // rubric result supports. Additional technologies or preferences outside the
-  // rubric must not affect the grade.
-  if (localResult?.results?.length) {
-    results.forEach(item => {
-      const localItem = localResult.results.find(local =>
-        String(local.title || '').trim().toLowerCase() === String(item.title || '').trim().toLowerCase()
-      );
-      if (!localItem) return;
-      applyRubricScoreGuard(item, localItem);
-    });
-    applyAiLocalSynchronizationGuard(results, localResult.results);
-  }
+  // AI rubric evaluation mode:
+  // Gemini is the primary evaluator. Local analysis is provided only as
+  // supporting evidence and not as a score ceiling. The AI must decide the
+  // criterion score based on the teacher rubric and submitted evidence.
   const possible = results.reduce((sum, item) => sum + item.points, 0);
   const score = Math.round(results.reduce((sum, item) => sum + item.earned, 0) * 10) / 10;
   const percent = possible ? Math.round((score / possible) * 100) : 0;
@@ -21599,9 +21576,24 @@ function renderResultLoading(message = 'Checking your complete project against t
 function buildGeminiStudentRubricFeedbackPrompt(result) {
   const payload = buildAIReviewPayload(result);
   const style = aiRubricSettings.reviewStyle || 'balanced';
-  return `You are a careful Grade 8 ICT teacher reviewing a student's HTML/CSS/JavaScript project.
+  return `You are the official Grade 8 ICT teacher evaluating a student's HTML and CSS practical exam.
 
-Use the teacher rubric as the ONLY scoring basis. Compare each rubric criterion with evidence found in the submitted project. Do not add requirements that are not written in the selected rubric. Ignore CSS, JavaScript, design quality, or extra features unless they are explicitly included in the rubric. Do not invent output that is not shown. If a visual judgment is limited because you only have a text summary, mention that limitation briefly. Do not provide a complete replacement code solution.
+You are the final scorer. Do not simply review the existing local score. Independently evaluate the submitted project against the teacher rubric.
+
+Analyze:
+- HTML document structure
+- required tags and attributes
+- missing or unclosed tags
+- incorrect nesting
+- navigation href and section ID matching
+- required content sections
+- CSS selectors, properties, and values
+- CSS syntax errors including misspelled properties
+- incomplete requirements
+
+Do not give full points because code exists. A requirement receives points only when the implementation matches the instruction. Minor errors and major errors must have different effects on the score.
+
+Return a fair teacher evaluation based only on the provided rubric and project evidence. Do not provide replacement code.
 
 Return ONLY valid JSON. No markdown.
 
@@ -21618,10 +21610,10 @@ Required JSON schema:
 }
 
 Scoring rules:
-- Use the existing rubric score as a baseline.
-- Change suggestedScore only if code/output evidence clearly shows the local checker over-scored or under-scored the work.
+- Create the score independently from the submitted evidence.
+- Do not use the local checker score as the grading authority.
 - Never exceed the possible score.
-- Focus on rubric evidence, not generic encouragement.
+- Explain every deduction using specific rubric evidence.
 - Review style: ${style}.
 
 CONTEXT JSON:
@@ -21635,7 +21627,7 @@ function normalizeGeminiStudentReview(raw, fallbackResult) {
     fallback.suggestedScore = Math.round(clamp(Number(fallback.suggestedScore) || 0, 0, maxScore) * 10) / 10;
   }
   fallback.mode = fallback.mode || 'Smart Rubric Feedback';
-  fallback.teacherNote = fallback.teacherNote || 'Smart feedback is a suggested review only. Teacher rubric settings remain the official basis.';
+  fallback.teacherNote = fallback.teacherNote || 'AI rubric evaluation completed using the teacher rubric and submitted project evidence.';
   return fallback;
 }
 
