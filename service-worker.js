@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ict8-connect-v627-prestige-shine';
+const CACHE_NAME = 'ict8-connect-v629-living-podium';
 const APP_SHELL = [
   './',
   './index.html',

@@ -733,24 +733,34 @@
     </div>
 
     <div id="codeExplorerLeaderboardRevealOverlay" class="code-explorer-awards-reveal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="codeExplorerLeaderboardRevealTitle">
-      <section class="code-explorer-awards-reveal-shell">
-        <div class="code-explorer-awards-reveal-glow" aria-hidden="true"></div>
-        <div id="codeExplorerLeaderboardRevealConfetti" class="code-explorer-awards-reveal-confetti" aria-hidden="true"></div>
-        <header class="code-explorer-awards-reveal-head">
-          <div>
-            <span id="codeExplorerLeaderboardRevealBadge" class="code-explorer-awards-reveal-badge">Official Section Awards</span>
-            <h2 id="codeExplorerLeaderboardRevealTitle">The Results Are In</h2>
-            <p id="codeExplorerLeaderboardRevealLead">Revealing the Top 3 Sections, one rank at a time.</p>
-          </div>
-          <button id="codeExplorerLeaderboardRevealCloseBtn" class="code-explorer-awards-reveal-close" type="button" aria-label="Close winner reveal">×</button>
-        </header>
-        <div id="codeExplorerLeaderboardRevealStage" class="code-explorer-awards-reveal-stage" aria-live="polite"></div>
-        <div id="codeExplorerLeaderboardRevealPodium" class="code-explorer-awards-reveal-podium hidden" aria-live="polite"></div>
-        <footer class="code-explorer-awards-reveal-actions">
-          <button id="codeExplorerLeaderboardRevealSkipBtn" class="ghost-btn" type="button">Skip to Podium</button>
-          <button id="codeExplorerLeaderboardRevealViewBtn" class="primary-btn hidden" type="button">View Full Leaderboard</button>
-        </footer>
-      </section>
+        <section class="code-explorer-awards-reveal-shell">
+          <div class="code-explorer-awards-reveal-vignette" aria-hidden="true"></div>
+          <div class="code-explorer-awards-reveal-spotlight left" aria-hidden="true"></div>
+          <div class="code-explorer-awards-reveal-spotlight right" aria-hidden="true"></div>
+          <div id="codeExplorerLeaderboardRevealConfetti" class="code-explorer-awards-reveal-confetti" aria-hidden="true"></div>
+          <header class="code-explorer-awards-reveal-head">
+            <div class="ceremony-brand">
+              <span id="codeExplorerLeaderboardRevealBadge" class="code-explorer-awards-reveal-badge">G8Code Global Leaderboard</span>
+              <h2 id="codeExplorerLeaderboardRevealTitle">Official Section Honors</h2>
+              <p id="codeExplorerLeaderboardRevealLead">Recognizing this year’s highest-ranked sections.</p>
+            </div>
+            <div class="ceremony-controls">
+              <button id="codeExplorerLeaderboardRevealAudioBtn" class="code-explorer-awards-reveal-icon-btn" type="button" aria-label="Mute ceremony music" title="Mute ceremony music">🔊</button>
+              <button id="codeExplorerLeaderboardRevealCloseBtn" class="code-explorer-awards-reveal-icon-btn close" type="button" aria-label="Close winner reveal" title="Close">×</button>
+            </div>
+          </header>
+          <main class="code-explorer-awards-reveal-main">
+            <div id="codeExplorerLeaderboardRevealStage" class="code-explorer-awards-reveal-stage" aria-live="polite"></div>
+            <div id="codeExplorerLeaderboardRevealPodium" class="code-explorer-awards-reveal-podium hidden" aria-live="polite"></div>
+          </main>
+          <footer class="code-explorer-awards-reveal-actions">
+            <span class="ceremony-note">Official results are preserved from the locked leaderboard snapshot.</span>
+            <div>
+              <button id="codeExplorerLeaderboardRevealSkipBtn" class="ceremony-secondary-btn" type="button">Skip Ceremony</button>
+              <button id="codeExplorerLeaderboardRevealViewBtn" class="ceremony-primary-btn hidden" type="button">View Full Leaderboard</button>
+            </div>
+          </footer>
+        </section>
     </div>
 
     <div id="codeExplorerCourseProgressOverlay" class="code-explorer-course-progress-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="codeExplorerCourseProgressTitle">
@@ -4726,7 +4736,7 @@ https://example.com/song3.mp3"></textarea>
     })();
   </script>
 
-  <script src="script.js?v=20261003-v627-prestige-shine"></script>
+  <script src="script.js?v=20261004-v629-living-podium"></script>
   <script>
     // v410 fallback: keep the desktop editor settings popover working even if older cached
     // toolbar code fails before binding the click handler.

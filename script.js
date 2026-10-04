@@ -19734,7 +19734,7 @@ function updateInstallButtonVisibility() {
 function registerPWAServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./service-worker.js?v=627-prestige-shine', {
+    navigator.serviceWorker.register('./service-worker.js?v=629-living-podium', {
       updateViaCache: 'none'
     }).then(registration => {
       registration.update().catch(() => {});
@@ -55040,6 +55040,11 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     master: null,
     compressor: null,
     nodes: [],
+    podiumLoopTimer: null,
+    podiumLoopActive: false,
+    podiumNextAt: 0,
+    podiumBeat: 0,
+    visibilityBound: false,
     muted: false,
     prepared: false
   };
@@ -55085,6 +55090,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   }
 
   function stopLeaderboardRevealMusic(fadeSeconds = 0.18) {
+    stopLeaderboardRevealPodiumMusic();
     const ctx = leaderboardRevealAudioState.context;
     const master = leaderboardRevealAudioState.master;
     if (ctx && master) {
@@ -55103,6 +55109,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   }
 
   function setLeaderboardRevealMuted(muted) {
+    const wasMuted = leaderboardRevealAudioState.muted;
     leaderboardRevealAudioState.muted = muted === true;
     const ctx = leaderboardRevealAudioState.context;
     const master = leaderboardRevealAudioState.master;
@@ -55111,13 +55118,19 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         const now = ctx.currentTime;
         master.gain.cancelScheduledValues(now);
         master.gain.setValueAtTime(master.gain.value, now);
-        master.gain.linearRampToValueAtTime(leaderboardRevealAudioState.muted ? 0 : 0.62, now + 0.16);
+        const volume = leaderboardRevealAudioState.podiumLoopActive ? 0.24 : 0.62;
+        master.gain.linearRampToValueAtTime(leaderboardRevealAudioState.muted ? 0 : volume, now + 0.16);
       } catch (_) {}
     }
     if (dom.leaderboardRevealAudioBtn) {
       dom.leaderboardRevealAudioBtn.textContent = leaderboardRevealAudioState.muted ? '🔇' : '🔊';
       dom.leaderboardRevealAudioBtn.setAttribute('aria-label', leaderboardRevealAudioState.muted ? 'Unmute ceremony music' : 'Mute ceremony music');
       dom.leaderboardRevealAudioBtn.title = leaderboardRevealAudioState.muted ? 'Unmute ceremony music' : 'Mute ceremony music';
+    }
+    if (wasMuted && !leaderboardRevealAudioState.muted && leaderboardRevealAudioState.podiumLoopActive) {
+      window.clearTimeout(leaderboardRevealAudioState.podiumLoopTimer);
+      if (!leaderboardRevealAudioState.nodes.length) leaderboardRevealAudioState.podiumNextAt = (ctx?.currentTime || 0) + 0.08;
+      scheduleLeaderboardRevealPodiumMusic();
     }
   }
 
@@ -55142,6 +55155,10 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       gain.gain.exponentialRampToValueAtTime(0.0001, end);
       osc.connect(gain);
       gain.connect(master);
+      osc.onended = () => {
+        try { osc.disconnect(); gain.disconnect(); } catch (_) {}
+        leaderboardRevealAudioState.nodes = leaderboardRevealAudioState.nodes.filter(node => node !== osc && node !== gain);
+      };
       osc.start(start);
       osc.stop(end + 0.03);
       leaderboardRevealAudioState.nodes.push(osc, gain);
@@ -55427,16 +55444,54 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     }
   }
 
-  function fadeLeaderboardRevealMusicForPodium() {
+  function stopLeaderboardRevealPodiumMusic() {
+    window.clearTimeout(leaderboardRevealAudioState.podiumLoopTimer);
+    leaderboardRevealAudioState.podiumLoopTimer = null;
+    leaderboardRevealAudioState.podiumLoopActive = false;
+  }
+
+  function scheduleLeaderboardRevealPodiumMusic() {
+    const audio = leaderboardRevealAudioState;
+    if (!audio.podiumLoopActive) return;
+    if (document.hidden || dom.leaderboardRevealOverlay?.classList.contains('hidden') || leaderboardWinnerRevealState.stage !== 'podium') {
+      stopLeaderboardRevealMusic(0.12);
+      return;
+    }
+    const ctx = audio.context;
+    if (ctx?.state === 'running' && !audio.muted) {
+      // Schedule against the audio clock so chord tails overlap smoothly.
+      // A throttled timer resumes at the current time without a burst of old notes.
+      if (audio.podiumNextAt < ctx.currentTime) audio.podiumNextAt = ctx.currentTime + 0.08;
+      const chords = [[130.81,196,329.63], [110,164.81,261.63], [146.83,220,349.23], [98,196,293.66]];
+      const melody = [659.25,523.25,698.46,587.33];
+      while (audio.podiumNextAt < ctx.currentTime + 1.5) {
+        const beat = audio.podiumBeat % chords.length;
+        const offset = Math.max(0, audio.podiumNextAt - ctx.currentTime);
+        playLeaderboardRevealChord(chords[beat], offset, 4.2, 0.042);
+        scheduleLeaderboardRevealTone(melody[beat], offset + 1.1, 2.4, 0.024, 'sine');
+        audio.podiumNextAt += 3.6;
+        audio.podiumBeat += 1;
+      }
+    }
+    audio.podiumLoopTimer = window.setTimeout(scheduleLeaderboardRevealPodiumMusic, 800);
+  }
+
+  function startLeaderboardRevealPodiumMusic() {
+    stopLeaderboardRevealMusic(0.12);
+    if (document.hidden || !primeLeaderboardRevealAudio()) return;
     const ctx = leaderboardRevealAudioState.context;
     const master = leaderboardRevealAudioState.master;
     if (!ctx || !master) return;
+    leaderboardRevealAudioState.podiumLoopActive = true;
+    leaderboardRevealAudioState.podiumBeat = 0;
+    leaderboardRevealAudioState.podiumNextAt = ctx.currentTime + 0.08;
     try {
       const now = ctx.currentTime;
       master.gain.cancelScheduledValues(now);
-      master.gain.setValueAtTime(master.gain.value, now);
-      master.gain.linearRampToValueAtTime(leaderboardRevealAudioState.muted ? 0 : 0.14, now + 2.8);
+      master.gain.setValueAtTime(0, now);
+      master.gain.linearRampToValueAtTime(leaderboardRevealAudioState.muted ? 0 : 0.24, now + 1.2);
     } catch (_) {}
+    scheduleLeaderboardRevealPodiumMusic();
   }
 
   function leaderboardRevealMetal(rank = 0) {
@@ -55539,19 +55594,22 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   }
 
 
-  function launchLeaderboardRevealConfetti() {
+  function launchLeaderboardRevealConfetti(options = {}) {
     if (!dom.leaderboardRevealConfetti) return;
     dom.leaderboardRevealConfetti.innerHTML = '';
+    const ambient = options.ambient === true;
+    const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
     const swatches = ['#d8b35b','#f2df9b','#f8fafc','#cbd5e1','#9fb7d5'];
-    for (let i = 0; i < 42; i += 1) {
+    for (let i = 0; i < (reducedMotion ? 0 : (ambient ? 18 : 42)); i += 1) {
       const piece = document.createElement('i');
-      piece.className = 'code-explorer-awards-confetti-piece';
-      piece.style.left = `${Math.random()*100}%`;
+      piece.className = `code-explorer-awards-confetti-piece${ambient ? ' ceremony-ambient-confetti' : ''}`;
+      piece.style.left = `${ambient ? (i % 2 ? 86 : 0) + Math.random()*14 : Math.random()*100}%`;
       piece.style.background = swatches[i % swatches.length];
-      piece.style.setProperty('--fall', `${3.2 + Math.random()*2.8}s`);
-      piece.style.setProperty('--drift', `${-70 + Math.random()*140}px`);
+      const fall = ambient ? 7 + Math.random()*7 : 3.2 + Math.random()*2.8;
+      piece.style.setProperty('--fall', `${fall}s`);
+      piece.style.setProperty('--drift', `${ambient ? -12 + Math.random()*24 : -70 + Math.random()*140}px`);
       piece.style.setProperty('--rot', `${Math.random()*360}deg`);
-      piece.style.animationDelay = `${Math.random()*.8}s`;
+      piece.style.animationDelay = `${ambient ? -Math.random()*fall : Math.random()*.8}s`;
       dom.leaderboardRevealConfetti.appendChild(piece);
     }
   }
@@ -55574,15 +55632,15 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     }
 
     // Keep the top bar minimal. The actual final title lives with the centered podium.
-    if (dom.leaderboardRevealTitle) dom.leaderboardRevealTitle.textContent = '';
+    if (dom.leaderboardRevealTitle) dom.leaderboardRevealTitle.textContent = 'Section Honors';
     if (dom.leaderboardRevealLead) dom.leaderboardRevealLead.textContent = '';
 
     renderLeaderboardRevealPodium();
 
     dom.leaderboardRevealSkipBtn?.classList.add('hidden');
     dom.leaderboardRevealViewBtn?.classList.remove('hidden');
-    launchLeaderboardRevealConfetti();
-    fadeLeaderboardRevealMusicForPodium();
+    launchLeaderboardRevealConfetti({ ambient: true });
+    startLeaderboardRevealPodiumMusic();
   }
 
   function scheduleLeaderboardRevealStep(callback, delay) {
@@ -55675,6 +55733,36 @@ window.MCS_PHONE_MENU_STATUS = () => ({
 
 
     const shell = overlay.querySelector('.code-explorer-awards-reveal-shell');
+    if (shell) {
+      // Older cached HTML put the stage and podium directly in the shell.
+      // Keep the same nodes/listeners, but give both a shared center grid row.
+      const head = shell.querySelector('.code-explorer-awards-reveal-head');
+      const actions = shell.querySelector('.code-explorer-awards-reveal-actions');
+      let main = shell.querySelector('.code-explorer-awards-reveal-main');
+      if (!main) {
+        main = document.createElement('main');
+        main.className = 'code-explorer-awards-reveal-main';
+        shell.insertBefore(main, actions);
+      }
+      ['codeExplorerLeaderboardRevealStage', 'codeExplorerLeaderboardRevealPodium'].forEach(id => {
+        const node = overlay.querySelector(`#${id}`);
+        if (node && node.parentElement !== main) main.appendChild(node);
+      });
+      head?.firstElementChild?.classList.add('ceremony-brand');
+      shell.querySelector('.code-explorer-awards-reveal-glow')?.remove();
+      let buttons = actions?.querySelector('div');
+      if (actions && !buttons) {
+        buttons = document.createElement('div');
+        actions.appendChild(buttons);
+      }
+      ['codeExplorerLeaderboardRevealSkipBtn', 'codeExplorerLeaderboardRevealViewBtn'].forEach(id => {
+        const button = overlay.querySelector(`#${id}`);
+        if (!button) return;
+        button.classList.remove('ghost-btn', 'primary-btn');
+        button.classList.add(id.endsWith('SkipBtn') ? 'ceremony-secondary-btn' : 'ceremony-primary-btn');
+        if (buttons && button.parentElement !== buttons) buttons.appendChild(button);
+      });
+    }
     if (shell && !shell.querySelector('.ceremony-stage-decor')) {
       const decor = document.createElement('div');
       decor.className = 'ceremony-stage-decor';
@@ -55682,7 +55770,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       decor.innerHTML = `
         <div class="ceremony-gold-arch"></div>
         <div class="ceremony-stage-stars">
-          ${Array.from({ length: 22 }, (_, i) => `<i style="--i:${i};--x:${8 + (i * 37) % 84}%;--y:${10 + (i * 23) % 72}%"></i>`).join('')}
+          ${Array.from({ length: 22 }, (_, i) => `<i style="--i:${i};--x:${8 + (i * 37) % 84}%;--y:${10 + (i * 23) % 72}%;--twinkle:${2.4 + (i % 5)*.45}s"></i>`).join('')}
         </div>
         <div class="ceremony-stage-beam beam-a"></div>
         <div class="ceremony-stage-beam beam-b"></div>
@@ -55868,58 +55956,120 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         .code-explorer-awards-reveal-shell{padding-top:12px!important;padding-bottom:10px!important}.code-explorer-awards-reveal-head h2{font-size:clamp(1.15rem,3vh,1.8rem)!important}.code-explorer-awards-reveal-head p{display:none!important}.code-explorer-awards-reveal-card{padding-top:14px!important;padding-bottom:14px!important}.code-explorer-awards-medallion{width:64px!important;height:64px!important}.code-explorer-awards-reveal-card h3{font-size:clamp(1.35rem,5vh,2.5rem)!important}.code-explorer-awards-suspense h3{font-size:clamp(1.6rem,6vh,3.1rem)!important}.ceremony-podium-heading h3{font-size:clamp(1.25rem,4vh,2rem)!important}.code-explorer-awards-podium-card{min-height:104px!important}.code-explorer-awards-podium-card.first{min-height:132px!important}.ceremony-note{display:none!important}
       }
 
-      .code-explorer-awards-reveal-overlay.preview-mode .ceremony-note{display:none!important}
-      .code-explorer-awards-reveal-overlay.preview-mode #codeExplorerLeaderboardRevealSkipBtn{display:none!important}
-      .code-explorer-awards-reveal-overlay:not(.preview-mode) #codeExplorerLeaderboardRevealSkipBtn{
-        opacity:.72!important; font-size:.66rem!important; padding:0 12px!important; min-height:34px!important;
+      /* V628: one header, one centered content area, and one separate footer. */
+      .code-explorer-awards-reveal-overlay,
+      .code-explorer-awards-reveal-shell,
+      .code-explorer-awards-reveal-shell *{box-sizing:border-box!important}
+      .code-explorer-awards-reveal-overlay{
+        width:100%!important;height:100vh!important;height:100dvh!important;
+        max-height:none!important;
       }
-      .code-explorer-awards-reveal-stage.hidden{display:none!important}
-      .code-explorer-awards-reveal-overlay.podium-mode .code-explorer-awards-reveal-shell{
-        grid-template-rows:42px minmax(0,1fr) 46px!important;
-        padding-top:12px!important;
+      .code-explorer-awards-reveal-overlay .code-explorer-awards-reveal-shell{
+        width:100%!important;height:100vh!important;height:100dvh!important;
+        max-height:none!important;min-height:0!important;min-width:0!important;
+        grid-template-areas:'header' 'content' 'footer'!important;
+        grid-template-columns:minmax(0,1fr)!important;
+        grid-template-rows:auto minmax(0,1fr) auto!important;
+        padding:
+          max(12px,env(safe-area-inset-top))
+          max(clamp(14px,3vw,42px),env(safe-area-inset-right))
+          max(12px,env(safe-area-inset-bottom))
+          max(clamp(14px,3vw,42px),env(safe-area-inset-left))!important;
       }
+      .code-explorer-awards-reveal-head{
+        grid-area:header!important;min-width:0!important;gap:10px!important;
+      }
+      .code-explorer-awards-reveal-head .ceremony-brand{
+        display:block!important;min-width:0!important;flex:1 1 auto!important;
+      }
+      .code-explorer-awards-reveal-badge{
+        max-width:100%!important;white-space:normal!important;
+        overflow-wrap:anywhere!important;line-height:1.3!important;
+      }
+      .code-explorer-awards-reveal-head h2:empty,
+      .code-explorer-awards-reveal-head p:empty{display:none!important}
+      .code-explorer-awards-reveal-overlay .code-explorer-awards-reveal-main{
+        grid-area:content!important;position:relative!important;
+        display:flex!important;flex-direction:column!important;
+        align-items:center!important;justify-content:center!important;
+        justify-content:safe center!important;
+        min-width:0!important;min-height:0!important;padding:16px 0!important;
+        overflow-x:hidden!important;overflow-y:auto!important;
+        overscroll-behavior:contain!important;-webkit-overflow-scrolling:touch;
+      }
+      .code-explorer-awards-reveal-overlay .code-explorer-awards-reveal-stage{
+        position:relative!important;inset:auto!important;width:100%!important;
+        height:auto!important;max-height:none!important;min-width:0!important;
+        flex:0 0 auto!important;padding:0!important;overflow:visible!important;
+      }
+      .code-explorer-awards-reveal-card{
+        width:min(760px,100%)!important;max-height:none!important;
+      }
+      .code-explorer-awards-reveal-card h3,
+      .code-explorer-awards-suspense h3,
+      .code-explorer-awards-podium-card strong{overflow-wrap:anywhere!important}
+      .code-explorer-awards-reveal-overlay .code-explorer-awards-reveal-podium{
+        position:relative!important;inset:auto!important;
+        width:min(1000px,100%)!important;height:auto!important;
+        max-height:none!important;min-height:0!important;min-width:0!important;
+        flex:0 0 auto!important;display:grid!important;
+        grid-template-columns:minmax(0,1fr)!important;
+        grid-template-rows:auto auto!important;align-content:center!important;
+        justify-items:center!important;gap:clamp(12px,2.4vh,24px)!important;
+        padding:0!important;margin:0!important;transform:none!important;
+        overflow:visible!important;
+      }
+      .code-explorer-awards-reveal-overlay .code-explorer-awards-reveal-stage.hidden,
+      .code-explorer-awards-reveal-overlay .code-explorer-awards-reveal-podium.hidden{
+        display:none!important;
+      }
+      .ceremony-podium-heading{
+        width:100%!important;min-width:0!important;align-self:center!important;
+        text-align:center!important;margin:0!important;padding:0!important;
+      }
+      .ceremony-podium-heading span{
+        display:block!important;line-height:1.4!important;overflow-wrap:anywhere!important;
+      }
+      .ceremony-podium-heading h3{
+        margin:7px 0 4px!important;font-size:clamp(1.55rem,3.8vh,2.65rem)!important;
+        line-height:1.1!important;
+      }
+      .ceremony-podium-heading .ceremony-rule{margin:10px auto 0!important}
+      .ceremony-podium-grid{
+        width:100%!important;height:auto!important;max-height:none!important;
+        min-width:0!important;display:grid!important;
+        grid-template-columns:repeat(3,minmax(0,1fr))!important;
+        align-items:end!important;gap:clamp(6px,1.8vw,22px)!important;
+        padding:0!important;margin:0!important;
+      }
+      .code-explorer-awards-podium-card{
+        width:100%!important;min-width:0!important;max-height:none!important;
+        min-height:clamp(150px,24vh,215px)!important;
+      }
+      .code-explorer-awards-podium-card.first{min-height:clamp(195px,31vh,285px)!important}
+      .code-explorer-awards-podium-card strong{max-width:100%!important;line-height:1.2!important}
+      .code-explorer-awards-podium-card small{line-height:1.3!important}
+      .podium-rank{flex-shrink:0!important}
+      .code-explorer-awards-reveal-actions{
+        grid-area:footer!important;min-width:0!important;min-height:44px!important;
+        padding:4px 0 0!important;
+      }
+      .code-explorer-awards-reveal-actions>div{flex-wrap:wrap!important;justify-content:center!important}
       .code-explorer-awards-reveal-overlay.podium-mode .code-explorer-awards-reveal-head{
-        align-items:center!important; min-height:42px!important;
+        align-items:center!important;min-height:40px!important;
       }
-      .code-explorer-awards-reveal-overlay.podium-mode .ceremony-brand{
-        display:flex!important; align-items:center!important; gap:10px!important;
+      .code-explorer-awards-reveal-overlay.podium-mode .ceremony-brand h2,
+      .code-explorer-awards-reveal-overlay.podium-mode .ceremony-brand p,
+      .code-explorer-awards-reveal-overlay.preview-mode .ceremony-note,
+      .code-explorer-awards-reveal-overlay.preview-mode #codeExplorerLeaderboardRevealSkipBtn{
+        display:none!important;
       }
-      .code-explorer-awards-reveal-overlay.podium-mode .code-explorer-awards-reveal-head h2{
-        margin:0!important; font-size:clamp(1rem,2vw,1.45rem)!important; line-height:1!important;
+      .code-explorer-awards-reveal-overlay.podium-mode .code-explorer-awards-reveal-actions,
+      .code-explorer-awards-reveal-overlay.preview-mode .code-explorer-awards-reveal-actions{
+        justify-content:center!important;
       }
-      .code-explorer-awards-reveal-overlay.podium-mode .code-explorer-awards-reveal-head p{display:none!important}
-      .code-explorer-awards-reveal-overlay.podium-mode .code-explorer-awards-reveal-badge{
-        padding:5px 9px!important; font-size:.58rem!important;
-      }
-      .code-explorer-awards-reveal-overlay.podium-mode .code-explorer-awards-reveal-main{
-        overflow:hidden!important; padding:0!important;
-      }
-      .code-explorer-awards-reveal-overlay.podium-mode .code-explorer-awards-reveal-podium{
-        position:relative!important; inset:auto!important; width:100%!important; height:100%!important;
-        display:grid!important; grid-template-rows:auto minmax(0,1fr)!important;
-        place-items:center!important; align-content:center!important;
-        padding:2px 0 4px!important; overflow:hidden!important;
-      }
-      .code-explorer-awards-reveal-overlay.podium-mode .ceremony-podium-heading{
-        align-self:center!important; margin:0!important; padding:0!important;
-      }
-      .code-explorer-awards-reveal-overlay.podium-mode .ceremony-podium-heading h3{
-        margin:3px 0!important; font-size:clamp(1.25rem,3.2vh,2.15rem)!important;
-      }
-      .code-explorer-awards-reveal-overlay.podium-mode .ceremony-podium-heading .ceremony-rule{
-        margin:7px auto 4px!important;
-      }
-      .code-explorer-awards-reveal-overlay.podium-mode .ceremony-podium-grid{
-        height:100%!important; max-height:48vh!important; align-self:center!important;
-      }
-      .code-explorer-awards-reveal-overlay.podium-mode .code-explorer-awards-podium-card{
-        min-height:clamp(118px,21vh,190px)!important;
-      }
-      .code-explorer-awards-reveal-overlay.podium-mode .code-explorer-awards-podium-card.first{
-        min-height:clamp(150px,27vh,240px)!important;
-      }
-      .code-explorer-awards-reveal-overlay.podium-mode .code-explorer-awards-reveal-actions{
-        min-height:42px!important; align-items:center!important; padding:0!important;
+      .code-explorer-awards-reveal-overlay:not(.preview-mode) #codeExplorerLeaderboardRevealSkipBtn{
+        opacity:.72!important;font-size:.66rem!important;padding:0 12px!important;min-height:34px!important;
       }
       .code-explorer-awards-reveal-overlay.champion-mode .code-explorer-awards-reveal-shell{
         background:
@@ -55927,131 +56077,31 @@ window.MCS_PHONE_MENU_STATUS = () => ({
           radial-gradient(circle at 50% 100%,rgba(70,52,16,.32),transparent 42%),
           linear-gradient(145deg,#020713 0%,#0b1420 48%,#05060a 100%)!important;
       }
-      .code-explorer-awards-reveal-overlay.champion-mode .code-explorer-awards-reveal-card.champion{
-        transform:scale(1.025);
+      @media(max-width:600px){
+        .code-explorer-awards-reveal-badge{font-size:.56rem!important;letter-spacing:.1em!important}
+        .code-explorer-awards-reveal-icon-btn{width:36px!important;height:36px!important}
+        .ceremony-controls{gap:6px!important}
+        .ceremony-podium-heading span{font-size:.56rem!important;letter-spacing:.12em!important}
+        .code-explorer-awards-podium-card{min-height:154px!important;padding:14px 6px!important;border-radius:14px!important}
+        .code-explorer-awards-podium-card.first{min-height:186px!important}
+        .code-explorer-awards-podium-card strong{font-size:clamp(.84rem,3.4vw,1rem)!important}
+        .code-explorer-awards-podium-card small{font-size:.6rem!important;letter-spacing:.02em!important}
+        .podium-rank{width:36px!important;height:36px!important;font-size:1.25rem!important}
       }
-      @media(max-height:760px){
-        .code-explorer-awards-reveal-overlay.podium-mode .ceremony-podium-grid{max-height:45vh!important}
-        .code-explorer-awards-reveal-overlay.podium-mode .code-explorer-awards-podium-card{min-height:104px!important}
-        .code-explorer-awards-reveal-overlay.podium-mode .code-explorer-awards-podium-card.first{min-height:132px!important}
-      }
-
-
-      /* V623: final podium is one centered composition, never a multi-column parent. */
-      .code-explorer-awards-reveal-overlay.podium-mode .code-explorer-awards-reveal-shell{
-        grid-template-rows:42px minmax(0,1fr) 48px!important;
-        padding:12px clamp(18px,3vw,42px) 12px!important;
-      }
-      .code-explorer-awards-reveal-overlay.podium-mode .code-explorer-awards-reveal-head{
-        min-height:42px!important;
-        align-items:center!important;
-      }
-      .code-explorer-awards-reveal-overlay.podium-mode .ceremony-brand{
-        display:flex!important;
-        align-items:center!important;
-        gap:10px!important;
-      }
-      .code-explorer-awards-reveal-overlay.podium-mode .ceremony-brand h2,
-      .code-explorer-awards-reveal-overlay.podium-mode .ceremony-brand p{
-        display:none!important;
-      }
-      .code-explorer-awards-reveal-overlay.podium-mode .code-explorer-awards-reveal-main{
-        display:grid!important;
-        place-items:center!important;
-        min-height:0!important;
-        overflow:hidden!important;
-        padding:0!important;
-      }
-      .code-explorer-awards-reveal-overlay.podium-mode .code-explorer-awards-reveal-podium{
-        position:relative!important;
-        inset:auto!important;
-        width:min(1000px,92vw)!important;
-        height:auto!important;
-        max-height:none!important;
-        min-height:0!important;
-        display:grid!important;
-        grid-template-columns:1fr!important;
-        grid-template-rows:auto auto!important;
-        align-content:center!important;
-        justify-items:center!important;
-        gap:clamp(16px,2.6vh,26px)!important;
-        padding:0!important;
-        margin:0 auto!important;
-        overflow:visible!important;
-      }
-      .code-explorer-awards-reveal-overlay.podium-mode .ceremony-podium-heading{
-        grid-column:1!important;
-        grid-row:1!important;
-        width:100%!important;
-        align-self:center!important;
-        justify-self:center!important;
-        text-align:center!important;
-        margin:0!important;
-        padding:0!important;
-      }
-      .code-explorer-awards-reveal-overlay.podium-mode .ceremony-podium-heading span{
-        display:block!important;
-        max-width:none!important;
-        margin:0 auto!important;
-      }
-      .code-explorer-awards-reveal-overlay.podium-mode .ceremony-podium-heading h3{
-        margin:7px 0 4px!important;
-        font-size:clamp(1.55rem,3.8vh,2.65rem)!important;
-        line-height:1!important;
-      }
-      .code-explorer-awards-reveal-overlay.podium-mode .ceremony-podium-heading .ceremony-rule{
-        margin:10px auto 0!important;
-      }
-      .code-explorer-awards-reveal-overlay.podium-mode .ceremony-podium-grid{
-        grid-column:1!important;
-        grid-row:2!important;
-        width:100%!important;
-        height:auto!important;
-        max-height:none!important;
-        display:grid!important;
-        grid-template-columns:repeat(3,minmax(0,1fr))!important;
-        align-items:end!important;
-        justify-items:stretch!important;
-        gap:clamp(12px,1.8vw,22px)!important;
-        margin:0!important;
-        padding:0!important;
-      }
-      .code-explorer-awards-reveal-overlay.podium-mode .code-explorer-awards-podium-card{
-        width:100%!important;
-        min-height:clamp(150px,24vh,215px)!important;
-        max-height:none!important;
-      }
-      .code-explorer-awards-reveal-overlay.podium-mode .code-explorer-awards-podium-card.first{
-        min-height:clamp(195px,31vh,285px)!important;
-      }
-      .code-explorer-awards-reveal-overlay.podium-mode .code-explorer-awards-reveal-actions{
-        min-height:48px!important;
-        justify-content:center!important;
-        padding:0!important;
-      }
-      .code-explorer-awards-reveal-overlay.podium-mode .code-explorer-awards-reveal-actions>div{
-        margin:0 auto!important;
-      }
-      .code-explorer-awards-reveal-overlay.preview-mode .code-explorer-awards-reveal-actions{
-        justify-content:center!important;
-      }
-      .code-explorer-awards-reveal-overlay.preview-mode .code-explorer-awards-reveal-actions>div{
-        margin:0 auto!important;
-      }
-      @media(max-height:760px){
-        .code-explorer-awards-reveal-overlay.podium-mode .code-explorer-awards-reveal-podium{
-          gap:10px!important;
-          transform:translateY(-4px);
-        }
-        .code-explorer-awards-reveal-overlay.podium-mode .code-explorer-awards-podium-card{
-          min-height:120px!important;
-        }
-        .code-explorer-awards-reveal-overlay.podium-mode .code-explorer-awards-podium-card.first{
-          min-height:158px!important;
-        }
-        .code-explorer-awards-reveal-overlay.podium-mode .ceremony-podium-heading h3{
-          font-size:clamp(1.25rem,3.4vh,2rem)!important;
-        }
+      @media(max-height:480px){
+        .code-explorer-awards-reveal-head h2{font-size:1.1rem!important;margin-top:4px!important}
+        .code-explorer-awards-reveal-overlay .code-explorer-awards-reveal-main{padding:12px 0!important}
+        .code-explorer-awards-reveal-card{padding:12px 18px!important}
+        .code-explorer-awards-medallion{width:42px!important;height:42px!important;margin:4px auto 8px!important}
+        .code-explorer-awards-medallion b{font-size:1.65rem!important}
+        .code-explorer-awards-reveal-card h3{font-size:clamp(1.25rem,5vh,1.75rem)!important}
+        .ceremony-ornament{margin-bottom:4px!important}
+        .ceremony-rule{margin:8px auto!important}
+        .ceremony-podium-heading h3{font-size:1.3rem!important}
+        .code-explorer-awards-podium-card{min-height:100px!important;padding:10px 6px!important}
+        .code-explorer-awards-podium-card.first{min-height:124px!important}
+        .podium-rank{width:32px!important;height:32px!important;font-size:1.15rem!important;margin-bottom:6px!important}
+        .ceremony-note{display:none!important}
       }
 
 
@@ -56149,7 +56199,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       .ceremony-stage-stars i{
         position:absolute!important;left:var(--x)!important;top:var(--y)!important;width:3px!important;height:3px!important;border-radius:50%!important;
         background:#f6e7b0!important;box-shadow:0 0 12px rgba(246,231,176,.65)!important;
-        animation:ceremonyStarTwinkle calc(2.4s + (var(--i) % 5)*.45s) ease-in-out infinite alternate!important;
+        animation:ceremonyStarTwinkle var(--twinkle,3.2s) ease-in-out infinite alternate!important;
         animation-delay:calc(var(--i)*-.17s)!important;
       }
       .ceremony-stage-beam{
@@ -56328,7 +56378,64 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       @keyframes ceremonyChampionLabelGlow{from{opacity:.66;text-shadow:0 0 0 rgba(216,179,91,0)}to{opacity:1;text-shadow:0 0 18px rgba(216,179,91,.38)}}
       @keyframes ceremonyRuleSpark{0%,100%{opacity:.38;transform:translate(-50%,-50%) scale(.7)}50%{opacity:1;transform:translate(-50%,-50%) scale(1.15)}}
 
-      @media(prefers-reduced-motion:reduce){.code-explorer-awards-reveal-card,.code-explorer-awards-podium-card,.code-explorer-awards-medallion.gold{animation-duration:.01ms!important;animation-iteration-count:1!important}}
+      /* V629: the final podium stays alive while the awards remain open. */
+      .code-explorer-awards-reveal-overlay.podium-mode .ceremony-stage-decor::before{
+        content:'';position:absolute;inset:-25%;pointer-events:none;
+        background:
+          radial-gradient(ellipse at 30% 30%,rgba(216,179,91,.18),transparent 34%),
+          radial-gradient(ellipse at 70% 65%,rgba(71,112,175,.20),transparent 38%);
+        animation:ceremonyPodiumAurora 14s ease-in-out infinite alternate;
+      }
+      .code-explorer-awards-reveal-overlay.podium-mode .ceremony-stage-beam{opacity:.2!important}
+      .code-explorer-awards-reveal-overlay.podium-mode .ceremony-stage-floor{
+        animation:ceremonyPodiumFloor 6s ease-in-out infinite alternate!important;
+      }
+      .code-explorer-awards-reveal-overlay.podium-mode .code-explorer-awards-podium-card{
+        animation:
+          ceremonyPodiumRise .95s cubic-bezier(.16,1,.3,1) both,
+          ceremonyPodiumGlow 4.8s ease-in-out 1s infinite alternate!important;
+      }
+      .code-explorer-awards-reveal-overlay.podium-mode .code-explorer-awards-podium-card::before{
+        content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+        background:linear-gradient(110deg,transparent 30%,rgba(255,255,255,.09) 50%,transparent 70%);
+        background-size:250% 100%;background-position:130% 0;
+        animation:ceremonyPodiumSheen 7s ease-in-out infinite;
+      }
+      .code-explorer-awards-reveal-overlay.podium-mode .code-explorer-awards-podium-card.first{
+        box-shadow:0 0 38px rgba(216,179,91,.16)!important;
+      }
+      .code-explorer-awards-reveal-overlay.podium-mode .podium-rank{
+        animation:ceremonyPodiumMedalGlow 3.4s ease-in-out infinite alternate!important;
+      }
+      .code-explorer-awards-reveal-overlay.podium-mode .ceremony-ambient-confetti{
+        width:3px!important;height:7px!important;
+        animation:ceremonyAmbientFall var(--fall) linear infinite!important;
+      }
+      @keyframes ceremonyPodiumAurora{
+        from{transform:translate(-4%,-2%) rotate(-4deg);opacity:.55}
+        to{transform:translate(4%,3%) rotate(5deg);opacity:1}
+      }
+      @keyframes ceremonyPodiumFloor{from{opacity:.45}to{opacity:1}}
+      @keyframes ceremonyPodiumGlow{from{filter:brightness(1)}to{filter:brightness(1.08)}}
+      @keyframes ceremonyPodiumSheen{
+        0%,20%{background-position:130% 0;opacity:0}
+        40%{opacity:1}
+        65%,100%{background-position:-130% 0;opacity:0}
+      }
+      @keyframes ceremonyPodiumMedalGlow{
+        from{box-shadow:0 0 0 0 transparent}
+        to{box-shadow:0 0 18px -5px currentColor}
+      }
+      @keyframes ceremonyAmbientFall{
+        0%{transform:translate3d(0,-6vh,0) rotate(0);opacity:0}
+        15%,85%{opacity:.4}
+        100%{transform:translate3d(var(--drift),108vh,0) rotate(var(--rot));opacity:0}
+      }
+      @media(prefers-reduced-motion:reduce){
+        .code-explorer-awards-reveal-overlay *,
+        .code-explorer-awards-reveal-overlay *::before,
+        .code-explorer-awards-reveal-overlay *::after{animation:none!important;transition:none!important}
+      }
     `;
 
     if (dom.leaderboardRevealCloseBtn && !dom.leaderboardRevealCloseBtn.dataset.revealBound) {
@@ -56351,6 +56458,14 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       overlay.dataset.revealBackdropBound = '1';
       overlay.addEventListener('click', event => {
         if (event.target === overlay) closeLeaderboardWinnerReveal({ openLeaderboard: false });
+      });
+    }
+    if (!leaderboardRevealAudioState.visibilityBound) {
+      leaderboardRevealAudioState.visibilityBound = true;
+      document.addEventListener('visibilitychange', () => {
+        if (!leaderboardWinnerRevealState.finished || !leaderboardWinnerRevealState.snapshot || dom.leaderboardRevealOverlay?.classList.contains('hidden')) return;
+        if (document.hidden) stopLeaderboardRevealMusic(0.12);
+        else startLeaderboardRevealPodiumMusic();
       });
     }
 
@@ -56381,7 +56496,8 @@ window.MCS_PHONE_MENU_STATUS = () => ({
 
     scheduleLeaderboardRevealRiser(0, 0.9, 0.72);
 
-    window.setTimeout(() => {
+    scheduleLeaderboardRevealStep(() => {
+      if (!leaderboardWinnerRevealState.snapshot || leaderboardWinnerRevealState.finished || dom.leaderboardRevealOverlay?.classList.contains('hidden')) return;
       if (typeof nextRenderer === 'function') nextRenderer();
       if (typeof cue === 'function') cue();
     }, 780);
