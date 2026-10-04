@@ -2381,7 +2381,7 @@ let adminLatestAiReview = null;
 let adminAiRubricController = null;
 let aiRubricConnectionState = { status: 'untested', code: '', message: '' };
 
-const MCS_APP_BUILD = 'v634-evidence-corrected-awards';
+const MCS_APP_BUILD = 'v636-private-live-rank';
 window.MCS_APP_BUILD = MCS_APP_BUILD;
 console.info(`[MCSian Code Editor] ${MCS_APP_BUILD} loaded`);
 
@@ -19736,7 +19736,7 @@ function updateInstallButtonVisibility() {
 function registerPWAServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./service-worker.js?v=634-evidence-corrected-awards', {
+    navigator.serviceWorker.register('./service-worker.js?v=636-private-live-rank', {
       updateViaCache: 'none'
     }).then(registration => {
       registration.update().catch(() => {});
@@ -45675,6 +45675,13 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     desktopSfxToggle: $('codeExplorerDesktopSfxToggle'),
     desktopThemeToggle: $('codeExplorerDesktopThemeToggle'),
     leaderboardOverlay: $('codeExplorerLeaderboardOverlay'),
+    leaderboardEyebrow: $('codeExplorerLeaderboardEyebrow'),
+    leaderboardTitle: $('codeExplorerLeaderboardTitle'),
+    leaderboardDescription: $('codeExplorerLeaderboardDescription'),
+    studentFinalResults: $('codeExplorerStudentFinalResults'),
+    leaderboardTabs: $('codeExplorerLeaderboardTabs'),
+    leaderboardSummary: $('codeExplorerLeaderboardSummary'),
+    leaderboardNote: $('codeExplorerLeaderboardNote'),
     leaderboardCloseBtn: $('codeExplorerLeaderboardCloseBtn'),
     leaderboardRefreshBtn: $('codeExplorerLeaderboardRefreshBtn'),
     leaderboardAwardsReplayBtn: $('codeExplorerLeaderboardAwardsReplayBtn'),
@@ -53118,7 +53125,13 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       dom.backBtn.setAttribute('aria-label', roadmap ? 'Back to My Projects' : 'Back to course path');
       dom.backBtn.title = roadmap ? 'Back to My Projects' : 'Course path';
     }
-    if (dom.leaderboardBtn) { dom.leaderboardBtn.title = 'Global Code Explorer Leaderboard'; dom.leaderboardBtn.setAttribute('aria-label', 'Open global Code Explorer leaderboard'); }
+    if (dom.leaderboardBtn) {
+      const studentFinalView = appSession.mode === 'student' && !isTeacherAuthenticated();
+      const label = dom.leaderboardBtn.querySelector('b');
+      if (label) label.textContent = studentFinalView ? 'Final Results' : 'Leaderboard';
+      dom.leaderboardBtn.title = studentFinalView ? 'Open your official final result' : 'Global Code Explorer Leaderboard';
+      dom.leaderboardBtn.setAttribute('aria-label', studentFinalView ? 'Open your official final result' : 'Open global Code Explorer leaderboard');
+    }
     if (dom.certificatesBtn) {
       dom.certificatesBtn.textContent = mobile ? '🏅' : '🏅 My Certificates';
       dom.certificatesBtn.title = 'My Certificates';
@@ -54729,6 +54742,190 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       .replace(/[–—]/g, '-')
       .replace(/\s+/g, ' ')
       .trim();
+  }
+
+  // v636 — The public competition ended on October 5, 2026. Students now see
+  // only their own live XP plus their section's frozen final placement. This
+  // avoids exposing a second live ladder after winners have already been
+  // declared. Teachers/Admin keep the complete leaderboard and award tools.
+  const STUDENT_FINAL_RESULTS_LOCKED_LABEL = 'October 5, 2026 at 12:00 AM';
+  const STUDENT_FINAL_SECTION_RESULTS = Object.freeze({
+    'st. maximilian kolbe': Object.freeze({ rank: 1, averageXp: 2840.1, studentCount: 42, section: 'St. Maximilian Kolbe' }),
+    'st. teresa of calcutta': Object.freeze({ rank: 2, averageXp: 2824.4, studentCount: 44, section: 'St. Teresa of Calcutta' }),
+    'st. faustina kowalska': Object.freeze({ rank: 3, averageXp: 2679.3, studentCount: 43, section: 'St. Faustina Kowalska' }),
+    'st. teresa benedicta of the cross': Object.freeze({ rank: 3, averageXp: 2677.6, studentCount: 44, section: 'St. Teresa Benedicta of the Cross' })
+  });
+  const studentFinalResultsState = {
+    liveRank: null,
+    loading: false,
+    error: '',
+    inFlight: null
+  };
+
+  function studentFinalSectionResult(sectionName = '') {
+    const result = STUDENT_FINAL_SECTION_RESULTS[leaderboardSectionKey(sectionName)] || null;
+    return result ? { ...result } : null;
+  }
+
+  function isStudentFinalResultsViewer() {
+    return appSession.mode === 'student' && !isTeacherAuthenticated();
+  }
+
+  function currentStudentFinalResultsData() {
+    ensureReaderProgress();
+    const profile = appSession.student || appSession.lastStudentProfile || {};
+    const section = leaderboardSectionDisplayName(profile.section || profile.sectionName || '');
+    const currentXp = Math.max(
+      0,
+      Number(totalXp() || 0),
+      Number(profile.codeExplorerXp || 0),
+      Number(state.cloudXpHint || 0)
+    );
+    return {
+      name: String(profile.name || profile.fullName || 'Student').replace(/\s+/g, ' ').trim(),
+      section,
+      currentXp: Math.floor(currentXp),
+      official: studentFinalSectionResult(section)
+    };
+  }
+
+  function renderStudentFinalLeaderboardResults() {
+    if (!dom.studentFinalResults) return false;
+    const data = currentStudentFinalResultsData();
+    const official = data.official;
+    const rankLabel = official ? `Rank #${Number(official.rank || 0)}` : 'Result unavailable';
+    const sectionName = official?.section || data.section || 'No Section';
+    const averageLabel = official
+      ? `${Number(official.averageXp || 0).toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} XP / ${Number(official.studentCount || 0).toLocaleString('en-US')} students`
+      : '—';
+    const placementClass = official ? ` rank-${Number(official.rank || 0)}` : ' rank-none';
+    const liveRank = studentFinalResultsState.liveRank;
+    const liveRankLabel = studentFinalResultsState.loading
+      ? 'Calculating…'
+      : liveRank ? `Rank #${Number(liveRank.rank || 0)}` : 'Unavailable';
+    const liveRankNote = liveRank
+      ? `Live progress only · ${Number(liveRank.totalStudents || 0).toLocaleString('en-US')} students ranked`
+      : studentFinalResultsState.loading
+        ? 'Checking the latest private server ranking…'
+        : (studentFinalResultsState.error || 'Live placement is temporarily unavailable.');
+
+    dom.studentFinalResults.innerHTML = `
+      <section class="code-explorer-final-result-card${placementClass}">
+        <div class="code-explorer-final-result-lock">
+          <span aria-hidden="true">🔒</span>
+          <div><b>FINAL RESULTS LOCKED</b><small>${escapeHTML(STUDENT_FINAL_RESULTS_LOCKED_LABEL)} · Asia/Manila</small></div>
+        </div>
+        <div class="code-explorer-final-result-hero">
+          <span class="code-explorer-final-result-trophy" aria-hidden="true">🏆</span>
+          <div>
+            <small>LEADERBOARD SEASON COMPLETE</small>
+            <h3>${escapeHTML(data.name || 'Student')}</h3>
+            <p>The winners have already been declared. Your private live student place may still move, while your official section result will no longer change.</p>
+          </div>
+        </div>
+        <div class="code-explorer-final-result-stats">
+          <article>
+            <small>Your Current XP</small>
+            <strong>⚡ ${Number(data.currentXp || 0).toLocaleString('en-US')}</strong>
+            <span>Still increases as you finish courses and activities</span>
+          </article>
+          <article class="live-rank-result">
+            <small>Your Current Student Place</small>
+            <strong>${escapeHTML(liveRankLabel)}</strong>
+            <span>${escapeHTML(liveRankNote)}</span>
+          </article>
+          <article class="section-result">
+            <small>Your Final Section Placement</small>
+            <strong>${escapeHTML(rankLabel)}</strong>
+            <span>${escapeHTML(sectionName)}</span>
+          </article>
+          <article>
+            <small>Official Section Average</small>
+            <strong>${escapeHTML(averageLabel)}</strong>
+            <span>Average XP / official section population at the cutoff</span>
+          </article>
+        </div>
+        ${official ? '' : '<p class="code-explorer-final-result-warning">Ask your teacher to verify the section saved in your student profile.</p>'}
+        <div class="code-explorer-final-result-message">
+          <span aria-hidden="true">✅</span>
+          <p><b>You may continue learning and earning XP.</b><br>Your private live student place may change as XP increases, but it will not change the finalized winners or section placements.</p>
+        </div>
+      </section>`;
+    dom.studentFinalResults.classList.remove('hidden');
+    return true;
+  }
+
+  async function refreshStudentPrivateLiveRank(options = {}) {
+    if (!isStudentFinalResultsViewer()) return null;
+    if (studentFinalResultsState.inFlight) return studentFinalResultsState.inFlight;
+
+    const task = (async () => {
+      studentFinalResultsState.loading = true;
+      studentFinalResultsState.error = '';
+      renderStudentFinalLeaderboardResults();
+      try {
+        // Reconcile only this signed-in student's legitimate XP first. The
+        // ranking itself still comes from the one compact trusted RTDB snapshot.
+        if (appSession.student?.uid && navigator.onLine !== false) {
+          await syncCurrentStudentXpToLeaderboard({ force: options.force === true });
+        }
+        const rows = await loadDailyGlobalLeaderboardEntries({
+          force: options.force === true,
+          live: options.force === true
+        });
+        if (!rows.length) throw new Error('Live placement is temporarily unavailable.');
+
+        const settingsLoad = await loadLeaderboardSectionSettings();
+        const records = rows
+          .filter(row => String(row.accountStatus || 'active') !== 'disabled')
+          .filter(row => !settingsLoad.loaded || isLeaderboardSectionIncluded(row.section || '', leaderboardSectionSettings))
+          .map(row => ({ ...row, current: isCurrentLeaderboardStudent(row) }));
+        const ranked = assignLeaderboardRanks(records, 'xp');
+        const current = ranked.find(row => row.current || isCurrentLeaderboardStudent(row)) || null;
+        if (!current || !Number(current.rank || 0)) throw new Error('Your live placement could not be matched yet.');
+
+        studentFinalResultsState.liveRank = {
+          rank: Number(current.rank || 0),
+          xp: Math.max(0, Number(current.xp || 0)),
+          totalStudents: ranked.length,
+          loadedAtMs: Date.now()
+        };
+        studentFinalResultsState.error = '';
+        return { ...studentFinalResultsState.liveRank };
+      } catch (error) {
+        studentFinalResultsState.error = String(error?.message || 'Live placement is temporarily unavailable.');
+        return null;
+      } finally {
+        studentFinalResultsState.loading = false;
+        studentFinalResultsState.inFlight = null;
+        if (dom.leaderboardOverlay?.classList.contains('student-final-mode')) renderStudentFinalLeaderboardResults();
+      }
+    })();
+    studentFinalResultsState.inFlight = task;
+    return task;
+  }
+
+  function resetGlobalLeaderboardPresentation() {
+    dom.leaderboardOverlay?.classList.remove('student-final-mode');
+    dom.studentFinalResults?.classList.add('hidden');
+    if (dom.leaderboardEyebrow) dom.leaderboardEyebrow.textContent = 'All enrolled students';
+    if (dom.leaderboardTitle) dom.leaderboardTitle.textContent = '🏆 Global Leaderboard';
+    if (dom.leaderboardDescription) dom.leaderboardDescription.textContent = 'Top 10 are highlighted. Student ranks use XP; section ranks use average XP per student. Ties share the same rank.';
+  }
+
+  function openStudentFinalLeaderboardResults() {
+    if (!dom.leaderboardOverlay) return false;
+    dom.leaderboardOverlay.classList.add('student-final-mode');
+    if (dom.leaderboardEyebrow) dom.leaderboardEyebrow.textContent = 'Official results · School Year 2026–2027';
+    if (dom.leaderboardTitle) dom.leaderboardTitle.textContent = '🏆 Your Final Result';
+    if (dom.leaderboardDescription) dom.leaderboardDescription.textContent = 'The public ranking has ended. Only your personal XP and your section’s frozen result are shown.';
+    dom.leaderboardRefreshBtn?.classList.add('hidden');
+    dom.leaderboardAwardsReplayBtn?.classList.add('hidden');
+    renderStudentFinalLeaderboardResults();
+    dom.leaderboardOverlay.classList.remove('hidden');
+    document.body.classList.add('code-explorer-modal-open');
+    void refreshStudentPrivateLiveRank({ force: true });
+    return true;
   }
 
   function normalizeLeaderboardSectionSettings(data = {}) {
@@ -56816,6 +57013,10 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       if (options.auto === true && document.body.classList.contains('code-explorer-active')) scheduleLeaderboardAwardsDeadlineRetry();
       return false;
     }
+    // Students use the personalized final-results card after the cutoff. Keep
+    // the full cinematic ranking presentation available only to teachers/Admin
+    // so two different public Rank #3 presentations cannot circulate.
+    if (isStudentFinalResultsViewer()) return false;
     leaderboardAwardsDeadlineState.retries = 0;
     clearLeaderboardAwardsDeadlineTimer();
     if (hasSeenLeaderboardWinnerReveal(official)) return false;
@@ -59157,6 +59358,12 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   }
 
   function openGlobalLeaderboardDirect() {
+    if (isStudentFinalResultsViewer()) {
+      openStudentFinalLeaderboardResults();
+      return;
+    }
+    resetGlobalLeaderboardPresentation();
+    dom.leaderboardRefreshBtn?.classList.remove('hidden');
     dom.leaderboardOverlay?.classList.remove('hidden');
     document.body.classList.add('code-explorer-modal-open');
     loadGlobalLeaderboard();
@@ -59165,6 +59372,10 @@ window.MCS_PHONE_MENU_STATUS = () => ({
 
   async function syncLeaderboardAwardsReplayAvailability() {
     if (!dom.leaderboardAwardsReplayBtn) return false;
+    if (isStudentFinalResultsViewer()) {
+      dom.leaderboardAwardsReplayBtn.classList.add('hidden');
+      return false;
+    }
     try {
       const official = await fetchOfficialLeaderboardRevealSnapshot();
       dom.leaderboardAwardsReplayBtn.classList.toggle('hidden', !official);
@@ -59176,6 +59387,10 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   }
 
   async function openGlobalLeaderboard() {
+    if (isStudentFinalResultsViewer()) {
+      openStudentFinalLeaderboardResults();
+      return;
+    }
     primeLeaderboardRevealAudio();
     // After the Oct 5 official lock, the first leaderboard open on this account/device
     // becomes a one-time awards ceremony. The normal leaderboard remains unchanged.

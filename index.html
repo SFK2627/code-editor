@@ -45,7 +45,7 @@
   </script>
   <link rel="preconnect" href="https://drive.google.com" crossorigin>
   <link rel="preconnect" href="https://lh3.googleusercontent.com" crossorigin>
-  <link rel="stylesheet" href="style.css?v=20261003-v618-awards-reveal" />
+  <link rel="stylesheet" href="style.css?v=20261005-v636-private-live-rank" />
   <link rel="stylesheet" href="games/mini-games-hub.css?v=20260912-v4761-byte-runner-v81-build-hud" />
   <link rel="stylesheet" href="games/code-fly/code-fly.css?v=20260909-v429-xp-mini-games" />
   <style>
@@ -705,9 +705,9 @@
         <div class="code-explorer-leaderboard-grabber" aria-hidden="true"></div>
         <header class="code-explorer-leaderboard-head">
           <div>
-            <span class="code-explorer-eyebrow">All enrolled students</span>
+            <span id="codeExplorerLeaderboardEyebrow" class="code-explorer-eyebrow">All enrolled students</span>
             <h2 id="codeExplorerLeaderboardTitle">🏆 Global Leaderboard</h2>
-            <p>Top 10 are highlighted. Student ranks use XP; section ranks use average XP per student. Ties share the same rank.</p>
+            <p id="codeExplorerLeaderboardDescription">Top 10 are highlighted. Student ranks use XP; section ranks use average XP per student. Ties share the same rank.</p>
           </div>
           <div class="code-explorer-leaderboard-head-actions">
             <button id="codeExplorerLeaderboardAwardsReplayBtn" class="ghost-btn mini hidden" type="button">🏆 Replay Awards</button>
@@ -715,11 +715,12 @@
             <button id="codeExplorerLeaderboardCloseBtn" class="icon-btn" type="button" aria-label="Close leaderboard">×</button>
           </div>
         </header>
-        <div class="code-explorer-leaderboard-tabs" role="tablist" aria-label="Leaderboard type">
+        <div id="codeExplorerStudentFinalResults" class="code-explorer-student-final-results hidden" aria-live="polite"></div>
+        <div id="codeExplorerLeaderboardTabs" class="code-explorer-leaderboard-tabs" role="tablist" aria-label="Leaderboard type">
           <button id="codeExplorerLeaderboardStudentsTab" class="active" type="button" role="tab" aria-selected="true" data-leaderboard-mode="students">🏆 Students</button>
           <button id="codeExplorerLeaderboardSectionsTab" type="button" role="tab" aria-selected="false" data-leaderboard-mode="sections">🏫 Sections</button>
         </div>
-        <div class="code-explorer-leaderboard-summary">
+        <div id="codeExplorerLeaderboardSummary" class="code-explorer-leaderboard-summary">
           <div><small id="codeExplorerLeaderboardYourRankLabel">Your Rank</small><strong id="codeExplorerLeaderboardYourRank">—</strong></div>
           <div><small id="codeExplorerLeaderboardYourXpLabel">Your XP</small><strong id="codeExplorerLeaderboardYourXp">0</strong></div>
           <div><small id="codeExplorerLeaderboardCountLabel">Students</small><strong id="codeExplorerLeaderboardStudentCount">0</strong></div>
@@ -728,7 +729,7 @@
         <div id="codeExplorerLeaderboardMotivation" class="code-explorer-leaderboard-motivation"></div>
         <div id="codeExplorerLeaderboardStatus" class="code-explorer-leaderboard-status" role="status">Loading rankings...</div>
         <div id="codeExplorerLeaderboardList" class="code-explorer-leaderboard-list" aria-live="polite"></div>
-        <p class="code-explorer-leaderboard-note">Mastery XP is earned from first-time learning milestones such as the code puzzle, coding practice, Quick Check, topic completion, final challenge, and certificate. Repeating completed work does not farm XP.</p>
+        <p id="codeExplorerLeaderboardNote" class="code-explorer-leaderboard-note">Mastery XP is earned from first-time learning milestones such as the code puzzle, coding practice, Quick Check, topic completion, final challenge, and certificate. Repeating completed work does not farm XP.</p>
       </section>
     </div>
 
@@ -4737,7 +4738,7 @@ https://example.com/song3.mp3"></textarea>
     })();
   </script>
 
-  <script src="script.js?v=20261005-v634-evidence-corrected-awards"></script>
+  <script src="script.js?v=20261005-v636-private-live-rank"></script>
   <script>
     // v410 fallback: keep the desktop editor settings popover working even if older cached
     // toolbar code fails before binding the click handler.
