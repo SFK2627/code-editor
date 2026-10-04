@@ -3334,7 +3334,7 @@ https://example.com/song3.mp3"></textarea>
             <label><span>Search</span><input id="codeExplorerAdminSearch" type="search" placeholder="Name or Student ID" autocomplete="off" /></label>
             <label><span>Section</span><select id="codeExplorerAdminSection"><option value="all">All Sections</option></select></label>
             <label><span>Status</span><select id="codeExplorerAdminStatusFilter"><option value="all">All Students</option><option value="not-started">Not Started</option><option value="in-progress">In Progress</option><option value="completed">All Topics Completed</option><option value="certified">Has Certificate</option></select></label>
-            <label><span>Sort</span><select id="codeExplorerAdminSort"><option value="section">Section, then Name</option><option value="progress">Highest Progress</option><option value="recent">Most Recent Explorer Activity</option><option value="xp">Highest XP</option></select></label>
+            <label><span>Sort</span><select id="codeExplorerAdminSort"><option value="section">Section, then Name</option><option value="progress">Highest Loaded Progress</option><option value="recent">Most Recent Loaded Activity</option><option value="xp">Highest XP</option></select></label>
           </div>
           <p id="codeExplorerAdminStatus" class="helper-note" role="status">Open this tab or click Refresh Progress to load student Code Explorer activity.</p>
 
@@ -3344,6 +3344,7 @@ https://example.com/song3.mp3"></textarea>
               <tbody id="codeExplorerAdminTableBody"></tbody>
             </table>
           </div>
+          <div id="codeExplorerAdminPagination" class="admin-student-pagination hidden" aria-label="Code Explorer student pages"></div>
         </section>
 
         <section id="deviceQaAdmin" class="admin-tab-panel device-qa-admin" data-admin-panel="device-qa" aria-labelledby="deviceQaTitle">
@@ -4736,7 +4737,7 @@ https://example.com/song3.mp3"></textarea>
     })();
   </script>
 
-  <script src="script.js?v=20261004-v629-living-podium"></script>
+  <script src="script.js?v=20261005-v633-cutoff-consistent-awards"></script>
   <script>
     // v410 fallback: keep the desktop editor settings popover working even if older cached
     // toolbar code fails before binding the click handler.

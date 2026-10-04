@@ -2381,7 +2381,7 @@ let adminLatestAiReview = null;
 let adminAiRubricController = null;
 let aiRubricConnectionState = { status: 'untested', code: '', message: '' };
 
-const MCS_APP_BUILD = 'v510-admin-delta-cache';
+const MCS_APP_BUILD = 'v633-cutoff-consistent-awards';
 window.MCS_APP_BUILD = MCS_APP_BUILD;
 console.info(`[MCSian Code Editor] ${MCS_APP_BUILD} loaded`);
 
@@ -2930,7 +2930,9 @@ function upsertCachedAdminProfileRecord(uid = '', patch = {}) {
 // student's snapshot. Explicit mutations still invalidate the matching keys.
 function isSelectivePersistentCacheKey(key = '') {
   const cacheKey = String(key || '');
-  return cacheKey === 'rootDocument:activities-lessons-settings'
+  return cacheKey.startsWith('admin:explorerProfile:')
+    || cacheKey === 'admin:explorerDirectory'
+    || cacheKey === 'rootDocument:activities-lessons-settings'
     || cacheKey === 'admin:studentProfiles'
     || cacheKey === 'admin:studentRoster'
     || cacheKey === 'compliance:viewerRecords'
@@ -19734,7 +19736,7 @@ function updateInstallButtonVisibility() {
 function registerPWAServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./service-worker.js?v=629-living-podium', {
+    navigator.serviceWorker.register('./service-worker.js?v=633-cutoff-consistent-awards', {
       updateViaCache: 'none'
     }).then(registration => {
       registration.update().catch(() => {});
@@ -26132,7 +26134,7 @@ function showAdminForm(activityId = adminEditingActivityId) {
   adminForm.classList.add('visible');
   initAdminTabs();
   const activeAdminTab = getStoredAdminTab();
-  const tabNeedsStudentSnapshot = ['students', 'needs-attention', 'given-activities', 'code-explorer'].includes(activeAdminTab);
+  const tabNeedsStudentSnapshot = ['students', 'needs-attention', 'given-activities'].includes(activeAdminTab);
   if (adminStudentsCache.length) renderAdminStudentTracker();
   else if (tabNeedsStudentSnapshot) loadAdminStudents().catch(error => console.warn('Student tracker load failed.', error));
   initializeLessonManager();
@@ -45893,6 +45895,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     adminSort: $('codeExplorerAdminSort'),
     adminStatus: $('codeExplorerAdminStatus'),
     adminTableBody: $('codeExplorerAdminTableBody'),
+    adminPagination: $('codeExplorerAdminPagination'),
     adminDetailOverlay: $('codeExplorerAdminDetailOverlay'),
     adminDetailTitle: $('codeExplorerAdminDetailTitle'),
     adminDetailSubtitle: $('codeExplorerAdminDetailSubtitle'),
@@ -48528,6 +48531,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
 
       const rosterRows = Object.entries(rosterRaw && typeof rosterRaw === 'object' ? rosterRaw : {}).map(([keyId, row]) => ({
         uid: String(row?.uid || '').trim(),
+        studentKey: String(row?.studentKey || (String(keyId || '').startsWith('sid_') ? keyId : '')).trim(),
         studentId: normalizeStudentId(row?.studentId || ''),
         rosterKey: String(keyId || '').trim(),
         name: String(row?.name || 'Student').replace(/\s+/g, ' ').trim() || 'Student',
@@ -48541,6 +48545,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
 
       const dailyRows = Object.entries(dailyRaw && typeof dailyRaw === 'object' ? dailyRaw : {}).map(([uid, row]) => ({
         uid: String(row?.uid || uid || '').trim(),
+        studentKey: String(row?.studentKey || '').trim(),
         studentId: normalizeStudentId(row?.studentId || ''),
         name: String(row?.name || 'Student').replace(/\s+/g, ' ').trim() || 'Student',
         section: String(row?.section || '').replace(/\s+/g, ' ').trim(),
@@ -48559,9 +48564,13 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       if (!rosterRows.length) return cached?.rows || [];
 
       const dailyByUid = new Map(dailyRows.filter(row => row.uid).map(row => [row.uid, row]));
+      const dailyByStudentKey = new Map(dailyRows.filter(row => row.studentKey).map(row => [row.studentKey, row]));
       const dailyByStudentId = new Map(dailyRows.filter(row => row.studentId).map(row => [row.studentId, row]));
       const rows = rosterRows.map(base => {
-        const live = (base.uid && dailyByUid.get(base.uid)) || (base.studentId && dailyByStudentId.get(base.studentId)) || null;
+        const live = (base.uid && dailyByUid.get(base.uid))
+          || (base.studentKey && dailyByStudentKey.get(base.studentKey))
+          || (base.studentId && dailyByStudentId.get(base.studentId))
+          || null;
         const syntheticUid = base.uid || `sid-${String(base.studentId || base.rosterKey || '').replace(/[^a-zA-Z0-9_-]/g, '-')}`;
         return {
           ...base,
@@ -48576,19 +48585,11 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         };
       });
 
-      // v614: never allow the currently signed-in student's stale RTDB row to
-      // beat the canonical XP already visible in the trusted profile/session.
-      // This only affects the current user and keeps ranking based on the same
-      // XP source shown in the app.
-      if (appSession.mode === 'student') {
-        const currentUid = String(appSession.student?.uid || getFirebaseActiveUser()?.uid || '').trim();
-        const currentXp = Math.max(0, Number(totalXp() || 0));
-        const currentRow = rows.find(row => String(row.uid || '') === currentUid);
-        if (currentRow && currentXp > Number(currentRow.xp || 0)) {
-          currentRow.xp = currentXp;
-          currentRow.updatedAtMs = Date.now();
-        }
-      }
+      // v632: ranking rows must stay server-consistent for every viewer. Never
+      // overlay local/session XP here: that made one student's device show a
+      // different rank and section average from Admin and the official lock.
+      // loadGlobalLeaderboard() performs a trusted server sync before this read;
+      // only the resulting RTDB roster+daily value may affect a rank.
 
       // Only complete roster-based snapshots are cached.
       writeDailyLeaderboardCache(key, { epoch, savedAt: Date.now(), rows });
@@ -53512,6 +53513,9 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     renderCertificates();
     renderCourseRoadmap();
     syncExplorerMobileChrome();
+    // Arm the official-awards cutoff while the learner is inside Code Explorer.
+    // If the deadline already passed, this checks the server lock immediately.
+    void scheduleLeaderboardAwardsDeadlineReveal({ force: true });
     // No cloud write merely for opening Code Explorer. Certificates are
     // published when they are actually earned; ordinary progress is checkpointed.
     window.scrollTo({ top: 0, behavior: 'auto' });
@@ -53641,6 +53645,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     state.finalStartedAt = 0;
     dom.finalOverlay.classList.add('hidden');
     document.body.classList.remove('code-explorer-modal-open');
+    void scheduleLeaderboardAwardsDeadlineReveal({ force: true });
   }
 
   function certificateId(courseKey, issuedAt) {
@@ -54634,6 +54639,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   function closeCertificates() {
     dom.certOverlay.classList.add('hidden');
     document.body.classList.remove('code-explorer-modal-open');
+    void scheduleLeaderboardAwardsDeadlineReveal({ force: true });
   }
 
 
@@ -54690,7 +54696,9 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       studentId: normalizeStudentId(profile.studentId || profile.studentIdNormalized || ''),
       name: String(profile.name || profile.fullName || 'You').trim(),
       section: String(profile.section || '').trim(),
-      xp: totalXp(),
+      // A fallback row must not promote unsynced device-only XP into a global
+      // rank. The profile XP came from the authenticated server profile.
+      xp: Math.max(0, Number(profile.codeExplorerXp || 0)),
       current: true,
       accountStatus: 'active'
     };
@@ -55009,7 +55017,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   // ---------------------------------------------------------------------------
   // V514 — G8Code Leaderboard Award Certificates
   // Live certificates use the existing RTDB complete leaderboard. The official
-  // Oct 1 snapshot is frozen in RTDB by Apps Script, so certificate generation
+  // Oct 5 snapshot is frozen in RTDB by Apps Script, so certificate generation
   // and PDF downloads do not scan or write Cloud Firestore.
   // ---------------------------------------------------------------------------
   const LEADERBOARD_AWARDS_TIME_ZONE = 'Asia/Manila';
@@ -55022,6 +55030,19 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     pubmatLoading: false,
     lastLiveLoadedAt: 0
   };
+
+  // V631 — the official lock is a server snapshot, while XP can continue for
+  // learning after the deadline. Keep a lightweight client deadline watcher so
+  // an active Code Explorer session requests the idempotent server finalizer at
+  // 12:00 AM and can show the one-time ceremony without an Admin-panel visit.
+  const leaderboardAwardsDeadlineState = {
+    timer: null,
+    inFlight: null,
+    retries: 0,
+    maxRetries: 4
+  };
+  const LEADERBOARD_AWARDS_FINALIZE_RETRY_MS = 15000;
+  const LEADERBOARD_AWARDS_FINALIZE_ATTEMPT_GAP_MS = 10000;
 
 
   // v618 — cinematic Top 3 Section winner reveal.
@@ -56679,14 +56700,171 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     }
   }
 
-  async function fetchOfficialLeaderboardRevealSnapshot() {
-    if (!getFirebaseActiveUser?.()) return null;
-    let settings = null;
-    try { settings = await rtdbRestRequest(LEADERBOARD_AWARDS_SETTINGS_PATH); } catch (_) {}
+  function leaderboardAwardsFinalizeAttemptKey(settings = {}) {
+    return `ict8.leaderboardAwardsFinalizeAttempt.v631.${leaderboardAwardsSchoolYearKey(settings.schoolYear || defaultLeaderboardAwardsSchoolYear())}`;
+  }
+
+  function leaderboardAwardsClientFinalizeDelayMs() {
+    const identity = String(getFirebaseActiveUser?.()?.uid || appSession.student?.uid || 'guest');
+    let hash = 2166136261;
+    for (let index = 0; index < identity.length; index += 1) {
+      hash ^= identity.charCodeAt(index);
+      hash = Math.imul(hash, 16777619);
+    }
+    // Give the server's scheduled trigger a moment to publish first. If it did
+    // not, authenticated clients are spread over eight seconds so a full class
+    // does not hit Apps Script at the same millisecond.
+    return 1000 + ((hash >>> 0) % 8000);
+  }
+
+  function leaderboardAwardsOfficialIsUsable(snapshot = null) {
+    return Boolean(
+      snapshot?.locked
+      && Number(snapshot?.version || 0) >= 2
+      && String(snapshot?.sourceSchema || '') === 'merged-roster-daily-v2'
+      && String(snapshot?.sourceDigestSha256 || '').length >= 32
+      && normalizeLeaderboardRevealSections(snapshot).length >= 3
+    );
+  }
+
+  async function loadLeaderboardAwardsDeadlineSettings() {
+    let settings = leaderboardAwardsState.settings;
+    if (!settings) {
+      try { settings = await rtdbRestRequest(LEADERBOARD_AWARDS_SETTINGS_PATH); } catch (_) {}
+    }
     const normalized = normalizeLeaderboardAwardsSettings(settings || { schoolYear: defaultLeaderboardAwardsSchoolYear() });
-    if (Date.now() < Number(normalized.officialAtMs || 0)) return null;
-    const official = await fetchLeaderboardAwardsOfficialSnapshot(normalized.schoolYear);
-    return official && normalizeLeaderboardRevealSections(official).length >= 3 ? official : null;
+    leaderboardAwardsState.settings = normalized;
+    return normalized;
+  }
+
+  async function ensureOfficialLeaderboardAwardsSnapshot(options = {}) {
+    if (!getFirebaseActiveUser?.()) return null;
+    if (leaderboardAwardsDeadlineState.inFlight) return leaderboardAwardsDeadlineState.inFlight;
+    const task = (async () => {
+      const settings = options.settings || await loadLeaderboardAwardsDeadlineSettings();
+      const officialAtMs = Number(settings.officialAtMs || leaderboardAwardsOfficialAtMs(settings.schoolYear));
+      if (Date.now() < officialAtMs) return null;
+
+      let official = await fetchLeaderboardAwardsOfficialSnapshot(settings.schoolYear);
+      if (leaderboardAwardsOfficialIsUsable(official)) {
+        leaderboardAwardsState.official = official;
+        return official;
+      }
+      if (options.requestFinalize === false || !getMcsAppsScriptUrl()) return null;
+
+      // Every signed-in Code Explorer user may request this safe operation. The
+      // backend owns the cutoff, reads the trusted RTDB ranking, and must keep the
+      // write idempotent; the browser never sends winner rows or XP values.
+      const attemptKey = leaderboardAwardsFinalizeAttemptKey(settings);
+      let lastAttempt = 0;
+      try { lastAttempt = Math.max(0, Number(localStorage.getItem(attemptKey) || 0)); } catch (_) {}
+      if (options.force !== true && Date.now() - lastAttempt < LEADERBOARD_AWARDS_FINALIZE_ATTEMPT_GAP_MS) return null;
+      try { localStorage.setItem(attemptKey, String(Date.now())); } catch (_) {}
+
+      try {
+        const result = await callAppsScriptSecure({
+          action: 'finalizeLeaderboardAwardsIfDue',
+          schoolYear: settings.schoolYear
+        }, {
+          allowStudent: true,
+          timeoutMs: 12000
+        });
+        const returned = result?.official || result?.snapshot || result?.data || null;
+        if (leaderboardAwardsOfficialIsUsable(returned)) official = returned;
+      } catch (error) {
+        console.info('Official awards finalizer will retry while Code Explorer remains open.', error);
+      }
+
+      if (!leaderboardAwardsOfficialIsUsable(official)) {
+        official = await fetchLeaderboardAwardsOfficialSnapshot(settings.schoolYear);
+      }
+      if (!leaderboardAwardsOfficialIsUsable(official)) return null;
+      leaderboardAwardsState.official = official;
+      return official;
+    })().finally(() => {
+      if (leaderboardAwardsDeadlineState.inFlight === task) leaderboardAwardsDeadlineState.inFlight = null;
+    });
+    leaderboardAwardsDeadlineState.inFlight = task;
+    return task;
+  }
+
+  function clearLeaderboardAwardsDeadlineTimer() {
+    if (leaderboardAwardsDeadlineState.timer) window.clearTimeout(leaderboardAwardsDeadlineState.timer);
+    leaderboardAwardsDeadlineState.timer = null;
+  }
+
+  function scheduleLeaderboardAwardsDeadlineRetry() {
+    if (leaderboardAwardsDeadlineState.retries >= leaderboardAwardsDeadlineState.maxRetries) return;
+    clearLeaderboardAwardsDeadlineTimer();
+    leaderboardAwardsDeadlineState.retries += 1;
+    leaderboardAwardsDeadlineState.timer = window.setTimeout(() => {
+      leaderboardAwardsDeadlineState.timer = null;
+      void maybeShowOfficialLeaderboardWinnerReveal({ auto: true });
+    }, LEADERBOARD_AWARDS_FINALIZE_RETRY_MS * leaderboardAwardsDeadlineState.retries);
+  }
+
+  async function maybeShowOfficialLeaderboardWinnerReveal(options = {}) {
+    const official = await ensureOfficialLeaderboardAwardsSnapshot({
+      requestFinalize: options.requestFinalize !== false,
+      force: options.force === true
+    });
+    if (!official) {
+      if (options.auto === true && document.body.classList.contains('code-explorer-active')) scheduleLeaderboardAwardsDeadlineRetry();
+      return false;
+    }
+    leaderboardAwardsDeadlineState.retries = 0;
+    clearLeaderboardAwardsDeadlineTimer();
+    if (hasSeenLeaderboardWinnerReveal(official)) return false;
+    if (options.auto === true && (
+      document.hidden
+      || !document.body.classList.contains('code-explorer-active')
+      || !dom.finalOverlay?.classList.contains('hidden')
+      || !dom.certOverlay?.classList.contains('hidden')
+    )) return false;
+    dom.leaderboardOverlay?.classList.add('hidden');
+    return showLeaderboardWinnerReveal(official, {
+      preview: false,
+      openLeaderboardAfter: options.openLeaderboardAfter === true
+    });
+  }
+
+  async function scheduleLeaderboardAwardsDeadlineReveal(options = {}) {
+    clearLeaderboardAwardsDeadlineTimer();
+    if (!getFirebaseActiveUser?.()) return false;
+    const settings = await loadLeaderboardAwardsDeadlineSettings();
+    const remaining = Number(settings.officialAtMs || 0) - Date.now();
+    if (remaining <= 0) {
+      if (options.deadlineWake === true) {
+        const alreadyLocked = await ensureOfficialLeaderboardAwardsSnapshot({
+          settings,
+          requestFinalize: false
+        });
+        if (alreadyLocked) {
+          return maybeShowOfficialLeaderboardWinnerReveal({ auto: true, requestFinalize: false });
+        }
+        leaderboardAwardsDeadlineState.timer = window.setTimeout(() => {
+          leaderboardAwardsDeadlineState.timer = null;
+          void maybeShowOfficialLeaderboardWinnerReveal({ auto: true, force: true });
+        }, leaderboardAwardsClientFinalizeDelayMs());
+        return false;
+      }
+      return maybeShowOfficialLeaderboardWinnerReveal({ auto: true, force: options.force === true });
+    }
+    // Browsers cap long timers. Re-arm safely until the Manila deadline arrives.
+    const delay = Math.min(remaining + 50, 2147483000);
+    leaderboardAwardsDeadlineState.timer = window.setTimeout(() => {
+      leaderboardAwardsDeadlineState.timer = null;
+      void scheduleLeaderboardAwardsDeadlineReveal({ force: true, deadlineWake: true });
+    }, delay);
+    return false;
+  }
+
+  async function fetchOfficialLeaderboardRevealSnapshot(options = {}) {
+    const official = await ensureOfficialLeaderboardAwardsSnapshot({
+      requestFinalize: options.requestFinalize !== false,
+      force: options.force === true
+    });
+    return leaderboardAwardsOfficialIsUsable(official) ? official : null;
   }
 
   function buildLeaderboardRevealPreviewFromAdminDom() {
@@ -56999,10 +57177,12 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     const officialAtMs = Number(settings.officialAtMs || leaderboardAwardsOfficialAtMs(settings.schoolYear));
     if (dom.adminAwardsSchoolYear && document.activeElement !== dom.adminAwardsSchoolYear) dom.adminAwardsSchoolYear.value = settings.schoolYear;
     if (dom.adminAwardsOfficialDate) dom.adminAwardsOfficialDate.textContent = `${formatLeaderboardAwardsDate(officialAtMs)} · 12:00 AM`;
-    const ready = Boolean(official?.locked && Array.isArray(official.studentAwards) && Array.isArray(official.sectionAwards));
+    const structurallyLocked = Boolean(official?.locked && Array.isArray(official.studentAwards) && Array.isArray(official.sectionAwards));
+    const ready = structurallyLocked && leaderboardAwardsOfficialIsUsable(official);
+    const auditNeeded = structurallyLocked && !ready;
     dom.adminAwardsOfficialPill?.classList.toggle('ready', ready);
     dom.adminAwardsOfficialPill?.classList.toggle('pending', !ready);
-    if (dom.adminAwardsOfficialPill) dom.adminAwardsOfficialPill.textContent = ready ? 'Official · Locked' : 'Official · Pending';
+    if (dom.adminAwardsOfficialPill) dom.adminAwardsOfficialPill.textContent = ready ? 'Official · Verified Lock' : auditNeeded ? 'Official · Audit Needed' : 'Official · Pending';
     dom.adminAwardsOfficialBox?.classList.toggle('ready', ready);
     dom.adminAwardsOfficialBox?.classList.toggle('pending', !ready);
     dom.adminAwardsOfficialActions?.classList.toggle('hidden', !ready);
@@ -57010,9 +57190,17 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       const lockedAt = Number(official.snapshotAtMs || officialAtMs);
       if (dom.adminAwardsOfficialTitle) dom.adminAwardsOfficialTitle.textContent = `Official ${official.schoolYear || settings.schoolYear} awards are locked.`;
       if (dom.adminAwardsOfficialStatus) dom.adminAwardsOfficialStatus.textContent = `Frozen ${formatLeaderboardAwardsDate(lockedAt, { time: true })} · ${Number(official.sourceStudentCount || 0)} included students · these ranks will not change.`;
+    } else if (auditNeeded) {
+      if (dom.adminAwardsOfficialTitle) dom.adminAwardsOfficialTitle.textContent = `Locked ${official.schoolYear || settings.schoolYear} snapshot needs source verification.`;
+      if (dom.adminAwardsOfficialStatus) dom.adminAwardsOfficialStatus.textContent = 'Certificates and winner replay are paused. This older lock has no merged-roster/daily source digest, so it cannot safely decide a close section result.';
     } else {
-      if (dom.adminAwardsOfficialTitle) dom.adminAwardsOfficialTitle.textContent = 'Official awards are not locked yet.';
-      if (dom.adminAwardsOfficialStatus) dom.adminAwardsOfficialStatus.textContent = `The latest ranking stays printable anytime. The official ${settings.schoolYear} Top 3 Sections and Top 10 Students will freeze automatically on ${formatLeaderboardAwardsDate(officialAtMs)} at 12:00 AM.`;
+      const overdue = Date.now() >= officialAtMs;
+      if (dom.adminAwardsOfficialTitle) dom.adminAwardsOfficialTitle.textContent = overdue
+        ? 'The cutoff passed; official lock is pending.'
+        : 'Official awards are not locked yet.';
+      if (dom.adminAwardsOfficialStatus) dom.adminAwardsOfficialStatus.textContent = overdue
+        ? 'The app is requesting the protected official snapshot. Learning XP may continue, but only the locked snapshot will be used for the official winners.'
+        : `The latest ranking stays printable anytime. The official ${settings.schoolYear} Top 3 Sections and Top 10 Students will freeze automatically on ${formatLeaderboardAwardsDate(officialAtMs)} at 12:00 AM.`;
     }
   }
 
@@ -57044,30 +57232,41 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         includedSectionKeys: leaderboardSectionSettings.includedSectionKeys
       });
       // First V514 Admin open self-initializes the tiny RTDB award settings and
-      // arms the yearly Oct 1 trigger. No Firestore scan/write is involved.
+      // arms the yearly Oct 5 trigger. No Firestore scan/write is involved.
       if (!remoteSettings && getMcsAppsScriptUrl()) {
         if (dom.adminAwardsSchoolYear) dom.adminAwardsSchoolYear.value = leaderboardAwardsState.settings.schoolYear;
         await saveLeaderboardAwardsSettings({ silent: true });
       }
 
-      // If the official deadline has passed, ask the trusted bridge to finalize
-      // the snapshot exactly once. The bridge reads/writes RTDB only.
-      if (Date.now() >= leaderboardAwardsState.settings.officialAtMs && getMcsAppsScriptUrl()) {
-        try {
-          await callAppsScriptSecure({ action: 'finalizeLeaderboardAwardsIfDue', schoolYear: leaderboardAwardsState.settings.schoolYear });
-        } catch (error) {
-          console.info('Automatic official awards finalization will retry later.', error);
-        }
+      // Reuse the authenticated, idempotent deadline finalizer used by active
+      // student sessions. Admin is no longer the only client that can request
+      // the official snapshot after the cutoff.
+      if (Date.now() >= leaderboardAwardsState.settings.officialAtMs) {
+        const verifiedOfficial = await ensureOfficialLeaderboardAwardsSnapshot({ settings: leaderboardAwardsState.settings, force: true });
+        leaderboardAwardsState.official = verifiedOfficial
+          || await fetchLeaderboardAwardsOfficialSnapshot(leaderboardAwardsState.settings.schoolYear);
+      } else {
+        leaderboardAwardsState.official = await fetchLeaderboardAwardsOfficialSnapshot(leaderboardAwardsState.settings.schoolYear);
       }
-      leaderboardAwardsState.official = await fetchLeaderboardAwardsOfficialSnapshot(leaderboardAwardsState.settings.schoolYear);
       renderLeaderboardAwardsOfficialState();
       if (options.loadLive !== false) await refreshLeaderboardAwardsLive({ silent: true });
+      const officialReady = leaderboardAwardsOfficialIsUsable(leaderboardAwardsState.official);
+      const officialAuditNeeded = Boolean(leaderboardAwardsState.official?.locked && !officialReady);
+      const officialPendingAfterCutoff = !officialReady
+        && Date.now() >= leaderboardAwardsState.settings.officialAtMs;
       setLeaderboardAwardsStatus(
-        leaderboardAwardsState.official
+        officialReady
           ? `Official ${leaderboardAwardsState.settings.schoolYear} awards are ready. Latest live certificates are also available anytime.`
-          : 'Latest award rankings are ready. Official certificates will lock automatically on October 5 at 12:00 AM.',
-        'success'
+          : officialAuditNeeded
+            ? 'The existing locked snapshot is paused for audit because it has no verified merged-roster/daily source digest. Do not issue official certificates from it yet.'
+          : officialPendingAfterCutoff
+            ? 'The 12:00 AM cutoff passed, but the protected official snapshot is still pending. Keep the app online and verify that the secure Apps Script finalizer is deployed.'
+          : options.loadLive === false
+            ? 'Award settings loaded. Press Refresh Award Rankings to load the latest Top 3 and Top 10. Official certificates lock on October 5 at 12:00 AM.'
+            : 'Latest award rankings are ready. Official certificates will lock automatically on October 5 at 12:00 AM.',
+        officialPendingAfterCutoff ? 'warning' : 'success'
       );
+      void scheduleLeaderboardAwardsDeadlineReveal();
       return true;
     } catch (error) {
       console.error('Leaderboard awards admin panel failed to load.', error);
@@ -57089,7 +57288,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       includedSections: sectionSettings.includedSections,
       includedSectionKeys: sectionSettings.includedSectionKeys
     };
-    if (options.silent !== true) setLeaderboardAwardsBusy(true, 'Saving award settings and arming the official October 1 snapshot…');
+    if (options.silent !== true) setLeaderboardAwardsBusy(true, 'Saving award settings and arming the official October 5 snapshot…');
     try {
       const result = await callAppsScriptSecure(payload);
       if (!result?.ok) throw new Error(result?.error || 'Award settings could not be saved.');
@@ -58838,19 +59037,9 @@ window.MCS_PHONE_MENU_STATUS = () => ({
 
         const currentRecord = records.find(record => record.current || isCurrentLeaderboardStudent(record)) || null;
 
-        // v560 XP sync: RTDB daily leaderboard is the ranking source, but the
-        // currently signed-in student's trusted effective XP may be newer than
-        // the snapshot. Reconcile BEFORE rank calculation, not after rendering.
-        // This keeps Your XP, row XP, and rank based on the same value.
-        if (appSession.mode === 'student') {
-          const liveXp = Math.max(0, Number(totalXp() || 0));
-          records.forEach(record => {
-            if (record.current || isCurrentLeaderboardStudent(record)) {
-              record.current = true;
-              record.xp = Math.max(Number(record.xp || 0), liveXp);
-            }
-          });
-        }
+        // v632: the RTDB roster+daily merge above is the only ranking source.
+        // Do not replace it with local progress after the trusted sync; doing so
+        // gives the signed-in learner a private rank nobody else can reproduce.
 
         const effectiveCurrentSection = currentRecord?.section || currentLeaderboardSectionName();
         const effectiveKey = leaderboardSectionKey(effectiveCurrentSection);
@@ -58925,11 +59114,9 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       if (leaderboardState.currentSectionIncluded && !records.some(record => record.current || isCurrentLeaderboardStudent(record))) {
         records.push(leaderboardCurrentFallback());
       }
-      const freshCurrentXp = totalXp();
       records.forEach(record => {
         if (record.current || isCurrentLeaderboardStudent(record)) {
           record.current = true;
-          record.xp = Math.max(Number(record.xp || 0), Number(freshCurrentXp || 0));
         }
       });
 
@@ -58984,10 +59171,12 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     // After the Oct 5 official lock, the first leaderboard open on this account/device
     // becomes a one-time awards ceremony. The normal leaderboard remains unchanged.
     try {
-      const official = await fetchOfficialLeaderboardRevealSnapshot();
-      if (official && !hasSeenLeaderboardWinnerReveal(official)) {
-        if (showLeaderboardWinnerReveal(official, { preview: false, openLeaderboardAfter: true })) return;
-      }
+      const shown = await maybeShowOfficialLeaderboardWinnerReveal({
+        auto: false,
+        force: true,
+        openLeaderboardAfter: true
+      });
+      if (shown) return;
     } catch (error) {
       console.info('Official awards reveal is not available; opening the normal leaderboard.', error);
     }
@@ -59000,7 +59189,16 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   }
 
 
-  const adminExplorerState = { selectedStudentKey: '', selectedCourse: 'html', loaded: false };
+  const ADMIN_EXPLORER_PAGE_SIZE = 10;
+  const ADMIN_EXPLORER_PROFILE_TTL_MS = 5 * 60 * 1000;
+  const adminExplorerState = {
+    selectedStudentKey: '', selectedCourse: 'html', loaded: false, page: 1,
+    students: [], directoryComplete: true, cursor: null, hasMore: false,
+    profiles: new Map(), profileLoads: new Map(), generation: 0, error: '', loading: false
+  };
+  let adminExplorerInitPromise = null;
+  let adminExplorerDirectoryPromise = null;
+  let adminExplorerFilterTimer = null;
   const adminLeaderboardXpOverlay = new Map();
 
   function adminLeaderboardOverlayKeys(student = {}) {
@@ -59043,8 +59241,8 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   async function refreshAdminLeaderboardXpOverlay(options = {}) {
     if (!isTeacherAuthenticated()) return [];
     try {
-      const rows = await loadDailyGlobalLeaderboardEntries({ force: options.force === true, live: true });
-      setAdminLeaderboardXpOverlay(rows);
+      const rows = await loadDailyGlobalLeaderboardEntries({ force: options.force === true, live: options.force === true });
+      if (rows.length) setAdminLeaderboardXpOverlay(rows);
       return rows;
     } catch (error) {
       console.info('Admin XP overlay could not be refreshed; cached canonical XP will be used.', error);
@@ -59094,56 +59292,238 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     dom.adminSection.value = sections.includes(current) ? current : 'all';
   }
 
-  function renderAdminExplorerProgress() {
-    if (!dom.adminTableBody) return;
-    const records = adminStudentsCache.map(adminExplorerRecord);
+  function getAdminExplorerStudents() {
+    const base = adminStudentsCache.length ? adminStudentsCache : adminExplorerState.students;
+    return base.map(student => {
+      const sources = Array.isArray(student.sourceRecords) ? student.sourceRecords.slice() : [student];
+      getAdminStudentProfileUids(student).forEach(uid => {
+        const cached = adminExplorerState.profiles.get(uid);
+        if (!cached?.value) return;
+        const index = sources.findIndex(row => !row.isRosterOnly && String(row.uid || row.authUid || '') === uid);
+        if (index >= 0) sources[index] = cached.value;
+        else sources.push(cached.value);
+      });
+      return mergeAdminStudentRecords(sources);
+    });
+  }
+
+  function adminExplorerProgressIsLoaded(student) {
+    const uids = getAdminStudentProfileUids(student);
+    return !uids.length || uids.every(uid => adminExplorerState.profiles.has(uid))
+      || (Array.isArray(student.sourceRecords) ? student.sourceRecords : [student]).some(row => !row.isRosterOnly);
+  }
+
+  async function loadAdminExplorerCursorPage() {
+    const { getDocs, query, limit, startAfter } = firebaseSync.modules;
+    if (typeof query !== 'function' || typeof limit !== 'function') throw new Error('Paged progress reads are unavailable. Please reload the app.');
+    const constraints = [limit(ADMIN_EXPLORER_PAGE_SIZE)];
+    if (adminExplorerState.cursor) {
+      if (typeof startAfter !== 'function') throw new Error('Next-page reads are unavailable. Please reload the app.');
+      constraints.push(startAfter(adminExplorerState.cursor));
+    }
+    const snapshot = await withTimeout(getDocs(query(getStudentsCollectionRef(), ...constraints)), APP_NETWORK_TIMEOUT_MS, 'The next 10 profiles took too long to load. Press Refresh Progress to retry.');
+    const docs = Array.from(snapshot?.docs || []);
+    const rows = docs.map(docSnapshot => ({ uid: docSnapshot.id, isRosterOnly: false, sourceType: 'studentProfile', ...snapshotData(docSnapshot) }));
+    rows.forEach(row => adminExplorerState.profiles.set(row.uid, { value: row, expiresAt: Date.now() + ADMIN_EXPLORER_PROFILE_TTL_MS }));
+    adminExplorerState.students = mergeAdminStudentList([...adminExplorerState.students, ...rows]);
+    if (docs.length) adminExplorerState.cursor = docs[docs.length - 1];
+    adminExplorerState.hasMore = docs.length === ADMIN_EXPLORER_PAGE_SIZE;
+    adminExplorerState.directoryComplete = false;
+  }
+
+  async function loadAdminExplorerDirectory() {
+    if (adminStudentsCache.length || adminExplorerState.loaded) return;
+    if (adminExplorerDirectoryPromise) return adminExplorerDirectoryPromise;
+    const task = (async () => {
+      // Only read local snapshots here. Never start the shared full-collection loader.
+      const entries = await Promise.all(['admin:studentProfiles', 'admin:studentRoster', 'admin:explorerDirectory'].map(key =>
+        withTimeout(getSelectiveFirestoreCacheEntry(key, { allowExpired: true, maxAgeMs: ADMIN_ROSTER_STALE_MAX_MS }), 1000, 'Local cache unavailable.').catch(() => null)
+      ));
+      const profiles = Array.isArray(entries[0]?.value) ? entries[0].value : [];
+      const roster = Array.isArray(entries[1]?.value) ? entries[1].value : [];
+      if (profiles.length || roster.length) {
+        const identities = Array.isArray(entries[2]?.value) ? entries[2].value.flatMap(row => Array.isArray(row.sourceRecords) ? row.sourceRecords : [row]) : [];
+        adminExplorerState.students = mergeAdminStudentList([...identities, ...profiles, ...roster]);
+        profiles.forEach(row => adminExplorerState.profiles.set(String(row.uid || row.authUid || ''), { value: row, expiresAt: Number(entries[0]?.expiresAt || 0) }));
+        return;
+      }
+      const directory = entries[2];
+      if (Array.isArray(directory?.value) && directory.value.length && Number(directory.expiresAt || 0) > Date.now()) {
+        adminExplorerState.students = directory.value;
+        return;
+      }
+      // RTDB contains compact enrolled identities. Progress documents are read only for the visible page.
+      let raw = null;
+      try { raw = await withTimeout(rtdbRestRequest('globalLeaderboardRoster'), 6000, 'The student directory took too long to load.'); }
+      catch (error) { console.info('Explorer directory unavailable; using a 10-profile cursor page.', error); }
+      const rows = Object.entries(raw && typeof raw === 'object' ? raw : {}).map(([key, row]) => {
+        const uid = String(row?.uid || '').trim();
+        const studentId = normalizeStudentId(row?.studentId || '');
+        return { uid, authUid: uid, studentId, rosterId: studentId || key, name: String(row?.name || 'Student'), section: String(row?.section || ''), accountStatus: String(row?.accountStatus || 'active'), isRosterOnly: true, sourceType: 'explorerDirectory', codeExplorerXp: Math.max(0, Number(row?.xp || 0)) };
+      }).filter(row => row.uid || row.studentId || row.rosterId);
+      if (rows.length) {
+        adminExplorerState.students = mergeAdminStudentList(rows);
+        setSelectiveFirestoreCache('admin:explorerDirectory', adminExplorerState.students, ADMIN_EXPLORER_PROFILE_TTL_MS);
+      } else {
+        const ready = await initFirebaseSync();
+        if (!ready) throw new Error('Firebase is not ready. Please try again.');
+        await loadAdminExplorerCursorPage();
+      }
+    })().finally(() => { if (adminExplorerDirectoryPromise === task) adminExplorerDirectoryPromise = null; });
+    adminExplorerDirectoryPromise = task;
+    return task;
+  }
+
+  async function loadAdminExplorerProfile(uid, options = {}) {
+    const key = String(uid || '').trim();
+    if (!key) return;
+    if (adminExplorerState.profileLoads.has(key)) return adminExplorerState.profileLoads.get(key);
+    const cached = adminExplorerState.profiles.get(key);
+    const profileCacheKey = `admin:explorerProfile:${key}`;
+    const persisted = SELECTIVE_FIRESTORE_CACHE.get(profileCacheKey) || readSelectiveSessionCache(profileCacheKey);
+    if (options.force !== true && persisted?.expiresAt > Date.now() && persisted.value) {
+      adminExplorerState.profiles.set(key, { value: persisted.value, expiresAt: Number(persisted.expiresAt) });
+      return;
+    }
+    if (options.force !== true && cached && cached.expiresAt > Date.now()) return;
+    const task = (async () => {
+      if (options.force !== true) {
+        const sharedEntry = SELECTIVE_FIRESTORE_CACHE.get(`studentProfile:${key}`) || readSelectiveSessionCache(`studentProfile:${key}`);
+        const shared = sharedEntry?.expiresAt > Date.now() && Date.now() - Number(sharedEntry.savedAt || 0) < ADMIN_EXPLORER_PROFILE_TTL_MS ? sharedEntry.value : null;
+        if (shared) {
+          adminExplorerState.profiles.set(key, { value: { ...shared, uid: key, isRosterOnly: false, sourceType: 'studentProfile' }, expiresAt: Date.now() + ADMIN_EXPLORER_PROFILE_TTL_MS });
+          return;
+        }
+      }
+      const ready = await initFirebaseSync();
+      if (!ready) throw new Error('Firebase is not ready.');
+      const snapshot = await withTimeout(firebaseSync.modules.getDoc(getStudentDocRef(key)), APP_NETWORK_TIMEOUT_MS, 'Some page progress could not be refreshed. Press Refresh Progress to retry.');
+      const value = snapshotExists(snapshot) ? { ...snapshotData(snapshot), uid: key, isRosterOnly: false, sourceType: 'studentProfile' } : null;
+      adminExplorerState.profiles.set(key, { value, expiresAt: Date.now() + ADMIN_EXPLORER_PROFILE_TTL_MS });
+      if (value) {
+        setSelectiveFirestoreCache(profileCacheKey, value, ADMIN_EXPLORER_PROFILE_TTL_MS);
+      }
+    })().finally(() => { if (adminExplorerState.profileLoads.get(key) === task) adminExplorerState.profileLoads.delete(key); });
+    adminExplorerState.profileLoads.set(key, task);
+    return task;
+  }
+
+  function getAdminExplorerFilteredRecords() {
+    const records = getAdminExplorerStudents().map(student => ({ ...adminExplorerRecord(student), loaded: adminExplorerProgressIsLoaded(student) }));
     populateCodeExplorerAdminSections(records);
     const search = String(dom.adminSearch?.value || '').trim().toLowerCase();
     const section = String(dom.adminSection?.value || 'all');
-    const statusFilter = String(dom.adminStatusFilter?.value || 'all');
-    let filtered = records.filter(record => {
+    const status = String(dom.adminStatusFilter?.value || 'all');
+    const filtered = records.filter(record => {
       const student = record.student;
       if (search && !`${student.name || ''} ${student.studentId || ''}`.toLowerCase().includes(search)) return false;
       if (section !== 'all' && String(student.section || '') !== section) return false;
-      if (statusFilter === 'not-started' && record.status !== 'not-started') return false;
-      if (statusFilter === 'in-progress' && record.status !== 'in-progress') return false;
-      if (statusFilter === 'completed' && record.status !== 'completed') return false;
-      if (statusFilter === 'certified' && record.certificates < 1) return false;
-      return true;
+      if (status !== 'all' && !record.loaded) return false;
+      if (status === 'certified') return record.certificates > 0;
+      return status === 'all' || record.status === status;
     });
-
     const sort = String(dom.adminSort?.value || 'section');
     filtered.sort((a, b) => {
-      if (sort === 'progress') return b.overall.percent - a.overall.percent || String(a.student.name || '').localeCompare(String(b.student.name || ''));
-      if (sort === 'recent') return Number(b.lastDate?.getTime?.() || 0) - Number(a.lastDate?.getTime?.() || 0);
+      if (sort === 'progress') return Number(b.loaded) - Number(a.loaded) || b.overall.percent - a.overall.percent || String(a.student.name || '').localeCompare(String(b.student.name || ''));
+      if (sort === 'recent') return Number(b.loaded) - Number(a.loaded) || Number(b.lastDate?.getTime?.() || 0) - Number(a.lastDate?.getTime?.() || 0);
       if (sort === 'xp') return b.xp - a.xp || String(a.student.name || '').localeCompare(String(b.student.name || ''));
       return String(a.student.section || '').localeCompare(String(b.student.section || '')) || String(a.student.name || '').localeCompare(String(b.student.name || ''));
     });
+    return { records, filtered };
+  }
 
-    const exploring = records.filter(record => record.overall.explored > 0).length;
-    const certified = records.filter(record => record.certificates > 0).length;
-    const average = records.length ? Math.round(records.reduce((sum, record) => sum + record.overall.percent, 0) / records.length) : 0;
+  function renderAdminExplorerPagination(total) {
+    if (!dom.adminPagination) return;
+    const pages = Math.max(1, Math.ceil(total / ADMIN_EXPLORER_PAGE_SIZE));
+    adminExplorerState.page = Math.min(Math.max(1, adminExplorerState.page), pages);
+    const page = adminExplorerState.page;
+    const start = total ? (page - 1) * ADMIN_EXPLORER_PAGE_SIZE + 1 : 0;
+    const end = Math.min(total, page * ADMIN_EXPLORER_PAGE_SIZE);
+    const more = !adminStudentsCache.length && adminExplorerState.hasMore;
+    dom.adminPagination.classList.toggle('hidden', !total && !more);
+    dom.adminPagination.innerHTML = `<span class="admin-student-page-summary">Showing ${start}-${end} of ${total}${adminExplorerState.directoryComplete || adminStudentsCache.length ? '' : ' loaded'}</span><div class="admin-student-page-buttons"><button type="button" data-admin-explorer-page="${page - 1}" ${page <= 1 ? 'disabled' : ''}>‹ Prev</button><span class="admin-student-page-summary">Page ${page} of ${pages}${more ? '+' : ''}</span><button type="button" data-admin-explorer-page="${page + 1}" ${page >= pages && !more ? 'disabled' : ''}>Next ›</button></div>`;
+  }
+
+  async function loadAdminExplorerVisiblePage(options = {}) {
+    const generation = ++adminExplorerState.generation;
+    adminExplorerState.loading = true;
+    adminExplorerState.error = '';
+    renderAdminExplorerProgress();
+    try {
+      const { filtered } = getAdminExplorerFilteredRecords();
+      const start = (adminExplorerState.page - 1) * ADMIN_EXPLORER_PAGE_SIZE;
+      const visible = filtered.slice(start, start + ADMIN_EXPLORER_PAGE_SIZE);
+      const uids = [...new Set(visible.flatMap(record => getAdminStudentProfileUids(record.student)))];
+      const results = await Promise.allSettled(uids.map(uid => loadAdminExplorerProfile(uid, options)));
+      if (generation === adminExplorerState.generation && results.some(result => result.status === 'rejected')) adminExplorerState.error = 'Some page progress could not refresh. Cached progress remains visible; press Refresh Progress to retry.';
+    } finally {
+      if (generation === adminExplorerState.generation) {
+        adminExplorerState.loading = false;
+        renderAdminExplorerProgress();
+      }
+    }
+  }
+
+  async function changeAdminExplorerPage(page) {
+    const target = Math.max(1, Number(page || 1));
+    const total = getAdminExplorerFilteredRecords().filtered.length;
+    try {
+      if (target > Math.max(1, Math.ceil(total / ADMIN_EXPLORER_PAGE_SIZE)) && !adminStudentsCache.length && adminExplorerState.hasMore) {
+        if (adminExplorerState.loading) return;
+        adminExplorerState.loading = true;
+        renderAdminExplorerProgress();
+        await loadAdminExplorerCursorPage();
+      }
+      adminExplorerState.page = target;
+      await loadAdminExplorerVisiblePage();
+    } catch (error) {
+      adminExplorerState.loading = false;
+      adminExplorerState.error = error?.message || 'The next page could not load. Try again.';
+      renderAdminExplorerProgress();
+    }
+  }
+
+  function renderAdminExplorerProgress() {
+    if (!dom.adminTableBody) return;
+    const { records, filtered } = getAdminExplorerFilteredRecords();
+    renderAdminExplorerPagination(filtered.length);
+    const pageStart = (adminExplorerState.page - 1) * ADMIN_EXPLORER_PAGE_SIZE;
+    const visible = filtered.slice(pageStart, pageStart + ADMIN_EXPLORER_PAGE_SIZE);
+    const loadedRecords = records.filter(record => record.loaded);
+    const exploring = loadedRecords.filter(record => record.overall.explored > 0).length;
+    const certified = loadedRecords.filter(record => record.certificates > 0).length;
+    const average = loadedRecords.length ? Math.round(loadedRecords.reduce((sum, record) => sum + record.overall.percent, 0) / loadedRecords.length) : 0;
     if (dom.adminStudentCount) dom.adminStudentCount.textContent = String(records.length);
     if (dom.adminExploringCount) dom.adminExploringCount.textContent = String(exploring);
     if (dom.adminCertifiedCount) dom.adminCertifiedCount.textContent = String(certified);
     if (dom.adminAverage) dom.adminAverage.textContent = `${average}%`;
+    const partial = loadedRecords.length < records.length || (!adminExplorerState.directoryComplete && !adminStudentsCache.length);
+    const labels = [[dom.adminStudentCount, adminExplorerState.directoryComplete || adminStudentsCache.length ? 'Students' : 'Loaded Students'], [dom.adminExploringCount, partial ? 'Exploring · Loaded' : 'Exploring'], [dom.adminCertifiedCount, partial ? 'Certificates · Loaded' : 'With Certificate'], [dom.adminAverage, partial ? 'Loaded Avg. Progress' : 'Average Progress']];
+    labels.forEach(([node, label]) => { const caption = node?.parentElement?.querySelector('span'); if (caption) caption.textContent = label; });
 
     if (!filtered.length) {
-      dom.adminTableBody.innerHTML = '<tr><td colspan="9"><div class="empty-projects-card"><strong>No matching Code Explorer progress.</strong><p>Change the filters or wait for students to start exploring.</p></div></td></tr>';
+      dom.adminTableBody.innerHTML = '<tr><td colspan="9"><div class="empty-projects-card"><strong>No matching Code Explorer progress.</strong><p>Change the filters. Status filters use loaded progress; browse student pages to load more.</p></div></td></tr>';
     } else {
-      dom.adminTableBody.innerHTML = filtered.map(record => {
+      dom.adminTableBody.innerHTML = visible.map(record => {
         const student = record.student;
         const key = getAdminStudentRenderKey(student);
         const courseCell = courseKey => {
+          if (!record.loaded) return '<span class="muted-text">Loading…</span>';
           const stat = record.courses[courseKey];
           const certified = Boolean(record.progress.courses[courseKey]?.certificate?.issuedAt);
           return `<div class="code-explorer-admin-course-cell"><strong>${stat.percent}%${certified ? ' 🏅' : ''}</strong><span>${stat.completed}/${stat.total}</span><i><b style="width:${stat.percent}%"></b></i></div>`;
         };
-        const statusLabel = record.status === 'completed' ? 'All Topics Complete' : record.status === 'in-progress' ? 'In Progress' : 'Not Started';
-        return `<tr><td><strong>${escapeHTML(student.name || 'Unnamed Student')}</strong><small>${escapeHTML(student.studentId || '')}</small><em data-state="${record.status}">${statusLabel}</em></td><td>${escapeHTML(student.section || 'No section')}</td><td>${courseCell('html')}</td><td>${courseCell('css')}</td><td>${courseCell('js')}</td><td><strong>${record.xp}</strong></td><td><strong>${record.certificates}/3</strong></td><td>${record.lastDate ? escapeHTML(formatStudentDate(record.lastDate)) : 'No Explorer activity yet'}</td><td><button class="ghost-btn student-compact-action" type="button" data-view-code-explorer-student="${escapeAttribute(key)}">View</button></td></tr>`;
+        const statusLabel = !record.loaded ? 'Progress not loaded' : record.status === 'completed' ? 'All Topics Complete' : record.status === 'in-progress' ? 'In Progress' : 'Not Started';
+        return `<tr><td><strong>${escapeHTML(student.name || 'Unnamed Student')}</strong><small>${escapeHTML(student.studentId || '')}</small><em data-state="${record.status}">${statusLabel}</em></td><td>${escapeHTML(student.section || 'No section')}</td><td>${courseCell('html')}</td><td>${courseCell('css')}</td><td>${courseCell('js')}</td><td><strong>${record.xp}</strong></td><td><strong>${record.loaded ? `${record.certificates}/3` : '—'}</strong></td><td>${!record.loaded ? 'Loading page progress…' : record.lastDate ? escapeHTML(formatStudentDate(record.lastDate)) : 'No Explorer activity yet'}</td><td><button class="ghost-btn student-compact-action" type="button" data-view-code-explorer-student="${escapeAttribute(key)}" ${!record.loaded ? 'disabled' : ''}>View</button></td></tr>`;
       }).join('');
     }
-    if (dom.adminStatus) dom.adminStatus.textContent = `${filtered.length} of ${records.length} students shown · ${exploring} have explored at least one topic.`;
+    if (dom.adminStatus) {
+      const start = visible.length ? pageStart + 1 : 0;
+      const end = pageStart + visible.length;
+      const scope = loadedRecords.length < records.length ? ` · Summary/status filters use ${loadedRecords.length} loaded progress records` : '';
+      const incomplete = !adminExplorerState.directoryComplete && !adminStudentsCache.length ? ' · Student list is partial; Next loads 10 more profiles' : '';
+      dom.adminStatus.textContent = adminExplorerState.error || `Showing ${start}-${end} of ${filtered.length} students · 10 per page${scope}${incomplete}${adminExplorerState.loading ? ' · Loading page progress…' : ''}`;
+    }
   }
 
   let codeExplorerLeaderboardPublishAt = 0;
@@ -59334,6 +59714,8 @@ window.MCS_PHONE_MENU_STATUS = () => ({
 
       // v507: affected cached profiles were patched in-place. Avoid a full
       // post-repair student collection scan; 8 PM is the next full snapshot.
+      adminExplorerState.profiles.clear();
+      clearSelectiveFirestoreCache('admin:explorerProfile:');
       adminStudentsCache = mergeAdminStudentList(adminStudentsCache);
       renderAdminExplorerProgress();
       renderLegacyXpMigrationAudit(auditRows);
@@ -59752,19 +60134,38 @@ window.MCS_PHONE_MENU_STATUS = () => ({
 
   async function initializeCodeExplorerAdmin(options = {}) {
     if (!isTeacherAuthenticated()) return;
-    if (dom.adminStatus) dom.adminStatus.textContent = 'Loading cached Code Explorer progress...';
-    if (!adminStudentsCache.length) await loadAdminStudents();
-    await Promise.all([
-      loadLeaderboardSectionSettings(),
-      loadCodeExplorerMusicSettings({ force: false }),
-      refreshAdminLeaderboardXpOverlay({ force: true })
-    ]);
-    adminExplorerState.loaded = true;
-    renderAdminExplorerProgress();
-    renderAdminLeaderboardSectionSettings();
-    void loadLeaderboardAwardsAdminPanel({ loadLive: true, silent: true });
-    // v560: Admin displays the same trusted RTDB XP used by ranking. Student
-    // learning XP still checkpoints securely, while Mini-Game XP stays RTDB-live.
+    if (adminExplorerInitPromise) return adminExplorerInitPromise;
+    const task = (async () => {
+      const firstOpen = !adminExplorerState.loaded;
+      if (dom.adminStatus && firstOpen) dom.adminStatus.textContent = 'Loading the first 10 Code Explorer students…';
+      await loadAdminExplorerDirectory();
+      // Prime existing full local data without requesting a new collection snapshot.
+      if (adminStudentsCache.length && firstOpen) {
+        const entry = SELECTIVE_FIRESTORE_CACHE.get('admin:studentProfiles') || readSelectiveSessionCache('admin:studentProfiles', { allowExpired: true });
+        adminStudentsCache.flatMap(student => Array.isArray(student.sourceRecords) ? student.sourceRecords : [student]).filter(row => !row.isRosterOnly).forEach(row => {
+          adminExplorerState.profiles.set(String(row.uid || row.authUid || ''), { value: row, expiresAt: Number(entry?.expiresAt || 0) });
+        });
+      }
+      adminExplorerState.loaded = true;
+      await loadAdminExplorerVisiblePage({ force: options.force === true });
+      if (!firstOpen && options.force === true) {
+        void withTimeout(refreshAdminLeaderboardXpOverlay({ force: true }), 6000, 'XP snapshot refresh timed out.').catch(() => {}).then(renderAdminExplorerProgress);
+      }
+      if (firstOpen) {
+        // Optional controls update after the page appears. Awards rankings load on their own Refresh button.
+        void Promise.allSettled([
+          withTimeout(loadLeaderboardSectionSettings(), 6000, 'Section settings refresh timed out.'),
+          withTimeout(loadCodeExplorerMusicSettings({ force: false }), 6000, 'Music settings refresh timed out.'),
+          withTimeout(refreshAdminLeaderboardXpOverlay({ force: false }), 6000, 'XP snapshot refresh timed out.')
+        ]).then(() => { renderAdminExplorerProgress(); renderAdminLeaderboardSectionSettings(); });
+        void loadLeaderboardAwardsAdminPanel({ loadLive: false, silent: true });
+      }
+    })().catch(error => {
+      adminExplorerState.error = error?.message || 'Code Explorer progress could not load. Press Refresh Progress to retry.';
+      if (dom.adminStatus) dom.adminStatus.textContent = adminExplorerState.error;
+    }).finally(() => { if (adminExplorerInitPromise === task) adminExplorerInitPromise = null; });
+    adminExplorerInitPromise = task;
+    return task;
   }
 
   function getAdminExplorerHeartTargetUid(student = {}) {
@@ -59795,7 +60196,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
 
   async function grantAdminExplorerHearts(studentKey, amount = 'fill') {
     if (!isTeacherAuthenticated()) return;
-    const student = adminStudentsCache.find(item => getAdminStudentRenderKey(item) === String(studentKey || ''));
+    const student = getAdminExplorerStudents().find(item => getAdminStudentRenderKey(item) === String(studentKey || ''));
     if (!student) {
       await appAlert('Student record could not be found.', { title: 'Heart Refill', danger: true });
       return;
@@ -59846,6 +60247,12 @@ window.MCS_PHONE_MENU_STATUS = () => ({
           codeExplorerUpdatedAt: serverTimestamp()
         }, { merge: true });
       }
+      progress.hearts = nextHearts;
+      progress.updatedAt = nowIso;
+      const updatedProfile = { ...profile, uid: targetUid, isRosterOnly: false, sourceType: 'studentProfile', codeExplorerProgress: normalizeProgress(progress), codeExplorerUpdatedAt: nowIso };
+      adminExplorerState.profiles.set(targetUid, { value: updatedProfile, expiresAt: Date.now() + ADMIN_EXPLORER_PROFILE_TTL_MS });
+      setSelectiveFirestoreCache(`admin:explorerProfile:${targetUid}`, updatedProfile, ADMIN_EXPLORER_PROFILE_TTL_MS);
+      upsertCachedAdminProfileRecord(targetUid, updatedProfile);
       clearSelectiveFirestoreCache(`studentProfile:${targetUid}`);
       // v507: affected cached profiles were patched in-place. Avoid a full
       // post-repair student collection scan; 8 PM is the next full snapshot.
@@ -59857,7 +60264,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       console.error('Admin Code Explorer heart refill failed.', error);
       await appAlert(error?.message || 'Could not update the student hearts.', { title: 'Heart Refill', danger: true });
     } finally {
-      const activeStudent = adminStudentsCache.find(item => getAdminStudentRenderKey(item) === adminExplorerState.selectedStudentKey);
+      const activeStudent = getAdminExplorerStudents().find(item => getAdminStudentRenderKey(item) === adminExplorerState.selectedStudentKey);
       const balance = activeStudent ? adminExplorerRecord(activeStudent).hearts.balance : 0;
       buttons.forEach(button => { button.disabled = balance >= HEARTS_MAX; });
       if (activeStudent && dom.adminHeartText) dom.adminHeartText.textContent = `Current balance: ${balance}/${HEARTS_MAX}. Add only when the student needs another scored attempt.`;
@@ -59871,7 +60278,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
 
   function renderCodeExplorerAdminStudentDetail() {
     if (!adminExplorerState.selectedStudentKey || !dom.adminDetailOverlay) return;
-    const student = adminStudentsCache.find(item => getAdminStudentRenderKey(item) === adminExplorerState.selectedStudentKey);
+    const student = getAdminExplorerStudents().find(item => getAdminStudentRenderKey(item) === adminExplorerState.selectedStudentKey);
     if (!student) return;
     const record = adminExplorerRecord(student);
     const progress = record.progress;
@@ -59967,7 +60374,11 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   dom.adminMusicNextBtn?.addEventListener('click', () => stepCodeExplorerAdminMusicTest(1));
   dom.adminMusicSaveBtn?.addEventListener('click', saveCodeExplorerAdminMusicSettings);
 
-  dom.adminRefreshBtn?.addEventListener('click', () => initializeCodeExplorerAdmin());
+  dom.adminRefreshBtn?.addEventListener('click', () => initializeCodeExplorerAdmin({ force: true }));
+  dom.adminPagination?.addEventListener('click', event => {
+    const button = event.target.closest('[data-admin-explorer-page]');
+    if (button && !button.disabled) void changeAdminExplorerPage(button.dataset.adminExplorerPage);
+  });
   dom.adminLeaderboardSectionList?.addEventListener('change', event => {
     if (event.target?.matches?.('[data-leaderboard-admin-section]')) updateAdminLeaderboardSelectionLabels();
   });
@@ -60019,7 +60430,12 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     grantAdminExplorerHearts(adminExplorerState.selectedStudentKey, button.dataset.adminExplorerAddHeart || 'fill');
   });
   [dom.adminSearch, dom.adminSection, dom.adminStatusFilter, dom.adminSort].forEach(control => {
-    control?.addEventListener(control?.tagName === 'INPUT' ? 'input' : 'change', renderAdminExplorerProgress);
+    control?.addEventListener(control?.tagName === 'INPUT' ? 'input' : 'change', () => {
+      adminExplorerState.page = 1;
+      renderAdminExplorerProgress();
+      window.clearTimeout(adminExplorerFilterTimer);
+      adminExplorerFilterTimer = window.setTimeout(() => { void loadAdminExplorerVisiblePage(); }, control?.tagName === 'INPUT' ? 250 : 0);
+    });
   });
   dom.adminTableBody?.addEventListener('click', event => {
     const button = event.target.closest('[data-view-code-explorer-student]');
@@ -60101,7 +60517,12 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     if (explorerActive && explorerAudio.prefs.music) {
       unlockExplorerAudio().then(started => { if (started) startExplorerMusic(); }).catch(() => false);
     }
-    if (explorerActive) refreshExplorerFromCloudIfStale().catch(() => false);
+    if (explorerActive) {
+      refreshExplorerFromCloudIfStale().catch(() => false);
+      // A sleeping/background tab can miss the exact timer. Re-check the
+      // protected official snapshot as soon as the learner returns.
+      void scheduleLeaderboardAwardsDeadlineReveal({ force: true });
+    }
   });
 
   dom.quickThemeToggle?.addEventListener('click', () => {
