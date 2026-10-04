@@ -2381,7 +2381,7 @@ let adminLatestAiReview = null;
 let adminAiRubricController = null;
 let aiRubricConnectionState = { status: 'untested', code: '', message: '' };
 
-const MCS_APP_BUILD = 'v633-cutoff-consistent-awards';
+const MCS_APP_BUILD = 'v634-evidence-corrected-awards';
 window.MCS_APP_BUILD = MCS_APP_BUILD;
 console.info(`[MCSian Code Editor] ${MCS_APP_BUILD} loaded`);
 
@@ -19736,7 +19736,7 @@ function updateInstallButtonVisibility() {
 function registerPWAServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./service-worker.js?v=633-cutoff-consistent-awards', {
+    navigator.serviceWorker.register('./service-worker.js?v=634-evidence-corrected-awards', {
       updateViaCache: 'none'
     }).then(registration => {
       registration.update().catch(() => {});
@@ -56718,10 +56718,14 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   }
 
   function leaderboardAwardsOfficialIsUsable(snapshot = null) {
+    const sourceSchema = String(snapshot?.sourceSchema || '');
+    const mergedSource = sourceSchema === 'merged-roster-daily-v2';
+    const evidenceAudited = sourceSchema === 'legacy-v1-screenshot-audited-v1'
+      && String(snapshot?.audit?.status || '') === 'teacher-approved-evidence';
     return Boolean(
       snapshot?.locked
       && Number(snapshot?.version || 0) >= 2
-      && String(snapshot?.sourceSchema || '') === 'merged-roster-daily-v2'
+      && (mergedSource || evidenceAudited)
       && String(snapshot?.sourceDigestSha256 || '').length >= 32
       && normalizeLeaderboardRevealSections(snapshot).length >= 3
     );
@@ -57180,16 +57184,21 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     const structurallyLocked = Boolean(official?.locked && Array.isArray(official.studentAwards) && Array.isArray(official.sectionAwards));
     const ready = structurallyLocked && leaderboardAwardsOfficialIsUsable(official);
     const auditNeeded = structurallyLocked && !ready;
+    const evidenceAudited = ready && String(official?.sourceSchema || '') === 'legacy-v1-screenshot-audited-v1';
     dom.adminAwardsOfficialPill?.classList.toggle('ready', ready);
     dom.adminAwardsOfficialPill?.classList.toggle('pending', !ready);
-    if (dom.adminAwardsOfficialPill) dom.adminAwardsOfficialPill.textContent = ready ? 'Official · Verified Lock' : auditNeeded ? 'Official · Audit Needed' : 'Official · Pending';
+    if (dom.adminAwardsOfficialPill) dom.adminAwardsOfficialPill.textContent = ready
+      ? (evidenceAudited ? 'Official · Evidence Audited' : 'Official · Verified Lock')
+      : auditNeeded ? 'Official · Audit Needed' : 'Official · Pending';
     dom.adminAwardsOfficialBox?.classList.toggle('ready', ready);
     dom.adminAwardsOfficialBox?.classList.toggle('pending', !ready);
     dom.adminAwardsOfficialActions?.classList.toggle('hidden', !ready);
     if (ready) {
       const lockedAt = Number(official.snapshotAtMs || officialAtMs);
       if (dom.adminAwardsOfficialTitle) dom.adminAwardsOfficialTitle.textContent = `Official ${official.schoolYear || settings.schoolYear} awards are locked.`;
-      if (dom.adminAwardsOfficialStatus) dom.adminAwardsOfficialStatus.textContent = `Frozen ${formatLeaderboardAwardsDate(lockedAt, { time: true })} · ${Number(official.sourceStudentCount || 0)} included students · these ranks will not change.`;
+      if (dom.adminAwardsOfficialStatus) dom.adminAwardsOfficialStatus.textContent = evidenceAudited
+        ? `Frozen ${formatLeaderboardAwardsDate(lockedAt, { time: true })} · Rank #3 corrected from reviewed 12:00 AM screenshot evidence · Top 10 students preserved.`
+        : `Frozen ${formatLeaderboardAwardsDate(lockedAt, { time: true })} · ${Number(official.sourceStudentCount || 0)} included students · these ranks will not change.`;
     } else if (auditNeeded) {
       if (dom.adminAwardsOfficialTitle) dom.adminAwardsOfficialTitle.textContent = `Locked ${official.schoolYear || settings.schoolYear} snapshot needs source verification.`;
       if (dom.adminAwardsOfficialStatus) dom.adminAwardsOfficialStatus.textContent = 'Certificates and winner replay are paused. This older lock has no merged-roster/daily source digest, so it cannot safely decide a close section result.';

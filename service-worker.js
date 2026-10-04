@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ict8-connect-v633-cutoff-consistent-awards';
+const CACHE_NAME = 'ict8-connect-v634-evidence-corrected-awards';
 const APP_SHELL = [
   './',
   './index.html',
