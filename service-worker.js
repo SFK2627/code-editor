@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ict8-connect-v636-private-live-rank';
+const CACHE_NAME = 'ict8-connect-v637-co-third-podium-preview';
 const APP_SHELL = [
   './',
   './index.html',

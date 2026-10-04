@@ -67328,6 +67328,30 @@ html[data-theme="dark"] .code-explorer-admin-uno-video-settings{background:linea
 }
 .code-explorer-final-result-message > span { flex: 0 0 auto; }
 .code-explorer-final-result-message p { margin: 0; font-size: .78rem; line-height: 1.5; }
+.code-explorer-final-podium-btn {
+  width: 100%;
+  min-height: 58px;
+  display: grid;
+  grid-template-columns: auto minmax(0,1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 14px;
+  border: 1px solid #d2aa43;
+  border-radius: 17px;
+  background: linear-gradient(135deg,#2b1d06,#7c5717 52%,#bf8d28);
+  color: #fff9dc;
+  text-align: left;
+  box-shadow: 0 12px 28px rgba(146,94,12,.2), inset 0 1px 0 rgba(255,255,255,.2);
+  cursor: pointer;
+  transition: transform .18s ease, box-shadow .18s ease, filter .18s ease;
+}
+.code-explorer-final-podium-btn:hover { transform: translateY(-2px); filter: brightness(1.06); box-shadow: 0 16px 34px rgba(146,94,12,.27), inset 0 1px 0 rgba(255,255,255,.24); }
+.code-explorer-final-podium-btn:focus-visible { outline: 3px solid rgba(59,130,246,.42); outline-offset: 3px; }
+.code-explorer-final-podium-btn > span:first-child { font-size: 1.45rem; }
+.code-explorer-final-podium-btn > span:nth-child(2) { min-width: 0; display: grid; gap: 2px; }
+.code-explorer-final-podium-btn b { font-size: .83rem; letter-spacing: .015em; }
+.code-explorer-final-podium-btn small { color: #f5df9b; font-size: .68rem; font-weight: 700; }
+.code-explorer-final-podium-btn > span:last-child { font-size: 1.55rem; line-height: 1; }
 .code-explorer-final-result-warning {
   margin: 0;
   padding: 11px 13px;
@@ -67357,6 +67381,7 @@ html[data-theme="dark"] .code-explorer-final-result-stats .section-result strong
 html[data-theme="dark"] .code-explorer-final-result-stats .live-rank-result strong { color: #bfdbfe; }
 html[data-theme="dark"] .code-explorer-final-result-message { border-color: #176b4a; background: #0e3027; color: #a7f3d0; }
 html[data-theme="dark"] .code-explorer-final-result-warning { border-color: #7f1d1d; background: #35191d; color: #fecaca; }
+html[data-theme="dark"] .code-explorer-final-podium-btn { border-color: #a77e2f; background: linear-gradient(135deg,#271b08,#5f4212 55%,#8f651c); }
 
 @media (max-width: 760px) {
   .code-explorer-leaderboard-overlay.student-final-mode .code-explorer-leaderboard-sheet {
@@ -67390,6 +67415,9 @@ html[data-theme="dark"] .code-explorer-final-result-warning { border-color: #7f1
   .code-explorer-final-result-stats .live-rank-result strong { font-size: 1.08rem; }
   .code-explorer-final-result-message { padding: 10px 11px; }
   .code-explorer-final-result-message p { font-size: .7rem; }
+  .code-explorer-final-podium-btn { min-height: 54px; padding: 9px 11px; border-radius: 15px; }
+  .code-explorer-final-podium-btn b { font-size: .76rem; }
+  .code-explorer-final-podium-btn small { font-size: .63rem; }
 }
 
 @media (max-height: 560px) and (orientation: landscape) {

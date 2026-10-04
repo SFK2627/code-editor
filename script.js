@@ -2381,7 +2381,7 @@ let adminLatestAiReview = null;
 let adminAiRubricController = null;
 let aiRubricConnectionState = { status: 'untested', code: '', message: '' };
 
-const MCS_APP_BUILD = 'v636-private-live-rank';
+const MCS_APP_BUILD = 'v637-co-third-podium-preview';
 window.MCS_APP_BUILD = MCS_APP_BUILD;
 console.info(`[MCSian Code Editor] ${MCS_APP_BUILD} loaded`);
 
@@ -19736,7 +19736,7 @@ function updateInstallButtonVisibility() {
 function registerPWAServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./service-worker.js?v=636-private-live-rank', {
+    navigator.serviceWorker.register('./service-worker.js?v=637-co-third-podium-preview', {
       updateViaCache: 'none'
     }).then(registration => {
       registration.update().catch(() => {});
@@ -54850,6 +54850,11 @@ window.MCS_PHONE_MENU_STATUS = () => ({
           <span aria-hidden="true">✅</span>
           <p><b>You may continue learning and earning XP.</b><br>Your private live student place may change as XP increases, but it will not change the finalized winners or section placements.</p>
         </div>
+        <button type="button" class="code-explorer-final-podium-btn" data-student-final-podium-preview>
+          <span aria-hidden="true">🏆</span>
+          <span><b>See Top 3 Section Podium</b><small>Watch the official animated reveal</small></span>
+          <span aria-hidden="true">›</span>
+        </button>
       </section>`;
     dom.studentFinalResults.classList.remove('hidden');
     return true;
@@ -55248,6 +55253,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     timers: [],
     snapshot: null,
     preview: false,
+    studentFinalPodium: false,
     openLeaderboardAfter: false,
     finished: false,
     stage: 'idle'
@@ -55812,6 +55818,75 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   }
 
 
+  function studentFinalPodiumRows() {
+    return [
+      'st. maximilian kolbe',
+      'st. teresa of calcutta',
+      'st. faustina kowalska',
+      'st. teresa benedicta of the cross'
+    ].map(key => {
+      const result = STUDENT_FINAL_SECTION_RESULTS[key];
+      return { ...result, name: result.section };
+    });
+  }
+
+
+  function renderStudentFinalCoThirdStage(rows = studentFinalPodiumRows()) {
+    const thirds = rows.filter(row => Number(row.rank || 0) === 3);
+    return `<section class="student-final-co-third-stage">
+      <div class="student-final-stage-heading">
+        <span>DOUBLE BRONZE HONOR</span>
+        <h3>Two Sections Share Rank #3</h3>
+        <p>Both official third-place sections are recognized.</p>
+      </div>
+      <div class="student-final-co-third-grid">
+        ${thirds.map(row => `<article class="student-final-reveal-mini-card metal-bronze">
+          <span class="student-final-reveal-medal" aria-hidden="true">3</span>
+          <strong>${escapeHTML(leaderboardRevealSectionName(row))}</strong>
+          <small>${Number(row.averageXp || 0).toLocaleString(undefined,{minimumFractionDigits:1,maximumFractionDigits:1})} AVG XP · ${Number(row.studentCount || 0).toLocaleString()} STUDENTS</small>
+        </article>`).join('')}
+      </div>
+    </section>`;
+  }
+
+
+  function renderStudentFinalPodium(snapshot = leaderboardWinnerRevealState.snapshot) {
+    if (!dom.leaderboardRevealPodium) return false;
+    const rows = Array.isArray(snapshot?.sectionAwards) ? snapshot.sectionAwards : studentFinalPodiumRows();
+    const first = rows.find(row => Number(row.rank || 0) === 1);
+    const second = rows.find(row => Number(row.rank || 0) === 2);
+    const thirds = rows.filter(row => Number(row.rank || 0) === 3);
+    const displayRows = [
+      { row: thirds[0], slot: 'slot-third-left' },
+      { row: second, slot: 'slot-second' },
+      { row: first, slot: 'slot-first' },
+      { row: thirds[1], slot: 'slot-third-right' }
+    ].filter(item => item.row);
+
+    dom.leaderboardRevealPodium.innerHTML = `
+      <div class="ceremony-podium-heading student-final-podium-heading">
+        <span>OFFICIAL FINAL RESULTS · OCTOBER 5, 2026 · 12:00 AM</span>
+        <h3>Top 3 Section Podium</h3>
+        <i class="ceremony-rule"></i>
+      </div>
+      <div class="student-final-podium-grid">
+        ${displayRows.map(({ row, slot }) => {
+          const rank = Number(row.rank || 0);
+          const metal = leaderboardRevealMetal(rank);
+          return `<article class="code-explorer-awards-podium-card student-final-podium-card rank-${rank} metal-${metal} ${slot}">
+            <span class="podium-rank">${rank}</span>
+            <strong>${escapeHTML(leaderboardRevealSectionName(row))}</strong>
+            <small>${Number(row.averageXp || 0).toLocaleString(undefined,{minimumFractionDigits:1,maximumFractionDigits:1})} AVG XP</small>
+            <em>${Number(row.studentCount || 0).toLocaleString()} students</em>
+          </article>`;
+        }).join('')}
+      </div>
+      <p class="student-final-podium-tie-note"><b>Shared Rank #3:</b> St. Faustina Kowalska and St. Teresa Benedicta of the Cross are both official third-place sections.</p>`;
+    dom.leaderboardRevealPodium.classList.remove('hidden');
+    return true;
+  }
+
+
   function launchLeaderboardRevealConfetti(options = {}) {
     if (!dom.leaderboardRevealConfetti) return;
     dom.leaderboardRevealConfetti.innerHTML = '';
@@ -55836,6 +55911,10 @@ window.MCS_PHONE_MENU_STATUS = () => ({
 
 
   function finishLeaderboardWinnerReveal() {
+    if (leaderboardWinnerRevealState.studentFinalPodium) {
+      finishStudentFinalPodiumPreview();
+      return;
+    }
     clearLeaderboardWinnerRevealTimers();
     leaderboardWinnerRevealState.finished = true;
     leaderboardWinnerRevealState.stage = 'podium';
@@ -55857,6 +55936,29 @@ window.MCS_PHONE_MENU_STATUS = () => ({
 
     dom.leaderboardRevealSkipBtn?.classList.add('hidden');
     dom.leaderboardRevealViewBtn?.classList.remove('hidden');
+    launchLeaderboardRevealConfetti({ ambient: true });
+    startLeaderboardRevealPodiumMusic();
+  }
+
+
+  function finishStudentFinalPodiumPreview() {
+    clearLeaderboardWinnerRevealTimers();
+    leaderboardWinnerRevealState.finished = true;
+    leaderboardWinnerRevealState.stage = 'podium';
+
+    dom.leaderboardRevealOverlay?.classList.add('podium-mode', 'student-final-podium-preview');
+    dom.leaderboardRevealOverlay?.classList.remove('rank-1-mode','rank-2-mode','rank-3-mode','champion-mode');
+    if (dom.leaderboardRevealStage) {
+      dom.leaderboardRevealStage.innerHTML = '';
+      dom.leaderboardRevealStage.classList.add('hidden');
+    }
+    if (dom.leaderboardRevealTitle) dom.leaderboardRevealTitle.textContent = 'Official Section Podium';
+    if (dom.leaderboardRevealLead) dom.leaderboardRevealLead.textContent = '';
+
+    renderStudentFinalPodium();
+    dom.leaderboardRevealSkipBtn?.classList.add('hidden');
+    dom.leaderboardRevealViewBtn?.classList.remove('hidden');
+    if (dom.leaderboardRevealViewBtn) dom.leaderboardRevealViewBtn.textContent = 'Back to My Result';
     launchLeaderboardRevealConfetti({ ambient: true });
     startLeaderboardRevealPodiumMusic();
   }
@@ -56629,6 +56731,109 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         width:3px!important;height:7px!important;
         animation:ceremonyAmbientFall var(--fall) linear infinite!important;
       }
+
+      /* V637: the student replay preserves both official Rank #3 sections. */
+      .student-final-co-third-stage{
+        width:min(980px,100%)!important;display:grid!important;gap:clamp(14px,2.2vh,24px)!important;
+        align-content:center!important;justify-items:center!important;text-align:center!important;
+        animation:ceremonySuspenseIn .8s ease both!important;
+      }
+      .student-final-stage-heading span{
+        color:#d8b35b!important;font:900 clamp(.58rem,1vw,.74rem)/1.2 system-ui,sans-serif!important;
+        letter-spacing:.2em!important;text-transform:uppercase!important;
+      }
+      .student-final-stage-heading h3{
+        margin:8px 0 5px!important;color:#fff!important;font-family:Georgia,'Times New Roman',serif!important;
+        font-size:clamp(1.55rem,4.4vh,3.25rem)!important;line-height:1.05!important;font-weight:600!important;
+      }
+      .student-final-stage-heading p{margin:0!important;color:#9eacc0!important;font:600 clamp(.66rem,1.2vw,.84rem)/1.35 system-ui,sans-serif!important}
+      .student-final-co-third-grid{
+        width:100%!important;display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;
+        gap:clamp(10px,2vw,22px)!important;
+      }
+      .student-final-reveal-mini-card{
+        position:relative!important;min-width:0!important;min-height:clamp(155px,25vh,225px)!important;
+        display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;
+        gap:9px!important;padding:clamp(16px,2.6vh,26px) 14px!important;border:1px solid rgba(184,115,51,.48)!important;
+        border-radius:24px!important;background:linear-gradient(160deg,rgba(184,115,51,.18),rgba(255,255,255,.045))!important;
+        box-shadow:0 28px 72px rgba(65,32,13,.24),inset 0 1px 0 rgba(255,255,255,.1)!important;
+        overflow:hidden!important;animation:studentFinalBronzeRise .9s cubic-bezier(.16,1,.3,1) both,ceremonyPodiumGlow 4.8s ease-in-out 1s infinite alternate!important;
+      }
+      .student-final-reveal-mini-card:nth-child(2){animation-delay:.14s,1.14s!important}
+      .student-final-reveal-mini-card::before{
+        content:''!important;position:absolute!important;inset:0!important;pointer-events:none!important;
+        background:linear-gradient(110deg,transparent 28%,rgba(255,255,255,.11) 50%,transparent 72%)!important;
+        background-size:260% 100%!important;animation:ceremonyPodiumSheen 5.6s ease-in-out infinite!important;
+      }
+      .student-final-reveal-medal{
+        width:50px!important;height:50px!important;display:grid!important;place-items:center!important;border-radius:50%!important;
+        border:1px solid #d59b6b!important;background:radial-gradient(circle at 34% 28%,#f3c09a,#9a572d 70%,#5a2e17)!important;
+        color:#2b160b!important;font:900 1.55rem/1 Georgia,serif!important;box-shadow:0 10px 28px rgba(83,44,20,.32)!important;
+      }
+      .student-final-reveal-mini-card strong{
+        position:relative!important;color:#fff!important;font:600 clamp(1rem,2.4vw,1.55rem)/1.12 Georgia,'Times New Roman',serif!important;
+        text-wrap:balance!important;overflow-wrap:anywhere!important;
+      }
+      .student-final-reveal-mini-card small{position:relative!important;color:#e7ba91!important;font:850 clamp(.58rem,.95vw,.7rem)/1.35 system-ui,sans-serif!important;letter-spacing:.055em!important}
+      .student-final-podium-heading{align-self:center!important}
+      .student-final-podium-grid{
+        width:min(1160px,100%)!important;display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr))!important;
+        align-items:end!important;gap:clamp(7px,1.2vw,16px)!important;
+      }
+      .code-explorer-awards-reveal-overlay .student-final-podium-card{
+        min-width:0!important;width:100%!important;padding:16px 9px!important;
+      }
+      .code-explorer-awards-reveal-overlay .student-final-podium-card.slot-first{
+        min-height:clamp(188px,30vh,270px)!important;border-color:rgba(216,179,91,.52)!important;
+        background:linear-gradient(180deg,rgba(216,179,91,.16),rgba(255,255,255,.045))!important;
+      }
+      .code-explorer-awards-reveal-overlay .student-final-podium-card.slot-second{min-height:clamp(166px,26vh,232px)!important}
+      .code-explorer-awards-reveal-overlay .student-final-podium-card.slot-third-left,
+      .code-explorer-awards-reveal-overlay .student-final-podium-card.slot-third-right{
+        min-height:clamp(145px,22vh,205px)!important;border-color:rgba(184,115,51,.38)!important;
+        background:linear-gradient(180deg,rgba(184,115,51,.11),rgba(255,255,255,.038))!important;
+      }
+      .student-final-podium-card em{margin-top:5px!important;color:#77869c!important;font:700 .62rem/1.2 system-ui,sans-serif!important;font-style:normal!important}
+      .student-final-podium-tie-note{
+        margin:0!important;max-width:880px!important;color:#9eacc0!important;text-align:center!important;
+        font:600 clamp(.59rem,.95vw,.72rem)/1.35 system-ui,sans-serif!important;
+      }
+      .student-final-podium-tie-note b{color:#e7ba91!important}
+      @keyframes studentFinalBronzeRise{from{opacity:0;transform:translateY(34px) scale(.97)}to{opacity:1;transform:none}}
+
+      @media(max-width:600px){
+        .student-final-co-third-stage{gap:12px!important}
+        .student-final-stage-heading h3{font-size:clamp(1.35rem,7vw,2rem)!important}
+        .student-final-co-third-grid{grid-template-columns:1fr!important;gap:9px!important}
+        .student-final-reveal-mini-card{min-height:122px!important;padding:12px 10px!important;gap:6px!important;border-radius:17px!important}
+        .student-final-reveal-medal{width:38px!important;height:38px!important;font-size:1.22rem!important}
+        .student-final-podium-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;align-items:stretch!important;gap:7px!important}
+        .student-final-podium-card.slot-first{order:1!important}
+        .student-final-podium-card.slot-second{order:2!important}
+        .student-final-podium-card.slot-third-left{order:3!important}
+        .student-final-podium-card.slot-third-right{order:4!important}
+        .code-explorer-awards-reveal-overlay .student-final-podium-card,
+        .code-explorer-awards-reveal-overlay .student-final-podium-card.slot-first,
+        .code-explorer-awards-reveal-overlay .student-final-podium-card.slot-second,
+        .code-explorer-awards-reveal-overlay .student-final-podium-card.slot-third-left,
+        .code-explorer-awards-reveal-overlay .student-final-podium-card.slot-third-right{min-height:126px!important;padding:10px 6px!important}
+        .student-final-podium-card strong{font-size:clamp(.72rem,3.5vw,.9rem)!important}
+        .student-final-podium-card small{font-size:.55rem!important}
+        .student-final-podium-card em{font-size:.54rem!important}
+        .student-final-podium-tie-note{font-size:.58rem!important}
+      }
+      @media(max-height:540px) and (orientation:landscape){
+        .student-final-co-third-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+        .student-final-reveal-mini-card{min-height:94px!important;padding:8px!important}
+        .student-final-stage-heading h3{font-size:1.35rem!important}
+        .student-final-podium-grid{grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:6px!important}
+        .code-explorer-awards-reveal-overlay .student-final-podium-card,
+        .code-explorer-awards-reveal-overlay .student-final-podium-card.slot-first,
+        .code-explorer-awards-reveal-overlay .student-final-podium-card.slot-second,
+        .code-explorer-awards-reveal-overlay .student-final-podium-card.slot-third-left,
+        .code-explorer-awards-reveal-overlay .student-final-podium-card.slot-third-right{min-height:96px!important;padding:7px 5px!important}
+        .student-final-podium-tie-note{display:none!important}
+      }
       @keyframes ceremonyPodiumAurora{
         from{transform:translate(-4%,-2%) rotate(-4deg);opacity:.55}
         to{transform:translate(4%,3%) rotate(5deg);opacity:1}
@@ -56722,6 +56927,98 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   }
 
 
+  function showStudentFinalPodiumPreview() {
+    ensureLeaderboardWinnerRevealDom();
+    if (!dom.leaderboardRevealOverlay) return false;
+
+    const rows = studentFinalPodiumRows();
+    const snapshot = {
+      schoolYear: '2026-2027',
+      officialSnapshotAtMs: Date.UTC(2026, 9, 4, 16, 0, 0),
+      sectionAwards: rows
+    };
+    const rank1 = rows.find(row => Number(row.rank || 0) === 1);
+    const rank2 = rows.find(row => Number(row.rank || 0) === 2);
+
+    clearLeaderboardWinnerRevealTimers();
+    stopLeaderboardRevealMusic(0.05);
+    primeLeaderboardRevealAudio();
+
+    leaderboardWinnerRevealState.snapshot = snapshot;
+    leaderboardWinnerRevealState.preview = true;
+    leaderboardWinnerRevealState.studentFinalPodium = true;
+    leaderboardWinnerRevealState.openLeaderboardAfter = false;
+    leaderboardWinnerRevealState.finished = false;
+    leaderboardWinnerRevealState.stage = 'intro';
+
+    dom.leaderboardRevealOverlay.classList.remove('preview-mode','podium-mode','champion-mode','rank-1-mode','rank-2-mode','rank-3-mode');
+    dom.leaderboardRevealOverlay.classList.add('student-final-podium-preview');
+    dom.leaderboardRevealBadge?.classList.remove('preview');
+    if (dom.leaderboardRevealBadge) dom.leaderboardRevealBadge.textContent = 'OFFICIAL FINAL RESULTS · SCHOOL YEAR 2026–2027';
+    if (dom.leaderboardRevealTitle) dom.leaderboardRevealTitle.textContent = 'Top 3 Section Podium';
+    if (dom.leaderboardRevealLead) dom.leaderboardRevealLead.textContent = 'Four section cards appear because two sections share official Rank #3.';
+
+    if (dom.leaderboardRevealStage) {
+      dom.leaderboardRevealStage.classList.remove('hidden');
+      dom.leaderboardRevealStage.innerHTML = `<div class="code-explorer-awards-suspense">
+        <span class="ceremony-kicker">OFFICIAL SECTION HONORS</span>
+        <i class="ceremony-rule"></i>
+        <h3>The Final Podium</h3>
+        <p>First, we honor the two sections sharing Third Place.</p>
+      </div>`;
+    }
+    if (dom.leaderboardRevealPodium) {
+      dom.leaderboardRevealPodium.innerHTML = '';
+      dom.leaderboardRevealPodium.classList.add('hidden');
+    }
+    if (dom.leaderboardRevealConfetti) dom.leaderboardRevealConfetti.innerHTML = '';
+
+    dom.leaderboardRevealSkipBtn?.classList.remove('hidden');
+    if (dom.leaderboardRevealSkipBtn) dom.leaderboardRevealSkipBtn.textContent = 'Show Full Podium';
+    dom.leaderboardRevealViewBtn?.classList.add('hidden');
+    if (dom.leaderboardRevealViewBtn) dom.leaderboardRevealViewBtn.textContent = 'Back to My Result';
+
+    dom.leaderboardRevealOverlay.classList.remove('hidden');
+    document.body.classList.add('code-explorer-modal-open');
+    document.documentElement.style.overflow = 'hidden';
+    document.body.style.overflow = 'hidden';
+    startLeaderboardRevealCeremonyMusic();
+
+    scheduleLeaderboardRevealStep(() => {
+      leaderboardWinnerRevealState.stage = 'third';
+      dom.leaderboardRevealOverlay.classList.add('rank-3-mode');
+      if (dom.leaderboardRevealStage) dom.leaderboardRevealStage.innerHTML = renderStudentFinalCoThirdStage(rows);
+      playLeaderboardRevealPlacementCue(3);
+    }, 2200);
+
+    scheduleLeaderboardRevealStep(() => {
+      leaderboardWinnerRevealState.stage = 'second-transition';
+      transitionLeaderboardRevealStage('SECOND PLACE', () => {
+        leaderboardWinnerRevealState.stage = 'second';
+        dom.leaderboardRevealOverlay.classList.remove('rank-3-mode','rank-1-mode','champion-mode');
+        dom.leaderboardRevealOverlay.classList.add('rank-2-mode');
+        if (dom.leaderboardRevealStage) dom.leaderboardRevealStage.innerHTML = renderLeaderboardRevealCard(rank2);
+      }, () => playLeaderboardRevealPlacementCue(2));
+    }, 7000);
+
+    scheduleLeaderboardRevealStep(() => {
+      leaderboardWinnerRevealState.stage = 'champion-transition';
+      transitionLeaderboardRevealStage('SECTION CHAMPION', () => {
+        leaderboardWinnerRevealState.stage = 'champion';
+        dom.leaderboardRevealOverlay.classList.remove('rank-2-mode','rank-3-mode');
+        dom.leaderboardRevealOverlay.classList.add('champion-mode','rank-1-mode');
+        if (dom.leaderboardRevealStage) dom.leaderboardRevealStage.innerHTML = renderLeaderboardRevealCard(rank1);
+      }, () => {
+        playLeaderboardRevealPlacementCue(1);
+        launchLeaderboardRevealConfetti();
+      });
+    }, 11600);
+
+    scheduleLeaderboardRevealStep(finishStudentFinalPodiumPreview, 17600);
+    return true;
+  }
+
+
   function showLeaderboardWinnerReveal(snapshot, options = {}) {
     ensureLeaderboardWinnerRevealDom();
     const sections = normalizeLeaderboardRevealSections(snapshot);
@@ -56732,11 +57029,12 @@ window.MCS_PHONE_MENU_STATUS = () => ({
 
     leaderboardWinnerRevealState.snapshot = snapshot;
     leaderboardWinnerRevealState.preview = options.preview === true;
+    leaderboardWinnerRevealState.studentFinalPodium = false;
     leaderboardWinnerRevealState.openLeaderboardAfter = options.openLeaderboardAfter === true;
     leaderboardWinnerRevealState.finished = false;
     leaderboardWinnerRevealState.stage = 'intro';
 
-    dom.leaderboardRevealOverlay.classList.remove('podium-mode', 'champion-mode', 'rank-1-mode', 'rank-2-mode', 'rank-3-mode');
+    dom.leaderboardRevealOverlay.classList.remove('student-final-podium-preview', 'podium-mode', 'champion-mode', 'rank-1-mode', 'rank-2-mode', 'rank-3-mode');
     dom.leaderboardRevealOverlay.classList.toggle('preview-mode', leaderboardWinnerRevealState.preview);
 
     dom.leaderboardRevealBadge?.classList.toggle('preview', leaderboardWinnerRevealState.preview);
@@ -56877,10 +57175,11 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     clearLeaderboardWinnerRevealTimers();
     stopLeaderboardRevealMusic(0.22);
     dom.leaderboardRevealOverlay?.classList.add('hidden');
-    dom.leaderboardRevealOverlay?.classList.remove('preview-mode', 'podium-mode', 'champion-mode', 'rank-1-mode', 'rank-2-mode', 'rank-3-mode');
+    dom.leaderboardRevealOverlay?.classList.remove('student-final-podium-preview', 'preview-mode', 'podium-mode', 'champion-mode', 'rank-1-mode', 'rank-2-mode', 'rank-3-mode');
     if (!preview && snapshot) markLeaderboardWinnerRevealSeen(snapshot);
     leaderboardWinnerRevealState.snapshot = null;
     leaderboardWinnerRevealState.preview = false;
+    leaderboardWinnerRevealState.studentFinalPodium = false;
     leaderboardWinnerRevealState.openLeaderboardAfter = false;
     leaderboardWinnerRevealState.finished = false;
     leaderboardWinnerRevealState.stage = 'idle';
@@ -60755,6 +61054,12 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     syncExplorerMobileChrome();
   });
   dom.leaderboardBtn?.addEventListener('click', openGlobalLeaderboard);
+  dom.studentFinalResults?.addEventListener('click', event => {
+    const podiumButton = event.target.closest?.('[data-student-final-podium-preview]');
+    if (!podiumButton || !isStudentFinalResultsViewer()) return;
+    primeLeaderboardRevealAudio();
+    showStudentFinalPodiumPreview();
+  });
   dom.leaderboardAwardsReplayBtn?.addEventListener('click', replayOfficialLeaderboardWinnerReveal);
   dom.leaderboardRevealCloseBtn?.addEventListener('click', () => closeLeaderboardWinnerReveal({ openLeaderboard: true }));
   dom.leaderboardRevealSkipBtn?.addEventListener('click', finishLeaderboardWinnerReveal);
