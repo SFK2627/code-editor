@@ -48498,11 +48498,23 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     try { localStorage.setItem(key, JSON.stringify(value)); } catch (_) {}
   }
 
+  function globalLeaderboardDailyCacheKey(identity = '') {
+    const resolvedIdentity = String(identity || appSession.student?.uid || getFirebaseActiveUser()?.uid || 'teacher');
+    return `ict8.globalLeaderboard.v512.${resolvedIdentity}.${superCacheRankingEpochKey()}`;
+  }
+
+  function invalidateCurrentGlobalLeaderboardCache() {
+    const key = globalLeaderboardDailyCacheKey();
+    try { localStorage.removeItem(key); } catch (_) {}
+    leaderboardState.loadedAt = 0;
+    return key;
+  }
+
   async function loadDailyGlobalLeaderboardEntries(options = {}) {
     if (!(appSession.mode === 'student' || isTeacherAuthenticated())) return [];
     const identity = String(appSession.student?.uid || getFirebaseActiveUser()?.uid || 'teacher');
     const epoch = superCacheRankingEpochKey();
-    const key = `ict8.globalLeaderboard.v512.${identity}.${epoch}`;
+    const key = globalLeaderboardDailyCacheKey(identity);
     const cached = readDailyLeaderboardCache(key);
     // v512: Refresh may revalidate RTDB because the full enrolled-roster snapshot
     // can change independently of a student's daily XP row.
@@ -48563,6 +48575,20 @@ window.MCS_PHONE_MENU_STATUS = () => ({
           epochKey: String(live?.epochKey || base.epochKey || '')
         };
       });
+
+      // v614: never allow the currently signed-in student's stale RTDB row to
+      // beat the canonical XP already visible in the trusted profile/session.
+      // This only affects the current user and keeps ranking based on the same
+      // XP source shown in the app.
+      if (appSession.mode === 'student') {
+        const currentUid = String(appSession.student?.uid || getFirebaseActiveUser()?.uid || '').trim();
+        const currentXp = Math.max(0, Number(totalXp() || 0));
+        const currentRow = rows.find(row => String(row.uid || '') === currentUid);
+        if (currentRow && currentXp > Number(currentRow.xp || 0)) {
+          currentRow.xp = currentXp;
+          currentRow.updatedAtMs = Date.now();
+        }
+      }
 
       // Only complete roster-based snapshots are cached.
       writeDailyLeaderboardCache(key, { epoch, savedAt: Date.now(), rows });
@@ -51831,6 +51857,12 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       clearAdminStudentSnapshotCache();
       leaderboardState.loadedAt = 0;
     }
+    // v560 XP consistency: Mini-Game rewards update the trusted RTDB global
+    // leaderboard directly even though Firestore is intentionally untouched.
+    // Clear the browser leaderboard snapshot as soon as that RTDB update lands.
+    if (server.globalLeaderboardSync === true) {
+      invalidateCurrentGlobalLeaderboardCache();
+    }
     if (appSession.student) appSession.student.codeExplorerXp = totalXp;
     if (appSession.lastStudentProfile) appSession.lastStudentProfile.codeExplorerXp = totalXp;
     saveLocalProgress(state.progress);
@@ -54740,15 +54772,19 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       .filter(student => String(student.accountStatus || 'active') !== 'disabled')
       .map(student => {
         const progress = studentExplorerProgress(student);
-        const total = Math.max(0, Number(explorerXpFor(progress) || 0));
+        const progressTotal = Math.max(0, Number(explorerXpFor(progress) || 0));
+        const total = adminEffectiveXp(student, progressTotal);
         const mini = Math.max(0, Number(miniGameLifetimeXpFor(progress) || 0));
+        const learningBase = Math.max(0, Math.floor(progressTotal - mini));
         return {
           uid: String(student.uid || student.authUid || '').trim(),
           studentId: normalizeStudentId(student.studentId || student.studentIdNormalized || student.rosterId || ''),
           name: String(student.name || 'Unnamed Student').replace(/\s+/g, ' ').trim(),
           section: String(student.section || '').replace(/\s+/g, ' ').trim(),
           xp: Math.max(0, Math.floor(total)),
-          learningXp: Math.max(0, Math.floor(total - mini)),
+          // Keep the non-game base derived from canonical Explorer progress;
+          // the total XP may be fresher because Mini-Game XP is RTDB-authoritative.
+          learningXp: learningBase,
           accountStatus: String(student.accountStatus || 'active').trim().toLowerCase()
         };
       })
@@ -56982,7 +57018,24 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         generatedAtMs: Date.now(),
         sourceStudentCount: included.length,
         studentAwards: students.map(row => ({ rank: Number(row.rank || 0), name: String(row.name || 'Student'), section: String(row.section || ''), xp: Math.max(0, Number(row.xp || 0)) })),
-        sectionAwards: sections.map(row => ({ rank: Number(row.rank || 0), name: String(row.name || row.section || 'Section'), studentCount: Math.max(0, Number(row.studentCount || 0)), totalXp: Math.max(0, Number(row.xp || 0)), averageXp: Math.max(0, Number(row.averageXp || 0)) }))
+        sectionAwards: sections.map(row => {
+          const sectionName = String(row.name || row.section || 'Section');
+          const sectionKey = leaderboardSectionKey(sectionName);
+          const studentsInSection = included
+            .filter(student => leaderboardSectionKey(student.section || '') === sectionKey)
+            .map(student => ({
+              name: String(student.name || 'Student').replace(/\s+/g, ' ').trim(),
+              section: String(student.section || sectionName).replace(/\s+/g, ' ').trim()
+            }));
+          return {
+            rank: Number(row.rank || 0),
+            name: sectionName,
+            studentCount: Math.max(0, Number(row.studentCount || 0)),
+            totalXp: Math.max(0, Number(row.xp || 0)),
+            averageXp: Math.max(0, Number(row.averageXp || 0)),
+            students: studentsInSection
+          };
+        })
       };
       leaderboardAwardsState.lastLiveLoadedAt = Date.now();
       renderLeaderboardAwardsCurrentPreview(leaderboardAwardsState.live);
@@ -57024,6 +57077,445 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     return '#35a6a0';
   }
 
+
+  function sectionAwardSurname(student = '') {
+    const source = student && typeof student === 'object' ? student : {};
+    const suffixes = new Set(['JR', 'JR.', 'SR', 'SR.', 'II', 'III', 'IV', 'V']);
+    const cleanToken = value => String(value || '').replace(/^[,.;:]+|[,.;:]+$/g, '').trim();
+    const initialOf = value => {
+      const cleaned = cleanToken(value);
+      return cleaned ? `${cleaned.charAt(0).toUpperCase()}.` : '';
+    };
+    const properCaseSurname = value => cleanToken(value)
+      .toLowerCase()
+      .replace(/(^|[\s'-])([a-z])/g, (match, prefix, letter) => `${prefix}${letter.toUpperCase()}`);
+
+    const explicitSurname = cleanToken(source.surname || source.lastName || source.familyName || '');
+    const firstName = cleanToken(source.firstName || source.givenName || source.firstname || source.first || '');
+    const middleName = cleanToken(source.middleName || source.secondName || source.secondGivenName || source.middle || '');
+
+    const formatLabel = (surname, givenParts = []) => {
+      const normalizedSurname = properCaseSurname(surname);
+      const initials = givenParts
+        .map(part => initialOf(part))
+        .filter(Boolean)
+        .slice(0, 2);
+      if (!normalizedSurname) return initials.join(' ');
+      return initials.length ? `${normalizedSurname}, ${initials.join(' ')}` : normalizedSurname;
+    };
+
+    if (explicitSurname) {
+      const direct = formatLabel(explicitSurname, [firstName, middleName]);
+      if (direct) return direct;
+    }
+
+    const fullName = String(typeof student === 'string'
+      ? student
+      : (source.name || source.fullName || source.studentName || ''))
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (!fullName) return explicitSurname || '';
+
+    let surname = '';
+    let givenParts = [];
+
+    if (fullName.includes(',')) {
+      const pieces = fullName.split(',');
+      surname = cleanToken(pieces.shift() || '');
+      const rest = pieces.join(' ').split(/\s+/).map(cleanToken).filter(Boolean);
+      givenParts = rest.filter(part => !suffixes.has(part.toUpperCase())).slice(0, 2);
+      const label = formatLabel(surname, givenParts);
+      if (label) return label;
+    }
+
+    const parts = fullName.split(/\s+/).map(cleanToken).filter(Boolean);
+    if (!parts.length) return '';
+    let endIndex = parts.length - 1;
+    if (endIndex > 0 && suffixes.has(parts[endIndex].toUpperCase())) endIndex -= 1;
+    surname = cleanToken(parts[endIndex] || '');
+    givenParts = parts.slice(0, endIndex).filter(Boolean).slice(0, 2);
+    return formatLabel(surname, givenParts);
+  }
+
+  function collectSectionAwardStudents(record = {}, snapshot = {}) {
+    const sectionName = String(record.name || record.section || '').trim();
+    const sectionKey = leaderboardSectionKey(sectionName);
+    const sectionMembers = snapshot?.sectionMembers;
+    const snapshotList = sectionMembers && typeof sectionMembers === 'object'
+      ? (sectionMembers[sectionKey] || sectionMembers[sectionName])
+      : null;
+
+    // Use the fullest available roster instead of the first non-empty list.
+    // Some leaderboard records may contain only a partial member preview.
+    const possibleLists = [
+      record.students,
+      record.members,
+      record.studentNames,
+      record.learners,
+      record.enrolledStudents,
+      snapshotList
+    ].filter(list => Array.isArray(list) && list.length);
+
+    if (!possibleLists.length) return [];
+    return possibleLists.reduce((best, list) => list.length > best.length ? list : best, possibleLists[0]);
+  }
+
+  async function hydrateSectionAwardStudents(records = [], snapshot = {}) {
+    const cloned = records.map(record => ({ ...record }));
+    const needsRosterHydration = cloned.some(record => {
+      const current = collectSectionAwardStudents(record, snapshot);
+      const expected = Math.max(0, Number(record.studentCount || 0));
+      return !current.length || (expected > 0 && current.length < expected);
+    });
+    if (!needsRosterHydration) return cloned;
+
+    let roster = [];
+    try {
+      roster = await loadDailyGlobalLeaderboardEntries({ force: true, live: true });
+    } catch (error) {
+      console.info('Could not load the full section roster for certificate names.', error);
+    }
+    if (!Array.isArray(roster) || !roster.length) return cloned;
+
+    const bySection = new Map();
+    roster
+      .filter(student => String(student?.accountStatus || 'active') !== 'disabled')
+      .forEach(student => {
+        const key = leaderboardSectionKey(student?.section || '');
+        if (!key) return;
+        if (!bySection.has(key)) bySection.set(key, []);
+        bySection.get(key).push({
+          name: String(student?.name || 'Student').replace(/\s+/g, ' ').trim(),
+          section: String(student?.section || '').replace(/\s+/g, ' ').trim()
+        });
+      });
+
+    return cloned.map(record => {
+      const key = leaderboardSectionKey(record.name || record.section || '');
+      const rosterStudents = bySection.get(key) || [];
+      const current = collectSectionAwardStudents(record, snapshot);
+      const expected = Math.max(0, Number(record.studentCount || 0));
+      if (!rosterStudents.length) return record;
+      if (!current.length || (expected > 0 && current.length < expected) || rosterStudents.length > current.length) {
+        return { ...record, students: expected > 0 ? rosterStudents.slice(0, expected) : rosterStudents };
+      }
+      return record;
+    });
+  }
+
+  function drawSectionSurnameWatermark(ctx, record = {}, snapshot = {}) {
+    const students = collectSectionAwardStudents(record, snapshot);
+    const labels = students.map(sectionAwardSurname).filter(Boolean);
+    if (!labels.length) return;
+
+    const expectedCount = Math.max(0, Number(record.studentCount || 0));
+    const names = expectedCount > 0 ? labels.slice(0, expectedCount) : labels.slice();
+    if (!names.length) return;
+
+    const safeRect = { left: 78, top: 82, width: 1444, height: 836 };
+    const safeRight = safeRect.left + safeRect.width;
+    const safeBottom = safeRect.top + safeRect.height;
+    const fixedAngle = -0.20;
+
+    // Strictly protect all certificate content areas.
+    const blockedZones = [
+      { left: 1328, top: 56, right: 1496, bottom: 196 },   // logo
+      { left: 126, top: 172, right: 1472, bottom: 438 },   // all header/title/subtitle area
+      { left: 160, top: 480, right: 438, bottom: 738 },    // rank seal
+      { left: 450, top: 496, right: 1294, bottom: 620 },   // section name + rank text
+      { left: 450, top: 646, right: 1406, bottom: 778 },   // stat cards
+      { left: 88, top: 796, right: 430, bottom: 910 },     // date block
+      { left: 1048, top: 790, right: 1370, bottom: 908 }   // signature block
+    ];
+
+    // Only use genuinely open spaces. No center/title placements.
+    const zones = [
+      // top band before the logo — one clean row only; overflow uses the next safe band
+      { left: 94, top: 94, width: 1218, height: 20, stepX: 132, stepY: 36, maxWidth: 104, fontSize: 16 },
+      // upper-left open shoulder
+      { left: 94, top: 210, width: 176, height: 248, stepX: 82, stepY: 58, maxWidth: 88, fontSize: 14 },
+      // left of the rank seal
+      { left: 92, top: 500, width: 122, height: 250, stepX: 58, stepY: 56, maxWidth: 74, fontSize: 13 },
+      { left: 150, top: 520, width: 96, height: 214, stepX: 50, stepY: 54, maxWidth: 66, fontSize: 12 },
+      // right side long column
+      { left: 1384, top: 214, width: 118, height: 566, stepX: 56, stepY: 56, maxWidth: 76, fontSize: 13 },
+      { left: 1438, top: 234, width: 58, height: 528, stepX: 50, stepY: 52, maxWidth: 58, fontSize: 11 },
+      // organized lower-middle layout under the stat boxes: two clean rows
+      { left: 430, top: 816, width: 590, height: 78, stepX: 118, stepY: 36, maxWidth: 90, fontSize: 13 },
+      // bottom middle overflow band, still kept tidy and secondary
+      { left: 430, top: 858, width: 590, height: 36, stepX: 118, stepY: 36, maxWidth: 90, fontSize: 13 },
+      // thin band above the section award block, still clear of title/subtitles
+      { left: 92, top: 444, width: 1388, height: 44, stepX: 108, stepY: 44, maxWidth: 98, fontSize: 13 }
+    ];
+
+    const overlapsAny = (rect, list) => list.some(box => !(rect.right < box.left || rect.left > box.right || rect.bottom < box.top || rect.top > box.bottom));
+
+    function buildCandidates(dense = false) {
+      const candidates = [];
+      zones.forEach((zone, zoneIndex) => {
+        const stepX = dense ? Math.max(40, zone.stepX - 10) : zone.stepX;
+        const stepY = dense ? Math.max(24, zone.stepY - 6) : zone.stepY;
+
+        // Top band: use a single clean row with dynamic spacing based on how
+        // many names should appear there, so 10, 9, 8, etc. all stay balanced.
+        if (zoneIndex === 0) {
+          const topCount = Math.max(1, Math.min(10, names.length));
+          const margin = dense ? 54 : 42;
+          const usableLeft = zone.left + margin;
+          const usableRight = zone.left + zone.width - margin;
+          const y = zone.top + 8;
+          if (topCount === 1) {
+            candidates.push({
+              x: (usableLeft + usableRight) / 2,
+              y,
+              maxWidth: zone.maxWidth,
+              fontSize: zone.fontSize,
+              zoneIndex
+            });
+          } else {
+            const gap = (usableRight - usableLeft) / (topCount - 1);
+            for (let i = 0; i < topCount; i += 1) {
+              const x = usableLeft + (i * gap);
+              candidates.push({ x, y, maxWidth: zone.maxWidth, fontSize: zone.fontSize, zoneIndex });
+            }
+          }
+          return;
+        }
+
+        // Balanced side columns: one straight mirrored column on each side,
+        // with the same Y baselines and spacing. The pair stays clear of the
+        // central certificate content and uses equal visual inset from the
+        // inner border.
+        if (zoneIndex === 1 || zoneIndex === 4) {
+          const x = zoneIndex === 1 ? 112 : 1488;
+          const firstY = 466;
+          const lastY = 746;
+          const rowGap = 56;
+          const rows = Math.floor((lastY - firstY) / rowGap) + 1;
+          const maxWidth = 74;
+          const fontSize = 13;
+          for (let row = 0; row < rows; row += 1) {
+            const y = firstY + (row * rowGap);
+            candidates.push({ x, y, maxWidth, fontSize, zoneIndex });
+          }
+          return;
+        }
+
+        // Bottom center: a dedicated smart two-row layout. The earlier areas
+        // provide 35 stable slots (10 top + 13 middle band + 12 side slots),
+        // so only the remaining names are distributed here. First row takes up
+        // to five. The second row is balanced based on the exact remainder.
+        if (zoneIndex === 6) {
+          const bottomCount = Math.max(0, Math.min(10, names.length - 35));
+          if (!bottomCount) return;
+
+          const row1Count = Math.min(5, bottomCount);
+          const row2Count = Math.max(0, bottomCount - row1Count);
+          const fullRow = [500, 620, 740, 860, 980];
+          const rowLayouts = {
+            1: [740],
+            2: [560, 920],
+            3: [520, 740, 960],
+            4: [510, 630, 850, 970],
+            5: fullRow
+          };
+          const firstRowXs = row1Count === 5 ? fullRow : rowLayouts[row1Count];
+          const firstY = row2Count ? 822 : 848;
+          firstRowXs.forEach(x => {
+            candidates.push({ x, y: firstY, maxWidth: 92, fontSize: 14, zoneIndex });
+          });
+
+          if (row2Count) {
+            const secondRowXs = rowLayouts[row2Count];
+            secondRowXs.forEach(x => {
+              candidates.push({ x, y: 874, maxWidth: 92, fontSize: 14, zoneIndex });
+            });
+          }
+          return;
+        }
+
+        // Disable the old extra side columns and the old generic bottom row.
+        // This keeps the side layout single-column and the bottom layout clean.
+        if (zoneIndex === 2 || zoneIndex === 3 || zoneIndex === 5 || zoneIndex === 7) return;
+
+        const cols = Math.max(1, Math.floor(zone.width / stepX) + 1);
+        const rows = Math.max(1, Math.floor(zone.height / stepY) + 1);
+        for (let row = 0; row < rows; row += 1) {
+          for (let col = 0; col < cols; col += 1) {
+            let x = zone.left + 10 + (col * stepX) + ((row % 2) * stepX * 0.18);
+            let y = zone.top + 8 + (row * stepY) + ((x - safeRect.left) / safeRect.width) * 24;
+
+            // Other zones keep their existing placement behavior.
+
+            if (x > zone.left + zone.width || y > zone.top + zone.height) continue;
+            candidates.push({ x, y, maxWidth: zone.maxWidth, fontSize: zone.fontSize, zoneIndex });
+          }
+        }
+      });
+      // Prefer the wide open band between the subtitle and section name
+      // before using the crowded lower areas. This redistributes names without
+      // changing the protected text/icon zones or the no-overlap checks.
+      const priority = new Map([[0, 0], [8, 1], [1, 2], [4, 2], [6, 3], [7, 4], [2, 9], [3, 9], [5, 9]]);
+      candidates.sort((a, b) => {
+        const pa = priority.has(a.zoneIndex) ? priority.get(a.zoneIndex) : 99;
+        const pb = priority.has(b.zoneIndex) ? priority.get(b.zoneIndex) : 99;
+        if (pa !== pb) return pa - pb;
+        if (a.y !== b.y) return a.y - b.y;
+        return a.x - b.x;
+      });
+      return candidates;
+    }
+
+    function layoutNames(dense = false) {
+      const candidates = buildCandidates(dense);
+      const usedRects = [];
+      const drawings = [];
+      const gap = dense ? 4 : 6;
+
+      for (let i = 0; i < names.length; i += 1) {
+        const name = names[i];
+        let placed = false;
+        for (let c = 0; c < candidates.length; c += 1) {
+          const slot = candidates[c];
+          if (slot.__used) continue;
+          let fontSize = slot.fontSize;
+          const maxWidth = dense ? slot.maxWidth + 4 : slot.maxWidth;
+          ctx.font = `500 ${Math.round(fontSize)}px "Lucida Handwriting", "Segoe Script", "Brush Script MT", "Snell Roundhand", cursive`;
+          while (ctx.measureText(name).width > maxWidth && fontSize > 9) {
+            fontSize -= 1;
+            ctx.font = `500 ${Math.round(fontSize)}px "Lucida Handwriting", "Segoe Script", "Brush Script MT", "Snell Roundhand", cursive`;
+          }
+          const measured = Math.min(maxWidth, ctx.measureText(name).width);
+          const textHeight = fontSize * 1.15;
+          const cos = Math.abs(Math.cos(fixedAngle));
+          const sin = Math.abs(Math.sin(fixedAngle));
+          const bboxWidth = (measured * cos) + (textHeight * sin);
+          const bboxHeight = (measured * sin) + (textHeight * cos);
+          const x = Math.min(Math.max(slot.x, safeRect.left + (bboxWidth / 2) + 3), safeRight - (bboxWidth / 2) - 3);
+          const y = Math.min(Math.max(slot.y, safeRect.top + (bboxHeight / 2) + 3), safeBottom - (bboxHeight / 2) - 3);
+          const rect = {
+            left: x - (bboxWidth / 2) - gap,
+            top: y - (bboxHeight / 2) - gap,
+            right: x + (bboxWidth / 2) + gap,
+            bottom: y + (bboxHeight / 2) + gap
+          };
+          if (overlapsAny(rect, blockedZones) || overlapsAny(rect, usedRects)) continue;
+          slot.__used = true;
+          usedRects.push(rect);
+          drawings.push({ name, x, y, fontSize, maxWidth });
+          placed = true;
+          break;
+        }
+        if (!placed) return null;
+      }
+      return drawings;
+    }
+
+
+    function layoutNamesAdaptive() {
+      // Only used when the normal V19 layout fails. Place the widest labels
+      // first so one long surname cannot invalidate the whole certificate.
+      const attempts = [
+        { scale: 0.92, gap: 3, widthBonus: 4 },
+        { scale: 0.84, gap: 2, widthBonus: 6 },
+        { scale: 0.76, gap: 1, widthBonus: 8 }
+      ];
+
+      for (const attempt of attempts) {
+        const candidates = buildCandidates(true);
+        const usedRects = [];
+        const drawings = [];
+        const ordered = names.map((name, index) => {
+          ctx.font = `500 16px "Lucida Handwriting", "Segoe Script", "Brush Script MT", "Snell Roundhand", cursive`;
+          return { name, index, width: ctx.measureText(name).width };
+        }).sort((a, b) => b.width - a.width);
+
+        let failed = false;
+        for (const entry of ordered) {
+          let placed = false;
+          for (let c = 0; c < candidates.length; c += 1) {
+            const slot = candidates[c];
+            if (slot.__used) continue;
+
+            let fontSize = Math.max(8, Math.round(slot.fontSize * attempt.scale));
+            const maxWidth = slot.maxWidth + attempt.widthBonus;
+            ctx.font = `500 ${fontSize}px "Lucida Handwriting", "Segoe Script", "Brush Script MT", "Snell Roundhand", cursive`;
+            while (ctx.measureText(entry.name).width > maxWidth && fontSize > 7) {
+              fontSize -= 1;
+              ctx.font = `500 ${fontSize}px "Lucida Handwriting", "Segoe Script", "Brush Script MT", "Snell Roundhand", cursive`;
+            }
+
+            const measured = Math.min(maxWidth, ctx.measureText(entry.name).width);
+            const textHeight = fontSize * 1.12;
+            const cos = Math.abs(Math.cos(fixedAngle));
+            const sin = Math.abs(Math.sin(fixedAngle));
+            const bboxWidth = (measured * cos) + (textHeight * sin);
+            const bboxHeight = (measured * sin) + (textHeight * cos);
+            const x = Math.min(Math.max(slot.x, safeRect.left + (bboxWidth / 2) + 3), safeRight - (bboxWidth / 2) - 3);
+            const y = Math.min(Math.max(slot.y, safeRect.top + (bboxHeight / 2) + 3), safeBottom - (bboxHeight / 2) - 3);
+            const rect = {
+              left: x - (bboxWidth / 2) - attempt.gap,
+              top: y - (bboxHeight / 2) - attempt.gap,
+              right: x + (bboxWidth / 2) + attempt.gap,
+              bottom: y + (bboxHeight / 2) + attempt.gap
+            };
+
+            if (overlapsAny(rect, blockedZones) || overlapsAny(rect, usedRects)) continue;
+            slot.__used = true;
+            usedRects.push(rect);
+            drawings.push({
+              name: entry.name,
+              originalIndex: entry.index,
+              x,
+              y,
+              fontSize,
+              maxWidth
+            });
+            placed = true;
+            break;
+          }
+
+          if (!placed) {
+            failed = true;
+            break;
+          }
+        }
+
+        if (!failed && drawings.length === names.length) {
+          return drawings.sort((a, b) => a.originalIndex - b.originalIndex);
+        }
+      }
+
+      return null;
+    }
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(safeRect.left, safeRect.top, safeRect.width, safeRect.height);
+    ctx.clip();
+    ctx.globalCompositeOperation = 'screen';
+    ctx.globalAlpha = names.length >= 44 ? 0.068 : names.length >= 34 ? 0.074 : 0.08;
+    ctx.fillStyle = 'rgba(245, 232, 202, 0.99)';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    let drawings = layoutNames(false);
+    if (!drawings) drawings = layoutNames(true);
+    if (!drawings) drawings = layoutNamesAdaptive();
+    if (!drawings) { ctx.restore(); return; }
+
+    drawings.forEach(item => {
+      ctx.font = `500 ${Math.round(item.fontSize)}px "Lucida Handwriting", "Segoe Script", "Brush Script MT", "Snell Roundhand", cursive`;
+      ctx.save();
+      ctx.translate(item.x, item.y);
+      ctx.rotate(fixedAngle);
+      ctx.fillText(item.name, 0, 0, item.maxWidth);
+      ctx.restore();
+    });
+
+    ctx.restore();
+  }
+
   async function renderLeaderboardAwardCertificateCanvas(kind, record = {}, snapshot = {}) {
     const canvas = document.createElement('canvas');
     canvas.width = 1600; canvas.height = 1000;
@@ -57050,6 +57542,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         ctx.fillStyle = x % 240 === 90 ? 'rgba(215,173,50,0.08)' : 'rgba(255,255,255,0.025)';
         ctx.beginPath(); ctx.moveTo(x, 70); ctx.lineTo(x + 260, 930); ctx.lineTo(x + 330, 930); ctx.lineTo(x + 70, 70); ctx.closePath(); ctx.fill();
       }
+      drawSectionSurnameWatermark(ctx, record, snapshot);
       if (logo) {
         ctx.save(); ctx.beginPath(); ctx.arc(1410, 128, 52, 0, Math.PI * 2); ctx.clip(); ctx.drawImage(logo, 1358, 76, 104, 104); ctx.restore();
         ctx.strokeStyle = accent; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(1410, 128, 56, 0, Math.PI * 2); ctx.stroke();
@@ -57174,12 +57667,19 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     const source = snapshot || leaderboardAwardsState.live || await refreshLeaderboardAwardsLive({ silent: true });
     if (!source) throw new Error('Award rankings are not available yet.');
     let records = [];
-    if (kind === 'sections') records = Array.isArray(source.sectionAwards) ? source.sectionAwards.slice(0, 3) : [];
-    else if (kind === 'students') records = Array.isArray(source.studentAwards) ? source.studentAwards.slice(0, 10) : [];
-    else records = [
-      ...(Array.isArray(source.sectionAwards) ? source.sectionAwards.slice(0, 3).map(row => ({ ...row, __awardKind: 'sections' })) : []),
-      ...(Array.isArray(source.studentAwards) ? source.studentAwards.slice(0, 10).map(row => ({ ...row, __awardKind: 'students' })) : [])
-    ];
+    if (kind === 'sections') {
+      const sectionRecords = Array.isArray(source.sectionAwards) ? source.sectionAwards.slice(0, 3) : [];
+      records = await hydrateSectionAwardStudents(sectionRecords, source);
+    } else if (kind === 'students') {
+      records = Array.isArray(source.studentAwards) ? source.studentAwards.slice(0, 10) : [];
+    } else {
+      const sectionRecords = Array.isArray(source.sectionAwards) ? source.sectionAwards.slice(0, 3) : [];
+      const hydratedSections = await hydrateSectionAwardStudents(sectionRecords, source);
+      records = [
+        ...hydratedSections.map(row => ({ ...row, __awardKind: 'sections' })),
+        ...(Array.isArray(source.studentAwards) ? source.studentAwards.slice(0, 10).map(row => ({ ...row, __awardKind: 'students' })) : [])
+      ];
+    }
     if (!records.length) throw new Error(kind === 'sections' ? 'No section awards are available yet.' : 'No student awards are available yet.');
     const pages = [];
     for (const record of records) {
@@ -58068,6 +58568,42 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     return message;
   }
 
+  async function syncCurrentStudentXpToLeaderboard(options = {}) {
+    if (appSession.mode !== 'student' || !appSession.student?.uid || navigator.onLine === false) return false;
+    ensureReaderProgress();
+
+    // Learning XP is local-first, so flush only when this device has progress
+    // that is newer than the last trusted checkpoint. The server recomputes XP;
+    // the browser never submits a raw ranking value.
+    const hadDirtyCheckpoint = refreshExplorerCheckpointDirtyState('leaderboard-sync');
+    if (hadDirtyCheckpoint && shouldUseAppsScriptCodeExplorerCheckpoints()) {
+      const saved = await saveCodeExplorerCheckpointViaAppsScript({ reason: 'leaderboard-sync', force: true });
+      if (!saved) return false;
+      invalidateCurrentGlobalLeaderboardCache();
+      return true;
+    }
+
+    // When learning progress is already canonical, force one trusted server
+    // publish on first open/manual refresh so RTDB Mini-Game lifetime XP and the
+    // canonical Firestore learning XP are reconciled into one leaderboard row.
+    try {
+      const result = await callAppsScriptSecure({
+        action: 'publishDailyLeaderboardEntry',
+        force: options.force === true
+      }, { allowStudent: true });
+      if (!result?.ok) return false;
+      const serverXp = Math.max(0, Math.floor(Number(result.totalXp || 0)));
+      if (appSession.student) appSession.student.codeExplorerXp = serverXp;
+      if (appSession.lastStudentProfile) appSession.lastStudentProfile.codeExplorerXp = serverXp;
+      state.cloudXpHint = Math.max(Number(state.cloudXpHint || 0), serverXp);
+      invalidateCurrentGlobalLeaderboardCache();
+      return true;
+    } catch (error) {
+      console.info('Trusted leaderboard XP sync skipped; existing server ranking will be shown.', error);
+      return false;
+    }
+  }
+
   function renderGlobalLeaderboard() {
     const studentRecords = leaderboardState.records || [];
     if (!dom.leaderboardList) return;
@@ -58118,7 +58654,9 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     if (dom.leaderboardCountLabel) dom.leaderboardCountLabel.textContent = 'Students';
     if (dom.leaderboardTopXpLabel) dom.leaderboardTopXpLabel.textContent = 'Top XP';
     if (dom.leaderboardYourRank) dom.leaderboardYourRank.textContent = current ? `#${current.rank}` : '—';
-    if (dom.leaderboardYourXp) dom.leaderboardYourXp.textContent = Math.max(Number(current?.xp || 0), Number(totalXp() || 0)).toLocaleString();
+    // Use the exact XP that produced the rank. Do not mix a fresher local-only
+    // number into the summary card, otherwise Your XP and Your Rank can disagree.
+    if (dom.leaderboardYourXp) dom.leaderboardYourXp.textContent = Number(current?.xp || 0).toLocaleString();
     if (dom.leaderboardStudentCount) dom.leaderboardStudentCount.textContent = String(records.length);
     if (dom.leaderboardTopXp) dom.leaderboardTopXp.textContent = topXp.toLocaleString();
     if (dom.leaderboardMotivation) dom.leaderboardMotivation.textContent = currentExcluded
@@ -58144,6 +58682,19 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   async function loadGlobalLeaderboard(options = {}) {
     if (leaderboardState.loading) return;
     const teacherMode = isTeacherAuthenticated();
+
+    // v560 XP consistency: before reusing any ranking cache, reconcile this
+    // student's legitimate current XP into the trusted RTDB leaderboard. First
+    // open and manual Refresh both force a server-side revalidation; a local
+    // learning checkpoint is sent only when it is actually dirty.
+    if (!teacherMode && appSession.mode === 'student' && appSession.student?.uid && navigator.onLine !== false) {
+      const existingCurrent = (leaderboardState.records || []).find(record => record.current || isCurrentLeaderboardStudent(record));
+      const localXp = Math.max(0, Number(totalXp() || 0));
+      const rankedXp = Math.max(0, Number(existingCurrent?.xp || 0));
+      const needsTrustedSync = options.force === true || options.live === true || !leaderboardState.records.length || state.checkpointDirty || localXp !== rankedXp;
+      if (needsTrustedSync) await syncCurrentStudentXpToLeaderboard({ force: true });
+    }
+
     // v465: both student and teacher read the single teacher-published root
     // snapshot first. Admin no longer scans studentRoster + leaderboard on every
     // leaderboard open. If the public snapshot is missing, Admin reuses the shared
@@ -58170,6 +58721,21 @@ window.MCS_PHONE_MENU_STATUS = () => ({
           .map(row => ({ ...row, current: isCurrentLeaderboardStudent(row) }));
 
         const currentRecord = records.find(record => record.current || isCurrentLeaderboardStudent(record)) || null;
+
+        // v560 XP sync: RTDB daily leaderboard is the ranking source, but the
+        // currently signed-in student's trusted effective XP may be newer than
+        // the snapshot. Reconcile BEFORE rank calculation, not after rendering.
+        // This keeps Your XP, row XP, and rank based on the same value.
+        if (appSession.mode === 'student') {
+          const liveXp = Math.max(0, Number(totalXp() || 0));
+          records.forEach(record => {
+            if (record.current || isCurrentLeaderboardStudent(record)) {
+              record.current = true;
+              record.xp = Math.max(Number(record.xp || 0), liveXp);
+            }
+          });
+        }
+
         const effectiveCurrentSection = currentRecord?.section || currentLeaderboardSectionName();
         const effectiveKey = leaderboardSectionKey(effectiveCurrentSection);
         leaderboardState.currentSectionIncluded = !(leaderboardState.settingsLoaded && effectiveKey && effectiveKey !== 'no section')
@@ -58181,7 +58747,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         leaderboardState.records = ranked;
         leaderboardState.loadedAt = Date.now();
         leaderboardState.rosterLoaded = true;
-        leaderboardState.source = `daily 8 PM cached snapshot (${superCacheRankingEpochKey()})`;
+        leaderboardState.source = `trusted RTDB leaderboard (${superCacheRankingEpochKey()})`;
         renderGlobalLeaderboard();
         return;
       }
@@ -58319,6 +58885,56 @@ window.MCS_PHONE_MENU_STATUS = () => ({
 
 
   const adminExplorerState = { selectedStudentKey: '', selectedCourse: 'html', loaded: false };
+  const adminLeaderboardXpOverlay = new Map();
+
+  function adminLeaderboardOverlayKeys(student = {}) {
+    const keys = [];
+    const uids = [student.uid, student.authUid, ...(Array.isArray(student.profileUids) ? student.profileUids : [])]
+      .map(value => String(value || '').trim()).filter(Boolean);
+    uids.forEach(uid => keys.push(`uid:${uid}`));
+    const name = String(student.name || student.fullName || '').replace(/\s+/g, ' ').trim().toLowerCase();
+    const section = leaderboardSectionKey(student.section || student.sectionName || '');
+    if (name && section) keys.push(`name:${name}|${section}`);
+    return [...new Set(keys)];
+  }
+
+  function setAdminLeaderboardXpOverlay(rows = []) {
+    adminLeaderboardXpOverlay.clear();
+    (Array.isArray(rows) ? rows : []).forEach(row => {
+      const xp = Math.max(0, Number(row?.xp || 0));
+      adminLeaderboardOverlayKeys(row).forEach(key => {
+        adminLeaderboardXpOverlay.set(key, Math.max(xp, Number(adminLeaderboardXpOverlay.get(key) || 0)));
+      });
+    });
+  }
+
+  function adminEffectiveXp(student = {}, progressXp = 0) {
+    // When the trusted RTDB ranking snapshot has this student, use that exact XP
+    // so Admin and the ranking table cannot disagree. Fall back to canonical
+    // profile/progress XP only when no ranking row exists yet.
+    const overlayValues = adminLeaderboardOverlayKeys(student)
+      .filter(key => adminLeaderboardXpOverlay.has(key))
+      .map(key => Math.max(0, Number(adminLeaderboardXpOverlay.get(key) || 0)));
+    if (overlayValues.length) return Math.max(0, Math.floor(Math.max(...overlayValues)));
+
+    let xp = Math.max(0, Number(progressXp || 0), Number(student.codeExplorerXp || 0));
+    (Array.isArray(student.sourceRecords) ? student.sourceRecords : [student]).forEach(record => {
+      xp = Math.max(xp, Math.max(0, Number(record?.codeExplorerXp || 0)));
+    });
+    return Math.max(0, Math.floor(xp));
+  }
+
+  async function refreshAdminLeaderboardXpOverlay(options = {}) {
+    if (!isTeacherAuthenticated()) return [];
+    try {
+      const rows = await loadDailyGlobalLeaderboardEntries({ force: options.force === true, live: true });
+      setAdminLeaderboardXpOverlay(rows);
+      return rows;
+    } catch (error) {
+      console.info('Admin XP overlay could not be refreshed; cached canonical XP will be used.', error);
+      return [];
+    }
+  }
 
   function studentExplorerProgress(student = {}) {
     let merged = emptyProgress();
@@ -58344,7 +58960,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     const progress = studentExplorerProgress(student);
     const overall = explorerOverallFor(progress);
     const certificates = explorerCertificateCountFor(progress);
-    const xp = explorerXpFor(progress);
+    const xp = adminEffectiveXp(student, explorerXpFor(progress));
     const hearts = currentHeartSnapshot(progress);
     const courses = Object.fromEntries(COURSE_KEYS.map(key => [key, courseProgressFor(progress, key)]));
     const lastDate = explorerLastActivity(student, progress);
@@ -59024,14 +59640,15 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     if (!adminStudentsCache.length) await loadAdminStudents();
     await Promise.all([
       loadLeaderboardSectionSettings(),
-      loadCodeExplorerMusicSettings({ force: false })
+      loadCodeExplorerMusicSettings({ force: false }),
+      refreshAdminLeaderboardXpOverlay({ force: true })
     ]);
     adminExplorerState.loaded = true;
     renderAdminExplorerProgress();
     renderAdminLeaderboardSectionSettings();
     void loadLeaderboardAwardsAdminPanel({ loadLive: true, silent: true });
-    // v507: no ranking publish on admin open/refresh. Student ranking rows are
-    // frozen for the day and published around 8 PM by the daily sync path.
+    // v560: Admin displays the same trusted RTDB XP used by ranking. Student
+    // learning XP still checkpoints securely, while Mini-Game XP stays RTDB-live.
   }
 
   function getAdminExplorerHeartTargetUid(student = {}) {
