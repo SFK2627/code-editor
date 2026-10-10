@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ict8-connect-v657-interactive-browser';
+const CACHE_NAME = 'ict8-connect-v654-all-sections-viewer';
 const APP_SHELL = [
   './',
   './index.html',

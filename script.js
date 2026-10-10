@@ -638,32 +638,6 @@ const onlineNowCount = document.getElementById('onlineNowCount');
 const onlineRecentCount = document.getElementById('onlineRecentCount');
 const onlineReadingCount = document.getElementById('onlineReadingCount');
 const onlineCodingCount = document.getElementById('onlineCodingCount');
-// v655 — Admin-only Project Checking Center. Reuses the existing output renderer,
-// read-only file viewer and teacher rubric scoring; no new database collection.
-const pccSectionSelect = document.getElementById('pccSectionSelect');
-const pccSearchInput = document.getElementById('pccSearchInput');
-const pccFilterSelect = document.getElementById('pccFilterSelect');
-const pccSortSelect = document.getElementById('pccSortSelect');
-const pccRefreshBtn = document.getElementById('pccRefreshBtn');
-const pccStudentGrid = document.getElementById('pccStudentGrid');
-const pccStatus = document.getElementById('pccStatus');
-const pccProjectTools = document.getElementById('pccProjectTools');
-const pccProjectSearch = document.getElementById('pccProjectSearch');
-const pccProjectFilter = document.getElementById('pccProjectFilter');
-const pccProjectSort = document.getElementById('pccProjectSort');
-const pccProjectListStatus = document.getElementById('pccProjectListStatus');
-const pccPreviousStudentBtn = document.getElementById('pccPreviousStudentBtn');
-const pccNextStudentBtn = document.getElementById('pccNextStudentBtn');
-const pccReviewTabs = document.getElementById('pccReviewTabs');
-const projectCenterState = {
-  initialized: false,
-  loading: false,
-  visibleStudents: [],
-  openedFromCenter: false,
-  lastOpenedStudentId: '',
-  studentLoadSequence: 0
-};
-
 const adminStudentProjectsOverlay = document.getElementById('adminStudentProjectsOverlay');
 const adminStudentProjectsTitle = document.getElementById('adminStudentProjectsTitle');
 const adminStudentProjectsSubtitle = document.getElementById('adminStudentProjectsSubtitle');
@@ -14882,21 +14856,6 @@ let adminProjectViewerState = {
   latestResult: null
 };
 
-// Inert copy of the sandboxed student output for rubric checks. Student scripts
-// never gain access to the teacher DOM, but output structure remains inspectable.
-let adminProjectIsolatedRenderedDoc = null;
-
-function getAdminProjectRenderedDoc() {
-  try {
-    const liveDoc = adminProjectViewerFrame?.contentDocument || null;
-    if (liveDoc) return liveDoc;
-  } catch (_) {}
-  if (adminProjectIsolatedRenderedDoc) return adminProjectIsolatedRenderedDoc;
-  const page = getAdminProjectActiveFileName('html');
-  const markup = getAdminProjectFileMap('html')[page] || '';
-  try { return new DOMParser().parseFromString(String(markup), 'text/html'); } catch (_) { return null; }
-}
-
 function getAdminProjectActivityLabel(key, project = adminProjectViewerState.project) {
   if (!key) return 'Practice project';
   const activityTitle = project?.activityTitle || '';
@@ -14904,78 +14863,6 @@ function getAdminProjectActivityLabel(key, project = adminProjectViewerState.pro
   if (key === 'scratch') return 'Practice project';
   const knownActivity = activities.find(item => item.id === key);
   return knownActivity?.title || key;
-}
-
-// v656: a project may contain several independently saved activity parts.
-// Select the actual authored HTML, not a blank Scratch or a current-term-only tab.
-function scoreAdminSavedHtmlPage(markup = '', store = null) {
-  const html = String(markup || '').trim();
-  if (!html) return 0;
-  const bodyMatch = html.match(/<body\b[^>]*>([\s\S]*?)(?:<\/body\s*>|$)/i);
-  const renderedPart = bodyMatch ? bodyMatch[1] : html
-    .replace(/<head\b[^>]*>[\s\S]*?<\/head\s*>/gi, '')
-    .replace(/<!doctype[^>]*>/gi, '')
-    .replace(/<\/?(?:html|body)\b[^>]*>/gi, '');
-  const clean = renderedPart.replace(/<!--[\s\S]*?-->/g, '').trim();
-  const hasJs = Boolean(store && Object.values(store.jsFiles || {}).some(value => typeof value === 'string' && value.trim()));
-  // A blank HTML shell may intentionally be filled at runtime by student JavaScript.
-  if (!clean) return hasJs ? 5 : 0;
-  return 10 + Math.min(70, clean.length / 100);
-}
-
-function bestAdminSavedHtmlPage(store) {
-  const pages = store?.pages && typeof store.pages === 'object' ? store.pages : {};
-  const names = Object.keys(pages);
-  if (!names.length) return { name: 'index.html', score: 0 };
-  const sorted = names.map(name => ({ name, score: scoreAdminSavedHtmlPage(pages[name], store) }))
-    .sort((a, b) => b.score - a.score || (a.name === 'index.html' ? -1 : b.name === 'index.html' ? 1 : a.name.localeCompare(b.name)));
-  const active = sorted.find(item => item.name === store.activeHtmlPage);
-  return active && active.score > 0 ? active : sorted[0];
-}
-
-function pickAdminSavedProjectPart(project, stores) {
-  const keys = Object.keys(stores || {});
-  if (!keys.length) return 'scratch';
-  const ranked = keys.map(key => {
-    const bestPage = bestAdminSavedHtmlPage(stores[key]);
-    return { key, score: bestPage.score, page: bestPage.name };
-  }).sort((a, b) => b.score - a.score || (a.key === 'scratch' ? 1 : b.key === 'scratch' ? -1 : 0));
-  const preferred = String(project?.selectedActivityId || '').trim();
-  const chosen = ranked.find(item => item.key === preferred && item.score > 0) || ranked[0];
-  if (chosen?.score > 0 && stores[chosen.key]) {
-    // Only repair a blank/nonexistent active page. Never change saved Firestore data.
-    const existingPage = stores[chosen.key].activeHtmlPage;
-    if (!scoreAdminSavedHtmlPage(stores[chosen.key].pages?.[existingPage], stores[chosen.key])) {
-      stores[chosen.key].activeHtmlPage = chosen.page;
-    }
-  }
-  return chosen?.key || keys[0];
-}
-
-function getAdminSavedProjectCodeSource(project = {}) {
-  // Older G8Code saves can contain both a now-empty codeByActivity and a
-  // nonempty legacy codeStore/html. Use the best actually saved source. Never
-  // manufacture a starter project if the cloud document contains no HTML.
-  const sources = [];
-  if (project?.codeByActivity && typeof project.codeByActivity === 'object' && Object.keys(project.codeByActivity).length) {
-    sources.push(project.codeByActivity);
-  }
-  if (project?.codeStore && typeof project.codeStore === 'object') sources.push({scratch: project.codeStore});
-  if (project?.pages || project?.html !== undefined || project?.css !== undefined || project?.js !== undefined) {
-    sources.push({scratch: {
-      html: typeof project.html === 'string' ? project.html : '',
-      css: typeof project.css === 'string' ? project.css : '',
-      js: typeof project.js === 'string' ? project.js : '',
-      pages: project.pages, cssFiles: project.cssFiles, jsFiles: project.jsFiles
-    }});
-  }
-  for (const source of sources) {
-    const normalized = normalizeProjectCodeByActivity(source);
-    if (Object.values(normalized).some(store => Object.values(store.pages || {}).some(page => scoreAdminSavedHtmlPage(page,store)>0))) {
-      return source;
-    }
-  }
-  return sources[0] || {scratch:{html:'',css:'',js:''}};
 }
 
 function getAdminProjectActiveStore() {
@@ -15032,308 +14919,53 @@ function createAdminProjectScriptBlock(store) {
     .join('\n');
 }
 
-// Isolated output preview bridge: no same-origin access to the teacher app.
-// Sends only internal page-link requests to the parent; no credentials or data.
-function buildAdminPreviewBridgeScript(anchor = '', page = '', missingFiles = []) {
-  const safeAnchor = JSON.stringify(String(anchor || '').slice(0,250)).replace(/</g, '\\u003c');
-  const safePage = JSON.stringify(String(page || '').slice(0,150)).replace(/</g, '\\u003c');
-  const safeMissingFiles = JSON.stringify(missingFiles.slice(0,8)).replace(/</g, '\\u003c');
-  return `<script>(function(){
-    var pageName=${safePage}, pendingAnchor=${safeAnchor}, missingFiles=${safeMissingFiles}, count=0;
-    function send(kind, data){
-      try { parent.postMessage(Object.assign({type:'g8code-admin-browser-v657:'+kind,page:pageName}, data||{}),'*'); }
-      catch(_error){}
-    }
-    function anchorScroll(hash){
-      if(!hash||hash==='#') return;
-      try { var id=decodeURIComponent(hash.slice(1));
-        var target=document.getElementById(id)||document.getElementsByName(id)[0];
-        if(target) target.scrollIntoView({block:'start',behavior:'instant'});
-      }catch(_error){}
-    }
-    window.addEventListener('error',function(e){send('error',{message:String(e.message||'Script or resource error').slice(0,280)});});
-    window.addEventListener('unhandledrejection',function(e){
-      send('error',{message:String(e.reason&&e.reason.message||e.reason||'Promise failed').slice(0,280)});
-    });
-    window.addEventListener('message',function(e){
-      if(e.data&&e.data.type==='g8code-admin-preview-scroll-v657') anchorScroll(String(e.data.hash||''));
-    });
-    document.addEventListener('click',function(e){
-      var a=e.target&&e.target.closest?e.target.closest('a[href]'):null;
-      if(!a)return;
-      var href=String(a.getAttribute('href')||'').trim();
-      if(!href||href==='#'||/^(javascript:|data:|blob:)/i.test(href)){e.preventDefault();return;}
-      if(href.charAt(0)==='#'){e.preventDefault();anchorScroll(href);return;}
-      if(/^(mailto:|tel:)/i.test(href))return;
-      if(/^(https?:)?\\/\\//i.test(href)){
-        a.setAttribute('target','_blank');a.setAttribute('rel','noopener noreferrer');return;
-      }
-      e.preventDefault();
-      parent.postMessage({type:'g8code-admin-preview-local-link-v655',href:href},'*');
-    },true);
-    function report(){
-      try{
-        var text=String(document.body&&document.body.innerText||'').trim();
-        send('ready',{textLength:text.length,nodeCount:document.querySelectorAll('*').length,
-          scrollHeight:Math.max(document.body&&document.body.scrollHeight||0,document.documentElement.scrollHeight||0),missing:missingFiles});
-        var clone=document.documentElement.cloneNode(true);
-        clone.querySelectorAll('script,iframe,object,embed,style,link').forEach(function(node){node.remove()});
-        parent.postMessage({type:'g8code-admin-preview-rendered-dom-v655',page:pageName,
-          html:clone.outerHTML.slice(0,350000)},'*');
-      }catch(_error){}
-    }
-    document.addEventListener('DOMContentLoaded',function(){anchorScroll(pendingAnchor);report();});
-    window.addEventListener('load',function(){anchorScroll(pendingAnchor);report();setTimeout(report,500);});
-    if(document.readyState!=='loading')setTimeout(report,0);
-    var timer=0;
-    try{new MutationObserver(function(){
-      if(count++>2000)return;
-      clearTimeout(timer);timer=setTimeout(report,450);
-    }).observe(document.documentElement,{subtree:true,childList:true});}catch(_error){}
-  })();<\/script>`;
-}
-
-// v657: self-contained virtual website, using the student's actual saved files.
-// DOMParser does not execute the code being parsed. Scripts run only in sandboxed
-// srcdoc iframes without allow-same-origin, never in the teacher application.
-function buildAdminProjectPreviewCode(pageName = '', anchor = '') {
+function buildAdminProjectPreviewCode(pageName = '') {
   const store = getAdminProjectActiveStore();
   const pages = getAdminProjectFileMap('html', store);
-  const page = hasOwnFile(pages, pageName) ? pageName : getAdminProjectActiveFileName('html');
-  const html = stripAppPreviewHelperLeak(String(pages[page] || ''));
-  const parsed = new DOMParser().parseFromString(html || '<!doctype html><html><head></head><body></body></html>', 'text/html');
-  const head = parsed.head;
-  const body = parsed.body;
-  const cssFiles = getAdminProjectFileMap('css', store);
-  const jsFiles = getAdminProjectFileMap('js', store);
-  const linkedCSS = new Set();
-  const linkedJS = new Set();
-  const absentAssets = [];
-  // An authored <base> otherwise makes links/assets resolve to the host origin.
-  parsed.querySelectorAll('base').forEach(node => node.remove());
-  parsed.querySelectorAll('img[src],source[src]').forEach(node => {
-    const src = String(node.getAttribute('src') || '').trim();
-    if (src && !/^(?:https?:)?\/\/|^(?:data:|blob:)/i.test(src)) {
-      absentAssets.push('Local image may be unavailable: ' + src);
-      node.removeAttribute('src');
-      node.setAttribute('alt', (node.getAttribute('alt') || 'Local image') + ' (not available in cloud preview)');
-    }
-  });
-  function basename(value) {
-    const source = String(value || '').trim().split(/[?#]/)[0].replace(/\\/g, '/');
-    try { return decodeURIComponent(source.split('/').pop() || ''); } catch (_) { return source.split('/').pop() || ''; }
-  }
-  function lookup(map, reference) {
-    const file = basename(reference);
-    return Object.keys(map || {}).find(key => key.toLowerCase() === file.toLowerCase()) || '';
-  }
-  function remote(reference) { return /^(?:https?:)?\/\/|^(?:data:|blob:)/i.test(String(reference || '').trim()); }
-  parsed.querySelectorAll('link[rel~="stylesheet"][href]').forEach(link => {
-    const ref = link.getAttribute('href') || '';
-    if (remote(ref)) return;
-    const found = lookup(cssFiles, ref);
-    if (!found) {
-      absentAssets.push('Stylesheet not saved: ' + ref);
-      link.remove();
-      return;
-    }
-    const style = parsed.createElement('style');
-    style.setAttribute('data-student-file', found);
-    style.textContent = String(cssFiles[found] || '').replace(/<\/style/gi,'<\\/style');
-    link.replaceWith(style);
-    linkedCSS.add(found);
-  });
-  parsed.querySelectorAll('script[src]').forEach(script => {
-    const ref = script.getAttribute('src') || '';
-    if (remote(ref)) {
-      script.setAttribute('referrerpolicy', 'no-referrer');
-      return;
-    }
-    const found = lookup(jsFiles, ref);
-    if (!found) {
-      absentAssets.push('JavaScript not saved: ' + ref);
-      script.remove();
-      return;
-    }
-    // Use classic inline scripts (the learning editor primarily supports HTML/CSS/JS).
-    // Preserve defer/module flags where appropriate.
-    const inline = parsed.createElement('script');
-    inline.setAttribute('data-student-file', found);
-    ['type', 'async', 'defer'].forEach(key => {
-      const value = script.getAttribute(key);
-      if (value !== null) inline.setAttribute(key, value);
-    });
-    inline.textContent = String(jsFiles[found] || '').replace(/<\/script/gi, '<\\/script');
-    script.replaceWith(inline);
-    linkedJS.add(found);
-  });
-  // A student often writes CSS/JS in app tabs without linking filenames in HTML.
-  // Include those files as fallback, but NEVER run a linked JS file twice.
-  Object.entries(cssFiles).forEach(([filename, source]) => {
-    if (linkedCSS.has(filename) || !String(source || '').trim()) return;
-    const style = parsed.createElement('style');
-    style.setAttribute('data-student-file', filename);
-    style.textContent = String(source).replace(/<\/style/gi, '<\\/style');
-    head.appendChild(style);
-  });
-  Object.entries(jsFiles).forEach(([filename, source]) => {
-    if (linkedJS.has(filename) || !String(source || '').trim()) return;
-    const script = parsed.createElement('script');
-    script.setAttribute('data-student-file', filename);
-    script.textContent = String(source).replace(/<\/script/gi, '<\\/script');
-    body.appendChild(script);
-  });
-  // Keep the output useful if the author omitted document scaffolding.
-  if (!head.querySelector('meta[charset]')) {
-    const meta = parsed.createElement('meta'); meta.setAttribute('charset','UTF-8'); head.prepend(meta);
-  }
-  if (!head.querySelector('meta[name="viewport"]')) {
-    const meta = parsed.createElement('meta'); meta.setAttribute('name','viewport');
-    meta.setAttribute('content','width=device-width, initial-scale=1.0'); head.appendChild(meta);
-  }
-  const diagnosticBridge = parsed.createElement('script');
-  diagnosticBridge.textContent = buildAdminPreviewBridgeScript(anchor, page, absentAssets).slice(8, -9);
-  // Reporter must register BEFORE any student scripts run.
-  head.prepend(diagnosticBridge);
-  const result = '<!DOCTYPE html>\n' + parsed.documentElement.outerHTML;
-  return result;
-}
+  const safePageName = pageName && pages[pageName] !== undefined ? pageName : getAdminProjectActiveFileName('html');
+  const rawHtmlWithProjectReferences = stripAppPreviewHelperLeak(String(pages[safePageName] || ''));
+  const rawHtml = stripLocalProjectAssetTagsForPreview(rawHtmlWithProjectReferences);
+  const styleBlock = createAdminProjectStyleBlock(store);
+  const scriptBlock = createAdminProjectScriptBlock(store);
+  const looksLikeFullDocument = /<!doctype/i.test(rawHtml) || /<html(\s|>)/i.test(rawHtml) || /<head(\s|>)/i.test(rawHtml) || /<body(\s|>)/i.test(rawHtml);
+  const hasCompleteDocumentShell = hasCompletePreviewDocumentShell(rawHtml);
 
-// All browser state is local to the current Admin session; nothing is written
-// back to Firestore during preview navigation.
-const adminProjectBrowserStates = new WeakMap();
-function getAdminProjectBrowserState(frame) {
-  let state = adminProjectBrowserStates.get(frame);
-  if (!state) {
-    state = {history: [], index: -1, loaded: false, metrics: null, errors: [], missing: [], renderToken: 0};
-    adminProjectBrowserStates.set(frame, state);
+  if (looksLikeFullDocument && hasCompleteDocumentShell) {
+    return injectAssetsIntoHTML(injectRuntimeReporterEarly(rawHtml, ''), styleBlock, scriptBlock);
   }
-  return state;
-}
-function resetAdminProjectBrowserState(frame) {
-  adminProjectBrowserStates.delete(frame);
-  if (frame) delete frame.dataset.currentPage;
-}
-function getAdminPreviewBar(frame) {
-  const kind = frame === adminProjectFullscreenFrame ? 'fullscreen' : 'inline';
-  return document.querySelector('[data-admin-preview-bar="' + kind + '"]');
-}
-function updateAdminProjectBrowserUI(frame) {
-  if (!frame) return;
-  const state = getAdminProjectBrowserState(frame);
-  const bar = getAdminPreviewBar(frame);
-  if (!bar) return;
-  const entry = state.history[state.index] || {page: frame.dataset.currentPage || 'index.html'};
-  const address = bar.querySelector('[data-admin-browser-address]');
-  const status = bar.querySelector('[data-admin-browser-state]');
-  if (address) address.textContent = 'student-project.local/' + (entry.page || 'index.html') + (entry.anchor || '');
-  const back = bar.querySelector('[data-admin-browser-action="back"]');
-  const forward = bar.querySelector('[data-admin-browser-action="forward"]');
-  if (back) back.disabled = state.index <= 0;
-  if (forward) forward.disabled = state.index >= state.history.length - 1;
-  if (status) status.textContent = state.errors.length ? '⚠ Issues' : state.loaded ? '● Loaded' : '↻ Loading';
-  const details = bar.parentElement?.querySelector('[data-admin-browser-diagnostics-details]');
-  const summary = bar.parentElement?.querySelector('[data-admin-browser-diagnostics-summary]');
-  const store = getAdminProjectActiveStore();
-  const htmlFiles = Object.keys(getAdminProjectFileMap('html', store));
-  const cssFiles = Object.keys(getAdminProjectFileMap('css', store));
-  const jsFiles = Object.keys(getAdminProjectFileMap('js', store));
-  const studentHTML = getAdminProjectFileMap('html', store)[entry.page] || '';
-  const project = adminProjectViewerState.project || {};
-  const lines = [
-    `Saved files: ${htmlFiles.length} HTML · ${cssFiles.length} CSS · ${jsFiles.length} JS`,
-    `Selected activity: ${adminProjectViewerState.activityKey || 'scratch'}`,
-    `Source HTML: ${String(studentHTML).length.toLocaleString()} characters`,
-    `Cloud source: ${project.codeByActivity ? 'codeByActivity' : project.codeStore ? 'codeStore' : project.pages ? 'pages' : 'legacy/unknown'}`,
-    state.metrics ? `Rendered text: ${state.metrics.textLength} characters · scroll height ${state.metrics.scrollHeight}px · ${state.metrics.nodeCount} elements` : 'Waiting for rendered output handshake...',
-    ...state.missing.map(item => `File warning: ${item}`),
-    ...state.errors.map(item => `Runtime: ${item}`)
-  ];
-  if (details) details.textContent = lines.join('\n');
-  if (summary) summary.textContent = state.errors.length ? `${state.errors.length} issue(s) detected` : state.missing.length ? `${state.missing.length} local file(s) missing` : state.metrics ? `Rendered · ${state.metrics.textLength} text chars` : 'Checking loaded HTML/CSS/JS';
-}
-function copyAdminProjectBrowserHistory(fromFrame, toFrame) {
-  const source = getAdminProjectBrowserState(fromFrame);
-  const target = getAdminProjectBrowserState(toFrame);
-  target.history = source.history.map(item => ({...item}));
-  target.index = source.index;
-  target.errors = [];
-  target.metrics = null;
-  target.loaded = false;
-}
-function navigateAdminProjectBrowserButton(frame, action) {
-  if (!frame || !adminProjectViewerState.project) return;
-  const state = getAdminProjectBrowserState(frame);
-  const note = frame === adminProjectFullscreenFrame ? adminProjectFullscreenPreviewNote : adminProjectViewerPreviewNote;
-  const active = state.history[state.index] || {page:getAdminProjectActiveFileName('html'),anchor:''};
-  if (action === 'back' && state.index > 0) state.index--;
-  else if (action === 'forward' && state.index + 1 < state.history.length) state.index++;
-  else if (action === 'home') {
-    const pages = getAdminProjectFileMap('html');
-    const home = hasOwnFile(pages, 'index.html') ? 'index.html' : bestAdminSavedHtmlPage(getAdminProjectActiveStore()).name;
-    renderAdminProjectPreviewFrame(frame, home, note, {push:true});
-    return;
-  } else if (action !== 'reload') {
-    if (action !== 'back' && action !== 'forward') return;
+
+  if (looksLikeFullDocument && !hasCompleteDocumentShell) {
+    return injectAssetsIntoHTML(rawHtml, styleBlock, scriptBlock);
   }
-  const entry = state.history[state.index] || active;
-  renderAdminProjectPreviewFrame(frame, entry.page, note, {anchor:entry.anchor});
-  if (frame === adminProjectFullscreenFrame) updateAdminProjectFullscreenPreviewLabels(entry.page);
+
+  return `<!DOCTYPE html>
+<html lang="en" class="page-${pageIndex + 1}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  ${styleBlock}
+</head>
+<body>
+${rawHtml}
+${scriptBlock}
+</body>
+</html>`;
 }
 
 function renderAdminProjectPreviewFrame(frame, pageName = '', noteElement = null, options = {}) {
   if (!frame) return '';
-  const state = getAdminProjectBrowserState(frame);
   const pages = getAdminProjectFileMap('html');
   const requestedPage = normalizeInternalHtmlReference(pageName) || cleanLanguageFileName(pageName || '', 'html');
   const fallbackPage = getAdminProjectActiveFileName('html');
   const page = requestedPage && hasOwnFile(pages, requestedPage) ? requestedPage : fallbackPage;
-  const anchor = String(options.anchor || '').trim();
-  const current = state.history[state.index];
-  if (options.resetHistory || !current) {
-    state.history = [{page, anchor}]; state.index = 0;
-  } else if (options.push && (current.page !== page || current.anchor !== anchor)) {
-    state.history = state.history.slice(0, state.index + 1);
-    state.history.push({page,anchor}); state.index++;
-  }
-  if (anchor && anchor !== '#') frame.dataset.pendingAnchor = anchor;
+  const pendingAnchor = String(options.anchor || '').trim();
+
+  if (pendingAnchor && pendingAnchor !== '#') frame.dataset.pendingAnchor = pendingAnchor;
   else delete frame.dataset.pendingAnchor;
-  const store = getAdminProjectActiveStore();
-  const score = scoreAdminSavedHtmlPage(pages[page], store);
-  const isEmpty = score <= 0;
-  const notice = document.getElementById(frame === adminProjectViewerFrame
-    ? 'adminProjectViewerEmptyNotice' : 'adminProjectFullscreenEmptyNotice');
-  if (notice) {
-    notice.classList.toggle('hidden', !isEmpty);
-    notice.textContent = isEmpty
-      ? `No saved renderable HTML in ${page} (activity ${adminProjectViewerState.activityKey}). Try another Activity / Project Part, view Source Code, or use Refresh Student Projects. The browser cannot display a file that was only saved locally on the student's device.`
-      : '';
-  }
-  frame.classList.toggle('hidden', isEmpty);
+
   frame.dataset.currentPage = page;
-  state.loaded = false;
-  state.metrics = null;
-  state.errors = [];
-  state.missing = [];
-  ++state.renderToken;
-  if (frame === adminProjectViewerFrame) adminProjectIsolatedRenderedDoc = null;
-  if (isEmpty) frame.srcdoc = '';
-  else {
-    try {
-      frame.srcdoc = buildAdminProjectPreviewCode(page, anchor);
-    } catch (error) {
-      state.errors.push('Unable to assemble saved HTML: ' + String(error?.message || error));
-      frame.srcdoc = '<!doctype html><html><body style="font:16px system-ui;padding:24px"><h2>Preview could not be assembled.</h2><p>Open Preview diagnostics for details.</p></body></html>';
-    }
-  }
-  if (noteElement) noteElement.textContent = options.note || (isEmpty ? `No HTML saved in ${page}` : `Previewing ${page}`);
-  updateAdminProjectBrowserUI(frame);
-  const token = state.renderToken;
-  if (!isEmpty) window.setTimeout(() => {
-    if (state.renderToken !== token || state.loaded || !frame.isConnected) return;
-    state.errors.push('No preview-ready signal. Check JavaScript restrictions and saved HTML. The iframe may still be displaying content.');
-    updateAdminProjectBrowserUI(frame);
-  }, 2600);
+  frame.srcdoc = buildAdminProjectPreviewCode(page);
+  if (noteElement) noteElement.textContent = options.note || `Previewing ${page}`;
   return page;
 }
 
@@ -15504,10 +15136,7 @@ function openAdminProjectFullscreen(mode = 'code') {
   adminProjectFullscreenPreviewPanel?.classList.toggle('hidden', !isPreview);
 
   if (isPreview) {
-    copyAdminProjectBrowserHistory(adminProjectViewerFrame, adminProjectFullscreenFrame);
-    const fullscreenState = getAdminProjectBrowserState(adminProjectFullscreenFrame);
-    const entry = fullscreenState.history[fullscreenState.index] || {page: activePage,anchor:''};
-    renderAdminProjectPreviewFrame(adminProjectFullscreenFrame, entry.page, adminProjectFullscreenPreviewNote, {anchor:entry.anchor});
+    renderAdminProjectPreviewFrame(adminProjectFullscreenFrame, activePage, adminProjectFullscreenPreviewNote);
   } else {
     if (adminProjectFullscreenFrame) adminProjectFullscreenFrame.srcdoc = '';
     if (adminProjectFullscreenCodeTitle) adminProjectFullscreenCodeTitle.textContent = codeDetails.fileName || 'Code';
@@ -15525,7 +15154,6 @@ function openAdminProjectFullscreen(mode = 'code') {
 }
 
 function closeAdminProjectFullscreen() {
-  const wasPreview = Boolean(adminProjectFullscreenOverlay?.classList.contains('preview-mode'));
   exitAdminProjectBrowserFullscreen();
   adminProjectFullscreenOverlay?.classList.add('hidden');
   adminProjectFullscreenOverlay?.classList.remove('preview-mode');
@@ -15536,14 +15164,7 @@ function closeAdminProjectFullscreen() {
   const viewerOpen = Boolean(adminProjectViewerOverlay && !adminProjectViewerOverlay.classList.contains('hidden'));
   const trackerOpen = Boolean(adminStudentProjectsOverlay && !adminStudentProjectsOverlay.classList.contains('hidden'));
   document.body.classList.toggle('student-auth-open', viewerOpen || trackerOpen);
-  if (viewerOpen) {
-    if (wasPreview) {
-      copyAdminProjectBrowserHistory(adminProjectFullscreenFrame, adminProjectViewerFrame);
-    }
-    const state = getAdminProjectBrowserState(adminProjectViewerFrame);
-    const entry = state.history[state.index] || {page:getAdminProjectActiveFileName('html'),anchor:''};
-    renderAdminProjectPreviewFrame(adminProjectViewerFrame, entry.page, adminProjectViewerPreviewNote, {anchor:entry.anchor});
-  }
+  if (viewerOpen) runAdminProjectViewerPreview(getAdminProjectActiveFileName('html'));
 }
 
 function applyAdminProjectPendingPreviewAnchor(frame) {
@@ -15576,33 +15197,29 @@ function navigateAdminProjectPreviewFrame(frame, href, noteElement, doc) {
   const hash = getPreviewHrefHash(trimmed);
   const targetPage = normalizeInternalHtmlReference(trimmed);
   const currentPage = cleanLanguageFileName(frame?.dataset?.currentPage || getAdminProjectActiveFileName('html'), 'html');
-  if (trimmed.startsWith('#')) {
-    if (doc) scrollPreviewToAnchor(doc, trimmed);
-    return true;
-  }
+
   if (!targetPage) return false;
-  const actual = Object.keys(pages).find(name => name.toLowerCase() === targetPage.toLowerCase());
-  if (!actual) {
-    setAdminProjectPreviewNavigationNote(noteElement, `Page not found in saved project: ${targetPage}`);
-    const state = getAdminProjectBrowserState(frame);
-    state.errors.push('Linked page missing: ' + targetPage);
-    updateAdminProjectBrowserUI(frame);
+  if (!hasOwnFile(pages, targetPage)) {
+    setAdminProjectPreviewNavigationNote(noteElement, `Page not found: ${targetPage}`);
     return true;
   }
-  if (actual.toLowerCase() === currentPage.toLowerCase() && !hash) return true;
-  if (actual.toLowerCase() === currentPage.toLowerCase() && hash) {
-    if (doc) scrollPreviewToAnchor(doc, hash);
-    else frame.contentWindow?.postMessage({type:'g8code-admin-preview-scroll-v657',hash}, '*');
+
+  if (targetPage.toLowerCase() === currentPage.toLowerCase()) {
+    if (hash) scrollPreviewToAnchor(doc, hash);
     return true;
   }
-  setAdminProjectActiveFileName('html', actual);
+
+  setAdminProjectActiveFileName('html', targetPage);
   populateAdminProjectViewerFileSelect();
   updateAdminProjectViewerCode();
   resetAdminProjectResultCheck('Preview page changed · recheck when ready');
-  renderAdminProjectPreviewFrame(frame, actual, noteElement, {anchor:hash,push:true});
+
   if (frame === adminProjectFullscreenFrame) {
-    updateAdminProjectFullscreenPreviewLabels(actual);
+    renderAdminProjectPreviewFrame(adminProjectFullscreenFrame, targetPage, noteElement, { anchor: hash });
+    updateAdminProjectFullscreenPreviewLabels(targetPage);
     queueAdminProjectFullscreenPreviewScale();
+  } else {
+    renderAdminProjectPreviewFrame(adminProjectViewerFrame, targetPage, noteElement, { anchor: hash });
   }
   return true;
 }
@@ -15652,7 +15269,7 @@ function attachAdminProjectPreviewLinks(frame, noteElement) {
 
     if (/^(mailto:|tel:|javascript:|data:|blob:)/i.test(href)) return;
 
-    if (href.slice(0, 8).toLowerCase() === 'https://' || href.slice(0, 7).toLowerCase() === 'http://') {
+    if (/^https?:\/\//i.test(href)) {
       link.setAttribute('target', '_blank');
       link.setAttribute('rel', 'noopener noreferrer');
       return;
@@ -15680,21 +15297,20 @@ function attachAdminProjectFullscreenPreviewLinks() {
 function populateAdminProjectViewerActivitySelect() {
   if (!adminProjectViewerActivitySelect) return;
   const stores = adminProjectViewerState.codeByActivity || {};
-  // v656: a saved project is NOT limited to the teacher's current term.
-  // Previous-term activities are still part of this student's saved work.
-  const keys = Object.keys(stores).length ? Object.keys(stores) : ['scratch'];
-  adminProjectViewerActivitySelect.innerHTML = keys.map(key => {
+  const activeTerm = currentAcademicTerm();
+  const allKeys = Object.keys(stores).length ? Object.keys(stores) : ['scratch'];
+  const keys = allKeys.filter(key => {
+    if (key === 'scratch') return true;
     const known = getActivityById(key);
-    const label = key === 'scratch' ? 'Scratch / Practice' : known
-      ? `${complianceTermFriendlyLabel(getRubricActivityTerm(known))} · ${known.title || key}`
-      : `Saved Part · ${key}`;
-    return `<option value="${escapeAttribute(key)}">${escapeHTML(label)}</option>`;
-  }).join('');
-  adminProjectViewerActivitySelect.value = keys.includes(adminProjectViewerState.activityKey)
-    ? adminProjectViewerState.activityKey : keys[0];
+    return known ? getRubricActivityTerm(known) === activeTerm : false;
+  });
+  const safeKeys = keys.length ? keys : ['scratch'];
+  adminProjectViewerActivitySelect.innerHTML = safeKeys.map(key => `<option value="${escapeAttribute(key)}">${escapeHTML(getAdminProjectActivityLabel(key))}</option>`).join('');
+  adminProjectViewerActivitySelect.value = safeKeys.includes(adminProjectViewerState.activityKey) ? adminProjectViewerState.activityKey : safeKeys[0];
   adminProjectViewerState.activityKey = adminProjectViewerActivitySelect.value;
-  adminProjectViewerActivitySelect.title = 'All parts saved in this student project (including previous terms)';
+  adminProjectViewerActivitySelect.title = `${complianceTermFriendlyLabel(activeTerm)} activities only`;
 }
+
 function populateAdminProjectViewerFileSelect() {
   if (!adminProjectViewerFileSelect) return;
   const language = adminProjectViewerState.language;
@@ -15988,7 +15604,7 @@ function gradeAdminProjectCurrentCode(rubric) {
     activity = normalizeActivity(clone(rubric));
     selectedActivityId = activity.id === ADMIN_PROJECT_RECORDED_RUBRIC_ID ? '' : activity.id;
     try {
-      rubricPreviewDocumentOverride = getAdminProjectRenderedDoc();
+      rubricPreviewDocumentOverride = adminProjectViewerFrame?.contentDocument || adminProjectViewerFrame?.contentWindow?.document || null;
     } catch (error) {
       rubricPreviewDocumentOverride = null;
     }
@@ -16078,7 +15694,7 @@ function refreshAdminProjectListRowAfterScoreSave(project = adminProjectViewerSt
   if (!row) return;
   const children = Array.from(row.children);
   const statusNode = children[1] || null;
-  const scoreNode = row.querySelector('.pcc-project-score') || children[3] || null;
+  const scoreNode = children[3] || null;
   if (statusNode) statusNode.textContent = getProjectStatusLabel(getProjectStatus(project));
   if (scoreNode) scoreNode.textContent = project.lastResult
     ? `${formatPoints(project.lastResult.score || 0)}/${formatPoints(project.lastResult.possible || 0)} · ${Number(project.lastResult.percent || 0)}%`
@@ -16120,8 +15736,6 @@ async function saveAdminProjectRecheckAsOfficialScore() {
     const listProject = (adminProjectViewerState.projects || []).find(item => (item.adminProjectRef || makeAdminProjectReference(getAdminProjectOwnerUid(item), item.id)) === projectRef);
     if (listProject) listProject.lastResult = result;
     refreshAdminProjectListRowAfterScoreSave(project);
-    renderProjectCenterStudentProjectList();
-    if (projectCenterState.openedFromCenter) renderProjectCheckingCenter();
     renderAdminProjectScoreComparison();
     setAdminProjectResultCheckStatus('Official score saved', 'saved');
     setStatus(`Official score ${formatPoints(result.score)}/${formatPoints(result.possible)}`);
@@ -16262,16 +15876,16 @@ function collectAdminProjectOutputSummary() {
     note: 'Output summary is collected from the rendered preview iframe when available.'
   };
   try {
-    const doc = getAdminProjectRenderedDoc();
+    const doc = adminProjectViewerFrame?.contentDocument || adminProjectViewerFrame?.contentWindow?.document || null;
     if (!doc) {
       summary.note = 'Preview document was not available. Judge mainly from code.';
       return summary;
     }
     summary.title = String(doc.title || '').trim().slice(0, 240);
-    summary.visibleText = String(doc.body?.innerText || doc.body?.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 2500);
-    summary.headings = Array.from(doc.querySelectorAll('h1,h2,h3,h4,h5,h6')).map(node => ({ tag: node.tagName.toLowerCase(), text: String(node.innerText || node.textContent || '').trim().slice(0, 180) })).filter(item => item.text).slice(0, 12);
-    summary.links = Array.from(doc.querySelectorAll('a[href]')).map(node => ({ text: String(node.innerText || node.textContent || '').trim().slice(0, 160), href: String(node.getAttribute('href') || '').trim().slice(0, 180) })).slice(0, 12);
-    summary.buttons = Array.from(doc.querySelectorAll('button,input[type="button"],input[type="submit"]')).map(node => String(node.innerText || node.textContent || node.value || '').trim().slice(0, 160)).filter(Boolean).slice(0, 12);
+    summary.visibleText = String(doc.body?.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 2500);
+    summary.headings = Array.from(doc.querySelectorAll('h1,h2,h3,h4,h5,h6')).map(node => ({ tag: node.tagName.toLowerCase(), text: String(node.innerText || '').trim().slice(0, 180) })).filter(item => item.text).slice(0, 12);
+    summary.links = Array.from(doc.querySelectorAll('a[href]')).map(node => ({ text: String(node.innerText || '').trim().slice(0, 160), href: String(node.getAttribute('href') || '').trim().slice(0, 180) })).slice(0, 12);
+    summary.buttons = Array.from(doc.querySelectorAll('button,input[type="button"],input[type="submit"]')).map(node => String(node.innerText || node.value || '').trim().slice(0, 160)).filter(Boolean).slice(0, 12);
     summary.images = Array.from(doc.querySelectorAll('img')).map(node => ({ src: String(node.getAttribute('src') || '').trim().slice(0, 160), alt: String(node.getAttribute('alt') || '').trim().slice(0, 160) })).slice(0, 12);
     ['header','nav','main','section','article','aside','footer','ul','ol','li','table','form','input','img','a','button'].forEach(tag => {
       summary.elementCounts[tag] = doc.querySelectorAll(tag).length;
@@ -16969,19 +16583,10 @@ async function openAdminProjectViewer(projectRef) {
     || (item.id === rawProjectId && (!parsed.uid || getAdminProjectOwnerUid(item) === parsed.uid))
   ) || null;
   const ownerUid = parsed.uid || getAdminProjectOwnerUid(project) || student.uid || getAdminStudentProfileUids(student)[0] || '';
-  const hasRenderableCode = candidate => {
-    if (!candidate || String(candidate.projectType || '').toLowerCase() === 'wireframe') return Boolean(candidate);
-    const stores = normalizeProjectCodeByActivity(getAdminSavedProjectCodeSource(candidate));
-    return Object.values(stores).some(store => Object.values(store.pages || {})
-      .some(markup => scoreAdminSavedHtmlPage(markup, store) > 0));
-  };
-  if ((!project || !hasRenderableCode(project)) && ownerUid && rawProjectId) {
+  if ((!project || (!project.codeByActivity && String(project.projectType || '').toLowerCase() !== 'wireframe')) && ownerUid && rawProjectId) {
     try {
-      // Empty/stale code only: refetch this one project instead of the whole class.
-      const { getDoc, getDocFromServer } = firebaseSync.modules;
-      const reader = navigator.onLine !== false && typeof getDocFromServer === 'function'
-        ? getDocFromServer : getDoc;
-      const snapshot = await reader(getStudentProjectDocRef(ownerUid, rawProjectId));
+      const { getDoc } = firebaseSync.modules;
+      const snapshot = await getDoc(getStudentProjectDocRef(ownerUid, rawProjectId));
       if (snapshotExists(snapshot)) {
         project = {
           id: rawProjectId,
@@ -17011,23 +16616,18 @@ async function openAdminProjectViewer(projectRef) {
     sourceUid: ownerUid || getAdminProjectOwnerUid(project),
     adminProjectRef: project.adminProjectRef || makeAdminProjectReference(ownerUid || getAdminProjectOwnerUid(project), rawProjectId || project.id)
   };
-  adminProjectViewerState.codeByActivity = normalizeProjectCodeByActivity(
-    getAdminSavedProjectCodeSource(adminProjectViewerState.project)
-  );
-  adminProjectViewerState.activityKey = pickAdminSavedProjectPart(
-    adminProjectViewerState.project, adminProjectViewerState.codeByActivity
-  );
+  adminProjectViewerState.codeByActivity = normalizeProjectCodeByActivity(adminProjectViewerState.project.codeByActivity || {});
+  adminProjectViewerState.activityKey = adminProjectViewerState.project.selectedActivityId && adminProjectViewerState.codeByActivity[adminProjectViewerState.project.selectedActivityId]
+    ? adminProjectViewerState.project.selectedActivityId
+    : Object.keys(adminProjectViewerState.codeByActivity)[0] || 'scratch';
   adminProjectViewerState.language = 'html';
   adminProjectViewerState.rubricId = getActivityById(adminProjectViewerState.activityKey)
     ? adminProjectViewerState.activityKey
     : (getActivityById(adminProjectViewerState.project.selectedActivityId) ? adminProjectViewerState.project.selectedActivityId : '');
   adminProjectViewerState.latestResult = null;
-  resetAdminProjectBrowserState(adminProjectViewerFrame);
-  resetAdminProjectBrowserState(adminProjectFullscreenFrame);
   adminProjectViewerOverlay?.classList.remove('hidden');
   document.body.classList.add('student-auth-open');
   renderAdminProjectViewer();
-  setProjectCheckingReviewTab(projectCenterState.openedFromCenter ? 'preview' : 'split');
 }
 
 function closeAdminProjectViewer() {
@@ -17038,22 +16638,12 @@ function closeAdminProjectViewer() {
 }
 
 async function showAdminStudentProjects(uid, options = {}) {
-  if (!isTeacherAuthenticated()) return;
-  const student = options.student || adminStudentsCache.find(item => getAdminStudentProfileUids(item).includes(uid) || item.uid === uid);
-  const requestSequence = ++projectCenterState.studentLoadSequence;
+  const student = adminStudentsCache.find(item => getAdminStudentProfileUids(item).includes(uid) || item.uid === uid);
   if (!student) return;
   const profileUids = getAdminStudentProfileUids(student);
   adminStudentProjectsTitle.textContent = `${student.name}'s Projects`;
   adminStudentProjectsSubtitle.textContent = `${student.studentId} · ${student.section}${profileUids.length > 1 ? ` · ${profileUids.length} linked profiles merged` : ''}`;
   adminStudentProjectsList.innerHTML = '<div class="dashboard-status">Loading projects...</div>';
-  if (pccProjectTools) pccProjectTools.classList.add('hidden');
-  if (pccProjectListStatus) pccProjectListStatus.classList.add('hidden');
-  if (projectCenterState.lastOpenedStudentId !== String(student.studentId || student.uid || '')) {
-    if (pccProjectSearch) pccProjectSearch.value = '';
-    if (pccProjectFilter) pccProjectFilter.value = 'all';
-    if (pccProjectSort) pccProjectSort.value = 'recent';
-  }
-  projectCenterState.lastOpenedStudentId = String(student.studentId || student.uid || '');
   adminProjectViewerState.student = student;
   adminStudentProjectsOverlay.classList.remove('hidden');
   document.body.classList.add('student-auth-open');
@@ -17073,26 +16663,33 @@ async function showAdminStudentProjects(uid, options = {}) {
     }));
     const projects = projectGroups.flat()
       .sort((a, b) => (timestampToDate(b.updatedAt)?.getTime() || 0) - (timestampToDate(a.updatedAt)?.getTime() || 0));
-    if (requestSequence !== projectCenterState.studentLoadSequence) return;
+    if (!projects.length) {
+      adminStudentProjectsList.innerHTML = '<div class="empty-projects-card"><h3>No projects yet</h3><p>This student has logged in but has not created a project.</p></div>';
+      return;
+    }
     adminProjectViewerState.student = student;
     adminProjectViewerState.projectOwnerUid = profileUids[0] || student.uid || '';
     adminProjectViewerState.projects = projects;
-    updateProjectCenterStudentNavigation();
-    if (!projects.length) {
-      if (pccProjectListStatus) { pccProjectListStatus.textContent = '0 projects saved'; pccProjectListStatus.classList.remove('hidden'); }
-      adminStudentProjectsList.innerHTML = '<div class="empty-projects-card"><h3>No projects yet</h3><p>No saved projects were found for this student. You can switch to the next student without closing the viewer.</p></div>';
-      return;
-    }
-    renderProjectCenterStudentProjectList();
+    adminStudentProjectsList.innerHTML = projects.map(project => {
+      const isWireframe = String(project.projectType || 'code').toLowerCase() === 'wireframe';
+      const result = project.lastResult;
+      const linkedProfileNote = profileUids.length > 1 ? ` · Profile ${profileUids.indexOf(project.ownerUid) + 1}` : '';
+      return `
+        <article class="admin-project-row" data-admin-project-id="${escapeAttribute(project.adminProjectRef || project.id)}">
+          <div><strong>${escapeHTML(project.name || 'Untitled Project')}</strong><small>${escapeHTML(isWireframe ? 'Wireframe · Desktop + Phone' : (project.activityTitle || 'Practice project'))} · Updated ${escapeHTML(formatStudentDate(project.updatedAt))}${escapeHTML(linkedProfileNote)}</small></div>
+          <span>${getProjectStatusLabel(getProjectStatus(project))}</span>
+          <span>${isWireframe ? 'Responsive' : `${Number(project.runCount || 0)} run${Number(project.runCount || 0) === 1 ? '' : 's'}`}</span>
+          <strong>${isWireframe ? 'Wireframe' : (result ? `${formatPoints(result.score || 0)}/${formatPoints(result.possible || 0)} · ${Number(result.percent || 0)}%` : 'Not scored')}</strong>
+          <button class="primary-btn admin-project-view-btn" type="button" data-admin-project-action="view" data-admin-project-id="${escapeAttribute(project.adminProjectRef || project.id)}">${isWireframe ? 'View Wireframe' : 'View / Run'}</button>
+        </article>`;
+    }).join('');
   } catch (error) {
-    if (requestSequence !== projectCenterState.studentLoadSequence) return;
     console.error('Could not load student projects for admin', error);
     adminStudentProjectsList.innerHTML = '<div class="empty-projects-card"><h3>Could not load projects</h3><p>Check your internet connection, then try again.</p></div>';
   }
 }
 
 function closeAdminStudentProjects() {
-  projectCenterState.studentLoadSequence += 1;
   adminStudentProjectsOverlay?.classList.add('hidden');
   adminProjectViewerOverlay?.classList.add('hidden');
   adminWireframeViewerOverlay?.classList.add('hidden');
@@ -20877,7 +20474,7 @@ function updateInstallButtonVisibility() {
 function registerPWAServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./service-worker.js?v=657', {
+    navigator.serviceWorker.register('./service-worker.js?v=654-all-sections-viewer', {
       updateViaCache: 'none'
     }).then(registration => {
       let lastCheckedAt = 0;
@@ -27202,7 +26799,7 @@ function getStoredAdminTab() {
 }
 
 function setAdminTab(tabName = 'students', options = {}) {
-  const allowed = new Set(['students', 'project-center', 'needs-attention', 'online', 'assistance', 'compliance', 'lessons', 'given-activities', 'activities', 'code-explorer', 'device-qa']);
+  const allowed = new Set(['students', 'needs-attention', 'online', 'assistance', 'compliance', 'lessons', 'given-activities', 'activities', 'code-explorer', 'device-qa']);
   const nextTab = allowed.has(tabName) ? tabName : 'students';
   localStorage.setItem(ADMIN_TAB_STORAGE_KEY, nextTab);
 
@@ -27223,9 +26820,6 @@ function setAdminTab(tabName = 'students', options = {}) {
 
   if (nextTab === 'students' && isTeacherAuthenticated() && !adminStudentsCache.length) {
     loadAdminStudents().catch(error => console.warn('Student tracker load failed.', error));
-  }
-  if (nextTab === 'project-center' && isTeacherAuthenticated()) {
-    initializeProjectCheckingCenter().catch(error => console.warn('Project Checking Center unavailable.', error));
   }
   if (nextTab === 'compliance' && isTeacherAuthenticated() && !adminComplianceViewerSnapshotComplete) {
     loadAdminComplianceViewer({ silent: true }).catch(error => console.warn('Compliance viewer auto-load failed.', error));
@@ -36572,245 +36166,8 @@ adminStudentsTableBody?.addEventListener('click', event => {
   }
   const button = event.target.closest('.view-student-projects-btn');
   if (!button) return;
-  if (button.dataset.studentUid) { projectCenterState.openedFromCenter = false; showAdminStudentProjects(button.dataset.studentUid); }
+  if (button.dataset.studentUid) showAdminStudentProjects(button.dataset.studentUid);
 });
-
-function projectCenterSectionKey(value = '') {
-  if (typeof leaderboardSectionKey === 'function') return leaderboardSectionKey(value);
-  return String(value || '').trim().toLowerCase().replace(/\s+/g, ' ');
-}
-
-function projectCenterProjectCount(student) {
-  const indexed = getAdminStudentProfileUids(student).map(uid => getAdminProjectIndexForUid(uid));
-  if (indexed.length && indexed.every(Array.isArray)) {
-    return indexed.reduce((total, entries) => total + entries.length, 0);
-  }
-  return Math.max(0, Number(student?.projectCount || 0));
-}
-
-function projectCenterProjectMeta(student) {
-  const uids = getAdminStudentProfileUids(student);
-  const indexSets = uids.map(uid => getAdminProjectIndexForUid(uid));
-  const indexed = uids.length > 0 && indexSets.every(Array.isArray);
-  const entries = indexed ? indexSets.flat() : [];
-  const count = indexed ? entries.length : projectCenterProjectCount(student);
-  return {
-    count,
-    indexed: indexed || count === 0,
-    scored: indexed ? entries.filter(entry => Boolean(entry?.lastResult)).length : 0,
-    unscored: indexed ? entries.filter(entry => !entry?.lastResult).length : 0,
-    updated: indexed ? Math.max(0, ...entries.map(entry => timestampToDate(entry.updatedAt)?.getTime() || 0)) : 0
-  };
-}
-
-function projectCenterStudentsForSection() {
-  const key = pccSectionSelect?.value || '';
-  if (!key) return [];
-  return adminStudentsCache.filter(student => projectCenterSectionKey(student.section) === key);
-}
-
-function projectCenterVisibleStudents(sectionStudents) {
-  const query = String(pccSearchInput?.value || '').toLowerCase().trim();
-  const filter = String(pccFilterSelect?.value || 'all');
-  const sort = String(pccSortSelect?.value || 'name');
-  const recentCutoff = Date.now() - 7 * 86400000;
-  const rows = sectionStudents.filter(student => {
-    if (query && !(`${student.name || ''} ${student.studentId || ''}`.toLowerCase().includes(query))) return false;
-    const meta = projectCenterProjectMeta(student);
-    if (filter === 'with-projects') return meta.count > 0;
-    if (filter === 'no-projects') return meta.count === 0;
-    if (filter === 'scored') return meta.indexed && meta.scored > 0;
-    if (filter === 'unscored') return meta.indexed && meta.unscored > 0;
-    if (filter === 'recent') return meta.indexed && meta.updated >= recentCutoff;
-    return true;
-  });
-  rows.sort((a,b) => {
-    if (sort === 'most') return projectCenterProjectCount(b) - projectCenterProjectCount(a) || String(a.name || '').localeCompare(String(b.name || ''));
-    if (sort === 'least') return projectCenterProjectCount(a) - projectCenterProjectCount(b) || String(a.name || '').localeCompare(String(b.name || ''));
-    if (sort === 'recent') return getAdminRecordTimeMs(b) - getAdminRecordTimeMs(a) || String(a.name || '').localeCompare(String(b.name || ''));
-    return String(a.name || '').localeCompare(String(b.name || ''));
-  });
-  return rows;
-}
-
-function projectCenterPopulateSections() {
-  if (!pccSectionSelect) return;
-  const previous = pccSectionSelect.value;
-  const byKey = new Map();
-  adminStudentsCache.forEach(student => {
-    const raw = String(student.section || '').trim();
-    const key = projectCenterSectionKey(raw);
-    if (!key || byKey.has(key)) return;
-    byKey.set(key, raw);
-  });
-  const entries = [...byKey.entries()].sort((a,b) => a[1].localeCompare(b[1]));
-  pccSectionSelect.innerHTML = '<option value="">Choose a section…</option>' +
-    entries.map(([key,label]) => `<option value="${escapeAttribute(key)}">${escapeHTML(label)}</option>`).join('');
-  if (byKey.has(previous)) pccSectionSelect.value = previous;
-  else if (entries.length) pccSectionSelect.value = entries[0][0];
-}
-
-function renderProjectCheckingCenter() {
-  if (!pccStudentGrid || !isTeacherAuthenticated()) return;
-  const students = projectCenterStudentsForSection();
-  const shown = projectCenterVisibleStudents(students);
-  projectCenterState.visibleStudents = shown;
-  const meta = students.map(projectCenterProjectMeta);
-  const projectCount = meta.reduce((sum,item) => sum + item.count, 0);
-  const scoredKnown = meta.reduce((sum,item) => sum + item.scored, 0);
-  const unknown = meta.filter(item => !item.indexed && item.count > 0).length;
-  const setCount = (id,value) => { const el = document.getElementById(id); if (el) el.textContent = String(value); };
-  setCount('pccStudentsCount', students.length);
-  setCount('pccProjectsCount', projectCount);
-  setCount('pccScoredCount', scoredKnown);
-  setCount('pccVisibleCount', shown.length);
-  if (pccStatus) pccStatus.textContent = !pccSectionSelect?.value
-    ? 'Choose a section to get started.'
-    : `${shown.length} of ${students.length} students shown · ${projectCount} reported projects${unknown ? ` · ${unknown} students have result details available only on opening` : ''}.`;
-  if (!shown.length) {
-    pccStudentGrid.innerHTML = '<div class="empty-projects-card"><h3>No matching students</h3><p>Try a different section, search term, or filter. Unindexed projects are not treated as having no saved result.</p></div>';
-    return;
-  }
-  pccStudentGrid.innerHTML = shown.map(student => {
-    const data = projectCenterProjectMeta(student);
-    const id = String(student.studentId || student.uid || '');
-    const isDisabled = !data.count;
-    const scoreText = data.indexed
-      ? `${data.scored} with result · ${data.unscored} without`
-      : 'Open to check results';
-    const activity = student.lastActivityAt ? `Last activity: ${formatStudentDate(student.lastActivityAt)}` : 'No recent activity recorded';
-    return `<button class="pcc-student-card" type="button" data-pcc-student="${escapeAttribute(id)}" aria-label="Open projects for ${escapeAttribute(student.name || 'student')}">
-      <span class="pcc-card-top"><span class="pcc-avatar" aria-hidden="true">${escapeHTML(String(student.name || 'S').trim().charAt(0).toUpperCase())}</span><span class="pcc-card-identity"><strong>${escapeHTML(student.name || 'Unnamed Student')}</strong><small>${escapeHTML(student.studentId || 'No Student ID')}</small></span><span aria-hidden="true" class="pcc-card-arrow">›</span></span>
-      <span class="pcc-card-badges"><span>${data.count} project${data.count === 1 ? '' : 's'}</span><span class="${data.indexed && data.scored ? 'pcc-scored' : ''}">${escapeHTML(isDisabled ? 'No projects yet' : scoreText)}</span></span>
-      <small class="pcc-card-updated">${escapeHTML(activity)}</small><span class="pcc-card-action">${isDisabled ? 'Open student record' : 'Browse projects · View output & score'} →</span>
-    </button>`;
-  }).join('');
-}
-
-async function initializeProjectCheckingCenter(options = {}) {
-  if (!isTeacherAuthenticated() || projectCenterState.loading) return;
-  projectCenterState.loading = true;
-  if (pccStatus) pccStatus.textContent = 'Loading enrolled students…';
-  if (pccRefreshBtn) pccRefreshBtn.disabled = true;
-  try {
-    if (!adminStudentsCache.length || options.force === true) {
-      await loadAdminStudents(options.force ? { force: true } : {});
-    }
-    projectCenterPopulateSections();
-    renderProjectCheckingCenter();
-    projectCenterState.initialized = true;
-  } catch(error) {
-    if (pccStatus) pccStatus.textContent = error?.message || 'Could not load student directory.';
-  } finally {
-    projectCenterState.loading = false;
-    if (pccRefreshBtn) pccRefreshBtn.disabled = false;
-  }
-}
-
-function updateProjectCenterStudentNavigation() {
-  const student = adminProjectViewerState.student;
-  const list = projectCenterState.visibleStudents;
-  const currentKey = String(student?.studentId || student?.uid || '');
-  const index = list.findIndex(item => String(item.studentId || item.uid || '') === currentKey);
-  const inCenter = projectCenterState.openedFromCenter && index >= 0;
-  [pccPreviousStudentBtn,pccNextStudentBtn].forEach(button => button?.classList.toggle('hidden',!inCenter));
-  if (pccPreviousStudentBtn) pccPreviousStudentBtn.disabled = !inCenter || index < 1;
-  if (pccNextStudentBtn) pccNextStudentBtn.disabled = !inCenter || index >= list.length - 1;
-}
-
-function openProjectCenterStudent(studentId) {
-  if (!isTeacherAuthenticated()) return;
-  const student = projectCenterState.visibleStudents.find(item => String(item.studentId || item.uid || '') === String(studentId));
-  if (!student) return;
-  projectCenterState.openedFromCenter = true;
-  const uid = getAdminStudentProfileUids(student)[0] || student.uid || '';
-  showAdminStudentProjects(uid, { student });
-}
-
-function navigateProjectCenterStudent(delta) {
-  if (!projectCenterState.openedFromCenter) return;
-  const students = projectCenterState.visibleStudents;
-  const student = adminProjectViewerState.student;
-  const current = students.findIndex(item => String(item.studentId || item.uid || '') === String(student?.studentId || student?.uid || ''));
-  const target = students[current + delta];
-  if (!target || current < 0) return;
-  closeAdminProjectViewer();
-  openProjectCenterStudent(String(target.studentId || target.uid || ''));
-}
-
-function renderProjectCenterStudentProjectList() {
-  if (!adminStudentProjectsList) return;
-  const projects = Array.isArray(adminProjectViewerState.projects) ? adminProjectViewerState.projects : [];
-  if (!projects.length) return;
-  pccProjectTools?.classList.remove('hidden');
-  pccProjectListStatus?.classList.remove('hidden');
-  const query = String(pccProjectSearch?.value || '').trim().toLowerCase();
-  const filter = String(pccProjectFilter?.value || 'all');
-  const sort = String(pccProjectSort?.value || 'recent');
-  const cutoff = Date.now() - 7 * 86400000;
-  const visible = projects.filter(project => {
-    if (query && !(`${project.name || ''} ${project.activityTitle || ''} ${project.petaActivityTitle || ''}`.toLowerCase().includes(query))) return false;
-    if (filter === 'scored') return Boolean(project.lastResult);
-    if (filter === 'unscored') return !project.lastResult;
-    if (filter === 'recent') return (timestampToDate(project.updatedAt)?.getTime() || 0) >= cutoff;
-    return true;
-  }).sort((a,b) => {
-    if (sort === 'name') return String(a.name || '').localeCompare(String(b.name || ''));
-    if (sort === 'score') return Number(b.lastResult?.percent ?? -1) - Number(a.lastResult?.percent ?? -1);
-    return (timestampToDate(b.updatedAt)?.getTime() || 0) - (timestampToDate(a.updatedAt)?.getTime() || 0);
-  });
-  if (pccProjectListStatus) pccProjectListStatus.textContent = `Showing ${visible.length} of ${projects.length} saved projects · Select a project for its rendered Output Preview, source code, and rubric scoring.`;
-  if (!visible.length) {
-    adminStudentProjectsList.innerHTML = '<div class="empty-projects-card"><h3>No matching projects</h3><p>Change the search or filters to show available projects.</p></div>';
-    return;
-  }
-  adminStudentProjectsList.innerHTML = visible.map(project => {
-    const wireframe = String(project.projectType || 'code').toLowerCase() === 'wireframe';
-    const result = project.lastResult;
-    const label = result ? `${formatPoints(result.score ?? 0)}/${formatPoints(result.possible ?? 0)}${project.adminScoreAppliedBy ? ' · Teacher' : ' · Result'}` : 'No Saved Result';
-    const ref = project.adminProjectRef || makeAdminProjectReference(getAdminProjectOwnerUid(project),project.id);
-    return `<article class="admin-project-row pcc-project-row" data-admin-project-id="${escapeAttribute(ref)}">
-      <div class="pcc-project-main"><strong>${escapeHTML(project.name || 'Untitled Project')}</strong><small>${escapeHTML(wireframe ? 'Responsive Wireframe' : (project.activityTitle || 'Practice project'))} · Updated ${escapeHTML(formatStudentDate(project.updatedAt))}</small></div>
-      <span class="pcc-project-tag">${escapeHTML(getProjectStatusLabel(getProjectStatus(project)))}</span>
-      <strong class="pcc-project-score">${escapeHTML(label)}</strong>
-      <button class="primary-btn admin-project-view-btn" type="button" data-admin-project-action="view" data-admin-project-id="${escapeAttribute(ref)}">${wireframe ? 'View Wireframe' : 'Open Output / Code'}</button>
-    </article>`;
-  }).join('');
-}
-
-function setProjectCheckingReviewTab(view = 'split') {
-  const card = adminProjectViewerOverlay?.querySelector('.admin-project-viewer-card');
-  if (!card) return;
-  const permitted = ['preview','code','rubric','split'];
-  const next = permitted.includes(view) ? view : 'split';
-  card.dataset.pccView = next;
-  pccReviewTabs?.querySelectorAll('[data-pcc-view]').forEach(button => {
-    const selected = button.dataset.pccView === next;
-    button.classList.toggle('active',selected);
-    button.setAttribute('aria-pressed',String(selected));
-  });
-  if (next === 'preview') runAdminProjectViewerPreview(getAdminProjectActiveFileName('html'));
-}
-
-pccSectionSelect?.addEventListener('change', renderProjectCheckingCenter);
-pccSearchInput?.addEventListener('input', renderProjectCheckingCenter);
-pccFilterSelect?.addEventListener('change', renderProjectCheckingCenter);
-pccSortSelect?.addEventListener('change', renderProjectCheckingCenter);
-pccRefreshBtn?.addEventListener('click', () => initializeProjectCheckingCenter({force:true}));
-pccStudentGrid?.addEventListener('click', event => {
-  const card = event.target.closest('[data-pcc-student]');
-  if (card) openProjectCenterStudent(card.dataset.pccStudent || '');
-});
-pccPreviousStudentBtn?.addEventListener('click', () => navigateProjectCenterStudent(-1));
-pccNextStudentBtn?.addEventListener('click', () => navigateProjectCenterStudent(1));
-pccProjectSearch?.addEventListener('input', renderProjectCenterStudentProjectList);
-pccProjectFilter?.addEventListener('change', renderProjectCenterStudentProjectList);
-pccProjectSort?.addEventListener('change', renderProjectCenterStudentProjectList);
-pccReviewTabs?.addEventListener('click', event => {
-  const button = event.target.closest('[data-pcc-view]');
-  if (button) setProjectCheckingReviewTab(button.dataset.pccView);
-});
-
 refreshAdminStudentProjectsBtn?.addEventListener('click', async () => {
   const student = adminProjectViewerState.student;
   const uid = getAdminStudentProfileUids(student || {})[0] || student?.uid || '';
@@ -36838,13 +36195,6 @@ adminProjectViewerOverlay?.addEventListener('click', event => {
 });
 adminProjectViewerActivitySelect?.addEventListener('change', event => {
   adminProjectViewerState.activityKey = event.target.value || 'scratch';
-  resetAdminProjectBrowserState(adminProjectViewerFrame);
-  resetAdminProjectBrowserState(adminProjectFullscreenFrame);
-  const selectedStore = getAdminProjectActiveStore();
-  const selectedPage = bestAdminSavedHtmlPage(selectedStore);
-  if (!scoreAdminSavedHtmlPage(selectedStore.pages?.[selectedStore.activeHtmlPage], selectedStore) && selectedPage.score > 0) {
-    selectedStore.activeHtmlPage = selectedPage.name;
-  }
   populateAdminProjectViewerFileSelect();
   updateAdminProjectViewerCode();
   const matchingRubricId = getActivityById(adminProjectViewerState.activityKey) ? adminProjectViewerState.activityKey : adminProjectViewerState.rubricId;
@@ -36858,7 +36208,7 @@ adminProjectViewerFileSelect?.addEventListener('change', event => {
   setAdminProjectActiveFileName(adminProjectViewerState.language, event.target.value || '');
   updateAdminProjectViewerCode();
   resetAdminProjectResultCheck('File changed · recheck when ready');
-  if (adminProjectViewerState.language === 'html') renderAdminProjectPreviewFrame(adminProjectViewerFrame, event.target.value || '', adminProjectViewerPreviewNote, {push:true});
+  if (adminProjectViewerState.language === 'html') runAdminProjectViewerPreview(event.target.value || '');
 });
 adminProjectViewerLangTabs?.addEventListener('click', event => {
   const button = event.target.closest('[data-admin-viewer-lang]');
@@ -36911,63 +36261,8 @@ closeAdminProjectFullscreenBtn?.addEventListener('click', closeAdminProjectFulls
 adminProjectFullscreenOverlay?.addEventListener('click', event => {
   if (event.target === adminProjectFullscreenOverlay) event.stopPropagation();
 });
-window.addEventListener('message', event => {
-  if (event.data?.type === 'g8code-admin-preview-rendered-dom-v655') {
-    if (event.source !== adminProjectViewerFrame?.contentWindow) return;
-    if (String(event.data?.page || '') !== String(adminProjectViewerFrame?.dataset.currentPage || '')) return;
-    const markup = event.data?.html;
-    if (typeof markup !== 'string' || markup.length > 350000) return;
-    try { adminProjectIsolatedRenderedDoc = new DOMParser().parseFromString(markup, 'text/html'); } catch (_) {}
-    return;
-  }
-  if (event.data?.type !== 'g8code-admin-preview-local-link-v655') return;
-  const href = String(event.data?.href || '').trim();
-  if (!href || href.length > 500 || /^(?:[a-z]+:|\/\/)/i.test(href)) return;
-  const source = event.source;
-  if (source === adminProjectViewerFrame?.contentWindow) {
-    navigateAdminProjectPreviewFrame(adminProjectViewerFrame, href, adminProjectViewerPreviewNote, null);
-  } else if (source === adminProjectFullscreenFrame?.contentWindow) {
-    navigateAdminProjectPreviewFrame(adminProjectFullscreenFrame, href, adminProjectFullscreenPreviewNote, null);
-  }
-});
-adminProjectViewerFrame?.addEventListener('load', () => {
-  attachAdminProjectViewerPreviewLinks();
-  updateAdminProjectBrowserUI(adminProjectViewerFrame);
-});
-adminProjectFullscreenFrame?.addEventListener('load', () => {
-  attachAdminProjectFullscreenPreviewLinks();
-  updateAdminProjectBrowserUI(adminProjectFullscreenFrame);
-});
-document.querySelectorAll('[data-admin-preview-bar]').forEach(bar => {
-  bar.addEventListener('click', event => {
-    const action = event.target.closest('[data-admin-browser-action]')?.dataset.adminBrowserAction;
-    if (!action) return;
-    event.preventDefault();
-    const frame = bar.dataset.adminPreviewBar === 'fullscreen' ? adminProjectFullscreenFrame : adminProjectViewerFrame;
-    navigateAdminProjectBrowserButton(frame, action);
-  });
-});
-window.addEventListener('message', event => {
-  const payload = event.data || {};
-  if (!String(payload.type || '').startsWith('g8code-admin-browser-v657:')) return;
-  const frame = [adminProjectViewerFrame,adminProjectFullscreenFrame].find(item => item?.contentWindow === event.source);
-  if (!frame || String(payload.page || '') !== String(frame.dataset.currentPage || '')) return;
-  const state = getAdminProjectBrowserState(frame);
-  const eventType = String(payload.type).split(':')[1];
-  if (eventType === 'ready') {
-    state.loaded = true;
-    state.metrics = {
-      textLength: Math.max(0, Number(payload.textLength) || 0),
-      scrollHeight: Math.max(0, Number(payload.scrollHeight) || 0),
-      nodeCount: Math.max(0, Number(payload.nodeCount) || 0)
-    };
-    state.missing = Array.isArray(payload.missing) ? payload.missing.slice(0,8).map(value=>String(value).slice(0,160)) : [];
-  } else if (eventType === 'error') {
-    const error = String(payload.message || 'Unknown student script error').slice(0,280);
-    if (!state.errors.includes(error)) state.errors.push(error);
-  }
-  updateAdminProjectBrowserUI(frame);
-});
+adminProjectViewerFrame?.addEventListener('load', attachAdminProjectViewerPreviewLinks);
+adminProjectFullscreenFrame?.addEventListener('load', attachAdminProjectFullscreenPreviewLinks);
 window.addEventListener('resize', queueAdminProjectFullscreenPreviewScale, { passive: true });
 document.addEventListener('fullscreenchange', queueAdminProjectFullscreenPreviewScale);
 document.addEventListener('webkitfullscreenchange', queueAdminProjectFullscreenPreviewScale);
