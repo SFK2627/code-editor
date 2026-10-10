@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ict8-connect-v653-grade-zero-admin';
+const CACHE_NAME = 'ict8-connect-v654-all-sections-viewer';
 const APP_SHELL = [
   './',
   './index.html',

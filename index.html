@@ -45,7 +45,7 @@
   </script>
   <link rel="preconnect" href="https://drive.google.com" crossorigin>
   <link rel="preconnect" href="https://lh3.googleusercontent.com" crossorigin>
-  <link rel="stylesheet" href="style.css?v=20261010-v653-grade-zero-admin" />
+  <link rel="stylesheet" href="style.css?v=20261010-v654-all-sections-viewer" />
   <link rel="stylesheet" href="games/mini-games-hub.css?v=20260912-v4761-byte-runner-v81-build-hud" />
   <link rel="stylesheet" href="games/code-fly/code-fly.css?v=20260909-v429-xp-mini-games" />
   <style>
@@ -2767,9 +2767,9 @@ https://example.com/song2.mp3"></textarea>
               <div>
                 <p class="section-kicker">Published Status Viewer</p>
                 <h3 id="adminComplianceViewerTitle">Student Compliance Viewer</h3>
-                <p class="muted-text">View each student's lacking list from the latest published records. This does not sync Google Sheets again.</p>
+                <p class="muted-text">See the latest published record for every section, even after another section is synced. Viewing does not sync Google Sheets.</p>
               </div>
-              <button id="refreshAdminComplianceViewerBtn" class="ghost-btn" type="button" title="Reload today's cached Compliance snapshot. The next full cloud snapshot rolls over after 8 PM.">Refresh Cached Viewer</button>
+              <button id="refreshAdminComplianceViewerBtn" class="ghost-btn" type="button" title="Fetch the latest published records for all sections directly from Firestore.">Refresh All Sections</button>
             </div>
 
             <div class="compliance-viewer-toolbar">
@@ -2792,7 +2792,7 @@ https://example.com/song2.mp3"></textarea>
                 </select>
               </label>
             </div>
-            <p id="adminComplianceViewerStatus" class="helper-note compliance-viewer-status" role="status">Click Refresh Viewer after publishing to see student lacking lists.</p>
+            <p id="adminComplianceViewerStatus" class="helper-note compliance-viewer-status" role="status">Choose any section to view its own latest published student records.</p>
             <div class="compliance-viewer-layout">
               <div id="adminComplianceStudentList" class="compliance-viewer-list" aria-label="Student compliance list"></div>
               <div id="adminComplianceStudentDetail" class="compliance-viewer-detail" aria-label="Selected student lacking details">
@@ -4825,7 +4825,7 @@ https://example.com/song3.mp3"></textarea>
     })();
   </script>
 
-  <script src="script.js?v=20261010-v653-grade-zero-admin"></script>
+  <script src="script.js?v=20261010-v654-all-sections-viewer"></script>
   <script>
     // v410 fallback: keep the desktop editor settings popover working even if older cached
     // toolbar code fails before binding the click handler.

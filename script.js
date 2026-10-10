@@ -9582,6 +9582,12 @@ let studentComplianceRecord = null;
 let activeComplianceTaskGroup = 'WW';
 let adminComplianceViewerRecords = [];
 let selectedAdminComplianceStudentId = '';
+// v654: This cache contains ALL published sections, never only the last sync.
+// A new key also invalidates legacy v653 snapshots that contained one section.
+const ADMIN_COMPLIANCE_ALL_SECTIONS_CACHE_KEY = 'compliance:viewerRecords:allSections:v654';
+const ADMIN_COMPLIANCE_ALL_SECTIONS_TTL_MS = 5 * 60 * 1000;
+let adminComplianceViewerSnapshotComplete = false;
+let adminComplianceViewerLoadPromise = null;
 // Teacher-only numerical grade cache. These values are NEVER part of student
 // Compliance records or any client-facing Student Status response.
 const adminComplianceGradeCache = new Map();
@@ -10234,15 +10240,28 @@ function renderStudentComplianceRecord(record = null, options = {}) {
 }
 
 
+// v654: treat "Grade 8 - St. Andrew Kim Taegon" and "St. Andrew Kim Taegon"
+// as one section. Keep the configured display name in the dropdown.
+function complianceViewerSectionKey(value = '') {
+  return String(value || '')
+    .replace(/^[\s]*(?:grade\s*)?8\s*(?:[-–—:|]\s*)?/i, '')
+    .replace(/\bst\.?\s*/gi, 'st ')
+    .replace(/\bfaustina\s+of\s+kowalska\b/gi, 'faustina kowalska')
+    .replace(/[^a-z0-9]/gi, '')
+    .toLowerCase();
+}
+
 function getAdminComplianceViewerSectionChoices(settings = loadComplianceSettings(), records = adminComplianceViewerRecords) {
   const choices = new Map();
   (settings.sections || []).forEach(section => {
     const name = String(section.section || '').trim();
-    if (name) choices.set(name.toLowerCase(), name);
+    const key = complianceViewerSectionKey(name);
+    if (key) choices.set(key, name);
   });
   (records || []).forEach(record => {
     const name = String(record.section || '').trim();
-    if (name) choices.set(name.toLowerCase(), name);
+    const key = complianceViewerSectionKey(name);
+    if (key && !choices.has(key)) choices.set(key, name);
   });
   return Array.from(choices.values()).sort((a, b) => a.localeCompare(b));
 }
@@ -10251,9 +10270,10 @@ function renderAdminComplianceViewerSectionOptions(settings = loadComplianceSett
   if (!adminComplianceViewerSectionSelect) return;
   const currentValue = adminComplianceViewerSectionSelect.value || 'all';
   const sections = getAdminComplianceViewerSectionChoices(settings, adminComplianceViewerRecords);
+  const matchingCurrent = sections.find(name => complianceViewerSectionKey(name) === complianceViewerSectionKey(currentValue));
   adminComplianceViewerSectionSelect.innerHTML = '<option value="all">All Published Sections</option>'
     + sections.map(section => `<option value="${escapeAttribute(section)}">${escapeHTML(section)}</option>`).join('');
-  adminComplianceViewerSectionSelect.value = sections.includes(currentValue) ? currentValue : 'all';
+  adminComplianceViewerSectionSelect.value = currentValue === 'all' ? 'all' : (matchingCurrent || 'all');
 }
 
 function setAdminComplianceViewerStatus(message = '', tone = '') {
@@ -10269,7 +10289,7 @@ function getAdminComplianceViewerFilteredRecords() {
   return adminComplianceViewerRecords.filter(record => {
     const summary = record.summary || summarizeComplianceTasks(record.tasks || []);
     const missingCount = Number(summary.missing || 0);
-    const matchesSection = section === 'all' || String(record.section || '') === section;
+    const matchesSection = section === 'all' || complianceViewerSectionKey(record.section) === complianceViewerSectionKey(section);
     const haystack = `${record.studentName || ''} ${record.studentId || ''} ${record.studentIdNormalized || ''}`.toLowerCase();
     const matchesSearch = !query || haystack.includes(query);
     const matchesFilter = filter === 'all'
@@ -10277,6 +10297,32 @@ function getAdminComplianceViewerFilteredRecords() {
       || (filter === 'complete' && missingCount <= 0);
     return matchesSection && matchesSearch && matchesFilter;
   }).sort((a, b) => String(a.studentName || a.studentId || '').localeCompare(String(b.studentName || b.studentId || '')));
+}
+
+// Only published Firestore timestamps are used here. A sync for one section
+// never changes the displayed date of another section.
+function adminComplianceSectionLastPublishedText(rows = []) {
+  const stamps = rows.map(record => Number(record.updatedAtMs || 0))
+    .filter(ms => Number.isFinite(ms) && ms > 0);
+  if (!stamps.length) return 'Time unavailable';
+  return new Date(Math.max(...stamps)).toLocaleString('en-PH', {
+    timeZone: 'Asia/Manila', month: 'short', day: 'numeric', year: 'numeric',
+    hour: 'numeric', minute: '2-digit'
+  });
+}
+
+function updateAdminComplianceViewerSectionStatus() {
+  if (!adminComplianceViewerSnapshotComplete) return;
+  const section = adminComplianceViewerSectionSelect?.value || 'all';
+  const relevant = adminComplianceViewerRecords.filter(record =>
+    section === 'all' || complianceViewerSectionKey(record.section) === complianceViewerSectionKey(section));
+  const lacking = relevant.filter(record => Number((record.summary || {}).missing || 0) > 0).length;
+  if (section !== 'all' && !relevant.length) {
+    setAdminComplianceViewerStatus(`No published records yet for ${section}. Choose another section or Refresh Viewer after its first publication.`, 'warning');
+    return;
+  }
+  const subject = section === 'all' ? 'all published sections' : section;
+  setAdminComplianceViewerStatus(`Viewing ${relevant.length} student(s) in ${subject} · ${lacking} with lackings · Last published: ${adminComplianceSectionLastPublishedText(relevant)}.`, 'success');
 }
 
 function isAdminCompliancePhoneLayout() {
@@ -10373,13 +10419,20 @@ function renderAdminComplianceViewer() {
   if (!selectedExists) selectedAdminComplianceStudentId = isAdminCompliancePhoneLayout() ? '' : (records[0]?.studentIdNormalized || '');
 
   if (!adminComplianceViewerRecords.length) {
-    adminComplianceStudentList.innerHTML = '<div class="student-compliance-empty">No published compliance records loaded yet. Click Refresh Viewer after syncing a section.</div>';
+    adminComplianceStudentList.innerHTML = adminComplianceViewerSnapshotComplete
+      ? '<div class="student-compliance-empty">No Published Records Yet. Publish at least one section to see student status here.</div>'
+      : '<div class="student-compliance-empty">Loading published sections. Please wait, or click Refresh All Sections.</div>';
     renderAdminComplianceStudentDetail(null);
     return;
   }
 
   if (!records.length) {
-    adminComplianceStudentList.innerHTML = '<div class="student-compliance-empty">No students match the current section/search/filter.</div>';
+    const section = adminComplianceViewerSectionSelect?.value || 'all';
+    const sectionPublished = section === 'all' || adminComplianceViewerRecords.some(record =>
+      complianceViewerSectionKey(record.section) === complianceViewerSectionKey(section));
+    adminComplianceStudentList.innerHTML = sectionPublished
+      ? '<div class="student-compliance-empty">No students match the current search/filter.</div>'
+      : '<div class="student-compliance-empty">No Published Records Yet for this section. Use Refresh Viewer if it was recently published.</div>';
     renderAdminComplianceStudentDetail(null);
     return;
   }
@@ -10407,44 +10460,76 @@ function renderAdminComplianceViewer() {
   if (selected) loadTeacherGradeForAdminViewer(selected).catch(err => console.warn('Admin grade viewer read failed.', err));
 }
 
+// The viewer is READ-ONLY. Full snapshots come from the published subjectCompliance
+// collection, not Google Sheets. A fresh cloud query is performed only when the
+// all-sections cache expires or the teacher clicks Refresh Viewer.
+async function fetchAllPublishedComplianceRecords() {
+  if (navigator.onLine === false) throw new Error('You are offline. Reconnect to refresh published section records.');
+  const collectionRef = getComplianceCollectionRef();
+  const modules = firebaseSync.modules;
+  let snapshot;
+  if (typeof modules.getDocsFromServer === 'function') {
+    snapshot = await withTimeout(modules.getDocsFromServer(collectionRef), APP_NETWORK_TIMEOUT_MS,
+      'Reading published records from Firestore took too long. Please try Refresh Viewer again.');
+  } else if (typeof collectionRef.get === 'function') {
+    // Firebase compat SDK: explicitly prevent serving a stale local snapshot.
+    snapshot = await withTimeout(collectionRef.get({ source: 'server' }), APP_NETWORK_TIMEOUT_MS,
+      'Reading published records from Firestore took too long. Please try Refresh Viewer again.');
+  } else {
+    // Firebase modular getDocs ordinarily attempts the server when online.
+    snapshot = await withTimeout(modules.getDocs(collectionRef), APP_NETWORK_TIMEOUT_MS,
+      'Reading published records from Firestore took too long. Please try Refresh Viewer again.');
+  }
+  return Array.from(snapshot?.docs || [])
+    .map(docSnap => sanitizeComplianceStudentRecord({
+      id: docSnap.id,
+      ...(typeof docSnap.data === 'function' ? docSnap.data() : {})
+    }))
+    .filter(record => record.studentIdNormalized);
+}
+
 async function loadAdminComplianceViewer(options = {}) {
   if (!adminComplianceStudentList) return [];
   if (!isTeacherAuthenticated()) {
     setAdminComplianceViewerStatus('Login as teacher to view student compliance records.', 'warning');
     return [];
   }
-  setAdminComplianceViewerStatus('Loading published compliance records...', '');
-  if (refreshAdminComplianceViewerBtn) refreshAdminComplianceViewerBtn.disabled = true;
-  try {
-    const ready = await initFirebaseSync();
-    if (!ready) throw new Error(firebaseSync.lastError || 'Firebase is not ready.');
-    const records = await loadAdminSnapshotRows({
-      cacheKey: 'compliance:viewerRecords',
-      ttlMs: getAdminDailySnapshotTtlMs(),
-      staleMaxMs: ADMIN_SNAPSHOT_STALE_MAX_MS,
-      collectionRef: getComplianceCollectionRef(),
-      forceRefresh: options.force === true,
-      deepRefresh: options.deep === true,
-      keyGetter: row => normalizeStudentId(row?.studentIdNormalized || row?.studentId || row?.id || ''),
-      mapDoc: docSnap => sanitizeComplianceStudentRecord({ id: docSnap.id, ...(typeof docSnap.data === 'function' ? docSnap.data() : {}) }),
-      timeoutMessage: 'Loading the initial compliance snapshot is taking too long. Check the connection and try again.'
-    });
-    if (options.force === true) adminComplianceGradeCache.clear();
-    adminComplianceViewerRecords = records
-      .filter(record => record?.studentIdNormalized)
-      .map(record => ({ ...record }))
-      .sort((a, b) => String(a.section || '').localeCompare(String(b.section || '')) || String(a.studentName || '').localeCompare(String(b.studentName || '')));
-    renderAdminComplianceViewer();
-    const lacking = adminComplianceViewerRecords.filter(record => Number((record.summary || {}).missing || 0) > 0).length;
-    if (!options.silent) setAdminComplianceViewerStatus(`Loaded ${adminComplianceViewerRecords.length} student record(s). ${lacking} student(s) currently have lacking requirements.`, 'success');
-    return adminComplianceViewerRecords;
-  } catch (error) {
-    console.warn('Could not load admin compliance viewer.', error);
-    setAdminComplianceViewerStatus(error?.message || 'Could not load student compliance records.', 'error');
-    return [];
-  } finally {
-    if (refreshAdminComplianceViewerBtn) refreshAdminComplianceViewerBtn.disabled = false;
-  }
+  if (adminComplianceViewerLoadPromise) return adminComplianceViewerLoadPromise;
+  const task = (async () => {
+    setAdminComplianceViewerStatus('Loading the latest published records for all sections…', '');
+    if (refreshAdminComplianceViewerBtn) refreshAdminComplianceViewerBtn.disabled = true;
+    try {
+      const ready = await initFirebaseSync();
+      if (!ready) throw new Error(firebaseSync.lastError || 'Firebase is not ready.');
+      const forceServer = options.force === true || options.deep === true;
+      const cached = forceServer ? null : await getSelectiveFirestoreCacheEntry(
+        ADMIN_COMPLIANCE_ALL_SECTIONS_CACHE_KEY, { allowExpired: false });
+      const cachedRows = cached && Number(cached.expiresAt || 0) > Date.now() && Array.isArray(cached.value)
+        ? cached.value : null;
+      const records = cachedRows || await fetchAllPublishedComplianceRecords();
+      if (!cachedRows) setSelectiveFirestoreCache(ADMIN_COMPLIANCE_ALL_SECTIONS_CACHE_KEY, records,
+        ADMIN_COMPLIANCE_ALL_SECTIONS_TTL_MS);
+      if (forceServer) adminComplianceGradeCache.clear();
+      adminComplianceViewerRecords = records
+        .filter(record => record?.studentIdNormalized)
+        .map(record => ({ ...record }))
+        .sort((a, b) => String(a.section || '').localeCompare(String(b.section || ''))
+          || String(a.studentName || '').localeCompare(String(b.studentName || '')));
+      adminComplianceViewerSnapshotComplete = true;
+      renderAdminComplianceViewer();
+      updateAdminComplianceViewerSectionStatus();
+      return adminComplianceViewerRecords;
+    } catch (error) {
+      console.warn('Could not load all published Compliance sections.', error);
+      setAdminComplianceViewerStatus(error?.message || 'Could not load published student records.', 'error');
+      return adminComplianceViewerRecords;
+    } finally {
+      if (refreshAdminComplianceViewerBtn) refreshAdminComplianceViewerBtn.disabled = false;
+    }
+  })();
+  adminComplianceViewerLoadPromise = task;
+  try { return await task; }
+  finally { if (adminComplianceViewerLoadPromise === task) adminComplianceViewerLoadPromise = null; }
 }
 
 // v652: a single listener on THIS student's published status keeps PT scores,
@@ -11135,23 +11220,38 @@ async function publishComplianceSync() {
       adminComplianceGradeCache.set(teacherGradeCacheKey(student.studentIdNormalized, settingsTermForPublishedGrade(student)),
         { grade: validTeacherTermGrade(student._privateTeacherTermGrade), available: true });
     });
-    // v465: the exact records were just written, so reuse them locally instead of
-    // immediately paying for a full subjectCompliance collection read.
-    clearSelectiveFirestoreCache('compliance:');
+    // v654: publishing one section must NEVER replace the complete viewer
+    // snapshot (or its cache) with only that section's records.
     clearSelectiveFirestoreCache('subjectCompliance:');
-    adminComplianceViewerRecords = payload.students
-      .map(student => sanitizeComplianceStudentRecord({
-        ...student,
-        studentIdOriginal: student.studentId,
-        studentId: student.studentIdNormalized,
-        studentAuthEmail: studentIdToAuthEmail(student.studentIdNormalized),
-        updatedAtMs: syncedAtMs,
-        updatedAt: new Date(syncedAtMs).toISOString()
-      }))
-      .filter(record => record.studentIdNormalized)
-      .sort((a, b) => String(a.section || '').localeCompare(String(b.section || '')) || String(a.studentName || '').localeCompare(String(b.studentName || '')));
-    setSelectiveFirestoreCache('compliance:viewerRecords', adminComplianceViewerRecords.map(record => ({ ...record })), getAdminDailySnapshotTtlMs());
+    const justPublished = payload.students.map(student => sanitizeComplianceStudentRecord({
+      ...student,
+      studentIdOriginal: student.studentId,
+      studentId: student.studentIdNormalized,
+      studentAuthEmail: studentIdToAuthEmail(student.studentIdNormalized),
+      updatedAtMs: syncedAtMs,
+      updatedAt: new Date(syncedAtMs).toISOString()
+    })).filter(record => record.studentIdNormalized);
+    adminComplianceViewerRecords = mergeAdminSnapshotRows(adminComplianceViewerRecords, justPublished,
+      record => normalizeStudentId(record?.studentIdNormalized || record?.studentId || ''))
+      .sort((a, b) => String(a.section || '').localeCompare(String(b.section || ''))
+        || String(a.studentName || '').localeCompare(String(b.studentName || '')));
+    if (adminComplianceViewerSnapshotComplete) {
+      // Safe to cache only if the base was loaded from the entire collection.
+      setSelectiveFirestoreCache(ADMIN_COMPLIANCE_ALL_SECTIONS_CACHE_KEY,
+        adminComplianceViewerRecords.map(record => ({ ...record })), ADMIN_COMPLIANCE_ALL_SECTIONS_TTL_MS);
+    } else {
+      // Do not write a partial single-section snapshot into the all-section key.
+      clearSelectiveFirestoreCache(ADMIN_COMPLIANCE_ALL_SECTIONS_CACHE_KEY);
+    }
     renderAdminComplianceViewer();
+    // If the teacher has not opened the full viewer yet, fetch it once to
+    // populate all other sections. Never refetch Google Sheets for this.
+    if (!adminComplianceViewerSnapshotComplete) {
+      loadAdminComplianceViewer({ force: true, silent: true })
+        .catch(error => console.warn('Post-publish all-sections viewer refresh failed.', error));
+    } else {
+      updateAdminComplianceViewerSectionStatus();
+    }
     if (appSession.student) loadStudentComplianceStatus({ silent: true, force: true });
   } catch (error) {
     console.warn(`Compliance publish failed during ${stage}.`, error);
@@ -20374,7 +20474,7 @@ function updateInstallButtonVisibility() {
 function registerPWAServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./service-worker.js?v=653-grade-zero-admin', {
+    navigator.serviceWorker.register('./service-worker.js?v=654-all-sections-viewer', {
       updateViaCache: 'none'
     }).then(registration => {
       let lastCheckedAt = 0;
@@ -26721,7 +26821,7 @@ function setAdminTab(tabName = 'students', options = {}) {
   if (nextTab === 'students' && isTeacherAuthenticated() && !adminStudentsCache.length) {
     loadAdminStudents().catch(error => console.warn('Student tracker load failed.', error));
   }
-  if (nextTab === 'compliance' && isTeacherAuthenticated() && adminComplianceViewerRecords.length === 0) {
+  if (nextTab === 'compliance' && isTeacherAuthenticated() && !adminComplianceViewerSnapshotComplete) {
     loadAdminComplianceViewer({ silent: true }).catch(error => console.warn('Compliance viewer auto-load failed.', error));
   }
   if (nextTab === 'online' && isTeacherAuthenticated()) {
@@ -31841,7 +31941,15 @@ saveComplianceSettingsBtn?.addEventListener('click', async () => {
 previewComplianceSyncBtn?.addEventListener('click', previewComplianceSync);
 publishComplianceSyncBtn?.addEventListener('click', publishComplianceSync);
 refreshAdminComplianceViewerBtn?.addEventListener('click', () => loadAdminComplianceViewer({ force: true, silent: false }));
-[adminComplianceViewerSectionSelect, adminComplianceViewerSearch, adminComplianceViewerFilter].forEach(control => {
+adminComplianceViewerSectionSelect?.addEventListener('change', () => {
+  renderAdminComplianceViewer();
+  if (!adminComplianceViewerSnapshotComplete) {
+    loadAdminComplianceViewer({ silent: false }).catch(error => console.warn('Section records refresh failed.', error));
+  } else {
+    updateAdminComplianceViewerSectionStatus();
+  }
+});
+[adminComplianceViewerSearch, adminComplianceViewerFilter].forEach(control => {
   control?.addEventListener('input', renderAdminComplianceViewer);
   control?.addEventListener('change', renderAdminComplianceViewer);
 });
