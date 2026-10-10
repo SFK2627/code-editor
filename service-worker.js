@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ict8-connect-v649-status-popup-redesign';
+const CACHE_NAME = 'ict8-connect-v650-signature-themes';
 const APP_SHELL = [
   './',
   './index.html',

@@ -67768,3 +67768,186 @@ html[data-theme="dark"] .code-explorer-final-podium-btn { border-color: #a77e2f;
 .login-reminder-hint-open { display:none; }
 .login-reminder-standing[open] .login-reminder-hint-closed { display:none; }
 .login-reminder-standing[open] .login-reminder-hint-open { display:inline; }
+
+/* ========================================================================== */
+/* v650: Four signature school design themes for the EXISTING student popup. */
+/* Scope is limited to the selected data-theme, preserving all prior themes. */
+/* Themes style BOTH the Completed and Missing Requirements states.          */
+/* ========================================================================== */
+.login-lacking-reminder-overlay:is([data-theme="campus-journal"],[data-theme="mission-control"],[data-theme="honors-night"],[data-theme="blueprint-lab"]) {
+  --sig-ink:#15243b;
+  --sig-muted:#58677a;
+  --sig-accent:#1d4ed8;
+  --sig-soft:#eff6ff;
+  --sig-stroke:#bfdbfe;
+  --sig-paper:#fff;
+}
+.login-lacking-reminder-overlay:is([data-theme="campus-journal"],[data-theme="mission-control"],[data-theme="honors-night"],[data-theme="blueprint-lab"]) .login-lacking-reminder-panel {
+  color:var(--sig-ink);
+  background:var(--sig-paper);
+  box-shadow:0 26px 75px rgba(6,20,36,.35);
+}
+.login-lacking-reminder-overlay:is([data-theme="campus-journal"],[data-theme="mission-control"],[data-theme="honors-night"],[data-theme="blueprint-lab"]) .login-lacking-reminder-hero h2,
+.login-lacking-reminder-overlay:is([data-theme="campus-journal"],[data-theme="mission-control"],[data-theme="honors-night"],[data-theme="blueprint-lab"]) .login-reminder-requirements-head h3,
+.login-lacking-reminder-overlay:is([data-theme="campus-journal"],[data-theme="mission-control"],[data-theme="honors-night"],[data-theme="blueprint-lab"]) .login-lacking-reminder-nav-head > span { color:var(--sig-ink); }
+.login-lacking-reminder-overlay:is([data-theme="campus-journal"],[data-theme="mission-control"],[data-theme="honors-night"],[data-theme="blueprint-lab"]) .login-lacking-reminder-student,
+.login-lacking-reminder-overlay:is([data-theme="campus-journal"],[data-theme="mission-control"],[data-theme="honors-night"],[data-theme="blueprint-lab"]) .login-lacking-reminder-nav-head > small {color:var(--sig-muted);}
+.login-lacking-reminder-overlay:is([data-theme="campus-journal"],[data-theme="mission-control"],[data-theme="honors-night"],[data-theme="blueprint-lab"]) .login-lacking-reminder-hero .section-kicker { color:var(--sig-accent); }
+.login-lacking-reminder-overlay:is([data-theme="campus-journal"],[data-theme="mission-control"],[data-theme="honors-night"],[data-theme="blueprint-lab"]) .login-lacking-reminder-icon {
+  background:var(--sig-soft); border:2px solid var(--sig-stroke);
+  border-radius:16px;
+}
+.login-lacking-reminder-overlay:is([data-theme="campus-journal"],[data-theme="mission-control"],[data-theme="honors-night"],[data-theme="blueprint-lab"]) .login-reminder-requirements-group {
+  border-color:var(--sig-stroke); border-radius:12px;
+  background:rgba(255,255,255,.97);
+}
+.login-lacking-reminder-overlay:is([data-theme="campus-journal"],[data-theme="mission-control"],[data-theme="honors-night"],[data-theme="blueprint-lab"]) .login-reminder-requirements-group-header {
+  border-bottom-color:var(--sig-stroke); background:var(--sig-soft);
+}
+.login-lacking-reminder-overlay:is([data-theme="campus-journal"],[data-theme="mission-control"],[data-theme="honors-night"],[data-theme="blueprint-lab"]) .login-reminder-requirements-group-header strong,
+.login-lacking-reminder-overlay:is([data-theme="campus-journal"],[data-theme="mission-control"],[data-theme="honors-night"],[data-theme="blueprint-lab"]) .login-reminder-requirements-group-header span {color:var(--sig-ink);}
+.login-lacking-reminder-overlay:is([data-theme="campus-journal"],[data-theme="mission-control"],[data-theme="honors-night"],[data-theme="blueprint-lab"]) .login-lacking-reminder-nav-card {
+  border:1px solid var(--sig-stroke); background:var(--sig-soft); border-radius:12px;
+}
+.login-lacking-reminder-overlay:is([data-theme="campus-journal"],[data-theme="mission-control"],[data-theme="honors-night"],[data-theme="blueprint-lab"]) .login-lacking-reminder-nav-card:hover,
+.login-lacking-reminder-overlay:is([data-theme="campus-journal"],[data-theme="mission-control"],[data-theme="honors-night"],[data-theme="blueprint-lab"]) .login-lacking-reminder-nav-card:focus-visible {
+  border-color:var(--sig-accent); outline:2px solid var(--sig-accent); outline-offset:2px;
+}
+.login-lacking-reminder-overlay:is([data-theme="campus-journal"],[data-theme="mission-control"],[data-theme="honors-night"],[data-theme="blueprint-lab"]) .login-reminder-view-status {
+  background:var(--sig-soft); border-color:var(--sig-accent); color:var(--sig-ink);
+}
+.login-lacking-reminder-overlay:is([data-theme="campus-journal"],[data-theme="mission-control"],[data-theme="honors-night"],[data-theme="blueprint-lab"]) .login-reminder-requirements-count {
+  background:var(--sig-soft); border:1px solid var(--sig-stroke); color:var(--sig-ink);
+}
+.login-lacking-reminder-overlay:is([data-theme="campus-journal"],[data-theme="mission-control"],[data-theme="honors-night"],[data-theme="blueprint-lab"]) .login-reminder-overview .login-reminder-standing {border-color:var(--sig-stroke);}
+/* The 6 actual academic standing colors remain determined by the grade data, not by theme. */
+
+/* 1. CAMPUS JOURNAL — fountain ink, paper texture, sticky-note sections. */
+.login-lacking-reminder-overlay[data-theme="campus-journal"] {
+  --sig-ink:#283a4b; --sig-muted:#606d72; --sig-accent:#1b776b;
+  --sig-soft:#f0f6ed; --sig-stroke:#d3d9c8; --sig-paper:#fffdf6;
+  background:rgba(26,42,48,.68);
+}
+.login-lacking-reminder-overlay[data-theme="campus-journal"] .login-lacking-reminder-panel {
+  border:1px solid #ddccb3; border-left:7px solid #79a8a2;
+  background:#fffdf6; font-family:"Trebuchet MS",Arial,sans-serif;
+}
+.login-lacking-reminder-overlay[data-theme="campus-journal"] .login-lacking-reminder-panel::before {
+  background:repeating-linear-gradient(to bottom,transparent 0 31px,rgba(80,120,143,.10) 32px,transparent 33px);
+}
+.login-lacking-reminder-overlay[data-theme="campus-journal"] .login-lacking-reminder-panel::after {
+  inset:9px 12px 9px 25px; border-left:2px solid rgba(217,123,111,.28);
+}
+.login-lacking-reminder-overlay[data-theme="campus-journal"] .login-lacking-reminder-hero h2,
+.login-lacking-reminder-overlay[data-theme="campus-journal"] .login-reminder-requirements-head h3 {
+  font-family:Georgia,"Times New Roman",serif; letter-spacing:-.02em;
+}
+.login-lacking-reminder-overlay[data-theme="campus-journal"] .login-lacking-reminder-icon {border-radius:9px; box-shadow:3px 4px 0 #e4d2bd;}
+.login-lacking-reminder-overlay[data-theme="campus-journal"] .login-reminder-requirements-group-header {background:#fff2d9;}
+.login-lacking-reminder-overlay[data-theme="campus-journal"] .login-lacking-reminder-panel .login-lacking-reminder-message {background:#fffef9!important; border:1px dashed #bccbb3; border-left:4px solid #1b776b;color:#2d463b;}
+.login-lacking-reminder-overlay[data-theme="campus-journal"] .login-lacking-reminder-close {background:#f8edda;color:#385456;border-radius:10px;}
+
+/* 2. MISSION CONTROL — no false 'warning' coloring: individual statuses stay as published. */
+.login-lacking-reminder-overlay[data-theme="mission-control"] {
+  --sig-ink:#e5f6ff; --sig-muted:#a8c4df; --sig-accent:#38d8e8;
+  --sig-soft:#e8f8fd; --sig-stroke:#5cb2cb; --sig-paper:#0a1c32;
+  background:rgba(3,11,26,.86);
+}
+.login-lacking-reminder-overlay[data-theme="mission-control"] .login-lacking-reminder-panel {
+  border:1px solid #297c9b; background:#0a1c32;
+  box-shadow:0 0 0 3px rgba(34,211,238,.08),0 30px 80px rgba(0,0,0,.60);
+}
+.login-lacking-reminder-overlay[data-theme="mission-control"] .login-lacking-reminder-panel::before {
+  background:linear-gradient(rgba(12,40,64,.74),rgba(6,24,45,.82)),
+    repeating-linear-gradient(0deg,transparent 0 25px,rgba(45,212,227,.15) 26px 27px),
+    repeating-linear-gradient(90deg,transparent 0 25px,rgba(45,212,227,.15) 26px 27px);
+}
+.login-lacking-reminder-overlay[data-theme="mission-control"] .login-lacking-reminder-panel::after {inset:12px;border:1px solid rgba(74,222,245,.20);}
+.login-lacking-reminder-overlay[data-theme="mission-control"] .login-lacking-reminder-hero h2 {font-family:ui-monospace,SFMono-Regular,Consolas,monospace;letter-spacing:-.05em;}
+.login-lacking-reminder-overlay[data-theme="mission-control"] .login-lacking-reminder-icon {background:#103b54; border:2px solid #2dd4e3; border-radius:10px;}
+.login-lacking-reminder-overlay[data-theme="mission-control"] .login-lacking-reminder-meta span:not(.warning):not(.success) {background:#18354c;color:#dbf5ff;border:1px solid #316581;}
+.login-lacking-reminder-overlay[data-theme="mission-control"] .login-lacking-reminder-panel .login-lacking-reminder-message {
+  background:#e7f7ff!important; border:1px solid #3bcde4; border-left:4px solid #2bbcca; color:#12394b;
+}
+.login-lacking-reminder-overlay[data-theme="mission-control"] .login-reminder-requirements-overline {color:#83e6eb;}
+.login-lacking-reminder-overlay[data-theme="mission-control"] .login-reminder-requirements-group-header strong,
+.login-lacking-reminder-overlay[data-theme="mission-control"] .login-reminder-requirements-group-header span,
+.login-lacking-reminder-overlay[data-theme="mission-control"] .login-reminder-requirements-count {color:#11344b;}
+.login-lacking-reminder-overlay[data-theme="mission-control"] .login-lacking-reminder-actions {border-top-color:#2e5b70;}
+.login-lacking-reminder-overlay[data-theme="mission-control"] .login-lacking-reminder-nav-card strong {color:#17364a;}
+.login-lacking-reminder-overlay[data-theme="mission-control"] .login-lacking-reminder-nav-card small {color:#4a6676;}
+.login-lacking-reminder-overlay[data-theme="mission-control"] .login-lacking-reminder-close {background:#11334d;color:#9fe9f2;border:1px solid #38bed4;}
+
+/* 3. HONORS NIGHT — ceremonial navy/champagne, readable paper content. */
+.login-lacking-reminder-overlay[data-theme="honors-night"] {
+  --sig-ink:#f8eac7; --sig-muted:#d1dbeb; --sig-accent:#f1ca6a;
+  --sig-soft:#fff8e5; --sig-stroke:#d4b368; --sig-paper:#101e37;
+  background:rgba(4,10,24,.82);
+}
+.login-lacking-reminder-overlay[data-theme="honors-night"] .login-lacking-reminder-panel {border:2px solid #e0c07a; background:linear-gradient(145deg,#0f213d,#192d4d);}
+.login-lacking-reminder-overlay[data-theme="honors-night"] .login-lacking-reminder-panel::before {background:radial-gradient(ellipse at 95% 0%,rgba(237,198,95,.20),transparent 43%),radial-gradient(ellipse at 8% 95%,rgba(237,198,95,.09),transparent 36%);}
+.login-lacking-reminder-overlay[data-theme="honors-night"] .login-lacking-reminder-panel::after {inset:10px;border:1px solid rgba(240,207,135,.40);}
+.login-lacking-reminder-overlay[data-theme="honors-night"] .login-lacking-reminder-hero h2 {font-family:Georgia,"Times New Roman",serif; font-weight:800; letter-spacing:-.02em;}
+.login-lacking-reminder-overlay[data-theme="honors-night"] .login-lacking-reminder-icon {background:#33435f;border:2px solid #e6c26e;border-radius:50%;box-shadow:0 0 0 4px rgba(214,180,97,.12);}
+.login-lacking-reminder-overlay[data-theme="honors-night"] .login-lacking-reminder-meta span:not(.warning):not(.success) {background:#263b5b;border:1px solid #66819d;color:#f5ebd2;}
+.login-lacking-reminder-overlay[data-theme="honors-night"] .login-lacking-reminder-panel .login-lacking-reminder-message {background:#fff9e9!important; border:1px solid #c8a961;color:#3d2d17;}
+.login-lacking-reminder-overlay[data-theme="honors-night"] .login-reminder-requirements-overline {color:#ffdc91;}
+.login-lacking-reminder-overlay[data-theme="honors-night"] .login-reminder-requirements-group-header strong,
+.login-lacking-reminder-overlay[data-theme="honors-night"] .login-reminder-requirements-group-header span,
+.login-lacking-reminder-overlay[data-theme="honors-night"] .login-reminder-requirements-count {color:#56411b;}
+.login-lacking-reminder-overlay[data-theme="honors-night"] .login-lacking-reminder-actions {border-top-color:#536885;}
+.login-lacking-reminder-overlay[data-theme="honors-night"] .login-lacking-reminder-nav-card strong {color:#463919;}
+.login-lacking-reminder-overlay[data-theme="honors-night"] .login-lacking-reminder-nav-card small {color:#70634c;}
+.login-lacking-reminder-overlay[data-theme="honors-night"] .login-lacking-reminder-close {background:#253854;color:#f4d99c;border:1px solid #d6b36d;}
+
+/* 4. BLUEPRINT LAB — graph-paper geometry + technical readout. */
+.login-lacking-reminder-overlay[data-theme="blueprint-lab"] {
+  --sig-ink:#0f3267; --sig-muted:#426188; --sig-accent:#0e58ba;
+  --sig-soft:#edf6ff; --sig-stroke:#9fc9f3; --sig-paper:#eef7ff;
+  background:rgba(8,35,82,.80);
+}
+.login-lacking-reminder-overlay[data-theme="blueprint-lab"] .login-lacking-reminder-panel {border:2px solid #2767b0;background:#eef7ff;}
+.login-lacking-reminder-overlay[data-theme="blueprint-lab"] .login-lacking-reminder-panel::before {
+  background:linear-gradient(rgba(15,102,194,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(15,102,194,.04) 1px,transparent 1px);
+  background-size:24px 24px;
+}
+.login-lacking-reminder-overlay[data-theme="blueprint-lab"] .login-lacking-reminder-panel::after {inset:10px;border:1px dashed rgba(14,88,186,.30);}
+.login-lacking-reminder-overlay[data-theme="blueprint-lab"] .login-lacking-reminder-hero h2 {font-family:ui-monospace,Consolas,monospace;font-weight:900;letter-spacing:-.045em;}
+.login-lacking-reminder-overlay[data-theme="blueprint-lab"] .login-lacking-reminder-icon {border-radius:4px;border:2px solid #0e58ba;box-shadow:4px 4px 0 #b3d7fa;}
+.login-lacking-reminder-overlay[data-theme="blueprint-lab"] .login-lacking-reminder-panel .login-lacking-reminder-message {background:#fff!important;border:2px solid #9fc9f3;color:#164377;}
+.login-lacking-reminder-overlay[data-theme="blueprint-lab"] .login-lacking-reminder-nav-card {border-radius:6px;}
+.login-lacking-reminder-overlay[data-theme="blueprint-lab"] .login-reminder-requirements-group {border-radius:6px;}
+.login-lacking-reminder-overlay[data-theme="blueprint-lab"] .login-lacking-reminder-close {background:#0e58ba;color:#fff;border-radius:6px;}
+
+/* Accurate, visual Admin previews for the four selectable signatures. */
+.login-reminder-theme-sample[data-theme="campus-journal"] {background:#fff9e9;border:2px solid #c7b69b;color:#365051;font-family:Georgia,serif;}
+.login-reminder-theme-sample[data-theme="campus-journal"]::before {background:repeating-linear-gradient(to bottom,transparent 0 18px,rgba(80,120,143,.15) 19px 20px);opacity:.6;}
+.login-reminder-theme-sample[data-theme="campus-journal"] .login-reminder-theme-sample-art {border-radius:6px;background:linear-gradient(135deg,#fff 0 55%,#f7e5a1 55%);border:2px solid #79a8a2;box-shadow:4px 4px 0 #dfc9ab;}
+.login-reminder-theme-sample[data-theme="mission-control"] {background:#0b1f35;border:2px solid #38bed4;color:#bdf6fd;}
+.login-reminder-theme-sample[data-theme="mission-control"]::before {background:linear-gradient(rgba(71,218,232,.35) 1px,transparent 1px),linear-gradient(90deg,rgba(71,218,232,.35) 1px,transparent 1px);background-size:20px 20px;opacity:.23;}
+.login-reminder-theme-sample[data-theme="mission-control"] .login-reminder-theme-sample-art {border-radius:8px;background:radial-gradient(circle at 50% 50%,#35d8ea 0 18%,#1c4965 19% 38%,#0b1f35 39%);border:2px solid #38bed4;box-shadow:0 0 13px #16657c;}
+.login-reminder-theme-sample[data-theme="honors-night"] {background:linear-gradient(120deg,#101e37,#2a3651);border:2px solid #ddbc75;color:#fff3d4;font-family:Georgia,serif;}
+.login-reminder-theme-sample[data-theme="honors-night"]::before {background:radial-gradient(circle at 85% 15%,#d9b468,transparent 45%);opacity:.18;}
+.login-reminder-theme-sample[data-theme="honors-night"] .login-reminder-theme-sample-art {border-radius:50%;background:radial-gradient(circle,#fff2ca 0 19%,#c1a05d 20% 49%,#1b2a46 50%);border:3px solid #e2c278;box-shadow:0 0 0 4px rgba(227,196,123,.14);}
+.login-reminder-theme-sample[data-theme="blueprint-lab"] {background:#dbefff;border:2px solid #0d59ad;color:#103b71;font-family:ui-monospace,Consolas,monospace;}
+.login-reminder-theme-sample[data-theme="blueprint-lab"]::before {background:linear-gradient(#529bd7 1px,transparent 1px),linear-gradient(90deg,#529bd7 1px,transparent 1px);background-size:16px 16px;opacity:.25;}
+.login-reminder-theme-sample[data-theme="blueprint-lab"] .login-reminder-theme-sample-art {border-radius:5px;background:linear-gradient(135deg,#fff 0 45%,#8ec8f5 46% 54%,#0e58ba 55%);border:2px solid #0e58ba;box-shadow:4px 4px 0 #88bbeb;}
+
+/* Animation remains optional and respects the OS reduced-motion setting. */
+@keyframes reminderSignatureGrid {from{background-position:0 0,0 0,0 0}to{background-position:0 28px,28px 0,0 0}}
+.login-lacking-reminder-overlay[data-theme="mission-control"][data-animation="subtle"] .login-lacking-reminder-panel::before,
+.login-lacking-reminder-overlay[data-theme="blueprint-lab"][data-animation="subtle"] .login-lacking-reminder-panel::before {animation:reminderSignatureGrid 28s linear infinite;}
+.login-lacking-reminder-overlay[data-theme="mission-control"][data-animation="normal"] .login-lacking-reminder-panel::before,
+.login-lacking-reminder-overlay[data-theme="blueprint-lab"][data-animation="normal"] .login-lacking-reminder-panel::before {animation:reminderSignatureGrid 13s linear infinite;}
+.login-lacking-reminder-overlay[data-animation="off"] .login-lacking-reminder-panel::before {animation:none!important;}
+@media (prefers-reduced-motion:reduce) {
+ .login-lacking-reminder-overlay:is([data-theme="campus-journal"],[data-theme="mission-control"],[data-theme="honors-night"],[data-theme="blueprint-lab"]) .login-lacking-reminder-panel::before {animation:none!important;}
+}
+@media (max-width:600px) {
+  .login-lacking-reminder-overlay:is([data-theme="campus-journal"],[data-theme="mission-control"],[data-theme="honors-night"],[data-theme="blueprint-lab"]) .login-lacking-reminder-panel {border-radius:18px;}
+  .login-lacking-reminder-overlay[data-theme="campus-journal"] .login-lacking-reminder-panel {border-left-width:4px;}
+}
+
+/* v650 contrast QA: light action buttons in dark themes retain dark legible text. */
+.login-lacking-reminder-overlay[data-theme="mission-control"] .login-reminder-view-status {color:#10405a;}
+.login-lacking-reminder-overlay[data-theme="honors-night"] .login-reminder-view-status {color:#463519;}

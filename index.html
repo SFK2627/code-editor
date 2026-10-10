@@ -45,7 +45,7 @@
   </script>
   <link rel="preconnect" href="https://drive.google.com" crossorigin>
   <link rel="preconnect" href="https://lh3.googleusercontent.com" crossorigin>
-  <link rel="stylesheet" href="style.css?v=20261010-v649-status-popup-redesign" />
+  <link rel="stylesheet" href="style.css?v=20261010-v650-signature-themes" />
   <link rel="stylesheet" href="games/mini-games-hub.css?v=20260912-v4761-byte-runner-v81-build-hud" />
   <link rel="stylesheet" href="games/code-fly/code-fly.css?v=20260909-v429-xp-mini-games" />
   <style>
@@ -2234,6 +2234,12 @@ https://example.com/song2.mp3"></textarea>
             <label class="login-reminder-field">
               <span>Popup Theme</span>
               <select id="loginReminderThemeSelect" aria-label="Lacking requirements popup theme">
+                <optgroup label="NEW · Signature School Themes">
+                  <option value="campus-journal">📓 Campus Journal — Warm Study Notes</option>
+                  <option value="mission-control">🛰️ Mission Control — Progress Dashboard</option>
+                  <option value="honors-night">🏅 Honors Night — Navy &amp; Gold</option>
+                  <option value="blueprint-lab">📐 Blueprint Lab — Engineering Grid</option>
+                </optgroup>
                 <optgroup label="Design Styles">
                   <option value="minimalism">Minimalism</option>
                   <option value="maximalism">Maximalism</option>
@@ -2292,7 +2298,7 @@ https://example.com/song2.mp3"></textarea>
               <div class="login-reminder-theme-sample-copy">
                 <small>Selected visual theme</small>
                 <strong id="loginReminderThemeSampleName">Classic / Clean</strong>
-                <span>Use “Preview With Lackings” below to see the complete student popup.</span>
+                <span id="loginReminderThemeSampleDescription">Preview either student state to see the complete popup.</span>
               </div>
             </div>
 
@@ -4814,7 +4820,7 @@ https://example.com/song3.mp3"></textarea>
     })();
   </script>
 
-  <script src="script.js?v=20261010-v649-status-popup-redesign"></script>
+  <script src="script.js?v=20261010-v650-signature-themes"></script>
   <script>
     // v410 fallback: keep the desktop editor settings popover working even if older cached
     // toolbar code fails before binding the click handler.
