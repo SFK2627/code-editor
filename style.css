@@ -67448,3 +67448,98 @@ html[data-theme="dark"] .code-explorer-final-podium-btn { border-color: #a77e2f;
 .compliance-grade-map-grid label { min-width: 0; }
 .compliance-grade-map-grid label input { width: 100%; }
 @media (max-width: 640px) { .student-academic-standing { padding: 13px; } .student-standing-badge { padding: 15px 8px; } }
+
+
+/* v647 — Student Status: running-grade explanation and color legend.
+   Presentation only: the student's actual numerical Term Grade is never read here. */
+.student-standing-information {
+  padding: 12px 14px;
+  border: 1px solid var(--line, #d7e3f3);
+  border-radius: 13px;
+  background: var(--bg-2, #f8fbff);
+}
+.student-standing-info-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text, #17324d);
+  font-size: .82rem;
+}
+.student-standing-info-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  border-radius: 50%;
+  background: var(--primary-soft, #dbeafe);
+  color: var(--primary-dark, #1d4ed8);
+  font: 800 13px/1 Arial, sans-serif;
+}
+.student-standing-information p {
+  margin: 8px 0 0;
+  font-size: .78rem;
+  line-height: 1.6;
+  color: var(--muted, #64748b);
+}
+.student-standing-information p strong { color: var(--text, #17324d); }
+.student-standing-legend { display: grid; gap: 8px; }
+.student-standing-legend-heading {
+  color: var(--muted, #64748b);
+  font-size: .69rem;
+  letter-spacing: .085em;
+}
+.student-standing-legend-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+}
+.student-standing-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid var(--line, #d7e3f3);
+  border-radius: 11px;
+  background: var(--solid-card, #fff);
+  font-size: .72rem;
+  font-weight: 800;
+  color: var(--text, #17324d);
+}
+.student-standing-legend-item small {
+  font-size: .69rem;
+  font-weight: 600;
+  color: var(--muted, #64748b);
+  margin-left: auto;
+  text-align: right;
+  white-space: nowrap;
+}
+.student-standing-legend-dot {
+  flex: 0 0 13px;
+  width: 13px;
+  height: 13px;
+  border: 1.5px solid transparent;
+  border-radius: 50%;
+}
+.student-standing-legend-dot.white { background: #fff; border-color: #9aa4b4; }
+.student-standing-legend-dot.green { background: #29ad5d; border-color: #1e9150; }
+.student-standing-legend-dot.yellow { background: #f9c936; border-color: #d9aa17; }
+.student-standing-legend-dot.gray { background: #818995; border-color: #687180; }
+.student-standing-legend-dot.orange { background: #ec8932; border-color: #cf651a; }
+.student-standing-legend-dot.red { background: #e54857; border-color: #c72f3f; }
+.student-academic-standing > .student-standing-privacy-note {
+  margin: 0;
+  font-size: .7rem;
+  color: var(--muted, #64748b);
+}
+@media (max-width: 620px) {
+  .student-standing-legend-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .student-standing-legend-item { padding: 9px 8px; gap: 6px; font-size: .69rem; }
+  .student-standing-legend-item small { font-size: .67rem; }
+  .student-standing-information { padding: 11px 12px; }
+}
+@media (max-width: 360px) {
+  .student-standing-legend-item { flex-wrap: wrap; }
+  .student-standing-legend-item small { flex: 1 0 100%; margin-left: 20px; text-align: left; }
+}

@@ -45,7 +45,7 @@
   </script>
   <link rel="preconnect" href="https://drive.google.com" crossorigin>
   <link rel="preconnect" href="https://lh3.googleusercontent.com" crossorigin>
-  <link rel="stylesheet" href="style.css?v=20261010-v639-simple-status" />
+  <link rel="stylesheet" href="style.css?v=20261010-v647-standing-legend" />
   <link rel="stylesheet" href="games/mini-games-hub.css?v=20260912-v4761-byte-runner-v81-build-hud" />
   <link rel="stylesheet" href="games/code-fly/code-fly.css?v=20260909-v429-xp-mini-games" />
   <style>
@@ -1042,10 +1042,25 @@
         <button id="studentComplianceRefreshBtn" class="ghost-btn" type="button">Refresh</button>
       </div>
       <div id="studentComplianceSummary" class="student-compliance-summary" aria-live="polite"></div>
-      <section id="studentComplianceStanding" class="student-academic-standing" aria-label="Running Term Grade standing" aria-live="polite">
-        <div class="student-standing-title">CURRENT ACADEMIC STANDING <small>Based on the published Term Grade</small></div>
-        <div id="studentComplianceStandingBadge" class="student-standing-badge unavailable"><span class="student-standing-dot" aria-hidden="true"></span><strong>NOT YET AVAILABLE</strong></div>
-        <p>This is a running standing for the active term, not a final term result. Numerical grades are private.</p>
+      <section id="studentComplianceStanding" class="student-academic-standing" aria-label="Current academic standing">
+        <div class="student-standing-title">CURRENT ACADEMIC STANDING <small>Your progress after the Midterm</small></div>
+        <div id="studentComplianceStandingBadge" class="student-standing-badge unavailable" aria-live="polite" aria-atomic="true"><span class="student-standing-dot" aria-hidden="true"></span><strong>NOT YET AVAILABLE</strong></div>
+        <div class="student-standing-information" role="note" aria-label="About your running grade">
+          <div class="student-standing-info-heading"><span class="student-standing-info-icon" aria-hidden="true">i</span><strong>What does this mean?</strong></div>
+          <p>This color represents your <strong>running grade after the Midterm</strong>, based on your scores recorded so far. <strong>It is NOT your final Second Term Grade.</strong> Your standing may change as more scores are recorded.</p>
+        </div>
+        <div class="student-standing-legend" aria-label="Color legend for academic standing">
+          <strong class="student-standing-legend-heading">COLOR LEGEND</strong>
+          <div class="student-standing-legend-grid">
+            <div class="student-standing-legend-item"><span class="student-standing-legend-dot white" aria-hidden="true"></span><span>WHITE</span><small>96–100</small></div>
+            <div class="student-standing-legend-item"><span class="student-standing-legend-dot green" aria-hidden="true"></span><span>GREEN</span><small>91–95</small></div>
+            <div class="student-standing-legend-item"><span class="student-standing-legend-dot yellow" aria-hidden="true"></span><span>YELLOW</span><small>86–90</small></div>
+            <div class="student-standing-legend-item"><span class="student-standing-legend-dot gray" aria-hidden="true"></span><span>GRAY</span><small>81–85</small></div>
+            <div class="student-standing-legend-item"><span class="student-standing-legend-dot orange" aria-hidden="true"></span><span>ORANGE</span><small>75–80</small></div>
+            <div class="student-standing-legend-item"><span class="student-standing-legend-dot red" aria-hidden="true"></span><span>RED</span><small>74 &amp; below</small></div>
+          </div>
+        </div>
+        <p class="student-standing-privacy-note">Your exact numerical running grade is not displayed here.</p>
       </section>
       <div id="studentComplianceList" class="student-compliance-list"></div>
       <div id="studentComplianceLackingList" class="student-compliance-lacking-list" aria-live="polite"></div>
