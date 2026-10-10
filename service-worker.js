@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ict8-connect-v650-signature-themes';
+const CACHE_NAME = 'ict8-connect-v651-compact-scroll';
 const APP_SHELL = [
   './',
   './index.html',

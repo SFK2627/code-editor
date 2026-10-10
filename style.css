@@ -67951,3 +67951,246 @@ html[data-theme="dark"] .code-explorer-final-podium-btn { border-color: #a77e2f;
 /* v650 contrast QA: light action buttons in dark themes retain dark legible text. */
 .login-lacking-reminder-overlay[data-theme="mission-control"] .login-reminder-view-status {color:#10405a;}
 .login-lacking-reminder-overlay[data-theme="honors-night"] .login-reminder-view-status {color:#463519;}
+
+
+/* ==========================================================================
+   v651 — Compact popup, ONE scrollable middle region and ALWAYS-VISIBLE dock.
+   This layout is theme-independent. Existing designs, colors, and data remain.
+   ========================================================================== */
+#loginLackingReminderOverlay {
+  overflow: hidden;
+  place-items: center;
+  padding: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right))
+           max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+}
+#loginLackingReminderOverlay .login-lacking-reminder-panel {
+  display: flex;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  width: min(735px, 100%);
+  height: auto;
+  max-height: min(730px, calc(100dvh - 16px)) !important;
+  min-height: 0;
+  box-sizing: border-box;
+  padding: 0;
+  overflow: hidden;
+  overscroll-behavior: contain;
+  scrollbar-gutter: auto;
+}
+#loginLackingReminderOverlay .login-reminder-fixed-header,
+#loginLackingReminderOverlay .login-reminder-scroll-region,
+#loginLackingReminderOverlay .login-lacking-reminder-actions {
+  position: relative;
+  z-index: 4;
+  min-width: 0;
+  box-sizing: border-box;
+}
+#loginLackingReminderOverlay .login-reminder-fixed-header {
+  flex: none;
+  padding: 15px 20px 8px;
+  max-height: 32%;
+  overflow: auto;
+  scrollbar-width: thin;
+}
+#loginLackingReminderOverlay .login-lacking-reminder-close {
+  position: absolute;
+  top: 11px;
+  right: 14px;
+  margin: 0;
+  float: none;
+  z-index: 8;
+  width: 35px;
+  height: 35px;
+  min-height: 35px;
+  line-height: 1;
+}
+#loginLackingReminderOverlay .login-lacking-reminder-hero {
+  gap: 10px;
+  padding-right: 35px;
+}
+#loginLackingReminderOverlay .login-lacking-reminder-icon {
+  width: 42px;
+  height: 42px;
+  font-size: 1.25rem;
+  border-radius: 11px;
+}
+#loginLackingReminderOverlay .login-lacking-reminder-hero h2 {
+  font-size: clamp(1.03rem, 2.4vw, 1.42rem);
+  line-height: 1.16;
+  margin: 1px 0 3px;
+  overflow-wrap: anywhere;
+}
+#loginLackingReminderOverlay .login-lacking-reminder-hero .section-kicker {font-size: .61rem; margin-bottom: 2px;}
+#loginLackingReminderOverlay .login-lacking-reminder-student {
+  font-size: .77rem;
+  overflow-wrap: anywhere;
+}
+#loginLackingReminderOverlay .login-lacking-reminder-meta {
+  gap: 5px;
+  margin: 8px 0 0;
+}
+#loginLackingReminderOverlay .login-lacking-reminder-meta span {font-size: .65rem; padding: 4px 8px;}
+#loginLackingReminderOverlay .login-reminder-scroll-region {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+  scrollbar-width: thin;
+  padding: 8px 20px 14px;
+}
+#loginLackingReminderOverlay .login-reminder-priority {gap: 7px;}
+#loginLackingReminderOverlay .login-lacking-reminder-message {
+  font-size: .77rem;
+  line-height: 1.4;
+  padding: 9px 11px;
+  border-radius: 10px;
+}
+#loginLackingReminderOverlay .login-lacking-reminder-empty {
+  padding: 9px 11px;
+  font-size: .74rem;
+  line-height: 1.4;
+}
+#loginLackingReminderOverlay .login-reminder-requirements-groups {
+  max-height: none;
+  overflow: visible;
+  display: grid;
+  gap: 6px;
+  padding: 0;
+}
+#loginLackingReminderOverlay .login-reminder-requirements-head {margin-bottom: 7px;}
+#loginLackingReminderOverlay .login-reminder-requirements-head h3 {font-size: .85rem;}
+#loginLackingReminderOverlay .login-reminder-requirements-group-header {
+  padding: 9px 11px;
+  cursor: pointer;
+  border-bottom: 0;
+  list-style: none;
+}
+#loginLackingReminderOverlay .login-reminder-requirements-group-header::-webkit-details-marker { display:none; }
+#loginLackingReminderOverlay .login-reminder-requirements-group-header::marker { content:''; }
+#loginLackingReminderOverlay .login-reminder-requirements-group-header:focus-visible {outline:2px solid #3b82f6;outline-offset:-2px;}
+#loginLackingReminderOverlay .login-reminder-requirements-group-header i {font-style:normal;display:inline-block;margin-left:4px;transition:transform .2s;}
+#loginLackingReminderOverlay .login-reminder-requirements-group[open] .login-reminder-requirements-group-header {border-bottom:1px solid #f6dfbf;}
+#loginLackingReminderOverlay .login-reminder-requirements-group[open] .login-reminder-requirements-group-header i {transform:rotate(180deg);}
+#loginLackingReminderOverlay .login-reminder-requirements-group li {padding-top:7px;padding-bottom:7px;}
+#loginLackingReminderOverlay .login-reminder-view-status {min-height:36px;font-size:.74rem;}
+#loginLackingReminderOverlay .login-reminder-overview {
+  display:grid;
+  grid-template-columns: minmax(0,1fr) minmax(0,1fr);
+  gap: 8px;
+  align-items: start;
+  margin: 9px 0 0;
+}
+#loginLackingReminderOverlay .login-reminder-standing-head {
+  grid-template-columns: minmax(0,1fr) auto;
+  padding: 8px 9px;
+  gap: 5px;
+}
+#loginLackingReminderOverlay .login-reminder-standing-copy > strong {font-size:.66rem;line-height:1.2;}
+#loginLackingReminderOverlay .login-reminder-standing-copy > small {font-size:.63rem;}
+#loginLackingReminderOverlay .login-reminder-standing-badge {grid-column:2;grid-row:1;padding:5px 7px;font-size:.65rem;}
+#loginLackingReminderOverlay .login-reminder-standing-hint {font-size:.61rem;padding-top:5px;}
+#loginLackingReminderOverlay .login-lacking-reminder-recitation {
+  min-height: 62px;
+  padding: 8px 10px;
+  margin: 0;
+  height:auto;
+  box-sizing: border-box;
+}
+#loginLackingReminderOverlay .login-lacking-reminder-recitation-label {gap:6px;min-width:0;}
+#loginLackingReminderOverlay .login-lacking-reminder-recitation-label strong {font-size:.72rem;}
+#loginLackingReminderOverlay .login-lacking-reminder-recitation-label small {font-size:.62rem;}
+#loginLackingReminderOverlay .login-lacking-reminder-recitation-icon {width:27px;height:27px;font-size:.84rem;}
+#loginLackingReminderOverlay .login-lacking-reminder-recitation-score strong {font-size:1.15rem;}
+#loginLackingReminderOverlay .login-reminder-standing-details {
+  grid-column: 1 / -1;
+  border: 1px solid #cfddec;
+  border-radius: 11px;
+  padding: 9px 11px;
+  margin: 0;
+  width:100%;
+  box-sizing:border-box;
+}
+#loginLackingReminderOverlay .login-reminder-standing-details[hidden] {display:none!important;}
+#loginLackingReminderOverlay .login-lacking-reminder-music-row {
+  margin-top: 9px;
+  padding: 6px 9px;
+  font-size: .7rem;
+}
+#loginLackingReminderOverlay .login-lacking-reminder-actions {
+  flex: 0 0 auto;
+  padding: 9px 17px max(10px, env(safe-area-inset-bottom));
+  margin: 0;
+  display: grid;
+  gap: 6px;
+  border-top: 1px solid rgba(148,163,184,.35);
+  background: var(--reminder-dock-bg, rgba(255,255,255,.97));
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter:blur(12px);
+  box-shadow: 0 -5px 15px rgba(0,0,0,.055);
+}
+#loginLackingReminderOverlay .login-lacking-reminder-nav-head > span {font-size:.66rem;}
+#loginLackingReminderOverlay .login-lacking-reminder-nav-head > small {font-size:.65rem;}
+#loginLackingReminderOverlay .login-lacking-reminder-nav-head {flex-direction:row;align-items:center;}
+#loginLackingReminderOverlay .login-lacking-reminder-nav-grid {grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;}
+#loginLackingReminderOverlay .login-lacking-reminder-nav-card {
+  padding: 7px 8px;
+  min-height: 51px;
+  gap: 6px;
+  border-radius: 10px;
+}
+#loginLackingReminderOverlay .login-lacking-reminder-nav-icon {width:27px;height:27px;font-size:.88rem;}
+#loginLackingReminderOverlay .login-lacking-reminder-nav-card strong {font-size:.73rem;}
+#loginLackingReminderOverlay .login-lacking-reminder-nav-card small {font-size:.61rem;-webkit-line-clamp:1;}
+/* Signature dark themes keep the navigation dock contrast without altering card design. */
+#loginLackingReminderOverlay:is([data-theme="mission-control"],[data-theme="honors-night"]) {--reminder-dock-bg:rgba(14,33,57,.98);}
+@media (max-width: 600px) {
+  #loginLackingReminderOverlay {place-items:center;padding:max(5px,env(safe-area-inset-top)) 5px max(5px,env(safe-area-inset-bottom));}
+  #loginLackingReminderOverlay .login-lacking-reminder-panel {
+    width:100%;
+    height:auto;
+    max-height:calc(100dvh - max(10px,env(safe-area-inset-top)) - max(10px,env(safe-area-inset-bottom))) !important;
+    border-radius:15px;
+  }
+  #loginLackingReminderOverlay .login-reminder-fixed-header {padding:10px 12px 6px; max-height:34%;}
+  #loginLackingReminderOverlay .login-lacking-reminder-hero {gap:8px;padding-right:31px;}
+  #loginLackingReminderOverlay .login-lacking-reminder-icon {width:34px;height:34px;font-size:1.05rem;border-radius:8px;}
+  #loginLackingReminderOverlay .login-lacking-reminder-hero h2 {font-size:clamp(.96rem,4.1vw,1.2rem);}
+  #loginLackingReminderOverlay .login-lacking-reminder-student {font-size:.71rem;}
+  #loginLackingReminderOverlay .login-lacking-reminder-close {right:9px;top:8px;width:30px;height:30px;min-height:30px;}
+  #loginLackingReminderOverlay .login-lacking-reminder-meta {gap:4px;margin:5px 0 0;}
+  #loginLackingReminderOverlay .login-lacking-reminder-meta span {font-size:.59rem;padding:3px 6px;}
+  #loginLackingReminderOverlay .login-reminder-scroll-region {padding:6px 10px 9px;}
+  #loginLackingReminderOverlay .login-lacking-reminder-message {font-size:.71rem;padding:7px 9px;}
+  #loginLackingReminderOverlay .login-reminder-overview {grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px;margin-top:7px;}
+  #loginLackingReminderOverlay .login-reminder-standing-head {padding:7px;grid-template-columns:1fr;}
+  #loginLackingReminderOverlay .login-reminder-standing-badge {grid-column:1;grid-row:auto;justify-self:start;}
+  #loginLackingReminderOverlay .login-reminder-standing-hint {grid-column:1;grid-row:auto;}
+  #loginLackingReminderOverlay .login-reminder-standing-copy > strong {font-size:.58rem;letter-spacing:0;}
+  #loginLackingReminderOverlay .login-reminder-standing-copy > small {font-size:.57rem;}
+  #loginLackingReminderOverlay .login-reminder-standing-badge {font-size:.65rem;}
+  #loginLackingReminderOverlay .login-lacking-reminder-recitation {min-height:58px;padding:7px;}
+  #loginLackingReminderOverlay .login-lacking-reminder-recitation-label strong {font-size:.64rem;}
+  #loginLackingReminderOverlay .login-lacking-reminder-recitation-label small {font-size:.55rem;}
+  #loginLackingReminderOverlay .login-lacking-reminder-recitation-icon {display:none;}
+  #loginLackingReminderOverlay .login-lacking-reminder-recitation-score strong {font-size:1rem;}
+  #loginLackingReminderOverlay .login-lacking-reminder-actions {padding:7px 8px max(8px,env(safe-area-inset-bottom));gap:5px;}
+  #loginLackingReminderOverlay .login-lacking-reminder-nav-head > small {display:none;}
+  #loginLackingReminderOverlay .login-lacking-reminder-nav-head > span {font-size:.61rem;}
+  #loginLackingReminderOverlay .login-lacking-reminder-nav-grid {grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;}
+  #loginLackingReminderOverlay .login-lacking-reminder-nav-card {
+    min-height:55px;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:3px;padding:5px 2px;text-align:center;border-radius:8px;
+  }
+  #loginLackingReminderOverlay .login-lacking-reminder-nav-icon {width:21px;height:21px;font-size:.72rem;border-radius:5px;}
+  #loginLackingReminderOverlay .login-lacking-reminder-nav-card strong {font-size:.61rem;white-space:normal;line-height:1.1;}
+  #loginLackingReminderOverlay .login-lacking-reminder-nav-card small {display:none;}
+  #loginLackingReminderOverlay .login-reminder-color-legend {grid-template-columns:repeat(2,minmax(0,1fr));}
+}
+@media(max-height:580px) {
+  #loginLackingReminderOverlay .login-reminder-fixed-header {padding-top:7px;padding-bottom:4px;}
+  #loginLackingReminderOverlay .login-lacking-reminder-actions {padding-top:5px;padding-bottom:max(5px,env(safe-area-inset-bottom));}
+  #loginLackingReminderOverlay .login-lacking-reminder-nav-head {display:none;}
+  #loginLackingReminderOverlay .login-lacking-reminder-nav-card {min-height:45px;}
+}

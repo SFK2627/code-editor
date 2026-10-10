@@ -2107,6 +2107,24 @@ async function navigateFromLoginLackingReminder(destination = 'projects') {
   }
 }
 
+// v651: Expand the full-width color legend BELOW both overview cards.
+// The cards remain side-by-side even on narrow phones.
+loginLackingReminderStanding?.addEventListener('toggle', () => {
+  const expandedLegend = document.getElementById('loginReminderExpandedLegend');
+  if (!expandedLegend) return;
+  expandedLegend.hidden = !loginLackingReminderStanding.open;
+});
+
+// v651: Missing categories behave like an accordion. Expanding one collapses
+// the others, while the entire middle region remains touch-scrollable.
+loginLackingReminderList?.addEventListener('toggle', event => {
+  const details = event.target;
+  if (!(details instanceof HTMLDetailsElement) || !details.open ||
+      !details.classList.contains('login-reminder-requirements-group')) return;
+  loginLackingReminderList.querySelectorAll('.login-reminder-requirements-group[open]')
+    .forEach(other => { if (other !== details) other.open = false; });
+}, true);
+
 let loginReminderViewportFitTimer = 0;
 
 function fitLoginLackingReminderViewport() {
@@ -2234,14 +2252,14 @@ function renderLoginReminderMissingGroups(tasks, settings) {
     const ai = order.indexOf(a), bi = order.indexOf(b);
     return (ai < 0 ? order.length : ai) - (bi < 0 ? order.length : bi);
   });
-  const sections = sorted.map(([category, group]) => `
-    <section class="login-reminder-requirements-group" aria-label="${escapeHTML(category)} missing requirements">
-      <div class="login-reminder-requirements-group-header">
+  const sections = sorted.map(([category, group], index) => `
+    <details class="login-reminder-requirements-group" ${index === 0 ? 'open' : ''}>
+      <summary class="login-reminder-requirements-group-header" aria-label="${escapeHTML(category)}: ${group.length} missing">
         <strong>${escapeHTML(category)}</strong>
-        <span>${group.length} missing</span>
-      </div>
+        <span>${group.length} missing <i aria-hidden="true">⌄</i></span>
+      </summary>
       <ol>${group.map(task => `<li><span>${escapeHTML(task.title || 'Requirement')}</span><small>Needs completion</small></li>`).join('')}</ol>
-    </section>`).join('');
+    </details>`).join('');
   return `<div class="login-reminder-requirements-head">
     <div><span class="login-reminder-requirements-overline">YOUR TO-DO LIST</span>
       <h3>${escapeHTML(settings.missingListTitle || 'Requirements to complete')}</h3></div>
@@ -2272,6 +2290,10 @@ function renderLoginLackingReminder(record = null, options = {}) {
   loginLackingReminderOverlay.dataset.preview = isPreview ? 'true' : 'false';
   // Always start with the legend collapsed for a compact student popup.
   if (loginLackingReminderStanding) loginLackingReminderStanding.open = false;
+  const expandedLegend = document.getElementById('loginReminderExpandedLegend');
+  if (expandedLegend) expandedLegend.hidden = true;
+  const popupScroll = document.getElementById('loginReminderScrollRegion');
+  if (popupScroll) popupScroll.scrollTop = 0;
   if (loginReminderViewStatusBtn) {
     loginReminderViewStatusBtn.classList.toggle('hidden', state !== 'missing');
     loginReminderViewStatusBtn.disabled = isPreview;
@@ -2317,9 +2339,8 @@ function renderLoginLackingReminder(record = null, options = {}) {
     if (loginLackingReminderMessage) loginLackingReminderMessage.textContent = formatLoginReminderTermMessage(settings.warningMessage, isPreview ? (sanitized?.term || activeTerm) : activeTerm);
     if (loginLackingReminderList) {
       if (missingTasks.length) {
-        // V291: render the complete missing-requirements list. The list area itself
-        // becomes vertically scrollable only when it exceeds the available popup
-        // height; the header and Continue button remain visible.
+        // v651: render the complete teacher-published list as grouped accordions.
+        // Only the middle popup region scrolls, while the navigation dock remains visible.
         loginLackingReminderList.innerHTML = renderLoginReminderMissingGroups(missingTasks, settings);
       } else {
         loginLackingReminderList.innerHTML = '<div class="login-lacking-reminder-empty warning">Your published status reports missing requirements. Open Subject Status to view the latest details.</div>';
