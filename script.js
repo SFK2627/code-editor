@@ -9817,7 +9817,13 @@ function complianceFailureDetail(error, stage = 'Operation') {
   const stageLabel = String(stage || 'Operation').replace(/[^a-z0-9 ()/-]/gi, '').slice(0, 60);
 
   let nextStep = '';
-  if (/permission-denied|missing or insufficient permissions|insufficient permissions|access settings still block/.test(source)) {
+  if (/grade reader did not answer|grade reader returned an unreadable response/.test(source)) {
+    nextStep = 'Secure grade reader did not respond. Open the HOSTED HTTPS app, and redeploy the matching v644 Code.gs as a NEW Apps Script version at the configured /exec URL.';
+  } else if (/grade preview needs your hosted https|grade bridge requires a valid https/.test(source)) {
+    nextStep = 'Open the live HTTPS Code Editor website; grade sync cannot run from a file:/// copy.';
+  } else if (/no uniquely matching grading tab|multiple grading tabs|numbered headers|grade columns|id number header|learners names header/.test(source)) {
+    nextStep = 'The grading sheet layout did not match uniquely. Check the selected term/tab and the sheet header labels. No scores were published.';
+  } else if (/permission-denied|missing or insufficient permissions|insufficient permissions|access settings still block/.test(source)) {
     nextStep = role === 'teacher signed in'
       ? 'Access denied by the live database. Check that the rules were PUBLISHED in the same Firebase project, then log out and sign in again.'
       : 'Admin Firebase login is missing or not the teacher account. Log out completely and sign in through Admin Login.';
@@ -10405,6 +10411,109 @@ function renderComplianceSyncPreview(payload = {}) {
       </div>`).join('')}</div>` : '<div class="student-compliance-empty">No student records returned.</div>'}`;
 }
 
+
+// v644 — Secure teacher-only Google Sheets grade bridge.
+// Apps Script ContentService JSON responses are not reliably readable using
+// cross-origin fetch from browsers. A hidden HTML form can POST across origins
+// without CORS, while Apps Script HTMLService sends back a narrowly validated
+// postMessage. Firebase ID tokens travel only in the POST BODY (never URL), and
+// the backend validates the TEACHER before revealing any student PT scores.
+async function callTeacherGradingSheetBridge(payload = {}, options = {}) {
+  const endpoint = getMcsAppsScriptUrl();
+  if (!/^https:\/\/script\.google\.com\/macros\/s\/.+\/exec(?:\?.*)?$/i.test(endpoint)) {
+    throw new Error('Grade reader: set the deployed Code Editor Apps Script /exec URL in firebase-config.js.');
+  }
+  const hostOrigin = String(window.location.origin || '');
+  if (!/^https:\/\/[a-z0-9.-]+(?::\d{2,5})?$/i.test(hostOrigin)) {
+    throw new Error('Grade preview needs your hosted HTTPS Code Editor site, not a file:/// download. Open the live site before syncing.');
+  }
+  const firebaseReady = await initFirebaseSync();
+  const user = firebaseSync.auth?.currentUser;
+  if (!firebaseReady || !user || !isTeacherUser(user)) {
+    throw new Error('Grade reader: Firebase teacher sign-in is required.');
+  }
+  const idToken = await user.getIdToken(true);
+  const timeoutMs = Math.max(10000, Number(options.timeoutMs || 90000));
+  const randomBytes = new Uint8Array(16);
+  crypto.getRandomValues(randomBytes);
+  const channel = Array.from(randomBytes, b => b.toString(16).padStart(2, '0')).join('');
+  const iframe = document.createElement('iframe');
+  iframe.name = `g8GradeBridge_${channel}`;
+  iframe.title = 'Secure grading sync';
+  iframe.setAttribute('aria-hidden', 'true');
+  iframe.style.cssText = 'position:absolute;width:1px;height:1px;border:0;opacity:0;pointer-events:none;left:-10000px;';
+  const form = document.createElement('form');
+  form.method = 'POST';
+  form.action = endpoint;
+  form.target = iframe.name;
+  form.acceptCharset = 'UTF-8';
+  form.style.display = 'none';
+  const appendField = (key, value) => {
+    const input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = key;
+    input.value = value;
+    form.appendChild(input);
+  };
+  appendField('bridgeTransport', 'teacherGradeFormV1');
+  appendField('bridgeChannel', channel);
+  appendField('bridgeOrigin', hostOrigin);
+  appendField('bridgePayload', JSON.stringify({
+    ...payload,
+    idToken,
+    authUid: String(user.uid || ''),
+    projectId: String(firebaseSync.config?.projectId || window.MCS_FIREBASE_CONFIG?.projectId || '')
+  }));
+  const trustedGoogleMessage = origin => {
+    try {
+      const parsed = new URL(origin);
+      return parsed.protocol === 'https:' && (
+        parsed.hostname === 'script.google.com'
+        || parsed.hostname === 'script.googleusercontent.com'
+        || parsed.hostname.endsWith('.script.googleusercontent.com')
+        || parsed.hostname.endsWith('-script.googleusercontent.com')
+      );
+    } catch (_) { return false; }
+  };
+  return await new Promise((resolve, reject) => {
+    let settled = false;
+    let timer = null;
+    const cleanup = () => {
+      window.removeEventListener('message', onMessage);
+      if (timer !== null) clearTimeout(timer);
+      form.remove();
+      iframe.remove();
+    };
+    const settle = (error, result) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      if (error) reject(error);
+      else resolve(result);
+    };
+    const onMessage = event => {
+      const message = event.data;
+      if (!message || typeof message !== 'object' || message.bridgeType !== 'g8TeacherGradeResponseV1') return;
+      if (message.channel !== channel || !trustedGoogleMessage(event.origin)) return;
+      const result = message.result;
+      if (!result || typeof result !== 'object') {
+        settle(new Error('Grade reader returned an unreadable response.'));
+      } else if (result.ok !== true) {
+        settle(new Error(String(result.error || 'Grade reader rejected the request.').slice(0, 350)));
+      } else {
+        settle(null, result);
+      }
+    };
+    window.addEventListener('message', onMessage);
+    timer = setTimeout(() => {
+      settle(new Error('Grade reader did not answer. Verify that the UPDATED Code.gs is deployed as a NEW version at the /exec URL in firebase-config.js, and open the hosted HTTPS app.'));
+    }, timeoutMs);
+    document.body.append(iframe, form);
+    try { form.submit(); }
+    catch (error) { settle(new Error(`Could not send the grade-reader form: ${String(error?.message || error)}`)); }
+  });
+}
+
 async function addTrustedSheetScoresToCompliance(students = [], sectionConfig = {}, settings = {}) {
   // v639: Same section link and same student ID used by the existing Compliance sync.
   // The trusted backend locates PT columns and the computed Term Grade from sheet headers.
@@ -10412,7 +10521,9 @@ async function addTrustedSheetScoresToCompliance(students = [], sectionConfig = 
     studentId: student.studentIdNormalized,
     studentName: String(student.studentName || '')
   })).filter(student => student.studentId);
-  const response = await callAppsScriptSecure({
+  // Secure Apps Script form bridge avoids cross-origin fetch/CORS response blocks.
+  // Still server-verifies the Firebase teacher ID token before reading any Sheet.
+  const response = await callTeacherGradingSheetBridge({
     action: 'readTeacherTermGradeBands',
     sheetUrl: sectionConfig.spreadsheetId,
     term: settings.term,
@@ -10533,6 +10644,7 @@ async function pullComplianceFromGoogleSheets(options = {}) {
       }
       if (payload.generatedAt) aggregate.generatedAt = payload.generatedAt;
     } catch (error) {
+      console.error('Compliance sheet read failed for', sectionName, error);
       aggregate.errors.push(`${sectionName}: ${error?.message || error || 'Could not read this sheet.'}`);
     }
 
@@ -19936,7 +20048,7 @@ function updateInstallButtonVisibility() {
 function registerPWAServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./service-worker.js?v=642-compliance-diagnostics', {
+    navigator.serviceWorker.register('./service-worker.js?v=644-grade-form-bridge', {
       updateViaCache: 'none'
     }).then(registration => {
       registration.update().catch(() => {});

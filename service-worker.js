@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ict8-connect-v642-compliance-diagnostics';
+const CACHE_NAME = 'ict8-connect-v644-compliance-diagnostics';
 const APP_SHELL = [
   './',
   './index.html',
