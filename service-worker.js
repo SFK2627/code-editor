@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ict8-connect-v652-freshness';
+const CACHE_NAME = 'ict8-connect-v653-grade-zero-admin';
 const APP_SHELL = [
   './',
   './index.html',

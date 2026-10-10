@@ -9582,6 +9582,59 @@ let studentComplianceRecord = null;
 let activeComplianceTaskGroup = 'WW';
 let adminComplianceViewerRecords = [];
 let selectedAdminComplianceStudentId = '';
+// Teacher-only numerical grade cache. These values are NEVER part of student
+// Compliance records or any client-facing Student Status response.
+const adminComplianceGradeCache = new Map();
+const adminComplianceGradeLoading = new Set();
+
+function getTeacherComplianceGradeDocRef(studentId, term) {
+  const { doc } = firebaseSync.modules;
+  const sid = normalizeStudentId(studentId);
+  const safeTerm = COMPLIANCE_TERMS.includes(String(term || '')) ? term : 'TERM_1';
+  return doc(firebaseSync.db, firebaseSync.collectionName, firebaseSync.documentId,
+    'adminSettings', `complianceGrade_${safeTerm}_${sid}`);
+}
+
+function teacherGradeCacheKey(studentId, term) {
+  return `${String(term || '')}:${normalizeStudentId(studentId)}`;
+}
+
+function validTeacherTermGrade(grade) {
+  if (grade === null || grade === undefined || grade === '') return null;
+  const numeric = Number(grade);
+  return Number.isFinite(numeric) && numeric >= 0 && numeric <= 100 ? numeric : null;
+}
+
+async function loadTeacherGradeForAdminViewer(record, options = {}) {
+  if (!record || !isTeacherAuthenticated()) return;
+  const sid = normalizeStudentId(record.studentIdNormalized || record.studentId);
+  const term = String(record.term || '');
+  if (!sid || !COMPLIANCE_TERMS.includes(term)) return;
+  const key = teacherGradeCacheKey(sid, term);
+  if ((!options.force && adminComplianceGradeCache.has(key)) || adminComplianceGradeLoading.has(key)) return;
+  adminComplianceGradeLoading.add(key);
+  try {
+    if (!(await initFirebaseSync()) || !firebaseSync.auth?.currentUser || !isTeacherUser(firebaseSync.auth.currentUser)) return;
+    const reader = firebaseSync.modules.getDocFromServer || firebaseSync.modules.getDoc;
+    const snapshot = await reader(getTeacherComplianceGradeDocRef(sid, term));
+    const data = snapshotExists(snapshot) ? snapshotData(snapshot) : {};
+    adminComplianceGradeCache.set(key, { grade: validTeacherTermGrade(data.termGrade), available: true });
+  } catch (err) {
+    console.warn('Could not load private teacher grade.', err);
+    adminComplianceGradeCache.set(key, { grade: null, available: false });
+  } finally {
+    adminComplianceGradeLoading.delete(key);
+    if (!isTeacherAuthenticated()) return;
+    const current = adminComplianceViewerRecords.find(row => row.studentIdNormalized === sid && row.term === term);
+    if (!current || selectedAdminComplianceStudentId !== sid) return;
+    renderAdminComplianceStudentDetail(current);
+    if (adminComplianceDetailOverlay && !adminComplianceDetailOverlay.classList.contains('hidden')) {
+      adminComplianceDetailModalContent.innerHTML = buildAdminComplianceStudentDetailMarkup(current, {
+        modal: true, titleId: 'adminComplianceDetailModalTitle'
+      });
+    }
+  }
+}
 
 function normalizeComplianceSection(section = {}, fallback = {}) {
   return {
@@ -10241,6 +10294,13 @@ function buildAdminComplianceStudentDetailMarkup(record = null, options = {}) {
   const termTasks = tasks.filter(task => isComplianceTermAssessmentTask(task));
   const updatedText = sanitized.updatedAtText || formatStudentDate(sanitized.updatedAt || sanitized.updatedAtMs, 'recently');
   const titleId = options.titleId || '';
+  const gradeKey = teacherGradeCacheKey(sanitized.studentIdNormalized, sanitized.term);
+  const gradeRecord = isTeacherAuthenticated() ? adminComplianceGradeCache.get(gradeKey) : null;
+  const gradeNumber = validTeacherTermGrade(gradeRecord?.grade);
+  const gradeText = !gradeRecord ? 'Loading private grade…'
+    : !gradeRecord.available ? 'Unable to load'
+    : gradeNumber === null ? 'Not Yet Available' : String(gradeNumber);
+  const standing = safeComplianceStanding(sanitized.standingColor);
   return `
     <div class="compliance-detail-card ${options.modal ? 'modal-detail-card' : ''}">
       <div class="compliance-detail-head">
@@ -10251,6 +10311,11 @@ function buildAdminComplianceStudentDetailMarkup(record = null, options = {}) {
         </div>
         <span class="compliance-summary-pill ${Number(summary.missing || 0) ? 'missing' : 'complete'}">${Number(summary.missing || 0) ? `🟥 ${Number(summary.missing || 0)} lacking` : '✅ No lacking'}</span>
       </div>
+      <div class="compliance-admin-standing">
+        <div><small>RUNNING STANDING</small><strong class="compliance-admin-band ${escapeAttribute(standing)}">${escapeHTML(standing === 'unavailable' ? 'NOT YET AVAILABLE' : standing.toUpperCase())}</strong></div>
+        <div><small>TERM GRADE · TEACHER ONLY</small><strong class="compliance-admin-grade-value">${escapeHTML(gradeText)}</strong></div>
+      </div>
+      <small class="compliance-admin-grade-note">Running grade after Midterm; not the final Second Term Grade. Numerical grade is visible only to the authenticated teacher.</small>
       <div class="compliance-detail-summary">
         <span><strong>${Number(summary.complete || 0)}</strong><small>Complete</small></span>
         <span><strong>${Number(summary.missing || 0)}</strong><small>Missing</small></span>
@@ -10297,6 +10362,7 @@ function openAdminComplianceDetailModal(record = null) {
   });
   adminComplianceDetailOverlay.classList.remove('hidden');
   document.body.classList.add('admin-compliance-modal-open');
+  loadTeacherGradeForAdminViewer(record).catch(err => console.warn('Admin grade viewer read failed.', err));
 }
 
 function renderAdminComplianceViewer() {
@@ -10328,7 +10394,7 @@ function renderAdminComplianceViewer() {
           <strong>${escapeHTML(record.studentName || 'Student')}</strong>
           <small>${escapeHTML(record.studentId || record.studentIdNormalized || 'No ID')} · ${escapeHTML(record.section || 'No section')}</small>
         </span>
-        <em class="${missingCount ? 'has-lacking' : 'no-lacking'}">${missingCount ? `${missingCount} lacking` : 'No lacking'}</em>
+        <span class="compliance-admin-row-end"><small class="compliance-admin-band ${escapeAttribute(safeComplianceStanding(record.standingColor))}">${escapeHTML(safeComplianceStanding(record.standingColor).toUpperCase())}</small><em class="${missingCount ? 'has-lacking' : 'no-lacking'}">${missingCount ? `${missingCount} lacking` : 'No lacking'}</em></span>
       </button>`;
   }).join('');
 
@@ -10338,6 +10404,7 @@ function renderAdminComplianceViewer() {
   }
   const selected = records.find(record => record.studentIdNormalized === selectedAdminComplianceStudentId) || records[0] || null;
   renderAdminComplianceStudentDetail(selected);
+  if (selected) loadTeacherGradeForAdminViewer(selected).catch(err => console.warn('Admin grade viewer read failed.', err));
 }
 
 async function loadAdminComplianceViewer(options = {}) {
@@ -10362,6 +10429,7 @@ async function loadAdminComplianceViewer(options = {}) {
       mapDoc: docSnap => sanitizeComplianceStudentRecord({ id: docSnap.id, ...(typeof docSnap.data === 'function' ? docSnap.data() : {}) }),
       timeoutMessage: 'Loading the initial compliance snapshot is taking too long. Check the connection and try again.'
     });
+    if (options.force === true) adminComplianceGradeCache.clear();
     adminComplianceViewerRecords = records
       .filter(record => record?.studentIdNormalized)
       .map(record => ({ ...record }))
@@ -10741,19 +10809,41 @@ async function addTrustedSheetScoresToCompliance(students = [], sectionConfig = 
   if (Number(response.matchedCount || 0) < Math.max(1, Math.ceil(expected.length * 0.8))) {
     throw new Error(`Only ${Number(response.matchedCount || 0)}/${expected.length} students matched. Check tab, Student ID or Name column before publishing.`);
   }
+  if (response.teacherOnlyNumericalGrades !== true ||
+      !(response.students || []).every(row => Array.isArray(row.writtenWorkScores) && Array.isArray(row.termAssessmentScores))) {
+    throw new Error('The deployed Code.gs is outdated. Deploy the matching v653 Code.gs before syncing so 0 scores are not marked Missing.');
+  }
   const byStudent = new Map((response.students || []).map(item => [normalizeStudentId(item.studentId), item]));
   const enriched = students.map(student => {
     const matched = byStudent.get(student.studentIdNormalized);
     if (!matched) return { ...student, standingColor: 'unavailable' };
     const updatedTasks = student.tasks.map(task => {
       const id = String(task.id || task.key || '').toUpperCase();
-      const ptMatch = id.match(/(?:^|_)PT(\d{1,2})(?:$|_)/);
-      if (!ptMatch) return task;
-      const score = matched.performanceTaskScores?.[Number(ptMatch[1]) - 1];
-      if (!score || score.rawScore === '' || score.rawScore == null) return task;
-      return { ...task, rawScore: cleanComplianceScoreValue(score.rawScore), highestScore: cleanComplianceScoreValue(score.highestScore) };
+      const match = id.match(/(?:^|_)(WW|PT|TA)(\d{1,2})(?:$|_)/);
+      if (!match) return task;
+      const [, group, taskNumberText] = match;
+      const sourceList = group === 'WW' ? matched.writtenWorkScores
+        : group === 'PT' ? matched.performanceTaskScores : matched.termAssessmentScores;
+      const score = sourceList?.[Number(taskNumberText) - 1];
+      // Assigned-HPS task: EXACTLY BLANK means missing, including a formula
+      // that displays blank. '0' is a valid score and MUST count as Complete.
+      if (!score) return task;
+      const rawScore = cleanComplianceScoreValue(score.rawScore);
+      // A recorded zero is Complete even before HPS is configured.
+      // An unconfigured, entirely blank future task keeps its prior visibility/status.
+      if (cleanComplianceScoreValue(score.highestScore) === '' && rawScore === '') return task;
+      const status = rawScore === '' ? 'missing' : 'complete';
+      if (group === 'PT' || group === 'TA') {
+        return { ...task, status, rawScore, highestScore: cleanComplianceScoreValue(score.highestScore) };
+      }
+      return { ...task, status }; // Written Works: status only, existing UI unchanged.
     });
-    return sanitizeComplianceStudentRecord({ ...student, standingColor: matched.standingColor, tasks: updatedTasks });
+    return {
+      ...sanitizeComplianceStudentRecord({ ...student, standingColor: matched.standingColor, tasks: updatedTasks }),
+      // Admin in-memory only; stripped out by sanitizeComplianceStudentRecord
+      // before writing student-readable subjectCompliance.
+      _privateTeacherTermGrade: validTeacherTermGrade(matched.teacherTermGrade)
+    };
   });
   return { students: enriched, matchedCount: Number(response.matchedCount || 0), expectedCount: expected.length, message: `${Number(response.matchedCount || 0)}/${expected.length} students matched to grading sheet` };
 }
@@ -10891,7 +10981,7 @@ async function previewComplianceSync() {
     });
     renderComplianceSyncPreview(payload);
     const errorNote = Array.isArray(payload.errors) && payload.errors.length ? ` ${payload.errors.length} sheet issue(s) found.` : '';
-    setComplianceSyncStatus(`Preview ready for ${payload.selectedSection || 'checked section(s)'}: ${payload.students.length} student status records found. PT scores appear in existing tasks; the Term Grade is color-only. Numerical Term Grades are never published.${errorNote}`, payload.students.length ? 'success' : 'warning');
+    setComplianceSyncStatus(`Preview ready: ${payload.students.length} students checked. 0 is Complete; blank is Missing for assigned tasks. PT scores and grade colors go to Student Status; numerical Term Grades are teacher-only.${errorNote}`, payload.students.length ? 'success' : 'warning');
   } catch (error) {
     console.warn('Compliance preview failed.', error);
     setComplianceFailureStatus(error, 'Preview grading sheets');
@@ -10953,6 +11043,11 @@ async function verifyComplianceTeacherWriteSession() {
   return { email, projectId };
 }
 
+function settingsTermForPublishedGrade(student) {
+  const term = String(student?.term || loadComplianceSettings().term || '');
+  return COMPLIANCE_TERMS.includes(term) ? term : currentAcademicTerm();
+}
+
 async function publishComplianceSync() {
   if (!isTeacherAuthenticated()) {
     setComplianceSyncStatus('Login as teacher first, then publish Google Sheets status.', 'warning');
@@ -10985,6 +11080,15 @@ async function publishComplianceSync() {
     const { setDoc, serverTimestamp, writeBatch } = firebaseSync.modules;
     const syncedAtMs = Date.now();
     let saved = 0;
+    const buildTeacherGradeSaveData = student => ({
+      studentIdNormalized: student.studentIdNormalized,
+      term: settingsTermForPublishedGrade(student),
+      termGrade: validTeacherTermGrade(student._privateTeacherTermGrade),
+      standingColor: safeComplianceStanding(student.standingColor),
+      updatedAt: serverTimestamp(),
+      updatedAtMs: syncedAtMs,
+      publishedBy: verifiedTeacher.email
+    });
     const buildComplianceSaveData = student => ({
       ...sanitizeComplianceStudentRecord(student),
       studentIdOriginal: student.studentId,
@@ -10998,11 +11102,15 @@ async function publishComplianceSync() {
     });
 
     if (typeof writeBatch === 'function') {
-      const batchSize = 400;
+      // Two writes per student: public color/status and teacher-private numeric grade.
+      // Firebase's max 500 writes/batch means at most 200 students per batch.
+      const batchSize = 200;
       for (let start = 0; start < payload.students.length; start += batchSize) {
         const batch = writeBatch(firebaseSync.db);
         const chunk = payload.students.slice(start, start + batchSize);
         chunk.forEach(student => {
+          batch.set(getTeacherComplianceGradeDocRef(student.studentIdNormalized, settingsTermForPublishedGrade(student)),
+            buildTeacherGradeSaveData(student), { merge: true });
           batch.set(getStudentComplianceDocRef(student.studentIdNormalized), buildComplianceSaveData(student), { merge: true });
         });
         await batch.commit();
@@ -11011,14 +11119,22 @@ async function publishComplianceSync() {
       }
     } else {
       for (const student of payload.students) {
+        await setDoc(getTeacherComplianceGradeDocRef(student.studentIdNormalized, settingsTermForPublishedGrade(student)),
+          buildTeacherGradeSaveData(student), { merge: true });
         await setDoc(getStudentComplianceDocRef(student.studentIdNormalized), buildComplianceSaveData(student), { merge: true });
         saved += 1;
         if (saved % 10 === 0) setComplianceSyncStatus(`Publishing status... ${saved}/${payload.students.length}`, '');
       }
     }
     const issueText = Array.isArray(payload.errors) && payload.errors.length ? ` ${payload.errors.length} sheet issue(s) were skipped; check preview.` : '';
-    setComplianceSyncStatus(`Published ${saved} student status records for ${payload.selectedSection || 'checked section(s)'}. Students can refresh My Projects to see updates.${issueText}`, 'success');
+    setComplianceSyncStatus(`Published ${saved} Student Status records and ${saved} private Teacher Grade records. A recorded score of 0 is Complete; only blank is Missing.${issueText}`, 'success');
 
+    // Cache private numerical grades only inside this authenticated Admin session.
+    // They are never included in student-readable records or cached public snapshots.
+    payload.students.forEach(student => {
+      adminComplianceGradeCache.set(teacherGradeCacheKey(student.studentIdNormalized, settingsTermForPublishedGrade(student)),
+        { grade: validTeacherTermGrade(student._privateTeacherTermGrade), available: true });
+    });
     // v465: the exact records were just written, so reuse them locally instead of
     // immediately paying for a full subjectCompliance collection read.
     clearSelectiveFirestoreCache('compliance:');
@@ -20258,7 +20374,7 @@ function updateInstallButtonVisibility() {
 function registerPWAServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./service-worker.js?v=652-live-freshness', {
+    navigator.serviceWorker.register('./service-worker.js?v=653-grade-zero-admin', {
       updateViaCache: 'none'
     }).then(registration => {
       let lastCheckedAt = 0;
@@ -26786,6 +26902,9 @@ async function loginTeacher() {
 
 async function logoutTeacher() {
   setAdminQuickUnlocked(false);
+  // Do not retain teacher-only numerical grades across account switches.
+  adminComplianceGradeCache.clear();
+  adminComplianceGradeLoading.clear();
   const ready = await initFirebaseSync();
 
   try {

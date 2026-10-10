@@ -68194,3 +68194,19 @@ html[data-theme="dark"] .code-explorer-final-podium-btn { border-color: #a77e2f;
   #loginLackingReminderOverlay .login-lacking-reminder-nav-head {display:none;}
   #loginLackingReminderOverlay .login-lacking-reminder-nav-card {min-height:45px;}
 }
+
+/* v653: compact teacher-only grade display inside Compliance Viewer */
+.compliance-admin-standing { display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin:12px 0 4px; }
+.compliance-admin-standing > div { display:flex; flex-direction:column; gap:6px; padding:12px; border:1px solid #d9e2ef; border-radius:13px; background:#f8fbff; min-width:0; }
+.compliance-admin-standing small { font-size:10px; line-height:1.35; font-weight:800; letter-spacing:.055em; color:#50617a; }
+.compliance-admin-grade-value { font-size:clamp(18px,2.4vw,24px); font-weight:900; color:#12345d; overflow-wrap:anywhere; }
+.compliance-admin-grade-note { display:block; color:#607086; font-size:11px; line-height:1.45; margin:2px 0 11px; }
+.compliance-admin-band { font-style:normal; font-size:11px; font-weight:900; border-radius:9px; padding:5px 10px; border:1px solid #dbe1e8; background:#eaf0f8; color:#1d304b; display:inline-flex; align-items:center; width:max-content; max-width:100%; overflow-wrap:anywhere; }
+.compliance-admin-band.green { color:#106935; background:#daf4e4; border-color:#a8dec0; }
+.compliance-admin-band.white { color:#26334c; background:#fff; border-color:#a3aebd; }
+.compliance-admin-band.yellow { color:#715300; background:#fff0ae; border-color:#e1c04a; }
+.compliance-admin-band.gray { color:#364152; background:#dde2e8; border-color:#a8b0be; }
+.compliance-admin-band.orange { color:#7a3b00; background:#ffe0bd; border-color:#efab65; }
+.compliance-admin-band.red { color:#9c2231; background:#ffe1e5; border-color:#ef9ba5; }
+.compliance-admin-row-end { display:flex; flex-direction:column; align-items:flex-end; gap:6px; white-space:nowrap; }
+@media(max-width:500px){ .compliance-admin-standing { gap:7px; } .compliance-admin-standing > div { padding:9px; } .compliance-admin-grade-value { font-size:18px; } .compliance-admin-row-end .compliance-admin-band { font-size:10px; } }
