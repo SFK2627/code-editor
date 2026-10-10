@@ -642,6 +642,10 @@ const adminStudentProjectsOverlay = document.getElementById('adminStudentProject
 const adminStudentProjectsTitle = document.getElementById('adminStudentProjectsTitle');
 const adminStudentProjectsSubtitle = document.getElementById('adminStudentProjectsSubtitle');
 const adminStudentProjectsList = document.getElementById('adminStudentProjectsList');
+const adminStudentProjectsPrevBtn = document.getElementById('adminStudentProjectsPrevBtn');
+const adminStudentProjectsNextBtn = document.getElementById('adminStudentProjectsNextBtn');
+const adminStudentProjectsNavCounter = document.getElementById('adminStudentProjectsNavCounter');
+const adminStudentProjectsNavScope = document.getElementById('adminStudentProjectsNavScope');
 const closeAdminStudentProjectsBtn = document.getElementById('closeAdminStudentProjectsBtn');
 const refreshAdminStudentProjectsBtn = document.getElementById('refreshAdminStudentProjectsBtn');
 const adminProjectViewerOverlay = document.getElementById('adminProjectViewerOverlay');
@@ -2665,6 +2669,9 @@ let editorStudentGreetingState = { key: '', text: '' };
 let adminStudentsCache = [];
 const ADMIN_STUDENT_PAGE_SIZE = 10;
 let adminStudentPage = 1;
+// Sequence token ensures a slower previous student fetch never overwrites a newer selection.
+let adminStudentProjectsRequestSeq = 0;
+let adminStudentProjectsNavKey = '';
 const adminStudentExpandedKeys = new Set();
 let studentPresenceTimer = null;
 let studentPresenceStarted = false;
@@ -16637,19 +16644,72 @@ function closeAdminProjectViewer() {
   document.body.classList.toggle('student-auth-open', Boolean(adminStudentProjectsOverlay && !adminStudentProjectsOverlay.classList.contains('hidden')));
 }
 
+// Navigate in the same section/name order as the Student Tracker, across ALL pages.
+// Roster-only records have no profile UID or View Projects action and are skipped.
+function getAdminStudentProjectNavigationList() {
+  return getFilteredAdminStudents().filter(student => getAdminStudentProfileUids(student).length > 0);
+}
+
+function updateAdminStudentProjectsNavigation() {
+  const students = getAdminStudentProjectNavigationList();
+  const currentIndex = students.findIndex(student => getAdminStudentRenderKey(student) === adminStudentProjectsNavKey);
+  const hasCurrent = currentIndex >= 0;
+  if (adminStudentProjectsNavCounter) {
+    adminStudentProjectsNavCounter.textContent = hasCurrent
+      ? `Student ${currentIndex + 1} of ${students.length}`
+      : 'Student not in current filter';
+  }
+  if (adminStudentProjectsNavScope) {
+    const section = adminSectionFilter?.value || 'all';
+    const hasOtherFilters = Boolean(String(adminStudentSearch?.value || '').trim())
+      || (adminActivityFilter?.value || 'all') !== 'all';
+    adminStudentProjectsNavScope.textContent = section === 'all'
+      ? (hasOtherFilters ? 'All Sections · Filtered results' : 'All Sections · Tracker order')
+      : `${section}${hasOtherFilters ? ' · Filtered results' : ''}`;
+  }
+  if (adminStudentProjectsPrevBtn) adminStudentProjectsPrevBtn.disabled = !hasCurrent || currentIndex === 0;
+  if (adminStudentProjectsNextBtn) adminStudentProjectsNextBtn.disabled = !hasCurrent || currentIndex >= students.length - 1;
+}
+
+function navigateAdminStudentProjects(direction) {
+  if (adminStudentProjectsOverlay?.classList.contains('hidden')) return false;
+  if ((adminProjectViewerOverlay && !adminProjectViewerOverlay.classList.contains('hidden'))
+      || (adminWireframeViewerOverlay && !adminWireframeViewerOverlay.classList.contains('hidden'))
+      || (adminProjectFullscreenOverlay && !adminProjectFullscreenOverlay.classList.contains('hidden'))) return false;
+  const students = getAdminStudentProjectNavigationList();
+  const index = students.findIndex(student => getAdminStudentRenderKey(student) === adminStudentProjectsNavKey);
+  const nextStudent = index < 0 ? null : students[index + direction];
+  if (!nextStudent) return false;
+  const nextUid = getAdminStudentProfileUids(nextStudent)[0];
+  if (!nextUid) return false;
+  void showAdminStudentProjects(nextUid);
+  return true;
+}
+
 async function showAdminStudentProjects(uid, options = {}) {
   const student = adminStudentsCache.find(item => getAdminStudentProfileUids(item).includes(uid) || item.uid === uid);
   if (!student) return;
   const profileUids = getAdminStudentProfileUids(student);
+  if (!profileUids.length) return;
+  const requestSeq = ++adminStudentProjectsRequestSeq;
+  const previousKey = adminStudentProjectsNavKey;
+  adminStudentProjectsNavKey = getAdminStudentRenderKey(student);
   adminStudentProjectsTitle.textContent = `${student.name}'s Projects`;
   adminStudentProjectsSubtitle.textContent = `${student.studentId} · ${student.section}${profileUids.length > 1 ? ` · ${profileUids.length} linked profiles merged` : ''}`;
   adminStudentProjectsList.innerHTML = '<div class="dashboard-status">Loading projects...</div>';
   adminProjectViewerState.student = student;
+  adminProjectViewerState.projects = [];
+  adminProjectViewerState.projectOwnerUid = profileUids[0];
   adminStudentProjectsOverlay.classList.remove('hidden');
+  updateAdminStudentProjectsNavigation();
+  if (previousKey !== adminStudentProjectsNavKey) {
+    const card = adminStudentProjectsOverlay.querySelector('.admin-student-projects-card');
+    if (card) card.scrollTop = 0;
+  }
   document.body.classList.add('student-auth-open');
   try {
     const projectGroups = await Promise.all(profileUids.map(async profileUid => {
-      const projects = await loadAdminProjectsForUid(profileUid, { force: options.live === true });
+      const projects = await loadAdminProjectsForUid(profileUid, { force: options.live === true || options.force === true });
       return projects.map(project => {
         const projectId = project.id;
         return {
@@ -16661,8 +16721,11 @@ async function showAdminStudentProjects(uid, options = {}) {
         };
       });
     }));
+    // Ignore outdated responses after Next/Previous, or after closing the dialog.
+    if (requestSeq !== adminStudentProjectsRequestSeq || adminStudentProjectsOverlay.classList.contains('hidden')) return;
     const projects = projectGroups.flat()
       .sort((a, b) => (timestampToDate(b.updatedAt)?.getTime() || 0) - (timestampToDate(a.updatedAt)?.getTime() || 0));
+    adminProjectViewerState.projects = projects;
     if (!projects.length) {
       adminStudentProjectsList.innerHTML = '<div class="empty-projects-card"><h3>No projects yet</h3><p>This student has logged in but has not created a project.</p></div>';
       return;
@@ -16684,12 +16747,16 @@ async function showAdminStudentProjects(uid, options = {}) {
         </article>`;
     }).join('');
   } catch (error) {
+    if (requestSeq !== adminStudentProjectsRequestSeq || adminStudentProjectsOverlay.classList.contains('hidden')) return;
     console.error('Could not load student projects for admin', error);
     adminStudentProjectsList.innerHTML = '<div class="empty-projects-card"><h3>Could not load projects</h3><p>Check your internet connection, then try again.</p></div>';
   }
 }
 
 function closeAdminStudentProjects() {
+  // Invalidate any still-loading request, so closing cannot display stale results.
+  ++adminStudentProjectsRequestSeq;
+  adminStudentProjectsNavKey = '';
   adminStudentProjectsOverlay?.classList.add('hidden');
   adminProjectViewerOverlay?.classList.add('hidden');
   adminWireframeViewerOverlay?.classList.add('hidden');
@@ -36177,6 +36244,15 @@ refreshAdminStudentProjectsBtn?.addEventListener('click', async () => {
   finally { refreshAdminStudentProjectsBtn.disabled = false; }
 });
 closeAdminStudentProjectsBtn?.addEventListener('click', closeAdminStudentProjects);
+adminStudentProjectsPrevBtn?.addEventListener('click', () => navigateAdminStudentProjects(-1));
+adminStudentProjectsNextBtn?.addEventListener('click', () => navigateAdminStudentProjects(1));
+document.addEventListener('keydown', event => {
+  if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+  if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || event.repeat) return;
+  const target = event.target;
+  if (target instanceof Element && (target.isContentEditable || target.closest('input, textarea, select, [contenteditable], [role="textbox"]'))) return;
+  if (navigateAdminStudentProjects(event.key === 'ArrowLeft' ? -1 : 1)) event.preventDefault();
+});
 adminStudentProjectsOverlay?.addEventListener('click', event => {
   if (event.target === adminStudentProjectsOverlay) event.stopPropagation();
 });

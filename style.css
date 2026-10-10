@@ -68210,3 +68210,88 @@ html[data-theme="dark"] .code-explorer-final-podium-btn { border-color: #a77e2f;
 .compliance-admin-band.red { color:#9c2231; background:#ffe1e5; border-color:#ef9ba5; }
 .compliance-admin-row-end { display:flex; flex-direction:column; align-items:flex-end; gap:6px; white-space:nowrap; }
 @media(max-width:500px){ .compliance-admin-standing { gap:7px; } .compliance-admin-standing > div { padding:9px; } .compliance-admin-grade-value { font-size:18px; } .compliance-admin-row-end .compliance-admin-band { font-size:10px; } }
+
+
+/* v655: quick previous/next student navigation inside Admin > View Projects. */
+.admin-student-projects-navigation {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: minmax(110px, 1fr) minmax(120px, 1.2fr) minmax(110px, 1fr);
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--solid-card);
+  box-shadow: 0 5px 18px rgba(15, 23, 42, .08);
+}
+.admin-student-nav-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 40px;
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  background: var(--bg-2);
+  color: var(--text);
+  font: inherit;
+  font-size: .85rem;
+  font-weight: 800;
+  line-height: 1.2;
+  cursor: pointer;
+  transition: background .15s ease, border-color .15s ease;
+}
+.admin-student-nav-btn:not(:disabled):hover {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+.admin-student-nav-btn:focus-visible {
+  outline: 3px solid var(--primary);
+  outline-offset: 2px;
+}
+.admin-student-nav-btn:disabled {
+  opacity: .42;
+  cursor: not-allowed;
+}
+.admin-student-nav-next:not(:disabled) {
+  border-color: #2563eb;
+  background: linear-gradient(105deg, #2563eb, #06a7dc);
+  color: #fff;
+}
+.admin-student-nav-next:not(:disabled):hover {
+  background: linear-gradient(105deg, #1d4ed8, #0284c7);
+}
+.admin-student-navigation-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  text-align: center;
+}
+.admin-student-navigation-progress strong {
+  color: var(--text);
+  font-size: .85rem;
+  line-height: 1.2;
+}
+.admin-student-navigation-progress small {
+  color: var(--muted);
+  font-size: .7rem;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 600px) {
+  .admin-student-projects-card { padding: 16px; }
+  .admin-student-projects-navigation {
+    gap: 7px;
+    grid-template-columns: minmax(0, 1fr) minmax(90px, 1.15fr) minmax(0, 1fr);
+    padding: 8px;
+  }
+  .admin-student-nav-btn { padding: 9px 6px; min-height: 42px; font-size: .75rem; }
+  .admin-student-navigation-progress strong { font-size: .75rem; }
+  .admin-student-navigation-progress small { font-size: .62rem; }
+}

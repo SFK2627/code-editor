@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ict8-connect-v654-all-sections-viewer';
+const CACHE_NAME = 'ict8-connect-v655-student-prev-next';
 const APP_SHELL = [
   './',
   './index.html',
