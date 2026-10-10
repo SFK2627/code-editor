@@ -437,6 +437,8 @@ const studentCompliancePanel = document.getElementById('studentCompliancePanel')
 const studentComplianceTitle = document.getElementById('studentComplianceTitle');
 const studentComplianceMeta = document.getElementById('studentComplianceMeta');
 const studentComplianceSummary = document.getElementById('studentComplianceSummary');
+const studentComplianceStanding = document.getElementById('studentComplianceStanding');
+const studentComplianceStandingBadge = document.getElementById('studentComplianceStandingBadge');
 const studentComplianceList = document.getElementById('studentComplianceList');
 const studentComplianceLackingList = document.getElementById('studentComplianceLackingList');
 const studentComplianceRefreshBtn = document.getElementById('studentComplianceRefreshBtn');
@@ -6999,20 +7001,20 @@ async function findStudentRosterRecordById(studentId) {
     const { getDocs, query, where, limit } = firebaseSync.modules;
     const queries = [];
 
-    [...new Set([normalized, authKey].filter(Boolean))].forEach(value => {
-      queries.push(
-        query(getStudentRosterCollectionRef(), where('studentIdNormalized', '==', value), limit(5)),
-        query(getStudentRosterCollectionRef(), where('studentId', '==', value), limit(5))
-      );
-    });
-
+    // Only the teacher may list arbitrary roster entries. Signed-in students
+    // query their own record by verified Firebase Auth email, matching the
+    // tightened Firestore list rule. Exact Student-ID GET remains available.
+    if (isTeacherAuthenticated()) {
+      [...new Set([normalized, authKey].filter(Boolean))].forEach(value => {
+        queries.push(
+          query(getStudentRosterCollectionRef(), where('studentIdNormalized', '==', value), limit(5)),
+          query(getStudentRosterCollectionRef(), where('studentId', '==', value), limit(5))
+        );
+      });
+    }
     if (activeUser.email) {
       queries.push(
-        query(
-          getStudentRosterCollectionRef(),
-          where('authEmail', '==', String(activeUser.email).toLowerCase()),
-          limit(10)
-        )
+        query(getStudentRosterCollectionRef(), where('authEmail', '==', String(activeUser.email).toLowerCase()), limit(10))
       );
     }
 
@@ -9387,16 +9389,41 @@ async function saveAcademicTermSettingsToCloud(settings = academicTermSettings) 
   return safe;
 }
 
+const COMPLIANCE_STANDING_COLORS = Object.freeze(['white', 'green', 'yellow', 'gray', 'orange', 'red']);
+
+function safeComplianceStanding(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  return COMPLIANCE_STANDING_COLORS.includes(normalized) ? normalized : 'unavailable';
+}
+
+function normalizeComplianceGradeMap(raw = {}) {
+  const source = raw && typeof raw === 'object' ? raw : {};
+  const col = value => /^[A-Z]{1,3}$/.test(String(value || '').trim().toUpperCase()) ? String(value).trim().toUpperCase() : '';
+  return {
+    sheetName: String(source.sheetName || '').trim().slice(0, 120),
+    studentIdColumn: col(source.studentIdColumn),
+    studentNameColumn: col(source.studentNameColumn),
+    termGradeColumn: col(source.termGradeColumn),
+    ptColumns: String(source.ptColumns || '').split(',').map(col).filter(Boolean).slice(0, 10).join(','),
+    ptHpsRow: Number(source.ptHpsRow) >= 1 && Number(source.ptHpsRow) <= 100 ? Math.floor(Number(source.ptHpsRow)) : 0
+  };
+}
+
+function complianceGradeMapForTerm(settings = loadComplianceSettings(), term = settings.term) {
+  return normalizeComplianceGradeMap(settings.gradeSheetMappings?.[term] || {});
+}
+
 const DEFAULT_COMPLIANCE_SETTINGS = Object.freeze({
   scriptUrl: '',
-  syncKey: '052400',
+  syncKey: '',
   term: 'TERM_1',
   subject: 'ICT',
   selectedSectionCode: 'FAUSTINA-8FK26',
   selectedSectionCodes: ['FAUSTINA-8FK26'],
   sections: DEFAULT_COMPLIANCE_SECTIONS,
   taskLabels: { TERM_1: {}, TERM_2: {}, TERM_3: {} },
-  hiddenTasks: { TERM_1: [], TERM_2: [], TERM_3: [] }
+  hiddenTasks: { TERM_1: [], TERM_2: [], TERM_3: [] },
+  gradeSheetMappings: { TERM_1: {}, TERM_2: {}, TERM_3: {} }
 });
 
 let studentComplianceRecord = null;
@@ -9494,14 +9521,15 @@ function normalizeComplianceSettings(source = {}) {
   const selectedSectionCodes = normalizeComplianceSelectedCodes(source, sections);
   return {
     scriptUrl: String(source.scriptUrl || '').trim(),
-    syncKey: String(source.syncKey || '052400').trim() || '052400',
+    syncKey: String(source.syncKey || '').trim(),
     term: COMPLIANCE_TERMS.includes(String(source.term || '').trim()) ? String(source.term || '').trim() : 'TERM_1',
     subject: String(source.subject || 'ICT').trim() || 'ICT',
     selectedSectionCode: selectedSectionCodes[0] || '',
     selectedSectionCodes,
     sections,
     taskLabels: normalizeComplianceTermMap(source.taskLabels || {}),
-    hiddenTasks: normalizeComplianceTermMap(source.hiddenTasks || {}, true)
+    hiddenTasks: normalizeComplianceTermMap(source.hiddenTasks || {}, true),
+    gradeSheetMappings: Object.fromEntries(COMPLIANCE_TERMS.map(term => [term, normalizeComplianceGradeMap(source.gradeSheetMappings?.[term] || {})]))
   };
 }
 
@@ -9716,6 +9744,8 @@ function getSelectedComplianceSectionCodesFromControls(currentSettings = loadCom
 
 function getComplianceSettingsFromControls() {
   const current = mergeVisibleComplianceTaskControls(loadComplianceSettings());
+  const selectedTerm = currentAcademicTerm();
+  // v639: Scoring columns are identified from the existing grading sheet automatically.
   const selectedSectionCodes = getSelectedComplianceSectionCodesFromControls(current);
   return normalizeComplianceSettings({
     ...current,
@@ -9772,6 +9802,47 @@ function setComplianceSyncStatus(message, tone = '') {
   complianceSyncStatus.dataset.tone = tone || '';
 }
 
+// Teacher-only Status/Compliance diagnostics.
+// The general user-facing message filter intentionally removes technical details
+// for students; do NOT run these curated admin-only messages through that filter.
+// Never include token bytes, API keys, the student's raw Term Grade, or student IDs.
+function complianceFailureDetail(error, stage = 'Operation') {
+  const rawCode = String(error?.code || '').trim().toLowerCase();
+  const rawMessage = String(error?.message || error || '').trim();
+  const code = rawCode.match(/(?:[a-z][a-z0-9_-]*\/)?[a-z][a-z0-9_-]*/)?.[0] || 'unknown';
+  const source = `${rawCode} ${rawMessage}`.toLowerCase();
+  const user = firebaseSync.auth?.currentUser || null;
+  const email = String(user?.email || '').trim().toLowerCase();
+  const role = !user ? 'signed out' : getAllowedTeacherEmails().includes(email) ? 'teacher signed in' : 'different account signed in';
+  const stageLabel = String(stage || 'Operation').replace(/[^a-z0-9 ()/-]/gi, '').slice(0, 60);
+
+  let nextStep = '';
+  if (/permission-denied|missing or insufficient permissions|insufficient permissions|access settings still block/.test(source)) {
+    nextStep = role === 'teacher signed in'
+      ? 'Access denied by the live database. Check that the rules were PUBLISHED in the same Firebase project, then log out and sign in again.'
+      : 'Admin Firebase login is missing or not the teacher account. Log out completely and sign in through Admin Login.';
+  } else if (/no active firebase teacher session|not the configured teacher|teacher login is required|auth\/|unauthenticated|sign[ -]?in/.test(source)) {
+    nextStep = 'Teacher login needs refreshing. Log out completely, reload, and log in again using the teacher account.';
+  } else if (/not-ready|not ready|unavailable|network|offline|too long|timed? ?out|deadline-exceeded/.test(source)) {
+    nextStep = 'Connection or service unavailable. Check the network and retry once.';
+  } else if (/invalid-argument|invalid document|unsupported field value|undefined field/.test(source)) {
+    nextStep = 'Data validation failed. Review the checked section and its Google Sheets rows before publishing.';
+  } else if (/resource-exhausted|quota|too large|maximum size/.test(source)) {
+    nextStep = 'Request limit or document size issue. Try one section at a time.';
+  } else if (/google sheets|spreadsheet|no student records|no section checked|sheet link/.test(source)) {
+    nextStep = 'Could not read the selected grading sheet. Verify the sheet link and Apps Script permissions, then use Preview.';
+  } else {
+    nextStep = 'Could not finish this step. Open the browser Console for the underlying error (do not share tokens or grade data).';
+  }
+  return `${stageLabel} failed [${code}; ${role}]. ${nextStep}`;
+}
+
+function setComplianceFailureStatus(error, stage) {
+  if (!complianceSyncStatus) return;
+  complianceSyncStatus.textContent = complianceFailureDetail(error, stage);
+  complianceSyncStatus.dataset.tone = 'error';
+}
+
 function complianceStatusLabel(status) {
   const value = String(status || '').toLowerCase();
   if (value === 'complete' || value === 'completed') return 'Complete';
@@ -9794,8 +9865,13 @@ function cleanComplianceScoreValue(value) {
   return String(value).replace(/\s+/g, ' ').trim().slice(0, 40);
 }
 
+function isCompliancePerformanceTask(task = {}) {
+  const id = String(task.id || task.key || '').toUpperCase();
+  return /^PT\d+/.test(id) || /performance task/i.test(String(task.category || ''));
+}
+
 function formatTermAssessmentRawScore(task = {}) {
-  if (!isComplianceTermAssessmentTask(task)) return '';
+  if (!isComplianceTermAssessmentTask(task) && !isCompliancePerformanceTask(task)) return '';
   const rawScore = cleanComplianceScoreValue(task.rawScore ?? task.score ?? task.rawScoreText ?? task.displayScore ?? task.rawScoreDisplay ?? task.totalRawScore);
   const highestScore = cleanComplianceScoreValue(task.highestScore ?? task.maxScore ?? task.hps ?? task.highestScoreDisplay ?? task.totalHighestScore);
   if (rawScore && highestScore) return `${rawScore}/${highestScore}`;
@@ -9805,9 +9881,11 @@ function formatTermAssessmentRawScore(task = {}) {
 }
 
 function complianceTermAssessmentScoreMarkup(task = {}) {
-  if (!isComplianceTermAssessmentTask(task)) return '';
+  if (!isComplianceTermAssessmentTask(task) && !isCompliancePerformanceTask(task)) return '';
   const formatted = formatTermAssessmentRawScore(task);
-  return `<span class="student-compliance-score">Raw Score: ${escapeHTML(formatted)}</span>`;
+  const hasScore = cleanComplianceScoreValue(task.rawScore ?? task.score ?? task.rawScoreText ?? task.displayScore ?? task.rawScoreDisplay ?? task.totalRawScore) !== '';
+  if (isCompliancePerformanceTask(task) && !hasScore) return '';
+  return `<span class="student-compliance-score">${isCompliancePerformanceTask(task) ? 'PT Score' : 'Raw Score'}: ${escapeHTML(formatted)}</span>`;
 }
 
 function normalizeComplianceStatus(status) {
@@ -9835,7 +9913,7 @@ function sanitizeComplianceStudentRecord(record = {}, fallback = {}) {
       status: normalizeComplianceStatus(task.status),
       number: Number(task.number || index + 1) || index + 1
     };
-    if (isComplianceTermAssessmentTask({ ...task, ...safeTask })) {
+    if (isComplianceTermAssessmentTask({ ...task, ...safeTask }) || isCompliancePerformanceTask({ ...task, ...safeTask })) {
       safeTask.rawScore = cleanComplianceScoreValue(task.rawScore ?? task.score ?? task.rawScoreText ?? task.displayScore ?? task.rawScoreDisplay ?? task.totalRawScore);
       safeTask.highestScore = cleanComplianceScoreValue(task.highestScore ?? task.maxScore ?? task.hps ?? task.highestScoreDisplay ?? task.totalHighestScore);
     }
@@ -9863,11 +9941,21 @@ function sanitizeComplianceStudentRecord(record = {}, fallback = {}) {
     updatedAtText: String(record.updatedAtText || fallback.updatedAtText || '').trim(),
     updatedAtMs: Number(record.updatedAtMs || Date.now()),
     summary,
-    tasks
+    tasks,
+    standingColor: safeComplianceStanding(record.standingColor)
   };
 }
 
+function renderStudentComplianceStanding(color = 'unavailable') {
+  if (!studentComplianceStandingBadge) return;
+  const safe = safeComplianceStanding(color);
+  studentComplianceStandingBadge.className = `student-standing-badge ${safe}`;
+  const label = safe === 'unavailable' ? 'NOT YET AVAILABLE' : safe.toUpperCase();
+  studentComplianceStandingBadge.innerHTML = `<span class="student-standing-dot" aria-hidden="true"></span><strong>${label}</strong>`;
+}
+
 function renderStudentComplianceRecord(record = null, options = {}) {
+  renderStudentComplianceStanding(record?.standingColor);
   if (!studentCompliancePanel) return;
   updateStudentComplianceTitle(record);
 
@@ -9887,12 +9975,14 @@ function renderStudentComplianceRecord(record = null, options = {}) {
   if (sanitized.term && activeTerm && sanitized.term !== activeTerm) {
     const previousLabel = complianceTermFriendlyLabel(sanitized.term) || sanitized.term;
     const previousUpdated = sanitized.updatedAtText || formatStudentDate(sanitized.updatedAtMs, 'recently');
+    renderStudentComplianceStanding('unavailable');
     if (studentComplianceMeta) studentComplianceMeta.textContent = `${activeLabel} is active · Waiting for teacher publish`;
     if (studentComplianceSummary) studentComplianceSummary.innerHTML = '<span class="compliance-empty-pill">Waiting for current-term update</span>';
     if (studentComplianceList) studentComplianceList.innerHTML = `<div class="student-compliance-empty">${escapeHTML(activeLabel)} is now active. Your previous ${escapeHTML(previousLabel)} record is kept as an older update and is not shown as your current status. Ask your teacher to publish the ${escapeHTML(activeLabel)} compliance status.</div>`;
     if (studentComplianceLackingList) studentComplianceLackingList.innerHTML = `<div class="student-compliance-lacking-card"><strong>${escapeHTML(activeLabel)} Lacking List</strong><p>No ${escapeHTML(activeLabel)} status has been published yet.</p><small>Previous published term: ${escapeHTML(previousLabel)} · Updated ${escapeHTML(previousUpdated)}</small></div>`;
     return;
   }
+  renderStudentComplianceStanding(sanitized.standingColor);
   const summary = sanitized.summary || summarizeComplianceTasks(sanitized.tasks);
   const updatedText = sanitized.updatedAtText || formatStudentDate(sanitized.updatedAtMs, 'recently');
   if (studentComplianceMeta) {
@@ -10298,18 +10388,54 @@ function renderComplianceSyncPreview(payload = {}) {
   const taskCount = students.reduce((max, student) => Math.max(max, Array.isArray(student.tasks) ? student.tasks.length : 0), 0);
   const samples = students.slice(0, 5).map(student => sanitizeComplianceStudentRecord(student));
   const errors = Array.isArray(payload.errors) ? payload.errors.filter(Boolean) : [];
+  const gradeMatches = Array.isArray(payload.gradeMatches) ? payload.gradeMatches : [];
   complianceSyncPreview.innerHTML = `
     <div class="compliance-preview-stats">
       <span><strong>${students.length}</strong><small>students</small></span>
       <span><strong>${sectionCount}</strong><small>sections</small></span>
       <span><strong>${taskCount}</strong><small>visible tasks max</small></span>
     </div>
+    ${gradeMatches.length ? `<p class="helper-note"><strong>Verified grading-sheet matches:</strong> ${gradeMatches.map(item => `${escapeHTML(item.section)}: ${Number(item.matched)}/${Number(item.expected)}`).join(' · ')}</p>` : ''}
     ${errors.length ? `<div class="compliance-preview-errors"><strong>Sheets that need retry/checking:</strong>${errors.slice(0, 6).map(error => `<small>${escapeHTML(error)}</small>`).join('')}</div>` : ''}
     ${samples.length ? `<div class="compliance-preview-list">${samples.map(student => `
       <div class="compliance-preview-row">
         <strong>${escapeHTML(student.studentName || student.studentId || 'Student')}</strong>
-        <small>${escapeHTML(student.section || 'No section')} · 🟩 ${Number(student.summary.complete || 0)} · 🟥 ${Number(student.summary.missing || 0)}</small>
+        <small>${escapeHTML(student.section || 'No section')} · 🟩 ${Number(student.summary.complete || 0)} · 🟥 ${Number(student.summary.missing || 0)} · Standing: ${escapeHTML(safeComplianceStanding(student.standingColor).toUpperCase())}</small>
+        <small>${escapeHTML((student.tasks || []).filter(task => isCompliancePerformanceTask(task) && cleanComplianceScoreValue(task.rawScore) !== '').slice(0, 5).map(task => `${task.title}: ${formatTermAssessmentRawScore(task)}`).join(' · ') || 'No PT scores published yet')}</small>
       </div>`).join('')}</div>` : '<div class="student-compliance-empty">No student records returned.</div>'}`;
+}
+
+async function addTrustedSheetScoresToCompliance(students = [], sectionConfig = {}, settings = {}) {
+  // v639: Same section link and same student ID used by the existing Compliance sync.
+  // The trusted backend locates PT columns and the computed Term Grade from sheet headers.
+  const expected = students.map(student => ({
+    studentId: student.studentIdNormalized,
+    studentName: String(student.studentName || '')
+  })).filter(student => student.studentId);
+  const response = await callAppsScriptSecure({
+    action: 'readTeacherTermGradeBands',
+    sheetUrl: sectionConfig.spreadsheetId,
+    term: settings.term,
+    students: expected
+  }, { timeoutMs: 90000 });
+  if (Number(response.matchedCount || 0) < Math.max(1, Math.ceil(expected.length * 0.8))) {
+    throw new Error(`Only ${Number(response.matchedCount || 0)}/${expected.length} students matched. Check tab, Student ID or Name column before publishing.`);
+  }
+  const byStudent = new Map((response.students || []).map(item => [normalizeStudentId(item.studentId), item]));
+  const enriched = students.map(student => {
+    const matched = byStudent.get(student.studentIdNormalized);
+    if (!matched) return { ...student, standingColor: 'unavailable' };
+    const updatedTasks = student.tasks.map(task => {
+      const id = String(task.id || task.key || '').toUpperCase();
+      const ptMatch = id.match(/(?:^|_)PT(\d{1,2})(?:$|_)/);
+      if (!ptMatch) return task;
+      const score = matched.performanceTaskScores?.[Number(ptMatch[1]) - 1];
+      if (!score || score.rawScore === '' || score.rawScore == null) return task;
+      return { ...task, rawScore: cleanComplianceScoreValue(score.rawScore), highestScore: cleanComplianceScoreValue(score.highestScore) };
+    });
+    return sanitizeComplianceStudentRecord({ ...student, standingColor: matched.standingColor, tasks: updatedTasks });
+  });
+  return { students: enriched, matchedCount: Number(response.matchedCount || 0), expectedCount: expected.length, message: `${Number(response.matchedCount || 0)}/${expected.length} students matched to grading sheet` };
 }
 
 async function pullComplianceFromGoogleSheets(options = {}) {
@@ -10329,6 +10455,7 @@ async function pullComplianceFromGoogleSheets(options = {}) {
     selectedSection: selectedSectionNames.length === 1 ? selectedSectionNames[0] : `${selectedSectionNames.length} checked sections`,
     selectedSections: selectedSectionNames,
     students: [],
+    gradeMatches: [],
     errors: []
   };
 
@@ -10378,12 +10505,28 @@ async function pullComplianceFromGoogleSheets(options = {}) {
       }
 
       const students = Array.isArray(payload.students) ? payload.students : [];
-      aggregate.students.push(...students.map(student => sanitizeComplianceStudentRecord(student, {
+      let cleanStudents = students.map(student => sanitizeComplianceStudentRecord(student, {
         subject: settings.subject,
         term: settings.term,
         source: 'Google Sheets',
         updatedAtText: payload.generatedAt || ''
-      })).filter(student => student.studentIdNormalized));
+      })).filter(student => student.studentIdNormalized);
+      if (cleanStudents.length) {
+        try {
+          const enhanced = await addTrustedSheetScoresToCompliance(cleanStudents, sectionConfig, settings);
+          cleanStudents = enhanced.students;
+          if (Number.isFinite(enhanced.matchedCount)) aggregate.gradeMatches.push({ section: sectionName, matched: enhanced.matchedCount, expected: enhanced.expectedCount });
+          if (enhanced.message && typeof options.onProgress === 'function') {
+            options.onProgress({ phase: 'scores', section: sectionName, message: enhanced.message, completed: index, total: configuredSections.length });
+          }
+          if (/not found|ambiguous/i.test(enhanced.message || '')) aggregate.errors.push(`${sectionName}: ${enhanced.message}`);
+        } catch (scoreError) {
+          // If grading columns are configured, fail closed rather than publish
+          // blank/incorrect bands and accidentally overwrite previous records.
+          throw new Error(`Grade/PT sync not published: ${String(scoreError?.message || scoreError).slice(0, 180)}`);
+        }
+      }
+      aggregate.students.push(...cleanStudents);
 
       if (Array.isArray(payload.errors) && payload.errors.length) {
         aggregate.errors.push(...payload.errors.map(error => String(error || '').trim()).filter(Boolean));
@@ -10427,13 +10570,66 @@ async function previewComplianceSync() {
     });
     renderComplianceSyncPreview(payload);
     const errorNote = Array.isArray(payload.errors) && payload.errors.length ? ` ${payload.errors.length} sheet issue(s) found.` : '';
-    setComplianceSyncStatus(`Preview ready for ${payload.selectedSection || 'checked section(s)'}: ${payload.students.length} student status records found. Only Term Assessment raw scores may appear for students; other scores remain hidden.${errorNote}`, payload.students.length ? 'success' : 'warning');
+    setComplianceSyncStatus(`Preview ready for ${payload.selectedSection || 'checked section(s)'}: ${payload.students.length} student status records found. PT scores appear in existing tasks; the Term Grade is color-only. Numerical Term Grades are never published.${errorNote}`, payload.students.length ? 'success' : 'warning');
   } catch (error) {
     console.warn('Compliance preview failed.', error);
-    setComplianceSyncStatus(error?.message || 'Could not preview Google Sheets.', 'error');
+    setComplianceFailureStatus(error, 'Preview grading sheets');
   } finally {
     if (previewComplianceSyncBtn) previewComplianceSyncBtn.disabled = false;
   }
+}
+
+// Before publishing official PT scores / standing colors, verify the SAME Firebase
+// Auth instance which Firestore will use for the write. A locally visible Admin
+// dashboard or cached teacher session alone does not authorize a Firestore write.
+async function verifyComplianceTeacherWriteSession() {
+  const ready = await initFirebaseSync();
+  if (!ready || !firebaseSync.auth || !firebaseSync.modules?.getDoc) {
+    throw new Error(`Firebase is not ready to publish. ${firebaseSync.lastError || 'Reconnect to the internet and reload.'}`);
+  }
+
+  // Do not fall back to firebaseSync.currentUser; that can be an observer cache.
+  const user = firebaseSync.auth.currentUser;
+  if (!user) {
+    throw new Error('No active Firebase teacher session. Close Admin, sign in with your teacher account again, and retry.');
+  }
+
+  // Force refresh the token used by Firestore. Never print or store token bytes.
+  let claims = {};
+  try {
+    if (typeof user.getIdTokenResult === 'function') {
+      const result = await user.getIdTokenResult(true);
+      claims = result?.claims || {};
+    } else if (typeof user.getIdToken === 'function') {
+      await user.getIdToken(true);
+    }
+  } catch (error) {
+    throw new Error(`Could not refresh Firebase teacher session (${error?.code || 'auth error'}). Sign out, then sign in again.`);
+  }
+
+  const email = String(claims.email || user.email || '').trim().toLowerCase();
+  const configuredTeachers = getAllowedTeacherEmails();
+  // Server-side Firestore rules remain the ultimate authorization authority.
+  if (!email || !configuredTeachers.includes(email)) {
+    throw new Error(`The Firebase account used for publishing (${email || 'unknown'}) is not the configured teacher account. Sign out of any Student session and log in as teacher.`);
+  }
+  const projectId = String(window.MCS_FIREBASE_CONFIG?.projectId || '(unknown project)');
+
+  // Admin Settings is teacher-only according to this project's Firestore rules.
+  // A read, even of an absent document, diagnoses an auth/project mismatch before
+  // a potentially large batch of student records is submitted.
+  try {
+    const serverRead = firebaseSync.modules.getDocFromServer || firebaseSync.modules.getDoc;
+    await serverRead(getComplianceSettingsDocRef());
+  } catch (error) {
+    if (isFirestorePermissionError(error) || /permission|insufficient/i.test(String(error?.message || ''))) {
+      const denied = new Error(`Firebase rejected teacher-only access in project ${projectId}. Confirm the published rules and teacher login.`);
+      denied.code = 'permission-denied';
+      throw denied;
+    }
+    throw new Error(`Teacher access check failed (${error?.code || error?.message || 'unknown error'}). No scores were published.`);
+  }
+  return { email, projectId };
 }
 
 async function publishComplianceSync() {
@@ -10443,8 +10639,12 @@ async function publishComplianceSync() {
     return;
   }
   if (publishComplianceSyncBtn) publishComplianceSyncBtn.disabled = true;
-  setComplianceSyncStatus('Reading checked section(s) from Google Sheets...', '');
+  let stage = 'Verify teacher access';
+  setComplianceSyncStatus('Verifying teacher session before publishing...', '');
   try {
+    const verifiedTeacher = await verifyComplianceTeacherWriteSession();
+    stage = 'Read grading sheets';
+    setComplianceSyncStatus('Reading checked section(s) from Google Sheets...', '');
     const payload = await pullComplianceFromGoogleSheets({
       onProgress: progress => setComplianceSyncStatus(
         progress.phase === 'retry'
@@ -10455,21 +10655,25 @@ async function publishComplianceSync() {
     });
     renderComplianceSyncPreview(payload);
     if (!payload.students.length) throw new Error('No student records found for the checked section(s). Check the Google Sheet link, student IDs, and term sheet name.');
-    const ready = await initFirebaseSync();
-    if (!ready) throw new Error(firebaseSync.lastError || 'Firebase is not ready.');
+    stage = 'Validate student records';
+    const ids = payload.students.map(student => normalizeStudentId(student.studentIdNormalized || student.studentId));
+    if (ids.some(id => !id) || new Set(ids).size !== ids.length) {
+      throw Object.assign(new Error('One or more student IDs are missing or duplicated; no records were published.'), { code: 'invalid-argument' });
+    }
+    stage = 'Publish Compliance records';
     const { setDoc, serverTimestamp, writeBatch } = firebaseSync.modules;
     const syncedAtMs = Date.now();
     let saved = 0;
     const buildComplianceSaveData = student => ({
-      ...student,
+      ...sanitizeComplianceStudentRecord(student),
       studentIdOriginal: student.studentId,
       studentId: student.studentIdNormalized,
       // Used by Firestore Rules so students can read only their own status.
-      // Only Term Assessment raw scores are saved/shown; WW/PT scores stay hidden.
+      // Only PT/Term Assessment raw scores and the color band are saved; numeric Term Grade is never saved.
       studentAuthEmail: studentIdToAuthEmail(student.studentIdNormalized),
       updatedAt: serverTimestamp(),
       updatedAtMs: syncedAtMs,
-      publishedBy: firebaseSync.auth?.currentUser?.email || firebaseSync.currentUser?.email || 'teacher'
+      publishedBy: verifiedTeacher.email
     });
 
     if (typeof writeBatch === 'function') {
@@ -10513,12 +10717,8 @@ async function publishComplianceSync() {
     renderAdminComplianceViewer();
     if (appSession.student) loadStudentComplianceStatus({ silent: true, force: true });
   } catch (error) {
-    console.warn('Compliance publish failed.', error);
-    const rawMessage = error?.message || 'Could not publish Google Sheets status.';
-    const friendlyMessage = /permission|insufficient/i.test(rawMessage)
-      ? 'Firebase Rules still block Compliance publishing. Paste the Step 136 subjectCompliance rule in Firebase > Firestore Database > Rules, then publish and try again.'
-      : rawMessage;
-    setComplianceSyncStatus(friendlyMessage, 'error');
+    console.warn(`Compliance publish failed during ${stage}.`, error);
+    setComplianceFailureStatus(error, stage);
   } finally {
     if (publishComplianceSyncBtn) publishComplianceSyncBtn.disabled = false;
   }
@@ -19736,7 +19936,7 @@ function updateInstallButtonVisibility() {
 function registerPWAServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./service-worker.js?v=637-co-third-podium-preview', {
+    navigator.serviceWorker.register('./service-worker.js?v=642-compliance-diagnostics', {
       updateViaCache: 'none'
     }).then(registration => {
       registration.update().catch(() => {});
@@ -26225,29 +26425,10 @@ async function logoutTeacher() {
   const ready = await initFirebaseSync();
 
   try {
-    if (appSession.mode === 'student' && appSession.student && isTeacherAuthenticated()) {
-      // A single browser Firebase Auth session cannot be both teacher and student at
-      // the same time. When the teacher locks the Admin panel while a student
-      // workspace is still open, keep the teacher Firebase session in the
-      // background so the student project can continue saving to the same student
-      // document. The Admin UI is still locked and requires the code/password again.
-      persistLastStudentSession('admin-lock-with-student-session');
-      adminSessionLocked = true;
-      adminUnlocked = false;
-      adminForm.classList.add('hidden');
-      adminForm.classList.remove('visible');
-      pinScreen.classList.remove('hidden');
-      if (adminPassword) adminPassword.value = '';
-      if (adminQuickCode) adminQuickCode.value = '';
-      clearAiRubricSecretFromSharedBrowser();
-      updateTeacherLoginUI(getFirebaseActiveUser());
-      setAdminLoginMode('code');
-      setStatus('Admin locked · student save session kept');
-      closeAdminPanel();
-      updateManualSaveControls();
-      return;
-    }
-
+    // Security: never leave an authenticated teacher Firebase session in a
+    // shared browser while merely hiding the admin panel. Firestore sees the
+    // real teacher token even when adminSessionLocked is true.
+    // Student workspace must sign in again with its own account to cloud-save.
     if (ready && firebaseSync.auth && firebaseSync.authModule && (firebaseSync.auth.currentUser || firebaseSync.currentUser)) {
       const { signOut } = firebaseSync.authModule;
       await signOut(firebaseSync.auth);
@@ -31074,12 +31255,14 @@ academicTermControls.forEach(control => {
       persistAcademicTermSettings(previous);
       return;
     }
+    // Persist the mapping and task labels from the OLD active term before switching.
+    saveComplianceSettings(getComplianceSettingsFromControls());
     persistAcademicTermSettings(next);
     syncRubricActivityForCurrentTerm();
     const compliance = loadComplianceSettings();
     compliance.term = currentAcademicTerm();
     saveComplianceSettings(compliance);
-    renderComplianceTaskLabels(compliance);
+    syncComplianceSettingsControls();
     const info = resolveAcademicTermInfo(academicTermSettings);
     setComplianceSyncStatus(
       academicTermSettings.mode === 'automatic'
@@ -31151,17 +31334,18 @@ saveComplianceSettingsBtn?.addEventListener('click', async () => {
   renderComplianceSectionSyncSelect(settings);
   if (saveComplianceSettingsBtn) saveComplianceSettingsBtn.disabled = true;
   setComplianceSyncStatus('Saving Compliance settings...', '');
+  let stage = 'Verify teacher access';
   try {
+    await verifyComplianceTeacherWriteSession();
+    stage = 'Save Compliance settings';
     await saveComplianceSettingsToCloud(settings);
+    stage = 'Save Academic Term Schedule';
     await saveAcademicTermSettingsToCloud(termSchedule);
     const info = resolveAcademicTermInfo(termSchedule);
     setComplianceSyncStatus(`Compliance settings and Academic Term Schedule saved. ${info.label} is currently active.`, 'success');
   } catch (error) {
-    console.warn('Could not save Compliance settings to Firebase.', error);
-    const message = /permission|insufficient/i.test(error?.message || '')
-      ? 'Firebase Rules still block Compliance settings. Add the Step 141 adminSettings rule, publish the rules, then save again.'
-      : (error?.message || 'Settings were saved only on this browser.');
-    setComplianceSyncStatus(message, 'error');
+    console.warn(`Compliance settings failed during ${stage}.`, error);
+    setComplianceFailureStatus(error, stage);
   } finally {
     if (saveComplianceSettingsBtn) saveComplianceSettingsBtn.disabled = false;
   }
@@ -43401,7 +43585,6 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   if (!shortcutLogo) return;
 
   const RECITATION_FIREBASE_VIEW_URL = 'https://sfk2627.github.io/recitation-central/view-firebase.html';
-  const RECITATION_FIREBASE_VIEW_CODE = '052400';
 
   shortcutLogo.setAttribute('role', 'button');
   shortcutLogo.setAttribute('tabindex', '0');
@@ -43414,10 +43597,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   }
 
   async function openProtectedRecitationFirebaseView() {
-    const enteredCode = window.prompt('Enter teacher shortcut code to open Recitation Central Firebase View:');
-    if (enteredCode === null) return;
-
-    if (normalizeShortcutCode(enteredCode) !== RECITATION_FIREBASE_VIEW_CODE) {
+    if (!isTeacherAuthenticated()) {
       if (typeof appAlert === 'function') {
         await appAlert('Invalid shortcut code.', {
           title: 'Access Denied',
@@ -43431,6 +43611,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       return;
     }
 
+    // The destination must independently enforce Firebase authorization.
     window.open(RECITATION_FIREBASE_VIEW_URL, '_blank', 'noopener,noreferrer');
   }
 
@@ -45845,6 +46026,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     adminAwardsOfficialSectionsBtn: $('codeExplorerAdminAwardsOfficialSectionsBtn'),
     adminAwardsOfficialStudentsBtn: $('codeExplorerAdminAwardsOfficialStudentsBtn'),
     adminAwardsOfficialAllBtn: $('codeExplorerAdminAwardsOfficialAllBtn'),
+    adminAwardsOliverRecognitionBtn: $('codeExplorerAdminAwardsOliverRecognitionBtn'),
     adminAwardsStatus: $('codeExplorerAdminAwardsStatus'),
     adminAwardsRefreshBtn: $('codeExplorerAdminAwardsRefreshBtn'),
     adminAwardsRevealPreviewBtn: $('codeExplorerAdminAwardsRevealPreviewBtn'),
@@ -57609,7 +57791,8 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       dom.adminAwardsRevealPreviewBtn,
       dom.adminAwardsOfficialSectionsBtn,
       dom.adminAwardsOfficialStudentsBtn,
-      dom.adminAwardsOfficialAllBtn
+      dom.adminAwardsOfficialAllBtn,
+      dom.adminAwardsOliverRecognitionBtn
     ].forEach(button => { if (button) button.disabled = Boolean(busy); });
     if (busy && label) setLeaderboardAwardsStatus(label, 'loading');
   }
@@ -58348,7 +58531,10 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     const accent = awardAccentForRank(rank);
     const schoolYear = normalizeLeaderboardAwardsSchoolYear(snapshot.schoolYear || leaderboardAwardsState.settings?.schoolYear || '');
     const official = snapshot.locked === true || snapshot.official === true;
-    const asOfMs = Number(snapshot.snapshotAtMs || snapshot.generatedAtMs || Date.now());
+    // Recognition date is the awards effective date, not the PDF production date.
+    const asOfMs = Number(snapshot.__recognitionEffectiveAtMs ||
+      (official ? snapshot.officialAtMs : 0) || snapshot.snapshotAtMs || snapshot.generatedAtMs || Date.now());
+    const administrativeRecognition = Boolean(record.__administrativeRecognition);
     const [logo, adminSignature] = await Promise.all([
       loadCertificateAppLogo(),
       loadCertificateAdminSignature(kind === 'sections')
@@ -58442,7 +58628,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       ctx.save(); ctx.translate(106, 560); ctx.rotate(-Math.PI / 2); ctx.textAlign = 'center'; ctx.fillStyle = '#dbeafe'; ctx.font = '800 22px Arial'; ctx.fillText('G8CODE • TOP 10 MASTERY HONORS', 0, 0); ctx.restore();
 
       ctx.textAlign = 'left'; ctx.fillStyle = '#0f8f87'; ctx.font = '800 21px Arial';
-      ctx.fillText(official ? 'OFFICIAL STUDENT RECOGNITION' : 'STUDENT RECOGNITION', 245, 118);
+      ctx.fillText(administrativeRecognition ? 'TEACHER-APPROVED STUDENT RECOGNITION' : (official ? 'OFFICIAL STUDENT RECOGNITION' : 'STUDENT RECOGNITION'), 245, 118);
       const studentCertificateTitle = 'CERTIFICATE OF ACHIEVEMENT';
       let studentTitleSize = 60;
       ctx.font = `700 ${studentTitleSize}px Georgia`;
@@ -58461,18 +58647,23 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       ctx.fillStyle = '#0f8f87'; ctx.fillRect(245, 432, Math.min(890, Math.max(330, ctx.measureText(studentName).width)), 5);
 
       ctx.fillStyle = '#475569'; ctx.font = '24px Arial';
-      ctx.fillText(`for earning Rank #${rank} among G8Code students through demonstrated mastery and consistent learning`, 245, 505);
+      ctx.fillText(administrativeRecognition ? `for teacher-approved Rank #${rank} recognition in the G8Code awards` : `for earning Rank #${rank} among G8Code students through demonstrated mastery and consistent learning`, 245, 505);
       ctx.fillStyle = '#0f2745'; ctx.font = '700 27px Arial'; ctx.fillText(awardSectionLabel(record.section || ''), 245, 558);
       ctx.fillStyle = '#64748b'; ctx.font = '22px Arial'; ctx.fillText(`School Year ${schoolYear}`, 245, 597);
 
       drawAwardSeal(ctx, 1328, 346, 105, rank, accent);
       ctx.fillStyle = '#f8fafc'; drawRoundRect(ctx, 1075, 515, 385, 160, 24, true, false);
       ctx.strokeStyle = '#d8e4e3'; ctx.lineWidth = 2; drawRoundRect(ctx, 1075, 515, 385, 160, 24, false, true);
-      ctx.fillStyle = '#0f8f87'; ctx.font = '800 18px Arial'; ctx.textAlign = 'center'; ctx.fillText('MASTERY XP', 1267, 563);
+      ctx.fillStyle = '#0f8f87'; ctx.font = '800 18px Arial'; ctx.textAlign = 'center'; ctx.fillText(administrativeRecognition ? 'CURRENT XP · NOT CUTOFF' : 'MASTERY XP', 1267, 563);
       ctx.fillStyle = '#0f2745'; ctx.font = '800 50px Arial'; ctx.fillText(Number(record.xp || 0).toLocaleString(), 1267, 625);
 
       ctx.textAlign = 'left'; ctx.fillStyle = '#64748b'; ctx.font = '19px Arial';
-      ctx.fillText(`Awarded on: ${formatLeaderboardAwardsDate(asOfMs)}`, 245, 760);
+      ctx.fillText(`${administrativeRecognition ? 'Recognition date' : 'Awarded on'}: ${formatLeaderboardAwardsDate(asOfMs)}`, 245, 760);
+      if (administrativeRecognition) {
+        ctx.font = '16px Arial';
+        ctx.fillText('3,802 XP is the October 10 current record, not verified October 5 XP.', 245, 799);
+        ctx.fillText(`Certificate generated: ${formatLeaderboardAwardsDate(Date.now())}`, 245, 827);
+      }
       if (adminSignature) {
         const signatureWidth = 198;
         const signatureHeight = Math.round(signatureWidth * (adminSignature.height / adminSignature.width));
@@ -58482,7 +58673,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(1070, 811); ctx.lineTo(1394, 811); ctx.stroke();
       ctx.fillStyle = '#334155'; ctx.font = '700 18px Arial'; ctx.fillText('ICT 8 Teacher / G8Code Administrator', 1232, 835);
       ctx.textAlign = 'left'; ctx.fillStyle = '#0f2745'; ctx.font = '800 16px Arial'; ctx.fillText('G8CODE LEADERBOARD AWARD', 245, 905);
-      ctx.fillStyle = '#64748b'; ctx.font = '15px Arial'; ctx.fillText(official ? 'OFFICIAL • LOCKED SCHOOL-YEAR RECORD' : 'LIVE LEADERBOARD RANKING', 245, 934);
+      ctx.fillStyle = '#64748b'; ctx.font = '15px Arial';       ctx.fillText(administrativeRecognition ? 'ADMINISTRATIVE RECOGNITION • ORIGINAL OFFICIAL SNAPSHOT UNCHANGED' : (official ? 'OFFICIAL • LOCKED SCHOOL-YEAR RECORD' : 'LIVE LEADERBOARD RANKING'), 245, 934);
     }
     return canvas;
   }
@@ -58513,6 +58704,49 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       pages.push({ width: canvas.width, height: canvas.height, bytes: new Uint8Array(await jpegBlob.arrayBuffer()) });
     }
     return buildWireframePdfBlob(pages, 'desktop');
+  }
+
+  // Oliver one-page certificate using the SAME official student certificate style.
+  // It keeps the official visual wording/layout and uses the official October 5, 2026
+  // award date, but prepares a single targeted page for Oliver only.
+  async function deliverOliverOct5RecognitionPdf() {
+    if (!isTeacherAuthenticated()) {
+      await appAlert('Please sign in to the Teacher/Admin account to generate this certificate.');
+      return false;
+    }
+    setLeaderboardAwardsBusy(true, 'Preparing Oliver official-style certificate…');
+    try {
+      const official = leaderboardAwardsState.official || await fetchLeaderboardAwardsOfficialSnapshot('2026-2027');
+      if (!leaderboardAwardsOfficialIsUsable(official) || String(official.schoolYear) !== '2026-2027') {
+        throw new Error('The Official 2026–2027 awards snapshot is required before generating this certificate.');
+      }
+      const recognitionAtMs = leaderboardAwardsOfficialAtMs('2026-2027');
+      const record = {
+        name: 'Gamboa, Oliver Francois Z',
+        section: 'St. Faustina Kowalska',
+        rank: 7,
+        xp: 3802
+      };
+      const recognitionSnapshot = {
+        schoolYear: '2026-2027',
+        officialAtMs: recognitionAtMs,
+        snapshotAtMs: Number(official.snapshotAtMs || 0),
+        official: true,
+        locked: true,
+        studentAwards: [record]
+      };
+      const pdf = await buildLeaderboardAwardsPdfBlob('students', recognitionSnapshot);
+      downloadBlob(pdf, 'G8Code-Oliver-Gamboa-Rank-7-Oct-05-2026.pdf');
+      setLeaderboardAwardsStatus('Oliver official-style Rank #7 certificate generated.', 'success');
+      return true;
+    } catch (error) {
+      console.error('Oliver certificate PDF failed.', error);
+      setLeaderboardAwardsStatus(error?.message || 'Could not generate Oliver certificate PDF.', 'error');
+      await appAlert(error?.message || 'Could not generate the certificate PDF.', { title: 'Oliver Certificate', danger: true, icon: '🏅' });
+      return false;
+    } finally {
+      setLeaderboardAwardsBusy(false);
+    }
   }
 
   function leaderboardAwardsFileName(kind = 'students', snapshot = {}) {
@@ -60924,6 +61158,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   dom.adminAwardsOfficialSectionsBtn?.addEventListener('click', () => deliverLeaderboardAwardsPdf('sections', { official: true }));
   dom.adminAwardsOfficialStudentsBtn?.addEventListener('click', () => deliverLeaderboardAwardsPdf('students', { official: true }));
   dom.adminAwardsOfficialAllBtn?.addEventListener('click', () => deliverLeaderboardAwardsPdf('all', { official: true }));
+  dom.adminAwardsOliverRecognitionBtn?.addEventListener('click', deliverOliverOct5RecognitionPdf);
   dom.adminPubmatRefreshBtn?.addEventListener('click', () => refreshLeaderboardAwardsLive());
   dom.adminPubmatPreviewSectionsDarkBtn?.addEventListener('click', () => deliverLeaderboardPubmat('sections', { preview: true, variant: 'dark' }));
   dom.adminPubmatDownloadSectionsDarkBtn?.addEventListener('click', () => deliverLeaderboardPubmat('sections', { variant: 'dark' }));

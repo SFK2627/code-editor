@@ -45,7 +45,7 @@
   </script>
   <link rel="preconnect" href="https://drive.google.com" crossorigin>
   <link rel="preconnect" href="https://lh3.googleusercontent.com" crossorigin>
-  <link rel="stylesheet" href="style.css?v=20261005-v637-co-third-podium-preview" />
+  <link rel="stylesheet" href="style.css?v=20261010-v639-simple-status" />
   <link rel="stylesheet" href="games/mini-games-hub.css?v=20260912-v4761-byte-runner-v81-build-hud" />
   <link rel="stylesheet" href="games/code-fly/code-fly.css?v=20260909-v429-xp-mini-games" />
   <style>
@@ -1042,6 +1042,11 @@
         <button id="studentComplianceRefreshBtn" class="ghost-btn" type="button">Refresh</button>
       </div>
       <div id="studentComplianceSummary" class="student-compliance-summary" aria-live="polite"></div>
+      <section id="studentComplianceStanding" class="student-academic-standing" aria-label="Running Term Grade standing" aria-live="polite">
+        <div class="student-standing-title">CURRENT ACADEMIC STANDING <small>Based on the published Term Grade</small></div>
+        <div id="studentComplianceStandingBadge" class="student-standing-badge unavailable"><span class="student-standing-dot" aria-hidden="true"></span><strong>NOT YET AVAILABLE</strong></div>
+        <p>This is a running standing for the active term, not a final term result. Numerical grades are private.</p>
+      </section>
       <div id="studentComplianceList" class="student-compliance-list"></div>
       <div id="studentComplianceLackingList" class="student-compliance-lacking-list" aria-live="polite"></div>
     </section>
@@ -2526,9 +2531,9 @@ https://example.com/song2.mp3"></textarea>
             <div>
               <p class="section-kicker">Google Sheets Sync</p>
               <h3 id="complianceTrackerTitle">Student Compliance Tracker</h3>
-              <p class="muted-text">Encode scores in Google Sheets. The app will publish only color/status to students, not the scores.</p>
+              <p class="muted-text">Google Sheets is your source of truth. Publish PT raw scores, Term Assessment scores, and the color-only Term Grade standing.</p>
             </div>
-            <span class="compliance-safety-pill">Scores hidden from students</span>
+            <span class="compliance-safety-pill">Numeric Term Grade hidden</span>
           </div>
 
           <details class="compliance-setup-block compliance-collapsible-setup">
@@ -2546,7 +2551,7 @@ https://example.com/song2.mp3"></textarea>
               </label>
               <label>
                 Access Key
-                <input id="complianceSyncKeyInput" type="password" placeholder="Default: 052400" autocomplete="off" />
+                <input id="complianceSyncKeyInput" type="password" placeholder="Enter your private sync key" autocomplete="off" />
               </label>
             </div>
             <p class="helper-note">These settings are protected for the teacher account. Students cannot view this setup.</p>
@@ -2665,7 +2670,7 @@ https://example.com/song2.mp3"></textarea>
               <button class="ghost-btn mini" type="button" data-compliance-task-group="TA">Term Assessment</button>
             </div>
             <div id="complianceTaskLabelsList" class="compliance-task-label-list" aria-label="Task display names"></div>
-            <p class="helper-note">Unchecked tasks will be hidden from students. Written Works and Performance Task scores stay hidden; Term Assessment raw score can be shown.</p>
+            <p class="helper-note">Unchecked tasks will be hidden from students. Published Performance Task scores and Term Assessment raw scores can be shown; Written Works scores remain hidden.</p>
           </details>
 
           <div class="compliance-admin-actions">
@@ -3227,6 +3232,7 @@ https://example.com/song3.mp3"></textarea>
                 <button id="codeExplorerAdminAwardsOfficialSectionsBtn" class="ghost-btn" type="button">Official Top 3 Sections PDF</button>
                 <button id="codeExplorerAdminAwardsOfficialStudentsBtn" class="ghost-btn" type="button">Official Top 10 Students PDF</button>
                 <button id="codeExplorerAdminAwardsOfficialAllBtn" class="primary-btn" type="button">Download All Official Awards</button>
+                <button id="codeExplorerAdminAwardsOliverRecognitionBtn" class="ghost-btn" type="button">🏅 Oliver Gamboa — Official Rank #7 PDF</button>
               </div>
             </div>
 
@@ -3677,7 +3683,7 @@ https://example.com/song3.mp3"></textarea>
       <div id="codeSendProjectMeta" class="code-transfer-project-meta"></div>
       <label class="code-transfer-field">
         <span>Send to Student ID</span>
-        <input id="codeSendStudentId" type="text" maxlength="32" autocomplete="off" placeholder="Example: 22-0544" />
+        <input id="codeSendStudentId" type="text" maxlength="32" autocomplete="off" placeholder="Enter Student ID" />
       </label>
       <div class="code-transfer-file-section">
         <div class="code-transfer-section-head">
@@ -4738,7 +4744,7 @@ https://example.com/song3.mp3"></textarea>
     })();
   </script>
 
-  <script src="script.js?v=20261005-v637-co-third-podium-preview"></script>
+  <script src="script.js?v=20261010-v642-compliance-diagnostics"></script>
   <script>
     // v410 fallback: keep the desktop editor settings popover working even if older cached
     // toolbar code fails before binding the click handler.

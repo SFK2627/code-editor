@@ -67429,3 +67429,22 @@ html[data-theme="dark"] .code-explorer-final-podium-btn { border-color: #a77e2f;
   .code-explorer-final-result-stats article span,
   .code-explorer-final-result-stats article small { grid-column: 1; grid-row: auto; text-align: left; }
 }
+
+/* v638: Student Status - private color-only computed TERM GRADE + PT score badges */
+.student-academic-standing { display: grid; gap: 10px; padding: 16px; border: 1px solid rgba(148,163,184,.24); border-radius: 18px; background: var(--card-bg, #fff); }
+.student-standing-title { font-size: .82rem; font-weight: 850; letter-spacing: .07em; color: var(--text, #12213b); }
+.student-standing-title small { display: block; margin-top: 4px; letter-spacing: 0; font-size: .77rem; font-weight: 500; color: var(--muted, #64748b); }
+.student-standing-badge { display: flex; align-items: center; justify-content: center; gap: 12px; border-radius: 15px; padding: 16px 14px; border: 1px solid var(--standing-edge); background: var(--standing-bg); color: var(--standing-fg); text-align: center; font-size: clamp(1.1rem, 2.5vw, 1.6rem); letter-spacing: .045em; }
+.student-standing-dot { width: 19px; height: 19px; flex: 0 0 19px; border-radius: 50%; background: var(--standing-dot); border: 2px solid var(--standing-edge); box-shadow: 0 0 0 3px rgba(0,0,0,.03); }
+.student-standing-badge.white { --standing-bg: #f5f6f8; --standing-fg: #252f40; --standing-dot: #fff; --standing-edge: #acb4c1; }
+.student-standing-badge.green { --standing-bg: #e2f5e8; --standing-fg: #126835; --standing-dot: #29ad5d; --standing-edge: #78c79a; }
+.student-standing-badge.yellow { --standing-bg: #fff7d2; --standing-fg: #75530c; --standing-dot: #f9c936; --standing-edge: #e4bf51; }
+.student-standing-badge.gray { --standing-bg: #e9ebee; --standing-fg: #424852; --standing-dot: #818995; --standing-edge: #aeb6bf; }
+.student-standing-badge.orange { --standing-bg: #ffecd9; --standing-fg: #a0430d; --standing-dot: #ec8932; --standing-edge: #e9a56c; }
+.student-standing-badge.red { --standing-bg: #ffe3e5; --standing-fg: #a52435; --standing-dot: #e54857; --standing-edge: #eea0a8; }
+.student-standing-badge.unavailable { --standing-bg: #f1f5f9; --standing-fg: #536174; --standing-dot: #b4bdc9; --standing-edge: #d2dae4; font-size: 1rem; }
+.student-academic-standing > p { margin: 0; font-size: .76rem; color: var(--muted, #64748b); }
+.compliance-grade-map-grid { margin: 16px 0 10px; }
+.compliance-grade-map-grid label { min-width: 0; }
+.compliance-grade-map-grid label input { width: 100%; }
+@media (max-width: 640px) { .student-academic-standing { padding: 13px; } .student-standing-badge { padding: 15px 8px; } }
