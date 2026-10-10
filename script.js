@@ -2390,15 +2390,16 @@ async function getLoginReminderComplianceRecord() {
   const ready = await initFirebaseSync();
   if (!ready) return { state: 'unavailable', record: null };
   try {
-    const { getDoc } = firebaseSync.modules;
-    const complianceDoc = await withSelectiveFirestoreCache(`subjectCompliance:${studentId}`, SELECTIVE_CACHE_SHORT_MS, async () => {
+    const { getDoc, getDocFromServer } = firebaseSync.modules;
+    const fresh = navigator.onLine !== false && typeof getDocFromServer === 'function';
+    const complianceDoc = await withSelectiveFirestoreCache(`subjectCompliance:${studentId}`, SELECTIVE_CACHE_PUBLISHED_MS, async () => {
       const snapshot = await withTimeout(
-        getDoc(getStudentComplianceDocRef(studentId)),
+        (fresh ? getDocFromServer : getDoc)(getStudentComplianceDocRef(studentId)),
         Math.min(APP_NETWORK_TIMEOUT_MS, 9000),
         'Subject status check timed out.'
       );
       return { exists: snapshotExists(snapshot), id: snapshot?.id || studentId, data: snapshotExists(snapshot) ? snapshotData(snapshot) : {} };
-    });
+    }, { force: navigator.onLine !== false });
     if (!complianceDoc.exists) return { state: 'unavailable', record: null };
     const record = { id: complianceDoc.id, ...complianceDoc.data };
     studentComplianceRecord = record;
@@ -2423,10 +2424,11 @@ async function showLoginLackingReminderAfterLogin() {
   // Let My Projects finish painting first so the reminder never blocks route setup.
   await new Promise(resolve => window.setTimeout(resolve, 120));
 
-  // Reuse the root-document cache. Returning to My Projects does not force a
-  // fresh settings read every time.
+  // v652: refresh published teacher theme/text when the student opens the
+  // popup. Only one server read per minute; an offline session keeps last-known
+  // settings. No new settings panel or direct student write is introduced.
   try {
-    const rootDoc = await readCloudActivitiesDocument();
+    const rootDoc = await readCloudActivitiesDocument({ force: navigator.onLine !== false });
     if (rootDoc?.data?.loginReminderSettings) {
       persistLoginReminderSettings(rootDoc.data.loginReminderSettings);
     }
@@ -2434,7 +2436,7 @@ async function showLoginLackingReminderAfterLogin() {
       persistAcademicTermSettings(rootDoc.data.academicTermSettings);
     }
   } catch (error) {
-    console.info('Using cached Login Reminder settings.', error);
+    console.info('Using saved Login Reminder settings while the network is unavailable.', error);
   }
 
   const settings = normalizeLoginReminderSettings(loginReminderSettings);
@@ -2897,6 +2899,7 @@ const SELECTIVE_FIRESTORE_CACHE = new Map();
 const SELECTIVE_FIRESTORE_INFLIGHT = new Map();
 const SELECTIVE_FIRESTORE_CACHE_EPOCH = new Map();
 const SELECTIVE_CACHE_SHORT_MS = 6 * 60 * 60 * 1000; // v506 persistent student/project/status cache
+const SELECTIVE_CACHE_PUBLISHED_MS = 60 * 1000; // v652: status/reminder data should refresh promptly; project caches unchanged
 const SELECTIVE_CACHE_MEDIUM_MS = 12 * 60 * 60 * 1000; // v506 root/profile cache survives reloads
 const SELECTIVE_CACHE_LONG_MS = 24 * 60 * 60 * 1000; // v506 stable settings/roster cache
 const SELECTIVE_CACHE_ADMIN_PROFILE_MS = 24 * 60 * 60 * 1000; // v507 fallback; actual admin profile TTL rolls over at 8 PM.
@@ -5479,15 +5482,23 @@ function getCloudActivitiesDocRef() {
   return doc(firebaseSync.db, firebaseSync.collectionName, firebaseSync.documentId);
 }
 
+let publishedRootLastServerReadAtMs = 0;
 async function readCloudActivitiesDocument(options = {}) {
-  const { getDoc } = firebaseSync.modules;
+  const { getDoc, getDocFromServer } = firebaseSync.modules;
+  // Root document contains lessons/activities too. Refresh published settings
+  // promptly, but avoid reading the full root repeatedly on every page action.
+  const shouldForceServer = options.force === true && navigator.onLine !== false
+    && Date.now() - publishedRootLastServerReadAtMs >= 45000;
   return withSelectiveFirestoreCache('rootDocument:activities-lessons-settings', SELECTIVE_CACHE_MEDIUM_MS, async () => {
-    const snap = await getDoc(getCloudActivitiesDocRef());
+    // A forced server read bypasses both persistent and Firebase SDK caches.
+    const reader = shouldForceServer && getDocFromServer ? getDocFromServer : getDoc;
+    const snap = await reader(getCloudActivitiesDocRef());
+    if (reader === getDocFromServer) publishedRootLastServerReadAtMs = Date.now();
     return {
       exists: snapshotExists(snap),
       data: snapshotExists(snap) ? snapshotData(snap) : {}
     };
-  }, options);
+  }, { ...options, force: shouldForceServer });
 }
 
 async function loadActivitiesFromCloud() {
@@ -5495,7 +5506,7 @@ async function loadActivitiesFromCloud() {
   if (!ready) return false;
 
   try {
-    const rootDoc = await readCloudActivitiesDocument();
+    const rootDoc = await readCloudActivitiesDocument({ force: navigator.onLine !== false });
     if (!rootDoc.exists) {
       if (isTeacherAuthenticated()) {
         await saveActivitiesToCloud();
@@ -8924,6 +8935,9 @@ async function resumeExistingStudentSession() {
 }
 
 async function logoutStudent() {
+  // Clear only published status/teacher-theme caches; never delete saved drafts.
+  clearSelectiveFirestoreCache('subjectCompliance:');
+  clearSelectiveFirestoreCache('rootDocument:');
   loginReminderPendingAfterPasswordLogin = false;
   closeLoginLackingReminder();
   const hasWireframePendingSave = Boolean(document.body.classList.contains('wireframe-maker-active') && wireframeMakerState?.dirty);
@@ -8968,6 +8982,7 @@ async function logoutStudent() {
   } catch (error) {
     console.warn('Student sign-out presence update skipped.', error);
   }
+  stopStudentComplianceLiveUpdates();
   try {
     if (firebaseSync.auth && firebaseSync.authModule) await firebaseSync.authModule.signOut(firebaseSync.auth);
   } catch (error) {
@@ -9040,6 +9055,9 @@ async function showStudentDashboard(options = {}) {
     loadStudentProjects(),
     loadStudentComplianceStatus()
   ]);
+
+  // One student-owned listener; it delivers subsequent teacher-published updates.
+  startStudentComplianceLiveUpdates().catch(() => {});
 
   // Returning from Code Explorer should paint My Projects immediately. The
   // cached dashboard stays visible first, then projects/compliance refresh in
@@ -10361,6 +10379,60 @@ async function loadAdminComplianceViewer(options = {}) {
   }
 }
 
+// v652: a single listener on THIS student's published status keeps PT scores,
+// missing requirements and standing colors current without polling. Firestore
+// Rules still limit student reads to their own compliance document.
+let activeComplianceWatchId = '';
+let activeComplianceUnsubscribe = null;
+
+function stopStudentComplianceLiveUpdates() {
+  if (typeof activeComplianceUnsubscribe === 'function') {
+    try { activeComplianceUnsubscribe(); } catch (_) {}
+  }
+  activeComplianceUnsubscribe = null;
+  activeComplianceWatchId = '';
+}
+
+async function startStudentComplianceLiveUpdates() {
+  if (appSession.mode !== 'student' || !appSession.student) return;
+  const studentId = normalizeStudentId(appSession.student.studentId || appSession.student.studentIdNormalized || appSession.student.id);
+  if (!studentId || (activeComplianceWatchId === studentId && activeComplianceUnsubscribe)) return;
+  stopStudentComplianceLiveUpdates();
+  if (!(await initFirebaseSync()) || typeof firebaseSync.modules?.onSnapshot !== 'function') return;
+  try {
+    activeComplianceWatchId = studentId;
+    activeComplianceUnsubscribe = firebaseSync.modules.onSnapshot(getStudentComplianceDocRef(studentId), snapshot => {
+      if (activeComplianceWatchId !== studentId || appSession.mode !== 'student') return;
+      const signedInId = normalizeStudentId(appSession.student?.studentId || appSession.student?.studentIdNormalized || appSession.student?.id);
+      if (signedInId !== studentId || !snapshotExists(snapshot)) return;
+      const latest = { id: snapshot.id || studentId, ...snapshotData(snapshot) };
+      const prior = studentComplianceRecord;
+      const meaningful = value => JSON.stringify({
+        term: value?.term, standingColor: value?.standingColor,
+        summary: value?.summary, tasks: value?.tasks, updatedAtMs: value?.updatedAtMs
+      });
+      if (meaningful(prior) === meaningful(latest)) return;
+      studentComplianceRecord = latest;
+      setSelectiveFirestoreCache(`subjectCompliance:${studentId}`,
+        { exists: true, id: studentId, data: snapshotData(snapshot) }, SELECTIVE_CACHE_PUBLISHED_MS);
+      if (studentComplianceOverlay && !studentComplianceOverlay.classList.contains('hidden')) {
+        renderStudentComplianceRecord(latest);
+      }
+      if (loginLackingReminderOverlay && !loginLackingReminderOverlay.classList.contains('hidden')
+          && loginLackingReminderOverlay.dataset.preview !== 'true') {
+        renderLoginLackingReminder(latest, { settings: loginReminderSettings });
+        refreshLoginReminderRecitationPoints().catch(() => {});
+      }
+    }, error => {
+      console.info('Live Student Status unavailable; foreground refresh remains enabled.', error);
+      stopStudentComplianceLiveUpdates();
+    });
+  } catch (error) {
+    console.info('Live Student Status listener could not start.', error);
+    stopStudentComplianceLiveUpdates();
+  }
+}
+
 function openStudentComplianceModal() {
   if (!isStudentAssistanceFeatureEnabled('subjectStatus')) {
     setStatus('Subject Status is hidden by teacher');
@@ -10371,9 +10443,10 @@ function openStudentComplianceModal() {
   studentComplianceOverlay.classList.remove('hidden');
   queueStudentPresenceUpdate({ currentView: 'subject_status', activityGroup: 'Subject Status', activityLabel: 'Viewing subject status' }, { force: true });
   document.body.classList.add('student-auth-open');
-  if (!studentComplianceRecord) {
-    loadStudentComplianceStatus().catch(error => console.warn('Could not refresh subject status.', error));
-  }
+  // Always revalidate published scores when the status panel is opened;
+  // cached old data must not stay visible for six hours.
+  loadStudentComplianceStatus({ silent: Boolean(studentComplianceRecord), force: navigator.onLine !== false })
+    .catch(error => console.warn('Could not refresh subject status.', error));
 }
 
 function closeStudentComplianceModal() {
@@ -10383,6 +10456,7 @@ function closeStudentComplianceModal() {
 }
 
 async function loadStudentComplianceStatus(options = {}) {
+  const forceLatest = options.force !== false && navigator.onLine !== false;
   if (!studentCompliancePanel || !appSession.student) return null;
   const studentId = appSession.student.studentId || appSession.student.studentIdNormalized || appSession.student.id;
   if (!studentId) {
@@ -10395,17 +10469,18 @@ async function loadStudentComplianceStatus(options = {}) {
     renderStudentComplianceRecord(null, { message: 'Could not connect to subject status. Please reconnect and refresh.' });
     return null;
   }
-  await loadAcademicTermSettingsFromCloud({ silent: true, force: options.force === true }).catch(() => academicTermSettings);
+  await loadAcademicTermSettingsFromCloud({ silent: true, force: false }).catch(() => academicTermSettings);
   try {
-    const { getDoc } = firebaseSync.modules;
-    const complianceDoc = await withSelectiveFirestoreCache(`subjectCompliance:${studentId}`, SELECTIVE_CACHE_SHORT_MS, async () => {
+    const { getDoc, getDocFromServer } = firebaseSync.modules;
+    const fresh = navigator.onLine !== false && typeof getDocFromServer === 'function';
+    const complianceDoc = await withSelectiveFirestoreCache(`subjectCompliance:${studentId}`, SELECTIVE_CACHE_PUBLISHED_MS, async () => {
       const snapshot = await withTimeout(
-        getDoc(getStudentComplianceDocRef(studentId)),
+        (fresh ? getDocFromServer : getDoc)(getStudentComplianceDocRef(studentId)),
         APP_NETWORK_TIMEOUT_MS,
         'Loading subject status is taking too long. Please check the internet connection.'
       );
       return { exists: snapshotExists(snapshot), id: snapshot?.id || studentId, data: snapshotExists(snapshot) ? snapshotData(snapshot) : {} };
-    }, options);
+    }, { ...options, force: forceLatest });
     if (!complianceDoc.exists) {
       studentComplianceRecord = null;
       renderStudentComplianceRecord(null, { message: 'No published subject status yet.' });
@@ -20179,23 +20254,66 @@ function updateInstallButtonVisibility() {
   installAppBtn.classList.toggle('hidden', !shouldShow);
 }
 
+// v652: background update checks without wiping student drafts or IndexedDB.
 function registerPWAServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./service-worker.js?v=644-grade-form-bridge', {
+    navigator.serviceWorker.register('./service-worker.js?v=652-live-freshness', {
       updateViaCache: 'none'
     }).then(registration => {
-      registration.update().catch(() => {});
+      let lastCheckedAt = 0;
+      const checkForUpdates = () => {
+        if (navigator.onLine === false || document.visibilityState === 'hidden') return;
+        if (Date.now() - lastCheckedAt < 60000) return;
+        lastCheckedAt = Date.now();
+        registration.update().catch(() => {});
+      };
+      checkForUpdates();
+      window.addEventListener('focus', checkForUpdates, { passive: true });
+      window.addEventListener('online', checkForUpdates, { passive: true });
+      document.addEventListener('visibilitychange', checkForUpdates, { passive: true });
 
-      // v305: when a newly deployed service worker takes control, reload once
-      // so GitHub Pages/PWA users immediately receive the matching HTML/CSS/JS build.
+      // Do not reload students out of an unfinished coding/project session.
+      // On an idle dashboard the new version can safely reload automatically.
       if (!window.__ict8SwControllerChangeBound) {
         window.__ict8SwControllerChangeBound = true;
         let refreshingForNewBuild = false;
+        const showDeferredUpdateNotice = () => {
+          let notice = document.getElementById('g8codePendingBuildNotice');
+          if (notice) return;
+          notice = document.createElement('div');
+          notice.id = 'g8codePendingBuildNotice';
+          notice.setAttribute('role', 'status');
+          notice.style.cssText = 'position:fixed;z-index:2147483000;bottom:16px;left:50%;transform:translateX(-50%);max-width:calc(100vw - 24px);background:#102a43;color:white;padding:10px 12px;border-radius:13px;box-shadow:0 9px 34px #0004;font:600 13px/1.35 system-ui,sans-serif;display:flex;align-items:center;gap:10px;';
+          const label = document.createElement('span');
+          label.textContent = 'G8Code update ready. Save your work before refreshing.';
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.textContent = 'Refresh';
+          btn.style.cssText = 'padding:7px 11px;border:0;border-radius:8px;background:#42d9df;color:#072237;font-weight:800;cursor:pointer;';
+          btn.addEventListener('click', () => {
+            if (studentProjectDirty || studentProjectSaveInFlight || (typeof wireframeMakerState !== 'undefined' && wireframeMakerState?.dirty)) {
+              label.textContent = 'Please save your project first, then refresh.';
+              return;
+            }
+            window.location.reload();
+          });
+          notice.append(label, btn);
+          document.body.appendChild(notice);
+        };
         navigator.serviceWorker.addEventListener('controllerchange', () => {
           if (refreshingForNewBuild) return;
           refreshingForNewBuild = true;
-          window.location.reload();
+          const projectUnsafe = studentProjectDirty || studentProjectSaveInFlight
+            || (typeof wireframeMakerState !== 'undefined' && wireframeMakerState?.dirty);
+          const hasActiveEditor = appSession.mode === 'student'
+            && (!studentDashboard || studentDashboard.classList.contains('hidden'));
+          const adminIsWorking = appSession.mode === 'teacher' || appSession.mode === 'admin';
+          if (projectUnsafe || hasActiveEditor || adminIsWorking) {
+            showDeferredUpdateNotice();
+          } else {
+            window.location.reload();
+          }
         });
       }
     }).catch(error => {
@@ -40727,6 +40845,48 @@ They can join again later using the same share code.`,
     attributeFilter: ['class', 'hidden', 'aria-hidden']
   });
   schedule();
+})();
+
+// v652: students returning to a tab see recently published academic data,
+// without refreshing project drafts or polling every few seconds. A single
+// foreground refresh is throttled to one pass per 90 seconds.
+(function installPublishedStatusFreshness() {
+  let lastAttemptAt = 0;
+  let running = false;
+  async function refreshPublishedStatus() {
+    if (running || navigator.onLine === false || document.visibilityState === 'hidden') return;
+    if (appSession.mode !== 'student' || !appSession.student?.uid) return;
+    if (Date.now() - lastAttemptAt < 90000) return;
+    lastAttemptAt = Date.now();
+    running = true;
+    try {
+      const [settingsResult, statusResult] = await Promise.allSettled([
+        readCloudActivitiesDocument({ force: true }),
+        loadStudentComplianceStatus({ force: true, silent: true })
+      ]);
+      if (settingsResult.status === 'fulfilled') {
+        const settings = settingsResult.value?.data || {};
+        const before = JSON.stringify(loginReminderSettings);
+        if (settings.loginReminderSettings) persistLoginReminderSettings(settings.loginReminderSettings);
+        if (settings.academicTermSettings) persistAcademicTermSettings(settings.academicTermSettings);
+        if (before !== JSON.stringify(loginReminderSettings)
+            && loginLackingReminderOverlay && !loginLackingReminderOverlay.classList.contains('hidden')
+            && loginLackingReminderOverlay.dataset.preview !== 'true') {
+          renderLoginLackingReminder(studentComplianceRecord, { settings: loginReminderSettings });
+          refreshLoginReminderRecitationPoints().catch(() => {});
+        }
+      }
+    } catch (error) {
+      console.info('Published status recheck deferred.', error);
+    } finally {
+      running = false;
+    }
+  }
+  window.addEventListener('focus', refreshPublishedStatus, { passive: true });
+  window.addEventListener('online', refreshPublishedStatus, { passive: true });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') refreshPublishedStatus();
+  }, { passive: true });
 })();
 
 /* Network, recovery, and page-lifecycle reliability. */

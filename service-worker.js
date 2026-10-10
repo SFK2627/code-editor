@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ict8-connect-v651-compact-scroll';
+const CACHE_NAME = 'ict8-connect-v652-freshness';
 const APP_SHELL = [
   './',
   './index.html',
@@ -41,7 +41,8 @@ async function networkFirstNavigation(request) {
 async function networkFirstStatic(request) {
   const cache = await caches.open(CACHE_NAME);
   try {
-    const response = await fetch(new Request(request, { cache: 'no-store' }));
+    // Force HTTP revalidation but still permit 304/ETag reuse of large JS/CSS.
+    const response = await fetch(new Request(request, { cache: 'no-cache' }));
     if (response && response.ok) cache.put(request, response.clone()).catch(() => undefined);
     return response;
   } catch (_) {
@@ -74,10 +75,15 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // v510: static app code/assets are cache-first for this deployment. The
-  // service-worker URL/cache version changes with each release, so a new build
-  // receives fresh files once while large assets (including Million Byte 50K)
-  // are not re-downloaded on every app launch.
+  // v652: the app UI code MUST NOT remain cache-first after a deployment.
+  // Always try network for the main JS/CSS/config, retain offline fallback.
+  // Heavy game content and media stay cache-first to control bandwidth.
+  const criticalShellPaths = ['script.js', 'style.css', 'firebase-config.js', 'manifest.webmanifest']
+    .map(file => new URL(file, self.registration.scope).pathname);
+  if (criticalShellPaths.includes(url.pathname)) {
+    event.respondWith(networkFirstStatic(request));
+    return;
+  }
   const extension = url.pathname.split('.').pop().toLowerCase();
   const cacheable = ['html','js','css','webmanifest','json','csv','png','jpg','jpeg','webp','svg','gif','ico','mp3','wav','ogg','m4a','woff','woff2','ttf'].includes(extension);
   const isVersionedGameCode = url.pathname.includes('/games/') && ['js','css'].includes(extension) && url.searchParams.has('v');
