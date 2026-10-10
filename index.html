@@ -45,7 +45,7 @@
   </script>
   <link rel="preconnect" href="https://drive.google.com" crossorigin>
   <link rel="preconnect" href="https://lh3.googleusercontent.com" crossorigin>
-  <link rel="stylesheet" href="style.css?v=20261010-v654-all-sections-viewer" />
+  <link rel="stylesheet" href="style.css?v=657" />
   <link rel="stylesheet" href="games/mini-games-hub.css?v=20260912-v4761-byte-runner-v81-build-hud" />
   <link rel="stylesheet" href="games/code-fly/code-fly.css?v=20260909-v429-xp-mini-games" />
   <style>
@@ -1923,6 +1923,7 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
       <div class="admin-tabs-wrap" aria-label="Admin sections">
         <div class="admin-tabs" role="tablist" aria-label="Admin sections">
           <button id="adminTabStudents" class="admin-tab-btn active" type="button" role="tab" aria-selected="true" aria-controls="studentAccountsAdmin" data-admin-tab="students">Students</button>
+          <button id="adminTabProjectCenter" class="admin-tab-btn" type="button" role="tab" aria-selected="false" aria-controls="adminProjectCenter" data-admin-tab="project-center">📂 Project Checking</button>
           <button id="adminTabNeedsAttention" class="admin-tab-btn" type="button" role="tab" aria-selected="false" aria-controls="needsAttentionAdmin" data-admin-tab="needs-attention">Needs Attention</button>
           <button id="adminTabOnline" class="admin-tab-btn" type="button" role="tab" aria-selected="false" aria-controls="onlinePresenceAdmin" data-admin-tab="online">Online Now</button>
           <button id="adminTabAssistance" class="admin-tab-btn" type="button" role="tab" aria-selected="false" aria-controls="studentAssistanceSettings" data-admin-tab="assistance">Assistance</button>
@@ -2550,6 +2551,52 @@ https://example.com/song2.mp3"></textarea>
             </table>
           </div>
           <div id="adminStudentPagination" class="admin-student-pagination hidden" aria-label="Student pages"></div>
+        </section>
+
+        <section id="adminProjectCenter" class="admin-tab-panel project-checking-center" data-admin-panel="project-center" aria-labelledby="adminProjectCenterTitle">
+          <header class="pcc-head">
+            <div>
+              <p class="section-kicker">G8Code · Teacher Workspace</p>
+              <h3 id="adminProjectCenterTitle">Project Checking Center</h3>
+              <p class="muted-text">Choose a section, pick a student, then review their saved projects, rendered output, source code, and teacher scores. Your original Students → View Projects stays available.</p>
+            </div>
+            <button id="pccRefreshBtn" class="ghost-btn" type="button">↻ Refresh Student Directory</button>
+          </header>
+          <div class="pcc-toolbar">
+            <label>Section
+              <select id="pccSectionSelect" aria-label="Choose section"><option value="">Select a section</option></select>
+            </label>
+            <label>Find Student
+              <input id="pccSearchInput" type="search" placeholder="Name or Student ID" autocomplete="off" />
+            </label>
+            <label>View
+              <select id="pccFilterSelect">
+                <option value="all">All Students</option>
+                <option value="with-projects">With Projects</option>
+                <option value="no-projects">No Projects</option>
+                <option value="scored">With Saved Results</option>
+                <option value="unscored">Without Saved Results</option>
+                <option value="recent">Projects Updated Last 7 Days</option>
+              </select>
+            </label>
+            <label>Sort
+              <select id="pccSortSelect">
+                <option value="name">Name A–Z</option>
+                <option value="most">Most Projects</option>
+                <option value="least">Fewest Projects</option>
+                <option value="recent">Recently Active</option>
+              </select>
+            </label>
+          </div>
+          <div class="pcc-metrics" aria-live="polite">
+            <div><small>Students in section</small><strong id="pccStudentsCount">—</strong></div>
+            <div><small>Reported projects</small><strong id="pccProjectsCount">—</strong></div>
+            <div><small>Saved project results</small><strong id="pccScoredCount">—</strong></div>
+            <div><small>Displayed students</small><strong id="pccVisibleCount">—</strong></div>
+          </div>
+          <p id="pccStatus" class="helper-note" role="status">Select a section to browse its student projects.</p>
+          <div id="pccStudentGrid" class="pcc-student-grid" aria-live="polite"></div>
+          <p class="pcc-footnote">Project counts are sourced from existing student records. Exact scores and latest saved code are fetched securely when you open a student's projects. Scored/unscored filters use available project indexes; students without a valid index remain visible in All Students.</p>
         </section>
 
         <section id="needsAttentionAdmin" class="admin-tab-panel needs-attention-admin" data-admin-panel="needs-attention" aria-labelledby="needsAttentionTitle">
@@ -3490,8 +3537,14 @@ https://example.com/song3.mp3"></textarea>
     <div class="admin-student-projects-card">
       <div class="admin-student-projects-header">
         <div><p class="section-kicker">Student Project Tracker</p><h2 id="adminStudentProjectsTitle">Student Projects</h2><p id="adminStudentProjectsSubtitle" class="muted-text"></p></div>
-        <div class="admin-student-projects-header-actions"><button id="refreshAdminStudentProjectsBtn" class="icon-btn" type="button" aria-label="Refresh student projects" title="Refresh projects">↻</button><button id="closeAdminStudentProjectsBtn" class="icon-btn" type="button" aria-label="Close student projects">×</button></div>
+        <div class="admin-student-projects-header-actions"><button id="pccPreviousStudentBtn" class="ghost-btn pcc-student-nav hidden" type="button" title="Previous student">← Prev Student</button><button id="pccNextStudentBtn" class="ghost-btn pcc-student-nav hidden" type="button" title="Next student">Next Student →</button><button id="refreshAdminStudentProjectsBtn" class="icon-btn" type="button" aria-label="Refresh student projects" title="Refresh projects">↻</button><button id="closeAdminStudentProjectsBtn" class="icon-btn" type="button" aria-label="Close student projects">×</button></div>
       </div>
+      <div id="pccProjectTools" class="pcc-project-tools hidden">
+        <input id="pccProjectSearch" type="search" placeholder="Search a project by name or activity..." aria-label="Search student's projects" autocomplete="off" />
+        <select id="pccProjectFilter" aria-label="Filter projects"><option value="all">All Projects</option><option value="scored">Has Saved Result</option><option value="unscored">No Saved Result</option><option value="recent">Updated Last 7 Days</option></select>
+        <select id="pccProjectSort" aria-label="Sort projects"><option value="recent">Recently Updated</option><option value="name">Name A–Z</option><option value="score">Highest Score %</option></select>
+      </div>
+      <p id="pccProjectListStatus" class="pcc-project-list-status hidden" role="status"></p>
       <div id="adminStudentProjectsList" class="admin-student-projects-list"></div>
     </div>
   </div>
@@ -3507,6 +3560,12 @@ https://example.com/song3.mp3"></textarea>
         <button id="closeAdminProjectViewerBtn" class="icon-btn" type="button" aria-label="Close project viewer">×</button>
       </div>
 
+      <nav id="pccReviewTabs" class="pcc-review-tabs" aria-label="Review project panels">
+        <button type="button" data-pcc-view="preview">◉ Output Preview</button>
+        <button type="button" data-pcc-view="code">&lt;/&gt; Source Code</button>
+        <button type="button" data-pcc-view="rubric">✓ Score &amp; Rubric</button>
+        <button type="button" data-pcc-view="split" class="active">▦ Split View</button>
+      </nav>
       <div class="admin-project-viewer-toolbar" aria-label="Project viewer controls">
         <label class="admin-project-viewer-select-wrap">
           Activity / project part
@@ -3543,7 +3602,22 @@ https://example.com/song3.mp3"></textarea>
             <strong>Output Preview</strong>
             <small id="adminProjectViewerPreviewNote">Runs inside this viewer only.</small>
           </div>
-          <iframe id="adminProjectViewerFrame" class="admin-project-viewer-frame" title="Student project output preview" sandbox="allow-scripts allow-forms allow-modals allow-popups allow-same-origin"></iframe>
+          <nav class="admin-preview-browserbar" data-admin-preview-bar="inline" aria-label="Project website navigation">
+  <div class="admin-preview-browser-buttons">
+    <button type="button" data-admin-browser-action="back" aria-label="Previous page" title="Back">←</button>
+    <button type="button" data-admin-browser-action="forward" aria-label="Next page" title="Forward">→</button>
+    <button type="button" data-admin-browser-action="reload" aria-label="Reload preview" title="Reload">↻</button>
+    <button type="button" data-admin-browser-action="home" aria-label="Project home page" title="Home">⌂</button>
+  </div>
+  <div class="admin-preview-address" data-admin-browser-address aria-live="polite">student-project.local/index.html</div>
+  <span class="admin-preview-browser-status" data-admin-browser-state>Ready</span>
+</nav>
+<details class="admin-preview-diagnostics" data-admin-preview-diagnostics>
+  <summary><span>Preview diagnostics</span><span class="admin-preview-diagnostics-summary" data-admin-browser-diagnostics-summary>Check saved files and rendering</span></summary>
+  <div data-admin-browser-diagnostics-details>Waiting for project...</div>
+</details>
+          <div id="adminProjectViewerEmptyNotice" class="admin-project-preview-empty hidden" role="status"></div>
+          <iframe id="adminProjectViewerFrame" class="admin-project-viewer-frame" title="Student project output preview" sandbox="allow-scripts allow-forms allow-modals allow-popups" referrerpolicy="no-referrer"></iframe>
         </section>
       </div>
 
@@ -3679,8 +3753,23 @@ https://example.com/song3.mp3"></textarea>
           <small id="adminProjectFullscreenPreviewNote">Desktop viewport</small>
         </div>
         <div id="adminProjectFullscreenPreviewStage" class="admin-project-fullscreen-preview-stage" aria-label="Desktop monitor preview stage">
+          <nav class="admin-preview-browserbar" data-admin-preview-bar="fullscreen" aria-label="Project website navigation">
+  <div class="admin-preview-browser-buttons">
+    <button type="button" data-admin-browser-action="back" aria-label="Previous page" title="Back">←</button>
+    <button type="button" data-admin-browser-action="forward" aria-label="Next page" title="Forward">→</button>
+    <button type="button" data-admin-browser-action="reload" aria-label="Reload preview" title="Reload">↻</button>
+    <button type="button" data-admin-browser-action="home" aria-label="Project home page" title="Home">⌂</button>
+  </div>
+  <div class="admin-preview-address" data-admin-browser-address aria-live="polite">student-project.local/index.html</div>
+  <span class="admin-preview-browser-status" data-admin-browser-state>Ready</span>
+</nav>
+<details class="admin-preview-diagnostics" data-admin-preview-diagnostics>
+  <summary><span>Preview diagnostics</span><span class="admin-preview-diagnostics-summary" data-admin-browser-diagnostics-summary>Check saved files and rendering</span></summary>
+  <div data-admin-browser-diagnostics-details>Waiting for project...</div>
+</details>
           <div id="adminProjectFullscreenDesktopCanvas" class="admin-project-fullscreen-desktop-canvas">
-            <iframe id="adminProjectFullscreenFrame" class="admin-project-fullscreen-frame" title="Student project full desktop output preview" sandbox="allow-scripts allow-forms allow-modals allow-popups allow-same-origin"></iframe>
+            <div id="adminProjectFullscreenEmptyNotice" class="admin-project-preview-empty hidden" role="status"></div>
+          <iframe id="adminProjectFullscreenFrame" class="admin-project-fullscreen-frame" title="Student project full desktop output preview" sandbox="allow-scripts allow-forms allow-modals allow-popups" referrerpolicy="no-referrer"></iframe>
           </div>
         </div>
       </div>
@@ -4825,7 +4914,7 @@ https://example.com/song3.mp3"></textarea>
     })();
   </script>
 
-  <script src="script.js?v=20261010-v654-all-sections-viewer"></script>
+  <script src="script.js?v=657"></script>
   <script>
     // v410 fallback: keep the desktop editor settings popover working even if older cached
     // toolbar code fails before binding the click handler.
