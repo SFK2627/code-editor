@@ -45,7 +45,7 @@
   </script>
   <link rel="preconnect" href="https://drive.google.com" crossorigin>
   <link rel="preconnect" href="https://lh3.googleusercontent.com" crossorigin>
-  <link rel="stylesheet" href="style.css?v=20261010-v647-standing-legend" />
+  <link rel="stylesheet" href="style.css?v=20261010-v649-status-popup-redesign" />
   <link rel="stylesheet" href="games/mini-games-hub.css?v=20260912-v4761-byte-runner-v81-build-hud" />
   <link rel="stylesheet" href="games/code-fly/code-fly.css?v=20260909-v429-xp-mini-games" />
   <style>
@@ -1079,21 +1079,48 @@
         </div>
       </div>
       <div id="loginLackingReminderMeta" class="login-lacking-reminder-meta" aria-label="Reminder details"></div>
-      <div id="loginLackingReminderRecitation" class="login-lacking-reminder-recitation" data-state="loading" aria-live="polite">
-        <div class="login-lacking-reminder-recitation-label">
-          <span class="login-lacking-reminder-recitation-icon" aria-hidden="true">🎤</span>
-          <div>
-            <strong>Recitation Points</strong>
-            <small id="loginLackingReminderRecitationTerm">Current Term</small>
+      <div class="login-reminder-priority" aria-label="Your requirement status">
+        <p id="loginLackingReminderMessage" class="login-lacking-reminder-message"></p>
+        <div id="loginLackingReminderList" class="login-lacking-reminder-list" aria-live="polite"></div>
+        <button id="loginReminderViewStatusBtn" class="login-reminder-view-status hidden" type="button">📋 Open Full Subject Status <span aria-hidden="true">→</span></button>
+      </div>
+      <div class="login-reminder-overview" aria-label="Other academic information">
+        <details id="loginLackingReminderStanding" class="login-reminder-standing" data-standing="unavailable" aria-label="Current academic standing and color legend">
+          <summary class="login-reminder-standing-head">
+            <span class="login-reminder-standing-copy">
+              <strong>🎓 CURRENT ACADEMIC STANDING</strong>
+              <small>Running grade after Midterm</small>
+            </span>
+            <span id="loginLackingReminderStandingBadge" class="login-reminder-standing-badge" aria-live="polite" aria-atomic="true"><i aria-hidden="true"></i><b>NOT YET AVAILABLE</b></span>
+            <span class="login-reminder-standing-hint"><span class="login-reminder-hint-closed">ⓘ View color legend</span><span class="login-reminder-hint-open">ⓘ Hide color legend</span><span class="login-reminder-standing-chevron" aria-hidden="true">⌄</span></span>
+          </summary>
+          <div class="login-reminder-standing-details">
+            <p><strong>What does this mean?</strong> This is your <b>running grade after Midterm</b>, based on currently recorded scores. <b>It is NOT your final Second Term Grade.</b> Your standing can still change.</p>
+            <div class="login-reminder-color-legend" aria-label="Academic color legend">
+              <div><i class="white"></i><b>WHITE</b><small>96–100</small></div>
+              <div><i class="green"></i><b>GREEN</b><small>91–95</small></div>
+              <div><i class="yellow"></i><b>YELLOW</b><small>86–90</small></div>
+              <div><i class="gray"></i><b>GRAY</b><small>81–85</small></div>
+              <div><i class="orange"></i><b>ORANGE</b><small>75–80</small></div>
+              <div><i class="red"></i><b>RED</b><small>74 &amp; below</small></div>
+            </div>
+            <small class="login-reminder-grade-privacy">Your exact numerical running grade is not shown here.</small>
+          </div>
+        </details>
+        <div id="loginLackingReminderRecitation" class="login-lacking-reminder-recitation" data-state="loading" aria-live="polite">
+          <div class="login-lacking-reminder-recitation-label">
+            <span class="login-lacking-reminder-recitation-icon" aria-hidden="true">🎤</span>
+            <div>
+              <strong>Recitation Points</strong>
+              <small id="loginLackingReminderRecitationTerm">Current Term</small>
+            </div>
+          </div>
+          <div class="login-lacking-reminder-recitation-score">
+            <strong id="loginLackingReminderRecitationPoints">—</strong>
+            <span>pts</span>
           </div>
         </div>
-        <div class="login-lacking-reminder-recitation-score">
-          <strong id="loginLackingReminderRecitationPoints">—</strong>
-          <span>pts</span>
-        </div>
       </div>
-      <p id="loginLackingReminderMessage" class="login-lacking-reminder-message"></p>
-      <div id="loginLackingReminderList" class="login-lacking-reminder-list" aria-live="polite"></div>
       <div id="loginLackingReminderMusicRow" class="login-lacking-reminder-music-row hidden">
         <button id="playLoginLackingReminderMusicBtn" class="ghost-btn" type="button">▶ Play Music</button>
         <span id="loginLackingReminderMusicStatus" class="muted-text">Music is optional.</span>
@@ -2269,11 +2296,39 @@ https://example.com/song2.mp3"></textarea>
               </div>
             </div>
 
+            <div class="login-reminder-admin-copy-intro login-reminder-field-wide">
+              <strong>✏️ Edit Student Popup Messages</strong>
+              <small>Change the greeting and notices for both states. After editing, click <b>Save Reminder to Students</b>. The actual missing/complete count remains based on the published student records.</small>
+            </div>
+            <label class="login-reminder-field">
+              <span>No Lacking — Small Heading</span>
+              <input id="loginReminderPositiveEyebrowInput" type="text" maxlength="80" value="Great Work" />
+            </label>
+            <label class="login-reminder-field">
+              <span>No Lacking — Main Title</span>
+              <input id="loginReminderPositiveTitleInput" type="text" maxlength="120" value="You're All Caught Up!" />
+            </label>
+            <label class="login-reminder-field login-reminder-field-wide">
+              <span>No Lacking — Green Notice</span>
+              <input id="loginReminderPositiveNoticeInput" type="text" maxlength="250" value="No missing requirements are listed in your latest published subject status." />
+            </label>
             <label class="login-reminder-field login-reminder-field-wide">
               <span>Positive Message — No Lacking</span>
               <textarea id="loginReminderPositiveMessageInput" rows="3">Great! You have no lacking requirements. Keep up the good work and continue maintaining your performance.</textarea>
             </label>
 
+            <label class="login-reminder-field">
+              <span>With Lackings — Small Heading</span>
+              <input id="loginReminderWarningEyebrowInput" type="text" maxlength="80" value="Action Needed" />
+            </label>
+            <label class="login-reminder-field">
+              <span>With Lackings — Main Title</span>
+              <input id="loginReminderWarningTitleInput" type="text" maxlength="120" value="You Have Lacking Requirements" />
+            </label>
+            <label class="login-reminder-field login-reminder-field-wide">
+              <span>With Lackings — List Heading</span>
+              <input id="loginReminderMissingListTitleInput" type="text" maxlength="100" value="Requirements to complete" />
+            </label>
             <label class="login-reminder-field login-reminder-field-wide">
               <span>Warning Message — With Lackings</span>
               <textarea id="loginReminderWarningMessageInput" rows="4">The {term} is nearing its end. Please complete the following missing requirements as soon as possible to avoid delays in your subject completion.</textarea>
@@ -4759,7 +4814,7 @@ https://example.com/song3.mp3"></textarea>
     })();
   </script>
 
-  <script src="script.js?v=20261010-v644-grade-form-bridge"></script>
+  <script src="script.js?v=20261010-v649-status-popup-redesign"></script>
   <script>
     // v410 fallback: keep the desktop editor settings popover working even if older cached
     // toolbar code fails before binding the click handler.

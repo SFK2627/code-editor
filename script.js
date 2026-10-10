@@ -244,6 +244,12 @@ const loginReminderMusicNextBtn = document.getElementById('loginReminderMusicNex
 const loginReminderMusicPreviewTrack = document.getElementById('loginReminderMusicPreviewTrack');
 const loginReminderPositiveMessageInput = document.getElementById('loginReminderPositiveMessageInput');
 const loginReminderWarningMessageInput = document.getElementById('loginReminderWarningMessageInput');
+const loginReminderPositiveEyebrowInput = document.getElementById('loginReminderPositiveEyebrowInput');
+const loginReminderPositiveTitleInput = document.getElementById('loginReminderPositiveTitleInput');
+const loginReminderPositiveNoticeInput = document.getElementById('loginReminderPositiveNoticeInput');
+const loginReminderWarningEyebrowInput = document.getElementById('loginReminderWarningEyebrowInput');
+const loginReminderWarningTitleInput = document.getElementById('loginReminderWarningTitleInput');
+const loginReminderMissingListTitleInput = document.getElementById('loginReminderMissingListTitleInput');
 const loginReminderThemeSelect = document.getElementById('loginReminderThemeSelect');
 const loginReminderAnimationSelect = document.getElementById('loginReminderAnimationSelect');
 const loginReminderThemeSample = document.getElementById('loginReminderThemeSample');
@@ -264,11 +270,14 @@ const loginLackingReminderEyebrow = document.getElementById('loginLackingReminde
 const loginLackingReminderTitle = document.getElementById('loginLackingReminderTitle');
 const loginLackingReminderStudent = document.getElementById('loginLackingReminderStudent');
 const loginLackingReminderMeta = document.getElementById('loginLackingReminderMeta');
+const loginLackingReminderStanding = document.getElementById('loginLackingReminderStanding');
+const loginLackingReminderStandingBadge = document.getElementById('loginLackingReminderStandingBadge');
 const loginLackingReminderRecitation = document.getElementById('loginLackingReminderRecitation');
 const loginLackingReminderRecitationTerm = document.getElementById('loginLackingReminderRecitationTerm');
 const loginLackingReminderRecitationPoints = document.getElementById('loginLackingReminderRecitationPoints');
 const loginLackingReminderMessage = document.getElementById('loginLackingReminderMessage');
 const loginLackingReminderList = document.getElementById('loginLackingReminderList');
+const loginReminderViewStatusBtn = document.getElementById('loginReminderViewStatusBtn');
 const loginLackingReminderMusicRow = document.getElementById('loginLackingReminderMusicRow');
 const playLoginLackingReminderMusicBtn = document.getElementById('playLoginLackingReminderMusicBtn');
 const loginLackingReminderMusicStatus = document.getElementById('loginLackingReminderMusicStatus');
@@ -1022,6 +1031,12 @@ const DEFAULT_LOGIN_REMINDER_SETTINGS = Object.freeze({
   musicVolume: 55,
   theme: 'classic',
   animation: 'subtle',
+  positiveEyebrow: 'Great Work',
+  positiveTitle: 'You’re All Caught Up!',
+  positiveNotice: 'No missing requirements are listed in your latest published subject status.',
+  warningEyebrow: 'Action Needed',
+  warningTitle: 'You Have Lacking Requirements',
+  missingListTitle: 'Requirements to complete',
   positiveMessage: 'Great! You have no lacking requirements. Keep up the good work and continue maintaining your performance.',
   warningMessage: 'The {term} is nearing its end. Please complete the following missing requirements as soon as possible to avoid delays in your subject completion.'
 });
@@ -1120,6 +1135,12 @@ function normalizeLoginReminderSettings(value = {}) {
     musicVolume: Number.isFinite(rawVolume) ? Math.max(0, Math.min(100, Math.round(rawVolume))) : DEFAULT_LOGIN_REMINDER_SETTINGS.musicVolume,
     theme,
     animation,
+    positiveEyebrow: cleanText(source.positiveEyebrow, DEFAULT_LOGIN_REMINDER_SETTINGS.positiveEyebrow, 80),
+    positiveTitle: cleanText(source.positiveTitle, DEFAULT_LOGIN_REMINDER_SETTINGS.positiveTitle, 120),
+    positiveNotice: cleanText(source.positiveNotice, DEFAULT_LOGIN_REMINDER_SETTINGS.positiveNotice, 250),
+    warningEyebrow: cleanText(source.warningEyebrow, DEFAULT_LOGIN_REMINDER_SETTINGS.warningEyebrow, 80),
+    warningTitle: cleanText(source.warningTitle, DEFAULT_LOGIN_REMINDER_SETTINGS.warningTitle, 120),
+    missingListTitle: cleanText(source.missingListTitle, DEFAULT_LOGIN_REMINDER_SETTINGS.missingListTitle, 100),
     positiveMessage: cleanText(source.positiveMessage, DEFAULT_LOGIN_REMINDER_SETTINGS.positiveMessage),
     warningMessage: cleanText(source.warningMessage, DEFAULT_LOGIN_REMINDER_SETTINGS.warningMessage)
   };
@@ -1207,6 +1228,12 @@ function getLoginReminderSettingsFromControls() {
     musicVolume: loginReminderMusicVolumeInput?.value,
     theme: loginReminderThemeSelect?.value,
     animation: loginReminderAnimationSelect?.value,
+    positiveEyebrow: loginReminderPositiveEyebrowInput?.value,
+    positiveTitle: loginReminderPositiveTitleInput?.value,
+    positiveNotice: loginReminderPositiveNoticeInput?.value,
+    warningEyebrow: loginReminderWarningEyebrowInput?.value,
+    warningTitle: loginReminderWarningTitleInput?.value,
+    missingListTitle: loginReminderMissingListTitleInput?.value,
     positiveMessage: loginReminderPositiveMessageInput?.value,
     warningMessage: loginReminderWarningMessageInput?.value
   });
@@ -1289,8 +1316,20 @@ function syncLoginReminderSettingsControls() {
   if (loginReminderThemeSelect) loginReminderThemeSelect.value = settings.theme;
   if (loginReminderAnimationSelect) loginReminderAnimationSelect.value = settings.animation;
   syncLoginReminderThemeSample(settings);
-  if (loginReminderPositiveMessageInput) loginReminderPositiveMessageInput.value = settings.positiveMessage;
-  if (loginReminderWarningMessageInput) loginReminderWarningMessageInput.value = settings.warningMessage;
+  // Preserve caret/selection while typing. These fields are normalized for
+  // local preview but saved to Firebase only when the teacher clicks Save.
+  [
+    [loginReminderPositiveEyebrowInput, settings.positiveEyebrow],
+    [loginReminderPositiveTitleInput, settings.positiveTitle],
+    [loginReminderPositiveNoticeInput, settings.positiveNotice],
+    [loginReminderWarningEyebrowInput, settings.warningEyebrow],
+    [loginReminderWarningTitleInput, settings.warningTitle],
+    [loginReminderMissingListTitleInput, settings.missingListTitle],
+    [loginReminderPositiveMessageInput, settings.positiveMessage],
+    [loginReminderWarningMessageInput, settings.warningMessage]
+  ].forEach(([control, text]) => {
+    if (control && document.activeElement !== control) control.value = text;
+  });
   if (loginReminderSettingsPill) {
     loginReminderSettingsPill.textContent = settings.enabled ? 'REMINDER ON' : 'REMINDER OFF';
     loginReminderSettingsPill.classList.toggle('off', !settings.enabled);
@@ -2018,6 +2057,13 @@ async function navigateFromLoginLackingReminder(destination = 'projects') {
   if (isPreview || !appSession.student) return;
 
   try {
+    if (target === 'status') {
+      if (studentDashboard?.classList.contains('hidden') || !document.body.classList.contains('student-dashboard-active')) {
+        await showStudentDashboard({ suppressStatusReminder: true });
+      }
+      openStudentComplianceModal();
+      return;
+    }
     if (target === 'lessons') {
       await openLessonLibrary('dashboard');
       return;
@@ -2154,6 +2200,40 @@ function buildLoginReminderPreviewRecord(hasLackings = false) {
   };
 }
 
+// Render missing tasks grouped by their published category. Do not invent due
+// dates, scores, or requirements: names/statuses come only from the published
+// Compliance record. All teacher task names are escaped before HTML insertion.
+function renderLoginReminderMissingGroups(tasks, settings) {
+  const groups = new Map();
+  for (const task of tasks) {
+    const label = String(task.category || 'Other Requirements').trim() || 'Other Requirements';
+    const key = /written/i.test(label) ? 'Written Works'
+      : /performance|peta/i.test(label) ? 'Performance Tasks'
+      : /assessment|exam/i.test(label) ? 'Term Assessment'
+      : label;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(task);
+  }
+  const order = ['Written Works', 'Performance Tasks', 'Term Assessment'];
+  const sorted = [...groups.entries()].sort(([a], [b]) => {
+    const ai = order.indexOf(a), bi = order.indexOf(b);
+    return (ai < 0 ? order.length : ai) - (bi < 0 ? order.length : bi);
+  });
+  const sections = sorted.map(([category, group]) => `
+    <section class="login-reminder-requirements-group" aria-label="${escapeHTML(category)} missing requirements">
+      <div class="login-reminder-requirements-group-header">
+        <strong>${escapeHTML(category)}</strong>
+        <span>${group.length} missing</span>
+      </div>
+      <ol>${group.map(task => `<li><span>${escapeHTML(task.title || 'Requirement')}</span><small>Needs completion</small></li>`).join('')}</ol>
+    </section>`).join('');
+  return `<div class="login-reminder-requirements-head">
+    <div><span class="login-reminder-requirements-overline">YOUR TO-DO LIST</span>
+      <h3>${escapeHTML(settings.missingListTitle || 'Requirements to complete')}</h3></div>
+    <span class="login-reminder-requirements-count">${tasks.length} missing</span>
+  </div><div class="login-reminder-requirements-groups">${sections}</div>`;
+}
+
 function renderLoginLackingReminder(record = null, options = {}) {
   if (!loginLackingReminderOverlay) return false;
   const settings = normalizeLoginReminderSettings(options.settings || loginReminderSettings);
@@ -2175,6 +2255,13 @@ function renderLoginLackingReminder(record = null, options = {}) {
   loginLackingReminderOverlay.dataset.theme = settings.theme;
   loginLackingReminderOverlay.dataset.animation = settings.animation;
   loginLackingReminderOverlay.dataset.preview = isPreview ? 'true' : 'false';
+  // Always start with the legend collapsed for a compact student popup.
+  if (loginLackingReminderStanding) loginLackingReminderStanding.open = false;
+  if (loginReminderViewStatusBtn) {
+    loginReminderViewStatusBtn.classList.toggle('hidden', state !== 'missing');
+    loginReminderViewStatusBtn.disabled = isPreview;
+    loginReminderViewStatusBtn.title = isPreview ? 'Available in student login only' : '';
+  }
   if (loginLackingReminderStudent) {
     const name = sanitized?.studentName || student.name || 'Student';
     loginLackingReminderStudent.textContent = `Hi, ${name}.`;
@@ -2191,6 +2278,17 @@ function renderLoginLackingReminder(record = null, options = {}) {
     loginLackingReminderMeta.innerHTML = chips.join('');
   }
 
+  // Use the SAME already-published standingColor as Student Status. Never
+  // infer a grade from completion, pass a numerical Term Grade, or show a
+  // standing from a previous term. No extra Firebase read is necessary.
+  if (loginLackingReminderStanding && loginLackingReminderStandingBadge) {
+    const standing = state === 'unavailable' ? 'unavailable' : safeComplianceStanding(sanitized?.standingColor);
+    loginLackingReminderStanding.dataset.standing = standing;
+    loginLackingReminderStandingBadge.querySelector("b").textContent = standing === 'unavailable'
+      ? 'NOT YET AVAILABLE'
+      : standing.toUpperCase();
+  }
+
   if (isPreview) {
     setLoginReminderRecitationSummary({ state: 'ready', termLabel: complianceTermFriendlyLabel(activeTerm), points: 12, note: 'Preview' });
   } else {
@@ -2199,25 +2297,25 @@ function renderLoginLackingReminder(record = null, options = {}) {
 
   if (state === 'missing') {
     if (loginLackingReminderIcon) loginLackingReminderIcon.textContent = '⚠️';
-    if (loginLackingReminderEyebrow) loginLackingReminderEyebrow.textContent = options.preview ? 'Preview · With Lackings' : 'Action Needed';
-    if (loginLackingReminderTitle) loginLackingReminderTitle.textContent = 'You Have Lacking Requirements';
+    if (loginLackingReminderEyebrow) loginLackingReminderEyebrow.textContent = isPreview ? `Preview · ${settings.warningEyebrow}` : settings.warningEyebrow;
+    if (loginLackingReminderTitle) loginLackingReminderTitle.textContent = settings.warningTitle;
     if (loginLackingReminderMessage) loginLackingReminderMessage.textContent = formatLoginReminderTermMessage(settings.warningMessage, isPreview ? (sanitized?.term || activeTerm) : activeTerm);
     if (loginLackingReminderList) {
       if (missingTasks.length) {
         // V291: render the complete missing-requirements list. The list area itself
         // becomes vertically scrollable only when it exceeds the available popup
         // height; the header and Continue button remain visible.
-        loginLackingReminderList.innerHTML = `<div class="login-lacking-reminder-list-title">Please complete:</div><ol>${missingTasks.map(task => `<li><span>${escapeHTML(task.title || 'Requirement')}</span><small>${escapeHTML(task.category || 'Requirement')}</small></li>`).join('')}</ol>`;
+        loginLackingReminderList.innerHTML = renderLoginReminderMissingGroups(missingTasks, settings);
       } else {
         loginLackingReminderList.innerHTML = '<div class="login-lacking-reminder-empty warning">Your published status reports missing requirements. Open Subject Status to view the latest details.</div>';
       }
     }
   } else if (state === 'complete') {
     if (loginLackingReminderIcon) loginLackingReminderIcon.textContent = '✅';
-    if (loginLackingReminderEyebrow) loginLackingReminderEyebrow.textContent = options.preview ? 'Preview · No Lacking' : 'Great Work';
-    if (loginLackingReminderTitle) loginLackingReminderTitle.textContent = 'You’re All Caught Up!';
+    if (loginLackingReminderEyebrow) loginLackingReminderEyebrow.textContent = isPreview ? `Preview · ${settings.positiveEyebrow}` : settings.positiveEyebrow;
+    if (loginLackingReminderTitle) loginLackingReminderTitle.textContent = settings.positiveTitle;
     if (loginLackingReminderMessage) loginLackingReminderMessage.textContent = settings.positiveMessage;
-    if (loginLackingReminderList) loginLackingReminderList.innerHTML = '<div class="login-lacking-reminder-empty success">No missing requirements are listed in your latest published subject status.</div>';
+    if (loginLackingReminderList) loginLackingReminderList.innerHTML = `<div class="login-lacking-reminder-empty success">${escapeHTML(settings.positiveNotice)}</div>`;
   } else {
     const activeLabel = complianceTermFriendlyLabel(activeTerm) || 'Current Term';
     const staleLabel = complianceTermFriendlyLabel(stalePublishedTerm);
@@ -31301,7 +31399,11 @@ loginReminderMusicPlaylistText?.addEventListener('input', () => {
   stopLoginReminderAdminPreview();
   persistLoginReminderSettings(getLoginReminderSettingsFromControls());
 });
-[loginReminderMusicUrlInput, loginReminderPositiveMessageInput, loginReminderWarningMessageInput].forEach(control => {
+[
+  loginReminderMusicUrlInput, loginReminderPositiveMessageInput, loginReminderWarningMessageInput,
+  loginReminderPositiveEyebrowInput, loginReminderPositiveTitleInput, loginReminderPositiveNoticeInput,
+  loginReminderWarningEyebrowInput, loginReminderWarningTitleInput, loginReminderMissingListTitleInput
+].forEach(control => {
   control?.addEventListener('input', () => {
     if (control === loginReminderMusicUrlInput) stopLoginReminderAdminPreview();
     persistLoginReminderSettings(getLoginReminderSettingsFromControls());
@@ -31324,6 +31426,7 @@ continueFromLoginLackingReminderBtn?.addEventListener('click', () => navigateFro
 loginReminderLessonsBtn?.addEventListener('click', () => navigateFromLoginLackingReminder('lessons'));
 loginReminderActivitiesBtn?.addEventListener('click', () => navigateFromLoginLackingReminder('activities'));
 loginReminderExplorerBtn?.addEventListener('click', () => navigateFromLoginLackingReminder('explorer'));
+loginReminderViewStatusBtn?.addEventListener('click', () => navigateFromLoginLackingReminder('status'));
 playLoginLackingReminderMusicBtn?.addEventListener('click', playLoginReminderMusicManually);
 syncLoginReminderSettingsControls();
 syncAcademicTermSettingsControls();

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ict8-connect-v647-student-standing-legend';
+const CACHE_NAME = 'ict8-connect-v649-status-popup-redesign';
 const APP_SHELL = [
   './',
   './index.html',
