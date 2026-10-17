@@ -68329,3 +68329,14 @@ html[data-theme="dark"] .code-explorer-final-podium-btn { border-color: #a77e2f;
 @keyframes grade-flat-pulse{0%,100%{opacity:1;transform:translateX(0)}50%{opacity:.65;transform:translateX(3px)}}
 @media(prefers-reduced-motion:reduce){.grade-trend-arrow{animation:none!important}}
 @media(max-width:650px){.grade-visibility-admin{padding:13px}.grade-visibility-controls{grid-template-columns:1fr}.grade-visibility-controls label{grid-column:1}.grade-visibility-admin-heading{align-items:flex-start}.login-grade-and-trend{justify-content:flex-start}.grade-trend{font-size:.67rem;padding:4px 7px}}
+
+/* v660 — color legends are visible ONLY in teacher-selected color mode. */
+#studentComplianceStanding .student-standing-legend[hidden],
+#studentComplianceStanding[data-grade-display-mode="number"] .student-standing-legend,
+#loginLackingReminderOverlay .login-reminder-standing-hint[hidden],
+#loginLackingReminderOverlay .login-reminder-standing[data-grade-display-mode="number"] .login-reminder-standing-hint {
+  display: none !important;
+}
+#loginLackingReminderOverlay .login-reminder-standing[data-grade-display-mode="number"] .login-reminder-standing-head {
+  cursor: default;
+}

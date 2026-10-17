@@ -2116,7 +2116,19 @@ async function navigateFromLoginLackingReminder(destination = 'projects') {
 loginLackingReminderStanding?.addEventListener('toggle', () => {
   const expandedLegend = document.getElementById('loginReminderExpandedLegend');
   if (!expandedLegend) return;
+  // The grade card is expandable ONLY when the admin publishes color-coded standing.
+  if (loginLackingReminderStanding.dataset.gradeDisplayMode === 'number') {
+    loginLackingReminderStanding.open = false;
+    expandedLegend.hidden = true;
+    return;
+  }
   expandedLegend.hidden = !loginLackingReminderStanding.open;
+});
+// <summary> normally toggles <details> even without our own click handler.
+// Make numeric mode a read-only grade card, with no hidden color legend to open.
+loginLackingReminderStanding?.addEventListener('click', event => {
+  if (loginLackingReminderStanding.dataset.gradeDisplayMode === 'number'
+    && event.target.closest('summary')) event.preventDefault();
 });
 
 // v651: Missing categories behave like an accordion. Expanding one collapses
@@ -9633,6 +9645,12 @@ function studentGradeDisplayText(color, record, options = {}) {
   return band.toUpperCase();
 }
 function renderStudentGradeDisplayParts(record = null) {
+  // A color legend is relevant only if the teacher selected color-coded standing.
+  // Hide it (also from assistive technology) in the numeric-grade mode.
+  const colorOnly = gradeDisplaySettings.displayMode === 'color';
+  if (studentComplianceStanding) studentComplianceStanding.dataset.gradeDisplayMode = gradeDisplaySettings.displayMode;
+  const legend = document.getElementById('studentStandingColorLegend');
+  if (legend) legend.hidden = !colorOnly;
   const sanitized = record ? sanitizeComplianceStudentRecord(record) : null;
   const active = sanitized && sanitized.term === currentAcademicTerm();
   const color = active ? safeComplianceStanding(sanitized.standingColor) : 'unavailable';
@@ -9649,6 +9667,29 @@ function renderStudentGradeDisplayParts(record = null) {
 }
 function renderLoginGradeDisplayParts(record = null, options = {}) {
   if (!loginLackingReminderStanding || !loginLackingReminderStandingBadge) return;
+  const colorOnly = gradeDisplaySettings.displayMode === 'color';
+  loginLackingReminderStanding.dataset.gradeDisplayMode = gradeDisplaySettings.displayMode;
+  loginLackingReminderStanding.setAttribute('aria-label', colorOnly
+    ? 'Current academic standing and color legend'
+    : 'Current numeric running grade');
+  const summary = loginLackingReminderStanding.querySelector('summary');
+  if (summary) {
+    // Numeric mode is not an accordion; the color-legend toggle is removed.
+    summary.tabIndex = colorOnly ? 0 : -1;
+    const gradeDescription = summary.querySelector('.login-reminder-standing-copy > small');
+    if (gradeDescription) gradeDescription.textContent = colorOnly
+      ? 'Running grade after Midterm'
+      : 'Midterm running grade · Not final';
+  }
+  const legendHint = loginLackingReminderStanding.querySelector('.login-reminder-standing-hint');
+  if (legendHint) legendHint.hidden = !colorOnly;
+  const expandedLegend = document.getElementById('loginReminderExpandedLegend');
+  if (!colorOnly) {
+    loginLackingReminderStanding.open = false;
+    if (expandedLegend) expandedLegend.hidden = true;
+  } else if (expandedLegend) {
+    expandedLegend.hidden = !loginLackingReminderStanding.open;
+  }
   const activeTerm = currentAcademicTerm();
   const sanitized = record ? sanitizeComplianceStudentRecord(record) : null;
   const matched = sanitized && sanitized.term === activeTerm;

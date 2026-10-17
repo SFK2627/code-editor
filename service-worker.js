@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ict8-connect-v659-auto-ba-from-sheets';
+const CACHE_NAME = 'ict8-connect-v660-numeric-no-legend';
 const APP_SHELL = [
   './',
   './index.html',
