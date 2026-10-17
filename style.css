@@ -68295,3 +68295,37 @@ html[data-theme="dark"] .code-explorer-final-podium-btn { border-color: #a77e2f;
   .admin-student-navigation-progress strong { font-size: .75rem; }
   .admin-student-navigation-progress small { font-size: .62rem; }
 }
+
+/* v656: teacher-controlled running grade and gentle trend indicators */
+.grade-visibility-admin{border:1px solid #c9d8ee;border-radius:17px;padding:19px;margin:16px 0;background:linear-gradient(145deg,#f8fbff,#edf5ff);color:#11284b}
+.grade-visibility-admin-heading,.grade-visibility-actions{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.grade-visibility-admin h4{margin:2px 0 6px;font-size:1.1rem;color:#092a57}
+.grade-visibility-admin .muted-text,.grade-visibility-admin .helper-note{color:#526783}
+.grade-visibility-admin-global{background:#dfedff;color:#1655aa;border-radius:40px;font-weight:800;font-size:.7rem;padding:6px 11px;white-space:nowrap}
+.grade-visibility-controls{display:grid;grid-template-columns:minmax(0,160px) minmax(0,1fr);gap:12px;align-items:center;margin:15px 0}
+.grade-visibility-controls select{width:100%;min-width:0;padding:9px;border:1px solid #b6c9df;border-radius:8px;background:white;color:#193862}
+.grade-visibility-switch{display:flex;align-items:center;gap:10px;grid-column:1/-1;font-weight:650;cursor:pointer}
+.grade-visibility-switch input{width:19px;height:19px;accent-color:#2272d0}
+.grade-visibility-preview{display:flex;align-items:center;flex-wrap:wrap;gap:12px;border-radius:10px;background:#fff;border:1px solid #d6e5f9;padding:12px;margin-bottom:12px}
+.grade-visibility-preview>small{font-size:.68rem;color:#536b88;letter-spacing:.1em;font-weight:800}
+.grade-visibility-preview-content{font-weight:900;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.grade-visibility-actions{justify-content:flex-start}
+.grade-visibility-actions button{max-width:100%}
+.student-grade-standing-line{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:8px 0}
+.login-grade-and-trend{display:inline-flex;align-items:center;gap:7px;flex-wrap:wrap;min-width:0;justify-content:flex-end}
+.student-grade-trend:empty{display:none}
+.student-grade-trend{display:inline-flex;align-items:center;gap:5px;font-size:.76rem;font-weight:850;white-space:nowrap;letter-spacing:.005em}
+.grade-trend{display:inline-flex;align-items:center;gap:5px;border-radius:20px;padding:5px 8px;font-weight:850;font-size:.75rem;background:#eef2f7;color:#42536a;white-space:nowrap}
+.grade-trend-up{background:#dcfce7;color:#166534}
+.grade-trend-down{background:#fee2e2;color:#991b1b}
+.grade-trend-same{background:#e9eff7;color:#435772}
+.grade-trend-na{background:#f1f5f9;color:#64748b}
+.grade-trend-arrow{display:inline-block;font-size:1.15em;line-height:1}
+.grade-trend-up .grade-trend-arrow{animation:grade-up-float 1.9s ease-in-out infinite}
+.grade-trend-down .grade-trend-arrow{animation:grade-down-float 1.9s ease-in-out infinite}
+.grade-trend-same .grade-trend-arrow{animation:grade-flat-pulse 2.5s ease-in-out infinite}
+@keyframes grade-up-float{0%,100%{transform:translateY(2px)}50%{transform:translateY(-3px)}}
+@keyframes grade-down-float{0%,100%{transform:translateY(-2px)}50%{transform:translateY(3px)}}
+@keyframes grade-flat-pulse{0%,100%{opacity:1;transform:translateX(0)}50%{opacity:.65;transform:translateX(3px)}}
+@media(prefers-reduced-motion:reduce){.grade-trend-arrow{animation:none!important}}
+@media(max-width:650px){.grade-visibility-admin{padding:13px}.grade-visibility-controls{grid-template-columns:1fr}.grade-visibility-controls label{grid-column:1}.grade-visibility-admin-heading{align-items:flex-start}.login-grade-and-trend{justify-content:flex-start}.grade-trend{font-size:.67rem;padding:4px 7px}}

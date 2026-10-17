@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ict8-connect-v655-student-prev-next';
+const CACHE_NAME = 'ict8-connect-v659-auto-ba-from-sheets';
 const APP_SHELL = [
   './',
   './index.html',

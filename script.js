@@ -2319,16 +2319,10 @@ function renderLoginLackingReminder(record = null, options = {}) {
     loginLackingReminderMeta.innerHTML = chips.join('');
   }
 
-  // Use the SAME already-published standingColor as Student Status. Never
-  // infer a grade from completion, pass a numerical Term Grade, or show a
-  // standing from a previous term. No extra Firebase read is necessary.
-  if (loginLackingReminderStanding && loginLackingReminderStandingBadge) {
-    const standing = state === 'unavailable' ? 'unavailable' : safeComplianceStanding(sanitized?.standingColor);
-    loginLackingReminderStanding.dataset.standing = standing;
-    loginLackingReminderStandingBadge.querySelector("b").textContent = standing === 'unavailable'
-      ? 'NOT YET AVAILABLE'
-      : standing.toUpperCase();
-  }
+  // Share one rendering policy with Subject Status; the popup never contains
+  // a numeric grade unless current global settings explicitly allow it.
+  renderLoginGradeDisplayParts(state === 'unavailable' ? null : sanitized, { preview: isPreview });
+  if (!isPreview && gradeDisplaySettings.displayMode === 'number') loadStudentReleasedGrade().catch(() => {});
 
   if (isPreview) {
     setLoginReminderRecitationSummary({ state: 'ready', termLabel: complianceTermFriendlyLabel(activeTerm), points: 12, note: 'Preview' });
@@ -8990,6 +8984,7 @@ async function logoutStudent() {
     console.warn('Student sign-out presence update skipped.', error);
   }
   stopStudentComplianceLiveUpdates();
+  stopStudentGradeDisplayWatch();
   try {
     if (firebaseSync.auth && firebaseSync.authModule) await firebaseSync.authModule.signOut(firebaseSync.auth);
   } catch (error) {
@@ -9065,6 +9060,7 @@ async function showStudentDashboard(options = {}) {
 
   // One student-owned listener; it delivers subsequent teacher-published updates.
   startStudentComplianceLiveUpdates().catch(() => {});
+  startStudentGradeDisplayWatch().catch(() => {});
 
   // Returning from Code Explorer should paint My Projects immediately. The
   // cached dashboard stays visible first, then projects/compliance refresh in
@@ -9546,6 +9542,244 @@ async function saveAcademicTermSettingsToCloud(settings = academicTermSettings) 
   }, { merge: true });
   clearSelectiveFirestoreCache('rootDocument:');
   return safe;
+}
+
+
+// v656 — ONE teacher-published grade display policy. Numerical grade records
+// stay in the teacher-grade collection; Rules grant student GET only when mode
+// is 'number' and only for their authenticated Student-ID profile.
+const DEFAULT_GRADE_DISPLAY_SETTINGS = Object.freeze({ displayMode: 'color', showTrend: true });
+const GRADE_TREND_VALUES = Object.freeze(['up', 'down', 'same', 'unavailable']);
+let gradeDisplaySettings = { ...DEFAULT_GRADE_DISPLAY_SETTINGS };
+let gradeDisplayWatchUnsubscribe = null;
+let studentReleasedGrade = null;
+let studentReleasedGradeKey = '';
+let studentReleasedGradeRead = '';
+let gradeDisplayVersion = 0;
+const gradeDisplayModeSelect = document.getElementById('gradeDisplayModeSelect');
+const gradeTrendEnabledInput = document.getElementById('gradeTrendEnabledInput');
+const gradeVisibilityPreview = document.getElementById('gradeVisibilityPreview');
+const gradeDisplaySettingsStatus = document.getElementById('gradeDisplaySettingsStatus');
+const saveGradeDisplaySettingsBtn = document.getElementById('saveGradeDisplaySettingsBtn');
+const rebuildGradeTrendsBtn = document.getElementById('rebuildGradeTrendsBtn');
+const studentGradeTrend = document.getElementById('studentGradeTrend');
+const loginGradeTrend = document.getElementById('loginGradeTrend');
+const studentStandingPrivacyNote = document.getElementById('studentStandingPrivacyNote');
+const loginGradePrivacyNote = document.getElementById('loginGradePrivacyNote');
+
+function normalizeGradeDisplaySettings(source = {}) {
+  return {
+    displayMode: source && source.displayMode === 'number' ? 'number' : 'color',
+    showTrend: source?.showTrend !== false
+  };
+}
+function safeGradeTrend(value) {
+  return GRADE_TREND_VALUES.includes(value) ? value : 'unavailable';
+}
+// TERM_2 BA / PREV. GRADES is TERM_1's grade; TERM_3 BA is TERM_2's.
+// Both grades are fetched from the same authenticated current-term sheet.
+function previousTermForGradeTrend(term) {
+  if (term === 'TERM_2') return 'TERM_1';
+  if (term === 'TERM_3') return 'TERM_2';
+  return '';
+}
+function trustedPreviousGradeFromBridgeRow(row = {}) {
+  if (!row || typeof row !== 'object') return null;
+  // Teacher-only Apps Script returns the current-term sheet's BA as previousTermGrade.
+  for (const value of [row.previousTermGrade, row.prevTermGrade, row.previousGrade, row.prevGrade, row.prevGrades]) {
+    const grade = validTeacherTermGrade(value);
+    if (grade !== null) return grade;
+  }
+  return null;
+}
+function gradeTrendFromValues(current, first) {
+  const a = validTeacherTermGrade(current);
+  const b = validTeacherTermGrade(first);
+  if (a === null || b === null) return 'unavailable';
+  return a > b ? 'up' : (a < b ? 'down' : 'same');
+}
+function buildGradeTrendMarkup(rawTrend, term) {
+  if (!gradeDisplaySettings.showTrend || !previousTermForGradeTrend(term)) return '';
+  const trend = safeGradeTrend(rawTrend);
+  const meta = {
+    up: ['grade-trend-up','↗','Improved'],
+    down: ['grade-trend-down','↘','Declined'],
+    same: ['grade-trend-same','→','Unchanged'],
+    unavailable: ['grade-trend-na','–','No comparison available']
+  }[trend];
+  return `<span class="grade-trend ${meta[0]}" title="Compared with your previous Term Grade. Current running grade is not final."><span class="grade-trend-arrow" aria-hidden="true">${meta[1]}</span>${meta[2]}</span>`;
+}
+function getGradeDisplaySettingsDocRef() {
+  const { doc } = firebaseSync.modules;
+  return doc(firebaseSync.db, firebaseSync.collectionName, firebaseSync.documentId, 'gradeDisplaySettings', 'global');
+}
+function gradeDisplayCurrentRecord() {
+  if (appSession.mode !== 'student' || !appSession.student || !studentComplianceRecord) return null;
+  const id = normalizeStudentId(appSession.student.studentId || appSession.student.studentIdNormalized || appSession.student.id);
+  if (!id || normalizeStudentId(studentComplianceRecord.studentId || studentComplianceRecord.studentIdNormalized || studentComplianceRecord.id) !== id) return null;
+  if (studentComplianceRecord.term !== currentAcademicTerm()) return null;
+  return studentComplianceRecord;
+}
+function studentGradeDisplayText(color, record, options = {}) {
+  const band = safeComplianceStanding(color);
+  if (band === 'unavailable') return 'NOT YET AVAILABLE';
+  const id = normalizeStudentId(record?.studentIdNormalized || record?.studentId || record?.id);
+  const term = String(record?.term || '');
+  const currentId = normalizeStudentId(appSession.student?.studentId || appSession.student?.studentIdNormalized || appSession.student?.id);
+  if (!options.preview && gradeDisplaySettings.displayMode === 'number' && id && id === currentId && term === currentAcademicTerm()
+    && studentReleasedGradeKey === `${id}:${term}` && studentReleasedGrade !== null) {
+    return String(studentReleasedGrade);
+  }
+  return band.toUpperCase();
+}
+function renderStudentGradeDisplayParts(record = null) {
+  const sanitized = record ? sanitizeComplianceStudentRecord(record) : null;
+  const active = sanitized && sanitized.term === currentAcademicTerm();
+  const color = active ? safeComplianceStanding(sanitized.standingColor) : 'unavailable';
+  const label = studentGradeDisplayText(color, active ? sanitized : null);
+  if (studentComplianceStandingBadge) {
+    studentComplianceStandingBadge.className = `student-standing-badge ${color}`;
+    studentComplianceStandingBadge.innerHTML = `<span class="student-standing-dot" aria-hidden="true"></span><strong>${escapeHTML(label)}</strong>`;
+  }
+  if (studentGradeTrend) studentGradeTrend.innerHTML = active && color !== 'unavailable'
+    ? buildGradeTrendMarkup(sanitized.gradeTrend, sanitized.term) : '';
+  if (studentStandingPrivacyNote) studentStandingPrivacyNote.textContent = gradeDisplaySettings.displayMode === 'number'
+    ? 'Your current running grade is shown numerically when a grade has been published. It is not your final term grade.'
+    : 'Your exact numerical running grade is not displayed here.';
+}
+function renderLoginGradeDisplayParts(record = null, options = {}) {
+  if (!loginLackingReminderStanding || !loginLackingReminderStandingBadge) return;
+  const activeTerm = currentAcademicTerm();
+  const sanitized = record ? sanitizeComplianceStudentRecord(record) : null;
+  const matched = sanitized && sanitized.term === activeTerm;
+  const standing = matched ? safeComplianceStanding(sanitized.standingColor) : 'unavailable';
+  loginLackingReminderStanding.dataset.standing = standing;
+  const label = studentGradeDisplayText(standing, matched ? sanitized : null, options);
+  const content = loginLackingReminderStandingBadge.querySelector('b');
+  if (content) content.textContent = label;
+  if (loginGradeTrend) loginGradeTrend.innerHTML = matched && standing !== 'unavailable'
+    ? buildGradeTrendMarkup(sanitized.gradeTrend, sanitized.term) : '';
+  if (loginGradePrivacyNote) loginGradePrivacyNote.textContent = gradeDisplaySettings.displayMode === 'number'
+    ? 'Your numeric grade is your current running grade, not your final term grade.'
+    : 'Your exact numerical running grade is not shown here.';
+}
+function refreshVisibleGradeDisplays() {
+  renderStudentGradeDisplayParts(gradeDisplayCurrentRecord());
+  if (loginLackingReminderOverlay && !loginLackingReminderOverlay.classList.contains('hidden')) {
+    const preview = loginLackingReminderOverlay.dataset.preview === 'true';
+    if (!preview) renderLoginGradeDisplayParts(gradeDisplayCurrentRecord());
+  }
+}
+function syncGradeDisplayAdminControls() {
+  if (gradeDisplayModeSelect) gradeDisplayModeSelect.value = gradeDisplaySettings.displayMode;
+  if (gradeTrendEnabledInput) gradeTrendEnabledInput.checked = gradeDisplaySettings.showTrend;
+  updateGradeVisibilityPreview();
+}
+function updateGradeVisibilityPreview() {
+  if (!gradeVisibilityPreview) return;
+  const display = gradeDisplayModeSelect?.value === 'number' ? '92 (GREEN)' : 'GREEN';
+  gradeVisibilityPreview.innerHTML = `${display} ${gradeTrendEnabledInput?.checked ? '<span class="grade-trend grade-trend-up"><span class="grade-trend-arrow">↗</span>Improved</span>' : ''}`;
+}
+function applyGradeDisplaySettings(value = {}) {
+  const next = normalizeGradeDisplaySettings(value);
+  const changed = next.displayMode !== gradeDisplaySettings.displayMode;
+  gradeDisplaySettings = next;
+  if (changed) {
+    gradeDisplayVersion += 1;
+    studentReleasedGrade = null;
+    studentReleasedGradeKey = '';
+    studentReleasedGradeRead = '';
+  }
+  syncGradeDisplayAdminControls();
+  refreshVisibleGradeDisplays();
+  if (next.displayMode === 'number' && appSession.mode === 'student') {
+    loadStudentReleasedGrade().catch(() => {});
+  }
+}
+async function loadGradeDisplaySettingsFromCloud() {
+  if (!(await initFirebaseSync())) throw new Error('Firebase is unavailable.');
+  const { getDoc, getDocFromServer } = firebaseSync.modules;
+  // A missing/failed read means COLOR ONLY; never trust stale local permissions.
+  const reader = typeof getDocFromServer === 'function' && navigator.onLine !== false ? getDocFromServer : getDoc;
+  const snapshot = await reader(getGradeDisplaySettingsDocRef());
+  applyGradeDisplaySettings(snapshotExists(snapshot) ? snapshotData(snapshot) : DEFAULT_GRADE_DISPLAY_SETTINGS);
+  if (gradeDisplaySettingsStatus && isTeacherAuthenticated()) {
+    gradeDisplaySettingsStatus.textContent = 'Saved global setting loaded from Firebase.';
+  }
+  return gradeDisplaySettings;
+}
+async function saveGradeDisplaySettingsToCloud() {
+  if (!isTeacherAuthenticated()) throw new Error('Teacher login is required.');
+  await verifyComplianceTeacherWriteSession();
+  const next = normalizeGradeDisplaySettings({ displayMode: gradeDisplayModeSelect?.value, showTrend: gradeTrendEnabledInput?.checked });
+  const { setDoc, serverTimestamp } = firebaseSync.modules;
+  await setDoc(getGradeDisplaySettingsDocRef(), { ...next, updatedAt: serverTimestamp(), updatedAtMs: Date.now() }, { merge: true });
+  applyGradeDisplaySettings(next);
+  return next;
+}
+async function startStudentGradeDisplayWatch() {
+  if (appSession.mode !== 'student' || !appSession.student) return;
+  if (gradeDisplayWatchUnsubscribe) return;
+  if (!(await initFirebaseSync())) return;
+  if (appSession.mode !== 'student' || !appSession.student) return;
+  try {
+    const { onSnapshot } = firebaseSync.modules;
+    if (typeof onSnapshot === 'function') {
+      gradeDisplayWatchUnsubscribe = onSnapshot(getGradeDisplaySettingsDocRef(), snapshot => {
+        if (appSession.mode !== 'student') return;
+        // A locally cached setting is not proof that numerical disclosure
+        // is STILL authorized; wait for a fresh server-backed policy.
+        const fromCache = snapshot?.metadata?.fromCache === true;
+        const saved = snapshotExists(snapshot) ? snapshotData(snapshot) : DEFAULT_GRADE_DISPLAY_SETTINGS;
+        applyGradeDisplaySettings(fromCache ? { ...saved, displayMode: 'color' } : saved);
+      }, error => {
+        console.warn('Grade visibility setting update unavailable; hiding numerical grade.', error);
+        stopStudentGradeDisplayWatch();
+      });
+      return;
+    }
+    await loadGradeDisplaySettingsFromCloud();
+  } catch (error) {
+    console.warn('Grade settings could not load; keeping color-only.', error);
+    stopStudentGradeDisplayWatch();
+  }
+}
+function stopStudentGradeDisplayWatch() {
+  gradeDisplayVersion += 1;
+  if (typeof gradeDisplayWatchUnsubscribe === 'function') try { gradeDisplayWatchUnsubscribe(); } catch (_) {}
+  gradeDisplayWatchUnsubscribe = null;
+  studentReleasedGrade = null;
+  studentReleasedGradeKey = '';
+  studentReleasedGradeRead = '';
+  applyGradeDisplaySettings(DEFAULT_GRADE_DISPLAY_SETTINGS);
+}
+async function loadStudentReleasedGrade(options = {}) {
+  if (appSession.mode !== 'student' || !appSession.student || gradeDisplaySettings.displayMode !== 'number') return;
+  const record = gradeDisplayCurrentRecord();
+  if (!record) return;
+  const id = normalizeStudentId(record.studentIdNormalized || record.studentId || record.id);
+  const term = record.term;
+  const key = `${id}:${term}`;
+  if (!options.force && (studentReleasedGradeKey === key || studentReleasedGradeRead === key)) return;
+  const version = gradeDisplayVersion;
+  studentReleasedGradeRead = key;
+  try {
+    if (!(await initFirebaseSync())) return;
+    // Never obtain sensitive grade bytes from SDK offline cache. If the
+    // teacher has since switched to color-only, Firestore must decide access.
+    if (navigator.onLine === false || typeof firebaseSync.modules.getDocFromServer !== 'function') return;
+    const snapshot = await firebaseSync.modules.getDocFromServer(getTeacherComplianceGradeDocRef(id, term));
+    if (version !== gradeDisplayVersion || gradeDisplaySettings.displayMode !== 'number'
+      || appSession.mode !== 'student' || gradeDisplayCurrentRecord()?.term !== term
+      || normalizeStudentId(appSession.student?.studentId || appSession.student?.studentIdNormalized || appSession.student?.id) !== id) return;
+    studentReleasedGrade = snapshotExists(snapshot) ? validTeacherTermGrade(snapshotData(snapshot).termGrade) : null;
+    studentReleasedGradeKey = key;
+    refreshVisibleGradeDisplays();
+  } catch (error) {
+    console.info('Numerical grade is not available for this student with current permissions.', error);
+  } finally {
+    if (studentReleasedGradeRead === key) studentReleasedGradeRead = '';
+  }
 }
 
 const COMPLIANCE_STANDING_COLORS = Object.freeze(['white', 'green', 'yellow', 'gray', 'orange', 'red']);
@@ -10166,16 +10400,14 @@ function sanitizeComplianceStudentRecord(record = {}, fallback = {}) {
     updatedAtMs: Number(record.updatedAtMs || Date.now()),
     summary,
     tasks,
-    standingColor: safeComplianceStanding(record.standingColor)
+    standingColor: safeComplianceStanding(record.standingColor),
+    gradeTrend: safeGradeTrend(record.gradeTrend)
   };
 }
 
 function renderStudentComplianceStanding(color = 'unavailable') {
-  if (!studentComplianceStandingBadge) return;
-  const safe = safeComplianceStanding(color);
-  studentComplianceStandingBadge.className = `student-standing-badge ${safe}`;
-  const label = safe === 'unavailable' ? 'NOT YET AVAILABLE' : safe.toUpperCase();
-  studentComplianceStandingBadge.innerHTML = `<span class="student-standing-dot" aria-hidden="true"></span><strong>${label}</strong>`;
+  const current = gradeDisplayCurrentRecord();
+  renderStudentGradeDisplayParts(current && safeComplianceStanding(current.standingColor) === safeComplianceStanding(color) ? current : null);
 }
 
 function renderStudentComplianceRecord(record = null, options = {}) {
@@ -10206,7 +10438,8 @@ function renderStudentComplianceRecord(record = null, options = {}) {
     if (studentComplianceLackingList) studentComplianceLackingList.innerHTML = `<div class="student-compliance-lacking-card"><strong>${escapeHTML(activeLabel)} Lacking List</strong><p>No ${escapeHTML(activeLabel)} status has been published yet.</p><small>Previous published term: ${escapeHTML(previousLabel)} · Updated ${escapeHTML(previousUpdated)}</small></div>`;
     return;
   }
-  renderStudentComplianceStanding(sanitized.standingColor);
+  renderStudentGradeDisplayParts(sanitized);
+  if (gradeDisplaySettings.displayMode === 'number') loadStudentReleasedGrade().catch(() => {});
   const summary = sanitized.summary || summarizeComplianceTasks(sanitized.tasks);
   const updatedText = sanitized.updatedAtText || formatStudentDate(sanitized.updatedAtMs, 'recently');
   if (studentComplianceMeta) {
@@ -10368,7 +10601,7 @@ function buildAdminComplianceStudentDetailMarkup(record = null, options = {}) {
         <div><small>RUNNING STANDING</small><strong class="compliance-admin-band ${escapeAttribute(standing)}">${escapeHTML(standing === 'unavailable' ? 'NOT YET AVAILABLE' : standing.toUpperCase())}</strong></div>
         <div><small>TERM GRADE · TEACHER ONLY</small><strong class="compliance-admin-grade-value">${escapeHTML(gradeText)}</strong></div>
       </div>
-      <small class="compliance-admin-grade-note">Running grade after Midterm; not the final Second Term Grade. Numerical grade is visible only to the authenticated teacher.</small>
+      <small class="compliance-admin-grade-note">Running grade after Midterm; not the final term grade. Students see the number only when the global teacher-controlled setting allows it.</small>
       <div class="compliance-detail-summary">
         <span><strong>${Number(summary.complete || 0)}</strong><small>Complete</small></span>
         <span><strong>${Number(summary.missing || 0)}</strong><small>Missing</small></span>
@@ -10568,11 +10801,16 @@ async function startStudentComplianceLiveUpdates() {
       const latest = { id: snapshot.id || studentId, ...snapshotData(snapshot) };
       const prior = studentComplianceRecord;
       const meaningful = value => JSON.stringify({
-        term: value?.term, standingColor: value?.standingColor,
+        term: value?.term, standingColor: value?.standingColor, gradeTrend: value?.gradeTrend,
         summary: value?.summary, tasks: value?.tasks, updatedAtMs: value?.updatedAtMs
       });
       if (meaningful(prior) === meaningful(latest)) return;
       studentComplianceRecord = latest;
+      gradeDisplayVersion += 1; // invalidate any older grade-fetch response
+      studentReleasedGradeRead = '';
+      studentReleasedGradeKey = '';
+      studentReleasedGrade = null;
+      if (gradeDisplaySettings.displayMode === 'number') loadStudentReleasedGrade({ force: true }).catch(() => {});
       setSelectiveFirestoreCache(`subjectCompliance:${studentId}`,
         { exists: true, id: studentId, data: snapshotData(snapshot) }, SELECTIVE_CACHE_PUBLISHED_MS);
       if (studentComplianceOverlay && !studentComplianceOverlay.classList.contains('hidden')) {
@@ -10647,7 +10885,15 @@ async function loadStudentComplianceStatus(options = {}) {
       return null;
     }
     studentComplianceRecord = { id: complianceDoc.id, ...complianceDoc.data };
+    // A newly published Term Grade replaces any old numerical value in memory.
+    if (options.force !== false && (studentReleasedGradeKey || studentReleasedGradeRead)) {
+      gradeDisplayVersion += 1; // never allow a stale grade fetch to win
+      studentReleasedGradeRead = '';
+      studentReleasedGradeKey = '';
+      studentReleasedGrade = null;
+    }
     renderStudentComplianceRecord(studentComplianceRecord);
+    if (gradeDisplaySettings.displayMode === 'number') loadStudentReleasedGrade({ force: options.force === true }).catch(() => {});
     return studentComplianceRecord;
   } catch (error) {
     console.warn('Could not load subject compliance status.', error);
@@ -10764,13 +11010,16 @@ function renderComplianceSyncPreview(payload = {}) {
   const samples = students.slice(0, 5).map(student => sanitizeComplianceStudentRecord(student));
   const errors = Array.isArray(payload.errors) ? payload.errors.filter(Boolean) : [];
   const gradeMatches = Array.isArray(payload.gradeMatches) ? payload.gradeMatches : [];
+  const eligibleForTrend = students.filter(student => previousTermForGradeTrend(student.term));
+  const matchedPreviousCount = eligibleForTrend.filter(student => validTeacherTermGrade(student._privateTeacherPreviousGrade) !== null).length;
   complianceSyncPreview.innerHTML = `
     <div class="compliance-preview-stats">
       <span><strong>${students.length}</strong><small>students</small></span>
       <span><strong>${sectionCount}</strong><small>sections</small></span>
       <span><strong>${taskCount}</strong><small>visible tasks max</small></span>
     </div>
-    ${gradeMatches.length ? `<p class="helper-note"><strong>Verified grading-sheet matches:</strong> ${gradeMatches.map(item => `${escapeHTML(item.section)}: ${Number(item.matched)}/${Number(item.expected)}`).join(' · ')}</p>` : ''}
+    ${gradeMatches.length ? `<p class="helper-note"><strong>Verified grading-sheet matches:</strong> ${gradeMatches.map(item => `${escapeHTML(item.section)}: ${Number(item.matched)}/${Number(item.expected)} · PREV. GRADES: ${Number(item.previous)}/${Number(item.expected)}`).join(' · ')}</p>` : ''}
+    ${eligibleForTrend.length ? `<p class="helper-note"><strong>Previous term grades found from Sheets:</strong> ${matchedPreviousCount}/${eligibleForTrend.length}. The trend uses current grade versus the matching Student ID's previous term grade, not spreadsheet row number.</p>` : ''}
     ${errors.length ? `<div class="compliance-preview-errors"><strong>Sheets that need retry/checking:</strong>${errors.slice(0, 6).map(error => `<small>${escapeHTML(error)}</small>`).join('')}</div>` : ''}
     ${samples.length ? `<div class="compliance-preview-list">${samples.map(student => `
       <div class="compliance-preview-row">
@@ -10905,6 +11154,11 @@ async function addTrustedSheetScoresToCompliance(students = [], sectionConfig = 
       !(response.students || []).every(row => Array.isArray(row.writtenWorkScores) && Array.isArray(row.termAssessmentScores))) {
     throw new Error('The deployed Code.gs is outdated. Deploy the matching v653 Code.gs before syncing so 0 scores are not marked Missing.');
   }
+  if (previousTermForGradeTrend(settings.term) &&
+      (!Object.prototype.hasOwnProperty.call(response, 'previousGradeMatchedCount') ||
+       !(response.students || []).every(row => Object.prototype.hasOwnProperty.call(row, 'previousTermGrade')))) {
+    throw new Error('Secure grade reader has not been updated to read PREV. GRADES (BA). Deploy the updated Code.gs as a NEW Apps Script web-app version before syncing.');
+  }
   const byStudent = new Map((response.students || []).map(item => [normalizeStudentId(item.studentId), item]));
   const enriched = students.map(student => {
     const matched = byStudent.get(student.studentIdNormalized);
@@ -10934,10 +11188,17 @@ async function addTrustedSheetScoresToCompliance(students = [], sectionConfig = 
       ...sanitizeComplianceStudentRecord({ ...student, standingColor: matched.standingColor, tasks: updatedTasks }),
       // Admin in-memory only; stripped out by sanitizeComplianceStudentRecord
       // before writing student-readable subjectCompliance.
-      _privateTeacherTermGrade: validTeacherTermGrade(matched.teacherTermGrade)
+      _privateTeacherTermGrade: validTeacherTermGrade(matched.teacherTermGrade),
+      _privateTeacherPreviousGrade: trustedPreviousGradeFromBridgeRow(matched)
     };
   });
-  return { students: enriched, matchedCount: Number(response.matchedCount || 0), expectedCount: expected.length, message: `${Number(response.matchedCount || 0)}/${expected.length} students matched to grading sheet` };
+  return {
+    students: enriched,
+    matchedCount: Number(response.matchedCount || 0),
+    previousMatchedCount: Number(response.previousGradeMatchedCount || 0),
+    expectedCount: expected.length,
+    message: `${Number(response.matchedCount || 0)}/${expected.length} students matched; ${Number(response.previousGradeMatchedCount || 0)} previous grades from the same Google Sheet`
+  };
 }
 
 async function pullComplianceFromGoogleSheets(options = {}) {
@@ -11017,7 +11278,7 @@ async function pullComplianceFromGoogleSheets(options = {}) {
         try {
           const enhanced = await addTrustedSheetScoresToCompliance(cleanStudents, sectionConfig, settings);
           cleanStudents = enhanced.students;
-          if (Number.isFinite(enhanced.matchedCount)) aggregate.gradeMatches.push({ section: sectionName, matched: enhanced.matchedCount, expected: enhanced.expectedCount });
+          if (Number.isFinite(enhanced.matchedCount)) aggregate.gradeMatches.push({ section: sectionName, matched: enhanced.matchedCount, previous: enhanced.previousMatchedCount, expected: enhanced.expectedCount });
           if (enhanced.message && typeof options.onProgress === 'function') {
             options.onProgress({ phase: 'scores', section: sectionName, message: enhanced.message, completed: index, total: configuredSections.length });
           }
@@ -11073,7 +11334,7 @@ async function previewComplianceSync() {
     });
     renderComplianceSyncPreview(payload);
     const errorNote = Array.isArray(payload.errors) && payload.errors.length ? ` ${payload.errors.length} sheet issue(s) found.` : '';
-    setComplianceSyncStatus(`Preview ready: ${payload.students.length} students checked. 0 is Complete; blank is Missing for assigned tasks. PT scores and grade colors go to Student Status; numerical Term Grades are teacher-only.${errorNote}`, payload.students.length ? 'success' : 'warning');
+    setComplianceSyncStatus(`Preview ready: ${payload.students.length} students checked. 0 is Complete; blank is Missing for assigned tasks. PT scores and grade colors go to Student Status; numeric grades are released only if enabled by your global setting.${errorNote}`, payload.students.length ? 'success' : 'warning');
   } catch (error) {
     console.warn('Compliance preview failed.', error);
     setComplianceFailureStatus(error, 'Preview grading sheets');
@@ -11140,6 +11401,132 @@ function settingsTermForPublishedGrade(student) {
   return COMPLIANCE_TERMS.includes(term) ? term : currentAcademicTerm();
 }
 
+
+// Fetch the historical, teacher-private First Term record. Do not publish its
+// number or the difference, just one of: up/down/same/unavailable.
+async function teacherGradeForComparison(studentId, term) {
+  const { getDoc, getDocFromServer } = firebaseSync.modules;
+  const reader = getDocFromServer || getDoc;
+  try {
+    const snapshot = await reader(getTeacherComplianceGradeDocRef(studentId, term));
+    return snapshotExists(snapshot) ? validTeacherTermGrade(snapshotData(snapshot).termGrade) : null;
+  } catch (error) {
+    console.warn('Historical grade unavailable for comparison.', error);
+    return null;
+  }
+}
+async function mapWithGradeLimit(records, maxConcurrent, mapper, progress = () => {}) {
+  let cursor = 0;
+  let completed = 0;
+  const result = new Array(records.length);
+  const worker = async () => {
+    while (cursor < records.length) {
+      const i = cursor++;
+      result[i] = await mapper(records[i], i);
+      completed++;
+      if (completed % 20 === 0 || completed === records.length) progress(completed, records.length);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(maxConcurrent, records.length) }, () => worker()));
+  return result;
+}
+async function addGradeTrendToPublishPayload(students, onProgress = () => {}) {
+  return mapWithGradeLimit(students, 12, async student => {
+    const previousTerm = previousTermForGradeTrend(settingsTermForPublishedGrade(student));
+    if (!previousTerm) return { ...student, gradeTrend: 'unavailable' };
+    // The authenticated bridge reads BA directly from the SAME current-term
+    // worksheet as AW. No other worksheet or historical Firebase comparison.
+    const previousGrade = validTeacherTermGrade(student._privateTeacherPreviousGrade);
+    return { ...student, gradeTrend: gradeTrendFromValues(student._privateTeacherTermGrade, previousGrade) };
+  }, onProgress);
+}
+async function rebuildPublishedGradeTrends() {
+  if (rebuildGradeTrendsBtn) rebuildGradeTrendsBtn.disabled = true;
+  try {
+    await verifyComplianceTeacherWriteSession();
+    if (gradeDisplaySettingsStatus) gradeDisplaySettingsStatus.textContent = 'Reading active-term PREV. GRADES from Google Sheets…';
+    const { getDocs, writeBatch } = firebaseSync.modules;
+    const snapshots = await getDocs(getComplianceCollectionRef());
+    const activeTerm = currentAcademicTerm();
+    if (!previousTermForGradeTrend(activeTerm)) {
+      if (gradeDisplaySettingsStatus) gradeDisplaySettingsStatus.textContent = 'First Term has no earlier Term Grade to compare.';
+      return;
+    }
+    const eligible = (snapshots.docs || []).filter(snap => snapshotData(snap).term === activeTerm);
+    const configs = getConfiguredComplianceSections(getComplianceSettingsFromControls());
+    const sectionKey = name => String(name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const groups = configs.map(config => ({
+      config,
+      members: eligible.filter(snap => sectionKey(snapshotData(snap).section) === sectionKey(config.section))
+    })).filter(item => item.members.length);
+    const sheetRowsById = new Map();
+    const issues = [];
+    await mapWithGradeLimit(groups, 3, async ({ config, members }) => {
+      try {
+        const response = await callTeacherGradingSheetBridge({
+          action: 'readTeacherTermGradeBands',
+          sheetUrl: config.spreadsheetId,
+          term: activeTerm, // IMPORTANT: BA is in the current TERM_2/TERM_3 tab.
+          students: members.map(snap => ({
+            studentId: normalizeStudentId(snapshotData(snap).studentIdNormalized || snap.id),
+            studentName: String(snapshotData(snap).studentName || '')
+          }))
+        }, { timeoutMs: 90000 });
+        if (response.teacherOnlyNumericalGrades !== true ||
+            !Object.prototype.hasOwnProperty.call(response, 'previousGradeMatchedCount') ||
+            !Array.isArray(response.students)) {
+          throw new Error('Deployed Apps Script does not expose BA / PREV. GRADES. Publish the NEW Code.gs version.');
+        }
+        const memberIds = new Set(members.map(snap => normalizeStudentId(snapshotData(snap).studentIdNormalized || snap.id)));
+        response.students.forEach(row => {
+          const id = normalizeStudentId(row.studentId);
+          if (memberIds.has(id) && !sheetRowsById.has(id)) {
+            sheetRowsById.set(id, {
+              current: validTeacherTermGrade(row.teacherTermGrade),
+              previous: trustedPreviousGradeFromBridgeRow(row)
+            });
+          }
+        });
+      } catch (error) {
+        issues.push(`${config.section}: ${String(error?.message || error).slice(0, 130)}`);
+        console.warn('Current term BA reading failed for section.', config.section, error);
+      }
+    }, (done, total) => {
+      if (gradeDisplaySettingsStatus) gradeDisplaySettingsStatus.textContent = `Reading PREV. GRADES from Sheets… ${done}/${total} sections`;
+    });
+    if (!sheetRowsById.size) {
+      throw new Error(issues[0] || 'No published student IDs matched the configured active-term Google Sheets. No indicators changed.');
+    }
+    let missing = 0, stale = 0, ready = 0;
+    const updates = (await mapWithGradeLimit(eligible, 10, async snap => {
+      const id = normalizeStudentId(snapshotData(snap).studentIdNormalized || snap.id);
+      const values = sheetRowsById.get(id);
+      if (!values || values.previous === null || values.current === null) { missing++; return null; }
+      // Prevent arrows against an unsynced current grade. The active-term
+      // published AW must equal the same worksheet's AW before refreshing.
+      const publishedCurrent = await teacherGradeForComparison(id, activeTerm);
+      if (publishedCurrent === null || Math.abs(publishedCurrent - values.current) > .01) { stale++; return null; }
+      const trend = gradeTrendFromValues(publishedCurrent, values.previous);
+      if (trend === 'unavailable') { missing++; return null; }
+      ready++;
+      return { ref: snap.ref, trend };
+    }, (done, total) => {
+      if (gradeDisplaySettingsStatus) gradeDisplaySettingsStatus.textContent = `Comparing current AW vs PREV. GRADES BA… ${done}/${total}`;
+    })).filter(Boolean);
+    for (let start = 0; start < updates.length; start += 400) {
+      const batch = writeBatch(firebaseSync.db);
+      updates.slice(start, start + 400).forEach(({ ref, trend }) => batch.update(ref, { gradeTrend: trend }));
+      await batch.commit();
+    }
+    clearSelectiveFirestoreCache('subjectCompliance:');
+    if (gradeDisplaySettingsStatus) gradeDisplaySettingsStatus.textContent =
+      `Updated ${ready} grade trend(s) directly from the Google Sheets PREV. GRADES column (BA). ${missing} missing matches/grades, ${stale} unpublished AW changes. ${issues.length ? issues.length + ' section lookup issue(s); check browser console.' : ''} No numerical previous grades were published to students.`;
+  } catch (error) {
+    console.warn('Could not refresh published grade trends.', error);
+    if (gradeDisplaySettingsStatus) gradeDisplaySettingsStatus.textContent = `Trend refresh failed: ${error?.message || error}`;
+  } finally { if (rebuildGradeTrendsBtn) rebuildGradeTrendsBtn.disabled = false; }
+}
+
 async function publishComplianceSync() {
   if (!isTeacherAuthenticated()) {
     setComplianceSyncStatus('Login as teacher first, then publish Google Sheets status.', 'warning');
@@ -11163,6 +11550,11 @@ async function publishComplianceSync() {
     });
     renderComplianceSyncPreview(payload);
     if (!payload.students.length) throw new Error('No student records found for the checked section(s). Check the Google Sheet link, student IDs, and term sheet name.');
+    stage = 'Compare previous term grades';
+    setComplianceSyncStatus('Comparing previous term grades to build trend indicators…', '');
+    payload.students = await addGradeTrendToPublishPayload(payload.students, (done, all) => {
+      setComplianceSyncStatus(`Comparing previous term grades… ${done}/${all}`, '');
+    });
     stage = 'Validate student records';
     const ids = payload.students.map(student => normalizeStudentId(student.studentIdNormalized || student.studentId));
     if (ids.some(id => !id) || new Set(ids).size !== ids.length) {
@@ -26938,6 +27330,10 @@ async function openAdminPanel() {
   }
   updateTeacherLoginUI(firebaseSync.auth?.currentUser || firebaseSync.currentUser);
   if (isTeacherAuthenticated()) {
+    loadGradeDisplaySettingsFromCloud().catch(error => {
+      console.warn('Global grade visibility could not load.', error);
+      if (gradeDisplaySettingsStatus) gradeDisplaySettingsStatus.textContent = 'Could not load global setting; choose a mode and save with Firebase.';
+    });
     loadComplianceSettingsFromCloud({ silent: true }).catch(error => {
       console.warn('Could not load cloud Compliance settings.', error);
       setComplianceSyncStatus(error?.message || 'Could not load cloud Compliance settings.', 'warning');
@@ -31884,6 +32280,22 @@ testAiRubricSettingsBtn?.addEventListener('click', testAiRubricConnection);
   control?.addEventListener('change', () => saveAiRubricSettingsLocal(getAiRubricSettingsFromControls()));
   control?.addEventListener('input', () => saveAiRubricSettingsLocal(getAiRubricSettingsFromControls()));
 });
+[gradeDisplayModeSelect, gradeTrendEnabledInput].forEach(input => {
+  input?.addEventListener('change', updateGradeVisibilityPreview);
+});
+saveGradeDisplaySettingsBtn?.addEventListener('click', async () => {
+  saveGradeDisplaySettingsBtn.disabled = true;
+  if (gradeDisplaySettingsStatus) gradeDisplaySettingsStatus.textContent = 'Saving grade visibility…';
+  try {
+    const setting = await saveGradeDisplaySettingsToCloud();
+    if (gradeDisplaySettingsStatus) gradeDisplaySettingsStatus.textContent = `Saved for ALL sections: ${setting.displayMode === 'number' ? 'Actual numeric grade' : 'Color only'}; grade trend ${setting.showTrend ? 'ON' : 'OFF'}.`;
+  } catch (error) {
+    if (gradeDisplaySettingsStatus) gradeDisplaySettingsStatus.textContent = `Could not save: ${error?.message || error}`;
+    console.error('Global grade display save failed.', error);
+  } finally { saveGradeDisplaySettingsBtn.disabled = false; }
+});
+rebuildGradeTrendsBtn?.addEventListener('click', rebuildPublishedGradeTrends);
+
 const academicTermControls = [
   academicTermModeSelect,
   academicTermManualSelect,

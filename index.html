@@ -45,7 +45,7 @@
   </script>
   <link rel="preconnect" href="https://drive.google.com" crossorigin>
   <link rel="preconnect" href="https://lh3.googleusercontent.com" crossorigin>
-  <link rel="stylesheet" href="style.css?v=20261011-v655-student-prev-next" />
+  <link rel="stylesheet" href="style.css?v=20261017-v659-auto-ba-from-sheets" />
   <link rel="stylesheet" href="games/mini-games-hub.css?v=20260912-v4761-byte-runner-v81-build-hud" />
   <link rel="stylesheet" href="games/code-fly/code-fly.css?v=20260909-v429-xp-mini-games" />
   <style>
@@ -1044,10 +1044,10 @@
       <div id="studentComplianceSummary" class="student-compliance-summary" aria-live="polite"></div>
       <section id="studentComplianceStanding" class="student-academic-standing" aria-label="Current academic standing">
         <div class="student-standing-title">CURRENT ACADEMIC STANDING <small>Your progress after the Midterm</small></div>
-        <div id="studentComplianceStandingBadge" class="student-standing-badge unavailable" aria-live="polite" aria-atomic="true"><span class="student-standing-dot" aria-hidden="true"></span><strong>NOT YET AVAILABLE</strong></div>
+        <div class="student-grade-standing-line"><div id="studentComplianceStandingBadge" class="student-standing-badge unavailable" aria-live="polite" aria-atomic="true"><span class="student-standing-dot" aria-hidden="true"></span><strong>NOT YET AVAILABLE</strong></div><div id="studentGradeTrend" class="student-grade-trend" aria-live="polite"></div></div>
         <div class="student-standing-information" role="note" aria-label="About your running grade">
           <div class="student-standing-info-heading"><span class="student-standing-info-icon" aria-hidden="true">i</span><strong>What does this mean?</strong></div>
-          <p>This color represents your <strong>running grade after the Midterm</strong>, based on your scores recorded so far. <strong>It is NOT your final Second Term Grade.</strong> Your standing may change as more scores are recorded.</p>
+          <p>This is your <strong>running grade after the Midterm</strong>, based on scores recorded so far. <strong>It is NOT your final Term Grade.</strong> Your standing may change as more scores are recorded. The display format is chosen by your teacher.</p>
         </div>
         <div class="student-standing-legend" aria-label="Color legend for academic standing">
           <strong class="student-standing-legend-heading">COLOR LEGEND</strong>
@@ -1060,7 +1060,7 @@
             <div class="student-standing-legend-item"><span class="student-standing-legend-dot red" aria-hidden="true"></span><span>RED</span><small>74 &amp; below</small></div>
           </div>
         </div>
-        <p class="student-standing-privacy-note">Your exact numerical running grade is not displayed here.</p>
+        <p id="studentStandingPrivacyNote" class="student-standing-privacy-note">Your exact numerical running grade is not displayed here.</p>
       </section>
       <div id="studentComplianceList" class="student-compliance-list"></div>
       <div id="studentComplianceLackingList" class="student-compliance-lacking-list" aria-live="polite"></div>
@@ -1094,7 +1094,7 @@
               <strong>🎓 CURRENT ACADEMIC STANDING</strong>
               <small>Running grade after Midterm</small>
             </span>
-            <span id="loginLackingReminderStandingBadge" class="login-reminder-standing-badge" aria-live="polite" aria-atomic="true"><i aria-hidden="true"></i><b>NOT YET AVAILABLE</b></span>
+            <span class="login-grade-and-trend"><span id="loginLackingReminderStandingBadge" class="login-reminder-standing-badge" aria-live="polite" aria-atomic="true"><i aria-hidden="true"></i><b>NOT YET AVAILABLE</b></span><span id="loginGradeTrend" class="student-grade-trend" aria-live="polite"></span></span>
             <span class="login-reminder-standing-hint"><span class="login-reminder-hint-closed">ⓘ View color legend</span><span class="login-reminder-hint-open">ⓘ Hide color legend</span><span class="login-reminder-standing-chevron" aria-hidden="true">⌄</span></span>
           </summary>
 
@@ -1122,7 +1122,7 @@
               <div><i class="orange"></i><b>ORANGE</b><small>75–80</small></div>
               <div><i class="red"></i><b>RED</b><small>74 &amp; below</small></div>
             </div>
-            <small class="login-reminder-grade-privacy">Your exact numerical running grade is not shown here.</small>
+            <small id="loginGradePrivacyNote" class="login-reminder-grade-privacy">Your exact numerical running grade is not shown here.</small>
           </div>
       </div>
       <div id="loginLackingReminderMusicRow" class="login-lacking-reminder-music-row hidden">
@@ -2612,10 +2612,26 @@ https://example.com/song2.mp3"></textarea>
             <div>
               <p class="section-kicker">Google Sheets Sync</p>
               <h3 id="complianceTrackerTitle">Student Compliance Tracker</h3>
-              <p class="muted-text">Google Sheets is your source of truth. Publish PT raw scores, Term Assessment scores, and the color-only Term Grade standing.</p>
+              <p class="muted-text">Google Sheets is your source of truth. Publish PT raw scores, Term Assessment scores, and the running-grade standing. Students see the format selected below.</p>
             </div>
-            <span class="compliance-safety-pill">Numeric Term Grade hidden</span>
+            <span class="compliance-safety-pill">Teacher-controlled grade visibility</span>
           </div>
+
+          <section class="grade-visibility-admin" aria-labelledby="gradeVisibilityAdminTitle">
+            <div class="grade-visibility-admin-heading"><div><p class="section-kicker">Global Student Display</p>
+              <h4 id="gradeVisibilityAdminTitle">Running Grade Visibility</h4>
+              <p class="muted-text">Applies to every Grade 8 student in the login reminder and Subject Status. Students cannot choose their own mode.</p>
+            </div><span class="grade-visibility-admin-global">All Sections</span></div>
+            <div class="grade-visibility-controls">
+              <label for="gradeDisplayModeSelect">Show students</label>
+              <select id="gradeDisplayModeSelect"><option value="color">Color-coded standing only</option><option value="number">Actual numeric running grade + color</option></select>
+              <label class="grade-visibility-switch" for="gradeTrendEnabledInput"><input id="gradeTrendEnabledInput" type="checkbox" checked><span>Show animated grade trend vs. previous term</span></label>
+            </div>
+            <div class="grade-visibility-preview"><small>STUDENT PREVIEW</small><span id="gradeVisibilityPreview" class="grade-visibility-preview-content">GREEN <span class="grade-trend grade-trend-up">↗ Improved</span></span></div>
+            <div class="grade-visibility-actions"><button id="saveGradeDisplaySettingsBtn" class="primary-btn" type="button">Save Grade Visibility to Firebase</button><button id="rebuildGradeTrendsBtn" class="ghost-btn" type="button">Refresh Existing Grade Trends</button></div>
+            <p id="gradeDisplaySettingsStatus" class="helper-note" role="status">Loading global settings…</p>
+            <p class="helper-note"><strong>Grade trend:</strong> Automatically compare the published current grade (AW) with <strong>BA / PREV. GRADES</strong> in the same configured Google Sheets term tab, matched by Student ID. Preview and Publish include the comparison; Refresh Existing Grade Trends updates published arrows without resyncing scores. Previous numerical grades remain teacher-only.</p>
+          </section>
 
           <details class="compliance-setup-block compliance-collapsible-setup">
             <summary class="compliance-setup-summary">
@@ -4833,7 +4849,7 @@ https://example.com/song3.mp3"></textarea>
     })();
   </script>
 
-  <script src="script.js?v=20261011-v655-student-prev-next"></script>
+  <script src="script.js?v=20261017-v659-auto-ba-from-sheets"></script>
   <script>
     // v410 fallback: keep the desktop editor settings popover working even if older cached
     // toolbar code fails before binding the click handler.
