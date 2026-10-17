@@ -9610,16 +9610,39 @@ function gradeTrendFromValues(current, first) {
   if (a === null || b === null) return 'unavailable';
   return a > b ? 'up' : (a < b ? 'down' : 'same');
 }
+// v662: visual-only grade trend indicators. Keep comparison meanings available
+// to screen readers / tooltips without adding tiny on-screen status words.
+// Only the trusted categorical result (up/down/same/unavailable) reaches students.
+function gradeTrendIconMarkup(rawTrend) {
+  const trend = safeGradeTrend(rawTrend);
+  const variants = {
+    up: {
+      className: 'grade-trend-up',
+      description: 'Grade increased compared with the previous term',
+      path: 'M9 23 L22 10 L35 23 M22 10 V34'
+    },
+    down: {
+      className: 'grade-trend-down',
+      description: 'Grade decreased compared with the previous term',
+      path: 'M9 21 L22 34 L35 21 M22 34 V10'
+    },
+    same: {
+      className: 'grade-trend-same',
+      description: 'Grade is unchanged compared with the previous term',
+      path: 'M9 22 H35 M25 12 L35 22 L25 32'
+    },
+    unavailable: {
+      className: 'grade-trend-na',
+      description: 'Previous-term comparison is not available',
+      path: 'M13 22 H31'
+    }
+  };
+  const meta = variants[trend];
+  return `<span class="grade-trend grade-trend-icon-only ${meta.className}" role="img" aria-label="${meta.description}. The current running grade is not final." title="${meta.description}. Current running grade is not final."><span class="grade-trend-arrow" aria-hidden="true"><svg class="grade-trend-symbol" viewBox="0 0 44 44" xmlns="http://www.w3.org/2000/svg" focusable="false" aria-hidden="true"><path d="${meta.path}" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg></span></span>`;
+}
 function buildGradeTrendMarkup(rawTrend, term) {
   if (!gradeDisplaySettings.showTrend || !previousTermForGradeTrend(term)) return '';
-  const trend = safeGradeTrend(rawTrend);
-  const meta = {
-    up: ['grade-trend-up','↗','Improved'],
-    down: ['grade-trend-down','↘','Declined'],
-    same: ['grade-trend-same','→','Unchanged'],
-    unavailable: ['grade-trend-na','–','No comparison available']
-  }[trend];
-  return `<span class="grade-trend ${meta[0]}" title="Compared with your previous Term Grade. Current running grade is not final."><span class="grade-trend-arrow" aria-hidden="true">${meta[1]}</span>${meta[2]}</span>`;
+  return gradeTrendIconMarkup(rawTrend);
 }
 function getGradeDisplaySettingsDocRef() {
   const { doc } = firebaseSync.modules;
@@ -9719,7 +9742,7 @@ function syncGradeDisplayAdminControls() {
 function updateGradeVisibilityPreview() {
   if (!gradeVisibilityPreview) return;
   const display = gradeDisplayModeSelect?.value === 'number' ? '92 (GREEN)' : 'GREEN';
-  gradeVisibilityPreview.innerHTML = `${display} ${gradeTrendEnabledInput?.checked ? '<span class="grade-trend grade-trend-up"><span class="grade-trend-arrow">↗</span>Improved</span>' : ''}`;
+  gradeVisibilityPreview.innerHTML = `${display} ${gradeTrendEnabledInput?.checked ? gradeTrendIconMarkup('up') : ''}`;
 }
 function applyGradeDisplaySettings(value = {}) {
   const next = normalizeGradeDisplaySettings(value);

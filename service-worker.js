@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ict8-connect-v661-student-readability';
+const CACHE_NAME = 'ict8-connect-v662-animated-grade-arrows';
 const APP_SHELL = [
   './',
   './index.html',

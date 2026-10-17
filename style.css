@@ -68719,3 +68719,82 @@ html[data-theme="dark"] .code-explorer-final-podium-btn { border-color: #a77e2f;
   #studentComplianceStanding .student-standing-legend-item {flex-wrap:wrap;}
   #studentComplianceStanding .student-standing-legend-item small {flex:1 0 100%;margin-left:20px;text-align:left;}
 }
+
+
+/* ============================================================================
+   v662 — LARGE ANIMATED GRADE ARROWS (NO ONSCREEN TREND LABELS)
+   Login reminder, Student Subject Status and teacher configuration preview.
+   SVG stays white on a green/red/neutral rounded square. Only the SVG moves;
+   a screen-reader label explains the direction without occupying visual space.
+   ============================================================================ */
+.grade-trend.grade-trend-icon-only {
+  --trend-arrow-bg-start: #64748b;
+  --trend-arrow-bg-end: #475569;
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  box-sizing: border-box;
+  width: 48px;
+  height: 48px;
+  min-width: 48px;
+  min-height: 48px;
+  padding: 0;
+  border-radius: 12px;
+  color: #fff;
+  background: linear-gradient(145deg,var(--trend-arrow-bg-start),var(--trend-arrow-bg-end));
+  border: 1px solid rgba(255,255,255,.16);
+  box-shadow: 0 3px 9px rgba(15,23,42,.18), inset 0 1px rgba(255,255,255,.16);
+  line-height: 1;
+  overflow: hidden;
+  vertical-align: middle;
+}
+.grade-trend-icon-only.grade-trend-up {--trend-arrow-bg-start: #22c55e;--trend-arrow-bg-end: #15803d;}
+.grade-trend-icon-only.grade-trend-down {--trend-arrow-bg-start: #f04452;--trend-arrow-bg-end: #c91f35;}
+.grade-trend-icon-only.grade-trend-same {--trend-arrow-bg-start: #64748b;--trend-arrow-bg-end: #475569;}
+.grade-trend-icon-only.grade-trend-na {--trend-arrow-bg-start: #94a3b8;--trend-arrow-bg-end: #64748b;opacity: .82;}
+.grade-trend-icon-only .grade-trend-arrow {
+  display: grid;
+  place-items: center;
+  width: 37px;
+  height: 37px;
+  font-size: 0;
+  line-height: 1;
+  transform-origin: center;
+  will-change: transform;
+}
+.grade-trend-icon-only .grade-trend-symbol {display: block;width: 100%;height: 100%;}
+/* Movement stays inside its colored square; never moves the grade card around. */
+.grade-trend-icon-only.grade-trend-up .grade-trend-arrow {animation: g8-trend-arrow-rise 1.8s ease-in-out infinite;}
+.grade-trend-icon-only.grade-trend-down .grade-trend-arrow {animation: g8-trend-arrow-fall 1.8s ease-in-out infinite;}
+.grade-trend-icon-only.grade-trend-same .grade-trend-arrow {animation: g8-trend-arrow-steady 2.4s ease-in-out infinite;}
+@keyframes g8-trend-arrow-rise {0%,100% {transform: translateY(2px);} 50% {transform: translateY(-3px);}}
+@keyframes g8-trend-arrow-fall {0%,100% {transform: translateY(-2px);} 50% {transform: translateY(3px);}}
+@keyframes g8-trend-arrow-steady {0%,100% {transform: translateX(0);} 50% {transform: translateX(3px);}}
+/* Override earlier readability rules which increased the old text-only badges. */
+#loginLackingReminderOverlay .grade-trend.grade-trend-icon-only,
+#studentComplianceStanding .grade-trend.grade-trend-icon-only {
+  width: 48px;
+  height: 48px;
+  min-width: 48px;
+  min-height: 48px;
+  padding: 0;
+  font-size: 0;
+}
+#studentComplianceStanding .grade-trend.grade-trend-icon-only {
+  width: 54px;
+  height: 54px;
+  min-width: 54px;
+  min-height: 54px;
+  border-radius: 13px;
+}
+#studentComplianceStanding .grade-trend-icon-only .grade-trend-arrow {width: 42px;height: 42px;}
+.grade-visibility-preview .grade-trend.grade-trend-icon-only {width: 46px;height: 46px;min-width:46px;min-height:46px;padding:0;}
+@media (max-width:650px) {
+  #loginLackingReminderOverlay .grade-trend.grade-trend-icon-only {width: 44px;height: 44px;min-width:44px;min-height:44px;}
+  #loginLackingReminderOverlay .grade-trend-icon-only .grade-trend-arrow {width: 35px;height: 35px;}
+  #studentComplianceStanding .grade-trend.grade-trend-icon-only {width: 49px;height: 49px;min-width:49px;min-height:49px;}
+  #studentComplianceStanding .grade-trend-icon-only .grade-trend-arrow {width: 39px;height: 39px;}
+}
+@media (prefers-reduced-motion:reduce) {
+  .grade-trend-icon-only .grade-trend-arrow {animation: none !important;will-change: auto;transform: none !important;}
+}
