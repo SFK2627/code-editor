@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ict8-connect-v660-numeric-no-legend';
+const CACHE_NAME = 'ict8-connect-v661-student-readability';
 const APP_SHELL = [
   './',
   './index.html',
