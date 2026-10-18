@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ict8-connect-v662-animated-grade-arrows';
+const CACHE_NAME = 'ict8-connect-v663-quiz-warning-mode';
 const APP_SHELL = [
   './',
   './index.html',

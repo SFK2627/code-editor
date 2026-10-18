@@ -761,6 +761,7 @@ const givenActivityAudienceSelect = document.getElementById('givenActivityAudien
 const givenActivityDueDateInput = document.getElementById('givenActivityDueDateInput');
 const givenActivityVisibilitySelect = document.getElementById('givenActivityVisibilitySelect');
 const givenActivityPetaToggle = document.getElementById('givenActivityPetaToggle');
+const givenActivityQuizToggle = document.getElementById('givenActivityQuizToggle');
 const givenActivityDescriptionInput = document.getElementById('givenActivityDescriptionInput');
 const givenActivityFileInput = document.getElementById('givenActivityFileInput');
 const givenActivityFileName = document.getElementById('givenActivityFileName');
@@ -11851,10 +11852,292 @@ function beginPetaDoActivity(activityId = '') {
   openProjectTypeDialog();
 }
 
+/* v663 Quiz Warning Mode: teacher-created PDF/image quiz with server-backed
+   per-student attempts. Browsers cannot guarantee focus detection or prevent
+   switching devices/screenshots. Only visibilitychange/pagehide count: window
+   blur alone is NOT counted because focusing a PDF iframe also blurs the page. */
+const quizModeState = {
+  pendingActivityId: '', activeActivityId: '', warningCount: 0,
+  processing: false, lastHidden: false, monitorActivityId: '', monitorRows: []
+};
+const quizNode = id => document.getElementById(id);
+const quizOverlay = (id, visible) => quizNode(id)?.classList.toggle('hidden', !visible);
+const quizMarkerKey = () => `mcs-quiz-pending-v1-${firebaseSync.auth?.currentUser?.uid || appSession.student?.uid || ''}`;
+
+function quizAttemptRef(activityId, uid) {
+  const { doc } = firebaseSync.modules;
+  return doc(firebaseSync.db, firebaseSync.collectionName, firebaseSync.documentId, 'quizAttempts', activityId, 'students', uid);
+}
+function quizStudentIdentity() {
+  const user = firebaseSync.auth?.currentUser;
+  const student = appSession.student;
+  if (!user?.uid || !student?.uid || user.uid !== student.uid || appSession.mode !== 'student') {
+    throw new Error('Sign in to your own student account to start a quiz.');
+  }
+  return { uid: user.uid, name: String(student.name || 'Student').slice(0, 100),
+    studentId: String(student.studentId || student.studentIdNormalized || '').slice(0, 120),
+    section: String(student.section || '').slice(0, 100) };
+}
+async function quizAttemptTransaction(activityId, operation) {
+  if (!await initFirebaseSync()) throw new Error('Connect to the internet to use protected quizzes.');
+  const student = quizStudentIdentity();
+  const { runTransaction, serverTimestamp } = firebaseSync.modules;
+  const ref = quizAttemptRef(activityId, student.uid);
+  return await runTransaction(firebaseSync.db, async transaction => {
+    const snapshot = await transaction.get(ref);
+    const previous = snapshot.exists() ? snapshot.data() : null;
+    if (operation === 'start') {
+      if (!previous) {
+        transaction.set(ref, {
+          version: 1, activityId, studentUid: student.uid,
+          studentName: student.name, studentId: student.studentId, section: student.section,
+          status: 'in_progress', warningCount: 0,
+          startedAt: serverTimestamp(), updatedAt: serverTimestamp()
+        });
+        return { status: 'in_progress', warningCount: 0, newlyStarted: true };
+      }
+      return { ...previous, newlyStarted: false };
+    }
+    if (!previous) throw new Error('The quiz attempt was not started. Open the quiz again.');
+    if (previous.status !== 'in_progress') return previous;
+    if (operation === 'switch') {
+      const nextCount = Math.min(2, Number(previous.warningCount || 0) + 1);
+      const nextStatus = nextCount >= 2 ? 'interrupted' : 'in_progress';
+      transaction.update(ref, {
+        warningCount: nextCount, status: nextStatus,
+        lastSwitchAt: serverTimestamp(), updatedAt: serverTimestamp()
+      });
+      return { ...previous, warningCount: nextCount, status: nextStatus };
+    }
+    if (operation === 'finish') {
+      transaction.update(ref, { status: 'completed', completedAt: serverTimestamp(), updatedAt: serverTimestamp() });
+      return { ...previous, status: 'completed' };
+    }
+    return previous;
+  });
+}
+function quizLocalPending() {
+  try {
+    const row = JSON.parse(sessionStorage.getItem(quizMarkerKey()) || 'null');
+    return row && row.activityId && row.pending === true ? row : null;
+  } catch (_) { return null; }
+}
+function quizSetLocalPending(activityId, pending) {
+  try {
+    if (!pending) sessionStorage.removeItem(quizMarkerKey());
+    else sessionStorage.setItem(quizMarkerKey(), JSON.stringify({ activityId, pending: true, savedAt: Date.now() }));
+  } catch (_) { /* privacy mode: cloud still tracks active attempts */ }
+}
+function quizClearNotices() {
+  quizOverlay('quizModeNotice', false);
+  quizOverlay('quizWarningNotice', false);
+}
+function openQuizStartNotice(activityId) {
+  const item = givenActivityState.items.find(row => row.id === activityId && row.published && row.isQuiz);
+  if (!item) return;
+  quizModeState.pendingActivityId = activityId;
+  quizNode('quizModeTitle').textContent = `Ready for ${item.title}?`;
+  quizNode('quizModeMessage').textContent = 'Stay in the G8Code quiz window. First detected tab/app switch = warning. Second switch = attempt ended; only your teacher can reopen it. Refreshing or closing a tab can also count as leaving the quiz.';
+  quizNode('quizModeStatus').textContent = '';
+  quizNode('quizModeConfirm').disabled = false;
+  quizNode('quizModeConfirm').textContent = 'I Understand · Start Quiz';
+  quizOverlay('quizModeNotice', true);
+}
+function quizRenderViewerBadge() {
+  const badge = quizNode('quizViewerWarningBadge');
+  if (badge) {
+    badge.textContent = `⚠ ${quizModeState.warningCount}/2 switches`;
+    badge.classList.toggle('hidden', !quizModeState.activeActivityId);
+  }
+  quizNode('quizViewerFinishBtn')?.classList.toggle('hidden', !quizModeState.activeActivityId);
+  if (quizModeState.activeActivityId) {
+    givenActivityViewerReadBtn?.classList.add('hidden');
+    givenActivityViewerHeartBtn?.classList.add('hidden');
+  }
+}
+async function startQuizSession() {
+  const activityId = quizModeState.pendingActivityId;
+  const item = givenActivityState.items.find(row => row.id === activityId && row.isQuiz && row.published);
+  if (!item || quizModeState.processing) return;
+  quizModeState.processing = true;
+  let recoverPending = false;
+  const button = quizNode('quizModeConfirm');
+  button.disabled = true; button.textContent = 'Verifying attempt…';
+  try {
+    const row = await quizAttemptTransaction(activityId, 'start');
+    if (row.status !== 'in_progress') {
+      quizNode('quizModeStatus').textContent = row.status === 'completed'
+        ? 'This quiz has been completed. Ask your teacher to reopen it if needed.'
+        : 'This attempt has ended after two switches. Only your teacher can reset it.';
+      button.textContent = 'Attempt Locked';
+      return;
+    }
+    quizModeState.warningCount = Number(row.warningCount || 0);
+    quizModeState.activeActivityId = activityId;
+    quizModeState.lastHidden = false;
+    quizModeState.pendingActivityId = '';
+    quizOverlay('quizModeNotice', false);
+    openGivenActivityViewer(activityId);
+    quizRenderViewerBadge();
+    const pending = quizLocalPending();
+    recoverPending = pending?.activityId === activityId;
+  } catch (error) {
+    quizNode('quizModeStatus').textContent = error?.message || 'Unable to verify quiz attempt. Try again online.';
+    button.disabled = false; button.textContent = 'Retry Start';
+  } finally {
+    quizModeState.processing = false;
+    if (recoverPending) void quizCommitSwitch();
+  }
+}
+function quizRecordHidden() {
+  if (!quizModeState.activeActivityId || quizModeState.lastHidden) return;
+  quizModeState.lastHidden = true;
+  quizSetLocalPending(quizModeState.activeActivityId, true);
+}
+async function quizCommitSwitch() {
+  const activityId = quizModeState.activeActivityId;
+  const pending = quizLocalPending();
+  if (!activityId || !pending || pending.activityId !== activityId || quizModeState.processing) return;
+  quizModeState.processing = true;
+  try {
+    const next = await quizAttemptTransaction(activityId, 'switch');
+    quizModeState.warningCount = Number(next.warningCount || 0);
+    quizSetLocalPending(activityId, false);
+    quizRenderViewerBadge();
+    quizNode('quizWarningTitle').textContent = next.status === 'interrupted' ? 'Quiz Attempt Ended' : 'First Switching Warning';
+    quizNode('quizWarningText').textContent = next.status === 'interrupted'
+      ? 'A second tab/app switch was detected. Your attempt is now ended and recorded. Ask your teacher to reopen the quiz. G8Code will reload.'
+      : 'A switch away from G8Code was detected and recorded. This is warning 1 of 2. Another detected switch ends the quiz attempt. Please keep this window active.';
+    quizNode('quizWarningAcknowledge').textContent = next.status === 'interrupted' ? 'Reload G8Code' : 'Continue Quiz';
+    quizOverlay('quizWarningNotice', true);
+    if (next.status === 'interrupted') {
+      quizModeState.activeActivityId = '';
+      closeGivenActivityViewer();
+    }
+  } catch (error) {
+    // Do not clear the pending marker: retry on online/visibility/focus.
+    quizNode('quizWarningTitle').textContent = 'Connection Required';
+    quizNode('quizWarningText').textContent = 'Could not record the switch yet. Reconnect to the internet to continue. Your quiz stays locked until the warning is saved.';
+    quizNode('quizWarningAcknowledge').textContent = 'Retry';
+    quizOverlay('quizWarningNotice', true);
+  } finally { quizModeState.processing = false; }
+}
+function quizAcknowledgeWarning() {
+  const button = quizNode('quizWarningAcknowledge');
+  if (quizLocalPending()) {
+    quizCommitSwitch(); return;
+  }
+  quizOverlay('quizWarningNotice', false);
+  if (button?.textContent === 'Reload G8Code') window.location.reload();
+}
+async function finishQuizSession() {
+  if (!quizModeState.activeActivityId || quizModeState.processing) return;
+  if (quizLocalPending()) { await quizCommitSwitch(); return; }
+  const confirmed = await appConfirm('Finish this quiz viewing attempt? This will mark it Completed, and you cannot reopen it unless your teacher resets it.', { title: 'Finish Quiz', confirmText: 'Finish Quiz' });
+  if (!confirmed || !quizModeState.activeActivityId) return;
+  quizModeState.processing = true;
+  try {
+    const row = await quizAttemptTransaction(quizModeState.activeActivityId, 'finish');
+    if (row.status !== 'completed') throw new Error('This attempt has already ended.');
+    quizModeState.activeActivityId = '';
+    quizModeState.warningCount = 0;
+    quizSetLocalPending('', false);
+    closeGivenActivityViewer();
+    renderStudentGivenActivities();
+  } catch (error) { await appAlert(error?.message || 'Could not finish quiz.', { title: 'Quiz' }); }
+  finally { quizModeState.processing = false; }
+}
+function installQuizModeControls() {
+  if (installQuizModeControls.bound) return;
+  installQuizModeControls.bound = true;
+  ['quizModeNotice', 'quizWarningNotice', 'quizMonitorOverlay'].forEach(id => {
+    const node = quizNode(id);
+    if (node && node.parentElement !== document.body) document.body.appendChild(node);
+  });
+  quizNode('quizModeCancel')?.addEventListener('click', () => { if (!quizModeState.processing) quizOverlay('quizModeNotice', false); });
+  quizNode('quizModeConfirm')?.addEventListener('click', startQuizSession);
+  quizNode('quizWarningAcknowledge')?.addEventListener('click', quizAcknowledgeWarning);
+  quizNode('quizViewerFinishBtn')?.addEventListener('click', finishQuizSession);
+  quizNode('quizMonitorClose')?.addEventListener('click', () => quizOverlay('quizMonitorOverlay', false));
+  quizNode('quizMonitorRefresh')?.addEventListener('click', () => loadQuizMonitorRows());
+  quizNode('quizMonitorSearch')?.addEventListener('input', renderQuizMonitorRows);
+  quizNode('quizMonitorList')?.addEventListener('click', async event => {
+    const button = event.target.closest('[data-quiz-reset-uid]');
+    if (button) await resetQuizAttempt(button.dataset.quizResetUid || '');
+  });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') quizRecordHidden();
+    else {
+      quizModeState.lastHidden = false;
+      quizCommitSwitch();
+    }
+  });
+  window.addEventListener('pagehide', quizRecordHidden);
+  window.addEventListener('pageshow', () => { quizModeState.lastHidden = false; quizCommitSwitch(); });
+  window.addEventListener('online', () => quizCommitSwitch());
+  // Do not count window blur: embedded PDF viewers legitimately receive focus.
+}
+async function openQuizMonitor(activityId) {
+  if (!isTeacherAuthenticated()) return;
+  quizModeState.monitorActivityId = activityId;
+  const item = givenActivityState.items.find(row => row.id === activityId);
+  quizNode('quizMonitorTitle').textContent = `${item?.title || 'Quiz'} · Attempts`;
+  quizNode('quizMonitorSearch').value = '';
+  quizOverlay('quizMonitorOverlay', true);
+  await loadQuizMonitorRows();
+}
+async function loadQuizMonitorRows() {
+  const activityId = quizModeState.monitorActivityId;
+  if (!activityId || !isTeacherAuthenticated()) return;
+  quizNode('quizMonitorList').textContent = 'Loading verified attempts…';
+  try {
+    if (!await initFirebaseSync()) throw new Error('Firebase is not connected.');
+    const { collection, getDocs } = firebaseSync.modules;
+    const ref = collection(firebaseSync.db, firebaseSync.collectionName, firebaseSync.documentId, 'quizAttempts', activityId, 'students');
+    const docs = await getDocs(ref);
+    quizModeState.monitorRows = Array.from(docs.docs || []).map(row => ({ uid: row.id, ...row.data() }));
+    renderQuizMonitorRows();
+  } catch (error) { quizNode('quizMonitorList').textContent = error?.message || 'Could not load quiz attempts.'; }
+}
+function quizFormatDate(value) {
+  const date = value?.toDate?.() || (value?.seconds ? new Date(value.seconds * 1000) : null);
+  return date && !Number.isNaN(date.getTime()) ? date.toLocaleString() : '—';
+}
+function renderQuizMonitorRows() {
+  const rows = quizModeState.monitorRows;
+  const filter = String(quizNode('quizMonitorSearch')?.value || '').toLowerCase().trim();
+  const visible = rows.filter(item => `${item.studentName} ${item.studentId} ${item.section}`.toLowerCase().includes(filter));
+  const counts = { in_progress: 0, completed: 0, interrupted: 0 };
+  rows.forEach(row => { if (Object.prototype.hasOwnProperty.call(counts, row.status)) counts[row.status] += 1; });
+  quizNode('quizMonitorSummary').textContent = `${rows.length} started · ${counts.in_progress} in progress · ${counts.completed} completed viewing · ${counts.interrupted} ended`;
+  quizNode('quizMonitorList').innerHTML = visible.length ? visible.map(item => `
+    <article class="quiz-monitor-row"><div class="quiz-monitor-person"><strong>${escapeHTML(item.studentName || 'Student')}</strong><small>${escapeHTML(item.studentId || '')} · ${escapeHTML(item.section || '')}</small><small>Started: ${escapeHTML(quizFormatDate(item.startedAt))}</small></div>
+    <div class="quiz-monitor-right"><span class="quiz-monitor-status status-${escapeAttribute(item.status || '')}">${escapeHTML(String(item.status || 'unknown').replace(/_/g, ' '))}</span>
+    <strong>${Number(item.warningCount || 0)}/2 warnings</strong><button class="ghost-btn mini" data-quiz-reset-uid="${escapeAttribute(item.uid)}" type="button">Reset / Reopen</button></div></article>`).join('') : '<p>No matching attempts. Students who have not started will not appear yet.</p>';
+}
+async function resetQuizAttempt(uid) {
+  const activityId = quizModeState.monitorActivityId;
+  const record = quizModeState.monitorRows.find(item => item.uid === uid);
+  if (!record || !isTeacherAuthenticated()) return;
+  if (!await appConfirm(`Reopen ${record.studentName || 'this student'}’s quiz? Their current attempt will be archived for teacher audit and a new attempt can begin.`, { title: 'Reset Quiz Attempt', danger: true, confirmText: 'Reset / Reopen' })) return;
+  try {
+    const { doc, collection, addDoc, getDocFromServer, deleteDoc, serverTimestamp } = firebaseSync.modules;
+    const ref = quizAttemptRef(activityId, uid);
+    const snap = await getDocFromServer(ref);
+    if (!snap.exists()) throw new Error('Attempt was already reset. Refresh the list.');
+    // Audit archive is teacher-only and holds a durable copy of the removed attempt.
+    const logs = collection(firebaseSync.db, firebaseSync.collectionName, firebaseSync.documentId, 'quizAttemptResetLogs');
+    await addDoc(logs, { activityId, studentUid: uid, previousAttempt: snap.data(), resetAt: serverTimestamp(), resetBy: firebaseSync.auth?.currentUser?.email || 'teacher' });
+    await deleteDoc(ref);
+    await loadQuizMonitorRows();
+  } catch (error) { await appAlert(error?.message || 'Could not reset this attempt.', { title: 'Quiz Reset Failed' }); }
+}
+
 function openGivenActivityEntry(activityId = '') {
   const item = givenActivityState.items.find(entry => entry.id === String(activityId || '') && entry.published);
   if (!item) return;
-  if (item.isPeta) openPetaActionChoice(item.id);
+  if (item.isQuiz) openQuizStartNotice(item.id);
+  else if (item.isPeta) openPetaActionChoice(item.id);
   else openGivenActivityViewer(item.id);
 }
 
@@ -20997,7 +21280,7 @@ function updateInstallButtonVisibility() {
 function registerPWAServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./service-worker.js?v=654-all-sections-viewer', {
+    navigator.serviceWorker.register('./service-worker.js?v=663-quiz-warning-mode', {
       updateViaCache: 'none'
     }).then(registration => {
       let lastCheckedAt = 0;
@@ -25485,7 +25768,8 @@ function normalizeGivenActivity(raw = {}, index = 0) {
     dueDate: String(raw.dueDate || '').trim().slice(0, 10),
     visibility,
     published: visibility === 'published',
-    isPeta: raw.isPeta === true || raw.peta === true || String(raw.activityType || '').toLowerCase() === 'peta',
+    isPeta: (raw.isPeta === true || raw.peta === true || String(raw.activityType || '').toLowerCase() === 'peta') && raw.isQuiz !== true,
+    isQuiz: raw.isQuiz === true || String(raw.activityType || '').toLowerCase() === 'quiz',
     attachments,
     attachmentCount: attachments.length,
     materialType,
@@ -25736,7 +26020,7 @@ function renderStudentGivenActivities() {
           <div class="given-activity-card-top">
             <span class="given-activity-order">${escapeHTML(String(item.order).padStart(2, '0'))}</span>
             <span class="given-activity-type">${materialSummary.icon} ${escapeHTML(materialSummary.label)}</span>
-            ${item.isPeta ? '<span class="given-activity-peta-badge">PETA</span>' : ''}
+            ${item.isPeta ? '<span class="given-activity-peta-badge">PETA</span>' : ''}${item.isQuiz ? '<span class="given-activity-quiz-badge">🛡 QUIZ</span>' : ''}
           </div>
           <div class="given-activity-card-body">
             <span class="given-activity-term">${escapeHTML(lessonTermLabel(item.term))} · Activity ${escapeHTML(String(item.order))}</span>
@@ -25747,7 +26031,7 @@ function renderStudentGivenActivities() {
               <span>${due ? `Due ${escapeHTML(due)}` : (updated ? `Posted ${escapeHTML(updated)}` : 'Ready')}</span>
             </div>
             ${(engagement.readAt || engagement.hearted) ? `<div class="student-engagement-badges">${engagement.readAt ? '<span class="student-engagement-badge read">✓ Read</span>' : ''}${engagement.hearted ? '<span class="student-engagement-badge hearted">♥ Hearted</span>' : ''}</div>` : ''}
-            <span class="given-activity-card-cta">${item.isPeta ? 'Open PETA' : 'Open activity'} <b aria-hidden="true">→</b></span>
+            <span class="given-activity-card-cta">${item.isQuiz ? 'Start Quiz' : (item.isPeta ? 'Open PETA' : 'Open activity')} <b aria-hidden="true">→</b></span>
           </div>
         </button>
       </article>`;
@@ -26000,7 +26284,7 @@ function renderGivenActivityViewerAttachment() {
   if (!givenActivityViewerBody) return;
   const item = givenActivityState.items.find(entry => entry.id === givenActivityState.viewerActivityId && entry.published);
   if (!item) return;
-  const protectedPeta = item.isPeta === true;
+  const protectedPeta = item.isPeta === true || item.isQuiz === true;
   const protectionMarkup = protectedPeta ? buildPetaProtectionWatermarkMarkup() : '';
   const attachments = getGivenActivityAttachments(item);
   if (!attachments.length) {
@@ -26129,13 +26413,14 @@ function openGivenActivityViewer(activityId = '') {
     openCount: Math.max(0, Number(currentEngagement.openCount || 0)) + 1
   });
   syncGivenActivityEngagementToCloud(item.id);
-  const protectedPeta = item.isPeta === true;
+  const protectedPeta = item.isPeta === true || item.isQuiz === true;
+  givenActivityViewerOverlay.classList.toggle('quiz-protected', item.isQuiz === true);
   givenActivityViewerOverlay.classList.toggle('peta-protected', protectedPeta);
   document.body.classList.toggle('peta-protected-active', protectedPeta);
   if (givenActivityViewerMeta) {
     const due = formatGivenActivityDueDate(item.dueDate);
     const attachmentCount = getGivenActivityAttachments(item).length;
-    givenActivityViewerMeta.textContent = `${protectedPeta ? '🔒 Protected PETA · ' : ''}${lessonTermLabel(item.term)} · Activity ${item.order}${attachmentCount > 1 ? ` · ${attachmentCount} attachments` : ''}${due ? ` · Due ${due}` : ''}`;
+    givenActivityViewerMeta.textContent = `${item.isQuiz ? '🛡 Protected Quiz · ' : (item.isPeta ? '🔒 Protected PETA · ' : '')}${lessonTermLabel(item.term)} · Activity ${item.order}${attachmentCount > 1 ? ` · ${attachmentCount} attachments` : ''}${due ? ` · Due ${due}` : ''}`;
   }
   if (givenActivityViewerTitle) givenActivityViewerTitle.textContent = item.title;
   if (givenActivityViewerDescription) givenActivityViewerDescription.textContent = item.description || 'No additional instructions were provided.';
@@ -26148,6 +26433,7 @@ function openGivenActivityViewer(activityId = '') {
 }
 
 function closeGivenActivityViewer() {
+  if (quizModeState.activeActivityId) { finishQuizSession(); return; }
   givenActivityState.viewerActivityId = '';
   givenActivityState.viewerAttachmentIndex = 0;
   if (givenActivityViewerBody) givenActivityViewerBody.innerHTML = '';
@@ -26160,7 +26446,11 @@ function closeGivenActivityViewer() {
   }
   setGivenActivityViewerInstructionsOpen(false);
   givenActivityViewerOverlay?.classList.add('hidden');
-  givenActivityViewerOverlay?.classList.remove('peta-protected');
+  givenActivityViewerOverlay?.classList.remove('peta-protected', 'quiz-protected');
+  document.getElementById('quizViewerFinishBtn')?.classList.add('hidden');
+  document.getElementById('quizViewerWarningBadge')?.classList.add('hidden');
+  givenActivityViewerReadBtn?.classList.remove('hidden');
+  givenActivityViewerHeartBtn?.classList.remove('hidden');
   document.body.classList.remove('given-activity-viewer-open', 'peta-protected-active');
 }
 
@@ -26314,6 +26604,7 @@ function resetGivenActivityAdminEditor(options = {}) {
   if (givenActivityDueDateInput) givenActivityDueDateInput.value = '';
   if (givenActivityVisibilitySelect) givenActivityVisibilitySelect.value = 'published';
   if (givenActivityPetaToggle) givenActivityPetaToggle.checked = false;
+  if (givenActivityQuizToggle) givenActivityQuizToggle.checked = false;
   if (givenActivityUrlInput) givenActivityUrlInput.value = '';
   if (givenActivityLinkTypeSelect) givenActivityLinkTypeSelect.value = 'pdf';
   if (givenActivityFileInput) givenActivityFileInput.value = '';
@@ -26348,6 +26639,7 @@ function editGivenActivityAdmin(activityId = '') {
   if (givenActivityDueDateInput) givenActivityDueDateInput.value = item.dueDate || '';
   if (givenActivityVisibilitySelect) givenActivityVisibilitySelect.value = item.visibility;
   if (givenActivityPetaToggle) givenActivityPetaToggle.checked = item.isPeta === true;
+  if (givenActivityQuizToggle) givenActivityQuizToggle.checked = item.isQuiz === true;
   if (givenActivityUrlInput) givenActivityUrlInput.value = item.openUrl || item.previewUrl || '';
   if (givenActivityLinkTypeSelect) givenActivityLinkTypeSelect.value = item.materialType === 'text' ? 'link' : item.materialType;
   if (givenActivityFileInput) givenActivityFileInput.value = '';
@@ -26384,10 +26676,11 @@ function renderAdminGivenActivityList() {
       <article class="given-activity-admin-row" data-given-admin-id="${escapeAttribute(item.id)}">
         <div class="given-activity-admin-order">${escapeHTML(String(item.order).padStart(2, '0'))}</div>
         <div class="given-activity-admin-copy">
-          <div class="given-activity-admin-title-line"><strong>${escapeHTML(item.title)}</strong>${item.isPeta ? '<span class="given-activity-peta-badge admin">PETA</span>' : ''}<span class="given-activity-visibility ${item.published ? 'published' : 'draft'}">${item.published ? 'Published' : 'Draft'}</span></div>
+          <div class="given-activity-admin-title-line"><strong>${escapeHTML(item.title)}</strong>${item.isPeta ? '<span class="given-activity-peta-badge admin">PETA</span>' : ''}${item.isQuiz ? '<span class="given-activity-quiz-badge">🛡 QUIZ</span>' : ''}<span class="given-activity-visibility ${item.published ? 'published' : 'draft'}">${item.published ? 'Published' : 'Draft'}</span></div>
           <small>${escapeHTML(lessonTermLabel(item.term))} · ${escapeHTML(materialSummary.label)} · ${escapeHTML(item.audienceSection === 'all' ? 'All Sections' : item.audienceSection)}${due ? ` · Due ${escapeHTML(due)}` : ''}</small>
         </div>
         <div class="given-activity-admin-actions">
+          ${item.isQuiz ? '<button class="ghost-btn mini quiz-monitor-action" type="button" data-given-admin-action="quiz-monitor">🛡 Monitor Quiz</button>' : ''}
           <button class="ghost-btn mini" type="button" data-given-admin-action="up" title="Move up">↑</button>
           <button class="ghost-btn mini" type="button" data-given-admin-action="down" title="Move down">↓</button>
           ${item.openUrl ? '<button class="ghost-btn mini" type="button" data-given-admin-action="view">View</button>' : ''}
@@ -26642,6 +26935,16 @@ async function publishGivenActivityFromAdmin() {
   const order = Math.max(1, Math.min(999, Number.parseInt(givenActivityOrderInput?.value, 10) || getNextGivenActivityOrder(term)));
   const existing = givenActivityState.items.find(item => item.id === givenActivityState.editingId) || null;
   let sourceRecord = existing ? { ...existing } : { materialType: 'text', previewUrl: '', openUrl: '', downloadUrl: '', fileId: '', fileName: '', fileSize: 0, source: 'text', sourceMode: 'text' };
+  const isQuiz = givenActivityQuizToggle?.checked === true;
+  if (isQuiz && givenActivityPetaToggle?.checked) {
+    setGivenActivityAdminStatus('Choose Quiz OR PETA, not both.', 'error'); return;
+  }
+  if (isQuiz && givenActivityState.sourceMode === 'text') {
+    setGivenActivityAdminStatus('Quizzes require a PDF or image; choose Upload or Paste Link.', 'error'); return;
+  }
+  if (isQuiz && givenActivityState.sourceMode === 'link' && givenActivityLinkTypeSelect?.value === 'link') {
+    setGivenActivityAdminStatus('Quiz links must be PDF or Image, not an external website.', 'error'); return;
+  }
   const buttonText = givenActivityPublishBtn?.textContent || 'Save Activity';
   if (givenActivityPublishBtn) givenActivityPublishBtn.disabled = true;
   try {
@@ -26689,6 +26992,9 @@ async function publishGivenActivityFromAdmin() {
     } else {
       sourceRecord = { attachments: [], attachmentCount: 0, materialType: 'text', previewUrl: '', openUrl: '', downloadUrl: '', fileId: '', fileName: '', fileSize: 0, source: 'text', sourceMode: 'text' };
     }
+    if (isQuiz && (!getGivenActivityAttachments(sourceRecord).length || getGivenActivityAttachments(sourceRecord).some(file => !['pdf', 'image'].includes(file.materialType)))) {
+      throw new Error('A quiz needs at least one embedded PDF/image attachment. External website links are not supported.');
+    }
     const nowIso = new Date().toISOString();
     const record = normalizeGivenActivity({
       ...(existing || {}),
@@ -26702,6 +27008,7 @@ async function publishGivenActivityFromAdmin() {
       dueDate: givenActivityDueDateInput?.value || '',
       visibility: givenActivityVisibilitySelect?.value || 'published',
       isPeta: givenActivityPetaToggle?.checked === true,
+      isQuiz,
       createdAt: existing?.createdAt || nowIso,
       updatedAt: nowIso
     });
@@ -27206,7 +27513,7 @@ function bindTeacherToolsV295() {
     setGivenActivityViewerInstructionsOpen(!isOpen);
   });
   givenActivityViewerInstructionsCloseBtn?.addEventListener('click', () => setGivenActivityViewerInstructionsOpen(false));
-  givenActivityViewerCloseBtn?.addEventListener('click', closeGivenActivityViewer);
+  givenActivityViewerCloseBtn?.addEventListener('click', () => { if (quizModeState.activeActivityId) finishQuizSession(); else closeGivenActivityViewer(); });
   givenActivityViewerOverlay?.addEventListener('click', event => { if (event.target === givenActivityViewerOverlay) event.stopPropagation(); });
   window.addEventListener('resize', () => {
     if (!givenActivityViewerOverlay?.classList.contains('hidden')) {
@@ -27253,6 +27560,9 @@ function bindTeacherToolsV295() {
   givenActivityTermSelect?.addEventListener('change', () => {
     if (!givenActivityState.editingId && givenActivityOrderInput) givenActivityOrderInput.value = String(getNextGivenActivityOrder(givenActivityTermSelect.value));
   });
+  givenActivityQuizToggle?.addEventListener('change', () => { if (givenActivityQuizToggle.checked && givenActivityPetaToggle) givenActivityPetaToggle.checked = false; });
+  givenActivityPetaToggle?.addEventListener('change', () => { if (givenActivityPetaToggle.checked && givenActivityQuizToggle) givenActivityQuizToggle.checked = false; });
+  installQuizModeControls();
   givenActivityPublishBtn?.addEventListener('click', publishGivenActivityFromAdmin);
   givenActivityAdminTermFilter?.addEventListener('change', renderAdminGivenActivityList);
   givenActivityAdminSearch?.addEventListener('input', renderAdminGivenActivityList);
@@ -27263,6 +27573,7 @@ function bindTeacherToolsV295() {
     const id = row.dataset.givenAdminId || '';
     const action = button.dataset.givenAdminAction || '';
     if (action === 'edit') editGivenActivityAdmin(id);
+    else if (action === 'quiz-monitor') openQuizMonitor(id);
     else if (action === 'engagement') openEngagementAnalytics('activity', id);
     else if (action === 'delete') deleteGivenActivityFromAdmin(id);
     else if (action === 'up' || action === 'down') moveGivenActivityWithinTerm(id, action);

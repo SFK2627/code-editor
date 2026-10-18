@@ -45,7 +45,7 @@
   </script>
   <link rel="preconnect" href="https://drive.google.com" crossorigin>
   <link rel="preconnect" href="https://lh3.googleusercontent.com" crossorigin>
-  <link rel="stylesheet" href="style.css?v=20261017-v662-animated-arrow-only" />
+  <link rel="stylesheet" href="style.css?v=20261018-v663-quiz-warning-mode" />
   <link rel="stylesheet" href="games/mini-games-hub.css?v=20260912-v4761-byte-runner-v81-build-hud" />
   <link rel="stylesheet" href="games/code-fly/code-fly.css?v=20260909-v429-xp-mini-games" />
   <style>
@@ -960,6 +960,8 @@
             <h2 id="givenActivityViewerTitle">Activity</h2>
           </div>
           <div class="given-activity-viewer-actions">
+            <span id="quizViewerWarningBadge" class="quiz-viewer-warning-badge hidden" aria-live="polite">Warning 0/2</span>
+            <button id="quizViewerFinishBtn" class="primary-btn quiz-viewer-finish-btn hidden" type="button">✓ Finish Quiz</button>
             <button id="givenActivityViewerReadBtn" class="ghost-btn given-activity-read-btn" type="button">✓ Mark as Read</button>
             <button id="givenActivityViewerHeartBtn" class="ghost-btn given-activity-heart-btn" type="button" aria-pressed="false">♡ Heart</button>
             <button id="givenActivityViewerInstructionsBtn" class="ghost-btn given-activity-viewer-instructions-btn" type="button" aria-expanded="false" aria-controls="givenActivityViewerInstructions" aria-label="Show instructions" title="Instructions" data-tooltip="Instructions">i</button>
@@ -978,6 +980,35 @@
         <div id="givenActivityViewerBody" class="given-activity-viewer-body"></div>
       </section>
     </div>
+  </div>
+
+  <div id="quizModeNotice" class="quiz-mode-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="quizModeTitle">
+    <section class="quiz-mode-card">
+      <span class="quiz-mode-shield" aria-hidden="true">🛡️</span>
+      <p class="section-kicker">G8Code · Warning Mode</p>
+      <h2 id="quizModeTitle">Before You Start the Quiz</h2>
+      <p id="quizModeMessage">Keep G8Code in the foreground. Switching browser tabs or apps can be detected. First switch: a warning. Second switch: your attempt ends and can only be reopened by your teacher.</p>
+      <p class="quiz-mode-disclaimer">Mobile calls, notifications, browser reloads, and system interruptions may also be detected. Detection is not guaranteed on every browser. Contact your teacher if interrupted by accident.</p>
+      <p id="quizModeStatus" class="quiz-mode-status" role="status"></p>
+      <div class="quiz-mode-actions"><button id="quizModeCancel" class="ghost-btn" type="button">Cancel</button><button id="quizModeConfirm" class="primary-btn" type="button">I Understand · Start Quiz</button></div>
+    </section>
+  </div>
+
+  <div id="quizWarningNotice" class="quiz-mode-overlay hidden" role="alertdialog" aria-modal="true" aria-labelledby="quizWarningTitle">
+    <section class="quiz-mode-card quiz-mode-warning-card">
+      <span class="quiz-mode-shield" aria-hidden="true">⚠️</span>
+      <h2 id="quizWarningTitle">Quiz Switching Warning</h2>
+      <p id="quizWarningText">Switch detected. This is your first warning. One more detected switch will end the quiz attempt.</p>
+      <button id="quizWarningAcknowledge" class="primary-btn" type="button">I Understand</button>
+    </section>
+  </div>
+
+  <div id="quizMonitorOverlay" class="quiz-mode-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="quizMonitorTitle">
+    <section class="quiz-monitor-card">
+      <div class="quiz-monitor-heading"><div><p class="section-kicker">Teacher · Quiz Monitoring</p><h2 id="quizMonitorTitle">Quiz Attempts</h2><p id="quizMonitorSummary">Loading…</p></div><button id="quizMonitorClose" class="icon-btn" type="button" aria-label="Close monitoring">×</button></div>
+      <div class="quiz-monitor-controls"><button id="quizMonitorRefresh" class="ghost-btn" type="button">↻ Refresh</button><input id="quizMonitorSearch" type="search" placeholder="Find name, ID or section" aria-label="Find student" /></div>
+      <div id="quizMonitorList" class="quiz-monitor-list" role="status"></div>
+    </section>
   </div>
 
   <div id="petaActionOverlay" class="student-auth-overlay peta-action-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="petaActionTitle">
@@ -2949,6 +2980,10 @@ https://example.com/song2.mp3"></textarea>
                 <label>Audience<select id="givenActivityAudienceSelect"><option value="all">All Sections</option></select></label>
                 <label>Due Date <span class="lesson-optional-label">Optional</span><input id="givenActivityDueDateInput" type="date" /></label>
                 <label>Visibility<select id="givenActivityVisibilitySelect"><option value="published">Published – students can see</option><option value="draft">Draft – teacher only</option></select></label>
+                <label class="given-activity-peta-setting" for="givenActivityQuizToggle">
+                  <span><strong>🛡️ Quiz — Warning Mode</strong><small>PDF/images only. Students accept a quiz notice before opening. One detected tab/app switch gives a warning; the second ends the attempt. Attempts are recorded in Firebase.</small></span>
+                  <span class="admin-switch"><input id="givenActivityQuizToggle" type="checkbox" /><span class="admin-switch-track"><span class="admin-switch-thumb"></span></span></span>
+                </label>
                 <label class="given-activity-peta-setting" for="givenActivityPetaToggle">
                   <span><strong>Performance Task (PETA)</strong><small>Students choose Read or Do. PETA opens in Protected View: Open/Download are hidden, right-click/long-press/copy are blocked, and the material is watermarked with the student identity. Device screenshots cannot be fully blocked by a browser.</small></span>
                   <span class="admin-switch"><input id="givenActivityPetaToggle" type="checkbox" /><span class="admin-switch-track"><span class="admin-switch-thumb"></span></span></span>
@@ -4849,7 +4884,7 @@ https://example.com/song3.mp3"></textarea>
     })();
   </script>
 
-  <script src="script.js?v=20261017-v662-animated-arrow-only"></script>
+  <script src="script.js?v=20261018-v663-quiz-warning-mode"></script>
   <script>
     // v410 fallback: keep the desktop editor settings popover working even if older cached
     // toolbar code fails before binding the click handler.
