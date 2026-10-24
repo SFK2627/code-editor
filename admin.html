@@ -1,0 +1,1013 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#121316">
+  <title>Admin • MCSian ICT 10 Portal</title>
+  <link rel="stylesheet" href="styles.css?v=38-animated-grade-arrows">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="MCSian ICT 10">
+
+  <script defer src="https://www.gstatic.com/firebasejs/12.17.1/firebase-app-compat.js"></script>
+  <script defer src="https://www.gstatic.com/firebasejs/12.17.1/firebase-auth-compat.js"></script>
+  <script defer src="https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore-compat.js"></script>
+
+  <!-- Free browser-side Excel/CSV parser for Admin bulk roster import. -->
+  <script defer src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+  <script defer src="firebase-config.js"></script>
+  <script defer src="demo-data.js?v=38-animated-grade-arrows"></script>
+  <script defer src="data-service.js?v=38-animated-grade-arrows"></script>
+  <script defer src="grade-trend.js?v=38-animated-grade-arrows"></script>
+  <script defer src="music-playlist.js?v=38-animated-grade-arrows"></script>
+  <script defer src="performance-analytics.js?v=38-animated-grade-arrows"></script>
+  <script defer src="admin.js?v=38-animated-grade-arrows"></script>
+  <script defer src="pwa.js?v=38-animated-grade-arrows"></script>
+</head>
+<body>
+  <section id="adminLoginView" class="admin-login">
+    <div class="admin-login-card">
+      <p class="eyebrow dark">Teacher Access</p>
+      <h1>Admin Panel</h1>
+      <p class="muted">Use the Firebase email/password account that you marked as an admin in Firestore.</p>
+
+      <form id="adminLoginForm" class="stack-form">
+        <label>
+          <span>Email</span>
+          <input id="adminEmail" type="email" autocomplete="username" required>
+        </label>
+        <label>
+          <span>Password</span>
+          <input id="adminPassword" type="password" autocomplete="current-password" minlength="6" required>
+        </label>
+        <p id="adminLoginError" class="form-error"></p>
+        <button id="adminLoginBtn" class="primary-btn" type="submit">ADMIN SIGN IN</button>
+      </form>
+
+      <p class="login-footnote"><a href="index.html">← Student Portal</a></p>
+    </div>
+  </section>
+
+  <div id="adminApp" class="admin-shell hidden">
+    <header class="admin-top">
+      <div class="admin-brand">
+        <img class="portal-brand-icon" src="icons/icon-192.png" alt="">
+        <div class="admin-brand-copy">
+          <strong>
+            <span class="brand-mcsian">MCSian</span>
+            <span class="brand-ict10">ICT 10</span>
+            <span class="admin-brand-portal">Portal</span>
+          </strong>
+          <small>Admin Panel</small>
+        </div>
+      </div>
+      <div class="inline-actions admin-top-actions">
+        <span id="adminName" style="font-size:.76rem;color:#c6cbd3;"></span>
+
+        <div class="admin-notification-wrap">
+          <button id="adminNotificationBtn" class="admin-notification-btn" type="button" aria-label="Heart notifications">
+            <span aria-hidden="true">🔔</span>
+            <span id="adminNotificationBadge" class="admin-notification-badge hidden">0</span>
+          </button>
+
+          <div id="adminNotificationPanel" class="admin-notification-panel hidden">
+            <div class="admin-notification-head">
+              <div>
+                <strong>Heart Notifications</strong>
+                <small>New student reactions</small>
+              </div>
+              <button id="markNotificationsReadBtn" class="mini-btn" type="button">Mark all read</button>
+            </div>
+            <div id="adminNotificationList" class="admin-notification-list">
+              <div class="notification-empty">No new heart reactions.</div>
+            </div>
+          </div>
+        </div>
+
+        <button id="adminLogout" class="mini-btn admin-phone-logout-btn" type="button" aria-label="Log out">
+          <span class="admin-phone-logout-mark" aria-hidden="true">↪</span>
+          <span class="admin-phone-logout-text">Log out</span>
+        </button>
+      </div>
+    </header>
+
+    <main class="admin-main">
+      <nav class="admin-tabs">
+        <button class="admin-tab active" data-admin-page="overview">Overview</button>
+        <button class="admin-tab" data-admin-page="announcements">Announcements</button>
+        <button class="admin-tab" data-admin-page="lessons">Lessons</button>
+        <button class="admin-tab" data-admin-page="activities">Activities</button>
+        <button class="admin-tab" data-admin-page="performance">Section Performance</button>
+        <button class="admin-tab" data-admin-page="students">Students</button>
+        <button class="admin-tab" data-admin-page="tinkercad">Tinkercad Classroom</button>
+        <button class="admin-tab" data-admin-page="project-monitor">Project Monitoring</button>
+        <button class="admin-tab" data-admin-page="sync">Compliance Sync</button>
+      </nav>
+
+      <section id="admin-page-overview" class="admin-page active">
+        <div class="admin-dashboard-head">
+          <div>
+            <p class="section-kicker">PORTAL OVERVIEW</p>
+            <h3>Admin Dashboard</h3>
+            <p>Live counts from your current portal data.</p>
+          </div>
+          <button id="refreshAdminDashboard" class="mini-btn" type="button">Refresh Counts</button>
+        </div>
+
+        <div class="admin-stat-grid">
+          <article class="admin-stat-card">
+            <span class="admin-stat-label">TOTAL STUDENTS</span>
+            <strong id="statTotalStudents">—</strong>
+            <small>Active student accounts</small>
+          </article>
+
+          <article class="admin-stat-card">
+            <span class="admin-stat-label">PUBLISHED LESSONS</span>
+            <strong id="statPublishedLessons">—</strong>
+            <small>Currently published</small>
+          </article>
+
+          <article class="admin-stat-card">
+            <span class="admin-stat-label">ACTIVE ACTIVITIES</span>
+            <strong id="statActiveActivities">—</strong>
+            <small id="statActiveActivitiesNote">Current term</small>
+          </article>
+
+          <button id="missingComplianceCard" class="admin-stat-card admin-stat-card-button warning" type="button">
+            <span class="admin-stat-label">MISSING COMPLIANCE</span>
+            <strong id="statMissingCompliance">—</strong>
+            <small id="statMissingComplianceNote">Students with missing tasks</small>
+            <span class="admin-stat-open-hint">View students →</span>
+          </button>
+
+          <article class="admin-stat-card scheduled">
+            <span class="admin-stat-label">SCHEDULED POSTS</span>
+            <strong id="statScheduledAnnouncements">—</strong>
+            <small>Future announcements</small>
+          </article>
+
+          <article class="admin-stat-card heart">
+            <span class="admin-stat-label">NEW HEARTS</span>
+            <strong id="statNewHearts">—</strong>
+            <small>Unread reaction notifications</small>
+          </article>
+        </div>
+
+        <article class="panel admin-settings-panel">
+          <h3>Current Settings</h3>
+          <p>Portal school year and active term.</p>
+          <form id="settingsForm" class="admin-form">
+            <label><span>School Year</span><input id="settingSchoolYear" value="2026-2027"></label>
+            <label><span>Current Term</span>
+              <select id="settingCurrentTerm">
+                <option value="1">Term 1</option>
+                <option value="2">Term 2</option>
+                <option value="3">Term 3</option>
+              </select>
+            </label>
+
+            <section class="admin-login-reminder-settings">
+              <div class="admin-login-reminder-settings-head">
+                <span class="section-kicker">STUDENT LOGIN REMINDER</span>
+                <strong>Lacking Requirements Modal</strong>
+                <small>Appears after every successful student login when enabled.</small>
+              </div>
+
+              <label class="check-row reminder-setting-check">
+                <input id="settingLoginReminderEnabled" type="checkbox" checked>
+                <span>Enable Login Reminder Modal</span>
+              </label>
+
+              <label class="check-row reminder-setting-check">
+                <input id="settingLoginReminderMusicEnabled" type="checkbox">
+                <span>Enable Background Music</span>
+              </label>
+
+              <div class="reminder-music-library">
+                <div class="reminder-music-head">
+                  <strong>Background Music Playlist</strong>
+                  <small>Direct audio/JukeHost URLs only. The reminder plays each track and continues to the next while the modal is open.</small>
+                </div>
+                <label class="check-row reminder-setting-check reminder-shuffle-toggle">
+                  <input id="settingLoginReminderMusicShuffle" type="checkbox" checked>
+                  <span>Random Shuffle (ON/OFF)</span>
+                </label>
+                <small class="reminder-shuffle-description" id="loginReminderShuffleDescription" aria-live="polite">ON: Plays all tracks in a random order before repeating. No repeat until the playlist finishes.</small>
+                <label>
+                  <span>Add One Music URL</span>
+                  <input id="settingLoginReminderMusicUrl" type="url" placeholder="https://audio.jukehost.co.uk/...">
+                </label>
+                <button id="loginReminderAddSingleMusicBtn" class="secondary-btn" type="button">ADD LINK</button>
+                <label>
+                  <span>Bulk Add Music Links <small>Paste many URLs, even stuck together without spaces, commas, or line breaks.</small></span>
+                  <textarea id="settingLoginReminderBulkMusic" rows="5" spellcheck="false" placeholder="https://audio.example/song1.mp3https://audio.example/song2.mp3https://audio.example/song3.mp3"></textarea>
+                </label>
+                <div id="loginReminderBulkDetection" class="reminder-music-detection" role="status" aria-live="polite">Paste music URLs to detect tracks.</div>
+                <button id="loginReminderAddBulkMusicBtn" class="secondary-btn" type="button">ADD DETECTED LINKS</button>
+                <div class="reminder-music-head">
+                  <strong>Playlist <span id="loginReminderMusicCount">(0 / 100)</span></strong>
+                  <small>Remove any track below. Click SAVE SETTINGS to publish changes.</small>
+                </div>
+                <div id="loginReminderMusicList" class="reminder-music-list" aria-live="polite"></div>
+              </div>
+
+              <label>
+                <span>Positive Message <small>No lacking requirements</small></span>
+                <textarea id="settingLoginReminderPositiveMessage" rows="4">Great! You have no lacking requirements. Keep up the good work and continue maintaining your performance.</textarea>
+              </label>
+
+              <label>
+                <span>Warning Message <small>Use {term} for First Term / Second Term / Third Term</small></span>
+                <textarea id="settingLoginReminderWarningMessage" rows="5">The {term} is nearing its end. Please complete the following missing requirements as soon as possible to avoid delays in your subject completion.</textarea>
+              </label>
+
+              <div class="admin-reminder-preview-controls">
+                <label>
+                  <span>Preview State</span>
+                  <select id="settingLoginReminderPreviewMode">
+                    <option value="missing">Student with Missing Requirements</option>
+                    <option value="complete">Student with No Lacking Requirements</option>
+                  </select>
+                </label>
+
+                <button id="previewLoginReminderBtn" class="secondary-btn" type="button">
+                  PREVIEW MODAL
+                </button>
+              </div>
+            </section>
+
+            <div class="admin-info-note">
+              Class announcements are managed from the <strong>Announcements</strong> tab.
+            </div>
+            <button class="primary-btn" type="submit">SAVE SETTINGS</button>
+          </form>
+          <div id="settingsStatus" class="admin-status"></div>
+        </article>
+      </section>
+
+
+      <!-- Admin-only analytics: read published Firebase compliance snapshots, no writes. -->
+      <section id="admin-page-performance" class="admin-page perf-page">
+        <div class="admin-dashboard-head perf-heading">
+          <div>
+            <p class="section-kicker">GRADE 10 • ADMIN ANALYTICS</p>
+            <h3>Section Performance Overview</h3>
+            <p>Real published compliance snapshots • Only numeric running grades count toward averages.</p>
+          </div>
+          <div class="perf-heading-actions">
+            <label><span>Term</span><select id="perfTerm"><option value="1">Term 1</option><option value="2">Term 2</option><option value="3">Term 3</option></select></label>
+            <button type="button" class="mini-btn" id="perfRefresh">Refresh Performance</button>
+          </div>
+        </div>
+        <p class="perf-info">Running grades are not final and may increase or decrease before the end of the term. Grade movement compares the selected term with its preceding term (Term 2 vs Term 1, or Term 3 vs Term 2). Only valid numeric grades count; INC is never treated as zero.</p>
+        <div id="perfLoading" class="perf-loading" role="status" aria-live="polite">Open this tab to load published data.</div>
+        <div id="perfContent" class="hidden">
+          <div class="perf-stat-grid" id="perfTopStats"></div>
+          <div class="perf-panel-heading"><div><h3>Select a Section</h3><p>Choose a section to explore students' academic standing.</p></div><span id="perfLastUpdated" class="perf-updated"></span></div>
+          <div class="perf-mobile-section-picker">
+            <label for="perfMobileSection">Select section</label>
+            <select id="perfMobileSection" aria-label="Select section for performance details"><option value="*">All Sections</option></select>
+          </div>
+          <div id="perfSections" class="perf-section-grid"></div>
+          <div class="perf-detail-header">
+            <div><p class="section-kicker">SELECTED SECTION</p><h3 id="perfSectionTitle">All Sections</h3></div>
+            <button class="mini-btn" id="perfAllSections" type="button">All Sections</button>
+          </div>
+          <div id="perfSectionStats" class="perf-stat-grid"></div>
+          <div class="perf-two-cols">
+            <details class="panel perf-panel perf-collapsible" data-perf-collapse="grade-distribution" open>
+              <summary class="perf-collapse-summary"><h3>Grade Distribution</h3><span class="perf-collapse-indicator" aria-hidden="true"></span></summary>
+              <div class="perf-collapse-content">
+                <p>Click a band to filter students. Grade bands are for running grades, not WW/PT task percentages.</p>
+                <div id="perfGradeChart" class="perf-grade-chart"></div>
+                <small id="perfGradeNote" class="perf-muted"></small>
+              </div>
+            </details>
+            <details class="panel perf-panel perf-collapsible" data-perf-collapse="grade-movement" open>
+              <summary class="perf-collapse-summary"><h3 id="perfMovementHeading">Grade Movement</h3><span class="perf-collapse-indicator" aria-hidden="true"></span></summary>
+              <div class="perf-collapse-content">
+                <p>Compares running grades with the immediately previous term. Sync &amp; Publish to read the preceding Google Sheet tab.</p>
+                <div id="perfTrends" class="perf-trends"></div>
+                <small id="perfTrendNote" class="perf-muted"></small>
+              </div>
+            </details>
+          </div>
+          <details class="panel perf-panel perf-collapsible perf-priority-panel" data-perf-collapse="priority" open>
+            <summary class="perf-collapse-summary"><h3>Priority Students</h3><span class="perf-collapse-indicator" aria-hidden="true"></span></summary>
+            <div class="perf-collapse-content">
+              <p>Grade declined, at least 2 lackings, or running grade below 75. Click to view scores.</p>
+              <div id="perfPriority" class="perf-priority"></div>
+            </div>
+          </details>
+          <article class="panel perf-panel">
+            <div class="perf-panel-heading"><div><h3>Explore Student Details</h3><p>Grades, trends and missing requirements from published records only.</p></div><small id="perfVisibleCount"></small></div>
+            <div class="perf-filters">
+              <label class="perf-search-filter"><span>Search student</span><input id="perfSearch" type="search" placeholder="Student name or ID"></label>
+              <details class="perf-more-filters" data-perf-collapse="filters" open>
+                <summary class="perf-more-filters-summary">More filters <span aria-hidden="true">▾</span></summary>
+                <div class="perf-filter-options">
+                  <label><span>Grade band</span><select id="perfBand"><option value="*">All grade bands</option><option value="white">White (96–100)</option><option value="green">Green (91–95)</option><option value="yellow">Yellow (86–90)</option><option value="gray">Gray (81–85)</option><option value="orange">Orange (75–80)</option><option value="red">Red (below 75)</option><option value="unavailable">No numeric grade</option></select></label>
+                  <label><span>Movement</span><select id="perfTrend"><option value="*">Any movement</option><option value="improved">Improved</option><option value="declined">Declined</option><option value="unchanged">Unchanged</option><option value="unavailable">Not comparable</option></select></label>
+                  <label><span>Requirements</span><select id="perfRequirements"><option value="*">All records</option><option value="missing">With lackings</option><option value="complete">No lackings</option><option value="unpublished">Not published</option><option value="nograde">Published, no numeric grade</option></select></label>
+                </div>
+              </details>
+            </div>
+            <div class="perf-table-wrap"><table class="perf-students-table"><thead><tr><th>Student</th><th>Running Grade</th><th>Grade Movement</th><th>Requirements</th><th>Actions</th></tr></thead><tbody id="perfStudents"></tbody></table></div>
+            <div id="perfStudentCards" class="perf-student-cards" aria-label="Student performance cards"></div>
+          </article>
+        </div>
+      </section>
+
+      <section id="admin-page-announcements" class="admin-page">
+        <div class="announcement-admin-layout">
+          <article class="panel">
+            <div class="announcement-admin-heading">
+              <div>
+                <p class="section-kicker">CREATE / SCHEDULE</p>
+                <h3 id="announcementFormHeading">Create Announcement</h3>
+                <p>Post to all sections or choose only the sections that should receive it.</p>
+              </div>
+              <span id="announcementEditBadge" class="small-badge hidden">Editing</span>
+            </div>
+
+            <form id="announcementForm" class="admin-form">
+              <label>
+                <span>Announcement Title</span>
+                <input id="announcementTitle" maxlength="120" required placeholder="e.g. Arduino Materials Reminder">
+              </label>
+
+              <label>
+                <span>Message</span>
+                <textarea id="announcementMessage" rows="7" maxlength="3000" required placeholder="Write the announcement here..."></textarea>
+              </label>
+
+              <div class="admin-field">
+                <span class="field-label">Who can see this?</span>
+                <details class="section-picker" id="announcementSectionPicker">
+                  <summary id="announcementSectionSummary">All Sections</summary>
+                  <div id="announcementSectionsOptions" class="section-picker-options"></div>
+                </details>
+              </div>
+
+              <label>
+                <span>Publish Date &amp; Time</span>
+                <input id="announcementPublishAt" type="datetime-local">
+                <small class="field-help">Leave the current time to publish now, or choose a future date/time to schedule automatically.</small>
+              </label>
+
+              <div class="announcement-attachment-box">
+                <div class="field-label">Optional Attachment</div>
+                <label>
+                  <span>Upload image / PDF / file to Google Drive</span>
+                  <input id="announcementFile" type="file">
+                </label>
+                <label>
+                  <span>Or paste Google Drive File ID / URL</span>
+                  <input id="announcementFileId" placeholder="Optional Drive file ID or URL">
+                </label>
+                <div id="announcementExistingAttachment" class="attachment-existing hidden"></div>
+                <label id="announcementRemoveAttachmentRow" class="check-row hidden">
+                  <input id="announcementRemoveAttachment" type="checkbox">
+                  <span>Remove current attachment</span>
+                </label>
+                <small class="field-help">The portal loads only the file metadata first. The actual attachment opens only when the student clicks it.</small>
+              </div>
+
+              <label class="check-row">
+                <input id="announcementPinned" type="checkbox">
+                <span>Pin as important <small>(maximum 3 pinned announcements)</small></span>
+              </label>
+
+              <label class="check-row">
+                <input id="announcementPublished" type="checkbox" checked>
+                <span>Enabled for publishing</span>
+              </label>
+
+              <div class="announcement-form-actions">
+                <button id="saveAnnouncementBtn" class="primary-btn" type="submit">SAVE ANNOUNCEMENT</button>
+                <button id="cancelAnnouncementEditBtn" class="secondary-btn hidden" type="button">CANCEL EDIT</button>
+              </div>
+            </form>
+
+            <div id="announcementStatus" class="admin-status"></div>
+          </article>
+
+          <article class="panel">
+            <div class="announcement-admin-heading">
+              <div>
+                <p class="section-kicker">POST HISTORY</p>
+                <h3>Announcements</h3>
+                <p>Scheduled posts become visible automatically when their publish time arrives.</p>
+              </div>
+              <button id="refreshAnnouncementsAdmin" class="mini-btn" type="button">Refresh</button>
+            </div>
+
+            <div id="adminAnnouncementsList" class="admin-list"></div>
+          </article>
+        </div>
+      </section>
+
+      <section id="admin-page-lessons" class="admin-page">
+        <div class="admin-grid">
+          <article class="panel">
+            <h3>Add Lesson</h3>
+            <p>Use a Drive file ID/URL now, or configure Apps Script to upload from this panel.</p>
+
+            <form id="lessonForm" class="admin-form">
+              <label><span>Lesson Title</span><input id="lessonTitle" required></label>
+              <label><span>Description</span><textarea id="lessonDescription"></textarea></label>
+              <label><span>Term</span>
+                <select id="lessonTerm"><option>1</option><option>2</option><option>3</option></select>
+              </label>
+              <label><span>Display Order</span><input id="lessonOrder" type="number" min="1" value="1" required></label>
+              <div class="admin-field">
+                <span class="field-label">Allowed Sections</span>
+                <details class="section-picker" id="lessonSectionPicker">
+                  <summary id="lessonSectionSummary">All Sections</summary>
+                  <div id="lessonSectionsOptions" class="section-picker-options"></div>
+                </details>
+              </div>
+              <label><span>Google Drive File ID or URL</span><input id="lessonFileId"></label>
+              <label><span>Optional file upload through Apps Script</span><input id="lessonFile" type="file" accept=".pdf,image/*"></label>
+              <label class="check-row"><input id="lessonPublished" type="checkbox" checked> <span>Published</span></label>
+              <button class="primary-btn" type="submit">SAVE LESSON</button>
+            </form>
+            <div id="lessonStatus" class="admin-status"></div>
+          </article>
+
+          <article class="panel">
+            <h3>Lessons</h3>
+            <p>Admin reads the lesson collection only when this tab is opened/refreshed.</p>
+            <div class="inline-actions" style="margin-bottom:12px;">
+              <button id="refreshLessonsAdmin" class="mini-btn">Refresh</button>
+            </div>
+            <div id="adminLessonsList" class="admin-list"></div>
+          </article>
+        </div>
+      </section>
+
+      <section id="admin-page-activities" class="admin-page">
+        <div class="admin-grid">
+          <article class="panel">
+            <h3>Add Activity</h3>
+            <p>Large files stay in Google Drive; Firestore stores only their small metadata.</p>
+
+            <form id="activityForm" class="admin-form">
+              <label><span>Activity Title</span><input id="activityTitle" required></label>
+              <label><span>Description</span><textarea id="activityDescription"></textarea></label>
+              <label><span>Term</span>
+                <select id="activityTerm"><option>1</option><option>2</option><option>3</option></select>
+              </label>
+              <label><span>Display Order</span><input id="activityOrder" type="number" min="1" value="1" required></label>
+              <label><span>Due Date</span><input id="activityDueDate" type="date"></label>
+              <div class="admin-field">
+                <span class="field-label">Allowed Sections</span>
+                <details class="section-picker" id="activitySectionPicker">
+                  <summary id="activitySectionSummary">All Sections</summary>
+                  <div id="activitySectionsOptions" class="section-picker-options"></div>
+                </details>
+              </div>
+              <div class="activity-attachments-admin-box">
+                <div class="field-label">Activity Attachments <small>Maximum 5 files</small></div>
+
+                <label>
+                  <span>Google Drive File IDs or URLs <small>(optional — one per line)</small></span>
+                  <textarea
+                    id="activityFileId"
+                    rows="3"
+                    placeholder="Paste up to 5 Google Drive File IDs or URLs&#10;One attachment per line"></textarea>
+                </label>
+
+                <label>
+                  <span>Upload files through Apps Script <small>(optional)</small></span>
+                  <input
+                    id="activityFile"
+                    type="file"
+                    accept=".pdf,image/*,*/*"
+                    multiple>
+                  <small class="field-help">Select up to 5 total attachments. Maximum 8 MB per uploaded file.</small>
+                </label>
+
+                <div id="activityAttachmentSelection" class="activity-attachment-selection">
+                  No files selected.
+                </div>
+              </div>
+              <label class="check-row"><input id="activityPublished" type="checkbox" checked> <span>Published</span></label>
+              <button class="primary-btn" type="submit">SAVE ACTIVITY</button>
+            </form>
+            <div id="activityStatus" class="admin-status"></div>
+          </article>
+
+          <article class="panel">
+            <h3>Activities</h3>
+            <div class="inline-actions" style="margin-bottom:12px;">
+              <button id="refreshActivitiesAdmin" class="mini-btn">Refresh</button>
+            </div>
+            <div id="adminActivitiesList" class="admin-list"></div>
+          </article>
+        </div>
+      </section>
+
+      <section id="admin-page-students" class="admin-page">
+        <div class="student-admin-layout">
+          <article class="panel">
+            <h3>Add One Student</h3>
+            <p>Create a single Firebase student account manually.</p>
+
+            <form id="studentForm" class="admin-form">
+              <label><span>Student ID</span><input id="newStudentId" required></label>
+              <label><span>Full Name</span><input id="newStudentName" required></label>
+              <label><span>Gender</span>
+                <select id="newStudentGender" required>
+                  <option value="">Select gender</option>
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                </select>
+              </label>
+              <label><span>Section</span>
+                <select id="newStudentSection" required>
+                  <option value="">Select section</option>
+                  <option value="__new__">+ Add new section</option>
+                </select>
+              </label>
+              <label id="newStudentSectionCustomWrap" class="hidden">
+                <span>New Section Name</span>
+                <input id="newStudentSectionCustom" placeholder="e.g. GRADE 10 - ST. FAUSTINA">
+              </label>
+              <label><span>Initial Password</span><input id="newStudentPassword" value="123456" minlength="6" required></label>
+              <button class="primary-btn" type="submit">CREATE STUDENT</button>
+            </form>
+            <div id="studentStatus" class="admin-status"></div>
+          </article>
+
+          <article class="panel bulk-import-panel">
+            <h3>Bulk Import Students</h3>
+            <p>Upload an Excel or CSV roster. Required columns: <b>Student ID, Name, Gender, Section</b>.</p>
+
+            <div class="template-links">
+              <a class="mini-btn template-link" href="G10_Student_Import_Template.xlsx" download>Download Excel Template</a>
+              <a class="mini-btn template-link" href="G10_Student_Import_Template.csv" download>Download CSV Template</a>
+            </div>
+
+            <form id="bulkStudentForm" class="admin-form">
+              <label>
+                <span>Excel / CSV File</span>
+                <input id="bulkStudentFile" type="file" accept=".xlsx,.xls,.csv" required>
+              </label>
+              <label>
+                <span>Initial Password for Imported Students</span>
+                <input id="bulkStudentPassword" value="123456" minlength="6" required>
+              </label>
+              <button class="secondary-btn" type="submit">PREVIEW IMPORT</button>
+            </form>
+
+            <div id="bulkStudentStatus" class="admin-status"></div>
+
+            <div id="bulkPreviewWrap" class="bulk-preview hidden">
+              <div class="bulk-summary">
+                <div><small>VALID</small><strong id="bulkValidCount">0</strong></div>
+                <div><small>INVALID</small><strong id="bulkInvalidCount">0</strong></div>
+                <div><small>TOTAL</small><strong id="bulkTotalCount">0</strong></div>
+              </div>
+              <div id="bulkStudentPreview" class="table-wrap"></div>
+              <button id="bulkImportBtn" class="primary-btn" type="button" disabled>IMPORT VALID STUDENTS</button>
+            </div>
+          </article>
+
+          <article class="panel student-profiles-panel">
+            <div class="student-list-head">
+              <div>
+                <h3>Student Profiles</h3>
+                <p>This list is admin-only. Students never download the entire roster.</p>
+              </div>
+              <div class="student-list-controls">
+                <label class="student-search-control">
+                  <span class="sr-only">Search student</span>
+                  <input
+                    id="studentSearchInput"
+                    type="search"
+                    autocomplete="off"
+                    placeholder="Search name or Student ID">
+                </label>
+                <select id="studentSectionFilter" class="compact-select">
+                  <option value="*">All Sections</option>
+                </select>
+                <button id="refreshStudentsAdmin" class="mini-btn" type="button">Refresh</button>
+              </div>
+            </div>
+            <div id="adminStudentsList" class="admin-list"></div>
+          </article>
+        </div>
+      </section>
+
+      <section id="admin-page-tinkercad" class="admin-page">
+        <div class="tc-page-heading">
+          <div>
+            <p class="section-kicker">TINKERCAD CLASSROOMS</p>
+            <h3>Tinkercad Classroom Manager</h3>
+            <p>One classroom link for all ICT 10 students. Their Student ID is automatically used as the Tinkercad Student Login, exactly as recorded, including hyphens.</p>
+          </div>
+          <a class="mini-btn tc-official-link" href="https://www.tinkercad.com/dashboard?type=classes" target="_blank" rel="noopener noreferrer">Open Tinkercad Classes ↗</a>
+        </div>
+        <div class="tc-admin-layout">
+          <article class="panel tc-assignment-panel">
+            <h3>One-time Classroom Setup</h3>
+            <p>Paste the real class invitation link once. The Arduino Hub automatically shows this classroom to every student who signs in.</p>
+            <form id="tinkercadClassForm" class="admin-form">
+              <label><span>Tinkercad Class Invitation Link</span><input id="tcAdminClassLink" type="url" maxlength="300" required autocomplete="off" value="https://www.tinkercad.com/joinclass/R6NEARGUX" placeholder="https://www.tinkercad.com/joinclass/R6NEARGUX"></label>
+              <div id="tcAdminClassPreview" class="tc-class-preview" aria-live="polite">Class Code: R6NEARGUX</div>
+              <label class="check-row"><input id="tcAdminEnabled" type="checkbox" checked> <span>Show Tinkercad access to students</span></label>
+              <div class="inline-actions">
+                <button id="tcAdminSaveBtn" class="primary-btn" type="submit">SAVE CLASSROOM FOR ALL STUDENTS</button>
+              </div>
+            </form>
+            <div id="tinkercadAdminStatus" class="admin-status" role="status" aria-live="polite"></div>
+            <p class="tc-admin-note"><strong>Important:</strong> This configures Arduino Hub only. Student seats must already exist in Tinkercad, and their Student Login must match the Student ID shown in the directory. Saving the class link does not create or verify Autodesk seats.</p>
+            <p class="tc-admin-note">The setting is shared across all sections. Previous individual Arduino Hub assignments, if any, are ignored by this new page. No per-student encoding, extra Firebase accounts, Gmail, or Apps Script changes needed.</p>
+          </article>
+          <article class="panel tc-roster-panel">
+            <div class="tc-roster-top">
+              <div><h3>Automatic Student Login Preview</h3><p id="tcAdminStats">Loading students…</p></div>
+              <button id="tcAdminRefreshBtn" class="mini-btn" type="button">Refresh</button>
+            </div>
+            <div class="tc-roster-filters">
+              <input id="tcAdminSearch" type="search" placeholder="Search student name or ID" aria-label="Search Tinkercad students">
+              <select id="tcAdminSection" aria-label="Filter Tinkercad section"><option value="*">All Sections</option></select>
+            </div>
+            <div id="tcAdminRoster" class="tc-roster-list" aria-live="polite">Loading roster…</div>
+          </article>
+        </div>
+      </section>
+
+      <section id="admin-page-project-monitor" class="admin-page">
+        <div class="pm-page-heading">
+          <div>
+            <p class="section-kicker">TINKERCAD • TEACHER REVIEW</p>
+            <h3>Project Monitoring Center</h3>
+            <p>Review actual circuits in Tinkercad, then record each student's status here. These statuses are teacher-maintained; Arduino Hub does not retrieve or detect Tinkercad projects.</p>
+          </div>
+          <a class="mini-btn pm-external-link" href="https://www.tinkercad.com/dashboard?type=classes" target="_blank" rel="noopener noreferrer">Open Tinkercad Classes ↗</a>
+        </div>
+        <div class="pm-admin-layout">
+          <article class="panel pm-task-panel">
+            <h3>Set Up an Arduino Activity</h3>
+            <p class="pm-muted">Create each activity once, then track review status by student. No student links required.</p>
+            <form id="pmTaskForm" class="admin-form">
+              <label><span>Activity name</span><input id="pmTaskTitle" maxlength="100" required placeholder="e.g. Electronic Dice Circuit"></label>
+              <div class="pm-form-grid">
+                <label><span>Term</span><select id="pmTaskTerm"><option value="1">Term 1</option><option value="2">Term 2</option><option value="3">Term 3</option></select></label>
+                <label><span>Sections</span><select id="pmTaskSection"><option value="ALL_SECTIONS">All Sections</option></select></label>
+              </div>
+              <button id="pmCreateTaskBtn" class="primary-btn" type="submit">CREATE ACTIVITY</button>
+            </form>
+            <div id="pmTaskMessage" class="admin-status" role="status" aria-live="polite"></div>
+            <p class="pm-muted">A saved review does not confirm automatic submission in Tinkercad. Open the actual Tinkercad class to inspect circuits.</p>
+          </article>
+          <article class="panel pm-review-panel">
+            <div class="pm-review-head"><div><h3>Review Student Projects</h3><p class="pm-muted">Choose a term, section and activity to begin checking.</p></div><button id="pmRefresh" class="mini-btn" type="button">Refresh</button></div>
+            <div class="pm-filter-grid">
+              <label><span>Term</span><select id="pmTermFilter"><option value="1">Term 1</option><option value="2">Term 2</option><option value="3">Term 3</option></select></label>
+              <label><span>Section</span><select id="pmSectionFilter"><option value="*">All Sections</option></select></label>
+              <label class="pm-task-choice"><span>Activity</span><select id="pmTaskFilter"><option value="">Create an activity first</option></select></label>
+            </div>
+            <div class="pm-review-toolbar">
+              <input id="pmStudentSearch" type="search" placeholder="Search student name or ID" aria-label="Search project monitoring students">
+              <button id="pmArchiveTask" class="mini-btn pm-archive-btn" type="button" disabled>Archive Activity</button>
+            </div>
+            <div id="pmSummary" class="pm-summary" aria-live="polite"></div>
+            <div id="pmAdminStatus" class="admin-status" role="status" aria-live="polite"></div>
+            <div id="pmStudentList" class="pm-student-list" aria-live="polite"><p class="pm-muted">Open Project Monitoring to load review records.</p></div>
+          </article>
+        </div>
+      </section>
+
+      <section id="admin-page-sync" class="admin-page">
+        <div class="compliance-v2-layout">
+
+          <article class="panel compliance-v2-source-panel">
+            <div class="compliance-v2-heading">
+              <div>
+                <p class="section-kicker">GOOGLE SHEETS SYNC</p>
+                <h3>Compliance Settings</h3>
+                <p>
+                  Your four Grade 10 sections are detected automatically from the student roster.
+                  Paste each section's Google Sheet link once, save it to Firebase, then just sync whenever needed.
+                </p>
+              </div>
+              <span id="complianceDetectedBadge" class="small-badge">0 sections</span>
+            </div>
+
+            <div class="compliance-v2-top-controls">
+              <label>
+                <span>Term</span>
+                <select id="syncTerm">
+                  <option value="1">TERM 1</option>
+                  <option value="2">TERM 2</option>
+                  <option value="3">TERM 3</option>
+                </select>
+                <small class="compliance-sheet-tab-hint">
+                  Sheet tab to read: <strong id="syncSheetTabLabel">TERM_1</strong>
+                </small>
+              </label>
+
+              <div class="compliance-v2-select-actions">
+                <span>Sections to Sync</span>
+                <div class="inline-actions">
+                  <button id="complianceSelectAllBtn" class="mini-btn" type="button">Select All</button>
+                  <button id="complianceClearAllBtn" class="mini-btn" type="button">Clear</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="compliance-v2-links-head">
+              <div>
+                <strong>Section Google Sheet Links</strong>
+                <small>
+                  Save one Google Sheet link per section. The app automatically reads TERM_1, TERM_2, or TERM_3 based on the selected term.
+                </small>
+              </div>
+              <span class="compliance-mini-pill">Saved in Firebase</span>
+            </div>
+
+            <div id="complianceSectionSettingsList" class="compliance-v2-section-list"></div>
+
+            <div class="compliance-v2-save-row">
+              <button id="saveComplianceSettingsBtn" class="secondary-btn" type="button">
+                SAVE SETTINGS TO FIREBASE
+              </button>
+              <div id="complianceSetupStatus" class="admin-status"></div>
+            </div>
+
+            <div class="compliance-rule-note">
+              <strong>Compliance rule:</strong>
+              Blank score cell = <b>Missing</b>. A recorded <b>0</b> is a real submitted score and is
+              <b>not Missing</b>. Only tasks with an HPS / Highest Possible Score are active.
+            </div>
+          </article>
+
+          <article class="panel compliance-v2-task-panel">
+            <div class="compliance-v2-heading">
+              <div>
+                <p class="section-kicker">SHARED GRADE 10 TASK NAMES</p>
+                <h3>Task Names Students Will See</h3>
+                <p>
+                  Set a task name once for the selected term. The same name is used for
+                  <b>all four Grade 10 sections</b>.
+                </p>
+              </div>
+              <span id="taskMapLabel" class="small-badge">TERM 1 • ALL SECTIONS</span>
+            </div>
+
+            <div class="compliance-task-label-tabs" role="tablist" aria-label="Task groups">
+              <button class="mini-btn active" type="button" data-compliance-task-group="ww">Written Works</button>
+              <button class="mini-btn" type="button" data-compliance-task-group="pt">Performance Tasks</button>
+              <button class="mini-btn" type="button" data-compliance-task-group="ta">Term Assessment</button>
+            </div>
+
+            <div id="complianceTaskNameGrid" class="compliance-v2-task-list"></div>
+
+            <div class="compliance-v2-task-footer">
+              <span>
+                Example: set <b>WW 1 = Arduino Safety Quiz</b> once, and every section will display
+                “Arduino Safety Quiz” for WW 1.
+              </span>
+              <button id="resetComplianceTaskNamesBtn" class="mini-btn" type="button">Reset Current Group</button>
+            </div>
+          </article>
+
+          <article class="panel compliance-v2-sync-panel">
+            <div class="compliance-v2-heading">
+              <div>
+                <p class="section-kicker">QUICK SYNC</p>
+                <h3>Preview / Publish Compliance</h3>
+                <p>
+                  Check one section, several sections, or all four. Student pages never read Google Sheets directly.
+                </p>
+              </div>
+            </div>
+
+            <div class="compliance-v2-sync-actions">
+              <button id="previewComplianceBtn" class="secondary-btn" type="button">
+                PREVIEW CHECKED SECTIONS
+              </button>
+              <button id="publishSyncBtn" class="primary-btn" type="button">
+                SYNC CHECKED SECTIONS &amp; PUBLISH
+              </button>
+              <button id="repairWWColorsBtn" class="secondary-btn" type="button">
+                CHECK / REPAIR WW COLORS
+              </button>
+            </div>
+            <p class="ww-repair-help">If completed Written Works still appear gray, use Check / Repair WW Colors. It checks the admin-only scores for the selected sections and term, then repairs the student color bands without revealing WW scores.</p>
+            <div id="wwRepairStatus" class="admin-status" role="status"></div>
+            <div id="syncStatus" class="admin-status"></div>
+          </article>
+
+          <article class="panel compliance-preview-panel">
+            <div class="compliance-v2-heading">
+              <div>
+                <p class="section-kicker">SYNC PREVIEW</p>
+                <h3>Compliance Preview</h3>
+                <p id="syncPreviewNote">No preview loaded yet.</p>
+                <p class="running-grade-preview-disclaimer">Running Grade is the student's current standing only—not the final term grade. It may increase or decrease before the term ends.</p>
+              </div>
+            </div>
+            <div id="syncActiveTasks"></div>
+            <div id="syncPreviewTable" class="table-wrap"></div>
+          </article>
+
+        </div>
+      </section>
+    </main>
+  </div>
+
+
+
+
+  <div id="adminLoginReminderPreviewModal" class="modal login-reminder-modal hidden" role="dialog" aria-modal="true" aria-labelledby="adminLoginReminderPreviewTitle">
+    <div class="modal-backdrop login-reminder-backdrop"></div>
+
+    <div id="adminLoginReminderPreviewDialog" class="login-reminder-dialog">
+      <header class="login-reminder-head">
+        <div class="login-reminder-heading-copy">
+          <span class="login-reminder-kicker">ADMIN PREVIEW</span>
+          <h2 id="adminLoginReminderPreviewTitle">Requirements Reminder</h2>
+          <small id="adminLoginReminderPreviewMeta">Student Preview • Term</small>
+        </div>
+
+        <button class="login-reminder-close" type="button" data-close-admin-login-reminder-preview aria-label="Close preview">×</button>
+      </header>
+
+      <div class="login-reminder-body">
+        <div class="login-reminder-hero">
+          <div id="adminLoginReminderPreviewIcon" class="login-reminder-icon" aria-hidden="true">!</div>
+          <div>
+            <strong id="adminLoginReminderPreviewStatusTitle">Preview</strong>
+            <p id="adminLoginReminderPreviewMessage">Preview message.</p>
+          </div>
+        </div>
+
+        <section class="student-running-grade login-reminder-grade" aria-label="Sample running grade">
+          <div class="student-running-grade-copy">
+            <span class="grade-card-kicker">RUNNING GRADE</span>
+            <strong class="grade-card-number">89.50 <span class="admin-preview-sample-pill">SAMPLE</span></strong>
+            <small id="adminLoginReminderPreviewGradeNote">Example grade only — actual running grade and update date vary by student.</small>
+            <p class="grade-card-disclaimer">This is your current running grade, not your final term grade. It may increase or decrease before the term ends.</p>
+          </div>
+          <div class="grade-card-term" id="adminLoginReminderPreviewGradeTerm">TERM 1</div>
+        </section>
+
+        <section id="adminLoginReminderPreviewMissingSection" class="login-reminder-missing-section hidden">
+          <div class="login-reminder-list-head">
+            <span>MISSING REQUIREMENTS</span>
+            <strong id="adminLoginReminderPreviewMissingCount">0</strong>
+          </div>
+          <div id="adminLoginReminderPreviewList" class="login-reminder-list"></div>
+        </section>
+
+        <button id="adminLoginReminderPreviewPlayMusicBtn" class="login-reminder-music-btn hidden" type="button">
+          ▶ Play Music
+        </button>
+
+        <button class="primary-btn login-reminder-continue" type="button" data-close-admin-login-reminder-preview>
+          CLOSE PREVIEW
+        </button>
+
+        <audio id="adminLoginReminderPreviewAudio" preload="none" loop></audio>
+      </div>
+    </div>
+  </div>
+
+  <div id="studentPasswordResetModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="studentPasswordResetTitle">
+    <div class="modal-backdrop admin-compliance-backdrop" data-close-student-password-reset></div>
+    <div class="student-password-reset-dialog">
+      <header class="student-password-reset-head">
+        <div>
+          <span class="section-kicker">PASSWORD RESET</span>
+          <h3 id="studentPasswordResetTitle">Temporary Password</h3>
+          <small id="studentPasswordResetMeta">Student</small>
+        </div>
+        <button class="viewer-close" type="button" data-close-student-password-reset aria-label="Close">×</button>
+      </header>
+
+      <div class="student-password-reset-body">
+        <p>Give this temporary password directly to the student. It is shown here for this reset only.</p>
+
+        <div class="temporary-password-box">
+          <code id="studentTemporaryPassword">—</code>
+          <button id="copyStudentTemporaryPassword" class="mini-btn" type="button">Copy</button>
+        </div>
+
+        <div class="password-reset-note">
+          The student will be required to create a new password after the next login.
+        </div>
+
+        <button class="primary-btn student-password-reset-done" type="button" data-close-student-password-reset>DONE</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="studentComplianceModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="studentComplianceModalTitle">
+    <div class="modal-backdrop admin-compliance-backdrop" data-close-student-compliance></div>
+    <div class="admin-compliance-dialog student-compliance-dialog">
+      <header class="admin-compliance-modal-head">
+        <div class="admin-compliance-modal-title">
+          <span class="section-kicker">STUDENT COMPLIANCE PROFILE</span>
+          <h3 id="studentComplianceModalTitle">Student</h3>
+          <small id="studentComplianceModalMeta">Student ID • Section</small>
+        </div>
+        <div class="admin-compliance-modal-head-actions">
+          <label class="admin-modal-term-control">
+            <span>Term</span>
+            <select id="studentComplianceTerm">
+              <option value="1">Term 1</option>
+              <option value="2">Term 2</option>
+              <option value="3">Term 3</option>
+            </select>
+          </label>
+          <button class="viewer-close" type="button" data-close-student-compliance aria-label="Close">×</button>
+        </div>
+      </header>
+
+      <div id="studentComplianceModalBody" class="admin-compliance-modal-body">
+        <div class="admin-modal-loading">Loading student scores…</div>
+      </div>
+      <footer class="student-score-navigation" aria-label="Browse student scores">
+        <button id="studentCompliancePreviousBtn" class="student-score-nav-button" type="button" disabled
+          aria-label="Previous student"><span aria-hidden="true">←</span> Previous</button>
+        <div class="student-score-navigation-counter" aria-live="polite" aria-atomic="true">
+          <strong id="studentCompliancePosition">Student</strong>
+          <small id="studentComplianceNavigationContext">Current student list</small>
+        </div>
+        <button id="studentComplianceNextBtn" class="student-score-nav-button student-score-nav-next" type="button" disabled
+          aria-label="Next student">Next <span aria-hidden="true">→</span></button>
+      </footer>
+    </div>
+  </div>
+
+  <div id="missingComplianceModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="missingComplianceModalTitle">
+    <div class="modal-backdrop admin-compliance-backdrop" data-close-missing-compliance></div>
+    <div class="admin-compliance-dialog missing-compliance-dialog">
+      <header class="admin-compliance-modal-head">
+        <div class="admin-compliance-modal-title">
+          <span class="section-kicker">MISSING COMPLIANCE OVERVIEW</span>
+          <h3 id="missingComplianceModalTitle">Students with Missing Tasks</h3>
+          <small id="missingComplianceModalMeta">Current term</small>
+        </div>
+        <button class="viewer-close" type="button" data-close-missing-compliance aria-label="Close">×</button>
+      </header>
+
+      <div class="missing-overview-controls">
+        <label>
+          <span>Term</span>
+          <select id="missingOverviewTerm">
+            <option value="1">Term 1</option>
+            <option value="2">Term 2</option>
+            <option value="3">Term 3</option>
+          </select>
+        </label>
+
+        <label>
+          <span>Section</span>
+          <select id="missingOverviewSection">
+            <option value="*">All Sections</option>
+          </select>
+        </label>
+
+        <label>
+          <span>Sort</span>
+          <select id="missingOverviewSort">
+            <option value="section">Section A–Z</option>
+            <option value="name">Student Name A–Z</option>
+            <option value="missing">Most Missing First</option>
+          </select>
+        </label>
+      </div>
+
+      <div id="missingComplianceOverviewSummary" class="missing-overview-summary"></div>
+      <div id="missingComplianceOverviewList" class="missing-overview-list">
+        <div class="admin-modal-loading">Loading missing compliance…</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="adminHeartsModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="adminHeartsTitle">
+    <div class="modal-backdrop" data-close-hearts></div>
+    <div class="admin-hearts-dialog">
+      <div class="admin-hearts-head">
+        <div>
+          <small>HEART REACTIONS</small>
+          <h3 id="adminHeartsTitle">Announcement</h3>
+        </div>
+        <button class="viewer-close" type="button" data-close-hearts aria-label="Close">×</button>
+      </div>
+      <div id="adminHeartsList" class="admin-hearts-list"></div>
+    </div>
+  </div>
+
+</body>
+</html>
