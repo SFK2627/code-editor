@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ict8-connect-v664-section-performance';
+const CACHE_NAME = 'ict8-connect-v665-grade-popup';
 const APP_SHELL = [
   './',
   './index.html',

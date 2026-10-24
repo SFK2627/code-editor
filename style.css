@@ -68910,3 +68910,52 @@ html[data-theme="dark"] .code-explorer-final-podium-btn { border-color: #a77e2f;
 @media(max-width:430px){ #sectionPerformanceAdmin{padding:12px;} .sperf-toolbar{grid-template-columns:1fr;} .sperf-metric{padding:12px;min-height:96px;} .sperf-dist-row{grid-template-columns:minmax(108px,1.25fr) minmax(35px,1fr) 20px;gap:5px;padding:5px;} .sperf-dist-label small{display:none;} .sperf-panel{padding:12px;} }
 
 .sperf-show-more { display:block; width:100%; margin-top:6px; padding:12px; text-align:center; }
+
+/* v665: Section Performance clickable student-breakdown popup. */
+.sperf-metric-clickable { font:inherit; color:inherit; text-align:left; width:100%; cursor:pointer; }
+.sperf-metric-clickable:hover,.sperf-metric-clickable:focus-visible,
+.sperf-dist-row:hover,.sperf-trend-pills button:hover,.sperf-missing-band-btn:hover { border-color:#5585ca; box-shadow:inset 0 0 0 1px rgba(59,130,246,.18); }
+.sperf-metric-clickable:focus-visible,.sperf-dist-row:focus-visible,.sperf-trend-pills button:focus-visible,
+.sperf-missing-band-btn:focus-visible { outline:3px solid #60a5fa; outline-offset:2px; }
+.sperf-dist-row { min-height:44px; }
+.sperf-missing-band-btn { display:block; width:100%; border:1px dashed var(--line-strong); border-radius:9px; text-align:left; background:var(--bg-2); cursor:pointer; font:inherit; }
+.sperf-trend-pills button { display:inline-flex; border-radius:100px; background:var(--bg-2); border:1px solid var(--line-strong); padding:7px 10px; font:inherit; color:var(--text); font-size:12px; cursor:pointer; }
+.sperf-trend-pills button.sperf-good { color:#159268; }.sperf-trend-pills button.sperf-bad { color:#d6475c; }
+.sperf-roster-overlay { position:fixed; inset:0; z-index:10030; display:grid; place-items:center; padding:clamp(10px,3vw,24px); background:rgba(8,19,39,.68); backdrop-filter:blur(6px); }
+.sperf-roster-overlay.hidden { display:none!important; }
+body.sperf-roster-open { overflow:hidden; }
+.sperf-roster-modal { display:flex; flex-direction:column; width:min(840px,100%); max-height:min(88dvh,850px); min-height:220px; min-width:0; border:1px solid var(--line-strong); border-radius:19px; background:var(--bg,#fff); color:var(--text,#183153); box-shadow:0 26px 80px rgba(2,6,23,.4); overflow:hidden; }
+.sperf-roster-header { padding:20px 22px 14px; display:flex; align-items:flex-start; gap:14px; justify-content:space-between; border-bottom:1px solid var(--line-strong); }
+.sperf-roster-heading { min-width:0; }.sperf-roster-heading h2 { font-size:clamp(20px,2.2vw,26px); margin:4px 0; line-height:1.25; }
+.sperf-roster-heading p { margin:0; font-size:13px; line-height:1.5; }
+.sperf-roster-close { flex-shrink:0; width:40px; height:40px; font-size:25px; }
+.sperf-roster-toolbar { display:grid; grid-template-columns:minmax(0,2fr) minmax(150px,1fr); padding:14px 22px 8px; gap:12px; }
+.sperf-roster-toolbar label { display:flex; flex-direction:column; gap:6px; font-size:12px; font-weight:700; min-width:0; }
+.sperf-roster-toolbar input,.sperf-roster-toolbar select { min-height:44px; width:100%; min-width:0; border:1px solid var(--line-strong); border-radius:10px; background:var(--bg-2); color:var(--text); font:inherit; font-size:14px; padding:9px 12px; }
+.sperf-roster-count { padding:0 22px 9px; margin:0; color:var(--muted); font-size:13px; font-weight:650; }
+.sperf-roster-list { min-height:0; overflow:auto; overscroll-behavior:contain; display:flex; flex-direction:column; gap:9px; padding:4px 22px 20px; }
+.sperf-roster-student { display:flex; gap:12px; align-items:center; flex-wrap:wrap; border:1px solid var(--line-strong); border-radius:12px; background:var(--bg-2); padding:12px; }
+.sperf-roster-student-main { display:flex; flex-direction:column; flex:1 1 170px; min-width:0; gap:4px; }
+.sperf-roster-student-main strong { font-size:14px; overflow-wrap:anywhere; }
+.sperf-roster-student-main small { color:var(--muted); font-size:12px; overflow-wrap:anywhere; }
+.sperf-roster-student-figures { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.sperf-roster-student-figures > span { font-size:12px; }
+.sperf-roster-student .sperf-actions { display:flex; gap:6px; }
+.sperf-roster-more { width:100%; min-height:42px; }
+.sperf-roster-footer { border-top:1px solid var(--line-strong); display:flex; justify-content:space-between; align-items:center; gap:14px; padding:11px 22px; color:var(--muted); font-size:12px; }
+.sperf-roster-footer button { min-width:100px; }
+@media(max-width:600px) {
+ .sperf-roster-overlay { padding:8px; align-items:end; }
+ .sperf-roster-modal { width:100%; max-height:91dvh; border-radius:18px 18px 13px 13px; }
+ .sperf-roster-header { padding:14px 14px 10px; }
+ .sperf-roster-toolbar { padding:12px 14px 7px; grid-template-columns:1fr; gap:8px; }
+ .sperf-roster-count { padding:0 14px 8px; }
+ .sperf-roster-list { padding:3px 14px 14px; }
+ .sperf-roster-student { align-items:flex-start; gap:10px; }
+ .sperf-roster-student-main { flex-basis:100%; }
+ .sperf-roster-student .sperf-actions { width:100%; }
+ .sperf-roster-student .sperf-actions .ghost-btn { flex:1 1 auto; }
+ .sperf-roster-footer { padding:10px 14px; }
+ .sperf-roster-footer span { max-width:55%; }
+}
+@media(prefers-reduced-motion:reduce){ .sperf-roster-overlay, .sperf-roster-modal { scroll-behavior:auto; transition:none!important; animation:none!important; } }

@@ -10849,6 +10849,19 @@ let sperfSessionGeneration = 0;
 let sperfLastActiveTerm = '';
 let sperfLoadingTerm = '';
 let sperfLastRefreshAt = 0;
+const sperfRosterUi = Object.fromEntries(['Overlay','Title','Subtitle','Search','Sort','Count','List','Close','Done'].map(key => [key, document.getElementById('sperfRoster' + key)]));
+const sperfRosterState = { group: '', opener: null, visible: 40 };
+const SPERF_ROSTER_GROUP_NAMES = Object.freeze({
+  published: 'Published Students', graded: 'Students with Numerical Grades',
+  complete: 'No Missing Requirements', lacking: 'With Lacking Requirements',
+  improved: 'Improved Grades', priority: 'Priority Students',
+  unpublished: 'Not Yet Published', 'band-unavailable': 'No Published Grade Band',
+  'trend-up': 'Improved Grades', 'trend-down': 'Declined Grades',
+  'trend-same': 'Unchanged Grades', 'trend-unavailable': 'Grade Trend Unavailable',
+  'band-white': 'White Grade Students', 'band-green': 'Green Grade Students',
+  'band-yellow': 'Yellow Grade Students', 'band-gray': 'Gray Grade Students',
+  'band-orange': 'Orange Grade Students', 'band-red': 'Red Grade Students'
+});
 let sperfDisplayLimit = 40;
 const SPERF_BANDS = [
   ['white', 'White', '96–100', '#e6eaf1'],
@@ -10860,6 +10873,7 @@ const SPERF_BANDS = [
 ];
 
 function clearSectionPerformanceOnLogout() {
+  sperfCloseRoster({ restoreFocus: false });
   ++sperfSessionGeneration;
   sperfPrivateGradeTask = null;
   sperfInitPromise = null;
@@ -10970,8 +10984,32 @@ function sperfFilteredStudentRows(rows) {
     return String(a.studentName || a.studentId).localeCompare(String(b.studentName || b.studentId));
   });
 }
-function sperfMetric(title, number, note = '') {
-  return `<div class="sperf-metric"><small>${escapeHTML(title)}</small><strong>${escapeHTML(String(number))}</strong><span>${escapeHTML(note)}</span></div>`;
+function sperfMetric(title, number, note = '', group = '') {
+  const tag = group ? 'button' : 'div';
+  const attrs = group ? `type="button" data-sperf-group="${escapeAttribute(group)}" aria-haspopup="dialog" aria-label="View ${escapeAttribute(title)} student names"` : '';
+  return `<${tag} class="sperf-metric${group ? ' sperf-metric-clickable' : ''}" ${attrs}><small>${escapeHTML(title)}</small><strong>${escapeHTML(String(number))}</strong><span>${escapeHTML(note)}${group ? ' · View students ↗' : ''}</span></${tag}>`;
+}
+// Use the same roster IDs as Student Tracker: never treat missing grade as zero.
+function sperfUnpublishedRows(allRows = sperfValidPublishedRows()) {
+  if (!adminStudentsCache.length) return [];
+  const section = sperfUi.Section?.value || 'all';
+  const sectionKey = complianceViewerSectionKey(section);
+  const published = new Set(allRows.map(row => getStudentIdAuthKey(row.studentIdNormalized || row.studentId)).filter(Boolean));
+  const unique = new Set();
+  return adminStudentsCache.filter(student => {
+    const sid = normalizeStudentId(student.studentId || student.studentIdNormalized || student.rosterId);
+    const key = getStudentIdAuthKey(sid);
+    if (!key || published.has(key) || unique.has(key)) return false;
+    if (section !== 'all' && complianceViewerSectionKey(student.section) !== sectionKey) return false;
+    unique.add(key);
+    return true;
+  }).map(student => ({
+    studentName: student.name || student.fullName || 'Student',
+    studentId: student.studentId || student.studentIdNormalized || student.rosterId,
+    studentIdNormalized: normalizeStudentId(student.studentId || student.studentIdNormalized || student.rosterId),
+    section: String(student.section || ''),
+    _sperfUnpublished: true
+  }));
 }
 function sperfSectionStat(rows) {
   const lacking = rows.filter(row => sperfMissing(row) > 0).length;
@@ -10986,13 +11024,16 @@ function sperfRenderSummary(rows, allRows) {
     ? (adminStudentsCache.length || null) : sperfEnrolled(sperfUi.Section.value);
   const coverage = enrollment === null ? 'Roster not loaded' : `${sperfRate(rows.length, enrollment)}% of ${enrollment} enrolled`;
   const unrelated = allRows.length - rows.length;
+  const unpublished = enrollment === null ? null : sperfUnpublishedRows(allRows).length;
   sperfUi.Summary.innerHTML = [
-    sperfMetric('Published Students', rows.length, coverage),
-    sperfMetric('Not Yet Published', enrollment === null ? '—' : Math.max(0, enrollment - rows.length), enrollment === null ? 'Roster unavailable' : 'Enrolled without selected-term status'),
-    sperfMetric('Average Running Grade', sperfDisplayAverage(avg.average), `${avg.count}/${rows.length} with valid numerical grades`),
-    sperfMetric('No Lackings', complete, `${sperfRate(complete, rows.length)}% of published`),
-    sperfMetric('With Lackings', lacking, `${sperfRate(lacking, rows.length)}% of published`),
-    sperfMetric('Improved vs Previous Term', up, `${sperfRate(up, rows.length)}% of published`)
+    sperfMetric('Published Students', rows.length, coverage, 'published'),
+    sperfMetric('Average Running Grade', sperfDisplayAverage(avg.average), `${avg.count}/${rows.length} with valid numerical grades`, 'graded'),
+    sperfMetric('No Lackings', complete, `${sperfRate(complete, rows.length)}% of published`, 'complete'),
+    sperfMetric('With Lackings', lacking, `${sperfRate(lacking, rows.length)}% of published`, 'lacking'),
+    sperfMetric('Improved vs Previous Term', up, `${sperfRate(up, rows.length)}% of published`, 'improved'),
+    unpublished === null
+      ? sperfMetric('Not Yet Published', '—', 'Roster not loaded')
+      : sperfMetric('Not Yet Published', unpublished, 'Student Tracker roster', 'unpublished')
   ].join('');
   if (sperfUi.StudentCount) sperfUi.StudentCount.textContent = `${rows.length} published · ${unrelated} other-section record(s)`;
 }
@@ -11024,13 +11065,20 @@ function sperfRenderDistribution(rows) {
   }
   sperfUi.Distribution.innerHTML = SPERF_BANDS.map(([id,label,range,color]) => {
     const n = rows.filter(row => sperfBand(row) === id).length;
-    return `<button type="button" class="sperf-dist-row ${sperfUi.Band?.value === id ? 'selected' : ''}" data-sperf-band="${id}" aria-label="Filter ${escapeAttribute(label)} grade band, ${n} students">
+    return `<button type="button" class="sperf-dist-row" data-sperf-group="band-${id}" aria-haspopup="dialog" aria-label="View ${n} ${escapeAttribute(label)} grade students">
       <span class="sperf-dist-label"><i style="background:${color}"></i>${escapeHTML(label)} <small>${range}</small></span>
       <span class="sperf-dist-track"><span style="width:${sperfRate(n, rows.length)}%;background:${color}"></span></span><b>${n}</b>
     </button>`;
-  }).join('') + `<p class="sperf-chart-note">${rows.filter(row => sperfBand(row) === 'unavailable').length} with no published grade band.</p>`;
-  const counts = ['up','down','same','unavailable'].map(k => rows.filter(r => safeGradeTrend(r.gradeTrend) === k).length);
-  sperfUi.TrendSummary.innerHTML = `<strong>Grade movement</strong><div class="sperf-trend-pills"><span class="sperf-good">↑ ${counts[0]} improved</span><span class="sperf-bad">↓ ${counts[1]} declined</span><span>→ ${counts[2]} unchanged</span><span>? ${counts[3]} unavailable</span></div>`;
+  }).join('');
+  const missingBand = rows.filter(row => sperfBand(row) === 'unavailable').length;
+  sperfUi.Distribution.innerHTML += `<button type="button" class="sperf-chart-note sperf-missing-band-btn" data-sperf-group="band-unavailable" aria-haspopup="dialog">${missingBand} with no published grade band · View names ↗</button>`;
+  const trendGroups = [
+    ['up','↑','improved','sperf-good'],['down','↓','declined','sperf-bad'],
+    ['same','→','unchanged',''],['unavailable','?','unavailable','']
+  ];
+  sperfUi.TrendSummary.innerHTML = `<strong>Grade movement</strong><div class="sperf-trend-pills">${trendGroups.map(([key,glyph,label,clazz]) =>
+    `<button type="button" class="${clazz}" data-sperf-group="trend-${key}" aria-haspopup="dialog">${glyph} ${rows.filter(row => safeGradeTrend(row.gradeTrend) === key).length} ${label}</button>`
+  ).join('')}</div>`;
 }
 function sperfRowIdentity(row) { return encodeURIComponent(row.studentIdNormalized); }
 function sperfStudentActions(row) {
@@ -11076,6 +11124,7 @@ function renderSectionPerformance() {
   sperfRenderDistribution(selected);
   sperfRenderPriority(selected);
   sperfRenderStudents(selected);
+  if (sperfRosterState.group) sperfRenderRoster();
   if (adminComplianceViewerSnapshotComplete) {
     sperfSetStatus(`${allRows.length} published student records in ${complianceTermFriendlyLabel(sperfUi.Term?.value || currentAcademicTerm())} · Last published: ${adminComplianceSectionLastPublishedText(allRows)}. Private grades load only for teacher accounts.`, 'success');
   }
@@ -11175,13 +11224,134 @@ async function initializeSectionPerformance(options = {}) {
   try { return await task; } finally { if (sperfInitPromise === task) sperfInitPromise = null; }
 }
 
+// v665 — clickable analytics drill-down. All results are computed in memory
+// from the same teacher-only published snapshot and private grade cache.
+function sperfRosterCandidates() {
+  const key = sperfRosterState.group;
+  const all = sperfValidPublishedRows();
+  if (key === 'unpublished') return sperfUnpublishedRows(all);
+  const rows = sperfSelectedRows(all);
+  if (key === 'published') return rows;
+  if (key === 'graded') return rows.filter(row => sperfGrade(row) !== null);
+  if (key === 'complete') return rows.filter(row => sperfMissing(row) === 0);
+  if (key === 'lacking') return rows.filter(row => sperfMissing(row) > 0);
+  if (key === 'improved' || key === 'trend-up') return rows.filter(row => safeGradeTrend(row.gradeTrend) === 'up');
+  if (key === 'priority') return rows.filter(sperfIsPriority);
+  if (key === 'band-unavailable') return rows.filter(row => sperfBand(row) === 'unavailable');
+  if (key.startsWith('band-')) return rows.filter(row => sperfBand(row) === key.slice(5));
+  if (key.startsWith('trend-')) return rows.filter(row => safeGradeTrend(row.gradeTrend) === key.slice(6));
+  return [];
+}
+function sperfCloseRoster(options = {}) {
+  if (!sperfRosterUi.Overlay) return;
+  const opener = sperfRosterState.opener;
+  sperfRosterState.group = '';
+  sperfRosterState.opener = null;
+  sperfRosterUi.Overlay.classList.add('hidden');
+  sperfRosterUi.Overlay.setAttribute('aria-hidden', 'true');
+  document.body.classList.remove('sperf-roster-open');
+  if (options.restoreFocus !== false && opener?.isConnected && typeof opener.focus === 'function') opener.focus();
+}
+function sperfOpenRoster(group, opener) {
+  if (!isTeacherAuthenticated() || !SPERF_ROSTER_GROUP_NAMES[group] || !sperfRosterUi.Overlay || !adminComplianceViewerSnapshotComplete) return;
+  sperfRosterState.group = group;
+  sperfRosterState.opener = opener || document.activeElement;
+  sperfRosterState.visible = 40;
+  if (sperfRosterUi.Search) sperfRosterUi.Search.value = '';
+  if (sperfRosterUi.Sort) sperfRosterUi.Sort.value = 'name';
+  sperfRosterUi.Overlay.classList.remove('hidden');
+  sperfRosterUi.Overlay.setAttribute('aria-hidden', 'false');
+  document.body.classList.add('sperf-roster-open');
+  sperfRenderRoster();
+  sperfRosterUi.Search?.focus();
+}
+function sperfRenderRoster() {
+  if (!sperfRosterState.group || !isTeacherAuthenticated() || !sperfRosterUi.List) return;
+  const key = sperfRosterState.group;
+  const term = sperfUi.Term?.value || currentAcademicTerm();
+  const section = sperfUi.Section?.value || 'all';
+  const name = SPERF_ROSTER_GROUP_NAMES[key];
+  const range = SPERF_BANDS.find(b => key === 'band-' + b[0]);
+  sperfRosterUi.Title.textContent = name;
+  sperfRosterUi.Subtitle.textContent = `${section === 'all' ? 'All Sections' : section} · ${complianceTermFriendlyLabel(term)}${range ? ' · ' + range[2] : ''}`;
+  const unfiltered = sperfRosterCandidates();
+  const query = String(sperfRosterUi.Search?.value || '').toLowerCase().trim();
+  const sort = sperfRosterUi.Sort?.value || 'name';
+  const matched = unfiltered.filter(row => !query || `${row.studentName || ''} ${row.studentId || ''} ${row.studentIdNormalized || ''}`.toLowerCase().includes(query));
+  matched.sort((a,b) => {
+    const ga = sperfGrade(a), gb = sperfGrade(b);
+    if (sort === 'lacking') {
+      const delta = sperfMissing(b) - sperfMissing(a);
+      if (delta) return delta;
+    } else if (sort === 'high' || sort === 'low') {
+      if (ga === null && gb !== null) return 1;
+      if (gb === null && ga !== null) return -1;
+      if (ga !== null && gb !== null && ga !== gb) return sort === 'high' ? gb - ga : ga - gb;
+    }
+    return String(a.studentName || a.studentId).localeCompare(String(b.studentName || b.studentId));
+  });
+  sperfRosterUi.Count.textContent = `${matched.length} matching of ${unfiltered.length} student${unfiltered.length === 1 ? '' : 's'}${matched.length > sperfRosterState.visible ? ` · Showing first ${sperfRosterState.visible}` : ''}`;
+  sperfRosterUi.List.innerHTML = matched.slice(0, sperfRosterState.visible).map(row => {
+    const grade = row._sperfUnpublished ? null : sperfGrade(row);
+    const band = row._sperfUnpublished ? 'unavailable' : sperfBand(row);
+    const trend = row._sperfUnpublished ? 'unavailable' : safeGradeTrend(row.gradeTrend);
+    const arrow = { up:'↑', down:'↓', same:'→', unavailable:'—' }[trend];
+    const missing = row._sperfUnpublished ? null : sperfMissing(row);
+    const actions = row._sperfUnpublished
+      ? `<button type="button" class="ghost-btn mini" data-sperf-action="tracker" data-sperf-student="${sperfRowIdentity(row)}">Student Tracker</button>`
+      : sperfStudentActions(row);
+    return `<article class="sperf-roster-student">
+      <div class="sperf-roster-student-main"><strong>${escapeHTML(row.studentName || row.studentId || 'Student')}</strong><small>${escapeHTML(row.studentId || row.studentIdNormalized)} · ${escapeHTML(row.section || '')}</small></div>
+      <div class="sperf-roster-student-figures">
+        <span class="sperf-grade-band sperf-band-${escapeAttribute(band)}">${grade === null ? '—' : escapeHTML(String(grade))}<small>${row._sperfUnpublished ? 'Unpublished' : escapeHTML(band)}</small></span>
+        ${row._sperfUnpublished ? '' : `<span class="sperf-movement sperf-trend-${escapeAttribute(trend)}" aria-label="${trend === 'up' ? 'Improved' : trend === 'down' ? 'Declined' : trend === 'same' ? 'Unchanged' : 'Trend unavailable'}">${arrow}</span>`}
+        <span class="${missing === null ? '' : missing ? 'sperf-bad' : 'sperf-good'}">${missing === null ? 'No published record' : missing ? `${missing} lacking` : 'Complete'}</span>
+      </div>
+      ${actions}
+    </article>`;
+  }).join('') + (matched.length > sperfRosterState.visible ? `<button class="ghost-btn sperf-roster-more" type="button" data-sperf-more="1">Show More (${matched.length - sperfRosterState.visible} remaining)</button>` : '') || '<p class="sperf-empty">No matching students. Try another search.</p>';
+}
+function sperfHandleGroupClick(event) {
+  const btn = event.target.closest('[data-sperf-group]');
+  if (!btn) return;
+  sperfOpenRoster(btn.dataset.sperfGroup, btn);
+}
+sperfUi.Summary?.addEventListener('click', sperfHandleGroupClick);
+sperfUi.Distribution?.addEventListener('click', sperfHandleGroupClick);
+sperfUi.TrendSummary?.addEventListener('click', sperfHandleGroupClick);
+sperfUi.Priority?.parentElement?.addEventListener('click', sperfHandleGroupClick);
+sperfRosterUi.Close?.addEventListener('click', () => sperfCloseRoster());
+sperfRosterUi.Done?.addEventListener('click', () => sperfCloseRoster());
+sperfRosterUi.Overlay?.addEventListener('click', event => {
+  if (event.target === sperfRosterUi.Overlay) sperfCloseRoster();
+});
+sperfRosterUi.Search?.addEventListener('input', () => { sperfRosterState.visible = 40; sperfRenderRoster(); });
+sperfRosterUi.Sort?.addEventListener('change', () => { sperfRosterState.visible = 40; sperfRenderRoster(); });
+sperfRosterUi.List?.addEventListener('click', event => {
+  const more = event.target.closest('[data-sperf-more]');
+  if (more) { sperfRosterState.visible += 40; sperfRenderRoster(); return; }
+  void sperfHandleStudentAction(event);
+});
+sperfRosterUi.Overlay?.addEventListener('keydown', event => {
+  if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); sperfCloseRoster(); return; }
+  if (event.key !== 'Tab') return;
+  const controls = [...sperfRosterUi.Overlay.querySelectorAll('button:not([disabled]),input:not([disabled]),select:not([disabled])')].filter(el => el.getClientRects().length);
+  if (!controls.length) return;
+  if (event.shiftKey && document.activeElement === controls[0]) { event.preventDefault(); controls.at(-1).focus(); }
+  else if (!event.shiftKey && document.activeElement === controls.at(-1)) { event.preventDefault(); controls[0].focus(); }
+});
 sperfUi.Term?.addEventListener('change', () => {
+  sperfCloseRoster({ restoreFocus: false });
   sperfLastActiveTerm = sperfUi.Term.value;
   renderSectionPerformance();
   void loadSectionPerformancePrivateGrades().catch(error => sperfSetStatus(error?.message || 'Could not load grades.', 'error'));
 });
 for (const key of ['Section','Search','Filter','Band','Sort']) {
-  sperfUi[key]?.addEventListener(key === 'Search' ? 'input' : 'change', () => { sperfDisplayLimit = 40; renderSectionPerformance(); });
+  sperfUi[key]?.addEventListener(key === 'Search' ? 'input' : 'change', () => {
+    if (key === 'Section') sperfCloseRoster({ restoreFocus: false });
+    sperfDisplayLimit = 40;
+    renderSectionPerformance();
+  });
 }
 sperfUi.RefreshBtn?.addEventListener('click', () => {
   void initializeSectionPerformance({ force: true }).catch(error => sperfSetStatus(error?.message || 'Refresh failed.', 'error'));
@@ -11189,14 +11359,8 @@ sperfUi.RefreshBtn?.addEventListener('click', () => {
 sperfUi.SectionCards?.addEventListener('click', event => {
   const button = event.target.closest('[data-sperf-section]');
   if (!button || !sperfUi.Section) return;
+  sperfCloseRoster({ restoreFocus: false });
   sperfUi.Section.value = button.dataset.sperfSection;
-  sperfDisplayLimit = 40;
-  renderSectionPerformance();
-});
-sperfUi.Distribution?.addEventListener('click', event => {
-  const button = event.target.closest('[data-sperf-band]');
-  if (!button || !sperfUi.Band) return;
-  sperfUi.Band.value = sperfUi.Band.value === button.dataset.sperfBand ? 'all' : button.dataset.sperfBand;
   sperfDisplayLimit = 40;
   renderSectionPerformance();
 });
@@ -11205,14 +11369,26 @@ async function sperfHandleStudentAction(event) {
   if (!btn || !isTeacherAuthenticated()) return;
   let id = '';
   try { id = decodeURIComponent(btn.dataset.sperfStudent || ''); } catch (_) { return; }
-  const row = sperfSelectedRows().find(item => item.studentIdNormalized === id);
+  const row = (btn.dataset.sperfAction === 'tracker' ? sperfUnpublishedRows() : sperfSelectedRows())
+    .find(item => item.studentIdNormalized === id);
   if (!row) return;
+  if (btn.dataset.sperfAction === 'tracker') {
+    sperfCloseRoster({ restoreFocus: false });
+    setAdminTab('students');
+    if (adminStudentSearch) {
+      adminStudentSearch.value = row.studentIdNormalized;
+      adminStudentSearch.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    return;
+  }
   if (btn.dataset.sperfAction === 'detail') {
+    sperfCloseRoster({ restoreFocus: false });
     openAdminComplianceDetailModal(row);
     return;
   }
   if (btn.dataset.sperfAction === 'projects') {
     btn.disabled = true;
+    sperfCloseRoster({ restoreFocus: false });
     try {
       if (!adminStudentsCache.length) await loadAdminStudents();
       const student = findAdminStudentByIdOrUid(row.studentIdNormalized);
@@ -21675,7 +21851,7 @@ function updateInstallButtonVisibility() {
 function registerPWAServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./service-worker.js?v=664-section-performance', {
+    navigator.serviceWorker.register('./service-worker.js?v=665-grade-popup', {
       updateViaCache: 'none'
     }).then(registration => {
       let lastCheckedAt = 0;
