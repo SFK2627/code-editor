@@ -69487,3 +69487,392 @@ body.sperf-roster-open { overflow:hidden; }
 @media (max-width:760px) {
   #studentComplianceOverlay .student-compliance-header .section-kicker {display:none!important;}
 }
+
+/* v669 — SUPER COMPACT ADMIN: Compliance + Activities & Rubrics only.
+   Display-only styles; no changes to student pages or grade computation. */
+#complianceTrackerAdmin, #activitiesRubricsAdmin { min-width:0; }
+#complianceTrackerAdmin *, #activitiesRubricsAdmin * { box-sizing:border-box; }
+#complianceTrackerAdmin .admin-density-toolbar,
+#activitiesRubricsAdmin .admin-density-toolbar {
+  display:flex; align-items:center; justify-content:space-between; gap:8px;
+  padding:6px 9px; border:1px solid var(--line,rgba(148,163,184,.26));
+  border-radius:10px; background:var(--card-bg,var(--solid-card,#fff));
+  color:var(--muted,#64748b); font-size:.76rem; line-height:1.2;
+}
+#complianceTrackerAdmin .admin-density-toggle,
+#activitiesRubricsAdmin .admin-density-toggle {
+  flex:0 0 auto; font-size:.77rem; min-height:33px; padding:5px 10px;
+  white-space:nowrap; border-radius:8px;
+}
+#complianceTrackerAdmin .admin-compact-group,
+#activitiesRubricsAdmin .admin-compact-group {
+  display:block; min-width:0; border:1px solid var(--line,rgba(148,163,184,.32));
+  border-radius:11px; overflow:hidden;
+  background:var(--card-bg,var(--solid-card,#fff));
+}
+#complianceTrackerAdmin .admin-compact-group > summary,
+#activitiesRubricsAdmin .admin-compact-group > summary {
+  display:flex; justify-content:space-between; align-items:center; gap:10px;
+  min-height:43px; padding:8px 11px; cursor:pointer; list-style:none;
+  color:var(--text,#172b4b);
+}
+#complianceTrackerAdmin .admin-compact-group > summary::-webkit-details-marker,
+#activitiesRubricsAdmin .admin-compact-group > summary::-webkit-details-marker {display:none;}
+#complianceTrackerAdmin .admin-compact-group > summary span:first-child,
+#activitiesRubricsAdmin .admin-compact-group > summary span:first-child {display:grid; gap:2px;min-width:0;}
+#complianceTrackerAdmin .admin-compact-group > summary strong,
+#activitiesRubricsAdmin .admin-compact-group > summary strong {font-size:.86rem;line-height:1.25;}
+#complianceTrackerAdmin .admin-compact-group > summary small,
+#activitiesRubricsAdmin .admin-compact-group > summary small {font-size:.73rem;color:var(--muted,#64748b);line-height:1.3;font-weight:500;}
+#complianceTrackerAdmin .admin-compact-chevron,
+#activitiesRubricsAdmin .admin-compact-chevron {font-size:1.15rem;line-height:1;transition:transform .15s ease;}
+#complianceTrackerAdmin .admin-compact-group[open] > summary,
+#activitiesRubricsAdmin .admin-compact-group[open] > summary {border-bottom:1px solid var(--line,rgba(148,163,184,.26));}
+#complianceTrackerAdmin .admin-compact-group[open] > summary .admin-compact-chevron,
+#activitiesRubricsAdmin .admin-compact-group[open] > summary .admin-compact-chevron {transform:rotate(180deg);}
+#complianceTrackerAdmin .admin-dense-section-heading {display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;}
+#complianceTrackerAdmin .admin-dense-section-heading strong {font-size:.88rem;}
+#complianceTrackerAdmin .admin-dense-section-heading small {font-size:.74rem;color:var(--muted,#64748b);}
+#complianceTrackerAdmin .admin-compliance-grade-group .grade-visibility-admin,
+#complianceTrackerAdmin .admin-compliance-term-group .academic-term-schedule-card {
+  border:0!important; border-radius:0!important; margin:0!important;
+  box-shadow:none!important; background:var(--card-bg,var(--solid-card,#fff));
+}
+#complianceTrackerAdmin .compliance-admin-grid, #complianceTrackerAdmin .compliance-viewer-toolbar,
+#activitiesRubricsAdmin .rubric-activity-meta-grid {min-width:0;}
+#complianceTrackerAdmin label,#activitiesRubricsAdmin label {min-width:0;}
+
+#complianceTrackerAdmin.admin-dense-mode {gap:9px;}
+#complianceTrackerAdmin.admin-dense-mode .compliance-admin-header {align-items:center;gap:7px;}
+#complianceTrackerAdmin.admin-dense-mode .compliance-admin-header h3 {font-size:1.05rem;line-height:1.24;}
+#complianceTrackerAdmin.admin-dense-mode .compliance-admin-header .section-kicker {font-size:.67rem;margin:0 0 2px;}
+#complianceTrackerAdmin.admin-dense-mode .compliance-admin-header .muted-text {font-size:.78rem;line-height:1.3;margin:3px 0 0;}
+#complianceTrackerAdmin.admin-dense-mode .compliance-safety-pill {font-size:.67rem; padding:5px 8px;}
+#complianceTrackerAdmin.admin-dense-mode .compliance-admin-grid {gap:8px;}
+#complianceTrackerAdmin.admin-dense-mode .compliance-admin-grid label {gap:3px;font-size:.8rem;}
+#complianceTrackerAdmin.admin-dense-mode .compliance-admin-grid input,
+#complianceTrackerAdmin.admin-dense-mode .compliance-admin-grid select {min-height:37px;padding:7px 9px;border-radius:9px;font-size:.83rem;}
+#complianceTrackerAdmin.admin-dense-mode .compliance-admin-grid small {font-size:.72rem;line-height:1.3;}
+#complianceTrackerAdmin.admin-dense-mode .compliance-selected-section-field {padding:7px 9px;min-width:0;}
+#complianceTrackerAdmin.admin-dense-mode .compliance-section-picker-actions {gap:5px;}
+#complianceTrackerAdmin.admin-dense-mode .compliance-section-checklist {max-height:164px;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;}
+#complianceTrackerAdmin.admin-dense-mode .compliance-setup-summary {padding:9px 11px;}
+#complianceTrackerAdmin.admin-dense-mode .compliance-setup-summary strong {font-size:.82rem;}
+#complianceTrackerAdmin.admin-dense-mode .compliance-setup-summary small {font-size:.72rem;}
+#complianceTrackerAdmin.admin-dense-mode .compliance-admin-actions {gap:6px;}
+#complianceTrackerAdmin.admin-dense-mode .compliance-admin-actions > button {min-height:38px;padding:7px 11px;font-size:.81rem;border-radius:9px;}
+#complianceTrackerAdmin.admin-dense-mode .compliance-sync-status,
+#complianceTrackerAdmin.admin-dense-mode .compliance-viewer-status {margin:1px 0;font-size:.76rem;line-height:1.35;}
+#complianceTrackerAdmin.admin-dense-mode .compliance-sync-preview {gap:5px;}
+#complianceTrackerAdmin.admin-dense-mode .compliance-preview-stats {gap:5px;}
+#complianceTrackerAdmin.admin-dense-mode .compliance-preview-stats span,
+#complianceTrackerAdmin.admin-dense-mode .compliance-preview-row {padding:7px;border-radius:9px;}
+#complianceTrackerAdmin.admin-dense-mode .compliance-viewer-card {padding:10px;gap:7px;border-radius:12px;}
+#complianceTrackerAdmin.admin-dense-mode .compliance-viewer-header {align-items:center;gap:8px;}
+#complianceTrackerAdmin.admin-dense-mode .compliance-viewer-header h3 {font-size:1.02rem;}
+#complianceTrackerAdmin.admin-dense-mode .compliance-viewer-header .section-kicker {font-size:.65rem;margin:0;}
+#complianceTrackerAdmin.admin-dense-mode .compliance-viewer-header .muted-text {font-size:.73rem;line-height:1.3;margin:2px 0 0;}
+#complianceTrackerAdmin.admin-dense-mode .compliance-viewer-header > button {padding:6px 9px;min-height:35px;font-size:.75rem;white-space:nowrap;}
+#complianceTrackerAdmin.admin-dense-mode .compliance-viewer-toolbar {gap:7px;}
+#complianceTrackerAdmin.admin-dense-mode .compliance-viewer-toolbar label {gap:3px;font-size:.77rem;}
+#complianceTrackerAdmin.admin-dense-mode .compliance-viewer-toolbar input,
+#complianceTrackerAdmin.admin-dense-mode .compliance-viewer-toolbar select {min-height:37px;padding:6px 9px;font-size:.8rem;border-radius:9px;}
+#complianceTrackerAdmin.admin-dense-mode .compliance-viewer-layout {gap:8px;grid-template-columns:minmax(190px,.75fr) minmax(0,1.25fr);}
+#complianceTrackerAdmin.admin-dense-mode .compliance-viewer-list,
+#complianceTrackerAdmin.admin-dense-mode .compliance-viewer-detail {min-height:145px;max-height:420px;padding:6px;gap:4px;border-radius:10px;}
+#complianceTrackerAdmin.admin-dense-mode .compliance-viewer-student-row {padding:7px 8px;gap:6px;border-radius:9px;min-height:42px;}
+#complianceTrackerAdmin.admin-dense-mode .compliance-viewer-student-row strong {font-size:.82rem;}
+#complianceTrackerAdmin.admin-dense-mode .compliance-viewer-student-row small {font-size:.72rem;margin-top:1px;}
+#complianceTrackerAdmin.admin-dense-mode .compliance-viewer-student-row em {font-size:.68rem;padding:4px 6px;}
+#complianceTrackerAdmin.admin-dense-mode .compliance-detail-card {gap:8px;}
+#complianceTrackerAdmin.admin-dense-mode .compliance-detail-head {padding-bottom:6px;}
+#complianceTrackerAdmin.admin-dense-mode .compliance-detail-head h4 {font-size:1rem;}
+#complianceTrackerAdmin.admin-dense-mode .grade-visibility-admin {padding:10px;}
+#complianceTrackerAdmin.admin-dense-mode .grade-visibility-admin-heading {gap:7px;}
+#complianceTrackerAdmin.admin-dense-mode .grade-visibility-admin .muted-text {font-size:.78rem;line-height:1.32;}
+#complianceTrackerAdmin.admin-dense-mode .grade-visibility-preview {padding:8px;}
+#complianceTrackerAdmin.admin-dense-mode .grade-visibility-actions {gap:7px;}
+#complianceTrackerAdmin.admin-dense-mode .grade-visibility-actions button {min-height:36px;padding:7px 9px;font-size:.78rem;}
+#complianceTrackerAdmin.admin-dense-mode .academic-term-schedule-card {padding:10px;}
+#complianceTrackerAdmin.admin-dense-mode .academic-term-date-grid {gap:8px;}
+
+#activitiesRubricsAdmin.admin-dense-mode {font-size:.86rem;}
+#activitiesRubricsAdmin.admin-dense-mode .admin-section-divider {margin:5px 0;}
+#activitiesRubricsAdmin.admin-dense-mode .rubric-term-context-card {margin:8px 0;padding:10px;border-radius:11px;gap:9px;grid-template-columns:minmax(0,1fr) minmax(180px,240px);}
+#activitiesRubricsAdmin.admin-dense-mode .rubric-term-context-head {gap:6px;align-items:center;}
+#activitiesRubricsAdmin.admin-dense-mode .rubric-term-context-head h3 {font-size:1rem;line-height:1.24;}
+#activitiesRubricsAdmin.admin-dense-mode .rubric-term-context-head .helper-note {font-size:.73rem;line-height:1.28;}
+#activitiesRubricsAdmin.admin-dense-mode .rubric-current-term-pill {min-height:26px;padding:4px 9px;font-size:.69rem;}
+#activitiesRubricsAdmin.admin-dense-mode .admin-activity-manager {gap:7px;padding:10px;border-radius:11px;margin-bottom:9px;}
+#activitiesRubricsAdmin.admin-dense-mode .admin-activity-actions {gap:6px;}
+#activitiesRubricsAdmin.admin-dense-mode .admin-activity-actions button {min-height:35px;padding:7px 10px;font-size:.78rem;}
+#activitiesRubricsAdmin.admin-dense-mode .admin-activity-manager .helper-note {font-size:.72rem;line-height:1.28;}
+#activitiesRubricsAdmin.admin-dense-mode .form-grid {gap:8px;}
+#activitiesRubricsAdmin.admin-dense-mode label {font-size:.81rem;line-height:1.3;}
+#activitiesRubricsAdmin.admin-dense-mode input:not([type=checkbox]),
+#activitiesRubricsAdmin.admin-dense-mode select {min-height:37px;padding:7px 9px;border-radius:9px;max-width:100%;}
+#activitiesRubricsAdmin.admin-dense-mode #adminActivityDescription {min-height:70px;max-height:190px;padding:8px 10px;font-size:.84rem;}
+#activitiesRubricsAdmin .manual-rubric-card {margin:0;box-shadow:none;border:0;border-radius:0;padding:12px;}
+#activitiesRubricsAdmin.admin-dense-mode .manual-rubric-header {gap:7px;}
+#activitiesRubricsAdmin.admin-dense-mode .manual-rubric-header h3 {font-size:1.03rem;}
+#activitiesRubricsAdmin.admin-dense-mode .manual-rubric-header .muted-text {font-size:.76rem;line-height:1.35;}
+#activitiesRubricsAdmin.admin-dense-mode .manual-score-row {gap:7px;margin:8px 0;}
+#activitiesRubricsAdmin.admin-dense-mode .manual-rubric-input-table th,
+#activitiesRubricsAdmin.admin-dense-mode .manual-rubric-input-table td {padding:5px;}
+#activitiesRubricsAdmin.admin-dense-mode .manual-rubric-input-table textarea {min-height:74px;padding:7px;font-size:.81rem;}
+#activitiesRubricsAdmin.admin-dense-mode .manual-rubric-actions {gap:6px;margin-top:8px;}
+#activitiesRubricsAdmin.admin-dense-mode .manual-rubric-actions button {min-height:35px;padding:6px 9px;font-size:.78rem;}
+#activitiesRubricsAdmin.admin-dense-mode .manual-rubric-status {font-size:.76rem;margin:6px 0;}
+#activitiesRubricsAdmin .rubric-toolbar {margin:8px 10px 6px;padding:6px 0;gap:8px;}
+#activitiesRubricsAdmin.admin-dense-mode .rubric-toolbar h3 {font-size:1.05rem;margin:0;}
+#activitiesRubricsAdmin.admin-dense-mode .rubric-toolbar .muted-text {font-size:.74rem;line-height:1.28;margin:2px 0;}
+#activitiesRubricsAdmin.admin-dense-mode .rubric-toolbar button {min-height:35px;padding:6px 10px;font-size:.78rem;}
+#activitiesRubricsAdmin #criteriaEditor {padding:0 10px 12px;gap:6px;}
+#activitiesRubricsAdmin.admin-dense-mode .rubric-table-scroll {border-radius:10px;}
+#activitiesRubricsAdmin.admin-dense-mode .teacher-rubric-table td,
+#activitiesRubricsAdmin.admin-dense-mode .teacher-rubric-table th {padding:7px;}
+#activitiesRubricsAdmin.admin-dense-mode .teacher-rubric-table textarea {min-height:74px;padding:7px;font-size:.81rem;}
+#activitiesRubricsAdmin .admin-rubric-sticky-actions {
+  position:sticky;bottom:0;z-index:5;
+  background:var(--card-bg,var(--solid-card,#fff));
+  border:1px solid var(--line,rgba(148,163,184,.3));
+  border-radius:11px;padding:8px 10px;margin-top:10px;
+  box-shadow:0 -6px 20px rgba(15,23,42,.07);
+}
+#activitiesRubricsAdmin.admin-dense-mode .admin-rubric-sticky-actions button {min-height:38px;padding:7px 11px;font-size:.8rem;}
+#activitiesRubricsAdmin .admin-rubric-row-toggle {display:none;}
+#activitiesRubricsAdmin .manual-rubric-scroll,
+#activitiesRubricsAdmin .rubric-table-scroll {overscroll-behavior-x:contain;scrollbar-width:thin;}
+#activitiesRubricsAdmin .admin-compact-group > .rubric-toolbar {min-width:0;}
+#complianceTrackerAdmin.admin-expanded-mode,
+#activitiesRubricsAdmin.admin-expanded-mode {font-size:inherit;}
+
+@media (max-width:900px) {
+ #complianceTrackerAdmin.admin-dense-mode .compliance-viewer-layout {grid-template-columns:minmax(0,1fr);}
+ #complianceTrackerAdmin.admin-dense-mode .compliance-viewer-list {max-height:240px;min-height:75px;}
+ #complianceTrackerAdmin.admin-dense-mode .compliance-viewer-detail {max-height:430px;min-height:90px;}
+ #activitiesRubricsAdmin.admin-dense-mode .rubric-term-context-card {grid-template-columns:1fr;}
+ #activitiesRubricsAdmin.admin-dense-mode .rubric-term-context-head {flex-direction:row;flex-wrap:wrap;}
+}
+@media (max-width:760px) {
+ #complianceTrackerAdmin .admin-density-toolbar,#activitiesRubricsAdmin .admin-density-toolbar {padding:5px 7px;font-size:.71rem;}
+ #complianceTrackerAdmin .admin-compact-group > summary,
+ #activitiesRubricsAdmin .admin-compact-group > summary {min-height:42px;padding:9px 10px;}
+ #complianceTrackerAdmin.admin-dense-mode .compliance-admin-header {flex-wrap:wrap;}
+ #complianceTrackerAdmin.admin-dense-mode .compliance-safety-pill {white-space:normal;}
+ #complianceTrackerAdmin.admin-dense-mode .compliance-admin-grid {grid-template-columns:minmax(0,1fr);}
+ #complianceTrackerAdmin.admin-dense-mode .compliance-selected-section-field {grid-column:auto;}
+ #complianceTrackerAdmin.admin-dense-mode .compliance-viewer-toolbar {grid-template-columns:repeat(2,minmax(0,1fr));}
+ #complianceTrackerAdmin.admin-dense-mode .compliance-viewer-toolbar label:nth-child(2) {grid-column:1/-1;grid-row:1;}
+ #complianceTrackerAdmin.admin-dense-mode .compliance-viewer-toolbar input,
+ #complianceTrackerAdmin.admin-dense-mode .compliance-viewer-toolbar select {font-size:16px;min-width:0;}
+ #complianceTrackerAdmin.admin-dense-mode .compliance-viewer-header {flex-wrap:wrap;}
+ #complianceTrackerAdmin.admin-dense-mode .compliance-admin-actions {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));}
+ #complianceTrackerAdmin.admin-dense-mode #publishComplianceSyncBtn {grid-column:1/-1;}
+ #complianceTrackerAdmin.admin-dense-mode .compliance-admin-actions button {width:100%;white-space:normal;}
+ #complianceTrackerAdmin.admin-dense-mode .compliance-preview-stats {grid-template-columns:repeat(2,minmax(0,1fr));}
+ #activitiesRubricsAdmin.admin-dense-mode .rubric-activity-meta-grid {grid-template-columns:repeat(2,minmax(0,1fr));}
+ #activitiesRubricsAdmin.admin-dense-mode .rubric-activity-meta-grid label:first-child {grid-column:1/-1;}
+ #activitiesRubricsAdmin.admin-dense-mode .rubric-term-context-head {flex-direction:row;}
+ #activitiesRubricsAdmin.admin-dense-mode .admin-activity-actions {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));}
+ #activitiesRubricsAdmin.admin-dense-mode .admin-activity-actions button {min-width:0;white-space:normal;}
+ #activitiesRubricsAdmin.admin-dense-mode .manual-score-row {grid-template-columns:repeat(2,minmax(0,1fr));}
+ #activitiesRubricsAdmin .manual-rubric-scroll,
+ #activitiesRubricsAdmin .rubric-table-scroll {max-height:min(68dvh,610px);overflow-x:hidden!important;overflow-y:auto!important;}
+ /* Reflow the rubric tables into stacked row cards rather than an unreadable
+    980px-wide table squeezed into a phone. Individual score levels expand. */
+ #activitiesRubricsAdmin .manual-rubric-input-table,
+ #activitiesRubricsAdmin .teacher-rubric-table {width:100%!important;min-width:0!important;table-layout:auto!important;display:block!important;}
+ #activitiesRubricsAdmin .manual-rubric-input-table thead,
+ #activitiesRubricsAdmin .teacher-rubric-table thead {display:none!important;}
+ #activitiesRubricsAdmin .manual-rubric-input-table tbody,
+ #activitiesRubricsAdmin .teacher-rubric-table tbody {display:block!important;min-width:0!important;}
+ #activitiesRubricsAdmin .manual-rubric-input-row,
+ #activitiesRubricsAdmin .rubric-table-row {display:block!important;width:100%!important;min-width:0!important;padding:5px;margin-bottom:7px;border:1px solid var(--line,rgba(148,163,184,.32));border-radius:10px;background:var(--card-bg,var(--solid-card,#fff));}
+ #activitiesRubricsAdmin .manual-rubric-input-row td,
+ #activitiesRubricsAdmin .rubric-table-row td {display:block!important;width:100%!important;min-width:0!important;max-width:none!important;border:0!important;padding:7px!important;text-align:left!important;}
+ #activitiesRubricsAdmin .manual-rubric-input-row td:not(:first-child),
+ #activitiesRubricsAdmin .rubric-table-row td:not(:first-child) {border-top:1px solid var(--line,rgba(148,163,184,.24))!important;}
+ #activitiesRubricsAdmin.admin-dense-mode .manual-rubric-input-row:not(.admin-rubric-row-open) td:not(:first-child),
+ #activitiesRubricsAdmin.admin-dense-mode .rubric-table-row:not(.admin-rubric-row-open) td:not(:first-child) {display:none!important;}
+ #activitiesRubricsAdmin .manual-rubric-input-row td[data-label]::before,
+ #activitiesRubricsAdmin .rubric-table-row td[data-label]:not(:first-child)::before {
+  content:attr(data-label);display:block;font-size:.74rem;font-weight:800;color:var(--muted,#64748b);margin-bottom:4px;
+ }
+ #activitiesRubricsAdmin .manual-rubric-input-table textarea,
+ #activitiesRubricsAdmin .teacher-rubric-table textarea {width:100%!important;max-width:100%!important;min-height:64px!important;font-size:.85rem!important;padding:8px!important;}
+ #activitiesRubricsAdmin .manual-rubric-input-row td:first-child textarea {min-height:55px!important;}
+ #activitiesRubricsAdmin .admin-rubric-row-toggle {display:inline-flex;justify-content:center;align-items:center;min-height:36px;font-size:.78rem;margin-top:6px;width:auto;}
+ #activitiesRubricsAdmin .rubric-criterion-cell .remove-criterion {width:auto!important;min-height:36px!important;display:inline-flex!important;margin:5px 0 0 6px!important;}
+ #activitiesRubricsAdmin .rubric-level-cell .rubric-score-label {display:flex;align-items:center;gap:8px;}
+ #activitiesRubricsAdmin .rubric-level-cell .rubric-score-label input {max-width:100px;}
+ #activitiesRubricsAdmin .admin-rubric-sticky-actions {bottom:env(safe-area-inset-bottom,0px);}
+ #activitiesRubricsAdmin .admin-rubric-sticky-actions button {flex:1 1 auto;}
+ #activitiesRubricsAdmin .rubric-table-note {font-size:.74rem;line-height:1.35;}
+}
+@media (max-width:390px) {
+ #complianceTrackerAdmin .admin-density-toolbar > span,#activitiesRubricsAdmin .admin-density-toolbar > span {font-size:.68rem;}
+ #complianceTrackerAdmin.admin-dense-mode .compliance-admin-header h3 {font-size:.98rem;}
+ #complianceTrackerAdmin.admin-dense-mode .compliance-viewer-toolbar {gap:5px;}
+ #activitiesRubricsAdmin.admin-dense-mode .rubric-term-context-head h3 {font-size:.95rem;}
+ #activitiesRubricsAdmin.admin-dense-mode .admin-activity-actions button {font-size:.72rem;padding:6px 5px;}
+ #activitiesRubricsAdmin .admin-rubric-sticky-actions {padding:6px;gap:5px;}
+}
+@media (prefers-reduced-motion:reduce) {
+ #complianceTrackerAdmin .admin-compact-chevron,#activitiesRubricsAdmin .admin-compact-chevron {transition:none;}
+}
+
+/* v669 refinement: beat legacy phone rules that force admin grids into one column. */
+@media (max-width:760px) {
+ #activitiesRubricsAdmin.admin-dense-mode .admin-activity-manager .admin-activity-actions {
+  display:grid!important; grid-template-columns:repeat(3,minmax(0,1fr))!important;
+  gap:5px!important;
+ }
+ #activitiesRubricsAdmin.admin-dense-mode .admin-activity-manager .admin-activity-actions > button {
+  width:100%!important;min-width:0!important;min-height:38px!important;
+  padding:6px 5px!important;margin:0!important;font-size:.76rem!important;
+ }
+ #activitiesRubricsAdmin.admin-dense-mode .form-grid.rubric-activity-meta-grid {
+  display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:7px!important;
+ }
+ #activitiesRubricsAdmin.admin-dense-mode .form-grid.rubric-activity-meta-grid > label:first-child {
+  grid-column:1/-1!important;
+ }
+ #activitiesRubricsAdmin.admin-dense-mode .form-grid.rubric-activity-meta-grid > label:not(:first-child) {
+  grid-column:auto!important;min-width:0!important;
+ }
+ #complianceTrackerAdmin.admin-dense-mode .compliance-admin-header .muted-text {
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;
+  overflow:hidden;
+ }
+ #complianceTrackerAdmin.admin-dense-mode .compliance-collapsible-setup > summary {
+  padding:8px 10px!important;min-height:39px!important;gap:5px!important;
+ }
+ #complianceTrackerAdmin.admin-dense-mode .compliance-collapsible-setup > summary small {
+  display:none!important;
+ }
+ #complianceTrackerAdmin.admin-dense-mode .compliance-collapsible-setup > summary .compliance-summary-action {
+  padding:4px 8px!important;font-size:.72rem!important;white-space:nowrap;
+ }
+}
+/* Let the admin dialog scroll own the vertical scroller so sticky Save remains
+   pinned on both phone and desktop; never trap scrolling inside the tab itself. */
+#activitiesRubricsAdmin {overflow:visible!important;}
+
+#activitiesRubricsAdmin .admin-rubric-quick-save {flex:0 0 auto;min-height:34px;padding:6px 10px;border-radius:8px;font-size:.78rem;white-space:nowrap;}
+#activitiesRubricsAdmin .admin-density-toolbar > span {flex:1 1 auto;min-width:0;}
+@media (max-width:760px) {
+ #activitiesRubricsAdmin .admin-density-toolbar {display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:5px;}
+ #activitiesRubricsAdmin .admin-rubric-quick-save {font-size:.74rem;padding:5px 8px;}
+ #activitiesRubricsAdmin .admin-density-toggle {padding:5px 8px;font-size:.73rem;}
+}
+@media (max-width:390px) {
+ #activitiesRubricsAdmin .admin-density-toolbar {grid-template-columns:minmax(0,1fr) auto;}
+ #activitiesRubricsAdmin .admin-density-toolbar > span {grid-column:1/-1;}
+}
+
+
+/* v670: Compact Code Explorer admin + Mobile Section Performance */
+#codeExplorerAdmin { min-width:0; }
+#codeExplorerAdmin .code-explorer-admin-heading { gap:10px; margin-bottom:9px; align-items:center; }
+#codeExplorerAdmin .code-explorer-admin-heading h3 { margin:0 0 3px; font-size:clamp(19px,2vw,24px); }
+#codeExplorerAdmin .code-explorer-admin-heading .muted-text { margin:0; font-size:12px; line-height:1.4; }
+#codeExplorerAdmin .code-explorer-admin-summary { gap:7px; margin:7px 0 10px; }
+#codeExplorerAdmin .code-explorer-admin-summary>div { padding:9px 10px; border-radius:10px; gap:1px; min-width:0; }
+#codeExplorerAdmin .code-explorer-admin-summary strong { font-size:clamp(18px,2.3vw,23px); line-height:1.2; }
+#codeExplorerAdmin .code-explorer-admin-toolbar { gap:8px; margin:10px 0; }
+#codeExplorerAdmin .code-explorer-admin-toolbar label { min-width:0; }
+#codeExplorerAdmin .code-explorer-admin-toolbar input,#codeExplorerAdmin .code-explorer-admin-toolbar select { width:100%;min-width:0; min-height:38px; padding:7px 9px; font-size:13px; }
+#codeExplorerAdmin .code-explorer-admin-table-wrap { max-height:min(56vh,560px); border-radius:10px; }
+#codeExplorerAdmin .ce-admin-settings-master, #codeExplorerAdmin .ce-admin-setting-group { display:block; min-width:0; overflow:visible; border:1px solid var(--line-strong,#d5dfed); border-radius:11px; background:var(--bg,#fff); margin:7px 0; }
+#codeExplorerAdmin .ce-admin-settings-master { border-color:#bad2f0; margin:10px 0; }
+#codeExplorerAdmin .ce-admin-settings-master>summary,#codeExplorerAdmin .ce-admin-setting-group>summary { display:flex;justify-content:space-between; align-items:center;gap:9px; min-height:42px; padding:9px 12px; cursor:pointer;list-style:none; font-size:13px; user-select:none; }
+#codeExplorerAdmin .ce-admin-settings-master>summary::-webkit-details-marker,#codeExplorerAdmin .ce-admin-setting-group>summary::-webkit-details-marker { display:none; }
+#codeExplorerAdmin .ce-admin-settings-master>summary { background:var(--bg-2,#eef4fd); border-radius:10px; }
+#codeExplorerAdmin .ce-admin-settings-master>summary>span:first-child,#codeExplorerAdmin .ce-admin-setting-group>summary>span:first-child { min-width:0; display:flex; flex-direction:column; gap:2px; }
+#codeExplorerAdmin .ce-admin-settings-master summary strong,#codeExplorerAdmin .ce-admin-setting-group summary strong { font-size:13px;line-height:1.3; }
+#codeExplorerAdmin .ce-admin-settings-master summary small,#codeExplorerAdmin .ce-admin-setting-group summary small { color:var(--muted,#63758e); font-size:11px; line-height:1.3; }
+#codeExplorerAdmin .ce-admin-chevron { font-size:20px; line-height:1; flex:0 0 auto; transition:transform .15s ease; }
+#codeExplorerAdmin details[open]>summary>.ce-admin-chevron { transform:rotate(180deg); }
+#codeExplorerAdmin .ce-admin-settings-body { padding:4px 9px 10px; min-width:0; }
+#codeExplorerAdmin .ce-admin-setting-group>section,#codeExplorerAdmin .ce-admin-setting-group>div { margin:0; padding:12px; border-radius:0 0 10px 10px; box-shadow:none; max-width:100%; }
+#codeExplorerAdmin .ce-admin-setting-group > section .code-explorer-admin-awards-grid,#codeExplorerAdmin .ce-admin-setting-group > section .code-explorer-admin-pubmat-grid { gap:9px; }
+#codeExplorerAdmin .ce-admin-setting-group > section .code-explorer-admin-award-card,#codeExplorerAdmin .ce-admin-setting-group > section .code-explorer-admin-pubmat-card { padding:12px;border-radius:14px; }
+#codeExplorerAdmin .ce-admin-setting-group .code-explorer-admin-awards-config { padding:10px;gap:8px;border-radius:12px; }
+#codeExplorerAdmin .ce-admin-setting-group .code-explorer-admin-music-head,#codeExplorerAdmin .ce-admin-setting-group .code-explorer-admin-awards-head,#codeExplorerAdmin .ce-admin-setting-group .code-explorer-admin-pubmats-head { gap:8px;margin-bottom:8px; }
+#codeExplorerAdmin .ce-admin-setting-group .code-explorer-admin-music-head p,#codeExplorerAdmin .ce-admin-setting-group .code-explorer-admin-awards-head p,#codeExplorerAdmin .ce-admin-setting-group .code-explorer-admin-pubmats-head p { font-size:12px;line-height:1.35; }
+#codeExplorerAdmin .ce-admin-setting-group .code-explorer-admin-xp-migration { box-shadow:none; }
+#codeExplorerAdmin .ce-admin-setting-group:focus-within,#codeExplorerAdmin .ce-admin-settings-master:focus-within { border-color:#5696e7; }
+#codeExplorerAdmin summary:focus-visible { outline:3px solid #60a5fa; outline-offset:2px; }
+
+/* Mobile Section Performance: high information density, same drill-down actions */
+@media (max-width:700px) {
+ #sectionPerformanceAdmin { padding:8px!important; border-radius:12px; min-width:0; }
+ #sectionPerformanceAdmin .sperf-heading { gap:8px; margin:0 0 8px; flex-direction:row; align-items:center; flex-wrap:wrap; }
+ #sectionPerformanceAdmin .sperf-heading h3 { font-size:19px; margin:0 0 3px; }
+ #sectionPerformanceAdmin .sperf-heading .section-kicker { font-size:10px; }
+ #sectionPerformanceAdmin .sperf-heading .muted-text { font-size:12px; line-height:1.35; margin:0; }
+ #sectionPerformanceAdmin #sperfRefreshBtn { flex:0 0 auto; min-height:38px; padding:7px 10px; font-size:12px; }
+ #sectionPerformanceAdmin .sperf-toolbar { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:7px; margin:7px 0; }
+ #sectionPerformanceAdmin .sperf-toolbar label { min-width:0; gap:3px; font-size:11px; }
+ #sectionPerformanceAdmin .sperf-toolbar input,#sectionPerformanceAdmin .sperf-toolbar select { min-width:0;width:100%;height:38px; min-height:38px; font-size:13px; padding:6px 7px; border-radius:8px; }
+ #sectionPerformanceAdmin .sperf-status { margin:6px 0 8px; font-size:11px; line-height:1.4; }
+ #sectionPerformanceAdmin .sperf-summary { grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; margin:8px 0; }
+ #sectionPerformanceAdmin .sperf-metric { min-width:0; min-height:0; padding:9px; border-radius:9px; gap:2px; }
+ #sectionPerformanceAdmin .sperf-metric strong { font-size:22px; line-height:1.2; }
+ #sectionPerformanceAdmin .sperf-metric small { font-size:11px; }
+ #sectionPerformanceAdmin .sperf-metric span { font-size:10px; }
+ #sectionPerformanceAdmin .sperf-grid { display:grid; grid-template-columns:minmax(0,1fr); gap:8px; }
+ #sectionPerformanceAdmin .sperf-panel { padding:9px; margin:0 0 8px; border-radius:11px; min-width:0; }
+ #sectionPerformanceAdmin .sperf-panel-head { gap:6px; margin-bottom:8px; }
+ #sectionPerformanceAdmin .sperf-panel-head h4 { font-size:15px; }
+ #sectionPerformanceAdmin .sperf-panel-head small { font-size:11px; line-height:1.3; margin-top:2px; }
+ /* All sections remain available via swipe, instead of many tall stacked cards. */
+ #sectionPerformanceAdmin .sperf-section-cards { display:flex; gap:7px; overflow-x:auto; overflow-y:hidden; max-height:none; min-width:0; scroll-snap-type:x proximity; scrollbar-width:thin; overscroll-behavior-x:contain; padding:2px 2px 6px; }
+ #sectionPerformanceAdmin .sperf-section-item { flex:0 0 clamp(195px,72vw,245px); max-width:85%; min-width:0; scroll-snap-align:start; padding:9px; border-radius:9px; }
+ #sectionPerformanceAdmin .sperf-section-stats { gap:6px; font-size:11px; margin-top:4px; }
+ #sectionPerformanceAdmin .sperf-bar-track { margin-top:6px; height:6px; }
+ #sectionPerformanceAdmin .sperf-dist-row { grid-template-columns:minmax(112px,1.15fr) minmax(45px,1fr) 24px; gap:6px; padding:4px 6px; min-height:39px; }
+ #sectionPerformanceAdmin .sperf-dist-label { font-size:12px; }
+ #sectionPerformanceAdmin .sperf-dist-label small { font-size:10px; display:inline; }
+ #sectionPerformanceAdmin .sperf-trend-summary { margin-top:7px; padding-top:7px; }
+ #sectionPerformanceAdmin .sperf-trend-pills { gap:5px; margin-top:5px; }
+ #sectionPerformanceAdmin .sperf-trend-pills button { min-height:36px; padding:6px 8px; font-size:11px; }
+ #sectionPerformanceAdmin .sperf-priority { max-height:240px; overflow-y:auto; overscroll-behavior:contain; }
+ #sectionPerformanceAdmin .sperf-priority-row,#sectionPerformanceAdmin .sperf-student-row { padding:8px; gap:6px; border-radius:9px; align-items:stretch; }
+ #sectionPerformanceAdmin .sperf-priority-row strong,#sectionPerformanceAdmin .sperf-student-identity strong { font-size:13px; }
+ #sectionPerformanceAdmin .sperf-priority-row small,#sectionPerformanceAdmin .sperf-student-identity small { font-size:11px; }
+ #sectionPerformanceAdmin .sperf-student-list { max-height:420px; gap:6px; }
+ #sectionPerformanceAdmin .sperf-student-stats { gap:6px; }
+ #sectionPerformanceAdmin .sperf-grade-band { padding:5px 7px; font-size:14px!important; }
+ #sectionPerformanceAdmin .sperf-movement { width:26px;height:26px;font-size:20px!important; }
+ #sectionPerformanceAdmin .sperf-actions { display:flex; gap:5px; flex-wrap:wrap; width:100%; }
+ #sectionPerformanceAdmin .sperf-actions .ghost-btn.mini { min-height:36px; padding:6px 8px; font-size:12px; flex:1 1 110px; }
+ #sectionPerformanceAdmin .sperf-show-more { min-height:40px; padding:8px; }
+ .sperf-roster-overlay { padding:7px; }
+ .sperf-roster-header { padding:10px 12px 8px; }
+ .sperf-roster-heading h2 { font-size:19px; }
+ .sperf-roster-toolbar { grid-template-columns:minmax(0,1fr) minmax(110px,.72fr); gap:7px; padding:8px 12px; }
+ .sperf-roster-toolbar input,.sperf-roster-toolbar select { min-height:39px; font-size:13px; padding:7px; }
+ .sperf-roster-count { padding:0 12px 6px; }
+ .sperf-roster-list { padding:2px 12px 10px; gap:6px; }
+ .sperf-roster-student { padding:8px; border-radius:9px; gap:6px; }
+ .sperf-roster-footer { padding:8px 12px; }
+ #codeExplorerAdmin .code-explorer-admin-heading { display:flex; flex-wrap:wrap; }
+ #codeExplorerAdmin .code-explorer-admin-heading .primary-btn { width:auto; min-height:38px; padding:7px 12px; font-size:12px; }
+ #codeExplorerAdmin .code-explorer-admin-summary { grid-template-columns:repeat(2,minmax(0,1fr)); }
+ #codeExplorerAdmin .code-explorer-admin-toolbar { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px; }
+ #codeExplorerAdmin .code-explorer-admin-toolbar label:first-child { grid-column:1 / -1; }
+ #codeExplorerAdmin .code-explorer-admin-toolbar label:last-child { grid-column:1 / -1; }
+ #codeExplorerAdmin .ce-admin-settings-body { padding:3px 6px 7px; }
+ #codeExplorerAdmin .ce-admin-setting-group>section,#codeExplorerAdmin .ce-admin-setting-group>div { padding:9px; }
+ #codeExplorerAdmin .ce-admin-setting-group .code-explorer-admin-awards-grid,#codeExplorerAdmin .ce-admin-setting-group .code-explorer-admin-pubmat-grid { grid-template-columns:minmax(0,1fr); }
+ #codeExplorerAdmin .ce-admin-setting-group .code-explorer-admin-awards-config { grid-template-columns:minmax(0,1fr); }
+}
+@media (max-width:365px) {
+ #sectionPerformanceAdmin .sperf-dist-row { grid-template-columns:minmax(95px,1.2fr) minmax(34px,1fr) 18px; gap:4px; }
+ #sectionPerformanceAdmin .sperf-dist-label small { display:none; }
+ #sectionPerformanceAdmin .sperf-roster-toolbar { grid-template-columns:1fr; }
+ #codeExplorerAdmin .ce-admin-settings-master summary small { font-size:10px; }
+}
+@media (prefers-reduced-motion:reduce) { #codeExplorerAdmin .ce-admin-chevron { transition:none; } }

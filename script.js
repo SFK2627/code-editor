@@ -28223,7 +28223,6 @@ function bindTeacherToolsV295() {
     }
   });
 
-  window.setTimeout(() => initializeDeviceQaRuntime().catch(error => console.warn('QA preview runtime failed.', error)), 250);
 }
 
 bindTeacherToolsV295();
@@ -28233,7 +28232,7 @@ function getStoredAdminTab() {
 }
 
 function setAdminTab(tabName = 'students', options = {}) {
-  const allowed = new Set(['students', 'needs-attention', 'online', 'assistance', 'compliance', 'performance', 'lessons', 'given-activities', 'activities', 'code-explorer', 'device-qa']);
+  const allowed = new Set(['students', 'needs-attention', 'online', 'assistance', 'compliance', 'performance', 'lessons', 'given-activities', 'activities', 'code-explorer']);
   const nextTab = allowed.has(tabName) ? tabName : 'students';
   localStorage.setItem(ADMIN_TAB_STORAGE_KEY, nextTab);
 
@@ -28277,7 +28276,6 @@ function setAdminTab(tabName = 'students', options = {}) {
     window.initializeCodeExplorerAdmin?.({ force: false });
     loadCodeUnoAdminVideoSetting({ silent: true, force: false }).catch(error => console.warn('Code UNO video setting load failed.', error));
   }
-  if (nextTab === 'device-qa') initializeDeviceQaPanel();
 }
 
 function initAdminTabs() {
@@ -28562,6 +28560,7 @@ function renderCriteriaEditor(criteria) {
             <p class="helper-note criterion-help">No auto-check here. The rubric is judged later from the code, output, and level descriptions when Result/Feedback runs.</p>
           </div>
 
+          <button class="ghost-btn mini admin-rubric-row-toggle" type="button" aria-expanded="false">Show score levels</button>
           <button class="ghost-btn danger remove-criterion" type="button" aria-label="Remove criterion ${index + 1}">Remove row</button>
         </td>
         ${renderScaleLevelCells(normalized)}
@@ -29683,6 +29682,16 @@ function addManualRubricInputRow(data = {}) {
   removeButton.textContent = 'Remove';
   actionCell.appendChild(removeButton);
   row.appendChild(actionCell);
+  // On phones, keep only the criterion visible until the teacher expands its levels.
+  const firstCell = row.querySelector('td[data-key="criteria"]');
+  if (firstCell) {
+    const toggleLevels = document.createElement('button');
+    toggleLevels.type = 'button';
+    toggleLevels.className = 'ghost-btn mini admin-rubric-row-toggle';
+    toggleLevels.setAttribute('aria-expanded', 'false');
+    toggleLevels.textContent = 'Show score levels';
+    firstCell.appendChild(toggleLevels);
+  }
 
   manualRubricInputBody.appendChild(row);
 }
@@ -65296,5 +65305,44 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   media?.addEventListener?.('change', event => {
     if (event.matches) setTimeout(maybeActivate, 0);
     else hidePointer();
+  });
+})();
+
+
+// v669: admin-only compact density and mobile rubric-row disclosure.
+// Display-only: never changes activity data, scores, saves, or permissions.
+(() => {
+  const densitySettings = [
+    ['complianceTrackerAdmin', 'complianceDensityToggle', 'g8-admin-compliance-density'],
+    ['activitiesRubricsAdmin', 'rubricDensityToggle', 'g8-admin-rubric-density']
+  ];
+  densitySettings.forEach(([panelId, buttonId, storageKey]) => {
+    const panel = document.getElementById(panelId);
+    const button = document.getElementById(buttonId);
+    if (!panel || !button) return;
+    let expanded = false;
+    try { expanded = localStorage.getItem(storageKey) === 'expanded'; } catch (_) {}
+    const render = () => {
+      panel.classList.toggle('admin-dense-mode', !expanded);
+      panel.classList.toggle('admin-expanded-mode', expanded);
+      button.setAttribute('aria-pressed', String(expanded));
+      button.textContent = expanded ? 'Compact view' : 'Expanded view';
+    };
+    render();
+    button.addEventListener('click', () => {
+      expanded = !expanded;
+      try { localStorage.setItem(storageKey, expanded ? 'expanded' : 'compact'); } catch (_) {}
+      render();
+    });
+  });
+  const rubricPanel = document.getElementById('activitiesRubricsAdmin');
+  rubricPanel?.addEventListener('click', event => {
+    const toggle = event.target.closest?.('.admin-rubric-row-toggle');
+    if (!toggle) return;
+    const row = toggle.closest('tr');
+    if (!row) return;
+    const open = row.classList.toggle('admin-rubric-row-open');
+    toggle.setAttribute('aria-expanded', String(open));
+    toggle.textContent = open ? 'Hide score levels' : 'Show score levels';
   });
 })();

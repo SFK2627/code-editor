@@ -1970,7 +1970,7 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
           <button id="adminTabGivenActivities" class="admin-tab-btn" type="button" role="tab" aria-selected="false" aria-controls="givenActivitiesAdmin" data-admin-tab="given-activities">Activities Given</button>
           <button id="adminTabActivities" class="admin-tab-btn" type="button" role="tab" aria-selected="false" aria-controls="activitiesRubricsAdmin" data-admin-tab="activities">Activities &amp; Rubric</button>
           <button id="adminTabCodeExplorer" class="admin-tab-btn" type="button" role="tab" aria-selected="false" aria-controls="codeExplorerAdmin" data-admin-tab="code-explorer">Code Explorer</button>
-          <button id="adminTabDeviceQa" class="admin-tab-btn" type="button" role="tab" aria-selected="false" aria-controls="deviceQaAdmin" data-admin-tab="device-qa">Device QA</button>
+
         </div>
       </div>
 
@@ -2660,7 +2660,7 @@ https://example.com/song2.mp3"></textarea>
           <p class="helper-note online-presence-privacy">Privacy-safe: this only shows page/activity status and last active time. It does not capture screens, keystrokes, exact locations, or private content.</p>
         </section>
 
-        <section id="complianceTrackerAdmin" class="admin-tab-panel compliance-admin-card" data-admin-panel="compliance" aria-labelledby="complianceTrackerTitle">
+        <section id="complianceTrackerAdmin" class="admin-tab-panel compliance-admin-card admin-dense-mode" data-admin-panel="compliance" aria-labelledby="complianceTrackerTitle">
           <div class="compliance-admin-header">
             <div>
               <p class="section-kicker">Google Sheets Sync</p>
@@ -2669,7 +2669,13 @@ https://example.com/song2.mp3"></textarea>
             </div>
             <span class="compliance-safety-pill">Teacher-controlled grade visibility</span>
           </div>
+          <div class="admin-density-toolbar" aria-label="Compliance display density">
+            <span>Compact dashboard · Open settings only when needed</span>
+            <button id="complianceDensityToggle" class="ghost-btn mini admin-density-toggle" type="button" aria-pressed="false">Expanded view</button>
+          </div>
 
+          <details class="admin-compact-group admin-compliance-grade-group">
+            <summary><span><strong>Running Grade Visibility</strong><small>Global color/numeric mode · grade trend · refresh</small></span><span class="admin-compact-chevron" aria-hidden="true">⌄</span></summary>
           <section class="grade-visibility-admin" aria-labelledby="gradeVisibilityAdminTitle">
             <div class="grade-visibility-admin-heading"><div><p class="section-kicker">Global Student Display</p>
               <h4 id="gradeVisibilityAdminTitle">Running Grade Visibility</h4>
@@ -2685,6 +2691,7 @@ https://example.com/song2.mp3"></textarea>
             <p id="gradeDisplaySettingsStatus" class="helper-note" role="status">Loading global settings…</p>
             <p class="helper-note"><strong>Grade trend:</strong> Automatically compare the published current grade (AW) with <strong>BA / PREV. GRADES</strong> in the same configured Google Sheets term tab, matched by Student ID. Preview and Publish include the comparison; Refresh Existing Grade Trends updates published arrows without resyncing scores. Previous numerical grades remain teacher-only.</p>
           </section>
+          </details>
 
           <details class="compliance-setup-block compliance-collapsible-setup">
             <summary class="compliance-setup-summary">
@@ -2708,6 +2715,8 @@ https://example.com/song2.mp3"></textarea>
           </details>
 
 
+          <details class="admin-compact-group admin-compliance-term-group">
+            <summary><span><strong>Academic Term Schedule</strong><small>Automatic dates · manual term override</small></span><span class="admin-compact-chevron" aria-hidden="true">⌄</span></summary>
           <div class="academic-term-schedule-card" aria-labelledby="academicTermScheduleTitle">
             <div class="academic-term-schedule-head">
               <div>
@@ -2754,8 +2763,10 @@ https://example.com/song2.mp3"></textarea>
             <p id="academicTermScheduleSummary" class="helper-note academic-term-schedule-summary">Loading current term…</p>
             <p class="helper-note"><strong>Important:</strong> Automatic switching changes the active term immediately on the set date. If the teacher has not published the new term yet, students will see “waiting for current-term update” instead of old-term lackings.</p>
           </div>
+          </details>
 
-          <div class="compliance-admin-grid">
+          <div class="admin-dense-section-heading"><strong>Sync &amp; Publish</strong><small>Choose term, subject, and sections</small></div>
+          <div class="compliance-admin-grid compliance-sync-main-grid">
             <label>
               Active Term Sheet
               <select id="complianceTermSelect">
@@ -3102,8 +3113,13 @@ https://example.com/song2.mp3"></textarea>
           </div>
         </section>
 
-        <section id="activitiesRubricsAdmin" class="admin-tab-panel" data-admin-panel="activities" aria-labelledby="activitiesRubricsTitle">
+        <section id="activitiesRubricsAdmin" class="admin-tab-panel admin-dense-mode" data-admin-panel="activities" aria-labelledby="activitiesRubricsTitle">
         <div class="admin-section-divider"><span>Activities & Rubrics</span></div>
+        <div class="admin-density-toolbar" aria-label="Activities and Rubrics display density">
+          <span>Compact editor · Expand sections as you work</span>
+          <button id="rubricDensityToggle" class="ghost-btn mini admin-density-toggle" type="button" aria-pressed="false">Expanded view</button>
+          <button class="success-btn admin-rubric-quick-save" type="submit" title="Save the current activity and rubric">Save Activity</button>
+        </div>
         <div class="rubric-term-context-card">
           <div class="rubric-term-context-head">
             <div>
@@ -3161,6 +3177,8 @@ https://example.com/song2.mp3"></textarea>
           <textarea id="adminActivityDescription" rows="3" placeholder="Write the student instructions here."></textarea>
         </label>
 
+        <details class="admin-compact-group admin-rubric-manual-group">
+          <summary><span><strong>Manual Rubric Table</strong><small>Score levels · 5-column input · smart rubric tools</small></span><span class="admin-compact-chevron" aria-hidden="true">⌄</span></summary>
         <section class="manual-rubric-card" aria-label="Manual rubric table input">
           <div class="manual-rubric-header">
             <div>
@@ -3217,7 +3235,10 @@ https://example.com/song2.mp3"></textarea>
           <p id="manualRubricStatus" class="helper-note manual-rubric-status">Type your rubric here, then click Apply Rubric Table.</p>
           <p id="aiRubricGeneratorStatus" class="helper-note ai-rubric-generator-status">Smart rubric generation is teacher-triggered only. If Gemini is unavailable, the app can still create a clean editable starter rubric without auto-check dropdowns.</p>
         </section>
+        </details>
 
+        <details class="admin-compact-group admin-rubric-builder-group" open>
+          <summary><span><strong>Rubric Criteria &amp; Scoring</strong><small>Edit levels, descriptions, and maximum scores</small></span><span class="admin-compact-chevron" aria-hidden="true">⌄</span></summary>
         <div class="rubric-toolbar">
           <div>
             <h3>Rubric Table</h3>
@@ -3227,8 +3248,9 @@ https://example.com/song2.mp3"></textarea>
         </div>
 
         <div id="criteriaEditor" class="criteria-editor"></div>
+        </details>
 
-        <div class="admin-actions">
+        <div class="admin-actions admin-rubric-sticky-actions">
           <button id="resetRubricBtn" class="ghost-btn danger" type="button">Restore Default Rubric</button>
           <button class="success-btn" type="submit">Save Activity</button>
         </div>
@@ -3252,7 +3274,11 @@ https://example.com/song2.mp3"></textarea>
             <div><strong id="codeExplorerAdminAverage">0%</strong><span>Average Progress</span></div>
           </div>
 
-          <section class="code-explorer-admin-music-settings" aria-labelledby="codeExplorerAdminMusicTitle">
+          <details class="ce-admin-settings-master" id="codeExplorerAdminSettingsMaster">
+            <summary><span><strong>⚙️ Code Explorer Settings</strong><small>Music · Video · Leaderboards · Awards · Pubmats · Certificates</small></span><span class="ce-admin-chevron" aria-hidden="true">⌄</span></summary>
+            <div class="ce-admin-settings-body">
+          <details class="ce-admin-setting-group"><summary><span><strong>🎵 Music & Playlist</strong><small>Playback, volume and audio links</small></span><span class="ce-admin-chevron" aria-hidden="true">⌄</span></summary>
+<section class="code-explorer-admin-music-settings" aria-labelledby="codeExplorerAdminMusicTitle">
             <div class="code-explorer-admin-music-head">
               <div>
                 <span class="code-explorer-admin-setting-kicker">🎵 Background Music</span>
@@ -3335,8 +3361,10 @@ https://example.com/song3.mp3"></textarea>
             </div>
             <p id="codeExplorerAdminMusicStatus" class="helper-note" role="status">Loading the current Code Explorer music setting…</p>
           </section>
+</details>
 
-          <section class="code-explorer-admin-uno-video-settings" aria-labelledby="codeUnoAdminVideoTitle">
+          <details class="ce-admin-setting-group"><summary><span><strong>🎥 Code UNO Video</strong><small>Video-call controls</small></span><span class="ce-admin-chevron" aria-hidden="true">⌄</span></summary>
+<section class="code-explorer-admin-uno-video-settings" aria-labelledby="codeUnoAdminVideoTitle">
             <div class="code-explorer-admin-uno-video-head">
               <div>
                 <span class="code-explorer-admin-setting-kicker">🎥 Multiplayer Media</span>
@@ -3354,8 +3382,10 @@ https://example.com/song3.mp3"></textarea>
               <button id="codeUnoAdminVideoSaveBtn" class="primary-btn" type="button">Save Video Setting</button>
             </div>
           </section>
+</details>
 
-          <section class="code-explorer-admin-leaderboard-settings" aria-labelledby="codeExplorerAdminLeaderboardSettingsTitle">
+          <details class="ce-admin-setting-group"><summary><span><strong>🏆 Leaderboard Visibility</strong><small>Included sections</small></span><span class="ce-admin-chevron" aria-hidden="true">⌄</span></summary>
+<section class="code-explorer-admin-leaderboard-settings" aria-labelledby="codeExplorerAdminLeaderboardSettingsTitle">
             <div class="code-explorer-admin-leaderboard-settings-head">
               <div>
                 <span class="code-explorer-admin-setting-kicker">🏆 Leaderboard Visibility</span>
@@ -3376,8 +3406,10 @@ https://example.com/song3.mp3"></textarea>
               <button id="codeExplorerAdminLeaderboardSaveBtn" class="primary-btn" type="button">Save Leaderboard Sections</button>
             </div>
           </section>
+</details>
 
-          <section class="code-explorer-admin-awards" aria-labelledby="codeExplorerAdminAwardsTitle">
+          <details class="ce-admin-setting-group"><summary><span><strong>🏅 Award Certificates</strong><small>Official rankings and PDF exports</small></span><span class="ce-admin-chevron" aria-hidden="true">⌄</span></summary>
+<section class="code-explorer-admin-awards" aria-labelledby="codeExplorerAdminAwardsTitle">
             <div class="code-explorer-admin-awards-head">
               <div>
                 <span class="code-explorer-admin-setting-kicker">🏅 Leaderboard Honors</span>
@@ -3453,8 +3485,10 @@ https://example.com/song3.mp3"></textarea>
               </div>
             </div>
           </section>
+</details>
 
-          <section class="code-explorer-admin-pubmats" aria-labelledby="codeExplorerAdminPubmatsTitle">
+          <details class="ce-admin-setting-group"><summary><span><strong>📱 Story Pubmats</strong><small>Leaderboard graphics</small></span><span class="ce-admin-chevron" aria-hidden="true">⌄</span></summary>
+<section class="code-explorer-admin-pubmats" aria-labelledby="codeExplorerAdminPubmatsTitle">
             <div class="code-explorer-admin-pubmats-head">
               <div>
                 <span class="code-explorer-admin-setting-kicker">📱 Story Pubmats</span>
@@ -3519,8 +3553,10 @@ https://example.com/song3.mp3"></textarea>
               <button id="codeExplorerAdminPubmatRefreshBtn" class="ghost-btn mini" type="button">↻ Refresh Pubmat Rankings</button>
             </div>
           </section>
+</details>
 
-          <section class="code-explorer-admin-xp-migration" aria-labelledby="codeExplorerAdminXpMigrationTitle">
+          <details class="ce-admin-setting-group"><summary><span><strong>⚡ Progress Repair</strong><small>Legacy XP and account consolidation</small></span><span class="ce-admin-chevron" aria-hidden="true">⌄</span></summary>
+<section class="code-explorer-admin-xp-migration" aria-labelledby="codeExplorerAdminXpMigrationTitle">
             <div class="code-explorer-admin-xp-migration-copy">
               <span>⚡ Progress Repair + Legacy XP</span>
               <strong id="codeExplorerAdminXpMigrationTitle">Repair cross-browser progress and normalize legacy XP</strong>
@@ -3530,8 +3566,10 @@ https://example.com/song3.mp3"></textarea>
             </div>
             <button id="codeExplorerAdminXpMigrationBtn" class="primary-btn code-explorer-admin-xp-migration-btn" type="button">⚡ Repair / Normalize Progress</button>
           </section>
+</details>
 
-          <div class="code-explorer-admin-certificate-sample" aria-label="Code Explorer sample certificate">
+          <details class="ce-admin-setting-group"><summary><span><strong>🎓 Certificate Registry</strong><small>Sample PDF and certificate sync</small></span><span class="ce-admin-chevron" aria-hidden="true">⌄</span></summary>
+<div class="code-explorer-admin-certificate-sample" aria-label="Code Explorer sample certificate">
             <div class="code-explorer-admin-certificate-copy">
               <span>Certificate Registry</span>
               <strong>Preview certificates and sync legacy QR records</strong>
@@ -3545,6 +3583,9 @@ https://example.com/song3.mp3"></textarea>
               <button id="codeExplorerAdminCertificateBackfillBtn" class="ghost-btn code-explorer-admin-certificate-sync-btn" type="button">🏅 Sync Existing Certificates</button>
             </div>
           </div>
+</details>
+            </div>
+          </details>
 
           <div class="code-explorer-admin-toolbar">
             <label><span>Search</span><input id="codeExplorerAdminSearch" type="search" placeholder="Name or Student ID" autocomplete="off" /></label>
@@ -3563,27 +3604,7 @@ https://example.com/song3.mp3"></textarea>
           <div id="codeExplorerAdminPagination" class="admin-student-pagination hidden" aria-label="Code Explorer student pages"></div>
         </section>
 
-        <section id="deviceQaAdmin" class="admin-tab-panel device-qa-admin" data-admin-panel="device-qa" aria-labelledby="deviceQaTitle">
-          <div class="device-qa-heading">
-            <div><p class="section-kicker">Responsive QA</p><h3 id="deviceQaTitle">Phone / Tablet / Desktop Preview</h3><p class="muted-text">Browse the actual site inside simulated viewport sizes. Use the screen selector for fast demo states, then check for overflow.</p></div>
-            <button id="deviceQaReloadBtn" class="ghost-btn" type="button">↻ Reload Preview</button>
-          </div>
-          <div class="device-qa-controls">
-            <label>Device<select id="deviceQaPresetSelect"><option value="360x640">Small Phone · 360×640</option><option value="390x844" selected>Regular Phone · 390×844</option><option value="430x932">Large Phone · 430×932</option><option value="600x960">Small Tablet · 600×960</option><option value="768x1024">Tablet · 768×1024</option><option value="820x1180">Large Tablet · 820×1180</option><option value="1366x768">Laptop · 1366×768</option><option value="1920x1080">Desktop · 1920×1080</option><option value="custom">Custom Size</option></select></label>
-            <label>Width<input id="deviceQaWidthInput" type="number" min="280" max="2560" value="390" /></label>
-            <label>Height<input id="deviceQaHeightInput" type="number" min="400" max="1800" value="844" /></label>
-            <label>Orientation<select id="deviceQaOrientationSelect"><option value="portrait">Portrait</option><option value="landscape">Landscape</option></select></label>
-            <label>Preview Screen<select id="deviceQaScreenSelect"><option value="entry">Welcome / Entry</option><option value="login">Student Login</option><option value="dashboard">Student Dashboard</option><option value="lessons">Lessons</option><option value="given-activities">Activities Given</option><option value="lacking">Lacking Popup Demo</option><option value="subject-status">Subject Status Demo</option><option value="editor">Code Editor</option></select></label>
-            <button id="deviceQaApplyBtn" class="primary-btn" type="button">Apply Preview</button>
-          </div>
-          <div class="device-qa-status-row"><span id="deviceQaSizeLabel">390 × 844 · Portrait</span><strong id="deviceQaOverflowStatus" data-status="checking">Checking overflow…</strong></div>
-          <div id="deviceQaViewportShell" class="device-qa-viewport-shell">
-            <div id="deviceQaViewportStage" class="device-qa-viewport-stage">
-              <iframe id="deviceQaFrame" class="device-qa-frame" title="Responsive site preview" loading="lazy"></iframe>
-            </div>
-          </div>
-          <p class="helper-note">QA mode does not change student data. The demo dashboard/popups use temporary sample content. The Activities Given preview can read the same public activity list students see.</p>
-        </section>
+
       </form>
     </div>
   </div>

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ict8-connect-v668-student-status-fixed-grade';
+const CACHE_NAME = 'ict8-connect-v670-compact-explorer-performance-noqa';
 const APP_SHELL = [
   './',
   './index.html',
