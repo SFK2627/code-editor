@@ -2124,6 +2124,12 @@ loginLackingReminderStanding?.addEventListener('toggle', () => {
     return;
   }
   expandedLegend.hidden = !loginLackingReminderStanding.open;
+  if (loginLackingReminderStanding.open) {
+    const middle = document.getElementById('loginReminderScrollRegion');
+    if (middle) requestAnimationFrame(() => {
+      middle.scrollTo({ top: Math.max(0, expandedLegend.offsetTop - middle.offsetTop - 12), behavior: 'smooth' });
+    });
+  }
 });
 // <summary> normally toggles <details> even without our own click handler.
 // Make numeric mode a read-only grade card, with no hidden color legend to open.
@@ -10518,29 +10524,52 @@ function renderStudentComplianceRecord(record = null, options = {}) {
       <span class="compliance-summary-pill missing">🟥 ${Number(summary.missing || 0)} Missing</span>`;
   }
   const visibleTasks = sanitized.tasks || [];
+  const lackingTasks = visibleTasks.filter(task => normalizeComplianceStatus(task.status) !== 'complete');
   if (studentComplianceList) {
-    studentComplianceList.innerHTML = visibleTasks.length ? visibleTasks.map(task => {
-      const status = normalizeComplianceStatus(task.status);
-      return `
-        <div class="student-compliance-row ${escapeAttribute(status)}">
-          <span class="student-compliance-dot" aria-hidden="true"></span>
-          <div>
-            <strong>${escapeHTML(task.title || 'Requirement')}</strong>
-            <small>${escapeHTML(task.category || 'Requirement')} · ${escapeHTML(complianceStatusLabel(status))}</small>
-            ${complianceTermAssessmentScoreMarkup(task)}
-          </div>
-        </div>`;
+    // Categories stay concise until expanded; every score/status remains visible
+    // inside its own group, and all values still come from published records.
+    const categories = new Map();
+    visibleTasks.forEach(task => {
+      const original = String(task.category || 'Other Requirements').trim() || 'Other Requirements';
+      const category = /written/i.test(original) ? 'Written Works'
+        : /performance|peta/i.test(original) ? 'Performance Tasks'
+        : /assessment|exam/i.test(original) ? 'Term Assessment'
+        : original;
+      if (!categories.has(category)) categories.set(category, []);
+      categories.get(category).push(task);
+    });
+    const order = ['Written Works', 'Performance Tasks', 'Term Assessment'];
+    const sortedGroups = [...categories.entries()].sort(([a], [b]) => {
+      const ai = order.indexOf(a), bi = order.indexOf(b);
+      return (ai < 0 ? order.length : ai) - (bi < 0 ? order.length : bi);
+    });
+    studentComplianceList.innerHTML = sortedGroups.length ? sortedGroups.map(([category, tasks]) => {
+      const missing = tasks.filter(task => normalizeComplianceStatus(task.status) !== 'complete').length;
+      return `<details class="student-requirements-group">
+        <summary class="student-requirements-group-heading">
+          <strong>${escapeHTML(category)}</strong>
+          <span>${tasks.length} task${tasks.length === 1 ? '' : 's'} · ${missing} lacking <i aria-hidden="true">⌄</i></span>
+        </summary>
+        <div class="student-requirements-group-rows">${tasks.map(task => {
+          const status = normalizeComplianceStatus(task.status);
+          return `<div class="student-compliance-row ${escapeAttribute(status)}">
+            <span class="student-compliance-dot" aria-hidden="true"></span>
+            <div><strong>${escapeHTML(task.title || 'Requirement')}</strong>
+              <small>${escapeHTML(task.category || 'Requirement')} · ${escapeHTML(complianceStatusLabel(status))}</small>
+              ${complianceTermAssessmentScoreMarkup(task)}
+            </div>
+          </div>`;
+        }).join('')}</div>
+      </details>`;
     }).join('') : '<div class="student-compliance-empty">No visible requirements were published yet.</div>';
   }
   if (studentComplianceLackingList) {
-    const lackingTasks = visibleTasks.filter(task => normalizeComplianceStatus(task.status) !== 'complete');
-    studentComplianceLackingList.innerHTML = `
-      <div class="student-compliance-lacking-card">
-        <strong>Lacking List</strong>
-        ${lackingTasks.length
-          ? `<ul>${lackingTasks.map(task => `<li>${escapeHTML(task.title || 'Requirement')}</li>`).join('')}</ul>`
-          : '<p class="student-compliance-no-lacking">✅ No lacking</p>'}
-      </div>`;
+    studentComplianceLackingList.innerHTML = lackingTasks.length
+      ? `<details class="student-lackings-accordion">
+          <summary>Missing requirements (${lackingTasks.length}) <span aria-hidden="true">⌄</span></summary>
+          <div class="student-compliance-lacking-card"><ul>${lackingTasks.map(task => `<li>${escapeHTML(task.title || 'Requirement')}</li>`).join('')}</ul></div>
+        </details>`
+      : '<div class="student-compliance-no-lacking">✅ No lacking requirements</div>';
   }
 }
 

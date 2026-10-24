@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ict8-connect-v665-grade-popup';
+const CACHE_NAME = 'ict8-connect-v668-student-status-fixed-grade';
 const APP_SHELL = [
   './',
   './index.html',

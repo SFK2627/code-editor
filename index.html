@@ -45,7 +45,7 @@
   </script>
   <link rel="preconnect" href="https://drive.google.com" crossorigin>
   <link rel="preconnect" href="https://lh3.googleusercontent.com" crossorigin>
-  <link rel="stylesheet" href="style.css?v=20261024-v665-grade-popup" />
+  <link rel="stylesheet" href="style.css?v=20261024-v668-student-status-fixed-grade" />
   <link rel="stylesheet" href="games/mini-games-hub.css?v=20260912-v4761-byte-runner-v81-build-hud" />
   <link rel="stylesheet" href="games/code-fly/code-fly.css?v=20260909-v429-xp-mini-games" />
   <style>
@@ -1064,6 +1064,7 @@
   <div id="studentComplianceOverlay" class="student-auth-overlay student-compliance-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="studentComplianceTitle">
     <section id="studentCompliancePanel" class="student-compliance-panel" aria-label="Subject compliance status">
       <button id="closeStudentComplianceBtn" class="icon-btn auth-close-btn" type="button" aria-label="Close subject status">×</button>
+      <div class="student-compliance-pinned">
       <div class="student-compliance-header">
         <div class="student-compliance-title-block">
           <p class="section-kicker">Subject Requirements</p>
@@ -1072,10 +1073,16 @@
         </div>
         <button id="studentComplianceRefreshBtn" class="ghost-btn" type="button">Refresh</button>
       </div>
-      <div id="studentComplianceSummary" class="student-compliance-summary" aria-live="polite"></div>
       <section id="studentComplianceStanding" class="student-academic-standing" aria-label="Current academic standing">
         <div class="student-standing-title">CURRENT ACADEMIC STANDING <small>Your progress after the Midterm</small></div>
         <div class="student-grade-standing-line"><div id="studentComplianceStandingBadge" class="student-standing-badge unavailable" aria-live="polite" aria-atomic="true"><span class="student-standing-dot" aria-hidden="true"></span><strong>NOT YET AVAILABLE</strong></div><div id="studentGradeTrend" class="student-grade-trend" aria-live="polite"></div></div>
+        <p id="studentStandingPrivacyNote" class="student-standing-privacy-note">Your exact numerical running grade is not displayed here.</p>
+      </section>
+      </div>
+      <div id="studentComplianceScrollRegion" class="student-compliance-scroll" role="region" tabindex="0" aria-label="Student requirements and grade information; scroll to view all">
+      <div id="studentComplianceSummary" class="student-compliance-summary" aria-live="polite"></div>
+      <details class="student-status-about-details">
+        <summary>ⓘ About your running grade <span aria-hidden="true">⌄</span></summary>
         <div class="student-standing-information" role="note" aria-label="About your running grade">
           <div class="student-standing-info-heading"><span class="student-standing-info-icon" aria-hidden="true">i</span><strong>What does this mean?</strong></div>
           <p>This is your <strong>running grade after the Midterm</strong>, based on scores recorded so far. <strong>It is NOT your final Term Grade.</strong> Your standing may change as more scores are recorded. The display format is chosen by your teacher.</p>
@@ -1091,10 +1098,10 @@
             <div class="student-standing-legend-item"><span class="student-standing-legend-dot red" aria-hidden="true"></span><span>RED</span><small>74 &amp; below</small></div>
           </div>
         </div>
-        <p id="studentStandingPrivacyNote" class="student-standing-privacy-note">Your exact numerical running grade is not displayed here.</p>
-      </section>
+      </details>
       <div id="studentComplianceList" class="student-compliance-list"></div>
       <div id="studentComplianceLackingList" class="student-compliance-lacking-list" aria-live="polite"></div>
+      </div>
     </section>
   </div>
 
@@ -1111,13 +1118,6 @@
         </div>
       </div>
       <div id="loginLackingReminderMeta" class="login-lacking-reminder-meta" aria-label="Reminder details"></div>
-      </div>
-      <div id="loginReminderScrollRegion" class="login-reminder-scroll-region" tabindex="0" role="region" aria-label="Student status details; scroll for more information">
-      <div class="login-reminder-priority" aria-label="Your requirement status">
-        <p id="loginLackingReminderMessage" class="login-lacking-reminder-message"></p>
-        <div id="loginLackingReminderList" class="login-lacking-reminder-list" aria-live="polite"></div>
-        <button id="loginReminderViewStatusBtn" class="login-reminder-view-status hidden" type="button">📋 Open Full Subject Status <span aria-hidden="true">→</span></button>
-      </div>
       <div class="login-reminder-overview" aria-label="Other academic information">
         <details id="loginLackingReminderStanding" class="login-reminder-standing" data-standing="unavailable" aria-label="Current academic standing and color legend">
           <summary class="login-reminder-standing-head">
@@ -1143,6 +1143,14 @@
             <span>pts</span>
           </div>
         </div>
+      </div>
+      </div>
+      <div id="loginReminderScrollRegion" class="login-reminder-scroll-region" tabindex="0" role="region" aria-label="Student status details; scroll for more information">
+      <div class="login-reminder-priority" aria-label="Your requirement status">
+        <p id="loginLackingReminderMessage" class="login-lacking-reminder-message"></p>
+        <div id="loginLackingReminderList" class="login-lacking-reminder-list" aria-live="polite"></div>
+        <button id="loginReminderViewStatusBtn" class="login-reminder-view-status hidden" type="button">📋 Open Full Subject Status <span aria-hidden="true">→</span></button>
+      </div>
           <div id="loginReminderExpandedLegend" class="login-reminder-standing-details" hidden>
             <p><strong>What does this mean?</strong> This is your <b>running grade after Midterm</b>, based on currently recorded scores. <b>It is NOT your final Second Term Grade.</b> Your standing can still change.</p>
             <div class="login-reminder-color-legend" aria-label="Academic color legend">
@@ -1155,7 +1163,6 @@
             </div>
             <small id="loginGradePrivacyNote" class="login-reminder-grade-privacy">Your exact numerical running grade is not shown here.</small>
           </div>
-      </div>
       <div id="loginLackingReminderMusicRow" class="login-lacking-reminder-music-row hidden">
         <button id="playLoginLackingReminderMusicBtn" class="ghost-btn" type="button">▶ Play Music</button>
         <span id="loginLackingReminderMusicStatus" class="muted-text">Music is optional.</span>
@@ -1974,7 +1981,10 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
             <h3 id="assistanceSettingsTitle">Suggestions & Helper Controls</h3>
             <p class="muted-text">These controls work even before teacher login. Apply locally for this browser, or log in to publish the same settings to every student device.</p>
           </div>
-          <span id="assistanceModeBadge" class="assistance-mode-badge">Assistance ON</span>
+          <div class="admin-compact-heading-actions">
+            <span id="assistanceModeBadge" class="assistance-mode-badge">Assistance ON</span>
+            <button id="assistanceDetailsToggle" class="ghost-btn mini admin-compact-detail-btn" type="button" aria-pressed="false" aria-controls="studentAssistanceSettings" title="Show or hide setting descriptions">Show Help</button>
+          </div>
         </div>
 
         <div class="assistance-master-row">
@@ -1988,7 +1998,9 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
           </label>
         </div>
 
-        <div class="assistance-settings-grid">
+        <details class="admin-compact-group" id="assistanceEditorGroup">
+          <summary class="admin-compact-group-summary"><span>⌨️ Editor &amp; Collaboration Tools</span><small>16 switches · Tap to manage</small></summary>
+          <div class="assistance-settings-grid">
           <label class="assistance-option" for="codeSuggestionsToggle">
             <span class="assistance-option-icon">⌨️</span>
             <span class="assistance-option-copy">
@@ -2184,9 +2196,11 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
               <span class="admin-switch-track"><span class="admin-switch-thumb"></span></span>
             </span>
           </label>
-        </div>
+          </div>
+        </details>
 
-
+        <details class="admin-compact-group" id="assistanceReminderGroup">
+          <summary class="admin-compact-group-summary"><span>🔔 Login Reminder</span><small>Popup, music, themes &amp; messages</small></summary>
         <section class="login-reminder-settings-card" aria-labelledby="loginReminderSettingsTitle">
           <div class="login-reminder-settings-header">
             <div>
@@ -2385,7 +2399,10 @@ https://example.com/song2.mp3"></textarea>
           </div>
           <p id="loginReminderSettingsStatus" class="helper-note" role="status">Music is OFF by default. Preview does not change saved student data.</p>
         </section>
+        </details>
 
+        <details class="admin-compact-group" id="assistanceSmartGroup">
+          <summary class="admin-compact-group-summary"><span>✨ Smart Rubric Review</span><small>Review options, settings &amp; test</small></summary>
         <section class="ai-rubric-settings-card" aria-label="Smart rubric review settings">
           <div class="ai-rubric-settings-header">
             <div>
@@ -2459,6 +2476,7 @@ https://example.com/song2.mp3"></textarea>
           </div>
           <p id="aiRubricSettingsStatus" class="helper-note">OFF = normal built-in scoring. ON = secure complete-project rubric review. The student result screen never needs the API key.</p>
         </section>
+        </details>
 
         <div class="assistance-settings-actions">
           <button id="applyAssistanceLocalBtn" class="ghost-btn" type="button">Apply on This Device</button>
@@ -2591,7 +2609,10 @@ https://example.com/song2.mp3"></textarea>
               <h3 id="needsAttentionTitle">Students Who May Need Attention</h3>
               <p class="muted-text">Factual flags only: current-term lackings, no project yet, no current-term compliance update, or long inactivity. A student can appear for more than one reason.</p>
             </div>
-            <button id="refreshNeedsAttentionBtn" class="primary-btn" type="button">↻ Refresh Dashboard</button>
+            <div class="needs-compact-actions">
+              <button id="needsAttentionDetailsToggle" class="ghost-btn mini admin-compact-detail-btn" type="button" aria-pressed="false" aria-controls="needsAttentionAdmin">Show Details</button>
+              <button id="refreshNeedsAttentionBtn" class="primary-btn" type="button">↻ Refresh</button>
+            </div>
           </div>
           <div class="needs-attention-summary" aria-label="Attention summary">
             <button type="button" data-needs-summary="lacking"><strong id="needsLackingCount">0</strong><span>With Lackings</span></button>
@@ -4974,7 +4995,7 @@ https://example.com/song3.mp3"></textarea>
     })();
   </script>
 
-  <script src="script.js?v=20261024-v665-grade-popup"></script>
+  <script src="script.js?v=20261024-v668-student-status-fixed-grade"></script>
   <script>
     // v410 fallback: keep the desktop editor settings popover working even if older cached
     // toolbar code fails before binding the click handler.
@@ -5187,5 +5208,24 @@ https://example.com/song3.mp3"></textarea>
   <!-- v429 XP Mini-Games: isolated modules loaded after the main app bridge. -->
   <script src="games/code-fly/code-fly.js?v=20260909-v429-xp-mini-games"></script>
   <script src="games/mini-games-hub.js?v=20260920-v604-classic-input-movement-rescue"></script>
+
+  <script>
+    // Admin-only compact display controls. UI state is intentionally ephemeral.
+    (() => {
+      [
+        ['needsAttentionDetailsToggle', 'needsAttentionAdmin'],
+        ['assistanceDetailsToggle', 'studentAssistanceSettings']
+      ].forEach(([buttonId, panelId]) => {
+        const button = document.getElementById(buttonId);
+        const panel = document.getElementById(panelId);
+        if (!button || !panel) return;
+        button.addEventListener('click', () => {
+          const expanded = panel.classList.toggle('show-extra-details');
+          button.setAttribute('aria-pressed', expanded ? 'true' : 'false');
+          button.textContent = expanded ? 'Hide Details' : buttonId === 'assistanceDetailsToggle' ? 'Show Help' : 'Show Details';
+        });
+      });
+    })();
+  </script>
 </body>
 </html>
