@@ -112,7 +112,12 @@ service cloud.firestore {
         // First activation may read ONLY the exact Student-ID document before
         // Authentication. Full roster queries/listing still require sign-in.
         allow get: if true;
-        allow list: if isTeacher() || isSignedIn();
+        // A signed-in student can query only rows linked to their Firebase email.
+        // Student client queries MUST include where('authEmail','==', currentEmail).
+        allow list: if isTeacher() || (
+          isSignedIn()
+          && resource.data.authEmail == request.auth.token.email
+        );
         allow create, update, delete: if isTeacher();
       }
 
@@ -188,13 +193,38 @@ service cloud.firestore {
         allow update: if isTeacher() || (
           isOwner(studentUid)
           && doesNotIncreaseLockedExplorerLegacyXp()
+          && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+            'authUid', 'authEmail', 'studentId', 'studentIdNormalized',
+            'rosterDocId', 'accountStatus', 'createdAt', 'createdBy',
+            'passwordResetBy', 'passwordResetAt'
+          ])
         );
 
         allow delete: if isTeacher();
 
         match /projects/{projectId} {
-          allow read, create, update, delete:
-            if isTeacher() || isOwner(studentUid);
+          allow read: if isTeacher() || isOwner(studentUid);
+          allow create: if isTeacher() || (
+            isOwner(studentUid)
+            && !request.resource.data.keys().hasAny([
+              'adminScoreAppliedBy', 'adminScoreAppliedAt',
+              'adminScoreRubricId', 'adminScoreRubricTitle',
+              'teacherComment', 'teacherComments',
+              'teacherCommentUpdatedAt', 'teacherCommentUpdatedBy',
+              'aiRubricReviews', 'aiRubricReviewUpdatedAt', 'aiRubricReviewUpdatedBy'
+            ])
+          );
+          allow update: if isTeacher() || (
+            isOwner(studentUid)
+            && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+              'adminScoreAppliedBy', 'adminScoreAppliedAt',
+              'adminScoreRubricId', 'adminScoreRubricTitle',
+              'teacherComment', 'teacherComments',
+              'teacherCommentUpdatedAt', 'teacherCommentUpdatedBy',
+              'aiRubricReviews', 'aiRubricReviewUpdatedAt', 'aiRubricReviewUpdatedBy'
+            ])
+          );
+          allow delete: if isTeacher() || isOwner(studentUid);
         }
 
         // LEGACY STEP 270 Code Inbox kept intact for older already-sent items.
@@ -443,8 +473,32 @@ service cloud.firestore {
         allow list: if isTeacher();
       }
 
+      // Grade visibility is controlled by a teacher-only write, and read by
+      // signed-in students. The grade itself NEVER lives in this settings doc.
+      match /gradeDisplaySettings/{settingId} {
+        allow get: if isTeacher() || (isSignedIn() && settingId == 'global');
+        allow list: if false;
+        allow create, update, delete: if isTeacher() && settingId == 'global';
+      }
+
       match /adminSettings/{settingId} {
-        allow read, create, update, delete: if isTeacher();
+        allow get: if isTeacher() || (
+          isSignedIn()
+          && settingId.matches('^complianceGrade_TERM_[123]_[A-Za-z0-9_-]+$')
+          && hasCurrentStudentProfile(documentId)
+          && (
+            currentStudentProfile(documentId).studentIdNormalized == resource.data.studentIdNormalized
+            || currentStudentProfile(documentId).studentId == resource.data.studentIdNormalized
+          )
+          // A student may fetch only the grade for the term actually published
+          // on their own current status; no all-term private-grade browsing.
+          && exists(/databases/$(database)/documents/webCodeEditor/$(documentId)/subjectCompliance/$(resource.data.studentIdNormalized))
+          && get(/databases/$(database)/documents/webCodeEditor/$(documentId)/subjectCompliance/$(resource.data.studentIdNormalized)).data.term == resource.data.term
+          && exists(/databases/$(database)/documents/webCodeEditor/$(documentId)/gradeDisplaySettings/global)
+          && get(/databases/$(database)/documents/webCodeEditor/$(documentId)/gradeDisplaySettings/global).data.displayMode == 'number'
+        );
+        allow list: if isTeacher();
+        allow create, update, delete: if isTeacher();
       }
 
       // v391 — Public certificate verification + admin legacy backfill.
@@ -535,6 +589,92 @@ service cloud.firestore {
               && sessionHost(documentId, shareCode) == request.auth.uid
             );
         }
+      }
+
+      // v663 — Quiz Warning Mode. Attempts are stored per student UID.
+      // Students may start once, increase warnings monotonically (0→1→2),
+      // and finish an in-progress attempt; they cannot erase/restart themselves.
+      // The teacher can review and reset; only the teacher can read audit logs.
+      match /quizAttempts/{quizId} {
+        allow read, write: if false;
+        match /students/{studentUid} {
+          allow get: if isTeacher() || isOwner(studentUid);
+          allow list: if isTeacher();
+
+          function studentQuizProfileMatches() {
+            return hasCurrentStudentProfile(documentId)
+              && (
+                request.resource.data.studentId == currentStudentProfile(documentId).studentId
+                || request.resource.data.studentId == currentStudentProfile(documentId).studentIdNormalized
+              );
+          }
+          function quizIdentityUnchanged() {
+            return request.resource.data.version == resource.data.version
+              && request.resource.data.activityId == resource.data.activityId
+              && request.resource.data.studentUid == resource.data.studentUid
+              && request.resource.data.studentId == resource.data.studentId
+              && request.resource.data.studentName == resource.data.studentName
+              && request.resource.data.section == resource.data.section
+              && request.resource.data.startedAt == resource.data.startedAt;
+          }
+          allow create: if isTeacher() || (
+            isOwner(studentUid)
+            && quizId.matches('^given-[A-Za-z0-9_-]+$')
+            && request.resource.data.keys().hasOnly([
+              'version', 'activityId', 'studentUid', 'studentId', 'studentName',
+              'section', 'status', 'warningCount', 'startedAt', 'updatedAt'
+            ])
+            && request.resource.data.keys().hasAll([
+              'version', 'activityId', 'studentUid', 'studentId', 'studentName',
+              'section', 'status', 'warningCount', 'startedAt', 'updatedAt'
+            ])
+            && request.resource.data.version == 1
+            && request.resource.data.activityId == quizId
+            && request.resource.data.studentUid == studentUid
+            && request.resource.data.studentName is string
+            && request.resource.data.studentName.size() <= 100
+            && request.resource.data.studentId is string
+            && request.resource.data.section is string
+            && request.resource.data.status == 'in_progress'
+            && request.resource.data.warningCount == 0
+            && request.resource.data.startedAt == request.time
+            && request.resource.data.updatedAt == request.time
+            && studentQuizProfileMatches()
+          );
+          allow update: if isTeacher() || (
+            isOwner(studentUid)
+            && resource.data.status == 'in_progress'
+            && quizIdentityUnchanged()
+            && request.resource.data.updatedAt == request.time
+            && (
+              // Exactly one warning per accepted event, no decrements.
+              (
+                request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                  'status', 'warningCount', 'lastSwitchAt', 'updatedAt'
+                ])
+                && request.resource.data.warningCount == resource.data.warningCount + 1
+                && request.resource.data.warningCount <= 2
+                && request.resource.data.lastSwitchAt == request.time
+                && request.resource.data.status == (resource.data.warningCount == 0 ? 'in_progress' : 'interrupted')
+              )
+              ||
+              // Finishing a PDF/image viewing attempt is not an auto-grade.
+              (
+                request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                  'status', 'completedAt', 'updatedAt'
+                ])
+                && request.resource.data.warningCount == resource.data.warningCount
+                && request.resource.data.completedAt == request.time
+                && request.resource.data.status == 'completed'
+              )
+            )
+          );
+          allow delete: if isTeacher();
+        }
+      }
+      match /quizAttemptResetLogs/{logId} {
+        allow read, create: if isTeacher();
+        allow update, delete: if false;
       }
 
       match /submissions/{submissionId} {

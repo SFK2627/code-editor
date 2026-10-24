@@ -7,7 +7,10 @@
       "database.rules.json",
       "**/.*",
       "**/node_modules/**",
-      "**/*.zip"
+      "**/*.zip",
+      "**/*.gs",
+      "**/*.md",
+      "**/*.txt"
     ],
     "headers": [
       {
