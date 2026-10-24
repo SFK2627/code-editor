@@ -45,7 +45,7 @@
   </script>
   <link rel="preconnect" href="https://drive.google.com" crossorigin>
   <link rel="preconnect" href="https://lh3.googleusercontent.com" crossorigin>
-  <link rel="stylesheet" href="style.css?v=20261018-v663-quiz-warning-mode" />
+  <link rel="stylesheet" href="style.css?v=20261024-v664-section-performance" />
   <link rel="stylesheet" href="games/mini-games-hub.css?v=20260912-v4761-byte-runner-v81-build-hud" />
   <link rel="stylesheet" href="games/code-fly/code-fly.css?v=20260909-v429-xp-mini-games" />
   <style>
@@ -1957,6 +1957,7 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
           <button id="adminTabNeedsAttention" class="admin-tab-btn" type="button" role="tab" aria-selected="false" aria-controls="needsAttentionAdmin" data-admin-tab="needs-attention">Needs Attention</button>
           <button id="adminTabOnline" class="admin-tab-btn" type="button" role="tab" aria-selected="false" aria-controls="onlinePresenceAdmin" data-admin-tab="online">Online Now</button>
           <button id="adminTabAssistance" class="admin-tab-btn" type="button" role="tab" aria-selected="false" aria-controls="studentAssistanceSettings" data-admin-tab="assistance">Assistance</button>
+          <button id="adminTabPerformance" class="admin-tab-btn" type="button" role="tab" aria-selected="false" aria-controls="sectionPerformanceAdmin" data-admin-tab="performance">Section Performance</button>
           <button id="adminTabCompliance" class="admin-tab-btn" type="button" role="tab" aria-selected="false" aria-controls="complianceTrackerAdmin" data-admin-tab="compliance">Compliance</button>
           <button id="adminTabLessons" class="admin-tab-btn" type="button" role="tab" aria-selected="false" aria-controls="lessonManagerAdmin" data-admin-tab="lessons">Lessons</button>
           <button id="adminTabGivenActivities" class="admin-tab-btn" type="button" role="tab" aria-selected="false" aria-controls="givenActivitiesAdmin" data-admin-tab="given-activities">Activities Given</button>
@@ -2849,6 +2850,61 @@ https://example.com/song2.mp3"></textarea>
           </div>
         </section>
 
+
+
+        <!-- v664: teacher-only dashboard derived from published compliance and private teacher grades. -->
+        <section id="sectionPerformanceAdmin" class="admin-tab-panel section-performance-admin" data-admin-panel="performance" aria-labelledby="sectionPerformanceTitle">
+          <div class="sperf-heading">
+            <div>
+              <p class="section-kicker">Admin analytics · Published academic records</p>
+              <h3 id="sectionPerformanceTitle">Section Performance Overview</h3>
+              <p class="muted-text">Compare sections, monitor lackings and grade trends, and open individual student records. Numerical grades are teacher-only.</p>
+            </div>
+            <button type="button" class="ghost-btn" id="sperfRefreshBtn" title="Fetch latest published Firestore records and private grades">Refresh Published Data</button>
+          </div>
+          <div class="sperf-toolbar">
+            <label>Academic Term
+              <select id="sperfTerm"><option value="TERM_1">First Term</option><option value="TERM_2">Second Term</option><option value="TERM_3">Third Term</option></select>
+            </label>
+            <label>Section
+              <select id="sperfSection"><option value="all">All Sections</option></select>
+            </label>
+            <label>Student Search
+              <input id="sperfSearch" type="search" placeholder="Name or Student ID" autocomplete="off" />
+            </label>
+            <label>Status / Grade Trend
+              <select id="sperfFilter"><option value="all">All Students</option><option value="lacking">With Lackings</option><option value="complete">No Lackings</option><option value="up">Improved</option><option value="down">Declined</option><option value="same">Unchanged</option><option value="unavailable">Trend Unavailable</option><option value="priority">Priority Follow-up</option></select>
+            </label>
+            <label>Grade Band
+              <select id="sperfBand"><option value="all">All Bands</option><option value="white">White · 96–100</option><option value="green">Green · 91–95</option><option value="yellow">Yellow · 86–90</option><option value="gray">Gray · 81–85</option><option value="orange">Orange · 75–80</option><option value="red">Red · 74 & below</option><option value="unavailable">Not Available</option></select>
+            </label>
+            <label>Sort Students
+              <select id="sperfSort"><option value="name">Student Name</option><option value="low">Lowest Grade</option><option value="high">Highest Grade</option><option value="lacking">Most Lackings</option></select>
+            </label>
+          </div>
+          <p id="sperfStatus" class="helper-note sperf-status" role="status" aria-live="polite">Select this tab to load published section records.</p>
+          <div id="sperfSummary" class="sperf-summary" aria-label="Performance summary"></div>
+          <div class="sperf-grid">
+            <article class="sperf-panel">
+              <div class="sperf-panel-head"><div><h4>Section Comparison</h4><small>Click a section to view its students</small></div></div>
+              <div id="sperfSectionCards" class="sperf-section-cards"></div>
+            </article>
+            <article class="sperf-panel">
+              <div class="sperf-panel-head"><div><h4>Grade Distribution</h4><small>Click a band to filter the student list</small></div></div>
+              <div id="sperfDistribution" class="sperf-distribution"></div>
+              <div id="sperfTrendSummary" class="sperf-trend-summary"></div>
+            </article>
+          </div>
+          <article class="sperf-panel sperf-priority-panel">
+            <div class="sperf-panel-head"><div><h4>Priority Students</h4><small>Students with missing requirements, declining grades or low academic standing</small></div></div>
+            <div id="sperfPriority" class="sperf-priority"></div>
+          </article>
+          <article class="sperf-panel">
+            <div class="sperf-panel-head"><div><h4>Student Drill-Down</h4><small>Open existing Compliance, Scores and Projects views without changing published data</small></div><strong id="sperfStudentCount">0 students</strong></div>
+            <div id="sperfStudents" class="sperf-student-list"></div>
+          </article>
+          <p class="helper-note">Data scope: latest published record for each student in the selected term. Unpublished/missing numerical grades never count as zero. Grade trends compare with the previous term; an unavailable trend is not interpreted as a decline. No changes to grade calculation or Google Sheets sync.</p>
+        </section>
 
         <section id="lessonManagerAdmin" class="admin-tab-panel lesson-manager-admin" data-admin-panel="lessons" aria-labelledby="lessonManagerTitle">
           <div class="lesson-manager-heading">
@@ -4884,7 +4940,7 @@ https://example.com/song3.mp3"></textarea>
     })();
   </script>
 
-  <script src="script.js?v=20261018-v663-quiz-warning-mode"></script>
+  <script src="script.js?v=20261024-v664-section-performance"></script>
   <script>
     // v410 fallback: keep the desktop editor settings popover working even if older cached
     // toolbar code fails before binding the click handler.

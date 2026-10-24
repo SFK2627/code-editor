@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ict8-connect-v663-quiz-warning-mode';
+const CACHE_NAME = 'ict8-connect-v664-section-performance';
 const APP_SHELL = [
   './',
   './index.html',
