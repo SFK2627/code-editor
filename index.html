@@ -45,7 +45,7 @@
   </script>
   <link rel="preconnect" href="https://drive.google.com" crossorigin>
   <link rel="preconnect" href="https://lh3.googleusercontent.com" crossorigin>
-  <link rel="stylesheet" href="style.css?v=20261025-v671-bauhaus-modal" />
+  <link rel="stylesheet" href="style.css?v=20261025-v672-student-login-themes" />
   <link rel="stylesheet" href="games/mini-games-hub.css?v=20260912-v4761-byte-runner-v81-build-hud" />
   <link rel="stylesheet" href="games/code-fly/code-fly.css?v=20260909-v429-xp-mini-games" />
   <style>
@@ -350,6 +350,28 @@
       <p id="studentLoginError" class="login-error hidden" role="alert" aria-hidden="true"></p>
       <button id="studentLoginBtn" class="primary-btn wide-btn" type="button">Log In</button>
       <button id="studentLoginGuestBtn" class="ghost-btn wide-btn" type="button">Practice Without Login</button>
+    </div>
+  </div>
+
+  <div id="loginThemePreviewOverlay" class="login-theme-preview-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="loginThemePreviewTitle">
+    <div class="login-theme-preview-shell">
+      <button id="closeLoginThemePreviewBtn" class="icon-btn login-theme-preview-close" type="button" aria-label="Close login theme preview">×</button>
+      <div class="entry-card login-theme-preview-entry-card">
+        <div class="entry-logo" aria-hidden="true">8</div>
+        <p class="section-kicker">ICT 8 CONNECT</p>
+        <h2 id="loginThemePreviewTitle">Welcome, Grade 8 MCSians!</h2>
+        <p class="entry-lead">Learn lessons, code projects, and connect your progress.</p>
+        <div class="entry-choice-grid login-theme-preview-choices">
+          <div class="entry-choice primary-choice"><span class="entry-choice-icon">🎓</span><span><strong>Log In as Student</strong><small>Student ID and password</small></span></div>
+          <div class="entry-choice guest-choice"><span class="entry-choice-icon">🧪</span><span><strong>Practice Without Login</strong></span></div>
+        </div>
+        <div class="login-theme-preview-form student-auth-card">
+          <strong>Student Login Form</strong>
+          <label>Student ID<input type="text" placeholder="Your Student ID" disabled /></label>
+          <label>Password<input type="text" placeholder="Your password" disabled /></label>
+          <span class="primary-btn wide-btn login-theme-preview-only">Log In · Preview only</span>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -2334,6 +2356,50 @@ https://example.com/song2.mp3"></textarea>
               </select>
               <small>Choose a full visual style or a special theme. Fonts, colors, shapes, borders, buttons, patterns, decorative elements, and safe animation adapt on both phone and desktop.</small>
             </label>
+
+            <section class="login-reminder-login-coverage login-reminder-field-wide" aria-labelledby="loginThemeCoverageTitle">
+              <div class="login-theme-coverage-heading">
+                <strong id="loginThemeCoverageTitle">🎨 Student Login &amp; Modal Appearance</strong>
+                <small>The theme always applies to the student reminder. Optionally extend it to the welcome screen and Student ID login form.</small>
+              </div>
+              <label class="login-reminder-toggle-row login-theme-coverage-toggle" for="loginThemeApplyToLoginToggle">
+                <span><strong>Apply selected theme to Login Page</strong><small>OFF keeps the original welcome page and login form.</small></span>
+                <span class="admin-switch"><input id="loginThemeApplyToLoginToggle" type="checkbox" /><span class="admin-switch-track"><span class="admin-switch-thumb"></span></span></span>
+              </label>
+              <div class="login-theme-appearance-grid">
+                <label class="login-reminder-field" for="loginThemeLoginAppearanceSelect">
+                  <span>Login Page Appearance</span>
+                  <select id="loginThemeLoginAppearanceSelect">
+                    <option value="auto">Auto · Device preference</option>
+                    <option value="light">Light</option>
+                    <option value="dark">Dark</option>
+                  </select>
+                </label>
+                <label class="login-reminder-field" for="loginThemeModalAppearanceSelect">
+                  <span>Student Modal Appearance</span>
+                  <select id="loginThemeModalAppearanceSelect">
+                    <option value="auto">Auto · Device preference</option>
+                    <option value="light">Light</option>
+                    <option value="dark">Dark</option>
+                  </select>
+                </label>
+              </div>
+              <div class="login-theme-preview-grid" aria-label="Theme appearance previews">
+                <div id="loginThemePageSample" class="login-theme-mini-preview" data-design-theme="classic" data-appearance="light">
+                  <span class="login-theme-mini-caption">LOGIN PAGE</span>
+                  <strong id="loginThemePagePreviewTitle">Original / Unchanged</strong>
+                  <div class="login-theme-preview-input"></div><div class="login-theme-preview-input"></div><span class="login-theme-preview-btn">Log In</span>
+                </div>
+                <div id="loginThemeModalSample" class="login-theme-mini-preview" data-design-theme="classic" data-appearance="light">
+                  <span class="login-theme-mini-caption">STUDENT MODAL</span>
+                  <strong id="loginThemeModalPreviewTitle">Classic · Light</strong>
+                  <div class="login-theme-preview-grade"><b>96</b><span aria-hidden="true">↑</span></div>
+                  <span class="login-theme-preview-text">Current running grade</span>
+                </div>
+              </div>
+              <button id="previewLoginThemePageBtn" type="button" class="ghost-btn mini">👁 Preview Login Page</button>
+              <small class="login-theme-save-note">Preview is local. Click <b>Save Reminder to Students</b> to publish. Login theme settings contain no student records.</small>
+            </section>
 
             <label class="login-reminder-field">
               <span>Theme Animation</span>
@@ -5017,7 +5083,7 @@ https://example.com/song3.mp3"></textarea>
     })();
   </script>
 
-  <script src="script.js?v=20261025-v671-bauhaus-modal"></script>
+  <script src="script.js?v=20261025-v672-student-login-themes"></script>
   <script>
     // v410 fallback: keep the desktop editor settings popover working even if older cached
     // toolbar code fails before binding the click handler.

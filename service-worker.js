@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ict8-connect-v671-bauhaus-login-modal';
+const CACHE_NAME = 'ict8-connect-v672-student-login-theme-coverage';
 const APP_SHELL = [
   './',
   './index.html',

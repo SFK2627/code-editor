@@ -250,6 +250,14 @@ const loginReminderPositiveNoticeInput = document.getElementById('loginReminderP
 const loginReminderWarningEyebrowInput = document.getElementById('loginReminderWarningEyebrowInput');
 const loginReminderWarningTitleInput = document.getElementById('loginReminderWarningTitleInput');
 const loginReminderMissingListTitleInput = document.getElementById('loginReminderMissingListTitleInput');
+const loginThemeApplyToLoginToggle = document.getElementById('loginThemeApplyToLoginToggle');
+const loginThemeLoginAppearanceSelect = document.getElementById('loginThemeLoginAppearanceSelect');
+const loginThemeModalAppearanceSelect = document.getElementById('loginThemeModalAppearanceSelect');
+const loginThemePageSample = document.getElementById('loginThemePageSample');
+const loginThemeModalSample = document.getElementById('loginThemeModalSample');
+const previewLoginThemePageBtn = document.getElementById('previewLoginThemePageBtn');
+const loginThemePreviewOverlay = document.getElementById('loginThemePreviewOverlay');
+const closeLoginThemePreviewBtn = document.getElementById('closeLoginThemePreviewBtn');
 const loginReminderThemeSelect = document.getElementById('loginReminderThemeSelect');
 const loginReminderAnimationSelect = document.getElementById('loginReminderAnimationSelect');
 const loginReminderThemeSample = document.getElementById('loginReminderThemeSample');
@@ -986,6 +994,7 @@ let unsubscribeCloudAssistanceSettings = null;
 
 const LOGIN_REMINDER_THEMES = Object.freeze(['campus-journal', 'mission-control', 'honors-night', 'blueprint-lab', 'bauhaus', 'minimalism', 'maximalism', 'futuristic', 'vector-art', 'collage-art', 'retro', 'synthwave-80s', 'cyberpunk', 'pop-art', 'glassmorphism', 'clay-style', 'pixel-art', 'editorial', 'y2k', 'swiss-design', 'surreal-design', 'bohemian', 'victorian-style', 'graffiti', 'aurora', 'handwritten', 'classic', 'christmas', 'spider-comic', 'halloween', 'valentine', 'graduation', 'galaxy', 'cyber-neon', 'ocean', 'sakura', 'retro-arcade', 'birthday', 'fiesta', 'forest']);
 const LOGIN_REMINDER_ANIMATIONS = Object.freeze(['off', 'subtle', 'normal']);
+const LOGIN_THEME_APPEARANCES = Object.freeze(['auto', 'light', 'dark']);
 const LOGIN_REMINDER_THEME_LABELS = Object.freeze({
   'campus-journal': 'Campus Journal · Warm Study Notes',
   'mission-control': 'Mission Control · Progress Dashboard',
@@ -1048,6 +1057,9 @@ const DEFAULT_LOGIN_REMINDER_SETTINGS = Object.freeze({
   musicTrackLimit: 0,
   musicVolume: 55,
   theme: 'classic',
+  applyThemeToLoginPage: false,
+  loginAppearance: 'auto',
+  modalAppearance: 'auto',
   animation: 'subtle',
   positiveEyebrow: 'Great Work',
   positiveTitle: 'You’re All Caught Up!',
@@ -1152,6 +1164,9 @@ function normalizeLoginReminderSettings(value = {}) {
     musicTrackLimit,
     musicVolume: Number.isFinite(rawVolume) ? Math.max(0, Math.min(100, Math.round(rawVolume))) : DEFAULT_LOGIN_REMINDER_SETTINGS.musicVolume,
     theme,
+    applyThemeToLoginPage: source.applyThemeToLoginPage === true,
+    loginAppearance: LOGIN_THEME_APPEARANCES.includes(source.loginAppearance) ? source.loginAppearance : 'auto',
+    modalAppearance: LOGIN_THEME_APPEARANCES.includes(source.modalAppearance) ? source.modalAppearance : 'auto',
     animation,
     positiveEyebrow: cleanText(source.positiveEyebrow, DEFAULT_LOGIN_REMINDER_SETTINGS.positiveEyebrow, 80),
     positiveTitle: cleanText(source.positiveTitle, DEFAULT_LOGIN_REMINDER_SETTINGS.positiveTitle, 120),
@@ -1230,6 +1245,7 @@ function persistLoginReminderSettings(settings = loginReminderSettings) {
   loginReminderSettings = normalizeLoginReminderSettings(settings);
   saveJSON(STORAGE_KEYS.loginReminderSettings, loginReminderSettings);
   syncLoginReminderSettingsControls();
+  applyPublishedStudentLoginTheme(loginReminderSettings);
   return loginReminderSettings;
 }
 
@@ -1245,6 +1261,9 @@ function getLoginReminderSettingsFromControls() {
     musicTrackLimit: rawLimitText ? Number(rawLimitText) : 0,
     musicVolume: loginReminderMusicVolumeInput?.value,
     theme: loginReminderThemeSelect?.value,
+    applyThemeToLoginPage: loginThemeApplyToLoginToggle?.checked === true,
+    loginAppearance: loginThemeLoginAppearanceSelect?.value || 'auto',
+    modalAppearance: loginThemeModalAppearanceSelect?.value || 'auto',
     animation: loginReminderAnimationSelect?.value,
     positiveEyebrow: loginReminderPositiveEyebrowInput?.value,
     positiveTitle: loginReminderPositiveTitleInput?.value,
@@ -1271,6 +1290,80 @@ function syncLoginReminderThemeSample(settings = loginReminderSettings) {
     signatureDescription.textContent = LOGIN_REMINDER_SIGNATURE_DESCRIPTIONS[safe.theme] || 'Preview either student state to see the complete popup.';
   }
 }
+
+
+// v672: the public welcome/login design is presentation-only. No grade data,
+// user information, or admin authorization is derived from this theme config.
+function resolveStudentLoginAppearance(preference = 'auto') {
+  const choice = String(preference || 'auto').toLowerCase();
+  return choice === 'light' || choice === 'dark' ? choice
+    : (window.matchMedia?.('(prefers-color-scheme: dark)')?.matches ? 'dark' : 'light');
+}
+
+function renderStudentLoginThemePreviews(value = loginReminderSettings) {
+  const settings = normalizeLoginReminderSettings(value);
+  if (loginThemePageSample) {
+    loginThemePageSample.dataset.designTheme = settings.applyThemeToLoginPage ? settings.theme : 'original';
+    loginThemePageSample.dataset.appearance = resolveStudentLoginAppearance(settings.loginAppearance);
+  }
+  if (loginThemeModalSample) {
+    loginThemeModalSample.dataset.designTheme = settings.theme;
+    loginThemeModalSample.dataset.appearance = resolveStudentLoginAppearance(settings.modalAppearance);
+  }
+  const loginTitle = document.getElementById('loginThemePagePreviewTitle');
+  const modalTitle = document.getElementById('loginThemeModalPreviewTitle');
+  if (loginTitle) loginTitle.textContent = settings.applyThemeToLoginPage
+    ? `${LOGIN_REMINDER_THEME_LABELS[settings.theme] || 'Classic'} · ${resolveStudentLoginAppearance(settings.loginAppearance)}`
+    : 'Original / Unchanged';
+  if (modalTitle) modalTitle.textContent = `${LOGIN_REMINDER_THEME_LABELS[settings.theme] || 'Classic'} · ${resolveStudentLoginAppearance(settings.modalAppearance)}`;
+}
+
+function applyPublishedStudentLoginTheme(value = loginReminderSettings) {
+  const settings = normalizeLoginReminderSettings(value);
+  const theme = settings.applyThemeToLoginPage ? settings.theme : '';
+  const appearance = resolveStudentLoginAppearance(settings.loginAppearance);
+  [document.getElementById('entryGate'), document.getElementById('studentLoginOverlay')].forEach(element => {
+    if (!element) return;
+    if (theme) { element.dataset.designTheme = theme; element.dataset.appearance = appearance; }
+    else { delete element.dataset.designTheme; delete element.dataset.appearance; }
+  });
+  if (entryThemeToggle) {
+    entryThemeToggle.classList.toggle('hidden', Boolean(theme));
+    entryThemeToggle.setAttribute('aria-hidden', String(Boolean(theme)));
+  }
+  if (loginLackingReminderOverlay) {
+    loginLackingReminderOverlay.dataset.appearance = resolveStudentLoginAppearance(settings.modalAppearance);
+    if (!loginLackingReminderOverlay.classList.contains('hidden') && loginLackingReminderOverlay.dataset.preview !== 'true') {
+      loginLackingReminderOverlay.dataset.theme = settings.theme;
+      loginLackingReminderOverlay.dataset.animation = settings.animation;
+    }
+  }
+}
+
+async function hydrateLoginThemeBeforeStudentSignIn() {
+  if (navigator.onLine === false) return;
+  try {
+    if (!await initFirebaseSync()) return;
+    // This existing Firestore root is publicly readable for published lessons
+    // and activity settings. Read only its safe theme fields in application code.
+    const root = await readCloudActivitiesDocument({ force: true });
+    const published = root?.data?.loginReminderSettings;
+    if (published && typeof published === 'object') {
+      persistLoginReminderSettings(published);
+    }
+  } catch (error) {
+    console.info('Login theme loaded from last known configuration.', error);
+  }
+}
+
+// Avoid relying on browser state to choose Auto across future device changes.
+window.matchMedia?.('(prefers-color-scheme: dark)')?.addEventListener?.('change', () => {
+  applyPublishedStudentLoginTheme(loginReminderSettings);
+  renderStudentLoginThemePreviews(loginReminderSettings);
+  if (loginLackingReminderOverlay && !loginLackingReminderOverlay.classList.contains('hidden')) {
+    loginLackingReminderOverlay.dataset.appearance = resolveStudentLoginAppearance(loginReminderSettings.modalAppearance);
+  }
+});
 
 function renderLoginReminderPlaylistSummary(settings = loginReminderSettings) {
   const safe = normalizeLoginReminderSettings(settings);
@@ -1337,7 +1430,11 @@ function syncLoginReminderSettingsControls() {
   if (loginReminderMusicTestBtn) loginReminderMusicTestBtn.disabled = !settings.musicEnabled || !loginReminderSelectedResolvedTracks(settings).length;
   if (loginReminderThemeSelect) loginReminderThemeSelect.value = settings.theme;
   if (loginReminderAnimationSelect) loginReminderAnimationSelect.value = settings.animation;
+  if (loginThemeApplyToLoginToggle) loginThemeApplyToLoginToggle.checked = settings.applyThemeToLoginPage;
+  if (loginThemeLoginAppearanceSelect) { loginThemeLoginAppearanceSelect.value = settings.loginAppearance; loginThemeLoginAppearanceSelect.disabled = !settings.applyThemeToLoginPage; }
+  if (loginThemeModalAppearanceSelect) loginThemeModalAppearanceSelect.value = settings.modalAppearance;
   syncLoginReminderThemeSample(settings);
+  renderStudentLoginThemePreviews(settings);
   // Preserve caret/selection while typing. These fields are normalized for
   // local preview but saved to Firebase only when the teacher clicks Save.
   [
@@ -2311,6 +2408,7 @@ function renderLoginLackingReminder(record = null, options = {}) {
 
   loginLackingReminderOverlay.dataset.state = state;
   loginLackingReminderOverlay.dataset.theme = settings.theme;
+  loginLackingReminderOverlay.dataset.appearance = resolveStudentLoginAppearance(settings.modalAppearance);
   loginLackingReminderOverlay.dataset.animation = settings.animation;
   loginLackingReminderOverlay.dataset.preview = isPreview ? 'true' : 'false';
   // Always start with the legend collapsed for a compact student popup.
@@ -33238,12 +33336,25 @@ loginReminderMusicPlaylistText?.addEventListener('input', () => {
 loginReminderMusicTestBtn?.addEventListener('click', toggleLoginReminderAdminPreview);
 loginReminderMusicPrevBtn?.addEventListener('click', () => playLoginReminderAdminPreview({ move: -1 }).catch(() => {}));
 loginReminderMusicNextBtn?.addEventListener('click', () => playLoginReminderAdminPreview({ move: 1 }).catch(() => {}));
-[loginReminderThemeSelect, loginReminderAnimationSelect].forEach(control => {
+[loginReminderThemeSelect, loginReminderAnimationSelect, loginThemeApplyToLoginToggle,
+  loginThemeLoginAppearanceSelect, loginThemeModalAppearanceSelect].forEach(control => {
   control?.addEventListener('change', () => {
     const settings = persistLoginReminderSettings(getLoginReminderSettingsFromControls());
     syncLoginReminderThemeSample(settings);
+    renderStudentLoginThemePreviews(settings);
   });
 });
+previewLoginThemePageBtn?.addEventListener('click', () => {
+  const settings = getLoginReminderSettingsFromControls();
+  if (!loginThemePreviewOverlay) return;
+  loginThemePreviewOverlay.classList.remove('hidden');
+  loginThemePreviewOverlay.dataset.designTheme = settings.applyThemeToLoginPage ? settings.theme : 'original';
+  loginThemePreviewOverlay.dataset.appearance = resolveStudentLoginAppearance(settings.loginAppearance);
+});
+function closeStudentLoginThemePreview() { loginThemePreviewOverlay?.classList.add('hidden'); }
+closeLoginThemePreviewBtn?.addEventListener('click', closeStudentLoginThemePreview);
+loginThemePreviewOverlay?.addEventListener('click', e => { if (e.target === loginThemePreviewOverlay) closeStudentLoginThemePreview(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeStudentLoginThemePreview(); });
 previewLoginReminderCompleteBtn?.addEventListener('click', () => previewLoginLackingReminder(false));
 previewLoginReminderMissingBtn?.addEventListener('click', () => previewLoginLackingReminder(true));
 saveLoginReminderSettingsBtn?.addEventListener('click', saveLoginReminderSettingsToCloud);
@@ -37755,6 +37866,9 @@ saveActivities({ cloud: false });
 saveJSON(STORAGE_KEYS.selectedActivityId, selectedActivityId);
 saveCodeByActivity();
 applyTheme(loadJSON(STORAGE_KEYS.theme, 'light'));
+applyPublishedStudentLoginTheme(loginReminderSettings);
+// Don't block the Login button while fetching the teacher-published theme.
+hydrateLoginThemeBeforeStudentSignIn().catch(() => {});
 applyEditorZoom(editorFontSize);
 renderActivitySummary();
 resetResultPanel();

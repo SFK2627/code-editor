@@ -70155,3 +70155,317 @@ body.sperf-roster-open { overflow:hidden; }
   #loginLackingReminderOverlay[data-theme="bauhaus"] .login-lacking-reminder-panel::before {animation:none !important;}
   #loginLackingReminderOverlay[data-theme="bauhaus"] .login-lacking-reminder-nav-card {transition:none !important;transform:none !important;}
 }
+
+
+/* ============================================================================
+   v672 — Admin-published Student Login Page theme coverage.
+   The existing original login theme is untouched when the coverage toggle is OFF.
+   Only #entryGate, #studentLoginOverlay, and the preview are themed, never admin.
+   Academic grade colors remain unchanged.
+   ============================================================================ */
+#entryGate[data-design-theme],
+#studentLoginOverlay[data-design-theme],
+#loginThemePreviewOverlay[data-design-theme],
+.login-theme-mini-preview[data-design-theme] {
+  --sg-primary:#1c5fd1; --sg-secondary:#e5b72f;
+  --sg-red:#df4539; --sg-radius:18px;
+  --sg-ink:#121c30;
+  --sg-paper:#f5f5f0;
+  --sg-card:#fff;
+  --sg-muted:#45536b;
+  --sg-border:#161b2e;
+  --sg-button-ink:#fff;
+  --sg-decoration:radial-gradient(circle at 88% 13%,color-mix(in srgb,var(--sg-primary) 18%,transparent) 0 55px,transparent 56px),radial-gradient(circle at 11% 88%,color-mix(in srgb,var(--sg-secondary) 27%,transparent) 0 90px,transparent 91px);
+  color-scheme:light;
+}
+#entryGate[data-appearance="dark"],
+#studentLoginOverlay[data-appearance="dark"],
+#loginThemePreviewOverlay[data-appearance="dark"],
+.login-theme-mini-preview[data-appearance="dark"] {
+  --sg-ink:#f4f5f9;
+  --sg-paper:#101724;
+  --sg-card:#202a3d;
+  --sg-muted:#c5cde0;
+  --sg-border:#bcc6da;
+  --sg-decoration:radial-gradient(circle at 88% 13%,color-mix(in srgb,var(--sg-primary) 32%,transparent) 0 65px,transparent 66px),radial-gradient(circle at 11% 88%,color-mix(in srgb,var(--sg-secondary) 18%,transparent) 0 100px,transparent 101px);
+  color-scheme:dark;
+}
+/* Each original modal theme receives a coordinated, recognizable login accent. */
+:is(#entryGate,#studentLoginOverlay,#loginThemePreviewOverlay,.login-theme-mini-preview)[data-design-theme="campus-journal"] { --sg-primary:#314e74; --sg-secondary:#eeb766; --sg-radius:16px; }
+:is(#entryGate,#studentLoginOverlay,#loginThemePreviewOverlay,.login-theme-mini-preview)[data-design-theme="mission-control"] { --sg-primary:#1f9eb7; --sg-secondary:#3de4d0; --sg-radius:11px; }
+:is(#entryGate,#studentLoginOverlay,#loginThemePreviewOverlay,.login-theme-mini-preview)[data-design-theme="honors-night"] { --sg-primary:#be9b50; --sg-secondary:#182c51; --sg-radius:16px; }
+:is(#entryGate,#studentLoginOverlay,#loginThemePreviewOverlay,.login-theme-mini-preview)[data-design-theme="blueprint-lab"] { --sg-primary:#1468dd; --sg-secondary:#53b6ff; --sg-radius:6px; }
+:is(#entryGate,#studentLoginOverlay,#loginThemePreviewOverlay,.login-theme-mini-preview)[data-design-theme="bauhaus"] { --sg-primary:#dd362f; --sg-secondary:#f4c83e; --sg-radius:3px; }
+:is(#entryGate,#studentLoginOverlay,#loginThemePreviewOverlay,.login-theme-mini-preview)[data-design-theme="minimalism"] { --sg-primary:#2a3d5b; --sg-secondary:#cdd4de; --sg-radius:12px; }
+:is(#entryGate,#studentLoginOverlay,#loginThemePreviewOverlay,.login-theme-mini-preview)[data-design-theme="maximalism"] { --sg-primary:#b025b6; --sg-secondary:#f5a524; --sg-radius:12px; }
+:is(#entryGate,#studentLoginOverlay,#loginThemePreviewOverlay,.login-theme-mini-preview)[data-design-theme="futuristic"] { --sg-primary:#06b6d4; --sg-secondary:#7c3aed; --sg-radius:12px; }
+:is(#entryGate,#studentLoginOverlay,#loginThemePreviewOverlay,.login-theme-mini-preview)[data-design-theme="vector-art"] { --sg-primary:#2d60d7; --sg-secondary:#ffd94b; --sg-radius:8px; }
+:is(#entryGate,#studentLoginOverlay,#loginThemePreviewOverlay,.login-theme-mini-preview)[data-design-theme="collage-art"] { --sg-primary:#d84a52; --sg-secondary:#f6c94e; --sg-radius:5px; }
+:is(#entryGate,#studentLoginOverlay,#loginThemePreviewOverlay,.login-theme-mini-preview)[data-design-theme="retro"] { --sg-primary:#c46d35; --sg-secondary:#f0c66f; --sg-radius:12px; }
+:is(#entryGate,#studentLoginOverlay,#loginThemePreviewOverlay,.login-theme-mini-preview)[data-design-theme="synthwave-80s"] { --sg-primary:#f0269b; --sg-secondary:#23d8f9; --sg-radius:9px; }
+:is(#entryGate,#studentLoginOverlay,#loginThemePreviewOverlay,.login-theme-mini-preview)[data-design-theme="cyberpunk"] { --sg-primary:#c91fec; --sg-secondary:#f5e720; --sg-radius:4px; }
+:is(#entryGate,#studentLoginOverlay,#loginThemePreviewOverlay,.login-theme-mini-preview)[data-design-theme="pop-art"] { --sg-primary:#ed3035; --sg-secondary:#f5cf36; --sg-radius:3px; }
+:is(#entryGate,#studentLoginOverlay,#loginThemePreviewOverlay,.login-theme-mini-preview)[data-design-theme="glassmorphism"] { --sg-primary:#5b5ef5; --sg-secondary:#5bd1ce; --sg-radius:26px; }
+:is(#entryGate,#studentLoginOverlay,#loginThemePreviewOverlay,.login-theme-mini-preview)[data-design-theme="clay-style"] { --sg-primary:#9b5fd3; --sg-secondary:#f4a4cf; --sg-radius:26px; }
+:is(#entryGate,#studentLoginOverlay,#loginThemePreviewOverlay,.login-theme-mini-preview)[data-design-theme="pixel-art"] { --sg-primary:#7737cb; --sg-secondary:#41d6f1; --sg-radius:1px; }
+:is(#entryGate,#studentLoginOverlay,#loginThemePreviewOverlay,.login-theme-mini-preview)[data-design-theme="editorial"] { --sg-primary:#161b22; --sg-secondary:#c7a778; --sg-radius:1px; }
+:is(#entryGate,#studentLoginOverlay,#loginThemePreviewOverlay,.login-theme-mini-preview)[data-design-theme="y2k"] { --sg-primary:#e830a4; --sg-secondary:#94bdfc; --sg-radius:24px; }
+:is(#entryGate,#studentLoginOverlay,#loginThemePreviewOverlay,.login-theme-mini-preview)[data-design-theme="swiss-design"] { --sg-primary:#db2f31; --sg-secondary:#f3f3f3; --sg-radius:0px; }
+:is(#entryGate,#studentLoginOverlay,#loginThemePreviewOverlay,.login-theme-mini-preview)[data-design-theme="surreal-design"] { --sg-primary:#995aca; --sg-secondary:#f2a4bc; --sg-radius:24px; }
+:is(#entryGate,#studentLoginOverlay,#loginThemePreviewOverlay,.login-theme-mini-preview)[data-design-theme="bohemian"] { --sg-primary:#995b27; --sg-secondary:#dcb881; --sg-radius:22px; }
+:is(#entryGate,#studentLoginOverlay,#loginThemePreviewOverlay,.login-theme-mini-preview)[data-design-theme="victorian-style"] { --sg-primary:#6a1b26; --sg-secondary:#b69753; --sg-radius:6px; }
+:is(#entryGate,#studentLoginOverlay,#loginThemePreviewOverlay,.login-theme-mini-preview)[data-design-theme="graffiti"] { --sg-primary:#d91b5e; --sg-secondary:#47b555; --sg-radius:5px; }
+:is(#entryGate,#studentLoginOverlay,#loginThemePreviewOverlay,.login-theme-mini-preview)[data-design-theme="aurora"] { --sg-primary:#19bfa7; --sg-secondary:#7760cf; --sg-radius:18px; }
+:is(#entryGate,#studentLoginOverlay,#loginThemePreviewOverlay,.login-theme-mini-preview)[data-design-theme="handwritten"] { --sg-primary:#3059a4; --sg-secondary:#efb44b; --sg-radius:14px; }
+:is(#entryGate,#studentLoginOverlay,#loginThemePreviewOverlay,.login-theme-mini-preview)[data-design-theme="classic"] { --sg-primary:#275ea8; --sg-secondary:#98bbde; --sg-radius:18px; }
+:is(#entryGate,#studentLoginOverlay,#loginThemePreviewOverlay,.login-theme-mini-preview)[data-design-theme="christmas"] { --sg-primary:#146c40; --sg-secondary:#d83e45; --sg-radius:18px; }
+:is(#entryGate,#studentLoginOverlay,#loginThemePreviewOverlay,.login-theme-mini-preview)[data-design-theme="spider-comic"] { --sg-primary:#d72b39; --sg-secondary:#1a4c92; --sg-radius:4px; }
+:is(#entryGate,#studentLoginOverlay,#loginThemePreviewOverlay,.login-theme-mini-preview)[data-design-theme="halloween"] { --sg-primary:#db842d; --sg-secondary:#7e46ab; --sg-radius:10px; }
+:is(#entryGate,#studentLoginOverlay,#loginThemePreviewOverlay,.login-theme-mini-preview)[data-design-theme="valentine"] { --sg-primary:#cc395c; --sg-secondary:#f3adbc; --sg-radius:20px; }
+:is(#entryGate,#studentLoginOverlay,#loginThemePreviewOverlay,.login-theme-mini-preview)[data-design-theme="graduation"] { --sg-primary:#1d437b; --sg-secondary:#e0b451; --sg-radius:14px; }
+:is(#entryGate,#studentLoginOverlay,#loginThemePreviewOverlay,.login-theme-mini-preview)[data-design-theme="galaxy"] { --sg-primary:#7758c6; --sg-secondary:#42c0cf; --sg-radius:20px; }
+:is(#entryGate,#studentLoginOverlay,#loginThemePreviewOverlay,.login-theme-mini-preview)[data-design-theme="cyber-neon"] { --sg-primary:#13bacc; --sg-secondary:#ed37c1; --sg-radius:8px; }
+:is(#entryGate,#studentLoginOverlay,#loginThemePreviewOverlay,.login-theme-mini-preview)[data-design-theme="ocean"] { --sg-primary:#1873b9; --sg-secondary:#2fbfb2; --sg-radius:22px; }
+:is(#entryGate,#studentLoginOverlay,#loginThemePreviewOverlay,.login-theme-mini-preview)[data-design-theme="sakura"] { --sg-primary:#cf6793; --sg-secondary:#f2b6cc; --sg-radius:22px; }
+:is(#entryGate,#studentLoginOverlay,#loginThemePreviewOverlay,.login-theme-mini-preview)[data-design-theme="retro-arcade"] { --sg-primary:#ad39d9; --sg-secondary:#f6bd3e; --sg-radius:4px; }
+:is(#entryGate,#studentLoginOverlay,#loginThemePreviewOverlay,.login-theme-mini-preview)[data-design-theme="birthday"] { --sg-primary:#a143d9; --sg-secondary:#ffae43; --sg-radius:20px; }
+:is(#entryGate,#studentLoginOverlay,#loginThemePreviewOverlay,.login-theme-mini-preview)[data-design-theme="fiesta"] { --sg-primary:#d84c25; --sg-secondary:#f0c84a; --sg-radius:12px; }
+:is(#entryGate,#studentLoginOverlay,#loginThemePreviewOverlay,.login-theme-mini-preview)[data-design-theme="forest"] { --sg-primary:#29724d; --sg-secondary:#b0be60; --sg-radius:20px; }
+
+/* BAUHAUS: legible primary-color geometrics, not a generic blue login. */
+:is(#entryGate,#studentLoginOverlay,#loginThemePreviewOverlay,.login-theme-mini-preview)[data-design-theme="bauhaus"] {
+  --sg-paper:#f5f0dd; --sg-card:#fffdf5; --sg-ink:#151515; --sg-muted:#343434;
+  --sg-border:#151515; --sg-button-ink:#fff;
+  --sg-decoration:radial-gradient(circle at 87% 14%,#e33e37 0 70px,transparent 71px),
+    linear-gradient(125deg,transparent 0 78%,#205ec3 78% 83%,transparent 83%),
+    radial-gradient(circle at 7% 88%,#edc940 0 100px,transparent 101px);
+}
+:is(#entryGate,#studentLoginOverlay,#loginThemePreviewOverlay,.login-theme-mini-preview)[data-design-theme="bauhaus"][data-appearance="dark"] {
+  --sg-paper:#141414; --sg-card:#28282a; --sg-ink:#f7f5ec; --sg-muted:#e0dccf;
+  --sg-border:#e5e0cc; --sg-button-ink:#fff;
+  --sg-decoration:radial-gradient(circle at 86% 15%,#bd332f 0 65px,transparent 66px),
+    linear-gradient(125deg,transparent 0 77%,#1b488e 77% 84%,transparent 84%),
+    radial-gradient(circle at 8% 88%,#b39535 0 92px,transparent 93px);
+}
+:is(#entryGate,#studentLoginOverlay,#loginThemePreviewOverlay)[data-design-theme="bauhaus"] .entry-logo,
+#studentLoginOverlay[data-design-theme="bauhaus"] .student-auth-icon {background:var(--sg-primary)!important;border:3px solid var(--sg-border)!important;border-radius:0!important;box-shadow:5px 5px 0 var(--sg-secondary)!important}
+:is(#entryGate,#studentLoginOverlay,#loginThemePreviewOverlay)[data-design-theme="bauhaus"] :is(h1,h2,.entry-choice strong){font-family:"Arial Black",Arial,sans-serif!important;letter-spacing:-.045em!important;text-transform:uppercase}
+/* The welcome page and separate Student ID login form share a single palette. */
+#entryGate[data-design-theme] {
+  background:var(--sg-decoration),var(--sg-paper)!important;
+  transition:background-color .25s ease;
+}
+#entryGate[data-design-theme] .entry-card,
+#loginThemePreviewOverlay[data-design-theme] .entry-card {
+  background:var(--sg-card)!important;
+  border:2px solid var(--sg-border)!important;
+  color:var(--sg-ink)!important;
+  border-radius:var(--sg-radius)!important;
+  box-shadow:9px 9px 0 color-mix(in srgb,var(--sg-secondary) 60%,transparent),0 18px 46px rgba(0,0,0,.18)!important;
+  backdrop-filter:none!important;
+}
+#entryGate[data-design-theme] :is(h1,.section-kicker,.entry-gate-title-link),
+#loginThemePreviewOverlay[data-design-theme] :is(h2,.section-kicker) {color:var(--sg-ink)!important}
+#entryGate[data-design-theme] .entry-lead,
+#loginThemePreviewOverlay[data-design-theme] .entry-lead {color:var(--sg-muted)!important}
+:is(#entryGate,#loginThemePreviewOverlay)[data-design-theme] .entry-choice {
+  border:2px solid var(--sg-border)!important;
+  border-radius:var(--sg-radius)!important;
+  color:var(--sg-ink)!important;
+  background:var(--sg-card)!important;
+  min-width:0;
+}
+:is(#entryGate,#loginThemePreviewOverlay)[data-design-theme] .entry-choice.primary-choice {
+  border-color:var(--sg-primary)!important;
+  color:#fff!important;
+  background:var(--sg-primary)!important;
+}
+:is(#entryGate,#loginThemePreviewOverlay)[data-design-theme] .entry-choice-icon {
+  border-radius:calc(var(--sg-radius) / 2)!important;
+  background:color-mix(in srgb,var(--sg-secondary) 20%,transparent)!important;
+}
+#entryGate[data-design-theme] .entry-choice.primary-choice .entry-choice-icon,
+#loginThemePreviewOverlay[data-design-theme] .entry-choice.primary-choice .entry-choice-icon {background:rgba(255,255,255,.20)!important}
+#studentLoginOverlay[data-design-theme] {
+  background:color-mix(in srgb,var(--sg-paper) 76%,#000)!important;
+  backdrop-filter:blur(9px)!important;
+}
+#studentLoginOverlay[data-design-theme] .student-auth-card,
+#loginThemePreviewOverlay[data-design-theme] .student-auth-card {
+  background:var(--sg-card)!important;
+  color:var(--sg-ink)!important;
+  border:2px solid var(--sg-border)!important;
+  border-radius:var(--sg-radius)!important;
+  box-shadow:8px 8px 0 color-mix(in srgb,var(--sg-secondary) 55%,transparent)!important;
+}
+#studentLoginOverlay[data-design-theme] :is(h2,.section-kicker,label,.muted-text),
+#loginThemePreviewOverlay[data-design-theme] :is(label,.muted-text) {color:var(--sg-ink)!important}
+#studentLoginOverlay[data-design-theme] .muted-text {color:var(--sg-muted)!important}
+#studentLoginOverlay[data-design-theme] :is(input,.password-toggle-btn),
+#loginThemePreviewOverlay[data-design-theme] input {
+  color:var(--sg-ink)!important;background:var(--sg-paper)!important;
+  border:1.5px solid var(--sg-border)!important;border-radius:calc(var(--sg-radius) / 2)!important;
+}
+#studentLoginOverlay[data-design-theme] input::placeholder {color:var(--sg-muted)!important;opacity:.88}
+#studentLoginOverlay[data-design-theme] .primary-btn,
+#loginThemePreviewOverlay[data-design-theme] .primary-btn {
+  background:var(--sg-primary)!important;color:#fff!important;
+  border:2px solid var(--sg-primary)!important;
+  border-radius:calc(var(--sg-radius) / 2)!important;
+}
+#studentLoginOverlay[data-design-theme] .ghost-btn {
+  background:var(--sg-paper)!important;color:var(--sg-ink)!important;
+  border:1.5px solid var(--sg-border)!important;
+  border-radius:calc(var(--sg-radius) / 2)!important;
+}
+#studentLoginOverlay[data-design-theme] :is(input,button):focus-visible,
+#entryGate[data-design-theme] button:focus-visible {outline:3px solid var(--sg-secondary)!important;outline-offset:2px!important}
+#entryGate[data-design-theme="bauhaus"] .entry-card,
+#studentLoginOverlay[data-design-theme="bauhaus"] .student-auth-card,
+#loginThemePreviewOverlay[data-design-theme="bauhaus"] .entry-card {border-width:3px!important}
+#entryGate[data-design-theme="bauhaus"] .entry-choice,
+#studentLoginOverlay[data-design-theme="bauhaus"] .primary-btn {border-radius:3px!important}
+/* The Appearance mode controls actual modal surfaces for every selectable design.
+   Official grade badges and status colors are purposefully excluded. */
+#loginLackingReminderOverlay[data-theme][data-appearance="dark"] {
+  --modal-appearance-paper:#161d2c;--modal-appearance-card:#273248;
+  --modal-appearance-ink:#f5f7ff;--modal-appearance-muted:#c6d0e4;
+}
+#loginLackingReminderOverlay[data-theme][data-appearance="light"] {
+  --modal-appearance-paper:#f5f6f8;--modal-appearance-card:#fff;
+  --modal-appearance-ink:#1b2a40;--modal-appearance-muted:#4e5c72;
+}
+#loginLackingReminderOverlay[data-theme][data-appearance] .login-lacking-reminder-panel {background:var(--modal-appearance-paper)!important;color:var(--modal-appearance-ink)!important}
+#loginLackingReminderOverlay[data-theme][data-appearance] :is(.login-reminder-scroll-region,.login-lacking-reminder-scroll,.login-reminder-priority) {color:var(--modal-appearance-ink)}
+#loginLackingReminderOverlay[data-theme][data-appearance="dark"] .login-reminder-fixed-header {background:#20283a!important}
+#loginLackingReminderOverlay[data-theme][data-appearance="light"] .login-reminder-fixed-header {background:#eef1f5!important}
+#loginLackingReminderOverlay[data-theme][data-appearance] .login-lacking-reminder-hero :is(h2,.section-kicker),
+#loginLackingReminderOverlay[data-theme][data-appearance] .login-lacking-reminder-student,
+#loginLackingReminderOverlay[data-theme][data-appearance] .login-reminder-requirements-head h3 {color:var(--modal-appearance-ink)!important}
+#loginLackingReminderOverlay[data-theme][data-appearance] .login-lacking-reminder-hero :is(small,p),
+#loginLackingReminderOverlay[data-theme][data-appearance] .login-reminder-requirements-head :is(small,span) {color:var(--modal-appearance-muted)!important}
+#loginLackingReminderOverlay[data-theme][data-appearance] .login-reminder-requirements-group {background:var(--modal-appearance-card)!important;color:var(--modal-appearance-ink)!important}
+#loginLackingReminderOverlay[data-theme][data-appearance] .login-reminder-requirements-group :is(li,strong,span) {color:var(--modal-appearance-ink)!important}
+#loginLackingReminderOverlay[data-theme][data-appearance] .login-lacking-reminder-actions {background:var(--modal-appearance-paper)!important;color:var(--modal-appearance-ink)!important}
+#loginLackingReminderOverlay[data-theme][data-appearance] .login-lacking-reminder-nav-head :is(span,small) {color:var(--modal-appearance-ink)!important}
+#loginLackingReminderOverlay[data-theme][data-appearance] .login-lacking-reminder-nav-card {background:var(--modal-appearance-card)!important;color:var(--modal-appearance-ink)!important}
+#loginLackingReminderOverlay[data-theme][data-appearance] .login-lacking-reminder-nav-card :is(strong,small) {color:var(--modal-appearance-ink)!important}
+#loginLackingReminderOverlay[data-theme][data-appearance] .login-reminder-standing,
+#loginLackingReminderOverlay[data-theme][data-appearance] .login-reminder-recit-card {background:var(--modal-appearance-card)!important;color:var(--modal-appearance-ink)!important}
+/* Bauhaus Light/Dark retains its distinct yellow/charcoal hero and red geometry. */
+#loginLackingReminderOverlay[data-theme="bauhaus"][data-appearance="light"] .login-reminder-fixed-header {background:#f4cb47!important}
+#loginLackingReminderOverlay[data-theme="bauhaus"][data-appearance="dark"] {
+  --bauhaus-black:#e9e4ce;--bauhaus-paper:#181818;
+  --bauhaus-ink:#f6f4e9;--bauhaus-yellow:#bd9830;
+  --modal-appearance-paper:#181818;--modal-appearance-card:#303033;
+  --modal-appearance-ink:#f6f4e9;--modal-appearance-muted:#ddd7c5;
+}
+#loginLackingReminderOverlay[data-theme="bauhaus"][data-appearance="dark"] .login-reminder-fixed-header {background:#35302a!important}
+#loginLackingReminderOverlay[data-theme="bauhaus"][data-appearance="dark"] .login-lacking-reminder-hero :is(h2,.section-kicker),
+#loginLackingReminderOverlay[data-theme="bauhaus"][data-appearance="dark"] .login-lacking-reminder-student {color:#fff9ea!important}
+#loginLackingReminderOverlay[data-theme="bauhaus"][data-appearance="dark"] .login-lacking-reminder-nav-card:nth-child(n) {background:#303033!important}
+#loginLackingReminderOverlay[data-theme="bauhaus"][data-appearance="dark"] .login-lacking-reminder-nav-card :is(strong,small) {color:#f8f5ea!important}
+/* Theme coverage controls and two responsive live samples. */
+.login-reminder-login-coverage {display:grid;gap:11px;padding:13px;border:1px solid rgba(90,115,160,.23);border-radius:15px;background:rgba(90,115,160,.065);min-width:0}
+.login-theme-coverage-heading {display:grid;gap:4px}
+.login-theme-coverage-heading strong {font-size:14px;color:var(--text)}
+.login-theme-coverage-heading small,.login-theme-save-note {font-size:12px;line-height:1.45;color:var(--muted)}
+.login-theme-coverage-toggle {padding:9px 10px!important;border-radius:10px!important;background:var(--solid-card)!important}
+.login-theme-coverage-toggle>span:first-child {display:grid;gap:3px}
+.login-theme-coverage-toggle small {color:var(--muted);font-size:11px}
+.login-theme-appearance-grid,.login-theme-preview-grid {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.login-theme-mini-preview {display:grid;align-content:start;gap:8px;min-width:0;min-height:175px;padding:12px;background:var(--sg-card);border:2px solid var(--sg-border);border-radius:var(--sg-radius);color:var(--sg-ink);text-align:left}
+.login-theme-mini-preview[data-design-theme="original"] {--sg-card:#f5f8ff;--sg-border:#a4b6d2;--sg-ink:#162b47;--sg-muted:#5b6d82;--sg-primary:#2768c1;--sg-radius:14px}
+.login-theme-mini-caption {font-size:10px;letter-spacing:.08em;font-weight:900;color:var(--sg-muted)}
+.login-theme-mini-preview strong {font-size:12px;line-height:1.3;overflow-wrap:anywhere}
+.login-theme-preview-input {height:21px;background:var(--sg-paper);border:1px solid var(--sg-border);border-radius:calc(var(--sg-radius) / 2)}
+.login-theme-preview-btn {background:var(--sg-primary);color:#fff;border-radius:calc(var(--sg-radius) / 2);padding:6px 10px;text-align:center;font-size:12px;font-weight:800}
+.login-theme-preview-grade {display:flex;justify-content:space-between;align-items:center;border:1px solid var(--sg-border);border-radius:calc(var(--sg-radius) / 2);padding:7px;background:var(--sg-paper);font-size:20px}
+.login-theme-preview-grade span {display:grid;place-items:center;background:#1d9956;color:white;width:31px;height:31px;font-weight:900}
+.login-theme-preview-text {color:var(--sg-muted);font-size:11px}
+.login-theme-preview-overlay {position:fixed;z-index:12980;inset:0;display:grid;place-items:center;padding:16px;background:rgba(3,9,22,.76);backdrop-filter:blur(8px)}
+.login-theme-preview-overlay.hidden {display:none!important}
+.login-theme-preview-shell {width:min(800px,100%);max-height:calc(100dvh - 32px);overflow-y:auto;position:relative;padding:12px;background:var(--sg-paper);background-image:var(--sg-decoration);border-radius:16px}
+.login-theme-preview-close {position:sticky;top:0;float:right;z-index:2;background:var(--sg-card)!important;color:var(--sg-ink)!important;border:1px solid var(--sg-border)!important}
+.login-theme-preview-entry-card {width:100%!important;margin:auto;text-align:center}
+.login-theme-preview-choices .entry-choice {min-height:75px!important;padding:10px!important;cursor:default!important}
+.login-theme-preview-form {max-width:410px;margin:18px auto 0;padding:15px!important;text-align:left!important}
+.login-theme-preview-form label {margin-top:8px!important;font-size:13px}
+.login-theme-preview-form input {min-height:36px!important}
+.login-theme-preview-only {display:block;text-align:center;padding:10px;cursor:default}
+@media(max-width:600px) {
+  .login-theme-appearance-grid {grid-template-columns:1fr;gap:7px}
+  .login-theme-preview-grid {gap:7px}
+  .login-theme-mini-preview {padding:9px;min-height:165px}
+  .login-theme-preview-entry-card {padding:18px!important}
+  .login-theme-preview-choices {grid-template-columns:1fr!important}
+  #entryGate[data-design-theme] .entry-card {padding:clamp(18px,5vw,30px)!important}
+  #studentLoginOverlay[data-design-theme] .student-auth-card {padding:24px 18px!important;max-height:94dvh;overflow-y:auto}
+  #entryGate[data-design-theme] .entry-choice {min-height:65px!important;padding:12px!important}
+}
+@media(prefers-reduced-motion:reduce) {
+  #entryGate[data-design-theme] *,#studentLoginOverlay[data-design-theme] * {transition:none!important;animation:none!important}
+}
+
+#loginThemePreviewOverlay[data-design-theme="original"] { --sg-paper:#e9f0fb;--sg-card:#fff;--sg-ink:#142541;--sg-muted:#5a6a83;--sg-border:#8ea5c9;--sg-primary:#2769c2;--sg-secondary:#9dc6fb;--sg-radius:18px;--sg-decoration:linear-gradient(135deg,#e9f0fb,#dceaff); }
+
+/* v672.1: Complete Bauhaus DARK surfaces; avoid inherited cream sections with
+   unreadable pale labels. Color-coded grades and trend severity stay untouched. */
+#loginLackingReminderOverlay[data-theme="bauhaus"][data-appearance="dark"] .login-reminder-scroll-region {
+  background:#1e1f24!important;
+  color:#f5f0df!important;
+}
+#loginLackingReminderOverlay[data-theme="bauhaus"][data-appearance="dark"] .login-lacking-reminder-message {
+  background:#303137!important;
+  color:#fff9ec!important;
+  border-color:#e5e0cc!important;
+  border-left-color:#538ae8!important;
+}
+#loginLackingReminderOverlay[data-theme="bauhaus"][data-appearance="dark"] .login-reminder-requirements-head :is(.login-reminder-requirements-overline,h3),
+#loginLackingReminderOverlay[data-theme="bauhaus"][data-appearance="dark"] .login-lacking-reminder-list-title,
+#loginLackingReminderOverlay[data-theme="bauhaus"][data-appearance="dark"] .login-reminder-requirements-count {
+  color:#fff9ec!important;
+}
+#loginLackingReminderOverlay[data-theme="bauhaus"][data-appearance="dark"] .login-reminder-requirements-group-header {
+  background:#44454b!important;
+  color:#fff9ec!important;
+}
+#loginLackingReminderOverlay[data-theme="bauhaus"][data-appearance="dark"] .login-reminder-requirements-group-header :is(strong,span),
+#loginLackingReminderOverlay[data-theme="bauhaus"][data-appearance="dark"] .login-reminder-requirements-group :is(li,li span) {
+  color:#fff9ec!important;
+}
+#loginLackingReminderOverlay[data-theme="bauhaus"][data-appearance="dark"] .login-reminder-requirements-group {
+  background:#303137!important;
+  border-color:#e5e0cc!important;
+}
+#loginLackingReminderOverlay[data-theme="bauhaus"][data-appearance="dark"] .login-reminder-requirements-group :is(li small,li em) {color:#ffcc81!important}
+#loginLackingReminderOverlay[data-theme="bauhaus"][data-appearance="dark"] .login-lacking-reminder-recitation {
+  background:#303137!important;
+  color:#f6f2e7!important;
+}
+#loginLackingReminderOverlay[data-theme="bauhaus"][data-appearance="dark"] .login-lacking-reminder-recitation-label :is(strong,small),
+#loginLackingReminderOverlay[data-theme="bauhaus"][data-appearance="dark"] .login-lacking-reminder-recitation-score :is(strong,span) {color:#f6f2e7!important}
+#loginLackingReminderOverlay[data-theme="bauhaus"][data-appearance="dark"] .login-reminder-standing-copy :is(strong,small),
+#loginLackingReminderOverlay[data-theme="bauhaus"][data-appearance="dark"] .login-reminder-standing-head {color:#f6f2e7!important}
+#loginLackingReminderOverlay[data-theme="bauhaus"][data-appearance="dark"] .login-lacking-reminder-actions {
+  background:#151515!important;
+  color:#fff9ec!important;
+}
+#loginLackingReminderOverlay[data-theme="bauhaus"][data-appearance="dark"] .login-lacking-reminder-nav-head :is(span,small) {color:#fff9ec!important}
+#loginLackingReminderOverlay[data-theme="bauhaus"][data-appearance="dark"] .login-reminder-view-status {
+  background:#edc34d!important;
+  color:#151515!important;
+}
+#loginLackingReminderOverlay[data-theme="bauhaus"][data-appearance="dark"] #loginReminderExpandedLegend {background:#303137!important;color:#fff9ec!important}
+#loginLackingReminderOverlay[data-theme="bauhaus"][data-appearance="dark"] .login-lacking-reminder-meta span:not(.warning):not(.success) {
+  background:#303137!important;color:#fff9ec!important;border-color:#e5e0cc!important;
+}
+#loginLackingReminderOverlay[data-theme="bauhaus"][data-appearance="dark"] .login-lacking-reminder-close {
+  background:#303137!important;color:#fff!important;border-color:#f1eee6!important;
+}
+/* Other chosen themes retain their motif but use readable dark card content. */
+#loginLackingReminderOverlay[data-theme]:not([data-theme="bauhaus"])[data-appearance="dark"] .login-reminder-scroll-region {background:#181f30!important;color:#f5f7ff!important}
+#loginLackingReminderOverlay[data-theme]:not([data-theme="bauhaus"])[data-appearance="dark"] .login-lacking-reminder-message {background:#2c3951!important;color:#fff!important}
+#loginLackingReminderOverlay[data-theme]:not([data-theme="bauhaus"])[data-appearance="dark"] .login-reminder-requirements-head :is(h3,span),
+#loginLackingReminderOverlay[data-theme]:not([data-theme="bauhaus"])[data-appearance="dark"] .login-reminder-requirements-group-header :is(strong,span) {color:#f5f7ff!important}
+#loginLackingReminderOverlay[data-theme]:not([data-theme="bauhaus"])[data-appearance="dark"] .login-reminder-requirements-group-header {background:#354360!important}
