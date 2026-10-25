@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ict8-connect-v670-compact-explorer-performance-noqa';
+const CACHE_NAME = 'ict8-connect-v671-bauhaus-login-modal';
 const APP_SHELL = [
   './',
   './index.html',

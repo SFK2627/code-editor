@@ -984,13 +984,14 @@ let studentAssistanceSettings = normalizeAssistanceSettings(
 );
 let unsubscribeCloudAssistanceSettings = null;
 
-const LOGIN_REMINDER_THEMES = Object.freeze(['campus-journal', 'mission-control', 'honors-night', 'blueprint-lab', 'minimalism', 'maximalism', 'futuristic', 'vector-art', 'collage-art', 'retro', 'synthwave-80s', 'cyberpunk', 'pop-art', 'glassmorphism', 'clay-style', 'pixel-art', 'editorial', 'y2k', 'swiss-design', 'surreal-design', 'bohemian', 'victorian-style', 'graffiti', 'aurora', 'handwritten', 'classic', 'christmas', 'spider-comic', 'halloween', 'valentine', 'graduation', 'galaxy', 'cyber-neon', 'ocean', 'sakura', 'retro-arcade', 'birthday', 'fiesta', 'forest']);
+const LOGIN_REMINDER_THEMES = Object.freeze(['campus-journal', 'mission-control', 'honors-night', 'blueprint-lab', 'bauhaus', 'minimalism', 'maximalism', 'futuristic', 'vector-art', 'collage-art', 'retro', 'synthwave-80s', 'cyberpunk', 'pop-art', 'glassmorphism', 'clay-style', 'pixel-art', 'editorial', 'y2k', 'swiss-design', 'surreal-design', 'bohemian', 'victorian-style', 'graffiti', 'aurora', 'handwritten', 'classic', 'christmas', 'spider-comic', 'halloween', 'valentine', 'graduation', 'galaxy', 'cyber-neon', 'ocean', 'sakura', 'retro-arcade', 'birthday', 'fiesta', 'forest']);
 const LOGIN_REMINDER_ANIMATIONS = Object.freeze(['off', 'subtle', 'normal']);
 const LOGIN_REMINDER_THEME_LABELS = Object.freeze({
   'campus-journal': 'Campus Journal · Warm Study Notes',
   'mission-control': 'Mission Control · Progress Dashboard',
   'honors-night': 'Honors Night · Navy & Gold',
   'blueprint-lab': 'Blueprint Lab · Engineering Grid',
+  bauhaus: 'Bauhaus · Geometry & Bold Color',
   minimalism: 'Minimalism',
   maximalism: 'Maximalism',
   futuristic: 'Futuristic',
@@ -1032,7 +1033,8 @@ const LOGIN_REMINDER_SIGNATURE_DESCRIPTIONS = Object.freeze({
   'campus-journal': 'Warm notebook paper, taped notes, ink-blue titles, and approachable task cards.',
   'mission-control': 'Deep navy mission board, cyan highlights, and neatly separated learning objectives.',
   'honors-night': 'Academic navy, champagne gold, elegant serif headlines, and honors-style detail.',
-  'blueprint-lab': 'Technical blueprint grid, vivid blue drafting lines, and engineering-inspired cards.'
+  'blueprint-lab': 'Technical blueprint grid, vivid blue drafting lines, and engineering-inspired cards.',
+  bauhaus: 'Bold Bauhaus geometry with primary-color blocks, clean sans-serif type, and crisp black outlines.'
 });
 
 const LOGIN_REMINDER_MUSIC_MAX_TRACKS = 120;

@@ -69876,3 +69876,282 @@ body.sperf-roster-open { overflow:hidden; }
  #codeExplorerAdmin .ce-admin-settings-master summary small { font-size:10px; }
 }
 @media (prefers-reduced-motion:reduce) { #codeExplorerAdmin .ce-admin-chevron { transition:none; } }
+
+
+/* ============================================================================
+   v671 — BAUHAUS student login popup (additional selectable theme)
+   This affects ONLY the popup when data-theme="bauhaus". It keeps the v668
+   fixed-grade header, one scrollable requirements pane, and the fixed action dock.
+   Academic color bands / grade trends remain data-driven; never recolor them.
+   ============================================================================ */
+#loginLackingReminderOverlay[data-theme="bauhaus"] {
+  background:rgba(12,19,32,.77);
+  --bauhaus-black:#151515;
+  --bauhaus-paper:#f7f3e9;
+  --bauhaus-red:#db352e;
+  --bauhaus-blue:#2057b5;
+  --bauhaus-yellow:#f4cb47;
+  --bauhaus-ink:#17202a;
+  --bauhaus-outline:2px solid #151515;
+}
+#loginLackingReminderOverlay[data-theme="bauhaus"] .login-lacking-reminder-panel {
+  border:3px solid var(--bauhaus-black) !important;
+  border-top:7px solid var(--bauhaus-red) !important;
+  border-radius:8px !important;
+  background:var(--bauhaus-paper) !important;
+  color:var(--bauhaus-ink) !important;
+  font-family:Arial,Helvetica,sans-serif !important;
+  box-shadow:9px 9px 0 rgba(244,203,71,.9),0 24px 70px rgba(0,0,0,.38) !important;
+}
+#loginLackingReminderOverlay[data-theme="bauhaus"] .login-lacking-reminder-panel::before {
+  content:"";
+  position:absolute;
+  inset:0;
+  z-index:0;
+  pointer-events:none;
+  background:
+    radial-gradient(circle at 92% 19%,rgba(219,53,46,.15) 0 40px,transparent 41px),
+    linear-gradient(145deg,transparent 0 82%,rgba(32,87,181,.06) 82% 90%,transparent 90%),
+    linear-gradient(90deg,rgba(21,21,21,.04) 1px,transparent 1px);
+  background-size:auto,auto,43px 43px;
+  opacity:.66;
+}
+#loginLackingReminderOverlay[data-theme="bauhaus"] .login-lacking-reminder-panel::after { display:none !important; }
+/* The header is a bright design element, while fixed grade and recitation cards
+   remain solid neutral surfaces so official standing colors are unambiguous. */
+#loginLackingReminderOverlay[data-theme="bauhaus"] .login-reminder-fixed-header {
+  background:var(--bauhaus-yellow) !important;
+  border-bottom:3px solid var(--bauhaus-black) !important;
+}
+#loginLackingReminderOverlay[data-theme="bauhaus"] .login-lacking-reminder-hero {
+  position:relative;
+  isolation:isolate;
+}
+#loginLackingReminderOverlay[data-theme="bauhaus"] .login-lacking-reminder-hero::after {
+  content:"";
+  position:absolute;
+  right:46px;
+  top:0;
+  width:27px;
+  height:27px;
+  border:5px solid var(--bauhaus-blue);
+  border-radius:50%;
+  opacity:.66;
+  pointer-events:none;
+  z-index:-1;
+}
+#loginLackingReminderOverlay[data-theme="bauhaus"] .login-lacking-reminder-icon {
+  background:var(--bauhaus-red) !important;
+  color:white !important;
+  border:2px solid var(--bauhaus-black) !important;
+  border-radius:3px !important;
+  box-shadow:3px 3px 0 var(--bauhaus-black) !important;
+}
+#loginLackingReminderOverlay[data-theme="bauhaus"] .login-lacking-reminder-hero .section-kicker {
+  color:var(--bauhaus-black) !important;
+  font-weight:900 !important;
+  letter-spacing:.1em !important;
+  text-transform:uppercase;
+}
+#loginLackingReminderOverlay[data-theme="bauhaus"] .login-lacking-reminder-hero h2 {
+  color:var(--bauhaus-black) !important;
+  font-family:"Arial Black",Arial,Helvetica,sans-serif !important;
+  font-weight:900 !important;
+  letter-spacing:-.045em !important;
+  text-transform:uppercase;
+}
+#loginLackingReminderOverlay[data-theme="bauhaus"] .login-lacking-reminder-student {
+  color:#262626 !important;
+  font-weight:700 !important;
+}
+#loginLackingReminderOverlay[data-theme="bauhaus"] .login-lacking-reminder-close {
+  border-radius:50% !important;
+  border:2px solid var(--bauhaus-black) !important;
+  background:var(--bauhaus-black) !important;
+  color:white !important;
+  box-shadow:none !important;
+  font-weight:900;
+}
+#loginLackingReminderOverlay[data-theme="bauhaus"] .login-lacking-reminder-meta span {
+  border-radius:2px !important;
+  border:1.5px solid var(--bauhaus-black) !important;
+  box-shadow:none !important;
+  color:var(--bauhaus-black) !important;
+  background:#fffdf4 !important;
+  font-weight:800;
+}
+#loginLackingReminderOverlay[data-theme="bauhaus"] .login-lacking-reminder-meta span.warning {
+  background:#fff6dc !important;
+}
+#loginLackingReminderOverlay[data-theme="bauhaus"] .login-lacking-reminder-meta span.success {
+  background:#e1f5e6 !important;
+}
+#loginLackingReminderOverlay[data-theme="bauhaus"] .login-reminder-standing,
+#loginLackingReminderOverlay[data-theme="bauhaus"] .login-lacking-reminder-recitation {
+  background:#fffdf7 !important;
+  border:2px solid var(--bauhaus-black) !important;
+  border-radius:3px !important;
+  box-shadow:3px 3px 0 rgba(21,21,21,.16) !important;
+}
+#loginLackingReminderOverlay[data-theme="bauhaus"] .login-reminder-standing-head {
+  background:transparent !important;
+}
+#loginLackingReminderOverlay[data-theme="bauhaus"] .login-reminder-standing-copy strong,
+#loginLackingReminderOverlay[data-theme="bauhaus"] .login-lacking-reminder-recitation-label strong,
+#loginLackingReminderOverlay[data-theme="bauhaus"] .login-lacking-reminder-recitation-score {
+  color:var(--bauhaus-black) !important;
+}
+#loginLackingReminderOverlay[data-theme="bauhaus"] .login-reminder-standing-copy small,
+#loginLackingReminderOverlay[data-theme="bauhaus"] .login-lacking-reminder-recitation-label small {
+  color:#505050 !important;
+}
+#loginLackingReminderOverlay[data-theme="bauhaus"] .login-lacking-reminder-recitation-icon {
+  background:var(--bauhaus-blue) !important;
+  border-radius:2px !important;
+  color:white !important;
+}
+/* The numerical/color-coded grade and the trend arrow retain their own
+   official palettes. No CSS here overrides their value, text, or severity. */
+#loginLackingReminderOverlay[data-theme="bauhaus"] .login-reminder-scroll-region {
+  background:#f7f3e9 !important;
+}
+#loginLackingReminderOverlay[data-theme="bauhaus"] .login-lacking-reminder-message {
+  background:#fffef8 !important;
+  color:#212121 !important;
+  border:2px solid var(--bauhaus-black) !important;
+  border-left:7px solid var(--bauhaus-blue) !important;
+  border-radius:2px !important;
+  box-shadow:3px 3px 0 rgba(32,87,181,.13) !important;
+}
+#loginLackingReminderOverlay[data-theme="bauhaus"] .login-reminder-requirements-head h3,
+#loginLackingReminderOverlay[data-theme="bauhaus"] .login-lacking-reminder-list-title {
+  color:var(--bauhaus-black) !important;
+  font-family:"Arial Black",Arial,sans-serif;
+  font-weight:900;
+  text-transform:uppercase;
+}
+#loginLackingReminderOverlay[data-theme="bauhaus"] .login-reminder-requirements-group {
+  border:2px solid var(--bauhaus-black) !important;
+  border-radius:2px !important;
+  background:#fffdfa !important;
+  box-shadow:3px 3px 0 rgba(21,21,21,.1) !important;
+}
+#loginLackingReminderOverlay[data-theme="bauhaus"] .login-reminder-requirements-group-header {
+  background:#eee6d1 !important;
+  border-radius:0 !important;
+  color:var(--bauhaus-black) !important;
+}
+#loginLackingReminderOverlay[data-theme="bauhaus"] .login-reminder-requirements-group-header strong,
+#loginLackingReminderOverlay[data-theme="bauhaus"] .login-reminder-requirements-group-header span,
+#loginLackingReminderOverlay[data-theme="bauhaus"] .login-reminder-requirements-group li {
+  color:#242424 !important;
+}
+#loginLackingReminderOverlay[data-theme="bauhaus"] .login-reminder-requirements-group li::before {
+  background:var(--bauhaus-red) !important;
+  box-shadow:none !important;
+  border-radius:50% !important;
+}
+#loginLackingReminderOverlay[data-theme="bauhaus"] .login-lacking-reminder-empty,
+#loginLackingReminderOverlay[data-theme="bauhaus"] .login-lacking-reminder-more {
+  background:#eff6ec !important;
+  border:2px solid #2c6a48 !important;
+  border-radius:3px !important;
+  color:#12382a !important;
+}
+#loginLackingReminderOverlay[data-theme="bauhaus"] .login-reminder-view-status {
+  border:2px solid var(--bauhaus-black) !important;
+  border-radius:3px !important;
+  background:var(--bauhaus-yellow) !important;
+  color:var(--bauhaus-black) !important;
+  font-weight:900 !important;
+}
+#loginLackingReminderOverlay[data-theme="bauhaus"] #loginReminderExpandedLegend {
+  border:2px solid var(--bauhaus-black) !important;
+  border-radius:2px !important;
+  background:#fff !important;
+  color:#242424 !important;
+}
+#loginLackingReminderOverlay[data-theme="bauhaus"] .login-lacking-reminder-actions {
+  background:var(--bauhaus-black) !important;
+  border-top:3px solid var(--bauhaus-red) !important;
+  color:#fff !important;
+}
+#loginLackingReminderOverlay[data-theme="bauhaus"] .login-lacking-reminder-nav-head > span,
+#loginLackingReminderOverlay[data-theme="bauhaus"] .login-lacking-reminder-nav-head > small {
+  color:#fff !important;
+}
+#loginLackingReminderOverlay[data-theme="bauhaus"] .login-lacking-reminder-nav-head > span {
+  font-family:"Arial Black",Arial,sans-serif;
+  text-transform:uppercase;
+  letter-spacing:.05em;
+  font-weight:900 !important;
+}
+#loginLackingReminderOverlay[data-theme="bauhaus"] .login-lacking-reminder-nav-card {
+  background:var(--bauhaus-yellow) !important;
+  color:var(--bauhaus-black) !important;
+  border:2px solid #000 !important;
+  border-radius:3px !important;
+  box-shadow:2px 2px 0 rgba(255,255,255,.24) !important;
+}
+#loginLackingReminderOverlay[data-theme="bauhaus"] .login-lacking-reminder-nav-card:nth-child(2) {background:#d6e6ff !important;}
+#loginLackingReminderOverlay[data-theme="bauhaus"] .login-lacking-reminder-nav-card:nth-child(3) {background:#ffe3d9 !important;}
+#loginLackingReminderOverlay[data-theme="bauhaus"] .login-lacking-reminder-nav-card:nth-child(4) {background:#eee !important;}
+#loginLackingReminderOverlay[data-theme="bauhaus"] .login-lacking-reminder-nav-card strong,
+#loginLackingReminderOverlay[data-theme="bauhaus"] .login-lacking-reminder-nav-card small {color:var(--bauhaus-black) !important;}
+#loginLackingReminderOverlay[data-theme="bauhaus"] .login-lacking-reminder-nav-icon {
+  border:1.5px solid var(--bauhaus-black) !important;
+  background:#fff !important;
+  color:var(--bauhaus-black) !important;
+  border-radius:1px !important;
+}
+#loginLackingReminderOverlay[data-theme="bauhaus"] .login-lacking-reminder-nav-card:hover {
+  transform:translateY(-1px);
+  box-shadow:3px 3px 0 rgba(255,255,255,.45) !important;
+}
+#loginLackingReminderOverlay[data-theme="bauhaus"] .login-lacking-reminder-nav-card:focus-visible,
+#loginLackingReminderOverlay[data-theme="bauhaus"] .login-lacking-reminder-close:focus-visible,
+#loginLackingReminderOverlay[data-theme="bauhaus"] .login-reminder-view-status:focus-visible {
+  outline:3px solid var(--bauhaus-blue) !important;
+  outline-offset:3px !important;
+}
+/* Admin sample preview — shows actual Bauhaus visual language even before Save.
+   The existing Preview No Lacking / Preview With Lackings actions render the full modal. */
+#loginReminderThemeSample[data-theme="bauhaus"] {
+  background:#f7f3e9 !important;
+  color:#151515 !important;
+  border:3px solid #151515 !important;
+  border-left:12px solid #db352e !important;
+  border-radius:3px !important;
+  box-shadow:4px 4px 0 #f4cb47 !important;
+  font-family:Arial,Helvetica,sans-serif !important;
+}
+#loginReminderThemeSample[data-theme="bauhaus"]::before {
+  background:linear-gradient(135deg,#f4cb47 0 22%,transparent 22%),
+             linear-gradient(90deg,transparent 0 62%,rgba(32,87,181,.16) 62% 80%,transparent 80%) !important;
+  opacity:1 !important;
+}
+#loginReminderThemeSample[data-theme="bauhaus"] .login-reminder-theme-sample-art {
+  background:conic-gradient(from 180deg at 50% 50%,#db352e 0 25%,#f4cb47 25% 50%,#2057b5 50% 75%,#151515 75%) !important;
+  border:3px solid #151515 !important;
+  border-radius:50% !important;
+  box-shadow:4px 4px 0 #fff !important;
+}
+#loginReminderThemeSample[data-theme="bauhaus"] .login-reminder-theme-sample-copy strong {color:#151515 !important;letter-spacing:-.03em;font-weight:900 !important;}
+#loginReminderThemeSample[data-theme="bauhaus"] .login-reminder-theme-sample-copy span,
+#loginReminderThemeSample[data-theme="bauhaus"] .login-reminder-theme-sample-copy small {color:#303030 !important;}
+@keyframes reminderBauhausDrift {
+  from {background-position:0 0,0 0,0 0;}
+  to {background-position:0 18px,0 0,43px 0;}
+}
+#loginLackingReminderOverlay[data-theme="bauhaus"][data-animation="subtle"] .login-lacking-reminder-panel::before {animation:reminderBauhausDrift 30s linear infinite;}
+#loginLackingReminderOverlay[data-theme="bauhaus"][data-animation="normal"] .login-lacking-reminder-panel::before {animation:reminderBauhausDrift 15s linear infinite;}
+#loginLackingReminderOverlay[data-theme="bauhaus"][data-animation="off"] .login-lacking-reminder-panel::before {animation:none !important;}
+@media (max-width:600px) {
+  #loginLackingReminderOverlay[data-theme="bauhaus"] .login-lacking-reminder-panel {box-shadow:4px 4px 0 #f4cb47,0 10px 30px rgba(0,0,0,.35) !important;}
+  #loginLackingReminderOverlay[data-theme="bauhaus"] .login-lacking-reminder-hero::after {width:19px;height:19px;right:39px;border-width:4px;}
+  #loginLackingReminderOverlay[data-theme="bauhaus"] .login-lacking-reminder-nav-card {box-shadow:none !important;}
+}
+@media (prefers-reduced-motion:reduce) {
+  #loginLackingReminderOverlay[data-theme="bauhaus"] .login-lacking-reminder-panel::before {animation:none !important;}
+  #loginLackingReminderOverlay[data-theme="bauhaus"] .login-lacking-reminder-nav-card {transition:none !important;transform:none !important;}
+}
