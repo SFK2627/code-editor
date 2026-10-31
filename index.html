@@ -45,7 +45,7 @@
   </script>
   <link rel="preconnect" href="https://drive.google.com" crossorigin>
   <link rel="preconnect" href="https://lh3.googleusercontent.com" crossorigin>
-  <link rel="stylesheet" href="style.css?v=20261025-v672-student-login-themes" />
+  <link rel="stylesheet" href="style.css?v=20261031-v676-welcome-student-theme-choice" />
   <link rel="stylesheet" href="games/mini-games-hub.css?v=20260912-v4761-byte-runner-v81-build-hud" />
   <link rel="stylesheet" href="games/code-fly/code-fly.css?v=20260909-v429-xp-mini-games" />
   <style>
@@ -332,6 +332,7 @@
   <div id="studentLoginOverlay" class="student-auth-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="studentLoginTitle">
     <div class="student-auth-card">
       <button id="closeStudentLoginBtn" class="icon-btn auth-close-btn" type="button" aria-label="Close student login">×</button>
+      <button id="studentLoginThemeToggle" class="student-login-theme-toggle hidden" type="button" aria-label="Switch light or dark mode" aria-pressed="false">☾ Dark Mode</button>
       <div class="student-auth-icon">🎓</div>
       <p class="section-kicker">Student Records</p>
       <h2 id="studentLoginTitle">Log In to Save Your Work</h2>
@@ -372,6 +373,27 @@
           <span class="primary-btn wide-btn login-theme-preview-only">Log In · Preview only</span>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- Teacher-only visual preview; sample content and no real student records. -->
+  <div id="studentAppThemePreviewOverlay" class="student-app-theme-preview-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="studentAppThemePreviewTitle">
+    <div class="student-app-theme-preview-window">
+      <header class="student-app-theme-preview-head">
+        <div><span>LIVE DESIGN PREVIEW · DEMO CONTENT</span><h2 id="studentAppThemePreviewTitle">Student App Theme</h2><small id="studentAppThemePreviewThemeName">Original student app</small></div>
+        <button id="closeStudentAppThemePreviewBtn" type="button" class="icon-btn" aria-label="Close full app theme preview">×</button>
+      </header>
+      <div class="student-app-theme-preview-content">
+        <nav class="student-theme-demo-nav"><b>ICT 8 CONNECT</b><span>Projects</span><span>Lessons</span><span>Activities</span><span>Code Explorer</span></nav>
+        <section class="student-theme-demo-hero"><div><small>YOUR LEARNING SPACE</small><h3>Learn, Code, Connect.</h3><p>Open your projects and continue your ICT lessons.</p></div><span class="student-theme-demo-action">New Project</span></section>
+        <div class="student-theme-demo-grid">
+          <article><small>MY PROJECTS</small><strong>HTML &amp; CSS Website</strong><p>Your saved work</p><span class="student-theme-demo-action">Open Project</span></article>
+          <article><small>SUBJECT STATUS</small><strong>Current Running Grade</strong><p>Grade visibility follows your teacher's settings.</p><span class="student-theme-demo-action">View Status</span></article>
+          <article><small>LESSONS</small><strong>Learn HTML &amp; CSS</strong><p>Continue your last lesson</p><span class="student-theme-demo-action">View Lessons</span></article>
+          <article><small>CODE EXPLORER</small><strong>Learning Progress</strong><p>Practice and complete challenges</p><span class="student-theme-demo-action">Explore</span></article>
+        </div>
+      </div>
+      <p class="student-theme-demo-footnote">Preview only · Theme changes appearance, not grades, security, or rendered student code.</p>
     </div>
   </div>
 
@@ -2359,12 +2381,20 @@ https://example.com/song2.mp3"></textarea>
 
             <section class="login-reminder-login-coverage login-reminder-field-wide" aria-labelledby="loginThemeCoverageTitle">
               <div class="login-theme-coverage-heading">
-                <strong id="loginThemeCoverageTitle">🎨 Student Login &amp; Modal Appearance</strong>
-                <small>The theme always applies to the student reminder. Optionally extend it to the welcome screen and Student ID login form.</small>
+                <strong id="loginThemeCoverageTitle">🎨 Student Theme Coverage &amp; Appearance</strong>
+                <small>The chosen design always applies to the student modal. Independently extend it to the login page and/or the entire student app.</small>
               </div>
               <label class="login-reminder-toggle-row login-theme-coverage-toggle" for="loginThemeApplyToLoginToggle">
                 <span><strong>Apply selected theme to Login Page</strong><small>OFF keeps the original welcome page and login form.</small></span>
                 <span class="admin-switch"><input id="loginThemeApplyToLoginToggle" type="checkbox" /><span class="admin-switch-track"><span class="admin-switch-thumb"></span></span></span>
+              </label>
+              <label class="login-reminder-toggle-row login-theme-coverage-toggle" for="loginThemeApplyToAppToggle">
+                <span><strong>Apply selected theme to Entire Student App</strong><small>OFF keeps all student pages original; the login and modal follow their own controls. Admin design stays unchanged.</small></span>
+                <span class="admin-switch"><input id="loginThemeApplyToAppToggle" type="checkbox" /><span class="admin-switch-track"><span class="admin-switch-thumb"></span></span></span>
+              </label>
+              <label class="login-reminder-toggle-row login-theme-coverage-toggle" for="loginThemeAllowStudentChoiceToggle">
+                <span><strong>Allow Students to Switch Light / Dark</strong><small>ON: a Light / Dark switch appears on the welcome page and login form, and in the student app. OFF: Admin Light / Dark / Auto choices are enforced on themed surfaces.</small></span>
+                <span class="admin-switch"><input id="loginThemeAllowStudentChoiceToggle" type="checkbox" /><span class="admin-switch-track"><span class="admin-switch-thumb"></span></span></span>
               </label>
               <div class="login-theme-appearance-grid">
                 <label class="login-reminder-field" for="loginThemeLoginAppearanceSelect">
@@ -2383,6 +2413,15 @@ https://example.com/song2.mp3"></textarea>
                     <option value="dark">Dark</option>
                   </select>
                 </label>
+                <label class="login-reminder-field" for="loginThemeAppAppearanceSelect">
+                  <span>Entire Student App Appearance (Admin Default / Lock)</span>
+                  <select id="loginThemeAppAppearanceSelect" disabled>
+                    <option value="auto">Auto · Device preference</option>
+                    <option value="light">Light</option>
+                    <option value="dark">Dark</option>
+                  </select>
+                  <small>When student choice is ON, this is the default for new users. Otherwise, it is locked for all students.</small>
+                </label>
               </div>
               <div class="login-theme-preview-grid" aria-label="Theme appearance previews">
                 <div id="loginThemePageSample" class="login-theme-mini-preview" data-design-theme="classic" data-appearance="light">
@@ -2396,9 +2435,18 @@ https://example.com/song2.mp3"></textarea>
                   <div class="login-theme-preview-grade"><b>96</b><span aria-hidden="true">↑</span></div>
                   <span class="login-theme-preview-text">Current running grade</span>
                 </div>
+                <div id="loginThemeAppSample" class="login-theme-mini-preview" data-design-theme="original" data-appearance="light">
+                  <span class="login-theme-mini-caption">ENTIRE STUDENT APP</span>
+                  <strong id="loginThemeAppPreviewTitle">Original / Unchanged</strong>
+                  <div class="login-theme-preview-grade login-theme-app-preview-tiles"><b>Dashboard</b><span aria-hidden="true">▦</span></div>
+                  <span class="login-theme-preview-text">Lessons · Activities · Code Explorer</span>
+                </div>
               </div>
-              <button id="previewLoginThemePageBtn" type="button" class="ghost-btn mini">👁 Preview Login Page</button>
-              <small class="login-theme-save-note">Preview is local. Click <b>Save Reminder to Students</b> to publish. Login theme settings contain no student records.</small>
+              <div class="login-theme-preview-actions">
+                <button id="previewLoginThemePageBtn" type="button" class="ghost-btn mini">👁 Preview Login Page</button>
+                <button id="previewStudentAppThemeBtn" type="button" class="ghost-btn mini">▦ Preview Entire Student App</button>
+              </div>
+              <small class="login-theme-save-note">Previews use demo data. Click <b>Save Reminder to Students</b> to publish all three theme settings. No student grades are exposed by this configuration.</small>
             </section>
 
             <label class="login-reminder-field">
@@ -5083,7 +5131,7 @@ https://example.com/song3.mp3"></textarea>
     })();
   </script>
 
-  <script src="script.js?v=20261025-v672-student-login-themes"></script>
+  <script src="script.js?v=20261031-v676-welcome-student-theme-choice"></script>
   <script>
     // v410 fallback: keep the desktop editor settings popover working even if older cached
     // toolbar code fails before binding the click handler.

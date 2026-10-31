@@ -70277,7 +70277,7 @@ body.sperf-roster-open { overflow:hidden; }
 }
 :is(#entryGate,#loginThemePreviewOverlay)[data-design-theme] .entry-choice.primary-choice {
   border-color:var(--sg-primary)!important;
-  color:#fff!important;
+  color:var(--sg-button-ink,#fff)!important;
   background:var(--sg-primary)!important;
 }
 :is(#entryGate,#loginThemePreviewOverlay)[data-design-theme] .entry-choice-icon {
@@ -70309,7 +70309,7 @@ body.sperf-roster-open { overflow:hidden; }
 #studentLoginOverlay[data-design-theme] input::placeholder {color:var(--sg-muted)!important;opacity:.88}
 #studentLoginOverlay[data-design-theme] .primary-btn,
 #loginThemePreviewOverlay[data-design-theme] .primary-btn {
-  background:var(--sg-primary)!important;color:#fff!important;
+  background:var(--sg-primary)!important;color:var(--sg-button-ink,#fff)!important;
   border:2px solid var(--sg-primary)!important;
   border-radius:calc(var(--sg-radius) / 2)!important;
 }
@@ -70469,3 +70469,730 @@ body.sperf-roster-open { overflow:hidden; }
 #loginLackingReminderOverlay[data-theme]:not([data-theme="bauhaus"])[data-appearance="dark"] .login-reminder-requirements-head :is(h3,span),
 #loginLackingReminderOverlay[data-theme]:not([data-theme="bauhaus"])[data-appearance="dark"] .login-reminder-requirements-group-header :is(strong,span) {color:#f5f7ff!important}
 #loginLackingReminderOverlay[data-theme]:not([data-theme="bauhaus"])[data-appearance="dark"] .login-reminder-requirements-group-header {background:#354360!important}
+
+/* v673 — Admin-controlled entire student app visual theme.
+   All rules are opt-in and scoped to student surfaces. Admin settings and
+   project iframe previews keep their own appearance. */
+:is(body,#studentAppThemePreviewOverlay)[data-student-app-theme]:where(:not([data-student-app-theme="original"])) {
+  --sat-primary:#265cc6; --sat-secondary:#eac444; --sat-radius:16px;
+  --sat-bg:#f0f3fa; --sat-card:#ffffff; --sat-text:#16243a;
+  --sat-muted:#45536b; --sat-border:#becadc; --sat-soft:#e5edf8;
+  --sat-action:#2156a6; --sat-action-text:#ffffff;
+  --sat-decor:radial-gradient(circle at 90% 10%,color-mix(in srgb,var(--sat-secondary) 26%,transparent) 0 100px,transparent 101px),radial-gradient(circle at 4% 95%,color-mix(in srgb,var(--sat-primary) 14%,transparent) 0 160px,transparent 161px);
+  color-scheme:light;
+}
+:is(body,#studentAppThemePreviewOverlay)[data-student-app-theme]:where(:not([data-student-app-theme="original"]))[data-student-app-appearance="dark"] {
+  --sat-bg:#101827; --sat-card:#202c40; --sat-text:#f4f7fc;
+  --sat-muted:#cbd5e1; --sat-border:#65768f; --sat-soft:#2b3a51;
+  --sat-action-text:#ffffff;
+  color-scheme:dark;
+}
+:is(body,#studentAppThemePreviewOverlay)[data-student-app-theme="campus-journal"] { --sat-primary:#314e74; --sat-secondary:#eeb766; --sat-radius:16px; --sat-action:color-mix(in srgb,var(--sat-primary) 78%,#172b42); }
+:is(body,#studentAppThemePreviewOverlay)[data-student-app-theme="mission-control"] { --sat-primary:#1f9eb7; --sat-secondary:#3de4d0; --sat-radius:11px; --sat-action:color-mix(in srgb,var(--sat-primary) 78%,#172b42); }
+:is(body,#studentAppThemePreviewOverlay)[data-student-app-theme="honors-night"] { --sat-primary:#be9b50; --sat-secondary:#182c51; --sat-radius:16px; --sat-action:color-mix(in srgb,var(--sat-primary) 78%,#172b42); }
+:is(body,#studentAppThemePreviewOverlay)[data-student-app-theme="blueprint-lab"] { --sat-primary:#1468dd; --sat-secondary:#53b6ff; --sat-radius:6px; --sat-action:color-mix(in srgb,var(--sat-primary) 78%,#172b42); }
+:is(body,#studentAppThemePreviewOverlay)[data-student-app-theme="bauhaus"] { --sat-primary:#dd362f; --sat-secondary:#f4c83e; --sat-radius:3px; --sat-action:color-mix(in srgb,var(--sat-primary) 78%,#172b42); }
+:is(body,#studentAppThemePreviewOverlay)[data-student-app-theme="minimalism"] { --sat-primary:#2a3d5b; --sat-secondary:#cdd4de; --sat-radius:12px; --sat-action:color-mix(in srgb,var(--sat-primary) 78%,#172b42); }
+:is(body,#studentAppThemePreviewOverlay)[data-student-app-theme="maximalism"] { --sat-primary:#b025b6; --sat-secondary:#f5a524; --sat-radius:12px; --sat-action:color-mix(in srgb,var(--sat-primary) 78%,#172b42); }
+:is(body,#studentAppThemePreviewOverlay)[data-student-app-theme="futuristic"] { --sat-primary:#06b6d4; --sat-secondary:#7c3aed; --sat-radius:12px; --sat-action:color-mix(in srgb,var(--sat-primary) 78%,#172b42); }
+:is(body,#studentAppThemePreviewOverlay)[data-student-app-theme="vector-art"] { --sat-primary:#2d60d7; --sat-secondary:#ffd94b; --sat-radius:8px; --sat-action:color-mix(in srgb,var(--sat-primary) 78%,#172b42); }
+:is(body,#studentAppThemePreviewOverlay)[data-student-app-theme="collage-art"] { --sat-primary:#d84a52; --sat-secondary:#f6c94e; --sat-radius:5px; --sat-action:color-mix(in srgb,var(--sat-primary) 78%,#172b42); }
+:is(body,#studentAppThemePreviewOverlay)[data-student-app-theme="retro"] { --sat-primary:#c46d35; --sat-secondary:#f0c66f; --sat-radius:12px; --sat-action:color-mix(in srgb,var(--sat-primary) 78%,#172b42); }
+:is(body,#studentAppThemePreviewOverlay)[data-student-app-theme="synthwave-80s"] { --sat-primary:#f0269b; --sat-secondary:#23d8f9; --sat-radius:9px; --sat-action:color-mix(in srgb,var(--sat-primary) 78%,#172b42); }
+:is(body,#studentAppThemePreviewOverlay)[data-student-app-theme="cyberpunk"] { --sat-primary:#c91fec; --sat-secondary:#f5e720; --sat-radius:4px; --sat-action:color-mix(in srgb,var(--sat-primary) 78%,#172b42); }
+:is(body,#studentAppThemePreviewOverlay)[data-student-app-theme="pop-art"] { --sat-primary:#ed3035; --sat-secondary:#f5cf36; --sat-radius:3px; --sat-action:color-mix(in srgb,var(--sat-primary) 78%,#172b42); }
+:is(body,#studentAppThemePreviewOverlay)[data-student-app-theme="glassmorphism"] { --sat-primary:#5b5ef5; --sat-secondary:#5bd1ce; --sat-radius:26px; --sat-action:color-mix(in srgb,var(--sat-primary) 78%,#172b42); }
+:is(body,#studentAppThemePreviewOverlay)[data-student-app-theme="clay-style"] { --sat-primary:#9b5fd3; --sat-secondary:#f4a4cf; --sat-radius:26px; --sat-action:color-mix(in srgb,var(--sat-primary) 78%,#172b42); }
+:is(body,#studentAppThemePreviewOverlay)[data-student-app-theme="pixel-art"] { --sat-primary:#7737cb; --sat-secondary:#41d6f1; --sat-radius:1px; --sat-action:color-mix(in srgb,var(--sat-primary) 78%,#172b42); }
+:is(body,#studentAppThemePreviewOverlay)[data-student-app-theme="editorial"] { --sat-primary:#161b22; --sat-secondary:#c7a778; --sat-radius:1px; --sat-action:color-mix(in srgb,var(--sat-primary) 78%,#172b42); }
+:is(body,#studentAppThemePreviewOverlay)[data-student-app-theme="y2k"] { --sat-primary:#e830a4; --sat-secondary:#94bdfc; --sat-radius:24px; --sat-action:color-mix(in srgb,var(--sat-primary) 78%,#172b42); }
+:is(body,#studentAppThemePreviewOverlay)[data-student-app-theme="swiss-design"] { --sat-primary:#db2f31; --sat-secondary:#f3f3f3; --sat-radius:0px; --sat-action:color-mix(in srgb,var(--sat-primary) 78%,#172b42); }
+:is(body,#studentAppThemePreviewOverlay)[data-student-app-theme="surreal-design"] { --sat-primary:#995aca; --sat-secondary:#f2a4bc; --sat-radius:24px; --sat-action:color-mix(in srgb,var(--sat-primary) 78%,#172b42); }
+:is(body,#studentAppThemePreviewOverlay)[data-student-app-theme="bohemian"] { --sat-primary:#995b27; --sat-secondary:#dcb881; --sat-radius:22px; --sat-action:color-mix(in srgb,var(--sat-primary) 78%,#172b42); }
+:is(body,#studentAppThemePreviewOverlay)[data-student-app-theme="victorian-style"] { --sat-primary:#6a1b26; --sat-secondary:#b69753; --sat-radius:6px; --sat-action:color-mix(in srgb,var(--sat-primary) 78%,#172b42); }
+:is(body,#studentAppThemePreviewOverlay)[data-student-app-theme="graffiti"] { --sat-primary:#d91b5e; --sat-secondary:#47b555; --sat-radius:5px; --sat-action:color-mix(in srgb,var(--sat-primary) 78%,#172b42); }
+:is(body,#studentAppThemePreviewOverlay)[data-student-app-theme="aurora"] { --sat-primary:#19bfa7; --sat-secondary:#7760cf; --sat-radius:18px; --sat-action:color-mix(in srgb,var(--sat-primary) 78%,#172b42); }
+:is(body,#studentAppThemePreviewOverlay)[data-student-app-theme="handwritten"] { --sat-primary:#3059a4; --sat-secondary:#efb44b; --sat-radius:14px; --sat-action:color-mix(in srgb,var(--sat-primary) 78%,#172b42); }
+:is(body,#studentAppThemePreviewOverlay)[data-student-app-theme="classic"] { --sat-primary:#275ea8; --sat-secondary:#98bbde; --sat-radius:18px; --sat-action:color-mix(in srgb,var(--sat-primary) 78%,#172b42); }
+:is(body,#studentAppThemePreviewOverlay)[data-student-app-theme="christmas"] { --sat-primary:#146c40; --sat-secondary:#d83e45; --sat-radius:18px; --sat-action:color-mix(in srgb,var(--sat-primary) 78%,#172b42); }
+:is(body,#studentAppThemePreviewOverlay)[data-student-app-theme="spider-comic"] { --sat-primary:#d72b39; --sat-secondary:#1a4c92; --sat-radius:4px; --sat-action:color-mix(in srgb,var(--sat-primary) 78%,#172b42); }
+:is(body,#studentAppThemePreviewOverlay)[data-student-app-theme="halloween"] { --sat-primary:#db842d; --sat-secondary:#7e46ab; --sat-radius:10px; --sat-action:color-mix(in srgb,var(--sat-primary) 78%,#172b42); }
+:is(body,#studentAppThemePreviewOverlay)[data-student-app-theme="valentine"] { --sat-primary:#cc395c; --sat-secondary:#f3adbc; --sat-radius:20px; --sat-action:color-mix(in srgb,var(--sat-primary) 78%,#172b42); }
+:is(body,#studentAppThemePreviewOverlay)[data-student-app-theme="graduation"] { --sat-primary:#1d437b; --sat-secondary:#e0b451; --sat-radius:14px; --sat-action:color-mix(in srgb,var(--sat-primary) 78%,#172b42); }
+:is(body,#studentAppThemePreviewOverlay)[data-student-app-theme="galaxy"] { --sat-primary:#7758c6; --sat-secondary:#42c0cf; --sat-radius:20px; --sat-action:color-mix(in srgb,var(--sat-primary) 78%,#172b42); }
+:is(body,#studentAppThemePreviewOverlay)[data-student-app-theme="cyber-neon"] { --sat-primary:#13bacc; --sat-secondary:#ed37c1; --sat-radius:8px; --sat-action:color-mix(in srgb,var(--sat-primary) 78%,#172b42); }
+:is(body,#studentAppThemePreviewOverlay)[data-student-app-theme="ocean"] { --sat-primary:#1873b9; --sat-secondary:#2fbfb2; --sat-radius:22px; --sat-action:color-mix(in srgb,var(--sat-primary) 78%,#172b42); }
+:is(body,#studentAppThemePreviewOverlay)[data-student-app-theme="sakura"] { --sat-primary:#cf6793; --sat-secondary:#f2b6cc; --sat-radius:22px; --sat-action:color-mix(in srgb,var(--sat-primary) 78%,#172b42); }
+:is(body,#studentAppThemePreviewOverlay)[data-student-app-theme="retro-arcade"] { --sat-primary:#ad39d9; --sat-secondary:#f6bd3e; --sat-radius:4px; --sat-action:color-mix(in srgb,var(--sat-primary) 78%,#172b42); }
+:is(body,#studentAppThemePreviewOverlay)[data-student-app-theme="birthday"] { --sat-primary:#a143d9; --sat-secondary:#ffae43; --sat-radius:20px; --sat-action:color-mix(in srgb,var(--sat-primary) 78%,#172b42); }
+:is(body,#studentAppThemePreviewOverlay)[data-student-app-theme="fiesta"] { --sat-primary:#d84c25; --sat-secondary:#f0c84a; --sat-radius:12px; --sat-action:color-mix(in srgb,var(--sat-primary) 78%,#172b42); }
+:is(body,#studentAppThemePreviewOverlay)[data-student-app-theme="forest"] { --sat-primary:#29724d; --sat-secondary:#b0be60; --sat-radius:20px; --sat-action:color-mix(in srgb,var(--sat-primary) 78%,#172b42); }
+
+:is(body,#studentAppThemePreviewOverlay)[data-student-app-theme="bauhaus"][data-student-app-appearance="light"] {
+ --sat-bg:#f5f0dd; --sat-card:#fffdf5; --sat-text:#141414;
+ --sat-muted:#373737; --sat-border:#171717; --sat-soft:#f1e8c9;
+ --sat-action:#d93631; --sat-action-text:#ffffff; --sat-radius:3px;
+ --sat-decor:radial-gradient(circle at 92% 9%,#df4035 0 74px,transparent 75px),linear-gradient(135deg,transparent 0 84%,#215fc3 84% 88%,transparent 88%),radial-gradient(circle at 5% 92%,#f0cb43 0 96px,transparent 97px);
+}
+:is(body,#studentAppThemePreviewOverlay)[data-student-app-theme="bauhaus"][data-student-app-appearance="dark"] {
+ --sat-bg:#161616; --sat-card:#282829; --sat-text:#f7f4e8;
+ --sat-muted:#e5ded0; --sat-border:#e3dcbf; --sat-soft:#363638;
+ --sat-action:#c43632; --sat-action-text:#ffffff; --sat-radius:3px;
+ --sat-decor:radial-gradient(circle at 92% 9%,#a72e29 0 74px,transparent 75px),linear-gradient(135deg,transparent 0 84%,#2454a0 84% 88%,transparent 88%),radial-gradient(circle at 5% 92%,#9e8731 0 96px,transparent 97px);
+}
+/* Backgrounds and the main student pages, not the admin overlay. */
+body[data-student-app-theme]:is(.student-session-active,.guest-session-active) {
+  background:var(--sat-decor),var(--sat-bg) !important;
+}
+body[data-student-app-theme] :is(#studentDashboard,#codeExplorerScreen,#lessonViewerScreen,#givenActivitiesScreen,#wireframeMakerScreen) {
+  background:var(--sat-decor),var(--sat-bg) !important;
+  color:var(--sat-text) !important;
+}
+body[data-student-app-theme] .app-shell { color:var(--sat-text); }
+/* High-visibility student headers and standalone panels. */
+body[data-student-app-theme] :is(
+ .student-dashboard-header,.dashboard-hero-card,.code-explorer-dashboard-card,
+ .student-projects-grid .student-project-card,.student-project-card,
+ .dashboard-notice-card,.lesson-viewer-header,.given-activities-header,
+ .code-explorer-header,.code-explorer-workspace,.app-shell .topbar,
+ .app-shell .panel,.app-shell .help-card,.app-shell .activity-card,
+ .student-compliance-panel,.recitation-status-card,.activity-rubric-card,
+ .quiz-mode-card,.student-theme-demo-card
+) {
+  background:var(--sat-card) !important;
+  border-color:var(--sat-border) !important;
+  border-radius:var(--sat-radius) !important;
+  color:var(--sat-text) !important;
+}
+body[data-student-app-theme] :is(
+ #studentDashboard,#codeExplorerScreen,#lessonViewerScreen,#givenActivitiesScreen,
+ #wireframeMakerScreen,.app-shell,#studentComplianceOverlay,#recitationStatusOverlay
+) :is(h1,h2,h3,h4,.section-kicker,.dashboard-hero-card h2,strong) {
+  color:var(--sat-text);
+}
+body[data-student-app-theme] :is(
+ #studentDashboard,#codeExplorerScreen,#lessonViewerScreen,#givenActivitiesScreen,
+ #wireframeMakerScreen,.app-shell
+) :is(.muted-text,.subtitle,small,.dashboard-status,.section-kicker) {
+  color:var(--sat-muted);
+}
+/* Core navigation / progress / activity cards. Keep grade severity and
+   code editor syntax highlighting untouched. */
+body[data-student-app-theme] :is(
+ #studentDashboard,#codeExplorerScreen,#lessonViewerScreen,#givenActivitiesScreen,
+ #wireframeMakerScreen
+) :is(
+ .student-project-card,.dashboard-notice-card,.dashboard-save-feedback-panel,
+ .lesson-card,.lesson-viewer-card,.given-activity-card,.given-activities-card,
+ .code-explorer-course-card,.code-explorer-topic-card,.code-explorer-lesson-card,
+ .code-explorer-dashboard-card,.dashboard-hero-card,.activity-card
+) {
+  border-color:var(--sat-border) !important;
+  border-radius:var(--sat-radius) !important;
+}
+body[data-student-app-theme] :is(
+ #studentDashboard,#codeExplorerScreen,#lessonViewerScreen,#givenActivitiesScreen,
+ .app-shell,#wireframeMakerScreen
+) :is(.primary-btn,.success-btn,.dashboard-new-btn,.code-explorer-dashboard-btn) {
+  background:var(--sat-action) !important;
+  color:var(--sat-action-text) !important;
+  border-color:var(--sat-action) !important;
+  border-radius:var(--sat-radius) !important;
+}
+body[data-student-app-theme] :is(
+ #studentDashboard,#codeExplorerScreen,#lessonViewerScreen,#givenActivitiesScreen,
+ .app-shell,#wireframeMakerScreen
+) :is(.ghost-btn,.icon-btn):not(.danger) {
+  border-color:var(--sat-border) !important;
+  border-radius:var(--sat-radius) !important;
+  color:var(--sat-text) !important;
+}
+body[data-student-app-theme] :is(
+ #studentDashboard,#codeExplorerScreen,#lessonViewerScreen,#givenActivitiesScreen,
+ .app-shell,#wireframeMakerScreen
+) :is(input,select,textarea):not(#codeEditor) {
+  background:var(--sat-card) !important;
+  border-color:var(--sat-border) !important;
+  border-radius:var(--sat-radius) !important;
+  color:var(--sat-text) !important;
+}
+body[data-student-app-theme] :is(
+ #studentDashboard,#codeExplorerScreen,#lessonViewerScreen,#givenActivitiesScreen,
+ .app-shell,#wireframeMakerScreen
+) :is(button,input,select,textarea):focus-visible {
+ outline:3px solid var(--sat-secondary) !important; outline-offset:2px;
+}
+/* Status modal uses the selected APP appearance (independent of popup).
+   Do not override official white/green/yellow/gray/orange/red grade badges. */
+body[data-student-app-theme] #studentComplianceOverlay .student-compliance-panel {
+  background:var(--sat-card) !important; color:var(--sat-text) !important;
+  border-color:var(--sat-border) !important;
+}
+body[data-student-app-theme] #studentComplianceOverlay :is(.student-compliance-header,.student-compliance-pinned) {
+  border-color:var(--sat-border) !important;
+}
+body[data-student-app-theme] :is(
+ #studentComplianceOverlay,#recitationStatusOverlay,#activityRubricOverlay
+) :is(h2,h3,.muted-text) {color:var(--sat-text) !important}
+/* Bauhaus has its own silhouette instead of just a recolor. */
+body[data-student-app-theme="bauhaus"] :is(
+ .dashboard-hero-card,.code-explorer-dashboard-card,.student-project-card,
+ .app-shell .topbar,.app-shell .panel
+) {
+  border:2px solid var(--sat-border) !important;
+  border-radius:3px !important;
+  box-shadow:5px 5px 0 color-mix(in srgb,var(--sat-secondary) 65%,transparent) !important;
+}
+body[data-student-app-theme="bauhaus"] :is(
+ #studentDashboard,#lessonViewerScreen,#givenActivitiesScreen,#codeExplorerScreen,.app-shell
+) :is(h1,h2,.section-kicker) {
+ font-family:"Arial Black",Arial,sans-serif !important;
+ letter-spacing:-.035em;
+}
+body[data-student-app-theme="bauhaus"] .dashboard-hero-card {
+ background:linear-gradient(110deg,var(--sat-card) 0 80%,color-mix(in srgb,var(--sat-secondary) 36%,var(--sat-card)) 80% 100%) !important;
+}
+body[data-student-app-theme] .student-dashboard-header { border-bottom:3px solid var(--sat-primary) !important; }
+/* Full app preview: intentionally fake, no real student identifiers or grades. */
+.student-app-theme-preview-overlay {
+ position:fixed;inset:0;z-index:100500;display:grid;place-items:center;
+ padding:16px;background:rgba(8,16,29,.78);backdrop-filter:blur(7px);
+}
+.student-app-theme-preview-overlay.hidden {display:none !important}
+.student-app-theme-preview-window {
+ width:min(880px,100%);max-height:min(92dvh,950px);display:flex;flex-direction:column;
+ background:var(--sat-bg,#f1f5fb);color:var(--sat-text,#172640);
+ border:2px solid var(--sat-border,#b9c8df);border-radius:var(--sat-radius,17px);
+ overflow:hidden;box-shadow:0 25px 70px rgba(0,0,0,.35);
+}
+.student-app-theme-preview-head {display:flex;justify-content:space-between;align-items:flex-start;gap:14px;padding:16px 18px;background:var(--sat-card,#fff);border-bottom:2px solid var(--sat-border,#b9c8df)}
+.student-app-theme-preview-head span {display:block;color:var(--sat-primary,#2159bd);font-weight:900;font-size:11px;letter-spacing:.09em}
+.student-app-theme-preview-head h2 {margin:3px 0;color:var(--sat-text,#162541);font-size:22px}
+.student-app-theme-preview-head small {color:var(--sat-muted,#465a77);font-size:12px}
+.student-app-theme-preview-head .icon-btn {color:var(--sat-text,#162541);background:var(--sat-soft,#e7eaf2);border:1px solid var(--sat-border,#b9c8df)}
+.student-app-theme-preview-content {overflow-y:auto;min-height:0;overscroll-behavior:contain;padding:15px;background:var(--sat-decor,none),var(--sat-bg,#f1f5fb)}
+.student-theme-demo-nav {display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:11px 13px;background:var(--sat-card,#fff);border:1px solid var(--sat-border,#b9c8df);border-radius:var(--sat-radius,12px);font-size:12px}
+.student-theme-demo-nav b {margin-right:auto;color:var(--sat-text,#162541);font-size:13px}
+.student-theme-demo-nav span {color:var(--sat-muted,#465a77)}
+.student-theme-demo-hero {margin-top:12px;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:22px 18px;background:var(--sat-card,#fff);border:2px solid var(--sat-border,#b9c8df);border-radius:var(--sat-radius,12px)}
+.student-theme-demo-hero h3 {font-size:23px;color:var(--sat-text,#162541);margin:5px 0}
+.student-theme-demo-hero p,.student-theme-demo-grid p {margin:6px 0;color:var(--sat-muted,#465a77);font-size:13px;line-height:1.45}
+.student-theme-demo-hero small,.student-theme-demo-grid small {font-size:10px;font-weight:900;color:var(--sat-muted,#465a77);letter-spacing:.06em}
+.student-theme-demo-action {display:inline-block;white-space:nowrap;background:var(--sat-action,#275eb8);color:var(--sat-action-text,#fff);padding:9px 12px;font-weight:800;font-size:12px;border-radius:var(--sat-radius,8px)}
+.student-theme-demo-grid {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:12px}
+.student-theme-demo-grid article {min-width:0;padding:17px;background:var(--sat-card,#fff);border:1px solid var(--sat-border,#b9c8df);border-radius:var(--sat-radius,12px)}
+.student-theme-demo-grid strong {display:block;margin-top:8px;font-size:16px;color:var(--sat-text,#162541)}
+.student-theme-demo-grid article .student-theme-demo-action {margin-top:10px}
+.student-theme-demo-footnote {padding:12px 16px;margin:0;background:var(--sat-card,#fff);color:var(--sat-muted,#465a77);border-top:1px solid var(--sat-border,#b9c8df);font-size:12px}
+#studentAppThemePreviewOverlay[data-student-app-theme="bauhaus"] .student-theme-demo-hero,
+#studentAppThemePreviewOverlay[data-student-app-theme="bauhaus"] .student-theme-demo-grid article {
+ border:2px solid var(--sat-border);border-radius:3px;box-shadow:4px 4px 0 color-mix(in srgb,var(--sat-secondary) 60%,transparent)
+}
+#studentAppThemePreviewOverlay[data-student-app-theme="bauhaus"] .student-theme-demo-hero h3 {font-family:"Arial Black",Arial,sans-serif;letter-spacing:-.04em;text-transform:uppercase}
+.login-theme-preview-grid {grid-template-columns:repeat(3,minmax(0,1fr)) !important}
+.login-theme-app-preview-tiles {justify-content:space-between}
+.login-theme-app-preview-tiles b {font-size:11px}
+.login-theme-preview-actions {display:flex;gap:8px;flex-wrap:wrap}
+@media(max-width:660px){
+ .login-theme-preview-grid {grid-template-columns:1fr 1fr !important}
+ .login-theme-preview-grid #loginThemeAppSample {grid-column:1/-1;min-height:130px}
+ .student-theme-demo-grid {grid-template-columns:1fr}
+ .student-app-theme-preview-head h2 {font-size:19px}
+ .student-theme-demo-hero {align-items:flex-start;flex-direction:column;padding:15px}
+ .student-app-theme-preview-content {padding:9px}
+ .student-app-theme-preview-head {padding:12px}
+}
+@media(prefers-reduced-motion:reduce){
+ body[data-student-app-theme] :is(#studentDashboard,#codeExplorerScreen,#lessonViewerScreen,#givenActivitiesScreen) * {transition:none !important}
+}
+
+/* v673 readability refinements for inherited gradient hero and dark controls. */
+body[data-student-app-theme] #studentDashboard .dashboard-hero-card :is(h2,p) {
+  color:var(--sat-text) !important;
+  opacity:1 !important;
+}
+body[data-student-app-theme] #studentDashboard :is(
+ .dashboard-notice-card,.code-explorer-dashboard-card
+) :is(p,small,.muted-text) {
+  color:var(--sat-muted) !important;
+  opacity:1 !important;
+}
+body[data-student-app-theme] #studentDashboard .code-explorer-dashboard-progress :is(strong,span,b) {
+  color:var(--sat-text) !important;
+}
+body[data-student-app-theme] :is(
+ #studentDashboard,#codeExplorerScreen,#lessonViewerScreen,#givenActivitiesScreen,
+ .app-shell,#wireframeMakerScreen
+) .ghost-btn:not(.danger) {
+  background:var(--sat-soft) !important;
+  color:var(--sat-text) !important;
+  border:1px solid var(--sat-border) !important;
+}
+body[data-student-app-theme] :is(#changePasswordOverlay,#projectNameOverlay,#projectTypeOverlay,#petaActionOverlay) .student-auth-card {
+ background:var(--sat-card) !important;
+ color:var(--sat-text) !important;
+ border-color:var(--sat-border) !important;
+ border-radius:var(--sat-radius) !important;
+}
+@media (max-width:700px){
+ body[data-student-app-theme] #studentDashboard .dashboard-hero-card {
+  display:flex !important; flex-direction:column !important; align-items:stretch !important;
+ }
+ body[data-student-app-theme] #studentDashboard .dashboard-hero-card > div:first-child {width:100%;min-width:0 !important}
+ body[data-student-app-theme] #studentDashboard .dashboard-hero-actions {
+   width:100%;display:flex !important;flex-wrap:wrap !important;justify-content:flex-start !important;
+   gap:7px !important;position:static !important;
+ }
+ body[data-student-app-theme] #studentDashboard .dashboard-hero-actions > button {
+   min-width:0 !important;flex:1 1 110px !important;
+ }
+}
+
+/* v674 — Comfortable contrast & student-selectable appearance.
+   Neutral content surfaces keep the chosen design's identity in accents,
+   avoiding saturated page-wide backgrounds and washed-out labels. */
+:is(body,#studentAppThemePreviewOverlay)[data-student-app-theme]:not([data-student-app-theme="original"])[data-student-app-appearance="light"] {
+  --sat-bg:#e9edf0; --sat-card:#f6f7f5; --sat-text:#25313c;
+  --sat-muted:#425260; --sat-border:#a4b1bd; --sat-soft:#e0e7eb;
+  --sat-action:#294f78; --sat-action-text:#ffffff;
+  --sat-decor:radial-gradient(circle at 94% 9%,color-mix(in srgb,var(--sat-primary) 5%,transparent) 0 75px,transparent 76px);
+  color-scheme:light;
+}
+:is(body,#studentAppThemePreviewOverlay)[data-student-app-theme]:not([data-student-app-theme="original"])[data-student-app-appearance="dark"] {
+  --sat-bg:#1c2630; --sat-card:#27343e; --sat-text:#e6edf2;
+  --sat-muted:#becdd8; --sat-border:#596b7a; --sat-soft:#34434f;
+  --sat-action:#385f87; --sat-action-text:#ffffff;
+  --sat-decor:radial-gradient(circle at 94% 9%,color-mix(in srgb,var(--sat-primary) 7%,transparent) 0 75px,transparent 76px);
+  color-scheme:dark;
+}
+/* Bauhaus keeps its forms and red/blue/yellow accents without full-strength
+   cream-white panels, hard black rules, or aggressive red decoration. */
+:is(body,#studentAppThemePreviewOverlay)[data-student-app-theme="bauhaus"][data-student-app-appearance="light"]:not([data-student-app-theme="original"]) {
+  --sat-bg:#eae8df; --sat-card:#f4f2eb; --sat-text:#272c30;
+  --sat-muted:#485056; --sat-border:#85898a; --sat-soft:#e1dfd6;
+  --sat-action:#943b32; --sat-action-text:#ffffff;
+  --sat-decor:radial-gradient(circle at 92% 9%,rgba(154,68,59,.055) 0 76px,transparent 77px),linear-gradient(135deg,transparent 0 88%,rgba(48,90,147,.045) 88% 91%,transparent 91%);
+}
+:is(body,#studentAppThemePreviewOverlay)[data-student-app-theme="bauhaus"][data-student-app-appearance="dark"]:not([data-student-app-theme="original"]) {
+  --sat-bg:#20252a; --sat-card:#2c3339; --sat-text:#e8e8e0;
+  --sat-muted:#c2c9cb; --sat-border:#677479; --sat-soft:#364149;
+  --sat-action:#a8443b; --sat-action-text:#ffffff;
+  --sat-decor:radial-gradient(circle at 92% 9%,rgba(182,76,66,.065) 0 76px,transparent 77px);
+}
+/* Flatten the old saturated hero ribbon; improve subheadings in deeply nested
+   cards without rewriting official grade/status band badges. */
+body[data-student-app-theme="bauhaus"] #studentDashboard .dashboard-hero-card {
+  background:linear-gradient(112deg,var(--sat-card) 0 94%,color-mix(in srgb,var(--sat-secondary) 7%,var(--sat-card)) 94% 100%) !important;
+}
+body[data-student-app-theme="bauhaus"] :is(.dashboard-hero-card,.student-project-card,.code-explorer-dashboard-card,.app-shell .panel,.app-shell .topbar) {
+  box-shadow:2px 2px 0 color-mix(in srgb,var(--sat-border) 36%,transparent) !important;
+}
+body[data-student-app-theme] :is(#studentDashboard,#codeExplorerScreen,#lessonViewerScreen,#givenActivitiesScreen,#wireframeMakerScreen,.app-shell) :is(
+  .student-project-card,.lesson-card,.lesson-viewer-card,.given-activity-card,.given-activities-card,
+  .code-explorer-course-card,.code-explorer-topic-card,.code-explorer-lesson-card,
+  .dashboard-notice-card,.code-explorer-dashboard-card,.dashboard-hero-card,
+  .activity-card,.app-shell .panel) {
+  background-color:var(--sat-card) !important; color:var(--sat-text) !important;
+}
+body[data-student-app-theme] :is(#studentDashboard,#codeExplorerScreen,#lessonViewerScreen,#givenActivitiesScreen,#wireframeMakerScreen,.app-shell)
+  :is(.student-project-card,.lesson-card,.given-activity-card,.dashboard-notice-card,.code-explorer-dashboard-card,.app-shell .panel)
+  :is(p,li,small,.subtitle,.muted-text) {
+  color:var(--sat-muted) !important; opacity:1 !important;
+}
+body[data-student-app-theme] :is(#studentDashboard,#codeExplorerScreen,#lessonViewerScreen,#givenActivitiesScreen,#wireframeMakerScreen,.app-shell)
+  :is(.primary-btn,.success-btn,.dashboard-new-btn,.code-explorer-dashboard-btn) {
+  background:var(--sat-action) !important; color:var(--sat-action-text) !important;
+  border:1px solid var(--sat-action) !important;
+}
+body[data-student-app-theme] :is(#studentDashboard,#codeExplorerScreen,#lessonViewerScreen,#givenActivitiesScreen,#wireframeMakerScreen,.app-shell)
+  :is(input,select,textarea):not(#codeEditor) {
+  background:var(--sat-card) !important; color:var(--sat-text) !important;
+}
+/* The Admin appearance-lock control is still present; it is simply disabled
+   when the teacher has not enabled full-app styling. */
+#loginThemeAllowStudentChoiceToggle:disabled {cursor:not-allowed;opacity:.55}
+/* Preview refinements: quiet geometry and a visible close control. */
+#studentAppThemePreviewOverlay[data-student-app-theme="bauhaus"] .student-theme-demo-hero,
+#studentAppThemePreviewOverlay[data-student-app-theme="bauhaus"] .student-theme-demo-grid article {
+  box-shadow:2px 2px 0 color-mix(in srgb,var(--sat-border) 30%,transparent) !important;
+}
+#studentAppThemePreviewOverlay[data-student-app-theme]:not([data-student-app-theme="original"]) .student-app-theme-preview-head .icon-btn {
+  background:var(--sat-soft) !important;
+  border:1px solid var(--sat-border) !important;
+  color:var(--sat-text) !important;
+}
+/* Matching comfortable Bauhaus login and modal accents, while maintaining
+   the independently chosen Login Page / Modal appearance settings. */
+:is(#entryGate,#studentLoginOverlay,#loginThemePreviewOverlay,.login-theme-mini-preview)[data-design-theme="bauhaus"][data-appearance="light"] {
+  --sg-paper:#eae8df;--sg-card:#f4f2eb;--sg-ink:#272c30;
+  --sg-muted:#485056;--sg-border:#85898a;--sg-primary:#943b32;
+  --sg-secondary:#c8ae65;
+  --sg-decoration:radial-gradient(circle at 87% 14%,rgba(148,59,50,.075) 0 70px,transparent 71px),linear-gradient(125deg,transparent 0 82%,rgba(49,95,151,.055) 82% 86%,transparent 86%);
+}
+:is(#entryGate,#studentLoginOverlay,#loginThemePreviewOverlay,.login-theme-mini-preview)[data-design-theme="bauhaus"][data-appearance="dark"] {
+  --sg-paper:#20252a;--sg-card:#2c3339;--sg-ink:#e8e8e0;
+  --sg-muted:#c2c9cb;--sg-border:#677479;--sg-primary:#a8443b;
+  --sg-secondary:#a38c55;
+  --sg-decoration:radial-gradient(circle at 87% 14%,rgba(168,68,59,.08) 0 70px,transparent 71px);
+}
+#loginLackingReminderOverlay[data-theme="bauhaus"][data-appearance="light"] .login-reminder-fixed-header {background:#dec987!important}
+
+
+/* ============================================================================
+   v675  ALL-STUDENT-THEMES / TRUE DARK + READABILITY CONSISTENCY
+   All existing theme identities are retained via --sat-primary/--sat-secondary;
+   shared surfaces use neutral, readable tokens. Student-only: no admin panels,
+   no project-rendered iframe content, no grading or quiz logic changes.
+   ============================================================================ */
+body[data-student-app-theme]:not([data-student-app-theme="original"])[data-student-app-appearance="dark"] {
+  --sat-bg:#111821;
+  --sat-card:#202c38;
+  --sat-card-raised:#263542;
+  --sat-soft:#2c3a47;
+  --sat-input:#18242f;
+  --sat-text:#f0f4fa;
+  --sat-muted:#c3cfdd;
+  --sat-border:#526579;
+  --sat-action:#31618e;
+  --sat-action-text:#fff;
+  --sat-decor:radial-gradient(circle at 90% 5%, color-mix(in srgb,var(--sat-primary) 6%,transparent) 0 75px,transparent 76px);
+  color-scheme:dark;
+}
+/* Preserve Bauhaus's charcoal identity without reverting any content panels
+   to white/cream. Every other theme uses the same safe dark surface system. */
+body[data-student-app-theme="bauhaus"][data-student-app-appearance="dark"] {
+  --sat-bg:#171c21; --sat-card:#252d34; --sat-card-raised:#2c363f;
+  --sat-soft:#343f47; --sat-input:#1c262d;
+  --sat-text:#f1f1ed; --sat-muted:#cbd1d4; --sat-border:#66737b;
+  --sat-action:#9a443b; --sat-action-text:#ffffff;
+  --sat-decor:radial-gradient(circle at 93% 7%,rgba(160,69,58,.055) 0 75px,transparent 76px);
+}
+/* CSS variables needed by the original editor / score widgets are scoped to
+   STUDENT page roots, rather than the body (which also contains admin markup). */
+body[data-student-app-theme]:not([data-student-app-theme="original"])[data-student-app-appearance="dark"]
+:is(#studentDashboard,#codeExplorerScreen,#lessonViewerScreen,#givenActivitiesScreen,#wireframeMakerScreen,
+    .app-shell,#studentComplianceOverlay,#recitationStatusOverlay,#activityRubricOverlay,
+    #phoneResultFeedbackOverlay,#changePasswordOverlay,#projectNameOverlay,#projectTypeOverlay,#petaActionOverlay) {
+  --solid-card:var(--sat-card); --card:var(--sat-card); --background:var(--sat-bg);
+  --ink:var(--sat-text); --text:var(--sat-text); --muted:var(--sat-muted);
+  --line:var(--sat-border); --primary-soft:var(--sat-soft);
+  --primary:#89baff; --primary-dark:#bbd7ff;
+  --editor-bg:#141e29; --editor-gutter:#1b2a38;
+  --editor-text:#e8f2fc; --editor-line:#a2b6ca;
+  --success-soft:#174b3a; --danger-soft:#512d3d;
+  color:var(--sat-text);
+  color-scheme:dark;
+}
+/* Major student page containers, cards, toolbars, and nested editor surfaces. */
+body[data-student-app-theme]:not([data-student-app-theme="original"])[data-student-app-appearance="dark"]
+:is(#studentDashboard,#codeExplorerScreen,#lessonViewerScreen,#givenActivitiesScreen,#wireframeMakerScreen,.app-shell) {
+  color:var(--sat-text) !important;
+}
+body[data-student-app-theme]:not([data-student-app-theme="original"])[data-student-app-appearance="dark"]
+:is(#studentDashboard,#codeExplorerScreen,#lessonViewerScreen,#givenActivitiesScreen,#wireframeMakerScreen,.app-shell)
+:is(.dashboard-hero-card,.dashboard-notice-card,.dashboard-save-feedback-panel,.student-project-card,
+    .code-explorer-dashboard-card,.code-explorer-course-card,.code-explorer-topic-card,.code-explorer-lesson-card,
+    .lesson-card,.lesson-viewer-card,.given-activity-card,.given-activities-card,.activity-card,
+    .panel,.topbar,.panel-header,.help-card,.student-dashboard-header,.editor-project-header,
+    .editor-info,.language-tabs,.editor-file-toolbar,.editor-file-row,.editor-project-main,
+    .result-panel,.result-content,.score-main,.feedback-box,.smart-feedback-box,
+    .rubric-item,.result-insight-card,.result-warning-note,.result-code-quality-note,
+    .student-theme-demo-card,.student-dashboard-stats) {
+  background:var(--sat-card) !important;
+  background-image:none !important;
+  border-color:var(--sat-border) !important;
+  color:var(--sat-text) !important;
+}
+/* Nested blocks: distinct from the primary cards, never white in dark mode. */
+body[data-student-app-theme]:not([data-student-app-theme="original"])[data-student-app-appearance="dark"]
+:is(#studentDashboard,#codeExplorerScreen,#lessonViewerScreen,#givenActivitiesScreen,#wireframeMakerScreen,.app-shell)
+:is(.dashboard-hero-actions,.dashboard-progress-card,.dashboard-quick-card,.dashboard-feedback-card,
+    .student-project-card .project-meta,.student-project-card .project-actions,
+    .editor-project-header,.editor-info,.editor-project-save-badge,
+    .rubric-list,.rubric-item,.result-insight-card.good,.result-insight-card.improve,
+    .score-main,.feedback-box,.smart-feedback-box,.result-warning-note,
+    .result-code-quality-note,.activity-warning,.code-explorer-feedback,
+    .code-explorer-quick-feedback-card) {
+  border-color:var(--sat-border) !important;
+  color:var(--sat-text) !important;
+}
+body[data-student-app-theme]:not([data-student-app-theme="original"])[data-student-app-appearance="dark"]
+:is(#studentDashboard,#codeExplorerScreen,#lessonViewerScreen,#givenActivitiesScreen,.app-shell)
+:is(.result-insight-card.good,.result-insight-card.improve,.result-warning-note,
+    .result-code-quality-note,.editor-project-header,.editor-info,.editor-project-save-badge,
+    .dashboard-save-feedback-panel,.dashboard-feedback-card) {
+  background:var(--sat-card-raised) !important;
+  background-image:none !important;
+}
+/* Every inherited foreground color must be legible regardless of the selected
+   theme's accent hue. Status/grade colors are intentionally excluded. */
+body[data-student-app-theme]:not([data-student-app-theme="original"])[data-student-app-appearance="dark"]
+:is(#studentDashboard,#codeExplorerScreen,#lessonViewerScreen,#givenActivitiesScreen,#wireframeMakerScreen,.app-shell)
+:is(h1,h2,h3,h4,h5,h6,.rubric-title,.rubric-points,.score-main strong,
+    .result-insight-card h4,.result-insight-card strong,.editor-project-name,
+    .student-project-card h3,.dashboard-hero-card h2,.panel-header h2,
+    .result-insight-card li,.rubric-item .rubric-title,.rubric-item .rubric-rule strong,
+    .feedback-box strong,.result-warning-note strong) {
+  color:var(--sat-text) !important;
+  opacity:1 !important;
+}
+body[data-student-app-theme]:not([data-student-app-theme="original"])[data-student-app-appearance="dark"]
+:is(#studentDashboard,#codeExplorerScreen,#lessonViewerScreen,#givenActivitiesScreen,#wireframeMakerScreen,.app-shell)
+:is(p,small,.muted-text,.section-kicker,.subtitle,.helper-note,
+    .rubric-rule,.rubric-evidence,.rubric-improvement,
+    .result-insight-card ul,.result-insight-card li,
+    .smart-result-note,.score-number small,.editor-project-activity,.editor-project-save-badge,
+    .student-project-card .project-meta,.student-project-card .project-description) {
+  color:var(--sat-muted) !important;
+  opacity:1 !important;
+}
+/* The rubric feedback content in the supplied screenshots had white cards
+   with pale headings. Green/amber meaning is kept with subtle dark tints. */
+body[data-student-app-theme]:not([data-student-app-theme="original"])[data-student-app-appearance="dark"]
+.app-shell .result-insight-card.good {
+  background:#18382e !important; border-color:#478b70 !important;
+}
+body[data-student-app-theme]:not([data-student-app-theme="original"])[data-student-app-appearance="dark"]
+.app-shell .result-insight-card.improve {
+  background:#3a3222 !important; border-color:#a48b4e !important;
+}
+body[data-student-app-theme]:not([data-student-app-theme="original"])[data-student-app-appearance="dark"]
+.app-shell .result-insight-card :is(h4,li,ul,strong) {color:#f0f5f6 !important}
+body[data-student-app-theme]:not([data-student-app-theme="original"])[data-student-app-appearance="dark"]
+.app-shell .score-number {color:#95baff !important}
+/* Inputs, project search, file selectors, toolbar tabs, and their placeholders. */
+body[data-student-app-theme]:not([data-student-app-theme="original"])[data-student-app-appearance="dark"]
+:is(#studentDashboard,#codeExplorerScreen,#lessonViewerScreen,#givenActivitiesScreen,#wireframeMakerScreen,.app-shell)
+:is(input,select,textarea):not(#codeEditor) {
+  background:var(--sat-input) !important; color:var(--sat-text) !important;
+  border-color:var(--sat-border) !important;
+  -webkit-text-fill-color:var(--sat-text);
+}
+body[data-student-app-theme]:not([data-student-app-theme="original"])[data-student-app-appearance="dark"]
+:is(#studentDashboard,#codeExplorerScreen,#lessonViewerScreen,#givenActivitiesScreen,.app-shell)
+:is(input,textarea):not(#codeEditor)::placeholder {color:#b4c5d7 !important;opacity:1 !important}
+body[data-student-app-theme]:not([data-student-app-theme="original"])[data-student-app-appearance="dark"]
+.app-shell :is(.language-tabs,.editor-info,.editor-project-header,.editor-project-save-badge) {
+  background:var(--sat-card-raised) !important;color:var(--sat-text) !important;
+}
+body[data-student-app-theme]:not([data-student-app-theme="original"])[data-student-app-appearance="dark"]
+.app-shell .tab-btn:not(.active) {
+  background:var(--sat-soft) !important;color:var(--sat-text) !important;border-color:var(--sat-border) !important;
+}
+body[data-student-app-theme]:not([data-student-app-theme="original"])[data-student-app-appearance="dark"]
+.app-shell .tab-btn.active {background:var(--sat-action) !important;color:#fff !important}
+body[data-student-app-theme]:not([data-student-app-theme="original"])[data-student-app-appearance="dark"]
+.app-shell :is(.ghost-btn:not(.danger),.icon-btn:not(.danger),.editor-file-action,.file-tab-btn) {
+  background:var(--sat-soft) !important;color:var(--sat-text) !important;border-color:var(--sat-border) !important;
+}
+/* Code editor uses separate highlighting overlay. Never restyle the iframe
+   showing the learner's HTML/CSS page; its intended colors must remain intact. */
+body[data-student-app-theme]:not([data-student-app-theme="original"])[data-student-app-appearance="dark"]
+.app-shell :is(.editor-wrap,.editor-stack,#codeEditor,.code-match-layer) {
+  --editor-bg:#131e29;--editor-text:#edf3fb;--editor-gutter:#1d2c3b;
+  --editor-line:#a8bcd1;
+  background-color:var(--editor-bg) !important;
+  color:var(--editor-text);
+}
+body[data-student-app-theme]:not([data-student-app-theme="original"])[data-student-app-appearance="dark"]
+.app-shell .line-numbers {background:#1d2c3b !important;color:#b7c8dc !important;border-color:var(--sat-border) !important}
+body[data-student-app-theme]:not([data-student-app-theme="original"])[data-student-app-appearance="dark"]
+.app-shell #codeEditor {caret-color:#edf3fb !important}
+/* Syntax token scheme matching the existing default-dark editor, even when
+   the global html[data-theme] is light but admin chose a dark student theme. */
+body[data-student-app-theme]:not([data-student-app-theme="original"])[data-student-app-appearance="dark"]
+.app-shell .code-match-layer :is(.syn-html-tag,.syn-html-bracket) {color:#86b8ff !important}
+body[data-student-app-theme]:not([data-student-app-theme="original"])[data-student-app-appearance="dark"]
+.app-shell .code-match-layer :is(.syn-html-attr,.syn-css-selector,.syn-js-keyword) {color:#d0a7ff !important}
+body[data-student-app-theme]:not([data-student-app-theme="original"])[data-student-app-appearance="dark"]
+.app-shell .code-match-layer .syn-string {color:#ffb1b1 !important}
+body[data-student-app-theme]:not([data-student-app-theme="original"])[data-student-app-appearance="dark"]
+.app-shell .code-match-layer :is(.syn-css-property,.syn-js-function) {color:#82dcfa !important}
+body[data-student-app-theme]:not([data-student-app-theme="original"])[data-student-app-appearance="dark"]
+.app-shell .code-match-layer :is(.syn-doctype,.syn-comment,.syn-punctuation,.syn-html-equals) {color:#a7b9cc !important}
+body[data-student-app-theme]:not([data-student-app-theme="original"])[data-student-app-appearance="dark"]
+.app-shell .code-match-layer .syn-number {color:#ffd0a1 !important}
+/* Subject status/rubric detail popups follow full-app appearance, without
+   affecting the independent after-login popup appearance or grade bands. */
+body[data-student-app-theme]:not([data-student-app-theme="original"])[data-student-app-appearance="dark"]
+:is(#studentComplianceOverlay,#recitationStatusOverlay,#activityRubricOverlay) :is(
+ .student-compliance-panel,.student-compliance-header,.student-compliance-pinned,
+ .student-compliance-list,.student-compliance-lacking-list,.student-compliance-requirement,
+ .recitation-status-card,.recitation-status-box,.activity-rubric-card,.activity-rubric-table-wrap
+) {
+  background:var(--sat-card) !important;color:var(--sat-text) !important;
+  border-color:var(--sat-border) !important;
+}
+body[data-student-app-theme]:not([data-student-app-theme="original"])[data-student-app-appearance="dark"]
+:is(#studentComplianceOverlay,#recitationStatusOverlay,#activityRubricOverlay)
+:is(h1,h2,h3,h4,p,small,li,.muted-text,.helper-note) {color:var(--sat-muted) !important;opacity:1 !important}
+/* Full-app preview receives the same token set as the actual student pages. */
+#studentAppThemePreviewOverlay[data-student-app-theme]:not([data-student-app-theme="original"])[data-student-app-appearance="dark"]
+:is(.student-app-theme-preview-window,.student-app-theme-preview-head,.student-app-theme-preview-content,
+    .student-theme-demo-hero,.student-theme-demo-grid article,.student-theme-demo-footnote) {
+  background:var(--sat-card) !important;color:var(--sat-text) !important;border-color:var(--sat-border) !important;
+}
+/* Do not animate colors or flash white while switching. */
+@media(prefers-reduced-motion:reduce) {
+  body[data-student-app-appearance="dark"] :is(#studentDashboard,#codeExplorerScreen,#lessonViewerScreen,.app-shell) * {
+    transition:none !important;
+  }
+}
+/* Final priority fixes for the exact Result/Feedback components in screenshots. */
+body[data-student-app-theme]:not([data-student-app-theme="original"])[data-student-app-appearance="dark"]
+.app-shell #resultContent .result-insight-card.good {
+ background:#1c392e !important;border-color:#548b74 !important;
+}
+body[data-student-app-theme]:not([data-student-app-theme="original"])[data-student-app-appearance="dark"]
+.app-shell #resultContent .result-insight-card.improve {
+ background:#393321 !important;border-color:#998550 !important;
+}
+body[data-student-app-theme]:not([data-student-app-theme="original"])[data-student-app-appearance="dark"]
+.app-shell #resultContent .score-pill:not(.almost):not(.needs-work) {
+ background:#19523b !important;color:#edfff6 !important;
+}
+body[data-student-app-theme]:not([data-student-app-theme="original"])[data-student-app-appearance="dark"]
+.app-shell #resultContent .score-pill.needs-work {
+ background:#572b38 !important;color:#ffe5e7 !important;
+}
+body[data-student-app-theme]:not([data-student-app-theme="original"])[data-student-app-appearance="dark"]
+.app-shell #resultContent .score-pill.almost {
+ background:#514220 !important;color:#fff1ce !important;
+}
+/* DARK After-Login Modal: all design styles receive legible charcoal surfaces;
+   this is independent from the optional Entire App theme switch. */
+#loginLackingReminderOverlay[data-theme][data-appearance="dark"] .login-lacking-reminder-panel {
+ background:#161f2a !important;color:#f0f5fa !important;border-color:#5a7185 !important;
+}
+#loginLackingReminderOverlay[data-theme][data-appearance="dark"] :is(
+ .login-reminder-fixed-header,.login-reminder-scroll-region,.login-lacking-reminder-actions
+) {background:#1b2735 !important;color:#f0f5fa !important;border-color:#536579 !important}
+#loginLackingReminderOverlay[data-theme][data-appearance="dark"] :is(
+ .login-reminder-overview,.login-reminder-standing,.login-lacking-reminder-recitation,
+ .login-reminder-requirements-group,.login-reminder-requirements-group-header,
+ .login-lacking-reminder-message,.login-reminder-standing-details,#loginReminderExpandedLegend,
+ .login-lacking-reminder-nav-card
+) {background:#263546 !important;color:#f0f5fa !important;border-color:#63778a !important}
+#loginLackingReminderOverlay[data-theme][data-appearance="dark"] :is(
+ .login-reminder-standing-copy strong,.login-reminder-standing-copy small,
+ .login-lacking-reminder-recitation-label strong,.login-lacking-reminder-recitation-label small,
+ .login-lacking-reminder-recitation-score strong,.login-lacking-reminder-recitation-score span,
+ .login-reminder-requirements-group-header strong,.login-reminder-requirements-group-header span,
+ .login-reminder-requirements-head h3,.login-reminder-requirements-head span,
+ .login-lacking-reminder-nav-card strong,.login-lacking-reminder-nav-card small,
+ .login-lacking-reminder-nav-head span,.login-lacking-reminder-nav-head small
+) {color:#f0f5fa !important;opacity:1 !important}
+#loginLackingReminderOverlay[data-theme][data-appearance="dark"] :is(
+ .login-lacking-reminder-student,.login-reminder-standing-details p,
+ .login-lacking-reminder-nav-card small,.login-reminder-requirements-group li,
+ .login-reminder-requirements-group small
+) {color:#d0dae4 !important;opacity:1 !important}
+/* Keep the Bauhaus layout/angular edges and its accent blocks, but not the
+   old bright blue/cream background in the dark modal. */
+#loginLackingReminderOverlay[data-theme="bauhaus"][data-appearance="dark"] :is(
+ .login-reminder-fixed-header,.login-reminder-scroll-region,.login-lacking-reminder-actions
+) {background:#1c2228 !important}
+#loginLackingReminderOverlay[data-theme="bauhaus"][data-appearance="dark"] :is(
+ .login-reminder-standing,.login-lacking-reminder-recitation,.login-reminder-requirements-group,
+ .login-reminder-requirements-group-header,.login-lacking-reminder-nav-card
+) {background:#2b333b !important}
+
+
+/* v676: Welcome / Student-ID Login appearance controls.
+   The user can switch *before* authentication when Admin allows choice;
+   the Admin lock still hides both switches.  All themes retain their
+   own neutral light/dark surfaces through --sg-* tokens. */
+body[data-login-appearance-choice="enabled"] #entryGate .entry-theme-toggle:not(.hidden) {
+  display:inline-flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+  gap:10px !important;
+  margin:4px auto 16px !important;
+  min-height:44px !important;
+  padding:8px 15px 8px 9px !important;
+  background:var(--sg-card,#263349) !important;
+  color:var(--sg-ink,#f6f9ff) !important;
+  border:1px solid var(--sg-border,#7890b2) !important;
+  border-radius:999px !important;
+  font-size:0.9rem !important;
+  font-weight:800 !important;
+  cursor:pointer;
+}
+body[data-login-appearance-choice="enabled"] #entryGate:not([data-design-theme]) .entry-theme-toggle:not(.hidden) {
+  background:var(--surface,#283348) !important;
+  color:var(--text,#fff) !important;
+}
+/* Override the old phone-only display:inline-flex!important rule when locked. */
+#entryGate .entry-theme-toggle.hidden,
+html[data-device-mode="phone"] #entryGate .entry-theme-toggle.hidden,
+#studentLoginOverlay .student-login-theme-toggle.hidden {display:none !important}
+#studentLoginOverlay .student-login-theme-toggle:not(.hidden) {
+  display:flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+  min-height:42px;
+  width:max-content;
+  margin:4px 50px 14px auto;
+  padding:8px 14px;
+  border:1px solid var(--sg-border,#72829b);
+  border-radius:999px;
+  background:var(--sg-paper,#243345);
+  color:var(--sg-ink,#f1f5f9);
+  font-weight:800;
+  font-size:0.85rem;
+  cursor:pointer;
+}
+#entryGate[data-design-theme][data-appearance="dark"] .entry-theme-toggle:not(.hidden),
+#studentLoginOverlay[data-design-theme][data-appearance="dark"] .student-login-theme-toggle:not(.hidden) {
+  background:#303c4b !important;
+  color:#f5f7fd !important;
+  border-color:#8192a6 !important;
+  box-shadow:none !important;
+}
+#entryGate[data-design-theme][data-appearance="light"] .entry-theme-toggle:not(.hidden),
+#studentLoginOverlay[data-design-theme][data-appearance="light"] .student-login-theme-toggle:not(.hidden) {
+  background:#ebe9df !important;
+  color:#26313a !important;
+  border-color:#697782 !important;
+  box-shadow:none !important;
+}
+@media(max-width:440px) {
+  #studentLoginOverlay .student-login-theme-toggle:not(.hidden) {
+    min-height:42px;
+    margin-right:40px;
+  }
+}
+
+/* Mobile 360px/320px layout: an invisible Resume button must take NO space. */
+#entryGate #resumeStudentBtn.hidden,
+html[data-device-mode="phone"] #entryGate #resumeStudentBtn.hidden {
+  display:none !important;
+  visibility:hidden !important;
+  height:0 !important;
+  margin:0 !important;
+  padding:0 !important;
+}
+
+/* v676: legible button ink across all 40 themes. Bright accents need dark labels. */
+:is(#entryGate,#studentLoginOverlay,#loginThemePreviewOverlay,.login-theme-mini-preview)[data-design-theme="mission-control"],
+:is(#entryGate,#studentLoginOverlay,#loginThemePreviewOverlay,.login-theme-mini-preview)[data-design-theme="honors-night"],
+:is(#entryGate,#studentLoginOverlay,#loginThemePreviewOverlay,.login-theme-mini-preview)[data-design-theme="futuristic"],
+:is(#entryGate,#studentLoginOverlay,#loginThemePreviewOverlay,.login-theme-mini-preview)[data-design-theme="collage-art"],
+:is(#entryGate,#studentLoginOverlay,#loginThemePreviewOverlay,.login-theme-mini-preview)[data-design-theme="retro"],
+:is(#entryGate,#studentLoginOverlay,#loginThemePreviewOverlay,.login-theme-mini-preview)[data-design-theme="synthwave-80s"],
+:is(#entryGate,#studentLoginOverlay,#loginThemePreviewOverlay,.login-theme-mini-preview)[data-design-theme="cyberpunk"],
+:is(#entryGate,#studentLoginOverlay,#loginThemePreviewOverlay,.login-theme-mini-preview)[data-design-theme="pop-art"],
+:is(#entryGate,#studentLoginOverlay,#loginThemePreviewOverlay,.login-theme-mini-preview)[data-design-theme="clay-style"],
+:is(#entryGate,#studentLoginOverlay,#loginThemePreviewOverlay,.login-theme-mini-preview)[data-design-theme="y2k"],
+:is(#entryGate,#studentLoginOverlay,#loginThemePreviewOverlay,.login-theme-mini-preview)[data-design-theme="surreal-design"],
+:is(#entryGate,#studentLoginOverlay,#loginThemePreviewOverlay,.login-theme-mini-preview)[data-design-theme="aurora"],
+:is(#entryGate,#studentLoginOverlay,#loginThemePreviewOverlay,.login-theme-mini-preview)[data-design-theme="halloween"],
+:is(#entryGate,#studentLoginOverlay,#loginThemePreviewOverlay,.login-theme-mini-preview)[data-design-theme="cyber-neon"],
+:is(#entryGate,#studentLoginOverlay,#loginThemePreviewOverlay,.login-theme-mini-preview)[data-design-theme="sakura"],
+:is(#entryGate,#studentLoginOverlay,#loginThemePreviewOverlay,.login-theme-mini-preview)[data-design-theme="fiesta"] {
+  --sg-button-ink:#000000;
+}
+#entryGate[data-design-theme] .entry-choice.primary-choice :is(strong,small),
+#loginThemePreviewOverlay[data-design-theme] .entry-choice.primary-choice :is(strong,small) {
+  color:var(--sg-button-ink,#fff) !important;
+}

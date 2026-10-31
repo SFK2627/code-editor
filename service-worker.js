@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ict8-connect-v672-student-login-theme-coverage';
+const CACHE_NAME = 'ict8-connect-v676-welcome-student-theme-choice';
 const APP_SHELL = [
   './',
   './index.html',

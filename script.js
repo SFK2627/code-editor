@@ -251,6 +251,13 @@ const loginReminderWarningEyebrowInput = document.getElementById('loginReminderW
 const loginReminderWarningTitleInput = document.getElementById('loginReminderWarningTitleInput');
 const loginReminderMissingListTitleInput = document.getElementById('loginReminderMissingListTitleInput');
 const loginThemeApplyToLoginToggle = document.getElementById('loginThemeApplyToLoginToggle');
+const loginThemeApplyToAppToggle = document.getElementById('loginThemeApplyToAppToggle');
+const loginThemeAllowStudentChoiceToggle = document.getElementById('loginThemeAllowStudentChoiceToggle');
+const loginThemeAppAppearanceSelect = document.getElementById('loginThemeAppAppearanceSelect');
+const loginThemeAppSample = document.getElementById('loginThemeAppSample');
+const previewStudentAppThemeBtn = document.getElementById('previewStudentAppThemeBtn');
+const studentAppThemePreviewOverlay = document.getElementById('studentAppThemePreviewOverlay');
+const closeStudentAppThemePreviewBtn = document.getElementById('closeStudentAppThemePreviewBtn');
 const loginThemeLoginAppearanceSelect = document.getElementById('loginThemeLoginAppearanceSelect');
 const loginThemeModalAppearanceSelect = document.getElementById('loginThemeModalAppearanceSelect');
 const loginThemePageSample = document.getElementById('loginThemePageSample');
@@ -917,6 +924,7 @@ const STORAGE_KEYS = {
   legacyCode: 'studentCodeStudio.codeStore.v2',
   legacyActivity: 'studentCodeStudio.activity.v2',
   theme: 'studentCodeStudio.theme',
+  themedStudentAppearance: 'studentCodeStudio.themedStudentAppearance.v1',
   layout: 'studentCodeStudio.previewLayout',
   autoRun: 'studentCodeStudio.autoRun.v1',
   editorZoom: 'studentCodeStudio.editorZoom.v1',
@@ -1058,8 +1066,11 @@ const DEFAULT_LOGIN_REMINDER_SETTINGS = Object.freeze({
   musicVolume: 55,
   theme: 'classic',
   applyThemeToLoginPage: false,
+  applyThemeToEntireApp: false,
+  allowStudentAppAppearanceChoice: false,
   loginAppearance: 'auto',
   modalAppearance: 'auto',
+  appAppearance: 'auto',
   animation: 'subtle',
   positiveEyebrow: 'Great Work',
   positiveTitle: 'You’re All Caught Up!',
@@ -1165,8 +1176,11 @@ function normalizeLoginReminderSettings(value = {}) {
     musicVolume: Number.isFinite(rawVolume) ? Math.max(0, Math.min(100, Math.round(rawVolume))) : DEFAULT_LOGIN_REMINDER_SETTINGS.musicVolume,
     theme,
     applyThemeToLoginPage: source.applyThemeToLoginPage === true,
+    applyThemeToEntireApp: source.applyThemeToEntireApp === true,
+    allowStudentAppAppearanceChoice: source.allowStudentAppAppearanceChoice === true,
     loginAppearance: LOGIN_THEME_APPEARANCES.includes(source.loginAppearance) ? source.loginAppearance : 'auto',
     modalAppearance: LOGIN_THEME_APPEARANCES.includes(source.modalAppearance) ? source.modalAppearance : 'auto',
+    appAppearance: LOGIN_THEME_APPEARANCES.includes(source.appAppearance) ? source.appAppearance : 'auto',
     animation,
     positiveEyebrow: cleanText(source.positiveEyebrow, DEFAULT_LOGIN_REMINDER_SETTINGS.positiveEyebrow, 80),
     positiveTitle: cleanText(source.positiveTitle, DEFAULT_LOGIN_REMINDER_SETTINGS.positiveTitle, 120),
@@ -1262,8 +1276,11 @@ function getLoginReminderSettingsFromControls() {
     musicVolume: loginReminderMusicVolumeInput?.value,
     theme: loginReminderThemeSelect?.value,
     applyThemeToLoginPage: loginThemeApplyToLoginToggle?.checked === true,
+    applyThemeToEntireApp: loginThemeApplyToAppToggle?.checked === true,
+    allowStudentAppAppearanceChoice: loginThemeAllowStudentChoiceToggle?.checked === true,
     loginAppearance: loginThemeLoginAppearanceSelect?.value || 'auto',
     modalAppearance: loginThemeModalAppearanceSelect?.value || 'auto',
+    appAppearance: loginThemeAppAppearanceSelect?.value || 'auto',
     animation: loginReminderAnimationSelect?.value,
     positiveEyebrow: loginReminderPositiveEyebrowInput?.value,
     positiveTitle: loginReminderPositiveTitleInput?.value,
@@ -1300,6 +1317,59 @@ function resolveStudentLoginAppearance(preference = 'auto') {
     : (window.matchMedia?.('(prefers-color-scheme: dark)')?.matches ? 'dark' : 'light');
 }
 
+// v676: One student-owned appearance preference can be used on the welcome page,
+// login form, modal and themed app, independently of the Login/App coverage toggles.
+// The Admin Light/Dark/Auto setting is the initial value and remains mandatory
+// whenever student choice is disabled. No student setting is written to Firebase.
+function resolveStudentSurfaceAppearance(preference = 'auto', settings = loginReminderSettings) {
+  const safe = normalizeLoginReminderSettings(settings);
+  if (safe.allowStudentAppAppearanceChoice) {
+    const chosen = loadJSON(STORAGE_KEYS.themedStudentAppearance, null);
+    if (chosen === 'dark' || chosen === 'light') return chosen;
+  }
+  return resolveStudentLoginAppearance(preference);
+}
+
+function resolveEntireStudentAppAppearance(settings) {
+  const safe = normalizeLoginReminderSettings(settings);
+  return resolveStudentSurfaceAppearance(safe.appAppearance, safe);
+}
+
+function canStudentSwitchAppAppearance(settings = loginReminderSettings) {
+  return normalizeLoginReminderSettings(settings).allowStudentAppAppearanceChoice;
+}
+
+function syncEntryAppearanceSwitches(appearance, allowed) {
+  const isDark = appearance === 'dark';
+  if (entryThemeToggle) {
+    entryThemeToggle.classList.toggle('is-dark', isDark);
+    entryThemeToggle.setAttribute('aria-pressed', String(isDark));
+    entryThemeToggle.setAttribute('aria-label', isDark ? 'Switch to light mode' : 'Switch to dark mode');
+  }
+  if (entryThemeLabel) entryThemeLabel.textContent = isDark ? 'Light Mode' : 'Dark Mode';
+  const formToggle = document.getElementById('studentLoginThemeToggle');
+  if (formToggle) {
+    formToggle.classList.toggle('hidden', !allowed);
+    formToggle.setAttribute('aria-hidden', String(!allowed));
+    formToggle.setAttribute('aria-pressed', String(isDark));
+    formToggle.textContent = isDark ? '☀ Light Mode' : '☾ Dark Mode';
+    formToggle.setAttribute('aria-label', isDark ? 'Switch to light mode' : 'Switch to dark mode');
+  }
+}
+
+function toggleStudentLoginAppearance() {
+  const current = resolveStudentSurfaceAppearance(loginReminderSettings.loginAppearance, loginReminderSettings);
+  const next = current === 'dark' ? 'light' : 'dark';
+  // The legacy original-mode toggle remains supported when no theme coverage
+  // is active, but a published, locked custom login theme must never be bypassed.
+  if (loginReminderSettings.applyThemeToLoginPage && !loginReminderSettings.allowStudentAppAppearanceChoice) return;
+  if (loginReminderSettings.allowStudentAppAppearanceChoice) {
+    saveJSON(STORAGE_KEYS.themedStudentAppearance, next);
+  }
+  applyTheme(next);
+  applyPublishedStudentLoginTheme(loginReminderSettings);
+}
+
 function renderStudentLoginThemePreviews(value = loginReminderSettings) {
   const settings = normalizeLoginReminderSettings(value);
   if (loginThemePageSample) {
@@ -1310,29 +1380,70 @@ function renderStudentLoginThemePreviews(value = loginReminderSettings) {
     loginThemeModalSample.dataset.designTheme = settings.theme;
     loginThemeModalSample.dataset.appearance = resolveStudentLoginAppearance(settings.modalAppearance);
   }
+  if (loginThemeAppSample) {
+    loginThemeAppSample.dataset.designTheme = settings.applyThemeToEntireApp ? settings.theme : 'original';
+    loginThemeAppSample.dataset.appearance = resolveEntireStudentAppAppearance(settings);
+  }
   const loginTitle = document.getElementById('loginThemePagePreviewTitle');
   const modalTitle = document.getElementById('loginThemeModalPreviewTitle');
+  const appTitle = document.getElementById('loginThemeAppPreviewTitle');
   if (loginTitle) loginTitle.textContent = settings.applyThemeToLoginPage
     ? `${LOGIN_REMINDER_THEME_LABELS[settings.theme] || 'Classic'} · ${resolveStudentLoginAppearance(settings.loginAppearance)}`
     : 'Original / Unchanged';
   if (modalTitle) modalTitle.textContent = `${LOGIN_REMINDER_THEME_LABELS[settings.theme] || 'Classic'} · ${resolveStudentLoginAppearance(settings.modalAppearance)}`;
+  if (appTitle) appTitle.textContent = settings.applyThemeToEntireApp
+    ? `${LOGIN_REMINDER_THEME_LABELS[settings.theme] || 'Classic'} · ${resolveEntireStudentAppAppearance(settings)}${settings.allowStudentAppAppearanceChoice ? ' · Student choice' : ' · Admin locked'}`
+    : 'Original / Unchanged';
 }
 
 function applyPublishedStudentLoginTheme(value = loginReminderSettings) {
   const settings = normalizeLoginReminderSettings(value);
+  // Theme the student experience only. Admin panels, project iframe output,
+  // grading semantics and teacher-only data remain outside this visual scope.
+  if (settings.applyThemeToEntireApp) {
+    document.body.dataset.studentAppTheme = settings.theme;
+    document.body.dataset.studentAppAppearance = resolveEntireStudentAppAppearance(settings);
+    document.body.dataset.studentAppChoice = settings.allowStudentAppAppearanceChoice ? 'enabled' : 'locked';
+  } else {
+    delete document.body.dataset.studentAppTheme;
+    delete document.body.dataset.studentAppAppearance;
+    delete document.body.dataset.studentAppChoice;
+  }
+  // Student theme controls are available only if permitted by the teacher.
+  // When the whole-app design is disabled, retain the original app toggles.
+  const lockStudentSwitches = settings.applyThemeToEntireApp && !settings.allowStudentAppAppearanceChoice;
+  ['dashboardThemeBtn', 'themeToggle', 'lessonLibraryThemeBtn', 'givenActivitiesThemeBtn',
+   'codeExplorerQuickThemeToggle', 'codeExplorerDesktopThemeToggle'].forEach(id => {
+    const button = document.getElementById(id);
+    if (button) {
+      button.classList.toggle('hidden', lockStudentSwitches);
+      button.setAttribute('aria-hidden', String(lockStudentSwitches));
+    }
+  });
   const theme = settings.applyThemeToLoginPage ? settings.theme : '';
-  const appearance = resolveStudentLoginAppearance(settings.loginAppearance);
+  const appearance = resolveStudentSurfaceAppearance(settings.loginAppearance, settings);
+  const allowChoice = settings.allowStudentAppAppearanceChoice;
+  document.body.dataset.loginAppearanceChoice = allowChoice ? 'enabled' : 'locked';
   [document.getElementById('entryGate'), document.getElementById('studentLoginOverlay')].forEach(element => {
     if (!element) return;
     if (theme) { element.dataset.designTheme = theme; element.dataset.appearance = appearance; }
     else { delete element.dataset.designTheme; delete element.dataset.appearance; }
   });
-  if (entryThemeToggle) {
-    entryThemeToggle.classList.toggle('hidden', Boolean(theme));
-    entryThemeToggle.setAttribute('aria-hidden', String(Boolean(theme)));
+  // The entrance is shown BEFORE the student session starts: update the
+  // underlying original design as well as custom-theme CSS variables.
+  const gateVisible = document.getElementById('entryGate') && !document.getElementById('entryGate').classList.contains('hidden');
+  const loginVisible = document.getElementById('studentLoginOverlay') && !document.getElementById('studentLoginOverlay').classList.contains('hidden');
+  if (gateVisible || loginVisible) {
+    document.documentElement.dataset.theme = appearance;
   }
+  if (entryThemeToggle) {
+    const hideSwitch = !allowChoice;
+    entryThemeToggle.classList.toggle('hidden', hideSwitch);
+    entryThemeToggle.setAttribute('aria-hidden', String(hideSwitch));
+  }
+  syncEntryAppearanceSwitches(appearance, allowChoice);
   if (loginLackingReminderOverlay) {
-    loginLackingReminderOverlay.dataset.appearance = resolveStudentLoginAppearance(settings.modalAppearance);
+    loginLackingReminderOverlay.dataset.appearance = resolveStudentSurfaceAppearance(settings.modalAppearance, settings);
     if (!loginLackingReminderOverlay.classList.contains('hidden') && loginLackingReminderOverlay.dataset.preview !== 'true') {
       loginLackingReminderOverlay.dataset.theme = settings.theme;
       loginLackingReminderOverlay.dataset.animation = settings.animation;
@@ -1361,7 +1472,7 @@ window.matchMedia?.('(prefers-color-scheme: dark)')?.addEventListener?.('change'
   applyPublishedStudentLoginTheme(loginReminderSettings);
   renderStudentLoginThemePreviews(loginReminderSettings);
   if (loginLackingReminderOverlay && !loginLackingReminderOverlay.classList.contains('hidden')) {
-    loginLackingReminderOverlay.dataset.appearance = resolveStudentLoginAppearance(loginReminderSettings.modalAppearance);
+    loginLackingReminderOverlay.dataset.appearance = resolveStudentSurfaceAppearance(loginReminderSettings.modalAppearance, loginReminderSettings);
   }
 });
 
@@ -1431,8 +1542,16 @@ function syncLoginReminderSettingsControls() {
   if (loginReminderThemeSelect) loginReminderThemeSelect.value = settings.theme;
   if (loginReminderAnimationSelect) loginReminderAnimationSelect.value = settings.animation;
   if (loginThemeApplyToLoginToggle) loginThemeApplyToLoginToggle.checked = settings.applyThemeToLoginPage;
+  if (loginThemeApplyToAppToggle) loginThemeApplyToAppToggle.checked = settings.applyThemeToEntireApp;
+  if (loginThemeAllowStudentChoiceToggle) {
+    loginThemeAllowStudentChoiceToggle.checked = settings.allowStudentAppAppearanceChoice;
+    // Login Page and Entire App have independent theme coverage. The choice
+    // setting must also work when only the Login Page is themed.
+    loginThemeAllowStudentChoiceToggle.disabled = false;
+  }
   if (loginThemeLoginAppearanceSelect) { loginThemeLoginAppearanceSelect.value = settings.loginAppearance; loginThemeLoginAppearanceSelect.disabled = !settings.applyThemeToLoginPage; }
   if (loginThemeModalAppearanceSelect) loginThemeModalAppearanceSelect.value = settings.modalAppearance;
+  if (loginThemeAppAppearanceSelect) { loginThemeAppAppearanceSelect.value = settings.appAppearance; loginThemeAppAppearanceSelect.disabled = !settings.applyThemeToEntireApp; }
   syncLoginReminderThemeSample(settings);
   renderStudentLoginThemePreviews(settings);
   // Preserve caret/selection while typing. These fields are normalized for
@@ -8240,6 +8359,9 @@ function updateAppHeaderForSession({ forceTypewriter = false } = {}) {
 
   document.body.classList.toggle('student-session-active', isStudent);
   document.body.classList.toggle('guest-session-active', isGuest);
+  if (isStudent || isGuest) {
+    applyPublishedStudentLoginTheme(loginReminderSettings);
+  }
   studentAccountStrip?.classList.toggle('hidden', !isStudent);
   guestAccountStrip?.classList.toggle('hidden', !isGuest);
   studentMenuBtn?.classList.toggle('hidden', !isStudent);
@@ -18858,7 +18980,17 @@ function updateTagMatching() {
 
 function applyTheme(theme) {
   const safeTheme = theme === 'dark' ? 'dark' : 'light';
+  const isStudentView = document.body.classList.contains('student-session-active') || document.body.classList.contains('guest-session-active');
+  if (isStudentView && loginReminderSettings?.applyThemeToEntireApp && !loginReminderSettings.allowStudentAppAppearanceChoice) {
+    // A forced Admin theme cannot be overridden through another screen's toggle.
+    document.body.dataset.studentAppAppearance = resolveStudentLoginAppearance(loginReminderSettings.appAppearance);
+    return;
+  }
   document.documentElement.dataset.theme = safeTheme;
+  if (isStudentView && canStudentSwitchAppAppearance()) {
+    saveJSON(STORAGE_KEYS.themedStudentAppearance, safeTheme);
+    document.body.dataset.studentAppAppearance = safeTheme;
+  }
   if (themeToggle) themeToggle.textContent = safeTheme === 'dark' ? '☀️ Light' : '🌙 Dark';
   if (entryThemeToggle) {
     entryThemeToggle.classList.toggle('is-dark', safeTheme === 'dark');
@@ -18885,6 +19017,11 @@ function applyTheme(theme) {
     if (status) status.textContent = isDark ? 'Dark' : 'Light';
   }
   saveJSON(STORAGE_KEYS.theme, safeTheme);
+  if (canStudentSwitchAppAppearance()) {
+    // Repaint the selected design without resetting forms, project state,
+    // Firebase listeners or the active screen.
+    applyPublishedStudentLoginTheme(loginReminderSettings);
+  }
 }
 
 
@@ -33240,10 +33377,8 @@ themeToggle?.addEventListener('click', () => {
   applyTheme(currentTheme === 'dark' ? 'light' : 'dark');
 });
 
-entryThemeToggle?.addEventListener('click', () => {
-  const currentTheme = document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light';
-  applyTheme(currentTheme === 'dark' ? 'light' : 'dark');
-});
+entryThemeToggle?.addEventListener('click', toggleStudentLoginAppearance);
+document.getElementById('studentLoginThemeToggle')?.addEventListener('click', toggleStudentLoginAppearance);
 
 resetBtn.addEventListener('click', async () => {
   const resetLabel = activity ? `"${activity.title}"` : 'the editor';
@@ -33336,8 +33471,8 @@ loginReminderMusicPlaylistText?.addEventListener('input', () => {
 loginReminderMusicTestBtn?.addEventListener('click', toggleLoginReminderAdminPreview);
 loginReminderMusicPrevBtn?.addEventListener('click', () => playLoginReminderAdminPreview({ move: -1 }).catch(() => {}));
 loginReminderMusicNextBtn?.addEventListener('click', () => playLoginReminderAdminPreview({ move: 1 }).catch(() => {}));
-[loginReminderThemeSelect, loginReminderAnimationSelect, loginThemeApplyToLoginToggle,
-  loginThemeLoginAppearanceSelect, loginThemeModalAppearanceSelect].forEach(control => {
+[loginReminderThemeSelect, loginReminderAnimationSelect, loginThemeApplyToLoginToggle, loginThemeApplyToAppToggle, loginThemeAllowStudentChoiceToggle,
+  loginThemeLoginAppearanceSelect, loginThemeModalAppearanceSelect, loginThemeAppAppearanceSelect].forEach(control => {
   control?.addEventListener('change', () => {
     const settings = persistLoginReminderSettings(getLoginReminderSettingsFromControls());
     syncLoginReminderThemeSample(settings);
@@ -33351,6 +33486,24 @@ previewLoginThemePageBtn?.addEventListener('click', () => {
   loginThemePreviewOverlay.dataset.designTheme = settings.applyThemeToLoginPage ? settings.theme : 'original';
   loginThemePreviewOverlay.dataset.appearance = resolveStudentLoginAppearance(settings.loginAppearance);
 });
+function openStudentAppThemePreview() {
+  if (!studentAppThemePreviewOverlay) return;
+  const settings = getLoginReminderSettingsFromControls();
+  studentAppThemePreviewOverlay.classList.remove('hidden');
+  studentAppThemePreviewOverlay.dataset.studentAppTheme = settings.applyThemeToEntireApp ? settings.theme : 'original';
+  studentAppThemePreviewOverlay.dataset.studentAppAppearance = resolveEntireStudentAppAppearance(settings);
+  const name = document.getElementById('studentAppThemePreviewThemeName');
+  if (name) name.textContent = settings.applyThemeToEntireApp
+    ? `${LOGIN_REMINDER_THEME_LABELS[settings.theme] || 'Classic'} · ${resolveEntireStudentAppAppearance(settings)}${settings.allowStudentAppAppearanceChoice ? ' · Student choice' : ' · Admin locked'}`
+    : 'Original student app (toggle OFF)';
+}
+function closeStudentAppThemePreview() { studentAppThemePreviewOverlay?.classList.add('hidden'); }
+previewStudentAppThemeBtn?.addEventListener('click', openStudentAppThemePreview);
+closeStudentAppThemePreviewBtn?.addEventListener('click', closeStudentAppThemePreview);
+studentAppThemePreviewOverlay?.addEventListener('click', event => {
+  if (event.target === studentAppThemePreviewOverlay) closeStudentAppThemePreview();
+});
+document.addEventListener('keydown', event => { if (event.key === 'Escape') closeStudentAppThemePreview(); });
 function closeStudentLoginThemePreview() { loginThemePreviewOverlay?.classList.add('hidden'); }
 closeLoginThemePreviewBtn?.addEventListener('click', closeStudentLoginThemePreview);
 loginThemePreviewOverlay?.addEventListener('click', e => { if (e.target === loginThemePreviewOverlay) closeStudentLoginThemePreview(); });
