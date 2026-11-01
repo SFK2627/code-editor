@@ -1,0 +1,128 @@
+/* G8Code Editor Home navigation · November 2026
+   Isolated layer: no editor text, run/save logic or admin UI changes. */
+#guestHomeScreen {
+  --gh-page:#f3f6fc;--gh-card:#fff;--gh-text:#1b2c46;--gh-muted:#586b85;
+  --gh-border:#dbe5f3;--gh-accent:#2563d9;--gh-contrast:#fff;
+  position:fixed;inset:0;z-index:12000;overflow-y:auto;overscroll-behavior:contain;
+  background:var(--gh-page);color:var(--gh-text);font-family:inherit;
+  -webkit-overflow-scrolling:touch;
+}
+#guestHomeScreen.hidden {display:none!important;pointer-events:none!important}
+#guestHomeScreen *,#guestHomeScreen *::before,#guestHomeScreen *::after{box-sizing:border-box}
+body.guest-home-active{overflow:hidden!important}
+body.guest-home-active > .app-shell{display:none!important}
+html[data-theme="dark"] #guestHomeScreen,
+body[data-student-app-appearance="dark"] #guestHomeScreen{
+  --gh-page:#0c1729;--gh-card:#17263a;--gh-text:#edf5ff;--gh-muted:#b8cbe1;
+  --gh-border:#334b67;--gh-accent:#8ab6ff;--gh-contrast:#10213c;
+}
+body[data-student-app-theme]:not([data-student-app-theme="original"]) #guestHomeScreen{
+  --gh-page:var(--sat-bg,#f3f6fc);--gh-card:var(--sat-card,#fff);
+  --gh-text:var(--sat-text,#1b2c46);--gh-muted:var(--sat-muted,#586b85);
+  --gh-border:var(--sat-border,#dbe5f3);--gh-accent:var(--sat-primary,#2563d9);
+  --gh-contrast:var(--sat-action-text,#fff);
+}
+#guestHomeScreen .gh-layout{width:min(1120px,100%);margin:auto;padding:0 clamp(16px,3.5vw,40px) 36px}
+#guestHomeScreen .gh-topbar{min-height:76px;border-bottom:1px solid var(--gh-border);display:flex;align-items:center;justify-content:space-between;gap:14px}
+#guestHomeScreen .gh-brand{display:flex;align-items:center;gap:12px;min-width:0}
+#guestHomeScreen .gh-logo{height:42px;width:42px;display:grid;place-items:center;background:#193352;color:#ffd959;font-size:19px;font-weight:900;border-radius:13px;box-shadow:0 8px 18px rgba(17,37,73,.1)}
+#guestHomeScreen .gh-brand>span:last-child{display:flex;flex-direction:column;gap:2px}
+#guestHomeScreen .gh-brand small{color:var(--gh-accent);font-size:9px;letter-spacing:1.6px;font-weight:800}
+#guestHomeScreen .gh-brand strong{font-size:18px;letter-spacing:-.45px}
+#guestHomeScreen button{font:inherit;cursor:pointer;touch-action:manipulation}
+#guestHomeScreen button:focus-visible{outline:3px solid var(--gh-accent);outline-offset:3px}
+#guestHomeScreen .gh-header-action{background:var(--gh-card);color:var(--gh-text);border:1px solid var(--gh-border);border-radius:11px;padding:11px 14px;font-size:12px;font-weight:750;white-space:nowrap;transition:transform .18s ease,box-shadow .18s ease}
+#guestHomeScreen .gh-main{padding-top:19px}
+#guestHomeScreen .gh-hero{background:linear-gradient(115deg,#142c4a 0%,#1c4073 74%,#2761ae 100%);color:#fff;border-radius:20px;padding:clamp(22px,4vw,32px);display:flex;align-items:center;justify-content:space-between;gap:22px;box-shadow:0 14px 34px rgba(14,43,87,.14);overflow:hidden;position:relative;isolation:isolate}
+#guestHomeScreen .gh-hero::after{content:"";position:absolute;inset:0;z-index:-1;background:radial-gradient(circle at 92% 13%,rgba(255,216,92,.13),transparent 34%);pointer-events:none}
+#guestHomeScreen .gh-eyebrow{color:#b8d5f8;letter-spacing:1.65px;font-size:10px;font-weight:900}
+#guestHomeScreen .gh-hero h1{font-size:clamp(22px,3vw,30px);font-weight:860;line-height:1.18;letter-spacing:-.7px;margin:9px 0 8px;color:#fff}
+#guestHomeScreen .gh-hero p{color:#e1eaf7;font-size:13px;line-height:1.65;max-width:520px;margin:0}
+#guestHomeScreen .gh-hero-actions{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:18px}
+#guestHomeScreen .gh-primary,#guestHomeScreen .gh-outline{border-radius:11px;padding:10px 15px;min-height:40px;font-size:12px;font-weight:800;transition:transform .18s ease,box-shadow .18s ease}
+#guestHomeScreen .gh-primary{background:#ffdb65;border:1px solid #ffdb65;color:#17243a}
+#guestHomeScreen .gh-outline{background:rgba(255,255,255,.13);border:1px solid rgba(255,255,255,.34);color:#fff}
+#guestHomeScreen .gh-hero-icon{width:85px;height:85px;flex:0 0 85px;background:linear-gradient(135deg,#ffc945,#ffe993);color:#14304e;font-weight:900;font-size:29px;display:grid;place-items:center;transform:rotate(-9deg);border-radius:20px;box-shadow:0 12px 24px rgba(0,0,0,.16);animation:gh-float 5s ease-in-out infinite}
+#guestHomeScreen .gh-heading{margin:24px 0 12px}
+#guestHomeScreen .gh-heading span{font-size:10px;font-weight:850;letter-spacing:1.55px;color:var(--gh-accent)}
+#guestHomeScreen .gh-heading h2{color:var(--gh-text);font-size:20px;letter-spacing:-.6px;margin:5px 0}
+#guestHomeScreen .gh-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px}
+#guestHomeScreen .gh-feature{position:relative;text-align:left;min-width:0;min-height:131px;border:1px solid var(--gh-border);border-radius:16px;background:var(--gh-card);color:var(--gh-text);display:flex;flex-direction:column;align-items:flex-start;gap:6px;padding:17px 44px 17px 18px;box-shadow:0 8px 26px rgba(18,44,80,.055);transition:transform .19s ease,box-shadow .19s ease,border-color .19s ease}
+#guestHomeScreen .gh-feature-icon{font-size:22px;line-height:1.25}
+#guestHomeScreen .gh-feature strong{color:var(--gh-text);font-size:15px;font-weight:850}
+#guestHomeScreen .gh-feature small{font-size:12px;line-height:1.48;color:var(--gh-muted)}
+#guestHomeScreen .gh-arrow{position:absolute;top:22px;right:20px;font-weight:850;font-size:18px;color:var(--gh-accent)}
+#guestHomeScreen .gh-privacy{border-top:1px solid var(--gh-border);margin:22px 0 0;padding:14px 0;color:var(--gh-muted);font-size:11px}
+#guestHomeScreen:not(.hidden) .gh-hero{animation:gh-appear .36s cubic-bezier(.2,.8,.2,1) both}
+#guestHomeScreen:not(.hidden) .gh-feature{animation:gh-appear .34s ease both}
+#guestHomeScreen:not(.hidden) .gh-feature:nth-child(2){animation-delay:.045s}
+#guestHomeScreen:not(.hidden) .gh-feature:nth-child(3){animation-delay:.09s}
+#guestHomeScreen:not(.hidden) .gh-feature:nth-child(4){animation-delay:.135s}
+#guestHomeScreen .gh-feature:hover,#guestHomeScreen .gh-header-action:hover{transform:translateY(-2px);box-shadow:0 12px 26px rgba(18,44,80,.1)}
+#guestHomeScreen :is(.gh-primary,.gh-outline):hover{transform:translateY(-1px)}
+#guestHomeScreen button:active{transform:scale(.985)}
+@keyframes gh-appear{from{opacity:0;transform:translateY(9px)}to{opacity:1;transform:translateY(0)}}
+@keyframes gh-float{50%{transform:translateY(-5px) rotate(-7deg)}}
+
+/* Persistent navigation on logged-in and guest code editors. */
+#editorQuickHomeBtn,#editorMobileHomeBtn,#editorFullscreenHomeBtn{
+  border-radius:11px;border:1px solid rgba(117,150,200,.26);font-weight:800;
+  background:linear-gradient(135deg,#ffdc63,#ffcb43);color:#13243a;
+  box-shadow:0 4px 13px rgba(23,42,66,.1);transition:transform .18s ease,box-shadow .18s ease;
+  cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;
+}
+#editorQuickHomeBtn:hover,#editorMobileHomeBtn:hover,#editorFullscreenHomeBtn:hover{transform:translateY(-2px);box-shadow:0 8px 18px rgba(23,42,66,.18)}
+#editorQuickHomeBtn:active,#editorMobileHomeBtn:active,#editorFullscreenHomeBtn:active{transform:scale(.96)}
+#editorQuickHomeBtn:focus-visible,#editorMobileHomeBtn:focus-visible,#editorFullscreenHomeBtn:focus-visible{outline:3px solid #5089ff;outline-offset:2px}
+#editorQuickHomeBtn{display:inline-flex;align-items:center;gap:7px;white-space:nowrap;min-height:37px;padding:8px 12px;font-size:12px}
+#editorQuickHomeBtn > span:first-child{font-size:21px;line-height:12px}
+#editorQuickHomeBtn.hidden,#editorMobileHomeBtn.hidden,#editorFullscreenHomeBtn.hidden{display:none!important}
+#editorMobileHomeBtn{display:none!important}
+#editorFullscreenHomeBtn{display:none!important}
+body.editor-fullscreen-active:not(.student-home-active):not(.guest-home-active) #editorFullscreenHomeBtn{display:inline-flex!important;align-items:center;justify-content:center;gap:5px;min-height:37px;padding:8px 12px;font-size:13px;position:fixed;top:calc(10px + env(safe-area-inset-top,0px));right:clamp(115px,14vw,165px);z-index:2141}
+body.editor-fullscreen-active #editorQuickHomeBtn{display:none!important}
+body:not(.student-session-active):not(.guest-session-active) #editorQuickHomeBtn,body:not(.student-session-active):not(.guest-session-active) #editorMobileHomeBtn{display:none!important}
+body:is(.student-home-active,.guest-home-active,.entry-gate-active,.lesson-viewer-active,.given-activities-active,.student-dashboard-active,.student-auth-open) #editorQuickHomeBtn,
+body:is(.student-home-active,.guest-home-active,.entry-gate-active,.lesson-viewer-active,.given-activities-active,.student-dashboard-active,.student-auth-open) #editorMobileHomeBtn{display:none!important}
+body[data-student-app-theme]:not([data-student-app-theme="original"]) #editorQuickHomeBtn,
+body[data-student-app-theme]:not([data-student-app-theme="original"]) #editorMobileHomeBtn,
+body[data-student-app-theme]:not([data-student-app-theme="original"]) #editorFullscreenHomeBtn{
+  background:var(--sat-action,#ffd85b)!important;color:var(--sat-action-text,#17253c)!important;
+  border-color:var(--sat-border,#bccce2)!important;border-radius:var(--sat-radius,11px)!important;
+}
+@media (max-width:1140px) and (min-width:821px){#editorQuickHomeBtn{padding:7px 9px;font-size:11px}#editorQuickHomeBtn>span:first-child{font-size:17px}}
+@media (max-width:820px){
+  #editorQuickHomeBtn{display:none!important}
+  body.mobile-editor-menu-v416 .topbar .brand-block{padding-right:46px!important}
+  body:is(.guest-session-active,.student-session-active):not(.editor-fullscreen-active):not(.guest-home-active):not(.student-home-active):not(.student-dashboard-active):not(.entry-gate-active):not(.student-auth-open):not(.lesson-viewer-active):not(.given-activities-active) #editorMobileHomeBtn:not(.hidden){
+    display:grid!important;place-items:center;position:absolute;top:calc(12px + env(safe-area-inset-top,0px));right:65px;width:41px;height:41px;z-index:13;
+  }
+  #editorMobileHomeBtn>span{font-size:29px;line-height:1}
+  body.editor-fullscreen-active #editorFullscreenHomeBtn{top:calc(8px + env(safe-area-inset-top,0px));right:100px;font-size:12px;min-height:37px;padding:7px 10px}
+  #guestHomeScreen .gh-layout{padding:0 15px 26px}
+  #guestHomeScreen .gh-topbar{min-height:70px}
+  #guestHomeScreen .gh-brand strong{font-size:16px}
+  #guestHomeScreen .gh-main{padding-top:14px}
+  #guestHomeScreen .gh-hero{padding:21px;border-radius:18px}
+  #guestHomeScreen .gh-hero-icon{width:54px;height:54px;flex-basis:54px;font-size:20px;border-radius:15px}
+  #guestHomeScreen .gh-hero h1{font-size:23px}
+  #guestHomeScreen .gh-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  #guestHomeScreen .gh-feature{min-height:134px;padding:14px 30px 14px 14px}
+}
+@media(max-width:560px){
+  #guestHomeScreen .gh-logo{width:39px;height:39px;font-size:16px}
+  #guestHomeScreen .gh-header-action{padding:9px 10px;font-size:11px}
+  #guestHomeScreen .gh-hero{gap:9px;min-height:0}
+  #guestHomeScreen .gh-hero-icon{display:none}
+  #guestHomeScreen .gh-hero p{font-size:12px}
+  #guestHomeScreen .gh-hero-actions{gap:8px}
+  #guestHomeScreen .gh-primary,#guestHomeScreen .gh-outline{padding:9px 12px;font-size:11px}
+  #guestHomeScreen .gh-heading{margin:20px 0 10px}
+  #guestHomeScreen .gh-heading h2{font-size:18px}
+  #guestHomeScreen .gh-grid{grid-template-columns:1fr}
+  #guestHomeScreen .gh-feature{min-height:89px;padding:12px 40px 12px 14px;gap:3px}
+  #guestHomeScreen .gh-feature-icon{font-size:19px}
+  #guestHomeScreen .gh-feature strong{font-size:13px}
+  #guestHomeScreen .gh-feature small{font-size:11px}
+}
+@media(prefers-reduced-motion:reduce){#guestHomeScreen :is(.gh-hero,.gh-feature,.gh-hero-icon){animation:none!important}#guestHomeScreen button,#editorQuickHomeBtn,#editorMobileHomeBtn,#editorFullscreenHomeBtn{transition:none!important}}

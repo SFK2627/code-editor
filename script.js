@@ -342,6 +342,8 @@ const changePasswordError = document.getElementById('changePasswordError');
 const saveNewPasswordBtn = document.getElementById('saveNewPasswordBtn');
 const changePasswordLogoutBtn = document.getElementById('changePasswordLogoutBtn');
 const studentDashboard = document.getElementById('studentDashboard');
+const studentHomeScreen = document.getElementById('studentHomeScreen');
+let studentHomeExplorerReturn = false;
 const dashboardGreeting = document.getElementById('dashboardGreeting');
 const dashboardThemeBtn = document.getElementById('dashboardThemeBtn');
 const dashboardSubjectStatusBtn = document.getElementById('dashboardSubjectStatusBtn');
@@ -1323,8 +1325,12 @@ function resolveStudentLoginAppearance(preference = 'auto') {
 // whenever student choice is disabled. No student setting is written to Firebase.
 function resolveStudentSurfaceAppearance(preference = 'auto', settings = loginReminderSettings) {
   const safe = normalizeLoginReminderSettings(settings);
-  if (safe.allowStudentAppAppearanceChoice) {
-    const chosen = loadJSON(STORAGE_KEYS.themedStudentAppearance, null);
+  // Original/unpublished design remains student-switchable. Once a teacher
+  // publishes a locked login/app theme, that teacher setting takes precedence.
+  const openOriginalTheme = !safe.applyThemeToLoginPage && !safe.applyThemeToEntireApp;
+  if (safe.allowStudentAppAppearanceChoice || openOriginalTheme) {
+    const chosen = loadJSON(STORAGE_KEYS.themedStudentAppearance, null)
+      || (openOriginalTheme ? loadJSON(STORAGE_KEYS.theme, null) : null);
     if (chosen === 'dark' || chosen === 'light') return chosen;
   }
   return resolveStudentLoginAppearance(preference);
@@ -1343,18 +1349,12 @@ function syncEntryAppearanceSwitches(appearance, allowed) {
   const isDark = appearance === 'dark';
   if (entryThemeToggle) {
     entryThemeToggle.classList.toggle('is-dark', isDark);
-    entryThemeToggle.setAttribute('aria-pressed', String(isDark));
-    entryThemeToggle.setAttribute('aria-label', isDark ? 'Switch to light mode' : 'Switch to dark mode');
+    const pullHandle = document.getElementById('entryPullHandle');
+    if (pullHandle) pullHandle.setAttribute('aria-label',
+      `Drag the cord downward to switch to ${isDark ? 'light' : 'dark'} mode; press Down Arrow to pull`);
   }
-  if (entryThemeLabel) entryThemeLabel.textContent = isDark ? 'Light Mode' : 'Dark Mode';
-  const formToggle = document.getElementById('studentLoginThemeToggle');
-  if (formToggle) {
-    formToggle.classList.toggle('hidden', !allowed);
-    formToggle.setAttribute('aria-hidden', String(!allowed));
-    formToggle.setAttribute('aria-pressed', String(isDark));
-    formToggle.textContent = isDark ? '☀ Light Mode' : '☾ Dark Mode';
-    formToggle.setAttribute('aria-label', isDark ? 'Switch to light mode' : 'Switch to dark mode');
-  }
+  if (entryThemeLabel) entryThemeLabel.textContent = isDark ? 'Dark Mode' : 'Light Mode';
+
 }
 
 function toggleStudentLoginAppearance() {
@@ -1362,10 +1362,10 @@ function toggleStudentLoginAppearance() {
   const next = current === 'dark' ? 'light' : 'dark';
   // The legacy original-mode toggle remains supported when no theme coverage
   // is active, but a published, locked custom login theme must never be bypassed.
-  if (loginReminderSettings.applyThemeToLoginPage && !loginReminderSettings.allowStudentAppAppearanceChoice) return;
-  if (loginReminderSettings.allowStudentAppAppearanceChoice) {
-    saveJSON(STORAGE_KEYS.themedStudentAppearance, next);
-  }
+  const openOriginalTheme = !loginReminderSettings.applyThemeToLoginPage
+    && !loginReminderSettings.applyThemeToEntireApp;
+  if (!openOriginalTheme && !loginReminderSettings.allowStudentAppAppearanceChoice) return;
+  saveJSON(STORAGE_KEYS.themedStudentAppearance, next);
   applyTheme(next);
   applyPublishedStudentLoginTheme(loginReminderSettings);
 }
@@ -1413,7 +1413,7 @@ function applyPublishedStudentLoginTheme(value = loginReminderSettings) {
   // When the whole-app design is disabled, retain the original app toggles.
   const lockStudentSwitches = settings.applyThemeToEntireApp && !settings.allowStudentAppAppearanceChoice;
   ['dashboardThemeBtn', 'themeToggle', 'lessonLibraryThemeBtn', 'givenActivitiesThemeBtn',
-   'codeExplorerQuickThemeToggle', 'codeExplorerDesktopThemeToggle'].forEach(id => {
+   'codeExplorerQuickThemeToggle', 'codeExplorerDesktopThemeToggle', 'studentHomeThemeBtn'].forEach(id => {
     const button = document.getElementById(id);
     if (button) {
       button.classList.toggle('hidden', lockStudentSwitches);
@@ -1422,7 +1422,8 @@ function applyPublishedStudentLoginTheme(value = loginReminderSettings) {
   });
   const theme = settings.applyThemeToLoginPage ? settings.theme : '';
   const appearance = resolveStudentSurfaceAppearance(settings.loginAppearance, settings);
-  const allowChoice = settings.allowStudentAppAppearanceChoice;
+  const allowChoice = settings.allowStudentAppAppearanceChoice
+    || (!settings.applyThemeToLoginPage && !settings.applyThemeToEntireApp);
   document.body.dataset.loginAppearanceChoice = allowChoice ? 'enabled' : 'locked';
   [document.getElementById('entryGate'), document.getElementById('studentLoginOverlay')].forEach(element => {
     if (!element) return;
@@ -2285,8 +2286,8 @@ if (loginLackingReminderOverlay && typeof MutationObserver !== 'undefined') {
 }
 window.addEventListener('pagehide', () => stopLoginReminderMusic({ invalidateSession: true }));
 
-async function navigateFromLoginLackingReminder(destination = 'projects') {
-  const target = String(destination || 'projects').toLowerCase();
+async function navigateFromLoginLackingReminder(destination = 'home') {
+  const target = String(destination || 'home').toLowerCase();
   const isPreview = loginLackingReminderOverlay?.dataset.preview === 'true';
   closeLoginLackingReminder();
 
@@ -2296,37 +2297,37 @@ async function navigateFromLoginLackingReminder(destination = 'projects') {
 
   try {
     if (target === 'status') {
-      if (studentDashboard?.classList.contains('hidden') || !document.body.classList.contains('student-dashboard-active')) {
-        await showStudentDashboard({ suppressStatusReminder: true });
+      if (!document.body.classList.contains('student-home-active') && studentDashboard?.classList.contains('hidden')) {
+        await showStudentHome({ suppressStatusReminder: true });
       }
       openStudentComplianceModal();
       return;
     }
     if (target === 'lessons') {
-      await openLessonLibrary('dashboard');
+      await openLessonLibrary('home');
       return;
     }
     if (target === 'activities') {
-      await openGivenActivitiesLibrary('dashboard');
+      await openGivenActivitiesLibrary('home');
       return;
     }
     if (target === 'explorer') {
       if (typeof window.openCodeExplorer === 'function') {
         await window.openCodeExplorer();
       } else {
-        await showStudentDashboard({ suppressStatusReminder: true });
+        await showStudentHome({ suppressStatusReminder: true });
       }
       return;
     }
-
-    // X, Escape, and My Projects all resolve to the dashboard without
-    // reopening the automatic status reminder.
-    if (studentDashboard?.classList.contains('hidden') || !document.body.classList.contains('student-dashboard-active')) {
+    if (target === 'projects') {
       await showStudentDashboard({ suppressStatusReminder: true });
+      return;
     }
+    // X, Escape and the primary action all land on Student Home.
+    await showStudentHome({ suppressStatusReminder: true });
   } catch (error) {
     console.warn('Could not open the selected student destination.', error);
-    await showStudentDashboard({ suppressStatusReminder: true });
+    await showStudentHome({ suppressStatusReminder: true });
   }
 }
 
@@ -2527,7 +2528,9 @@ function renderLoginLackingReminder(record = null, options = {}) {
 
   loginLackingReminderOverlay.dataset.state = state;
   loginLackingReminderOverlay.dataset.theme = settings.theme;
-  loginLackingReminderOverlay.dataset.appearance = resolveStudentLoginAppearance(settings.modalAppearance);
+  loginLackingReminderOverlay.dataset.appearance = isPreview
+    ? resolveStudentLoginAppearance(settings.modalAppearance)
+    : resolveStudentSurfaceAppearance(settings.modalAppearance, settings);
   loginLackingReminderOverlay.dataset.animation = settings.animation;
   loginLackingReminderOverlay.dataset.preview = isPreview ? 'true' : 'false';
   // Always start with the legend collapsed for a compact student popup.
@@ -2648,7 +2651,7 @@ async function getLoginReminderComplianceRecord() {
 }
 
 async function showLoginLackingReminderAfterLogin() {
-  // Step 272: this reminder is now a My Projects reminder, not login-only.
+  // Student status reminder is displayed on the Student Home after login.
   // The old pending flag is still cleared for compatibility with the login flow,
   // but it no longer prevents the reminder from appearing when students return
   // to My Projects from the editor, Lesson Viewer, or another student screen.
@@ -8359,6 +8362,7 @@ function updateAppHeaderForSession({ forceTypewriter = false } = {}) {
 
   document.body.classList.toggle('student-session-active', isStudent);
   document.body.classList.toggle('guest-session-active', isGuest);
+  syncEditorHomeNav();
   if (isStudent || isGuest) {
     applyPublishedStudentLoginTheme(loginReminderSettings);
   }
@@ -8410,18 +8414,21 @@ function updateAppHeaderForSession({ forceTypewriter = false } = {}) {
 
 
 function hideAllStudentScreens() {
+  hideGuestHome();
   studentLoginOverlay?.classList.add('hidden');
   changePasswordOverlay?.classList.add('hidden');
   projectNameOverlay?.classList.add('hidden');
   projectTypeOverlay?.classList.add('hidden');
   wireframeMakerScreen?.classList.add('hidden');
   studentDashboard?.classList.add('hidden');
+  studentHomeScreen?.classList.add('hidden');
   givenActivitiesScreen?.classList.add('hidden');
   givenActivityViewerOverlay?.classList.add('hidden');
-  document.body.classList.remove('student-auth-open', 'student-dashboard-active', 'given-activities-active', 'wireframe-maker-active');
+  document.body.classList.remove('student-auth-open', 'student-dashboard-active', 'student-home-active', 'given-activities-active', 'wireframe-maker-active');
 }
 
 function showEntryGate() {
+  syncVerifiedStudentContinue(getFirebaseActiveUser());
   hideAllStudentScreens();
   entryGate?.classList.remove('hidden');
   document.body.classList.add('entry-gate-active');
@@ -8492,6 +8499,7 @@ function resetWorkspaceState({ blank = false } = {}) {
 }
 
 function continueAsGuest() {
+  hideGuestHome();
   appSession.mode = 'guest';
   armAppExitGuard();
   appSession.student = null;
@@ -8613,7 +8621,7 @@ async function recordStudentLogin() {
   }
 }
 
-async function activateStudentSession(profile, { showDashboard = true } = {}) {
+async function activateStudentSession(profile, { showDashboard = true, suppressStatusReminder = false, resumeSession = false } = {}) {
   if (!profile) return;
 
   // Keep the editor hidden while login is being promoted to the correct
@@ -8636,7 +8644,7 @@ async function activateStudentSession(profile, { showDashboard = true } = {}) {
     .catch(error => console.info('Mini-Game RTDB state will refresh when the hub opens.', error));
   scheduleDailyLeaderboardPublish();
 
-  const loginTracker = recordStudentLogin().catch(error => {
+  const loginTracker = resumeSession ? Promise.resolve() : recordStudentLogin().catch(error => {
     console.warn('Could not record student login before showing the dashboard.', error);
   });
 
@@ -8648,7 +8656,7 @@ async function activateStudentSession(profile, { showDashboard = true } = {}) {
     }
 
     if (showDashboard) {
-      await showStudentDashboard();
+      await showStudentHome({ suppressStatusReminder });
     } else {
       hideEntryGate();
       closeStudentLogin();
@@ -9090,7 +9098,7 @@ async function saveStudentNewPassword() {
     appSession.student.mustChangePassword = false;
     changePasswordOverlay?.classList.add('hidden');
     document.body.classList.remove('student-auth-open');
-    await showStudentDashboard();
+    await showStudentHome();
   } catch (error) {
     console.error('Could not update student password', error);
     setChangePasswordError(error?.code === 'auth/requires-recent-login'
@@ -9102,11 +9110,33 @@ async function saveStudentNewPassword() {
   }
 }
 
+// The login gate may only offer Continue when Firebase Authentication still
+// holds the SAME valid student identity. A cached name alone is never proof.
+function syncVerifiedStudentContinue(user = getFirebaseActiveUser(), profile = null) {
+  const validProfile = profile || (user && !isTeacherUser(user) && appSession.student?.uid === user.uid ? appSession.student : null);
+  const canResume = Boolean(user && !isTeacherUser(user) && validProfile?.uid === user.uid && validProfile.accountStatus !== 'disabled');
+  entryGate?.classList.toggle('lg-has-valid-session', canResume);
+  resumeStudentBtn?.classList.toggle('hidden', !canResume);
+  if (openStudentLoginBtn) openStudentLoginBtn.classList.toggle('hidden', canResume);
+  if (canResume) {
+    appSession.existingStudentUser = user;
+    if (resumeStudentText) resumeStudentText.textContent = `Continue as ${getStudentFirstName(validProfile.name || 'Student')}`;
+  } else if (!user || isTeacherUser(user)) {
+    appSession.existingStudentUser = null;
+  }
+  const sessionNote = document.getElementById('entrySessionNote');
+  if (sessionNote) sessionNote.textContent = canResume
+    ? 'Your session is active. No need to enter your password again.'
+    : 'New here or signed out? Use your Student ID and password.';
+  return canResume;
+}
+
 async function handleStudentAuthObserver(user) {
   appSession.authReady = true;
   if (!user) {
+    syncVerifiedStudentContinue(null);
     if (appSession.mode === 'student') {
-      persistLastStudentSession('firebase-signed-out');
+      // Firebase—not the locally cached profile—is the session authority.
       stopStudentPresenceHeartbeat();
       appSession.mode = 'pending';
       appSession.student = null;
@@ -9114,74 +9144,77 @@ async function handleStudentAuthObserver(user) {
       appSession.currentProject = null;
       showEntryGate();
     }
-    const cachedProfile = getLastStudentProfile();
-    if (cachedProfile) {
-      if (resumeStudentText) resumeStudentText.textContent = `Continue as ${getStudentFirstName(cachedProfile.name)}`;
-      resumeStudentBtn?.classList.remove('hidden');
-    } else {
-      appSession.existingStudentUser = null;
-      resumeStudentBtn?.classList.add('hidden');
-    }
     return;
   }
 
   if (isAllowedTeacherEmail(user.email)) {
-    const cachedProfile = getLastStudentProfile();
-    if (cachedProfile) {
-      appSession.lastStudentProfile = { ...cachedProfile };
-      if (resumeStudentText) resumeStudentText.textContent = `Continue as ${getStudentFirstName(cachedProfile.name)}`;
-      resumeStudentBtn?.classList.remove('hidden');
-    } else {
-      resumeStudentBtn?.classList.add('hidden');
-    }
+    syncVerifiedStudentContinue(null);
     return;
   }
   try {
     const profile = await loadStudentProfile(user.uid);
-    if (!profile) {
-      resumeStudentBtn?.classList.add('hidden');
+    if (!profile || profile.accountStatus === 'disabled') {
+      syncVerifiedStudentContinue(null);
       return;
     }
-    appSession.existingStudentUser = user;
+    // Auth may change during the Firestore request (logout/account switch).
+    if (getFirebaseActiveUser()?.uid !== user.uid) return;
     if (appSession.mode !== 'student') appSession.student = profile;
-    if (resumeStudentText) resumeStudentText.textContent = `Continue as ${getStudentFirstName(profile.name)}`;
-    resumeStudentBtn?.classList.remove('hidden');
+    syncVerifiedStudentContinue(user, profile);
   } catch (error) {
-    console.warn('Could not prepare saved student session.', error);
+    syncVerifiedStudentContinue(null);
+    console.warn('Could not verify the saved student session.', error);
   }
 }
 
 async function resumeExistingStudentSession() {
-  const user = getFirebaseActiveUser() || appSession.existingStudentUser;
-  if (user && isTeacherUser(user)) {
-    const cachedProfile = getLastStudentProfile();
-    if (cachedProfile?.uid) {
-      await activateStudentSession(cachedProfile);
+  const user = getFirebaseActiveUser();
+  if (!user || isTeacherUser(user)) {
+    syncVerifiedStudentContinue(null);
+    openStudentLogin();
+    return;
+  }
+  if (resumeStudentBtn) {
+    resumeStudentBtn.disabled = true;
+    resumeStudentBtn.classList.add('lg-loading');
+  }
+  try {
+    const profile = await loadStudentProfile(user.uid);
+    if (!profile || profile.accountStatus === 'disabled' || getFirebaseActiveUser()?.uid !== user.uid) {
+      syncVerifiedStudentContinue(null);
+      await appAlert('Your previous student session is no longer available. Please log in again.', { title: 'Session expired', icon: '🔒' });
+      openStudentLogin();
       return;
     }
-    openStudentLogin();
-    return;
+    // Continue is not a fresh password login: skip the post-login status popup.
+    loginReminderPendingAfterPasswordLogin = false;
+    await activateStudentSession(profile, { suppressStatusReminder: true, resumeSession: true });
+  } catch (error) {
+    console.warn('Could not resume the student session.', error);
+    await appAlert('Could not continue your session. Please try again or log in.', { title: 'Connection problem', icon: '🔒' });
+  } finally {
+    if (resumeStudentBtn) {
+      resumeStudentBtn.disabled = false;
+      resumeStudentBtn.classList.remove('lg-loading');
+    }
   }
-  if (!user) {
-    const cachedProfile = getLastStudentProfile();
-    if (cachedProfile?.studentId && studentLoginId) studentLoginId.value = cachedProfile.studentId;
-    openStudentLogin();
-    return;
-  }
-  const profile = await loadStudentProfile(user.uid);
-  if (!profile) {
-    openStudentLogin();
-    return;
-  }
-  await activateStudentSession(profile);
 }
 
+let studentLogoutPending = false;
 async function logoutStudent() {
-  // Clear only published status/teacher-theme caches; never delete saved drafts.
-  clearSelectiveFirestoreCache('subjectCompliance:');
-  clearSelectiveFirestoreCache('rootDocument:');
-  loginReminderPendingAfterPasswordLogin = false;
-  closeLoginLackingReminder();
+  if (studentLogoutPending) return;
+  studentLogoutPending = true;
+  try {
+    const confirmed = await appConfirm(
+      'This will log out your G8Code account. You will need to enter your Student ID and password again next time. Your saved projects will remain in your account.',
+      { title: 'Log Out of G8Code?', kicker: 'Account security', icon: '🔒', danger: true, confirmText: 'Yes, Log Out', cancelText: 'Stay Logged In' }
+    );
+    if (!confirmed) return;
+    // Clear only published status/teacher-theme caches; never delete saved drafts.
+    clearSelectiveFirestoreCache('subjectCompliance:');
+    clearSelectiveFirestoreCache('rootDocument:');
+    loginReminderPendingAfterPasswordLogin = false;
+    closeLoginLackingReminder();
   const hasWireframePendingSave = Boolean(document.body.classList.contains('wireframe-maker-active') && wireframeMakerState?.dirty);
   const hasPendingSave = Boolean(studentProjectDirty || studentProjectSaveTimer || studentProjectSaveInFlight || studentProjectSaveQueued || hasWireframePendingSave);
   if (hasPendingSave && appSession.mode === 'student' && appSession.currentProjectId) {
@@ -9230,6 +9263,8 @@ async function logoutStudent() {
     if (firebaseSync.auth && firebaseSync.authModule) await firebaseSync.authModule.signOut(firebaseSync.auth);
   } catch (error) {
     console.warn('Student logout failed.', error);
+    await appAlert('We could not sign you out. Please check your connection and try again.', { title: 'Logout not completed', icon: '🔒' });
+    return;
   }
   stopStudentPresenceHeartbeat();
   window.clearTimeout(dailyLeaderboardPublishTimer);
@@ -9243,12 +9278,299 @@ async function logoutStudent() {
   appSession.currentProjectId = '';
   appSession.currentProject = null;
   appSession.projects = [];
-  resumeStudentBtn?.classList.add('hidden');
+  syncVerifiedStudentContinue(null);
   updateAppHeaderForSession();
   showEntryGate();
+  } finally { studentLogoutPending = false; }
 }
 
+
+// ---------------------------------------------------------------------------
+// Editor -> Student / Guest Home navigation. A guest never receives private
+// student data. Save/recovery confirmation happens BEFORE hiding the editor.
+// ---------------------------------------------------------------------------
+const guestHomeScreen = document.getElementById('guestHomeScreen');
+function hideGuestHome() {
+  guestHomeScreen?.classList.add('hidden');
+  document.body.classList.remove('guest-home-active');
+}
+function showGuestHome() {
+  if (appSession.mode !== 'guest' || appSession.student) return;
+  hideEntryGate();
+  closeStudentAccountMenu?.();
+  hideStudentHome();
+  studentDashboard?.classList.add('hidden');
+  lessonViewerScreen?.classList.add('hidden');
+  givenActivitiesScreen?.classList.add('hidden');
+  document.body.classList.remove('student-home-active', 'student-dashboard-active', 'lesson-viewer-active', 'given-activities-active');
+  guestHomeScreen?.classList.remove('hidden');
+  document.body.classList.add('guest-home-active');
+  guestHomeScreen?.scrollTo({top:0,behavior:'instant'});
+}
+function guestPracticeHasEdits() {
+  try {
+    if (!codeStore || !starterCode) return Boolean(editor?.value?.trim());
+    return ['html','css','js'].some(lang => String(codeStore[lang] || '') !== String(starterCode[lang] || ''));
+  } catch (_) { return true; }
+}
+let editorHomeNavigationPending = false;
+async function goHomeFromCodeEditor() {
+  if (editorHomeNavigationPending) return;
+  if (appSession.mode !== 'student' && appSession.mode !== 'guest') return;
+  if (document.body.classList.contains('student-home-active') || document.body.classList.contains('guest-home-active')) return;
+  editorHomeNavigationPending = true;
+  try {
+    if (document.body.classList.contains('collab-active')) {
+      await appAlert('Leave or stop the live project using Share / Join before returning Home. This protects the shared session.', { title:'Live project is active', icon:'🤝' });
+      return;
+    }
+    // Sync the active tab into the project model before checking for dirty data.
+    if (appSession.mode === 'student' && appSession.currentProjectId) {
+      try { saveActiveEditor(); } catch (error) { console.warn('Could not sync active tab before Home navigation.', error); }
+    }
+    if (appSession.mode === 'student' && appSession.currentProjectId &&
+        (studentProjectDirty || studentProjectSaveTimer || studentProjectSaveInFlight || studentProjectSaveQueued)) {
+      const saveFirst = await appConfirm('You have changes that may not be saved yet. Save your project before going to Student Home?',
+        {title:'Save before leaving?',kicker:'Protect your work',icon:'💾',confirmText:'Save & Go Home',cancelText:'Stay in Editor'});
+      if (!saveFirst) return;
+      try {
+        persistStudentProjectRecoverySnapshot('editor-home');
+        const saved = await flushStudentProjectSave(isStudentAutoSaveAllowed() ? 'editor-home' : 'manual');
+        if (studentProjectSaveInFlight && studentProjectSavePromise) await studentProjectSavePromise;
+        if (!saved || studentProjectDirty) {
+          await appAlert('Your project is not confirmed saved yet. Please use Save in the editor before leaving.', {title:'Save not finished',icon:'💾'});
+          return;
+        }
+      } catch (error) {
+        console.warn('Home navigation save did not complete.',error);
+        await appAlert('Saving your project did not complete. Your editor remains open so you can try again.', {title:'Save not finished',icon:'💾'});
+        return;
+      }
+    }
+    if (appSession.mode === 'guest' && guestPracticeHasEdits()) {
+      const proceed = await appConfirm('Your practice code is not saved to a student account. It will remain in this browser for now. Continue to Guest Home?',
+        {title:'Leave Practice Editor?',kicker:'Guest practice',icon:'💻',confirmText:'Go to Guest Home',cancelText:'Stay in Editor'});
+      if (!proceed) return;
+      try { saveCodeByActivity(); } catch (_) {}
+    }
+    closeEditorHeaderSettings?.();
+    closeEditorNavigation?.();
+    closeStudentAccountMenu?.();
+    window.MCS_V416_MOBILE_EDITOR_MENU?.close?.();
+    if (document.body.classList.contains('editor-fullscreen-active')) exitFullEditor({silent:true,skipFocus:true});
+    if (document.body.classList.contains('preview-fullscreen-active')) exitFullPreview({silent:true});
+    if (document.fullscreenElement && document.exitFullscreen) {
+      try { await document.exitFullscreen(); } catch (_) {}
+    }
+    if (appSession.mode === 'student') await showStudentHome({suppressStatusReminder:true,deferRefresh:true});
+    else showGuestHome();
+  } finally { editorHomeNavigationPending = false; }
+}
+function syncEditorHomeNav() {
+  const eligible = appSession.mode === 'student' || appSession.mode === 'guest';
+  const isGuest = appSession.mode === 'guest';
+  const label = isGuest ? 'Guest Home' : 'Student Home';
+  for (const id of ['editorQuickHomeBtn','editorMobileHomeBtn','editorFullscreenHomeBtn','editorSettingsHomeBtn']) {
+    const button = document.getElementById(id);
+    if (!button) continue;
+    button.classList.toggle('hidden',!eligible);
+    button.setAttribute('aria-hidden', String(!eligible));
+    button.setAttribute('aria-label',`Go to ${label}`);
+    button.title = `Go to ${label}`;
+    const text = button.querySelector('span:not([aria-hidden])');
+    if (id === 'editorQuickHomeBtn' && text) text.textContent = label;
+    if (id === 'editorSettingsHomeBtn') button.textContent = `⌂ ${label}`;
+  }
+}
+['editorQuickHomeBtn','editorMobileHomeBtn','editorFullscreenHomeBtn','editorSettingsHomeBtn'].forEach(id => {
+  document.getElementById(id)?.addEventListener('click',goHomeFromCodeEditor);
+});
+document.getElementById('guestHomeScreen')?.addEventListener('click',event => {
+  const action = event.target.closest('[data-guest-home-action]')?.dataset.guestHomeAction;
+  if (!action) return;
+  if (action === 'editor') {hideGuestHome();return;}
+  if (action === 'lessons') {hideGuestHome();openLessonLibrary('home');return;}
+  if (action === 'activities') {hideGuestHome();openGivenActivitiesLibrary('home');return;}
+  if (action === 'login') {hideGuestHome();openStudentLogin();}
+});
+document.getElementById('guestHomeReturnEditor')?.addEventListener('click',hideGuestHome);
+
+// ---------------------------------------------------------------------------
+// Student Home (2026-11-01). Existing My Projects is deliberately unchanged.
+// The Home is a read-only summary of data already loaded by G8Code; it does not
+// create a new collection, new grading logic, or extra student permissions.
+// ---------------------------------------------------------------------------
+function hideStudentHome() {
+  studentHomeScreen?.classList.add('hidden');
+  document.body.classList.remove('student-home-active');
+}
+
+function renderStudentHome() {
+  if (!studentHomeScreen || !appSession.student || appSession.mode !== 'student') return;
+  const put = (id, value) => { const el = document.getElementById(id); if (el) el.textContent = String(value ?? ''); };
+  const student = appSession.student;
+  put('studentHomeFirstName', getStudentFirstName(student.name || student.studentName || 'Student'));
+  put('studentHomeSection', student.section ? `Grade 8 · ${getStudentSectionNameOnly(student)}` : 'Grade 8');
+  put('studentHomeStudentId', student.studentId || student.studentIdNormalized || 'ICT 8 Student');
+  put('studentHomeCurrentTerm', complianceTermFriendlyLabel(currentAcademicTerm()) || 'Current Term');
+
+  // Respect admin-controlled numeric/color grade visibility and active term.
+  // Never infer a number from a color band; this uses the same helper as the login modal.
+  const statusEnabled = isStudentAssistanceFeatureEnabled('subjectStatus');
+  const record = statusEnabled ? gradeDisplayCurrentRecord() : null;
+  const safe = record ? sanitizeComplianceStudentRecord(record) : null;
+  const standing = safe ? safeComplianceStanding(safe.standingColor) : 'unavailable';
+  const gradeLabel = studentGradeDisplayText(standing, safe);
+  const hasReleasedNumber = gradeDisplaySettings.displayMode === 'number' && studentReleasedGradeKey === `${normalizeStudentId(student.studentId || student.studentIdNormalized || student.id)}:${currentAcademicTerm()}` && studentReleasedGrade !== null;
+  put('studentHomeGrade', !statusEnabled ? 'Hidden by teacher' : (gradeDisplaySettings.displayMode === 'number' && !hasReleasedNumber ? 'Not available yet' : (gradeLabel === 'NOT YET AVAILABLE' ? 'Not available yet' : gradeLabel)));
+  put('studentHomeGradeInfo', !statusEnabled ? 'Subject Status is currently unavailable' : gradeDisplaySettings.displayMode === 'number'
+    ? (studentReleasedGradeKey === `${normalizeStudentId(student.studentId || student.studentIdNormalized || student.id)}:${currentAcademicTerm()}` && studentReleasedGrade !== null ? 'Current running grade · Not final' : 'Waiting for published grade')
+    : (standing === 'unavailable' ? 'Waiting for teacher update' : 'Color-coded academic standing'));
+  const trendEl = document.getElementById('studentHomeGradeTrend');
+  if (trendEl) {
+    const trend = safe && gradeDisplaySettings.showTrend && previousTermForGradeTrend(safe.term) ? safeGradeTrend(safe.gradeTrend) : null;
+    // Read-only text avoids mixing this dashboard's visuals with grade editor markup.
+    const trendValue = trend ? (typeof trend === 'string' ? trend : String(trend.direction || trend.status || '')).toLowerCase() : '';
+    trendEl.textContent = /improv|increas|up|rising/.test(trendValue) ? '↗ Improved from previous term'
+      : /declin|decreas|down|fall/.test(trendValue) ? '↘ Lower than previous term'
+      : /unchang|same|stable/.test(trendValue) ? '→ Unchanged from previous term' : '';
+  }
+  const summary = safe?.summary || null;
+  put('studentHomeComplete', summary ? Number(summary.complete || 0) : '—');
+  put('studentHomeCompleteInfo', summary ? 'Published completed requirements' : 'Waiting for published status');
+  put('studentHomeMissing', summary ? Number(summary.missing || 0) : '—');
+  put('studentHomeMissingInfo', summary ? (Number(summary.missing || 0) ? 'Requirements to finish' : 'All published tasks complete 🎉') : 'Waiting for published status');
+
+  const todo = document.getElementById('studentHomeTodoList');
+  if (todo) {
+    const missing = safe?.tasks?.filter(task => normalizeComplianceStatus(task.status) !== 'complete') || [];
+    if (!safe) {
+      todo.innerHTML = '<p class="sh-placeholder">Your current-term requirements will show here when your teacher publishes them.</p>';
+    } else if (!missing.length) {
+      todo.innerHTML = '<div class="sh-todo-item"><span aria-hidden="true">🎉</span><span>Great job! No missing published requirements.</span></div>';
+    } else {
+      todo.innerHTML = missing.slice(0, 3).map(task => `<div class="sh-todo-item"><span aria-hidden="true">🔸</span><span>${escapeHTML(task.title || 'Requirement to complete')}</span></div>`).join('')
+        + (missing.length > 3 ? `<p class="sh-placeholder">+${missing.length - 3} more. Open Subject Status to view everything.</p>` : '');
+    }
+  }
+
+  const projects = Array.isArray(appSession.projects) ? appSession.projects : [];
+  const projectCount = projects.length;
+  put('studentHomeProjectCount', projectCount);
+  const latestProject = projects[0] || null;
+  put('studentHomeRecentProject', latestProject?.name ? `Latest: ${latestProject.name}` : 'Saved code and wireframes');
+  put('studentHomeLatestProject', latestProject?.name || 'No projects yet');
+  put('studentHomeLatestProjectMeta', latestProject ? 'Continue editing your saved project in My Projects.' : 'Create your first project in My Projects.');
+
+  // Code Explorer owns its progress data; mirror its existing summary, not a new query.
+  const explorerPercentText = document.getElementById('dashboardExplorerOverallText')?.textContent || '0% overall';
+  const progress = Math.min(100, Math.max(0, Number.parseInt(explorerPercentText, 10) || 0));
+  put('studentHomeExplorerPercent', `${progress}%`);
+  const bar = document.getElementById('studentHomeExplorerProgressBar');
+  if (bar) bar.style.width = `${progress}%`;
+  put('studentHomeExplorerResume', document.getElementById('dashboardExplorerResumeText')?.textContent || 'Practice HTML, CSS, and JavaScript in Code Explorer.');
+  for (const [code, label] of [['Html','HTML'],['Css','CSS'],['Js','JS']]) {
+    put(`studentHome${code}Progress`, `${label} ${document.getElementById(`dashboardExplorer${code}Text`)?.textContent || '0%'}`);
+  }
+  const feedbackTitle = document.getElementById('dashboardFeedbackTitle')?.textContent || '';
+  const feedbackText = document.getElementById('dashboardFeedbackText')?.textContent || '';
+  put('studentHomeFeedbackTitle', feedbackTitle === 'Teacher Feedback Available' ? feedbackTitle : 'Check your Code Inbox');
+  put('studentHomeFeedbackText', feedbackText || 'Open Code Inbox to read messages and project feedback.');
+  const themeButton = document.getElementById('studentHomeThemeBtn');
+  if (themeButton) themeButton.classList.toggle('hidden', Boolean(loginReminderSettings.applyThemeToEntireApp && !loginReminderSettings.allowStudentAppAppearanceChoice));
+  studentHomeScreen.querySelectorAll('button[data-home-action="status"]').forEach(button => { button.disabled = !statusEnabled; button.title = statusEnabled ? '' : 'Subject Status is disabled by your teacher'; });
+  const inboxEnabled = isStudentAssistanceFeatureEnabled('codeTransfer');
+  studentHomeScreen.querySelectorAll('button[data-home-action="inbox"]').forEach(button => { button.disabled = !inboxEnabled; button.title = inboxEnabled ? '' : 'Code Inbox is disabled by your teacher'; });
+}
+
+async function showStudentHome(options = {}) {
+  hideGuestHome();
+  if (!appSession.student) { openStudentLogin(); return; }
+  const alreadyHome = document.body.classList.contains('student-home-active') && !studentHomeScreen?.classList.contains('hidden');
+  if (alreadyHome && options.suppressStatusReminder) { closeLoginLackingReminder(); renderStudentHome(); return; }
+  // Preserve dirty editor/wireframe recovery before navigating directly Home.
+  if (appSession.currentProjectId && options.skipProjectFlush !== true) {
+    try {
+      if (document.body.classList.contains('wireframe-maker-active') && wireframeMakerState?.dirty) {
+        persistWireframeRecovery({ urgent: true });
+        if (navigator.onLine !== false && isWireframeAutosaveEnabled()) scheduleWireframeCloudCheckpoint('home-local');
+      } else if (studentProjectDirty && isStudentProjectActive()) {
+        persistStudentProjectRecoverySnapshot('home-local');
+        if (isStudentAutoSaveAllowed() && navigator.onLine !== false) scheduleStudentProjectCloudCheckpoint('home-local');
+        else if (!isStudentAutoSaveAllowed()) { setStudentSaveState('Unsaved · press Save','unsaved'); updateManualSaveControls(); }
+      }
+    } catch (error) { console.warn('Home navigation retained local project recovery.', error); }
+  }
+  hideEntryGate();
+  closeStudentAccountMenu?.();
+  studentLoginOverlay?.classList.add('hidden');
+  changePasswordOverlay?.classList.add('hidden');
+  projectNameOverlay?.classList.add('hidden');
+  projectTypeOverlay?.classList.add('hidden');
+  wireframeMakerScreen?.classList.add('hidden');
+  studentDashboard?.classList.add('hidden');
+  givenActivitiesScreen?.classList.add('hidden');
+  lessonViewerScreen?.classList.add('hidden');
+  document.body.classList.remove('student-auth-open','lesson-viewer-active','given-activities-active','wireframe-maker-active');
+  document.body.classList.add('student-dashboard-active','student-home-active');
+  studentHomeScreen?.classList.remove('hidden');
+  studentHomeScreen?.scrollTo({ top: 0, behavior: 'auto' });
+  renderStudentHome();
+  try { window.renderCodeExplorerDashboardSummary?.(); } catch (_) {}
+  if (typeof window.refreshCodeInboxSnapshot === 'function') window.refreshCodeInboxSnapshot().catch(() => {});
+  queueStudentPresenceUpdate({ currentView: 'dashboard', activityGroup: 'Student Home', activityLabel: 'On Student Home' }, { force: true });
+  startStudentComplianceLiveUpdates().catch(() => {});
+  startStudentGradeDisplayWatch().catch(() => {});
+  const refresh = Promise.allSettled([loadStudentProjects(),loadStudentComplianceStatus({silent: Boolean(studentComplianceRecord)})]);
+  if (options.deferRefresh) {
+    refresh.then(() => renderStudentHome()).catch(() => {});
+  } else {
+    await refresh;
+    renderStudentHome();
+  }
+  if (!document.body.classList.contains('student-home-active')) return;
+  if (options.suppressStatusReminder) closeLoginLackingReminder();
+  else showLoginLackingReminderAfterLogin().catch(error => console.warn('Could not open student status reminder.', error));
+}
+
+function handleStudentHomeAction(action) {
+  switch (String(action || '').toLowerCase()) {
+    case 'home': showStudentHome({ suppressStatusReminder: true, deferRefresh: true }); break;
+    case 'projects': showStudentDashboard({ suppressStatusReminder: true, deferRefresh: true }); break;
+    case 'status': openStudentComplianceModal(); break;
+    case 'recitation': document.getElementById('dashboardRecitationStatusBtn')?.click(); break;
+    case 'lessons': openLessonLibrary('home'); break;
+    case 'activities': openGivenActivitiesLibrary('home'); break;
+    case 'inbox': document.getElementById('dashboardCodeInboxBtn')?.click(); break;
+    case 'games':
+      if (typeof window.openCodeExplorer === 'function') {
+        window.openCodeExplorer().then(() => window.ICT8XpMiniGames?.open?.()).catch(() => {});
+      } else appAlert('Mini-Games are still loading. Please try again.', { title: 'Mini-Games', icon: '🎮' });
+      break;
+    case 'leaderboard':
+      if (typeof window.openCodeExplorer === 'function') {
+        window.openCodeExplorer().then(() => document.getElementById('codeExplorerLeaderboardBtn')?.click()).catch(() => {});
+      } else appAlert('Leaderboard is still loading. Please try again.', { title: 'Leaderboard', icon: '🏆' });
+      break;
+    case 'explorer':
+      if (typeof window.openCodeExplorer === 'function') window.openCodeExplorer().catch?.(() => {});
+      else appAlert('Code Explorer is still loading. Please try again.', { title: 'Code Explorer', icon: '🚀' });
+      break;
+    case 'logout': logoutStudent(); break;
+  }
+}
+
+studentHomeScreen?.addEventListener('click', event => {
+  const button = event.target.closest?.('[data-home-action]');
+  if (!button || !studentHomeScreen.contains(button)) return;
+  handleStudentHomeAction(button.dataset.homeAction);
+});
+document.getElementById('studentHomeThemeBtn')?.addEventListener('click', () => dashboardThemeBtn?.click());
+document.getElementById('dashboardGoHomeBtn')?.addEventListener('click', () => showStudentHome({ suppressStatusReminder: true }));
+window.renderStudentHome = renderStudentHome;
+
 async function showStudentDashboard(options = {}) {
+  hideGuestHome();
   if (!appSession.student) {
     openStudentLogin();
     return;
@@ -9278,6 +9600,7 @@ async function showStudentDashboard(options = {}) {
   const suppressStatusReminder = options.suppressStatusReminder === true || returningFromLessonOrActivities;
   const deferRefresh = options.deferRefresh === true;
   hideEntryGate();
+  hideStudentHome();
   studentLoginOverlay?.classList.add('hidden');
   changePasswordOverlay?.classList.add('hidden');
   projectNameOverlay?.classList.add('hidden');
@@ -9337,6 +9660,7 @@ async function showStudentDashboard(options = {}) {
 }
 
 function closeStudentDashboard() {
+  hideStudentHome();
   studentDashboard?.classList.add('hidden');
   document.body.classList.remove('student-dashboard-active');
 }
@@ -9958,6 +10282,7 @@ function renderLoginGradeDisplayParts(record = null, options = {}) {
 }
 function refreshVisibleGradeDisplays() {
   renderStudentGradeDisplayParts(gradeDisplayCurrentRecord());
+  renderStudentHome();
   if (loginLackingReminderOverlay && !loginLackingReminderOverlay.classList.contains('hidden')) {
     const preview = loginLackingReminderOverlay.dataset.preview === 'true';
     if (!preview) renderLoginGradeDisplayParts(gradeDisplayCurrentRecord());
@@ -10707,6 +11032,7 @@ function renderStudentComplianceRecord(record = null, options = {}) {
   renderStudentComplianceStanding(record?.standingColor);
   if (!studentCompliancePanel) return;
   updateStudentComplianceTitle(record);
+  renderStudentHome();
 
   if (!record) {
     const activeLabel = complianceTermFriendlyLabel(currentAcademicTerm()) || 'Current Term';
@@ -12549,6 +12875,7 @@ async function publishComplianceSync() {
 
 function renderStudentProjects() {
   updateStudentDashboardSaveFeedbackPanel();
+  renderStudentHome();
   if (!studentProjectsGrid) return;
   const search = String(projectSearchInput?.value || '').trim().toLowerCase();
   const statusFilter = projectStatusFilter?.value || 'all';
@@ -15059,8 +15386,8 @@ function getStudentPresenceActivitySnapshot(override = {}) {
   if (isOpen(studentDashboard)) {
     return {
       currentView: 'dashboard',
-      activityGroup: 'My Projects',
-      activityLabel: 'On My Projects',
+      activityGroup: document.body.classList.contains('student-home-active') ? 'Student Home' : 'My Projects',
+      activityLabel: document.body.classList.contains('student-home-active') ? 'On Student Home' : 'On My Projects',
       lessonId: '',
       lessonTitle: '',
       projectId: '',
@@ -18994,7 +19321,9 @@ function applyTheme(theme) {
   if (themeToggle) themeToggle.textContent = safeTheme === 'dark' ? '☀️ Light' : '🌙 Dark';
   if (entryThemeToggle) {
     entryThemeToggle.classList.toggle('is-dark', safeTheme === 'dark');
-    entryThemeToggle.setAttribute('aria-pressed', String(safeTheme === 'dark'));
+    const pullHandle = document.getElementById('entryPullHandle');
+    if (pullHandle) pullHandle.setAttribute('aria-label',
+      `Drag the cord downward to switch to ${safeTheme === 'dark' ? 'light' : 'dark'} mode; press Down Arrow to pull`);
   }
   if (entryThemeLabel) entryThemeLabel.textContent = safeTheme === 'dark' ? 'Dark Mode' : 'Light Mode';
   const explorerQuickThemeToggle = document.getElementById('codeExplorerQuickThemeToggle');
@@ -19017,6 +19346,13 @@ function applyTheme(theme) {
     if (status) status.textContent = isDark ? 'Dark' : 'Light';
   }
   saveJSON(STORAGE_KEYS.theme, safeTheme);
+  // A live after-login status popup follows the student's currently chosen
+  // appearance. Admin preview continues to use the teacher's preview setting.
+  if (loginLackingReminderOverlay && !loginLackingReminderOverlay.classList.contains('hidden')
+      && loginLackingReminderOverlay.dataset.preview !== 'true') {
+    loginLackingReminderOverlay.dataset.appearance = resolveStudentSurfaceAppearance(
+      loginReminderSettings.modalAppearance, loginReminderSettings);
+  }
   if (canStudentSwitchAppAppearance()) {
     // Repaint the selected design without resetting forms, project state,
     // Firebase listeners or the active screen.
@@ -25861,8 +26197,11 @@ async function openLessonLibrary(origin = 'dashboard') {
     }
     appSession.mode = 'guest';
     armAppExitGuard();
+    // The guest lesson route must install the same appearance/session state
+    // as other guest routes before calculating the reader theme.
+    updateAppHeaderForSession();
   }
-  lessonLibraryState.returnView = openedFromEntry ? 'entry' : (origin === 'editor' ? 'editor' : 'dashboard');
+  lessonLibraryState.returnView = openedFromEntry ? 'entry' : (origin === 'editor' ? 'editor' : (origin === 'home' ? 'home' : 'dashboard'));
   closeStudentAccountMenu();
   closeLessonPdfViewer();
   // Match Activities Given: every time Lessons opens, refresh the shared
@@ -25871,12 +26210,17 @@ async function openLessonLibrary(origin = 'dashboard') {
   try { await loadAcademicTermSettingsFromCloud({ silent: true }); } catch (_) {}
   lessonLibraryState.activeTerm = libraryTermFromComplianceTerm();
   hideEntryGate();
+  hideStudentHome();
+  hideGuestHome();
   studentDashboard?.classList.add('hidden');
   document.body.classList.remove('student-dashboard-active');
   document.body.classList.add('lesson-viewer-active');
   lessonViewerScreen?.classList.remove('hidden');
+  syncLessonViewerAppearance({ opening: true });
   queueStudentPresenceUpdate({ currentView: 'lesson_library', activityGroup: 'Lesson Viewer', activityLabel: 'Browsing lessons' }, { force: true });
   await loadLessonLibrary({ force: !lessonLibraryState.loaded });
+  // Reassert after asynchronous published data has loaded.
+  syncLessonViewerAppearance();
   window.setTimeout(() => lessonLibrarySearch?.focus({ preventScroll: true }), 60);
 }
 
@@ -25890,6 +26234,10 @@ function closeLessonLibrary() {
       updateAppHeaderForSession();
     }
     showEntryGate();
+  } else if (lessonLibraryState.returnView === 'home' && appSession.mode === 'guest') {
+    showGuestHome();
+  } else if (lessonLibraryState.returnView === 'home' && appSession.student) {
+    showStudentHome({ suppressStatusReminder: true, deferRefresh: true });
   } else if (lessonLibraryState.returnView === 'dashboard' && appSession.student) {
     showStudentDashboard({ suppressStatusReminder: true });
   } else if (appSession.currentProjectId) {
@@ -26950,12 +27298,14 @@ async function openGivenActivitiesLibrary(origin = 'dashboard') {
     openStudentLogin();
     return;
   }
-  givenActivityState.returnView = origin === 'editor' ? 'editor' : 'dashboard';
+  givenActivityState.returnView = origin === 'editor' ? 'editor' : (origin === 'home' ? 'home' : 'dashboard');
   closeStudentAccountMenu();
   closeGivenActivityViewer();
   try { await loadAcademicTermSettingsFromCloud({ silent: true }); } catch (_) {}
   givenActivityState.activeTerm = libraryTermFromComplianceTerm();
   hideEntryGate();
+  hideStudentHome();
+  hideGuestHome();
   lessonViewerScreen?.classList.add('hidden');
   studentDashboard?.classList.add('hidden');
   document.body.classList.remove('student-dashboard-active', 'lesson-viewer-active');
@@ -26970,7 +27320,11 @@ function closeGivenActivitiesLibrary() {
   closeGivenActivityViewer();
   givenActivitiesScreen?.classList.add('hidden');
   document.body.classList.remove('given-activities-active');
-  if (givenActivityState.returnView === 'dashboard' && appSession.student) {
+  if (givenActivityState.returnView === 'home' && appSession.mode === 'guest') {
+    showGuestHome();
+  } else if (givenActivityState.returnView === 'home' && appSession.student) {
+    showStudentHome({ suppressStatusReminder: true, deferRefresh: true });
+  } else if (givenActivityState.returnView === 'dashboard' && appSession.student) {
     showStudentDashboard({ suppressStatusReminder: true });
   } else if (appSession.currentProjectId) {
     queueStudentPresenceUpdate({ currentView: 'editor', activityGroup: 'Coding', activityLabel: `Coding: ${appSession.currentProject?.name || 'Project'}` }, { force: true });
@@ -28216,12 +28570,22 @@ async function initializeDeviceQaRuntime() {
     prepareQaDashboardDemo();
     return;
   }
+  if (target === 'home') {
+    prepareQaDashboardDemo();
+    studentDashboard?.classList.add('hidden');
+    studentHomeScreen?.classList.remove('hidden');
+    document.body.classList.add('student-home-active');
+    appSession.projects = [{id:'qa-project',name:'My First Website'}];
+    renderStudentHome();
+    return;
+  }
   if (target === 'lessons') {
     appSession.mode = 'guest';
     hideEntryGate();
     hideAllStudentScreens();
     lessonViewerScreen?.classList.remove('hidden');
     document.body.classList.add('lesson-viewer-active');
+    syncLessonViewerAppearance({ opening: true });
     lessonLibraryState.activeTerm = libraryTermFromComplianceTerm();
     loadLessonLibrary({ force: true }).catch(() => {});
     return;
@@ -33377,8 +33741,93 @@ themeToggle?.addEventListener('click', () => {
   applyTheme(currentTheme === 'dark' ? 'light' : 'dark');
 });
 
-entryThemeToggle?.addEventListener('click', toggleStudentLoginAppearance);
-document.getElementById('studentLoginThemeToggle')?.addEventListener('click', toggleStudentLoginAppearance);
+// Pull-only light switch. There is deliberately NO click/tap handler.
+// A real downward drag from the bulb, cord or knob must pass the threshold.
+// Pointer capture keeps the interaction reliable on phones and trackpads.
+if (entryThemeToggle) {
+  const handle = document.getElementById('entryPullHandle');
+  const MIN_PULL_PX = 30;
+  const MAX_PULL_PX = 56;
+  let pointerId = null;
+  let originY = 0;
+  let pullDistance = 0;
+  let bounceTimer = null;
+
+  function canPullLoginLight() {
+    return !entryThemeToggle.classList.contains('hidden') &&
+      (canStudentSwitchAppAppearance() ||
+       (!loginReminderSettings.applyThemeToLoginPage && !loginReminderSettings.applyThemeToEntireApp));
+  }
+
+  function paintPull(distance) {
+    pullDistance = Math.min(MAX_PULL_PX, Math.max(0, distance));
+    entryThemeToggle.style.setProperty('--lg-pull-y', `${pullDistance}px`);
+    entryThemeToggle.classList.toggle('lg-ready', pullDistance >= MIN_PULL_PX);
+  }
+
+  function releasePull(event, cancelled = false) {
+    if (pointerId === null || (event && event.pointerId !== pointerId)) return;
+    const capturedId = pointerId;
+    const shouldSwitch = !cancelled && pullDistance >= MIN_PULL_PX && canPullLoginLight();
+    pointerId = null;
+    entryThemeToggle.classList.remove('lg-grabbing', 'lg-ready');
+    paintPull(0);
+    if (entryThemeToggle.hasPointerCapture?.(capturedId)) {
+      try { entryThemeToggle.releasePointerCapture(capturedId); } catch (_) { /* capture was released */ }
+    }
+    if (!shouldSwitch) return;
+    toggleStudentLoginAppearance();
+    entryThemeToggle.classList.remove('lg-pulled');
+    // Restart the small bulb swing for every completed pull.
+    void entryThemeToggle.offsetWidth;
+    entryThemeToggle.classList.add('lg-pulled');
+    window.clearTimeout(bounceTimer);
+    bounceTimer = window.setTimeout(() => entryThemeToggle.classList.remove('lg-pulled'), 570);
+  }
+
+  entryThemeToggle.addEventListener('pointerdown', event => {
+    if (!canPullLoginLight() || pointerId !== null) return;
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    // No click zone: start only on the actual bulb/string/knob.
+    const grip = event.target.closest?.('.lg-lamp-bulb, .lg-pull-cord, .lg-pull-handle');
+    if (!grip) return;
+    event.preventDefault();
+    pointerId = event.pointerId;
+    originY = event.clientY;
+    entryThemeToggle.classList.add('lg-grabbing');
+    entryThemeToggle.classList.remove('lg-pulled');
+    paintPull(0);
+    try { entryThemeToggle.setPointerCapture(event.pointerId); } catch (_) { /* safe fallback */ }
+  });
+
+  entryThemeToggle.addEventListener('pointermove', event => {
+    if (pointerId !== event.pointerId) return;
+    paintPull(event.clientY - originY);
+  });
+
+  entryThemeToggle.addEventListener('pointerup', event => {
+    if (pointerId !== event.pointerId) return;
+    paintPull(event.clientY - originY);
+    releasePull(event);
+  });
+
+  entryThemeToggle.addEventListener('pointercancel', event => releasePull(event, true));
+  entryThemeToggle.addEventListener('lostpointercapture', event => releasePull(event, true));
+
+  // Keyboard-only accessible alternative; mouse clicks and touch taps NEVER toggle.
+  handle?.addEventListener('keydown', event => {
+    if (!['ArrowDown', 'Enter', ' '].includes(event.key) || !canPullLoginLight()) return;
+    event.preventDefault();
+    if (pointerId !== null) return;
+    paintPull(MIN_PULL_PX + 8);
+    entryThemeToggle.classList.add('lg-pulled');
+    toggleStudentLoginAppearance();
+    window.setTimeout(() => {
+      paintPull(0);
+      entryThemeToggle.classList.remove('lg-pulled');
+    }, 310);
+  });
+}
 
 resetBtn.addEventListener('click', async () => {
   const resetLabel = activity ? `"${activity.title}"` : 'the editor';
@@ -33511,8 +33960,8 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closeStudent
 previewLoginReminderCompleteBtn?.addEventListener('click', () => previewLoginLackingReminder(false));
 previewLoginReminderMissingBtn?.addEventListener('click', () => previewLoginLackingReminder(true));
 saveLoginReminderSettingsBtn?.addEventListener('click', saveLoginReminderSettingsToCloud);
-closeLoginLackingReminderBtn?.addEventListener('click', () => navigateFromLoginLackingReminder('projects'));
-continueFromLoginLackingReminderBtn?.addEventListener('click', () => navigateFromLoginLackingReminder('projects'));
+closeLoginLackingReminderBtn?.addEventListener('click', () => navigateFromLoginLackingReminder('home'));
+continueFromLoginLackingReminderBtn?.addEventListener('click', () => navigateFromLoginLackingReminder('home'));
 loginReminderLessonsBtn?.addEventListener('click', () => navigateFromLoginLackingReminder('lessons'));
 loginReminderActivitiesBtn?.addEventListener('click', () => navigateFromLoginLackingReminder('activities'));
 loginReminderExplorerBtn?.addEventListener('click', () => navigateFromLoginLackingReminder('explorer'));
@@ -33525,7 +33974,7 @@ loginLackingReminderOverlay?.addEventListener('click', event => {
 });
 document.addEventListener('keydown', event => {
   if (event.key === 'Escape' && loginLackingReminderOverlay && !loginLackingReminderOverlay.classList.contains('hidden')) {
-    navigateFromLoginLackingReminder('projects');
+    navigateFromLoginLackingReminder('home');
   }
 });
 saveAiRubricSettingsBtn?.addEventListener('click', saveAiRubricSettingsToCloud);
@@ -33987,6 +34436,14 @@ menuMyProjectsBtn?.addEventListener('click', () => {
   closeStudentAccountMenu();
   showStudentDashboard();
 });
+document.getElementById('menuStudentHomeBtn')?.addEventListener('click', () => {
+  closeStudentAccountMenu();
+  goHomeFromCodeEditor();
+});
+document.getElementById('editorStudentHomeBtn')?.addEventListener('click', () => {
+  closeEditorNavigation();
+  goHomeFromCodeEditor();
+});
 menuLessonViewerBtn?.addEventListener('click', () => openLessonLibrary('editor'));
 lessonViewerBtn?.addEventListener('click', () => {
   closeEditorNavigation();
@@ -34107,7 +34564,53 @@ dashboardLogoutBtn?.addEventListener('click', logoutStudent);
 dashboardThemeBtn?.addEventListener('click', () => themeToggle?.click());
 dashboardLessonViewerBtn?.addEventListener('click', () => openLessonLibrary('dashboard'));
 dashboardOpenLessonsBtn?.addEventListener('click', () => openLessonLibrary('dashboard'));
-lessonLibraryThemeBtn?.addEventListener('click', () => themeToggle?.click());
+// Public lessons have their own appearance state, so a published light student
+// app style cannot silently override the guest's actual dark/light selection.
+// This is display-only and does not change authentication or lesson progress.
+const GUEST_LESSON_APPEARANCE_KEY = 'ict8connect.guestLessonAppearance';
+function syncLessonViewerAppearance({ opening = false } = {}) {
+  if (!lessonViewerScreen) return;
+  const isGuest = appSession.mode === 'guest';
+  if (!isGuest) {
+    delete lessonViewerScreen.dataset.lessonAppearance;
+    return;
+  }
+  const published = normalizeLoginReminderSettings(loginReminderSettings);
+  const adminLocked = published.applyThemeToEntireApp && !published.allowStudentAppAppearanceChoice;
+  const guestChoice = loadJSON(GUEST_LESSON_APPEARANCE_KEY, null);
+  const selected = opening
+    ? (adminLocked
+      ? (guestChoice === 'dark' || guestChoice === 'light' ? guestChoice : resolveEntireStudentAppAppearance(published))
+      : (document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light'))
+    : (lessonViewerScreen.dataset.lessonAppearance || document.documentElement.dataset.theme);
+  const mode = selected === 'dark' ? 'dark' : 'light';
+  lessonViewerScreen.dataset.lessonAppearance = mode;
+  if (lessonLibraryThemeBtn) {
+    // Guest lessons are public reading materials; their reading appearance is
+    // independent of the authenticated student app appearance restriction.
+    lessonLibraryThemeBtn.classList.remove('hidden');
+    lessonLibraryThemeBtn.setAttribute('aria-hidden', 'false');
+    lessonLibraryThemeBtn.setAttribute('aria-label', `Switch lessons to ${mode === 'dark' ? 'light' : 'dark'} mode`);
+    lessonLibraryThemeBtn.title = `Switch lessons to ${mode === 'dark' ? 'light' : 'dark'} mode`;
+    lessonLibraryThemeBtn.textContent = mode === 'dark' ? '☀️ Light' : '🌙 Dark';
+  }
+}
+lessonLibraryThemeBtn?.addEventListener('click', () => {
+  if (appSession.mode !== 'guest') {
+    themeToggle?.click();
+    return;
+  }
+  const now = lessonViewerScreen?.dataset.lessonAppearance === 'dark' ? 'dark' : 'light';
+  const next = now === 'dark' ? 'light' : 'dark';
+  // Persist the guest viewer choice even if the admin locks the signed-in
+  // student theme; only this standalone reader uses that override.
+  saveJSON(GUEST_LESSON_APPEARANCE_KEY, next);
+  if (!loginReminderSettings.applyThemeToEntireApp || loginReminderSettings.allowStudentAppAppearanceChoice) {
+    applyTheme(next);
+  }
+  lessonViewerScreen.dataset.lessonAppearance = next;
+  syncLessonViewerAppearance();
+});
 lessonLibraryBackBtn?.addEventListener('click', closeLessonLibrary);
 lessonLibraryRefreshBtn?.addEventListener('click', () => loadLessonLibrary({ force: true }));
 lessonLibrarySearch?.addEventListener('input', () => scheduleStudentLessonLibraryRender(90));
@@ -54845,6 +55348,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       dom.dashboardBtn.textContent = overall.explored > 0 ? 'Continue →' : '🚀 Start Exploring';
       dom.dashboardBtn.setAttribute('aria-label', overall.explored > 0 ? 'Continue Code Explorer' : 'Start Code Explorer');
     }
+    window.renderStudentHome?.();
   }
 
   function renderDashboardSummary() {
@@ -55686,9 +56190,10 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     screen?.classList.toggle('code-explorer-roadmap-mode', roadmap);
     screen?.classList.toggle('code-explorer-lesson-mode', !roadmap);
     if (dom.backBtn) {
-      dom.backBtn.textContent = mobile ? (roadmap ? '✕' : '←') : (roadmap ? '← My Projects' : '← Course Path');
-      dom.backBtn.setAttribute('aria-label', roadmap ? 'Back to My Projects' : 'Back to course path');
-      dom.backBtn.title = roadmap ? 'Back to My Projects' : 'Course path';
+      const explorerBackLabel = studentHomeExplorerReturn ? 'Student Home' : 'My Projects';
+      dom.backBtn.textContent = mobile ? (roadmap ? '✕' : '←') : (roadmap ? `← ${explorerBackLabel}` : '← Course Path');
+      dom.backBtn.setAttribute('aria-label', roadmap ? `Back to ${explorerBackLabel}` : 'Back to course path');
+      dom.backBtn.title = roadmap ? `Back to ${explorerBackLabel}` : 'Course path';
     }
     if (dom.leaderboardBtn) {
       const studentFinalView = appSession.mode === 'student' && !isTeacherAuthenticated();
@@ -56051,6 +56556,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       return;
     }
     closeStudentAccountMenu?.();
+    studentHomeExplorerReturn = document.body.classList.contains('student-home-active');
     closeStudentDashboard();
     loadExplorerAudioPrefs();
     document.body.classList.remove('lesson-viewer-active', 'given-activities-active');
@@ -56114,9 +56620,11 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     screen.classList.add('hidden');
     document.body.classList.remove('code-explorer-active');
 
-    // Paint My Projects from its existing/cached state before any Firestore
-    // refresh. This removes the visible pause after tapping X.
-    await showStudentDashboard({ suppressStatusReminder: true, deferRefresh: true });
+    // Return to the screen that opened Explorer, without losing a session.
+    const backHome = studentHomeExplorerReturn;
+    studentHomeExplorerReturn = false;
+    if (backHome) await showStudentHome({ suppressStatusReminder: true, deferRefresh: true });
+    else await showStudentDashboard({ suppressStatusReminder: true, deferRefresh: true });
 
     // Give the browser one paint, then sync Code Explorer progress quietly in
     // the background. A slow connection no longer delays navigation.

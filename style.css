@@ -71196,3 +71196,531 @@ html[data-device-mode="phone"] #entryGate #resumeStudentBtn.hidden {
 #loginThemePreviewOverlay[data-design-theme] .entry-choice.primary-choice :is(strong,small) {
   color:var(--sg-button-ink,#fff) !important;
 }
+
+
+/* v677 — Lesson Viewer appearance isolation, including unauthenticated
+   View Lessons / Practice Without Login. Match the current student appearance,
+   not a mixture of the legacy --card tokens and teacher design tokens.
+   Do not change lesson data, academic progress or PDF iframe contents. */
+#lessonViewerScreen.lesson-viewer-screen {
+  --lv-page: #eef3fa;
+  --lv-header: #ffffff;
+  --lv-panel: #ffffff;
+  --lv-raised: #f1f6fc;
+  --lv-control: #f5f8fc;
+  --lv-ink: #1b2f49;
+  --lv-muted: #52657e;
+  --lv-border: #c7d7e9;
+  --lv-accent: #1959b3;
+  --lv-shadow: 0 12px 30px rgba(19, 48, 91, .07);
+  color-scheme: light;
+}
+html[data-theme="dark"] #lessonViewerScreen.lesson-viewer-screen,
+body[data-student-app-theme]:not([data-student-app-theme="original"])[data-student-app-appearance="dark"] #lessonViewerScreen.lesson-viewer-screen {
+  --lv-page: #0d1726;
+  --lv-header: #142238;
+  --lv-panel: #1a2a41;
+  --lv-raised: #24364e;
+  --lv-control: #101e31;
+  --lv-ink: #f1f6ff;
+  --lv-muted: #bdccdf;
+  --lv-border: #3b526f;
+  --lv-accent: #9ec7ff;
+  --lv-shadow: 0 12px 30px rgba(0, 0, 0, .18);
+  color-scheme: dark;
+}
+/* If the published student app explicitly uses LIGHT, it supersedes a
+   previously stored global dark mode, and vice versa above. */
+body[data-student-app-theme]:not([data-student-app-theme="original"])[data-student-app-appearance="light"] #lessonViewerScreen.lesson-viewer-screen {
+  --lv-page: #eef3fa;
+  --lv-header: #ffffff;
+  --lv-panel: #ffffff;
+  --lv-raised: #f1f6fc;
+  --lv-control: #f5f8fc;
+  --lv-ink: #1b2f49;
+  --lv-muted: #52657e;
+  --lv-border: #c7d7e9;
+  --lv-accent: #1959b3;
+  --lv-shadow: 0 12px 30px rgba(19, 48, 91, .07);
+  color-scheme: light;
+}
+
+#lessonViewerScreen.lesson-viewer-screen {
+  color: var(--lv-ink) !important;
+  background: radial-gradient(circle at 90% 4%, color-mix(in srgb, var(--lv-accent) 7%, transparent), transparent 22rem),var(--lv-page) !important;
+}
+#lessonViewerScreen .lesson-library-header {
+  color: var(--lv-ink) !important;
+  background: var(--lv-header) !important;
+  border-color: var(--lv-border) !important;
+  box-shadow: var(--lv-shadow) !important;
+}
+#lessonViewerScreen :is(.lesson-library-brand h1,.lesson-library-welcome-card h2,
+  .lesson-continue-content h3,.lesson-card-content h3,.lesson-library-empty h3,
+  .lesson-pdf-heading h2) {color:var(--lv-ink) !important;opacity:1 !important}
+#lessonViewerScreen :is(.lesson-library-brand .muted-text,
+  .lesson-library-welcome-card p,.lesson-continue-content p,.lesson-library-status,
+  .lesson-card-content p,.lesson-card-meta,.lesson-card-progress > span,
+  .lesson-library-empty p,.lesson-pdf-heading .muted-text,
+  .lesson-pdf-progress-text) {color:var(--lv-muted) !important;opacity:1 !important}
+#lessonViewerScreen :is(.lesson-library-brand .section-kicker,.lesson-library-eyebrow,
+  .lesson-card-term,.lesson-pdf-term,.lesson-card-cta) {
+  color:var(--lv-accent) !important;opacity:1 !important;
+}
+#lessonViewerScreen :is(.lesson-library-welcome-card,.lesson-continue-card,
+  .lesson-library-controls,.lesson-library-card,.lesson-library-empty,
+  .lesson-pdf-card) {
+  background:var(--lv-panel) !important;
+  color:var(--lv-ink) !important;
+  border-color:var(--lv-border) !important;
+  box-shadow:var(--lv-shadow) !important;
+}
+#lessonViewerScreen .lesson-library-icon,
+#lessonViewerScreen .lesson-continue-icon {
+  background:var(--lv-raised) !important;
+  color:var(--lv-accent) !important;
+  border-color:var(--lv-border) !important;
+}
+#lessonViewerScreen .lesson-library-header :is(.ghost-btn,.icon-btn),
+#lessonViewerScreen .lesson-pdf-actions :is(.ghost-btn,.icon-btn) {
+  background:var(--lv-raised) !important;
+  border-color:var(--lv-border) !important;
+  color:var(--lv-ink) !important;
+}
+#lessonViewerScreen .lesson-library-header :is(.ghost-btn,.icon-btn):hover,
+#lessonViewerScreen .lesson-pdf-actions :is(.ghost-btn,.icon-btn):hover {
+  background:var(--lv-control) !important;
+  border-color:var(--lv-accent) !important;
+}
+#lessonViewerScreen .lesson-term-tab:not(.active) {
+  color:var(--lv-muted) !important;
+  background:var(--lv-raised) !important;
+  border-color:var(--lv-border) !important;
+}
+#lessonViewerScreen .lesson-term-tab.active {
+  color:#ffffff !important;
+  background:linear-gradient(130deg,#2467da,#0e9edf) !important;
+  border-color:transparent !important;
+}
+#lessonViewerScreen .lesson-library-search {
+  background:var(--lv-control) !important;
+  border-color:var(--lv-border) !important;
+  color:var(--lv-ink) !important;
+}
+#lessonViewerScreen .lesson-library-search input,
+#lessonViewerScreen .lesson-library-filter-row select {
+  color:var(--lv-ink) !important;
+  -webkit-text-fill-color:var(--lv-ink);
+}
+#lessonViewerScreen .lesson-library-filter-row select {
+  background:var(--lv-control) !important;
+  border-color:var(--lv-border) !important;
+}
+#lessonViewerScreen .lesson-library-filter-row option {
+  color:var(--lv-ink) !important;
+  background:var(--lv-panel) !important;
+}
+#lessonViewerScreen .lesson-library-search input::placeholder {
+  color:var(--lv-muted) !important;
+  -webkit-text-fill-color:var(--lv-muted);
+  opacity:1 !important;
+}
+#lessonViewerScreen .lesson-card-open {color:var(--lv-ink) !important}
+#lessonViewerScreen .lesson-card-progress {
+  background:var(--lv-raised) !important;
+  border-color:var(--lv-border) !important;
+}
+#lessonViewerScreen .lesson-pdf-header {
+  background:var(--lv-raised) !important;
+  color:var(--lv-ink) !important;
+  border-color:var(--lv-border) !important;
+}
+#lessonViewerScreen .lesson-pdf-loading {color:var(--lv-ink) !important}
+#lessonViewerScreen .lesson-pdf-loading small {color:var(--lv-muted) !important}
+#lessonViewerScreen .lesson-library-stat,
+#lessonViewerScreen .lesson-library-stat :is(strong,span),
+#lessonViewerScreen .lesson-card-cover :is(.lesson-card-number,.lesson-card-pdf,.lesson-card-book) {
+  color:#ffffff !important;
+}
+#lessonViewerScreen .lesson-library-status[data-type="success"] {color:#167348 !important}
+#lessonViewerScreen .lesson-library-status[data-type="warning"] {color:#98620a !important}
+#lessonViewerScreen .lesson-library-status[data-type="error"] {color:#b52b3b !important}
+html[data-theme="dark"] #lessonViewerScreen .lesson-library-status[data-type="success"],
+body[data-student-app-appearance="dark"] #lessonViewerScreen .lesson-library-status[data-type="success"] {color:#8ce0b7 !important}
+html[data-theme="dark"] #lessonViewerScreen .lesson-library-status[data-type="warning"],
+body[data-student-app-appearance="dark"] #lessonViewerScreen .lesson-library-status[data-type="warning"] {color:#ffd48c !important}
+html[data-theme="dark"] #lessonViewerScreen .lesson-library-status[data-type="error"],
+body[data-student-app-appearance="dark"] #lessonViewerScreen .lesson-library-status[data-type="error"] {color:#ffadb7 !important}
+
+/* Override the previous generic search button/focus rules at small sizes,
+   but keep their responsive grid layout and native touch targets. */
+#lessonViewerScreen :is(button,input,select,a):focus-visible {
+  outline:3px solid var(--lv-accent) !important;
+  outline-offset:2px;
+}
+@media (prefers-reduced-motion:reduce) {
+  #lessonViewerScreen :is(.lesson-library-card,.lesson-term-tab,.lesson-pdf-card) {
+    transition:none !important; transform:none !important;
+  }
+}
+
+
+/* STEP 133: Student utility modals follow the published student-app theme.
+   Scope: Join a Project, New Project, and Recitation Status.
+   Goal: make these dialogs look like part of the same app and inherit the
+   admin-selected light/dark student theme without touching teacher/admin UI. */
+body[data-student-app-theme]:is(.student-session-active,.guest-session-active) :is(
+  #projectTypeOverlay,
+  #recitationStatusOverlay,
+  .collab-overlay
+) {
+  background: color-mix(in srgb, var(--sat-bg, #0f172a) 64%, rgba(3, 8, 18, 0.84)) !important;
+  backdrop-filter: blur(14px) saturate(1.06);
+}
+
+body[data-student-app-theme]:is(.student-session-active,.guest-session-active) :is(
+  #projectTypeOverlay .student-auth-card,
+  #recitationStatusOverlay .student-auth-card,
+  .collab-card
+) {
+  background: linear-gradient(180deg,
+      color-mix(in srgb, var(--sat-card, #ffffff) 98%, white 2%) 0%,
+      color-mix(in srgb, var(--sat-card, #ffffff) 94%, var(--sat-soft, #dbe7f6) 6%) 100%) !important;
+  color: var(--sat-text, #1e293b) !important;
+  border: 1.5px solid color-mix(in srgb, var(--sat-border, #c6d4e8) 88%, transparent) !important;
+  border-radius: clamp(18px, calc(var(--sat-radius, 18px) + 4px), 28px) !important;
+  box-shadow: 0 24px 58px rgba(15, 23, 42, 0.20), 0 10px 22px rgba(15, 23, 42, 0.12) !important;
+}
+
+body[data-student-app-theme]:is(.student-session-active,.guest-session-active) :is(
+  #projectTypeOverlay .student-auth-icon,
+  #recitationStatusOverlay .student-auth-icon,
+  .collab-card .student-auth-icon,
+  .collab-card-head .student-auth-icon,
+  .collab-card-head .collab-icon,
+  #projectTypeOverlay .project-type-card > .student-auth-icon,
+  #recitationStatusOverlay .recitation-status-icon
+) {
+  background: linear-gradient(135deg, var(--sat-primary, #2563eb) 0%, var(--sat-action, #0ea5e9) 100%) !important;
+  color: #fff !important;
+  border: 1px solid color-mix(in srgb, var(--sat-border, #bcd0e6) 70%, transparent) !important;
+  box-shadow: 0 16px 28px color-mix(in srgb, var(--sat-primary, #2563eb) 24%, transparent) !important;
+}
+
+body[data-student-app-theme]:is(.student-session-active,.guest-session-active) :is(
+  #projectTypeOverlay .section-kicker,
+  #recitationStatusOverlay .section-kicker,
+  .collab-card .section-kicker,
+  .collab-card .collab-kicker
+) {
+  color: var(--sat-primary, #2563eb) !important;
+}
+
+body[data-student-app-theme]:is(.student-session-active,.guest-session-active) :is(
+  #projectTypeOverlay h2,
+  #recitationStatusOverlay h2,
+  #recitationStatusOverlay h3,
+  .collab-card h2,
+  .collab-card h3,
+  .collab-card strong,
+  .project-type-option strong
+) {
+  color: var(--sat-text, #15243a) !important;
+}
+
+body[data-student-app-theme]:is(.student-session-active,.guest-session-active) :is(
+  #projectTypeOverlay .muted-text,
+  #recitationStatusOverlay .muted-text,
+  #recitationStatusOverlay .helper-note,
+  .collab-card .muted-text,
+  .collab-card small,
+  .project-type-option small
+) {
+  color: var(--sat-muted, #5b6d86) !important;
+}
+
+body[data-student-app-theme]:is(.student-session-active,.guest-session-active) :is(
+  #projectTypeOverlay .project-type-option,
+  #recitationStatusOverlay .recitation-viewer-header,
+  #recitationStatusOverlay .recitation-stats-grid > div,
+  #recitationStatusOverlay .recitation-student-row,
+  #recitationStatusOverlay .recitation-status-box,
+  .collab-card .collab-panel,
+  .collab-card .collab-code-box,
+  .collab-card .collab-member-card,
+  .collab-card .collab-status
+) {
+  background: color-mix(in srgb, var(--sat-soft, #e7eef8) 60%, var(--sat-card, #ffffff) 40%) !important;
+  border-color: var(--sat-border, #c8d7ea) !important;
+  color: var(--sat-text, #17263d) !important;
+}
+
+body[data-student-app-theme]:is(.student-session-active,.guest-session-active) #projectTypeOverlay .project-type-option {
+  min-height: 118px;
+  padding: 18px 18px !important;
+  border-radius: calc(var(--sat-radius, 18px) + 2px) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.35), 0 10px 22px rgba(15, 23, 42, 0.06);
+}
+
+body[data-student-app-theme]:is(.student-session-active,.guest-session-active) #projectTypeOverlay .project-type-option:hover,
+body[data-student-app-theme]:is(.student-session-active,.guest-session-active) #projectTypeOverlay .project-type-option:focus-visible {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--sat-primary, #2563eb) 52%, var(--sat-border, #c8d7ea)) !important;
+  box-shadow: 0 16px 28px rgba(15, 23, 42, 0.10), 0 0 0 3px color-mix(in srgb, var(--sat-primary, #2563eb) 12%, transparent) !important;
+}
+
+body[data-student-app-theme]:is(.student-session-active,.guest-session-active) #projectTypeOverlay .project-type-option-icon {
+  background: color-mix(in srgb, var(--sat-card, #fff) 24%, var(--sat-primary, #2563eb) 76%) !important;
+  color: #ffffff !important;
+  border-radius: calc(var(--sat-radius, 18px) - 2px) !important;
+  box-shadow: 0 12px 24px color-mix(in srgb, var(--sat-primary, #2563eb) 18%, transparent) !important;
+}
+
+body[data-student-app-theme]:is(.student-session-active,.guest-session-active) :is(
+  #projectTypeOverlay input,
+  #projectTypeOverlay select,
+  #recitationStatusOverlay input,
+  #recitationStatusOverlay select,
+  .collab-card input,
+  .collab-card select
+):not(#codeEditor) {
+  background: color-mix(in srgb, var(--sat-card, #fff) 86%, var(--sat-soft, #dfeaf8) 14%) !important;
+  color: var(--sat-text, #17263d) !important;
+  border-color: color-mix(in srgb, var(--sat-border, #c6d4e8) 84%, transparent) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.32) !important;
+}
+
+body[data-student-app-theme]:is(.student-session-active,.guest-session-active) :is(
+  #projectTypeOverlay .ghost-btn,
+  #projectTypeOverlay .icon-btn,
+  #recitationStatusOverlay .ghost-btn,
+  #recitationStatusOverlay .icon-btn,
+  .collab-card .ghost-btn,
+  .collab-card .icon-btn
+):not(.danger) {
+  background: color-mix(in srgb, var(--sat-card, #fff) 62%, var(--sat-soft, #dbe7f6) 38%) !important;
+  color: var(--sat-text, #17263d) !important;
+  border-color: var(--sat-border, #c6d4e8) !important;
+}
+
+body[data-student-app-theme]:is(.student-session-active,.guest-session-active) :is(
+  #projectTypeOverlay .primary-btn,
+  #recitationStatusOverlay .primary-btn,
+  .collab-card .primary-btn,
+  .collab-card .success-btn
+) {
+  background: linear-gradient(90deg, var(--sat-primary, #2563eb) 0%, var(--sat-action, #0ea5e9) 100%) !important;
+  color: #fff !important;
+  border-color: transparent !important;
+  box-shadow: 0 12px 24px color-mix(in srgb, var(--sat-primary, #2563eb) 24%, transparent) !important;
+}
+
+body[data-student-app-theme]:is(.student-session-active,.guest-session-active) :is(
+  #projectTypeOverlay .auth-close-btn,
+  #recitationStatusOverlay .auth-close-btn,
+  .collab-card .icon-btn,
+  .collab-card #collabCloseBtn
+) {
+  background: color-mix(in srgb, var(--sat-card, #fff) 70%, var(--sat-soft, #dfe8f4) 30%) !important;
+  color: var(--sat-text, #17263d) !important;
+  border-color: var(--sat-border, #c6d4e8) !important;
+}
+
+body[data-student-app-theme]:not([data-student-app-theme="original"])[data-student-app-appearance="dark"] :is(
+  #projectTypeOverlay,
+  #recitationStatusOverlay,
+  .collab-overlay
+) {
+  background: rgba(4, 10, 20, 0.74) !important;
+}
+
+body[data-student-app-theme]:not([data-student-app-theme="original"])[data-student-app-appearance="dark"] :is(
+  #projectTypeOverlay .student-auth-card,
+  #recitationStatusOverlay .student-auth-card,
+  .collab-card
+) {
+  background: linear-gradient(180deg,
+      color-mix(in srgb, var(--sat-card, #162130) 92%, rgba(255,255,255,0.03)) 0%,
+      color-mix(in srgb, var(--sat-card-raised, #111a27) 95%, rgba(0,0,0,0.08)) 100%) !important;
+  color: var(--sat-text, #edf5ff) !important;
+  border-color: color-mix(in srgb, var(--sat-border, #2a3d55) 82%, rgba(255,255,255,0.08)) !important;
+  box-shadow: 0 28px 64px rgba(0, 0, 0, 0.38), 0 10px 20px rgba(0, 0, 0, 0.22) !important;
+}
+
+body[data-student-app-theme]:not([data-student-app-theme="original"])[data-student-app-appearance="dark"] :is(
+  #projectTypeOverlay .project-type-option,
+  #recitationStatusOverlay .recitation-viewer-header,
+  #recitationStatusOverlay .recitation-stats-grid > div,
+  #recitationStatusOverlay .recitation-student-row,
+  #recitationStatusOverlay .recitation-status-box,
+  .collab-card .collab-panel,
+  .collab-card .collab-code-box,
+  .collab-card .collab-member-card,
+  .collab-card .collab-status,
+  #projectTypeOverlay input,
+  #projectTypeOverlay select,
+  #recitationStatusOverlay input,
+  #recitationStatusOverlay select,
+  .collab-card input,
+  .collab-card select,
+  #projectTypeOverlay .ghost-btn,
+  #projectTypeOverlay .icon-btn,
+  #recitationStatusOverlay .ghost-btn,
+  #recitationStatusOverlay .icon-btn,
+  .collab-card .ghost-btn,
+  .collab-card .icon-btn
+):not(#codeEditor):not(.primary-btn):not(.success-btn) {
+  background: color-mix(in srgb, var(--sat-soft, #203245) 72%, var(--sat-card, #152130) 28%) !important;
+  color: var(--sat-text, #edf5ff) !important;
+  border-color: color-mix(in srgb, var(--sat-border, #334760) 76%, rgba(255,255,255,0.06)) !important;
+}
+
+body[data-student-app-theme]:not([data-student-app-theme="original"])[data-student-app-appearance="dark"] :is(
+  #projectTypeOverlay .muted-text,
+  #recitationStatusOverlay .muted-text,
+  #recitationStatusOverlay .helper-note,
+  .collab-card .muted-text,
+  .collab-card small,
+  .project-type-option small
+) {
+  color: var(--sat-muted, #bdd0e4) !important;
+}
+
+body[data-student-app-theme]:not([data-student-app-theme="original"])[data-student-app-appearance="dark"] :is(
+  #projectTypeOverlay input,
+  #recitationStatusOverlay input,
+  .collab-card input
+)::placeholder {
+  color: color-mix(in srgb, var(--sat-muted, #bdd0e4) 88%, transparent) !important;
+  opacity: 1 !important;
+}
+
+@media (max-width: 760px) {
+  body[data-student-app-theme]:is(.student-session-active,.guest-session-active) :is(
+    #projectTypeOverlay .student-auth-card,
+    #recitationStatusOverlay .student-auth-card,
+    .collab-card
+  ) {
+    border-radius: min(22px, calc(var(--sat-radius, 18px) + 4px)) !important;
+  }
+
+  body[data-student-app-theme]:is(.student-session-active,.guest-session-active) #projectTypeOverlay .project-type-option {
+    min-height: 100px;
+    padding: 15px 14px !important;
+  }
+}
+
+
+/* STEP 134: Guest / not-yet-logged-in Lesson Viewer theme is explicit.
+   This takes precedence over the published student app palette while public
+   reading, so Dark/Light always visibly changes EVERY lesson surface. */
+html body #lessonViewerScreen.lesson-viewer-screen[data-lesson-appearance="light"] {
+  --lv-page:#eef3fa !important;
+  --lv-header:#ffffff !important;
+  --lv-panel:#ffffff !important;
+  --lv-raised:#f1f6fc !important;
+  --lv-control:#f5f8fc !important;
+  --lv-ink:#1b2f49 !important;
+  --lv-muted:#52657e !important;
+  --lv-border:#c7d7e9 !important;
+  --lv-accent:#1959b3 !important;
+  --lv-shadow:0 12px 30px rgba(19,48,91,.07) !important;
+  color-scheme:light !important;
+}
+html body #lessonViewerScreen.lesson-viewer-screen[data-lesson-appearance="dark"] {
+  --lv-page:#0d1726 !important;
+  --lv-header:#142238 !important;
+  --lv-panel:#1a2a41 !important;
+  --lv-raised:#24364e !important;
+  --lv-control:#101e31 !important;
+  --lv-ink:#f1f6ff !important;
+  --lv-muted:#bdccdf !important;
+  --lv-border:#3b526f !important;
+  --lv-accent:#9ec7ff !important;
+  --lv-shadow:0 12px 30px rgba(0,0,0,.18) !important;
+  color-scheme:dark !important;
+}
+/* The teacher's styling still defines accents for authenticated app pages;
+   this standalone guest viewer only owns its readable surfaces. */
+#lessonViewerScreen.lesson-viewer-screen[data-lesson-appearance] .lesson-library-controls {
+  background:var(--lv-panel) !important;
+  border-color:var(--lv-border) !important;
+}
+#lessonViewerScreen.lesson-viewer-screen[data-lesson-appearance] .lesson-library-welcome-card,
+#lessonViewerScreen.lesson-viewer-screen[data-lesson-appearance] .lesson-library-card,
+#lessonViewerScreen.lesson-viewer-screen[data-lesson-appearance] .lesson-continue-card {
+  color:var(--lv-ink) !important;
+  background:var(--lv-panel) !important;
+  border-color:var(--lv-border) !important;
+}
+#lessonViewerScreen.lesson-viewer-screen[data-lesson-appearance] .lesson-library-brand :is(h1,.muted-text,.section-kicker) {
+  color:var(--lv-ink) !important;
+}
+#lessonViewerScreen.lesson-viewer-screen[data-lesson-appearance] .lesson-library-brand .muted-text {
+  color:var(--lv-muted) !important;
+}
+#lessonViewerScreen.lesson-viewer-screen[data-lesson-appearance] .lesson-library-filter-row select,
+#lessonViewerScreen.lesson-viewer-screen[data-lesson-appearance] .lesson-library-search input,
+#lessonViewerScreen.lesson-viewer-screen[data-lesson-appearance] .lesson-library-search {
+  background:var(--lv-control) !important;
+  color:var(--lv-ink) !important;
+  border-color:var(--lv-border) !important;
+  -webkit-text-fill-color:var(--lv-ink) !important;
+}
+#lessonViewerScreen.lesson-viewer-screen[data-lesson-appearance] .lesson-term-tab:not(.active) {
+  background:var(--lv-raised) !important;
+  color:var(--lv-muted) !important;
+  border-color:var(--lv-border) !important;
+}
+#lessonViewerScreen.lesson-viewer-screen[data-lesson-appearance] .lesson-library-header {
+  background:var(--lv-header) !important;
+  color:var(--lv-ink) !important;
+  border-color:var(--lv-border) !important;
+}
+
+/* Explicit guest reader surfaces win over whole-app admin color overrides.
+   This fixes the mixed dark header / white page when logged out. */
+html body #lessonViewerScreen.lesson-viewer-screen[data-lesson-appearance] {
+  background:radial-gradient(circle at 90% 4%,color-mix(in srgb,var(--lv-accent) 7%,transparent),transparent 22rem),var(--lv-page) !important;
+  color:var(--lv-ink) !important;
+}
+html body #lessonViewerScreen.lesson-viewer-screen[data-lesson-appearance] :is(
+ .lesson-library-search,.lesson-library-search input,.lesson-library-filter-row select
+) {
+  background:var(--lv-control) !important;
+  color:var(--lv-ink) !important;
+  -webkit-text-fill-color:var(--lv-ink) !important;
+  border-color:var(--lv-border) !important;
+}
+html body #lessonViewerScreen.lesson-viewer-screen[data-lesson-appearance] .lesson-library-search input::placeholder {
+  color:var(--lv-muted) !important;
+  -webkit-text-fill-color:var(--lv-muted) !important;
+  opacity:1 !important;
+}
+html body #lessonViewerScreen.lesson-viewer-screen[data-lesson-appearance] .lesson-library-filter-row option {
+  color:var(--lv-ink) !important;
+  background:var(--lv-panel) !important;
+}
+
+/* Extra specificity is needed when an admin-published themed app has its own
+   global !important input/text rules. This stays scoped to the guest reader. */
+html body[data-student-app-theme][data-student-app-appearance] #lessonViewerScreen.lesson-viewer-screen[data-lesson-appearance][data-lesson-appearance] {
+  color:var(--lv-ink) !important;
+}
+html body[data-student-app-theme][data-student-app-appearance] #lessonViewerScreen.lesson-viewer-screen[data-lesson-appearance][data-lesson-appearance] :is(
+  .lesson-library-search,.lesson-library-search input,.lesson-library-filter-row select
+) {
+  color:var(--lv-ink) !important;
+  -webkit-text-fill-color:var(--lv-ink) !important;
+  background:var(--lv-control) !important;
+  border-color:var(--lv-border) !important;
+}
+
+html body[data-student-app-theme][data-student-app-appearance]
+#lessonViewerScreen.lesson-viewer-screen[data-lesson-appearance]
+:is(.lesson-library-search input,.lesson-library-filter-row select):not(#codeEditor) {
+  background:var(--lv-control) !important;
+  color:var(--lv-ink) !important;
+  -webkit-text-fill-color:var(--lv-ink) !important;
+  border-color:var(--lv-border) !important;
+}
