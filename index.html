@@ -4,6 +4,34 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>ICT 8 Connect | Learn, Code, Connect</title>
+  <!-- Hide the entry/login gate ONLY during a verified Studio-to-page return.
+       If Firebase session validation fails, the original login screen returns. -->
+  <script>
+    (() => {
+      try {
+        const p = JSON.parse(sessionStorage.getItem('g8code.officialStudio.return.v1') || 'null');
+        if (p && ['home','projects','activities','lessons','explorer','admin'].includes(p.route) &&
+            Date.now() - Number(p.at || 0) < 180000 && Number(p.at || 0) <= Date.now() + 10000) {
+          document.documentElement.classList.add('studio-return-pending');
+          if (p.route === 'admin') document.documentElement.classList.add('studio-admin-return-pending');
+        }
+      } catch (_) {}
+    })();
+  </script>
+  <style>
+    html.studio-return-pending body > * { visibility: hidden !important; }
+    html.studio-return-pending body::after {
+      content: 'Opening your G8Code page…';
+      visibility: visible !important;
+      position: fixed; inset: 0; z-index: 2147483647;
+      display: flex; align-items: center; justify-content: center;
+      color: #17365a; background: #f6f9ff;
+      font: 700 15px system-ui, sans-serif;
+    }
+    html.studio-admin-return-pending body::after {
+      content: 'Opening protected Admin access…';
+    }
+  </style>
 
   <meta name="description" content="ICT 8 Connect is a classroom-ready Grade 8 ICT learning workspace for lessons, coding, feedback, and progress tracking." />
   <meta name="application-name" content="ICT 8 Connect" />
@@ -5422,7 +5450,7 @@ https://example.com/song3.mp3"></textarea>
   <script src="admin-workspace-theme.js?v=20261101-admin-v1"></script>
   <script src="student-learning-unified.js?v=20261102-learning-unified-v1"></script>
   <script src="student-projects-unified.js?v=20261102-projects-header-home-v2"></script>
-  <script src="student-official-editor-bridge.js?v=20261102-official-studio-v220"></script>
+  <script src="student-official-editor-bridge.js?v=20261102-direct-admin-v223"></script>
   <script>
     // v410 fallback: keep the desktop editor settings popover working even if older cached
     // toolbar code fails before binding the click handler.
