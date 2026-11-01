@@ -131,3 +131,27 @@
 #adminOverlay[data-admin-appearance] .login-music-metadata-row{background:var(--g8adm-raised)!important;border-color:var(--g8adm-border)!important}
 #adminOverlay[data-admin-appearance] .login-music-metadata-fields input{background:var(--g8adm-card)!important;color:var(--g8adm-ink)!important;border-color:var(--g8adm-border)!important}
 #adminOverlay[data-admin-appearance] .login-music-metadata-fields input::placeholder{color:var(--g8adm-muted)!important;opacity:1}
+
+
+/* v4 mobile sheet hardening: when opened on phones, keep the whole player
+   inside the viewport and above the dashboard, without clipping or partial
+   visibility near the top of the screen. */
+@media (max-width:700px) {
+  #studentHomeScreen .sh-music-panel:not(.hidden) {
+    inset: auto 10px max(10px, env(safe-area-inset-bottom, 0px)) 10px !important;
+    top: auto !important;
+    bottom: max(10px, env(safe-area-inset-bottom, 0px)) !important;
+    left: 10px !important;
+    right: 10px !important;
+    width: auto !important;
+    max-width: none !important;
+    max-height: min(78dvh, calc(100dvh - 20px)) !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    z-index: 12050 !important;
+  }
+  #studentHomeScreen .sh-music-shade:not(.hidden) {
+    z-index: 12040 !important;
+  }
+}

@@ -2547,14 +2547,21 @@ const homeMusicElements = {
 };
 // A genuine anchored overlay: never insert a panel between the header and hero.
 const homeMusicAnchor = document.getElementById('studentHomeMusicAnchor');
-if (homeMusicAnchor) {
-  if (homeMusicElements.panel?.parentElement !== homeMusicAnchor) homeMusicAnchor.append(homeMusicElements.panel);
-  // Keep the backdrop and player in the same stacking context: otherwise the backdrop
-  // can intercept every music control on narrow screens.
-  if (homeMusicElements.shade?.parentElement !== homeMusicAnchor) homeMusicAnchor.append(homeMusicElements.shade);
-}
+const homeMusicOverlayHost = studentHomeScreen || document.getElementById('studentHomeScreen');
 const homeMusicMediaQuery = window.matchMedia('(max-width:700px)');
+function mountStudentHomeMusicOverlay() {
+  const mobile = homeMusicMediaQuery.matches;
+  // On desktop/tablet, keep the player anchored to the header icon.
+  // On phones, move it to the screen root so it behaves like a real bottom sheet
+  // and never gets clipped by the compact header area.
+  const target = mobile ? (homeMusicOverlayHost || homeMusicAnchor) : homeMusicAnchor;
+  if (!target) return;
+  if (homeMusicElements.panel?.parentElement !== target) target.append(homeMusicElements.panel);
+  if (homeMusicElements.shade?.parentElement !== target) target.append(homeMusicElements.shade);
+}
+mountStudentHomeMusicOverlay();
 function updateHomeMusicOverlayPosition() {
+  mountStudentHomeMusicOverlay();
   if (!homeMusicElements.panel || !studentHomeMusic.popoverOpen) return;
   // On narrow screens use a fixed bottom sheet; on larger screens anchor below icon.
   homeMusicElements.shade?.classList.toggle('hidden', !homeMusicMediaQuery.matches);
@@ -2579,6 +2586,7 @@ function renderStudentHomeMusic() {
   const el = homeMusicElements;
   if (!el.toggle) return;
   const allowed = homeMusicVisible();
+  mountStudentHomeMusicOverlay();
   el.toggle.classList.toggle('hidden', !allowed);
   if (!allowed) { closeStudentHomeMusicPanel(); return; }
   const active = loginReminderAudio;
