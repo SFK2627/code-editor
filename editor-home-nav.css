@@ -147,3 +147,40 @@ body[data-student-app-theme]:not([data-student-app-theme="original"]) #editorFul
 /* Also cover the built-in Phone Preview mode on a wide desktop viewport. */
 html[data-device-mode="phone"] :is(#editorMobileHomeBtn,#editorQuickHomeBtn) {display:none !important;visibility:hidden !important;pointer-events:none !important}
 html[data-device-mode="phone"] body.mobile-editor-menu-v416 .topbar .brand-block {padding-right:0 !important}
+
+/* Student Code Editor: remove only the standalone Teacher Feedback / Project
+   Comment panel from the editor's right column. The My Projects feedback cards,
+   Admin comments, and the separate Result & Feedback rubric remain untouched.
+   display:none takes this panel out of the CSS grid, so no blank space remains.
+   Scoped to the editor's workspace for all screen sizes and appearance themes. */
+#workspace > .right-column > #studentTeacherCommentPanel {
+  display: none !important;
+}
+
+/* v5 — Canonical phone editor navigation: the burger menu owns Home.
+   Hide BOTH header shortcuts (desktop quick Home and duplicate mobile Home),
+   regardless of whether mobile mode came from viewport, device preview,
+   or the app's JS-driven mobile editor menu.  Do not hide the underlying
+   buttons with the `hidden` attribute or remove them from DOM: mobile menu
+   actions use their click handlers programmatically.  On actual desktops
+   without mobile mode, the quick Home button remains visible. */
+@media (max-width: 820px), (hover: none) and (pointer: coarse) {
+  html body .app-shell > .topbar #editorQuickHomeBtn,
+  html body .app-shell > .topbar #editorMobileHomeBtn {
+    display: none !important;
+    visibility: hidden !important;
+    position: absolute !important;
+    pointer-events: none !important;
+  }
+}
+html[data-device-mode="phone"] body .app-shell > .topbar #editorQuickHomeBtn,
+html[data-device-mode="phone"] body .app-shell > .topbar #editorMobileHomeBtn,
+html body.mobile-editor-menu-v416 .app-shell > .topbar #editorQuickHomeBtn,
+html body.mobile-editor-menu-v416 .app-shell > .topbar #editorMobileHomeBtn,
+html body.mobile-editor-menu-v415 .app-shell > .topbar #editorQuickHomeBtn,
+html body.mobile-editor-menu-v415 .app-shell > .topbar #editorMobileHomeBtn {
+  display: none !important;
+  visibility: hidden !important;
+  position: absolute !important;
+  pointer-events: none !important;
+}
