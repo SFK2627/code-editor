@@ -29792,6 +29792,26 @@ function closeAdminPanel() {
   adminOnlinePresenceTimer = null;
   setAdminTab(getStoredAdminTab(), { skipLoad: true });
   document.body.classList.remove('admin-open');
+  // V2.24: a Studio-launched Admin visit returns to Studio, NOT the old
+  // G8Code editor underneath the overlay. Ordinary Admin access is unchanged.
+  const returnKey = 'g8code.studio.adminReturn.v1';
+  let origin = null;
+  try { origin = JSON.parse(sessionStorage.getItem(returnKey) || 'null'); } catch (_) {}
+  try { sessionStorage.removeItem(returnKey); } catch (_) {}
+  if (origin && Date.now() - Number(origin.at || 0) < 24 * 60 * 60 * 1000 &&
+      Number(origin.at || 0) <= Date.now() + 10000) {
+    const currentUid = (typeof getFirebaseActiveUser === 'function' && getFirebaseActiveUser()?.uid) || '';
+    // Do not re-enter a private student's project if teacher login replaced
+    // that account. In this case open guest Studio, where login is available.
+    const sameStudent = !origin.guest && !!origin.uid && currentUid === origin.uid &&
+      !(typeof isTeacherUser === 'function' && isTeacherUser(getFirebaseActiveUser()));
+    const target = new URL('editor-v2.html', window.location.href);
+    if (sameStudent && origin.projectId) target.searchParams.set('project', origin.projectId);
+    else if (!sameStudent) target.searchParams.set('mode', 'guest');
+    target.searchParams.set('return', 'admin');
+    window.ICT8AppExitGuard?.allowNextUnload?.();
+    window.location.assign(target.href);
+  }
 }
 
 function showAdminForm(activityId = adminEditingActivityId) {
@@ -43188,9 +43208,23 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
       setCollabStatus('Type the share code first.', 'error');
       return;
     }
-    const overlay = document.getElementById('collabOverlay');
-    const fromDashboard = overlay?.dataset?.collabSource === 'dashboard' || overlay?.classList.contains('collab-dashboard-join-mode');
-    await joinCollaborationSession(code, { role: 'member', source: fromDashboard ? 'dashboard' : '' });
+    // V2.24: all joiners use the same official Studio as the host.
+    // The OLD join handler previously opened the legacy editor from My Projects.
+    // Carry only the room code; Studio V2 validates the authenticated student,
+    // active room, access permissions, and WebRTC connection on its own.
+    if (!/^[A-Z0-9]{6}$/.test(code)) {
+      setCollabStatus('Enter the six-character share code.', 'error');
+      return;
+    }
+    if (!getCollabStudent()) {
+      setCollabStatus('Log in as a student before joining.', 'error');
+      return;
+    }
+    const target = new URL('editor-v2.html', window.location.href);
+    target.searchParams.set('join', code);
+    closeCollabOverlay();
+    window.ICT8AppExitGuard?.allowNextUnload?.();
+    window.location.assign(target.href);
   }
 
   async function joinCollaborationSession(code, options = {}) {

@@ -49,6 +49,15 @@
       }
       // Make the PIN / teacher sign-in visible immediately. The asynchronous
       // Firebase initialization inside openAdminPanel may finish afterwards.
+      // Record the exact Studio origin only AFTER the protected Admin overlay
+      // is actually open. Closing it can then return to Studio V2 reliably.
+      try {
+        sessionStorage.setItem('g8code.studio.adminReturn.v1', JSON.stringify({
+          at: Date.now(), uid: String(pending.uid || ''),
+          guest: pending.guest === true || !pending.uid,
+          projectId: String(pending.projectId || '').slice(0, 200)
+        }));
+      } catch (_) {}
       finish();
       Promise.resolve(loadingAdmin).catch(error => {
         console.error('[Studio Admin shortcut] Failed to initialize Admin', error);
