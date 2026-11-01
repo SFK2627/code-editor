@@ -1,0 +1,322 @@
+/* G8Code Student Learning UI v1 — Home-matched headers, cards & five-tab mobile navigation.
+   Standalone guest access is preserved. No changes to lesson PDFs, activities, quiz
+   overlays, project editors, saved data, or teacher settings. */
+:is(#lessonViewerScreen,#givenActivitiesScreen){
+  --ls-bg:#f5f7fc;--ls-ink:#17253c;--ls-muted:#60718b;--ls-card:#fff;
+  --ls-border:#e3e9f2;--ls-accent:#275ac8;--ls-soft:#ecf2ff;
+  --ls-radius:18px;--ls-shadow:0 12px 40px rgba(29,53,96,.055);
+  box-sizing:border-box;max-width:100vw;overflow-x:hidden;
+}
+:is(#lessonViewerScreen,#givenActivitiesScreen) *,
+:is(#lessonViewerScreen,#givenActivitiesScreen) *::before,
+:is(#lessonViewerScreen,#givenActivitiesScreen) *::after{box-sizing:border-box}
+html[data-theme="dark"] :is(#lessonViewerScreen,#givenActivitiesScreen){
+  --ls-bg:#0f1727;--ls-ink:#eef3ff;--ls-muted:#b1c0d8;--ls-card:#17243a;
+  --ls-border:#34415b;--ls-accent:#8bb5ff;--ls-soft:#23395c;
+  --ls-shadow:0 10px 36px rgba(0,0,0,.13);
+}
+body[data-student-app-theme]:not([data-student-app-theme="original"]) :is(#lessonViewerScreen,#givenActivitiesScreen){
+  --ls-bg:var(--sat-bg,#f5f7fc);--ls-ink:var(--sat-text,#17253c);
+  --ls-muted:var(--sat-muted,#60718b);--ls-card:var(--sat-card,#fff);
+  --ls-border:var(--sat-border,#e3e9f2);--ls-accent:var(--sat-primary,#275ac8);
+  --ls-soft:var(--sat-soft,#ecf2ff);--ls-radius:var(--sat-radius,18px);
+}
+/* Keep independently themed guest lessons untouched; student pages follow Home. */
+body #lessonViewerScreen.is-learning-student,
+body #givenActivitiesScreen.is-learning-student{
+  background:var(--sat-decor,none),var(--ls-bg)!important;
+  color:var(--ls-ink)!important;
+}
+/* Header: same structure, logo, scale, controls and maximum width as Student Home. */
+:is(#lessonViewerScreen,#givenActivitiesScreen) .learning-header{
+  position:relative!important;top:auto!important;z-index:25;
+  flex:0 0 auto;display:block!important;width:100%;min-height:0!important;
+  padding:0 clamp(16px,3vw,34px)!important;
+  background:transparent!important;border:0!important;box-shadow:none!important;
+  backdrop-filter:none!important;
+}
+:is(#lessonViewerScreen,#givenActivitiesScreen) .learning-header-inner{
+  max-width:1240px;margin-inline:auto;min-height:94px;padding:12px 0;
+  display:flex;justify-content:space-between;align-items:center;gap:12px;
+  border-bottom:1px solid var(--ls-border);
+}
+:is(#lessonViewerScreen,#givenActivitiesScreen) .learning-brand{
+  display:flex;align-items:center;gap:13px;min-width:0;flex:1 1 auto;
+}
+:is(#lessonViewerScreen,#givenActivitiesScreen) .learning-brand .sh-brand-logo{
+  width:48px;height:48px;flex:0 0 48px;position:relative;display:grid;place-items:center;
+  border-radius:15px;border:1px solid rgba(240,214,130,.2);
+  background:linear-gradient(145deg,#172a46,#223e67);color:#ffdc63;
+  box-shadow:0 8px 20px rgba(14,27,53,.13);
+}
+:is(#lessonViewerScreen,#givenActivitiesScreen) .learning-brand .sh-logo-indicator{
+  position:absolute;bottom:7px;right:7px;width:5px;height:5px;border-radius:50%;
+  background:#69dbab;box-shadow:0 0 0 3px rgba(105,219,171,.12);
+}
+:is(#lessonViewerScreen,#givenActivitiesScreen) .learning-brand .sh-brand-copy{
+  min-width:0;display:flex;flex-direction:column;gap:2px;
+}
+:is(#lessonViewerScreen,#givenActivitiesScreen) .learning-brand .sh-brand-eyebrow{
+  font-size:10px;letter-spacing:1.7px;line-height:1.25;font-weight:850;
+  color:var(--ls-muted);
+}
+:is(#lessonViewerScreen,#givenActivitiesScreen) .learning-brand .sh-brand-copy strong{
+  font-size:19px;line-height:1.22;letter-spacing:-.5px;font-weight:850;
+  color:var(--ls-ink)!important;white-space:nowrap;
+}
+:is(#lessonViewerScreen,#givenActivitiesScreen) .learning-brand .sh-brand-subtitle{
+  font-size:11px;line-height:1.4;color:var(--ls-muted)!important;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:min(44vw,440px);
+}
+:is(#lessonViewerScreen,#givenActivitiesScreen) .learning-header-tools{
+  display:flex!important;flex:0 0 auto;align-items:center;justify-content:flex-end;
+  flex-wrap:nowrap!important;width:auto!important;gap:8px!important;
+}
+:is(#lessonViewerScreen,#givenActivitiesScreen) .learning-term-pill{
+  display:inline-flex;align-items:center;justify-content:center;min-height:38px;
+  padding:0 13px;border-radius:999px;white-space:nowrap;
+  border:1px solid var(--ls-border)!important;background:var(--ls-card)!important;
+  color:var(--ls-muted)!important;font-size:12px;font-weight:750;
+  width:auto!important;order:0;grid-column:auto;
+}
+:is(#lessonViewerScreen,#givenActivitiesScreen) :is(.learning-round-btn,.learning-back-btn){
+  display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;
+  margin:0;min-height:40px!important;height:40px;min-width:40px;
+  padding:0 9px!important;border:1px solid var(--ls-border)!important;border-radius:12px!important;
+  background:var(--ls-card)!important;color:var(--ls-ink)!important;
+  box-shadow:none!important;font-size:19px!important;font-weight:700;
+  cursor:pointer;line-height:1;white-space:nowrap;
+}
+:is(#lessonViewerScreen,#givenActivitiesScreen) :is(.learning-round-btn,.learning-back-btn):hover{
+  background:var(--ls-soft)!important;
+}
+:is(#lessonViewerScreen,#givenActivitiesScreen) .learning-round-btn svg{display:block;flex:none}
+:is(#lessonViewerScreen,#givenActivitiesScreen) .learning-back-btn{
+  gap:6px;padding:0 12px!important;font-size:12px!important;
+}
+:is(#lessonViewerScreen,#givenActivitiesScreen) .learning-back-btn span{font-size:12px}
+:is(#lessonViewerScreen,#givenActivitiesScreen) .learning-theme-btn{
+  font-size:0!important;position:relative;overflow:hidden!important;text-indent:-9999px;
+}
+:is(#lessonViewerScreen,#givenActivitiesScreen) .learning-theme-btn::after{
+  content:'◐';font-size:23px;line-height:1;position:absolute;inset:0;display:grid;place-items:center;text-indent:0;color:var(--ls-ink);
+}
+html[data-theme="dark"] :is(#lessonViewerScreen,#givenActivitiesScreen) .learning-theme-btn::after,
+body[data-student-app-appearance="dark"] :is(#lessonViewerScreen,#givenActivitiesScreen) .learning-theme-btn::after{content:'☀'}
+:is(#lessonViewerScreen,#givenActivitiesScreen) .learning-round-btn.hidden{display:none!important}
+:is(#lessonViewerScreen,#givenActivitiesScreen):not(.is-learning-student) .learning-student-only{display:none!important}
+/* Cards, hero and controls follow the Student Home design, preserving content/actions. */
+:is(#lessonViewerScreen,#givenActivitiesScreen).is-learning-student :is(.lesson-library-main,.given-activities-main){
+  min-width:0;
+}
+#lessonViewerScreen.is-learning-student .lesson-library-main{
+  max-width:1240px;width:calc(100% - clamp(32px,6vw,68px));
+  padding:14px 0 60px;
+}
+#givenActivitiesScreen.is-learning-student .given-activities-main{
+  padding:14px clamp(16px,3vw,34px) 60px;min-width:0;
+}
+:is(#lessonViewerScreen,#givenActivitiesScreen).is-learning-student :is(.lesson-library-welcome-card,.given-activities-welcome){
+  position:relative;isolation:isolate;overflow:hidden;
+  min-height:170px;padding:24px clamp(20px,2.5vw,30px)!important;
+  background:linear-gradient(115deg,#132847 0%,#173b71 70%,#2458a1 100%)!important;
+  color:#fff!important;border:0!important;border-radius:18px!important;
+  box-shadow:0 9px 27px rgba(12,35,77,.13)!important;
+}
+:is(#lessonViewerScreen,#givenActivitiesScreen).is-learning-student :is(.lesson-library-welcome-card,.given-activities-welcome)::before{
+  content:'';position:absolute;inset:0;z-index:-1;pointer-events:none;
+  background:radial-gradient(circle at 85% 25%,rgba(94,178,255,.2),transparent 38%),
+  radial-gradient(circle at 16% 100%,rgba(248,196,55,.11),transparent 37%);
+}
+:is(#lessonViewerScreen,#givenActivitiesScreen).is-learning-student :is(.lesson-library-welcome-card,.given-activities-welcome) :is(h2,p,span){
+  color:#fff!important;
+}
+:is(#lessonViewerScreen,#givenActivitiesScreen).is-learning-student :is(.lesson-library-welcome-card,.given-activities-welcome) h2{
+  font-size:clamp(22px,2.3vw,28px)!important;letter-spacing:-.55px;
+  line-height:1.2;margin:7px 0 8px;
+}
+:is(#lessonViewerScreen,#givenActivitiesScreen).is-learning-student :is(.lesson-library-welcome-card,.given-activities-welcome) p{
+  max-width:680px;font-size:12px!important;line-height:1.55;opacity:.88;
+}
+:is(#lessonViewerScreen,#givenActivitiesScreen).is-learning-student :is(.lesson-library-eyebrow,.given-activities-eyebrow){
+  color:var(--ls-accent)!important;
+}
+:is(#lessonViewerScreen,#givenActivitiesScreen).is-learning-student :is(.lesson-library-welcome-card,.given-activities-welcome) :is(.lesson-library-eyebrow,.given-activities-eyebrow){
+  font-size:10px!important;letter-spacing:1.3px;color:#c2d9fa!important;
+}
+:is(#lessonViewerScreen,#givenActivitiesScreen).is-learning-student :is(.lesson-library-stat,.given-activities-stat){
+  background:rgba(255,255,255,.12)!important;border:1px solid rgba(255,255,255,.16)!important;
+  color:#fff!important;border-radius:17px!important;min-height:94px;
+}
+:is(#lessonViewerScreen,#givenActivitiesScreen).is-learning-student :is(.lesson-library-stat,.given-activities-stat) :is(strong,span){
+  color:#fff!important;
+}
+:is(#lessonViewerScreen,#givenActivitiesScreen).is-learning-student :is(.lesson-library-controls,.given-activities-controls,.lesson-continue-card,.lesson-library-card,.given-activity-card){
+  background:var(--ls-card)!important;border:1px solid var(--ls-border)!important;
+  border-radius:var(--ls-radius)!important;
+  box-shadow:var(--ls-shadow)!important;color:var(--ls-ink)!important;
+}
+:is(#lessonViewerScreen,#givenActivitiesScreen).is-learning-student :is(.lesson-library-controls,.given-activities-controls){
+  margin-top:16px;padding:14px;
+}
+:is(#lessonViewerScreen,#givenActivitiesScreen).is-learning-student :is(.lesson-continue-card,.lesson-library-card,.given-activity-card){
+  transition:border-color .2s ease,transform .2s ease,box-shadow .2s ease;
+}
+@media(hover:hover) and (pointer:fine){
+  :is(#lessonViewerScreen,#givenActivitiesScreen).is-learning-student :is(.lesson-library-card,.given-activity-card):hover{
+    transform:translateY(-3px);border-color:var(--ls-accent)!important;
+    box-shadow:0 16px 35px rgba(32,69,128,.13)!important;
+  }
+}
+:is(#lessonViewerScreen,#givenActivitiesScreen).is-learning-student :is(.lesson-library-grid,.given-activities-grid){
+  gap:13px;grid-template-columns:repeat(auto-fill,minmax(min(100%,260px),1fr));
+}
+:is(#lessonViewerScreen,#givenActivitiesScreen).is-learning-student .lesson-term-tab{
+  min-width:0;border-radius:12px;font-size:12px;
+}
+:is(#lessonViewerScreen,#givenActivitiesScreen).is-learning-student .lesson-term-tab.active{
+  background:var(--ls-accent)!important;border-color:var(--ls-accent)!important;color:#fff!important;
+}
+:is(#lessonViewerScreen,#givenActivitiesScreen).is-learning-student :is(.lesson-library-search,.lesson-library-filter-row select,.given-activities-filter-row select){
+  border-color:var(--ls-border)!important;color:var(--ls-ink)!important;border-radius:12px;
+}
+:is(#lessonViewerScreen,#givenActivitiesScreen).is-learning-student :is(.lesson-library-search input,.given-activities-filter-row input){
+  color:var(--ls-ink)!important;
+}
+/* Student Home uses exactly these 5 labels/icons; expose same mobile navigation. */
+:is(#lessonViewerScreen,#givenActivitiesScreen) .learning-bottom-nav{display:none}
+@media(max-width:760px){
+  :is(#lessonViewerScreen,#givenActivitiesScreen) .learning-header{
+    padding:0 12px!important;
+  }
+  :is(#lessonViewerScreen,#givenActivitiesScreen) .learning-header-inner{
+    min-height:67px;padding:9px 0;gap:7px;
+  }
+  :is(#lessonViewerScreen,#givenActivitiesScreen) .learning-brand{gap:9px}
+  :is(#lessonViewerScreen,#givenActivitiesScreen) .learning-brand .sh-brand-logo{
+    width:38px;height:38px;flex-basis:38px;border-radius:12px;
+  }
+  :is(#lessonViewerScreen,#givenActivitiesScreen) .learning-brand .sh-brand-eyebrow{
+    font-size:8px;letter-spacing:.85px;
+  }
+  :is(#lessonViewerScreen,#givenActivitiesScreen) .learning-brand .sh-brand-copy strong{
+    font-size:15px;line-height:1.2;
+  }
+  :is(#lessonViewerScreen,#givenActivitiesScreen) .learning-brand .sh-brand-subtitle{
+    font-size:9px;max-width:130px;
+  }
+  :is(#lessonViewerScreen,#givenActivitiesScreen) .learning-header-tools{gap:5px!important}
+  :is(#lessonViewerScreen,#givenActivitiesScreen) .learning-term-pill{display:none!important}
+  :is(#lessonViewerScreen,#givenActivitiesScreen) :is(.learning-round-btn,.learning-back-btn){
+    width:36px;min-width:36px;min-height:36px!important;height:36px;
+    border-radius:12px!important;padding:0 5px!important;
+    font-size:18px!important;
+  }
+  :is(#lessonViewerScreen,#givenActivitiesScreen) .learning-back-btn{width:auto;gap:2px;font-size:12px!important}
+  :is(#lessonViewerScreen,#givenActivitiesScreen).is-learning-student .learning-back-btn{display:none!important}
+  :is(#lessonViewerScreen,#givenActivitiesScreen).is-learning-student .learning-header-tools :is(#lessonLibraryRefreshBtn,#givenActivitiesRefreshBtn){display:none!important}
+  #lessonViewerScreen.is-learning-student .lesson-library-main{
+    width:calc(100% - 24px);padding:12px 0 calc(103px + env(safe-area-inset-bottom));
+  }
+  #givenActivitiesScreen.is-learning-student .given-activities-main{
+    padding:12px 12px calc(103px + env(safe-area-inset-bottom));
+  }
+  :is(#lessonViewerScreen,#givenActivitiesScreen).is-learning-student :is(.lesson-library-welcome-card,.given-activities-welcome){
+    min-height:0;padding:17px!important;border-radius:16px!important;
+  }
+  :is(#lessonViewerScreen,#givenActivitiesScreen).is-learning-student :is(.lesson-library-welcome-card,.given-activities-welcome) h2{
+    font-size:21px!important;line-height:1.2;
+  }
+  :is(#lessonViewerScreen,#givenActivitiesScreen).is-learning-student :is(.lesson-library-welcome-card,.given-activities-welcome) p{
+    font-size:11px!important;line-height:1.45;
+  }
+  :is(#lessonViewerScreen,#givenActivitiesScreen).is-learning-student :is(.lesson-library-stat,.given-activities-stat){
+    min-height:60px;padding:10px;flex-basis:auto;
+  }
+  :is(#lessonViewerScreen,#givenActivitiesScreen).is-learning-student :is(.lesson-library-controls,.given-activities-controls){
+    padding:11px;margin-top:12px;border-radius:15px!important;
+  }
+  :is(#lessonViewerScreen,#givenActivitiesScreen).is-learning-student :is(.lesson-library-grid,.given-activities-grid){
+    grid-template-columns:minmax(0,1fr)!important;gap:10px;
+  }
+  :is(#lessonViewerScreen,#givenActivitiesScreen).is-learning-student .lesson-term-tabs{gap:6px}
+  :is(#lessonViewerScreen,#givenActivitiesScreen).is-learning-student .lesson-term-tab{
+    min-height:39px;padding:6px 4px;font-size:11px;
+  }
+  :is(#lessonViewerScreen,#givenActivitiesScreen).is-learning-student .lesson-term-tab span{
+    min-width:18px;height:18px;font-size:10px;margin-left:2px;
+  }
+  :is(#lessonViewerScreen,#givenActivitiesScreen).is-learning-student .lesson-library-filter-row,
+  :is(#lessonViewerScreen,#givenActivitiesScreen).is-learning-student .given-activities-filter-row{
+    display:flex;flex-direction:column;gap:8px;
+  }
+  :is(#lessonViewerScreen,#givenActivitiesScreen).is-learning-student .lesson-library-search{
+    flex:0 0 auto;width:100%;min-height:42px;
+  }
+  :is(#lessonViewerScreen,#givenActivitiesScreen).is-learning-student .lesson-library-search input{
+    font-size:13px!important;font-weight:500!important;min-height:40px;
+  }
+  :is(#lessonViewerScreen,#givenActivitiesScreen).is-learning-student .lesson-library-search input::placeholder{
+    font-size:13px!important;font-weight:500!important;opacity:1;
+  }
+  :is(#lessonViewerScreen,#givenActivitiesScreen).is-learning-student :is(.lesson-library-filter-row select,.given-activities-filter-row select){
+    width:100%;min-height:42px;
+  }
+  :is(#lessonViewerScreen,#givenActivitiesScreen).is-learning-student .learning-bottom-nav{
+    display:grid;grid-template-columns:repeat(5,minmax(0,1fr));
+    position:fixed;bottom:0;left:0;right:0;z-index:40;
+    padding:8px max(10px,env(safe-area-inset-right)) calc(7px + env(safe-area-inset-bottom));
+    background:var(--ls-card);border-top:1px solid var(--ls-border);
+    box-shadow:0 -7px 25px rgba(18,42,83,.05);
+  }
+  :is(#lessonViewerScreen,#givenActivitiesScreen) .learning-bottom-tab{
+    min-width:0;min-height:49px;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:3px;
+    background:transparent;border:0;border-radius:12px;
+    color:var(--ls-muted);font:inherit;cursor:pointer;
+    -webkit-tap-highlight-color:transparent;
+  }
+  :is(#lessonViewerScreen,#givenActivitiesScreen) .learning-bottom-tab span{font-size:20px;line-height:1}
+  :is(#lessonViewerScreen,#givenActivitiesScreen) .learning-bottom-tab small{font-size:10px;font-weight:750}
+  :is(#lessonViewerScreen,#givenActivitiesScreen) .learning-bottom-tab.is-active{
+    background:var(--ls-soft);color:var(--ls-accent);
+  }
+  :is(#lessonViewerScreen,#givenActivitiesScreen) .learning-bottom-tab:focus-visible{
+    outline:2px solid var(--ls-accent);outline-offset:-2px;
+  }
+  /* Any full-screen PDF/activity (including a protected quiz) owns the screen. */
+  :is(#lessonViewerScreen,#givenActivitiesScreen).learning-modal-open .learning-bottom-nav{display:none!important}
+}
+@media(max-width:380px){
+  :is(#lessonViewerScreen,#givenActivitiesScreen) .learning-brand .sh-brand-subtitle{display:none}
+  :is(#lessonViewerScreen,#givenActivitiesScreen) .learning-header-tools{gap:4px!important}
+  :is(#lessonViewerScreen,#givenActivitiesScreen) :is(.learning-round-btn,.learning-back-btn){width:34px;min-width:34px;height:35px;min-height:35px!important}
+}
+@media(prefers-reduced-motion:reduce){
+  :is(#lessonViewerScreen,#givenActivitiesScreen) .learning-bottom-tab{transition:none!important}
+}
+/* Keep Home's navy welcome artwork above the older global student card rules,
+   which otherwise force a light surface and dark text on these two heroes. */
+body.student-session-active #givenActivitiesScreen.is-learning-student .given-activities-header.learning-header,
+body.student-session-active #lessonViewerScreen.is-learning-student .lesson-library-header.learning-header{
+  background:transparent!important;
+  box-shadow:none!important;
+  border:0!important;
+}
+body.student-session-active #givenActivitiesScreen.is-learning-student .given-activities-welcome,
+body.student-session-active #lessonViewerScreen.is-learning-student .lesson-library-welcome-card{
+  background:linear-gradient(115deg,#132847 0%,#173b71 70%,#2458a1 100%)!important;
+  color:#fff!important;
+}
+body.student-session-active #givenActivitiesScreen.is-learning-student .given-activities-welcome :is(h2,h3,p,span,strong),
+body.student-session-active #lessonViewerScreen.is-learning-student .lesson-library-welcome-card :is(h2,h3,p,span,strong){
+  color:#fff!important;
+}
+body.student-session-active #givenActivitiesScreen.is-learning-student .given-activities-filter-row input,
+body.student-session-active #lessonViewerScreen.is-learning-student .lesson-library-filter-row input{
+  font-size:13px!important;font-weight:500!important;
+}
+body.student-session-active #givenActivitiesScreen.is-learning-student .given-activities-filter-row input::placeholder,
+body.student-session-active #lessonViewerScreen.is-learning-student .lesson-library-filter-row input::placeholder{
+  font-size:13px!important;font-weight:500!important;
+}

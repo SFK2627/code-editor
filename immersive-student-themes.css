@@ -1,0 +1,386 @@
+/* G8Code — balanced immersive published design themes v2 (2026-11-01)
+   The Admin theme choice already lives in data-student-app-theme / data-design-theme.
+   These styles only decorate the selected coverage area; no project iframe,
+   Monaco/code input, embedded PDF, live games, grade colors or Admin workspace
+   is touched. Dark and light versions keep the same motif with adjusted contrast. */
+
+:where(body[data-student-app-theme]:not([data-student-app-theme="original"]),
+ #studentAppThemePreviewOverlay[data-student-app-theme]:not([data-student-app-theme="original"]),
+ #entryGate[data-design-theme],#studentLoginOverlay[data-design-theme],
+ #loginThemePreviewOverlay[data-design-theme],#loginLackingReminderOverlay[data-theme],
+ .login-theme-mini-preview[data-design-theme]) {
+ --it-mark:"✦";
+ --it-pattern:radial-gradient(circle at 8px 8px,var(--it-veil) 0 2px,transparent 3px);
+ --it-pattern-size:42px 42px;
+ --it-heading:system-ui,sans-serif;
+ /* Wallpaper only: intentionally low contrast so content wins. */
+ --it-line:color-mix(in srgb,var(--it-accent) 4%,transparent);
+ --it-veil:color-mix(in srgb,var(--it-accent) 3%,transparent);
+ --it-ambient:radial-gradient(ellipse at 88% 12%,color-mix(in srgb,var(--it-accent) 7%,transparent),transparent 43%),radial-gradient(ellipse at 5% 93%,color-mix(in srgb,var(--it-primary) 5%,transparent),transparent 47%);
+ --it-shadow:0 9px 27px rgba(10,25,48,.09),0 2px 7px rgba(10,25,48,.045);
+ --it-radius:var(--sat-radius,var(--sg-radius,18px));
+ --it-edge:1px solid color-mix(in srgb,var(--sat-border,var(--sg-border,#c8d6e5)) 76%,var(--it-accent) 24%);
+}
+body[data-student-app-theme]:not([data-student-app-theme="original"]),
+#studentAppThemePreviewOverlay[data-student-app-theme]:not([data-student-app-theme="original"]) {
+ --it-primary:var(--sat-primary,#2663b4);
+ --it-accent:var(--sat-secondary,#efc54c);
+ --it-paper:var(--sat-card,#fff);
+ --it-card:color-mix(in srgb,var(--sat-card,#fff) 96%,#fff 4%);
+ --it-canvas:color-mix(in srgb,var(--sat-bg,#edf2f9) 94%,var(--it-primary) 6%);
+ --it-banner:color-mix(in srgb,var(--it-primary) 55%,#102239 45%);
+}
+:is(#entryGate,#studentLoginOverlay,#loginThemePreviewOverlay,.login-theme-mini-preview)[data-design-theme] {
+ --it-primary:var(--sg-primary,#265db1);
+ --it-accent:var(--sg-secondary,#eac34b);
+ --it-paper:var(--sg-card,#fff);
+}
+#loginLackingReminderOverlay[data-theme] {
+ --it-primary:var(--lr-primary,var(--sat-primary,#2b62a9));
+ --it-accent:var(--lr-accent,var(--sat-secondary,#d9b94c));
+}
+body[data-student-app-appearance="dark"][data-student-app-theme]:not([data-student-app-theme="original"]),
+#studentAppThemePreviewOverlay[data-student-app-appearance="dark"][data-student-app-theme]:not([data-student-app-theme="original"]),
+:is(#entryGate,#studentLoginOverlay,#loginThemePreviewOverlay,.login-theme-mini-preview)[data-appearance="dark"][data-design-theme],
+#loginLackingReminderOverlay[data-appearance="dark"][data-theme] {
+ --it-line:color-mix(in srgb,var(--it-accent) 6%,transparent);
+ --it-veil:color-mix(in srgb,var(--it-accent) 4%,transparent);
+ --it-ambient:radial-gradient(ellipse at 88% 12%,color-mix(in srgb,var(--it-accent) 9%,transparent),transparent 44%),radial-gradient(ellipse at 5% 93%,color-mix(in srgb,var(--it-primary) 7%,transparent),transparent 47%);
+ --it-shadow:0 10px 30px rgba(0,0,0,.21),0 2px 8px rgba(0,0,0,.13);
+ --it-card:color-mix(in srgb,var(--sat-card,#1e2c42) 91%,#fff 9%);
+ --it-canvas:color-mix(in srgb,var(--sat-bg,#111c2f) 96%,#000 4%);
+}
+
+body[data-student-app-theme="campus-journal"],#studentAppThemePreviewOverlay[data-student-app-theme="campus-journal"],#entryGate[data-design-theme="campus-journal"],#studentLoginOverlay[data-design-theme="campus-journal"],#loginThemePreviewOverlay[data-design-theme="campus-journal"],#loginLackingReminderOverlay[data-theme="campus-journal"],.login-theme-mini-preview[data-design-theme="campus-journal"]{--it-mark:"✎";--it-pattern:repeating-linear-gradient(0deg,transparent 0 28px,var(--it-veil) 29px 30px),linear-gradient(90deg,transparent 0 46px,var(--it-line) 47px 49px,transparent 50px);--it-pattern-size:250px 150px;--it-heading:Georgia,serif;--it-soft-radius:17px;--it-badge-radius:11px;}
+body[data-student-app-theme="mission-control"],#studentAppThemePreviewOverlay[data-student-app-theme="mission-control"],#entryGate[data-design-theme="mission-control"],#studentLoginOverlay[data-design-theme="mission-control"],#loginThemePreviewOverlay[data-design-theme="mission-control"],#loginLackingReminderOverlay[data-theme="mission-control"],.login-theme-mini-preview[data-design-theme="mission-control"]{--it-mark:"⌁";--it-pattern:linear-gradient(var(--it-line) 1px,transparent 1px),linear-gradient(90deg,var(--it-line) 1px,transparent 1px),repeating-radial-gradient(circle at 80% 20%,transparent 0 30px,var(--it-veil) 31px 32px);--it-pattern-size:36px 36px,36px 36px,360px 360px;--it-heading:system-ui,sans-serif;--it-soft-radius:12px;--it-badge-radius:12px;}
+body[data-student-app-theme="honors-night"],#studentAppThemePreviewOverlay[data-student-app-theme="honors-night"],#entryGate[data-design-theme="honors-night"],#studentLoginOverlay[data-design-theme="honors-night"],#loginThemePreviewOverlay[data-design-theme="honors-night"],#loginLackingReminderOverlay[data-theme="honors-night"],.login-theme-mini-preview[data-design-theme="honors-night"]{--it-mark:"✦";--it-pattern:radial-gradient(circle,var(--it-line) 1.5px,transparent 2px),linear-gradient(120deg,transparent 45%,var(--it-veil) 48% 52%,transparent 55%);--it-pattern-size:40px 40px,280px 280px;--it-heading:Georgia,serif;--it-soft-radius:12px;--it-badge-radius:12px;}
+body[data-student-app-theme="blueprint-lab"],#studentAppThemePreviewOverlay[data-student-app-theme="blueprint-lab"],#entryGate[data-design-theme="blueprint-lab"],#studentLoginOverlay[data-design-theme="blueprint-lab"],#loginThemePreviewOverlay[data-design-theme="blueprint-lab"],#loginLackingReminderOverlay[data-theme="blueprint-lab"],.login-theme-mini-preview[data-design-theme="blueprint-lab"]{--it-mark:"⌗";--it-pattern:linear-gradient(var(--it-line) 1px,transparent 1px),linear-gradient(90deg,var(--it-line) 1px,transparent 1px),linear-gradient(var(--it-veil) 1px,transparent 1px),linear-gradient(90deg,var(--it-veil) 1px,transparent 1px);--it-pattern-size:36px 36px,36px 36px,9px 9px,9px 9px;--it-heading:monospace;--it-soft-radius:4px;--it-badge-radius:3px;}
+body[data-student-app-theme="minimalism"],#studentAppThemePreviewOverlay[data-student-app-theme="minimalism"],#entryGate[data-design-theme="minimalism"],#studentLoginOverlay[data-design-theme="minimalism"],#loginThemePreviewOverlay[data-design-theme="minimalism"],#loginLackingReminderOverlay[data-theme="minimalism"],.login-theme-mini-preview[data-design-theme="minimalism"]{--it-mark:"—";--it-pattern:repeating-linear-gradient(0deg,transparent 0 74px,var(--it-veil) 75px 76px);--it-pattern-size:100% 76px;--it-heading:system-ui,sans-serif;--it-soft-radius:17px;--it-badge-radius:11px;}
+body[data-student-app-theme="maximalism"],#studentAppThemePreviewOverlay[data-student-app-theme="maximalism"],#entryGate[data-design-theme="maximalism"],#studentLoginOverlay[data-design-theme="maximalism"],#loginThemePreviewOverlay[data-design-theme="maximalism"],#loginLackingReminderOverlay[data-theme="maximalism"],.login-theme-mini-preview[data-design-theme="maximalism"]{--it-mark:"✹";--it-pattern:radial-gradient(circle at 0 0,var(--it-line) 0 12px,transparent 13px),linear-gradient(135deg,transparent 0 35%,var(--it-veil) 36% 40%,transparent 41%);--it-pattern-size:120px 120px,300px 300px;--it-heading:Georgia,serif;--it-soft-radius:12px;--it-badge-radius:12px;}
+body[data-student-app-theme="futuristic"],#studentAppThemePreviewOverlay[data-student-app-theme="futuristic"],#entryGate[data-design-theme="futuristic"],#studentLoginOverlay[data-design-theme="futuristic"],#loginThemePreviewOverlay[data-design-theme="futuristic"],#loginLackingReminderOverlay[data-theme="futuristic"],.login-theme-mini-preview[data-design-theme="futuristic"]{--it-mark:"⌬";--it-pattern:linear-gradient(var(--it-veil) 1px,transparent 1px),linear-gradient(90deg,var(--it-veil) 1px,transparent 1px),radial-gradient(circle at 18px 18px,var(--it-line) 3px,transparent 4px);--it-pattern-size:58px 58px,58px 58px,58px 58px;--it-heading:system-ui,sans-serif;--it-soft-radius:4px;--it-badge-radius:3px;}
+body[data-student-app-theme="vector-art"],#studentAppThemePreviewOverlay[data-student-app-theme="vector-art"],#entryGate[data-design-theme="vector-art"],#studentLoginOverlay[data-design-theme="vector-art"],#loginThemePreviewOverlay[data-design-theme="vector-art"],#loginLackingReminderOverlay[data-theme="vector-art"],.login-theme-mini-preview[data-design-theme="vector-art"]{--it-mark:"◆";--it-pattern:linear-gradient(135deg,var(--it-veil) 25%,transparent 25%),linear-gradient(315deg,var(--it-line) 20%,transparent 20%);--it-pattern-size:110px 110px,170px 170px;--it-heading:system-ui,sans-serif;--it-soft-radius:4px;--it-badge-radius:3px;}
+body[data-student-app-theme="collage-art"],#studentAppThemePreviewOverlay[data-student-app-theme="collage-art"],#entryGate[data-design-theme="collage-art"],#studentLoginOverlay[data-design-theme="collage-art"],#loginThemePreviewOverlay[data-design-theme="collage-art"],#loginLackingReminderOverlay[data-theme="collage-art"],.login-theme-mini-preview[data-design-theme="collage-art"]{--it-mark:"✂";--it-pattern:repeating-linear-gradient(155deg,transparent 0 35px,var(--it-line) 36px 42px,transparent 43px 94px);--it-pattern-size:150px 150px;--it-heading:Georgia,serif;--it-soft-radius:4px;--it-badge-radius:3px;}
+body[data-student-app-theme="retro"],#studentAppThemePreviewOverlay[data-student-app-theme="retro"],#entryGate[data-design-theme="retro"],#studentLoginOverlay[data-design-theme="retro"],#loginThemePreviewOverlay[data-design-theme="retro"],#loginLackingReminderOverlay[data-theme="retro"],.login-theme-mini-preview[data-design-theme="retro"]{--it-mark:"◈";--it-pattern:repeating-linear-gradient(0deg,var(--it-veil) 0 3px,transparent 4px 27px),radial-gradient(circle at 20% 20%,var(--it-line) 2px,transparent 3px);--it-pattern-size:100% 90px,50px 50px;--it-heading:Georgia,serif;--it-soft-radius:17px;--it-badge-radius:11px;}
+body[data-student-app-theme="synthwave-80s"],#studentAppThemePreviewOverlay[data-student-app-theme="synthwave-80s"],#entryGate[data-design-theme="synthwave-80s"],#studentLoginOverlay[data-design-theme="synthwave-80s"],#loginThemePreviewOverlay[data-design-theme="synthwave-80s"],#loginLackingReminderOverlay[data-theme="synthwave-80s"],.login-theme-mini-preview[data-design-theme="synthwave-80s"]{--it-mark:"✧";--it-pattern:linear-gradient(var(--it-veil) 1px,transparent 1px),linear-gradient(90deg,var(--it-line) 1px,transparent 1px);--it-pattern-size:48px 48px,48px 48px;--it-heading:system-ui,sans-serif;--it-soft-radius:4px;--it-badge-radius:3px;}
+body[data-student-app-theme="cyberpunk"],#studentAppThemePreviewOverlay[data-student-app-theme="cyberpunk"],#entryGate[data-design-theme="cyberpunk"],#studentLoginOverlay[data-design-theme="cyberpunk"],#loginThemePreviewOverlay[data-design-theme="cyberpunk"],#loginLackingReminderOverlay[data-theme="cyberpunk"],.login-theme-mini-preview[data-design-theme="cyberpunk"]{--it-mark:"⚡";--it-pattern:repeating-linear-gradient(135deg,transparent 0 35px,var(--it-line) 36px 38px,transparent 39px 90px),linear-gradient(90deg,var(--it-veil) 1px,transparent 1px);--it-pattern-size:130px 130px,52px 52px;--it-heading:monospace;--it-soft-radius:4px;--it-badge-radius:3px;}
+body[data-student-app-theme="bauhaus"],#studentAppThemePreviewOverlay[data-student-app-theme="bauhaus"],#entryGate[data-design-theme="bauhaus"],#studentLoginOverlay[data-design-theme="bauhaus"],#loginThemePreviewOverlay[data-design-theme="bauhaus"],#loginLackingReminderOverlay[data-theme="bauhaus"],.login-theme-mini-preview[data-design-theme="bauhaus"]{--it-mark:"●";--it-pattern:radial-gradient(circle at 16% 18%,var(--it-line) 0 22px,transparent 23px),linear-gradient(135deg,transparent 0 64%,var(--it-veil) 65% 72%,transparent 73%);--it-pattern-size:240px 240px,280px 280px;--it-heading:Arial,sans-serif;--it-soft-radius:4px;--it-badge-radius:3px;}
+body[data-student-app-theme="pop-art"],#studentAppThemePreviewOverlay[data-student-app-theme="pop-art"],#entryGate[data-design-theme="pop-art"],#studentLoginOverlay[data-design-theme="pop-art"],#loginThemePreviewOverlay[data-design-theme="pop-art"],#loginLackingReminderOverlay[data-theme="pop-art"],.login-theme-mini-preview[data-design-theme="pop-art"]{--it-mark:"●";--it-pattern:radial-gradient(circle at 7px 7px,var(--it-line) 0 4px,transparent 4.5px);--it-pattern-size:22px 22px;--it-heading:Impact,system-ui,sans-serif;--it-soft-radius:4px;--it-badge-radius:3px;}
+body[data-student-app-theme="glassmorphism"],#studentAppThemePreviewOverlay[data-student-app-theme="glassmorphism"],#entryGate[data-design-theme="glassmorphism"],#studentLoginOverlay[data-design-theme="glassmorphism"],#loginThemePreviewOverlay[data-design-theme="glassmorphism"],#loginLackingReminderOverlay[data-theme="glassmorphism"],.login-theme-mini-preview[data-design-theme="glassmorphism"]{--it-mark:"✧";--it-pattern:radial-gradient(circle at 19% 34%,var(--it-line) 0 20px,transparent 72px),radial-gradient(circle at 70% 48%,var(--it-veil) 0 26px,transparent 120px);--it-pattern-size:310px 310px,480px 480px;--it-heading:system-ui,sans-serif;--it-soft-radius:26px;--it-badge-radius:99px;}
+body[data-student-app-theme="clay-style"],#studentAppThemePreviewOverlay[data-student-app-theme="clay-style"],#entryGate[data-design-theme="clay-style"],#studentLoginOverlay[data-design-theme="clay-style"],#loginThemePreviewOverlay[data-design-theme="clay-style"],#loginLackingReminderOverlay[data-theme="clay-style"],.login-theme-mini-preview[data-design-theme="clay-style"]{--it-mark:"☁";--it-pattern:radial-gradient(ellipse at 22% 30%,var(--it-line) 0 25px,transparent 72px),radial-gradient(ellipse at 76% 65%,var(--it-veil) 0 42px,transparent 94px);--it-pattern-size:290px 280px,420px 350px;--it-heading:system-ui,sans-serif;--it-soft-radius:26px;--it-badge-radius:99px;}
+body[data-student-app-theme="pixel-art"],#studentAppThemePreviewOverlay[data-student-app-theme="pixel-art"],#entryGate[data-design-theme="pixel-art"],#studentLoginOverlay[data-design-theme="pixel-art"],#loginThemePreviewOverlay[data-design-theme="pixel-art"],#loginLackingReminderOverlay[data-theme="pixel-art"],.login-theme-mini-preview[data-design-theme="pixel-art"]{--it-mark:"▦";--it-pattern:linear-gradient(var(--it-line) 4px,transparent 4px),linear-gradient(90deg,var(--it-veil) 4px,transparent 4px);--it-pattern-size:38px 38px,38px 38px;--it-heading:monospace;--it-soft-radius:4px;--it-badge-radius:3px;}
+body[data-student-app-theme="editorial"],#studentAppThemePreviewOverlay[data-student-app-theme="editorial"],#entryGate[data-design-theme="editorial"],#studentLoginOverlay[data-design-theme="editorial"],#loginThemePreviewOverlay[data-design-theme="editorial"],#loginLackingReminderOverlay[data-theme="editorial"],.login-theme-mini-preview[data-design-theme="editorial"]{--it-mark:"§";--it-pattern:repeating-linear-gradient(0deg,transparent 0 55px,var(--it-line) 56px 57px);--it-pattern-size:100% 57px;--it-heading:Georgia,serif;--it-soft-radius:4px;--it-badge-radius:3px;}
+body[data-student-app-theme="y2k"],#studentAppThemePreviewOverlay[data-student-app-theme="y2k"],#entryGate[data-design-theme="y2k"],#studentLoginOverlay[data-design-theme="y2k"],#loginThemePreviewOverlay[data-design-theme="y2k"],#loginLackingReminderOverlay[data-theme="y2k"],.login-theme-mini-preview[data-design-theme="y2k"]{--it-mark:"✴";--it-pattern:radial-gradient(circle at 11px 12px,var(--it-line) 0 4px,transparent 5px),radial-gradient(circle at 39px 43px,var(--it-veil) 0 11px,transparent 12px);--it-pattern-size:85px 85px,140px 140px;--it-heading:system-ui,sans-serif;--it-soft-radius:26px;--it-badge-radius:99px;}
+body[data-student-app-theme="swiss-design"],#studentAppThemePreviewOverlay[data-student-app-theme="swiss-design"],#entryGate[data-design-theme="swiss-design"],#studentLoginOverlay[data-design-theme="swiss-design"],#loginThemePreviewOverlay[data-design-theme="swiss-design"],#loginLackingReminderOverlay[data-theme="swiss-design"],.login-theme-mini-preview[data-design-theme="swiss-design"]{--it-mark:"■";--it-pattern:linear-gradient(90deg,var(--it-line) 1px,transparent 1px),linear-gradient(0deg,var(--it-veil) 1px,transparent 1px);--it-pattern-size:110px 110px,110px 110px;--it-heading:Arial,sans-serif;--it-soft-radius:4px;--it-badge-radius:3px;}
+body[data-student-app-theme="surreal-design"],#studentAppThemePreviewOverlay[data-student-app-theme="surreal-design"],#entryGate[data-design-theme="surreal-design"],#studentLoginOverlay[data-design-theme="surreal-design"],#loginThemePreviewOverlay[data-design-theme="surreal-design"],#loginLackingReminderOverlay[data-theme="surreal-design"],.login-theme-mini-preview[data-design-theme="surreal-design"]{--it-mark:"◉";--it-pattern:radial-gradient(ellipse at 12% 24%,var(--it-line) 0 19px,transparent 60px),radial-gradient(ellipse at 86% 68%,var(--it-veil) 0 32px,transparent 100px);--it-pattern-size:300px 300px,430px 430px;--it-heading:Georgia,serif;--it-soft-radius:26px;--it-badge-radius:99px;}
+body[data-student-app-theme="bohemian"],#studentAppThemePreviewOverlay[data-student-app-theme="bohemian"],#entryGate[data-design-theme="bohemian"],#studentLoginOverlay[data-design-theme="bohemian"],#loginThemePreviewOverlay[data-design-theme="bohemian"],#loginLackingReminderOverlay[data-theme="bohemian"],.login-theme-mini-preview[data-design-theme="bohemian"]{--it-mark:"❋";--it-pattern:repeating-linear-gradient(45deg,transparent 0 22px,var(--it-veil) 23px 25px,transparent 26px 48px),repeating-linear-gradient(-45deg,transparent 0 22px,var(--it-line) 23px 25px,transparent 26px 48px);--it-pattern-size:92px 92px,92px 92px;--it-heading:Georgia,serif;--it-soft-radius:26px;--it-badge-radius:99px;}
+body[data-student-app-theme="victorian-style"],#studentAppThemePreviewOverlay[data-student-app-theme="victorian-style"],#entryGate[data-design-theme="victorian-style"],#studentLoginOverlay[data-design-theme="victorian-style"],#loginThemePreviewOverlay[data-design-theme="victorian-style"],#loginLackingReminderOverlay[data-theme="victorian-style"],.login-theme-mini-preview[data-design-theme="victorian-style"]{--it-mark:"❦";--it-pattern:radial-gradient(ellipse at 50% 50%,transparent 0 19px,var(--it-line) 20px 21px,transparent 22px),repeating-linear-gradient(90deg,transparent 0 47px,var(--it-veil) 48px 49px);--it-pattern-size:95px 95px,95px 95px;--it-heading:Georgia,serif;--it-soft-radius:4px;--it-badge-radius:3px;}
+body[data-student-app-theme="graffiti"],#studentAppThemePreviewOverlay[data-student-app-theme="graffiti"],#entryGate[data-design-theme="graffiti"],#studentLoginOverlay[data-design-theme="graffiti"],#loginThemePreviewOverlay[data-design-theme="graffiti"],#loginLackingReminderOverlay[data-theme="graffiti"],.login-theme-mini-preview[data-design-theme="graffiti"]{--it-mark:"✷";--it-pattern:radial-gradient(circle at 13% 25%,var(--it-line) 0 8px,transparent 10px),radial-gradient(circle at 72% 62%,var(--it-veil) 0 3px,transparent 5px);--it-pattern-size:140px 100px,88px 110px;--it-heading:Impact,system-ui,sans-serif;--it-soft-radius:4px;--it-badge-radius:3px;}
+body[data-student-app-theme="aurora"],#studentAppThemePreviewOverlay[data-student-app-theme="aurora"],#entryGate[data-design-theme="aurora"],#studentLoginOverlay[data-design-theme="aurora"],#loginThemePreviewOverlay[data-design-theme="aurora"],#loginLackingReminderOverlay[data-theme="aurora"],.login-theme-mini-preview[data-design-theme="aurora"]{--it-mark:"✧";--it-pattern:linear-gradient(115deg,transparent 15%,var(--it-line) 42%,transparent 62%),linear-gradient(32deg,transparent 20%,var(--it-veil) 56%,transparent 72%);--it-pattern-size:340px 320px,480px 430px;--it-heading:system-ui,sans-serif;--it-soft-radius:17px;--it-badge-radius:11px;}
+body[data-student-app-theme="handwritten"],#studentAppThemePreviewOverlay[data-student-app-theme="handwritten"],#entryGate[data-design-theme="handwritten"],#studentLoginOverlay[data-design-theme="handwritten"],#loginThemePreviewOverlay[data-design-theme="handwritten"],#loginLackingReminderOverlay[data-theme="handwritten"],.login-theme-mini-preview[data-design-theme="handwritten"]{--it-mark:"✎";--it-pattern:repeating-linear-gradient(0deg,transparent 0 27px,var(--it-veil) 28px 29px),linear-gradient(90deg,transparent 0 24px,var(--it-line) 25px 27px,transparent 28px);--it-pattern-size:100% 29px,150px 100%;--it-heading:Georgia,serif;--it-soft-radius:17px;--it-badge-radius:11px;}
+body[data-student-app-theme="classic"],#studentAppThemePreviewOverlay[data-student-app-theme="classic"],#entryGate[data-design-theme="classic"],#studentLoginOverlay[data-design-theme="classic"],#loginThemePreviewOverlay[data-design-theme="classic"],#loginLackingReminderOverlay[data-theme="classic"],.login-theme-mini-preview[data-design-theme="classic"]{--it-mark:"✦";--it-pattern:radial-gradient(circle at 8px 8px,var(--it-veil) 0 1.5px,transparent 2px);--it-pattern-size:32px 32px;--it-heading:system-ui,sans-serif;--it-soft-radius:17px;--it-badge-radius:11px;}
+body[data-student-app-theme="christmas"],#studentAppThemePreviewOverlay[data-student-app-theme="christmas"],#entryGate[data-design-theme="christmas"],#studentLoginOverlay[data-design-theme="christmas"],#loginThemePreviewOverlay[data-design-theme="christmas"],#loginLackingReminderOverlay[data-theme="christmas"],.login-theme-mini-preview[data-design-theme="christmas"]{--it-mark:"❄";--it-pattern:radial-gradient(circle at 14px 15px,var(--it-line) 0 2px,transparent 3px),radial-gradient(circle at 51px 49px,var(--it-veil) 0 4px,transparent 5px);--it-pattern-size:80px 78px,125px 125px;--it-heading:Georgia,serif;--it-soft-radius:26px;--it-badge-radius:99px;}
+body[data-student-app-theme="spider-comic"],#studentAppThemePreviewOverlay[data-student-app-theme="spider-comic"],#entryGate[data-design-theme="spider-comic"],#studentLoginOverlay[data-design-theme="spider-comic"],#loginThemePreviewOverlay[data-design-theme="spider-comic"],#loginLackingReminderOverlay[data-theme="spider-comic"],.login-theme-mini-preview[data-design-theme="spider-comic"]{--it-mark:"✷";--it-pattern:repeating-radial-gradient(circle at 50% 50%,transparent 0 17px,var(--it-line) 18px 19px,transparent 20px 40px);--it-pattern-size:165px 165px;--it-heading:Impact,system-ui,sans-serif;--it-soft-radius:4px;--it-badge-radius:3px;}
+body[data-student-app-theme="halloween"],#studentAppThemePreviewOverlay[data-student-app-theme="halloween"],#entryGate[data-design-theme="halloween"],#studentLoginOverlay[data-design-theme="halloween"],#loginThemePreviewOverlay[data-design-theme="halloween"],#loginLackingReminderOverlay[data-theme="halloween"],.login-theme-mini-preview[data-design-theme="halloween"]{--it-mark:"☾";--it-pattern:radial-gradient(circle at 25px 25px,var(--it-line) 0 4px,transparent 5px),repeating-linear-gradient(130deg,transparent 0 76px,var(--it-veil) 77px 81px,transparent 82px 140px);--it-pattern-size:120px 120px,210px 210px;--it-heading:Georgia,serif;--it-soft-radius:4px;--it-badge-radius:3px;}
+body[data-student-app-theme="valentine"],#studentAppThemePreviewOverlay[data-student-app-theme="valentine"],#entryGate[data-design-theme="valentine"],#studentLoginOverlay[data-design-theme="valentine"],#loginThemePreviewOverlay[data-design-theme="valentine"],#loginLackingReminderOverlay[data-theme="valentine"],.login-theme-mini-preview[data-design-theme="valentine"]{--it-mark:"♥";--it-pattern:radial-gradient(circle at 20px 20px,var(--it-line) 0 4px,transparent 5px),radial-gradient(circle at 60px 55px,var(--it-veil) 0 8px,transparent 9px);--it-pattern-size:92px 90px,170px 165px;--it-heading:Georgia,serif;--it-soft-radius:26px;--it-badge-radius:99px;}
+body[data-student-app-theme="graduation"],#studentAppThemePreviewOverlay[data-student-app-theme="graduation"],#entryGate[data-design-theme="graduation"],#studentLoginOverlay[data-design-theme="graduation"],#loginThemePreviewOverlay[data-design-theme="graduation"],#loginLackingReminderOverlay[data-theme="graduation"],.login-theme-mini-preview[data-design-theme="graduation"]{--it-mark:"★";--it-pattern:radial-gradient(circle at 13px 13px,var(--it-line) 0 2px,transparent 3px),repeating-linear-gradient(145deg,transparent 0 70px,var(--it-veil) 71px 73px,transparent 74px 145px);--it-pattern-size:75px 75px,170px 170px;--it-heading:Georgia,serif;--it-soft-radius:4px;--it-badge-radius:3px;}
+body[data-student-app-theme="galaxy"],#studentAppThemePreviewOverlay[data-student-app-theme="galaxy"],#entryGate[data-design-theme="galaxy"],#studentLoginOverlay[data-design-theme="galaxy"],#loginThemePreviewOverlay[data-design-theme="galaxy"],#loginLackingReminderOverlay[data-theme="galaxy"],.login-theme-mini-preview[data-design-theme="galaxy"]{--it-mark:"✦";--it-pattern:radial-gradient(circle at 17px 14px,var(--it-line) 0 1.5px,transparent 2.5px),radial-gradient(circle at 63px 71px,var(--it-veil) 0 2px,transparent 3px);--it-pattern-size:90px 95px,160px 150px;--it-heading:system-ui,sans-serif;--it-soft-radius:26px;--it-badge-radius:99px;}
+body[data-student-app-theme="cyber-neon"],#studentAppThemePreviewOverlay[data-student-app-theme="cyber-neon"],#entryGate[data-design-theme="cyber-neon"],#studentLoginOverlay[data-design-theme="cyber-neon"],#loginThemePreviewOverlay[data-design-theme="cyber-neon"],#loginLackingReminderOverlay[data-theme="cyber-neon"],.login-theme-mini-preview[data-design-theme="cyber-neon"]{--it-mark:"⌁";--it-pattern:linear-gradient(var(--it-line) 1px,transparent 1px),linear-gradient(90deg,var(--it-veil) 1px,transparent 1px);--it-pattern-size:56px 56px,56px 56px;--it-heading:monospace;--it-soft-radius:4px;--it-badge-radius:3px;}
+body[data-student-app-theme="ocean"],#studentAppThemePreviewOverlay[data-student-app-theme="ocean"],#entryGate[data-design-theme="ocean"],#studentLoginOverlay[data-design-theme="ocean"],#loginThemePreviewOverlay[data-design-theme="ocean"],#loginLackingReminderOverlay[data-theme="ocean"],.login-theme-mini-preview[data-design-theme="ocean"]{--it-mark:"≈";--it-pattern:repeating-radial-gradient(ellipse at 0 0,transparent 0 20px,var(--it-line) 21px 22px,transparent 23px 46px);--it-pattern-size:135px 95px;--it-heading:system-ui,sans-serif;--it-soft-radius:26px;--it-badge-radius:99px;}
+body[data-student-app-theme="sakura"],#studentAppThemePreviewOverlay[data-student-app-theme="sakura"],#entryGate[data-design-theme="sakura"],#studentLoginOverlay[data-design-theme="sakura"],#loginThemePreviewOverlay[data-design-theme="sakura"],#loginLackingReminderOverlay[data-theme="sakura"],.login-theme-mini-preview[data-design-theme="sakura"]{--it-mark:"❀";--it-pattern:radial-gradient(ellipse at 18% 15%,var(--it-line) 0 6px,transparent 9px),radial-gradient(ellipse at 75% 68%,var(--it-veil) 0 9px,transparent 12px);--it-pattern-size:100px 94px,180px 160px;--it-heading:Georgia,serif;--it-soft-radius:26px;--it-badge-radius:99px;}
+body[data-student-app-theme="retro-arcade"],#studentAppThemePreviewOverlay[data-student-app-theme="retro-arcade"],#entryGate[data-design-theme="retro-arcade"],#studentLoginOverlay[data-design-theme="retro-arcade"],#loginThemePreviewOverlay[data-design-theme="retro-arcade"],#loginLackingReminderOverlay[data-theme="retro-arcade"],.login-theme-mini-preview[data-design-theme="retro-arcade"]{--it-mark:"▣";--it-pattern:linear-gradient(var(--it-line) 2px,transparent 2px),linear-gradient(90deg,var(--it-veil) 2px,transparent 2px);--it-pattern-size:26px 26px,26px 26px;--it-heading:monospace;--it-soft-radius:4px;--it-badge-radius:3px;}
+body[data-student-app-theme="birthday"],#studentAppThemePreviewOverlay[data-student-app-theme="birthday"],#entryGate[data-design-theme="birthday"],#studentLoginOverlay[data-design-theme="birthday"],#loginThemePreviewOverlay[data-design-theme="birthday"],#loginLackingReminderOverlay[data-theme="birthday"],.login-theme-mini-preview[data-design-theme="birthday"]{--it-mark:"✿";--it-pattern:repeating-linear-gradient(45deg,transparent 0 22px,var(--it-line) 23px 26px,transparent 27px 80px),radial-gradient(circle at 9px 21px,var(--it-veil) 0 3px,transparent 4px);--it-pattern-size:155px 155px,65px 65px;--it-heading:system-ui,sans-serif;--it-soft-radius:26px;--it-badge-radius:99px;}
+body[data-student-app-theme="fiesta"],#studentAppThemePreviewOverlay[data-student-app-theme="fiesta"],#entryGate[data-design-theme="fiesta"],#studentLoginOverlay[data-design-theme="fiesta"],#loginThemePreviewOverlay[data-design-theme="fiesta"],#loginLackingReminderOverlay[data-theme="fiesta"],.login-theme-mini-preview[data-design-theme="fiesta"]{--it-mark:"✹";--it-pattern:repeating-linear-gradient(145deg,transparent 0 19px,var(--it-line) 20px 25px,transparent 26px 80px),radial-gradient(circle at 14px 14px,var(--it-veil) 0 3px,transparent 4px);--it-pattern-size:190px 190px,80px 80px;--it-heading:system-ui,sans-serif;--it-soft-radius:4px;--it-badge-radius:3px;}
+body[data-student-app-theme="forest"],#studentAppThemePreviewOverlay[data-student-app-theme="forest"],#entryGate[data-design-theme="forest"],#studentLoginOverlay[data-design-theme="forest"],#loginThemePreviewOverlay[data-design-theme="forest"],#loginLackingReminderOverlay[data-theme="forest"],.login-theme-mini-preview[data-design-theme="forest"]{--it-mark:"❧";--it-pattern:radial-gradient(ellipse at 20% 20%,var(--it-line) 0 8px,transparent 10px),radial-gradient(ellipse at 80% 80%,var(--it-veil) 0 10px,transparent 13px);--it-pattern-size:145px 115px,195px 160px;--it-heading:Georgia,serif;--it-soft-radius:26px;--it-badge-radius:99px;}
+
+/* The entire student experience: patterned wallpaper extends behind all pages,
+   including new Student Home and My Projects (not only the legacy dashboard). */
+body[data-student-app-theme]:not([data-student-app-theme="original"]):is(.student-session-active,.guest-session-active) {
+ background-image:var(--it-pattern),var(--it-ambient) !important;
+ background-size:var(--it-pattern-size),cover !important;
+ background-color:var(--it-canvas,var(--sat-bg)) !important;
+}
+body[data-student-app-theme]:not([data-student-app-theme="original"]) :is(
+ #studentHomeScreen,#guestHomeScreen,#studentDashboard,#lessonViewerScreen,
+ #givenActivitiesScreen,#codeExplorerScreen,#wireframeMakerScreen,.app-shell
+) {
+ background-image:var(--it-pattern),var(--it-ambient) !important;
+ background-size:var(--it-pattern-size),cover !important;
+ background-color:var(--it-canvas,var(--sat-bg)) !important;
+}
+
+/* Signature heroes: a designed cover for each part of the app, not a generic
+   blue rectangle. Keep text above all artwork and keep cards readable. */
+body[data-student-app-theme]:not([data-student-app-theme="original"]) :is(
+ #studentHomeScreen .sh-welcome,#studentDashboard .mp-hero,
+ #studentDashboard .dashboard-hero-card,#codeExplorerScreen .code-explorer-welcome,
+ #codeExplorerScreen .code-explorer-hero,#lessonViewerScreen .lesson-library-welcome-card,
+ #givenActivitiesScreen .given-activities-welcome,#givenActivitiesScreen .given-activities-header
+) {
+ background-color:var(--it-banner) !important;
+ /* Rich identity belongs primarily in the hero, not in every panel. */
+ --it-line:color-mix(in srgb,var(--it-accent) 13%,transparent);
+ --it-veil:color-mix(in srgb,var(--it-accent) 9%,transparent);
+ background-image:linear-gradient(96deg,rgba(8,17,32,.28),transparent 86%),var(--it-pattern),linear-gradient(112deg,color-mix(in srgb,var(--it-banner) 94%,#0a1930),color-mix(in srgb,var(--it-primary) 75%,#0b1726)) !important;
+ background-size:cover,var(--it-pattern-size),cover !important;
+ border:1px solid color-mix(in srgb,var(--it-accent) 35%,var(--it-banner) 65%) !important;
+ border-radius:var(--it-soft-radius,var(--sat-radius)) !important;
+ box-shadow:0 12px 37px color-mix(in srgb,var(--it-primary) 21%,transparent),inset 0 0 0 1px color-mix(in srgb,var(--it-accent) 17%,transparent) !important;
+ color:#fff !important;
+}
+body[data-student-app-theme]:not([data-student-app-theme="original"]) #studentHomeScreen .sh-welcome :is(h1,p,.sh-small-kicker,.sh-profile-pills span),
+body[data-student-app-theme]:not([data-student-app-theme="original"]) #studentDashboard .mp-hero :is(h2,p,.mp-hero-tag),
+body[data-student-app-theme]:not([data-student-app-theme="original"]) #studentDashboard .dashboard-hero-card :is(h2,p),
+body[data-student-app-theme]:not([data-student-app-theme="original"]) #lessonViewerScreen .lesson-library-welcome-card :is(h1,h2,h3,p),
+body[data-student-app-theme]:not([data-student-app-theme="original"]) #givenActivitiesScreen .given-activities-welcome :is(h1,h2,p) {
+ color:#fff !important;
+}
+body[data-student-app-theme]:not([data-student-app-theme="original"]) :is(
+ #studentHomeScreen .sh-welcome h1,#studentDashboard .mp-hero h2,
+ #studentDashboard .dashboard-hero-card h2,#codeExplorerScreen .code-explorer-welcome h2,
+ #lessonViewerScreen .lesson-library-welcome-card h2,#givenActivitiesScreen .given-activities-welcome h2
+) {font-family:var(--it-heading) !important;letter-spacing:-.02em;}
+/* Existing Student Home artwork should stay; its surrounding colors adapt. */
+body[data-student-app-theme]:not([data-student-app-theme="original"]) #studentHomeScreen .sh-welcome::after {
+ background:radial-gradient(circle at 80% 24%,color-mix(in srgb,var(--it-accent) 29%,transparent),transparent 37%),radial-gradient(circle at 10% 95%,color-mix(in srgb,var(--it-accent) 13%,transparent),transparent 48%) !important;
+}
+body[data-student-app-theme]:not([data-student-app-theme="original"]) :is(
+ #studentHomeScreen .sh-cta,#studentDashboard .mp-hero .primary-btn
+) {background:var(--it-accent) !important;border-color:transparent !important;color:#17233a !important;}
+body[data-student-app-theme]:not([data-student-app-theme="original"]) #studentHomeScreen .sh-ghost {border-color:rgba(255,255,255,.7)!important;color:#fff!important;background:rgba(255,255,255,.13)!important;}
+body[data-student-app-theme]:not([data-student-app-theme="original"]) #studentHomeScreen :is(.sh-small-kicker,.sh-eyebrow,.sh-feature-label) {letter-spacing:.11em;}
+
+/* Themed paper, trims, inset linework, and textured cards everywhere. The
+   ::after stamps use no layout space and cannot intercept clicks. */
+body[data-student-app-theme]:not([data-student-app-theme="original"]) :is(
+ #studentHomeScreen .sh-summary-card,#studentHomeScreen .sh-feature-card,
+ #studentHomeScreen .sh-quick-card,#studentHomeScreen .sh-bottom-card,
+ #studentDashboard .mp-project-grid .student-project-card,
+ #studentDashboard .mp-project-toolbar,
+ #lessonViewerScreen .lesson-library-card,#lessonViewerScreen .lesson-continue-card,
+ #codeExplorerScreen .code-explorer-course-card,#codeExplorerScreen .code-explorer-dashboard-card,
+ #givenActivitiesScreen .given-activity-card,#givenActivitiesScreen .given-activities-card,
+ .app-shell .panel,.app-shell .help-card,.app-shell .activity-card
+) {
+ border:var(--it-edge) !important;
+ border-radius:var(--it-soft-radius,var(--sat-radius)) !important;
+ box-shadow:var(--it-shadow),inset 0 2px 0 color-mix(in srgb,var(--it-accent) 15%,transparent) !important;
+ background-color:var(--it-card,var(--sat-card)) !important;
+ background-image:linear-gradient(155deg,color-mix(in srgb,var(--it-accent) 3%,transparent),transparent 47%) !important;
+ background-size:cover !important;
+ color:var(--sat-text) !important;
+}
+body[data-student-app-theme]:not([data-student-app-theme="original"]) :is(
+ #studentHomeScreen .sh-summary-card,#studentHomeScreen .sh-feature-card,
+ #studentDashboard .mp-project-grid .student-project-card,
+ #lessonViewerScreen .lesson-library-card,#givenActivitiesScreen .given-activity-card
+) {position:relative;isolation:isolate;}
+body[data-student-app-theme]:not([data-student-app-theme="original"]) :is(
+ #studentHomeScreen .sh-summary-card,#studentHomeScreen .sh-feature-card,
+ #studentDashboard .mp-project-grid .student-project-card,
+ #lessonViewerScreen .lesson-library-card,#givenActivitiesScreen .given-activity-card
+)::after {
+ content:var(--it-mark);position:absolute;top:12px;right:12px;
+ font-family:var(--it-heading);font-size:clamp(19px,2vw,27px);
+ width:36px;height:36px;display:grid;place-items:center;
+ color:color-mix(in srgb,var(--it-primary) 46%,var(--sat-card));
+ opacity:.24;pointer-events:none;z-index:-1;
+}
+body[data-student-app-theme]:not([data-student-app-theme="original"]) :is(
+ #studentHomeScreen .sh-header,#studentDashboard .mp-header,
+ #lessonViewerScreen .lesson-library-header,#codeExplorerScreen .code-explorer-header,
+ #givenActivitiesScreen .given-activities-header,.app-shell .topbar
+) {border-bottom:2px solid color-mix(in srgb,var(--it-accent) 58%,transparent) !important;}
+body[data-student-app-theme]:not([data-student-app-theme="original"]) :is(
+ #studentHomeScreen .sh-section-heading h2,#studentDashboard .mp-section-title,
+ #lessonViewerScreen .lesson-library-header h1,#givenActivitiesScreen .given-activities-header h1,
+ #codeExplorerScreen .code-explorer-header h1,.app-shell .brand-block h1
+) {font-family:var(--it-heading) !important;}
+
+/* Active navigation, buttons, tab strips, and progress are part of the theme. */
+body[data-student-app-theme]:not([data-student-app-theme="original"]) :is(
+ #studentHomeScreen .sh-feature-action,#studentHomeScreen .sh-quick-icon,
+ #studentDashboard .mp-project-grid .project-card-actions button:first-child,
+ #lessonViewerScreen .lesson-term-tab.active,#givenActivitiesScreen .lesson-term-tab.active
+) {border-radius:var(--it-badge-radius,12px) !important;}
+body[data-student-app-theme]:not([data-student-app-theme="original"]) #studentDashboard .mp-project-grid .project-card-actions button:first-child {
+ background:var(--sat-action) !important;border-color:var(--sat-action) !important;color:var(--sat-action-text) !important;
+}
+body[data-student-app-theme]:not([data-student-app-theme="original"]) :is(
+ #studentHomeScreen .sh-feature-action,#studentHomeScreen .sh-progress-fill,
+ #codeExplorerScreen .code-explorer-progress-fill
+) {background-color:var(--it-primary) !important;}
+body[data-student-app-theme]:not([data-student-app-theme="original"]) #studentHomeScreen .sh-feature-action {color:#fff !important;}
+body[data-student-app-theme]:not([data-student-app-theme="original"]) #studentHomeScreen .sh-feature-card h2,
+body[data-student-app-theme]:not([data-student-app-theme="original"]) #studentDashboard .mp-project-grid .student-project-card h3 {color:var(--sat-text)!important;}
+
+/* Code Editor: theme only the surrounding shell and toolbar, never learner
+   source text, actual preview document, syntax overlay, iframe, or canvas. */
+body[data-student-app-theme]:not([data-student-app-theme="original"]) .app-shell .topbar {
+ background-color:var(--it-card,var(--sat-card)) !important;
+ background-image:linear-gradient(90deg,color-mix(in srgb,var(--it-accent) 5%,transparent),transparent 65%) !important;
+ background-size:cover !important;
+ box-shadow:inset 0 3px 0 color-mix(in srgb,var(--it-accent) 45%,transparent),var(--it-shadow) !important;
+}
+body[data-student-app-theme]:not([data-student-app-theme="original"]) .app-shell :is(.panel-heading,.editor-navigation-menu,.editor-header-settings-menu) {
+ border-color:var(--sat-border) !important;
+}
+
+/* Floating player and common student dialog chrome, while keeping overlays
+   on their own stacking layers and leaving the status modal self-themed. */
+body[data-student-app-theme]:not([data-student-app-theme="original"]) #studentHomeScreen .sh-music-panel,
+body[data-student-app-theme]:not([data-student-app-theme="original"]) :is(
+ #studentComplianceOverlay .student-compliance-panel,#projectTypeOverlay .project-type-card,
+ #projectNameOverlay .student-auth-card,#appDialogOverlay .app-dialog-card,
+ #recitationStatusOverlay .recitation-status-card,#activityRubricOverlay .activity-rubric-card,
+ #givenActivityViewerOverlay .given-activity-viewer-card,#lessonPdfOverlay .lesson-pdf-card
+) {
+ border:var(--it-edge) !important;
+ border-radius:var(--it-soft-radius,var(--sat-radius)) !important;
+ box-shadow:var(--it-shadow),inset 0 2px 0 color-mix(in srgb,var(--it-accent) 17%,transparent) !important;
+ background-color:var(--it-card,var(--sat-card)) !important;
+ background-image:linear-gradient(125deg,color-mix(in srgb,var(--it-accent) 3%,transparent),transparent 45%) !important;
+ background-size:cover !important;
+ color:var(--sat-text) !important;
+}
+
+/* Login surfaces remain controlled by the independent Admin "Apply to Login"
+   toggle: no published login theme means no change to the welcome screen. */
+:is(#entryGate,#studentLoginOverlay,#loginThemePreviewOverlay)[data-design-theme] {
+ background-image:var(--it-pattern),var(--it-ambient) !important;
+ background-size:var(--it-pattern-size),cover !important;
+}
+:is(#entryGate,#loginThemePreviewOverlay)[data-design-theme] .entry-card,
+#studentLoginOverlay[data-design-theme] .student-auth-card {
+ border:1px solid color-mix(in srgb,var(--it-accent) 22%,var(--sg-border) 78%) !important;
+ box-shadow:0 18px 50px color-mix(in srgb,var(--it-primary) 10%,transparent),inset 0 3px 0 color-mix(in srgb,var(--it-accent) 35%,transparent) !important;
+ background-image:linear-gradient(160deg,color-mix(in srgb,var(--it-accent) 3%,transparent),transparent 50%) !important;
+ background-size:cover !important;
+ background-color:var(--sg-card) !important;
+}
+:is(#entryGate,#loginThemePreviewOverlay)[data-design-theme] .entry-choice {
+ border-radius:var(--it-soft-radius,var(--sg-radius)) !important;
+ box-shadow:inset 0 3px 0 color-mix(in srgb,var(--it-accent) 26%,transparent) !important;
+}
+:is(#entryGate,#loginThemePreviewOverlay)[data-design-theme] :is(h1,h2),
+#studentLoginOverlay[data-design-theme] h2 {font-family:var(--it-heading) !important;}
+#loginLackingReminderOverlay[data-theme] .login-lacking-reminder-hero {
+ background-image:var(--it-pattern) !important;
+ background-size:var(--it-pattern-size) !important;
+}
+
+/* In the Admin's live app preview, the design (pattern, hero, cards) must be
+   recognizable without publishing. Demo content stays sample-only. */
+#studentAppThemePreviewOverlay[data-student-app-theme]:not([data-student-app-theme="original"]) :is(
+ .student-app-theme-preview-window,.student-app-theme-preview-content
+) {background-color:var(--it-canvas,var(--sat-bg)) !important;background-image:var(--it-pattern),var(--it-ambient) !important;background-size:var(--it-pattern-size),cover !important;}
+#studentAppThemePreviewOverlay[data-student-app-theme]:not([data-student-app-theme="original"]) .student-theme-demo-hero {
+ background-color:var(--it-banner) !important;
+ --it-line:color-mix(in srgb,var(--it-accent) 13%,transparent);
+ --it-veil:color-mix(in srgb,var(--it-accent) 9%,transparent);
+ background-image:linear-gradient(96deg,rgba(8,17,32,.28),transparent 86%),var(--it-pattern),linear-gradient(110deg,var(--it-banner),color-mix(in srgb,var(--it-primary) 72%,#14223a)) !important;
+ background-size:cover,var(--it-pattern-size),cover !important;
+ border:1px solid color-mix(in srgb,var(--it-accent) 42%,var(--it-banner) 58%) !important;border-radius:var(--it-soft-radius) !important;
+}
+#studentAppThemePreviewOverlay[data-student-app-theme]:not([data-student-app-theme="original"]) .student-theme-demo-grid article {
+ background-color:var(--it-card,var(--sat-card)) !important;
+ background-image:linear-gradient(145deg,color-mix(in srgb,var(--it-accent) 3%,transparent),transparent 50%) !important;
+ background-size:cover !important;
+ border:1px solid color-mix(in srgb,var(--it-accent) 24%,var(--sat-border) 76%) !important;
+ border-radius:var(--it-soft-radius) !important;box-shadow:var(--it-shadow) !important;
+}
+:is(.login-theme-mini-preview[data-design-theme]:not([data-design-theme="original"])) {
+ background-image:var(--it-pattern),var(--it-ambient) !important;
+ background-size:var(--it-pattern-size),cover !important;
+}
+
+/* Distinctive material treatments for major visual styles. */
+body[data-student-app-theme="glassmorphism"] :is(#studentHomeScreen .sh-summary-card,#studentDashboard .student-project-card),
+body[data-student-app-theme="glassmorphism"] :is(#studentHomeScreen .sh-feature-card,#lessonViewerScreen .lesson-library-card) {
+ backdrop-filter:blur(15px);-webkit-backdrop-filter:blur(15px);
+ background-color:color-mix(in srgb,var(--sat-card) 88%,transparent) !important;
+}
+body[data-student-app-theme="clay-style"] :is(#studentHomeScreen .sh-summary-card,#studentDashboard .student-project-card),
+body[data-student-app-theme="clay-style"] #studentHomeScreen .sh-feature-card {
+ box-shadow:5px 6px 0 color-mix(in srgb,var(--sat-secondary) 14%,transparent),inset 0 2px 0 color-mix(in srgb,var(--sat-secondary) 13%,transparent) !important;
+}
+body:is([data-student-app-theme="pixel-art"],[data-student-app-theme="retro-arcade"],[data-student-app-theme="swiss-design"],[data-student-app-theme="bauhaus"])
+ :is(#studentHomeScreen .sh-summary-card,#studentHomeScreen .sh-feature-card,#studentDashboard .student-project-card) {
+ border-radius:3px !important;
+ box-shadow:4px 4px 0 color-mix(in srgb,var(--sat-secondary) 17%,transparent) !important;
+}
+body:is([data-student-app-theme="campus-journal"],[data-student-app-theme="handwritten"],[data-student-app-theme="editorial"])
+ :is(#studentHomeScreen .sh-summary-card,#studentHomeScreen .sh-feature-card,#studentDashboard .student-project-card) {
+ border-left:5px solid var(--sat-primary) !important;
+}
+body:is([data-student-app-theme="cyber-neon"],[data-student-app-theme="synthwave-80s"],[data-student-app-theme="galaxy"])
+ :is(#studentHomeScreen .sh-welcome,#studentDashboard .mp-hero,#codeExplorerScreen .code-explorer-header) {
+ box-shadow:0 0 23px color-mix(in srgb,var(--sat-secondary) 14%,transparent),inset 0 0 0 1px color-mix(in srgb,var(--sat-secondary) 23%,transparent) !important;
+}
+
+/* Keep the mobile workspace usable; decoration stays behind controls and text.
+   No new page sections, no extra scrollbars, no header positioning changes. */
+@media(max-width:700px) {
+ body[data-student-app-theme]:not([data-student-app-theme="original"]) :is(
+  #studentHomeScreen .sh-summary-card,#studentDashboard .student-project-card,
+  #lessonViewerScreen .lesson-library-card,#givenActivitiesScreen .given-activity-card
+ )::after {font-size:16px;width:23px;height:23px;top:7px;right:7px;opacity:.4;}
+ body[data-student-app-theme]:not([data-student-app-theme="original"]) :is(
+  #studentHomeScreen .sh-welcome,#studentDashboard .mp-hero,#studentDashboard .dashboard-hero-card
+ ) {background-size:cover,130px 130px,cover !important;}
+}
+@media(prefers-reduced-motion:reduce) {
+ body[data-student-app-theme] * {scroll-behavior:auto;}
+}
+
+/* A signature emblem appears on the hero without using layout space. */
+body[data-student-app-theme]:not([data-student-app-theme="original"])
+:is(#studentHomeScreen .sh-welcome,#studentDashboard .mp-hero)::before {
+ content:var(--it-mark);
+ position:absolute;right:clamp(9px,4vw,62px);top:-.13em;
+ display:block;width:auto;height:auto;
+ font-family:var(--it-heading);font-size:clamp(100px,15vw,225px);line-height:1;
+ color:var(--it-accent);opacity:.13;
+ transform:rotate(-14deg);pointer-events:none;z-index:0;
+}
+/* Contrast: adapt themed links to the surface, regardless of Light/Dark. */
+body[data-student-app-theme]:not([data-student-app-theme="original"]) #studentHomeScreen
+:is(.sh-eyebrow,.sh-text-link,.sh-section-heading a) {
+ color:color-mix(in srgb,var(--it-primary) 48%,var(--sat-text) 52%) !important;
+}
+body[data-student-app-theme]:not([data-student-app-theme="original"]) #studentHomeScreen .sh-cta {color:#17233a !important;}
+body[data-student-app-theme]:not([data-student-app-theme="original"]):is(
+[data-student-app-theme="christmas"],[data-student-app-theme="spider-comic"],
+[data-student-app-theme="halloween"],[data-student-app-theme="aurora"],
+[data-student-app-theme="futuristic"],[data-student-app-theme="honors-night"]) #studentHomeScreen .sh-cta {
+ background:color-mix(in srgb,var(--it-accent) 90%,#000 10%) !important;
+ color:#fff !important;
+}
+/* The bright cyber-neon action needs a little extra luminance for legible text. */
+body[data-student-app-theme="cyber-neon"]:not([data-student-app-theme="original"]) #studentHomeScreen .sh-cta {
+ background:color-mix(in srgb,var(--it-accent) 88%,#fff 12%) !important;
+}
+@media(max-width:700px) {
+ body[data-student-app-theme]:not([data-student-app-theme="original"])
+ :is(#studentHomeScreen .sh-welcome,#studentDashboard .mp-hero)::before {
+  font-size:clamp(66px,23vw,106px);right:8px;top:10px;opacity:.10;
+ }
+}
+
+/* The older Dark Preview rule uses a very specific `background: ... !important`.
+   Keep its dark readable base while restoring the published motif on preview. */
+#studentAppThemePreviewOverlay#studentAppThemePreviewOverlay[data-student-app-theme][data-student-app-appearance="dark"]:not([data-student-app-theme="original"]) .student-theme-demo-hero {
+ background-color:var(--it-banner) !important;
+ --it-line:color-mix(in srgb,var(--it-accent) 13%,transparent);
+ --it-veil:color-mix(in srgb,var(--it-accent) 9%,transparent);
+ background-image:linear-gradient(96deg,rgba(8,17,32,.28),transparent 86%),var(--it-pattern),linear-gradient(110deg,var(--it-banner),color-mix(in srgb,var(--it-primary) 72%,#14223a)) !important;
+ background-size:cover,var(--it-pattern-size),cover !important;
+ border-color:color-mix(in srgb,var(--it-accent) 42%,var(--it-banner) 58%) !important;
+ color:#fff !important;
+}
+#studentAppThemePreviewOverlay#studentAppThemePreviewOverlay[data-student-app-theme][data-student-app-appearance="dark"]:not([data-student-app-theme="original"]) .student-theme-demo-hero :is(h3,p,small) {color:#fff !important;}
+#studentAppThemePreviewOverlay#studentAppThemePreviewOverlay[data-student-app-theme][data-student-app-appearance="dark"]:not([data-student-app-theme="original"]) .student-theme-demo-grid article {
+ background-color:var(--it-card,var(--sat-card)) !important;
+ background-image:linear-gradient(145deg,color-mix(in srgb,var(--it-accent) 3%,transparent),transparent 50%) !important;
+ background-size:cover !important;
+ border-color:color-mix(in srgb,var(--it-accent) 24%,var(--sat-border) 76%) !important;
+}

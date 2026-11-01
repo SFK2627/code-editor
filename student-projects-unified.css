@@ -1,0 +1,184 @@
+/* G8Code My Projects unified Student Home shell v1.
+   The existing My Projects library, editor, data, cards and controls are untouched. */
+#studentDashboard {
+  --sh-bg:#f5f7fc;--sh-ink:#17253c;--sh-secondary:#60718b;
+  --sh-card:#fff;--sh-border:#e3e9f2;--sh-accent:#275ac8;
+  --sh-accent-soft:#ecf2ff;
+}
+body[data-student-app-theme] #studentDashboard {
+  --sh-bg:var(--sat-bg,#f5f7fc);--sh-ink:var(--sat-text,#17253c);
+  --sh-secondary:var(--sat-muted,#60718b);--sh-card:var(--sat-card,#fff);
+  --sh-border:var(--sat-border,#e3e9f2);--sh-accent:var(--sat-primary,#275ac8);
+  --sh-accent-soft:var(--sat-soft,#ecf2ff);
+  --mp-ink:var(--sh-ink);--mp-muted:var(--sh-secondary);
+  --mp-border:var(--sh-border);--mp-surface:var(--sh-card);
+  --mp-accent:var(--sh-accent);
+  background:var(--sat-decor,none),var(--sh-bg)!important;
+}
+:is(html[data-theme="dark"] #studentDashboard,body[data-theme="dark"] #studentDashboard,body.dark-mode #studentDashboard){
+  --sh-bg:#0f1727;--sh-ink:#eef3ff;--sh-secondary:#b1c0d8;
+  --sh-card:#17243a;--sh-border:#34415b;--sh-accent:#8bb5ff;
+  --sh-accent-soft:#23395c;
+}
+#studentDashboard .mp-header.mp-unified-header {
+  display:block!important;position:relative!important;top:auto!important;
+  width:100%!important;min-height:0!important;height:auto!important;
+  margin:0!important;padding:0 clamp(16px,3vw,34px)!important;
+  background:transparent!important;border:0!important;border-radius:0!important;
+  box-shadow:none!important;overflow:visible!important;z-index:60!important;
+  color:var(--sh-ink)!important;
+}
+#studentDashboard .mp-unified-header-inner {
+  max-width:1240px;min-height:94px;margin:0 auto;padding:12px 0;
+  display:flex;align-items:center;justify-content:space-between;gap:14px;
+  border-bottom:1px solid var(--sh-border);
+}
+#studentDashboard .mp-unified-brand {
+  display:flex;align-items:center;gap:13px;min-width:0;flex:1 1 auto;
+}
+#studentDashboard .mp-unified-brand .sh-brand-logo {
+  display:flex;align-items:center;justify-content:center;flex:0 0 48px;
+  width:48px;height:48px;position:relative;overflow:hidden;isolation:isolate;
+  background:linear-gradient(145deg,#172a46,#223e67);color:#ffdc63;
+  border:1px solid rgba(240,214,130,.2);border-radius:15px;
+  box-shadow:0 8px 20px rgba(14,27,53,.13);
+}
+#studentDashboard .mp-unified-brand .sh-brand-logo svg {display:block;flex:none;}
+#studentDashboard .mp-unified-brand .sh-logo-indicator {
+  position:absolute;right:7px;bottom:7px;width:5px;height:5px;
+  border-radius:50%;background:#69dbab;box-shadow:0 0 0 3px rgba(105,219,171,.12);
+}
+#studentDashboard .mp-unified-brand .sh-brand-copy {
+  display:flex;flex-direction:column;justify-content:center;gap:2px;min-width:0;
+}
+#studentDashboard .mp-unified-brand .sh-brand-eyebrow {
+  color:var(--sh-secondary);font-size:10px;font-weight:850;letter-spacing:1.7px;
+  line-height:1.25;white-space:nowrap;
+}
+#studentDashboard .mp-unified-header .mp-unified-brand #studentDashboardTitle {
+  margin:0!important;padding:0!important;font-size:19px!important;font-weight:850!important;
+  line-height:1.22!important;letter-spacing:-.5px!important;
+  color:var(--sh-ink)!important;white-space:nowrap;
+}
+#studentDashboard .mp-unified-header #dashboardGreeting {
+  display:block!important;margin:0!important;padding:0!important;
+  color:var(--sh-secondary)!important;font-size:11px!important;line-height:1.4!important;
+  font-weight:400!important;white-space:nowrap!important;
+  overflow:hidden!important;text-overflow:ellipsis!important;max-width:min(42vw,410px)!important;
+}
+#studentDashboard .mp-unified-header-tools {
+  display:flex!important;align-items:center!important;justify-content:flex-end!important;
+  flex:0 0 auto!important;gap:9px!important;min-width:0!important;
+}
+#studentDashboard .mp-unified-header-tools .sh-term-pill {
+  display:inline-flex;align-items:center;justify-content:center;
+  min-height:38px;padding:9px 13px;border-radius:999px;
+  background:var(--sh-card);border:1px solid var(--sh-border);
+  color:var(--sh-secondary);font-size:12px;font-weight:750;white-space:nowrap;
+}
+#studentDashboard .mp-unified-header-tools :is(.sh-round-btn,.sh-account-btn){
+  cursor:pointer;min-height:38px!important;height:41px!important;
+  margin:0!important;padding:0!important;
+  border:1px solid var(--sh-border)!important;border-radius:12px!important;
+  background:var(--sh-card)!important;color:var(--sh-ink)!important;
+  box-shadow:none!important;transition:background .16s ease,transform .16s ease;
+}
+#studentDashboard .mp-unified-header-tools .sh-round-btn {
+  display:inline-flex!important;align-items:center!important;justify-content:center!important;
+  width:41px!important;min-width:41px!important;font-size:21px;line-height:1;
+}
+#studentDashboard .mp-unified-header-tools .sh-account-btn {
+  display:inline-flex!important;align-items:center!important;justify-content:center!important;
+  gap:9px;padding:0 13px!important;font-size:12px;font-weight:700;white-space:nowrap;
+}
+#studentDashboard .mp-unified-header-tools .sh-account-btn svg {display:block;flex:none;}
+#studentDashboard .mp-unified-header-tools .sh-round-btn.hidden {display:none!important;}
+#studentDashboard .mp-unified-legacy-controls {display:none!important;}
+#studentDashboard .mp-unified-header-tools button:focus-visible,
+#studentDashboard .mp-unified-bottom-tab:focus-visible {
+  outline:3px solid var(--sh-accent)!important;outline-offset:2px!important;
+}
+@media(hover:hover){
+  #studentDashboard .mp-unified-header-tools :is(.sh-round-btn,.sh-account-btn):hover{
+    background:var(--sh-accent-soft)!important;
+  }
+}
+#studentDashboard .mp-unified-bottom-nav {display:none;}
+@media(max-width:720px){
+  #studentDashboard .mp-header.mp-unified-header {
+    display:block!important;min-height:0!important;padding:0 14px!important;
+    grid-template-columns:none!important;grid-template-rows:none!important;
+    background:transparent!important;
+  }
+  #studentDashboard .mp-unified-header-inner {min-height:77px;padding:12px 0;gap:8px;}
+  #studentDashboard .mp-unified-brand{gap:9px;}
+  #studentDashboard .mp-unified-brand .sh-brand-logo {
+    width:42px;height:42px;flex-basis:42px;border-radius:13px;
+  }
+  #studentDashboard .mp-unified-brand .sh-brand-logo svg {width:22px;height:22px;}
+  #studentDashboard .mp-unified-brand .sh-brand-eyebrow {font-size:9px;letter-spacing:1.1px;}
+  #studentDashboard .mp-unified-header .mp-unified-brand #studentDashboardTitle{font-size:16px!important;}
+  #studentDashboard .mp-unified-header #dashboardGreeting {font-size:10px!important;max-width:38vw!important;}
+  #studentDashboard .mp-unified-header-tools{gap:6px!important;}
+  #studentDashboard .mp-unified-header-tools .sh-term-pill{display:none!important;}
+  #studentDashboard .mp-unified-header-tools .sh-round-btn{
+    min-width:38px!important;width:38px!important;height:37px!important;min-height:37px!important;
+  }
+  #studentDashboard .mp-unified-header-tools .sh-account-btn{
+    min-width:38px!important;width:38px!important;height:37px!important;min-height:37px!important;
+    font-size:11px!important;
+  }
+  #studentDashboard .mp-unified-header-tools .sh-logout-label {display:none!important;}
+  #studentDashboard .mp-main {padding-bottom:calc(113px + env(safe-area-inset-bottom))!important;}
+  #studentDashboard .mp-unified-bottom-nav {
+    display:grid!important;grid-template-columns:repeat(5,minmax(0,1fr));
+    position:fixed;left:0;right:0;bottom:0;z-index:90;
+    padding:8px max(10px,env(safe-area-inset-right)) calc(7px + env(safe-area-inset-bottom));
+    background:var(--sh-card);border-top:1px solid var(--sh-border);
+    box-shadow:0 -7px 25px rgba(18,42,83,.05);
+  }
+  #studentDashboard .mp-unified-bottom-tab {
+    min-width:0;min-height:49px;border:0;border-radius:12px;
+    padding:0 2px;background:transparent;color:var(--sh-secondary);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:3px;font:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent;
+  }
+  #studentDashboard .mp-unified-bottom-tab span {font-size:20px;line-height:1;}
+  #studentDashboard .mp-unified-bottom-tab small {font-size:10px;font-weight:750;}
+  #studentDashboard .mp-unified-bottom-tab.is-active {background:var(--sh-accent-soft);color:var(--sh-accent);}
+}
+@media(max-width:380px) {
+  #studentDashboard .mp-unified-brand .sh-brand-logo {width:37px;height:37px;flex-basis:37px;}
+  #studentDashboard .mp-unified-brand {gap:7px;}
+  #studentDashboard .mp-unified-brand .sh-brand-eyebrow {font-size:8px;letter-spacing:.8px;}
+  #studentDashboard .mp-unified-header .mp-unified-brand #studentDashboardTitle {font-size:15px!important;}
+  #studentDashboard .mp-unified-header-tools {gap:4px!important;}
+  #studentDashboard .mp-unified-header-tools .sh-round-btn,
+  #studentDashboard .mp-unified-header-tools .sh-account-btn {
+    width:35px!important;min-width:35px!important;height:36px!important;min-height:36px!important;
+  }
+}
+@media(prefers-reduced-motion:reduce) {
+  #studentDashboard .mp-unified-header-tools button,
+  #studentDashboard .mp-unified-bottom-tab {transition:none!important;}
+}
+
+/* v2: My Projects header offers exactly Home, Theme and Logout. */
+#studentDashboard .mp-unified-header-tools .mp-unified-home-btn {
+  display:inline-flex!important;align-items:center!important;justify-content:center!important;
+  gap:9px!important;padding:0 13px!important;min-width:0!important;width:auto!important;
+}
+#studentDashboard .mp-unified-home-btn .mp-home-label {white-space:nowrap;}
+@media (max-width:720px) {
+  #studentDashboard .mp-unified-header-tools .mp-unified-home-btn,
+  #studentDashboard .mp-unified-header-tools #mpUnifiedLogoutBtn {
+    width:38px!important;min-width:38px!important;padding:0!important;gap:0!important;
+  }
+  #studentDashboard .mp-unified-home-btn .mp-home-label {display:none!important;}
+}
+@media (max-width:380px) {
+  #studentDashboard .mp-unified-header-tools .mp-unified-home-btn,
+  #studentDashboard .mp-unified-header-tools #mpUnifiedLogoutBtn {
+    width:35px!important;min-width:35px!important;padding:0!important;
+  }
+}

@@ -2780,13 +2780,29 @@ function closeLoginLackingReminder(options = {}) {
   const handoff = options.continueToHome === true && appSession.mode === 'student' &&
     Boolean(appSession.student) && loginLackingReminderOverlay?.dataset.preview !== 'true';
   if (handoff) studentHomeMusic.handoffPending = true;
-  // Closing the modal into Home must NOT restart the song or replace the audio.
-  if (!handoff && !studentHomeMusic.handoffPending && !alreadyClosed && !homeMusicVisible()) {
+  // My Projects is NOT the music-playing Student Home. Closing its reminder
+  // always stops the modal audio, even if a previous Home handoff was pending.
+  if (options.stopMusicOnClose === true) {
+    studentHomeMusic.handoffPending = false;
+    stopLoginReminderMusic({ invalidateSession: true });
+  } else if (!handoff && !studentHomeMusic.handoffPending && !alreadyClosed && !homeMusicVisible()) {
     stopLoginReminderMusic({ invalidateSession: true });
   }
   loginLackingReminderOverlay?.classList.remove('is-visible');
   loginLackingReminderOverlay?.classList.add('hidden');
   document.body.classList.remove('login-lacking-reminder-open');
+}
+
+// The reminder is also shown when coming from Code Editor -> Go to -> My Projects.
+// X / Escape / Continue must keep the user on the page they chose.
+function loginReminderDismissRoute() {
+  if (loginLackingReminderOverlay?.dataset.preview === 'true') return 'home';
+  const projectsVisible = appSession.mode === 'student' &&
+    document.body.classList.contains('student-dashboard-active') &&
+    !document.body.classList.contains('student-home-active') &&
+    studentDashboard && !studentDashboard.classList.contains('hidden');
+  if (projectsVisible) return 'projects';
+  return loginLackingReminderOverlay?.dataset.dismissRoute === 'projects' ? 'projects' : 'home';
 }
 
 if (loginLackingReminderOverlay && typeof MutationObserver !== 'undefined') {
@@ -2803,7 +2819,7 @@ async function navigateFromLoginLackingReminder(destination = 'home') {
   const target = String(destination || 'home').toLowerCase();
   const isPreview = loginLackingReminderOverlay?.dataset.preview === 'true';
   const toHome = target === 'home' && !isPreview && appSession.mode === 'student' && !!appSession.student;
-  closeLoginLackingReminder({ continueToHome: toHome });
+  closeLoginLackingReminder({ continueToHome: toHome, stopMusicOnClose: target === 'projects' });
 
   // Admin's reminder preview is visual-only. Closing it must not switch the
   // admin into a student route.
@@ -2834,7 +2850,15 @@ async function navigateFromLoginLackingReminder(destination = 'home') {
       return;
     }
     if (target === 'projects') {
-      await showStudentDashboard({ suppressStatusReminder: true });
+      // The dashboard is already behind the reminder on a Go to -> My Projects
+      // navigation. Simply dismiss it: do not reroute via Student Home or
+      // reload projects and trigger a second popup.
+      if (studentDashboard?.classList.contains('hidden') ||
+          !document.body.classList.contains('student-dashboard-active') ||
+          document.body.classList.contains('student-home-active')) {
+        await showStudentDashboard({ suppressStatusReminder: true, deferRefresh: true });
+      }
+      syncStudentHomeMusicRoute();
       return;
     }
     // X, Escape and the primary action all land on Student Home.
@@ -2842,6 +2866,19 @@ async function navigateFromLoginLackingReminder(destination = 'home') {
     syncStudentHomeMusicRoute();
   } catch (error) {
     console.warn('Could not open the selected student destination.', error);
+    // Never turn a failed My Projects transition into an accidental Home route.
+    if (target === 'projects') {
+      studentHomeMusic.handoffPending = false;
+      syncStudentHomeMusicRoute();
+      try {
+        if (studentDashboard?.classList.contains('hidden')) {
+          await showStudentDashboard({ suppressStatusReminder: true, deferRefresh: true });
+        }
+      } catch (projectError) {
+        console.warn('Could not reopen My Projects.', projectError);
+      }
+      return;
+    }
     try { await showStudentHome({ suppressStatusReminder: true }); } finally {
       studentHomeMusic.handoffPending = false;
       syncStudentHomeMusicRoute();
@@ -3168,8 +3205,8 @@ async function getLoginReminderComplianceRecord() {
   }
 }
 
-async function showLoginLackingReminderAfterLogin() {
-  // Student status reminder is displayed on the Student Home after login.
+async function showLoginLackingReminderAfterLogin(options = {}) {
+  // Student status reminder is displayed after login and on My Projects visits.
   // The old pending flag is still cleared for compatibility with the login flow,
   // but it no longer prevents the reminder from appearing when students return
   // to My Projects from the editor, Lesson Viewer, or another student screen.
@@ -3177,8 +3214,11 @@ async function showLoginLackingReminderAfterLogin() {
 
   if (appSession.mode !== 'student' || !appSession.student) return false;
   if (loginLackingReminderOverlay && !loginLackingReminderOverlay.classList.contains('hidden')) return false;
+  const dismissRoute = options.dismissRoute === 'projects' ||
+    (options.dismissRoute !== 'home' && document.body.classList.contains('student-dashboard-active') &&
+      !document.body.classList.contains('student-home-active')) ? 'projects' : 'home';
 
-  // Let My Projects finish painting first so the reminder never blocks route setup.
+  // Let the selected screen paint first so the reminder never blocks route setup.
   await new Promise(resolve => window.setTimeout(resolve, 120));
 
   // v652: refresh published teacher theme/text when the student opens the
@@ -3198,6 +3238,7 @@ async function showLoginLackingReminderAfterLogin() {
 
   const settings = normalizeLoginReminderSettings(loginReminderSettings);
   if (!settings.enabled) return false;
+  if (loginLackingReminderOverlay) loginLackingReminderOverlay.dataset.dismissRoute = dismissRoute;
 
   // Start analyzing the first reminder track before the modal finishes opening.
   // If the compliance record is already in memory this still runs in parallel;
@@ -3276,7 +3317,7 @@ let adminLatestAiReview = null;
 let adminAiRubricController = null;
 let aiRubricConnectionState = { status: 'untested', code: '', message: '' };
 
-const MCS_APP_BUILD = 'v637-co-third-podium-preview';
+const MCS_APP_BUILD = 'v639-teacher-auth-lookup-first-login';
 window.MCS_APP_BUILD = MCS_APP_BUILD;
 console.info(`[MCSian Code Editor] ${MCS_APP_BUILD} loaded`);
 
@@ -7782,7 +7823,9 @@ async function resolveStudentLoginTarget(studentId) {
   // may be read before login, but listing the class roster is still blocked.
   let roster = null;
   try {
-    roster = await loadStudentRosterRecord(normalized);
+    // Freshly enrolled students may have a stale negative roster cache from
+    // before the teacher pressed Add Student. Recheck the exact record.
+    roster = await loadStudentRosterRecord(normalized, { force: true });
   } catch (error) {
     console.info('Exact roster login hint unavailable.', error);
   }
@@ -7873,15 +7916,16 @@ async function loadStudentProfile(uid) {
   }
 }
 
-async function loadStudentRosterRecord(studentId) {
+async function loadStudentRosterRecord(studentId, { force = false } = {}) {
   const ready = await initFirebaseSync();
   if (!ready || !studentId) return null;
-  const { getDoc } = firebaseSync.modules;
+  const { getDoc, getDocFromServer } = firebaseSync.modules;
   const normalized = normalizeStudentId(studentId);
   return withSelectiveFirestoreCache(`studentRoster:${normalized}`, SELECTIVE_CACHE_LONG_MS, async () => {
-    const snapshot = await getDoc(getStudentRosterDocRef(normalized));
+    const reader = force && navigator.onLine !== false && getDocFromServer ? getDocFromServer : getDoc;
+    const snapshot = await reader(getStudentRosterDocRef(normalized));
     return snapshotExists(snapshot) ? { id: snapshot.id, ...snapshotData(snapshot) } : null;
-  });
+  }, { force });
 }
 
 async function findStudentRosterRecordById(studentId) {
@@ -9047,6 +9091,15 @@ function continueAsGuest() {
     }
   }
 
+  // Guest coding now opens the official Studio V2. Allow a one-time bypass
+  // when returning to the original Guest Home from the Studio hamburger menu.
+  if (sessionStorage.getItem('g8code.officialStudio.guestHomeOnce') === '1') {
+    sessionStorage.removeItem('g8code.officialStudio.guestHomeOnce');
+  } else {
+    window.ICT8AppExitGuard?.allowNextUnload?.();
+    window.location.assign('editor-v2.html?mode=guest');
+    return;
+  }
   requestAnimationFrame(() => {
     entryGate?.classList.add('hidden');
     document.body.classList.remove('entry-gate-active', 'student-auth-open', 'student-dashboard-active', 'student-route-lock');
@@ -9277,27 +9330,15 @@ async function signInStudentWithCandidateEmails(studentId, password, loginTarget
 
 async function createFirebaseStudentCredential(studentId, roster = null, { allowRecovery = false } = {}) {
   const candidates = getStudentAuthEmailCreationCandidates(studentId, roster, { allowRecovery });
-  let lastEmailInUseError = null;
-  for (const candidateEmail of candidates) {
-    try {
-      const credential = await firebaseSync.authModule.createUserWithEmailAndPassword(firebaseSync.auth, candidateEmail, DEFAULT_STUDENT_PASSWORD);
-      return { credential, authEmail: candidateEmail };
-    } catch (error) {
-      if (isAuthEmailAlreadyInUseError(error)) {
-        lastEmailInUseError = error;
-        continue;
-      }
-      throw error;
-    }
-  }
-  const conflictError = new Error(
-    allowRecovery
-      ? 'Recovery-slot login creation is disabled. Use Login Check/Recovery to find the correct existing account.'
-      : 'This Student ID already has an activated account. Log in using the password you created, or ask your teacher to use Login Check/Recovery.'
+  // A fresh roster account must activate ONE deterministic Firebase Auth email.
+  // If that address already exists, do not try a second generated email: that
+  // could create a duplicate UID with a separate set of student projects.
+  const authEmail = candidates[0];
+  if (!authEmail) throw new Error('Student ID is invalid.');
+  const credential = await firebaseSync.authModule.createUserWithEmailAndPassword(
+    firebaseSync.auth, authEmail, DEFAULT_STUDENT_PASSWORD
   );
-  conflictError.code = allowRecovery ? 'mcsian/no-recovery-slot' : 'auth/email-already-in-use';
-  conflictError.originalError = lastEmailInUseError;
-  throw conflictError;
+  return { credential, authEmail };
 }
 
 async function createStudentAccountFromRoster(studentId, password, preloadedRoster = null) {
@@ -9386,7 +9427,9 @@ async function createStudentAccountFromRoster(studentId, password, preloadedRost
 
 function getStudentAuthErrorMessage(error) {
   const code = String(error?.code || '');
-  if (code.includes('mcsian/auth-email-conflict')) return 'This Student ID has a stuck login record. Ask your teacher to use Login Check/Recovery. Do not keep trying 123456 unless this is a first login.';
+  if (code.includes('mcsian/auth-email-conflict')) return 'An Authentication account already exists for this Student ID, but 123456 could not open it. Ask your teacher to run Student Records → Login Check/Recovery. Do not create a duplicate account.';
+  if (code.includes('mcsian/default-password-not-active')) return 'Default 123456 could not open the Firebase account for this Student ID. Ask your teacher to use Login Check, then Reset Pass if needed. Your projects can be preserved.';
+  if (code.includes('mcsian/not-ready')) return 'This Student ID has no available registration record yet. Ask your teacher to check Student Records.';
   if (code.includes('email-already-in-use')) return 'This Student ID already has an activated account. Use the password you created. The default 123456 works only for first login.';
   if (code.includes('mcsian/no-recovery-slot')) return 'Recovery login slots are disabled for safety. Use Login Check/Recovery to find the correct existing account.';
   if (code.includes('weak-password')) return 'The password must contain at least 6 characters.';
@@ -9468,44 +9511,90 @@ async function loginStudent() {
     let credential = null;
     let profile = null;
 
-    try {
-      const signedIn = await signInStudentWithCandidateEmails(studentId, password, loginTarget);
-      credential = signedIn.credential;
-      firebaseSync.currentUser = credential.user;
+    // A login route may outlive a removed Auth account, or an older account
+    // might occupy the Student-ID email without having an app profile. Always
+    // check the exact roster on DEFAULT-PASSWORD attempts; a route alone must
+    // never be treated as proof that the student changed their password.
+    let freshActivationRoster = loginTarget.roster || null;
+    if (password === DEFAULT_STUDENT_PASSWORD && !freshActivationRoster) {
+      try { freshActivationRoster = await loadStudentRosterRecord(studentId, { force: true }); }
+      catch (rosterLookupError) { console.info('Exact roster first-login check unavailable.', rosterLookupError); }
+    }
+    const routeEmail = String(loginTarget.route?.authEmail || '').trim().toLowerCase();
+    const rosterEmail = String(freshActivationRoster?.authEmail || studentIdToAuthEmail(studentId)).trim().toLowerCase();
+    const firstActivation = password === DEFAULT_STUDENT_PASSWORD
+      && Boolean(freshActivationRoster)
+      && !String(freshActivationRoster.authUid || '').trim()
+      && (!routeEmail || routeEmail === rosterEmail);
 
-      // Existing healthy account: read its own profile and stop. Do not touch
-      // roster/profile documents unnecessarily on every login.
-      profile = await loadStudentProfile(credential.user.uid);
-
-      if (!profile) {
-        // Auth account exists but profile is missing: now that Auth succeeded,
-        // a signed-in legacy roster search is safe.
-        profile = await createOrRepairStudentProfileFromRoster(
-          credential.user,
-          studentId,
-          null
-        );
-      } else if (!areStudentIdsEquivalent(
-        profile.studentId || profile.studentIdNormalized,
-        studentId
-      )) {
-        profile = await createOrRepairStudentProfileFromRoster(
-          credential.user,
-          studentId,
-          profile
-        );
+    if (firstActivation) {
+      const roster = freshActivationRoster;
+      if (!roster) {
+        const error = new Error('This Student ID does not have a registered class record yet. Please ask your teacher to check the Student Records list.');
+        error.code = 'mcsian/not-ready';
+        throw error;
       }
 
-      // v461: healthy login routes no longer receive an identical Firestore write
-      // on every login. Repair only when the route is missing or actually stale.
+      try {
+        // Create exactly one Auth user, attach to the existing roster, and
+        // open the mandatory change-password screen on successful activation.
+        profile = await createStudentAccountFromRoster(studentId, password, roster);
+      } catch (activationError) {
+        if (!isAuthEmailAlreadyInUseError(activationError)) throw activationError;
+
+        // A previous attempt may have created Firebase Auth but failed before
+        // writing the profile/roster. ONE sign-in with 123456 can safely finish
+        // that interrupted activation; never create a second Auth account.
+        try {
+          const signedIn = await signInStudentWithCandidateEmails(studentId, password, loginTarget);
+          credential = signedIn.credential;
+        } catch (signInError) {
+          const error = new Error(
+            'The Student ID already has a Firebase Authentication account, but its password is not 123456. Use Admin → Student Records → Login Check/Recovery. Do not create a duplicate account.'
+          );
+          error.code = 'mcsian/auth-email-conflict';
+          error.cause = signInError;
+          throw error;
+        }
+      }
+    }
+
+    if (!profile) {
+      // Activated users and interrupted first logins authenticate with the
+      // existing Firebase account; their student UID and projects stay intact.
+      if (!credential) {
+        try {
+          const signedIn = await signInStudentWithCandidateEmails(studentId, password, loginTarget);
+          credential = signedIn.credential;
+        } catch (signInError) {
+          if (!isAuthMissingOrWrongPasswordError(signInError)) throw signInError;
+          noteStudentLoginFailure(studentId, signInError);
+          if (password === DEFAULT_STUDENT_PASSWORD && loginTarget.activated) {
+            // Invalid credentials cannot prove that the student changed the
+            // password. The route can be stale, or an Auth account might have
+            // been created without a corresponding profile document.
+            const error = new Error(
+              'The default password could not sign in to the existing Student-ID Auth account. Ask your teacher to run Login Check, then Reset Pass if necessary. Do not create a duplicate account.'
+            );
+            error.code = 'mcsian/default-password-not-active';
+            throw error;
+          }
+          throw signInError;
+        }
+      }
+      firebaseSync.currentUser = credential.user;
+      profile = await loadStudentProfile(credential.user.uid);
+      if (!profile || !areStudentIdsEquivalent(profile.studentId || profile.studentIdNormalized, studentId)) {
+        profile = await createOrRepairStudentProfileFromRoster(credential.user, studentId, profile);
+      }
+
       const desiredRouteEmail = String(credential.user.email || '').trim().toLowerCase();
       const desiredRouteStatus = String(profile?.accountStatus || 'active');
       const existingRoute = loginTarget?.route || null;
-      const routeNeedsRepair = !existingRoute
+      if (!existingRoute
         || String(existingRoute.authEmail || '').trim().toLowerCase() !== desiredRouteEmail
         || existingRoute.activated !== true
-        || String(existingRoute.accountStatus || 'active') !== desiredRouteStatus;
-      if (routeNeedsRepair) {
+        || String(existingRoute.accountStatus || 'active') !== desiredRouteStatus) {
         try {
           await writeStudentLoginRoute(studentId, {
             authEmail: desiredRouteEmail,
@@ -9516,37 +9605,6 @@ async function loginStudent() {
           console.info('Login route self-heal skipped.', routeError);
         }
       }
-    } catch (signInError) {
-      // Do not try another email. One click already used its one Auth attempt.
-      if (!isAuthMissingOrWrongPasswordError(signInError)) throw signInError;
-
-      if (password !== DEFAULT_STUDENT_PASSWORD) {
-        noteStudentLoginFailure(studentId, signInError);
-        throw signInError;
-      }
-
-      // If the route/roster says an Auth account already exists, 123456 is NOT
-      // treated as a reason to create another account.
-      if (loginTarget.activated || String(loginTarget.roster?.authUid || '').trim()) {
-        noteStudentLoginFailure(studentId, signInError);
-        const resetError = new Error(
-          'The default password is no longer active for this account. Use your current password or ask your teacher to use Reset Pass.'
-        );
-        resetError.code = 'auth/wrong-password';
-        throw resetError;
-      }
-
-      // Truly new account only. Exact roster GET is allowed; roster listing is not.
-      const roster = loginTarget.roster || await loadStudentRosterRecord(studentId);
-      if (!roster) {
-        const registrationError = new Error(
-          'This Student ID is not ready for first login yet. Ask your teacher to check the student record.'
-        );
-        registrationError.code = 'mcsian/not-ready';
-        throw registrationError;
-      }
-
-      profile = await createStudentAccountFromRoster(studentId, password, roster);
     }
 
     if (!profile || !areStudentIdsEquivalent(
@@ -9922,7 +9980,7 @@ document.getElementById('guestHomeScreen')?.addEventListener('click',event => {
   if (action === 'activities') {hideGuestHome();openGivenActivitiesLibrary('home');return;}
   if (action === 'login') {hideGuestHome();openStudentLogin();}
 });
-document.getElementById('guestHomeReturnEditor')?.addEventListener('click',hideGuestHome);
+document.getElementById('guestHomeReturnEditor')?.addEventListener('click',()=>{window.ICT8AppExitGuard?.allowNextUnload?.();window.location.assign('editor-v2.html?mode=guest')});
 
 // ---------------------------------------------------------------------------
 // Student Home (2026-11-01). Existing My Projects is deliberately unchanged.
@@ -10062,7 +10120,7 @@ async function showStudentHome(options = {}) {
   }
   if (!document.body.classList.contains('student-home-active')) return;
   if (options.suppressStatusReminder) closeLoginLackingReminder();
-  else showLoginLackingReminderAfterLogin().catch(error => console.warn('Could not open student status reminder.', error));
+  else showLoginLackingReminderAfterLogin({ dismissRoute: 'home' }).catch(error => console.warn('Could not open student status reminder.', error));
 }
 
 // Student Home Account Settings — uses Firebase reauthentication for password
@@ -10325,7 +10383,7 @@ async function showStudentDashboard(options = {}) {
     if (suppressStatusReminder) {
       closeLoginLackingReminder();
     } else {
-      showLoginLackingReminderAfterLogin().catch(error => {
+      showLoginLackingReminderAfterLogin({ dismissRoute: 'projects' }).catch(error => {
         console.warn('Could not open My Projects reminder.', error);
       });
     }
@@ -10345,7 +10403,7 @@ async function showStudentDashboard(options = {}) {
   if (suppressStatusReminder) {
     closeLoginLackingReminder();
   } else {
-    showLoginLackingReminderAfterLogin().catch(error => {
+    showLoginLackingReminderAfterLogin({ dismissRoute: 'projects' }).catch(error => {
       console.warn('Could not open My Projects reminder.', error);
     });
   }
@@ -14764,6 +14822,14 @@ async function openStudentProject(projectId) {
     if (projectDashboardStatus) projectDashboardStatus.textContent = 'Opening project...';
     const project = await getStudentProject(projectId);
     if (!project) throw new Error('Project not found.');
+    // The official Code Editor is Studio V2; Wireframe Maker remains a separate tool.
+    if (String(project.projectType || 'code').toLowerCase() !== 'wireframe') {
+      const params = new URLSearchParams({ project: String(projectId) });
+      if (project.petaActivityId) params.set('peta', String(project.petaActivityId));
+      window.ICT8AppExitGuard?.allowNextUnload?.();
+      window.location.assign('editor-v2.html?' + params.toString());
+      return;
+    }
     appSession.currentProjectId = projectId;
     appSession.currentProject = project;
     persistLastStudentSession('student-project-opened');
@@ -15327,7 +15393,20 @@ async function addStudentAccountFromForm() {
     if (adminStudentId) adminStudentId.value = '';
     if (adminStudentName) adminStudentName.value = '';
     if (adminStudentGender) adminStudentGender.value = '';
-    setStudentAdminStatus(`${student.name} was added. Student ID: ${student.studentId} · First login password: 123456`, 'success');
+    // A new roster row does not prove the Firebase Auth email is unused. Tell
+    // the teacher clearly when a pre-existing Auth account would reject 123456.
+    let authCollision = null;
+    if (getMcsAppsScriptUrl()) {
+      try { authCollision = await inspectStudentFirebaseAuth(student.studentId, student.authEmail); }
+      catch (authLookupError) { console.info('New-roster Auth availability check skipped.', authLookupError); }
+    }
+    if (authCollision?.exists) {
+      setStudentAdminStatus(`${student.name} was added to the roster, but this Student ID already has a Firebase Auth account. Default 123456 may not work; use Login Check and Reset Pass (keeps the UID and projects).`, 'warn');
+    } else if (authCollision && !authCollision.exists) {
+      setStudentAdminStatus(`${student.name} was added. Student ID: ${student.studentId} · Verified first-login password: 123456`, 'success');
+    } else {
+      setStudentAdminStatus(`${student.name} was added to the roster. Default 123456 works for a genuinely new Firebase Auth account. Run Login Check if an earlier Auth account might exist.`, 'success');
+    }
     resetAdminStudentMobileRenderLimit();
     renderAdminStudentTracker();
     if (isAdminStudentMobileLayout()) setStudentRegisterMobileOpen(false);
@@ -16478,12 +16557,12 @@ async function showAdminStudentRecoveryHelper(studentId, uid = '') {
     copyNote,
     '',
     'For stuck first login or forgotten password:',
-    '1. Open Firebase Console > Authentication > Users.',
-    '2. Paste/search the copied Auth email above.',
-    '3. Delete only that Firebase Auth user if you want a fresh first login.',
-    '4. Let the student log in again with the Student ID and default password 123456.',
+    '1. Run Login Check for this Student ID to verify the actual Firebase Auth account.',
+    '2. If an Auth account exists, use Admin Reset Pass for a new temporary password.',
+    '3. Give that password privately to the student; require a new password at login.',
+    '4. If no Auth account exists, the roster-only student can activate with 123456.',
     '',
-    'Do not use the app Delete button unless you also want to remove app roster/profile/project records.'
+    'Do NOT delete Auth users, UIDs, or student projects to fix a password issue.'
   ].join('\n');
 
   await appAlert(recoveryMessage, {
@@ -16797,6 +16876,17 @@ async function queryAdminStudentProfilesForDiagnostic(studentId = '', student = 
   return [...records.values()];
 }
 
+// Teacher-only live Firebase Auth lookup from the Apps Script bridge. This
+// distinguishes a roster-only record from an Auth account that has no profile.
+async function inspectStudentFirebaseAuth(studentId, authEmail = '') {
+  if (!getMcsAppsScriptUrl()) throw new Error('Apps Script URL is not configured.');
+  return callAppsScriptSecure({
+    action: 'inspectStudentAuthById',
+    studentId: normalizeStudentId(studentId),
+    authEmail: String(authEmail || '').trim().toLowerCase()
+  });
+}
+
 async function runAdminStudentLoginDiagnostic(studentId = '', uid = '') {
   if (!isTeacherAuthenticated()) {
     setStudentAdminStatus('Teacher login is required to run Login Check.', 'error');
@@ -16828,6 +16918,16 @@ async function runAdminStudentLoginDiagnostic(studentId = '', uid = '') {
     const rosterAuthUid = String(roster?.authUid || '').trim();
     const rosterAuthEmail = String(roster?.authEmail || '').trim().toLowerCase();
     const profileEmails = [...new Set(profileRecords.map(record => String(record.authEmail || '').trim().toLowerCase()).filter(Boolean))];
+    let firebaseAuthInspection = null;
+    let firebaseAuthInspectionError = '';
+    if (resolvedId && getMcsAppsScriptUrl()) {
+      try {
+        const routeForLookup = await loadStudentLoginRoute(resolvedId).catch(() => null);
+        firebaseAuthInspection = await inspectStudentFirebaseAuth(resolvedId, routeForLookup?.authEmail || rosterAuthEmail || student?.authEmail || '');
+      } catch (authInspectionError) {
+        firebaseAuthInspectionError = String(authInspectionError?.message || 'Auth lookup unavailable');
+      }
+    }
 
     // Teacher diagnostic doubles as a safe login-route repair when there is
     // exactly one unambiguous working profile.
@@ -16872,8 +16972,28 @@ async function runAdminStudentLoginDiagnostic(studentId = '', uid = '') {
       else lines.push(formatDiagnosticStatusLine('Roster status', 'pass', roster.accountStatus || 'active'));
     }
 
+    if (firebaseAuthInspection?.exists) {
+      lines.push(formatDiagnosticStatusLine('Firebase Authentication', 'pass', `Existing Auth account found · UID ${firebaseAuthInspection.uid}`));
+      if (!profileRecords.length) {
+        warnings.push('An Auth account exists, but no student profile is linked. Default 123456 is NOT guaranteed. Use Reset Pass; it can now recover this account by verified Auth UID without deleting it.');
+      }
+      if (rosterAuthUid && rosterAuthUid !== firebaseAuthInspection.uid) {
+        blockers.push('Roster UID differs from the actual Auth UID. Do not reset until the identity is reconciled.');
+      }
+      if (profileUids.length && !profileUids.includes(firebaseAuthInspection.uid)) {
+        blockers.push('Actual Firebase Auth UID does not match any linked student profile. Review possible Student ID collision before Reset Pass.');
+      }
+    } else if (firebaseAuthInspection && firebaseAuthInspection.exists === false) {
+      lines.push(formatDiagnosticStatusLine('Firebase Authentication', 'info', 'No existing Auth user for this generated Student ID email'));
+      if (rosterAuthUid || profileUids.length) warnings.push('Roster/profile refers to an Auth account that no longer exists; use teacher recovery before attempting another activation.');
+    } else if (firebaseAuthInspectionError) {
+      warnings.push(`Secure Firebase Auth lookup unavailable: ${firebaseAuthInspectionError}`);
+    } else {
+      info.push('Actual Auth status was not checked (secure Apps Script lookup unavailable).');
+    }
+
     if (!profileRecords.length) {
-      info.push('No app profile yet. This is normal for a student who never logged in. First login should use password 123456.');
+      if (firebaseAuthInspection?.exists !== true) info.push('No app profile yet. If the Auth email is also unused, first login uses 123456.');
     } else {
       lines.push(formatDiagnosticStatusLine('App profile', 'pass', `${profileRecords.length} profile document${profileRecords.length === 1 ? '' : 's'} found`));
     }
@@ -17006,18 +17126,56 @@ async function resetAdminStudentLoginAccess(studentId = '', uid = '', triggerBut
   }
 
   if (!uniqueProfileUids.length || student.isRosterOnly) {
-    setStudentAdminStatus(`${displayName} has no activated app profile yet. First login still uses 123456.`, 'warn');
-    await appAlert([
-      `Student: ${displayName}`,
-      `Student ID: ${resolvedId || 'not found'}`,
-      '',
-      'This student has no activated profile/UID yet.',
-      'Reset Pass is not needed. For first login, use Student ID + 123456.'
-    ].join('\n'), {
-      title: 'No password to reset yet',
-      icon: 'i'
+    // A roster-only row can still have a real Firebase Auth account if an older
+    // signup failed before its Firestore profile was written. Never assume that
+    // no profile means no Auth user; check from the teacher-only secure bridge.
+    let inspected;
+    try {
+      const routeForLookup = await loadStudentLoginRoute(resolvedId).catch(() => null);
+      inspected = await inspectStudentFirebaseAuth(resolvedId, routeForLookup?.authEmail || student?.authEmail || '');
+    } catch (inspectionError) {
+      setStudentAdminStatus(`Could not verify Firebase Auth for ${displayName}. No password was changed.`, 'error');
+      await appAlert(`Secure Auth lookup failed: ${inspectionError?.message || 'Try Login Check again.'}\n\nDo not delete or recreate the student account.`, {
+        title: 'Could not verify Auth identity', danger: true
+      });
+      return;
+    }
+    if (inspected?.disabled) {
+      setStudentAdminStatus('Firebase Auth account is disabled. Password reset alone cannot enable login.', 'error');
+      await appAlert('This Firebase Auth user is disabled. Check the user status in Firebase Authentication before resetting a password.', { title: 'Disabled Auth account', danger: true });
+      return;
+    }
+    if (!inspected?.exists || !inspected.uid) {
+      setStudentAdminStatus(`${displayName} has no Auth account yet. First login uses 123456.`, 'warn');
+      await appAlert([
+        `Student: ${displayName}`,
+        `Student ID: ${resolvedId}`,
+        '',
+        'The secure Auth lookup found no existing Firebase account.',
+        'This is a genuine roster-only first login. Use Student ID + 123456.',
+        '',
+        'If that still fails, run Login Check for conflicting login routes.'
+      ].join('\n'), { title: 'Ready for first login', icon: 'i' });
+      return;
+    }
+    const linkedUid = String(student?.authUid || '').trim();
+    if (linkedUid && linkedUid !== inspected.uid) {
+      setStudentAdminStatus('Existing roster UID and Firebase Auth UID do not match. Reset blocked.', 'error');
+      await appAlert('The roster UID conflicts with the actual Auth UID. Run Login Check before attempting a password reset.', { title: 'Identity mismatch', danger: true });
+      return;
+    }
+    const conflictingStudent = adminStudentsCache.find(other => {
+      const otherId = normalizeStudentId(other?.studentId || other?.studentIdNormalized || '');
+      return otherId && otherId !== resolvedId
+        && (String(other?.authUid || other?.uid || '').trim() === inspected.uid
+          || String(other?.authEmail || '').trim().toLowerCase() === String(inspected.email || '').toLowerCase());
     });
-    return;
+    if (conflictingStudent) {
+      setStudentAdminStatus('Auth account may belong to another Student ID; Reset blocked.', 'error');
+      await appAlert('Another roster row uses the same Firebase account/email. Correct the Student ID collision before Reset Pass. No account was changed.', { title: 'Possible Student ID collision', danger: true });
+      return;
+    }
+    targetUid = inspected.uid;
   }
 
   if (uniqueProfileUids.length > 1) {
@@ -17075,12 +17233,17 @@ async function resetAdminStudentLoginAccess(studentId = '', uid = '', triggerBut
 
     const { setDoc, serverTimestamp } = firebaseSync.modules;
     const teacherEmail = getFirebaseActiveUser()?.email || '';
-    await setDoc(getStudentDocRef(targetUid), {
-      mustChangePassword: true,
-      passwordResetAt: serverTimestamp(),
-      passwordResetBy: teacherEmail,
-      updatedAt: serverTimestamp()
-    }, { merge: true });
+    if (uniqueProfileUids.length > 0) {
+      await setDoc(getStudentDocRef(targetUid), {
+        mustChangePassword: true,
+        passwordResetAt: serverTimestamp(),
+        passwordResetBy: teacherEmail,
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+    }
+    // For a truly orphaned Auth user, do not create an incomplete student
+    // profile here. The student's next authenticated login repairs it from
+    // the authoritative roster with all required fields and the same UID.
 
     try {
       const rosterUpdate = {
@@ -34652,8 +34815,8 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closeStudent
 previewLoginReminderCompleteBtn?.addEventListener('click', () => previewLoginLackingReminder(false));
 previewLoginReminderMissingBtn?.addEventListener('click', () => previewLoginLackingReminder(true));
 saveLoginReminderSettingsBtn?.addEventListener('click', saveLoginReminderSettingsToCloud);
-closeLoginLackingReminderBtn?.addEventListener('click', () => navigateFromLoginLackingReminder('home'));
-continueFromLoginLackingReminderBtn?.addEventListener('click', () => navigateFromLoginLackingReminder('home'));
+closeLoginLackingReminderBtn?.addEventListener('click', () => navigateFromLoginLackingReminder(loginReminderDismissRoute()));
+continueFromLoginLackingReminderBtn?.addEventListener('click', () => navigateFromLoginLackingReminder(loginReminderDismissRoute()));
 loginReminderLessonsBtn?.addEventListener('click', () => navigateFromLoginLackingReminder('lessons'));
 loginReminderActivitiesBtn?.addEventListener('click', () => navigateFromLoginLackingReminder('activities'));
 loginReminderExplorerBtn?.addEventListener('click', () => navigateFromLoginLackingReminder('explorer'));
@@ -34666,7 +34829,7 @@ loginLackingReminderOverlay?.addEventListener('click', event => {
 });
 document.addEventListener('keydown', event => {
   if (event.key === 'Escape' && loginLackingReminderOverlay && !loginLackingReminderOverlay.classList.contains('hidden')) {
-    navigateFromLoginLackingReminder('home');
+    navigateFromLoginLackingReminder(loginReminderDismissRoute());
   }
 });
 saveAiRubricSettingsBtn?.addEventListener('click', saveAiRubricSettingsToCloud);

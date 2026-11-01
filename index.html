@@ -287,7 +287,10 @@
   <link rel="stylesheet" href="login-experience.css?v=20261101-minimal-bulb-v3" />
   <!-- Student UI theme bridge: loads after legacy and inline styles. -->
   <link rel="stylesheet" href="unified-student-theme.css?v=20261101-v1" />
+  <link rel="stylesheet" href="immersive-student-themes.css?v=20261101-balanced-v2" />
   <link rel="stylesheet" href="admin-workspace-theme.css?v=20261101-admin-v1" />
+  <link rel="stylesheet" href="student-learning-unified.css?v=20261102-learning-unified-v1" />
+  <link rel="stylesheet" href="student-projects-unified.css?v=20261102-projects-header-home-v2" />
 </head>
 <body class="entry-gate-active">
   <noscript>
@@ -620,26 +623,33 @@
   </div>
 
   <div id="studentDashboard" class="student-dashboard-screen hidden" aria-labelledby="studentDashboardTitle">
-    <header class="student-dashboard-header mp-header">
-      <div class="dashboard-brand mp-brand">
-        <span class="mp-brand-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" width="23" height="23" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v2"/><path d="M3 10h18l-2 10H5L3 10Z"/><path d="m11 13-2 2 2 2m2-4 2 2-2 2"/></svg>
-        </span>
-        <div class="mp-brand-copy">
-          <p class="mp-eyebrow">ICT 8 CONNECT <span aria-hidden="true">/</span> WORKSPACE</p>
-          <h1 id="studentDashboardTitle">My Projects</h1>
-          <p id="dashboardGreeting" class="muted-text">Your saved coding work</p>
+    <header class="student-dashboard-header mp-header mp-unified-header" aria-label="My Projects header">
+      <div class="mp-unified-header-inner">
+        <div class="sh-brand mp-unified-brand" aria-label="ICT 8 Connect, My Projects">
+          <span class="sh-brand-logo" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="23" height="23" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="m8 8-4 4 4 4m8-8 4 4-4 4M14 5l-4 14" /></svg>
+            <span class="sh-logo-indicator"></span>
+          </span>
+          <span class="sh-brand-copy">
+            <span class="sh-brand-eyebrow">ICT 8 CONNECT</span>
+            <h1 id="studentDashboardTitle">My Projects</h1>
+            <span id="dashboardGreeting" class="sh-brand-subtitle">Your saved coding work</span>
+          </span>
+        </div>
+        <div class="sh-header-tools mp-unified-header-tools">
+          <button type="button" id="mpUnifiedHomeBtn" class="sh-account-btn mp-unified-home-btn" aria-label="Back to Student Homepage" title="Back to Student Homepage">
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="m3 10 9-7 9 7v10H3V10Z"/><path d="M9 20v-7h6v7"/></svg>
+            <span class="mp-home-label">Student Home</span>
+          </button>
+          <button type="button" id="mpUnifiedThemeBtn" class="sh-round-btn" aria-label="Switch appearance" title="Switch appearance"><span aria-hidden="true">◐</span></button>
+          <button type="button" id="mpUnifiedLogoutBtn" class="sh-account-btn" aria-label="Log out" title="Log out"><span class="sh-logout-label">Log Out</span><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 17l5-5-5-5m5 5H3"/><path d="M13 4h5a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-5"/></svg></button>
         </div>
       </div>
-      <button id="dashboardGoHomeBtn" class="mp-home-btn" type="button" aria-label="Back to Student Home" title="Back to Student Home">
-        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 10 9-7 9 7"/><path d="M5 9v11h14V9"/><path d="M9 20v-7h6v7"/></svg><span>Student Home</span>
-      </button>
-      <div class="dashboard-header-actions mp-header-settings" aria-label="Workspace settings">
-        <button id="dashboardThemeBtn" class="ghost-btn mp-setting-btn" type="button">◐ Theme</button>
-        <button id="dashboardLogoutBtn" class="ghost-btn danger mp-setting-btn" type="button">Log Out</button>
+      <div class="mp-unified-legacy-controls" hidden aria-hidden="true">
+        <button id="dashboardGoHomeBtn" type="button" tabindex="-1">Student Home</button>
+        <button id="dashboardThemeBtn" type="button" tabindex="-1">Theme</button>
+        <button id="dashboardLogoutBtn" type="button" tabindex="-1">Log Out</button>
       </div>
-      <!-- These existing controls are retained for Student Home's shortcuts and admin flags.
-           They are intentionally not visible in the focused My Projects workspace. -->
       <div class="mp-feature-bridge" aria-hidden="true">
         <button id="dashboardRecitationStatusBtn" class="recitation-status-open-btn" type="button" tabindex="-1">Recitation Status</button>
         <button id="dashboardSubjectStatusBtn" class="dashboard-subject-status-btn" type="button" tabindex="-1">Subject Status</button>
@@ -730,6 +740,13 @@
 
 
     </main>
+    <nav class="mp-unified-bottom-nav" aria-label="My Projects student navigation">
+      <button class="mp-unified-bottom-tab" type="button" data-projects-nav="home"><span aria-hidden="true">⌂</span><small>Home</small></button>
+      <button class="mp-unified-bottom-tab is-active" type="button" data-projects-nav="projects" aria-current="page"><span aria-hidden="true">▣</span><small>Projects</small></button>
+      <button class="mp-unified-bottom-tab" type="button" data-projects-nav="lessons"><span aria-hidden="true">▤</span><small>Lessons</small></button>
+      <button class="mp-unified-bottom-tab" type="button" data-projects-nav="activities"><span aria-hidden="true">☷</span><small>Activities</small></button>
+      <button class="mp-unified-bottom-tab" type="button" data-projects-nav="explorer"><span aria-hidden="true">⌘</span><small>Explore</small></button>
+    </nav>
   </div>
 
 
@@ -1080,19 +1097,20 @@
   </div>
 
   <div id="lessonViewerScreen" class="lesson-viewer-screen hidden" aria-labelledby="lessonLibraryTitle">
-    <header class="lesson-library-header">
-      <div class="lesson-library-brand">
-        <button id="lessonLibraryBackBtn" class="ghost-btn lesson-library-back-btn" type="button" aria-label="Go back">← Back</button>
-        <div class="lesson-library-icon" aria-hidden="true">📚</div>
-        <div>
-          <p class="section-kicker">ICT 8 Connect</p>
-          <h1 id="lessonLibraryTitle">Lesson Viewer</h1>
-          <p id="lessonLibrarySubtitle" class="muted-text">Choose a term, then open a PDF lesson.</p>
+    <header class="lesson-library-header learning-header" aria-label="Lessons page header">
+      <div class="learning-header-inner">
+        <div class="sh-brand learning-brand">
+          <span class="sh-brand-logo" aria-hidden="true"><svg viewBox="0 0 24 24" width="23" height="23" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m8 8-4 4 4 4m8-8 4 4-4 4M14 5l-4 14"/></svg><span class="sh-logo-indicator"></span></span>
+          <span class="sh-brand-copy"><span class="sh-brand-eyebrow">ICT 8 CONNECT</span><strong id="lessonLibraryTitle">Lessons</strong><span id="lessonLibrarySubtitle" class="sh-brand-subtitle">Choose a term, then open a PDF lesson.</span></span>
         </div>
-      </div>
-      <div class="lesson-library-header-actions">
-        <button id="lessonLibraryRefreshBtn" class="ghost-btn" type="button">↻ Refresh</button>
-        <button id="lessonLibraryThemeBtn" class="ghost-btn" type="button">🌙 Theme</button>
+        <div class="sh-header-tools learning-header-tools">
+          <span class="sh-term-pill learning-term-pill" id="lessonLibraryCurrentTermPill">Current Term</span>
+          <button id="lessonLibraryBackBtn" class="learning-back-btn" type="button" title="Back" aria-label="Go back">← <span>Back</span></button>
+          <button id="lessonLibraryRefreshBtn" class="learning-round-btn" type="button" title="Refresh lessons" aria-label="Refresh lessons">↻</button>
+          <button id="lessonLibraryThemeBtn" class="learning-round-btn learning-theme-btn" type="button" title="Change appearance" aria-label="Change appearance">◐</button>
+          <button class="learning-round-btn learning-student-only" data-learning-action="account" type="button" title="Account Settings" aria-label="Account Settings"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.25"/><path d="M5 20c.4-4.1 2.6-6.2 7-6.2s6.6 2.1 7 6.2"/><circle cx="18.5" cy="5.5" r="2.5" fill="currentColor" stroke="none"/></svg></button>
+          <button class="learning-round-btn learning-student-only" data-learning-action="logout" type="button" title="Log Out" aria-label="Log Out"><svg viewBox="0 0 24 24" aria-hidden="true" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 17l5-5-5-5m5 5H3"/><path d="M13 4h5a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-5"/></svg></button>
+        </div>
       </div>
     </header>
 
@@ -1144,6 +1162,14 @@
       <section id="lessonLibraryGrid" class="lesson-library-grid" aria-live="polite"></section>
     </main>
 
+    <nav class="learning-bottom-nav learning-student-only" aria-label="Student learning navigation">
+<button class="learning-bottom-tab" type="button" data-learning-action="home"><span aria-hidden="true">⌂</span><small>Home</small></button>
+<button class="learning-bottom-tab" type="button" data-learning-action="projects"><span aria-hidden="true">▣</span><small>Projects</small></button>
+<button class="learning-bottom-tab is-active" type="button" data-learning-action="lessons" aria-current="page"><span aria-hidden="true">▤</span><small>Lessons</small></button>
+<button class="learning-bottom-tab" type="button" data-learning-action="activities"><span aria-hidden="true">☷</span><small>Activities</small></button>
+<button class="learning-bottom-tab" type="button" data-learning-action="explorer"><span aria-hidden="true">⌘</span><small>Explore</small></button>
+</nav>
+
     <div id="lessonPdfOverlay" class="lesson-pdf-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="lessonPdfTitle">
       <section id="lessonPdfCard" class="lesson-pdf-card" role="document">
         <header class="lesson-pdf-header">
@@ -1175,20 +1201,20 @@
   </div>
 
   <div id="givenActivitiesScreen" class="given-activities-screen hidden" aria-labelledby="givenActivitiesTitle">
-    <header class="given-activities-header">
-      <div class="given-activities-brand">
-        <button id="givenActivitiesBackBtn" class="ghost-btn" type="button" aria-label="Go back">← Back</button>
-        <div class="given-activities-icon" aria-hidden="true">📝</div>
-        <div>
-          <p class="section-kicker">ICT 8 Connect</p>
-          <h1 id="givenActivitiesTitle">Activities Given</h1>
-          <p id="givenActivitiesSubtitle" class="muted-text">Teacher-posted activities, files, and instructions arranged by term and order.</p>
+    <header class="given-activities-header learning-header" aria-label="Activities page header">
+      <div class="learning-header-inner">
+        <div class="sh-brand learning-brand">
+          <span class="sh-brand-logo" aria-hidden="true"><svg viewBox="0 0 24 24" width="23" height="23" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m8 8-4 4 4 4m8-8 4 4-4 4M14 5l-4 14"/></svg><span class="sh-logo-indicator"></span></span>
+          <span class="sh-brand-copy"><span class="sh-brand-eyebrow">ICT 8 CONNECT</span><strong id="givenActivitiesTitle">Activities</strong><span id="givenActivitiesSubtitle" class="sh-brand-subtitle">Teacher-posted activities, files, and instructions arranged by term and order.</span></span>
         </div>
-      </div>
-      <div class="given-activities-header-actions">
-        <span id="givenActivitiesCurrentTermPill" class="given-activities-current-pill">Current Term</span>
-        <button id="givenActivitiesRefreshBtn" class="ghost-btn" type="button">↻ Refresh</button>
-        <button id="givenActivitiesThemeBtn" class="ghost-btn" type="button">🌙 Theme</button>
+        <div class="sh-header-tools learning-header-tools">
+          <span id="givenActivitiesCurrentTermPill" class="sh-term-pill learning-term-pill given-activities-current-pill">Current Term</span>
+          <button id="givenActivitiesBackBtn" class="learning-back-btn" type="button" title="Back" aria-label="Go back">← <span>Back</span></button>
+          <button id="givenActivitiesRefreshBtn" class="learning-round-btn" type="button" title="Refresh activities" aria-label="Refresh activities">↻</button>
+          <button id="givenActivitiesThemeBtn" class="learning-round-btn learning-theme-btn" type="button" title="Change appearance" aria-label="Change appearance">◐</button>
+          <button class="learning-round-btn learning-student-only" data-learning-action="account" type="button" title="Account Settings" aria-label="Account Settings"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.25"/><path d="M5 20c.4-4.1 2.6-6.2 7-6.2s6.6 2.1 7 6.2"/><circle cx="18.5" cy="5.5" r="2.5" fill="currentColor" stroke="none"/></svg></button>
+          <button class="learning-round-btn learning-student-only" data-learning-action="logout" type="button" title="Log Out" aria-label="Log Out"><svg viewBox="0 0 24 24" aria-hidden="true" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 17l5-5-5-5m5 5H3"/><path d="M13 4h5a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-5"/></svg></button>
+        </div>
       </div>
     </header>
 
@@ -1220,6 +1246,14 @@
       <div id="givenActivitiesStatus" class="lesson-library-status" role="status">Loading activities...</div>
       <section id="givenActivitiesGrid" class="given-activities-grid" aria-live="polite"></section>
     </main>
+
+    <nav class="learning-bottom-nav learning-student-only" aria-label="Student learning navigation">
+<button class="learning-bottom-tab" type="button" data-learning-action="home"><span aria-hidden="true">⌂</span><small>Home</small></button>
+<button class="learning-bottom-tab" type="button" data-learning-action="projects"><span aria-hidden="true">▣</span><small>Projects</small></button>
+<button class="learning-bottom-tab" type="button" data-learning-action="lessons"><span aria-hidden="true">▤</span><small>Lessons</small></button>
+<button class="learning-bottom-tab is-active" type="button" data-learning-action="activities" aria-current="page"><span aria-hidden="true">☷</span><small>Activities</small></button>
+<button class="learning-bottom-tab" type="button" data-learning-action="explorer"><span aria-hidden="true">⌘</span><small>Explore</small></button>
+</nav>
 
     <div id="givenActivityViewerOverlay" class="given-activity-viewer-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="givenActivityViewerTitle">
       <section class="given-activity-viewer-card">
@@ -5384,8 +5418,11 @@ https://example.com/song3.mp3"></textarea>
     })();
   </script>
 
-  <script src="script.js?v=20261101-floating-music-metadata-v3"></script>
+  <script src="script.js?v=20261102-official-studio-v220"></script>
   <script src="admin-workspace-theme.js?v=20261101-admin-v1"></script>
+  <script src="student-learning-unified.js?v=20261102-learning-unified-v1"></script>
+  <script src="student-projects-unified.js?v=20261102-projects-header-home-v2"></script>
+  <script src="student-official-editor-bridge.js?v=20261102-official-studio-v220"></script>
   <script>
     // v410 fallback: keep the desktop editor settings popover working even if older cached
     // toolbar code fails before binding the click handler.
