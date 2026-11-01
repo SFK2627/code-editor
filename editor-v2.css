@@ -939,3 +939,23 @@ body[data-immersive="preview"] #focusMembers{display:none!important}
 #dialog.studio-leave-dialog #dialogFooter{flex-wrap:wrap;gap:9px}
 #dialog.studio-leave-dialog #dialogFooter button{flex:1 1 130px;min-height:43px}
 @media(max-width:440px){#dialog.studio-leave-dialog #dialogFooter{display:flex;flex-direction:column-reverse;align-items:stretch}#dialog.studio-leave-dialog #dialogFooter button{flex:0 0 auto;width:100%}}
+
+/* v2.21: The word Studio alone opens the existing Admin PIN/login via guarded navigation. */
+.brand-text .brand-admin-shortcut {
+  appearance: none;
+  display: block;
+  width: max-content;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 850;
+  text-align: left;
+  cursor: pointer;
+  line-height: inherit;
+}
+.brand-text .brand-admin-shortcut:hover { text-decoration: underline; text-underline-offset: 3px; }
+.brand-text .brand-admin-shortcut:focus-visible { outline: 2px solid #ffd27d; outline-offset: 3px; }

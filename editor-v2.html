@@ -4,19 +4,19 @@
   <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#142e50"><meta name="description" content="G8Code Studio — official G8Code code editor">
   <link rel="icon" href="favicon.png"><title>G8Code Studio · Code Workspace</title>
-  <link rel="stylesheet" href="editor-v2.css?v=20261102-official-studio-v220">
+  <link rel="stylesheet" href="editor-v2.css?v=20261102-admin-studio-shortcut-v221">
   <script defer src="firebase-config.js"></script>
   <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
   <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
   <script defer src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
   <script defer src="editor-v2-live-collab.js?v=20261102-v216-kick"></script>
   <script defer src="editor-v2-formatter.js?v=20261102-v219-format"></script>
-  <script defer src="editor-v2.js?v=20261102-official-studio-v220"></script>
+  <script defer src="editor-v2.js?v=20261102-admin-studio-shortcut-v221"></script>
 </head>
 <body data-appearance="light" data-theme="classic">
   <div class="studio-shell" id="studioShell">
     <header class="topbar">
-      <div class="brand"><span class="brand-mark">{ }</span><span class="brand-text">G8Code <strong>Studio</strong><small>Official Code Editor</small></span></div>
+      <div class="brand"><span class="brand-mark">{ }</span><span class="brand-text">G8Code <button type="button" class="brand-admin-shortcut" id="studioAdminShortcut" aria-label="Open Admin sign-in" title="Open Admin sign-in">Studio</button><small>Official Code Editor</small></span></div>
       <div class="topbar-center"><label class="sr-only" for="projectTitle">Project name</label><input id="projectTitle" maxlength="80" value="My First Webpage" aria-label="Project name"><span class="save-state" id="saveState" aria-live="polite">● Local draft</span></div>
       <div class="header-actions"><button type="button" class="auth-pill" id="authPill" title="Student account">Guest mode</button><button type="button" class="icon-button compact" id="toggleTheme" title="Switch light/dark appearance" aria-label="Toggle appearance">☾</button><button type="button" class="top-save" id="saveBtn" title="Save project">Save</button><button type="button" class="icon-button" id="menuBtn" aria-label="Open navigation menu" aria-expanded="false">☰</button></div>
     </header>
