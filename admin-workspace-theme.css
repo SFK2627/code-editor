@@ -1,0 +1,630 @@
+/* G8Code — Admin Workspace UI Theme v1.
+   Scoped to teacher admin surfaces; NEVER recolor student project previews,
+   grade merits, published student-theme previews, or coding output iframes.
+   Set by admin-workspace-theme.js. "Follow App" reads html[data-theme]. */
+
+:is(#adminOverlay,#adminComplianceDetailOverlay,#sperfRosterOverlay,
+    #codeExplorerAdminDetailOverlay,#adminStudentProjectsOverlay,#adminProjectViewerOverlay,
+    #adminWireframeViewerOverlay,#adminProjectFullscreenOverlay,#engagementAnalyticsOverlay)[data-admin-appearance="light"] {
+  --g8adm-page:#edf3fa;
+  --g8adm-card:#ffffff;
+  --g8adm-raised:#f7faff;
+  --g8adm-soft:#e9f1fb;
+  --g8adm-ink:#182c44;
+  --g8adm-muted:#50657d;
+  --g8adm-border:#c9d8e9;
+  --g8adm-border-strong:#a8bfd9;
+  --g8adm-accent:var(--sat-primary,#286ad1);
+  --g8adm-accent-tint:color-mix(in srgb,var(--g8adm-accent) 12%,white 88%);
+  --g8adm-highlight:#1f4778;
+  --g8adm-shadow:0 25px 65px rgba(16,35,65,.20);
+  --g8adm-radius:var(--sat-radius,17px);
+  --bg:var(--g8adm-page);
+  --bg-2:var(--g8adm-raised);
+  --card:var(--g8adm-card);
+  --solid-card:var(--g8adm-card);
+  --text:var(--g8adm-ink);
+  --muted:var(--g8adm-muted);
+  --line:var(--g8adm-border);
+  --line-strong:var(--g8adm-border-strong);
+  --primary:var(--g8adm-accent);
+  color-scheme:light;
+}
+:is(#adminOverlay,#adminComplianceDetailOverlay,#sperfRosterOverlay,
+    #codeExplorerAdminDetailOverlay,#adminStudentProjectsOverlay,#adminProjectViewerOverlay,
+    #adminWireframeViewerOverlay,#adminProjectFullscreenOverlay,#engagementAnalyticsOverlay)[data-admin-appearance="dark"] {
+  --g8adm-page:#0a1423;
+  --g8adm-card:#142237;
+  --g8adm-raised:#192b42;
+  --g8adm-soft:#24364d;
+  --g8adm-ink:#f1f6ff;
+  --g8adm-muted:#b8c8da;
+  --g8adm-border:#354961;
+  --g8adm-border-strong:#56718f;
+  --g8adm-accent:var(--sat-primary,#72b7ff);
+  --g8adm-accent-tint:color-mix(in srgb,var(--g8adm-accent) 16%,#142237 84%);
+  --g8adm-highlight:#d7e9ff;
+  --g8adm-shadow:0 28px 70px rgba(0,0,0,.51);
+  --g8adm-radius:var(--sat-radius,17px);
+  --bg:var(--g8adm-page);
+  --bg-2:var(--g8adm-raised);
+  --card:var(--g8adm-card);
+  --solid-card:var(--g8adm-card);
+  --text:var(--g8adm-ink);
+  --muted:var(--g8adm-muted);
+  --line:var(--g8adm-border);
+  --line-strong:var(--g8adm-border-strong);
+  --primary:var(--g8adm-accent);
+  --primary-soft:var(--g8adm-accent-tint);
+  color-scheme:dark;
+}
+
+/* Admin controls remain separate from the published Student App theme. */
+#adminOverlay[data-admin-appearance] {
+  background:rgba(5,12,25,.76) !important;
+  backdrop-filter:blur(8px);
+  -webkit-backdrop-filter:blur(8px);
+}
+#adminOverlay[data-admin-appearance] .admin-modal {
+  background:var(--g8adm-page) !important;
+  border:1px solid var(--g8adm-border) !important;
+  color:var(--g8adm-ink) !important;
+  box-shadow:var(--g8adm-shadow) !important;
+}
+#adminOverlay[data-admin-appearance] .modal-header {
+  display:flex; align-items:center; justify-content:space-between; gap:14px;
+  background:var(--g8adm-card) !important;
+  color:var(--g8adm-ink) !important;
+  border-bottom:1px solid var(--g8adm-border) !important;
+}
+#adminOverlay[data-admin-appearance] .modal-header :is(h1,h2,h3) {
+  color:var(--g8adm-ink) !important;
+}
+#adminOverlay[data-admin-appearance] :is(.admin-form,.pin-screen) {
+  color:var(--g8adm-ink) !important;
+  background:var(--g8adm-page) !important;
+}
+#adminOverlay[data-admin-appearance] :is(.admin-tabs-wrap,.admin-tabs) {
+  background:var(--g8adm-card) !important;
+  border-color:var(--g8adm-border) !important;
+}
+#adminOverlay[data-admin-appearance] .admin-tab-btn:not(.active):not([aria-selected="true"]) {
+  background:transparent !important;
+  color:var(--g8adm-muted) !important;
+  border-color:transparent !important;
+}
+#adminOverlay[data-admin-appearance] .admin-tab-btn:is(.active,[aria-selected="true"]) {
+  color:var(--g8adm-ink) !important;
+  border:1px solid var(--g8adm-border-strong) !important;
+  background:var(--g8adm-accent-tint) !important;
+  box-shadow:inset 0 -3px 0 var(--g8adm-accent) !important;
+}
+#adminOverlay[data-admin-appearance] .admin-tab-btn:hover {
+  background:var(--g8adm-accent-tint) !important;
+  color:var(--g8adm-ink) !important;
+}
+#adminOverlay[data-admin-appearance] .section-kicker {color:var(--g8adm-accent) !important}
+#adminOverlay[data-admin-appearance] :is(h1,h2,h3,h4,h5,h6),
+#adminOverlay[data-admin-appearance] :is(label,legend,summary,strong,th,.admin-tab-panel) {
+  color:var(--g8adm-ink) !important;
+}
+#adminOverlay[data-admin-appearance] :is(.muted-text,.helper-note,.subtitle,small):not(.login-theme-mini-preview *) {
+  color:var(--g8adm-muted) !important;
+}
+
+/* Unified card system across ALL 10 admin tabs and advanced settings groups. */
+#adminOverlay[data-admin-appearance] :is(
+  .admin-tab-panel,.admin-settings-card,.student-accounts-admin-card,
+  .needs-attention-admin,.online-presence-admin,.section-performance-admin,
+  .compliance-admin-card,.compliance-admin-grid,.compliance-setup-block,
+  .admin-activity-manager,.admin-compact-group,.assistance-master-row,
+  .assistance-option,.login-reminder-settings-card,.login-reminder-login-coverage,
+  .login-reminder-toggle-row,.login-reminder-field,.login-reminder-playlist-panel,
+  .ai-rubric-settings-card,.ai-rubric-settings-toggle,
+  .manual-rubric-card,.rubric-table-scroll,.manual-rubric-scroll,.scale-rubric-table,
+  .student-register-form-shell,.student-import-preview,.student-tracker-table-wrap,
+  .student-import-table-wrap,.student-tracker-toolbar,.needs-attention-card,
+  .needs-attention-summary,.needs-attention-toolbar,.compliance-collapsible-setup,
+  .compliance-setup-summary,.compliance-preview-stats,
+  .lesson-file-dropzone,.lesson-source-panel,.lesson-admin-list-filters,
+  .given-activity-peta-setting,.given-activities-admin-card,.ce-admin-setting-group,
+  .ce-admin-settings-master,.ce-admin-settings-body,.code-explorer-admin-summary>div,
+  .code-explorer-admin-table-wrap,.code-explorer-admin-award-card,
+  .code-explorer-admin-pubmat-card,.code-explorer-admin-awards-config,
+  .code-explorer-admin-xp-migration,.sperf-panel
+) {
+  background:var(--g8adm-card) !important;
+  background-image:none !important;
+  color:var(--g8adm-ink) !important;
+  border-color:var(--g8adm-border) !important;
+}
+#adminOverlay[data-admin-appearance] :is(
+  .admin-settings-heading,.needs-attention-heading,.student-admin-heading,
+  .admin-compact-group-summary,.ce-admin-setting-group>summary,
+  .ce-admin-settings-master>summary,.compliance-setup-head,.compliance-setup-summary,
+  .login-reminder-settings-header,.login-reminder-login-coverage>header,
+  .student-import-preview-head,.rubric-toolbar,.manual-rubric-header,
+  .code-explorer-admin-heading,.sperf-panel-head
+) {
+  background:var(--g8adm-raised) !important;
+  color:var(--g8adm-ink) !important;
+  border-color:var(--g8adm-border) !important;
+}
+#adminOverlay[data-admin-appearance] :is(
+  .assistance-option-icon,.needs-attention-avatar,.code-explorer-admin-award-card-icon,
+  .code-explorer-admin-pubmat-card-icon,.teacher-login-icon
+) {background:var(--g8adm-accent-tint) !important;color:var(--g8adm-ink) !important;border-color:var(--g8adm-border) !important}
+
+/* Forms — both dark and light background AND foreground are explicitly set. */
+#adminOverlay[data-admin-appearance] :is(input,select,textarea):not([type="checkbox"]):not([type="radio"]) {
+  background:var(--g8adm-raised) !important;
+  background-image:none !important;
+  color:var(--g8adm-ink) !important;
+  -webkit-text-fill-color:var(--g8adm-ink);
+  border:1px solid var(--g8adm-border-strong) !important;
+  box-shadow:none !important;
+}
+#adminOverlay[data-admin-appearance] :is(input,textarea):not([type="checkbox"])::placeholder {
+  color:var(--g8adm-muted) !important;
+  opacity:1 !important;
+}
+#adminOverlay[data-admin-appearance] select option,
+#adminOverlay[data-admin-appearance] select optgroup {
+  background:var(--g8adm-card);color:var(--g8adm-ink);
+}
+#adminOverlay[data-admin-appearance] :is(input,select,textarea,button,a,summary):focus-visible {
+  outline:3px solid var(--g8adm-accent) !important;
+  outline-offset:2px;
+}
+#adminOverlay[data-admin-appearance] :is(.ghost-btn,.admin-density-toggle,.admin-login-mode-btn,.student-mobile-tool-btn,.icon-btn):not(.danger) {
+  background:var(--g8adm-raised) !important;
+  color:var(--g8adm-ink) !important;
+  border-color:var(--g8adm-border-strong) !important;
+}
+#adminOverlay[data-admin-appearance] :is(.primary-btn,.success-btn):not(.danger) {
+  background:var(--g8adm-accent-tint) !important;
+  background-image:none !important;
+  color:var(--g8adm-ink) !important;
+  border:1px solid var(--g8adm-accent) !important;
+  box-shadow:0 4px 13px rgba(0,0,0,.07) !important;
+}
+#adminOverlay[data-admin-appearance] :is(.ghost-btn,.primary-btn,.success-btn):hover:not(:disabled) {
+  filter:brightness(1.05);
+  border-color:var(--g8adm-accent) !important;
+}
+#adminOverlay[data-admin-appearance] :is(.danger,.danger-btn,.error-badge) {
+  /* Keep destructive actions visibly distinct from normal primary actions. */
+  border-color:var(--danger,#dc2626) !important;
+}
+
+/* Settings: toggles & detailed previews preserve semantics. */
+#adminOverlay[data-admin-appearance] :is(.admin-switch-track,.login-reminder-playlist-summary,
+  .login-reminder-settings-pill,.ai-rubric-status-pill,.assistance-mode-badge,
+  .lesson-editor-mode-badge,.student-admin-summary,.student-register-actions) {
+  background:var(--g8adm-soft) !important;
+  color:var(--g8adm-ink) !important;
+  border-color:var(--g8adm-border) !important;
+}
+#adminOverlay[data-admin-appearance] .admin-switch input:checked+.admin-switch-track {
+  background:var(--g8adm-accent) !important;
+  border-color:var(--g8adm-accent) !important;
+}
+#adminOverlay[data-admin-appearance] .admin-switch-thumb {background:#fff !important}
+/* Theme previews intentionally have their OWN colors: never make a light
+   student preview dark just because the teacher admin uses dark. */
+#adminOverlay[data-admin-appearance] :is(
+ .login-theme-mini-preview,.login-reminder-theme-sample,
+ .login-theme-page-sample,.login-theme-app-sample,.login-theme-modal-sample
+) { color:unset; }
+
+/* Tables and expanded details, including score/rubric inputs. */
+#adminOverlay[data-admin-appearance] :is(table,thead,tbody,tfoot,tr,td,th) {
+  border-color:var(--g8adm-border) !important;
+}
+#adminOverlay[data-admin-appearance] :is(
+ .student-tracker-table,.student-import-table,.teacher-rubric-table,
+ .manual-rubric-input-table,.code-explorer-admin-table,.compliance-admin-table,
+ .sperf-table,.rubric-table-scroll table,.manual-rubric-scroll table
+) {
+  background:var(--g8adm-card) !important;
+  color:var(--g8adm-ink) !important;
+}
+#adminOverlay[data-admin-appearance] :is(
+ .student-tracker-table,.student-import-table,.teacher-rubric-table,
+ .manual-rubric-input-table,.code-explorer-admin-table,.compliance-admin-table,
+ .sperf-table
+) :is(th,thead th) {
+  background:var(--g8adm-soft) !important;
+  color:var(--g8adm-ink) !important;
+}
+#adminOverlay[data-admin-appearance] :is(
+ .student-tracker-table,.student-import-table,.teacher-rubric-table,
+ .manual-rubric-input-table,.code-explorer-admin-table,.compliance-admin-table,
+ .sperf-table
+) :is(td,tbody tr) {
+  background:var(--g8adm-card) !important;
+  color:var(--g8adm-ink) !important;
+}
+#adminOverlay[data-admin-appearance] :is(
+ .student-tracker-table,.student-import-table,.teacher-rubric-table,
+ .manual-rubric-input-table,.code-explorer-admin-table,.compliance-admin-table,
+ .sperf-table
+) tbody tr:nth-child(even) td {
+  background:var(--g8adm-raised) !important;
+}
+#adminOverlay[data-admin-appearance] :is(
+  .rubric-criterion-cell,.criterion-card,.manual-rubric-input-row,
+  .rubric-table-note,.rubric-level-cell,.scale-level-row,
+  .student-admin-pager,.admin-student-pagination,.online-presence-row,
+  .compliance-admin-student-row,.student-import-preview-row
+) {
+  background:var(--g8adm-raised) !important;
+  color:var(--g8adm-ink) !important;
+  border-color:var(--g8adm-border) !important;
+}
+
+/* Teacher-specific detail overlays live outside #adminOverlay. */
+:is(#adminComplianceDetailOverlay,#sperfRosterOverlay,#codeExplorerAdminDetailOverlay,
+    #adminStudentProjectsOverlay,#adminProjectViewerOverlay,#adminWireframeViewerOverlay,
+    #adminProjectFullscreenOverlay,#engagementAnalyticsOverlay)[data-admin-appearance] {
+  background:rgba(3,9,20,.77) !important;
+  backdrop-filter:blur(8px);
+  color:var(--g8adm-ink) !important;
+}
+:is(#adminComplianceDetailOverlay,#sperfRosterOverlay,#codeExplorerAdminDetailOverlay,
+    #adminStudentProjectsOverlay,#adminProjectViewerOverlay,#adminWireframeViewerOverlay,
+    #adminProjectFullscreenOverlay,#engagementAnalyticsOverlay)[data-admin-appearance]
+:is(.student-auth-card,.admin-compliance-detail-panel,.sperf-roster-modal,
+  .code-explorer-admin-detail-card,.admin-student-projects-card,
+  .admin-project-viewer-card,.admin-wireframe-viewer-card,
+  .admin-project-fullscreen-card,.engagement-analytics-card,
+  .admin-project-viewer-modal,.admin-wireframe-viewer-modal) {
+  background:var(--g8adm-card) !important;
+  background-image:none !important;
+  color:var(--g8adm-ink) !important;
+  border-color:var(--g8adm-border) !important;
+  box-shadow:var(--g8adm-shadow) !important;
+}
+:is(#adminComplianceDetailOverlay,#sperfRosterOverlay,#codeExplorerAdminDetailOverlay,
+    #adminStudentProjectsOverlay,#adminProjectViewerOverlay,#adminWireframeViewerOverlay,
+    #adminProjectFullscreenOverlay,#engagementAnalyticsOverlay)[data-admin-appearance]
+:is(h1,h2,h3,h4,p,small,label,.muted-text,.helper-note) {color:var(--g8adm-ink) !important}
+:is(#adminComplianceDetailOverlay,#sperfRosterOverlay,#codeExplorerAdminDetailOverlay,
+    #adminStudentProjectsOverlay,#adminProjectViewerOverlay,#adminWireframeViewerOverlay,
+    #adminProjectFullscreenOverlay,#engagementAnalyticsOverlay)[data-admin-appearance]
+:is(input,select,textarea,button):not(.danger) {
+  background:var(--g8adm-raised) !important;
+  color:var(--g8adm-ink) !important;
+  border-color:var(--g8adm-border) !important;
+}
+:is(#adminComplianceDetailOverlay,#sperfRosterOverlay,#codeExplorerAdminDetailOverlay,
+    #adminStudentProjectsOverlay,#adminProjectViewerOverlay,#adminWireframeViewerOverlay,
+    #adminProjectFullscreenOverlay,#engagementAnalyticsOverlay)[data-admin-appearance]
+:is(.sperf-roster-header,.sperf-roster-toolbar,.admin-project-viewer-header,.admin-wireframe-viewer-header,
+    .engagement-analytics-header,.admin-compliance-detail-header,th) {
+  background:var(--g8adm-soft) !important;
+  color:var(--g8adm-ink) !important;
+  border-color:var(--g8adm-border) !important;
+}
+
+/* The header switch is an admin-only appearance preference selector. */
+.g8-admin-header-actions {display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:9px;flex:0 0 auto;}
+#adminOverlay[data-admin-appearance] .g8-admin-appearance-control {
+  display:flex;align-items:center;gap:7px;min-width:0;
+  padding:4px 9px;border:1px solid var(--g8adm-border-strong);
+  border-radius:12px;background:var(--g8adm-raised);color:var(--g8adm-ink);
+  font-size:12px;font-weight:750;
+}
+#adminOverlay[data-admin-appearance] .g8-admin-appearance-label {white-space:nowrap}
+#adminOverlay[data-admin-appearance] .g8-admin-appearance-control select {
+  min-width:100px;width:auto;min-height:30px;padding:3px 6px;
+  font-size:12px;border-radius:8px;
+}
+#adminOverlay[data-admin-appearance] #closeAdminBtn {
+  background:var(--g8adm-soft) !important;
+  color:var(--g8adm-ink) !important;
+  border:1px solid var(--g8adm-border) !important;
+}
+#adminOverlay[data-admin-appearance="dark"] .admin-modal {scrollbar-color:var(--g8adm-border-strong) var(--g8adm-page)}
+#adminOverlay[data-admin-appearance] :is(.admin-form,.admin-tab-panel,.student-tracker-table-wrap,.code-explorer-admin-table-wrap) {
+  scrollbar-color:var(--g8adm-border-strong) transparent;
+}
+@media (max-width:700px) {
+  #adminOverlay[data-admin-appearance] .modal-header {padding:12px !important;flex-wrap:wrap;align-items:center;gap:8px}
+  .g8-admin-header-actions {width:100%;justify-content:space-between;}
+  #adminOverlay[data-admin-appearance] .g8-admin-appearance-control {max-width:calc(100% - 62px)}
+  #adminOverlay[data-admin-appearance] .g8-admin-appearance-control select {min-width:88px}
+  #adminOverlay[data-admin-appearance] .modal-header h2 {font-size:clamp(1.02rem,4.5vw,1.45rem) !important}
+}
+@media (prefers-reduced-motion:reduce) {
+  #adminOverlay[data-admin-appearance] *,
+  #adminOverlay[data-admin-appearance] *::before,
+  #adminOverlay[data-admin-appearance] *::after {transition-duration:.01ms !important;animation-duration:.01ms !important}
+}
+
+/* Small phones: title must not be crushed by the appearance switch. */
+@media (max-width:700px) {
+  #adminOverlay[data-admin-appearance] .modal-header {
+    position:sticky;
+    display:flex !important;
+    flex-direction:column !important;
+    align-items:stretch !important;
+    justify-content:flex-start !important;
+    gap:7px !important;
+    padding:13px 53px 11px 12px !important;
+  }
+  #adminOverlay[data-admin-appearance] .modal-header > div:first-child {
+    flex:0 0 auto !important;
+    width:100% !important;
+    min-width:0 !important;
+  }
+  #adminOverlay[data-admin-appearance] .modal-header .g8-admin-header-actions {
+    width:100% !important;
+    justify-content:flex-start !important;
+    gap:0 !important;
+  }
+  #adminOverlay[data-admin-appearance] .g8-admin-appearance-control {
+    width:auto;
+    max-width:100%;
+  }
+  #adminOverlay[data-admin-appearance] #closeAdminBtn {
+    position:absolute !important;
+    top:12px !important;
+    right:10px !important;
+    width:39px !important;
+    height:39px !important;
+  }
+}
+
+/* Pre-unlock teacher login must follow the same appearance as admin controls. */
+#adminOverlay[data-admin-appearance] :is(
+  .teacher-login-layout,.teacher-login-intro,.teacher-login-card,
+  .login-checklist,.login-checklist span,.admin-login-switch,.admin-login-panel
+) {
+  background:var(--g8adm-card) !important;
+  background-image:none !important;
+  color:var(--g8adm-ink) !important;
+  border-color:var(--g8adm-border) !important;
+}
+#adminOverlay[data-admin-appearance] :is(.teacher-login-intro p,.teacher-login-card .helper-note) {
+  color:var(--g8adm-muted) !important;
+}
+#adminOverlay[data-admin-appearance] .admin-login-mode-btn:is(.active,[aria-selected="true"]) {
+  background:var(--g8adm-accent-tint) !important;
+  color:var(--g8adm-ink) !important;
+  border-color:var(--g8adm-accent) !important;
+}
+
+/* Selected school design presets can also shape admin card corners; this is
+   a style cue only, not a change to the published theme's actual configuration. */
+#adminOverlay[data-admin-appearance] :is(
+  .admin-modal,.admin-tab-panel,.admin-settings-card,.teacher-login-card,
+  .teacher-login-intro,.student-accounts-admin-card,.needs-attention-admin,
+  .student-tracker-table-wrap,.compliance-admin-card,.manual-rubric-card,
+  .login-reminder-settings-card,.ai-rubric-settings-card,
+  .code-explorer-admin-table-wrap
+) {border-radius:var(--g8adm-radius) !important}
+
+
+/* G8Code Admin Appearance: complete academic/student management contrast pass.
+   All colors are derived from the *admin* appearance, NOT the student preview.
+   The status/merit colors below remain semantically independent. */
+#adminOverlay[data-admin-appearance] {
+  --g8adm-control:var(--g8adm-raised);
+  --g8adm-inner:var(--g8adm-raised);
+  --g8adm-selected:var(--g8adm-accent-tint);
+}
+
+/* The compliance section checklist was still white with almost-white text.
+   Scope direct descendants so card colors and their labels always agree. */
+#adminOverlay[data-admin-appearance] #complianceTrackerAdmin :is(
+  .compliance-section-checklist, .compliance-section-list,
+  .compliance-task-label-list, .compliance-sync-preview,
+  .compliance-viewer-card, .compliance-viewer-list, .compliance-viewer-detail,
+  .compliance-admin-standing > div,
+  .compliance-viewer-student-row, .compliance-detail-summary > span,
+  .compliance-detail-section, .compliance-detail-task-row,
+  .compliance-preview-row, .compliance-preview-stats > div
+) {
+  background:var(--g8adm-card) !important;
+  background-image:none !important;
+  color:var(--g8adm-ink) !important;
+  border-color:var(--g8adm-border) !important;
+}
+#adminOverlay[data-admin-appearance] #complianceTrackerAdmin :is(
+  .compliance-section-check-row,.compliance-section-row,
+  .compliance-task-label-row,.compliance-setup-block,
+  .compliance-code-gate,.compliance-admin-student-detail,
+  .compliance-viewer-header,.compliance-viewer-toolbar,
+  .compliance-detail-card,.compliance-detail-head
+) {
+  color:var(--g8adm-ink) !important;
+  border-color:var(--g8adm-border) !important;
+}
+#adminOverlay[data-admin-appearance] #complianceTrackerAdmin .compliance-section-check-row,
+#adminOverlay[data-admin-appearance] #complianceTrackerAdmin .compliance-section-check-row.missing {
+  background:var(--g8adm-inner) !important;
+  border:1px solid var(--g8adm-border) !important;
+  box-shadow:none !important;
+}
+#adminOverlay[data-admin-appearance] #complianceTrackerAdmin :is(
+  .compliance-section-check-row:hover,.compliance-section-check-row:focus-within,
+  .compliance-viewer-student-row:hover,.compliance-viewer-student-row.active
+) {
+  background:var(--g8adm-selected) !important;
+  border-color:var(--g8adm-border-strong) !important;
+}
+#adminOverlay[data-admin-appearance] #complianceTrackerAdmin :is(
+  .compliance-section-check-row strong,.compliance-section-check-row span,
+  .compliance-field-title,.compliance-selected-section-field,
+  .compliance-admin-grid label,.compliance-viewer-toolbar label,
+  .compliance-viewer-student-row strong,
+  .compliance-detail-head h4,.compliance-detail-section > strong,
+  .compliance-detail-task-row > span,.compliance-admin-standing small,
+  .compliance-admin-grade-value,.compliance-detail-summary strong,
+  .compliance-detail-head strong,.compliance-viewer-header h3
+) {
+  color:var(--g8adm-ink) !important;
+  opacity:1 !important;
+}
+#adminOverlay[data-admin-appearance] #complianceTrackerAdmin :is(
+  .compliance-section-check-row small,.compliance-selected-section-field small,
+  .compliance-viewer-student-row small,.compliance-detail-head small,
+  .compliance-admin-grade-note,.compliance-detail-summary small,
+  .compliance-detail-task-row > small,
+  .compliance-viewer-card .muted-text,.compliance-viewer-card .helper-note,
+  .compliance-viewer-card .compliance-admin-standing small,
+  .compliance-preview-row small,.compliance-preview-stats small
+) {
+  color:var(--g8adm-muted) !important;
+  opacity:1 !important;
+}
+#adminOverlay[data-admin-appearance] #complianceTrackerAdmin .compliance-admin-standing > div,
+#adminOverlay[data-admin-appearance] #complianceTrackerAdmin .compliance-detail-summary > span,
+#adminOverlay[data-admin-appearance] #complianceTrackerAdmin .compliance-detail-section,
+#adminOverlay[data-admin-appearance] #complianceTrackerAdmin .compliance-detail-task-row {
+  background:var(--g8adm-inner) !important;
+}
+#adminOverlay[data-admin-appearance] #complianceTrackerAdmin .compliance-section-check-row input[type="checkbox"] {
+  accent-color:var(--g8adm-accent) !important;
+  background:var(--g8adm-card) !important;
+  color:var(--g8adm-ink) !important;
+}
+#adminOverlay[data-admin-appearance] #complianceTrackerAdmin .compliance-viewer-student-row,
+#adminOverlay[data-admin-appearance] #complianceTrackerAdmin .compliance-viewer-student-row strong {
+  text-shadow:none !important;
+  opacity:1 !important;
+}
+
+/* Standalone teacher detail modal uses its own DOM root (outside Admin). */
+#adminComplianceDetailOverlay[data-admin-appearance] :is(
+  .compliance-admin-standing > div,.compliance-detail-summary > span,
+  .compliance-detail-section,.compliance-detail-task-row,
+  .compliance-viewer-student-row,.compliance-detail-card
+) {
+  background:var(--g8adm-raised) !important;
+  color:var(--g8adm-ink) !important;
+  border-color:var(--g8adm-border) !important;
+}
+#adminComplianceDetailOverlay[data-admin-appearance] :is(
+  .compliance-detail-head h4,.compliance-detail-section > strong,
+  .compliance-detail-task-row > span,.compliance-detail-summary strong,
+  .compliance-admin-standing small,.compliance-admin-grade-value
+) {color:var(--g8adm-ink) !important;opacity:1 !important}
+#adminComplianceDetailOverlay[data-admin-appearance] :is(
+  .compliance-detail-head small,.compliance-admin-grade-note,
+  .compliance-detail-summary small,.compliance-detail-task-row > small,
+  .helper-note
+) {color:var(--g8adm-muted) !important;opacity:1 !important}
+
+/* Preserve official semantic badge colors, NOT the admin palette color. */
+:is(#adminOverlay,#adminComplianceDetailOverlay)[data-admin-appearance]
+:is(.compliance-admin-band.green,.student-account-pill.active) {
+  background:#def9e9 !important;color:#125a34 !important;border-color:#9acbad !important;
+}
+:is(#adminOverlay,#adminComplianceDetailOverlay)[data-admin-appearance] .compliance-admin-band.white {
+  background:#ffffff !important;color:#26334c !important;border-color:#a5b2bf !important;
+}
+:is(#adminOverlay,#adminComplianceDetailOverlay)[data-admin-appearance] .compliance-admin-band.yellow {
+  background:#ffedaa !important;color:#715000 !important;border-color:#dabd55 !important;
+}
+:is(#adminOverlay,#adminComplianceDetailOverlay)[data-admin-appearance] .compliance-admin-band.gray {
+  background:#e2e8f0 !important;color:#334155 !important;border-color:#a2afbe !important;
+}
+:is(#adminOverlay,#adminComplianceDetailOverlay)[data-admin-appearance] .compliance-admin-band.orange {
+  background:#ffe2bd !important;color:#7a3b00 !important;border-color:#e8ac6b !important;
+}
+:is(#adminOverlay,#adminComplianceDetailOverlay)[data-admin-appearance] .compliance-admin-band.red {
+  background:#ffe1e5 !important;color:#912434 !important;border-color:#e5a3af !important;
+}
+:is(#adminOverlay,#adminComplianceDetailOverlay)[data-admin-appearance] :is(
+  .compliance-viewer-student-row em.has-lacking,.compliance-summary-pill.has-lacking
+) {background:#ffe3e7 !important;color:#8b2132 !important;border-color:#eab2bd !important}
+:is(#adminOverlay,#adminComplianceDetailOverlay)[data-admin-appearance] :is(
+  .compliance-viewer-student-row em.no-lacking,.compliance-summary-pill.no-lacking
+) {background:#ddf9e8 !important;color:#145a37 !important;border-color:#a7dab8 !important}
+
+/* Student account rows and pagination: prevent dark tiles in light mode or
+   pale labels on dark tables; do not alter status severity badges. */
+#adminOverlay[data-admin-appearance] #studentAccountsAdmin :is(
+  .student-tracker-table-wrap,.student-tracker-table,
+  .student-tracker-row,.student-tracker-row > td,
+  .student-tracker-pager,.student-admin-pagination,
+  .student-admin-pager,.student-tracker-toolbar
+) {
+  background:var(--g8adm-card) !important;
+  color:var(--g8adm-ink) !important;
+  border-color:var(--g8adm-border) !important;
+}
+#adminOverlay[data-admin-appearance] #studentAccountsAdmin .student-tracker-row:nth-child(even),
+#adminOverlay[data-admin-appearance] #studentAccountsAdmin .student-tracker-row:nth-child(even) > td {
+  background:var(--g8adm-raised) !important;
+}
+#adminOverlay[data-admin-appearance] #studentAccountsAdmin :is(
+  .student-tracker-table td,.student-tracker-table td strong,
+  .student-mobile-summary-head strong,.student-admin-summary strong
+) {color:var(--g8adm-ink) !important}
+#adminOverlay[data-admin-appearance] #studentAccountsAdmin :is(
+  .student-cell-sub,.student-mobile-summary-head > div > span,
+  .student-mobile-summary-meta,.student-admin-summary span
+) {color:var(--g8adm-muted) !important}
+#adminOverlay[data-admin-appearance] #studentAccountsAdmin :is(
+  .student-tracker-pager button,.student-admin-pager button,.student-admin-pagination button
+):not([disabled]) {
+  background:var(--g8adm-raised) !important;
+  color:var(--g8adm-ink) !important;
+  border:1px solid var(--g8adm-border-strong) !important;
+}
+#adminOverlay[data-admin-appearance] #studentAccountsAdmin :is(
+  .student-tracker-pager button,.student-admin-pager button,.student-admin-pagination button
+).active {
+  background:var(--g8adm-selected) !important;
+  border-color:var(--g8adm-accent) !important;
+}
+#adminOverlay[data-admin-appearance] #studentAccountsAdmin :is(
+  .student-tracker-pager button,.student-admin-pager button,.student-admin-pagination button
+):disabled {opacity:.6 !important}
+
+/* Readable focus and hover without weakening the selected appearance. */
+#adminOverlay[data-admin-appearance] #complianceTrackerAdmin :is(
+  .compliance-section-check-row,.compliance-viewer-student-row
+):focus-visible {
+  outline:3px solid var(--g8adm-border-strong) !important;outline-offset:2px;
+}
+@media (max-width: 700px) {
+  #adminOverlay[data-admin-appearance] #complianceTrackerAdmin .compliance-section-checklist {
+    grid-template-columns:1fr;
+  }
+}
+
+/* Navigation & small action controls were retaining legacy light backgrounds
+   and low-contrast text under their old high-specificity selectors. */
+#adminOverlay[data-admin-appearance] .admin-tabs .admin-tab-btn:not(.active):not([aria-selected="true"]) {
+  background:transparent !important;
+  color:var(--g8adm-muted) !important;
+  border-color:transparent !important;
+  opacity:1 !important;
+}
+#adminOverlay[data-admin-appearance] .admin-tabs .admin-tab-btn:is(.active,[aria-selected="true"],:hover,:focus-visible) {
+  background:var(--g8adm-selected) !important;
+  color:var(--g8adm-ink) !important;
+  border-color:var(--g8adm-border-strong) !important;
+  opacity:1 !important;
+}
+#adminOverlay[data-admin-appearance] #complianceTrackerAdmin :is(
+  .compliance-section-picker-actions .ghost-btn,
+  #complianceDensityToggle,.compliance-admin-actions .ghost-btn,
+  .compliance-viewer-header .ghost-btn
+) {
+  background:var(--g8adm-raised) !important;
+  background-image:none !important;
+  color:var(--g8adm-ink) !important;
+  -webkit-text-fill-color:var(--g8adm-ink) !important;
+  border:1px solid var(--g8adm-border-strong) !important;
+  opacity:1 !important;
+}
+#adminOverlay[data-admin-appearance] #complianceTrackerAdmin :is(
+  .compliance-section-picker-actions .ghost-btn,
+  #complianceDensityToggle,.compliance-admin-actions .ghost-btn,
+  .compliance-viewer-header .ghost-btn
+):disabled {opacity:.52 !important}

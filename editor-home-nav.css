@@ -126,3 +126,23 @@ body[data-student-app-theme]:not([data-student-app-theme="original"]) #editorFul
   #guestHomeScreen .gh-feature small{font-size:11px}
 }
 @media(prefers-reduced-motion:reduce){#guestHomeScreen :is(.gh-hero,.gh-feature,.gh-hero-icon){animation:none!important}#guestHomeScreen button,#editorQuickHomeBtn,#editorMobileHomeBtn,#editorFullscreenHomeBtn{transition:none!important}}
+
+
+/* Mobile Code Editor: Home already exists in the hamburger menu.
+   Remove duplicate header shortcut only; leave the element in the DOM because
+   the existing menu's Home action invokes its click handler. Desktop and the
+   dedicated fullscreen navigation remain untouched. */
+@media (max-width:820px) {
+  #editorMobileHomeBtn,
+  body:is(.student-session-active,.guest-session-active) #editorMobileHomeBtn:not(.hidden) {
+    display:none !important;
+    visibility:hidden !important;
+    pointer-events:none !important;
+  }
+  body.mobile-editor-menu-v416 .topbar .brand-block {
+    padding-right:0 !important;
+  }
+}
+/* Also cover the built-in Phone Preview mode on a wide desktop viewport. */
+html[data-device-mode="phone"] #editorMobileHomeBtn {display:none !important;visibility:hidden !important;pointer-events:none !important}
+html[data-device-mode="phone"] body.mobile-editor-menu-v416 .topbar .brand-block {padding-right:0 !important}

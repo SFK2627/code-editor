@@ -1,0 +1,599 @@
+/*
+ * G8Code — unified student UI theme v1
+ * Built on the existing admin --sat-* theme tokens, without changing the
+ * independent Login / After-Login Modal coverage switches or user data.
+ * Scope deliberately excludes admin panels, learner code/iframe output and
+ * the actual game canvases. The game HUB shell is themed, not its gameplay.
+ */
+
+/* Original app mode: inherited preference (no admin entire-app theme). */
+html[data-theme="light"] body {
+  --uct-bg:#eef3fa; --uct-panel:#ffffff; --uct-raised:#f2f6fc;
+  --uct-field:#f6f8fd; --uct-text:#1b2f49; --uct-muted:#536880;
+  --uct-border:#c7d7e9; --uct-accent:#215eba; --uct-action:#2563eb;
+  --uct-action-text:#ffffff; --uct-radius:16px;
+  --uct-shadow:0 12px 30px rgba(19,48,91,.08);
+}
+html[data-theme="dark"] body {
+  --uct-bg:#0d1726; --uct-panel:#1a2a41; --uct-raised:#263852;
+  --uct-field:#101e31; --uct-text:#f1f6ff; --uct-muted:#bfd0e5;
+  --uct-border:#435b78; --uct-accent:#a6cbff; --uct-action:#2563eb;
+  --uct-action-text:#ffffff; --uct-radius:16px;
+  --uct-shadow:0 12px 30px rgba(0,0,0,.22);
+}
+
+/* The published Admin design owns the palette and shape wherever Entire App
+   coverage is ON. Student light/dark choice is already resolved by app JS. */
+body[data-student-app-theme]:not([data-student-app-theme="original"]) {
+  --uct-bg:var(--sat-bg); --uct-panel:var(--sat-card);
+  --uct-raised:var(--sat-soft); --uct-field:var(--sat-card);
+  --uct-text:var(--sat-text); --uct-muted:var(--sat-muted);
+  --uct-border:var(--sat-border); --uct-accent:var(--sat-primary);
+  --uct-action:var(--sat-action); --uct-action-text:var(--sat-action-text);
+  --uct-radius:var(--sat-radius);
+  --uct-shadow:0 12px 30px rgba(10,20,40,.13);
+}
+
+/* The lesson reader has a guest-only appearance setting. This MUST win
+   locally, never unlock/override the teacher's authenticated app theme. */
+#lessonViewerScreen[data-lesson-appearance="light"] {
+  --uct-bg:#eef3fa; --uct-panel:#ffffff; --uct-raised:#f2f6fc;
+  --uct-field:#f6f8fd; --uct-text:#1b2f49; --uct-muted:#536880;
+  --uct-border:#c7d7e9; --uct-accent:#215eba;
+  --uct-action:#2563eb; --uct-action-text:#fff;
+  --lv-page:var(--uct-bg); --lv-header:var(--uct-panel);
+  --lv-panel:var(--uct-panel); --lv-raised:var(--uct-raised);
+  --lv-control:var(--uct-field); --lv-ink:var(--uct-text);
+  --lv-muted:var(--uct-muted); --lv-border:var(--uct-border);
+  --lv-accent:var(--uct-accent); color-scheme:light;
+}
+#lessonViewerScreen[data-lesson-appearance="dark"] {
+  --uct-bg:#0d1726; --uct-panel:#1a2a41; --uct-raised:#263852;
+  --uct-field:#101e31; --uct-text:#f1f6ff; --uct-muted:#bfd0e5;
+  --uct-border:#435b78; --uct-accent:#a6cbff;
+  --uct-action:#2563eb; --uct-action-text:#fff;
+  --lv-page:var(--uct-bg); --lv-header:var(--uct-panel);
+  --lv-panel:var(--uct-panel); --lv-raised:var(--uct-raised);
+  --lv-control:var(--uct-field); --lv-ink:var(--uct-text);
+  --lv-muted:var(--uct-muted); --lv-border:var(--uct-border);
+  --lv-accent:var(--uct-accent); color-scheme:dark;
+}
+/* Use published palette for the ACTUAL signed-in reader (not guest override). */
+body[data-student-app-theme]:not([data-student-app-theme="original"])
+#lessonViewerScreen:not([data-lesson-appearance]) {
+  --lv-page:var(--uct-bg); --lv-header:var(--uct-panel);
+  --lv-panel:var(--uct-panel); --lv-raised:var(--uct-raised);
+  --lv-control:var(--uct-field); --lv-ink:var(--uct-text);
+  --lv-muted:var(--uct-muted); --lv-border:var(--uct-border);
+  --lv-accent:var(--uct-accent);
+}
+
+/* Shared lesson / activity / Code Explorer / editor UI surfaces. */
+body:is(.student-session-active,.guest-session-active) :is(
+ #studentHomeScreen,#guestHomeScreen,#studentDashboard,
+ #lessonViewerScreen,#givenActivitiesScreen,#codeExplorerScreen,#wireframeMakerScreen
+) {color:var(--uct-text) !important;}
+
+/* A themed reader's header and lesson cards should NOT stay generic blue. */
+body[data-student-app-theme]:not([data-student-app-theme="original"])
+#lessonViewerScreen:not([data-lesson-appearance]) :is(
+ .lesson-library-header,.lesson-library-welcome-card,.lesson-continue-card,
+ .lesson-library-controls,.lesson-library-card,.lesson-library-empty
+) {
+ background:var(--uct-panel) !important;
+ border-color:var(--uct-border) !important;
+ color:var(--uct-text) !important;
+ border-radius:var(--uct-radius) !important;
+}
+body[data-student-app-theme]:not([data-student-app-theme="original"])
+#lessonViewerScreen:not([data-lesson-appearance]) :is(
+ .lesson-library-brand h1,.lesson-library-welcome-card h2,
+ .lesson-continue-content h3,.lesson-card-content h3
+) {color:var(--uct-text) !important;}
+body[data-student-app-theme]:not([data-student-app-theme="original"])
+#lessonViewerScreen:not([data-lesson-appearance]) :is(
+ .lesson-library-eyebrow,.lesson-card-term,.lesson-card-cta
+) {color:var(--uct-accent) !important;}
+body[data-student-app-theme]:not([data-student-app-theme="original"])
+#lessonViewerScreen:not([data-lesson-appearance]) :is(
+ .lesson-term-tab.active,.lesson-library-controls .primary-btn
+) {background:var(--uct-action) !important;color:var(--uct-action-text) !important;border-color:var(--uct-action) !important;}
+
+/* Activities page and nested activity viewer: same selected palette. */
+body:is(.student-session-active,.guest-session-active) #givenActivitiesScreen :is(
+ .given-activities-header,.given-activities-welcome,.given-activities-controls,
+ .given-activity-card,.given-activities-card,.given-activities-empty
+),
+body:is(.student-session-active,.guest-session-active) #givenActivityViewerOverlay :is(
+ .given-activity-viewer-card,.given-activity-viewer-header,
+ .given-activity-viewer-instructions,.given-activity-viewer-instructions-head
+) {
+  background:var(--uct-panel) !important;
+  color:var(--uct-text) !important;
+  border-color:var(--uct-border) !important;
+  border-radius:var(--uct-radius) !important;
+}
+body:is(.student-session-active,.guest-session-active) #givenActivitiesScreen :is(
+ .given-activities-welcome h2,.given-activities-header h1,
+ .given-activity-card h3,.given-activities-card h3
+),
+body:is(.student-session-active,.guest-session-active) #givenActivityViewerOverlay :is(h2,h3,strong) {
+  color:var(--uct-text) !important;
+}
+body:is(.student-session-active,.guest-session-active) #givenActivitiesScreen :is(
+ .given-activities-welcome p,.given-activities-header .muted-text,
+ .given-activity-card small,.given-activity-card p
+),
+body:is(.student-session-active,.guest-session-active) #givenActivityViewerOverlay :is(
+ .muted-text,small,.given-activity-viewer-meta,.given-activity-viewer-instructions p
+) {color:var(--uct-muted) !important;}
+body:is(.student-session-active,.guest-session-active) #givenActivitiesScreen :is(
+ .given-activities-controls,.lesson-term-tabs,.given-activities-filter-row
+) {background:var(--uct-raised) !important;border-color:var(--uct-border) !important;}
+body:is(.student-session-active,.guest-session-active) #givenActivitiesScreen :is(
+ .lesson-library-search,.lesson-library-search input,.given-activities-filter-row select,
+ .lesson-term-tab:not(.active)
+) {
+  background:var(--uct-field) !important;color:var(--uct-text) !important;
+  border-color:var(--uct-border) !important;
+}
+body:is(.student-session-active,.guest-session-active) #givenActivitiesScreen .lesson-term-tab.active {
+ background:var(--uct-action) !important;color:var(--uct-action-text) !important;
+ border-color:var(--uct-action) !important;
+}
+body:is(.student-session-active,.guest-session-active) #givenActivitiesScreen input::placeholder {color:var(--uct-muted) !important;opacity:1 !important;}
+
+/* Standalone PDF and activity viewers live inside the page but are fixed
+   overlays. Only their chrome is themed; PDFs/iframe contents are untouched. */
+body:is(.student-session-active,.guest-session-active) #lessonPdfOverlay :is(
+ .lesson-pdf-card,.lesson-pdf-header,.lesson-pdf-heading
+) {
+ background:var(--lv-panel,var(--uct-panel)) !important;
+ color:var(--lv-ink,var(--uct-text)) !important;
+ border-color:var(--lv-border,var(--uct-border)) !important;
+}
+body:is(.student-session-active,.guest-session-active) #lessonPdfOverlay :is(h2,strong) {color:var(--lv-ink,var(--uct-text)) !important;}
+body:is(.student-session-active,.guest-session-active) #lessonPdfOverlay :is(.muted-text,small) {color:var(--lv-muted,var(--uct-muted)) !important;}
+body:is(.student-session-active,.guest-session-active) #lessonPdfOverlay :is(.ghost-btn,.icon-btn) {
+ background:var(--lv-raised,var(--uct-raised)) !important;
+ border-color:var(--lv-border,var(--uct-border)) !important;
+ color:var(--lv-ink,var(--uct-text)) !important;
+}
+body:is(.student-session-active,.guest-session-active) #givenActivityViewerOverlay :is(.ghost-btn,.icon-btn) {
+ background:var(--uct-raised) !important;
+ border-color:var(--uct-border) !important;
+ color:var(--uct-text) !important;
+}
+
+/* Shared student-only overlays. Leave teacher controls and grade-color badges
+   alone. Also leave login reminder theme independent of Entire-App setting. */
+body:is(.student-session-active,.guest-session-active):not(.admin-open) :is(
+ #studentComplianceOverlay .student-compliance-panel,
+ #recitationStatusOverlay .recitation-status-card,
+ #projectTypeOverlay .project-type-card,
+ #projectNameOverlay .student-auth-card,
+ #changePasswordOverlay .student-auth-card,
+ #petaActionOverlay .peta-action-card,
+ #activityRubricOverlay .activity-rubric-card,
+ #appDialogOverlay .app-dialog-card,
+ .collab-overlay .collab-card,
+ #wireframePageDialogOverlay .student-auth-card,
+ #wireframeExportOverlay .student-auth-card,
+ #codeInboxOverlay .code-transfer-card,
+ #codeSendOverlay .code-transfer-card
+) {
+  background:var(--uct-panel) !important;
+  color:var(--uct-text) !important;
+  border:1px solid var(--uct-border) !important;
+  border-radius:var(--uct-radius) !important;
+  box-shadow:var(--uct-shadow) !important;
+}
+body:is(.student-session-active,.guest-session-active):not(.admin-open) :is(
+ #studentComplianceOverlay,#recitationStatusOverlay,#projectTypeOverlay,
+ #projectNameOverlay,#changePasswordOverlay,#petaActionOverlay,
+ #activityRubricOverlay,#appDialogOverlay,.collab-overlay
+) :is(h1,h2,h3,h4,.section-kicker:not(.status-severity),strong) {
+  color:var(--uct-text) !important;
+}
+body:is(.student-session-active,.guest-session-active):not(.admin-open) :is(
+ #studentComplianceOverlay,#recitationStatusOverlay,#projectTypeOverlay,
+ #projectNameOverlay,#changePasswordOverlay,#petaActionOverlay,
+ #activityRubricOverlay,#appDialogOverlay,.collab-overlay
+) :is(.muted-text,.helper-note,small) {
+ color:var(--uct-muted) !important;
+}
+body:is(.student-session-active,.guest-session-active):not(.admin-open) :is(
+ #projectTypeOverlay .project-type-option,
+ #petaActionOverlay .peta-action-option,
+ #recitationStatusOverlay .recitation-viewer-header,
+ #recitationStatusOverlay .recitation-stats-grid>div,
+ #recitationStatusOverlay .recitation-student-row,
+ #activityRubricOverlay .activity-rubric-table-wrap,
+ #appDialogOverlay .app-dialog-icon,
+ .collab-overlay .collab-panel,.collab-overlay .collab-status
+) {
+ background:var(--uct-raised) !important;
+ color:var(--uct-text) !important;
+ border-color:var(--uct-border) !important;
+ border-radius:var(--uct-radius) !important;
+}
+body:is(.student-session-active,.guest-session-active):not(.admin-open) :is(
+ #projectTypeOverlay,#recitationStatusOverlay,#projectNameOverlay,
+ #petaActionOverlay,#changePasswordOverlay,.collab-overlay,
+ #appDialogOverlay
+) :is(input,select,textarea):not(#codeEditor) {
+ background:var(--uct-field) !important;
+ color:var(--uct-text) !important;
+ border-color:var(--uct-border) !important;
+ border-radius:var(--uct-radius) !important;
+}
+body:is(.student-session-active,.guest-session-active):not(.admin-open) :is(
+ #projectTypeOverlay,#recitationStatusOverlay,#projectNameOverlay,
+ #petaActionOverlay,#changePasswordOverlay,.collab-overlay
+) input::placeholder {color:var(--uct-muted) !important;opacity:1 !important;}
+
+/* Admin theme radii remain meaningful, especially Swiss, Pixel, Bauhaus. */
+body[data-student-app-theme]:not([data-student-app-theme="original"]) :is(
+ #projectTypeOverlay .project-type-option,
+ #projectTypeOverlay .project-type-option-icon,
+ #recitationStatusOverlay .recitation-status-card,
+ #recitationStatusOverlay .recitation-viewer-header,
+ #recitationStatusOverlay input,
+ .collab-overlay .collab-card,
+ .collab-overlay input,
+ #studentComplianceOverlay .student-compliance-panel,
+ #appDialogOverlay .app-dialog-card
+) {border-radius:var(--uct-radius) !important;}
+
+/* Compact recitation code gate; full-height roster only AFTER unlock. */
+#recitationStatusOverlay .recitation-status-card:has(#recitationCodeGate:not(.hidden)) {
+ height:auto !important;
+ min-height:0 !important;
+ max-height:min(92dvh,840px) !important;
+ overflow-y:auto !important;
+}
+#recitationStatusOverlay .recitation-status-card:has(#recitationViewerPanel:not(.hidden)) {
+ height:min(96dvh,940px) !important;
+ overflow:hidden !important;
+}
+
+/* Buttons remain readable on pale brand colors. Use teacher-approved
+   --sat-action and --sat-action-text, never raw --sat-secondary yellow. */
+body[data-student-app-theme]:not([data-student-app-theme="original"])
+:is(#lessonViewerScreen:not([data-lesson-appearance]),#givenActivitiesScreen,
+ #projectTypeOverlay,#recitationStatusOverlay,#petaActionOverlay,
+ #appDialogOverlay,.collab-overlay,.app-shell)
+:is(.primary-btn,.success-btn,.lesson-term-tab.active):not(.danger):not(.quiz-viewer-finish-btn) {
+ background:var(--uct-action) !important;color:var(--uct-action-text) !important;
+ border-color:var(--uct-action) !important;
+ border-radius:var(--uct-radius) !important;
+}
+body:is(.student-session-active,.guest-session-active) :is(
+ #projectTypeOverlay,#recitationStatusOverlay,#appDialogOverlay,
+ #activityRubricOverlay,#petaActionOverlay,.collab-overlay,
+ #givenActivitiesScreen,#givenActivityViewerOverlay,#lessonViewerScreen
+) :is(.ghost-btn,.icon-btn):not(.danger):not(.quiz-viewer-finish-btn) {
+ background:var(--uct-raised) !important;color:var(--uct-text) !important;
+ border-color:var(--uct-border) !important;
+}
+body:is(.student-session-active,.guest-session-active) :is(
+ #projectTypeOverlay,#recitationStatusOverlay,#appDialogOverlay,
+ #activityRubricOverlay,#petaActionOverlay,.collab-overlay,
+ #givenActivitiesScreen,#givenActivityViewerOverlay,#lessonViewerScreen
+) :is(button,input,select,textarea):focus-visible {
+ outline:3px solid var(--uct-accent) !important;
+ outline-offset:2px;
+}
+
+/* Editor UI chrome: sidebar, cards, toolbar and menu, but never the editable
+   code text, syntax highlighting or student's generated preview. */
+body[data-student-app-theme]:not([data-student-app-theme="original"])
+.app-shell :is(.topbar,.panel,.help-card,.editor-info,.editor-project-header,
+ .mobile-editor-unified-menu,.editor-menu,.mobile-editor-menu,.activity-card) {
+  background:var(--uct-panel) !important;
+  color:var(--uct-text) !important;
+  border-color:var(--uct-border) !important;
+  border-radius:var(--uct-radius) !important;
+}
+body[data-student-app-theme]:not([data-student-app-theme="original"])
+.app-shell :is(.topbar,.panel,.help-card,.editor-info,.editor-project-header)
+:is(h1,h2,h3,.section-kicker,strong) {color:var(--uct-text) !important;}
+body[data-student-app-theme]:not([data-student-app-theme="original"])
+.app-shell :is(.topbar,.panel,.help-card,.editor-info,.editor-project-header)
+:is(.muted-text,small) {color:var(--uct-muted) !important;}
+body[data-student-app-theme]:not([data-student-app-theme="original"])
+.app-shell :is(.ghost-btn,.icon-btn):not(.danger) {
+  background:var(--uct-raised) !important;color:var(--uct-text) !important;
+  border-color:var(--uct-border) !important;
+}
+
+/* Nested code-explorer surfaces and action dialogs. Preserve course
+   completion colors and certificate artwork. */
+body[data-student-app-theme]:not([data-student-app-theme="original"])
+#codeExplorerScreen :is(.code-explorer-dashboard-card,.code-explorer-course-card,
+ .code-explorer-topic-card,.code-explorer-lesson-card,.code-explorer-workspace,
+ .code-explorer-settings-panel) {
+ background:var(--uct-panel) !important;color:var(--uct-text) !important;
+ border-color:var(--uct-border) !important;border-radius:var(--uct-radius) !important;
+}
+body[data-student-app-theme]:not([data-student-app-theme="original"])
+#codeExplorerScreen :is(.code-explorer-course-card,.code-explorer-topic-card,
+ .code-explorer-lesson-card) :is(h2,h3,h4,p,small) {color:var(--uct-text) !important;}
+
+/* Original guest/student mode, especially status/action dialogs opened from
+   the welcome screen, must not assume all users selected dark mode. */
+html[data-theme="dark"] body:is(.guest-session-active,.student-session-active)
+:is(#appDialogOverlay .app-dialog-card,#recitationStatusOverlay .recitation-status-card,
+ #projectTypeOverlay .project-type-card) {color-scheme:dark;}
+
+@media (max-width:640px) {
+ body:is(.student-session-active,.guest-session-active) :is(
+   #projectTypeOverlay .project-type-card,.collab-overlay .collab-card,
+   #appDialogOverlay .app-dialog-card
+ ) {max-width:calc(100vw - 20px) !important;}
+ #recitationStatusOverlay .recitation-status-card:has(#recitationCodeGate:not(.hidden)) {
+   height:auto !important;max-height:calc(100dvh - 18px) !important;
+ }
+}
+@media (prefers-reduced-motion:reduce) {
+ body:is(.student-session-active,.guest-session-active) :is(
+  #lessonViewerScreen,#givenActivitiesScreen,#projectTypeOverlay,
+  #recitationStatusOverlay,#appDialogOverlay,.collab-overlay
+ ) * {transition-duration:.01ms !important;animation-duration:.01ms !important;}
+}
+
+/* Last-mile overrides: legacy reader variables are defined with higher
+   specificity than the general palette. These targets use the current theme
+   tokens directly, so admin designs cannot fall back to a fixed blue card. */
+body:is(.student-session-active,.guest-session-active) #lessonPdfOverlay :is(
+ .lesson-pdf-card,.lesson-pdf-header,.lesson-pdf-heading
+) {
+ background:var(--uct-panel) !important;
+ color:var(--uct-text) !important;
+ border-color:var(--uct-border) !important;
+}
+body:is(.student-session-active,.guest-session-active) #lessonPdfOverlay :is(h2,h3,strong) {color:var(--uct-text) !important;}
+body:is(.student-session-active,.guest-session-active) #lessonPdfOverlay :is(.muted-text,small) {color:var(--uct-muted) !important;}
+body:is(.student-session-active,.guest-session-active) #lessonPdfOverlay :is(.ghost-btn,.icon-btn) {
+ background:var(--uct-raised) !important;color:var(--uct-text) !important;border-color:var(--uct-border) !important;
+}
+
+/* Remove legacy dark gradients' transparent background-color: all three
+   utility dialogs must use the SAME published card color, not a preset navy. */
+body[data-student-app-theme]:not([data-student-app-theme="original"])[data-student-app-appearance]
+:is(#recitationStatusOverlay .recitation-status-card,
+    #projectTypeOverlay .project-type-card,
+    .collab-overlay .collab-card) {
+ background:var(--uct-panel) !important;
+ background-image:none !important;
+ color:var(--uct-text) !important;
+ border-color:var(--uct-border) !important;
+ border-radius:var(--uct-radius) !important;
+}
+
+/* Admin design metadata can be visually meaningful without sacrificing
+   contrast; do not restyle marks representing actual merit/score status. */
+body[data-student-app-theme]:not([data-student-app-theme="original"])
+:is(#givenActivitiesScreen,#givenActivityViewerOverlay,#projectTypeOverlay,
+ #recitationStatusOverlay,#lessonViewerScreen:not([data-lesson-appearance]))
+:is(.section-kicker,.given-activities-eyebrow,.given-activity-viewer-meta) {
+ color:var(--uct-accent) !important;
+}
+
+/* Accessibility: keep small accent labels readable on muted or pale presets. */
+body[data-student-app-theme]:not([data-student-app-theme="original"])[data-student-app-appearance="light"] {
+ --uct-accent:color-mix(in srgb,var(--sat-primary) 72%,var(--sat-text) 28%);
+}
+body[data-student-app-theme]:not([data-student-app-theme="original"])[data-student-app-appearance="dark"] {
+ --uct-accent:color-mix(in srgb,var(--sat-primary) 65%,var(--sat-text) 35%);
+}
+body[data-student-app-theme]:not([data-student-app-theme="original"])
+#lessonPdfOverlay .lesson-pdf-card {border-radius:var(--uct-radius) !important;}
+
+
+/* G8Code academic contrast patch v2: Subject Status + secure quiz dialog.
+   PALETTE: use the current student-app tokens. If admin Entire-App coverage is
+   disabled, the same tokens fall back to the student's html Light/Dark choice.
+   Do not recolor academic outcome indicators or change quiz security behavior. */
+
+/* SUBJECT REQUIREMENTS: the standing panel and expanded explanation must use
+   the *same* appearance as their containing modal. Legacy --card-bg was white. */
+body:not(.admin-open) #studentComplianceOverlay :is(
+  #studentComplianceStanding, .student-standing-information,
+  .student-standing-legend-item, .student-status-about-details,
+  .student-requirements-group, .student-lackings-accordion,
+  .student-compliance-pinned, .student-compliance-scroll
+) {
+  background:var(--uct-panel) !important;
+  background-image:none !important;
+  color:var(--uct-text) !important;
+  border-color:var(--uct-border) !important;
+}
+body:not(.admin-open) #studentComplianceOverlay :is(
+  .student-standing-information, .student-standing-legend-item,
+  .student-status-about-details, .student-requirements-group,
+  .student-lackings-accordion, .student-compliance-row
+) {
+  background:var(--uct-raised) !important;
+  border-color:var(--uct-border) !important;
+}
+body:not(.admin-open) #studentComplianceOverlay :is(
+  .student-standing-title, .student-standing-info-heading,
+  .student-standing-info-heading strong, .student-standing-information strong,
+  .student-standing-legend-item, .student-status-about-details > summary,
+  .student-requirements-group-heading, .student-requirements-group-heading strong,
+  .student-lackings-accordion > summary, .student-compliance-header h2,
+  .student-compliance-row strong
+) { color:var(--uct-text) !important; opacity:1 !important; }
+body:not(.admin-open) #studentComplianceOverlay :is(
+  .student-standing-title small, .student-standing-privacy-note,
+  .student-standing-information p, .student-standing-legend-heading,
+  .student-standing-legend-item small, .student-compliance-header p,
+  .student-compliance-header .section-kicker,
+  .student-requirements-group-heading span, .student-compliance-row small,
+  .student-status-about-details summary > span[aria-hidden="true"]
+) { color:var(--uct-muted) !important; opacity:1 !important; }
+body:not(.admin-open) #studentComplianceOverlay :is(
+  #studentComplianceRefreshBtn, #closeStudentComplianceBtn
+) {
+  background:var(--uct-raised) !important;
+  color:var(--uct-text) !important;
+  border-color:var(--uct-border) !important;
+}
+body:not(.admin-open) #studentComplianceOverlay .student-standing-info-icon {
+  background:var(--uct-raised) !important;
+  color:var(--uct-text) !important;
+  border:1px solid var(--uct-border) !important;
+}
+
+/* The numeric/merit badge MUST NOT inherit the broad dark-theme strong color:
+   keep its academic meaning, but use a dark-tinted badge in dark appearance.
+   The trend arrow and complete/missing status indicators are left unchanged. */
+body:not(.admin-open) #studentComplianceOverlay #studentComplianceStanding .student-standing-badge {
+  background:var(--standing-bg) !important;
+  color:var(--standing-fg) !important;
+  border-color:var(--standing-edge) !important;
+}
+body:not(.admin-open) #studentComplianceOverlay #studentComplianceStanding .student-standing-badge :is(strong,span:not(.student-standing-dot)) {
+  color:var(--standing-fg) !important;
+  opacity:1 !important;
+  -webkit-text-fill-color:var(--standing-fg) !important;
+}
+body:not(.admin-open) #studentComplianceOverlay #studentComplianceStanding .student-standing-dot {
+  background:var(--standing-dot) !important;
+  border-color:var(--standing-edge) !important;
+}
+/* Entire-App admin appearance takes precedence over the browser's global mode. */
+body[data-student-app-theme]:not([data-student-app-theme="original"])[data-student-app-appearance="dark"]
+ #studentComplianceOverlay .student-standing-badge.white,
+html[data-theme="dark"] body:not([data-student-app-theme])
+ #studentComplianceOverlay .student-standing-badge.white {
+  --standing-bg:#293546; --standing-fg:#f1f5fb; --standing-edge:#77879c;
+}
+body[data-student-app-theme]:not([data-student-app-theme="original"])[data-student-app-appearance="dark"]
+ #studentComplianceOverlay .student-standing-badge.green,
+html[data-theme="dark"] body:not([data-student-app-theme])
+ #studentComplianceOverlay .student-standing-badge.green {
+  --standing-bg:#16382b; --standing-fg:#a6f2c4; --standing-edge:#417b5d;
+}
+body[data-student-app-theme]:not([data-student-app-theme="original"])[data-student-app-appearance="dark"]
+ #studentComplianceOverlay .student-standing-badge.yellow,
+html[data-theme="dark"] body:not([data-student-app-theme])
+ #studentComplianceOverlay .student-standing-badge.yellow {
+  --standing-bg:#463617; --standing-fg:#ffe39c; --standing-edge:#957438;
+}
+body[data-student-app-theme]:not([data-student-app-theme="original"])[data-student-app-appearance="dark"]
+ #studentComplianceOverlay .student-standing-badge.gray,
+html[data-theme="dark"] body:not([data-student-app-theme])
+ #studentComplianceOverlay .student-standing-badge.gray {
+  --standing-bg:#303946; --standing-fg:#e2e8f0; --standing-edge:#7e8b9a;
+}
+body[data-student-app-theme]:not([data-student-app-theme="original"])[data-student-app-appearance="dark"]
+ #studentComplianceOverlay .student-standing-badge.orange,
+html[data-theme="dark"] body:not([data-student-app-theme])
+ #studentComplianceOverlay .student-standing-badge.orange {
+  --standing-bg:#4b3020; --standing-fg:#ffcca7; --standing-edge:#aa7650;
+}
+body[data-student-app-theme]:not([data-student-app-theme="original"])[data-student-app-appearance="dark"]
+ #studentComplianceOverlay .student-standing-badge.red,
+html[data-theme="dark"] body:not([data-student-app-theme])
+ #studentComplianceOverlay .student-standing-badge.red {
+  --standing-bg:#4b262e; --standing-fg:#ffd1db; --standing-edge:#ac5d6c;
+}
+body[data-student-app-theme]:not([data-student-app-theme="original"])[data-student-app-appearance="dark"]
+ #studentComplianceOverlay .student-standing-badge.unavailable,
+html[data-theme="dark"] body:not([data-student-app-theme])
+ #studentComplianceOverlay .student-standing-badge.unavailable {
+  --standing-bg:#2c3b50; --standing-fg:#d7e4f5; --standing-edge:#536a84;
+}
+
+/* SECURE QUIZ: the existing CSS made headings white regardless of the modal
+   background. Match the card, heading, warning text, actions and status to the
+   *same* tokens in BOTH modes, including when a student is not logged in. */
+body:not(.admin-open) :is(#quizModeNotice,#quizWarningNotice) .quiz-mode-card {
+  background:var(--uct-panel) !important;
+  background-image:none !important;
+  color:var(--uct-text) !important;
+  border:1px solid var(--uct-border) !important;
+  border-radius:var(--uct-radius) !important;
+  box-shadow:0 24px 66px rgba(2,8,20,.34) !important;
+  color-scheme:normal;
+}
+body:not(.admin-open) :is(#quizModeNotice,#quizWarningNotice) .quiz-mode-card :is(h2,h3) {
+  color:var(--uct-text) !important;
+  -webkit-text-fill-color:var(--uct-text) !important;
+  opacity:1 !important;
+}
+body:not(.admin-open) :is(#quizModeNotice,#quizWarningNotice) .quiz-mode-card :is(p,#quizModeMessage,#quizWarningText) {
+  color:var(--uct-muted) !important;
+  -webkit-text-fill-color:var(--uct-muted) !important;
+  opacity:1 !important;
+}
+body:not(.admin-open) :is(#quizModeNotice,#quizWarningNotice) .quiz-mode-card .quiz-mode-disclaimer {
+  background:var(--uct-raised) !important;
+  color:var(--uct-text) !important;
+  -webkit-text-fill-color:var(--uct-text) !important;
+  border:1px solid var(--uct-border) !important;
+  border-radius:calc(var(--uct-radius) * .7) !important;
+}
+body:not(.admin-open) :is(#quizModeNotice,#quizWarningNotice) .quiz-mode-card .section-kicker {
+  color:var(--uct-accent) !important;
+  -webkit-text-fill-color:var(--uct-accent) !important;
+  opacity:1 !important;
+}
+body:not(.admin-open) :is(#quizModeNotice,#quizWarningNotice) .quiz-mode-card .quiz-mode-status {
+  color:var(--uct-text) !important;
+  -webkit-text-fill-color:var(--uct-text) !important;
+}
+body:not(.admin-open) :is(#quizModeNotice,#quizWarningNotice) .quiz-mode-card .primary-btn {
+  background:var(--uct-action) !important;
+  color:var(--uct-action-text) !important;
+  -webkit-text-fill-color:var(--uct-action-text) !important;
+  border-color:var(--uct-action) !important;
+  border-radius:calc(var(--uct-radius) * .7) !important;
+}
+body:not(.admin-open) :is(#quizModeNotice,#quizWarningNotice) .quiz-mode-card .ghost-btn {
+  background:var(--uct-raised) !important;
+  color:var(--uct-text) !important;
+  -webkit-text-fill-color:var(--uct-text) !important;
+  border-color:var(--uct-border) !important;
+  border-radius:calc(var(--uct-radius) * .7) !important;
+}
+body:not(.admin-open) :is(#quizModeNotice,#quizWarningNotice) .quiz-mode-warning-card {
+  border-color:#e7a541 !important;
+}
+body:not(.admin-open) :is(#quizModeNotice,#quizWarningNotice) .quiz-mode-card :is(button):focus-visible {
+  outline:3px solid var(--uct-accent) !important;
+  outline-offset:3px;
+}
+@media(max-width:600px){
+  body:not(.admin-open) :is(#quizModeNotice,#quizWarningNotice) .quiz-mode-card {
+    max-width:min(100%,520px);
+    max-height:calc(100dvh - 22px);
+  }
+}
+
+/* =====================================================================
+   EDITOR DARK MODE — SYNTAX LAYER VISIBILITY FIX
+   The native textarea intentionally hides its glyphs while its colored
+   highlight layer is ready. Do not give either overlaid text layer an opaque
+   background: the textarea is above the highlight layer and would cover it.
+   Theme only the editor backing surfaces. Does not alter editor behavior.
+   ===================================================================== */
+body[data-student-app-theme]:not([data-student-app-theme="original"])[data-student-app-appearance="dark"]
+.app-shell :is(.editor-wrap,.editor-stack) {
+  background-color:var(--editor-bg, #131e29) !important;
+}
+body[data-student-app-theme]:not([data-student-app-theme="original"])[data-student-app-appearance="dark"]
+.app-shell :is(#codeEditor,.code-match-layer) {
+  background:transparent !important;
+  background-color:transparent !important;
+  background-image:none !important;
+}
+/* Safety fallback: while the syntax layer is truly empty, keep native code
+   legible even if the editor temporarily retains its syntax-ready class. */
+body[data-student-app-theme]:not([data-student-app-theme="original"])[data-student-app-appearance="dark"]
+.app-shell .editor-stack.editor-syntax-ready:has(.code-match-layer:empty) #codeEditor {
+  color:var(--editor-text, #edf3fb) !important;
+  -webkit-text-fill-color:var(--editor-text, #edf3fb) !important;
+}

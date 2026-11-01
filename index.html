@@ -47,6 +47,8 @@
   <link rel="preconnect" href="https://lh3.googleusercontent.com" crossorigin>
   <link rel="stylesheet" href="style.css?v=20261031-v676-welcome-student-theme-choice" />
   <link rel="stylesheet" href="student-home.css?v=20261101-v2-polished" />
+  <link rel="stylesheet" href="student-home-music.css?v=20261101-floating-metadata-v3" />
+  <link rel="stylesheet" href="student-account-settings.css?v=20261101-account-v1" />
   <link rel="stylesheet" href="editor-home-nav.css?v=20261101-editor-guest-home-v1" />
   <link rel="stylesheet" href="my-projects.css?v=20261101-workspace-v1" />
   <link rel="stylesheet" href="games/mini-games-hub.css?v=20260912-v4761-byte-runner-v81-build-hud" />
@@ -283,6 +285,9 @@
     }
   </style>
   <link rel="stylesheet" href="login-experience.css?v=20261101-minimal-bulb-v3" />
+  <!-- Student UI theme bridge: loads after legacy and inline styles. -->
+  <link rel="stylesheet" href="unified-student-theme.css?v=20261101-v1" />
+  <link rel="stylesheet" href="admin-workspace-theme.css?v=20261101-admin-v1" />
 </head>
 <body class="entry-gate-active">
   <noscript>
@@ -473,10 +478,30 @@
         </div>
         <div class="sh-header-tools">
           <span id="studentHomeCurrentTerm" class="sh-term-pill">Current Term</span>
+          <div class="sh-music-anchor" id="studentHomeMusicAnchor">
+            <button type="button" id="studentHomeMusicToggle" class="sh-round-btn sh-music-toggle hidden" aria-label="Open music controls" aria-controls="studentHomeMusicPanel" aria-expanded="false" title="Background music">
+              <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg><span class="sh-music-eq" aria-hidden="true"><i></i><i></i><i></i></span>
+            </button>
+            <section id="studentHomeMusicPanel" class="sh-music-panel hidden" role="dialog" aria-modal="false" aria-label="Student Home music controls">
+              <button type="button" id="studentHomeMusicClose" class="sh-music-close" aria-label="Close music controls" title="Close music controls">×</button>
+              <div class="sh-music-heading"><span class="sh-music-art" aria-hidden="true">♫</span><div class="sh-music-copy"><span class="sh-music-eyebrow">STUDENT PLAYLIST</span><strong id="studentHomeMusicTitle">Now Playing</strong><small id="studentHomeMusicDetails" aria-live="polite">Ready to play</small></div></div>
+              <div class="sh-music-actions">
+                <button type="button" id="studentHomeMusicPrev" aria-label="Previous track" title="Previous track">⏮</button>
+                <button type="button" id="studentHomeMusicPlay" class="sh-music-primary" aria-label="Play music" title="Play music">▶</button>
+                <button type="button" id="studentHomeMusicNext" aria-label="Next track" title="Next track">⏭</button>
+              </div>
+              <div class="sh-music-volume-row"><button type="button" id="studentHomeMusicMute" aria-label="Mute music" title="Mute">🔊</button><label for="studentHomeMusicVolume" class="sh-music-volume-label">Volume</label><input id="studentHomeMusicVolume" type="range" min="0" max="100" value="55" aria-label="Music volume"/></div>
+              <button type="button" id="studentHomeMusicOff" class="sh-music-off">Music Off</button>
+            </section>
+          </div>
+          <button type="button" id="studentHomeAccountBtn" class="sh-round-btn sh-settings-trigger" data-home-action="account" title="Account Settings" aria-label="Open account settings" aria-haspopup="dialog" aria-controls="studentAccountSettingsOverlay">
+            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.25"/><path d="M5 20c.4-4.1 2.6-6.2 7-6.2s6.6 2.1 7 6.2"/><circle cx="18.5" cy="5.5" r="2.5" fill="currentColor" stroke="none"/></svg>
+          </button>
           <button type="button" id="studentHomeThemeBtn" class="sh-round-btn" title="Switch appearance" aria-label="Switch appearance"><span aria-hidden="true">◐</span></button>
           <button type="button" class="sh-account-btn" data-home-action="logout" title="Log out" aria-label="Log out"><span class="sh-logout-label">Log Out</span><svg viewBox="0 0 24 24" aria-hidden="true" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 17l5-5-5-5m5 5H3"/><path d="M13 4h5a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-5"/></svg></button>
         </div>
       </header>
+      <button type="button" id="studentHomeMusicShade" class="sh-music-shade hidden" aria-label="Close music controls"></button>
       <main class="sh-main">
         <section class="sh-welcome sh-reveal" aria-labelledby="studentHomeTitle">
           <div class="sh-welcome-text">
@@ -548,6 +573,50 @@
       <button class="sh-bottom-tab" type="button" data-home-action="activities"><span aria-hidden="true">☷</span><small>Activities</small></button>
       <button class="sh-bottom-tab" type="button" data-home-action="explorer"><span aria-hidden="true">⌘</span><small>Explore</small></button>
     </nav>
+  </div>
+
+  <!-- Student-only account settings. Authenticated password updates are handled by existing Firebase Auth. -->
+  <div id="studentAccountSettingsOverlay" class="sh-settings-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="shSettingsTitle" aria-describedby="shSettingsDescription" tabindex="-1">
+    <section class="sh-settings-dialog" role="document">
+      <header class="sh-settings-header">
+        <div class="sh-settings-heading"><span class="sh-settings-icon" aria-hidden="true">⚙</span>
+          <div><span class="sh-settings-kicker">YOUR ACCOUNT</span><h2 id="shSettingsTitle">Account Settings</h2><p id="shSettingsDescription">Manage your G8Code account securely.</p></div>
+        </div>
+        <button id="shSettingsClose" class="sh-settings-close" type="button" aria-label="Close account settings">×</button>
+      </header>
+      <div class="sh-settings-body">
+        <div class="sh-settings-profile" aria-label="Your school account information">
+          <span class="sh-profile-avatar" aria-hidden="true">👤</span>
+          <div><span class="sh-settings-caption">SIGNED IN AS</span><strong id="shSettingsStudentName">Student</strong><small id="shSettingsSection">Grade 8</small></div>
+        </div>
+        <div class="sh-settings-info-grid">
+          <div><span>Student ID</span><strong id="shSettingsStudentId">—</strong></div>
+          <div><span>Account</span><strong>Student • Active</strong></div>
+        </div>
+        <p class="sh-settings-help">Your name, section and Student ID are managed by your teacher.</p>
+        <div class="sh-settings-security">
+          <div class="sh-settings-security-head"><div><span class="sh-settings-kicker">ACCOUNT SECURITY</span><h3>Password</h3><p>Update your password without losing saved projects or progress.</p></div><span aria-hidden="true">🔒</span></div>
+          <button type="button" id="shSettingsChangeButton" class="sh-settings-secondary" aria-expanded="false" aria-controls="shSettingsPasswordForm">Change Password <span aria-hidden="true">⌄</span></button>
+          <form id="shSettingsPasswordForm" class="sh-settings-password-form hidden" autocomplete="off" novalidate>
+            <label for="shSettingsCurrentPassword">Current Password
+              <input id="shSettingsCurrentPassword" type="password" autocomplete="current-password" required placeholder="Enter your current password" />
+            </label>
+            <label for="shSettingsNewPassword">New Password
+              <input id="shSettingsNewPassword" type="password" autocomplete="new-password" minlength="8" required placeholder="At least 8 characters" />
+            </label>
+            <label for="shSettingsConfirmPassword">Confirm New Password
+              <input id="shSettingsConfirmPassword" type="password" autocomplete="new-password" minlength="8" required placeholder="Enter new password again" />
+            </label>
+            <div class="sh-settings-password-tools"><label class="sh-settings-showpass"><input id="shSettingsShowPassword" type="checkbox" /> Show passwords</label><small id="shSettingsStrength" aria-live="polite">Choose at least 8 characters.</small></div>
+            <p class="sh-settings-password-tip">Use a unique password. Avoid your Student ID or the default password.</p>
+            <p id="shSettingsMessage" class="sh-settings-message hidden" role="alert"></p>
+            <div class="sh-settings-form-actions"><button type="button" id="shSettingsCancelChange" class="sh-settings-cancel">Cancel</button><button type="submit" id="shSettingsSavePassword" class="sh-settings-save">Update Password</button></div>
+          </form>
+          <p id="shSettingsSuccess" class="sh-settings-success hidden" role="status">✓ Password updated. Your account remains signed in.</p>
+        </div>
+        <div class="sh-settings-session"><div><strong>Using a shared device?</strong><p>Log out when you are finished to protect your account.</p></div><button type="button" id="shSettingsLogout" class="sh-settings-logout">Log Out</button></div>
+      </div>
+    </section>
   </div>
 
   <div id="studentDashboard" class="student-dashboard-screen hidden" aria-labelledby="studentDashboardTitle">
@@ -2164,7 +2233,18 @@ HTML tab: type the complete structure. CSS and JavaScript are optional unless re
           <h2 id="adminTitle">Admin Settings & Rubric Builder</h2>
           <p class="muted-text">Control student assistance, then manage activities and table-based rubrics.</p>
         </div>
-        <button id="closeAdminBtn" class="icon-btn" type="button" aria-label="Close admin panel">×</button>
+        <div class="g8-admin-header-actions">
+          <label class="g8-admin-appearance-control" for="adminAppearanceSelect">
+            <span aria-hidden="true">◐</span>
+            <span class="g8-admin-appearance-label">Admin theme</span>
+            <select id="adminAppearanceSelect" aria-label="Admin workspace appearance (independent of published student theme)" title="Change this admin workspace only; published student themes stay unchanged">
+              <option value="auto">Follow App</option>
+              <option value="light">Light</option>
+              <option value="dark">Dark</option>
+            </select>
+          </label>
+          <button id="closeAdminBtn" class="icon-btn" type="button" aria-label="Close admin panel">×</button>
+        </div>
       </div>
 
       <div class="admin-tabs-wrap" aria-label="Admin sections">
@@ -2480,6 +2560,12 @@ https://example.com/song2.mp3"></textarea>
                 <strong id="loginReminderMusicPlaylistSummary">Paste one or more direct audio links.</strong>
                 <div id="loginReminderMusicTrackList" class="login-reminder-track-list" aria-live="polite"></div>
               </div>
+            </div>
+
+
+            <div id="loginReminderMusicMetadataEditor" class="login-music-metadata-editor login-reminder-field-wide" aria-label="Song titles for student player">
+              <div class="login-music-metadata-head"><div><strong>Song Names in Student Player</strong><small>Optional: give each audio link a clear title and artist. The music URL stays unchanged.</small></div><span class="login-music-metadata-count" id="loginReminderMusicMetadataCount">No songs yet</span></div>
+              <div id="loginReminderMusicMetadataRows" class="login-music-metadata-rows"></div>
             </div>
 
             <div id="loginReminderMusicPreviewRow" class="login-reminder-music-preview login-reminder-field-wide">
@@ -5298,7 +5384,8 @@ https://example.com/song3.mp3"></textarea>
     })();
   </script>
 
-  <script src="script.js?v=20261101-editor-home-v1"></script>
+  <script src="script.js?v=20261101-floating-music-metadata-v3"></script>
+  <script src="admin-workspace-theme.js?v=20261101-admin-v1"></script>
   <script>
     // v410 fallback: keep the desktop editor settings popover working even if older cached
     // toolbar code fails before binding the click handler.

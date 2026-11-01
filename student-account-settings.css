@@ -1,0 +1,114 @@
+/* G8Code Student Home account settings: intentionally scoped to one dialog.
+   Auth and student profile handling remain in script.js. */
+#studentHomeScreen .sh-settings-trigger svg{display:block;flex:none}
+#studentHomeScreen .sh-settings-trigger{font-size:0}
+#studentHomeScreen .sh-settings-trigger:hover svg{transform:translateY(-1px)}
+#studentHomeScreen .sh-settings-trigger svg{transition:transform .18s ease}
+
+.sh-settings-overlay{
+  --shset-bg:#ffffff;--shset-surface:#f5f8fe;--shset-soft:#ecf2fc;
+  --shset-text:#172844;--shset-muted:#506782;--shset-border:#ccd8ea;
+  --shset-primary:#215ec1;--shset-primary-text:#fff;--shset-radius:20px;
+  position:fixed;inset:0;z-index:125500;
+  display:flex;align-items:center;justify-content:center;
+  padding:clamp(12px,3vw,28px);overflow-y:auto;
+  background:rgba(8,17,33,.67);backdrop-filter:blur(9px);
+  font-family:inherit;color:var(--shset-text);
+  animation:shset-fade .18s ease both;
+}
+.sh-settings-overlay.hidden{display:none!important}
+html[data-theme="dark"] body:not([data-student-app-theme]) .sh-settings-overlay,
+body[data-student-app-theme][data-student-app-appearance="dark"] .sh-settings-overlay{
+  --shset-bg:var(--sat-card,#162539);--shset-surface:var(--sat-bg,#101c2f);
+  --shset-soft:var(--sat-soft,#203753);--shset-text:var(--sat-text,#f1f6ff);
+  --shset-muted:var(--sat-muted,#bfd0e6);--shset-border:var(--sat-border,#374e69);
+  --shset-primary:var(--sat-action,#82b6ff);--shset-primary-text:var(--sat-action-text,#10243b);
+  color-scheme:dark;
+}
+html[data-theme="dark"] body:not([data-student-app-theme]) .sh-settings-overlay{
+  --shset-bg:#17253b;--shset-surface:#101e32;--shset-soft:#243956;
+  --shset-text:#f1f6ff;--shset-muted:#bccbe1;--shset-border:#3a4c65;
+  --shset-primary:#87b9ff;--shset-primary-text:#0b203b;
+}
+body[data-student-app-theme][data-student-app-appearance="light"] .sh-settings-overlay{
+  --shset-bg:var(--sat-card,#fff);--shset-surface:var(--sat-bg,#f6f9ff);
+  --shset-soft:var(--sat-soft,#e9f2ff);--shset-text:var(--sat-text,#182b47);
+  --shset-muted:var(--sat-muted,#526780);--shset-border:var(--sat-border,#cad7e8);
+  --shset-primary:var(--sat-action,#215ec1);--shset-primary-text:var(--sat-action-text,#ffffff);
+}
+.sh-settings-overlay *, .sh-settings-overlay *::before,.sh-settings-overlay *::after{box-sizing:border-box}
+.sh-settings-overlay button,.sh-settings-overlay input{font:inherit}
+.sh-settings-dialog{
+  position:relative;flex:none;width:min(100%,530px);max-height:min(90dvh,800px);
+  display:flex;flex-direction:column;min-height:0;overflow:hidden;
+  background:var(--shset-bg);border:1px solid var(--shset-border);
+  border-radius:var(--shset-radius);color:var(--shset-text);
+  box-shadow:0 30px 90px rgba(0,0,0,.32);
+  animation:shset-enter .28s cubic-bezier(.2,.7,.25,1) both;
+}
+.sh-settings-header{padding:20px 20px 18px;border-bottom:1px solid var(--shset-border);display:flex;gap:12px;align-items:flex-start;justify-content:space-between;flex:0 0 auto}
+.sh-settings-heading{display:flex;align-items:center;gap:12px;min-width:0}
+.sh-settings-icon{width:44px;height:44px;flex:0 0 44px;display:grid;place-items:center;border-radius:14px;background:var(--shset-soft);font-size:24px;color:var(--shset-primary)}
+.sh-settings-kicker{display:block;font-size:10px;letter-spacing:.12em;font-weight:900;color:var(--shset-primary);line-height:1.4}
+.sh-settings-heading h2{color:var(--shset-text);margin:3px 0 2px;font-size:clamp(20px,3vw,23px);line-height:1.2;letter-spacing:-.035em;font-weight:850}
+.sh-settings-heading p,.sh-settings-security p,.sh-settings-session p{color:var(--shset-muted);margin:2px 0 0;font-size:12px;line-height:1.5}
+.sh-settings-close{min-width:38px;height:38px;flex:0 0 38px;display:grid;place-items:center;background:var(--shset-soft);color:var(--shset-text);border:1px solid var(--shset-border);border-radius:12px;font-size:25px;font-weight:500;cursor:pointer;line-height:1}
+.sh-settings-body{overflow-y:auto;min-height:0;overscroll-behavior:contain;scrollbar-width:thin;padding:18px 20px 20px;display:flex;flex-direction:column;gap:14px}
+.sh-settings-profile{border:1px solid var(--shset-border);border-radius:16px;padding:14px;background:var(--shset-surface);display:flex;gap:12px;align-items:center;min-width:0}
+.sh-profile-avatar{width:44px;height:44px;border-radius:14px;display:grid;place-items:center;background:var(--shset-soft);font-size:22px;flex:none}
+.sh-settings-profile>div{min-width:0}
+.sh-settings-profile strong{color:var(--shset-text);display:block;font-size:16px;line-height:1.3;overflow-wrap:anywhere}
+.sh-settings-profile small{display:block;color:var(--shset-muted);font-size:12px;margin-top:3px;overflow-wrap:anywhere}
+.sh-settings-caption{font-size:10px;letter-spacing:.09em;display:block;font-weight:850;color:var(--shset-muted);margin-bottom:4px}
+.sh-settings-info-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.sh-settings-info-grid>div{background:var(--shset-surface);border:1px solid var(--shset-border);border-radius:13px;padding:12px;min-width:0}
+.sh-settings-info-grid span{display:block;font-size:11px;color:var(--shset-muted);font-weight:700;margin-bottom:5px}
+.sh-settings-info-grid strong{color:var(--shset-text);display:block;font-size:13px;line-height:1.25;overflow-wrap:anywhere}
+.sh-settings-help{color:var(--shset-muted);font-size:11px;line-height:1.5;margin:-4px 0 0}
+.sh-settings-security{border:1px solid var(--shset-border);border-radius:16px;padding:16px;background:var(--shset-bg)}
+.sh-settings-security-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
+.sh-settings-security-head h3{color:var(--shset-text);font-size:17px;line-height:1.3;margin:4px 0 2px}
+.sh-settings-security-head>span{font-size:23px;flex:none}
+.sh-settings-secondary{display:flex;gap:8px;justify-content:space-between;align-items:center;width:100%;min-height:42px;padding:10px 13px;border:1px solid var(--shset-border);background:var(--shset-soft);border-radius:12px;color:var(--shset-text);font-size:13px;font-weight:800;cursor:pointer}
+.sh-settings-password-form{margin-top:14px;display:grid;gap:11px;animation:shset-enter .2s ease both}
+.sh-settings-password-form.hidden,.sh-settings-message.hidden,.sh-settings-success.hidden{display:none!important}
+.sh-settings-password-form>label{display:flex;flex-direction:column;gap:6px;font-size:12px;font-weight:800;color:var(--shset-text)}
+.sh-settings-password-form>label>input{display:block;width:100%;min-width:0;min-height:42px;border:1px solid var(--shset-border);background:var(--shset-surface);border-radius:10px;padding:10px 12px;font-size:14px;color:var(--shset-text);outline:none}
+.sh-settings-password-form>label>input::placeholder{color:var(--shset-muted);opacity:.85}
+.sh-settings-password-form input:focus-visible,.sh-settings-overlay button:focus-visible{outline:3px solid var(--shset-primary);outline-offset:2px}
+.sh-settings-password-tools{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;color:var(--shset-muted)}
+.sh-settings-password-tools small{font-size:11px;color:var(--shset-muted)}
+.sh-settings-showpass{display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:650;cursor:pointer}
+.sh-settings-showpass input{accent-color:var(--shset-primary);width:16px;height:16px}
+.sh-settings-password-tip{font-size:11px!important;margin:0!important}
+.sh-settings-message{border-radius:10px;background:#fff0ed;border:1px solid #f4b2aa;color:#862b20;font-size:12px;padding:10px 12px;line-height:1.4;margin:0}
+body[data-student-app-theme][data-student-app-appearance="dark"] .sh-settings-message,html[data-theme="dark"] body:not([data-student-app-theme]) .sh-settings-message{background:#42282b;color:#ffdad5;border-color:#955d5b}
+.sh-settings-success{padding:11px 12px;margin:12px 0 0;border-radius:11px;background:#e2f7ec;color:#146943;border:1px solid #99d5b4;font-size:12px;font-weight:700}
+body[data-student-app-theme][data-student-app-appearance="dark"] .sh-settings-success,html[data-theme="dark"] body:not([data-student-app-theme]) .sh-settings-success{background:#173d31;color:#b2f7d2;border-color:#38785c}
+.sh-settings-form-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:1px}
+.sh-settings-form-actions>button{min-height:42px;padding:10px 15px;border-radius:11px;font-size:12px;font-weight:850;cursor:pointer}
+.sh-settings-cancel{border:1px solid var(--shset-border);color:var(--shset-text);background:var(--shset-soft)}
+.sh-settings-save{border:0;background:var(--shset-primary);color:var(--shset-primary-text);box-shadow:0 8px 18px rgba(19,72,153,.1)}
+.sh-settings-save:disabled{opacity:.62;cursor:wait}
+.sh-settings-session{display:flex;justify-content:space-between;align-items:center;gap:12px;border:1px solid var(--shset-border);border-radius:14px;padding:13px;background:var(--shset-surface)}
+.sh-settings-session strong{color:var(--shset-text);font-size:12px;line-height:1.3}
+.sh-settings-logout{flex:none;min-height:38px;padding:9px 12px;border:1px solid #d69b9b;color:#9e3439;background:transparent;border-radius:10px;cursor:pointer;font-size:12px;font-weight:850}
+body[data-student-app-theme][data-student-app-appearance="dark"] .sh-settings-logout,html[data-theme="dark"] body:not([data-student-app-theme]) .sh-settings-logout{color:#ffb6b8;border-color:#a15d65}
+@keyframes shset-fade{from{opacity:0}to{opacity:1}}
+@keyframes shset-enter{from{opacity:0;transform:translateY(10px) scale(.985)}to{opacity:1;transform:translateY(0) scale(1)}}
+@media(max-width:720px){
+ #studentHomeScreen .sh-header-tools>.sh-account-btn{display:none!important}
+ #studentHomeScreen .sh-settings-trigger{width:38px;min-height:38px;height:38px}
+ .sh-settings-overlay{padding:10px;align-items:center}
+ .sh-settings-dialog{max-height:min(94dvh,840px);border-radius:19px}
+ .sh-settings-header{padding:15px 14px 13px}
+ .sh-settings-body{padding:13px 14px 16px;gap:11px}
+ .sh-settings-profile{padding:11px}
+}
+@media(max-width:360px){
+ #studentHomeScreen .sh-settings-trigger{width:35px;min-height:36px;height:36px}
+ .sh-settings-info-grid{grid-template-columns:1fr}
+ .sh-settings-form-actions>button{flex:1;padding:9px 8px}
+ .sh-settings-session{align-items:flex-start;flex-direction:column}
+}
+@media(prefers-reduced-motion:reduce){.sh-settings-overlay,.sh-settings-dialog,.sh-settings-password-form{animation:none!important;transition:none!important}}

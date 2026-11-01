@@ -1063,6 +1063,7 @@ const DEFAULT_LOGIN_REMINDER_SETTINGS = Object.freeze({
   musicMode: 'single',
   musicUrl: '',
   musicPlaylist: [],
+  musicTrackMeta: {},
   musicPlayback: 'in-order',
   musicTrackLimit: 0,
   musicVolume: 55,
@@ -1145,6 +1146,37 @@ function normalizeLoginReminderMusicPlaylist(input) {
   return out;
 }
 
+function normalizeLoginReminderTrackMetadata(raw, activeUrls = []) {
+  const input = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+  const output = {};
+  const seen = new Set();
+  for (const url of activeUrls) {
+    if (seen.has(url) || !resolveLoginReminderMusicUrl(url)) continue;
+    seen.add(url);
+    // Metadata are keyed by the exact original audio URL; never rewrite it.
+    const record = input[url];
+    if (!record || typeof record !== 'object') continue;
+    const title = String(record.title || '').replace(/[\u0000-\u001f]/g,' ').trim().slice(0, 90);
+    const artist = String(record.artist || '').replace(/[\u0000-\u001f]/g,' ').trim().slice(0, 90);
+    if (title || artist) output[url] = { title, artist };
+  }
+  return output;
+}
+function loginReminderSongInfo(url = '', index = 0, settings = loginReminderSettings) {
+  const metadata = settings?.musicTrackMeta && typeof settings.musicTrackMeta === 'object' ? settings.musicTrackMeta : {};
+  const original = String(url || '');
+  let record = metadata[original];
+  if (!record) {
+    const resolved = resolveLoginReminderMusicUrl(original);
+    const sourceUrl = Object.keys(metadata).find(key => resolveLoginReminderMusicUrl(key) === resolved);
+    if (sourceUrl) record = metadata[sourceUrl];
+  }
+  return {
+    title: String(record?.title || '').trim() || loginReminderMusicTrackLabel(original, index),
+    artist: String(record?.artist || '').trim()
+  };
+}
+
 function normalizeLoginReminderSettings(value = {}) {
   const source = value && typeof value === 'object' ? value : {};
   const cleanText = (text, fallback, max = 900) => {
@@ -1173,6 +1205,7 @@ function normalizeLoginReminderSettings(value = {}) {
     musicMode,
     musicUrl: String(source.musicUrl || '').trim().slice(0, 1800),
     musicPlaylist: playlist,
+    musicTrackMeta: normalizeLoginReminderTrackMetadata(source.musicTrackMeta, [...playlist, String(source.musicUrl || '').trim()]),
     musicPlayback,
     musicTrackLimit,
     musicVolume: Number.isFinite(rawVolume) ? Math.max(0, Math.min(100, Math.round(rawVolume))) : DEFAULT_LOGIN_REMINDER_SETTINGS.musicVolume,
@@ -1233,6 +1266,15 @@ let loginReminderSettings = normalizeLoginReminderSettings(
 let loginReminderPendingAfterPasswordLogin = false;
 let loginReminderAudio = null;
 let loginReminderMusicSessionToken = 0;
+// ONE audio instance is shared between the post-login reminder and Student Home.
+// This is student-session-only state; it never modifies the teacher's published playlist.
+const studentHomeMusic = {
+  handoffPending: false, userPaused: false, routePaused: false,
+  resumeOnReturn: false, off: false, muted: false, volume: null,
+  popoverOpen: false,
+  restoredForUid: '', pendingSeek: 0, restoring: false,
+  startPromise: null, lastPersistAt: 0, suppressPersistence: false
+};
 // Student Reminder only: trim ONLY genuine leading silence in the SAME song.
 // Quiet music, ambience, speech, fade-ins, or any detectable waveform must play
 // from 0:00. These thresholds are intentionally very conservative so a soft
@@ -1252,10 +1294,72 @@ const loginReminderAudibleStartCache = new Map(
 );
 const loginReminderAudibleStartPromises = new Map();
 const loginReminderPlayback = {
-  order: [], position: 0, signature: '', lastUrl: '', failedUrls: new Set(), blockedUrl: ''
+  order: [], position: 0, signature: '', lastUrl: '', failedUrls: new Set(), blockedUrl: '',
+  previousCycles: [], futureCycles: []
 };
 let loginReminderAdminPreviewAudio = null;
-const loginReminderAdminPreview = { order: [], position: 0, signature: '', lastUrl: '', failedUrls: new Set() };
+const loginReminderAdminPreview = {
+  order: [], position: 0, signature: '', lastUrl: '', failedUrls: new Set(),
+  previousCycles: [], futureCycles: []
+};
+
+const loginReminderMusicMetadataRows = document.getElementById('loginReminderMusicMetadataRows');
+const loginReminderMusicMetadataCount = document.getElementById('loginReminderMusicMetadataCount');
+let loginReminderMetadataRenderedSignature = '';
+function readLoginReminderMusicMetadataControls() {
+  // Keep previous metadata for songs that are still part of the configuration.
+  const draft = { ...(loginReminderSettings?.musicTrackMeta || {}) };
+  if (loginReminderMusicMetadataRows) {
+    for (const input of loginReminderMusicMetadataRows.querySelectorAll('input[data-song-url][data-song-field]')) {
+      const url = input.dataset.songUrl;
+      if (!url) continue;
+      const prior = draft[url] || {title:'',artist:''};
+      draft[url] = { ...prior, [input.dataset.songField]: input.value };
+    }
+  }
+  return draft;
+}
+function renderLoginReminderMusicMetadataControls(settings = loginReminderSettings) {
+  if (!loginReminderMusicMetadataRows) return;
+  const urls = settings.musicMode === 'playlist' ? settings.musicPlaylist : (settings.musicUrl ? [settings.musicUrl] : []);
+  const signature = JSON.stringify(urls);
+  if (loginReminderMusicMetadataCount) loginReminderMusicMetadataCount.textContent = `${urls.length} song${urls.length===1?'':'s'}`;
+  if (signature !== loginReminderMetadataRenderedSignature) {
+    loginReminderMetadataRenderedSignature = signature;
+    loginReminderMusicMetadataRows.replaceChildren();
+    for (const [index, url] of urls.entries()) {
+      const row = document.createElement('div');
+      row.className = 'login-music-metadata-row';
+      const heading = document.createElement('div'); heading.className = 'login-music-metadata-row-head';
+      const rank = document.createElement('b'); rank.textContent = `Track ${index+1}`;
+      const filename = document.createElement('small'); filename.textContent = loginReminderMusicTrackLabel(url,index);
+      filename.title = url; heading.append(rank,filename); row.append(heading);
+      const inputs = document.createElement('div'); inputs.className='login-music-metadata-fields';
+      for (const [field,labelText,placeholder] of [['title','Song Title','Display title (optional)'],['artist','Artist / Description','Artist (optional)']]) {
+        const label = document.createElement('label');label.textContent=labelText;
+        const input = document.createElement('input');input.type='text';input.maxLength=90;
+        input.autocomplete='off';input.placeholder=placeholder;
+        input.dataset.songUrl=url;input.dataset.songField=field;
+        label.append(input);inputs.append(label);
+      }
+      row.append(inputs);loginReminderMusicMetadataRows.append(row);
+    }
+    if (!urls.length) {
+      const empty = document.createElement('p');empty.className='login-music-metadata-empty';
+      empty.textContent='Add a song URL or paste playlist links to edit song names.';
+      loginReminderMusicMetadataRows.append(empty);
+    }
+  }
+  for (const input of loginReminderMusicMetadataRows.querySelectorAll('input[data-song-url][data-song-field]')) {
+    const value = String(settings.musicTrackMeta?.[input.dataset.songUrl]?.[input.dataset.songField] || '');
+    if (document.activeElement !== input && input.value !== value) input.value = value;
+    input.disabled = !settings.musicEnabled;
+  }
+}
+loginReminderMusicMetadataRows?.addEventListener('input', event => {
+  if (!event.target.matches('input[data-song-url][data-song-field]')) return;
+  persistLoginReminderSettings(getLoginReminderSettingsFromControls());
+});
 
 function persistLoginReminderSettings(settings = loginReminderSettings) {
   loginReminderSettings = normalizeLoginReminderSettings(settings);
@@ -1273,6 +1377,7 @@ function getLoginReminderSettingsFromControls() {
     musicMode: loginReminderMusicModeSelect?.value || 'single',
     musicUrl: loginReminderMusicUrlInput?.value,
     musicPlaylist: extractLoginReminderMusicUrls(loginReminderMusicPlaylistText?.value || ''),
+    musicTrackMeta: readLoginReminderMusicMetadataControls(),
     musicPlayback: loginReminderMusicPlayback?.value || 'in-order',
     musicTrackLimit: rawLimitText ? Number(rawLimitText) : 0,
     musicVolume: loginReminderMusicVolumeInput?.value,
@@ -1498,7 +1603,7 @@ function renderLoginReminderPlaylistSummary(settings = loginReminderSettings) {
     const selectedCount = selected.length;
     loginReminderMusicTrackList.innerHTML = shown.map((url, index) => {
       const active = index < selectedCount ? ' selected' : '';
-      return `<span class="login-reminder-track-chip${active}" title="${escapeHTML(url)}"><b>${index + 1}</b>${escapeHTML(loginReminderMusicTrackLabel(url, index))}</span>`;
+      return `<span class="login-reminder-track-chip${active}" title="${escapeHTML(url)}"><b>${index + 1}</b>${escapeHTML(loginReminderSongInfo(url, index, safe).title)}</span>`;
     }).join('') + (detected > shown.length ? `<span class="login-reminder-track-more">+${detected - shown.length} more</span>` : '');
   }
 }
@@ -1574,6 +1679,7 @@ function syncLoginReminderSettingsControls() {
     loginReminderSettingsPill.classList.toggle('off', !settings.enabled);
   }
   renderLoginReminderPlaylistSummary(settings);
+  renderLoginReminderMusicMetadataControls(settings);
 }
 
 function setLoginReminderSettingsStatus(message, tone = '') {
@@ -1664,12 +1770,18 @@ function resetLoginReminderPlaybackState(target = loginReminderPlayback) {
   target.lastUrl = '';
   target.blockedUrl = '';
   target.failedUrls = new Set();
+  target.previousCycles = [];
+  target.futureCycles = [];
 }
 
 function buildLoginReminderPlaybackCycle(settings = loginReminderSettings, target = loginReminderPlayback, options = {}) {
   const safe = normalizeLoginReminderSettings(settings);
   const tracks = loginReminderSelectedResolvedTracks(safe).filter(url => !target.failedUrls.has(url));
   target.signature = loginReminderPlaylistSignature(safe);
+  if (!options.preserveHistory) {
+    target.previousCycles = [];
+    target.futureCycles = [];
+  }
   if (!tracks.length) {
     target.order = [];
     target.position = 0;
@@ -1686,6 +1798,59 @@ function ensureLoginReminderPlaybackCycle(settings = loginReminderSettings, targ
   const signature = loginReminderPlaylistSignature(settings);
   if (target.signature !== signature || !target.order.length) return buildLoginReminderPlaybackCycle(settings, target);
   return target.order;
+}
+
+// Shared cursor for the modal, Student Home, and Admin preview. Each shuffle
+// cycle plays every available song once; history is kept in memory so Previous
+// can return to the ACTUAL previous track even across cycle boundaries.
+function moveLoginReminderPlaybackCursor(settings, target, direction = 1, options = {}) {
+  const safe = normalizeLoginReminderSettings(settings);
+  ensureLoginReminderPlaybackCycle(safe, target);
+  const step = direction < 0 ? -1 : 1;
+  if (options.fromError) {
+    // Removing the failing song shifts subsequent entries left. Position one
+    // slot before it so the next +1 targets the immediate surviving successor.
+    const failingIndex = target.position;
+    target.order = target.order.filter(url => !target.failedUrls.has(url));
+    target.position = failingIndex - 1;
+  } else {
+    target.order = target.order.filter(url => !target.failedUrls.has(url));
+    target.position = Math.min(target.position, target.order.length - 1);
+  }
+  if (!target.order.length) return '';
+  if (safe.musicMode === 'single' || target.order.length === 1) {
+    target.position = 0;
+    return target.order[0];
+  }
+  const next = options.initial ? 0 : target.position + step;
+  if (next >= target.order.length) {
+    const previousLast = target.order[target.order.length - 1];
+    target.lastUrl = previousLast;
+    (target.previousCycles ||= []).push(target.order.slice());
+    if (target.previousCycles.length > 12) target.previousCycles.shift();
+    let upcoming = (target.futureCycles ||= []).pop();
+    while (upcoming && !upcoming.some(url => !target.failedUrls.has(url))) upcoming = target.futureCycles.pop();
+    if (upcoming) {
+      target.order = upcoming.filter(url => !target.failedUrls.has(url));
+      target.position = 0;
+    } else {
+      buildLoginReminderPlaybackCycle(safe, target, { avoidFirst: previousLast, preserveHistory: true });
+    }
+  } else if (next < 0) {
+    let previous = (target.previousCycles ||= []).pop();
+    while (previous && !previous.some(url => !target.failedUrls.has(url))) previous = target.previousCycles.pop();
+    if (previous) {
+      (target.futureCycles ||= []).push(target.order.slice());
+      target.order = previous.filter(url => !target.failedUrls.has(url));
+      target.position = target.order.length - 1;
+    } else {
+      // The current first song has no earlier played track.
+      target.position = 0;
+    }
+  } else {
+    target.position = next;
+  }
+  return target.order[target.position] || '';
 }
 
 function cancelLoginReminderAudibilityCheck() {
@@ -1955,14 +2120,111 @@ function prewarmLoginReminderCurrentAndNext(settings = loginReminderSettings) {
   if (nextUrl && nextUrl !== currentUrl) prewarmLoginReminderTrack(nextUrl).catch(() => {});
 }
 
+// Remember a verified student's music position/preferences across reloads and
+// Continue-as-Student. Never store this in the teacher's published playlist.
+const HOME_MUSIC_STORAGE_PREFIX = 'g8code.studentHomeMusic.v2.';
+function studentHomeMusicStorageKey() {
+  const uid = String(appSession?.student?.uid || '');
+  return appSession.mode === 'student' && uid ? `${HOME_MUSIC_STORAGE_PREFIX}${uid}` : '';
+}
+function persistStudentHomeMusicState(force = false) {
+  if (studentHomeMusic.suppressPersistence) return;
+  const key = studentHomeMusicStorageKey();
+  if (!key) return;
+  const now = Date.now();
+  if (!force && now - studentHomeMusic.lastPersistAt < 4500) return;
+  studentHomeMusic.lastPersistAt = now;
+  const audio = loginReminderAudio;
+  const tracks = loginReminderPlayback.order;
+  const position = Math.max(0, Math.min(Math.max(0, tracks.length - 1), Number(loginReminderPlayback.position) || 0));
+  try {
+    localStorage.setItem(key, JSON.stringify({
+      signature: loginReminderPlaylistSignature(loginReminderSettings),
+      order: tracks.slice(0, LOGIN_REMINDER_MUSIC_MAX_TRACKS),
+      position,
+      currentUrl: tracks[position] || '',
+      seconds: Number.isFinite(audio?.currentTime) ? Math.max(0, audio.currentTime) : 0,
+      muted: Boolean(studentHomeMusic.muted),
+      volume: studentHomeMusic.volume,
+      off: Boolean(studentHomeMusic.off),
+      paused: Boolean(studentHomeMusic.userPaused),
+      savedAt: now
+    }));
+  } catch (_) {}
+}
+function restoreStudentHomeMusicState() {
+  const key = studentHomeMusicStorageKey();
+  if (!key || studentHomeMusic.restoredForUid === key || loginReminderAudio) return;
+  studentHomeMusic.restoredForUid = key;
+  let snapshot;
+  try { snapshot = JSON.parse(localStorage.getItem(key) || 'null'); } catch (_) { return; }
+  if (!snapshot || typeof snapshot !== 'object' ||
+      snapshot.signature !== loginReminderPlaylistSignature(loginReminderSettings) ||
+      !Number.isFinite(Number(snapshot.savedAt)) ||
+      Date.now() - Number(snapshot.savedAt) > 7 * 24 * 3600000) return;
+  const configured = loginReminderSelectedResolvedTracks(loginReminderSettings);
+  const savedOrder = Array.isArray(snapshot.order) ? snapshot.order : [];
+  const shuffleEnabled = loginReminderSettings.musicMode === 'playlist' && loginReminderSettings.musicPlayback === 'shuffle';
+  const lastSong = String(snapshot.currentUrl || savedOrder[Math.max(0, Math.min(savedOrder.length - 1, Number(snapshot.position) || 0))] || '');
+  if (shuffleEnabled) {
+    // A NEW browser/app session must not replay last session's saved order or
+    // resume its old song position. Avoid that session's final song if possible.
+    buildLoginReminderPlaybackCycle(loginReminderSettings, loginReminderPlayback, {
+      avoidFirst: configured.includes(lastSong) ? lastSong : ''
+    });
+    studentHomeMusic.pendingSeek = 0;
+  } else {
+    // Preserve the existing in-order resume behavior.
+    if (savedOrder.length && savedOrder.length === configured.length &&
+        savedOrder.every((url,i) => typeof url === 'string' && configured.includes(url) && savedOrder.indexOf(url) === i)) {
+      loginReminderPlayback.order = savedOrder.slice();
+      loginReminderPlayback.signature = snapshot.signature;
+      loginReminderPlayback.position = Math.max(0,Math.min(savedOrder.length-1,Number(snapshot.position)||0));
+    }
+    studentHomeMusic.pendingSeek = Math.max(0,Math.min(24*3600,Number(snapshot.seconds)||0));
+  }
+  studentHomeMusic.off = snapshot.off === true;
+  studentHomeMusic.userPaused = snapshot.paused === true;
+  studentHomeMusic.muted = snapshot.muted === true;
+  studentHomeMusic.volume = Number.isFinite(snapshot.volume) ? Math.max(0,Math.min(1,snapshot.volume)) : null;
+}
+function clearStudentHomeMusicStoredState() {
+  const key = studentHomeMusicStorageKey();
+  if (key) { try { localStorage.removeItem(key); } catch (_) {} }
+  studentHomeMusic.restoredForUid = '';
+  studentHomeMusic.pendingSeek = 0;
+}
+
 function isLoginReminderMusicSessionActive(sessionToken = loginReminderMusicSessionToken) {
-  if (Number(sessionToken) !== Number(loginReminderMusicSessionToken)) return false;
-  if (!loginLackingReminderOverlay || loginLackingReminderOverlay.classList.contains('hidden')) return false;
-  return document.body.classList.contains('login-lacking-reminder-open');
+  if (Number(sessionToken) !== Number(loginReminderMusicSessionToken) || studentHomeMusic.off) return false;
+  const reminderVisible = Boolean(loginLackingReminderOverlay &&
+    !loginLackingReminderOverlay.classList.contains('hidden') &&
+    document.body.classList.contains('login-lacking-reminder-open'));
+  const homeVisible = Boolean(appSession.mode === 'student' && appSession.student &&
+    document.body.classList.contains('student-home-active') &&
+    studentHomeScreen && !studentHomeScreen.classList.contains('hidden'));
+  return reminderVisible || homeVisible || (studentHomeMusic.handoffPending && appSession.mode === 'student' && !!appSession.student);
 }
 
 function beginLoginReminderMusicSession() {
   loginReminderMusicSessionToken += 1;
+  studentHomeMusic.handoffPending = false;
+  studentHomeMusic.routePaused = false;
+  studentHomeMusic.resumeOnReturn = false;
+  studentHomeMusic.userPaused = false;
+  studentHomeMusic.off = false;
+  studentHomeMusic.muted = false;
+  studentHomeMusic.volume = null;
+  studentHomeMusic.pendingSeek = 0;
+  studentHomeMusic.restoredForUid = '';
+  studentHomeMusic.suppressPersistence = false;
+  if (appSession.mode === 'student' && appSession.student) {
+    // The modal must use the same new shuffled queue as Student Home, while
+    // keeping the student's saved mute, volume, Pause and Music Off choices.
+    // This resets only on a fresh login, never on the modal -> Home handoff.
+    resetLoginReminderPlaybackState(loginReminderPlayback);
+    restoreStudentHomeMusicState();
+  }
   return loginReminderMusicSessionToken;
 }
 
@@ -2000,7 +2262,18 @@ function createLoginReminderAudio(url, settings, options = {}) {
   audio.preload = 'auto';
   audio.playsInline = true;
   audio.loop = options.loop === true;
-  audio.volume = Math.max(0, Math.min(1, safe.musicVolume / 100));
+  audio.volume = Math.max(0, Math.min(1, studentHomeMusic.volume ?? (safe.musicVolume / 100)));
+  audio.muted = studentHomeMusic.muted;
+  for (const type of ['play', 'pause', 'volumechange', 'loadedmetadata', 'ended', 'error']) {
+    audio.addEventListener(type, () => {
+      if (loginReminderAudio !== audio) return;
+      renderStudentHomeMusic();
+      persistStudentHomeMusicState(true);
+    });
+  }
+  audio.addEventListener('timeupdate', () => {
+    if (loginReminderAudio === audio) persistStudentHomeMusicState();
+  });
   const sessionToken = Number(options.sessionToken || loginReminderMusicSessionToken);
   audio.addEventListener('ended', () => {
     if (!isLoginReminderMusicSessionActive(sessionToken) || loginReminderAudio !== audio || audio.loop) return;
@@ -2024,7 +2297,7 @@ async function playLoginReminderUrl(url, settings = loginReminderSettings, optio
   const tracks = loginReminderSelectedResolvedTracks(safe);
   if (!url || !tracks.length) return false;
   const loop = safe.musicMode === 'single' || tracks.length <= 1;
-  const targetVolume = Math.max(0, Math.min(1, safe.musicVolume / 100));
+  const targetVolume = Math.max(0, Math.min(1, studentHomeMusic.volume ?? (safe.musicVolume / 100)));
   cancelLoginReminderAudibilityCheck();
   if (loginReminderAudio) {
     try { loginReminderAudio.pause(); } catch (_) {}
@@ -2037,6 +2310,20 @@ async function playLoginReminderUrl(url, settings = loginReminderSettings, optio
   // For truly silent padding, the parallel probe seeks this SAME audio forward
   // as soon as the first detectable waveform is found.
   activeAudio.volume = targetVolume;
+  activeAudio.muted = studentHomeMusic.muted;
+  renderStudentHomeMusic();
+  const resumeAt = Math.max(0,Number(studentHomeMusic.pendingSeek)||0);
+  studentHomeMusic.pendingSeek = 0;
+  if (resumeAt > 0) {
+    const seekOnReady = () => {
+      if (loginReminderAudio !== activeAudio) return;
+      const target = Number.isFinite(activeAudio.duration) && activeAudio.duration > 1
+        ? Math.min(resumeAt,activeAudio.duration - .6) : resumeAt;
+      try { activeAudio.currentTime = Math.max(0,target); } catch (_) {}
+    };
+    if (activeAudio.readyState >= 1) seekOnReady();
+    else activeAudio.addEventListener('loadedmetadata',seekOnReady,{once:true});
+  }
   const startPromise = getLoginReminderAudibleStart(url);
 
   // Apply a previously learned true-silence offset before playback whenever
@@ -2045,7 +2332,7 @@ async function playLoginReminderUrl(url, settings = loginReminderSettings, optio
   if (Number.isFinite(cachedStart) && cachedStart > 0.045) {
     const applyCached = () => {
       if (loginReminderAudio !== activeAudio) return;
-      try { activeAudio.currentTime = cachedStart; } catch (_) {}
+      try { activeAudio.currentTime = Math.max(cachedStart, resumeAt); } catch (_) {}
     };
     if (activeAudio.readyState >= 1) applyCached();
     else activeAudio.addEventListener('loadedmetadata', applyCached, { once: true });
@@ -2055,7 +2342,9 @@ async function playLoginReminderUrl(url, settings = loginReminderSettings, optio
     await activeAudio.play();
     if (!isLoginReminderMusicSessionActive(sessionToken) || loginReminderAudio !== activeAudio) { try { activeAudio.pause(); } catch (_) {} return false; }
     loginReminderPlayback.blockedUrl = '';
+    persistStudentHomeMusicState(true);
     hideLoginReminderMusicUi();
+    renderStudentHomeMusic();
 
     // Do not await analysis: audible intros continue immediately. A seek happens
     // only if the detector proves that the opening was genuine near-zero silence.
@@ -2105,39 +2394,11 @@ async function advanceLoginReminderTrack(direction = 1, settings = loginReminder
   const sessionToken = Number(options.sessionToken || loginReminderMusicSessionToken);
   if (!isLoginReminderMusicSessionActive(sessionToken)) return false;
   const safe = normalizeLoginReminderSettings(settings);
-  const priorOrder = ensureLoginReminderPlaybackCycle(safe, loginReminderPlayback);
-  if (options.fromError === true) {
-    // The failed track is removed below. Step back once so the normal +1 move
-    // lands on the track that originally followed it instead of skipping a song.
-    loginReminderPlayback.position = Math.max(-1, loginReminderPlayback.position - 1);
-  }
-  let order = priorOrder.filter(url => !loginReminderPlayback.failedUrls.has(url));
-  loginReminderPlayback.order = order;
-  if (!order.length) {
+  const url = moveLoginReminderPlaybackCursor(safe, loginReminderPlayback, direction, options);
+  if (!url) {
     hideLoginReminderMusicUi();
     return false;
   }
-  if (safe.musicMode === 'single' || order.length === 1) {
-    loginReminderPlayback.position = 0;
-    return options.autoplay === false ? true : playLoginReminderUrl(order[0], safe, { allowSkip: false, sessionToken });
-  }
-  const step = direction < 0 ? -1 : 1;
-  let nextPosition = loginReminderPlayback.position + step;
-  if (options.initial === true) nextPosition = 0;
-  if (nextPosition >= order.length) {
-    const previousLast = order[order.length - 1] || loginReminderPlayback.lastUrl;
-    loginReminderPlayback.lastUrl = previousLast;
-    order = safe.musicPlayback === 'shuffle'
-      ? buildLoginReminderPlaybackCycle(safe, loginReminderPlayback, { avoidFirst: previousLast })
-      : loginReminderSelectedResolvedTracks(safe).filter(url => !loginReminderPlayback.failedUrls.has(url));
-    loginReminderPlayback.order = order;
-    nextPosition = 0;
-  } else if (nextPosition < 0) {
-    nextPosition = order.length - 1;
-  }
-  loginReminderPlayback.position = Math.max(0, Math.min(order.length - 1, nextPosition));
-  const url = order[loginReminderPlayback.position] || '';
-  if (!url) return false;
   return options.autoplay === false ? true : playLoginReminderUrl(url, safe, { allowSkip: true, sessionToken });
 }
 
@@ -2148,13 +2409,14 @@ async function startLoginReminderMusic(settings = loginReminderSettings, options
   const tracks = loginReminderSelectedResolvedTracks(safe);
   const signature = loginReminderPlaylistSignature(safe);
   const hasPreparedCycle = loginReminderPlayback.signature === signature && loginReminderPlayback.order.length > 0;
+  const restoredPosition = hasPreparedCycle ? loginReminderPlayback.position : 0;
   stopLoginReminderMusic({ preservePlaybackState: hasPreparedCycle });
   hideLoginReminderMusicUi();
   if (!safe.musicEnabled || !tracks.length) return false;
   if (!hasPreparedCycle) buildLoginReminderPlaybackCycle(safe, loginReminderPlayback);
-  loginReminderPlayback.position = 0;
+  loginReminderPlayback.position = Math.max(0,Math.min(loginReminderPlayback.order.length-1,restoredPosition));
   prewarmLoginReminderCurrentAndNext(safe);
-  return playLoginReminderUrl(loginReminderPlayback.order[0], safe, { allowSkip: true, sessionToken });
+  return playLoginReminderUrl(loginReminderPlayback.order[loginReminderPlayback.position], safe, { allowSkip: true, sessionToken });
 }
 
 async function playLoginReminderMusicManually() {
@@ -2167,7 +2429,8 @@ async function playLoginReminderMusicManually() {
     if (loginReminderAudio && loginReminderPlayback.blockedUrl) {
       const targetAudio = loginReminderAudio;
       scheduleCachedLoginReminderTrim(targetAudio, loginReminderPlayback.blockedUrl);
-      targetAudio.volume = Math.max(0, Math.min(1, settings.musicVolume / 100));
+      targetAudio.volume = Math.max(0, Math.min(1, studentHomeMusic.volume ?? (settings.musicVolume / 100)));
+      targetAudio.muted = studentHomeMusic.muted;
       await targetAudio.play();
       // The modal may have been closed while the browser's play() promise was
       // pending. Never allow a late resolution to resurrect reminder audio.
@@ -2216,19 +2479,11 @@ async function playLoginReminderAdminPreview(options = {}) {
   }
   let order = ensureLoginReminderAdminPreviewCycle(settings);
   if (!order.length) return false;
-  if (Number.isFinite(Number(options.move))) {
-    const step = Number(options.move) < 0 ? -1 : 1;
-    let next = loginReminderAdminPreview.position + step;
-    if (next >= order.length) {
-      const previousLast = order[order.length - 1] || loginReminderAdminPreview.lastUrl;
-      loginReminderAdminPreview.lastUrl = previousLast;
-      order = settings.musicPlayback === 'shuffle'
-        ? buildLoginReminderPlaybackCycle(settings, loginReminderAdminPreview, { avoidFirst: previousLast })
-        : loginReminderSelectedResolvedTracks(settings);
-      loginReminderAdminPreview.order = order;
-      next = 0;
-    } else if (next < 0) next = order.length - 1;
-    loginReminderAdminPreview.position = next;
+  if (options.move !== undefined || options.fromError) {
+    const nextUrl = moveLoginReminderPlaybackCursor(settings, loginReminderAdminPreview,
+      Number(options.move) < 0 ? -1 : 1, { fromError: options.fromError === true });
+    if (!nextUrl) { stopLoginReminderAdminPreview(); return false; }
+    order = loginReminderAdminPreview.order;
   }
   const index = Math.max(0, Math.min(order.length - 1, loginReminderAdminPreview.position));
   const url = order[index];
@@ -2247,13 +2502,18 @@ async function playLoginReminderAdminPreview(options = {}) {
   audio.addEventListener('error', () => {
     if (loginReminderAdminPreviewAudio !== audio) return;
     loginReminderAdminPreview.failedUrls.add(url);
-    playLoginReminderAdminPreview({ move: 1 }).catch(() => {});
+    if (loginReminderAdminPreview.failedUrls.size >= tracks.length) {
+      stopLoginReminderAdminPreview();
+      setLoginReminderSettingsStatus('No playable tracks in this preview.', 'warning');
+      return;
+    }
+    playLoginReminderAdminPreview({ move: 1, fromError: true }).catch(() => {});
   });
   loginReminderAdminPreviewAudio = audio;
   try {
     await audio.play();
     if (loginReminderMusicTestBtn) loginReminderMusicTestBtn.textContent = '■ Stop Test';
-    if (loginReminderMusicPreviewTrack) loginReminderMusicPreviewTrack.textContent = `Preview: ${loginReminderMusicTrackLabel(url, index)} · ${index + 1}/${order.length}`;
+    if (loginReminderMusicPreviewTrack) loginReminderMusicPreviewTrack.textContent = `Preview: ${loginReminderSongInfo(url,index,settings).title} · ${index + 1}/${order.length}`;
     return true;
   } catch (error) {
     setLoginReminderSettingsStatus(error?.message || 'This reminder audio could not play in the browser.', 'warning');
@@ -2269,9 +2529,253 @@ function toggleLoginReminderAdminPreview() {
   playLoginReminderAdminPreview().catch(() => {});
 }
 
-function closeLoginLackingReminder() {
+// Student Home compact music popover. Existing track order, shuffle, silent-intro
+// trim and audio events are reused; do NOT create a second <audio> player.
+const homeMusicElements = {
+  toggle: document.getElementById('studentHomeMusicToggle'),
+  panel: document.getElementById('studentHomeMusicPanel'),
+  shade: document.getElementById('studentHomeMusicShade'),
+  close: document.getElementById('studentHomeMusicClose'),
+  title: document.getElementById('studentHomeMusicTitle'),
+  details: document.getElementById('studentHomeMusicDetails'),
+  play: document.getElementById('studentHomeMusicPlay'),
+  prev: document.getElementById('studentHomeMusicPrev'),
+  next: document.getElementById('studentHomeMusicNext'),
+  mute: document.getElementById('studentHomeMusicMute'),
+  off: document.getElementById('studentHomeMusicOff'),
+  volume: document.getElementById('studentHomeMusicVolume')
+};
+// A genuine anchored overlay: never insert a panel between the header and hero.
+const homeMusicAnchor = document.getElementById('studentHomeMusicAnchor');
+if (homeMusicAnchor) {
+  if (homeMusicElements.panel?.parentElement !== homeMusicAnchor) homeMusicAnchor.append(homeMusicElements.panel);
+  // Keep the backdrop and player in the same stacking context: otherwise the backdrop
+  // can intercept every music control on narrow screens.
+  if (homeMusicElements.shade?.parentElement !== homeMusicAnchor) homeMusicAnchor.append(homeMusicElements.shade);
+}
+const homeMusicMediaQuery = window.matchMedia('(max-width:700px)');
+function updateHomeMusicOverlayPosition() {
+  if (!homeMusicElements.panel || !studentHomeMusic.popoverOpen) return;
+  // On narrow screens use a fixed bottom sheet; on larger screens anchor below icon.
+  homeMusicElements.shade?.classList.toggle('hidden', !homeMusicMediaQuery.matches);
+}
+homeMusicMediaQuery.addEventListener?.('change', updateHomeMusicOverlayPosition);
+
+function homeMusicEnabled() {
+  return appSession.mode === 'student' && Boolean(appSession.student) &&
+    loginReminderSettings.musicEnabled && loginReminderSelectedResolvedTracks(loginReminderSettings).length > 0;
+}
+function homeMusicVisible() {
+  return Boolean(document.body.classList.contains('student-home-active') &&
+    studentHomeScreen && !studentHomeScreen.classList.contains('hidden') && homeMusicEnabled());
+}
+function closeStudentHomeMusicPanel() {
+  studentHomeMusic.popoverOpen = false;
+  homeMusicElements.panel?.classList.add('hidden');
+  homeMusicElements.shade?.classList.add('hidden');
+  homeMusicElements.toggle?.setAttribute('aria-expanded','false');
+}
+function renderStudentHomeMusic() {
+  const el = homeMusicElements;
+  if (!el.toggle) return;
+  const allowed = homeMusicVisible();
+  el.toggle.classList.toggle('hidden', !allowed);
+  if (!allowed) { closeStudentHomeMusicPanel(); return; }
+  const active = loginReminderAudio;
+  const playing = !!active && !active.paused && !active.ended && !studentHomeMusic.off;
+  const paused = !!active && active.paused && !studentHomeMusic.off;
+  const disabled = studentHomeMusic.off;
+  const tracks = loginReminderPlayback.order.length ? loginReminderPlayback.order : loginReminderSelectedResolvedTracks(loginReminderSettings);
+  const index = Math.max(0, Math.min(tracks.length - 1, loginReminderPlayback.position || 0));
+  const current = tracks[index] || '';
+  el.toggle.dataset.playing = playing ? 'true' : 'false';
+  el.toggle.dataset.off = disabled ? 'true' : 'false';
+  const needsPlayGesture = !disabled && !playing && Boolean(loginReminderPlayback.blockedUrl);
+  el.toggle.dataset.needsPlay = needsPlayGesture ? 'true' : 'false';
+  el.toggle.setAttribute('aria-label', disabled ? 'Music is off. Open music controls' :
+    needsPlayGesture ? 'Music needs your permission. Open controls and press Play' :
+    playing ? 'Music playing. Open music controls' : 'Music paused. Open music controls');
+  const song = current ? loginReminderSongInfo(current,index,loginReminderSettings) : {title:'Student Playlist',artist:''};
+  if (el.title) { el.title.textContent = song.title; el.title.title = song.title; }
+  const playbackText = disabled ? 'Music is off' : playing ? `Playing · ${index+1}/${tracks.length}` :
+    loginReminderPlayback.blockedUrl ? 'Press Play to start music' :
+    paused || studentHomeMusic.userPaused || studentHomeMusic.routePaused ? `Paused · ${index+1}/${tracks.length}` :
+    `Ready · ${index+1}/${tracks.length}`;
+  const modeText = loginReminderSettings.musicMode === 'playlist' && loginReminderSettings.musicPlayback === 'shuffle' ? 'Shuffle · ' : '';
+  if (el.details) el.details.textContent = song.artist ? `${song.artist} · ${modeText}${playbackText}` : `${modeText}${playbackText}`;
+  if (el.play) {
+    el.play.textContent = playing ? '❚❚' : '▶';
+    el.play.title = playing ? 'Pause music' : 'Play music';
+    el.play.setAttribute('aria-label',playing ? 'Pause music' : 'Play music');
+    el.play.disabled = disabled;
+  }
+  for (const button of [el.prev,el.next]) {
+    if (button) button.disabled = disabled || tracks.length <= 1;
+  }
+  if (el.mute) {
+    el.mute.textContent = studentHomeMusic.muted || (active && active.muted) ? '🔇' : '🔊';
+    el.mute.setAttribute('aria-label', studentHomeMusic.muted ? 'Unmute music' : 'Mute music');
+    el.mute.title = studentHomeMusic.muted ? 'Unmute' : 'Mute';
+    el.mute.disabled = disabled;
+  }
+  if (el.volume) {
+    const volume = studentHomeMusic.volume ?? (loginReminderSettings.musicVolume / 100);
+    if (document.activeElement !== el.volume) el.volume.value = String(Math.round(volume * 100));
+    el.volume.disabled = disabled;
+    el.volume.style.setProperty('--home-music-volume', `${Math.round(volume*100)}%`);
+  }
+  if (el.off) {
+    el.off.textContent = disabled ? 'Turn On' : 'Music Off';
+    el.off.setAttribute('aria-label',disabled ? 'Turn music controls on' : 'Turn music off for this session');
+  }
+}
+async function playStudentHomeMusic() {
+  if (!homeMusicVisible() || studentHomeMusic.off) return;
+  studentHomeMusic.userPaused = false;
+  studentHomeMusic.routePaused = false;
+  studentHomeMusic.resumeOnReturn = false;
+  try {
+    if (loginReminderAudio && !loginReminderAudio.ended) {
+      loginReminderAudio.muted = studentHomeMusic.muted;
+      await loginReminderAudio.play();
+    } else if (loginReminderPlayback.blockedUrl) {
+      await playLoginReminderMusicManually();
+    } else {
+      await startLoginReminderMusic(loginReminderSettings, { sessionToken: loginReminderMusicSessionToken });
+    }
+  } catch (error) {
+    console.warn('Student music requires a manual playback gesture.', error);
+  }
+  renderStudentHomeMusic();
+}
+// Returning to Home from a remembered Firebase session does not show the
+// after-login modal. Start from saved progress on that route too.
+function ensureStudentHomeMusicPlayback() {
+  if (!homeMusicVisible() || loginReminderPendingAfterPasswordLogin ||
+      studentHomeMusic.handoffPending || studentHomeMusic.off || studentHomeMusic.userPaused ||
+      document.body.classList.contains('login-lacking-reminder-open') ||
+      loginReminderAudio || studentHomeMusic.startPromise) return;
+  const sessionToken = loginReminderMusicSessionToken;
+  const task = Promise.resolve().then(() => {
+    if (!isLoginReminderMusicSessionActive(sessionToken) ||
+        studentHomeMusic.off || studentHomeMusic.userPaused || loginReminderAudio) return false;
+    return startLoginReminderMusic(loginReminderSettings,{sessionToken});
+  }).catch(error => {
+    console.info('Browser requires a Play gesture for student music.',error);
+    return false;
+  }).finally(() => {
+    if (studentHomeMusic.startPromise === task) studentHomeMusic.startPromise = null;
+    renderStudentHomeMusic();
+  });
+  studentHomeMusic.startPromise = task;
+}
+function syncStudentHomeMusicRoute(options = {}) {
+  const inHome = homeMusicVisible();
+  if (inHome) {
+    if (!loginReminderPendingAfterPasswordLogin && !studentHomeMusic.handoffPending) restoreStudentHomeMusicState();
+    studentHomeMusic.handoffPending = false;
+    if (studentHomeMusic.routePaused) {
+      const shouldResume = studentHomeMusic.resumeOnReturn && !studentHomeMusic.userPaused && !studentHomeMusic.off;
+      studentHomeMusic.routePaused = false;
+      studentHomeMusic.resumeOnReturn = false;
+      if (shouldResume && loginReminderAudio) loginReminderAudio.play().catch(() => renderStudentHomeMusic());
+    }
+    ensureStudentHomeMusicPlayback();
+  } else if (!studentHomeMusic.handoffPending && loginReminderAudio &&
+             !document.body.classList.contains('login-lacking-reminder-open')) {
+    if (!studentHomeMusic.routePaused) {
+      studentHomeMusic.resumeOnReturn = !loginReminderAudio.paused && !studentHomeMusic.userPaused;
+      studentHomeMusic.routePaused = true;
+    }
+    try { loginReminderAudio.pause(); } catch (_) {}
+    closeStudentHomeMusicPanel();
+  }
+  renderStudentHomeMusic();
+}
+
+homeMusicElements.toggle?.addEventListener('click', () => {
+  if (!homeMusicVisible()) return;
+  studentHomeMusic.popoverOpen = !studentHomeMusic.popoverOpen;
+  homeMusicElements.panel?.classList.toggle('hidden', !studentHomeMusic.popoverOpen);
+  updateHomeMusicOverlayPosition();
+  homeMusicElements.toggle?.setAttribute('aria-expanded',String(studentHomeMusic.popoverOpen));
+  if (studentHomeMusic.popoverOpen) homeMusicElements.play?.focus({preventScroll:true});
+});
+homeMusicElements.shade?.addEventListener('click',closeStudentHomeMusicPanel);
+homeMusicElements.close?.addEventListener('click',() => {closeStudentHomeMusicPanel();homeMusicElements.toggle?.focus({preventScroll:true});});
+document.addEventListener('pointerdown', event => {
+  if (!studentHomeMusic.popoverOpen || homeMusicElements.panel?.contains(event.target) || homeMusicElements.toggle?.contains(event.target)) return;
+  closeStudentHomeMusicPanel();
+});
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape' && studentHomeMusic.popoverOpen) {
+    event.stopPropagation();
+    closeStudentHomeMusicPanel();
+    homeMusicElements.toggle?.focus({preventScroll:true});
+  }
+}, true);
+homeMusicElements.play?.addEventListener('click', () => {
+  if (loginReminderAudio && !loginReminderAudio.paused) {
+    studentHomeMusic.userPaused = true;
+    studentHomeMusic.resumeOnReturn = false;
+    loginReminderAudio.pause();
+    persistStudentHomeMusicState(true);
+    renderStudentHomeMusic();
+  } else playStudentHomeMusic();
+});
+homeMusicElements.prev?.addEventListener('click', () => {
+  if (!homeMusicVisible() || studentHomeMusic.off) return;
+  studentHomeMusic.userPaused = false;
+  advanceLoginReminderTrack(-1,loginReminderSettings,{sessionToken:loginReminderMusicSessionToken}).then(renderStudentHomeMusic);
+});
+homeMusicElements.next?.addEventListener('click', () => {
+  if (!homeMusicVisible() || studentHomeMusic.off) return;
+  studentHomeMusic.userPaused = false;
+  advanceLoginReminderTrack(1,loginReminderSettings,{sessionToken:loginReminderMusicSessionToken}).then(renderStudentHomeMusic);
+});
+homeMusicElements.mute?.addEventListener('click', () => {
+  studentHomeMusic.muted = !studentHomeMusic.muted;
+  if (loginReminderAudio) loginReminderAudio.muted = studentHomeMusic.muted;
+  persistStudentHomeMusicState(true);
+  renderStudentHomeMusic();
+});
+homeMusicElements.volume?.addEventListener('input', event => {
+  studentHomeMusic.volume = Math.max(0,Math.min(1,Number(event.target.value)/100));
+  if (loginReminderAudio) loginReminderAudio.volume = studentHomeMusic.volume;
+  persistStudentHomeMusicState(true);
+  renderStudentHomeMusic();
+});
+homeMusicElements.off?.addEventListener('click', () => {
+  if (studentHomeMusic.off) {
+    studentHomeMusic.off = false;
+    studentHomeMusic.userPaused = true; // Never auto-play after an explicit OFF.
+  } else {
+    studentHomeMusic.off = true;
+    studentHomeMusic.userPaused = true;
+    studentHomeMusic.resumeOnReturn = false;
+    persistStudentHomeMusicState(true);
+    stopLoginReminderMusic({invalidateSession:true});
+  }
+  persistStudentHomeMusicState(true);
+  renderStudentHomeMusic();
+});
+// Observe route changes made by existing app navigation (without replacing it).
+if (studentHomeScreen && typeof MutationObserver !== 'undefined') {
+  const routeObserver = new MutationObserver(() => syncStudentHomeMusicRoute());
+  routeObserver.observe(document.body,{attributes:true,attributeFilter:['class']});
+  routeObserver.observe(studentHomeScreen,{attributes:true,attributeFilter:['class']});
+}
+
+function closeLoginLackingReminder(options = {}) {
   loginReminderRecitationRequestToken += 1;
-  stopLoginReminderMusic({ invalidateSession: true });
+  const alreadyClosed = !loginLackingReminderOverlay || loginLackingReminderOverlay.classList.contains('hidden');
+  const handoff = options.continueToHome === true && appSession.mode === 'student' &&
+    Boolean(appSession.student) && loginLackingReminderOverlay?.dataset.preview !== 'true';
+  if (handoff) studentHomeMusic.handoffPending = true;
+  // Closing the modal into Home must NOT restart the song or replace the audio.
+  if (!handoff && !studentHomeMusic.handoffPending && !alreadyClosed && !homeMusicVisible()) {
+    stopLoginReminderMusic({ invalidateSession: true });
+  }
   loginLackingReminderOverlay?.classList.remove('is-visible');
   loginLackingReminderOverlay?.classList.add('hidden');
   document.body.classList.remove('login-lacking-reminder-open');
@@ -2279,17 +2783,19 @@ function closeLoginLackingReminder() {
 
 if (loginLackingReminderOverlay && typeof MutationObserver !== 'undefined') {
   new MutationObserver(() => {
-    if (loginLackingReminderOverlay.classList.contains('hidden') && loginReminderAudio) {
-      stopLoginReminderMusic({ invalidateSession: true });
+    if (loginLackingReminderOverlay.classList.contains('hidden') && loginReminderAudio &&
+        !studentHomeMusic.handoffPending && !homeMusicVisible()) {
+      syncStudentHomeMusicRoute();
     }
   }).observe(loginLackingReminderOverlay, { attributes: true, attributeFilter: ['class'] });
 }
-window.addEventListener('pagehide', () => stopLoginReminderMusic({ invalidateSession: true }));
+window.addEventListener('pagehide', () => { persistStudentHomeMusicState(true); studentHomeMusic.suppressPersistence = true; stopLoginReminderMusic({ invalidateSession: true }); });
 
 async function navigateFromLoginLackingReminder(destination = 'home') {
   const target = String(destination || 'home').toLowerCase();
   const isPreview = loginLackingReminderOverlay?.dataset.preview === 'true';
-  closeLoginLackingReminder();
+  const toHome = target === 'home' && !isPreview && appSession.mode === 'student' && !!appSession.student;
+  closeLoginLackingReminder({ continueToHome: toHome });
 
   // Admin's reminder preview is visual-only. Closing it must not switch the
   // admin into a student route.
@@ -2325,9 +2831,13 @@ async function navigateFromLoginLackingReminder(destination = 'home') {
     }
     // X, Escape and the primary action all land on Student Home.
     await showStudentHome({ suppressStatusReminder: true });
+    syncStudentHomeMusicRoute();
   } catch (error) {
     console.warn('Could not open the selected student destination.', error);
-    await showStudentHome({ suppressStatusReminder: true });
+    try { await showStudentHome({ suppressStatusReminder: true }); } finally {
+      studentHomeMusic.handoffPending = false;
+      syncStudentHomeMusicRoute();
+    }
   }
 }
 
@@ -5635,6 +6145,8 @@ function initFirebaseWithCompatSDK() {
       signInWithEmailAndPassword: (authInstance, email, password) => authInstance.signInWithEmailAndPassword(email, password),
       createUserWithEmailAndPassword: (authInstance, email, password) => authInstance.createUserWithEmailAndPassword(email, password),
       updatePassword: (user, password) => user.updatePassword(password),
+      reauthenticateWithCredential: (user, credential) => user.reauthenticateWithCredential(credential),
+      EmailAuthProvider: firebase.auth.EmailAuthProvider,
       deleteUser: user => (typeof user.delete === 'function' ? user.delete() : Promise.reject(new Error('Delete user is not available.'))),
       signOut: authInstance => authInstance.signOut()
     };
@@ -8636,6 +9148,7 @@ async function activateStudentSession(profile, { showDashboard = true, suppressS
   appSession.lastStudentProfile = { ...profile };
   appSession.existingStudentUser = getFirebaseActiveUser();
   persistLastStudentSession('student-activated');
+  if (resumeSession) restoreStudentHomeMusicState();
   updateAppHeaderForSession();
   startStudentPresenceHeartbeat();
   // v462: hydrate any Mini-Game XP that is durably pending in RTDB. This keeps
@@ -9266,6 +9779,14 @@ async function logoutStudent() {
     await appAlert('We could not sign you out. Please check your connection and try again.', { title: 'Logout not completed', icon: '🔒' });
     return;
   }
+  studentHomeMusic.suppressPersistence = true;
+  clearStudentHomeMusicStoredState();
+  studentHomeMusic.handoffPending = false;
+  studentHomeMusic.resumeOnReturn = false;
+  studentHomeMusic.userPaused = true;
+  studentHomeMusic.off = true;
+  closeStudentHomeMusicPanel();
+  stopLoginReminderMusic({invalidateSession:true});
   stopStudentPresenceHeartbeat();
   window.clearTimeout(dailyLeaderboardPublishTimer);
   dailyLeaderboardPublishTimer = null;
@@ -9403,6 +9924,7 @@ document.getElementById('guestHomeReturnEditor')?.addEventListener('click',hideG
 function hideStudentHome() {
   studentHomeScreen?.classList.add('hidden');
   document.body.classList.remove('student-home-active');
+  syncStudentHomeMusicRoute();
 }
 
 function renderStudentHome() {
@@ -9476,6 +9998,7 @@ function renderStudentHome() {
   const feedbackText = document.getElementById('dashboardFeedbackText')?.textContent || '';
   put('studentHomeFeedbackTitle', feedbackTitle === 'Teacher Feedback Available' ? feedbackTitle : 'Check your Code Inbox');
   put('studentHomeFeedbackText', feedbackText || 'Open Code Inbox to read messages and project feedback.');
+  renderStudentHomeMusic();
   const themeButton = document.getElementById('studentHomeThemeBtn');
   if (themeButton) themeButton.classList.toggle('hidden', Boolean(loginReminderSettings.applyThemeToEntireApp && !loginReminderSettings.allowStudentAppAppearanceChoice));
   studentHomeScreen.querySelectorAll('button[data-home-action="status"]').forEach(button => { button.disabled = !statusEnabled; button.title = statusEnabled ? '' : 'Subject Status is disabled by your teacher'; });
@@ -9514,6 +10037,7 @@ async function showStudentHome(options = {}) {
   document.body.classList.remove('student-auth-open','lesson-viewer-active','given-activities-active','wireframe-maker-active');
   document.body.classList.add('student-dashboard-active','student-home-active');
   studentHomeScreen?.classList.remove('hidden');
+  syncStudentHomeMusicRoute();
   studentHomeScreen?.scrollTo({ top: 0, behavior: 'auto' });
   renderStudentHome();
   try { window.renderCodeExplorerDashboardSummary?.(); } catch (_) {}
@@ -9532,6 +10056,165 @@ async function showStudentHome(options = {}) {
   if (options.suppressStatusReminder) closeLoginLackingReminder();
   else showLoginLackingReminderAfterLogin().catch(error => console.warn('Could not open student status reminder.', error));
 }
+
+// Student Home Account Settings — uses Firebase reauthentication for password
+// changes, so an unattended device cannot silently replace an account password.
+const shSettings = document.getElementById('studentAccountSettingsOverlay');
+const shSettingsForm = document.getElementById('shSettingsPasswordForm');
+let shSettingsPreviousFocus = null;
+let shSettingsWorking = false;
+function resetStudentAccountPasswordFields() {
+  shSettingsForm?.reset();
+  for (const id of ['shSettingsCurrentPassword','shSettingsNewPassword','shSettingsConfirmPassword']) {
+    const field = document.getElementById(id);
+    if (field) { field.type = 'password'; field.value = ''; }
+  }
+  const strengthLabel = document.getElementById('shSettingsStrength');
+  if (strengthLabel) strengthLabel.textContent = 'Choose at least 8 characters.';
+}
+function shSettingsNotice(message = '', type = 'error') {
+  const box = document.getElementById('shSettingsMessage');
+  if (!box) return;
+  box.textContent = message;
+  box.dataset.type = type;
+  box.classList.toggle('hidden', !message);
+}
+function closeStudentAccountSettings({ restoreFocus = true } = {}) {
+  if (!shSettings || shSettingsWorking) return;
+  shSettings.classList.add('hidden');
+  resetStudentAccountPasswordFields();
+  shSettingsForm?.classList.add('hidden');
+  document.getElementById('shSettingsChangeButton')?.setAttribute('aria-expanded', 'false');
+  document.getElementById('shSettingsSuccess')?.classList.add('hidden');
+  shSettingsNotice();
+  if (restoreFocus && shSettingsPreviousFocus?.isConnected && !shSettingsPreviousFocus.closest('.hidden')) {
+    shSettingsPreviousFocus.focus({ preventScroll: true });
+  }
+  shSettingsPreviousFocus = null;
+}
+function openStudentAccountSettings() {
+  const user = getFirebaseActiveUser();
+  if (!appSession.student || !user || isTeacherUser(user) || user.uid !== appSession.student.uid) {
+    appAlert('Please log in to access your account settings.', { title: 'Account Settings', icon: '🔒' });
+    return;
+  }
+  shSettingsPreviousFocus = document.activeElement;
+  const profile = appSession.student;
+  const put = (id, value) => { const node = document.getElementById(id); if (node) node.textContent = value; };
+  put('shSettingsStudentName', profile.name || 'Student');
+  put('shSettingsStudentId', profile.studentId || profile.studentIdNormalized || '—');
+  put('shSettingsSection', profile.section || 'Grade 8');
+  resetStudentAccountPasswordFields();
+  shSettingsForm?.classList.add('hidden');
+  document.getElementById('shSettingsChangeButton')?.setAttribute('aria-expanded', 'false');
+  document.getElementById('shSettingsSuccess')?.classList.add('hidden');
+  shSettingsNotice();
+  shSettings?.classList.remove('hidden');
+  document.getElementById('shSettingsClose')?.focus({ preventScroll: true });
+}
+function toggleStudentAccountPasswordForm(show) {
+  if (shSettingsWorking) return;
+  const isVisible = Boolean(show);
+  shSettingsForm?.classList.toggle('hidden', !isVisible);
+  document.getElementById('shSettingsChangeButton')?.setAttribute('aria-expanded', String(isVisible));
+  if (!isVisible) { resetStudentAccountPasswordFields(); shSettingsNotice(); }
+  else {
+    document.getElementById('shSettingsSuccess')?.classList.add('hidden');
+    document.getElementById('shSettingsCurrentPassword')?.focus({ preventScroll: true });
+  }
+}
+async function submitStudentAccountPasswordChange(event) {
+  event.preventDefault();
+  if (shSettingsWorking || shSettings?.classList.contains('hidden')) return;
+  const current = String(document.getElementById('shSettingsCurrentPassword')?.value || '');
+  const next = String(document.getElementById('shSettingsNewPassword')?.value || '');
+  const confirm = String(document.getElementById('shSettingsConfirmPassword')?.value || '');
+  shSettingsNotice();
+  if (!current) return shSettingsNotice('Enter your current password first.');
+  if (next.length < 8) return shSettingsNotice('Use at least 8 characters for the new password.');
+  if (next === DEFAULT_STUDENT_PASSWORD || next === current) return shSettingsNotice('Choose a different password from your current or default password.');
+  if (next !== confirm) return shSettingsNotice('The new passwords do not match.');
+  if (next.toLowerCase().includes(String(appSession.student?.studentId || '').toLowerCase()) && String(appSession.student?.studentId || '').length >= 4) return shSettingsNotice('Do not include your Student ID in your password.');
+  const user = getFirebaseActiveUser();
+  if (!user?.email || !appSession.student || user.uid !== appSession.student.uid || isTeacherUser(user)) {
+    return shSettingsNotice('Your sign-in session has changed. Log in again before updating your password.');
+  }
+  const authApi = firebaseSync.authModule;
+  if (!authApi?.updatePassword || !authApi?.reauthenticateWithCredential || !authApi?.EmailAuthProvider) {
+    return shSettingsNotice('Account security service is unavailable. Check your connection and try again.');
+  }
+  shSettingsWorking = true;
+  const saveButton = document.getElementById('shSettingsSavePassword');
+  if (saveButton) { saveButton.disabled = true; saveButton.textContent = 'Updating…'; }
+  try {
+    const credential = authApi.EmailAuthProvider.credential(user.email, current);
+    await authApi.reauthenticateWithCredential(user, credential);
+    if (getFirebaseActiveUser()?.uid !== user.uid || appSession.student?.uid !== user.uid) {
+      throw new Error('Your account changed during the update. Please log in again.');
+    }
+    await authApi.updatePassword(user, next);
+    // Password is stored only in Firebase Auth; never write passwords to
+    // Firestore, browser storage, logs, or the student profile.
+    try {
+      const { setDoc, serverTimestamp } = firebaseSync.modules;
+      await setDoc(getStudentDocRef(user.uid), {
+        mustChangePassword: false,
+        passwordChangedAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+    } catch (metadataError) {
+      console.warn('Password updated, but profile timestamp was not synced.', metadataError?.code || 'metadata-unavailable');
+    }
+    if (appSession.student?.uid === user.uid) appSession.student.mustChangePassword = false;
+    resetStudentAccountPasswordFields();
+    shSettingsForm?.classList.add('hidden');
+    document.getElementById('shSettingsChangeButton')?.setAttribute('aria-expanded','false');
+    document.getElementById('shSettingsSuccess')?.classList.remove('hidden');
+    document.getElementById('shSettingsChangeButton')?.focus({ preventScroll: true });
+  } catch (error) {
+    const code = String(error?.code || '');
+    const message = code.includes('wrong-password') || code.includes('invalid-credential') || code.includes('invalid-login-credentials')
+      ? 'Current password is incorrect. Please try again.'
+      : code.includes('too-many-requests') ? 'Too many attempts. Try again later.'
+      : code.includes('weak-password') ? 'Choose a stronger new password.'
+      : code.includes('network-request-failed') ? 'Network unavailable. Connect to the internet and try again.'
+      : code.includes('requires-recent-login') || code.includes('user-token-expired')
+      ? 'Your session expired. Log out and log back in before changing your password.'
+      : 'Password update failed. Please try again or contact your teacher.';
+    shSettingsNotice(message);
+  } finally {
+    // Do not retain the current password after any attempt.
+    const currentField = document.getElementById('shSettingsCurrentPassword');
+    if (currentField) currentField.value = '';
+    shSettingsWorking = false;
+    if (saveButton) { saveButton.disabled = false; saveButton.textContent = 'Update Password'; }
+  }
+}
+document.getElementById('shSettingsClose')?.addEventListener('click', () => closeStudentAccountSettings());
+document.getElementById('shSettingsChangeButton')?.addEventListener('click', () => toggleStudentAccountPasswordForm(shSettingsForm?.classList.contains('hidden')));
+document.getElementById('shSettingsCancelChange')?.addEventListener('click', () => toggleStudentAccountPasswordForm(false));
+document.getElementById('shSettingsLogout')?.addEventListener('click', () => { closeStudentAccountSettings(); logoutStudent(); });
+shSettingsForm?.addEventListener('submit', submitStudentAccountPasswordChange);
+document.getElementById('shSettingsShowPassword')?.addEventListener('change', event => {
+  for (const id of ['shSettingsCurrentPassword','shSettingsNewPassword','shSettingsConfirmPassword']) {
+    const field = document.getElementById(id); if (field) field.type = event.target.checked ? 'text' : 'password';
+  }
+});
+document.getElementById('shSettingsNewPassword')?.addEventListener('input', event => {
+  const value = event.target.value;
+  const label = document.getElementById('shSettingsStrength');
+  if (label) label.textContent = value.length < 8 ? 'At least 8 characters' : value.length < 12 ? 'Good start • 12+ recommended' : 'Length looks good';
+});
+shSettings?.addEventListener('click', event => { if (event.target === shSettings) closeStudentAccountSettings(); });
+shSettings?.addEventListener('keydown', event => {
+  if (event.key === 'Escape') { event.stopPropagation(); closeStudentAccountSettings(); return; }
+  if (event.key !== 'Tab') return;
+  const focusables = Array.from(shSettings.querySelectorAll('button:not([disabled]),input:not([disabled])')).filter(el => el.getClientRects().length && !el.closest('.hidden'));
+  if (!focusables.length) return;
+  const first = focusables[0], last = focusables[focusables.length - 1];
+  if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+  else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+});
 
 function handleStudentHomeAction(action) {
   switch (String(action || '').toLowerCase()) {
@@ -9556,6 +10239,7 @@ function handleStudentHomeAction(action) {
       if (typeof window.openCodeExplorer === 'function') window.openCodeExplorer().catch?.(() => {});
       else appAlert('Code Explorer is still loading. Please try again.', { title: 'Code Explorer', icon: '🚀' });
       break;
+    case 'account': openStudentAccountSettings(); break;
     case 'logout': logoutStudent(); break;
   }
 }
