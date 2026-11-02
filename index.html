@@ -4,6 +4,59 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>ICT 8 Connect | Learn, Code, Connect</title>
+  <!-- Installed PWA only: lightweight handwriting reveal AFTER the native OS splash. -->
+  <script>
+    (() => {
+      try {
+        const installed = window.matchMedia?.('(display-mode: standalone)')?.matches || navigator.standalone === true;
+        const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+        const studioReturn = sessionStorage.getItem('g8code.officialStudio.return.v1');
+        const alreadyShown = sessionStorage.getItem('g8code.pwa.handwriting.seen.v1');
+        if (installed && !reduced && !studioReturn && alreadyShown !== '1') {
+          document.documentElement.classList.add('g8code-pwa-writing-intro');
+          sessionStorage.setItem('g8code.pwa.handwriting.seen.v1', '1');
+        }
+      } catch (_) { /* Private storage must never stop normal login. */ }
+    })();
+  </script>
+  <style>
+    #g8codePwaWritingSplash { display: none; }
+    html.g8code-pwa-writing-intro #g8codePwaWritingSplash {
+      position: fixed; inset: 0; z-index: 2147483647;
+      display: flex; align-items: center; justify-content: center;
+      overflow: hidden; isolation: isolate;
+      background: #eff6ff; color: #214b8f;
+      pointer-events: auto;
+      animation: g8code-pwa-intro-exit .20s ease-out 1.03s both;
+    }
+    @media (prefers-color-scheme: dark) {
+      html.g8code-pwa-writing-intro #g8codePwaWritingSplash {
+        background: #0d1831; color: #b7d7ff;
+      }
+    }
+    #g8codePwaWritingSplash .g8code-writing-mark {
+      width: min(76vw, 325px); overflow: visible; height: auto;
+      filter: drop-shadow(0 4px 12px rgba(59,130,246,.13));
+    }
+    #g8codePwaWritingSplash .g8code-write-stroke {
+      fill: none; stroke: currentColor; stroke-width: 5.5;
+      stroke-linecap: round; stroke-linejoin: round;
+      stroke-dasharray: 100; stroke-dashoffset: 100;
+      animation: g8code-handwriting-draw .36s cubic-bezier(.20,.64,.32,1) var(--write-delay,0s) both;
+    }
+    #g8codePwaWritingSplash .g8code-write-underline {
+      fill: none; stroke: #60a5fa; stroke-width: 2.5;
+      stroke-linecap: round; stroke-dasharray: 100; stroke-dashoffset: 100;
+      animation: g8code-handwriting-draw .28s ease-out .78s both;
+    }
+    @keyframes g8code-handwriting-draw { to { stroke-dashoffset: 0; } }
+    @keyframes g8code-pwa-intro-exit { to { opacity: 0; visibility: hidden; } }
+    @media (prefers-reduced-motion: reduce) {
+      html.g8code-pwa-writing-intro #g8codePwaWritingSplash { animation-duration: .01ms; }
+      #g8codePwaWritingSplash .g8code-write-stroke,
+      #g8codePwaWritingSplash .g8code-write-underline { animation-duration: .01ms; }
+    }
+  </style>
   <!-- Hide the entry/login gate ONLY during a verified Studio-to-page return.
        If Firebase session validation fails, the original login screen returns. -->
   <script>
@@ -340,8 +393,77 @@
       #studentHomeScreen .sh-welcome { animation: none !important; }
     }
   </style>
+  <style>
+    /* V2.35: precisely center the THREE optional login navigation tiles. */
+    html body #entryGate .lg-actions-content .entry-choice-grid > button.login-shortcut-center {
+      display: flex !important;
+      flex-direction: column !important;
+      align-items: center !important;
+      justify-content: center !important;
+      text-align: center !important;
+      gap: 7px !important;
+    }
+    html body #entryGate .lg-actions-content .entry-choice-grid > button.login-shortcut-center .entry-choice-icon {
+      display: grid !important;
+      place-items: center !important;
+      margin: 0 auto !important;
+      flex: 0 0 auto !important;
+      text-align: center !important;
+    }
+    html body #entryGate .lg-actions-content .entry-choice-grid > button.login-shortcut-center > span:last-child {
+      display: flex !important;
+      width: 100% !important;
+      min-width: 0 !important;
+      align-items: center !important;
+      justify-content: center !important;
+      text-align: center !important;
+    }
+    html body #entryGate .lg-actions-content .entry-choice-grid > button.login-shortcut-center strong {
+      display: block !important;
+      width: 100% !important;
+      margin: 0 auto !important;
+      text-align: center !important;
+      white-space: normal !important;
+      overflow-wrap: break-word !important;
+    }
+    @media (max-width: 380px) {
+      html body #entryGate .lg-actions-content .entry-choice-grid > button.login-shortcut-center {
+        gap: 3px !important;
+        padding-inline: 4px !important;
+      }
+    }
+  </style>
 </head>
 <body class="entry-gate-active">
+  <div id="g8codePwaWritingSplash" aria-hidden="true">
+    <svg class="g8code-writing-mark" viewBox="0 0 404 126" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <g transform="translate(4,5)">
+        <!-- Paths are hand-drawn vectors: no font file, image, GIF, or network fetch. -->
+        <path class="g8code-write-stroke" style="--write-delay:0s" pathLength="100" d="M90 39 C72 24 44 26 28 44 C9 66 22 95 47 100 C70 106 86 89 93 72 L93 66 L71 68" />
+        <path class="g8code-write-stroke" style="--write-delay:.15s" pathLength="100" d="M132 62 C111 47 118 25 137 25 C163 25 158 49 139 63 C120 76 112 88 125 99 C142 113 164 100 161 85 C159 74 141 65 123 56" />
+        <path class="g8code-write-stroke" style="--write-delay:.30s" pathLength="100" d="M226 43 C210 31 188 38 178 55 C163 81 181 104 203 101 C214 100 222 95 226 90" />
+        <path class="g8code-write-stroke" style="--write-delay:.42s" pathLength="100" d="M259 64 C247 56 233 65 230 78 C226 94 242 101 255 90 C271 75 264 61 256 63" />
+        <path class="g8code-write-stroke" style="--write-delay:.54s" pathLength="100" d="M299 65 C286 56 274 64 270 78 C264 99 287 102 299 81 C304 72 309 39 312 27 C314 20 319 23 317 33 L309 91 C309 97 319 99 325 89" />
+        <path class="g8code-write-stroke" style="--write-delay:.66s" pathLength="100" d="M346 80 C373 67 368 57 353 62 C339 66 332 83 343 92 C351 99 366 94 376 86" />
+        <path class="g8code-write-underline" pathLength="100" d="M101 111 C180 121 266 112 348 113" />
+      </g>
+    </svg>
+  </div>
+  <script>
+    (() => {
+      const splash = document.getElementById('g8codePwaWritingSplash');
+      if (!document.documentElement.classList.contains('g8code-pwa-writing-intro')) {
+        splash?.remove();
+        return;
+      }
+      const done = () => {
+        document.documentElement.classList.remove('g8code-pwa-writing-intro');
+        splash?.remove();
+      };
+      // Hard time limit, even when normal app initialization is slow/offline.
+      window.setTimeout(done, 1240);
+    })();
+  </script>
   <noscript>
     <div class="noscript-notice">JavaScript is required to use ICT 8 Connect.</div>
   </noscript>
@@ -360,8 +482,8 @@
           <div class="entry-logo app-coded-eight" aria-hidden="true"><span class="logo-ict">ICT</span><span class="logo-eight">8</span><span class="logo-node node-a"></span><span class="logo-node node-b"></span><span class="logo-node node-c"></span></div>
           <div class="lg-brand-name"><strong>G8Code</strong><span>ICT 8 CONNECT</span></div>
         </div>
-        <p class="section-kicker ict8-brand-kicker"><span class="brand-cycle" aria-label="ICT 8 Connect. Learn, Code, Connect"><span class="brand-cycle-face brand-cycle-name">ICT 8 Connect</span><span class="brand-cycle-face brand-cycle-tagline">Learn, Code, Connect</span></span></p>
-        <h1 id="entryGateTitle">Your place to <span>learn, code &amp; grow.</span></h1>
+        <p class="section-kicker ict8-brand-kicker"><span class="brand-cycle" aria-label="ICT 8 Connect. Learn. Code. Connect."><span class="brand-cycle-face brand-cycle-name">ICT 8 Connect</span><span class="brand-cycle-face brand-cycle-tagline">Learn. Code. Connect.</span></span></p>
+        <h1 id="entryGateTitle">Your place to <span>learn, code &amp; connect.</span></h1>
         <p class="entry-lead">Welcome, Grade 8 MCSians! Continue your projects, explore lessons, and see your progress in one friendly space.</p>
         <div class="lg-subject-tags" aria-label="What you'll learn"><span><b>&lt;/&gt;</b> Web Development</span><span><b>⚡</b> Robotics</span><span><b>✦</b> Creativity</span></div>
         <p class="lg-brand-footer"><span class="lg-live-dot"></span> Your learning journey starts here.</p>
@@ -387,10 +509,10 @@
           </button>
           <div class="entry-choice-grid">
             <button id="openStudentLoginBtn" class="entry-choice primary-choice" type="button"><span class="entry-choice-icon" aria-hidden="true">→</span><span><strong>Log In as Student</strong><small>Student ID and password</small></span></button>
-            <button id="continueGuestBtn" class="entry-choice guest-choice" type="button"><span class="entry-choice-icon" aria-hidden="true">⌘</span><span><strong>Practice Without Login</strong></span></button>
+            <button id="continueGuestBtn" class="entry-choice login-shortcut-center guest-choice" type="button"><span class="entry-choice-icon" aria-hidden="true">⌘</span><span><strong>Practice Without Login</strong></span></button>
             <p id="g8codeStudioOpenError" hidden role="alert"></p>
-            <button id="entryRecitationStatusBtn" class="entry-choice recitation-choice" type="button"><span class="entry-choice-icon" aria-hidden="true">▤</span><span><strong>Recitation Status</strong></span></button>
-            <button id="entryLessonViewerBtn" class="entry-choice lessons-choice" type="button"><span class="entry-choice-icon" aria-hidden="true">▧</span><span><strong>View Lessons</strong></span></button>
+            <button id="entryRecitationStatusBtn" class="entry-choice login-shortcut-center recitation-choice" type="button"><span class="entry-choice-icon" aria-hidden="true">▤</span><span><strong>Recitation Status</strong></span></button>
+            <button id="entryLessonViewerBtn" class="entry-choice login-shortcut-center lessons-choice" type="button"><span class="entry-choice-icon" aria-hidden="true">▧</span><span><strong>View Lessons</strong></span></button>
           </div>
         </div>
         <p class="lg-session-note" id="entrySessionNote" aria-live="polite">New here? Sign in with your Student ID.</p>
@@ -1974,7 +2096,7 @@
       <div class="brand-block">
         <div class="logo-mark app-coded-eight" aria-hidden="true"><span class="logo-ict">ICT</span><span class="logo-eight">8</span><span class="logo-node node-a"></span><span class="logo-node node-b"></span><span class="logo-node node-c"></span></div>
         <div>
-          <p id="adminBtn" class="eyebrow hidden-admin-trigger ict8-brand-kicker" role="button" tabindex="0" aria-label="Teacher admin access"><span class="brand-cycle" aria-label="ICT 8 Connect. Learn, Code, Connect"><span class="brand-cycle-face brand-cycle-name">ICT 8 Connect</span><span class="brand-cycle-face brand-cycle-tagline">Learn, Code, Connect</span></span></p>
+          <p id="adminBtn" class="eyebrow hidden-admin-trigger ict8-brand-kicker" role="button" tabindex="0" aria-label="Teacher admin access"><span class="brand-cycle" aria-label="ICT 8 Connect. Learn. Code. Connect."><span class="brand-cycle-face brand-cycle-name">ICT 8 Connect</span><span class="brand-cycle-face brand-cycle-tagline">Learn. Code. Connect.</span></span></p>
           <h1 id="appTitleText">A tool for every Grade 8 MCSian.</h1>
           <p id="appSubtitleText" class="subtitle">Developed by Sir JR</p>
         </div>
